@@ -110,3 +110,95 @@ test('proposal workflow exposes summer tab, fast editor, live totals and combine
   await tracker.persist('proposal-workflow-completion');
   assertNoTransportErrors(tracker);
 });
+
+test('GEFEN multi-row course selection has one bounded update path', async ({ page, tracker }) => {
+  test.setTimeout(180_000);
+  tracker.resetScreen('proposal-gefen-multi-row-selection');
+  await page.setViewportSize({ width: 1500, height: 1100 });
+  await page.goto('/');
+  await waitForAppShell(page);
+  await navigateToScreen(page, 'proposals-agreements');
+  await waitForScreenReady(page, 'proposals-agreements');
+  await page.locator('[data-pa-client-all-proposals]:visible').first().click();
+  await page.locator('[data-pa-tab="new"]:visible').first().click();
+  const form = page.locator('[data-pa-form]:visible').first();
+  await expect(form).toBeVisible();
+  await form.locator('[data-pa-type-btn="gefen"]').click();
+
+  await page.evaluate(() => {
+    const editor = document.querySelector('[data-pa-form]');
+    const preview = editor?.querySelector('[data-pa-live-preview]');
+    window.__gefenSelectionProbe = { changes: 0, inputs: 0, previewMutations: 0 };
+    editor?.addEventListener('change', (event) => {
+      if (event.target.matches('[data-pa-pricing-select]')) window.__gefenSelectionProbe.changes += 1;
+    }, true);
+    editor?.addEventListener('input', (event) => {
+      if (event.target.closest('[data-pa-item-row]')) window.__gefenSelectionProbe.inputs += 1;
+    }, true);
+    if (preview) new MutationObserver((records) => {
+      window.__gefenSelectionProbe.previewMutations += records.length;
+    }).observe(preview, { childList: true, subtree: true, characterData: true });
+  });
+
+  const rows = form.locator('[data-pa-item-row]');
+  const add = form.locator('[data-pa-add-item]:visible').first();
+  if (await rows.count() === 0) await add.click();
+  const options = await rows.first().locator('[data-pa-pricing-select] option:not([value=""])').evaluateAll((all) => {
+    const priced = all.filter((option) => !option.value.startsWith('__') && /₪\s*[1-9]/.test(option.textContent || ''));
+    const biomimicry = priced.find((option) => /ביומימיקרי/.test(option.textContent || '') && /6089/.test(option.textContent || ''));
+    return [biomimicry, ...priced.filter((option) => option !== biomimicry)].filter(Boolean).map((option) => option.value);
+  });
+  expect(options.length).toBeGreaterThanOrEqual(3);
+
+  const assertEditor = async (expectedRows) => {
+    await expect(rows).toHaveCount(expectedRows);
+    const values = await rows.evaluateAll((items) => items.map((row) => ({
+      name: row.querySelector('[name="item_name"]')?.value || '',
+      quantity: Number(row.querySelector('[data-pa-item-qty]')?.value || 0),
+      price: Number(row.querySelector('[data-pa-item-price]')?.value || 0),
+      total: Number(row.querySelector('[data-pa-item-total]')?.value || 0)
+    })));
+    for (const value of values) {
+      expect(value.name).not.toBe('');
+      expect(value.price).toBeGreaterThan(0);
+      expect(value.total).toBe(value.quantity * value.price);
+      await expect(form.locator('[data-pa-live-preview]')).toContainText(value.name);
+    }
+    expect(amountOf(await form.locator('[data-pa-grand-total]').innerText()))
+      .toBe(values.reduce((sum, value) => sum + value.total, 0));
+  };
+  const selectTimed = async (row, value) => {
+    const started = Date.now();
+    await row.locator('[data-pa-pricing-select]').selectOption(value, { timeout: 10_000 });
+    const selectedName = (await row.locator('[data-pa-pricing-select] option:checked').innerText()).split('—')[0].trim();
+    await expect(row.locator('[name="item_name"]')).toHaveValue(selectedName);
+    expect(Date.now() - started).toBeLessThan(10_000);
+  };
+
+  await selectTimed(rows.nth(0), options[0]);
+  await assertEditor(1);
+  await add.click();
+  await selectTimed(rows.nth(1), options[1]);
+  await assertEditor(2);
+  await add.click();
+  await selectTimed(rows.nth(2), options[2]);
+  await assertEditor(3);
+  await selectTimed(rows.nth(1), options[2]);
+  await assertEditor(3);
+  page.on('dialog', (dialog) => dialog.accept());
+  await rows.nth(1).locator('[data-pa-remove-item]').click();
+  await assertEditor(2);
+  await add.click();
+  await selectTimed(rows.nth(2), options[1]);
+  await assertEditor(3);
+
+  const probe = await page.evaluate(() => window.__gefenSelectionProbe);
+  expect(probe.changes).toBe(5);
+  expect(probe.inputs).toBeLessThanOrEqual(5);
+  expect(probe.previewMutations).toBeLessThan(100);
+  expect(tracker.state.pageErrors).toEqual([]);
+  await screenshot(form, 'proposal-gefen-three-row-stable.png');
+  await form.locator('[data-pa-cancel-form]').first().click();
+  await tracker.persist('proposal-gefen-multi-row-selection');
+  assertNoTransportErrors(tracker);
+});
