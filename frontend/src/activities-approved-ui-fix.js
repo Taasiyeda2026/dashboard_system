@@ -21,17 +21,12 @@ function installStyles() {
       line-height: 1.35 !important;
     }
     #app .ds-table--activities-list .ds-chip--instructor-empty {
-      display: inline !important;
+      display: inline-flex !important;
       width: auto !important;
       min-width: 0 !important;
-      padding: 0 !important;
-      border: 0 !important;
-      border-radius: 0 !important;
-      background: transparent !important;
-      box-shadow: none !important;
       color: #475569 !important;
       font-weight: 700 !important;
-      white-space: normal !important;
+      white-space: nowrap !important;
     }
     #app .ds-table--activities-list .ds-contact-popover-btn {
       display: grid !important;

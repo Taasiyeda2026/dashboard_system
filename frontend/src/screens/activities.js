@@ -1805,12 +1805,14 @@ export const activitiesScreen = {
         const instructorMeta = activityInstructorMeta(row, { hideEmpIds, instructorByEmpId });
         const schedulingSummary = state?.instructorSchedulingSummaries?.[String(row.RowID || row.row_id || '')];
         const missingScheduling = [row.school ? '' : 'חסר בית ספר', (row.start_time && row.end_time) ? '' : 'חסרות שעות', (row.date_1 || row.start_date) ? '' : 'חסרים תאריכים'].filter(Boolean);
-        const unassignedSchedulingHtml = schedulingSummary
-          ? `<small class="ds-muted">${schedulingSummary.ready ? `מוכנה לשיבוץ · ${schedulingSummary.candidateCount} מועמדים${schedulingSummary.topName ? ` · ${escapeHtml(schedulingSummary.topName)}` : ''}` : `חסר מידע · ${escapeHtml(schedulingSummary.reason)}`}</small>`
-          : `<small class="ds-muted">${missingScheduling.length ? `חסר מידע · ${escapeHtml(missingScheduling.join(' · '))}` : 'מוכנה לחישוב מועמדים'}</small>`;
+        const unassignedSchedulingTitle = schedulingSummary
+          ? (schedulingSummary.ready
+            ? `מוכנה לשיבוץ · ${schedulingSummary.candidateCount} מועמדים${schedulingSummary.topName ? ` · ${schedulingSummary.topName}` : ''}`
+            : `חסר מידע · ${schedulingSummary.reason}`)
+          : (missingScheduling.length ? `חסר מידע · ${missingScheduling.join(' · ')}` : 'מוכנה לחישוב מועמדים');
         const instructorDisplay = instructorMeta.hasInstructor
           ? `<span class="ds-activities-instructor-name${instructorMeta.hasName ? '' : ' is-derived'}">${escapeHtml(instructorMeta.text)}</span>`
-          : `<span style="display:grid;gap:3px"><span class="ds-chip ds-chip--status ds-chip--warn ds-chip--instructor-empty">ללא מדריך</span>${unassignedSchedulingHtml}</span>`;
+          : `<span class="ds-chip ds-chip--status ds-chip--warn ds-chip--instructor-empty" title="${escapeHtml(unassignedSchedulingTitle)}">ללא מדריך</span>`;
         const activityTypeLabel = escapeHtml(visibleActivityCategoryLabel(row.activity_type));
         const rawActivityName = displayActivityName(row);
         const activityName = escapeHtml(rawActivityName);

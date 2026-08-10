@@ -2245,6 +2245,18 @@ async function render() {
                   source: 'login'
                 });
               }
+              // Preload activities JS bundle in idle time after first screen renders.
+              // No API calls — JS parse only; subsequent navigation to activities skips dynamic-import delay.
+              if (state.route !== 'activities' && effectiveRoutes().includes('activities')) {
+                const scheduleIdle = typeof requestIdleCallback === 'function'
+                  ? (cb) => requestIdleCallback(cb, { timeout: 4000 })
+                  : (cb) => setTimeout(cb, 2000);
+                scheduleIdle(() => {
+                  import('./feature-loaders.js')
+                    .then(({ preloadScreenModule }) => preloadScreenModule('activities'))
+                    .catch(() => {});
+                });
+              }
             }).catch((error) => {
               const message = error?.message || String(error);
               // eslint-disable-next-line no-console

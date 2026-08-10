@@ -9923,17 +9923,16 @@ select.ds-input {
   box-shadow: var(--ds-shadow-xs);
 }
 
-/* ===== פעילויות: גובה שורות קומפקטי — כותרות ~38px, שורות ~60-64px ===== */
+/* ===== פעילויות: גובה שורות קומפקטי — מקור יחיד (0,3,1) ===== */
 /* ספציפיות (0,3,1) — גוברת על (0,2,1) של .ds-activities-screen .ds-table td */
 .ds-activities-screen .ds-table--activities-list th {
-  padding-block: 11px;   /* 11×2 + ~14px טקסט + 2px border ≈ 38px */
+  padding-block: 6px;
   line-height: 1.2;
   vertical-align: middle;
 }
 
 .ds-activities-screen .ds-table--activities-list td {
-  padding-block: 8px;    /* 8×2 + תוכן 2-שורות ~41px ≈ 57-62px */
-  height: auto;          /* מבטל את ה-height: 30px מהכלל הפחות ספציפי */
+  padding-block: 9px;   /* 9×2 + ~14px טקסט ≈ 32px */
   vertical-align: middle;
   line-height: 1.15;
 }
