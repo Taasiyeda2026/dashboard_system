@@ -1,0 +1,74 @@
+.question select {
+  width: 118px;
+}
+
+.metric-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.activity-experience {
+  margin-top: 12px;
+  padding-top: 11px;
+  border-top: 1px solid var(--border);
+}
+
+.activity-experience > strong {
+  display: block;
+  font-size: 14px;
+}
+
+.activity-experience > small {
+  display: block;
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.activity-experience .chips {
+  margin: 8px 0 0;
+}
+
+.activity-free-note {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: stretch;
+  gap: 6px;
+  margin-top: 12px;
+  padding-top: 11px;
+}
+
+.activity-free-note textarea {
+  width: 100%;
+  min-height: 82px;
+  padding: 9px;
+  resize: vertical;
+  background: #fff;
+  border: 1px solid #bac7d4;
+  border-radius: 9px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+@media (max-width: 760px) {
+  .metric-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .question select {
+    width: 112px;
+  }
+}
+
+@media (max-width: 480px) {
+  .metric-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .question {
+    align-items: flex-start;
+  }
+
+  .answer-row {
+    min-width: 112px;
+  }
+}

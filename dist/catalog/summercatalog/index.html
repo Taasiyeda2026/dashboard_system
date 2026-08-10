@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>תעשיידע – מרכז תוכניות חינוכיות</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: "Assistant", Arial, sans-serif;
+  direction: rtl;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background:
+    radial-gradient(circle at 12% 10%, rgba(52,195,213,.18), transparent 34%),
+    radial-gradient(circle at 90% 8%,  rgba(107,72,230,.13), transparent 32%),
+    radial-gradient(circle at 50% 92%, rgba(42,138,80,.11),  transparent 30%),
+    linear-gradient(160deg, #f0f6fb 0%, #ffffff 50%, #f4f0fa 100%);
+}
+
+.card {
+  background: #ffffff;
+  border-radius: 28px;
+  box-shadow: 0 20px 60px rgba(23,32,51,0.11), 0 2px 8px rgba(23,32,51,0.06);
+  padding: 52px 60px 56px;
+  text-align: center;
+  max-width: 560px;
+  width: 100%;
+  margin: 24px;
+}
+
+.logo {
+  height: 60px;
+  width: auto;
+  margin-bottom: 18px;
+}
+
+.site-title {
+  font-size: 28px;
+  font-weight: 900;
+  color: #1A2F50;
+  margin: 0 0 6px;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+}
+
+.site-sub {
+  font-size: 15px;
+  font-weight: 600;
+  color: #6A7F96;
+  margin: 0 0 42px;
+}
+
+.btn-row {
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+}
+
+.btn-main {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  text-decoration: none;
+  border-radius: 16px;
+  padding: 18px 20px;
+  min-width: 130px;
+  transition: transform 0.15s, box-shadow 0.15s;
+  cursor: pointer;
+}
+.btn-main:hover {
+  transform: translateY(-3px);
+  background: #CBD5E1;
+  box-shadow: 0 6px 20px rgba(15,23,42,0.10);
+}
+
+.btn-courses,
+.btn-workshops,
+.btn-tour {
+  background: #F1F5F9;
+  color: #1E293B;
+  box-shadow: 0 2px 8px rgba(15,23,42,0.08);
+  border: 1px solid #E2E8F0;
+}
+
+.btn-icon {
+  font-size: 26px;
+  line-height: 1;
+}
+.btn-label {
+  font-size: 16px;
+  font-weight: 900;
+  letter-spacing: 0.01em;
+}
+.btn-desc {
+  font-size: 11px;
+  font-weight: 600;
+  opacity: 0.82;
+}
+</style>
+</head>
+<body>
+<div class="card">
+  <img class="logo" src="logo.png" alt="תעשיידע">
+  <h1 class="site-title">תעשיידע</h1>
+  <p class="site-sub">תעשייה למען חינוך מתקדם</p>
+  <div class="btn-row">
+    <a class="btn-main btn-courses" href="workshops.html?catalog=courses">
+      <span class="btn-icon">📚</span>
+      <span class="btn-label">קורסים</span>
+      <span class="btn-desc">תוכניות חינוכיות</span>
+    </a>
+    <a class="btn-main btn-workshops" href="workshops.html?catalog=workshops">
+      <span class="btn-icon">⚙️</span>
+      <span class="btn-label">סדנאות</span>
+      <span class="btn-desc">STEM ומייקרים</span>
+    </a>
+    <a class="btn-main btn-tour" href="tour.html">
+      <span class="btn-icon">🏭</span>
+      <span class="btn-label">סיור</span>
+      <span class="btn-desc">התנסות בתעשייה</span>
+    </a>
+  </div>
+</div>
+
+<script>
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("../../../sw.js", { updateViaCache: "none" }).then(registration => registration.update());
+    });
+  }
+</script>
+</body>
+</html>

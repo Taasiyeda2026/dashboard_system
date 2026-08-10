@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="refresh" content="0;url=./?route=catalog" />
+  <title>קטלוג תוכניות — מעבר למערכת</title>
+  <style>
+    body { margin: 0; font-family: Arial, sans-serif; background: #f6f5f8; color: #2e2a33; direction: rtl; }
+    .wrap { max-width: 520px; margin: 12vh auto; padding: 24px; text-align: center; background: #fff; border: 1px solid #ddd4e7; border-radius: 12px; }
+    a { color: #5e3f80; font-weight: 700; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>קטלוג התוכניות במערכת</h1>
+    <p>הקטלוג נטען דרך המערכת הראשית. מעבירים אותך לעמוד הקטלוג…</p>
+    <p><a id="catalog-link" href="./?route=catalog">לחצו כאן אם לא הועברתם אוטומטית</a></p>
+  </div>
+  <script>
+    (function redirectToCatalogRoute() {
+      const target = new URL('./?route=catalog', window.location.href);
+      try { sessionStorage.setItem('dashboard_pending_route', 'catalog'); } catch (_) { /* ignore */ }
+      const link = document.getElementById('catalog-link');
+      if (link) link.href = target.href;
+      window.location.replace(target.href);
+    })();
+  </script>
+</body>
+</html>

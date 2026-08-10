@@ -1,0 +1,76 @@
+/* Compact overview: completed sections are immediately visible while all cards stay closed by default. */
+.feedback-group > summary b,
+.activity summary b {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-width: 44px;
+  min-height: 25px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease, box-shadow 160ms ease;
+}
+
+.feedback-group > summary b.is-complete,
+.activity summary b.is-complete {
+  background: #237a4b;
+  border-color: #237a4b;
+  color: #ffffff;
+  box-shadow: 0 0 0 3px rgba(35, 122, 75, 0.12);
+}
+
+.feedback-group > summary b.is-complete::before,
+.activity summary b.is-complete::before {
+  content: "✓";
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+/* Keep the bottom actions compact instead of stretching across the questionnaire. */
+.submit-bar {
+  width: max-content;
+  max-width: calc(100% - 12px);
+  margin-inline-start: auto;
+  margin-inline-end: 0;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.submit-bar .button {
+  flex: 0 0 auto;
+}
+
+@media (max-width: 820px) {
+  .submit-bar {
+    width: fit-content;
+    max-width: calc(100vw - 20px);
+    margin-inline-start: auto;
+    margin-inline-end: 0;
+    padding: 6px;
+    justify-content: flex-end;
+  }
+
+  .submit-bar > span {
+    width: auto;
+    max-width: 220px;
+  }
+
+  .submit-bar .button {
+    flex: 0 0 auto;
+    min-height: 40px;
+  }
+}
+
+@media (max-width: 560px) {
+  .submit-bar {
+    gap: 6px;
+  }
+
+  .submit-bar .button {
+    flex-basis: auto;
+    padding-inline: 9px;
+    font-size: 12px;
+  }
+}

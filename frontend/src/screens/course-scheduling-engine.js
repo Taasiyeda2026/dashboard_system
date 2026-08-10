@@ -299,9 +299,12 @@ function evaluateCandidate({
 
   const persistedPeriodMeetings = meetingAssignments(persistedRows, { periodKey });
   const plannerPeriodMeetings = meetingAssignments([...persistedRows, ...internalPlanningRows], { periodKey });
-  // Hard-gate travel/neighbors use persisted meetings only.
+  // Persisted-meetings travel is kept for UI display and soft scoring continuity.
   const travel = dynamicTravel(periodCourse, instructor, persistedPeriodMeetings, input);
-  // Soft continuity scoring may see planning recommendations via a separate travel view.
+  // Hard-gate overlap/travel checks include planning-draft meetings so that earlier
+  // simulation recommendations are treated as committed when evaluating later courses.
+  // This prevents the district planner from producing a set of recommendations that
+  // look individually valid but conflict with each other.
   const plannerTravel = dynamicTravel(periodCourse, instructor, plannerPeriodMeetings, input);
   const gate = evaluateInstructor({
     instructor,
@@ -309,8 +312,8 @@ function evaluateCandidate({
     rules: rules[empId] || [],
     exceptions: exceptions[empId] || [],
     activity: periodCourse,
-    existingActivities: persistedPeriodMeetings,
-    travel,
+    existingActivities: plannerPeriodMeetings,
+    travel: plannerTravel,
     validateTravel: !input.preliminary && (input.travel !== undefined || input.routeMatrix !== undefined)
   });
   if (adjustment && !adjustment.valid) {
