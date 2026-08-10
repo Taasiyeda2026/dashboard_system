@@ -6,6 +6,23 @@ const addDays = (value, days) => { const date = new Date(`${text(value)}T12:00:0
 const weekday = (value) => new Date(`${text(value)}T12:00:00Z`).getUTCDay();
 const overlaps = (a, b) => minutes(a.start_time) < minutes(b.end_time) && minutes(b.start_time) < minutes(a.end_time);
 
+/**
+ * Returns the effective end_time for a meeting on `date`, capped by the earliest
+ * enforce_end_time school-calendar event covering that date (shortened school day).
+ * Returns `originalEndTime` unchanged when no cap applies.
+ */
+function effectiveEndTime(date, originalEndTime, schoolCalendar) {
+  let cap = null;
+  for (const row of schoolCalendar) {
+    if (!row.enforce_end_time || !row.school_day_end_time || row.is_active === false) continue;
+    const start = String(row.start_date || '').slice(0, 10);
+    const end = String(row.end_date || row.start_date || '').slice(0, 10);
+    if (!start || date < start || date > end) continue;
+    if (cap === null || row.school_day_end_time < cap) cap = row.school_day_end_time;
+  }
+  return (cap && cap < String(originalEndTime || '')) ? cap : originalEndTime;
+}
+
 export function blockedSchoolDates(rows = []) {
   const dates = new Set();
   for (const row of rows) {
@@ -26,7 +43,13 @@ function weeklyAllows(meeting, rules) {
 export function proposeDateAdjustments({ meetings = [], rules = [], exceptions = [], schoolCalendar = [], existingActivities = [], transitions = {}, halfEnd = '' } = {}) {
   const exceptionMap = new Map(exceptions.map((row) => [text(row.exception_date), row]));
   const blockedDates = blockedSchoolDates(schoolCalendar);
-  const ordered = meetings.map((meeting) => ({ ...meeting, date: text(meeting.date) }));
+  // Apply enforce_end_time caps from the school calendar to every meeting's end_time
+  // so that availability, overlap, and travel checks all use the effective shortened time.
+  const ordered = meetings.map((meeting) => {
+    const date = text(meeting.date);
+    return { ...meeting, date, end_time: effectiveEndTime(date, meeting.end_time, schoolCalendar) };
+  });
+  const hasEndTimeCap = ordered.some((m, i) => m.end_time !== String(meetings[i]?.end_time || ''));
   const firstBlocked = ordered.findIndex((meeting) => {
     const exception = exceptionMap.get(meeting.date);
     if (!exception || !weeklyAllows(meeting, rules)) return false;
@@ -35,7 +58,43 @@ export function proposeDateAdjustments({ meetings = [], rules = [], exceptions =
       || minutes(meeting.start_time) < minutes(exception.start_time)
       || minutes(meeting.end_time) > minutes(exception.end_time);
   });
-  if (firstBlocked < 0) return null;
+  if (firstBlocked < 0 && !hasEndTimeCap) return null;
+
+  // Shared validation: check proposed meetings against existing activities and transitions.
+  const validateProposed = (proposed) => {
+    for (const meeting of proposed) {
+      const sameDay = existingActivities.filter((row) => text(row.date) === meeting.date);
+      if (sameDay.some((row) => overlaps(meeting, row))) return { valid: false, reason: 'proposed_overlap', meetings: proposed };
+      const transition = transitions[meeting.date] || {};
+      for (const [direction, neighbor] of [['previous', transition.previous], ['next', transition.next]]) {
+        if (!neighbor) continue;
+        if (neighbor.duration_minutes == null) return { valid: false, reason: 'transition_unverified', meetings: proposed };
+        const gap = direction === 'previous' ? minutes(meeting.start_time) - minutes(neighbor.end_time) : minutes(neighbor.start_time) - minutes(meeting.end_time);
+        // Route durations are raw travel times. TRANSITION_BUFFER_MINUTES is the sole safety-buffer source.
+        if (gap < Number(neighbor.duration_minutes) + TRANSITION_BUFFER_MINUTES) return { valid: false, reason: 'transition_insufficient', meetings: proposed };
+      }
+    }
+    return null;
+  };
+
+  // When only enforce_end_time caps apply (no date needs moving), return a capped result
+  // without triggering the date-shift loop.
+  if (firstBlocked < 0) {
+    const proposed = ordered.map((m) => ({ ...m, original_date: m.date, moved: false }));
+    const err = validateProposed(proposed);
+    if (err) return err;
+    const newEndDate = proposed.at(-1)?.date || '';
+    return {
+      valid: true,
+      kind: 'enforce_end_time',
+      label: 'מתאים בכפוף לשעת סיום יום הלימודים',
+      reason: 'שעת הסיום מוגבלת לפי לוח השנה הבית-ספרי',
+      meetings: proposed,
+      movedCount: 0,
+      newEndDate,
+      exceedsHalf: !!halfEnd && newEndDate > halfEnd
+    };
+  }
 
   const proposed = [];
   let previousDate = '';
@@ -46,29 +105,22 @@ export function proposeDateAdjustments({ meetings = [], rules = [], exceptions =
     if (previousDate && candidate <= previousDate) candidate = addDays(previousDate, 7);
     let guard = 0;
     while (guard++ < 5200) {
-      const row = { ...original, date: candidate };
+      // Also apply enforce_end_time cap to the candidate date when searching for a new slot.
+      const candidateEndTime = effectiveEndTime(candidate, original.end_time, schoolCalendar);
+      const row = { ...original, date: candidate, end_time: candidateEndTime };
       const exception = exceptionMap.get(candidate);
       if (weekday(candidate) !== 6 && !blockedDates.has(candidate) && weeklyAllows(row, rules)
         && !(exception && (!exception.available || minutes(row.start_time) < minutes(exception.start_time) || minutes(row.end_time) > minutes(exception.end_time)))) break;
       candidate = addDays(candidate, 7);
     }
     if (guard >= 5200) return { valid: false, reason: 'adjustment_search_exhausted', meetings: [] };
-    proposed.push({ ...original, original_date: original.date, date: candidate, moved: candidate !== original.date });
+    const candidateEndTime = effectiveEndTime(candidate, original.end_time, schoolCalendar);
+    proposed.push({ ...original, original_date: original.date, date: candidate, end_time: candidateEndTime, moved: candidate !== original.date });
     previousDate = candidate;
   }
 
-  for (const meeting of proposed) {
-    const sameDay = existingActivities.filter((row) => text(row.date) === meeting.date);
-    if (sameDay.some((row) => overlaps(meeting, row))) return { valid: false, reason: 'proposed_overlap', meetings: proposed };
-    const transition = transitions[meeting.date] || {};
-    for (const [direction, neighbor] of [['previous', transition.previous], ['next', transition.next]]) {
-      if (!neighbor) continue;
-      if (neighbor.duration_minutes == null) return { valid: false, reason: 'transition_unverified', meetings: proposed };
-      const gap = direction === 'previous' ? minutes(meeting.start_time) - minutes(neighbor.end_time) : minutes(neighbor.start_time) - minutes(meeting.end_time);
-      // Route durations are raw travel times. TRANSITION_BUFFER_MINUTES is the sole safety-buffer source.
-      if (gap < Number(neighbor.duration_minutes) + TRANSITION_BUFFER_MINUTES) return { valid: false, reason: 'transition_insufficient', meetings: proposed };
-    }
-  }
+  const err = validateProposed(proposed);
+  if (err) return err;
   const newEndDate = proposed.at(-1)?.date || '';
   return {
     valid: true,

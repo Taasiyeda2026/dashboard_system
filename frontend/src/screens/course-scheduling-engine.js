@@ -299,18 +299,24 @@ function evaluateCandidate({
 
   const persistedPeriodMeetings = meetingAssignments(persistedRows, { periodKey });
   const plannerPeriodMeetings = meetingAssignments([...persistedRows, ...internalPlanningRows], { periodKey });
-  // Hard-gate travel/neighbors use persisted meetings only.
+  // Hard-gate must inspect every active meeting of the course, not only those inside
+  // the selected half-year window.  The period filter is for display/planning only.
+  // allMeetingsCourse: when a date adjustment is valid its meetings already span the
+  // full adjusted schedule; otherwise fall back to all non-cancelled course meetings.
+  const plannerAllMeetings = meetingAssignments([...persistedRows, ...internalPlanningRows], { periodKey, allDates: true });
+  const allMeetingsCourse = adjustment?.valid ? periodCourse : { ...course, meetings: allMeetings };
+  const gateTravel = dynamicTravel(allMeetingsCourse, instructor, plannerAllMeetings, input);
+  // Persisted-period travel is kept for UI display.  Planner-period travel feeds soft scoring.
   const travel = dynamicTravel(periodCourse, instructor, persistedPeriodMeetings, input);
-  // Soft continuity scoring may see planning recommendations via a separate travel view.
   const plannerTravel = dynamicTravel(periodCourse, instructor, plannerPeriodMeetings, input);
   const gate = evaluateInstructor({
     instructor,
     profile: profiles[empId],
     rules: rules[empId] || [],
     exceptions: exceptions[empId] || [],
-    activity: periodCourse,
-    existingActivities: persistedPeriodMeetings,
-    travel,
+    activity: allMeetingsCourse,
+    existingActivities: plannerAllMeetings,
+    travel: gateTravel,
     validateTravel: !input.preliminary && (input.travel !== undefined || input.routeMatrix !== undefined)
   });
   if (adjustment && !adjustment.valid) {

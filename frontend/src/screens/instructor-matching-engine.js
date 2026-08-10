@@ -58,6 +58,18 @@ const minutes = (value) => {
 };
 const same = (a, b) => String(a || '').trim() === String(b || '').trim();
 
+/**
+ * True when two activity rows are confirmed to be at the same school.
+ * Requires a non-empty school_id on both rows; school_id is the sole identifier.
+ * When either school_id is absent the location cannot be confirmed as the same —
+ * returns false (treat as different / unknown location, requiring travel verification).
+ */
+function sameSchoolLocation(a, b) {
+  const idA = normId(a?.school_id);
+  const idB = normId(b?.school_id);
+  return !!(idA && idB && idA === idB);
+}
+
 function normText(value) {
   return String(value ?? '').trim().replace(/\s+/g, ' ').toLocaleLowerCase('he-IL');
 }
@@ -67,6 +79,12 @@ function normId(value) {
 }
 
 function meetingRows(activity) {
+  // Exclude cancelled meetings so they do not cause spurious overlap failures.
+  const cancelledSet = new Set(
+    Array.isArray(activity.cancelled_meeting_dates)
+      ? activity.cancelled_meeting_dates.map((d) => String(d).slice(0, 10))
+      : []
+  );
   const dates = Array.isArray(activity.meetings)
     ? activity.meetings
     : Array.from({ length: 35 }, (_, index) => activity[`date_${index + 1}`])
@@ -76,7 +94,7 @@ function meetingRows(activity) {
     .map((value) => typeof value === 'string'
       ? { date: value, start_time: activity.start_time, end_time: activity.end_time }
       : value)
-    .filter((value) => value.date);
+    .filter((value) => value.date && !cancelledSet.has(String(value.date).slice(0, 10)));
 }
 
 function overlaps(a, b) {
@@ -256,7 +274,7 @@ export function evaluateInstructor({
       const required = leg?.duration_minutes;
       const label = direction === 'previous' ? 'מהפעילות הקודמת' : 'לפעילות הבאה';
       const neighborRef = formatPersistedActivityReference(neighbor, neighbor.date || meeting.date);
-      const sameLocation = same(neighbor.school, activity.school);
+      const sameLocation = sameSchoolLocation(neighbor, activity);
       if (required == null && !sameLocation) {
         const message = neighborRef
           ? (direction === 'previous'
@@ -276,7 +294,7 @@ export function evaluateInstructor({
       }
       // A given neighbor relationship counts once: same-school continuity takes priority
       // over same-authority continuity so the two point buckets never double-score it.
-      if (same(neighbor.school, activity.school)) {
+      if (sameSchoolLocation(neighbor, activity)) {
         sameSchool += 1;
         schoolContinuityPoints += gap <= 30 ? 10 : gap <= 90 ? 7 : 4;
       } else if (same(neighbor.authority, activity.authority)) {
@@ -292,16 +310,6 @@ export function evaluateInstructor({
       inspect(previous, transition.previous, 'previous');
       inspect(next, transition.next, 'next');
     }
-
-    const ordered = [...day, meeting].sort((a, b) => minutes(a.start_time) - minutes(b.start_time));
-    let continuous = 1;
-    let max = 1;
-    for (let index = 1; index < ordered.length; index += 1) {
-      continuous = minutes(ordered[index].start_time) - minutes(ordered[index - 1].end_time) <= 30 ? continuous + 1 : 1;
-      max = Math.max(max, continuous);
-    }
-    const duration = minutes(meeting.end_time) - minutes(meeting.start_time);
-    if ((duration >= 80 && max > 3) || (duration < 80 && max > 5)) failures.push(`הרצף היומי חורג מהמותר בתאריך ${meeting.date}`);
 
     schedule.push({
       date: meeting.date,
