@@ -172,8 +172,9 @@ test('bug2: different school_id is a different school even with identical displa
   );
 });
 
-test('bug2: missing school_id on either side falls back to name comparison', () => {
-  // When school_id is absent, display-name equality is the fallback.
+test('bug2: missing school_id on either side → location unconfirmed → travel verification required', () => {
+  // When either school_id is absent we cannot confirm same school.
+  // sameSchoolLocation returns false → unverified_transition warning is expected.
   const target = activity({
     school: 'בית ספר שיתוף', school_id: '',
     meetings: [{ date: '2026-09-06', start_time: '12:00', end_time: '13:00' }]
@@ -188,12 +189,12 @@ test('bug2: missing school_id on either side falls back to name comparison', () 
     activity: target,
     existingActivities: [neighborSameName],
     travel: null,
-    validateTravel: false
+    validateTravel: true
   });
-  // Fallback: same name → same school → no travel warning.
+  // Without a confirmed school_id match, travel cannot be verified.
   assert.ok(
-    !result.issues.some((i) => i.kind === 'unverified_transition'),
-    'when school_id is absent, same display name must still be treated as same school'
+    result.issues.some((i) => i.kind === 'unverified_transition'),
+    'missing school_id must not be treated as same-school: unverified_transition expected'
   );
 });
 
@@ -290,6 +291,91 @@ test('bug3: cancelled meeting in target activity does not cause self-overlap', (
     'cancelled date on the target activity must be skipped (no overlap on that date)'
   );
   assert.equal(result.eligible, true);
+});
+
+// ─── Period filter must not limit hard-gate meetings ─────────────────────────
+
+test('period filter: course meeting outside the current half is still checked by the hard-gate', () => {
+  // Course spans two halves. Instructor is available in H1 (first) but not on the H2 date.
+  // Even when the engine runs with periodKey='first', the H2 meeting must still be evaluated
+  // for availability — the half filter is for display only, not for eligibility gating.
+  const h1Date = '2026-09-06'; // Sunday — in first half (school_2027 H1: Sep–Jan)
+  const h2Date = '2027-02-07'; // Sunday — in second half (school_2027 H2: Feb–Jun)
+
+  const multiHalfActivity = activity({
+    meetings: [
+      { date: h1Date, start_time: '10:00', end_time: '11:00' },
+      { date: h2Date, start_time: '10:00', end_time: '11:00' }
+    ]
+  });
+
+  // Instructor is available on Sundays in H1 but has NO availability rule covering the
+  // H2 date (weekday 0 same, but explicitly blocked via exception on h2Date).
+  const resultFirstPeriod = evaluateInstructor({
+    instructor, profile,
+    rules: allWeek,
+    exceptions: [{ exception_date: h2Date, available: false }],
+    activity: multiHalfActivity,
+    existingActivities: [],
+    validateTravel: false
+  });
+  // The H2 meeting is blocked → instructor must be ineligible even in first-half view.
+  assert.equal(
+    resultFirstPeriod.eligible, false,
+    'instructor blocked on H2 meeting date must be ineligible regardless of active period filter'
+  );
+});
+
+test('period filter: calculateCourseSchedule checks all course meetings, not just period slice', () => {
+  // Course: one H1 meeting on Sunday (weekday 0) + one H2 meeting on Monday (weekday 1).
+  // Instructor: has availability only for Sundays — no rule for Monday.
+  // When running with periodKey='first', the old code would only check the H1 Sunday
+  // meeting and report eligible. With the fix, the H2 Monday meeting is also checked
+  // and missing_availability makes the instructor ineligible.
+  //
+  // A date-only exception is deliberately NOT used here: exceptions trigger the date-adjustment
+  // path which moves the blocked meeting, which would make the instructor appear eligible again
+  // on the new date. Missing weekly rules (structural unavailability) are a clean signal.
+  //
+  // 2026-09-06 = Sunday (weekday 0) — in first half  (2026-09-01 … 2027-01-29)
+  // 2027-02-01 = Monday (weekday 1) — in second half (2027-01-31 … 2027-06-30)
+  const multiHalfCourse = {
+    row_id: 'multi-half',
+    activity_name: 'קורס מחצית כפולה',
+    activity_no: 'MH',
+    activity_type: 'קורס',
+    activity_season: 'school_2027',
+    status: 'פתוח',
+    school: 'בית ספר מבחן',
+    school_id: 500,       // numeric — required by isSchedulingReadyActivity
+    school_address: 'כתובת 1, תל אביב',
+    authority: 'תל אביב',
+    district: 'תל אביב',
+    instruction_language: 'he',
+    required_instructor_gender: 'female',
+    start_time: '10:00',
+    end_time: '11:00',
+    meetings: [
+      { date: '2026-09-06', start_time: '10:00', end_time: '11:00' }, // H1 Sunday
+      { date: '2027-02-01', start_time: '10:00', end_time: '11:00' }  // H2 Monday
+    ]
+  };
+  const sundayOnlyRules = [{ weekday: 0, available: true, start_time: '07:00', end_time: '18:00' }];
+  const results = calculateCourseSchedule({
+    activities: [multiHalfCourse],
+    instructors: [instructor],
+    profiles: { 1: profile },
+    rules: { 1: sundayOnlyRules },
+    exceptions: {},
+    assignments: {},
+    periodKey: 'first'
+  });
+  const candidate = results[0]?.checked?.[0];
+  assert.ok(candidate, 'should have at least one checked candidate');
+  assert.equal(
+    candidate.eligible, false,
+    'instructor with no Monday availability must be ineligible even when engine runs in first-half mode'
+  );
 });
 
 // ─── Bug 4: District simulation hard-gate uses planningDraft ─────────────────

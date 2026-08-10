@@ -59,17 +59,15 @@ const minutes = (value) => {
 const same = (a, b) => String(a || '').trim() === String(b || '').trim();
 
 /**
- * True when two activity rows are at the same school.
- * Uses school_id as the canonical identifier when both rows have one —
- * a different school_id means a different school even with an identical name,
- * and the same school_id means the same school even with slightly different names.
- * Falls back to name comparison only when either row lacks a school_id.
+ * True when two activity rows are confirmed to be at the same school.
+ * Requires a non-empty school_id on both rows; school_id is the sole identifier.
+ * When either school_id is absent the location cannot be confirmed as the same —
+ * returns false (treat as different / unknown location, requiring travel verification).
  */
 function sameSchoolLocation(a, b) {
   const idA = normId(a?.school_id);
   const idB = normId(b?.school_id);
-  if (idA && idB) return idA === idB;
-  return same(a?.school, b?.school);
+  return !!(idA && idB && idA === idB);
 }
 
 function normText(value) {
