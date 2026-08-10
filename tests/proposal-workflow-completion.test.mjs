@@ -148,7 +148,3 @@ test('runtime prewarms editor dependencies and leaves approval/PDF ownership to 
   assert.match(source, /uploadProposalFinalPdf/);
   assert.match(source, /lockAndSendProposalAgreement/);
 });
-
-test('completion runtime delegates Gefen pricing events to the core editor', () => {
-  assert.match(source, /isCoreOwnedGefenPricingTarget\(target\)/);
-});

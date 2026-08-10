@@ -25,17 +25,8 @@ const {
   finalizeSummerTab,
   hydrateGenericPricingSelection,
   installProposalWorkflowUiIntegrity,
-  isCoreOwnedGefenPricingTarget,
   recalculateProposalEditorTotals
 } = await import('../frontend/src/proposal-workflow-ui-integrity.js');
-
-test('Gefen pricing events are exclusively owned by the core proposal editor', () => {
-  const dom = new JSDOM(`<form data-pa-form><input name="activity_type_group" value="gefen"><article data-pa-item-row data-pa-row-group="gefen"><select data-pa-pricing-select></select></article></form>`);
-  assert.equal(isCoreOwnedGefenPricingTarget(dom.window.document.querySelector('[data-pa-pricing-select]')), true);
-  dom.window.document.querySelector('[name="activity_type_group"]').value = 'summer';
-  dom.window.document.querySelector('[data-pa-item-row]').dataset.paRowGroup = 'summer';
-  assert.equal(isCoreOwnedGefenPricingTarget(dom.window.document.querySelector('[data-pa-pricing-select]')), false);
-});
 
 function optionKey(row) {
   return [

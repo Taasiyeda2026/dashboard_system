@@ -50,6 +50,15 @@ test('filters only open, fully unassigned 2027 courses', () => {
   ]).map((row) => row.row_id), ['ok']);
 });
 
+test('district scheduling excludes incomplete courses and courses with no active meetings', () => {
+  const rows = schedulingCourses([
+    course('ready'),
+    { ...course('missing-address'), school_address: '' },
+    { ...course('cancelled'), cancelled_meeting_dates: ['2026-09-06'] }
+  ], { includeIncompleteWithoutPeriodMeetings: true });
+  assert.deepEqual(rows.map((row) => row.row_id), ['ready']);
+});
+
 test('filters inactive instructors before matching and route calculation', () => {
   const activeInstructor = instructors[0];
   const inactiveInstructor = { ...instructors[1], active: 'no' };

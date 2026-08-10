@@ -23,7 +23,13 @@ export function isSchedulingBlockingAssignment(activity = {}) {
 }
 
 export function isActivitySchedulingEligible(activity) {
-  return isCourseSchedulingReady(activity) && !hasAssignedInstructor(activity);
+  if (!activity || String(activity.activity_season ?? '').trim() !== SCHEDULING_SEASON) return false;
+  const status = normalizeSchedulingStatus(activity.status ?? activity.activity_status);
+  const type = String(activity.activity_type ?? activity.type ?? '').trim().toLocaleLowerCase('he-IL');
+  return ['קורס', 'course', 'program'].includes(type)
+    && ['פתוח', 'open'].includes(status)
+    && !BLOCKED_SCHEDULING_STATUSES.has(status)
+    && !hasAssignedInstructor(activity);
 }
 
 const text = (value) => String(value ?? '').trim();
@@ -35,12 +41,19 @@ const minutes = (value) => {
 };
 
 function schedulingMeetings(activity = {}) {
+  const cancelled = new Set([...(activity.cancelled_meeting_dates || activity._cancelledMeetingDates || [])]
+    .map((value) => text(value).slice(0, 10))
+    .filter(Boolean));
+  const activeOnly = (meeting) => !cancelled.has(text(typeof meeting === 'string' ? meeting : meeting?.date).slice(0, 10));
   if (Array.isArray(activity.meetings) && activity.meetings.length) {
-    return activity.meetings.filter((meeting) => text(typeof meeting === 'string' ? meeting : meeting?.date));
+    return activity.meetings
+      .filter((meeting) => text(typeof meeting === 'string' ? meeting : meeting?.date))
+      .filter(activeOnly);
   }
   return Array.from({ length: 35 }, (_, index) => activity[`date_${index + 1}`])
     .filter((date) => text(date))
-    .map((date) => ({ date }));
+    .map((date) => ({ date }))
+    .filter(activeOnly);
 }
 
 /** Single source of truth for activity data readiness (not matching policy). */

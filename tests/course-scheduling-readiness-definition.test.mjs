@@ -59,6 +59,11 @@ test('activity readiness excludes every incomplete or invalid scheduling input w
   assert.deepEqual(readyCourse, snapshot);
 });
 
+test('activity readiness excludes a course when every meeting is cancelled', () => {
+  assert.equal(isCourseSchedulingReady({ ...readyCourse, cancelled_meeting_dates: ['2027-01-04'] }), false);
+  assert.equal(isCourseSchedulingReady({ ...readyCourse, date_2: '2027-01-11', cancelled_meeting_dates: ['2027-01-04'] }), true);
+});
+
 test('instructor readiness admits only active complete profiles with valid availability without mutation', () => {
   const original = { instructor: structuredClone(instructor), profile: structuredClone(matchingProfile), rules: structuredClone(rules) };
   assert.equal(isInstructorSchedulingReady(instructor, matchingProfile, rules), true);
