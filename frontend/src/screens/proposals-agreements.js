@@ -6434,6 +6434,7 @@ export const proposalsAgreementsScreen = {
         data._editorDepsLoaded = true;
         activityNameOptions.splice(0, activityNameOptions.length, ...Array.from(new Set(data.activityNameOptions.map((v) => text(v)).filter(Boolean))));
         proposalActivityPricing.splice(0, proposalActivityPricing.length, ...data.proposalActivityPricing);
+        rebuildPricingIndexes();
         setProposalGroupLookups(data, data.rows, proposalActivityPricing);
         setProposalPricingLookup(proposalActivityPricing);
         proposalTemplateSections.splice(0, proposalTemplateSections.length, ...normalizeTemplateSections(data.proposalTemplateSections));
@@ -7917,20 +7918,24 @@ export const proposalsAgreementsScreen = {
     };
 
     const setupItemCalc = (container) => { calcGrandTotal(container); };
-    const pricingByName = proposalActivityPricing.reduce((acc, row) => {
-      const rawName = text(row.activity_name);
-      const publicName = publicActivityName(row.activity_name);
-      if (rawName && !acc.has(rawName)) acc.set(rawName, row);
-      if (publicName && !acc.has(publicName)) acc.set(publicName, row);
-      return acc;
-    }, new Map());
-    const pricingByNo = proposalActivityPricing.reduce((acc, row) => {
-      const key = text(row.activity_no);
-      if (!key || acc.has(key)) return acc;
-      acc.set(key, row);
-      return acc;
-    }, new Map());
-    const pricingByOptionKey = new Map(proposalActivityPricing.map((row, idx) => [pricingOptionKey(row, idx), row]));
+    const pricingByName = new Map();
+    const pricingByNo = new Map();
+    const pricingByOptionKey = new Map();
+    const rebuildPricingIndexes = () => {
+      pricingByName.clear();
+      pricingByNo.clear();
+      pricingByOptionKey.clear();
+      proposalActivityPricing.forEach((row, idx) => {
+        const rawName = text(row.activity_name);
+        const publicName = publicActivityName(row.activity_name);
+        const activityNo = text(row.activity_no);
+        if (rawName && !pricingByName.has(rawName)) pricingByName.set(rawName, row);
+        if (publicName && !pricingByName.has(publicName)) pricingByName.set(publicName, row);
+        if (activityNo && !pricingByNo.has(activityNo)) pricingByNo.set(activityNo, row);
+        pricingByOptionKey.set(pricingOptionKey(row, idx), row);
+      });
+    };
+    rebuildPricingIndexes();
 
     const resolvePricingRow = ({ activityNo, activityName, optionKey }) => {
       const selectedOptionKey = text(optionKey);
