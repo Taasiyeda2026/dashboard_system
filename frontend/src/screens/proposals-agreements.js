@@ -6359,13 +6359,20 @@ export const proposalsAgreementsScreen = {
       data.contactOptionsError = contactOptionsError;
       data._contactsLoaded = true;
     };
-    const ensureContacts = async () => {
+    // ensureContacts is called ONLY on explicit user actions:
+    //   'client-search'   — user typed in the authority/school search field inside the editor form
+    //   'add-contact'     — user clicked the "add contact" button on a client file
+    //   'edit-contact'    — user clicked the "edit contact" button on a client file
+    // It is never called automatically on screen bind or background refresh.
+    const ensureContacts = async (source = 'unknown') => {
       if (data?._contactsLoaded) return;
       if (typeof api.proposalsAgreementsContacts !== 'function'
         && typeof api.proposalsAgreementsEditorDeps !== 'function') {
         data._contactsLoaded = true;
         return;
       }
+      // eslint-disable-next-line no-console
+      console.info('[pa:contacts-load]', { source, triggered_by: 'user-action' });
       if (typeof api.proposalsAgreementsContacts === 'function') {
         const contacts = await api.proposalsAgreementsContacts();
         syncContactOptions(contacts?.contactOptions, contacts?.contactOptionsError);
@@ -7732,7 +7739,7 @@ export const proposalsAgreementsScreen = {
       }
       renderContactChannelsStatus(form);
       const runClientSearch = async (step, inputSelector, resultsSelector) => {
-        await ensureContacts();
+        await ensureContacts('client-search');
         if (signal.aborted || !form.isConnected) return;
         renderClientResults(form, step, form.querySelector(inputSelector), form.querySelector(resultsSelector));
       };
@@ -9223,7 +9230,7 @@ export const proposalsAgreementsScreen = {
           openAddContact();
           return;
         }
-        await ensureContacts();
+        await ensureContacts('add-contact');
         if (signal.aborted || !root.isConnected) return;
         openAddContact();
         return;
@@ -9246,7 +9253,7 @@ export const proposalsAgreementsScreen = {
           openEditContact();
           return;
         }
-        await ensureContacts();
+        await ensureContacts('edit-contact');
         if (signal.aborted || !root.isConnected) return;
         openEditContact();
         return;
