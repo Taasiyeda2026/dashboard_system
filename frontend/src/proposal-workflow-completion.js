@@ -156,7 +156,8 @@ function proposalFormEvent(event) {
   if (!target?.matches?.('[data-pa-item-qty], [data-pa-item-price], [data-pa-discount-value], [data-pa-discount-type], [data-pa-pricing-select]')) return;
   const form = target.closest('[data-pa-form]');
   // proposals-agreements.js exclusively owns GEFEN pricing selections.
-  if (target.matches('[data-pa-pricing-select]') && text(form?.querySelector?.('[name="activity_type_group"]')?.value) === 'gefen') return;
+  const proposalType = text(form?.querySelector?.('[name="activity_type_group"]')?.value).toLowerCase();
+  if (target.matches('[data-pa-pricing-select]') && (proposalType === 'gefen' || /גפ["״']?ן/.test(proposalType))) return;
   if (form) queueMicrotask(() => calculateFormTotals(form));
 }
 
