@@ -1,58 +1,96 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  courseReadinessMissingFields,
-  courseReadinessRows,
-  instructorReadinessMissingFields
-} from '../frontend/src/screens/course-scheduling-distance-build.js';
-import { availabilityHours, instructorLoad, calculateCourseSchedule } from '../frontend/src/screens/course-scheduling-engine.js';
-import { evaluateInstructor } from '../frontend/src/screens/instructor-matching-engine.js';
+  isCourseSchedulingInterfaceEligible,
+  isSchedulingReadyActivity,
+  isSchedulingReadyInstructor
+} from '../frontend/src/screens/shared/activity-scheduling-eligibility.js';
+import { calculateCourseSchedule, schedulingCourses, schedulingInstructors } from '../frontend/src/screens/course-scheduling-engine.js';
+import { SCORE_WEIGHTS } from '../frontend/src/screens/course-scheduling-score.js';
+import { enrichActivitiesWithSchoolAddresses } from '../frontend/src/screens/course-scheduling-distance-build.js';
 
 const readyCourse = {
   row_id: 'c1', activity_season: 'school_2027', activity_type: 'program', status: 'פתוח',
-  activity_name: 'רובוטיקה', authority: 'רשות', school: 'בית ספר', school_address: 'רחוב 1',
-  grade: '', start_time: '09:00', end_time: '10:00', date_1: '2027-01-04',
-  instruction_language: '', required_instructor_gender: '', activity_manager: ''
+  activity_name: 'רובוטיקה', school_id: 101, school: 'בית ספר', school_address: 'רחוב 1',
+  start_time: '09:00', end_time: '10:00', date_1: '2027-01-04', instruction_language: 'he'
 };
-const rules = [{ emp_id: 1, weekday: 1, available: true, start_time: '08:00', end_time: '14:00' }];
-const primaryCandidate = (result) => result.recommended || result.bestAvailable;
-const matchingProfile = { gender: 'female', instruction_languages: ['he'], weekly_max_hours: 1, preferred_work_days: 1, max_fixed_courses: 0 };
-const instructor = { emp_id: 1, full_name: 'מדריכה', active: 'yes', address: 'בית' };
+const instructor = { emp_id: '1', full_name: 'מדריכה', active: 'yes', address: 'בית' };
+const profile = { gender: 'female', instruction_languages: ['he'] };
+const rules = [{ emp_id: '1', weekday: 1, available: true, start_time: '08:00', end_time: '14:00' }];
 
-test('course readiness ignores age fields and manager is not mandatory', () => {
-  assert.deepEqual(courseReadinessMissingFields(readyCourse), []);
-  assert.equal(courseReadinessRows([readyCourse, { ...readyCourse, row_id: 'closed', status: 'סגור', school: '' }]).length, 0);
-  assert.deepEqual(courseReadinessMissingFields({ ...readyCourse, education_level: '', grade: '' }), []);
-  const missing = courseReadinessMissingFields({ ...readyCourse, school_address: '', start_time: '', activity_manager: '', education_level: '', grade: '' });
-  assert.deepEqual(missing, ['כתובת בית ספר תקינה', 'שעת התחלה']);
-  assert.ok(!missing.includes('מנהל פעילות'));
+const activityCases = [
+  ['ללא תאריך', { date_1: '' }],
+  ['ללא שעת התחלה', { start_time: '' }],
+  ['ללא שעת סיום', { end_time: '' }],
+  ['עם שעות שוות', { end_time: '09:00' }],
+  ['עם שעות הפוכות', { end_time: '08:59' }],
+  ['עם שעה לא חוקית', { start_time: '25:00' }],
+  ['עם דקות לא חוקיות', { end_time: '10:75' }],
+  ['ללא מזהה בית ספר', { school_id: null }],
+  ['ללא כתובת בית ספר', { school_address: '' }],
+  ['ללא שפת הדרכה', { instruction_language: '' }]
+];
+
+test('stage 1 activity readiness admits only complete valid courses to both UI and engine', () => {
+  assert.equal(isSchedulingReadyActivity(readyCourse), true);
+  assert.equal(isCourseSchedulingInterfaceEligible(readyCourse), true);
+  assert.deepEqual(schedulingCourses([readyCourse]).map((row) => row.row_id), ['c1']);
+  for (const [label, override] of activityCases) {
+    const row = { ...readyCourse, ...override, row_id: label };
+    assert.equal(isSchedulingReadyActivity(row), false, label);
+    assert.equal(isCourseSchedulingInterfaceEligible(row), false, label);
+    assert.equal(schedulingCourses([row]).length, 0, label);
+  }
 });
 
-test('instructor readiness ignores manual workload quota fields', () => {
-  const missing = instructorReadinessMissingFields(instructor, { ...matchingProfile, weekly_target_hours: null, weekly_max_hours: null, preferred_work_days: null, max_fixed_courses: null }, rules);
-  assert.deepEqual(missing, []);
-  assert.deepEqual(instructorReadinessMissingFields(instructor, { ...matchingProfile, course_restriction_mode: 'allow_only', course_ids: [] }, rules), []);
-  assert.deepEqual(instructorReadinessMissingFields(instructor, { ...matchingProfile }, rules), []);
-  assert.deepEqual(instructorReadinessMissingFields(instructor, { ...matchingProfile, education_levels: [] }, rules), []);
-  assert.deepEqual(instructorReadinessMissingFields(instructor, { ...matchingProfile, gender: null }, rules), ['מגדר']);
+test('school readiness resolves address by school_id only and rejects a name-only match', () => {
+  const schools = [{ school_id: 101, school_name: 'בית ספר', authority_name: 'רשות', address: 'רחוב 1' }];
+  const byId = enrichActivitiesWithSchoolAddresses([{ ...readyCourse, school: '' }], schools).activities[0];
+  assert.equal(isSchedulingReadyActivity(byId), true);
+  const byNameOnly = enrichActivitiesWithSchoolAddresses([{ ...readyCourse, school_id: null, authority: 'רשות' }], schools).activities[0];
+  assert.equal(byNameOnly.school_address, '');
+  assert.equal(isSchedulingReadyActivity(byNameOnly), false);
 });
 
-test('language and gender are absolute gates and rejected candidates are not alternatives', () => {
-  const result = calculateCourseSchedule({
-    activities: [{ ...readyCourse, required_instructor_gender: 'female', instruction_language: 'ar' }],
-    instructors: [instructor, { ...instructor, emp_id: 2, full_name: 'מדריך' }],
-    profiles: { 1: { ...matchingProfile, instruction_languages: ['ar'] }, 2: { ...matchingProfile, gender: 'male', instruction_languages: ['ar'] } },
-    rules: { 1: rules, 2: [{ ...rules[0], emp_id: 2 }] }, exceptions: {}, travel: {}, routeMatrix: {}, preliminary: true
-  })[0];
-  assert.equal(primaryCandidate(result).instructor.emp_id, 1);
-  assert.deepEqual(result.alternatives.map((candidate) => candidate.instructor.emp_id), []);
-  assert.match(result.checked.find((candidate) => candidate.instructor.emp_id === 2).failures.join(' '), /דורש מדריכה/);
+test('a course with every meeting cancelled is excluded', () => {
+  const cancelled = { ...readyCourse, cancelled_meeting_dates: ['2027-01-04'] };
+  assert.equal(isSchedulingReadyActivity(cancelled), false);
+  assert.deepEqual(schedulingCourses([cancelled]), []);
 });
 
-test('manual workload quotas are not readiness or scoring inputs; actual assignments drive load', () => {
-  assert.equal(availabilityHours({ weekly_max_hours: 1 }, rules), 6);
-  const noQuota = evaluateInstructor({ instructor, profile: { ...matchingProfile, max_fixed_courses: null, preferred_work_days: null }, rules, activity: readyCourse, workloadRatio: 0.1, fixedCourseCount: 99, weeklyWorkDayCount: 7 });
-  const withQuota = evaluateInstructor({ instructor, profile: matchingProfile, rules, activity: readyCourse, workloadRatio: 0.1, fixedCourseCount: 99, weeklyWorkDayCount: 7 });
-  assert.equal(withQuota.scoreBreakdown.workload.points, noQuota.scoreBreakdown.workload.points);
-  assert.equal(instructorLoad([{ ...readyCourse, row_id: 'assigned' }], {}, rules).meetings, 1);
+test('stage 1 instructor readiness admits only active complete profiles with valid availability', () => {
+  assert.equal(isSchedulingReadyInstructor(instructor, profile, rules), true);
+  assert.deepEqual(schedulingInstructors([instructor], { 1: profile }, { 1: rules }).map((row) => row.emp_id), ['1']);
+  const cases = [
+    ['לא פעיל', { ...instructor, active: 'no' }, profile, rules],
+    ['ללא כתובת', { ...instructor, address: '' }, profile, rules],
+    ['ללא שפה', instructor, { ...profile, instruction_languages: [] }, rules],
+    ['ללא מגדר', instructor, { ...profile, gender: '' }, rules],
+    ['ללא זמינות', instructor, profile, []],
+    ['עם זמינות הפוכה', instructor, profile, [{ ...rules[0], start_time: '15:00', end_time: '14:00' }]],
+    ['עם יום שבוע חסר', instructor, profile, [{ ...rules[0], weekday: null }]],
+    ['עם יום שבוע לא חוקי', instructor, profile, [{ ...rules[0], weekday: 7 }]],
+    ['עם דקות לא חוקיות', instructor, profile, [{ ...rules[0], end_time: '14:99' }]]
+  ];
+  for (const [label, row, candidateProfile, candidateRules] of cases) {
+    assert.equal(isSchedulingReadyInstructor(row, candidateProfile, candidateRules), false, label);
+    assert.equal(schedulingInstructors([row], { 1: candidateProfile }, { 1: candidateRules }).length, 0, label);
+  }
+});
+
+test('readiness filtering is immutable and does not alter scoring or matching constants', () => {
+  const activities = [readyCourse, { ...readyCourse, row_id: 'invalid', end_time: '08:00' }];
+  const instructors = [instructor, { ...instructor, emp_id: '2', active: 'no' }];
+  const before = structuredClone({ activities, instructors, profile, rules, weights: SCORE_WEIGHTS });
+  const results = calculateCourseSchedule({ activities, instructors, profiles: { 1: profile }, rules: { 1: rules }, exceptions: {}, preliminary: true });
+  assert.deepEqual({ activities, instructors, profile, rules, weights: SCORE_WEIGHTS }, before);
+  assert.deepEqual(results.map((row) => row.course.row_id), ['c1']);
+  assert.deepEqual(results[0].checked.map((candidate) => candidate.instructor.emp_id), ['1']);
+});
+
+test('scheduling UI contains no missing-data completion lists or readiness drawer', async () => {
+  const source = await import('node:fs/promises').then(({ readFile }) => readFile(new URL('../frontend/src/screens/course-scheduling.js', import.meta.url), 'utf8'));
+  assert.doesNotMatch(source, /\$\{dataReadinessDrawerHtml\(data, state\)\}/);
+  assert.doesNotMatch(source, /data-open-readiness-drawer/);
+  assert.doesNotMatch(source, /summary-card--missing/);
 });
