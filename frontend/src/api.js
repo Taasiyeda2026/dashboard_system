@@ -6717,6 +6717,21 @@ export const api = {
     if (error) throw new Error(error.message || 'employee_file_snapshot_failed');
     return data || { mapped: false, components: [] };
   },
+  updateInstructorEmployeeFileComponent: async ({ empId, schoolYear = '2027', componentKey, completed = false, itemCount = 0 } = {}) => {
+    const { data, error } = await supabase.rpc('update_instructor_employee_file_component', {
+      p_emp_id: Number(empId), p_school_year: String(schoolYear), p_component_key: String(componentKey),
+      p_completed: completed === true, p_item_count: Math.max(0, Number(itemCount) || 0)
+    });
+    if (error) throw new Error(error.message || 'employee_file_component_update_failed');
+    return data;
+  },
+  updateInstructorEmployeeFolderUrl: async ({ empId, schoolYear = '2027', folderWebUrl = '' } = {}) => {
+    const { data, error } = await supabase.rpc('update_instructor_employee_folder_url', {
+      p_emp_id: Number(empId), p_school_year: String(schoolYear), p_folder_web_url: String(folderWebUrl || '').trim()
+    });
+    if (error) throw new Error(error.message || 'employee_file_folder_url_update_failed');
+    return data;
+  },
   contacts: async (params = {}) => {
     const supabaseData = await readContactsFromSupabase(params || {});
     if (supabaseData) return supabaseData;

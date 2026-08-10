@@ -2,7 +2,7 @@ import { escapeHtml } from './shared/html.js';
 import { dsScreenStack, dsEmptyState } from './shared/layout.js';
 import { showToast } from './shared/toast.js';
 import { canViewEmployeeFiles } from '../permissions.js';
-import { loadInstructorEmployeeFile } from './instructor-employee-file-data.js';
+import { loadInstructorEmployeeFile, saveInstructorEmployeeFileComponent, saveInstructorEmployeeFolderUrl } from './instructor-employee-file-data.js';
 import { employeeFileModalHtml } from './instructor-employee-file-ui.js';
 import { activityWorkDrawerHtml, patchDrawerDatesSection } from './shared/activity-detail-html.js';
 import {
@@ -15,7 +15,7 @@ import {
 import { loadInstructorSeniorityData, saveInstructorContactDetails } from './instructor-contact-data.js';
 import {
   text, activeFlag, instructorCard, profileHtml, contactForm, constraintsForm, matchingForm
-} from './instructor-workspace-ui.js?v=20260810-employee-file-v1';
+} from './instructor-workspace-ui.js?v=20260810-employee-file-manual-v2';
 import {
   bindInstructorsWorkspaceNav,
   instructorsWorkspaceHeaderHtml,
@@ -45,7 +45,7 @@ const INSTRUCTORS_LIST_STYLES = `.instructors-list{display:flex;flex-direction:c
 .instructor-card__employee-file-action:hover{background:#f7fafc;box-shadow:0 1px 4px rgba(15,23,42,.16)}
 .instructor-card__employee-file-action:focus-visible{outline:2px solid currentColor;outline-offset:1px}
 .instructor-card__employee-file-action--male{color:#278b9b}.instructor-card__employee-file-action--female{color:#c47f98}.instructor-card__employee-file-action--neutral{color:#7b8794}
-.employee-file{display:grid;gap:14px;min-width:min(360px,80vw)}.employee-file__list{display:grid;gap:0;margin:0;padding:0;list-style:none;border:1px solid #e1e6eb;border-radius:10px;overflow:hidden}.employee-file__row{display:flex;align-items:center;justify-content:space-between;gap:16px;min-height:42px;padding:7px 12px;border-bottom:1px solid #edf0f3}.employee-file__row:last-child{border-bottom:0}.employee-file__presence{display:grid;place-items:center;width:21px;height:21px;border-radius:50%}.employee-file__presence--present{background:#e7f4ef;color:#27735b;font-weight:800}.employee-file__presence--empty{box-sizing:border-box;border:1.5px solid #aeb7c1;background:#f7f8f9}.employee-file__payroll{display:inline-flex;align-items:center;gap:5px;color:#52606d}.employee-file__open{justify-self:start}
+.employee-file{display:grid;gap:14px;min-width:min(360px,80vw)}.employee-file__list{display:grid;gap:0;margin:0;padding:0;list-style:none;border:1px solid #e1e6eb;border-radius:10px;overflow:hidden}.employee-file__row{display:flex;align-items:center;justify-content:space-between;gap:16px;min-height:42px;padding:7px 12px;border-bottom:1px solid #edf0f3}.employee-file__row:last-child{border-bottom:0}.employee-file__presence{display:grid;place-items:center;width:24px;height:24px;padding:0;border-radius:50%;cursor:pointer}.employee-file__presence--completed{border:0;background:#e7f4ef;color:#27735b;font-weight:800}.employee-file__presence--empty{box-sizing:border-box;border:1.5px solid #aeb7c1;background:#f7f8f9}.employee-file__payroll{display:inline-flex;align-items:center;gap:7px;color:#52606d}.employee-file__payroll button{width:25px;height:25px;padding:0;border:1px solid #d5dbe1;border-radius:6px;background:#fff;cursor:pointer}.employee-file__link-editor{display:flex;align-items:end;gap:7px}.employee-file__link-editor label{display:grid;flex:1;gap:4px;font-size:.78rem}.employee-file__open{justify-self:start}.employee-file__link-note{font-size:.78rem;color:#7b8794}.employee-file__status{min-height:18px;margin:0;font-size:.78rem;color:#596575}
 @media(max-width:900px){.instructors-workspace-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:600px){.instructors-workspace-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}`;
 
@@ -356,6 +356,47 @@ export const instructorsScreen = {
       try {
         const payload = await loadInstructorEmployeeFile(api, row.emp_id);
         ui.openModal({ title: `תיק עובד - ${row.full_name || row.emp_id}`, modalClass: 'ds-modal--employee-file', content: employeeFileModalHtml(payload), actions: '<button type="button" class="ds-btn" data-ui-close-modal>סגירה</button>' });
+        requestAnimationFrame(() => {
+          const modal = document.querySelector('.ds-modal.ds-modal--employee-file');
+          const status = modal?.querySelector('[data-employee-file-status]');
+          const components = new Map((payload.components || []).map((item) => [item.component_key, { ...item }]));
+          const setStatus = (value) => { if (status) status.textContent = value; };
+          modal?.querySelectorAll('[data-employee-file-toggle]').forEach((button) => button.addEventListener('click', async () => {
+            const key = button.dataset.employeeFileToggle;
+            const current = components.get(key) || { component_key: key, completed: false, item_count: 0 };
+            const next = !current.completed;
+            try {
+              button.disabled = true; setStatus('שומר...');
+              const saved = await saveInstructorEmployeeFileComponent(api, row.emp_id, key, { completed: next });
+              components.set(key, { ...current, ...saved });
+              button.classList.toggle('employee-file__presence--completed', next); button.classList.toggle('employee-file__presence--empty', !next);
+              button.setAttribute('aria-pressed', String(next)); button.textContent = next ? '✓' : ''; setStatus('נשמר');
+            } catch (error) { setStatus(String(error?.message || 'השמירה נכשלה')); } finally { button.disabled = false; }
+          }));
+          modal?.querySelectorAll('[data-employee-file-payroll]').forEach((button) => button.addEventListener('click', async () => {
+            const countNode = modal.querySelector('[data-employee-file-payroll-count]');
+            const currentCount = Math.max(0, Number(countNode?.textContent) || 0);
+            const nextCount = button.dataset.employeeFilePayroll === 'increment' ? currentCount + 1 : Math.max(0, currentCount - 1);
+            if (nextCount === currentCount) return;
+            try { button.disabled = true; setStatus('שומר...'); await saveInstructorEmployeeFileComponent(api, row.emp_id, 'payroll_reports', { itemCount: nextCount, completed: nextCount > 0 }); if (countNode) countNode.textContent = String(nextCount); setStatus('נשמר'); }
+            catch (error) { setStatus(String(error?.message || 'השמירה נכשלה')); } finally { button.disabled = false; }
+          }));
+          modal?.querySelector('[data-employee-file-save-url]')?.addEventListener('click', async (event) => {
+            const button = event.currentTarget; const input = modal.querySelector('[data-employee-file-folder-url]');
+            try {
+              button.disabled = true; setStatus('שומר...');
+              const saved = await saveInstructorEmployeeFolderUrl(api, row.emp_id, input?.value || '');
+              const action = modal.querySelector('[data-employee-file-link-action]');
+              if (action && saved?.folder_web_url) {
+                const anchor = document.createElement('a'); anchor.className = 'ds-btn ds-btn--primary employee-file__open';
+                anchor.href = saved.folder_web_url; anchor.target = '_blank'; anchor.rel = 'noopener noreferrer'; anchor.textContent = 'פתח תיק עובד ב־SharePoint';
+                action.replaceChildren(anchor);
+              } else if (action) action.innerHTML = '<span class="employee-file__link-note">קישור התיק טרם הוגדר</span>';
+              setStatus('הקישור נשמר');
+            }
+            catch (error) { setStatus(String(error?.message || 'שמירת הקישור נכשלה')); } finally { button.disabled = false; }
+          });
+        });
       } catch (error) {
         showToast(String(error?.message || 'לא ניתן לטעון את תיק העובד'), 'error');
       }
