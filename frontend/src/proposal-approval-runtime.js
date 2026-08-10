@@ -1,4 +1,9 @@
-import { proposalsAgreementsScreen, proposalPreviewBodyHtml } from './screens/proposals-agreements.js';
+import {
+  proposalsAgreementsScreen,
+  proposalPreviewBodyHtml,
+  filterTemplateSectionsForGroup,
+  setProposalGroupLookups
+} from './screens/proposals-agreements.js';
 import { showToast } from './screens/shared/toast.js';
 import { escapeHtml } from './screens/shared/html.js';
 
@@ -127,18 +132,39 @@ function approvalErrorText(error, fallback) {
   return clean(error?.message) || fallback;
 }
 
-function fallbackPreviewHtml(row = {}) {
-  const quoteNumber = clean(row.quote_number);
-  const authority = clean(row.client_authority);
-  const school = clean(row.school_framework);
-  const contact = clean(row.contact_name);
-  return `<article class="proposal-document pa-document" dir="rtl" style="background:#fff;color:#111827;width:min(794px,100%);min-height:520px;margin:0 auto;padding:40px;box-sizing:border-box">
-    <h1 style="margin:0 0 24px;font-size:1.35rem">${escapeHtml(quoteNumber ? `הצעת מחיר ${quoteNumber}` : 'הצעת מחיר')}</h1>
-    ${authority ? `<p><strong>רשות:</strong> ${escapeHtml(authority)}</p>` : ''}
-    ${school ? `<p><strong>בית ספר / גוף:</strong> ${escapeHtml(school)}</p>` : ''}
-    ${contact ? `<p><strong>איש קשר:</strong> ${escapeHtml(contact)}</p>` : ''}
-    <p style="margin-top:36px;color:#475569">התצוגה המלאה לא נטענה, אך ניתן לאשר ולשמור את החתימה להצעה זו.</p>
-  </article>`;
+async function loadApprovalTemplateSections({ api, data, row }) {
+  if (!data?._editorDepsLoaded) {
+    if (typeof api?.proposalsAgreementsEditorDeps !== 'function') {
+      throw new Error('לא ניתן לטעון את תבנית הצעת המחיר. יש לרענן את המסך ולנסות שוב.');
+    }
+    const deps = await withTimeout(
+      api.proposalsAgreementsEditorDeps(),
+      OPEN_TIMEOUT_MS,
+      'טעינת תבנית הצעת המחיר נמשכה זמן רב מדי. ניתן לנסות שוב.'
+    );
+    data.proposalTemplateSections = Array.isArray(deps?.proposalTemplateSections)
+      ? deps.proposalTemplateSections
+      : [];
+    data.proposalActivityGroups = Array.isArray(deps?.proposalActivityGroups)
+      ? deps.proposalActivityGroups
+      : data.proposalActivityGroups;
+    data.proposalGroupAliases = Array.isArray(deps?.proposalGroupAliases)
+      ? deps.proposalGroupAliases
+      : data.proposalGroupAliases;
+    data._editorDepsLoaded = true;
+  }
+
+  setProposalGroupLookups(data, data.rows || [], data.proposalActivityPricing || []);
+  const templateSections = filterTemplateSectionsForGroup(
+    data.proposalTemplateSections,
+    row?.activity_type_group
+  );
+  const hasCustomSections = Array.isArray(row?.custom_document_sections)
+    && row.custom_document_sections.length > 0;
+  if (!hasCustomSections && templateSections.length === 0) {
+    throw new Error('לא נמצאה תבנית פעילה לסוג הצעת המחיר. הפעולה נעצרה.');
+  }
+  return templateSections;
 }
 
 function buildApprovalOverlay({ row, items, templateSections, renderPreview }) {
@@ -148,13 +174,7 @@ function buildApprovalOverlay({ row, items, templateSections, renderPreview }) {
   overlay.className = 'proposal-preview-overlay proposal-approval-runtime-overlay';
   const clientLabel = [row?.client_authority, row?.school_framework].map(clean).filter(Boolean).join(' — ');
   const quoteLabel = clean(row?.quote_number) ? `הצעה ${clean(row.quote_number)}` : 'הצעת מחיר';
-  let previewHtml = '';
-  try {
-    previewHtml = renderPreview(row, items, templateSections, { showSignatureImage: true });
-  } catch (error) {
-    console.error('[proposal approval runtime preview render failed]', error);
-    previewHtml = fallbackPreviewHtml(row);
-  }
+  const previewHtml = renderPreview(row, items, templateSections, { showSignatureImage: true });
   overlay.innerHTML = `
     <div class="proposal-preview-toolbar no-print" data-pa-approval-runtime-toolbar>
       <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" id="pa-signature-cancel">ביטול</button>
@@ -229,6 +249,7 @@ export function installProposalApprovalRuntime({
       let overlay = null;
 
       try {
+        const templateSections = await loadApprovalTemplateSections({ api, data, row });
         const items = typeof api?.readProposalAgreementItems === 'function'
           ? await withTimeout(
               api.readProposalAgreementItems(proposalId),
@@ -239,7 +260,7 @@ export function installProposalApprovalRuntime({
         overlay = buildApprovalOverlay({
           row,
           items: Array.isArray(items) ? items : [],
-          templateSections: Array.isArray(data?.proposalTemplateSections) ? data.proposalTemplateSections : [],
+          templateSections,
           renderPreview
         });
         document.body.style.overflow = 'hidden';

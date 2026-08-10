@@ -6418,6 +6418,16 @@ export const proposalsAgreementsScreen = {
       }).finally(() => { editorDepsPromise = null; });
       return editorDepsPromise;
     };
+    const requiredTemplateSectionsForRow = (row) => {
+      const templateSections = filterTemplateSectionsForGroup(proposalTemplateSections, row?.activity_type_group);
+      const hasCustomSections = Array.isArray(row?.custom_document_sections) && row.custom_document_sections.length > 0;
+      if (!hasCustomSections && templateSections.length === 0) {
+        const error = new Error('proposal_template_missing');
+        error.userMessage = 'לא נמצאה תבנית פעילה לסוג הצעת המחיר. הפעולה נעצרה.';
+        throw error;
+      }
+      return templateSections;
+    };
     // ensureEditorDeps() is NOT started automatically on screen bind.
     // It is called on demand only when the user triggers an action that needs it:
     // new proposal, edit, PDF generation, preview, or send.
@@ -8324,9 +8334,11 @@ export const proposalsAgreementsScreen = {
         button.innerHTML = '<span class="ds-pa-pdf-spinner" aria-hidden="true"></span> מפיק...';
       }
       try {
+        await ensureEditorDeps();
+        const templateSections = requiredTemplateSectionsForRow(freshRow);
         const documentHtmlSnapshot = gefenApprovalDocumentHtml(freshRow, mergedItems);
         const documentSnapshot = {
-          ...buildProposalDocumentSnapshot(freshRow, mergedItems, proposalTemplateSections),
+          ...buildProposalDocumentSnapshot(freshRow, mergedItems, templateSections),
           document_type: 'gefen_approval',
           linked_proposal_id: text(freshRow.id)
         };
@@ -8401,7 +8413,7 @@ export const proposalsAgreementsScreen = {
             return;
           }
         }
-        const templateSections = filterTemplateSectionsForGroup(proposalTemplateSections, freshRow.activity_type_group);
+        const templateSections = requiredTemplateSectionsForRow(freshRow);
         const documentHtmlSnapshot = historicalSnapshotBackfill && text(freshRow.document_html_snapshot)
           ? text(freshRow.document_html_snapshot)
           : proposalPreviewBodyHtml(freshRow, mergedItems, templateSections, { showSignatureImage: true });
@@ -8479,7 +8491,9 @@ export const proposalsAgreementsScreen = {
       const mergedItems = proposalItemsWithFallback(items, freshRow);
       const templateSections = Array.isArray(suppliedTemplateSections)
         ? suppliedTemplateSections
-        : filterTemplateSectionsForGroup(proposalTemplateSections, freshRow.activity_type_group);
+        : requiredTemplateSectionsForRow(freshRow);
+      if ((!Array.isArray(freshRow.custom_document_sections) || freshRow.custom_document_sections.length === 0)
+        && templateSections.length === 0) requiredTemplateSectionsForRow(freshRow);
       const previewHtml = suppliedPreviewHtml || proposalPreviewBodyHtml(freshRow, mergedItems, templateSections, { showSignatureImage: true });
       const documentSnapshot = buildProposalDocumentSnapshot(freshRow, mergedItems, templateSections);
       const documentHtmlSnapshot = previewHtml;
@@ -8500,7 +8514,7 @@ export const proposalsAgreementsScreen = {
       await ensureEditorDeps();
       const freshRow = rowWithCentralContact(row);
       const mergedItems = proposalItemsWithFallback(items, freshRow);
-      const templateSections = filterTemplateSectionsForGroup(proposalTemplateSections, freshRow.activity_type_group);
+      const templateSections = requiredTemplateSectionsForRow(freshRow);
       const previewHtml = proposalPreviewBodyHtml(freshRow, mergedItems, templateSections, { showSignatureImage: true });
       if (proposalHasFinalPdf(freshRow)) {
         if (typeof api.lockAndSendProposalAgreement !== 'function') {
@@ -8557,7 +8571,7 @@ export const proposalsAgreementsScreen = {
       await ensureEditorDeps();
       items = proposalItemsWithFallback(items, freshRow);
       const lockedPreviewHtml = isSentLocked ? proposalLockedPreviewHtml(freshRow) : '';
-      const templateSections = filterTemplateSectionsForGroup(proposalTemplateSections, freshRow.activity_type_group);
+      const templateSections = requiredTemplateSectionsForRow(freshRow);
       document.getElementById('pa-preview-overlay')?.remove();
       const overlay = document.createElement('div');
       overlay.id = 'pa-preview-overlay';
@@ -9384,7 +9398,18 @@ export const proposalsAgreementsScreen = {
           showToast('הצעה שנשלחה נעולה ולא ניתן לערוך אותה.', 'error');
           return;
         }
+        try {
+          await ensureEditorDeps();
+        } catch (error) {
+          showToast('לא ניתן לטעון את תבנית הצעת המחיר. יש לרענן את המסך ולנסות שוב.', 'error');
+          return;
+        }
         const templateSections = filterTemplateSectionsForGroup(proposalTemplateSections, row.activity_type_group);
+        const hasCustomSections = Array.isArray(row.custom_document_sections) && row.custom_document_sections.length > 0;
+        if (!hasCustomSections && templateSections.length === 0) {
+          showToast('לא נמצאה תבנית פעילה לסוג הצעת המחיר. עריכת המסמך נעצרה.', 'error');
+          return;
+        }
         const workingSections = resolveDocumentSections(row, templateSections).map((section) => ({
           section_key: proposalTextField(section, 'section_key', 'sectionKey'),
           section_title: proposalTextField(section, 'section_title', 'sectionTitle'),
