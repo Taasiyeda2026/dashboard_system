@@ -54,6 +54,45 @@ import {
 
 export { formatWorkloadHours, MAX_HOME_DISTANCE_KM, formatAffectedMeetingsPhrase };
 
+/**
+ * Maps server-side scheduling RPC error codes to clear Hebrew messages.
+ * Used by draft-save, final-assign, and confirm-draft error handlers so the
+ * user sees an actionable message instead of a raw technical code.
+ * Does NOT duplicate any validation logic — the server remains the source of truth.
+ */
+const SCHEDULING_ASSIGNMENT_ERROR_HE = {
+  scheduling_availability_missing:     'המדריך אינו זמין בתאריך אחד ממפגשי הקורס',
+  scheduling_instructor_unavailable:   'המדריך חסום בתאריך אחד ממפגשי הקורס',
+  scheduling_conflict_detected:        'קיימת חפיפה עם שיבוץ אחר של המדריך',
+  scheduling_transition_insufficient:  'זמן המעבר בין פעילויות אינו מספיק (פחות מ-15 דקות + זמן נסיעה)',
+  scheduling_transition_unverified:    'לא ניתן לאמת את זמן המעבר — ייתכן שכתובת חסרה',
+  scheduling_home_route_unverified:    'המרחק מבית המדריך לבית הספר לא חושב. הריצו עדכון מרחקים ונסו שנית',
+  scheduling_distance_exceeded:        `המדריך גר מעל ${MAX_HOME_DISTANCE_KM} ק"מ מבית הספר`,
+  scheduling_assignment_locked:        'הקורס כבר שובץ או נשמר כטיוטה — רעננו את המסך ונסו שנית',
+  scheduling_gender_mismatch:          'מגדר המדריך אינו עומד בדרישת הקורס',
+  scheduling_language_mismatch:        'המדריך אינו מלמד בשפת הוראה הנדרשת',
+  scheduling_instructor_profile_incomplete: 'פרופיל המדריך אינו מלא (מגדר/שפות)',
+  scheduling_daily_sequence_exceeded:  'המדריך עבר את מגבלת הפעילויות הרצופות ביום',
+  scheduling_friday_not_allowed:       'המדריך אינו זמין בימי שישי',
+  scheduling_permission_denied:        'אין הרשאה לביצוע שיבוץ. נדרשת הרשאת מנהל',
+  scheduling_activity_not_open:        'הפעילות אינה פתוחה לשיבוץ',
+  scheduling_activity_dates_missing:   'תאריכי המפגשים חסרים בפעילות',
+  scheduling_activity_hours_missing:   'שעות המפגש חסרות או שגויות בפעילות',
+  instructor_not_found:                'המדריך לא נמצא במאגר — ייתכן שהנתונים השתנו',
+  instructor_inactive:                 'המדריך אינו פעיל',
+  instructor_name_mismatch:            'שם המדריך אינו תואם — ייתכן שנתוני המדריך השתנו',
+  activity_not_found:                  'הפעילות לא נמצאה',
+};
+
+function translateSchedulingAssignmentError(codeOrMessage, prefix = 'הפעולה נכשלה') {
+  const raw = String(codeOrMessage || '').trim();
+  if (SCHEDULING_ASSIGNMENT_ERROR_HE[raw]) return `${prefix}: ${SCHEDULING_ASSIGNMENT_ERROR_HE[raw]}`;
+  for (const [code, msg] of Object.entries(SCHEDULING_ASSIGNMENT_ERROR_HE)) {
+    if (raw.includes(code)) return `${prefix}: ${msg}`;
+  }
+  return raw ? `${prefix}: ${raw}` : prefix;
+}
+
 /** Shared draft-save RPC + payload used by individual-course and district-simulation save paths. */
 export function buildCourseAssignmentDraftRpc({ activityId, selected, topCandidate }) {
   const proposedMeetings = selected?.dateAdjustment?.meetings?.map(({ date }) => ({ date })) || null;
@@ -1730,7 +1769,7 @@ export const courseSchedulingScreen = {
         p_reason: null,
         ...(proposedMeetings ? { p_proposed_meetings: proposedMeetings } : {})
       });
-      if (error) { showToast(`השיבוץ נכשל: ${error.message}`, 'error'); updateCandidateActions(false); return; }
+      if (error) { showToast(translateSchedulingAssignmentError(error.message, 'השיבוץ נכשל'), 'error'); updateCandidateActions(false); return; }
       state.courseSchedulingResults = (state.courseSchedulingResults || []).filter((item) => idOf(item.course) !== selectedCourseId);
       state.courseSchedulingSelectedCandidateId = '';
       clearScreenDataCache?.();
@@ -1761,7 +1800,7 @@ export const courseSchedulingScreen = {
         topCandidate
       });
       const { error } = await supabase.rpc(rpc, payload);
-      if (error) { showToast(`שמירת הטיוטה נכשלה: ${error.message}`, 'error'); updateCandidateActions(false); return; }
+      if (error) { showToast(translateSchedulingAssignmentError(error.message, 'שמירת הטיוטה נכשלה'), 'error'); updateCandidateActions(false); return; }
       clearScreenDataCache?.();
       showToast('נשמר כטיוטה', 'success');
       rerender();
@@ -1797,7 +1836,7 @@ export const courseSchedulingScreen = {
         p_reason: null,
         ...(proposedMeetings ? { p_proposed_meetings: proposedMeetings } : {})
       });
-      if (error) { showToast(`אישור הטיוטה נכשל: ${error.message}`, 'error'); event.target.disabled = false; return; }
+      if (error) { showToast(translateSchedulingAssignmentError(error.message, 'אישור הטיוטה נכשל'), 'error'); event.target.disabled = false; return; }
       clearScreenDataCache?.();
       showToast('המדריך שובץ בהצלחה', 'success');
       rerender();
