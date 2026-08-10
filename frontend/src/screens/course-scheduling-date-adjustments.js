@@ -11,7 +11,7 @@ const overlaps = (a, b) => minutes(a.start_time) < minutes(b.end_time) && minute
  * enforce_end_time school-calendar event covering that date (shortened school day).
  * Returns `originalEndTime` unchanged when no cap applies.
  */
-function effectiveEndTime(date, originalEndTime, schoolCalendar) {
+export function effectiveEndTime(date, originalEndTime, schoolCalendar) {
   let cap = null;
   let capMinutes = null;
   for (const row of schoolCalendar) {
