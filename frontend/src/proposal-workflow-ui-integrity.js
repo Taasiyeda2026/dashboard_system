@@ -347,10 +347,7 @@ function installDomRuntime(scope) {
 
   const isGefenPricingSelection = (event, form) => (
     event.target?.matches?.('[data-pa-pricing-select]')
-    && (() => {
-      const proposalType = text(form?.querySelector?.('[name="activity_type_group"]')?.value).toLowerCase();
-      return proposalType === 'gefen' || /גפ["״']?ן/.test(proposalType);
-    })()
+    && text(form?.querySelector?.('[name="activity_type_group"]')?.value) === 'gefen'
   );
 
   const editorEvent = (event) => {

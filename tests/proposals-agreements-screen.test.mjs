@@ -3518,7 +3518,10 @@ test('GEFEN pricing selection hydrates newly added rows and refreshes totals', a
       await delay(20);
       const form = root.querySelector('[data-pa-form]');
       assert.ok(form, 'new proposal form should open');
-      form.querySelector('[data-pa-type-btn="gefen"]').dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+      const gefenButton = Array.from(form.querySelectorAll('[data-pa-type-btn]'))
+        .find((button) => /גפ["״']?ן/.test(button.textContent));
+      assert.ok(gefenButton, 'the real GEFEN card labelled גפ״ן should be available');
+      gefenButton.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
 
       const selectCourse = (row, activityNo) => {
         const select = row.querySelector('[data-pa-pricing-select]');
