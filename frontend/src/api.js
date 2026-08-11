@@ -135,7 +135,7 @@ const DASHBOARD_ACTIVITY_COLUMNS = [
 const DASHBOARD_ACTIVITY_MIN_COLUMNS = 'row_id,activity_family,activity_manager,activity_name,authority,school,instructor_name,instructor_name_2,emp_id,emp_id_2,start_date,end_date,status,activity_type';
 // Explicit list/read-model projections. Full activity rows are fetched only by activityDetail.
 const ACTIVITY_LIST_COLUMNS = [
-  'row_id', 'activity_family', 'activity_manager', 'district', 'authority_id', 'school_id',
+  'id', 'row_id', 'activity_family', 'activity_manager', 'district', 'authority_id', 'school_id',
   'authority', 'school', 'grade', 'class_group', 'activity_type', 'item_type',
   'activity_season', 'activity_no', 'activity_name', 'sessions', 'funding',
   'start_time', 'end_time', 'emp_id', 'instructor_name', 'emp_id_2', 'instructor_name_2',
@@ -144,7 +144,7 @@ const ACTIVITY_LIST_COLUMNS = [
 ].join(',');
 // Activities table / list: fields shown or used for month/status filters (no finance/contact blobs).
 const ACTIVITY_TABLE_COLUMNS = [
-  'row_id', 'activity_family', 'activity_manager', 'authority', 'school', 'school_id',
+  'id', 'row_id', 'activity_family', 'activity_manager', 'authority', 'school', 'school_id',
   'grade', 'class_group', 'activity_type', 'item_type', 'activity_season', 'activity_name',
   'sessions', 'funding', 'start_time', 'end_time', 'emp_id', 'instructor_name', 'emp_id_2', 'instructor_name_2',
   'start_date', 'end_date', 'status',
@@ -483,6 +483,60 @@ async function readAllArchiveActivitiesFromSupabase(activityPeriod = currentGlob
   }
 }
 
+async function enrichActivitiesWithFundingSources(rows = []) {
+  const activityIds = [...new Set(rows.map((row) => String(row?.id || '').trim()).filter(Boolean))];
+  if (!activityIds.length) return rows;
+  const { data, error } = await supabase.from('activity_funding_sources')
+    .select('activity_id,funding_source_id,amount,funding_sources(id,name,is_active,sort_order)')
+    .in('activity_id', activityIds);
+  if (error) {
+    // Supports a rolling deployment where frontend can precede the migration.
+    console.warn('[funding] association read unavailable; using activities.funding fallback', error.message || error);
+    return rows;
+  }
+  const byActivity = new Map();
+  for (const link of (data || [])) {
+    const source = link.funding_sources;
+    if (!source?.id || !source?.name) continue;
+    const list = byActivity.get(String(link.activity_id)) || [];
+    list.push({ id: source.id, name: source.name, is_active: source.is_active, sort_order: source.sort_order, amount: link.amount });
+    byActivity.set(String(link.activity_id), list);
+  }
+  return rows.map((row) => {
+    const fundingSources = (byActivity.get(String(row.id)) || []).sort((a, b) => (a.sort_order ?? 2147483647) - (b.sort_order ?? 2147483647) || a.name.localeCompare(b.name, 'he'));
+    return fundingSources.length ? { ...row, funding_sources: fundingSources, funding: fundingSources.map((item) => item.name).join(' + ') } : row;
+  });
+}
+
+async function saveActivityFundingSources(activityRow = {}, source = {}) {
+  if (!Object.prototype.hasOwnProperty.call(source, 'funding_sources')) return;
+  const activityId = String(activityRow?.id || '').trim();
+  if (!activityId) throw new Error('activity_funding_missing_activity_id');
+  const requested = (Array.isArray(source.funding_sources) ? source.funding_sources : [])
+    .map((item) => typeof item === 'string' ? { funding_source_id: item, amount: null } : item)
+    .map((item) => ({ funding_source_id: String(item?.funding_source_id || item?.id || '').trim(), amount: item?.amount === '' || item?.amount == null ? null : Number(item.amount) }))
+    .filter((item) => item.funding_source_id);
+  if (new Set(requested.map((item) => item.funding_source_id)).size !== requested.length) throw new Error('duplicate_activity_funding_source');
+  const ids = requested.map((item) => item.funding_source_id);
+  if (ids.length) {
+    const { data: sources, error: sourceError } = await supabase.from('funding_sources').select('id,name,is_active').in('id', ids);
+    if (sourceError) throw new Error(sourceError.message || 'funding_sources_read_failed');
+    if ((sources || []).length !== ids.length) throw new Error('funding_source_not_found');
+    const display = ids.map((id) => sources.find((row) => String(row.id) === id)?.name).filter(Boolean).join(' + ');
+    const { error: compatibilityError } = await supabase.from('activities').update({ funding: display }).eq('id', activityId);
+    if (compatibilityError) throw new Error(compatibilityError.message || 'activity_funding_compatibility_save_failed');
+  } else {
+    const { error: compatibilityError } = await supabase.from('activities').update({ funding: null }).eq('id', activityId);
+    if (compatibilityError) throw new Error(compatibilityError.message || 'activity_funding_compatibility_save_failed');
+  }
+  const { error: deleteError } = await supabase.from('activity_funding_sources').delete().eq('activity_id', activityId);
+  if (deleteError) throw new Error(deleteError.message || 'activity_funding_replace_failed');
+  if (requested.length) {
+    const { error: insertError } = await supabase.from('activity_funding_sources').insert(requested.map((item) => ({ activity_id: activityId, ...item })));
+    if (insertError) throw new Error(insertError.message || 'activity_funding_save_failed');
+  }
+}
+
 async function readActivitiesFromSupabase(filters = {}) {
   if (!supabase) return null;
 
@@ -492,7 +546,7 @@ async function readActivitiesFromSupabase(filters = {}) {
     const { data, error } = await supabase.from('activities').select(select).in('activity_season', activitySeasonQueryValues(selectedSeason));
     if (error) throw new Error(error.message || 'activities_read_failed');
     const rawRows = Array.isArray(data) ? data : [];
-    const normalizedRows = rawRows.map(normalizeActivityRow);
+    const normalizedRows = await enrichActivitiesWithFundingSources(rawRows.map(normalizeActivityRow));
     const contactRows = await readContactsForSchool2027Activities(normalizedRows);
     const rows = normalizedRows
       .map((row) => withResolvedSchool2027Contact(row, contactRows))
@@ -5593,6 +5647,7 @@ async function upsertActivityToSupabase(payload = {}) {
     throw buildSupabaseMutationError('addActivity', error, 'save_failed');
   }
   await saveActivitySchoolsForActivity(data || row, act);
+  await saveActivityFundingSources(data || row, act);
   const normalized = normalizeActivityRow(data || row);
   invalidateAllActivitiesRowsCache();
   logActivityMutationDebug('success', 'addActivity', { source_sheet: 'activities', source_row_id: normalized.row_id, changes: row });
@@ -5794,6 +5849,8 @@ async function updateActivityInSupabase(payload = {}) {
   const sourceSheet = String(payload?.source_sheet || 'activities').trim() || 'activities';
   if (!rowId) throw new Error('missing_row_id');
   const rawChanges = applyInstructorEmpSync({ ...(payload?.changes || {}) });
+  const fundingSourcesChange = Object.prototype.hasOwnProperty.call(rawChanges, 'funding_sources') ? rawChanges.funding_sources : undefined;
+  delete rawChanges.funding_sources;
   const meetingNotes = extractMeetingNotes(rawChanges);
   const mappedChanges = mapMeetingDateFieldNamesToSupabase(rawChanges);
   const { data: existingInstructorRow, error: existingInstructorError } = await supabase
@@ -5848,8 +5905,16 @@ async function updateActivityInSupabase(payload = {}) {
     if (derivedEnd) changes.end_date = derivedEnd;
   }
   const hasMeetingNotes = Object.keys(meetingNotes).length > 0;
-  if (!Object.keys(changes).length && !hasMeetingNotes) throw new Error('No changes to submit');
-  if (!Object.keys(changes).length) {
+  if (!Object.keys(changes).length && !hasMeetingNotes && fundingSourcesChange === undefined) throw new Error('No changes to submit');
+  if (!Object.keys(changes).length && fundingSourcesChange !== undefined) {
+    const { data: fundingOnlyRow, error: fundingOnlyError } = await supabase.from('activities').select('*').eq('row_id', rowId).maybeSingle();
+    if (fundingOnlyError || !fundingOnlyRow) throw new Error(fundingOnlyError?.message || 'activity_not_found_or_forbidden');
+    await saveActivityFundingSources(fundingOnlyRow, { funding_sources: fundingSourcesChange });
+    const [fundingOnlyNormalized] = await enrichActivitiesWithFundingSources([normalizeActivityRow(fundingOnlyRow)]);
+    invalidateAllActivitiesRowsCache();
+    return { ok: true, RowID: rowId, row_id: rowId, source_sheet: 'activities', row: fundingOnlyNormalized };
+  }
+  if (!Object.keys(changes).length && fundingSourcesChange === undefined) {
     await upsertMeetingNotesToSupabase(rowId, meetingNotes);
     const { data: notesOnlyRow } = await supabase.from('activities').select('*').eq('row_id', rowId).maybeSingle();
     const notesOnlyNormalized = normalizeActivityRow(notesOnlyRow || {});
@@ -5942,6 +6007,7 @@ async function updateActivityInSupabase(payload = {}) {
     throw dbVerifyError;
   }
   const normalized = normalizeActivityRow({ ...(data || {}), ...(freshDbRow || {}) });
+  if (fundingSourcesChange !== undefined) await saveActivityFundingSources(data || {}, { funding_sources: fundingSourcesChange });
   if (hasMeetingNotes) {
     await upsertMeetingNotesToSupabase(rowId, meetingNotes);
   }
@@ -5955,7 +6021,7 @@ async function readActivityDetailFromSupabase(source_row_id, source_sheet) {
   const rowId = String(source_row_id || '').trim();
   const { data, error } = await supabase.from('activities').select('*').eq('row_id', rowId).single();
   if (error) throw new Error(error.message || 'detail_failed');
-  const normalized = normalizeActivityRow(data || {});
+  const [normalized] = await enrichActivitiesWithFundingSources([normalizeActivityRow(data || {})]);
   const contactRows = await readContactsForSchool2027Activities([normalized]);
   const resolved = withResolvedSchool2027Contact(normalized, contactRows);
   return { row: { ...resolved, private_note: resolved.operations_private_notes || '' } };
@@ -7163,6 +7229,30 @@ export const api = {
     }
     const rows = await readSettingsRowsFromSupabase();
     return { rows, _source: 'supabase' };
+  },
+  fundingSources: async ({ includeInactive = false } = {}) => {
+    let query = supabase.from('funding_sources').select('id,name,is_active,sort_order,created_at,updated_at').order('sort_order', { ascending: true, nullsFirst: false }).order('name');
+    if (!includeInactive) query = query.eq('is_active', true);
+    const { data, error } = await query;
+    if (error) throw new Error(error.message || 'funding_sources_read_failed');
+    return { rows: data || [] };
+  },
+  addFundingSource: async ({ name, sort_order = null } = {}) => {
+    if (String(state?.user?.role || '') !== 'admin') throw new Error('forbidden_funding_catalog');
+    const cleanName = String(name || '').trim();
+    if (!cleanName) throw new Error('funding_source_name_required');
+    const { data, error } = await supabase.from('funding_sources').insert({ name: cleanName, sort_order }).select().single();
+    if (error) throw new Error(error.code === '23505' ? 'funding_source_duplicate' : (error.message || 'funding_source_save_failed'));
+    return data;
+  },
+  updateFundingSource: async ({ id, name, is_active } = {}) => {
+    if (String(state?.user?.role || '') !== 'admin') throw new Error('forbidden_funding_catalog');
+    const changes = {};
+    if (name !== undefined) changes.name = String(name || '').trim();
+    if (is_active !== undefined) changes.is_active = Boolean(is_active);
+    const { data, error } = await supabase.from('funding_sources').update(changes).eq('id', id).select().single();
+    if (error) throw new Error(error.code === '23505' ? 'funding_source_duplicate' : (error.message || 'funding_source_save_failed'));
+    return data;
   },
   adminLists: async () => {
     const supabaseData = await readListsFromSupabase();

@@ -647,9 +647,17 @@ function getActivitySchoolDisplayName(row) {
 /** Client-only sentinel for empty/null funding filter options. Never written to Supabase. */
 export const EMPTY_FUNDING_FILTER_VALUE = 'ללא מימון מוגדר';
 
-export function activityFundingFilterValue(row = {}) {
+export function activityFundingFilterValues(row = {}) {
+  const linked = Array.isArray(row?.funding_sources)
+    ? row.funding_sources.map((source) => humanDisplayText(source?.name)).filter(Boolean)
+    : [];
+  if (linked.length) return linked;
   const text = humanDisplayText(row?.funding);
-  return text || EMPTY_FUNDING_FILTER_VALUE;
+  return text ? [text] : [EMPTY_FUNDING_FILTER_VALUE];
+}
+
+export function activityFundingFilterValue(row = {}) {
+  return activityFundingFilterValues(row)[0];
 }
 
 export const ACTIVITY_FILTER_FIELDS = [
@@ -657,7 +665,7 @@ export const ACTIVITY_FILTER_FIELDS = [
   { key: 'instructor', label: 'מדריך', getValues: (row) => [humanDisplayText(row?.instructor_name), humanDisplayText(row?.instructor_name_2)] },
   { key: 'activity_name', label: 'תוכנית', getValues: (row) => [humanDisplayText(row?.activity_name)] },
   { key: 'authority', label: 'רשות', getValues: (row) => [humanDisplayText(row?.authority)] },
-  { key: 'funding', label: 'מימון', getValues: (row) => [activityFundingFilterValue(row)] },
+  { key: 'funding', label: 'מימון', getValues: activityFundingFilterValues },
   { key: 'school', label: 'בית ספר', getValues: getActivitySchoolNames },
   { key: 'activity_type', label: 'סוג הפעילות', getOptionLabel: (value) => visibleActivityCategoryLabel(value) }
 ];
@@ -883,7 +891,6 @@ function addActivityModalHtml(settings, activityPeriodTab = '') {
   const allTypes = ADD_ACTIVITY_TYPE_ORDER.slice();
   const rosterUsers = getValidInstructorUsers(settings);
   const managerRoleNames = getManagerUsers(settings);
-  const fundingOptions = mergeOptions(settings, ['funding', 'fundings']);
   const gradeOptions = resolveGradeOptions(settings);
   const schoolRecords = Array.isArray(settings?.dropdown_options?.school_records) ? settings.dropdown_options.school_records : [];
   const schoolOptions = mergeOptions(settings, ['school', 'schools']);
@@ -952,7 +959,7 @@ function addActivityModalHtml(settings, activityPeriodTab = '') {
           : `<label class="ds-activity-add-field ds-activity-add-field--compact"><span>עונת פעילות</span><select class="ds-input" name="activity_season">${activitySeasonSelectHtml(settings, initialSeason)}</select></label>`
         }
         <label class="ds-activity-add-field ds-activity-add-field--compact"><span>סטטוס</span><select class="ds-input" name="status">${optionsHtml(statusOptions, initialStatus)}</select></label>
-        <label class="ds-activity-add-field ds-activity-add-field--compact"><span>מימון</span><select class="ds-input" name="funding">${optionsHtml(fundingOptions)}</select></label>
+        <fieldset class="ds-activity-add-field ds-activity-add-field--span2" data-funding-picker><legend>מימון</legend><div style="display:grid;gap:6px">${(settings?.dropdown_options?.funding_source_records || []).map((source) => `<label style="display:grid;grid-template-columns:auto 1fr minmax(100px,140px);align-items:center;gap:8px"><input type="checkbox" data-funding-source-id="${escapeHtml(source.id)}"><span>${escapeHtml(source.name)}</span><input class="ds-input" type="number" min="0" step="0.01" inputmode="decimal" data-funding-amount placeholder="סכום (רשות)"></label>`).join('')}</div></fieldset>
         <label class="ds-activity-add-field ds-activity-add-field--compact"><span>מחיר</span><input class="ds-input" name="price" type="number" min="0" step="1"></label>
         <label class="ds-activity-add-field"><span>קבוצה / כיתה</span><input class="ds-input" name="class_group" type="text"></label>
         <label class="ds-activity-add-field"><span>כיתה / שכבה</span><select class="ds-input" name="grade">${optionsHtml(gradeOptions, '', '— בחרו כיתה —')}</select></label>
@@ -1742,10 +1749,20 @@ export const activitiesScreen = {
   async load({ api, state }) {
     state.activityPeriodTab = normalizeActivityPeriodTab(state.activityPeriodTab);
     state.activitiesInnerTab = normalizeActivitiesInnerTab(state.activitiesInnerTab, state.activityPeriodTab);
-    const result = await api.activities({
-      activity_type: 'all',
-      include_inactive: true
-    });
+    const [result, fundingCatalog] = await Promise.all([
+      api.activities({ activity_type: 'all', include_inactive: true }),
+      api.fundingSources({ includeInactive: false }).catch(() => ({ rows: [] }))
+    ]);
+    const fundingRows = Array.isArray(fundingCatalog?.rows) ? fundingCatalog.rows : [];
+    state.clientSettings = {
+      ...(state.clientSettings || {}),
+      dropdown_options: {
+        ...(state.clientSettings?.dropdown_options || {}),
+        funding: fundingRows.map((row) => row.name),
+        fundings: fundingRows.map((row) => row.name),
+        funding_source_records: fundingRows
+      }
+    };
     const loadedRows = Array.isArray(result?.rows) ? result.rows : [];
     ensureActivityPeriodMonth(state, loadedRows);
     return result;
@@ -3009,7 +3026,7 @@ export const activitiesScreen = {
         activity_no: String(hit?.activity_no || get('activity_no') || ''),
         sessions: isOneDay ? '1' : sessionsValue,
         price: get('price'),
-        funding: get('funding'),
+        funding_sources: Array.from(form.querySelectorAll('[data-funding-source-id]:checked')).map((checkbox) => ({ funding_source_id: checkbox.dataset.fundingSourceId, amount: checkbox.closest('label')?.querySelector('[data-funding-amount]')?.value || null })),
         start_time: get('start_time'),
         end_time: get('end_time'),
         instructor_name: instructor1Name,
