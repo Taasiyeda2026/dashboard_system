@@ -12,7 +12,7 @@ create unique index if not exists funding_sources_name_unique_ci
   on public.funding_sources ((lower(btrim(name))));
 
 create table if not exists public.activity_funding_sources (
-  activity_id uuid not null references public.activities(id) on delete restrict,
+  activity_id bigint not null references public.activities(id) on delete cascade,
   funding_source_id uuid not null references public.funding_sources(id) on delete restrict,
   amount numeric(14,2) null check (amount is null or amount >= 0),
   created_at timestamptz not null default now(),
@@ -45,13 +45,13 @@ create policy funding_sources_admin_update on public.funding_sources for update 
 using (exists (select 1 from public.users u where u.auth_user_id = auth.uid() and u.is_active and u.role = 'admin'))
 with check (exists (select 1 from public.users u where u.auth_user_id = auth.uid() and u.is_active and u.role = 'admin'));
 
--- Association permissions intentionally mirror direct activity management roles.
+-- Association permissions mirror the existing direct activity-edit permission.
 drop policy if exists activity_funding_read_authenticated on public.activity_funding_sources;
 create policy activity_funding_read_authenticated on public.activity_funding_sources for select to authenticated using (true);
 drop policy if exists activity_funding_write_managers on public.activity_funding_sources;
 create policy activity_funding_write_managers on public.activity_funding_sources for all to authenticated
-using (exists (select 1 from public.users u where u.auth_user_id = auth.uid() and u.is_active and u.role in ('admin','operation_manager')))
-with check (exists (select 1 from public.users u where u.auth_user_id = auth.uid() and u.is_active and u.role in ('admin','operation_manager')));
+using ((select public.app_can_edit_direct()))
+with check ((select public.app_can_edit_direct()));
 
 grant select on public.funding_sources, public.activity_funding_sources to authenticated;
 grant insert, update on public.funding_sources to authenticated;
@@ -59,7 +59,9 @@ grant insert, update, delete on public.activity_funding_sources to authenticated
 
 -- Audit-only view: operators can inspect exact legacy values and likely variants.
 -- No value is automatically converted into a catalog item or association.
-create or replace view public.funding_legacy_audit as
+create or replace view public.funding_legacy_audit
+with (security_invoker = true)
+as
 select btrim(funding) as legacy_value, count(*)::bigint as activity_count,
        lower(regexp_replace(btrim(funding), '[[:space:]\-־״׳''"]+', '', 'g')) as comparison_key,
        position('+' in funding) > 0 as contains_separator
