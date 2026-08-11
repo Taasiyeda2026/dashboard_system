@@ -1,4 +1,5 @@
 import { escapeHtml } from './shared/html.js';
+import { mergeFetchedContactsWithInserted, persistNewClientContact } from '../client-contact-persistence.js';
 import { dsCard, dsEmptyState, dsPageHeader, dsScreenStack, dsTableWrap } from './shared/layout.js';
 import { showToast } from './shared/toast.js';
 import { countPendingApprovedProposals, isProposalApprovedPendingSend } from './shared/proposals-pending-count.js';
@@ -6365,6 +6366,7 @@ export const proposalsAgreementsScreen = {
     setProposalPricingLookup(proposalActivityPricing);
     const proposalTemplateSections = normalizeTemplateSections(Array.isArray(data?.proposalTemplateSections) ? data.proposalTemplateSections : []);
     let contactOptions = Array.isArray(data?.contactOptions) ? data.contactOptions : [];
+    const newlyInsertedContacts = new Map();
     let contactOptionsError = text(data?.contactOptionsError || '');
     // Contacts provided with the screen payload (editor/tests) are already available.
     if (contactOptions.length) data._contactsLoaded = true;
@@ -6388,7 +6390,7 @@ export const proposalsAgreementsScreen = {
       };
     };
     const syncContactOptions = (nextOptions = [], error = null) => {
-      contactOptions = Array.isArray(nextOptions) ? nextOptions : [];
+      contactOptions = mergeFetchedContactsWithInserted(nextOptions, Array.from(newlyInsertedContacts.values()));
       contactOptionsError = text(error || '');
       data.contactOptions = contactOptions;
       data.contactOptionsError = contactOptionsError;
@@ -8243,16 +8245,30 @@ export const proposalsAgreementsScreen = {
       const existingId = directExistingId ?? (legacyMatches.length === 1 ? (legacyMatches[0].source_id ?? legacyMatches[0].id) : null);
       const errorEl = contactForm.querySelector('[data-pa-client-contact-error]');
       const submitBtn = contactForm.querySelector('[type="submit"]');
+      if (contactForm.dataset.paContactSaving === 'yes') return;
       if (!contactFields.contact_name) {
         if (errorEl) errorEl.textContent = 'יש להזין שם איש קשר';
+        contactForm.querySelector('[name="contact_name"]')?.focus?.();
         return;
       }
+      const mobileDigits = contactFields.mobile.replace(/[^0-9]/g, '');
+      if (!contactFields.mobile) {
+        if (errorEl) errorEl.textContent = 'יש להזין מספר נייד';
+        contactForm.querySelector('[name="mobile"]')?.focus?.();
+        return;
+      }
+      if (!/^05[0-9]{8}$/.test(mobileDigits) && !/^9725[0-9]{8}$/.test(mobileDigits)) {
+        if (errorEl) errorEl.textContent = 'יש להזין מספר נייד ישראלי תקין';
+        contactForm.querySelector('[name="mobile"]')?.focus?.();
+        return;
+      }
+      contactForm.dataset.paContactSaving = 'yes';
       if (submitBtn) submitBtn.disabled = true;
       try {
         if (!original) {
-          const result = await api.addContact({ kind: 'school', row: contactFields });
-          const insertedId = result?.row?.id;
-          contactOptions = [...contactOptions, { ...contactFields, id: insertedId, source_id: insertedId, source_table: 'contacts_schools' }];
+          const savedContact = await persistNewClientContact(api, contactFields);
+          newlyInsertedContacts.set(text(savedContact.id), savedContact);
+          contactOptions = [...contactOptions.filter((contact) => text(contact.source_id ?? contact.id) !== text(savedContact.id)), savedContact];
           showToast('איש הקשר נוסף בהצלחה', 'success', 1800);
         } else if (existingId != null && existingId !== '') {
           const updateRow = { ...contactFields, id: existingId };
@@ -8279,6 +8295,7 @@ export const proposalsAgreementsScreen = {
           ? 'לא ניתן לזהות את רשומת איש הקשר לעדכון. יש לרענן את תיק הלקוח ולנסות שוב.'
           : 'לא ניתן היה לשמור את פרטי איש הקשר. הפרטים שהוזנו נשמרו בטופס וניתן לנסות שוב.';
         if (submitBtn) submitBtn.disabled = false;
+        contactForm.dataset.paContactSaving = '';
       }
     }, { signal });
 

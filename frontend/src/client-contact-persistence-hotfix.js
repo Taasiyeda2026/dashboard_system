@@ -151,6 +151,13 @@ function setFormError(form, message) {
   if (error) error.textContent = message;
 }
 
+function focusInvalidContactField(form, fields) {
+  const input = !fields.contact_name
+    ? form.querySelector('[name="contact_name"]')
+    : form.querySelector('[name="mobile"]');
+  input?.focus?.();
+}
+
 function appendChannel(host, label, value, hrefPrefix) {
   const row = document.createElement('span');
   row.className = 'ds-client-contact__channel';
@@ -322,7 +329,7 @@ async function handleContactSubmit(event) {
     event.preventDefault();
     event.stopImmediatePropagation();
     setFormError(form, validationError);
-    showToast(validationError, 'error', 2600);
+    focusInvalidContactField(form, fields);
     return;
   }
 

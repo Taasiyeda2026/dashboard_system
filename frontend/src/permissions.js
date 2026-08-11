@@ -24,6 +24,18 @@ export function canViewEmployeeFiles(user = {}) {
   return EMPLOYEE_FILE_DEFAULT_ROLES.has(role);
 }
 
+export function canViewIsraaManagement(user = {}) {
+  const nested = user?.permissions && typeof user.permissions === 'object' ? user.permissions : {};
+  const role = String(user?.role || '').trim().toLowerCase();
+  const explicit = user?.view_israa_management ?? nested.view_israa_management;
+  const userId = String(user?.user_id || '').trim();
+  const authUserId = String(user?.auth_user_id || '').trim();
+  return role === 'admin'
+    || permissionFlagYes(explicit)
+    || userId === '3030'
+    || authUserId === '92bfb9d9-1b17-4022-901a-5f7cf17a263a';
+}
+
 function firstDefined(...values) {
   return values.find((value) => value !== undefined && value !== null && String(value).trim() !== '');
 }

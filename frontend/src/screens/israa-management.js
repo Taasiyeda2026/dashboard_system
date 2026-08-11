@@ -1,7 +1,7 @@
 import { escapeHtml } from './shared/html.js';
 import { dsScreenStack } from './shared/layout.js';
+import { canViewIsraaManagement } from '../permissions.js';
 
-const ISRAA_AUTH_USER_ID = '92bfb9d9-1b17-4022-901a-5f7cf17a263a';
 const SIM_GOAL = 1_000_000;
 
 // ── Tab state (persists across renders / navigations) ──────────────────────────
@@ -52,10 +52,7 @@ const PROG_CONTACT_COL_DEFS = PROG_COLS.filter((c) => PROG_CONTACT_KEYS.has(c.ke
 
 // ── Access guard ───────────────────────────────────────────────────────────────
 function isAllowedUser(state) {
-  const userId = String(state?.user?.user_id || '');
-  const authId = String(state?.user?.auth_user_id || '');
-  const role = String(state?.user?.display_role || state?.user?.role || '');
-  return userId === '3030' || authId === ISRAA_AUTH_USER_ID || role === 'admin';
+  return canViewIsraaManagement(state?.user);
 }
 
 function getActivityNames(state) {
