@@ -3152,7 +3152,7 @@ function renderTab(rows, state, data, allPreparedRows = []) {
     }
     // טרם נלחץ — adminListsData=undefined פירושו שהלשונית טרם נבחרה
     if (data?.adminListsData === undefined) {
-      return `<div dir="rtl" style="padding:32px 16px;text-align:center;color:var(--ds-text-muted,#64748b);font-size:0.9rem;">לחץ על הלשונית <strong>ציוד ומלאי</strong> לטעינת הנתונים.</div>`;
+      return `<div dir="rtl" style="padding:32px 16px;text-align:center;color:var(--ds-text-muted,#64748b);font-size:0.9rem;">בחרו לשונית להצגת הנתונים.</div>`;
     }
     const adminListsData = data?.adminListsData;
     if (adminListsData?.error || adminListsData?._loadError) {
