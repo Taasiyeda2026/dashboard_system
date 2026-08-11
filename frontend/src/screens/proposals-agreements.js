@@ -3752,7 +3752,8 @@ function templateDefaultSections(_templateKey) {
 }
 
 function resolveDocumentSections(row, templateSections = []) {
-  const custom = Array.isArray(row?.custom_document_sections) ? row.custom_document_sections : [];
+  const custom = (Array.isArray(row?.custom_document_sections) ? row.custom_document_sections : [])
+    .filter((section) => proposalTextField(section, 'section_key', 'sectionKey') !== 'table_note');
   const fromSupabase = Array.isArray(templateSections) ? templateSections : [];
   let source = custom.length ? custom : fromSupabase;
   if (custom.length) {
@@ -3766,6 +3767,23 @@ function resolveDocumentSections(row, templateSections = []) {
   return source
     .map(normalizeDocumentSection)
     .filter((section) => proposalTextField(section, 'section_key', 'sectionKey') || proposalTextField(section, 'section_title', 'sectionTitle') || text(section.section_body));
+}
+
+function proposalTableNote(row = {}) {
+  if (!isNextYearProposalGroup(row.activity_type_group)) return '';
+  const section = (Array.isArray(row.custom_document_sections) ? row.custom_document_sections : [])
+    .find((candidate) => proposalTextField(candidate, 'section_key', 'sectionKey') === 'table_note');
+  return text(proposalField(section, 'section_body', 'sectionBody')).replace(/^\s*\*+\s*/, '');
+}
+
+function proposalTableNoteSection(value) {
+  const note = text(value).replace(/^\s*\*+\s*/, '');
+  return note ? { section_key: 'table_note', section_title: '', section_body: note, sort_order: 999 } : null;
+}
+
+function proposalDocumentSections(row = {}) {
+  return (Array.isArray(row.custom_document_sections) ? row.custom_document_sections : [])
+    .filter((section) => proposalTextField(section, 'section_key', 'sectionKey') !== 'table_note');
 }
 
 function documentSectionsEditorHtml(sections = [], isCustom = false) {
@@ -4310,8 +4328,10 @@ export function proposalPreviewBodyHtml(row, items = [], templateSections = [], 
       ? proposalItemDetailsTableHtml(items, activityTypeGroup)
       : proposalCostTableHtml(items, { isSummer: isSummerProposalGroup(activityTypeGroup) }));
   const costsIntro = costsIntroBody(row, items);
+  const tableNote = proposalTableNote(row);
+  const tableNoteHtml = tableNote ? `<p class="pa-table-note" data-pa-table-note>* ${escapeHtml(tableNote)}</p>` : '';
   const costTableBlock = costTableHtml
-    ? `<div class="pa-cost-table-block">${costsIntro ? `<p class="pa-costs-intro-heading">${escapeHtml(costsIntro)}</p>` : ''}${costTableHtml}</div>`
+    ? `<div class="pa-cost-table-block" id="d-activities-table">${costsIntro ? `<p class="pa-costs-intro-heading">${escapeHtml(costsIntro)}</p>` : ''}${costTableHtml}</div>${tableNoteHtml}`
     : '';
   const paymentTerms = (paymentTermsBody || costTableBlock)
     ? `<section class="pa-section pa-cost-section">${sectionTitle('payment_terms') ? `<h3 class="pa-section-heading">${escapeHtml(sectionHeadingText(sectionTitle('payment_terms')))}</h3>` : ''}${paymentTermsBody ? sectionBodyHtml(paymentTermsBody, { alwaysBullet: true }) : ''}${costTableBlock}</section>`
@@ -4955,7 +4975,7 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
   ) : '';
   const initClientName = text(initContactSource?.client_name) || initSchool || initAuth;
   const proposalDate = mode === 'add' ? (text(row.proposal_date) || localDateInputValue()) : text(row.proposal_date);
-  const hasCustomSections = Array.isArray(row.custom_document_sections) && row.custom_document_sections.length > 0;
+  const hasCustomSections = proposalDocumentSections(row).length > 0;
   const rowNormalizedStatus = normalizeProposalStatus(text(row.status));
   const rowIsAlreadyApproved = rowNormalizedStatus === 'approved' || rowNormalizedStatus === 'sent' || proposalHasSavedApprovalSignature(row);
   const canApproveDirectly = canApproveProposalsAgreements(state) && !rowIsAlreadyApproved;
@@ -5045,6 +5065,10 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
     <div class="ds-pa-form-activities-panel" data-pa-step-panel="activity">
       <h4 class="pa-sidebar-section-title">פעילויות ומחירים</h4>
       <div data-pa-items-host>${itemsEditorHtml(items, filteredPricing, normalizedActivityGroup, { allowManualCourse })}</div>
+      <label class="ds-pa-form-field ds-pa-table-note-field" data-pa-table-note-field${isNextYearProposalGroup(normalizedActivityGroup) ? '' : ' hidden'}>
+        <span>הערה מתחת לטבלה</span>
+        <textarea class="ds-input ds-input--sm" name="table_note" rows="2">${escapeHtml(proposalTableNote(row))}</textarea>
+      </label>
     </div>
 
     <div class="ds-pa-form-bottom-panel" data-pa-step-panel="summary">
@@ -5882,6 +5906,10 @@ function payloadFromForm(form) {
   if (isTourProposalGroup(payload.activity_type_group)) {
     payload.activity_type_group = 'tour';
   }
+  const tableNoteSection = isNextYearProposalGroup(payload.activity_type_group)
+    ? proposalTableNoteSection(formData.get('table_note'))
+    : null;
+  payload.custom_document_sections = tableNoteSection ? [tableNoteSection] : [];
   const items = filterItemsByProposalType(extractItemsFromForm(form), payload.activity_type_group);
   const subtotal = items.reduce((s, i) => s + Math.max(Number(proposalField(i, 'total_price', 'totalPrice')) || ((Number(proposalField(i, 'quantity', 'quantity')) || 0) * (Number(proposalField(i, 'unit_price', 'unitPrice')) || 0)), 0), 0);
   const discountType = text(form.querySelector('[data-pa-discount-type]')?.value) || 'amount';
@@ -7013,6 +7041,8 @@ export const proposalsAgreementsScreen = {
       if (!typeSelect) return;
       typeSelect.addEventListener('change', () => {
         const newType = text(typeSelect.value);
+        const tableNoteField = form.querySelector('[data-pa-table-note-field]');
+        if (tableNoteField) tableNoteField.hidden = !isNextYearProposalGroup(newType);
         form.dataset.paPreviewSeen = '';
         // Update template indicator
         const indicatorEl = form.querySelector('[data-pa-template-indicator]');
@@ -8767,11 +8797,10 @@ export const proposalsAgreementsScreen = {
           allBtns.forEach((b) => { b.disabled = false; });
           return;
         }
-        if (existingRow && text(form.dataset.paOriginalType) === text(payload.activity_type_group) && Array.isArray(existingRow.custom_document_sections)) {
-          payload.custom_document_sections = existingRow.custom_document_sections;
-        } else {
-          payload.custom_document_sections = [];
-        }
+        const retainedSections = existingRow && text(form.dataset.paOriginalType) === text(payload.activity_type_group)
+          ? proposalDocumentSections(existingRow)
+          : [];
+        payload.custom_document_sections = [...retainedSections, ...(payload.custom_document_sections || [])];
       }
       try {
         const items = Array.isArray(payload._items) ? payload._items : filterItemsByProposalType(extractItemsFromForm(form), payload.activity_type_group);

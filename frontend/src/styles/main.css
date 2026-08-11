@@ -13222,6 +13222,16 @@ select.ds-input {
   break-inside: auto;
   page-break-inside: auto;
 }
+.proposal-document .pa-table-note {
+  margin: 3px 0 5px;
+  font-size: 9pt;
+  font-weight: 400;
+  line-height: 1.3;
+  text-align: right;
+  break-before: avoid;
+  page-break-before: avoid;
+}
+.ds-pa-table-note-field { margin-top: 8px; }
 .pa-cost-section .pa-section-body p { margin-bottom: 2pt; }
 /* אחריות תעשיידע / אחריות בית הספר — line-height מוקטן */
 .pa-responsibility-org .pa-section-body,
