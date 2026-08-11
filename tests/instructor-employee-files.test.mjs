@@ -35,7 +35,7 @@ test('card keeps separate profile and employee-file buttons', () => {
   assert.match(instructorsSource, /querySelectorAll\('\[data-instructor-profile\]'\)/);
 });
 
-test('employee-file modal renders compact inline statuses with a quiet red dot for missing documents', () => {
+test('employee-file modal keeps the 2-3-2 structure with balanced outer spacing and quiet missing dots', () => {
   assert.equal(EMPLOYEE_FILE_COMPONENTS.length, 8);
   const html = employeeFileModalHtml({ components: [{ component_key: 'signed_agreement', completed: true }] });
   assert.match(html, /employee-file__group--agreements[^]*signed_agreement[^]*supporting_documents/);
@@ -45,18 +45,23 @@ test('employee-file modal renders compact inline statuses with a quiet red dot f
   assert.equal((html.match(/employee-file__card is-completed/g) || []).length, 1);
   assert.equal((html.match(/employee-file__card is-missing/g) || []).length, 6);
   assert.match(html, /\.employee-file__card\.is-missing[^}]*background:#d94b57/);
-  assert.match(html, /width:fit-content;min-width:min\(304px/);
+  assert.match(html, /width:min\(404px,calc\(100vw - 24px\)\)/);
+  assert.match(html, /\.ds-modal--employee-file \.ds-modal__content\{width:100%;max-width:100%;padding:14px 18px 12px/);
+  assert.match(html, /\.employee-file\{display:grid;gap:12px;width:100%;max-width:100%/);
   for (const forbidden of ['לא קיים', 'חסר', 'באיחור', '5/8', '62%', 'תיק מלא', 'תיק חסר']) assert.doesNotMatch(html, new RegExp(forbidden));
   assert.doesNotMatch(html, /type="radio"|type="checkbox"|employee-file__list/);
 });
 
-test('SharePoint status is read-only and payroll marks up to twelve cells', () => {
+test('SharePoint status is read-only and payroll shows all school-year months', () => {
   const html = employeeFileModalHtml({ components: [{ component_key: 'payroll_reports', item_count: 4 }] });
   assert.equal((html.match(/employee-file__payroll-cell (?:is-completed|is-missing)"/g) || []).length, 12);
   assert.equal((html.match(/employee-file__payroll-cell is-completed/g) || []).length, 4);
   assert.equal((html.match(/employee-file__payroll-cell is-missing/g) || []).length, 8);
+  assert.equal((html.match(/class="employee-file__payroll-month"/g) || []).length, 12);
+  for (const month of ['ספט׳', 'אוק׳', 'נוב׳', 'דצמ׳', 'ינו׳', 'פבר׳', 'מרץ', 'אפר׳', 'מאי', 'יונ׳', 'יול׳', 'אוג׳']) assert.match(html, new RegExp(month));
   assert.match(html, /employee-file__payroll-title">דוחות שכר<\/div><div class="employee-file__payroll-grid">/);
   assert.match(html, /grid-template-columns:repeat\(6,minmax\(0,1fr\)\)/);
+  assert.match(html, /employee-file__payroll-month\{color:#788596;font-size:\.56rem/);
   assert.doesNotMatch(html, />[+-]</);
   assert.doesNotMatch(html, /data-employee-file-toggle=/);
   assert.doesNotMatch(html, /data-employee-file-payroll=/);
