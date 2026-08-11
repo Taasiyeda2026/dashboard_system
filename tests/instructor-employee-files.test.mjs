@@ -35,19 +35,23 @@ test('card keeps separate profile and employee-file buttons', () => {
   assert.match(instructorsSource, /querySelectorAll\('\[data-instructor-profile\]'\)/);
 });
 
-test('employee-file modal renders exactly eight compact components without judgment text', () => {
+test('employee-file modal renders the compact 2-3-2 dashboard without judgment text', () => {
   assert.equal(EMPLOYEE_FILE_COMPONENTS.length, 8);
   const html = employeeFileModalHtml({ components: [{ component_key: 'signed_agreement', completed: true }] });
-  assert.equal((html.match(/class="employee-file__row"/g) || []).length, 8);
+  assert.match(html, /employee-file__group--agreements[^]*signed_agreement[^]*supporting_documents/);
+  assert.match(html, /employee-file__group--feedback[^]*intro_feedback[^]*midyear_feedback[^]*year_end_feedback/);
+  assert.match(html, /employee-file__group--observations[^]*observation_1[^]*observation_2/);
+  assert.equal((html.match(/class="employee-file__card"/g) || []).length, 7);
+  assert.equal((html.match(/employee-file__check/g) || []).length, 2);
   for (const forbidden of ['לא קיים', 'חסר', 'באיחור', '5/8', '62%', 'תיק מלא', 'תיק חסר']) assert.doesNotMatch(html, new RegExp(forbidden));
-  assert.doesNotMatch(html, /[✕✖❌]/);
-  assert.match(html, /justify-content:flex-start/);
+  assert.doesNotMatch(html, /type="radio"|type="checkbox"|employee-file__list/);
 });
 
-test('SharePoint status is read-only and payroll shows document count only', () => {
+test('SharePoint status is read-only and payroll marks up to twelve cells', () => {
   const html = employeeFileModalHtml({ components: [{ component_key: 'payroll_reports', item_count: 4 }] });
-  assert.match(html, /📄/);
-  assert.match(html, /employee-file__count[^>]*[^>]*>4<\/span>/);
+  assert.equal((html.match(/employee-file__payroll-cell(?: is-completed)?"/g) || []).length, 12);
+  assert.equal((html.match(/employee-file__payroll-cell is-completed/g) || []).length, 4);
+  assert.doesNotMatch(html, />[+-]</);
   assert.doesNotMatch(html, /data-employee-file-toggle=/);
   assert.doesNotMatch(html, /data-employee-file-payroll=/);
 });
@@ -55,13 +59,13 @@ test('SharePoint status is read-only and payroll shows document count only', () 
 test('non-admin sees only the SharePoint action, while admin gets collapsed link management', () => {
   const exact = 'https://think365orgil.sharepoint.com/sites/taasiyeda2027/Shared%20Documents/id-1507';
   const regular = employeeFileModalHtml({ folder_web_url: exact, can_edit_folder_url: false });
-  assert.match(regular, /פתח תיק עובד ב־SharePoint/);
+  assert.match(regular, />פתח תיק עובד<\/a>/);
   assert.match(regular, /target="_blank" rel="noopener noreferrer"/);
-  assert.doesNotMatch(regular, /data-employee-file-folder-url|data-employee-file-save-url|ניהול קישור/);
+  assert.doesNotMatch(regular, /data-employee-file-folder-url|data-employee-file-save-url|ניהול הקישור/);
 
   const admin = employeeFileModalHtml({ folder_web_url: exact, can_edit_folder_url: true });
   assert.match(admin, /<details class="employee-file__admin-link">/);
-  assert.match(admin, /ניהול קישור/);
+  assert.match(admin, /ניהול הקישור/);
   assert.match(admin, /data-employee-file-folder-url/);
   assert.match(admin, /data-employee-file-save-url/);
 });
