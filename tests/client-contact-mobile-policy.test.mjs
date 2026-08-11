@@ -3,9 +3,9 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
 const HOTFIX_FILE = new URL('../frontend/src/client-contact-persistence-hotfix.js', import.meta.url);
-const ENTRY_FILE = new URL('../frontend/src/main-with-proposal-pdf-hotfix.js', import.meta.url);
+const ENTRY_FILE = new URL('../frontend/src/feature-loaders.js', import.meta.url);
 
-test('client contact mobile policy is loaded by the application entrypoint', async () => {
+test('client contact mobile policy is loaded with the proposals feature', async () => {
   const entry = await readFile(ENTRY_FILE, 'utf8');
   assert.match(entry, /client-contact-persistence-hotfix\.js/);
 });
