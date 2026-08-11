@@ -1,4 +1,5 @@
 import './course-scheduling-compact-layout.css';
+import './course-scheduling-density-polish.css';
 
 let enhancementScheduled = false;
 let pendingFindCourseId = '';
