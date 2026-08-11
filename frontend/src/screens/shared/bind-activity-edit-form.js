@@ -289,7 +289,9 @@ function captureFormInitialValues(form) {
   form.querySelectorAll('[name]').forEach((el) => {
     const name = el.getAttribute('name');
     if (!name || name.startsWith('_')) return;
-    initialValues[name] = String(el.value ?? '').trim();
+    initialValues[name] = el.matches('select[multiple]')
+      ? [...el.selectedOptions].map((option) => String(option.value).trim()).filter(Boolean)
+      : String(el.value ?? '').trim();
   });
   for (let i = 0; i < 35; i++) {
     const meetingKey = `meeting_date_${i}`;

@@ -614,9 +614,9 @@ function blockExtraEditInfo(row, { settings = {} } = {}) {
       <div class="activity-drawer__details-edit-grid">
         ${fieldEditOnly(
           'מימון',
-          fundings.length
-            ? selectHtml({ name: 'funding', value: row.funding, options: fundings })
-            : inputHtml({ name: 'funding', value: row.funding })
+          `<select class="ds-input" name="funding_sources" multiple size="3" data-scheduling-multi>
+            ${(options.funding_source_records || []).map((source) => `<option value="${escapeHtml(source.id)}"${(row.funding_sources || []).some((item) => String(item.id) === String(source.id)) ? ' selected' : ''}>${escapeHtml(source.name)}</option>`).join('')}
+          </select>`
         )}
         ${fieldEditOnly('מחיר', inputHtml({ name: 'price', value: row.price }))}
       </div>
