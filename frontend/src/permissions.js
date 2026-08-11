@@ -4,10 +4,24 @@ export function permissionFlagYes(value) {
   return ['yes', 'true', '1'].includes(String(value || '').trim().toLowerCase());
 }
 
+const EMPLOYEE_FILE_DEFAULT_ROLES = new Set([
+  'admin',
+  'operation_manager',
+  'finance',
+  'activities_manager',
+  'domain_manager',
+  'business_development_manager',
+  'instructor_manager'
+]);
+
 export function canViewEmployeeFiles(user = {}) {
   const nested = user?.permissions && typeof user.permissions === 'object' ? user.permissions : {};
   const explicit = user?.view_employee_files ?? nested.view_employee_files;
-  return permissionFlagYes(explicit);
+  if (explicit !== undefined && explicit !== null && String(explicit).trim() !== '') {
+    return permissionFlagYes(explicit);
+  }
+  const role = String(user?.role || user?.display_role || '').trim();
+  return EMPLOYEE_FILE_DEFAULT_ROLES.has(role);
 }
 
 function firstDefined(...values) {
