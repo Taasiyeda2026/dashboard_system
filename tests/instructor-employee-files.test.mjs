@@ -51,6 +51,8 @@ test('SharePoint status is read-only and payroll marks up to twelve cells', () =
   const html = employeeFileModalHtml({ components: [{ component_key: 'payroll_reports', item_count: 4 }] });
   assert.equal((html.match(/employee-file__payroll-cell(?: is-completed)?"/g) || []).length, 12);
   assert.equal((html.match(/employee-file__payroll-cell is-completed/g) || []).length, 4);
+  assert.match(html, /employee-file__payroll-title">דוחות שכר<\/div><div class="employee-file__payroll-grid">/);
+  assert.match(html, /grid-template-columns:repeat\(6,minmax\(0,1fr\)\)/);
   assert.doesNotMatch(html, />[+-]</);
   assert.doesNotMatch(html, /data-employee-file-toggle=/);
   assert.doesNotMatch(html, /data-employee-file-payroll=/);
