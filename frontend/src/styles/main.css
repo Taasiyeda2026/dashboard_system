@@ -9473,7 +9473,6 @@ select.ds-input {
 
 .ds-table--activities-list td {
   text-align: right;
-  padding-block: 6px;
 }
 
 .ds-activities-program-cell {
@@ -9720,9 +9719,7 @@ select.ds-input {
 }
 
 .ds-table--activities-list td {
-  padding: 3px 7px;
-  height: 30px;
-  line-height: 1.15;
+  padding-inline: 7px;
   vertical-align: middle;
   text-align: right;
 }
@@ -9923,7 +9920,7 @@ select.ds-input {
   box-shadow: var(--ds-shadow-xs);
 }
 
-/* ===== פעילויות: גובה שורות קומפקטי — מקור יחיד (0,3,1) ===== */
+/* ===== פעילויות: גובה שורות מאוזן — מקור יחיד (0,3,1) ===== */
 /* ספציפיות (0,3,1) — גוברת על (0,2,1) של .ds-activities-screen .ds-table td */
 .ds-activities-screen .ds-table--activities-list th {
   padding-block: 6px;
@@ -9932,9 +9929,9 @@ select.ds-input {
 }
 
 .ds-activities-screen .ds-table--activities-list td {
-  padding-block: 2px;
+  padding-block: 5px;
   vertical-align: middle;
-  line-height: 1.2;
+  line-height: 1.22;
 }
 
 /* צמצום gap בין שם הפעילות לסוגה */
