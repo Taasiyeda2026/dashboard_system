@@ -8269,7 +8269,7 @@ export const proposalsAgreementsScreen = {
           const savedContact = await persistNewClientContact(api, contactFields);
           newlyInsertedContacts.set(text(savedContact.id), savedContact);
           contactOptions = [...contactOptions.filter((contact) => text(contact.source_id ?? contact.id) !== text(savedContact.id)), savedContact];
-          showToast('איש הקשר נוסף בהצלחה', 'success', 1800);
+          showToast(savedContact.already_existed ? 'איש הקשר כבר קיים ונבחר.' : 'איש הקשר נוסף בהצלחה', 'success', 1800);
         } else if (existingId != null && existingId !== '') {
           const updateRow = { ...contactFields, id: existingId };
           await api.saveContact({ kind: 'school', row: updateRow, _supabase_orig: original });
