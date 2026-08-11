@@ -57,7 +57,7 @@ test('SharePoint status is read-only and payroll shows all school-year months', 
   assert.equal((html.match(/employee-file__payroll-cell (?:is-completed|is-missing)"/g) || []).length, 12);
   assert.equal((html.match(/employee-file__payroll-cell is-completed/g) || []).length, 4);
   assert.equal((html.match(/employee-file__payroll-cell is-missing/g) || []).length, 8);
-  assert.equal((html.match(/employee-file__payroll-month/g) || []).length, 12);
+  assert.equal((html.match(/class="employee-file__payroll-month"/g) || []).length, 12);
   for (const month of ['ספט׳', 'אוק׳', 'נוב׳', 'דצמ׳', 'ינו׳', 'פבר׳', 'מרץ', 'אפר׳', 'מאי', 'יונ׳', 'יול׳', 'אוג׳']) assert.match(html, new RegExp(month));
   assert.match(html, /employee-file__payroll-title">דוחות שכר<\/div><div class="employee-file__payroll-grid">/);
   assert.match(html, /grid-template-columns:repeat\(6,minmax\(0,1fr\)\)/);
