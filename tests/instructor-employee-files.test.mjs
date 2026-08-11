@@ -9,7 +9,7 @@ const instructorsSource = fs.readFileSync(new URL('../frontend/src/screens/instr
 const apiSource = fs.readFileSync(new URL('../frontend/src/api.js', import.meta.url), 'utf8');
 const dataSource = fs.readFileSync(new URL('../frontend/src/screens/instructor-employee-file-data.js', import.meta.url), 'utf8');
 const baseMigration = fs.readFileSync(new URL('../supabase/migrations/20260810233000_instructor_employee_files_sharepoint_metadata.sql', import.meta.url), 'utf8');
-const liveMigration = fs.readFileSync(new URL('../supabase/migrations/20260811020500_employee_files_admin_link_and_live_sharepoint.sql', import.meta.url), 'utf8');
+const liveMigration = fs.readFileSync(new URL('../supabase/migrations/20260811020235_employee_files_admin_link_and_live_sharepoint.sql', import.meta.url), 'utf8');
 const edgeSource = fs.readFileSync(new URL('../supabase/functions/instructor-employee-file-live/index.ts', import.meta.url), 'utf8');
 
 const row = (active = 'yes', gender = null) => ({ emp_id: 1507, full_name: 'אלכס זפקה', active, scheduling_profile: gender ? { gender } : null });
