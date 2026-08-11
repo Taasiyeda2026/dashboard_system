@@ -35,22 +35,26 @@ test('card keeps separate profile and employee-file buttons', () => {
   assert.match(instructorsSource, /querySelectorAll\('\[data-instructor-profile\]'\)/);
 });
 
-test('employee-file modal renders the compact 2-3-2 dashboard without judgment text', () => {
+test('employee-file modal renders compact inline statuses with a quiet red dot for missing documents', () => {
   assert.equal(EMPLOYEE_FILE_COMPONENTS.length, 8);
   const html = employeeFileModalHtml({ components: [{ component_key: 'signed_agreement', completed: true }] });
   assert.match(html, /employee-file__group--agreements[^]*signed_agreement[^]*supporting_documents/);
   assert.match(html, /employee-file__group--feedback[^]*intro_feedback[^]*midyear_feedback[^]*year_end_feedback/);
   assert.match(html, /employee-file__group--observations[^]*observation_1[^]*observation_2/);
-  assert.equal((html.match(/class="employee-file__card"/g) || []).length, 7);
-  assert.equal((html.match(/employee-file__check/g) || []).length, 2);
+  assert.equal((html.match(/class="employee-file__card /g) || []).length, 7);
+  assert.equal((html.match(/employee-file__card is-completed/g) || []).length, 1);
+  assert.equal((html.match(/employee-file__card is-missing/g) || []).length, 6);
+  assert.match(html, /\.employee-file__card\.is-missing[^}]*background:#d94b57/);
+  assert.match(html, /width:fit-content;min-width:min\(304px/);
   for (const forbidden of ['לא קיים', 'חסר', 'באיחור', '5/8', '62%', 'תיק מלא', 'תיק חסר']) assert.doesNotMatch(html, new RegExp(forbidden));
   assert.doesNotMatch(html, /type="radio"|type="checkbox"|employee-file__list/);
 });
 
 test('SharePoint status is read-only and payroll marks up to twelve cells', () => {
   const html = employeeFileModalHtml({ components: [{ component_key: 'payroll_reports', item_count: 4 }] });
-  assert.equal((html.match(/employee-file__payroll-cell(?: is-completed)?"/g) || []).length, 12);
+  assert.equal((html.match(/employee-file__payroll-cell (?:is-completed|is-missing)"/g) || []).length, 12);
   assert.equal((html.match(/employee-file__payroll-cell is-completed/g) || []).length, 4);
+  assert.equal((html.match(/employee-file__payroll-cell is-missing/g) || []).length, 8);
   assert.match(html, /employee-file__payroll-title">דוחות שכר<\/div><div class="employee-file__payroll-grid">/);
   assert.match(html, /grid-template-columns:repeat\(6,minmax\(0,1fr\)\)/);
   assert.doesNotMatch(html, />[+-]</);
