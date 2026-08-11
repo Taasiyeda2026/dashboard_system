@@ -7883,10 +7883,31 @@ export const api = {
       }
       if (!nextRow.active) nextRow.active = 'פעיל';
       const { data, error } = await supabase.from('contacts_schools').insert(nextRow).select().single();
-      if (error) throw new Error(error.message || 'add_contact_failed');
+      if (error) {
+        const insertError = new Error(error.message || 'add_contact_failed');
+        Object.assign(insertError, {
+          code: error.code,
+          details: error.details,
+          hint: error.hint,
+          constraint: error.constraint,
+          status: error.status
+        });
+        throw insertError;
+      }
       return { ok: true, row: data };
     }
     throw new Error('invalid_contact_kind');
+  },
+  findSchoolContactByUniqueIdentity: async ({ authority, school, contact_name: contactName }) => {
+    const { data, error } = await supabase
+      .from('contacts_schools')
+      .select('*')
+      .eq('authority', String(authority || '').trim())
+      .eq('school', String(school || '').trim())
+      .eq('contact_name', String(contactName || '').trim())
+      .limit(2);
+    if (error) throw new Error(error.message || 'school_contact_duplicate_lookup_failed');
+    return { ok: true, rows: Array.isArray(data) ? data : [] };
   },
   saveContact: async (payload) => {
     const kind = String(payload?.kind || '').trim();
