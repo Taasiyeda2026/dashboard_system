@@ -162,6 +162,7 @@ const PERMISSION_FIELD_LABELS = {
   view_my_data: 'צפייה — הנתונים שלי',
   view_operations_data: 'צפייה — נתוני תפעול',
   view_operations_management: 'צפייה — ניהול תפעול',
+  view_employee_files: 'צפייה — תיקי עובד',
   finance_access: 'גישה — כספים / גבייה',
   can_access_personal_reports: 'גישה — דוחות אישיים',
   view_contacts_instructors: 'צפייה — אנשי קשר מדריכים',

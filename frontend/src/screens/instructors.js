@@ -1,6 +1,9 @@
 import { escapeHtml } from './shared/html.js';
 import { dsScreenStack, dsEmptyState } from './shared/layout.js';
 import { showToast } from './shared/toast.js';
+import { canViewEmployeeFiles } from '../permissions.js';
+import { loadInstructorEmployeeFile, saveInstructorEmployeeFileComponent, saveInstructorEmployeeFolderUrl } from './instructor-employee-file-data.js';
+import { employeeFileModalHtml } from './instructor-employee-file-ui.js';
 import { activityWorkDrawerHtml, patchDrawerDatesSection } from './shared/activity-detail-html.js';
 import {
   loadInstructorSchedulingData,
@@ -12,7 +15,7 @@ import {
 import { loadInstructorSeniorityData, saveInstructorContactDetails } from './instructor-contact-data.js';
 import {
   text, activeFlag, instructorCard, profileHtml, contactForm, constraintsForm, matchingForm
-} from './instructor-workspace-ui.js?v=20260807-guides-card-redesign-v1';
+} from './instructor-workspace-ui.js?v=20260810-employee-file-manual-v2';
 import {
   bindInstructorsWorkspaceNav,
   instructorsWorkspaceHeaderHtml,
@@ -29,6 +32,7 @@ const INSTRUCTORS_LIST_STYLES = `.instructors-list{display:flex;flex-direction:c
 .instructors-missing__list li{display:flex;justify-content:space-between;gap:12px;padding-top:4px;border-top:1px solid color-mix(in srgb, var(--ds-accent) 16%, transparent);font-size:.78rem;color:color-mix(in srgb, var(--ds-accent) 68%, #000)}
 .instructors-list__toolbar .ds-chip{min-width:72px;justify-content:center}
 .instructors-workspace-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;justify-content:center}
+.instructor-card-shell{position:relative;display:block;width:100%;min-width:0;min-height:86px}
 .instructor-card{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;width:100%;min-height:86px;padding:12px 10px;box-sizing:border-box;text-align:center;background:#fff;border:1px solid #d9e1e8;border-radius:10px;cursor:pointer;overflow:hidden;box-shadow:0 2px 6px rgba(15,23,42,.08);transition:box-shadow .15s ease,transform .15s ease}
 .instructor-card:hover{box-shadow:0 3px 8px rgba(15,23,42,.11);transform:translateY(-1px)}
 .instructor-card:focus-visible{outline:none;box-shadow:0 0 0 2px rgba(26,51,88,.22)}
@@ -37,6 +41,11 @@ const INSTRUCTORS_LIST_STYLES = `.instructors-list{display:flex;flex-direction:c
 .instructor-card__stats{display:flex;align-items:center;gap:9px;white-space:nowrap;margin-top:2px}
 .instructor-card__stat{display:inline-flex;align-items:center;gap:3px;color:#66707d;font-size:.72rem}
 .instructor-card__stat strong{font-size:.74rem;color:#3d4552;font-weight:700}
+.instructor-card__employee-file-action{position:absolute;top:7px;left:7px;z-index:2;display:grid;place-items:center;width:31px;height:31px;padding:0;border:0;border-radius:8px;background:rgba(255,255,255,.9);cursor:pointer;transition:background-color .15s ease,box-shadow .15s ease}
+.instructor-card__employee-file-action:hover{background:#f7fafc;box-shadow:0 1px 4px rgba(15,23,42,.16)}
+.instructor-card__employee-file-action:focus-visible{outline:2px solid currentColor;outline-offset:1px}
+.instructor-card__employee-file-action--male{color:#278b9b}.instructor-card__employee-file-action--female{color:#c47f98}.instructor-card__employee-file-action--neutral{color:#7b8794}
+.employee-file{display:grid;gap:14px;min-width:min(360px,80vw)}.employee-file__list{display:grid;gap:0;margin:0;padding:0;list-style:none;border:1px solid #e1e6eb;border-radius:10px;overflow:hidden}.employee-file__row{display:flex;align-items:center;justify-content:space-between;gap:16px;min-height:42px;padding:7px 12px;border-bottom:1px solid #edf0f3}.employee-file__row:last-child{border-bottom:0}.employee-file__presence{display:grid;place-items:center;width:24px;height:24px;padding:0;border-radius:50%;cursor:pointer}.employee-file__presence--completed{border:0;background:#e7f4ef;color:#27735b;font-weight:800}.employee-file__presence--empty{box-sizing:border-box;border:1.5px solid #aeb7c1;background:#f7f8f9}.employee-file__payroll{display:inline-flex;align-items:center;gap:7px;color:#52606d}.employee-file__payroll button{width:25px;height:25px;padding:0;border:1px solid #d5dbe1;border-radius:6px;background:#fff;cursor:pointer}.employee-file__link-editor{display:flex;align-items:end;gap:7px}.employee-file__link-editor label{display:grid;flex:1;gap:4px;font-size:.78rem}.employee-file__open{justify-self:start}.employee-file__link-note{font-size:.78rem;color:#7b8794}.employee-file__status{min-height:18px;margin:0;font-size:.78rem;color:#596575}
 @media(max-width:900px){.instructors-workspace-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:600px){.instructors-workspace-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}`;
 
@@ -268,7 +277,8 @@ export const instructorsScreen = {
       if (filters.active && activeFlag(row.active) !== filters.active) return false;
       return true;
     });
-    const body = rows.length ? `<div class="instructors-workspace-grid">${rows.map(instructorCard).join('')}</div>` : dsEmptyState('לא נמצאו מדריכים בהתאם לסינון');
+    const employeeFilesAllowed = canViewEmployeeFiles(state?.user);
+    const body = rows.length ? `<div class="instructors-workspace-grid">${rows.map((row) => instructorCard(row, { canViewEmployeeFiles: employeeFilesAllowed })).join('')}</div>` : dsEmptyState('לא נמצאו מדריכים בהתאם לסינון');
     return dsScreenStack(`${instructorsWorkspaceNavStylesHtml()}<style>${INSTRUCTORS_LIST_STYLES}</style>
       <div class="instructors-list">
         ${instructorsWorkspaceHeaderHtml({ activeTab: 'list', state })}
@@ -284,6 +294,7 @@ export const instructorsScreen = {
   bind({ root, data, state, rerender, api, ui, clearScreenDataCache }) {
     const rows = data?.rows || [];
     const canEdit = ['admin', 'operation_manager'].includes(text(state?.user?.role || state?.user?.display_role));
+    const employeeFilesAllowed = canViewEmployeeFiles(state?.user);
     state.instructorsWorkspace = state.instructorsWorkspace || { q: '', active: 'yes', assignment: '' };
     bindInstructorsWorkspaceNav(root, { state, rerender });
     root.querySelectorAll('[data-instructors-active]').forEach((button) => button.addEventListener('click', () => { state.instructorsWorkspace.active = button.dataset.instructorsActive || ''; rerender(); }));
@@ -338,6 +349,57 @@ export const instructorsScreen = {
         document.querySelector('[data-edit-instructor-matching]')?.addEventListener('click', () => openMatching(row, reopen));
         document.querySelectorAll('[data-open-instructor-activity]').forEach((button) => button.addEventListener('click', () => { const hit = activities.find((item) => text(item.row_id || item.RowID || item.source_row_id) === text(button.dataset.openInstructorActivity)); if (hit) openActivity(hit); }));
       });
+    };
+
+    const openEmployeeFile = async (row) => {
+      if (!row || !ui || !employeeFilesAllowed || activeFlag(row.active) !== 'yes') return;
+      try {
+        const payload = await loadInstructorEmployeeFile(api, row.emp_id);
+        ui.openModal({ title: `תיק עובד - ${row.full_name || row.emp_id}`, modalClass: 'ds-modal--employee-file', content: employeeFileModalHtml(payload), actions: '<button type="button" class="ds-btn" data-ui-close-modal>סגירה</button>' });
+        requestAnimationFrame(() => {
+          const modal = document.querySelector('.ds-modal.ds-modal--employee-file');
+          const status = modal?.querySelector('[data-employee-file-status]');
+          const components = new Map((payload.components || []).map((item) => [item.component_key, { ...item }]));
+          const setStatus = (value) => { if (status) status.textContent = value; };
+          modal?.querySelectorAll('[data-employee-file-toggle]').forEach((button) => button.addEventListener('click', async () => {
+            const key = button.dataset.employeeFileToggle;
+            const current = components.get(key) || { component_key: key, completed: false, item_count: 0 };
+            const next = !current.completed;
+            try {
+              button.disabled = true; setStatus('שומר...');
+              const saved = await saveInstructorEmployeeFileComponent(api, row.emp_id, key, { completed: next });
+              components.set(key, { ...current, ...saved });
+              button.classList.toggle('employee-file__presence--completed', next); button.classList.toggle('employee-file__presence--empty', !next);
+              button.setAttribute('aria-pressed', String(next)); button.textContent = next ? '✓' : ''; setStatus('נשמר');
+            } catch (error) { setStatus(String(error?.message || 'השמירה נכשלה')); } finally { button.disabled = false; }
+          }));
+          modal?.querySelectorAll('[data-employee-file-payroll]').forEach((button) => button.addEventListener('click', async () => {
+            const countNode = modal.querySelector('[data-employee-file-payroll-count]');
+            const currentCount = Math.max(0, Number(countNode?.textContent) || 0);
+            const nextCount = button.dataset.employeeFilePayroll === 'increment' ? currentCount + 1 : Math.max(0, currentCount - 1);
+            if (nextCount === currentCount) return;
+            try { button.disabled = true; setStatus('שומר...'); await saveInstructorEmployeeFileComponent(api, row.emp_id, 'payroll_reports', { itemCount: nextCount, completed: nextCount > 0 }); if (countNode) countNode.textContent = String(nextCount); setStatus('נשמר'); }
+            catch (error) { setStatus(String(error?.message || 'השמירה נכשלה')); } finally { button.disabled = false; }
+          }));
+          modal?.querySelector('[data-employee-file-save-url]')?.addEventListener('click', async (event) => {
+            const button = event.currentTarget; const input = modal.querySelector('[data-employee-file-folder-url]');
+            try {
+              button.disabled = true; setStatus('שומר...');
+              const saved = await saveInstructorEmployeeFolderUrl(api, row.emp_id, input?.value || '');
+              const action = modal.querySelector('[data-employee-file-link-action]');
+              if (action && saved?.folder_web_url) {
+                const anchor = document.createElement('a'); anchor.className = 'ds-btn ds-btn--primary employee-file__open';
+                anchor.href = saved.folder_web_url; anchor.target = '_blank'; anchor.rel = 'noopener noreferrer'; anchor.textContent = 'פתח תיק עובד ב־SharePoint';
+                action.replaceChildren(anchor);
+              } else if (action) action.innerHTML = '<span class="employee-file__link-note">קישור התיק טרם הוגדר</span>';
+              setStatus('הקישור נשמר');
+            }
+            catch (error) { setStatus(String(error?.message || 'שמירת הקישור נכשלה')); } finally { button.disabled = false; }
+          });
+        });
+      } catch (error) {
+        showToast(String(error?.message || 'לא ניתן לטעון את תיק העובד'), 'error');
+      }
     };
 
     const openMatching = async (row, reopen) => {
@@ -400,6 +462,12 @@ export const instructorsScreen = {
       });
     }
 
+    root.querySelectorAll('[data-instructor-employee-file]').forEach((button) => button.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const row = rows.find((item) => text(item.emp_id) === text(button.dataset.instructorEmployeeFile));
+      openEmployeeFile(row);
+    }));
     root.querySelectorAll('[data-instructor-profile]').forEach((button) => button.addEventListener('click', async () => {
       const empId = text(button.dataset.instructorProfile || button.dataset.instructorCard);
       const row = rows.find((item) => text(item.emp_id) === empId);

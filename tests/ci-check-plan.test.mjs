@@ -65,6 +65,14 @@ test('instructor matching engine selects scheduling checks, not instructor UI', 
   assert.equal(plan.tests.includes('tests/instructor-area-screen.test.mjs'), false);
 });
 
+test('instructor UI selects maintained focused suites, not the failing legacy mixed-domain suite', () => {
+  const plan = buildCheckPlan(['frontend/src/screens/instructors.js']);
+  assert.deepEqual(plan.groups, ['instructors']);
+  assert.ok(plan.tests.includes('tests/instructors-unified-workspace.test.mjs'));
+  assert.ok(plan.tests.includes('tests/instructor-employee-files.test.mjs'));
+  assert.equal(plan.tests.includes('tests/instructor-area-screen.test.mjs'), false);
+});
+
 test('authority catalog filenames are not misread as auth', () => {
   const plan = buildCheckPlan(['frontend/src/screens/operations-authorities-cleanup.js']);
   assert.deepEqual(plan.groups, ['operations']);
