@@ -58,13 +58,15 @@ test('folder uses exact stored URL and missing URL exposes only a neutral note',
   assert.match(missing, /קישור התיק טרם הוגדר/);
 });
 
-test('dedicated permission is the frontend source of truth', () => {
+test('employee-file frontend uses explicit permission when present and approved-role fallback when permission is absent', () => {
   for (const role of ['admin','operation_manager','finance','activities_manager','domain_manager','business_development_manager','instructor_manager']) {
-    assert.equal(canViewEmployeeFiles({ role, permissions: { view_employee_files: 'yes' } }), true, role);
+    assert.equal(canViewEmployeeFiles({ role, permissions: { view_employee_files: 'yes' } }), true, `${role}: explicit yes`);
+    assert.equal(canViewEmployeeFiles({ role }), true, `${role}: role fallback`);
+    assert.equal(canViewEmployeeFiles({ role, permissions: { view_employee_files: 'no' } }), false, `${role}: explicit no wins`);
   }
-  assert.equal(canViewEmployeeFiles({ role: 'admin' }), false);
+  assert.equal(canViewEmployeeFiles({ role: 'authorized_user' }), false);
+  assert.equal(canViewEmployeeFiles({ role: 'authorized_user', permissions: { view_employee_files: 'yes' } }), true);
   assert.equal(canViewEmployeeFiles({ role: 'authorized_user', permissions: { view_employee_files: 'no' } }), false);
-  assert.equal(canViewEmployeeFiles({ role: 'admin', permissions: { view_employee_files: 'no' } }), false);
 });
 
 test('database contract prevents duplicate instructor and folder mappings', () => {
