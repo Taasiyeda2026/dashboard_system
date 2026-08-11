@@ -65,7 +65,6 @@ test('stage 1 instructor readiness admits only active complete profiles with val
     ['לא פעיל', { ...instructor, active: 'no' }, profile, rules],
     ['ללא כתובת', { ...instructor, address: '' }, profile, rules],
     ['ללא שפה', instructor, { ...profile, instruction_languages: [] }, rules],
-    ['ללא מגדר', instructor, { ...profile, gender: '' }, rules],
     ['ללא זמינות', instructor, profile, []],
     ['עם זמינות הפוכה', instructor, profile, [{ ...rules[0], start_time: '15:00', end_time: '14:00' }]],
     ['עם יום שבוע חסר', instructor, profile, [{ ...rules[0], weekday: null }]],
@@ -76,6 +75,8 @@ test('stage 1 instructor readiness admits only active complete profiles with val
     assert.equal(isSchedulingReadyInstructor(row, candidateProfile, candidateRules), false, label);
     assert.equal(schedulingInstructors([row], { 1: candidateProfile }, { 1: candidateRules }).length, 0, label);
   }
+  assert.equal(isSchedulingReadyInstructor(instructor, { ...profile, gender: '' }, rules), true, 'מגדר אינו שדה readiness כללי');
+  assert.deepEqual(schedulingInstructors([instructor], { 1: { ...profile, gender: '' } }, { 1: rules }).map((row) => row.emp_id), ['1']);
 });
 
 test('readiness filtering is immutable and does not alter scoring or matching constants', () => {
