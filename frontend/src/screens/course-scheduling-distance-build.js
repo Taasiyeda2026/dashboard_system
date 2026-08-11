@@ -216,7 +216,6 @@ function hasValidAvailabilityRule(rule = {}) {
 export function instructorReadinessMissingFields(instructor = {}, profile = null, rules = []) {
   const missing = [];
   if (!text(instructor.address)) missing.push('כתובת');
-  if (!text(profile?.gender)) missing.push('מגדר');
   if (!Array.isArray(profile?.instruction_languages) || !profile.instruction_languages.length) missing.push('שפות הדרכה');
   if (!rules.length) missing.push('זמינות שבועית');
   if (!rules.some(hasValidAvailabilityRule)) missing.push('יום זמין אחד לפחות עם שעות תקינות');

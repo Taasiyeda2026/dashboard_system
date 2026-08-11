@@ -181,6 +181,40 @@ test('course without gender requirement accepts male or female instructors', () 
   assert.deepEqual(eligibleIds, ['f1', 'm1']);
 });
 
+test('course without gender requirement accepts an instructor whose gender is missing', () => {
+  const result = evaluateInstructor({
+    instructor: femaleInstructor,
+    profile: { ...matchingProfile, gender: null },
+    rules: weekdayRules,
+    activity: course019({ required_instructor_gender: 'any' }),
+    validateTravel: false
+  });
+  assert.equal(result.eligible, true);
+  assert.equal(result.checks.gender.passed, true);
+  assert.doesNotMatch(result.missingProfileData.join(' '), /מגדר/);
+});
+
+test('explicit gender requirement rejects missing or mismatched instructor gender', () => {
+  const missing = evaluateInstructor({
+    instructor: femaleInstructor,
+    profile: { ...matchingProfile, gender: null },
+    rules: weekdayRules,
+    activity: course019({ required_instructor_gender: 'female' }),
+    validateTravel: false
+  });
+  const mismatched = evaluateInstructor({
+    instructor: maleInstructor,
+    profile: { ...matchingProfile, gender: 'male' },
+    rules: weekdayRules,
+    activity: course019({ required_instructor_gender: 'female' }),
+    validateTravel: false
+  });
+  assert.equal(missing.eligible, false);
+  assert.match(missing.missingProfileData.join(' '), /מגדר/);
+  assert.equal(mismatched.eligible, false);
+  assert.ok(mismatched.failures.includes('הקורס דורש מדריכה'));
+});
+
 test('language remains a hard gate while education level does not', () => {
   // Stage 1 removed education-level gating; stage 3 must not restore it.
   const mismatchedAge = evaluateInstructor({

@@ -304,7 +304,7 @@ test('10: unsaved planning recommendations do not create hard conflicts', () => 
   assert.ok(results.every((row) => (row.recommended || row.bestAvailable)));
 });
 
-test('11: missing gender is incomplete even when required gender is any', () => {
+test('11: missing gender is allowed when required gender is any', () => {
   const result = evaluateInstructor({
     instructor,
     profile: { ...profile, gender: null },
@@ -313,8 +313,8 @@ test('11: missing gender is incomplete even when required gender is any', () => 
     travel: { home: { distance_km: 8, duration_minutes: 12 }, transitions: {} },
     validateTravel: true
   });
-  assert.equal(result.eligible, false);
-  assert.ok(result.missingProfileData.some((item) => /מגדר/.test(item)));
+  assert.equal(result.eligible, true);
+  assert.ok(result.missingProfileData.every((item) => !/מגדר/.test(item)));
 });
 
 test('12: hard gates cannot be bypassed with exception approval', async () => {
