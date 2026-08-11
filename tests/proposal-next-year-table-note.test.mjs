@@ -8,7 +8,11 @@ if (!globalThis.sessionStorage) {
 }
 if (!globalThis.localStorage) globalThis.localStorage = globalThis.sessionStorage;
 
-const { proposalPreviewBodyHtml } = await import('../frontend/src/screens/proposals-agreements.js');
+const {
+  documentSectionsWithPreservedTableNote,
+  proposalDocumentSections,
+  proposalPreviewBodyHtml
+} = await import('../frontend/src/screens/proposals-agreements.js');
 
 const source = fs.readFileSync(new URL('../frontend/src/screens/proposals-agreements.js', import.meta.url), 'utf8');
 const css = fs.readFileSync(new URL('../frontend/src/styles/main.css', import.meta.url), 'utf8');
@@ -45,4 +49,45 @@ test('editor, persistence, live preview, print styling, and clone keep the scope
   assert.match(source, /custom_document_sections: Array\.isArray\(sourceRow\.custom_document_sections\) \? sourceRow\.custom_document_sections : \[\]/);
   assert.match(source, /form\.addEventListener\('input',[\s\S]*calcGrandTotal\(form\)/);
   assert.match(css, /\.proposal-document \.pa-table-note[\s\S]*page-break-before: avoid/);
+});
+
+test('document editor save preserves one unchanged table_note after updated document sections', () => {
+  const tableNote = { section_key: 'table_note', section_title: '', section_body: 'הערה לבדיקה', sort_order: 999 };
+  const existing = {
+    custom_document_sections: [
+      { section_key: 'payment_terms', section_body: 'ישן' },
+      tableNote,
+      { section_key: 'table_note', section_body: 'עותק שאין לשמור' }
+    ]
+  };
+  const updated = [
+    { section_key: 'payment_terms', section_body: 'חדש' },
+    { section_key: 'table_note', section_body: 'אין להחליף את ההערה מהעורך' }
+  ];
+
+  const saved = documentSectionsWithPreservedTableNote(existing, updated);
+
+  assert.deepEqual(saved, [{ section_key: 'payment_terms', section_body: 'חדש' }, tableNote]);
+  assert.strictEqual(saved[1], tableNote, 'the existing table_note must be kept without normalization or mutation');
+});
+
+test('document reset keeps only table_note, while a proposal without one resets to an empty array', () => {
+  const tableNote = { section_key: 'table_note', section_body: 'הערה לבדיקה' };
+  assert.deepEqual(documentSectionsWithPreservedTableNote({
+    custom_document_sections: [{ section_key: 'payment_terms', section_body: 'מותאם' }, tableNote]
+  }), [tableNote]);
+  assert.deepEqual(documentSectionsWithPreservedTableNote({
+    custom_document_sections: [{ section_key: 'payment_terms', section_body: 'מותאם' }]
+  }), []);
+});
+
+test('table_note alone is excluded from the custom document sections indicator', () => {
+  assert.deepEqual(proposalDocumentSections(row('next_year', 'הערה לבדיקה')), []);
+  assert.deepEqual(proposalDocumentSections({
+    custom_document_sections: [
+      { section_key: 'table_note', section_body: 'הערה לבדיקה' },
+      { section_key: 'payment_terms', section_body: 'מותאם' }
+    ]
+  }), [{ section_key: 'payment_terms', section_body: 'מותאם' }]);
+  assert.match(source, /const isCustom = proposalDocumentSections\(row\)\.length > 0/);
 });

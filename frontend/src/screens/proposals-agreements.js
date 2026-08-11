@@ -3781,9 +3781,17 @@ function proposalTableNoteSection(value) {
   return note ? { section_key: 'table_note', section_title: '', section_body: note, sort_order: 999 } : null;
 }
 
-function proposalDocumentSections(row = {}) {
+export function proposalDocumentSections(row = {}) {
   return (Array.isArray(row.custom_document_sections) ? row.custom_document_sections : [])
     .filter((section) => proposalTextField(section, 'section_key', 'sectionKey') !== 'table_note');
+}
+
+export function documentSectionsWithPreservedTableNote(row = {}, documentSections = []) {
+  const tableNote = (Array.isArray(row.custom_document_sections) ? row.custom_document_sections : [])
+    .find((section) => proposalTextField(section, 'section_key', 'sectionKey') === 'table_note');
+  const sections = (Array.isArray(documentSections) ? documentSections : [])
+    .filter((section) => proposalTextField(section, 'section_key', 'sectionKey') !== 'table_note');
+  return tableNote ? [...sections, tableNote] : sections;
 }
 
 function documentSectionsEditorHtml(sections = [], isCustom = false) {
@@ -9487,7 +9495,7 @@ export const proposalsAgreementsScreen = {
           return;
         }
         const templateSections = filterTemplateSectionsForGroup(proposalTemplateSections, row.activity_type_group);
-        const hasCustomSections = Array.isArray(row.custom_document_sections) && row.custom_document_sections.length > 0;
+        const hasCustomSections = proposalDocumentSections(row).length > 0;
         if (!hasCustomSections && templateSections.length === 0) {
           showToast('לא נמצאה תבנית פעילה לסוג הצעת המחיר. עריכת המסמך נעצרה.', 'error');
           return;
@@ -9499,7 +9507,7 @@ export const proposalsAgreementsScreen = {
         }));
         const host = root.querySelector('[data-pa-inline-form]');
         if (!host) return;
-        const isCustom = Array.isArray(row.custom_document_sections) && row.custom_document_sections.length > 0;
+        const isCustom = proposalDocumentSections(row).length > 0;
         host.innerHTML = `<div class="ds-pa-form ds-pa-doc-edit-form" data-pa-doc-edit-wrap>
           <h4>עריכת מסמך</h4>${documentSectionsEditorHtml(workingSections, isCustom)}
           <div class="ds-pa-form-actions">
@@ -9524,10 +9532,11 @@ export const proposalsAgreementsScreen = {
           section_title: proposalTextField(section, 'section_title', 'sectionTitle'),
           section_body: normalizeMultilineText(Array.from(wrap.querySelectorAll('[data-pa-doc-body]')).find((el) => text(el.dataset.paDocBody) === proposalTextField(section, 'section_key', 'sectionKey'))?.value)
         }));
+        const customDocumentSections = documentSectionsWithPreservedTableNote(row, sections);
         const result = typeof api.saveProposalAgreementCustomDocumentSections === 'function'
-          ? await api.saveProposalAgreementCustomDocumentSections(id, sections)
-          : await api.updateProposalAgreement(id, { ...row, custom_document_sections: sections });
-        replaceLocalRow(data, result?.row || { ...row, custom_document_sections: sections });
+          ? await api.saveProposalAgreementCustomDocumentSections(id, customDocumentSections)
+          : await api.updateProposalAgreement(id, { ...row, custom_document_sections: customDocumentSections });
+        replaceLocalRow(data, result?.row || { ...row, custom_document_sections: customDocumentSections });
         wrap.remove();
         setDocumentEditMode(root, false);
         refreshTable();
@@ -9540,10 +9549,11 @@ export const proposalsAgreementsScreen = {
         const id = text(docResetBtn.dataset.paDocReset);
         const row = data.rows.find((r) => text(r.id) === id);
         if (!row) return;
+        const customDocumentSections = documentSectionsWithPreservedTableNote(row);
         const result = typeof api.saveProposalAgreementCustomDocumentSections === 'function'
-          ? await api.saveProposalAgreementCustomDocumentSections(id, [])
-          : await api.updateProposalAgreement(id, { ...row, custom_document_sections: [] });
-        replaceLocalRow(data, result?.row || { ...row, custom_document_sections: [] });
+          ? await api.saveProposalAgreementCustomDocumentSections(id, customDocumentSections)
+          : await api.updateProposalAgreement(id, { ...row, custom_document_sections: customDocumentSections });
+        replaceLocalRow(data, result?.row || { ...row, custom_document_sections: customDocumentSections });
         docResetBtn.closest('[data-pa-doc-edit-wrap]')?.remove();
         setDocumentEditMode(root, false);
         refreshTable();
