@@ -8,7 +8,7 @@ export const TEST_GROUPS = Object.freeze({
   annualReviews: ['tests/annual-reviews-v2.test.mjs', 'tests/annual-reviews-security.test.mjs'],
   auth: ['tests/auth-login-stabilization.test.mjs', 'tests/auth-permissions-routes.test.mjs'],
   catalog: ['tests/catalog-screen-display.test.mjs'],
-  clients: ['tests/client-file-unified-screen.test.mjs'],
+  clients: ['tests/client-file-unified-screen-ci.test.mjs'],
   dashboard: ['tests/dashboard-stability.test.mjs'],
   db: ['tests/backend-write-flows-guard.test.mjs'],
   editRequests: ['tests/edit-requests-screen.test.mjs'],
