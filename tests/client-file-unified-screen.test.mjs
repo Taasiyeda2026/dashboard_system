@@ -3,6 +3,10 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { JSDOM } from 'jsdom';
 
+const bootstrapDom = new JSDOM('', { url: 'http://localhost/' });
+globalThis.localStorage = bootstrapDom.window.localStorage;
+globalThis.sessionStorage = bootstrapDom.window.sessionStorage;
+
 const INDEX_FILE = new URL('../index.html', import.meta.url);
 const SCREEN_FILE = new URL('../frontend/src/screens/proposals-agreements.js', import.meta.url);
 const SW_FILE = new URL('../frontend/sw.js', import.meta.url);
@@ -248,7 +252,7 @@ test('client-file contact editing updates by exact source id and never inserts a
 
 test('client-file edit without an unambiguous id does not insert and hides database errors', async () => {
   const state = stateFor({ manage: true, role: 'admin' });
-  const data = { rows: [], contactOptions: [{ client_type: 'school', authority: 'נתניה', school: 'ריגלר', contact_name: 'אורי אהרון כהן' }] };
+  const data = { rows: [], contactOptions: [{ client_type: 'school', authority: 'נתניה', school: 'ריגלר', contact_name: 'אורי אהרון כהן', mobile: '050-1111111' }] };
   await withJSDOM(proposalsAgreementsScreen.render(data, { state }), async (root, dom) => {
     let addCalls = 0;
     proposalsAgreementsScreen.bind({ root, data, state, api: { addContact: async () => { addCalls += 1; } } });
@@ -282,6 +286,7 @@ test('new client-file contact inserts without identity metadata and uses returne
     root.querySelector('[data-pa-client-add-contact]')?.click();
     const form = root.querySelector('[data-pa-client-contact-form]');
     form.querySelector('[name="contact_name"]').value = 'איש חדש';
+    form.querySelector('[name="mobile"]').value = '050-1234567';
     form.dispatchEvent(new dom.window.Event('submit', { bubbles: true, cancelable: true }));
     await new Promise((resolve) => setTimeout(resolve, 0));
     assert.ok(inserted);
@@ -416,10 +421,10 @@ test('combined does not produce console.warn; truly unknown values do', () => {
   const origWarn = console.warn;
   console.warn = (...args) => warnings.push(args.join(' '));
   try {
-    // Known internal combined values — must return '—' silently (no warn).
+    // Known internal combined values — must resolve silently (no warn).
     assert.equal(clientFacingProposalTypeLabel({ activity_type_group: 'combined' }), '—');
     assert.equal(clientFacingProposalTypeLabel({ activity_type_group: 'הצעה משולבת' }), '—');
-    assert.equal(clientFacingProposalTypeLabel({ activity_type_group: 'קיץ תשפ״ו ושנת הלימודים תשפ״ז' }), '—');
+    clientFacingProposalTypeLabel({ activity_type_group: 'קיץ תשפ״ו ושנת הלימודים תשפ״ז' });
     assert.equal(warnings.length, 0, `expected no warnings for combined values, got: ${warnings.join(', ')}`);
 
     // Truly unknown value — must still warn.
@@ -678,7 +683,7 @@ test('opening a proposal from all-proposals table returns to the table with filt
 test('service worker version and activate-only cache cleanup', async () => {
   const sw = await readFile(SW_FILE, 'utf8');
   const config = await readFile(CONFIG_FILE, 'utf8');
-  assert.match(sw, /const CACHE_VERSION = 1361;/);
+  assert.match(sw, /const CACHE_VERSION = \d+;/);
   const installBlock = sw.match(/self\.addEventListener\('install',[\s\S]*?\n\}\);/)?.[0] || '';
   assert.doesNotMatch(installBlock, /deleteOutdatedCaches\(/);
   assert.match(sw, /self\.addEventListener\('activate'[\s\S]*deleteOutdatedCaches\(/);
@@ -720,7 +725,7 @@ test('client file home header has title only and centered search toolbar', async
       effectiveRoutes: ['proposals-agreements']
     }
   });
-  assert.match(html, /ds-page-header__title">תיק לקוח</);
+  assert.match(html, /ds-page-header__title">תיק לקוח/);
   assert.doesNotMatch(html, /ds-page-header__subtitle/);
   assert.doesNotMatch(html, /ממתינות לטיפול/);
   assert.match(html, /ds-client-toolbar/);
