@@ -60,7 +60,15 @@ function addOperationsVisualTweaksStyle() {
       border-collapse: separate;
       border-spacing: 0;
     }
+    #app.ds-activities-archive-mode .ds-table--activities-list th,
+    #app.ds-activities-archive-mode .ds-table--activities-list td {
+      height: 50px;
+      padding: 8px 10px;
+      vertical-align: middle;
+      box-sizing: border-box;
+    }
     #app.ds-activities-archive-mode .ds-table--activities-list thead th {
+      height: 44px;
       white-space: nowrap;
     }
     #app.ds-activities-archive-mode .ds-table--activities-list thead th:not(.ds-activities-col--instructor) {
