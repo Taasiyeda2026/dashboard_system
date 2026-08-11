@@ -99,7 +99,6 @@ export function instructorSchedulingReadinessMissingFields(instructor = {}, prof
   const active = ['yes', 'true', '1'].includes(text(instructor.active).toLowerCase());
   if (!active) missing.push('מדריך פעיל');
   if (!text(instructor.address)) missing.push('כתובת');
-  if (!text(profile?.gender)) missing.push('מגדר');
   if (!Array.isArray(profile?.instruction_languages) || !profile.instruction_languages.some(text)) missing.push('שפות הדרכה');
   if (!Array.isArray(rules) || !rules.some(isValidSchedulingAvailabilityRule)) missing.push('זמינות שבועית תקינה');
   return missing;

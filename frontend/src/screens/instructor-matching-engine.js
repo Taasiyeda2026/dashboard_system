@@ -195,8 +195,7 @@ export function evaluateInstructor({
   }
 
   let genderCheck = checkResult(null, 'מגדר', 'לא נבדק');
-  // Gender remains a mandatory profile field even when the activity requirement is "any".
-  if (!profileGender) {
+  if (requiredGender !== 'any' && !profileGender) {
     missingProfileData.push('מגדר');
     genderCheck = checkResult(false, 'חסר מגדר בפרופיל', 'חסר מגדר בפרופיל');
   } else if (requiredGender !== 'any' && profileGender !== requiredGender) {
