@@ -67,28 +67,35 @@ function visibleProfileEmpId() {
 
 function decorateProfile() {
   const fields = document.querySelector('.instructor-profile__fields');
-  if (!fields || fields.querySelector('[data-instructor-birth-date-field]')) return;
+  if (!fields) return;
 
   const empId = visibleProfileEmpId() || currentInstructorId;
   if (!empId) return;
   currentInstructorId = empId;
 
-  const field = document.createElement('div');
-  field.className = 'instructor-profile__field';
-  field.dataset.instructorBirthDateField = 'true';
+  let field = fields.querySelector('[data-instructor-birth-date-field]');
+  if (!field) {
+    field = document.createElement('div');
+    field.className = 'instructor-profile__field';
+    field.dataset.instructorBirthDateField = 'true';
 
-  const label = document.createElement('span');
-  label.className = 'instructor-profile__field-label';
-  label.textContent = 'תאריך לידה';
+    const label = document.createElement('span');
+    label.className = 'instructor-profile__field-label';
+    label.textContent = 'תאריך לידה';
 
-  const value = document.createElement('span');
-  value.className = 'instructor-profile__field-value';
+    const value = document.createElement('span');
+    value.className = 'instructor-profile__field-value';
+    value.dataset.instructorBirthDateValue = 'true';
+
+    field.append(label, value);
+    fields.appendChild(field);
+  }
+
+  const value = field.querySelector('[data-instructor-birth-date-value]');
+  if (!value) return;
   const display = formatBirthDate(birthDates.get(empId));
   value.textContent = display;
-  if (display === '—') value.classList.add('instructor-profile__field-value--muted');
-
-  field.append(label, value);
-  fields.appendChild(field);
+  value.classList.toggle('instructor-profile__field-value--muted', display === '—');
 }
 
 function decorateContactModal() {
@@ -96,30 +103,40 @@ function decorateContactModal() {
   const modal = saveButton?.closest('.ds-modal') || document.querySelector('.ds-modal');
   const status = modal?.querySelector('[data-instructor-form-status]');
   const grid = status?.parentElement;
-  if (!saveButton || !grid || grid.querySelector('[data-instructor-birth-date-input]')) return;
+  if (!saveButton || !grid) return;
 
   const empId = currentInstructorId || visibleProfileEmpId();
   if (!empId) return;
   currentInstructorId = empId;
 
-  const label = document.createElement('label');
-  label.style.display = 'grid';
-  label.style.gap = '5px';
-  label.dataset.instructorBirthDateInput = 'true';
+  let label = grid.querySelector('[data-instructor-birth-date-input]');
+  if (!label) {
+    label = document.createElement('label');
+    label.style.display = 'grid';
+    label.style.gap = '5px';
+    label.dataset.instructorBirthDateInput = 'true';
 
-  const caption = document.createElement('span');
-  caption.className = 'ds-muted';
-  caption.textContent = 'תאריך לידה';
+    const caption = document.createElement('span');
+    caption.className = 'ds-muted';
+    caption.textContent = 'תאריך לידה';
 
-  const input = document.createElement('input');
-  input.className = 'ds-input';
-  input.type = 'date';
-  input.name = 'birth_date';
-  input.value = birthDates.get(empId) || '';
-  input.dir = 'ltr';
+    const input = document.createElement('input');
+    input.className = 'ds-input';
+    input.type = 'date';
+    input.name = 'birth_date';
+    input.dir = 'ltr';
+    input.addEventListener('input', () => {
+      input.dataset.birthDateDirty = '1';
+    });
 
-  label.append(caption, input);
-  grid.insertBefore(label, status);
+    label.append(caption, input);
+    grid.insertBefore(label, status);
+  }
+
+  const input = label.querySelector('[name="birth_date"]');
+  if (input && input.dataset.birthDateDirty !== '1') {
+    input.value = birthDates.get(empId) || '';
+  }
 }
 
 function decorate() {
