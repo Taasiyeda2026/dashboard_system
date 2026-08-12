@@ -54,6 +54,7 @@ export const FEATURE_ROUTE_MAP = {
   activities: ['activityDrawer'],
   week: ['activityDrawer'],
   month: ['activityDrawer'],
+  instructors: ['instructorBirthdays'],
   archive: ['activityDrawer'],
   exceptions: ['activityDrawer'],
   'end-dates': ['endDates'],
@@ -75,8 +76,12 @@ export function ensureFeature(name) {
         import('./dashboard-month-navigation-runtime.js'),
         import('./birthday-popup.js'),
         import('./birthday-popup-session-guard.js'),
-        import('./birthday-calendar.js')
+        import('./birthday-calendar.js'),
+        import('./birthday-instructor-caption.js?v=20260812-v1')
       ]));
+
+    case 'instructorBirthdays':
+      return loadOnce('instructorBirthdays', () => import('./instructor-birthday-profile.js?v=20260812-v1'));
 
     case 'proposals':
       return loadOnce('proposals', () => Promise.all([
