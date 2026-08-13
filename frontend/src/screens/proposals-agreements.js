@@ -5517,7 +5517,15 @@ function allDisplayRows(data) {
 }
 
 function normalizedClientPart(value) {
-  return text(value).trim().toLocaleLowerCase('he-IL');
+  return text(value)
+    .normalize('NFKC')
+    .trim()
+    .toLocaleLowerCase('he-IL')
+    .replace(/נהרייה/g, 'נהריה')
+    .replace(/קריית/g, 'קרית')
+    .replace(/[‐‑‒–—―−]/g, '-')
+    .replace(/[׳'״"]/g, '')
+    .replace(/\s+/g, ' ');
 }
 
 function clientFileKey(row = {}) {
@@ -6307,7 +6315,10 @@ export {
   proposalGroupDisplayName,
   isArchivedClientProposal,
   drawerHtml,
-  proposalCompactCardHtml
+  proposalCompactCardHtml,
+  normalizedClientPart,
+  buildClientFiles,
+  clientSearchResultsHtml
 };
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
@@ -6940,6 +6951,15 @@ export const proposalsAgreementsScreen = {
           }
           return;
         }
+        // The client catalog is the source for authorities/schools without proposals and
+        // for central contact details. Server search complements it with proposals that
+        // are outside the currently loaded page.
+        try {
+          await ensureContacts('client-file-search');
+        } catch {
+          // Keep proposal search available if the contacts catalog cannot be loaded.
+        }
+        if (signal.aborted || !root.isConnected || !input.isConnected || text(input.value) !== query) return;
         // Prefer server search when the list API exists; keep local fallback for tests/offline.
         if (typeof api.proposalsAgreements === 'function') {
           results.innerHTML = '<p class="ds-client-search-empty">מחפש…</p>';
@@ -6949,7 +6969,7 @@ export const proposalsAgreementsScreen = {
             results.innerHTML = '<p class="ds-client-search-empty">החיפוש נכשל. נסו שוב.</p>';
             return;
           }
-          results.innerHTML = clientSearchResultsHtml(buildClientFiles({ ...data, contactOptions: [] }), query)
+          results.innerHTML = clientSearchResultsHtml(buildClientFiles({ ...data, contactOptions }), query)
             || '<p class="ds-client-search-empty">לא נמצא תיק לקוח מתאים</p>';
           return;
         }
