@@ -5517,7 +5517,15 @@ function allDisplayRows(data) {
 }
 
 function normalizedClientPart(value) {
-  return text(value).trim().toLocaleLowerCase('he-IL');
+  return text(value)
+    .normalize('NFKC')
+    .trim()
+    .toLocaleLowerCase('he-IL')
+    .replace(/נהרייה/g, 'נהריה')
+    .replace(/קריית/g, 'קרית')
+    .replace(/[‐‑‒–—―−]/g, '-')
+    .replace(/[׳'״"]/g, '')
+    .replace(/\s+/g, ' ');
 }
 
 function clientFileKey(row = {}) {
@@ -6307,7 +6315,10 @@ export {
   proposalGroupDisplayName,
   isArchivedClientProposal,
   drawerHtml,
-  proposalCompactCardHtml
+  proposalCompactCardHtml,
+  normalizedClientPart,
+  buildClientFiles,
+  clientSearchResultsHtml
 };
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
@@ -6609,6 +6620,13 @@ export const proposalsAgreementsScreen = {
     let selectedClientKey = '';
     let viewingAllProposals = false;
     let viewMode = 'client-home';
+    const clientHomeSnapshot = {
+      rows: data.rows.slice(),
+      query: { ...(data?._query || {}) },
+      hasMore: data?._hasMore,
+      offset: data?._offset,
+      limit: data?._limit
+    };
     let editorReturnContext = null;
     let listViewState = null;
     /** @type {{ returnTo: string, openSource: string, clientKey: string, proposalId: string } | null} */
@@ -6702,6 +6720,14 @@ export const proposalsAgreementsScreen = {
     };
     const showClientFileHome = () => {
       proposalDetailContext = null;
+      if (selectedClientKey) {
+        data.rows = clientHomeSnapshot.rows.slice();
+        data._itemsByProposalId = indexProposalItemsById(data);
+        data._query = { ...clientHomeSnapshot.query };
+        data._hasMore = clientHomeSnapshot.hasMore;
+        data._offset = clientHomeSnapshot.offset;
+        data._limit = clientHomeSnapshot.limit;
+      }
       selectedClientKey = '';
       setProposalDetailMode(false);
       setAllProposalsMode(false);
@@ -6829,7 +6855,29 @@ export const proposalsAgreementsScreen = {
       renderProposalDetailWorkspace(row);
       await fillProposalDetailItems(row);
     };
-    const openClientFile = (key, proposalId = '') => {
+    const loadSelectedClientProposals = async (file) => {
+      if (!file || typeof api.proposalsAgreements !== 'function') return;
+      const schoolId = text(file.school_id);
+      const authorityId = text(file.authority_id);
+      if (!schoolId && !authorityId) return;
+      try {
+        const result = await api.proposalsAgreements({
+          ...currentListQuery(),
+          search: '',
+          status: '',
+          clientType: '',
+          schoolId,
+          authorityId: schoolId ? '' : authorityId,
+          offset: 0,
+          paginate: false
+        });
+        data.rows = (Array.isArray(result?.rows) ? result.rows : []).map(normalizeProposalAgreementRow);
+        data._itemsByProposalId = indexProposalItemsById(data);
+      } catch {
+        // The catalog-backed file can still open empty if its proposal read fails.
+      }
+    };
+    const openClientFile = async (key, proposalId = '') => {
       setAllProposalsMode(false);
       selectedClientKey = text(key);
       if (proposalId) {
@@ -6840,6 +6888,9 @@ export const proposalsAgreementsScreen = {
         });
         return;
       }
+      const selectedFile = currentClientFile();
+      await loadSelectedClientProposals(selectedFile);
+      if (signal.aborted || !root.isConnected) return;
       proposalDetailContext = null;
       setProposalDetailMode(false);
       setScreenTitle('תיק לקוח');
@@ -6940,6 +6991,15 @@ export const proposalsAgreementsScreen = {
           }
           return;
         }
+        // The client catalog is the source for authorities/schools without proposals and
+        // for central contact details. Server search complements it with proposals that
+        // are outside the currently loaded page.
+        try {
+          await ensureContacts('client-file-search');
+        } catch {
+          // Keep proposal search available if the contacts catalog cannot be loaded.
+        }
+        if (signal.aborted || !root.isConnected || !input.isConnected || text(input.value) !== query) return;
         // Prefer server search when the list API exists; keep local fallback for tests/offline.
         if (typeof api.proposalsAgreements === 'function') {
           results.innerHTML = '<p class="ds-client-search-empty">מחפש…</p>';
@@ -6949,7 +7009,7 @@ export const proposalsAgreementsScreen = {
             results.innerHTML = '<p class="ds-client-search-empty">החיפוש נכשל. נסו שוב.</p>';
             return;
           }
-          results.innerHTML = clientSearchResultsHtml(buildClientFiles({ ...data, contactOptions: [] }), query)
+          results.innerHTML = clientSearchResultsHtml(buildClientFiles({ ...data, contactOptions }), query)
             || '<p class="ds-client-search-empty">לא נמצא תיק לקוח מתאים</p>';
           return;
         }
@@ -9284,7 +9344,7 @@ export const proposalsAgreementsScreen = {
 
       const openClientBtn = event.target.closest?.('[data-pa-open-client]');
       if (openClientBtn) {
-        openClientFile(openClientBtn.dataset.paOpenClient, openClientBtn.dataset.paOpenProposal);
+        await openClientFile(openClientBtn.dataset.paOpenClient, openClientBtn.dataset.paOpenProposal);
         return;
       }
 
