@@ -6840,7 +6840,27 @@ export const proposalsAgreementsScreen = {
       renderProposalDetailWorkspace(row);
       await fillProposalDetailItems(row);
     };
-    const openClientFile = (key, proposalId = '') => {
+    const loadSelectedClientProposals = async (file) => {
+      if (!file || typeof api.proposalsAgreements !== 'function') return;
+      const schoolId = text(file.school_id);
+      const authorityId = text(file.authority_id);
+      if (!schoolId && !authorityId) return;
+      try {
+        const result = await api.proposalsAgreements({
+          ...currentListQuery(),
+          search: '',
+          schoolId,
+          authorityId: schoolId ? '' : authorityId,
+          offset: 0,
+          paginate: false
+        });
+        data.rows = (Array.isArray(result?.rows) ? result.rows : []).map(normalizeProposalAgreementRow);
+        data._itemsByProposalId = indexProposalItemsById(data);
+      } catch {
+        // The catalog-backed file can still open empty if its proposal read fails.
+      }
+    };
+    const openClientFile = async (key, proposalId = '') => {
       setAllProposalsMode(false);
       selectedClientKey = text(key);
       if (proposalId) {
@@ -6851,6 +6871,9 @@ export const proposalsAgreementsScreen = {
         });
         return;
       }
+      const selectedFile = currentClientFile();
+      await loadSelectedClientProposals(selectedFile);
+      if (signal.aborted || !root.isConnected) return;
       proposalDetailContext = null;
       setProposalDetailMode(false);
       setScreenTitle('תיק לקוח');
@@ -9304,7 +9327,7 @@ export const proposalsAgreementsScreen = {
 
       const openClientBtn = event.target.closest?.('[data-pa-open-client]');
       if (openClientBtn) {
-        openClientFile(openClientBtn.dataset.paOpenClient, openClientBtn.dataset.paOpenProposal);
+        await openClientFile(openClientBtn.dataset.paOpenClient, openClientBtn.dataset.paOpenProposal);
         return;
       }
 
