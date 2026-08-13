@@ -6,6 +6,7 @@ import {
 
 const ENHANCED_ATTR = 'data-activity-drawer-inline-layout';
 const POLISHED_ATTR = 'data-activity-drawer-edit-dedup';
+const INITIAL_REFRESH_GUARD_ATTR = 'data-activity-initial-refresh-guard';
 const TEST_FLAG = '__ACTIVITY_DRAWER_EDIT_DEDUP_TEST__';
 const GENERIC_ONE_DAY_ACTIVITY_NAMES = new Set(['סדנה', 'סדנאות', 'סיור', 'סיורים', 'חדר בריחה', 'חדרי בריחה']);
 
@@ -115,6 +116,19 @@ function rebuildActivityNameSelect(form, settings, row) {
   return true;
 }
 
+export function guardInitialValueRefreshWhileEditing(form) {
+  if (!form || form.hasAttribute(INITIAL_REFRESH_GUARD_ATTR)) return false;
+  const refreshInitialValues = form._refreshInitialValues;
+  if (typeof refreshInitialValues !== 'function') return false;
+
+  form._refreshInitialValues = (...args) => {
+    if (String(form.dataset.editing || '') === 'yes') return form._initialValues;
+    return refreshInitialValues(...args);
+  };
+  form.setAttribute(INITIAL_REFRESH_GUARD_ATTR, 'true');
+  return true;
+}
+
 export function primeLegacyActivityNameForSave(form, row = parseExportRow(form)) {
   const select = form?.querySelector?.('[data-role="activity-name-select"], [name="activity_name"]');
   const selectedName = clean(select?.value);
@@ -140,6 +154,7 @@ export function polishActivityDrawerEditOptions(form, settings = {}) {
   const row = parseExportRow(form);
   rebuildSeasonSelect(form, row);
   rebuildActivityNameSelect(form, settings, row);
+  guardInitialValueRefreshWhileEditing(form);
 
   const typeSelect = form.querySelector('[name="activity_type"]');
   typeSelect?.addEventListener('change', () => {
@@ -153,6 +168,9 @@ export function polishActivityDrawerEditOptions(form, settings = {}) {
   });
 
   form.addEventListener('click', (event) => {
+    // bindActivityEditForm assigns _refreshInitialValues during drawer setup.
+    // Re-check on interaction so the guard is installed even if polishing ran first.
+    guardInitialValueRefreshWhileEditing(form);
     if (event.target?.closest?.('[data-action="save-edit"]')) {
       primeLegacyActivityNameForSave(form, row);
     }
