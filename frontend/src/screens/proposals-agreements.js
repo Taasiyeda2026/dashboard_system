@@ -6620,6 +6620,13 @@ export const proposalsAgreementsScreen = {
     let selectedClientKey = '';
     let viewingAllProposals = false;
     let viewMode = 'client-home';
+    const clientHomeSnapshot = {
+      rows: data.rows.slice(),
+      query: { ...(data?._query || {}) },
+      hasMore: data?._hasMore,
+      offset: data?._offset,
+      limit: data?._limit
+    };
     let editorReturnContext = null;
     let listViewState = null;
     /** @type {{ returnTo: string, openSource: string, clientKey: string, proposalId: string } | null} */
@@ -6713,6 +6720,14 @@ export const proposalsAgreementsScreen = {
     };
     const showClientFileHome = () => {
       proposalDetailContext = null;
+      if (selectedClientKey) {
+        data.rows = clientHomeSnapshot.rows.slice();
+        data._itemsByProposalId = indexProposalItemsById(data);
+        data._query = { ...clientHomeSnapshot.query };
+        data._hasMore = clientHomeSnapshot.hasMore;
+        data._offset = clientHomeSnapshot.offset;
+        data._limit = clientHomeSnapshot.limit;
+      }
       selectedClientKey = '';
       setProposalDetailMode(false);
       setAllProposalsMode(false);
@@ -6849,6 +6864,8 @@ export const proposalsAgreementsScreen = {
         const result = await api.proposalsAgreements({
           ...currentListQuery(),
           search: '',
+          status: '',
+          clientType: '',
           schoolId,
           authorityId: schoolId ? '' : authorityId,
           offset: 0,

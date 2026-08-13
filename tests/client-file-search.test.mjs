@@ -137,3 +137,59 @@ test('לקוח ללא הצעות נפתח כתיק ריק', async () => {
     assert.match(root.querySelector('[data-pa-client-file]')?.textContent || '', /אין הצעות עדכניות/);
   });
 });
+
+test('מסנן סטטוס קודם אינו מסנן את הצעות תיק הלקוח', async () => {
+  const data = {
+    rows: [],
+    contactOptions: structuredClone(contactOptions),
+    _contactsLoaded: true,
+    _query: { status: 'approved', clientType: 'authority' }
+  };
+  const calls = [];
+  await withJSDOM(proposalsAgreementsScreen.render(data, { state }), async (root, dom) => {
+    proposalsAgreementsScreen.bind({
+      root,
+      data,
+      state,
+      api: {
+        proposalsAgreements: async (params) => {
+          calls.push(params);
+          return { rows: params.schoolId ? [{ id: 'draft-school-proposal', authority_id: '20', school_id: '30', client_authority: 'קריית ביאליק', school_framework: 'בית–ספר גבעות', activity_type_group: 'summer', status: 'draft' }] : [] };
+        }
+      }
+    });
+    const search = root.querySelector('[data-pa-client-search]');
+    search.value = '123456';
+    search.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+    await new Promise((resolve) => setTimeout(resolve, 320));
+    root.querySelector('[data-pa-open-client]')?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    assert.equal(calls.at(-1)?.status, '');
+    assert.equal(calls.at(-1)?.clientType, '');
+    assert.ok(root.querySelector('[data-pa-open-proposal-id="draft-school-proposal"]'));
+  });
+});
+
+test('סגירת תיק שנפתח מחיפוש משחזרת את נתוני מסך הבית', async () => {
+  const homeProposal = { id: 'home-proposal', authority_id: '90', client_type: 'authority', client_authority: 'לקוח הבית', activity_type_group: 'summer', status: 'draft' };
+  const selectedProposal = { id: 'selected-proposal', authority_id: '20', school_id: '30', client_authority: 'קריית ביאליק', school_framework: 'בית–ספר גבעות', activity_type_group: 'summer', status: 'draft' };
+  const data = { rows: [homeProposal], contactOptions: structuredClone(contactOptions), _contactsLoaded: true };
+  await withJSDOM(proposalsAgreementsScreen.render(data, { state }), async (root, dom) => {
+    proposalsAgreementsScreen.bind({
+      root,
+      data,
+      state,
+      api: { proposalsAgreements: async (params) => ({ rows: params.schoolId ? [selectedProposal] : [] }) }
+    });
+    const search = root.querySelector('[data-pa-client-search]');
+    search.value = '123456';
+    search.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+    await new Promise((resolve) => setTimeout(resolve, 320));
+    root.querySelector('[data-pa-open-client]')?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    assert.equal(data.rows[0]?.id, 'selected-proposal');
+    root.querySelector('[data-pa-client-close]')?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    assert.equal(data.rows[0]?.id, 'home-proposal');
+    assert.match(root.querySelector('[data-pa-client-home]')?.textContent || '', /לקוח הבית/);
+  });
+});
