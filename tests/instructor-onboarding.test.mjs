@@ -23,12 +23,13 @@ function mountedModal(options = {}) {
   return { dom, modal };
 }
 
-function fill(modal, { manager = 'גיל נאמן', email = 'new@example.org' } = {}) {
+function fill(modal, { manager = 'גיל נאמן', email = 'new@example.org', employmentType = 'taasiyeda', agency = '' } = {}) {
   const values = [['name', 'אייל ישראלי'], ['phone', '050-123 4567'], ['email', email]];
   for (const [key, value] of values) {
     const input = modal.querySelector(`[data-onboarding-${key}]`); input.value = value; input.dispatchEvent(new window.Event('input'));
   }
-  const employment = modal.querySelector('[data-onboarding-employment]'); employment.value = 'taasiyeda'; employment.dispatchEvent(new window.Event('change'));
+  const employment = modal.querySelector('[data-onboarding-employment]'); employment.value = employmentType; employment.dispatchEvent(new window.Event('change'));
+  const agencySelect = modal.querySelector('[data-onboarding-agency]'); agencySelect.value = agency; agencySelect.dispatchEvent(new window.Event('change'));
   const managerSelect = modal.querySelector('[data-onboarding-manager]'); managerSelect.value = manager; managerSelect.dispatchEvent(new window.Event('change'));
 }
 
@@ -37,13 +38,42 @@ test('five required onboarding fields gate the compact RTL primary action', () =
   const root = modal.querySelector('.instructor-onboarding');
   assert.equal(root.getAttribute('dir'), 'rtl');
   assert.equal(root.querySelectorAll('input').length, 3);
-  assert.equal(root.querySelectorAll('select').length, 2);
+  assert.equal(root.querySelectorAll('select').length, 3);
   assert.equal(modal.querySelector('[data-onboarding-prepare]').disabled, true);
   assert.equal(modal.querySelector('[data-onboarding-folder]').disabled, false);
   fill(modal);
   assert.equal(modal.querySelector('[data-onboarding-prepare]').disabled, false);
   assert.equal(modal.querySelector('[data-onboarding-folder]').style.width, modal.querySelector('[data-onboarding-prepare]').style.width);
 });
+
+test('staffing requires a visible agency selection and clears it when switching to Taasiyeda', () => {
+  const { modal } = mountedModal();
+  fill(modal, { employmentType: 'staffing' });
+  assert.equal(modal.querySelector('[data-onboarding-agency-field]').hidden, false);
+  assert.equal(modal.querySelector('[data-onboarding-prepare]').disabled, true);
+  const agency = modal.querySelector('[data-onboarding-agency]');
+  agency.value = 'מעוף'; agency.dispatchEvent(new window.Event('change'));
+  assert.equal(modal.querySelector('[data-onboarding-prepare]').disabled, false);
+  const employment = modal.querySelector('[data-onboarding-employment]');
+  employment.value = 'taasiyeda'; employment.dispatchEvent(new window.Event('change'));
+  assert.equal(modal.querySelector('[data-onboarding-agency-field]').hidden, true);
+  assert.equal(agency.value, '');
+});
+
+for (const staffingAgency of ['מעוף', 'מנפאואר']) {
+  test(`${staffingAgency} is saved as the actual employment type while SharePoint remains staffing`, async () => {
+    const calls = [];
+    const { modal } = mountedModal({
+      createInstructor: async (row) => { calls.push(['create', row]); return { emp_id: 42 }; },
+      createDraft: async (mail) => { calls.push(['draft', mail]); return { webLink: 'https://outlook.office.com/mail/drafts' }; }
+    });
+    fill(modal, { employmentType: 'staffing', agency: staffingAgency });
+    modal.querySelector('[data-onboarding-prepare]').click(); await tick();
+    assert.equal(calls[0][1].employmentType, staffingAgency);
+    assert.equal(calls[1][1].employmentType, 'staffing');
+    assert.equal(onboardingFolder(calls[1][1].employmentType), 'כוח אדם');
+  });
+}
 
 test('real instructor and approved manager details appear in mail', () => {
   for (const manager of onboardingManagers(settings)) {
@@ -56,29 +86,44 @@ test('real instructor and approved manager details appear in mail', () => {
   assert.equal(onboardingManagers(settings)[1].email, 'HilaR@think.org.il');
 });
 
-test('retry after Outlook failure uses the original instructor snapshot without another insert', async () => {
+test('retry after Outlook failure uses the original staffing agency snapshot without another insert', async () => {
   const calls = [];
   let attempts = 0;
   const { modal } = mountedModal({
     createInstructor: async (row) => { calls.push(['create', row]); return { emp_id: 42, full_name: row.fullName }; },
     createDraft: async (mail) => { calls.push(['draft', mail]); attempts += 1; if (attempts === 1) throw new Error('outlook'); return { webLink: 'https://outlook.office.com/mail/drafts' }; }
   });
-  fill(modal);
+  fill(modal, { employmentType: 'staffing', agency: 'מעוף' });
   modal.querySelector('[data-onboarding-prepare]').click(); await tick();
   assert.match(modal.querySelector('[data-onboarding-status]').textContent, /המדריך נוצר בהצלחה, אך הכנת המייל נכשלה/);
-  const changedEmail = modal.querySelector('[data-onboarding-email]');
-  changedEmail.value = 'changed@example.org'; changedEmail.dispatchEvent(new window.Event('input'));
-  const changedManager = modal.querySelector('[data-onboarding-manager]');
-  changedManager.value = 'הילה רוזן'; changedManager.dispatchEvent(new window.Event('change'));
+  assert.equal(modal.querySelector('[data-onboarding-email]').disabled, true);
+  assert.equal(modal.querySelector('[data-onboarding-manager]').disabled, true);
+  assert.equal(modal.querySelector('[data-onboarding-agency]').disabled, true);
   modal.querySelector('[data-onboarding-prepare]').click(); await tick();
   assert.equal(calls.filter(([kind]) => kind === 'create').length, 1);
   assert.equal(calls.filter(([kind]) => kind === 'draft').length, 2);
-  assert.deepEqual(calls[0][1], { fullName: 'אייל ישראלי', phone: '050-123 4567', email: 'new@example.org', employmentType: 'תעשיידע', managerName: 'גיל נאמן' });
+  assert.deepEqual(calls[0][1], { fullName: 'אייל ישראלי', phone: '050-123 4567', email: 'new@example.org', employmentType: 'מעוף', managerName: 'גיל נאמן' });
   assert.equal(calls[1][1].instructorEmail, 'new@example.org');
   assert.equal(calls[1][1].manager.email, 'GilNeeman@think.org.il');
   assert.equal(calls[2][1].instructorEmail, 'new@example.org');
   assert.equal(calls[2][1].manager.name, 'גיל נאמן');
   assert.equal(calls[2][1].manager.email, 'GilNeeman@think.org.il');
+  assert.equal(calls[2][1].employmentType, 'staffing');
+});
+
+test('refresh failure remains a successful draft and cannot create another draft', async () => {
+  let drafts = 0;
+  const { modal } = mountedModal({
+    createInstructor: async () => ({ emp_id: 42 }),
+    createDraft: async () => { drafts += 1; return { webLink: 'https://outlook.office.com/mail/drafts' }; },
+    onSuccess: async () => { throw new Error('refresh failed'); }
+  });
+  fill(modal);
+  modal.querySelector('[data-onboarding-prepare]').click(); await tick();
+  assert.match(modal.querySelector('[data-onboarding-status]').textContent, /הטיוטה הוכנה בהצלחה.*רענון.*נכשל/);
+  assert.equal(modal.querySelector('[data-onboarding-prepare]').disabled, true);
+  modal.querySelector('[data-onboarding-prepare]').click(); await tick();
+  assert.equal(drafts, 1);
 });
 
 test('invalid email blocks creation', async () => {

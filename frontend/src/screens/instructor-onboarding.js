@@ -96,6 +96,7 @@ export function onboardingModalHtml(managers = []) {
     <label><span>טלפון</span><input class="ds-input" data-onboarding-phone inputmode="tel" autocomplete="tel" required></label>
     <label><span>מייל</span><input class="ds-input" data-onboarding-email type="email" autocomplete="email" required></label>
     <label><span>סוג העסקה</span><select class="ds-input" data-onboarding-employment><option value="">בחירה</option><option value="taasiyeda">תעשיידע</option><option value="staffing">כוח אדם</option></select></label>
+    <label data-onboarding-agency-field hidden><span>חברת כוח אדם</span><select class="ds-input" data-onboarding-agency><option value="">בחירה</option><option value="מעוף">מעוף</option><option value="מנפאואר">מנפאואר</option></select></label>
     <label><span>מנהל/ת פעילות</span><select class="ds-input" data-onboarding-manager><option value="">בחירה</option>${managers.map((manager) => `<option value="${escapeHtml(manager.name)}">${escapeHtml(manager.name)}</option>`).join('')}</select></label>
     <section data-onboarding-documents hidden><strong>מסמכים שיצורפו למייל</strong><ul></ul></section>
     <p class="instructor-onboarding__status" data-onboarding-status role="status" aria-live="polite"></p>
@@ -185,6 +186,8 @@ export function bindOnboardingModal(modal, { managers, loginHint, onSuccess, cre
   const phone = modal.querySelector('[data-onboarding-phone]');
   const email = modal.querySelector('[data-onboarding-email]');
   const employment = modal.querySelector('[data-onboarding-employment]');
+  const agencyField = modal.querySelector('[data-onboarding-agency-field]');
+  const agency = modal.querySelector('[data-onboarding-agency]');
   const managerSelect = modal.querySelector('[data-onboarding-manager]');
   const documents = modal.querySelector('[data-onboarding-documents]');
   const prepare = modal.querySelector('[data-onboarding-prepare]');
@@ -220,30 +223,37 @@ export function bindOnboardingModal(modal, { managers, loginHint, onSuccess, cre
   folder.textContent = 'פתח תיקייה';
   prepare.textContent = 'שליחת מייל';
 
+  let draftCreated = false;
   const sync = () => {
     const list = ONBOARDING_DOCUMENTS[employment.value] || [];
+    const staffing = employment.value === 'staffing';
+    agencyField.hidden = !staffing;
     documents.hidden = !list.length;
     documents.querySelector('ul').innerHTML = list.map((name) => `<li>📄 ${escapeHtml(name)}</li>`).join('');
-    prepare.disabled = !fullName.value.trim() || !phone.value.trim() || !email.value.trim() || !employment.value || !managerSelect.value;
+    prepare.disabled = draftCreated || !fullName.value.trim() || !phone.value.trim() || !email.value.trim()
+      || !employment.value || (staffing && !agency.value) || !managerSelect.value;
     folder.disabled = false;
   };
   [fullName, phone, email].forEach((input) => input.addEventListener('input', sync));
-  employment.addEventListener('change', sync); managerSelect.addEventListener('change', sync); sync();
+  employment.addEventListener('change', () => { if (employment.value !== 'staffing') agency.value = ''; sync(); });
+  agency.addEventListener('change', sync); managerSelect.addEventListener('change', sync); sync();
   folder.addEventListener('click', () => {
     window.open(ONBOARDING_ROOT_FOLDER_URL, '_blank', 'noopener,noreferrer');
   });
   let createdInstructor = null;
   let onboardingSnapshot = null;
   prepare.addEventListener('click', async () => {
+    if (draftCreated) return;
     let submission = onboardingSnapshot;
     if (!onboardingSnapshot) {
       const manager = managers.find((item) => item.name === managerSelect.value);
-      if (!fullName.value.trim() || !phone.value.trim() || !email.value.trim() || !employment.value || !manager) return;
+      if (!fullName.value.trim() || !phone.value.trim() || !email.value.trim() || !employment.value
+        || (employment.value === 'staffing' && !agency.value) || !manager) return;
       if (!email.checkValidity()) { status.textContent = 'יש להזין כתובת מייל תקינה.'; return; }
       if (!manager?.phone || !manager?.email) { status.textContent = 'לא הוגדרו טלפון ומייל למנהל/ת הפעילות שנבחר/ה.'; return; }
       submission = Object.freeze({
         fullName: fullName.value.trim(), phone: phone.value.trim(), email: email.value.trim(),
-        employmentType: employment.value, manager: Object.freeze({ ...manager })
+        employmentType: employment.value, staffingAgency: agency.value, manager: Object.freeze({ ...manager })
       });
     }
     prepare.disabled = true; prepare.textContent = 'מכין...'; status.textContent = '';
@@ -251,17 +261,21 @@ export function bindOnboardingModal(modal, { managers, loginHint, onSuccess, cre
       if (!createdInstructor) {
         createdInstructor = await createInstructor({
           fullName: submission.fullName, phone: submission.phone, email: submission.email,
-          employmentType: submission.employmentType === 'taasiyeda' ? 'תעשיידע' : 'כוח אדם', managerName: submission.manager.name
+          employmentType: submission.employmentType === 'taasiyeda' ? 'תעשיידע' : submission.staffingAgency,
+          managerName: submission.manager.name
         });
         onboardingSnapshot = submission;
+        [fullName, phone, email, employment, agency, managerSelect].forEach((field) => { field.disabled = true; });
       }
       const result = await createDraft({
         employmentType: onboardingSnapshot.employmentType, manager: onboardingSnapshot.manager,
         instructorName: onboardingSnapshot.fullName, instructorEmail: onboardingSnapshot.email, loginHint
       });
+      draftCreated = true;
       status.textContent = 'הטיוטה הוכנה בהצלחה';
-      await onSuccess?.(result, createdInstructor);
       window.open(result.webLink, '_blank', 'noopener,noreferrer');
+      try { await onSuccess?.(result, createdInstructor); }
+      catch { status.textContent = 'הטיוטה הוכנה בהצלחה, אך רענון רשימת המדריכים נכשל.'; }
     } catch (error) {
       status.textContent = createdInstructor && error?.code !== 'instructor_exists'
         ? 'המדריך נוצר בהצלחה, אך הכנת המייל נכשלה. ניתן לנסות שוב.'
