@@ -160,6 +160,36 @@ export function bindOnboardingModal(modal, { managers, loginHint, onSuccess } = 
   const prepare = modal.querySelector('[data-onboarding-prepare]');
   const folder = modal.querySelector('[data-onboarding-folder]');
   const status = modal.querySelector('[data-onboarding-status]');
+  const content = modal.querySelector('.ds-modal__content');
+  const footer = modal.querySelector('.ds-modal__footer');
+
+  modal.style.width = 'min(430px, calc(100vw - 24px))';
+  modal.style.maxWidth = '430px';
+  modal.style.minHeight = '0';
+  modal.style.height = 'auto';
+  if (content) {
+    content.style.minHeight = '0';
+    content.style.height = 'auto';
+    content.style.padding = '14px 16px 10px';
+  }
+  if (footer) {
+    footer.style.justifyContent = 'center';
+    footer.style.gap = '8px';
+    footer.style.padding = '10px 14px 12px';
+  }
+  [folder, prepare].forEach((button) => {
+    if (!button) return;
+    button.style.width = '112px';
+    button.style.minWidth = '112px';
+    button.style.height = '32px';
+    button.style.minHeight = '32px';
+    button.style.padding = '4px 10px';
+    button.style.fontSize = '.8rem';
+    button.style.justifyContent = 'center';
+  });
+  folder.textContent = 'פתח תיקייה';
+  prepare.textContent = 'שליחת מייל';
+
   const sync = () => {
     const list = ONBOARDING_DOCUMENTS[employment.value] || [];
     documents.hidden = !list.length;
@@ -174,13 +204,13 @@ export function bindOnboardingModal(modal, { managers, loginHint, onSuccess } = 
   prepare.addEventListener('click', async () => {
     const manager = managers.find((item) => item.name === managerSelect.value);
     if (!manager?.phone) { status.textContent = 'לא הוגדר מספר טלפון למנהל/ת הפעילות שנבחר/ה.'; return; }
-    prepare.disabled = true; prepare.textContent = 'מכין טיוטה...'; status.textContent = '';
+    prepare.disabled = true; prepare.textContent = 'מכין...'; status.textContent = '';
     try {
       const result = await createOnboardingDraft({ employmentType: employment.value, manager, loginHint });
       status.textContent = 'הטיוטה הוכנה בהצלחה';
       onSuccess?.(result);
       window.open(result.webLink, '_blank', 'noopener,noreferrer');
     } catch (error) { status.textContent = String(error?.message || 'לא ניתן להכין את הטיוטה.'); }
-    finally { prepare.textContent = 'הכן מייל ב-Outlook'; sync(); }
+    finally { prepare.textContent = 'שליחת מייל'; sync(); }
   });
 }
