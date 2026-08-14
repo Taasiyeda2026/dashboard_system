@@ -31,7 +31,7 @@ const AVAILABILITY = `לצורך תכנון השיבוצים והפעילויו�
 
 ---`;
 
-export function buildOnboardingMail(employmentType, manager) {
+export function buildOnboardingMail(employmentType, manager, instructorName = '') {
   const taasiyeda = employmentType === 'taasiyeda';
   const documentLines = taasiyeda
     ? '- הסכם העסקה\n- טופס 101\n- נהלים למדריך\n- אישור משטרה (למדריכים גברים בלבד)'
@@ -39,7 +39,7 @@ export function buildOnboardingMail(employmentType, manager) {
   const instruction = taasiyeda
     ? 'נבקש לעבור על הסכם ההעסקה, לחתום עליו ולהחזיר אלינו עותק חתום במייל חוזר.'
     : 'נבקש לעבור על המסמכים המצורפים, למלא ולחתום ככל שנדרש ולהחזיר אלינו את המסמכים הרלוונטיים במייל חוזר.';
-  const body = `שלום [שם המדריך/ה],
+  const body = `שלום ${String(instructorName || '').trim()},
 
 שמחים על הצטרפותך לצוות המדריכים של תעשיידע.
 
@@ -70,7 +70,9 @@ export function managerContactsFromSettings(settings = {}) {
   const value = settings.activity_manager_contacts;
   if (Array.isArray(value)) return value;
   if (value && typeof value === 'object') {
-    return Object.entries(value).map(([name, phone]) => ({ name, phone: String(phone || '').trim() }));
+    return Object.entries(value).map(([name, contact]) => typeof contact === 'object'
+      ? ({ name, phone: String(contact?.phone || '').trim(), email: String(contact?.email || '').trim() })
+      : ({ name, phone: String(contact || '').trim(), email: '' }));
   }
   return [];
 }
@@ -80,12 +82,19 @@ export function onboardingManagers(settings = {}) {
     ? settings.dropdown_options.activities_manager_users.filter((item) => item?.is_active !== false)
     : [];
   const contacts = managerContactsFromSettings(settings);
-  const phones = new Map(contacts.map((item) => [String(item?.name || '').trim(), String(item?.phone || '').trim()]));
-  return active.map((item) => ({ name: String(item?.name || '').trim(), phone: phones.get(String(item?.name || '').trim()) || '' })).filter((item) => item.name);
+  const contactByName = new Map(contacts.map((item) => [String(item?.name || '').trim(), item]));
+  return active.map((item) => {
+    const name = String(item?.name || '').trim();
+    const contact = contactByName.get(name) || {};
+    return { name, phone: String(contact.phone || '').trim(), email: String(contact.email || '').trim() };
+  }).filter((item) => item.name);
 }
 
 export function onboardingModalHtml(managers = []) {
   return `<div class="instructor-onboarding" dir="rtl">
+    <label><span>שם מלא</span><input class="ds-input" data-onboarding-name autocomplete="name" required></label>
+    <label><span>טלפון</span><input class="ds-input" data-onboarding-phone inputmode="tel" autocomplete="tel" required></label>
+    <label><span>מייל</span><input class="ds-input" data-onboarding-email type="email" autocomplete="email" required></label>
     <label><span>סוג העסקה</span><select class="ds-input" data-onboarding-employment><option value="">בחירה</option><option value="taasiyeda">תעשיידע</option><option value="staffing">כוח אדם</option></select></label>
     <label><span>מנהל/ת פעילות</span><select class="ds-input" data-onboarding-manager><option value="">בחירה</option>${managers.map((manager) => `<option value="${escapeHtml(manager.name)}">${escapeHtml(manager.name)}</option>`).join('')}</select></label>
     <section data-onboarding-documents hidden><strong>מסמכים שיצורפו למייל</strong><ul></ul></section>
@@ -132,13 +141,31 @@ async function graph(token, path, options = {}) {
   return response.status === 204 ? null : response.json();
 }
 
-export async function createOnboardingDraft({ employmentType, manager, loginHint = '' }) {
-  const mail = buildOnboardingMail(employmentType, manager);
+export async function createOnboardingInstructor(instructor) {
+  const { data, error } = await supabase.rpc('create_instructor_onboarding', {
+    p_full_name: instructor.fullName, p_mobile: instructor.phone, p_email: instructor.email,
+    p_employment_type: instructor.employmentType, p_direct_manager: instructor.managerName
+  });
+  if (error) throw new Error(error.message || 'לא ניתן ליצור את המדריך.');
+  const result = Array.isArray(data) ? data[0] : data;
+  if (result?.already_exists) {
+    const duplicate = new Error(`המדריך כבר קיים במערכת.${result.full_name ? ` (${result.full_name})` : ''}`);
+    duplicate.code = 'instructor_exists'; throw duplicate;
+  }
+  return result;
+}
+
+export async function createOnboardingDraft({ employmentType, manager, instructorName, instructorEmail, loginHint = '' }) {
+  const mail = buildOnboardingMail(employmentType, manager, instructorName);
   const { data, error } = await supabase.functions.invoke('instructor-onboarding-files', { body: { employment_type: employmentType } });
   if (error || !data?.attachments) throw new Error(data?.message || 'לא ניתן לטעון את מסמכי הקליטה מ-SharePoint.');
   const token = await delegatedToken(loginHint);
   const draft = await graph(token, '/me/messages', {
-    method: 'POST', body: JSON.stringify({ subject: mail.subject, body: { contentType: 'Text', content: mail.body }, toRecipients: [] })
+    method: 'POST', body: JSON.stringify({
+      subject: mail.subject, body: { contentType: 'Text', content: mail.body },
+      toRecipients: [{ emailAddress: { address: instructorEmail } }],
+      ccRecipients: [{ emailAddress: { address: manager.email } }]
+    })
   });
   try {
     for (const attachment of data.attachments) {
@@ -153,7 +180,10 @@ export async function createOnboardingDraft({ employmentType, manager, loginHint
   return { webLink: draft.webLink || 'https://outlook.office.com/mail/drafts', folderUrl: data.folder_url };
 }
 
-export function bindOnboardingModal(modal, { managers, loginHint, onSuccess } = {}) {
+export function bindOnboardingModal(modal, { managers, loginHint, onSuccess, createInstructor = createOnboardingInstructor, createDraft = createOnboardingDraft } = {}) {
+  const fullName = modal.querySelector('[data-onboarding-name]');
+  const phone = modal.querySelector('[data-onboarding-phone]');
+  const email = modal.querySelector('[data-onboarding-email]');
   const employment = modal.querySelector('[data-onboarding-employment]');
   const managerSelect = modal.querySelector('[data-onboarding-manager]');
   const documents = modal.querySelector('[data-onboarding-documents]');
@@ -194,23 +224,35 @@ export function bindOnboardingModal(modal, { managers, loginHint, onSuccess } = 
     const list = ONBOARDING_DOCUMENTS[employment.value] || [];
     documents.hidden = !list.length;
     documents.querySelector('ul').innerHTML = list.map((name) => `<li>📄 ${escapeHtml(name)}</li>`).join('');
-    prepare.disabled = !employment.value || !managerSelect.value;
+    prepare.disabled = !fullName.value.trim() || !phone.value.trim() || !email.value.trim() || !employment.value || !managerSelect.value;
     folder.disabled = false;
   };
+  [fullName, phone, email].forEach((input) => input.addEventListener('input', sync));
   employment.addEventListener('change', sync); managerSelect.addEventListener('change', sync); sync();
   folder.addEventListener('click', () => {
     window.open(ONBOARDING_ROOT_FOLDER_URL, '_blank', 'noopener,noreferrer');
   });
+  let createdInstructor = null;
   prepare.addEventListener('click', async () => {
     const manager = managers.find((item) => item.name === managerSelect.value);
-    if (!manager?.phone) { status.textContent = 'לא הוגדר מספר טלפון למנהל/ת הפעילות שנבחר/ה.'; return; }
+    if (!fullName.value.trim() || !phone.value.trim() || !email.value.trim() || !employment.value || !manager) return;
+    if (!email.checkValidity()) { status.textContent = 'יש להזין כתובת מייל תקינה.'; return; }
+    if (!manager?.phone || !manager?.email) { status.textContent = 'לא הוגדרו טלפון ומייל למנהל/ת הפעילות שנבחר/ה.'; return; }
     prepare.disabled = true; prepare.textContent = 'מכין...'; status.textContent = '';
     try {
-      const result = await createOnboardingDraft({ employmentType: employment.value, manager, loginHint });
+      if (!createdInstructor) createdInstructor = await createInstructor({
+        fullName: fullName.value.trim(), phone: phone.value.trim(), email: email.value.trim(),
+        employmentType: employment.value === 'taasiyeda' ? 'תעשיידע' : 'כוח אדם', managerName: manager.name
+      });
+      const result = await createDraft({ employmentType: employment.value, manager, instructorName: fullName.value.trim(), instructorEmail: email.value.trim(), loginHint });
       status.textContent = 'הטיוטה הוכנה בהצלחה';
-      onSuccess?.(result);
+      await onSuccess?.(result, createdInstructor);
       window.open(result.webLink, '_blank', 'noopener,noreferrer');
-    } catch (error) { status.textContent = String(error?.message || 'לא ניתן להכין את הטיוטה.'); }
+    } catch (error) {
+      status.textContent = createdInstructor && error?.code !== 'instructor_exists'
+        ? 'המדריך נוצר בהצלחה, אך הכנת המייל נכשלה. ניתן לנסות שוב.'
+        : String(error?.message || 'לא ניתן להכין את הטיוטה.');
+    }
     finally { prepare.textContent = 'שליחת מייל'; sync(); }
   });
 }
