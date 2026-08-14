@@ -167,6 +167,7 @@ test('desktop activity details use four responsive columns', async () => {
   assert.match(typeLayoutCss, /\.activity-drawer-inline__grid\[data-activity-layout="course"\],[^}]*grid-template-columns:\s*repeat\(4,/);
   assert.doesNotMatch(typeLayoutCss, /\.activity-drawer-inline__grid\[data-activity-layout="course"\],[^}]*grid-template-columns:\s*repeat\(3,/);
   assert.match(css, /@media \(max-width: 900px\)[\s\S]*?\.activity-drawer-inline__grid\s*\{[\s\S]*?repeat\(2,/);
+  assert.match(typeLayoutCss, /@media \(max-width: 900px\)\s*\{\s*\.activity-drawer-inline__grid\[data-activity-layout="course"\]\s*\{[^}]*grid-template-columns:\s*repeat\(2,/);
   assert.match(css, /@media \(max-width: 640px\)[\s\S]*?\.activity-drawer-inline__grid,[\s\S]*?grid-template-columns:\s*1fr/);
 });
 
