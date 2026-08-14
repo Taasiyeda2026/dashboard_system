@@ -14,7 +14,7 @@ export function coordinationStatusHtml(item, { action = false } = {}) {
   const meta = STATUS_PRESENTATION[item?.status] || STATUS_PRESENTATION[COORDINATION_STATUS.NOT_SENT];
   const sentDate = item?.persisted?.sent_at ? new Date(item.persisted.sent_at).toLocaleDateString('he-IL') : '';
   const title = [item?.technical_blocker, item?.cc_warning, item?.persisted?.reconciliation_error].filter(Boolean).join(' · ');
-  const button = action && item?.readiness?.ready && item?.status !== COORDINATION_STATUS.DRAFT
+  const button = action && item?.readiness?.ready && !item?.technical_blocker && item?.status !== COORDINATION_STATUS.DRAFT
     ? `<button type="button" class="coordination-send-link" data-coordination-send="${escapeHtml(item.activity_row_id)}">${[COORDINATION_STATUS.SENT, COORDINATION_STATUS.CHANGED_SINCE_SENT].includes(item.status) ? 'שליחה מחדש' : 'שליחת אישור'}</button>` : '';
   return `<span class="coordination-status ${meta.className}" title="${escapeHtml(title)}"><span aria-hidden="true">${meta.icon}</span> ${meta.label}${sentDate ? ` · ${escapeHtml(sentDate)}` : ''}</span>${button}`;
 }
@@ -41,7 +41,7 @@ export function renderCoordinationWorkspace(context = {}, { canManage = false } 
     </div>
     <div class="coordination-schools">${Array.from(schoolGroups.entries()).map(([key, group]) => `<section class="coordination-school" data-coordination-school data-school-key="${escapeHtml(key)}">
       <header><label><input type="checkbox" data-coordination-school-select> <strong>${escapeHtml(group[0].snapshot.school.name || 'בית ספר')}</strong></label><span>${group.length} פעילויות</span></header>
-      <div class="coordination-rows">${group.map((item) => `<label class="coordination-row" data-coordination-row data-status="${item.status}"><input type="checkbox" data-coordination-item value="${escapeHtml(item.activity_row_id)}" ${(!canManage || !item.readiness.ready || !item.recipient_email || item.status === COORDINATION_STATUS.DRAFT) ? 'disabled' : ''}><span><strong>${escapeHtml(item.snapshot.program.name || 'ללא שם')}</strong><small>${escapeHtml(item.recipient_email || item.technical_blocker)}</small></span><span>${coordinationStatusHtml(item)}</span></label>`).join('')}</div>
+      <div class="coordination-rows">${group.map((item) => `<label class="coordination-row" data-coordination-row data-status="${item.status}"><input type="checkbox" data-coordination-item value="${escapeHtml(item.activity_row_id)}" ${(!canManage || !item.readiness.ready || item.technical_blocker || item.status === COORDINATION_STATUS.DRAFT) ? 'disabled' : ''}><span><strong>${escapeHtml(item.snapshot.program.name || 'ללא שם')}</strong><small>${escapeHtml(item.technical_blocker || item.recipient_email)}</small></span><span>${coordinationStatusHtml(item)}</span></label>`).join('')}</div>
     </section>`).join('')}</div>
   </section>`;
 }

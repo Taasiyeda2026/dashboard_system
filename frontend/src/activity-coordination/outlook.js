@@ -7,7 +7,7 @@ import { finishDispatch, markDispatchDraft, recordReconciliationException, reser
 export const COORDINATION_CORRELATION_PROPERTY = 'String {8ECCC264-8F4A-4E1A-934E-8C0C2A92D8B1} Name ActivityCoordinationDispatch';
 
 export function dispatchGroups(items) {
-  return groupActivitiesForDispatch(items.filter((item) => item.readiness.ready && item.recipient_email));
+  return groupActivitiesForDispatch(items.filter((item) => item.readiness.ready && item.recipient_email && !item.technical_blocker));
 }
 
 async function photographyApprovalAttachment() {

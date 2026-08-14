@@ -20,7 +20,8 @@ test('dispatch items use activities.row_id text and preserve one-to-many history
 test('database idempotency and RPC-only writes are explicit', () => {
   assert.match(migration, /idempotency_key text not null/i);
   assert.match(migration, /unique index[\s\S]*\(idempotency_key\)[\s\S]*where status in \('reserved', 'creating', 'draft'\)/i);
-  assert.match(migration, /unique \(activity_row_id, open_draft_hash\)/i);
+  assert.match(migration, /unique index[\s\S]*\(activity_row_id\)[\s\S]*where open_draft_hash is not null/i);
+  assert.doesNotMatch(migration, /unique \(activity_row_id, open_draft_hash\)/i);
   assert.match(migration, /pg_advisory_xact_lock/i);
   assert.match(migration, /revoke insert, update, delete[\s\S]*from authenticated/i);
   assert.match(migration, /if not public\.app_can_edit_direct\(\)/i);

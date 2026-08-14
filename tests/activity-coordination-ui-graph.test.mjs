@@ -3,12 +3,17 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
 const activities = await readFile(new URL('../frontend/src/screens/activities.js', import.meta.url), 'utf8');
+const api = await readFile(new URL('../frontend/src/api.js', import.meta.url), 'utf8');
 const graph = await readFile(new URL('../frontend/src/microsoft/graph-mail.js', import.meta.url), 'utf8');
 const photo = await readFile(new URL('../supabase/functions/activity-coordination-photo-approval/index.ts', import.meta.url), 'utf8');
 
 test('2027 activities expose coordination tab and column in the required order', () => {
   assert.match(activities, /ACTIVITIES_INNER_TAB_2027, label: 'פעילויות תשפ״ז'[\s\S]*ACTIVITIES_INNER_TAB_COORDINATION, label: 'אישורי תיאום'[\s\S]*ACTIVITIES_INNER_TAB_ARCHIVE/);
   assert.match(activities, /<th>איש קשר<\/th><th>אישור תיאום<\/th><th>תאריך התחלה<\/th>/);
+});
+
+test('activities list projection includes activity_no for syllabus preparation matching', () => {
+  assert.match(api, /const ACTIVITY_TABLE_COLUMNS = \[[\s\S]*'activity_no'[\s\S]*\]\.join\(','\)/);
 });
 
 test('Graph helper creates drafts under me with immutable IDs and never requests Mail.Send', () => {

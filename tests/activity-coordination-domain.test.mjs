@@ -7,7 +7,8 @@ import {
   documentDataHash,
   groupActivitiesForDispatch,
   meetingRowsForActivity,
-  readinessForActivity
+  readinessForActivity,
+  validCoordinationSchoolId
 } from '../frontend/src/activity-coordination/domain.js';
 
 function activity(overrides = {}) {
@@ -75,5 +76,14 @@ test('status precedence uses verified sent, current draft, then readiness', () =
   assert.equal(coordinationStatus({ readiness: ready, currentHash: 'a', activeDraft: { document_data_hash: 'a' } }), COORDINATION_STATUS.DRAFT);
   assert.equal(coordinationStatus({ readiness: ready, currentHash: 'a', latestSent: { document_data_hash: 'a' } }), COORDINATION_STATUS.SENT);
   assert.equal(coordinationStatus({ readiness: ready, currentHash: 'b', latestSent: { document_data_hash: 'a' } }), COORDINATION_STATUS.CHANGED_SINCE_SENT);
+  assert.equal(coordinationStatus({ readiness: ready, currentHash: 'b', latestSent: { document_data_hash: 'a' }, activeDraft: { document_data_hash: 'b' } }), COORDINATION_STATUS.DRAFT);
   assert.equal(coordinationStatus({ readiness: ready, currentHash: 'b', activeDraft: null }), COORDINATION_STATUS.READY);
+});
+
+test('coordination requires a positive bigint-compatible school id before dispatch', () => {
+  assert.equal(validCoordinationSchoolId(7), true);
+  assert.equal(validCoordinationSchoolId('7'), true);
+  assert.equal(validCoordinationSchoolId(''), false);
+  assert.equal(validCoordinationSchoolId(0), false);
+  assert.equal(validCoordinationSchoolId('school-7'), false);
 });

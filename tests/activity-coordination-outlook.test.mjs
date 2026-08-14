@@ -1,6 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { runSequentialGroups, sentMessageEvidence } from '../frontend/src/activity-coordination/outlook.js';
+import { dispatchGroups, runSequentialGroups, sentMessageEvidence } from '../frontend/src/activity-coordination/outlook.js';
+
+test('dispatch grouping excludes an activity with a technical school blocker', () => {
+  const item = { readiness: { ready: true }, recipient_email: 'school@example.org', technical_blocker: 'חסר מזהה בית ספר תקין' };
+  assert.deepEqual(dispatchGroups([item]), []);
+});
 
 test('bulk queue processes 20 groups serially and reports progress', async () => {
   const groups = Array.from({ length: 20 }, (_, id) => ({ id }));

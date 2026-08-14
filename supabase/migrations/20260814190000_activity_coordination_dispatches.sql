@@ -51,8 +51,7 @@ create table if not exists public.activity_coordination_dispatch_items (
   constraint activity_coordination_dispatch_items_dispatch_activity_key unique (dispatch_id, activity_row_id),
   constraint activity_coordination_dispatch_items_hash_check check (document_data_hash ~ '^[0-9a-f]{64}$'),
   constraint activity_coordination_dispatch_items_open_hash_check
-    check (open_draft_hash is null or open_draft_hash = document_data_hash),
-  constraint activity_coordination_dispatch_items_open_activity_hash_key unique (activity_row_id, open_draft_hash)
+    check (open_draft_hash is null or open_draft_hash = document_data_hash)
 );
 
 create index if not exists activity_coordination_dispatches_school_season_idx
@@ -62,6 +61,9 @@ create index if not exists activity_coordination_dispatches_reconciliation_idx
   where status = 'draft';
 create index if not exists activity_coordination_dispatch_items_activity_idx
   on public.activity_coordination_dispatch_items (activity_row_id, created_at desc);
+create unique index if not exists activity_coordination_dispatch_items_one_open_draft_per_activity
+  on public.activity_coordination_dispatch_items (activity_row_id)
+  where open_draft_hash is not null;
 create unique index if not exists activity_coordination_dispatches_open_idempotency_key
   on public.activity_coordination_dispatches (idempotency_key)
   where status in ('reserved', 'creating', 'draft');

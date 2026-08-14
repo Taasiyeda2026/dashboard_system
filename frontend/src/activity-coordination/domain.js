@@ -152,6 +152,11 @@ export function normalizeRecipientEmail(value) {
   return text(value).replace(/\s+/g, '').toLowerCase();
 }
 
+export function validCoordinationSchoolId(value) {
+  const raw = text(value);
+  return /^\d+$/.test(raw) && Number(raw) > 0 && Number.isSafeInteger(Number(raw));
+}
+
 export function groupActivitiesForDispatch(items = []) {
   const groups = new Map();
   for (const item of items) {
@@ -171,12 +176,9 @@ export function groupActivitiesForDispatch(items = []) {
 }
 
 export function coordinationStatus({ readiness, currentHash = '', latestSent = null, activeDraft = null } = {}) {
-  if (latestSent?.document_data_hash) {
-    return latestSent.document_data_hash === currentHash
-      ? COORDINATION_STATUS.SENT
-      : COORDINATION_STATUS.CHANGED_SINCE_SENT;
-  }
+  if (latestSent?.document_data_hash === currentHash) return COORDINATION_STATUS.SENT;
   if (activeDraft?.document_data_hash && activeDraft.document_data_hash === currentHash) return COORDINATION_STATUS.DRAFT;
+  if (latestSent?.document_data_hash) return COORDINATION_STATUS.CHANGED_SINCE_SENT;
   if (readiness && !readiness.ready) return COORDINATION_STATUS.MISSING_DETAILS;
   if (readiness?.ready) return COORDINATION_STATUS.READY;
   return COORDINATION_STATUS.NOT_SENT;

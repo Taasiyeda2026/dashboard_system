@@ -4,7 +4,8 @@ import {
   coordinationStatus,
   documentDataHash,
   normalizeRecipientEmail,
-  readinessForActivity
+  readinessForActivity,
+  validCoordinationSchoolId
 } from './domain.js';
 
 const rowId = (row) => String(row?.row_id || row?.RowID || '').trim();
@@ -57,6 +58,7 @@ export async function loadActivityCoordinationContext(activities = [], settings 
     const persisted = statusByActivity.get(rowId(activity)) || {};
     const readiness = readinessForActivity(activity);
     const recipientEmail = normalizeRecipientEmail(primaryEmailByContact.get(Number(activity.school_contact_id)) || activity.contact_email || contact.email);
+    const hasValidSchoolId = validCoordinationSchoolId(activity.school_id);
     items.push({
       activity,
       activity_season: String(activity.activity_season || ''),
@@ -66,7 +68,7 @@ export async function loadActivityCoordinationContext(activities = [], settings 
       document_data_hash: hash,
       readiness,
       recipient_email: recipientEmail,
-      technical_blocker: recipientEmail ? '' : 'חסרה כתובת מייל פעילה לנמען',
+      technical_blocker: !hasValidSchoolId ? 'חסר מזהה בית ספר תקין' : (recipientEmail ? '' : 'חסרה כתובת מייל פעילה לנמען'),
       cc_email: normalizeRecipientEmail(manager.email),
       cc_warning: manager.email ? '' : 'לא נמצאה כתובת CC למנהל/ת הפעילות',
       status: coordinationStatus({
@@ -82,6 +84,7 @@ export async function loadActivityCoordinationContext(activities = [], settings 
 }
 
 export async function reserveDispatch(group, { subject, summaryFilename, photographyFilename, idempotencyKey, correlationId }) {
+  if (!validCoordinationSchoolId(group?.school_id)) throw new Error('חסר מזהה בית ספר תקין');
   const first = group.activities[0];
   const { data, error } = await supabase.rpc('reserve_activity_coordination_dispatch', {
     p_school_id: Number(group.school_id), p_activity_season: group.activity_season,
