@@ -9622,14 +9622,15 @@ select.ds-input {
 .ds-table--activities-list col.ds-activities-col--meetings   { width: 9%; }
 .ds-table--activities-list col.ds-activities-col--notes      { width: 25%; }
 
-/* ── 2027 table: 8 columns, sum = 100% ── */
-.ds-table--activities-2027 col.ds-activities-col--program       { width: 11%; }
-.ds-table--activities-2027 col.ds-activities-col--authority     { width: 11%; }
-.ds-table--activities-2027 col.ds-activities-col--school        { width: 11%; }
-.ds-table--activities-2027 col.ds-activities-col--contact-name  { width: 11%; }
-.ds-table--activities-2027 col.ds-activities-col--date          { width: 9.5%; }
-.ds-table--activities-2027 col.ds-activities-col--instructor    { width: 12%; }
-.ds-table--activities-2027 col.ds-activities-col--notes         { width: 25%; }
+/* ── 2027 table: 9 columns, sum = 100% ── */
+.ds-table--activities-2027 col.ds-activities-col--program       { width: 10%; }
+.ds-table--activities-2027 col.ds-activities-col--authority     { width: 9%; }
+.ds-table--activities-2027 col.ds-activities-col--school        { width: 10%; }
+.ds-table--activities-2027 col.ds-activities-col--contact-name  { width: 10%; }
+.ds-table--activities-2027 col.ds-activities-col--coordination  { width: 12%; }
+.ds-table--activities-2027 col.ds-activities-col--date          { width: 8%; }
+.ds-table--activities-2027 col.ds-activities-col--instructor    { width: 10%; }
+.ds-table--activities-2027 col.ds-activities-col--notes         { width: 23%; }
 
 .ds-table--activities-2027 td {
   height: 28px;
@@ -9643,6 +9644,34 @@ select.ds-input {
 .ds-table--activities-2027 td.ds-activities-col--date,
 .ds-table--activities-2027 th.ds-activities-col--date {
   text-align: center;
+}
+
+.ds-activities-col--coordination { text-align: center; }
+.coordination-status { display: inline-flex; align-items: center; gap: 3px; font-size: .69rem; line-height: 1.25; font-weight: 600; }
+.coordination-status.is-sent { color: #166534; }
+.coordination-status.is-changed { color: #9a3412; }
+.coordination-status.is-draft { color: #5b21b6; }
+.coordination-status.is-missing { color: #991b1b; }
+.coordination-status.is-ready { color: #1d4ed8; }
+.coordination-send-link { display: block; margin: 2px auto 0; border: 0; background: transparent; color: #1d4ed8; font: inherit; font-size: .64rem; cursor: pointer; text-decoration: underline; }
+.coordination-workspace { display: grid; gap: 14px; }
+.coordination-kpis { display: grid; grid-template-columns: repeat(6, minmax(92px, 1fr)); gap: 8px; }
+.coordination-kpi { display: flex; flex-direction: column; align-items: center; padding: 10px; border: 1px solid var(--ds-border); border-radius: 10px; background: var(--ds-surface); }
+.coordination-kpi strong { font-size: 1.3rem; color: var(--ds-primary); }
+.coordination-kpi span { font-size: .76rem; }
+.coordination-toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.coordination-toolbar [data-coordination-progress] { margin-inline-start: auto; font-weight: 600; }
+.coordination-schools { display: grid; gap: 10px; }
+.coordination-school { border: 1px solid var(--ds-border); border-radius: 10px; overflow: hidden; background: var(--ds-surface); }
+.coordination-school > header { display: flex; justify-content: space-between; padding: 9px 12px; background: #eef4fb; }
+.coordination-rows { display: grid; }
+.coordination-row { display: grid; grid-template-columns: 24px minmax(180px, 1fr) minmax(150px, auto); gap: 8px; align-items: center; padding: 8px 12px; border-top: 1px solid var(--ds-border); cursor: pointer; }
+.coordination-row > span { display: flex; flex-direction: column; }
+.coordination-row small { color: var(--ds-text-muted); }
+@media (max-width: 900px) {
+  .coordination-kpis { grid-template-columns: repeat(3, 1fr); }
+  .coordination-row { grid-template-columns: 24px 1fr; }
+  .coordination-row > span:last-child { grid-column: 2; }
 }
 
 /* ── contact popover button ── */
