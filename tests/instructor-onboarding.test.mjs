@@ -39,9 +39,13 @@ test('five required onboarding fields gate the compact RTL primary action', () =
   assert.equal(root.getAttribute('dir'), 'rtl');
   assert.equal(root.querySelectorAll('input').length, 3);
   assert.equal(root.querySelectorAll('select').length, 3);
+  assert.equal(modal.querySelector('[data-onboarding-agency-field]').hidden, true);
+  assert.equal(modal.querySelector('[data-onboarding-agency-field]').style.display, 'none');
   assert.equal(modal.querySelector('[data-onboarding-prepare]').disabled, true);
   assert.equal(modal.querySelector('[data-onboarding-folder]').disabled, false);
   fill(modal);
+  assert.equal(modal.querySelector('[data-onboarding-agency-field]').hidden, true);
+  assert.equal(modal.querySelector('[data-onboarding-agency-field]').style.display, 'none');
   assert.equal(modal.querySelector('[data-onboarding-prepare]').disabled, false);
   assert.equal(modal.querySelector('[data-onboarding-folder]').style.width, modal.querySelector('[data-onboarding-prepare]').style.width);
 });
@@ -50,6 +54,7 @@ test('staffing requires a visible agency selection and clears it when switching 
   const { modal } = mountedModal();
   fill(modal, { employmentType: 'staffing' });
   assert.equal(modal.querySelector('[data-onboarding-agency-field]').hidden, false);
+  assert.equal(modal.querySelector('[data-onboarding-agency-field]').style.display, 'grid');
   assert.equal(modal.querySelector('[data-onboarding-prepare]').disabled, true);
   const agency = modal.querySelector('[data-onboarding-agency]');
   agency.value = 'מעוף'; agency.dispatchEvent(new window.Event('change'));
@@ -57,6 +62,7 @@ test('staffing requires a visible agency selection and clears it when switching 
   const employment = modal.querySelector('[data-onboarding-employment]');
   employment.value = 'taasiyeda'; employment.dispatchEvent(new window.Event('change'));
   assert.equal(modal.querySelector('[data-onboarding-agency-field]').hidden, true);
+  assert.equal(modal.querySelector('[data-onboarding-agency-field]').style.display, 'none');
   assert.equal(agency.value, '');
 });
 
@@ -74,6 +80,22 @@ for (const staffingAgency of ['מעוף', 'מנפאואר']) {
     assert.equal(onboardingFolder(calls[1][1].employmentType), 'כוח אדם');
   });
 }
+
+test('independent onboarding stores עצמאי and uses the עצמאי SharePoint folder without agency selection', async () => {
+  const calls = [];
+  const { modal } = mountedModal({
+    createInstructor: async (row) => { calls.push(['create', row]); return { emp_id: 43 }; },
+    createDraft: async (mail) => { calls.push(['draft', mail]); return { webLink: 'https://outlook.office.com/mail/drafts' }; }
+  });
+  fill(modal, { employmentType: 'independent' });
+  assert.equal(modal.querySelector('[data-onboarding-agency-field]').hidden, true);
+  assert.equal(modal.querySelector('[data-onboarding-agency-field]').style.display, 'none');
+  assert.equal(modal.querySelector('[data-onboarding-prepare]').disabled, false);
+  modal.querySelector('[data-onboarding-prepare]').click(); await tick();
+  assert.equal(calls[0][1].employmentType, 'עצמאי');
+  assert.equal(calls[1][1].employmentType, 'independent');
+  assert.equal(onboardingFolder(calls[1][1].employmentType), 'עצמאי');
+});
 
 test('real instructor and approved manager details appear in mail', () => {
   for (const manager of onboardingManagers(settings)) {
@@ -159,6 +181,7 @@ test('implementation creates delegated drafts with TO and CC and has no send cap
 test('SharePoint mapping keeps every direct file and excludes subfolders', () => {
   assert.equal(onboardingFolder('taasiyeda'), 'תעשיידע');
   assert.equal(onboardingFolder('staffing'), 'כוח אדם');
+  assert.equal(onboardingFolder('independent'), 'עצמאי');
   const files = directFileItems([
     { id: '1', name: 'מסמך חדש.docx', file: { mimeType: 'application/docx' } },
     { id: '2', name: 'שם שהשתנה.anything', file: { mimeType: 'application/octet-stream' } },
