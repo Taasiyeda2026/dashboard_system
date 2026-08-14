@@ -1,6 +1,7 @@
 export const ONBOARDING_FOLDER_BY_EMPLOYMENT = Object.freeze({
   taasiyeda: 'תעשיידע',
-  staffing: 'כוח אדם'
+  staffing: 'כוח אדם',
+  independent: 'עצמאי'
 });
 
 export function onboardingFolder(employmentType) {
