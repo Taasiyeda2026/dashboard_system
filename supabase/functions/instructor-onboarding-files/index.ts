@@ -1,22 +1,11 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { directFileItems, onboardingFolder } from "./logic.js";
 
 const corsHeaders = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type", "Access-Control-Allow-Methods": "POST, OPTIONS" };
 const HOST = "think365orgil.sharepoint.com";
-const SITE_PATH = "/sites/taasiyeda2027";
+const SITE_ID = "think365orgil.sharepoint.com,5bd221ef-8cc6-4ba2-a79e-02b0d37bc784,1449501e-590f-490d-8577-20a033af5360";
+const DRIVE_ID = "b!7yHSW8aMokunngKw03vHhB5QSRQPWQ1JhXcgoDOvU2BFY5HnYLNMTZS2gZux2CMR";
 const BASE_FOLDER = "תיקים אישיים/קליטת מדריך";
-const KITS: Record<string, { folder: string; files: Array<{ label: string; names: string[] }> }> = {
-  taasiyeda: { folder: "תעשיידע", files: [
-    { label: "הסכם העסקה.pdf", names: ["הסכם העסקה.pdf"] },
-    { label: "קליטת מדריך 101.pdf", names: ["קליטת מדריך 101.pdf", "טופס 101.pdf", "101.pdf"] },
-    { label: "נהלים למדריך.pdf", names: ["נהלים למדריך.pdf"] },
-    { label: "אישור משטרה.pdf", names: ["אישור משטרה.pdf"] }
-  ] },
-  staffing: { folder: "כוח אדם", files: [
-    { label: "נהלים למדריך.pdf", names: ["נהלים למדריך.pdf"] },
-    { label: "שמירה על סודיות.pdf", names: ["שמירה על סודיות.pdf", "טופס שמירה על סודיות.pdf"] },
-    { label: "אישור משטרה.pdf", names: ["אישור משטרה.pdf"] }
-  ] }
-};
 function clean(value: unknown) { return String(value ?? "").trim(); }
 function json(body: unknown, status = 200) { return new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, "Content-Type": "application/json; charset=utf-8" } }); }
 function encodePath(path: string) { return path.split("/").filter(Boolean).map(encodeURIComponent).join("/"); }
@@ -27,34 +16,42 @@ async function token() {
   if (!response.ok) throw new Error("graph_auth_failed"); return clean((await response.json()).access_token);
 }
 async function graph(accessToken: string, path: string) {
-  const response = await fetch(`https://graph.microsoft.com/v1.0${path}`, { headers: { Authorization: `Bearer ${accessToken}` } });
+  const url = path.startsWith("https://") ? path : `https://graph.microsoft.com/v1.0${path}`;
+  const response = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
   if (!response.ok) throw new Error(`graph_request_failed:${response.status}`); return response;
 }
 async function assertAllowed(req: Request) {
   const auth = clean(req.headers.get("authorization")); const url = clean(Deno.env.get("SUPABASE_URL")); const key = clean(Deno.env.get("SUPABASE_ANON_KEY"));
   if (!auth || !url || !key) throw new Error("not_authorized");
-  const response = await fetch(`${url}/rest/v1/users?select=role,permissions,is_active`, { headers: { apikey: key, Authorization: auth } });
-  const users = response.ok ? await response.json() : []; const user = users?.[0];
+  const response = await fetch(`${url}/rest/v1/rpc/get_current_app_user`, { method: "POST", headers: { apikey: key, Authorization: auth, "Content-Type": "application/json" }, body: "{}" });
+  const currentUsers = response.ok ? await response.json() : []; const user = Array.isArray(currentUsers) ? currentUsers[0] : currentUsers;
   const roles = new Set(["admin", "operation_manager", "finance", "activities_manager", "domain_manager", "business_development_manager", "instructor_manager"]);
   const explicit = user?.permissions?.view_employee_files;
   if (!user?.is_active || (explicit != null ? ![true, "yes", "true", "1", 1].includes(explicit) : !roles.has(clean(user?.role)))) throw new Error("not_authorized");
+}
+async function listDirectFiles(accessToken: string, folderId: string) {
+  let next = `/drives/${encodeURIComponent(DRIVE_ID)}/items/${encodeURIComponent(folderId)}/children?$select=id,name,file,folder&$top=200`;
+  const items = [];
+  while (next) {
+    const payload = await (await graph(accessToken, next)).json();
+    items.push(...directFileItems(payload?.value));
+    next = clean(payload?.["@odata.nextLink"]);
+  }
+  return items;
 }
 function bytesToBase64(bytes: Uint8Array) { let binary = ""; for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000)); return btoa(binary); }
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
-    await assertAllowed(req); const body = await req.json(); const kit = KITS[clean(body.employment_type)]; if (!kit) return json({ message: "יש לבחור סוג העסקה." }, 400);
-    const accessToken = await token(); const site = await (await graph(accessToken, `/sites/${HOST}:${SITE_PATH}?$select=id`)).json();
-    const drives = await (await graph(accessToken, `/sites/${encodeURIComponent(site.id)}/drives?$select=id,name,webUrl`)).json(); const drive = drives.value?.[0]; if (!drive?.id) throw new Error("drive_not_found");
-    const folderPath = `${BASE_FOLDER}/${kit.folder}`; const folder = await (await graph(accessToken, `/drives/${encodeURIComponent(drive.id)}/root:/${encodePath(folderPath)}?$select=id,webUrl`)).json();
+    await assertAllowed(req); const body = await req.json(); const selectedFolder = onboardingFolder(body.employment_type); if (!selectedFolder) return json({ message: "יש לבחור סוג העסקה." }, 400);
+    const accessToken = await token();
+    const folderPath = `${BASE_FOLDER}/${selectedFolder}`; const folder = await (await graph(accessToken, `/drives/${encodeURIComponent(DRIVE_ID)}/root:/${encodePath(folderPath)}?$select=id,webUrl`)).json();
     if (body.folder_only) return json({ folder_url: folder.webUrl });
-    const children = await (await graph(accessToken, `/drives/${encodeURIComponent(drive.id)}/items/${encodeURIComponent(folder.id)}/children?$select=id,name,file&$top=100`)).json();
-    const byName = new Map((children.value || []).filter((item: any) => item.file).map((item: any) => [clean(item.name).toLocaleLowerCase("he"), item]));
+    const files = await listDirectFiles(accessToken, folder.id);
+    if (!files.length) return json({ error: "empty_folder", message: "לא נמצאו מסמכים בתיקיית הקליטה שנבחרה." });
     const attachments = [];
-    for (const expected of kit.files) {
-      const item = expected.names.map((name) => byName.get(name.toLocaleLowerCase("he"))).find(Boolean) as any;
-      if (!item) return json({ error: "missing_file", message: `לא ניתן להכין את המייל. הקובץ "${expected.label}" לא נמצא בתיקיית הקליטה.` });
-      const response = await graph(accessToken, `/drives/${encodeURIComponent(drive.id)}/items/${encodeURIComponent(item.id)}/content`); const bytes = new Uint8Array(await response.arrayBuffer());
+    for (const item of files) {
+      const response = await graph(accessToken, `/drives/${encodeURIComponent(DRIVE_ID)}/items/${encodeURIComponent(item.id)}/content`); const bytes = new Uint8Array(await response.arrayBuffer());
       if (bytes.byteLength > 3 * 1024 * 1024) return json({ error: "attachment_too_large", message: `לא ניתן לצרף את הקובץ "${item.name}" משום שגודלו עולה על 3MB.` });
       attachments.push({ name: item.name, content_type: response.headers.get("content-type") || "application/pdf", content_bytes: bytesToBase64(bytes) });
     }

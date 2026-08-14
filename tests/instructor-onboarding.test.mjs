@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
 import { readFile } from 'node:fs/promises';
 import { ONBOARDING_DOCUMENTS, buildOnboardingMail, onboardingManagers, onboardingModalHtml, bindOnboardingModal } from '../frontend/src/screens/instructor-onboarding.js';
+import { directFileItems, onboardingFolder } from '../supabase/functions/instructor-onboarding-files/logic.js';
 
 const settings = {
   dropdown_options: { activities_manager_users: [{ name: 'מנהלת א', is_active: true }, { name: 'מנהלת ב', is_active: true }, { name: 'לא פעיל', is_active: false }] },
@@ -49,6 +50,22 @@ test('implementation uses delegated current-user drafts and never sends mail', a
   assert.doesNotMatch(client, /mailto:/i);
   assert.doesNotMatch(client, /sendMail/i);
   assert.match(edge, /BASE_FOLDER = "תיקים אישיים\/קליטת מדריך"/);
-  assert.match(edge, /if \(!item\) return json/);
+  assert.match(edge, /DRIVE_ID = "b!7yHSW8aMokunngKw03vHhB5QSRQPWQ1JhXcgoDOvU2BFY5HnYLNMTZS2gZux2CMR"/);
+  assert.doesNotMatch(edge, /drives\.value\s*\?\.\[0\]|drives\.value\[0\]/);
+  assert.match(edge, /rpc\/get_current_app_user/);
+  assert.doesNotMatch(edge, /rest\/v1\/users\?/);
+  assert.match(edge, /לא נמצאו מסמכים בתיקיית הקליטה שנבחרה/);
+  assert.doesNotMatch(edge, /\.pdf/);
   assert.doesNotMatch(edge, /sendMail/i);
+});
+
+test('SharePoint folder mapping includes every direct file and excludes folders', () => {
+  assert.equal(onboardingFolder('taasiyeda'), 'תעשיידע');
+  assert.equal(onboardingFolder('staffing'), 'כוח אדם');
+  const files = directFileItems([
+    { id: '1', name: 'מסמך חדש.docx', file: { mimeType: 'application/docx' } },
+    { id: '2', name: 'שם שהשתנה.pdf', file: { mimeType: 'application/pdf' } },
+    { id: '3', name: 'תיקיית משנה', folder: { childCount: 1 } }
+  ]);
+  assert.deepEqual(files.map((item) => item.id), ['1', '2']);
 });
