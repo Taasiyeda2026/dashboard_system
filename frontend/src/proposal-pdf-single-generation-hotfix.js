@@ -103,6 +103,7 @@ function setPdfButtonBusy(button, busy) {
   if (!button) return;
   if (busy) {
     if (!button.dataset.nativePdfOriginalHtml) button.dataset.nativePdfOriginalHtml = button.innerHTML;
+    button.dataset.nativePdfBusy = 'yes';
     button.disabled = true;
     button.innerHTML = '<span class="ds-pa-pdf-spinner" aria-hidden="true"></span> מפיק PDF...';
     button.title = 'מפיק PDF חד וניתן לחיפוש';
@@ -112,6 +113,7 @@ function setPdfButtonBusy(button, busy) {
   button.innerHTML = button.dataset.nativePdfOriginalHtml || 'PDF';
   button.title = 'הפקת PDF ושמירה אוטומטית';
   delete button.dataset.nativePdfOriginalHtml;
+  delete button.dataset.nativePdfBusy;
 }
 
 async function generateAndStoreNativeProposalPdf({ proposalId, button, data, api }) {
@@ -198,10 +200,14 @@ function installRootGuard(root, data, context = {}) {
     const pdfButton = overlay?.querySelector('#pa-print-btn');
     if (!pdfButton) return;
 
-    pdfButton.textContent = 'PDF';
-    pdfButton.title = 'הפקת PDF חד ושמירה אוטומטית';
-    pdfButton.setAttribute('aria-label', 'הפקת PDF חד ושמירה אוטומטית');
-    pdfButton.dataset.paNativePdf = 'yes';
+    if (pdfButton.dataset.nativePdfBusy !== 'yes') {
+      if (pdfButton.textContent !== 'PDF') pdfButton.textContent = 'PDF';
+      if (pdfButton.title !== 'הפקת PDF חד ושמירה אוטומטית') pdfButton.title = 'הפקת PDF חד ושמירה אוטומטית';
+      if (pdfButton.getAttribute('aria-label') !== 'הפקת PDF חד ושמירה אוטומטית') {
+        pdfButton.setAttribute('aria-label', 'הפקת PDF חד ושמירה אוטומטית');
+      }
+      if (pdfButton.dataset.paNativePdf !== 'yes') pdfButton.dataset.paNativePdf = 'yes';
+    }
 
     const proposalId = activeProposalId || activeFormProposalId();
     if (!proposalId) return;
