@@ -4,7 +4,8 @@ import { supabase } from '../supabase-client.js';
 
 export const ONBOARDING_DOCUMENTS = Object.freeze({
   taasiyeda: ['הסכם העסקה', 'טופס 101', 'נהלים למדריך', 'אישור משטרה'],
-  staffing: ['נהלים למדריך', 'שמירה על סודיות', 'אישור משטרה']
+  staffing: ['נהלים למדריך', 'שמירה על סודיות', 'אישור משטרה'],
+  independent: ['נהלים למדריך', 'שמירה על סודיות', 'אישור משטרה']
 });
 
 const SUBJECT = 'הצטרפות לצוות המדריכים של תעשיידע – השלמת תהליך הקליטה';
@@ -95,8 +96,8 @@ export function onboardingModalHtml(managers = []) {
     <label><span>שם מלא</span><input class="ds-input" data-onboarding-name autocomplete="name" required></label>
     <label><span>טלפון</span><input class="ds-input" data-onboarding-phone inputmode="tel" autocomplete="tel" required></label>
     <label><span>מייל</span><input class="ds-input" data-onboarding-email type="email" autocomplete="email" required></label>
-    <label><span>סוג העסקה</span><select class="ds-input" data-onboarding-employment><option value="">בחירה</option><option value="taasiyeda">תעשיידע</option><option value="staffing">כוח אדם</option></select></label>
-    <label data-onboarding-agency-field hidden><span>חברת כוח אדם</span><select class="ds-input" data-onboarding-agency><option value="">בחירה</option><option value="מעוף">מעוף</option><option value="מנפאואר">מנפאואר</option></select></label>
+    <label><span>סוג העסקה</span><select class="ds-input" data-onboarding-employment><option value="">בחירה</option><option value="taasiyeda">תעשיידע</option><option value="staffing">כוח אדם</option><option value="independent">עצמאי</option></select></label>
+    <label data-onboarding-agency-field hidden style="display:none"><span>חברת כוח אדם</span><select class="ds-input" data-onboarding-agency><option value="">בחירה</option><option value="מעוף">מעוף</option><option value="מנפאואר">מנפאואר</option></select></label>
     <label><span>מנהל/ת פעילות</span><select class="ds-input" data-onboarding-manager><option value="">בחירה</option>${managers.map((manager) => `<option value="${escapeHtml(manager.name)}">${escapeHtml(manager.name)}</option>`).join('')}</select></label>
     <section data-onboarding-documents hidden><strong>מסמכים שיצורפו למייל</strong><ul></ul></section>
     <p class="instructor-onboarding__status" data-onboarding-status role="status" aria-live="polite"></p>
@@ -228,6 +229,7 @@ export function bindOnboardingModal(modal, { managers, loginHint, onSuccess, cre
     const list = ONBOARDING_DOCUMENTS[employment.value] || [];
     const staffing = employment.value === 'staffing';
     agencyField.hidden = !staffing;
+    agencyField.style.display = staffing ? 'grid' : 'none';
     documents.hidden = !list.length;
     documents.querySelector('ul').innerHTML = list.map((name) => `<li>📄 ${escapeHtml(name)}</li>`).join('');
     prepare.disabled = draftCreated || !fullName.value.trim() || !phone.value.trim() || !email.value.trim()
@@ -259,9 +261,14 @@ export function bindOnboardingModal(modal, { managers, loginHint, onSuccess, cre
     prepare.disabled = true; prepare.textContent = 'מכין...'; status.textContent = '';
     try {
       if (!createdInstructor) {
+        const storedEmploymentType = submission.employmentType === 'taasiyeda'
+          ? 'תעשיידע'
+          : submission.employmentType === 'staffing'
+            ? submission.staffingAgency
+            : 'עצמאי';
         createdInstructor = await createInstructor({
           fullName: submission.fullName, phone: submission.phone, email: submission.email,
-          employmentType: submission.employmentType === 'taasiyeda' ? 'תעשיידע' : submission.staffingAgency,
+          employmentType: storedEmploymentType,
           managerName: submission.manager.name
         });
         onboardingSnapshot = submission;
