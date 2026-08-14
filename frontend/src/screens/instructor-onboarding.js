@@ -8,6 +8,7 @@ export const ONBOARDING_DOCUMENTS = Object.freeze({
 });
 
 const SUBJECT = 'הצטרפות לצוות המדריכים של תעשיידע – השלמת תהליך הקליטה';
+const ONBOARDING_ROOT_FOLDER_URL = 'https://think365orgil.sharepoint.com/sites/taasiyeda2027/Shared%20Documents/Forms/view.aspx?id=%2Fsites%2Ftaasiyeda2027%2FShared%20Documents%2F%D7%AA%D7%99%D7%A7%D7%99%D7%9D%20%D7%90%D7%99%D7%A9%D7%99%D7%99%D7%9D%2F%D7%A7%D7%9C%D7%99%D7%98%D7%AA%20%D7%9E%D7%93%D7%A8%D7%99%D7%9A&viewid=20f573d0%2D1255%2D4a8a%2Dbbf6%2Dc9c914f04e1b&FolderCTID=0x012000A5A5234B5799C3499038E27027EDF12F';
 const AVAILABILITY = `לצורך תכנון השיבוצים והפעילויות, נבקש להשיב למייל זה ולמלא את פרטי הזמינות שלך בצורה מלאה ככל האפשר:
 
 מועד שממנו ניתן להתחיל להדריך:
@@ -164,13 +165,11 @@ export function bindOnboardingModal(modal, { managers, loginHint, onSuccess } = 
     documents.hidden = !list.length;
     documents.querySelector('ul').innerHTML = list.map((name) => `<li>📄 ${escapeHtml(name)}</li>`).join('');
     prepare.disabled = !employment.value || !managerSelect.value;
-    folder.disabled = !employment.value;
+    folder.disabled = false;
   };
   employment.addEventListener('change', sync); managerSelect.addEventListener('change', sync); sync();
-  folder.addEventListener('click', async () => {
-    const { data, error } = await supabase.functions.invoke('instructor-onboarding-files', { body: { employment_type: employment.value, folder_only: true } });
-    if (error || !data?.folder_url) { status.textContent = 'לא ניתן לפתוח את תיקיית הקליטה.'; return; }
-    window.open(data.folder_url, '_blank', 'noopener,noreferrer');
+  folder.addEventListener('click', () => {
+    window.open(ONBOARDING_ROOT_FOLDER_URL, '_blank', 'noopener,noreferrer');
   });
   prepare.addEventListener('click', async () => {
     const manager = managers.find((item) => item.name === managerSelect.value);
