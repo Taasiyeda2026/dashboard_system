@@ -4,7 +4,8 @@ import { JSDOM } from 'jsdom';
 
 const {
   enhanceAddFundingPicker,
-  enhanceEditFundingPicker
+  enhanceEditFundingPicker,
+  validateCourseFundingSplit
 } = await import('../frontend/src/activity-funding-picker-compact.js');
 
 function change(window, element) {
@@ -33,14 +34,17 @@ test('add activity funding picker stays compact and syncs the existing hidden as
   assert.equal(host.querySelectorAll('[data-funding-compact-select]').length, 1);
   assert.equal(host.querySelectorAll('input[type="checkbox"]').length, 0, 'checkbox list must not be visible in the compact UI');
   assert.doesNotMatch(host.textContent, /סכום \(רשות\)/);
+  assert.match(host.textContent, /גורם מימון 1/);
 
   let selects = host.querySelectorAll('[data-funding-compact-select]');
   selects[0].value = 'a';
   change(dom.window, selects[0]);
   assert.equal(fieldset.querySelector('[data-funding-source-id="a"]').checked, true);
+  assert.match(fieldset.querySelector('[data-funding-compact-picker]').textContent, /\+ הוסף גורם מימון/);
 
-  host.querySelector('[data-funding-compact-add]').click();
-  selects = host.querySelectorAll('[data-funding-compact-select]');
+  fieldset.querySelector('[data-funding-compact-add]').click();
+  const currentHost = fieldset.querySelector('[data-funding-compact-picker]');
+  selects = currentHost.querySelectorAll('[data-funding-compact-select]');
   assert.equal(selects.length, 2);
   selects[1].value = 'b';
   change(dom.window, selects[1]);
@@ -49,11 +53,18 @@ test('add activity funding picker stays compact and syncs the existing hidden as
   assert.equal(fieldset.querySelector('[data-funding-source-id="b"]').checked, true);
   assert.equal(fieldset.querySelector('[data-funding-source-id="c"]').checked, false);
 
-  const amounts = host.querySelectorAll('[data-funding-compact-amount]');
+  const amounts = fieldset.querySelectorAll('[data-funding-compact-amount]');
   assert.equal(amounts.length, 2, 'amounts appear only when the activity has multiple funders');
   amounts[0].value = '5000';
   input(dom.window, amounts[0]);
   assert.equal(fieldset.querySelector('[data-funding-source-id="a"]').closest('label').querySelector('[data-funding-amount]').value, '5000');
+});
+
+test('course funding split must equal price and a single source remains implicit', () => {
+  assert.deepEqual(validateCourseFundingSplit([{ amount: '' }], 7500), { valid: true, total: 7500 });
+  assert.equal(validateCourseFundingSplit([{ amount: 4500 }, { amount: 3000 }], 7500).valid, true);
+  assert.equal(validateCourseFundingSplit([{ amount: 4500 }, { amount: 2500 }], 7500).valid, false);
+  assert.equal(validateCourseFundingSplit([{ amount: '' }, { amount: 7500 }], 7500).valid, false);
 });
 
 test('single funding selection does not show an amount field by default', () => {
@@ -69,10 +80,10 @@ test('single funding selection does not show an amount field by default', () => 
   assert.equal(fieldset.querySelector('[data-funding-compact-select]').value, 'a');
 });
 
-test('edit activity multi-select is represented by the same compact picker without changing the native save contract', async () => {
+test('edit activity uses the central picker and exposes persisted amounts only for a split', async () => {
   const dom = new JSDOM(`<!doctype html><body><form>
     <select name="funding_sources" multiple size="3" data-scheduling-multi>
-      <option value="a" selected>גפן</option>
+      <option value="a" selected data-funding-amount="7500" data-initial-funding-amount="7500">גפן</option>
       <option value="b">ויצו</option>
       <option value="c">רשויות החוף</option>
     </select>
@@ -94,10 +105,19 @@ test('edit activity multi-select is represented by the same compact picker witho
   selects[1].value = 'b';
   change(dom.window, selects[1]);
   assert.deepEqual([...native.selectedOptions].map((option) => option.value), ['a', 'b']);
+  assert.equal(host.querySelectorAll('[data-funding-compact-amount]').length, 2);
+  const amounts = host.querySelectorAll('[data-funding-compact-amount]');
+  amounts[0].value = '4500';
+  input(dom.window, amounts[0]);
+  amounts[1].value = '3000';
+  input(dom.window, amounts[1]);
+  assert.equal(native.options[0].dataset.fundingAmount, '4500');
+  assert.equal(native.options[1].dataset.fundingAmount, '3000');
 
   form.reset();
   await Promise.resolve();
   assert.deepEqual([...native.selectedOptions].map((option) => option.value), ['a']);
   assert.equal(host.querySelectorAll('[data-funding-compact-select]').length, 1);
   assert.equal(host.querySelector('[data-funding-compact-select]').value, 'a');
+  assert.equal(native.options[0].dataset.fundingAmount, '7500');
 });

@@ -227,12 +227,17 @@ function coreDetails(form, body, row, existingValues) {
   const instructorControls = extractFieldControls(form, ['emp_id']);
   const classControls = extractFieldControls(form, ['grade', 'class_group']);
   const timeControls = extractFieldControls(form, ['start_time', 'end_time']);
-  const fundingControls = extractFieldControls(form, ['funding']);
+  // The central association picker is the only funding UI. Keep the legacy
+  // activities.funding value intact, but never render its edit control.
+  const fundingControls = extractFieldControls(form, ['funding_sources']);
+  extractFieldControls(form, ['funding']);
   const priceControls = extractFieldControls(form, ['price']);
   // Operations screens inject their own participants section; never show two of them.
   const hasOwnParticipantsSection = Boolean(form.querySelector('[data-participants-count-section]'));
   const participantsControls = hasOwnParticipantsSection ? null : extractFieldControls(form, ['participants_count']);
-  const seasonControls = extractFieldControls(form, ['activity_season']);
+  // activity_season remains available through the row/form dataset for internal
+  // behavior, but is intentionally not user-editable in the drawer.
+  extractFieldControls(form, ['activity_season']);
 
   const core = doc.createElement('section');
   core.className = 'activity-drawer-inline__core';
@@ -254,21 +259,30 @@ function coreDetails(form, body, row, existingValues) {
     makeField(doc, { label: twoInstructors ? 'מדריכים' : 'מדריך/ה', viewValue: instructorView, editControls: instructorControls }),
     makeField(doc, { label: 'כיתה / קבוצה', viewValue: classView, editControls: classControls }),
     makeField(doc, { label: 'שעות', viewValue: timeView, editControls: timeControls }),
-    makeField(doc, { label: 'מימון', viewValue: row.funding, editControls: fundingControls }),
+    makeField(doc, {
+      label: 'גורם מימון',
+      viewValue: (row.funding_sources || []).map((source) => source?.name).filter(clean).join(' + ') || row.funding,
+      editControls: fundingControls
+    }),
     makeField(doc, { label: 'מחיר', viewValue: formatMoney(row.price), editControls: priceControls }),
     hasOwnParticipantsSection ? null : makeField(doc, {
       label: 'מספר משתתפים',
       viewValue: existingValues.get('מספר משתתפים') || row.participants_count,
-      editControls: participantsControls
-    }),
-    makeField(doc, {
-      label: 'עונת פעילות',
-      viewValue: ({ school_2027: '2027', summer_2026: 'קיץ 2026', regular: '2026' })[clean(row.activity_season)] || row.activity_season,
-      editControls: seasonControls
+      editControls: participantsControls,
+      className: 'activity-drawer-inline__field--participants'
     })
   ].filter(Boolean).forEach((field) => grid.append(field));
 
   addRemainingEditFields(form, grid, row);
+
+  const typeSelect = form.querySelector('[name="activity_type"]');
+  const syncParticipantsVisibility = () => {
+    const supportsParticipants = ['workshop', 'escape_room'].includes(normalizeType(typeSelect?.value || activityType));
+    grid.querySelector('.activity-drawer-inline__field--participants')?.toggleAttribute('hidden', !supportsParticipants);
+    form.querySelector('[data-participants-count-section]')?.toggleAttribute('hidden', !supportsParticipants);
+  };
+  typeSelect?.addEventListener('change', syncParticipantsVisibility);
+  syncParticipantsVisibility();
   core.append(grid);
 
   const central = form.querySelector('[data-central-info-section]');
