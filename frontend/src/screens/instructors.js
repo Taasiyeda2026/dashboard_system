@@ -2,6 +2,7 @@ import { escapeHtml } from './shared/html.js';
 import { dsScreenStack, dsEmptyState } from './shared/layout.js';
 import { showToast } from './shared/toast.js';
 import { canViewEmployeeFiles } from '../permissions.js';
+import { onboardingManagers, onboardingModalHtml, bindOnboardingModal } from './instructor-onboarding.js';
 import { loadInstructorEmployeeFile, saveInstructorEmployeeFolderUrl } from './instructor-employee-file-data.js';
 import { employeeFileModalHtml } from './instructor-employee-file-ui.js';
 import { activityWorkDrawerHtml, patchDrawerDatesSection } from './shared/activity-detail-html.js';
@@ -31,6 +32,10 @@ const INSTRUCTORS_LIST_STYLES = `.instructors-list{display:flex;flex-direction:c
 .instructors-missing__list{display:grid;gap:4px;margin:6px 0 0;padding:0;list-style:none}
 .instructors-missing__list li{display:flex;justify-content:space-between;gap:12px;padding-top:4px;border-top:1px solid color-mix(in srgb, var(--ds-accent) 16%, transparent);font-size:.78rem;color:color-mix(in srgb, var(--ds-accent) 68%, #000)}
 .instructors-list__toolbar .ds-chip{min-width:72px;justify-content:center}
+.instructors-list__toolbar [data-open-instructor-onboarding]{margin-inline-start:auto;height:32px;min-height:32px;padding:4px 11px}
+.ds-modal.ds-modal--instructor-onboarding{direction:rtl;width:min(430px,calc(100vw - 24px));max-height:calc(100vh - 24px);overflow:hidden;border:1px solid #d5dbe1;border-radius:14px;background:#fff;box-shadow:0 18px 44px rgba(15,23,42,.16)}
+.ds-modal--instructor-onboarding .ds-modal__header{padding:10px 14px;background:#fff;border-bottom:1px solid #e5e9ee}.ds-modal--instructor-onboarding .ds-modal__title{font-size:1rem}.ds-modal--instructor-onboarding .ds-modal__content{padding:15px;overflow-y:auto}.ds-modal--instructor-onboarding .ds-modal__footer{gap:7px;padding:10px 14px;background:#fff}.ds-modal--instructor-onboarding .ds-modal__footer .ds-btn{min-height:32px;height:32px;padding:4px 10px;font-size:.8rem}
+.instructor-onboarding{display:grid;gap:13px}.instructor-onboarding>label{display:grid;gap:5px;font-size:.82rem;font-weight:700}.instructor-onboarding [data-onboarding-documents]{padding-top:10px;border-top:1px solid #e5e9ee}.instructor-onboarding [data-onboarding-documents] ul{display:grid;gap:5px;margin:8px 0 0;padding:0;list-style:none;font-size:.83rem}.instructor-onboarding__status{min-height:18px;margin:0;color:#4b5968;font-size:.8rem}
 .instructors-workspace-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;justify-content:center}
 .instructor-card-shell{position:relative;display:block;width:100%;min-width:0;min-height:86px}
 .instructor-card{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;width:100%;min-height:86px;padding:12px 10px;box-sizing:border-box;text-align:center;background:#fff;border:1px solid #d9e1e8;border-radius:10px;cursor:pointer;overflow:hidden;box-shadow:0 2px 6px rgba(15,23,42,.08);transition:box-shadow .15s ease,transform .15s ease}
@@ -286,6 +291,7 @@ export const instructorsScreen = {
         <div class="instructors-list__toolbar">
           <span class="ds-badge">${rows.length}</span>
           <span class="ds-muted">סטטוס:</span>${chips(ACTIVE_FILTERS, filters.active, 'data-instructors-active')}
+          ${employeeFilesAllowed ? '<button type="button" class="ds-btn ds-btn--sm" data-open-instructor-onboarding><span aria-hidden="true">＋</span> קליטת מדריך</button>' : ''}
         </div>
         ${body}
       </div>`);
@@ -297,6 +303,13 @@ export const instructorsScreen = {
     const employeeFilesAllowed = canViewEmployeeFiles(state?.user);
     state.instructorsWorkspace = state.instructorsWorkspace || { q: '', active: 'yes', assignment: '' };
     bindInstructorsWorkspaceNav(root, { state, rerender });
+    root.querySelector('[data-open-instructor-onboarding]')?.addEventListener('click', () => {
+      if (!ui || !employeeFilesAllowed) return;
+      const managers = onboardingManagers(state?.clientSettings || {});
+      ui.openModal({ title: 'קליטת מדריך', modalClass: 'ds-modal--instructor-onboarding', content: onboardingModalHtml(managers), actions: '<button type="button" class="ds-btn" data-onboarding-folder disabled>פתח תיקיית קליטת מדריך</button><button type="button" class="ds-btn ds-btn--primary" data-onboarding-prepare disabled>הכן מייל ב-Outlook</button>' });
+      const modal = document.querySelector('.ds-modal.ds-modal--instructor-onboarding');
+      if (modal) bindOnboardingModal(modal, { managers, loginHint: state?.user?.email || state?.user?.auth_email || '' });
+    });
     root.querySelectorAll('[data-instructors-active]').forEach((button) => button.addEventListener('click', () => { state.instructorsWorkspace.active = button.dataset.instructorsActive || ''; rerender(); }));
     // Compatibility for older cached markup that still contains the former "אנשי קשר מדריכים" route button.
     root.querySelector('[data-route="instructor-contacts"]')?.addEventListener('click', (event) => {
