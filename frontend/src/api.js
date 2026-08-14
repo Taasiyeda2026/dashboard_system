@@ -1979,6 +1979,11 @@ function buildClientSettingsFromLists(listsData, settingsRows = [], instructorCo
     return String(row?.value || '').trim();
   };
   const accentColor = settingValue('accent_color') || settingValue('theme_accent') || settingValue('ui_accent_color');
+  let activityManagerContacts = [];
+  try {
+    const parsed = JSON.parse(settingValue('activity_manager_contacts') || '[]');
+    activityManagerContacts = parsed && typeof parsed === 'object' ? parsed : [];
+  } catch { activityManagerContacts = []; }
   const byCategory = {};
   categories.forEach(({ category, items }) => {
     byCategory[String(category).toLowerCase()] = Array.isArray(items) ? items : [];
@@ -2103,6 +2108,7 @@ function buildClientSettingsFromLists(listsData, settingsRows = [], instructorCo
   }).filter((user) => user.name);
 
   return {
+    activity_manager_contacts: activityManagerContacts,
     dropdown_options: {
       funding:                  fundingValues,
       fundings:                 fundingValues,
