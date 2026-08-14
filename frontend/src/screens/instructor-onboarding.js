@@ -1,6 +1,6 @@
-import { PublicClientApplication, InteractionRequiredAuthError } from '@azure/msal-browser';
 import { escapeHtml } from './shared/html.js';
 import { supabase } from '../supabase-client.js';
+import { delegatedMailToken, graphMailRequest } from '../microsoft/graph-mail.js';
 
 export const ONBOARDING_DOCUMENTS = Object.freeze({
   taasiyeda: ['הסכם העסקה', 'טופס 101', 'נהלים למדריך', 'אישור משטרה'],
@@ -104,45 +104,6 @@ export function onboardingModalHtml(managers = []) {
   </div>`;
 }
 
-let msalClient;
-function microsoftConfig() {
-  const runtime = globalThis.__DASHBOARD_CONFIG__ || {};
-  return {
-    clientId: String(import.meta.env?.VITE_MICROSOFT_CLIENT_ID || runtime.microsoftClientId || '').trim(),
-    tenantId: String(import.meta.env?.VITE_MICROSOFT_TENANT_ID || runtime.microsoftTenantId || '').trim(),
-    redirectUri: String(import.meta.env?.VITE_MICROSOFT_REDIRECT_URI || runtime.microsoftRedirectUri || globalThis.location?.origin || '').trim()
-  };
-}
-
-async function delegatedToken(loginHint = '') {
-  const config = microsoftConfig();
-  if (!config.clientId || !config.tenantId) throw new Error('חיבור Microsoft 365 טרם הוגדר במערכת.');
-  if (!msalClient) {
-    msalClient = new PublicClientApplication({
-      auth: { clientId: config.clientId, authority: `https://login.microsoftonline.com/${config.tenantId}`, redirectUri: config.redirectUri },
-      cache: { cacheLocation: 'sessionStorage', storeAuthStateInCookie: false }
-    });
-    await msalClient.initialize();
-    await msalClient.handleRedirectPromise();
-  }
-  const request = { scopes: ['Mail.ReadWrite'], loginHint: loginHint || undefined };
-  const account = msalClient.getAllAccounts()[0];
-  if (account) {
-    try { return (await msalClient.acquireTokenSilent({ ...request, account })).accessToken; }
-    catch (error) { if (!(error instanceof InteractionRequiredAuthError)) throw error; }
-  }
-  return (await msalClient.acquireTokenPopup(request)).accessToken;
-}
-
-async function graph(token, path, options = {}) {
-  const response = await fetch(`https://graph.microsoft.com/v1.0${path}`, {
-    ...options,
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', ...(options.headers || {}) }
-  });
-  if (!response.ok) throw new Error('Microsoft Outlook לא הצליח להכין את הטיוטה. יש לנסות שוב.');
-  return response.status === 204 ? null : response.json();
-}
-
 export async function createOnboardingInstructor(instructor) {
   const { data, error } = await supabase.rpc('create_instructor_onboarding', {
     p_full_name: instructor.fullName, p_mobile: instructor.phone, p_email: instructor.email,
@@ -161,8 +122,8 @@ export async function createOnboardingDraft({ employmentType, manager, instructo
   const mail = buildOnboardingMail(employmentType, manager, instructorName);
   const { data, error } = await supabase.functions.invoke('instructor-onboarding-files', { body: { employment_type: employmentType } });
   if (error || !data?.attachments) throw new Error(data?.message || 'לא ניתן לטעון את מסמכי הקליטה מ-SharePoint.');
-  const token = await delegatedToken(loginHint);
-  const draft = await graph(token, '/me/messages', {
+  const token = await delegatedMailToken(loginHint);
+  const draft = await graphMailRequest(token, '/me/messages', {
     method: 'POST', body: JSON.stringify({
       subject: mail.subject, body: { contentType: 'Text', content: mail.body },
       toRecipients: [{ emailAddress: { address: instructorEmail } }],
@@ -171,12 +132,12 @@ export async function createOnboardingDraft({ employmentType, manager, instructo
   });
   try {
     for (const attachment of data.attachments) {
-      await graph(token, `/me/messages/${encodeURIComponent(draft.id)}/attachments`, {
+      await graphMailRequest(token, `/me/messages/${encodeURIComponent(draft.id)}/attachments`, {
         method: 'POST', body: JSON.stringify({ '@odata.type': '#microsoft.graph.fileAttachment', name: attachment.name, contentType: attachment.content_type || 'application/pdf', contentBytes: attachment.content_bytes })
       });
     }
   } catch (error) {
-    await graph(token, `/me/messages/${encodeURIComponent(draft.id)}`, { method: 'DELETE' }).catch(() => {});
+    await graphMailRequest(token, `/me/messages/${encodeURIComponent(draft.id)}`, { method: 'DELETE' }).catch(() => {});
     throw error;
   }
   return { webLink: draft.webLink || 'https://outlook.office.com/mail/drafts', folderUrl: data.folder_url };

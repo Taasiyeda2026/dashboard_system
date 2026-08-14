@@ -61,6 +61,8 @@ import {
 import { showToast } from './shared/toast.js';
 import { canEditDirect, canAddActivityDirect, canRequestEdit, canRequestCreateActivity, canReviewRequests } from '../permissions.js';
 import { bindInstructorScheduling } from './instructor-scheduling-workflow.js';
+import { loadActivityCoordinationContext } from '../activity-coordination/data.js';
+import { bindCoordinationWorkspace, coordinationStatusHtml, reconcileVisibleDrafts, renderCoordinationWorkspace } from '../activity-coordination/view.js';
 const taasiyedaLogoSrc = new URL('../../assets/logo1.png', import.meta.url).href;
 
 const inflightActivityDetailRequests = new Map();
@@ -72,6 +74,7 @@ const ACTIVITIES_INNER_TAB_REGULAR_2026 = 'regular_2026';
 const ACTIVITIES_INNER_TAB_SUMMER_2026 = 'summer_2026';
 const ACTIVITIES_INNER_TAB_ARCHIVE = 'year_archive';
 const ACTIVITIES_INNER_TAB_2027 = 'school_2027';
+const ACTIVITIES_INNER_TAB_COORDINATION = 'coordination_approvals';
 const ALL_ACTIVITIES_STATUS_FILTERS = [
   { key: 'all', label: 'הכל' },
   { key: 'open', label: 'פתוח' },
@@ -251,6 +254,7 @@ function activityInnerTabsForYear(yearKey) {
     return [
       { key: ACTIVITIES_INNER_TAB_ALL, label: 'כל פעילויות תשפ״ז' },
       { key: ACTIVITIES_INNER_TAB_2027, label: 'פעילויות תשפ״ז' },
+      { key: ACTIVITIES_INNER_TAB_COORDINATION, label: 'אישורי תיאום' },
       { key: ACTIVITIES_INNER_TAB_ARCHIVE, label: 'ארכיון תשפ״ז' }
     ];
   }
@@ -1764,6 +1768,13 @@ export const activitiesScreen = {
       }
     };
     const loadedRows = Array.isArray(result?.rows) ? result.rows : [];
+    try {
+      state.activityCoordination = await loadActivityCoordinationContext(loadedRows, state.clientSettings || {});
+      state.activityCoordinationError = '';
+    } catch (error) {
+      state.activityCoordination = { items: [], byActivityId: new Map() };
+      state.activityCoordinationError = String(error?.message || error);
+    }
     ensureActivityPeriodMonth(state, loadedRows);
     return result;
   },
@@ -1778,6 +1789,11 @@ export const activitiesScreen = {
     state.activityPeriodTab = normalizeActivityPeriodTab(state.activityPeriodTab);
     state.activitiesInnerTab = normalizeActivitiesInnerTab(state.activitiesInnerTab, state.activityPeriodTab);
     ensureActivityPeriodMonth(state, allRows);
+    if (state.activityPeriodTab === ACTIVITY_SEASON_SCHOOL_2027 && state.activitiesInnerTab === ACTIVITIES_INNER_TAB_COORDINATION) {
+      const periodTabs = activityPeriodTabsHtml(allRows, state.activityPeriodTab, state);
+      const error = state.activityCoordinationError ? `<p class="ds-error-text" role="alert">לא ניתן לטעון את נתוני אישורי התיאום: ${escapeHtml(state.activityCoordinationError)}</p>` : '';
+      return dsScreenStack(`<section class="ds-activities-screen"><h2 class="ds-activities-page-title">אישורי תיאום · תשפ״ז</h2>${periodTabs}${error}${renderCoordinationWorkspace(state.activityCoordination, { canManage: canDirectManageActivities(state) })}</section>`);
+    }
     state.allActivitiesStatusFilter = normalizeAllActivitiesStatusFilter(state.allActivitiesStatusFilter);
     const isAllMode = isAllActivitiesMode(state);
     const periodRows    = activityRowsForInnerTab(allRows, state);
@@ -1873,12 +1889,15 @@ export const activitiesScreen = {
             ? `<button class="ds-contact-popover-btn" type="button" data-contact-popover data-cname="${contactName2027}" data-cphone="${contactPhone2027}" data-cemail="${contactEmail2027}"><span>${contactName2027}</span>${phoneLine2027}</button>`
             : '<span>—</span>';
           const notes2027 = escapeHtml(String(row.notes || '—'));
+          const coordinationItem = state.activityCoordination?.byActivityId?.get?.(String(row.RowID || row.row_id || ''));
+          const coordinationCell = coordinationStatusHtml(coordinationItem, { action: canDirectManageActivities(state) });
           return `
       <tr class="ds-data-row ds-activities-row" data-list-item data-search="${escapeHtml(rowSearch)}" data-filter="" data-row-id="${escapeHtml(row.RowID)}">
         <td class="ds-activities-col ds-activities-col--program"><div class="ds-activities-program-cell"><strong class="ds-activities-program-name" title="${activityName}">${activityName}</strong><span class="ds-activities-program-type" title="${activityTypeLabel}">${activityTypeLabel}</span>${editStatusBadge}</div></td>
         <td class="ds-activities-col ds-activities-col--authority"><span class="ds-activities-cell-ellipsis" title="${escapeHtml(row.authority || '—')}">${escapeHtml(row.authority || '—')}</span></td>
         <td class="ds-activities-col ds-activities-col--school"><span class="ds-activities-cell-ellipsis" title="${escapeHtml(getActivitySchoolDisplayName(row) || '—')}">${escapeHtml(getActivitySchoolDisplayName(row) || '—')}</span></td>
         <td class="ds-activities-col ds-activities-col--contact-name">${contactCell2027}</td>
+        <td class="ds-activities-col ds-activities-col--coordination">${coordinationCell}</td>
         <td class="ds-activities-col ds-activities-col--date"><time class="ds-activities-date">${escapeHtml(startHe2027)}</time></td>
         <td class="ds-activities-col ds-activities-col--date"><time class="ds-activities-date">${escapeHtml(endHe2027)}</time></td>
         <td class="ds-activities-col ds-activities-col--instructor">${instructorDisplay}</td>
@@ -1951,12 +1970,13 @@ export const activitiesScreen = {
                   <col class="ds-activities-col--authority">
                   <col class="ds-activities-col--school">
                   <col class="ds-activities-col--contact-name">
+                  <col class="ds-activities-col--coordination">
                   <col class="ds-activities-col--date">
                   <col class="ds-activities-col--date">
                   <col class="ds-activities-col--instructor">
                   <col class="ds-activities-col--notes">
                 </colgroup>
-                <thead><tr><th>תוכנית / סוג</th><th>רשות</th><th>בית ספר</th><th>איש קשר</th><th>תאריך התחלה</th><th>תאריך סיום</th><th>מדריך</th><th>הערות</th></tr></thead>`
+                <thead><tr><th>תוכנית / סוג</th><th>רשות</th><th>בית ספר</th><th>איש קשר</th><th>אישור תיאום</th><th>תאריך התחלה</th><th>תאריך סיום</th><th>מדריך</th><th>הערות</th></tr></thead>`
         : `<colgroup>
                   <col class="ds-activities-col--program">
                   <col class="ds-activities-col--authority">
@@ -2050,6 +2070,31 @@ export const activitiesScreen = {
   },
 
   bind({ root, data, state, rerender, rerenderActivitiesView, ui, api, clearScreenDataCache }) {
+
+    const coordinationRoot = root.querySelector('.coordination-workspace');
+    if (coordinationRoot) {
+      root.querySelectorAll('[data-activity-period-tab]').forEach((button) => button.addEventListener('click', () => {
+        state.activitiesInnerTab = normalizeActivitiesInnerTab(button.getAttribute('data-activity-period-tab'), state.activityPeriodTab);
+        rerender();
+      }));
+      const refresh = async () => {
+        state.activityCoordination = await loadActivityCoordinationContext(data?.rows || [], state.clientSettings || {});
+        rerender();
+      };
+      bindCoordinationWorkspace(coordinationRoot, state.activityCoordination, { loginHint: state?.user?.email || '', onChanged: refresh });
+      reconcileVisibleDrafts(state.activityCoordination, { loginHint: state?.user?.email || '' }).then((results) => {
+        if (results.some((item) => item.status === 'sent' || item.status === 'cancelled')) refresh();
+      }).catch(() => {});
+      if (state.activityCoordinationTimer) clearInterval(state.activityCoordinationTimer);
+      state.activityCoordinationTimer = setInterval(() => {
+        if (document.visibilityState === 'hidden') return;
+        reconcileVisibleDrafts(state.activityCoordination, { loginHint: state?.user?.email || '' }).then((results) => {
+          if (results.some((item) => item.status === 'sent' || item.status === 'cancelled')) refresh();
+        }).catch(() => {});
+      }, 90000);
+      return;
+    }
+    if (state.activityCoordinationTimer) { clearInterval(state.activityCoordinationTimer); state.activityCoordinationTimer = null; }
 
     // ── Row-height measurement ──────────────────────────────────────────────
     // Runs once per bind, after the first rAF so layout is complete.
@@ -3322,6 +3367,22 @@ export const activitiesScreen = {
     }, rowSig);
 
     root.addEventListener('click', (ev) => {
+      const send = ev.target.closest('[data-coordination-send]');
+      if (send) {
+        ev.stopPropagation();
+        const item = state.activityCoordination?.byActivityId?.get?.(send.dataset.coordinationSend);
+        if (!item || !item.recipient_email) { showToast(item?.technical_blocker || 'לא ניתן להכין אישור.', 'error'); return; }
+        if (item.status === 'sent' && !globalThis.confirm('האישור כבר נשלח עבור אותם נתונים. להכין טיוטה נוספת?')) return;
+        send.disabled = true;
+        import('../activity-coordination/outlook.js').then(({ prepareCoordinationDrafts }) => prepareCoordinationDrafts([item], { loginHint: state?.user?.email || '' })).then(async (results) => {
+          const failed = results.find((result) => !result.ok);
+          if (failed) throw failed.error;
+          showToast('טיוטת אישור התיאום הוכנה ב-Outlook.', 'success');
+          state.activityCoordination = await loadActivityCoordinationContext(data?.rows || [], state.clientSettings || {});
+          rerender();
+        }).catch((error) => { showToast(error?.message || 'לא ניתן להכין את הטיוטה.', 'error'); send.disabled = false; });
+        return;
+      }
       const rowNode = ev.target.closest('.ds-data-row');
       if (!rowNode) return;
       if (ev.target.closest('[data-contact-popover]')) return;
