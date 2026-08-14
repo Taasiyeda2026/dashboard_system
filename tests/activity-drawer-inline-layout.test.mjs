@@ -77,8 +77,10 @@ test('activity drawer becomes one inline view/edit template without duplicate he
               <div class="activity-drawer__field"><div class="activity-drawer__label">שעת התחלה / סיום</div><div><input name="start_time"><input name="end_time"></div></div>
             </div></section>
             <section class="activity-drawer__section activity-drawer__section--edit-group" data-mode="edit" hidden><h3 class="activity-drawer__section-title">מידע משלים</h3><div>
-              <div class="activity-drawer__field"><div class="activity-drawer__label">מימון</div><input name="funding" value="גפן"></div>
+              <div class="activity-drawer__field"><div class="activity-drawer__label">מימון ישן</div><input name="funding" value="גפן"></div>
+              <div class="activity-drawer__field"><div class="activity-drawer__label">גורם מימון</div><select name="funding_sources" multiple data-scheduling-multi><option value="a" selected>גפן</option></select></div>
               <div class="activity-drawer__field"><div class="activity-drawer__label">מחיר</div><input name="price" value="9900"></div>
+              <div class="activity-drawer__field"><div class="activity-drawer__label">מספר משתתפים</div><input name="participants_count" value="18"></div>
             </div></section>
             <section class="activity-drawer__section" data-dates-section><div class="activity-drawer__section-head"><h3 class="activity-drawer__section-title">התקדמות הקורס</h3></div><div class="activity-drawer__progress-row" data-mode="view"><span>0 מתוך 11</span></div><div data-mode="edit" hidden></div></section>
             <section class="activity-drawer__section" data-contact-2027-section><h3 class="activity-drawer__section-title">איש קשר</h3><input type="hidden" name="contact_name" value="אורית"><div data-mode="view"><div class="activity-view-field"><span class="activity-view-field__label">פרטי קשר</span><span class="activity-view-field__value">אורית</span></div></div><div data-mode="edit" hidden><div><label>איש קשר</label><select data-contact-2027-select></select></div></div></section>
@@ -133,12 +135,18 @@ test('activity drawer becomes one inline view/edit template without duplicate he
   assert.equal(courseOptions.includes('מייקרים'), false);
   assert.equal(form.querySelector('[name="activity_name"] option:checked')?.dataset.activityNo, '6089');
 
-  const seasonSelect = form.querySelector('[name="activity_season"]');
-  assert.deepEqual([...seasonSelect.options].map((option) => option.textContent), ['2026', '2027']);
-  assert.equal(seasonSelect.value, 'school_2027');
+  assert.equal(form.querySelector('[name="activity_season"]'), null);
 
   const labels = [...form.querySelectorAll('.activity-drawer-inline__label')].map((node) => node.textContent.trim());
-  assert.deepEqual(labels.slice(0, 8), ['מנהל פעילות', 'מדריך/ה', 'כיתה / קבוצה', 'שעות', 'מימון', 'מחיר', 'מספר משתתפים', 'עונת פעילות']);
+  assert.deepEqual(labels.slice(0, 7), ['מנהל פעילות', 'מדריך/ה', 'כיתה / קבוצה', 'שעות', 'גורם מימון', 'מחיר', 'מספר משתתפים']);
+  assert.equal(form.textContent.includes('עונת פעילות'), false);
+  assert.equal(form.textContent.includes('מימון ישן'), false);
+  assert.equal(form.querySelector('.activity-drawer-inline__field--participants').hidden, true);
+  const activityType = form.querySelector('[name="activity_type"]');
+  activityType.append(new dom.window.Option('סדנה', 'workshop'));
+  activityType.value = 'workshop';
+  activityType.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+  assert.equal(form.querySelector('.activity-drawer-inline__field--participants').hidden, false);
   assert.equal(labels.filter((label) => label === 'איש קשר').length, 1);
   assert.equal(form.textContent.includes('פרטי קשר'), false);
   assert.equal(form.textContent.includes('צוות וזמנים'), false);
@@ -150,6 +158,17 @@ test('activity drawer becomes one inline view/edit template without duplicate he
   assert.match(form.querySelector('.activity-drawer-inline__field:nth-child(6) .activity-drawer-inline__value').textContent, /9,900/);
 
   dom.window.close();
+});
+
+test('desktop activity details use four responsive columns', async () => {
+  const css = await readFile(new URL('../frontend/src/styles/activity-drawer-inline-layout.css', import.meta.url), 'utf8');
+  const typeLayoutCss = await readFile(new URL('../frontend/src/styles/activity-drawer-type-layout-fix.css', import.meta.url), 'utf8');
+  assert.match(css, /\.activity-drawer-inline__grid\s*\{[\s\S]*?grid-template-columns:\s*repeat\(4,/);
+  assert.match(typeLayoutCss, /\.activity-drawer-inline__grid\[data-activity-layout="course"\],[^}]*grid-template-columns:\s*repeat\(4,/);
+  assert.doesNotMatch(typeLayoutCss, /\.activity-drawer-inline__grid\[data-activity-layout="course"\],[^}]*grid-template-columns:\s*repeat\(3,/);
+  assert.match(css, /@media \(max-width: 900px\)[\s\S]*?\.activity-drawer-inline__grid\s*\{[\s\S]*?repeat\(2,/);
+  assert.match(typeLayoutCss, /@media \(max-width: 900px\)\s*\{\s*\.activity-drawer-inline__grid\[data-activity-layout="course"\]\s*\{[^}]*grid-template-columns:\s*repeat\(2,/);
+  assert.match(css, /@media \(max-width: 640px\)[\s\S]*?\.activity-drawer-inline__grid,[\s\S]*?grid-template-columns:\s*1fr/);
 });
 
 test('edit mode CSS hides the display heading instead of stacking it above the fields', async () => {

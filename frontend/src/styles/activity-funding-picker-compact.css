@@ -43,6 +43,15 @@
   width: 100%;
 }
 
+.ds-funding-compact-field {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  color: var(--color-text-muted, #64748b);
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
 .ds-funding-compact-remove {
   width: 30px;
   height: 30px;

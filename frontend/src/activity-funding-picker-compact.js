@@ -5,6 +5,17 @@ function cleanText(value) {
   return String(value ?? '').trim();
 }
 
+export function validateCourseFundingSplit(rows = [], priceValue = '') {
+  const price = Number(priceValue);
+  if (rows.length <= 1) return { valid: Number.isFinite(price), total: Number.isFinite(price) ? price : 0 };
+  const amounts = rows.map((item) => cleanText(item?.amount) === '' ? Number.NaN : Number(item.amount));
+  const total = amounts.reduce((sum, amount) => sum + amount, 0);
+  return {
+    valid: Number.isFinite(price) && amounts.every((amount) => Number.isFinite(amount) && amount >= 0) && Math.abs(total - price) <= 0.005,
+    total
+  };
+}
+
 function uniqueRows(rows = []) {
   const seen = new Set();
   return rows.filter((row) => {
@@ -43,10 +54,10 @@ function escapeAttr(value) {
 
 function rowMarkup(items, row, index, rows, { allowAmounts = false } = {}) {
   const selectedIds = rows.map((entry) => entry.id).filter(Boolean);
-  const showAmounts = allowAmounts && (rows.length > 1 || rows.some((entry) => cleanText(entry.amount)));
+  const showAmounts = allowAmounts && rows.length > 1;
   return `<div class="ds-funding-compact-row${showAmounts ? ' has-amount' : ''}" data-funding-compact-row="${index}">
-    <select class="ds-input ds-funding-compact-select" data-funding-compact-select="${index}" aria-label="גורם מימון">${optionListHtml(items, row.id, selectedIds)}</select>
-    ${showAmounts ? `<input class="ds-input ds-funding-compact-amount" type="number" min="0" step="0.01" inputmode="decimal" value="${escapeAttr(row.amount || '')}" data-funding-compact-amount="${index}" placeholder="סכום" aria-label="סכום מימון">` : ''}
+    <label class="ds-funding-compact-field"><span>גורם מימון ${index + 1}</span><select class="ds-input ds-funding-compact-select" data-funding-compact-select="${index}" aria-label="גורם מימון ${index + 1}">${optionListHtml(items, row.id, selectedIds)}</select></label>
+    ${showAmounts ? `<label class="ds-funding-compact-field"><span>סכום</span><input class="ds-input ds-funding-compact-amount" type="number" min="0" step="0.01" inputmode="decimal" value="${escapeAttr(row.amount || '')}" data-funding-compact-amount="${index}" placeholder="סכום" aria-label="סכום מימון ${index + 1}"></label>` : ''}
     ${rows.length > 1 ? `<button type="button" class="ds-funding-compact-remove" data-funding-compact-remove="${index}" aria-label="הסר גורם מימון">×</button>` : ''}
   </div>`;
 }
@@ -57,7 +68,7 @@ function pickerMarkup(items, rows, options = {}) {
     <div class="ds-funding-compact-rows" data-funding-compact-rows>
       ${rows.map((row, index) => rowMarkup(items, row, index, rows, options)).join('')}
     </div>
-    ${canAdd ? '<button type="button" class="ds-funding-compact-add" data-funding-compact-add>+ הוסף גורם מימון נוסף</button>' : ''}
+    ${canAdd ? '<button type="button" class="ds-funding-compact-add" data-funding-compact-add>+ הוסף גורם מימון</button>' : ''}
   </div>`;
 }
 
@@ -187,14 +198,23 @@ export function enhanceEditFundingPicker(select) {
   select.classList.add('ds-funding-native-hidden');
   select.dataset.fundingCompactEnhanced = 'yes';
 
-  const readNativeRows = () => Array.from(select.selectedOptions).map((option) => ({ id: cleanText(option.value), amount: '' }));
+  const readNativeRows = () => Array.from(select.selectedOptions).map((option) => ({ id: cleanText(option.value), amount: cleanText(option.dataset.fundingAmount) }));
   const sync = (rows) => {
     const selected = new Set(rows.map((row) => cleanText(row.id)).filter(Boolean));
-    Array.from(select.options).forEach((option) => { option.selected = selected.has(cleanText(option.value)); });
+    Array.from(select.options).forEach((option) => {
+      const row = rows.find((entry) => cleanText(entry.id) === cleanText(option.value));
+      option.selected = selected.has(cleanText(option.value));
+      option.dataset.fundingAmount = row ? cleanText(row.amount) : '';
+    });
   };
-  const controller = bindCompactPicker(host, items, readNativeRows(), { allowAmounts: false, sync });
+  const controller = bindCompactPicker(host, items, readNativeRows(), { allowAmounts: true, sync });
   select.form?.addEventListener('reset', () => {
-    queueMicrotask(() => controller.reset(readNativeRows()));
+    queueMicrotask(() => {
+      Array.from(select.options).forEach((option) => {
+        option.dataset.fundingAmount = cleanText(option.dataset.initialFundingAmount);
+      });
+      controller.reset(readNativeRows());
+    });
   });
   return controller;
 }

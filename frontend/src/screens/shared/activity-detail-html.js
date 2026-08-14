@@ -499,10 +499,6 @@ function blockActivityDetails(row, { settings = {} } = {}) {
           'סטטוס',
           selectHtml({ name: 'status', value: normalizedStatus, options: statusOptions, placeholder: 'פתוח' })
         )}
-        ${fieldEditOnly(
-          'עונת פעילות',
-          activitySeasonSelectHtml(settings, row.activity_season)
-        )}
       </div>
     </section>
   `;
@@ -606,16 +602,18 @@ function blockTeamTimes(row, { settings = {}, schedulingManaged = false } = {}) 
 
 function blockExtraEditInfo(row, { settings = {} } = {}) {
   const options = settings?.dropdown_options || {};
-  const fundings = mergeListStrings(options, ['funding', 'fundings']);
 
   return `
     <section class="activity-drawer__section activity-drawer__section--edit-group" data-mode="edit" hidden>
       <h3 class="activity-drawer__section-title">מידע משלים</h3>
       <div class="activity-drawer__details-edit-grid">
         ${fieldEditOnly(
-          'מימון',
+          'גורם מימון',
           `<select class="ds-input" name="funding_sources" multiple size="3" data-scheduling-multi>
-            ${(options.funding_source_records || []).map((source) => `<option value="${escapeHtml(source.id)}"${(row.funding_sources || []).some((item) => String(item.id) === String(source.id)) ? ' selected' : ''}>${escapeHtml(source.name)}</option>`).join('')}
+            ${(options.funding_source_records || []).map((source) => {
+              const linked = (row.funding_sources || []).find((item) => String(item.id) === String(source.id));
+              return `<option value="${escapeHtml(source.id)}"${linked ? ' selected' : ''} data-funding-amount="${escapeHtml(String(linked?.amount ?? ''))}" data-initial-funding-amount="${escapeHtml(String(linked?.amount ?? ''))}">${escapeHtml(source.name)}</option>`;
+            }).join('')}
           </select>`
         )}
         ${fieldEditOnly('מחיר', inputHtml({ name: 'price', value: row.price }))}
@@ -805,13 +803,13 @@ function presentValueText(value) {
  * Each field renders only when the record actually holds a value, so an empty field
  * is never displayed as an invented value.
  */
-function blockViewRecordDetails(row, { instructorLimited = false, showFunding = false } = {}) {
+function blockViewRecordDetails(row, { instructorLimited = false, showFunding = false, showParticipants = true } = {}) {
   if (instructorLimited) return '';
   const candidates = [
     ['תקופת הפעילות', activityPeriodDisplayLabel(row)],
     ...(showFunding ? [['מימון', presentValueText(row.funding)]] : []),
     ['מחיר', presentValueText(row.price)],
-    ['מספר משתתפים', presentValueText(row.participants_count)]
+    ...(showParticipants ? [['מספר משתתפים', presentValueText(row.participants_count)]] : [])
   ].filter(([, value]) => value);
   if (!candidates.length) return '';
   return `
@@ -944,7 +942,7 @@ function blockDates(row, { canEdit = false, canDirectEdit = false, datesLoading 
     `;
   }
 
-  const computedEnd = autoEndDate(row);
+  const computedEnd = autoEndDate(row) || String(row?.end_date || '');
   const doneFromSchedule = countDoneMeetings(schedule);
   const doneFallback = numericOrNull(row?.meetings_done);
   const done = doneFromSchedule > 0 ? doneFromSchedule : (doneFallback ?? 0);
@@ -986,6 +984,8 @@ function blockDates(row, { canEdit = false, canDirectEdit = false, datesLoading 
         </div>
       </div>
       <div class="activity-drawer__end-date">
+        ${isCourse ? `<span class="activity-drawer__end-date__label">תאריך התחלה</span>
+        <strong data-computed-start-display>${escapeHtml(formatDateHeWithWeekday(row.start_date || schedule[0]?.date) || '')}</strong>` : ''}
         <span class="activity-drawer__end-date__label">תאריך סיום</span>
         <strong data-computed-end-display></strong>
       </div>
@@ -1003,6 +1003,8 @@ function blockDates(row, { canEdit = false, canDirectEdit = false, datesLoading 
         </div>
       </div>
       <div class="activity-drawer__end-date">
+        ${isCourse ? `<span class="activity-drawer__end-date__label">תאריך התחלה</span>
+        <strong data-computed-start-display>${escapeHtml(formatDateHeWithWeekday(row.start_date || schedule[0]?.date) || '')}</strong>` : ''}
         <span class="activity-drawer__end-date__label">תאריך סיום</span>
         <strong data-computed-end-display>${escapeHtml(formatDateHeWithWeekday(computedEnd) || '')}</strong>
       </div>
@@ -1110,6 +1112,8 @@ export function patchDrawerDatesSection(sectionEl, datesData) {
 
   const endDisplay = sectionEl.querySelector('[data-computed-end-display]');
   if (endDisplay) endDisplay.textContent = formatDateHeWithWeekday(computedEnd) || '';
+  const startDisplay = sectionEl.querySelector('[data-computed-start-display]');
+  if (startDisplay) startDisplay.textContent = formatDateHeWithWeekday(datesData?.start_date || schedule[0]?.date) || '';
 
   const chipsDiv = sectionEl.querySelector('[data-dates-view-chips]');
   if (chipsDiv) chipsDiv.innerHTML = buildDateChipsHtml(schedule, false);
@@ -1204,7 +1208,6 @@ function singleForm(row, { settings = {}, privateNote = null, canEdit = false, c
   const isTour = activityType === 'tour';
   const showDates = isCourse || isAfterSchool || isWorkshop || isEscapeRoom || isTour;
   const hideFundingInView = isCourse || isAfterSchool || isTour;
-  const hideSeasonInView = isWorkshop || isEscapeRoom || isTour;
   const editReqStatus = String(row.edit_request_status || '').trim();
   const editReqLabel =
     editReqStatus === 'pending' ? 'ממתין לאישור' :
@@ -1232,7 +1235,7 @@ function singleForm(row, { settings = {}, privateNote = null, canEdit = false, c
       ${isOnce
         ? blockViewOnce(row, { settings, hideFunding: hideFundingInView || instructorLimited })
         : blockViewCourse(row, { settings })}
-      ${blockViewRecordDetails(row, { instructorLimited, showFunding: isOnce ? hideFundingInView : true })}
+      ${blockViewRecordDetails(row, { instructorLimited, showFunding: false, showParticipants: !isCourse })}
       ${isOnce && showDates
         ? `<div class="activity-drawer__once-dates-row" data-once-dates-row>${blockDates(row, { canEdit, canDirectEdit, datesLoading, is2027 })}</div>`
         : (showDates ? blockDates(row, { canEdit, canDirectEdit, datesLoading, is2027 }) : '')}

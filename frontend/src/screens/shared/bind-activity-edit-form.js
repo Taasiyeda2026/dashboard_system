@@ -4,6 +4,7 @@ import { formatDateHe } from './format-date.js';
 import { escapeHtml } from './html.js';
 import { activityTypeMatches, getValidInstructorUsers, humanDisplayText, INSTRUCTOR_CONTACTS_MISSING_ERROR_MESSAGE, INSTRUCTOR_IDENTITY_ERROR_MESSAGE, normalizeActivityTypeKey, normalizeOneDayActivityType, resolveInstructorSelectionByEmpId, validateInstructorIdentityPayload } from './activity-options.js';
 import { state } from '../../state.js';
+import { validateCourseFundingSplit } from '../../activity-funding-picker-compact.js';
 import {
   READ_ONLY_ACTIVITY_PERIOD_MESSAGE,
   isActivityMutationBlocked
@@ -141,8 +142,12 @@ function addDays(dateStr, days) {
 
 function updateEndDateDisplay(form) {
   const pickers = Array.from(form.querySelectorAll('input[data-meeting-idx]'));
+  const first = pickers[0];
   const last = pickers[pickers.length - 1];
+  const startDate = first ? String(first.value || '') : '';
   const maxDate = last ? String(last.value || '') : '';
+  const startDisplay = form.querySelector('[data-computed-start-display]');
+  if (startDisplay) startDisplay.textContent = startDate ? (formatDateHe(startDate) || startDate) : '—';
   const display = form.querySelector('[data-computed-end-display]');
   if (display) display.textContent = maxDate ? (formatDateHe(maxDate) || maxDate) : '—';
   form.dataset.autoEndDate = maxDate;
@@ -406,9 +411,14 @@ export function bindActivityEditForm(contentRoot, {
       if (/^meeting_date_\d+$/.test(name) || /^meeting_performed_\d+$/.test(name)) return;
       if (el.closest('[hidden]')) return;
       if (el.matches('select[multiple][data-scheduling-multi]')) {
-        const nextValues = [...el.selectedOptions].map((option) => String(option.value).trim()).filter(Boolean);
+        const nextValues = [...el.selectedOptions].map((option) => ({
+          funding_source_id: String(option.value).trim(),
+          amount: String(option.dataset.fundingAmount || '').trim()
+        })).filter((item) => item.funding_source_id);
         const previousValues = Array.isArray(initialValues[name]) ? initialValues[name].map(String) : [];
-        if (JSON.stringify(nextValues) !== JSON.stringify(previousValues)) changes[name] = nextValues;
+        const comparableNext = nextValues.map((item) => item.funding_source_id);
+        const amountsChanged = nextValues.some((item) => item.amount !== String([...el.options].find((option) => String(option.value) === item.funding_source_id)?.dataset.initialFundingAmount || ''));
+        if (JSON.stringify(comparableNext) !== JSON.stringify(previousValues) || amountsChanged) changes[name] = nextValues;
         return;
       }
       const rawValue = el.value;
@@ -451,6 +461,26 @@ export function bindActivityEditForm(contentRoot, {
     const saveType = normalizeActivityTypeKey(
       changes.activity_type || initialValues.activity_type || form.querySelector('[name="activity_type"]')?.value || ''
     );
+    if (saveType === 'course' && Object.prototype.hasOwnProperty.call(changes, 'price') && !Object.prototype.hasOwnProperty.call(changes, 'funding_sources')) {
+      const fundingSelect = form.querySelector('select[name="funding_sources"][multiple]');
+      changes.funding_sources = [...(fundingSelect?.selectedOptions || [])].map((option) => ({
+        funding_source_id: String(option.value).trim(),
+        amount: String(option.dataset.fundingAmount || '').trim()
+      })).filter((item) => item.funding_source_id);
+    }
+    if (saveType === 'course' && Object.prototype.hasOwnProperty.call(changes, 'funding_sources')) {
+      const fundingRows = changes.funding_sources;
+      const price = Number(changes.price ?? form.querySelector('[name="price"]')?.value ?? initialValues.price);
+      if (fundingRows.length === 1) {
+        fundingRows[0].amount = Number.isFinite(price) ? price : null;
+      } else if (fundingRows.length > 1) {
+        if (!validateCourseFundingSplit(fundingRows, price).valid) {
+          setStatus(statusEl, 'is-error', 'סכומי גורמי המימון חייבים להיות שווים למחיר הפעילות');
+          showToast('סכומי גורמי המימון חייבים להיות שווים למחיר הפעילות', 'error', 3000);
+          return;
+        }
+      }
+    }
     const supportsParticipants = saveType === 'workshop' || saveType === 'escape_room';
     if (!supportsParticipants) {
       delete changes.participants_count;
