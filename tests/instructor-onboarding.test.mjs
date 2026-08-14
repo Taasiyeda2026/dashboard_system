@@ -56,7 +56,7 @@ test('real instructor and approved manager details appear in mail', () => {
   assert.equal(onboardingManagers(settings)[1].email, 'HilaR@think.org.il');
 });
 
-test('create happens once before draft and failed Outlook can be retried without duplicate insert', async () => {
+test('retry after Outlook failure uses the original instructor snapshot without another insert', async () => {
   const calls = [];
   let attempts = 0;
   const { modal } = mountedModal({
@@ -66,12 +66,19 @@ test('create happens once before draft and failed Outlook can be retried without
   fill(modal);
   modal.querySelector('[data-onboarding-prepare]').click(); await tick();
   assert.match(modal.querySelector('[data-onboarding-status]').textContent, /המדריך נוצר בהצלחה, אך הכנת המייל נכשלה/);
+  const changedEmail = modal.querySelector('[data-onboarding-email]');
+  changedEmail.value = 'changed@example.org'; changedEmail.dispatchEvent(new window.Event('input'));
+  const changedManager = modal.querySelector('[data-onboarding-manager]');
+  changedManager.value = 'הילה רוזן'; changedManager.dispatchEvent(new window.Event('change'));
   modal.querySelector('[data-onboarding-prepare]').click(); await tick();
   assert.equal(calls.filter(([kind]) => kind === 'create').length, 1);
   assert.equal(calls.filter(([kind]) => kind === 'draft').length, 2);
   assert.deepEqual(calls[0][1], { fullName: 'אייל ישראלי', phone: '050-123 4567', email: 'new@example.org', employmentType: 'תעשיידע', managerName: 'גיל נאמן' });
   assert.equal(calls[1][1].instructorEmail, 'new@example.org');
   assert.equal(calls[1][1].manager.email, 'GilNeeman@think.org.il');
+  assert.equal(calls[2][1].instructorEmail, 'new@example.org');
+  assert.equal(calls[2][1].manager.name, 'גיל נאמן');
+  assert.equal(calls[2][1].manager.email, 'GilNeeman@think.org.il');
 });
 
 test('invalid email blocks creation', async () => {
@@ -94,6 +101,8 @@ test('implementation creates delegated drafts with TO and CC and has no send cap
   assert.match(client, /ccRecipients: \[\{ emailAddress: \{ address: manager\.email \} \}\]/);
   assert.doesNotMatch(client, /mailto:|sendMail|Mail\.Send/i);
   assert.match(migration, /pg_advisory_xact_lock/);
+  assert.match(migration, /app_has_permission\('view_employee_files'\)/);
+  assert.match(migration, /revoke execute[^;]+from anon/i);
   assert.match(migration, /max\(ci\.emp_id::bigint\).*\+ 1/s);
   assert.match(migration, /lower\(trim\(coalesce\(ci\.email/);
   assert.match(migration, /regexp_replace\(coalesce\(ci\.mobile/);

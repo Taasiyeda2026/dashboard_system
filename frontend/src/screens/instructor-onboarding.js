@@ -233,18 +233,32 @@ export function bindOnboardingModal(modal, { managers, loginHint, onSuccess, cre
     window.open(ONBOARDING_ROOT_FOLDER_URL, '_blank', 'noopener,noreferrer');
   });
   let createdInstructor = null;
+  let onboardingSnapshot = null;
   prepare.addEventListener('click', async () => {
-    const manager = managers.find((item) => item.name === managerSelect.value);
-    if (!fullName.value.trim() || !phone.value.trim() || !email.value.trim() || !employment.value || !manager) return;
-    if (!email.checkValidity()) { status.textContent = 'יש להזין כתובת מייל תקינה.'; return; }
-    if (!manager?.phone || !manager?.email) { status.textContent = 'לא הוגדרו טלפון ומייל למנהל/ת הפעילות שנבחר/ה.'; return; }
+    let submission = onboardingSnapshot;
+    if (!onboardingSnapshot) {
+      const manager = managers.find((item) => item.name === managerSelect.value);
+      if (!fullName.value.trim() || !phone.value.trim() || !email.value.trim() || !employment.value || !manager) return;
+      if (!email.checkValidity()) { status.textContent = 'יש להזין כתובת מייל תקינה.'; return; }
+      if (!manager?.phone || !manager?.email) { status.textContent = 'לא הוגדרו טלפון ומייל למנהל/ת הפעילות שנבחר/ה.'; return; }
+      submission = Object.freeze({
+        fullName: fullName.value.trim(), phone: phone.value.trim(), email: email.value.trim(),
+        employmentType: employment.value, manager: Object.freeze({ ...manager })
+      });
+    }
     prepare.disabled = true; prepare.textContent = 'מכין...'; status.textContent = '';
     try {
-      if (!createdInstructor) createdInstructor = await createInstructor({
-        fullName: fullName.value.trim(), phone: phone.value.trim(), email: email.value.trim(),
-        employmentType: employment.value === 'taasiyeda' ? 'תעשיידע' : 'כוח אדם', managerName: manager.name
+      if (!createdInstructor) {
+        createdInstructor = await createInstructor({
+          fullName: submission.fullName, phone: submission.phone, email: submission.email,
+          employmentType: submission.employmentType === 'taasiyeda' ? 'תעשיידע' : 'כוח אדם', managerName: submission.manager.name
+        });
+        onboardingSnapshot = submission;
+      }
+      const result = await createDraft({
+        employmentType: onboardingSnapshot.employmentType, manager: onboardingSnapshot.manager,
+        instructorName: onboardingSnapshot.fullName, instructorEmail: onboardingSnapshot.email, loginHint
       });
-      const result = await createDraft({ employmentType: employment.value, manager, instructorName: fullName.value.trim(), instructorEmail: email.value.trim(), loginHint });
       status.textContent = 'הטיוטה הוכנה בהצלחה';
       await onSuccess?.(result, createdInstructor);
       window.open(result.webLink, '_blank', 'noopener,noreferrer');

@@ -17,6 +17,10 @@ declare
   v_email text := lower(trim(coalesce(p_email, '')));
   v_phone text := regexp_replace(coalesce(p_mobile, ''), '[^0-9+]', '', 'g');
 begin
+  if not public.app_has_permission('view_employee_files') then
+    raise exception 'permission_denied:view_employee_files' using errcode = '42501';
+  end if;
+
   if trim(coalesce(p_full_name, '')) = '' or v_phone = '' or v_email = ''
      or trim(coalesce(p_employment_type, '')) = '' or trim(coalesce(p_direct_manager, '')) = '' then
     raise exception 'onboarding_required_fields_missing';
@@ -53,6 +57,8 @@ begin
 end;
 $$;
 
+revoke execute on function public.create_instructor_onboarding(text, text, text, text, text) from public;
+revoke execute on function public.create_instructor_onboarding(text, text, text, text, text) from anon;
 grant execute on function public.create_instructor_onboarding(text, text, text, text, text) to authenticated;
 
 insert into public.settings (key, value, description)
