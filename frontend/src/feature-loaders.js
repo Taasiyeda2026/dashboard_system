@@ -156,7 +156,7 @@ export function ensureFeature(name) {
         import('./styles/activity-drawer-inline-layout.css'),
         import('./activity-drawer-inline-layout.js'),
         import('./styles/activity-drawer-type-layout-fix.css'),
-        import('./activity-drawer-type-layout-fix.js'),
+        import('./activity-drawer-type-layout-safe-runtime.js'),
         import('./styles/activity-drawer-edit-header-polish.css'),
         import('./styles/activity-drawer-floating-actions.css'),
         import('./activity-drawer-edit-dedup.js'),
