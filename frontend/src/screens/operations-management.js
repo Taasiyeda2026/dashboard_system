@@ -2386,6 +2386,7 @@ function courseScheduleTabHtml2027(rows, state) {
   const printHeaderTitle = selectedInstructorFilter ? `סידור עבודה — ${selectedInstructorFilter}` : 'סידור עבודה — כל המדריכים';
 
   return `<section class="ds-ops-mgmt-panel" dir="rtl">
+    ${attendanceControlHtml()}
     ${summaryLine}
     <div class="ds-ops-mgmt-panel__toolbar no-print">
       <button type="button" class="ds-btn ds-btn--sm ds-btn--primary" data-ops-print>הדפס סידור עבודה</button>
@@ -2395,7 +2396,6 @@ function courseScheduleTabHtml2027(rows, state) {
       <h2>${escapeHtml(printHeaderTitle)}</h2>
     </div>
     <div class="ds-ops-schedule-wrap"><section class="ds-card"><div class="ds-card__body">${table}</div></section></div>
-    ${attendanceControlHtml()}
   </section>`;
 }
 
@@ -2447,6 +2447,7 @@ function instructorsTabHtml(rows, state, data = {}, directory = buildSchoolsDire
   const directoryNote = '';
 
   return `<section class="ds-ops-mgmt-panel" dir="rtl">
+    ${attendanceControlHtml()}
     ${activeSummary}
     <div class="ds-ops-mgmt-panel__toolbar no-print">
       <button type="button" class="ds-btn ds-btn--sm ds-btn--primary" data-ops-print>הדפס סידור עבודה</button>
@@ -2458,7 +2459,6 @@ function instructorsTabHtml(rows, state, data = {}, directory = buildSchoolsDire
     </div>
     ${directoryNote}
     <div class="ds-ops-schedule-wrap"><section class="ds-card"><div class="ds-card__body">${table}</div></section></div>
-    ${attendanceControlHtml()}
     <p class="ds-ops-mgmt-print-footer only-print">יש לבדוק את פרטי הפעילות לפני הגעה. במקרה של שינוי, יש לעדכן את התפעול.</p>
   </section>`;
 }
