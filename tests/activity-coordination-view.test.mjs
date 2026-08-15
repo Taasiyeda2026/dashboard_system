@@ -9,8 +9,11 @@ import {
   coordinationMissingDetails,
   coordinationStatusHtml,
   coordinationUiStatus,
+  openCoordinationDraftPlaceholder,
+  preparedCoordinationDraftLink,
   renderCoordinationActivityModal,
-  renderCoordinationWorkspace
+  renderCoordinationWorkspace,
+  revealCoordinationDraft
 } from '../frontend/src/activity-coordination/view.js';
 
 const readyItem = { activity_row_id: '7', readiness: { ready: true }, status: COORDINATION_STATUS.READY };
@@ -28,6 +31,21 @@ test('coordination action changes only after a successful sent fingerprint or re
   assert.match(coordinationDrawerActionHtml(changed), />שליחת אישור מעודכן</);
   assert.match(coordinationStatusHtml(changed, { action: true }), />שליחת אישור מעודכן</);
   assert.doesNotMatch(coordinationStatusHtml(changed, { action: true }), /שליחה מחדש/);
+});
+
+test('prepared coordination draft opens the exact Outlook draft in the user-triggered window', () => {
+  const exactLink = 'https://outlook.office.com/mail/deeplink/compose/id/test';
+  assert.equal(preparedCoordinationDraftLink({ value: { draft: { webLink: exactLink } } }), exactLink);
+  assert.equal(preparedCoordinationDraftLink({ value: { dispatch: { graph_web_link: exactLink } } }), exactLink);
+
+  const body = { style: {}, textContent: '', setAttribute() {} };
+  const popup = { closed: false, opener: {}, document: { title: '', body }, location: { href: '' } };
+  const fakeWindow = { open: () => popup };
+  const opened = openCoordinationDraftPlaceholder(fakeWindow);
+  assert.equal(opened, popup);
+  assert.equal(body.textContent, 'מכין את טיוטת אישור התיאום ב-Outlook…');
+  revealCoordinationDraft({ value: { draft: { webLink: exactLink } } }, popup, fakeWindow);
+  assert.equal(popup.location.href, exactLink);
 });
 
 test('workspace exposes only the three requested UI states and lists concrete missing details', () => {
