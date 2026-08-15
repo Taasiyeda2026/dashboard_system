@@ -6,7 +6,7 @@ import {
   buildDashboardAttendanceRows, attendanceDateScope, loadAttendanceDashboardDataset,
   attendanceMonthLabel, filterAttendanceRowsByMonth, attendanceExportFilename,
   applyDashboardRouteKilometers, applyDashboardExpenses, compareAttendanceRows, applyAttendanceChoice,
-  setDashboardOnlyChoice, buildCorrectedAttendanceWorkbook, parseAttendanceWorkbook, attendanceAuditSummary,
+  setDashboardOnlyChoice, buildCorrectedAttendanceWorkbook, parseAttendanceWorkbook, attendanceAuditSummary, aggregateDashboardAttendanceRows,
   DETAIL_HEADERS, MONTHLY_HEADERS, DAILY_HEADERS
 } from '../frontend/src/screens/attendance-control.js';
 
@@ -78,38 +78,52 @@ test('dashboard meetings expand for both assigned instructors', () => {
   assert.deepEqual(rows.map((row) => row.meetingNo), [1, 1, 2, 2]);
 });
 
-test('Oshri Ram regression: local Excel dates, duplicate assignments and duplicate meetings stay singular', () => {
+test('LONG-073 Oshri Ram regression preserves local Excel dates and intentional double meetings', () => {
   const sheet = XLSX.utils.aoa_to_sheet([
     ['מספר עובד', 'שם עובד', 'תאריך', 'שעת התחלה', 'שעת סיום', 'סוג פעילות', 'שם בית ספר', 'רשות', 'שם תכנית'],
-    ['1524', 'אושרי רם', new Date(2026, 4, 25), '08:00', '10:00', 'קורס', 'אלונים', 'חיפה', 'רובוטיקה'],
-    ['1524', 'אושרי רם', new Date(2026, 4, 18), '08:00', '10:00', 'קורס', 'אלונים', 'חיפה', 'רובוטיקה'],
-    ['1524', 'אושרי רם', new Date(2026, 4, 11), '08:00', '10:00', 'קורס', 'אלונים', 'חיפה', 'רובוטיקה']
+    ['1524', 'אושרי רם', new Date(2026, 4, 25), '09:50', '11:20', 'קורס', 'טשרניחובסקי', 'נתניה', 'יישומי AI'],
+    ['1524', 'אושרי רם', new Date(2026, 4, 18), '09:50', '11:20', 'קורס', 'טשרניחובסקי', 'נתניה', 'יישומי AI'],
+    ['1524', 'אושרי רם', new Date(2026, 4, 11), '09:50', '11:20', 'קורס', 'טשרניחובסקי', 'נתניה', 'יישומי AI']
   ], { cellDates: true });
   const workbook = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(workbook, sheet, 'פירוט מלא');
   assert.deepEqual(parseAttendanceWorkbook(workbook).map((row) => row.date), ['2026-05-25', '2026-05-18', '2026-05-11']);
 
   const rows = buildDashboardAttendanceRows([{
-    row_id: 'ACT-331e9fdf-3037-41b1-90ba-02a60170d378', emp_id: '1524', emp_id_2: '1524',
-    instructor_name: 'אושרי רם', instructor_name_2: 'אושרי רם', start_time: '08:00', end_time: '10:00',
-    activity_name: 'רובוטיקה', school: 'אלונים', authority: 'חיפה', activity_type: 'קורס',
+    row_id: 'LONG-073', emp_id: '1524', emp_id_2: '1524',
+    instructor_name: 'אושרי רם', instructor_name_2: 'אושרי רם', start_time: '09:50', end_time: '11:20',
+    activity_name: 'יישומי AI', school: 'טשרניחובסקי', authority: 'נתניה', activity_type: 'course', notes: '4/5 שני מפגשים.',
     date_5: '2026-05-04', date_6: '2026-05-04'
   }]);
-  assert.equal(rows.length, 1);
-  assert.equal(calculateWorkHours(rows[0].startTime, rows[0].endTime), 2);
+  assert.equal(rows.length, 2, 'both intentional meetings remain, while the duplicate instructor does not double them again');
+  const aggregated = aggregateDashboardAttendanceRows(rows);
+  assert.equal(aggregated.length, 1);
+  assert.equal(aggregated[0].meetingCount, 2);
+  assert.equal(aggregated[0].workHours, 3);
+  assert.deepEqual(aggregated[0].meetingNumbers, ['1', '2']);
+  const result = compareAttendanceRows([{
+    employeeId: '1524', date: '2026-05-04', startTime: '09:50', endTime: '11:20', workHours: 3,
+    program: 'יישומי AI', school: 'טשרניחובסקי', authority: 'נתניה', activityType: 'course', meetingNo: '1, 2'
+  }], rows);
+  const totals = attendanceAuditSummary(result);
+  assert.equal(result.comparisons[0].differences.length, 0);
+  assert.deepEqual({ before: totals.dashboardRowsBeforeProcessing, after: totals.dashboardRows, hours: totals.dashboardHours }, { before: 2, after: 1, hours: 3 });
 });
 
-test('Oshri Ram regression: matching has a floor, exposes real fields, and leaves exact rows normal', () => {
-  const base = { employeeId: '1524', employeeName: 'אושרי רם', date: '2026-05-25', startTime: '08:00', endTime: '10:00', school: 'אלונים', authority: 'חיפה', program: 'רובוטיקה', activityType: 'קורס' };
+test('Oshri Ram matching requires context, exposes real fields, and leaves exact rows normal', () => {
+  const base = { employeeId: '1524', employeeName: 'אושרי רם', date: '2026-05-25', startTime: '09:50', endTime: '11:20', school: 'טשרניחובסקי', authority: 'נתניה', program: 'יישומי AI', activityType: 'קורס' };
   const exact = compareAttendanceRows([base], [{ ...base }]);
   assert.equal(exact.comparisons[0].unmatched, false);
   assert.equal(exact.comparisons[0].differences.length, 0);
   assert.match(resultsHtml(exact), /✓ תקין/);
   assert.doesNotMatch(resultsHtml(exact), /data-attendance-choice/);
 
-  const mismatch = compareAttendanceRows([base], [{ ...base, startTime: '09:00', endTime: '11:00', school: 'הרצל' }]);
+  const mismatch = compareAttendanceRows([base], [{ ...base, startTime: '10:50', endTime: '12:20', school: 'שרת' }]);
   assert.deepEqual(mismatch.comparisons[0].differences.map((item) => item.key), ['startTime', 'endTime', 'school']);
   assert.match(resultsHtml(mismatch), /בית ספר/);
   assert.match(resultsHtml(mismatch), /פער 60 דקות/);
+
+  const timeOnly = compareAttendanceRows([{ employeeId: '1524', date: base.date, startTime: base.startTime, endTime: base.endTime }], [{ employeeId: '1524', date: base.date, startTime: base.startTime, endTime: base.endTime }]);
+  assert.equal(timeOnly.comparisons[0].unmatched, true, 'identical hours alone are insufficient');
 
   const badCandidate = compareAttendanceRows([base], [{ ...base, startTime: '14:00', endTime: '16:00', school: 'אחר', authority: 'אחר', program: 'אחר', activityType: 'סיור' }]);
   assert.equal(badCandidate.comparisons[0].unmatched, true);
@@ -172,7 +186,7 @@ test('population, multiple same-day matching and all compared fields are preserv
   const result = compareAttendanceRows(attendance, dashboard);
   assert.equal(result.dashboardPopulation.some((row) => row.employeeId === '99'), false);
   assert.equal(result.comparisons[0].dashboard.program, 'אלפא אחר');
-  assert.deepEqual(result.comparisons[0].differences.map((item) => item.key), ['startTime', 'endTime', 'program', 'meetingNo', 'kilometers', 'expenses']);
+  assert.deepEqual(result.comparisons[0].differences.map((item) => item.key), ['startTime', 'endTime', 'workHours', 'program', 'meetingNo', 'kilometers', 'expenses']);
 });
 
 test('results classify matching rows as normal and count only actual row exceptions', () => {
@@ -187,7 +201,7 @@ test('results classify matching rows as normal and count only actual row excepti
   assert.equal((html.match(/⚠ לא נמצאה פעילות תואמת/g) || []).length, 1);
   assert.match(html, /חריגות <b>2<\/b>/);
   assert.match(html, /<span>2 חריגות<\/span>/);
-  assert.equal((html.match(/data-attendance-choice/g) || []).length, 1);
+  assert.equal((html.match(/data-attendance-choice/g) || []).length, 2);
   assert.match(html, /אף מועמד לא עבר את סף ההתאמה/);
 });
 

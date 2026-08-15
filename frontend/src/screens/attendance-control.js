@@ -8,6 +8,7 @@ export const DAILY_HEADERS = ['תאריך', 'שם מדריך', 'מספר עוב�
 
 const FIELD_DEFS = [
   ['startTime', 'שעת התחלה', 'time'], ['endTime', 'שעת סיום', 'time'],
+  ['workHours', 'שעות עבודה', 'number'],
   ['school', 'בית ספר', 'text'], ['authority', 'רשות', 'text'],
   ['program', 'שם תכנית', 'text'], ['activityType', 'סוג פעילות', 'text'], ['meetingNo', 'מספר מפגש', 'text'],
   ['kilometers', 'קילומטרים', 'number'], ['expenses', 'הוצאות', 'money']
@@ -105,18 +106,15 @@ export function buildDashboardAttendanceRows(activities = [], contacts = []) {
     const meetings = activityMeetings(activity);
     const fallbackDate = activityValue(activity, ['activity_date', 'start_date', 'date']);
     const dates = meetings.length ? meetings : (fallbackDate ? [{ date: fallbackDate }] : []);
-    const seenMeetings = new Set();
     dates.forEach((meeting, index) => instructors.forEach((instructor) => {
       const date = excelDate(meeting.date);
       const startTime = timeText(meeting.start_time || activity.start_time);
       const endTime = timeText(meeting.end_time || activity.end_time);
-      const duplicateKey = `${instructor.employeeId}|${date}|${startTime}|${endTime}`;
-      if (!date || seenMeetings.has(duplicateKey)) return;
-      seenMeetings.add(duplicateKey);
+      if (!date) return;
       const contact = contactById.get(instructor.employeeId) || {};
       output.push({
         ...instructor, employeeName: instructor.employeeName || txt(contact.full_name), employmentType: txt(contact.employment_type),
-        date, startTime, endTime,
+        date, startTime, endTime, workHours: calculateWorkHours(startTime, endTime), meetingCount: 1,
         activityType: txt(activityValue(activity, ['activity_type_label', 'activity_type', 'item_type'])), school: txt(activityValue(activity, ['school', 'single_school_name', 'legacy_school'])),
         authority: txt(activityValue(activity, ['authority', 'authority_name'])), program: txt(activityValue(activity, ['activity_name', 'program_name', 'name'])),
         meetingNo: meeting.meeting_no ?? index + 1, kilometers: null, expenses: null,
@@ -124,6 +122,32 @@ export function buildDashboardAttendanceRows(activities = [], contacts = []) {
       });
     }));
   }
+  return output;
+}
+
+// Repeated meeting dates can be intentional (for example two lessons on the
+// same day). Keep every source meeting, then aggregate only the comparison view
+// by activity/instructor/day and retain the original count and total duration.
+export function aggregateDashboardAttendanceRows(rows = []) {
+  const output = []; const groups = new Map();
+  (rows || []).forEach((row, index) => {
+    if (row.__profile) { output.push(row); return; }
+    const activityKey = txt(row.activityId) || `__row_${index}`;
+    const key = `${activityKey}|${txt(row.employeeId)}|${txt(row.date)}`;
+    if (!groups.has(key)) {
+      const aggregate = { ...row, meetingCount: number(row.meetingCount) || 1, workHours: optionalNumber(row.workHours) ?? calculateWorkHours(row.startTime, row.endTime) };
+      aggregate.meetingNumbers = [txt(row.meetingNo)].filter(Boolean);
+      groups.set(key, aggregate); output.push(aggregate); return;
+    }
+    const aggregate = groups.get(key);
+    aggregate.meetingCount += number(row.meetingCount) || 1;
+    aggregate.workHours = Math.round((aggregate.workHours + (optionalNumber(row.workHours) ?? calculateWorkHours(row.startTime, row.endTime))) * 100) / 100;
+    if (timeText(row.startTime) && (!timeText(aggregate.startTime) || timeText(row.startTime) < timeText(aggregate.startTime))) aggregate.startTime = row.startTime;
+    if (timeText(row.endTime) && (!timeText(aggregate.endTime) || timeText(row.endTime) > timeText(aggregate.endTime))) aggregate.endTime = row.endTime;
+    const meetingNo = txt(row.meetingNo); if (meetingNo) aggregate.meetingNumbers.push(meetingNo);
+    aggregate.meetingNo = aggregate.meetingNumbers.join(', ');
+  });
+  output.sourceRowCount = (rows || []).filter((row) => !row.__profile).length;
   return output;
 }
 
@@ -150,6 +174,7 @@ export function parseAttendanceWorkbook(workbook) {
       result.push({
         sourceSheet: sheetName, employeeId, employeeName: txt(get('employeeName')), employmentType: txt(get('employmentType')),
         date: excelDate(get('date')), startTime: timeText(get('startTime')), endTime: timeText(get('endTime')),
+        workHours: optionalNumber(get('workHours')) ?? calculateWorkHours(get('startTime'), get('endTime')),
         activityType: txt(get('activityType')), school: txt(get('school')), authority: txt(get('authority')), program: txt(get('program')),
         meetingNo: txt(get('meetingNo')), kilometers: optionalNumber(get('kilometers')), expenses: optionalNumber(get('expenses')),
         expenseDetails: txt(get('expenseDetails')), notes: txt(get('notes')), activityId: txt(get('activityId'))
@@ -245,8 +270,9 @@ export async function loadAttendanceDashboardDataset(attendanceRows, api, month 
   const scope = attendanceDateScope(attendanceRows, month);
   if (!scope.employeeIds.length || !scope.fromDate || !api?.attendanceControlDashboardSources) return [];
   const sources = await api.attendanceControlDashboardSources(scope);
-  const rows = buildDashboardAttendanceRows(sources.activities, sources.contacts)
+  const sourceRows = buildDashboardAttendanceRows(sources.activities, sources.contacts)
     .filter((row) => (month ? row.date.startsWith(`${month}-`) : scope.dates.has(row.date)) && scope.employeeIds.includes(row.employeeId));
+  const rows = aggregateDashboardAttendanceRows(sourceRows);
   applyDashboardRouteKilometers(rows, sources.travelCache || []);
   applyDashboardExpenses(rows, sources.expenses || []);
   for (const contact of sources.contacts || []) {
@@ -277,9 +303,9 @@ function matchScore(attendance, dashboard) {
 }
 
 function acceptableMatch(match) {
-  // A relative winner is not enough: demand either convincing times or multiple
-  // contextual identifiers. Blank values never count as supporting evidence.
-  return match.score >= 40 && (match.time >= 20 || match.context >= 40);
+  // Time alone is never identity evidence: require at least one non-empty
+  // contextual agreement in addition to a meaningful absolute score.
+  return match.score >= 40 && match.context >= 15;
 }
 
 function comparable(type, value) {
@@ -288,9 +314,15 @@ function comparable(type, value) {
   return normalizeAttendanceName(value);
 }
 
+function rowWorkHours(row) {
+  return optionalNumber(row?.workHours) ?? calculateWorkHours(row?.startTime, row?.endTime);
+}
+
 export function compareAttendanceRows(attendanceRows, dashboardRows) {
   const attendanceIds = new Set((attendanceRows || []).map((row) => txt(row.employeeId)).filter(Boolean));
-  const dashboardPopulation = (dashboardRows || []).filter((row) => attendanceIds.has(txt(row.employeeId)));
+  const dashboardSourcePopulation = (dashboardRows || []).filter((row) => attendanceIds.has(txt(row.employeeId)));
+  const dashboardPopulation = aggregateDashboardAttendanceRows(dashboardSourcePopulation);
+  dashboardPopulation.sourceRowCount = dashboardRows?.sourceRowCount ?? dashboardSourcePopulation.filter((row) => !row.__profile).length;
   const buckets = new Map();
   dashboardPopulation.forEach((row) => {
     const key = `${txt(row.employeeId)}|${row.date}`;
@@ -311,8 +343,10 @@ export function compareAttendanceRows(attendanceRows, dashboardRows) {
     const match = assignments.get(attendanceIndex); const dashboard = match?.row || null;
     const final = { ...attendance };
     const differences = dashboard ? FIELD_DEFS.flatMap(([key, label, type]) => {
-      if (comparable(type, attendance[key]) === comparable(type, dashboard[key])) return [];
-      return [{ key, label, type, attendance: attendance[key], dashboard: dashboard[key], choice: 'attendance', custom: '' }];
+      const attendanceValue = key === 'workHours' ? rowWorkHours(attendance) : attendance[key];
+      const dashboardValue = key === 'workHours' ? rowWorkHours(dashboard) : dashboard[key];
+      if (comparable(type, attendanceValue) === comparable(type, dashboardValue)) return [];
+      return [{ key, label, type, attendance: attendanceValue, dashboard: dashboardValue, choice: 'attendance', custom: '' }];
     }) : [];
     return { id: `row-${attendanceIndex}`, attendance, dashboard, final, differences, unmatched: !dashboard, matchScore: match?.score ?? null };
   });
@@ -396,11 +430,13 @@ export function attendanceAuditSummary(result) {
     const attendance = optionalNumber(c.attendance[key]); const dashboard = optionalNumber(c.dashboard?.[key]);
     return attendance == null || dashboard == null ? total : total + Math.abs(attendance - dashboard);
   }, 0);
-  const attendanceHours = result.comparisons.reduce((total, c) => total + calculateWorkHours(c.attendance.startTime, c.attendance.endTime), 0);
-  const dashboardHours = (result.dashboardPopulation || []).filter((row) => !row.__profile).reduce((total, row) => total + calculateWorkHours(row.startTime, row.endTime), 0);
+  const attendanceHours = result.comparisons.reduce((total, c) => total + rowWorkHours(c.attendance), 0);
+  const dashboardHours = (result.dashboardPopulation || []).filter((row) => !row.__profile).reduce((total, row) => total + rowWorkHours(row), 0);
   return {
     employees: employees.size, different: different.size,
-    attendanceRows: result.comparisons.length, dashboardRows: (result.dashboardPopulation || []).filter((row) => !row.__profile).length,
+    attendanceRows: result.comparisons.length,
+    dashboardRowsBeforeProcessing: result.dashboardPopulation?.sourceRowCount ?? (result.dashboardPopulation || []).filter((row) => !row.__profile).length,
+    dashboardRows: (result.dashboardPopulation || []).filter((row) => !row.__profile).length,
     fullMatches: matched.length - fieldMismatches.length, fieldMismatches: fieldMismatches.length,
     unmatchedAttendance: unmatchedAttendance.length, unmatchedDashboard: (result.dashboardOnly || []).length,
     exceptions: mismatchedComparisons.length + (result.dashboardOnly || []).length,
@@ -437,9 +473,9 @@ export function resultsHtml(result, month = '') {
   const cards = [...byEmployee.entries()].map(([employeeId, rows]) => {
     const dashboardOnly = dashboardOnlyByEmployee.get(employeeId) || [];
     const name = rows[0]?.attendance?.employeeName || dashboardOnly[0]?.dashboard?.employeeName || employeeId;
-    const attendanceHours = rows.reduce((s, r) => s + calculateWorkHours(r.attendance.startTime, r.attendance.endTime), 0);
-    const dashboardHours = rows.reduce((s, r) => s + calculateWorkHours(r.dashboard?.startTime, r.dashboard?.endTime), 0)
-      + dashboardOnly.reduce((sum, entry) => sum + calculateWorkHours(entry.dashboard.startTime, entry.dashboard.endTime), 0);
+    const attendanceHours = rows.reduce((s, r) => s + rowWorkHours(r.attendance), 0);
+    const dashboardHours = rows.reduce((s, r) => s + rowWorkHours(r.dashboard), 0)
+      + dashboardOnly.reduce((sum, entry) => sum + rowWorkHours(entry.dashboard), 0);
     const details = rows.map((comparison) => {
       const mismatch = comparison.unmatched || comparison.differences.length > 0;
       const status = comparison.unmatched ? '⚠ לא נמצאה פעילות תואמת' : mismatch ? '⚠ אי־התאמה בנתונים / דורש טיפול' : '✓ תקין';
@@ -452,7 +488,7 @@ export function resultsHtml(result, month = '') {
     return `<details class="attendance-control__employee"><summary><strong>${escapeHtml(name)}</strong><span>${gapCount} חריגות</span></summary><div class="attendance-control__employee-summary"><span>שעות נוכחות <b>${attendanceHours.toFixed(2)}</b></span><span>שעות בדשבורד <b>${dashboardHours.toFixed(2)}</b></span><span>השוני <b>${Math.abs(attendanceHours-dashboardHours).toFixed(2)}</b></span></div>${details}${missing}</details>`;
   }).join('');
   const monthSummary = attendanceMonthLabel(month) ? `<span>חודש הבדיקה: <b>${escapeHtml(attendanceMonthLabel(month))}</b></span>` : '';
-  return `<div class="attendance-control__complete"><strong>נמצאו ${totals.exceptions} חריגות אצל ${totals.different} מדריכים. לחצו על מדריך לפרטים המלאים.</strong></div><div class="attendance-control__metrics">${monthSummary}<span>מדריכים שנבדקו <b>${totals.employees}</b></span><span>שורות נוכחות <b>${totals.attendanceRows}</b></span><span>שורות דשבורד <b>${totals.dashboardRows}</b></span><span>התאמות מלאות <b>${totals.fullMatches}</b></span><span>אי־התאמות בשדות <b>${totals.fieldMismatches}</b></span><span>נוכחות ללא פעילות <b>${totals.unmatchedAttendance}</b></span><span>פעילות ללא נוכחות <b>${totals.unmatchedDashboard}</b></span><span>חריגות <b>${totals.exceptions}</b></span><span>שעות נוכחות <b>${totals.attendanceHours}</b></span><span>שעות דשבורד <b>${totals.dashboardHours}</b></span><span>פער בשעות <b>${totals.hours}</b></span><span>פער בקילומטרים <b>${totals.km}</b></span><span>פער בהוצאות <b>₪${totals.expenses}</b></span></div>${cards}<button type="button" class="ds-btn ds-btn--primary attendance-control__export" data-attendance-export>ייצוא דוח נוכחות מתוקן</button>`;
+  return `<div class="attendance-control__complete"><strong>נמצאו ${totals.exceptions} חריגות אצל ${totals.different} מדריכים. לחצו על מדריך לפרטים המלאים.</strong></div><div class="attendance-control__metrics">${monthSummary}<span>מדריכים שנבדקו <b>${totals.employees}</b></span><span>שורות נוכחות <b>${totals.attendanceRows}</b></span><span>מפגשי דשבורד במקור <b>${totals.dashboardRowsBeforeProcessing}</b></span><span>שורות דשבורד להשוואה <b>${totals.dashboardRows}</b></span><span>התאמות מלאות <b>${totals.fullMatches}</b></span><span>אי־התאמות בשדות <b>${totals.fieldMismatches}</b></span><span>נוכחות ללא פעילות <b>${totals.unmatchedAttendance}</b></span><span>פעילות ללא נוכחות <b>${totals.unmatchedDashboard}</b></span><span>חריגות <b>${totals.exceptions}</b></span><span>שעות נוכחות <b>${totals.attendanceHours}</b></span><span>שעות דשבורד <b>${totals.dashboardHours}</b></span><span>פער בשעות <b>${totals.hours}</b></span><span>פער בקילומטרים <b>${totals.km}</b></span><span>פער בהוצאות <b>₪${totals.expenses}</b></span></div>${cards}<button type="button" class="ds-btn ds-btn--primary attendance-control__export" data-attendance-export>ייצוא דוח נוכחות מתוקן</button>`;
 }
 
 async function readFile(file) {
