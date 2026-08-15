@@ -4,7 +4,11 @@ import path from 'node:path';
 // Explicit, deliberately small suites. Add a test here only when its assertions cover
 // the corresponding source area; the full suite is retained separately for regression.
 export const TEST_GROUPS = Object.freeze({
-  activities: ['tests/activities-screen.test.mjs', 'tests/api-undated-activities.test.mjs'],
+  activities: [
+    'tests/activities-screen.test.mjs',
+    'tests/api-undated-activities.test.mjs',
+    'tests/activity-drawer-type-layout-fix.test.mjs'
+  ],
   annualReviews: ['tests/annual-reviews-v2.test.mjs', 'tests/annual-reviews-security.test.mjs'],
   auth: ['tests/auth-login-stabilization.test.mjs', 'tests/auth-permissions-routes.test.mjs'],
   catalog: ['tests/catalog-screen-display.test.mjs'],
