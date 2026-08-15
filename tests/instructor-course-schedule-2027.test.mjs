@@ -219,22 +219,25 @@ test('buildCourseSchedulePrintDocumentTitle embeds the sanitized instructor name
   assert.match(buildCourseSchedulePrintDocumentTitle('ישראל/ישראלי'), /^סידור עבודה - ישראלישראלי - תשפ״ז$/);
 });
 
-test('courseSchedulePrintCss declares A4 portrait, an equal 3-column card grid, and break-inside avoidance', () => {
+test('courseSchedulePrintCss declares A4 portrait, a compact two-column course header, date grid, and page-break avoidance', () => {
   const css = courseSchedulePrintCss();
   assert.match(css, /@page\{size:A4 portrait;margin:10mm\}/);
-  assert.match(css, /grid-template-columns:repeat\(3,\s*minmax\(0,\s*1fr\)\)/);
+  assert.match(css, /\.cs-card__details\{[^}]*grid-template-columns:minmax\(0,1fr\) minmax\(0,1fr\)/);
+  assert.match(css, /\.cs-dates-grid\{[^}]*grid-template-columns:repeat\(5,minmax\(0,1fr\)\)/);
   assert.match(css, /\.cs-card\{[^}]*break-inside:avoid;page-break-inside:avoid/);
 });
 
-test('buildCourseSchedulePrintHtml renders the instructor name, course cards and every date exactly once in the dates list', () => {
+test('buildCourseSchedulePrintHtml renders the document header, separate course cards and unnumbered dates exactly once', () => {
   const rows = buildReadyCourseScheduleRows([readyCourseFixture()]);
   const html = buildCourseSchedulePrintHtml({ instructorName: 'דני כהן', rows });
   assert.match(html, /שם המדריך:<\/strong> דני כהן/);
-  assert.match(html, /מספר קורסים: 1 \| מספר מפגשים כולל: 14/);
+  assert.equal((html.match(/סידור עבודה למדריך – תשפ״ז/g) || []).length, 1);
+  assert.match(html, /<strong>סיכום:<\/strong> מספר קורסים: 1 · מספר מפגשים כולל: 14/);
   assert.equal((html.match(/<article class="cs-card">/g) || []).length, 1);
 
-  const datesListHtml = html.match(/<ol class="cs-dates-list">([\s\S]*?)<\/ol>/)?.[1] || '';
-  const listedDates = [...datesListHtml.matchAll(/<li>([^<]+)<\/li>/g)].map((m) => m[1]);
+  assert.doesNotMatch(html, /<ol\b|<li\b/);
+  const datesGridHtml = html.match(/<div class="cs-dates-grid">([\s\S]*?)<\/div>/)?.[1] || '';
+  const listedDates = [...datesGridHtml.matchAll(/<span class="cs-date">([^<]+)<\/span>/g)].map((m) => m[1]);
   assert.equal(listedDates.length, 14);
   assert.equal(new Set(listedDates).size, 14, 'every listed date should be unique');
   const expectedFormatted = READY_DATES_14.map((date) => {
@@ -246,7 +249,7 @@ test('buildCourseSchedulePrintHtml renders the instructor name, course cards and
 
 test('buildCourseSchedulePrintHtml with no ready courses renders an empty card list without throwing', () => {
   const html = buildCourseSchedulePrintHtml({ instructorName: 'דני כהן', rows: [] });
-  assert.match(html, /מספר קורסים: 0 \| מספר מפגשים כולל: 0/);
+  assert.match(html, /<strong>סיכום:<\/strong> מספר קורסים: 0 · מספר מפגשים כולל: 0/);
   assert.doesNotMatch(html, /<article class="cs-card">/);
 });
 
