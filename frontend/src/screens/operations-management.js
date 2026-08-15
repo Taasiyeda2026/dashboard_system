@@ -93,6 +93,11 @@ import {
   courseSchedulePrintCss,
   buildCourseSchedulePrintDocumentTitle
 } from './shared/instructor-course-schedule-print.js';
+import {
+  attendanceControlHtml,
+  attendanceControlStylesHtml,
+  bindAttendanceControl
+} from './attendance-control.js';
 
 const SCOPE = 'operations-management';
 const TAB_INSTRUCTORS = 'instructors';
@@ -2350,11 +2355,14 @@ function courseScheduleTabHtml2027(rows, state) {
     ${summaryLine}
     <div class="ds-ops-mgmt-panel__toolbar no-print">
       <button type="button" class="ds-btn ds-btn--sm ds-btn--primary" data-ops-print>הדפס סידור עבודה</button>
+      <button type="button" class="ds-btn ds-btn--sm" data-attendance-dashboard-export>ייצוא לבקרת נוכחות</button>
+      <button type="button" class="ds-btn ds-btn--sm" data-attendance-open>בקרת נוכחות</button>
     </div>
     <div class="ds-ops-mgmt-print-header only-print">
       <h2>${escapeHtml(printHeaderTitle)}</h2>
     </div>
     <div class="ds-ops-schedule-wrap"><section class="ds-card"><div class="ds-card__body">${table}</div></section></div>
+    ${attendanceControlHtml()}
   </section>`;
 }
 
@@ -2409,6 +2417,8 @@ function instructorsTabHtml(rows, state, data = {}, directory = buildSchoolsDire
     ${activeSummary}
     <div class="ds-ops-mgmt-panel__toolbar no-print">
       <button type="button" class="ds-btn ds-btn--sm ds-btn--primary" data-ops-print>הדפס סידור עבודה</button>
+      <button type="button" class="ds-btn ds-btn--sm" data-attendance-dashboard-export>ייצוא לבקרת נוכחות</button>
+      <button type="button" class="ds-btn ds-btn--sm" data-attendance-open>בקרת נוכחות</button>
     </div>
     <div class="ds-ops-mgmt-print-header only-print">
       <h2>סידור עבודה — ${escapeHtml(printTitle)}</h2>
@@ -2416,6 +2426,7 @@ function instructorsTabHtml(rows, state, data = {}, directory = buildSchoolsDire
     </div>
     ${directoryNote}
     <div class="ds-ops-schedule-wrap"><section class="ds-card"><div class="ds-card__body">${table}</div></section></div>
+    ${attendanceControlHtml()}
     <p class="ds-ops-mgmt-print-footer only-print">יש לבדוק את פרטי הפעילות לפני הגעה. במקרה של שינוי, יש לעדכן את התפעול.</p>
   </section>`;
 }
@@ -3345,7 +3356,7 @@ export const operationsManagementScreen = {
       : baseRows;
     const activeRows = isCompletionApprovalTab ? baseRows : filteredRows;
     if (instructorsContext) {
-      return `<div class="ds-screen-stack ds-ops-mgmt-screen ds-ops-mgmt-screen--instructors-workspace" data-ops-context="instructors">${opsManagementStylesHtml()}${instructorsWorkspaceNavStylesHtml()}
+      return `<div class="ds-screen-stack ds-ops-mgmt-screen ds-ops-mgmt-screen--instructors-workspace" data-ops-context="instructors">${opsManagementStylesHtml()}${instructorsWorkspaceNavStylesHtml()}${attendanceControlStylesHtml()}
       ${instructorsWorkspaceHeaderHtml({ activeTab: 'work-schedule', state })}
       ${topFiltersHtml(filterRows, state)}
       <div class="ds-ops-mgmt-content">${renderTab(activeRows, state, data, prepared)}</div>
@@ -3370,6 +3381,7 @@ export const operationsManagementScreen = {
       resetOperationsManagementEntry(state);
     }
     bindInstructorsWorkspaceNav(root, { state, rerender });
+    if (ops.context === OPS_CONTEXT_INSTRUCTORS) bindAttendanceControl(root, { activities: Array.isArray(data?.rows) ? data.rows : [], api });
 
     bindSummerContactsModalEvents(root, { ui, api, rows: data?.instructorSchedulePrintContactsRows || [], logPrefix: 'operations-management' });
 
