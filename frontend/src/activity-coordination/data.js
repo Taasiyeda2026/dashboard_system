@@ -10,6 +10,12 @@ import {
 
 const rowId = (row) => String(row?.row_id || row?.RowID || '').trim();
 
+async function activityCoordinationAdminAccess() {
+  const { data, error } = await supabase.rpc('activity_coordination_is_admin');
+  if (error) throw new Error(error.message || 'activity_coordination_access_check_failed');
+  return data === true;
+}
+
 function managerContacts(settings = {}) {
   const raw = settings.activity_manager_contacts;
   const rows = Array.isArray(raw) ? raw : raw && typeof raw === 'object'
@@ -19,6 +25,9 @@ function managerContacts(settings = {}) {
 }
 
 export async function loadActivityCoordinationContext(activities = [], settings = {}) {
+  const isAdmin = await activityCoordinationAdminAccess();
+  if (!isAdmin) return { items: [], byActivityId: new Map(), access: 'denied' };
+
   const rows = activities.filter((row) => String(row?.activity_season || '').trim() === 'school_2027');
   const ids = rows.map(rowId).filter(Boolean);
   const contactIds = [...new Set(rows.map((row) => Number(row?.school_contact_id)).filter(Number.isFinite))];
@@ -26,7 +35,7 @@ export async function loadActivityCoordinationContext(activities = [], settings 
   const [statuses, syllabus, emails, contacts, instructors] = await Promise.all([
     ids.length ? supabase.from('activity_coordination_activity_status_view').select('*').in('activity_row_id', ids) : { data: [] },
     supabase.from('catalog_program_syllabus').select('program_number,meeting_order,school_preparation').order('meeting_order'),
-    contactIds.length ? supabase.from('contact_emails').select('contact_id,email,is_primary,active').in('contact_id', contactIds).eq('active', true) : { data: [] },
+    contactIds.length ? supabase.rpc('activity_coordination_contact_emails', { p_contact_ids: contactIds }) : { data: [] },
     contactIds.length ? supabase.from('contacts_schools').select('id,contact_name,contact_role,phone,mobile,email').in('id', contactIds) : { data: [] },
     empIds.length ? supabase.from('contacts_instructors').select('emp_id,full_name,mobile').in('emp_id', empIds) : { data: [] }
   ]);
@@ -80,7 +89,7 @@ export async function loadActivityCoordinationContext(activities = [], settings 
       persisted
     });
   }
-  return { items, byActivityId: new Map(items.map((item) => [item.activity_row_id, item])) };
+  return { items, byActivityId: new Map(items.map((item) => [item.activity_row_id, item])), access: 'admin' };
 }
 
 export async function reserveDispatch(group, { subject, summaryFilename, photographyFilename, idempotencyKey, correlationId }) {
