@@ -356,8 +356,9 @@ function diffText(diff) {
 
 function summary(result) {
   const employees = new Set(result.comparisons.map((c) => c.attendance.employeeId));
+  const mismatchedComparisons = result.comparisons.filter((c) => c.unmatched || c.differences.length);
   const different = new Set([
-    ...result.comparisons.filter((c) => c.differences.length).map((c) => c.attendance.employeeId),
+    ...mismatchedComparisons.map((c) => c.attendance.employeeId),
     ...(result.dashboardOnly || []).map((entry) => entry.dashboard.employeeId)
   ]);
   const sum = (key) => result.comparisons.reduce((total, c) => {
@@ -365,7 +366,7 @@ function summary(result) {
     return attendance == null || dashboard == null ? total : total + Math.abs(attendance - dashboard);
   }, 0);
   const hourDiff = result.comparisons.reduce((total, c) => total + Math.abs(calculateWorkHours(c.attendance.startTime, c.attendance.endTime) - calculateWorkHours(c.dashboard?.startTime, c.dashboard?.endTime)), 0);
-  return { employees: employees.size, different: different.size, hours: Math.round(hourDiff * 100) / 100, km: sum('kilometers'), expenses: sum('expenses') };
+  return { employees: employees.size, different: different.size, exceptions: mismatchedComparisons.length + (result.dashboardOnly || []).length, hours: Math.round(hourDiff * 100) / 100, km: sum('kilometers'), expenses: sum('expenses') };
 }
 
 export function attendanceControlHtml() {
@@ -380,7 +381,7 @@ export function attendanceControlStylesHtml() {
 .attendance-control__complete{padding:12px 14px;border-radius:10px;background:#ecfdf5;color:#166534}.attendance-control__metrics{margin:12px 0}.attendance-control__metrics>span,.attendance-control__employee-summary>span{padding:9px 12px;border:1px solid #e2e8f0;border-radius:8px;background:#f8fafc}
 .attendance-control__employee{margin:10px 0;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden}.attendance-control__employee summary{display:flex;justify-content:space-between;padding:13px;cursor:pointer;background:#f8fafc}.attendance-control__employee-summary{padding:10px 13px}
 .attendance-control__dashboard-only{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:10px 13px;padding:12px;border:1px solid #f59e0b;border-radius:9px;background:#fffbeb}.attendance-control__dashboard-only>div{display:grid;gap:4px}.attendance-control__dashboard-only span{color:#64748b}
-.attendance-control__day{padding:10px 13px;border-top:1px solid #e2e8f0}.attendance-control__day h4{margin:0 0 8px}.attendance-control__diff{display:grid;grid-template-columns:minmax(110px,1fr) repeat(3,minmax(90px,1fr)) minmax(140px,1fr) minmax(110px,1fr);gap:7px;align-items:center;padding:7px 0;border-top:1px dashed #e2e8f0}.attendance-control__export{margin-top:14px}
+.attendance-control__day{margin:10px 13px;padding:12px;border:1px solid;border-radius:9px}.attendance-control__day h4{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0}.attendance-control__day--ok{border-color:#86efac;background:#f0fdf4;color:#166534}.attendance-control__day--mismatch{border-color:#f59e0b;background:#fffbeb}.attendance-control__row-status{font-weight:800;white-space:nowrap}.attendance-control__day-note{margin:8px 0 0;color:#92400e;font-weight:700}.attendance-control__diff{display:grid;grid-template-columns:minmax(110px,1fr) repeat(3,minmax(90px,1fr)) minmax(140px,1fr) minmax(110px,1fr);gap:7px;align-items:center;padding:7px 0;border-top:1px dashed #e2e8f0}.attendance-control__export{margin-top:14px}
 @media(max-width:850px){.attendance-control__diff{grid-template-columns:1fr 1fr}.attendance-control__diff strong{grid-column:1/-1}}
 </style>`;
 }
@@ -393,19 +394,24 @@ export function resultsHtml(result, month = '') {
   const dashboardOnlyByEmployee = new Map();
   (result.dashboardOnly || []).forEach((entry) => { const key = entry.dashboard.employeeId; if (!dashboardOnlyByEmployee.has(key)) dashboardOnlyByEmployee.set(key, []); dashboardOnlyByEmployee.get(key).push(entry); });
   const cards = [...byEmployee.entries()].map(([employeeId, rows]) => {
-    const changed = rows.filter((row) => row.differences.length);
     const dashboardOnly = dashboardOnlyByEmployee.get(employeeId) || [];
     const name = rows[0]?.attendance?.employeeName || dashboardOnly[0]?.dashboard?.employeeName || employeeId;
     const attendanceHours = rows.reduce((s, r) => s + calculateWorkHours(r.attendance.startTime, r.attendance.endTime), 0);
     const dashboardHours = rows.reduce((s, r) => s + calculateWorkHours(r.dashboard?.startTime, r.dashboard?.endTime), 0)
       + dashboardOnly.reduce((sum, entry) => sum + calculateWorkHours(entry.dashboard.startTime, entry.dashboard.endTime), 0);
-    const details = changed.map((comparison) => `<div class="attendance-control__day"><h4>${escapeHtml(comparison.attendance.date)} · ${escapeHtml(comparison.attendance.program || comparison.attendance.activityType || 'דיווח')}</h4>${comparison.differences.map((diff) => `<div class="attendance-control__diff" data-comparison="${comparison.id}" data-field="${diff.key}"><strong>${escapeHtml(diff.label)}</strong><span>${escapeHtml(txt(diff.attendance) || '—')}</span><span>${escapeHtml(txt(diff.dashboard) || '—')}</span><span>${escapeHtml(diffText(diff))}</span><select class="ds-input ds-input--sm" data-attendance-choice><option value="attendance">נתון הנוכחות</option><option value="dashboard">נתון הדשבורד</option><option value="custom">ערך אחר</option></select><input class="ds-input ds-input--sm" data-attendance-custom hidden aria-label="ערך אחר"></div>`).join('')}</div>`).join('');
+    const details = rows.map((comparison) => {
+      const mismatch = comparison.unmatched || comparison.differences.length > 0;
+      const status = mismatch ? '⚠ אי־התאמה / דורש טיפול' : '✓ תקין';
+      const note = comparison.unmatched ? '<p class="attendance-control__day-note">לא נמצאה שורה תואמת בנתוני הדשבורד.</p>' : '';
+      const choices = comparison.differences.map((diff) => `<div class="attendance-control__diff" data-comparison="${comparison.id}" data-field="${diff.key}"><strong>${escapeHtml(diff.label)}</strong><span>${escapeHtml(txt(diff.attendance) || '—')}</span><span>${escapeHtml(txt(diff.dashboard) || '—')}</span><span>${escapeHtml(diffText(diff))}</span><select class="ds-input ds-input--sm" data-attendance-choice><option value="attendance">נתון הנוכחות</option><option value="dashboard">נתון הדשבורד</option><option value="custom">ערך אחר</option></select><input class="ds-input ds-input--sm" data-attendance-custom hidden aria-label="ערך אחר"></div>`).join('');
+      return `<div class="attendance-control__day attendance-control__day--${mismatch ? 'mismatch' : 'ok'}"><h4><span>${escapeHtml(comparison.attendance.date)} · ${escapeHtml(comparison.attendance.program || comparison.attendance.activityType || 'דיווח')}</span><span class="attendance-control__row-status">${status}</span></h4>${note}${choices}</div>`;
+    }).join('');
     const missing = dashboardOnly.map((entry) => `<div class="attendance-control__dashboard-only" data-dashboard-only="${entry.id}"><div><strong>מופיע בדשבורד ולא נמצא בנוכחות</strong><span>${escapeHtml(entry.dashboard.date)} · ${escapeHtml(entry.dashboard.program || entry.dashboard.activityType || 'פעילות')} · ${escapeHtml(`${entry.dashboard.startTime || '—'}–${entry.dashboard.endTime || '—'}`)}</span></div><select class="ds-input ds-input--sm" data-dashboard-only-choice><option value="leave">להשאיר ללא שינוי</option><option value="add">להוסיף לנתונים הסופיים</option></select></div>`).join('');
-    const gapCount = changed.length + dashboardOnly.length;
-    return `<details class="attendance-control__employee"><summary><strong>${escapeHtml(name)}</strong><span>${gapCount} הבדלים</span></summary><div class="attendance-control__employee-summary"><span>שעות נוכחות <b>${attendanceHours.toFixed(2)}</b></span><span>שעות בדשבורד <b>${dashboardHours.toFixed(2)}</b></span><span>השוני <b>${Math.abs(attendanceHours-dashboardHours).toFixed(2)}</b></span></div>${details}${missing}${gapCount ? '' : '<p class="ds-muted">לא נמצאו הבדלים בנתונים הנבדקים.</p>'}</details>`;
+    const gapCount = rows.filter((row) => row.unmatched || row.differences.length).length + dashboardOnly.length;
+    return `<details class="attendance-control__employee"><summary><strong>${escapeHtml(name)}</strong><span>${gapCount} חריגות</span></summary><div class="attendance-control__employee-summary"><span>שעות נוכחות <b>${attendanceHours.toFixed(2)}</b></span><span>שעות בדשבורד <b>${dashboardHours.toFixed(2)}</b></span><span>השוני <b>${Math.abs(attendanceHours-dashboardHours).toFixed(2)}</b></span></div>${details}${missing}</details>`;
   }).join('');
   const monthSummary = attendanceMonthLabel(month) ? `<span>חודש הבדיקה: <b>${escapeHtml(attendanceMonthLabel(month))}</b></span>` : '';
-  return `<div class="attendance-control__complete"><strong>נמצאו פערים אצל ${totals.different} מדריכים. לחצו על מדריך לפרטים המלאים.</strong></div><div class="attendance-control__metrics">${monthSummary}<span>מדריכים שנבדקו <b>${totals.employees}</b></span><span>פער בשעות <b>${totals.hours}</b></span><span>פער בקילומטרים <b>${totals.km}</b></span><span>פער בהוצאות <b>₪${totals.expenses}</b></span></div>${cards}<button type="button" class="ds-btn ds-btn--primary attendance-control__export" data-attendance-export>ייצוא דוח נוכחות מתוקן</button>`;
+  return `<div class="attendance-control__complete"><strong>נמצאו ${totals.exceptions} חריגות אצל ${totals.different} מדריכים. לחצו על מדריך לפרטים המלאים.</strong></div><div class="attendance-control__metrics">${monthSummary}<span>מדריכים שנבדקו <b>${totals.employees}</b></span><span>חריגות <b>${totals.exceptions}</b></span><span>פער בשעות <b>${totals.hours}</b></span><span>פער בקילומטרים <b>${totals.km}</b></span><span>פער בהוצאות <b>₪${totals.expenses}</b></span></div>${cards}<button type="button" class="ds-btn ds-btn--primary attendance-control__export" data-attendance-export>ייצוא דוח נוכחות מתוקן</button>`;
 }
 
 async function readFile(file) {

@@ -133,6 +133,30 @@ test('population, multiple same-day matching and all six compared fields are pre
   assert.deepEqual(result.comparisons[0].differences.map((item) => item.key), ['startTime', 'endTime', 'program', 'meetingNo', 'kilometers', 'expenses']);
 });
 
+test('results classify matching rows as normal and count only actual row exceptions', () => {
+  const attendance = Array.from({ length: 8 }, (_, index) => ({ employeeId: '10', employeeName: 'דנה', date: `2026-08-${String(index + 1).padStart(2, '0')}`, startTime: '08:00', endTime: '09:00', program: `פעילות ${index + 1}` }));
+  const dashboard = attendance.map((row) => ({ ...row }));
+  dashboard[6] = { ...dashboard[6], endTime: '10:00' };
+  dashboard.pop();
+  const html = resultsHtml(compareAttendanceRows(attendance, dashboard));
+
+  assert.equal((html.match(/✓ תקין/g) || []).length, 6);
+  assert.equal((html.match(/⚠ אי־התאמה \/ דורש טיפול/g) || []).length, 2);
+  assert.match(html, /חריגות <b>2<\/b>/);
+  assert.match(html, /<span>2 חריגות<\/span>/);
+  assert.equal((html.match(/data-attendance-choice/g) || []).length, 1);
+  assert.match(html, /לא נמצאה שורה תואמת בנתוני הדשבורד/);
+});
+
+test('a fully matching row has a normal status and no decision control', () => {
+  const row = { employeeId: '10', employeeName: 'דנה', date: '2026-08-01', startTime: '08:00', endTime: '09:00', program: 'קורס' };
+  const html = resultsHtml(compareAttendanceRows([row], [{ ...row }]));
+  assert.match(html, /attendance-control__day--ok/);
+  assert.match(html, /✓ תקין/);
+  assert.doesNotMatch(html, /data-attendance-choice/);
+  assert.match(html, /חריגות <b>0<\/b>/);
+});
+
 test('attendance, dashboard and manual choices recalculate final work hours', () => {
   const comparison = compareAttendanceRows([{ employeeId: '10', date: '2026-08-01', startTime: '09:00', endTime: '10:00', kilometers: 4 }], [{ employeeId: '10', date: '2026-08-01', startTime: '08:30', endTime: '11:00', kilometers: 7 }]).comparisons[0];
   applyAttendanceChoice(comparison, 'startTime', 'dashboard');
