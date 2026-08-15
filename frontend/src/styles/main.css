@@ -7841,6 +7841,27 @@ select.ds-input {
   grid-column: 1 / -1;
 }
 
+.activity-drawer__gefen-exists {
+  display: inline-flex;
+  align-items: center;
+  align-self: end;
+  gap: 7px;
+  min-height: 34px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--ds-text-secondary);
+  cursor: pointer;
+}
+
+.activity-drawer__gefen-exists input {
+  margin: 0;
+  accent-color: var(--ds-primary, #08758d);
+}
+
+.activity-drawer__gefen-exists input:disabled {
+  cursor: default;
+}
+
 .activity-drawer__label {
   font-size: 0.67rem;
   font-weight: 700;
