@@ -54,23 +54,37 @@ function applyCoordinationStatusFilter(root, status = '') {
       const visible = !selectedStatus || row.dataset.status === selectedStatus;
       row.hidden = !visible;
       row.style.display = visible ? '' : 'none';
-      if (visible) visibleRows += 1;
+      if (!visible) {
+        const item = row.querySelector('[data-coordination-item]');
+        if (item) item.checked = false;
+      } else {
+        visibleRows += 1;
+      }
     });
     const schoolVisible = !selectedStatus || visibleRows > 0;
     school.hidden = !schoolVisible;
     school.style.display = schoolVisible ? '' : 'none';
-    if (!schoolVisible) {
-      const schoolCheckbox = school.querySelector('[data-coordination-school-select]');
-      if (schoolCheckbox) schoolCheckbox.checked = false;
-    }
+    const schoolCheckbox = school.querySelector('[data-coordination-school-select]');
+    if (schoolCheckbox) schoolCheckbox.checked = false;
   });
 }
 
 export function bindCoordinationWorkspace(root, context, { loginHint = '', onChanged = () => {} } = {}) {
   const filter = root.querySelector('[data-coordination-filter]');
   filter?.addEventListener('change', () => applyCoordinationStatusFilter(root, filter.value));
-  root.querySelectorAll('[data-coordination-school-select]').forEach((box) => box.addEventListener('change', () => box.closest('[data-coordination-school]').querySelectorAll('[data-coordination-item]:not(:disabled)').forEach((item) => { item.checked = box.checked; })));
-  root.querySelector('[data-coordination-select-ready]')?.addEventListener('click', () => root.querySelectorAll('[data-coordination-item]:not(:disabled)').forEach((item) => { item.checked = true; }));
+  root.querySelectorAll('[data-coordination-school-select]').forEach((box) => box.addEventListener('change', () => {
+    box.closest('[data-coordination-school]').querySelectorAll('[data-coordination-row]').forEach((row) => {
+      if (row.hidden) return;
+      const item = row.querySelector('[data-coordination-item]:not(:disabled)');
+      if (item) item.checked = box.checked;
+    });
+  }));
+  root.querySelector('[data-coordination-select-ready]')?.addEventListener('click', () => {
+    root.querySelectorAll('[data-coordination-item]').forEach((item) => {
+      const row = item.closest('[data-coordination-row]');
+      item.checked = !item.disabled && row?.dataset.status === COORDINATION_STATUS.READY;
+    });
+  });
   root.querySelector('[data-coordination-prepare]')?.addEventListener('click', async () => {
     const ids = new Set(Array.from(root.querySelectorAll('[data-coordination-item]:checked')).map((item) => item.value));
     const selected = context.items.filter((item) => ids.has(item.activity_row_id));
