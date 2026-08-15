@@ -24,7 +24,13 @@ test('coordination status filter hides non-matching rows and empty school groups
   assert.match(view, /row\.dataset\.status === selectedStatus/);
   assert.match(view, /row\.style\.display = visible \? '' : 'none'/);
   assert.match(view, /school\.style\.display = schoolVisible \? '' : 'none'/);
+  assert.match(view, /if \(!visible\)[\s\S]*item\.checked = false/);
   assert.match(view, /applyCoordinationStatusFilter\(root, filter\.value\)/);
+});
+
+test('coordination selection respects visible rows and ready status only', () => {
+  assert.match(view, /if \(row\.hidden\) return/);
+  assert.match(view, /data-coordination-select-ready[\s\S]*row\?\.dataset\.status === COORDINATION_STATUS\.READY/);
 });
 
 test('Graph helper creates drafts under me with immutable IDs and never requests Mail.Send', () => {
