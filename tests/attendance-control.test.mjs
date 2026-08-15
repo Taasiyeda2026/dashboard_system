@@ -6,7 +6,8 @@ import {
   buildDashboardAttendanceRows, attendanceDateScope, loadAttendanceDashboardDataset,
   attendanceMonthLabel, filterAttendanceRowsByMonth, attendanceExportFilename,
   applyDashboardRouteKilometers, applyDashboardExpenses, compareAttendanceRows, applyAttendanceChoice,
-  setDashboardOnlyChoice, buildCorrectedAttendanceWorkbook, DETAIL_HEADERS, MONTHLY_HEADERS, DAILY_HEADERS
+  setDashboardOnlyChoice, buildCorrectedAttendanceWorkbook, parseAttendanceWorkbook, attendanceAuditSummary,
+  DETAIL_HEADERS, MONTHLY_HEADERS, DAILY_HEADERS
 } from '../frontend/src/screens/attendance-control.js';
 
 test('attendance control asks for one attendance workbook and no dashboard workbook', () => {
@@ -77,6 +78,47 @@ test('dashboard meetings expand for both assigned instructors', () => {
   assert.deepEqual(rows.map((row) => row.meetingNo), [1, 1, 2, 2]);
 });
 
+test('Oshri Ram regression: local Excel dates, duplicate assignments and duplicate meetings stay singular', () => {
+  const sheet = XLSX.utils.aoa_to_sheet([
+    ['מספר עובד', 'שם עובד', 'תאריך', 'שעת התחלה', 'שעת סיום', 'סוג פעילות', 'שם בית ספר', 'רשות', 'שם תכנית'],
+    ['1524', 'אושרי רם', new Date(2026, 4, 25), '08:00', '10:00', 'קורס', 'אלונים', 'חיפה', 'רובוטיקה'],
+    ['1524', 'אושרי רם', new Date(2026, 4, 18), '08:00', '10:00', 'קורס', 'אלונים', 'חיפה', 'רובוטיקה'],
+    ['1524', 'אושרי רם', new Date(2026, 4, 11), '08:00', '10:00', 'קורס', 'אלונים', 'חיפה', 'רובוטיקה']
+  ], { cellDates: true });
+  const workbook = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(workbook, sheet, 'פירוט מלא');
+  assert.deepEqual(parseAttendanceWorkbook(workbook).map((row) => row.date), ['2026-05-25', '2026-05-18', '2026-05-11']);
+
+  const rows = buildDashboardAttendanceRows([{
+    row_id: 'ACT-331e9fdf-3037-41b1-90ba-02a60170d378', emp_id: '1524', emp_id_2: '1524',
+    instructor_name: 'אושרי רם', instructor_name_2: 'אושרי רם', start_time: '08:00', end_time: '10:00',
+    activity_name: 'רובוטיקה', school: 'אלונים', authority: 'חיפה', activity_type: 'קורס',
+    date_5: '2026-05-04', date_6: '2026-05-04'
+  }]);
+  assert.equal(rows.length, 1);
+  assert.equal(calculateWorkHours(rows[0].startTime, rows[0].endTime), 2);
+});
+
+test('Oshri Ram regression: matching has a floor, exposes real fields, and leaves exact rows normal', () => {
+  const base = { employeeId: '1524', employeeName: 'אושרי רם', date: '2026-05-25', startTime: '08:00', endTime: '10:00', school: 'אלונים', authority: 'חיפה', program: 'רובוטיקה', activityType: 'קורס' };
+  const exact = compareAttendanceRows([base], [{ ...base }]);
+  assert.equal(exact.comparisons[0].unmatched, false);
+  assert.equal(exact.comparisons[0].differences.length, 0);
+  assert.match(resultsHtml(exact), /✓ תקין/);
+  assert.doesNotMatch(resultsHtml(exact), /data-attendance-choice/);
+
+  const mismatch = compareAttendanceRows([base], [{ ...base, startTime: '09:00', endTime: '11:00', school: 'הרצל' }]);
+  assert.deepEqual(mismatch.comparisons[0].differences.map((item) => item.key), ['startTime', 'endTime', 'school']);
+  assert.match(resultsHtml(mismatch), /בית ספר/);
+  assert.match(resultsHtml(mismatch), /פער 60 דקות/);
+
+  const badCandidate = compareAttendanceRows([base], [{ ...base, startTime: '14:00', endTime: '16:00', school: 'אחר', authority: 'אחר', program: 'אחר', activityType: 'סיור' }]);
+  assert.equal(badCandidate.comparisons[0].unmatched, true);
+  assert.equal(badCandidate.dashboardOnly.length, 1);
+  const totals = attendanceAuditSummary(badCandidate);
+  assert.equal(totals.unmatchedAttendance, 1);
+  assert.equal(totals.unmatchedDashboard, 1);
+});
+
 test('kilometers reuse cached scheduling route segments across a work day', () => {
   const rows = [{ employeeId: '10', date: '2026-08-01', startTime: '08:00', schoolId: 1 }, { employeeId: '10', date: '2026-08-01', startTime: '11:00', schoolId: 2 }];
   applyDashboardRouteKilometers(rows, [
@@ -120,7 +162,7 @@ test('unmatched dashboard meetings are limited to attendance employees and can b
   assert.equal(detail[2][9], 'שני');
 });
 
-test('population, multiple same-day matching and all six compared fields are preserved', () => {
+test('population, multiple same-day matching and all compared fields are preserved', () => {
   const attendance = [{ employeeId: '10', date: '2026-08-01', startTime: '09:00', endTime: '10:00', program: 'אלפא', school: 'רמב״ם', authority: 'חיפה', activityType: 'קורס', meetingNo: '4', kilometers: 48, expenses: 35 }];
   const dashboard = [
     { employeeId: '10', date: '2026-08-01', startTime: '08:30', endTime: '10:30', program: 'אלפא אחר', school: 'רמבם', authority: 'חיפה', activityType: 'קורס', meetingNo: '5', kilometers: 42, expenses: 0 },
@@ -141,11 +183,12 @@ test('results classify matching rows as normal and count only actual row excepti
   const html = resultsHtml(compareAttendanceRows(attendance, dashboard));
 
   assert.equal((html.match(/✓ תקין/g) || []).length, 6);
-  assert.equal((html.match(/⚠ אי־התאמה \/ דורש טיפול/g) || []).length, 2);
+  assert.equal((html.match(/⚠ אי־התאמה בנתונים \/ דורש טיפול/g) || []).length, 1);
+  assert.equal((html.match(/⚠ לא נמצאה פעילות תואמת/g) || []).length, 1);
   assert.match(html, /חריגות <b>2<\/b>/);
   assert.match(html, /<span>2 חריגות<\/span>/);
   assert.equal((html.match(/data-attendance-choice/g) || []).length, 1);
-  assert.match(html, /לא נמצאה שורה תואמת בנתוני הדשבורד/);
+  assert.match(html, /אף מועמד לא עבר את סף ההתאמה/);
 });
 
 test('a fully matching row has a normal status and no decision control', () => {
@@ -158,7 +201,7 @@ test('a fully matching row has a normal status and no decision control', () => {
 });
 
 test('attendance, dashboard and manual choices recalculate final work hours', () => {
-  const comparison = compareAttendanceRows([{ employeeId: '10', date: '2026-08-01', startTime: '09:00', endTime: '10:00', kilometers: 4 }], [{ employeeId: '10', date: '2026-08-01', startTime: '08:30', endTime: '11:00', kilometers: 7 }]).comparisons[0];
+  const comparison = compareAttendanceRows([{ employeeId: '10', date: '2026-08-01', startTime: '09:00', endTime: '10:00', program: 'קורס', school: 'אלונים', kilometers: 4 }], [{ employeeId: '10', date: '2026-08-01', startTime: '08:30', endTime: '11:00', program: 'קורס', school: 'אלונים', kilometers: 7 }]).comparisons[0];
   applyAttendanceChoice(comparison, 'startTime', 'dashboard');
   applyAttendanceChoice(comparison, 'endTime', 'custom', '10:30');
   applyAttendanceChoice(comparison, 'kilometers', 'attendance');
