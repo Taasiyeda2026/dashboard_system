@@ -29,6 +29,17 @@ test('coordination PDF removes internal numbering fields and uses a small left-s
   assert.match(renderer, /logo: \{ width: 44/);
 });
 
+test('coordination PDF recipient header keeps contact and role together, omits phone, then shows school and authority before title', () => {
+  assert.match(renderer, /const recipient = \[clean\(snapshot\.contact\.name\), clean\(snapshot\.contact\.role\)\]\.filter\(Boolean\)\.join\(', '\)/);
+  assert.match(renderer, /const schoolAuthority = \[clean\(snapshot\.school\.name\), clean\(snapshot\.school\.authority\)\]\.filter\(Boolean\)\.join\('  \|  '\)/);
+  assert.match(renderer, /recipient \? h\(Text, \{ style: styles\.contactLine \}, recipient\) : null/);
+  assert.match(renderer, /`בית הספר: \$\{schoolAuthority\}`/);
+  assert.doesNotMatch(renderer, /snapshot\.contact\.phone\).*styles\.plain/);
+  const schoolLineIndex = renderer.indexOf('`בית הספר: ${schoolAuthority}`');
+  const titleIndex = renderer.indexOf("'סיכום תיאום פעילות'");
+  assert.ok(schoolLineIndex > -1 && titleIndex > schoolLineIndex);
+});
+
 test('coordination PDF highlights use compact right-side RTL bullets', () => {
   assert.match(renderer, /highlight: \{ flexDirection: 'row-reverse', alignItems: 'flex-start', marginBottom: 2 \}/);
   assert.match(renderer, /highlightBullet: \{ width: 8, marginLeft: 4/);
