@@ -669,6 +669,36 @@ select {
   pointer-events: auto;
 }
 
+.ds-secondary-drawer {
+  position: fixed;
+  inset-block: 0;
+  inset-inline-end: min(96vw, 460px);
+  z-index: 81;
+  width: min(88vw, 380px);
+  display: flex;
+  flex-direction: column;
+  background: var(--ds-surface);
+  border-inline-end: 1px solid var(--ds-border);
+  box-shadow: -8px 0 24px rgba(15, 23, 42, .16);
+  transform: translateX(104%);
+  opacity: 0;
+  pointer-events: none;
+  transition: transform .2s ease, opacity .2s ease;
+}
+
+.ds-ui-layer.is-secondary-drawer-open .ds-secondary-drawer {
+  transform: translateX(0);
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.ds-secondary-drawer__title { margin: 0; font-size: 1rem; }
+.ds-secondary-drawer__content { flex: 1; overflow-y: auto; padding: var(--ds-space-4); }
+
+@media (max-width: 840px) {
+  .ds-secondary-drawer { inset-inline-end: 0; width: min(92vw, 380px); z-index: 82; }
+}
+
 .ds-drawer__header {
   display: flex;
   align-items: center;
@@ -8595,13 +8625,6 @@ select.ds-input {
   white-space: nowrap;
 }
 
-/* Pipe separator between progress meta and end-date */
-.activity-drawer__section--course-dates [data-dates-progress-meta]::after {
-  content: " |";
-  color: #cbd5e1;
-  font-weight: 400;
-  margin-inline-start: 8px;
-}
 
 /* First span = "X מתוך Y מפגשים" */
 [data-dates-progress-meta] span:first-child {
@@ -8631,11 +8654,11 @@ select.ds-input {
   background: linear-gradient(90deg, #6366f1, #22c55e) !important;
 }
 
-/* End date: compact inline */
+/* Start/end dates belong to the progress flow, each on a full row. */
 .activity-drawer__section--course-dates .activity-drawer__end-date {
   display: flex;
-  flex-direction: row;
-  align-items: center;
+  flex-direction: column;
+  align-items: stretch;
   justify-content: flex-start;
   gap: 4px;
   padding: 0 !important;
@@ -8677,13 +8700,26 @@ select.ds-input {
 .activity-drawer__section--course-dates .activity-drawer__progress-row {
   display: grid;
   grid-template-areas:
-    "meta end-date"
-    "bar  bar";
-  grid-template-columns: 1fr auto;
-  gap: 6px 12px;
+    "meta"
+    "bar"
+    "end-date";
+  grid-template-columns: 1fr;
+  gap: 7px;
   margin-bottom: 10px;
   align-items: center;
 }
+
+.activity-drawer__date-boundary { display: flex; align-items: baseline; gap: 4px; width: 100%; }
+
+.activity-drawer__actions-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 0;
+  padding-block: 2px;
+}
+
+.activity-scheduling-fields { padding-block: 6px; }
 
 .activity-drawer__section--course-dates .activity-drawer__progress {
   display: contents;

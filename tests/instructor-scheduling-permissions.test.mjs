@@ -78,11 +78,14 @@ test('clearing activity filters restores assignment filter to all', () => {
   assert.match(source, /onClear: \(\) => \{[\s\S]*state\.allActivitiesStatusFilter = 'all'/);
 });
 
-test('workflow exposes only requirements save controls', () => {
+test('scheduling requirements remain ordinary edit fields without a separate drawer action', () => {
   assert.match(workflow, /דרישות שיבוץ/);
   assert.match(workflow, /שמירת דרישות השיבוץ/);
   assert.match(workflow, /data-save-scheduling-requirements/);
-  assert.match(detailHtml, /data-find-instructor>דרישות שיבוץ</);
+  assert.match(detailHtml, /data-scheduling-fields/);
+  assert.match(detailHtml, /name="required_instructor_gender"/);
+  assert.match(detailHtml, /name="instruction_language"/);
+  assert.doesNotMatch(detailHtml, /data-find-instructor/);
   assert.doesNotMatch(detailHtml, /ניהול שיבוץ/);
   assert.doesNotMatch(workflow, /שמירה כטיוטה|data-save-assignment-draft/);
   assert.doesNotMatch(workflow, /מדריכים חסומים|מדריכים מותרים בלבד|הערת שיבוץ פנימית/);

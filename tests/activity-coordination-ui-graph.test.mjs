@@ -7,9 +7,11 @@ const api = await readFile(new URL('../frontend/src/api.js', import.meta.url), '
 const graph = await readFile(new URL('../frontend/src/microsoft/graph-mail.js', import.meta.url), 'utf8');
 const photo = await readFile(new URL('../supabase/functions/activity-coordination-photo-approval/index.ts', import.meta.url), 'utf8');
 
-test('2027 activities expose coordination tab and column in the required order', () => {
+test('2027 activities keep the coordination workspace but remove the permanent table column', () => {
   assert.match(activities, /ACTIVITIES_INNER_TAB_2027, label: 'פעילויות תשפ״ז'[\s\S]*ACTIVITIES_INNER_TAB_COORDINATION, label: 'אישורי תיאום'[\s\S]*ACTIVITIES_INNER_TAB_ARCHIVE/);
-  assert.match(activities, /<th>איש קשר<\/th><th>אישור תיאום<\/th><th>תאריך התחלה<\/th>/);
+  assert.match(activities, /<th>איש קשר<\/th><th>תאריך התחלה<\/th>/);
+  assert.doesNotMatch(activities, /<th>אישור תיאום<\/th>/);
+  assert.match(activities, /data-coordination-approval[\s\S]*openSecondaryDrawer/);
 });
 
 test('activities list projection includes activity_no for syllabus preparation matching', () => {

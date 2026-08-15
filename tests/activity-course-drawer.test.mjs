@@ -18,7 +18,7 @@ const settings = {
   }
 };
 
-test('course drawer keeps polished dates, meeting notes, and independent scheduling requirements', () => {
+test('course drawer keeps polished dates, meeting notes, edit-only scheduling fields, and coordination action', () => {
   const html = activityWorkDrawerHtml({
     id: 'activity-1',
     row_id: '1',
@@ -51,6 +51,9 @@ test('course drawer keeps polished dates, meeting notes, and independent schedul
   assert.match(html, /תאריך התחלה:[\s\S]*09\/09\/2026[\s\S]*תאריך סיום:[\s\S]*06\/01\/2027/);
   const boundaries = [...rendered.querySelectorAll('.activity-drawer__date-boundary')];
   assert.deepEqual(boundaries.map((node) => node.textContent.trim().split(':')[0]), ['תאריך התחלה', 'תאריך סיום']);
+  const progressRow = rendered.querySelector('.activity-drawer__progress-row');
+  assert.ok(progressRow.querySelector('.activity-drawer__progress-track').compareDocumentPosition(boundaries[0]) & 4);
+  assert.ok(boundaries[0].compareDocumentPosition(boundaries[1]) & 4);
 
   const cards = [...rendered.querySelectorAll('[data-dates-view-chips] [data-date-card]')];
   assert.equal(cards.length, 2);
@@ -62,11 +65,16 @@ test('course drawer keeps polished dates, meeting notes, and independent schedul
   assert.doesNotMatch(cards[0].textContent, /להביא ערכות/);
   assert.equal(rendered.querySelectorAll('[data-meeting-note-idx]').length, 3);
 
-  const scheduling = rendered.querySelector('[data-scheduling-summary]');
-  assert.ok(scheduling);
-  assert.match(scheduling.textContent, /דרישות שיבוץ/);
-  assert.ok(scheduling.querySelector('[data-find-instructor]'));
-  assert.doesNotMatch(scheduling.textContent, /מדריך\/ה|טרם שובץ/);
+  assert.equal(rendered.querySelector('[data-scheduling-summary]'), null);
+  assert.equal(rendered.querySelector('[data-find-instructor]'), null);
+  const schedulingFields = rendered.querySelector('[data-scheduling-fields]');
+  assert.ok(schedulingFields);
+  assert.equal(schedulingFields.getAttribute('data-mode'), 'edit');
+  assert.ok(schedulingFields.querySelector('[name="required_instructor_gender"]'));
+  assert.ok(schedulingFields.querySelector('[name="instruction_language"]'));
+  const actions = rendered.querySelector('[data-activity-actions]');
+  assert.ok(actions.querySelector('[data-coordination-approval]'));
+  assert.equal(actions.textContent.trim(), 'אישור תיאום');
 });
 
 test('participant-supporting activity retains its participant count', () => {

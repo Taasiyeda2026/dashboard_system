@@ -18,6 +18,14 @@ const HOST_MARKUP = `
         <div class="ds-drawer__content"></div>
       </aside>
 
+      <aside class="ds-secondary-drawer" aria-hidden="true" aria-label="חלונית צד משנית">
+        <header class="ds-drawer__header">
+          <h2 class="ds-secondary-drawer__title"></h2>
+          <button type="button" class="ds-icon-btn" data-ui-close-secondary-drawer aria-label="סגירת חלונית משנית">✕</button>
+        </header>
+        <div class="ds-secondary-drawer__content"></div>
+      </aside>
+
       <section class="ds-modal" aria-hidden="true" aria-label="חלון פעולה קצרה" role="dialog" aria-modal="true">
         <header class="ds-modal__header">
           <h2 class="ds-modal__title"></h2>
@@ -62,6 +70,7 @@ export function createSharedInteractionLayer() {
   let host = null;
   let drawerOpen = false;
   let modalOpen = false;
+  let secondaryDrawerOpen = false;
   let onDrawerClose = null;
   let onModalClose = null;
   // Track the element that had focus when the drawer/modal was opened,
@@ -73,6 +82,10 @@ export function createSharedInteractionLayer() {
     if (event.key !== 'Escape') return;
     if (modalOpen) {
       closeModal();
+      return;
+    }
+    if (secondaryDrawerOpen) {
+      closeSecondaryDrawer();
       return;
     }
     if (drawerOpen) closeDrawer();
@@ -89,6 +102,10 @@ export function createSharedInteractionLayer() {
     if (!(target instanceof Element)) return;
     if (target.closest('[data-ui-close-drawer]')) {
       closeDrawer();
+      return;
+    }
+    if (target.closest('[data-ui-close-secondary-drawer]')) {
+      closeSecondaryDrawer();
       return;
     }
     if (target.closest('[data-ui-close-modal]')) {
@@ -161,6 +178,7 @@ export function createSharedInteractionLayer() {
     if (!host || !document.body.contains(host)) return;
     host.classList.toggle('is-drawer-open', drawerOpen);
     host.classList.toggle('is-modal-open', modalOpen);
+    host.classList.toggle('is-secondary-drawer-open', secondaryDrawerOpen);
     setBackdropVisible(drawerOpen || modalOpen);
   }
 
@@ -214,6 +232,7 @@ export function createSharedInteractionLayer() {
     const drawer = host.querySelector('.ds-drawer');
     if (!drawer) return;
 
+    closeSecondaryDrawer();
     drawerOpen = false;
     // Return focus before aria-hiding to avoid "Blocked aria-hidden" browser warnings.
     if (drawer.contains(document.activeElement)) {
@@ -235,6 +254,29 @@ export function createSharedInteractionLayer() {
     } finally {
       syncLayerClasses();
     }
+  }
+
+  function openSecondaryDrawer({ title = '', content = '', onOpen } = {}) {
+    if (!drawerOpen) return;
+    const root = ensureHost();
+    const drawer = root.querySelector('.ds-secondary-drawer');
+    const titleNode = root.querySelector('.ds-secondary-drawer__title');
+    const contentNode = root.querySelector('.ds-secondary-drawer__content');
+    if (!drawer || !titleNode || !contentNode) return;
+    titleNode.innerHTML = defaultDrawerTitle(title);
+    contentNode.innerHTML = asHtml(content);
+    secondaryDrawerOpen = true;
+    drawer.setAttribute('aria-hidden', 'false');
+    syncLayerClasses();
+    if (typeof onOpen === 'function') onOpen(contentNode);
+  }
+
+  function closeSecondaryDrawer() {
+    if (!secondaryDrawerOpen) return;
+    secondaryDrawerOpen = false;
+    const drawer = host?.querySelector('.ds-secondary-drawer');
+    if (drawer) drawer.setAttribute('aria-hidden', 'true');
+    syncLayerClasses();
   }
 
   function clearModalVariant(modal) {
@@ -326,6 +368,7 @@ export function createSharedInteractionLayer() {
   function closeAll() {
     const root = ensureHost();
     closeModal();
+    closeSecondaryDrawer();
     closeDrawer();
     drawerOpen = false;
     modalOpen = false;
@@ -360,6 +403,8 @@ export function createSharedInteractionLayer() {
   sharedInteractionLayer = {
     openDrawer,
     closeDrawer,
+    openSecondaryDrawer,
+    closeSecondaryDrawer,
     openModal,
     closeModal,
     closeAll,
@@ -369,6 +414,9 @@ export function createSharedInteractionLayer() {
     },
     get isModalOpen() {
       return modalOpen;
+    },
+    get isSecondaryDrawerOpen() {
+      return secondaryDrawerOpen;
     }
   };
   return sharedInteractionLayer;

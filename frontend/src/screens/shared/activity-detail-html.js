@@ -1242,11 +1242,13 @@ function singleForm(row, { settings = {}, privateNote = null, canEdit = false, c
       ${isOnce && showDates
         ? `<div class="activity-drawer__once-dates-row" data-once-dates-row>${blockDates(row, { canEdit, canDirectEdit, datesLoading, is2027 })}</div>`
         : (showDates ? blockDates(row, { canEdit, canDirectEdit, datesLoading, is2027 }) : '')}
+      ${is2027 ? `<div class="activity-drawer__actions-row" data-activity-actions>
+        <button type="button" class="ds-btn ds-btn--sm" data-coordination-approval>אישור תיאום</button>
+      </div>` : ''}
+      ${schedulingEligible ? `<div class="activity-scheduling-fields" data-mode="edit" hidden data-scheduling-fields>
+        <div class="activity-scheduling-summary__fields"><label>דרישת מגדר (לא חובה)<select class="ds-input" name="required_instructor_gender"><option value="any">ללא דרישה</option><option value="female"${(row.required_instructor_gender || 'any') === 'female' ? ' selected' : ''}>מדריכה</option><option value="male"${(row.required_instructor_gender || 'any') === 'male' ? ' selected' : ''}>מדריך</option></select></label><label>שפת הדרכה (לא חובה)<select class="ds-input" name="instruction_language"><option value="he"${(row.instruction_language || 'he') === 'he' ? ' selected' : ''}>עברית</option><option value="ar"${row.instruction_language === 'ar' ? ' selected' : ''}>ערבית</option></select></label></div>
+      </div>` : ''}
       ${blockNotes(row, { hidden: instructorLimited })}
-      ${schedulingEligible ? `<section class="activity-drawer__section activity-scheduling-summary" data-scheduling-summary>
-        <div class="activity-scheduling-summary__head"><h3 class="activity-drawer__section-title">דרישות שיבוץ</h3>${canSchedule ? '<button type="button" class="ds-btn ds-btn--primary" data-find-instructor>פתיחת דרישות שיבוץ</button>' : ''}</div>
-        <div data-mode="edit" hidden><p class="ds-muted">שני השדות אינם חובה.</p><div class="activity-scheduling-summary__fields"><label>דרישת מגדר (לא חובה)<select class="ds-input" name="required_instructor_gender"><option value="any">ללא דרישה</option><option value="female"${(row.required_instructor_gender || 'any') === 'female' ? ' selected' : ''}>מדריכה</option><option value="male"${(row.required_instructor_gender || 'any') === 'male' ? ' selected' : ''}>מדריך</option></select></label><label>שפת הדרכה (לא חובה)<select class="ds-input" name="instruction_language"><option value="he"${(row.instruction_language || 'he') === 'he' ? ' selected' : ''}>עברית</option><option value="ar"${row.instruction_language === 'ar' ? ' selected' : ''}>ערבית</option></select></label></div></div>
-      </section>` : ''}
       ${blockPrivateNote(row, { privateNote, showPrivateNote })}
       ${blockActivityDetails(row, { settings })}
       ${blockAssignment(row, { settings })}
