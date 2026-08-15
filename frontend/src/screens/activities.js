@@ -62,7 +62,7 @@ import { showToast } from './shared/toast.js';
 import { canEditDirect, canAddActivityDirect, canRequestEdit, canRequestCreateActivity, canReviewRequests } from '../permissions.js';
 import { bindInstructorScheduling } from './instructor-scheduling-workflow.js';
 import { loadActivityCoordinationContext } from '../activity-coordination/data.js';
-import { bindCoordinationWorkspace, coordinationDrawerActionHtml, reconcileVisibleDrafts, renderCoordinationWorkspace } from '../activity-coordination/view.js';
+import { bindCoordinationActivityModal, bindCoordinationWorkspace, coordinationDrawerActionHtml, reconcileVisibleDrafts, renderCoordinationActivityModal, renderCoordinationWorkspace } from '../activity-coordination/view.js';
 const taasiyedaLogoSrc = new URL('../../assets/logo1.png', import.meta.url).href;
 
 const inflightActivityDetailRequests = new Map();
@@ -2600,14 +2600,23 @@ export const activitiesScreen = {
         const form = event.currentTarget.closest('[data-drawer-form]');
         const rowId = String(form?.dataset.rowId || '');
         const item = state.activityCoordination?.byActivityId?.get?.(rowId);
-        const context = { items: item ? [item] : [] };
-        ui.openSecondaryDrawer?.({
+        ui.openModal?.({
           title: 'אישור תיאום',
-          content: item
-            ? renderCoordinationWorkspace(context, { canManage: canDirectManageActivities(state) })
-            : '<p class="ds-muted">לא נמצאו נתוני אישור תיאום לפעילות זו.</p>',
-          onOpen: (secondaryRoot) => {
-            if (item) bindCoordinationWorkspace(secondaryRoot, context, { loginHint: state?.user?.email || '', onChanged: rerender });
+          content: renderCoordinationActivityModal(item),
+          modalClass: 'ds-modal--coordination-activity',
+          keepDrawerOpen: true
+        });
+        const modalRoot = document.querySelector('.ds-modal__content');
+        if (item && modalRoot) bindCoordinationActivityModal(modalRoot, item, {
+          loginHint: state?.user?.email || '',
+          onChanged: async () => {
+            state.activityCoordination = await loadActivityCoordinationContext(data?.rows || [], state.clientSettings || {});
+            const updated = state.activityCoordination?.byActivityId?.get?.(rowId);
+            modalRoot.innerHTML = renderCoordinationActivityModal(updated);
+            if (updated) bindCoordinationActivityModal(modalRoot, updated, { loginHint: state?.user?.email || '' });
+            const action = contentRoot.querySelector('[data-activity-actions]');
+            if (action && updated) action.innerHTML = coordinationDrawerActionHtml(updated);
+            rerender();
           }
         });
       });

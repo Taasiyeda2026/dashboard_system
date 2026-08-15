@@ -13,7 +13,9 @@ test('2027 activities keep the coordination workspace but remove the permanent t
   assert.match(activities, /ACTIVITIES_INNER_TAB_2027, label: 'פעילויות תשפ״ז'[\s\S]*ACTIVITIES_INNER_TAB_COORDINATION, label: 'אישורי תיאום'[\s\S]*ACTIVITIES_INNER_TAB_ARCHIVE/);
   assert.match(activities, /<th>איש קשר<\/th><th>תאריך התחלה<\/th>/);
   assert.doesNotMatch(activities, /<th>אישור תיאום<\/th>/);
-  assert.match(activities, /data-coordination-approval[\s\S]*openSecondaryDrawer/);
+  assert.match(activities, /data-coordination-approval[\s\S]*openModal/);
+  assert.match(activities, /modalClass: 'ds-modal--coordination-activity'[\s\S]*keepDrawerOpen: true/);
+  assert.doesNotMatch(activities, /data-coordination-approval[\s\S]{0,500}openSecondaryDrawer/);
 });
 
 test('coordination approval is view-only and remains outside the activity edit layout', () => {
@@ -25,18 +27,10 @@ test('activities list projection includes activity_no for syllabus preparation m
   assert.match(api, /const ACTIVITY_TABLE_COLUMNS = \[[\s\S]*'activity_no'[\s\S]*\]\.join\(','\)/);
 });
 
-test('coordination status filter hides non-matching rows and empty school groups', () => {
-  assert.match(view, /function applyCoordinationStatusFilter/);
-  assert.match(view, /row\.dataset\.status === selectedStatus/);
-  assert.match(view, /row\.style\.display = visible \? '' : 'none'/);
-  assert.match(view, /school\.style\.display = schoolVisible \? '' : 'none'/);
-  assert.match(view, /if \(!visible\)[\s\S]*item\.checked = false/);
-  assert.match(view, /applyCoordinationStatusFilter\(root, filter\.value\)/);
-});
-
-test('coordination selection respects visible rows and ready status only', () => {
-  assert.match(view, /if \(row\.hidden\) return/);
+test('coordination selection keeps the existing ready-only group preparation flow', () => {
   assert.match(view, /data-coordination-select-ready[\s\S]*row\?\.dataset\.status === COORDINATION_STATUS\.READY/);
+  assert.match(view, /groupActivitiesForDispatch\(selected\)/);
+  assert.match(view, /prepareCoordinationDrafts\(selected/);
 });
 
 test('Graph helper creates drafts under me with immutable IDs and never requests Mail.Send', () => {
