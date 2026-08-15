@@ -96,7 +96,7 @@ const styles = StyleSheet.create({
   managerLine: { textAlign: 'right', marginTop: 7, marginBottom: 2 },
   highlights: { marginTop: 3 },
   highlight: { flexDirection: 'row', direction: 'rtl', alignItems: 'flex-start', marginBottom: 6 },
-  highlightNumber: { width: 18, marginLeft: 5, fontWeight: 600, textAlign: 'right', direction: 'ltr' },
+  highlightBullet: { width: 12, marginLeft: 5, fontWeight: 600, textAlign: 'right', direction: 'rtl' },
   highlightText: { flex: 1, textAlign: 'right', direction: 'rtl', lineHeight: 1.3 },
   footer: {
     position: 'absolute',
@@ -110,7 +110,7 @@ const styles = StyleSheet.create({
 });
 
 const highlights = [
-  'במפגשים שבהם נדרשת כיתת מחשבים, מעבדה, מקרן, חיבור לאינטרנט או ציוד ייעודי אחר, יש לוודא מראש כי הציוד זמין, תקין ומוכן לשימוש.',
+  'במפגשים שבהם נדרשת כיתת מחשבים, מקרן או חיבור לאינטרנט, יש להיערך מראש ולוודא כי הציוד זמין, תקין ומוכן לשימוש.',
   'במהלך המפגשים נדרשת נוכחות של איש/אשת צוות חינוכי מטעם בית הספר.',
   'כל שינוי במועד, בשעה או במתכונת הפעילות יש לתאם מראש עם תעשיידע ורצוי לפחות 3 ימי עבודה מראש. ביטול או שינוי פחות מ-48 שעות לפני המפגש יחייב אישור בכתב של מנהל/ת בית הספר ויטופל בהתאם להזמנה המאושרת ולהוראות הגפ"ן.'
 ];
@@ -231,8 +231,8 @@ function activityPages(snapshot, programIndex, totalPrograms, logo) {
         manager ? h(Text, { style: styles.managerLine }, `מנהל/ת הפעילות מטעם תעשיידע: ${manager}`) : null,
         h(Text, { style: styles.sectionTitle }, 'דגשים לפעילות'),
         h(View, { style: styles.highlights },
-          ...highlights.map((value, index) => h(View, { key: value, style: styles.highlight, wrap: false },
-            h(Text, { style: styles.highlightNumber }, `${index + 1}.`),
+          ...highlights.map((value) => h(View, { key: value, style: styles.highlight, wrap: false },
+            h(Text, { style: styles.highlightBullet }, '•'),
             h(Text, { style: styles.highlightText }, value)
           ))
         )

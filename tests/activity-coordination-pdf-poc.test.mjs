@@ -29,11 +29,17 @@ test('coordination PDF removes internal numbering fields and uses a small left-s
   assert.match(renderer, /logo: \{ width: 44/);
 });
 
-test('coordination PDF list numbering is laid out once in RTL without double reversal', () => {
+test('coordination PDF highlights use RTL bullets instead of numeric numbering', () => {
   assert.match(renderer, /highlight: \{ flexDirection: 'row', direction: 'rtl'/);
-  assert.match(renderer, /highlightNumber:[\s\S]*direction: 'ltr'/);
-  assert.match(renderer, /highlightText:[\s\S]*direction: 'rtl'/);
-  assert.doesNotMatch(renderer, /highlight: \{ flexDirection: 'row-reverse'/);
+  assert.match(renderer, /highlightBullet:[\s\S]*textAlign: 'right'/);
+  assert.match(renderer, /highlightText:[\s\S]*textAlign: 'right'[\s\S]*direction: 'rtl'/);
+  assert.match(renderer, /h\(Text, \{ style: styles\.highlightBullet \}, '•'\)/);
+  assert.doesNotMatch(renderer, /highlightNumber|\$\{index \+ 1\}\. /);
+});
+
+test('coordination PDF uses the approved first preparation sentence', () => {
+  assert.match(renderer, /במפגשים שבהם נדרשת כיתת מחשבים, מקרן או חיבור לאינטרנט, יש להיערך מראש ולוודא כי הציוד זמין, תקין ומוכן לשימוש\./);
+  assert.doesNotMatch(renderer, /מעבדה, מקרן, חיבור לאינטרנט או ציוד ייעודי אחר/);
 });
 
 test('fifteen meetings without preparation stay together instead of creating a two-row continuation page', () => {
