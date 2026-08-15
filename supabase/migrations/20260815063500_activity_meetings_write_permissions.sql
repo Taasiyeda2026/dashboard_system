@@ -1,6 +1,9 @@
 -- Allow the same users who can edit activities directly to persist per-meeting notes.
 -- The frontend upserts activity_meetings rows, so authenticated direct editors need
 -- INSERT/UPDATE table privileges, sequence usage for new rows, and matching RLS policies.
+-- Keep RLS explicit here so a fresh environment is protected before write grants apply.
+
+alter table public.activity_meetings enable row level security;
 
 grant insert, update on table public.activity_meetings to authenticated;
 grant usage, select on sequence public.activity_meetings_id_seq to authenticated;

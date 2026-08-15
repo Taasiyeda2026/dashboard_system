@@ -157,14 +157,33 @@ export function polishActivityDrawerEditOptions(form, settings = {}) {
   guardInitialValueRefreshWhileEditing(form);
 
   const typeSelect = form.querySelector('[name="activity_type"]');
+  if (typeSelect && !form.dataset.activityNameType) {
+    form.dataset.activityNameType = normalizeActivityTypeKey(typeSelect.value);
+  }
   typeSelect?.addEventListener('change', () => {
+    const nextType = normalizeActivityTypeKey(typeSelect.value);
+    const previousType = normalizeActivityTypeKey(form.dataset.activityNameType);
+    if (nextType === previousType) return;
+
+    // A genuine type change must not carry a legacy name/activity_no into the
+    // new type. Clear both the live controls and every row fallback before the
+    // polished catalog is rebuilt. The shared type marker is advanced only
+    // after this reset, so the second form-level listener safely no-ops.
     const nameSelect = form.querySelector('[data-role="activity-name-select"], [name="activity_name"]');
     if (nameSelect) nameSelect.value = '';
+    const activityNoInput = form.querySelector('[name="activity_no"], [data-activity-no]');
+    if (activityNoInput) activityNoInput.value = '';
     rebuildActivityNameSelect(form, settings, {
       ...row,
-      activity_type: typeSelect.value,
-      activity_name: ''
+      activity_type: nextType,
+      item_type: nextType,
+      activity_name: '',
+      program_name: '',
+      title: '',
+      name: '',
+      activity_no: ''
     });
+    form.dataset.activityNameType = nextType;
   });
 
   form.addEventListener('click', (event) => {
