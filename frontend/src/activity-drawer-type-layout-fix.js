@@ -158,6 +158,7 @@ function markFieldKeys(form) {
     ['כיתה / קבוצה', 'class-group'],
     ['שעות', 'hours'],
     ['מימון', 'funding'],
+    ['גורם מימון', 'funding'],
     ['מחיר', 'price'],
     ['מספר משתתפים', 'participants']
   ]);
