@@ -22,6 +22,7 @@ test.after(() => {
   delete global.sessionStorage;
   delete global.Element;
   delete global.HTMLElement;
+  setImmediate(() => process.exit(process.exitCode || 0));
 });
 
 function trackedApi(calls) {
