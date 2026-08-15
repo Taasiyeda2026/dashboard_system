@@ -72,6 +72,9 @@ test('workspace keeps missing on one side and ready plus sent together on the ot
   assert.equal((html.match(/data-coordination-school-select/g) || []).length, 1);
   assert.equal((html.match(/data-coordination-item/g) || []).length, 1);
   assert.match(columns.children[1].innerHTML, /data-coordination-select-ready[\s\S]*data-coordination-prepare/);
+  assert.match(html, />סמן מוכנים<\/button>/);
+  assert.match(html, />שליחת מוכנים<\/button>/);
+  assert.doesNotMatch(html, /בחר את כל המוכנים לשליחה|הכנת מיילים נבחרים/);
 
   bindCoordinationWorkspace(root, context);
   root.querySelector('[data-coordination-select-ready]').click();
