@@ -18,6 +18,47 @@ const MISSING_LABELS = Object.freeze({
   instructor: 'מדריך/ה'
 });
 
+const OUTLOOK_DRAFTS_URL = 'https://outlook.office.com/mail/drafts';
+
+export function preparedCoordinationDraftLink(result = {}) {
+  return String(
+    result?.value?.draft?.webLink
+    || result?.value?.dispatch?.graph_web_link
+    || result?.value?.dispatch?.webLink
+    || ''
+  ).trim();
+}
+
+export function openCoordinationDraftPlaceholder(windowRef = globalThis) {
+  const popup = windowRef?.open?.('about:blank', '_blank');
+  if (!popup) return null;
+  try {
+    popup.opener = null;
+    popup.document.title = 'מכין אישור תיאום';
+    popup.document.body.setAttribute('dir', 'rtl');
+    popup.document.body.style.fontFamily = 'Arial, sans-serif';
+    popup.document.body.style.padding = '32px';
+    popup.document.body.textContent = 'מכין את טיוטת אישור התיאום ב-Outlook…';
+  } catch (_) {}
+  return popup;
+}
+
+export function revealCoordinationDraft(result, popup, windowRef = globalThis) {
+  const link = preparedCoordinationDraftLink(result) || OUTLOOK_DRAFTS_URL;
+  if (popup && !popup.closed) {
+    try {
+      popup.location.href = link;
+      return link;
+    } catch (_) {}
+  }
+  try { windowRef?.open?.(link, '_blank'); } catch (_) {}
+  return link;
+}
+
+function closeCoordinationDraftPlaceholder(popup) {
+  try { if (popup && !popup.closed) popup.close(); } catch (_) {}
+}
+
 export function coordinationUiStatus(item = {}) {
   if ([COORDINATION_STATUS.SENT, COORDINATION_STATUS.CHANGED_SINCE_SENT].includes(item.status)) return COORDINATION_STATUS.SENT;
   if (!item.readiness?.ready || item.technical_blocker) return COORDINATION_STATUS.MISSING_DETAILS;
@@ -121,13 +162,17 @@ export function bindCoordinationWorkspace(root, context, { loginHint = '', onCha
     const groups = groupActivitiesForDispatch(selected);
     if (!selected.length) return;
     if (!globalThis.confirm(`יוכנו ${groups.length} מיילים עבור ${selected.length} פעילויות. להמשיך?`)) return;
+    const draftWindow = openCoordinationDraftPlaceholder();
     const progress = root.querySelector('[data-coordination-progress]');
     const { prepareCoordinationDrafts } = await import('./outlook.js');
     const results = await prepareCoordinationDrafts(selected, { loginHint, onProgress: ({ current, total }) => { progress.textContent = `מכין מיילים ${current} מתוך ${total}`; } });
     const succeeded = results.filter((item) => item.ok && !item.value?.existing).length;
     const skipped = results.filter((item) => item.ok && item.value?.existing).length;
     const failed = results.filter((item) => !item.ok).length;
-    progress.textContent = `נוצרו ${succeeded} טיוטות · ${skipped} דולגו · ${failed} נכשלו`;
+    const firstSuccessful = results.find((result) => result.ok);
+    if (firstSuccessful) revealCoordinationDraft(firstSuccessful, draftWindow);
+    else closeCoordinationDraftPlaceholder(draftWindow);
+    progress.textContent = `נוצרו ${succeeded} טיוטות · ${skipped} דולגו · ${failed} נכשלו${firstSuccessful ? ' · הטיוטה הראשונה נפתחה ב-Outlook' : ''}`;
     await onChanged(results);
   });
 }
@@ -153,6 +198,7 @@ export function bindCoordinationActivityModal(root, item, { loginHint = '', onCh
   root.querySelector('[data-coordination-modal-prepare]')?.addEventListener('click', async (event) => {
     const button = event.currentTarget;
     const progress = root.querySelector('[data-coordination-modal-progress]');
+    const draftWindow = openCoordinationDraftPlaceholder();
     button.disabled = true;
     progress.textContent = 'מכין את המייל…';
     try {
@@ -160,9 +206,12 @@ export function bindCoordinationActivityModal(root, item, { loginHint = '', onCh
       const results = await prepareCoordinationDrafts([item], { loginHint });
       const failed = results.find((result) => !result.ok);
       if (failed) throw failed.error;
-      progress.textContent = 'טיוטת אישור התיאום הוכנה ב-Outlook.';
+      const successful = results.find((result) => result.ok);
+      revealCoordinationDraft(successful, draftWindow);
+      progress.textContent = 'טיוטת אישור התיאום הוכנה ונפתחה ב-Outlook.';
       await onChanged(results);
     } catch (error) {
+      closeCoordinationDraftPlaceholder(draftWindow);
       progress.textContent = error?.message || 'לא ניתן להכין את הטיוטה.';
       button.disabled = false;
     }
