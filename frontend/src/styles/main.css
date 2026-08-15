@@ -9708,32 +9708,34 @@ select.ds-input {
 .ds-activities-col--coordination { text-align: center; }
 .coordination-status { display: inline-flex; align-items: center; gap: 3px; font-size: .69rem; line-height: 1.25; font-weight: 600; }
 .coordination-status.is-sent { color: #166534; }
-.coordination-status.is-changed { color: #9a3412; }
-.coordination-status.is-draft { color: #5b21b6; }
 .coordination-status.is-missing { color: #991b1b; }
 .coordination-status.is-ready { color: #1d4ed8; }
+.coordination-changed-note, .coordination-missing-list { display: block; margin-top: 3px; font-size: .69rem; line-height: 1.35; color: #9a3412; }
+.coordination-missing-list { color: #991b1b; }
 .coordination-send-link { display: block; margin: 2px auto 0; border: 0; background: transparent; color: #1d4ed8; font: inherit; font-size: .64rem; cursor: pointer; text-decoration: underline; }
 .coordination-drawer-sent { color: #475569; font-size: 10px; font-weight: 400; line-height: 1.2; }
 .coordination-drawer-sent__check { color: #15803d; }
-.coordination-workspace { display: grid; gap: 14px; }
-.coordination-kpis { display: grid; grid-template-columns: repeat(6, minmax(92px, 1fr)); gap: 8px; }
-.coordination-kpi { display: flex; flex-direction: column; align-items: center; padding: 10px; border: 1px solid var(--ds-border); border-radius: 10px; background: var(--ds-surface); }
-.coordination-kpi strong { font-size: 1.3rem; color: var(--ds-primary); }
-.coordination-kpi span { font-size: .76rem; }
+.coordination-workspace { display: grid; gap: 12px; width: min(100%, 920px); margin-inline: auto; }
 .coordination-toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .coordination-toolbar [data-coordination-progress] { margin-inline-start: auto; font-weight: 600; }
-.coordination-schools { display: grid; gap: 10px; }
-.coordination-school { border: 1px solid var(--ds-border); border-radius: 10px; overflow: hidden; background: var(--ds-surface); }
+.coordination-schools { display: grid; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); gap: 10px; align-items: start; }
+.coordination-school { border: 1px solid var(--ds-border); border-radius: 9px; overflow: hidden; background: var(--ds-surface); box-shadow: 0 1px 3px rgba(15, 23, 42, .05); }
 .coordination-school > header { display: flex; justify-content: space-between; padding: 9px 12px; background: #eef4fb; }
 .coordination-rows { display: grid; }
-.coordination-row { display: grid; grid-template-columns: 24px minmax(180px, 1fr) minmax(150px, auto); gap: 8px; align-items: center; padding: 8px 12px; border-top: 1px solid var(--ds-border); cursor: pointer; }
+.coordination-row { display: grid; grid-template-columns: 20px minmax(0, 1fr); gap: 7px; align-items: start; padding: 8px 10px; border-top: 1px solid var(--ds-border); cursor: pointer; }
 .coordination-row > span { display: flex; flex-direction: column; }
+.coordination-row > span:last-child { grid-column: 2; }
 .coordination-row small { color: var(--ds-text-muted); }
-@media (max-width: 900px) {
-  .coordination-kpis { grid-template-columns: repeat(3, 1fr); }
-  .coordination-row { grid-template-columns: 24px 1fr; }
-  .coordination-row > span:last-child { grid-column: 2; }
-}
+.ds-modal.ds-modal--coordination-activity { width: min(92vw, 560px); height: auto; max-height: min(82vh, 680px); inset: 50% auto auto 50%; transform: translate(-50%, calc(-50% + 18px)); border-radius: 12px; }
+.ds-ui-layer.is-modal-open .ds-modal.ds-modal--coordination-activity { transform: translate(-50%, -50%); }
+.coordination-activity-modal { display: grid; gap: 13px; }
+.coordination-activity-modal__status { padding: 9px 11px; border-radius: 8px; background: var(--ds-surface-subtle); }
+.coordination-activity-modal dl { display: grid; grid-template-columns: 1fr 1fr; gap: 0; margin: 0; border: 1px solid var(--ds-border); border-radius: 9px; overflow: hidden; }
+.coordination-activity-modal dl > div { min-width: 0; padding: 8px 10px; border-bottom: 1px solid var(--ds-border); }
+.coordination-activity-modal dt { color: var(--ds-text-muted); font-size: .72rem; }
+.coordination-activity-modal dd { margin: 2px 0 0; font-size: .84rem; font-weight: 600; overflow-wrap: anywhere; }
+.coordination-activity-modal [data-coordination-modal-progress] { font-size: .78rem; font-weight: 600; }
+@media (max-width: 600px) { .coordination-activity-modal dl { grid-template-columns: 1fr; } }
 
 /* ── contact popover button ── */
 .ds-contact-popover-btn {

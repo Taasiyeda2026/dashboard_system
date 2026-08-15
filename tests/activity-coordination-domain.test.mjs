@@ -32,6 +32,8 @@ test('readiness requires every declared date, both times, and the primary instru
   assert.deepEqual(readinessForActivity(activity({ end_time: null })).missing, ['end_time']);
   assert.deepEqual(readinessForActivity(activity({ emp_id: null, instructor_name: '' })).missing, ['instructor']);
   assert.equal(readinessForActivity(activity({ sessions: 'abc' })).missing.includes('sessions'), true);
+  assert.equal(readinessForActivity(activity({ contact_name: '', school_contact_id: null })).missing.includes('contact'), true);
+  assert.equal(readinessForActivity(activity({ grade: '', class_group: '' })).missing.includes('grade_class'), true);
 });
 
 test('preparation is matched only by activity_no and is never a readiness requirement', () => {

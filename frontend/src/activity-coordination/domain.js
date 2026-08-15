@@ -50,6 +50,10 @@ export function displayDate(value) {
 export function readinessForActivity(activity = {}) {
   const sessions = parseSessionCount(activity.sessions);
   const missing = [];
+  if (!text(activity.school)) missing.push('school');
+  if (!text(activity.activity_name ?? activity.program_name)) missing.push('program');
+  if (!text(activity.school_contact_id) && !text(activity.contact_name)) missing.push('contact');
+  if (!text(activity.grade) && !text(activity.class_group)) missing.push('grade_class');
   if (!sessions) missing.push('sessions');
   if (sessions) {
     for (let meeting = 1; meeting <= sessions; meeting += 1) {
