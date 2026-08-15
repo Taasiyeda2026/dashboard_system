@@ -24,7 +24,7 @@ function activity(overrides = {}) {
   return { ...row, ...overrides };
 }
 
-test('readiness requires every declared date, both times, and the primary instructor', () => {
+test('readiness requires every declared date, both times, contact, and the primary instructor', () => {
   assert.deepEqual(readinessForActivity(activity()), { ready: true, missing: [], sessions: 10 });
   assert.equal(readinessForActivity(activity({ date_10: null })).ready, false);
   assert.deepEqual(readinessForActivity(activity({ date_10: null })).missing, ['date_10']);
@@ -33,7 +33,8 @@ test('readiness requires every declared date, both times, and the primary instru
   assert.deepEqual(readinessForActivity(activity({ emp_id: null, instructor_name: '' })).missing, ['instructor']);
   assert.equal(readinessForActivity(activity({ sessions: 'abc' })).missing.includes('sessions'), true);
   assert.equal(readinessForActivity(activity({ contact_name: '', school_contact_id: null })).missing.includes('contact'), true);
-  assert.equal(readinessForActivity(activity({ grade: '', class_group: '' })).missing.includes('grade_class'), true);
+  assert.equal(readinessForActivity(activity({ contact_name: '', school_contact_id: null, resolved_contact_name: 'איש קשר מהרשומה המקושרת' })).ready, true);
+  assert.equal(readinessForActivity(activity({ grade: '', class_group: '' })).ready, true);
 });
 
 test('preparation is matched only by activity_no and is never a readiness requirement', () => {
