@@ -1,0 +1,148 @@
+/* Coordination approvals: compact workflow layout matching the approved reference. */
+.coordination-workspace {
+  width: min(calc(100% - 40px), 1120px);
+  margin-inline: auto;
+}
+
+.coordination-workspace__columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.coordination-workspace__missing,
+.coordination-workspace__right {
+  min-width: 0;
+}
+
+.coordination-workspace__right {
+  display: grid;
+  gap: 18px;
+  align-content: start;
+}
+
+.coordination-section {
+  min-width: 0;
+}
+
+.coordination-section__header {
+  align-items: center;
+  min-height: 40px;
+  padding: 0 2px 8px;
+}
+
+.coordination-section__header h3 {
+  font-size: .96rem;
+}
+
+.coordination-section__header h3 span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  height: 20px;
+  margin-inline-start: 4px;
+  padding-inline: 6px;
+  border-radius: 999px;
+  background: #eef2f7;
+  color: #475569;
+  font-size: .72rem;
+}
+
+.coordination-section--ready .coordination-section__header {
+  align-items: flex-start;
+  flex-direction: column;
+}
+
+.coordination-section--ready .coordination-toolbar {
+  width: 100%;
+  gap: 6px;
+}
+
+.coordination-section--ready .coordination-toolbar .ds-btn {
+  min-height: 34px;
+  padding: 6px 10px;
+  font-size: .74rem;
+}
+
+.coordination-schools {
+  gap: 9px;
+}
+
+.coordination-school {
+  border-radius: 10px;
+}
+
+.coordination-school > header {
+  padding: 7px 10px;
+  font-size: .82rem;
+}
+
+.coordination-school > header > span {
+  color: #475569;
+  font-size: .76rem;
+}
+
+.coordination-row {
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 5px 8px;
+  padding: 7px 10px;
+}
+
+.coordination-row__details {
+  grid-column: 2;
+  gap: 4px 9px;
+}
+
+.coordination-row__details strong {
+  font-size: .85rem;
+}
+
+.coordination-row__details small {
+  font-size: .72rem;
+}
+
+.coordination-row__state {
+  grid-column: 2;
+  align-items: flex-start;
+  text-align: start;
+}
+
+.coordination-missing-list {
+  margin-top: 0;
+  font-size: .7rem;
+  line-height: 1.45;
+}
+
+.coordination-section__empty {
+  min-height: 54px;
+  border: 1px solid var(--ds-border);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, .55);
+}
+
+/* The single-activity action remains a small modal above the open activity drawer. */
+.ds-modal.ds-modal--coordination-activity {
+  width: min(90vw, 520px);
+}
+
+@media (max-width: 900px) {
+  .coordination-workspace {
+    width: min(calc(100% - 24px), 720px);
+  }
+
+  .coordination-workspace__columns {
+    grid-template-columns: 1fr;
+  }
+
+  .coordination-workspace__right {
+    order: -1;
+  }
+}
+
+@media (max-width: 600px) {
+  .coordination-workspace {
+    width: 100%;
+  }
+}
