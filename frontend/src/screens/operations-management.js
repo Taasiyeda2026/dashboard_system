@@ -3405,9 +3405,12 @@ export const operationsManagementScreen = {
     const filterSourceRows = instructorsContext && Array.isArray(data?.filterOptionRows)
       ? prepareRows(data.filterOptionRows)
       : prepared;
+    const selectedFilterStatus = instructorsContext
+      ? String(ensureActivityListFilters(state, SCOPE).status || '').trim()
+      : '';
     const filterBaseRows = instructorsContext
       ? filterSourceRows.filter((row) => activityMatchesPeriod(row, ops.period)
-        && String(row?.status || '').trim() === String(ensureActivityListFilters(state, SCOPE).status || '').trim())
+        && (!selectedFilterStatus || selectedFilterStatus === 'הכל' || String(row?.status || '').trim() === selectedFilterStatus))
       : baseRows;
     const filterRows = ops.tab === TAB_WORKSHOPS
       ? baseRows.filter((row) => activityMatchesAnyOfficialWorkshop(row, extractWorkshopCatalogRows(data?.adminListsData, prepared, data?.workshopStockDistributions || [])))

@@ -95,6 +95,7 @@ function scheduleState(overrides = {}) {
     operationsManagement: {
       tab: 'instructors',
       context: 'instructors',
+      scheduleHasLoaded: true,
       period: 'regular',
       dateFrom: '2026-01-01',
       dateTo: '2026-12-31',
@@ -182,6 +183,13 @@ test('operations management instructor filter and schedule include secondary ins
   const html = operationsManagementScreen.render({ rows, workshopStockMap: new Map() }, { state });
   assert.match(html, /תמיר - חדר בריחה קווסט/);
   assert.match(html, /אפרת אוחיון/);
+
+  state.listFilters['operations-management'].status = '';
+  state.listFilters['operations-management'].instructor = '';
+  const allStatusHtml = operationsManagementScreen.render({ rows: [], filterOptionRows: rows, workshopStockMap: new Map() }, { state });
+  assert.match(allStatusHtml, /<option value="מסגרת תמיר">מסגרת תמיר<\/option>/);
+  assert.match(allStatusHtml, /<option value="אפרת אוחיון">אפרת אוחיון<\/option>/);
+  assert.match(allStatusHtml, /<option value="תמיר - חדר בריחה קווסט">תמיר - חדר בריחה קווסט<\/option>/);
 });
 
 test('getActivityPrimaryDate uses start_date and meeting dates', () => {
