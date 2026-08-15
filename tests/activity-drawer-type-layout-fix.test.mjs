@@ -62,7 +62,7 @@ test('course layout moves season to header and leaves a complete six-cell grid',
     field('מדריך/ה', 'אילנה'),
     field('כיתה / קבוצה', 'ד'),
     field('שעות', '10:00–12:00'),
-    field('מימון', 'גפן'),
+    field('גורם מימון', 'גפן'),
     field('מחיר', '₪9,500'),
     field('עונת פעילות', '2026', '<select name="activity_season"><option value="regular" selected>2026</option></select>')
   ].join('');
@@ -74,6 +74,7 @@ test('course layout moves season to header and leaves a complete six-cell grid',
   const grid = form.querySelector('.activity-drawer-inline__grid');
   assert.equal(grid.dataset.activityLayout, 'course');
   assert.equal(grid.children.length, 6);
+  assert.equal(grid.querySelector('[data-field-key="funding"] .activity-drawer-inline__label').textContent, 'גורם מימון');
   assert.equal([...grid.querySelectorAll('.activity-drawer-inline__label')].some((node) => node.textContent.trim() === 'עונת פעילות'), false);
   assert.equal(form.querySelectorAll('[name="activity_season"]').length, 1);
   assert.ok(form.querySelector('.activity-drawer-type-fix__season-edit'));

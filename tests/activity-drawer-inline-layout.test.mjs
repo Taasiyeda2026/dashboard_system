@@ -169,6 +169,8 @@ test('desktop activity details use four responsive columns', async () => {
   assert.match(css, /@media \(max-width: 900px\)[\s\S]*?\.activity-drawer-inline__grid\s*\{[\s\S]*?repeat\(2,/);
   assert.match(typeLayoutCss, /@media \(max-width: 900px\)\s*\{\s*\.activity-drawer-inline__grid\[data-activity-layout="course"\]\s*\{[^}]*grid-template-columns:\s*repeat\(2,/);
   assert.match(css, /@media \(max-width: 640px\)[\s\S]*?\.activity-drawer-inline__grid,[\s\S]*?grid-template-columns:\s*1fr/);
+  assert.match(typeLayoutCss, /data-activity-layout="course"\]\s*\[data-field-key="funding"\]\s*\{\s*grid-column:\s*span 3/);
+  assert.match(typeLayoutCss, /@media \(max-width: 900px\)[\s\S]*?data-field-key="funding"\][^}]*grid-column:\s*span 1/);
 });
 
 test('edit mode CSS hides the display heading instead of stacking it above the fields', async () => {
