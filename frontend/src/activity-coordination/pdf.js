@@ -69,38 +69,35 @@ const styles = StyleSheet.create({
     marginBottom: 4
   },
   table: {
-    width: '100%',
+    width: '88%',
+    alignSelf: 'flex-end',
     borderTopWidth: 0.55,
     borderRightWidth: 0.55,
     borderColor: '#64748b',
-    marginTop: 5
+    marginTop: 6
   },
-  row: { flexDirection: 'row-reverse', borderBottomWidth: 0.55, borderColor: '#64748b', minHeight: 18 },
-  headerRow: { backgroundColor: '#e6eef7', minHeight: 20 },
+  row: { flexDirection: 'row-reverse', borderBottomWidth: 0.55, borderColor: '#64748b', minHeight: 21 },
+  headerRow: { backgroundColor: '#dce8f5', minHeight: 22 },
   cell: {
     borderLeftWidth: 0.55,
     borderColor: '#64748b',
     paddingHorizontal: 3,
-    paddingVertical: 2.4,
+    paddingVertical: 3,
     justifyContent: 'center'
   },
   centeredCell: { textAlign: 'center' },
   preparationCell: { textAlign: 'right', fontSize: 8.2 },
-  headerCell: { fontWeight: 600, fontSize: 8.3, textAlign: 'center' },
-  meetingWithPreparation: { width: '9%' },
-  dateWithPreparation: { width: '18%' },
-  dayWithPreparation: { width: '14%' },
-  hoursWithPreparation: { width: '17%' },
-  preparation: { width: '42%' },
-  meetingWithoutPreparation: { width: '11%' },
-  dateWithoutPreparation: { width: '30%' },
-  dayWithoutPreparation: { width: '22%' },
-  hoursWithoutPreparation: { width: '37%' },
+  headerCell: { fontWeight: 600, fontSize: 8.5, textAlign: 'center' },
+  meeting: { width: '9%' },
+  date: { width: '17%' },
+  day: { width: '13%' },
+  hours: { width: '17%' },
+  preparation: { width: '44%' },
   managerLine: { textAlign: 'right', marginTop: 7, marginBottom: 2 },
-  highlights: { marginTop: 2 },
-  highlight: { flexDirection: 'row-reverse', alignItems: 'flex-start', marginBottom: 4 },
-  highlightNumber: { width: 16, marginLeft: 4, fontWeight: 600, textAlign: 'right' },
-  highlightText: { flex: 1, textAlign: 'right', lineHeight: 1.25 },
+  highlights: { marginTop: 3 },
+  highlight: { flexDirection: 'row', direction: 'rtl', alignItems: 'flex-start', marginBottom: 6 },
+  highlightNumber: { width: 18, marginLeft: 5, fontWeight: 600, textAlign: 'right', direction: 'ltr' },
+  highlightText: { flex: 1, textAlign: 'right', direction: 'rtl', lineHeight: 1.3 },
   footer: {
     position: 'absolute',
     bottom: 10,
@@ -135,44 +132,24 @@ const cell = (value, style, textStyle = null) => h(
   h(Text, { style: textStyle }, String(value ?? ''))
 );
 
-function tableColumns(hasPreparation) {
-  return hasPreparation
-    ? {
-        meeting: styles.meetingWithPreparation,
-        date: styles.dateWithPreparation,
-        day: styles.dayWithPreparation,
-        hours: styles.hoursWithPreparation
-      }
-    : {
-        meeting: styles.meetingWithoutPreparation,
-        date: styles.dateWithoutPreparation,
-        day: styles.dayWithoutPreparation,
-        hours: styles.hoursWithoutPreparation
-      };
+function tableHeader() {
+  return h(View, { style: [styles.row, styles.headerRow], wrap: false },
+    cell('מפגש', styles.meeting, styles.headerCell),
+    cell('תאריך', styles.date, styles.headerCell),
+    cell('יום', styles.day, styles.headerCell),
+    cell('שעות', styles.hours, styles.headerCell),
+    cell('היערכות', styles.preparation, styles.headerCell)
+  );
 }
 
-function tableHeader(hasPreparation) {
-  const columns = tableColumns(hasPreparation);
-  const cells = [
-    cell('מפגש', columns.meeting, styles.headerCell),
-    cell('תאריך', columns.date, styles.headerCell),
-    cell('יום', columns.day, styles.headerCell),
-    cell('שעות', columns.hours, styles.headerCell)
-  ];
-  if (hasPreparation) cells.push(cell('היערכות', styles.preparation, styles.headerCell));
-  return h(View, { style: [styles.row, styles.headerRow], wrap: false }, ...cells);
-}
-
-function meetingRow(meeting, hasPreparation) {
-  const columns = tableColumns(hasPreparation);
-  const cells = [
-    cell(meeting.meeting_number, columns.meeting, styles.centeredCell),
-    cell(meeting.date, columns.date, [styles.centeredCell, { direction: 'ltr' }]),
-    cell(meeting.day, columns.day, styles.centeredCell),
-    cell(meeting.hours, columns.hours, [styles.centeredCell, { direction: 'ltr' }])
-  ];
-  if (hasPreparation) cells.push(cell(meeting.school_preparation, styles.preparation, styles.preparationCell));
-  return h(View, { key: meeting.meeting_number, style: styles.row, wrap: false }, ...cells);
+function meetingRow(meeting) {
+  return h(View, { key: meeting.meeting_number, style: styles.row, wrap: false },
+    cell(meeting.meeting_number, styles.meeting, styles.centeredCell),
+    cell(meeting.date, styles.date, [styles.centeredCell, { direction: 'ltr' }]),
+    cell(meeting.day, styles.day, styles.centeredCell),
+    cell(meeting.hours, styles.hours, [styles.centeredCell, { direction: 'ltr' }]),
+    cell(meeting.school_preparation, styles.preparation, styles.preparationCell)
+  );
 }
 
 function estimatedMeetingCost(meeting, hasPreparation) {
@@ -213,7 +190,7 @@ export function chunkCoordinationMeetings(meetings = []) {
 
 function activityPages(snapshot, programIndex, totalPrograms, logo) {
   const meetings = snapshot.program.meetings || [];
-  const { chunks, hasPreparation } = chunkCoordinationMeetings(meetings);
+  const { chunks } = chunkCoordinationMeetings(meetings);
 
   return chunks.map((chunk, chunkIndex) => {
     const firstDocumentPage = programIndex === 0 && chunkIndex === 0;
@@ -247,8 +224,8 @@ function activityPages(snapshot, programIndex, totalPrograms, logo) {
         h(Text, { style: styles.sectionTitle }, 'מועדי הפעילות')
       ) : null,
       h(View, { style: styles.table },
-        tableHeader(hasPreparation),
-        ...chunk.map((meeting) => meetingRow(meeting, hasPreparation))
+        tableHeader(),
+        ...chunk.map((meeting) => meetingRow(meeting))
       ),
       lastActivityPage ? h(React.Fragment, null,
         manager ? h(Text, { style: styles.managerLine }, `מנהל/ת הפעילות מטעם תעשיידע: ${manager}`) : null,
