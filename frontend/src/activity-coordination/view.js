@@ -89,9 +89,15 @@ export function renderCoordinationWorkspace(context = {}, { canManage = false } 
     </section>`;
   };
   return `<section class="coordination-workspace" dir="rtl">
-    ${sectionHtml(COORDINATION_STATUS.MISSING_DETAILS, 'חסרים פרטים')}
-    ${sectionHtml(COORDINATION_STATUS.READY, 'מוכנים לשליחה', { actions: true })}
-    ${sectionHtml(COORDINATION_STATUS.SENT, 'נשלח')}
+    <div class="coordination-workspace__columns">
+      <div class="coordination-workspace__missing">
+        ${sectionHtml(COORDINATION_STATUS.MISSING_DETAILS, 'חסרים פרטים')}
+      </div>
+      <div class="coordination-workspace__right">
+        ${sectionHtml(COORDINATION_STATUS.READY, 'מוכנים לשליחה', { actions: true })}
+        ${sectionHtml(COORDINATION_STATUS.SENT, 'נשלח')}
+      </div>
+    </div>
   </section>`;
 }
 
