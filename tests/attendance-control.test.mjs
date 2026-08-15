@@ -193,6 +193,34 @@ test('employee 1522 course attendance bundles two after-school activities withou
   assert.equal(result.dashboardOnly.length, 0);
 });
 
+test('employee 1500 May 24 does not over-bundle LONG-109 by course type or authority', () => {
+  const attendance = [
+    { employeeId: '1500', date: '2026-05-24', startTime: '10:00', endTime: '12:00', workHours: 2, school: 'סמילנסקי', authority: 'רחובות', program: 'ביומימיקרי', activityType: 'קורס' },
+    { employeeId: '1500', date: '2026-05-24', startTime: '13:00', endTime: '15:00', workHours: 2, school: 'בן־צבי', authority: 'פתח תקווה', program: 'פרימיום', activityType: 'קורס' }
+  ];
+  const dashboard = [
+    { activityId: 'LONG-110', startTime: '10:00', endTime: '11:40', school: 'סמילנסקי', authority: 'רחובות', program: 'ביומימיקרי' },
+    { activityId: 'LONG-091', startTime: '12:55', endTime: '14:30', school: 'בן צבי', authority: 'פתח תקווה', program: 'יזמות פרימיום' },
+    { activityId: 'LONG-109', startTime: '14:00', endTime: '15:30', school: 'דה שליט', authority: 'רחובות', program: 'פורצות דרך' }
+  ].map((row) => ({ ...row, employeeId: '1500', date: '2026-05-24', workHours: calculateWorkHours(row.startTime, row.endTime), activityType: 'course' }));
+  const result = compareAttendanceRows(attendance, dashboard);
+  assert.deepEqual(result.comparisons.map((row) => row.dashboard.activityIds), [['LONG-110'], ['LONG-091']]);
+  assert.deepEqual(result.dashboardOnly.map((row) => row.dashboard.activityId), ['LONG-109']);
+});
+
+test('foreign chronological component stays dashboard-only between matching bundle activities', () => {
+  const attendance = [{ employeeId: '1501', date: '2026-05-04', startTime: '08:00', endTime: '13:35', workHours: 4.5, school: 'מול גלעד', program: 'מנהיגות ירוקה', activityType: 'קורס' }];
+  const dashboard = [
+    { activityId: 'RELATED-1', startTime: '08:00', endTime: '09:30', school: 'מול גלעד', program: 'מנהיגות ירוקה' },
+    { activityId: 'FOREIGN', startTime: '09:35', endTime: '10:00', school: 'אחר', program: 'פעילות זרה' },
+    { activityId: 'RELATED-2', startTime: '10:05', endTime: '11:35', school: 'מול גלעד', program: 'מנהיגות ירוקה' },
+    { activityId: 'RELATED-3', startTime: '11:40', endTime: '13:10', school: 'מול גלעד', program: 'מנהיגות ירוקה' }
+  ].map((row) => ({ ...row, employeeId: '1501', date: '2026-05-04', workHours: calculateWorkHours(row.startTime, row.endTime), authority: 'רחובות', activityType: 'course' }));
+  const result = compareAttendanceRows(attendance, dashboard);
+  assert.deepEqual(result.comparisons[0].dashboard.activityIds, ['RELATED-1', 'RELATED-2', 'RELATED-3']);
+  assert.deepEqual(result.dashboardOnly.map((row) => row.dashboard.activityId), ['FOREIGN']);
+});
+
 test('Oshri Ram matching requires context, exposes real fields, and leaves exact rows normal', () => {
   const base = { employeeId: '1524', employeeName: 'אושרי רם', date: '2026-05-25', startTime: '09:50', endTime: '11:20', school: 'טשרניחובסקי', authority: 'נתניה', program: 'יישומי AI', activityType: 'קורס' };
   const exact = compareAttendanceRows([base], [{ ...base }]);

@@ -41,7 +41,7 @@ export function isAttendanceOnlyActivityType(value) {
 
 export function normalizeAttendanceName(value) {
   return txt(value).normalize('NFKD').toLowerCase()
-    .replace(/[׳״'"`´’‘“”.,;:()\[\]{}\-_/\\]/g, '')
+    .replace(/[׳״'"`´’‘“”.,;:()\[\]{}\-_/\\\u05BE\u2010-\u2015]/g, '')
     .replace(/\s+/g, '')
     .replace(/מאיר$/u, '');
 }
@@ -308,11 +308,10 @@ function sameBundleText(attendance, dashboard, key) {
 }
 
 function componentHasContext(attendance, dashboard) {
+  // Bundle membership needs identity evidence. Authority and activity type are
+  // useful scoring signals, but are too broad to admit a component by themselves.
   return sameBundleText(attendance, dashboard, 'school')
-    || sameBundleText(attendance, dashboard, 'authority')
-    || sameBundleText(attendance, dashboard, 'program')
-    || (Boolean(attendanceActivityTypeKey(attendance.activityType))
-      && bundleComponents(dashboard).some((row) => attendanceActivityTypeKey(row.activityType) === attendanceActivityTypeKey(attendance.activityType)));
+    || sameBundleText(attendance, dashboard, 'program');
 }
 
 function matchScore(attendance, dashboard) {
@@ -368,11 +367,14 @@ function dashboardBundle(rows) {
 function assignDashboardBundles(attendanceEntries, dashboardRows) {
   const orderedDashboard = [...dashboardRows].sort((a, b) => timeText(a.startTime).localeCompare(timeText(b.startTime)));
   const candidates = attendanceEntries.map(({ attendance }) => {
-    const rows = [];
-    for (let start = 0; start < orderedDashboard.length; start += 1) {
-      for (let end = start; end < orderedDashboard.length; end += 1) {
-        const componentRows = orderedDashboard.slice(start, end + 1);
-        if (!componentRows.every((row) => componentHasContext(attendance, row))) continue;
+    const rows = []; const eligible = orderedDashboard
+      .map((row, index) => ({ row, index }))
+      .filter(({ row }) => componentHasContext(attendance, row));
+    for (let eligibleStart = 0; eligibleStart < eligible.length; eligibleStart += 1) {
+      for (let eligibleEnd = eligibleStart; eligibleEnd < eligible.length; eligibleEnd += 1) {
+        const selected = eligible.slice(eligibleStart, eligibleEnd + 1);
+        const componentRows = selected.map(({ row }) => row);
+        const start = selected[0].index; const end = selected.at(-1).index;
         const bundle = dashboardBundle(componentRows); const match = matchScore(attendance, bundle);
         if (acceptableMatch(match)) rows.push({ bundle, componentRows, start, end, ...match });
       }
@@ -388,7 +390,7 @@ function assignDashboardBundles(attendanceEntries, dashboardRows) {
     for (const candidate of candidates[position]) {
       if (candidate.start < dashboardCursor) continue;
       const remaining = search(position + 1, candidate.end + 1);
-      const utility = candidate.score + candidate.componentRows.length * 8 + remaining.utility;
+      const utility = candidate.score + remaining.utility;
       if (utility > best.utility) best = { utility, assignments: [candidate, ...remaining.assignments] };
     }
     memo.set(memoKey, best); return best;
