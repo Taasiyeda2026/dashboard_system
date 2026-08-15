@@ -135,6 +135,7 @@ function resetOperationsManagementEntry(state) {
     ops.tab = TAB_INSTRUCTORS;
     ops.scheduleHasLoaded = false;
     ops.appliedScheduleFilters = null;
+    ops.scheduleRequestVersion = (ops.scheduleRequestVersion || 0) + 1;
   } else {
     ops.tab = TAB_COMPLETION_APPROVAL;
   }
@@ -3342,8 +3343,13 @@ export const operationsManagementScreen = {
     if (ops.context === OPS_CONTEXT_INSTRUCTORS) {
       ops.scheduleHasLoaded = false;
       ops.appliedScheduleFilters = null;
+      ops.scheduleRequestVersion = (ops.scheduleRequestVersion || 0) + 1;
+      const filterOptions = api.scheduleFilterOptions
+        ? await api.scheduleFilterOptions({ activity_periods: PERIOD_OPTIONS.map((option) => option.value) })
+        : { rows: [] };
       return {
         rows: [],
+        filterOptionRows: Array.isArray(filterOptions?.rows) ? filterOptions.rows : [],
         _loadedOperationsTabs: [],
         _operationsTabLoadPromises: new Map()
       };
@@ -3396,9 +3402,16 @@ export const operationsManagementScreen = {
     const isCompletionApprovalTab = !instructorsContext && ops.tab === TAB_COMPLETION_APPROVAL;
     const baseRows = applyBaseFilters(prepared, scheduleResultState);
     const filteredRows = isCompletionApprovalTab ? baseRows : applyAllFilters(baseRows, scheduleResultState);
+    const filterSourceRows = instructorsContext && Array.isArray(data?.filterOptionRows)
+      ? prepareRows(data.filterOptionRows)
+      : prepared;
+    const filterBaseRows = instructorsContext
+      ? filterSourceRows.filter((row) => activityMatchesPeriod(row, ops.period)
+        && String(row?.status || '').trim() === String(ensureActivityListFilters(state, SCOPE).status || '').trim())
+      : baseRows;
     const filterRows = ops.tab === TAB_WORKSHOPS
       ? baseRows.filter((row) => activityMatchesAnyOfficialWorkshop(row, extractWorkshopCatalogRows(data?.adminListsData, prepared, data?.workshopStockDistributions || [])))
-      : baseRows;
+      : (instructorsContext ? filterBaseRows : baseRows);
     const activeRows = isCompletionApprovalTab ? baseRows : filteredRows;
     if (instructorsContext) {
       const scheduleContent = ops.scheduleHasLoaded
@@ -3536,6 +3549,7 @@ export const operationsManagementScreen = {
     }
 
     root.querySelector('[data-ops-period]')?.addEventListener('change', (ev) => {
+      ops.scheduleRequestVersion = (ops.scheduleRequestVersion || 0) + 1;
       ops.period = setGlobalActivityPeriod(ev.target.value || ACTIVITY_SEASON_REGULAR);
       const range = defaultDateRange(ops.period);
       ops.dateFrom = range.from;
@@ -3544,11 +3558,12 @@ export const operationsManagementScreen = {
       rerender?.();
     });
 
-    root.querySelector('[data-ops-date="from"]')?.addEventListener('change', (ev) => { ops.dateFrom = ev.target.value || ''; rerender?.(); });
-    root.querySelector('[data-ops-date="to"]')?.addEventListener('change', (ev) => { ops.dateTo = ev.target.value || ''; rerender?.(); });
+    root.querySelector('[data-ops-date="from"]')?.addEventListener('change', (ev) => { ops.scheduleRequestVersion = (ops.scheduleRequestVersion || 0) + 1; ops.dateFrom = ev.target.value || ''; rerender?.(); });
+    root.querySelector('[data-ops-date="to"]')?.addEventListener('change', (ev) => { ops.scheduleRequestVersion = (ops.scheduleRequestVersion || 0) + 1; ops.dateTo = ev.target.value || ''; rerender?.(); });
 
     let searchTimer;
     root.querySelector('[data-ops-search]')?.addEventListener('input', (ev) => {
+      ops.scheduleRequestVersion = (ops.scheduleRequestVersion || 0) + 1;
       filters.q = ev.target.value || '';
       clearTimeout(searchTimer);
       searchTimer = setTimeout(() => { filters.appliedQ = filters.q; rerender?.(); }, 180);
@@ -3558,6 +3573,7 @@ export const operationsManagementScreen = {
       select.addEventListener('change', (ev) => {
         const key = ev.target.getAttribute('data-ops-filter');
         if (!key) return;
+        ops.scheduleRequestVersion = (ops.scheduleRequestVersion || 0) + 1;
         filters[key] = ev.target.value || '';
         rerender?.();
       });
@@ -3566,6 +3582,8 @@ export const operationsManagementScreen = {
     root.querySelector('[data-ops-apply-filters]')?.addEventListener('click', async (event) => {
       const button = event.currentTarget;
       button.disabled = true;
+      const requestVersion = (ops.scheduleRequestVersion || 0) + 1;
+      ops.scheduleRequestVersion = requestVersion;
       try {
         const snapshot = scheduleFilterSnapshot(state);
         const result = await api.allActivities({
@@ -3573,6 +3591,7 @@ export const operationsManagementScreen = {
           startDate: snapshot.dateFrom,
           endDate: snapshot.dateTo
         });
+        if (ops.scheduleRequestVersion !== requestVersion) return;
         data.rows = Array.isArray(result?.rows) ? result.rows : [];
         ops.appliedScheduleFilters = snapshot;
         ops.scheduleHasLoaded = true;
@@ -3583,6 +3602,7 @@ export const operationsManagementScreen = {
     });
 
     root.querySelector('[data-ops-clear-filters]')?.addEventListener('click', () => {
+      ops.scheduleRequestVersion = (ops.scheduleRequestVersion || 0) + 1;
       Object.keys(filters).forEach((key) => { if (key !== 'visibleCount') filters[key] = ''; });
       filters.status = 'פתוח';
       filters.q = '';
