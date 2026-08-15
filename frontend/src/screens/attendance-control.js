@@ -64,11 +64,20 @@ function excelDate(value) {
   if (value instanceof Date && !Number.isNaN(value.getTime())) {
     return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}-${String(value.getDate()).padStart(2, '0')}`;
   }
-  if (typeof value === 'number' && value > 1000) {
+  if (typeof value === 'number' && value >= 1) {
+    // Try SheetJS SSF parser first (most accurate).
     const parsed = (XLSX.SSF || XLSX.default?.SSF)?.parse_date_code(value);
-    if (parsed) return `${parsed.y}-${String(parsed.m).padStart(2, '0')}-${String(parsed.d).padStart(2, '0')}`;
+    if (parsed && parsed.y > 1900) return `${parsed.y}-${String(parsed.m).padStart(2, '0')}-${String(parsed.d).padStart(2, '0')}`;
+    // Direct fallback: Excel serial 25569 = 1970-01-01 UTC; serials >59 corrected for the Lotus 1900 leap-year bug.
+    try {
+      const epochMs = (value > 59 ? value - 1 : value) * 86400000 - 2209161600000;
+      const d = new Date(epochMs);
+      if (!Number.isNaN(d.getTime()) && d.getUTCFullYear() > 1900 && d.getUTCFullYear() < 2200) {
+        return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
+      }
+    } catch { /* ignore */ }
   }
-  const raw = txt(value).slice(0, 10);
+  const raw = txt(value).replace(/^[^\d]+/, '').slice(0, 10);
   let match = raw.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/);
   if (match) return `${match[1]}-${match[2].padStart(2, '0')}-${match[3].padStart(2, '0')}`;
   match = raw.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{2,4})$/);
@@ -426,6 +435,44 @@ export function compareAttendanceRows(attendanceRows, dashboardRows) {
       match.componentRows.forEach((row) => used.add(row));
     });
   });
+  // Second pass: soft matching for rows that are unmatched after the main pass.
+  // Requires same authority + same activity type + meaningful time overlap (≥30 min).
+  // Prevents the same activity from appearing as both "נוכחות ללא פעילות" and "פעילות ללא נוכחות".
+  const toMinutes = (v) => { const m = timeText(v).match(/^(\d{2}):(\d{2})$/); return m ? Number(m[1]) * 60 + Number(m[2]) : null; };
+  const unusedByKey = new Map();
+  dashboardPopulation.forEach((row) => {
+    if (row.__profile || used.has(row)) return;
+    const key = `${txt(row.employeeId)}|${row.date}`;
+    if (!unusedByKey.has(key)) unusedByKey.set(key, []);
+    unusedByKey.get(key).push(row);
+  });
+  comparableAttendance.forEach((attendance, attendanceIndex) => {
+    if (assignments.has(attendanceIndex)) return;
+    const key = `${txt(attendance.employeeId)}|${attendance.date}`;
+    const candidates = unusedByKey.get(key) || [];
+    const aStart = toMinutes(attendance.startTime); const aEnd = toMinutes(attendance.endTime);
+    let bestScore = 0; let bestMatch = null;
+    for (const dashRow of candidates) {
+      if (used.has(dashRow)) continue;
+      const sameAuthority = Boolean(normalizeAttendanceName(attendance.authority))
+        && normalizeAttendanceName(attendance.authority) === normalizeAttendanceName(dashRow.authority);
+      const sameType = Boolean(attendanceActivityTypeKey(attendance.activityType))
+        && attendanceActivityTypeKey(attendance.activityType) === attendanceActivityTypeKey(dashRow.activityType);
+      if (!sameAuthority && !sameType) continue;
+      const dStart = toMinutes(dashRow.startTime); const dEnd = toMinutes(dashRow.endTime);
+      const overlapMinutes = (aStart != null && aEnd != null && dStart != null && dEnd != null)
+        ? Math.max(0, Math.min(aEnd, dEnd) - Math.max(aStart, dStart)) : 0;
+      if (overlapMinutes < 30) continue;
+      const score = (sameAuthority ? 15 : 0) + (sameType ? 15 : 0) + Math.min(30, overlapMinutes / 4);
+      if (score > bestScore) { bestScore = score; bestMatch = dashRow; }
+    }
+    if (bestMatch) {
+      const bundle = dashboardBundle([bestMatch]);
+      assignments.set(attendanceIndex, { bundle, componentRows: [bestMatch], score: bestScore, isSoftMatch: true });
+      used.add(bestMatch);
+      unusedByKey.set(key, (unusedByKey.get(key) || []).filter((r) => r !== bestMatch));
+    }
+  });
   const comparisons = comparableAttendance.map((attendance, attendanceIndex) => {
     const match = assignments.get(attendanceIndex); const dashboard = match?.bundle || null;
     const final = { ...attendance };
@@ -549,7 +596,7 @@ export function attendanceControlStylesHtml() {
 .attendance-control{margin:16px 0;padding:18px;border:1px solid #cbd5e1;border-radius:14px;background:#fff;box-shadow:0 8px 24px rgba(15,23,42,.06)}
 .attendance-control__head,.attendance-control__uploads,.attendance-control__metrics,.attendance-control__employee-summary{display:flex;align-items:center;gap:12px;flex-wrap:wrap}.attendance-control__head{justify-content:space-between}.attendance-control__head h2{margin:0}.attendance-control__head p{margin:4px 0;color:#64748b}
 .attendance-control__uploads{margin:16px 0;padding:14px;background:#f8fafc;border-radius:10px}.attendance-control__uploads label{display:grid;gap:6px;min-width:220px;flex:1}.attendance-control__status{color:#b91c1c;font-weight:700}
-.attendance-control__complete{padding:12px 14px;border-radius:10px;background:#ecfdf5;color:#166534}.attendance-control__metrics{margin:12px 0}.attendance-control__metrics>span,.attendance-control__employee-summary>span{padding:9px 12px;border:1px solid #e2e8f0;border-radius:8px;background:#f8fafc}
+.attendance-control__summary-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:12px 0;padding:12px 14px;border-radius:10px;background:#ecfdf5;color:#166534;font-weight:600}.attendance-control__summary-bar span{padding:7px 12px;border:1px solid #86efac;border-radius:8px;background:#f0fdf4;font-weight:600}.attendance-control__metrics-details{margin:6px 0 12px}.attendance-control__metrics-details>summary{cursor:pointer;color:#64748b;font-size:.92em;padding:4px 2px}.attendance-control__metrics{margin:6px 0;display:flex;flex-wrap:wrap;gap:8px}.attendance-control__metrics>span,.attendance-control__employee-summary>span{padding:9px 12px;border:1px solid #e2e8f0;border-radius:8px;background:#f8fafc}
 .attendance-control__employee{margin:10px 0;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden}.attendance-control__employee summary{display:flex;justify-content:space-between;padding:13px;cursor:pointer;background:#f8fafc}.attendance-control__employee-summary{padding:10px 13px}
 .attendance-control__dashboard-only{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:10px 13px;padding:12px;border:1px solid #f59e0b;border-radius:9px;background:#fffbeb}.attendance-control__dashboard-only>div{display:grid;gap:4px}.attendance-control__dashboard-only span{color:#64748b}
 .attendance-control__day{margin:10px 13px;padding:12px;border:1px solid;border-radius:9px}.attendance-control__day h4{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0}.attendance-control__day--ok{border-color:#86efac;background:#f0fdf4;color:#166534}.attendance-control__day--mismatch{border-color:#f59e0b;background:#fffbeb}.attendance-control__row-status{font-weight:800;white-space:nowrap}.attendance-control__day-note{margin:8px 0 0;color:#92400e;font-weight:700}.attendance-control__diff{display:grid;grid-template-columns:minmax(110px,1fr) repeat(3,minmax(90px,1fr)) minmax(140px,1fr) minmax(110px,1fr);gap:7px;align-items:center;padding:7px 0;border-top:1px dashed #e2e8f0}.attendance-control__export{margin-top:14px}
@@ -584,7 +631,9 @@ export function resultsHtml(result, month = '') {
   const monthSummary = attendanceMonthLabel(month) ? `<span>חודש הבדיקה: <b>${escapeHtml(attendanceMonthLabel(month))}</b></span>` : '';
   const notComparedRows = (result.notCompared || []).map((entry) => `<div class="attendance-control__dashboard-only"><div><strong>דיווח שאינו נבדק מול פעילות</strong><span>${escapeHtml(entry.attendance.date)} · ${escapeHtml(entry.attendance.activityType || 'דיווח')} · ${escapeHtml(`${entry.attendance.startTime || '—'}–${entry.attendance.endTime || '—'}`)} · ${rowWorkHours(entry.attendance)} שעות</span></div></div>`).join('');
   const notComparedSection = notComparedRows ? `<section class="attendance-control__not-compared"><h3>דיווחים שאינם נבדקים מול פעילות</h3>${notComparedRows}</section>` : '';
-  return `<div class="attendance-control__complete"><strong>נמצאו ${totals.exceptions} חריגות אצל ${totals.different} מדריכים. לחצו על מדריך לפרטים המלאים.</strong></div><div class="attendance-control__metrics">${monthSummary}<span>מדריכים שנבדקו <b>${totals.employees}</b></span><span>שורות נוכחות <b>${totals.attendanceRows}</b></span><span>שורות נוכחות להשוואה <b>${totals.comparableAttendanceRows}</b></span><span>דיווחים שאינם נבדקים <b>${totals.notComparedRows}</b></span><span>מפגשי דשבורד במקור <b>${totals.dashboardRowsBeforeProcessing}</b></span><span>שורות דשבורד להשוואה <b>${totals.dashboardRows}</b></span><span>התאמות מלאות <b>${totals.fullMatches}</b></span><span>אי־התאמות בשדות <b>${totals.fieldMismatches}</b></span><span>נוכחות ללא פעילות <b>${totals.unmatchedAttendance}</b></span><span>פעילות ללא נוכחות <b>${totals.unmatchedDashboard}</b></span><span>חריגות <b>${totals.exceptions}</b></span><span>שעות נוכחות להשוואה <b>${totals.attendanceHours}</b></span><span>שעות דיווח שאינן נבדקות <b>${totals.notComparedHours}</b></span><span>סה״כ שעות מדווחות <b>${totals.totalReportedHours}</b></span><span>שעות דשבורד <b>${totals.dashboardHours}</b></span><span>פער בשעות <b>${totals.hours}</b></span><span>פער בקילומטרים <b>${totals.km}</b></span><span>פער בהוצאות <b>₪${totals.expenses}</b></span></div>${cards}${notComparedSection}<button type="button" class="ds-btn ds-btn--primary attendance-control__export" data-attendance-export>ייצוא דוח נוכחות מתוקן</button>`;
+  const summaryBar = `<div class="attendance-control__summary-bar">${monthSummary}<span>מדריכים שנבדקו <b>${totals.employees}</b></span><span>חריגות <b>${totals.exceptions}</b></span><span>נוכחות ללא פעילות <b>${totals.unmatchedAttendance}</b></span><span>פעילות ללא נוכחות <b>${totals.unmatchedDashboard}</b></span><span>פער שעות <b>${totals.hours}</b></span></div>`;
+  const technicalMetrics = `<div class="attendance-control__metrics"><span>שורות נוכחות <b>${totals.attendanceRows}</b></span><span>שורות להשוואה <b>${totals.comparableAttendanceRows}</b></span><span>דיווחים שאינם נבדקים <b>${totals.notComparedRows}</b></span><span>מפגשי דשבורד (מקור) <b>${totals.dashboardRowsBeforeProcessing}</b></span><span>שורות דשבורד להשוואה <b>${totals.dashboardRows}</b></span><span>התאמות מלאות <b>${totals.fullMatches}</b></span><span>אי־התאמות בשדות <b>${totals.fieldMismatches}</b></span><span>שעות נוכחות <b>${totals.attendanceHours}</b></span><span>שעות שאינן נבדקות <b>${totals.notComparedHours}</b></span><span>סה״כ שעות מדווחות <b>${totals.totalReportedHours}</b></span><span>שעות דשבורד <b>${totals.dashboardHours}</b></span><span>פער ק"מ <b>${totals.km}</b></span><span>פער הוצאות <b>₪${totals.expenses}</b></span></div>`;
+  return `${summaryBar}<details class="attendance-control__metrics-details"><summary>פירוט הבדיקה</summary>${technicalMetrics}</details>${cards}${notComparedSection}<button type="button" class="ds-btn ds-btn--primary attendance-control__export" data-attendance-export>ייצוא דוח נוכחות מתוקן</button>`;
 }
 
 async function readFile(file) {
