@@ -107,7 +107,9 @@ function syncActivityNoFromName(form) {
   const hidden = form.querySelector('[data-activity-no]');
   if (!nameSel || !hidden) return;
   const currentName = String(nameSel.value || '').trim();
-  hidden.value = currentName ? detectActivityNoByName(form, currentName) : '';
+  const detectedActivityNo = currentName ? detectActivityNoByName(form, currentName) : '';
+  if (!currentName) hidden.value = '';
+  else if (detectedActivityNo) hidden.value = detectedActivityNo;
 }
 
 function validateActivityTypeAndName(form, statusEl) {
@@ -773,6 +775,7 @@ export function bindActivityEditForm(contentRoot, {
     const typeEl = form.querySelector('[name="activity_type"]');
     const nameSel = form.querySelector('[data-role="activity-name-select"]');
     if (nameSel) nameSel.disabled = !normalizeActivityTypeKey(typeEl?.value);
+    if (typeEl) form.dataset.activityNameType = normalizeActivityTypeKey(typeEl.value);
     syncActivityNoFromName(form);
     captureFormInitialValues(form);
     form._refreshInitialValues = () => captureFormInitialValues(form);
@@ -789,11 +792,14 @@ export function bindActivityEditForm(contentRoot, {
 
         const typeEl = ev.target.closest('[name="activity_type"]');
         if (typeEl) {
+          const newType = normalizeActivityTypeKey(typeEl.value);
+          const previousType = normalizeActivityTypeKey(form.dataset.activityNameType);
+          if (newType === previousType) return;
+          form.dataset.activityNameType = newType;
           const nameSel = form.querySelector('[data-role="activity-name-select"]');
           if (nameSel && nameSel.dataset.allActivityNames) {
             let allOptions = [];
             try { allOptions = JSON.parse(decodeURIComponent(nameSel.dataset.allActivityNames)); } catch { allOptions = []; }
-            const newType = normalizeActivityTypeKey(typeEl.value);
             const { filtered } = activityNameOptionsForType(allOptions, newType);
             nameSel.innerHTML = renderActivityNameOptions(filtered, newType);
             nameSel.disabled = !newType;

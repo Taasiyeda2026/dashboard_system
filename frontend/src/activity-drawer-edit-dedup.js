@@ -157,12 +157,19 @@ export function polishActivityDrawerEditOptions(form, settings = {}) {
   guardInitialValueRefreshWhileEditing(form);
 
   const typeSelect = form.querySelector('[name="activity_type"]');
+  if (typeSelect && !form.dataset.activityNameType) {
+    form.dataset.activityNameType = normalizeActivityTypeKey(typeSelect.value);
+  }
   typeSelect?.addEventListener('change', () => {
+    const nextType = normalizeActivityTypeKey(typeSelect.value);
+    const previousType = normalizeActivityTypeKey(form.dataset.activityNameType);
+    if (nextType === previousType) return;
+    form.dataset.activityNameType = nextType;
     const nameSelect = form.querySelector('[data-role="activity-name-select"], [name="activity_name"]');
     if (nameSelect) nameSelect.value = '';
     rebuildActivityNameSelect(form, settings, {
       ...row,
-      activity_type: typeSelect.value,
+      activity_type: nextType,
       activity_name: ''
     });
   });

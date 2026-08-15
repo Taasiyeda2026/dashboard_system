@@ -21,6 +21,29 @@ const moduleUrl = new URL('../frontend/src/activity-drawer-inline-layout.js', im
 const dedupModuleUrl = new URL('../frontend/src/activity-drawer-edit-dedup.js', import.meta.url);
 const { enhanceActivityDrawerForm } = await import(`${moduleUrl.href}?test=${Date.now()}`);
 const { polishActivityDrawerEditOptions } = await import(`${dedupModuleUrl.href}?test=${Date.now()}`);
+const { activityWorkDrawerHtml } = await import('../frontend/src/screens/shared/activity-detail-html.js');
+
+test('course start/end summary precedes progress and meeting cards without a boxed divider widget', async () => {
+  const html = activityWorkDrawerHtml({
+    RowID: 'DATES-1', activity_type: 'course', item_type: 'course', activity_name: 'קורס תאריכים',
+    activity_season: 'school_2027', sessions: 2, start_date: '2026-10-23', end_date: '2027-01-29', date_1: '2026-10-23', date_2: '2027-01-29'
+  }, {});
+  const dom = installDom(`<main>${html}</main>`);
+  const section = dom.window.document.querySelector('[data-dates-section]');
+  const summary = section.querySelector('.activity-drawer__date-summary');
+  const progress = section.querySelector('.activity-drawer__progress-row');
+  const grid = section.querySelector('[data-dates-view-chips]');
+  assert.ok(summary.compareDocumentPosition(progress) & dom.window.Node.DOCUMENT_POSITION_FOLLOWING);
+  assert.ok(progress.compareDocumentPosition(grid) & dom.window.Node.DOCUMENT_POSITION_FOLLOWING);
+  assert.equal(summary.querySelector('[data-computed-start-display]').textContent, '23/10/2026');
+  assert.equal(summary.querySelector('[data-computed-end-display]').textContent, '29/01/2027');
+
+  const css = await readFile(new URL('../frontend/src/styles/activity-drawer-inline-layout.css', import.meta.url), 'utf8');
+  const summaryRules = css.slice(css.lastIndexOf('/* Start/end are the first summary row'));
+  assert.doesNotMatch(summaryRules, /border(?:-block-start)?\s*:/);
+  assert.doesNotMatch(summaryRules, /background\s*:/);
+  dom.window.close();
+});
 
 test('activity drawer becomes one inline view/edit template without duplicate headings', () => {
   const row = {

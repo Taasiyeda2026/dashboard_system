@@ -447,3 +447,34 @@
     padding: 10px 12px !important;
   }
 }
+
+/* Start/end are the first summary row in the date section, before progress. */
+.activity-drawer-inline-layout .activity-drawer__date-summary {
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-start;
+  gap: 28px;
+  margin-block-end: 12px;
+  color: #667085;
+}
+
+.activity-drawer-inline-layout .activity-drawer__date-summary .activity-drawer__date-boundary {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  width: auto;
+}
+
+.activity-drawer-inline-layout .activity-drawer__date-summary strong {
+  color: #172033;
+  font-size: 1rem;
+  font-weight: 800;
+}
+
+@media (max-width: 640px) {
+  .activity-drawer-inline-layout .activity-drawer__date-summary {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 6px;
+  }
+}

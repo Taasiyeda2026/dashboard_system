@@ -492,7 +492,7 @@ function blockActivityDetails(row, { settings = {} } = {}) {
         )}
         ${fieldEditOnly(
           activityNameLabel(activityType),
-          activityNameSelectHtml('activity_name', row.program_name || row.activity_name || row.title || row.name, allActivityNames, activityType),
+          activityNameSelectHtml('activity_name', row.activity_name || row.program_name || row.title || row.name, allActivityNames, activityType),
           'activity-drawer__field--full'
         )}
         ${fieldEditOnly(
@@ -978,8 +978,14 @@ function blockDates(row, { canEdit = false, canDirectEdit = false, datesLoading 
     `)
     .join('');
 
+  const dateSummaryHtml = `<div class="activity-drawer__date-summary" data-mode="view">
+    ${isCourse ? `<div class="activity-drawer__date-boundary"><span class="activity-drawer__end-date__label">תאריך התחלה:</span>
+      <strong data-computed-start-display>${escapeHtml(formatDateHe(row.start_date || schedule[0]?.date) || '')}</strong></div>` : ''}
+    <div class="activity-drawer__date-boundary"><span class="activity-drawer__end-date__label">תאריך סיום:</span>
+      <strong data-computed-end-display>${datesLoading ? '' : escapeHtml(formatDateHe(computedEnd) || '')}</strong></div>
+  </div>`;
   const progressHtml = datesLoading
-    ? `<div class="activity-drawer__progress-row" data-mode="view"><div class="activity-drawer__progress" data-dates-progress>
+    ? `${dateSummaryHtml}<div class="activity-drawer__progress-row" data-mode="view"><div class="activity-drawer__progress" data-dates-progress>
         <div class="activity-drawer__progress-meta" data-dates-progress-meta>
           <span class="ds-muted">טוען תאריכי מפגשים...</span>
           <span></span>
@@ -988,17 +994,11 @@ function blockDates(row, { canEdit = false, canDirectEdit = false, datesLoading 
           <div class="activity-drawer__progress-fill" style="width:0%"></div>
         </div>
       </div>
-      <div class="activity-drawer__end-date">
-        ${isCourse ? `<div class="activity-drawer__date-boundary"><span class="activity-drawer__end-date__label">תאריך התחלה:</span>
-        <strong data-computed-start-display>${escapeHtml(formatDateHe(row.start_date || schedule[0]?.date) || '')}</strong></div>` : ''}
-        <div class="activity-drawer__date-boundary"><span class="activity-drawer__end-date__label">תאריך סיום:</span>
-        <strong data-computed-end-display></strong></div>
-      </div>
       </div>
       <div class="activity-drawer__dates activity-drawer__dates--view" data-mode="view" data-dates-view-chips>
         <div class="activity-drawer__date-chip ds-muted" aria-busy="true">טוען...</div>
       </div>`
-    : `<div class="activity-drawer__progress-row" data-mode="view"><div class="activity-drawer__progress" data-dates-progress>
+    : `${dateSummaryHtml}<div class="activity-drawer__progress-row" data-mode="view"><div class="activity-drawer__progress" data-dates-progress>
         <div class="activity-drawer__progress-meta" data-dates-progress-meta>
           <span>${done} מתוך ${total} מפגשים</span>
           <span>${progressPct}%</span>
@@ -1006,12 +1006,6 @@ function blockDates(row, { canEdit = false, canDirectEdit = false, datesLoading 
         <div class="activity-drawer__progress-track">
           <div class="activity-drawer__progress-fill" style="width:${progressPct}%"></div>
         </div>
-      </div>
-      <div class="activity-drawer__end-date">
-        ${isCourse ? `<div class="activity-drawer__date-boundary"><span class="activity-drawer__end-date__label">תאריך התחלה:</span>
-        <strong data-computed-start-display>${escapeHtml(formatDateHe(row.start_date || schedule[0]?.date) || '')}</strong></div>` : ''}
-        <div class="activity-drawer__date-boundary"><span class="activity-drawer__end-date__label">תאריך סיום:</span>
-        <strong data-computed-end-display>${escapeHtml(formatDateHe(computedEnd) || '')}</strong></div>
       </div>
       </div>
       <div class="activity-drawer__dates activity-drawer__dates--view" data-mode="view" data-dates-view-chips>
@@ -1242,7 +1236,7 @@ function singleForm(row, { settings = {}, privateNote = null, canEdit = false, c
       ${isOnce && showDates
         ? `<div class="activity-drawer__once-dates-row" data-once-dates-row>${blockDates(row, { canEdit, canDirectEdit, datesLoading, is2027 })}</div>`
         : (showDates ? blockDates(row, { canEdit, canDirectEdit, datesLoading, is2027 }) : '')}
-      ${is2027 ? `<div class="activity-drawer__actions-row" data-activity-actions>
+      ${is2027 ? `<div class="activity-drawer__actions-row" data-activity-actions data-view-only>
         <button type="button" class="ds-btn ds-btn--sm" data-coordination-approval>אישור תיאום</button>
       </div>` : ''}
       ${schedulingEligible ? `<div class="activity-scheduling-fields" data-mode="edit" hidden data-scheduling-fields>
