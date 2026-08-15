@@ -5,6 +5,7 @@ import { blobToBase64, generateActivityCoordinationPdf } from './pdf.js';
 import { finishDispatch, markDispatchDraft, recordReconciliationException, reserveDispatch } from './data.js';
 
 export const COORDINATION_CORRELATION_PROPERTY = 'String {8ECCC264-8F4A-4E1A-934E-8C0C2A92D8B1} Name ActivityCoordinationDispatch';
+export const COORDINATION_PDF_TEMPLATE_VERSION = 'coordination-pdf-v2';
 
 export function dispatchGroups(items) {
   return groupActivitiesForDispatch(items.filter((item) => item.readiness.ready && item.recipient_email && !item.technical_blocker));
@@ -22,6 +23,7 @@ export async function prepareCoordinationDraftGroup(group, { token } = {}) {
   const summaryFilename = coordinationPdfFilename(snapshots);
   const photoFilename = 'אישור צילום.pdf';
   const idempotencyKey = await documentDataHash({
+    template_version: COORDINATION_PDF_TEMPLATE_VERSION,
     season: group.activity_season,
     school_id: String(group.school_id),
     recipient_email: group.recipient_email,
