@@ -47,22 +47,35 @@ test('workspace exposes only the three requested UI states and lists concrete mi
   assert.doesNotMatch(html, /ללא|לא צוין|coordination-kpi|data-coordination-filter/);
 });
 
-test('workspace is led by workflow sections and ready selection cannot include missing activities', () => {
+test('workspace keeps missing on one side and ready plus sent together on the other side', () => {
   const school = { school_id: 2 };
   const snapshot = { school: { name: 'אלון' }, program: { name: 'רובוטיקה' }, contact: {} };
   const missing = { ...readyItem, activity_row_id: 'missing', status: COORDINATION_STATUS.MISSING_DETAILS, readiness: { ready: false, missing: ['contact'] }, activity: school, snapshot };
   const ready = { ...readyItem, activity_row_id: 'ready', activity: school, snapshot, recipient_email: 'school@example.com' };
-  const context = { items: [missing, ready] };
+  const sent = { ...readyItem, activity_row_id: 'sent', status: COORDINATION_STATUS.SENT, activity: school, snapshot, recipient_email: 'school@example.com' };
+  const context = { items: [missing, ready, sent] };
   const html = renderCoordinationWorkspace(context, { canManage: true });
-  assert.ok(html.indexOf('חסרים פרטים') < html.indexOf('מוכנים לשליחה'));
-  assert.equal((html.match(/data-coordination-section=/g) || []).length, 3);
-  assert.equal((html.match(/data-coordination-school-select/g) || []).length, 1);
-  assert.equal((html.match(/data-coordination-item/g) || []).length, 1);
-  const readySection = html.match(/data-coordination-section="ready"[\s\S]*?data-coordination-section="sent"/)?.[0] || '';
-  assert.match(readySection, /data-coordination-select-ready[\s\S]*data-coordination-prepare/);
 
   const dom = new JSDOM(`<main>${html}</main>`);
   const root = dom.window.document.querySelector('.coordination-workspace');
+  const columns = root.querySelector('.coordination-workspace__columns');
+  assert.ok(columns);
+  assert.equal(columns.children.length, 2);
+  assert.ok(columns.children[0].classList.contains('coordination-workspace__missing'));
+  assert.ok(columns.children[1].classList.contains('coordination-workspace__right'));
+  assert.equal(columns.children[0].querySelector('[data-coordination-section="missing_details"]') !== null, true);
+  assert.equal(columns.children[0].querySelector('[data-coordination-section="ready"]'), null);
+  assert.equal(columns.children[1].querySelector('[data-coordination-section="ready"]') !== null, true);
+  assert.equal(columns.children[1].querySelector('[data-coordination-section="sent"]') !== null, true);
+
+  assert.equal((html.match(/data-coordination-section=/g) || []).length, 3);
+  assert.equal((html.match(/data-coordination-school-select/g) || []).length, 1);
+  assert.equal((html.match(/data-coordination-item/g) || []).length, 1);
+  assert.match(columns.children[1].innerHTML, /data-coordination-select-ready[\s\S]*data-coordination-prepare/);
+  assert.match(html, />סמן מוכנים<\/button>/);
+  assert.match(html, />שליחת מוכנים<\/button>/);
+  assert.doesNotMatch(html, /בחר את כל המוכנים לשליחה|הכנת מיילים נבחרים/);
+
   bindCoordinationWorkspace(root, context);
   root.querySelector('[data-coordination-select-ready]').click();
   assert.deepEqual(Array.from(root.querySelectorAll('[data-coordination-item]:checked'), (input) => input.value), ['ready']);

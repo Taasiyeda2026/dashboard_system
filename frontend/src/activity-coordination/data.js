@@ -56,19 +56,34 @@ export async function loadActivityCoordinationContext(activities = [], settings 
   const items = [];
   for (const activity of rows) {
     const contact = contactById.get(Number(activity.school_contact_id)) || {};
+    const resolvedContact = activity.resolved_school_2027_contact || {};
+    const contactName = contact.contact_name || resolvedContact.name || activity.resolved_contact_name || activity.contact_name || '';
+    const contactRole = contact.contact_role || resolvedContact.role || activity.resolved_contact_role || activity.contact_role || '';
+    const contactPhone = contact.mobile || contact.phone || resolvedContact.phone || activity.resolved_contact_phone || activity.contact_phone || '';
     const instructor = instructorById.get(Number(activity.emp_id)) || {};
     const manager = managers.get(String(activity.activity_manager || '').trim()) || {};
+    const activityForReadiness = {
+      ...activity,
+      contact_name: contactName || activity.contact_name,
+      resolved_contact_name: contactName || activity.resolved_contact_name
+    };
     const snapshot = buildActivityDocumentSnapshot({
       activity,
       syllabusRows: syllabus.data || [],
-      contact: { name: contact.contact_name, role: contact.contact_role, phone: contact.mobile || contact.phone },
+      contact: { name: contactName, role: contactRole, phone: contactPhone },
       instructor: { name: instructor.full_name, mobile: instructor.mobile },
       activityManager: manager
     });
     const hash = await documentDataHash(snapshot);
     const persisted = statusByActivity.get(rowId(activity)) || {};
-    const readiness = readinessForActivity(activity);
-    const recipientEmail = normalizeRecipientEmail(primaryEmailByContact.get(Number(activity.school_contact_id)) || activity.contact_email || contact.email);
+    const readiness = readinessForActivity(activityForReadiness);
+    const recipientEmail = normalizeRecipientEmail(
+      primaryEmailByContact.get(Number(activity.school_contact_id))
+      || resolvedContact.email
+      || activity.resolved_contact_email
+      || activity.contact_email
+      || contact.email
+    );
     const hasValidSchoolId = validCoordinationSchoolId(activity.school_id);
     items.push({
       activity,
