@@ -7,15 +7,28 @@ const visibility = await readFile(new URL('../frontend/src/activity-coordination
 const migration = await readFile(new URL('../supabase/migrations/20260815001500_activity_coordination_admin_only.sql', import.meta.url), 'utf8');
 const index = await readFile(new URL('../index.html', import.meta.url), 'utf8');
 
-test('coordination data fails closed for non-admin users and uses an admin-only email RPC', () => {
+test('coordination data waits for auth, fails closed for non-admin users and uses an admin-only email RPC', () => {
+  assert.match(data, /waitForSupabaseAuthSession/);
+  assert.match(data, /await waitForSupabaseAuthSession\(\{ timeoutMs: 8000 \}\)/);
+  assert.match(data, /if \(!session\?\.user\?\.id\) return false/);
   assert.match(data, /rpc\('activity_coordination_is_admin'\)/);
   assert.match(data, /if \(!isAdmin\) return \{ items: \[\], byActivityId: new Map\(\), access: 'denied' \}/);
   assert.match(data, /rpc\('activity_coordination_contact_emails'/);
   assert.doesNotMatch(data, /from\('contact_emails'\)/);
 });
 
+test('admin visibility waits for auth restore and rechecks on auth lifecycle events', () => {
+  assert.match(index, /activity-coordination\/admin-visibility\.js\?v=20260815-admin-only-v2/);
+  assert.match(visibility, /waitForSupabaseAuthSession/);
+  assert.match(visibility, /await waitForSupabaseAuthSession\(\{ timeoutMs: 8000 \}\)/);
+  assert.match(visibility, /onAuthStateChange/);
+  assert.match(visibility, /INITIAL_SESSION/);
+  assert.match(visibility, /SIGNED_IN/);
+  assert.match(visibility, /TOKEN_REFRESHED/);
+  assert.match(visibility, /SIGNED_OUT/);
+});
+
 test('non-admin UI hides the coordination tab and drawer action', () => {
-  assert.match(index, /activity-coordination\/admin-visibility\.js\?v=20260815-admin-only-v1/);
   assert.match(visibility, /data-activity-period-tab=\\?"coordination_approvals\\?"/);
   assert.match(visibility, /data-coordination-approval/);
   assert.doesNotMatch(visibility, /ds-table--activities-2027[\s\S]*nth-child\(5\)/);

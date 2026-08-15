@@ -6,6 +6,7 @@ const activities = await readFile(new URL('../frontend/src/screens/activities.js
 const api = await readFile(new URL('../frontend/src/api.js', import.meta.url), 'utf8');
 const graph = await readFile(new URL('../frontend/src/microsoft/graph-mail.js', import.meta.url), 'utf8');
 const photo = await readFile(new URL('../supabase/functions/activity-coordination-photo-approval/index.ts', import.meta.url), 'utf8');
+const view = await readFile(new URL('../frontend/src/activity-coordination/view.js', import.meta.url), 'utf8');
 
 test('2027 activities keep the coordination workspace but remove the permanent table column', () => {
   assert.match(activities, /ACTIVITIES_INNER_TAB_2027, label: 'פעילויות תשפ״ז'[\s\S]*ACTIVITIES_INNER_TAB_COORDINATION, label: 'אישורי תיאום'[\s\S]*ACTIVITIES_INNER_TAB_ARCHIVE/);
@@ -16,6 +17,20 @@ test('2027 activities keep the coordination workspace but remove the permanent t
 
 test('activities list projection includes activity_no for syllabus preparation matching', () => {
   assert.match(api, /const ACTIVITY_TABLE_COLUMNS = \[[\s\S]*'activity_no'[\s\S]*\]\.join\(','\)/);
+});
+
+test('coordination status filter hides non-matching rows and empty school groups', () => {
+  assert.match(view, /function applyCoordinationStatusFilter/);
+  assert.match(view, /row\.dataset\.status === selectedStatus/);
+  assert.match(view, /row\.style\.display = visible \? '' : 'none'/);
+  assert.match(view, /school\.style\.display = schoolVisible \? '' : 'none'/);
+  assert.match(view, /if \(!visible\)[\s\S]*item\.checked = false/);
+  assert.match(view, /applyCoordinationStatusFilter\(root, filter\.value\)/);
+});
+
+test('coordination selection respects visible rows and ready status only', () => {
+  assert.match(view, /if \(row\.hidden\) return/);
+  assert.match(view, /data-coordination-select-ready[\s\S]*row\?\.dataset\.status === COORDINATION_STATUS\.READY/);
 });
 
 test('Graph helper creates drafts under me with immutable IDs and never requests Mail.Send', () => {

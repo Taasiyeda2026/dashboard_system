@@ -1,4 +1,4 @@
-import { supabase } from '../supabase-client.js';
+import { supabase, waitForSupabaseAuthSession } from '../supabase-client.js';
 import {
   buildActivityDocumentSnapshot,
   coordinationStatus,
@@ -11,6 +11,8 @@ import {
 const rowId = (row) => String(row?.row_id || row?.RowID || '').trim();
 
 async function activityCoordinationAdminAccess() {
+  const session = await waitForSupabaseAuthSession({ timeoutMs: 8000 });
+  if (!session?.user?.id) return false;
   const { data, error } = await supabase.rpc('activity_coordination_is_admin');
   if (error) throw new Error(error.message || 'activity_coordination_access_check_failed');
   return data === true;

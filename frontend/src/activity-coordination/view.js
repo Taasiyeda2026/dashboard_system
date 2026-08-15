@@ -46,11 +46,45 @@ export function renderCoordinationWorkspace(context = {}, { canManage = false } 
   </section>`;
 }
 
+function applyCoordinationStatusFilter(root, status = '') {
+  const selectedStatus = String(status || '').trim();
+  root.querySelectorAll('[data-coordination-school]').forEach((school) => {
+    let visibleRows = 0;
+    school.querySelectorAll('[data-coordination-row]').forEach((row) => {
+      const visible = !selectedStatus || row.dataset.status === selectedStatus;
+      row.hidden = !visible;
+      row.style.display = visible ? '' : 'none';
+      if (!visible) {
+        const item = row.querySelector('[data-coordination-item]');
+        if (item) item.checked = false;
+      } else {
+        visibleRows += 1;
+      }
+    });
+    const schoolVisible = !selectedStatus || visibleRows > 0;
+    school.hidden = !schoolVisible;
+    school.style.display = schoolVisible ? '' : 'none';
+    const schoolCheckbox = school.querySelector('[data-coordination-school-select]');
+    if (schoolCheckbox) schoolCheckbox.checked = false;
+  });
+}
+
 export function bindCoordinationWorkspace(root, context, { loginHint = '', onChanged = () => {} } = {}) {
   const filter = root.querySelector('[data-coordination-filter]');
-  filter?.addEventListener('change', () => root.querySelectorAll('[data-coordination-row]').forEach((row) => { row.hidden = Boolean(filter.value && row.dataset.status !== filter.value); }));
-  root.querySelectorAll('[data-coordination-school-select]').forEach((box) => box.addEventListener('change', () => box.closest('[data-coordination-school]').querySelectorAll('[data-coordination-item]:not(:disabled)').forEach((item) => { item.checked = box.checked; })));
-  root.querySelector('[data-coordination-select-ready]')?.addEventListener('click', () => root.querySelectorAll('[data-coordination-item]:not(:disabled)').forEach((item) => { item.checked = true; }));
+  filter?.addEventListener('change', () => applyCoordinationStatusFilter(root, filter.value));
+  root.querySelectorAll('[data-coordination-school-select]').forEach((box) => box.addEventListener('change', () => {
+    box.closest('[data-coordination-school]').querySelectorAll('[data-coordination-row]').forEach((row) => {
+      if (row.hidden) return;
+      const item = row.querySelector('[data-coordination-item]:not(:disabled)');
+      if (item) item.checked = box.checked;
+    });
+  }));
+  root.querySelector('[data-coordination-select-ready]')?.addEventListener('click', () => {
+    root.querySelectorAll('[data-coordination-item]').forEach((item) => {
+      const row = item.closest('[data-coordination-row]');
+      item.checked = !item.disabled && row?.dataset.status === COORDINATION_STATUS.READY;
+    });
+  });
   root.querySelector('[data-coordination-prepare]')?.addEventListener('click', async () => {
     const ids = new Set(Array.from(root.querySelectorAll('[data-coordination-item]:checked')).map((item) => item.value));
     const selected = context.items.filter((item) => ids.has(item.activity_row_id));
