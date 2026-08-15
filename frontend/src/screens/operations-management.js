@@ -2355,7 +2355,6 @@ function courseScheduleTabHtml2027(rows, state) {
     ${summaryLine}
     <div class="ds-ops-mgmt-panel__toolbar no-print">
       <button type="button" class="ds-btn ds-btn--sm ds-btn--primary" data-ops-print>הדפס סידור עבודה</button>
-      <button type="button" class="ds-btn ds-btn--sm" data-attendance-dashboard-export>ייצוא לבקרת נוכחות</button>
       <button type="button" class="ds-btn ds-btn--sm" data-attendance-open>בקרת נוכחות</button>
     </div>
     <div class="ds-ops-mgmt-print-header only-print">
@@ -2417,7 +2416,6 @@ function instructorsTabHtml(rows, state, data = {}, directory = buildSchoolsDire
     ${activeSummary}
     <div class="ds-ops-mgmt-panel__toolbar no-print">
       <button type="button" class="ds-btn ds-btn--sm ds-btn--primary" data-ops-print>הדפס סידור עבודה</button>
-      <button type="button" class="ds-btn ds-btn--sm" data-attendance-dashboard-export>ייצוא לבקרת נוכחות</button>
       <button type="button" class="ds-btn ds-btn--sm" data-attendance-open>בקרת נוכחות</button>
     </div>
     <div class="ds-ops-mgmt-print-header only-print">
@@ -3381,7 +3379,7 @@ export const operationsManagementScreen = {
       resetOperationsManagementEntry(state);
     }
     bindInstructorsWorkspaceNav(root, { state, rerender });
-    if (ops.context === OPS_CONTEXT_INSTRUCTORS) bindAttendanceControl(root, { activities: Array.isArray(data?.rows) ? data.rows : [], api });
+    if (ops.context === OPS_CONTEXT_INSTRUCTORS) bindAttendanceControl(root, { api });
 
     bindSummerContactsModalEvents(root, { ui, api, rows: data?.instructorSchedulePrintContactsRows || [], logPrefix: 'operations-management' });
 

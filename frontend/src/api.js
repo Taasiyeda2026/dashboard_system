@@ -4,7 +4,7 @@ import { hebrewRole } from './screens/shared/ui-hebrew.js';
 import { getActivityAuthorityName, getActivityContactName, getActivityContactPhone, getActivitySchoolNames } from './screens/shared/operations-activity-helpers.js';
 import { cleanActivityManagerName, getContactsInstructorUsers, getRosterUsers, NO_ACTIVITY_MANAGER_LABEL, normalizeOneDayActivityType, resolveActivityInstructorName, buildContactsInstructorLookup, resolveCanonicalInstructorPair, validateInstructorIdentityPayload, normalizeActivityMeetingsCount } from './screens/shared/activity-options.js';
 import { EXCEPTION_TYPE_ORDER, normalizedExceptionTypes } from './screens/shared/exceptions-metrics.js';
-import { ACTIVITY_SEASON_SCHOOL_2027, activityMatchesPeriodKey, activitySeasonQueryValues, isSummerActivity, normalizeActivitySeason, normalizeGlobalActivityPeriod } from './screens/shared/summer-activity.js';
+import { ACTIVITY_SEASON_REGULAR, ACTIVITY_SEASON_SUMMER_2026, ACTIVITY_SEASON_SCHOOL_2027, activityMatchesPeriodKey, activitySeasonQueryValues, isSummerActivity, normalizeActivitySeason, normalizeGlobalActivityPeriod } from './screens/shared/summer-activity.js';
 import { assertActivityMutationAllowed } from './screens/shared/activity-readonly-period.js';
 import {
   normalizeContactMatchText,
@@ -6699,6 +6699,51 @@ export const api = {
       endDate: params?.endDate || params?.dateTo || ''
     });
     return { rows, _source: 'supabase' };
+  },
+  attendanceControlDashboardSources: async ({ employeeIds = [], fromDate = '', toDate = '' } = {}) => {
+    const ids = [...new Set((employeeIds || []).map((value) => String(value || '').trim()).filter(Boolean))];
+    if (!ids.length || !fromDate || !toDate) return { activities: [], contacts: [], travelCache: [], expenses: [] };
+    const activitySelect = `${ACTIVITY_OPERATIONS_COLUMNS},authority_id`;
+    const [regular, summer, school2027, contactsResult, usersResult] = await Promise.all([
+      readAllActivitiesRowsSupabase({ activityPeriod: ACTIVITY_SEASON_REGULAR, select: activitySelect, startDate: fromDate, endDate: toDate }),
+      readAllActivitiesRowsSupabase({ activityPeriod: ACTIVITY_SEASON_SUMMER_2026, select: activitySelect, startDate: fromDate, endDate: toDate }),
+      readAllActivitiesRowsSupabase({ activityPeriod: ACTIVITY_SEASON_SCHOOL_2027, select: activitySelect, startDate: fromDate, endDate: toDate }),
+      supabase.from('contacts_instructors').select('emp_id,full_name,address,employment_type,active').in('emp_id', ids),
+      supabase.from('users').select('emp_id,auth_user_id').in('emp_id', ids)
+    ]);
+    if (contactsResult.error) throw new Error(contactsResult.error.message || 'attendance_contacts_load_failed');
+    const activities = [...new Map([...(regular || []), ...(summer || []), ...(school2027 || [])]
+      .map((row) => [String(row.row_id || row.id || ''), row])).values()]
+      .filter((row) => ids.includes(String(row.emp_id || '').trim()) || ids.includes(String(row.emp_id_2 || '').trim()));
+    const schoolIds = [...new Set(activities.map((row) => Number(row.school_id)).filter(Number.isFinite))];
+    const routeReads = [];
+    const numericEmpIds = ids.map(Number).filter(Number.isFinite);
+    if (numericEmpIds.length) routeReads.push(supabase.from('scheduling_travel_cache').select('*').in('origin_instructor_emp_id', numericEmpIds));
+    if (schoolIds.length) routeReads.push(supabase.from('scheduling_travel_cache').select('*').in('origin_school_id', schoolIds).in('destination_school_id', schoolIds));
+    const routeResults = await Promise.all(routeReads);
+    const travelCache = [...new Map(routeResults.flatMap((result) => result.error ? [] : (result.data || []))
+      .map((row) => [`${row.origin_key}|${row.destination_key}`, row])).values()];
+
+    const userRows = usersResult.error ? [] : usersResult.data || [];
+    const authIds = userRows.map((row) => row.auth_user_id).filter(Boolean);
+    const empByAuthId = new Map(userRows.map((row) => [String(row.auth_user_id || ''), String(row.emp_id || '')]));
+    let expenses = [];
+    if (authIds.length) {
+      const reportsResult = await supabase.from('personal_reports').select('id,employee_id').in('employee_id', authIds);
+      const reportIds = (reportsResult.error ? [] : reportsResult.data || []).map((row) => row.id).filter(Boolean);
+      if (reportIds.length) {
+        const expenseResult = await supabase.from('expense_entries').select('report_id,employee_id,expense_date,amount,description,notes').in('report_id', reportIds).gte('expense_date', fromDate).lte('expense_date', toDate);
+        if (!expenseResult.error) expenses = (expenseResult.data || []).map((row) => ({ ...row, emp_id: empByAuthId.get(String(row.employee_id || '')) || '' }));
+      }
+    }
+    return {
+      activities,
+      contacts: contactsResult.data || [],
+      travelCache,
+      expenses,
+      expenseSourceAvailable: Boolean(authIds.length),
+      travelSourceAvailable: routeResults.every((result) => !result.error)
+    };
   },
   activities: async (filters, options) => {
     const resolvedFilters = filters || {};

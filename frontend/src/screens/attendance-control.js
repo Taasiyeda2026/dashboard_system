@@ -2,7 +2,6 @@ import * as XLSX from 'xlsx';
 import { escapeHtml } from './shared/html.js';
 import { activityMeetings } from './instructor-scheduling-load.js';
 
-export const DASHBOARD_EXPORT_HEADERS = ['מספר עובד', 'שם מדריך', 'סוג העסקה', 'תאריך', 'שעת התחלה', 'שעת סיום', 'סוג פעילות', 'שם בית ספר', 'רשות', 'שם תכנית', 'מספר מפגש', 'קילומטרים', 'הוצאות', 'מזהה פעילות'];
 export const DETAIL_HEADERS = ['מספר עובד', 'שם עובד', 'תאריך', 'שעת התחלה', 'שעת סיום', 'שעות עבודה', 'סוג פעילות', 'שם בית ספר', 'רשות', 'שם תכנית', 'מספר מפגש', 'קילומטרים', 'הוצאות', 'פירוט הוצאות', 'הערות'];
 export const MONTHLY_HEADERS = ['שם מדריך', 'מספר עובד', 'שעות ביטול זמן', 'שעות הכשרה', 'שעות חדר בריחה', 'שעות סדנה', 'שעות סדנאות קיץ', 'שעות סיור', 'שעות קורס', 'שעות תפעול', 'סה"כ קילומטרים', 'הוצאות', 'פירוט הוצאות'];
 export const DAILY_HEADERS = ['תאריך', 'שם מדריך', 'מספר עובד', 'סוג פעילות', 'רשות', 'שעת התחלה', 'שעת סיום', 'שעות עבודה', 'קילומטרים', 'הוצאות', 'פירוט הוצאות'];
@@ -29,6 +28,7 @@ const number = (value) => {
   const parsed = Number(txt(value).replace(/[₪,\s]/g, ''));
   return Number.isFinite(parsed) ? parsed : 0;
 };
+const optionalNumber = (value) => txt(value) === '' || value == null ? null : number(value);
 
 export function normalizeAttendanceName(value) {
   return txt(value).normalize('NFKD').toLowerCase()
@@ -106,16 +106,12 @@ export function buildDashboardAttendanceRows(activities = [], contacts = []) {
         date: excelDate(meeting.date), startTime: timeText(meeting.start_time || activity.start_time), endTime: timeText(meeting.end_time || activity.end_time),
         activityType: txt(activityValue(activity, ['activity_type_label', 'activity_type', 'item_type'])), school: txt(activityValue(activity, ['school', 'single_school_name', 'legacy_school'])),
         authority: txt(activityValue(activity, ['authority', 'authority_name'])), program: txt(activityValue(activity, ['activity_name', 'program_name', 'name'])),
-        meetingNo: meeting.meeting_no ?? index + 1, kilometers: activityValue(activity, ['kilometers', 'kilometres', 'distance_km', 'travel_km'], ''),
-        expenses: activityValue(activity, ['expenses', 'expense_amount'], ''), activityId: txt(activityValue(activity, ['row_id', 'RowID', 'id']))
+        meetingNo: meeting.meeting_no ?? index + 1, kilometers: null, expenses: null,
+        schoolId: activity.school_id == null ? null : Number(activity.school_id), activityId: txt(activityValue(activity, ['row_id', 'RowID', 'id']))
       });
     }));
   }
   return output;
-}
-
-function dashboardRowArray(row) {
-  return [row.employeeId, row.employeeName, row.employmentType, row.date, row.startTime, row.endTime, row.activityType, row.school, row.authority, row.program, row.meetingNo, row.kilometers, row.expenses, row.activityId];
 }
 
 function styledSheet(headers, rows, widths = []) {
@@ -126,16 +122,10 @@ function styledSheet(headers, rows, widths = []) {
   return sheet;
 }
 
-export function buildDashboardAttendanceWorkbook(activities, contacts) {
-  const rows = buildDashboardAttendanceRows(activities, contacts);
-  const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, styledSheet(DASHBOARD_EXPORT_HEADERS, rows.map(dashboardRowArray)), 'נתוני דשבורד');
-  return workbook;
-}
-
 export function parseAttendanceWorkbook(workbook) {
   const result = [];
-  for (const sheetName of workbook.SheetNames || []) {
+  const fullDetailSheet = (workbook.SheetNames || []).find((name) => normalizeAttendanceName(name) === normalizeAttendanceName('פירוט מלא'));
+  for (const sheetName of fullDetailSheet ? [fullDetailSheet] : (workbook.SheetNames || [])) {
     const matrix = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1, defval: '', raw: true });
     if (!matrix.length) continue;
     const columns = resolveColumns(matrix[0]);
@@ -148,12 +138,89 @@ export function parseAttendanceWorkbook(workbook) {
         sourceSheet: sheetName, employeeId, employeeName: txt(get('employeeName')), employmentType: txt(get('employmentType')),
         date: excelDate(get('date')), startTime: timeText(get('startTime')), endTime: timeText(get('endTime')),
         activityType: txt(get('activityType')), school: txt(get('school')), authority: txt(get('authority')), program: txt(get('program')),
-        meetingNo: txt(get('meetingNo')), kilometers: number(get('kilometers')), expenses: number(get('expenses')),
+        meetingNo: txt(get('meetingNo')), kilometers: optionalNumber(get('kilometers')), expenses: optionalNumber(get('expenses')),
         expenseDetails: txt(get('expenseDetails')), notes: txt(get('notes')), activityId: txt(get('activityId'))
       });
     }
   }
   return result;
+}
+
+export function attendanceDateScope(attendanceRows = []) {
+  const dates = [...new Set(attendanceRows.map((row) => row.date).filter(Boolean))].sort();
+  return {
+    employeeIds: [...new Set(attendanceRows.map((row) => txt(row.employeeId)).filter(Boolean))],
+    dates: new Set(dates), fromDate: dates[0] || '', toDate: dates.at(-1) || ''
+  };
+}
+
+function usableDistance(row) {
+  if (!row || row.distance_km == null || row.distance_km === '') return null;
+  const value = Number(row.distance_km);
+  return Number.isFinite(value) && value >= 0 ? value : null;
+}
+
+function instructorSchoolDistance(cache, employeeId, schoolId) {
+  const hit = cache.find((row) => txt(row.origin_instructor_emp_id) === txt(employeeId) && Number(row.destination_school_id) === Number(schoolId));
+  return usableDistance(hit);
+}
+
+function schoolSchoolDistance(cache, originSchoolId, destinationSchoolId) {
+  if (Number(originSchoolId) === Number(destinationSchoolId)) return 0;
+  const hit = cache.find((row) => Number(row.origin_school_id) === Number(originSchoolId) && Number(row.destination_school_id) === Number(destinationSchoolId));
+  return usableDistance(hit);
+}
+
+// Uses the same cached instructor→school and school→school route segments as scheduling.
+// Each row receives its incoming segment; the final row also receives the return-home
+// segment (the system's instructor→school distance is symmetric for that return).
+export function applyDashboardRouteKilometers(rows = [], travelCache = []) {
+  const groups = new Map();
+  rows.forEach((row) => { const key = `${row.employeeId}|${row.date}`; if (!groups.has(key)) groups.set(key, []); groups.get(key).push(row); });
+  for (const dayRows of groups.values()) {
+    dayRows.sort((a, b) => timeText(a.startTime).localeCompare(timeText(b.startTime)));
+    dayRows.forEach((row, index) => {
+      const incoming = index === 0
+        ? instructorSchoolDistance(travelCache, row.employeeId, row.schoolId)
+        : schoolSchoolDistance(travelCache, dayRows[index - 1].schoolId, row.schoolId);
+      const returnHome = index === dayRows.length - 1 ? instructorSchoolDistance(travelCache, row.employeeId, row.schoolId) : 0;
+      row.kilometers = incoming == null || returnHome == null ? null : Math.round((incoming + returnHome) * 100) / 100;
+    });
+  }
+  return rows;
+}
+
+export function applyDashboardExpenses(rows = [], expenses = []) {
+  const totals = new Map(); const details = new Map();
+  for (const expense of expenses) {
+    const key = `${txt(expense.emp_id)}|${excelDate(expense.expense_date)}`;
+    totals.set(key, (totals.get(key) || 0) + number(expense.amount));
+    const description = txt(expense.description || expense.notes); if (description) (details.get(key) || details.set(key, []).get(key)).push(description);
+  }
+  const used = new Set();
+  rows.forEach((row) => {
+    const key = `${row.employeeId}|${row.date}`;
+    if (!totals.has(key) || used.has(key)) return;
+    row.expenses = Math.round(totals.get(key) * 100) / 100;
+    row.expenseDetails = [...new Set(details.get(key) || [])].join('; ');
+    used.add(key);
+  });
+  return rows;
+}
+
+export async function loadAttendanceDashboardDataset(attendanceRows, api) {
+  const scope = attendanceDateScope(attendanceRows);
+  if (!scope.employeeIds.length || !scope.fromDate || !api?.attendanceControlDashboardSources) return [];
+  const sources = await api.attendanceControlDashboardSources(scope);
+  const rows = buildDashboardAttendanceRows(sources.activities, sources.contacts)
+    .filter((row) => scope.dates.has(row.date) && scope.employeeIds.includes(row.employeeId));
+  applyDashboardRouteKilometers(rows, sources.travelCache || []);
+  applyDashboardExpenses(rows, sources.expenses || []);
+  for (const contact of sources.contacts || []) {
+    const employeeId = txt(contact.emp_id);
+    if (scope.employeeIds.includes(employeeId)) rows.push({ employeeId, employeeName: txt(contact.full_name), employmentType: txt(contact.employment_type), __profile: true });
+  }
+  return rows;
 }
 
 function minutesBetween(a, b) {
@@ -172,7 +239,7 @@ function matchScore(attendance, dashboard) {
 }
 
 function comparable(type, value) {
-  if (type === 'number' || type === 'money') return number(value);
+  if (type === 'number' || type === 'money') return optionalNumber(value) ?? '__missing__';
   if (type === 'time') return timeText(value);
   return normalizeAttendanceName(value);
 }
@@ -208,7 +275,7 @@ export function applyAttendanceChoice(comparison, field, choice, custom = '') {
   if (!difference) return comparison;
   difference.choice = choice; difference.custom = custom;
   const value = choice === 'dashboard' ? difference.dashboard : choice === 'custom' ? custom : difference.attendance;
-  comparison.final[field] = difference.type === 'number' || difference.type === 'money' ? number(value) : value;
+  comparison.final[field] = difference.type === 'number' || difference.type === 'money' ? optionalNumber(value) : value;
   comparison.final.workHours = calculateWorkHours(comparison.final.startTime, comparison.final.endTime);
   return comparison;
 }
@@ -230,7 +297,7 @@ export function buildCorrectedAttendanceWorkbook(comparisons, dashboardRows = []
   rows.filter((row) => normalizeAttendanceName(row.employmentType).includes(normalizeAttendanceName('תעשיידע'))).forEach((row) => {
     const key = txt(row.employeeId); if (!monthlyMap.has(key)) monthlyMap.set(key, { name: row.employeeName, id: key, hours: Array(8).fill(0), km: 0, expenses: 0, details: [] });
     const item = monthlyMap.get(key); const bucket = activityBucket(row.activityType); if (bucket >= 0) item.hours[bucket] += row.workHours;
-    item.km += number(row.kilometers); item.expenses += number(row.expenses); if (row.expenseDetails) item.details.push(row.expenseDetails);
+    item.km += optionalNumber(row.kilometers) || 0; item.expenses += optionalNumber(row.expenses) || 0; if (row.expenseDetails) item.details.push(row.expenseDetails);
   });
   const monthly = [...monthlyMap.values()].map((item) => [item.name, item.id, ...item.hours.map((v) => Math.round(v * 100) / 100), item.km, item.expenses, [...new Set(item.details)].join('; ')]);
   const daily = rows.filter((row) => normalizeAttendanceName(row.employmentType).includes(normalizeAttendanceName('כוח אדם'))).map((row) => [row.date, row.employeeName, row.employeeId, row.activityType, row.authority, row.startTime, row.endTime, row.workHours, row.kilometers, row.expenses, row.expenseDetails]);
@@ -242,22 +309,27 @@ export function buildCorrectedAttendanceWorkbook(comparisons, dashboardRows = []
 }
 
 function diffText(diff) {
-  if (diff.type === 'time') return `שוני של ${minutesBetween(diff.attendance, diff.dashboard)} דקות`;
-  if (diff.type === 'number') return `שוני של ${Math.abs(number(diff.attendance) - number(diff.dashboard))} ק״מ`;
-  if (diff.type === 'money') return `שוני של ${Math.abs(number(diff.attendance) - number(diff.dashboard))} ₪`;
+  if (diff.type === 'time' && (!timeText(diff.attendance) || !timeText(diff.dashboard))) return 'חסר נתון באחד המקורות';
+  if (diff.type === 'time') return `פער ${minutesBetween(diff.attendance, diff.dashboard)} דקות`;
+  if ((diff.type === 'number' || diff.type === 'money') && (optionalNumber(diff.attendance) == null || optionalNumber(diff.dashboard) == null)) return 'חסר נתון באחד המקורות';
+  if (diff.type === 'number') return `פער ${Math.abs(number(diff.attendance) - number(diff.dashboard))} ק״מ`;
+  if (diff.type === 'money') return `פער ${Math.abs(number(diff.attendance) - number(diff.dashboard))} ₪`;
   return `${txt(diff.attendance) || 'ללא ערך'} לעומת ${txt(diff.dashboard) || 'ללא ערך'}`;
 }
 
 function summary(result) {
   const employees = new Set(result.comparisons.map((c) => c.attendance.employeeId));
   const different = new Set(result.comparisons.filter((c) => c.differences.length).map((c) => c.attendance.employeeId));
-  const sum = (key) => result.comparisons.reduce((total, c) => total + Math.abs(number(c.attendance[key]) - number(c.dashboard?.[key])), 0);
+  const sum = (key) => result.comparisons.reduce((total, c) => {
+    const attendance = optionalNumber(c.attendance[key]); const dashboard = optionalNumber(c.dashboard?.[key]);
+    return attendance == null || dashboard == null ? total : total + Math.abs(attendance - dashboard);
+  }, 0);
   const hourDiff = result.comparisons.reduce((total, c) => total + Math.abs(calculateWorkHours(c.attendance.startTime, c.attendance.endTime) - calculateWorkHours(c.dashboard?.startTime, c.dashboard?.endTime)), 0);
   return { employees: employees.size, different: different.size, hours: Math.round(hourDiff * 100) / 100, km: sum('kilometers'), expenses: sum('expenses') };
 }
 
 export function attendanceControlHtml() {
-  return `<section class="attendance-control no-print" data-attendance-control hidden dir="rtl"><div class="attendance-control__head"><div><h2>בקרת נוכחות</h2><p>טענו את שני קובצי ה־Excel ובצעו בדיקה.</p></div><button type="button" class="ds-btn ds-btn--sm" data-attendance-close>סגירה</button></div><div class="attendance-control__uploads"><label><strong>קובץ דשבורד</strong><input type="file" accept=".xlsx,.xls" data-attendance-dashboard></label><label><strong>קובץ נוכחות</strong><input type="file" accept=".xlsx,.xls" data-attendance-source></label><button type="button" class="ds-btn ds-btn--primary" data-attendance-run disabled>בצע בדיקה</button></div><p class="attendance-control__status" data-attendance-status aria-live="polite"></p><div data-attendance-results></div></section>`;
+  return `<section class="attendance-control no-print" data-attendance-control hidden dir="rtl"><div class="attendance-control__head"><div><h2>בקרת נוכחות</h2><p>העלו קובץ נוכחות והמערכת תשווה אותו לנתוני הדשבורד.</p></div><button type="button" class="ds-btn ds-btn--sm" data-attendance-close>סגירה</button></div><div class="attendance-control__uploads"><label><strong>העלאת קובץ נוכחות</strong><input type="file" accept=".xlsx,.xls" data-attendance-source></label><button type="button" class="ds-btn ds-btn--primary" data-attendance-run disabled>בצע בדיקה</button></div><p class="attendance-control__status" data-attendance-status aria-live="polite"></p><div data-attendance-results></div></section>`;
 }
 
 export function attendanceControlStylesHtml() {
@@ -284,33 +356,28 @@ function resultsHtml(result) {
     const details = changed.map((comparison) => `<div class="attendance-control__day"><h4>${escapeHtml(comparison.attendance.date)} · ${escapeHtml(comparison.attendance.program || comparison.attendance.activityType || 'דיווח')}</h4>${comparison.differences.map((diff) => `<div class="attendance-control__diff" data-comparison="${comparison.id}" data-field="${diff.key}"><strong>${escapeHtml(diff.label)}</strong><span>${escapeHtml(txt(diff.attendance) || '—')}</span><span>${escapeHtml(txt(diff.dashboard) || '—')}</span><span>${escapeHtml(diffText(diff))}</span><select class="ds-input ds-input--sm" data-attendance-choice><option value="attendance">נתון הנוכחות</option><option value="dashboard">נתון הדשבורד</option><option value="custom">ערך אחר</option></select><input class="ds-input ds-input--sm" data-attendance-custom hidden aria-label="ערך אחר"></div>`).join('')}</div>`).join('');
     return `<details class="attendance-control__employee"${changed.length ? '' : ''}><summary><strong>${escapeHtml(name)}</strong><span>${changed.length} הבדלים</span></summary><div class="attendance-control__employee-summary"><span>שעות נוכחות <b>${attendanceHours.toFixed(2)}</b></span><span>שעות בדשבורד <b>${dashboardHours.toFixed(2)}</b></span><span>השוני <b>${Math.abs(attendanceHours-dashboardHours).toFixed(2)}</b></span></div>${details || '<p class="ds-muted">לא נמצאו הבדלים בנתונים הנבדקים.</p>'}</details>`;
   }).join('');
-  return `<div class="attendance-control__complete"><strong>בדיקת הנוכחות הושלמה. נמצאו הבדלים אצל ${totals.different} מדריכים.</strong></div><div class="attendance-control__metrics"><span>מדריכים שנבדקו <b>${totals.employees}</b></span><span>שוני בשעות <b>${totals.hours}</b></span><span>שוני בקילומטרים <b>${totals.km}</b></span><span>שוני בהוצאות <b>₪${totals.expenses}</b></span></div>${cards}<button type="button" class="ds-btn ds-btn--primary attendance-control__export" data-attendance-export>ייצוא דוח נוכחות מתוקן</button>`;
+  return `<div class="attendance-control__complete"><strong>נמצאו פערים אצל ${totals.different} מדריכים. לחצו על מדריך לפרטים המלאים.</strong></div><div class="attendance-control__metrics"><span>מדריכים שנבדקו <b>${totals.employees}</b></span><span>פער בשעות <b>${totals.hours}</b></span><span>פער בקילומטרים <b>${totals.km}</b></span><span>פער בהוצאות <b>₪${totals.expenses}</b></span></div>${cards}<button type="button" class="ds-btn ds-btn--primary attendance-control__export" data-attendance-export>ייצוא דוח נוכחות מתוקן</button>`;
 }
 
 async function readFile(file) {
   return XLSX.read(await file.arrayBuffer(), { type: 'array', cellDates: true });
 }
 
-export function bindAttendanceControl(root, { activities = [], api } = {}) {
+export function bindAttendanceControl(root, { api } = {}) {
   const panel = root?.querySelector('[data-attendance-control]'); if (!panel) return;
-  const dashboardInput = panel.querySelector('[data-attendance-dashboard]'); const attendanceInput = panel.querySelector('[data-attendance-source]');
+  const attendanceInput = panel.querySelector('[data-attendance-source]');
   const run = panel.querySelector('[data-attendance-run]'); const status = panel.querySelector('[data-attendance-status]'); const results = panel.querySelector('[data-attendance-results]');
   let result = null;
-  const update = () => { run.disabled = !(dashboardInput.files?.[0] && attendanceInput.files?.[0]); };
-  dashboardInput.addEventListener('change', update); attendanceInput.addEventListener('change', update);
+  const update = () => { run.disabled = !attendanceInput.files?.[0]; };
+  attendanceInput.addEventListener('change', update);
   root.querySelector('[data-attendance-open]')?.addEventListener('click', () => { panel.hidden = false; panel.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
   panel.querySelector('[data-attendance-close]')?.addEventListener('click', () => { panel.hidden = true; });
-  root.querySelector('[data-attendance-dashboard-export]')?.addEventListener('click', async (event) => {
-    const button = event.currentTarget; button.disabled = true;
-    try { const contacts = api?.instructorSchedulePrintContacts ? (await api.instructorSchedulePrintContacts()).rows || [] : []; XLSX.writeFile(buildDashboardAttendanceWorkbook(activities, contacts), `בקרת_נוכחות_דשבורד_${new Date().toISOString().slice(0,10)}.xlsx`, { compression: true }); }
-    finally { button.disabled = false; }
-  });
   run.addEventListener('click', async () => {
-    run.disabled = true; status.textContent = 'בודק את הקבצים…';
+    run.disabled = true; status.textContent = 'טוען את נתוני הדשבורד ובודק את הקובץ…';
     try {
-      const [dashboardBook, attendanceBook] = await Promise.all([readFile(dashboardInput.files[0]), readFile(attendanceInput.files[0])]);
-      const dashboardRows = parseAttendanceWorkbook(dashboardBook); const attendanceRows = parseAttendanceWorkbook(attendanceBook);
-      if (!dashboardRows.length) throw new Error('לא נמצאו שורות בקובץ הדשבורד.'); if (!attendanceRows.length) throw new Error('לא נמצאו שורות עם מספר עובד ותאריך בקובץ הנוכחות.');
+      const attendanceRows = parseAttendanceWorkbook(await readFile(attendanceInput.files[0]));
+      if (!attendanceRows.length) throw new Error('לא נמצאו שורות עם מספר עובד ותאריך בגיליון פירוט מלא.');
+      const dashboardRows = await loadAttendanceDashboardDataset(attendanceRows, api);
       result = compareAttendanceRows(attendanceRows, dashboardRows); status.textContent = ''; results.innerHTML = resultsHtml(result);
     } catch (error) { status.textContent = error?.message || 'קריאת הקבצים נכשלה.'; results.innerHTML = ''; }
     finally { update(); }
