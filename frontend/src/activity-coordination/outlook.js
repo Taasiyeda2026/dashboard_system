@@ -58,7 +58,7 @@ export async function prepareCoordinationDrafts(items, { loginHint = '', onProgr
   return runSequentialGroups(groups, (group) => prepareCoordinationDraftGroup(group, { token }), onProgress);
 }
 
-export async function runSequentialGroups(groups, worker, onProgress = () => {} } = {}) {
+export async function runSequentialGroups(groups, worker, onProgress = () => {}) {
   const results = [];
   for (let index = 0; index < groups.length; index += 1) {
     onProgress({ current: index + 1, total: groups.length, group: groups[index] });
