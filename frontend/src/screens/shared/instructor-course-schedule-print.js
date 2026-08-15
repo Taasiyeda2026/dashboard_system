@@ -16,9 +16,10 @@ export function buildCourseSchedulePrintDocumentTitle(instructorName) {
   return `סידור עבודה - ${safeInstructorName} - תשפ״ז`;
 }
 
-function fieldRowHtml(label, value) {
+function fieldRowHtml(label, value, { featured = false } = {}) {
   const text = String(value ?? '').trim();
-  return `<div class="cs-field"><span class="cs-field__label">${escapeHtml(label)}</span><span class="cs-field__value">${escapeHtml(text || '—')}</span></div>`;
+  const valueClass = featured ? 'cs-field__value cs-field__value--featured' : 'cs-field__value';
+  return `<div class="cs-field"><span class="cs-field__label">${escapeHtml(label)}:</span><span class="${valueClass}">${escapeHtml(text || '—')}</span></div>`;
 }
 
 function courseCardHtml(row) {
@@ -28,7 +29,7 @@ function courseCardHtml(row) {
     <div class="cs-card__details">
       <section class="cs-card__section">
         <h2 class="cs-card__section-title">פרטי הקורס</h2>
-        ${fieldRowHtml('שם הקורס', row.name)}
+        ${fieldRowHtml('שם הקורס', row.name, { featured: true })}
         ${fieldRowHtml('רשות', row.authority)}
         ${fieldRowHtml('בית ספר', row.school)}
         ${fieldRowHtml('כיתה', row.grade)}
@@ -60,9 +61,9 @@ export function buildCourseSchedulePrintHtml({ instructorName = '', rows = [] } 
     <header class="cs-print-header">
       <h1 class="cs-print-title">סידור עבודה למדריך – תשפ״ז</h1>
       <div class="cs-print-meta">
-        <p><strong>שם המדריך:</strong> ${escapeHtml(instructorName || '—')}</p>
-        <p><strong>תקופת הפעילות:</strong> ${escapeHtml(periodFrom)}–${escapeHtml(periodTo)}</p>
-        <p><strong>סיכום:</strong> מספר קורסים: ${safeRows.length} · מספר מפגשים כולל: ${totalMeetings}</p>
+        <p><strong>שם המדריך:</strong> <span>${escapeHtml(instructorName || '—')}</span></p>
+        <p><strong>תקופת הפעילות:</strong> <span>${escapeHtml(periodFrom)}–${escapeHtml(periodTo)}</span></p>
+        <p><strong>סיכום:</strong> <span>מספר קורסים: ${safeRows.length} | מספר מפגשים כולל: ${totalMeetings}</span></p>
       </div>
     </header>
     <div class="cs-print-cards">${cardsHtml}</div>
@@ -76,23 +77,25 @@ export function courseSchedulePrintCss() {
     .cs-print-page{width:100%;box-sizing:border-box}
     .cs-print-header{margin:0 0 8px;padding:0 0 7px;border-bottom:2px solid #1e3a5f}
     .cs-print-title{margin:0 0 5px;font-size:17px;line-height:1.2;font-weight:800;color:#102a43;text-align:center}
-    .cs-print-meta{display:flex;justify-content:center;flex-wrap:wrap;gap:3px 18px;color:#334155}
+    .cs-print-meta{display:flex;justify-content:center;flex-wrap:wrap;gap:3px 18px;color:#172033}
     .cs-print-meta p{margin:0;white-space:nowrap}
-    .cs-print-meta strong{color:#163d68}
+    .cs-print-meta strong{color:#334e68;font-weight:700}
+    .cs-print-meta span{color:#172033;font-weight:400}
     .cs-print-cards{display:flex;flex-direction:column;gap:7px}
     .cs-card{border:1px solid #9aa9ba;border-radius:5px;overflow:hidden;break-inside:avoid;page-break-inside:avoid;background:#fff}
     .cs-card__details{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
     .cs-card__section{padding:6px 9px 5px;min-width:0}
     .cs-card__section+ .cs-card__section{border-inline-start:1px solid #d5dce5}
-    .cs-card__section-title,.cs-card__dates-title{margin:0 0 5px;font-size:11px;line-height:1.25;font-weight:800;color:#174a73}
+    .cs-card__section-title,.cs-card__dates-title{margin:0 0 5px;font-size:11.5px;line-height:1.25;font-weight:800;color:#123b60}
     .cs-card__section-title{padding-bottom:3px;border-bottom:1px solid #b9c9d8}
     .cs-field{display:grid;grid-template-columns:max-content minmax(0,1fr);align-items:baseline;gap:3px 8px;margin:0 0 2px}
-    .cs-field__label{color:#475569;font-weight:700;white-space:nowrap}
-    .cs-field__value{color:#132f52;font-weight:600;overflow-wrap:anywhere}
+    .cs-field__label{color:#3d536b;font-weight:700;white-space:nowrap}
+    .cs-field__value{color:#172033;font-weight:400;overflow-wrap:anywhere}
+    .cs-field__value--featured{font-weight:600}
     .cs-card__dates{padding:5px 9px 7px;border-top:1px solid #cbd5e1;background:#f8fafc}
     .cs-card__dates-title{margin-bottom:4px}
     .cs-dates-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:3px 6px}
-    .cs-date{padding:2px 4px;border:1px solid #d4dde7;border-radius:3px;background:#fff;color:#163d68;font-size:9.5px;font-weight:600;text-align:center;white-space:nowrap}
+    .cs-date{padding:2px 4px;border:1px solid #d4dde7;border-radius:3px;background:#fff;color:#263442;font-size:9.5px;font-weight:400;text-align:center;white-space:nowrap}
     @page{size:A4 portrait;margin:10mm}
     @media print{body{margin:0}.cs-card{break-inside:avoid;page-break-inside:avoid}.cs-print-header{break-after:avoid;page-break-after:avoid}}
   `;

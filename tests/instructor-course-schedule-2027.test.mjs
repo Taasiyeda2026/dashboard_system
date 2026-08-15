@@ -225,15 +225,20 @@ test('courseSchedulePrintCss declares A4 portrait, a compact two-column course h
   assert.match(css, /\.cs-card__details\{[^}]*grid-template-columns:minmax\(0,1fr\) minmax\(0,1fr\)/);
   assert.match(css, /\.cs-dates-grid\{[^}]*grid-template-columns:repeat\(5,minmax\(0,1fr\)\)/);
   assert.match(css, /\.cs-card\{[^}]*break-inside:avoid;page-break-inside:avoid/);
+  assert.match(css, /\.cs-field__value\{[^}]*font-weight:400/);
+  assert.match(css, /\.cs-field__value--featured\{font-weight:600\}/);
+  assert.match(css, /\.cs-date\{[^}]*color:#263442;[^}]*font-weight:400/);
 });
 
 test('buildCourseSchedulePrintHtml renders the document header, separate course cards and unnumbered dates exactly once', () => {
   const rows = buildReadyCourseScheduleRows([readyCourseFixture()]);
   const html = buildCourseSchedulePrintHtml({ instructorName: 'דני כהן', rows });
-  assert.match(html, /שם המדריך:<\/strong> דני כהן/);
+  assert.match(html, /שם המדריך:<\/strong> <span>דני כהן<\/span>/);
   assert.equal((html.match(/סידור עבודה למדריך – תשפ״ז/g) || []).length, 1);
-  assert.match(html, /<strong>סיכום:<\/strong> מספר קורסים: 1 · מספר מפגשים כולל: 14/);
+  assert.match(html, /<strong>סיכום:<\/strong> <span>מספר קורסים: 1 \| מספר מפגשים כולל: 14<\/span>/);
   assert.equal((html.match(/<article class="cs-card">/g) || []).length, 1);
+  assert.match(html, /<span class="cs-field__label">שם הקורס:<\/span><span class="cs-field__value cs-field__value--featured">/);
+  assert.match(html, /<span class="cs-field__label">שעות:<\/span><span class="cs-field__value">/);
 
   assert.doesNotMatch(html, /<ol\b|<li\b/);
   const datesGridHtml = html.match(/<div class="cs-dates-grid">([\s\S]*?)<\/div>/)?.[1] || '';
@@ -249,7 +254,7 @@ test('buildCourseSchedulePrintHtml renders the document header, separate course 
 
 test('buildCourseSchedulePrintHtml with no ready courses renders an empty card list without throwing', () => {
   const html = buildCourseSchedulePrintHtml({ instructorName: 'דני כהן', rows: [] });
-  assert.match(html, /<strong>סיכום:<\/strong> מספר קורסים: 0 · מספר מפגשים כולל: 0/);
+  assert.match(html, /<strong>סיכום:<\/strong> <span>מספר קורסים: 0 \| מספר מפגשים כולל: 0<\/span>/);
   assert.doesNotMatch(html, /<article class="cs-card">/);
 });
 
