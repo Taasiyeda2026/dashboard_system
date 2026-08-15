@@ -62,7 +62,7 @@ import { showToast } from './shared/toast.js';
 import { canEditDirect, canAddActivityDirect, canRequestEdit, canRequestCreateActivity, canReviewRequests } from '../permissions.js';
 import { bindInstructorScheduling } from './instructor-scheduling-workflow.js';
 import { loadActivityCoordinationContext } from '../activity-coordination/data.js';
-import { bindCoordinationWorkspace, coordinationStatusHtml, reconcileVisibleDrafts, renderCoordinationWorkspace } from '../activity-coordination/view.js';
+import { bindCoordinationWorkspace, reconcileVisibleDrafts, renderCoordinationWorkspace } from '../activity-coordination/view.js';
 const taasiyedaLogoSrc = new URL('../../assets/logo1.png', import.meta.url).href;
 
 const inflightActivityDetailRequests = new Map();
@@ -1889,15 +1889,12 @@ export const activitiesScreen = {
             ? `<button class="ds-contact-popover-btn" type="button" data-contact-popover data-cname="${contactName2027}" data-cphone="${contactPhone2027}" data-cemail="${contactEmail2027}"><span>${contactName2027}</span>${phoneLine2027}</button>`
             : '<span>—</span>';
           const notes2027 = escapeHtml(String(row.notes || '—'));
-          const coordinationItem = state.activityCoordination?.byActivityId?.get?.(String(row.RowID || row.row_id || ''));
-          const coordinationCell = coordinationStatusHtml(coordinationItem, { action: canDirectManageActivities(state) });
           return `
       <tr class="ds-data-row ds-activities-row" data-list-item data-search="${escapeHtml(rowSearch)}" data-filter="" data-row-id="${escapeHtml(row.RowID)}">
         <td class="ds-activities-col ds-activities-col--program"><div class="ds-activities-program-cell"><strong class="ds-activities-program-name" title="${activityName}">${activityName}</strong><span class="ds-activities-program-type" title="${activityTypeLabel}">${activityTypeLabel}</span>${editStatusBadge}</div></td>
         <td class="ds-activities-col ds-activities-col--authority"><span class="ds-activities-cell-ellipsis" title="${escapeHtml(row.authority || '—')}">${escapeHtml(row.authority || '—')}</span></td>
         <td class="ds-activities-col ds-activities-col--school"><span class="ds-activities-cell-ellipsis" title="${escapeHtml(getActivitySchoolDisplayName(row) || '—')}">${escapeHtml(getActivitySchoolDisplayName(row) || '—')}</span></td>
         <td class="ds-activities-col ds-activities-col--contact-name">${contactCell2027}</td>
-        <td class="ds-activities-col ds-activities-col--coordination">${coordinationCell}</td>
         <td class="ds-activities-col ds-activities-col--date"><time class="ds-activities-date">${escapeHtml(startHe2027)}</time></td>
         <td class="ds-activities-col ds-activities-col--date"><time class="ds-activities-date">${escapeHtml(endHe2027)}</time></td>
         <td class="ds-activities-col ds-activities-col--instructor">${instructorDisplay}</td>
@@ -1970,13 +1967,12 @@ export const activitiesScreen = {
                   <col class="ds-activities-col--authority">
                   <col class="ds-activities-col--school">
                   <col class="ds-activities-col--contact-name">
-                  <col class="ds-activities-col--coordination">
                   <col class="ds-activities-col--date">
                   <col class="ds-activities-col--date">
                   <col class="ds-activities-col--instructor">
                   <col class="ds-activities-col--notes">
                 </colgroup>
-                <thead><tr><th>תוכנית / סוג</th><th>רשות</th><th>בית ספר</th><th>איש קשר</th><th>אישור תיאום</th><th>תאריך התחלה</th><th>תאריך סיום</th><th>מדריך</th><th>הערות</th></tr></thead>`
+                <thead><tr><th>תוכנית / סוג</th><th>רשות</th><th>בית ספר</th><th>איש קשר</th><th>תאריך התחלה</th><th>תאריך סיום</th><th>מדריך</th><th>הערות</th></tr></thead>`
         : `<colgroup>
                   <col class="ds-activities-col--program">
                   <col class="ds-activities-col--authority">
@@ -2596,6 +2592,21 @@ export const activitiesScreen = {
       bindActivityEditForm(contentRoot);
       bindContact2027Section(contentRoot);
       bindInstructorScheduling(contentRoot, { ui, state, activitiesRows });
+      contentRoot.querySelector('[data-coordination-approval]')?.addEventListener('click', (event) => {
+        const form = event.currentTarget.closest('[data-drawer-form]');
+        const rowId = String(form?.dataset.rowId || '');
+        const item = state.activityCoordination?.byActivityId?.get?.(rowId);
+        const context = { items: item ? [item] : [] };
+        ui.openSecondaryDrawer?.({
+          title: 'אישור תיאום',
+          content: item
+            ? renderCoordinationWorkspace(context, { canManage: canDirectManageActivities(state) })
+            : '<p class="ds-muted">לא נמצאו נתוני אישור תיאום לפעילות זו.</p>',
+          onOpen: (secondaryRoot) => {
+            if (item) bindCoordinationWorkspace(secondaryRoot, context, { loginHint: state?.user?.email || '', onChanged: rerender });
+          }
+        });
+      });
     }
 
     function bindActivitiesReopenBtn(contentRoot, row) {

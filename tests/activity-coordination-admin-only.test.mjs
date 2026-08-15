@@ -14,10 +14,11 @@ test('coordination data fails closed for non-admin users and uses an admin-only 
   assert.doesNotMatch(data, /from\('contact_emails'\)/);
 });
 
-test('non-admin UI hides the coordination tab and 2027 coordination column', () => {
+test('non-admin UI hides the coordination tab and drawer action', () => {
   assert.match(index, /activity-coordination\/admin-visibility\.js\?v=20260815-admin-only-v1/);
   assert.match(visibility, /data-activity-period-tab=\\?"coordination_approvals\\?"/);
-  assert.match(visibility, /ds-table--activities-2027[\s\S]*nth-child\(5\)/);
+  assert.match(visibility, /data-coordination-approval/);
+  assert.doesNotMatch(visibility, /ds-table--activities-2027[\s\S]*nth-child\(5\)/);
   assert.match(visibility, /coordination-workspace/);
   assert.match(visibility, /data-activity-period-tab=\\?"year_all\\?"/);
 });

@@ -12,9 +12,7 @@ function installAdminOnlyStyles() {
   style.id = STYLE_ID;
   style.textContent = `
     html:not(.${ADMIN_CLASS}) [data-activity-period-tab="coordination_approvals"],
-    html:not(.${ADMIN_CLASS}) .ds-table--activities-2027 colgroup col:nth-child(5),
-    html:not(.${ADMIN_CLASS}) .ds-table--activities-2027 thead th:nth-child(5),
-    html:not(.${ADMIN_CLASS}) .ds-table--activities-2027 tbody td:nth-child(5),
+    html:not(.${ADMIN_CLASS}) [data-coordination-approval],
     html:not(.${ADMIN_CLASS}) .coordination-workspace {
       display: none !important;
     }

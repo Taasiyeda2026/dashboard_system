@@ -5806,12 +5806,11 @@ async function upsertMeetingNotesToSupabase(rowId, notesMap = {}) {
     meeting_no: String(Number(idx0) + 1),
     notes: String(note || '')
   }));
-  try {
-    await supabase
-      .from('activity_meetings')
-      .upsert(rows, { onConflict: 'source_row_id,meeting_no' });
-  } catch (e) {
-    console.warn('[activity-meetings] upsertMeetingNotesToSupabase failed', e?.message || e);
+  const { error } = await supabase
+    .from('activity_meetings')
+    .upsert(rows, { onConflict: 'source_row_id,meeting_no' });
+  if (error) {
+    throw buildSupabaseMutationError('saveActivityMeetingNotes', error, 'meeting_notes_save_failed');
   }
 }
 
@@ -6045,18 +6044,17 @@ async function readActivityDatesFromSupabase(source_row_id, source_sheet) {
   const row = normalizeActivityRow(data || {});
   const meeting_dates = getActivityDateColumns(row);
   const notesMap = {};
-  try {
-    const { data: meetingNoteRows } = await supabase
-      .from('activity_meetings')
-      .select('meeting_no,notes')
-      .eq('source_row_id', rowId);
-    if (Array.isArray(meetingNoteRows)) {
-      meetingNoteRows.forEach((m) => {
-        const idx = Number(m.meeting_no) - 1;
-        if (Number.isFinite(idx) && idx >= 0 && m.notes) notesMap[idx] = String(m.notes);
-      });
-    }
-  } catch (_) { /* notes are optional — do not fail dates load */ }
+  const { data: meetingNoteRows, error: meetingNotesError } = await supabase
+    .from('activity_meetings')
+    .select('meeting_no,notes')
+    .eq('source_row_id', rowId);
+  if (meetingNotesError) throw new Error(meetingNotesError.message || 'meeting_notes_load_failed');
+  if (Array.isArray(meetingNoteRows)) {
+    meetingNoteRows.forEach((m) => {
+      const idx = Number(m.meeting_no) - 1;
+      if (Number.isFinite(idx) && idx >= 0) notesMap[idx] = String(m.notes || '');
+    });
+  }
   const meeting_schedule = meeting_dates.map((d, i) => ({ date: d, performed: 'no', note: notesMap[i] || '' }));
   return {
     meeting_dates,
