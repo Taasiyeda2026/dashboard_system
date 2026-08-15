@@ -7,14 +7,36 @@ export const INSTRUCTORS_WORKSPACE_TABS = Object.freeze([
   { id: 'maintenance', label: 'תחזוקה', route: 'course-scheduling' }
 ]);
 
+const COURSE_SCHEDULING_ROUTE = 'course-scheduling';
+const COURSE_SCHEDULING_ROLES = new Set(['admin', 'operation_manager']);
+
+function hasCourseSchedulingRole(state = {}) {
+  return COURSE_SCHEDULING_ROLES.has(String(state?.user?.role || '').trim());
+}
+
 function availableRoutes(state) {
-  if (Array.isArray(state?.effectiveRoutes)) return new Set(state.effectiveRoutes);
-  if (Array.isArray(state?.routes)) return new Set(state.routes);
-  return new Set();
+  const source = Array.isArray(state?.effectiveRoutes)
+    ? state.effectiveRoutes
+    : (Array.isArray(state?.routes) ? state.routes : []);
+  const routes = new Set(source);
+  // Keep the shared instructors navigation aligned with main.js, which explicitly
+  // grants course-scheduling to these two roles even when bootstrap routes omit it.
+  if (hasCourseSchedulingRole(state)) routes.add(COURSE_SCHEDULING_ROUTE);
+  return routes;
 }
 
 function canOpenTab(tab, routes) {
   return routes.has(tab.route);
+}
+
+function ensureCourseSchedulingRouteInState(tab, state = {}) {
+  if (tab?.route !== COURSE_SCHEDULING_ROUTE || !hasCourseSchedulingRole(state)) return;
+  const addRoute = (key) => {
+    const current = Array.isArray(state?.[key]) ? state[key] : [];
+    if (!current.includes(COURSE_SCHEDULING_ROUTE)) state[key] = [...current, COURSE_SCHEDULING_ROUTE];
+  };
+  addRoute('routes');
+  addRoute('effectiveRoutes');
 }
 
 export function resolveInstructorsWorkspaceActiveTab(state = {}) {
@@ -100,6 +122,10 @@ function activateTab(tabId, { state, rerender } = {}) {
   const tab = INSTRUCTORS_WORKSPACE_TABS.find((item) => item.id === tabId);
   if (!tab || !canOpenTab(tab, routes)) return;
 
+  // A lightweight/bootstrap route refresh can replace effectiveRoutes after this
+  // tab row was already rendered. Restore the same explicit grant main.js applies
+  // so a visible scheduling/maintenance button never becomes a silent no-op.
+  ensureCourseSchedulingRouteInState(tab, state);
   const detail = prepareTabContext(tab, state);
 
   // Browser: never set state.route before app:navigate — main.js bails when route === state.route.
