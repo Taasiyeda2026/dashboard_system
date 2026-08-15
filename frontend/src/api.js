@@ -5418,6 +5418,7 @@ const ALLOWED_ACTIVITY_COLUMNS = new Set([
   'sessions',
   'price',
   'funding',
+  'exists_in_gefen',
   'start_time',
   'end_time',
   'emp_id',
@@ -5490,6 +5491,14 @@ function normalizeTimeFieldForSupabase(value) {
   return /^\d{2}:\d{2}$/.test(clean) ? clean : null;
 }
 
+function normalizeBooleanFieldForSupabase(value) {
+  if (typeof value === 'boolean') return value;
+  const clean = String(value ?? '').trim().toLowerCase();
+  if (clean === 'true') return true;
+  if (clean === 'false') return false;
+  return null;
+}
+
 /**
  * Given a sanitized payload that may contain date_1..date_35,
  * returns the latest non-empty YYYY-MM-DD value, or null if none found.
@@ -5545,6 +5554,8 @@ function sanitizeActivityPayloadForSupabase(payload = {}, { includeRowId = true 
       nextValue = normalizeDateFieldForSupabase(rawValue);
     } else if (key === 'activity_season') {
       nextValue = normalizeActivitySeason(rawValue);
+    } else if (key === 'exists_in_gefen') {
+      nextValue = normalizeBooleanFieldForSupabase(rawValue);
     } else if (key === 'participants_count') {
       if (rawValue === '' || rawValue === null || rawValue === undefined) {
         nextValue = null;
@@ -8146,6 +8157,10 @@ export const api = {
     await validateActivityInstructorBindingsOrThrow({ ...(existingInstructorRow || {}), ...syncedChanges });
     const reducedChanges = Object.entries(syncedChanges).reduce((acc, [key, value]) => {
       if (value === undefined) return acc;
+      if (key === 'exists_in_gefen' && typeof value === 'boolean') {
+        acc[key] = value;
+        return acc;
+      }
       const isDateField = key === 'start_date' || key === 'end_date' || /^date_\d+$/.test(key) || /^meeting_date_\d+$/.test(key);
       if (value === null) {
         if (isDateField) acc[key] = null;

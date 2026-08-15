@@ -1,6 +1,14 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
+const bootstrapStorage = new Map();
+globalThis.sessionStorage ||= {
+  getItem: (key) => bootstrapStorage.get(key) ?? null,
+  setItem: (key, value) => bootstrapStorage.set(key, String(value)),
+  removeItem: (key) => bootstrapStorage.delete(key)
+};
+globalThis.localStorage ||= globalThis.sessionStorage;
+
 async function readApiSource() {
   const fs = await import('node:fs/promises');
   return fs.readFile(new URL('../frontend/src/api.js', import.meta.url), 'utf8');
@@ -60,6 +68,30 @@ test('sanitizeActivityPayloadForSupabase normalizes bigint/time empty values to 
   assert.match(source, /const bigintFields = new Set\(\['activity_no', 'sessions', 'price', 'emp_id', 'emp_id_2', 'school_contact_id'\]\)/);
   assert.match(source, /const timeFields = new Set\(\['start_time', 'end_time'\]\)/);
   assert.match(source, /sanitized\[key\] = nextValue === undefined \? null : nextValue;/);
+});
+
+test('real activity save sanitizer preserves independent exists_in_gefen booleans for direct and requested edits', async () => {
+  const [{ sanitizeActivityPayloadForSupabase }, source] = await Promise.all([
+    import('../frontend/src/api.js'),
+    readApiSource()
+  ]);
+
+  assert.deepEqual(
+    sanitizeActivityPayloadForSupabase({
+      exists_in_gefen: true,
+      funding: 'גורם קיים',
+      is_gefen_funded: false,
+      gefen_order_number: 'legacy-order'
+    }, { includeRowId: false }),
+    { exists_in_gefen: true, funding: 'גורם קיים' }
+  );
+  assert.deepEqual(
+    sanitizeActivityPayloadForSupabase({ exists_in_gefen: false }, { includeRowId: false }),
+    { exists_in_gefen: false }
+  );
+  assert.match(source, /const sanitizedChanges = sanitizeActivityPayloadForSupabase\(normalizedChangesSource/);
+  assert.match(source, /const normalizedChanges = sanitizeActivityPayloadForSupabase\(/);
+  assert.match(source, /key === 'exists_in_gefen' && typeof value === 'boolean'/);
 });
 
 test('Supabase read paths keep instructor data screens and end dates registered', async () => {
