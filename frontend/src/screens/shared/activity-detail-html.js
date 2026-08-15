@@ -838,18 +838,34 @@ function blockAdditionalSupplemental(row, { hideSeason = false } = {}) {
 
 function buildDateChipsHtml(schedule, isOnce) {
   const source = isOnce ? schedule.slice(0, 1) : schedule;
-  return source
-    .map((item) => {
+  const grouped = source.reduce((acc, item) => {
+    const date = String(item?.date || '').trim();
+    const key = date || '__empty__';
+    if (!acc.has(key)) {
+      acc.set(key, { item, count: 0, doneCount: 0, notes: [] });
+    }
+    const entry = acc.get(key);
+    entry.count += 1;
+    const performed = String(item?.performed || '').toLowerCase() === 'yes';
+    const autoDoneByDate = /^\d{4}-\d{2}-\d{2}$/.test(date) && date < todayStr();
+    if (performed || autoDoneByDate) entry.doneCount += 1;
+    const note = String(item?.note || '').trim();
+    if (note && !entry.notes.includes(note)) entry.notes.push(note);
+    return acc;
+  }, new Map());
+
+  return Array.from(grouped.values())
+    .map(({ item, count, doneCount, notes }) => {
       const date = String(item?.date || '').trim();
-      const performed = String(item?.performed || '').toLowerCase() === 'yes';
-      const isDone = performed || (/^\d{4}-\d{2}-\d{2}$/.test(date) && date < todayStr());
-      const noteText = String(item?.note || '').trim();
+      const isDone = doneCount > 0;
+      const countLabel = count > 1 ? ` · ${count} מפגשים` : '';
+      const noteText = notes.join('\n');
       const noteIcon = noteText
         ? `<span class="activity-drawer__date-note-icon" role="img" tabindex="0" title="${escapeHtml(noteText)}" aria-label="הערה למפגש: ${escapeHtml(noteText)}">💬</span>`
         : '';
       return `
         <div class="activity-drawer__date-chip ${isDone ? 'is-done' : ''}" data-date-card>
-          <span>${escapeHtml(formatDateHe(item?.date || ''))}</span>
+          <span>${escapeHtml(`${formatDateHe(date)}${countLabel}`)}</span>
           <span class="activity-drawer__weekday">${escapeHtml(fmtWeekdayShort(item?.date || ''))}</span>
           ${noteIcon}
         </div>
