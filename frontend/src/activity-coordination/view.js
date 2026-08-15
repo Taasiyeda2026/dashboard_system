@@ -27,7 +27,7 @@ export function coordinationUiStatus(item = {}) {
 export function coordinationMissingDetails(item = {}) {
   const details = (item.readiness?.missing || []).map((key) => key.startsWith('date_') ? 'תאריכי פעילות' : (MISSING_LABELS[key] || key));
   if (item.technical_blocker) {
-    details.push(/מייל|דוא[״"]?ל/.test(item.technical_blocker) ? 'מייל' : item.technical_blocker.replace(/^חסר(?:ה|ים)?\s+/, ''));
+    details.push(/מייל|דוא[״\"]?ל/.test(item.technical_blocker) ? 'מייל' : item.technical_blocker.replace(/^חסר(?:ה|ים)?\s+/, ''));
   }
   return [...new Set(details)];
 }
@@ -81,7 +81,7 @@ export function renderCoordinationWorkspace(context = {}, { canManage = false } 
     const sectionItems = byStatus[status];
     const groups = schoolGroups(sectionItems);
     return `<section class="coordination-section coordination-section--${status}" data-coordination-section="${status}">
-      <header class="coordination-section__header"><h3>${escapeHtml(title)} <span>${sectionItems.length}</span></h3>${actions && canManage ? `<div class="coordination-toolbar"><button type="button" class="ds-btn ds-btn--sm" data-coordination-select-ready>בחר את כל המוכנים לשליחה</button><button type="button" class="ds-btn ds-btn--sm ds-btn--primary" data-coordination-prepare>הכנת מיילים נבחרים</button><span data-coordination-progress role="status" aria-live="polite"></span></div>` : ''}</header>
+      <header class="coordination-section__header"><h3>${escapeHtml(title)} <span>${sectionItems.length}</span></h3>${actions && canManage ? `<div class="coordination-toolbar"><button type="button" class="ds-btn ds-btn--sm" data-coordination-select-ready>סמן מוכנים</button><button type="button" class="ds-btn ds-btn--sm ds-btn--primary" data-coordination-prepare>שליחת מוכנים</button><span data-coordination-progress role="status" aria-live="polite"></span></div>` : ''}</header>
       ${sectionItems.length ? `<div class="coordination-schools">${Array.from(groups.entries()).map(([key, group]) => `<section class="coordination-school" data-coordination-school data-school-key="${escapeHtml(key)}">
         <header>${status === COORDINATION_STATUS.READY && canManage ? '<label><input type="checkbox" data-coordination-school-select> ' : ''}<strong>${escapeHtml(group[0].snapshot?.school?.name || 'בית ספר')}</strong>${status === COORDINATION_STATUS.READY && canManage ? '</label>' : ''}<span>${group.length} פעילויות</span></header>
         <div class="coordination-rows">${group.map((item) => `<label class="coordination-row" data-coordination-row data-status="${status}">${status === COORDINATION_STATUS.READY && canManage ? `<input type="checkbox" data-coordination-item value="${escapeHtml(item.activity_row_id)}">` : ''}<span class="coordination-row__details"><strong>${escapeHtml(item.snapshot?.program?.name || '')}</strong>${detailsHtml(item)}</span><span class="coordination-row__state">${coordinationStatusHtml(item)}</span></label>`).join('')}</div>
@@ -139,7 +139,7 @@ export function renderCoordinationActivityModal(item) {
   const hours = meetings.find((meeting) => meeting.hours)?.hours || '';
   const grade = [item.activity?.grade, item.activity?.class_group].filter(Boolean).join(' / ');
   const canPrepare = coordinationUiStatus(item) === COORDINATION_STATUS.READY || item.status === COORDINATION_STATUS.CHANGED_SINCE_SENT;
-  const label = item.status === COORDINATION_STATUS.CHANGED_SINCE_SENT ? 'שליחת אישור מעודכן' : 'הכנת אישור תיאום';
+  const label = item.status === COORDINATION_STATUS.CHANGED_SINCE_SENT ? 'שליחת אישור מעודכן' : 'שליחת אישור תיאום';
   const field = (name, value) => value ? `<div><dt>${name}</dt><dd>${escapeHtml(value)}</dd></div>` : '';
   return `<section class="coordination-activity-modal" data-coordination-activity-modal data-activity-id="${escapeHtml(item.activity_row_id)}" dir="rtl">
     <div class="coordination-activity-modal__status">${coordinationStatusHtml(item)}</div>
