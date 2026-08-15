@@ -127,6 +127,22 @@
   width: min(90vw, 520px);
 }
 
+.coordination-activity-modal [data-coordination-modal-prepare] {
+  display: flex;
+  width: fit-content;
+  min-width: 210px;
+  max-width: min(100%, 280px);
+  margin: 16px auto 0;
+  padding-inline: 24px;
+  justify-content: center;
+}
+
+.coordination-activity-modal [data-coordination-modal-progress] {
+  display: block;
+  margin-top: 8px;
+  text-align: center;
+}
+
 @media (max-width: 900px) {
   .coordination-workspace {
     width: min(calc(100% - 24px), 720px);

@@ -8,6 +8,8 @@ import {
   validCoordinationSchoolId
 } from './domain.js';
 
+export const COORDINATION_DOCUMENT_VERSION = 'coordination-pdf-v2';
+
 const rowId = (row) => String(row?.row_id || row?.RowID || '').trim();
 
 async function activityCoordinationAdminAccess() {
@@ -74,7 +76,7 @@ export async function loadActivityCoordinationContext(activities = [], settings 
       instructor: { name: instructor.full_name, mobile: instructor.mobile },
       activityManager: manager
     });
-    const hash = await documentDataHash(snapshot);
+    const hash = await documentDataHash({ document_version: COORDINATION_DOCUMENT_VERSION, snapshot });
     const persisted = statusByActivity.get(rowId(activity)) || {};
     const readiness = readinessForActivity(activityForReadiness);
     const recipientEmail = normalizeRecipientEmail(
