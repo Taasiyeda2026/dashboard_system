@@ -72,3 +72,9 @@ test('default permissions grant catalog but not edit-review to requested roles',
     assert.match(defaults, /can_review_requests: 'no'/, `${role} should not get review permission`);
   }
 });
+
+test('shell route navigation is delegated so newly rendered operations tabs stay clickable', async () => {
+  const mainSource = await readFile(new URL('../frontend/src/main.js', import.meta.url), 'utf8');
+  assert.match(mainSource, /document\.addEventListener\('click', \(event\) => \{\s*const button = event\.target\?\.closest\?\.\('\[data-route\]'\);\s*if \(button\) navigateToRoute\(button\.dataset\.route\);/s);
+  assert.doesNotMatch(mainSource, /document\.querySelectorAll\('\[data-route\]'\)\.forEach\(\(button\) => \{\s*button\.addEventListener\('click',[\s\S]*?navigateToRoute\(button\.dataset\.route\)/);
+});

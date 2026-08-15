@@ -50,6 +50,7 @@ test('preparation is matched only by activity_no and is never a readiness requir
   assert.equal(meetings[1].school_preparation, 'מחשב עם חיבור לאינטרנט');
   assert.equal(meetings[2].school_preparation, '');
   assert.equal(meetings[0].hours, '08:30–10:00');
+  assert.equal(meetings[0].grade_class, 'ח׳ / קבוצה א׳');
   assert.equal(meetings[0].date, '03/09/2026');
 });
 

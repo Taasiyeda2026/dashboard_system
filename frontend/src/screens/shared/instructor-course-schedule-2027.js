@@ -150,6 +150,8 @@ export function buildCourseScheduleRow(activity) {
     school: cleanCourseSchoolName(getActivitySchoolDisplayName(activity), authority),
     instructorNames: getCourseReadyInstructorNames(activity),
     grade: getActivityGradeLabel(activity) || '',
+    contactName: String(activity?.resolved_contact_name ?? activity?.resolved_school_2027_contact?.name ?? activity?.contact_name ?? '').trim(),
+    contactPhone: String(activity?.resolved_contact_phone ?? activity?.resolved_school_2027_contact?.phone ?? activity?.contact_phone ?? activity?.phone ?? '').trim(),
     dates,
     weekday: getCourseFixedWeekday(dates),
     timeRange: getActivityTimeRange(activity),
