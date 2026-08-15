@@ -14,9 +14,18 @@ export function coordinationStatusHtml(item, { action = false } = {}) {
   const meta = STATUS_PRESENTATION[item?.status] || STATUS_PRESENTATION[COORDINATION_STATUS.NOT_SENT];
   const sentDate = item?.persisted?.sent_at ? new Date(item.persisted.sent_at).toLocaleDateString('he-IL') : '';
   const title = [item?.technical_blocker, item?.cc_warning, item?.persisted?.reconciliation_error].filter(Boolean).join(' · ');
-  const button = action && item?.readiness?.ready && !item?.technical_blocker && item?.status !== COORDINATION_STATUS.DRAFT
-    ? `<button type="button" class="coordination-send-link" data-coordination-send="${escapeHtml(item.activity_row_id)}">${[COORDINATION_STATUS.SENT, COORDINATION_STATUS.CHANGED_SINCE_SENT].includes(item.status) ? 'שליחה מחדש' : 'שליחת אישור'}</button>` : '';
+  const buttonLabel = item?.status === COORDINATION_STATUS.CHANGED_SINCE_SENT ? 'שליחת אישור מעודכן' : 'אישור תיאום';
+  const button = action && item?.readiness?.ready && !item?.technical_blocker && ![COORDINATION_STATUS.DRAFT, COORDINATION_STATUS.SENT].includes(item?.status)
+    ? `<button type="button" class="coordination-send-link" data-coordination-send="${escapeHtml(item.activity_row_id)}">${buttonLabel}</button>` : '';
   return `<span class="coordination-status ${meta.className}" title="${escapeHtml(title)}"><span aria-hidden="true">${meta.icon}</span> ${meta.label}${sentDate ? ` · ${escapeHtml(sentDate)}` : ''}</span>${button}`;
+}
+
+export function coordinationDrawerActionHtml(item) {
+  if (item?.status === COORDINATION_STATUS.SENT) {
+    return '<span class="coordination-drawer-sent"><span class="coordination-drawer-sent__check" aria-hidden="true">✓</span> אישור תיאום נשלח</span>';
+  }
+  const label = item?.status === COORDINATION_STATUS.CHANGED_SINCE_SENT ? 'שליחת אישור מעודכן' : 'אישור תיאום';
+  return `<button type="button" class="ds-btn ds-btn--sm" data-coordination-approval>${label}</button>`;
 }
 
 export function renderCoordinationWorkspace(context = {}, { canManage = false } = {}) {

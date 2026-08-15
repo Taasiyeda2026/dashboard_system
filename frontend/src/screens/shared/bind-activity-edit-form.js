@@ -2,6 +2,7 @@ import { translateApiErrorForUser } from './ui-hebrew.js';
 import { showToast } from './toast.js';
 import { formatDateHe } from './format-date.js';
 import { escapeHtml } from './html.js';
+import { syncActivityEndTimeOptions } from './activity-time-options.js';
 import { activityTypeMatches, getValidInstructorUsers, humanDisplayText, INSTRUCTOR_CONTACTS_MISSING_ERROR_MESSAGE, INSTRUCTOR_IDENTITY_ERROR_MESSAGE, normalizeActivityTypeKey, normalizeOneDayActivityType, resolveInstructorSelectionByEmpId, validateInstructorIdentityPayload } from './activity-options.js';
 import { state } from '../../state.js';
 import { validateCourseFundingSplit } from '../../activity-funding-picker-compact.js';
@@ -781,6 +782,7 @@ export function bindActivityEditForm(contentRoot, {
     updateMeetingWeekdays(form);
     updateMoreDatesToggle(form);
     updateEndDateDisplay(form);
+    syncActivityEndTimeOptions(form.querySelector('[name="start_time"]'), form.querySelector('[name="end_time"]'));
     const typeEl = form.querySelector('[name="activity_type"]');
     const nameSel = form.querySelector('[data-role="activity-name-select"]');
     if (nameSel) nameSel.disabled = !normalizeActivityTypeKey(typeEl?.value);
@@ -792,6 +794,9 @@ export function bindActivityEditForm(contentRoot, {
     form.addEventListener(
       'change',
       (ev) => {
+        if (ev.target.matches('[name="start_time"]')) {
+          syncActivityEndTimeOptions(ev.target, form.querySelector('[name="end_time"]'));
+        }
         const nameEl = ev.target.closest('[data-role="activity-name-select"]');
         if (nameEl) {
           const autoNo = detectActivityNoByName(form, String(nameEl.value || ''));

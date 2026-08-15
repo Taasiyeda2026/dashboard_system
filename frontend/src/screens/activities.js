@@ -62,7 +62,7 @@ import { showToast } from './shared/toast.js';
 import { canEditDirect, canAddActivityDirect, canRequestEdit, canRequestCreateActivity, canReviewRequests } from '../permissions.js';
 import { bindInstructorScheduling } from './instructor-scheduling-workflow.js';
 import { loadActivityCoordinationContext } from '../activity-coordination/data.js';
-import { bindCoordinationWorkspace, reconcileVisibleDrafts, renderCoordinationWorkspace } from '../activity-coordination/view.js';
+import { bindCoordinationWorkspace, coordinationDrawerActionHtml, reconcileVisibleDrafts, renderCoordinationWorkspace } from '../activity-coordination/view.js';
 const taasiyedaLogoSrc = new URL('../../assets/logo1.png', import.meta.url).href;
 
 const inflightActivityDetailRequests = new Map();
@@ -2592,6 +2592,10 @@ export const activitiesScreen = {
       bindActivityEditForm(contentRoot);
       bindContact2027Section(contentRoot);
       bindInstructorScheduling(contentRoot, { ui, state, activitiesRows });
+      const form = contentRoot.querySelector('[data-drawer-form]');
+      const coordinationItem = state.activityCoordination?.byActivityId?.get?.(String(form?.dataset.rowId || ''));
+      const coordinationAction = contentRoot.querySelector('[data-activity-actions]');
+      if (coordinationAction && coordinationItem) coordinationAction.innerHTML = coordinationDrawerActionHtml(coordinationItem);
       contentRoot.querySelector('[data-coordination-approval]')?.addEventListener('click', (event) => {
         const form = event.currentTarget.closest('[data-drawer-form]');
         const rowId = String(form?.dataset.rowId || '');

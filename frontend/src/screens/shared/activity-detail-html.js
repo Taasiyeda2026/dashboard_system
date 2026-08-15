@@ -5,9 +5,18 @@ import { resolveSchool2027Contact } from './school-2027-contact.js';
 import { ACTIVITY_SEASON_OPTIONS, ACTIVITY_SEASON_SCHOOL_2027, activityPeriodDisplayLabel, activitySeasonLabel, normalizeActivitySeason } from './summer-activity.js';
 import { isActivitySchedulingEligible } from './activity-scheduling-eligibility.js';
 import { applyReadOnlyActivityCapabilities, isReadOnlyActivityRow } from './activity-readonly-period.js';
+import { activityTimeOptions, normalizeActivityTime } from './activity-time-options.js';
 
 const ONCE_TYPES = ['workshop', 'tour', 'escape_room'];
 const ACTIVITY_EDIT_TYPE_ORDER = ['course', 'workshop', 'escape_room', 'tour', 'after_school'];
+
+function timeSelectHtml({ name, value, minimum = '' }) {
+  const selected = normalizeActivityTime(value);
+  const safeValue = minimum && selected < minimum ? minimum : selected;
+  return `<select class="ds-input" name="${escapeHtml(name)}">${safeValue ? '' : '<option value="" selected>—</option>'}${activityTimeOptions({ minimum, selected: safeValue })
+    .map((time) => `<option value="${time}"${time === safeValue ? ' selected' : ''}>${time}</option>`)
+    .join('')}</select>`;
+}
 
 const ACTIVITY_TYPE_PILL_LABEL = {
   course: 'קורס',
@@ -590,8 +599,8 @@ function blockTeamTimes(row, { settings = {}, schedulingManaged = false } = {}) 
         ${fieldEditOnly(
           'שעת התחלה / סיום',
           `<div class="activity-drawer__field-controls activity-drawer__field-controls--inline">
-            ${inputHtml({ name: 'start_time', value: formatTimeShort(row.start_time), type: 'time' })}
-            ${inputHtml({ name: 'end_time', value: formatTimeShort(row.end_time), type: 'time' })}
+            ${timeSelectHtml({ name: 'start_time', value: formatTimeShort(row.start_time) })}
+            ${timeSelectHtml({ name: 'end_time', value: formatTimeShort(row.end_time), minimum: normalizeActivityTime(row.start_time) })}
           </div>`,
           'activity-drawer__field--hours'
         )}
@@ -871,8 +880,7 @@ function buildDateChipsHtml(schedule, isOnce) {
         : '';
       return `
         <div class="activity-drawer__date-chip ${isDone ? 'is-done' : ''}" data-date-card>
-          <span>${escapeHtml(`${formatDateHe(date)}${countLabel}`)}</span>
-          <span class="activity-drawer__weekday">${escapeHtml(fmtWeekdayShort(item?.date || ''))}</span>
+          <span class="activity-drawer__date-line">${escapeHtml(formatDateHe(date))}<span aria-hidden="true"> · </span><span class="activity-drawer__weekday">${escapeHtml(fmtWeekdayShort(item?.date || ''))}</span>${escapeHtml(countLabel)}</span>
           ${noteIcon}
         </div>
       `;
