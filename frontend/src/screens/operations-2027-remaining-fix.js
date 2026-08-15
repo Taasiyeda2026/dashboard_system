@@ -153,9 +153,17 @@ function installScreenWrappers() {
 
     if (!is2027State(state)) return originalRender.call(this, data, context);
 
-    const normalizedData = normalizeWorkshopInventory2027Data(data || {}, state);
-    const html = originalRender.call(this, normalizedData, context);
-    return mark2027Root(html);
+    // Entry reset also runs inside render. Guard the tab here just like load so
+    // a hidden 2026-only tab cannot replace the visible 2027 workshops default.
+    const releaseTabGuard = install2027TabGuard(state);
+    resetHiddenActiveTab(state);
+    try {
+      const normalizedData = normalizeWorkshopInventory2027Data(data || {}, state);
+      const html = originalRender.call(this, normalizedData, context);
+      return mark2027Root(html);
+    } finally {
+      releaseTabGuard();
+    }
   };
 }
 
