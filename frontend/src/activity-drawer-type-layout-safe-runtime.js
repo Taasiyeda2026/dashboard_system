@@ -4,19 +4,21 @@ const FIXED_ATTR = 'data-activity-drawer-type-layout-fixed';
 
 const previousTestFlag = globalThis[TEST_FLAG];
 globalThis[TEST_FLAG] = true;
-const { applyActivityDrawerTypeLayoutFix } = await import('./activity-drawer-type-layout-fix.js');
-if (previousTestFlag === undefined) delete globalThis[TEST_FLAG];
-else globalThis[TEST_FLAG] = previousTestFlag;
 
-function applyPending(root = document) {
+function restoreTestFlag() {
+  if (previousTestFlag === undefined) delete globalThis[TEST_FLAG];
+  else globalThis[TEST_FLAG] = previousTestFlag;
+}
+
+function applyPending(applyFix, root = document) {
   const selector = `[data-drawer-form][${ENHANCED_ATTR}]:not([${FIXED_ATTR}])`;
   const forms = [];
   if (root?.matches?.(selector)) forms.push(root);
   root?.querySelectorAll?.(selector).forEach((form) => forms.push(form));
-  forms.forEach((form) => applyActivityDrawerTypeLayoutFix(form));
+  forms.forEach((form) => applyFix(form));
 }
 
-function initialize() {
+function initialize(applyFix) {
   if (typeof document === 'undefined' || typeof MutationObserver === 'undefined') return;
   let scheduled = false;
   const schedule = () => {
@@ -24,7 +26,7 @@ function initialize() {
     scheduled = true;
     queueMicrotask(() => {
       scheduled = false;
-      applyPending(document);
+      applyPending(applyFix, document);
     });
   };
 
@@ -37,4 +39,12 @@ function initialize() {
   schedule();
 }
 
-initialize();
+import('./activity-drawer-type-layout-fix.js')
+  .then(({ applyActivityDrawerTypeLayoutFix }) => {
+    restoreTestFlag();
+    initialize(applyActivityDrawerTypeLayoutFix);
+  })
+  .catch((error) => {
+    restoreTestFlag();
+    console.error('[activity-drawer-type-layout-safe-runtime]', error);
+  });
