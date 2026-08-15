@@ -8,7 +8,7 @@ import {
   validCoordinationSchoolId
 } from './domain.js';
 
-export const COORDINATION_DOCUMENT_VERSION = 'coordination-pdf-v4';
+export const COORDINATION_DOCUMENT_VERSION = 'coordination-pdf-v5';
 
 const rowId = (row) => String(row?.row_id || row?.RowID || '').trim();
 

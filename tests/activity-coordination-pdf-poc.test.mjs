@@ -29,10 +29,10 @@ test('coordination PDF removes internal numbering fields and uses a small left-s
   assert.match(renderer, /logo: \{ width: 44/);
 });
 
-test('coordination PDF highlights use RTL bullets instead of numeric numbering', () => {
-  assert.match(renderer, /highlight: \{ flexDirection: 'row', direction: 'rtl'/);
-  assert.match(renderer, /highlightBullet:[\s\S]*textAlign: 'right'/);
-  assert.match(renderer, /highlightText:[\s\S]*textAlign: 'right'[\s\S]*direction: 'rtl'/);
+test('coordination PDF highlights use compact right-side RTL bullets', () => {
+  assert.match(renderer, /highlight: \{ flexDirection: 'row-reverse', alignItems: 'flex-start', marginBottom: 2 \}/);
+  assert.match(renderer, /highlightBullet: \{ width: 8, marginLeft: 4/);
+  assert.match(renderer, /highlightText:[\s\S]*textAlign: 'right'[\s\S]*direction: 'rtl'[\s\S]*lineHeight: 1\.18/);
   assert.match(renderer, /h\(Text, \{ style: styles\.highlightBullet \}, '•'\)/);
   assert.doesNotMatch(renderer, /highlightNumber|\$\{index \+ 1\}\. /);
 });
