@@ -8,14 +8,14 @@ export const STATUS_PRESENTATION = Object.freeze({
 });
 
 const MISSING_LABELS = Object.freeze({
-  school: 'חסר שם בית ספר',
-  program: 'חסר שם תוכנית / פעילות',
-  contact: 'חסר איש קשר',
-  grade_class: 'חסרה כיתה / קבוצה',
-  sessions: 'חסר מספר מפגשים',
-  start_time: 'חסרה שעת התחלה',
-  end_time: 'חסרה שעת סיום',
-  instructor: 'חסר/ה מדריך/ה'
+  school: 'שם בית ספר',
+  program: 'שם תוכנית / פעילות',
+  contact: 'איש קשר',
+  grade_class: 'כיתה / קבוצה',
+  sessions: 'מספר מפגשים',
+  start_time: 'שעת התחלה',
+  end_time: 'שעת סיום',
+  instructor: 'מדריך/ה'
 });
 
 export function coordinationUiStatus(item = {}) {
@@ -25,8 +25,10 @@ export function coordinationUiStatus(item = {}) {
 }
 
 export function coordinationMissingDetails(item = {}) {
-  const details = (item.readiness?.missing || []).map((key) => key.startsWith('date_') ? 'חסרים תאריכי פעילות' : (MISSING_LABELS[key] || `חסר: ${key}`));
-  if (item.technical_blocker) details.push(item.technical_blocker);
+  const details = (item.readiness?.missing || []).map((key) => key.startsWith('date_') ? 'תאריכי פעילות' : (MISSING_LABELS[key] || key));
+  if (item.technical_blocker) {
+    details.push(/מייל|דוא[״"]?ל/.test(item.technical_blocker) ? 'מייל' : item.technical_blocker.replace(/^חסר(?:ה|ים)?\s+/, ''));
+  }
   return [...new Set(details)];
 }
 
@@ -39,8 +41,10 @@ export function coordinationStatusHtml(item, { action = false } = {}) {
   const button = action && item?.readiness?.ready && !item?.technical_blocker && ![COORDINATION_STATUS.DRAFT, COORDINATION_STATUS.SENT].includes(item?.status)
     ? `<button type="button" class="coordination-send-link" data-coordination-send="${escapeHtml(item.activity_row_id)}">${buttonLabel}</button>` : '';
   const changed = item?.status === COORDINATION_STATUS.CHANGED_SINCE_SENT ? '<small class="coordination-changed-note">הפרטים השתנו מאז השליחה</small>' : '';
-  const missing = uiStatus === COORDINATION_STATUS.MISSING_DETAILS ? `<small class="coordination-missing-list">${coordinationMissingDetails(item).map(escapeHtml).join(' · ')}</small>` : '';
-  return `<span class="coordination-status ${meta.className}" title="${escapeHtml(title)}"><span aria-hidden="true">${meta.icon}</span> ${meta.label}${sentDate ? ` · ${escapeHtml(sentDate)}` : ''}</span>${changed}${missing}${button}`;
+  if (uiStatus === COORDINATION_STATUS.MISSING_DETAILS) {
+    return `<span class="coordination-missing-list" title="${escapeHtml(title)}"><span aria-hidden="true">⚠</span> חסרים: ${coordinationMissingDetails(item).map(escapeHtml).join(', ')}</span>`;
+  }
+  return `<span class="coordination-status ${meta.className}" title="${escapeHtml(title)}"><span aria-hidden="true">${meta.icon}</span> ${meta.label}${sentDate ? ` · ${escapeHtml(sentDate)}` : ''}</span>${changed}${button}`;
 }
 
 export function coordinationDrawerActionHtml(item) {
@@ -53,21 +57,41 @@ export function coordinationDrawerActionHtml(item) {
 
 export function renderCoordinationWorkspace(context = {}, { canManage = false } = {}) {
   const items = context.items || [];
-  const schoolGroups = new Map();
-  for (const item of items) {
-    const schoolKey = String(item.activity.school_id || item.snapshot.school.name);
-    if (!schoolGroups.has(schoolKey)) schoolGroups.set(schoolKey, []);
-    schoolGroups.get(schoolKey).push(item);
-  }
+  const byStatus = {
+    [COORDINATION_STATUS.MISSING_DETAILS]: items.filter((item) => coordinationUiStatus(item) === COORDINATION_STATUS.MISSING_DETAILS),
+    [COORDINATION_STATUS.READY]: items.filter((item) => coordinationUiStatus(item) === COORDINATION_STATUS.READY),
+    [COORDINATION_STATUS.SENT]: items.filter((item) => coordinationUiStatus(item) === COORDINATION_STATUS.SENT)
+  };
+  const schoolGroups = (sectionItems) => {
+    const groups = new Map();
+    for (const item of sectionItems) {
+      const key = String(item.activity?.school_id || item.snapshot?.school?.name || 'school');
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(item);
+    }
+    return groups;
+  };
+  const detailsHtml = (item) => {
+    const grade = [item.activity?.grade, item.activity?.class_group].filter(Boolean).join(' / ');
+    const date = item.snapshot?.program?.meetings?.find((meeting) => meeting.date)?.date || '';
+    return [grade, item.snapshot?.contact?.name, item.recipient_email, date]
+      .filter(Boolean).map((value) => `<small>${escapeHtml(value)}</small>`).join('');
+  };
+  const sectionHtml = (status, title, { actions = false } = {}) => {
+    const sectionItems = byStatus[status];
+    const groups = schoolGroups(sectionItems);
+    return `<section class="coordination-section coordination-section--${status}" data-coordination-section="${status}">
+      <header class="coordination-section__header"><h3>${escapeHtml(title)} <span>${sectionItems.length}</span></h3>${actions && canManage ? `<div class="coordination-toolbar"><button type="button" class="ds-btn ds-btn--sm" data-coordination-select-ready>בחר את כל המוכנים לשליחה</button><button type="button" class="ds-btn ds-btn--sm ds-btn--primary" data-coordination-prepare>הכנת מיילים נבחרים</button><span data-coordination-progress role="status" aria-live="polite"></span></div>` : ''}</header>
+      ${sectionItems.length ? `<div class="coordination-schools">${Array.from(groups.entries()).map(([key, group]) => `<section class="coordination-school" data-coordination-school data-school-key="${escapeHtml(key)}">
+        <header>${status === COORDINATION_STATUS.READY && canManage ? '<label><input type="checkbox" data-coordination-school-select> ' : ''}<strong>${escapeHtml(group[0].snapshot?.school?.name || 'בית ספר')}</strong>${status === COORDINATION_STATUS.READY && canManage ? '</label>' : ''}<span>${group.length} פעילויות</span></header>
+        <div class="coordination-rows">${group.map((item) => `<label class="coordination-row" data-coordination-row data-status="${status}">${status === COORDINATION_STATUS.READY && canManage ? `<input type="checkbox" data-coordination-item value="${escapeHtml(item.activity_row_id)}">` : ''}<span class="coordination-row__details"><strong>${escapeHtml(item.snapshot?.program?.name || '')}</strong>${detailsHtml(item)}</span><span class="coordination-row__state">${coordinationStatusHtml(item)}</span></label>`).join('')}</div>
+      </section>`).join('')}</div>` : '<p class="coordination-section__empty">אין פעילויות במצב זה.</p>'}
+    </section>`;
+  };
   return `<section class="coordination-workspace" dir="rtl">
-    <div class="coordination-toolbar">
-      ${canManage ? '<button type="button" class="ds-btn ds-btn--sm" data-coordination-select-ready>בחר את כל המוכנים לשליחה</button><button type="button" class="ds-btn ds-btn--sm ds-btn--primary" data-coordination-prepare>הכנת מיילים נבחרים</button>' : ''}
-      <span data-coordination-progress role="status" aria-live="polite"></span>
-    </div>
-    <div class="coordination-schools">${Array.from(schoolGroups.entries()).map(([key, group]) => `<section class="coordination-school" data-coordination-school data-school-key="${escapeHtml(key)}">
-      <header><label><input type="checkbox" data-coordination-school-select> <strong>${escapeHtml(group[0].snapshot.school.name || 'בית ספר')}</strong></label><span>${group.length} פעילויות</span></header>
-      <div class="coordination-rows">${group.map((item) => `<label class="coordination-row" data-coordination-row data-status="${coordinationUiStatus(item)}"><input type="checkbox" data-coordination-item value="${escapeHtml(item.activity_row_id)}" ${(!canManage || coordinationUiStatus(item) !== COORDINATION_STATUS.READY) ? 'disabled' : ''}><span><strong>${escapeHtml(item.snapshot.program.name || 'ללא שם')}</strong><small>${escapeHtml([item.activity?.grade, item.activity?.class_group].filter(Boolean).join(' / ') || 'ללא כיתה / קבוצה')}</small><small>נמען: ${escapeHtml(item.snapshot.contact.name || 'לא צוין')} · ${escapeHtml(item.recipient_email || 'ללא מייל')}</small></span><span>${coordinationStatusHtml(item)}</span></label>`).join('')}</div>
-    </section>`).join('')}</div>
+    ${sectionHtml(COORDINATION_STATUS.MISSING_DETAILS, 'חסרים פרטים')}
+    ${sectionHtml(COORDINATION_STATUS.READY, 'מוכנים לשליחה', { actions: true })}
+    ${sectionHtml(COORDINATION_STATUS.SENT, 'נשלח')}
   </section>`;
 }
 
@@ -105,12 +129,12 @@ export function bindCoordinationWorkspace(root, context, { loginHint = '', onCha
 export function renderCoordinationActivityModal(item) {
   if (!item) return '<p class="ds-muted">לא נמצאו נתוני אישור תיאום לפעילות זו.</p>';
   const meetings = item.snapshot?.program?.meetings || [];
-  const dates = meetings.map((meeting) => meeting.date).filter(Boolean).join(', ') || '—';
-  const hours = meetings.find((meeting) => meeting.hours)?.hours || '—';
-  const grade = [item.activity?.grade, item.activity?.class_group].filter(Boolean).join(' / ') || '—';
+  const dates = meetings.map((meeting) => meeting.date).filter(Boolean).join(', ');
+  const hours = meetings.find((meeting) => meeting.hours)?.hours || '';
+  const grade = [item.activity?.grade, item.activity?.class_group].filter(Boolean).join(' / ');
   const canPrepare = coordinationUiStatus(item) === COORDINATION_STATUS.READY || item.status === COORDINATION_STATUS.CHANGED_SINCE_SENT;
   const label = item.status === COORDINATION_STATUS.CHANGED_SINCE_SENT ? 'שליחת אישור מעודכן' : 'הכנת אישור תיאום';
-  const field = (name, value) => `<div><dt>${name}</dt><dd>${escapeHtml(value || '—')}</dd></div>`;
+  const field = (name, value) => value ? `<div><dt>${name}</dt><dd>${escapeHtml(value)}</dd></div>` : '';
   return `<section class="coordination-activity-modal" data-coordination-activity-modal data-activity-id="${escapeHtml(item.activity_row_id)}" dir="rtl">
     <div class="coordination-activity-modal__status">${coordinationStatusHtml(item)}</div>
     <dl>${field('בית ספר', item.snapshot?.school?.name)}${field('תוכנית / פעילות', item.snapshot?.program?.name)}${field('כיתה / קבוצה', grade)}${field('תאריכים', dates)}${field('שעות', hours)}${field('איש קשר', item.snapshot?.contact?.name)}${field('מייל לנמען', item.recipient_email)}${field('העתק', item.cc_email)}${field('מסמכים', 'סיכום תיאום ואישור צילום')}</dl>

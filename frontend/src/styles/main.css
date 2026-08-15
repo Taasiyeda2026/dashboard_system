@@ -9715,16 +9715,22 @@ select.ds-input {
 .coordination-send-link { display: block; margin: 2px auto 0; border: 0; background: transparent; color: #1d4ed8; font: inherit; font-size: .64rem; cursor: pointer; text-decoration: underline; }
 .coordination-drawer-sent { color: #475569; font-size: 10px; font-weight: 400; line-height: 1.2; }
 .coordination-drawer-sent__check { color: #15803d; }
-.coordination-workspace { display: grid; gap: 12px; width: min(100%, 920px); margin-inline: auto; }
+.coordination-workspace { display: grid; gap: 16px; width: min(calc(100% - 32px), 1160px); margin-inline: auto; }
+.coordination-section { display: grid; gap: 9px; }
+.coordination-section__header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-bottom: 7px; border-bottom: 1px solid var(--ds-border); }
+.coordination-section__header h3 { margin: 0; font-size: 1rem; }
+.coordination-section__header h3 span { color: var(--ds-text-muted); font-size: .78rem; }
+.coordination-section__empty { margin: 0; padding: 10px 12px; color: var(--ds-text-muted); font-size: .8rem; }
 .coordination-toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .coordination-toolbar [data-coordination-progress] { margin-inline-start: auto; font-weight: 600; }
-.coordination-schools { display: grid; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); gap: 10px; align-items: start; }
+.coordination-schools { display: grid; grid-template-columns: 1fr; gap: 8px; align-items: start; }
 .coordination-school { border: 1px solid var(--ds-border); border-radius: 9px; overflow: hidden; background: var(--ds-surface); box-shadow: 0 1px 3px rgba(15, 23, 42, .05); }
 .coordination-school > header { display: flex; justify-content: space-between; padding: 9px 12px; background: #eef4fb; }
 .coordination-rows { display: grid; }
-.coordination-row { display: grid; grid-template-columns: 20px minmax(0, 1fr); gap: 7px; align-items: start; padding: 8px 10px; border-top: 1px solid var(--ds-border); cursor: pointer; }
+.coordination-row { display: grid; grid-template-columns: auto minmax(0, 1fr) minmax(150px, auto); gap: 7px; align-items: start; padding: 7px 10px; border-top: 1px solid var(--ds-border); cursor: pointer; }
 .coordination-row > span { display: flex; flex-direction: column; }
-.coordination-row > span:last-child { grid-column: 2; }
+.coordination-row__details { flex-direction: row !important; align-items: baseline; gap: 7px 12px; flex-wrap: wrap; }
+.coordination-row__state { align-items: flex-end; text-align: end; }
 .coordination-row small { color: var(--ds-text-muted); }
 .ds-modal.ds-modal--coordination-activity { width: min(92vw, 560px); height: auto; max-height: min(82vh, 680px); inset: 50% auto auto 50%; transform: translate(-50%, calc(-50% + 18px)); border-radius: 12px; }
 .ds-ui-layer.is-modal-open .ds-modal.ds-modal--coordination-activity { transform: translate(-50%, -50%); }
@@ -9736,6 +9742,12 @@ select.ds-input {
 .coordination-activity-modal dd { margin: 2px 0 0; font-size: .84rem; font-weight: 600; overflow-wrap: anywhere; }
 .coordination-activity-modal [data-coordination-modal-progress] { font-size: .78rem; font-weight: 600; }
 @media (max-width: 600px) { .coordination-activity-modal dl { grid-template-columns: 1fr; } }
+@media (max-width: 700px) {
+  .coordination-workspace { width: 100%; }
+  .coordination-section__header { align-items: flex-start; flex-direction: column; }
+  .coordination-row { grid-template-columns: auto minmax(0, 1fr); }
+  .coordination-row__state { grid-column: 2; align-items: flex-start; text-align: start; }
+}
 
 /* ── contact popover button ── */
 .ds-contact-popover-btn {
