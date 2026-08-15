@@ -15,15 +15,18 @@ test('meeting-note save propagates persistence errors before activity success is
   assert.ok(save.indexOf('await upsertMeetingNotesToSupabase(rowId, meetingNotes);') < save.lastIndexOf('return { ok: true'));
 });
 
-test('meeting-note RLS grants only direct editors the required insert/update and sequence access', () => {
-  assert.match(migration, /grant insert, update on table public\.activity_meetings to authenticated/);
+test('meeting-note RLS is enabled before direct-editor grants and writes stay scoped', () => {
+  const enableRls = migration.indexOf('alter table public.activity_meetings enable row level security;');
+  const grantWrites = migration.indexOf('grant insert, update on table public.activity_meetings to authenticated;');
+  assert.ok(enableRls >= 0);
+  assert.ok(grantWrites > enableRls);
   assert.match(migration, /grant usage, select on sequence public\.activity_meetings_id_seq to authenticated/);
   assert.match(migration, /for insert[\s\S]*with check \(public\.app_can_edit_direct\(\)\)/);
   assert.match(migration, /for update[\s\S]*using \(public\.app_can_edit_direct\(\)\)[\s\S]*with check \(public\.app_can_edit_direct\(\)\)/);
   assert.doesNotMatch(migration, /using \(true\)|with check \(true\)|disable row level security|grant delete/);
 });
 
-test('tracked migrations explicitly enable RLS on activity_meetings', () => {
+test('catch-up migration explicitly enforces RLS without changing grants', () => {
   assert.match(enforceRlsMigration, /alter table public\.activity_meetings enable row level security/);
   assert.doesNotMatch(enforceRlsMigration, /disable row level security|force row level security|grant\s+/i);
 });
