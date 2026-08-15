@@ -1,6 +1,7 @@
 import * as XLSX from 'xlsx';
 import { escapeHtml } from './shared/html.js';
 import { activityMeetings } from './instructor-scheduling-load.js';
+import { activityTypeDisplayLabel, normalizeActivityTypeKey } from './shared/activity-options.js';
 
 export const DETAIL_HEADERS = ['מספר עובד', 'שם עובד', 'תאריך', 'שעת התחלה', 'שעת סיום', 'שעות עבודה', 'סוג פעילות', 'שם בית ספר', 'רשות', 'שם תכנית', 'מספר מפגש', 'קילומטרים', 'הוצאות', 'פירוט הוצאות', 'הערות'];
 export const MONTHLY_HEADERS = ['שם מדריך', 'מספר עובד', 'שעות ביטול זמן', 'שעות הכשרה', 'שעות חדר בריחה', 'שעות סדנה', 'שעות סדנאות קיץ', 'שעות סיור', 'שעות קורס', 'שעות תפעול', 'סה"כ קילומטרים', 'הוצאות', 'פירוט הוצאות'];
@@ -8,7 +9,9 @@ export const DAILY_HEADERS = ['תאריך', 'שם מדריך', 'מספר עוב�
 
 const FIELD_DEFS = [
   ['startTime', 'שעת התחלה', 'time'], ['endTime', 'שעת סיום', 'time'],
-  ['program', 'שם תכנית', 'text'], ['meetingNo', 'מספר מפגש', 'text'],
+  ['workHours', 'שעות עבודה', 'number'],
+  ['school', 'בית ספר', 'text'], ['authority', 'רשות', 'text'],
+  ['program', 'שם תכנית', 'text'], ['activityType', 'סוג פעילות', 'activityType'], ['meetingNo', 'מספר מפגש', 'text'],
   ['kilometers', 'קילומטרים', 'number'], ['expenses', 'הוצאות', 'money']
 ];
 const HEADER_ALIASES = {
@@ -30,10 +33,15 @@ const number = (value) => {
   return Number.isFinite(parsed) ? parsed : 0;
 };
 const optionalNumber = (value) => txt(value) === '' || value == null ? null : number(value);
+const ATTENDANCE_ONLY_ACTIVITY_TYPES = new Set(['ביטולזמן', 'הכשרה', 'תפעול']);
+
+export function isAttendanceOnlyActivityType(value) {
+  return ATTENDANCE_ONLY_ACTIVITY_TYPES.has(normalizeAttendanceName(value));
+}
 
 export function normalizeAttendanceName(value) {
   return txt(value).normalize('NFKD').toLowerCase()
-    .replace(/[׳״'"`´’‘“”.,;:()\[\]{}\-_/\\]/g, '')
+    .replace(/[׳״'"`´’‘“”.,;:()\[\]{}\-_/\\\u05BE\u2010-\u2015]/g, '')
     .replace(/\s+/g, '')
     .replace(/מאיר$/u, '');
 }
@@ -51,9 +59,13 @@ function resolveColumns(header = []) {
 }
 
 function excelDate(value) {
-  if (value instanceof Date && !Number.isNaN(value.getTime())) return value.toISOString().slice(0, 10);
+  // SheetJS Date cells represent a wall-clock Excel value. Keep its local calendar
+  // components: toISOString() converts to UTC and can silently move the day.
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}-${String(value.getDate()).padStart(2, '0')}`;
+  }
   if (typeof value === 'number' && value > 1000) {
-    const parsed = XLSX.SSF.parse_date_code(value);
+    const parsed = (XLSX.SSF || XLSX.default?.SSF)?.parse_date_code(value);
     if (parsed) return `${parsed.y}-${String(parsed.m).padStart(2, '0')}-${String(parsed.d).padStart(2, '0')}`;
   }
   const raw = txt(value).slice(0, 10);
@@ -95,16 +107,20 @@ export function buildDashboardAttendanceRows(activities = [], contacts = []) {
     const instructors = [
       { employeeId: txt(activity.emp_id), employeeName: txt(activity.instructor_name || activity.name) },
       { employeeId: txt(activity.emp_id_2), employeeName: txt(activity.instructor_name_2) }
-    ].filter((item) => item.employeeId);
+    ].filter((item, index, all) => item.employeeId && all.findIndex((candidate) => candidate.employeeId === item.employeeId) === index);
     if (!instructors.length) continue;
     const meetings = activityMeetings(activity);
     const fallbackDate = activityValue(activity, ['activity_date', 'start_date', 'date']);
     const dates = meetings.length ? meetings : (fallbackDate ? [{ date: fallbackDate }] : []);
     dates.forEach((meeting, index) => instructors.forEach((instructor) => {
+      const date = excelDate(meeting.date);
+      const startTime = timeText(meeting.start_time || activity.start_time);
+      const endTime = timeText(meeting.end_time || activity.end_time);
+      if (!date) return;
       const contact = contactById.get(instructor.employeeId) || {};
       output.push({
         ...instructor, employeeName: instructor.employeeName || txt(contact.full_name), employmentType: txt(contact.employment_type),
-        date: excelDate(meeting.date), startTime: timeText(meeting.start_time || activity.start_time), endTime: timeText(meeting.end_time || activity.end_time),
+        date, startTime, endTime, workHours: calculateWorkHours(startTime, endTime), meetingCount: 1,
         activityType: txt(activityValue(activity, ['activity_type_label', 'activity_type', 'item_type'])), school: txt(activityValue(activity, ['school', 'single_school_name', 'legacy_school'])),
         authority: txt(activityValue(activity, ['authority', 'authority_name'])), program: txt(activityValue(activity, ['activity_name', 'program_name', 'name'])),
         meetingNo: meeting.meeting_no ?? index + 1, kilometers: null, expenses: null,
@@ -112,6 +128,32 @@ export function buildDashboardAttendanceRows(activities = [], contacts = []) {
       });
     }));
   }
+  return output;
+}
+
+// Repeated meeting dates can be intentional (for example two lessons on the
+// same day). Keep every source meeting, then aggregate only the comparison view
+// by activity/instructor/day and retain the original count and total duration.
+export function aggregateDashboardAttendanceRows(rows = []) {
+  const output = []; const groups = new Map();
+  (rows || []).forEach((row, index) => {
+    if (row.__profile) { output.push(row); return; }
+    const activityKey = txt(row.activityId) || `__row_${index}`;
+    const key = `${activityKey}|${txt(row.employeeId)}|${txt(row.date)}`;
+    if (!groups.has(key)) {
+      const aggregate = { ...row, meetingCount: number(row.meetingCount) || 1, workHours: optionalNumber(row.workHours) ?? calculateWorkHours(row.startTime, row.endTime) };
+      aggregate.meetingNumbers = [txt(row.meetingNo)].filter(Boolean);
+      groups.set(key, aggregate); output.push(aggregate); return;
+    }
+    const aggregate = groups.get(key);
+    aggregate.meetingCount += number(row.meetingCount) || 1;
+    aggregate.workHours = Math.round((aggregate.workHours + (optionalNumber(row.workHours) ?? calculateWorkHours(row.startTime, row.endTime))) * 100) / 100;
+    if (timeText(row.startTime) && (!timeText(aggregate.startTime) || timeText(row.startTime) < timeText(aggregate.startTime))) aggregate.startTime = row.startTime;
+    if (timeText(row.endTime) && (!timeText(aggregate.endTime) || timeText(row.endTime) > timeText(aggregate.endTime))) aggregate.endTime = row.endTime;
+    const meetingNo = txt(row.meetingNo); if (meetingNo) aggregate.meetingNumbers.push(meetingNo);
+    aggregate.meetingNo = aggregate.meetingNumbers.join(', ');
+  });
+  output.sourceRowCount = (rows || []).filter((row) => !row.__profile).length;
   return output;
 }
 
@@ -138,6 +180,7 @@ export function parseAttendanceWorkbook(workbook) {
       result.push({
         sourceSheet: sheetName, employeeId, employeeName: txt(get('employeeName')), employmentType: txt(get('employmentType')),
         date: excelDate(get('date')), startTime: timeText(get('startTime')), endTime: timeText(get('endTime')),
+        workHours: optionalNumber(get('workHours')) ?? calculateWorkHours(get('startTime'), get('endTime')),
         activityType: txt(get('activityType')), school: txt(get('school')), authority: txt(get('authority')), program: txt(get('program')),
         meetingNo: txt(get('meetingNo')), kilometers: optionalNumber(get('kilometers')), expenses: optionalNumber(get('expenses')),
         expenseDetails: txt(get('expenseDetails')), notes: txt(get('notes')), activityId: txt(get('activityId'))
@@ -233,8 +276,9 @@ export async function loadAttendanceDashboardDataset(attendanceRows, api, month 
   const scope = attendanceDateScope(attendanceRows, month);
   if (!scope.employeeIds.length || !scope.fromDate || !api?.attendanceControlDashboardSources) return [];
   const sources = await api.attendanceControlDashboardSources(scope);
-  const rows = buildDashboardAttendanceRows(sources.activities, sources.contacts)
+  const sourceRows = buildDashboardAttendanceRows(sources.activities, sources.contacts)
     .filter((row) => (month ? row.date.startsWith(`${month}-`) : scope.dates.has(row.date)) && scope.employeeIds.includes(row.employeeId));
+  const rows = aggregateDashboardAttendanceRows(sourceRows);
   applyDashboardRouteKilometers(rows, sources.travelCache || []);
   applyDashboardExpenses(rows, sources.expenses || []);
   for (const contact of sources.contacts || []) {
@@ -249,44 +293,149 @@ function minutesBetween(a, b) {
   return Math.abs(minutes(a) - minutes(b));
 }
 
+function attendanceActivityTypeKey(value) {
+  const normalized = normalizeActivityTypeKey(value);
+  return normalized === 'after_school' ? 'course' : normalized;
+}
+
+function bundleComponents(row) {
+  return row?.componentRows?.length ? row.componentRows : [row];
+}
+
+function sameBundleText(attendance, dashboard, key) {
+  const expected = normalizeAttendanceName(attendance[key]);
+  return Boolean(expected) && bundleComponents(dashboard).some((row) => normalizeAttendanceName(row[key]) === expected);
+}
+
+function componentHasContext(attendance, dashboard) {
+  // Bundle membership needs identity evidence. Authority and activity type are
+  // useful scoring signals, but are too broad to admit a component by themselves.
+  return sameBundleText(attendance, dashboard, 'school')
+    || sameBundleText(attendance, dashboard, 'program');
+}
+
 function matchScore(attendance, dashboard) {
-  let score = 0;
-  if (normalizeAttendanceName(attendance.school) === normalizeAttendanceName(dashboard.school)) score += 35;
-  if (normalizeAttendanceName(attendance.authority) === normalizeAttendanceName(dashboard.authority)) score += 20;
-  if (normalizeAttendanceName(attendance.activityType) === normalizeAttendanceName(dashboard.activityType)) score += 15;
-  if (normalizeAttendanceName(attendance.program) === normalizeAttendanceName(dashboard.program)) score += 25;
-  score += Math.max(0, 20 - Math.min(20, minutesBetween(attendance.startTime, dashboard.startTime) / 3));
-  return score;
+  const sameText = (key) => sameBundleText(attendance, dashboard, key);
+  const timePoints = (key) => {
+    if (!timeText(attendance[key]) || !timeText(dashboard[key])) return 0;
+    return Math.max(0, 20 - Math.min(20, minutesBetween(attendance[key], dashboard[key]) / 3));
+  };
+  const sameActivityType = Boolean(attendanceActivityTypeKey(attendance.activityType))
+    && bundleComponents(dashboard).some((row) => attendanceActivityTypeKey(row.activityType) === attendanceActivityTypeKey(attendance.activityType));
+  const context = (sameText('school') ? 30 : 0) + (sameText('authority') ? 15 : 0)
+    + (sameText('program') ? 25 : 0) + (sameActivityType ? 15 : 0);
+  const time = timePoints('startTime') + timePoints('endTime');
+  const hourDifference = Math.abs(rowWorkHours(attendance) - rowWorkHours(dashboard));
+  const hours = Math.max(0, 20 - Math.min(20, hourDifference * 8));
+  return { score: context + time + hours, context, time, hours };
+}
+
+function acceptableMatch(match) {
+  // Time alone is never identity evidence: require at least one non-empty
+  // contextual agreement in addition to a meaningful absolute score.
+  return match.score >= 40 && match.context >= 15;
 }
 
 function comparable(type, value) {
   if (type === 'number' || type === 'money') return optionalNumber(value) ?? '__missing__';
   if (type === 'time') return timeText(value);
+  if (type === 'activityType') return attendanceActivityTypeKey(value);
   return normalizeAttendanceName(value);
 }
 
+function rowWorkHours(row) {
+  return optionalNumber(row?.workHours) ?? calculateWorkHours(row?.startTime, row?.endTime);
+}
+
+function dashboardBundle(rows) {
+  const ordered = [...rows].sort((a, b) => timeText(a.startTime).localeCompare(timeText(b.startTime)));
+  const unique = (key) => [...new Set(ordered.map((row) => txt(row[key])).filter(Boolean))];
+  const meetingNumbers = ordered.flatMap((row) => row.meetingNumbers?.length ? row.meetingNumbers : [txt(row.meetingNo)].filter(Boolean));
+  const activityIds = unique('activityId');
+  const joined = (key) => unique(key).join(' + ');
+  return {
+    ...ordered[0], componentRows: ordered, activityIds, activityId: activityIds.join(' + '),
+    startTime: ordered.map((row) => timeText(row.startTime)).filter(Boolean).sort()[0] || '',
+    endTime: ordered.map((row) => timeText(row.endTime)).filter(Boolean).sort().at(-1) || '',
+    workHours: Math.round(ordered.reduce((sum, row) => sum + rowWorkHours(row), 0) * 100) / 100,
+    meetingCount: ordered.reduce((sum, row) => sum + (number(row.meetingCount) || 1), 0),
+    meetingNumbers, meetingNo: meetingNumbers.join(', '),
+    school: joined('school'), authority: joined('authority'), program: joined('program'), activityType: joined('activityType')
+  };
+}
+
+function assignDashboardBundles(attendanceEntries, dashboardRows) {
+  const orderedDashboard = [...dashboardRows].sort((a, b) => timeText(a.startTime).localeCompare(timeText(b.startTime)));
+  const candidates = attendanceEntries.map(({ attendance }) => {
+    const rows = []; const eligible = orderedDashboard
+      .map((row, index) => ({ row, index }))
+      .filter(({ row }) => componentHasContext(attendance, row));
+    for (let eligibleStart = 0; eligibleStart < eligible.length; eligibleStart += 1) {
+      for (let eligibleEnd = eligibleStart; eligibleEnd < eligible.length; eligibleEnd += 1) {
+        const selected = eligible.slice(eligibleStart, eligibleEnd + 1);
+        const componentRows = selected.map(({ row }) => row);
+        const start = selected[0].index; const end = selected.at(-1).index;
+        const bundle = dashboardBundle(componentRows); const match = matchScore(attendance, bundle);
+        if (acceptableMatch(match)) rows.push({ bundle, componentRows, start, end, ...match });
+      }
+    }
+    return rows.sort((a, b) => b.score - a.score || b.componentRows.length - a.componentRows.length);
+  });
+  const memo = new Map();
+  const search = (position, dashboardCursor) => {
+    if (position === attendanceEntries.length) return { utility: 0, assignments: [] };
+    const memoKey = `${position}|${dashboardCursor}`; if (memo.has(memoKey)) return memo.get(memoKey);
+    const skipped = search(position + 1, dashboardCursor);
+    let best = { utility: skipped.utility, assignments: [null, ...skipped.assignments] };
+    for (const candidate of candidates[position]) {
+      if (candidate.start < dashboardCursor) continue;
+      const remaining = search(position + 1, candidate.end + 1);
+      const utility = candidate.score + remaining.utility;
+      if (utility > best.utility) best = { utility, assignments: [candidate, ...remaining.assignments] };
+    }
+    memo.set(memoKey, best); return best;
+  };
+  return search(0, 0).assignments;
+}
+
 export function compareAttendanceRows(attendanceRows, dashboardRows) {
+  const attendanceOnly = (attendanceRows || []).filter((row) => isAttendanceOnlyActivityType(row.activityType));
+  const comparableAttendance = (attendanceRows || []).filter((row) => !isAttendanceOnlyActivityType(row.activityType));
   const attendanceIds = new Set((attendanceRows || []).map((row) => txt(row.employeeId)).filter(Boolean));
-  const dashboardPopulation = (dashboardRows || []).filter((row) => attendanceIds.has(txt(row.employeeId)));
+  const dashboardSourcePopulation = (dashboardRows || []).filter((row) => attendanceIds.has(txt(row.employeeId)));
+  const dashboardPopulation = aggregateDashboardAttendanceRows(dashboardSourcePopulation);
+  dashboardPopulation.sourceRowCount = dashboardRows?.sourceRowCount ?? dashboardSourcePopulation.filter((row) => !row.__profile).length;
   const buckets = new Map();
   dashboardPopulation.forEach((row) => {
     const key = `${txt(row.employeeId)}|${row.date}`;
     if (!buckets.has(key)) buckets.set(key, []);
     buckets.get(key).push(row);
   });
-  const used = new Set();
-  const comparisons = (attendanceRows || []).map((attendance, attendanceIndex) => {
-    const candidates = buckets.get(`${txt(attendance.employeeId)}|${attendance.date}`) || [];
-    const available = candidates.map((row, index) => ({ row, index, score: matchScore(attendance, row) })).filter(({ row }) => !used.has(row));
-    available.sort((a, b) => b.score - a.score);
-    const dashboard = available[0]?.row || null;
-    if (dashboard) used.add(dashboard);
+  const used = new Set(); const assignments = new Map(); const attendanceBuckets = new Map();
+  comparableAttendance.forEach((attendance, attendanceIndex) => {
+    const key = `${txt(attendance.employeeId)}|${attendance.date}`;
+    if (!attendanceBuckets.has(key)) attendanceBuckets.set(key, []);
+    attendanceBuckets.get(key).push({ attendance, attendanceIndex });
+  });
+  attendanceBuckets.forEach((entries, key) => {
+    const orderedEntries = [...entries].sort((a, b) => timeText(a.attendance.startTime).localeCompare(timeText(b.attendance.startTime)));
+    const dayAssignments = assignDashboardBundles(orderedEntries, (buckets.get(key) || []).filter((row) => !row.__profile));
+    dayAssignments.forEach((match, index) => {
+      if (!match) return;
+      assignments.set(orderedEntries[index].attendanceIndex, match);
+      match.componentRows.forEach((row) => used.add(row));
+    });
+  });
+  const comparisons = comparableAttendance.map((attendance, attendanceIndex) => {
+    const match = assignments.get(attendanceIndex); const dashboard = match?.bundle || null;
     const final = { ...attendance };
     const differences = dashboard ? FIELD_DEFS.flatMap(([key, label, type]) => {
-      if (comparable(type, attendance[key]) === comparable(type, dashboard[key])) return [];
-      return [{ key, label, type, attendance: attendance[key], dashboard: dashboard[key], choice: 'attendance', custom: '' }];
+      const attendanceValue = key === 'workHours' ? rowWorkHours(attendance) : type === 'activityType' ? activityTypeDisplayLabel(attendance[key]) : attendance[key];
+      const dashboardValue = key === 'workHours' ? rowWorkHours(dashboard) : type === 'activityType' ? activityTypeDisplayLabel(dashboard[key]) : dashboard[key];
+      if (comparable(type, attendanceValue) === comparable(type, dashboardValue)) return [];
+      return [{ key, label, type, attendance: attendanceValue, dashboard: dashboardValue, choice: 'attendance', custom: '' }];
     }) : [];
-    return { id: `row-${attendanceIndex}`, attendance, dashboard, final, differences, unmatched: !dashboard };
+    return { id: `row-${attendanceIndex}`, attendance, dashboard, final, differences, unmatched: !dashboard, matchScore: match?.score ?? null };
   });
   const dashboardOnly = dashboardPopulation
     .filter((row) => !row.__profile && row.date && !used.has(row))
@@ -297,7 +446,11 @@ export function compareAttendanceRows(attendanceRows, dashboardRows) {
       final: { ...dashboard },
       includeInFinal: false
     }));
-  return { comparisons, dashboardOnly, dashboardPopulation };
+  const notCompared = attendanceOnly.map((attendance, index) => ({
+    id: `attendance-only-${index}`, source: 'attendance_not_compared', attendance,
+    final: { ...attendance }, differences: [], excludedFromActivityComparison: true
+  }));
+  return { comparisons, notCompared, dashboardOnly, dashboardPopulation };
 }
 
 export function setDashboardOnlyChoice(entry, includeInFinal) {
@@ -328,7 +481,7 @@ export function buildCorrectedAttendanceWorkbook(comparisons, dashboardRows = []
   const employment = new Map((dashboardRows || []).map((row) => [txt(row.employeeId), txt(row.employmentType)]));
   const rows = (comparisons || [])
     .filter((entry) => entry.source !== 'dashboard_only' || entry.includeInFinal)
-    .map(({ final }) => ({ ...final, workHours: calculateWorkHours(final.startTime, final.endTime), employmentType: employment.get(txt(final.employeeId)) || txt(final.employmentType) }));
+    .map(({ final }) => ({ ...final, workHours: rowWorkHours(final), employmentType: employment.get(txt(final.employeeId)) || txt(final.employmentType) }));
   const detail = rows.map((row) => [row.employeeId, row.employeeName, row.date, row.startTime, row.endTime, row.workHours, row.activityType, row.school, row.authority, row.program, row.meetingNo, row.kilometers, row.expenses, row.expenseDetails, row.notes]);
   const monthlyMap = new Map();
   rows.filter((row) => normalizeAttendanceName(row.employmentType).includes(normalizeAttendanceName('תעשיידע'))).forEach((row) => {
@@ -354,9 +507,12 @@ function diffText(diff) {
   return `${txt(diff.attendance) || 'ללא ערך'} לעומת ${txt(diff.dashboard) || 'ללא ערך'}`;
 }
 
-function summary(result) {
-  const employees = new Set(result.comparisons.map((c) => c.attendance.employeeId));
-  const mismatchedComparisons = result.comparisons.filter((c) => c.unmatched || c.differences.length);
+export function attendanceAuditSummary(result) {
+  const employees = new Set([...result.comparisons, ...(result.notCompared || [])].map((c) => c.attendance.employeeId));
+  const matched = result.comparisons.filter((c) => !c.unmatched);
+  const fieldMismatches = matched.filter((c) => c.differences.length);
+  const unmatchedAttendance = result.comparisons.filter((c) => c.unmatched);
+  const mismatchedComparisons = [...fieldMismatches, ...unmatchedAttendance];
   const different = new Set([
     ...mismatchedComparisons.map((c) => c.attendance.employeeId),
     ...(result.dashboardOnly || []).map((entry) => entry.dashboard.employeeId)
@@ -365,8 +521,23 @@ function summary(result) {
     const attendance = optionalNumber(c.attendance[key]); const dashboard = optionalNumber(c.dashboard?.[key]);
     return attendance == null || dashboard == null ? total : total + Math.abs(attendance - dashboard);
   }, 0);
-  const hourDiff = result.comparisons.reduce((total, c) => total + Math.abs(calculateWorkHours(c.attendance.startTime, c.attendance.endTime) - calculateWorkHours(c.dashboard?.startTime, c.dashboard?.endTime)), 0);
-  return { employees: employees.size, different: different.size, exceptions: mismatchedComparisons.length + (result.dashboardOnly || []).length, hours: Math.round(hourDiff * 100) / 100, km: sum('kilometers'), expenses: sum('expenses') };
+  const attendanceHours = result.comparisons.reduce((total, c) => total + rowWorkHours(c.attendance), 0);
+  const notComparedHours = (result.notCompared || []).reduce((total, c) => total + rowWorkHours(c.attendance), 0);
+  const dashboardHours = (result.dashboardPopulation || []).filter((row) => !row.__profile).reduce((total, row) => total + rowWorkHours(row), 0);
+  return {
+    employees: employees.size, different: different.size,
+    attendanceRows: result.comparisons.length + (result.notCompared || []).length,
+    comparableAttendanceRows: result.comparisons.length, notComparedRows: (result.notCompared || []).length,
+    dashboardRowsBeforeProcessing: result.dashboardPopulation?.sourceRowCount ?? (result.dashboardPopulation || []).filter((row) => !row.__profile).length,
+    dashboardRows: (result.dashboardPopulation || []).filter((row) => !row.__profile).length,
+    fullMatches: matched.length - fieldMismatches.length, fieldMismatches: fieldMismatches.length,
+    unmatchedAttendance: unmatchedAttendance.length, unmatchedDashboard: (result.dashboardOnly || []).length,
+    exceptions: mismatchedComparisons.length + (result.dashboardOnly || []).length,
+    attendanceHours: Math.round(attendanceHours * 100) / 100, notComparedHours: Math.round(notComparedHours * 100) / 100,
+    totalReportedHours: Math.round((attendanceHours + notComparedHours) * 100) / 100, dashboardHours: Math.round(dashboardHours * 100) / 100,
+    hours: Math.round(Math.abs(attendanceHours - dashboardHours) * 100) / 100,
+    km: sum('kilometers'), expenses: sum('expenses')
+  };
 }
 
 export function attendanceControlHtml() {
@@ -387,7 +558,7 @@ export function attendanceControlStylesHtml() {
 }
 
 export function resultsHtml(result, month = '') {
-  const totals = summary(result);
+  const totals = attendanceAuditSummary(result);
   const byEmployee = new Map();
   result.comparisons.forEach((comparison) => { const key = comparison.attendance.employeeId; if (!byEmployee.has(key)) byEmployee.set(key, []); byEmployee.get(key).push(comparison); });
   (result.dashboardOnly || []).forEach((entry) => { const key = entry.dashboard.employeeId; if (!byEmployee.has(key)) byEmployee.set(key, []); });
@@ -396,13 +567,13 @@ export function resultsHtml(result, month = '') {
   const cards = [...byEmployee.entries()].map(([employeeId, rows]) => {
     const dashboardOnly = dashboardOnlyByEmployee.get(employeeId) || [];
     const name = rows[0]?.attendance?.employeeName || dashboardOnly[0]?.dashboard?.employeeName || employeeId;
-    const attendanceHours = rows.reduce((s, r) => s + calculateWorkHours(r.attendance.startTime, r.attendance.endTime), 0);
-    const dashboardHours = rows.reduce((s, r) => s + calculateWorkHours(r.dashboard?.startTime, r.dashboard?.endTime), 0)
-      + dashboardOnly.reduce((sum, entry) => sum + calculateWorkHours(entry.dashboard.startTime, entry.dashboard.endTime), 0);
+    const attendanceHours = rows.reduce((s, r) => s + rowWorkHours(r.attendance), 0);
+    const dashboardHours = rows.reduce((s, r) => s + rowWorkHours(r.dashboard), 0)
+      + dashboardOnly.reduce((sum, entry) => sum + rowWorkHours(entry.dashboard), 0);
     const details = rows.map((comparison) => {
       const mismatch = comparison.unmatched || comparison.differences.length > 0;
-      const status = mismatch ? '⚠ אי־התאמה / דורש טיפול' : '✓ תקין';
-      const note = comparison.unmatched ? '<p class="attendance-control__day-note">לא נמצאה שורה תואמת בנתוני הדשבורד.</p>' : '';
+      const status = comparison.unmatched ? '⚠ לא נמצאה פעילות תואמת' : mismatch ? '⚠ אי־התאמה בנתונים / דורש טיפול' : '✓ תקין';
+      const note = comparison.unmatched ? '<p class="attendance-control__day-note">דיווח הנוכחות לא הוצמד לפעילות: אף מועמד לא עבר את סף ההתאמה.</p>' : '';
       const choices = comparison.differences.map((diff) => `<div class="attendance-control__diff" data-comparison="${comparison.id}" data-field="${diff.key}"><strong>${escapeHtml(diff.label)}</strong><span>${escapeHtml(txt(diff.attendance) || '—')}</span><span>${escapeHtml(txt(diff.dashboard) || '—')}</span><span>${escapeHtml(diffText(diff))}</span><select class="ds-input ds-input--sm" data-attendance-choice><option value="attendance">נתון הנוכחות</option><option value="dashboard">נתון הדשבורד</option><option value="custom">ערך אחר</option></select><input class="ds-input ds-input--sm" data-attendance-custom hidden aria-label="ערך אחר"></div>`).join('');
       return `<div class="attendance-control__day attendance-control__day--${mismatch ? 'mismatch' : 'ok'}"><h4><span>${escapeHtml(comparison.attendance.date)} · ${escapeHtml(comparison.attendance.program || comparison.attendance.activityType || 'דיווח')}</span><span class="attendance-control__row-status">${status}</span></h4>${note}${choices}</div>`;
     }).join('');
@@ -411,7 +582,9 @@ export function resultsHtml(result, month = '') {
     return `<details class="attendance-control__employee"><summary><strong>${escapeHtml(name)}</strong><span>${gapCount} חריגות</span></summary><div class="attendance-control__employee-summary"><span>שעות נוכחות <b>${attendanceHours.toFixed(2)}</b></span><span>שעות בדשבורד <b>${dashboardHours.toFixed(2)}</b></span><span>השוני <b>${Math.abs(attendanceHours-dashboardHours).toFixed(2)}</b></span></div>${details}${missing}</details>`;
   }).join('');
   const monthSummary = attendanceMonthLabel(month) ? `<span>חודש הבדיקה: <b>${escapeHtml(attendanceMonthLabel(month))}</b></span>` : '';
-  return `<div class="attendance-control__complete"><strong>נמצאו ${totals.exceptions} חריגות אצל ${totals.different} מדריכים. לחצו על מדריך לפרטים המלאים.</strong></div><div class="attendance-control__metrics">${monthSummary}<span>מדריכים שנבדקו <b>${totals.employees}</b></span><span>חריגות <b>${totals.exceptions}</b></span><span>פער בשעות <b>${totals.hours}</b></span><span>פער בקילומטרים <b>${totals.km}</b></span><span>פער בהוצאות <b>₪${totals.expenses}</b></span></div>${cards}<button type="button" class="ds-btn ds-btn--primary attendance-control__export" data-attendance-export>ייצוא דוח נוכחות מתוקן</button>`;
+  const notComparedRows = (result.notCompared || []).map((entry) => `<div class="attendance-control__dashboard-only"><div><strong>דיווח שאינו נבדק מול פעילות</strong><span>${escapeHtml(entry.attendance.date)} · ${escapeHtml(entry.attendance.activityType || 'דיווח')} · ${escapeHtml(`${entry.attendance.startTime || '—'}–${entry.attendance.endTime || '—'}`)} · ${rowWorkHours(entry.attendance)} שעות</span></div></div>`).join('');
+  const notComparedSection = notComparedRows ? `<section class="attendance-control__not-compared"><h3>דיווחים שאינם נבדקים מול פעילות</h3>${notComparedRows}</section>` : '';
+  return `<div class="attendance-control__complete"><strong>נמצאו ${totals.exceptions} חריגות אצל ${totals.different} מדריכים. לחצו על מדריך לפרטים המלאים.</strong></div><div class="attendance-control__metrics">${monthSummary}<span>מדריכים שנבדקו <b>${totals.employees}</b></span><span>שורות נוכחות <b>${totals.attendanceRows}</b></span><span>שורות נוכחות להשוואה <b>${totals.comparableAttendanceRows}</b></span><span>דיווחים שאינם נבדקים <b>${totals.notComparedRows}</b></span><span>מפגשי דשבורד במקור <b>${totals.dashboardRowsBeforeProcessing}</b></span><span>שורות דשבורד להשוואה <b>${totals.dashboardRows}</b></span><span>התאמות מלאות <b>${totals.fullMatches}</b></span><span>אי־התאמות בשדות <b>${totals.fieldMismatches}</b></span><span>נוכחות ללא פעילות <b>${totals.unmatchedAttendance}</b></span><span>פעילות ללא נוכחות <b>${totals.unmatchedDashboard}</b></span><span>חריגות <b>${totals.exceptions}</b></span><span>שעות נוכחות להשוואה <b>${totals.attendanceHours}</b></span><span>שעות דיווח שאינן נבדקות <b>${totals.notComparedHours}</b></span><span>סה״כ שעות מדווחות <b>${totals.totalReportedHours}</b></span><span>שעות דשבורד <b>${totals.dashboardHours}</b></span><span>פער בשעות <b>${totals.hours}</b></span><span>פער בקילומטרים <b>${totals.km}</b></span><span>פער בהוצאות <b>₪${totals.expenses}</b></span></div>${cards}${notComparedSection}<button type="button" class="ds-btn ds-btn--primary attendance-control__export" data-attendance-export>ייצוא דוח נוכחות מתוקן</button>`;
 }
 
 async function readFile(file) {
@@ -454,5 +627,5 @@ export function bindAttendanceControl(root, { api } = {}) {
     if (event.target.matches('[data-attendance-choice]')) { const custom = diff.querySelector('[data-attendance-custom]'); custom.hidden = event.target.value !== 'custom'; applyAttendanceChoice(comparison, field, event.target.value, custom.value); }
     if (event.target.matches('[data-attendance-custom]')) applyAttendanceChoice(comparison, field, 'custom', event.target.value);
   });
-  results.addEventListener('click', (event) => { if (!event.target.closest('[data-attendance-export]') || !result) return; XLSX.writeFile(buildCorrectedAttendanceWorkbook([...result.comparisons, ...result.dashboardOnly], result.dashboardPopulation), attendanceExportFilename(result.month), { compression: true }); });
+  results.addEventListener('click', (event) => { if (!event.target.closest('[data-attendance-export]') || !result) return; XLSX.writeFile(buildCorrectedAttendanceWorkbook([...result.comparisons, ...(result.notCompared || []), ...result.dashboardOnly], result.dashboardPopulation), attendanceExportFilename(result.month), { compression: true }); });
 }

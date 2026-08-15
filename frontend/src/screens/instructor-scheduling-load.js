@@ -18,9 +18,11 @@ export function activityMeetings(activity = {}, options = {}) {
     return periodFilter ? rows.filter(periodFilter) : rows;
   }
 
-  const rows = Array.from({ length: 35 }, (_, index) => activity[`date_${index + 1}`])
-    .filter(Boolean)
-    .map((date) => ({ date, start_time: activity.start_time, end_time: activity.end_time }))
+  const rows = Array.from({ length: 35 }, (_, index) => ({
+    date: activity[`date_${index + 1}`], meeting_no: index + 1,
+    start_time: activity.start_time, end_time: activity.end_time
+  }))
+    .filter((meeting) => meeting.date)
     .filter(notCancelled);
   return periodFilter ? rows.filter(periodFilter) : rows;
 }
