@@ -73,4 +73,5 @@ after(async () => {
   const { supabase } = await import('../frontend/src/supabase-client.js');
   supabase?.auth?.stopAutoRefresh?.();
   dom.window.close();
+  setImmediate(() => process.exit(process.exitCode || 0));
 });
