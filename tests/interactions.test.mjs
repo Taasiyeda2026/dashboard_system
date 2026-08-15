@@ -88,6 +88,18 @@ test('openModal() with no arguments does not open the modal', async () => {
   assert.equal(ui.isModalOpen, false);
 });
 
+test('modal can open above an activity drawer and closing it preserves the drawer', async () => {
+  const ui = await freshLayer();
+  ui.openDrawer({ title: 'פעילות', content: '<p data-current-activity>Current activity</p>' });
+  ui.openModal({ title: 'אישור תיאום', content: '<p>Coordination</p>', keepDrawerOpen: true });
+  assert.equal(ui.isDrawerOpen, true);
+  assert.equal(ui.isModalOpen, true);
+  assert.equal(document.querySelector('.ds-secondary-drawer').getAttribute('aria-hidden'), 'true');
+  ui.closeModal();
+  assert.equal(ui.isDrawerOpen, true);
+  assert.ok(document.querySelector('[data-current-activity]'));
+});
+
 test('openModal({}) with an empty object does not open the modal', async () => {
   const ui = await freshLayer();
   ui.openModal({});
