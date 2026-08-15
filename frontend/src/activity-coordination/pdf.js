@@ -27,12 +27,13 @@ const styles = StyleSheet.create({
   },
   topHeader: {
     flexDirection: 'row',
+    direction: 'ltr',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
     marginBottom: 7
   },
-  logo: { width: 44, height: 'auto', marginTop: 1 },
-  recipientBlock: { flexGrow: 1, alignItems: 'flex-end', paddingLeft: 22 },
+  logo: { width: 44, marginTop: 1 },
+  recipientBlock: { flexGrow: 1, alignItems: 'flex-end', paddingLeft: 22, direction: 'rtl' },
   honor: { fontWeight: 600, fontSize: 9.5, textAlign: 'right', marginBottom: 2 },
   plain: { textAlign: 'right', marginBottom: 1.5 },
   title: {
