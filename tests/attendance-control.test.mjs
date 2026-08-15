@@ -147,6 +147,52 @@ test('May non-activity reports stay in export but not in activity exceptions or 
   assert.match(resultsHtml(result), /דיווחים שאינם נבדקים מול פעילות/);
 });
 
+test('employee 1501 May 4 bundles LONG-080 through LONG-082 into one attendance row', () => {
+  const attendance = [{ employeeId: '1501', date: '2026-05-04', startTime: '08:00', endTime: '13:35', workHours: 5.6, school: 'מול גלעד', program: 'מנהיגות ירוקה', activityType: 'קורס' }];
+  const dashboard = [
+    ['LONG-080', '08:00', '09:30'], ['LONG-081', '09:45', '11:15'], ['LONG-082', '11:35', '13:05']
+  ].map(([activityId, startTime, endTime], index) => ({ employeeId: '1501', date: '2026-05-04', activityId, startTime, endTime, workHours: 1.5, school: 'מול גלעד', program: 'מנהיגות ירוקה', activityType: 'course', meetingNo: index + 1 }));
+  const result = compareAttendanceRows(attendance, dashboard);
+  assert.deepEqual(result.comparisons[0].dashboard.activityIds, ['LONG-080', 'LONG-081', 'LONG-082']);
+  assert.equal(result.comparisons[0].dashboard.startTime, '08:00');
+  assert.equal(result.comparisons[0].dashboard.endTime, '13:05');
+  assert.equal(result.comparisons[0].dashboard.workHours, 4.5);
+  assert.equal(result.dashboardOnly.length, 0);
+});
+
+test('employee 1504 May 10 bundles four Merhavei Eshkol biomimicry activities', () => {
+  const attendance = [{ employeeId: '1504', date: '2026-05-10', startTime: '08:00', endTime: '13:00', workHours: 5, school: 'מרחבי אשכול', program: 'ביומימיקרי', activityType: 'קורס' }];
+  const dashboard = ['LONG-008', 'LONG-009', 'LONG-010', 'LONG-011'].map((activityId, index) => ({ employeeId: '1504', date: '2026-05-10', activityId, startTime: `${String(8 + index).padStart(2, '0')}:00`, endTime: `${String(9 + index).padStart(2, '0')}:00`, workHours: 1, school: 'מרחבי אשכול', program: 'ביומימיקרי', activityType: 'course', meetingNo: index + 1 }));
+  const result = compareAttendanceRows(attendance, dashboard);
+  assert.deepEqual(result.comparisons[0].dashboard.activityIds, ['LONG-008', 'LONG-009', 'LONG-010', 'LONG-011']);
+  assert.equal(result.dashboardOnly.length, 0);
+});
+
+test('employee 1506 partitions same-day Golda activities between separate attendance rows', () => {
+  const attendance = [
+    { employeeId: '1506', date: '2026-05-12', startTime: '08:00', endTime: '10:00', workHours: 2, school: 'גולדה', program: 'מנהיגות ירוקה', activityType: 'קורס' },
+    { employeeId: '1506', date: '2026-05-12', startTime: '10:15', endTime: '12:15', workHours: 2, school: 'גולדה', program: 'ביומימיקרי', activityType: 'קורס' }
+  ];
+  const dashboard = [
+    { activityId: 'GOLDA-1', startTime: '08:00', endTime: '09:00', program: 'מנהיגות ירוקה' },
+    { activityId: 'GOLDA-2', startTime: '09:00', endTime: '10:00', program: 'מנהיגות ירוקה' },
+    { activityId: 'GOLDA-3', startTime: '10:15', endTime: '11:15', program: 'ביומימיקרי' },
+    { activityId: 'GOLDA-4', startTime: '11:15', endTime: '12:15', program: 'ביומימיקרי' }
+  ].map((row) => ({ ...row, employeeId: '1506', date: '2026-05-12', workHours: 1, school: 'גולדה', activityType: 'course' }));
+  const result = compareAttendanceRows(attendance, dashboard);
+  assert.deepEqual(result.comparisons.map((row) => row.dashboard.activityIds), [['GOLDA-1', 'GOLDA-2'], ['GOLDA-3', 'GOLDA-4']]);
+  assert.equal(result.dashboardOnly.length, 0);
+});
+
+test('employee 1522 course attendance bundles two after-school activities without type mismatch', () => {
+  const attendance = [{ employeeId: '1522', date: '2026-05-18', startTime: '13:00', endTime: '16:00', workHours: 3, school: 'אלתרמן', program: 'אפטרסקול', activityType: 'קורס' }];
+  const dashboard = ['AFTER-1', 'AFTER-2'].map((activityId, index) => ({ employeeId: '1522', date: '2026-05-18', activityId, startTime: index ? '14:30' : '13:00', endTime: index ? '16:00' : '14:30', workHours: 1.5, school: 'אלתרמן', program: 'אפטרסקול', activityType: 'after_school' }));
+  const result = compareAttendanceRows(attendance, dashboard);
+  assert.equal(result.comparisons[0].dashboard.componentRows.length, 2);
+  assert.equal(result.comparisons[0].differences.some((difference) => difference.key === 'activityType'), false);
+  assert.equal(result.dashboardOnly.length, 0);
+});
+
 test('Oshri Ram matching requires context, exposes real fields, and leaves exact rows normal', () => {
   const base = { employeeId: '1524', employeeName: 'אושרי רם', date: '2026-05-25', startTime: '09:50', endTime: '11:20', school: 'טשרניחובסקי', authority: 'נתניה', program: 'יישומי AI', activityType: 'קורס' };
   const exact = compareAttendanceRows([base], [{ ...base }]);

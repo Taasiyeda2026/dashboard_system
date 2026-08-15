@@ -293,21 +293,42 @@ function minutesBetween(a, b) {
   return Math.abs(minutes(a) - minutes(b));
 }
 
+function attendanceActivityTypeKey(value) {
+  const normalized = normalizeActivityTypeKey(value);
+  return normalized === 'after_school' ? 'course' : normalized;
+}
+
+function bundleComponents(row) {
+  return row?.componentRows?.length ? row.componentRows : [row];
+}
+
+function sameBundleText(attendance, dashboard, key) {
+  const expected = normalizeAttendanceName(attendance[key]);
+  return Boolean(expected) && bundleComponents(dashboard).some((row) => normalizeAttendanceName(row[key]) === expected);
+}
+
+function componentHasContext(attendance, dashboard) {
+  return sameBundleText(attendance, dashboard, 'school')
+    || sameBundleText(attendance, dashboard, 'authority')
+    || sameBundleText(attendance, dashboard, 'program')
+    || (Boolean(attendanceActivityTypeKey(attendance.activityType))
+      && bundleComponents(dashboard).some((row) => attendanceActivityTypeKey(row.activityType) === attendanceActivityTypeKey(attendance.activityType)));
+}
+
 function matchScore(attendance, dashboard) {
-  const sameText = (key) => {
-    const left = normalizeAttendanceName(attendance[key]); const right = normalizeAttendanceName(dashboard[key]);
-    return Boolean(left && right && left === right);
-  };
+  const sameText = (key) => sameBundleText(attendance, dashboard, key);
   const timePoints = (key) => {
     if (!timeText(attendance[key]) || !timeText(dashboard[key])) return 0;
     return Math.max(0, 20 - Math.min(20, minutesBetween(attendance[key], dashboard[key]) / 3));
   };
-  const sameActivityType = Boolean(normalizeActivityTypeKey(attendance.activityType))
-    && normalizeActivityTypeKey(attendance.activityType) === normalizeActivityTypeKey(dashboard.activityType);
+  const sameActivityType = Boolean(attendanceActivityTypeKey(attendance.activityType))
+    && bundleComponents(dashboard).some((row) => attendanceActivityTypeKey(row.activityType) === attendanceActivityTypeKey(attendance.activityType));
   const context = (sameText('school') ? 30 : 0) + (sameText('authority') ? 15 : 0)
     + (sameText('program') ? 25 : 0) + (sameActivityType ? 15 : 0);
   const time = timePoints('startTime') + timePoints('endTime');
-  return { score: context + time, context, time };
+  const hourDifference = Math.abs(rowWorkHours(attendance) - rowWorkHours(dashboard));
+  const hours = Math.max(0, 20 - Math.min(20, hourDifference * 8));
+  return { score: context + time + hours, context, time, hours };
 }
 
 function acceptableMatch(match) {
@@ -319,12 +340,60 @@ function acceptableMatch(match) {
 function comparable(type, value) {
   if (type === 'number' || type === 'money') return optionalNumber(value) ?? '__missing__';
   if (type === 'time') return timeText(value);
-  if (type === 'activityType') return normalizeActivityTypeKey(value);
+  if (type === 'activityType') return attendanceActivityTypeKey(value);
   return normalizeAttendanceName(value);
 }
 
 function rowWorkHours(row) {
   return optionalNumber(row?.workHours) ?? calculateWorkHours(row?.startTime, row?.endTime);
+}
+
+function dashboardBundle(rows) {
+  const ordered = [...rows].sort((a, b) => timeText(a.startTime).localeCompare(timeText(b.startTime)));
+  const unique = (key) => [...new Set(ordered.map((row) => txt(row[key])).filter(Boolean))];
+  const meetingNumbers = ordered.flatMap((row) => row.meetingNumbers?.length ? row.meetingNumbers : [txt(row.meetingNo)].filter(Boolean));
+  const activityIds = unique('activityId');
+  const joined = (key) => unique(key).join(' + ');
+  return {
+    ...ordered[0], componentRows: ordered, activityIds, activityId: activityIds.join(' + '),
+    startTime: ordered.map((row) => timeText(row.startTime)).filter(Boolean).sort()[0] || '',
+    endTime: ordered.map((row) => timeText(row.endTime)).filter(Boolean).sort().at(-1) || '',
+    workHours: Math.round(ordered.reduce((sum, row) => sum + rowWorkHours(row), 0) * 100) / 100,
+    meetingCount: ordered.reduce((sum, row) => sum + (number(row.meetingCount) || 1), 0),
+    meetingNumbers, meetingNo: meetingNumbers.join(', '),
+    school: joined('school'), authority: joined('authority'), program: joined('program'), activityType: joined('activityType')
+  };
+}
+
+function assignDashboardBundles(attendanceEntries, dashboardRows) {
+  const orderedDashboard = [...dashboardRows].sort((a, b) => timeText(a.startTime).localeCompare(timeText(b.startTime)));
+  const candidates = attendanceEntries.map(({ attendance }) => {
+    const rows = [];
+    for (let start = 0; start < orderedDashboard.length; start += 1) {
+      for (let end = start; end < orderedDashboard.length; end += 1) {
+        const componentRows = orderedDashboard.slice(start, end + 1);
+        if (!componentRows.every((row) => componentHasContext(attendance, row))) continue;
+        const bundle = dashboardBundle(componentRows); const match = matchScore(attendance, bundle);
+        if (acceptableMatch(match)) rows.push({ bundle, componentRows, start, end, ...match });
+      }
+    }
+    return rows.sort((a, b) => b.score - a.score || b.componentRows.length - a.componentRows.length);
+  });
+  const memo = new Map();
+  const search = (position, dashboardCursor) => {
+    if (position === attendanceEntries.length) return { utility: 0, assignments: [] };
+    const memoKey = `${position}|${dashboardCursor}`; if (memo.has(memoKey)) return memo.get(memoKey);
+    const skipped = search(position + 1, dashboardCursor);
+    let best = { utility: skipped.utility, assignments: [null, ...skipped.assignments] };
+    for (const candidate of candidates[position]) {
+      if (candidate.start < dashboardCursor) continue;
+      const remaining = search(position + 1, candidate.end + 1);
+      const utility = candidate.score + candidate.componentRows.length * 8 + remaining.utility;
+      if (utility > best.utility) best = { utility, assignments: [candidate, ...remaining.assignments] };
+    }
+    memo.set(memoKey, best); return best;
+  };
+  return search(0, 0).assignments;
 }
 
 export function compareAttendanceRows(attendanceRows, dashboardRows) {
@@ -340,18 +409,23 @@ export function compareAttendanceRows(attendanceRows, dashboardRows) {
     if (!buckets.has(key)) buckets.set(key, []);
     buckets.get(key).push(row);
   });
-  const used = new Set(); const assignments = new Map();
-  const pairs = [];
+  const used = new Set(); const assignments = new Map(); const attendanceBuckets = new Map();
   comparableAttendance.forEach((attendance, attendanceIndex) => {
-    const candidates = buckets.get(`${txt(attendance.employeeId)}|${attendance.date}`) || [];
-    candidates.forEach((row) => pairs.push({ attendanceIndex, row, ...matchScore(attendance, row) }));
+    const key = `${txt(attendance.employeeId)}|${attendance.date}`;
+    if (!attendanceBuckets.has(key)) attendanceBuckets.set(key, []);
+    attendanceBuckets.get(key).push({ attendance, attendanceIndex });
   });
-  pairs.filter(acceptableMatch).sort((a, b) => b.score - a.score || b.time - a.time || b.context - a.context).forEach((pair) => {
-    if (assignments.has(pair.attendanceIndex) || used.has(pair.row)) return;
-    assignments.set(pair.attendanceIndex, pair); used.add(pair.row);
+  attendanceBuckets.forEach((entries, key) => {
+    const orderedEntries = [...entries].sort((a, b) => timeText(a.attendance.startTime).localeCompare(timeText(b.attendance.startTime)));
+    const dayAssignments = assignDashboardBundles(orderedEntries, (buckets.get(key) || []).filter((row) => !row.__profile));
+    dayAssignments.forEach((match, index) => {
+      if (!match) return;
+      assignments.set(orderedEntries[index].attendanceIndex, match);
+      match.componentRows.forEach((row) => used.add(row));
+    });
   });
   const comparisons = comparableAttendance.map((attendance, attendanceIndex) => {
-    const match = assignments.get(attendanceIndex); const dashboard = match?.row || null;
+    const match = assignments.get(attendanceIndex); const dashboard = match?.bundle || null;
     const final = { ...attendance };
     const differences = dashboard ? FIELD_DEFS.flatMap(([key, label, type]) => {
       const attendanceValue = key === 'workHours' ? rowWorkHours(attendance) : type === 'activityType' ? activityTypeDisplayLabel(attendance[key]) : attendance[key];
