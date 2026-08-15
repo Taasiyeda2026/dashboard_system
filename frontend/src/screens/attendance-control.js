@@ -23,6 +23,7 @@ const HEADER_ALIASES = {
 };
 
 const txt = (value) => String(value ?? '').trim();
+const HEBREW_MONTHS = ['ינואר', 'פברואר', 'מרץ', 'אפריל', 'מאי', 'יוני', 'יולי', 'אוגוסט', 'ספטמבר', 'אוקטובר', 'נובמבר', 'דצמבר'];
 const number = (value) => {
   if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
   const parsed = Number(txt(value).replace(/[₪,\s]/g, ''));
@@ -146,11 +147,31 @@ export function parseAttendanceWorkbook(workbook) {
   return result;
 }
 
-export function attendanceDateScope(attendanceRows = []) {
+export function attendanceMonthLabel(month) {
+  const match = txt(month).match(/^(\d{4})-(0[1-9]|1[0-2])$/);
+  return match ? `${HEBREW_MONTHS[Number(match[2]) - 1]} ${match[1]}` : '';
+}
+
+export function filterAttendanceRowsByMonth(attendanceRows = [], month = '') {
+  if (!attendanceMonthLabel(month)) throw new Error('יש לבחור חודש לבדיקה לפני ביצוע הבדיקה.');
+  return attendanceRows.filter((row) => txt(row.date).startsWith(`${month}-`));
+}
+
+export function attendanceExportFilename(month) {
+  const label = attendanceMonthLabel(month);
+  if (!label) throw new Error('יש לבחור חודש לבדיקה לפני הייצוא.');
+  return `דוח_נוכחות_מתוקן_${label.replace(/\s+/g, '_')}.xlsx`;
+}
+
+export function attendanceDateScope(attendanceRows = [], month = '') {
   const dates = [...new Set(attendanceRows.map((row) => row.date).filter(Boolean))].sort();
+  const monthMatch = txt(month).match(/^(\d{4})-(0[1-9]|1[0-2])$/);
+  const monthEnd = monthMatch ? new Date(Date.UTC(Number(monthMatch[1]), Number(monthMatch[2]), 0)).getUTCDate() : 0;
   return {
     employeeIds: [...new Set(attendanceRows.map((row) => txt(row.employeeId)).filter(Boolean))],
-    dates: new Set(dates), fromDate: dates[0] || '', toDate: dates.at(-1) || ''
+    dates: new Set(dates),
+    fromDate: monthMatch ? `${month}-01` : dates[0] || '',
+    toDate: monthMatch ? `${month}-${monthEnd}` : dates.at(-1) || ''
   };
 }
 
@@ -208,12 +229,12 @@ export function applyDashboardExpenses(rows = [], expenses = []) {
   return rows;
 }
 
-export async function loadAttendanceDashboardDataset(attendanceRows, api) {
-  const scope = attendanceDateScope(attendanceRows);
+export async function loadAttendanceDashboardDataset(attendanceRows, api, month = '') {
+  const scope = attendanceDateScope(attendanceRows, month);
   if (!scope.employeeIds.length || !scope.fromDate || !api?.attendanceControlDashboardSources) return [];
   const sources = await api.attendanceControlDashboardSources(scope);
   const rows = buildDashboardAttendanceRows(sources.activities, sources.contacts)
-    .filter((row) => scope.dates.has(row.date) && scope.employeeIds.includes(row.employeeId));
+    .filter((row) => (month ? row.date.startsWith(`${month}-`) : scope.dates.has(row.date)) && scope.employeeIds.includes(row.employeeId));
   applyDashboardRouteKilometers(rows, sources.travelCache || []);
   applyDashboardExpenses(rows, sources.expenses || []);
   for (const contact of sources.contacts || []) {
@@ -348,7 +369,7 @@ function summary(result) {
 }
 
 export function attendanceControlHtml() {
-  return `<section class="attendance-control no-print" data-attendance-control hidden dir="rtl"><div class="attendance-control__head"><div><h2>בקרת נוכחות</h2><p>העלו קובץ נוכחות והמערכת תשווה אותו לנתוני הדשבורד.</p></div><button type="button" class="ds-btn ds-btn--sm" data-attendance-close>סגירה</button></div><div class="attendance-control__uploads"><label><strong>העלאת קובץ נוכחות</strong><input type="file" accept=".xlsx,.xls" data-attendance-source></label><button type="button" class="ds-btn ds-btn--primary" data-attendance-run disabled>בצע בדיקה</button></div><p class="attendance-control__status" data-attendance-status aria-live="polite"></p><div data-attendance-results></div></section>`;
+  return `<section class="attendance-control no-print" data-attendance-control hidden dir="rtl"><div class="attendance-control__head"><div><h2 data-attendance-title>בקרת נוכחות</h2><p>בחרו חודש, העלו קובץ נוכחות והמערכת תשווה אותו לנתוני הדשבורד.</p></div><button type="button" class="ds-btn ds-btn--sm" data-attendance-close>סגירה</button></div><div class="attendance-control__uploads"><label><strong>חודש לבדיקה</strong><input class="ds-input" type="month" data-attendance-month></label><label><strong>העלאת קובץ נוכחות</strong><input type="file" accept=".xlsx,.xls" data-attendance-source></label><button type="button" class="ds-btn ds-btn--primary" data-attendance-run disabled>בצע בדיקה</button></div><p class="attendance-control__status" data-attendance-status aria-live="polite"></p><div data-attendance-results></div></section>`;
 }
 
 export function attendanceControlStylesHtml() {
@@ -364,7 +385,7 @@ export function attendanceControlStylesHtml() {
 </style>`;
 }
 
-export function resultsHtml(result) {
+export function resultsHtml(result, month = '') {
   const totals = summary(result);
   const byEmployee = new Map();
   result.comparisons.forEach((comparison) => { const key = comparison.attendance.employeeId; if (!byEmployee.has(key)) byEmployee.set(key, []); byEmployee.get(key).push(comparison); });
@@ -383,7 +404,8 @@ export function resultsHtml(result) {
     const gapCount = changed.length + dashboardOnly.length;
     return `<details class="attendance-control__employee"><summary><strong>${escapeHtml(name)}</strong><span>${gapCount} הבדלים</span></summary><div class="attendance-control__employee-summary"><span>שעות נוכחות <b>${attendanceHours.toFixed(2)}</b></span><span>שעות בדשבורד <b>${dashboardHours.toFixed(2)}</b></span><span>השוני <b>${Math.abs(attendanceHours-dashboardHours).toFixed(2)}</b></span></div>${details}${missing}${gapCount ? '' : '<p class="ds-muted">לא נמצאו הבדלים בנתונים הנבדקים.</p>'}</details>`;
   }).join('');
-  return `<div class="attendance-control__complete"><strong>נמצאו פערים אצל ${totals.different} מדריכים. לחצו על מדריך לפרטים המלאים.</strong></div><div class="attendance-control__metrics"><span>מדריכים שנבדקו <b>${totals.employees}</b></span><span>פער בשעות <b>${totals.hours}</b></span><span>פער בקילומטרים <b>${totals.km}</b></span><span>פער בהוצאות <b>₪${totals.expenses}</b></span></div>${cards}<button type="button" class="ds-btn ds-btn--primary attendance-control__export" data-attendance-export>ייצוא דוח נוכחות מתוקן</button>`;
+  const monthSummary = attendanceMonthLabel(month) ? `<span>חודש הבדיקה: <b>${escapeHtml(attendanceMonthLabel(month))}</b></span>` : '';
+  return `<div class="attendance-control__complete"><strong>נמצאו פערים אצל ${totals.different} מדריכים. לחצו על מדריך לפרטים המלאים.</strong></div><div class="attendance-control__metrics">${monthSummary}<span>מדריכים שנבדקו <b>${totals.employees}</b></span><span>פער בשעות <b>${totals.hours}</b></span><span>פער בקילומטרים <b>${totals.km}</b></span><span>פער בהוצאות <b>₪${totals.expenses}</b></span></div>${cards}<button type="button" class="ds-btn ds-btn--primary attendance-control__export" data-attendance-export>ייצוא דוח נוכחות מתוקן</button>`;
 }
 
 async function readFile(file) {
@@ -393,19 +415,24 @@ async function readFile(file) {
 export function bindAttendanceControl(root, { api } = {}) {
   const panel = root?.querySelector('[data-attendance-control]'); if (!panel) return;
   const attendanceInput = panel.querySelector('[data-attendance-source]');
+  const monthInput = panel.querySelector('[data-attendance-month]'); const title = panel.querySelector('[data-attendance-title]');
   const run = panel.querySelector('[data-attendance-run]'); const status = panel.querySelector('[data-attendance-status]'); const results = panel.querySelector('[data-attendance-results]');
   let result = null;
-  const update = () => { run.disabled = !attendanceInput.files?.[0]; };
+  const update = () => { run.disabled = !attendanceInput.files?.[0] || !attendanceMonthLabel(monthInput.value); };
   attendanceInput.addEventListener('change', update);
+  monthInput.addEventListener('change', update);
   root.querySelector('[data-attendance-open]')?.addEventListener('click', () => { panel.hidden = false; panel.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
   panel.querySelector('[data-attendance-close]')?.addEventListener('click', () => { panel.hidden = true; });
   run.addEventListener('click', async () => {
     run.disabled = true; status.textContent = 'טוען את נתוני הדשבורד ובודק את הקובץ…';
     try {
-      const attendanceRows = parseAttendanceWorkbook(await readFile(attendanceInput.files[0]));
-      if (!attendanceRows.length) throw new Error('לא נמצאו שורות עם מספר עובד ותאריך בגיליון פירוט מלא.');
-      const dashboardRows = await loadAttendanceDashboardDataset(attendanceRows, api);
-      result = compareAttendanceRows(attendanceRows, dashboardRows); status.textContent = ''; results.innerHTML = resultsHtml(result);
+      const month = monthInput.value; const monthLabel = attendanceMonthLabel(month);
+      if (!monthLabel) throw new Error('יש לבחור חודש לבדיקה לפני ביצוע הבדיקה.');
+      const attendanceRows = filterAttendanceRowsByMonth(parseAttendanceWorkbook(await readFile(attendanceInput.files[0])), month);
+      if (!attendanceRows.length) throw new Error(`לא נמצאו דיווחי נוכחות עבור ${monthLabel}`);
+      const dashboardRows = await loadAttendanceDashboardDataset(attendanceRows, api, month);
+      result = compareAttendanceRows(attendanceRows, dashboardRows); result.month = month;
+      title.textContent = `בקרת נוכחות – ${monthLabel}`; status.textContent = ''; results.innerHTML = resultsHtml(result, month);
     } catch (error) { status.textContent = error?.message || 'קריאת הקבצים נכשלה.'; results.innerHTML = ''; }
     finally { update(); }
   });
@@ -421,5 +448,5 @@ export function bindAttendanceControl(root, { api } = {}) {
     if (event.target.matches('[data-attendance-choice]')) { const custom = diff.querySelector('[data-attendance-custom]'); custom.hidden = event.target.value !== 'custom'; applyAttendanceChoice(comparison, field, event.target.value, custom.value); }
     if (event.target.matches('[data-attendance-custom]')) applyAttendanceChoice(comparison, field, 'custom', event.target.value);
   });
-  results.addEventListener('click', (event) => { if (!event.target.closest('[data-attendance-export]') || !result) return; XLSX.writeFile(buildCorrectedAttendanceWorkbook([...result.comparisons, ...result.dashboardOnly], result.dashboardPopulation), `דוח_נוכחות_מתוקן_${new Date().toISOString().slice(0,10)}.xlsx`, { compression: true }); });
+  results.addEventListener('click', (event) => { if (!event.target.closest('[data-attendance-export]') || !result) return; XLSX.writeFile(buildCorrectedAttendanceWorkbook([...result.comparisons, ...result.dashboardOnly], result.dashboardPopulation), attendanceExportFilename(result.month), { compression: true }); });
 }
