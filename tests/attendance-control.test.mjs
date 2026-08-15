@@ -78,7 +78,7 @@ test('dashboard meetings expand for both assigned instructors', () => {
   assert.deepEqual(rows.map((row) => row.meetingNo), [1, 1, 2, 2]);
 });
 
-test('LONG-073 Oshri Ram regression preserves local Excel dates and intentional double meetings', () => {
+test('LONG-073 real Oshri Ram case preserves double meetings and exposes the real differences', () => {
   const sheet = XLSX.utils.aoa_to_sheet([
     ['מספר עובד', 'שם עובד', 'תאריך', 'שעת התחלה', 'שעת סיום', 'סוג פעילות', 'שם בית ספר', 'רשות', 'שם תכנית'],
     ['1524', 'אושרי רם', new Date(2026, 4, 25), '09:50', '11:20', 'קורס', 'טשרניחובסקי', 'נתניה', 'יישומי AI'],
@@ -89,24 +89,62 @@ test('LONG-073 Oshri Ram regression preserves local Excel dates and intentional 
   assert.deepEqual(parseAttendanceWorkbook(workbook).map((row) => row.date), ['2026-05-25', '2026-05-18', '2026-05-11']);
 
   const rows = buildDashboardAttendanceRows([{
-    row_id: 'LONG-073', emp_id: '1524', emp_id_2: '1524',
-    instructor_name: 'אושרי רם', instructor_name_2: 'אושרי רם', start_time: '09:50', end_time: '11:20',
+    row_id: 'LONG-073', emp_id: '1524', emp_id_2: '',
+    instructor_name: 'אושרי רם', start_time: '08:00', end_time: '09:30',
     activity_name: 'יישומי AI', school: 'טשרניחובסקי', authority: 'נתניה', activity_type: 'course', notes: '4/5 שני מפגשים.',
     date_5: '2026-05-04', date_6: '2026-05-04'
   }]);
-  assert.equal(rows.length, 2, 'both intentional meetings remain, while the duplicate instructor does not double them again');
+  assert.equal(rows.length, 2, 'both intentional meetings remain');
   const aggregated = aggregateDashboardAttendanceRows(rows);
   assert.equal(aggregated.length, 1);
   assert.equal(aggregated[0].meetingCount, 2);
   assert.equal(aggregated[0].workHours, 3);
-  assert.deepEqual(aggregated[0].meetingNumbers, ['1', '2']);
+  assert.deepEqual(aggregated[0].meetingNumbers, ['5', '6']);
   const result = compareAttendanceRows([{
-    employeeId: '1524', date: '2026-05-04', startTime: '09:50', endTime: '11:20', workHours: 3,
-    program: 'יישומי AI', school: 'טשרניחובסקי', authority: 'נתניה', activityType: 'course', meetingNo: '1, 2'
+    employeeId: '1524', employeeName: 'אושרי רם', date: '2026-05-04', startTime: '08:00', endTime: '12:00', workHours: 4,
+    program: 'יישומי AI', school: 'אלתרמן', authority: 'נתניה', activityType: 'קורס', meetingNo: '5'
   }], rows);
   const totals = attendanceAuditSummary(result);
-  assert.equal(result.comparisons[0].differences.length, 0);
+  assert.equal(result.comparisons[0].unmatched, false);
+  assert.deepEqual(result.comparisons[0].differences.map((difference) => difference.key), ['endTime', 'workHours', 'school', 'meetingNo']);
   assert.deepEqual({ before: totals.dashboardRowsBeforeProcessing, after: totals.dashboardRows, hours: totals.dashboardHours }, { before: 2, after: 1, hours: 3 });
+});
+
+test('duplicate emp_id and emp_id_2 is removed without removing meetings', () => {
+  const rows = buildDashboardAttendanceRows([{ row_id: 'DUP-INSTRUCTOR', emp_id: '1524', emp_id_2: '1524', date_1: '2026-05-04', start_time: '08:00', end_time: '09:30' }]);
+  assert.equal(rows.length, 1);
+});
+
+test('Hebrew and canonical activity types compare as the same activity type', () => {
+  for (const [attendanceType, dashboardType] of [['קורס', 'course'], ['סיור', 'tour'], ['סדנה', 'workshop']]) {
+    const base = { employeeId: '10', date: '2026-05-04', startTime: '08:00', endTime: '09:00', school: 'אלתרמן', activityType: attendanceType };
+    const comparison = compareAttendanceRows([base], [{ ...base, activityType: dashboardType }]).comparisons[0];
+    assert.equal(comparison.unmatched, false);
+    assert.equal(comparison.differences.some((difference) => difference.key === 'activityType'), false);
+  }
+});
+
+test('May non-activity reports stay in export but not in activity exceptions or hours gap', () => {
+  const makeRows = (count, activityType, totalHours, offset) => Array.from({ length: count }, (_, index) => ({
+    employeeId: '1524', employeeName: 'אושרי רם', date: `2026-05-${String((index % 28) + 1).padStart(2, '0')}`,
+    startTime: '08:00', endTime: '08:00', workHours: index === 0 ? totalHours : 0,
+    activityType, program: `${activityType}-${offset + index}`
+  }));
+  const attendance = [
+    ...makeRows(172, 'קורס', 391.6, 0),
+    ...makeRows(65, 'ביטול זמן', 96.4, 200),
+    ...makeRows(23, 'הכשרה', 22.9, 300),
+    ...makeRows(1, 'תפעול', 2, 400)
+  ];
+  const result = compareAttendanceRows(attendance, []); const totals = attendanceAuditSummary(result);
+  assert.deepEqual({ rows: totals.attendanceRows, comparable: totals.comparableAttendanceRows, savedOnly: totals.notComparedRows }, { rows: 261, comparable: 172, savedOnly: 89 });
+  assert.deepEqual({ comparable: totals.attendanceHours, savedOnly: totals.notComparedHours, total: totals.totalReportedHours, gap: totals.hours }, { comparable: 391.6, savedOnly: 121.3, total: 512.9, gap: 391.6 });
+  assert.equal(totals.unmatchedAttendance, 172);
+  const workbook = buildCorrectedAttendanceWorkbook([...result.comparisons, ...result.notCompared], result.dashboardPopulation);
+  const detail = XLSX.utils.sheet_to_json(workbook.Sheets['פירוט מלא'], { header: 1 });
+  assert.equal(detail.length - 1, 261);
+  assert.equal(Math.round(detail.slice(1).reduce((sum, row) => sum + Number(row[5] || 0), 0) * 10) / 10, 512.9);
+  assert.match(resultsHtml(result), /דיווחים שאינם נבדקים מול פעילות/);
 });
 
 test('Oshri Ram matching requires context, exposes real fields, and leaves exact rows normal', () => {
