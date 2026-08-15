@@ -267,7 +267,21 @@ export function compareAttendanceRows(attendanceRows, dashboardRows) {
     }) : [];
     return { id: `row-${attendanceIndex}`, attendance, dashboard, final, differences, unmatched: !dashboard };
   });
-  return { comparisons, dashboardPopulation };
+  const dashboardOnly = dashboardPopulation
+    .filter((row) => !row.__profile && row.date && !used.has(row))
+    .map((dashboard, index) => ({
+      id: `dashboard-only-${index}`,
+      source: 'dashboard_only',
+      dashboard,
+      final: { ...dashboard },
+      includeInFinal: false
+    }));
+  return { comparisons, dashboardOnly, dashboardPopulation };
+}
+
+export function setDashboardOnlyChoice(entry, includeInFinal) {
+  if (entry?.source === 'dashboard_only') entry.includeInFinal = Boolean(includeInFinal);
+  return entry;
 }
 
 export function applyAttendanceChoice(comparison, field, choice, custom = '') {
@@ -291,7 +305,9 @@ function activityBucket(value) {
 
 export function buildCorrectedAttendanceWorkbook(comparisons, dashboardRows = []) {
   const employment = new Map((dashboardRows || []).map((row) => [txt(row.employeeId), txt(row.employmentType)]));
-  const rows = (comparisons || []).map(({ final }) => ({ ...final, workHours: calculateWorkHours(final.startTime, final.endTime), employmentType: employment.get(txt(final.employeeId)) || txt(final.employmentType) }));
+  const rows = (comparisons || [])
+    .filter((entry) => entry.source !== 'dashboard_only' || entry.includeInFinal)
+    .map(({ final }) => ({ ...final, workHours: calculateWorkHours(final.startTime, final.endTime), employmentType: employment.get(txt(final.employeeId)) || txt(final.employmentType) }));
   const detail = rows.map((row) => [row.employeeId, row.employeeName, row.date, row.startTime, row.endTime, row.workHours, row.activityType, row.school, row.authority, row.program, row.meetingNo, row.kilometers, row.expenses, row.expenseDetails, row.notes]);
   const monthlyMap = new Map();
   rows.filter((row) => normalizeAttendanceName(row.employmentType).includes(normalizeAttendanceName('תעשיידע'))).forEach((row) => {
@@ -319,7 +335,10 @@ function diffText(diff) {
 
 function summary(result) {
   const employees = new Set(result.comparisons.map((c) => c.attendance.employeeId));
-  const different = new Set(result.comparisons.filter((c) => c.differences.length).map((c) => c.attendance.employeeId));
+  const different = new Set([
+    ...result.comparisons.filter((c) => c.differences.length).map((c) => c.attendance.employeeId),
+    ...(result.dashboardOnly || []).map((entry) => entry.dashboard.employeeId)
+  ]);
   const sum = (key) => result.comparisons.reduce((total, c) => {
     const attendance = optionalNumber(c.attendance[key]); const dashboard = optionalNumber(c.dashboard?.[key]);
     return attendance == null || dashboard == null ? total : total + Math.abs(attendance - dashboard);
@@ -339,22 +358,30 @@ export function attendanceControlStylesHtml() {
 .attendance-control__uploads{margin:16px 0;padding:14px;background:#f8fafc;border-radius:10px}.attendance-control__uploads label{display:grid;gap:6px;min-width:220px;flex:1}.attendance-control__status{color:#b91c1c;font-weight:700}
 .attendance-control__complete{padding:12px 14px;border-radius:10px;background:#ecfdf5;color:#166534}.attendance-control__metrics{margin:12px 0}.attendance-control__metrics>span,.attendance-control__employee-summary>span{padding:9px 12px;border:1px solid #e2e8f0;border-radius:8px;background:#f8fafc}
 .attendance-control__employee{margin:10px 0;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden}.attendance-control__employee summary{display:flex;justify-content:space-between;padding:13px;cursor:pointer;background:#f8fafc}.attendance-control__employee-summary{padding:10px 13px}
+.attendance-control__dashboard-only{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:10px 13px;padding:12px;border:1px solid #f59e0b;border-radius:9px;background:#fffbeb}.attendance-control__dashboard-only>div{display:grid;gap:4px}.attendance-control__dashboard-only span{color:#64748b}
 .attendance-control__day{padding:10px 13px;border-top:1px solid #e2e8f0}.attendance-control__day h4{margin:0 0 8px}.attendance-control__diff{display:grid;grid-template-columns:minmax(110px,1fr) repeat(3,minmax(90px,1fr)) minmax(140px,1fr) minmax(110px,1fr);gap:7px;align-items:center;padding:7px 0;border-top:1px dashed #e2e8f0}.attendance-control__export{margin-top:14px}
 @media(max-width:850px){.attendance-control__diff{grid-template-columns:1fr 1fr}.attendance-control__diff strong{grid-column:1/-1}}
 </style>`;
 }
 
-function resultsHtml(result) {
+export function resultsHtml(result) {
   const totals = summary(result);
   const byEmployee = new Map();
   result.comparisons.forEach((comparison) => { const key = comparison.attendance.employeeId; if (!byEmployee.has(key)) byEmployee.set(key, []); byEmployee.get(key).push(comparison); });
-  const cards = [...byEmployee.values()].map((rows) => {
+  (result.dashboardOnly || []).forEach((entry) => { const key = entry.dashboard.employeeId; if (!byEmployee.has(key)) byEmployee.set(key, []); });
+  const dashboardOnlyByEmployee = new Map();
+  (result.dashboardOnly || []).forEach((entry) => { const key = entry.dashboard.employeeId; if (!dashboardOnlyByEmployee.has(key)) dashboardOnlyByEmployee.set(key, []); dashboardOnlyByEmployee.get(key).push(entry); });
+  const cards = [...byEmployee.entries()].map(([employeeId, rows]) => {
     const changed = rows.filter((row) => row.differences.length);
-    const name = rows[0].attendance.employeeName || rows[0].attendance.employeeId;
+    const dashboardOnly = dashboardOnlyByEmployee.get(employeeId) || [];
+    const name = rows[0]?.attendance?.employeeName || dashboardOnly[0]?.dashboard?.employeeName || employeeId;
     const attendanceHours = rows.reduce((s, r) => s + calculateWorkHours(r.attendance.startTime, r.attendance.endTime), 0);
-    const dashboardHours = rows.reduce((s, r) => s + calculateWorkHours(r.dashboard?.startTime, r.dashboard?.endTime), 0);
+    const dashboardHours = rows.reduce((s, r) => s + calculateWorkHours(r.dashboard?.startTime, r.dashboard?.endTime), 0)
+      + dashboardOnly.reduce((sum, entry) => sum + calculateWorkHours(entry.dashboard.startTime, entry.dashboard.endTime), 0);
     const details = changed.map((comparison) => `<div class="attendance-control__day"><h4>${escapeHtml(comparison.attendance.date)} · ${escapeHtml(comparison.attendance.program || comparison.attendance.activityType || 'דיווח')}</h4>${comparison.differences.map((diff) => `<div class="attendance-control__diff" data-comparison="${comparison.id}" data-field="${diff.key}"><strong>${escapeHtml(diff.label)}</strong><span>${escapeHtml(txt(diff.attendance) || '—')}</span><span>${escapeHtml(txt(diff.dashboard) || '—')}</span><span>${escapeHtml(diffText(diff))}</span><select class="ds-input ds-input--sm" data-attendance-choice><option value="attendance">נתון הנוכחות</option><option value="dashboard">נתון הדשבורד</option><option value="custom">ערך אחר</option></select><input class="ds-input ds-input--sm" data-attendance-custom hidden aria-label="ערך אחר"></div>`).join('')}</div>`).join('');
-    return `<details class="attendance-control__employee"${changed.length ? '' : ''}><summary><strong>${escapeHtml(name)}</strong><span>${changed.length} הבדלים</span></summary><div class="attendance-control__employee-summary"><span>שעות נוכחות <b>${attendanceHours.toFixed(2)}</b></span><span>שעות בדשבורד <b>${dashboardHours.toFixed(2)}</b></span><span>השוני <b>${Math.abs(attendanceHours-dashboardHours).toFixed(2)}</b></span></div>${details || '<p class="ds-muted">לא נמצאו הבדלים בנתונים הנבדקים.</p>'}</details>`;
+    const missing = dashboardOnly.map((entry) => `<div class="attendance-control__dashboard-only" data-dashboard-only="${entry.id}"><div><strong>מופיע בדשבורד ולא נמצא בנוכחות</strong><span>${escapeHtml(entry.dashboard.date)} · ${escapeHtml(entry.dashboard.program || entry.dashboard.activityType || 'פעילות')} · ${escapeHtml(`${entry.dashboard.startTime || '—'}–${entry.dashboard.endTime || '—'}`)}</span></div><select class="ds-input ds-input--sm" data-dashboard-only-choice><option value="leave">להשאיר ללא שינוי</option><option value="add">להוסיף לנתונים הסופיים</option></select></div>`).join('');
+    const gapCount = changed.length + dashboardOnly.length;
+    return `<details class="attendance-control__employee"><summary><strong>${escapeHtml(name)}</strong><span>${gapCount} הבדלים</span></summary><div class="attendance-control__employee-summary"><span>שעות נוכחות <b>${attendanceHours.toFixed(2)}</b></span><span>שעות בדשבורד <b>${dashboardHours.toFixed(2)}</b></span><span>השוני <b>${Math.abs(attendanceHours-dashboardHours).toFixed(2)}</b></span></div>${details}${missing}${gapCount ? '' : '<p class="ds-muted">לא נמצאו הבדלים בנתונים הנבדקים.</p>'}</details>`;
   }).join('');
   return `<div class="attendance-control__complete"><strong>נמצאו פערים אצל ${totals.different} מדריכים. לחצו על מדריך לפרטים המלאים.</strong></div><div class="attendance-control__metrics"><span>מדריכים שנבדקו <b>${totals.employees}</b></span><span>פער בשעות <b>${totals.hours}</b></span><span>פער בקילומטרים <b>${totals.km}</b></span><span>פער בהוצאות <b>₪${totals.expenses}</b></span></div>${cards}<button type="button" class="ds-btn ds-btn--primary attendance-control__export" data-attendance-export>ייצוא דוח נוכחות מתוקן</button>`;
 }
@@ -383,10 +410,16 @@ export function bindAttendanceControl(root, { api } = {}) {
     finally { update(); }
   });
   results.addEventListener('change', (event) => {
+    const dashboardOnlyElement = event.target.closest('[data-dashboard-only]');
+    if (dashboardOnlyElement && event.target.matches('[data-dashboard-only-choice]') && result) {
+      const entry = result.dashboardOnly.find((item) => item.id === dashboardOnlyElement.dataset.dashboardOnly);
+      setDashboardOnlyChoice(entry, event.target.value === 'add');
+      return;
+    }
     const diff = event.target.closest('[data-comparison]'); if (!diff || !result) return;
     const comparison = result.comparisons.find((row) => row.id === diff.dataset.comparison); const field = diff.dataset.field;
     if (event.target.matches('[data-attendance-choice]')) { const custom = diff.querySelector('[data-attendance-custom]'); custom.hidden = event.target.value !== 'custom'; applyAttendanceChoice(comparison, field, event.target.value, custom.value); }
     if (event.target.matches('[data-attendance-custom]')) applyAttendanceChoice(comparison, field, 'custom', event.target.value);
   });
-  results.addEventListener('click', (event) => { if (!event.target.closest('[data-attendance-export]') || !result) return; XLSX.writeFile(buildCorrectedAttendanceWorkbook(result.comparisons, result.dashboardPopulation), `דוח_נוכחות_מתוקן_${new Date().toISOString().slice(0,10)}.xlsx`, { compression: true }); });
+  results.addEventListener('click', (event) => { if (!event.target.closest('[data-attendance-export]') || !result) return; XLSX.writeFile(buildCorrectedAttendanceWorkbook([...result.comparisons, ...result.dashboardOnly], result.dashboardPopulation), `דוח_נוכחות_מתוקן_${new Date().toISOString().slice(0,10)}.xlsx`, { compression: true }); });
 }

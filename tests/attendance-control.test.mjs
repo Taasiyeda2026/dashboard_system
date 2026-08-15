@@ -2,10 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as XLSX from 'xlsx';
 import {
-  attendanceControlHtml, normalizeAttendanceName, calculateWorkHours,
+  attendanceControlHtml, resultsHtml, normalizeAttendanceName, calculateWorkHours,
   buildDashboardAttendanceRows, attendanceDateScope, loadAttendanceDashboardDataset,
   applyDashboardRouteKilometers, applyDashboardExpenses, compareAttendanceRows, applyAttendanceChoice,
-  buildCorrectedAttendanceWorkbook, DETAIL_HEADERS, MONTHLY_HEADERS, DAILY_HEADERS
+  setDashboardOnlyChoice, buildCorrectedAttendanceWorkbook, DETAIL_HEADERS, MONTHLY_HEADERS, DAILY_HEADERS
 } from '../frontend/src/screens/attendance-control.js';
 
 test('attendance control asks for one attendance workbook and no dashboard workbook', () => {
@@ -51,11 +51,35 @@ test('kilometers reuse cached scheduling route segments across a work day', () =
 });
 
 test('dashboard expenses aggregate the existing personal-report source without inventing zero', () => {
-  const rows = [{ employeeId: '10', date: '2026-08-01', expenses: null }, { employeeId: '10', date: '2026-08-02', expenses: null }];
+  const rows = [{ employeeId: '10', date: '2026-08-01', expenses: null }, { employeeId: '10', date: '2026-08-01', expenses: null }, { employeeId: '10', date: '2026-08-02', expenses: null }];
   applyDashboardExpenses(rows, [{ emp_id: '10', expense_date: '2026-08-01', amount: 25, description: 'חניה' }, { emp_id: '10', expense_date: '2026-08-01', amount: 10, description: 'כביש אגרה' }]);
   assert.equal(rows[0].expenses, 35);
   assert.equal(rows[0].expenseDetails, 'חניה; כביש אגרה');
   assert.equal(rows[1].expenses, null);
+  assert.equal(rows[1].expenseDetails, undefined);
+  assert.equal(rows[2].expenses, null);
+});
+
+test('unmatched dashboard meetings are limited to attendance employees and can be added once', () => {
+  const attendance = [{ employeeId: '10', employeeName: 'דנה', date: '2026-08-01', startTime: '08:00', endTime: '09:00', program: 'ראשון' }];
+  const dashboard = [
+    { employeeId: '10', employeeName: 'דנה', employmentType: 'תעשיידע', date: '2026-08-01', startTime: '08:00', endTime: '09:00', program: 'ראשון' },
+    { employeeId: '10', employeeName: 'דנה', employmentType: 'תעשיידע', date: '2026-08-01', startTime: '11:00', endTime: '12:00', program: 'שני' },
+    { employeeId: '99', employeeName: 'מחוץ לאוכלוסייה', date: '2026-08-01', startTime: '13:00', endTime: '14:00', program: 'שלישי' }
+  ];
+  const result = compareAttendanceRows(attendance, dashboard);
+  assert.equal(result.dashboardOnly.length, 1);
+  assert.equal(result.dashboardOnly[0].dashboard.program, 'שני');
+  const html = resultsHtml(result);
+  assert.match(html, /מופיע בדשבורד ולא נמצא בנוכחות/);
+  assert.match(html, /להוסיף לנתונים הסופיים/);
+  let workbook = buildCorrectedAttendanceWorkbook([...result.comparisons, ...result.dashboardOnly], result.dashboardPopulation);
+  assert.equal(XLSX.utils.sheet_to_json(workbook.Sheets['פירוט מלא'], { header: 1 }).length, 2);
+  setDashboardOnlyChoice(result.dashboardOnly[0], true);
+  workbook = buildCorrectedAttendanceWorkbook([...result.comparisons, ...result.dashboardOnly], result.dashboardPopulation);
+  const detail = XLSX.utils.sheet_to_json(workbook.Sheets['פירוט מלא'], { header: 1 });
+  assert.equal(detail.length, 3);
+  assert.equal(detail[2][9], 'שני');
 });
 
 test('population, multiple same-day matching and all six compared fields are preserved', () => {
