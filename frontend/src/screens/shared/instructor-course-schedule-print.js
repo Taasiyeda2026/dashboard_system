@@ -23,27 +23,29 @@ function fieldRowHtml(label, value) {
 
 function courseCardHtml(row) {
   const dates = Array.isArray(row?.dates) ? row.dates : [];
-  const datesHtml = dates.map((date) => `<li>${escapeHtml(formatDateHe(date))}</li>`).join('');
+  const datesHtml = dates.map((date) => `<span class="cs-date">${escapeHtml(formatDateHe(date))}</span>`).join('');
   return `<article class="cs-card">
-    <div class="cs-card__col">
-      <h2 class="cs-card__col-title">פרטי הקורס</h2>
-      ${fieldRowHtml('שם הקורס', row.name)}
-      ${fieldRowHtml('רשות', row.authority)}
-      ${fieldRowHtml('בית ספר', row.school)}
-      ${fieldRowHtml('כיתה', row.grade)}
+    <div class="cs-card__details">
+      <section class="cs-card__section">
+        <h2 class="cs-card__section-title">פרטי הקורס</h2>
+        ${fieldRowHtml('שם הקורס', row.name)}
+        ${fieldRowHtml('רשות', row.authority)}
+        ${fieldRowHtml('בית ספר', row.school)}
+        ${fieldRowHtml('כיתה', row.grade)}
+      </section>
+      <section class="cs-card__section">
+        <h2 class="cs-card__section-title">מועדי הפעילות</h2>
+        ${fieldRowHtml('יום קבוע', row.weekday)}
+        ${fieldRowHtml('שעות', row.timeRange)}
+        ${fieldRowHtml('תאריך התחלה', formatDateHe(row.startDate))}
+        ${fieldRowHtml('תאריך סיום', formatDateHe(row.endDate))}
+        ${fieldRowHtml('מספר מפגשים', String(row.sessionsCount ?? dates.length))}
+      </section>
     </div>
-    <div class="cs-card__col">
-      <h2 class="cs-card__col-title">מועדי הפעילות</h2>
-      ${fieldRowHtml('יום קבוע', row.weekday)}
-      ${fieldRowHtml('שעות', row.timeRange)}
-      ${fieldRowHtml('תאריך התחלה', formatDateHe(row.startDate))}
-      ${fieldRowHtml('תאריך סיום', formatDateHe(row.endDate))}
-      ${fieldRowHtml('מספר מפגשים', String(row.sessionsCount ?? dates.length))}
-    </div>
-    <div class="cs-card__col cs-card__col--dates">
-      <h2 class="cs-card__col-title">תאריכי כל המפגשים</h2>
-      <ol class="cs-dates-list">${datesHtml}</ol>
-    </div>
+    <section class="cs-card__dates">
+      <h2 class="cs-card__dates-title">תאריכי המפגשים</h2>
+      <div class="cs-dates-grid">${datesHtml}</div>
+    </section>
   </article>`;
 }
 
@@ -55,33 +57,43 @@ export function buildCourseSchedulePrintHtml({ instructorName = '', rows = [] } 
   const totalMeetings = safeRows.reduce((sum, row) => sum + (Array.isArray(row.dates) ? row.dates.length : 0), 0);
   const cardsHtml = safeRows.map(courseCardHtml).join('');
   return `<div class="cs-print-page">
-    <h1 class="cs-print-title">סידור עבודה למדריך - תשפ״ז</h1>
-    <p class="cs-print-instructor"><strong>שם המדריך:</strong> ${escapeHtml(instructorName || '—')}</p>
-    <p class="cs-print-period"><strong>תקופת הפעילות:</strong> ${escapeHtml(periodFrom)}-${escapeHtml(periodTo)}</p>
-    <p class="cs-print-summary">מספר קורסים: ${safeRows.length} | מספר מפגשים כולל: ${totalMeetings}</p>
+    <header class="cs-print-header">
+      <h1 class="cs-print-title">סידור עבודה למדריך – תשפ״ז</h1>
+      <div class="cs-print-meta">
+        <p><strong>שם המדריך:</strong> ${escapeHtml(instructorName || '—')}</p>
+        <p><strong>תקופת הפעילות:</strong> ${escapeHtml(periodFrom)}–${escapeHtml(periodTo)}</p>
+        <p><strong>סיכום:</strong> מספר קורסים: ${safeRows.length} · מספר מפגשים כולל: ${totalMeetings}</p>
+      </div>
+    </header>
     <div class="cs-print-cards">${cardsHtml}</div>
   </div>`;
 }
 
 export function courseSchedulePrintCss() {
   return `
-    body{direction:rtl;font-family:Assistant,Arial,sans-serif;margin:0;color:#0f172a;background:#fff;font-size:11px;line-height:1.35;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    *{box-sizing:border-box}
+    body{direction:rtl;font-family:Assistant,Arial,sans-serif;margin:0;color:#172033;background:#fff;font-size:10.5px;line-height:1.3;-webkit-print-color-adjust:exact;print-color-adjust:exact}
     .cs-print-page{width:100%;box-sizing:border-box}
-    .cs-print-title{margin:0 0 6px;font-size:16px;font-weight:800;color:#0f172a;text-align:center}
-    .cs-print-instructor,.cs-print-period{margin:0 0 3px;font-size:12px;text-align:center;color:#1e293b}
-    .cs-print-instructor strong,.cs-print-period strong{color:#1e3a8a}
-    .cs-print-summary{margin:0 0 12px;font-size:10px;text-align:center;color:#475569}
-    .cs-print-cards{display:flex;flex-direction:column;gap:8px}
-    .cs-card{display:grid;grid-template-columns:repeat(3, minmax(0, 1fr));border:1px solid #94a3b8;border-radius:6px;overflow:hidden;break-inside:avoid;page-break-inside:avoid;background:#fff}
-    .cs-card__col{padding:8px 10px;box-sizing:border-box;border-inline-start:1px solid #cbd5e1;min-width:0}
-    .cs-card__col:first-child{border-inline-start:none}
-    .cs-card__col-title{height:14px;line-height:14px;margin:0 0 6px;padding:3px 0;font-size:11px;font-weight:800;color:#0c4a6e;background:#e0f2fe;border-bottom:1px solid #7dd3fc;text-align:center}
-    .cs-field{display:flex;justify-content:space-between;align-items:baseline;gap:6px;margin:0 0 4px;font-size:10px}
-    .cs-field__label{color:#334155;font-weight:700;white-space:nowrap}
-    .cs-field__value{color:#1e3a8a;font-weight:700;text-align:right;overflow-wrap:anywhere}
-    .cs-dates-list{margin:0;padding-inline-start:14px;column-count:2;column-gap:10px;font-size:10px;color:#1e3a8a;font-weight:600;list-style-position:outside}
-    .cs-dates-list li{break-inside:avoid;margin-bottom:2px}
+    .cs-print-header{margin:0 0 8px;padding:0 0 7px;border-bottom:2px solid #1e3a5f}
+    .cs-print-title{margin:0 0 5px;font-size:17px;line-height:1.2;font-weight:800;color:#102a43;text-align:center}
+    .cs-print-meta{display:flex;justify-content:center;flex-wrap:wrap;gap:3px 18px;color:#334155}
+    .cs-print-meta p{margin:0;white-space:nowrap}
+    .cs-print-meta strong{color:#163d68}
+    .cs-print-cards{display:flex;flex-direction:column;gap:7px}
+    .cs-card{border:1px solid #9aa9ba;border-radius:5px;overflow:hidden;break-inside:avoid;page-break-inside:avoid;background:#fff}
+    .cs-card__details{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+    .cs-card__section{padding:6px 9px 5px;min-width:0}
+    .cs-card__section+ .cs-card__section{border-inline-start:1px solid #d5dce5}
+    .cs-card__section-title,.cs-card__dates-title{margin:0 0 5px;font-size:11px;line-height:1.25;font-weight:800;color:#174a73}
+    .cs-card__section-title{padding-bottom:3px;border-bottom:1px solid #b9c9d8}
+    .cs-field{display:grid;grid-template-columns:max-content minmax(0,1fr);align-items:baseline;gap:3px 8px;margin:0 0 2px}
+    .cs-field__label{color:#475569;font-weight:700;white-space:nowrap}
+    .cs-field__value{color:#132f52;font-weight:600;overflow-wrap:anywhere}
+    .cs-card__dates{padding:5px 9px 7px;border-top:1px solid #cbd5e1;background:#f8fafc}
+    .cs-card__dates-title{margin-bottom:4px}
+    .cs-dates-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:3px 6px}
+    .cs-date{padding:2px 4px;border:1px solid #d4dde7;border-radius:3px;background:#fff;color:#163d68;font-size:9.5px;font-weight:600;text-align:center;white-space:nowrap}
     @page{size:A4 portrait;margin:10mm}
-    @media print{body{margin:0}.cs-card{break-inside:avoid;page-break-inside:avoid}}
+    @media print{body{margin:0}.cs-card{break-inside:avoid;page-break-inside:avoid}.cs-print-header{break-after:avoid;page-break-after:avoid}}
   `;
 }
