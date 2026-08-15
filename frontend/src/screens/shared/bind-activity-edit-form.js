@@ -39,6 +39,8 @@ function setEditMode(form, editing) {
   form.querySelectorAll('[data-edit-actions]').forEach((el) => el.toggleAttribute('hidden', !editing));
   const editBtn = form.querySelector('[data-action="start-edit"]');
   if (editBtn) editBtn.toggleAttribute('hidden', editing);
+  const existsInGefen = form.querySelector('[data-gefen-exists-checkbox]');
+  if (existsInGefen) existsInGefen.disabled = !editing;
   syncMeetingRemoveButtons(form);
 }
 
@@ -296,7 +298,9 @@ function captureFormInitialValues(form) {
   form.querySelectorAll('[name]').forEach((el) => {
     const name = el.getAttribute('name');
     if (!name || name.startsWith('_')) return;
-    initialValues[name] = el.matches('select[multiple]')
+    initialValues[name] = el.matches('input[type="checkbox"]')
+      ? el.checked
+      : el.matches('select[multiple]')
       ? [...el.selectedOptions].map((option) => String(option.value).trim()).filter(Boolean)
       : String(el.value ?? '').trim();
   });
@@ -412,6 +416,11 @@ export function bindActivityEditForm(contentRoot, {
       if (!name || name.startsWith('_')) return;
       if (/^meeting_date_\d+$/.test(name) || /^meeting_performed_\d+$/.test(name)) return;
       if (el.closest('[hidden]')) return;
+      if (el.matches('input[type="checkbox"]')) {
+        const nextValue = el.checked;
+        if (nextValue !== Boolean(initialValues[name])) changes[name] = nextValue;
+        return;
+      }
       if (el.matches('select[multiple][data-scheduling-multi]')) {
         const nextValues = [...el.selectedOptions].map((option) => ({
           funding_source_id: String(option.value).trim(),

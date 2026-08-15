@@ -604,19 +604,25 @@ function blockExtraEditInfo(row, { settings = {} } = {}) {
   const options = settings?.dropdown_options || {};
 
   return `
-    <section class="activity-drawer__section activity-drawer__section--edit-group" data-mode="edit" hidden>
+    <section class="activity-drawer__section activity-drawer__section--edit-group activity-drawer__section--funding-gefen">
       <h3 class="activity-drawer__section-title">מידע משלים</h3>
       <div class="activity-drawer__details-edit-grid">
-        ${fieldEditOnly(
-          'גורם מימון',
-          `<select class="ds-input" name="funding_sources" multiple size="3" data-scheduling-multi>
+        <div data-mode="edit" hidden>
+          ${fieldEditOnly(
+            'גורם מימון',
+            `<select class="ds-input" name="funding_sources" multiple size="3" data-scheduling-multi>
             ${(options.funding_source_records || []).map((source) => {
               const linked = (row.funding_sources || []).find((item) => String(item.id) === String(source.id));
               return `<option value="${escapeHtml(source.id)}"${linked ? ' selected' : ''} data-funding-amount="${escapeHtml(String(linked?.amount ?? ''))}" data-initial-funding-amount="${escapeHtml(String(linked?.amount ?? ''))}">${escapeHtml(source.name)}</option>`;
             }).join('')}
-          </select>`
-        )}
-        ${fieldEditOnly('מחיר', inputHtml({ name: 'price', value: row.price }))}
+            </select>`
+          )}
+        </div>
+        <label class="activity-drawer__gefen-exists">
+          <input type="checkbox" name="exists_in_gefen" data-gefen-exists-checkbox value="true"${row.exists_in_gefen === true ? ' checked' : ''} disabled>
+          <span>מופיע בגפ״ן</span>
+        </label>
+        <div data-mode="edit" hidden>${fieldEditOnly('מחיר', inputHtml({ name: 'price', value: row.price }))}</div>
       </div>
     </section>
   `;
