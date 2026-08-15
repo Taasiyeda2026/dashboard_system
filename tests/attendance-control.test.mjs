@@ -4,6 +4,7 @@ import * as XLSX from 'xlsx';
 import {
   attendanceControlHtml, resultsHtml, normalizeAttendanceName, calculateWorkHours,
   buildDashboardAttendanceRows, attendanceDateScope, loadAttendanceDashboardDataset,
+  attendanceMonthLabel, filterAttendanceRowsByMonth, attendanceExportFilename,
   applyDashboardRouteKilometers, applyDashboardExpenses, compareAttendanceRows, applyAttendanceChoice,
   setDashboardOnlyChoice, buildCorrectedAttendanceWorkbook, DETAIL_HEADERS, MONTHLY_HEADERS, DAILY_HEADERS
 } from '../frontend/src/screens/attendance-control.js';
@@ -13,6 +14,30 @@ test('attendance control asks for one attendance workbook and no dashboard workb
   assert.match(html, /העלאת קובץ נוכחות/);
   assert.equal((html.match(/type="file"/g) || []).length, 1);
   assert.doesNotMatch(html, /data-attendance-dashboard/);
+  assert.match(html, /data-attendance-month/);
+  assert.match(html, /data-attendance-run disabled/);
+});
+
+test('attendance control cannot run without an explicitly selected month', () => {
+  assert.throws(() => filterAttendanceRowsByMonth([], ''), /יש לבחור חודש לבדיקה/);
+});
+
+test('selecting July excludes August attendance rows', () => {
+  const rows = filterAttendanceRowsByMonth([{ employeeId: '10', date: '2026-07-31' }, { employeeId: '10', date: '2026-08-01' }], '2026-07');
+  assert.deepEqual(rows.map((row) => row.date), ['2026-07-31']);
+});
+
+test('July title, summary and export name use the explicitly selected month', () => {
+  assert.equal(attendanceMonthLabel('2026-07'), 'יולי 2026');
+  assert.equal(attendanceExportFilename('2026-07'), 'דוח_נוכחות_מתוקן_יולי_2026.xlsx');
+  assert.match(resultsHtml({ comparisons: [], dashboardOnly: [] }, '2026-07'), /חודש הבדיקה: <b>יולי 2026<\/b>/);
+  assert.match(attendanceControlHtml(), /data-attendance-title>בקרת נוכחות/);
+});
+
+test('a workbook without July attendance produces the clear selected-month message', () => {
+  const rows = filterAttendanceRowsByMonth([{ employeeId: '10', date: '2026-08-01' }], '2026-07');
+  assert.equal(rows.length, 0);
+  assert.equal(`לא נמצאו דיווחי נוכחות עבור ${attendanceMonthLabel('2026-07')}`, 'לא נמצאו דיווחי נוכחות עבור יולי 2026');
 });
 
 test('attendance normalization tolerates punctuation, quotes, spacing and common suffixes', () => {
@@ -31,6 +56,19 @@ test('dashboard dataset scope comes only from actual attendance detail dates and
   assert.equal(requested.fromDate, '2026-07-02');
   assert.equal(rows.filter((row) => !row.__profile).length, 1);
   assert.equal(rows.find((row) => row.__profile).employmentType, 'תעשיידע');
+});
+
+test('dashboard dataset request is limited to all of July and July attendance employees', async () => {
+  const attendance = [{ employeeId: '10', date: '2026-07-12' }];
+  let requested;
+  const rows = await loadAttendanceDashboardDataset(attendance, { attendanceControlDashboardSources: async (scope) => {
+    requested = scope;
+    return { activities: [{ row_id: 'A', emp_id: '10', meetings: [{ date: '2026-07-01' }, { date: '2026-08-01' }] }, { row_id: 'B', emp_id: '99', meetings: [{ date: '2026-07-02' }] }], contacts: [], travelCache: [], expenses: [] };
+  } }, '2026-07');
+  assert.deepEqual(requested.employeeIds, ['10']);
+  assert.equal(requested.fromDate, '2026-07-01');
+  assert.equal(requested.toDate, '2026-07-31');
+  assert.deepEqual(rows.map((row) => row.date), ['2026-07-01']);
 });
 
 test('dashboard meetings expand for both assigned instructors', () => {
