@@ -32,10 +32,10 @@ export async function prepareCoordinationDraftGroup(group, { token } = {}) {
   if (dispatch.graph_message_id) return { dispatch, existing: true };
   if (String(dispatch.client_correlation_id) !== correlationId) return { dispatch, existing: true, pending: true };
 
-  const pdfBlob = await generateActivityCoordinationPdf(snapshots);
-  const [summaryBytes, photo] = await Promise.all([blobToBase64(pdfBlob), photographyApprovalAttachment()]);
   let draft;
   try {
+    const pdfBlob = await generateActivityCoordinationPdf(snapshots);
+    const [summaryBytes, photo] = await Promise.all([blobToBase64(pdfBlob), photographyApprovalAttachment()]);
     draft = await createGraphDraft({
       token, subject: mail.subject, body: mail.body, to: [group.recipient_email],
       cc: group.activities[0].cc_email ? [group.activities[0].cc_email] : [],
@@ -58,7 +58,7 @@ export async function prepareCoordinationDrafts(items, { loginHint = '', onProgr
   return runSequentialGroups(groups, (group) => prepareCoordinationDraftGroup(group, { token }), onProgress);
 }
 
-export async function runSequentialGroups(groups, worker, onProgress = () => {}) {
+export async function runSequentialGroups(groups, worker, onProgress = () => {} } = {}) {
   const results = [];
   for (let index = 0; index < groups.length; index += 1) {
     onProgress({ current: index + 1, total: groups.length, group: groups[index] });
