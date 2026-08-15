@@ -65,6 +65,8 @@ function readyCourseFixture(overrides = {}) {
     authority: 'רשות א',
     school: 'בית ספר א',
     grade: 'ה',
+    contact_name: 'נועה לוי',
+    contact_phone: '050-1234567',
     instructor_name: 'דני כהן',
     sessions: String(dates.length),
     start_date: dates[0],
@@ -89,6 +91,8 @@ test('buildReadyCourseScheduleRows maps a ready course into one row with all 14 
   assert.equal(rows.length, 1);
   assert.equal(rows[0].name, 'קורס רובוטיקה');
   assert.equal(rows[0].sessionsCount, 14);
+  assert.equal(rows[0].contactName, 'נועה לוי');
+  assert.equal(rows[0].contactPhone, '050-1234567');
   assert.deepEqual(rows[0].dates, READY_DATES_14.slice().sort());
 });
 
@@ -219,14 +223,15 @@ test('buildCourseSchedulePrintDocumentTitle embeds the sanitized instructor name
   assert.match(buildCourseSchedulePrintDocumentTitle('ישראל/ישראלי'), /^סידור עבודה - ישראלישראלי - תשפ״ז$/);
 });
 
-test('courseSchedulePrintCss declares A4 portrait, a compact two-column course header, date grid, and page-break avoidance', () => {
+test('courseSchedulePrintCss declares A4 portrait, a compact three-column course header, regular values, no negative letter spacing, date grid, and page-break avoidance', () => {
   const css = courseSchedulePrintCss();
   assert.match(css, /@page\{size:A4 portrait;margin:10mm\}/);
-  assert.match(css, /\.cs-card__details\{[^}]*grid-template-columns:minmax\(0,1fr\) minmax\(0,1fr\)/);
+  assert.match(css, /\.cs-card__details\{[^}]*grid-template-columns:repeat\(3,minmax\(0,1fr\)\)/);
   assert.match(css, /\.cs-dates-grid\{[^}]*grid-template-columns:repeat\(5,minmax\(0,1fr\)\)/);
   assert.match(css, /\.cs-card\{[^}]*break-inside:avoid;page-break-inside:avoid/);
   assert.match(css, /\.cs-field__value\{[^}]*font-weight:400/);
-  assert.match(css, /\.cs-field__value--featured\{font-weight:600\}/);
+  assert.doesNotMatch(css, /letter-spacing\s*:\s*-/);
+  assert.doesNotMatch(css, /cs-field__value--featured/);
   assert.match(css, /\.cs-date\{[^}]*color:#263442;[^}]*font-weight:400/);
 });
 
@@ -234,10 +239,14 @@ test('buildCourseSchedulePrintHtml renders the document header, separate course 
   const rows = buildReadyCourseScheduleRows([readyCourseFixture()]);
   const html = buildCourseSchedulePrintHtml({ instructorName: 'דני כהן', rows });
   assert.match(html, /שם המדריך:<\/strong> <span>דני כהן<\/span>/);
-  assert.equal((html.match(/סידור עבודה למדריך – תשפ״ז/g) || []).length, 1);
+  assert.equal((html.match(/סידור עבודה - תשפ"ז/g) || []).length, 1);
+  assert.match(html, /<h1 class="cs-print-title">סידור עבודה - תשפ"ז<\/h1>/);
   assert.match(html, /<strong>סיכום:<\/strong> <span>מספר קורסים: 1 \| מספר מפגשים כולל: 14<\/span>/);
   assert.equal((html.match(/<article class="cs-card">/g) || []).length, 1);
-  assert.match(html, /<span class="cs-field__label">שם הקורס:<\/span><span class="cs-field__value cs-field__value--featured">/);
+  assert.match(html, /<span class="cs-field__label">שם הקורס:<\/span><span class="cs-field__value">קורס רובוטיקה<\/span>/);
+  assert.match(html, /פרטי איש קשר/);
+  assert.match(html, /שם איש הקשר:<\/span><span class="cs-field__value">נועה לוי/);
+  assert.match(html, /טלפון איש הקשר:<\/span><span class="cs-field__value">050-1234567/);
   assert.match(html, /<span class="cs-field__label">שעות:<\/span><span class="cs-field__value">/);
 
   assert.doesNotMatch(html, /<ol\b|<li\b/);

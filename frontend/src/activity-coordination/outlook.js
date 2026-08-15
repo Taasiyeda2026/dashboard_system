@@ -7,6 +7,12 @@ import { COORDINATION_DOCUMENT_VERSION, finishDispatch, markDispatchDraft, recor
 export const COORDINATION_CORRELATION_PROPERTY = 'String {8ECCC264-8F4A-4E1A-934E-8C0C2A92D8B1} Name ActivityCoordinationDispatch';
 export const COORDINATION_PDF_TEMPLATE_VERSION = COORDINATION_DOCUMENT_VERSION;
 
+export function coordinationCcRecipients(group) {
+  return [...new Set((group?.activities || [])
+    .map((item) => String(item?.cc_email || '').trim().toLowerCase())
+    .filter(Boolean))];
+}
+
 export function dispatchGroups(items) {
   return groupActivitiesForDispatch(items.filter((item) => item.readiness.ready && item.recipient_email && !item.technical_blocker));
 }
@@ -62,7 +68,7 @@ export async function prepareCoordinationDraftGroup(group, { token } = {}) {
     const [summaryBytes, photo] = await Promise.all([blobToBase64(pdfBlob), photographyApprovalAttachment()]);
     draft = await createGraphDraft({
       token, subject: mail.subject, body: mail.body, to: [group.recipient_email],
-      cc: group.activities[0].cc_email ? [group.activities[0].cc_email] : [],
+      cc: coordinationCcRecipients(group),
       extendedProperties: [{ id: COORDINATION_CORRELATION_PROPERTY, value: correlationId }]
     });
     await addGraphFileAttachment(token, draft.id, { name: summaryFilename, contentType: 'application/pdf', contentBytes: summaryBytes });

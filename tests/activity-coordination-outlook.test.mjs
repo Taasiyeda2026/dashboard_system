@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { COORDINATION_PDF_TEMPLATE_VERSION, dispatchGroups, runSequentialGroups, sentMessageEvidence } from '../frontend/src/activity-coordination/outlook.js';
+import { COORDINATION_PDF_TEMPLATE_VERSION, coordinationCcRecipients, dispatchGroups, runSequentialGroups, sentMessageEvidence } from '../frontend/src/activity-coordination/outlook.js';
 
 test('dispatch grouping excludes an activity with a technical school blocker', () => {
   const item = { readiness: { ready: true }, recipient_email: 'school@example.org', technical_blocker: 'חסר מזהה בית ספר תקין' };
@@ -8,7 +8,18 @@ test('dispatch grouping excludes an activity with a technical school blocker', (
 });
 
 test('coordination drafts carry an explicit PDF template version for idempotency', () => {
-  assert.equal(COORDINATION_PDF_TEMPLATE_VERSION, 'coordination-pdf-v2');
+  assert.equal(COORDINATION_PDF_TEMPLATE_VERSION, 'coordination-pdf-v7');
+});
+
+
+test('coordination CC includes defined activity managers, deduplicates them, and remains optional', () => {
+  assert.deepEqual(coordinationCcRecipients({ activities: [
+    { cc_email: 'Manager@One.example ' },
+    { cc_email: '' },
+    { cc_email: 'manager@one.example' },
+    { cc_email: 'second@example.org' }
+  ] }), ['manager@one.example', 'second@example.org']);
+  assert.deepEqual(coordinationCcRecipients({ activities: [{ cc_email: '' }] }), []);
 });
 
 test('bulk queue processes 20 groups serially and reports progress', async () => {

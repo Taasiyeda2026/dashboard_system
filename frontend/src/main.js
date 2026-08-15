@@ -2146,10 +2146,12 @@ function bindShell() {
     refreshPendingApprovedProposalsCount().catch(() => {});
   });
 
-  document.querySelectorAll('[data-route]').forEach((button) => {
-    button.addEventListener('click', () => {
-      navigateToRoute(button.dataset.route);
-    });
+  // The shell is replaced during rendering, so bind route navigation once via
+  // delegation instead of attaching handlers only to the buttons from the
+  // initial render. This keeps newly rendered header tabs clickable as well.
+  document.addEventListener('click', (event) => {
+    const button = event.target?.closest?.('[data-route]');
+    if (button) navigateToRoute(button.dataset.route);
   });
 
   document.querySelectorAll('[data-external-url]').forEach((button) => {

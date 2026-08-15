@@ -16,10 +16,9 @@ export function buildCourseSchedulePrintDocumentTitle(instructorName) {
   return `סידור עבודה - ${safeInstructorName} - תשפ״ז`;
 }
 
-function fieldRowHtml(label, value, { featured = false } = {}) {
+function fieldRowHtml(label, value) {
   const text = String(value ?? '').trim();
-  const valueClass = featured ? 'cs-field__value cs-field__value--featured' : 'cs-field__value';
-  return `<div class="cs-field"><span class="cs-field__label">${escapeHtml(label)}:</span><span class="${valueClass}">${escapeHtml(text || '—')}</span></div>`;
+  return `<div class="cs-field"><span class="cs-field__label">${escapeHtml(label)}:</span><span class="cs-field__value">${escapeHtml(text || '—')}</span></div>`;
 }
 
 function courseCardHtml(row) {
@@ -29,10 +28,15 @@ function courseCardHtml(row) {
     <div class="cs-card__details">
       <section class="cs-card__section">
         <h2 class="cs-card__section-title">פרטי הקורס</h2>
-        ${fieldRowHtml('שם הקורס', row.name, { featured: true })}
+        ${fieldRowHtml('שם הקורס', row.name)}
         ${fieldRowHtml('רשות', row.authority)}
         ${fieldRowHtml('בית ספר', row.school)}
         ${fieldRowHtml('כיתה', row.grade)}
+      </section>
+      <section class="cs-card__section">
+        <h2 class="cs-card__section-title">פרטי איש קשר</h2>
+        ${fieldRowHtml('שם איש הקשר', row.contactName)}
+        ${fieldRowHtml('טלפון איש הקשר', row.contactPhone)}
       </section>
       <section class="cs-card__section">
         <h2 class="cs-card__section-title">מועדי הפעילות</h2>
@@ -59,7 +63,7 @@ export function buildCourseSchedulePrintHtml({ instructorName = '', rows = [] } 
   const cardsHtml = safeRows.map(courseCardHtml).join('');
   return `<div class="cs-print-page">
     <header class="cs-print-header">
-      <h1 class="cs-print-title">סידור עבודה למדריך – תשפ״ז</h1>
+      <h1 class="cs-print-title">סידור עבודה - תשפ"ז</h1>
       <div class="cs-print-meta">
         <p><strong>שם המדריך:</strong> <span>${escapeHtml(instructorName || '—')}</span></p>
         <p><strong>תקופת הפעילות:</strong> <span>${escapeHtml(periodFrom)}–${escapeHtml(periodTo)}</span></p>
@@ -83,7 +87,7 @@ export function courseSchedulePrintCss() {
     .cs-print-meta span{color:#172033;font-weight:400}
     .cs-print-cards{display:flex;flex-direction:column;gap:7px}
     .cs-card{border:1px solid #9aa9ba;border-radius:5px;overflow:hidden;break-inside:avoid;page-break-inside:avoid;background:#fff}
-    .cs-card__details{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+    .cs-card__details{display:grid;grid-template-columns:repeat(3,minmax(0,1fr))}
     .cs-card__section{padding:6px 9px 5px;min-width:0}
     .cs-card__section+ .cs-card__section{border-inline-start:1px solid #d5dce5}
     .cs-card__section-title,.cs-card__dates-title{margin:0 0 5px;font-size:11.5px;line-height:1.25;font-weight:800;color:#123b60}
@@ -91,7 +95,6 @@ export function courseSchedulePrintCss() {
     .cs-field{display:grid;grid-template-columns:max-content minmax(0,1fr);align-items:baseline;gap:3px 8px;margin:0 0 2px}
     .cs-field__label{color:#3d536b;font-weight:700;white-space:nowrap}
     .cs-field__value{color:#172033;font-weight:400;overflow-wrap:anywhere}
-    .cs-field__value--featured{font-weight:600}
     .cs-card__dates{padding:5px 9px 7px;border-top:1px solid #cbd5e1;background:#f8fafc}
     .cs-card__dates-title{margin-bottom:4px}
     .cs-dates-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:3px 6px}
