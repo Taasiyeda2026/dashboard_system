@@ -79,38 +79,59 @@ function withNoStore(request) {
   return new Request(request, { cache: 'no-store' });
 }
 
-async function refreshPrecache(request) {
-  const url = request instanceof Request ? request.url : resolveUrl(request);
-  const freshRequest = new Request(url, { cache: 'reload' });
-  const response = await fetch(freshRequest);
+async function precacheFresh(cache, path) {
+  const url = resolveUrl(path);
+  const response = await fetch(new Request(url, { cache: 'reload' }));
+  if (!shouldStoreResponse(response)) {
+    throw new Error(`Unexpected precache response for ${path}: ${response.status}`);
+  }
+  await cache.put(url, response.clone());
+}
+
+async function cacheFirst(request, cache) {
+  let cached = await cache.match(request);
+  if (!cached && isNavigationRequest(request)) {
+    cached = await cache.match(resolveUrl('./index.html'));
+  }
+  if (cached) return cached;
+
+  const response = await fetch(request);
   if (shouldStoreResponse(response)) {
-    const cache = await caches.open(CACHE_NAME);
-    await cache.put(freshRequest, response.clone());
+    cache.put(request, response.clone()).catch(() => {});
   }
   return response;
 }
 
-async function networkFirst(request) {
+async function networkFirst(request, cache) {
   try {
-    const freshRequest = withNoStore(request);
-    const response = await fetch(freshRequest);
+    const response = await fetch(withNoStore(request));
     if (shouldStoreResponse(response)) {
-      const cache = await caches.open(CACHE_NAME);
-      await cache.put(request, response.clone());
+      cache.put(request, response.clone()).catch(() => {});
     }
     return response;
-  } catch (error) {
-    const cached = await caches.match(request);
+  } catch (err) {
+    let cached = await cache.match(request);
+    if (!cached && isNavigationRequest(request)) {
+      cached = await cache.match(resolveUrl('./index.html'));
+    }
     if (cached) return cached;
-    throw error;
+    throw err;
   }
 }
 
 self.addEventListener('install', (event) => {
-  event.waitUntil((async () => {
-    await Promise.all(PRECACHE_URLS.map((url) => refreshPrecache(url).catch(() => null)));
-    await self.skipWaiting();
-  })());
+  event.waitUntil(
+    caches.open(CACHE_NAME).then(async (cache) => {
+      for (const path of PRECACHE_URLS) {
+        try {
+          await precacheFresh(cache, path);
+        } catch (e) {
+          console.warn('[SW] precache skip', path, e);
+        }
+      }
+      self.skipWaiting();
+    })
+  );
 });
 
 self.addEventListener('activate', (event) => {
@@ -120,17 +141,17 @@ self.addEventListener('activate', (event) => {
   })());
 });
 
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
+});
+
 self.addEventListener('fetch', (event) => {
   const request = event.request;
   if (request.method !== 'GET') return;
 
-  let url;
-  try {
-    url = new URL(request.url);
-  } catch {
-    return;
-  }
-
+  const url = new URL(request.url);
   if (!sameOrigin(url)) return;
 
   if (isApiLikeUrl(url) || isBlockedCachePath(url)) {
@@ -138,7 +159,19 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  if (isNavigationRequest(request) || isStaticAssetUrl(url) || isManifestUrl(url)) {
-    event.respondWith(networkFirst(request));
-  }
+  if (!(isNavigationRequest(request) || isStaticAssetUrl(url))) return;
+
+  const networkFresh = (
+    isNavigationRequest(request) ||
+    url.pathname.endsWith('.html') ||
+    url.pathname.endsWith('.js') ||
+    url.pathname.endsWith('.css') ||
+    url.pathname.endsWith('/manifest.json') || isManifestUrl(url)
+  );
+
+  event.respondWith(
+    caches.open(CACHE_NAME).then((cache) =>
+      networkFresh ? networkFirst(request, cache) : cacheFirst(request, cache)
+    )
+  );
 });
