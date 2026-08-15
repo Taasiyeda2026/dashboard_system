@@ -4,8 +4,9 @@ import { JSDOM } from 'jsdom';
 import { activityTimeOptions, syncActivityEndTimeOptions } from '../frontend/src/screens/shared/activity-time-options.js';
 
 test('activity time options are chronological and end options start at the selected start time', () => {
-  assert.deepEqual(activityTimeOptions().slice(0, 4), ['00:00', '00:30', '01:00', '01:30']);
-  assert.deepEqual(activityTimeOptions({ minimum: '10:00' }).slice(0, 3), ['10:00', '10:30', '11:00']);
+  assert.deepEqual(activityTimeOptions().slice(0, 5), ['00:00', '00:15', '00:30', '00:45', '01:00']);
+  assert.deepEqual(activityTimeOptions({ minimum: '10:00' }).slice(0, 4), ['10:00', '10:15', '10:30', '10:45']);
+  assert.deepEqual(activityTimeOptions({ selected: '10:22' }).filter((time) => time.startsWith('10:')), ['10:00', '10:15', '10:22', '10:30', '10:45']);
 });
 
 test('changing start time keeps a valid end time and clamps an earlier end immediately', () => {

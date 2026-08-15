@@ -1,6 +1,7 @@
-const HALF_HOUR_TIMES = Object.freeze(Array.from({ length: 48 }, (_, index) => {
-  const hour = String(Math.floor(index / 2)).padStart(2, '0');
-  return `${hour}:${index % 2 ? '30' : '00'}`;
+const QUARTER_HOUR_TIMES = Object.freeze(Array.from({ length: 96 }, (_, index) => {
+  const hour = String(Math.floor(index / 4)).padStart(2, '0');
+  const minute = String((index % 4) * 15).padStart(2, '0');
+  return `${hour}:${minute}`;
 }));
 
 export function normalizeActivityTime(value) {
@@ -15,7 +16,7 @@ export function normalizeActivityTime(value) {
 export function activityTimeOptions({ minimum = '', selected = '' } = {}) {
   const floor = normalizeActivityTime(minimum);
   const current = normalizeActivityTime(selected);
-  return [...new Set([...HALF_HOUR_TIMES, current].filter(Boolean))]
+  return [...new Set([...QUARTER_HOUR_TIMES, current].filter(Boolean))]
     .sort()
     .filter((time) => !floor || time >= floor);
 }
