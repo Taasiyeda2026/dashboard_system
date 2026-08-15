@@ -133,10 +133,41 @@ function resetOperationsManagementEntry(state) {
   ops.context = context;
   if (context === OPS_CONTEXT_INSTRUCTORS) {
     ops.tab = TAB_INSTRUCTORS;
+    ops.scheduleHasLoaded = false;
+    ops.appliedScheduleFilters = null;
   } else {
     ops.tab = TAB_COMPLETION_APPROVAL;
   }
   try { sessionStorage.removeItem(SUMMER_TRAINING_SESSION_KEY); } catch { /* ignore */ }
+}
+
+function scheduleFilterSnapshot(state = {}) {
+  const ops = ensureOpsState(state);
+  const filters = ensureActivityListFilters(state, SCOPE);
+  return {
+    period: ops.period,
+    dateFrom: ops.dateFrom,
+    dateTo: ops.dateTo,
+    filters: { ...filters, appliedQ: filters.q || '' }
+  };
+}
+
+function stateWithAppliedScheduleFilters(state = {}) {
+  const snapshot = state?.operationsManagement?.appliedScheduleFilters;
+  if (!snapshot) return state;
+  return {
+    ...state,
+    operationsManagement: {
+      ...state.operationsManagement,
+      period: snapshot.period,
+      dateFrom: snapshot.dateFrom,
+      dateTo: snapshot.dateTo
+    },
+    listFilters: {
+      ...(state.listFilters || {}),
+      [SCOPE]: { ...(snapshot.filters || {}) }
+    }
+  };
 }
 
 function bindOperationsManagementEntryReset() {
@@ -643,6 +674,7 @@ function topFiltersHtml(rows, state) {
       ${filterFieldsHtml(optionsMap, filters)}
       <label class="ds-filter-field ds-filter-field--search"><span class="ds-filter-field__label">חיפוש חופשי</span><input class="ds-input ds-input--sm" type="search" data-ops-search value="${escapeHtml(filters.q || '')}" placeholder="שם, רשות, בית ספר, מדריך…"></label>
       <div class="ds-filter-panel__actions ds-ops-mgmt-filters__actions">
+        <button type="button" class="ds-btn ds-btn--xs ds-btn--primary" data-ops-apply-filters>סינון והצגה</button>
         <button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-ops-clear-filters>ניקוי פילטרים</button>
       </div>
     </div>
@@ -1631,6 +1663,7 @@ function opsManagementStylesHtml() {
     .ds-ops-mgmt-screen .ds-ops-schedule-wrap .ds-table-wrap,
     .ds-ops-mgmt-screen .ds-ops-mgmt-schedule { width:100%; }
     .ds-ops-mgmt-screen .ds-ops-mgmt-summary-line { display:block; margin:0 0 10px; padding:7px 10px; border:1px solid #d8e5ee; border-radius:10px; background:#f8fbfd; color:#334155; font-weight:700; font-size:13px; }
+    .ds-ops-mgmt-screen .ds-ops-schedule-prompt { margin:0; padding:24px; text-align:center; font-weight:700; color:#475569; }
     /* school_2027 course-level work schedule table — compact, one row per course */
     .ds-ops-mgmt-screen .ds-ops-course-schedule-table { table-layout:auto; }
     .ds-ops-mgmt-screen .ds-ops-course-schedule-table th,
@@ -3304,6 +3337,18 @@ export const operationsManagementScreen = {
     const dateFrom = String(ops.dateFrom || '').trim();
     const dateTo = String(ops.dateTo || '').trim();
 
+    // The instructors work schedule is explicitly requested from its filter bar.
+    // Never fetch or restore the full activity set merely by entering the screen.
+    if (ops.context === OPS_CONTEXT_INSTRUCTORS) {
+      ops.scheduleHasLoaded = false;
+      ops.appliedScheduleFilters = null;
+      return {
+        rows: [],
+        _loadedOperationsTabs: [],
+        _operationsTabLoadPromises: new Map()
+      };
+    }
+
     // school_2027: לא טוענים allActivities בכניסה.
     // כל לשונית תטען את הנתונים שלה בלבד בעת לחיצה, דרך ה-2027 controller.
     if (ops.period === ACTIVITY_SEASON_SCHOOL_2027) {
@@ -3342,23 +3387,28 @@ export const operationsManagementScreen = {
   },
   render(data, { state } = {}) {
     state = state || {};
+    if (_opsNeedsEntryReset) resetOperationsManagementEntry(state);
     const allRows = Array.isArray(data?.rows) ? data.rows : [];
     const prepared = prepareRows(allRows);
     const ops = ensureOpsState(state);
     const instructorsContext = ops.context === OPS_CONTEXT_INSTRUCTORS;
+    const scheduleResultState = instructorsContext ? stateWithAppliedScheduleFilters(state) : state;
     const isCompletionApprovalTab = !instructorsContext && ops.tab === TAB_COMPLETION_APPROVAL;
-    const baseRows = applyBaseFilters(prepared, state);
-    const filteredRows = isCompletionApprovalTab ? baseRows : applyAllFilters(baseRows, state);
+    const baseRows = applyBaseFilters(prepared, scheduleResultState);
+    const filteredRows = isCompletionApprovalTab ? baseRows : applyAllFilters(baseRows, scheduleResultState);
     const filterRows = ops.tab === TAB_WORKSHOPS
       ? baseRows.filter((row) => activityMatchesAnyOfficialWorkshop(row, extractWorkshopCatalogRows(data?.adminListsData, prepared, data?.workshopStockDistributions || [])))
       : baseRows;
     const activeRows = isCompletionApprovalTab ? baseRows : filteredRows;
     if (instructorsContext) {
+      const scheduleContent = ops.scheduleHasLoaded
+        ? renderTab(activeRows, scheduleResultState, data, prepared)
+        : '<section class="ds-card"><p class="ds-ops-schedule-prompt">בחרו סינונים ולחצו על \'סינון והצגה\'</p></section>';
       return `<div class="ds-screen-stack ds-ops-mgmt-screen ds-ops-mgmt-screen--instructors-workspace" data-ops-context="instructors">${opsManagementStylesHtml()}${instructorsWorkspaceNavStylesHtml()}${attendanceControlStylesHtml()}
       ${instructorsWorkspaceHeaderHtml({ activeTab: 'work-schedule', state })}
       ${topFiltersHtml(filterRows, state)}
-      <div class="ds-ops-mgmt-content">${renderTab(activeRows, state, data, prepared)}</div>
-      ${ops.period === ACTIVITY_SEASON_SCHOOL_2027 ? '' : `<p class="ds-muted ds-ops-mgmt-count no-print" dir="rtl">מציג ${filteredRows.length} פעילויות מתוך ${allRows.length}</p>`}
+      <div class="ds-ops-mgmt-content">${scheduleContent}</div>
+      ${!ops.scheduleHasLoaded || ops.period === ACTIVITY_SEASON_SCHOOL_2027 ? '' : `<p class="ds-muted ds-ops-mgmt-count no-print" dir="rtl">מציג ${filteredRows.length} פעילויות מתוך ${allRows.length}</p>`}
     </div>`;
     }
     return `<div class="ds-screen-stack ds-ops-mgmt-screen" data-ops-context="operations">${opsManagementStylesHtml()}${dsPageHeader(isCompletionApprovalTab ? 'בקרת אישורי ביצוע לקיץ 2026' : 'ניהול תפעול')}
@@ -3513,11 +3563,35 @@ export const operationsManagementScreen = {
       });
     });
 
+    root.querySelector('[data-ops-apply-filters]')?.addEventListener('click', async (event) => {
+      const button = event.currentTarget;
+      button.disabled = true;
+      try {
+        const snapshot = scheduleFilterSnapshot(state);
+        const result = await api.allActivities({
+          activity_period: snapshot.period,
+          startDate: snapshot.dateFrom,
+          endDate: snapshot.dateTo
+        });
+        data.rows = Array.isArray(result?.rows) ? result.rows : [];
+        ops.appliedScheduleFilters = snapshot;
+        ops.scheduleHasLoaded = true;
+        rerender?.();
+      } finally {
+        button.disabled = false;
+      }
+    });
+
     root.querySelector('[data-ops-clear-filters]')?.addEventListener('click', () => {
       Object.keys(filters).forEach((key) => { if (key !== 'visibleCount') filters[key] = ''; });
       filters.status = 'פתוח';
       filters.q = '';
       filters.appliedQ = '';
+      if (ops.context === OPS_CONTEXT_INSTRUCTORS) {
+        ops.scheduleHasLoaded = false;
+        ops.appliedScheduleFilters = null;
+        data.rows = [];
+      }
       rerender?.();
     });
 
