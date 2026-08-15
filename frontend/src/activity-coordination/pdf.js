@@ -30,25 +30,19 @@ const styles = StyleSheet.create({
     direction: 'ltr',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 7
+    marginBottom: 4
   },
   logo: { width: 44, marginTop: 1 },
   recipientBlock: { flexGrow: 1, alignItems: 'flex-end', paddingLeft: 22, direction: 'rtl' },
   honor: { fontWeight: 600, fontSize: 9.5, textAlign: 'right', marginBottom: 2 },
-  plain: { textAlign: 'right', marginBottom: 1.5 },
+  contactLine: { fontSize: 9.5, textAlign: 'right', marginBottom: 3 },
+  schoolLine: { fontSize: 9, textAlign: 'right', marginBottom: 1 },
   title: {
     fontWeight: 700,
     fontSize: 15,
     color: '#1d4e89',
     textAlign: 'right',
     marginTop: 5,
-    marginBottom: 8
-  },
-  schoolBlock: {
-    borderTopWidth: 0.5,
-    borderBottomWidth: 0.5,
-    borderColor: '#cbd5e1',
-    paddingVertical: 6,
     marginBottom: 8
   },
   metaLine: { textAlign: 'right', marginBottom: 2 },
@@ -199,24 +193,19 @@ function activityPages(snapshot, programIndex, totalPrograms, logo) {
     const gradeClass = clean(snapshot.program.meetings?.[0]?.grade_class);
     const instructor = [clean(snapshot.instructor.name), clean(snapshot.instructor.phone)].filter(Boolean).join(' - ');
     const manager = [clean(snapshot.activity_manager.name), clean(snapshot.activity_manager.phone)].filter(Boolean).join(' - ');
+    const recipient = [clean(snapshot.contact.name), clean(snapshot.contact.role)].filter(Boolean).join(', ');
+    const schoolAuthority = [clean(snapshot.school.name), clean(snapshot.school.authority)].filter(Boolean).join('  |  ');
 
     return h(Page, { key: `${programIndex}-${chunkIndex}`, size: 'A4', style: styles.page },
       firstDocumentPage ? h(View, { style: styles.topHeader },
         h(Image, { src: logo, style: styles.logo }),
         h(View, { style: styles.recipientBlock },
           h(Text, { style: styles.honor }, 'לכבוד'),
-          clean(snapshot.contact.name) ? h(Text, { style: styles.plain }, snapshot.contact.name) : null,
-          clean(snapshot.contact.role) ? h(Text, { style: styles.plain }, snapshot.contact.role) : null,
-          clean(snapshot.contact.phone) ? h(Text, { style: [styles.plain, { direction: 'ltr' }] }, snapshot.contact.phone) : null
+          recipient ? h(Text, { style: styles.contactLine }, recipient) : null,
+          schoolAuthority ? h(Text, { style: styles.schoolLine }, `בית הספר: ${schoolAuthority}`) : null
         )
       ) : null,
-      firstDocumentPage ? h(React.Fragment, null,
-        h(Text, { style: styles.title }, totalPrograms === 1 ? 'סיכום תיאום פעילות' : 'סיכום תיאום פעילויות'),
-        h(View, { style: styles.schoolBlock },
-          metaLine('בית הספר', snapshot.school.name),
-          metaLine('רשות', snapshot.school.authority)
-        )
-      ) : null,
+      firstDocumentPage ? h(Text, { style: styles.title }, totalPrograms === 1 ? 'סיכום תיאום פעילות' : 'סיכום תיאום פעילויות') : null,
       h(Text, { style: styles.programTitle }, `${snapshot.program.name}${chunkIndex ? ' - המשך' : ''}`),
       firstActivityPage ? h(React.Fragment, null,
         instructor ? metaLine('מדריך/ה', instructor) : null,
