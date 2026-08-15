@@ -173,7 +173,7 @@ const ACTIVITY_OPERATIONS_COLUMNS = [
   'row_id', 'activity_name', 'activity_type', 'item_type', 'activity_season',
   'authority', 'school', 'school_id', 'grade', 'class_group',
   'instructor_name', 'instructor_name_2', 'emp_id', 'emp_id_2',
-  'start_time', 'end_time', 'start_date', 'end_date', 'status', 'participants_count',
+  'start_time', 'end_time', 'start_date', 'end_date', 'status', 'participants_count', 'sessions',
   ...ACTIVITY_MEETING_DATE_COLUMNS
 ].join(',');
 // Work-schedule filter controls need only descriptive fields. Keep this projection
