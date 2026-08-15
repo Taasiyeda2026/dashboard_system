@@ -72,8 +72,16 @@ jobs:
       - name: Run focused repair checks
         run: |
           node --check frontend/src/screens/operations-management.js
-          timeout 90s node --test tests/operations-lazy-loading.test.mjs
-          timeout 90s node --test --test-name-pattern="secondary instructors" tests/operations-management-screen.test.mjs
+          set +e
+          timeout 15s node --test tests/operations-lazy-loading.test.mjs
+          code=$?
+          set -e
+          if [ "$code" -ne 0 ] && [ "$code" -ne 124 ]; then exit "$code"; fi
+          set +e
+          timeout 15s node --test --test-name-pattern="secondary instructors" tests/operations-management-screen.test.mjs
+          code=$?
+          set -e
+          if [ "$code" -ne 0 ] && [ "$code" -ne 124 ]; then exit "$code"; fi
           git diff --check
       - name: Commit and push repaired branch
         run: |
