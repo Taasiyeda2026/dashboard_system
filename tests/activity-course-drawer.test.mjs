@@ -77,6 +77,21 @@ test('course drawer keeps polished dates, meeting notes, edit-only scheduling fi
   assert.equal(actions.textContent.trim(), 'אישור תיאום');
 });
 
+test('course drawer shows meeting date and weekday inline and renders constrained time lists', () => {
+  const html = activityWorkDrawerHtml({
+    row_id: 'time-date', activity_type: 'course', activity_season: 'school_2027',
+    sessions: 1, start_time: '10:00', end_time: '11:30', date_1: '2026-09-09',
+    meeting_schedule: [{ date: '2026-09-09', performed: 'no' }]
+  }, { settings, canEdit: true, canDirectEdit: true });
+  const rendered = new JSDOM(html).window.document;
+  const line = rendered.querySelector('[data-date-card] .activity-drawer__date-line');
+  assert.equal(line.textContent.trim(), '09/09/2026 · יום ד׳');
+  assert.equal(line.querySelector('.activity-drawer__weekday').parentElement, line);
+  assert.deepEqual([...rendered.querySelector('[name="start_time"]').options].slice(0, 3).map((option) => option.value), ['00:00', '00:30', '01:00']);
+  assert.equal(rendered.querySelector('[name="end_time"]').options[0].value, '10:00');
+  assert.equal(rendered.querySelector('[name="end_time"]').value, '11:30');
+});
+
 test('participant-supporting activity retains its participant count', () => {
   const html = activityWorkDrawerHtml({
     row_id: '2',
