@@ -1,6 +1,8 @@
 name: Temporary PR 1494 repair runner
 
 on:
+  push:
+    branches: [main]
   pull_request:
     types: [reopened, synchronize]
 
@@ -9,7 +11,7 @@ permissions:
 
 jobs:
   repair:
-    if: github.event.pull_request.number == 1494 && github.event.pull_request.head.ref == 'codex/update-data-loading-behavior-on-guide-screen'
+    if: github.event_name == 'push' || (github.event.pull_request.number == 1494 && github.event.pull_request.head.ref == 'codex/update-data-loading-behavior-on-guide-screen')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
