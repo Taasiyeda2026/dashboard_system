@@ -59,23 +59,26 @@ function resolveColumns(header = []) {
 }
 
 function excelDate(value) {
-  // SheetJS Date cells represent a wall-clock Excel value. Keep its local calendar
-  // components: toISOString() converts to UTC and can silently move the day.
-  if (value instanceof Date && !Number.isNaN(value.getTime())) {
-    return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}-${String(value.getDate()).padStart(2, '0')}`;
-  }
+  // readFile uses raw mode (no cellDates) so date cells arrive as Excel serial integers.
+  // Keeping raw serials avoids the UTC-midnight timezone shift that drops the 1st of every month.
   if (typeof value === 'number' && value >= 1) {
     // Try SheetJS SSF parser first (most accurate).
     const parsed = (XLSX.SSF || XLSX.default?.SSF)?.parse_date_code(value);
     if (parsed && parsed.y > 1900) return `${parsed.y}-${String(parsed.m).padStart(2, '0')}-${String(parsed.d).padStart(2, '0')}`;
-    // Direct fallback: Excel serial 25569 = 1970-01-01 UTC; serials >59 corrected for the Lotus 1900 leap-year bug.
+    // Direct fallback: Excel serial 25569 = 1970-01-01 UTC.
+    // Serials ≥61 are corrected for the Lotus 1900 leap-year bug (fake Feb 29 = serial 60).
+    // Formula: Unix epoch day = serial - 25569 (≥61) or serial - 25568 (≤59).
     try {
-      const epochMs = (value > 59 ? value - 1 : value) * 86400000 - 2209161600000;
-      const d = new Date(epochMs);
+      const correction = value >= 61 ? 25569 : 25568;
+      const d = new Date((value - correction) * 86400000);
       if (!Number.isNaN(d.getTime()) && d.getUTCFullYear() > 1900 && d.getUTCFullYear() < 2200) {
         return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
       }
     } catch { /* ignore */ }
+  }
+  // Fallback for Date objects (edge-case) — use local components to avoid UTC shift.
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}-${String(value.getDate()).padStart(2, '0')}`;
   }
   const raw = txt(value).replace(/^[^\d]+/, '').slice(0, 10);
   let match = raw.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/);
@@ -458,7 +461,7 @@ export function compareAttendanceRows(attendanceRows, dashboardRows) {
         && normalizeAttendanceName(attendance.authority) === normalizeAttendanceName(dashRow.authority);
       const sameType = Boolean(attendanceActivityTypeKey(attendance.activityType))
         && attendanceActivityTypeKey(attendance.activityType) === attendanceActivityTypeKey(dashRow.activityType);
-      if (!sameAuthority && !sameType) continue;
+      if (!sameAuthority || !sameType) continue;
       const dStart = toMinutes(dashRow.startTime); const dEnd = toMinutes(dashRow.endTime);
       const overlapMinutes = (aStart != null && aEnd != null && dStart != null && dEnd != null)
         ? Math.max(0, Math.min(aEnd, dEnd) - Math.max(aStart, dStart)) : 0;
@@ -637,7 +640,9 @@ export function resultsHtml(result, month = '') {
 }
 
 async function readFile(file) {
-  return XLSX.read(await file.arrayBuffer(), { type: 'array', cellDates: true });
+  // Raw mode: date cells come as Excel serial integers, not JS Date objects.
+  // This prevents the UTC-midnight timezone shift that silently drops the 1st of every month.
+  return XLSX.read(await file.arrayBuffer(), { type: 'array' });
 }
 
 export function bindAttendanceControl(root, { api } = {}) {

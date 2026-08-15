@@ -336,6 +336,42 @@ test('attendance, dashboard and manual choices recalculate final work hours', ()
   assert.equal(calculateWorkHours('23:30', '01:00'), 1.5);
 });
 
+test('excelDate serial 46143 parses to May 1 2026 without timezone shift', () => {
+  // Excel serial 46143 = 2026-05-01. With raw mode (no cellDates) date cells arrive as
+  // plain integers. The parser must return '2026-05-01' in any runtime timezone so that
+  // first-of-month rows are never silently dropped.
+  // Build a workbook whose date column holds raw numeric serials (type 'n').
+  const ws = XLSX.utils.aoa_to_sheet([['מספר עובד', 'תאריך'], ['10', 46143], ['10', 46143]]);
+  ws['B2'].t = 'n'; ws['B3'].t = 'n';
+  const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Sheet1');
+  const rows = parseAttendanceWorkbook(wb);
+  assert.equal(rows.length, 2, 'both 01/05 rows must be parsed');
+  assert.equal(rows[0].date, '2026-05-01', 'serial 46143 must map to 2026-05-01');
+  assert.equal(rows[1].date, '2026-05-01', 'second 01/05 row must also map to 2026-05-01');
+  const filtered = filterAttendanceRowsByMonth(rows, '2026-05');
+  assert.equal(filtered.length, 2, 'both 01/05 rows must survive the May filter');
+});
+
+test('soft match requires both authority and activity type – type-only does not match', () => {
+  // Same employee, date, activity type, significant time overlap — but different authority.
+  // Must stay unmatched (attendance without activity) rather than creating a spurious soft match.
+  const attendance = [{ employeeId: '10', date: '2026-05-12', startTime: '08:00', endTime: '10:00', activityType: 'קורס', authority: 'חיפה', program: 'תכנית א' }];
+  const dashboard  = [{ employeeId: '10', date: '2026-05-12', startTime: '08:00', endTime: '10:00', activityType: 'קורס', authority: 'נצרת', program: 'תכנית ב' }];
+  const result = compareAttendanceRows(attendance, dashboard);
+  assert.equal(result.comparisons[0].unmatched, true, 'different authority → no soft match');
+  assert.equal(result.dashboardOnly.length, 1, 'dashboard row must remain dashboard-only');
+});
+
+test('soft match requires both authority and activity type – authority-only does not match', () => {
+  // Same employee, date, authority, significant time overlap — but different activity type.
+  // Must stay unmatched rather than being bundled by authority alone.
+  const attendance = [{ employeeId: '10', date: '2026-05-12', startTime: '08:00', endTime: '10:00', activityType: 'קורס', authority: 'חיפה', program: 'תכנית א' }];
+  const dashboard  = [{ employeeId: '10', date: '2026-05-12', startTime: '08:00', endTime: '10:00', activityType: 'סדנה', authority: 'חיפה', program: 'תכנית ב' }];
+  const result = compareAttendanceRows(attendance, dashboard);
+  assert.equal(result.comparisons[0].unmatched, true, 'different activity type → no soft match');
+  assert.equal(result.dashboardOnly.length, 1, 'dashboard row must remain dashboard-only');
+});
+
 test('special attendance rows remain and exact three-sheet export uses dashboard employment type', () => {
   const comparisons = [
     { final: { employeeId: '10', employeeName: 'דנה', date: '2026-08-01', startTime: '08:00', endTime: '10:00', activityType: 'ביטול זמן', kilometers: 12, expenses: 5, expenseDetails: 'חניה' } },
