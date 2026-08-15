@@ -1,0 +1,123 @@
+name: Temporary PR 1494 repair runner
+
+on:
+  pull_request:
+    types: [reopened, synchronize]
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    if: github.event.pull_request.number == 1494 && github.event.pull_request.head.ref == 'codex/update-data-loading-behavior-on-guide-screen'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/update-data-loading-behavior-on-guide-screen
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Merge current main and apply exact fixes
+        run: |
+          git fetch origin main
+          git merge -X ours --no-edit origin/main
+          python3 - <<'PY'
+          from pathlib import Path
+
+          ops_path = Path('frontend/src/screens/operations-management.js')
+          text = ops_path.read_text()
+          old = """    const filterBaseRows = instructorsContext
+              ? filterSourceRows.filter((row) => activityMatchesPeriod(row, ops.period)
+                && String(row?.status || '').trim() === String(ensureActivityListFilters(state, SCOPE).status || '').trim())
+              : baseRows;
+          """
+          new = """    const selectedFilterStatus = instructorsContext
+              ? String(ensureActivityListFilters(state, SCOPE).status || '').trim()
+              : '';
+            const filterBaseRows = instructorsContext
+              ? filterSourceRows.filter((row) => activityMatchesPeriod(row, ops.period)
+                && (!selectedFilterStatus || selectedFilterStatus === 'הכל' || String(row?.status || '').trim() === selectedFilterStatus))
+              : baseRows;
+          """
+          if old in text:
+              text = text.replace(old, new, 1)
+          elif "const selectedFilterStatus = instructorsContext" not in text:
+              raise SystemExit('operations-management target block not found')
+          ops_path.write_text(text)
+
+          test_path = Path('tests/operations-management-screen.test.mjs')
+          text = test_path.read_text()
+          old = """      tab: 'instructors',
+                context: 'instructors',
+                period: 'regular',
+          """
+          new = """      tab: 'instructors',
+                context: 'instructors',
+                scheduleHasLoaded: true,
+                period: 'regular',
+          """
+          if old in text:
+              text = text.replace(old, new, 1)
+          elif "scheduleHasLoaded: true" not in text:
+              raise SystemExit('scheduleState target block not found')
+
+          assertion_marker = "const allStatusHtml = operationsManagementScreen.render"
+          if assertion_marker not in text:
+              old = """  assert.match(html, /תמיר - חדר בריחה קווסט/);
+            assert.match(html, /אפרת אוחיון/);
+          });
+          """
+              new = """  assert.match(html, /תמיר - חדר בריחה קווסט/);
+            assert.match(html, /אפרת אוחיון/);
+
+            state.listFilters['operations-management'].status = '';
+            state.listFilters['operations-management'].instructor = '';
+            const allStatusHtml = operationsManagementScreen.render({ rows: [], filterOptionRows: rows, workshopStockMap: new Map() }, { state });
+            assert.match(allStatusHtml, /<option value=\"מסגרת תמיר\">מסגרת תמיר<\\/option>/);
+            assert.match(allStatusHtml, /<option value=\"אפרת אוחיון\">אפרת אוחיון<\\/option>/);
+            assert.match(allStatusHtml, /<option value=\"תמיר - חדר בריחה קווסט\">תמיר - חדר בריחה קווסט<\\/option>/);
+          });
+          """
+              if old not in text:
+                  raise SystemExit('secondary-instructor assertion target block not found')
+              text = text.replace(old, new, 1)
+          test_path.write_text(text)
+
+          config_path = Path('frontend/src/config.js')
+          text = config_path.read_text()
+          marker = 'work-schedule-all-status-20260815-v1'
+          if marker not in text:
+              needle = 'export const HOTFIX_VERSION = `'
+              pos = text.find(needle)
+              if pos < 0:
+                  raise SystemExit('HOTFIX_VERSION marker not found')
+              start = pos + len(needle)
+              text = text[:start] + marker + '-' + text[start:]
+              config_path.write_text(text)
+
+          for path in [
+              Path('.github/workflows/temp-pr1494-fix.yml'),
+              Path('.github/workflows/temp-pr1494-runner.yml')
+          ]:
+              if path.exists():
+                  path.unlink()
+          PY
+      - name: Install dependencies
+        run: npm ci
+      - name: Run regression checks
+        run: |
+          node --check frontend/src/screens/operations-management.js
+          node --test tests/operations-lazy-loading.test.mjs tests/operations-management-screen.test.mjs
+          node --test tests/ci-check-plan.test.mjs
+          npm run check:pwa
+          npm run build
+          git diff --check
+      - name: Commit and push repaired branch
+        run: |
+          git config user.name 'ChatGPT GitHub Fix'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'Fix work schedule all-status regression'
+          git push origin HEAD:codex/update-data-loading-behavior-on-guide-screen
