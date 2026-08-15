@@ -76,6 +76,7 @@ test('instructor UI selects maintained focused suites, not the failing legacy mi
 test('authority catalog filenames are not misread as auth', () => {
   const plan = buildCheckPlan(['frontend/src/screens/operations-authorities-cleanup.js']);
   assert.deepEqual(plan.groups, ['operations']);
+  assert.ok(plan.tests.includes('tests/operations-lazy-loading.test.mjs'));
 });
 
 test('ordinary SQL selects DB guards, while scheduling SQL also requests Postgres', () => {
@@ -127,6 +128,7 @@ test('api.js role route removal does not select activities for an unchanged acti
 
 test('api.js Activities changes still select activities', () => {
   assert.deepEqual(apiPlanFor('export async function saveActivity(activity) {}').groups, ['activities']);
+  assert.deepEqual(apiPlanFor('scheduleFilterOptions: async () => ({ rows: [] })').groups, ['activities']);
 });
 
 test('api.js proposal changes select proposals without activities', () => {

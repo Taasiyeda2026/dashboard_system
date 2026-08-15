@@ -176,6 +176,12 @@ const ACTIVITY_OPERATIONS_COLUMNS = [
   'start_time', 'end_time', 'start_date', 'end_date', 'status', 'participants_count',
   ...ACTIVITY_MEETING_DATE_COLUMNS
 ].join(',');
+// Work-schedule filter controls need only descriptive fields. Keep this projection
+// separate from the substantially wider results payload (notably meeting dates).
+const ACTIVITY_SCHEDULE_FILTER_OPTION_COLUMNS = [
+  'row_id', 'activity_name', 'activity_season', 'authority', 'school',
+  'instructor_name', 'instructor_name_2', 'status'
+].join(',');
 const ACTIVITY_ARCHIVE_COLUMNS = [
   'row_id', 'activity_name', 'activity_type', 'activity_family', 'activity_season',
   'authority', 'school', 'instructor_name', 'instructor_name_2', 'activity_manager',
@@ -6710,6 +6716,17 @@ export const api = {
       endDate: params?.endDate || params?.dateTo || ''
     });
     return { rows, _source: 'supabase' };
+  },
+  scheduleFilterOptions: async (params = {}) => {
+    const requestedPeriods = Array.isArray(params?.activity_periods) && params.activity_periods.length
+      ? params.activity_periods
+      : [params?.activity_period || currentGlobalActivityPeriod()];
+    const periodRows = await Promise.all(requestedPeriods.map((activityPeriod) => readAllActivitiesRowsSupabase({
+      activityPeriod,
+      select: ACTIVITY_SCHEDULE_FILTER_OPTION_COLUMNS
+    })));
+    const rows = [...new Map(periodRows.flat().map((row) => [String(row?.row_id || ''), row])).values()];
+    return { rows, _source: 'supabase_metadata' };
   },
   attendanceControlDashboardSources: async ({ employeeIds = [], fromDate = '', toDate = '' } = {}) => {
     const ids = [...new Set((employeeIds || []).map((value) => String(value || '').trim()).filter(Boolean))];

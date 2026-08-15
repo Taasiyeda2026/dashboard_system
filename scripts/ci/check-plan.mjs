@@ -24,7 +24,7 @@ export const TEST_GROUPS = Object.freeze({
     'tests/instructor-scheduling-permissions.test.mjs',
     'tests/instructor-employee-files.test.mjs'
   ],
-  operations: ['tests/operations-management-screen.test.mjs'],
+  operations: ['tests/operations-management-screen.test.mjs', 'tests/operations-lazy-loading.test.mjs'],
   permissions: ['tests/navigation-permissions-routes.test.mjs', 'tests/permissions-role-column-alignment.test.mjs'],
   proposals: ['tests/proposal-submission-regression.test.mjs', 'tests/proposal-workflow-completion.test.mjs'],
   pwa: ['tests/service-worker-pwa-cache.test.mjs'],
@@ -57,7 +57,7 @@ const SCREEN_LOADER_LINE_RE = /import\(['"]\.\/screens\/[\w.-]+\.js(?:\?v=[\w-]+
 const VERSION_QUERY_RE = /\?v=[\w-]+/g;
 
 const API_GROUP_RULES = [
-  [/(?:addActivity|saveActivity|updateActivity|deleteActivity|activityDetail|\.from\(['"]activities['"]\)|activities_(?:read|write|insert|update|delete))/i, ['activities']],
+  [/(?:addActivity|saveActivity|updateActivity|deleteActivity|activityDetail|scheduleFilterOptions|\.from\(['"]activities['"]\)|activities_(?:read|write|insert|update|delete))/i, ['activities']],
   [/(?:loadProposal|saveProposal|readProposal|getProposal|buildProposal|normalizeProposal|upsertProposal|proposalRow|proposalItem|proposalAgreement|proposalWorkflow|proposalPdf|proposalTemplate)/i, ['proposals']],
   [/(?:\brole\b|display_role|permissions?|default_view|edit-requests|can_request_edit|view_edit_requests)/i, ['permissions']],
   [/(?:auth(?!orit)|login|session|signIn|user[ _]?projection)/i, ['auth', 'permissions']]
