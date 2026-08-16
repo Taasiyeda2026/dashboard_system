@@ -1,9 +1,11 @@
 import { escapeHtml } from './html.js';
+import { openPayrollControlWindow } from './payroll-control-launcher.js';
 
 export const INSTRUCTORS_WORKSPACE_TABS = Object.freeze([
   { id: 'list', label: 'רשימת מדריכים', route: 'instructors' },
   { id: 'scheduling', label: 'שיבוצים', route: 'course-scheduling' },
   { id: 'work-schedule', label: 'סידור עבודה', route: 'operations-management', opsContext: 'instructors' },
+  { id: 'payroll-control', label: 'בקרת שכר', route: 'operations-management', opsContext: 'instructors', action: 'payroll-control' },
   { id: 'maintenance', label: 'תחזוקה', route: 'course-scheduling' }
 ]);
 
@@ -91,6 +93,7 @@ export function instructorsWorkspaceNavStylesHtml() {
 .instructors-workspace-tab:hover{border-color:#b6bcc6;background:#f4f5f7}
 .instructors-workspace-tab.is-active{background:#1f4b7a;border-color:#1f4b7a;color:#fff;box-shadow:inset 0 0 0 1px rgba(255,255,255,.2)}
 .instructors-workspace-tab:focus-visible{outline:2px solid #1f4b7a;outline-offset:2px}
+.ds-ops-mgmt-panel__toolbar [data-attendance-open]{display:none!important}
 @media(max-width:720px){.instructors-workspace-tabs{gap:6px}.instructors-workspace-tab{padding:7px 12px;font-size:.8rem}}
 </style>`;
 }
@@ -122,6 +125,15 @@ function activateTab(tabId, { state, rerender } = {}) {
   const tab = INSTRUCTORS_WORKSPACE_TABS.find((item) => item.id === tabId);
   if (!tab || !canOpenTab(tab, routes)) return;
 
+  if (tab.action === 'payroll-control') {
+    try {
+      openPayrollControlWindow(state);
+    } catch (error) {
+      if (typeof window !== 'undefined') window.alert(error?.message || 'פתיחת בקרת השכר נכשלה.');
+    }
+    return;
+  }
+
   // A lightweight/bootstrap route refresh can replace effectiveRoutes after this
   // tab row was already rendered. Restore the same explicit grant main.js applies
   // so a visible scheduling/maintenance button never becomes a silent no-op.
@@ -148,6 +160,11 @@ function activateTab(tabId, { state, rerender } = {}) {
  */
 export function bindInstructorsWorkspaceNav(root, { state, rerender } = {}) {
   if (!root) return;
+
+  // The legacy payroll/attendance launcher used to live in the work-schedule toolbar.
+  // Remove it after every render so the shared tab row is the single entry point.
+  root.querySelectorAll('.ds-ops-mgmt-panel__toolbar [data-attendance-open]').forEach((button) => button.remove());
+
   const tabs = [...root.querySelectorAll('[data-instructors-workspace-tab]')];
   if (!tabs.length) return;
 
