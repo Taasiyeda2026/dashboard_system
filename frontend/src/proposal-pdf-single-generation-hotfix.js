@@ -132,7 +132,11 @@ function dispatchPrintWithoutPopup(button) {
   const originalOpen = typeof window !== 'undefined' ? window.open : null;
   const fakeWindow = {
     closed: false,
-    location: { href: 'about:blank' },
+    opener: null,
+    location: {
+      href: 'about:blank',
+      replace(url) { this.href = cleanText(url); }
+    },
     close() { this.closed = true; }
   };
   try {
