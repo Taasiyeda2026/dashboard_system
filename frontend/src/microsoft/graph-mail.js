@@ -11,7 +11,7 @@ function microsoftConfig() {
   };
 }
 
-export async function delegatedMailToken(loginHint = '') {
+export async function delegatedMailToken(loginHint = '', { interactive = true } = {}) {
   const config = microsoftConfig();
   if (!config.clientId || !config.tenantId) throw new Error('חיבור Microsoft 365 טרם הוגדר במערכת.');
   if (!msalClient) {
@@ -26,8 +26,12 @@ export async function delegatedMailToken(loginHint = '') {
   const account = msalClient.getAllAccounts()[0];
   if (account) {
     try { return (await msalClient.acquireTokenSilent({ ...request, account })).accessToken; }
-    catch (error) { if (!(error instanceof InteractionRequiredAuthError)) throw error; }
+    catch (error) {
+      if (!(error instanceof InteractionRequiredAuthError)) throw error;
+      if (!interactive) return '';
+    }
   }
+  if (!interactive) return '';
   return (await msalClient.acquireTokenPopup(request)).accessToken;
 }
 
