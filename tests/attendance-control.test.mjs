@@ -440,30 +440,33 @@ test('notCompared rows appear in per-employee timeline sorted by date then start
   assert.ok(!html.includes('attendance-control__not-compared'), 'no separate notCompared section must exist');
 });
 
-test('attendance within 10-min grace window is not flagged as a time deviation', () => {
-  const attendance = [{ employeeId: '10', date: '2026-05-12', startTime: '07:50', endTime: '08:50', activityType: 'קורס', authority: 'חיפה', program: 'תכנית א' }];
+test('attendance within grace window (start ≤15 min early, end ≤10 min late) is not flagged', () => {
+  // Dashboard 08:00–08:45; attendance 07:45–08:50 → 15 min early start, 5 min late end → no diff.
+  const attendance = [{ employeeId: '10', date: '2026-05-12', startTime: '07:45', endTime: '08:50', activityType: 'קורס', authority: 'חיפה', program: 'תכנית א' }];
   const dashboard  = [{ employeeId: '10', date: '2026-05-12', startTime: '08:00', endTime: '08:45', activityType: 'קורס', authority: 'חיפה', program: 'תכנית א' }];
   const result = compareAttendanceRows(attendance, dashboard);
   const diffKeys = result.comparisons[0].differences.map((d) => d.key);
-  assert.ok(!diffKeys.includes('startTime'), 'startTime 10 min early must not be flagged');
+  assert.ok(!diffKeys.includes('startTime'), 'startTime 15 min early must not be flagged');
   assert.ok(!diffKeys.includes('endTime'),   'endTime 5 min late must not be flagged');
 });
 
-test('attendance at exactly the 10-min boundary is not flagged', () => {
-  const attendance = [{ employeeId: '10', date: '2026-05-12', startTime: '07:50', endTime: '08:55', activityType: 'קורס', authority: 'חיפה', program: 'תכנית א' }];
+test('attendance at exactly the grace boundaries is not flagged', () => {
+  // Exactly 15 min early start and exactly 10 min late end → still within window → no diff.
+  const attendance = [{ employeeId: '10', date: '2026-05-12', startTime: '07:45', endTime: '08:55', activityType: 'קורס', authority: 'חיפה', program: 'תכנית א' }];
   const dashboard  = [{ employeeId: '10', date: '2026-05-12', startTime: '08:00', endTime: '08:45', activityType: 'קורס', authority: 'חיפה', program: 'תכנית א' }];
   const result = compareAttendanceRows(attendance, dashboard);
   const diffKeys = result.comparisons[0].differences.map((d) => d.key);
-  assert.ok(!diffKeys.includes('startTime'), 'exactly 10 min early start must not be flagged');
+  assert.ok(!diffKeys.includes('startTime'), 'exactly 15 min early start must not be flagged');
   assert.ok(!diffKeys.includes('endTime'),   'exactly 10 min late end must not be flagged');
 });
 
-test('attendance beyond the 10-min grace window is flagged as a time deviation', () => {
-  const attendance = [{ employeeId: '10', date: '2026-05-12', startTime: '07:49', endTime: '08:56', activityType: 'קורס', authority: 'חיפה', program: 'תכנית א' }];
+test('attendance one minute beyond each grace boundary is flagged', () => {
+  // 16 min early start → startTime diff; 11 min late end → endTime diff.
+  const attendance = [{ employeeId: '10', date: '2026-05-12', startTime: '07:44', endTime: '08:56', activityType: 'קורס', authority: 'חיפה', program: 'תכנית א' }];
   const dashboard  = [{ employeeId: '10', date: '2026-05-12', startTime: '08:00', endTime: '08:45', activityType: 'קורס', authority: 'חיפה', program: 'תכנית א' }];
   const result = compareAttendanceRows(attendance, dashboard);
   const diffKeys = result.comparisons[0].differences.map((d) => d.key);
-  assert.ok(diffKeys.includes('startTime'), '11 min early start must be flagged');
+  assert.ok(diffKeys.includes('startTime'), '16 min early start must be flagged');
   assert.ok(diffKeys.includes('endTime'),   '11 min late end must be flagged');
 });
 
