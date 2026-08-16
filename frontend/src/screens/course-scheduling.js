@@ -772,6 +772,41 @@ function rejectedCandidatesHtml(result) {
   </details>`;
 }
 
+function manualCandidateWarnings(candidate = {}) {
+  return [...new Set([...(candidate.failures || []), ...(candidate.missingProfileData || [])].map(text).filter(Boolean))];
+}
+
+function manualCandidateBlocked(candidate = {}) {
+  return manualCandidateWarnings(candidate).some((reason) => /חפיפה/.test(reason));
+}
+
+function manualCandidatePickerHtml(result, state = {}) {
+  const candidates = (result?.manualCandidates || result?.checked || []).filter((candidate) => emp(candidate));
+  if (!candidates.length) return '';
+  const open = state.courseSchedulingManualPickerOpen === true;
+  const query = text(state.courseSchedulingManualSearch).toLocaleLowerCase('he-IL');
+  const visible = candidates.filter((candidate) => {
+    const haystack = `${candidate.instructor?.full_name || ''} ${emp(candidate)}`.toLocaleLowerCase('he-IL');
+    return !query || haystack.includes(query);
+  });
+  return `<section class="course-scheduling-manual-picker" data-manual-picker>
+    <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary" data-toggle-manual-picker>${open ? 'סגור בחירה ידנית' : 'בחר מדריך אחר'}</button>
+    ${open ? `<div class="course-scheduling-manual-picker__panel">
+      <input class="ds-input" type="search" value="${escapeHtml(state.courseSchedulingManualSearch || '')}" placeholder="חיפוש מדריך לפי שם" data-manual-candidate-search>
+      <div class="course-scheduling-manual-picker__list">
+        ${visible.length ? visible.map((candidate) => {
+          const warnings = manualCandidateWarnings(candidate);
+          const blocked = manualCandidateBlocked(candidate);
+          return `<button type="button" class="course-scheduling-manual-candidate${blocked ? ' is-blocked' : ''}" data-manual-candidate="${escapeHtml(emp(candidate))}" data-manual-candidate-search-text="${escapeHtml(`${candidate.instructor?.full_name || ''} ${emp(candidate)}`.toLocaleLowerCase('he-IL'))}" ${blocked ? 'disabled' : ''}>
+            <strong>${escapeHtml(candidate.instructor?.full_name || emp(candidate))}</strong>
+            <span>${escapeHtml(warnings[0] || 'ניתן לבחור ידנית')}</span>
+          </button>`;
+        }).join('') : '<p class="ds-muted">לא נמצאו מדריכים בחיפוש.</p>'}
+      </div>
+    </div>` : ''}
+  </section>`;
+}
+
 function proposedMeetingsPanelHtml(candidate) {
   if (!candidate) return '';
   const meetings = Array.isArray(candidate.proposedMeetings) ? candidate.proposedMeetings : [];
@@ -894,6 +929,7 @@ export function instructorsResultsHtml(result, state = {}) {
         <p>שפת הדרכה: ${escapeHtml(instructionLanguageLabel(result.course))} · מגדר: ${escapeHtml(result.course.required_instructor_gender || 'ללא')}</p>
       </details>
       ${rejectedCandidatesHtml(result)}
+      ${manualCandidatePickerHtml(result, state)}
       <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary" data-open-missing-course>פתח פעילות</button>
     </div>`;
   }
@@ -902,6 +938,7 @@ export function instructorsResultsHtml(result, state = {}) {
       <p class="course-scheduling-result-message">${escapeHtml(result.treatmentReason || 'נדרשת בדיקה נוספת לפני שניתן להציע שיבוץ אוטומטי.')}</p>
       ${incompleteProfilesHtml(result)}
       ${rejectedCandidatesHtml(result)}
+      ${manualCandidatePickerHtml(result, state)}
       <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary" data-open-missing-course>פתח פעילות</button>
     </div>`;
   }
@@ -1453,6 +1490,22 @@ export const courseSchedulingScreen = {
           routeMatrix: routed.routeMatrix,
           travelUnavailableReason: routed.unavailableReason || ''
         });
+        const activeInstructors = (data.instructors || []).filter((instructor) =>
+          ['yes', 'true', '1'].includes(text(instructor?.active).toLowerCase())
+        );
+        state.courseSchedulingResults = state.courseSchedulingResults.map((result) => {
+          const checkedByEmpId = new Map((result.checked || []).map((candidate) => [emp(candidate), candidate]));
+          return {
+            ...result,
+            manualCandidates: activeInstructors.map((instructor) => checkedByEmpId.get(text(instructor.emp_id)) || {
+              instructor,
+              eligible: false,
+              score: null,
+              failures: ['חסרים נתוני התאמה מלאים'],
+              missingProfileData: []
+            })
+          };
+        });
         if (routed.unavailableReason === 'google_key_not_configured') {
           state.courseSchedulingError = 'לא ניתן לבדוק מרחקים כרגע. ניתן להמשיך לפי זמינות והתאמה בלבד.';
         } else if (routed.unavailableReason) {
@@ -1474,6 +1527,54 @@ export const courseSchedulingScreen = {
     };
     root.querySelectorAll('[data-find-instructors]').forEach((button) => {
       button.addEventListener('click', runFindInstructors);
+    });
+
+    detailRoot.querySelector('[data-toggle-manual-picker]')?.addEventListener('click', () => {
+      state.courseSchedulingManualPickerOpen = state.courseSchedulingManualPickerOpen !== true;
+      state.courseSchedulingManualSearch = '';
+      rerender();
+    });
+    detailRoot.querySelector('[data-manual-candidate-search]')?.addEventListener('input', (event) => {
+      state.courseSchedulingManualSearch = text(event.target?.value);
+      const query = state.courseSchedulingManualSearch.toLocaleLowerCase('he-IL');
+      detailRoot.querySelectorAll('[data-manual-candidate]').forEach((candidateButton) => {
+        candidateButton.hidden = !!query && !text(candidateButton.dataset.manualCandidateSearchText).includes(query);
+      });
+    });
+    detailRoot.querySelectorAll('[data-manual-candidate]').forEach((button) => {
+      button.addEventListener('click', async () => {
+        if (!canEdit || !selectedCourseId || button.disabled) return;
+        const result = resultByCourseId.get(selectedCourseId);
+        const candidate = (result?.manualCandidates || result?.checked || []).find((item) => emp(item) === text(button.dataset.manualCandidate));
+        if (!candidate || manualCandidateBlocked(candidate)) return;
+        if (!window.confirm('המדריך אינו עומד בכל תנאי ההתאמה. להמשיך בבחירה ידנית?')) return;
+        button.disabled = true;
+        const topCandidate = result?.recommended || result?.bestAvailable || candidate;
+        const payload = {
+          p_activity_id: selectedCourseId,
+          p_emp_id: Number(emp(candidate)),
+          p_instructor_name: candidate.instructor?.full_name,
+          p_top_emp_id: Number(emp(topCandidate)) || null,
+          p_selected_score: Number.isFinite(candidate.score) ? candidate.score : null,
+          p_top_score: Number.isFinite(topCandidate?.score) ? topCandidate.score : null,
+          p_reason: manualCandidateWarnings(candidate).join(' · ') || 'בחירה ידנית'
+        };
+        const { error } = await supabase.rpc('save_course_assignment_manual_draft', payload);
+        if (error) {
+          button.disabled = false;
+          showToast(translateSchedulingAssignmentError(error.message, 'שמירת הבחירה הידנית נכשלה'), 'error');
+          return;
+        }
+        if (selectedCourse) {
+          selectedCourse.draft_emp_id = String(payload.p_emp_id);
+          selectedCourse.draft_instructor_name = payload.p_instructor_name;
+        }
+        state.courseSchedulingManualPickerOpen = false;
+        state.courseSchedulingManualSearch = '';
+        clearScreenDataCache?.();
+        showToast('הבחירה הידנית נשמרה כטיוטה. יתר התכנון מתעדכן.', 'success');
+        await runFindInstructors();
+      });
     });
 
     const runDistrictSimulation = async () => {

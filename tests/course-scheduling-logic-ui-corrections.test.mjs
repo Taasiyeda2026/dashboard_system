@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { calculateCourseSchedule } from '../frontend/src/screens/course-scheduling-engine.js';
 import {
   evaluateInstructor,
@@ -307,6 +308,46 @@ test('16-17: single failure renders once; additional failures only after primary
   assert.match(multiHtml, /<li>סיבה שנייה<\/li>/);
   assert.match(multiHtml, /<li>סיבה שלישית<\/li>/);
   assert.doesNotMatch(multiHtml, /course-scheduling-rejected-failures[\s\S]*סיבה ראשית/);
+});
+
+test('manual picker exposes rejected candidates, warns once, and blocks real overlap', () => {
+  const ordinary = {
+    instructor: { emp_id: '100', full_name: 'נועה' }, eligible: false, score: 42,
+    failures: ['מרחק מעל הטווח המומלץ'], missingProfileData: []
+  };
+  const overlap = {
+    instructor: { emp_id: '200', full_name: 'דנה' }, eligible: false, score: 35,
+    failures: ['חפיפה עם פעילות קיימת'], missingProfileData: []
+  };
+  const html = instructorsResultsHtml({
+    course: course('manual-course'), status: 'נדרש גיוס', recommended: null,
+    bestAvailable: null, alternatives: [], checked: [ordinary, overlap]
+  }, { courseSchedulingManualPickerOpen: true, courseSchedulingManualSearch: '' });
+  assert.match(html, /data-toggle-manual-picker>סגור בחירה ידנית/);
+  assert.match(html, /data-manual-candidate="100"/);
+  assert.match(html, /data-manual-candidate="200"[^>]*disabled/);
+  assert.match(html, /חיפוש מדריך לפי שם/);
+});
+
+test('manual picker can include active instructors outside the automatic readiness pool', () => {
+  const html = instructorsResultsHtml({
+    course: course('manual-all-active'), status: 'נדרש טיפול', recommended: null,
+    bestAvailable: null, alternatives: [], checked: [], manualCandidates: [{
+      instructor: { emp_id: '300', full_name: 'רות' }, eligible: false, score: null,
+      failures: ['חסרים נתוני התאמה מלאים'], missingProfileData: []
+    }]
+  }, { courseSchedulingManualPickerOpen: true, courseSchedulingManualSearch: '' });
+  assert.match(html, /data-manual-candidate="300"/);
+  assert.match(html, /חסרים נתוני התאמה מלאים/);
+});
+
+test('manual draft RPC audits warnings and keeps inactive instructors and overlaps blocked', () => {
+  const migration = readFileSync(new URL('../supabase/migrations/20260817193000_course_scheduling_manual_draft.sql', import.meta.url), 'utf8');
+  assert.match(migration, /instructor_inactive/);
+  assert.match(migration, /scheduling_course_conflict_exists\(p_activity_id, p_emp_id\)/);
+  assert.match(migration, /draft_created_by=auth\.uid\(\)/);
+  assert.match(migration, /nullif\(btrim\(coalesce\(p_reason, ''\)\), ''\)/);
+  assert.doesNotMatch(migration, /scheduling_course_instructor_violations\(/);
 });
 
 test('18-20: recommended/bestAvailable badges are singular; rejected never in alternatives cards', () => {
