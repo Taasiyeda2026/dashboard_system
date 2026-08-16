@@ -112,6 +112,18 @@ function activityValue(row, names, fallback = '') {
   return fallback;
 }
 
+// Israeli schools schedule lessons in 45-minute "שעות הוראה" (teaching units).
+// For payroll, each teaching unit is compensated as 1 full clock hour.
+// This conversion is applied only to קורס (course) activities on the DASHBOARD
+// side; all other activity types (ביטול זמן, הכשרה, תפעול, סדנה, סיור) use raw
+// clock hours. Start/end times are never altered — only workHours is affected.
+const TEACHING_UNIT_MINUTES = 45;
+function coursePayrollHours(clockHours, activityType) {
+  if (attendanceActivityTypeKey(activityType) !== 'course') return clockHours;
+  if (clockHours == null) return clockHours;
+  return Math.round((clockHours * 60 / TEACHING_UNIT_MINUTES) * 100) / 100;
+}
+
 export function buildDashboardAttendanceRows(activities = [], contacts = []) {
   const contactById = new Map((contacts || []).map((row) => [txt(row.emp_id || row.employee_id), row]));
   const output = [];
@@ -130,10 +142,15 @@ export function buildDashboardAttendanceRows(activities = [], contacts = []) {
       const endTime = timeText(meeting.end_time || activity.end_time);
       if (!date) return;
       const contact = contactById.get(instructor.employeeId) || {};
+      // Resolve activityType before building the row so we can apply payroll compensation.
+      const activityType = txt(activityValue(activity, ['activity_type_label', 'activity_type', 'item_type']));
       output.push({
         ...instructor, employeeName: instructor.employeeName || txt(contact.full_name), employmentType: txt(contact.employment_type),
-        date, startTime, endTime, workHours: calculateWorkHours(startTime, endTime), meetingCount: 1,
-        activityType: txt(activityValue(activity, ['activity_type_label', 'activity_type', 'item_type'])), school: txt(activityValue(activity, ['school', 'single_school_name', 'legacy_school'])),
+        date, startTime, endTime,
+        // Dashboard schedules use 45-min school units; for payroll, each unit = 1 hour.
+        workHours: coursePayrollHours(calculateWorkHours(startTime, endTime), activityType),
+        meetingCount: 1, activityType,
+        school: txt(activityValue(activity, ['school', 'single_school_name', 'legacy_school'])),
         authority: txt(activityValue(activity, ['authority', 'authority_name'])), program: txt(activityValue(activity, ['activity_name', 'program_name', 'name'])),
         meetingNo: meeting.meeting_no ?? index + 1, kilometers: null, expenses: null,
         schoolId: activity.school_id == null ? null : Number(activity.school_id), activityId: txt(activityValue(activity, ['row_id', 'RowID', 'id']))

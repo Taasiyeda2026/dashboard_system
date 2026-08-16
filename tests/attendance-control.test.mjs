@@ -98,7 +98,8 @@ test('LONG-073 real Oshri Ram case preserves double meetings and exposes the rea
   const aggregated = aggregateDashboardAttendanceRows(rows);
   assert.equal(aggregated.length, 1);
   assert.equal(aggregated[0].meetingCount, 2);
-  assert.equal(aggregated[0].workHours, 3);
+  // 2 meetings × 1.5h clock = 3h raw; after 45-min teaching-unit compensation (×4/3) = 4h payroll.
+  assert.equal(aggregated[0].workHours, 4);
   assert.deepEqual(aggregated[0].meetingNumbers, ['5', '6']);
   const result = compareAttendanceRows([{
     employeeId: '1524', employeeName: 'אושרי רם', date: '2026-05-04', startTime: '08:00', endTime: '12:00', workHours: 4,
@@ -106,8 +107,9 @@ test('LONG-073 real Oshri Ram case preserves double meetings and exposes the rea
   }], rows);
   const totals = attendanceAuditSummary(result);
   assert.equal(result.comparisons[0].unmatched, false);
-  assert.deepEqual(result.comparisons[0].differences.map((difference) => difference.key), ['endTime', 'workHours', 'school', 'meetingNo']);
-  assert.deepEqual({ before: totals.dashboardRowsBeforeProcessing, after: totals.dashboardRows, hours: totals.dashboardHours }, { before: 2, after: 1, hours: 3 });
+  // workHours is no longer a diff because attendance(4h) == compensated-dashboard(4h).
+  assert.deepEqual(result.comparisons[0].differences.map((difference) => difference.key), ['endTime', 'school', 'meetingNo']);
+  assert.deepEqual({ before: totals.dashboardRowsBeforeProcessing, after: totals.dashboardRows, hours: totals.dashboardHours }, { before: 2, after: 1, hours: 4 });
 });
 
 test('duplicate emp_id and emp_id_2 is removed without removing meetings', () => {
@@ -375,6 +377,41 @@ test('soft match requires both authority and activity type – authority-only do
   const result = compareAttendanceRows(attendance, dashboard);
   assert.equal(result.comparisons[0].unmatched, true, 'different activity type → no soft match');
   assert.equal(result.dashboardOnly.length, 1, 'dashboard row must remain dashboard-only');
+});
+
+test('course activity 08:00-08:45 gets 1.0 payroll hours not 0.75 (teaching-unit rule)', () => {
+  // A school lesson is 45 minutes, but each teaching unit = 1 pay hour.
+  // buildDashboardAttendanceRows must apply the 45→60 min compensation for קורס/course activities.
+  const rows = buildDashboardAttendanceRows([{
+    row_id: 'PAY-001', emp_id: '10', instructor_name: 'דנה',
+    activity_type: 'course', activity_name: 'תכנית א', school: 'יסודי', authority: 'חיפה',
+    start_time: '08:00', end_time: '08:45', date_1: '2026-05-12'
+  }]);
+  assert.equal(rows.length, 1, 'one meeting must be produced');
+  assert.equal(rows[0].workHours, 1.0, '45-min course session must be compensated to 1.0 pay hours');
+  // Start/end times must be preserved unchanged.
+  assert.equal(rows[0].startTime, '08:00', 'startTime must not be changed');
+  assert.equal(rows[0].endTime, '08:45', 'endTime must not be changed');
+});
+
+test('non-course activities are not affected by teaching-unit compensation', () => {
+  // ביטול זמן, הכשרה, תפעול, סדנה, סיור must continue using raw clock hours.
+  const nonCourseTypes = [
+    { type: 'ביטולזמן', label: 'ביטול זמן' },
+    { type: 'הכשרה',   label: 'הכשרה' },
+    { type: 'תפעול',   label: 'תפעול' },
+    { type: 'סדנה',    label: 'סדנה' },
+    { type: 'סיור',    label: 'סיור' },
+  ];
+  for (const { type, label } of nonCourseTypes) {
+    const rows = buildDashboardAttendanceRows([{
+      row_id: `PAY-${type}`, emp_id: '10', instructor_name: 'דנה',
+      activity_type: type, activity_name: label, school: 'יסודי', authority: 'חיפה',
+      start_time: '08:00', end_time: '08:45', date_1: '2026-05-12'
+    }]);
+    assert.equal(rows.length, 1, `one meeting for ${label}`);
+    assert.equal(rows[0].workHours, 0.75, `${label}: 45-min session must stay at 0.75 clock hours (no compensation)`);
+  }
 });
 
 test('notCompared rows appear in per-employee timeline sorted by date then startTime', () => {
