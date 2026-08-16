@@ -458,6 +458,37 @@ test('work-hours gap is formatted as time and never labelled ק״מ', () => {
   assert.ok(html.includes('דקות') || html.includes('שעות'), 'workHours diff must show time units');
 });
 
+test('attendance within 10-min grace window is not flagged as a time deviation', () => {
+  // Policy: instructors need up to 10 min setup before start and wrap-up after end.
+  // Dashboard 08:00–08:45; attendance 07:50–08:50 → 10 min early start, 5 min late end → no time diff.
+  const attendance = [{ employeeId: '10', date: '2026-05-12', startTime: '07:50', endTime: '08:50', activityType: 'קורס', authority: 'חיפה', program: 'תכנית א' }];
+  const dashboard  = [{ employeeId: '10', date: '2026-05-12', startTime: '08:00', endTime: '08:45', activityType: 'קורס', authority: 'חיפה', program: 'תכנית א' }];
+  const result = compareAttendanceRows(attendance, dashboard);
+  const diffKeys = result.comparisons[0].differences.map((d) => d.key);
+  assert.ok(!diffKeys.includes('startTime'), 'startTime 10 min early must not be flagged');
+  assert.ok(!diffKeys.includes('endTime'),   'endTime 5 min late must not be flagged');
+});
+
+test('attendance at exactly the 10-min boundary is not flagged', () => {
+  // Boundary: 10 min exactly → still within grace → no diff.
+  const attendance = [{ employeeId: '10', date: '2026-05-12', startTime: '07:50', endTime: '08:55', activityType: 'קורס', authority: 'חיפה', program: 'תכנית א' }];
+  const dashboard  = [{ employeeId: '10', date: '2026-05-12', startTime: '08:00', endTime: '08:45', activityType: 'קורס', authority: 'חיפה', program: 'תכנית א' }];
+  const result = compareAttendanceRows(attendance, dashboard);
+  const diffKeys = result.comparisons[0].differences.map((d) => d.key);
+  assert.ok(!diffKeys.includes('startTime'), 'exactly 10 min early start must not be flagged');
+  assert.ok(!diffKeys.includes('endTime'),   'exactly 10 min late end must not be flagged');
+});
+
+test('attendance beyond the 10-min grace window is flagged as a time deviation', () => {
+  // 11 min early start and 11 min late end must both surface as diffs.
+  const attendance = [{ employeeId: '10', date: '2026-05-12', startTime: '07:49', endTime: '08:56', activityType: 'קורס', authority: 'חיפה', program: 'תכנית א' }];
+  const dashboard  = [{ employeeId: '10', date: '2026-05-12', startTime: '08:00', endTime: '08:45', activityType: 'קורס', authority: 'חיפה', program: 'תכנית א' }];
+  const result = compareAttendanceRows(attendance, dashboard);
+  const diffKeys = result.comparisons[0].differences.map((d) => d.key);
+  assert.ok(diffKeys.includes('startTime'), '11 min early start must be flagged');
+  assert.ok(diffKeys.includes('endTime'),   '11 min late end must be flagged');
+});
+
 test('special attendance rows remain and exact three-sheet export uses dashboard employment type', () => {
   const comparisons = [
     { final: { employeeId: '10', employeeName: 'דנה', date: '2026-08-01', startTime: '08:00', endTime: '10:00', activityType: 'ביטול זמן', kilometers: 12, expenses: 5, expenseDetails: 'חניה' } },
