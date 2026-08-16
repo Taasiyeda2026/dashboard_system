@@ -294,7 +294,6 @@ function installRootGuard(root, data, context = {}) {
   };
 
   root.addEventListener('click', capturePreviewProposal, true);
-  root.addEventListener('click', prepareCurrentGefenBeforeSend, true);
 
   if (typeof MutationObserver === 'function' && document?.body) {
     observer = new MutationObserver(hideDuplicatePdfButton);
@@ -303,7 +302,6 @@ function installRootGuard(root, data, context = {}) {
 
   const cleanup = () => {
     root.removeEventListener('click', capturePreviewProposal, true);
-    root.removeEventListener('click', prepareCurrentGefenBeforeSend, true);
     observer?.disconnect();
     observer = null;
     rootCleanup.delete(root);
