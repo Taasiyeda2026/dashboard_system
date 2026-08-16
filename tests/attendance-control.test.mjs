@@ -316,12 +316,13 @@ test('results classify matching rows as normal and count only actual row excepti
   const html = resultsHtml(compareAttendanceRows(attendance, dashboard));
 
   assert.equal((html.match(/✓ תקין/g) || []).length, 6);
-  assert.equal((html.match(/⚠ אי־התאמה בנתונים \/ דורש טיפול/g) || []).length, 1);
+  assert.equal((html.match(/⚠ לבדיקה/g) || []).length, 1);
   assert.equal((html.match(/⚠ לא נמצאה פעילות תואמת/g) || []).length, 1);
-  assert.match(html, /חריגות <b>2<\/b>/);
+  assert.match(html, /לבדיקה <b>2<\/b>/);
   assert.equal((html.match(/<span>לבדיקה<\/span>/g) || []).length, 2);
   assert.equal((html.match(/data-attendance-choice/g) || []).length, 2);
-  assert.match(html, /אף מועמד לא עבר את סף ההתאמה/);
+  assert.doesNotMatch(html, /אף מועמד לא עבר את סף ההתאמה/);
+  assert.match(html, /<summary>פרטים<\/summary>/);
 });
 
 test('a fully matching row has a normal status and no decision control', () => {
@@ -330,7 +331,7 @@ test('a fully matching row has a normal status and no decision control', () => {
   assert.match(html, /attendance-control__day--ok/);
   assert.match(html, /✓ תקין/);
   assert.doesNotMatch(html, /data-attendance-choice/);
-  assert.match(html, /חריגות <b>0<\/b>/);
+  assert.match(html, /תקינים <b>1<\/b>/);
 });
 
 test('attendance, dashboard and manual choices preserve independent payroll hours', () => {
@@ -430,7 +431,8 @@ test('nonstandard dashboard duration is not converted into invented payroll hour
   const attendance = [{ ...row, workHours: 2, activityType: 'סדנה', school: 'אלונים' }];
   const result = compareAttendanceRows(attendance, [{ ...row, school: 'אלונים' }]);
   assert.equal(result.comparisons[0].differences.some((difference) => difference.key === 'workHours'), false);
-  assert.match(resultsHtml(result), /שעות השכר נשארו לבדיקת מנהל/);
+  assert.match(resultsHtml(result), /שעות שכר לבדיקה/);
+  assert.doesNotMatch(resultsHtml(result), /משך הפעילות אינו/);
 });
 
 test('work-hours gap is formatted as time and never labelled ק״מ', () => {
@@ -583,6 +585,6 @@ test('daily route stays unknown when a physical destination or route segment is 
     assert.ok(rows.every((row) => row.kilometers == null));
     const result = compareAttendanceRows([{ employeeId: '10', date: '2026-05-12', activityType: 'קורס', school: 'א', kilometers: 24 }], rows);
     assert.equal(result.dailyKilometers[0].calculated, null);
-    assert.match(resultsHtml(result), /ק״מ לבדיקה/);
+    assert.match(resultsHtml(result), /לא ניתן לחשב ק״מ/);
   }
 });
