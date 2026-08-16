@@ -40,6 +40,12 @@ test('Graph helper creates drafts under me with immutable IDs and never requests
   assert.match(graph, /createGraphDraft[\s\S]*'\/me\/messages'/);
 });
 
+test('automatic draft reconciliation never opens an interactive Microsoft sign-in popup', () => {
+  assert.match(view, /delegatedMailToken\(loginHint, \{ interactive: false \}\)/);
+  assert.match(view, /if \(!token\) return \[\]/);
+  assert.match(graph, /if \(!interactive\) return ''[\s\S]*acquireTokenPopup\(request\)/);
+});
+
 test('photo approval SharePoint identifiers are configurable secrets', () => {
   assert.match(photo, /ACTIVITY_COORDINATION_PHOTO_DRIVE_ID/);
   assert.match(photo, /ACTIVITY_COORDINATION_PHOTO_ITEM_ID/);

@@ -231,7 +231,8 @@ export async function reconcileVisibleDrafts(context, { loginHint = '' } = {}) {
     });
   }
   if (!drafts.size) return [];
-  const token = await delegatedMailToken(loginHint);
+  const token = await delegatedMailToken(loginHint, { interactive: false });
+  if (!token) return [];
   const results = [];
   for (const dispatch of drafts.values()) results.push(await reconcileDispatch(dispatch, token).catch((error) => ({ status: 'error', error })));
   return results;
