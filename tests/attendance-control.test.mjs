@@ -467,6 +467,24 @@ test('attendance beyond the 10-min grace window is flagged as a time deviation',
   assert.ok(diffKeys.includes('endTime'),   '11 min late end must be flagged');
 });
 
+test('attendance expenses=0 vs missing dashboard expenses does not create a diff', () => {
+  // Dashboard rows have expenses: null by default — there is no real expense data on the
+  // dashboard side. An attendance row reporting 0 expenses must not be flagged as a diff.
+  const base = { employeeId: '10', date: '2026-05-12', startTime: '08:00', endTime: '09:00', activityType: 'קורס', authority: 'חיפה', program: 'תכנית א' };
+  // attendance expenses=0, dashboard expenses=null → no diff
+  const r1 = compareAttendanceRows([{ ...base, expenses: 0 }], [{ ...base, expenses: null }]);
+  assert.ok(!r1.comparisons[0].differences.some((d) => d.key === 'expenses'), 'expenses 0 vs null must not be a diff');
+  // attendance expenses=0, dashboard expenses=undefined (key absent) → no diff
+  const r2 = compareAttendanceRows([{ ...base, expenses: 0 }], [{ ...base }]);
+  assert.ok(!r2.comparisons[0].differences.some((d) => d.key === 'expenses'), 'expenses 0 vs absent must not be a diff');
+  // attendance expenses=0, dashboard expenses='' → no diff
+  const r3 = compareAttendanceRows([{ ...base, expenses: 0 }], [{ ...base, expenses: '' }]);
+  assert.ok(!r3.comparisons[0].differences.some((d) => d.key === 'expenses'), 'expenses 0 vs empty-string must not be a diff');
+  // attendance expenses positive → still a diff (rule must not suppress real values)
+  const r4 = compareAttendanceRows([{ ...base, expenses: 50 }], [{ ...base, expenses: null }]);
+  assert.ok(r4.comparisons[0].differences.some((d) => d.key === 'expenses'), 'expenses 50 vs null must remain a diff');
+});
+
 test('special attendance rows remain and exact three-sheet export uses dashboard employment type', () => {
   const comparisons = [
     { final: { employeeId: '10', employeeName: 'דנה', date: '2026-08-01', startTime: '08:00', endTime: '10:00', activityType: 'ביטול זמן', kilometers: 12, expenses: 5, expenseDetails: 'חניה' } },
