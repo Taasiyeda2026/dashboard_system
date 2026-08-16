@@ -7,16 +7,39 @@ import {
   attendanceMonthLabel, filterAttendanceRowsByMonth, attendanceExportFilename,
   applyDashboardRouteKilometers, applyDashboardExpenses, compareAttendanceRows, applyAttendanceChoice,
   setDashboardOnlyChoice, buildCorrectedAttendanceWorkbook, parseAttendanceWorkbook, attendanceAuditSummary, aggregateDashboardAttendanceRows,
-  DETAIL_HEADERS, MONTHLY_HEADERS, DAILY_HEADERS
+  normalizeAttendanceApiRows, attendanceTeams, DETAIL_HEADERS, MONTHLY_HEADERS, DAILY_HEADERS
 } from '../frontend/src/screens/attendance-control.js';
 
-test('attendance control asks for one attendance workbook and no dashboard workbook', () => {
+test('payroll control opening screen uses direct monthly sources and no workbook upload', () => {
   const html = attendanceControlHtml();
-  assert.match(html, /העלאת קובץ נוכחות/);
-  assert.equal((html.match(/type="file"/g) || []).length, 1);
+  assert.match(html, /נוכחות/);
+  assert.match(html, /דשבורד/);
+  assert.match(html, /צוות/);
+  assert.match(html, /אישור בקרת שכר/);
+  assert.equal((html.match(/type="file"/g) || []).length, 0);
   assert.doesNotMatch(html, /data-attendance-dashboard/);
   assert.match(html, /data-attendance-month/);
+  assert.match(html, /data-dashboard-month/);
   assert.match(html, /data-attendance-run disabled/);
+});
+
+test('attendance API records are normalized into the existing comparison shape', () => {
+  assert.deepEqual(normalizeAttendanceApiRows([{
+    ID: 7, employeeId: '1501', employeeName: 'מדריכה', attendanceDate: '2026-07-03',
+    startTime: '08:00', endTime: '09:00', workHours: 1, activityType: 'סדנה', Team: { Value: 'צוות א' }
+  }])[0], {
+    employeeId: '1501', employeeName: 'מדריכה', employmentType: '', team: 'צוות א', date: '2026-07-03',
+    startTime: '08:00', endTime: '09:00', workHours: 1, activityType: 'סדנה', school: '', authority: '',
+    program: '', meetingNo: '', kilometers: null, expenses: null, expenseDetails: '', notes: '', activityId: '7'
+  });
+});
+
+test('team choices use manager names supplied by the attendance employee source', () => {
+  const teams = attendanceTeams([
+    { employeeId: '10', EmployeeName: 'מנהלת א', role: 'manager', Team: { Value: 'צוות א' } },
+    { employeeId: '11', EmployeeName: 'מנהלת ב', role: 'manager', Team: 'צוות ב' }
+  ]);
+  assert.deepEqual(teams, [{ id: 'צוות א', managerName: 'מנהלת א' }, { id: 'צוות ב', managerName: 'מנהלת ב' }]);
 });
 
 test('attendance control cannot run without an explicitly selected month', () => {
@@ -28,11 +51,10 @@ test('selecting July excludes August attendance rows', () => {
   assert.deepEqual(rows.map((row) => row.date), ['2026-07-31']);
 });
 
-test('July title, summary and export name use the explicitly selected month', () => {
+test('July title and export name use the explicitly selected month', () => {
   assert.equal(attendanceMonthLabel('2026-07'), 'יולי 2026');
   assert.equal(attendanceExportFilename('2026-07'), 'דוח_נוכחות_מתוקן_יולי_2026.xlsx');
-  assert.match(resultsHtml({ comparisons: [], dashboardOnly: [] }, '2026-07'), /חודש הבדיקה: <b>יולי 2026<\/b>/);
-  assert.match(attendanceControlHtml(), /data-attendance-title>בקרת נוכחות/);
+  assert.match(attendanceControlHtml(), /data-attendance-title>בקרת שכר/);
 });
 
 test('a workbook without July attendance produces the clear selected-month message', () => {
