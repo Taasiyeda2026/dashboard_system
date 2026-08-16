@@ -112,6 +112,23 @@ function activityValue(row, names, fallback = '') {
   return fallback;
 }
 
+// Instructors are allowed up to 10 minutes of setup time before an activity starts and
+// 10 minutes of wrap-up time after it ends. Attendance that falls within this window is
+// not flagged as a time deviation.
+const ATTENDANCE_GRACE_MINUTES = 10;
+
+// Israeli schools schedule lessons in 45-minute "שעות הוראה" (teaching units).
+// For payroll, each teaching unit is compensated as 1 full clock hour.
+// This conversion is applied only to קורס (course) activities on the DASHBOARD
+// side; all other activity types (ביטול זמן, הכשרה, תפעול, סדנה, סיור) use raw
+// clock hours. Start/end times are never altered — only workHours is affected.
+const TEACHING_UNIT_MINUTES = 45;
+function coursePayrollHours(clockHours, activityType) {
+  if (attendanceActivityTypeKey(activityType) !== 'course') return clockHours;
+  if (clockHours == null) return clockHours;
+  return Math.round((clockHours * 60 / TEACHING_UNIT_MINUTES) * 100) / 100;
+}
+
 export function buildDashboardAttendanceRows(activities = [], contacts = []) {
   const contactById = new Map((contacts || []).map((row) => [txt(row.emp_id || row.employee_id), row]));
   const output = [];
@@ -130,10 +147,15 @@ export function buildDashboardAttendanceRows(activities = [], contacts = []) {
       const endTime = timeText(meeting.end_time || activity.end_time);
       if (!date) return;
       const contact = contactById.get(instructor.employeeId) || {};
+      // Resolve activityType before building the row so we can apply payroll compensation.
+      const activityType = txt(activityValue(activity, ['activity_type_label', 'activity_type', 'item_type']));
       output.push({
         ...instructor, employeeName: instructor.employeeName || txt(contact.full_name), employmentType: txt(contact.employment_type),
-        date, startTime, endTime, workHours: calculateWorkHours(startTime, endTime), meetingCount: 1,
-        activityType: txt(activityValue(activity, ['activity_type_label', 'activity_type', 'item_type'])), school: txt(activityValue(activity, ['school', 'single_school_name', 'legacy_school'])),
+        date, startTime, endTime,
+        // Dashboard schedules use 45-min school units; for payroll, each unit = 1 hour.
+        workHours: coursePayrollHours(calculateWorkHours(startTime, endTime), activityType),
+        meetingCount: 1, activityType,
+        school: txt(activityValue(activity, ['school', 'single_school_name', 'legacy_school'])),
         authority: txt(activityValue(activity, ['authority', 'authority_name'])), program: txt(activityValue(activity, ['activity_name', 'program_name', 'name'])),
         meetingNo: meeting.meeting_no ?? index + 1, kilometers: null, expenses: null,
         schoolId: activity.school_id == null ? null : Number(activity.school_id), activityId: txt(activityValue(activity, ['row_id', 'RowID', 'id']))
@@ -483,6 +505,15 @@ export function compareAttendanceRows(attendanceRows, dashboardRows) {
       const attendanceValue = key === 'workHours' ? rowWorkHours(attendance) : type === 'activityType' ? activityTypeDisplayLabel(attendance[key]) : attendance[key];
       const dashboardValue = key === 'workHours' ? rowWorkHours(dashboard) : type === 'activityType' ? activityTypeDisplayLabel(dashboard[key]) : dashboard[key];
       if (comparable(type, attendanceValue) === comparable(type, dashboardValue)) return [];
+      // Grace window for time fields: early arrival (≤10 min before start) and late departure
+      // (≤10 min after end) are legitimate setup/wrap-up time and must not be flagged.
+      if (type === 'time') {
+        const aMin = toMinutes(attendanceValue); const dMin = toMinutes(dashboardValue);
+        if (aMin !== null && dMin !== null) {
+          if (key === 'startTime' && aMin >= dMin - ATTENDANCE_GRACE_MINUTES && aMin <= dMin) return [];
+          if (key === 'endTime'   && aMin >= dMin && aMin <= dMin + ATTENDANCE_GRACE_MINUTES) return [];
+        }
+      }
       return [{ key, label, type, attendance: attendanceValue, dashboard: dashboardValue, choice: 'attendance', custom: '' }];
     }) : [];
     return { id: `row-${attendanceIndex}`, attendance, dashboard, final, differences, unmatched: !dashboard, matchScore: match?.score ?? null };
@@ -548,11 +579,26 @@ export function buildCorrectedAttendanceWorkbook(comparisons, dashboardRows = []
   return workbook;
 }
 
+// Format a decimal-hours gap as a human-readable Hebrew string.
+// < 1 hour  → "45 דקות"
+// ≥ 1 hour  → "2 שעות 15 דקות" (or "2 שעות" when minutes = 0)
+function formatHourGap(decimalHours) {
+  const totalMinutes = Math.round(Math.abs(decimalHours) * 60);
+  if (totalMinutes < 60) return `${totalMinutes} דקות`;
+  const h = Math.floor(totalMinutes / 60);
+  const m = totalMinutes % 60;
+  return m > 0 ? `${h} שעות ${m} דקות` : `${h} שעות`;
+}
+
 function diffText(diff) {
   if (diff.type === 'time' && (!timeText(diff.attendance) || !timeText(diff.dashboard))) return 'חסר נתון באחד המקורות';
   if (diff.type === 'time') return `פער ${minutesBetween(diff.attendance, diff.dashboard)} דקות`;
   if ((diff.type === 'number' || diff.type === 'money') && (optionalNumber(diff.attendance) == null || optionalNumber(diff.dashboard) == null)) return 'חסר נתון באחד המקורות';
-  if (diff.type === 'number') return `פער ${Math.abs(number(diff.attendance) - number(diff.dashboard))} ק״מ`;
+  if (diff.type === 'number') {
+    // workHours is a duration field — display as time, not km.
+    if (diff.key === 'workHours') return `פער ${formatHourGap(Math.abs(number(diff.attendance) - number(diff.dashboard)))}`;
+    return `פער ${Math.abs(number(diff.attendance) - number(diff.dashboard))} ק״מ`;
+  }
   if (diff.type === 'money') return `פער ${Math.abs(number(diff.attendance) - number(diff.dashboard))} ₪`;
   return `${txt(diff.attendance) || 'ללא ערך'} לעומת ${txt(diff.dashboard) || 'ללא ערך'}`;
 }
@@ -602,41 +648,66 @@ export function attendanceControlStylesHtml() {
 .attendance-control__summary-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:12px 0;padding:12px 14px;border-radius:10px;background:#ecfdf5;color:#166534;font-weight:600}.attendance-control__summary-bar span{padding:7px 12px;border:1px solid #86efac;border-radius:8px;background:#f0fdf4;font-weight:600}.attendance-control__metrics-details{margin:6px 0 12px}.attendance-control__metrics-details>summary{cursor:pointer;color:#64748b;font-size:.92em;padding:4px 2px}.attendance-control__metrics{margin:6px 0;display:flex;flex-wrap:wrap;gap:8px}.attendance-control__metrics>span,.attendance-control__employee-summary>span{padding:9px 12px;border:1px solid #e2e8f0;border-radius:8px;background:#f8fafc}
 .attendance-control__employee{margin:10px 0;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden}.attendance-control__employee summary{display:flex;justify-content:space-between;padding:13px;cursor:pointer;background:#f8fafc}.attendance-control__employee-summary{padding:10px 13px}
 .attendance-control__dashboard-only{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:10px 13px;padding:12px;border:1px solid #f59e0b;border-radius:9px;background:#fffbeb}.attendance-control__dashboard-only>div{display:grid;gap:4px}.attendance-control__dashboard-only span{color:#64748b}
-.attendance-control__day{margin:10px 13px;padding:12px;border:1px solid;border-radius:9px}.attendance-control__day h4{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0}.attendance-control__day--ok{border-color:#86efac;background:#f0fdf4;color:#166534}.attendance-control__day--mismatch{border-color:#f59e0b;background:#fffbeb}.attendance-control__row-status{font-weight:800;white-space:nowrap}.attendance-control__day-note{margin:8px 0 0;color:#92400e;font-weight:700}.attendance-control__diff{display:grid;grid-template-columns:minmax(110px,1fr) repeat(3,minmax(90px,1fr)) minmax(140px,1fr) minmax(110px,1fr);gap:7px;align-items:center;padding:7px 0;border-top:1px dashed #e2e8f0}.attendance-control__export{margin-top:14px}
+.attendance-control__day{margin:10px 13px;padding:12px;border:1px solid;border-radius:9px}.attendance-control__day h4{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0}.attendance-control__day--ok{border-color:#86efac;background:#f0fdf4;color:#166534}.attendance-control__day--mismatch{border-color:#f59e0b;background:#fffbeb}.attendance-control__day--not-compared{border-color:#cbd5e1;background:#f8fafc;color:#475569}.attendance-control__row-status{font-weight:800;white-space:nowrap}.attendance-control__day-note{margin:8px 0 0;color:#92400e;font-weight:700}.attendance-control__diff{display:grid;grid-template-columns:minmax(110px,1fr) repeat(3,minmax(90px,1fr)) minmax(140px,1fr) minmax(110px,1fr);gap:7px;align-items:center;padding:7px 0;border-top:1px dashed #e2e8f0}.attendance-control__export{margin-top:14px}
 @media(max-width:850px){.attendance-control__diff{grid-template-columns:1fr 1fr}.attendance-control__diff strong{grid-column:1/-1}}
 </style>`;
 }
 
 export function resultsHtml(result, month = '') {
   const totals = attendanceAuditSummary(result);
-  const byEmployee = new Map();
-  result.comparisons.forEach((comparison) => { const key = comparison.attendance.employeeId; if (!byEmployee.has(key)) byEmployee.set(key, []); byEmployee.get(key).push(comparison); });
-  (result.dashboardOnly || []).forEach((entry) => { const key = entry.dashboard.employeeId; if (!byEmployee.has(key)) byEmployee.set(key, []); });
+
+  // Build per-employee buckets for both comparable rows and notCompared rows.
+  // notCompared rows (ביטול זמן / הכשרה / תפעול) must be woven into each
+  // instructor's chronological timeline rather than shown in a separate section.
+  const byEmployee = new Map(); // employeeId → { comparisons: [], notCompared: [] }
+  const ensure = (key) => { if (!byEmployee.has(key)) byEmployee.set(key, { comparisons: [], notCompared: [] }); return byEmployee.get(key); };
+  result.comparisons.forEach((c) => ensure(c.attendance.employeeId).comparisons.push(c));
+  (result.notCompared || []).forEach((e) => ensure(e.attendance.employeeId).notCompared.push(e));
+  // Ensure employees with only dashboardOnly rows still get a card.
+  (result.dashboardOnly || []).forEach((e) => ensure(e.dashboard.employeeId));
+
   const dashboardOnlyByEmployee = new Map();
   (result.dashboardOnly || []).forEach((entry) => { const key = entry.dashboard.employeeId; if (!dashboardOnlyByEmployee.has(key)) dashboardOnlyByEmployee.set(key, []); dashboardOnlyByEmployee.get(key).push(entry); });
-  const cards = [...byEmployee.entries()].map(([employeeId, rows]) => {
+
+  const cards = [...byEmployee.entries()].map(([employeeId, { comparisons: rows, notCompared: ncRows }]) => {
     const dashboardOnly = dashboardOnlyByEmployee.get(employeeId) || [];
-    const name = rows[0]?.attendance?.employeeName || dashboardOnly[0]?.dashboard?.employeeName || employeeId;
+    const name = rows[0]?.attendance?.employeeName || ncRows[0]?.attendance?.employeeName || dashboardOnly[0]?.dashboard?.employeeName || employeeId;
     const attendanceHours = rows.reduce((s, r) => s + rowWorkHours(r.attendance), 0);
     const dashboardHours = rows.reduce((s, r) => s + rowWorkHours(r.dashboard), 0)
       + dashboardOnly.reduce((sum, entry) => sum + rowWorkHours(entry.dashboard), 0);
-    const details = rows.map((comparison) => {
+
+    // Unified timeline: comparable rows + notCompared rows sorted by date → startTime.
+    // notCompared entries are tagged so they can be rendered differently.
+    const timeline = [
+      ...rows.map((c) => ({ kind: 'comparison', item: c, sortKey: (c.attendance.date || '') + (c.attendance.startTime || '') })),
+      ...ncRows.map((e) => ({ kind: 'notCompared', item: e, sortKey: (e.attendance.date || '') + (e.attendance.startTime || '') })),
+    ].sort((a, b) => a.sortKey.localeCompare(b.sortKey));
+
+    const details = timeline.map(({ kind, item }) => {
+      if (kind === 'notCompared') {
+        // Displayed inline in the chronological timeline; does not affect gap counting.
+        return `<div class="attendance-control__day attendance-control__day--not-compared"><h4><span>${escapeHtml(item.attendance.date)} · ${escapeHtml(item.attendance.activityType || 'דיווח')} · ${escapeHtml(`${item.attendance.startTime || '—'}–${item.attendance.endTime || '—'}`)} · ${rowWorkHours(item.attendance)} שעות</span><span class="attendance-control__row-status">לא נבדק מול פעילות</span></h4></div>`;
+      }
+      const comparison = item;
       const mismatch = comparison.unmatched || comparison.differences.length > 0;
       const status = comparison.unmatched ? '⚠ לא נמצאה פעילות תואמת' : mismatch ? '⚠ אי־התאמה בנתונים / דורש טיפול' : '✓ תקין';
       const note = comparison.unmatched ? '<p class="attendance-control__day-note">דיווח הנוכחות לא הוצמד לפעילות: אף מועמד לא עבר את סף ההתאמה.</p>' : '';
       const choices = comparison.differences.map((diff) => `<div class="attendance-control__diff" data-comparison="${comparison.id}" data-field="${diff.key}"><strong>${escapeHtml(diff.label)}</strong><span>${escapeHtml(txt(diff.attendance) || '—')}</span><span>${escapeHtml(txt(diff.dashboard) || '—')}</span><span>${escapeHtml(diffText(diff))}</span><select class="ds-input ds-input--sm" data-attendance-choice><option value="attendance">נתון הנוכחות</option><option value="dashboard">נתון הדשבורד</option><option value="custom">ערך אחר</option></select><input class="ds-input ds-input--sm" data-attendance-custom hidden aria-label="ערך אחר"></div>`).join('');
       return `<div class="attendance-control__day attendance-control__day--${mismatch ? 'mismatch' : 'ok'}"><h4><span>${escapeHtml(comparison.attendance.date)} · ${escapeHtml(comparison.attendance.program || comparison.attendance.activityType || 'דיווח')}</span><span class="attendance-control__row-status">${status}</span></h4>${note}${choices}</div>`;
     }).join('');
+
     const missing = dashboardOnly.map((entry) => `<div class="attendance-control__dashboard-only" data-dashboard-only="${entry.id}"><div><strong>מופיע בדשבורד ולא נמצא בנוכחות</strong><span>${escapeHtml(entry.dashboard.date)} · ${escapeHtml(entry.dashboard.program || entry.dashboard.activityType || 'פעילות')} · ${escapeHtml(`${entry.dashboard.startTime || '—'}–${entry.dashboard.endTime || '—'}`)}</span></div><select class="ds-input ds-input--sm" data-dashboard-only-choice><option value="leave">להשאיר ללא שינוי</option><option value="add">להוסיף לנתונים הסופיים</option></select></div>`).join('');
+    // notCompared rows are informational; they are not counted as gaps.
     const gapCount = rows.filter((row) => row.unmatched || row.differences.length).length + dashboardOnly.length;
     return `<details class="attendance-control__employee"><summary><strong>${escapeHtml(name)}</strong><span>${gapCount} חריגות</span></summary><div class="attendance-control__employee-summary"><span>שעות נוכחות <b>${attendanceHours.toFixed(2)}</b></span><span>שעות בדשבורד <b>${dashboardHours.toFixed(2)}</b></span><span>השוני <b>${Math.abs(attendanceHours-dashboardHours).toFixed(2)}</b></span></div>${details}${missing}</details>`;
   }).join('');
+
   const monthSummary = attendanceMonthLabel(month) ? `<span>חודש הבדיקה: <b>${escapeHtml(attendanceMonthLabel(month))}</b></span>` : '';
-  const notComparedRows = (result.notCompared || []).map((entry) => `<div class="attendance-control__dashboard-only"><div><strong>דיווח שאינו נבדק מול פעילות</strong><span>${escapeHtml(entry.attendance.date)} · ${escapeHtml(entry.attendance.activityType || 'דיווח')} · ${escapeHtml(`${entry.attendance.startTime || '—'}–${entry.attendance.endTime || '—'}`)} · ${rowWorkHours(entry.attendance)} שעות</span></div></div>`).join('');
-  const notComparedSection = notComparedRows ? `<section class="attendance-control__not-compared"><h3>דיווחים שאינם נבדקים מול פעילות</h3>${notComparedRows}</section>` : '';
-  const summaryBar = `<div class="attendance-control__summary-bar">${monthSummary}<span>מדריכים שנבדקו <b>${totals.employees}</b></span><span>חריגות <b>${totals.exceptions}</b></span><span>נוכחות ללא פעילות <b>${totals.unmatchedAttendance}</b></span><span>פעילות ללא נוכחות <b>${totals.unmatchedDashboard}</b></span><span>פער שעות <b>${totals.hours}</b></span></div>`;
+  // Hours gap shown as formatted time (minutes / hours+minutes), not a raw decimal.
+  const summaryBar = `<div class="attendance-control__summary-bar">${monthSummary}<span>מדריכים שנבדקו <b>${totals.employees}</b></span><span>חריגות <b>${totals.exceptions}</b></span><span>נוכחות ללא פעילות <b>${totals.unmatchedAttendance}</b></span><span>פעילות ללא נוכחות <b>${totals.unmatchedDashboard}</b></span><span>פער שעות <b>${formatHourGap(totals.hours)}</b></span></div>`;
   const technicalMetrics = `<div class="attendance-control__metrics"><span>שורות נוכחות <b>${totals.attendanceRows}</b></span><span>שורות להשוואה <b>${totals.comparableAttendanceRows}</b></span><span>דיווחים שאינם נבדקים <b>${totals.notComparedRows}</b></span><span>מפגשי דשבורד (מקור) <b>${totals.dashboardRowsBeforeProcessing}</b></span><span>שורות דשבורד להשוואה <b>${totals.dashboardRows}</b></span><span>התאמות מלאות <b>${totals.fullMatches}</b></span><span>אי־התאמות בשדות <b>${totals.fieldMismatches}</b></span><span>שעות נוכחות <b>${totals.attendanceHours}</b></span><span>שעות שאינן נבדקות <b>${totals.notComparedHours}</b></span><span>סה״כ שעות מדווחות <b>${totals.totalReportedHours}</b></span><span>שעות דשבורד <b>${totals.dashboardHours}</b></span><span>פער ק"מ <b>${totals.km}</b></span><span>פער הוצאות <b>₪${totals.expenses}</b></span></div>`;
-  return `${summaryBar}<details class="attendance-control__metrics-details"><summary>פירוט הבדיקה</summary>${technicalMetrics}</details>${cards}${notComparedSection}<button type="button" class="ds-btn ds-btn--primary attendance-control__export" data-attendance-export>ייצוא דוח נוכחות מתוקן</button>`;
+  // notCompared rows are now woven into each employee's timeline; no separate section needed.
+  return `${summaryBar}<details class="attendance-control__metrics-details"><summary>פירוט הבדיקה</summary>${technicalMetrics}</details>${cards}<button type="button" class="ds-btn ds-btn--primary attendance-control__export" data-attendance-export>ייצוא דוח נוכחות מתוקן</button>`;
 }
 
 async function readFile(file) {
