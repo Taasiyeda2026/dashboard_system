@@ -112,10 +112,12 @@ function activityValue(row, names, fallback = '') {
   return fallback;
 }
 
-// Instructors are allowed up to 10 minutes of setup time before an activity starts and
-// 10 minutes of wrap-up time after it ends. Attendance that falls within this window is
-// not flagged as a time deviation.
-const ATTENDANCE_GRACE_MINUTES = 10;
+// Instructors need setup time before an activity starts and wrap-up time after it ends.
+// Attendance that falls within these windows is not flagged as a time deviation.
+//   Start: up to 15 minutes early arrival is legitimate (setup / travel to room).
+//   End:   up to 10 minutes late departure is legitimate (wrap-up / student questions).
+const ATTENDANCE_GRACE_START_MINUTES = 15;
+const ATTENDANCE_GRACE_END_MINUTES   = 10;
 
 // Israeli schools schedule lessons in 45-minute "שעות הוראה" (teaching units).
 // For payroll, each teaching unit is compensated as 1 full clock hour.
@@ -510,8 +512,8 @@ export function compareAttendanceRows(attendanceRows, dashboardRows) {
       if (type === 'time') {
         const aMin = toMinutes(attendanceValue); const dMin = toMinutes(dashboardValue);
         if (aMin !== null && dMin !== null) {
-          if (key === 'startTime' && aMin >= dMin - ATTENDANCE_GRACE_MINUTES && aMin <= dMin) return [];
-          if (key === 'endTime'   && aMin >= dMin && aMin <= dMin + ATTENDANCE_GRACE_MINUTES) return [];
+          if (key === 'startTime' && aMin >= dMin - ATTENDANCE_GRACE_START_MINUTES && aMin <= dMin) return [];
+          if (key === 'endTime'   && aMin >= dMin && aMin <= dMin + ATTENDANCE_GRACE_END_MINUTES) return [];
         }
       }
       return [{ key, label, type, attendance: attendanceValue, dashboard: dashboardValue, choice: 'attendance', custom: '' }];
