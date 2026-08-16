@@ -1875,3 +1875,11 @@
 .cs-maintenance-toggle .course-scheduling-maintenance-tab {
   margin-top: 0;
 }
+.course-scheduling-manual-picker { margin-top: 12px; }
+.course-scheduling-manual-picker__panel { margin-top: 10px; padding: 12px; border: 1px solid #dbe3ea; border-radius: 12px; background: #f8fafc; }
+.course-scheduling-manual-picker__panel .ds-input { width: 100%; box-sizing: border-box; }
+.course-scheduling-manual-picker__list { display: grid; gap: 8px; margin-top: 10px; max-height: 280px; overflow: auto; }
+.course-scheduling-manual-candidate { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; padding: 10px 12px; border: 1px solid #dbe3ea; border-radius: 10px; background: #fff; color: #1f2937; text-align: right; cursor: pointer; }
+.course-scheduling-manual-candidate span { color: #b45309; font-size: .82rem; }
+.course-scheduling-manual-candidate:hover:not(:disabled) { border-color: var(--ds-accent, #2563eb); }
+.course-scheduling-manual-candidate.is-blocked { opacity: .55; cursor: not-allowed; }
