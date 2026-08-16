@@ -108,7 +108,7 @@ test('LONG-073 real Oshri Ram case preserves double meetings and exposes the rea
   const totals = attendanceAuditSummary(result);
   assert.equal(result.comparisons[0].unmatched, false);
   // workHours is no longer a diff because attendance(4h) == compensated-dashboard(4h).
-  assert.deepEqual(result.comparisons[0].differences.map((difference) => difference.key), ['endTime', 'school', 'meetingNo']);
+  assert.deepEqual(result.comparisons[0].differences.map((difference) => difference.key), ['school', 'meetingNo']);
   assert.deepEqual({ before: totals.dashboardRowsBeforeProcessing, after: totals.dashboardRows, hours: totals.dashboardHours }, { before: 2, after: 1, hours: 4 });
 });
 

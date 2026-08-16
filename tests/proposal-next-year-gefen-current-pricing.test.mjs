@@ -79,9 +79,32 @@ test('mark-as-sent hotfix first saves the current-price combined PDF and reuses 
   const runtime = await readFile(new URL('../frontend/src/proposal-pdf-single-generation-hotfix.js', import.meta.url), 'utf8');
   assert.match(runtime, /isNextYearCombinedProposal\(row\).*rowHasSavedPdf\(row\)/s);
   assert.match(runtime, /await assertCurrentGefenPricingAvailable\(row, api\)/);
-  assert.match(runtime, /dispatchPrintWithoutPopup\(temporaryPrintButton\)/);
+  assert.match(runtime, /restorePopupGuard = dispatchPrintWithoutPopup\(temporaryPrintButton\)/);
   assert.match(runtime, /PREPARED_CURRENT_PRICE_SNAPSHOTS\.set\(proposalId/);
   assert.match(runtime, /documentHtmlSnapshot: currentHtml/);
   assert.match(runtime, /documentSnapshot: currentSnapshot/);
   assert.match(runtime, /lockAndSendWithCurrentGefenSnapshot/);
+});
+
+test('mark-as-sent keeps the async PDF generator popup-free until its delayed blank-tab reservation', async () => {
+  const runtime = await readFile(new URL('../frontend/src/proposal-pdf-single-generation-hotfix.js', import.meta.url), 'utf8');
+  const start = runtime.indexOf('function dispatchPrintWithoutPopup');
+  const end = runtime.indexOf('\nfunction installRootGuard', start);
+  const guard = runtime.slice(start, end);
+  assert.match(guard, /function interceptedOpen\(url = '', target = '', \.\.\.args\)/);
+  assert.match(guard, /!cleanText\(url\) && cleanText\(target\) === '_blank'/);
+  assert.match(guard, /restore\(\);\s*return fakeWindow;/s);
+  assert.match(guard, /restoreTimer = setTimeout\(restore, 15000\)/);
+  assert.doesNotMatch(guard, /window\.open = \(\) => fakeWindow/);
+});
+
+test('normal summer and next-year mark-as-sent builds the final PDF in the background without opening it', async () => {
+  const screen = await readFile(new URL('../frontend/src/screens/proposals-agreements.js', import.meta.url), 'utf8');
+  const start = screen.indexOf('const openSendProposalDialog = async');
+  const end = screen.indexOf('\n    const approvalRequests =', start);
+  const sendFlow = screen.slice(start, end);
+  assert.match(sendFlow, /requiredTemplateSectionsForRow\(freshRow\)/);
+  assert.match(sendFlow, /createProposalFinalPdfFile|proposalHtmlToPdfBlob/);
+  assert.match(sendFlow, /finalizeSentProposal\(freshRow, mergedItems/);
+  assert.doesNotMatch(sendFlow, /openProposalFinalPdf|reservePdfWindow|window\.open/);
 });
