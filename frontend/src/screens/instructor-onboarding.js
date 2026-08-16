@@ -113,7 +113,9 @@ export async function createOnboardingInstructor(instructor) {
   const result = Array.isArray(data) ? data[0] : data;
   if (result?.already_exists) {
     const duplicate = new Error(`המדריך כבר קיים במערכת.${result.full_name ? ` (${result.full_name})` : ''}`);
-    duplicate.code = 'instructor_exists'; throw duplicate;
+    duplicate.code = 'instructor_exists';
+    duplicate.existingInstructor = result;
+    throw duplicate;
   }
   return result;
 }
@@ -141,6 +143,46 @@ export async function createOnboardingDraft({ employmentType, manager, instructo
     throw error;
   }
   return { webLink: draft.webLink || 'https://outlook.office.com/mail/drafts', folderUrl: data.folder_url };
+}
+
+function reserveOnboardingMailWindow() {
+  try {
+    const popup = window.open('', '_blank');
+    if (!popup) return null;
+    try {
+      popup.opener = null;
+      popup.document.title = 'מכין טיוטת מייל';
+      popup.document.body.innerHTML = '<p dir="rtl" style="font-family:Arial,sans-serif;padding:24px">מכין את טיוטת המייל ב-Outlook…</p>';
+    } catch { /* cross-window access can be unavailable in hardened browsers */ }
+    return popup;
+  } catch {
+    return null;
+  }
+}
+
+function closeReservedMailWindow(popup) {
+  try {
+    if (popup && !popup.closed) popup.close();
+  } catch { /* ignore */ }
+}
+
+function openPreparedDraft(popup, webLink, status) {
+  const target = String(webLink || 'https://outlook.office.com/mail/drafts').trim();
+  if (popup && !popup.closed) {
+    try {
+      popup.opener = null;
+      popup.location.replace(target);
+      return true;
+    } catch { /* fall through to an explicit user-clickable link */ }
+  }
+  status.textContent = 'הטיוטה הוכנה בהצלחה. הדפדפן חסם את פתיחת Outlook — ';
+  const link = status.ownerDocument.createElement('a');
+  link.href = target;
+  link.target = '_blank';
+  link.rel = 'noopener noreferrer';
+  link.textContent = 'פתח טיוטה';
+  status.appendChild(link);
+  return false;
 }
 
 export function bindOnboardingModal(modal, { managers, loginHint, onSuccess, createInstructor = createOnboardingInstructor, createDraft = createOnboardingDraft } = {}) {
@@ -219,6 +261,11 @@ export function bindOnboardingModal(modal, { managers, loginHint, onSuccess, cre
         employmentType: employment.value, staffingAgency: agency.value, manager: Object.freeze({ ...manager })
       });
     }
+
+    // Reserve the Outlook tab while we are still inside the user's click gesture.
+    // Opening it only after the async instructor/SharePoint/Graph work is commonly
+    // blocked by Chrome's popup protection even though the draft was created.
+    const reservedMailWindow = reserveOnboardingMailWindow();
     prepare.disabled = true; prepare.textContent = 'מכין...'; status.textContent = '';
     try {
       if (!createdInstructor) {
@@ -227,11 +274,18 @@ export function bindOnboardingModal(modal, { managers, loginHint, onSuccess, cre
           : submission.employmentType === 'staffing'
             ? submission.staffingAgency
             : 'עצמאי';
-        createdInstructor = await createInstructor({
-          fullName: submission.fullName, phone: submission.phone, email: submission.email,
-          employmentType: storedEmploymentType,
-          managerName: submission.manager.name
-        });
+        try {
+          createdInstructor = await createInstructor({
+            fullName: submission.fullName, phone: submission.phone, email: submission.email,
+            employmentType: storedEmploymentType,
+            managerName: submission.manager.name
+          });
+        } catch (error) {
+          if (error?.code !== 'instructor_exists') throw error;
+          // A previous attempt may have created the instructor before Outlook failed.
+          // Reusing the existing row makes retrying the onboarding email idempotent.
+          createdInstructor = error.existingInstructor || { already_exists: true, full_name: submission.fullName };
+        }
         onboardingSnapshot = submission;
         [fullName, phone, email, employment, agency, managerSelect].forEach((field) => { field.disabled = true; });
       }
@@ -241,10 +295,11 @@ export function bindOnboardingModal(modal, { managers, loginHint, onSuccess, cre
       });
       draftCreated = true;
       status.textContent = 'הטיוטה הוכנה בהצלחה';
-      window.open(result.webLink, '_blank', 'noopener,noreferrer');
+      openPreparedDraft(reservedMailWindow, result.webLink, status);
       try { await onSuccess?.(result, createdInstructor); }
       catch { status.textContent = 'הטיוטה הוכנה בהצלחה, אך רענון רשימת המדריכים נכשל.'; }
     } catch (error) {
+      closeReservedMailWindow(reservedMailWindow);
       status.textContent = createdInstructor && error?.code !== 'instructor_exists'
         ? 'המדריך נוצר בהצלחה, אך הכנת המייל נכשלה. ניתן לנסות שוב.'
         : String(error?.message || 'לא ניתן להכין את הטיוטה.');
