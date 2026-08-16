@@ -75,27 +75,9 @@ test('approval generation reads only and never updates proposal_agreement_items'
   assert.match(screen, /showToast\('טעינת פריטי הצעת המחיר נכשלה\. לא ניתן להפיק את אישור גפ״ן\.'/);
 });
 
-test('mark-as-sent hotfix first saves the current-price combined PDF and reuses its snapshots', async () => {
+test('mark-as-sent does not dispatch the visible PDF action', async () => {
   const runtime = await readFile(new URL('../frontend/src/proposal-pdf-single-generation-hotfix.js', import.meta.url), 'utf8');
-  assert.match(runtime, /isNextYearCombinedProposal\(row\).*rowHasSavedPdf\(row\)/s);
-  assert.match(runtime, /await assertCurrentGefenPricingAvailable\(row, api\)/);
-  assert.match(runtime, /restorePopupGuard = dispatchPrintWithoutPopup\(temporaryPrintButton\)/);
-  assert.match(runtime, /PREPARED_CURRENT_PRICE_SNAPSHOTS\.set\(proposalId/);
-  assert.match(runtime, /documentHtmlSnapshot: currentHtml/);
-  assert.match(runtime, /documentSnapshot: currentSnapshot/);
-  assert.match(runtime, /lockAndSendWithCurrentGefenSnapshot/);
-});
-
-test('mark-as-sent keeps the async PDF generator popup-free until its delayed blank-tab reservation', async () => {
-  const runtime = await readFile(new URL('../frontend/src/proposal-pdf-single-generation-hotfix.js', import.meta.url), 'utf8');
-  const start = runtime.indexOf('function dispatchPrintWithoutPopup');
-  const end = runtime.indexOf('\nfunction installRootGuard', start);
-  const guard = runtime.slice(start, end);
-  assert.match(guard, /function interceptedOpen\(url = '', target = '', \.\.\.args\)/);
-  assert.match(guard, /!cleanText\(url\) && cleanText\(target\) === '_blank'/);
-  assert.match(guard, /restore\(\);\s*return fakeWindow;/s);
-  assert.match(guard, /restoreTimer = setTimeout\(restore, 15000\)/);
-  assert.doesNotMatch(guard, /window\.open = \(\) => fakeWindow/);
+  assert.doesNotMatch(runtime, /addEventListener\('click', prepareCurrentGefenBeforeSend/);
 });
 
 test('normal summer and next-year mark-as-sent builds the final PDF in the background without opening it', async () => {
