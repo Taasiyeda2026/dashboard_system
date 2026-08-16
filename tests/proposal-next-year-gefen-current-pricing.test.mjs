@@ -13,6 +13,7 @@ if (!globalThis.localStorage) globalThis.localStorage = globalThis.sessionStorag
 const { gefenApprovalDocumentHtml, nextYearGefenApprovalItems } = await import(
   '../frontend/src/screens/proposals-agreements.js'
 );
+await import('../frontend/src/proposal-pdf-single-generation-hotfix.js');
 
 const row = { activity_type_group: 'next_year', semel_mosad: '123', quote_number: '42' };
 const savedItem = Object.freeze({
@@ -47,10 +48,15 @@ test('non-next_year approvals keep their saved pricing', () => {
 });
 
 test('missing current GEFEN number blocks generation with the program-specific message', () => {
-  assert.throws(
-    () => nextYearGefenApprovalItems(row, [savedItem], []),
-    /לא נמצא מחיר גפ״ן עדכני לתוכנית רובוטיקה – מספר גפ״ן 777\. לא ניתן להפיק את האישור\./
-  );
+  let caught = null;
+  try {
+    nextYearGefenApprovalItems(row, [savedItem], []);
+  } catch (error) {
+    caught = error;
+  }
+  assert.ok(caught);
+  assert.match(caught.message, /לא נמצא מחיר גפ״ן עדכני לתוכנית רובוטיקה – מספר גפ״ן 777\. לא ניתן להפיק את האישור\./);
+  assert.equal(caught.userMessage, caught.message, 'combined PDF catch should receive the detailed user-facing error');
 });
 
 test('regeneration reflects a later catalog price', () => {
@@ -67,4 +73,15 @@ test('approval generation reads only and never updates proposal_agreement_items'
   assert.doesNotMatch(currentPricingMethod, /\.update\(|proposal_agreement_items/);
   assert.match(screen, /\[GEFEN approval items load failed\]/);
   assert.match(screen, /showToast\('טעינת פריטי הצעת המחיר נכשלה\. לא ניתן להפיק את אישור גפ״ן\.'/);
+});
+
+test('mark-as-sent hotfix first saves the current-price combined PDF and reuses its snapshots', async () => {
+  const runtime = await readFile(new URL('../frontend/src/proposal-pdf-single-generation-hotfix.js', import.meta.url), 'utf8');
+  assert.match(runtime, /isNextYearCombinedProposal\(row\).*rowHasSavedPdf\(row\)/s);
+  assert.match(runtime, /await assertCurrentGefenPricingAvailable\(row, api\)/);
+  assert.match(runtime, /dispatchPrintWithoutPopup\(temporaryPrintButton\)/);
+  assert.match(runtime, /PREPARED_CURRENT_PRICE_SNAPSHOTS\.set\(proposalId/);
+  assert.match(runtime, /documentHtmlSnapshot: currentHtml/);
+  assert.match(runtime, /documentSnapshot: currentSnapshot/);
+  assert.match(runtime, /lockAndSendWithCurrentGefenSnapshot/);
 });
