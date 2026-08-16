@@ -516,6 +516,10 @@ export function compareAttendanceRows(attendanceRows, dashboardRows) {
           if (key === 'endTime'   && aMin >= dMin && aMin <= dMin + ATTENDANCE_GRACE_END_MINUTES) return [];
         }
       }
+      // Dashboard rows never carry real expense data (expenses: null by default).
+      // Suppress the diff when attendance reports 0 and the dashboard field is absent —
+      // there is no actual discrepancy, just a missing dashboard value.
+      if (key === 'expenses' && (optionalNumber(attendanceValue) ?? 0) === 0 && optionalNumber(dashboardValue) == null) return [];
       return [{ key, label, type, attendance: attendanceValue, dashboard: dashboardValue, choice: 'attendance', custom: '' }];
     }) : [];
     return { id: `row-${attendanceIndex}`, attendance, dashboard, final, differences, unmatched: !dashboard, matchScore: match?.score ?? null };
