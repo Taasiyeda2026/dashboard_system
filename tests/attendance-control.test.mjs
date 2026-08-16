@@ -108,7 +108,7 @@ test('LONG-073 real Oshri Ram case preserves double meetings and exposes the rea
   const totals = attendanceAuditSummary(result);
   assert.equal(result.comparisons[0].unmatched, false);
   // workHours is no longer a diff because attendance(4h) == compensated-dashboard(4h).
-  assert.deepEqual(result.comparisons[0].differences.map((difference) => difference.key), ['endTime', 'school', 'meetingNo']);
+  assert.deepEqual(result.comparisons[0].differences.map((difference) => difference.key), ['school', 'meetingNo']);
   assert.deepEqual({ before: totals.dashboardRowsBeforeProcessing, after: totals.dashboardRows, hours: totals.dashboardHours }, { before: 2, after: 1, hours: 4 });
 });
 
@@ -149,7 +149,7 @@ test('May non-activity reports stay in export but not in activity exceptions or 
   // notCompared rows are now woven into each employee's chronological timeline.
   // Each such row carries the inline label "לא נבדק מול פעילות", not a separate section header.
   const html = resultsHtml(result);
-  assert.match(html, /לא נבדק מול פעילות/, 'notCompared rows must appear inline in the employee timeline');
+  assert.match(html, /נשמר ברצף יום העבודה/, 'attendance-only rows must appear inline in the daily timeline');
   // The old separate section (<section class="attendance-control__not-compared">) must no longer exist.
   assert.doesNotMatch(html, /attendance-control__not-compared/, 'no separate notCompared section must be rendered');
 });
@@ -305,7 +305,7 @@ test('population, multiple same-day matching and all compared fields are preserv
   const result = compareAttendanceRows(attendance, dashboard);
   assert.equal(result.dashboardPopulation.some((row) => row.employeeId === '99'), false);
   assert.equal(result.comparisons[0].dashboard.program, 'אלפא אחר');
-  assert.deepEqual(result.comparisons[0].differences.map((item) => item.key), ['startTime', 'endTime', 'workHours', 'program', 'meetingNo', 'kilometers', 'expenses']);
+  assert.deepEqual(result.comparisons[0].differences.map((item) => item.key), ['startTime', 'endTime', 'workHours', 'program', 'meetingNo', 'expenses']);
 });
 
 test('results classify matching rows as normal and count only actual row exceptions', () => {
@@ -319,7 +319,7 @@ test('results classify matching rows as normal and count only actual row excepti
   assert.equal((html.match(/⚠ אי־התאמה בנתונים \/ דורש טיפול/g) || []).length, 1);
   assert.equal((html.match(/⚠ לא נמצאה פעילות תואמת/g) || []).length, 1);
   assert.match(html, /חריגות <b>2<\/b>/);
-  assert.match(html, /<span>2 חריגות<\/span>/);
+  assert.equal((html.match(/<span>לבדיקה<\/span>/g) || []).length, 2);
   assert.equal((html.match(/data-attendance-choice/g) || []).length, 2);
   assert.match(html, /אף מועמד לא עבר את סף ההתאמה/);
 });
@@ -333,14 +333,37 @@ test('a fully matching row has a normal status and no decision control', () => {
   assert.match(html, /חריגות <b>0<\/b>/);
 });
 
-test('attendance, dashboard and manual choices recalculate final work hours', () => {
+test('attendance, dashboard and manual choices preserve independent payroll hours', () => {
   const comparison = compareAttendanceRows([{ employeeId: '10', date: '2026-08-01', startTime: '09:00', endTime: '10:00', program: 'קורס', school: 'אלונים', kilometers: 4 }], [{ employeeId: '10', date: '2026-08-01', startTime: '08:30', endTime: '11:00', program: 'קורס', school: 'אלונים', kilometers: 7 }]).comparisons[0];
   applyAttendanceChoice(comparison, 'startTime', 'dashboard');
   applyAttendanceChoice(comparison, 'endTime', 'custom', '10:30');
   applyAttendanceChoice(comparison, 'kilometers', 'attendance');
-  assert.equal(comparison.final.workHours, 2);
+  assert.equal(comparison.final.workHours, 1, 'time decisions must preserve the original payroll duration');
   assert.equal(comparison.final.kilometers, 4);
   assert.equal(calculateWorkHours('23:30', '01:00'), 1.5);
+});
+
+test('standard school durations match longer paid attendance end times', () => {
+  for (const [dashboardEnd, attendanceEnd, paidHours] of [['08:45', '09:00', 1], ['09:30', '10:00', 2]]) {
+    const base = { employeeId: '10', date: '2026-05-12', startTime: '08:00', activityType: 'סדנה', school: 'אלונים' };
+    const result = compareAttendanceRows(
+      [{ ...base, endTime: attendanceEnd, workHours: paidHours }],
+      [{ ...base, endTime: dashboardEnd, workHours: paidHours, payrollHoursRequireReview: false }]
+    );
+    assert.equal(result.comparisons[0].unmatched, false);
+    assert.equal(result.comparisons[0].differences.some((difference) => difference.key === 'endTime'), false);
+    assert.equal(result.comparisons[0].differences.some((difference) => difference.key === 'workHours'), false);
+  }
+});
+
+test('choosing dashboard school times preserves the attendance payroll hours', () => {
+  const comparison = compareAttendanceRows(
+    [{ employeeId: '10', date: '2026-05-12', startTime: '08:00', endTime: '09:10', workHours: 1, activityType: 'סדנה', school: 'אלונים' }],
+    [{ employeeId: '10', date: '2026-05-12', startTime: '08:00', endTime: '08:45', workHours: 1, activityType: 'סדנה', school: 'אלונים' }]
+  ).comparisons[0];
+  applyAttendanceChoice(comparison, 'endTime', 'dashboard');
+  assert.equal(comparison.final.endTime, '08:45');
+  assert.equal(comparison.final.workHours, 1);
 });
 
 test('excelDate serial 46143 parses to May 1 2026 without timezone shift', () => {
@@ -391,20 +414,23 @@ test('course activity 08:00-08:45 gets 1.0 payroll hours not 0.75 (teaching-unit
   assert.equal(rows[0].endTime, '08:45', 'endTime must not be changed');
 });
 
-test('non-course activities are not affected by teaching-unit compensation', () => {
-  const nonCourseTypes = [
-    { type: 'ביטולזמן', label: 'ביטול זמן' }, { type: 'הכשרה', label: 'הכשרה' },
-    { type: 'תפעול', label: 'תפעול' }, { type: 'סדנה', label: 'סדנה' }, { type: 'סיור', label: 'סיור' },
-  ];
-  for (const { type, label } of nonCourseTypes) {
-    const rows = buildDashboardAttendanceRows([{
-      row_id: `PAY-${type}`, emp_id: '10', instructor_name: 'דנה',
-      activity_type: type, activity_name: label, school: 'יסודי', authority: 'חיפה',
-      start_time: '08:00', end_time: '08:45', date_1: '2026-05-12'
-    }]);
-    assert.equal(rows.length, 1, `one meeting for ${label}`);
-    assert.equal(rows[0].workHours, 0.75, `${label}: 45-min session must stay at 0.75 clock hours (no compensation)`);
+test('45 and 90 minute dashboard activities use payroll hours for every comparable type', () => {
+  for (const [type, minutes, expected] of [['course', 45, 1], ['workshop', 45, 1], ['tour', 90, 2]]) {
+    const endTime = minutes === 45 ? '08:45' : '09:30';
+    const [row] = buildDashboardAttendanceRows([{ row_id: `PAY-${type}`, emp_id: '10', activity_type: type, start_time: '08:00', end_time: endTime, date_1: '2026-05-12' }]);
+    assert.equal(row.workHours, expected, `${type} ${minutes} minutes`);
+    assert.equal(row.payrollHoursRequireReview, false);
   }
+});
+
+test('nonstandard dashboard duration is not converted into invented payroll hours', () => {
+  const [row] = buildDashboardAttendanceRows([{ row_id: 'PAY-85', emp_id: '10', activity_type: 'workshop', start_time: '08:00', end_time: '09:25', date_1: '2026-05-12' }]);
+  assert.equal(row.workHours, null);
+  assert.equal(row.payrollHoursRequireReview, true);
+  const attendance = [{ ...row, workHours: 2, activityType: 'סדנה', school: 'אלונים' }];
+  const result = compareAttendanceRows(attendance, [{ ...row, school: 'אלונים' }]);
+  assert.equal(result.comparisons[0].differences.some((difference) => difference.key === 'workHours'), false);
+  assert.match(resultsHtml(result), /שעות השכר נשארו לבדיקת מנהל/);
 });
 
 test('work-hours gap is formatted as time and never labelled ק״מ', () => {
@@ -436,7 +462,7 @@ test('notCompared rows appear in per-employee timeline sorted by date then start
   assert.ok(posB  > -1, 'תכנית ב must appear in the HTML');
   assert.ok(posA  < posNC, 'תכנית א (08:00) must appear before the ביטול זמן card (09:30)');
   assert.ok(posNC < posB,  'ביטול זמן card (09:30) must appear before תכנית ב (11:00)');
-  assert.ok(html.includes('לא נבדק מול פעילות'), 'notCompared row must be labelled accordingly');
+  assert.ok(html.includes('נשמר ברצף יום העבודה'), 'attendance-only row must remain in the daily sequence');
   assert.ok(!html.includes('attendance-control__not-compared'), 'no separate notCompared section must exist');
 });
 
@@ -502,4 +528,61 @@ test('special attendance rows remain and exact three-sheet export uses dashboard
   const monthly = XLSX.utils.sheet_to_json(workbook.Sheets['סיכום חודשי'], { header: 1 })[1];
   assert.equal(monthly[2], 2); assert.equal(monthly[3], 1);
   assert.equal(XLSX.utils.sheet_to_json(workbook.Sheets['תצוגה יומית'], { header: 1 })[1][3], 'תפעול');
+});
+
+
+test('one dashboard aggregate can explain separate attendance reports', () => {
+  const attendance = [
+    { employeeId: '10', date: '2026-05-12', startTime: '08:00', endTime: '09:00', workHours: 1, activityType: 'קורס', school: 'אלונים' },
+    { employeeId: '10', date: '2026-05-12', startTime: '09:00', endTime: '10:00', workHours: 1, activityType: 'קורס', school: 'אלונים' }
+  ];
+  const dashboard = [{ employeeId: '10', date: '2026-05-12', startTime: '08:00', endTime: '10:00', workHours: 2, meetingCount: 2, activityType: 'course', school: 'אלונים', activityId: 'A' }];
+  const result = compareAttendanceRows(attendance, dashboard);
+  assert.deepEqual(result.comparisons.map((row) => row.unmatched), [false, false]);
+  assert.equal(result.dashboardOnly.length, 0);
+});
+
+test('mixed activity day preserves distinct chronological blocks and cancellation context', () => {
+  const attendance = [
+    { employeeId: '10', employeeName: 'דנה', date: '2026-05-12', startTime: '08:00', endTime: '09:00', workHours: 1, activityType: 'קורס', school: 'א', program: 'קורס א' },
+    { employeeId: '10', employeeName: 'דנה', date: '2026-05-12', startTime: '09:05', endTime: '09:20', workHours: .25, activityType: 'ביטול זמן' },
+    { employeeId: '10', employeeName: 'דנה', date: '2026-05-12', startTime: '09:30', endTime: '10:30', workHours: 1, activityType: 'סדנה', school: 'ב', program: 'סדנה ב' },
+    { employeeId: '10', employeeName: 'דנה', date: '2026-05-12', startTime: '11:00', endTime: '12:00', workHours: 1, activityType: 'הכשרה' }
+  ];
+  const dashboard = attendance.filter((row) => ['קורס', 'סדנה'].includes(row.activityType)).map((row) => ({ ...row }));
+  const result = compareAttendanceRows(attendance, dashboard);
+  assert.equal(result.comparisons.length, 2);
+  assert.equal(result.notCompared.length, 2);
+  const html = resultsHtml(result);
+  assert.ok(html.indexOf('קורס א') < html.indexOf('09:05'));
+  assert.ok(html.indexOf('09:05') < html.indexOf('סדנה ב'));
+  assert.ok(html.indexOf('סדנה ב') < html.indexOf('11:00'));
+  assert.equal((html.match(/<details class="attendance-control__employee">/g) || []).length, 1);
+});
+
+test('daily route ignores Zoom and repeated locations and compares only the day total', () => {
+  const rows = [
+    { employeeId: '10', date: '2026-05-12', startTime: '08:00', schoolId: 1, school: 'א' },
+    { employeeId: '10', date: '2026-05-12', startTime: '09:00', schoolId: 1, school: 'א' },
+    { employeeId: '10', date: '2026-05-12', startTime: '10:00', schoolId: 2, school: 'Zoom' }
+  ];
+  applyDashboardRouteKilometers(rows, [{ origin_instructor_emp_id: 10, destination_school_id: 1, distance_km: 12 }]);
+  assert.deepEqual(rows.map((row) => row.kilometers), [12, 12, 0]);
+  const attendance = [{ employeeId: '10', date: '2026-05-12', activityType: 'קורס', school: 'א', kilometers: 24 }];
+  const result = compareAttendanceRows(attendance, rows);
+  assert.deepEqual(result.dailyKilometers[0], { employeeId: '10', date: '2026-05-12', reported: 24, calculated: 24, matches: true });
+  assert.equal(result.comparisons[0].differences.some((difference) => difference.key === 'kilometers'), false);
+});
+
+test('daily route stays unknown when a physical destination or route segment is missing', () => {
+  for (const rows of [
+    [{ employeeId: '10', date: '2026-05-12', startTime: '08:00', schoolId: 1, school: 'א' }, { employeeId: '10', date: '2026-05-12', startTime: '10:00', school: 'יעד לא מזוהה' }],
+    [{ employeeId: '10', date: '2026-05-12', startTime: '08:00', schoolId: 1, school: 'א' }, { employeeId: '10', date: '2026-05-12', startTime: '10:00', schoolId: 2, school: 'ב' }]
+  ]) {
+    applyDashboardRouteKilometers(rows, [{ origin_instructor_emp_id: 10, destination_school_id: 1, distance_km: 12 }]);
+    assert.ok(rows.every((row) => row.kilometers == null));
+    const result = compareAttendanceRows([{ employeeId: '10', date: '2026-05-12', activityType: 'קורס', school: 'א', kilometers: 24 }], rows);
+    assert.equal(result.dailyKilometers[0].calculated, null);
+    assert.match(resultsHtml(result), /ק״מ לבדיקה/);
+  }
 });
