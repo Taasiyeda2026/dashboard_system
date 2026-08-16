@@ -7812,6 +7812,25 @@ export const api = {
       };
     });
   },
+  readCurrentGefenCourses: async (gefenNumbers = []) => {
+    assertCanUseProposalsAgreementsApi();
+    const requested = Array.from(new Set((Array.isArray(gefenNumbers) ? gefenNumbers : [])
+      .map(cleanProposalAgreementText).filter(Boolean)));
+    if (!requested.length) return [];
+    const { data, error } = await supabase
+      .from('proposal_gefen_courses')
+      .select('gefen_number,meetings_count,hours_count,hourly_price,total_price,is_active')
+      .eq('is_active', true)
+      .in('gefen_number', requested);
+    if (error) throwProposalLoadError('gefenCoursesError', 'proposal_gefen_courses', error);
+    return (Array.isArray(data) ? data : []).map((course) => ({
+      gefen_number: cleanProposalAgreementText(course?.gefen_number),
+      meetings_count: course?.meetings_count != null ? Number(course.meetings_count) : null,
+      hours_count: course?.hours_count != null ? Number(course.hours_count) : null,
+      hourly_price: course?.hourly_price != null ? Number(course.hourly_price) : null,
+      total_price: course?.total_price != null ? Number(course.total_price) : null
+    }));
+  },
   readProposalActivityPricing: async () => {
     assertCanUseProposalsAgreementsApi();
     const groupLookup = await getProposalGroupLookup();

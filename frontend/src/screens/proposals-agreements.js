@@ -4093,6 +4093,28 @@ export function gefenApprovalItems(row = {}, items = []) {
   });
 }
 
+export function nextYearGefenApprovalItems(row = {}, items = [], currentCourses = []) {
+  if (!isNextYearProposalGroup(row.activity_type_group)) return gefenApprovalItems(row, items);
+  const currentByNumber = new Map((Array.isArray(currentCourses) ? currentCourses : [])
+    .map((course) => [text(course.gefen_number), course]).filter(([number]) => number));
+  return gefenApprovalItems(row, items).map((item) => {
+    const gefenNumber = text(item.gefen_number);
+    const current = currentByNumber.get(gefenNumber);
+    if (!current) {
+      throw new Error(`לא נמצא מחיר גפ״ן עדכני לתוכנית ${courseShortNameForItem(item)} – מספר גפ״ן ${gefenNumber}. לא ניתן להפיק את האישור.`);
+    }
+    const quantity = itemQuantity(item);
+    const currentProgramPrice = Number(current.total_price);
+    return { ...item,
+      meetings_count: current.meetings_count, hours_count: current.hours_count,
+      hourly_price: current.hourly_price, unit_price: currentProgramPrice,
+      total_price: currentProgramPrice * quantity,
+      meetingsCount: current.meetings_count, hoursCount: current.hours_count,
+      hourlyPrice: current.hourly_price, unitPrice: currentProgramPrice,
+      totalPrice: currentProgramPrice * quantity };
+  });
+}
+
 function isGefenApprovalApplicable(row = {}, items = []) {
   const group = normalizeProposalGroup(row.activity_type_group);
   if (group === 'gefen' || isNextYearProposalGroup(group)) return true;
@@ -4369,7 +4391,8 @@ export function proposalPreviewBodyHtml(row, items = [], templateSections = [], 
     sectionLinesHtml,
   });
   if (row.combine_gefen_approval === true && isGefenApprovalApplicable(row, items)) {
-    return `<div class="pa-gefen-combined-document">${proposalHtml}${gefenApprovalDocumentHtml(row, items, { pageBreak: true })}</div>`;
+    const approvalItems = Array.isArray(renderOptions.gefenApprovalItems) ? renderOptions.gefenApprovalItems : items;
+    return `<div class="pa-gefen-combined-document">${proposalHtml}${gefenApprovalDocumentHtml(row, approvalItems, { pageBreak: true })}</div>`;
   }
   return proposalHtml;
 }
@@ -8478,10 +8501,17 @@ export const proposalsAgreementsScreen = {
       }
       try {
         await ensureEditorDeps();
+        let approvalItems = mergedItems;
+        if (isNextYearProposalGroup(freshRow.activity_type_group)) {
+          if (typeof api.readCurrentGefenCourses !== 'function') throw new Error('טעינת מחירון גפ״ן העדכני אינה זמינה.');
+          const selected = gefenApprovalItems(freshRow, mergedItems);
+          const currentCourses = await api.readCurrentGefenCourses(selected.map((item) => text(item.gefen_number)));
+          approvalItems = nextYearGefenApprovalItems(freshRow, mergedItems, currentCourses);
+        }
         const templateSections = requiredTemplateSectionsForRow(freshRow);
-        const documentHtmlSnapshot = gefenApprovalDocumentHtml(freshRow, mergedItems);
+        const documentHtmlSnapshot = gefenApprovalDocumentHtml(freshRow, approvalItems);
         const documentSnapshot = {
-          ...buildProposalDocumentSnapshot(freshRow, mergedItems, templateSections),
+          ...buildProposalDocumentSnapshot(freshRow, approvalItems, templateSections),
           document_type: 'gefen_approval',
           linked_proposal_id: text(freshRow.id)
         };
@@ -8543,6 +8573,13 @@ export const proposalsAgreementsScreen = {
       try {
         setPdfStage('build-html');
         const mergedItems = proposalItemsWithFallback(items, freshRow);
+        let combinedApprovalItems = mergedItems;
+        if (freshRow.combine_gefen_approval === true && isNextYearProposalGroup(freshRow.activity_type_group)) {
+          if (typeof api.readCurrentGefenCourses !== 'function') throw new Error('טעינת מחירון גפ״ן העדכני אינה זמינה.');
+          const selected = gefenApprovalItems(freshRow, mergedItems);
+          const currentCourses = await api.readCurrentGefenCourses(selected.map((item) => text(item.gefen_number)));
+          combinedApprovalItems = nextYearGefenApprovalItems(freshRow, mergedItems, currentCourses);
+        }
         if (
           isGefenApprovalApplicable(freshRow, mergedItems)
           && (
@@ -8559,7 +8596,10 @@ export const proposalsAgreementsScreen = {
         const templateSections = requiredTemplateSectionsForRow(freshRow);
         const documentHtmlSnapshot = historicalSnapshotBackfill && text(freshRow.document_html_snapshot)
           ? text(freshRow.document_html_snapshot)
-          : proposalPreviewBodyHtml(freshRow, mergedItems, templateSections, { showSignatureImage: true });
+          : proposalPreviewBodyHtml(freshRow, mergedItems, templateSections, {
+            showSignatureImage: true,
+            gefenApprovalItems: combinedApprovalItems
+          });
         const documentSnapshot = historicalSnapshotBackfill && freshRow.document_snapshot
           ? freshRow.document_snapshot
           : buildProposalDocumentSnapshot(freshRow, mergedItems, templateSections);
@@ -9805,7 +9845,13 @@ export const proposalsAgreementsScreen = {
         if (!row || !canManage) return;
         let items = data?._itemsByProposalId?.[id] || [];
         if (!items.length && typeof api.readProposalAgreementItems === 'function') {
-          try { items = await api.readProposalAgreementItems(id); } catch { items = []; }
+          try {
+            items = await api.readProposalAgreementItems(id);
+          } catch (error) {
+            console.error('[GEFEN approval items load failed]', error);
+            showToast('טעינת פריטי הצעת המחיר נכשלה. לא ניתן להפיק את אישור גפ״ן.', 'error');
+            return;
+          }
         }
         await generateGefenApprovalPdf(row, proposalItemsWithFallback(items, row), generateGefenApprovalBtn);
         return;
