@@ -175,3 +175,7 @@ if (typeof document !== 'undefined') {
     subtree: true
   });
 }
+
+import('./work-schedule-print-reliability.js').catch((error) => {
+  console.warn('[work-schedule-print-reliability] failed to load enhancement', error);
+});
