@@ -277,7 +277,13 @@ export function applyDashboardRouteKilometers(rows = [], travelCache = []) {
   rows.forEach((row) => { const key = `${row.employeeId}|${row.date}`; if (!groups.has(key)) groups.set(key, []); groups.get(key).push(row); });
   for (const allDayRows of groups.values()) {
     allDayRows.forEach((row) => { row.kilometers = null; });
-    const dayRows = allDayRows.filter((row) => row.schoolId != null && !/zoom|זום/u.test(normalizeAttendanceName(`${row.school} ${row.program}`)));
+    const isZoom = (row) => /zoom|זום/u.test(normalizeAttendanceName(`${row.school} ${row.program}`));
+    const physicalRows = allDayRows.filter((row) => !isZoom(row));
+    allDayRows.filter(isZoom).forEach((row) => { row.kilometers = 0; });
+    // A partial route is misleading. If even one physical destination cannot be
+    // identified, leave the complete day for manager review.
+    if (physicalRows.some((row) => row.schoolId == null)) continue;
+    const dayRows = physicalRows;
     dayRows.sort((a, b) => timeText(a.startTime).localeCompare(timeText(b.startTime)));
     dayRows.forEach((row, index) => {
       const incoming = index === 0
@@ -286,6 +292,7 @@ export function applyDashboardRouteKilometers(rows = [], travelCache = []) {
       const returnHome = index === dayRows.length - 1 ? instructorSchoolDistance(travelCache, row.employeeId, row.schoolId) : 0;
       row.kilometers = incoming == null || returnHome == null ? null : Math.round((incoming + returnHome) * 100) / 100;
     });
+    if (dayRows.some((row) => row.kilometers == null)) allDayRows.forEach((row) => { row.kilometers = null; });
   }
   return rows;
 }
@@ -521,7 +528,9 @@ export function compareAttendanceRows(attendanceRows, dashboardRows) {
   });
   const comparisons = comparableAttendance.map((attendance, attendanceIndex) => {
     const match = assignments.get(attendanceIndex); const dashboard = match?.bundle || null;
-    const final = { ...attendance };
+    // Freeze the attendance payroll value before any manager time decision. The
+    // export must not later derive paid hours from a selected school-clock range.
+    const final = { ...attendance, workHours: rowWorkHours(attendance) };
     const differences = dashboard ? FIELD_DEFS.flatMap(([key, label, type]) => {
       // Travel is audited once for the instructor's complete daily route, never per row.
       if (key === 'kilometers') return [];
@@ -535,6 +544,12 @@ export function compareAttendanceRows(attendanceRows, dashboardRows) {
       if (type === 'time') {
         const aMin = toMinutes(attendanceValue); const dMin = toMinutes(dashboardValue);
         if (aMin !== null && dMin !== null) {
+          // School end-time and paid end-time intentionally differ for standard
+          // 45/90-minute activities. Equal starts plus the matching payroll
+          // duration is a valid alignment, not a time discrepancy.
+          if (key === 'endTime' && !dashboard.payrollHoursRequireReview
+            && timeText(attendance.startTime) === timeText(dashboard.startTime)
+            && Math.abs(calculateWorkHours(attendance.startTime, attendance.endTime) - rowWorkHours(dashboard)) < 0.01) return [];
           if (key === 'startTime' && aMin >= dMin - ATTENDANCE_GRACE_START_MINUTES && aMin <= dMin) return [];
           if (key === 'endTime'   && aMin >= dMin && aMin <= dMin + ATTENDANCE_GRACE_END_MINUTES) return [];
         }
@@ -567,8 +582,9 @@ export function compareAttendanceRows(attendanceRows, dashboardRows) {
     const attendance = (attendanceRows || []).filter((row) => txt(row.employeeId) === employeeId && row.date === date);
     const dashboard = dashboardPopulation.filter((row) => !row.__profile && txt(row.employeeId) === employeeId && row.date === date);
     const reported = Math.round(attendance.reduce((sum, row) => sum + (optionalNumber(row.kilometers) || 0), 0) * 100) / 100;
-    const calculatedValues = dashboard.map((row) => optionalNumber(row.kilometers)).filter((value) => value != null);
-    const calculated = calculatedValues.length ? Math.round(calculatedValues.reduce((sum, value) => sum + value, 0) * 100) / 100 : null;
+    const calculatedValues = dashboard.map((row) => optionalNumber(row.kilometers));
+    const calculated = dashboard.length && calculatedValues.every((value) => value != null)
+      ? Math.round(calculatedValues.reduce((sum, value) => sum + value, 0) * 100) / 100 : null;
     dailyKilometers.push({ employeeId, date, reported, calculated, matches: calculated != null && reported === calculated });
   });
   return { comparisons, notCompared, dashboardOnly, dashboardPopulation, dailyKilometers };
@@ -585,7 +601,6 @@ export function applyAttendanceChoice(comparison, field, choice, custom = '') {
   difference.choice = choice; difference.custom = custom;
   const value = choice === 'dashboard' ? difference.dashboard : choice === 'custom' ? custom : difference.attendance;
   comparison.final[field] = difference.type === 'number' || difference.type === 'money' ? optionalNumber(value) : value;
-  comparison.final.workHours = calculateWorkHours(comparison.final.startTime, comparison.final.endTime);
   return comparison;
 }
 
