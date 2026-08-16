@@ -3331,7 +3331,7 @@ const PROPOSALS_AGREEMENTS_ALLOWED_ROLES = new Set(['domain_manager', 'operation
 const PROPOSALS_AGREEMENTS_MANAGE_ROLES = new Set(['domain_manager', 'operation_manager', 'admin']);
 const PROPOSALS_AGREEMENTS_COLUMNS = 'id,authority_id,school_id,contact_school_id,client_authority,school_framework,document_type,activity_type_group,proposal_domain,proposal_date,activity_names,contact_name,contact_role,phone,email,contact_phone,contact_email,notes,status,approval_note,total_amount,custom_document_sections,include_catalog,signature_meta,approved_by,approved_at,sent_by,sent_at,locked_at,locked_by,locked_reason,final_pdf_path,final_pdf_file_name,final_pdf_created_at,final_pdf_created_by,document_snapshot,document_html_snapshot,proposal_series_id,version_number,supersedes_proposal_id,archived_at,quote_number,valid_until,combine_gefen_approval,gfen_signed_or_ordered,created_at,updated_at';
 // List/directory projection — no snapshots/HTML/signature payloads.
-const PROPOSALS_AGREEMENTS_LIST_COLUMNS = 'id,authority_id,authority_code,school_id,contact_school_id,semel_mosad,authority_name,legacy_client_authority,contact_client_type,contact_client_name,school_name,legacy_school_framework,document_type,activity_type_group,proposal_domain,proposal_date,activity_names,contact_name,contact_role,phone,email,notes,status,approval_note,total_amount,include_catalog,approved_by,approved_at,sent_by,sent_at,locked_at,locked_by,locked_reason,final_pdf_path,final_pdf_file_name,final_pdf_created_at,final_pdf_created_by,proposal_series_id,version_number,supersedes_proposal_id,archived_at,quote_number,valid_until,combine_gefen_approval,gfen_signed_or_ordered,created_at,updated_at';
+const PROPOSALS_AGREEMENTS_LIST_COLUMNS = 'id,authority_id,authority_code,school_id,contact_school_id,semel_mosad,authority_name,legacy_client_authority,contact_client_type,contact_client_name,school_name,legacy_school_framework,document_type,activity_type_group,proposal_domain,proposal_date,activity_names,contact_name,contact_role,phone,email,notes,status,approval_note,total_amount,include_catalog,has_approval_signature,approved_by,approved_at,sent_by,sent_at,locked_at,locked_by,locked_reason,final_pdf_path,final_pdf_file_name,final_pdf_created_at,final_pdf_created_by,proposal_series_id,version_number,supersedes_proposal_id,archived_at,quote_number,valid_until,combine_gefen_approval,gfen_signed_or_ordered,created_at,updated_at';
 const PROPOSALS_AGREEMENTS_DIRECTORY_COLUMNS = PROPOSALS_AGREEMENTS_LIST_COLUMNS;
 const PROPOSALS_AGREEMENTS_DETAIL_COLUMNS = 'id,authority_id,authority_code,school_id,contact_school_id,semel_mosad,authority_name,legacy_client_authority,contact_client_type,contact_client_name,school_name,legacy_school_framework,document_type,activity_type_group,proposal_domain,proposal_date,activity_names,contact_name,contact_role,phone,email,notes,status,approval_note,total_amount,custom_document_sections,include_catalog,signature_meta,approved_by,approved_at,sent_by,sent_at,locked_at,locked_by,locked_reason,final_pdf_path,final_pdf_file_name,final_pdf_created_at,final_pdf_created_by,document_snapshot,document_html_snapshot,proposal_series_id,version_number,supersedes_proposal_id,archived_at,quote_number,valid_until,combine_gefen_approval,gfen_signed_or_ordered,created_at,updated_at';
 const PROPOSAL_FINAL_PDF_BUCKET = 'proposal-final-pdfs';
@@ -3567,6 +3567,7 @@ function normalizeProposalAgreementRow(row = {}) {
     supersedes_proposal_id: cleanProposalAgreementText(row.supersedes_proposal_id),
     archived_at:         cleanProposalAgreementText(row.archived_at),
     signature_meta:      (row.signature_meta && typeof row.signature_meta === 'object' && !Array.isArray(row.signature_meta)) ? row.signature_meta : {},
+    has_approval_signature: row.has_approval_signature === true,
     approved_by:         cleanProposalAgreementText(row.approved_by),
     approved_at:         cleanProposalAgreementText(row.approved_at),
     sent_by:             cleanProposalAgreementText(row.sent_by),
@@ -7811,6 +7812,25 @@ export const api = {
         selected_bundle_items: selectedBundleItems
       };
     });
+  },
+  readCurrentGefenCourses: async (gefenNumbers = []) => {
+    assertCanUseProposalsAgreementsApi();
+    const requested = Array.from(new Set((Array.isArray(gefenNumbers) ? gefenNumbers : [])
+      .map(cleanProposalAgreementText).filter(Boolean)));
+    if (!requested.length) return [];
+    const { data, error } = await supabase
+      .from('proposal_gefen_courses')
+      .select('gefen_number,meetings_count,hours_count,hourly_price,total_price,is_active')
+      .eq('is_active', true)
+      .in('gefen_number', requested);
+    if (error) throwProposalLoadError('gefenCoursesError', 'proposal_gefen_courses', error);
+    return (Array.isArray(data) ? data : []).map((course) => ({
+      gefen_number: cleanProposalAgreementText(course?.gefen_number),
+      meetings_count: course?.meetings_count != null ? Number(course.meetings_count) : null,
+      hours_count: course?.hours_count != null ? Number(course.hours_count) : null,
+      hourly_price: course?.hourly_price != null ? Number(course.hourly_price) : null,
+      total_price: course?.total_price != null ? Number(course.total_price) : null
+    }));
   },
   readProposalActivityPricing: async () => {
     assertCanUseProposalsAgreementsApi();
