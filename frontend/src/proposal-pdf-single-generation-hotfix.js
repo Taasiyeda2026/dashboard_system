@@ -127,9 +127,24 @@ async function waitForSavedPdf(data, id, timeoutMs = 60000) {
   return findProposalRow(data, id);
 }
 
+/**
+ * The print action reads proposal items asynchronously before it reaches
+ * generateAndSaveProposalPdf(), and that generator reserves a blank tab only after
+ * those reads finish. A synchronous window.open override therefore gets restored too
+ * early and Chrome opens the generated PDF / Save PDF UI during "סימון כנשלח".
+ *
+ * Keep a one-shot trap installed until the generator reserves its blank result tab.
+ * Only the exact window.open('', '_blank') call used by proposal PDF generation is
+ * intercepted; every other URL continues through the original window.open.
+ */
 function dispatchPrintWithoutPopup(button) {
-  if (!button) return;
-  const originalOpen = typeof window !== 'undefined' ? window.open : null;
+  if (!button) return () => {};
+  if (typeof window === 'undefined' || typeof window.open !== 'function') {
+    button.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+    return () => {};
+  }
+
+  const originalOpen = window.open;
   const fakeWindow = {
     closed: false,
     opener: null,
@@ -139,12 +154,36 @@ function dispatchPrintWithoutPopup(button) {
     },
     close() { this.closed = true; }
   };
-  try {
-    if (typeof window !== 'undefined') window.open = () => fakeWindow;
-    button.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
-  } finally {
-    if (typeof window !== 'undefined') window.open = originalOpen;
+  let restored = false;
+  let restoreTimer = null;
+
+  const restore = () => {
+    if (restored) return;
+    restored = true;
+    if (restoreTimer) clearTimeout(restoreTimer);
+    if (window.open === interceptedOpen) window.open = originalOpen;
+  };
+
+  function interceptedOpen(url = '', target = '', ...args) {
+    if (!cleanText(url) && cleanText(target) === '_blank') {
+      // The generator has now reserved its result tab. Give it the inert window and
+      // immediately restore normal popup behaviour for the rest of the application.
+      restore();
+      return fakeWindow;
+    }
+    return originalOpen.call(window, url, target, ...args);
   }
+
+  window.open = interceptedOpen;
+  // Safety restoration if generation fails before reaching reservePdfWindow().
+  restoreTimer = setTimeout(restore, 15000);
+  try {
+    button.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+  } catch (error) {
+    restore();
+    throw error;
+  }
+  return restore;
 }
 
 function installRootGuard(root, data, context = {}) {
@@ -202,6 +241,7 @@ function installRootGuard(root, data, context = {}) {
     sentButton.disabled = true;
 
     let temporaryPrintButton = null;
+    let restorePopupGuard = null;
     try {
       await assertCurrentGefenPricingAvailable(row, api);
 
@@ -215,8 +255,10 @@ function installRootGuard(root, data, context = {}) {
         root.appendChild(temporaryPrintButton);
       }
 
-      dispatchPrintWithoutPopup(temporaryPrintButton);
+      restorePopupGuard = dispatchPrintWithoutPopup(temporaryPrintButton);
       const savedRow = await waitForSavedPdf(data, proposalId);
+      restorePopupGuard?.();
+      restorePopupGuard = null;
       if (!rowHasSavedPdf(savedRow)) {
         showToast('הפקת ה־PDF העדכני לא הושלמה ולכן ההצעה לא סומנה כנשלחה.', 'error', 6000);
         return;
@@ -242,6 +284,7 @@ function installRootGuard(root, data, context = {}) {
       showToast(message || 'לא ניתן היה לטעון את מחירון גפ״ן העדכני. ההצעה לא נשלחה.', 'error', 6000);
       console.error('[proposal current GEFEN send preparation failed]', error);
     } finally {
+      restorePopupGuard?.();
       if (temporaryPrintButton?.hidden && temporaryPrintButton?.isConnected) temporaryPrintButton.remove();
       if (sentButton.isConnected) {
         sentButton.disabled = false;
