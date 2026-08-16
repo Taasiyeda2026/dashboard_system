@@ -932,6 +932,7 @@ export function normalizeProposalAgreementRow(row = {}) {
     // Kept raw (not normalizeSignatureMeta's display fallback) so proposalHasSavedApprovalSignature
     // can tell a real saved signature apart from an approved row that never actually got signed.
     signature_meta:      (row.signature_meta && typeof row.signature_meta === 'object' ? row.signature_meta : (row.approval_meta && typeof row.approval_meta === 'object' ? row.approval_meta : null)),
+    has_approval_signature: row.has_approval_signature === true,
     created_at:          text(row.created_at),
     approved_by:         text(row.approved_by),
     approved_at:         text(row.approved_at),
@@ -1027,7 +1028,7 @@ function proposalHasSavedApprovalSignature(row = {}) {
   // normalizeSignatureMeta, which falls back to the default signature image for display purposes
   // and would otherwise report an empty/never-signed signature_meta as a valid saved signature.
   const meta = row.signature_meta || row.approval_meta;
-  const hasImage = Boolean(text(meta?.signature?.image || meta?.image));
+  const hasImage = row.has_approval_signature === true || Boolean(text(meta?.signature?.image || meta?.image));
   return normalizeProposalStatus(row.status) === 'approved'
     && hasImage
     && Boolean(text(row.approved_at));
@@ -5185,7 +5186,7 @@ function drawerActionButtons(row, state) {
   if (isAdminRole && normalizeProposalStatus(status) === 'approved' && !proposalHasSavedApprovalSignature(row)) {
     buttons.push(iconBtn(`data-pa-status-action="approved" data-pa-action-id="${escapeHtml(row.id)}"`, 'אשר וחתום מחדש', CHECK));
   }
-  if (canTransitionProposalStatus(row, 'sent', state) && proposalHasFinalPdf(row)) {
+  if (canTransitionProposalStatus(row, 'sent', state)) {
     buttons.push(iconBtn(`data-pa-status-action="sent" data-pa-action-id="${escapeHtml(row.id)}"`, 'סימון כנשלח', SENT));
   }
   if (canViewSentProposalPdf(row, state)) {
@@ -8712,7 +8713,24 @@ export const proposalsAgreementsScreen = {
         }
         return;
       }
-      showToast('יש להפיק ולשמור PDF לפני שליחה ונעילה.', 'warning');
+      if (typeof api.lockAndSendProposalAgreement !== 'function') {
+        showToast('פעולת שליחה ונעילה אינה זמינה.', 'error');
+        return;
+      }
+      try {
+        const quoteNumber = sanitizeProposalPdfFileLabel(freshRow.quote_number) || text(freshRow.id).slice(0, 8);
+        const pdfFile = typeof api.createProposalFinalPdfFile === 'function'
+          ? await api.createProposalFinalPdfFile({ row: freshRow, previewHtml })
+          : new File(
+            [await proposalHtmlToPdfBlob(previewHtml, { proposalId: text(freshRow.id) })],
+            `הצעת_מחיר_${quoteNumber}.pdf`,
+            { type: 'application/pdf' }
+          );
+        await finalizeSentProposal(freshRow, mergedItems, { pdfFile, previewHtml, templateSections });
+      } catch (err) {
+        showToast('הפקת ה־PDF ושליחת ההצעה נכשלו. ניתן לנסות שוב.', 'error');
+        console.error('[proposal generate PDF and send failed]', err);
+      }
     };
 
     const approvalRequests = new Set();

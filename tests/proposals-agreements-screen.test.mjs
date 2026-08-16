@@ -6222,3 +6222,50 @@ test('mark as sent without final PDF uploads once and closes the upload UI', asy
     }
   );
 });
+
+test('proposal 10220 signed approval can be marked sent without an existing final PDF', async () => {
+  const row10220 = normalizeProposalAgreementRow({
+    id: 'proposal-10220', quote_number: '10220', status: 'approved',
+    approved_at: '2026-08-16T08:00:00.000Z', has_approval_signature: true,
+    final_pdf_path: '',
+    custom_document_sections: [{ section_key: 'intro', section_title: 'פתיח', section_body: 'תוכן' }]
+  });
+  const manager = stateFor('business_development_manager');
+  manager.user.manage_proposals_agreements = true;
+  manager.user.approve_proposals_agreements = false;
+
+  const html = proposalsAgreementsScreen.render({ rows: [row10220] }, { state: manager });
+  assert.match(html, /data-pa-status-action="sent"/);
+  assert.match(html, /סימון כנשלח/);
+  assert.doesNotMatch(html, /חתום ואשר/);
+
+  const apiSource = await readFile(API_FILE, 'utf8');
+  const screenSource = await readFile(SCREEN_FILE, 'utf8');
+  const migration = await readFile(new URL('../supabase/migrations/20260816120000_add_proposal_approval_signature_indicator.sql', import.meta.url), 'utf8');
+  assert.match(apiSource, /PROPOSALS_AGREEMENTS_LIST_COLUMNS = '[^']*has_approval_signature/);
+  assert.match(migration, /as has_approval_signature/i);
+  assert.match(screenSource, /await proposalHtmlToPdfBlob\(previewHtml/);
+  assert.match(screenSource, /await finalizeSentProposal\(freshRow, mergedItems, \{ pdfFile, previewHtml, templateSections \}\)/);
+  assert.match(screenSource, /const result = await api\.lockAndSendProposalAgreement/);
+
+  const data = { rows: [row10220], activityNameOptions: [], proposalTemplateSections: [], _editorDepsLoaded: true };
+  let sentPayload = null;
+  await withJSDOM(html, async (root, dom) => {
+    proposalsAgreementsScreen.bind({
+      root, data, state: manager,
+      api: {
+        readProposalAgreementItems: async () => [],
+        createProposalFinalPdfFile: async () => new dom.window.File(['%PDF-1.4'], '10220.pdf', { type: 'application/pdf' }),
+        lockAndSendProposalAgreement: async (id, payload) => {
+          sentPayload = { id, payload };
+          return { ok: true, row: { ...row10220, status: 'sent', final_pdf_path: 'proposals/10220.pdf' } };
+        }
+      }
+    });
+    root.querySelector('[data-pa-status-action="sent"]')?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    await delay(30);
+  });
+  assert.equal(sentPayload?.id, 'proposal-10220');
+  assert.equal(sentPayload?.payload?.pdfFile?.name, '10220.pdf');
+  assert.equal(data.rows[0].status, 'sent');
+});
