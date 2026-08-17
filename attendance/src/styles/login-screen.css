@@ -61,3 +61,10 @@
   color: #b91c1c;
   text-align: center;
 }
+
+/* Narrow the two login inputs to ~52% and centre them + their text */
+.av2-login__form .av2-field__input {
+  width: 52%;
+  margin-inline: auto;
+  text-align: center;
+}
