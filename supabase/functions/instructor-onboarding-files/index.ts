@@ -1,7 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { corsHeaders } from "npm:@supabase/supabase-js@^2/cors";
 import { directFileItems, onboardingFolder } from "./logic.js";
 
-const corsHeaders = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type", "Access-Control-Allow-Methods": "POST, OPTIONS" };
 const HOST = "think365orgil.sharepoint.com";
 const SITE_ID = "think365orgil.sharepoint.com,5bd221ef-8cc6-4ba2-a79e-02b0d37bc784,1449501e-590f-490d-8577-20a033af5360";
 const DRIVE_ID = "b!7yHSW8aMokunngKw03vHhB5QSRQPWQ1JhXcgoDOvU2BFY5HnYLNMTZS2gZux2CMR";
@@ -48,6 +48,7 @@ Deno.serve(async (req) => {
     const folderPath = `${BASE_FOLDER}/${selectedFolder}`; const folder = await (await graph(accessToken, `/drives/${encodeURIComponent(DRIVE_ID)}/root:/${encodePath(folderPath)}?$select=id,webUrl`)).json();
     if (body.folder_only) return json({ folder_url: folder.webUrl });
     const files = await listDirectFiles(accessToken, folder.id);
+    console.info("[instructor-onboarding-files] SharePoint folder loaded", { selectedFolder, fileCount: files.length });
     if (!files.length) return json({ error: "empty_folder", message: "לא נמצאו מסמכים בתיקיית הקליטה שנבחרה." });
     const attachments = [];
     for (const item of files) {
@@ -55,7 +56,7 @@ Deno.serve(async (req) => {
       if (bytes.byteLength > 3 * 1024 * 1024) return json({ error: "attachment_too_large", message: `לא ניתן לצרף את הקובץ "${item.name}" משום שגודלו עולה על 3MB.` });
       attachments.push({ name: item.name, content_type: response.headers.get("content-type") || "application/pdf", content_bytes: bytesToBase64(bytes) });
     }
-    return json({ source: "sharepoint", folder_url: folder.webUrl, attachments });
+    return json({ source: "sharepoint", folder_url: folder.webUrl, attachment_count: attachments.length, attachments });
   } catch (error) {
     const forbidden = clean((error as Error)?.message) === "not_authorized"; return json({ message: forbidden ? "אין הרשאה להכין קליטת מדריך." : "לא ניתן לטעון את מסמכי הקליטה מ-SharePoint. יש לנסות שוב." }, forbidden ? 403 : 500);
   }
