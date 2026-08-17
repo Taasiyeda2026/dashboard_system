@@ -58,3 +58,4 @@ config.HOTFIX_VERSION = `course-scheduling-manual-candidate-20260817-v1-${config
 config.HOTFIX_VERSION = `attendance-control-compact-results-20260816-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `payroll-control-direct-data-20260816-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `payroll-control-tab-20260817-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `instructor-onboarding-sharepoint-folder-20260817-v1-${config.HOTFIX_VERSION}`;

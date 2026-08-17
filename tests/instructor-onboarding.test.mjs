@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
 import { readFile } from 'node:fs/promises';
-import { buildOnboardingMail, onboardingManagers, onboardingModalHtml, bindOnboardingModal } from '../frontend/src/screens/instructor-onboarding.js';
+import { buildOnboardingMail, onboardingManagers, onboardingModalHtml, bindOnboardingModal, createOnboardingInstructor } from '../frontend/src/screens/instructor-onboarding.js';
 import { directFileItems, onboardingFolder } from '../supabase/functions/instructor-onboarding-files/logic.js';
 
 const settings = {
@@ -19,7 +19,7 @@ function mountedModal(options = {}) {
   dom.window.open = () => null;
   globalThis.window = dom.window;
   const modal = dom.window.document.querySelector('.ds-modal');
-  bindOnboardingModal(modal, { managers: onboardingManagers(settings), openMailClient: () => true, ...options });
+  bindOnboardingModal(modal, { managers: onboardingManagers(settings), openMailClient: () => true, ensureEmployeeFolder: async () => ({ folder_web_url: 'https://think365orgil.sharepoint.com/folder' }), ...options });
   return { dom, modal };
 }
 
@@ -42,12 +42,30 @@ test('five required onboarding fields gate the compact RTL primary action', () =
   assert.equal(modal.querySelector('[data-onboarding-agency-field]').hidden, true);
   assert.equal(modal.querySelector('[data-onboarding-agency-field]').style.display, 'none');
   assert.equal(modal.querySelector('[data-onboarding-prepare]').disabled, true);
-  assert.equal(modal.querySelector('[data-onboarding-folder]').disabled, false);
   fill(modal);
   assert.equal(modal.querySelector('[data-onboarding-agency-field]').hidden, true);
   assert.equal(modal.querySelector('[data-onboarding-agency-field]').style.display, 'none');
   assert.equal(modal.querySelector('[data-onboarding-prepare]').disabled, false);
-  assert.equal(modal.querySelector('[data-onboarding-folder]').style.width, modal.querySelector('[data-onboarding-prepare]').style.width);
+});
+
+test('invalid normalized phone is disabled and never reaches instructor creation', async () => {
+  let creates = 0;
+  const { modal } = mountedModal({ createInstructor: async () => { creates += 1; } });
+  fill(modal);
+  const phone = modal.querySelector('[data-onboarding-phone]');
+  phone.value = 'בדיקה';
+  phone.dispatchEvent(new window.Event('input'));
+  assert.equal(modal.querySelector('[data-onboarding-prepare]').disabled, true);
+  modal.querySelector('[data-onboarding-prepare]').click();
+  await tick();
+  assert.equal(creates, 0);
+});
+
+test('createOnboardingInstructor guards an empty normalized phone before RPC', async () => {
+  await assert.rejects(
+    createOnboardingInstructor({ fullName: 'אייל', phone: 'בדיקה', email: 'a@example.org', employmentType: 'עצמאי', managerName: 'גיל' }),
+    /onboarding_required_fields_missing/
+  );
 });
 
 test('staffing requires a visible agency selection and clears it when switching to Taasiyeda', () => {
@@ -124,7 +142,7 @@ test('retry after Outlook failure uses the original staffing agency snapshot wit
   modal.querySelector('[data-onboarding-prepare]').click(); await tick();
   assert.equal(calls.filter(([kind]) => kind === 'create').length, 1);
   assert.equal(calls.filter(([kind]) => kind === 'draft').length, 2);
-  assert.deepEqual(calls[0][1], { fullName: 'אייל ישראלי', phone: '050-123 4567', email: 'new@example.org', employmentType: 'מעוף', managerName: 'גיל נאמן' });
+  assert.deepEqual(calls[0][1], { fullName: 'אייל ישראלי', phone: '0501234567', email: 'new@example.org', employmentType: 'מעוף', managerName: 'גיל נאמן' });
   assert.equal(calls[1][1].instructorEmail, 'new@example.org');
   assert.equal(calls[1][1].manager.email, 'GilNeeman@think.org.il');
   assert.equal(calls[2][1].instructorEmail, 'new@example.org');
@@ -144,6 +162,50 @@ test('desktop mail client opens only after the draft is created successfully', a
   modal.querySelector('[data-onboarding-prepare]').click(); await tick();
   assert.deepEqual(calls, ['create', 'draft', 'desktop']);
   assert.match(modal.querySelector('[data-onboarding-status]').textContent, /הטיוטה הוכנה ונשמרה ב-Outlook/);
+});
+
+test('employee folder is ensured silently between instructor creation and the unchanged Outlook draft flow', async () => {
+  const calls = [];
+  let opened = 0;
+  const { modal, dom } = mountedModal({
+    createInstructor: async () => { calls.push('create'); return { emp_id: 42, full_name: 'אייל ישראלי' }; },
+    ensureEmployeeFolder: async () => { calls.push('folder'); return { folder_web_url: 'https://think365orgil.sharepoint.com/folder' }; },
+    createDraft: async () => { calls.push('draft'); return { draftId: 'draft-1' }; },
+    openMailClient: () => { calls.push('desktop'); return true; }
+  });
+  dom.window.open = () => { opened += 1; };
+  fill(modal);
+  modal.querySelector('[data-onboarding-prepare]').click(); await tick();
+  assert.deepEqual(calls, ['create', 'folder', 'draft', 'desktop']);
+  assert.equal(opened, 0);
+});
+
+test('mail retry reuses the already ensured employee folder', async () => {
+  let folders = 0;
+  let drafts = 0;
+  const { modal } = mountedModal({
+    createInstructor: async () => ({ emp_id: 42, full_name: 'אייל ישראלי' }),
+    ensureEmployeeFolder: async () => { folders += 1; return { folder_web_url: 'https://think365orgil.sharepoint.com/folder' }; },
+    createDraft: async () => { drafts += 1; if (drafts === 1) throw new Error('outlook'); return { draftId: 'draft-1' }; }
+  });
+  fill(modal);
+  modal.querySelector('[data-onboarding-prepare]').click(); await tick();
+  modal.querySelector('[data-onboarding-prepare]').click(); await tick();
+  assert.equal(folders, 1);
+  assert.equal(drafts, 2);
+});
+
+test('SharePoint failure stops draft and Outlook creation', async () => {
+  const calls = [];
+  const { modal } = mountedModal({
+    createInstructor: async () => ({ emp_id: 42, full_name: 'אייל ישראלי' }),
+    ensureEmployeeFolder: async () => { throw new Error('sharepoint'); },
+    createDraft: async () => { calls.push('draft'); },
+    openMailClient: () => { calls.push('desktop'); }
+  });
+  fill(modal);
+  modal.querySelector('[data-onboarding-prepare]').click(); await tick();
+  assert.deepEqual(calls, []);
 });
 
 test('refresh failure remains a successful draft and cannot create another draft', async () => {
@@ -203,4 +265,18 @@ test('SharePoint mapping keeps every direct file and excludes subfolders', () =>
     { id: '3', name: 'תיקיית משנה', folder: { childCount: 1 } }
   ]);
   assert.deepEqual(files.map((item) => item.id), ['1', '2']);
+});
+
+test('employee-folder Edge Function uses the existing mapping and creates the exact hierarchy before saving its URL', async () => {
+  const edge = await readFile(new URL('../supabase/functions/instructor-onboarding-folder/index.ts', import.meta.url), 'utf8');
+  for (const path of [
+    '01 הסכם ומסמכים', '01 הסכם ומסמכים/הסכם חתום', '01 הסכם ומסמכים/מסמכים נלווים',
+    '02 משובים', '02 משובים/משוב היכרות', '02 משובים/משוב אמצע שנה', '02 משובים/משוב סוף שנה',
+    '03 תצפיות', '03 תצפיות/תצפית 1', '03 תצפיות/תצפית 2', '04 דוחות שכר'
+  ]) assert.match(edge, new RegExp(path.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+  assert.match(edge, /EMPLOYEE_FILES_ROOT = "תיקים אישיים"/);
+  assert.match(edge, /snapshot\?\.mapped && clean\(snapshot\?\.folder_web_url\)/);
+  assert.match(edge, /"@microsoft\.graph\.conflictBehavior": "fail"/);
+  assert.match(edge, /for \(const relativePath of FOLDER_PATHS\)[\s\S]+update_instructor_employee_folder_url/);
+  assert.doesNotMatch(edge, /window\.open|location\.href/);
 });

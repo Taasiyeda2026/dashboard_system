@@ -17,7 +17,7 @@ function mount({ openWindow, ...bindOptions } = {}) {
   globalThis.document = dom.window.document;
   dom.window.open = openWindow || (() => null);
   const modal = dom.window.document.querySelector('.ds-modal');
-  bindOnboardingModal(modal, { managers, ...bindOptions });
+  bindOnboardingModal(modal, { managers, ensureEmployeeFolder: async () => ({ folder_web_url: 'https://think365orgil.sharepoint.com/folder' }), ...bindOptions });
   return { dom, modal };
 }
 

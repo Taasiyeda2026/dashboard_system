@@ -9,7 +9,6 @@ export const ONBOARDING_DOCUMENTS = Object.freeze({
 });
 
 const SUBJECT = 'הצטרפות לצוות המדריכים של תעשיידע – השלמת תהליך הקליטה';
-const ONBOARDING_ROOT_FOLDER_URL = 'https://think365orgil.sharepoint.com/sites/taasiyeda2027/Shared%20Documents/Forms/view.aspx?id=%2Fsites%2Ftaasiyeda2027%2FShared%20Documents%2F%D7%AA%D7%99%D7%A7%D7%99%D7%9D%20%D7%90%D7%99%D7%A9%D7%99%D7%99%D7%9D%2F%D7%A7%D7%9C%D7%99%D7%98%D7%AA%20%D7%9E%D7%93%D7%A8%D7%99%D7%9A&viewid=20f573d0%2D1255%2D4a8a%2Dbbf6%2Dc9c914f04e1b&FolderCTID=0x012000A5A5234B5799C3499038E27027EDF12F';
 const AVAILABILITY = `לצורך תכנון השיבוצים והפעילויות, נבקש להשיב למייל זה ולמלא את פרטי הזמינות שלך בצורה מלאה ככל האפשר:
 
 מועד שממנו ניתן להתחיל להדריך:
@@ -104,9 +103,16 @@ export function onboardingModalHtml(managers = []) {
   </div>`;
 }
 
+export function normalizeOnboardingPhone(value) {
+  const digits = String(value || '').replace(/\D/g, '');
+  return digits.length >= 9 && digits.length <= 15 ? digits : '';
+}
+
 export async function createOnboardingInstructor(instructor) {
+  const phone = normalizeOnboardingPhone(instructor?.phone);
+  if (!phone) throw new Error('onboarding_required_fields_missing');
   const { data, error } = await supabase.rpc('create_instructor_onboarding', {
-    p_full_name: instructor.fullName, p_mobile: instructor.phone, p_email: instructor.email,
+    p_full_name: instructor.fullName, p_mobile: phone, p_email: instructor.email,
     p_employment_type: instructor.employmentType, p_direct_manager: instructor.managerName
   });
   if (error) throw new Error(error.message || 'לא ניתן ליצור את המדריך.');
@@ -118,6 +124,17 @@ export async function createOnboardingInstructor(instructor) {
     throw duplicate;
   }
   return result;
+}
+
+export async function ensureOnboardingEmployeeFolder(instructor) {
+  const empId = Number(instructor?.emp_id);
+  const fullName = String(instructor?.full_name || instructor?.fullName || '').trim();
+  if (!Number.isSafeInteger(empId) || empId <= 0 || !fullName) throw new Error('onboarding_employee_folder_fields_missing');
+  const { data, error } = await supabase.functions.invoke('instructor-onboarding-folder', {
+    body: { emp_id: empId, full_name: fullName, school_year: '2027' }
+  });
+  if (error || !data?.folder_web_url) throw new Error(data?.message || 'לא ניתן ליצור את התיק האישי ב-SharePoint.');
+  return data;
 }
 
 export async function createOnboardingDraft({ employmentType, manager, instructorName, instructorEmail, loginHint = '' }) {
@@ -162,6 +179,7 @@ export function bindOnboardingModal(modal, {
   loginHint,
   onSuccess,
   createInstructor = createOnboardingInstructor,
+  ensureEmployeeFolder = ensureOnboardingEmployeeFolder,
   createDraft = createOnboardingDraft,
   openMailClient = openDesktopMailClient
 } = {}) {
@@ -174,7 +192,6 @@ export function bindOnboardingModal(modal, {
   const managerSelect = modal.querySelector('[data-onboarding-manager]');
   const documents = modal.querySelector('[data-onboarding-documents]');
   const prepare = modal.querySelector('[data-onboarding-prepare]');
-  const folder = modal.querySelector('[data-onboarding-folder]');
   const status = modal.querySelector('[data-onboarding-status]');
   const content = modal.querySelector('.ds-modal__content');
   const footer = modal.querySelector('.ds-modal__footer');
@@ -193,7 +210,7 @@ export function bindOnboardingModal(modal, {
     footer.style.gap = '8px';
     footer.style.padding = '10px 14px 12px';
   }
-  [folder, prepare].forEach((button) => {
+  [prepare].forEach((button) => {
     if (!button) return;
     button.style.width = '112px';
     button.style.minWidth = '112px';
@@ -203,7 +220,6 @@ export function bindOnboardingModal(modal, {
     button.style.fontSize = '.8rem';
     button.style.justifyContent = 'center';
   });
-  folder.textContent = 'פתח תיקייה';
   prepare.textContent = 'שליחת מייל';
 
   let draftCreated = false;
@@ -214,9 +230,8 @@ export function bindOnboardingModal(modal, {
     agencyField.style.display = staffing ? 'grid' : 'none';
     documents.hidden = !list.length;
     documents.querySelector('ul').innerHTML = list.map((name) => `<li>📄 ${escapeHtml(name)}</li>`).join('');
-    prepare.disabled = draftCreated || !fullName.value.trim() || !phone.value.trim() || !email.value.trim()
+    prepare.disabled = draftCreated || !fullName.value.trim() || !normalizeOnboardingPhone(phone.value) || !email.value.trim()
       || !employment.value || (staffing && !agency.value) || !managerSelect.value;
-    folder.disabled = false;
   };
   [fullName, phone, email].forEach((input) => input.addEventListener('input', sync));
   employment.addEventListener('change', () => { if (employment.value !== 'staffing') agency.value = ''; sync(); });
@@ -224,23 +239,21 @@ export function bindOnboardingModal(modal, {
   managerSelect.addEventListener('change', sync);
   sync();
 
-  folder.addEventListener('click', () => {
-    window.open(ONBOARDING_ROOT_FOLDER_URL, '_blank', 'noopener,noreferrer');
-  });
-
   let createdInstructor = null;
+  let employeeFolder = null;
   let onboardingSnapshot = null;
   prepare.addEventListener('click', async () => {
     if (draftCreated) return;
     let submission = onboardingSnapshot;
     if (!onboardingSnapshot) {
       const manager = managers.find((item) => item.name === managerSelect.value);
-      if (!fullName.value.trim() || !phone.value.trim() || !email.value.trim() || !employment.value
+      const normalizedPhone = normalizeOnboardingPhone(phone.value);
+      if (!fullName.value.trim() || !normalizedPhone || !email.value.trim() || !employment.value
         || (employment.value === 'staffing' && !agency.value) || !manager) return;
       if (!email.checkValidity()) { status.textContent = 'יש להזין כתובת מייל תקינה.'; return; }
       if (!manager?.phone || !manager?.email) { status.textContent = 'לא הוגדרו טלפון ומייל למנהל/ת הפעילות שנבחר/ה.'; return; }
       submission = Object.freeze({
-        fullName: fullName.value.trim(), phone: phone.value.trim(), email: email.value.trim(),
+        fullName: fullName.value.trim(), phone: normalizedPhone, email: email.value.trim(),
         employmentType: employment.value, staffingAgency: agency.value, manager: Object.freeze({ ...manager })
       });
     }
@@ -267,6 +280,13 @@ export function bindOnboardingModal(modal, {
         }
         onboardingSnapshot = submission;
         [fullName, phone, email, employment, agency, managerSelect].forEach((field) => { field.disabled = true; });
+      }
+
+      if (!employeeFolder) {
+        employeeFolder = await ensureEmployeeFolder({
+          emp_id: createdInstructor.emp_id,
+          full_name: createdInstructor.full_name || onboardingSnapshot.fullName
+        });
       }
 
       const result = await createDraft({

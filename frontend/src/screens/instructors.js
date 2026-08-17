@@ -306,7 +306,7 @@ export const instructorsScreen = {
     root.querySelector('[data-open-instructor-onboarding]')?.addEventListener('click', () => {
       if (!ui || !employeeFilesAllowed) return;
       const managers = onboardingManagers(state?.clientSettings || {});
-      ui.openModal({ title: 'קליטת מדריך', modalClass: 'ds-modal--instructor-onboarding', content: onboardingModalHtml(managers), actions: '<button type="button" class="ds-btn" data-onboarding-folder>פתח תיקייה</button><button type="button" class="ds-btn ds-btn--primary" data-onboarding-prepare disabled>שליחת מייל</button>' });
+      ui.openModal({ title: 'קליטת מדריך', modalClass: 'ds-modal--instructor-onboarding', content: onboardingModalHtml(managers), actions: '<button type="button" class="ds-btn ds-btn--primary" data-onboarding-prepare disabled>שליחת מייל</button>' });
       const modal = document.querySelector('.ds-modal.ds-modal--instructor-onboarding');
       if (modal) bindOnboardingModal(modal, {
         managers, loginHint: state?.user?.email || state?.user?.auth_email || '',
