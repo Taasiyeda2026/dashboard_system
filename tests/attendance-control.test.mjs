@@ -168,12 +168,12 @@ test('May non-activity reports stay in export but not in activity exceptions or 
   const detail = XLSX.utils.sheet_to_json(workbook.Sheets['פירוט מלא'], { header: 1 });
   assert.equal(detail.length - 1, 261);
   assert.equal(Math.round(detail.slice(1).reduce((sum, row) => sum + Number(row[5] || 0), 0) * 10) / 10, 512.9);
-  // notCompared rows are now woven into each employee's chronological timeline.
-  // Each such row carries the inline label "לא נבדק מול פעילות", not a separate section header.
   const html = resultsHtml(result);
-  assert.match(html, /נשמר ברצף יום העבודה/, 'attendance-only rows must appear inline in the daily timeline');
-  // The old separate section (<section class="attendance-control__not-compared">) must no longer exist.
-  assert.doesNotMatch(html, /attendance-control__not-compared/, 'no separate notCompared section must be rendered');
+  assert.equal((html.match(/class="attendance-control__employee"/g) || []).length, 1, 'one instructor accordion is rendered');
+  assert.match(html, /class="attendance-control__day attendance-control__day--ok"/, 'attendance-only reports stay in the chronological day list');
+  assert.match(html, /<th>נתון<\/th><th>נוכחות<\/th><th>דשבורד<\/th><th>סטטוס<\/th>/, 'day details use the uniform comparison table');
+  assert.match(html, />הכשרה</, 'manual activity types are displayed without approval wording');
+  assert.doesNotMatch(html, /נדרש טיפול לפני תשלום|נדרש אישור ידני/, 'the view does not add payment-treatment copy');
 });
 
 test('employee 1501 May 4 bundles LONG-080 through LONG-082 into one attendance row', () => {

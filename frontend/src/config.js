@@ -64,3 +64,5 @@ config.HOTFIX_VERSION = `payroll-control-direct-data-20260816-v1-${config.HOTFIX
 config.HOTFIX_VERSION = `payroll-control-tab-20260817-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `instructor-onboarding-sharepoint-folder-20260817-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `course-scheduling-recommendation-card-ui-20260817-v1-${config.HOTFIX_VERSION}`;
+
+config.HOTFIX_VERSION = `payroll-control-instructor-day-view-20260817-v1-${config.HOTFIX_VERSION}`;
