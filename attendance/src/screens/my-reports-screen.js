@@ -158,7 +158,7 @@ async function loadAndRender({ instructor, year, month, contentArea, onNewReport
 
     const thead = document.createElement('thead');
     thead.innerHTML = `<tr>
-      <th>תאריך</th><th>יום</th><th>התחלה</th><th>סיום</th><th>שעות</th>
+      <th>תאריך</th><th>התחלה</th><th>סיום</th><th>שעות</th>
       <th>סוג פעילות</th><th>שם פעילות</th><th>בית ספר</th><th>רשות</th><th>ק"מ</th><th>הוצאות</th>
       <th>פעולות</th>
     </tr>`;
@@ -176,7 +176,7 @@ async function loadAndRender({ instructor, year, month, contentArea, onNewReport
     const totalRow = document.createElement('tr');
     totalRow.className = 'av2-reports__total-row';
     totalRow.innerHTML = `
-      <td colspan="4"><strong>סה"כ</strong></td>
+      <td colspan="3"><strong>סה"כ</strong></td>
       <td><strong>${summary.totalHours.toFixed(2)}</strong></td>
       <td colspan="4"></td>
       <td><strong>${summary.totalKm.toFixed(0)}</strong></td>
@@ -204,13 +204,12 @@ function buildRecordRow({ record, editable, instructor, activityTypes, onDuplica
   const dayName = DAY_NAMES_SHORT[d.getDay()];
 
   tr.innerHTML = `
-    <td>${formatDateHeb(record.report_date)}</td>
-    <td>${dayName}</td>
-    <td dir="ltr">${record.start_time || '—'}</td>
-    <td dir="ltr">${record.end_time || '—'}</td>
+    <td>${formatDateHeb(record.report_date)}<br><small class="av2-reports__day-name">${dayName}</small></td>
+    <td dir="ltr">${formatTime(record.start_time)}</td>
+    <td dir="ltr">${formatTime(record.end_time)}</td>
     <td>${Number(record.total_hours || 0).toFixed(2)}</td>
-    <td>${record.activity_type || '—'}</td>
-    <td title="${record.activity_name_snapshot || ''}">${truncate(record.activity_name_snapshot, 16)}</td>
+    <td title="${record.activity_type || ''}">${truncate(record.activity_type, 10)}</td>
+    <td title="${record.activity_name_snapshot || ''}">${truncate(record.activity_name_snapshot, 18)}</td>
     <td title="${record.school_name_snapshot || ''}">${truncate(record.school_name_snapshot, 14)}</td>
     <td title="${record.authority_name_snapshot || ''}">${truncate(record.authority_name_snapshot, 12)}</td>
     <td>${Number(record.roundtrip_km || 0).toFixed(0)}</td>
@@ -595,6 +594,12 @@ function formatDateHeb(isoDate) {
   const d = new Date(isoDate);
   if (Number.isNaN(d.getTime())) return isoDate;
   return d.toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit', year: '2-digit' });
+}
+
+/** Strip seconds from a DB time string: 'HH:MM:SS' → 'HH:MM'. */
+function formatTime(t) {
+  if (!t) return '—';
+  return String(t).slice(0, 5);
 }
 
 function truncate(str, max) {
