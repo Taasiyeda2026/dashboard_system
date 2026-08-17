@@ -2,171 +2,288 @@ const PAYROLL_WINDOW_NAME = 'dashboard-payroll-control';
 const TEST_MODE_MARK = '__dashboardPayrollTestModeInstalled';
 export const PAYROLL_TEST_MONTH = '2027-01';
 
-const baseAttendance = (overrides = {}) => ({
+const attendanceRecord = (overrides = {}) => ({
   employeeId: '9901',
   employeeName: 'מדריך בדיקה א',
   employmentType: 'תעשיידע',
   team: '__test__',
-  date: '2027-01-03',
+  attendanceDate: '2027-01-03',
   startTime: '09:00',
   endTime: '10:00',
   workHours: 1,
   activityType: 'קורס',
-  school: 'בית ספר בדיקה א',
-  authority: 'רשות בדיקה',
-  program: 'T01 – 45 דקות תקין',
-  meetingNo: '1',
-  kilometers: 12,
-  expenses: 0,
-  expenseDetails: '',
+  schoolName: 'בית ספר בדיקה א',
+  municipality: 'רשות בדיקה',
+  programName: 'T01 – קורס 45 דקות',
+  sessionNumber: '1',
+  kilometers: 20,
+  totalExpenses: 0,
+  expensesDetails: '',
   notes: '',
   ...overrides
 });
 
-const baseDashboard = (overrides = {}) => ({
-  employeeId: '9901',
-  employeeName: 'מדריך בדיקה א',
-  employmentType: 'תעשיידע',
-  date: '2027-01-03',
-  startTime: '09:00',
-  endTime: '09:45',
-  workHours: 1,
-  payrollHoursRequireReview: false,
-  meetingCount: 1,
-  activityType: 'קורס',
-  school: 'בית ספר בדיקה א',
+const dashboardActivity = (overrides = {}) => ({
+  row_id: 'test-01',
+  emp_id: '9901',
+  instructor_name: 'מדריך בדיקה א',
+  activity_type: 'course',
+  item_type: 'course',
   authority: 'רשות בדיקה',
-  program: 'T01 – 45 דקות תקין',
-  meetingNo: '1',
-  kilometers: 12,
-  expenses: 0,
-  schoolId: 99001,
-  activityId: 'test-01',
+  school: 'בית ספר בדיקה א',
+  school_id: 99001,
+  activity_name: 'T01 – קורס 45 דקות',
+  meetings: [{ date: '2027-01-03', start_time: '09:00', end_time: '09:45', meeting_no: 1 }],
   ...overrides
 });
 
-export function buildPayrollControlTestDataset() {
-  const attendanceRows = [];
-  const dashboardRows = [];
+const contact = (emp_id, full_name) => ({
+  emp_id,
+  full_name,
+  employment_type: 'תעשיידע'
+});
 
-  // T01: standard 45-minute school lesson => 1 payroll hour, matching km.
-  attendanceRows.push(baseAttendance());
-  dashboardRows.push(baseDashboard());
+const homeSchoolRoute = (employeeId, schoolId, distanceKm) => ({
+  origin_instructor_emp_id: String(employeeId),
+  destination_school_id: Number(schoolId),
+  distance_km: distanceKm
+});
 
-  // T02: standard 90-minute school lesson => 2 payroll hours, matching km.
-  attendanceRows.push(baseAttendance({
-    employeeId: '9902', employeeName: 'מדריך בדיקה ב', date: '2027-01-04',
-    startTime: '10:00', endTime: '12:00', workHours: 2, kilometers: 18,
-    program: 'T02 – 90 דקות תקין', school: 'בית ספר בדיקה ב', meetingNo: '2'
-  }));
-  dashboardRows.push(baseDashboard({
-    employeeId: '9902', employeeName: 'מדריך בדיקה ב', date: '2027-01-04',
-    startTime: '10:00', endTime: '11:30', workHours: 2, kilometers: 18,
-    program: 'T02 – 90 דקות תקין', school: 'בית ספר בדיקה ב', meetingNo: '2',
-    schoolId: 99002, activityId: 'test-02'
-  }));
+/**
+ * Two independent source datasets, mirroring production boundaries:
+ * 1) attendanceRecords = what the instructor submitted for payroll in Attendance.
+ * 2) dashboardSources = what the dashboard/Supabase knows about planned activities
+ *    plus the dashboard's route/expense control sources.
+ *
+ * The uploaded Attendance workbook is used only as the shape/reference for these
+ * synthetic records. No real employee names, IDs or production records are copied.
+ */
+export function buildPayrollControlTestSourceData() {
+  const attendanceRecords = [
+    // T01: course — 45 school-clock minutes are reported as one payroll hour.
+    attendanceRecord(),
 
-  // T03: start-time difference outside the allowed grace window.
-  attendanceRows.push(baseAttendance({
-    date: '2027-01-05', startTime: '08:30', endTime: '09:30',
-    program: 'T03 – שעת התחלה שונה', kilometers: 14
-  }));
-  dashboardRows.push(baseDashboard({
-    date: '2027-01-05', startTime: '09:00', endTime: '09:45',
-    program: 'T03 – שעת התחלה שונה', kilometers: 14, activityId: 'test-03'
-  }));
+    // T02: course — 90 school-clock minutes are reported as two payroll hours.
+    attendanceRecord({
+      attendanceDate: '2027-01-04', startTime: '10:00', endTime: '12:00', workHours: 2,
+      programName: 'T02 – קורס 90 דקות', schoolName: 'בית ספר בדיקה ב', sessionNumber: '2', kilometers: 24
+    }),
 
-  // T04: end-time difference that should require review.
-  attendanceRows.push(baseAttendance({
-    date: '2027-01-06', startTime: '09:00', endTime: '10:30', workHours: 1,
-    program: 'T04 – שעת סיום שונה', kilometers: 11
-  }));
-  dashboardRows.push(baseDashboard({
-    date: '2027-01-06', startTime: '09:00', endTime: '09:45', workHours: 1,
-    program: 'T04 – שעת סיום שונה', kilometers: 11, activityId: 'test-04'
-  }));
+    // T03: course — five-minute day-edge tolerance around a 90-minute dashboard meeting.
+    attendanceRecord({
+      attendanceDate: '2027-01-05', startTime: '08:55', endTime: '10:35', workHours: 2,
+      programName: 'T03 – טולרנס 5 דקות', schoolName: 'בית ספר בדיקה ג', sessionNumber: '3', kilometers: 16
+    }),
 
-  // T05: daily kilometers differ. This deliberately exercises the payroll km rule.
-  attendanceRows.push(baseAttendance({
-    date: '2027-01-07', program: 'T05 – פער ק״מ', kilometers: 30
-  }));
-  dashboardRows.push(baseDashboard({
-    date: '2027-01-07', program: 'T05 – פער ק״מ', kilometers: 20, activityId: 'test-05'
-  }));
+    // T04A + T04B: cancellation time stays in the same chronological workday.
+    attendanceRecord({
+      attendanceDate: '2027-01-06', startTime: '08:00', endTime: '10:00', workHours: 2,
+      programName: 'T04 – קורס לפני ביטול זמן', schoolName: 'בית ספר בדיקה ד', sessionNumber: '4', kilometers: 18
+    }),
+    attendanceRecord({
+      attendanceDate: '2027-01-06', startTime: '10:00', endTime: '11:00', workHours: 1,
+      activityType: 'ביטול זמן', programName: 'T04 – ביטול זמן', schoolName: 'בית ספר בדיקה ד',
+      sessionNumber: '', kilometers: 0, notes: 'דיווח שכר ידני לבדיקה'
+    }),
 
-  // T06: dashboard route cannot be calculated.
-  attendanceRows.push(baseAttendance({
-    date: '2027-01-08', program: 'T06 – ק״מ לא ניתן לחישוב', kilometers: 10
-  }));
-  dashboardRows.push(baseDashboard({
-    date: '2027-01-08', program: 'T06 – ק״מ לא ניתן לחישוב', kilometers: null, activityId: 'test-06'
-  }));
+    // T05: training exists only in attendance and requires manual payroll review.
+    attendanceRecord({
+      attendanceDate: '2027-01-07', startTime: '14:00', endTime: '16:00', workHours: 2,
+      activityType: 'הכשרה', schoolName: 'זום', municipality: '', programName: 'T05 – הכשרה',
+      sessionNumber: '', kilometers: 0
+    }),
 
-  // T07: expense value differs.
-  attendanceRows.push(baseAttendance({
-    date: '2027-01-09', program: 'T07 – פער הוצאות', kilometers: 9, expenses: 50
-  }));
-  dashboardRows.push(baseDashboard({
-    date: '2027-01-09', program: 'T07 – פער הוצאות', kilometers: 9, expenses: 20, activityId: 'test-07'
-  }));
+    // T06: operations exists only in attendance and requires manual payroll review.
+    attendanceRecord({
+      attendanceDate: '2027-01-08', startTime: '17:00', endTime: '17:30', workHours: 0.5,
+      activityType: 'תפעול', schoolName: '', municipality: '', programName: 'T06 – תפעול',
+      sessionNumber: '', kilometers: 0
+    }),
 
-  // T08: attendance report without a corresponding dashboard activity.
-  attendanceRows.push(baseAttendance({
-    employeeId: '9903', employeeName: 'מדריך בדיקה ג', date: '2027-01-10',
-    program: 'T08 – נוכחות ללא פעילות בדשבורד', school: 'בית ספר בדיקה ג', kilometers: 7
-  }));
+    // T07: workshop — use the actual reported work-hours field, without course conversion.
+    attendanceRecord({
+      employeeId: '9902', employeeName: 'מדריך בדיקה ב', attendanceDate: '2027-01-09',
+      startTime: '09:00', endTime: '13:00', workHours: 4, activityType: 'סדנה',
+      schoolName: 'מרכז בדיקה א', programName: 'T07 – סדנה', sessionNumber: '', kilometers: 12
+    }),
 
-  // T09: dashboard activity without attendance.
-  dashboardRows.push(baseDashboard({
-    employeeId: '9904', employeeName: 'מדריך בדיקה ד', date: '2027-01-11',
-    program: 'T09 – פעילות בדשבורד ללא נוכחות', school: 'בית ספר בדיקה ד',
-    kilometers: 8, schoolId: 99004, activityId: 'test-09'
-  }));
+    // T08: summer workshop uses the distinct Attendance label found in real payroll data.
+    attendanceRecord({
+      employeeId: '9902', employeeName: 'מדריך בדיקה ב', attendanceDate: '2027-01-10',
+      startTime: '09:00', endTime: '13:00', workHours: 4, activityType: 'סדנאות קיץ',
+      schoolName: 'מרכז בדיקה קיץ', programName: 'T08 – סדנאות קיץ', sessionNumber: '', kilometers: 14
+    }),
 
-  // T10: attendance-only activity; should stay in the workday timeline without activity matching.
-  attendanceRows.push(baseAttendance({
-    employeeId: '9902', employeeName: 'מדריך בדיקה ב', date: '2027-01-12',
-    startTime: '14:00', endTime: '16:00', workHours: 2, activityType: 'הכשרה',
-    school: '', authority: '', program: 'T10 – הכשרה', meetingNo: '', kilometers: 0
-  }));
+    // T09: tour — payroll hours follow the reported duration, not the course 45/60 rule.
+    attendanceRecord({
+      employeeId: '9902', employeeName: 'מדריך בדיקה ב', attendanceDate: '2027-01-11',
+      startTime: '10:05', endTime: '12:00', workHours: 1.92, activityType: 'סיור',
+      schoolName: 'אתר סיור בדיקה', programName: 'T09 – סיור', sessionNumber: '', kilometers: 22
+    }),
 
-  // T11: two schools on the same day; daily reported/calculated km totals both equal 40.
-  attendanceRows.push(baseAttendance({
-    employeeId: '9905', employeeName: 'מדריך בדיקה ה', date: '2027-01-13',
-    startTime: '08:00', endTime: '09:00', program: 'T11A – מסלול יומי',
-    school: 'בית ספר בדיקה ה1', kilometers: 15
-  }));
-  attendanceRows.push(baseAttendance({
-    employeeId: '9905', employeeName: 'מדריך בדיקה ה', date: '2027-01-13',
-    startTime: '11:00', endTime: '12:00', program: 'T11B – מסלול יומי',
-    school: 'בית ספר בדיקה ה2', kilometers: 25, meetingNo: '2'
-  }));
-  dashboardRows.push(baseDashboard({
-    employeeId: '9905', employeeName: 'מדריך בדיקה ה', date: '2027-01-13',
-    startTime: '08:00', endTime: '08:45', program: 'T11A – מסלול יומי',
-    school: 'בית ספר בדיקה ה1', kilometers: 15, schoolId: 99005, activityId: 'test-11a'
-  }));
-  dashboardRows.push(baseDashboard({
-    employeeId: '9905', employeeName: 'מדריך בדיקה ה', date: '2027-01-13',
-    startTime: '11:00', endTime: '11:45', program: 'T11B – מסלול יומי',
-    school: 'בית ספר בדיקה ה2', kilometers: 25, meetingNo: '2', schoolId: 99006, activityId: 'test-11b'
-  }));
+    // T10: escape room — 45 clock minutes remain 0.75 reported hours; no course conversion.
+    attendanceRecord({
+      employeeId: '9902', employeeName: 'מדריך בדיקה ב', attendanceDate: '2027-01-12',
+      startTime: '10:00', endTime: '10:45', workHours: 0.75, activityType: 'חדר בריחה',
+      schoolName: 'בית ספר בדיקה ה', programName: 'T10 – חדר בריחה', sessionNumber: '', kilometers: 10
+    }),
 
-  // T12: non-standard dashboard duration; payroll hours must remain explicitly reviewable.
-  attendanceRows.push(baseAttendance({
-    employeeId: '9903', employeeName: 'מדריך בדיקה ג', date: '2027-01-14',
-    startTime: '13:00', endTime: '14:00', workHours: 1,
-    program: 'T12 – שעות שכר לבדיקה', school: 'בית ספר בדיקה ג', kilometers: 6
-  }));
-  dashboardRows.push(baseDashboard({
-    employeeId: '9903', employeeName: 'מדריך בדיקה ג', date: '2027-01-14',
-    startTime: '13:00', endTime: '14:00', workHours: null,
-    payrollHoursRequireReview: true,
-    program: 'T12 – שעות שכר לבדיקה', school: 'בית ספר בדיקה ג',
-    kilometers: 6, schoolId: 99003, activityId: 'test-12'
-  }));
+    // T11: Attendance contains a payable report with no corresponding dashboard activity.
+    attendanceRecord({
+      employeeId: '9903', employeeName: 'מדריך בדיקה ג', attendanceDate: '2027-01-13',
+      startTime: '08:00', endTime: '10:00', workHours: 2, activityType: 'קורס',
+      schoolName: 'בית ספר בדיקה חסר', programName: 'T11 – נוכחות ללא דשבורד', sessionNumber: '1', kilometers: 8
+    }),
 
-  return { attendanceRows, dashboardRows };
+    // T12: reported km differs from the dashboard route calculation (30 vs 20).
+    attendanceRecord({
+      employeeId: '9903', employeeName: 'מדריך בדיקה ג', attendanceDate: '2027-01-15',
+      startTime: '09:00', endTime: '10:00', workHours: 1,
+      schoolName: 'בית ספר בדיקה ו', programName: 'T12 – פער ק״מ', kilometers: 30
+    }),
+
+    // T13: attendance has km but dashboard route data is incomplete.
+    attendanceRecord({
+      employeeId: '9903', employeeName: 'מדריך בדיקה ג', attendanceDate: '2027-01-16',
+      startTime: '09:00', endTime: '10:00', workHours: 1,
+      schoolName: 'בית ספר ללא מסלול', programName: 'T13 – ק״מ לא ניתן לחישוב', kilometers: 10
+    }),
+
+    // T14: expense is a payroll component. Even a matching supporting expense record still needs approval.
+    attendanceRecord({
+      employeeId: '9903', employeeName: 'מדריך בדיקה ג', attendanceDate: '2027-01-17',
+      startTime: '09:00', endTime: '10:00', workHours: 1,
+      schoolName: 'בית ספר בדיקה ז', programName: 'T14 – הוצאה לאישור', kilometers: 6,
+      totalExpenses: 50, expensesDetails: 'חניה', notes: 'הוצאה שדווחה בנוכחות'
+    }),
+
+    // T15: workHours is intentionally independent from the start/end span and must be preserved.
+    attendanceRecord({
+      employeeId: '9903', employeeName: 'מדריך בדיקה ג', attendanceDate: '2027-01-18',
+      startTime: '08:00', endTime: '14:00', workHours: 5, activityType: 'סדנה',
+      schoolName: 'מרכז בדיקה ב', programName: 'T15 – שעות שכר מדווחות', sessionNumber: '', kilometers: 4
+    })
+  ];
+
+  const activities = [
+    dashboardActivity(),
+    dashboardActivity({
+      row_id: 'test-02', school: 'בית ספר בדיקה ב', school_id: 99002, activity_name: 'T02 – קורס 90 דקות',
+      meetings: [{ date: '2027-01-04', start_time: '10:00', end_time: '11:30', meeting_no: 2 }]
+    }),
+    dashboardActivity({
+      row_id: 'test-03', school: 'בית ספר בדיקה ג', school_id: 99003, activity_name: 'T03 – טולרנס 5 דקות',
+      meetings: [{ date: '2027-01-05', start_time: '09:00', end_time: '10:30', meeting_no: 3 }]
+    }),
+    dashboardActivity({
+      row_id: 'test-04', school: 'בית ספר בדיקה ד', school_id: 99004, activity_name: 'T04 – קורס לפני ביטול זמן',
+      meetings: [{ date: '2027-01-06', start_time: '08:00', end_time: '09:30', meeting_no: 4 }]
+    }),
+    dashboardActivity({
+      row_id: 'test-07', emp_id: '9902', instructor_name: 'מדריך בדיקה ב', activity_type: 'workshop', item_type: 'workshop',
+      school: 'מרכז בדיקה א', school_id: 99007, activity_name: 'T07 – סדנה',
+      meetings: [{ date: '2027-01-09', start_time: '09:00', end_time: '13:00' }]
+    }),
+    dashboardActivity({
+      row_id: 'test-08', emp_id: '9902', instructor_name: 'מדריך בדיקה ב', activity_type: 'workshop', item_type: 'workshop',
+      activity_season: 'summer_2026', school: 'מרכז בדיקה קיץ', school_id: 99008, activity_name: 'T08 – סדנאות קיץ',
+      meetings: [{ date: '2027-01-10', start_time: '09:00', end_time: '13:00' }]
+    }),
+    dashboardActivity({
+      row_id: 'test-09', emp_id: '9902', instructor_name: 'מדריך בדיקה ב', activity_type: 'tour', item_type: 'tour',
+      school: 'אתר סיור בדיקה', school_id: 99009, activity_name: 'T09 – סיור',
+      meetings: [{ date: '2027-01-11', start_time: '10:05', end_time: '12:00' }]
+    }),
+    dashboardActivity({
+      row_id: 'test-10', emp_id: '9902', instructor_name: 'מדריך בדיקה ב', activity_type: 'escape_room', item_type: 'escape_room',
+      school: 'בית ספר בדיקה ה', school_id: 99010, activity_name: 'T10 – חדר בריחה',
+      meetings: [{ date: '2027-01-12', start_time: '10:00', end_time: '10:45' }]
+    }),
+    // T11B: dashboard activity with no Attendance report.
+    dashboardActivity({
+      row_id: 'test-11b', emp_id: '9903', instructor_name: 'מדריך בדיקה ג',
+      school: 'בית ספר בדיקה ללא נוכחות', school_id: 99011, activity_name: 'T11B – דשבורד ללא נוכחות',
+      meetings: [{ date: '2027-01-14', start_time: '11:00', end_time: '11:45', meeting_no: 1 }]
+    }),
+    dashboardActivity({
+      row_id: 'test-12', emp_id: '9903', instructor_name: 'מדריך בדיקה ג',
+      school: 'בית ספר בדיקה ו', school_id: 99012, activity_name: 'T12 – פער ק״מ',
+      meetings: [{ date: '2027-01-15', start_time: '09:00', end_time: '09:45', meeting_no: 1 }]
+    }),
+    dashboardActivity({
+      row_id: 'test-13', emp_id: '9903', instructor_name: 'מדריך בדיקה ג',
+      school: 'בית ספר ללא מסלול', school_id: 99013, activity_name: 'T13 – ק״מ לא ניתן לחישוב',
+      meetings: [{ date: '2027-01-16', start_time: '09:00', end_time: '09:45', meeting_no: 1 }]
+    }),
+    dashboardActivity({
+      row_id: 'test-14', emp_id: '9903', instructor_name: 'מדריך בדיקה ג',
+      school: 'בית ספר בדיקה ז', school_id: 99014, activity_name: 'T14 – הוצאה לאישור',
+      meetings: [{ date: '2027-01-17', start_time: '09:00', end_time: '09:45', meeting_no: 1 }]
+    }),
+    dashboardActivity({
+      row_id: 'test-15', emp_id: '9903', instructor_name: 'מדריך בדיקה ג', activity_type: 'workshop', item_type: 'workshop',
+      school: 'מרכז בדיקה ב', school_id: 99015, activity_name: 'T15 – שעות שכר מדווחות',
+      meetings: [{ date: '2027-01-18', start_time: '08:00', end_time: '14:00' }]
+    })
+  ];
+
+  const contacts = [
+    contact('9901', 'מדריך בדיקה א'),
+    contact('9902', 'מדריך בדיקה ב'),
+    contact('9903', 'מדריך בדיקה ג')
+  ];
+
+  // Distances represent one-way instructor→school cache values. The production
+  // route calculator adds the return-home leg on a single-stop day.
+  const travelCache = [
+    homeSchoolRoute('9901', 99001, 10),
+    homeSchoolRoute('9901', 99002, 12),
+    homeSchoolRoute('9901', 99003, 8),
+    homeSchoolRoute('9901', 99004, 9),
+    homeSchoolRoute('9902', 99007, 6),
+    homeSchoolRoute('9902', 99008, 7),
+    homeSchoolRoute('9902', 99009, 11),
+    homeSchoolRoute('9902', 99010, 5),
+    homeSchoolRoute('9903', 99011, 4),
+    homeSchoolRoute('9903', 99012, 10),
+    // Intentionally no route for T13 / school 99013.
+    homeSchoolRoute('9903', 99014, 3),
+    homeSchoolRoute('9903', 99015, 2)
+  ];
+
+  const expenses = [
+    { emp_id: '9903', expense_date: '2027-01-17', amount: 50, description: 'חניה' }
+  ];
+
+  return {
+    attendanceRecords,
+    dashboardSources: { activities, contacts, travelCache, expenses }
+  };
+}
+
+export function buildPayrollControlTestDataset(moduleApi) {
+  const required = [
+    'normalizeAttendanceApiRows',
+    'buildDashboardAttendanceRows',
+    'aggregateDashboardAttendanceRows',
+    'applyDashboardRouteKilometers',
+    'applyDashboardExpenses'
+  ];
+  if (!moduleApi || required.some((key) => typeof moduleApi[key] !== 'function')) {
+    throw new Error('payroll_test_module_api_required');
+  }
+
+  const sourceData = buildPayrollControlTestSourceData();
+  const attendanceRows = moduleApi.normalizeAttendanceApiRows(sourceData.attendanceRecords);
+  const dashboardSourceRows = moduleApi.buildDashboardAttendanceRows(
+    sourceData.dashboardSources.activities,
+    sourceData.dashboardSources.contacts
+  );
+  const dashboardRows = moduleApi.aggregateDashboardAttendanceRows(dashboardSourceRows);
+  moduleApi.applyDashboardRouteKilometers(dashboardRows, sourceData.dashboardSources.travelCache);
+  moduleApi.applyDashboardExpenses(dashboardRows, sourceData.dashboardSources.expenses);
+
+  return { attendanceRows, dashboardRows, sourceData };
 }
 
 function ensureTestModeStyles(doc) {
@@ -228,8 +345,8 @@ async function activateTestMode(doc) {
   button.disabled = true;
   status.textContent = 'טוען נתוני בדיקה של תשפ״ז…';
   try {
-    const moduleApi = await import('./screens/attendance-control.js?v=20260817-test-mode-v1');
-    const { attendanceRows, dashboardRows } = buildPayrollControlTestDataset();
+    const moduleApi = await import('./screens/attendance-control.js?v=20260817-test-mode-v2');
+    const { attendanceRows, dashboardRows, sourceData } = buildPayrollControlTestDataset(moduleApi);
     const result = moduleApi.compareAttendanceRows(attendanceRows, dashboardRows);
     result.month = PAYROLL_TEST_MONTH;
     panel.__payrollTestResult = result;
@@ -239,7 +356,7 @@ async function activateTestMode(doc) {
 
     title.textContent = 'בקרת שכר – מצב בדיקה תשפ״ז';
     status.textContent = '';
-    results.innerHTML = `<div class="payroll-test-mode-banner">מצב בדיקה תשפ״ז — נתונים פיקטיביים בלבד. אין קריאה או כתיבה ל-Supabase או למערכת הנוכחות.<small>התרחישים T01–T12 כוללים תקין 45/90 דקות, פערי שעות, ק״מ תקין/שונה/חסר, הוצאות, דיווח ללא פעילות, פעילות ללא דיווח, הכשרה, יום עם שני בתי ספר ושעות שכר לא סטנדרטיות. לחזרה לנתוני אמת יש לבצע בקרת שכר רגילה.</small></div>${moduleApi.resultsHtml(result, PAYROLL_TEST_MONTH)}`;
+    results.innerHTML = `<div class="payroll-test-mode-banner">מצב בדיקה תשפ״ז — שני מקורות נפרדים, כמו בעבודה האמיתית.<small>נוכחות: ${sourceData.attendanceRecords.length} דיווחי שכר במבנה Attendance. דשבורד: ${sourceData.dashboardSources.activities.length} פעילויות מתוכננות, עם נתוני מסלול והוצאות לבקרה. המנוע עצמו לא תוקן כאן — מצב הבדיקה נועד לחשוף איפה הבקרה הנוכחית מקבלת החלטה לא נכונה. אין קריאה או כתיבה ל-Supabase או למערכת הנוכחות.</small></div>${moduleApi.resultsHtml(result, PAYROLL_TEST_MONTH)}`;
     results.querySelector('[data-attendance-export]')?.remove();
   } catch (error) {
     console.error('[payroll-control-test-mode] failed', error);
