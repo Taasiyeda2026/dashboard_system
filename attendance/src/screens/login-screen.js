@@ -12,18 +12,16 @@ export function renderLoginScreen(container, { onLogin } = {}) {
 
   const logo = document.createElement('img');
   logo.className = 'av2-login__logo';
-  logo.src = new URL('../../assets/icons/icon-512.png', import.meta.url).href;
+  logo.src = new URL('../../assets/logo.png', import.meta.url).href;
   logo.alt = 'תעשיידע';
-  logo.width = 48;
-  logo.height = 48;
 
   const title = document.createElement('h1');
   title.className = 'av2-login__title';
-  title.textContent = 'תעשיידע – נוכחות';
+  title.textContent = 'תעשיידע';
 
   const subtitle = document.createElement('p');
   subtitle.className = 'av2-login__subtitle';
-  subtitle.textContent = 'Attendance V2';
+  subtitle.textContent = 'מערכת נוכחות';
 
   const form = document.createElement('form');
   form.className = 'av2-login__form';
@@ -31,12 +29,12 @@ export function renderLoginScreen(container, { onLogin } = {}) {
 
   const userField = createInputField({
     id: 'av2-username',
-    label: 'שם משתמש / מספר עובד',
+    label: 'מספר עובד',
     autocomplete: 'username'
   });
   const codeField = createInputField({
     id: 'av2-code',
-    label: 'קוד כניסה',
+    label: 'קוד אישי',
     type: 'password',
     autocomplete: 'current-password'
   });
@@ -45,13 +43,37 @@ export function renderLoginScreen(container, { onLogin } = {}) {
   submit.type = 'submit';
   submit.className = 'av2-btn av2-btn--primary av2-login__submit';
   const submitLabel = document.createElement('span');
-  submitLabel.textContent = 'כניסה';
+  submitLabel.textContent = 'כניסה למערכת';
   submit.append(createIcon('log-in', { className: 'av2-icon--flip-rtl' }), submitLabel);
 
-  form.append(userField.wrap, codeField.wrap, submit);
-  form.addEventListener('submit', (event) => {
+  const errorEl = document.createElement('p');
+  errorEl.className = 'av2-login__error';
+  errorEl.hidden = true;
+
+  function setBusy(busy) {
+    userField.input.disabled = busy;
+    codeField.input.disabled = busy;
+    submit.disabled = busy;
+    submitLabel.textContent = busy ? 'מתחבר…' : 'כניסה למערכת';
+  }
+
+  function showError(message) {
+    errorEl.textContent = message || '';
+    errorEl.hidden = !message;
+  }
+
+  form.append(userField.wrap, codeField.wrap, submit, errorEl);
+  form.addEventListener('submit', async (event) => {
     event.preventDefault();
-    onLogin?.({ username: userField.input.value.trim(), code: codeField.input.value.trim() });
+    showError('');
+    setBusy(true);
+    try {
+      await onLogin?.({ username: userField.input.value.trim(), code: codeField.input.value.trim() });
+    } catch (error) {
+      showError(error?.message || 'שגיאה בהתחברות');
+    } finally {
+      setBusy(false);
+    }
   });
 
   inner.append(logo, title, subtitle, form);

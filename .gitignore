@@ -18,6 +18,9 @@ coverage/
 .env
 env
 
+# Vendored third-party bundle synced from node_modules — see scripts/sync-attendance-vendor.mjs
+attendance/vendor/
+
 # Playwright E2E — temporary auth/session and local reports only
 e2e/.auth/
 e2e/artifacts/

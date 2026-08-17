@@ -1,4 +1,5 @@
-// Prototype-only fake data. No Supabase, no network calls — replaced in a later phase.
+// Fake report data only — activity types, month summary and the reports list are not
+// backed by any table yet. Instructor identity itself is real (see auth/identity.service.js).
 
 export const ACTIVITY_TYPES = [
   'ביטול זמן',
@@ -10,11 +11,6 @@ export const ACTIVITY_TYPES = [
   'קורס',
   'תפעול'
 ];
-
-export const mockInstructor = {
-  name: 'דנה כהן',
-  empId: '1502'
-};
 
 export const mockMonthSummary = {
   monthLabel: 'אוגוסט 2026',
