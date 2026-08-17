@@ -61,6 +61,9 @@ if (isRealBrowser) {
   import('./payroll-control-test-mode.js?v=20260817-v2').catch((error) => {
     console.error('[payroll-control-test-mode] load failed', error);
   });
+  import('./payroll-control-test-review-fix.js?v=20260817-v1').catch((error) => {
+    console.error('[payroll-control-test-review-fix] load failed', error);
+  });
 }
 
 if (typeof document !== 'undefined') {
