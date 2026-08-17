@@ -8,6 +8,11 @@ import {
   dsEmptyState
 } from './shared/layout.js';
 import { showToast } from './shared/toast.js';
+import {
+  COURSE_ASSIGNMENT_MANAGER_APPROVAL_REQUEST_TYPE,
+  loadCourseAssignmentManagerApprovalGroups,
+  reviewCourseAssignmentManagerApproval
+} from './shared/course-scheduling-manager-approval.js';
 
 function statusLabel(status) {
   if (status === 'pending') return 'ממתין';
@@ -48,6 +53,8 @@ function fieldLabelHe(field) {
   const f = String(field || '').trim();
   if (!f) return 'שדה';
   if (f === 'status') return 'סטטוס פעילות';
+  if (f === 'scheduling_selected_instructor') return 'מדריך שנבחר';
+  if (f === 'scheduling_exception_reason') return 'סיבת החריגה';
   const m = /^date_(\d+)$/.exec(f);
   if (m) return `מפגש ${Number(m[1])}`;
   return hebrewColumn(f);
@@ -91,12 +98,17 @@ function instructorLine(activity) {
 }
 
 function requestTypeLabel(type) {
-  return String(type || '') === 'create_activity' ? 'בקשה להוספת פעילות' : 'בקשת עריכה';
+  const requestType = String(type || '');
+  if (requestType === 'create_activity') return 'בקשה להוספת פעילות';
+  if (requestType === COURSE_ASSIGNMENT_MANAGER_APPROVAL_REQUEST_TYPE) return 'אישור חריגה בשיבוץ';
+  return 'בקשת עריכה';
 }
 
 function renderGroup(group, canReview) {
   const activity = group.activity || null;
-  const isCreateRequest = String(group.request_type || '') === 'create_activity';
+  const requestType = String(group.request_type || '');
+  const isCreateRequest = requestType === 'create_activity';
+  const isSchedulingApproval = requestType === COURSE_ASSIGNMENT_MANAGER_APPROVAL_REQUEST_TYPE;
   const hasActivity = Boolean(activity);
   const titleName = String(group.activity_name || activity?.activity_name || '').trim() || 'פעילות ללא שם';
   const rowId = String(group.source_row_id || '').trim();
@@ -114,12 +126,19 @@ function renderGroup(group, canReview) {
   const endD = formatDateDisplay(String((isCreateRequest ? group?.requested_payload?.end_date : activity?.end_date) || '').trim());
   const startEnd = [startD, endD].filter(Boolean).join(' — ') || '—';
 
-  const warnIncomplete = (!hasActivity && !isCreateRequest)
+  const warnIncomplete = (!hasActivity && !isCreateRequest && !isSchedulingApproval)
     ? `<div class="ds-er-warn" role="alert">לא נמצאו פרטי פעילות מלאים לבדיקה — לא ניתן לאשר עד שנטענת הפעילות מהמערכת.</div>`
     : '';
 
   const fieldsRows = (group.fields || []).map((f) => {
     const { oldHtml, newHtml } = displayOldNew(f.field_name, f.old_value, f.new_value);
+    if (isSchedulingApproval) {
+      return `
+      <tr>
+        <td class="ds-er-field-name">${escapeHtml(fieldLabelHe(f.field_name))}</td>
+        <td class="ds-er-new" colspan="3">${newHtml}</td>
+      </tr>`;
+    }
     return `
     <tr>
       <td class="ds-er-field-name">${escapeHtml(fieldLabelHe(f.field_name))}</td>
@@ -142,14 +161,14 @@ function renderGroup(group, canReview) {
   ` : '';
 
   return `
-    <article class="ds-er-group" data-status="${escapeHtml(group.status || '')}" data-request-id="${escapeHtml(group.request_id)}">
+    <article class="ds-er-group" data-status="${escapeHtml(group.status || '')}" data-request-id="${escapeHtml(group.request_id)}" data-request-type="${escapeHtml(requestType)}">
       <header class="ds-er-card-head">
-        <h3 class="ds-er-card-title">${escapeHtml(requestTypeLabel(group.request_type))}: ${escapeHtml(titleName)}</h3>
+        <h3 class="ds-er-card-title">${escapeHtml(requestTypeLabel(requestType))}: ${escapeHtml(titleName)}</h3>
         <div>${dsStatusChip(statusLabel(group.status), statusVariant(group.status))}</div>
       </header>
       <div class="ds-er-meta-grid" dir="rtl">
         <p><span class="ds-muted">מזהה:</span> <strong>${escapeHtml(rowId || (isCreateRequest ? 'ייווצר באישור' : '—'))}</strong></p>
-        <p><span class="ds-muted">סוג בקשה:</span> ${escapeHtml(requestTypeLabel(group.request_type))}</p>
+        <p><span class="ds-muted">סוג בקשה:</span> ${escapeHtml(requestTypeLabel(requestType))}</p>
         <p><span class="ds-muted">סוג פעילות:</span> ${escapeHtml(activityType)}</p>
         <p><span class="ds-muted">רשות:</span> ${escapeHtml(authority)}</p>
         <p><span class="ds-muted">בית ספר:</span> ${escapeHtml(school)}</p>
@@ -164,16 +183,13 @@ function renderGroup(group, canReview) {
         ${escapeHtml(formatDateDisplay(group.requested_at) || String(group.requested_at || '—'))}
       </p>
       ${warnIncomplete}
-      <h4 class="ds-er-section-title">${isCreateRequest ? 'פרטי הפעילות המבוקשת' : 'מה השתנה?'}</h4>
+      <h4 class="ds-er-section-title">${isSchedulingApproval ? 'פרטי החריגה' : (isCreateRequest ? 'פרטי הפעילות המבוקשת' : 'מה השתנה?')}</h4>
       <div class="ds-table-wrap ds-er-fields-wrap">
         <table class="ds-table ds-er-fields-table">
           <thead>
-            <tr>
-              <th>שדה</th>
-              <th>${isCreateRequest ? 'פרט' : 'ערך נוכחי'}</th>
-              <th></th>
-              <th>${isCreateRequest ? 'ערך' : 'ערך מבוקש'}</th>
-            </tr>
+            ${isSchedulingApproval
+              ? '<tr><th>פרט</th><th colspan="3">ערך</th></tr>'
+              : `<tr><th>שדה</th><th>${isCreateRequest ? 'פרט' : 'ערך נוכחי'}</th><th></th><th>${isCreateRequest ? 'ערך' : 'ערך מבוקש'}</th></tr>`}
           </thead>
           <tbody>${fieldsRows}</tbody>
         </table>
@@ -191,10 +207,21 @@ function isOpen(group) {
 }
 
 export const editRequestsScreen = {
-  load: ({ api }) => api.editRequests(),
+  async load({ api }) {
+    const base = await api.editRequests();
+    const schedulingGroups = await loadCourseAssignmentManagerApprovalGroups();
+    return {
+      ...base,
+      groups: [...(Array.isArray(base?.groups) ? base.groups : []), ...schedulingGroups]
+    };
+  },
   render(data) {
     const groups = Array.isArray(data?.groups) ? data.groups : [];
-    const validGroups = groups.filter((group) => String(group?.request_type || '') === 'create_activity' || (Array.isArray(group?.fields) && group.fields.length > 0));
+    const validGroups = groups.filter((group) => (
+      String(group?.request_type || '') === 'create_activity'
+      || String(group?.request_type || '') === COURSE_ASSIGNMENT_MANAGER_APPROVAL_REQUEST_TYPE
+      || (Array.isArray(group?.fields) && group.fields.length > 0)
+    ));
     const canReview = !!data?.canReview;
 
     const openGroups = validGroups.filter(isOpen);
@@ -224,15 +251,32 @@ export const editRequestsScreen = {
         if (!requestId || !action) return;
 
         const status = action === 'approve' ? 'approved' : 'rejected';
+        const groupEl = btn.closest('.ds-er-group');
+        const requestType = groupEl?.dataset.requestType || '';
+        const isSchedulingApproval = requestType === COURSE_ASSIGNMENT_MANAGER_APPROVAL_REQUEST_TYPE;
         btn.disabled = true;
 
         try {
-          await api.reviewEditRequest(requestId, status);
-          const groupEl = btn.closest('.ds-er-group');
+          const reviewed = isSchedulingApproval
+            ? await reviewCourseAssignmentManagerApproval(requestId, status)
+            : await api.reviewEditRequest(requestId, status);
+
+          if (reviewed?.status === 'conflict') {
+            groupEl?.remove();
+            clearScreenDataCache?.();
+            showToast('הטיוטה השתנתה או בוטלה ולכן הבקשה אינה תקפה עוד', 'error');
+            rerender?.();
+            return;
+          }
+
           groupEl?.remove();
           clearScreenDataCache?.();
           try { document.dispatchEvent(new CustomEvent('app:edit-requests-updated')); } catch (_) { /* ignore */ }
-          showToast(status === 'approved' ? 'הבקשה אושרה והשינוי נשמר בפעילויות' : 'הבקשה נדחתה', 'success');
+          if (isSchedulingApproval) {
+            showToast(status === 'approved' ? 'הבקשה אושרה. ניתן להשלים את השיבוץ.' : 'הבקשה נדחתה', 'success');
+          } else {
+            showToast(status === 'approved' ? 'הבקשה אושרה והשינוי נשמר בפעילויות' : 'הבקשה נדחתה', 'success');
+          }
           rerender?.();
         } catch (err) {
           btn.disabled = false;
