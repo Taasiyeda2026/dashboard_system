@@ -106,11 +106,16 @@ Deno.serve(async (req) => {
     const employeePath = `${EMPLOYEE_FILES_ROOT}/${fullName}`;
     const employeeFolder = await ensureFolder(accessToken, EMPLOYEE_FILES_ROOT, fullName);
 
-    // Folders on the same hierarchy level are independent, so create/check them concurrently.
-    // Depth 1 must finish before depth 2 because the latter depends on the former.
-    const depths = [...new Set(FOLDER_PATHS.map((path) => path.split("/").length))].sort((a, b) => a - b);
-    for (const depth of depths) {
-      const levelPaths = FOLDER_PATHS.filter((path) => path.split("/").length === depth);
+    // Preserve hierarchy dependencies while allowing every folder on the same level to run concurrently.
+    const pathsByDepth = new Map<number, string[]>();
+    for (const relativePath of FOLDER_PATHS) {
+      const depth = relativePath.split("/").length;
+      const levelPaths = pathsByDepth.get(depth) || [];
+      levelPaths.push(relativePath);
+      pathsByDepth.set(depth, levelPaths);
+    }
+    for (const depth of [...pathsByDepth.keys()].sort((a, b) => a - b)) {
+      const levelPaths = pathsByDepth.get(depth) || [];
       await Promise.all(levelPaths.map(async (relativePath) => {
         const parts = relativePath.split("/");
         const parentRelative = parts.slice(0, -1).join("/");
