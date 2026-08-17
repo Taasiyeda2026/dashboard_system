@@ -1,14 +1,14 @@
 -- Finalize an explicit manual instructor choice without re-applying soft recommendation gates.
 --
 -- A manual override is trusted only when it is backed by the current persisted draft and
--- the matching audit row written by save_course_assignment_manual_draft().  The client
+-- the matching audit row written by save_course_assignment_manual_draft(). The client
 -- cannot enable this path with a flag.
 --
 -- Normal recommendation/draft confirmation keeps the full
 -- scheduling_course_instructor_violations() validation unchanged.
 -- Manual confirmation keeps hard feasibility gates: activity state, active instructor,
 -- valid meetings, Saturday/explicit Friday availability, explicit unavailability,
--- real overlap, and known-insufficient travel transitions.  Soft/unknown fit signals such
+-- real overlap, and known-insufficient travel transitions. Soft/unknown fit signals such
 -- as home distance > 40 km, missing route data, profile completeness, language/gender fit,
 -- missing availability rows, and unverified transition routes remain warnings only.
 
@@ -24,6 +24,7 @@ declare
   target public.activities;
   selected_instructor public.contacts_instructors;
   profile public.instructor_scheduling_profiles;
+  has_profile boolean := false;
   meeting jsonb;
   availability record;
   previous_activity record;
@@ -70,6 +71,7 @@ begin
   select * into profile
   from public.instructor_scheduling_profiles
   where emp_id = p_emp_id;
+  has_profile := found;
 
   target_location := public.scheduling_school_location(
     target.school_id,
@@ -90,13 +92,12 @@ begin
 
     -- Friday is a hard blocker only when the instructor has an explicit profile saying no.
     -- A missing profile is unknown fit data and remains a manual-selection warning.
-    if v_weekday = 5 and found and profile.friday_allowed is false then
+    if v_weekday = 5 and has_profile and profile.friday_allowed is false then
       if not ('scheduling_friday_not_allowed' = any(violations)) then
         violations := array_append(violations, 'scheduling_friday_not_allowed');
       end if;
     end if;
 
-    availability := null;
     select x.available, x.start_time, x.end_time into availability
     from (
       select e.available, e.start_time, e.end_time, 1 priority
@@ -110,7 +111,7 @@ begin
     order by x.priority
     limit 1;
 
-    -- Missing availability data is soft.  An explicit unavailable/out-of-window rule is hard.
+    -- Missing availability data is soft. An explicit unavailable/out-of-window rule is hard.
     if found and (
       availability.available is not true
       or availability.start_time is null
@@ -165,7 +166,7 @@ begin
         previous_activity.authority_id,
         previous_activity.authority
       );
-      -- Unknown route data is soft.  Only a known impossible transition blocks.
+      -- Unknown route data is soft. Only a known impossible transition blocks.
       if nullif(btrim(coalesce(previous_location, '')), '') is not null
         and nullif(btrim(coalesce(target_location, '')), '') is not null
       then
