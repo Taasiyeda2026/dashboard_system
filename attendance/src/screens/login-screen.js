@@ -29,13 +29,15 @@ export function renderLoginScreen(container, { onLogin } = {}) {
 
   const userField = createInputField({
     id: 'av2-username',
-    label: 'מספר עובד',
+    label: '',
+    placeholder: 'מספר עובד',
     autocomplete: 'username'
   });
   const codeField = createInputField({
     id: 'av2-code',
-    label: 'קוד אישי',
+    label: '',
     type: 'password',
+    placeholder: 'קוד אישי',
     autocomplete: 'current-password'
   });
 
