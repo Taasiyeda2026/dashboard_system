@@ -15,6 +15,12 @@
   --av2-space-4: 24px;
   --av2-space-5: 40px;
   --av2-font: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, Helvetica, sans-serif;
+  --av2-color-success-bg: #dcfce7;
+  --av2-color-success-text: #15803d;
+  --av2-color-warning-bg: #fef3c7;
+  --av2-color-warning-text: #b45309;
+  --av2-color-neutral-bg: #e5e7eb;
+  --av2-color-neutral-text: #4b5563;
 }
 
 * {
@@ -43,16 +49,22 @@ body {
   flex-direction: column;
 }
 
+/* Leaves room for the fixed bottom nav once a screen renders below it. */
+.app-shell--with-nav {
+  padding-bottom: 64px;
+}
+
 button {
   font-family: inherit;
 }
 
-/* Shared narrow app column — every screen centers its content here instead of stretching on desktop. */
+/* Shared narrow app column — every screen centers its content here instead of stretching on desktop.
+   This is how the app is actually used even on desktop, so it stays this size — no artificial "app frame". */
 .av2-container {
   width: 100%;
-  max-width: 460px;
+  max-width: 420px;
   margin-inline: auto;
-  padding-inline: var(--av2-space-4);
+  padding-inline: var(--av2-space-3);
 }
 
 .av2-btn {
@@ -62,19 +74,28 @@ button {
   cursor: pointer;
 }
 
-/* The one allowed prominent action per screen — full width of the narrow container, not the viewport. */
+/* The one allowed prominent action per screen — full width of the narrow container, not the viewport.
+   Visually ~38px (per design rules); ::after pads the real tap target out to 44px+ without widening the shape. */
 .av2-btn--primary {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: var(--av2-space-2);
   width: 100%;
-  min-height: 44px;
-  padding: 11px 20px;
+  min-height: 38px;
+  padding: 8px 18px;
+  border-radius: 10px;
   background: var(--av2-color-accent);
   color: var(--av2-color-accent-contrast);
-  font-size: 0.9375rem;
+  font-size: 0.875rem;
   font-weight: 600;
+}
+
+.av2-btn--primary::after {
+  content: '';
+  position: absolute;
+  inset: -4px 0;
 }
 
 .av2-btn--primary:active {
@@ -111,4 +132,74 @@ button {
 /* This app is RTL-only; directional icons (log-in/out, chevrons) are authored LTR and mirrored once here. */
 .av2-icon--flip-rtl {
   transform: scaleX(-1);
+}
+
+/* Shared form field used by every screen with inputs (login, new report, …). */
+.av2-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  text-align: start;
+}
+
+.av2-field__label {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--av2-color-text-muted);
+}
+
+.av2-field__input,
+.av2-field__select {
+  min-height: 38px;
+  padding: 0 10px;
+  border: 1px solid var(--av2-color-border);
+  border-radius: 10px;
+  background: var(--av2-color-surface);
+  color: var(--av2-color-text);
+  font-family: inherit;
+  font-size: 0.875rem;
+}
+
+.av2-field__input:focus,
+.av2-field__select:focus {
+  outline: 2px solid var(--av2-color-accent);
+  outline-offset: 1px;
+}
+
+/* Shared compact row: used for both list rows (my reports) and quiet nav rows (home). */
+.av2-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  background: var(--av2-color-surface);
+  border: 1px solid var(--av2-color-border);
+  border-radius: 10px;
+}
+
+/* Small status pill — success/warning/neutral tones share one shape. */
+.av2-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.av2-badge--success {
+  background: var(--av2-color-success-bg);
+  color: var(--av2-color-success-text);
+}
+
+.av2-badge--warning {
+  background: var(--av2-color-warning-bg);
+  color: var(--av2-color-warning-text);
+}
+
+.av2-badge--neutral {
+  background: var(--av2-color-neutral-bg);
+  color: var(--av2-color-neutral-text);
 }
