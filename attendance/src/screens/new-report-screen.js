@@ -21,6 +21,7 @@ import {
   getSchoolOptions,
   calcHours,
   getAllAuthoritySchoolList,
+  getActivityNamesByType,
   HEBREW_ACTIVITY_TYPES,
   toHebrewType,
 } from '../services/activities.service.js';
@@ -286,17 +287,25 @@ export function renderNewReportScreen(container, {
     form.className = 'av2-report__form';
     form.noValidate = true;
 
-    // ── ROW 1: שם פעילות (full-width) ─────────────────────────────────
-    const activityNameField = createInputField({
+    // ── ROW 1: שם פעילות (full-width) — searchable dropdown, filtered by type ──
+    const activityNameSel = createSearchableSelect({
       id: 'av2-activity-name',
       label: 'שם פעילות',
-      value: prefillRecord?.activity_name_snapshot || activity?.activity_name || '',
-      placeholder: 'שם התוכנית או הפעילות',
+      options: [],
+      placeholder: 'בחר לאחר בחירת סוג פעילות',
+      searchPlaceholder: 'חיפוש שם פעילות…',
+      emptyText: 'לא נמצאו פעילויות מסוג זה',
+      onChange() {},
     });
-    activityNameField.wrap.classList.add('av2-field--full');
-    form.append(activityNameField.wrap);
+    activityNameSel.wrap.classList.add('av2-field--full');
+    form.append(activityNameSel.wrap);
 
     // ── ROW 2: Activity type + Meeting no ──────────────────────────────
+    // Determine initial Hebrew type from planned activity or duplicate source
+    const initialHebrewType = prefillRecord?.activity_type
+      || (activity ? toHebrewType(activity.activity_type) : '')
+      || '';
+
     const typeField = createSelectField({
       id: 'av2-activity-type',
       label: 'סוג פעילות',
@@ -304,7 +313,7 @@ export function renderNewReportScreen(container, {
         { value: '', label: 'בחר' },
         ...HEBREW_ACTIVITY_TYPES.map(t => ({ value: t, label: t })),
       ],
-      value: prefillRecord?.activity_type || '',
+      value: initialHebrewType,
     });
 
     const meetingVal = prefillRecord?.meeting_no != null ? String(prefillRecord.meeting_no)
@@ -320,6 +329,29 @@ export function renderNewReportScreen(container, {
     meetingField.wrap.classList.add('av2-field--narrow');
 
     form.append(typeField.wrap, meetingField.wrap);
+
+    // ── Type change → reload activity name options ──────────────────────
+    typeField.input.addEventListener('change', async () => {
+      activityNameSel.reset();
+      const hebrewType = typeField.input.value;
+      if (!hebrewType) { activityNameSel.setOptions([]); return; }
+      const names = await getActivityNamesByType(hebrewType);
+      activityNameSel.setOptions(names);
+    });
+
+    // Eagerly load options when type is already known (pre-fill / duplicate)
+    if (initialHebrewType) {
+      const initialNameStr = prefillRecord?.activity_name_snapshot || activity?.activity_name || '';
+      getActivityNamesByType(initialHebrewType)
+        .then(names => {
+          activityNameSel.setOptions(names);
+          if (initialNameStr) activityNameSel.setValue(initialNameStr, initialNameStr);
+        })
+        .catch(() => {
+          const s = prefillRecord?.activity_name_snapshot || activity?.activity_name || '';
+          if (s) activityNameSel.setValue(s, s);
+        });
+    }
 
     // ── ROW 2: Authority + School ───────────────────────────────────────
     // Mutable state for submit handler
@@ -592,7 +624,7 @@ export function renderNewReportScreen(container, {
 
       // ── Full validation — clear then re-mark ──────────────────────
       errorEl.hidden = true;
-      [activityNameField.wrap, typeField.wrap, startPicker.wrap, endPicker.wrap, authorityEl]
+      [activityNameSel.wrap, typeField.wrap, startPicker.wrap, endPicker.wrap, authorityEl]
         .forEach(w => w?.classList.remove('av2-field--invalid'));
 
       const missing = [];
@@ -604,7 +636,7 @@ export function renderNewReportScreen(container, {
         if (!firstInvalid) firstInvalid = wrap;
       }
 
-      if (!activityNameField.input.value.trim()) markInvalid(activityNameField.wrap, 'שם פעילות');
+      if (!activityNameSel.getLabel().trim()) markInvalid(activityNameSel.wrap, 'שם פעילות');
       if (!typeField.input.value)                markInvalid(typeField.wrap, 'סוג פעילות');
       if (!startTime)                            markInvalid(startPicker.wrap, 'שעת התחלה');
       if (!endTime)                              markInvalid(endPicker.wrap, 'שעת סיום');
@@ -642,7 +674,7 @@ export function renderNewReportScreen(container, {
           activity_row_id:         activity?.row_id          ?? null,
           activity_no:             activity?.activity_no     ?? null,
           activity_season:         activity?.activity_season ?? null,
-          activity_name_snapshot:  activityNameField.input.value.trim() || (activity?.activity_name ?? null),
+          activity_name_snapshot:  activityNameSel.getLabel().trim() || (activity?.activity_name ?? null),
           meeting_no:              meetingField.input.value ? Number(meetingField.input.value) : null,
           authority_id:            finalAuthorityId,
           authority_name_snapshot: finalAuthorityName,
