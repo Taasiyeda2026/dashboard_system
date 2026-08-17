@@ -52,73 +52,18 @@ function fakeChallengeId() {
   return crypto.randomUUID();
 }
 
-function createVerificationCode() {
-  const values = new Uint32Array(1);
-  do crypto.getRandomValues(values); while (values[0] >= 4_294_000_000);
-  return String(values[0] % 1_000_000).padStart(6, '0');
-}
-
 async function sha256(value: string) {
   const bytes = new TextEncoder().encode(value);
   const digest = await crypto.subtle.digest('SHA-256', bytes);
   return Array.from(new Uint8Array(digest)).map((byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
-async function graphAccessToken() {
-  const tenant = String(Deno.env.get('MS_TENANT_ID') || '').trim();
-  const clientId = String(Deno.env.get('MS_CLIENT_ID') || '').trim();
-  const clientSecret = String(Deno.env.get('MS_CLIENT_SECRET') || '').trim();
-  if (!tenant || !clientId || !clientSecret) throw new Error('microsoft_graph_not_configured');
-
-  const response = await fetch(`https://login.microsoftonline.com/${encodeURIComponent(tenant)}/oauth2/v2.0/token`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      client_id: clientId,
-      client_secret: clientSecret,
-      grant_type: 'client_credentials',
-      scope: 'https://graph.microsoft.com/.default'
-    })
-  });
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok || !payload?.access_token) throw new Error(`microsoft_graph_token_${response.status}`);
-  return String(payload.access_token);
-}
-
-async function sendVerificationCode(email: string, code: string) {
-  const accessToken = await graphAccessToken();
-  const sender = normalizeEmail(Deno.env.get('PASSWORD_RESET_SENDER_EMAIL') || 'office@think.org.il');
-  const body = `
-    <div dir="rtl" style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;color:#172033;line-height:1.6">
-      <h2 style="margin:0 0 12px">איפוס קוד כניסה – תעשיידע</h2>
-      <p>התקבלה בקשה לאיפוס קוד הכניסה למערכת.</p>
-      <p>קוד האימות שלך:</p>
-      <div dir="ltr" style="font-size:30px;font-weight:700;letter-spacing:8px;padding:14px 18px;background:#f1f5f9;border-radius:10px;text-align:center">${code}</div>
-      <p>הקוד תקף למשך ${CHALLENGE_MINUTES} דקות. יש להזין אותו במסך האיפוס הפתוח במערכת ולבחור קוד כניסה חדש.</p>
-      <p style="color:#64748b;font-size:13px">אם לא ביקשת לאפס את קוד הכניסה, אפשר להתעלם מהודעה זו.</p>
-    </div>`;
-
-  const response = await fetch(`https://graph.microsoft.com/v1.0/users/${encodeURIComponent(sender)}/sendMail`, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${accessToken}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      message: {
-        subject: 'קוד אימות לאיפוס הכניסה – תעשיידע',
-        body: { contentType: 'HTML', content: body },
-        toRecipients: [{ emailAddress: { address: email } }]
-      },
-      saveToSentItems: false
-    })
-  });
-
-  if (!response.ok) {
-    const text = await response.text().catch(() => '');
-    console.error('password_recovery_graph_send_failed', response.status, text.slice(0, 300));
-    throw new Error(`microsoft_graph_send_${response.status}`);
-  }
+async function incrementAttempt(admin: ReturnType<typeof createClient>, challengeId: string, attempts: number) {
+  await admin
+    .from('password_recovery_challenges')
+    .update({ attempts: Math.min(10, Number(attempts || 0) + 1) })
+    .eq('id', challengeId)
+    .is('consumed_at', null);
 }
 
 Deno.serve(async (req: Request) => {
@@ -137,7 +82,10 @@ Deno.serve(async (req: Request) => {
   const action = String(payload?.action || 'request').trim().toLowerCase();
   const supabaseUrl = Deno.env.get('SUPABASE_URL') || '';
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
-  if (!supabaseUrl || !serviceRoleKey) return json(origin, { ok: action === 'request', challenge_id: fakeChallengeId() });
+  const anonKey = Deno.env.get('SUPABASE_ANON_KEY') || '';
+  if (!supabaseUrl || !serviceRoleKey || !anonKey) {
+    return json(origin, { ok: action === 'request', challenge_id: fakeChallengeId() });
+  }
 
   const admin = createClient(supabaseUrl, serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false }
@@ -153,7 +101,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: challenge } = await admin
       .from('password_recovery_challenges')
-      .select('id,user_id,auth_user_id,email,code_hash,expires_at,attempts,consumed_at')
+      .select('id,user_id,auth_user_id,email,expires_at,attempts,consumed_at')
       .eq('id', challengeId)
       .maybeSingle();
 
@@ -162,17 +110,23 @@ Deno.serve(async (req: Request) => {
       return json(origin, { ok: false, error: 'invalid_or_expired' });
     }
 
-    const codeHash = await sha256(code);
-    if (codeHash !== String(challenge.code_hash || '')) {
-      await admin
-        .from('password_recovery_challenges')
-        .update({ attempts: Math.min(10, Number(challenge.attempts || 0) + 1) })
-        .eq('id', challengeId)
-        .is('consumed_at', null);
+    const verifier = createClient(supabaseUrl, anonKey, {
+      auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
+    });
+    const { data: verification, error: verificationError } = await verifier.auth.verifyOtp({
+      email: String(challenge.email),
+      token: code,
+      type: 'recovery'
+    });
+    const verifiedUserId = String(verification?.user?.id || verification?.session?.user?.id || '').trim();
+    if (verificationError || !verifiedUserId || verifiedUserId !== String(challenge.auth_user_id)) {
+      await incrementAttempt(admin, challengeId, Number(challenge.attempts || 0));
+      await verifier.auth.signOut().catch(() => {});
       return json(origin, { ok: false, error: 'invalid_or_expired' });
     }
 
     const { error: passwordError } = await admin.auth.admin.updateUserById(String(challenge.auth_user_id), { password: newPassword });
+    await verifier.auth.signOut().catch(() => {});
     if (passwordError) {
       console.error('password_recovery_password_update_failed', passwordError.message);
       return json(origin, { ok: false, error: 'update_failed' });
@@ -236,26 +190,27 @@ Deno.serve(async (req: Request) => {
       await admin.from('users').update({ auth_email: email }).eq('user_id', userRow.user_id);
     }
 
-    const code = createVerificationCode();
-    const codeHash = await sha256(code);
     const expiresAt = new Date(Date.now() + CHALLENGE_MINUTES * 60_000).toISOString();
+    const markerHash = await sha256(`supabase-recovery:${authUserId}:${email}:${expiresAt}`);
     const { data: challenge, error: insertError } = await admin
       .from('password_recovery_challenges')
       .insert({
         user_id: String(userRow.user_id),
         auth_user_id: authUserId,
         email,
-        code_hash: codeHash,
+        code_hash: markerHash,
         expires_at: expiresAt
       })
       .select('id')
       .single();
     if (insertError || !challenge?.id) return json(origin, { ok: true, challenge_id: fakeId });
 
-    try {
-      await sendVerificationCode(email, code);
-    } catch (error) {
-      console.error('password_recovery_email_failed', error instanceof Error ? error.message : String(error));
+    const mailer = createClient(supabaseUrl, anonKey, {
+      auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
+    });
+    const { error: resetError } = await mailer.auth.resetPasswordForEmail(email);
+    if (resetError) {
+      console.error('password_recovery_supabase_send_failed', resetError.message);
       await admin.from('password_recovery_challenges').delete().eq('id', challenge.id);
       return json(origin, { ok: true, challenge_id: fakeId });
     }
