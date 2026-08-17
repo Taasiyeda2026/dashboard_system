@@ -58,13 +58,47 @@ button {
   font-family: inherit;
 }
 
-/* Shared narrow app column — every screen centers its content here instead of stretching on desktop.
-   This is how the app is actually used even on desktop, so it stays this size — no artificial "app frame". */
+/* Shared app column — narrow on mobile, wider on desktop, always centred. */
 .av2-container {
   width: 100%;
   max-width: 420px;
   margin-inline: auto;
   padding-inline: var(--av2-space-3);
+}
+
+/* ── Desktop layout (≥640px) ─────────────────────────────────────────────────
+   Goal: ~760px centred work area; bottom nav becomes a compact top bar.     */
+@media (min-width: 640px) {
+  /* Body becomes a flex column so we can reorder nav above content */
+  body {
+    display: flex;
+    flex-direction: column;
+    min-height: 100dvh;
+  }
+
+  /* Bottom-nav element moves to the top visually */
+  #bottom-nav {
+    order: -1;
+    flex-shrink: 0;
+    width: 100%;
+  }
+
+  /* App shell fills remaining height; body handles the 100dvh */
+  .app-shell {
+    min-height: 0;
+    flex: 1;
+  }
+
+  /* No need for bottom padding — nav is no longer fixed at the bottom */
+  .app-shell--with-nav {
+    padding-bottom: 0;
+  }
+
+  /* Wider centred column */
+  .av2-container {
+    max-width: 760px;
+    padding-inline: var(--av2-space-4);
+  }
 }
 
 .av2-btn {
