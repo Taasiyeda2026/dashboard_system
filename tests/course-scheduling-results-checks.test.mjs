@@ -535,6 +535,17 @@ test('candidate details render primary card, closed rejections, and initially di
     missingProfileData: [],
     issues: [],
     projectedHalfHours: 12,
+    projectedWeeklyHours: 4,
+    availabilityHours: 35,
+    continuityMeetingCount: 11,
+    sameSchoolMeetingCount: 3,
+    nearbyMeetingCount: 2,
+    existingWorkDayMeetingCount: 2,
+    newWorkDayMeetingCount: 4,
+    incrementalTravelKnown: true,
+    relevantTravelMinutes: 37,
+    relevantTravelDistance: 28.8,
+    seniorityYears: null,
     movedMeetingsCount: 0,
     activeWorkDays: 3,
     checks: { language: { passed: true }, gender: { passed: true }, availability: { passed: true } },
@@ -551,18 +562,22 @@ test('candidate details render primary card, closed rejections, and initially di
   const result = { course: course019({ required_instructor_gender: 'any' }), status: 'הצעה מוכנה', recommended, alternatives: [], checked: [recommended, rejected] };
   const closedHtml = detailsHtml(result, { courseSchedulingSelectedCandidateId: '' });
   assert.match(closedHtml, /נועה כהן/);
-  assert.match(closedHtml, /88<\/strong><span>\/100<\/span>/);
-  assert.doesNotMatch(closedHtml, /רציפות יומית גבוהה|מרחק מהבית:|עומס לאחר השיבוץ:|פירוט הציון/);
+  assert.match(closedHtml, /מומלץ 1/);
+  assert.match(closedHtml, /רציפות[\s\S]*7 מתוך 11 מפגשים/);
+  assert.match(closedHtml, /נסיעה נוספת[\s\S]*37 דק׳ · 28.8 ק״מ/);
+  assert.match(closedHtml, /ניצול זמינות[\s\S]*4 מתוך 35 שעות/);
+  assert.match(closedHtml, /4 מפגשים פותחים יום עבודה חדש · ותק: לא הוזן/);
+  assert.match(closedHtml, /הצג פירוט/);
+  assert.doesNotMatch(closedHtml, /\/100|פירוט הציון|באותו בית ספר: 3 מפגשים/);
   const html = detailsHtml(result, { courseSchedulingSelectedCandidateId: '', courseSchedulingExpandedCandidateId: 'f1' });
   assert.doesNotMatch(html, /המדריך המומלץ/);
   assert.match(html, /course-scheduling-result-status is-positive">מומלץ/);
   assert.match(html, /course-scheduling-primary-card/);
-  assert.match(html, /88<\/strong><span>\/100<\/span>/);
-  assert.match(html, /רציפות ויעילות ביום[\s\S]*30 מתוך 35/);
-  assert.match(html, /מרחק ונסיעות[\s\S]*20 מתוך 25/);
-  assert.match(html, /עומס עבודה בפועל[\s\S]*18 מתוך 20/);
-  assert.match(html, /שמירה על המועדים המקוריים[\s\S]*15 מתוך 15/);
-  assert.match(html, /צמצום חלונות ופתיחת ימי עבודה[\s\S]*5 מתוך 5/);
+  assert.match(html, /באותו בית ספר: 3 מפגשים/);
+  assert.match(html, /באזור קרוב: 2 מפגשים/);
+  assert.match(html, /ביום עבודה קיים: 2 מפגשים/);
+  assert.match(html, /סה״כ שעות במחצית: 12/);
+  assert.doesNotMatch(html, /\/100|פירוט הדירוג|course-scheduling-score-bar/);
   assert.match(html, /לא עברו תנאי סף \(1\)/);
   assert.doesNotMatch(html, /<details class="course-scheduling-rejected"[^>]*open/);
   assert.doesNotMatch(html, /data-rejected-candidate="m1"[\s\S]*type="radio"/);

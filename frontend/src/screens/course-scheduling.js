@@ -629,21 +629,35 @@ export function scoreBreakdownHtml(candidate) {
 
 function scoreComponentsHtml(candidate) {
   if (!candidate?.eligible) return '<p class="course-scheduling-muted">לא מתאים — תנאי סף לא התקיימו.</p>';
-  const total = Number(candidate.continuityMeetingCount) || 0;
-  const integrated = (Number(candidate.sameSchoolMeetingCount) || 0) + (Number(candidate.nearbyMeetingCount) || 0) + (Number(candidate.existingWorkDayMeetingCount) || 0);
-  const rows = [
-    `${integrated} מתוך ${total} מפגשים משתלבים ביום עבודה קיים`,
-    `${Number(candidate.sameSchoolMeetingCount) || 0} באותו בית ספר · ${Number(candidate.nearbyMeetingCount) || 0} ברצף באזור קרוב · ${Number(candidate.existingWorkDayMeetingCount) || 0} ביום עבודה קיים`,
-    `${Number(candidate.newWorkDayMeetingCount) || 0} מפגשים פותחים יום עבודה חדש`,
-    candidate.incrementalTravelKnown === true
-      ? `נסיעה נוספת ממוצעת למפגש: ${candidate.relevantTravelMinutes} דקות · ${candidate.relevantTravelDistance} ק״מ`
-      : 'נסיעה נוספת ממוצעת למפגש: לא חושבה',
-    `עומס שבועי לאחר השיבוץ: ${formatWorkloadHours(candidate.projectedWeeklyHours || 0)} מתוך ${formatWorkloadHours(candidate.availabilityHours || 0)} בחלונות הזמינות`,
-    `וותק: ${candidate.seniorityYears == null ? 'לא הוזן' : `${candidate.seniorityYears} שנים`}`
-  ];
-  return `<ul class="course-scheduling-score-bars">
-    ${rows.map((row) => `<li class="course-scheduling-score-bar"><span class="course-scheduling-score-bar__name">${escapeHtml(row)}</span></li>`).join('')}
+  const halfHours = candidate.projectedHalfHours != null && Number.isFinite(Number(candidate.projectedHalfHours))
+    ? `<li>סה״כ שעות במחצית: ${escapeHtml(formatWorkloadHours(candidate.projectedHalfHours))}</li>`
+    : '';
+  return `<ul class="course-scheduling-ranking-details">
+    <li>באותו בית ספר: ${Number(candidate.sameSchoolMeetingCount) || 0} מפגשים</li>
+    <li>באזור קרוב: ${Number(candidate.nearbyMeetingCount) || 0} מפגשים</li>
+    <li>ביום עבודה קיים: ${Number(candidate.existingWorkDayMeetingCount) || 0} מפגשים</li>
+    ${halfHours}
   </ul>`;
+}
+
+function candidateMetricsHtml(candidate, { compact = false } = {}) {
+  const total = Number(candidate.continuityMeetingCount) || 0;
+  const integrated = (Number(candidate.sameSchoolMeetingCount) || 0)
+    + (Number(candidate.nearbyMeetingCount) || 0)
+    + (Number(candidate.existingWorkDayMeetingCount) || 0);
+  const travel = candidate.incrementalTravelKnown === true
+    ? `${candidate.relevantTravelMinutes} דק׳ · ${candidate.relevantTravelDistance} ק״מ`
+    : 'לא חושבה';
+  const metrics = [
+    ['רציפות', `${integrated} מתוך ${total} מפגשים`],
+    ['נסיעה נוספת', travel],
+    ['ניצול זמינות', `${formatWorkloadHours(candidate.projectedWeeklyHours || 0).replace(/\s*שעות$/, '')} מתוך ${formatWorkloadHours(candidate.availabilityHours || 0)}`]
+  ];
+  const seniority = candidate.seniorityYears == null ? 'לא הוזן' : `${candidate.seniorityYears} שנים`;
+  return `<div class="course-scheduling-key-metrics${compact ? ' is-compact' : ''}">
+    ${metrics.map(([label, value]) => `<div class="course-scheduling-key-metric"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`).join('')}
+  </div>
+  <p class="course-scheduling-key-meta">${Number(candidate.newWorkDayMeetingCount) || 0} מפגשים פותחים יום עבודה חדש · ותק: ${escapeHtml(seniority)}</p>`;
 }
 
 function candidateMetaLine(candidate) {
@@ -690,14 +704,14 @@ function primaryCandidateCardHtml(candidate, {
         <span class="course-scheduling-primary-card__name">${escapeHtml(candidate.instructor?.full_name || id)}</span>
         <span class="course-scheduling-result-status${kind === 'recommended' ? ' is-positive' : ''}">${escapeHtml(kind === 'recommended' ? `מומלץ 1` : statusText)}</span>
       </div>
+      ${candidateMetricsHtml(candidate)}
+      <button type="button" class="course-scheduling-details-toggle" data-candidate-toggle aria-expanded="${expanded}">${expanded ? 'הסתר פירוט' : 'הצג פירוט'}</button>
       ${expanded ? `<div class="course-scheduling-candidate-expanded" data-candidate-expanded>
         <label class="course-scheduling-primary-card__select" for="${radioId}">
           <input id="${radioId}" type="radio" name="${escapeHtml(name)}" value="${escapeHtml(id)}"${checked}> בחירת מדריך
         </label>
-        ${text(candidate.recommendationReason) ? `<p class="course-scheduling-primary-card__reason">${escapeHtml(candidate.recommendationReason)}</p>` : ''}
-        <div class="course-scheduling-candidate-meta">${candidateMetaLine(candidate)}</div>
         ${requirementsFitHtml(candidate)}
-        <div class="course-scheduling-primary-card__breakdown"><h4>פירוט הדירוג</h4>${scoreComponentsHtml(candidate)}</div>
+        <div class="course-scheduling-primary-card__breakdown">${scoreComponentsHtml(candidate)}</div>
       </div>` : ''}
     </div>
   </article>`;
@@ -722,12 +736,12 @@ function alternativeCandidateCardHtml(candidate, { selectedId = '', expandedId =
   return `<div class="cs-alt-row${selected}${expanded ? ' is-expanded' : ''}" data-candidate-row="${escapeHtml(id)}" aria-expanded="${expanded}">
     <span class="cs-alt-row__name">${escapeHtml(candidate.instructor?.full_name || id)}</span>
     <span class="cs-alt-row__score">חלופה ${Number(candidate.rank) || '—'}</span>
+    <div class="cs-alt-row__summary">${candidateMetricsHtml(candidate, { compact: true })}</div>
+    <button type="button" class="course-scheduling-details-toggle" data-candidate-toggle aria-expanded="${expanded}">${expanded ? 'הסתר פירוט' : 'הצג פירוט'}</button>
     ${expanded ? `<div class="cs-alt-row__details course-scheduling-candidate-expanded" data-candidate-expanded>
       <label for="${radioId}"><input id="${radioId}" type="radio" name="${escapeHtml(name)}" value="${escapeHtml(id)}"${checked}> בחירת מדריך</label>
-      ${text(candidate.recommendationReason) ? `<p class="course-scheduling-primary-card__reason">${escapeHtml(candidate.recommendationReason)}</p>` : ''}
-      <div class="course-scheduling-candidate-meta">${candidateMetaLine(candidate)}</div>
       ${requirementsFitHtml(candidate)}
-      <div class="course-scheduling-primary-card__breakdown"><h4>פירוט הדירוג</h4>${scoreComponentsHtml(candidate)}</div>
+      <div class="course-scheduling-primary-card__breakdown">${scoreComponentsHtml(candidate)}</div>
     </div>` : ''}
   </div>`;
 }
@@ -1426,7 +1440,8 @@ export const courseSchedulingScreen = {
     });
     if (typeof detailRoot.addEventListener === 'function') detailRoot.addEventListener('click', (event) => {
       const row = event.target?.closest?.('[data-candidate-row]');
-      if (!row || event.target?.closest?.('[data-candidate-expanded]') || event.target?.matches?.('input,button,a,label')) return;
+      const toggle = event.target?.closest?.('[data-candidate-toggle]');
+      if (!row || (!toggle && (event.target?.closest?.('[data-candidate-expanded]') || event.target?.matches?.('input,button,a,label')))) return;
       const nextId = text(row.dataset.candidateRow);
       state.courseSchedulingExpandedCandidateId = state.courseSchedulingExpandedCandidateId === nextId ? '' : nextId;
       rerender();
