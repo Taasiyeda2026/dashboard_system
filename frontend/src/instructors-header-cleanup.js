@@ -55,6 +55,9 @@ if (isRealBrowser) {
   import('./activity-2027-contact-list-runtime.js?v=20260802-v1').catch((error) => {
     console.error('[activity-2027-contact-list] load failed', error);
   });
+  import('./payroll-control-window-fix.js?v=20260817-v1').catch((error) => {
+    console.error('[payroll-control-window-fix] load failed', error);
+  });
 }
 
 if (typeof document !== 'undefined') {
