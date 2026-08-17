@@ -229,3 +229,37 @@
   font-size: 0.8125rem;
   margin: 0;
 }
+
+/* ── Desktop home layout (≥640px) ────────────────────────────────────────── */
+@media (min-width: 640px) {
+  /* 4 stat cards in one row */
+  .av2-stats-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+
+  /* Slightly taller cards get more breathing room */
+  .av2-stat-card {
+    padding: 14px 12px;
+  }
+
+  .av2-stat-card__value {
+    font-size: 1.25rem;
+  }
+
+  /* Nav rows side-by-side: "הדיווחים שלי" and "דיווח חודשי" */
+  .av2-home__rows {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+
+  /* Add-report button: compact auto-width, not full-width */
+  .av2-home__primary {
+    display: flex;
+  }
+
+  .av2-home__primary .av2-btn--primary {
+    width: auto;
+    padding-inline: 28px;
+  }
+}
