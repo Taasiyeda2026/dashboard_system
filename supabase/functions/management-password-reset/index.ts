@@ -1,7 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const MANAGEMENT_ROLES = new Set([
+const MANAGEMENT_ROLES = [
   'admin',
   'operation_manager',
   'finance',
@@ -9,7 +9,8 @@ const MANAGEMENT_ROLES = new Set([
   'domain_manager',
   'business_development_manager',
   'instructor_manager'
-]);
+];
+const MANAGEMENT_ROLE_SET = new Set(MANAGEMENT_ROLES);
 
 const PROD_ORIGIN = 'https://taasiyeda2026.github.io';
 const DEV_ORIGINS = new Set(['http://localhost:5173', 'http://127.0.0.1:5173']);
@@ -68,14 +69,18 @@ Deno.serve(async (req: Request) => {
       auth: { persistSession: false, autoRefreshToken: false }
     });
 
-    const { data: userRow } = await admin
+    // Management is a small set. Load only active management rows and compare the
+    // normalized email in code so addresses containing '_' are not treated as ILIKE wildcards.
+    const { data: managementRows } = await admin
       .from('users')
       .select('user_id,email,auth_email,auth_user_id,role,is_active')
-      .ilike('email', email)
       .eq('is_active', true)
-      .maybeSingle();
+      .in('role', MANAGEMENT_ROLES);
 
-    if (!userRow || !MANAGEMENT_ROLES.has(String(userRow.role || '').trim())) return genericOk(origin);
+    const userRow = (Array.isArray(managementRows) ? managementRows : [])
+      .find((row) => MANAGEMENT_ROLE_SET.has(String(row?.role || '').trim()) && normalizeEmail(row?.email) === email);
+
+    if (!userRow) return genericOk(origin);
     const authUserId = String(userRow.auth_user_id || '').trim();
     if (!authUserId) return genericOk(origin);
 
