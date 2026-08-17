@@ -40,6 +40,8 @@ function sameSchool(first = {}, second = {}) {
 }
 
 const legValue = (leg, field) => Number.isFinite(Number(leg?.[field])) ? Number(leg[field]) : 0;
+const knownLeg = (leg) => Number.isFinite(Number(leg?.duration_minutes))
+  && Number.isFinite(Number(leg?.distance_km));
 
 /** Classifies every meeting and totals the real travel added by inserting the course. */
 export function analyzeDayPlacement({ activity = {}, meetings = [], existingActivities = [], travel = null, workDates = new Set() } = {}) {
@@ -64,21 +66,27 @@ export function analyzeDayPlacement({ activity = {}, meetings = [], existingActi
     const inbound = previous ? transition.previous : travel?.home;
     const outbound = next ? transition.next : travel?.homeReturn;
     const baseline = transition.baseline;
-    result.totalTravelMinutes += legValue(inbound, 'duration_minutes')
-      + legValue(outbound, 'duration_minutes') - legValue(baseline, 'duration_minutes');
-    result.totalTravelDistance += legValue(inbound, 'distance_km')
-      + legValue(outbound, 'distance_km') - legValue(baseline, 'distance_km');
+    const requiredLegs = [inbound, outbound, ...(previous || next ? [baseline] : [])];
+    if (requiredLegs.every(knownLeg)) {
+      result.totalTravelMinutes += legValue(inbound, 'duration_minutes')
+        + legValue(outbound, 'duration_minutes') - legValue(baseline, 'duration_minutes');
+      result.totalTravelDistance += legValue(inbound, 'distance_km')
+        + legValue(outbound, 'distance_km') - legValue(baseline, 'distance_km');
+    } else {
+      result.incrementalTravelKnown = false;
+    }
   }
   const count = Math.max(1, meetings.length);
   return {
     ...result,
-    relevantTravelMinutes: Math.round(result.totalTravelMinutes / count),
-    relevantTravelDistance: Math.round((result.totalTravelDistance / count) * 10) / 10,
+    incrementalTravelKnown: result.incrementalTravelKnown !== false,
+    relevantTravelMinutes: result.incrementalTravelKnown === false ? null : Math.round(result.totalTravelMinutes / count),
+    relevantTravelDistance: result.incrementalTravelKnown === false ? null : Math.round((result.totalTravelDistance / count) * 10) / 10,
     opensNewWorkDay: result.newWorkDayMeetingCount > 0
   };
 }
 
-export function computeSchedulingScore({ eligible = false, activity = {}, meetings = [], existingActivities = [], travel = null, workDates = new Set(), dateAdjustment = null, currentHalfHours = 0, projectedHalfHours = 0, activeWorkDays = 0, existingWorkDays = null, projectedWorkDays = null, availabilityHours = 0, projectedWeeklyHours = 0, utilizationRatio = null, seniorityYears = 0 } = {}) {
+export function computeSchedulingScore({ eligible = false, activity = {}, meetings = [], existingActivities = [], travel = null, workDates = new Set(), dateAdjustment = null, currentHalfHours = 0, projectedHalfHours = 0, activeWorkDays = 0, existingWorkDays = null, projectedWorkDays = null, availabilityHours = 0, projectedWeeklyHours = 0, utilizationRatio = null, seniorityYears = null } = {}) {
   if (!eligible) return { score: null, totalScore: null, scoreBreakdown: null, recommendationReason: '' };
   const placement = analyzeDayPlacement({ activity, meetings, existingActivities, travel, workDates });
   const capacity = Number(availabilityHours) || 0;
@@ -95,7 +103,7 @@ export function computeSchedulingScore({ eligible = false, activity = {}, meetin
     availabilityHours: capacity,
     projectedWeeklyHours: Number(projectedWeeklyHours) || 0,
     utilizationRatio: resolvedUtilization,
-    seniorityYears: Number(seniorityYears) || 0,
+    seniorityYears: seniorityYears == null || seniorityYears === '' || !Number.isFinite(Number(seniorityYears)) ? null : Number(seniorityYears),
     activeWorkDays: Number(projectedWorkDays ?? activeWorkDays) || 0,
     existingWorkDays: Number(existingWorkDays) || 0,
     projectedWorkDays: Number(projectedWorkDays ?? activeWorkDays) || 0,
@@ -123,17 +131,26 @@ export function compareCandidatesStable(first, second) {
   const firstNewDays = Number(first.newWorkDayMeetingCount) || 0;
   const secondNewDays = Number(second.newWorkDayMeetingCount) || 0;
   if (firstNewDays !== secondNewDays) return firstNewDays - secondNewDays;
-  const fields = [
-    ['sameSchoolMeetingCount', -1], ['nearbyMeetingCount', -1], ['existingWorkDayMeetingCount', -1],
-    ['relevantTravelMinutes', 1], ['relevantTravelDistance', 1],
-    ['utilizationRatio', 1], ['seniorityYears', -1]
-  ];
-  for (const [field, direction] of fields) {
-    const a = Number(first[field]);
-    const b = Number(second[field]);
-    const safeA = Number.isFinite(a) ? a : Number.POSITIVE_INFINITY;
-    const safeB = Number.isFinite(b) ? b : Number.POSITIVE_INFINITY;
-    if (safeA !== safeB) return (safeA < safeB ? -1 : 1) * direction;
+  for (const field of ['sameSchoolMeetingCount', 'nearbyMeetingCount', 'existingWorkDayMeetingCount']) {
+    if (Number(first[field]) !== Number(second[field])) return Number(second[field]) - Number(first[field]);
+  }
+  const firstTravelKnown = first.incrementalTravelKnown === true;
+  const secondTravelKnown = second.incrementalTravelKnown === true;
+  if (firstTravelKnown !== secondTravelKnown) return firstTravelKnown ? -1 : 1;
+  if (firstTravelKnown) {
+    for (const field of ['relevantTravelMinutes', 'relevantTravelDistance']) {
+      if (first[field] !== second[field]) return Number(first[field]) - Number(second[field]);
+    }
+  }
+  const firstUtilization = Number(first.utilizationRatio);
+  const secondUtilization = Number(second.utilizationRatio);
+  const safeFirstUtilization = Number.isFinite(firstUtilization) ? firstUtilization : Number.POSITIVE_INFINITY;
+  const safeSecondUtilization = Number.isFinite(secondUtilization) ? secondUtilization : Number.POSITIVE_INFINITY;
+  if (safeFirstUtilization !== safeSecondUtilization) return safeFirstUtilization - safeSecondUtilization;
+  const firstSeniorityKnown = first.seniorityYears != null && Number.isFinite(Number(first.seniorityYears));
+  const secondSeniorityKnown = second.seniorityYears != null && Number.isFinite(Number(second.seniorityYears));
+  if (firstSeniorityKnown && secondSeniorityKnown && Number(first.seniorityYears) !== Number(second.seniorityYears)) {
+    return Number(second.seniorityYears) - Number(first.seniorityYears);
   }
   return compareEmpIds(first.instructor?.emp_id || first.empId, second.instructor?.emp_id || second.empId);
 }

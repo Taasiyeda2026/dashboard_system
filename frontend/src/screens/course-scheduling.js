@@ -118,6 +118,15 @@ const group = (rows, key) => rows.reduce((output, row) => {
   return output;
 }, {});
 const idOf = (row) => text(row.row_id || row.RowID || row.id);
+export function applyReturnedSchedulingActivity(activities = [], returned = null) {
+  const row = Array.isArray(returned) ? returned[0] : returned;
+  const rowId = idOf(row || {});
+  if (!rowId) return false;
+  const index = activities.findIndex((activity) => idOf(activity) === rowId);
+  if (index < 0) activities.push(row);
+  else activities[index] = { ...activities[index], ...row };
+  return true;
+}
 const today = () => israelTodayIso();
 const formatDateHeDots = (value) => formatDateHe(value).replaceAll('/', '.');
 export const PENDING_ACTIVITY_STORAGE_KEY = 'dashboard:pending-course-activity-id';
@@ -626,9 +635,11 @@ function scoreComponentsHtml(candidate) {
     `${integrated} מתוך ${total} מפגשים משתלבים ביום עבודה קיים`,
     `${Number(candidate.sameSchoolMeetingCount) || 0} באותו בית ספר · ${Number(candidate.nearbyMeetingCount) || 0} ברצף באזור קרוב · ${Number(candidate.existingWorkDayMeetingCount) || 0} ביום עבודה קיים`,
     `${Number(candidate.newWorkDayMeetingCount) || 0} מפגשים פותחים יום עבודה חדש`,
-    `נסיעה נוספת ממוצעת למפגש: ${Number(candidate.relevantTravelMinutes) || 0} דקות · ${Number(candidate.relevantTravelDistance) || 0} ק״מ`,
+    candidate.incrementalTravelKnown === true
+      ? `נסיעה נוספת ממוצעת למפגש: ${candidate.relevantTravelMinutes} דקות · ${candidate.relevantTravelDistance} ק״מ`
+      : 'נסיעה נוספת ממוצעת למפגש: לא חושבה',
     `עומס שבועי לאחר השיבוץ: ${formatWorkloadHours(candidate.projectedWeeklyHours || 0)} מתוך ${formatWorkloadHours(candidate.availabilityHours || 0)} בחלונות הזמינות`,
-    `וותק: ${Number(candidate.seniorityYears) || 0} שנים`
+    `וותק: ${candidate.seniorityYears == null ? 'לא הוזן' : `${candidate.seniorityYears} שנים`}`
   ];
   return `<ul class="course-scheduling-score-bars">
     ${rows.map((row) => `<li class="course-scheduling-score-bar"><span class="course-scheduling-score-bar__name">${escapeHtml(row)}</span></li>`).join('')}
@@ -1840,7 +1851,7 @@ export const courseSchedulingScreen = {
       if (!window.confirm(approvalMessage)) return;
       updateCandidateActions(true);
       const proposedMeetings = adjustment?.meetings?.map(({ date }) => ({ date })) || null;
-      const { error } = await supabase.rpc(proposedMeetings ? 'assign_activity_instructor_with_dates' : 'assign_activity_instructor', {
+      const { data: updatedActivity, error } = await supabase.rpc(proposedMeetings ? 'assign_activity_instructor_with_dates' : 'assign_activity_instructor', {
         p_activity_id: selectedCourseId,
         p_emp_id: Number(selectedId),
         p_instructor_name: selected.instructor.full_name,
@@ -1852,11 +1863,11 @@ export const courseSchedulingScreen = {
         ...(proposedMeetings ? { p_proposed_meetings: proposedMeetings } : {})
       });
       if (error) { showToast(translateSchedulingAssignmentError(error.message, 'השיבוץ נכשל'), 'error'); updateCandidateActions(false); return; }
-      state.courseSchedulingResults = (state.courseSchedulingResults || []).filter((item) => idOf(item.course) !== selectedCourseId);
+      applyReturnedSchedulingActivity(data.activities, updatedActivity);
       state.courseSchedulingSelectedCandidateId = '';
       clearScreenDataCache?.();
-      showToast('המדריך שובץ בהצלחה', 'success');
-      rerender();
+      showToast('המדריך שובץ בהצלחה. ההמלצות מתעדכנות.', 'success');
+      await runFindInstructors();
     });
 
     detailRoot.querySelector('[data-save-draft]')?.addEventListener('click', async (event) => {
@@ -1912,7 +1923,7 @@ export const courseSchedulingScreen = {
       if (!window.confirm(approvalMessage)) return;
       event.target.disabled = true;
       const empId = Number(selectedCourse.draft_emp_id);
-      const { error } = await supabase.rpc(proposedMeetings ? 'assign_activity_instructor_with_dates' : 'assign_activity_instructor', {
+      const { data: updatedActivity, error } = await supabase.rpc(proposedMeetings ? 'assign_activity_instructor_with_dates' : 'assign_activity_instructor', {
         p_activity_id: selectedCourseId,
         p_emp_id: empId,
         p_instructor_name: selectedCourse.draft_instructor_name,
@@ -1924,20 +1935,22 @@ export const courseSchedulingScreen = {
         ...(proposedMeetings ? { p_proposed_meetings: proposedMeetings } : {})
       });
       if (error) { showToast(translateSchedulingAssignmentError(error.message, 'אישור הטיוטה נכשל'), 'error'); event.target.disabled = false; return; }
+      applyReturnedSchedulingActivity(data.activities, updatedActivity);
       clearScreenDataCache?.();
-      showToast('המדריך שובץ בהצלחה', 'success');
-      rerender();
+      showToast('המדריך שובץ בהצלחה. ההמלצות מתעדכנות.', 'success');
+      await runFindInstructors();
     });
 
     detailRoot.querySelector('[data-cancel-draft]')?.addEventListener('click', async (event) => {
       if (!canEdit || !selectedCourseId) return;
       if (!window.confirm('לבטל את הטיוטה?')) return;
       event.target.disabled = true;
-      const { error } = await supabase.rpc('cancel_course_assignment_draft', { p_activity_id: selectedCourseId });
+      const { data: updatedActivity, error } = await supabase.rpc('cancel_course_assignment_draft', { p_activity_id: selectedCourseId });
       if (error) { showToast(`ביטול הטיוטה נכשל: ${error.message}`, 'error'); event.target.disabled = false; return; }
+      applyReturnedSchedulingActivity(data.activities, updatedActivity);
       clearScreenDataCache?.();
-      showToast('הטיוטה בוטלה', 'success');
-      rerender();
+      showToast('הטיוטה בוטלה. ההמלצות מתעדכנות.', 'success');
+      await runFindInstructors();
     });
 
     root.querySelector('[data-update-distances]')?.addEventListener('click', async () => {

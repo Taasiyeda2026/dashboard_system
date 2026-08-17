@@ -385,6 +385,7 @@ function evaluateCandidate({
     projectedWorkDays: scored.projectedWorkDays,
     relevantTravelMinutes: scored.relevantTravelMinutes,
     relevantTravelDistance: scored.relevantTravelDistance,
+    incrementalTravelKnown: scored.incrementalTravelKnown,
     movedMeetingsCount: scored.movedMeetingsCount,
     totalShiftDays: scored.totalShiftDays,
     halfOverflow: scored.halfOverflow,

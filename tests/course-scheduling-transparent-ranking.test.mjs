@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { analyzeDayPlacement, compareCandidatesStable } from '../frontend/src/screens/course-scheduling-score.js';
 import { calculateCourseSchedule } from '../frontend/src/screens/course-scheduling-engine.js';
+import { applyReturnedSchedulingActivity, scoreBreakdownHtml } from '../frontend/src/screens/course-scheduling.js';
 
 const meetings = Array.from({ length: 12 }, (_, index) => ({
   date: new Date(Date.UTC(2026, 9, 5 + index * 7)).toISOString().slice(0, 10),
@@ -22,7 +23,7 @@ test('daily efficiency is aggregated across every course meeting', () => {
 });
 
 test('ranking follows efficiency, added travel, availability utilization, and seniority in that order', () => {
-  const base = { sameSchoolMeetingCount: 10, nearbyMeetingCount: 0, existingWorkDayMeetingCount: 0, newWorkDayMeetingCount: 2, relevantTravelMinutes: 20, relevantTravelDistance: 10, utilizationRatio: .5, seniorityYears: 2 };
+  const base = { sameSchoolMeetingCount: 10, nearbyMeetingCount: 0, existingWorkDayMeetingCount: 0, newWorkDayMeetingCount: 2, incrementalTravelKnown: true, relevantTravelMinutes: 20, relevantTravelDistance: 10, utilizationRatio: .5, seniorityYears: 2 };
   assert.ok(compareCandidatesStable({ ...base, instructor: instructor('efficient') }, { ...base, sameSchoolMeetingCount: 0, newWorkDayMeetingCount: 12, instructor: instructor('new-days') }) < 0);
   assert.ok(compareCandidatesStable({ ...base, relevantTravelMinutes: 12, instructor: instructor('short') }, { ...base, relevantTravelMinutes: 30, instructor: instructor('long') }) < 0);
   assert.ok(compareCandidatesStable({ ...base, utilizationRatio: .2, instructor: instructor('free') }, { ...base, utilizationRatio: .8, instructor: instructor('busy') }) < 0);
@@ -50,6 +51,29 @@ test('incremental travel covers only, first, middle, and last activity positions
   assert.equal(travelPlacement({ next: activityAfter, home: leg(20, 10), nextLeg: leg(8, 4), baseline: leg(25, 13) }).relevantTravelMinutes, 3, 'first activity subtracts the old home-to-next route');
   assert.equal(travelPlacement({ previous: activityBefore, next: activityAfter, previousLeg: leg(7, 3), nextLeg: leg(8, 4), baseline: leg(12, 6) }).relevantTravelMinutes, 3, 'middle activity replaces the old previous-to-next route');
   assert.equal(travelPlacement({ previous: activityBefore, previousLeg: leg(7, 3), homeReturn: leg(22, 11), baseline: leg(24, 12) }).relevantTravelMinutes, 5, 'last activity subtracts the old previous-to-home route');
+});
+
+test('missing home return or baseline keeps incremental travel unknown and ranks after known travel', () => {
+  const missingReturn = travelPlacement({ home: leg(20, 10) });
+  const missingBaseline = travelPlacement({ next: activityAfter, home: leg(20, 10), nextLeg: leg(8, 4) });
+  assert.equal(missingReturn.incrementalTravelKnown, false);
+  assert.equal(missingReturn.relevantTravelMinutes, null);
+  assert.equal(missingBaseline.incrementalTravelKnown, false);
+  assert.equal(missingBaseline.relevantTravelDistance, null);
+  const common = { sameSchoolMeetingCount: 0, nearbyMeetingCount: 0, existingWorkDayMeetingCount: 1, newWorkDayMeetingCount: 0, utilizationRatio: .5, seniorityYears: 2 };
+  assert.ok(compareCandidatesStable({ ...common, incrementalTravelKnown: true, relevantTravelMinutes: 10, relevantTravelDistance: 5, instructor: instructor('known') }, { ...common, incrementalTravelKnown: false, relevantTravelMinutes: null, relevantTravelDistance: null, instructor: instructor('unknown') }) < 0);
+});
+
+test('missing seniority stays unknown and is not converted to zero or disqualifying', () => {
+  const common = { sameSchoolMeetingCount: 0, nearbyMeetingCount: 0, existingWorkDayMeetingCount: 1, newWorkDayMeetingCount: 0, incrementalTravelKnown: true, relevantTravelMinutes: 10, relevantTravelDistance: 5, utilizationRatio: .5 };
+  assert.ok(compareCandidatesStable({ ...common, seniorityYears: null, instructor: instructor('1') }, { ...common, seniorityYears: 8, instructor: instructor('9') }) < 0, 'one missing value skips the seniority tiebreak and reaches the stable id fallback');
+  assert.match(scoreBreakdownHtml({ eligible: true, continuityMeetingCount: 1, existingWorkDayMeetingCount: 1, incrementalTravelKnown: false, availabilityHours: 8, projectedWeeklyHours: 1, seniorityYears: null }), /וותק: לא הוזן/);
+});
+
+test('returned RPC activity replaces local assignment state before recalculation', () => {
+  const activities = [{ row_id: 'c', draft_emp_id: '1', school_address: 'enriched' }];
+  assert.equal(applyReturnedSchedulingActivity(activities, { row_id: 'c', draft_emp_id: null, emp_id: '1' }), true);
+  assert.deepEqual(activities[0], { row_id: 'c', draft_emp_id: null, school_address: 'enriched', emp_id: '1' });
 });
 
 test('distance over 40 km is rejected and unavailable or overlapping instructors are not ranked', () => {
