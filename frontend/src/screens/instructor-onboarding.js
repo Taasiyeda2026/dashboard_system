@@ -10,7 +10,6 @@ export const ONBOARDING_DOCUMENTS = Object.freeze({
 
 const SUBJECT = 'הצטרפות לצוות המדריכים של תעשיידע – השלמת תהליך הקליטה';
 const OUTLOOK_WEB_URL = 'https://outlook.office.com/mail/';
-const OUTLOOK_DESKTOP_PROTOCOL = 'taasiyeda-outlook:';
 const OUTLOOK_MODE_STORAGE_KEY = 'taasiyeda:outlook-mode';
 const AVAILABILITY = `לצורך תכנון השיבוצים והפעילויות, נבקש להשיב למייל זה ולמלא את פרטי הזמינות שלך בצורה מלאה ככל האפשר:
 
@@ -112,37 +111,25 @@ export function normalizeOnboardingPhone(value) {
 }
 
 export function localOutlookMode() {
-  try {
-    if (typeof window === 'undefined' || !window.localStorage) return 'web';
-    return window.localStorage.getItem(OUTLOOK_MODE_STORAGE_KEY) === 'desktop' ? 'desktop' : 'web';
-  } catch {
-    return 'web';
-  }
+  return 'web';
 }
 
 export function syncLocalOutlookModeFromUrl() {
   try {
-    if (typeof window === 'undefined' || !window.location) return localOutlookMode();
+    if (typeof window === 'undefined' || !window.location) return 'web';
+    window.localStorage?.removeItem(OUTLOOK_MODE_STORAGE_KEY);
     const url = new URL(window.location.href);
-    const requestedMode = String(url.searchParams.get('outlook') || '').trim().toLowerCase();
-    if (!['desktop', 'web'].includes(requestedMode)) return localOutlookMode();
-    if (requestedMode === 'desktop') window.localStorage?.setItem(OUTLOOK_MODE_STORAGE_KEY, 'desktop');
-    else window.localStorage?.removeItem(OUTLOOK_MODE_STORAGE_KEY);
-    url.searchParams.delete('outlook');
-    window.history?.replaceState?.(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
-    return requestedMode;
-  } catch {
-    return localOutlookMode();
-  }
+    if (url.searchParams.has('outlook')) {
+      url.searchParams.delete('outlook');
+      window.history?.replaceState?.(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
+    }
+  } catch {}
+  return 'web';
 }
 
 export function openOutlookHome() {
   try {
     if (typeof window === 'undefined') return false;
-    if (localOutlookMode() === 'desktop') {
-      window.location.href = OUTLOOK_DESKTOP_PROTOCOL;
-      return true;
-    }
     window.open?.(OUTLOOK_WEB_URL, '_blank', 'noopener,noreferrer');
     return true;
   } catch {
@@ -253,8 +240,13 @@ export function bindOnboardingModal(modal, {
     outlook.dataset.onboardingOutlook = '';
     outlook.textContent = 'OUTLOOK';
     outlook.hidden = true;
+    outlook.style.display = 'none';
     footer.insertBefore(outlook, prepare || null);
     outlook.addEventListener('click', () => openOutlookHome());
+  }
+  if (outlook) {
+    outlook.hidden = true;
+    outlook.style.display = 'none';
   }
 
   modal.style.width = 'min(430px, calc(100vw - 24px))';
@@ -361,8 +353,10 @@ export function bindOnboardingModal(modal, {
       if (manualOutlook) {
         status.textContent = 'המדריך נקלט בהצלחה. המייל מוכן ומחכה לך בתיקיית הטיוטות ב-Outlook.';
         prepare.hidden = true;
+        prepare.style.display = 'none';
         if (outlook) {
           outlook.hidden = false;
+          outlook.style.display = 'inline-flex';
           outlook.disabled = false;
         }
       } else {
