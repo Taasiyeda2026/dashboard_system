@@ -4,7 +4,7 @@ import { supabase, waitForSupabaseAuthSession } from './supabase-client.js';
 import { normalizeGlobalActivityPeriod } from './screens/shared/summer-activity.js';
 import { escapeHtml } from './screens/shared/html.js';
 
-const MANAGER_WORKSPACE_ROLES = new Set(['admin', 'operation_manager', 'domain_manager', 'activities_manager']);
+const MANAGER_WORKSPACE_ROLES = new Set(['admin', 'operation_manager', 'activities_manager', 'finance']);
 const MANAGER_WORKSPACE_TAB_KEY = 'manager_board_workspace_tab';
 const TEAM_ROSTER_TTL_MS = 90 * 1000;
 const ATTENDANCE_SUMMARY_TTL_MS = 60 * 1000;
@@ -194,27 +194,12 @@ async function loadAttendanceSummary(roster, ym, force = false) {
   return value;
 }
 
-function tabBarHtml() {
-  const tabs = [
-    ['management', 'ניהול'],
-    ['attendance', 'בקרת נוכחות'],
-    ['tracking', 'מעקב']
-  ];
-  return `<nav class="manager-workspace-tabs" data-manager-workspace-tabs aria-label="לשוניות לוח מנהל">
-    ${tabs.map(([key, label]) => `<button type="button" class="manager-workspace-tab${activeTab === key ? ' is-active' : ''}" data-manager-workspace-tab="${key}" aria-selected="${activeTab === key ? 'true' : 'false'}">${label}</button>`).join('')}
-  </nav>`;
-}
-
-function workspaceShellHtml() {
-  return `${tabBarHtml()}<section class="manager-workspace-management-alerts" data-manager-workspace-management-alerts></section><section class="manager-workspace-view" data-manager-workspace-view hidden></section>`;
-}
-
-function ensureWorkspaceShell(boardRoot) {
-  if (boardRoot.querySelector('[data-manager-workspace-tabs]')) return;
-  const hero = boardRoot.querySelector('.manager-board-hero');
-  if (!hero) return;
-  hero.insertAdjacentHTML('afterend', workspaceShellHtml());
-  boardRoot.querySelectorAll('[data-manager-workspace-tab]').forEach((button) => {
+function bindWorkspaceTabs(boardRoot) {
+  const tabs = boardRoot.querySelector('[data-manager-workspace-tabs]');
+  if (!tabs) return false;
+  if (tabs.dataset.managerWorkspaceBound === 'true') return true;
+  tabs.dataset.managerWorkspaceBound = 'true';
+  tabs.querySelectorAll('[data-manager-workspace-tab]').forEach((button) => {
     button.addEventListener('click', () => {
       const next = button.dataset.managerWorkspaceTab;
       if (!next || next === activeTab) return;
@@ -223,6 +208,7 @@ function ensureWorkspaceShell(boardRoot) {
       void renderWorkspace(true);
     });
   });
+  return true;
 }
 
 function applyTabVisibility(boardRoot) {
@@ -510,7 +496,7 @@ function renderTracking(boardRoot, context, roster) {
 async function renderWorkspace(force = false) {
   const boardRoot = validBoardRoot();
   if (!boardRoot) return;
-  ensureWorkspaceShell(boardRoot);
+  if (!bindWorkspaceTabs(boardRoot)) return;
   applyTabVisibility(boardRoot);
 
   const context = contextFromBoard(boardRoot);
@@ -554,6 +540,7 @@ function syncWorkspace() {
   if (!boardRoot.querySelector('[data-manager-workspace-tabs]')) {
     lastContextSignature = '';
     embeddedAttendanceSignature = '';
+    return;
   }
   void renderWorkspace(false);
 }
