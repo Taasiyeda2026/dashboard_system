@@ -9,14 +9,28 @@ const index = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8')
 const sw = fs.readFileSync(new URL('../frontend/sw.js', import.meta.url), 'utf8');
 const config = fs.readFileSync(new URL('../frontend/src/config.js', import.meta.url), 'utf8');
 
-test('manager workspace tabs are rendered by the board itself', () => {
+test('manager workspace tabs are rendered by the board and handled by delegated clicks', () => {
   assert.match(board, /function workspaceShellHtml\(\)/);
   assert.match(board, /data-manager-workspace-tab="management"[^>]*>ניהול</);
   assert.match(board, /data-manager-workspace-tab="attendance"[^>]*>בקרת נוכחות</);
   assert.match(board, /data-manager-workspace-tab="tracking"[^>]*>מעקב</);
   assert.match(board, /\$\{workspaceShellHtml\(\)\}/);
-  assert.match(workspace, /function bindWorkspaceTabs\(boardRoot\)/);
-  assert.doesNotMatch(workspace, /insertAdjacentHTML\('afterend', workspaceShellHtml\(\)\)/);
+  assert.match(workspace, /function handleWorkspaceClick\(event\)/);
+  assert.match(workspace, /target\.closest\('\[data-manager-workspace-tab\]'\)/);
+  assert.match(workspace, /setActiveTab\(next\)/);
+  assert.match(workspace, /applyTabVisibility\(boardRoot\)/);
+  assert.match(workspace, /window\.addEventListener\('click', handleWorkspaceClick, true\)/);
+  assert.doesNotMatch(workspace, /function bindWorkspaceTabs\(boardRoot\)/);
+});
+
+test('manager board opens on the current month for every entry', () => {
+  assert.match(workspace, /let resetMonthOnNextBoard = true;/);
+  assert.match(workspace, /target\.closest\('\[data-manager-board-open\]'\)/);
+  assert.match(workspace, /resetMonthOnNextBoard = true;/);
+  assert.match(workspace, /function resetBoardMonthIfNeeded\(boardRoot\)/);
+  assert.match(workspace, /const target = defaultMonth\(period\);/);
+  assert.match(workspace, /if \(resetBoardMonthIfNeeded\(boardRoot\)\) return;/);
+  assert.doesNotMatch(workspace, /localStorage\.getItem\(`manager_board_month:/);
 });
 
 test('manager board is sidebar-only and role access is exact', () => {
@@ -49,7 +63,7 @@ test('checkpoints include course start and no old subtitle', () => {
 
 test('direct assets and dashboard cache are versioned for the fix', () => {
   assert.match(index, /manager-board-runtime\.js\?v=20260818-manager-board-v2/);
-  assert.match(index, /manager-board-workspace-runtime\.js\?v=20260818-manager-workspace-v3/);
-  assert.match(sw, /const CACHE_VERSION = 1538;/);
-  assert.match(config, /manager-workspace-built-in-tabs-sidebar-access-start-checkpoint-sw-cache-1538-20260818-v1/);
+  assert.match(index, /manager-board-workspace-runtime\.js\?v=20260818-manager-workspace-v4/);
+  assert.match(sw, /const CACHE_VERSION = 1539;/);
+  assert.match(config, /manager-workspace-current-month-clickable-tabs-sw-cache-1539-20260818-v1/);
 });
