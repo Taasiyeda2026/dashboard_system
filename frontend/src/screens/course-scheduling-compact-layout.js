@@ -1,5 +1,6 @@
 import './course-scheduling-compact-layout.css';
 import './course-scheduling-density-polish.css';
+import { conciseSchedulingReason } from './course-scheduling-reason-labels.js';
 
 let enhancementScheduled = false;
 let pendingFindCourseId = '';
@@ -129,6 +130,14 @@ export function simplifyCandidateSummaries(detail) {
   });
 }
 
+export function simplifyManualCandidateReasons(detail) {
+  if (!detail) return;
+  detail.querySelectorAll('.course-scheduling-manual-candidate span').forEach((label) => {
+    const concise = conciseSchedulingReason(label.textContent);
+    if (concise) label.textContent = concise;
+  });
+}
+
 function enhanceScreen(screen) {
   if (screen.dataset.csTab !== 'courses') {
     screen.classList.remove('is-compact-symmetric-layout');
@@ -154,6 +163,7 @@ function enhanceScreen(screen) {
   const detail = screen.querySelector('[data-course-detail]');
   if (detail) {
     simplifyCandidateSummaries(detail);
+    simplifyManualCandidateReasons(detail);
     detail.classList.toggle('has-compact-results', detailHasOperationalContent(detail));
   }
 
