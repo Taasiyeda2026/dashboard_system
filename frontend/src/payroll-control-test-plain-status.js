@@ -117,6 +117,17 @@ function groupResultsByInstructor(doc, results) {
   });
 }
 
+function simplifyManualReasonLabels(results) {
+  results.querySelectorAll('.payroll-test-review-reasons').forEach((group) => {
+    group.querySelector('strong')?.remove();
+    group.querySelectorAll('span').forEach((reason) => {
+      const value = String(reason.textContent || '').trim();
+      const manualMatch = value.match(/^(ביטול זמן|הכשרה|תפעול|הוצאה)\s*[–-]\s*נדרש אישור ידני$/u);
+      if (manualMatch) reason.textContent = manualMatch[1];
+    });
+  });
+}
+
 function applyPlainStatusPresentation(doc) {
   const panel = doc?.querySelector?.('[data-attendance-control]');
   if (!panel || panel.dataset.payrollTestMode !== 'true') return false;
@@ -124,6 +135,7 @@ function applyPlainStatusPresentation(doc) {
   if (!results) return false;
 
   ensurePlainStatusStyles(doc);
+  simplifyManualReasonLabels(results);
 
   results.querySelectorAll('.attendance-control__employee').forEach((card) => {
     const summaryStatus = card.querySelector(':scope > summary > span');
