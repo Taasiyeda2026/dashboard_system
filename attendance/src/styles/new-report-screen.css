@@ -278,6 +278,145 @@
   border-radius: 8px;
 }
 
+/* ── Searchable select (.av2-ssel) ───────────────────────────────────────── */
+
+.av2-ssel {
+  position: relative;
+}
+
+/* Trigger — identical look to av2-field__select */
+.av2-ssel__trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-height: 38px;
+  padding: 0 10px;
+  border: 1px solid var(--av2-color-border);
+  border-radius: 10px;
+  background: var(--av2-color-surface);
+  color: var(--av2-color-text);
+  font-family: inherit;
+  font-size: 0.875rem;
+  text-align: start;
+  cursor: pointer;
+  gap: 6px;
+}
+
+.av2-ssel__trigger:focus,
+.av2-ssel__trigger.is-open {
+  outline: 2px solid var(--av2-color-accent);
+  outline-offset: 1px;
+}
+
+.av2-ssel__trigger:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.av2-ssel__trigger-text {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.av2-ssel__trigger-text[data-empty='true'] {
+  color: var(--av2-color-text-muted);
+}
+
+.av2-ssel__chevron {
+  flex-shrink: 0;
+  width: 0;
+  height: 0;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-top: 5px solid var(--av2-color-text-muted);
+  transition: transform 0.15s;
+}
+
+.av2-ssel__trigger.is-open .av2-ssel__chevron {
+  transform: rotate(180deg);
+}
+
+/* Dropdown panel */
+.av2-ssel__panel {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 60;
+  background: var(--av2-color-surface);
+  border: 1px solid var(--av2-color-border);
+  border-radius: 10px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.10);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.av2-ssel__search-wrap {
+  padding: 6px 6px 5px;
+  border-bottom: 1px solid var(--av2-color-border);
+  background: var(--av2-color-bg);
+}
+
+.av2-ssel__search {
+  width: 100%;
+  padding: 5px 8px;
+  border: 1px solid var(--av2-color-border);
+  border-radius: 7px;
+  font-family: inherit;
+  font-size: 0.8125rem;
+  background: var(--av2-color-surface);
+  color: var(--av2-color-text);
+  direction: rtl;
+}
+
+.av2-ssel__search:focus {
+  outline: none;
+  border-color: var(--av2-color-accent);
+}
+
+.av2-ssel__options {
+  overflow-y: auto;
+  max-height: 190px;
+  overscroll-behavior: contain;
+}
+
+.av2-ssel__option {
+  display: block;
+  width: 100%;
+  padding: 8px 10px;
+  text-align: start;
+  font-family: inherit;
+  font-size: 0.875rem;
+  color: var(--av2-color-text);
+  background: none;
+  border: none;
+  cursor: pointer;
+  line-height: 1.3;
+}
+
+.av2-ssel__option:hover,
+.av2-ssel__option:focus {
+  background: var(--av2-color-bg);
+  outline: none;
+}
+
+.av2-ssel__option.is-selected {
+  color: var(--av2-color-accent);
+  font-weight: 600;
+  background: #eff6ff;
+}
+
+.av2-ssel__empty {
+  padding: 10px;
+  text-align: center;
+  font-size: 0.8125rem;
+  color: var(--av2-color-text-muted);
+}
+
 /* ── Attachments ─────────────────────────────────────────────────────────── */
 
 .av2-attach-section {
