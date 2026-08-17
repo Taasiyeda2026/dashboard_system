@@ -3,6 +3,7 @@ import { supabase } from './supabase-client.js';
 import { withResolvedSchool2027Contact } from './screens/shared/school-2027-contact.js';
 
 const PATCH_KEY = Symbol.for('taasiyeda.activity2027ContactList');
+const CONTACT_ENRICHMENT_METHODS = ['activities', 'allActivities'];
 
 function text(value) {
   return String(value ?? '').trim();
@@ -80,18 +81,27 @@ export async function enrichSchool2027ActivityContacts(payload = {}) {
   };
 }
 
-export function installActivity2027ContactListRuntime(targetApi = api) {
-  if (!targetApi || targetApi[PATCH_KEY] || typeof targetApi.activities !== 'function') return false;
-  const original = targetApi.activities.bind(targetApi);
-  targetApi.activities = async (...args) => {
+function installContactEnrichmentMethod(targetApi, methodName) {
+  if (typeof targetApi?.[methodName] !== 'function') return false;
+  const original = targetApi[methodName].bind(targetApi);
+  targetApi[methodName] = async (...args) => {
     const payload = await original(...args);
     try {
       return await enrichSchool2027ActivityContacts(payload);
     } catch (error) {
-      console.warn('[activities-2027-contact-list] enrichment failed', error?.message || error);
+      console.warn(`[activities-2027-contact-list] ${methodName} enrichment failed`, error?.message || error);
       return payload;
     }
   };
+  return true;
+}
+
+export function installActivity2027ContactListRuntime(targetApi = api) {
+  if (!targetApi || targetApi[PATCH_KEY]) return false;
+  const installed = CONTACT_ENRICHMENT_METHODS
+    .map((methodName) => installContactEnrichmentMethod(targetApi, methodName))
+    .some(Boolean);
+  if (!installed) return false;
   Object.defineProperty(targetApi, PATCH_KEY, { value: true });
   return true;
 }

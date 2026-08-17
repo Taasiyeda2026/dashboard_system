@@ -12,9 +12,11 @@
   <link rel="manifest" href="./frontend/public/manifest.json" />
   <link rel="icon" href="./frontend/assets/favicon.ico" sizes="any" />
   <link rel="apple-touch-icon" href="./frontend/assets/apple-touch-icon.png" />
-  <link rel="stylesheet" href="./frontend/src/styles/main.css?v=20260805-proposals-signed-final-align-v1" />
+  <link rel="stylesheet" href="./frontend/src/styles/main.css?v=20260815-activity-coordination-workflow-v2" />
+  <link rel="stylesheet" href="./frontend/src/styles/activity-coordination-workspace-layout.css?v=20260815-compact-workflow-v2" />
   <link rel="stylesheet" href="./frontend/src/styles/dashboard-layout.css?v=20260727-dashboard-layout-v1" />
   <link rel="stylesheet" href="./frontend/src/screens/course-scheduling-neutral-colors.css?v=20260805-v3" />
+  <link rel="stylesheet" href="./frontend/src/styles/activity-funding-picker-compact.css?v=20260814-course-drawer-v1" />
   <style id="client-file-row-alignment-v2">
     #app .ds-client-file.is-layout-polished {
       grid-template-columns: minmax(360px, .9fr) minmax(500px, 1.45fr) !important;
@@ -49,8 +51,13 @@
 </head>
 <body>
   <main id="app"></main>
+  <script type="module" src="./frontend/src/activity-funding-picker-compact.js?v=20260814-course-drawer-v1"></script>
   <script type="module" src="./frontend/src/school-2027-course-status-policy.js?v=20260804-course-status-v1"></script>
-  <script type="module" src="./frontend/src/screens/course-scheduling-compact-layout.js?v=20260806-authority-maintenance-tab-v1"></script>
+  <script type="module" src="./frontend/src/screens/course-scheduling-compact-layout.js?v=20260817-recommendation-card-ui-v1"></script>
+  <script type="module" src="./frontend/src/screens/contacts-full-directory.js"></script>
+  <script type="module" src="./frontend/src/screens/contacts-multi-email.js?v=20260807-v1"></script>
+  <script type="module" src="./frontend/src/activity-coordination/admin-visibility.js?v=20260815-admin-only-v2"></script>
+  <script type="module" src="./frontend/src/activity-2027-contact-list-runtime.js?v=20260816-work-schedule-contact-v1"></script>
   <script type="module" src="./frontend/src/main-with-proposal-pdf-hotfix.js?v=20260804-course-status-v1"></script>
 </body>
 </html>

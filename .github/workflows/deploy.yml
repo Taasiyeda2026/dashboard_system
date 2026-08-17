@@ -39,6 +39,9 @@ jobs:
           VITE_BUILD_SHA: ${{ github.sha }}
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          VITE_MICROSOFT_CLIENT_ID: ${{ secrets.VITE_MICROSOFT_CLIENT_ID }}
+          VITE_MICROSOFT_TENANT_ID: ${{ secrets.VITE_MICROSOFT_TENANT_ID }}
+          VITE_MICROSOFT_REDIRECT_URI: ${{ secrets.VITE_MICROSOFT_REDIRECT_URI }}
         run: npm run build
 
       - name: Read Service Worker cache version

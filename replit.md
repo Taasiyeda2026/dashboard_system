@@ -6,18 +6,24 @@ Preserve: RTL, Hebrew, dark shell + light panels. Communication with user: Hebre
 ## Runtime
 - Static server: `npx serve dist -l 5000` (workflow: "Start application")
 - SW cache bump: edit `CACHE_VERSION` in `frontend/sw.js` after any JS/CSS change.
-- **Current versions**: SW v1226 (frontend/sw.js + dist/sw.js)
-
+- **Current versions**: SW v1425 (frontend/sw.js; dist/ is rebuilt fresh by CI on deploy)
 
 ## User preferences
 
 ### כלל SW/CACHE — חובה בכל תיקון Frontend
-בכל שינוי בקבצים הבאים (או דומים להם), חובה לבצע בסיום:
+**נקודת בסיס: v1400. כל גרסה עתידית חייבת להיות גבוהה ממנה (1401, 1402, ...).**
+- מקור האמת היחיד: `frontend/sw.js` — `const CACHE_VERSION = NNN`
+- אסור להחזיר מספר אחורה לעולם (1300/1330 אסורים)
+- dist/sw.js הראשי הוא loader בלבד; אין בו CACHE_VERSION עצמאי
+
+בכל שינוי JS/CSS/HTML חובה לבצע בסיום:
 1. `sed -i 's/CACHE_VERSION = NNN/CACHE_VERSION = NNN+1/' frontend/sw.js`
-2. `cd frontend && npm run build`
-3. `cp frontend/sw.js dist/sw.js`
-4. לעדכן "Current versions" ב-replit.md
-5. להפעיל מחדש את workflow "Start application"
+2. `npm run build` (מהתיקייה הראשית)
+3. `cp frontend/sw.js dist/sw.js && cp frontend/sw.js dist/frontend/sw.js`
+4. לוודא שאין CACHE_VERSION נמוך מהגרסה החדשה בשום קובץ פעיל
+5. לעדכן "Current versions" ב-replit.md
+6. `gitPush({})` דרך CodeExecution
+7. להפעיל מחדש את workflow "Start application"
 
 **קבצים שמחייבים cache bump:**
 - `frontend/src/screens/*.js`

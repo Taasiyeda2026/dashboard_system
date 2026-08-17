@@ -1,7 +1,9 @@
 import { escapeHtml } from './shared/html.js';
+import { mergeFetchedContactsWithInserted, persistNewClientContact } from '../client-contact-persistence.js';
 import { dsCard, dsEmptyState, dsPageHeader, dsScreenStack, dsTableWrap } from './shared/layout.js';
 import { showToast } from './shared/toast.js';
 import { countPendingApprovedProposals, isProposalApprovedPendingSend } from './shared/proposals-pending-count.js';
+import { handleSupabaseSessionFailure } from '../session-security-runtime.js';
 
 export { countPendingApprovedProposals, isProposalApprovedPendingSend };
 
@@ -627,6 +629,14 @@ export function clientFacingProposalTypeLabel(row = {}, items = []) {
   if (key && PROPOSAL_GROUP_DISPLAY_FALLBACKS[key]) return PROPOSAL_GROUP_DISPLAY_FALLBACKS[key];
   const raw = text(row.activity_type_group || row.proposal_group || row.document_type || row.template_key);
   if (raw) {
+    // 'combined' (COMBINED_INTERNAL_KEY) is a known internal key for multi-group proposals.
+    // It is intentionally not a user-facing proposal type and should silently return '—'.
+    // Also suppress for known Hebrew aliases that resolve to COMBINED_INTERNAL_KEY.
+    if (
+      raw === COMBINED_INTERNAL_KEY
+      || PROPOSAL_GROUP_LEGACY_ALIASES[raw] === COMBINED_INTERNAL_KEY
+      || PROPOSAL_GROUP_LEGACY_ALIASES[normalizeHebrewQuoteVariants(raw)] === COMBINED_INTERNAL_KEY
+    ) return '—';
     // eslint-disable-next-line no-console
     console.warn('[client-file] unknown proposal type value', raw);
   }
@@ -922,6 +932,7 @@ export function normalizeProposalAgreementRow(row = {}) {
     // Kept raw (not normalizeSignatureMeta's display fallback) so proposalHasSavedApprovalSignature
     // can tell a real saved signature apart from an approved row that never actually got signed.
     signature_meta:      (row.signature_meta && typeof row.signature_meta === 'object' ? row.signature_meta : (row.approval_meta && typeof row.approval_meta === 'object' ? row.approval_meta : null)),
+    has_approval_signature: row.has_approval_signature === true,
     created_at:          text(row.created_at),
     approved_by:         text(row.approved_by),
     approved_at:         text(row.approved_at),
@@ -1017,7 +1028,7 @@ function proposalHasSavedApprovalSignature(row = {}) {
   // normalizeSignatureMeta, which falls back to the default signature image for display purposes
   // and would otherwise report an empty/never-signed signature_meta as a valid saved signature.
   const meta = row.signature_meta || row.approval_meta;
-  const hasImage = Boolean(text(meta?.signature?.image || meta?.image));
+  const hasImage = row.has_approval_signature === true || Boolean(text(meta?.signature?.image || meta?.image));
   return normalizeProposalStatus(row.status) === 'approved'
     && hasImage
     && Boolean(text(row.approved_at));
@@ -1950,6 +1961,21 @@ function sortSummerPricingOptions(pricingOptions = []) {
 
 function itemRowHtml(item = {}, idx = 0, pricingOptions = [], options = {}) {
   item = normalizeProposalItemRow(item, options.groupKey || '');
+  const initialPricingKey = text(item.pricing_option_key || item.pricing_activity_no || item.activity_no || item.pricing_activity_name || item.item_name);
+  const initialPricingRow = (Array.isArray(pricingOptions) ? pricingOptions : []).find((row, optionIdx) => {
+    const optionKey = pricingOptionKey(row, optionIdx);
+    return [optionKey, text(row.activity_no), text(row.activity_name), publicActivityName(row.activity_name)].includes(initialPricingKey);
+  });
+  if (initialPricingRow) {
+    item = {
+      ...item,
+      item_name: text(item.item_name) || publicActivityLabelFromRow(initialPricingRow),
+      activity_no: text(item.activity_no || item.pricing_activity_no) || text(initialPricingRow.activity_no),
+      pricing_option_key: text(item.pricing_option_key) || pricingOptionKey(initialPricingRow),
+      item_type: text(item.item_type) || text(initialPricingRow.item_type),
+      gefen_number: text(item.gefen_number) || text(initialPricingRow.gefen_number)
+    };
+  }
   const n = (v) => (v != null && v !== '' && !isNaN(Number(v))) ? escapeHtml(String(v)) : '';
   const calcTotal = (Number(proposalField(item, 'quantity', 'quantity')) || 0) && (Number(proposalField(item, 'unit_price', 'unitPrice')) || 0)
     ? String(((Number(proposalField(item, 'quantity', 'quantity')) || 0) * (Number(proposalField(item, 'unit_price', 'unitPrice')) || 0)).toFixed(2))
@@ -2415,9 +2441,17 @@ function extractItemsFromForm(form) {
 
     // Resolve the pricing row picked in the select so saved items always carry
     // the catalog item_name / pricing_key / unit_price instead of relying on free text.
-    const optionKey = isManualCourseRow ? '' : (fieldText('pricing_option_key') || pricingSelectVal);
-    const pricingRow = isManualCourseRow ? null : lookupPricingRow({ optionKey, activityNo: fieldText('activity_no'), itemName: editedName });
-    const pricingName = publicActivityName(pricingRow?.activity_name);
+    const optionKey = isManualCourseRow ? '' : fieldText('pricing_option_key');
+    const pricingRowByOptionKey = isManualCourseRow ? null : lookupPricingRow({ optionKey });
+    const pricingRowByActivityNo = isManualCourseRow || pricingRowByOptionKey
+      ? null
+      : lookupPricingRow({ activityNo: fieldText('activity_no') });
+    const pricingRowBySelection = isManualCourseRow || pricingRowByOptionKey || pricingRowByActivityNo
+      ? null
+      : lookupPricingRow({ optionKey: pricingSelectVal });
+    const pricingRow = pricingRowByOptionKey || pricingRowByActivityNo || pricingRowBySelection;
+    const resolvedOptionKey = pricingRowByOptionKey ? optionKey : (pricingRowBySelection ? pricingSelectVal : optionKey);
+    const pricingName = publicActivityLabelFromRow(pricingRow || {});
 
     const itemName = editedName || pricingName;
     const quantity = fieldNumber('quantity') ?? 1;
@@ -2436,7 +2470,7 @@ function extractItemsFromForm(form) {
     const extracted = {
       activity_no:            isManualCourseRow ? '' : (fieldText('activity_no') || text(pricingRow?.activity_no)),
       pricing_activity_no:    isManualCourseRow ? '' : (fieldText('activity_no') || text(pricingRow?.activity_no)),
-      pricing_option_key:     isManualCourseRow ? '' : text(optionKey),
+      pricing_option_key:     isManualCourseRow ? '' : text(resolvedOptionKey || pricingSelectVal),
       item_name:              itemName,
       item_type:              isManualCourseRow ? '' : (fieldText('item_type') || text(pricingRow?.item_type)),
       gefen_number:           isManualCourseRow ? '' : (fieldText('gefen_number') || text(pricingRow?.gefen_number)),
@@ -3719,7 +3753,8 @@ function templateDefaultSections(_templateKey) {
 }
 
 function resolveDocumentSections(row, templateSections = []) {
-  const custom = Array.isArray(row?.custom_document_sections) ? row.custom_document_sections : [];
+  const custom = (Array.isArray(row?.custom_document_sections) ? row.custom_document_sections : [])
+    .filter((section) => proposalTextField(section, 'section_key', 'sectionKey') !== 'table_note');
   const fromSupabase = Array.isArray(templateSections) ? templateSections : [];
   let source = custom.length ? custom : fromSupabase;
   if (custom.length) {
@@ -3733,6 +3768,31 @@ function resolveDocumentSections(row, templateSections = []) {
   return source
     .map(normalizeDocumentSection)
     .filter((section) => proposalTextField(section, 'section_key', 'sectionKey') || proposalTextField(section, 'section_title', 'sectionTitle') || text(section.section_body));
+}
+
+function proposalTableNote(row = {}) {
+  if (!isNextYearProposalGroup(row.activity_type_group)) return '';
+  const section = (Array.isArray(row.custom_document_sections) ? row.custom_document_sections : [])
+    .find((candidate) => proposalTextField(candidate, 'section_key', 'sectionKey') === 'table_note');
+  return text(proposalField(section, 'section_body', 'sectionBody')).replace(/^\s*\*+\s*/, '');
+}
+
+function proposalTableNoteSection(value) {
+  const note = text(value).replace(/^\s*\*+\s*/, '');
+  return note ? { section_key: 'table_note', section_title: '', section_body: note, sort_order: 999 } : null;
+}
+
+export function proposalDocumentSections(row = {}) {
+  return (Array.isArray(row.custom_document_sections) ? row.custom_document_sections : [])
+    .filter((section) => proposalTextField(section, 'section_key', 'sectionKey') !== 'table_note');
+}
+
+export function documentSectionsWithPreservedTableNote(row = {}, documentSections = []) {
+  const tableNote = (Array.isArray(row.custom_document_sections) ? row.custom_document_sections : [])
+    .find((section) => proposalTextField(section, 'section_key', 'sectionKey') === 'table_note');
+  const sections = (Array.isArray(documentSections) ? documentSections : [])
+    .filter((section) => proposalTextField(section, 'section_key', 'sectionKey') !== 'table_note');
+  return tableNote ? [...sections, tableNote] : sections;
 }
 
 function documentSectionsEditorHtml(sections = [], isCustom = false) {
@@ -4034,6 +4094,28 @@ export function gefenApprovalItems(row = {}, items = []) {
   });
 }
 
+export function nextYearGefenApprovalItems(row = {}, items = [], currentCourses = []) {
+  if (!isNextYearProposalGroup(row.activity_type_group)) return gefenApprovalItems(row, items);
+  const currentByNumber = new Map((Array.isArray(currentCourses) ? currentCourses : [])
+    .map((course) => [text(course.gefen_number), course]).filter(([number]) => number));
+  return gefenApprovalItems(row, items).map((item) => {
+    const gefenNumber = text(item.gefen_number);
+    const current = currentByNumber.get(gefenNumber);
+    if (!current) {
+      throw new Error(`לא נמצא מחיר גפ״ן עדכני לתוכנית ${courseShortNameForItem(item)} – מספר גפ״ן ${gefenNumber}. לא ניתן להפיק את האישור.`);
+    }
+    const quantity = itemQuantity(item);
+    const currentProgramPrice = Number(current.total_price);
+    return { ...item,
+      meetings_count: current.meetings_count, hours_count: current.hours_count,
+      hourly_price: current.hourly_price, unit_price: currentProgramPrice,
+      total_price: currentProgramPrice * quantity,
+      meetingsCount: current.meetings_count, hoursCount: current.hours_count,
+      hourlyPrice: current.hourly_price, unitPrice: currentProgramPrice,
+      totalPrice: currentProgramPrice * quantity };
+  });
+}
+
 function isGefenApprovalApplicable(row = {}, items = []) {
   const group = normalizeProposalGroup(row.activity_type_group);
   if (group === 'gefen' || isNextYearProposalGroup(group)) return true;
@@ -4046,7 +4128,10 @@ function isGefenApprovalApplicable(row = {}, items = []) {
   return ['gefen', 'tour', COMBINED_INTERNAL_KEY].includes(group);
 }
 
-function gefenApprovalStatusDisplay(row = {}, generated = text(row.gefen_approval_status) === 'generated') {
+function gefenApprovalStatusDisplay(
+  row = {},
+  generated = text(row.gefen_approval_status) === 'generated' && Boolean(text(row.gefen_approval_path))
+) {
   const quoteNumber = text(row.quote_number);
   return `${generated ? 'הופק' : 'חסר'}${quoteNumber ? ` · הצעה ${quoteNumber}` : ''}`;
 }
@@ -4274,8 +4359,10 @@ export function proposalPreviewBodyHtml(row, items = [], templateSections = [], 
       ? proposalItemDetailsTableHtml(items, activityTypeGroup)
       : proposalCostTableHtml(items, { isSummer: isSummerProposalGroup(activityTypeGroup) }));
   const costsIntro = costsIntroBody(row, items);
+  const tableNote = proposalTableNote(row);
+  const tableNoteHtml = tableNote ? `<p class="pa-table-note" data-pa-table-note>* ${escapeHtml(tableNote)}</p>` : '';
   const costTableBlock = costTableHtml
-    ? `<div class="pa-cost-table-block">${costsIntro ? `<p class="pa-costs-intro-heading">${escapeHtml(costsIntro)}</p>` : ''}${costTableHtml}</div>`
+    ? `<div class="pa-cost-table-block" id="d-activities-table">${costsIntro ? `<p class="pa-costs-intro-heading">${escapeHtml(costsIntro)}</p>` : ''}${costTableHtml}</div>${tableNoteHtml}`
     : '';
   const paymentTerms = (paymentTermsBody || costTableBlock)
     ? `<section class="pa-section pa-cost-section">${sectionTitle('payment_terms') ? `<h3 class="pa-section-heading">${escapeHtml(sectionHeadingText(sectionTitle('payment_terms')))}</h3>` : ''}${paymentTermsBody ? sectionBodyHtml(paymentTermsBody, { alwaysBullet: true }) : ''}${costTableBlock}</section>`
@@ -4305,7 +4392,8 @@ export function proposalPreviewBodyHtml(row, items = [], templateSections = [], 
     sectionLinesHtml,
   });
   if (row.combine_gefen_approval === true && isGefenApprovalApplicable(row, items)) {
-    return `<div class="pa-gefen-combined-document">${proposalHtml}${gefenApprovalDocumentHtml(row, items, { pageBreak: true })}</div>`;
+    const approvalItems = Array.isArray(renderOptions.gefenApprovalItems) ? renderOptions.gefenApprovalItems : items;
+    return `<div class="pa-gefen-combined-document">${proposalHtml}${gefenApprovalDocumentHtml(row, approvalItems, { pageBreak: true })}</div>`;
   }
   return proposalHtml;
 }
@@ -4919,7 +5007,7 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
   ) : '';
   const initClientName = text(initContactSource?.client_name) || initSchool || initAuth;
   const proposalDate = mode === 'add' ? (text(row.proposal_date) || localDateInputValue()) : text(row.proposal_date);
-  const hasCustomSections = Array.isArray(row.custom_document_sections) && row.custom_document_sections.length > 0;
+  const hasCustomSections = proposalDocumentSections(row).length > 0;
   const rowNormalizedStatus = normalizeProposalStatus(text(row.status));
   const rowIsAlreadyApproved = rowNormalizedStatus === 'approved' || rowNormalizedStatus === 'sent' || proposalHasSavedApprovalSignature(row);
   const canApproveDirectly = canApproveProposalsAgreements(state) && !rowIsAlreadyApproved;
@@ -5009,6 +5097,10 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
     <div class="ds-pa-form-activities-panel" data-pa-step-panel="activity">
       <h4 class="pa-sidebar-section-title">פעילויות ומחירים</h4>
       <div data-pa-items-host>${itemsEditorHtml(items, filteredPricing, normalizedActivityGroup, { allowManualCourse })}</div>
+      <label class="ds-pa-form-field ds-pa-table-note-field" data-pa-table-note-field${isNextYearProposalGroup(normalizedActivityGroup) ? '' : ' hidden'}>
+        <span>הערה מתחת לטבלה</span>
+        <textarea class="ds-input ds-input--sm" name="table_note" rows="2">${escapeHtml(proposalTableNote(row))}</textarea>
+      </label>
     </div>
 
     <div class="ds-pa-form-bottom-panel" data-pa-step-panel="summary">
@@ -5094,7 +5186,7 @@ function drawerActionButtons(row, state) {
   if (isAdminRole && normalizeProposalStatus(status) === 'approved' && !proposalHasSavedApprovalSignature(row)) {
     buttons.push(iconBtn(`data-pa-status-action="approved" data-pa-action-id="${escapeHtml(row.id)}"`, 'אשר וחתום מחדש', CHECK));
   }
-  if (canTransitionProposalStatus(row, 'sent', state) && proposalHasFinalPdf(row)) {
+  if (canTransitionProposalStatus(row, 'sent', state)) {
     buttons.push(iconBtn(`data-pa-status-action="sent" data-pa-action-id="${escapeHtml(row.id)}"`, 'סימון כנשלח', SENT));
   }
   if (canViewSentProposalPdf(row, state)) {
@@ -5449,7 +5541,15 @@ function allDisplayRows(data) {
 }
 
 function normalizedClientPart(value) {
-  return text(value).trim().toLocaleLowerCase('he-IL');
+  return text(value)
+    .normalize('NFKC')
+    .trim()
+    .toLocaleLowerCase('he-IL')
+    .replace(/נהרייה/g, 'נהריה')
+    .replace(/קריית/g, 'קרית')
+    .replace(/[‐‑‒–—―−]/g, '-')
+    .replace(/[׳'״"]/g, '')
+    .replace(/\s+/g, ' ');
 }
 
 function clientFileKey(row = {}) {
@@ -5846,6 +5946,10 @@ function payloadFromForm(form) {
   if (isTourProposalGroup(payload.activity_type_group)) {
     payload.activity_type_group = 'tour';
   }
+  const tableNoteSection = isNextYearProposalGroup(payload.activity_type_group)
+    ? proposalTableNoteSection(formData.get('table_note'))
+    : null;
+  payload.custom_document_sections = tableNoteSection ? [tableNoteSection] : [];
   const items = filterItemsByProposalType(extractItemsFromForm(form), payload.activity_type_group);
   const subtotal = items.reduce((s, i) => s + Math.max(Number(proposalField(i, 'total_price', 'totalPrice')) || ((Number(proposalField(i, 'quantity', 'quantity')) || 0) * (Number(proposalField(i, 'unit_price', 'unitPrice')) || 0)), 0), 0);
   const discountType = text(form.querySelector('[data-pa-discount-type]')?.value) || 'amount';
@@ -5903,6 +6007,60 @@ function payloadFromForm(form) {
     email:        text(formData.get('contact_source_email'))
   };
   return payload;
+}
+
+const PROPOSAL_APPROVAL_STEP_TIMEOUT_MS = 15000;
+
+export async function settleProposalApprovalStep(operation, stepLabel, options = {}) {
+  const timeoutMs = Number(options.timeoutMs) || PROPOSAL_APPROVAL_STEP_TIMEOUT_MS;
+  let timer;
+  try {
+    const result = await Promise.race([
+      Promise.resolve().then(typeof operation === 'function' ? operation : () => operation),
+      new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`${stepLabel} לא הושלם בזמן. ניתן לנסות שוב ללא יצירת הצעה כפולה.`)), timeoutMs);
+      })
+    ]);
+    if (!result || result.ok === false) {
+      throw new Error(text(result?.error?.message || result?.message) || `${stepLabel} נכשל. ניתן לנסות שוב.`);
+    }
+    return result;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function proposalSubmissionId(form) {
+  if (text(form?.dataset?.paSubmissionId)) return text(form.dataset.paSubmissionId);
+  const generated = globalThis.crypto?.randomUUID?.()
+    || `00000000-0000-4000-8000-${Date.now().toString(16).padStart(12, '0').slice(-12)}`;
+  if (form?.dataset) form.dataset.paSubmissionId = generated;
+  return generated;
+}
+
+export async function runProposalApprovalSubmission({ saveProposal, saveItems, updateStatus, items = [], timeoutOptions = {} }) {
+  const invalidItemIndex = (Array.isArray(items) ? items : []).findIndex((item) => !text(item?.item_name ?? item?.itemName));
+  if (invalidItemIndex >= 0) {
+    throw new Error(`חסר שם פעילות בשורה ${invalidItemIndex + 1}. יש לבחור פעילות לפני שמירת ההצעה.`);
+  }
+  const proposalResult = await settleProposalApprovalStep(saveProposal, 'שמירת ההצעה', timeoutOptions);
+  const savedId = text(proposalResult?.row?.id);
+  if (!savedId) throw new Error('שמירת ההצעה לא החזירה מזהה. לא בוצעה שליחה לאישור.');
+  await settleProposalApprovalStep(() => saveItems(savedId, items), 'שמירת פריטי ההצעה', timeoutOptions);
+  const statusResult = await settleProposalApprovalStep(() => updateStatus(savedId, 'pending_approval'), 'שליחת ההצעה לאישור', timeoutOptions);
+  return { proposalResult, statusResult, savedId };
+}
+
+export function createProposalApprovalSubmissionRunner() {
+  let active = null;
+  return {
+    run(options) {
+      if (active) return active;
+      active = runProposalApprovalSubmission(options).finally(() => { active = null; });
+      return active;
+    },
+    isActive: () => Boolean(active)
+  };
 }
 
 function proposalItemHasCatalogIdentity(item = {}) {
@@ -6181,7 +6339,10 @@ export {
   proposalGroupDisplayName,
   isArchivedClientProposal,
   drawerHtml,
-  proposalCompactCardHtml
+  proposalCompactCardHtml,
+  normalizedClientPart,
+  buildClientFiles,
+  clientSearchResultsHtml
 };
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
@@ -6190,6 +6351,7 @@ export const proposalsAgreementsScreen = {
   load: ({ api, state }) => {
     if (!canAccessProposalsAgreements(state)) return Promise.resolve({ rows: [], unauthorized: true });
     // First metadata page only. Additional pages load only on explicit user action.
+    // Load list metadata only. Linked documents load when the user opens a proposal.
     return api.proposalsAgreements({ limit: 50, offset: 0, includeLinkedDocuments: false });
   },
   render(data = {}, { state } = {}) {
@@ -6275,6 +6437,7 @@ export const proposalsAgreementsScreen = {
     setProposalPricingLookup(proposalActivityPricing);
     const proposalTemplateSections = normalizeTemplateSections(Array.isArray(data?.proposalTemplateSections) ? data.proposalTemplateSections : []);
     let contactOptions = Array.isArray(data?.contactOptions) ? data.contactOptions : [];
+    const newlyInsertedContacts = new Map();
     let contactOptionsError = text(data?.contactOptionsError || '');
     // Contacts provided with the screen payload (editor/tests) are already available.
     if (contactOptions.length) data._contactsLoaded = true;
@@ -6298,13 +6461,18 @@ export const proposalsAgreementsScreen = {
       };
     };
     const syncContactOptions = (nextOptions = [], error = null) => {
-      contactOptions = Array.isArray(nextOptions) ? nextOptions : [];
+      contactOptions = mergeFetchedContactsWithInserted(nextOptions, Array.from(newlyInsertedContacts.values()));
       contactOptionsError = text(error || '');
       data.contactOptions = contactOptions;
       data.contactOptionsError = contactOptionsError;
       data._contactsLoaded = true;
     };
-    const ensureContacts = async () => {
+    // ensureContacts is called ONLY on explicit user actions:
+    //   'client-search'   — user typed in the authority/school search field inside the editor form
+    //   'add-contact'     — user clicked the "add contact" button on a client file
+    //   'edit-contact'    — user clicked the "edit contact" button on a client file
+    // It is never called automatically on screen bind or background refresh.
+    const ensureContacts = async (source = 'unknown') => {
       if (data?._contactsLoaded) return;
       if (typeof api.proposalsAgreementsContacts !== 'function'
         && typeof api.proposalsAgreementsEditorDeps !== 'function') {
@@ -6339,6 +6507,7 @@ export const proposalsAgreementsScreen = {
         data._editorDepsLoaded = true;
         activityNameOptions.splice(0, activityNameOptions.length, ...Array.from(new Set(data.activityNameOptions.map((v) => text(v)).filter(Boolean))));
         proposalActivityPricing.splice(0, proposalActivityPricing.length, ...data.proposalActivityPricing);
+        rebuildPricingIndexes();
         setProposalGroupLookups(data, data.rows, proposalActivityPricing);
         setProposalPricingLookup(proposalActivityPricing);
         proposalTemplateSections.splice(0, proposalTemplateSections.length, ...normalizeTemplateSections(data.proposalTemplateSections));
@@ -6346,10 +6515,20 @@ export const proposalsAgreementsScreen = {
       }).finally(() => { editorDepsPromise = null; });
       return editorDepsPromise;
     };
-    // Start immutable editor lookups as soon as the proposals screen is bound.
-    // Opening the editor still awaits the same memoized request, but no longer
-    // pays the full cold-network latency after the user's click.
-    void ensureEditorDeps().catch(() => {});
+    const requiredTemplateSectionsForRow = (row) => {
+      const templateSections = filterTemplateSectionsForGroup(proposalTemplateSections, row?.activity_type_group);
+      const hasCustomSections = Array.isArray(row?.custom_document_sections) && row.custom_document_sections.length > 0;
+      if (!hasCustomSections && templateSections.length === 0) {
+        const error = new Error('proposal_template_missing');
+        error.userMessage = 'לא נמצאה תבנית פעילה לסוג הצעת המחיר. הפעולה נעצרה.';
+        throw error;
+      }
+      return templateSections;
+    };
+    // ensureEditorDeps() is NOT started automatically on screen bind.
+    // It is called on demand only when the user triggers an action that needs it:
+    // new proposal, edit, PDF generation, preview, or send.
+    // This avoids a heavy background fetch that competes with the initial list load.
     const currentListQuery = () => ({
       search: text(data?._query?.search),
       status: text(data?._query?.status),
@@ -6358,6 +6537,7 @@ export const proposalsAgreementsScreen = {
       clientType: text(data?._query?.clientType),
       sort: text(data?._query?.sort) || 'updated_at_desc',
       limit: Number(data?._limit || 50),
+      // Linked documents are not needed for the list view (load on proposal open).
       includeLinkedDocuments: false
     });
     const mergeProposalPageRows = (incoming = []) => {
@@ -6464,6 +6644,13 @@ export const proposalsAgreementsScreen = {
     let selectedClientKey = '';
     let viewingAllProposals = false;
     let viewMode = 'client-home';
+    const clientHomeSnapshot = {
+      rows: data.rows.slice(),
+      query: { ...(data?._query || {}) },
+      hasMore: data?._hasMore,
+      offset: data?._offset,
+      limit: data?._limit
+    };
     let editorReturnContext = null;
     let listViewState = null;
     /** @type {{ returnTo: string, openSource: string, clientKey: string, proposalId: string } | null} */
@@ -6557,6 +6744,14 @@ export const proposalsAgreementsScreen = {
     };
     const showClientFileHome = () => {
       proposalDetailContext = null;
+      if (selectedClientKey) {
+        data.rows = clientHomeSnapshot.rows.slice();
+        data._itemsByProposalId = indexProposalItemsById(data);
+        data._query = { ...clientHomeSnapshot.query };
+        data._hasMore = clientHomeSnapshot.hasMore;
+        data._offset = clientHomeSnapshot.offset;
+        data._limit = clientHomeSnapshot.limit;
+      }
       selectedClientKey = '';
       setProposalDetailMode(false);
       setAllProposalsMode(false);
@@ -6684,7 +6879,29 @@ export const proposalsAgreementsScreen = {
       renderProposalDetailWorkspace(row);
       await fillProposalDetailItems(row);
     };
-    const openClientFile = (key, proposalId = '') => {
+    const loadSelectedClientProposals = async (file) => {
+      if (!file || typeof api.proposalsAgreements !== 'function') return;
+      const schoolId = text(file.school_id);
+      const authorityId = text(file.authority_id);
+      if (!schoolId && !authorityId) return;
+      try {
+        const result = await api.proposalsAgreements({
+          ...currentListQuery(),
+          search: '',
+          status: '',
+          clientType: '',
+          schoolId,
+          authorityId: schoolId ? '' : authorityId,
+          offset: 0,
+          paginate: false
+        });
+        data.rows = (Array.isArray(result?.rows) ? result.rows : []).map(normalizeProposalAgreementRow);
+        data._itemsByProposalId = indexProposalItemsById(data);
+      } catch {
+        // The catalog-backed file can still open empty if its proposal read fails.
+      }
+    };
+    const openClientFile = async (key, proposalId = '') => {
       setAllProposalsMode(false);
       selectedClientKey = text(key);
       if (proposalId) {
@@ -6695,6 +6912,9 @@ export const proposalsAgreementsScreen = {
         });
         return;
       }
+      const selectedFile = currentClientFile();
+      await loadSelectedClientProposals(selectedFile);
+      if (signal.aborted || !root.isConnected) return;
       proposalDetailContext = null;
       setProposalDetailMode(false);
       setScreenTitle('תיק לקוח');
@@ -6795,6 +7015,15 @@ export const proposalsAgreementsScreen = {
           }
           return;
         }
+        // The client catalog is the source for authorities/schools without proposals and
+        // for central contact details. Server search complements it with proposals that
+        // are outside the currently loaded page.
+        try {
+          await ensureContacts('client-file-search');
+        } catch {
+          // Keep proposal search available if the contacts catalog cannot be loaded.
+        }
+        if (signal.aborted || !root.isConnected || !input.isConnected || text(input.value) !== query) return;
         // Prefer server search when the list API exists; keep local fallback for tests/offline.
         if (typeof api.proposalsAgreements === 'function') {
           results.innerHTML = '<p class="ds-client-search-empty">מחפש…</p>';
@@ -6804,7 +7033,7 @@ export const proposalsAgreementsScreen = {
             results.innerHTML = '<p class="ds-client-search-empty">החיפוש נכשל. נסו שוב.</p>';
             return;
           }
-          results.innerHTML = clientSearchResultsHtml(buildClientFiles({ ...data, contactOptions: [] }), query)
+          results.innerHTML = clientSearchResultsHtml(buildClientFiles({ ...data, contactOptions }), query)
             || '<p class="ds-client-search-empty">לא נמצא תיק לקוח מתאים</p>';
           return;
         }
@@ -6904,6 +7133,8 @@ export const proposalsAgreementsScreen = {
       if (!typeSelect) return;
       typeSelect.addEventListener('change', () => {
         const newType = text(typeSelect.value);
+        const tableNoteField = form.querySelector('[data-pa-table-note-field]');
+        if (tableNoteField) tableNoteField.hidden = !isNextYearProposalGroup(newType);
         form.dataset.paPreviewSeen = '';
         // Update template indicator
         const indicatorEl = form.querySelector('[data-pa-template-indicator]');
@@ -7676,7 +7907,7 @@ export const proposalsAgreementsScreen = {
       }
       renderContactChannelsStatus(form);
       const runClientSearch = async (step, inputSelector, resultsSelector) => {
-        await ensureContacts();
+        await ensureContacts('client-search');
         if (signal.aborted || !form.isConnected) return;
         renderClientResults(form, step, form.querySelector(inputSelector), form.querySelector(resultsSelector));
       };
@@ -7811,20 +8042,24 @@ export const proposalsAgreementsScreen = {
     };
 
     const setupItemCalc = (container) => { calcGrandTotal(container); };
-    const pricingByName = proposalActivityPricing.reduce((acc, row) => {
-      const rawName = text(row.activity_name);
-      const publicName = publicActivityName(row.activity_name);
-      if (rawName && !acc.has(rawName)) acc.set(rawName, row);
-      if (publicName && !acc.has(publicName)) acc.set(publicName, row);
-      return acc;
-    }, new Map());
-    const pricingByNo = proposalActivityPricing.reduce((acc, row) => {
-      const key = text(row.activity_no);
-      if (!key || acc.has(key)) return acc;
-      acc.set(key, row);
-      return acc;
-    }, new Map());
-    const pricingByOptionKey = new Map(proposalActivityPricing.map((row, idx) => [pricingOptionKey(row, idx), row]));
+    const pricingByName = new Map();
+    const pricingByNo = new Map();
+    const pricingByOptionKey = new Map();
+    const rebuildPricingIndexes = () => {
+      pricingByName.clear();
+      pricingByNo.clear();
+      pricingByOptionKey.clear();
+      proposalActivityPricing.forEach((row, idx) => {
+        const rawName = text(row.activity_name);
+        const publicName = publicActivityName(row.activity_name);
+        const activityNo = text(row.activity_no);
+        if (rawName && !pricingByName.has(rawName)) pricingByName.set(rawName, row);
+        if (publicName && !pricingByName.has(publicName)) pricingByName.set(publicName, row);
+        if (activityNo && !pricingByNo.has(activityNo)) pricingByNo.set(activityNo, row);
+        pricingByOptionKey.set(pricingOptionKey(row, idx), row);
+      });
+    };
+    rebuildPricingIndexes();
 
     const resolvePricingRow = ({ activityNo, activityName, optionKey }) => {
       const selectedOptionKey = text(optionKey);
@@ -7983,6 +8218,7 @@ export const proposalsAgreementsScreen = {
         await ensureEditorDeps();
         if (mode === 'edit' && text(row.id)) row = await ensureProposalDetailRow(row);
       } catch (error) {
+        if (await handleSupabaseSessionFailure(error)) return;
         const errorBackLabel = originMode === 'all-proposals' ? 'חזרה לכל ההצעות' : 'חזרה לתיק הלקוח';
         formHost.innerHTML = `<div class="ds-empty ds-pa-editor-load-error" role="alert"><strong>לא הצלחנו לטעון את נתוני ההצעה.</strong><span>ניתן לחזור ולנסות שוב.</span><button type="button" class="ds-btn ds-btn--primary" data-pa-cancel-form>← ${errorBackLabel}</button></div>`;
         return;
@@ -7994,7 +8230,10 @@ export const proposalsAgreementsScreen = {
           if (typeof api.readProposalAgreementItems === 'function') {
             items = await api.readProposalAgreementItems(text(row.id));
           }
-        } catch { items = []; }
+        } catch (error) {
+          if (await handleSupabaseSessionFailure(error)) return;
+          items = [];
+        }
       }
       items = proposalItemsWithFallback(items, row);
       const backLabel = originMode === 'all-proposals' ? 'חזרה לכל ההצעות' : 'חזרה לתיק הלקוח';
@@ -8128,17 +8367,31 @@ export const proposalsAgreementsScreen = {
       const existingId = directExistingId ?? (legacyMatches.length === 1 ? (legacyMatches[0].source_id ?? legacyMatches[0].id) : null);
       const errorEl = contactForm.querySelector('[data-pa-client-contact-error]');
       const submitBtn = contactForm.querySelector('[type="submit"]');
+      if (contactForm.dataset.paContactSaving === 'yes') return;
       if (!contactFields.contact_name) {
         if (errorEl) errorEl.textContent = 'יש להזין שם איש קשר';
+        contactForm.querySelector('[name="contact_name"]')?.focus?.();
         return;
       }
+      const mobileDigits = contactFields.mobile.replace(/[^0-9]/g, '');
+      if (!contactFields.mobile) {
+        if (errorEl) errorEl.textContent = 'יש להזין מספר נייד';
+        contactForm.querySelector('[name="mobile"]')?.focus?.();
+        return;
+      }
+      if (!/^05[0-9]{8}$/.test(mobileDigits) && !/^9725[0-9]{8}$/.test(mobileDigits)) {
+        if (errorEl) errorEl.textContent = 'יש להזין מספר נייד ישראלי תקין';
+        contactForm.querySelector('[name="mobile"]')?.focus?.();
+        return;
+      }
+      contactForm.dataset.paContactSaving = 'yes';
       if (submitBtn) submitBtn.disabled = true;
       try {
         if (!original) {
-          const result = await api.addContact({ kind: 'school', row: contactFields });
-          const insertedId = result?.row?.id;
-          contactOptions = [...contactOptions, { ...contactFields, id: insertedId, source_id: insertedId, source_table: 'contacts_schools' }];
-          showToast('איש הקשר נוסף בהצלחה', 'success', 1800);
+          const savedContact = await persistNewClientContact(api, contactFields);
+          newlyInsertedContacts.set(text(savedContact.id), savedContact);
+          contactOptions = [...contactOptions.filter((contact) => text(contact.source_id ?? contact.id) !== text(savedContact.id)), savedContact];
+          showToast(savedContact.already_existed ? 'איש הקשר כבר קיים ונבחר.' : 'איש הקשר נוסף בהצלחה', 'success', 1800);
         } else if (existingId != null && existingId !== '') {
           const updateRow = { ...contactFields, id: existingId };
           await api.saveContact({ kind: 'school', row: updateRow, _supabase_orig: original });
@@ -8164,6 +8417,7 @@ export const proposalsAgreementsScreen = {
           ? 'לא ניתן לזהות את רשומת איש הקשר לעדכון. יש לרענן את תיק הלקוח ולנסות שוב.'
           : 'לא ניתן היה לשמור את פרטי איש הקשר. הפרטים שהוזנו נשמרו בטופס וניתן לנסות שוב.';
         if (submitBtn) submitBtn.disabled = false;
+        contactForm.dataset.paContactSaving = '';
       }
     }, { signal });
 
@@ -8247,9 +8501,18 @@ export const proposalsAgreementsScreen = {
         button.innerHTML = '<span class="ds-pa-pdf-spinner" aria-hidden="true"></span> מפיק...';
       }
       try {
-        const documentHtmlSnapshot = gefenApprovalDocumentHtml(freshRow, mergedItems);
+        await ensureEditorDeps();
+        let approvalItems = mergedItems;
+        if (isNextYearProposalGroup(freshRow.activity_type_group)) {
+          if (typeof api.readCurrentGefenCourses !== 'function') throw new Error('טעינת מחירון גפ״ן העדכני אינה זמינה.');
+          const selected = gefenApprovalItems(freshRow, mergedItems);
+          const currentCourses = await api.readCurrentGefenCourses(selected.map((item) => text(item.gefen_number)));
+          approvalItems = nextYearGefenApprovalItems(freshRow, mergedItems, currentCourses);
+        }
+        const templateSections = requiredTemplateSectionsForRow(freshRow);
+        const documentHtmlSnapshot = gefenApprovalDocumentHtml(freshRow, approvalItems);
         const documentSnapshot = {
-          ...buildProposalDocumentSnapshot(freshRow, mergedItems, proposalTemplateSections),
+          ...buildProposalDocumentSnapshot(freshRow, approvalItems, templateSections),
           document_type: 'gefen_approval',
           linked_proposal_id: text(freshRow.id)
         };
@@ -8311,6 +8574,13 @@ export const proposalsAgreementsScreen = {
       try {
         setPdfStage('build-html');
         const mergedItems = proposalItemsWithFallback(items, freshRow);
+        let combinedApprovalItems = mergedItems;
+        if (freshRow.combine_gefen_approval === true && isNextYearProposalGroup(freshRow.activity_type_group)) {
+          if (typeof api.readCurrentGefenCourses !== 'function') throw new Error('טעינת מחירון גפ״ן העדכני אינה זמינה.');
+          const selected = gefenApprovalItems(freshRow, mergedItems);
+          const currentCourses = await api.readCurrentGefenCourses(selected.map((item) => text(item.gefen_number)));
+          combinedApprovalItems = nextYearGefenApprovalItems(freshRow, mergedItems, currentCourses);
+        }
         if (
           isGefenApprovalApplicable(freshRow, mergedItems)
           && (
@@ -8324,10 +8594,13 @@ export const proposalsAgreementsScreen = {
             return;
           }
         }
-        const templateSections = filterTemplateSectionsForGroup(proposalTemplateSections, freshRow.activity_type_group);
+        const templateSections = requiredTemplateSectionsForRow(freshRow);
         const documentHtmlSnapshot = historicalSnapshotBackfill && text(freshRow.document_html_snapshot)
           ? text(freshRow.document_html_snapshot)
-          : proposalPreviewBodyHtml(freshRow, mergedItems, templateSections, { showSignatureImage: true });
+          : proposalPreviewBodyHtml(freshRow, mergedItems, templateSections, {
+            showSignatureImage: true,
+            gefenApprovalItems: combinedApprovalItems
+          });
         const documentSnapshot = historicalSnapshotBackfill && freshRow.document_snapshot
           ? freshRow.document_snapshot
           : buildProposalDocumentSnapshot(freshRow, mergedItems, templateSections);
@@ -8402,7 +8675,9 @@ export const proposalsAgreementsScreen = {
       const mergedItems = proposalItemsWithFallback(items, freshRow);
       const templateSections = Array.isArray(suppliedTemplateSections)
         ? suppliedTemplateSections
-        : filterTemplateSectionsForGroup(proposalTemplateSections, freshRow.activity_type_group);
+        : requiredTemplateSectionsForRow(freshRow);
+      if ((!Array.isArray(freshRow.custom_document_sections) || freshRow.custom_document_sections.length === 0)
+        && templateSections.length === 0) requiredTemplateSectionsForRow(freshRow);
       const previewHtml = suppliedPreviewHtml || proposalPreviewBodyHtml(freshRow, mergedItems, templateSections, { showSignatureImage: true });
       const documentSnapshot = buildProposalDocumentSnapshot(freshRow, mergedItems, templateSections);
       const documentHtmlSnapshot = previewHtml;
@@ -8423,7 +8698,7 @@ export const proposalsAgreementsScreen = {
       await ensureEditorDeps();
       const freshRow = rowWithCentralContact(row);
       const mergedItems = proposalItemsWithFallback(items, freshRow);
-      const templateSections = filterTemplateSectionsForGroup(proposalTemplateSections, freshRow.activity_type_group);
+      const templateSections = requiredTemplateSectionsForRow(freshRow);
       const previewHtml = proposalPreviewBodyHtml(freshRow, mergedItems, templateSections, { showSignatureImage: true });
       if (proposalHasFinalPdf(freshRow)) {
         if (typeof api.lockAndSendProposalAgreement !== 'function') {
@@ -8438,7 +8713,24 @@ export const proposalsAgreementsScreen = {
         }
         return;
       }
-      showToast('יש להפיק ולשמור PDF לפני שליחה ונעילה.', 'warning');
+      if (typeof api.lockAndSendProposalAgreement !== 'function') {
+        showToast('פעולת שליחה ונעילה אינה זמינה.', 'error');
+        return;
+      }
+      try {
+        const quoteNumber = sanitizeProposalPdfFileLabel(freshRow.quote_number) || text(freshRow.id).slice(0, 8);
+        const pdfFile = typeof api.createProposalFinalPdfFile === 'function'
+          ? await api.createProposalFinalPdfFile({ row: freshRow, previewHtml })
+          : new File(
+            [await proposalHtmlToPdfBlob(previewHtml, { proposalId: text(freshRow.id) })],
+            `הצעת_מחיר_${quoteNumber}.pdf`,
+            { type: 'application/pdf' }
+          );
+        await finalizeSentProposal(freshRow, mergedItems, { pdfFile, previewHtml, templateSections });
+      } catch (err) {
+        showToast('הפקת ה־PDF ושליחת ההצעה נכשלו. ניתן לנסות שוב.', 'error');
+        console.error('[proposal generate PDF and send failed]', err);
+      }
     };
 
     const approvalRequests = new Set();
@@ -8480,7 +8772,7 @@ export const proposalsAgreementsScreen = {
       await ensureEditorDeps();
       items = proposalItemsWithFallback(items, freshRow);
       const lockedPreviewHtml = isSentLocked ? proposalLockedPreviewHtml(freshRow) : '';
-      const templateSections = filterTemplateSectionsForGroup(proposalTemplateSections, freshRow.activity_type_group);
+      const templateSections = requiredTemplateSectionsForRow(freshRow);
       document.getElementById('pa-preview-overlay')?.remove();
       const overlay = document.createElement('div');
       overlay.id = 'pa-preview-overlay';
@@ -8593,6 +8885,7 @@ export const proposalsAgreementsScreen = {
 
 
     // ── Save ──────────────────────────────────────────────────────────────────
+    const approvalSubmissionRunner = createProposalApprovalSubmissionRunner();
     const saveForm = async (form, statusOverride, signatureMeta = null) => {
       const errorEl = form.querySelector('[data-pa-form-error]');
       if (form.dataset.saving === 'yes') return;
@@ -8603,7 +8896,10 @@ export const proposalsAgreementsScreen = {
       // Always set status explicitly — 'draft' is the safe default
       const targetStatus = statusOverride || 'draft';
       const approvingWithSignature = targetStatus === 'approved';
-      payload.status = approvingWithSignature ? 'pending_approval' : targetStatus;
+      // Submit in three ordered steps: draft, items, then one status transition.
+      // A failed item write must never leave an incomplete proposal awaiting approval.
+      const submittingForApproval = targetStatus === 'pending_approval';
+      payload.status = submittingForApproval ? 'draft' : (approvingWithSignature ? 'pending_approval' : targetStatus);
       if (signatureMeta && typeof signatureMeta === 'object' && !approvingWithSignature) payload.signature_meta = signatureMeta;
       const isPending = targetStatus === 'sent' || targetStatus === 'pending_approval';
 
@@ -8627,27 +8923,53 @@ export const proposalsAgreementsScreen = {
           allBtns.forEach((b) => { b.disabled = false; });
           return;
         }
-        if (existingRow && text(form.dataset.paOriginalType) === text(payload.activity_type_group) && Array.isArray(existingRow.custom_document_sections)) {
-          payload.custom_document_sections = existingRow.custom_document_sections;
-        } else {
-          payload.custom_document_sections = [];
-        }
+        const retainedSections = existingRow && text(form.dataset.paOriginalType) === text(payload.activity_type_group)
+          ? proposalDocumentSections(existingRow)
+          : [];
+        payload.custom_document_sections = [...retainedSections, ...(payload.custom_document_sections || [])];
       }
       try {
-        const result = mode === 'edit'
-          ? await api.updateProposalAgreement(id, payload)
-          : await api.addProposalAgreement(payload);
-        const savedId = text(result?.row?.id || id);
         const items = Array.isArray(payload._items) ? payload._items : filterItemsByProposalType(extractItemsFromForm(form), payload.activity_type_group);
-        if (savedId && typeof api.saveProposalAgreementItems === 'function') {
-          await api.saveProposalAgreementItems(savedId, items);
+        let result;
+        let savedId;
+        let submittedStatusResult = null;
+        const timeoutOptions = {
+          timeoutMs: Number(globalThis.__PROPOSAL_SUBMISSION_TIMEOUT_MS__) || undefined
+        };
+        if (submittingForApproval) {
+          if (typeof api.saveProposalAgreementItems !== 'function' || typeof api.updateProposalAgreementStatus !== 'function') {
+            throw new Error('שליחת ההצעה לאישור אינה זמינה. יש לרענן את המסך ולנסות שוב.');
+          }
+          const submitted = await approvalSubmissionRunner.run({
+            saveProposal: () => mode === 'edit'
+              ? api.updateProposalAgreement(id, payload)
+              : api.addProposalAgreement({ ...payload, _submission_id: proposalSubmissionId(form) }),
+            saveItems: api.saveProposalAgreementItems,
+            updateStatus: api.updateProposalAgreementStatus,
+            items,
+            timeoutOptions
+          });
+          result = submitted.proposalResult;
+          savedId = submitted.savedId;
+          submittedStatusResult = submitted.statusResult;
+        } else {
+          result = await settleProposalApprovalStep(
+            () => mode === 'edit' ? api.updateProposalAgreement(id, payload) : api.addProposalAgreement(payload),
+            'שמירת ההצעה',
+            timeoutOptions
+          );
+          savedId = text(result?.row?.id || id);
+          if (savedId && typeof api.saveProposalAgreementItems === 'function') {
+            await settleProposalApprovalStep(() => api.saveProposalAgreementItems(savedId, items), 'שמירת פריטי ההצעה', timeoutOptions);
+          }
         }
         let finalRow = result?.row || { ...payload, id: savedId };
-        if (approvingWithSignature && savedId) {
+        if (submittingForApproval && savedId) {
+          finalRow = submittedStatusResult?.row || { ...finalRow, status: 'pending_approval' };
+          showToast('ההצעה נשמרה ונשלחה לאישור', 'success');
+        } else if (approvingWithSignature && savedId) {
           finalRow = await approveProposalWithSignature(savedId, signatureMeta || defaultSignatureMeta());
           showToast('ההצעה אושרה ונחתמה', 'success');
-        } else if (targetStatus === 'pending_approval') {
-          showToast('ההצעה נשמרה ונשלחה לאישור', 'success');
         } else if (targetStatus === 'draft') {
           showToast('הטיוטה נשמרה בהצלחה', 'success');
         }
@@ -8663,7 +8985,10 @@ export const proposalsAgreementsScreen = {
         }
       } catch (err) {
         console.error('[proposal save failed]', err);
-        if (errorEl) errorEl.textContent = 'לא ניתן היה לשמור את ההצעה. הפרטים נשארו בטופס וניתן לנסות שוב.';
+        if (await handleSupabaseSessionFailure(err)) return false;
+        const detail = text(err?.message);
+        if (errorEl) errorEl.textContent = detail || 'לא ניתן היה לשמור את ההצעה. הפרטים נשארו בטופס וניתן לנסות שוב.';
+        showToast(detail || 'לא ניתן היה להשלים את שליחת ההצעה לאישור. הפרטים נשארו בטופס וניתן לנסות שוב.', 'error');
         return false;
       } finally {
         if (form.isConnected) {
@@ -8733,6 +9058,152 @@ export const proposalsAgreementsScreen = {
         }, rowGroup);
       }
     }, { signal });
+    // A single capture-phase owner handles every pricing row, including rows
+    // appended after the form was opened. Capture prevents another runtime's
+    // bubbling listener from interrupting hydration before it reaches the screen.
+    const handlePricingSelection = (pricingSelect) => {
+      const itemRow = pricingSelect.closest('[data-pa-item-row]');
+      const form = pricingSelect.closest('[data-pa-form]');
+      const selectedKey = text(pricingSelect.value);
+      if (!itemRow) return;
+      const bundlePrompt = itemRow.querySelector('[data-pa-bundle-prompt]');
+      if (selectedKey === MANUAL_COURSE_OPTION_KEY) {
+        if (!formAllowsManualCourse(form)) return;
+        applyManualCourseToRow(itemRow, form);
+        return;
+      }
+      setManualCourseNameFieldActive(itemRow, false);
+      const itemTypeInput = itemRow?.querySelector?.('[name="item_type"]');
+      const picked = resolvePricingRow({
+        optionKey: selectedKey,
+        activityNo: selectedKey,
+        activityName: selectedKey,
+        itemType: itemTypeInput?.value
+      });
+      if (!picked) { if (bundlePrompt) bundlePrompt.hidden = true; return; }
+      const isBundle = picked.proposal_display_mode === 'bundle_parent' || picked.is_bundle_parent;
+      if (isBundle && bundlePrompt) {
+        const parentName = publicActivityName(picked.activity_name);
+        const pickedData = {
+          pricing_key: text(picked.pricing_key),
+          activity_name: parentName,
+          item_type: text(picked.item_type),
+          unit_price: numberValue(picked.unit_price),
+          proposal_group: text(picked.proposal_group)
+        };
+        itemRow.dataset.paBundlePicked = JSON.stringify(pickedData);
+        setRowValue(itemRow, 'pricing_option_key', selectedKey);
+        setRowValue(itemRow, 'activity_no', picked.activity_no || '');
+        setRowValue(itemRow, 'item_name', parentName);
+        setRowValue(itemRow, 'item_type', picked.item_type || '');
+        setRowValue(itemRow, 'unit_price', numberValue(picked.unit_price) || '');
+        setRowValue(itemRow, 'proposal_group', proposalItemGroupForEditorRow(itemRow, picked.proposal_group));
+        setRowValue(itemRow, 'item_display_mode', 'bundle_parent');
+        setRowValue(itemRow, 'item_source_pricing_key', text(picked.pricing_key) || '');
+        setRowValue(itemRow, 'bundle_pricing_key', text(picked.pricing_key) || '');
+        setRowValue(itemRow, 'item_selected_bundle_items', '[]');
+        const contractType = text(form?.querySelector('[name="activity_type_group"]')?.value);
+        const allPricingForContract = filterPricingByProposalType(proposalActivityPricing, contractType);
+        const children = allPricingForContract.filter((r) =>
+          text(r.proposal_display_mode) === 'bundle_child' &&
+          text(r.parent_pricing_key) &&
+          text(r.parent_pricing_key) === text(picked.pricing_key)
+        );
+        const childCheckboxesHtml = children.length
+          ? children.map((child, ci) => {
+              const childName = publicActivityLabelFromRow(child);
+              const unitPrice = numberValue(child.unit_price);
+              const childData = {
+                activity_no: text(child.activity_no),
+                pricing_key: text(child.pricing_key),
+                activity_name: childName,
+                unit_price: unitPrice,
+                proposal_bundle_label: parentName
+              };
+              return `<label class="ds-pa-bundle-child-card">
+                <input type="checkbox" name="bundle_child_sel" value="${escapeHtml(childName)}" data-pa-bundle-child-check data-bundle-child-idx="${ci}" data-child-json="${escapeHtml(JSON.stringify(childData))}">
+                <span class="ds-pa-bundle-child-name">${escapeHtml(childName)}</span>
+                <span class="ds-pa-bundle-child-price">${unitPrice != null && unitPrice > 0 ? `₪ ${escapeHtml(formatCurrency(unitPrice))}` : '—'}</span>
+              </label>`;
+            }).join('')
+          : '<p class="ds-pa-bundle-empty">אין פריטי פירוט מוגדרים עבור הגדרה זו</p>';
+        bundlePrompt.innerHTML = `
+          <div class="ds-pa-bundle-panel">
+            <div class="ds-pa-bundle-head">
+              <strong>${escapeHtml(parentName)}</strong>
+              <span>הגדרה כוללת מתוך הקטלוג</span>
+            </div>
+            ${children.length ? '<div class="ds-pa-bundle-help">בחרו את הפעילויות שייכללו בהצעה. המחיר והסה״כ יתעדכנו לפי הבחירה.</div>' : ''}
+            <div class="ds-pa-bundle-grid" role="group" aria-label="בחירת פעילויות">${childCheckboxesHtml}</div>
+            <div class="ds-pa-bundle-footer">
+              <span class="ds-pa-bundle-selection-summary" data-pa-bundle-selection-summary>לא נבחרו פעילויות לפירוט</span>
+              <div class="ds-pa-bundle-actions">
+                <button type="button" class="ds-btn ds-btn--xs ds-btn--primary" data-pa-bundle-confirm>✓ אישור בחירה</button>
+                <button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-pa-bundle-keep>השאר כללי</button>
+              </div>
+            </div>
+          </div>`;
+        bundlePrompt.hidden = false;
+        applyBundleParentToRow(itemRow, pickedData, { keepGeneral: true });
+        return;
+      }
+      if (bundlePrompt) bundlePrompt.hidden = true;
+      const setValue = (name, value) => {
+        const input = itemRow.querySelector(`[name="${name}"]`);
+        if (input) input.value = value == null ? '' : String(value);
+      };
+      setValue('pricing_option_key', selectedKey);
+      setValue('activity_no', picked.activity_no || '');
+      const pickedItemName = publicActivityLabelFromRow(picked);
+      setValue('item_name', pickedItemName);
+      setValue('item_type', picked.item_type || '');
+      setValue('gefen_number', picked.gefen_number || '');
+      setValue('gefen_number_display', picked.gefen_number || '');
+      setValue('hours_count', picked.hours_count);
+      setValue('meetings_count', picked.meetings_count);
+      setValue('unit_price', picked.unit_price);
+      setValue('hourly_price', picked.hourly_price ?? '');
+      setValue('description', picked.description_for_proposal || '');
+      setValue('unit_duration', picked.unit_duration || '');
+      setValue('proposal_group', proposalItemGroupForEditorRow(itemRow, picked.proposal_group));
+      setValue('item_display_mode', 'single');
+      setValue('item_source_pricing_key', text(picked.pricing_key) || '');
+      setValue('item_selected_bundle_items', '[]');
+      const compactName = itemRow.querySelector('[data-pa-item-compact-name]');
+      if (compactName) {
+        compactName.textContent = pickedItemName || 'בחרו פעילות';
+        compactName.title = pickedItemName;
+      }
+      const compactQty = itemRow.querySelector('[data-pa-item-compact-qty]');
+      if (compactQty) compactQty.textContent = `כמות: ${text(itemRow.querySelector('[data-pa-item-qty]')?.value) || '1'}`;
+      const rowGroup = text(itemRow.dataset.paRowGroup || picked.proposal_group);
+      const infoStrip = itemRow.querySelector('[data-pa-item-info-strip]');
+      if (infoStrip && !itemRow.hasAttribute('data-pa-summer-row')) {
+        const get = (name) => text(itemRow.querySelector(`[name="${name}"]`)?.value);
+        const getNum = (name) => { const v = itemRow.querySelector(`[name="${name}"]`)?.value; return v != null && v !== '' && !isNaN(Number(v)) ? Number(v) : null; };
+        infoStrip.innerHTML = buildInfoStripInnerHtml({
+          item_name: get('item_name'),
+          item_type: get('item_type'),
+          gefen_number: get('gefen_number'),
+          meetings_count: getNum('meetings_count'),
+          hours_count: getNum('hours_count'),
+          hourly_price: getNum('hourly_price'),
+          unit_price: getNum('unit_price'),
+          proposal_group: rowGroup
+        }, rowGroup);
+        infoStrip.hidden = !pickedItemName;
+      }
+
+      calcItemRow(itemRow);
+      if (form) calcGrandTotal(form);
+      if (form) updateProposalStepper(form);
+    };
+
+    root.addEventListener('change', (event) => {
+      const pricingSelect = event.target.closest?.('[data-pa-pricing-select]');
+      if (pricingSelect) handlePricingSelection(pricingSelect);
+    }, { signal, capture: true });
+
     root.addEventListener('change', async (event) => {
 
       const rowStatusSelect = event.target.closest?.('[data-pa-row-status]');
@@ -8838,143 +9309,6 @@ export const proposalsAgreementsScreen = {
         return;
       }
 
-      // ── Pricing select ────────────────────────────────────────────────────
-      const pricingSelect = event.target.closest?.('[data-pa-pricing-select]');
-      if (!pricingSelect) return;
-      const itemRow = pricingSelect.closest('[data-pa-item-row]');
-      const form = pricingSelect.closest('[data-pa-form]');
-      const selectedKey = text(pricingSelect.value);
-      if (!itemRow) return;
-      const bundlePrompt = itemRow.querySelector('[data-pa-bundle-prompt]');
-      if (selectedKey === MANUAL_COURSE_OPTION_KEY) {
-        if (!formAllowsManualCourse(form)) return;
-        applyManualCourseToRow(itemRow, form);
-        return;
-      }
-      setManualCourseNameFieldActive(itemRow, false);
-      const itemTypeInput = itemRow?.querySelector?.('[name="item_type"]');
-      const picked = resolvePricingRow({
-        optionKey: selectedKey,
-        activityNo: selectedKey,
-        activityName: selectedKey,
-        itemType: itemTypeInput?.value
-      });
-      if (!picked) { if (bundlePrompt) bundlePrompt.hidden = true; return; }
-      const isBundle = picked.proposal_display_mode === 'bundle_parent' || picked.is_bundle_parent;
-      if (isBundle && bundlePrompt) {
-        const parentName = publicActivityName(picked.activity_name);
-        const pickedData = {
-          pricing_key: text(picked.pricing_key),
-          activity_name: parentName,
-          item_type: text(picked.item_type),
-          unit_price: numberValue(picked.unit_price),
-          proposal_group: text(picked.proposal_group)
-        };
-        itemRow.dataset.paBundlePicked = JSON.stringify(pickedData);
-        setRowValue(itemRow, 'pricing_option_key', selectedKey);
-        setRowValue(itemRow, 'activity_no', picked.activity_no || '');
-        setRowValue(itemRow, 'item_name', parentName);
-        setRowValue(itemRow, 'item_type', picked.item_type || '');
-        setRowValue(itemRow, 'unit_price', numberValue(picked.unit_price) || '');
-        setRowValue(itemRow, 'proposal_group', proposalItemGroupForEditorRow(itemRow, picked.proposal_group));
-        setRowValue(itemRow, 'item_display_mode', 'bundle_parent');
-        setRowValue(itemRow, 'item_source_pricing_key', text(picked.pricing_key) || '');
-        setRowValue(itemRow, 'bundle_pricing_key', text(picked.pricing_key) || '');
-        setRowValue(itemRow, 'item_selected_bundle_items', '[]');
-        const contractType = text(form?.querySelector('[name="activity_type_group"]')?.value);
-        const allPricingForContract = filterPricingByProposalType(proposalActivityPricing, contractType);
-        const children = allPricingForContract.filter((r) =>
-          text(r.proposal_display_mode) === 'bundle_child' &&
-          text(r.parent_pricing_key) &&
-          text(r.parent_pricing_key) === text(picked.pricing_key)
-        );
-        const childCheckboxesHtml = children.length
-          ? children.map((child, ci) => {
-              const childName = publicActivityLabelFromRow(child);
-              const unitPrice = numberValue(child.unit_price);
-              const childData = {
-                activity_no: text(child.activity_no),
-                pricing_key: text(child.pricing_key),
-                activity_name: childName,
-                unit_price: unitPrice,
-                proposal_bundle_label: parentName
-              };
-              return `<label class="ds-pa-bundle-child-card">
-                <input type="checkbox" name="bundle_child_sel" value="${escapeHtml(childName)}" data-pa-bundle-child-check data-bundle-child-idx="${ci}" data-child-json="${escapeHtml(JSON.stringify(childData))}">
-                <span class="ds-pa-bundle-child-name">${escapeHtml(childName)}</span>
-                <span class="ds-pa-bundle-child-price">${unitPrice != null && unitPrice > 0 ? `₪ ${escapeHtml(formatCurrency(unitPrice))}` : '—'}</span>
-              </label>`;
-            }).join('')
-          : '<p class="ds-pa-bundle-empty">אין פריטי פירוט מוגדרים עבור הגדרה זו</p>';
-        bundlePrompt.innerHTML = `
-          <div class="ds-pa-bundle-panel">
-            <div class="ds-pa-bundle-head">
-              <strong>${escapeHtml(parentName)}</strong>
-              <span>הגדרה כוללת מתוך הקטלוג</span>
-            </div>
-            ${children.length ? '<div class="ds-pa-bundle-help">בחרו את הפעילויות שייכללו בהצעה. המחיר והסה״כ יתעדכנו לפי הבחירה.</div>' : ''}
-            <div class="ds-pa-bundle-grid" role="group" aria-label="בחירת פעילויות">${childCheckboxesHtml}</div>
-            <div class="ds-pa-bundle-footer">
-              <span class="ds-pa-bundle-selection-summary" data-pa-bundle-selection-summary>לא נבחרו פעילויות לפירוט</span>
-              <div class="ds-pa-bundle-actions">
-                <button type="button" class="ds-btn ds-btn--xs ds-btn--primary" data-pa-bundle-confirm>✓ אישור בחירה</button>
-                <button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-pa-bundle-keep>השאר כללי</button>
-              </div>
-            </div>
-          </div>`;
-        bundlePrompt.hidden = false;
-        applyBundleParentToRow(itemRow, pickedData, { keepGeneral: true });
-        return;
-      }
-      if (bundlePrompt) bundlePrompt.hidden = true;
-      const setValue = (name, value) => {
-        const input = itemRow.querySelector(`[name="${name}"]`);
-        if (input) input.value = value == null ? '' : String(value);
-      };
-      setValue('pricing_option_key', selectedKey);
-      setValue('activity_no', picked.activity_no || '');
-      setValue('item_name', publicActivityName(picked.activity_name) || '');
-      setValue('item_type', picked.item_type || '');
-      setValue('gefen_number', picked.gefen_number || '');
-      setValue('gefen_number_display', picked.gefen_number || '');
-      setValue('hours_count', picked.hours_count);
-      setValue('meetings_count', picked.meetings_count);
-      setValue('unit_price', picked.unit_price);
-      setValue('hourly_price', picked.hourly_price ?? '');
-      setValue('description', picked.description_for_proposal || '');
-      setValue('unit_duration', picked.unit_duration || '');
-      setValue('proposal_group', proposalItemGroupForEditorRow(itemRow, picked.proposal_group));
-      setValue('item_display_mode', 'single');
-      setValue('item_source_pricing_key', text(picked.pricing_key) || '');
-      setValue('item_selected_bundle_items', '[]');
-      const compactName = itemRow.querySelector('[data-pa-item-compact-name]');
-      if (compactName) {
-        compactName.textContent = publicActivityName(picked.activity_name) || 'בחרו פעילות';
-        compactName.title = publicActivityName(picked.activity_name) || '';
-      }
-      const compactQty = itemRow.querySelector('[data-pa-item-compact-qty]');
-      if (compactQty) compactQty.textContent = `כמות: ${text(itemRow.querySelector('[data-pa-item-qty]')?.value) || '1'}`;
-      const rowGroup = text(itemRow.dataset.paRowGroup || picked.proposal_group);
-      const infoStrip = itemRow.querySelector('[data-pa-item-info-strip]');
-      if (infoStrip && !itemRow.hasAttribute('data-pa-summer-row')) {
-        const get = (name) => text(itemRow.querySelector(`[name="${name}"]`)?.value);
-        const getNum = (name) => { const v = itemRow.querySelector(`[name="${name}"]`)?.value; return v != null && v !== '' && !isNaN(Number(v)) ? Number(v) : null; };
-        infoStrip.innerHTML = buildInfoStripInnerHtml({
-          item_name: get('item_name'),
-          item_type: get('item_type'),
-          gefen_number: get('gefen_number'),
-          meetings_count: getNum('meetings_count'),
-          hours_count: getNum('hours_count'),
-          hourly_price: getNum('hourly_price'),
-          unit_price: getNum('unit_price'),
-          proposal_group: rowGroup
-        }, rowGroup);
-        infoStrip.hidden = !publicActivityName(picked.activity_name);
-      }
-
-      calcItemRow(itemRow);
-      if (form) calcGrandTotal(form);
-      if (form) updateProposalStepper(form);
     }, { signal });
 
     root.addEventListener('submit', async (event) => {
@@ -9068,7 +9402,7 @@ export const proposalsAgreementsScreen = {
 
       const openClientBtn = event.target.closest?.('[data-pa-open-client]');
       if (openClientBtn) {
-        openClientFile(openClientBtn.dataset.paOpenClient, openClientBtn.dataset.paOpenProposal);
+        await openClientFile(openClientBtn.dataset.paOpenClient, openClientBtn.dataset.paOpenProposal);
         return;
       }
 
@@ -9129,7 +9463,7 @@ export const proposalsAgreementsScreen = {
           openAddContact();
           return;
         }
-        await ensureContacts();
+        await ensureContacts('add-contact');
         if (signal.aborted || !root.isConnected) return;
         openAddContact();
         return;
@@ -9152,7 +9486,7 @@ export const proposalsAgreementsScreen = {
           openEditContact();
           return;
         }
-        await ensureContacts();
+        await ensureContacts('edit-contact');
         if (signal.aborted || !root.isConnected) return;
         openEditContact();
         return;
@@ -9272,7 +9606,18 @@ export const proposalsAgreementsScreen = {
           showToast('הצעה שנשלחה נעולה ולא ניתן לערוך אותה.', 'error');
           return;
         }
+        try {
+          await ensureEditorDeps();
+        } catch (error) {
+          showToast('לא ניתן לטעון את תבנית הצעת המחיר. יש לרענן את המסך ולנסות שוב.', 'error');
+          return;
+        }
         const templateSections = filterTemplateSectionsForGroup(proposalTemplateSections, row.activity_type_group);
+        const hasCustomSections = proposalDocumentSections(row).length > 0;
+        if (!hasCustomSections && templateSections.length === 0) {
+          showToast('לא נמצאה תבנית פעילה לסוג הצעת המחיר. עריכת המסמך נעצרה.', 'error');
+          return;
+        }
         const workingSections = resolveDocumentSections(row, templateSections).map((section) => ({
           section_key: proposalTextField(section, 'section_key', 'sectionKey'),
           section_title: proposalTextField(section, 'section_title', 'sectionTitle'),
@@ -9280,7 +9625,7 @@ export const proposalsAgreementsScreen = {
         }));
         const host = root.querySelector('[data-pa-inline-form]');
         if (!host) return;
-        const isCustom = Array.isArray(row.custom_document_sections) && row.custom_document_sections.length > 0;
+        const isCustom = proposalDocumentSections(row).length > 0;
         host.innerHTML = `<div class="ds-pa-form ds-pa-doc-edit-form" data-pa-doc-edit-wrap>
           <h4>עריכת מסמך</h4>${documentSectionsEditorHtml(workingSections, isCustom)}
           <div class="ds-pa-form-actions">
@@ -9305,10 +9650,11 @@ export const proposalsAgreementsScreen = {
           section_title: proposalTextField(section, 'section_title', 'sectionTitle'),
           section_body: normalizeMultilineText(Array.from(wrap.querySelectorAll('[data-pa-doc-body]')).find((el) => text(el.dataset.paDocBody) === proposalTextField(section, 'section_key', 'sectionKey'))?.value)
         }));
+        const customDocumentSections = documentSectionsWithPreservedTableNote(row, sections);
         const result = typeof api.saveProposalAgreementCustomDocumentSections === 'function'
-          ? await api.saveProposalAgreementCustomDocumentSections(id, sections)
-          : await api.updateProposalAgreement(id, { ...row, custom_document_sections: sections });
-        replaceLocalRow(data, result?.row || { ...row, custom_document_sections: sections });
+          ? await api.saveProposalAgreementCustomDocumentSections(id, customDocumentSections)
+          : await api.updateProposalAgreement(id, { ...row, custom_document_sections: customDocumentSections });
+        replaceLocalRow(data, result?.row || { ...row, custom_document_sections: customDocumentSections });
         wrap.remove();
         setDocumentEditMode(root, false);
         refreshTable();
@@ -9321,10 +9667,11 @@ export const proposalsAgreementsScreen = {
         const id = text(docResetBtn.dataset.paDocReset);
         const row = data.rows.find((r) => text(r.id) === id);
         if (!row) return;
+        const customDocumentSections = documentSectionsWithPreservedTableNote(row);
         const result = typeof api.saveProposalAgreementCustomDocumentSections === 'function'
-          ? await api.saveProposalAgreementCustomDocumentSections(id, [])
-          : await api.updateProposalAgreement(id, { ...row, custom_document_sections: [] });
-        replaceLocalRow(data, result?.row || { ...row, custom_document_sections: [] });
+          ? await api.saveProposalAgreementCustomDocumentSections(id, customDocumentSections)
+          : await api.updateProposalAgreement(id, { ...row, custom_document_sections: customDocumentSections });
+        replaceLocalRow(data, result?.row || { ...row, custom_document_sections: customDocumentSections });
         docResetBtn.closest('[data-pa-doc-edit-wrap]')?.remove();
         setDocumentEditMode(root, false);
         refreshTable();
@@ -9516,7 +9863,13 @@ export const proposalsAgreementsScreen = {
         if (!row || !canManage) return;
         let items = data?._itemsByProposalId?.[id] || [];
         if (!items.length && typeof api.readProposalAgreementItems === 'function') {
-          try { items = await api.readProposalAgreementItems(id); } catch { items = []; }
+          try {
+            items = await api.readProposalAgreementItems(id);
+          } catch (error) {
+            console.error('[GEFEN approval items load failed]', error);
+            showToast('טעינת פריטי הצעת המחיר נכשלה. לא ניתן להפיק את אישור גפ״ן.', 'error');
+            return;
+          }
         }
         await generateGefenApprovalPdf(row, proposalItemsWithFallback(items, row), generateGefenApprovalBtn);
         return;

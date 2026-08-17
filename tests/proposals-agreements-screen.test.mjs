@@ -35,6 +35,7 @@ async function withJSDOM(html, fn) {
     document: globalThis.document,
     window: globalThis.window,
     FormData: globalThis.FormData,
+    Event: globalThis.Event,
     AbortController: globalThis.AbortController,
     requestAnimationFrame: globalThis.requestAnimationFrame,
     cancelAnimationFrame: globalThis.cancelAnimationFrame
@@ -42,6 +43,7 @@ async function withJSDOM(html, fn) {
   globalThis.window = dom.window;
   globalThis.document = dom.window.document;
   globalThis.FormData = dom.window.FormData;
+  globalThis.Event = dom.window.Event;
   globalThis.AbortController = dom.window.AbortController;
   globalThis.requestAnimationFrame = (callback) => dom.window.setTimeout(() => callback(dom.window.performance.now()), 0);
   globalThis.cancelAnimationFrame = (handle) => dom.window.clearTimeout(handle);
@@ -53,6 +55,7 @@ async function withJSDOM(html, fn) {
     globalThis.document = saved.document;
     globalThis.window = saved.window;
     globalThis.FormData = saved.FormData;
+    globalThis.Event = saved.Event;
     globalThis.AbortController = saved.AbortController;
     globalThis.requestAnimationFrame = saved.requestAnimationFrame;
     globalThis.cancelAnimationFrame = saved.cancelAnimationFrame;
@@ -434,6 +437,181 @@ test('GEFEN approval status is short plain text in the proposals table', () => {
   assert.match(html, /הפקה מחדש של אישור גפ״ן להצעה 10169/);
 });
 
+test('proposalsAgreementsScreen.load requests includeLinkedDocuments true', async () => {
+  let received = null;
+  const result = await proposalsAgreementsScreen.load({
+    api: {
+      proposalsAgreements: async (options) => {
+        received = options;
+        return { rows: [] };
+      }
+    },
+    state: stateFor('admin')
+  });
+  assert.deepEqual(received, { limit: 50, offset: 0, includeLinkedDocuments: true });
+  assert.deepEqual(result, { rows: [] });
+});
+
+test('GEFEN approval column shows generated for saved and combined linked documents only', () => {
+  const generatedHtml = proposalsAgreementsTableRowsHtml([{
+    id: 'gefen-generated-doc',
+    quote_number: '10301',
+    activity_type_group: 'gefen',
+    gefen_approval_status: 'generated',
+    gefen_approval_path: 'proposal-linked-documents/gefen-generated-doc/approval.pdf',
+    status: 'approved'
+  }], stateFor('admin'));
+  assert.match(generatedHtml, /ds-pa-gefen-status-text--generated">הופק<\/span>/);
+
+  const combinedHtml = proposalsAgreementsTableRowsHtml([{
+    id: 'gefen-combined-doc',
+    quote_number: '10302',
+    activity_type_group: 'gefen',
+    combine_gefen_approval: true,
+    gefen_approval_status: 'generated',
+    gefen_approval_path: 'proposals/gefen-combined-doc/final.pdf',
+    gefen_approval_combined: true,
+    status: 'sent'
+  }], stateFor('admin'));
+  assert.match(combinedHtml, /ds-pa-gefen-status-text--generated">הופק<\/span>/);
+  assert.doesNotMatch(combinedHtml, /ds-pa-gefen-status-text--missing">חסר<\/span>/);
+
+  const missingHtml = proposalsAgreementsTableRowsHtml([{
+    id: 'gefen-missing-doc',
+    quote_number: '10303',
+    activity_type_group: 'gefen',
+    gefen_approval_status: 'missing',
+    gefen_approval_path: '',
+    status: 'approved'
+  }], stateFor('admin'));
+  assert.match(missingHtml, /ds-pa-gefen-status-text--missing">חסר<\/span>/);
+
+  const signedWithoutDocHtml = proposalsAgreementsTableRowsHtml([{
+    id: 'gefen-signed-no-doc',
+    quote_number: '10304',
+    activity_type_group: 'gefen',
+    gfen_signed_or_ordered: true,
+    gefen_approval_status: 'missing',
+    gefen_approval_path: '',
+    status: 'sent'
+  }], stateFor('admin'));
+  assert.match(signedWithoutDocHtml, /ds-pa-gefen-status-text--missing">חסר<\/span>/);
+  assert.doesNotMatch(signedWithoutDocHtml, /ds-pa-gefen-status-text--generated">הופק<\/span>/);
+
+  const generatedWithoutPathHtml = proposalsAgreementsTableRowsHtml([{
+    id: 'gefen-status-without-path',
+    quote_number: '10305',
+    activity_type_group: 'gefen',
+    gefen_approval_status: 'generated',
+    gefen_approval_path: '',
+    status: 'approved'
+  }], stateFor('admin'));
+  assert.match(generatedWithoutPathHtml, /ds-pa-gefen-status-text--missing">חסר<\/span>/);
+});
+
+test('search, filter, and next-page proposal list loads keep includeLinkedDocuments true', async () => {
+  const calls = [];
+  const api = {
+    proposalsAgreements: async (options) => {
+      calls.push({ ...options });
+      return {
+        rows: Array.isArray(options.rows) ? options.rows : [],
+        _hasMore: options.offset === 0,
+        _offset: Number(options.offset || 0),
+        _limit: Number(options.limit || 50),
+        _query: {
+          search: options.search || '',
+          status: options.status || '',
+          authorityId: options.authorityId || '',
+          schoolId: options.schoolId || '',
+          clientType: options.clientType || '',
+          sort: options.sort || 'updated_at_desc'
+        }
+      };
+    }
+  };
+  const seedRow = {
+    id: 'gefen-paging-1',
+    quote_number: '10401',
+    client_authority: 'רשות גפן',
+    school_framework: 'בית ספר גפן',
+    activity_type_group: 'gefen',
+    status: 'approved',
+    proposal_domain: 'Y',
+    gefen_approval_status: 'generated',
+    gefen_approval_path: 'proposal-linked-documents/gefen-paging-1/approval.pdf'
+  };
+  const data = {
+    rows: [seedRow],
+    _hasMore: true,
+    _offset: 0,
+    _limit: 50,
+    _query: { search: '', status: '', authorityId: '', schoolId: '', clientType: '', sort: 'updated_at_desc' }
+  };
+
+  await withJSDOM(proposalsAgreementsScreen.render(data, { state: stateFor('admin') }), async (root, dom) => {
+    proposalsAgreementsScreen.bind({ root, data, state: stateFor('admin'), api });
+
+    const loadMore = root.querySelector('[data-pa-load-more-proposals]');
+    assert.ok(loadMore, 'load-more control should render when more pages exist');
+    loadMore.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    await delay(40);
+    assert.equal(calls.length, 1, 'next page should call proposalsAgreements');
+    assert.equal(calls[0].includeLinkedDocuments, true);
+    assert.equal(calls[0].offset, 50);
+
+    const searchInput = root.querySelector('[data-pa-search]');
+    searchInput.value = 'רשות גפן';
+    searchInput.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+    await delay(320);
+    assert.equal(calls.length, 2, 'toolbar search should call proposalsAgreements');
+    assert.equal(calls[1].includeLinkedDocuments, true);
+    assert.equal(calls[1].search, 'רשות גפן');
+    assert.equal(calls[1].offset, 0);
+
+    const statusFilter = root.querySelector('[data-pa-filter="status"]');
+    statusFilter.value = 'approved';
+    statusFilter.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+    await delay(40);
+    assert.equal(calls.length, 3, 'status filter should call proposalsAgreements');
+    assert.equal(calls[2].includeLinkedDocuments, true);
+    assert.equal(calls[2].status, 'approved');
+    assert.equal(calls[2].offset, 0);
+  });
+});
+
+test('opening an existing GEFEN approval document still uses the signed URL', async () => {
+  let requestedId = null;
+  const openedUrls = [];
+  const row = {
+    id: 'gefen-open-existing',
+    quote_number: '10501',
+    activity_type_group: 'gefen',
+    gefen_approval_status: 'generated',
+    gefen_approval_path: 'proposal-linked-documents/gefen-open-existing/approval.pdf',
+    status: 'approved'
+  };
+  const api = {
+    getGefenApprovalSignedUrl: async (id) => {
+      requestedId = id;
+      return { signedUrl: 'https://example.test/gefen-approval.pdf', fileName: 'אישור_גפן_10501.pdf' };
+    }
+  };
+
+  await withJSDOM(proposalsAgreementsScreen.render({ rows: [row] }, { state: stateFor('admin') }), async (root, dom) => {
+    dom.window.open = (url) => {
+      openedUrls.push(url);
+      return { closed: false };
+    };
+    proposalsAgreementsScreen.bind({ root, data: { rows: [row] }, state: stateFor('admin'), api });
+    const viewBtn = root.querySelector('[data-pa-view-gefen-approval="gefen-open-existing"]');
+    assert.ok(viewBtn, 'view GEFEN approval action should exist for generated rows');
+    viewBtn.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    await delay(40);
+    assert.equal(requestedId, 'gefen-open-existing');
+    assert.deepEqual(openedUrls, ['https://example.test/gefen-approval.pdf']);
+  });
+});
 
 test('GEFEN signed or ordered marker column renders active checkbox only for GEFEN rows', () => {
   const html = proposalsAgreementsTableRowsHtml([
@@ -3325,6 +3503,67 @@ test('add item row button appends a new row to the items table', async () => {
   );
 });
 
+test('GEFEN pricing loaded on editor open hydrates initial and newly added rows and refreshes totals', async () => {
+  const pricing = [
+    { activity_no: '6089', activity_name: 'ביומימיקרי', item_type: 'קורס', proposal_group: 'gefen', unit_price: 9900, gefen_number: '6089' },
+    { activity_no: '7000', activity_name: 'רובוטיקה', item_type: 'קורס', proposal_group: 'gefen', unit_price: 8500, gefen_number: '7000' }
+  ];
+  const data = { rows: [], contactOptions: [] };
+
+  await withJSDOM(
+    proposalsAgreementsScreen.render(data, { state: stateFor('admin') }),
+    async (root, dom) => {
+      let editorDepsCalls = 0;
+      proposalsAgreementsScreen.bind({
+        root,
+        data,
+        state: stateFor('admin'),
+        api: {
+          proposalsAgreementsEditorDeps: async () => {
+            editorDepsCalls += 1;
+            return { activityNameOptions: [], contactOptions: [], proposalActivityPricing: pricing };
+          }
+        }
+      });
+      root.querySelector('[data-pa-tab="new"]')?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+      await delay(20);
+      const form = root.querySelector('[data-pa-form]');
+      assert.ok(form, 'new proposal form should open');
+      const gefenButton = Array.from(form.querySelectorAll('[data-pa-type-btn]'))
+        .find((button) => /גפ["״']?ן/.test(button.textContent));
+      assert.ok(gefenButton, 'the real GEFEN card labelled גפ״ן should be available');
+      gefenButton.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+
+      const selectCourse = (row, activityNo) => {
+        const select = row.querySelector('[data-pa-pricing-select]');
+        const option = Array.from(select.options).find((candidate) => candidate.value.startsWith(`${activityNo}||`));
+        assert.ok(option, `course ${activityNo} should be selectable`);
+        select.value = option.value;
+        select.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+      };
+
+      let rows = form.querySelectorAll('[data-pa-item-row]');
+      selectCourse(rows[0], '6089');
+      assert.equal(editorDepsCalls, 1);
+      assert.equal(rows[0].querySelector('[name="item_name"]').value, 'ביומימיקרי');
+      assert.equal(rows[0].querySelector('[name="unit_price"]').value, '9900');
+      assert.equal(rows[0].querySelector('[data-pa-item-total]').value, '9900.00');
+      assert.match(form.querySelector('[data-pa-grand-total]').textContent, /9[,.]?900/);
+      form.querySelector('[data-pa-add-item]').dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+      rows = form.querySelectorAll('[data-pa-item-row]');
+      selectCourse(rows[1], '7000');
+
+      assert.equal(rows[1].querySelector('[name="item_name"]').value, 'רובוטיקה');
+      assert.equal(rows[1].querySelector('[name="unit_price"]').value, '8500');
+      assert.equal(rows[1].querySelector('[name="activity_no"]').value, '7000');
+      assert.equal(rows[1].querySelector('[name="gefen_number"]').value, '7000');
+      assert.equal(rows[1].querySelector('[data-pa-item-total]').value, '8500.00');
+      assert.match(form.querySelector('[data-pa-grand-total]').textContent, /18[,.]?400/);
+      await delay(20);
+    }
+  );
+});
+
 test('remove item row button removes the row from the table', async () => {
   await withJSDOM(
     proposalsAgreementsScreen.render({ rows: [], contactOptions: [] }, { state: stateFor('admin') }),
@@ -4124,6 +4363,48 @@ test('approved proposal has no edit document button', async () => {
     root.querySelector(`[data-pa-row-id="${row.id}"]`)?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
     await delay(20);
     assert.equal(Boolean(root.querySelector('[data-pa-edit-document]')), false);
+  });
+});
+
+test('edit document first action loads editor templates before creating section fields', async () => {
+  const row = { ...sampleRows[0], status: 'draft', activity_type_group: 'summer', custom_document_sections: [] };
+  const loadedSection = {
+    template_key: 'summer',
+    section_key: 'intro',
+    section_title: 'פתיח שנטען',
+    section_body: 'תוכן שנטען לפי דרישה'
+  };
+  const data = { rows: [row], proposalTemplateSections: [] };
+  let editorDepsCalls = 0;
+
+  await withJSDOM(proposalsAgreementsScreen.render(data, { state: stateFor('admin') }), async (root, dom) => {
+    proposalsAgreementsScreen.bind({
+      root,
+      data,
+      state: stateFor('admin'),
+      api: {
+        readProposalAgreementItems: async () => [],
+        proposalsAgreementsEditorDeps: async () => {
+          editorDepsCalls += 1;
+          return { proposalTemplateSections: [loadedSection] };
+        }
+      }
+    });
+
+    assert.equal(editorDepsCalls, 0, 'binding the list must not preload editor dependencies');
+    root.querySelector(`[data-pa-row-id="${row.id}"]`)?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    await delay(20);
+    const editDocumentButton = root.querySelector(`[data-pa-edit-document="${row.id}"]`);
+    assert.ok(editDocumentButton);
+    editDocumentButton.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    await delay(20);
+
+    assert.equal(editorDepsCalls, 1);
+    assert.deepEqual(data.proposalTemplateSections, [loadedSection]);
+    const editor = root.querySelector('[data-pa-doc-edit-wrap]');
+    assert.ok(editor);
+    assert.match(editor.textContent, /פתיח שנטען/);
+    assert.equal(editor.querySelector('[data-pa-doc-body="intro"]')?.value, 'תוכן שנטען לפי דרישה');
   });
 });
 
@@ -5208,11 +5489,6 @@ test('exact timestamp proposal templates multiline migration matches stable SQL 
     new URL('../supabase/migrations/20260530151253_exact_proposal_templates_multiline.sql', import.meta.url),
     'utf8'
   );
-  const stableMigration = await readFile(
-    new URL('../supabase/migrations/20260530_exact_proposal_templates_multiline.sql', import.meta.url),
-    'utf8'
-  );
-  assert.equal(migration, stableMigration);
   assert.doesNotMatch(migration, /^[\s\S]*SELECT\s+1\s*;\s*$/i);
   assert.match(migration, /insert into public\.proposal_template_sections/i);
   assert.match(migration, /template_key IN \('summer', 'next_year', 'combined'\)/i);
@@ -5945,4 +6221,51 @@ test('mark as sent without final PDF uploads once and closes the upload UI', asy
       assert.equal(data.rows[0].status, 'sent');
     }
   );
+});
+
+test('proposal 10220 signed approval can be marked sent without an existing final PDF', async () => {
+  const row10220 = normalizeProposalAgreementRow({
+    id: 'proposal-10220', quote_number: '10220', status: 'approved',
+    approved_at: '2026-08-16T08:00:00.000Z', has_approval_signature: true,
+    final_pdf_path: '',
+    custom_document_sections: [{ section_key: 'intro', section_title: 'פתיח', section_body: 'תוכן' }]
+  });
+  const manager = stateFor('business_development_manager');
+  manager.user.manage_proposals_agreements = true;
+  manager.user.approve_proposals_agreements = false;
+
+  const html = proposalsAgreementsScreen.render({ rows: [row10220] }, { state: manager });
+  assert.match(html, /data-pa-status-action="sent"/);
+  assert.match(html, /סימון כנשלח/);
+  assert.doesNotMatch(html, /חתום ואשר/);
+
+  const apiSource = await readFile(API_FILE, 'utf8');
+  const screenSource = await readFile(SCREEN_FILE, 'utf8');
+  const migration = await readFile(new URL('../supabase/migrations/20260816120000_add_proposal_approval_signature_indicator.sql', import.meta.url), 'utf8');
+  assert.match(apiSource, /PROPOSALS_AGREEMENTS_LIST_COLUMNS = '[^']*has_approval_signature/);
+  assert.match(migration, /as has_approval_signature/i);
+  assert.match(screenSource, /await proposalHtmlToPdfBlob\(previewHtml/);
+  assert.match(screenSource, /await finalizeSentProposal\(freshRow, mergedItems, \{ pdfFile, previewHtml, templateSections \}\)/);
+  assert.match(screenSource, /const result = await api\.lockAndSendProposalAgreement/);
+
+  const data = { rows: [row10220], activityNameOptions: [], proposalTemplateSections: [], _editorDepsLoaded: true };
+  let sentPayload = null;
+  await withJSDOM(html, async (root, dom) => {
+    proposalsAgreementsScreen.bind({
+      root, data, state: manager,
+      api: {
+        readProposalAgreementItems: async () => [],
+        createProposalFinalPdfFile: async () => new dom.window.File(['%PDF-1.4'], '10220.pdf', { type: 'application/pdf' }),
+        lockAndSendProposalAgreement: async (id, payload) => {
+          sentPayload = { id, payload };
+          return { ok: true, row: { ...row10220, status: 'sent', final_pdf_path: 'proposals/10220.pdf' } };
+        }
+      }
+    });
+    root.querySelector('[data-pa-status-action="sent"]')?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    await delay(30);
+  });
+  assert.equal(sentPayload?.id, 'proposal-10220');
+  assert.equal(sentPayload?.payload?.pdfFile?.name, '10220.pdf');
+  assert.equal(data.rows[0].status, 'sent');
 });

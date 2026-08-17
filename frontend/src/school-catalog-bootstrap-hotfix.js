@@ -1,7 +1,5 @@
-import { api } from './api.js';
 import { supabase, waitForSupabaseAuthSession } from './supabase-client.js';
 
-const PATCH_KEY = Symbol.for('taasiyeda.schoolCatalogBootstrapHotfix');
 const PAGE_SIZE = 1000;
 const CACHE_TTL_MS = 15 * 60 * 1000;
 const SCHOOL_COLUMNS = 'id,semel_mosad,school_name,authority,authority_id,active';
@@ -103,7 +101,8 @@ async function readFullCatalog() {
     ]);
     catalogCache = buildCatalog(schools, authorities);
     catalogCacheAt = Date.now();
-    console.info('[school-catalog-bootstrap]', {
+    // eslint-disable-next-line no-console
+    console.info('[school-catalog]', {
       schools_count_loaded: catalogCache.school_records.length,
       authorities_count_loaded: catalogCache.authority_records.length
     });
@@ -115,68 +114,42 @@ async function readFullCatalog() {
   return catalogInflight;
 }
 
-function preferCatalog(catalogValues, fallbackValues) {
-  return Array.isArray(catalogValues) && catalogValues.length
-    ? catalogValues
-    : (Array.isArray(fallbackValues) ? fallbackValues : []);
-}
-
-function mergeCatalogIntoPayload(payload, catalog) {
-  if (!payload || typeof payload !== 'object' || !catalog) return payload;
-  const clientSettings = payload.client_settings && typeof payload.client_settings === 'object'
-    ? payload.client_settings
-    : {};
-  const dropdown = clientSettings.dropdown_options && typeof clientSettings.dropdown_options === 'object'
-    ? clientSettings.dropdown_options
-    : {};
-
-  return {
-    ...payload,
-    client_settings: {
-      ...clientSettings,
-      dropdown_options: {
-        ...dropdown,
-        school: preferCatalog(catalog.schools, dropdown.school),
-        schools: preferCatalog(catalog.schools, dropdown.schools),
-        school_records: preferCatalog(catalog.school_records, dropdown.school_records),
-        authority: preferCatalog(catalog.authorities, dropdown.authority),
-        authorities: preferCatalog(catalog.authorities, dropdown.authorities),
-        authority_records: preferCatalog(catalog.authority_records, dropdown.authority_records)
-      }
-    }
-  };
-}
-
-async function enrichBootstrapResult(resultPromise) {
-  const payload = await resultPromise;
+/**
+ * Ensures the school/authority catalog is loaded and patches state.clientSettings.dropdown_options.
+ *
+ * - Deduplicates concurrent calls via catalogInflight — a second call while the first is in-flight
+ *   returns the same Promise, so no duplicate Supabase requests are made.
+ * - Caches the result for 15 minutes; subsequent calls resolve instantly.
+ * - Updates state.clientSettings.dropdown_options in place so any open form immediately sees
+ *   the full lists after the first load.
+ *
+ * @param {object} state — screen state object whose .clientSettings will be patched.
+ * @returns {Promise<object|null>} — the catalog, or null if loading failed.
+ */
+export async function ensureSchoolAuthorityCatalogInState(state) {
   try {
-    return mergeCatalogIntoPayload(payload, await readFullCatalog());
-  } catch (error) {
-    console.warn('[school-catalog-bootstrap] full catalog load failed; keeping existing options', error);
-    return payload;
+    const catalog = await readFullCatalog();
+    if (!catalog) return null;
+    if (state && typeof state === 'object') {
+      if (!state.clientSettings || typeof state.clientSettings !== 'object') {
+        state.clientSettings = {};
+      }
+      if (!state.clientSettings.dropdown_options || typeof state.clientSettings.dropdown_options !== 'object') {
+        state.clientSettings.dropdown_options = {};
+      }
+      const d = state.clientSettings.dropdown_options;
+      // Always overwrite with catalog data — catalog is the authoritative source for school/authority.
+      d.school            = catalog.schools;
+      d.schools           = catalog.schools;
+      d.school_records    = catalog.school_records;
+      d.authority         = catalog.authorities;
+      d.authorities       = catalog.authorities;
+      d.authority_records = catalog.authority_records;
+    }
+    return catalog;
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.warn('[school-catalog] catalog load failed; school/authority lists may be empty', err);
+    return null;
   }
 }
-
-export function installSchoolCatalogBootstrapHotfix(targetApi = api) {
-  if (!targetApi || targetApi[PATCH_KEY]) return false;
-
-  if (typeof targetApi.login === 'function') {
-    const originalLogin = targetApi.login.bind(targetApi);
-    targetApi.login = (...args) => enrichBootstrapResult(originalLogin(...args));
-  }
-
-  if (typeof targetApi.bootstrap === 'function') {
-    const originalBootstrap = targetApi.bootstrap.bind(targetApi);
-    targetApi.bootstrap = (...args) => enrichBootstrapResult(originalBootstrap(...args));
-  }
-
-  Object.defineProperty(targetApi, PATCH_KEY, {
-    value: true,
-    configurable: false,
-    enumerable: false,
-    writable: false
-  });
-  return true;
-}
-
-installSchoolCatalogBootstrapHotfix(api);

@@ -2,138 +2,47 @@
 import { execFileSync, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
+import { buildCheckPlan, collectChangedFiles } from './ci/check-plan.mjs';
 
 const repoRoot = process.cwd();
 const args = new Set(process.argv.slice(2));
 const frontendMode = args.has('--frontend');
 const runTests = !args.has('--no-tests');
-
-const ignoredPrefixes = ['dist/', 'node_modules/', '.git/'];
-const jsExtensions = new Set(['.js', '.mjs', '.cjs']);
-
-// Each source file maps to one or more focused test files (node --test).
-// Keep this list limited to mappings verified against real imports in tests/*.
-// If a mapped test file goes missing, the runner warns and skips it rather than failing.
-const screenTestMap = new Map([
-  ['frontend/src/screens/proposals-agreements.js', ['tests/proposals-agreements-screen.test.mjs']],
-  ['frontend/src/proposal-next-year-pricing-display.js', ['tests/proposal-next-year-pricing-display.test.mjs']],
-  ['frontend/src/proposal-next-year-workshops.js', ['tests/proposal-next-year-workshops.test.mjs']],
-  ['frontend/src/screens/activities.js', ['tests/activities-screen.test.mjs']],
-  ['frontend/src/api.js', ['tests/api-mutations.test.mjs']],
-  ['frontend/src/styles/dashboard-layout.css', ['tests/dashboard-layout-polish.test.mjs']],
-  ['index.html', ['tests/dashboard-layout-polish.test.mjs']],
-  ['frontend/sw.js', ['tests/service-worker-pwa-cache.test.mjs']],
-  ['sw.js', ['tests/service-worker-pwa-cache.test.mjs']]
-]);
-
-function toPosix(filePath) {
-  return filePath.split(path.sep).join('/');
-}
-
-function exists(relPath) {
-  return fs.existsSync(path.join(repoRoot, relPath));
-}
-
-function isIgnored(relPath) {
-  return ignoredPrefixes.some((prefix) => relPath.startsWith(prefix));
-}
-
-function walk(dir) {
-  const fullDir = path.join(repoRoot, dir);
-  if (!fs.existsSync(fullDir)) return [];
-  const out = [];
-  for (const entry of fs.readdirSync(fullDir, { withFileTypes: true })) {
-    const full = path.join(fullDir, entry.name);
-    const rel = toPosix(path.relative(repoRoot, full));
-    if (isIgnored(rel)) continue;
-    if (entry.isDirectory()) out.push(...walk(rel));
-    else out.push(rel);
-  }
-  return out;
-}
-
-function changedFilesFromGit() {
-  try {
-    const output = execFileSync('git', ['status', '--porcelain=v1', '-uall'], {
-      cwd: repoRoot,
-      encoding: 'utf8'
-    });
-    return output
-      .split(/\r?\n/)
-      .map((line) => line.trimEnd())
-      .filter(Boolean)
-      .map((line) => {
-        const filePart = line.slice(3).replace(/^"|"$/g, '');
-        const renamed = filePart.includes(' -> ') ? filePart.split(' -> ').pop() : filePart;
-        return toPosix(renamed);
-      })
-      .filter((file) => file && exists(file) && !isIgnored(file));
-  } catch {
-    return [];
-  }
-}
-
-function filesToCheck() {
-  if (frontendMode) {
-    return [
-      ...walk('frontend/src'),
-      'frontend/sw.js',
-      'sw.js'
-    ].filter((file) => exists(file) && jsExtensions.has(path.extname(file)));
-  }
-
-  return changedFilesFromGit().filter((file) => jsExtensions.has(path.extname(file)));
-}
+const jsonMode = args.has('--json');
+const runPlan = args.has('--run-plan');
 
 function run(command, commandArgs) {
   const label = [command, ...commandArgs].join(' ');
   console.log(`[check] ${label}`);
-  const result = spawnSync(command, commandArgs, {
+  const result = spawnSync(command, commandArgs, { cwd: repoRoot, stdio: 'inherit' });
+  if (result.status !== 0) process.exit(result.status || 1);
+}
+
+function trackedFrontendFiles() {
+  return execFileSync('git', ['ls-files', 'frontend/src/**/*.js', 'frontend/src/*.js', 'frontend/sw.js', 'sw.js'], {
     cwd: repoRoot,
-    stdio: 'inherit',
-    shell: process.platform === 'win32'
-  });
-  if (result.status !== 0) {
-    process.exit(result.status || 1);
-  }
+    encoding: 'utf8'
+  }).trim().split(/\r?\n/).filter(Boolean);
 }
 
-const checkFiles = Array.from(new Set(filesToCheck()));
-if (!checkFiles.length) {
-  console.log('[check] No changed JS/MJS files to syntax-check.');
-} else {
-  for (const file of checkFiles) {
-    run('node', ['--check', file]);
-  }
+const ciBase = process.env.CI_BASE_SHA;
+const ciHead = process.env.CI_HEAD_SHA;
+const changedFiles = frontendMode ? trackedFrontendFiles() : collectChangedFiles({ repoRoot, base: ciBase, head: ciHead });
+const plan = frontendMode ? buildCheckPlan(changedFiles) : buildCheckPlan(changedFiles, { repoRoot, base: ciBase, head: ciHead });
+
+if (jsonMode) {
+  process.stdout.write(`${JSON.stringify(plan)}\n`);
+  process.exit(0);
 }
 
-if (runTests && !frontendMode) {
-  const relevantTests = new Set();
-  const missingMappedTests = new Set();
+for (const file of plan.syntaxFiles) run('node', ['--check', file]);
 
-  for (const file of changedFilesFromGit()) {
-    const mappedTests = screenTestMap.get(file);
-    if (!mappedTests) continue;
-    for (const testFile of mappedTests) {
-      if (exists(testFile)) {
-        relevantTests.add(testFile);
-      } else {
-        missingMappedTests.add(`${file} -> ${testFile}`);
-      }
-    }
-  }
-
-  for (const entry of missingMappedTests) {
-    console.warn(`[check] Warning: mapped test file not found, skipping (${entry})`);
-  }
-
-  for (const testFile of relevantTests) {
-    run('node', ['--test', testFile]);
-  }
-
-  if (!relevantTests.size) {
-    console.log('[check] No mapped screen tests for changed files.');
-  }
+if (runTests) {
+  for (const testFile of plan.tests) run('node', ['--test', testFile]);
+  if (!plan.tests.length) console.log('[check] No focused application tests selected.');
 }
 
-console.log('[check] Focused checks complete. Use npm run test:all:legacy only when explicitly needed.');
+if (runPlan && plan.build) run('npm', ['run', 'check:build']);
+
+console.log(`[check] Groups: ${plan.groups.join(', ') || 'validation-only'}`);
+console.log('[check] Focused checks complete. Full regression remains available via npm run test:all:legacy.');

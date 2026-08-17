@@ -5,9 +5,18 @@ import { resolveSchool2027Contact } from './school-2027-contact.js';
 import { ACTIVITY_SEASON_OPTIONS, ACTIVITY_SEASON_SCHOOL_2027, activityPeriodDisplayLabel, activitySeasonLabel, normalizeActivitySeason } from './summer-activity.js';
 import { isActivitySchedulingEligible } from './activity-scheduling-eligibility.js';
 import { applyReadOnlyActivityCapabilities, isReadOnlyActivityRow } from './activity-readonly-period.js';
+import { activityTimeOptions, normalizeActivityTime } from './activity-time-options.js';
 
 const ONCE_TYPES = ['workshop', 'tour', 'escape_room'];
 const ACTIVITY_EDIT_TYPE_ORDER = ['course', 'workshop', 'escape_room', 'tour', 'after_school'];
+
+function timeSelectHtml({ name, value, minimum = '' }) {
+  const selected = normalizeActivityTime(value);
+  const safeValue = minimum && selected < minimum ? minimum : selected;
+  return `<select class="ds-input" name="${escapeHtml(name)}">${safeValue ? '' : '<option value="" selected>—</option>'}${activityTimeOptions({ minimum, selected: safeValue })
+    .map((time) => `<option value="${time}"${time === safeValue ? ' selected' : ''}>${time}</option>`)
+    .join('')}</select>`;
+}
 
 const ACTIVITY_TYPE_PILL_LABEL = {
   course: 'קורס',
@@ -492,16 +501,12 @@ function blockActivityDetails(row, { settings = {} } = {}) {
         )}
         ${fieldEditOnly(
           activityNameLabel(activityType),
-          activityNameSelectHtml('activity_name', row.program_name || row.activity_name || row.title || row.name, allActivityNames, activityType),
+          activityNameSelectHtml('activity_name', row.activity_name || row.program_name || row.title || row.name, allActivityNames, activityType),
           'activity-drawer__field--full'
         )}
         ${fieldEditOnly(
           'סטטוס',
           selectHtml({ name: 'status', value: normalizedStatus, options: statusOptions, placeholder: 'פתוח' })
-        )}
-        ${fieldEditOnly(
-          'עונת פעילות',
-          activitySeasonSelectHtml(settings, row.activity_season)
         )}
       </div>
     </section>
@@ -594,8 +599,8 @@ function blockTeamTimes(row, { settings = {}, schedulingManaged = false } = {}) 
         ${fieldEditOnly(
           'שעת התחלה / סיום',
           `<div class="activity-drawer__field-controls activity-drawer__field-controls--inline">
-            ${inputHtml({ name: 'start_time', value: formatTimeShort(row.start_time), type: 'time' })}
-            ${inputHtml({ name: 'end_time', value: formatTimeShort(row.end_time), type: 'time' })}
+            ${timeSelectHtml({ name: 'start_time', value: formatTimeShort(row.start_time) })}
+            ${timeSelectHtml({ name: 'end_time', value: formatTimeShort(row.end_time), minimum: normalizeActivityTime(row.start_time) })}
           </div>`,
           'activity-drawer__field--hours'
         )}
@@ -606,19 +611,27 @@ function blockTeamTimes(row, { settings = {}, schedulingManaged = false } = {}) 
 
 function blockExtraEditInfo(row, { settings = {} } = {}) {
   const options = settings?.dropdown_options || {};
-  const fundings = mergeListStrings(options, ['funding', 'fundings']);
 
   return `
-    <section class="activity-drawer__section activity-drawer__section--edit-group" data-mode="edit" hidden>
+    <section class="activity-drawer__section activity-drawer__section--edit-group activity-drawer__section--funding-gefen">
       <h3 class="activity-drawer__section-title">מידע משלים</h3>
       <div class="activity-drawer__details-edit-grid">
-        ${fieldEditOnly(
-          'מימון',
-          fundings.length
-            ? selectHtml({ name: 'funding', value: row.funding, options: fundings })
-            : inputHtml({ name: 'funding', value: row.funding })
-        )}
-        ${fieldEditOnly('מחיר', inputHtml({ name: 'price', value: row.price }))}
+        <div data-mode="edit" hidden>
+          ${fieldEditOnly(
+            'גורם מימון',
+            `<select class="ds-input" name="funding_sources" multiple size="3" data-scheduling-multi>
+            ${(options.funding_source_records || []).map((source) => {
+              const linked = (row.funding_sources || []).find((item) => String(item.id) === String(source.id));
+              return `<option value="${escapeHtml(source.id)}"${linked ? ' selected' : ''} data-funding-amount="${escapeHtml(String(linked?.amount ?? ''))}" data-initial-funding-amount="${escapeHtml(String(linked?.amount ?? ''))}">${escapeHtml(source.name)}</option>`;
+            }).join('')}
+            </select>`
+          )}
+        </div>
+        <label class="activity-drawer__gefen-exists">
+          <input type="checkbox" name="exists_in_gefen" data-gefen-exists-checkbox value="true"${row.exists_in_gefen === true ? ' checked' : ''} disabled>
+          <span>מופיע בגפ״ן</span>
+        </label>
+        <div data-mode="edit" hidden>${fieldEditOnly('מחיר', inputHtml({ name: 'price', value: row.price }))}</div>
       </div>
     </section>
   `;
@@ -805,13 +818,13 @@ function presentValueText(value) {
  * Each field renders only when the record actually holds a value, so an empty field
  * is never displayed as an invented value.
  */
-function blockViewRecordDetails(row, { instructorLimited = false, showFunding = false } = {}) {
+function blockViewRecordDetails(row, { instructorLimited = false, showFunding = false, showParticipants = true } = {}) {
   if (instructorLimited) return '';
   const candidates = [
     ['תקופת הפעילות', activityPeriodDisplayLabel(row)],
     ...(showFunding ? [['מימון', presentValueText(row.funding)]] : []),
     ['מחיר', presentValueText(row.price)],
-    ['מספר משתתפים', presentValueText(row.participants_count)]
+    ...(showParticipants ? [['מספר משתתפים', presentValueText(row.participants_count)]] : [])
   ].filter(([, value]) => value);
   if (!candidates.length) return '';
   return `
@@ -844,27 +857,31 @@ function buildDateChipsHtml(schedule, isOnce) {
     const date = String(item?.date || '').trim();
     const key = date || '__empty__';
     if (!acc.has(key)) {
-      acc.set(key, { item, count: 0, doneCount: 0 });
+      acc.set(key, { item, count: 0, doneCount: 0, notes: [] });
     }
     const entry = acc.get(key);
     entry.count += 1;
     const performed = String(item?.performed || '').toLowerCase() === 'yes';
     const autoDoneByDate = /^\d{4}-\d{2}-\d{2}$/.test(date) && date < todayStr();
     if (performed || autoDoneByDate) entry.doneCount += 1;
+    const note = String(item?.note || '').trim();
+    if (note && !entry.notes.includes(note)) entry.notes.push(note);
     return acc;
   }, new Map());
 
   return Array.from(grouped.values())
-    .map(({ item, count, doneCount }) => {
+    .map(({ item, count, doneCount, notes }) => {
+      const date = String(item?.date || '').trim();
       const isDone = doneCount > 0;
       const countLabel = count > 1 ? ` · ${count} מפגשים` : '';
-      const noteText = String(item?.note || '').trim();
-      const noteDot = noteText
-        ? `<span class="activity-drawer__date-note-dot" title="${escapeHtml(noteText)}" aria-label="הערה: ${escapeHtml(noteText)}" style="margin-right:4px;font-size:0.65em;color:var(--color-primary,#2563eb);cursor:help;vertical-align:middle">●</span>`
+      const noteText = notes.join('\n');
+      const noteIcon = noteText
+        ? `<span class="activity-drawer__date-note-icon" role="img" tabindex="0" title="${escapeHtml(noteText)}" aria-label="הערה למפגש: ${escapeHtml(noteText)}">💬</span>`
         : '';
       return `
         <div class="activity-drawer__date-chip ${isDone ? 'is-done' : ''}" data-date-card>
-          <span>${escapeHtml(`${formatDateHeWithWeekday(item?.date || '')}${countLabel}`)}</span>${noteDot}
+          <span class="activity-drawer__date-line">${escapeHtml(formatDateHe(date))}<span aria-hidden="true"> · </span><span class="activity-drawer__weekday">${escapeHtml(fmtWeekdayShort(item?.date || ''))}</span>${escapeHtml(countLabel)}</span>
+          ${noteIcon}
         </div>
       `;
     })
@@ -882,13 +899,13 @@ function buildOneDayViewHtml(schedule, row, datesLoading) {
   const dateDisplay = dateVal ? formatDateHe(dateVal) : '';
   const weekdayDisplay = dateVal ? fmtWeekdayShort(dateVal) : '';
   const noteText = String(firstMeeting?.note || '').trim();
-  const noteDot = noteText
-    ? `<span class="activity-drawer__date-note-dot" title="${escapeHtml(noteText)}" aria-label="הערה: ${escapeHtml(noteText)}" style="margin-right:4px;font-size:0.65em;color:var(--color-primary,#2563eb);cursor:help;vertical-align:middle">●</span>`
+  const noteIcon = noteText
+    ? `<span class="activity-drawer__date-note-icon" role="img" tabindex="0" title="${escapeHtml(noteText)}" aria-label="הערה למפגש: ${escapeHtml(noteText)}">💬</span>`
     : '';
   return `<div class="activity-drawer__oneday-info" data-mode="view" data-dates-view-chips>
     ${dateDisplay || weekdayDisplay ? `<div class="activity-drawer__date-chip">
       <span data-oneday-date-display>${escapeHtml(dateDisplay)}</span>
-      ${weekdayDisplay ? `<span class="activity-drawer__weekday" data-oneday-weekday-display>${escapeHtml(weekdayDisplay)}</span>` : `<span data-oneday-weekday-display></span>`}${noteDot}
+      ${weekdayDisplay ? `<span class="activity-drawer__weekday" data-oneday-weekday-display>${escapeHtml(weekdayDisplay)}</span>` : `<span data-oneday-weekday-display></span>`}${noteIcon}
     </div>` : `<div class="activity-drawer__date-chip activity-drawer__date-chip--empty">
       <span data-oneday-date-display></span><span data-oneday-weekday-display></span>
     </div>`}
@@ -944,7 +961,7 @@ function blockDates(row, { canEdit = false, canDirectEdit = false, datesLoading 
     `;
   }
 
-  const computedEnd = autoEndDate(row);
+  const computedEnd = autoEndDate(row) || String(row?.end_date || '');
   const doneFromSchedule = countDoneMeetings(schedule);
   const doneFallback = numericOrNull(row?.meetings_done);
   const done = doneFromSchedule > 0 ? doneFromSchedule : (doneFallback ?? 0);
@@ -975,8 +992,14 @@ function blockDates(row, { canEdit = false, canDirectEdit = false, datesLoading 
     `)
     .join('');
 
+  const dateSummaryHtml = `<div class="activity-drawer__date-summary" data-mode="view">
+    ${isCourse ? `<div class="activity-drawer__date-boundary"><span class="activity-drawer__end-date__label">תאריך התחלה:</span>
+      <strong data-computed-start-display>${escapeHtml(formatDateHe(row.start_date || schedule[0]?.date) || '')}</strong></div>` : ''}
+    <div class="activity-drawer__date-boundary"><span class="activity-drawer__end-date__label">תאריך סיום:</span>
+      <strong data-computed-end-display>${datesLoading ? '' : escapeHtml(formatDateHe(computedEnd) || '')}</strong></div>
+  </div>`;
   const progressHtml = datesLoading
-    ? `<div class="activity-drawer__progress-row" data-mode="view"><div class="activity-drawer__progress" data-dates-progress>
+    ? `${dateSummaryHtml}<div class="activity-drawer__progress-row" data-mode="view"><div class="activity-drawer__progress" data-dates-progress>
         <div class="activity-drawer__progress-meta" data-dates-progress-meta>
           <span class="ds-muted">טוען תאריכי מפגשים...</span>
           <span></span>
@@ -985,15 +1008,11 @@ function blockDates(row, { canEdit = false, canDirectEdit = false, datesLoading 
           <div class="activity-drawer__progress-fill" style="width:0%"></div>
         </div>
       </div>
-      <div class="activity-drawer__end-date">
-        <span class="activity-drawer__end-date__label">תאריך סיום</span>
-        <strong data-computed-end-display></strong>
-      </div>
       </div>
       <div class="activity-drawer__dates activity-drawer__dates--view" data-mode="view" data-dates-view-chips>
         <div class="activity-drawer__date-chip ds-muted" aria-busy="true">טוען...</div>
       </div>`
-    : `<div class="activity-drawer__progress-row" data-mode="view"><div class="activity-drawer__progress" data-dates-progress>
+    : `${dateSummaryHtml}<div class="activity-drawer__progress-row" data-mode="view"><div class="activity-drawer__progress" data-dates-progress>
         <div class="activity-drawer__progress-meta" data-dates-progress-meta>
           <span>${done} מתוך ${total} מפגשים</span>
           <span>${progressPct}%</span>
@@ -1001,10 +1020,6 @@ function blockDates(row, { canEdit = false, canDirectEdit = false, datesLoading 
         <div class="activity-drawer__progress-track">
           <div class="activity-drawer__progress-fill" style="width:${progressPct}%"></div>
         </div>
-      </div>
-      <div class="activity-drawer__end-date">
-        <span class="activity-drawer__end-date__label">תאריך סיום</span>
-        <strong data-computed-end-display>${escapeHtml(formatDateHeWithWeekday(computedEnd) || '')}</strong>
       </div>
       </div>
       <div class="activity-drawer__dates activity-drawer__dates--view" data-mode="view" data-dates-view-chips>
@@ -1109,7 +1124,9 @@ export function patchDrawerDatesSection(sectionEl, datesData) {
   if (progressFill) progressFill.style.width = `${progressPct}%`;
 
   const endDisplay = sectionEl.querySelector('[data-computed-end-display]');
-  if (endDisplay) endDisplay.textContent = formatDateHeWithWeekday(computedEnd) || '';
+  if (endDisplay) endDisplay.textContent = formatDateHe(computedEnd) || '';
+  const startDisplay = sectionEl.querySelector('[data-computed-start-display]');
+  if (startDisplay) startDisplay.textContent = formatDateHe(datesData?.start_date || schedule[0]?.date) || '';
 
   const chipsDiv = sectionEl.querySelector('[data-dates-view-chips]');
   if (chipsDiv) chipsDiv.innerHTML = buildDateChipsHtml(schedule, false);
@@ -1194,8 +1211,6 @@ function singleForm(row, { settings = {}, privateNote = null, canEdit = false, c
   const activityType = normalizeActivityTypeKey(row.activity_type || row.item_type);
   const is2027 = normalizeActivitySeason(row.activity_season) === ACTIVITY_SEASON_SCHOOL_2027;
   const schedulingEligible = isActivitySchedulingEligible(row);
-  const schedulingInstructorName = resolveActivityInstructorName(row)
-    || resolveInstructorDisplayName(row.instructor_name, row.emp_id, buildInstructorLookup(settings));
   const isOnce = ONCE_TYPES.includes(activityType);
   const isCourse = activityType === 'course';
   const isAfterSchool = activityType === 'after_school';
@@ -1204,7 +1219,6 @@ function singleForm(row, { settings = {}, privateNote = null, canEdit = false, c
   const isTour = activityType === 'tour';
   const showDates = isCourse || isAfterSchool || isWorkshop || isEscapeRoom || isTour;
   const hideFundingInView = isCourse || isAfterSchool || isTour;
-  const hideSeasonInView = isWorkshop || isEscapeRoom || isTour;
   const editReqStatus = String(row.edit_request_status || '').trim();
   const editReqLabel =
     editReqStatus === 'pending' ? 'ממתין לאישור' :
@@ -1232,15 +1246,17 @@ function singleForm(row, { settings = {}, privateNote = null, canEdit = false, c
       ${isOnce
         ? blockViewOnce(row, { settings, hideFunding: hideFundingInView || instructorLimited })
         : blockViewCourse(row, { settings })}
-      ${blockViewRecordDetails(row, { instructorLimited, showFunding: isOnce ? hideFundingInView : true })}
+      ${blockViewRecordDetails(row, { instructorLimited, showFunding: false, showParticipants: !isCourse })}
       ${isOnce && showDates
         ? `<div class="activity-drawer__once-dates-row" data-once-dates-row>${blockDates(row, { canEdit, canDirectEdit, datesLoading, is2027 })}</div>`
         : (showDates ? blockDates(row, { canEdit, canDirectEdit, datesLoading, is2027 }) : '')}
+      ${is2027 ? `<div class="activity-drawer__actions-row" data-activity-actions data-view-only>
+        <button type="button" class="ds-btn ds-btn--sm" data-coordination-approval>אישור תיאום</button>
+      </div>` : ''}
+      ${schedulingEligible ? `<div class="activity-scheduling-fields" data-mode="edit" hidden data-scheduling-fields>
+        <div class="activity-scheduling-summary__fields"><label>דרישת מגדר (לא חובה)<select class="ds-input" name="required_instructor_gender"><option value="any">ללא דרישה</option><option value="female"${(row.required_instructor_gender || 'any') === 'female' ? ' selected' : ''}>מדריכה</option><option value="male"${(row.required_instructor_gender || 'any') === 'male' ? ' selected' : ''}>מדריך</option></select></label><label>שפת הדרכה (לא חובה)<select class="ds-input" name="instruction_language"><option value="he"${(row.instruction_language || 'he') === 'he' ? ' selected' : ''}>עברית</option><option value="ar"${row.instruction_language === 'ar' ? ' selected' : ''}>ערבית</option></select></label></div>
+      </div>` : ''}
       ${blockNotes(row, { hidden: instructorLimited })}
-      ${schedulingEligible ? `<section class="activity-drawer__section activity-scheduling-summary" data-scheduling-summary>
-        <div data-mode="view"><div class="activity-view-field"><span class="activity-view-field__label">מדריך/ה:</span><span class="activity-view-field__value">${escapeHtml(schedulingInstructorName || 'טרם שובץ')}</span></div>${canSchedule ? '<button type="button" class="ds-btn ds-btn--primary" data-find-instructor>דרישות שיבוץ</button>' : ''}</div>
-        <div data-mode="edit" hidden><p class="ds-muted">שני השדות אינם חובה.</p><div class="activity-scheduling-summary__fields"><label>דרישת מגדר (לא חובה)<select class="ds-input" name="required_instructor_gender"><option value="any">ללא דרישה</option><option value="female"${(row.required_instructor_gender || 'any') === 'female' ? ' selected' : ''}>מדריכה</option><option value="male"${(row.required_instructor_gender || 'any') === 'male' ? ' selected' : ''}>מדריך</option></select></label><label>שפת הדרכה (לא חובה)<select class="ds-input" name="instruction_language"><option value="he"${(row.instruction_language || 'he') === 'he' ? ' selected' : ''}>עברית</option><option value="ar"${row.instruction_language === 'ar' ? ' selected' : ''}>ערבית</option></select></label></div></div>
-      </section>` : ''}
       ${blockPrivateNote(row, { privateNote, showPrivateNote })}
       ${blockActivityDetails(row, { settings })}
       ${blockAssignment(row, { settings })}

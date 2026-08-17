@@ -13,16 +13,9 @@ export function cleanupInstructorsHeader(root = document) {
   const app = instructorsAppRoot(root);
   if (!app || !isInstructorsScreen(app)) return false;
 
-  const search = app.querySelector('[data-instructors-search]');
-  if (search) {
-    if (String(search.value || '').trim()) {
-      search.value = '';
-      search.dispatchEvent(new Event('input', { bubbles: true }));
-    }
-    const currentSearch = app.querySelector('[data-instructors-search]');
-    currentSearch?.parentElement?.remove();
-  }
-
+  // The guides list search box is a permanent part of the screen — only a
+  // stray legacy course-scheduling button (from markup that predates the
+  // unified instructors workspace) needs to be swept from cached pages.
   app.querySelector('.ds-page-header [data-route="course-scheduling"]')?.remove();
   return true;
 }
@@ -61,6 +54,18 @@ const isRealBrowser = typeof window !== 'undefined'
 if (isRealBrowser) {
   import('./activity-2027-contact-list-runtime.js?v=20260802-v1').catch((error) => {
     console.error('[activity-2027-contact-list] load failed', error);
+  });
+  import('./payroll-control-window-fix.js?v=20260817-v1').catch((error) => {
+    console.error('[payroll-control-window-fix] load failed', error);
+  });
+  import('./payroll-control-test-mode.js?v=20260817-v4').catch((error) => {
+    console.error('[payroll-control-test-mode] load failed', error);
+  });
+  import('./payroll-control-test-review-fix.js?v=20260817-v4').catch((error) => {
+    console.error('[payroll-control-test-review-fix] load failed', error);
+  });
+  import('./payroll-control-test-plain-status.js?v=20260817-v3').catch((error) => {
+    console.error('[payroll-control-test-plain-status] load failed', error);
   });
 }
 

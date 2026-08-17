@@ -1,6 +1,10 @@
 import { escapeHtml } from './shared/html.js';
-import { dsCard, dsScreenStack, dsEmptyState } from './shared/layout.js';
+import { dsScreenStack, dsEmptyState } from './shared/layout.js';
 import { showToast } from './shared/toast.js';
+import { canViewEmployeeFiles } from '../permissions.js';
+import { onboardingManagers, onboardingModalHtml, bindOnboardingModal } from './instructor-onboarding.js';
+import { createEmployeeFileSharePointReturnSync, loadInstructorEmployeeFile, saveInstructorEmployeeFolderUrl } from './instructor-employee-file-data.js';
+import { employeeFileModalHtml } from './instructor-employee-file-ui.js';
 import { activityWorkDrawerHtml, patchDrawerDatesSection } from './shared/activity-detail-html.js';
 import {
   loadInstructorSchedulingData,
@@ -11,11 +15,45 @@ import {
 } from './instructor-scheduling-data.js';
 import { loadInstructorSeniorityData, saveInstructorContactDetails } from './instructor-contact-data.js';
 import {
-  text, activeFlag, assigned, instructorCard, profileHtml, contactForm, constraintsForm, matchingForm
-} from './instructor-workspace-ui.js?v=20260804-instructor-seniority-v1';
+  text, activeFlag, instructorCard, profileHtml, contactForm, constraintsForm, matchingForm
+} from './instructor-workspace-ui.js?v=20260810-employee-file-manual-v2';
+import {
+  bindInstructorsWorkspaceNav,
+  instructorsWorkspaceHeaderHtml,
+  instructorsWorkspaceNavStylesHtml
+} from './shared/instructors-workspace-nav.js';
 
 const ACTIVE_FILTERS = [{ value: 'yes', label: 'פעילים' }, { value: '', label: 'הכול' }, { value: 'no', label: 'לא פעילים' }];
-const ASSIGNMENT_FILTERS = [{ value: '', label: 'כל השיבוצים' }, { value: 'assigned', label: 'משובצים' }, { value: 'unassigned', label: 'לא משובצים' }];
+const employeeFileSharePointReturnSync = createEmployeeFileSharePointReturnSync();
+
+const INSTRUCTORS_LIST_STYLES = `.instructors-list{display:flex;flex-direction:column;gap:8px}
+.instructors-list__toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding-bottom:8px;border-bottom:1px solid #edeff2}
+.instructors-missing{align-self:flex-start;width:fit-content;max-width:min(420px,100%);background:color-mix(in srgb, var(--ds-accent) 7%, var(--ds-surface));border:1px solid color-mix(in srgb, var(--ds-accent) 30%, transparent);border-radius:8px;padding:4px 10px}
+.instructors-missing>summary{cursor:pointer;font-weight:700;font-size:.8rem;color:color-mix(in srgb, var(--ds-accent) 68%, #000);white-space:nowrap}
+.instructors-missing__list{display:grid;gap:4px;margin:6px 0 0;padding:0;list-style:none}
+.instructors-missing__list li{display:flex;justify-content:space-between;gap:12px;padding-top:4px;border-top:1px solid color-mix(in srgb, var(--ds-accent) 16%, transparent);font-size:.78rem;color:color-mix(in srgb, var(--ds-accent) 68%, #000)}
+.instructors-list__toolbar .ds-chip{min-width:72px;justify-content:center}
+.instructors-list__toolbar [data-open-instructor-onboarding]{margin-inline-start:auto;height:32px;min-height:32px;padding:4px 11px}
+.ds-modal.ds-modal--instructor-onboarding{direction:rtl;width:min(430px,calc(100vw - 24px));max-height:calc(100vh - 24px);overflow:hidden;border:1px solid #d5dbe1;border-radius:14px;background:#fff;box-shadow:0 18px 44px rgba(15,23,42,.16)}
+.ds-modal--instructor-onboarding .ds-modal__header{padding:10px 14px;background:#fff;border-bottom:1px solid #e5e9ee}.ds-modal--instructor-onboarding .ds-modal__title{font-size:1rem}.ds-modal--instructor-onboarding .ds-modal__content{padding:15px;overflow-y:auto}.ds-modal--instructor-onboarding .ds-modal__footer{gap:7px;padding:10px 14px;background:#fff}.ds-modal--instructor-onboarding .ds-modal__footer .ds-btn{min-height:32px;height:32px;padding:4px 10px;font-size:.8rem}
+.instructor-onboarding{display:grid;gap:8px}.instructor-onboarding>label{display:grid;gap:4px;font-size:.82rem;font-weight:700}.instructor-onboarding .ds-input{height:34px;min-height:34px}.instructor-onboarding [data-onboarding-documents]{padding-top:7px;border-top:1px solid #e5e9ee}.instructor-onboarding [data-onboarding-documents] ul{display:grid;gap:3px;margin:5px 0 0;padding:0;list-style:none;font-size:.8rem}.instructor-onboarding__status{min-height:18px;margin:0;color:#4b5968;font-size:.8rem}
+.instructors-workspace-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;justify-content:center}
+.instructor-card-shell{position:relative;display:block;width:100%;min-width:0;min-height:86px}
+.instructor-card{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;width:100%;min-height:86px;padding:12px 10px;box-sizing:border-box;text-align:center;background:#fff;border:1px solid #d9e1e8;border-radius:10px;cursor:pointer;overflow:hidden;box-shadow:0 2px 6px rgba(15,23,42,.08);transition:box-shadow .15s ease,transform .15s ease}
+.instructor-card:hover{box-shadow:0 3px 8px rgba(15,23,42,.11);transform:translateY(-1px)}
+.instructor-card:focus-visible{outline:none;box-shadow:0 0 0 2px rgba(26,51,88,.22)}
+.instructor-card__name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;font-weight:700;color:#172235;line-height:1.25}
+.instructor-card__id{white-space:nowrap;font-size:.72rem;color:#78828f}
+.instructor-card__stats{display:flex;align-items:center;gap:9px;white-space:nowrap;margin-top:2px}
+.instructor-card__stat{display:inline-flex;align-items:center;gap:3px;color:#66707d;font-size:.72rem}
+.instructor-card__stat strong{font-size:.74rem;color:#3d4552;font-weight:700}
+.instructor-card__employee-file-action{position:absolute;top:7px;left:7px;z-index:2;display:grid;place-items:center;width:31px;height:31px;padding:0;border:0;border-radius:8px;background:rgba(255,255,255,.9);cursor:pointer;transition:background-color .15s ease,box-shadow .15s ease}
+.instructor-card__employee-file-action:hover{background:#f7fafc;box-shadow:0 1px 4px rgba(15,23,42,.16)}
+.instructor-card__employee-file-action:focus-visible{outline:2px solid currentColor;outline-offset:1px}
+.instructor-card__employee-file-action--male{color:#278b9b}.instructor-card__employee-file-action--female{color:#c47f98}.instructor-card__employee-file-action--neutral{color:#7b8794}
+.employee-file{display:grid;gap:14px;min-width:min(360px,80vw)}.employee-file__list{display:grid;gap:0;margin:0;padding:0;list-style:none;border:1px solid #e1e6eb;border-radius:10px;overflow:hidden}.employee-file__row{display:flex;align-items:center;justify-content:space-between;gap:16px;min-height:42px;padding:7px 12px;border-bottom:1px solid #edf0f3}.employee-file__row:last-child{border-bottom:0}.employee-file__presence{display:grid;place-items:center;width:24px;height:24px;padding:0;border-radius:50%;cursor:pointer}.employee-file__presence--completed{border:0;background:#e7f4ef;color:#27735b;font-weight:800}.employee-file__presence--empty{box-sizing:border-box;border:1.5px solid #aeb7c1;background:#f7f8f9}.employee-file__payroll{display:inline-flex;align-items:center;gap:7px;color:#52606d}.employee-file__payroll button{width:25px;height:25px;padding:0;border:1px solid #d5dbe1;border-radius:6px;background:#fff;cursor:pointer}.employee-file__link-editor{display:flex;align-items:end;gap:7px}.employee-file__link-editor label{display:grid;flex:1;gap:4px;font-size:.78rem}.employee-file__open{justify-self:start}.employee-file__link-note{font-size:.78rem;color:#7b8794}.employee-file__status{min-height:18px;margin:0;font-size:.78rem;color:#596575}
+@media(max-width:900px){.instructors-workspace-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:600px){.instructors-workspace-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}`;
 
 export function buildInstructorActivityDetailsForMonth(allRows, { empId, instrName, targetYm } = {}) {
   const targets = [empId, instrName].map((value) => text(value).toLowerCase()).filter(Boolean);
@@ -52,10 +90,6 @@ export function buildInstructorActivityDetailsForMonth(allRows, { empId, instrNa
   return items;
 }
 
-function canEditScheduling(state) {
-  return ['admin', 'operation_manager'].includes(text(state?.user?.role || state?.user?.display_role));
-}
-
 function mergeRows(base, contacts, scheduling, seniorityRows = []) {
   const map = new Map();
   const ensure = (id, name = '') => {
@@ -84,10 +118,6 @@ function activitiesFor(data, row) {
   }).filter((activity) => !['סגור', 'נמחק', 'מבוטל'].includes(text(activity.status))).sort((a, b) => text(a.start_date).localeCompare(text(b.start_date)));
 }
 
-function searchText(row) {
-  return [row.full_name, row.emp_id, row.mobile, row.email, row.address, row.employment_type, row.direct_manager, ...(row.activity_managers || []), ...(row.authorities || []), ...(row.schools || []), ...(row.activity_names || [])].map(text).join(' ').toLowerCase();
-}
-
 function chips(items, selected, attr) {
   return items.map((item) => `<button type="button" class="ds-chip${item.value === selected ? ' is-active' : ''}" ${attr}="${escapeHtml(item.value)}">${escapeHtml(item.label)}</button>`).join('');
 }
@@ -96,6 +126,27 @@ function replaceScheduling(row, scheduling) {
   row.scheduling_profile = (scheduling.profiles || []).find((item) => text(item.emp_id) === text(row.emp_id)) || null;
   row.availability_rules = (scheduling.rules || []).filter((item) => text(item.emp_id) === text(row.emp_id));
   row.availability_exceptions = (scheduling.exceptions || []).filter((item) => text(item.emp_id) === text(row.emp_id));
+}
+
+export function instructorMissingWorkDetails(row = {}) {
+  const missing = [];
+  const profile = row.scheduling_profile;
+  const rules = Array.isArray(row.availability_rules) ? row.availability_rules : [];
+  if (!text(row.address)) missing.push('כתובת');
+  if (!profile) missing.push('שיבוץ');
+  if (!text(profile?.gender)) missing.push('מגדר');
+  if (!Array.isArray(profile?.instruction_languages) || !profile.instruction_languages.length) missing.push('שפה');
+  if (!rules.some((rule) => rule?.available && text(rule.start_time) && text(rule.end_time) && text(rule.start_time) < text(rule.end_time))) missing.push('זמינות');
+  return missing;
+}
+
+function missingWorkAlertHtml(rows = []) {
+  const incomplete = rows.filter((row) => activeFlag(row.active) === 'yes')
+    .map((row) => ({ row, missing: instructorMissingWorkDetails(row) }))
+    .filter((item) => item.missing.length);
+  if (!incomplete.length) return '';
+  return `<details class="instructors-missing" data-instructors-missing-alert><summary>${incomplete.length} מדריכים פעילים עם פרטים חסרים</summary>
+    <ul class="instructors-missing__list">${incomplete.map(({ row, missing }) => `<li><strong>${escapeHtml(row.full_name || row.emp_id)}</strong><span>חסר: ${escapeHtml(missing.join(' · '))}</span></li>`).join('')}</ul></details>`;
 }
 
 export function bindInstructorMatchingModal(modalRoot, { row, saveProfile, onSuccess } = {}) {
@@ -221,37 +272,49 @@ export function bindInstructorConstraintsModal(modalRoot, {
 
 export const instructorsScreen = {
   async load({ api }) {
-    // List entry: instructor cards + contacts only. Scheduling rules/exceptions load on open.
-    const [base, contacts, seniorityRows] = await Promise.all([api.instructors(), api.instructorContacts(), loadInstructorSeniorityData()]);
-    return { ...base, rows: mergeRows(base, contacts, null, seniorityRows), scheduling: null, _schedulingLoaded: false };
+    const [base, contacts, seniorityRows, scheduling] = await Promise.all([api.instructors(), api.instructorContacts(), loadInstructorSeniorityData(), loadInstructorSchedulingData()]);
+    return { ...base, rows: mergeRows(base, contacts, scheduling, seniorityRows), scheduling, _schedulingLoaded: !!scheduling?.loaded };
   },
 
   render(data, { state } = {}) {
     state.instructorsWorkspace = state.instructorsWorkspace || { q: '', active: 'yes', assignment: '' };
     const filters = state.instructorsWorkspace;
-    const query = text(filters.q).toLowerCase();
     const rows = (data?.rows || []).filter((row) => {
       if (filters.active && activeFlag(row.active) !== filters.active) return false;
-      if (filters.assignment === 'assigned' && !assigned(row)) return false;
-      if (filters.assignment === 'unassigned' && assigned(row)) return false;
-      return !query || searchText(row).includes(query);
+      return true;
     });
-    const missingAddress = (data?.rows || []).filter((row) => activeFlag(row.active) === 'yes' && !text(row.address)).length;
-    const body = rows.length ? `<div class="instructors-workspace-grid">${rows.map(instructorCard).join('')}</div>` : dsEmptyState('לא נמצאו מדריכים בהתאם לסינון');
-    return dsScreenStack(`<style>.instructors-workspace-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:12px}.instructors-workspace-grid>.ds-card:hover{border-color:#9db9d8!important;box-shadow:0 5px 16px rgba(15,23,42,.08)}@media(max-width:720px){.instructors-workspace-grid{grid-template-columns:1fr}}</style>
-      <header class="ds-page-header"><div><h1 class="ds-page-header__title">מדריכים</h1><p class="ds-page-header__subtitle">פרטי מדריכים, פעילויות, זמינות ואילוצים במקום אחד</p></div>${canEditScheduling(state) ? '<button type="button" class="ds-btn ds-btn--primary" data-route="course-scheduling">שיבוץ קורסים</button>' : ''}</header>
-      <div class="ds-screen-top-row" style="display:grid;gap:10px"><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><input class="ds-search-input" data-instructors-search type="search" placeholder="חיפוש לפי שם, מזהה, רשות, בית ספר או מנהל…" value="${escapeHtml(filters.q || '')}" style="flex:1 1 330px;max-width:620px"><span class="ds-badge">${rows.length} מדריכים</span>${missingAddress ? `<span class="ds-status-chip ds-status-chip--warning">${missingAddress} פעילים ללא כתובת</span>` : ''}</div><div style="display:flex;gap:8px;flex-wrap:wrap"><span class="ds-muted">סטטוס:</span>${chips(ACTIVE_FILTERS, filters.active, 'data-instructors-active')}<span class="ds-muted" style="margin-inline-start:10px">שיבוץ:</span>${chips(ASSIGNMENT_FILTERS, filters.assignment, 'data-instructors-assignment')}</div></div>
-      ${dsCard({ title: '', body, padded: rows.length === 0 })}<p class="ds-muted">ניהול האילוצים וחישוב הצעות השיבוץ פתוחים לאדמין ולתפעול בלבד.</p>`);
+    const employeeFilesAllowed = canViewEmployeeFiles(state?.user);
+    const body = rows.length ? `<div class="instructors-workspace-grid">${rows.map((row) => instructorCard(row, { canViewEmployeeFiles: employeeFilesAllowed })).join('')}</div>` : dsEmptyState('לא נמצאו מדריכים בהתאם לסינון');
+    return dsScreenStack(`${instructorsWorkspaceNavStylesHtml()}<style>${INSTRUCTORS_LIST_STYLES}</style>
+      <div class="instructors-list">
+        ${instructorsWorkspaceHeaderHtml({ activeTab: 'list', state })}
+        ${missingWorkAlertHtml(data?.rows || [])}
+        <div class="instructors-list__toolbar">
+          <span class="ds-badge">${rows.length}</span>
+          <span class="ds-muted">סטטוס:</span>${chips(ACTIVE_FILTERS, filters.active, 'data-instructors-active')}
+          ${employeeFilesAllowed ? '<button type="button" class="ds-btn ds-btn--sm" data-open-instructor-onboarding><span aria-hidden="true">＋</span> קליטת מדריך</button>' : ''}
+        </div>
+        ${body}
+      </div>`);
   },
 
   bind({ root, data, state, rerender, api, ui, clearScreenDataCache }) {
     const rows = data?.rows || [];
-    const canEdit = canEditScheduling(state);
+    const canEdit = ['admin', 'operation_manager'].includes(text(state?.user?.role || state?.user?.display_role));
+    const employeeFilesAllowed = canViewEmployeeFiles(state?.user);
     state.instructorsWorkspace = state.instructorsWorkspace || { q: '', active: 'yes', assignment: '' };
-    let timer;
-    root.querySelector('[data-instructors-search]')?.addEventListener('input', (event) => { state.instructorsWorkspace.q = event.target.value || ''; clearTimeout(timer); timer = setTimeout(rerender, 180); });
+    bindInstructorsWorkspaceNav(root, { state, rerender });
+    root.querySelector('[data-open-instructor-onboarding]')?.addEventListener('click', () => {
+      if (!ui || !employeeFilesAllowed) return;
+      const managers = onboardingManagers(state?.clientSettings || {});
+      ui.openModal({ title: 'קליטת מדריך', modalClass: 'ds-modal--instructor-onboarding', content: onboardingModalHtml(managers), actions: '<button type="button" class="ds-btn ds-btn--primary" data-onboarding-prepare disabled>שליחת מייל</button>' });
+      const modal = document.querySelector('.ds-modal.ds-modal--instructor-onboarding');
+      if (modal) bindOnboardingModal(modal, {
+        managers, loginHint: state?.user?.email || state?.user?.auth_email || '',
+        onSuccess: async () => { clearScreenDataCache?.('instructors'); await rerender(); }
+      });
+    });
     root.querySelectorAll('[data-instructors-active]').forEach((button) => button.addEventListener('click', () => { state.instructorsWorkspace.active = button.dataset.instructorsActive || ''; rerender(); }));
-    root.querySelectorAll('[data-instructors-assignment]').forEach((button) => button.addEventListener('click', () => { state.instructorsWorkspace.assignment = button.dataset.instructorsAssignment || ''; rerender(); }));
     // Compatibility for older cached markup that still contains the former "אנשי קשר מדריכים" route button.
     root.querySelector('[data-route="instructor-contacts"]')?.addEventListener('click', (event) => {
       event.preventDefault();
@@ -303,6 +366,41 @@ export const instructorsScreen = {
         document.querySelector('[data-edit-instructor-matching]')?.addEventListener('click', () => openMatching(row, reopen));
         document.querySelectorAll('[data-open-instructor-activity]').forEach((button) => button.addEventListener('click', () => { const hit = activities.find((item) => text(item.row_id || item.RowID || item.source_row_id) === text(button.dataset.openInstructorActivity)); if (hit) openActivity(hit); }));
       });
+    };
+
+    const openEmployeeFile = async (row) => {
+      if (!row || !ui || !employeeFilesAllowed || activeFlag(row.active) !== 'yes') return;
+      try {
+        const payload = await loadInstructorEmployeeFile(api, row.emp_id);
+        ui.openModal({ title: `תיק עובד - ${row.full_name || row.emp_id}`, modalClass: 'ds-modal--employee-file', content: employeeFileModalHtml(payload) });
+        requestAnimationFrame(() => {
+          const modal = document.querySelector('.ds-modal.ds-modal--employee-file');
+          const status = modal?.querySelector('[data-employee-file-status]');
+          const setStatus = (value) => { if (status) status.textContent = value; };
+          const bindSharePointOpen = (anchor) => anchor?.addEventListener('click', () => {
+            employeeFileSharePointReturnSync.markSharePointOpened(row.emp_id, '2027');
+          });
+          bindSharePointOpen(modal?.querySelector('[data-employee-file-link-action] a'));
+          modal?.querySelector('[data-employee-file-save-url]')?.addEventListener('click', async (event) => {
+            const button = event.currentTarget; const input = modal.querySelector('[data-employee-file-folder-url]');
+            try {
+              button.disabled = true; setStatus('שומר...');
+              const saved = await saveInstructorEmployeeFolderUrl(api, row.emp_id, input?.value || '');
+              const action = modal.querySelector('[data-employee-file-link-action]');
+              if (action && saved?.folder_web_url) {
+                const anchor = document.createElement('a'); anchor.className = 'ds-btn employee-file__open';
+                anchor.href = saved.folder_web_url; anchor.target = '_blank'; anchor.rel = 'noopener noreferrer'; anchor.textContent = 'פתח תיק עובד';
+                bindSharePointOpen(anchor);
+                action.replaceChildren(anchor);
+              } else if (action) action.innerHTML = '<span class="employee-file__link-note">קישור התיק טרם הוגדר</span>';
+              setStatus('הקישור נשמר');
+            }
+            catch (error) { setStatus(String(error?.message || 'שמירת הקישור נכשלה')); } finally { button.disabled = false; }
+          });
+        });
+      } catch (error) {
+        showToast(String(error?.message || 'לא ניתן לטעון את תיק העובד'), 'error');
+      }
     };
 
     const openMatching = async (row, reopen) => {
@@ -365,6 +463,12 @@ export const instructorsScreen = {
       });
     }
 
+    root.querySelectorAll('[data-instructor-employee-file]').forEach((button) => button.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const row = rows.find((item) => text(item.emp_id) === text(button.dataset.instructorEmployeeFile));
+      openEmployeeFile(row);
+    }));
     root.querySelectorAll('[data-instructor-profile]').forEach((button) => button.addEventListener('click', async () => {
       const empId = text(button.dataset.instructorProfile || button.dataset.instructorCard);
       const row = rows.find((item) => text(item.emp_id) === empId);

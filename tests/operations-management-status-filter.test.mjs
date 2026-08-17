@@ -1,12 +1,38 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { operationsManagementScreen } from '../frontend/src/screens/operations-management.js';
+
+if (!globalThis.localStorage) {
+  const store = new Map();
+  globalThis.localStorage = {
+    getItem: (key) => (store.has(key) ? store.get(key) : null),
+    setItem: (key, value) => { store.set(String(key), String(value)); },
+    removeItem: (key) => { store.delete(String(key)); }
+  };
+}
+if (!globalThis.sessionStorage) {
+  const store = new Map();
+  globalThis.sessionStorage = {
+    getItem: (key) => (store.has(key) ? store.get(key) : null),
+    setItem: (key, value) => { store.set(String(key), String(value)); },
+    removeItem: (key) => { store.delete(String(key)); }
+  };
+}
+if (!globalThis.document) {
+  globalThis.document = {
+    dispatchEvent() { return true; },
+    addEventListener() {},
+    documentElement: { dataset: {} }
+  };
+}
+
+const { operationsManagementScreen } = await import('../frontend/src/screens/operations-management.js');
 
 function buildState(status) {
   return {
     activityPeriodTab: 'regular',
     operationsManagement: {
       tab: 'authorities',
+      context: 'operations',
       period: 'regular',
       dateFrom: '2025-09-01',
       dateTo: '2026-08-31',

@@ -1,5 +1,8 @@
 import { api } from './api.js';
 import { state } from './state.js';
+import { activitiesScreen } from './screens/activities.js';
+import { isActivityMutationBlocked } from './screens/shared/activity-readonly-period.js';
+import { showToast } from './screens/shared/toast.js';
 
 /*
  * Performance guard for activity-backed screens.
@@ -143,4 +146,66 @@ import { state } from './state.js';
     const rowId = String(result?.row_id || '').trim();
     return rowId ? { row_id: rowId, RowID: rowId, status: result?.status || 'נמחק' } : null;
   });
+
+  function removeDeletedRowFromScreenData(data, rowId) {
+    if (!Array.isArray(data?.rows)) return;
+    const index = data.rows.findIndex((row) => normalizedRowId(row) === rowId);
+    if (index >= 0) data.rows.splice(index, 1);
+  }
+
+  function installPermanentDeleteFlow() {
+    if (!activitiesScreen || activitiesScreen.__permanentDeleteFlowInstalled) return;
+    const originalBind = typeof activitiesScreen.bind === 'function' ? activitiesScreen.bind : null;
+    if (!originalBind) return;
+    activitiesScreen.__permanentDeleteFlowInstalled = true;
+
+    activitiesScreen.bind = function bindActivitiesWithPermanentDelete(context = {}) {
+      originalBind.call(this, context);
+
+      globalThis.__activityPermanentDeleteAbort?.abort?.();
+      const controller = new AbortController();
+      globalThis.__activityPermanentDeleteAbort = controller;
+
+      document.addEventListener('click', async (event) => {
+        const deleteButton = event.target?.closest?.('[data-action="delete-activity"]');
+        if (!deleteButton) return;
+        const form = deleteButton.closest('[data-drawer-form]');
+        if (!form || !context.root?.isConnected) return;
+        if (String(context.state?.route || state?.route || '').trim() !== 'activities') return;
+        if (isActivityMutationBlocked({
+          activityPeriod: String(context.state?.activityPeriodTab || state?.activityPeriodTab || ''),
+          activitySeason: String(form.getAttribute('data-activity-season') || '')
+        })) return;
+
+        event.preventDefault();
+        event.stopImmediatePropagation();
+
+        if (form.dataset.deleteInFlight === 'yes') return;
+        const rowId = String(form.getAttribute('data-row-id') || '').trim();
+        if (!rowId) return;
+        const confirmed = window.confirm('האם למחוק את הפעילות לצמיתות? לא ניתן לשחזר את הפעילות לאחר המחיקה.');
+        if (!confirmed) return;
+
+        form.dataset.deleteInFlight = 'yes';
+        deleteButton.disabled = true;
+        try {
+          await (context.api || api).deleteActivity(rowId);
+          removeDeletedRowFromScreenData(context.data, rowId);
+          context.clearScreenDataCache?.();
+          context.clearScreenDataCache?.('activities');
+          context.clearScreenDataCache?.('operations-management');
+          context.ui?.closeDrawer?.();
+          showToast('הפעילות נמחקה לצמיתות.', 'success', 2600);
+          context.rerender?.();
+        } catch (error) {
+          console.error('[activity-permanent-delete-error]', { rowId, error });
+          showToast('הפעילות לא נמחקה. ייתכן שאין הרשאה או שהפעילות לא נמצאה.', 'error', 3000);
+          form.dataset.deleteInFlight = 'no';
+          deleteButton.disabled = false;
+        }
+      }, { capture: true, signal: controller.signal });
+    };
+  }
+
+  installPermanentDeleteFlow();
 })();

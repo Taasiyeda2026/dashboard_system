@@ -28,8 +28,12 @@ Short map for keeping Codex/Cursor work scoped. Do not delete or move files base
 ## Tests
 
 - `tests/` — focused and legacy Node test files.
-- Prefer a specific relevant test, for example `node --test tests/proposals-agreements-screen.test.mjs`.
-- Do not run `npm run test:all:legacy` unless explicitly requested.
+- **Minimum relevant validation only.** Choose tests by assertions that cover the changed behavior, not by filename similarity.
+- **Prefer test-name-pattern over entire large test files when only specific scenarios changed.** For example: `node --test --test-name-pattern="cache|deduplication|expired route" tests/course-scheduling-distance-update.test.mjs`.
+- **Do not rerun an already-passing test or suite unless relevant code changed after that run.** A passing larger command also covers its smaller subsets.
+- Do not run `npm run test:all:legacy` or Full Regression unless explicitly requested or repairing it. Run `npm run ci:quick` at most once after completion, when relevant, without first duplicating all of its checks.
+- Do not build unless build validation is needed, and do not run business tests for CSS, text, or cache-marker-only changes.
+- **No test is required when the change has no meaningful automated test coverage.** Documentation-only work can require no test; a syntax, diff, or focused manual check may be sufficient for other narrowly scoped changes.
 
 ## Folders to avoid in normal tasks
 

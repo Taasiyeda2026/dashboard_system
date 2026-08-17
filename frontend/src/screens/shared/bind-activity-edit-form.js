@@ -2,8 +2,10 @@ import { translateApiErrorForUser } from './ui-hebrew.js';
 import { showToast } from './toast.js';
 import { formatDateHe } from './format-date.js';
 import { escapeHtml } from './html.js';
+import { syncActivityEndTimeOptions } from './activity-time-options.js';
 import { activityTypeMatches, getValidInstructorUsers, humanDisplayText, INSTRUCTOR_CONTACTS_MISSING_ERROR_MESSAGE, INSTRUCTOR_IDENTITY_ERROR_MESSAGE, normalizeActivityTypeKey, normalizeOneDayActivityType, resolveInstructorSelectionByEmpId, validateInstructorIdentityPayload } from './activity-options.js';
 import { state } from '../../state.js';
+import { validateCourseFundingSplit } from '../../activity-funding-picker-compact.js';
 import {
   READ_ONLY_ACTIVITY_PERIOD_MESSAGE,
   isActivityMutationBlocked
@@ -38,6 +40,8 @@ function setEditMode(form, editing) {
   form.querySelectorAll('[data-edit-actions]').forEach((el) => el.toggleAttribute('hidden', !editing));
   const editBtn = form.querySelector('[data-action="start-edit"]');
   if (editBtn) editBtn.toggleAttribute('hidden', editing);
+  const existsInGefen = form.querySelector('[data-gefen-exists-checkbox]');
+  if (existsInGefen) existsInGefen.disabled = !editing;
   syncMeetingRemoveButtons(form);
 }
 
@@ -106,7 +110,9 @@ function syncActivityNoFromName(form) {
   const hidden = form.querySelector('[data-activity-no]');
   if (!nameSel || !hidden) return;
   const currentName = String(nameSel.value || '').trim();
-  hidden.value = currentName ? detectActivityNoByName(form, currentName) : '';
+  const detectedActivityNo = currentName ? detectActivityNoByName(form, currentName) : '';
+  if (!currentName) hidden.value = '';
+  else if (detectedActivityNo) hidden.value = detectedActivityNo;
 }
 
 function validateActivityTypeAndName(form, statusEl) {
@@ -141,8 +147,12 @@ function addDays(dateStr, days) {
 
 function updateEndDateDisplay(form) {
   const pickers = Array.from(form.querySelectorAll('input[data-meeting-idx]'));
+  const first = pickers[0];
   const last = pickers[pickers.length - 1];
+  const startDate = first ? String(first.value || '') : '';
   const maxDate = last ? String(last.value || '') : '';
+  const startDisplay = form.querySelector('[data-computed-start-display]');
+  if (startDisplay) startDisplay.textContent = startDate ? (formatDateHe(startDate) || startDate) : '—';
   const display = form.querySelector('[data-computed-end-display]');
   if (display) display.textContent = maxDate ? (formatDateHe(maxDate) || maxDate) : '—';
   form.dataset.autoEndDate = maxDate;
@@ -289,7 +299,11 @@ function captureFormInitialValues(form) {
   form.querySelectorAll('[name]').forEach((el) => {
     const name = el.getAttribute('name');
     if (!name || name.startsWith('_')) return;
-    initialValues[name] = String(el.value ?? '').trim();
+    initialValues[name] = el.matches('input[type="checkbox"]')
+      ? el.checked
+      : el.matches('select[multiple]')
+      ? [...el.selectedOptions].map((option) => String(option.value).trim()).filter(Boolean)
+      : String(el.value ?? '').trim();
   });
   for (let i = 0; i < 35; i++) {
     const meetingKey = `meeting_date_${i}`;
@@ -403,10 +417,20 @@ export function bindActivityEditForm(contentRoot, {
       if (!name || name.startsWith('_')) return;
       if (/^meeting_date_\d+$/.test(name) || /^meeting_performed_\d+$/.test(name)) return;
       if (el.closest('[hidden]')) return;
+      if (el.matches('input[type="checkbox"]')) {
+        const nextValue = el.checked;
+        if (nextValue !== Boolean(initialValues[name])) changes[name] = nextValue;
+        return;
+      }
       if (el.matches('select[multiple][data-scheduling-multi]')) {
-        const nextValues = [...el.selectedOptions].map((option) => String(option.value).trim()).filter(Boolean);
+        const nextValues = [...el.selectedOptions].map((option) => ({
+          funding_source_id: String(option.value).trim(),
+          amount: String(option.dataset.fundingAmount || '').trim()
+        })).filter((item) => item.funding_source_id);
         const previousValues = Array.isArray(initialValues[name]) ? initialValues[name].map(String) : [];
-        if (JSON.stringify(nextValues) !== JSON.stringify(previousValues)) changes[name] = nextValues;
+        const comparableNext = nextValues.map((item) => item.funding_source_id);
+        const amountsChanged = nextValues.some((item) => item.amount !== String([...el.options].find((option) => String(option.value) === item.funding_source_id)?.dataset.initialFundingAmount || ''));
+        if (JSON.stringify(comparableNext) !== JSON.stringify(previousValues) || amountsChanged) changes[name] = nextValues;
         return;
       }
       const rawValue = el.value;
@@ -449,6 +473,26 @@ export function bindActivityEditForm(contentRoot, {
     const saveType = normalizeActivityTypeKey(
       changes.activity_type || initialValues.activity_type || form.querySelector('[name="activity_type"]')?.value || ''
     );
+    if (saveType === 'course' && Object.prototype.hasOwnProperty.call(changes, 'price') && !Object.prototype.hasOwnProperty.call(changes, 'funding_sources')) {
+      const fundingSelect = form.querySelector('select[name="funding_sources"][multiple]');
+      changes.funding_sources = [...(fundingSelect?.selectedOptions || [])].map((option) => ({
+        funding_source_id: String(option.value).trim(),
+        amount: String(option.dataset.fundingAmount || '').trim()
+      })).filter((item) => item.funding_source_id);
+    }
+    if (saveType === 'course' && Object.prototype.hasOwnProperty.call(changes, 'funding_sources')) {
+      const fundingRows = changes.funding_sources;
+      const price = Number(changes.price ?? form.querySelector('[name="price"]')?.value ?? initialValues.price);
+      if (fundingRows.length === 1) {
+        fundingRows[0].amount = Number.isFinite(price) ? price : null;
+      } else if (fundingRows.length > 1) {
+        if (!validateCourseFundingSplit(fundingRows, price).valid) {
+          setStatus(statusEl, 'is-error', 'סכומי גורמי המימון חייבים להיות שווים למחיר הפעילות');
+          showToast('סכומי גורמי המימון חייבים להיות שווים למחיר הפעילות', 'error', 3000);
+          return;
+        }
+      }
+    }
     const supportsParticipants = saveType === 'workshop' || saveType === 'escape_room';
     if (!supportsParticipants) {
       delete changes.participants_count;
@@ -738,9 +782,11 @@ export function bindActivityEditForm(contentRoot, {
     updateMeetingWeekdays(form);
     updateMoreDatesToggle(form);
     updateEndDateDisplay(form);
+    syncActivityEndTimeOptions(form.querySelector('[name="start_time"]'), form.querySelector('[name="end_time"]'));
     const typeEl = form.querySelector('[name="activity_type"]');
     const nameSel = form.querySelector('[data-role="activity-name-select"]');
     if (nameSel) nameSel.disabled = !normalizeActivityTypeKey(typeEl?.value);
+    if (typeEl) form.dataset.activityNameType = normalizeActivityTypeKey(typeEl.value);
     syncActivityNoFromName(form);
     captureFormInitialValues(form);
     form._refreshInitialValues = () => captureFormInitialValues(form);
@@ -748,6 +794,9 @@ export function bindActivityEditForm(contentRoot, {
     form.addEventListener(
       'change',
       (ev) => {
+        if (ev.target.matches('[name="start_time"]')) {
+          syncActivityEndTimeOptions(ev.target, form.querySelector('[name="end_time"]'));
+        }
         const nameEl = ev.target.closest('[data-role="activity-name-select"]');
         if (nameEl) {
           const autoNo = detectActivityNoByName(form, String(nameEl.value || ''));
@@ -757,11 +806,14 @@ export function bindActivityEditForm(contentRoot, {
 
         const typeEl = ev.target.closest('[name="activity_type"]');
         if (typeEl) {
+          const newType = normalizeActivityTypeKey(typeEl.value);
+          const previousType = normalizeActivityTypeKey(form.dataset.activityNameType);
+          if (newType === previousType) return;
+          form.dataset.activityNameType = newType;
           const nameSel = form.querySelector('[data-role="activity-name-select"]');
           if (nameSel && nameSel.dataset.allActivityNames) {
             let allOptions = [];
             try { allOptions = JSON.parse(decodeURIComponent(nameSel.dataset.allActivityNames)); } catch { allOptions = []; }
-            const newType = normalizeActivityTypeKey(typeEl.value);
             const { filtered } = activityNameOptionsForType(allOptions, newType);
             nameSel.innerHTML = renderActivityNameOptions(filtered, newType);
             nameSel.disabled = !newType;

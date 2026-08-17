@@ -1,0 +1,103 @@
+מצאנו את שורש תקלה נוסף של Activities cache.
+
+בדיקת production הראתה שבכניסות רצופות:
+
+cacheKey: activities:periods:proj:p4
+cache_hit: false
+source: network
+
+מצאתי בקוד שהסיבה היא שימוש שגוי ב-clearScreenDataCache().
+
+ב-main.js הפונקציה clearScreenDataCache() מוחקת תמיד:
+- activities:
+- week:
+- month:
+
+כלומר זו למעשה פונקציית invalidation של נתוני פעילות לאחר mutation.
+
+אבל activities.js קורא לה גם בעת לחיצה על:
+[data-activity-period-tab]
+
+כלומר החלפת לשונית פנימית בלבד מוחקת את activities cache למרות שלא השתנה שום מידע.
+
+יש לתקן כך:
+
+1. אין למחוק cache בפעולות UI בלבד:
+- מעבר בין "כל פעילויות תשפ״ז"
+- "פעילויות תשפ״ז"
+- "ארכיון"
+- מעבר חודש
+- חיפוש
+- סינון
+- שינוי visibleCount
+- מעבר תצוגה
+
+פעולות אלה חייבות לעבוד על data.rows שכבר נטענו ולעשות rerender מקומי בלבד.
+
+2. להפריד בין:
+A. rerender / שינוי UI
+B. invalidation אמיתי של נתונים
+
+3. clearScreenDataCache() הרחבה שמוחקת activities/week/month צריכה להיקרא רק לאחר mutation אמיתי:
+- הוספת פעילות
+- שמירת פעילות
+- מחיקת פעילות
+- אישור שינוי שמשנה פעילות
+- פעולה אחרת שמשנה את נתוני activities בפועל
+
+4. מומלץ לשנות את שם הפונקציה הרחבה ל:
+invalidateActivityDataCaches()
+
+כדי שלא ישתמשו בה בטעות כפעולת rerender רגילה.
+
+5. החלפת לשונית פנימית ב-activities.js:
+להסיר את:
+clearScreenDataCache?.();
+
+ולהשאיר את אותם rows בזיכרון ולבצע rerenderLocal בלבד.
+
+6. לעבור על כל הקריאות ל-clearScreenDataCache במסך activities ולוודא:
+- mutation אמיתי -> invalidate
+- פעולה ויזואלית בלבד -> לא invalidate
+
+7. בדיקת קבלה חובה ב-browser:
+
+א. כניסה ראשונה:
+activities -> network
+מותר:
+cache_hit:false
+
+ב. מעבר ללשונית פנימית וחזרה:
+אסור שתתבצע api.activities חדשה.
+
+ג. מעבר למסך אחר -> חזרה לפעילויות בתוך 5 דקות:
+חובה:
+cache_hit:true
+source:"memory-cache-fresh"
+
+ד. logout/login עם persisted cache:
+חובה להשתמש ב-cache של אותו user.
+
+ה. לאחר Save/Add/Delete:
+ה-cache כן חייב להתבטל והנתונים הבאים חייבים להיות טריים.
+
+8. להוסיף test regression שמוכיח שהחלפת activities inner tab אינה מוחקת:
+activities:periods:proj:p4
+
+9. לא לשנות:
+- API
+- Supabase
+- הרשאות
+- לוגיקה עסקית
+- סינונים
+- מבנה נתונים
+- עיצוב
+
+בסיום להחזיר:
+- מה בדיוק מחק את cache
+- אילו קריאות clearScreenDataCache הוסרו/הוחלפו
+- תוצאות הבדיקה
+- צילום/לוג שבו הכניסה השנייה מציגה:
+cache_hit:true
+source:"memory-cache-fresh"
+- commit SHA

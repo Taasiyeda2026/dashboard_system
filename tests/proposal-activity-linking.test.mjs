@@ -19,12 +19,13 @@ test('proposal quantity creates one linked 2027 activity per group using catalog
   assert.match(runtime, /quotedActivityCount/);
   assert.match(runtime, /created_count/);
   assert.match(runtime, /מתוך \$\{requiredCount\} פעילויות נוצרו/);
-  assert.match(runtime, /מימון גפ״ן/);
-  assert.match(runtime, /קיים בגפ״ן/);
-  assert.match(runtime, /סימון ידני/);
-  assert.match(runtime, /מספר הזמנת גפ״ן/);
+  assert.doesNotMatch(runtime, /data-activity-gefen-column/);
+  assert.doesNotMatch(runtime, /מימון גפ״ן/);
+  assert.doesNotMatch(runtime, /קיים בגפ״ן/);
+  assert.doesNotMatch(runtime, /מספר הזמנת גפ״ן/);
+  assert.doesNotMatch(runtime, /enhanceActivityTable/);
+  assert.doesNotMatch(runtime, /renderActivityGefenCell/);
   assert.match(runtime, /proposal_item_sequence/);
-  assert.match(runtime, /activity_season/);
   assert.doesNotMatch(runtime, /proposal_linked_documents/);
   assert.doesNotMatch(runtime, /אישור גפ״ן קיים/);
   assert.doesNotMatch(runtime, /activity_gefen_links/);

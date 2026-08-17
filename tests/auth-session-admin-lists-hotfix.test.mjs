@@ -7,6 +7,8 @@ const entrySource = await readFile(new URL('../frontend/src/main-with-proposal-p
 const isolationSource = await readFile(new URL('../frontend/src/auth-session-isolation-hotfix.js', import.meta.url), 'utf8');
 const stateSource = await readFile(new URL('../frontend/src/state.js', import.meta.url), 'utf8');
 const inventoryPolishSource = await readFile(new URL('../frontend/src/screens/operations-inventory-polish.js', import.meta.url), 'utf8');
+const featureLoadersSource = await readFile(new URL('../frontend/src/feature-loaders.js', import.meta.url), 'utf8');
+const listsAuthHotfixSource = await readFile(new URL('../frontend/src/admin-lists-auth-hotfix.js', import.meta.url), 'utf8');
 
 function frozenArrayBody(source, exportName) {
   const match = source.match(new RegExp(`export const ${exportName} = Object\\.freeze\\(\\[([\\s\\S]*?)\\]\\);`));
@@ -53,4 +55,16 @@ test('admin inventory shortcut is removed without deleting inventory functionali
   assert.match(inventoryPolishSource, /\[data-ops-open-stock-edit\] \{ display: none !important; \}/);
   assert.match(inventoryPolishSource, /removeAdminInventoryShortcut/);
   assert.match(inventoryPolishSource, /button\.remove\(\)/);
+});
+
+test('operations feature loads admin-lists-auth-hotfix for direct 2027 inventory catalog retries', () => {
+  const operationsCase = featureLoadersSource.match(/case 'operations':\s*return loadOnce\('operations', \(\) => Promise\.all\(\[([\s\S]*?)\]\)\)/);
+  const adminCase = featureLoadersSource.match(/case 'admin':\s*return loadOnce\('admin', \(\) => Promise\.all\(\[([\s\S]*?)\]\)\)/);
+  assert.ok(operationsCase, 'operations feature loader case must exist');
+  assert.ok(adminCase, 'admin feature loader case must exist');
+  assert.match(operationsCase[1], /admin-lists-auth-hotfix\.js/);
+  assert.match(adminCase[1], /admin-lists-auth-hotfix\.js/);
+  assert.match(listsAuthHotfixSource, /waitForSupabaseAuthSession/);
+  assert.match(listsAuthHotfixSource, /\.from\('lists'\)/);
+  assert.match(featureLoadersSource, /'operations-management':\s*\['operations'\]/);
 });

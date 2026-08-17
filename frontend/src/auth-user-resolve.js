@@ -1,5 +1,3 @@
-import { supabase } from './supabase-client.js';
-
 export const AUTH_USER_PUBLIC_COLUMNS = 'user_id,username,email,name,full_name,role,display_role,display_role2,emp_id,is_active,permissions';
 export const AUTH_USER_PUBLIC_COLUMNS_EXTENDED = `${AUTH_USER_PUBLIC_COLUMNS},auth_user_id,auth_email,can_review_requests,view_proposals_agreements,manage_proposals_agreements,approve_proposals_agreements`;
 
@@ -193,9 +191,23 @@ async function resolveActiveUserRowWithColumns(options, columns) {
     attemptOrder: attempts.map((attempt) => attempt.matchedBy)
   });
 
+  const _supabase = options.supabase ?? (await import('./supabase-client.js')).supabase;
+  if (authUserId && typeof _supabase?.rpc === 'function') {
+    const { data: ownRows, error: ownError } = await _supabase.rpc('get_current_app_user');
+    const ownRow = Array.isArray(ownRows) ? ownRows[0] : ownRows;
+    if (!ownError && ownRow?.is_active !== false && authUserIdMatchesRow(authUserId, ownRow)) {
+      return {
+        userRow: ownRow,
+        matchedBy: 'current_app_user_rpc',
+        missingColumnError: false,
+        status: 'found',
+        attempts: [{ matchedBy: 'current_app_user_rpc', filters: { auth_user_id: authUserId }, dataCount: 1, error: null, skippedReason: '' }]
+      };
+    }
+  }
   for (const attempt of attempts) {
     const result = await fetchActiveUserRowByFilters(
-      options.supabase || supabase,
+      _supabase,
       columns,
       attempt.filters,
       attempt

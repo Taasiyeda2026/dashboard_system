@@ -1,18 +1,40 @@
 export function activityMeetings(activity = {}, options = {}) {
   const periodFilter = typeof options.filter === 'function' ? options.filter : null;
+  const cancelled = activity?.cancelled_meeting_dates || activity?._cancelledMeetingDates || options.cancelledDates;
+  const cancelledSet = cancelled
+    ? (cancelled instanceof Set ? cancelled : new Set([...(cancelled || [])].map((value) => String(value ?? '').trim().slice(0, 10))))
+    : null;
+  const notCancelled = (meeting) => {
+    if (!cancelledSet?.size) return true;
+    return !cancelledSet.has(String(meeting?.date ?? '').trim().slice(0, 10));
+  };
   if (Array.isArray(activity.meetings)) {
     const rows = activity.meetings
       .map((meeting) => typeof meeting === 'string'
         ? { date: meeting, start_time: activity.start_time, end_time: activity.end_time }
         : meeting)
-      .filter((meeting) => meeting?.date);
+      .filter((meeting) => meeting?.date)
+      .filter(notCancelled);
     return periodFilter ? rows.filter(periodFilter) : rows;
   }
 
-  const rows = Array.from({ length: 35 }, (_, index) => activity[`date_${index + 1}`])
-    .filter(Boolean)
-    .map((date) => ({ date, start_time: activity.start_time, end_time: activity.end_time }));
+  const rows = Array.from({ length: 35 }, (_, index) => ({
+    date: activity[`date_${index + 1}`], meeting_no: index + 1,
+    start_time: activity.start_time, end_time: activity.end_time
+  }))
+    .filter((meeting) => meeting.date)
+    .filter(notCancelled);
   return periodFilter ? rows.filter(periodFilter) : rows;
+}
+
+/** Calendar source for a course: proposed draft dates when present, else official meetings. */
+export function schedulingCalendarMeetings(activity = {}, options = {}) {
+  const draftEmp = String(activity?.draft_emp_id ?? '').trim();
+  const proposed = Array.isArray(activity?.draft_proposed_meetings) ? activity.draft_proposed_meetings : null;
+  if (draftEmp && proposed?.length) {
+    return activityMeetings({ ...activity, meetings: proposed }, options);
+  }
+  return activityMeetings(activity, options);
 }
 
 export function isoWeekKey(value) {

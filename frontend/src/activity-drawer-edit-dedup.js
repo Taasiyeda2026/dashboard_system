@@ -6,7 +6,9 @@ import {
 
 const ENHANCED_ATTR = 'data-activity-drawer-inline-layout';
 const POLISHED_ATTR = 'data-activity-drawer-edit-dedup';
+const INITIAL_REFRESH_GUARD_ATTR = 'data-activity-initial-refresh-guard';
 const TEST_FLAG = '__ACTIVITY_DRAWER_EDIT_DEDUP_TEST__';
+const GENERIC_ONE_DAY_ACTIVITY_NAMES = new Set(['סדנה', 'סדנאות', 'סיור', 'סיורים', 'חדר בריחה', 'חדרי בריחה']);
 
 const SEASON_OPTIONS = [
   { value: 'regular', label: '2026' },
@@ -114,6 +116,37 @@ function rebuildActivityNameSelect(form, settings, row) {
   return true;
 }
 
+export function guardInitialValueRefreshWhileEditing(form) {
+  if (!form || form.hasAttribute(INITIAL_REFRESH_GUARD_ATTR)) return false;
+  const refreshInitialValues = form._refreshInitialValues;
+  if (typeof refreshInitialValues !== 'function') return false;
+
+  form._refreshInitialValues = (...args) => {
+    if (String(form.dataset.editing || '') === 'yes') return form._initialValues;
+    return refreshInitialValues(...args);
+  };
+  form.setAttribute(INITIAL_REFRESH_GUARD_ATTR, 'true');
+  return true;
+}
+
+export function primeLegacyActivityNameForSave(form, row = parseExportRow(form)) {
+  const select = form?.querySelector?.('[data-role="activity-name-select"], [name="activity_name"]');
+  const selectedName = clean(select?.value);
+  const storedName = clean(row?.activity_name);
+  const initialValues = form?._initialValues;
+
+  if (!selectedName || !storedName) return false;
+  if (!GENERIC_ONE_DAY_ACTIVITY_NAMES.has(storedName)) return false;
+  if (GENERIC_ONE_DAY_ACTIVITY_NAMES.has(selectedName)) return false;
+  if (!initialValues || typeof initialValues !== 'object') return false;
+
+  // Legacy rows may store only "סיור"/"סדנה" while the visible catalog choice
+  // comes from program_name. Mark the real selected name as a change so the
+  // save payload repairs activity_name before backend one-day validation runs.
+  initialValues.activity_name = storedName;
+  return true;
+}
+
 export function polishActivityDrawerEditOptions(form, settings = {}) {
   if (!form || !form.hasAttribute(ENHANCED_ATTR)) return false;
   if (form.hasAttribute(POLISHED_ATTR)) return false;
@@ -121,17 +154,46 @@ export function polishActivityDrawerEditOptions(form, settings = {}) {
   const row = parseExportRow(form);
   rebuildSeasonSelect(form, row);
   rebuildActivityNameSelect(form, settings, row);
+  guardInitialValueRefreshWhileEditing(form);
 
   const typeSelect = form.querySelector('[name="activity_type"]');
+  if (typeSelect && !form.dataset.activityNameType) {
+    form.dataset.activityNameType = normalizeActivityTypeKey(typeSelect.value);
+  }
   typeSelect?.addEventListener('change', () => {
+    const nextType = normalizeActivityTypeKey(typeSelect.value);
+    const previousType = normalizeActivityTypeKey(form.dataset.activityNameType);
+    if (nextType === previousType) return;
+
+    // A genuine type change must not carry a legacy name/activity_no into the
+    // new type. Clear both the live controls and every row fallback before the
+    // polished catalog is rebuilt. The shared type marker is advanced only
+    // after this reset, so the second form-level listener safely no-ops.
     const nameSelect = form.querySelector('[data-role="activity-name-select"], [name="activity_name"]');
     if (nameSelect) nameSelect.value = '';
+    const activityNoInput = form.querySelector('[name="activity_no"], [data-activity-no]');
+    if (activityNoInput) activityNoInput.value = '';
     rebuildActivityNameSelect(form, settings, {
       ...row,
-      activity_type: typeSelect.value,
-      activity_name: ''
+      activity_type: nextType,
+      item_type: nextType,
+      activity_name: '',
+      program_name: '',
+      title: '',
+      name: '',
+      activity_no: ''
     });
+    form.dataset.activityNameType = nextType;
   });
+
+  form.addEventListener('click', (event) => {
+    // bindActivityEditForm assigns _refreshInitialValues during drawer setup.
+    // Re-check on interaction so the guard is installed even if polishing ran first.
+    guardInitialValueRefreshWhileEditing(form);
+    if (event.target?.closest?.('[data-action="save-edit"]')) {
+      primeLegacyActivityNameForSave(form, row);
+    }
+  }, true);
 
   form.setAttribute(POLISHED_ATTR, 'true');
   return true;

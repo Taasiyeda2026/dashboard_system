@@ -2,6 +2,7 @@ import { api } from './api.js';
 import { config } from './config.js';
 import { ACTIVE_ACTIVITY_SEASON, globalActivityPeriodLabel, globalActivityPeriodFullLabel, globalActivityPeriodOptions, normalizeGlobalActivityPeriod } from './screens/shared/summer-activity.js';
 import { state, setSession, defaultClientSettings, setGlobalActivityPeriod, setArchiveActivityPeriod } from './state.js';
+import { resetDashboardSessionTimeoutState } from './session-security-runtime.js';
 import { SCREEN_CACHE_STORAGE_PREFIX, persistCacheEntry, deletePersistedCacheEntry, deletePersistedCacheByPrefixes } from './cache-persist.js';
 import { escapeHtml } from './screens/shared/html.js';
 import { hebrewRole, translateApiErrorForUser } from './screens/shared/ui-hebrew.js';
@@ -35,7 +36,13 @@ const systemLogoSrc = new URL('../assets/logo_system.png', import.meta.url).href
 
 let isMobileNavOpen = false;
 let lastRenderedRoute = null;
-let loginInlineError = '';
+let loginInlineError = (() => {
+  try {
+    const reason = sessionStorage.getItem('dashboard_session_timeout_reason');
+    sessionStorage.removeItem('dashboard_session_timeout_reason');
+    return reason ? 'פג תוקף ההתחברות. יש להתחבר מחדש.' : '';
+  } catch { return ''; }
+})();
 let hasMountedAuthenticatedShell = false;
 const ui = createSharedInteractionLayer();
 let loginPerfStartMs = 0;
@@ -78,6 +85,8 @@ let latestNavigationRoute = '';
 let activeRouteTransitionLabel = null;
 const activeConsoleTimers = new Set();
 let shellEventsBound = false;
+/** Timestamp (performance.now()) when the most recent navigation to the activities route began. */
+let activitiesNavStartMs = 0;
 const STABILITY_HOTFIX_DISABLE_BACKGROUND_REFRESH = false;
 const STABILITY_HOTFIX_DISABLE_PERSISTENT_SCREEN_CACHE = false;
 /** Single switch: off = unregister all SW and skip registration (no stale shell risk during incidents). */
@@ -565,14 +574,74 @@ async function refreshPendingApprovedProposalsCount() {
   }
 }
 
+// Routes that are visually owned by ops-management (share its header + tab bar wrapper).
+const OPS_SUB_ROUTES = new Set(['invitations', 'catalog', 'certificates']);
+
+/**
+ * If `route` is an ops sub-route, wraps `markup` with the ops-management visual chrome.
+ * Requires the ops-management screen to already be in loadedScreens (true in practice,
+ * since the user must navigate through ops-management to reach these routes).
+ */
+function wrapWithOpsIfSubRoute(markup, route) {
+  if (!OPS_SUB_ROUTES.has(route)) return markup;
+  const opsScreen = loadedScreens.get('operations-management');
+  if (!opsScreen?.opsSubRouteWrapperHtml) return markup;
+  const is2027 = state.operationsManagement?.period === 'school_2027';
+  return opsScreen.opsSubRouteWrapperHtml(route, markup, { is2027 });
+}
+
+/**
+ * Binds the ops wrapper navigation buttons rendered around sub-route screens.
+ * data-route tabs → app:navigate; data-ops-tab tabs → set tab in state + navigate to ops-management.
+ */
+function bindOpsSubRouteWrapper(screenRoot) {
+  const wrapperRoot = screenRoot.querySelector('.ds-ops-sub-route-screen');
+  if (!wrapperRoot) return;
+  const tabsNav = wrapperRoot.querySelector('.ds-ops-mgmt-tabs');
+  if (!tabsNav) return;
+
+  // Route-link tabs (invitations, catalog, certificates)
+  tabsNav.querySelectorAll('[data-route]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const r = btn.getAttribute('data-route');
+      if (r) document.dispatchEvent(new CustomEvent('app:navigate', { detail: { route: r } }));
+    });
+  });
+
+  // Internal ops tabs (completion_approval, authorities, workshops) → go to ops-management with that tab
+  tabsNav.querySelectorAll('[data-ops-tab]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const tab = btn.getAttribute('data-ops-tab');
+      if (tab) {
+        state.operationsManagement = state.operationsManagement || {};
+        state.operationsManagement.context = 'operations';
+        state.operationsManagement.tab = tab;
+      }
+      document.dispatchEvent(new CustomEvent('app:navigate', { detail: { route: 'operations-management' } }));
+    });
+  });
+
+  // 2027 custom tabs — added via applyOps2027ToWrapper (click → set activeCustomTab + navigate)
+  if (wrapperRoot.dataset.opsYear === '2027') {
+    const opsScreen = loadedScreens.get('operations-management');
+    if (typeof opsScreen?.applyOps2027ToWrapper === 'function') {
+      opsScreen.applyOps2027ToWrapper(wrapperRoot, () => {
+        state.operationsManagement = state.operationsManagement || {};
+        state.operationsManagement.context = 'operations';
+        document.dispatchEvent(new CustomEvent('app:navigate', { detail: { route: 'operations-management' } }));
+      });
+    }
+  }
+}
+
 const screenLoaders = {
   dashboard: () => import('./screens/dashboard.js').then((m) => m.dashboardScreen),
   activities: () => import('./screens/activities.js').then((m) => m.activitiesScreen),
   week: () => import('./screens/week.js').then((m) => m.weekScreen),
   month: () => import('./screens/month.js').then((m) => m.monthScreen),
   exceptions: () => import('./screens/exceptions.js').then((m) => m.exceptionsScreen),
-  instructors: () => import('./screens/instructors.js?v=20260806-scheduling-quality-tiers-v1').then((m) => m.instructorsScreen),
-  'course-scheduling': () => import('./screens/course-scheduling.js?v=20260807-proposed-date-adjustments-v3').then((m) => m.courseSchedulingScreen),
+  instructors: () => import('./screens/instructors.js?v=20260814-instructor-onboarding-v3').then((m) => m.instructorsScreen),
+  'course-scheduling': () => import('./screens/course-scheduling.js?v=20260817-recommendation-card-ui-v1').then((m) => m.courseSchedulingScreen),
   'instructor-contacts': () => import('./screens/instructor-contacts.js').then((m) => m.instructorContactsScreen),
   contacts: () => import('./screens/contacts.js').then((m) => m.contactsScreen),
   'end-dates': () => import('./screens/end-dates.js').then((m) => m.endDatesScreen),
@@ -979,7 +1048,7 @@ function enforceCourseSchedulingRoute() {
 }
 
 // מסכי ניהול — נגישים למי שיש לו הרשאה, אך לא מוצגים בסרגל הצד
-const ADMIN_SIDEBAR_HIDDEN_ROUTES = new Set(['admin-home', 'admin-settings', 'admin-lists']);
+const ADMIN_SIDEBAR_HIDDEN_ROUTES = new Set(['admin-home', 'admin-settings', 'admin-lists', 'invitations', 'catalog', 'certificates', 'operations-management']);
 
 function shell(content) {
   enforceProposalsAgreementsRoute();
@@ -1020,7 +1089,8 @@ function shell(content) {
   const hasUnifiedClientFile = effectiveRoutes().includes('proposals-agreements');
   const headerNavHtml = headerNavGridHtml({
     route: state.route,
-    routes: effectiveRoutes().filter((r) => !adminHeaderExclude.has(r) && !HEADER_ALWAYS_EXCLUDE.has(r) && !(hasUnifiedClientFile && r === 'contacts'))
+    routes: effectiveRoutes().filter((r) => !adminHeaderExclude.has(r) && !HEADER_ALWAYS_EXCLUDE.has(r) && !(hasUnifiedClientFile && r === 'contacts')),
+    operationsManagement: state.operationsManagement
   }, { exceptions: exceptionsNavCount(), editRequests: Number(state.openEditRequestsCount) || 0 });
   const headerTechHtml = '';
   const instructorMobileHeader = isInstructorUser
@@ -1121,7 +1191,18 @@ function setMobileNavOpen(open) {
   shellNode.classList.toggle('is-mobile-nav-open', isMobileNavOpen);
   const drawer = shellNode.querySelector('.shell-sidebar');
   if (drawer) {
-    drawer.setAttribute('aria-hidden', !isDesktopViewport() && !isMobileNavOpen ? 'true' : 'false');
+    const nextAriaHidden = !isDesktopViewport() && !isMobileNavOpen ? 'true' : 'false';
+    // Move focus out of the sidebar before aria-hiding it; otherwise the browser
+    // logs "Blocked aria-hidden on an element because its descendant retained focus".
+    if (nextAriaHidden === 'true' && drawer.contains(document.activeElement)) {
+      const menuBtn = shellNode.querySelector('#mobileMenuBtn');
+      if (menuBtn) {
+        menuBtn.focus({ preventScroll: true });
+      } else if (document.activeElement instanceof HTMLElement) {
+        document.activeElement.blur();
+      }
+    }
+    drawer.setAttribute('aria-hidden', nextAriaHidden);
   }
   const menuBtn = shellNode.querySelector('#mobileMenuBtn');
   if (menuBtn) {
@@ -1140,9 +1221,12 @@ function buildScreenDataCacheKey(route, cacheState = state) {
   // Bump when activities list projection columns change (e.g. funding) so stale
   // cached rows without the new fields are not reused.
   const projection = 'p3';
+  // p4: stores all rows without row-count truncation (compact per-row shape).
+  // Old p3 entries (slice(0,60/80) rows) are intentionally excluded.
+  const activitiesProjection = 'p4';
   const withActivityPeriod = (base) => `${base}:period:${activityPeriod}:proj:${projection}`;
   if (route === 'activities') {
-    return `activities:periods:proj:${projection}`;
+    return `activities:periods:proj:${activitiesProjection}`;
   }
   if (route === 'dashboard') {
     const ym = cacheState.dashboardMonthYm && /^\d{4}-\d{2}$/.test(cacheState.dashboardMonthYm) ? cacheState.dashboardMonthYm : 'default';
@@ -1245,6 +1329,9 @@ function logProposalsAgreementsContactOptions(data) {
 }
 
 const MAX_PERSISTED_CACHE_ENTRY_BYTES = 80000;
+// Activities stores all rows (no slice); allow up to 400 KB so large deployments fit.
+// localStorage quota is 5–10 MB per origin; other cache entries are small (<80 KB each).
+const MAX_PERSISTED_ACTIVITIES_BYTES = 400 * 1024;
 
 function shouldPersistScreenCacheEntry(key, entry) {
   const cacheKey = String(key || '');
@@ -1256,17 +1343,35 @@ function shouldPersistScreenCacheEntry(key, entry) {
   try {
     const normalized = normalizeEntryForPersistentCache(cacheKey, entry);
     if (!normalized) return false;
-    return JSON.stringify(normalized).length <= MAX_PERSISTED_CACHE_ENTRY_BYTES;
+    const limit = cacheKey.startsWith('activities:')
+      ? MAX_PERSISTED_ACTIVITIES_BYTES
+      : MAX_PERSISTED_CACHE_ENTRY_BYTES;
+    return JSON.stringify(normalized).length <= limit;
   } catch {
     return false;
   }
+}
+
+function compactActivityRowForPersistence(row) {
+  if (!row || typeof row !== 'object') return row;
+  // Strip computed/duplicate per-row fields that inflate storage but are not
+  // needed for list display, counts, search, or client-side filtering:
+  //   date_cols   — exact alias of meeting_dates; code prefers meeting_dates first
+  //   meeting_schedule — array of {date,performed} used only in the drawer
+  //   _debug      — internal debug object
+  // All 35 date_1..date_35 columns and meeting_dates are kept for month filtering.
+  // eslint-disable-next-line no-unused-vars
+  const { date_cols, meeting_schedule, _debug, ...compact } = row;
+  return compact;
 }
 
 function normalizeEntryForPersistentCache(cacheKey, entry) {
   if (!entry || typeof entry !== 'object') return null;
   const payload = entry.data;
   if (cacheKey.startsWith('activities:') && payload && Array.isArray(payload.rows)) {
-    return { ...entry, data: { ...payload, rows: payload.rows.slice(0, 60) } };
+    // Store ALL rows (no slice) so counts/search/filter are correct on first paint.
+    // Strip redundant computed fields per row to reduce size without losing fidelity.
+    return { ...entry, data: { ...payload, rows: payload.rows.map(compactActivityRowForPersistence) } };
   }
   if (cacheKey.startsWith('week:') || cacheKey.startsWith('month:')) {
     if (payload && Array.isArray(payload.rows)) {
@@ -1279,7 +1384,11 @@ function normalizeEntryForPersistentCache(cacheKey, entry) {
 function maybePersistScreenCacheEntry(key, entry) {
   if (STABILITY_HOTFIX_DISABLE_PERSISTENT_SCREEN_CACHE) return;
   if (!shouldPersistScreenCacheEntry(key, entry)) return;
-  persistCacheEntry(key, normalizeEntryForPersistentCache(String(key || ''), entry));
+  const normalized = normalizeEntryForPersistentCache(String(key || ''), entry);
+  const opts = String(key || '').startsWith('activities:')
+    ? { maxBytes: MAX_PERSISTED_ACTIVITIES_BYTES }
+    : undefined;
+  persistCacheEntry(key, normalized, opts);
 }
 /**
  * Returns cached data immediately if available and fresh (within TTL).
@@ -1317,6 +1426,20 @@ async function loadScreenDataWithCache(screen) {
     if (routePerfEnabled) {
       const dur = Math.round((typeof performance !== 'undefined' ? performance.now() : Date.now()) - routePerfStart);
       console.info('[route-load]', { route: routeName, duration_ms: dur, cache_hit: true, fallback_used: false, source: 'memory-cache-swr' });
+    }
+    if (routeName === 'activities') {
+      const ageS = Math.round((Date.now() - (hit.storedAt || hit.t || 0)) / 1000);
+      const firstPaintMs = activitiesNavStartMs
+        ? Math.round(performance.now() - activitiesNavStartMs)
+        : null;
+      // eslint-disable-next-line no-console
+      console.info('[activities:perf]', {
+        event: 'first-paint',
+        source: hit.restoredFromStorage ? 'localStorage' : 'memory',
+        rows: hit.data?.rows?.length ?? 0,
+        age_s: ageS,
+        first_paint_ms: firstPaintMs
+      });
     }
     return hit.data;
   }
@@ -1387,6 +1510,17 @@ async function backgroundRefreshScreen(screen, cacheKey) {
     maybePersistScreenCacheEntry(cacheKey, entry);
     if (cacheKey === 'exceptions') updateExceptionNavCount();
     if (cacheKey === 'proposals-agreements') syncPendingApprovedProposalsCountFromRows(data?.rows);
+    if (cacheKey.startsWith('activities:')) {
+      const freshDataMs = activitiesNavStartMs
+        ? Math.round(performance.now() - activitiesNavStartMs)
+        : null;
+      // eslint-disable-next-line no-console
+      console.info('[activities:perf]', {
+        event: 'fresh-data-ready',
+        rows: data?.rows?.length ?? 0,
+        total_ms: freshDataMs
+      });
+    }
     if (
       activeNavigationToken === guardedToken &&
       state.route === guardedRoute &&
@@ -1395,7 +1529,7 @@ async function backgroundRefreshScreen(screen, cacheKey) {
       const screenRoot = document.getElementById('screenRoot');
       if (screenRoot) {
         const renderStart = performance.now();
-        screenRoot.innerHTML = screen.render(data, { state });
+        screenRoot.innerHTML = wrapWithOpsIfSubRoute(screen.render(data, { state }), state.route);
         bindScreen(screen, screenRoot, data);
         recordRenderPerf(state.route, 'background-refresh-render', performance.now() - renderStart, {
           cache_key: cacheKey
@@ -1430,7 +1564,17 @@ function updateNavActiveClasses() {
     shellNode.setAttribute('data-current-route', String(state.route || ''));
   }
   document.querySelectorAll('[data-route]').forEach((btn) => {
-    btn.classList.toggle('is-active', btn.dataset.route === state.route);
+    const route = btn.dataset.route;
+    let active = route === state.route;
+    if (route === 'instructors') {
+      active = state.route === 'instructors'
+        || state.route === 'course-scheduling'
+        || (state.route === 'operations-management' && state.operationsManagement?.context === 'instructors');
+    } else if (route === 'operations-management') {
+      active = (state.route === 'operations-management' && state.operationsManagement?.context !== 'instructors')
+        || OPS_SUB_ROUTES.has(state.route);
+    }
+    btn.classList.toggle('is-active', active);
   });
   updateExceptionNavCount();
   syncGlobalActivityPeriodSelector();
@@ -1467,7 +1611,7 @@ async function fastRerenderScreen(screen, routeAtBind) {
     if (rerenderToken !== activeNavigationToken) return;
     if (state.route !== routeAtBind) return;
     if (screenDataCacheKey() !== requestedKey) return;
-    screenRoot.innerHTML = screen.render(data, { state });
+    screenRoot.innerHTML = wrapWithOpsIfSubRoute(screen.render(data, { state }), routeAtBind);
     bindScreen(screen, screenRoot, data);
     const cached = state.screenDataCache[requestedKey];
     const fresh = cached && Date.now() - cached.t < screenCacheTtl();
@@ -1487,13 +1631,13 @@ function renderScreenIntoRoot({ route, screen, data, screenRoot, phase, cacheKey
   console.info('[route-render:start]', { route, data_keys: dataKeys });
   const renderStart = performance.now();
   try {
-    const markup = screen.render(data, { state });
+    const markup = wrapWithOpsIfSubRoute(screen.render(data, { state }), route);
     screenRoot.innerHTML = markup;
     const text = (screenRoot.textContent || '').trim();
     if (text === 'טוען נתונים...' && data && typeof data === 'object') {
       // eslint-disable-next-line no-console
       console.warn('[route-render:retry]', { route, reason: 'loading-stuck-after-render' });
-      screenRoot.innerHTML = screen.render(data, { state });
+      screenRoot.innerHTML = wrapWithOpsIfSubRoute(screen.render(data, { state }), route);
     }
     const afterText = (screenRoot.textContent || '').trim();
     if (afterText === 'טוען נתונים...') {
@@ -1520,7 +1664,19 @@ function renderScreenIntoRoot({ route, screen, data, screenRoot, phase, cacheKey
     throw err;
   }
 }
-function clearScreenDataCache() {
+/**
+ * Invalidates all activity-related caches (activities:*, week:*, month:*) plus
+ * the current screen's cache entry when applicable.
+ *
+ * MUST be called only after a true data mutation (add / save / delete / approve).
+ * Do NOT call for UI-only actions (tab switch, month navigation, filter, search,
+ * visibleCount change) — those must rerender from the already-loaded rows in
+ * state.screenDataCache without touching persisted or in-memory cache entries.
+ *
+ * Previously named clearScreenDataCache. The old name is kept as an alias on the
+ * bind arg so existing screens do not require simultaneous updates.
+ */
+function invalidateActivityDataCaches() {
   const deletedKeys = [];
   // Always purge week, month and activities caches — any activity mutation can affect
   // these views regardless of which screen initiated the save.
@@ -1542,6 +1698,8 @@ function clearScreenDataCache() {
   }
   deletedKeys.forEach(persistCacheDelete);
 }
+// Backward-compatible alias — screens still receive this name via the bind arg.
+const clearScreenDataCache = invalidateActivityDataCaches;
 
 function bindScreen(screen, screenRoot, data) {
   const routeAtBind = state.route;
@@ -1558,6 +1716,10 @@ function bindScreen(screen, screenRoot, data) {
     rerenderActivitiesView: () => rerenderActivitiesViewOnly(screen, screenRoot),
     clearScreenDataCache
   });
+  // Bind the shared ops-management wrapper nav for sub-route screens.
+  if (OPS_SUB_ROUTES.has(routeAtBind)) {
+    bindOpsSubRouteWrapper(screenRoot);
+  }
 }
 
 function rerenderActivitiesViewOnly(screen, screenRoot) {
@@ -1721,6 +1883,7 @@ async function mountScreen() {
   beginPerfTimer('route:transition');
   beginPerfTimer(transitionLabel);
   const mountStartMs = performance.now();
+  if (requestedRoute === 'activities') activitiesNavStartMs = mountStartMs;
   if (isDesktopViewport()) {
     isMobileNavOpen = false;
     document.body.classList.remove('is-shell-nav-open');
@@ -1983,10 +2146,12 @@ function bindShell() {
     refreshPendingApprovedProposalsCount().catch(() => {});
   });
 
-  document.querySelectorAll('[data-route]').forEach((button) => {
-    button.addEventListener('click', () => {
-      navigateToRoute(button.dataset.route);
-    });
+  // The shell is replaced during rendering, so bind route navigation once via
+  // delegation instead of attaching handlers only to the buttons from the
+  // initial render. This keeps newly rendered header tabs clickable as well.
+  document.addEventListener('click', (event) => {
+    const button = event.target?.closest?.('[data-route]');
+    if (button) navigateToRoute(button.dataset.route);
   });
 
   document.querySelectorAll('[data-external-url]').forEach((button) => {
@@ -2119,10 +2284,18 @@ async function render() {
             firstLoadTimerStarted = false;
             firstDashboardSnapshotTimerStarted = false;
             beginPerfTimer('login:setSession');
+            resetDashboardSessionTimeoutState({
+              user: { id: data.user?.auth_user_id, last_sign_in_at: new Date().toISOString() }
+            });
             setSession({ token: data.token, user: data.user });
             state.authSessionReady = true;
             state.permissionsReady = true;
             clearFinancePrefsIfUserChanged(data.user?.user_id);
+            // Restore this user's persisted screen cache so the first navigation
+            // (e.g. activities) can show stale-while-revalidate data immediately
+            // instead of waiting for a full Supabase fetch.
+            // Must run after setSession() so _storageKey() resolves to <user_id>.
+            restoreScreenCacheFromStorage();
             endPerfTimer('login:setSession');
             beginPerfTimer('login:applyBootstrap');
             const bootstrapApplyStartMs = performance.now();
@@ -2158,6 +2331,18 @@ async function render() {
                   first_screen_ms: firstScreenDurationMs,
                   first_route: String(state.route || ''),
                   source: 'login'
+                });
+              }
+              // Preload activities JS bundle in idle time after first screen renders.
+              // No API calls — JS parse only; subsequent navigation to activities skips dynamic-import delay.
+              if (state.route !== 'activities' && effectiveRoutes().includes('activities')) {
+                const scheduleIdle = typeof requestIdleCallback === 'function'
+                  ? (cb) => requestIdleCallback(cb, { timeout: 4000 })
+                  : (cb) => setTimeout(cb, 2000);
+                scheduleIdle(() => {
+                  import('./feature-loaders.js')
+                    .then(({ preloadScreenModule }) => preloadScreenModule('activities'))
+                    .catch(() => {});
                 });
               }
             }).catch((error) => {

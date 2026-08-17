@@ -1,0 +1,36 @@
+.birthday-popup-instructor-greeting {
+  margin: 0;
+  padding: 12px 16px 4px;
+  background: rgba(255, 255, 255, 0.94);
+  color: #172235;
+  font-size: 1.08rem;
+  font-weight: 800;
+  line-height: 1.35;
+  text-align: center;
+  direction: rtl;
+}
+
+/* Instructor birthdays add a greeting line below the image.
+   Keep the confirm action in its own row instead of letting the generic
+   compact popup layout float it over the greeting text. */
+.birthday-popup-instructor-greeting + .birthday-popup-actions {
+  position: static;
+  right: auto;
+  bottom: auto;
+  left: auto;
+  z-index: auto;
+  padding: 6px 12px 10px;
+  background: rgba(255, 255, 255, 0.94);
+  pointer-events: auto;
+}
+
+@media (max-width: 640px) {
+  .birthday-popup-instructor-greeting {
+    padding: 10px 12px 3px;
+    font-size: 1rem;
+  }
+
+  .birthday-popup-instructor-greeting + .birthday-popup-actions {
+    padding: 5px 10px 9px;
+  }
+}

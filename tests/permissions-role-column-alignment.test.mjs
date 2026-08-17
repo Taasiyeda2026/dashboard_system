@@ -4,17 +4,18 @@
  * רגרסיה: בדיקת הזחת עמודות בגיליון permissions.
  * הבעיה שתוקנה: חסרה עמודת 'role' בין 'full_name' ל-'display_role'.
  * תוצאה: display_role קיבל 'admin' (קוד תפקיד), view_admin קיבל 'dashboard'.
+ *
+ * המערכת עברה הגרה מלאה מ-Google Apps Script (backend/*.gs) ל-Supabase;
+ * בדיקות ה-role/display_role שהיו קוראות מ-backend/*.gs עודכנו לבדוק את
+ * המימוש הנוכחי ב-frontend/src/api.js.
  */
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-const SCHEMA_GS   = new URL('../backend/sheet-schema.gs', import.meta.url);
 const SCHEMA_JSON = new URL('../scripts/sheet-schema.json', import.meta.url);
-const AUTH_GS     = new URL('../backend/auth.gs', import.meta.url);
-const HELPERS_GS  = new URL('../backend/helpers.gs', import.meta.url);
-const ACTIONS_GS  = new URL('../backend/actions.gs', import.meta.url);
+const API_FILE    = new URL('../frontend/src/api.js', import.meta.url);
 
 // ------------------------------------------------------------------
 // הדמיית שורת נתונים מהגיליון (כפי שנקראת אחרי תיקון הסכמה)
@@ -44,14 +45,7 @@ const EXAMPLE_ROW = {
   active:        'yes'
 };
 
-test('permissions schema: role column exists between full_name and display_role', async () => {
-  const src = await readFile(SCHEMA_GS, 'utf8');
-  // role must appear between full_name and display_role in the permissions headers array
-  const match = src.match(/'full_name','role','display_role'/);
-  assert.ok(match, "permissions headers must contain 'full_name','role','display_role' in this order");
-});
-
-test('permissions schema: permissions headers count is 22', async () => {
+test('permissions schema JSON: permissions headers count is 22', async () => {
   const src = await readFile(SCHEMA_JSON, 'utf8');
   const json = JSON.parse(src);
   const perm = json.sheets.find(s => s.sheetName === 'permissions');
@@ -79,19 +73,13 @@ test('permissions schema JSON: no duplicate headers', async () => {
   assert.deepStrictEqual(dups, [], `duplicate permissions headers found: ${dups.join(', ')}`);
 });
 
-test('PERMISSIONS_LOGIN_PROJECTED_HEADERS_ includes role', async () => {
-  const src = await readFile(AUTH_GS, 'utf8');
-  const blockMatch = src.match(/PERMISSIONS_LOGIN_PROJECTED_HEADERS_\s*=\s*\[([\s\S]*?)\];/);
-  assert.ok(blockMatch, 'PERMISSIONS_LOGIN_PROJECTED_HEADERS_ must be defined');
-  assert.match(blockMatch[1], /'role'/, "PERMISSIONS_LOGIN_PROJECTED_HEADERS_ must include 'role'");
-});
-
-test('internalRoleFromPermissionRow_ prefers display_role then falls back to role', async () => {
-  const src = await readFile(HELPERS_GS, 'utf8');
-  const fnMatch = src.match(/function internalRoleFromPermissionRow_\([\s\S]*?\n}/);
-  assert.ok(fnMatch, 'internalRoleFromPermissionRow_ must exist');
-  assert.match(fnMatch[0], /row\.display_role/, 'internalRoleFromPermissionRow_ must reference row.display_role');
-  assert.match(fnMatch[0], /row\.role/, 'internalRoleFromPermissionRow_ must reference row.role');
+test('flattenUserRow prefers display_role, then falls back to the hebrewRole(role) translation', async () => {
+  const source = await readFile(API_FILE, 'utf8');
+  assert.match(source, /const customDisplayRole = String\(userRow\.display_role \|\| ''\)\.trim\(\);/);
+  assert.match(source, /const displayRoleLabel = String\(userRow\.display_role_label \|\| customDisplayRole \|\| ''\)\.trim\(\);/);
+  assert.match(source, /display_role_label: displayRoleLabel \|\| hebrewRole\(role\)/);
+  assert.match(source, /role,\n    display_role: customDisplayRole,/);
+  assert.doesNotMatch(source, /display_role: (?:flat\.)?role,/);
 });
 
 test('internalRoleFromPermissionRow_ example: EXAMPLE_ROW returns Hebrew display_role first', () => {
@@ -139,30 +127,33 @@ test('EXAMPLE_ROW: headers count equals values count', () => {
   assert.strictEqual(expectedHeaders.length, values.length);
 });
 
-test('actionSavePermission_: role column is normalized, display_role is not used as code', async () => {
-  const src = await readFile(ACTIONS_GS, 'utf8');
-  assert.match(src, /function actionSavePermission_\(/, 'actionSavePermission_ must exist');
-  const fnMatch = src.match(/function actionSavePermission_\([\s\S]*?\r?\n}\r?\n\r?\nfunction actionAddUser_/);
-  assert.ok(fnMatch, 'actionSavePermission_ block must be extractable before actionAddUser_');
-  const saveSrc = fnMatch[0];
-  assert.match(saveSrc, /h === 'role'[\s\S]*normalizeRole_/, "actionSavePermission_ must normalize 'role' column");
-  assert.doesNotMatch(saveSrc,
-    /if \(h === 'display_role'\)\s*\{[\s\S]{1,60}normalizeRole_/,
-    "display_role column must not be normalized with normalizeRole_ (it is a Hebrew label)"
-  );
+test('savePermission: role is handled as its own column, not folded into the generic permissions patch', async () => {
+  const source = await readFile(API_FILE, 'utf8');
+  const fnMatch = source.match(/savePermission: async \(row\) => \{[\s\S]*?return \{ ok: true \};\n  \},/);
+  assert.ok(fnMatch, 'savePermission must exist');
+  assert.match(fnMatch[0], /\['user_id', 'role', 'display_role', 'default_view', 'active', 'full_name', 'entry_code', 'emp_id', 'display_role2', 'can_access_personal_reports'\]\.includes\(k\)/,
+    'savePermission must exclude dedicated user columns from the generic permissions patch loop');
+  assert.match(fnMatch[0], /const nextRole = row\.role \|\| existing\.data\.role;/);
+  assert.match(fnMatch[0], /role: nextRole,/);
+  assert.match(fnMatch[0], /display_role: row\.display_role \?\? existing\.data\.display_role,/);
+  assert.match(fnMatch[0], /default_view: row\.default_view \?\? existing\.data\.default_view,/);
 });
 
-test('actionAddUser_: role column is handled in newRow builder', async () => {
-  const src = await readFile(ACTIONS_GS, 'utf8');
-  assert.match(src, /function actionAddUser_\(/, 'actionAddUser_ must exist');
-  // The forEach inside actionAddUser_ must have a case for 'role'
-  assert.match(src, /h === 'role'\s*\)[\s\S]{1,30}newRow\[h\]\s*=\s*resolvedRole/,
-    "actionAddUser_ must write resolvedRole to 'role' column");
+test('addUser: role is written as its own users column in the insert payload', async () => {
+  const source = await readFile(API_FILE, 'utf8');
+  const fnMatch = source.match(/addUser: async \(row\) => \{[\s\S]*?return \{ ok: true \};\n  \},/);
+  assert.ok(fnMatch, 'addUser must exist');
+  assert.match(fnMatch[0], /const role = String\(row\?\.role \|\| 'instructor'\)\.trim\(\);/);
+  assert.match(fnMatch[0], /const insert = \{[\s\S]*?role,/);
+  assert.match(fnMatch[0], /display_role: String\(row\?\.display_role \|\| ''\)\.trim\(\),/);
+  assert.match(fnMatch[0], /default_view: String\(row\?\.default_view \|\| ''\)\.trim\(\),/);
 });
 
-test('actionAddUser_: resolvedRole prefers row.display_role then row.role', async () => {
-  const src = await readFile(ACTIONS_GS, 'utf8');
-  assert.match(src, /function actionAddUser_\(/, 'actionAddUser_ must exist');
-  assert.match(src, /row\.display_role\s*\|\|\s*row\.role/,
-    'resolvedRole must accept row.display_role || row.role (permissions sheet column first)');
+test('login projection keeps role, display_role, and default_view separate', async () => {
+  const source = await readFile(API_FILE, 'utf8');
+  const fnMatch = source.match(/login: async \(user_id, entry_code\) => \{[\s\S]*?\.\.\.buildBootstrapFromUser\(user, profileRow\),/);
+  assert.ok(fnMatch, 'login must exist');
+  assert.match(fnMatch[0], /role: flat\.role,/);
+  assert.match(fnMatch[0], /display_role: flat\.display_role,/);
+  assert.match(fnMatch[0], /default_view: flat\.default_view,/);
 });

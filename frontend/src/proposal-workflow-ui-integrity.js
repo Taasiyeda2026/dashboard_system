@@ -345,10 +345,18 @@ function installDomRuntime(scope) {
     return Boolean(form?.querySelector?.('[data-pa-items-group]'));
   };
 
+  const isGefenPricingSelection = (event, form) => (
+    event.target?.matches?.('[data-pa-pricing-select]')
+    && text(form?.querySelector?.('[name="activity_type_group"]')?.value) === 'gefen'
+  );
+
   const editorEvent = (event) => {
     if (!event.target?.matches?.('[data-pa-item-qty], [data-pa-item-price], [data-pa-pricing-select], [data-pa-discount-type], [data-pa-discount-value]')) return;
     const form = event.target.closest('[data-pa-form]');
     const row = event.target.closest('[data-pa-item-row]');
+    // GEFEN pricing selection is hydrated, totalled and previewed by the screen
+    // module. Do not create a second hydration/input/totals cascade here.
+    if (isGefenPricingSelection(event, form)) return;
     // next_year_courses/next_year_workshops rows and forms are owned exclusively by
     // proposal-next-year-selection-hydration.js (hydration + totals). Skipping the
     // duplicate recalculation here keeps a single mechanism responsible for those

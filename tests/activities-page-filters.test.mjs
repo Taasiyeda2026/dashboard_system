@@ -27,7 +27,8 @@ const {
   activitiesScreen,
   ACTIVITY_FILTER_FIELDS,
   EMPTY_FUNDING_FILTER_VALUE,
-  activityFundingFilterValue
+  activityFundingFilterValue,
+  activityFundingFilterValues
 } = await import('../frontend/src/screens/activities.js');
 const {
   applyLocalFilters,
@@ -471,4 +472,11 @@ test('ensureActivityListFilters keeps explicit empty funding as cleared', () => 
   const state = withFilters(baseState(), { funding: '' });
   const filters = ensureActivityListFilters(state, 'activities');
   assert.equal(filters.funding, '');
+});
+
+test('central funding associations expose each source independently while legacy text remains a fallback', () => {
+  const linked = { funding: 'ויצו + בית הספר', funding_sources: [{ id: '1', name: 'ויצו' }, { id: '2', name: 'בית הספר' }] };
+  assert.deepEqual(activityFundingFilterValues(linked), ['ויצו', 'בית הספר']);
+  assert.deepEqual(activityFundingFilterValues({ funding: 'גפן + מ.ר.ק' }), ['גפן + מ.ר.ק']);
+  assert.deepEqual(activityFundingFilterValues({ funding: '' }), [EMPTY_FUNDING_FILTER_VALUE]);
 });

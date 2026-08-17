@@ -14,6 +14,7 @@ function setupDOM() {
   global.window = dom.window;
   global.document = dom.window.document;
   global.Element = dom.window.Element;
+  global.HTMLElement = dom.window.HTMLElement;
   global.requestAnimationFrame = (callback) => callback();
   return dom;
 }
@@ -64,6 +65,19 @@ test('openDrawer with both title and content opens the drawer', async () => {
   assert.equal(ui.isDrawerOpen, true);
 });
 
+test('secondary drawer opens and closes independently while main drawer remains open', async () => {
+  const ui = await freshLayer();
+  ui.openDrawer({ content: '<p>Main activity</p>' });
+  ui.openSecondaryDrawer({ title: 'אישור תיאום', content: '<p>Coordination</p>' });
+  assert.equal(ui.isDrawerOpen, true);
+  assert.equal(ui.isSecondaryDrawerOpen, true);
+  assert.equal(document.querySelector('.ds-secondary-drawer').getAttribute('aria-hidden'), 'false');
+  document.querySelector('[data-ui-close-secondary-drawer]').click();
+  assert.equal(ui.isSecondaryDrawerOpen, false);
+  assert.equal(ui.isDrawerOpen, true);
+  assert.equal(document.querySelector('.ds-drawer').getAttribute('aria-hidden'), 'false');
+});
+
 // ---------------------------------------------------------------------------
 // openModal — blank-guard tests
 // ---------------------------------------------------------------------------
@@ -72,6 +86,18 @@ test('openModal() with no arguments does not open the modal', async () => {
   const ui = await freshLayer();
   ui.openModal();
   assert.equal(ui.isModalOpen, false);
+});
+
+test('modal can open above an activity drawer and closing it preserves the drawer', async () => {
+  const ui = await freshLayer();
+  ui.openDrawer({ title: 'פעילות', content: '<p data-current-activity>Current activity</p>' });
+  ui.openModal({ title: 'אישור תיאום', content: '<p>Coordination</p>', keepDrawerOpen: true });
+  assert.equal(ui.isDrawerOpen, true);
+  assert.equal(ui.isModalOpen, true);
+  assert.equal(document.querySelector('.ds-secondary-drawer').getAttribute('aria-hidden'), 'true');
+  ui.closeModal();
+  assert.equal(ui.isDrawerOpen, true);
+  assert.ok(document.querySelector('[data-current-activity]'));
 });
 
 test('openModal({}) with an empty object does not open the modal', async () => {

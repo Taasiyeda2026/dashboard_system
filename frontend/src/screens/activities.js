@@ -1,5 +1,6 @@
 import { escapeHtml } from './shared/html.js';
 import { exportActivitiesToExcel } from './shared/excel-export.js';
+import { ensureSchoolAuthorityCatalogInState } from '../school-catalog-bootstrap-hotfix.js';
 import { formatDateHe, formatActivityDateColumnsHe } from './shared/format-date.js';
 import {
   visibleActivityCategoryLabel
@@ -60,6 +61,8 @@ import {
 import { showToast } from './shared/toast.js';
 import { canEditDirect, canAddActivityDirect, canRequestEdit, canRequestCreateActivity, canReviewRequests } from '../permissions.js';
 import { bindInstructorScheduling } from './instructor-scheduling-workflow.js';
+import { loadActivityCoordinationContext } from '../activity-coordination/data.js';
+import { bindCoordinationActivityModal, bindCoordinationWorkspace, coordinationDrawerActionHtml, reconcileVisibleDrafts, renderCoordinationActivityModal, renderCoordinationWorkspace } from '../activity-coordination/view.js';
 const taasiyedaLogoSrc = new URL('../../assets/logo1.png', import.meta.url).href;
 
 const inflightActivityDetailRequests = new Map();
@@ -71,6 +74,7 @@ const ACTIVITIES_INNER_TAB_REGULAR_2026 = 'regular_2026';
 const ACTIVITIES_INNER_TAB_SUMMER_2026 = 'summer_2026';
 const ACTIVITIES_INNER_TAB_ARCHIVE = 'year_archive';
 const ACTIVITIES_INNER_TAB_2027 = 'school_2027';
+const ACTIVITIES_INNER_TAB_COORDINATION = 'coordination_approvals';
 const ALL_ACTIVITIES_STATUS_FILTERS = [
   { key: 'all', label: 'הכל' },
   { key: 'open', label: 'פתוח' },
@@ -250,6 +254,7 @@ function activityInnerTabsForYear(yearKey) {
     return [
       { key: ACTIVITIES_INNER_TAB_ALL, label: 'כל פעילויות תשפ״ז' },
       { key: ACTIVITIES_INNER_TAB_2027, label: 'פעילויות תשפ״ז' },
+      { key: ACTIVITIES_INNER_TAB_COORDINATION, label: 'אישורי תיאום' },
       { key: ACTIVITIES_INNER_TAB_ARCHIVE, label: 'ארכיון תשפ״ז' }
     ];
   }
@@ -646,9 +651,17 @@ function getActivitySchoolDisplayName(row) {
 /** Client-only sentinel for empty/null funding filter options. Never written to Supabase. */
 export const EMPTY_FUNDING_FILTER_VALUE = 'ללא מימון מוגדר';
 
-export function activityFundingFilterValue(row = {}) {
+export function activityFundingFilterValues(row = {}) {
+  const linked = Array.isArray(row?.funding_sources)
+    ? row.funding_sources.map((source) => humanDisplayText(source?.name)).filter(Boolean)
+    : [];
+  if (linked.length) return linked;
   const text = humanDisplayText(row?.funding);
-  return text || EMPTY_FUNDING_FILTER_VALUE;
+  return text ? [text] : [EMPTY_FUNDING_FILTER_VALUE];
+}
+
+export function activityFundingFilterValue(row = {}) {
+  return activityFundingFilterValues(row)[0];
 }
 
 export const ACTIVITY_FILTER_FIELDS = [
@@ -656,7 +669,7 @@ export const ACTIVITY_FILTER_FIELDS = [
   { key: 'instructor', label: 'מדריך', getValues: (row) => [humanDisplayText(row?.instructor_name), humanDisplayText(row?.instructor_name_2)] },
   { key: 'activity_name', label: 'תוכנית', getValues: (row) => [humanDisplayText(row?.activity_name)] },
   { key: 'authority', label: 'רשות', getValues: (row) => [humanDisplayText(row?.authority)] },
-  { key: 'funding', label: 'מימון', getValues: (row) => [activityFundingFilterValue(row)] },
+  { key: 'funding', label: 'מימון', getValues: activityFundingFilterValues },
   { key: 'school', label: 'בית ספר', getValues: getActivitySchoolNames },
   { key: 'activity_type', label: 'סוג הפעילות', getOptionLabel: (value) => visibleActivityCategoryLabel(value) }
 ];
@@ -882,7 +895,6 @@ function addActivityModalHtml(settings, activityPeriodTab = '') {
   const allTypes = ADD_ACTIVITY_TYPE_ORDER.slice();
   const rosterUsers = getValidInstructorUsers(settings);
   const managerRoleNames = getManagerUsers(settings);
-  const fundingOptions = mergeOptions(settings, ['funding', 'fundings']);
   const gradeOptions = resolveGradeOptions(settings);
   const schoolRecords = Array.isArray(settings?.dropdown_options?.school_records) ? settings.dropdown_options.school_records : [];
   const schoolOptions = mergeOptions(settings, ['school', 'schools']);
@@ -951,7 +963,7 @@ function addActivityModalHtml(settings, activityPeriodTab = '') {
           : `<label class="ds-activity-add-field ds-activity-add-field--compact"><span>עונת פעילות</span><select class="ds-input" name="activity_season">${activitySeasonSelectHtml(settings, initialSeason)}</select></label>`
         }
         <label class="ds-activity-add-field ds-activity-add-field--compact"><span>סטטוס</span><select class="ds-input" name="status">${optionsHtml(statusOptions, initialStatus)}</select></label>
-        <label class="ds-activity-add-field ds-activity-add-field--compact"><span>מימון</span><select class="ds-input" name="funding">${optionsHtml(fundingOptions)}</select></label>
+        <fieldset class="ds-activity-add-field ds-activity-add-field--span2" data-funding-picker><legend>מימון</legend><div style="display:grid;gap:6px">${(settings?.dropdown_options?.funding_source_records || []).map((source) => `<label style="display:grid;grid-template-columns:auto 1fr minmax(100px,140px);align-items:center;gap:8px"><input type="checkbox" data-funding-source-id="${escapeHtml(source.id)}"><span>${escapeHtml(source.name)}</span><input class="ds-input" type="number" min="0" step="0.01" inputmode="decimal" data-funding-amount placeholder="סכום (רשות)"></label>`).join('')}</div></fieldset>
         <label class="ds-activity-add-field ds-activity-add-field--compact"><span>מחיר</span><input class="ds-input" name="price" type="number" min="0" step="1"></label>
         <label class="ds-activity-add-field"><span>קבוצה / כיתה</span><input class="ds-input" name="class_group" type="text"></label>
         <label class="ds-activity-add-field"><span>כיתה / שכבה</span><select class="ds-input" name="grade">${optionsHtml(gradeOptions, '', '— בחרו כיתה —')}</select></label>
@@ -1741,11 +1753,28 @@ export const activitiesScreen = {
   async load({ api, state }) {
     state.activityPeriodTab = normalizeActivityPeriodTab(state.activityPeriodTab);
     state.activitiesInnerTab = normalizeActivitiesInnerTab(state.activitiesInnerTab, state.activityPeriodTab);
-    const result = await api.activities({
-      activity_type: 'all',
-      include_inactive: true
-    });
+    const [result, fundingCatalog] = await Promise.all([
+      api.activities({ activity_type: 'all', include_inactive: true }),
+      api.fundingSources({ includeInactive: false }).catch(() => ({ rows: [] }))
+    ]);
+    const fundingRows = Array.isArray(fundingCatalog?.rows) ? fundingCatalog.rows : [];
+    state.clientSettings = {
+      ...(state.clientSettings || {}),
+      dropdown_options: {
+        ...(state.clientSettings?.dropdown_options || {}),
+        funding: fundingRows.map((row) => row.name),
+        fundings: fundingRows.map((row) => row.name),
+        funding_source_records: fundingRows
+      }
+    };
     const loadedRows = Array.isArray(result?.rows) ? result.rows : [];
+    try {
+      state.activityCoordination = await loadActivityCoordinationContext(loadedRows, state.clientSettings || {});
+      state.activityCoordinationError = '';
+    } catch (error) {
+      state.activityCoordination = { items: [], byActivityId: new Map() };
+      state.activityCoordinationError = String(error?.message || error);
+    }
     ensureActivityPeriodMonth(state, loadedRows);
     return result;
   },
@@ -1760,6 +1789,11 @@ export const activitiesScreen = {
     state.activityPeriodTab = normalizeActivityPeriodTab(state.activityPeriodTab);
     state.activitiesInnerTab = normalizeActivitiesInnerTab(state.activitiesInnerTab, state.activityPeriodTab);
     ensureActivityPeriodMonth(state, allRows);
+    if (state.activityPeriodTab === ACTIVITY_SEASON_SCHOOL_2027 && state.activitiesInnerTab === ACTIVITIES_INNER_TAB_COORDINATION) {
+      const periodTabs = activityPeriodTabsHtml(allRows, state.activityPeriodTab, state);
+      const error = state.activityCoordinationError ? `<p class="ds-error-text" role="alert">לא ניתן לטעון את נתוני אישורי התיאום: ${escapeHtml(state.activityCoordinationError)}</p>` : '';
+      return dsScreenStack(`<section class="ds-activities-screen"><h2 class="ds-activities-page-title">אישורי תיאום · תשפ״ז</h2>${periodTabs}${error}${renderCoordinationWorkspace(state.activityCoordination, { canManage: canDirectManageActivities(state) })}</section>`);
+    }
     state.allActivitiesStatusFilter = normalizeAllActivitiesStatusFilter(state.allActivitiesStatusFilter);
     const isAllMode = isAllActivitiesMode(state);
     const periodRows    = activityRowsForInnerTab(allRows, state);
@@ -1804,12 +1838,14 @@ export const activitiesScreen = {
         const instructorMeta = activityInstructorMeta(row, { hideEmpIds, instructorByEmpId });
         const schedulingSummary = state?.instructorSchedulingSummaries?.[String(row.RowID || row.row_id || '')];
         const missingScheduling = [row.school ? '' : 'חסר בית ספר', (row.start_time && row.end_time) ? '' : 'חסרות שעות', (row.date_1 || row.start_date) ? '' : 'חסרים תאריכים'].filter(Boolean);
-        const unassignedSchedulingHtml = schedulingSummary
-          ? `<small class="ds-muted">${schedulingSummary.ready ? `מוכנה לשיבוץ · ${schedulingSummary.candidateCount} מועמדים${schedulingSummary.topName ? ` · ${escapeHtml(schedulingSummary.topName)}` : ''}` : `חסר מידע · ${escapeHtml(schedulingSummary.reason)}`}</small>`
-          : `<small class="ds-muted">${missingScheduling.length ? `חסר מידע · ${escapeHtml(missingScheduling.join(' · '))}` : 'מוכנה לחישוב מועמדים'}</small>`;
+        const unassignedSchedulingTitle = schedulingSummary
+          ? (schedulingSummary.ready
+            ? `מוכנה לשיבוץ · ${schedulingSummary.candidateCount} מועמדים${schedulingSummary.topName ? ` · ${schedulingSummary.topName}` : ''}`
+            : `חסר מידע · ${schedulingSummary.reason}`)
+          : (missingScheduling.length ? `חסר מידע · ${missingScheduling.join(' · ')}` : 'מוכנה לחישוב מועמדים');
         const instructorDisplay = instructorMeta.hasInstructor
           ? `<span class="ds-activities-instructor-name${instructorMeta.hasName ? '' : ' is-derived'}">${escapeHtml(instructorMeta.text)}</span>`
-          : `<span style="display:grid;gap:3px"><span class="ds-chip ds-chip--status ds-chip--warn ds-chip--instructor-empty">ללא מדריך</span>${unassignedSchedulingHtml}</span>`;
+          : `<span class="ds-chip ds-chip--status ds-chip--warn ds-chip--instructor-empty" title="${escapeHtml(unassignedSchedulingTitle)}">ללא מדריך</span>`;
         const activityTypeLabel = escapeHtml(visibleActivityCategoryLabel(row.activity_type));
         const rawActivityName = displayActivityName(row);
         const activityName = escapeHtml(rawActivityName);
@@ -2030,6 +2066,52 @@ export const activitiesScreen = {
   },
 
   bind({ root, data, state, rerender, rerenderActivitiesView, ui, api, clearScreenDataCache }) {
+
+    const coordinationRoot = root.querySelector('.coordination-workspace');
+    if (coordinationRoot) {
+      root.querySelectorAll('[data-activity-period-tab]').forEach((button) => button.addEventListener('click', () => {
+        state.activitiesInnerTab = normalizeActivitiesInnerTab(button.getAttribute('data-activity-period-tab'), state.activityPeriodTab);
+        rerender();
+      }));
+      const refresh = async () => {
+        state.activityCoordination = await loadActivityCoordinationContext(data?.rows || [], state.clientSettings || {});
+        rerender();
+      };
+      bindCoordinationWorkspace(coordinationRoot, state.activityCoordination, { loginHint: state?.user?.email || '', onChanged: refresh });
+      reconcileVisibleDrafts(state.activityCoordination, { loginHint: state?.user?.email || '' }).then((results) => {
+        if (results.some((item) => item.status === 'sent' || item.status === 'cancelled')) refresh();
+      }).catch(() => {});
+      if (state.activityCoordinationTimer) clearInterval(state.activityCoordinationTimer);
+      state.activityCoordinationTimer = setInterval(() => {
+        if (document.visibilityState === 'hidden') return;
+        reconcileVisibleDrafts(state.activityCoordination, { loginHint: state?.user?.email || '' }).then((results) => {
+          if (results.some((item) => item.status === 'sent' || item.status === 'cancelled')) refresh();
+        }).catch(() => {});
+      }, 90000);
+      return;
+    }
+    if (state.activityCoordinationTimer) { clearInterval(state.activityCoordinationTimer); state.activityCoordinationTimer = null; }
+
+    // ── Row-height measurement ──────────────────────────────────────────────
+    // Runs once per bind, after the first rAF so layout is complete.
+    // Logs [activities:row-height] with min/max/median px from actual TRs.
+    // Remove when no longer needed for diagnosis.
+    (function measureRowHeights() {
+      if (typeof requestAnimationFrame !== 'function') return;
+      requestAnimationFrame(() => {
+        try {
+          const trs = Array.from(root?.querySelectorAll?.('.ds-activities-row') ?? []);
+          if (!trs.length) return;
+          const heights = trs.map((tr) => Math.round(tr.getBoundingClientRect().height));
+          heights.sort((a, b) => a - b);
+          const min = heights[0];
+          const max = heights[heights.length - 1];
+          const mid = heights[Math.floor(heights.length / 2)];
+          // eslint-disable-next-line no-console
+          console.info('[activities:row-height]', { min, median: mid, max, rows: heights.length });
+        } catch { /* non-fatal */ }
+      });
+    }());
 
     (function showOverdueWarningIfNeeded() {
       if (!root) return;
@@ -2510,6 +2592,34 @@ export const activitiesScreen = {
       bindActivityEditForm(contentRoot);
       bindContact2027Section(contentRoot);
       bindInstructorScheduling(contentRoot, { ui, state, activitiesRows });
+      const form = contentRoot.querySelector('[data-drawer-form]');
+      const coordinationItem = state.activityCoordination?.byActivityId?.get?.(String(form?.dataset.rowId || ''));
+      const coordinationAction = contentRoot.querySelector('[data-activity-actions]');
+      if (coordinationAction && coordinationItem) coordinationAction.innerHTML = coordinationDrawerActionHtml(coordinationItem);
+      contentRoot.querySelector('[data-coordination-approval]')?.addEventListener('click', (event) => {
+        const form = event.currentTarget.closest('[data-drawer-form]');
+        const rowId = String(form?.dataset.rowId || '');
+        const item = state.activityCoordination?.byActivityId?.get?.(rowId);
+        ui.openModal?.({
+          title: 'אישור תיאום',
+          content: renderCoordinationActivityModal(item),
+          modalClass: 'ds-modal--coordination-activity',
+          keepDrawerOpen: true
+        });
+        const modalRoot = document.querySelector('.ds-modal__content');
+        if (item && modalRoot) bindCoordinationActivityModal(modalRoot, item, {
+          loginHint: state?.user?.email || '',
+          onChanged: async () => {
+            state.activityCoordination = await loadActivityCoordinationContext(data?.rows || [], state.clientSettings || {});
+            const updated = state.activityCoordination?.byActivityId?.get?.(rowId);
+            modalRoot.innerHTML = renderCoordinationActivityModal(updated);
+            if (updated) bindCoordinationActivityModal(modalRoot, updated, { loginHint: state?.user?.email || '' });
+            const action = contentRoot.querySelector('[data-activity-actions]');
+            if (action && updated) action.innerHTML = coordinationDrawerActionHtml(updated);
+            rerender();
+          }
+        });
+      });
     }
 
     function bindActivitiesReopenBtn(contentRoot, row) {
@@ -2557,6 +2667,9 @@ export const activitiesScreen = {
 
     async function openActivityDetail(summaryRow) {
       if (!summaryRow || !ui) return;
+      // Ensure school/authority catalog is loaded (deduped, cached) before building settings.
+      // Resolves instantly after the first load; drawer school/authority lists are always full.
+      await ensureSchoolAuthorityCatalogInState(state);
       const cachedDetail = getCachedActivityDetail(summaryRow, state);
       const cachedDates  = getCachedActivityDates(summaryRow, state);
       const canDirectEdit = canDirectManageActivities(state);
@@ -2734,7 +2847,11 @@ export const activitiesScreen = {
     root.querySelectorAll('[data-activity-period-tab]').forEach((btn) => {
       btn.addEventListener('click', () => {
         state.activitiesInnerTab = normalizeActivitiesInnerTab(btn.getAttribute('data-activity-period-tab'), state.activityPeriodTab);
-        clearScreenDataCache?.();
+        // Do NOT call clearScreenDataCache / invalidateActivityDataCaches here.
+        // Switching inner tabs is a UI-only action (same data, different view).
+        // Invalidating the cache here caused a full network re-fetch on every
+        // tab switch, defeating stale-while-revalidate (cache_hit always false).
+        // Cache invalidation belongs only in true data mutations (add/save/delete).
         state.activitiesSummerShowAll = false;
         if (activityPeriodUsesMonthNavigation(state)) {
           ensureActivityPeriodMonth(state, activitiesRows, { force: true });
@@ -2978,7 +3095,7 @@ export const activitiesScreen = {
         activity_no: String(hit?.activity_no || get('activity_no') || ''),
         sessions: isOneDay ? '1' : sessionsValue,
         price: get('price'),
-        funding: get('funding'),
+        funding_sources: Array.from(form.querySelectorAll('[data-funding-source-id]:checked')).map((checkbox) => ({ funding_source_id: checkbox.dataset.fundingSourceId, amount: checkbox.closest('label')?.querySelector('[data-funding-amount]')?.value || null })),
         start_time: get('start_time'),
         end_time: get('end_time'),
         instructor_name: instructor1Name,
@@ -3208,7 +3325,9 @@ export const activitiesScreen = {
 
     const addBtn = root.querySelector('[data-activities-add-btn]');
     if (canAddActivity && ui && addBtn) {
-      addBtn.addEventListener('click', () => {
+      addBtn.addEventListener('click', async () => {
+        // Load school/authority catalog before rendering — deduped and cached after first call.
+        await ensureSchoolAuthorityCatalogInState(state);
         ui.openModal({
           title: isCreateRequestOnly ? 'בקשה להוספת פעילות' : 'הוספת פעילות',
           // חשוב: חלון הוספת פעילות חייב להשתמש ב-client settings האחידים
@@ -3272,6 +3391,22 @@ export const activitiesScreen = {
     }, rowSig);
 
     root.addEventListener('click', (ev) => {
+      const send = ev.target.closest('[data-coordination-send]');
+      if (send) {
+        ev.stopPropagation();
+        const item = state.activityCoordination?.byActivityId?.get?.(send.dataset.coordinationSend);
+        if (!item || !item.recipient_email) { showToast(item?.technical_blocker || 'לא ניתן להכין אישור.', 'error'); return; }
+        if (item.status === 'sent' && !globalThis.confirm('האישור כבר נשלח עבור אותם נתונים. להכין טיוטה נוספת?')) return;
+        send.disabled = true;
+        import('../activity-coordination/outlook.js').then(({ prepareCoordinationDrafts }) => prepareCoordinationDrafts([item], { loginHint: state?.user?.email || '' })).then(async (results) => {
+          const failed = results.find((result) => !result.ok);
+          if (failed) throw failed.error;
+          showToast('טיוטת אישור התיאום הוכנה ב-Outlook.', 'success');
+          state.activityCoordination = await loadActivityCoordinationContext(data?.rows || [], state.clientSettings || {});
+          rerender();
+        }).catch((error) => { showToast(error?.message || 'לא ניתן להכין את הטיוטה.', 'error'); send.disabled = false; });
+        return;
+      }
       const rowNode = ev.target.closest('.ds-data-row');
       if (!rowNode) return;
       if (ev.target.closest('[data-contact-popover]')) return;

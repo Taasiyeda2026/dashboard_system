@@ -1,12 +1,12 @@
 import { supabase } from './supabase-client.js';
 import { state, clearScreenDataCache } from './state.js';
 import { showToast } from './screens/shared/toast.js';
+import { canViewIsraaManagement } from './permissions.js';
 import { escapeHtml } from './screens/shared/html.js';
 import { createSharedInteractionLayer } from './screens/shared/interactions.js';
 import { activitiesTable } from './israa-proposal-items.js';
 import { exportIsraaWorkbook } from './israa-excel-export.js';
 
-const ISRAA_AUTH_USER_ID = '92bfb9d9-1b17-4022-901a-5f7cf17a263a';
 const ROOT_SELECTOR = '.israa-mgmt';
 const CONTAINER_ATTR = 'data-israa-tracking-v2';
 const PROBABILITY_OPTIONS = [30, 50, 100];
@@ -61,10 +61,7 @@ const activityNames = (row) => {
 };
 
 function canUseScreen() {
-  const user = state?.user || {};
-  return clean(user.auth_user_id) === ISRAA_AUTH_USER_ID
-    || clean(user.user_id) === '3030'
-    || clean(user.display_role || user.role) === 'admin';
+  return canViewIsraaManagement(state?.user);
 }
 
 function statusClass(status) {

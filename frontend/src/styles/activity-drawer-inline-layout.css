@@ -115,7 +115,7 @@
 
 .activity-drawer-inline__grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 1px;
   overflow: hidden;
   border: 1px solid #d9dee7;
@@ -225,6 +225,12 @@
   background: #f7f9fc;
 }
 
+.activity-drawer-inline-layout .activity-drawer__date-boundary + .activity-drawer__date-boundary {
+  margin-block-start: 7px;
+  padding-block-start: 7px;
+  border-block-start: 1px solid #e5e9f0;
+}
+
 .activity-drawer-inline-layout .activity-drawer__end-date__label {
   display: block;
   margin-block-end: 2px;
@@ -234,7 +240,7 @@
 
 .activity-drawer-inline-layout .activity-drawer__dates--view {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
 }
 
@@ -245,9 +251,34 @@
 
 .activity-drawer-inline-layout .activity-drawer__date-chip,
 .activity-drawer-inline-layout .activity-drawer__date-card {
+  position: relative;
   min-block-size: auto;
-  padding: 8px 10px;
+  padding: 6px 9px;
   border-radius: 9px;
+}
+
+.activity-drawer-inline-layout .activity-drawer__date-chip {
+  display: grid;
+  gap: 1px;
+  font-weight: 750;
+}
+
+.activity-drawer-inline-layout .activity-drawer__date-chip .activity-drawer__weekday {
+  color: #7a8495;
+  font-size: 0.68rem;
+  font-weight: 550;
+}
+
+.activity-drawer-inline-layout .activity-drawer__date-note-icon {
+  position: absolute;
+  inset-block-start: 6px;
+  inset-inline-end: 7px;
+  color: #667085;
+  font-size: 0.68rem;
+  line-height: 1;
+  cursor: help;
+  filter: grayscale(1);
+  opacity: 0.72;
 }
 
 .activity-drawer-inline-layout .activity-drawer__date-mode {
@@ -260,7 +291,7 @@
 
 .activity-drawer-inline__support {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
   gap: 12px;
 }
 
@@ -335,7 +366,7 @@
   border-block-start: 1px solid #d9dee7 !important;
   border-radius: 0 !important;
   background: rgba(255, 255, 255, 0.96) !important;
-  box-shadow: 0 -8px 18px rgba(15, 23, 42, 0.07) !important;
+  box-shadow: 0 -3px 10px rgba(15, 23, 42, 0.06) !important;
   backdrop-filter: blur(10px);
 }
 
@@ -353,6 +384,8 @@
 
 .activity-drawer-inline-layout .activity-drawer__view-footer__btn {
   min-inline-size: 132px;
+  border-radius: 9px;
+  box-shadow: none;
 }
 
 @media (max-width: 1180px) {
@@ -412,5 +445,36 @@
     inset-block-end: -12px;
     margin: 14px -12px -12px !important;
     padding: 10px 12px !important;
+  }
+}
+
+/* Start/end are the first summary row in the date section, before progress. */
+.activity-drawer-inline-layout .activity-drawer__date-summary {
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-start;
+  gap: 28px;
+  margin-block-end: 12px;
+  color: #667085;
+}
+
+.activity-drawer-inline-layout .activity-drawer__date-summary .activity-drawer__date-boundary {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  width: auto;
+}
+
+.activity-drawer-inline-layout .activity-drawer__date-summary strong {
+  color: #172033;
+  font-size: 1rem;
+  font-weight: 800;
+}
+
+@media (max-width: 640px) {
+  .activity-drawer-inline-layout .activity-drawer__date-summary {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 6px;
   }
 }

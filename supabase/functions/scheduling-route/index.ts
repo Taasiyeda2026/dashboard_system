@@ -157,6 +157,10 @@ async function computeRoute(origin: string, destination: string, key: string) {
 
 function emptyStats() {
   return {
+    required_count: 0,
+    existing_count: 0,
+    missing_count: 0,
+    refresh_required_count: 0,
     total_count: 0,
     processed_count: 0,
     inserted_count: 0,
@@ -196,6 +200,15 @@ function pairSortKey(pair: TravelPair) {
     pair.origin_key,
     pair.destination_key
   ].join('|');
+}
+
+function dedupeTravelPairs(pairs: TravelPair[]) {
+  const byRoute = new Map<string, TravelPair>();
+  for (const pair of pairs) {
+    const key = `${pair.origin_key}->${pair.destination_key}`;
+    if (!byRoute.has(key)) byRoute.set(key, pair);
+  }
+  return [...byRoute.values()].sort((a, b) => pairSortKey(a).localeCompare(pairSortKey(b)));
 }
 
 function buildInstructorSchoolPairs(instructors: InstructorRow[], schools: SchoolRow[]): TravelPair[] {
@@ -344,12 +357,30 @@ function isFiniteMetric(value: unknown) {
   return Number.isFinite(Number(value));
 }
 
-function isCacheValid(cached: Record<string, unknown> | null | undefined, pair: TravelPair) {
+function hasUsableMetrics(cached: Record<string, unknown> | null | undefined, pair?: TravelPair) {
   if (!cached) return false;
-  if (!addressesMatch(cached, pair)) return false;
-  const expiresAt = new Date(String(cached.expires_at || '')).getTime();
-  if (!Number.isFinite(expiresAt) || expiresAt <= Date.now()) return false;
-  return isFiniteMetric(cached.distance_km) && isFiniteMetric(cached.duration_minutes);
+  if (!isFiniteMetric(cached.distance_km) || !isFiniteMetric(cached.duration_minutes)) return false;
+  const distance = Number(cached.distance_km);
+  const duration = Number(cached.duration_minutes);
+  if (distance < 0 || duration < 0) return false;
+  const sameLocation = pair
+    ? pair.origin_key === pair.destination_key
+    : text(cached.origin_key) === text(cached.destination_key);
+  if ((distance === 0 || duration === 0) && !sameLocation) return false;
+  return true;
+}
+
+function needsRefresh(cached: Record<string, unknown> | null | undefined, now = Date.now()) {
+  const expiresAt = new Date(String(cached?.expires_at || '')).getTime();
+  return !Number.isFinite(expiresAt) || expiresAt <= now;
+}
+
+function isUsableForPair(cached: Record<string, unknown> | null | undefined, pair: TravelPair) {
+  return !!cached && addressesMatch(cached, pair) && hasUsableMetrics(cached, pair);
+}
+
+function isCacheValid(cached: Record<string, unknown> | null | undefined, pair: TravelPair) {
+  return isUsableForPair(cached, pair) && !needsRefresh(cached);
 }
 
 // Single-pair lookup: only treat a row as a hit when it is unexpired, numeric, and
@@ -365,9 +396,7 @@ function isLookupCacheValid(
   const cachedDestination = text(cached.destination_address);
   if (cachedOrigin && cachedOrigin !== origin) return false;
   if (cachedDestination && cachedDestination !== destination) return false;
-  const expiresAt = new Date(String(cached.expires_at || '')).getTime();
-  if (!Number.isFinite(expiresAt) || expiresAt <= now) return false;
-  return isFiniteMetric(cached.distance_km) && isFiniteMetric(cached.duration_minutes);
+  return hasUsableMetrics(cached) && !needsRefresh(cached, now);
 }
 
 async function findCachedByEntities(db: DbClient, pair: TravelPair) {
@@ -436,15 +465,6 @@ async function replaceCacheRow(db: DbClient, pair: TravelPair, row: Record<strin
     text(cached.origin_key) !== pair.origin_key
     || text(cached.destination_key) !== pair.destination_key
   ));
-  for (const old of stale) {
-    const { error: deleteError } = await db
-      .from('scheduling_travel_cache')
-      .delete()
-      .eq('origin_key', text(old.origin_key))
-      .eq('destination_key', text(old.destination_key));
-    if (deleteError) return { error: deleteError, inserted: false, renewed: false };
-  }
-
   const hadMatchingKey = existing.rows.some((cached) => (
     text(cached.origin_key) === pair.origin_key
     && text(cached.destination_key) === pair.destination_key
@@ -453,6 +473,16 @@ async function replaceCacheRow(db: DbClient, pair: TravelPair, row: Record<strin
 
   const { error: upsertError } = await db.from('scheduling_travel_cache').upsert(row);
   if (upsertError) return { error: upsertError, inserted: false, renewed: false };
+
+  // Address changes are fail-safe: the new route is persisted before an obsolete key is
+  // retired. A failed Google call or failed upsert therefore cannot erase the last value.
+  for (const old of stale) {
+    await db
+      .from('scheduling_travel_cache')
+      .delete()
+      .eq('origin_key', text(old.origin_key))
+      .eq('destination_key', text(old.destination_key));
+  }
 
   if (!hadAny) return { error: null, inserted: true, renewed: false };
   if (hadMatchingKey || stale.length) return { error: null, inserted: false, renewed: true };
@@ -561,6 +591,21 @@ type PairOutcome = {
   failure?: FailureRow | null;
 };
 
+async function inspectPair(db: DbClient, pair: TravelPair) {
+  const existing = await findCachedByEntities(db, pair);
+  if (existing.error) return { error: existing.error, pair, cached: null, state: 'missing' as const };
+  const cached = existing.rows.find((row) => (
+    text(row.origin_key) === pair.origin_key && text(row.destination_key) === pair.destination_key
+  )) || null;
+  if (!isUsableForPair(cached, pair)) return { error: null, pair, cached, state: 'missing' as const };
+  return {
+    error: null,
+    pair,
+    cached,
+    state: needsRefresh(cached) ? 'refresh_required' as const : 'existing' as const
+  };
+}
+
 async function processPair(db: DbClient, pair: TravelPair, key: string): Promise<PairOutcome> {
   const existing = await findCachedByEntities(db, pair);
   if (existing.error) return { dbError: existing.error };
@@ -571,6 +616,7 @@ async function processPair(db: DbClient, pair: TravelPair, key: string): Promise
   )) || existing.rows.find((row) => (
     text(row.origin_key) === pair.origin_key && text(row.destination_key) === pair.destination_key
   )) || existing.rows[0] || null;
+  const wasUsableCurrentRoute = isUsableForPair(matching, pair);
 
   if (isCacheValid(matching, pair)) {
     return { dbError: null, alreadyValid: true };
@@ -605,7 +651,11 @@ async function processPair(db: DbClient, pair: TravelPair, key: string): Promise
   );
   if (write.error) return { dbError: write.error };
   // Count inserted/renewed only after a successful upsert.
-  return { dbError: null, inserted: !!write.inserted, renewed: !write.inserted };
+  return {
+    dbError: null,
+    inserted: !wasUsableCurrentRoute,
+    renewed: wasUsableCurrentRoute
+  };
 }
 
 async function runBuildCache(db: DbClient, key: string, payload: Record<string, unknown>) {
@@ -641,11 +691,15 @@ async function runBuildCache(db: DbClient, key: string, payload: Record<string, 
   const deduped = dedupeAuthoritySchools(schoolsWithAddress);
 
   const instructorPairs = (scope === 'instructor_school' || scope === 'all')
-    ? buildInstructorSchoolPairs(instructors, deduped.schools)
+    ? dedupeTravelPairs(buildInstructorSchoolPairs(instructors, deduped.schools))
     : [];
-  const schoolPairs = (scope === 'school_school' || scope === 'all')
-    ? buildSchoolSchoolPairs(deduped.schools)
+  let schoolPairs = (scope === 'school_school' || scope === 'all')
+    ? dedupeTravelPairs(buildSchoolSchoolPairs(deduped.schools))
     : [];
+  if (scope === 'all' && instructorPairs.length) {
+    const instructorRouteKeys = new Set(instructorPairs.map((pair) => `${pair.origin_key}->${pair.destination_key}`));
+    schoolPairs = schoolPairs.filter((pair) => !instructorRouteKeys.has(`${pair.origin_key}->${pair.destination_key}`));
+  }
 
   const stats = emptyStats();
   stats.scope = scope;
@@ -653,6 +707,19 @@ async function runBuildCache(db: DbClient, key: string, payload: Record<string, 
   stats.skipped_count = skippedEmptyInstructorAddress + skippedEmptySchoolAddress + deduped.duplicateCount;
   stats.failures.push(...skippedInstructorFailures.slice(0, 50));
   stats.total_count = instructorPairs.length + schoolPairs.length;
+  stats.required_count = stats.total_count;
+
+  const allPairs = [...instructorPairs, ...schoolPairs];
+  const inspections = await mapWithConcurrency(allPairs, BATCH_CONCURRENCY, (pair) => inspectPair(db, pair));
+  const inspectionError = inspections.find((item) => item?.error)?.error || null;
+  if (inspectionError) return jsonResponse({ error: 'cache_read_failed' }, 500);
+  stats.existing_count = inspections.filter((item) => item.state !== 'missing').length;
+  stats.missing_count = stats.required_count - stats.existing_count;
+  stats.refresh_required_count = inspections.filter((item) => item.state === 'refresh_required').length;
+
+  if (payload.coverage_only === true || text(payload.mode).toLowerCase() === 'coverage') {
+    return jsonResponse({ calculated: true, coverage: true, ...stats, done: true });
+  }
 
   const initialPhase: BuildCursor['phase'] = scope === 'school_school'
     ? 'school_school'
@@ -687,6 +754,12 @@ async function runBuildCache(db: DbClient, key: string, payload: Record<string, 
       if (outcome.failure) stats.failures.push(outcome.failure);
     }
   }
+
+  const successfulInserts = stats.inserted_count;
+  const successfulRefreshes = stats.renewed_count;
+  stats.existing_count = Math.min(stats.required_count, stats.existing_count + successfulInserts);
+  stats.missing_count = Math.max(0, stats.missing_count - successfulInserts);
+  stats.refresh_required_count = Math.max(0, stats.refresh_required_count - successfulRefreshes);
 
   if (dbError) {
     return jsonResponse({
@@ -768,11 +841,14 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: 'invalid_json' }, 400);
   }
 
-  const key = Deno.env.get('GOOGLE_MAPS_API_KEY');
-  if (!key) return jsonResponse({ error: 'google_key_not_configured', reason: 'google_key_not_configured' }, 503);
-
   const mode = text(payload.mode).toLowerCase();
   const wantsBuild = mode === 'build_cache' || payload.build_cache === true || payload.batch === true;
+  const key = Deno.env.get('GOOGLE_MAPS_API_KEY') || '';
+  if (mode === 'coverage') {
+    payload.coverage_only = true;
+    return runBuildCache(db, key, payload);
+  }
+  if (!key) return jsonResponse({ error: 'google_key_not_configured', reason: 'google_key_not_configured' }, 503);
   if (wantsBuild) {
     if (payload.batch === true && !payload.scope) payload.scope = 'all';
     return runBuildCache(db, key, payload);
@@ -795,11 +871,13 @@ Deno.serve(async (req) => {
   if (cacheReadError) return jsonResponse({ calculated: false, reason: 'cache_read_failed', error: 'cache_read_failed' }, 500);
 
   const hadPrevious = !!cached;
-  if (isLookupCacheValid(cached, origin, destination)) {
+  if (cached && hasUsableMetrics(cached) && (!text(cached.origin_address) || text(cached.origin_address) === origin)
+    && (!text(cached.destination_address) || text(cached.destination_address) === destination)) {
     return jsonResponse({
       calculated: true,
       cached: true,
       renewed: false,
+      needs_refresh: needsRefresh(cached),
       distance_km: Number(cached.distance_km),
       duration_minutes: Number(cached.duration_minutes)
     });

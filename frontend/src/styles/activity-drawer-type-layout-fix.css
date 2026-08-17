@@ -1,12 +1,16 @@
-.activity-drawer-inline__grid[data-activity-layout="course"],
 .activity-drawer-inline__grid[data-activity-layout="after_school"],
 .activity-drawer-inline__grid[data-activity-layout="tour"] {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.activity-drawer-inline__grid[data-activity-layout="course"],
 .activity-drawer-inline__grid[data-activity-layout="workshop"],
 .activity-drawer-inline__grid[data-activity-layout="escape_room"] {
   grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.activity-drawer-inline__grid[data-activity-layout="course"] [data-field-key="funding"] {
+  grid-column: span 3;
 }
 
 .activity-drawer-inline__grid[data-activity-layout="workshop"] [data-field-key="manager"],
@@ -59,6 +63,85 @@
   border-color: rgba(255, 255, 255, 0.5) !important;
 }
 
+/* Course boundary dates are a compact summary above the main details grid. */
+.activity-drawer-type-fix__top-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  min-block-size: 54px;
+  margin: 0 0 12px;
+  padding: 9px 13px;
+  border: 1px solid #d9dee7;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+}
+
+.activity-drawer-type-fix__top-dates {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  min-inline-size: 0;
+}
+
+.activity-drawer-type-fix__top-date {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  min-inline-size: 0;
+  white-space: nowrap;
+}
+
+.activity-drawer-type-fix__top-date-label {
+  color: #667085;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.activity-drawer-type-fix__top-date-value {
+  color: #172033;
+  font-size: 0.96rem;
+  font-weight: 800;
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+/* Keep the original in-section targets for async date patching, but never render them. */
+.activity-drawer-inline-layout [data-type-fix-date-summary-source] {
+  display: none !important;
+}
+
+.activity-drawer-type-fix__top-summary .activity-drawer__actions-row {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.activity-drawer-type-fix__top-summary [data-coordination-approval] {
+  min-block-size: 34px;
+  padding: 6px 11px !important;
+  border: 1px solid #c8d2df !important;
+  border-radius: 8px !important;
+  background: #fff !important;
+  color: #176f8c !important;
+  box-shadow: none !important;
+  font-size: 0.78rem !important;
+  font-weight: 750 !important;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+.activity-drawer-type-fix__top-summary [data-coordination-approval]:hover {
+  border-color: #8eb7c7 !important;
+  background: #f5fafc !important;
+}
+
 @media (max-width: 1100px) {
   .activity-drawer-inline__grid[data-activity-layout="workshop"],
   .activity-drawer-inline__grid[data-activity-layout="escape_room"] {
@@ -68,6 +151,16 @@
   .activity-drawer-inline__grid[data-activity-layout="workshop"] [data-field-key="manager"],
   .activity-drawer-inline__grid[data-activity-layout="escape_room"] [data-field-key="manager"] {
     grid-column: span 2;
+  }
+}
+
+@media (max-width: 900px) {
+  .activity-drawer-inline__grid[data-activity-layout="course"] {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .activity-drawer-inline__grid[data-activity-layout="course"] [data-field-key="funding"] {
+    grid-column: span 1;
   }
 }
 
@@ -91,5 +184,20 @@
     max-inline-size: 130px;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+
+  .activity-drawer-type-fix__top-summary {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 9px;
+  }
+
+  .activity-drawer-type-fix__top-dates {
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .activity-drawer-type-fix__top-summary .activity-drawer__actions-row {
+    justify-content: flex-start;
   }
 }

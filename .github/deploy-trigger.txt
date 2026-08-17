@@ -1,4 +1,4 @@
 GitHub Pages deployment trigger
-Requested: 2026-08-02T22:54:00+03:00
-Includes merged hotfix PR #1305
-Expected cache version: 1368
+Requested: 2026-08-11T04:12:00+03:00
+Reason: deploy employee-file permission fallback fix
+Expected cache version: 1446

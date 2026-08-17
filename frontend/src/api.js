@@ -4,7 +4,7 @@ import { hebrewRole } from './screens/shared/ui-hebrew.js';
 import { getActivityAuthorityName, getActivityContactName, getActivityContactPhone, getActivitySchoolNames } from './screens/shared/operations-activity-helpers.js';
 import { cleanActivityManagerName, getContactsInstructorUsers, getRosterUsers, NO_ACTIVITY_MANAGER_LABEL, normalizeOneDayActivityType, resolveActivityInstructorName, buildContactsInstructorLookup, resolveCanonicalInstructorPair, validateInstructorIdentityPayload, normalizeActivityMeetingsCount } from './screens/shared/activity-options.js';
 import { EXCEPTION_TYPE_ORDER, normalizedExceptionTypes } from './screens/shared/exceptions-metrics.js';
-import { ACTIVITY_SEASON_SCHOOL_2027, activityMatchesPeriodKey, activitySeasonQueryValues, isSummerActivity, normalizeActivitySeason, normalizeGlobalActivityPeriod } from './screens/shared/summer-activity.js';
+import { ACTIVITY_SEASON_REGULAR, ACTIVITY_SEASON_SUMMER_2026, ACTIVITY_SEASON_SCHOOL_2027, activityMatchesPeriodKey, activitySeasonQueryValues, isSummerActivity, normalizeActivitySeason, normalizeGlobalActivityPeriod } from './screens/shared/summer-activity.js';
 import { assertActivityMutationAllowed } from './screens/shared/activity-readonly-period.js';
 import {
   normalizeContactMatchText,
@@ -23,6 +23,7 @@ import { withResolvedSchool2027Contact } from './screens/shared/school-2027-cont
 import { normalizeOperationalDistrict } from './screens/shared/district-normalization.js';
 import { permissionFlagYes, canEditDirect, canAddActivityDirect, canRequestEdit, canRequestCreateActivity, canReviewRequests } from './permissions.js';
 import { mapWithConcurrency } from './bounded-concurrency.js';
+import { config } from './config.js';
 
 /**
  * Actions that modify server-side data.
@@ -102,6 +103,7 @@ const READ_ACTIONS = {
   adminSettings: true,
   adminLists: true,
   workshopStockDistributions: true,
+  workshopInventoryOpeningBalances: true,
   instructorSchedulePrintContacts: true,
   listSheets: true,
   israaProgramTracking: true,
@@ -123,7 +125,6 @@ function isActiveInstructorPilotUser(user = state?.user || {}) {
   return [user.emp_id, user.employee_id, user.user_id].map((v) => String(v || '').trim()).some((id) => ACTIVE_INSTRUCTOR_EMP_IDS.has(id));
 }
 
-const ACTIVITY_REQUEST_ROLES = new Set(['activities_manager', 'instructor_manager', 'business_development_manager']);
 const COMPLETION_APPROVAL_MANAGER_ROLES = new Set(['admin', 'operation_manager', 'domain_manager', 'activities_manager', 'instructor_manager']);
 
 const ACTIVITY_MEETING_DATE_COLUMNS = Array.from({ length: 35 }, (_, index) => `date_${index + 1}`);
@@ -135,7 +136,7 @@ const DASHBOARD_ACTIVITY_COLUMNS = [
 const DASHBOARD_ACTIVITY_MIN_COLUMNS = 'row_id,activity_family,activity_manager,activity_name,authority,school,instructor_name,instructor_name_2,emp_id,emp_id_2,start_date,end_date,status,activity_type';
 // Explicit list/read-model projections. Full activity rows are fetched only by activityDetail.
 const ACTIVITY_LIST_COLUMNS = [
-  'row_id', 'activity_family', 'activity_manager', 'district', 'authority_id', 'school_id',
+  'id', 'row_id', 'activity_family', 'activity_manager', 'district', 'authority_id', 'school_id',
   'authority', 'school', 'grade', 'class_group', 'activity_type', 'item_type',
   'activity_season', 'activity_no', 'activity_name', 'sessions', 'funding',
   'start_time', 'end_time', 'emp_id', 'instructor_name', 'emp_id_2', 'instructor_name_2',
@@ -144,8 +145,8 @@ const ACTIVITY_LIST_COLUMNS = [
 ].join(',');
 // Activities table / list: fields shown or used for month/status filters (no finance/contact blobs).
 const ACTIVITY_TABLE_COLUMNS = [
-  'row_id', 'activity_family', 'activity_manager', 'authority', 'school', 'school_id',
-  'grade', 'class_group', 'activity_type', 'item_type', 'activity_season', 'activity_name',
+  'id', 'row_id', 'activity_family', 'activity_manager', 'authority', 'school', 'school_id',
+  'grade', 'class_group', 'activity_type', 'item_type', 'activity_season', 'activity_no', 'activity_name',
   'sessions', 'funding', 'start_time', 'end_time', 'emp_id', 'instructor_name', 'emp_id_2', 'instructor_name_2',
   'start_date', 'end_date', 'status',
   ...ACTIVITY_MEETING_DATE_COLUMNS
@@ -173,8 +174,14 @@ const ACTIVITY_OPERATIONS_COLUMNS = [
   'row_id', 'activity_name', 'activity_type', 'item_type', 'activity_season',
   'authority', 'school', 'school_id', 'grade', 'class_group',
   'instructor_name', 'instructor_name_2', 'emp_id', 'emp_id_2',
-  'start_time', 'end_time', 'start_date', 'end_date', 'status', 'participants_count',
+  'start_time', 'end_time', 'start_date', 'end_date', 'status', 'participants_count', 'sessions',
   ...ACTIVITY_MEETING_DATE_COLUMNS
+].join(',');
+// Work-schedule filter controls need only descriptive fields. Keep this projection
+// separate from the substantially wider results payload (notably meeting dates).
+const ACTIVITY_SCHEDULE_FILTER_OPTION_COLUMNS = [
+  'row_id', 'activity_name', 'activity_season', 'authority', 'school',
+  'instructor_name', 'instructor_name_2', 'status'
 ].join(',');
 const ACTIVITY_ARCHIVE_COLUMNS = [
   'row_id', 'activity_name', 'activity_type', 'activity_family', 'activity_season',
@@ -210,10 +217,27 @@ const COMPLETION_APPROVALS_PAGE_SIZE = 50;
 const SETTINGS_BOOTSTRAP_COLUMNS = 'key,value,description';
 const LISTS_BOOTSTRAP_COLUMNS = 'list_id,category,value,label,active,is_active,category_order,sort_order,activity_no,activity_name,activity_type,type,stock_quantity,stock_group_key,stock_group_name,stock_item_name,stock_label,parent_value';
 const COURSE_MEETINGS_BOOTSTRAP_COLUMNS = 'gefen_number,meetings_count';
+/**
+ * Categories loaded from `lists` at login/bootstrap.
+ * school, authority, workshop_stock and other large/unused categories are excluded:
+ * school (~599 rows) and authority (~159 rows) are loaded on-demand from dedicated tables.
+ * workshop_stock, view_type, activity_status, finance_status are not needed at startup.
+ */
+const BOOTSTRAP_LIST_CATEGORIES = [
+  'grade', 'activity_names', 'funding', 'instructor_users',
+  'activity_manager', 'activity_season', 'one_day_activity_type',
+  'program_activity_type', 'activity_type'
+];
+/** Categories loaded for the workshop inventory tab (replaces full adminLists fetch). */
+const WORKSHOP_LIST_CATEGORIES = ['activity_names', 'workshop_stock'];
 let settingsRowsCache = null;
 let settingsRowsPromise = null;
 let listsRowsCache = null;
 let listsRowsPromise = null;
+let bootstrapListsCache = null;
+let bootstrapListsPromise = null;
+let workshopListsCache = null;
+let workshopListsPromise = null;
 let courseMeetingsRowsCache = null;
 let courseMeetingsRowsPromise = null;
 let instructorContactsCache = null;
@@ -222,7 +246,7 @@ let instructorEmpIdsCache = null;
 let instructorEmpIdsPromise = null;
 
 function assertAdminApi() {
-  const role = String(state?.user?.role || state?.user?.display_role || '').trim();
+  const role = String(state?.user?.role || '').trim();
   if (role !== 'admin') throw new Error('admin_only');
 }
 
@@ -308,6 +332,10 @@ function clearBootstrapReadCaches() {
   settingsRowsPromise = null;
   listsRowsCache = null;
   listsRowsPromise = null;
+  bootstrapListsCache = null;
+  bootstrapListsPromise = null;
+  workshopListsCache = null;
+  workshopListsPromise = null;
   courseMeetingsRowsCache = null;
   courseMeetingsRowsPromise = null;
   instructorEmpIdsCache = null;
@@ -462,6 +490,60 @@ async function readAllArchiveActivitiesFromSupabase(activityPeriod = currentGlob
   }
 }
 
+async function enrichActivitiesWithFundingSources(rows = []) {
+  const activityIds = [...new Set(rows.map((row) => String(row?.id || '').trim()).filter(Boolean))];
+  if (!activityIds.length) return rows;
+  const { data, error } = await supabase.from('activity_funding_sources')
+    .select('activity_id,funding_source_id,amount,funding_sources(id,name,is_active,sort_order)')
+    .in('activity_id', activityIds);
+  if (error) {
+    // Supports a rolling deployment where frontend can precede the migration.
+    console.warn('[funding] association read unavailable; using activities.funding fallback', error.message || error);
+    return rows;
+  }
+  const byActivity = new Map();
+  for (const link of (data || [])) {
+    const source = link.funding_sources;
+    if (!source?.id || !source?.name) continue;
+    const list = byActivity.get(String(link.activity_id)) || [];
+    list.push({ id: source.id, name: source.name, is_active: source.is_active, sort_order: source.sort_order, amount: link.amount });
+    byActivity.set(String(link.activity_id), list);
+  }
+  return rows.map((row) => {
+    const fundingSources = (byActivity.get(String(row.id)) || []).sort((a, b) => (a.sort_order ?? 2147483647) - (b.sort_order ?? 2147483647) || a.name.localeCompare(b.name, 'he'));
+    return fundingSources.length ? { ...row, funding_sources: fundingSources, funding: fundingSources.map((item) => item.name).join(' + ') } : row;
+  });
+}
+
+async function saveActivityFundingSources(activityRow = {}, source = {}) {
+  if (!Object.prototype.hasOwnProperty.call(source, 'funding_sources')) return;
+  const activityId = String(activityRow?.id || '').trim();
+  if (!activityId) throw new Error('activity_funding_missing_activity_id');
+  const requested = (Array.isArray(source.funding_sources) ? source.funding_sources : [])
+    .map((item) => typeof item === 'string' ? { funding_source_id: item, amount: null } : item)
+    .map((item) => ({ funding_source_id: String(item?.funding_source_id || item?.id || '').trim(), amount: item?.amount === '' || item?.amount == null ? null : Number(item.amount) }))
+    .filter((item) => item.funding_source_id);
+  if (new Set(requested.map((item) => item.funding_source_id)).size !== requested.length) throw new Error('duplicate_activity_funding_source');
+  const ids = requested.map((item) => item.funding_source_id);
+  if (ids.length) {
+    const { data: sources, error: sourceError } = await supabase.from('funding_sources').select('id,name,is_active').in('id', ids);
+    if (sourceError) throw new Error(sourceError.message || 'funding_sources_read_failed');
+    if ((sources || []).length !== ids.length) throw new Error('funding_source_not_found');
+    const display = ids.map((id) => sources.find((row) => String(row.id) === id)?.name).filter(Boolean).join(' + ');
+    const { error: compatibilityError } = await supabase.from('activities').update({ funding: display }).eq('id', activityId);
+    if (compatibilityError) throw new Error(compatibilityError.message || 'activity_funding_compatibility_save_failed');
+  } else {
+    const { error: compatibilityError } = await supabase.from('activities').update({ funding: null }).eq('id', activityId);
+    if (compatibilityError) throw new Error(compatibilityError.message || 'activity_funding_compatibility_save_failed');
+  }
+  const { error: deleteError } = await supabase.from('activity_funding_sources').delete().eq('activity_id', activityId);
+  if (deleteError) throw new Error(deleteError.message || 'activity_funding_replace_failed');
+  if (requested.length) {
+    const { error: insertError } = await supabase.from('activity_funding_sources').insert(requested.map((item) => ({ activity_id: activityId, ...item })));
+    if (insertError) throw new Error(insertError.message || 'activity_funding_save_failed');
+  }
+}
+
 async function readActivitiesFromSupabase(filters = {}) {
   if (!supabase) return null;
 
@@ -471,7 +553,7 @@ async function readActivitiesFromSupabase(filters = {}) {
     const { data, error } = await supabase.from('activities').select(select).in('activity_season', activitySeasonQueryValues(selectedSeason));
     if (error) throw new Error(error.message || 'activities_read_failed');
     const rawRows = Array.isArray(data) ? data : [];
-    const normalizedRows = rawRows.map(normalizeActivityRow);
+    const normalizedRows = await enrichActivitiesWithFundingSources(rawRows.map(normalizeActivityRow));
     const contactRows = await readContactsForSchool2027Activities(normalizedRows);
     const rows = normalizedRows
       .map((row) => withResolvedSchool2027Contact(row, contactRows))
@@ -761,6 +843,7 @@ function buildDateRangeOrFilter(startDate, endDate, { includeStartDate = true, i
 async function selectActivitiesByDateRangeFromSupabase({
   startDate,
   endDate,
+  activityPeriod = currentGlobalActivityPeriod(),
   activityType = '',
   includeEndDate = false,
   select = ACTIVITY_LIST_COLUMNS,
@@ -774,7 +857,7 @@ async function selectActivitiesByDateRangeFromSupabase({
   let query = supabase
     .from('activities')
     .select(select)
-    .in('activity_season', activitySeasonQueryValues(currentGlobalActivityPeriod()));
+    .in('activity_season', activitySeasonQueryValues(activityPeriod));
   if (overlapByStartEnd) {
     query = query.lte('start_date', endDate).gte('end_date', startDate);
   } else {
@@ -796,6 +879,7 @@ async function selectActivitiesByDateRangeFromSupabase({
     return selectActivitiesByDateRangeFromSupabase({
       startDate,
       endDate,
+      activityPeriod,
       activityType,
       includeEndDate,
       select: fallbackSelect,
@@ -1736,6 +1820,123 @@ async function readListsFromSupabase() {
   return listsRowsPromise;
 }
 
+/**
+ * Filtered lists fetch for login/bootstrap — only the 9 categories needed for
+ * buildClientSettingsFromLists. Reduces ~997 → ~184 rows at startup.
+ * school/authority are loaded separately from dedicated tables via readAuthoritySchoolCatalog().
+ */
+async function readBootstrapListsFromSupabase() {
+  if (!supabase) return null;
+  if (bootstrapListsCache) return bootstrapListsCache;
+  if (bootstrapListsPromise) return bootstrapListsPromise;
+  bootstrapListsPromise = (async () => {
+    try {
+      const result = await supabase
+        .from('lists')
+        .select(LISTS_BOOTSTRAP_COLUMNS)
+        .in('category', BOOTSTRAP_LIST_CATEGORIES)
+        .order('category_order', { ascending: true, nullsFirst: false })
+        .order('sort_order', { ascending: true, nullsFirst: false })
+        .order('category', { ascending: true })
+        .order('value', { ascending: true });
+      if (result.error) {
+        // eslint-disable-next-line no-console
+        console.error('[supabase] Failed to load bootstrap lists:', result.error);
+        return null;
+      }
+      const rows = Array.isArray(result.data) ? result.data : [];
+      const catMap = new Map();
+      for (const row of rows) {
+        const cat = String(row.category || '').trim();
+        if (!cat) continue;
+        const value = String(row.value ?? '').trim();
+        const label = String(row.label ?? value).trim() || value;
+        if (!value) continue;
+        if (!catMap.has(cat)) catMap.set(cat, []);
+        catMap.get(cat).push({ label, value, _row: row, active: row.active });
+      }
+      const categories = [...catMap.entries()].map(([category, items]) => ({ category, items }));
+      bootstrapListsCache = { categories, _source: 'supabase' };
+      return bootstrapListsCache;
+    } catch (error) {
+      // eslint-disable-next-line no-console
+      console.error('[supabase] Unexpected bootstrap lists fetch error:', error);
+      return null;
+    } finally {
+      bootstrapListsPromise = null;
+    }
+  })();
+  return bootstrapListsPromise;
+}
+
+/**
+ * Focused lists fetch for the workshop inventory tab (ציוד ומלאי).
+ * Queries only activity_names + workshop_stock — ~79 rows instead of ~997.
+ */
+async function readWorkshopListsFromSupabase() {
+  if (!supabase) return null;
+  if (workshopListsCache) return workshopListsCache;
+  if (workshopListsPromise) return workshopListsPromise;
+  workshopListsPromise = (async () => {
+    try {
+      const result = await supabase
+        .from('lists')
+        .select(LISTS_BOOTSTRAP_COLUMNS)
+        .in('category', WORKSHOP_LIST_CATEGORIES)
+        .order('sort_order', { ascending: true, nullsFirst: false })
+        .order('value', { ascending: true });
+      if (result.error) {
+        // eslint-disable-next-line no-console
+        console.error('[supabase] Failed to load workshop lists:', result.error);
+        return null;
+      }
+      const rows = Array.isArray(result.data) ? result.data : [];
+      const catMap = new Map();
+      for (const row of rows) {
+        const cat = String(row.category || '').trim();
+        if (!cat) continue;
+        const value = String(row.value ?? '').trim();
+        const label = String(row.label ?? value).trim() || value;
+        if (!value) continue;
+        if (!catMap.has(cat)) catMap.set(cat, []);
+        catMap.get(cat).push({ label, value, _row: row, active: row.active });
+      }
+      const categories = [...catMap.entries()].map(([category, items]) => ({ category, items }));
+      workshopListsCache = { categories, _source: 'supabase' };
+      return workshopListsCache;
+    } catch (error) {
+      // eslint-disable-next-line no-console
+      console.error('[supabase] Unexpected workshop lists fetch error:', error);
+      return null;
+    } finally {
+      workshopListsPromise = null;
+    }
+  })();
+  return workshopListsPromise;
+}
+
+/**
+ * Builds school/authority dropdown values from the dedicated catalog tables
+ * (schools, authorities) rather than from the lists table.
+ * Used to populate client_settings.dropdown_options.school/authority after bootstrap.
+ */
+function buildSchoolAuthorityFromCatalog(catalog) {
+  const schools = Array.isArray(catalog?.schools) ? catalog.schools : [];
+  const authorities = Array.isArray(catalog?.authorities) ? catalog.authorities : [];
+  const activeSchools = schools.filter((s) => isCatalogActive(s?.active));
+  const activeAuthorities = authorities.filter((a) => isCatalogActive(a?.active));
+  const schoolValues = activeSchools.map((s) => normalizeCatalogText(s.school_name)).filter(Boolean);
+  const schoolRecords = activeSchools.map((s) => ({
+    name: normalizeCatalogText(s.school_name),
+    value: normalizeCatalogText(s.school_name),
+    school_id: normalizeCatalogText(s.id || s.semel_mosad || ''),
+    authority_id: normalizeCatalogText(s.authority_id || ''),
+    authority: normalizeCatalogText(s.authority || '')
+  })).filter((s) => s.name);
+  const authorityValues = activeAuthorities.map((a) => normalizeCatalogText(a.authority_name)).filter(Boolean);
+  return { schoolValues, schoolRecords, authorityValues };
+}
+
 
 async function readCourseMeetingsRowsForBootstrap() {
   if (!supabase) return [];
@@ -1768,7 +1969,11 @@ async function readCourseMeetingsRowsForBootstrap() {
  * activity-options.js and the add-activity form.
  * Handles many category name variants so the lists table can use any naming.
  */
-function buildClientSettingsFromLists(listsData, settingsRows = [], instructorContactsRows = [], courseMeetingsRows = []) {
+/**
+ * @param {object|null} catalogData - Optional result from readAuthoritySchoolCatalog().
+ *   When provided, school/authority values come from dedicated tables instead of lists.
+ */
+function buildClientSettingsFromLists(listsData, settingsRows = [], instructorContactsRows = [], courseMeetingsRows = [], catalogData = null) {
   const categories = Array.isArray(listsData?.categories) ? listsData.categories : [];
   const courseMeetingsByStableId = new Map(
     (Array.isArray(courseMeetingsRows) ? courseMeetingsRows : [])
@@ -1783,6 +1988,11 @@ function buildClientSettingsFromLists(listsData, settingsRows = [], instructorCo
     return String(row?.value || '').trim();
   };
   const accentColor = settingValue('accent_color') || settingValue('theme_accent') || settingValue('ui_accent_color');
+  let activityManagerContacts = [];
+  try {
+    const parsed = JSON.parse(settingValue('activity_manager_contacts') || '[]');
+    activityManagerContacts = parsed && typeof parsed === 'object' ? parsed : [];
+  } catch { activityManagerContacts = []; }
   const byCategory = {};
   categories.forEach(({ category, items }) => {
     byCategory[String(category).toLowerCase()] = Array.isArray(items) ? items : [];
@@ -1804,9 +2014,11 @@ function buildClientSettingsFromLists(listsData, settingsRows = [], instructorCo
   const activityNameItems = getItems('activity_names', 'activity_name', 'activities', 'activity');
   const fundingValues   = getValues('funding', 'fundings');
   const gradeValues     = getValues('grade', 'grades', 'class');
+  // school/authority — prefer dedicated catalog (from schools/authorities tables) when provided;
+  // fall back to lists data for backwards-compatibility when catalogData is not available.
   const schoolItems     = getItems('school', 'schools');
-  const schoolValues    = schoolItems.map((i) => i.value).filter(Boolean);
-  const authorityValues = getValues('authority', 'authorities');
+  let schoolValues    = schoolItems.map((i) => i.value).filter(Boolean);
+  let authorityValues = getValues('authority', 'authorities');
   const activitySeasonItems = getItems('activity_season');
 
   const shortTypes = getValues('one_day_activity_type', 'one_day_types', 'short_activity_type', 'short_activity_types');
@@ -1855,13 +2067,21 @@ function buildClientSettingsFromLists(listsData, settingsRows = [], instructorCo
     };
   });
   const activityTypes = [...new Set(activityNames.map((row) => String(row.activity_type || row.parent_value || row.type || '').trim()).filter(Boolean))];
-  const schoolRecords = schoolItems.map((i) => ({
+  // Use dedicated catalog tables (schools/authorities) when provided — avoids large lists rows.
+  // Fall back to lists-derived values for backwards-compatibility when catalog is unavailable.
+  let schoolRecords = schoolItems.map((i) => ({
     name:        String(i._row?.school || i._row?.school_name || i.label || i.value || '').trim(),
     value:       String(i.value || i._row?.school || i._row?.school_name || '').trim(),
     school_id:   String(i._row?.school_id || i._row?.id || '').trim(),
     authority_id:String(i._row?.authority_id || '').trim(),
     authority:   String(i._row?.authority || '').trim()
   })).filter((school) => school.name || school.value);
+  if (catalogData) {
+    const fromCatalog = buildSchoolAuthorityFromCatalog(catalogData);
+    schoolValues    = fromCatalog.schoolValues;
+    schoolRecords   = fromCatalog.schoolRecords;
+    authorityValues = fromCatalog.authorityValues;
+  }
 
   const managerIsActive = (item) => {
     const row = item?._row && typeof item._row === 'object' ? item._row : item;
@@ -1897,6 +2117,7 @@ function buildClientSettingsFromLists(listsData, settingsRows = [], instructorCo
   }).filter((user) => user.name);
 
   return {
+    activity_manager_contacts: activityManagerContacts,
     dropdown_options: {
       funding:                  fundingValues,
       fundings:                 fundingValues,
@@ -3113,7 +3334,7 @@ const PROPOSALS_AGREEMENTS_ALLOWED_ROLES = new Set(['domain_manager', 'operation
 const PROPOSALS_AGREEMENTS_MANAGE_ROLES = new Set(['domain_manager', 'operation_manager', 'admin']);
 const PROPOSALS_AGREEMENTS_COLUMNS = 'id,authority_id,school_id,contact_school_id,client_authority,school_framework,document_type,activity_type_group,proposal_domain,proposal_date,activity_names,contact_name,contact_role,phone,email,contact_phone,contact_email,notes,status,approval_note,total_amount,custom_document_sections,include_catalog,signature_meta,approved_by,approved_at,sent_by,sent_at,locked_at,locked_by,locked_reason,final_pdf_path,final_pdf_file_name,final_pdf_created_at,final_pdf_created_by,document_snapshot,document_html_snapshot,proposal_series_id,version_number,supersedes_proposal_id,archived_at,quote_number,valid_until,combine_gefen_approval,gfen_signed_or_ordered,created_at,updated_at';
 // List/directory projection — no snapshots/HTML/signature payloads.
-const PROPOSALS_AGREEMENTS_LIST_COLUMNS = 'id,authority_id,authority_code,school_id,contact_school_id,semel_mosad,authority_name,legacy_client_authority,contact_client_type,contact_client_name,school_name,legacy_school_framework,document_type,activity_type_group,proposal_domain,proposal_date,activity_names,contact_name,contact_role,phone,email,notes,status,approval_note,total_amount,include_catalog,approved_by,approved_at,sent_by,sent_at,locked_at,locked_by,locked_reason,final_pdf_path,final_pdf_file_name,final_pdf_created_at,final_pdf_created_by,proposal_series_id,version_number,supersedes_proposal_id,archived_at,quote_number,valid_until,combine_gefen_approval,gfen_signed_or_ordered,created_at,updated_at';
+const PROPOSALS_AGREEMENTS_LIST_COLUMNS = 'id,authority_id,authority_code,school_id,contact_school_id,semel_mosad,authority_name,legacy_client_authority,contact_client_type,contact_client_name,school_name,legacy_school_framework,document_type,activity_type_group,proposal_domain,proposal_date,activity_names,contact_name,contact_role,phone,email,notes,status,approval_note,total_amount,include_catalog,has_approval_signature,approved_by,approved_at,sent_by,sent_at,locked_at,locked_by,locked_reason,final_pdf_path,final_pdf_file_name,final_pdf_created_at,final_pdf_created_by,proposal_series_id,version_number,supersedes_proposal_id,archived_at,quote_number,valid_until,combine_gefen_approval,gfen_signed_or_ordered,created_at,updated_at';
 const PROPOSALS_AGREEMENTS_DIRECTORY_COLUMNS = PROPOSALS_AGREEMENTS_LIST_COLUMNS;
 const PROPOSALS_AGREEMENTS_DETAIL_COLUMNS = 'id,authority_id,authority_code,school_id,contact_school_id,semel_mosad,authority_name,legacy_client_authority,contact_client_type,contact_client_name,school_name,legacy_school_framework,document_type,activity_type_group,proposal_domain,proposal_date,activity_names,contact_name,contact_role,phone,email,notes,status,approval_note,total_amount,custom_document_sections,include_catalog,signature_meta,approved_by,approved_at,sent_by,sent_at,locked_at,locked_by,locked_reason,final_pdf_path,final_pdf_file_name,final_pdf_created_at,final_pdf_created_by,document_snapshot,document_html_snapshot,proposal_series_id,version_number,supersedes_proposal_id,archived_at,quote_number,valid_until,combine_gefen_approval,gfen_signed_or_ordered,created_at,updated_at';
 const PROPOSAL_FINAL_PDF_BUCKET = 'proposal-final-pdfs';
@@ -3157,14 +3378,14 @@ function notesWithActivityNames(notes, activity_names) {
 }
 
 function canUseProposalsAgreementsApi() {
-  const role = String(state?.user?.display_role || state?.user?.role || '').trim();
+  const role = String(state?.user?.role || '').trim();
   return PROPOSALS_AGREEMENTS_ALLOWED_ROLES.has(role)
     || permissionFlagYes(state?.user?.view_proposals_agreements)
     || permissionFlagYes(state?.user?.manage_proposals_agreements);
 }
 
 function canManageProposalsAgreementsApi() {
-  const role = String(state?.user?.display_role || state?.user?.role || '').trim();
+  const role = String(state?.user?.role || '').trim();
   return PROPOSALS_AGREEMENTS_MANAGE_ROLES.has(role)
     || permissionFlagYes(state?.user?.manage_proposals_agreements);
 }
@@ -3349,6 +3570,7 @@ function normalizeProposalAgreementRow(row = {}) {
     supersedes_proposal_id: cleanProposalAgreementText(row.supersedes_proposal_id),
     archived_at:         cleanProposalAgreementText(row.archived_at),
     signature_meta:      (row.signature_meta && typeof row.signature_meta === 'object' && !Array.isArray(row.signature_meta)) ? row.signature_meta : {},
+    has_approval_signature: row.has_approval_signature === true,
     approved_by:         cleanProposalAgreementText(row.approved_by),
     approved_at:         cleanProposalAgreementText(row.approved_at),
     sent_by:             cleanProposalAgreementText(row.sent_by),
@@ -3777,6 +3999,13 @@ function sanitizeProposalAgreementPayload(payload = {}, groupLookup = proposalGr
   return Object.fromEntries(
     Object.entries(row).filter(([key]) => PROPOSALS_AGREEMENTS_WRITABLE_COLUMNS.has(key))
   );
+}
+
+export async function recoverIdempotentProposalInsert(error, submissionId, readExisting) {
+  if (error?.code !== '23505' || !uuidOrNull(submissionId) || typeof readExisting !== 'function') return null;
+  const { data, error: existingError } = await readExisting(submissionId);
+  if (existingError || !data) return null;
+  return { ok: true, row: normalizeProposalAgreementRow(data) };
 }
 
 
@@ -4530,7 +4759,7 @@ async function readProposalsAgreementsFromSupabase({
   };
 }
 
-const USER_PUBLIC_COLUMNS = 'user_id,username,email,name,full_name,role,display_role,display_role2,emp_id,is_active,permissions';
+const USER_PUBLIC_COLUMNS = 'user_id,username,email,name,full_name,role,display_role,display_role2,default_view,emp_id,is_active,permissions';
 const USER_PUBLIC_COLUMNS_EXTENDED = `${USER_PUBLIC_COLUMNS},auth_user_id,auth_email,can_review_requests,view_proposals_agreements,manage_proposals_agreements,approve_proposals_agreements`;
 const PROFILE_PERSONAL_REPORTS_COLUMNS = 'id,is_active,can_access_personal_reports';
 const VALID_SUPABASE_ROLES = new Set(['admin', 'operation_manager', 'authorized_user', 'instructor', 'finance', 'activities_manager', 'domain_manager', 'instructor_manager', 'business_development_manager']);
@@ -4538,7 +4767,7 @@ const VALID_SUPABASE_ROLES = new Set(['admin', 'operation_manager', 'authorized_
 
 const KNOWN_INSTRUCTOR_EMP_IDS = new Set(['1525', '1506', '1527', '1502', '1507', '1509', '1515', '1503', '1511']);
 function isKnownInstructorIdentity(user = {}) {
-  const role = normalizeRoleAlias(user?.role || user?.display_role).toLowerCase();
+  const role = normalizeRoleAlias(user?.role).toLowerCase();
   if (role !== 'instructor') return false;
   return [user.emp_id, user.employee_id, user.user_id, user.username]
     .map((value) => String(value || '').trim())
@@ -4546,14 +4775,14 @@ function isKnownInstructorIdentity(user = {}) {
 }
 
 const SUPABASE_ROLE_ROUTES = {
-  admin: ['dashboard', 'activities', 'archive', 'catalog', 'invitations', 'proposals-agreements', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'edit-requests', 'permissions', 'admin-home', 'admin-settings', 'admin-lists', 'finance', 'operations-management', 'certificates'],
-  operation_manager: ['dashboard', 'activities', 'archive', 'catalog', 'invitations', 'proposals-agreements', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'edit-requests', 'permissions', 'operations-management', 'certificates'],
+  admin: ['dashboard', 'activities', 'archive', 'catalog', 'invitations', 'proposals-agreements', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'permissions', 'admin-home', 'admin-settings', 'admin-lists', 'finance', 'operations-management', 'certificates'],
+  operation_manager: ['dashboard', 'activities', 'archive', 'catalog', 'invitations', 'proposals-agreements', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'permissions', 'operations-management', 'certificates'],
   authorized_user: ['dashboard', 'activities', 'archive', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'certificates'],
-  finance: ['dashboard', 'activities', 'archive', 'catalog', 'orders', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'edit-requests', 'certificates'],
-  activities_manager: ['dashboard', 'activities', 'archive', 'catalog', 'orders', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'edit-requests', 'operations-management', 'certificates'],
+  finance: ['dashboard', 'activities', 'archive', 'catalog', 'orders', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'certificates'],
+  activities_manager: ['dashboard', 'activities', 'archive', 'catalog', 'orders', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'operations-management', 'certificates'],
   domain_manager: ['dashboard', 'activities', 'archive', 'catalog', 'invitations', 'proposals-agreements', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'certificates'],
-  business_development_manager: ['dashboard', 'activities', 'archive', 'proposals-agreements', 'catalog', 'invitations', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'edit-requests', 'certificates'],
-  instructor_manager: ['dashboard', 'activities', 'archive', 'catalog', 'orders', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'edit-requests', 'certificates'],
+  business_development_manager: ['dashboard', 'activities', 'archive', 'proposals-agreements', 'catalog', 'invitations', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'certificates'],
+  instructor_manager: ['dashboard', 'activities', 'archive', 'catalog', 'orders', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'certificates'],
   instructor: ['instructor-calendar', 'my-data', 'instructor-completion-approvals', 'instructor-guidelines']
 };
 
@@ -4568,7 +4797,7 @@ function normalizeSupabaseRole(role) {
 }
 
 function canManagePersonalReportsUser(user = {}) {
-  const role = String(user?.display_role || user?.role || '').trim().toLowerCase();
+  const role = String(user?.role || '').trim().toLowerCase();
   if (role === 'admin') return true;
   return permissionFlagYes(user?.personal_reports_manager);
 }
@@ -4727,9 +4956,10 @@ function flattenUserRow(userRow = {}) {
     name: String(userRow.name || '').trim(),
     full_name: String(userRow.full_name || userRow.name || ''),
     role,
-    display_role: role,
+    display_role: customDisplayRole,
     display_role_label: displayRoleLabel || hebrewRole(role),
     display_role2: displayRole2,
+    default_view: String(userRow.default_view || '').trim(),
     emp_id: String(userRow.emp_id || userRow.user_id || ''),
     auth_user_id: String(userRow.auth_user_id || ''),
     active: userRow.is_active ? 'yes' : 'no',
@@ -4786,7 +5016,7 @@ function buildBootstrapFromUser(userRow, profileRow = null) {
     permissionFlagYes(flat.manage_proposals_agreements)
   ) { if (!allowedRoutes.includes('proposals-agreements')) allowedRoutes.push('proposals-agreements'); }
   const canReviewRequests = canDirectManageActivities;
-  const canViewEditRequests = canReviewRequests || canRequestEdit || permissionFlagYes(flat.view_edit_requests) || allowedRoutes.includes('edit-requests');
+  const canViewEditRequests = canReviewRequests || canRequestEdit || permissionFlagYes(flat.view_edit_requests);
   if (canViewEditRequests && !allowedRoutes.includes('edit-requests')) {
     allowedRoutes.push('edit-requests');
   }
@@ -4824,7 +5054,10 @@ function buildBootstrapFromUser(userRow, profileRow = null) {
   }
   return {
     routes: [...allowedRoutes],
-    default_route: allowedRoutes[0] || 'my-data',
+    default_route: (() => {
+      const preferred = flat.default_view === 'operations' ? 'operations-management' : flat.default_view;
+      return allowedRoutes.includes(preferred) ? preferred : (allowedRoutes[0] || 'my-data');
+    })(),
     has_finance_access: hasFinanceAccess,
     has_personal_reports_access: hasPersonalReportsAccess,
     has_personal_reports_manager: hasPersonalReportsManager,
@@ -5195,6 +5428,7 @@ const ALLOWED_ACTIVITY_COLUMNS = new Set([
   'sessions',
   'price',
   'funding',
+  'exists_in_gefen',
   'start_time',
   'end_time',
   'emp_id',
@@ -5267,6 +5501,14 @@ function normalizeTimeFieldForSupabase(value) {
   return /^\d{2}:\d{2}$/.test(clean) ? clean : null;
 }
 
+function normalizeBooleanFieldForSupabase(value) {
+  if (typeof value === 'boolean') return value;
+  const clean = String(value ?? '').trim().toLowerCase();
+  if (clean === 'true') return true;
+  if (clean === 'false') return false;
+  return null;
+}
+
 /**
  * Given a sanitized payload that may contain date_1..date_35,
  * returns the latest non-empty YYYY-MM-DD value, or null if none found.
@@ -5322,6 +5564,8 @@ function sanitizeActivityPayloadForSupabase(payload = {}, { includeRowId = true 
       nextValue = normalizeDateFieldForSupabase(rawValue);
     } else if (key === 'activity_season') {
       nextValue = normalizeActivitySeason(rawValue);
+    } else if (key === 'exists_in_gefen') {
+      nextValue = normalizeBooleanFieldForSupabase(rawValue);
     } else if (key === 'participants_count') {
       if (rawValue === '' || rawValue === null || rawValue === undefined) {
         nextValue = null;
@@ -5430,6 +5674,7 @@ async function upsertActivityToSupabase(payload = {}) {
     throw buildSupabaseMutationError('addActivity', error, 'save_failed');
   }
   await saveActivitySchoolsForActivity(data || row, act);
+  await saveActivityFundingSources(data || row, act);
   const normalized = normalizeActivityRow(data || row);
   invalidateAllActivitiesRowsCache();
   logActivityMutationDebug('success', 'addActivity', { source_sheet: 'activities', source_row_id: normalized.row_id, changes: row });
@@ -5582,12 +5827,11 @@ async function upsertMeetingNotesToSupabase(rowId, notesMap = {}) {
     meeting_no: String(Number(idx0) + 1),
     notes: String(note || '')
   }));
-  try {
-    await supabase
-      .from('activity_meetings')
-      .upsert(rows, { onConflict: 'source_row_id,meeting_no' });
-  } catch (e) {
-    console.warn('[activity-meetings] upsertMeetingNotesToSupabase failed', e?.message || e);
+  const { error } = await supabase
+    .from('activity_meetings')
+    .upsert(rows, { onConflict: 'source_row_id,meeting_no' });
+  if (error) {
+    throw buildSupabaseMutationError('saveActivityMeetingNotes', error, 'meeting_notes_save_failed');
   }
 }
 
@@ -5631,6 +5875,8 @@ async function updateActivityInSupabase(payload = {}) {
   const sourceSheet = String(payload?.source_sheet || 'activities').trim() || 'activities';
   if (!rowId) throw new Error('missing_row_id');
   const rawChanges = applyInstructorEmpSync({ ...(payload?.changes || {}) });
+  const fundingSourcesChange = Object.prototype.hasOwnProperty.call(rawChanges, 'funding_sources') ? rawChanges.funding_sources : undefined;
+  delete rawChanges.funding_sources;
   const meetingNotes = extractMeetingNotes(rawChanges);
   const mappedChanges = mapMeetingDateFieldNamesToSupabase(rawChanges);
   const { data: existingInstructorRow, error: existingInstructorError } = await supabase
@@ -5685,8 +5931,16 @@ async function updateActivityInSupabase(payload = {}) {
     if (derivedEnd) changes.end_date = derivedEnd;
   }
   const hasMeetingNotes = Object.keys(meetingNotes).length > 0;
-  if (!Object.keys(changes).length && !hasMeetingNotes) throw new Error('No changes to submit');
-  if (!Object.keys(changes).length) {
+  if (!Object.keys(changes).length && !hasMeetingNotes && fundingSourcesChange === undefined) throw new Error('No changes to submit');
+  if (!Object.keys(changes).length && fundingSourcesChange !== undefined) {
+    const { data: fundingOnlyRow, error: fundingOnlyError } = await supabase.from('activities').select('*').eq('row_id', rowId).maybeSingle();
+    if (fundingOnlyError || !fundingOnlyRow) throw new Error(fundingOnlyError?.message || 'activity_not_found_or_forbidden');
+    await saveActivityFundingSources(fundingOnlyRow, { funding_sources: fundingSourcesChange });
+    const [fundingOnlyNormalized] = await enrichActivitiesWithFundingSources([normalizeActivityRow(fundingOnlyRow)]);
+    invalidateAllActivitiesRowsCache();
+    return { ok: true, RowID: rowId, row_id: rowId, source_sheet: 'activities', row: fundingOnlyNormalized };
+  }
+  if (!Object.keys(changes).length && fundingSourcesChange === undefined) {
     await upsertMeetingNotesToSupabase(rowId, meetingNotes);
     const { data: notesOnlyRow } = await supabase.from('activities').select('*').eq('row_id', rowId).maybeSingle();
     const notesOnlyNormalized = normalizeActivityRow(notesOnlyRow || {});
@@ -5779,6 +6033,7 @@ async function updateActivityInSupabase(payload = {}) {
     throw dbVerifyError;
   }
   const normalized = normalizeActivityRow({ ...(data || {}), ...(freshDbRow || {}) });
+  if (fundingSourcesChange !== undefined) await saveActivityFundingSources(data || {}, { funding_sources: fundingSourcesChange });
   if (hasMeetingNotes) {
     await upsertMeetingNotesToSupabase(rowId, meetingNotes);
   }
@@ -5792,7 +6047,7 @@ async function readActivityDetailFromSupabase(source_row_id, source_sheet) {
   const rowId = String(source_row_id || '').trim();
   const { data, error } = await supabase.from('activities').select('*').eq('row_id', rowId).single();
   if (error) throw new Error(error.message || 'detail_failed');
-  const normalized = normalizeActivityRow(data || {});
+  const [normalized] = await enrichActivitiesWithFundingSources([normalizeActivityRow(data || {})]);
   const contactRows = await readContactsForSchool2027Activities([normalized]);
   const resolved = withResolvedSchool2027Contact(normalized, contactRows);
   return { row: { ...resolved, private_note: resolved.operations_private_notes || '' } };
@@ -5810,18 +6065,17 @@ async function readActivityDatesFromSupabase(source_row_id, source_sheet) {
   const row = normalizeActivityRow(data || {});
   const meeting_dates = getActivityDateColumns(row);
   const notesMap = {};
-  try {
-    const { data: meetingNoteRows } = await supabase
-      .from('activity_meetings')
-      .select('meeting_no,notes')
-      .eq('source_row_id', rowId);
-    if (Array.isArray(meetingNoteRows)) {
-      meetingNoteRows.forEach((m) => {
-        const idx = Number(m.meeting_no) - 1;
-        if (Number.isFinite(idx) && idx >= 0 && m.notes) notesMap[idx] = String(m.notes);
-      });
-    }
-  } catch (_) { /* notes are optional — do not fail dates load */ }
+  const { data: meetingNoteRows, error: meetingNotesError } = await supabase
+    .from('activity_meetings')
+    .select('meeting_no,notes')
+    .eq('source_row_id', rowId);
+  if (meetingNotesError) throw new Error(meetingNotesError.message || 'meeting_notes_load_failed');
+  if (Array.isArray(meetingNoteRows)) {
+    meetingNoteRows.forEach((m) => {
+      const idx = Number(m.meeting_no) - 1;
+      if (Number.isFinite(idx) && idx >= 0) notesMap[idx] = String(m.notes || '');
+    });
+  }
   const meeting_schedule = meeting_dates.map((d, i) => ({ date: d, performed: 'no', note: notesMap[i] || '' }));
   return {
     meeting_dates,
@@ -5901,6 +6155,7 @@ async function readAllActivitiesRowsSupabase({
     rows = await selectActivitiesByDateRangeFromSupabase({
       startDate,
       endDate,
+      activityPeriod: selectedSeason,
       select,
       includeEndDate: true
     });
@@ -6356,10 +6611,33 @@ async function readCatalogProgramsFromSupabase() {
   };
 }
 export const api = {
+  attendanceControlRequest: async (action) => {
+    const response = await fetch(config.attendanceApiUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action })
+    });
+    if (!response.ok) throw new Error(`attendance_api_${response.status}`);
+    return response.json();
+  },
+  attendanceControlTeams: async function () {
+    const response = await this.attendanceControlRequest('getallemployees');
+    if (!response?.success || !Array.isArray(response.employees)) throw new Error('attendance_employees_load_failed');
+    return response.employees;
+  },
+  attendanceControlRecords: async function () {
+    const response = await this.attendanceControlRequest('getsummary');
+    if (!response?.success || !Array.isArray(response.records)) throw new Error('attendance_records_load_failed');
+    return response.records;
+  },
   login: async (user_id, entry_code) => {
-    const [{ userRow: user, profileRow }, listsData, settingsRows, instructorContactsRows, courseMeetingsRows] = await Promise.all([
-      loginWithSupabaseAuth(user_id, entry_code),
-      readListsFromSupabase().catch(() => null),
+    // Auth must complete before any permission-guarded Supabase reads.
+    const { userRow: user, profileRow } = await loginWithSupabaseAuth(user_id, entry_code);
+    // Bootstrap reads run in parallel after auth is established.
+    // school/authority are NOT loaded here — they are lazy-loaded on first demand
+    // via readAuthoritySchoolCatalog() inside api functions that need them.
+    const [listsData, settingsRows, instructorContactsRows, courseMeetingsRows] = await Promise.all([
+      readBootstrapListsFromSupabase().catch(() => null),
       readSettingsRowsFromSupabase().catch(() => []),
       readInstructorContactsRowsForBootstrap().catch(() => []),
       readCourseMeetingsRowsForBootstrap().catch(() => [])
@@ -6380,7 +6658,8 @@ export const api = {
         email: String(flat.email || user.email || '').trim(),
         auth_email: String(flat.auth_email || '').trim(),
         role: flat.role,
-        display_role: flat.role,
+        display_role: flat.display_role,
+        default_view: flat.default_view,
         display_role_label: flat.display_role_label,
         display_role2: flat.display_role2,
         full_name: flat.full_name,
@@ -6398,21 +6677,23 @@ export const api = {
         ...proposalFlags
       },
       ...buildBootstrapFromUser(user, profileRow),
-      client_settings: buildClientSettingsFromLists(listsData, settingsRows, instructorContactsRows, courseMeetingsRows)
+      // catalogData = null: school/authority are lazy-loaded on demand, not at login.
+      client_settings: buildClientSettingsFromLists(listsData, settingsRows, instructorContactsRows, courseMeetingsRows, null)
     };
   },
   bootstrap: async () => {
     await waitForSupabaseAuthSession();
+    // school/authority are NOT loaded here — lazy-loaded on first demand.
     const [{ userRow: user, profileRow }, listsData, settingsRows, instructorContactsRows, courseMeetingsRows] = await Promise.all([
       readCurrentUserBySession(),
-      readListsFromSupabase().catch(() => null),
+      readBootstrapListsFromSupabase().catch(() => null),
       readSettingsRowsFromSupabase().catch(() => []),
       readInstructorContactsRowsForBootstrap().catch(() => []),
       readCourseMeetingsRowsForBootstrap().catch(() => [])
     ]);
     return {
       ...buildBootstrapFromUser(user, profileRow),
-      client_settings: buildClientSettingsFromLists(listsData, settingsRows, instructorContactsRows, courseMeetingsRows)
+      client_settings: buildClientSettingsFromLists(listsData, settingsRows, instructorContactsRows, courseMeetingsRows, null)
     };
   },
   dashboard: (filters) => api.dashboardReadModel(filters || {}),
@@ -6459,6 +6740,62 @@ export const api = {
       endDate: params?.endDate || params?.dateTo || ''
     });
     return { rows, _source: 'supabase' };
+  },
+  scheduleFilterOptions: async (params = {}) => {
+    const requestedPeriods = Array.isArray(params?.activity_periods) && params.activity_periods.length
+      ? params.activity_periods
+      : [params?.activity_period || currentGlobalActivityPeriod()];
+    const periodRows = await Promise.all(requestedPeriods.map((activityPeriod) => readAllActivitiesRowsSupabase({
+      activityPeriod,
+      select: ACTIVITY_SCHEDULE_FILTER_OPTION_COLUMNS
+    })));
+    const rows = [...new Map(periodRows.flat().map((row) => [String(row?.row_id || ''), row])).values()];
+    return { rows, _source: 'supabase_metadata' };
+  },
+  attendanceControlDashboardSources: async ({ employeeIds = [], fromDate = '', toDate = '' } = {}) => {
+    const ids = [...new Set((employeeIds || []).map((value) => String(value || '').trim()).filter(Boolean))];
+    if (!ids.length || !fromDate || !toDate) return { activities: [], contacts: [], travelCache: [], expenses: [] };
+    const activitySelect = `${ACTIVITY_OPERATIONS_COLUMNS},authority_id`;
+    const [regular, summer, school2027, contactsResult, usersResult] = await Promise.all([
+      readAllActivitiesRowsSupabase({ activityPeriod: ACTIVITY_SEASON_REGULAR, select: activitySelect, startDate: fromDate, endDate: toDate }),
+      readAllActivitiesRowsSupabase({ activityPeriod: ACTIVITY_SEASON_SUMMER_2026, select: activitySelect, startDate: fromDate, endDate: toDate }),
+      readAllActivitiesRowsSupabase({ activityPeriod: ACTIVITY_SEASON_SCHOOL_2027, select: activitySelect, startDate: fromDate, endDate: toDate }),
+      supabase.from('contacts_instructors').select('emp_id,full_name,address,employment_type,active').in('emp_id', ids),
+      supabase.from('users').select('emp_id,auth_user_id').in('emp_id', ids)
+    ]);
+    if (contactsResult.error) throw new Error(contactsResult.error.message || 'attendance_contacts_load_failed');
+    const activities = [...new Map([...(regular || []), ...(summer || []), ...(school2027 || [])]
+      .map((row) => [String(row.row_id || row.id || ''), row])).values()]
+      .filter((row) => ids.includes(String(row.emp_id || '').trim()) || ids.includes(String(row.emp_id_2 || '').trim()));
+    const schoolIds = [...new Set(activities.map((row) => Number(row.school_id)).filter(Number.isFinite))];
+    const routeReads = [];
+    const numericEmpIds = ids.map(Number).filter(Number.isFinite);
+    if (numericEmpIds.length) routeReads.push(supabase.from('scheduling_travel_cache').select('*').in('origin_instructor_emp_id', numericEmpIds));
+    if (schoolIds.length) routeReads.push(supabase.from('scheduling_travel_cache').select('*').in('origin_school_id', schoolIds).in('destination_school_id', schoolIds));
+    const routeResults = await Promise.all(routeReads);
+    const travelCache = [...new Map(routeResults.flatMap((result) => result.error ? [] : (result.data || []))
+      .map((row) => [`${row.origin_key}|${row.destination_key}`, row])).values()];
+
+    const userRows = usersResult.error ? [] : usersResult.data || [];
+    const authIds = userRows.map((row) => row.auth_user_id).filter(Boolean);
+    const empByAuthId = new Map(userRows.map((row) => [String(row.auth_user_id || ''), String(row.emp_id || '')]));
+    let expenses = [];
+    if (authIds.length) {
+      const reportsResult = await supabase.from('personal_reports').select('id,employee_id').in('employee_id', authIds);
+      const reportIds = (reportsResult.error ? [] : reportsResult.data || []).map((row) => row.id).filter(Boolean);
+      if (reportIds.length) {
+        const expenseResult = await supabase.from('expense_entries').select('report_id,employee_id,expense_date,amount,description,notes').in('report_id', reportIds).gte('expense_date', fromDate).lte('expense_date', toDate);
+        if (!expenseResult.error) expenses = (expenseResult.data || []).map((row) => ({ ...row, emp_id: empByAuthId.get(String(row.employee_id || '')) || '' }));
+      }
+    }
+    return {
+      activities,
+      contacts: contactsResult.data || [],
+      travelCache,
+      expenses,
+      expenseSourceAvailable: Boolean(authIds.length),
+      travelSourceAvailable: routeResults.every((result) => !result.error)
+    };
   },
   activities: async (filters, options) => {
     const resolvedFilters = filters || {};
@@ -6536,6 +6873,31 @@ export const api = {
     const supabaseData = await readInstructorContactsFromSupabase();
     if (supabaseData) return supabaseData;
     return buildSupabaseErrorPayload({ rows: [] }, 'instructor_contacts_supabase_failed');
+  },
+  instructorEmployeeFile: async ({ empId, schoolYear = '2027' } = {}) => {
+    const numericEmpId = Number(String(empId || '').trim());
+    if (!Number.isSafeInteger(numericEmpId) || numericEmpId <= 0) throw new Error('invalid_employee_file_emp_id');
+    const { data, error } = await supabase.rpc('get_instructor_employee_file_snapshot', {
+      p_emp_id: numericEmpId,
+      p_school_year: String(schoolYear || '2027').trim()
+    });
+    if (error) throw new Error(error.message || 'employee_file_snapshot_failed');
+    return data || { mapped: false, components: [] };
+  },
+  updateInstructorEmployeeFileComponent: async ({ empId, schoolYear = '2027', componentKey, completed = false, itemCount = 0 } = {}) => {
+    const { data, error } = await supabase.rpc('update_instructor_employee_file_component', {
+      p_emp_id: Number(empId), p_school_year: String(schoolYear), p_component_key: String(componentKey),
+      p_completed: completed === true, p_item_count: Math.max(0, Number(itemCount) || 0)
+    });
+    if (error) throw new Error(error.message || 'employee_file_component_update_failed');
+    return data;
+  },
+  updateInstructorEmployeeFolderUrl: async ({ empId, schoolYear = '2027', folderWebUrl = '' } = {}) => {
+    const { data, error } = await supabase.rpc('update_instructor_employee_folder_url', {
+      p_emp_id: Number(empId), p_school_year: String(schoolYear), p_folder_web_url: String(folderWebUrl || '').trim()
+    });
+    if (error) throw new Error(error.message || 'employee_file_folder_url_update_failed');
+    return data;
   },
   contacts: async (params = {}) => {
     const supabaseData = await readContactsFromSupabase(params || {});
@@ -6928,14 +7290,14 @@ export const api = {
     return {
       rows,
       roleDefaults: {
-        admin: { can_add_activity: 'yes', can_edit_direct: 'yes', can_request_edit: 'yes', can_review_requests: 'yes', view_admin: 'yes', view_permissions: 'yes', view_catalog: 'yes', view_orders: 'yes', view_proposals: 'yes', view_israa_management: 'yes', can_access_personal_reports: 'yes' },
-        operation_manager: { can_add_activity: 'yes', can_edit_direct: 'yes', can_request_edit: 'yes', can_review_requests: 'yes', view_admin: 'no', view_permissions: 'no', view_catalog: 'yes', view_orders: 'yes', view_proposals: 'yes', view_israa_management: 'no', can_access_personal_reports: 'yes' },
+        admin: { can_add_activity: 'yes', can_edit_direct: 'yes', can_request_edit: 'yes', can_review_requests: 'yes', view_admin: 'yes', view_permissions: 'yes', view_catalog: 'yes', view_orders: 'yes', view_proposals: 'yes', view_israa_management: 'yes', view_employee_files: 'yes', can_access_personal_reports: 'yes' },
+        operation_manager: { can_add_activity: 'yes', can_edit_direct: 'yes', can_request_edit: 'yes', can_review_requests: 'yes', view_admin: 'no', view_permissions: 'no', view_catalog: 'yes', view_orders: 'yes', view_proposals: 'yes', view_israa_management: 'no', view_employee_files: 'yes', can_access_personal_reports: 'yes' },
         authorized_user: { can_add_activity: 'yes', can_edit_direct: 'no', can_request_edit: 'yes', can_review_requests: 'no', view_admin: 'no', view_permissions: 'no', view_proposals: 'no', view_israa_management: 'no', can_access_personal_reports: 'yes' },
-        finance: { can_add_activity: 'no', can_edit_direct: 'no', can_request_edit: 'no', can_review_requests: 'no', view_admin: 'no', view_permissions: 'no', finance_access: 'yes', view_finance: 'yes', view_catalog: 'yes', view_orders: 'yes', view_proposals: 'no', view_israa_management: 'no', can_access_personal_reports: 'yes' },
-        activities_manager: { can_add_activity: 'yes', can_edit_direct: 'no', can_request_edit: 'yes', can_review_requests: 'no', view_admin: 'no', view_permissions: 'no', view_catalog: 'yes', view_orders: 'yes', view_proposals: 'no', view_israa_management: 'no', can_access_personal_reports: 'yes' },
-        domain_manager: { can_add_activity: 'no', can_edit_direct: 'no', can_request_edit: 'no', can_review_requests: 'no', view_admin: 'no', view_permissions: 'no', view_catalog: 'yes', view_orders: 'yes', view_proposals: 'yes', view_israa_management: 'no', can_access_personal_reports: 'yes' },
-        business_development_manager: { can_add_activity: 'yes', can_edit_direct: 'no', can_request_edit: 'yes', can_review_requests: 'no', view_admin: 'no', view_permissions: 'no', view_catalog: 'yes', view_orders: 'yes', view_proposals: 'yes', view_israa_management: 'no', finance_access: 'no', can_access_personal_reports: 'yes' },
-        instructor_manager: { can_add_activity: 'yes', can_edit_direct: 'no', can_request_edit: 'yes', can_review_requests: 'no', view_admin: 'no', view_permissions: 'no', view_catalog: 'yes', view_orders: 'yes', view_proposals: 'no', view_israa_management: 'no', can_access_personal_reports: 'yes' },
+        finance: { can_add_activity: 'no', can_edit_direct: 'no', can_request_edit: 'no', can_review_requests: 'no', view_admin: 'no', view_permissions: 'no', finance_access: 'yes', view_finance: 'yes', view_catalog: 'yes', view_orders: 'yes', view_proposals: 'no', view_israa_management: 'no', view_employee_files: 'yes', can_access_personal_reports: 'yes' },
+        activities_manager: { can_add_activity: 'yes', can_edit_direct: 'no', can_request_edit: 'yes', can_review_requests: 'no', view_admin: 'no', view_permissions: 'no', view_catalog: 'yes', view_orders: 'yes', view_proposals: 'no', view_israa_management: 'no', view_employee_files: 'yes', can_access_personal_reports: 'yes' },
+        domain_manager: { can_add_activity: 'no', can_edit_direct: 'no', can_request_edit: 'no', can_review_requests: 'no', view_admin: 'no', view_permissions: 'no', view_catalog: 'yes', view_orders: 'yes', view_proposals: 'yes', view_israa_management: 'no', view_employee_files: 'yes', can_access_personal_reports: 'yes' },
+        business_development_manager: { can_add_activity: 'yes', can_edit_direct: 'no', can_request_edit: 'yes', can_review_requests: 'no', view_admin: 'no', view_permissions: 'no', view_catalog: 'yes', view_orders: 'yes', view_proposals: 'yes', view_israa_management: 'no', finance_access: 'no', view_employee_files: 'yes', can_access_personal_reports: 'yes' },
+        instructor_manager: { can_add_activity: 'yes', can_edit_direct: 'no', can_request_edit: 'yes', can_review_requests: 'no', view_admin: 'no', view_permissions: 'no', view_catalog: 'yes', view_orders: 'yes', view_proposals: 'no', view_israa_management: 'no', view_employee_files: 'yes', can_access_personal_reports: 'yes' },
         instructor: { can_add_activity: 'no', can_edit_direct: 'no', can_request_edit: 'no', can_review_requests: 'no', view_admin: 'no', view_permissions: 'no', view_proposals: 'no', view_israa_management: 'no', can_access_personal_reports: 'yes' }
       }
     };
@@ -6969,10 +7331,43 @@ export const api = {
     const rows = await readSettingsRowsFromSupabase();
     return { rows, _source: 'supabase' };
   },
+  fundingSources: async ({ includeInactive = false } = {}) => {
+    let query = supabase.from('funding_sources').select('id,name,is_active,sort_order,created_at,updated_at').order('sort_order', { ascending: true, nullsFirst: false }).order('name');
+    if (!includeInactive) query = query.eq('is_active', true);
+    const { data, error } = await query;
+    if (error) throw new Error(error.message || 'funding_sources_read_failed');
+    return { rows: data || [] };
+  },
+  addFundingSource: async ({ name, sort_order = null } = {}) => {
+    if (String(state?.user?.role || '') !== 'admin') throw new Error('forbidden_funding_catalog');
+    const cleanName = String(name || '').trim();
+    if (!cleanName) throw new Error('funding_source_name_required');
+    const { data, error } = await supabase.from('funding_sources').insert({ name: cleanName, sort_order }).select().single();
+    if (error) throw new Error(error.code === '23505' ? 'funding_source_duplicate' : (error.message || 'funding_source_save_failed'));
+    return data;
+  },
+  updateFundingSource: async ({ id, name, is_active } = {}) => {
+    if (String(state?.user?.role || '') !== 'admin') throw new Error('forbidden_funding_catalog');
+    const changes = {};
+    if (name !== undefined) changes.name = String(name || '').trim();
+    if (is_active !== undefined) changes.is_active = Boolean(is_active);
+    const { data, error } = await supabase.from('funding_sources').update(changes).eq('id', id).select().single();
+    if (error) throw new Error(error.code === '23505' ? 'funding_source_duplicate' : (error.message || 'funding_source_save_failed'));
+    return data;
+  },
   adminLists: async () => {
     const supabaseData = await readListsFromSupabase();
     if (supabaseData) return supabaseData;
     return buildSupabaseErrorPayload({ categories: [] }, 'admin_lists_supabase_failed');
+  },
+  /**
+   * Focused lists fetch for the workshop inventory tab.
+   * Queries only activity_names + workshop_stock (~79 rows vs ~997 for adminLists).
+   */
+  workshopLists: async () => {
+    const supabaseData = await readWorkshopListsFromSupabase();
+    if (supabaseData) return supabaseData;
+    return buildSupabaseErrorPayload({ categories: [] }, 'workshop_lists_supabase_failed');
   },
 
   workshopStockDistributions: async () => {
@@ -6980,6 +7375,16 @@ export const api = {
       .from('workshop_stock_distributions')
       .select('*');
     if (error) throw new Error(error.message || 'workshop_stock_distributions_read_failed');
+    return { rows: Array.isArray(data) ? data : [], _source: 'supabase' };
+  },
+  workshopInventoryOpeningBalances: async ({ inventoryYear } = {}) => {
+    const year = Number(inventoryYear);
+    let query = supabase
+      .from('workshop_inventory_opening_balances')
+      .select('inventory_year,activity_season,stock_group_key,workshop_numbers,workshop_name,holder_name,holder_type,opening_quantity');
+    if (Number.isFinite(year) && year > 0) query = query.eq('inventory_year', year);
+    const { data, error } = await query;
+    if (error) throw new Error(error.message || 'workshop_inventory_opening_balances_read_failed');
     return { rows: Array.isArray(data) ? data : [], _source: 'supabase' };
   },
   updateWorkshopStockItems: updateWorkshopStockItemsInSupabase,
@@ -6994,6 +7399,8 @@ export const api = {
       client_type: cleanProposalAgreementText(payload.client_type) || (resolvedSchool.school_id ? 'school' : 'authority')
     };
     const insert = sanitizeProposalAgreementPayload(enrichedPayload, groupLookup);
+    const submissionId = uuidOrNull(payload?._submission_id);
+    if (submissionId) insert.id = submissionId;
     if (cleanProposalAgreementText(enrichedPayload.contact_name) && cleanProposalAgreementText(enrichedPayload.client_authority)) {
       insert.contact_school_id = await ensureValidProposalContactSchoolId({ ...enrichedPayload, ...insert, _contact_original: enrichedPayload?._contact_original });
     }
@@ -7002,6 +7409,12 @@ export const api = {
       .insert(insert)
       .select(PROPOSALS_AGREEMENTS_COLUMNS)
       .single();
+    const recovered = await recoverIdempotentProposalInsert(error, submissionId, (id) => supabase
+        .from('proposals_agreements')
+        .select(PROPOSALS_AGREEMENTS_COLUMNS)
+        .eq('id', id)
+        .single());
+    if (recovered) return recovered;
     if (error) throw new Error(error.message || 'proposals_agreement_add_failed');
     return { ok: true, row: normalizeProposalAgreementRow(data) };
   },
@@ -7423,6 +7836,25 @@ export const api = {
       };
     });
   },
+  readCurrentGefenCourses: async (gefenNumbers = []) => {
+    assertCanUseProposalsAgreementsApi();
+    const requested = Array.from(new Set((Array.isArray(gefenNumbers) ? gefenNumbers : [])
+      .map(cleanProposalAgreementText).filter(Boolean)));
+    if (!requested.length) return [];
+    const { data, error } = await supabase
+      .from('proposal_gefen_courses')
+      .select('gefen_number,meetings_count,hours_count,hourly_price,total_price,is_active')
+      .eq('is_active', true)
+      .in('gefen_number', requested);
+    if (error) throwProposalLoadError('gefenCoursesError', 'proposal_gefen_courses', error);
+    return (Array.isArray(data) ? data : []).map((course) => ({
+      gefen_number: cleanProposalAgreementText(course?.gefen_number),
+      meetings_count: course?.meetings_count != null ? Number(course.meetings_count) : null,
+      hours_count: course?.hours_count != null ? Number(course.hours_count) : null,
+      hourly_price: course?.hourly_price != null ? Number(course.hourly_price) : null,
+      total_price: course?.total_price != null ? Number(course.total_price) : null
+    }));
+  },
   readProposalActivityPricing: async () => {
     assertCanUseProposalsAgreementsApi();
     const groupLookup = await getProposalGroupLookup();
@@ -7535,6 +7967,10 @@ export const api = {
         }
         return row;
       });
+    const missingItemNameIndex = validItems.findIndex((item) => !cleanProposalAgreementText(item.item_name));
+    if (missingItemNameIndex >= 0) {
+      throw new Error(`חסר שם פעילות בשורה ${missingItemNameIndex + 1}. שמירת פריטי ההצעה לא בוצעה.`);
+    }
     const { data, error } = await supabase.rpc('save_proposal_agreement_items_atomic', {
       p_proposal_id: rowId,
       p_items: validItems
@@ -7567,10 +8003,31 @@ export const api = {
       }
       if (!nextRow.active) nextRow.active = 'פעיל';
       const { data, error } = await supabase.from('contacts_schools').insert(nextRow).select().single();
-      if (error) throw new Error(error.message || 'add_contact_failed');
+      if (error) {
+        const insertError = new Error(error.message || 'add_contact_failed');
+        Object.assign(insertError, {
+          code: error.code,
+          details: error.details,
+          hint: error.hint,
+          constraint: error.constraint,
+          status: error.status
+        });
+        throw insertError;
+      }
       return { ok: true, row: data };
     }
     throw new Error('invalid_contact_kind');
+  },
+  findSchoolContactByUniqueIdentity: async ({ authority, school, contact_name: contactName }) => {
+    const { data, error } = await supabase
+      .from('contacts_schools')
+      .select('*')
+      .eq('authority', String(authority || '').trim())
+      .eq('school', String(school || '').trim())
+      .eq('contact_name', String(contactName || '').trim())
+      .limit(2);
+    if (error) throw new Error(error.message || 'school_contact_duplicate_lookup_failed');
+    return { ok: true, rows: Array.isArray(data) ? data : [] };
   },
   saveContact: async (payload) => {
     const kind = String(payload?.kind || '').trim();
@@ -7805,6 +8262,10 @@ export const api = {
     await validateActivityInstructorBindingsOrThrow({ ...(existingInstructorRow || {}), ...syncedChanges });
     const reducedChanges = Object.entries(syncedChanges).reduce((acc, [key, value]) => {
       if (value === undefined) return acc;
+      if (key === 'exists_in_gefen' && typeof value === 'boolean') {
+        acc[key] = value;
+        return acc;
+      }
       const isDateField = key === 'start_date' || key === 'end_date' || /^date_\d+$/.test(key) || /^meeting_date_\d+$/.test(key);
       if (value === null) {
         if (isDateField) acc[key] = null;
@@ -7974,7 +8435,7 @@ export const api = {
     if (existing.error || !existing.data) throw new Error('user_not_found');
     const permissions = { ...(existing.data.permissions || {}) };
     Object.entries(row || {}).forEach(([k, v]) => {
-      if (['user_id', 'role', 'active', 'full_name', 'entry_code', 'emp_id', 'display_role2', 'can_access_personal_reports'].includes(k)) return;
+      if (['user_id', 'role', 'display_role', 'default_view', 'active', 'full_name', 'entry_code', 'emp_id', 'display_role2', 'can_access_personal_reports'].includes(k)) return;
       permissions[k] = v;
     });
     const nextRole = row.role || existing.data.role;
@@ -7993,6 +8454,8 @@ export const api = {
     }
     const patch = {
       role: nextRole,
+      display_role: row.display_role ?? existing.data.display_role,
+      default_view: row.default_view ?? existing.data.default_view,
       is_active: String(row.active || '').toLowerCase() !== 'no',
       name: row.full_name ?? existing.data.name,
       emp_id: row.emp_id ?? existing.data.emp_id,
@@ -8018,14 +8481,18 @@ export const api = {
   },
   addUser: async (row) => {
     const role = String(row?.role || 'instructor').trim();
+    const employeeFilesDefault = ['admin', 'operation_manager', 'finance', 'activities_manager', 'domain_manager', 'business_development_manager', 'instructor_manager'].includes(role) ? 'yes' : 'no';
     const permissions = role === 'business_development_manager'
       ? { can_add_activity: 'yes', can_edit_direct: 'no', can_request_edit: 'yes', can_review_requests: 'no', view_admin: 'no', view_permissions: 'no', view_catalog: 'yes', view_orders: 'yes', finance_access: 'no' }
       : { can_request_edit: 'yes' };
+    permissions.view_employee_files = employeeFilesDefault;
     const insert = {
       user_id: String(row?.user_id || '').trim(),
       email: null,
       name: String(row?.full_name || '').trim(),
       role,
+      display_role: String(row?.display_role || '').trim(),
+      default_view: String(row?.default_view || '').trim(),
       emp_id: String(row?.user_id || '').trim(),
       is_active: true,
       entry_code: String(row?.entry_code || '').trim(),

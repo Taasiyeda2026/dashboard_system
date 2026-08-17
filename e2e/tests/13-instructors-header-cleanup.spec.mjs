@@ -16,7 +16,7 @@ test('instructors screen has no top search row or scheduling button', async ({ p
   await expect(page.locator('.ds-page-header [data-route="course-scheduling"]')).toHaveCount(0);
 
   await expect(page.locator('[data-instructors-active]').first()).toBeVisible();
-  await expect(page.locator('[data-instructors-assignment]').first()).toBeVisible();
+  await expect(page.locator('[data-instructors-assignment]')).toHaveCount(0);
 
   await tracker.persist('instructors-header-cleanup');
   assertNoTransportErrors(tracker);

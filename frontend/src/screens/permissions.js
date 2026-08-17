@@ -22,6 +22,7 @@ const KEY_PERM_FLAGS = [
   'approve_proposals_agreements',
   'view_israa_management',
   'view_operations_management',
+  'view_employee_files',
   'finance_access',
   'can_access_personal_reports',
   'personal_reports_manager'

@@ -1,6 +1,7 @@
 import { state } from './state.js';
 import { SCREEN_CACHE_STORAGE_PREFIX } from './cache-persist.js';
 import { supabase } from './supabase-client.js';
+import { applyDashboardAuthEvent } from './session-security-lifecycle.js';
 
 const ROUTES_KEY = 'dashboard_routes';
 const USER_KEY = 'dashboard_user';
@@ -182,6 +183,7 @@ export function installAuthSessionIsolation() {
     reconcileInitialAuthSession();
 
     supabase.auth.onAuthStateChange((event, session) => {
+      applyDashboardAuthEvent(event, session);
       if (event === 'SIGNED_OUT') {
         if (state?.token || localStorage.getItem(TOKEN_KEY)) {
           clearLocalDashboardIdentity();

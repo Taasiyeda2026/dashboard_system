@@ -1,7 +1,32 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import {
+
+if (!globalThis.localStorage) {
+  const store = new Map();
+  globalThis.localStorage = {
+    getItem: (key) => (store.has(key) ? store.get(key) : null),
+    setItem: (key, value) => { store.set(String(key), String(value)); },
+    removeItem: (key) => { store.delete(String(key)); }
+  };
+}
+if (!globalThis.sessionStorage) {
+  const store = new Map();
+  globalThis.sessionStorage = {
+    getItem: (key) => (store.has(key) ? store.get(key) : null),
+    setItem: (key, value) => { store.set(String(key), String(value)); },
+    removeItem: (key) => { store.delete(String(key)); }
+  };
+}
+if (!globalThis.document) {
+  globalThis.document = {
+    dispatchEvent() { return true; },
+    addEventListener() {},
+    documentElement: { dataset: {} }
+  };
+}
+
+const {
   getActivitySchoolDisplayName,
   hasActivitySchoolOrFrame,
   getActivityInstructorName,
@@ -19,25 +44,27 @@ import {
   getActivityRequiredInventoryQuantity,
   sumRequiredInventoryQuantitiesFromActivities,
   WORKSHOP_ESTIMATE_PER_ACTIVITY
-} from '../frontend/src/screens/shared/operations-activity-helpers.js';
-import { operationsManagementScreen } from '../frontend/src/screens/operations-management.js';
-import {
+} = await import('../frontend/src/screens/shared/operations-activity-helpers.js');
+const { operationsManagementScreen } = await import('../frontend/src/screens/operations-management.js');
+const {
   buildCompletionApprovals,
   completionApprovalDocumentHtml,
   completionApprovalInstructorOptions,
   completionApprovalPrintCss,
   formatApprovalTime,
   sortApprovalActivitiesByTime
-} from '../frontend/src/screens/shared/activity-completion-approval-print.js';
-import {
+} = await import('../frontend/src/screens/shared/activity-completion-approval-print.js');
+const {
   findMatchingCompletionApprovalUpload
-} from '../frontend/src/screens/shared/completion-approval-status.js';
+} = await import('../frontend/src/screens/shared/completion-approval-status.js');
 
 function baseState(overrides = {}) {
-  return {
+  const base = {
+    activityPeriodTab: 'regular',
     operationsManagement: {
-      tab: 'instructors',
-      period: 'all',
+      tab: 'completion_approval',
+      context: 'operations',
+      period: 'regular',
       dateFrom: '2026-01-01',
       dateTo: '2026-12-31',
       instructor: '__all__',
@@ -46,9 +73,47 @@ function baseState(overrides = {}) {
     },
     listFilters: {
       'operations-management': { q: '', appliedQ: '', status: 'פתוח', visibleCount: 200 }
-    },
-    ...overrides
+    }
   };
+  return {
+    ...base,
+    ...overrides,
+    operationsManagement: {
+      ...base.operationsManagement,
+      ...(overrides.operationsManagement || {})
+    },
+    listFilters: {
+      ...base.listFilters,
+      ...(overrides.listFilters || {})
+    }
+  };
+}
+
+function scheduleState(overrides = {}) {
+  return baseState({
+    ...overrides,
+    operationsManagement: {
+      tab: 'instructors',
+      context: 'instructors',
+      scheduleHasLoaded: true,
+      period: 'regular',
+      dateFrom: '2026-01-01',
+      dateTo: '2026-12-31',
+      instructor: '__all__',
+      expandedWorkshop: '',
+      expandedSchool: '',
+      ...(overrides.operationsManagement || {})
+    }
+  });
+}
+
+function physicalWorkshopStock(entries = []) {
+  return entries.map(([stockGroupKey, quantity, instructorName = 'מלאי עידן']) => ({
+    stock_group_key: stockGroupKey,
+    instructor_name: instructorName,
+    quantity_received: quantity,
+    distribution_date: '2026-07-01'
+  }));
 }
 
 const TEXT_SCHOOL_ROWS = [
@@ -92,10 +157,17 @@ test('getActivityInstructorNames includes secondary instructor fields', () => {
 });
 
 test('operations management instructor filter and schedule include secondary instructors', () => {
-  const state = baseState();
-  state.operationsManagement.period = 'summer_2026';
-  state.operationsManagement.dateFrom = '2026-07-01';
-  state.operationsManagement.dateTo = '2026-08-31';
+  const state = scheduleState({
+    activityPeriodTab: 'summer_2026',
+    operationsManagement: {
+      tab: 'instructors',
+      context: 'instructors',
+      period: 'summer_2026',
+      dateFrom: '2026-07-01',
+      dateTo: '2026-08-31',
+      instructor: '__all__'
+    }
+  });
   state.listFilters['operations-management'].instructor = 'אפרת אוחיון';
   const rows = [{
     RowID: 'TAMIR-1',
@@ -111,6 +183,13 @@ test('operations management instructor filter and schedule include secondary ins
   const html = operationsManagementScreen.render({ rows, workshopStockMap: new Map() }, { state });
   assert.match(html, /תמיר - חדר בריחה קווסט/);
   assert.match(html, /אפרת אוחיון/);
+
+  state.listFilters['operations-management'].status = '';
+  state.listFilters['operations-management'].instructor = '';
+  const allStatusHtml = operationsManagementScreen.render({ rows: [], filterOptionRows: rows, workshopStockMap: new Map() }, { state });
+  assert.match(allStatusHtml, /<option value="מסגרת תמיר">מסגרת תמיר<\/option>/);
+  assert.match(allStatusHtml, /<option value="אפרת אוחיון">אפרת אוחיון<\/option>/);
+  assert.match(allStatusHtml, /<option value="תמיר - חדר בריחה קווסט">תמיר - חדר בריחה קווסט<\/option>/);
 });
 
 test('getActivityPrimaryDate uses start_date and meeting dates', () => {
@@ -121,17 +200,17 @@ test('getActivityPrimaryDate uses start_date and meeting dates', () => {
 });
 
 test('getActivityTimeRange formats HH:MM:SS to HH:MM for display and print', () => {
-  assert.equal(getActivityTimeRange({ start_time: '08:15:00', end_time: '09:00:00' }), '08:15-09:00');
-  assert.equal(getActivityTimeRange({ StartTime: '08:15:00', EndTime: '09:00:00' }), '08:15-09:00');
-  assert.equal(getActivityTimeRange({ start_time: '09:00', end_time: '12:30' }), '09:00-12:30');
+  assert.equal(getActivityTimeRange({ start_time: '08:15:00', end_time: '09:00:00' }), '08:15–09:00');
+  assert.equal(getActivityTimeRange({ StartTime: '08:15:00', EndTime: '09:00:00' }), '08:15–09:00');
+  assert.equal(getActivityTimeRange({ start_time: '09:00', end_time: '12:30' }), '09:00–12:30');
   assert.equal(getActivityTimeRange({ start_time: '08:15:00' }), '08:15');
   assert.equal(getActivityTimeRange({}), '');
 });
 
 test('operations management treats Shavit as Kiryat Moshe Rehovot authority', () => {
   const rows = [
-    { RowID: 'REH-1', status: 'פתוח', authority: 'רחובות', school: 'בית ספר אחר', activity_name: 'פעילות רחובות', start_date: '2026-03-01', instructor_name: 'דני' },
-    { RowID: 'SHAVIT-1', status: 'פתוח', authority: 'רחובות', school: 'שביט', activity_name: 'פעילות שביט', start_date: '2026-03-02', instructor_name: 'דני' }
+    { RowID: 'REH-1', status: 'פתוח', authority: 'רחובות', school: 'בית ספר אחר', activity_name: 'פעילות רחובות', start_date: '2026-07-01', activity_season: 'summer_2026', instructor_name: 'דני' },
+    { RowID: 'SHAVIT-1', status: 'פתוח', authority: 'רחובות', school: 'שביט', activity_name: 'פעילות שביט', start_date: '2026-07-02', activity_season: 'summer_2026', instructor_name: 'דני' }
   ];
 
   assert.equal(getActivityAuthorityName(rows[1]), KIRYAT_MOSHE_REHOVOT_AUTHORITY);
@@ -181,16 +260,22 @@ test('summer exceptions only include missing instructor or missing date', () => 
 test('operations management render includes menu page structure and tabs', () => {
   const html = operationsManagementScreen.render({ rows: TEXT_SCHOOL_ROWS, workshopStockMap: new Map() }, { state: baseState() });
   assert.match(html, /ניהול תפעול/);
-  assert.match(html, /סידור עבודה/);
+  assert.doesNotMatch(html, /data-ops-tab="instructors"/);
   assert.match(html, /רשויות/);
   assert.match(html, /ציוד ומלאי/);
-  assert.match(html, /טבלת סידור עבודה/);
-  assert.match(html, /הדפס סידור עבודה/);
-  assert.match(html, /ds-filter-panel/);
-  assert.match(html, /ds-ops-mgmt-summary/);
+  assert.match(html, /אישורי ביצוע/);
   assert.match(html, /ds-exceptions-tabs/);
-  assert.match(html, /data-ops-tab="instructors"[^>]*aria-pressed="true"/);
+  assert.match(html, /data-ops-tab="completion_approval"[^>]*aria-pressed="true"/);
   assert.doesNotMatch(html, /סמל מוסד/);
+
+  const scheduleHtml = operationsManagementScreen.render({ rows: TEXT_SCHOOL_ROWS, workshopStockMap: new Map() }, { state: scheduleState() });
+  assert.match(scheduleHtml, /מדריכים/);
+  assert.match(scheduleHtml, /סידור עבודה/);
+  assert.doesNotMatch(scheduleHtml, /טבלת סידור עבודה/);
+  assert.match(scheduleHtml, /הדפס סידור עבודה/);
+  assert.match(scheduleHtml, /ds-filter-panel/);
+  assert.match(scheduleHtml, /ds-ops-mgmt-summary/);
+  assert.doesNotMatch(scheduleHtml, /data-ops-tab="completion_approval"/);
 });
 
 test('work schedule shows only student count column without quantity fallback', async () => {
@@ -221,7 +306,7 @@ test('work schedule shows only student count column without quantity fallback', 
       grade: 'ב'
     }
   ];
-  const html = operationsManagementScreen.render({ rows, workshopStockMap: new Map() }, { state: baseState() });
+  const html = operationsManagementScreen.render({ rows, workshopStockMap: new Map() }, { state: scheduleState() });
   const scheduleHtml = html.match(/<div class="ds-ops-schedule-wrap">[\s\S]*?<p class="ds-ops-mgmt-print-footer/)?.[0] || '';
 
   assert.match(scheduleHtml, />מס׳ תלמידים/);
@@ -236,8 +321,140 @@ test('work schedule shows only student count column without quantity fallback', 
   const source = await readFile(new URL('../frontend/src/screens/operations-management.js', import.meta.url), 'utf8');
   assert.doesNotMatch(source, /<th>כמות<\/th>/);
   assert.doesNotMatch(source, /sortableTh\(state, TAB_INSTRUCTORS, 'quantity', 'כמות'/);
-  assert.match(source, /<th>שעות<\/th><th>פעילות<\/th><th>מס׳ תלמידים<\/th><th>כיתה<\/th>\$\{instructorHeader\}/);
+  assert.match(source, /sortableTh\(state, TAB_INSTRUCTORS, 'studentCount', 'מס׳ תלמידים'/);
+  assert.match(source, /sortableTh\(state, TAB_INSTRUCTORS, 'activity', 'פעילות'/);
   assert.doesNotMatch(source, /<td class="ds-ops-col--quantity">/);
+});
+
+function weeklyDates(startIso, count) {
+  const dates = [];
+  const start = new Date(`${startIso}T12:00:00Z`);
+  for (let i = 0; i < count; i += 1) {
+    const d = new Date(start);
+    d.setUTCDate(d.getUTCDate() + i * 7);
+    dates.push(d.toISOString().slice(0, 10));
+  }
+  return dates;
+}
+
+function readyCourse2027(overrides = {}) {
+  const dates = overrides.__dates || weeklyDates('2026-09-06', 14);
+  const dateColumns = {};
+  dates.forEach((date, index) => { dateColumns[`date_${index + 1}`] = date; });
+  return {
+    RowID: 'COURSE-2027',
+    activity_season: 'school_2027',
+    activity_type: 'קורס',
+    status: 'פתוח',
+    activity_name: 'קורס רובוטיקה',
+    authority: 'רשות א',
+    school: 'בית ספר א',
+    grade: 'ה',
+    instructor_name: 'דני כהן',
+    sessions: String(dates.length),
+    start_date: dates[0],
+    end_date: dates[dates.length - 1],
+    start_time: '14:00',
+    end_time: '15:30',
+    ...dateColumns,
+    ...overrides
+  };
+}
+
+// ensureOpsState() re-derives ops.period from state.activityPeriodTab on every call
+// (resetting it, and dateFrom/dateTo with it, whenever they disagree) - both must be
+// set to school_2027 together or the schedule silently falls back to the regular period.
+function schedule2027State(overrides = {}) {
+  return scheduleState({
+    ...overrides,
+    activityPeriodTab: 'school_2027',
+    operationsManagement: {
+      period: 'school_2027',
+      dateFrom: '2026-09-01',
+      dateTo: '2027-08-31',
+      ...(overrides.operationsManagement || {})
+    }
+  });
+}
+
+const OLD_SCHEDULE_TABLE_TAG = '<table class="ds-table ds-table--compact ds-ops-mgmt-schedule">';
+const NEW_COURSE_SCHEDULE_TABLE_TAG = '<table class="ds-table ds-table--compact ds-ops-course-schedule-table">';
+
+// The top filter panel lists every candidate value (including not-yet-ready courses)
+// as a selectable option regardless of the ready-courses gate below it, so assertions
+// about which courses the *table* actually includes must check the course-name cell
+// specifically rather than a raw substring search across the whole rendered page.
+function courseNameCellCount(html, name) {
+  const marker = `<td class="ds-ops-course-col--name" title="${name}">`;
+  return html.split(marker).length - 1;
+}
+
+test('school_2027 work schedule shows one compact row per ready course, not one row per meeting', () => {
+  const html = operationsManagementScreen.render({ rows: [readyCourse2027()], workshopStockMap: new Map() }, { state: schedule2027State() });
+  assert.equal(html.includes(NEW_COURSE_SCHEDULE_TABLE_TAG), true);
+  assert.equal(html.includes(OLD_SCHEDULE_TABLE_TAG), false);
+  assert.equal(courseNameCellCount(html, 'קורס רובוטיקה'), 1);
+  assert.match(html, />14 תאריכים</);
+  assert.equal((html.match(/<tr class="ds-ops-course-dates-row"/g) || []).length, 1);
+});
+
+test('school_2027 work schedule excludes courses missing required fields and keeps valid ones', () => {
+  const rows = [
+    readyCourse2027({ RowID: 'OK', activity_name: 'קורס תקין' }),
+    readyCourse2027({ RowID: 'NO-INSTRUCTOR', activity_name: 'קורס בלי מדריך', instructor_name: '', instructor_name_2: '' }),
+    readyCourse2027({ RowID: 'DUP-DATE', activity_name: 'קורס עם תאריך כפול', date_2: weeklyDates('2026-09-06', 14)[0] }),
+    readyCourse2027({ RowID: 'NO-SCHOOL', activity_name: 'קורס בלי בית ספר', school: '', single_school_name: '', legacy_school: '' })
+  ];
+  const html = operationsManagementScreen.render({ rows, workshopStockMap: new Map() }, { state: schedule2027State() });
+  assert.equal(courseNameCellCount(html, 'קורס תקין'), 1);
+  assert.equal(courseNameCellCount(html, 'קורס בלי מדריך'), 0);
+  assert.equal(courseNameCellCount(html, 'קורס עם תאריך כפול'), 0);
+  assert.equal(courseNameCellCount(html, 'קורס בלי בית ספר'), 0);
+});
+
+test('school_2027 work schedule includes a course for its secondary instructor', () => {
+  const rows = [readyCourse2027({ instructor_name: '', instructor_name_2: 'אפרת אוחיון' })];
+  const state = schedule2027State();
+  state.listFilters['operations-management'].instructor = 'אפרת אוחיון';
+  const html = operationsManagementScreen.render({ rows, workshopStockMap: new Map() }, { state });
+  assert.match(html, /קורס רובוטיקה/);
+  assert.match(html, /אפרת אוחיון/);
+});
+
+test('school_2027 work schedule summary counts courses, not meetings', () => {
+  const rows = [
+    readyCourse2027({ RowID: 'A', activity_name: 'קורס א' }),
+    readyCourse2027({
+      RowID: 'B',
+      activity_name: 'קורס ב',
+      __dates: weeklyDates('2026-10-04', 8),
+      sessions: '8',
+      start_date: weeklyDates('2026-10-04', 8)[0],
+      end_date: weeklyDates('2026-10-04', 8)[7]
+    })
+  ];
+  const html = operationsManagementScreen.render({ rows, workshopStockMap: new Map() }, { state: schedule2027State() });
+  assert.match(html, /2 קורסים/);
+  assert.match(html, /22 מפגשים/);
+  assert.doesNotMatch(html, /22 קורסים/);
+});
+
+test('school_2027 branch leaves the regular/summer_2026 per-meeting schedule table untouched', () => {
+  const rows = [{
+    RowID: 'REG-1',
+    status: 'פתוח',
+    authority: 'רשות א',
+    school: 'בית ספר א',
+    activity_name: 'פעילות רגילה',
+    start_date: '2026-07-10',
+    start_time: '08:00',
+    end_time: '09:00',
+    instructor_name: 'דני'
+  }];
+  const html = operationsManagementScreen.render({ rows, workshopStockMap: new Map() }, { state: scheduleState() });
+  assert.equal(html.includes(OLD_SCHEDULE_TABLE_TAG), true);
+  assert.equal(html.includes(NEW_COURSE_SCHEDULE_TABLE_TAG), false);
+  assert.doesNotMatch(html, /data-ops-course-dates-toggle=/);
 });
 
 test('completion approval tab hides general operations filters and uses only approval filters', () => {
@@ -264,9 +481,9 @@ test('completion approval tab hides general operations filters and uses only app
     visibleCount: 200
   };
   const rows = [
-    { RowID: 'CA-1', status: 'פתוח', authority: 'רשות אחרת', school: 'בית ספר א', activity_type: 'סדנה', activity_name: 'פעילות א', start_date: '2026-07-10', start_time: '08:30:00', end_time: '09:30:00', activity_season: 'summer_2026', instructor_name: 'הילה רוזן' },
-    { RowID: 'CA-2', status: 'פתוח', authority: 'רשות אחרת', school: 'בית ספר ב', activity_type: 'חדר בריחה', activity_name: 'פעילות ב', start_date: '2026-07-11', start_time: '10:00:00', end_time: '11:00:00', activity_season: 'summer_2026', instructor_name: 'הילה רוזן' },
-    { RowID: 'CA-3', status: 'פתוח', authority: 'רשות אחרת', school: 'בית ספר ג', activity_type: 'סדנה', activity_name: 'פעילות ג', start_date: '2026-07-10', activity_season: 'summer_2026', instructor_name: 'מדריך אחר' }
+    { RowID: 'CA-1', status: 'פתוח', authority: 'רשות אחרת', school: 'בית ספר א', activity_type: 'סדנה', activity_name: 'פעילות א', start_date: '2026-07-10', start_time: '08:30:00', end_time: '09:30:00', activity_season: 'summer_2026', instructor_name: 'הילה רוזן', emp_id: '1500' },
+    { RowID: 'CA-2', status: 'פתוח', authority: 'רשות אחרת', school: 'בית ספר ב', activity_type: 'חדר בריחה', activity_name: 'פעילות ב', start_date: '2026-07-11', start_time: '10:00:00', end_time: '11:00:00', activity_season: 'summer_2026', instructor_name: 'הילה רוזן', emp_id: '1500' },
+    { RowID: 'CA-3', status: 'פתוח', authority: 'רשות אחרת', school: 'בית ספר ג', activity_type: 'סדנה', activity_name: 'פעילות ג', start_date: '2026-07-10', activity_season: 'summer_2026', instructor_name: 'מדריך אחר', emp_id: '1600' }
   ];
   const html = operationsManagementScreen.render({ rows, workshopStockMap: new Map() }, { state });
 
@@ -284,12 +501,12 @@ test('completion approval tab hides general operations filters and uses only app
   assert.match(html, /בית ספר ב/);
   assert.doesNotMatch(html, /בית ספר ג/);
   assert.match(html, /צפייה באישור/);
-  assert.match(html, /אין קובץ חתום/);
+  assert.match(html, /data-ops-approval-upload/);
   assert.doesNotMatch(html, /מס׳ פעילויות/);
   assert.doesNotMatch(html, /אחראי קשר מול בית הספר/);
   assert.equal((html.match(/data-ops-approval-print-all/g) || []).length, 1);
-  assert.match(html, /עד היום:/);
-  assert.match(html, /לכל תקופת הקיץ:/);
+  assert.match(html, /data-ops-completion-summary-toggle/);
+  assert.doesNotMatch(html, /data-ops-completion-summary-popover/);
   assert.doesNotMatch(html, /סה״כ אישורים נדרשים/);
 });
 
@@ -305,11 +522,11 @@ test('completion approval tab defaults to summer 2026 season and date range', ()
     preview: true
   };
   const rows = [
-    { RowID: 'SUMMER-START', status: 'פתוח', authority: 'רשות א', school: 'בית ספר קיץ', activity_type: 'סדנה', activity_name: 'קיץ פתיחה', start_date: '2026-07-01', activity_season: 'summer_2026', instructor_name: 'הילה רוזן' },
-    { RowID: 'SUMMER-END', status: 'פתוח', authority: 'רשות א', school: 'בית ספר קיץ', activity_type: 'חדרי בריחה', activity_name: 'קיץ סיום', start_date: '2026-08-31', activity_season: 'summer_2026', instructor_name: 'הילה רוזן' },
-    { RowID: 'OLD-2025', status: 'פתוח', authority: 'רשות א', school: 'בית ספר ישן', activity_type: 'סדנה', activity_name: 'פעילות 2025', start_date: '2025-11-03', activity_season: 'summer_2026', instructor_name: 'הילה רוזן' },
-    { RowID: 'OUTSIDE-FUTURE', status: 'פתוח', authority: 'רשות א', school: 'בית ספר עתידי', activity_type: 'סדנה', activity_name: 'פעילות סתיו', start_date: '2026-09-01', activity_season: 'summer_2026', instructor_name: 'הילה רוזן' },
-    { RowID: 'REGULAR-JULY', status: 'פתוח', authority: 'רשות א', school: 'בית ספר רגיל', activity_type: 'סדנה', activity_name: 'פעילות רגילה', start_date: '2026-07-15', activity_season: 'regular', instructor_name: 'הילה רוזן' }
+    { RowID: 'SUMMER-START', status: 'פתוח', authority: 'רשות א', school: 'בית ספר קיץ', activity_type: 'סדנה', activity_name: 'קיץ פתיחה', start_date: '2026-07-01', activity_season: 'summer_2026', instructor_name: 'הילה רוזן', emp_id: '1500' },
+    { RowID: 'SUMMER-END', status: 'פתוח', authority: 'רשות א', school: 'בית ספר קיץ', activity_type: 'חדרי בריחה', activity_name: 'קיץ סיום', start_date: '2026-08-31', activity_season: 'summer_2026', instructor_name: 'הילה רוזן', emp_id: '1500' },
+    { RowID: 'OLD-2025', status: 'פתוח', authority: 'רשות א', school: 'בית ספר ישן', activity_type: 'סדנה', activity_name: 'פעילות 2025', start_date: '2025-11-03', activity_season: 'summer_2026', instructor_name: 'הילה רוזן', emp_id: '1500' },
+    { RowID: 'OUTSIDE-FUTURE', status: 'פתוח', authority: 'רשות א', school: 'בית ספר עתידי', activity_type: 'סדנה', activity_name: 'פעילות סתיו', start_date: '2026-09-01', activity_season: 'summer_2026', instructor_name: 'הילה רוזן', emp_id: '1500' },
+    { RowID: 'REGULAR-JULY', status: 'פתוח', authority: 'רשות א', school: 'בית ספר רגיל', activity_type: 'סדנה', activity_name: 'פעילות רגילה', start_date: '2026-07-15', activity_season: 'regular', instructor_name: 'הילה רוזן', emp_id: '1500' }
   ];
 
   const html = operationsManagementScreen.render({ rows, workshopStockMap: new Map() }, { state });
@@ -321,7 +538,7 @@ test('completion approval tab defaults to summer 2026 season and date range', ()
   assert.doesNotMatch(html, /בית ספר ישן/);
   assert.doesNotMatch(html, /בית ספר עתידי/);
   assert.doesNotMatch(html, /בית ספר רגיל/);
-  assert.match(html, /לכל תקופת הקיץ:/);
+  assert.match(html, /data-ops-completion-summary-toggle/);
   assert.doesNotMatch(html, /סה״כ אישורים נדרשים/);
 });
 
@@ -331,9 +548,9 @@ test('completion approval tab includes only summer workshops and escape rooms an
   state.operationsManagement.tab = 'completion_approval';
   state.operationsManagement.completionApproval = { instructor: 'הילה רוזן', selectedDate: '2026-07-10' };
   const rows = [
-    { RowID: 'BEFORE', status: 'פתוח', authority: 'רשות א', school: 'לפני', activity_type: 'סדנה', activity_name: 'סדנה', start_date: '2026-06-19', activity_season: 'summer_2026', instructor_name: 'הילה רוזן' },
+    { RowID: 'BEFORE', status: 'פתוח', authority: 'רשות א', school: 'לפני', activity_type: 'סדנה', activity_name: 'סדנה', start_date: '2026-06-19', activity_season: 'summer_2026', instructor_name: 'הילה רוזן', emp_id: '1500' },
     { RowID: 'START', status: 'פתוח', authority: 'רשות א', school: 'תחילת קיץ', activity_type: 'סדנאות', activity_name: 'סדנה', start_date: '2026-06-20', activity_season: 'summer_2026', instructor_name: 'הילה רוזן' },
-    { RowID: 'SELECTED', status: 'פתוח', authority: 'רשות א', school: 'נבחר', activity_type: 'חדר בריחה', activity_name: 'חדר בריחה', start_date: '2026-07-10', activity_season: 'summer_2026', instructor_name: 'הילה רוזן' },
+    { RowID: 'SELECTED', status: 'פתוח', authority: 'רשות א', school: 'נבחר', activity_type: 'חדר בריחה', activity_name: 'חדר בריחה', start_date: '2026-07-10', activity_season: 'summer_2026', instructor_name: 'הילה רוזן', emp_id: '1500' },
     { RowID: 'END', status: 'פתוח', authority: 'רשות א', school: 'סוף קיץ', activity_type: 'escape_room', activity_name: 'חדר בריחה', start_date: '2026-08-31', activity_season: 'summer_2026', instructor_name: 'הילה רוזן' },
     { RowID: 'AFTER', status: 'פתוח', authority: 'רשות א', school: 'אחרי', activity_type: 'סדנה', activity_name: 'סדנה', start_date: '2026-09-01', activity_season: 'summer_2026', instructor_name: 'הילה רוזן' },
     { RowID: 'COURSE', status: 'פתוח', authority: 'רשות א', school: 'קורס', activity_type: 'course', activity_name: 'קורס', start_date: '2026-07-10', activity_season: 'summer_2026', instructor_name: 'הילה רוזן' },
@@ -350,7 +567,7 @@ test('completion approval tab includes only summer workshops and escape rooms an
   assert.doesNotMatch(html, /גפן/);
   assert.match(html, /min="2026-06-20"/);
   assert.match(html, /max="2026-08-31"/);
-  assert.match(html, /הצג את כל תקופת הקיץ/);
+  assert.match(html, /data-ops-completion-date-clear>כל התאריכים/);
 });
 
 
@@ -376,14 +593,15 @@ test('completion approval includes closed summer activities and excludes deleted
   assert.match(html, /סגור/);
   assert.doesNotMatch(html, /נמחק/);
   assert.match(html, /בתאריך זה: הועלו 0 מתוך 2 אישורים נדרשים/);
-  assert.match(html, /לכל תקופת הקיץ:<\/strong> הועלו 0 מתוך 2 אישורים נדרשים/);
+  assert.match(html, /לכל תקופת הקיץ:<\/strong> הועלו 0 מתוך 2 אישורים/);
 });
 
-test('completion approval workspace uses table-driven max-content width instead of fixed width', async () => {
+test('completion approval workspace remains responsive without a fixed pixel maximum', async () => {
   const source = await readFile(new URL('../frontend/src/screens/operations-management.js', import.meta.url), 'utf8');
-  assert.match(source, /\.ds-ops-mgmt-screen \.ds-ops-completion-workspace \{ width:max-content; max-width:100%; margin-inline:auto;/);
-  assert.match(source, /\.ds-ops-mgmt-screen \.ds-ops-completion-approvals-card \.ds-table-wrap \{ width:max-content; max-width:100%;/);
-  assert.doesNotMatch(source, /ds-ops-completion-workspace \{ width:min\(100%, 1000px\); max-width:1000px;/);
+  assert.match(source, /\.ds-ops-mgmt-screen \.ds-ops-completion-workspace \{[^}]*width:min\(100%,1280px\)/);
+  assert.match(source, /\.ds-ops-mgmt-screen \.ds-ops-completion-workspace \{[^}]*max-width:100%/);
+  assert.match(source, /\.ds-ops-mgmt-screen \.ds-ops-completion-approvals-card \.ds-table-wrap \{[^}]*overflow-x:hidden/);
+  assert.doesNotMatch(source, /ds-ops-completion-workspace \{[^}]*max-width:\d+px/);
 });
 
 test('completion approval tab defaults to approvals subtab without legacy instructor prompt', () => {
@@ -483,28 +701,30 @@ test('workshops tab shows inventory columns and print action', () => {
   ];
   const adminListsData = { categories: [{ category: 'activity_names', items: [{ value: '001', _row: { category: 'activity_names', type: 'workshop', activity_type: 'workshop', active: true, activity_no: '001', activity_name: 'פרוגי המקפצת', stock_quantity: 300 } }] }] };
   const stockMap = buildWorkshopStockMapFromLists(adminListsData);
-  const html = operationsManagementScreen.render({ rows, workshopStockMap: stockMap, adminListsData }, { state });
-  assert.match(html, /כמות נדרשת/);
-  assert.match(html, /מלאי קיים/);
-  assert.match(html, /יתרת מלאי/);
-  assert.match(html, /הדפס כמויות סדנאות/);
+  const html = operationsManagementScreen.render({ rows, workshopStockMap: stockMap, adminListsData, workshopStockDistributions: physicalWorkshopStock([['activity_1', 300]]) }, { state });
+  assert.match(html, /כמות קיימת/);
+  assert.match(html, /ניצול בפועל/);
+  assert.match(html, /צפי נדרש/);
+  assert.match(html, /יתרה צפויה/);
+  assert.match(html, /הדפס מלאי סדנאות/);
   assert.match(html, /ds-ops-gap--ok/);
   assert.doesNotMatch(html, /data-ops-dist-edit/);
   assert.doesNotMatch(html, /ds-ops-stock-edit-btn/);
-  assert.match(html, />50</);
   assert.match(html, />238</);
   assert.match(html, />62</);
   assert.match(html, />300</);
 });
 
-test('workshops inventory falls back to real workshop_stock_distributions keys when catalog lists are empty', () => {
+test('workshops inventory combines the current catalog key with physical stock distributions', () => {
   const state = baseState();
   state.operationsManagement.tab = 'workshops';
   state.operationsManagement.expandedWorkshop = 'kofet_kesem';
   const rows = [
     { RowID: 'FB-1', status: 'פתוח', activity_no: '024', activity_name: 'קופת קסם', start_date: '2026-07-10', activity_season: 'summer_2026', activity_type: 'workshop', participants_count: 36, instructor_name: 'נועה' }
   ];
-  const adminListsData = { categories: [{ category: 'workshop_stock', items: [] }] };
+  const adminListsData = { categories: [{ category: 'activity_names', items: [
+    { value: '024', _row: { category: 'activity_names', type: 'workshop', activity_type: 'workshop', active: true, activity_no: '024', activity_name: 'קופת קסם', stock_group_key: 'kofet_kesem' } }
+  ] }] };
   const html = operationsManagementScreen.render({
     rows,
     workshopStockMap: buildWorkshopStockMapFromLists(adminListsData),
@@ -591,10 +811,9 @@ test('workshops inventory shows plain text status and flags negative warehouse b
   assert.doesNotMatch(html, /החישוב מבוסס על טווח התאריכים שנבחר/);
   assert.doesNotMatch(html, /טווח חישוב:/);
   assert.match(tableHtml, /חללית בראשית/);
-  assert.match(tableHtml, />0<[^]*>120<[^]*><span class="ds-ops-gap ds-ops-gap--shortage"><span dir="ltr">-120<\/span><\/span>/);
-  assert.match(tableHtml, /ds-ops-workshop-status-text ds-ops-workshop-status-text--inventory-fix">נדרש תיקון מלאי<\/span>/);
-  assert.doesNotMatch(tableHtml, /ds-status[^>]*>נדרש תיקון מלאי/);
-  assert.doesNotMatch(tableHtml, />תקין<\/span>/);
+  assert.match(tableHtml, /חללית בראשית[^]*>120<[^]*>0<[^]*>0<[^]*<span class="ds-ops-gap ds-ops-gap--ok">120<\/span>/);
+  assert.match(tableHtml, /ds-ops-workshop-status-text ds-ops-workshop-status-text--success">תקין<\/span>/);
+  assert.doesNotMatch(tableHtml, /ds-status[^>]*>תקין/);
 });
 
 test('workshops inventory status priority keeps required order and balanced widths', () => {
@@ -612,14 +831,17 @@ test('workshops inventory status priority keeps required order and balanced widt
     workshopStockMap: buildWorkshopStockMapFromLists(adminListsData),
     adminListsData,
     workshopStockDistributions: [
+      ...physicalWorkshopStock([['order_needed', 10], ['transfer_needed', 100]]),
       { stock_group_key: 'transfer_needed', instructor_name: 'מחסן', quantity_received: 50, distribution_date: '2026-07-10' }
     ]
   }, { state });
 
-  assert.match(html, /ds-ops-workshop-col--name"><col class="ds-ops-workshop-col--metric"><col class="ds-ops-workshop-col--metric"><col class="ds-ops-workshop-col--metric"><col class="ds-ops-workshop-col--metric"><col class="ds-ops-workshop-col--metric"><col class="ds-ops-workshop-col--status"/);
-  assert.match(html, /ds-ops-workshops-table th:nth-child\(8\),\n    \.ds-ops-mgmt-screen \.ds-ops-workshops-table td:nth-child\(8\) \{ text-align:right; \}/);
-  assert.match(html, /ds-ops-workshop-status-text--danger">נדרש להזמין<\/span>/);
-  assert.match(html, /ds-ops-workshop-status-text--info">להעביר מהמחסן<\/span>/);
+  assert.match(html, /כמות קיימת/);
+  assert.match(html, /ניצול בפועל/);
+  assert.match(html, /צפי נדרש/);
+  assert.match(html, /יתרה צפויה/);
+  assert.match(html, /ds-ops-workshop-status-text--danger">חסר מלאי<\/span>/);
+  assert.match(html, /ds-ops-workshop-status-text--info">נדרש להעביר מהמלאי<\/span>/);
 });
 
 test('workshops inventory remainder uses existing stock minus usage', () => {
@@ -637,7 +859,8 @@ test('workshops inventory remainder uses existing stock minus usage', () => {
       { RowID: 'N-1', status: 'פתוח', activity_name: 'סדנת חוסר', start_date: '2026-07-10', activity_season: 'summer_2026', activity_type: 'workshop', participants_count: 450 }
     ],
     workshopStockMap: buildWorkshopStockMapFromLists(adminListsData),
-    adminListsData
+    adminListsData,
+    workshopStockDistributions: physicalWorkshopStock([['activity_101', 2500], ['activity_102', 100], ['activity_103', 390]])
   }, { state });
   const tableHtml = html.slice(html.indexOf('<table class="ds-table ds-table--compact ds-ops-mgmt-data-table ds-ops-workshops-table"'));
   assert.match(tableHtml, />2500<[^]*>194<[^]*>2306</);
@@ -660,22 +883,22 @@ test('workshops inventory usage is read-only and sums participants_count from ac
   const html = operationsManagementScreen.render({
     rows: baseRows,
     workshopStockMap: buildWorkshopStockMapFromLists(adminListsData),
-    adminListsData
+    adminListsData,
+    workshopStockDistributions: physicalWorkshopStock([['activity_201', 500]])
   }, { state });
   const tableHtml = html.slice(html.indexOf('<table class="ds-table ds-table--compact ds-ops-mgmt-data-table ds-ops-workshops-table"'));
-  assert.match(tableHtml, />3</);
   assert.match(tableHtml, />80</);
   assert.match(tableHtml, /חסר מספר משתתפים ב-2 פעילויות/);
   assert.doesNotMatch(tableHtml, />75</);
   assert.match(tableHtml, />420</);
   assert.doesNotMatch(tableHtml, /data-ops-dist-edit/);
   assert.doesNotMatch(tableHtml, /ds-ops-stock-edit-btn/);
-  assert.doesNotMatch(tableHtml, /role="button"/);
 
   const updatedHtml = operationsManagementScreen.render({
     rows: baseRows.map((row) => row.RowID === 'U-3' ? { ...row, participants_count: 40 } : row),
     workshopStockMap: buildWorkshopStockMapFromLists(adminListsData),
-    adminListsData
+    adminListsData,
+    workshopStockDistributions: physicalWorkshopStock([['activity_201', 500]])
   }, { state });
   const updatedTableHtml = updatedHtml.slice(updatedHtml.indexOf('<table class="ds-table ds-table--compact ds-ops-mgmt-data-table ds-ops-workshops-table"'));
   assert.match(updatedTableHtml, />120</);
@@ -692,7 +915,8 @@ test('workshops inventory treats missing participant counts as zero and warns', 
       { RowID: 'W-3', status: 'פתוח', activity_name: 'אסטרונאוט על חוטים', start_date: '2026-07-12', activity_season: 'summer_2026', activity_type: 'workshop' }
     ],
     workshopStockMap: buildWorkshopStockMapFromLists(adminListsData),
-    adminListsData
+    adminListsData,
+    workshopStockDistributions: physicalWorkshopStock([['activity_2', 150]])
   }, { state });
   const tableHtml = html.slice(html.indexOf('<table class="ds-table ds-table--compact ds-ops-mgmt-data-table ds-ops-workshops-table"'));
   assert.match(tableHtml, />0</);
@@ -729,7 +953,7 @@ test('workshops inventory expected balance subtracts closed usage from physical 
   assert.match(tableHtml, /ניצול בפועל/);
   assert.match(tableHtml, /צפי נדרש/);
   assert.match(tableHtml, /יתרה צפויה/);
-  assert.match(tableHtml, /סדנת חישוב מלאי[^]*>110<[^]*>64<[^]*>49<[^]*><span class="ds-ops-gap ds-ops-gap--shortage"><span dir="ltr">-3<\/span><\/span>/);
+  assert.match(tableHtml, /סדנת חישוב מלאי[^]*>110<[^]*>113<[^]*>0<[^]*><span class="ds-ops-gap ds-ops-gap--shortage"><span dir="ltr">-3<\/span><\/span>/);
   assert.match(tableHtml, /ds-ops-workshop-status-text--danger">חסר מלאי<\/span>/);
 });
 
@@ -753,8 +977,8 @@ test('workshops instructor detail balance subtracts closed usage from received s
   }, { state });
 
   assert.match(html, /<th class="ds-ops-dist-col--instructor">מדריך<\/th><th class="ds-ops-dist-col--number">כמות קיימת<\/th><th class="ds-ops-dist-col--number">ניצול בפועל<\/th><th class="ds-ops-dist-col--number">צפי נדרש<\/th><th class="ds-ops-dist-col--number">יתרה צפויה<\/th>/);
-  assert.match(html, /דני<\/td>\s*<td class="ds-ops-dist-col--number">60<\/td>\s*<td class="ds-ops-dist-col--number">25<\/td>\s*<td class="ds-ops-dist-col--number">49<\/td>\s*<td class="ds-ops-dist-col--number"><span class="ds-ops-gap ds-ops-gap--shortage"><span dir="ltr">-14<\/span><\/span><\/td>/);
-  assert.match(html, /\.ds-ops-mgmt-screen \.ds-ops-dist-table--locations \{ width:320px !important; max-width:100% !important; margin:0 auto !important; \}/);
+  assert.match(html, /דני<\/td>\s*<td class="ds-ops-dist-col--number">60<\/td>\s*<td class="ds-ops-dist-col--number">74<\/td>\s*<td class="ds-ops-dist-col--number">0<\/td>\s*<td class="ds-ops-dist-col--number"><span class="ds-ops-gap ds-ops-gap--shortage"><span dir="ltr">-14<\/span><\/span><\/td>/);
+  assert.match(html, /סיכום מיקום מלאי/);
 });
 
 test('required inventory helper sums only positive participants_count and never falls back to estimate', () => {
@@ -783,7 +1007,8 @@ test('workshops required inventory matches participants_count from DB examples a
       { RowID: 'QUEST-1', status: 'פתוח', activity_name: 'חדר בריחה קווסט', start_date: '2026-07-10', activity_season: 'summer_2026', activity_type: 'workshop', participants_count: 600, instructor_name: 'תמיר' }
     ],
     workshopStockMap: buildWorkshopStockMapFromLists(adminListsData),
-    adminListsData
+    adminListsData,
+    workshopStockDistributions: physicalWorkshopStock([['activity_11', 1000], ['activity_12', 1000], ['activity_24', 1000], ['activity_50', 1000]])
   }, { state });
   const tableHtml = html.slice(html.indexOf('<table class="ds-table ds-table--compact ds-ops-mgmt-data-table ds-ops-workshops-table"'));
   assert.match(tableHtml, /גשר לאונרדו[^]*>117</);
@@ -808,7 +1033,8 @@ test('workshops inventory tab excludes courses and after-school catalog rows', (
       { RowID: 'C-1', status: 'פתוח', activity_name: 'קורס רובוטיקה', activity_type: 'קורס', activity_season: 'summer_2026', start_date: '2026-07-10' }
     ],
     workshopStockMap: buildWorkshopStockMapFromLists(adminListsData),
-    adminListsData
+    adminListsData,
+    workshopStockDistributions: physicalWorkshopStock([['activity_1', 40]])
   }, { state });
   const tableHtml = html.slice(html.indexOf('<table class="ds-table ds-table--compact ds-ops-mgmt-data-table ds-ops-workshops-table"'));
   assert.match(tableHtml, /סדנה אמיתית/);
@@ -821,16 +1047,16 @@ test('authorities tab groups schools and dated activities under each authority',
   state.operationsManagement.tab = 'authorities';
   state.operationsManagement.expandedSchool = 'רשות א::בית ספר א';
   const rows = [
-    { RowID: 'A-2', status: 'פתוח', authority: 'רשות א', school: 'בית ספר א', activity_name: 'פעילות מאוחרת', start_date: '2026-05-02', start_time: '10:00', end_time: '11:00', instructor_name: 'דני', grade: 'ב' },
-    { RowID: 'A-1', status: 'פתוח', authority: 'רשות א', school: 'בית ספר א', activity_name: 'פעילות מוקדמת', start_date: '2026-05-01', start_time: '08:00', end_time: '09:00', instructor_name: 'דני', grade: 'א' },
-    { RowID: 'B-1', status: 'פתוח', authority: 'רשות ב', school: 'בית ספר ב', activity_name: 'פעילות אחרת', start_date: '2026-05-03', instructor_name: 'מיה' }
+    { RowID: 'A-2', status: 'פתוח', authority: 'רשות א', school: 'בית ספר א', activity_name: 'פעילות מאוחרת', start_date: '2026-07-02', activity_season: 'summer_2026', start_time: '10:00', end_time: '11:00', instructor_name: 'דני', grade: 'ב' },
+    { RowID: 'A-1', status: 'פתוח', authority: 'רשות א', school: 'בית ספר א', activity_name: 'פעילות מוקדמת', start_date: '2026-07-01', activity_season: 'summer_2026', start_time: '08:00', end_time: '09:00', instructor_name: 'דני', grade: 'א' },
+    { RowID: 'B-1', status: 'פתוח', authority: 'רשות ב', school: 'בית ספר ב', activity_name: 'פעילות אחרת', start_date: '2026-07-03', activity_season: 'summer_2026', instructor_name: 'מיה' }
   ];
   const html = operationsManagementScreen.render({ rows, workshopStockMap: new Map() }, { state });
   assert.match(html, /רשות א \| 1 בתי ספר \| 2 פעילויות/);
   assert.match(html, /בית ספר א \| 2 פעילויות/);
   assert.match(html, /פעילות מוקדמת/);
-  assert.match(html, /01\/05\/2026/);
-  assert.match(html, /02\/05\/2026/);
+  assert.match(html, /01\/07\/2026/);
+  assert.match(html, /02\/07\/2026/);
 });
 
 test('operations management tabs stay synced with selected tab content', () => {
@@ -840,8 +1066,10 @@ test('operations management tabs stay synced with selected tab content', () => {
   const defaultHtml = operationsManagementScreen.render({ rows, workshopStockMap: new Map() }, { state: baseState() });
   const authoritiesHtml = operationsManagementScreen.render({ rows, workshopStockMap: new Map() }, { state: authoritiesState });
   const workshopsHtml = operationsManagementScreen.render({ rows, workshopStockMap: new Map(), adminListsData: { categories: [] } }, { state: workshopsState });
-  assert.match(defaultHtml, /data-ops-tab="instructors"[^>]*aria-pressed="true"/);
-  assert.match(defaultHtml, /טבלת סידור עבודה/);
+  const scheduleHtml = operationsManagementScreen.render({ rows, workshopStockMap: new Map() }, { state: scheduleState() });
+  assert.match(defaultHtml, /data-ops-tab="completion_approval"[^>]*aria-pressed="true"/);
+  assert.doesNotMatch(defaultHtml, /data-ops-tab="instructors"/);
+  assert.doesNotMatch(scheduleHtml, /טבלת סידור עבודה/);
   assert.match(authoritiesHtml, /data-ops-tab="authorities"[^>]*aria-pressed="true"/);
   assert.match(authoritiesHtml, /ds-ops-schools-authority/);
   assert.match(workshopsHtml, /data-ops-tab="workshops"[^>]*aria-pressed="true"/);
@@ -852,42 +1080,38 @@ test('authorities tab renders schools, dates and activities in fixed grouped ord
   const state = baseState();
   state.operationsManagement.tab = 'authorities';
   const rows = [
-    { RowID: 'B-LATE', status: 'פתוח', authority: 'רשות ב', school: 'בית ספר ב', activity_name: 'פעילות מאוחרת', start_date: '2026-05-03', start_time: '11:00', end_time: '12:00', instructor_name: 'מיה', grade: 'ד' },
-    { RowID: 'A-LATE', status: 'פתוח', authority: 'רשות א', school: 'בית ספר ב', activity_name: 'פעילות שנייה', start_date: '2026-05-02', start_time: '10:00', end_time: '11:00', instructor_name: 'דני', grade: 'ב' },
-    { RowID: 'A-EARLY', status: 'פתוח', authority: 'רשות א', school: 'בית ספר א', activity_name: 'פעילות ראשונה', start_date: '2026-05-01', start_time: '08:00', end_time: '09:00', instructor_name: 'נועה', grade: 'א' }
+    { RowID: 'B-LATE', status: 'פתוח', authority: 'רשות ב', school: 'בית ספר ב', activity_name: 'פעילות מאוחרת', start_date: '2026-07-03', activity_season: 'summer_2026', start_time: '11:00', end_time: '12:00', instructor_name: 'מיה', grade: 'ד' },
+    { RowID: 'A-LATE', status: 'פתוח', authority: 'רשות א', school: 'בית ספר ב', activity_name: 'פעילות שנייה', start_date: '2026-07-02', activity_season: 'summer_2026', start_time: '10:00', end_time: '11:00', instructor_name: 'דני', grade: 'ב' },
+    { RowID: 'A-EARLY', status: 'פתוח', authority: 'רשות א', school: 'בית ספר א', activity_name: 'פעילות ראשונה', start_date: '2026-07-01', activity_season: 'summer_2026', start_time: '08:00', end_time: '09:00', instructor_name: 'נועה', grade: 'א' }
   ];
   const html = operationsManagementScreen.render({ rows, workshopStockMap: new Map() }, { state });
-  assert.ok(html.indexOf('רשות א') < html.indexOf('רשות ב'));
-  assert.ok(html.indexOf('בית ספר א') < html.indexOf('בית ספר ב'));
-  assert.ok(html.indexOf('01/05/2026') < html.indexOf('02/05/2026'));
   const groupedHtml = html.slice(html.indexOf('<article class="ds-ops-authority-school"'));
+  assert.match(html, /ds-ops-schools-authority__header"><strong>רשות א[^]*ds-ops-schools-authority__header"><strong>רשות ב/);
+  assert.match(groupedHtml, /בית ספר א[^]*בית ספר ב/);
+  assert.match(groupedHtml, /01\/07\/2026[^]*02\/07\/2026/);
   assert.match(groupedHtml, /ds-ops-col--instructor">מדריך<\/th><th class="ds-ops-col--grade">כיתה<\/th><th class="ds-ops-col--activity">פעילות \/ סדנה<\/th>/);
   assert.equal((groupedHtml.match(/פעילות ראשונה/g) || []).length, 1);
 });
 
-test('workshops inventory tab uses workshop_stock as inventory source without requiring matching activities', () => {
+test('workshops inventory uses physical stock distributions without requiring matching activities', () => {
   const state = baseState();
   state.operationsManagement.tab = 'workshops';
   state.operationsManagement.dateFrom = '2026-07-01';
   state.operationsManagement.dateTo = '2026-07-31';
-  const adminListsData = { categories: [
-    { category: 'workshop_stock', items: [
-      { value: 'frog', label: 'פרוגי המקפצת', _row: { category: 'workshop_stock', value: 'frog', label: 'פרוגי המקפצת', active: true } },
-      { value: 'bird', label: 'ציפור שיווי משקל', _row: { category: 'workshop_stock', value: 'bird', label: 'ציפור שיווי משקל', active: true } },
-      { value: 'inactive', label: 'מלאי לא פעיל', _row: { category: 'workshop_stock', value: 'inactive', label: 'מלאי לא פעיל', active: false } }
-    ] },
-    { category: 'activity_names', items: [
-      { value: '001', label: 'פרוגי המקפצת', _row: { category: 'activity_names', value: '001', label: 'פרוגי המקפצת', active: true } }
-    ] }
-  ] };
+  const adminListsData = { categories: [{ category: 'activity_names', items: [
+    { value: '001', label: 'פרוגי המקפצת', _row: { category: 'activity_names', type: 'workshop', activity_type: 'workshop', activity_no: '001', activity_name: 'פרוגי המקפצת', active: true } },
+    { value: '002', label: 'ציפור שיווי משקל', _row: { category: 'activity_names', type: 'workshop', activity_type: 'workshop', activity_no: '002', activity_name: 'ציפור שיווי משקל', active: true } },
+    { value: '003', label: 'מלאי לא פעיל', _row: { category: 'activity_names', type: 'workshop', activity_type: 'workshop', activity_no: '003', activity_name: 'מלאי לא פעיל', active: false } }
+  ] }] };
   const html = operationsManagementScreen.render({
     rows: [
       { RowID: 'FROG-1', status: 'פתוח', activity_name: 'פרוגי המקפצת', start_date: '2026-07-10', activity_season: 'summer_2026' }
     ],
     workshopStockMap: buildWorkshopStockMapFromLists(adminListsData),
-    adminListsData
+    adminListsData,
+    workshopStockDistributions: physicalWorkshopStock([['activity_1', 50]])
   }, { state });
-  assert.match(html, /מלאי סדנאות — קיץ 2026/);
+  assert.match(html, /מלאי סדנאות/);
   assert.match(html, /פרוגי המקפצת/);
   assert.doesNotMatch(html, /ציפור שיווי משקל/);
   assert.doesNotMatch(html, /מלאי לא פעיל/);
@@ -927,7 +1151,8 @@ test('workshops inventory groups physical stock by stock_group_key', () => {
       { RowID: 'MB-2', status: 'פתוח', activity_name: 'קופת קסם – מדע או אשליה?', start_date: '2026-07-02', activity_season: 'summer_2026', activity_type: 'workshop' }
     ],
     workshopStockMap: buildWorkshopStockMapFromLists(adminListsData),
-    adminListsData
+    adminListsData,
+    workshopStockDistributions: physicalWorkshopStock([['magic_box', 390]])
   }, { state });
   const tableHtml = html.slice(html.indexOf('<table class="ds-table ds-table--compact ds-ops-mgmt-data-table ds-ops-workshops-table"'));
   assert.equal((tableHtml.match(/data-ops-stock-group="magic_box"/g) || []).length, 1);
@@ -954,6 +1179,7 @@ test('workshops inventory uses all prepared open and closed rows with canonical 
     workshopStockMap: buildWorkshopStockMapFromLists(adminListsData),
     adminListsData,
     workshopStockDistributions: [
+      { stock_group_key: 'activity_8', instructor_name: 'מלאי עידן', quantity_received: 130, distribution_date: '2026-07-01' },
       { stock_group_key: 'activity_8', instructor_name: 'דני', quantity_received: 30, distribution_date: '2026-07-01' },
       { stock_group_key: '8', instructor_name: 'נועה', quantity_received: 40, distribution_date: '2026-07-02' }
     ]
@@ -977,7 +1203,8 @@ test('workshops instructor detail requires participants_count for every assigned
       { RowID: 'MULTI-1', status: 'פתוח', activity_no: '009', activity_name: 'סדנת מדריכים', start_date: '2026-07-01', activity_season: 'summer_2026', activity_type: 'workshop', participants_count: 25, instructor_name: 'דני', instructor_name_2: 'נועה' }
     ],
     workshopStockMap: buildWorkshopStockMapFromLists(adminListsData),
-    adminListsData
+    adminListsData,
+    workshopStockDistributions: physicalWorkshopStock([['activity_9', 100]])
   }, { state });
   const detailHtml = html.slice(html.indexOf('פירוט סדנה'));
   assert.match(detailHtml, /דני[^]*>0<[^]*>25<[^]*><span class="ds-ops-gap ds-ops-gap--shortage"><span dir="ltr">-25<\/span><\/span>/);
@@ -1007,12 +1234,12 @@ test('workshops inventory separates stock locations from instructor delivery tot
   const mainRowHtml = html.slice(html.indexOf('data-ops-stock-group="activity_9"'), html.indexOf('</tr>', html.indexOf('data-ops-stock-group="activity_9"')));
   const detailHtml = html.slice(html.indexOf('פירוט סדנה'));
 
-  assert.match(mainRowHtml, />100</);
+  assert.match(mainRowHtml, />75</);
   assert.match(mainRowHtml, />25</);
-  assert.match(mainRowHtml, />20</);
-  assert.match(detailHtml, /מלאי במיקומים[^]*מלאי עידן[^]*>40<[^]*מלאי הילה[^]*>15<[^]*סה״כ במיקומים[^]*>55</);
-  assert.match(detailHtml, /חלוקה למדריכים[^]*דני[^]*>20<[^]*>25</);
-  assert.doesNotMatch(detailHtml.slice(detailHtml.indexOf('חלוקה למדריכים')), /מלאי עידן|מלאי הילה/);
+  assert.match(mainRowHtml, /ds-ops-gap--ok">50/);
+  assert.match(detailHtml, /סיכום מיקום מלאי[^]*מלאי עידן[^]*40[^]*מלאי הילה[^]*15[^]*יתרת מלאי מדריכים[^]*20[^]*סה״כ מלאי כולל[^]*75/);
+  assert.match(detailHtml, /פירוט לפי מדריכים[^]*דני[^]*>20<[^]*>25<[^]*>0</);
+
 });
 
 test('actual participant count only uses existing activity fields', () => {
@@ -1032,8 +1259,8 @@ test('operations management schedule shows HH:MM time range without seconds', ()
     end_time: '09:00:00',
     instructor_name: 'דני'
   }];
-  const html = operationsManagementScreen.render({ rows, workshopStockMap: new Map() }, { state: baseState() });
-  assert.match(html, />08:15-09:00</);
+  const html = operationsManagementScreen.render({ rows, workshopStockMap: new Map() }, { state: scheduleState() });
+  assert.match(html, />08:15–09:00</);
   assert.doesNotMatch(html, />08:15:00-09:00:00</);
 });
 
@@ -1108,22 +1335,24 @@ test('completion approval print document uses compact printable structure', () =
   assert.doesNotMatch(html, />25</);
 });
 
-test('completion approval time formatter and table width are print scoped', () => {
+test('completion approval time formatter and semantic print columns are scoped', () => {
   assert.equal(formatApprovalTime('08:30:00'), '08:30');
   assert.equal(formatApprovalTime('13:00'), '13:00');
   assert.equal(formatApprovalTime(''), '');
   assert.equal(formatApprovalTime(null), '');
-  assert.match(completionApprovalPrintCss, /\.approval-print-table\{width:60%;margin-inline:auto\}/);
-  assert.match(completionApprovalPrintCss, /\.completion-approval-col-activity\{width:45%\}/);
-  assert.match(completionApprovalPrintCss, /\.completion-approval-col-grade\{width:10%\}/);
-  assert.match(completionApprovalPrintCss, /\.completion-approval-col-start\{width:13%\}/);
-  assert.match(completionApprovalPrintCss, /\.completion-approval-col-end\{width:13%\}/);
+  assert.match(completionApprovalPrintCss, /\.approval-print-table\{[^}]*width:75%/);
+  assert.match(completionApprovalPrintCss, /\.approval-print-table\{[^}]*margin-inline:auto/);
+  assert.match(completionApprovalPrintCss, /\.completion-approval-col-activity\{width:32%\}/);
+  assert.match(completionApprovalPrintCss, /\.completion-approval-col-grade\{width:15%\}/);
+  assert.match(completionApprovalPrintCss, /\.completion-approval-col-start\{width:17%\}/);
+  assert.match(completionApprovalPrintCss, /\.completion-approval-col-end\{width:17%\}/);
   assert.match(completionApprovalPrintCss, /\.completion-approval-col-participants\{width:19%\}/);
   assert.match(completionApprovalPrintCss, /\.completion-approval-table th\{[^}]*white-space:nowrap/);
   assert.match(completionApprovalPrintCss, /\.completion-approval-table__center\{text-align:center!important\}/);
   assert.match(completionApprovalPrintCss, /\.completion-approval-logo\{[^}]*inset-inline-end:0;top:0;height:42px;max-height:20mm;width:auto;object-fit:contain/);
-  assert.match(completionApprovalPrintCss, /\.approval-sign-line\{display:inline-block;width:220px;border-bottom:1px solid #111827/);
-  assert.match(completionApprovalPrintCss, /\.completion-approval-signature p\{margin:16px 0\}/);
+  assert.match(completionApprovalPrintCss, /\.approval-sign-line\{[^}]*width:240px/);
+  assert.match(completionApprovalPrintCss, /\.approval-sign-line\{[^}]*border-bottom:1px solid #9ca3af/);
+  assert.match(completionApprovalPrintCss, /\.completion-approval-signature p\{margin:22px 0\}/);
   assert.match(completionApprovalPrintCss, /\.completion-approval-footer\{[^}]*font-size:10px;[^}]*color:#64748b/);
 });
 
@@ -1147,7 +1376,7 @@ test('completion approval activities sort by start time, end time and name', () 
 });
 
 test('operations management render shows text-school activities without school_id', () => {
-  const html = operationsManagementScreen.render({ rows: TEXT_SCHOOL_ROWS, workshopStockMap: new Map() }, { state: baseState() });
+  const html = operationsManagementScreen.render({ rows: TEXT_SCHOOL_ROWS.map((row, index) => ({ ...row, activity_season: 'summer_2026', start_date: `2026-07-${String(index + 10).padStart(2, '0')}` })), workshopStockMap: new Map() }, { state: baseState({ operationsManagement: { ...baseState().operationsManagement, tab: 'authorities' } }) });
   assert.match(html, /מתנ(&quot;|")ס בנימינה גבעת עדה/);
   assert.match(html, /אלאשראק/);
   assert.match(html, /יד בנימין/);

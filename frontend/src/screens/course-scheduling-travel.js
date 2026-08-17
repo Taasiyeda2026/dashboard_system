@@ -1,7 +1,10 @@
 import { supabase } from '../supabase-client.js';
 import { activityMeetings } from './instructor-scheduling-load.js';
 import { adjacentActivities } from './instructor-matching-engine.js';
-import { isSchedulingBlockingAssignment } from './shared/activity-scheduling-eligibility.js';
+import {
+  isSchedulingBlockingAssignment,
+  isSchedulingDraftAssignment
+} from './shared/activity-scheduling-eligibility.js';
 
 const text = (value) => String(value ?? '').trim();
 const normalizePlace = (value) => text(value).toLowerCase().replace(/\s+/g, ' ');
@@ -13,6 +16,13 @@ const minutes = (value) => {
   const [hours, mins] = text(value).split(':').map(Number);
   return hours * 60 + mins;
 };
+
+function persistedCalendarSource(activity = {}) {
+  if (isSchedulingDraftAssignment(activity) && Array.isArray(activity.draft_proposed_meetings)) {
+    return { ...activity, meetings: activity.draft_proposed_meetings };
+  }
+  return activity;
+}
 
 export function routeMatrixKey(origin, destination) {
   return `${normalizePlace(origin)}→${normalizePlace(destination)}`;
@@ -82,19 +92,27 @@ export function createRouteClient({ invoke = (body) => supabase.functions.invoke
 
 function assignedMeetings(activities = []) {
   const assigned = {};
-  for (const activity of activities.filter(isSchedulingBlockingAssignment)) {
-    const empIds = [text(activity.emp_id), text(activity.emp_id_2)].filter(Boolean);
-    for (const empId of empIds) {
-      for (const meeting of activityMeetings(activity)) {
-        (assigned[empId] ||= []).push({
-          ...meeting,
-          activity_id: activityId(activity),
-          school: activity.school,
-          school_address: activity.school_address,
-          authority: activity.authority,
-          activity_name: activity.activity_name
-        });
-      }
+  const pushFor = (empId, activity, source) => {
+    if (!empId) return;
+    for (const meeting of activityMeetings(source)) {
+      (assigned[empId] ||= []).push({
+        ...meeting,
+        activity_id: activityId(activity),
+        school: activity.school,
+        school_address: activity.school_address,
+        authority: activity.authority,
+        activity_name: activity.activity_name
+      });
+    }
+  };
+  for (const activity of activities || []) {
+    if (isSchedulingBlockingAssignment(activity)) {
+      pushFor(text(activity.emp_id), activity, activity);
+      pushFor(text(activity.emp_id_2), activity, activity);
+    }
+    // Saved drafts participate in route/transition calculations like approved assignments.
+    if (isSchedulingDraftAssignment(activity)) {
+      pushFor(text(activity.draft_emp_id), activity, persistedCalendarSource(activity));
     }
   }
   return assigned;
@@ -146,6 +164,7 @@ export async function calculateCandidateTravel(preliminary, activities, routeCli
     const homeOrigin = text(candidate.instructor.address);
     const result = {
       home: homeOrigin && destination ? await route(homeOrigin, destination) : null,
+      homeReturn: destination && homeOrigin ? await route(destination, homeOrigin) : null,
       transitions: {}
     };
     for (const meeting of activityMeetings(course)) {
@@ -154,7 +173,14 @@ export async function calculateCandidateTravel(preliminary, activities, routeCli
       const nextPlace = next ? activityPlace(next) : '';
       result.transitions[meeting.date] = {
         previous: previousPlace && destination ? await route(previousPlace, destination) : null,
-        next: destination && nextPlace ? await route(destination, nextPlace) : null
+        next: destination && nextPlace ? await route(destination, nextPlace) : null,
+        baseline: previousPlace && nextPlace
+          ? await route(previousPlace, nextPlace)
+          : previousPlace && homeOrigin
+            ? await route(previousPlace, homeOrigin)
+            : homeOrigin && nextPlace
+              ? await route(homeOrigin, nextPlace)
+              : null
       };
     }
     (travel[activityId(course)] ||= {})[empId] = result;
@@ -183,7 +209,9 @@ export async function calculateCandidateTravel(preliminary, activities, routeCli
   return {
     travel,
     routeMatrix,
-    unavailableReason: routeClient.unavailableReason,
+    unavailableReason: text(routeClient.unavailableReason) === 'google_key_not_configured'
+      ? 'route_service_unavailable'
+      : routeClient.unavailableReason,
     googleCalls: routeClient.googleCalls,
     cacheHits: routeClient.cacheHits,
     requests: routeClient.requests

@@ -24,7 +24,7 @@ function installStorageMocks() {
   }
 }
 
-test('activity edit loads type before filtered name and resets name when type changes', async () => {
+test('entering edit preserves the existing activity name and only a genuine type change resets it', async () => {
   installStorageMocks();
   const { bindActivityEditForm } = await import('../frontend/src/screens/shared/bind-activity-edit-form.js');
   const settings = {
@@ -60,6 +60,13 @@ test('activity edit loads type before filtered name and resets name when type ch
     assert.equal(typeSelect.value, 'workshop');
     assert.deepEqual(Array.from(nameSelect.options).map((opt) => opt.value), ['', 'סדנת רובוטיקה']);
     assert.equal(nameSelect.value, 'סדנת רובוטיקה');
+    assert.equal(root.querySelector('[data-activity-no]').value, 'W-1');
+
+    root.querySelector('[data-action="start-edit"]').click();
+    assert.equal(nameSelect.value, 'סדנת רובוטיקה');
+    typeSelect.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+    assert.equal(nameSelect.value, 'סדנת רובוטיקה');
+    assert.equal(root.querySelector('[data-activity-no]').value, 'W-1');
 
     typeSelect.value = 'tour';
     typeSelect.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
@@ -67,6 +74,60 @@ test('activity edit loads type before filtered name and resets name when type ch
     assert.equal(nameSelect.value, '');
     assert.deepEqual(Array.from(nameSelect.options).map((opt) => opt.value), ['', 'סיור מוזיאון']);
     assert.equal(root.querySelector('[data-activity-no]').value, '');
+  } finally {
+    globalThis.AbortController = previousAbortController;
+  }
+});
+
+test('legacy fallback name is injected and selected without replacing its activity number', async () => {
+  installStorageMocks();
+  const { bindActivityEditForm } = await import('../frontend/src/screens/shared/bind-activity-edit-form.js');
+  const html = activityWorkDrawerHtml({
+    RowID: 'LEGACY-1',
+    source_sheet: 'activities',
+    activity_type: 'course',
+    item_type: 'course',
+    program_name: 'קורס מורשת שאינו בקטלוג',
+    activity_no: 'LEGACY-77',
+    status: 'פתוח'
+  }, { canEdit: true, canDirectEdit: true, settings: { dropdown_options: { activity_names: [] } } });
+  const dom = new JSDOM(`<main>${html}</main>`);
+  const previousAbortController = globalThis.AbortController;
+  globalThis.AbortController = dom.window.AbortController;
+  try {
+    const root = dom.window.document.querySelector('main');
+    bindActivityEditForm(root, { api: {}, ui: {} });
+    const nameSelect = root.querySelector('[data-role="activity-name-select"]');
+    assert.equal(nameSelect.value, 'קורס מורשת שאינו בקטלוג');
+    assert.equal(root.querySelector('[data-activity-no]').value, 'LEGACY-77');
+    root.querySelector('[data-action="start-edit"]').click();
+    assert.equal(nameSelect.value, 'קורס מורשת שאינו בקטלוג');
+    assert.equal(root.querySelector('[data-activity-no]').value, 'LEGACY-77');
+  } finally {
+    globalThis.AbortController = previousAbortController;
+  }
+});
+
+test('saving an unrelated note does not include or erase the selected course name', async () => {
+  installStorageMocks();
+  const { bindActivityEditForm } = await import('../frontend/src/screens/shared/bind-activity-edit-form.js');
+  const settings = { dropdown_options: { activity_names: [{ label: 'קורס קיים', activity_no: 'C-9', activity_type: 'course' }] } };
+  const html = activityWorkDrawerHtml({ RowID: 'C-9', source_sheet: 'activities', activity_type: 'course', item_type: 'course', activity_name: 'קורס קיים', activity_no: 'C-9', status: 'פתוח', notes: 'ישן' }, { canEdit: true, canDirectEdit: true, settings });
+  const dom = new JSDOM(`<main>${html}</main>`);
+  const previousAbortController = globalThis.AbortController;
+  globalThis.AbortController = dom.window.AbortController;
+  let payload;
+  try {
+    const root = dom.window.document.querySelector('main');
+    bindActivityEditForm(root, { api: { saveActivity: async (next) => { payload = next; return { row: { row_id: 'C-9', activity_name: 'קורס קיים', notes: 'חדש' } }; } }, ui: {} });
+    root.querySelector('[data-action="start-edit"]').click();
+    root.querySelector('[name="notes"]').value = 'חדש';
+    root.querySelector('[data-action="save-edit"]').click();
+    for (let i = 0; i < 20 && !payload; i += 1) await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.equal(payload.changes.notes, 'חדש');
+    assert.equal(Object.hasOwn(payload.changes, 'activity_name'), false);
+    assert.equal(root.querySelector('[name="activity_name"]').value, 'קורס קיים');
+    assert.equal(root.querySelector('[data-activity-no]').value, 'C-9');
   } finally {
     globalThis.AbortController = previousAbortController;
   }

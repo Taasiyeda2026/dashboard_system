@@ -8,13 +8,20 @@ import { instructorGuidelinesScreen } from '../frontend/src/screens/instructor-g
 import { instructorCompletionApprovalsScreen } from '../frontend/src/screens/instructor-completion-approvals.js';
 import { resolveInstructorApprovalForRow, openInstructorApprovalForActivity, activityDetailHtml, contactGroupsByDateSchool, findCompletionUploadForRow } from '../frontend/src/screens/instructor-utils.js';
 
+// instructorCalendarScreen always renders the real current month by default, so fixture
+// activities must fall within it (day 21 is valid in every month) instead of a hardcoded date.
+const now = new Date();
+const FIXTURE_MONTH = String(now.getMonth() + 1).padStart(2, '0');
+const FIXTURE_DATE = `${now.getFullYear()}-${FIXTURE_MONTH}-21`;
+const FIXTURE_DATE_DDMMYYYY = `21/${FIXTURE_MONTH}/${now.getFullYear()}`;
+
 const row = {
-  RowID: 'r1', start_date: '2026-07-21', activity_date: '2026-07-21', start_time: '08:00', end_time: '08:45',
+  RowID: 'r1', start_date: FIXTURE_DATE, activity_date: FIXTURE_DATE, start_time: '08:00', end_time: '08:45',
   authority: 'קריית שמונה', school: 'מגנים', grade: 'כיתה ג׳', activity_name: 'נשכן מפרקים', activity_type: 'workshop', participants_count: 25, activity_season: 'summer_2026', status: 'פתוח',
   emp_id: '1525', instructor_name: 'אייל יוחאי', emp_id_2: '1502', instructor_name_2: 'הילה רוזן'
 };
 const state = { user: { role: 'instructor', emp_id: '1525', full_name: 'אייל יוחאי' }, clientSettings: {} };
-const teamGroups = [{ activity_date: '2026-07-21', school: 'מגנים', responsibleEmpId: '1525', responsibleName: 'אייל יוחאי', instructors: [{ name: 'אייל יוחאי' }, { name: 'הילה רוזן' }] }];
+const teamGroups = [{ activity_date: FIXTURE_DATE, school: 'מגנים', responsibleEmpId: '1525', responsibleName: 'אייל יוחאי', instructors: [{ name: 'אייל יוחאי' }, { name: 'הילה רוזן' }] }];
 
 test('instructor route source defaults to calendar and keeps admin routes separate', () => {
   const main = readFileSync(new URL('../frontend/src/main.js', import.meta.url), 'utf8');
@@ -35,8 +42,8 @@ test('calendar renders activity days and opens day then activity detail drawers'
   const opened = [];
   const ui = { openDrawer(payload) { opened.push(payload); drawer.innerHTML = payload.content; payload.onOpen?.(drawer); } };
   instructorCalendarScreen.bind({ root, data: { rows: [row], teamGroups, uploads: [] }, ui, state, rerender() {} });
-  root.querySelector('[data-calendar-day="2026-07-21"]').click();
-  assert.equal(opened.at(-1).title, 'פעילויות בתאריך 21/07/2026');
+  root.querySelector(`[data-calendar-day="${FIXTURE_DATE}"]`).click();
+  assert.equal(opened.at(-1).title, `פעילויות בתאריך ${FIXTURE_DATE_DDMMYYYY}`);
   assert.match(drawer.innerHTML, /אתה אחראי קשר ביום זה/);
   drawer.querySelector('[data-activity-detail="r1"]').click();
   assert.equal(opened.at(-1).title, 'פירוט פעילות');
@@ -147,7 +154,7 @@ test('signed URL storage failure does not override approved status on instructor
   const missingStorageUpload = {
     activity_row_id: 'r1',
     instructor_emp_id: '1525',
-    activity_date: '2026-07-21',
+    activity_date: FIXTURE_DATE,
     authority: 'קריית שמונה',
     school: 'מגנים',
     status: 'approved',
@@ -181,7 +188,7 @@ test('completion upload matching prefers activity_row_id and never mixes same-da
   const uploadForB = {
     activity_row_id: 'r2',
     instructor_emp_id: '1525',
-    activity_date: '2026-07-21',
+    activity_date: FIXTURE_DATE,
     authority: 'קריית שמונה',
     school: 'מגנים',
     status: 'uploaded',
@@ -194,7 +201,7 @@ test('completion upload matching prefers activity_row_id and never mixes same-da
 
 test('completion upload matching falls back to date+authority+school only for legacy uploads without activity_row_id', () => {
   const legacyUpload = {
-    activity_date: '2026-07-21',
+    activity_date: FIXTURE_DATE,
     authority: 'קריית שמונה',
     school: 'מגנים',
     status: 'uploaded',
@@ -206,7 +213,7 @@ test('completion upload matching falls back to date+authority+school only for le
 test('completion approvals keeps closed summer workshop printable and shows existing upload', () => {
   const closedRow = { ...row, status: 'סגור' };
   const upload = {
-    activity_date: '2026-07-21',
+    activity_date: FIXTURE_DATE,
     authority: 'קריית שמונה',
     school: 'מגנים',
     status: 'uploaded',
@@ -240,7 +247,7 @@ test('completion approvals page keeps upload controls compact with pick and plus
 
 test('completion approvals shows and opens view button for existing instructor upload', async () => {
   const upload = {
-    activity_date: '2026-07-21',
+    activity_date: FIXTURE_DATE,
     authority: 'קריית שמונה',
     school: 'מגנים',
     status: 'uploaded',
@@ -287,7 +294,7 @@ test('completion approvals shows and opens view button for existing instructor u
 
 test('completion approvals hides view button without file path and keeps rejected upload controls', () => {
   const uploadWithoutPath = {
-    activity_date: '2026-07-21',
+    activity_date: FIXTURE_DATE,
     authority: 'קריית שמונה',
     school: 'מגנים',
     status: 'uploaded',
@@ -312,7 +319,7 @@ test('activity detail print resolves the full instructor approval group instead 
   const approval = resolveInstructorApprovalForRow(first, [first, second, otherSchool], 'אייל יוחאי');
 
   assert.equal(approval?.instructorName, 'אייל יוחאי');
-  assert.equal(approval?.date, '2026-07-21');
+  assert.equal(approval?.date, FIXTURE_DATE);
   assert.equal(approval?.school, 'מגנים');
   assert.deepEqual(approval.activities.map((activity) => activity.name), ['פעילות בוקר', 'פעילות המשך']);
 });
@@ -368,7 +375,7 @@ test('my activities uses status-first columns and detail-only actions', () => {
 test('activity detail shows compact solo message when current instructor is assigned alone', () => {
   const soloRow = { ...row, emp_id_2: '', instructor_name_2: '' };
   const soloGroups = [{
-    activity_date: '2026-07-21',
+    activity_date: FIXTURE_DATE,
     school: 'מגנים',
     responsibleEmpId: '1525',
     responsibleName: 'אייל יוחאי',
@@ -384,7 +391,7 @@ test('activity detail shows compact solo message when current instructor is assi
 
 test('activity detail lists only additional instructors with available contact details', () => {
   const detailedGroups = [{
-    activity_date: '2026-07-21',
+    activity_date: FIXTURE_DATE,
     school: 'מגנים',
     responsibleEmpId: '1525',
     responsibleName: 'אייל יוחאי',
@@ -529,7 +536,7 @@ test('calendar renders mobile day list alongside desktop grid', () => {
   assert.match(html, /instr-calendar-desktop/);
   assert.match(html, /instr-calendar-mobile/);
   assert.match(html, /instr-cal-mobile-list/);
-  assert.match(html, /data-calendar-day="2026-07-21"/);
+  assert.match(html, new RegExp(`data-calendar-day="${FIXTURE_DATE}"`));
 });
 
 test('my activities includes mobile card list alongside desktop table', () => {
