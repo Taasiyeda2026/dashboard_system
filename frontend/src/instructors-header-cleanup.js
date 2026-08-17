@@ -67,6 +67,9 @@ if (isRealBrowser) {
   import('./payroll-control-test-plain-status.js?v=20260817-v3').catch((error) => {
     console.error('[payroll-control-test-plain-status] load failed', error);
   });
+  import('./manager-gantt-placeholder-runtime.js?v=20260818-v1').catch((error) => {
+    console.error('[manager-gantt-placeholder] load failed', error);
+  });
 }
 
 if (typeof document !== 'undefined') {

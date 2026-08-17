@@ -13,9 +13,18 @@ export const INSTRUCTORS_WORKSPACE_TABS = Object.freeze([
 
 const COURSE_SCHEDULING_ROUTE = 'course-scheduling';
 const COURSE_SCHEDULING_ROLES = new Set(['admin', 'operation_manager']);
+const PAYROLL_CONTROL_ROLES = new Set(['admin', 'operation_manager', 'finance']);
+
+function roleOf(state = {}) {
+  return String(state?.user?.role || '').trim();
+}
 
 function hasCourseSchedulingRole(state = {}) {
-  return COURSE_SCHEDULING_ROLES.has(String(state?.user?.role || '').trim());
+  return COURSE_SCHEDULING_ROLES.has(roleOf(state));
+}
+
+function hasPayrollControlRole(state = {}) {
+  return PAYROLL_CONTROL_ROLES.has(roleOf(state));
 }
 
 function availableRoutes(state) {
@@ -29,7 +38,8 @@ function availableRoutes(state) {
   return routes;
 }
 
-function canOpenTab(tab, routes) {
+function canOpenTab(tab, routes, state = {}) {
+  if (tab?.id === 'payroll-control' && !hasPayrollControlRole(state)) return false;
   return routes.has(tab.route);
 }
 
@@ -63,7 +73,7 @@ export function isInstructorsWorkspaceRoute(state = {}) {
  */
 export function instructorsWorkspaceNavHtml({ activeTab = '', state = {} } = {}) {
   const routes = availableRoutes(state);
-  const tabs = INSTRUCTORS_WORKSPACE_TABS.filter((tab) => canOpenTab(tab, routes));
+  const tabs = INSTRUCTORS_WORKSPACE_TABS.filter((tab) => canOpenTab(tab, routes, state));
   if (!tabs.length) return '';
   const current = activeTab || resolveInstructorsWorkspaceActiveTab(state) || tabs[0].id;
   const buttons = tabs.map((tab) => {
@@ -125,7 +135,7 @@ function prepareTabContext(tab, state) {
 function activateTab(tabId, { state, rerender } = {}) {
   const routes = availableRoutes(state);
   const tab = INSTRUCTORS_WORKSPACE_TABS.find((item) => item.id === tabId);
-  if (!tab || !canOpenTab(tab, routes)) return;
+  if (!tab || !canOpenTab(tab, routes, state)) return;
 
   if (tab.action === 'payroll-control') {
     try {
