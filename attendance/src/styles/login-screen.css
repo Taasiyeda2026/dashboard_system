@@ -62,9 +62,19 @@
   text-align: center;
 }
 
+/* Hide label elements in the login form (text moved to placeholder) */
+.av2-login__form .av2-field__label {
+  display: none;
+}
+
 /* Narrow the two login inputs to ~52% and centre them + their text */
 .av2-login__form .av2-field__input {
   width: 52%;
   margin-inline: auto;
+  text-align: center;
+}
+
+/* Centre placeholder text to match centred input text */
+.av2-login__form .av2-field__input::placeholder {
   text-align: center;
 }
