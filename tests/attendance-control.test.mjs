@@ -195,12 +195,14 @@ test('payroll view groups reports by work day and compares row kilometers', () =
 });
 
 test('unmatched attendance explicitly marks the missing dashboard source without false valid fields', () => {
-  const attendance = { employeeId: 'missing', employeeName: 'מדריכה', date: '2026-05-03', startTime: '10:00', endTime: '12:00', workHours: 2, activityType: 'קורס', program: 'ביומימיקרי', school: 'אילנות', authority: 'אשקלון', meetingNo: 7 };
+  const attendance = { employeeId: 'missing', employeeName: 'מדריכה', date: '2026-05-03', startTime: '10:00', endTime: '12:00', workHours: 2, kilometers: 58, activityType: 'קורס', program: 'ביומימיקרי', school: 'אילנות', authority: 'אשקלון', meetingNo: 7 };
   const result = compareAttendanceRows([attendance], []);
   const html = resultsHtml(result);
   assert.match(html, /attendance-control__missing-match">לא נמצאה פעילות תואמת<\/p>/);
   assert.match(html, /<th>דשבורד \/ בקרה<\/th>/);
   assert.ok((html.match(/לא נמצאה התאמה/g) || []).length >= 4);
+  assert.match(html, /ק״מ<\/th><td>58<\/td><td class="attendance-control__field-value--issue">לא נמצאה התאמה<\/td><td class="attendance-control__row-status attendance-control__row-status--issue">לבדיקה/);
+  assert.doesNotMatch(html, /לא ניתן לחשב/);
   assert.doesNotMatch(html, /לא נמצאה התאמה<\/td><td class="attendance-control__row-status ">תקין/);
   assert.match(html, /10:00–12:00 \| קורס/);
   assert.match(html, /ביומימיקרי \| אילנות \| אשקלון \| מפגש 7/);
