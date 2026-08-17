@@ -78,7 +78,6 @@ async function ensureFolder(accessToken: string, parentPath: string, name: strin
       body: JSON.stringify({ name, folder: {}, "@microsoft.graph.conflictBehavior": "fail" }),
     });
   } catch (error) {
-    // A concurrent retry may have won the create race. Resolve it by path instead of creating a renamed duplicate.
     const raced = await getFolder(accessToken, fullPath);
     if (raced?.folder) return raced;
     throw error;
@@ -106,7 +105,6 @@ Deno.serve(async (req) => {
     const employeePath = `${EMPLOYEE_FILES_ROOT}/${fullName}`;
     const employeeFolder = await ensureFolder(accessToken, EMPLOYEE_FILES_ROOT, fullName);
 
-    // Preserve hierarchy dependencies while allowing every folder on the same level to run concurrently.
     const pathsByDepth = new Map<number, string[]>();
     for (const relativePath of FOLDER_PATHS) {
       const depth = relativePath.split("/").length;
@@ -127,8 +125,7 @@ Deno.serve(async (req) => {
     const folderWebUrl = clean(employeeFolder?.webUrl);
     if (!/^https:\/\/think365orgil[.]sharepoint[.]com\//.test(folderWebUrl)) throw new Error("sharepoint_folder_url_invalid");
 
-    // Persist only after the complete hierarchy exists; a partial Graph failure leaves no false mapping.
-    const saved = await rpc(req, "update_instructor_employee_folder_url", {
+    const saved = await rpc(req, "update_instructor_onboarding_folder_url", {
       p_emp_id: empId,
       p_school_year: schoolYear,
       p_folder_web_url: folderWebUrl,
