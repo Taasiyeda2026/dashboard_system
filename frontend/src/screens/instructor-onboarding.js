@@ -32,6 +32,17 @@ const AVAILABILITY = `לצורך תכנון השיבוצים והפעילויו�
 
 ---`;
 
+export function normalizeOnboardingPhone(value = '') {
+  return String(value ?? '').trim().replace(/[^0-9+]/g, '');
+}
+
+export function isValidOnboardingPhone(value = '') {
+  const normalized = normalizeOnboardingPhone(value);
+  if (!/^\+?\d+$/.test(normalized)) return false;
+  const digits = normalized.replace(/\D/g, '');
+  return digits.length >= 7 && digits.length <= 15;
+}
+
 export function buildOnboardingMail(employmentType, manager, instructorName = '') {
   const taasiyeda = employmentType === 'taasiyeda';
   const documentLines = taasiyeda
@@ -94,7 +105,7 @@ export function onboardingManagers(settings = {}) {
 export function onboardingModalHtml(managers = []) {
   return `<div class="instructor-onboarding" dir="rtl">
     <label><span>שם מלא</span><input class="ds-input" data-onboarding-name autocomplete="name" required></label>
-    <label><span>טלפון</span><input class="ds-input" data-onboarding-phone inputmode="tel" autocomplete="tel" required></label>
+    <label><span>טלפון</span><input class="ds-input" data-onboarding-phone type="tel" inputmode="tel" autocomplete="tel" required></label>
     <label><span>מייל</span><input class="ds-input" data-onboarding-email type="email" autocomplete="email" required></label>
     <label><span>סוג העסקה</span><select class="ds-input" data-onboarding-employment><option value="">בחירה</option><option value="taasiyeda">תעשיידע</option><option value="staffing">כוח אדם</option><option value="independent">עצמאי</option></select></label>
     <label data-onboarding-agency-field hidden style="display:none"><span>חברת כוח אדם</span><select class="ds-input" data-onboarding-agency><option value="">בחירה</option><option value="מעוף">מעוף</option><option value="מנפאואר">מנפאואר</option></select></label>
@@ -105,6 +116,9 @@ export function onboardingModalHtml(managers = []) {
 }
 
 export async function createOnboardingInstructor(instructor) {
+  if (!isValidOnboardingPhone(instructor?.phone)) {
+    throw new Error('יש להזין מספר טלפון תקין.');
+  }
   const { data, error } = await supabase.rpc('create_instructor_onboarding', {
     p_full_name: instructor.fullName, p_mobile: instructor.phone, p_email: instructor.email,
     p_employment_type: instructor.employmentType, p_direct_manager: instructor.managerName
@@ -210,11 +224,13 @@ export function bindOnboardingModal(modal, {
   const sync = () => {
     const list = ONBOARDING_DOCUMENTS[employment.value] || [];
     const staffing = employment.value === 'staffing';
+    const phoneValid = isValidOnboardingPhone(phone.value);
     agencyField.hidden = !staffing;
     agencyField.style.display = staffing ? 'grid' : 'none';
     documents.hidden = !list.length;
     documents.querySelector('ul').innerHTML = list.map((name) => `<li>📄 ${escapeHtml(name)}</li>`).join('');
-    prepare.disabled = draftCreated || !fullName.value.trim() || !phone.value.trim() || !email.value.trim()
+    phone.setCustomValidity(phone.value.trim() && !phoneValid ? 'יש להזין מספר טלפון תקין.' : '');
+    prepare.disabled = draftCreated || !fullName.value.trim() || !phoneValid || !email.value.trim()
       || !employment.value || (staffing && !agency.value) || !managerSelect.value;
     folder.disabled = false;
   };
@@ -237,6 +253,7 @@ export function bindOnboardingModal(modal, {
       const manager = managers.find((item) => item.name === managerSelect.value);
       if (!fullName.value.trim() || !phone.value.trim() || !email.value.trim() || !employment.value
         || (employment.value === 'staffing' && !agency.value) || !manager) return;
+      if (!isValidOnboardingPhone(phone.value)) { status.textContent = 'יש להזין מספר טלפון תקין.'; return; }
       if (!email.checkValidity()) { status.textContent = 'יש להזין כתובת מייל תקינה.'; return; }
       if (!manager?.phone || !manager?.email) { status.textContent = 'לא הוגדרו טלפון ומייל למנהל/ת הפעילות שנבחר/ה.'; return; }
       submission = Object.freeze({
