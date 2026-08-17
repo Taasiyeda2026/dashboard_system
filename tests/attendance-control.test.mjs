@@ -8,7 +8,8 @@ import {
   applyDashboardRouteKilometers, applyDashboardExpenses, compareAttendanceRows, applyAttendanceChoice,
   buildCorrectedAttendanceWorkbook, parseAttendanceWorkbook, attendanceAuditSummary, aggregateDashboardAttendanceRows,
   normalizeAttendanceApiRows, attendanceTeams, DETAIL_HEADERS, MONTHLY_HEADERS, DAILY_HEADERS, rowWorkHours,
-  parseMeetingNumberList, attendanceEntryIsResolved, approveAttendanceEntryAsReported, applyAttendanceManualCorrection
+  parseMeetingNumberList, attendanceEntryIsResolved, approveAttendanceEntryAsReported, applyAttendanceManualCorrection,
+  kmDayNeedsDecision, resolveKilometersDay
 } from '../frontend/src/screens/attendance-control.js';
 import {
   buildPayrollIdentityContext,
@@ -17,11 +18,13 @@ import {
 import {
   PAYROLL_APPROVAL_TEXT_VERSION,
   approvePayrollControlEmployee,
+  buildAttendanceUpdatePayload,
   buildPayrollApprovalPrintHtml,
   buildPayrollApprovedSnapshot,
   canExportPayrollApprovals,
   canReadPayrollApprovals,
   collectChangedAttendanceUpdates,
+  collectKmCorrectionUpdates,
   downloadPayrollApprovalsExcel,
   payrollApprovalPdfFileName,
   payrollEmployeeHasUnresolvedEntries
@@ -47,7 +50,7 @@ test('attendance API records are normalized into the existing comparison shape',
   }])[0], {
     employeeId: '1501', employeeName: 'מדריכה', employmentType: '', team: 'צוות א', date: '2026-07-03',
     startTime: '08:00', endTime: '09:00', workHours: 1, activityType: 'סדנה', school: '', authority: '',
-    program: '', meetingNo: '', kilometers: null, expenses: null, expenseDetails: '', notes: '', activityId: '7',
+    program: '', meetingNo: '', kilometers: null, expenses: null, expenseDetails: '', notes: '', activityId: '',
     _source: {
       ID: 7, employeeId: '1501', employeeName: 'מדריכה', attendanceDate: '2026-07-03',
       startTime: '08:00', endTime: '09:00', workHours: 1, activityType: 'סדנה', Team: { Value: 'צוות א' }
@@ -86,7 +89,8 @@ test('a workbook without July attendance produces the clear selected-month messa
 
 test('attendance normalization tolerates punctuation, quotes, spacing and common suffixes', () => {
   assert.equal(normalizeAttendanceName(' רמב״ם '), normalizeAttendanceName('רמבם'));
-  assert.equal(normalizeAttendanceName('גולדה מאיר'), normalizeAttendanceName('גולדה'));
+  // "מאיר" is no longer stripped globally; "גולדה מאיר" must remain distinct from "גולדה"
+  assert.notEqual(normalizeAttendanceName('גולדה מאיר'), normalizeAttendanceName('גולדה'));
 });
 
 test('dashboard dataset scope comes only from actual attendance detail dates and employees', async () => {
@@ -693,7 +697,7 @@ test('mixed activity day preserves distinct chronological blocks and cancellatio
   assert.ok(html.indexOf('קורס א') < html.indexOf('09:05'));
   assert.ok(html.indexOf('09:05') < html.indexOf('סדנה ב'));
   assert.ok(html.indexOf('סדנה ב') < html.indexOf('11:00'));
-  assert.equal((html.match(/<details class="attendance-control__employee">/g) || []).length, 1);
+  assert.equal((html.match(/<details class="attendance-control__employee[^"]*"/g) || []).length, 1);
 });
 
 test('daily route ignores Zoom and repeated locations and compares only the day total', () => {
@@ -706,7 +710,7 @@ test('daily route ignores Zoom and repeated locations and compares only the day 
   assert.deepEqual(rows.map((row) => row.kilometers), [12, 12, 0]);
   const attendance = [{ employeeId: '10', date: '2026-05-12', activityType: 'קורס', school: 'א', kilometers: 24 }];
   const result = compareAttendanceRows(attendance, rows);
-  assert.deepEqual(result.dailyKilometers[0], { employeeId: '10', date: '2026-05-12', reported: 24, calculated: 24, matches: true, hasReportedKm: true });
+  assert.deepEqual(result.dailyKilometers[0], { employeeId: '10', date: '2026-05-12', reported: 24, calculated: 24, matches: true, hasReportedKm: true, managerResolved: 'auto_ok' });
   assert.equal(result.comparisons[0].differences.some((difference) => difference.key === 'kilometers'), false);
 });
 
@@ -1173,4 +1177,166 @@ test('conflicting school_id values remain a real mismatch', () => {
     { identityContext: context }
   );
   assert.equal(result.comparisons[0].differences.some((item) => item.key === 'school'), true);
+});
+
+// ── תקלה 1: SharePoint record ID אינו Dashboard activityId ────────────────
+test('SharePoint record ID that coincidentally equals a dashboard activityId does not create a match', () => {
+  const base = { employeeId: '20', date: '2026-05-15', startTime: '08:00', endTime: '09:00', activityType: 'קורס', workHours: 1 };
+  const dashRow = { ...base, school: 'בית ספר א', activityId: '555' };
+  // normalizeAttendanceApiRows stores ID as attendanceRecordId only — activityId is empty
+  const attendanceRows = normalizeAttendanceApiRows([{
+    employeeId: '20', employeeName: 'test', attendanceDate: '2026-05-15',
+    startTime: '08:00', endTime: '09:00', workHours: 1,
+    activityType: 'קורס', schoolName: 'בית ספר א', ID: 555 // same number as dashboard activityId
+  }]);
+  assert.equal(attendanceRows[0].activityId, '', 'activityId must be empty for API rows');
+  const result = compareAttendanceRows(attendanceRows, [dashRow]);
+  // Must match by school/time, not by activityId score 100
+  const match = result.comparisons[0];
+  // The match must not be identified as an activityId match — even if score is high from other fields
+  assert.notEqual(match.identity, 'activityId', 'should not be matched via activityId — SharePoint ID is not a dashboard activity ID');
+});
+
+// ── תקלה 2: "מאיר" גלובלי ────────────────────────────────────────────────
+test('"כוכב מאיר" is not normalized to "כוכב" — only prefix stripped cleanly', () => {
+  const name = 'כוכב מאיר';
+  const normalized = normalizeAttendanceName(name);
+  assert.ok(normalized.includes('מאיר'), `"מאיר" must remain in normalized form, got: "${normalized}"`);
+});
+
+test('normalizeAttendanceName does not strip מאיר from unrelated names', () => {
+  assert.ok(normalizeAttendanceName('גולדה מאיר').includes('מאיר'));
+  assert.ok(normalizeAttendanceName('יאיר מאיר').includes('מאיר'));
+});
+
+// ── תקלה 3: school.city אינו alias של בית ספר ────────────────────────────
+test('city name does not resolve as a school alias', () => {
+  const context = buildPayrollIdentityContext({
+    schoolLookup: {
+      list: [{ id: '301', school_name: 'בית ספר אורים', city: 'תל אביב', authority_id: '50' }],
+      byId: new Map([['301', { id: '301', school_name: 'בית ספר אורים', city: 'תל אביב', authority_id: '50' }]])
+    }
+  });
+  // "תל אביב" is a city — must not resolve as school id '301'
+  const resolved = resolveSchoolIdForAuthority('תל אביב', '50', context);
+  assert.ok(!resolved || resolved !== '301', `city "תל אביב" must not resolve as school id "301", got: ${resolved}`);
+});
+
+// ── תקלה 4: שם בית ספר אינו alias של רשות ────────────────────────────────
+test('school name is not added to the authority lookup', () => {
+  const schoolName = 'בית ספר ממלכתי';
+  const authorityName = 'רשות גדולה';
+  const context = buildPayrollIdentityContext({
+    schoolLookup: {
+      list: [{ id: '400', school_name: schoolName, authority_id: '60' }],
+      byId: new Map([['400', { id: '400', school_name: schoolName, authority_id: '60' }]])
+    },
+    authorityLookup: {
+      list: [{ id: '60', authority_name: authorityName }],
+      byId: new Map([['60', { id: '60', authority_name: authorityName }]])
+    }
+  });
+  // Resolving school name as authority must NOT return authority '60'
+  const base = { employeeId: '10', date: '2026-05-20', startTime: '09:00', endTime: '10:00', activityType: 'קורס', workHours: 1, school: schoolName, program: 'תוכנית' };
+  const result = compareAttendanceRows(
+    [{ ...base, authority: schoolName }],  // attendance claims schoolName as its authority
+    [{ ...base, authority: authorityName }],
+    { identityContext: context }
+  );
+  // School name should not match as an authority alias → should appear as a difference
+  const diffs = result.comparisons[0].differences;
+  assert.ok(diffs.some((d) => d.key === 'authority'), `school name must not resolve as authority alias; differences: ${JSON.stringify(diffs.map((d) => d.key))}`);
+});
+
+// ── תקלה 5: manager resolution gate — רשומה עם כמה differences ────────────
+test('entry with 3 differences and only one decision remains unresolved', () => {
+  const base = { employeeId: '10', date: '2026-05-21', startTime: '08:00', endTime: '09:00', activityType: 'קורס', workHours: 1, school: 'א', program: 'ב' };
+  const result = compareAttendanceRows(
+    [{ ...base, startTime: '07:45', endTime: '08:55', school: 'שגוי' }],
+    [{ ...base }]
+  );
+  const entry = result.comparisons[0];
+  assert.ok(entry.differences.length >= 2, 'test requires at least 2 differences');
+  // Apply choice to only the first difference
+  applyAttendanceChoice(entry, entry.differences[0].key, 'dashboard');
+  assert.ok(!attendanceEntryIsResolved(entry), 'must remain unresolved while other differences are undecided');
+  assert.notEqual(entry.managerResolved, 'corrected');
+});
+
+test('entry with multiple differences resolves only when all differences are decided', () => {
+  const base = { employeeId: '10', date: '2026-05-22', startTime: '08:00', endTime: '09:00', activityType: 'קורס', workHours: 1, school: 'א', program: 'ב' };
+  const result = compareAttendanceRows(
+    [{ ...base, startTime: '07:45', endTime: '08:55', school: 'שגוי' }],
+    [{ ...base }]
+  );
+  const entry = result.comparisons[0];
+  for (const diff of entry.differences) applyAttendanceChoice(entry, diff.key, 'dashboard');
+  assert.equal(entry.managerResolved, 'corrected');
+  assert.ok(attendanceEntryIsResolved(entry));
+});
+
+// ── תקלה 6: ק"מ יומי — approval gate ────────────────────────────────────
+test('daily km issue without decision blocks approval', async () => {
+  const api = {
+    attendanceControlUpdateRecord: async () => ({ success: true }),
+    savePayrollControlApproval: async (p) => p
+  };
+  const result = {
+    month: '2026-05',
+    comparisons: [{ ...changedComparison }],
+    dailyKilometers: [{ employeeId: '10', date: '2026-05-10', reported: 30, calculated: 20, matches: false, hasReportedKm: true, managerResolved: null }]
+  };
+  await assert.rejects(
+    () => approvePayrollControlEmployee({ api, user: { full_name: 'מנהל' }, result, employeeId: '10', employeeName: 'דנה', confirmed: true }),
+    /רשומות נוכחות שלא קיבלו/
+  );
+});
+
+test('daily km within tolerance is auto_ok and does not block approval', async () => {
+  let saved = null;
+  const api = {
+    attendanceControlUpdateRecord: async () => ({ success: true }),
+    savePayrollControlApproval: async (p) => { saved = p; return { ...p }; }
+  };
+  const result = {
+    month: '2026-05',
+    comparisons: [{ ...changedComparison }],
+    dailyKilometers: [{ employeeId: '10', date: '2026-05-10', reported: 22, calculated: 20, matches: true, hasReportedKm: true, managerResolved: 'auto_ok' }]
+  };
+  await approvePayrollControlEmployee({ api, user: { full_name: 'מנהל' }, result, employeeId: '10', employeeName: 'דנה', confirmed: true });
+  assert.ok(saved, 'approval snapshot should be saved when km is auto_ok');
+});
+
+test('km approved_as_reported marks day resolved without write-back', () => {
+  const result = {
+    month: '2026-05',
+    comparisons: [],
+    dailyKilometers: [{ employeeId: '10', date: '2026-05-10', reported: 30, calculated: 20, matches: false, hasReportedKm: true, managerResolved: null }]
+  };
+  assert.ok(result.dailyKilometers[0].managerResolved == null, 'starts unresolved');
+  resolveKilometersDay(result, '10', '2026-05-10', 'approved_as_reported');
+  assert.equal(result.dailyKilometers[0].managerResolved, 'approved_as_reported');
+  assert.ok(!kmDayNeedsDecision(result.dailyKilometers[0]), 'must be resolved after manager approval');
+  // No km correction updates (approved_as_reported = no write-back)
+  const kmUpdates = collectKmCorrectionUpdates(result, '10');
+  assert.equal(kmUpdates.length, 0, 'approved_as_reported must not generate write-back');
+});
+
+test('buildAttendanceUpdatePayload throws when Logic App field is absent from both source and fallback', () => {
+  // Source has only a handful of fields; the fallback (attendance) also lacks most LOGIC_APP_FIELDS.
+  // A write-back update must never send a partial payload to the Logic App.
+  const entry = {
+    attendance: {
+      _source: { startTime: '09:00', endTime: '11:00', workHours: 2 },
+      employeeId: '1', date: '2026-05-01', startTime: '09:00', endTime: '11:00', workHours: 2
+    },
+    final: {
+      employeeId: '1', date: '2026-05-01', startTime: '09:00', endTime: '11:00', workHours: 3
+    }
+  };
+  assert.throws(
+    () => buildAttendanceUpdatePayload(entry),
+    /חסר נתון מקור/,
+    'must throw when Logic App fields are missing from both source and fallback'
+  );
 });

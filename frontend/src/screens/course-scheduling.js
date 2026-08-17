@@ -2016,13 +2016,39 @@ export const courseSchedulingScreen = {
         rerender();
       });
     });
-    root.querySelector('[data-distance-month]')?.addEventListener('change', (event) => {
+    // Event delegation: [data-distance-month] is conditionally rendered (only when
+    // target=payroll_month), so it does not exist at bind() time. Delegating to root
+    // ensures the listener is active regardless of when the input appears in the DOM.
+    root.addEventListener('change', (event) => {
+      if (!event.target.matches('[data-distance-month]')) return;
       const nextMonth = parsePayrollMonth(event.target.value);
       if (parsePayrollMonth(state.courseSchedulingDistanceMonth) === nextMonth) return;
       state.courseSchedulingDistanceMonth = nextMonth;
-      state.courseSchedulingDistanceCoverageLoaded = false;
       state.courseSchedulingDistanceStats = null;
+      state.courseSchedulingDistanceCoverageLoaded = false;
+      // bind()'s auto-load block runs only once at mount; trigger coverage directly here.
+      if (!nextMonth || state.courseSchedulingDistanceCoverageLoading) { rerender(); return; }
+      state.courseSchedulingDistanceCoverageLoading = true;
       rerender();
+      loadDistanceCoverage(
+        (body) => supabase.functions.invoke('scheduling-route', { body }),
+        'payroll_month',
+        { month: nextMonth }
+      )
+        .then((coverage) => {
+          state.courseSchedulingDistanceStats = coverage;
+          state.courseSchedulingDistanceError = false;
+          state.courseSchedulingDistanceDoneMessage = '';
+        })
+        .catch((error) => {
+          state.courseSchedulingDistanceError = true;
+          state.courseSchedulingDistanceDoneMessage = translateSchedulingRouteError(error.code || error.message, error.message);
+        })
+        .finally(() => {
+          state.courseSchedulingDistanceCoverageLoading = false;
+          state.courseSchedulingDistanceCoverageLoaded = true;
+          rerender();
+        });
     });
 
     root.querySelector('[data-update-distances]')?.addEventListener('click', async () => {

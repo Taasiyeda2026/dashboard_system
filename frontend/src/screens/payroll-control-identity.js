@@ -61,7 +61,6 @@ export function buildPayrollIdentityContext({
     if (!school?.id) return;
     const names = new Set();
     addNameVariant(names, school.school_name);
-    addNameVariant(names, school.city);
     schoolById.set(String(school.id), {
       id: String(school.id),
       authority_id: school.authority_id ? String(school.authority_id) : null,
@@ -91,15 +90,9 @@ export function buildPayrollIdentityContext({
     });
   });
 
-  schoolById.forEach((school) => {
-    if (!school.authority_id) return;
-    const bucket = authorityNamesById.get(school.authority_id) || new Set();
-    school.names.forEach((name) => bucket.add(name));
-    authorityNamesById.set(school.authority_id, bucket);
-    school.names.forEach((name) => {
-      if (name) authorityIdByName.set(name, school.authority_id);
-    });
-  });
+  // School names are scoped to their authority via schoolIdByAuthorityName.
+  // They must NOT be added to the global authorityNamesById / authorityIdByName maps
+  // because a school name is not an alias for the authority that governs it.
 
   const registerProgramName = (activityNo, name) => {
     const key = normalizeActivityNo(activityNo);

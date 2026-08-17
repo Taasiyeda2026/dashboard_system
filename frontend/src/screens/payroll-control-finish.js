@@ -5,7 +5,8 @@ import {
   attendanceMonthLabel,
   buildCorrectedAttendanceWorkbook,
   rowWorkHours,
-  attendanceEntryIsResolved
+  attendanceEntryIsResolved,
+  kmDayNeedsDecision
 } from './attendance-control.js';
 
 export const PAYROLL_APPROVAL_STATUS = 'approved_for_payroll';
@@ -39,7 +40,7 @@ const SOURCE_KEYS = {
   schoolName: ['schoolName', 'SchoolName', 'school'],
   municipality: ['municipality', 'Municipality', 'authority'],
   programName: ['programName', 'ProgramName', 'program'],
-  sessionNumber: ['sessionNumber', 'SessionNumber', 'session'],
+  sessionNumber: ['sessionNumber', 'SessionNumber', 'session', 'meetingNo'],
   totalExpenses: ['totalExpenses', 'TotalExpenses', 'expenses'],
   kilometers: ['kilometers', 'Kilometers', 'km'],
   expensesDetails: ['expensesDetails', 'ExpensesDetails', 'expenseDetails'],
@@ -96,7 +97,11 @@ export function payrollEmployeeEntries(result, employeeId) {
 }
 
 export function payrollEmployeeHasUnresolvedEntries(result, employeeId) {
-  return payrollEmployeeEntries(result, employeeId).some((entry) => !attendanceEntryIsResolved(entry));
+  if (payrollEmployeeEntries(result, employeeId).some((entry) => !attendanceEntryIsResolved(entry))) return true;
+  const id = txt(employeeId);
+  return (result?.dailyKilometers || [])
+    .filter((day) => txt(day.employeeId) === id)
+    .some((day) => kmDayNeedsDecision(day));
 }
 
 function originalAttendanceRecord(entry) {
@@ -112,12 +117,17 @@ function sourceField(source, field) {
   return { present: false, value: undefined };
 }
 
-function copyOriginalLogicAppFields(source) {
+function copyOriginalLogicAppFields(source, fallback = null) {
   const payload = {};
   for (const field of LOGIC_APP_FIELDS) {
     const original = sourceField(source, field);
-    if (!original.present) continue;
-    payload[field] = original.value;
+    if (original.present) { payload[field] = original.value; continue; }
+    // Fallback: if the original source lacks the key, use the normalized attendance value
+    // so the Logic App always receives a complete contract payload.
+    if (fallback) {
+      const fb = sourceField(fallback, field);
+      if (fb.present) payload[field] = fb.value;
+    }
   }
   return payload;
 }
@@ -126,7 +136,7 @@ export function buildAttendanceUpdatePayload(entry) {
   const attendance = entry?.attendance || {};
   const final = entry?.final || attendance;
   const source = originalAttendanceRecord(entry);
-  const fields = copyOriginalLogicAppFields(source);
+  const fields = copyOriginalLogicAppFields(source, attendance);
   let changed = false;
   for (const [payloadKey, finalKey, numeric] of CORRECTION_FIELDS) {
     const prev = finalFieldValue(attendance, finalKey, numeric);
@@ -134,6 +144,10 @@ export function buildAttendanceUpdatePayload(entry) {
     if (sameValue(prev, next, numeric)) continue;
     fields[payloadKey] = next;
     changed = true;
+  }
+  if (changed) {
+    const missingFields = LOGIC_APP_FIELDS.filter((field) => !Object.prototype.hasOwnProperty.call(fields, field));
+    if (missingFields.length) throw new Error('חסר נתון מקור הנדרש לעדכון בטוח של רשומת הנוכחות');
   }
   return {
     recordId: attendanceRecordId(attendance),
@@ -156,6 +170,25 @@ export function collectChangedAttendanceUpdates(entries = []) {
     });
   }
   return updates;
+}
+
+/**
+ * Validates and collects km write-back updates for payroll approval.
+ *
+ * APPROVED TODAY: only `approved_as_reported` — no write-back is generated.
+ * BLOCKED: `corrected` km — the distribution rule (which record gets which amount) has
+ * not been defined by the business.  Attempting to approve with corrected km throws so
+ * that the caller cannot silently skip the unresolved business question.
+ */
+export function collectKmCorrectionUpdates(result, employeeId) {
+  const id = txt(employeeId);
+  const hasCorrected = (result?.dailyKilometers || [])
+    .some((day) => txt(day.employeeId) === id && day.managerResolved === 'corrected');
+  if (hasCorrected) {
+    throw new Error('תיקון ק״מ יומי דורש החלטת חלוקה — לא ניתן לאשר להעברה לשכר ללא הגדרת כלל חלוקה.');
+  }
+  // approved_as_reported: attendance km stands; no write-back required.
+  return [];
 }
 
 export function snapshotAttendanceRow(entry) {
@@ -254,7 +287,10 @@ export async function approvePayrollControlEmployee({
   if (payrollEmployeeHasUnresolvedEntries(result, employeeId)) {
     throw new Error('לא ניתן לסיים את הבקרה: יש רשומות נוכחות שלא קיבלו החלטת מנהל.');
   }
-  const updates = collectChangedAttendanceUpdates(entries);
+  const updates = [
+    ...collectChangedAttendanceUpdates(entries),
+    ...collectKmCorrectionUpdates(result, employeeId)
+  ];
   const failures = await writeBackChangedAttendanceRecords(api, updates);
   if (failures.length) {
     const detail = failures

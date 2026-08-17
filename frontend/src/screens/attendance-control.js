@@ -47,8 +47,7 @@ export function isAttendanceOnlyActivityType(value) {
 export function normalizeAttendanceName(value) {
   return txt(value).normalize('NFKD').toLowerCase()
     .replace(/[׳״'"`´’‘“”.,;:()\[\]{}\-_/\\\u05BE\u2010-\u2015]/g, '')
-    .replace(/\s+/g, '')
-    .replace(/מאיר$/u, '');
+    .replace(/\s+/g, '');
 }
 
 function headerKey(value) {
@@ -290,7 +289,7 @@ export function normalizeAttendanceApiRows(records = []) {
     school: txt(row.schoolName || row.SchoolName || row.school), authority: txt(row.municipality || row.Municipality || row.authority),
     program: txt(row.programName || row.ProgramName || row.program), meetingNo: txt(row.sessionNumber || row.SessionNumber || row.session),
     kilometers: optionalNumber(row.kilometers ?? row.Kilometers ?? row.km), expenses: optionalNumber(row.totalExpenses ?? row.TotalExpenses),
-    expenseDetails: txt(row.expensesDetails || row.ExpensesDetails), notes: txt(row.notes || row.Notes), activityId: txt(row.ID || row.Id || row.id),
+    expenseDetails: txt(row.expensesDetails || row.ExpensesDetails), notes: txt(row.notes || row.Notes), activityId: '',
     _source: row
   })).filter((row) => row.employeeId && row.date);
 }
@@ -486,12 +485,17 @@ function sameActivityBundleContext(attendance, dashboard, identityContext = null
 
 function bundleMatchesAttendanceMeetings(attendance, dashboard, identityContext = null) {
   if (!txt(attendance.meetingNo)) return true;
-  if (!meetingSequenceMatchesAttendance(attendance, dashboard)) return false;
+  if (!meetingSequenceMatchesAttendance(attendance, dashboard)) {
+    // For a single-row bundle, a meeting-number mismatch surfaces as a difference rather than
+    // blocking the match entirely.  For multi-row sequences the whole bundle is rejected.
+    return bundleComponents(dashboard).length === 1;
+  }
   if (!sameActivityBundleContext(attendance, dashboard, identityContext)) return false;
   const attendanceHours = rowWorkHours(attendance);
   const dashboardHours = rowWorkHours(dashboard);
   if (attendanceHours == null || dashboardHours == null) return true;
-  return Math.abs(attendanceHours - dashboardHours) < 0.01;
+  // Allow up to 30 minutes of payroll-rounding difference (e.g. 90 min → 2 payroll hours).
+  return Math.abs(attendanceHours - dashboardHours) <= 0.5;
 }
 
 function componentHasContext(attendance, dashboard, identityContext = null) {
@@ -577,7 +581,34 @@ export function attendanceEntryIsResolved(entry) {
   if ((entry.differences || []).length > 0) return false;
   if (entry.dashboard?.payrollHoursRequireReview) return false;
   if (hasReviewExpense(entry.attendance)) return false;
-  return Boolean(entry.dashboard);
+  // No pending differences, no special requirements, and not unmatched → resolved.
+  // (unmatched entries are caught above by the entry.unmatched check.)
+  return true;
+}
+
+/**
+ * Returns true when a daily-km entry has an unresolved issue that blocks approval.
+ * An issue exists when: calculated is null and attendance reported km,
+ * or calculated is known but the reported total differs by more than the tolerance.
+ */
+export function kmDayNeedsDecision(day) {
+  if (!day) return false;
+  if (day.managerResolved === 'auto_ok' || day.managerResolved === 'approved_as_reported' || day.managerResolved === 'corrected') return false;
+  if (day.calculated == null) return Boolean(day.hasReportedKm);
+  return day.hasReportedKm !== false && !day.matches;
+}
+
+/**
+ * Record the manager's decision for a daily km entry.
+ * resolution: 'approved_as_reported' | 'corrected'
+ * correctedKm: required when resolution === 'corrected'; the total km for the day.
+ */
+export function resolveKilometersDay(result, employeeId, date, resolution, correctedKm = null) {
+  const id = txt(employeeId);
+  const day = (result?.dailyKilometers || []).find((d) => txt(d.employeeId) === id && d.date === date);
+  if (!day) return;
+  day.managerResolved = resolution;
+  if (resolution === 'corrected' && correctedKm != null) day.correctedKm = correctedKm;
 }
 
 export function approveAttendanceEntryAsReported(entry) {
@@ -648,7 +679,22 @@ function assignDashboardBundles(attendanceEntries, dashboardRows, identityContex
         const selected = eligible.slice(eligibleStart, eligibleEnd + 1);
         const componentRows = selected.map(({ row }) => row);
         const activityIds = new Set(componentRows.map((row) => txt(row.activityId)).filter(Boolean));
-        if (activityIds.size > 1) continue;
+        if (activityIds.size > 1) {
+          // Multi-row bundle: require proof that all rows belong to the same logical activity.
+          // Rows with conflicting activityNos are definitively different activities.
+          const activityNos = new Set(componentRows.map((row) => txt(row.activityNo)).filter(Boolean));
+          if (activityNos.size > 1) continue;
+          // Without conflicting activityNos, all component rows must share the same school AND
+          // program — the strongest available proxy for "same logical activity" when activityNo
+          // is absent.  (bundle is not yet computed here, so check componentRows directly.)
+          const bundleSchools = new Set(componentRows.map((row) => normalizeAttendanceName(row.school)).filter(Boolean));
+          const bundlePrograms = new Set(componentRows.map((row) => normalizeAttendanceName(row.program)).filter(Boolean));
+          if (bundleSchools.size > 1 || bundlePrograms.size > 1) continue;
+          // Attendance must relate to the bundle's shared school or program context.
+          const attSchool = normalizeAttendanceName(attendance.school);
+          const attProgram = normalizeAttendanceName(attendance.program);
+          if ((!attSchool || !bundleSchools.has(attSchool)) && (!attProgram || !bundlePrograms.has(attProgram))) continue;
+        }
         if (txt(attendance.activityId) && activityIds.size && !activityIds.has(txt(attendance.activityId))) continue;
         const start = selected[0].index; const end = selected.at(-1).index;
         const bundle = dashboardBundle(componentRows);
@@ -811,7 +857,8 @@ export function compareAttendanceRows(attendanceRows, dashboardRows, options = {
       ? Math.round(calculatedValues.reduce((sum, value) => sum + value, 0) * 100) / 100 : null;
     const hasReportedKm = attendance.some((row) => optionalNumber(row.kilometers) != null);
     const matches = calculated != null && (!hasReportedKm || Math.abs(reported - calculated) <= DAILY_KM_TOLERANCE);
-    dailyKilometers.push({ employeeId, date, reported, calculated, matches, hasReportedKm });
+    const kmIssue = calculated == null ? Boolean(hasReportedKm) : (hasReportedKm !== false && !matches);
+    dailyKilometers.push({ employeeId, date, reported, calculated, matches, hasReportedKm, managerResolved: kmIssue ? null : 'auto_ok' });
   });
   return { comparisons, notCompared, dashboardOnly, dashboardPopulation, dailyKilometers };
 }
@@ -824,10 +871,11 @@ export function setDashboardOnlyChoice(entry, includeInFinal) {
 export function applyAttendanceChoice(comparison, field, choice, custom = '') {
   const difference = comparison.differences.find((item) => item.key === field);
   if (!difference) return comparison;
-  difference.choice = choice; difference.custom = custom;
+  difference.choice = choice; difference.custom = custom; difference.decided = true;
   const value = choice === 'dashboard' ? difference.dashboard : choice === 'custom' ? custom : difference.attendance;
   comparison.final[field] = difference.type === 'number' || difference.type === 'money' ? optionalNumber(value) : value;
-  comparison.managerResolved = 'corrected';
+  // Only mark as corrected once every difference has received an explicit manager decision.
+  if (comparison.differences.every((d) => d.decided)) comparison.managerResolved = 'corrected';
   return comparison;
 }
 
@@ -1050,6 +1098,7 @@ export function resultsHtml(result, month = '', options = {}) {
   const dayKmIssue = (employeeId, date) => {
     const day = dayKmInfo(employeeId, date);
     if (!day) return false;
+    if (day.managerResolved === 'auto_ok' || day.managerResolved === 'approved_as_reported' || day.managerResolved === 'corrected') return false;
     if (day.calculated == null) return Boolean(day.hasReportedKm);
     return day.hasReportedKm !== false && !day.matches;
   };
@@ -1067,7 +1116,10 @@ export function resultsHtml(result, month = '', options = {}) {
       : shown(km.reported ?? 0);
     const calculatedKm = km.calculated == null ? 'לא ניתן לחשב' : shown(km.calculated);
     const kmStatus = km.calculated == null ? 'לא ניתן לחשב ק״מ' : (km.matches ? 'תקין' : 'לבדיקה');
-    return `<div class="attendance-control__report-km">ק״מ ליום: ${reportedKm} מדווח | ${calculatedKm} מחושב | ${kmStatus}</div>`;
+    const kmAction = kmDayNeedsDecision(km)
+      ? ` <button type="button" class="ds-btn ds-btn--sm" data-km-approve-reported="${escapeHtml(txt(km.employeeId))}|${escapeHtml(km.date)}">אשר ק״מ כפי שדווח</button>`
+      : (km.managerResolved === 'approved_as_reported' ? ' <span class="attendance-control__resolved-note">ק״מ אושר כמדווח</span>' : '');
+    return `<div class="attendance-control__report-km">ק״מ ליום: ${reportedKm} מדווח | ${calculatedKm} מחושב | ${kmStatus}${kmAction}</div>`;
   };
   const managerActionsHtml = (entry) => {
     const resolvedLabel = entryResolvedLabel(entry);
@@ -1144,14 +1196,14 @@ export function resultsHtml(result, month = '', options = {}) {
       const calculatedKm = km?.calculated == null ? 'לא ניתן לחשב' : shown(km.calculated);
       const kmStatus = km?.calculated == null ? 'לא ניתן לחשב ק״מ' : (km.matches ? 'תקין' : 'לבדיקה');
       const kmLine = `<div class="attendance-control__day-km">ק״מ מדווח: ${reportedKm} | ק״מ מחושב: ${calculatedKm} | ${kmStatus}</div>`;
-      return `<details class="attendance-control__day${issue ? '' : ' attendance-control__day--ok'}"><summary><span>${shown(dateLabel(date))}</span><span>${hours.toFixed(2)} שעות</span><span class="attendance-control__row-status ${issue ? 'attendance-control__row-status--issue' : ''}">${issue ? '⚠ לבדיקה' : '✓ תקין'}</span></summary>${kmLine}<div class="attendance-control__reports">${rows.map((row) => reportHtml({ ...row, employeeId: employee.id, date })).join('')}</div></details>`;
+      return `<details class="attendance-control__day${issue ? '' : ' attendance-control__day--ok'}" data-payroll-date="${escapeHtml(date)}"><summary><span>${shown(dateLabel(date))}</span><span>${hours.toFixed(2)} שעות</span><span class="attendance-control__row-status ${issue ? 'attendance-control__row-status--issue' : ''}">${issue ? '⚠ לבדיקה' : '✓ תקין'}</span></summary>${kmLine}<div class="attendance-control__reports">${rows.map((row) => reportHtml({ ...row, employeeId: employee.id, date })).join('')}</div></details>`;
     }).join('');
     const approval = options.approvalsByEmployee?.[employee.id];
     const approvedHtml = approval
       ? `<div class="attendance-control__approved"><span>מאושר להעברה לשכר</span><span>${shown(approval.approved_by_name)}</span><span>${shown(approval.approved_at ? new Date(approval.approved_at).toLocaleString('he-IL', { dateStyle: 'short', timeStyle: 'short' }) : '')}</span><button type="button" class="ds-btn ds-btn--sm" data-payroll-view-pdf="${escapeHtml(String(approval.id || ''))}">צפייה בדוח</button></div>`
       : '';
     const finishButton = `<div class="attendance-control__employee-actions"><button type="button" class="ds-btn ds-btn--primary" data-payroll-finish="${escapeHtml(employee.id)}" data-payroll-employee-name="${shown(employee.name)}">סיום בדיקה ואישור להעברה לשכר</button></div>`;
-    return `<details class="attendance-control__employee"><summary><strong>${shown(employee.name)}</strong></summary>${approvedHtml}${finishButton}<div class="attendance-control__employee-days">${days}</div></details>`;
+    return `<details class="attendance-control__employee" data-payroll-employee="${escapeHtml(employee.id)}"><summary><strong>${shown(employee.name)}</strong></summary>${approvedHtml}${finishButton}<div class="attendance-control__employee-days">${days}</div></details>`;
   }).join('');
   const reviewEmployees = [...employees.values()].filter((employee) => {
     const entries = [...(result.comparisons || []), ...(result.notCompared || [])]
@@ -1159,7 +1211,7 @@ export function resultsHtml(result, month = '', options = {}) {
     return entries.some((entry) => !attendanceEntryIsResolved(entry))
       || [...employee.days.entries()].some(([date]) => dayKmIssue(employee.id, date));
   }).length;
-  const metricsHtml = `<details class="attendance-control__metrics-details"><summary>פרטים</summary><div class="attendance-control__metrics"><span>שורות נוכחות ${totals.attendanceRows}</span><span>התאמות ${totals.fullMatches}</span><span>פערים ${totals.fieldMismatches}</span><span>ללא התאמה ${totals.unmatchedAttendance}</span></div></details>`;
+  const metricsHtml = `<details class="attendance-control__metrics-details" data-payroll-metrics><summary>פרטים</summary><div class="attendance-control__metrics"><span>שורות נוכחות ${totals.attendanceRows}</span><span>התאמות ${totals.fullMatches}</span><span>פערים ${totals.fieldMismatches}</span><span>ללא התאמה ${totals.unmatchedAttendance}</span></div></details>`;
   const summaryBar = `<div class="attendance-control__summary-bar"><span>מדריכים <b>${employees.size}</b></span><span>תקינים <b>${Math.max(0, employees.size - reviewEmployees)}</b></span><span>לבדיקה <b>${reviewEmployees}</b></span></div>`;
   return `${summaryBar}${metricsHtml}${employeeHtml}<button type="button" class="ds-btn ds-btn--primary attendance-control__export" data-attendance-export>ייצוא דוח נוכחות מתוקן</button>`;
 }
@@ -1187,7 +1239,32 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
   const isManager = role === 'manager' || role === 'instructor_manager';
   const canChooseTeam = ['operations_controller', 'system_admin', 'operation_manager', 'admin'].includes(role);
   const paintResults = () => {
+    // Save open state of employees, days and metrics before replacing innerHTML
+    const openEmployees = new Set();
+    const openDays = new Set();
+    let metricsOpen = false;
+    results.querySelectorAll('details[data-payroll-employee][open]').forEach((el) => openEmployees.add(el.dataset.payrollEmployee));
+    results.querySelectorAll('details[data-payroll-date][open]').forEach((el) => {
+      const emp = el.closest('[data-payroll-employee]');
+      openDays.add((emp?.dataset?.payrollEmployee || '') + '|' + el.dataset.payrollDate);
+    });
+    if (results.querySelector('details[data-payroll-metrics][open]')) metricsOpen = true;
+
     results.innerHTML = result ? resultsHtml(result, result.month, { approvalsByEmployee }) : '';
+
+    // Restore open state after re-render
+    results.querySelectorAll('details[data-payroll-employee]').forEach((el) => {
+      if (openEmployees.has(el.dataset.payrollEmployee)) el.open = true;
+    });
+    results.querySelectorAll('details[data-payroll-date]').forEach((el) => {
+      const emp = el.closest('[data-payroll-employee]');
+      const key = (emp?.dataset?.payrollEmployee || '') + '|' + el.dataset.payrollDate;
+      if (openDays.has(key)) el.open = true;
+    });
+    if (metricsOpen) {
+      const m = results.querySelector('details[data-payroll-metrics]');
+      if (m) m.open = true;
+    }
   };
   const loadApprovals = async () => {
     approvalsByEmployee = {};
@@ -1293,6 +1370,14 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
       XLSX.writeFile(buildCorrectedAttendanceWorkbook([...result.comparisons, ...(result.notCompared || [])], result.dashboardPopulation), attendanceExportFilename(result.month), { compression: true });
       return;
     }
+    const kmApproveBtn = event.target.closest('[data-km-approve-reported]');
+    if (kmApproveBtn && result) {
+      const [kmEmployeeId, kmDate] = txt(kmApproveBtn.dataset.kmApproveReported).split('|');
+      resolveKilometersDay(result, kmEmployeeId, kmDate, 'approved_as_reported');
+      paintResults();
+      status.textContent = '';
+      return;
+    }
     const viewBtn = event.target.closest('[data-payroll-view-pdf]');
     if (viewBtn) {
       const approval = approvalFromButton(viewBtn);
@@ -1310,30 +1395,17 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
     const employeeId = txt(finishBtn.dataset.payrollFinish);
     const employeeName = txt(finishBtn.dataset.payrollEmployeeName);
     finishBtn.disabled = true;
-    status.textContent = 'מזהה שינויים ומעדכן את מערכת הנוכחות…';
     try {
       const finishMod = await import('./payroll-control-finish.js');
       if (finishMod.payrollEmployeeHasUnresolvedEntries(result, employeeId)) {
         status.textContent = 'לא ניתן לסיים את הבקרה: יש רשומות נוכחות שלא קיבלו החלטת מנהל.';
         return;
       }
-      const entries = finishMod.payrollEmployeeEntries(result, employeeId);
-      const updates = finishMod.collectChangedAttendanceUpdates(entries);
-      const failures = await finishMod.writeBackChangedAttendanceRecords(api, updates);
-      if (failures.length) {
-        status.textContent = `עדכון מערכת הנוכחות נכשל. האישור לא נשמר. ${failures.map((item) => item.recordId ? `רשומה ${item.recordId}: ${item.message}` : item.message).join(' ')}`;
-        return;
-      }
-      status.textContent = '';
       const signed = await askForSignature(finishMod);
-      if (!signed) { status.textContent = 'האישור בוטל. עדכוני הנוכחות כבר נשלחו, אך לא נשמר אישור להעברה לשכר.'; return; }
-      const saved = await api.savePayrollControlApproval({
-        employee_id: employeeId,
-        employee_name: employeeName,
-        month_key: result.month,
-        approved_by_name: txt(state?.user?.full_name || state?.user?.name || state?.user?.username || ''),
-        approval_text_version: finishMod.PAYROLL_APPROVAL_TEXT_VERSION,
-        approved_snapshot: finishMod.buildPayrollApprovedSnapshot({ employeeId, employeeName, monthKey: result.month, entries })
+      if (!signed) { status.textContent = 'האישור בוטל.'; return; }
+      status.textContent = 'שולח עדכונים ושומר אישור להעברה לשכר…';
+      const saved = await finishMod.approvePayrollControlEmployee({
+        api, user: state?.user, result, employeeId, employeeName, confirmed: true
       });
       approvalsByEmployee[employeeId] = saved;
       paintResults();
