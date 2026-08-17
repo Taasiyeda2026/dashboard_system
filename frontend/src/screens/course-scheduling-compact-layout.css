@@ -202,10 +202,56 @@
 
 .course-scheduling-screen.is-compact-symmetric-layout [data-candidate-row] { cursor: pointer; }
 .course-scheduling-screen.is-compact-symmetric-layout .course-scheduling-primary-card__topline { justify-content: flex-start; }
+.course-scheduling-key-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 8px;
+}
+.course-scheduling-key-metric {
+  min-width: 0;
+  padding-inline-start: 9px;
+  border-inline-start: 2px solid var(--cs-border);
+}
+.course-scheduling-key-metric span {
+  display: block;
+  color: var(--cs-text-muted);
+  font-size: .72rem;
+  line-height: 1.25;
+}
+.course-scheduling-key-metric strong {
+  display: block;
+  margin-top: 2px;
+  color: var(--cs-text);
+  font-size: .84rem;
+  line-height: 1.3;
+}
+.course-scheduling-key-meta { margin: 7px 0 0; color: var(--cs-text-muted); font-size: .75rem; }
+.course-scheduling-details-toggle {
+  justify-self: start;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--cs-accent);
+  font: inherit;
+  font-size: .76rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.course-scheduling-ranking-details { margin: 8px 0 0; padding-inline-start: 20px; color: var(--cs-text-muted); font-size: .78rem; line-height: 1.65; }
 .course-scheduling-screen.is-compact-symmetric-layout .course-scheduling-primary-card__score { margin-inline-start: auto; }
 .course-scheduling-candidate-expanded { grid-column: 1 / -1; cursor: default; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--cs-border); }
-.course-scheduling-screen.is-compact-symmetric-layout .cs-alt-row { grid-template-columns: minmax(0, 1fr) auto; }
+.course-scheduling-screen.is-compact-symmetric-layout .cs-alt-row { grid-template-columns: minmax(120px, .55fr) auto minmax(320px, 1.7fr) auto; }
+.course-scheduling-screen.is-compact-symmetric-layout .cs-alt-row__summary .course-scheduling-key-metrics { margin: 0; gap: 5px; }
+.course-scheduling-screen.is-compact-symmetric-layout .cs-alt-row__summary .course-scheduling-key-meta { display: none; }
 .course-scheduling-screen.is-compact-symmetric-layout .cs-alt-row__details { grid-column: 1 / -1; width: 100%; }
+
+@media (max-width: 720px) {
+  .course-scheduling-key-metrics { grid-template-columns: 1fr; gap: 6px; }
+  .course-scheduling-screen.is-compact-symmetric-layout .cs-alt-row { grid-template-columns: 1fr auto; }
+  .course-scheduling-screen.is-compact-symmetric-layout .cs-alt-row__summary { grid-column: 1 / -1; }
+  .course-scheduling-screen.is-compact-symmetric-layout .cs-alt-row__summary .course-scheduling-key-metrics { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
 
 .course-scheduling-screen.is-compact-symmetric-layout .course-scheduling-primary-card__score strong {
   font-size: 1.3rem;
