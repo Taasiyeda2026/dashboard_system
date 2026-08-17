@@ -107,13 +107,16 @@ test('folder-link mutation is admin-only on the server', () => {
   assert.match(liveMigration, /revoke execute on function public\.update_instructor_employee_file_component/);
 });
 
-test('live loader prefers the secured Edge Function and keeps RPC fallback', () => {
-  assert.match(dataSource, /supabase\.functions\.invoke\('instructor-employee-file-live'/);
+test('employee-file loader opens directly from the secured Supabase snapshot', () => {
   assert.match(dataSource, /api\.instructorEmployeeFile/);
+  assert.doesNotMatch(dataSource, /functions\.invoke|instructor-employee-file-live|sharepoint/i);
   assert.match(apiSource, /rpc\('get_instructor_employee_file_snapshot'/);
 });
 
-test('live SharePoint reader checks the eight fixed folders on demand without webhook or polling', () => {
+test('live SharePoint reader requires an explicit mutation refresh before scanning folders', () => {
+  assert.match(edgeSource, /const refresh = body\?\.refresh === true/);
+  assert.match(edgeSource, /if \(!refresh\)[^]*reason: "snapshot_only"/);
+  assert.ok(edgeSource.indexOf('if (!refresh)') < edgeSource.indexOf('const token = await graphToken()'));
   for (const folder of [
     '01 הסכם ומסמכים/הסכם חתום',
     '01 הסכם ומסמכים/מסמכים נלווים',

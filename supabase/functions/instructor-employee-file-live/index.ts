@@ -168,9 +168,16 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const empId = Number(body?.empId ?? body?.emp_id);
     const schoolYear = clean(body?.schoolYear ?? body?.school_year) || "2027";
+    const refresh = body?.refresh === true;
     if (!Number.isInteger(empId) || empId <= 0) return json({ error: "employee_file_emp_id_required" }, 400);
 
     const snapshot = await loadSnapshot(req, empId, schoolYear);
+    // Opening an employee file must use the persisted snapshot. SharePoint is
+    // queried only by mutation flows that explicitly request a refresh after a
+    // document upload, deletion, or status-changing operation.
+    if (!refresh) {
+      return json({ ...snapshot, live: false, source: "stored", reason: "snapshot_only" });
+    }
     if (!snapshot?.mapped || !clean(snapshot?.folder_web_url)) {
       return json({ ...snapshot, live: false, source: "sharepoint", reason: "folder_not_mapped" });
     }
