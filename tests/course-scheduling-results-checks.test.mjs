@@ -625,7 +625,7 @@ test('bestAvailable uses review title and never the misleading quality-miss head
   assert.doesNotMatch(html, /לא נמצאה התאמה איכותית לקורס/);
 });
 
-test('alternatives keep engine order, show every eligible candidate, and exclude ineligible candidates', () => {
+test('ranked instructor UI shows at most recommendations 1-3 without changing engine order', () => {
   const mk = (id, name, score, eligible = true) => ({
     instructor: { emp_id: id, full_name: name, active: 'yes', address: 'נתניה' },
     eligible,
@@ -647,6 +647,7 @@ test('alternatives keep engine order, show every eligible candidate, and exclude
   });
   const recommended = mk('f1', 'נועה כהן', 88);
   const alternatives = [mk('a1', 'אלטרנטיבה א', 70), mk('a2', 'אלטרנטיבה ב', 65), mk('a3', 'אלטרנטיבה ג', 62), mk('a4', 'אלטרנטיבה ד', 61), mk('bad', 'פסולה', null, false)];
+  const rankedIdsBeforeRender = alternatives.map((candidate) => candidate.instructor.emp_id);
   const html = detailsHtml({
     course: course019({ required_instructor_gender: 'any' }),
     status: 'הצעה מוכנה',
@@ -654,16 +655,49 @@ test('alternatives keep engine order, show every eligible candidate, and exclude
     alternatives,
     checked: [recommended, ...alternatives]
   });
-  assert.match(html, /חלופות מתאימות/);
-  assert.equal((html.match(/class="cs-alt-row(?: is-selected)?"/g) || []).length, 4);
+  assert.match(html, /מומלץ 1/);
+  assert.match(html, /מומלץ 2/);
+  assert.match(html, /מומלץ 3/);
+  assert.equal((html.match(/class="cs-alt-row(?: is-selected)?"/g) || []).length, 2);
   assert.ok(html.indexOf('אלטרנטיבה א') < html.indexOf('אלטרנטיבה ב'));
-  assert.ok(html.indexOf('אלטרנטיבה ב') < html.indexOf('אלטרנטיבה ג'));
-  assert.ok(html.indexOf('אלטרנטיבה ג') < html.indexOf('אלטרנטיבה ד'));
+  assert.doesNotMatch(html, /אלטרנטיבה ג|אלטרנטיבה ד/);
+  assert.doesNotMatch(html, /חלופה 2|חלופה 3/);
+  assert.deepEqual(alternatives.map((candidate) => candidate.instructor.emp_id), rankedIdsBeforeRender);
   const alternativesBlock = html.match(/data-alternatives>[\s\S]*?<\/section>/)?.[0] || '';
   assert.doesNotMatch(alternativesBlock, /פסולה/);
   assert.doesNotMatch(alternativesBlock, /data-candidate-row="bad"/);
   assert.match(html, /data-rejected-candidate="bad"/);
   assert.doesNotMatch(html, /data-rejected-candidate="bad"[\s\S]{0,200}type="radio"/);
+});
+
+test('ranked instructor UI renders exactly the available one or two recommendations', () => {
+  const mk = (id) => ({
+    instructor: { emp_id: id, full_name: `מדריך ${id}` }, eligible: true,
+    failures: [], projectedWeeklyHours: 1, availabilityHours: 10,
+    incrementalTravelKnown: true, relevantTravelMinutes: 5, relevantTravelDistance: 2
+  });
+  const first = mk('1');
+  const second = mk('2');
+  const oneHtml = detailsHtml({ course: course019(), status: 'הצעה מוכנה', recommended: first, alternatives: [], checked: [first] });
+  assert.match(oneHtml, /מומלץ 1/);
+  assert.doesNotMatch(oneHtml, /מומלץ [23]/);
+
+  const twoHtml = detailsHtml({ course: course019(), status: 'הצעה מוכנה', recommended: first, alternatives: [second], checked: [first, second] });
+  assert.match(twoHtml, /מומלץ 1/);
+  assert.match(twoHtml, /מומלץ 2/);
+  assert.doesNotMatch(twoHtml, /מומלץ 3/);
+});
+
+test('no eligible instructor shows only the neutral message and closed details trigger', () => {
+  const rejected = { instructor: { emp_id: '9', full_name: 'מדריך שנדחה' }, eligible: false, failures: ['חפיפה טכנית'] };
+  const html = detailsHtml({ course: course019(), status: 'נדרש גיוס', recommended: null, bestAvailable: null, alternatives: [], checked: [rejected], treatmentReason: 'קיימת חפיפה אצל כל המדריכים' });
+  const beforeDetails = html.split('<details')[0];
+  assert.match(beforeDetails, /לא נמצא מדריך מתאים/);
+  assert.doesNotMatch(beforeDetails, /חפיפה|תנאי סף|סיבות/);
+  assert.match(html, /<summary>הצג פרטים<\/summary>/);
+  assert.match(html, /מדריך שנדחה/);
+  assert.match(html, /חפיפה טכנית/);
+  assert.doesNotMatch(html, /<button/);
 });
 
 test('proposed meetings and halfOverflow render from candidate data without recomputing scores', () => {
