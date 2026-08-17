@@ -3,47 +3,79 @@
  * Fetches scheduled activities for an instructor on a given date,
  * using the av2_get_instructor_activities_for_date SECURITY DEFINER RPC.
  *
- * Source of truth: date_1..date_35 in public.activities (NOT activity_meetings,
- * which was found to be nearly empty). Cancellations from course_meeting_cancellations
- * are already filtered inside the RPC.
- *
- * The RPC returns meeting_no pre-calculated as the 1-indexed ordinal of the date
- * among non-cancelled sessions up to (and including) the requested date.
+ * Also provides authority/school list (for manual form dropdowns) via
+ * av2_get_authority_school_list RPC.
  */
 
 import { supabase } from '../api/client.js';
 
+// ── Activity type mapping (English DB values → Hebrew display) ─────────────
+const ACTIVITY_TYPE_MAP = {
+  after_school: 'צהרון',
+  course:       'קורס',
+  escape_room:  'חדר בריחה',
+  tour:         'סיור',
+  workshop:     'סדנה',
+};
+
+/** Hebrew activity type labels used throughout the form. */
+export const HEBREW_ACTIVITY_TYPES = [
+  'קורס', 'סדנה', 'סיור', 'חדר בריחה', 'צהרון',
+  'הכשרה', 'תפעול', 'ביטול זמן',
+];
+
+/**
+ * Convert an English DB activity type to the matching Hebrew label.
+ * Returns the value unchanged when it is already Hebrew.
+ */
+export function toHebrewType(dbType) {
+  if (!dbType) return '';
+  return ACTIVITY_TYPE_MAP[dbType] || dbType;
+}
+
+// ── Instructor activities for a specific date ──────────────────────────────
+
 /**
  * Returns scheduled activities for the instructor on a specific date.
- * Each element includes everything needed to pre-fill the report form.
  *
  * @param {number} empId
  * @param {string} dateStr  ISO date "YYYY-MM-DD"
  * @returns {Promise<ActivitySuggestion[]>}
- *
- * ActivitySuggestion shape:
- *   id, row_id, activity_no, activity_name, activity_type, activity_season,
- *   program_name, start_time (HH:MM), end_time (HH:MM),
- *   authority_id, authority_name,
- *   school_link_status ('single_school'|'multiple_schools'|'authority_or_place_only'),
- *   single_school_id, single_semel_mosad, single_school_name,
- *   linked_schools_json,  ← array of {id, name, semel_mosad} for multiple_schools
- *   meeting_no            ← 1-indexed ordinal among non-cancelled sessions
  */
 export async function getInstructorActivitiesForDate(empId, dateStr) {
   const { data, error } = await supabase.rpc('av2_get_instructor_activities_for_date', {
     p_emp_id: empId,
-    p_date: dateStr
+    p_date:   dateStr,
   });
-
   if (error) throw new Error(`שגיאה בטעינת פעילויות: ${error.message}`);
-  // RPC returns jsonb; supabase-js parses it to JS already
   return Array.isArray(data) ? data : [];
 }
 
+// ── Authority / School list (for manual-form dropdowns) ────────────────────
+
+/**
+ * Returns all authorities (+ their schools) linked to the instructor's
+ * activities.  Sourced via the av2_get_authority_school_list SECURITY
+ * DEFINER RPC — no manual list, always in sync with dashboard data.
+ *
+ * Shape: Array<{
+ *   authority_id:   number,
+ *   authority_name: string,
+ *   schools: Array<{ id: number, name: string, semel_mosad: number|null }>
+ * }>
+ */
+export async function getAuthoritySchoolList(empId) {
+  const { data, error } = await supabase.rpc('av2_get_authority_school_list', {
+    p_emp_id: empId,
+  });
+  if (error) throw new Error(`שגיאה בטעינת רשויות: ${error.message}`);
+  return Array.isArray(data) ? data : [];
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+
 /**
  * Build the school options list for a multi-school activity.
- * Returns an array of { id, name, semel_mosad } for the <select>.
  */
 export function getSchoolOptions(activity) {
   if (activity.school_link_status === 'multiple_schools') {
@@ -56,17 +88,17 @@ export function getSchoolOptions(activity) {
   }
   if (activity.school_link_status === 'single_school' && activity.single_school_id) {
     return [{
-      id: activity.single_school_id,
-      name: activity.single_school_name || '',
-      semel_mosad: activity.single_semel_mosad || null
+      id:          activity.single_school_id,
+      name:        activity.single_school_name || '',
+      semel_mosad: activity.single_semel_mosad || null,
     }];
   }
-  return []; // authority_or_place_only
+  return [];
 }
 
 /**
  * Compute total_hours from HH:MM start and end times (strings).
- * Handles overnight crossing (end < start → add 24h).
+ * Handles overnight crossing.
  */
 export function calcHours(startTime, endTime) {
   if (!startTime || !endTime) return 0;
@@ -74,5 +106,5 @@ export function calcHours(startTime, endTime) {
   const [eh, em] = endTime.split(':').map(Number);
   let minutes = (eh * 60 + em) - (sh * 60 + sm);
   if (minutes < 0) minutes += 24 * 60;
-  return Math.round((minutes / 60) * 100) / 100; // 2 decimal places
+  return Math.round((minutes / 60) * 100) / 100;
 }
