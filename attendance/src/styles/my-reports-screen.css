@@ -271,3 +271,74 @@
   width: 36px;
   height: 36px;
 }
+
+/* ── Day name in merged date/day cell ───────────────────────────────────── */
+
+.av2-reports__day-name {
+  font-size: 0.6875rem;
+  color: var(--av2-color-text-muted);
+  font-weight: 400;
+}
+
+/* ── Desktop: compact table that fits the frame — no horizontal scrollbar ── */
+
+@media (min-width: 640px) {
+  /* Clip overflow; no scroll bar on desktop */
+  .av2-reports__table-wrap {
+    overflow-x: clip;
+  }
+
+  .av2-reports__table {
+    min-width: 0;         /* override mobile 700px */
+    width: 100%;
+    table-layout: fixed;
+    font-size: 0.75rem;
+  }
+
+  .av2-reports__table th,
+  .av2-reports__table td {
+    padding: 5px 4px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* 11 columns after date+day merge.
+     Fixed widths for all cols except type (col 5) which takes the rest.
+     Total fixed: 66+42+42+38+120+82+70+32+44+62 = 598px
+     Container usable ≈ 710px → type gets ≈ 112px                          */
+  .av2-reports__table th:nth-child(1),
+  .av2-reports__table td:nth-child(1) { width: 66px; }   /* תאריך */
+  .av2-reports__table th:nth-child(2),
+  .av2-reports__table td:nth-child(2) { width: 42px; }   /* התחלה */
+  .av2-reports__table th:nth-child(3),
+  .av2-reports__table td:nth-child(3) { width: 42px; }   /* סיום */
+  .av2-reports__table th:nth-child(4),
+  .av2-reports__table td:nth-child(4) { width: 38px; }   /* שעות */
+  /* col 5 (סוג פעילות) — no width → auto, takes remaining space */
+  .av2-reports__table th:nth-child(6),
+  .av2-reports__table td:nth-child(6) { width: 120px; }  /* שם פעילות */
+  .av2-reports__table th:nth-child(7),
+  .av2-reports__table td:nth-child(7) { width: 82px; }   /* בית ספר */
+  .av2-reports__table th:nth-child(8),
+  .av2-reports__table td:nth-child(8) { width: 70px; }   /* רשות */
+  .av2-reports__table th:nth-child(9),
+  .av2-reports__table td:nth-child(9) { width: 32px; }   /* ק"מ */
+  .av2-reports__table th:nth-child(10),
+  .av2-reports__table td:nth-child(10) { width: 44px; }  /* הוצאות */
+  .av2-reports__table th:nth-child(11),
+  .av2-reports__table td:nth-child(11) { width: 62px; }  /* פעולות */
+
+  /* Compact action icons */
+  .av2-reports__actions-cell .av2-btn--icon {
+    width: 24px;
+    height: 24px;
+    border-radius: 4px;
+  }
+
+  /* Total row — align under correct columns */
+  .av2-reports__total-row td {
+    white-space: nowrap;
+    overflow: hidden;
+  }
+}
