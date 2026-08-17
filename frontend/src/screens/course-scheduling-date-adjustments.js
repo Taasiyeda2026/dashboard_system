@@ -1,4 +1,4 @@
-import { TRANSITION_BUFFER_MINUTES } from './instructor-matching-engine.js';
+import { MAX_TRANSITION_DISTANCE_KM, TRANSITION_BUFFER_MINUTES } from './instructor-matching-engine.js';
 
 const text = (value) => String(value ?? '').slice(0, 10);
 const minutes = (value) => { const [h, m] = String(value || '').split(':').map(Number); return h * 60 + m; };
@@ -75,7 +75,13 @@ export function proposeDateAdjustments({ meetings = [], rules = [], exceptions =
       const transition = transitions[meeting.date] || {};
       for (const [direction, neighbor] of [['previous', transition.previous], ['next', transition.next]]) {
         if (!neighbor) continue;
-        if (neighbor.duration_minutes == null) return { valid: false, reason: 'transition_unverified', meetings: proposed };
+        if (neighbor.duration_minutes == null || neighbor.distance_km == null
+          || !Number.isFinite(Number(neighbor.duration_minutes)) || !Number.isFinite(Number(neighbor.distance_km))) {
+          return { valid: false, reason: 'transition_unverified', meetings: proposed };
+        }
+        if (Number(neighbor.distance_km) > MAX_TRANSITION_DISTANCE_KM) {
+          return { valid: false, reason: 'transition_distance_exceeded', meetings: proposed };
+        }
         const gap = direction === 'previous' ? minutes(meeting.start_time) - minutes(neighbor.end_time) : minutes(neighbor.start_time) - minutes(meeting.end_time);
         // Route durations are raw travel times. TRANSITION_BUFFER_MINUTES is the sole safety-buffer source.
         if (gap < Number(neighbor.duration_minutes) + TRANSITION_BUFFER_MINUTES) return { valid: false, reason: 'transition_insufficient', meetings: proposed };

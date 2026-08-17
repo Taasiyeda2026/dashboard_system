@@ -310,7 +310,8 @@ function evaluateCandidate({
   const plannerAllMeetings = meetingAssignments(persistedRows, meetingOptions);
   const allMeetingsCourse = adjustment?.valid ? periodCourse : { ...course, meetings: allMeetings };
   const gateTravel = dynamicTravel(allMeetingsCourse, instructor, plannerAllMeetings, input);
-  // Persisted-period travel is kept for UI display.  Planner-period travel feeds soft scoring.
+  // Display metadata may stay period-scoped, but threshold checks and ranking both use
+  // the complete real course schedule (including meetings that cross into the next half).
   const travel = dynamicTravel(periodCourse, instructor, persistedPeriodMeetings, input);
   const gate = evaluateInstructor({
     instructor,
@@ -332,11 +333,11 @@ function evaluateCandidate({
   const eligible = !!gate.eligible;
   const scored = computeSchedulingScore({
     eligible,
-    activity: periodCourse,
-    meetings: activityMeetings(periodCourse),
-    existingActivities: persistedPeriodMeetings,
-    travel,
-    workDates: persistedBaselineLoad.workDates || new Set(),
+    activity: allMeetingsCourse,
+    meetings: activityMeetings(allMeetingsCourse),
+    existingActivities: plannerAllMeetings,
+    travel: gateTravel,
+    workDates: new Set(plannerAllMeetings.map((meeting) => text(meeting.date).slice(0, 10))),
     dateAdjustment: adjustment?.valid ? adjustment : null,
     currentHalfHours: persistedBaselineLoad.hours,
     projectedHalfHours: persistedProjectedLoad.hours,

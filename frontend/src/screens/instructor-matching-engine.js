@@ -4,7 +4,9 @@ const LANGUAGE_LABELS = { he: 'עברית', ar: 'ערבית' };
 /** One-way driving-route home→school hard eligibility limit (km). Inclusive at exactly this value. */
 export const MAX_HOME_DISTANCE_KM = 40;
 /** Required gap between consecutive meetings = raw travel minutes + this buffer. Applied once only. */
-export const TRANSITION_BUFFER_MINUTES = 15;
+export const TRANSITION_BUFFER_MINUTES = 10;
+/** Maximum driving distance allowed between two consecutive activities. */
+export const MAX_TRANSITION_DISTANCE_KM = 20;
 
 export const DEFAULT_SCHEDULING_PROFILE = Object.freeze({
   gender: null,
@@ -229,7 +231,7 @@ export function evaluateInstructor({
   let authorityContinuityPoints = 0;
   let availableMeetings = 0;
   const availabilityIssueKinds = new Set(['missing_availability', 'hours_unavailable', 'day_blocked', 'overlap']);
-  const travelIssueKinds = new Set(['unverified_transition', 'insufficient_transition']);
+  const travelIssueKinds = new Set(['unverified_transition', 'transition_distance_exceeded', 'insufficient_transition']);
 
   for (const meeting of meetings) {
     const weekday = new Date(`${meeting.date}T12:00:00`).getDay();
@@ -271,17 +273,26 @@ export function evaluateInstructor({
         ? minutes(meeting.start_time) - minutes(neighbor.end_time)
         : minutes(neighbor.start_time) - minutes(meeting.end_time);
       const required = leg?.duration_minutes;
+      const distance = leg?.distance_km;
       const label = direction === 'previous' ? 'מהפעילות הקודמת' : 'לפעילות הבאה';
       const neighborRef = formatPersistedActivityReference(neighbor, neighbor.date || meeting.date);
       const sameLocation = sameSchoolLocation(neighbor, activity);
-      if (required == null && !sameLocation) {
+      if ((required == null || distance == null
+        || !Number.isFinite(Number(required)) || !Number.isFinite(Number(distance))) && !sameLocation) {
         const message = neighborRef
           ? (direction === 'previous'
             ? `לא ניתן לאמת זמן מעבר לאחר ${neighborRef}`
             : `לא ניתן לאמת זמן מעבר לפני ${neighborRef}`)
           : `לא ניתן לאמת זמן מעבר ${label}`;
         addIssue('unverified_transition', direction, message, meeting.date);
-      } else if (required != null && !sameLocation && gap < Number(required) + TRANSITION_BUFFER_MINUTES) {
+      } else if (!sameLocation && Number(distance) > MAX_TRANSITION_DISTANCE_KM) {
+        addIssue(
+          'transition_distance_exceeded',
+          `${direction}-${distance}`,
+          `מרחק בין הפעילויות ${Math.round(Number(distance))} ק״מ`,
+          meeting.date
+        );
+      } else if (!sameLocation && gap < Number(required) + TRANSITION_BUFFER_MINUTES) {
         // Same-school neighbors do not require the travel buffer; it applies only to real moves.
         const needed = Number(required) + TRANSITION_BUFFER_MINUTES;
         const message = neighborRef
@@ -397,7 +408,7 @@ export function evaluateInstructor({
 
     let continuityPoints = 0;
     let continuityLabel = 'אין רציפות בבית הספר או ברשות';
-    const hasSchoolContinuity = sameSchool || existingActivities.some((other) => same(other.school, activity.school));
+    const hasSchoolContinuity = sameSchool || existingActivities.some((other) => sameSchoolLocation(other, activity));
     const hasAuthorityContinuity = !hasSchoolContinuity && (sameAuthority || existingActivities.some((other) => same(other.authority, activity.authority)));
     if (hasSchoolContinuity) {
       continuityPoints = 30;
