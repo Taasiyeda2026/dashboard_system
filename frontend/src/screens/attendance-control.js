@@ -773,7 +773,7 @@ export function resultsHtml(result, month = '') {
   };
   const shown = (value, fallback = '—') => escapeHtml(txt(value) || fallback);
   const hasValue = (value) => value != null && txt(value) !== '';
-  const hasReportedKilometers = (row) => hasValue(row?.kilometers) && number(row.kilometers) > 0;
+  const hasReportedKilometers = (row) => hasValue(row?.kilometers);
   const kilometerUnavailable = (attendance, dashboard) => hasReportedKilometers(attendance)
     && (!dashboard || !hasValue(dashboard.kilometers));
   const kilometerIssue = (attendance, dashboard) => kilometerUnavailable(attendance, dashboard)

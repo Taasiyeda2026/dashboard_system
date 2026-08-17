@@ -194,6 +194,19 @@ test('payroll view groups reports by work day and compares row kilometers', () =
 });
 
 
+
+test('payroll view treats zero reported kilometers as a comparable value', () => {
+  const attendance = { employeeId: 'zero-km', employeeName: 'מדריך אפס ק״מ', date: '2027-01-04', startTime: '08:00', endTime: '09:00', workHours: 1, kilometers: 0, activityType: 'קורס' };
+  const dashboard = { ...attendance, kilometers: 24 };
+  const html = resultsHtml({ comparisons: [{ id: 'zero-km', attendance, dashboard, final: { ...attendance }, differences: [], unmatched: false }], notCompared: [], dashboardOnly: [], dashboardPopulation: [dashboard], dailyKilometers: [] });
+  assert.match(html, /ק״מ<\/th><td>0<\/td><td class="attendance-control__field-value--issue">24<\/td><td class="attendance-control__row-status attendance-control__row-status--issue">שונה/);
+  assert.match(html, /1\.00 שעות<\/span><span class="attendance-control__row-status attendance-control__row-status--issue">לבדיקה/);
+  assert.match(html, /מדריכים <b>1<\/b>[\s\S]*תקינים <b>0<\/b>[\s\S]*לבדיקה <b>1<\/b>/);
+
+  const matchingHtml = resultsHtml({ comparisons: [{ id: 'zero-km-match', attendance, dashboard: { ...dashboard, kilometers: 0 }, final: { ...attendance }, differences: [], unmatched: false }], notCompared: [], dashboardOnly: [], dashboardPopulation: [], dailyKilometers: [] });
+  assert.match(matchingHtml, /ק״מ<\/th><td>0<\/td><td class="">0<\/td><td class="attendance-control__row-status ">תקין/);
+});
+
 test('payroll view marks unavailable kilometers for review', () => {
   const attendance = { employeeId: '78', employeeName: 'מדריך ק״מ', date: '2027-01-04', startTime: '09:00', endTime: '10:00', workHours: 1, kilometers: 30, activityType: 'קורס' };
   const dashboard = { ...attendance, kilometers: null };
