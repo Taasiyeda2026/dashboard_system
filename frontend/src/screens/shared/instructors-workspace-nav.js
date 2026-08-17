@@ -1,6 +1,7 @@
 import { escapeHtml } from './html.js';
 import { openPayrollControlWindow } from './payroll-control-launcher.js';
 import { ensureCourseSchedulingManualPickerAccess } from './course-scheduling-manual-picker-access.js';
+import { ensureCourseSchedulingManagerApproval } from './course-scheduling-manager-approval.js';
 
 export const INSTRUCTORS_WORKSPACE_TABS = Object.freeze([
   { id: 'list', label: 'רשימת מדריכים', route: 'instructors' },
@@ -169,6 +170,7 @@ export function bindInstructorsWorkspaceNav(root, { state, rerender } = {}) {
   // course-scheduling.js owns the existing manual-pick handlers and RPC flow.
   // Inject only the missing access UI before those handlers are bound.
   ensureCourseSchedulingManualPickerAccess(root, { state });
+  void ensureCourseSchedulingManagerApproval(root, { state });
 
   const tabs = [...root.querySelectorAll('[data-instructors-workspace-tab]')];
   if (!tabs.length) return;
