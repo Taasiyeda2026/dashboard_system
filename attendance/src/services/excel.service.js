@@ -14,6 +14,9 @@
  * @param {number}   year
  * @param {number}   month  1-based
  */
+/** Strip seconds from HH:MM:SS → HH:MM for display in Excel. */
+const fmtTime = t => (t ? String(t).slice(0, 5) : '');
+
 export function exportMonthToExcel(records, instructor, year, month) {
   if (!window.XLSX) {
     alert('ספריית ה-Excel אינה זמינה. נסו לרענן את הדף.');
@@ -34,8 +37,8 @@ export function exportMonthToExcel(records, instructor, year, month) {
     return {
       'תאריך':          r.report_date,
       'יום':            dayName,
-      'התחלה':          r.start_time || '',
-      'סיום':           r.end_time || '',
+      'התחלה':          fmtTime(r.start_time),
+      'סיום':           fmtTime(r.end_time),
       'שעות':           hours,
       'סוג פעילות':     r.activity_type || '',
       'שם פעילות':      r.activity_name_snapshot || '',
