@@ -32,18 +32,35 @@ function normalizeEmpId(value) {
 export async function loadInstructorSchedulingData() {
   if (!supabase) return emptySchedulingData('no_supabase_client');
   await waitForSupabaseAuthSession({ timeoutMs: 6000 });
-  const [profilesResult, rulesResult, exceptionsResult] = await Promise.all([
+  const [profilesResult, rulesResult, exceptionsResult, seniorityResult] = await Promise.all([
     supabase.from('instructor_scheduling_profiles').select('*').order('emp_id'),
     supabase.from('instructor_availability_rules').select('*').order('emp_id').order('weekday'),
-    supabase.from('instructor_availability_exceptions').select('*').order('exception_date')
+    supabase.from('instructor_availability_exceptions').select('*').order('exception_date'),
+    supabase.from('contacts_instructors').select('emp_id,seniority_years').order('emp_id')
   ]);
   const error = profilesResult.error || rulesResult.error || exceptionsResult.error;
   if (error) {
     console.warn('[instructor-scheduling] read failed', error);
     return emptySchedulingData(String(error.message || error));
   }
+
+  if (seniorityResult.error) {
+    console.warn('[instructor-scheduling] seniority read failed', seniorityResult.error);
+  }
+  const seniorityByEmp = new Map(
+    (Array.isArray(seniorityResult.data) ? seniorityResult.data : [])
+      .map((row) => [String(row?.emp_id ?? '').trim(), row?.seniority_years ?? null])
+      .filter(([empId]) => empId)
+  );
+  const profiles = (Array.isArray(profilesResult.data) ? profilesResult.data : []).map((row) => {
+    const empId = String(row?.emp_id ?? '').trim();
+    return seniorityByEmp.has(empId)
+      ? { ...row, seniority_years: seniorityByEmp.get(empId) }
+      : row;
+  });
+
   return {
-    profiles: Array.isArray(profilesResult.data) ? profilesResult.data : [],
+    profiles,
     rules: Array.isArray(rulesResult.data) ? rulesResult.data : [],
     exceptions: Array.isArray(exceptionsResult.data) ? exceptionsResult.data : [],
     loaded: true,
