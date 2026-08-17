@@ -13,7 +13,6 @@ const MANAGEMENT_ROLES = new Set([
 const MIN_PASSWORD_LENGTH = 8;
 
 let observerTimer = null;
-let recoveryPromptOpened = false;
 
 function currentRole() {
   return String(state?.user?.role || state?.user?.display_role || '').trim();
@@ -36,7 +35,8 @@ function ensureStyles() {
     .management-password-card{direction:rtl;width:min(420px,calc(100vw - 28px));display:grid;gap:12px;padding:20px;border-radius:14px;background:#fff;box-shadow:0 22px 60px rgba(15,23,42,.24)}
     .management-password-card h2{margin:0;font-size:1.1rem;color:#172033}.management-password-card p{margin:0;color:#64748b;font-size:.86rem;line-height:1.5}
     .management-password-card label{display:grid;gap:5px;font-size:.82rem;font-weight:700;color:#334155}.management-password-card input{box-sizing:border-box;width:100%;height:40px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font:inherit;direction:ltr;text-align:left}
-    .management-password-actions{display:flex;gap:8px;justify-content:flex-start;margin-top:2px}.management-password-actions button{min-height:36px;padding:7px 14px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;cursor:pointer;font:inherit}.management-password-actions .is-primary{border-color:#1d4ed8;background:#1d4ed8;color:#fff}
+    .management-password-card input[data-password-code]{font-size:1.15rem;font-weight:700;letter-spacing:6px;text-align:center}
+    .management-password-actions{display:flex;gap:8px;justify-content:flex-start;margin-top:2px}.management-password-actions button{min-height:36px;padding:7px 14px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;cursor:pointer;font:inherit}.management-password-actions .is-primary{border-color:#1d4ed8;background:#1d4ed8;color:#fff}.management-password-actions button:disabled{opacity:.65;cursor:wait}
     .management-password-status{min-height:20px;color:#475569;font-size:.82rem}.management-password-status.is-error{color:#b91c1c}.management-password-status.is-success{color:#047857}
   `;
   document.head.appendChild(style);
@@ -93,7 +93,7 @@ function actionsRow(primaryLabel, onPrimary, onCancel) {
   return { actions, primary, cancel };
 }
 
-function labeledInput(labelText, { type = 'text', autocomplete = '', placeholder = '' } = {}) {
+function labeledInput(labelText, { type = 'text', autocomplete = '', placeholder = '', inputMode = '', maxLength = 0 } = {}) {
   const label = document.createElement('label');
   const span = document.createElement('span');
   span.textContent = labelText;
@@ -101,6 +101,8 @@ function labeledInput(labelText, { type = 'text', autocomplete = '', placeholder
   input.type = type;
   input.autocomplete = autocomplete;
   input.placeholder = placeholder;
+  if (inputMode) input.inputMode = inputMode;
+  if (maxLength > 0) input.maxLength = maxLength;
   label.append(span, input);
   return { label, input };
 }
@@ -109,16 +111,18 @@ function openForgotPasswordModal() {
   if (document.querySelector('.management-password-modal')) return;
   const { modal, card } = modalShell(
     'שכחתי קוד כניסה',
-    'הזינו את המייל הארגוני שלכם. אם החשבון מורשה, יישלח אליו קישור מאובטח להגדרת קוד חדש.'
+    'הזינו את המייל הארגוני שלכם. אם החשבון מורשה, יישלח אליו קוד אימות בן 6 ספרות.'
   );
-  const { label, input } = labeledInput('מייל ארגוני', {
+  const emailField = labeledInput('מייל ארגוני', {
     type: 'email',
     autocomplete: 'email',
     placeholder: 'name@think.org.il'
   });
   const status = statusNode();
-  const { actions, primary } = actionsRow('שליחת קישור', async () => {
-    const email = String(input.value || '').trim().toLowerCase();
+  let challengeId = '';
+
+  const requestActions = actionsRow('שליחת קוד', async () => {
+    const email = String(emailField.input.value || '').trim().toLowerCase();
     status.className = 'management-password-status';
     status.textContent = '';
     if (!email || !email.endsWith('@think.org.il')) {
@@ -126,23 +130,98 @@ function openForgotPasswordModal() {
       status.textContent = 'יש להזין מייל ארגוני תקין.';
       return;
     }
-    primary.disabled = true;
-    primary.textContent = 'שולח...';
+
+    requestActions.primary.disabled = true;
+    requestActions.primary.textContent = 'שולח...';
     try {
-      await supabase?.functions?.invoke('management-password-reset', { body: { email } });
+      const { data, error } = await supabase.functions.invoke('management-password-reset', {
+        body: { action: 'request', email }
+      });
+      if (error || !data?.challenge_id) throw error || new Error('challenge_not_created');
+      challengeId = String(data.challenge_id);
+      emailField.input.disabled = true;
+      requestActions.actions.remove();
       status.classList.add('is-success');
-      status.textContent = 'אם החשבון נמצא ומורשה, קישור לאיפוס הסיסמה נשלח למייל הארגוני.';
+      status.textContent = 'אם החשבון נמצא ומורשה, קוד אימות נשלח למייל הארגוני. הקוד תקף ל-10 דקות.';
+
+      const codeField = labeledInput('קוד אימות', {
+        type: 'text',
+        autocomplete: 'one-time-code',
+        placeholder: '000000',
+        inputMode: 'numeric',
+        maxLength: 6
+      });
+      codeField.input.dataset.passwordCode = '';
+      codeField.input.addEventListener('input', () => {
+        codeField.input.value = codeField.input.value.replace(/\D/g, '').slice(0, 6);
+      });
+      const first = labeledInput('קוד כניסה חדש', { type: 'password', autocomplete: 'new-password' });
+      const second = labeledInput('אימות קוד הכניסה החדש', { type: 'password', autocomplete: 'new-password' });
+
+      const completeActions = actionsRow('שמירת קוד חדש', async () => {
+        const code = String(codeField.input.value || '').trim();
+        const password = String(first.input.value || '');
+        const confirmation = String(second.input.value || '');
+        status.className = 'management-password-status';
+        status.textContent = '';
+
+        if (!/^\d{6}$/.test(code)) {
+          status.classList.add('is-error');
+          status.textContent = 'יש להזין את קוד האימות בן 6 הספרות שנשלח למייל.';
+          return;
+        }
+        if (password.length < MIN_PASSWORD_LENGTH) {
+          status.classList.add('is-error');
+          status.textContent = `קוד הכניסה החדש חייב להכיל לפחות ${MIN_PASSWORD_LENGTH} תווים.`;
+          return;
+        }
+        if (password !== confirmation) {
+          status.classList.add('is-error');
+          status.textContent = 'קודי הכניסה החדשים אינם זהים.';
+          return;
+        }
+
+        completeActions.primary.disabled = true;
+        completeActions.primary.textContent = 'שומר...';
+        try {
+          const { data: completeData, error: completeError } = await supabase.functions.invoke('management-password-reset', {
+            body: {
+              action: 'complete',
+              challenge_id: challengeId,
+              code,
+              new_password: password
+            }
+          });
+          if (completeError || !completeData?.ok) throw completeError || new Error(String(completeData?.error || 'invalid_or_expired'));
+          status.classList.add('is-success');
+          status.textContent = 'קוד הכניסה עודכן בהצלחה. ניתן להתחבר עם מספר העובד והקוד החדש.';
+          codeField.input.disabled = true;
+          first.input.disabled = true;
+          second.input.disabled = true;
+          completeActions.primary.textContent = 'עודכן בהצלחה';
+          setTimeout(() => closeModal(modal), 1600);
+        } catch (error) {
+          status.classList.add('is-error');
+          status.textContent = String(error?.message || '').includes('update_failed')
+            ? 'עדכון קוד הכניסה נכשל. נסו שוב.'
+            : 'קוד האימות שגוי או שפג תוקפו. ניתן לבטל ולבקש קוד חדש.';
+          completeActions.primary.disabled = false;
+          completeActions.primary.textContent = 'שמירת קוד חדש';
+        }
+      }, () => closeModal(modal));
+
+      card.append(codeField.label, first.label, second.label, completeActions.actions);
+      requestAnimationFrame(() => codeField.input.focus());
     } catch {
-      // Keep the response generic so the screen does not disclose account existence.
-      status.classList.add('is-success');
-      status.textContent = 'אם החשבון נמצא ומורשה, קישור לאיפוס הסיסמה נשלח למייל הארגוני.';
-    } finally {
-      primary.disabled = false;
-      primary.textContent = 'שליחת קישור';
+      status.classList.add('is-error');
+      status.textContent = 'לא ניתן לשלוח כרגע קוד אימות. נסו שוב בעוד רגע.';
+      requestActions.primary.disabled = false;
+      requestActions.primary.textContent = 'שליחת קוד';
     }
   }, () => closeModal(modal));
-  card.append(label, status, actions);
-  requestAnimationFrame(() => input.focus());
+
+  card.append(emailField.label, status, requestActions.actions);
+  requestAnimationFrame(() => emailField.input.focus());
 }
 
 async function saveNewPassword(password) {
@@ -150,16 +229,16 @@ async function saveNewPassword(password) {
   if (error) throw error;
 }
 
-function openPasswordChangeModal({ recovery = false } = {}) {
+function openPasswordChangeModal() {
   if (document.querySelector('.management-password-modal')) return;
   const { modal, card } = modalShell(
-    recovery ? 'הגדרת קוד כניסה חדש' : 'החלפת קוד כניסה',
+    'החלפת קוד כניסה',
     `הקוד החדש חייב להכיל לפחות ${MIN_PASSWORD_LENGTH} תווים.`
   );
   const first = labeledInput('קוד חדש', { type: 'password', autocomplete: 'new-password' });
   const second = labeledInput('אימות קוד חדש', { type: 'password', autocomplete: 'new-password' });
   const status = statusNode();
-  const { actions, primary } = actionsRow(recovery ? 'שמירה והתחברות מחדש' : 'שמירה', async () => {
+  const { actions, primary } = actionsRow('שמירה', async () => {
     const password = String(first.input.value || '');
     const confirmation = String(second.input.value || '');
     status.className = 'management-password-status';
@@ -180,19 +259,12 @@ function openPasswordChangeModal({ recovery = false } = {}) {
       await saveNewPassword(password);
       status.classList.add('is-success');
       status.textContent = 'קוד הכניסה עודכן בהצלחה.';
-      if (recovery) {
-        setTimeout(async () => {
-          await supabase.auth.signOut().catch(() => {});
-          window.location.replace(`${window.location.origin}${window.location.pathname}`);
-        }, 800);
-      } else {
-        setTimeout(() => closeModal(modal), 700);
-      }
+      setTimeout(() => closeModal(modal), 700);
     } catch (error) {
       status.classList.add('is-error');
       status.textContent = error?.message || 'עדכון קוד הכניסה נכשל.';
       primary.disabled = false;
-      primary.textContent = recovery ? 'שמירה והתחברות מחדש' : 'שמירה';
+      primary.textContent = 'שמירה';
     }
   }, () => closeModal(modal));
   card.append(first.label, second.label, status, actions);
@@ -225,7 +297,7 @@ function injectPasswordChangeButton() {
   button.title = 'החלפת קוד כניסה';
   button.setAttribute('aria-label', 'החלפת קוד כניסה');
   button.textContent = '🔑';
-  button.addEventListener('click', () => openPasswordChangeModal({ recovery: false }));
+  button.addEventListener('click', openPasswordChangeModal);
   logout.parentElement?.insertBefore(button, logout);
 }
 
@@ -243,18 +315,6 @@ function scheduleSync() {
   }, 60);
 }
 
-function recoveryHintInUrl() {
-  const hash = String(window.location.hash || '').toLowerCase();
-  const search = String(window.location.search || '').toLowerCase();
-  return hash.includes('type=recovery') || search.includes('type=recovery');
-}
-
-function openRecoveryPrompt() {
-  if (recoveryPromptOpened) return;
-  recoveryPromptOpened = true;
-  setTimeout(() => openPasswordChangeModal({ recovery: true }), 0);
-}
-
 if (typeof document !== 'undefined') {
   ensureStyles();
   syncUi();
@@ -263,13 +323,5 @@ if (typeof document !== 'undefined') {
 }
 
 if (supabase?.auth) {
-  supabase.auth.onAuthStateChange((event) => {
-    if (event === 'PASSWORD_RECOVERY') openRecoveryPrompt();
-    scheduleSync();
-  });
-  if (typeof window !== 'undefined' && recoveryHintInUrl()) {
-    supabase.auth.getSession().then(({ data }) => {
-      if (data?.session?.user) openRecoveryPrompt();
-    }).catch(() => {});
-  }
+  supabase.auth.onAuthStateChange(() => scheduleSync());
 }
