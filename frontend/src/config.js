@@ -54,6 +54,7 @@ export const config = {
 };
 
 config.HOTFIX_VERSION = `proposal-sent-silent-pdf-upload-20260817-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `course-scheduling-transparent-ranking-20260817-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `course-scheduling-manual-candidate-20260817-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `attendance-control-compact-results-20260816-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `payroll-control-direct-data-20260816-v1-${config.HOTFIX_VERSION}`;
