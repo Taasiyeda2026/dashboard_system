@@ -88,3 +88,4 @@ config.HOTFIX_VERSION = `manager-workspace-tabs-sw-cache-1537-20260817-v2-${conf
 config.HOTFIX_VERSION = `manager-workspace-built-in-tabs-sidebar-access-start-checkpoint-sw-cache-1538-20260818-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `manager-workspace-current-month-clickable-tabs-sw-cache-1539-20260818-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `manager-workspace-zoom-context-cleanup-sw-cache-1541-20260818-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `management-password-recovery-20260818-v1-${config.HOTFIX_VERSION}`;
