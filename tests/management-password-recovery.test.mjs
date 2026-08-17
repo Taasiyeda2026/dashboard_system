@@ -36,6 +36,15 @@ test('reset edge function validates management users without account enumeration
   assert.match(edge, /SUPABASE_ANON_KEY/);
 });
 
+test('employee 9901 is the only instructor explicitly admitted to password recovery pilot', () => {
+  assert.match(edge, /const TEST_EMPLOYEE_ID = '9901'/);
+  assert.match(edge, /role === 'instructor'/);
+  assert.match(edge, /String\(row\.user_id \|\| ''\)\.trim\(\) === TEST_EMPLOYEE_ID/);
+  assert.match(edge, /String\(row\.emp_id \|\| ''\)\.trim\(\) === TEST_EMPLOYEE_ID/);
+  assert.match(edge, /\.eq\('user_id', TEST_EMPLOYEE_ID\)/);
+  assert.match(edge, /\.eq\('emp_id', TEST_EMPLOYEE_ID\)/);
+});
+
 test('dashboard loads password runtime and deploy markers are bumped', () => {
   assert.match(index, /management-password-runtime\.js\?v=20260818-management-password-v1/);
   assert.match(config, /management-password-recovery-20260818-v1/);
