@@ -14,8 +14,8 @@ import { escapeHtml } from './screens/shared/html.js';
 const MANAGER_BOARD_ACCESS_ROLES = new Set([
   'admin',
   'operation_manager',
-  'domain_manager',
-  'activities_manager'
+  'activities_manager',
+  'finance'
 ]);
 const MANAGER_BOARD_SELF_ROLE = 'activities_manager';
 const CLOSED_STATUSES = new Set([
@@ -304,7 +304,10 @@ function buildMeetingRows(activities, ym) {
   const meetings = [];
   activities.forEach((activity) => {
     const dates = activityDates(activity);
-    const totalMeetings = dates.length || Number(activity?.sessions) || 0;
+    const configuredMeetings = Number(activity?.sessions);
+    const totalMeetings = Number.isFinite(configuredMeetings) && configuredMeetings > 0
+      ? configuredMeetings
+      : dates.length;
     const midpointNumbers = new Set();
     if (totalMeetings > 1) {
       if (totalMeetings % 2 === 0) {
@@ -473,16 +476,17 @@ function renderInstructorCards(stats) {
 
 function renderMilestones(meetings) {
   const milestoneRows = meetings
-    .filter((meeting) => meeting.isMidpoint || meeting.isEnd)
-    .slice(0, 10);
+    .filter((meeting) => meeting.meetingNo === 1 || meeting.isMidpoint || meeting.isEnd)
+    .slice(0, 12);
 
   if (!milestoneRows.length) {
-    return '<div class="manager-board-empty manager-board-empty--compact">אין נקודות אמצע או סיום בחודש זה.</div>';
+    return '<div class="manager-board-empty manager-board-empty--compact">אין נקודות בקרה בחודש זה.</div>';
   }
 
   return milestoneRows.map((meeting) => {
     const activity = meeting.activity || {};
     const labels = [];
+    if (meeting.meetingNo === 1) labels.push('תחילת קורס · מפגש 1');
     if (meeting.isMidpoint) labels.push('אמצע קורס');
     if (meeting.isEnd) labels.push('סיום קורס');
     return `
@@ -629,6 +633,16 @@ function monthNavigationHtml(ym, period) {
     </div>`;
 }
 
+function workspaceShellHtml() {
+  return `<nav class="manager-workspace-tabs" data-manager-workspace-tabs aria-label="לשוניות לוח מנהל">
+    <button type="button" class="manager-workspace-tab is-active" data-manager-workspace-tab="management" aria-selected="true">ניהול</button>
+    <button type="button" class="manager-workspace-tab" data-manager-workspace-tab="attendance" aria-selected="false">בקרת נוכחות</button>
+    <button type="button" class="manager-workspace-tab" data-manager-workspace-tab="tracking" aria-selected="false">מעקב</button>
+  </nav>
+  <section class="manager-workspace-management-alerts" data-manager-workspace-management-alerts></section>
+  <section class="manager-workspace-view" data-manager-workspace-view hidden></section>`;
+}
+
 function renderBoardMarkup(data, manager, ym) {
   const period = data.period;
   const activities = managerActivitiesFor(data, manager);
@@ -656,6 +670,8 @@ function renderBoardMarkup(data, manager, ym) {
           ${monthNavigationHtml(ym, period)}
         </div>
       </div>
+
+      ${workspaceShellHtml()}
 
       <div class="manager-board-kpis">
         <article>
@@ -700,7 +716,6 @@ function renderBoardMarkup(data, manager, ym) {
             <div class="manager-board-panel__head">
               <div>
                 <h2>נקודות בקרה</h2>
-                <p>אמצע וסיום קורסים בחודש</p>
               </div>
             </div>
             <div class="manager-board-milestones">${renderMilestones(meetings)}</div>
@@ -869,6 +884,8 @@ async function renderManagerBoard(force = false) {
 }
 
 function ensureManagerBoardButtons() {
+  document.querySelectorAll('.shell-header-nav .manager-board-nav-button').forEach((button) => button.remove());
+
   if (!canUseManagerBoard()) {
     document.querySelectorAll('.manager-board-nav-button').forEach((button) => button.remove());
     return;
@@ -889,16 +906,6 @@ function ensureManagerBoardButtons() {
     } else {
       sidebarNav.prepend(button);
     }
-  }
-
-  const headerNav = document.querySelector('.shell-header-nav');
-  if (headerNav && !headerNav.querySelector('.manager-board-nav-button')) {
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.className = 'ds-act-nav-item ds-act-nav-item--header manager-board-nav-button';
-    button.dataset.managerBoardOpen = 'true';
-    button.innerHTML = '<span class="ds-act-nav-item__label">לוח מנהל</span>';
-    headerNav.prepend(button);
   }
 
   setBoardActiveNav();
