@@ -31,7 +31,8 @@ export function renderMyReportsScreen(container, {
   onBack,
   onPrevMonth,
   onNextMonth,
-  onNewReport
+  onNewReport,
+  onDuplicate,
 } = {}) {
   container.innerHTML = '';
 
@@ -68,10 +69,10 @@ export function renderMyReportsScreen(container, {
   container.append(wrap);
 
   // Load and render data
-  loadAndRender({ instructor, year, month, contentArea, onNewReport });
+  loadAndRender({ instructor, year, month, contentArea, onNewReport, onDuplicate });
 }
 
-async function loadAndRender({ instructor, year, month, contentArea, onNewReport }) {
+async function loadAndRender({ instructor, year, month, contentArea, onNewReport, onDuplicate }) {
   const monthKey = getMonthKey(year, month);
 
   try {
@@ -113,7 +114,7 @@ async function loadAndRender({ instructor, year, month, contentArea, onNewReport
       const addBtn = document.createElement('button');
       addBtn.type = 'button';
       addBtn.className = 'av2-btn av2-btn--primary';
-      addBtn.style.flex = '1';
+      addBtn.style.cssText = 'width:auto;align-self:flex-start;padding-inline:18px;';
       const addLabel = document.createElement('span');
       addLabel.textContent = 'הוסף דיווח';
       addBtn.append(createIcon('plus', { size: 15 }), addLabel);
@@ -158,15 +159,15 @@ async function loadAndRender({ instructor, year, month, contentArea, onNewReport
     const thead = document.createElement('thead');
     thead.innerHTML = `<tr>
       <th>תאריך</th><th>יום</th><th>התחלה</th><th>סיום</th><th>שעות</th>
-      <th>סוג פעילות</th><th>בית ספר</th><th>רשות</th><th>ק"מ</th><th>הוצאות</th>
+      <th>סוג פעילות</th><th>שם פעילות</th><th>בית ספר</th><th>רשות</th><th>ק"מ</th><th>הוצאות</th>
       <th>פעולות</th>
     </tr>`;
 
     const tbody = document.createElement('tbody');
 
     for (const record of records) {
-      const tr = buildRecordRow({ record, editable, instructor, activityTypes, onRefresh: () =>
-        loadAndRender({ instructor, year, month, contentArea, onNewReport })
+      const tr = buildRecordRow({ record, editable, instructor, activityTypes, onDuplicate, onRefresh: () =>
+        loadAndRender({ instructor, year, month, contentArea, onNewReport, onDuplicate })
       });
       tbody.append(tr);
     }
@@ -177,7 +178,7 @@ async function loadAndRender({ instructor, year, month, contentArea, onNewReport
     totalRow.innerHTML = `
       <td colspan="4"><strong>סה"כ</strong></td>
       <td><strong>${summary.totalHours.toFixed(2)}</strong></td>
-      <td colspan="3"></td>
+      <td colspan="4"></td>
       <td><strong>${summary.totalKm.toFixed(0)}</strong></td>
       <td><strong>${summary.totalExpenses.toFixed(2)}</strong></td>
       <td></td>
@@ -195,7 +196,7 @@ async function loadAndRender({ instructor, year, month, contentArea, onNewReport
 
 // ── Record row ─────────────────────────────────────────────────────────────
 
-function buildRecordRow({ record, editable, instructor, activityTypes, onRefresh }) {
+function buildRecordRow({ record, editable, instructor, activityTypes, onDuplicate, onRefresh }) {
   const tr = document.createElement('tr');
   tr.dataset.recordId = record.id;
 
@@ -209,6 +210,7 @@ function buildRecordRow({ record, editable, instructor, activityTypes, onRefresh
     <td dir="ltr">${record.end_time || '—'}</td>
     <td>${Number(record.total_hours || 0).toFixed(2)}</td>
     <td>${record.activity_type || '—'}</td>
+    <td title="${record.activity_name_snapshot || ''}">${truncate(record.activity_name_snapshot, 16)}</td>
     <td title="${record.school_name_snapshot || ''}">${truncate(record.school_name_snapshot, 14)}</td>
     <td title="${record.authority_name_snapshot || ''}">${truncate(record.authority_name_snapshot, 12)}</td>
     <td>${Number(record.roundtrip_km || 0).toFixed(0)}</td>
@@ -237,6 +239,18 @@ function buildRecordRow({ record, editable, instructor, activityTypes, onRefresh
     noteBtn.title = record.notes;
     noteBtn.append(createIcon('message-square', { size: 14 }));
     actionsCell.append(noteBtn);
+  }
+
+  // Duplicate — always available (not limited to editable months)
+  if (onDuplicate) {
+    const dupBtn = document.createElement('button');
+    dupBtn.type = 'button';
+    dupBtn.className = 'av2-btn av2-btn--icon';
+    dupBtn.setAttribute('aria-label', 'שכפל דיווח');
+    dupBtn.title = 'שכפל דיווח';
+    dupBtn.append(createIcon('copy', { size: 14 }));
+    dupBtn.addEventListener('click', () => onDuplicate(record));
+    actionsCell.append(dupBtn);
   }
 
   if (editable) {
@@ -317,7 +331,9 @@ function showEditModal({ record, instructor, activityTypes, onRefresh }) {
   timeRow.append(startTimeField.wrap, endTimeField.wrap, hoursDisplay);
   form.append(timeRow);
 
-  const typeField   = createSelectField({ id: 'edit-type',      label: 'סוג פעילות', options: typeOptions, value: record.activity_type || '' });
+  const actNameField = createInputField({ id: 'edit-activity-name', label: 'שם פעילות', value: record.activity_name_snapshot || '', placeholder: 'שם התוכנית או הפעילות' });
+  const typeOpts = [{ value: '', label: 'בחר' }, ...typeOptions.map(t => typeof t === 'string' ? { value: t, label: t } : t)];
+  const typeField   = createSelectField({ id: 'edit-type',      label: 'סוג פעילות', options: typeOpts, value: '' });
   const authField   = createInputField({ id: 'edit-authority',  label: 'רשות',        value: record.authority_name_snapshot || '' });
   const schoolField = createInputField({ id: 'edit-school',     label: 'בית ספר',     value: record.school_name_snapshot || '' });
   const meetField   = createInputField({ id: 'edit-meeting',    label: 'מפגש מס\'',   type: 'number', value: record.meeting_no != null ? String(record.meeting_no) : '', attrs: { min: '0', max: '50' } });
@@ -328,7 +344,7 @@ function showEditModal({ record, instructor, activityTypes, onRefresh }) {
 
   typeField.input.value = record.activity_type || '';
 
-  form.append(typeField.wrap, authField.wrap, schoolField.wrap, meetField.wrap,
+  form.append(actNameField.wrap, typeField.wrap, authField.wrap, schoolField.wrap, meetField.wrap,
               kmField.wrap, expField.wrap, expDField.wrap, notesField.wrap);
 
   const errorEl = document.createElement('p');
@@ -352,9 +368,20 @@ function showEditModal({ record, instructor, activityTypes, onRefresh }) {
     const endTime    = endTimeField.input.value;
     const totalHours = calcHours(startTime, endTime);
 
-    if (!startTime || !endTime) {
-      errorEl.textContent = 'יש להזין שעת התחלה וסיום';
+    // ── Validation ──────────────────────────────────────────────────────
+    const missing = [];
+    if (!startTime || !endTime) missing.push('שעות');
+    if (startTime && endTime && totalHours <= 0) missing.push('שעת סיום חייבת להיות מאוחרת מהתחלה');
+    if (!typeField.input.value) missing.push('סוג פעילות');
+    if (!actNameField.input.value.trim()) missing.push('שם פעילות');
+    if (!authField.input.value.trim()) missing.push('רשות');
+    if (missing.length) {
+      errorEl.textContent = `שדות חובה: ${missing.join(' · ')}`;
       errorEl.hidden = false;
+      if (!startTime || !endTime) startTimeField.input.focus();
+      else if (!typeField.input.value) typeField.input.focus();
+      else if (!actNameField.input.value.trim()) actNameField.input.focus();
+      else authField.input.focus();
       return;
     }
 
@@ -367,6 +394,7 @@ function showEditModal({ record, instructor, activityTypes, onRefresh }) {
         end_time:                endTime,
         total_hours:             totalHours,
         activity_type:           typeField.input.value,
+        activity_name_snapshot:  actNameField.input.value.trim() || null,
         authority_name_snapshot: authField.input.value.trim() || null,
         school_name_snapshot:    schoolField.input.value.trim() || null,
         meeting_no:              meetField.input.value ? Number(meetField.input.value) : null,
