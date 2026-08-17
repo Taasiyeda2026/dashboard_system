@@ -70,3 +70,4 @@ config.HOTFIX_VERSION = `course-scheduling-concise-rejections-20260817-v1-${conf
 config.HOTFIX_VERSION = `payroll-control-review-states-20260817-v1-${config.HOTFIX_VERSION}`;
 
 config.HOTFIX_VERSION = `payroll-control-zero-kilometers-20260817-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `payroll-control-post-1541-display-20260817-v1-${config.HOTFIX_VERSION}`;

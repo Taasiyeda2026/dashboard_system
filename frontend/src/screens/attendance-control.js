@@ -744,7 +744,7 @@ export function attendanceControlStylesHtml() {
 .attendance-control__uploads{margin:16px 0;padding:14px;background:#f8fafc;border-radius:10px}.attendance-control__uploads label{display:grid;gap:6px;min-width:220px;flex:1}.attendance-control__status{color:#b91c1c;font-weight:700}
 .attendance-control__summary-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:12px 0;padding:12px 14px;border-radius:10px;background:#f4f7fb;color:#1f2a37;font-weight:600}.attendance-control__summary-bar span{padding:7px 12px;border:1px solid #d7e0ea;border-radius:8px;background:#ffffff;font-weight:600}.attendance-control__metrics-details{margin:6px 0 12px}.attendance-control__metrics-details>summary{cursor:pointer;color:#64748b;font-size:.92em;padding:4px 2px}.attendance-control__metrics{margin:6px 0;display:flex;flex-wrap:wrap;gap:8px}.attendance-control__metrics>span,.attendance-control__employee-summary>span{padding:9px 12px;border:1px solid #e2e8f0;border-radius:8px;background:#f8fafc}
 .attendance-control__employee{margin:10px 0;border-bottom:1px solid #d7e0ea}.attendance-control__employee>summary{padding:12px 4px;cursor:pointer;font-size:1.05em}.attendance-control__employee-days{padding:0 4px 10px}
-.attendance-control__day{border-top:1px solid #e2e8f0}.attendance-control__day>summary{display:grid;grid-template-columns:110px 110px 80px;gap:12px;align-items:center;padding:10px 2px;cursor:pointer}.attendance-control__reports{padding:0 10px 8px}.attendance-control__report{padding:10px 0;border-top:1px solid #eef2f6}.attendance-control__report:first-child{border-top:0}.attendance-control__report-line{display:flex;align-items:center;gap:14px;flex-wrap:wrap}.attendance-control__report-line strong{min-width:105px}.attendance-control__row-status{font-weight:800;white-space:nowrap;color:#24824d}.attendance-control__row-status--issue,.attendance-control__field-value--issue{color:#c62828!important}.attendance-control__identity{display:grid;grid-template-columns:repeat(3,minmax(150px,1fr));gap:6px 18px;padding:10px 0}.attendance-control__identity span{color:#475569}.attendance-control__identity b{color:#172033}.attendance-control__comparison-table{width:100%;border-collapse:collapse;margin:3px 0 8px}.attendance-control__comparison-table th,.attendance-control__comparison-table td{padding:7px 9px;text-align:right;border-bottom:1px solid #e2e8f0}.attendance-control__comparison-table th{color:#5f6f82;font-size:.86em}.attendance-control__comparison-table select,.attendance-control__comparison-table input{max-width:145px}.attendance-control__export{margin-top:14px}@media(max-width:800px){.attendance-control__identity{grid-template-columns:1fr 1fr}.attendance-control__comparison-table{font-size:.9em}}
+.attendance-control__day{border-top:1px solid #e2e8f0}.attendance-control__day>summary{display:grid;grid-template-columns:110px 110px 80px;gap:12px;align-items:center;padding:10px 2px;cursor:pointer}.attendance-control__reports{padding:0 10px 8px}.attendance-control__report{padding:12px 8px;border-top:1px solid rgba(37,99,235,.16);background:rgba(37,99,235,.025)}.attendance-control__report:first-child{border-top:0}.attendance-control__report-line{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.attendance-control__report-line strong{font-size:1em}.attendance-control__row-status{font-weight:800;white-space:nowrap;color:#24824d}.attendance-control__row-status--issue,.attendance-control__field-value--issue{color:#c62828!important}.attendance-control__identity{padding:5px 0 8px;color:#475569;font-size:.92em}.attendance-control__comparison-table{width:100%;border-collapse:collapse;margin:3px 0 8px}.attendance-control__comparison-table th,.attendance-control__comparison-table td{padding:7px 9px;text-align:right;border-bottom:1px solid #e2e8f0}.attendance-control__comparison-table th{color:#5f6f82;font-size:.86em}.attendance-control__comparison-table select,.attendance-control__comparison-table input{max-width:145px}.attendance-control__manual-table{width:auto;min-width:min(100%,520px)}.attendance-control__missing-match{margin:5px 0;color:#c62828;font-weight:800}.attendance-control__export{margin-top:14px}@media(max-width:800px){.attendance-control__comparison-table{font-size:.9em}}
 @media(max-width:850px){.attendance-control__diff{grid-template-columns:1fr 1fr}.attendance-control__diff strong{grid-column:1/-1}.attendance-control__diff--header{display:none}[data-src-label]::before{content:attr(data-src-label)": ";font-weight:700;font-size:.8em;display:block;color:#5f6f82;margin-bottom:2px}}
 </style>`;
 }
@@ -784,12 +784,15 @@ export function resultsHtml(result, month = '') {
     || comparison.dashboard?.payrollHoursRequireReview || kilometerIssue(comparison.attendance, comparison.dashboard)
     || hasReviewExpense(comparison.attendance);
   const identityHtml = (row) => {
+    const fields = [row.program, row.school, row.authority, hasValue(row.meetingNo) ? `מפגש ${row.meetingNo}` : ''].filter(hasValue);
+    return fields.length ? `<div class="attendance-control__identity">${fields.map(shown).join(' | ')}</div>` : '';
+  };
+  const manualReportTable = (row) => {
     const fields = [
-      ['סוג פעילות / דיווח', row.activityType], ['שעת התחלה–סיום', `${row.startTime || '—'}–${row.endTime || '—'}`],
-      ['תוכנית / פעילות', row.program], ['בית ספר / מוסד', row.school],
-      ['רשות / יישוב', row.authority], ['מספר מפגש', row.meetingNo]
-    ].filter(([, value]) => txt(value));
-    return `<div class="attendance-control__identity">${fields.map(([label, value]) => `<span>${escapeHtml(label)}: <b>${shown(value)}</b></span>`).join('')}</div>`;
+      ['שעות', rowWorkHours(row).toFixed(2)], ['ק״מ', row.kilometers], ['הוצאות', row.expenses],
+      ['פירוט הוצאה', row.expenseDetails], ['הערות', row.notes]
+    ].filter(([, value]) => hasValue(value));
+    return `<table class="attendance-control__comparison-table attendance-control__manual-table"><tbody>${fields.map(([label, value]) => `<tr><th>${label}</th><td>${shown(value)}</td></tr>`).join('')}</tbody></table>`;
   };
   const comparisonTable = (comparison) => {
     const attendance = comparison.attendance || {};
@@ -810,7 +813,7 @@ export function resultsHtml(result, month = '') {
         || (key === 'expenses' && hasReviewExpense(attendance));
       const unavailable = !dashboard;
       const controls = related ? `<select class="ds-input ds-input--sm" data-attendance-choice aria-label="החלטה עבור ${escapeHtml(label)}"><option value="attendance">נתון הנוכחות</option><option value="dashboard">נתון הדשבורד</option><option value="custom">ערך אחר</option></select><input class="ds-input ds-input--sm" data-attendance-custom hidden aria-label="ערך אחר">` : '';
-      return `<tr${related ? ` data-comparison="${comparison.id}" data-field="${related.key}"` : ''}><th>${escapeHtml(label)}</th><td>${shown(left)}</td><td class="${issue ? 'attendance-control__field-value--issue' : ''}">${kmUnavailable ? 'לא ניתן לחשב' : unavailable ? '' : shown(right)}</td><td class="attendance-control__row-status ${issue ? 'attendance-control__row-status--issue' : ''}">${kmUnavailable ? 'לא ניתן לחשב' : unavailable ? '' : issue ? (key === 'expenses' && !related ? 'לבדיקה' : 'שונה') : 'תקין'}${controls}</td></tr>`;
+      return `<tr${related ? ` data-comparison="${comparison.id}" data-field="${related.key}"` : ''}><th>${escapeHtml(label)}</th><td>${shown(left)}</td><td class="${issue || unavailable ? 'attendance-control__field-value--issue' : ''}">${kmUnavailable ? 'לא ניתן לחשב' : unavailable ? 'לא נמצאה התאמה' : shown(right)}</td><td class="attendance-control__row-status ${issue || unavailable ? 'attendance-control__row-status--issue' : ''}">${kmUnavailable ? 'לא ניתן לחשב' : unavailable ? 'לבדיקה' : issue ? (key === 'expenses' && !related ? 'לבדיקה' : 'שונה') : 'תקין'}${controls}</td></tr>`;
     }).join('');
     return `<table class="attendance-control__comparison-table"><thead><tr><th>נתון</th><th>נוכחות</th><th>דשבורד / בקרה</th><th>סטטוס</th></tr></thead><tbody>${rows}</tbody></table>`;
   };
@@ -819,9 +822,10 @@ export function resultsHtml(result, month = '') {
     const issue = kind === 'comparison' ? comparisonHasIssue(item) : kind === 'dashboard';
     const timelineStatus = kind === 'comparison' && !issue ? '<span class="attendance-control__row-status">תקין</span>' : '';
     const table = kind === 'comparison' ? comparisonTable(item) : kind === 'attendance'
-      ? comparisonTable({ id: item.id, attendance: row, dashboard: null, differences: [], unmatched: false })
+      ? manualReportTable(row)
       : `<p class="attendance-control__row-status--issue">פעילות בדשבורד ללא דיווח נוכחות.</p>`;
-    return `<section class="attendance-control__report"><div class="attendance-control__report-line"><strong>${shown(`${row.startTime || '—'}–${row.endTime || '—'}`)}</strong><span>${shown(row.activityType || 'דיווח')}</span>${row.school || row.program ? `<span>${shown(row.school || row.program)}</span>` : ''}${timelineStatus}</div>${identityHtml(row)}${table}</section>`;
+    const missingMatch = kind === 'comparison' && item.unmatched ? '<p class="attendance-control__missing-match">לא נמצאה פעילות תואמת</p>' : '';
+    return `<section class="attendance-control__report"><div class="attendance-control__report-line"><strong>${shown(`${row.startTime || '—'}–${row.endTime || '—'} | ${row.activityType || 'דיווח'}`)}</strong>${timelineStatus}</div>${identityHtml(row)}${missingMatch}${table}</section>`;
   };
   const employeeHtml = [...employees.values()].sort((a, b) => a.name.localeCompare(b.name, 'he')).map((employee) => {
     const days = [...employee.days.entries()].sort(([left], [right]) => left.localeCompare(right)).map(([date, rows]) => {
