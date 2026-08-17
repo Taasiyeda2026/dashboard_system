@@ -29,6 +29,7 @@ let observerTimer = null;
 let currentRenderToken = 0;
 let lastContextSignature = '';
 let embeddedAttendanceSignature = '';
+let resetMonthOnNextBoard = true;
 const rosterCache = new Map();
 const attendanceSummaryCache = new Map();
 
@@ -84,17 +85,16 @@ function parseMonthLabel(label) {
 }
 
 function defaultMonth(period = periodKey()) {
-  if (period === 'school_2027') return '2026-09';
   const now = new Date();
   const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-  return ym >= '2025-09' && ym <= '2026-08' ? ym : '2026-08';
+  const minYm = period === 'school_2027' ? '2026-09' : '2025-09';
+  const maxYm = period === 'school_2027' ? '2027-08' : '2026-08';
+  if (ym < minYm) return minYm;
+  if (ym > maxYm) return maxYm;
+  return ym;
 }
 
 function currentMonth(boardRoot, period = periodKey()) {
-  try {
-    const stored = text(localStorage.getItem(`manager_board_month:${period}`));
-    if (/^\d{4}-\d{2}$/.test(stored)) return stored;
-  } catch { /* ignore */ }
   const label = boardRoot?.querySelector('.manager-board-month-nav strong')?.textContent;
   return parseMonthLabel(label) || defaultMonth(period);
 }
@@ -111,6 +111,25 @@ function validBoardRoot() {
   const root = document.querySelector('.manager-board-screen[data-manager-board-root]');
   if (!root || !canUseWorkspace()) return null;
   return root;
+}
+
+function resetBoardMonthIfNeeded(boardRoot) {
+  if (!resetMonthOnNextBoard) return false;
+  const period = periodKey();
+  const shown = currentMonth(boardRoot, period);
+  const target = defaultMonth(period);
+  if (!shown || shown === target) {
+    resetMonthOnNextBoard = false;
+    return false;
+  }
+  const direction = shown < target ? '1' : '-1';
+  const button = boardRoot.querySelector(`[data-manager-board-month="${direction}"]`);
+  if (!button || button.disabled) {
+    resetMonthOnNextBoard = false;
+    return false;
+  }
+  button.click();
+  return true;
 }
 
 async function ensureAuthSession() {
@@ -194,23 +213,6 @@ async function loadAttendanceSummary(roster, ym, force = false) {
   return value;
 }
 
-function bindWorkspaceTabs(boardRoot) {
-  const tabs = boardRoot.querySelector('[data-manager-workspace-tabs]');
-  if (!tabs) return false;
-  if (tabs.dataset.managerWorkspaceBound === 'true') return true;
-  tabs.dataset.managerWorkspaceBound = 'true';
-  tabs.querySelectorAll('[data-manager-workspace-tab]').forEach((button) => {
-    button.addEventListener('click', () => {
-      const next = button.dataset.managerWorkspaceTab;
-      if (!next || next === activeTab) return;
-      setActiveTab(next);
-      embeddedAttendanceSignature = '';
-      void renderWorkspace(true);
-    });
-  });
-  return true;
-}
-
 function applyTabVisibility(boardRoot) {
   const isManagement = activeTab === 'management';
   boardRoot.classList.toggle('is-manager-workspace-subtab', !isManagement);
@@ -223,6 +225,30 @@ function applyTabVisibility(boardRoot) {
     button.classList.toggle('is-active', selected);
     button.setAttribute('aria-selected', selected ? 'true' : 'false');
   });
+}
+
+function handleWorkspaceClick(event) {
+  const target = event.target instanceof Element ? event.target : null;
+  if (!target) return;
+
+  if (target.closest('[data-manager-board-open]')) {
+    resetMonthOnNextBoard = true;
+    return;
+  }
+
+  const button = target.closest('[data-manager-workspace-tab]');
+  if (!button || !canUseWorkspace()) return;
+  const boardRoot = button.closest('[data-manager-board-root]');
+  if (!boardRoot) return;
+  const next = button.dataset.managerWorkspaceTab;
+  if (!['management', 'attendance', 'tracking'].includes(next)) return;
+
+  event.preventDefault();
+  setActiveTab(next);
+  embeddedAttendanceSignature = '';
+  lastContextSignature = '';
+  applyTabVisibility(boardRoot);
+  void renderWorkspace(true);
 }
 
 function managementAlertsHtml(roster, summary) {
@@ -496,7 +522,7 @@ function renderTracking(boardRoot, context, roster) {
 async function renderWorkspace(force = false) {
   const boardRoot = validBoardRoot();
   if (!boardRoot) return;
-  if (!bindWorkspaceTabs(boardRoot)) return;
+  if (!boardRoot.querySelector('[data-manager-workspace-tabs]')) return;
   applyTabVisibility(boardRoot);
 
   const context = contextFromBoard(boardRoot);
@@ -542,6 +568,7 @@ function syncWorkspace() {
     embeddedAttendanceSignature = '';
     return;
   }
+  if (resetBoardMonthIfNeeded(boardRoot)) return;
   void renderWorkspace(false);
 }
 
@@ -554,10 +581,11 @@ function startWorkspaceRuntime() {
   if (observer) return;
   const app = document.getElementById('app');
   if (!app) return;
+  window.addEventListener('click', handleWorkspaceClick, true);
   observer = new MutationObserver(scheduleSync);
   observer.observe(app, { childList: true, subtree: true });
   window.addEventListener('storage', (event) => {
-    if (event.key === MANAGER_WORKSPACE_TAB_KEY || event.key?.startsWith('manager_board_month:') || event.key?.startsWith('manager_board_manager:')) scheduleSync();
+    if (event.key === MANAGER_WORKSPACE_TAB_KEY || event.key?.startsWith('manager_board_manager:')) scheduleSync();
   });
   scheduleSync();
 }
