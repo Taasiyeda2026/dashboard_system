@@ -85,3 +85,4 @@ config.HOTFIX_VERSION = `payroll-control-merge-main-20260817-v1-${config.HOTFIX_
 config.HOTFIX_VERSION = `attendance-v2-infra-sw-scope-boundary-20260817-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `attendance-v2-desktop-shell-sw-cache-1536-20260817-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `manager-workspace-tabs-sw-cache-1537-20260817-v2-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `manager-workspace-built-in-tabs-sidebar-access-start-checkpoint-sw-cache-1538-20260818-v1-${config.HOTFIX_VERSION}`;
