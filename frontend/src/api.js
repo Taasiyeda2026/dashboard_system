@@ -23,6 +23,7 @@ import { withResolvedSchool2027Contact } from './screens/shared/school-2027-cont
 import { normalizeOperationalDistrict } from './screens/shared/district-normalization.js';
 import { permissionFlagYes, canEditDirect, canAddActivityDirect, canRequestEdit, canRequestCreateActivity, canReviewRequests } from './permissions.js';
 import { mapWithConcurrency } from './bounded-concurrency.js';
+import { config } from './config.js';
 
 /**
  * Actions that modify server-side data.
@@ -6607,6 +6608,25 @@ async function readCatalogProgramsFromSupabase() {
   };
 }
 export const api = {
+  attendanceControlRequest: async (action) => {
+    const response = await fetch(config.attendanceApiUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action })
+    });
+    if (!response.ok) throw new Error(`attendance_api_${response.status}`);
+    return response.json();
+  },
+  attendanceControlTeams: async function () {
+    const response = await this.attendanceControlRequest('getallemployees');
+    if (!response?.success || !Array.isArray(response.employees)) throw new Error('attendance_employees_load_failed');
+    return response.employees;
+  },
+  attendanceControlRecords: async function () {
+    const response = await this.attendanceControlRequest('getsummary');
+    if (!response?.success || !Array.isArray(response.records)) throw new Error('attendance_records_load_failed');
+    return response.records;
+  },
   login: async (user_id, entry_code) => {
     // Auth must complete before any permission-guarded Supabase reads.
     const { userRow: user, profileRow } = await loginWithSupabaseAuth(user_id, entry_code);

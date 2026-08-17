@@ -234,6 +234,42 @@ export function filterAttendanceRowsByMonth(attendanceRows = [], month = '') {
   return attendanceRows.filter((row) => txt(row.date).startsWith(`${month}-`));
 }
 
+function lookupText(value) {
+  if (value && typeof value === 'object') return txt(value.Value || value.value || value.Label || value.label);
+  if (typeof value !== 'string') return txt(value);
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === 'object' ? lookupText(parsed) : txt(value);
+  } catch { return txt(value); }
+}
+
+export function normalizeAttendanceApiRows(records = []) {
+  return records.map((row) => ({
+    employeeId: txt(row.employeeId || row.EmployeeId || row.empNum),
+    employeeName: txt(row.employeeName || row.EmployeeName || row.empName),
+    employmentType: lookupText(row.employmentType || row.EmploymentType),
+    team: lookupText(row.team || row.Team), date: excelDate(row.attendanceDate || row.AttendanceDate || row.date),
+    startTime: timeText(row.startTime || row.StartTime || row.start), endTime: timeText(row.endTime || row.EndTime || row.end),
+    workHours: optionalNumber(row.workHours ?? row.WorkHours ?? row.hours), activityType: lookupText(row.activityType || row.ActivityType || row.activity),
+    school: txt(row.schoolName || row.SchoolName || row.school), authority: txt(row.municipality || row.Municipality || row.authority),
+    program: txt(row.programName || row.ProgramName || row.program), meetingNo: txt(row.sessionNumber || row.SessionNumber || row.session),
+    kilometers: optionalNumber(row.kilometers ?? row.Kilometers ?? row.km), expenses: optionalNumber(row.totalExpenses ?? row.TotalExpenses),
+    expenseDetails: txt(row.expensesDetails || row.ExpensesDetails), notes: txt(row.notes || row.Notes), activityId: txt(row.ID || row.Id || row.id)
+  })).filter((row) => row.employeeId && row.date);
+}
+
+export function attendanceTeams(employees = []) {
+  const managers = employees.filter((employee) => txt(employee.role || employee.Role).toLowerCase() === 'manager');
+  const managerByTeam = new Map(managers.map((manager) => [lookupText(manager.team || manager.Team), txt(manager.employeeName || manager.EmployeeName || manager.Title || manager.empName)]).filter(([team]) => team));
+  if (!managerByTeam.size) {
+    for (const employee of employees) {
+      const team = lookupText(employee.team || employee.Team);
+      if (team && !managerByTeam.has(team)) managerByTeam.set(team, team);
+    }
+  }
+  return [...managerByTeam].map(([id, managerName]) => ({ id, managerName: managerName || id }));
+}
+
 export function attendanceExportFilename(month) {
   const label = attendanceMonthLabel(month);
   if (!label) throw new Error('יש לבחור חודש לבדיקה לפני הייצוא.');
@@ -698,7 +734,7 @@ export function attendanceAuditSummary(result) {
 }
 
 export function attendanceControlHtml() {
-  return `<section class="attendance-control no-print" data-attendance-control hidden dir="rtl"><div class="attendance-control__head"><div><h2 data-attendance-title>בקרת נוכחות</h2><p>בחרו חודש, העלו קובץ נוכחות והמערכת תשווה אותו לנתוני הדשבורד.</p></div><button type="button" class="ds-btn ds-btn--sm" data-attendance-close>סגירה</button></div><div class="attendance-control__uploads"><label><strong>חודש לבדיקה</strong><input class="ds-input" type="month" data-attendance-month></label><label><strong>העלאת קובץ נוכחות</strong><input type="file" accept=".xlsx,.xls" data-attendance-source></label><button type="button" class="ds-btn ds-btn--primary" data-attendance-run disabled>בצע בדיקה</button></div><p class="attendance-control__status" data-attendance-status aria-live="polite"></p><div data-attendance-results></div></section>`;
+  return `<section class="attendance-control no-print" data-attendance-control hidden dir="rtl"><div class="attendance-control__head"><div><h2 data-attendance-title>בקרת שכר</h2></div><button type="button" class="ds-btn ds-btn--sm" data-attendance-close>סגירה</button></div><div class="attendance-control__uploads"><label><strong>נוכחות</strong><span>בחר חודש</span><input class="ds-input" type="month" data-attendance-month></label><label><strong>דשבורד</strong><span>בחר חודש</span><input class="ds-input" type="month" data-dashboard-month></label><label><strong>צוות</strong><select class="ds-input" data-attendance-team disabled><option value="">טוען צוותים…</option></select></label><button type="button" class="ds-btn ds-btn--primary" data-attendance-run disabled>אישור בקרת שכר</button></div><p class="attendance-control__status" data-attendance-status aria-live="polite"></p><div data-attendance-results></div></section>`;
 }
 
 export function attendanceControlStylesHtml() {
@@ -781,34 +817,65 @@ export function resultsHtml(result, month = '') {
   return `${summaryBar}<details class="attendance-control__metrics-details"><summary>פירוט הבדיקה</summary>${technicalMetrics}</details>${cards}<button type="button" class="ds-btn ds-btn--primary attendance-control__export" data-attendance-export>ייצוא דוח נוכחות מתוקן</button>`;
 }
 
-async function readFile(file) {
-  // Raw mode: date cells come as Excel serial integers, not JS Date objects.
-  // This prevents the UTC-midnight timezone shift that silently drops the 1st of every month.
-  return XLSX.read(await file.arrayBuffer(), { type: 'array' });
+function openAttendanceControlWindow(api, state) {
+  const popup = window.open('', 'dashboard-payroll-control');
+  if (!popup) throw new Error('הדפדפן חסם את פתיחת חלון בקרת השכר. יש לאפשר חלונות קופצים ולנסות שוב.');
+  popup.document.title = 'בקרת שכר';
+  popup.document.documentElement.lang = 'he';
+  popup.document.body.innerHTML = `<main data-payroll-window>${attendanceControlStylesHtml()}${attendanceControlHtml()}</main>`;
+  popup.document.head.insertAdjacentHTML('beforeend', '<meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0;padding:24px;background:#f1f5f9;font-family:Arial,sans-serif}.ds-input{box-sizing:border-box;padding:9px;border:1px solid #cbd5e1;border-radius:8px}.ds-btn{padding:9px 14px;border:1px solid #94a3b8;border-radius:8px;background:#fff;cursor:pointer}.ds-btn--primary{background:#2563eb;color:#fff}.ds-btn:disabled{opacity:.55;cursor:not-allowed}</style>');
+  const popupRoot = popup.document.querySelector('[data-payroll-window]');
+  popupRoot.querySelector('[data-attendance-control]').hidden = false;
+  bindAttendanceControl(popupRoot, { api, state, standalone: true });
+  popup.focus();
 }
 
-export function bindAttendanceControl(root, { api } = {}) {
+export function bindAttendanceControl(root, { api, state = {}, standalone = false } = {}) {
   const panel = root?.querySelector('[data-attendance-control]'); if (!panel) return;
-  const attendanceInput = panel.querySelector('[data-attendance-source]');
-  const monthInput = panel.querySelector('[data-attendance-month]'); const title = panel.querySelector('[data-attendance-title]');
+  const monthInput = panel.querySelector('[data-attendance-month]'); const dashboardMonthInput = panel.querySelector('[data-dashboard-month]');
+  const teamInput = panel.querySelector('[data-attendance-team]'); const title = panel.querySelector('[data-attendance-title]');
   const run = panel.querySelector('[data-attendance-run]'); const status = panel.querySelector('[data-attendance-status]'); const results = panel.querySelector('[data-attendance-results]');
-  let result = null;
-  const update = () => { run.disabled = !attendanceInput.files?.[0] || !attendanceMonthLabel(monthInput.value); };
-  attendanceInput.addEventListener('change', update);
-  monthInput.addEventListener('change', update);
-  root.querySelector('[data-attendance-open]')?.addEventListener('click', () => { panel.hidden = false; panel.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
-  panel.querySelector('[data-attendance-close]')?.addEventListener('click', () => { panel.hidden = true; });
+  let result = null; let employees = null; let teamIds = [];
+  const role = txt(state?.user?.role || state?.user?.display_role).toLowerCase();
+  const isManager = role === 'manager' || role === 'instructor_manager';
+  const canChooseTeam = ['operations_controller', 'system_admin', 'operation_manager', 'admin'].includes(role);
+  const update = () => { run.disabled = !employees || !attendanceMonthLabel(monthInput.value) || !attendanceMonthLabel(dashboardMonthInput.value) || !teamInput.value; };
+  monthInput.addEventListener('change', update); dashboardMonthInput.addEventListener('change', update); teamInput.addEventListener('change', update);
+  root.querySelector('[data-attendance-open]')?.addEventListener('click', () => {
+    try { openAttendanceControlWindow(api, state); } catch (error) { window.alert(error.message); }
+  });
+  panel.querySelector('[data-attendance-close]')?.addEventListener('click', () => standalone ? root.ownerDocument.defaultView.close() : (panel.hidden = true));
+  if (standalone) {
+    status.textContent = 'טוען את רשימת הצוותים…';
+    api?.attendanceControlTeams?.().then((loaded) => {
+      employees = loaded;
+      const teams = attendanceTeams(employees);
+      teamIds = teams.map((team) => team.id);
+      const currentEmpId = txt(state?.user?.emp_id || state?.user?.employee_id || state?.user?.user_id);
+      const currentEmployee = employees.find((employee) => txt(employee.employeeId || employee.EmployeeId || employee.ID) === currentEmpId);
+      const ownTeam = lookupText(currentEmployee?.team || currentEmployee?.Team);
+      const options = canChooseTeam ? [{ id: '__all__', managerName: 'כל הצוותים' }, ...teams] : teams.filter((team) => team.id === ownTeam);
+      teamInput.innerHTML = `<option value="">בחר צוות</option>${options.map((team) => `<option value="${escapeHtml(team.id)}">${escapeHtml(team.managerName)}</option>`).join('')}`;
+      if (isManager && ownTeam) { teamInput.value = ownTeam; teamInput.disabled = true; }
+      else teamInput.disabled = !canChooseTeam;
+      status.textContent = options.length ? '' : 'לא נמצא צוות המשויך למשתמש המחובר.';
+      update();
+    }).catch(() => { status.textContent = 'טעינת נתוני מערכת הנוכחות נכשלה.'; });
+  }
   run.addEventListener('click', async () => {
-    run.disabled = true; status.textContent = 'טוען את נתוני הדשבורד ובודק את הקובץ…';
+    run.disabled = true; status.textContent = 'טוען את נתוני הנוכחות והדשבורד ומבצע בקרת שכר…';
     try {
-      const month = monthInput.value; const monthLabel = attendanceMonthLabel(month);
+      const month = monthInput.value; const dashboardMonth = dashboardMonthInput.value; const monthLabel = attendanceMonthLabel(month);
       if (!monthLabel) throw new Error('יש לבחור חודש לבדיקה לפני ביצוע הבדיקה.');
-      const attendanceRows = filterAttendanceRowsByMonth(parseAttendanceWorkbook(await readFile(attendanceInput.files[0])), month);
+      const selectedTeam = teamInput.value;
+      const records = await api.attendanceControlRecords();
+      const attendanceRows = filterAttendanceRowsByMonth(normalizeAttendanceApiRows(records), month)
+        .filter((row) => selectedTeam === '__all__' ? teamIds.includes(row.team) : row.team === selectedTeam);
       if (!attendanceRows.length) throw new Error(`לא נמצאו דיווחי נוכחות עבור ${monthLabel}`);
-      const dashboardRows = await loadAttendanceDashboardDataset(attendanceRows, api, month);
+      const dashboardRows = await loadAttendanceDashboardDataset(attendanceRows, api, dashboardMonth);
       result = compareAttendanceRows(attendanceRows, dashboardRows); result.month = month;
-      title.textContent = `בקרת נוכחות – ${monthLabel}`; status.textContent = ''; results.innerHTML = resultsHtml(result, month);
-    } catch (error) { status.textContent = error?.message || 'קריאת הקבצים נכשלה.'; results.innerHTML = ''; }
+      title.textContent = `בקרת שכר – ${monthLabel}`; status.textContent = ''; results.innerHTML = resultsHtml(result, month);
+    } catch (error) { status.textContent = error?.message || 'טעינת נתוני בקרת השכר נכשלה.'; results.innerHTML = ''; }
     finally { update(); }
   });
   results.addEventListener('change', (event) => {
