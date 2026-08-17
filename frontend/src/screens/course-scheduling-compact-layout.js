@@ -122,6 +122,13 @@ function detailHasOperationalContent(detail) {
   ));
 }
 
+export function simplifyCandidateSummaries(detail) {
+  if (!detail) return;
+  detail.querySelectorAll('.course-scheduling-key-metrics').forEach((metrics) => {
+    if (!metrics.closest('[data-candidate-expanded]')) metrics.remove();
+  });
+}
+
 function enhanceScreen(screen) {
   if (screen.dataset.csTab !== 'courses') {
     screen.classList.remove('is-compact-symmetric-layout');
@@ -145,7 +152,10 @@ function enhanceScreen(screen) {
   coursesRoot.classList.toggle('has-single-group', groups.length === 1);
 
   const detail = screen.querySelector('[data-course-detail]');
-  if (detail) detail.classList.toggle('has-compact-results', detailHasOperationalContent(detail));
+  if (detail) {
+    simplifyCandidateSummaries(detail);
+    detail.classList.toggle('has-compact-results', detailHasOperationalContent(detail));
+  }
 
   if (pendingFindCourseId) triggerFindAction(screen, pendingFindCourseId);
 }
