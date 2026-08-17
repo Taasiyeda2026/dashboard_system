@@ -5,6 +5,8 @@ import { readFile } from 'node:fs/promises';
 const runtime = await readFile(new URL('../frontend/src/management-password-runtime.js', import.meta.url), 'utf8');
 const edge = await readFile(new URL('../supabase/functions/management-password-reset/index.ts', import.meta.url), 'utf8');
 const migration = await readFile(new URL('../supabase/migrations/20260818022500_password_recovery_email_code_challenges.sql', import.meta.url), 'utf8');
+const recoveryTemplate = await readFile(new URL('../supabase/templates/recovery.html', import.meta.url), 'utf8');
+const supabaseConfig = await readFile(new URL('../supabase/config.toml', import.meta.url), 'utf8');
 const index = await readFile(new URL('../index.html', import.meta.url), 'utf8');
 const sw = await readFile(new URL('../frontend/sw.js', import.meta.url), 'utf8');
 
@@ -30,16 +32,28 @@ test('authenticated password change remains limited to management roles', () => 
   assert.doesNotMatch(runtime, /MANAGEMENT_ROLES[\s\S]{0,500}'instructor'/);
 });
 
-test('reset edge function sends codes through Microsoft Graph and never emails a Supabase recovery link', () => {
-  assert.match(edge, /graph\.microsoft\.com\/v1\.0\/users/);
-  assert.match(edge, /sendMail/);
-  assert.match(edge, /createVerificationCode/);
+test('reset edge function sends and verifies recovery OTP through Supabase Auth', () => {
+  assert.match(edge, /resetPasswordForEmail\(email\)/);
+  assert.match(edge, /verifyOtp\(\{/);
+  assert.match(edge, /type: 'recovery'/);
+  assert.match(edge, /verifiedUserId !== String\(challenge\.auth_user_id\)/);
   assert.match(edge, /password_recovery_challenges/);
   assert.match(edge, /MAX_CODE_ATTEMPTS = 5/);
   assert.match(edge, /CHALLENGE_MINUTES = 10/);
   assert.match(edge, /admin\.auth\.admin\.updateUserById/);
-  assert.doesNotMatch(edge, /resetPasswordForEmail/);
-  assert.doesNotMatch(edge, /generateLink/);
+  assert.doesNotMatch(edge, /graph\.microsoft\.com/);
+  assert.doesNotMatch(edge, /sendMail/);
+  assert.doesNotMatch(edge, /MS_CLIENT_SECRET/);
+});
+
+test('recovery email template contains only a six digit Supabase token and no recovery link', () => {
+  assert.match(recoveryTemplate, /\{\{ \.Token \}\}/);
+  assert.doesNotMatch(recoveryTemplate, /ConfirmationURL/);
+  assert.doesNotMatch(recoveryTemplate, /href=/);
+  assert.match(supabaseConfig, /\[remotes\.main\]/);
+  assert.match(supabaseConfig, /project_id = "szinlhjuwyiyszdpsdop"/);
+  assert.match(supabaseConfig, /\[remotes\.main\.auth\.email\.template\.recovery\]/);
+  assert.match(supabaseConfig, /content_path = "\.\/supabase\/templates\/recovery\.html"/);
 });
 
 test('employee 9901 is the only instructor explicitly admitted to the recovery pilot', () => {
@@ -58,7 +72,7 @@ test('recovery challenge table is server-only and RLS protected', () => {
   assert.match(migration, /grant all on table public\.password_recovery_challenges to service_role/);
 });
 
-test('dashboard deploy markers are bumped for recovery v2', () => {
+test('dashboard deploy markers remain on recovery v2 because frontend is unchanged', () => {
   assert.match(index, /management-password-runtime\.js\?v=20260818-management-password-v2/);
   assert.match(sw, /const CACHE_VERSION = 1543;/);
 });
