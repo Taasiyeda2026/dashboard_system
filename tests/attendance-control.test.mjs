@@ -172,8 +172,9 @@ test('May non-activity reports stay in export but not in activity exceptions or 
   assert.equal((html.match(/class="attendance-control__employee"/g) || []).length, 1, 'one instructor accordion is rendered');
   assert.equal((html.match(/class="attendance-control__day"/g) || []).length, 28, 'one day row groups all reports from the same date');
   assert.match(html, /class="attendance-control__reports"/, 'attendance-only reports stay in the chronological day sequence');
-  assert.match(html, /<th>נתון<\/th><th>נוכחות<\/th><th>דשבורד \/ בקרה<\/th><th>סטטוס<\/th>/, 'report details use the uniform comparison table');
-  assert.match(html, />הכשרה</, 'manual activity types are displayed without approval wording');
+  assert.equal((html.match(/attendance-control__manual-table/g) || []).length, 89, 'every manual report renders only its compact reported-data table');
+  assert.match(html, /attendance-control__manual-table[\s\S]*<th>שעות<\/th>/, 'manual reports use the compact reported-data table');
+  assert.match(html, /\| הכשרה<\/strong>/, 'manual activity types are displayed without approval wording');
   assert.doesNotMatch(html, /נוכחות בלבד|נדרש טיפול לפני תשלום|נדרש אישור ידני/, 'the view does not add technical payment or attendance-only copy');
   assert.doesNotMatch(html, /<span>ימים <b>/, 'the top summary does not include a days metric');
 });
@@ -191,6 +192,20 @@ test('payroll view groups reports by work day and compares row kilometers', () =
   assert.match(html, /30<\/td><td class="attendance-control__field-value--issue">24<\/td><td class="attendance-control__row-status attendance-control__row-status--issue">שונה/, 'row kilometers use the matched activity value');
   assert.match(html, /09:00–10:00[\s\S]*10:00–11:00/, 'reports are ordered by start time');
   assert.doesNotMatch(html, /נוכחות בלבד|נדרש אישור ידני/);
+});
+
+test('unmatched attendance explicitly marks the missing dashboard source without false valid fields', () => {
+  const attendance = { employeeId: 'missing', employeeName: 'מדריכה', date: '2026-05-03', startTime: '10:00', endTime: '12:00', workHours: 2, kilometers: 58, activityType: 'קורס', program: 'ביומימיקרי', school: 'אילנות', authority: 'אשקלון', meetingNo: 7 };
+  const result = compareAttendanceRows([attendance], []);
+  const html = resultsHtml(result);
+  assert.match(html, /attendance-control__missing-match">לא נמצאה פעילות תואמת<\/p>/);
+  assert.match(html, /<th>דשבורד \/ בקרה<\/th>/);
+  assert.ok((html.match(/לא נמצאה התאמה/g) || []).length >= 4);
+  assert.match(html, /ק״מ<\/th><td>58<\/td><td class="attendance-control__field-value--issue">לא נמצאה התאמה<\/td><td class="attendance-control__row-status attendance-control__row-status--issue">לבדיקה/);
+  assert.doesNotMatch(html, /לא ניתן לחשב/);
+  assert.doesNotMatch(html, /לא נמצאה התאמה<\/td><td class="attendance-control__row-status ">תקין/);
+  assert.match(html, /10:00–12:00 \| קורס/);
+  assert.match(html, /ביומימיקרי \| אילנות \| אשקלון \| מפגש 7/);
 });
 
 
@@ -218,11 +233,12 @@ test('payroll view marks unavailable kilometers for review', () => {
 
 test('manual report days and expense days remain under review without technical labels', () => {
   for (const activityType of ['הכשרה', 'ביטול זמן', 'תפעול']) {
-    const attendance = { employeeId: activityType, employeeName: `מדריך ${activityType}`, date: '2027-01-05', startTime: '10:00', endTime: '11:00', workHours: 1, activityType };
+    const attendance = { employeeId: activityType, employeeName: `מדריך ${activityType}`, date: '2027-01-05', startTime: '10:00', endTime: '11:00', workHours: 1, kilometers: 0, expenses: 20, expenseDetails: 'חניה', notes: 'הערה', activityType };
     const html = resultsHtml({ comparisons: [], notCompared: [{ id: activityType, attendance, final: { ...attendance } }], dashboardOnly: [], dashboardPopulation: [], dailyKilometers: [] });
     assert.match(html, /attendance-control__row-status attendance-control__row-status--issue">לבדיקה/, `${activityType} day must require review`);
     assert.match(html, /תקינים <b>0<\/b>[\s\S]*לבדיקה <b>1<\/b>/);
-    assert.doesNotMatch(html, /נוכחות בלבד|נדרש אישור ידני|נדרש טיפול לפני תשלום/);
+    assert.match(html, /attendance-control__manual-table[\s\S]*<th>ק״מ<\/th><td>0<\/td>[\s\S]*<th>הוצאות<\/th><td>20<\/td>[\s\S]*<th>פירוט הוצאה<\/th><td>חניה<\/td>[\s\S]*<th>הערות<\/th><td>הערה<\/td>/);
+    assert.doesNotMatch(html, /דשבורד \/ בקרה|לא ניתן לחשב|נוכחות בלבד|נדרש אישור ידני|נדרש טיפול לפני תשלום/);
   }
   const attendance = { employeeId: 'expense', employeeName: 'מדריך הוצאה', date: '2027-01-06', startTime: '09:00', endTime: '10:00', workHours: 1, expenses: 50, activityType: 'קורס' };
   const dashboard = { ...attendance, expenses: 50 };
