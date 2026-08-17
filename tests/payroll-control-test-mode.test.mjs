@@ -6,6 +6,7 @@ import {
   buildPayrollControlTestSourceData,
   buildPayrollControlTestDataset
 } from '../frontend/src/payroll-control-test-mode.js';
+import { preparePayrollTestReviewResult } from '../frontend/src/payroll-control-test-review-fix.js';
 
 test('payroll test mode keeps Attendance and dashboard as separate source datasets', () => {
   const { attendanceRecords, dashboardSources } = buildPayrollControlTestSourceData();
@@ -73,4 +74,55 @@ test('comparison sees manual payroll rows, missing activity directions and km au
   const kmUnavailable = result.dailyKilometers.find((day) => day.date === '2027-01-16');
   assert.equal(kmUnavailable?.reported, 10);
   assert.equal(kmUnavailable?.calculated, null);
+});
+
+test('test review layer removes false one-day activity gaps without changing the payroll engine', () => {
+  const { attendanceRows, dashboardRows } = buildPayrollControlTestDataset(attendanceControl);
+  const rawResult = attendanceControl.compareAttendanceRows(attendanceRows, dashboardRows);
+  const { result, dayStates } = preparePayrollTestReviewResult(rawResult);
+
+  const workshop = result.comparisons.find((row) => row.attendance.program === 'T07 – סדנה');
+  assert.ok(workshop);
+  assert.equal(workshop.dashboard.payrollHoursRequireReview, false);
+  assert.ok(!workshop.differences.some((diff) => diff.key === 'meetingNo'));
+  assert.ok(!workshop.differences.some((diff) => diff.key === 'workHours'));
+  assert.equal(dayStates.get('9902|2027-01-09')?.status, 'ok');
+
+  const summerWorkshop = result.comparisons.find((row) => row.attendance.program === 'T08 – סדנאות קיץ');
+  assert.ok(summerWorkshop);
+  assert.ok(!summerWorkshop.differences.some((diff) => diff.key === 'activityType'));
+  assert.equal(dayStates.get('9902|2027-01-10')?.status, 'ok');
+
+  const tour = result.comparisons.find((row) => row.attendance.program === 'T09 – סיור');
+  const escapeRoom = result.comparisons.find((row) => row.attendance.program === 'T10 – חדר בריחה');
+  assert.equal(tour?.dashboard?.payrollHoursRequireReview, false);
+  assert.equal(escapeRoom?.dashboard?.payrollHoursRequireReview, false);
+});
+
+test('test review layer distinguishes manual approval from validation review', () => {
+  const { attendanceRows, dashboardRows } = buildPayrollControlTestDataset(attendanceControl);
+  const rawResult = attendanceControl.compareAttendanceRows(attendanceRows, dashboardRows);
+  const { dayStates } = preparePayrollTestReviewResult(rawResult);
+
+  const cancellationDay = dayStates.get('9901|2027-01-06');
+  assert.ok(cancellationDay?.manualReasons.some((reason) => reason.includes('ביטול זמן')));
+  assert.ok(['manual', 'review_and_manual'].includes(cancellationDay?.status));
+
+  assert.equal(dayStates.get('9901|2027-01-07')?.status, 'manual');
+  assert.equal(dayStates.get('9901|2027-01-08')?.status, 'manual');
+
+  const kmMismatch = dayStates.get('9903|2027-01-15');
+  const kmUnavailable = dayStates.get('9903|2027-01-16');
+  assert.ok(kmMismatch?.reviewReasons.some((reason) => reason.includes('ק״מ')));
+  assert.ok(kmUnavailable?.reviewReasons.some((reason) => reason.includes('לא ניתן לחשב')));
+  assert.equal(kmMismatch?.status, 'review');
+  assert.equal(kmUnavailable?.status, 'review');
+
+  const expense = dayStates.get('9903|2027-01-17');
+  assert.ok(expense?.manualReasons.some((reason) => reason.includes('הוצאה')));
+  assert.ok(['manual', 'review_and_manual'].includes(expense?.status));
+
+  const reportedHours = dayStates.get('9903|2027-01-18');
+  assert.ok(reportedHours?.reviewReasons.some((reason) => reason.includes('שעות שכר')));
+  assert.equal(reportedHours?.status, 'review');
 });
