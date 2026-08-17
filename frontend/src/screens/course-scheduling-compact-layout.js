@@ -1,5 +1,6 @@
 import './course-scheduling-compact-layout.css';
 import './course-scheduling-density-polish.css';
+import { conciseSchedulingReason } from './course-scheduling-reason-labels.js';
 
 let enhancementScheduled = false;
 let pendingFindCourseId = '';
@@ -122,6 +123,21 @@ function detailHasOperationalContent(detail) {
   ));
 }
 
+export function simplifyCandidateSummaries(detail) {
+  if (!detail) return;
+  detail.querySelectorAll('.course-scheduling-key-metrics').forEach((metrics) => {
+    if (!metrics.closest('[data-candidate-expanded]')) metrics.remove();
+  });
+}
+
+export function simplifyManualCandidateReasons(detail) {
+  if (!detail) return;
+  detail.querySelectorAll('.course-scheduling-manual-candidate span').forEach((label) => {
+    const concise = conciseSchedulingReason(label.textContent);
+    if (concise) label.textContent = concise;
+  });
+}
+
 function enhanceScreen(screen) {
   if (screen.dataset.csTab !== 'courses') {
     screen.classList.remove('is-compact-symmetric-layout');
@@ -145,7 +161,11 @@ function enhanceScreen(screen) {
   coursesRoot.classList.toggle('has-single-group', groups.length === 1);
 
   const detail = screen.querySelector('[data-course-detail]');
-  if (detail) detail.classList.toggle('has-compact-results', detailHasOperationalContent(detail));
+  if (detail) {
+    simplifyCandidateSummaries(detail);
+    simplifyManualCandidateReasons(detail);
+    detail.classList.toggle('has-compact-results', detailHasOperationalContent(detail));
+  }
 
   if (pendingFindCourseId) triggerFindAction(screen, pendingFindCourseId);
 }

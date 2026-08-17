@@ -65,7 +65,7 @@ const SCHEDULING_ASSIGNMENT_ERROR_HE = {
   scheduling_availability_missing:     'המדריך אינו זמין בתאריך אחד ממפגשי הקורס',
   scheduling_instructor_unavailable:   'המדריך חסום בתאריך אחד ממפגשי הקורס',
   scheduling_conflict_detected:        'קיימת חפיפה עם שיבוץ אחר של המדריך',
-  scheduling_transition_insufficient:  'זמן המעבר בין פעילויות אינו מספיק (פחות מ-15 דקות + זמן נסיעה)',
+  scheduling_transition_insufficient:  'אין מספיק זמן מעבר בין הפעילויות',
   scheduling_transition_unverified:    'לא ניתן לאמת את זמן המעבר — ייתכן שכתובת חסרה',
   scheduling_home_route_unverified:    'המרחק מבית המדריך לבית הספר לא חושב. הריצו עדכון מרחקים ונסו שנית',
   scheduling_distance_exceeded:        `המדריך גר מעל ${MAX_HOME_DISTANCE_KM} ק"מ מבית הספר`,
@@ -624,7 +624,7 @@ export function scoreBreakdownHtml(candidate) {
   return `<div class="course-scheduling-score-breakdown">
     <h4>נתוני דירוג תפעוליים</h4>
     ${scoreComponentsHtml(candidate)}
-    <p class="course-scheduling-score-note">תנאי הסף קובעים התאמה; הדירוג משווה יעילות יום, נסיעה נוספת, ניצול זמינות וותק — ללא ציון נקודות.</p>
+    <p class="course-scheduling-score-note">תנאי הסף קובעים התאמה; הדירוג משווה השתלבות בימי עבודה, איכות מיקום, יעילות נסיעה, ניצול זמינות וותק — ללא ציון נקודות.</p>
   </div>`;
 }
 
@@ -646,12 +646,8 @@ function candidateMetricsHtml(candidate, { compact = false } = {}) {
   const integrated = (Number(candidate.sameSchoolMeetingCount) || 0)
     + (Number(candidate.nearbyMeetingCount) || 0)
     + (Number(candidate.existingWorkDayMeetingCount) || 0);
-  const travel = candidate.incrementalTravelKnown === true
-    ? `${candidate.relevantTravelMinutes} דק׳ · ${candidate.relevantTravelDistance} ק״מ`
-    : 'לא חושבה';
   const metrics = [
     ['רציפות', `${integrated} מתוך ${total} מפגשים`],
-    ['נסיעה נוספת', travel],
     ['ניצול זמינות', `${formatWorkloadHours(candidate.projectedWeeklyHours || 0).replace(/\s*שעות$/, '')} מתוך ${formatWorkloadHours(candidate.availabilityHours || 0)}`]
   ];
   const seniority = candidate.seniorityYears == null ? 'לא הוזן' : `${candidate.seniorityYears} שנים`;
@@ -758,7 +754,8 @@ function conciseRejectionReason(candidate) {
     if (Number.isFinite(km)) return `מרחק מהבית ${Math.round(km)} ק״מ`;
   }
   if (/חפיפה/.test(reason)) return 'חפיפה עם פעילות קיימת';
-  if (/אין זמן מעבר מספיק|זמן מעבר.*(?:אינו|לא).*מספיק/.test(reason)) return 'אין זמן מעבר מספיק';
+  if (/מרחק בין הפעילויות/.test(reason)) return reason.match(/מרחק בין הפעילויות\s+\d+(?:\.\d+)?\s*ק[״"]?מ/)?.[0] || 'מרחק בין הפעילויות חורג מהמותר';
+  if (/אין זמן מעבר מספיק|זמן מעבר.*(?:אינו|לא).*מספיק/.test(reason)) return 'אין מספיק זמן מעבר בין הפעילויות';
   if (/זמינות|זמין|פנוי|פנויה|שעות.*(?:אינן|לא).*מכס/.test(reason)) return 'לא זמין בשעות הקורס';
   if (/שפ(?:ת|ה)|עברית|ערבית/.test(reason)) return 'שפה לא מתאימה';
   if (/מגדר|דורש מדריכ|דרישת.*מדריכ/.test(reason)) return 'לא מתאים לדרישת המגדר';

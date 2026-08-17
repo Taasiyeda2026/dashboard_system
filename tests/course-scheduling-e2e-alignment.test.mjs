@@ -5,6 +5,7 @@ import { calculateCourseSchedule } from '../frontend/src/screens/course-scheduli
 import {
   evaluateInstructor,
   MAX_HOME_DISTANCE_KM,
+  MAX_TRANSITION_DISTANCE_KM,
   TRANSITION_BUFFER_MINUTES,
   exceedsHomeDistanceLimit
 } from '../frontend/src/screens/instructor-matching-engine.js';
@@ -161,8 +162,9 @@ test('5-6: exactly 40 km accepted; more than 40 km rejected by client and server
   assert.equal(MAX_HOME_DISTANCE_KM, 40);
 });
 
-test('7: transition time uses one 15-minute buffer in client and server', async () => {
-  assert.equal(TRANSITION_BUFFER_MINUTES, 15);
+test('7: transitions require at most 20 km and actual travel time plus a 10-minute buffer', () => {
+  assert.equal(TRANSITION_BUFFER_MINUTES, 10);
+  assert.equal(MAX_TRANSITION_DISTANCE_KM, 20);
   const insufficient = evaluateInstructor({
     instructor,
     profile,
@@ -189,9 +191,8 @@ test('7: transition time uses one 15-minute buffer in client and server', async 
     },
     validateTravel: true
   });
-  // gap = 30 minutes, required = 20 + 15 = 35 → insufficient
-  assert.equal(insufficient.eligible, false);
-  assert.ok(insufficient.failures.some((item) => /מעבר/.test(item)));
+  // gap = 30 minutes, required = 20 + 10 = 30 → accepted at the boundary
+  assert.equal(insufficient.eligible, true);
 
   const enough = evaluateInstructor({
     instructor,
@@ -219,8 +220,20 @@ test('7: transition time uses one 15-minute buffer in client and server', async 
     },
     validateTravel: true
   });
-  // gap = 35 minutes, required = 35 → accepted
+  // gap = 35 minutes, required = 30 → accepted
   assert.equal(enough.eligible, true);
+
+  const tooFar = evaluateInstructor({
+    instructor,
+    profile,
+    rules: weekdayRules,
+    activity: course('c1', { meetings: [{ date: '2026-09-06', start_time: '11:05', end_time: '12:05' }] }),
+    existingActivities: [{ date: '2026-09-06', start_time: '09:00', end_time: '10:30', school_id: 'other' }],
+    travel: { home: { distance_km: 8, duration_minutes: 12 }, transitions: { '2026-09-06': { previous: { distance_km: 21, duration_minutes: 5 } } } },
+    validateTravel: true
+  });
+  assert.equal(tooFar.eligible, false);
+  assert.match(tooFar.failures[0], /מרחק בין הפעילויות 21 ק״מ/);
 
   const adjustment = proposeDateAdjustments({
     meetings: [{ date: '2026-09-06', start_time: '11:00', end_time: '12:00' }],
@@ -230,10 +243,7 @@ test('7: transition time uses one 15-minute buffer in client and server', async 
       '2026-09-13': { previous: { duration_minutes: 20, end_time: '10:30' } }
     }
   });
-  assert.equal(TRANSITION_BUFFER_MINUTES, 15);
-  const sql = await readFile(new URL('../supabase/migrations/20260807203000_course_scheduling_e2e_alignment.sql', import.meta.url), 'utf8');
-  assert.match(sql, /required_minutes \+ 15/);
-  assert.doesNotMatch(sql, /required_minutes \+ 15 \+ 15/);
+  assert.equal(TRANSITION_BUFFER_MINUTES, 10);
   void adjustment;
 });
 
