@@ -86,7 +86,7 @@ test('date adjustment keeps the full course and enforces raw travel plus one 15 
   assert.ok(unknown.failures.includes('transition_unverified'));
 });
 
-test('deprecated course restrictions do not affect global allocation', () => {
+test('deprecated restrictions do not apply and unsaved picks do not alter later rankings', () => {
   const deprecatedProfiles = {
     1: { ...profiles[1], course_restriction_mode: 'allow_only', course_ids: ['only'] },
     2: { ...profiles[2], course_restriction_mode: 'block_selected', course_ids: ['blocked-other'] }
@@ -94,7 +94,7 @@ test('deprecated course restrictions do not affect global allocation', () => {
   const results = calculateCourseSchedule({ ...baseInput([course('flex'), course('only', '2026-09-07')]), profiles: deprecatedProfiles });
   const selected=results.map((result)=>result.recommended||result.bestAvailable);
   assert.equal(selected.filter(Boolean).length,2);
-  assert.deepEqual(selected.map((candidate)=>candidate.instructor.emp_id).sort(),['1','2']);
+  assert.deepEqual(selected.map((candidate)=>candidate.instructor.emp_id),['1','1']);
 });
 
 test('checks every meeting and keeps missing weekday availability out of recruitment', () => {
@@ -122,14 +122,14 @@ test('weekly workload compares each ISO week with one declared weekly capacity',
   assert.equal(load.ratio, 1 / 16);
 });
 
-test('the draft dynamically balances otherwise equivalent courses between instructors', () => {
+test('unsaved automatic recommendations do not dynamically balance later courses', () => {
   const results = calculateCourseSchedule(baseInput([
     course('first', '2026-09-06'),
     course('second', '2026-09-07')
   ]));
   const selected=results.map((result)=>result.recommended||result.bestAvailable);
   assert.equal(selected.filter(Boolean).length,2);
-  assert.equal(new Set(selected.map((candidate)=>candidate.instructor.emp_id)).size,2);
+  assert.deepEqual(selected.map((candidate)=>candidate.instructor.emp_id), ['1', '1']);
 });
 
 test('closed, cancelled and other-season assignments do not block or inflate workload', () => {
@@ -278,6 +278,7 @@ test('route requests are deduplicated, capped at four, and only threshold candid
   const preliminary = [{ course: course('route'), candidate: { instructor: instructors[0] } }];
   const routed = await calculateCandidateTravel(preliminary, [], client);
   assert.ok(routed.travel.route['1'].home);
+  assert.ok(routed.travel.route['1'].homeReturn);
   assert.equal(routed.travel.route?.['2'], undefined);
 });
 

@@ -1,82 +1,16 @@
-/**
- * Stage 3 scoring — 100-point deterministic rubric.
- * Operational gates stay in instructor-matching / date-adjustments; this module only scores.
- */
-
-export const SCORE_WEIGHTS = Object.freeze({
-  continuityEfficiency: 35,
-  travelDistance: 25,
-  actualWorkload: 20,
-  originalSchedulePreservation: 15,
-  gapsAndNewDays: 5
-});
-
-export const SCORE_COMPONENT_LABELS = Object.freeze({
-  continuityEfficiency: 'רציפות ויעילות ביום',
-  travelDistance: 'מרחק ונסיעות',
-  actualWorkload: 'עומס עבודה בפועל',
-  originalSchedulePreservation: 'שמירה על המועדים המקוריים',
-  gapsAndNewDays: 'צמצום חלונות ופתיחת ימי עבודה'
-});
-
-const CONTINUITY_TIERS = Object.freeze({
-  sameSchool: 35,
-  sameAuthority: 26,
-  geographicNearby: 18,
-  existingWorkDay: 12,
-  noOtherActivity: 0
-});
-
-/** Neutral baseline when the instructor has no half-year schedule yet (not a bonus, not a penalty). */
-export const NEUTRAL_CONTINUITY_POINTS = 18;
-export const NEUTRAL_GAPS_POINTS = 5;
-export const NEUTRAL_CONTINUITY_NOTE = 'טרם קיים סידור עבודה להשוואת רציפות';
-
-const GEOGRAPHIC_NEARBY_MINUTES = 25;
-const TRAVEL_SCORE_CEILING = Object.freeze({ minutes: 90, km: 60 });
+/** Transparent, lexicographic instructor ranking metrics (no points or score out of 100). */
 
 const text = (value) => String(value ?? '').trim();
 const dayKey = (value) => text(value).slice(0, 10);
 const minutesOf = (value) => {
-  const [hours, mins] = text(value || '00:00').split(':').map(Number);
-  return hours * 60 + mins;
+  const [hours, minutes] = text(value || '00:00').split(':').map(Number);
+  return hours * 60 + minutes;
 };
 
-/**
- * Shared workload-hours display: 3.25 → "3.25 שעות", 3.5 → "3.5 שעות", 3 → "3 שעות".
- */
 export function formatWorkloadHours(value) {
-  const num = Number(value);
-  if (!Number.isFinite(num)) return '';
-  const fixed = (Math.round(num * 100) / 100).toFixed(2);
-  const trimmed = fixed.replace(/\.?0+$/, '');
-  return `${trimmed} שעות`;
-}
-
-export function hasExistingHalfYearSchedule(existingActivities = [], workDates = new Set()) {
-  const dates = workDates instanceof Set ? workDates : new Set(workDates || []);
-  return (Array.isArray(existingActivities) && existingActivities.length > 0) || dates.size > 0;
-}
-
-function clamp(value, min, max) {
-  return Math.max(min, Math.min(max, value));
-}
-
-function roundPoints(value, max) {
-  if (!Number.isFinite(value)) return 0;
-  return Math.round(clamp(value, 0, max));
-}
-
-function sameSchool(first = {}, second = {}) {
-  const firstId = text(first.school_id);
-  const secondId = text(second.school_id);
-  if (firstId && secondId) return firstId === secondId;
-  return text(first.school).toLocaleLowerCase('he-IL') === text(second.school).toLocaleLowerCase('he-IL');
-}
-
-function sameAuthority(first = {}, second = {}) {
-  return text(first.authority).toLocaleLowerCase('he-IL') === text(second.authority).toLocaleLowerCase('he-IL')
-    && !!text(first.authority);
+  const number = Number(value);
+  if (!Number.isFinite(number)) return '';
+  return `${(Math.round(number * 100) / 100).toFixed(2).replace(/\.?0+$/, '')} שעות`;
 }
 
 function daysBetween(fromDate, toDate) {
@@ -86,579 +20,137 @@ function daysBetween(fromDate, toDate) {
   return Math.round((to - from) / 86400000);
 }
 
-/**
- * Urgency from the first upcoming meeting relative to referenceDate (YYYY-MM-DD).
- */
 export function courseUrgency(course = {}, referenceDate = null) {
   const reference = dayKey(referenceDate);
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(reference)) {
-    return {
-      nextUpcomingMeetingDate: null,
-      urgencyBand: 'none',
-      daysUntilNextMeeting: null,
-      urgencyRank: 4,
-      reason: 'missing_reference_date'
-    };
-  }
-
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(reference)) return { nextUpcomingMeetingDate: null, urgencyBand: 'none', daysUntilNextMeeting: null, urgencyRank: 4, reason: 'missing_reference_date' };
   const meetings = Array.isArray(course.meetings) && course.meetings.length
-    ? course.meetings.map((meeting) => (typeof meeting === 'string' ? meeting : meeting?.date)).filter(Boolean)
+    ? course.meetings.map((meeting) => typeof meeting === 'string' ? meeting : meeting?.date).filter(Boolean)
     : Array.from({ length: 35 }, (_, index) => course[`date_${index + 1}`]).filter(Boolean);
-
-  const upcoming = meetings
-    .map((date) => dayKey(date))
-    .filter((date) => /^\d{4}-\d{2}-\d{2}$/.test(date) && date >= reference)
-    .sort();
-
-  if (!upcoming.length) {
-    return {
-      nextUpcomingMeetingDate: null,
-      urgencyBand: 'none',
-      daysUntilNextMeeting: null,
-      urgencyRank: 4,
-      reason: 'no_upcoming_meeting'
-    };
-  }
-
-  const nextUpcomingMeetingDate = upcoming[0];
-  const daysUntilNextMeeting = daysBetween(reference, nextUpcomingMeetingDate);
-  let urgencyBand = 'later';
-  let urgencyRank = 3;
-  if (daysUntilNextMeeting <= 7) {
-    urgencyBand = 'within_7';
-    urgencyRank = 1;
-  } else if (daysUntilNextMeeting <= 14) {
-    urgencyBand = 'within_14';
-    urgencyRank = 2;
-  }
-
-  return {
-    nextUpcomingMeetingDate,
-    urgencyBand,
-    daysUntilNextMeeting,
-    urgencyRank,
-    reason: ''
-  };
+  const upcoming = meetings.map(dayKey).filter((date) => /^\d{4}-\d{2}-\d{2}$/.test(date) && date >= reference).sort();
+  if (!upcoming.length) return { nextUpcomingMeetingDate: null, urgencyBand: 'none', daysUntilNextMeeting: null, urgencyRank: 4, reason: 'no_upcoming_meeting' };
+  const daysUntilNextMeeting = daysBetween(reference, upcoming[0]);
+  const urgencyRank = daysUntilNextMeeting <= 7 ? 1 : daysUntilNextMeeting <= 14 ? 2 : 3;
+  return { nextUpcomingMeetingDate: upcoming[0], urgencyBand: urgencyRank === 1 ? 'within_7' : urgencyRank === 2 ? 'within_14' : 'later', daysUntilNextMeeting, urgencyRank, reason: '' };
 }
 
-export function analyzeDayPlacement({
-  activity = {},
-  meetings = [],
-  existingActivities = [],
-  travel = null,
-  workDates = new Set()
-} = {}) {
-  let gapBeforeMinutes = 0;
-  let gapAfterMinutes = 0;
-  let nonTravelWaitingMinutes = 0;
-  let relevantTravelMinutes = 0;
-  let relevantTravelDistance = 0;
-  let sameSchoolMeetingCount = 0;
-  let sameAuthorityMeetingCount = 0;
-  let nearbyMeetingCount = 0;
-  let existingWorkDayMeetingCount = 0;
-  let newWorkDayMeetingCount = 0;
-  const meetingScores = [];
-  const meetingList = meetings.length ? meetings : [];
-  const baselineWorkDates = workDates instanceof Set ? workDates : new Set(workDates || []);
+function sameSchool(first = {}, second = {}) {
+  const a = text(first.school_id);
+  const b = text(second.school_id);
+  return a && b ? a === b : !!text(first.school) && text(first.school).toLocaleLowerCase('he-IL') === text(second.school).toLocaleLowerCase('he-IL');
+}
 
-  for (const meeting of meetingList) {
+const legValue = (leg, field) => Number.isFinite(Number(leg?.[field])) ? Number(leg[field]) : 0;
+const knownLeg = (leg) => Number.isFinite(Number(leg?.duration_minutes))
+  && Number.isFinite(Number(leg?.distance_km));
+
+/** Classifies every meeting and totals the real travel added by inserting the course. */
+export function analyzeDayPlacement({ activity = {}, meetings = [], existingActivities = [], travel = null, workDates = new Set() } = {}) {
+  const baselineDates = workDates instanceof Set ? workDates : new Set(workDates || []);
+  const result = {
+    sameSchoolMeetingCount: 0, nearbyMeetingCount: 0, existingWorkDayMeetingCount: 0,
+    newWorkDayMeetingCount: 0, continuityMeetingCount: meetings.length,
+    totalTravelMinutes: 0, totalTravelDistance: 0, nonTravelWaitingMinutes: 0
+  };
+  for (const meeting of meetings) {
     const date = dayKey(meeting.date);
-    const dayActivities = existingActivities
-      .filter((row) => dayKey(row.date) === date)
-      .sort((a, b) => minutesOf(a.start_time) - minutesOf(b.start_time));
-    const previous = [...dayActivities].reverse().find((row) => minutesOf(row.end_time) <= minutesOf(meeting.start_time)) || null;
-    const next = dayActivities.find((row) => minutesOf(row.start_time) >= minutesOf(meeting.end_time)) || null;
+    const rows = existingActivities.filter((row) => dayKey(row.date) === date).sort((a, b) => minutesOf(a.start_time) - minutesOf(b.start_time));
+    const previous = [...rows].reverse().find((row) => minutesOf(row.end_time) <= minutesOf(meeting.start_time));
+    const next = rows.find((row) => minutesOf(row.start_time) >= minutesOf(meeting.end_time));
     const transition = travel?.transitions?.[date] || {};
-    const dayAlreadyWorked = dayActivities.length > 0 || baselineWorkDates.has(date);
-    let dayTravelMinutes = 0;
-    let dayTravelDistance = 0;
-    let meetingTier = CONTINUITY_TIERS.noOtherActivity;
-    let tierKind = 'none';
+    const neighbors = [[previous, transition.previous], [next, transition.next]].filter(([row]) => row);
+    if (neighbors.some(([row]) => sameSchool(row, activity))) result.sameSchoolMeetingCount += 1;
+    else if (neighbors.some(([, leg]) => Number.isFinite(Number(leg?.duration_minutes)) && Number(leg.duration_minutes) <= 25)) result.nearbyMeetingCount += 1;
+    else if (rows.length || baselineDates.has(date)) result.existingWorkDayMeetingCount += 1;
+    else result.newWorkDayMeetingCount += 1;
 
-    const consider = (neighbor, travelMin) => {
-      if (!neighbor) return;
-      if (sameSchool(neighbor, activity)) {
-        meetingTier = CONTINUITY_TIERS.sameSchool;
-        tierKind = 'sameSchool';
-      } else if (tierKind !== 'sameSchool' && sameAuthority(neighbor, activity)) {
-        meetingTier = CONTINUITY_TIERS.sameAuthority;
-        tierKind = 'sameAuthority';
-      } else if (
-        tierKind !== 'sameSchool'
-        && tierKind !== 'sameAuthority'
-        && travelMin != null
-        && Number(travelMin) <= GEOGRAPHIC_NEARBY_MINUTES
-      ) {
-        meetingTier = CONTINUITY_TIERS.geographicNearby;
-        tierKind = 'nearby';
-      } else if (
-        tierKind === 'none'
-        && dayAlreadyWorked
-      ) {
-        meetingTier = CONTINUITY_TIERS.existingWorkDay;
-        tierKind = 'existingWorkDay';
-      }
-    };
-
-    if (previous) {
-      const gap = minutesOf(meeting.start_time) - minutesOf(previous.end_time);
-      gapBeforeMinutes += Math.max(0, gap);
-      const travelMin = transition.previous?.duration_minutes;
-      const travelKm = transition.previous?.distance_km;
-      if (travelMin != null || sameSchool(previous, activity)) {
-        dayTravelMinutes += Number(travelMin) || 0;
-        dayTravelDistance += Number(travelKm) || 0;
-        nonTravelWaitingMinutes += Math.max(0, gap - (Number(travelMin) || 0));
-      }
-      consider(previous, travelMin);
-    } else if (travel?.home && Number.isFinite(Number(travel.home.duration_minutes))) {
-      dayTravelMinutes += Number(travel.home.duration_minutes) || 0;
-      dayTravelDistance += Number(travel.home.distance_km) || 0;
+    const inbound = previous ? transition.previous : travel?.home;
+    const outbound = next ? transition.next : travel?.homeReturn;
+    const baseline = transition.baseline;
+    const requiredLegs = [inbound, outbound, ...(previous || next ? [baseline] : [])];
+    if (requiredLegs.every(knownLeg)) {
+      result.totalTravelMinutes += legValue(inbound, 'duration_minutes')
+        + legValue(outbound, 'duration_minutes') - legValue(baseline, 'duration_minutes');
+      result.totalTravelDistance += legValue(inbound, 'distance_km')
+        + legValue(outbound, 'distance_km') - legValue(baseline, 'distance_km');
+    } else {
+      result.incrementalTravelKnown = false;
     }
-
-    if (next) {
-      const gap = minutesOf(next.start_time) - minutesOf(meeting.end_time);
-      gapAfterMinutes += Math.max(0, gap);
-      const travelMin = transition.next?.duration_minutes;
-      const travelKm = transition.next?.distance_km;
-      if (travelMin != null || sameSchool(activity, next)) {
-        dayTravelMinutes += Number(travelMin) || 0;
-        dayTravelDistance += Number(travelKm) || 0;
-        nonTravelWaitingMinutes += Math.max(0, gap - (Number(travelMin) || 0));
-      }
-      consider(next, travelMin);
-    } else if (
-      travel?.homeReturn
-      && Number.isFinite(Number(travel.homeReturn.duration_minutes))
-      && Number.isFinite(Number(travel.homeReturn.distance_km))
-    ) {
-      dayTravelMinutes += Number(travel.homeReturn.duration_minutes) || 0;
-      dayTravelDistance += Number(travel.homeReturn.distance_km) || 0;
-    }
-
-    if (tierKind === 'none' && dayAlreadyWorked) {
-      meetingTier = CONTINUITY_TIERS.existingWorkDay;
-      tierKind = 'existingWorkDay';
-    }
-
-    if (tierKind === 'sameSchool') sameSchoolMeetingCount += 1;
-    else if (tierKind === 'sameAuthority') sameAuthorityMeetingCount += 1;
-    else if (tierKind === 'nearby') nearbyMeetingCount += 1;
-    else if (tierKind === 'existingWorkDay') existingWorkDayMeetingCount += 1;
-    else newWorkDayMeetingCount += 1;
-
-    meetingScores.push(meetingTier);
-    relevantTravelMinutes += dayTravelMinutes;
-    relevantTravelDistance += dayTravelDistance;
   }
-
-  const continuityMeetingCount = meetingScores.length;
-  const continuityAverage = continuityMeetingCount
-    ? meetingScores.reduce((sum, value) => sum + value, 0) / continuityMeetingCount
-    : 0;
-  const avgTravelMinutes = continuityMeetingCount ? relevantTravelMinutes / continuityMeetingCount : 0;
-  const avgTravelDistance = continuityMeetingCount ? relevantTravelDistance / continuityMeetingCount : 0;
-  const averageNonTravelWaitingMinutes = continuityMeetingCount
-    ? nonTravelWaitingMinutes / continuityMeetingCount
-    : 0;
-
+  const count = Math.max(1, meetings.length);
   return {
-    continuityPoints: roundPoints(continuityAverage, SCORE_WEIGHTS.continuityEfficiency),
-    continuityAverage: Math.round(continuityAverage * 100) / 100,
-    continuityMeetingCount,
-    sameSchoolMeetingCount,
-    sameAuthorityMeetingCount,
-    nearbyMeetingCount,
-    existingWorkDayMeetingCount,
-    newWorkDayMeetingCount,
-    opensNewWorkDay: newWorkDayMeetingCount > 0,
-    gapBeforeMinutes: Math.round(gapBeforeMinutes / Math.max(1, continuityMeetingCount)),
-    gapAfterMinutes: Math.round(gapAfterMinutes / Math.max(1, continuityMeetingCount)),
-    nonTravelWaitingMinutes: Math.round(averageNonTravelWaitingMinutes),
-    averageNonTravelWaitingMinutes,
-    relevantTravelMinutes: Math.round(avgTravelMinutes),
-    relevantTravelDistance: Math.round(avgTravelDistance * 10) / 10,
-    hasSameSchoolDay: sameSchoolMeetingCount > 0,
-    hasSameAuthorityDay: sameAuthorityMeetingCount > 0
+    ...result,
+    incrementalTravelKnown: result.incrementalTravelKnown !== false,
+    relevantTravelMinutes: result.incrementalTravelKnown === false ? null : Math.round(result.totalTravelMinutes / count),
+    relevantTravelDistance: result.incrementalTravelKnown === false ? null : Math.round((result.totalTravelDistance / count) * 10) / 10,
+    opensNewWorkDay: result.newWorkDayMeetingCount > 0
   };
 }
 
-export function scoreTravelDistance({
-  relevantTravelMinutes = 0,
-  relevantTravelDistance = 0,
-  hasKnownRoute = false
-} = {}) {
-  const max = SCORE_WEIGHTS.travelDistance;
-  if (!hasKnownRoute) {
-    return {
-      points: 0,
-      label: SCORE_COMPONENT_LABELS.travelDistance,
-      relevantTravelMinutes: null,
-      relevantTravelDistance: null,
-      note: 'אין נתון מרחק אמין לניקוד'
-    };
-  }
-  const minuteFactor = Math.max(0, 1 - (Number(relevantTravelMinutes) / TRAVEL_SCORE_CEILING.minutes));
-  const distanceFactor = Math.max(0, 1 - (Number(relevantTravelDistance) / TRAVEL_SCORE_CEILING.km));
-  const points = roundPoints(max * Math.min(minuteFactor, distanceFactor), max);
-  const km = Math.round(Number(relevantTravelDistance) || 0);
-  const mins = Math.round(Number(relevantTravelMinutes) || 0);
+export function computeSchedulingScore({ eligible = false, activity = {}, meetings = [], existingActivities = [], travel = null, workDates = new Set(), dateAdjustment = null, currentHalfHours = 0, projectedHalfHours = 0, activeWorkDays = 0, existingWorkDays = null, projectedWorkDays = null, availabilityHours = 0, projectedWeeklyHours = 0, utilizationRatio = null, seniorityYears = null } = {}) {
+  if (!eligible) return { score: null, totalScore: null, scoreBreakdown: null, recommendationReason: '' };
+  const placement = analyzeDayPlacement({ activity, meetings, existingActivities, travel, workDates });
+  const capacity = Number(availabilityHours) || 0;
+  const resolvedUtilization = utilizationRatio != null ? Number(utilizationRatio) : (capacity > 0 ? Number(projectedWeeklyHours) / capacity : Number.POSITIVE_INFINITY);
+  const movedMeetingsCount = Number(dateAdjustment?.movedCount) || 0;
+  const integrated = placement.sameSchoolMeetingCount + placement.nearbyMeetingCount + placement.existingWorkDayMeetingCount;
   return {
-    points,
-    label: SCORE_COMPONENT_LABELS.travelDistance,
-    relevantTravelMinutes,
-    relevantTravelDistance,
-    duration_minutes: relevantTravelMinutes,
-    distance_km: relevantTravelDistance,
-    note: `${km} ק״מ וכ-${mins} דקות נסיעה`
-  };
-}
-
-export function scoreActualWorkload({
-  projectedHalfHours = 0,
-  peerProjectedHours = [],
-  currentHalfHours = 0,
-  activeWorkDays = 0,
-  existingWorkDays = null,
-  projectedWorkDays = null,
-  plannerProjectedHalfHours = null,
-  peerPlannerProjectedHours = null
-} = {}) {
-  const max = SCORE_WEIGHTS.actualWorkload;
-  // Soft fairness balancing may use internal planner hours; user-facing values stay persisted-only.
-  // Treat null/undefined as "unset" — Number(null) is 0 and must not replace projected hours.
-  const balanceProjected = plannerProjectedHalfHours != null && Number.isFinite(Number(plannerProjectedHalfHours))
-    ? Number(plannerProjectedHalfHours)
-    : Number(projectedHalfHours);
-  const peers = (peerPlannerProjectedHours || peerProjectedHours || []).map(Number).filter(Number.isFinite);
-  const projected = Number(projectedHalfHours);
-  const existingDays = existingWorkDays == null ? null : Number(existingWorkDays);
-  const projectedDays = projectedWorkDays == null
-    ? Number(activeWorkDays) || 0
-    : Number(projectedWorkDays) || 0;
-  if (!peers.length || !Number.isFinite(balanceProjected)) {
-    const projectedRounded = Number.isFinite(projected) ? Math.round(projected * 100) / 100 : 0;
-    return {
-      points: max,
-      label: SCORE_COMPONENT_LABELS.actualWorkload,
-      currentHalfHours: Number(currentHalfHours) || 0,
-      projectedHalfHours: projectedRounded,
-      activeWorkDays: projectedDays,
-      existingWorkDays: existingDays == null ? null : (Number.isFinite(existingDays) ? existingDays : 0),
-      projectedWorkDays: projectedDays,
-      note: Number.isFinite(projected) ? `${formatWorkloadHours(projectedRounded)} לאחר השיבוץ` : ''
-    };
-  }
-  const min = Math.min(...peers);
-  const maxPeer = Math.max(...peers);
-  const points = min === maxPeer
-    ? max
-    : roundPoints(max * ((maxPeer - balanceProjected) / (maxPeer - min)), max);
-  const projectedRounded = Number.isFinite(projected) ? Math.round(projected * 100) / 100 : 0;
-  return {
-    points,
-    label: SCORE_COMPONENT_LABELS.actualWorkload,
-    currentHalfHours: Math.round(Number(currentHalfHours) * 100) / 100,
-    projectedHalfHours: projectedRounded,
-    activeWorkDays: projectedDays,
-    existingWorkDays: existingDays == null ? null : (Number.isFinite(existingDays) ? existingDays : 0),
-    projectedWorkDays: projectedDays,
-    note: `${formatWorkloadHours(projectedRounded)} לאחר השיבוץ`
-  };
-}
-
-export function scoreOriginalSchedulePreservation(dateAdjustment = null) {
-  const max = SCORE_WEIGHTS.originalSchedulePreservation;
-  if (!dateAdjustment || !dateAdjustment.valid) {
-    return {
-      points: max,
-      label: SCORE_COMPONENT_LABELS.originalSchedulePreservation,
-      movedMeetingsCount: 0,
-      totalShiftDays: 0,
-      originalEndDate: null,
-      proposedEndDate: null,
-      halfOverflow: false,
-      note: 'המועדים נשארים ללא שינוי'
-    };
-  }
-  const meetings = dateAdjustment.meetings || [];
-  const movedMeetingsCount = Number(dateAdjustment.movedCount) || meetings.filter((row) => row.moved).length;
-  const totalShiftDays = meetings.reduce((sum, meeting) => {
-    if (!meeting.moved || !meeting.original_date || !meeting.date) return sum;
-    return sum + Math.max(0, daysBetween(meeting.original_date, meeting.date) || 0);
-  }, 0);
-  const originalEndDate = meetings.map((row) => row.original_date || row.date).filter(Boolean).sort().at(-1) || null;
-  const proposedEndDate = dateAdjustment.newEndDate || meetings.map((row) => row.date).filter(Boolean).sort().at(-1) || null;
-  const halfOverflow = !!dateAdjustment.exceedsHalf;
-  const movePenalty = Math.min(8, movedMeetingsCount * 2);
-  const shiftPenalty = Math.min(4, Math.floor(totalShiftDays / 7));
-  const overflowPenalty = halfOverflow ? 3 : 0;
-  return {
-    points: roundPoints(max - movePenalty - shiftPenalty - overflowPenalty, max),
-    label: SCORE_COMPONENT_LABELS.originalSchedulePreservation,
+    score: null,
+    totalScore: null,
+    scoreBreakdown: null,
+    recommendationReason: `${integrated} מתוך ${meetings.length} מפגשים משתלבים ביום עבודה קיים · ${placement.newWorkDayMeetingCount} מפגשים פותחים יום עבודה חדש`,
+    currentHalfHours: Number(currentHalfHours) || 0,
+    projectedHalfHours: Number(projectedHalfHours) || 0,
+    availabilityHours: capacity,
+    projectedWeeklyHours: Number(projectedWeeklyHours) || 0,
+    utilizationRatio: resolvedUtilization,
+    seniorityYears: seniorityYears == null || seniorityYears === '' || !Number.isFinite(Number(seniorityYears)) ? null : Number(seniorityYears),
+    activeWorkDays: Number(projectedWorkDays ?? activeWorkDays) || 0,
+    existingWorkDays: Number(existingWorkDays) || 0,
+    projectedWorkDays: Number(projectedWorkDays ?? activeWorkDays) || 0,
     movedMeetingsCount,
-    totalShiftDays,
-    originalEndDate,
-    proposedEndDate,
-    halfOverflow,
-    note: movedMeetingsCount
-      ? `${movedMeetingsCount} מפגשים הוזזו`
-      : 'המועדים נשארים ללא שינוי'
+    totalShiftDays: 0,
+    halfOverflow: !!dateAdjustment?.exceedsHalf,
+    ...placement,
+    sameAuthorityMeetingCount: 0,
+    continuityAverage: 0
   };
 }
 
-export function scoreGapsAndNewDays({
-  newWorkDayMeetingCount = 0,
-  continuityMeetingCount = 0,
-  averageNonTravelWaitingMinutes = 0
-} = {}) {
-  const max = SCORE_WEIGHTS.gapsAndNewDays;
-  const meetingCount = Math.max(1, Number(continuityMeetingCount) || 0);
-  const newDayRatio = (Number(newWorkDayMeetingCount) || 0) / meetingCount;
-  const waitingPenalty = Math.min(2, (Number(averageNonTravelWaitingMinutes) || 0) / 60);
-  const points = roundPoints(max - (max * newDayRatio) - waitingPenalty, max);
-  return {
-    points,
-    label: SCORE_COMPONENT_LABELS.gapsAndNewDays,
-    newWorkDayMeetingCount: Number(newWorkDayMeetingCount) || 0,
-    continuityMeetingCount: Number(continuityMeetingCount) || 0,
-    averageNonTravelWaitingMinutes: Number(averageNonTravelWaitingMinutes) || 0,
-    opensNewWorkDay: (Number(newWorkDayMeetingCount) || 0) > 0
-  };
+function compareEmpIds(first, second) {
+  return text(first).localeCompare(text(second), 'en', { numeric: true });
 }
 
-function buildRecommendationReason({ scoreBreakdown }) {
-  const parts = [];
-  const continuity = scoreBreakdown?.continuityEfficiency;
-  if (continuity?.note === NEUTRAL_CONTINUITY_NOTE) parts.push(NEUTRAL_CONTINUITY_NOTE);
-  else if (continuity?.points >= 26) parts.push(continuity.label || 'רציפות יומית גבוהה');
-  const travel = scoreBreakdown?.travelDistance;
-  if (travel?.points >= 15 && travel.duration_minutes != null) {
-    parts.push(`${Math.round(Number(travel.distance_km) || 0)} ק״מ, ${Math.round(Number(travel.duration_minutes) || 0)} דקות נסיעה`);
-  }
-  const workload = scoreBreakdown?.actualWorkload;
-  if (workload && workload.projectedHalfHours != null) {
-    parts.push(`עומס חזוי ${formatWorkloadHours(workload.projectedHalfHours)} במחצית`);
-  }
-  return parts.filter(Boolean).join(' · ') || 'עבר את תנאי הסף';
-}
-
-export function computeSchedulingScore({
-  eligible = false,
-  activity = {},
-  meetings = [],
-  existingActivities = [],
-  travel = null,
-  workDates = new Set(),
-  dateAdjustment = null,
-  currentHalfHours = 0,
-  projectedHalfHours = 0,
-  peerProjectedHours = [],
-  activeWorkDays = 0,
-  existingWorkDays = null,
-  projectedWorkDays = null,
-  plannerProjectedHalfHours = null,
-  peerPlannerProjectedHours = null
-} = {}) {
-  if (!eligible) {
-    return {
-      score: null,
-      totalScore: null,
-      scoreBreakdown: null,
-      recommendationReason: '',
-      currentHalfHours: null,
-      projectedHalfHours: null,
-      activeWorkDays: null,
-      existingWorkDays: null,
-      projectedWorkDays: null,
-      relevantTravelMinutes: null,
-      relevantTravelDistance: null,
-      movedMeetingsCount: 0,
-      totalShiftDays: 0,
-      halfOverflow: false,
-      sameSchoolMeetingCount: 0,
-      sameAuthorityMeetingCount: 0,
-      nearbyMeetingCount: 0,
-      existingWorkDayMeetingCount: 0,
-      newWorkDayMeetingCount: 0,
-      continuityMeetingCount: 0,
-      continuityAverage: 0,
-      opensNewWorkDay: false,
-      nonTravelWaitingMinutes: 0
-    };
-  }
-
-  const placement = analyzeDayPlacement({
-    activity,
-    meetings,
-    existingActivities,
-    travel,
-    workDates
-  });
-
-  const hasKnownRoute = Number(placement.relevantTravelMinutes) > 0
-    || Number(placement.relevantTravelDistance) > 0
-    || (travel?.home && Number.isFinite(Number(travel.home.duration_minutes)));
-
-  const noExistingSchedule = !hasExistingHalfYearSchedule(existingActivities, workDates);
-  const continuityEfficiency = noExistingSchedule
-    ? {
-      points: NEUTRAL_CONTINUITY_POINTS,
-      label: SCORE_COMPONENT_LABELS.continuityEfficiency,
-      note: NEUTRAL_CONTINUITY_NOTE,
-      sameSchoolMeetingCount: 0,
-      sameAuthorityMeetingCount: 0,
-      nearbyMeetingCount: 0,
-      existingWorkDayMeetingCount: 0,
-      continuityMeetingCount: placement.continuityMeetingCount,
-      continuityAverage: NEUTRAL_CONTINUITY_POINTS,
-      neutralBaseline: true
-    }
-    : {
-      points: placement.continuityPoints,
-      label: SCORE_COMPONENT_LABELS.continuityEfficiency,
-      note: '',
-      sameSchoolMeetingCount: placement.sameSchoolMeetingCount,
-      sameAuthorityMeetingCount: placement.sameAuthorityMeetingCount,
-      nearbyMeetingCount: placement.nearbyMeetingCount,
-      existingWorkDayMeetingCount: placement.existingWorkDayMeetingCount,
-      continuityMeetingCount: placement.continuityMeetingCount,
-      continuityAverage: placement.continuityAverage,
-      neutralBaseline: false
-    };
-  const travelDistance = scoreTravelDistance({
-    relevantTravelMinutes: placement.relevantTravelMinutes,
-    relevantTravelDistance: placement.relevantTravelDistance,
-    hasKnownRoute
-  });
-  const resolvedProjectedWorkDays = projectedWorkDays == null
-    ? Number(activeWorkDays) || 0
-    : Number(projectedWorkDays) || 0;
-  const resolvedExistingWorkDays = existingWorkDays == null
-    ? null
-    : (Number.isFinite(Number(existingWorkDays)) ? Number(existingWorkDays) : 0);
-  const actualWorkload = scoreActualWorkload({
-    currentHalfHours,
-    projectedHalfHours,
-    peerProjectedHours,
-    activeWorkDays: resolvedProjectedWorkDays,
-    existingWorkDays: resolvedExistingWorkDays,
-    projectedWorkDays: resolvedProjectedWorkDays,
-    plannerProjectedHalfHours,
-    peerPlannerProjectedHours
-  });
-  const originalSchedulePreservation = scoreOriginalSchedulePreservation(dateAdjustment);
-  const gapsAndNewDays = noExistingSchedule
-    ? {
-      points: NEUTRAL_GAPS_POINTS,
-      label: SCORE_COMPONENT_LABELS.gapsAndNewDays,
-      note: NEUTRAL_CONTINUITY_NOTE,
-      newWorkDayMeetingCount: placement.newWorkDayMeetingCount,
-      continuityMeetingCount: placement.continuityMeetingCount,
-      averageNonTravelWaitingMinutes: placement.averageNonTravelWaitingMinutes,
-      opensNewWorkDay: placement.opensNewWorkDay,
-      neutralBaseline: true
-    }
-    : {
-      ...scoreGapsAndNewDays({
-        newWorkDayMeetingCount: placement.newWorkDayMeetingCount,
-        continuityMeetingCount: placement.continuityMeetingCount,
-        averageNonTravelWaitingMinutes: placement.averageNonTravelWaitingMinutes
-      }),
-      note: '',
-      neutralBaseline: false
-    };
-
-  const totalScore = continuityEfficiency.points
-    + travelDistance.points
-    + actualWorkload.points
-    + originalSchedulePreservation.points
-    + gapsAndNewDays.points;
-
-  const scoreBreakdown = {
-    continuityEfficiency,
-    travelDistance,
-    actualWorkload,
-    originalSchedulePreservation,
-    gapsAndNewDays
-  };
-
-  return {
-    score: clamp(totalScore, 0, 100),
-    totalScore: clamp(totalScore, 0, 100),
-    scoreBreakdown,
-    recommendationReason: buildRecommendationReason({ scoreBreakdown }),
-    currentHalfHours: actualWorkload.currentHalfHours,
-    projectedHalfHours: actualWorkload.projectedHalfHours,
-    activeWorkDays: actualWorkload.activeWorkDays,
-    existingWorkDays: actualWorkload.existingWorkDays,
-    projectedWorkDays: actualWorkload.projectedWorkDays,
-    relevantTravelMinutes: travelDistance.relevantTravelMinutes,
-    relevantTravelDistance: travelDistance.relevantTravelDistance,
-    movedMeetingsCount: originalSchedulePreservation.movedMeetingsCount,
-    totalShiftDays: originalSchedulePreservation.totalShiftDays,
-    originalEndDate: originalSchedulePreservation.originalEndDate,
-    proposedEndDate: originalSchedulePreservation.proposedEndDate,
-    halfOverflow: originalSchedulePreservation.halfOverflow,
-    sameSchoolMeetingCount: placement.sameSchoolMeetingCount,
-    sameAuthorityMeetingCount: placement.sameAuthorityMeetingCount,
-    nearbyMeetingCount: placement.nearbyMeetingCount,
-    existingWorkDayMeetingCount: placement.existingWorkDayMeetingCount,
-    newWorkDayMeetingCount: placement.newWorkDayMeetingCount,
-    continuityMeetingCount: placement.continuityMeetingCount,
-    continuityAverage: placement.continuityAverage,
-    opensNewWorkDay: gapsAndNewDays.opensNewWorkDay,
-    nonTravelWaitingMinutes: placement.nonTravelWaitingMinutes,
-    hasSameSchoolDay: placement.hasSameSchoolDay,
-    hasSameAuthorityDay: placement.hasSameAuthorityDay
-  };
-}
-
-function compareEmpIdsStable(firstId, secondId) {
-  const first = text(firstId);
-  const second = text(secondId);
-  const firstNumber = Number(first);
-  const secondNumber = Number(second);
-  const bothNumeric = first !== ''
-    && second !== ''
-    && Number.isFinite(firstNumber)
-    && Number.isFinite(secondNumber)
-    && String(firstNumber) === first
-    && String(secondNumber) === second;
-  if (bothNumeric) {
-    if (firstNumber < secondNumber) return -1;
-    if (firstNumber > secondNumber) return 1;
-    return 0;
-  }
-  return first.localeCompare(second, 'en');
-}
-
+/** Business priority: daily concentration, added travel, availability use, then seniority. */
 export function compareCandidatesStable(first, second) {
-  const a = [
-    -(Number(first.score) || 0),
-    -(Number(first.scoreBreakdown?.continuityEfficiency?.points) || 0),
-    -(Number(first.scoreBreakdown?.travelDistance?.points) || 0),
-    Number(first.projectedHalfHours) || 0,
-    Number(first.movedMeetingsCount) || 0
-  ];
-  const b = [
-    -(Number(second.score) || 0),
-    -(Number(second.scoreBreakdown?.continuityEfficiency?.points) || 0),
-    -(Number(second.scoreBreakdown?.travelDistance?.points) || 0),
-    Number(second.projectedHalfHours) || 0,
-    Number(second.movedMeetingsCount) || 0
-  ];
-  for (let index = 0; index < a.length; index += 1) {
-    if (a[index] < b[index]) return -1;
-    if (a[index] > b[index]) return 1;
+  const integrated = (candidate) => (Number(candidate.sameSchoolMeetingCount) || 0)
+    + (Number(candidate.nearbyMeetingCount) || 0)
+    + (Number(candidate.existingWorkDayMeetingCount) || 0);
+  const firstIntegrated = integrated(first);
+  const secondIntegrated = integrated(second);
+  if (firstIntegrated !== secondIntegrated) return secondIntegrated - firstIntegrated;
+  const firstNewDays = Number(first.newWorkDayMeetingCount) || 0;
+  const secondNewDays = Number(second.newWorkDayMeetingCount) || 0;
+  if (firstNewDays !== secondNewDays) return firstNewDays - secondNewDays;
+  for (const field of ['sameSchoolMeetingCount', 'nearbyMeetingCount', 'existingWorkDayMeetingCount']) {
+    if (Number(first[field]) !== Number(second[field])) return Number(second[field]) - Number(first[field]);
   }
-  return compareEmpIdsStable(
-    first.instructor?.emp_id || first.empId,
-    second.instructor?.emp_id || second.empId
-  );
-}
-
-export function assertScoreWeightsTotal() {
-  return Object.values(SCORE_WEIGHTS).reduce((sum, value) => sum + value, 0) === 100;
+  const firstTravelKnown = first.incrementalTravelKnown === true;
+  const secondTravelKnown = second.incrementalTravelKnown === true;
+  if (firstTravelKnown !== secondTravelKnown) return firstTravelKnown ? -1 : 1;
+  if (firstTravelKnown) {
+    for (const field of ['relevantTravelMinutes', 'relevantTravelDistance']) {
+      if (first[field] !== second[field]) return Number(first[field]) - Number(second[field]);
+    }
+  }
+  const firstUtilization = Number(first.utilizationRatio);
+  const secondUtilization = Number(second.utilizationRatio);
+  const safeFirstUtilization = Number.isFinite(firstUtilization) ? firstUtilization : Number.POSITIVE_INFINITY;
+  const safeSecondUtilization = Number.isFinite(secondUtilization) ? secondUtilization : Number.POSITIVE_INFINITY;
+  if (safeFirstUtilization !== safeSecondUtilization) return safeFirstUtilization - safeSecondUtilization;
+  const firstSeniorityKnown = first.seniorityYears != null && Number.isFinite(Number(first.seniorityYears));
+  const secondSeniorityKnown = second.seniorityYears != null && Number.isFinite(Number(second.seniorityYears));
+  if (firstSeniorityKnown && secondSeniorityKnown && Number(first.seniorityYears) !== Number(second.seniorityYears)) {
+    return Number(second.seniorityYears) - Number(first.seniorityYears);
+  }
+  return compareEmpIds(first.instructor?.emp_id || first.empId, second.instructor?.emp_id || second.empId);
 }
