@@ -83,3 +83,4 @@ config.HOTFIX_VERSION = `payroll-control-full-updaterecord-payload-20260817-v1-$
 config.HOTFIX_VERSION = `payroll-control-manager-decisions-20260817-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `course-scheduling-transition-and-full-course-ranking-20260817-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `payroll-control-merge-main-20260817-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `attendance-v2-infra-sw-scope-boundary-20260817-v1-${config.HOTFIX_VERSION}`;

@@ -1,0 +1,43 @@
+.av2-welcome {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--av2-space-3);
+  padding: var(--av2-space-5) var(--av2-space-4);
+  text-align: center;
+}
+
+.av2-welcome__title {
+  margin: 0;
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--av2-color-text);
+}
+
+.av2-welcome__subtitle {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: var(--av2-color-text-muted);
+  text-transform: uppercase;
+}
+
+.av2-welcome__button {
+  margin-top: var(--av2-space-3);
+  min-width: 200px;
+  padding: 14px 32px;
+  border: none;
+  border-radius: var(--av2-radius-md);
+  background: var(--av2-color-accent);
+  color: var(--av2-color-accent-contrast);
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.av2-welcome__button:active {
+  opacity: 0.85;
+}

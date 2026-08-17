@@ -55,6 +55,12 @@ mkdirSync(join(dist, 'assets'), { recursive: true });
 cpSync(join(root, 'frontend', 'assets'), join(dist, 'assets'), { recursive: true });
 cpSync(join(root, 'frontend', 'public'), dist, { recursive: true });
 
+// Attendance V2 is an independent static PWA (own manifest/sw.js, no Vite processing) — copy verbatim.
+const attendanceDir = join(root, 'attendance');
+if (existsSync(attendanceDir)) {
+  cpSync(attendanceDir, join(dist, 'attendance'), { recursive: true });
+}
+
 const viteBaseRaw = process.env.VITE_BASE || './';
 const isAbsoluteBase = viteBaseRaw.startsWith('/') && viteBaseRaw !== '/';
 const basePrefix = isAbsoluteBase
