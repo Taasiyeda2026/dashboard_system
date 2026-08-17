@@ -9,6 +9,9 @@ export const ONBOARDING_DOCUMENTS = Object.freeze({
 });
 
 const SUBJECT = 'הצטרפות לצוות המדריכים של תעשיידע – השלמת תהליך הקליטה';
+const OUTLOOK_WEB_URL = 'https://outlook.office.com/mail/';
+const OUTLOOK_DESKTOP_PROTOCOL = 'taasiyeda-outlook:';
+const OUTLOOK_MODE_STORAGE_KEY = 'taasiyeda:outlook-mode';
 const AVAILABILITY = `לצורך תכנון השיבוצים והפעילויות, נבקש להשיב למייל זה ולמלא את פרטי הזמינות שלך בצורה מלאה ככל האפשר:
 
 מועד שממנו ניתן להתחיל להדריך:
@@ -108,6 +111,45 @@ export function normalizeOnboardingPhone(value) {
   return digits.length >= 9 && digits.length <= 15 ? digits : '';
 }
 
+export function localOutlookMode() {
+  try {
+    if (typeof window === 'undefined' || !window.localStorage) return 'web';
+    return window.localStorage.getItem(OUTLOOK_MODE_STORAGE_KEY) === 'desktop' ? 'desktop' : 'web';
+  } catch {
+    return 'web';
+  }
+}
+
+export function syncLocalOutlookModeFromUrl() {
+  try {
+    if (typeof window === 'undefined' || !window.location) return localOutlookMode();
+    const url = new URL(window.location.href);
+    const requestedMode = String(url.searchParams.get('outlook') || '').trim().toLowerCase();
+    if (!['desktop', 'web'].includes(requestedMode)) return localOutlookMode();
+    if (requestedMode === 'desktop') window.localStorage?.setItem(OUTLOOK_MODE_STORAGE_KEY, 'desktop');
+    else window.localStorage?.removeItem(OUTLOOK_MODE_STORAGE_KEY);
+    url.searchParams.delete('outlook');
+    window.history?.replaceState?.(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
+    return requestedMode;
+  } catch {
+    return localOutlookMode();
+  }
+}
+
+export function openOutlookHome() {
+  try {
+    if (typeof window === 'undefined') return false;
+    if (localOutlookMode() === 'desktop') {
+      window.location.href = OUTLOOK_DESKTOP_PROTOCOL;
+      return true;
+    }
+    window.open?.(OUTLOOK_WEB_URL, '_blank', 'noopener,noreferrer');
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export async function createOnboardingInstructor(instructor) {
   const phone = normalizeOnboardingPhone(instructor?.phone);
   if (!phone) throw new Error('onboarding_required_fields_missing');
@@ -139,11 +181,12 @@ export async function ensureOnboardingEmployeeFolder(instructor) {
 
 export async function createOnboardingDraft({ employmentType, manager, instructorName, instructorEmail, loginHint = '' }) {
   const mail = buildOnboardingMail(employmentType, manager, instructorName);
-  const { data, error } = await supabase.functions.invoke('instructor-onboarding-files', { body: { employment_type: employmentType } });
+  const filesPromise = supabase.functions.invoke('instructor-onboarding-files', { body: { employment_type: employmentType } });
+  const tokenPromise = delegatedMailToken(loginHint);
+  const [{ data, error }, token] = await Promise.all([filesPromise, tokenPromise]);
   if (error || !Array.isArray(data?.attachments) || !data.attachments.length) {
     throw new Error(data?.message || 'לא ניתן לטעון את מסמכי הקליטה מ-SharePoint.');
   }
-  const token = await delegatedMailToken(loginHint);
   const draft = await graphMailRequest(token, '/me/messages', {
     method: 'POST', body: JSON.stringify({
       subject: mail.subject, body: { contentType: 'Text', content: mail.body },
@@ -152,11 +195,15 @@ export async function createOnboardingDraft({ employmentType, manager, instructo
     })
   });
   try {
-    for (const attachment of data.attachments) {
-      await graphMailRequest(token, `/me/messages/${encodeURIComponent(draft.id)}/attachments`, {
+    const attachmentResults = await Promise.allSettled(data.attachments.map((attachment) => graphMailRequest(
+      token,
+      `/me/messages/${encodeURIComponent(draft.id)}/attachments`,
+      {
         method: 'POST', body: JSON.stringify({ '@odata.type': '#microsoft.graph.fileAttachment', name: attachment.name, contentType: attachment.content_type || 'application/pdf', contentBytes: attachment.content_bytes })
-      });
-    }
+      }
+    )));
+    const failedAttachment = attachmentResults.find((result) => result.status === 'rejected');
+    if (failedAttachment?.status === 'rejected') throw failedAttachment.reason;
   } catch (error) {
     await graphMailRequest(token, `/me/messages/${encodeURIComponent(draft.id)}`, { method: 'DELETE' }).catch(() => {});
     throw error;
@@ -181,8 +228,10 @@ export function bindOnboardingModal(modal, {
   createInstructor = createOnboardingInstructor,
   ensureEmployeeFolder = ensureOnboardingEmployeeFolder,
   createDraft = createOnboardingDraft,
-  openMailClient = openDesktopMailClient
+  openMailClient
 } = {}) {
+  syncLocalOutlookModeFromUrl();
+  const manualOutlook = typeof openMailClient !== 'function';
   const fullName = modal.querySelector('[data-onboarding-name]');
   const phone = modal.querySelector('[data-onboarding-phone]');
   const email = modal.querySelector('[data-onboarding-email]');
@@ -195,6 +244,18 @@ export function bindOnboardingModal(modal, {
   const status = modal.querySelector('[data-onboarding-status]');
   const content = modal.querySelector('.ds-modal__content');
   const footer = modal.querySelector('.ds-modal__footer');
+  let outlook = modal.querySelector('[data-onboarding-outlook]');
+
+  if (manualOutlook && footer && !outlook) {
+    outlook = modal.ownerDocument.createElement('button');
+    outlook.type = 'button';
+    outlook.className = 'ds-btn ds-btn--sm';
+    outlook.dataset.onboardingOutlook = '';
+    outlook.textContent = 'OUTLOOK';
+    outlook.hidden = true;
+    footer.insertBefore(outlook, prepare || null);
+    outlook.addEventListener('click', () => openOutlookHome());
+  }
 
   modal.style.width = 'min(430px, calc(100vw - 24px))';
   modal.style.maxWidth = '430px';
@@ -210,10 +271,10 @@ export function bindOnboardingModal(modal, {
     footer.style.gap = '8px';
     footer.style.padding = '10px 14px 12px';
   }
-  [prepare].forEach((button) => {
+  [prepare, outlook].forEach((button) => {
     if (!button) return;
-    button.style.width = '112px';
-    button.style.minWidth = '112px';
+    button.style.width = button === outlook ? '88px' : '112px';
+    button.style.minWidth = button === outlook ? '88px' : '112px';
     button.style.height = '32px';
     button.style.minHeight = '32px';
     button.style.padding = '4px 10px';
@@ -297,12 +358,23 @@ export function bindOnboardingModal(modal, {
         loginHint
       });
       draftCreated = true;
-      status.textContent = 'הטיוטה הוכנה ונשמרה ב-Outlook';
-      openMailClient();
+      if (manualOutlook) {
+        status.textContent = 'המדריך נקלט בהצלחה. המייל מוכן ומחכה לך בתיקיית הטיוטות ב-Outlook.';
+        prepare.hidden = true;
+        if (outlook) {
+          outlook.hidden = false;
+          outlook.disabled = false;
+        }
+      } else {
+        status.textContent = 'הטיוטה הוכנה ונשמרה ב-Outlook';
+        openMailClient();
+      }
       try {
         await onSuccess?.(result, createdInstructor);
       } catch {
-        status.textContent = 'הטיוטה הוכנה בהצלחה, אך רענון רשימת המדריכים נכשל.';
+        status.textContent = manualOutlook
+          ? 'המדריך נקלט והמייל מוכן ב-Outlook, אך רענון רשימת המדריכים נכשל.'
+          : 'הטיוטה הוכנה בהצלחה, אך רענון רשימת המדריכים נכשל.';
       }
     } catch (error) {
       status.textContent = createdInstructor && error?.code !== 'instructor_exists'
