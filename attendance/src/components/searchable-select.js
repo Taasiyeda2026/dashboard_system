@@ -18,6 +18,7 @@ export function createSearchableSelect({
   options        = [],
   placeholder    = 'בחר…',
   searchPlaceholder = 'חיפוש…',
+  emptyText      = 'לא נמצאו תוצאות',
   onChange,
 } = {}) {
   let currentOptions = [...options];
@@ -92,7 +93,7 @@ export function createSearchableSelect({
     if (visible.length === 0) {
       const empty = document.createElement('div');
       empty.className = 'av2-ssel__empty';
-      empty.textContent = 'לא נמצאו תוצאות';
+      empty.textContent = emptyText;
       optList.append(empty);
       return;
     }
@@ -128,6 +129,8 @@ export function createSearchableSelect({
     panel.hidden = false;
     trigger.classList.add('is-open');
     trigger.setAttribute('aria-expanded', 'true');
+    // Elevate this wrapper above sibling grid items so the panel floats freely
+    wrap.style.zIndex = '10';
     searchInput.value = '';
     renderOptions();
     requestAnimationFrame(() => searchInput.focus());
@@ -139,6 +142,7 @@ export function createSearchableSelect({
     panel.hidden = true;
     trigger.classList.remove('is-open');
     trigger.setAttribute('aria-expanded', 'false');
+    wrap.style.zIndex = '';
   }
 
   // ── Events ─────────────────────────────────────────────────────────────────
