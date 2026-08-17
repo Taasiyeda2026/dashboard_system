@@ -167,65 +167,6 @@ export function preparePayrollTestReviewResult(sourceResult = {}) {
   return { result, dayStates };
 }
 
-function decorateTestResult(doc, dayStates) {
-  const results = doc.querySelector('[data-attendance-results]');
-  if (!results) return;
-
-  results.querySelectorAll('.attendance-control__day--not-compared').forEach((row) => {
-    const status = row.querySelector('.attendance-control__row-status');
-    if (status) status.textContent = 'נדרש אישור ידני';
-  });
-
-  results.querySelectorAll('.attendance-control__employee').forEach((card) => {
-    const summary = card.querySelector(':scope > summary');
-    const strong = summary?.querySelector('strong');
-    if (!summary || !strong) return;
-    const dateMatch = strong.textContent.match(/\d{4}-\d{2}-\d{2}/);
-    if (!dateMatch) return;
-    const date = dateMatch[0];
-    const stateEntry = [...dayStates.entries()].find(([key]) => key.endsWith(`|${date}`));
-    if (!stateEntry) return;
-    const [, state] = stateEntry;
-    const status = summary.querySelector('span');
-    const label = state.status === 'ok' ? 'תקין'
-      : state.status === 'manual' ? 'נדרש אישור ידני'
-      : state.status === 'review_and_manual' ? 'לבדיקה + אישור ידני'
-      : 'לבדיקה';
-    if (status) status.textContent = label;
-    strong.textContent = strong.textContent.replace(/\|\s*\d+\s+חריגות\s*$/u, `| ${state.issueCount ? `${state.issueCount} נושאים לבדיקה` : 'ללא נושאים לבדיקה'}`);
-
-    const reasons = [...state.reviewReasons, ...state.manualReasons];
-    if (reasons.length && !card.querySelector('.payroll-test-review-reasons')) {
-      const box = doc.createElement('div');
-      box.className = 'payroll-test-review-reasons';
-      const heading = state.manualReasons.length ? 'נדרש טיפול לפני תשלום:' : 'נדרש לבדוק:';
-      box.innerHTML = `<strong>${heading}</strong> ${reasons.map((reason) => `<span>${reason}</span>`).join('')}`;
-      card.querySelector('.attendance-control__employee-summary')?.insertAdjacentElement('afterend', box);
-    }
-  });
-
-  const states = [...dayStates.values()];
-  const summaryBar = results.querySelector('.attendance-control__summary-bar');
-  if (summaryBar) {
-    const employeeNames = new Set(states.map((state) => state.name).filter(Boolean));
-    const ok = states.filter((state) => state.status === 'ok').length;
-    const review = states.filter((state) => state.status === 'review' || state.status === 'review_and_manual').length;
-    const manual = states.filter((state) => state.status === 'manual' || state.status === 'review_and_manual').length;
-    summaryBar.innerHTML = `<span>מדריכים <b>${employeeNames.size}</b></span><span>תקינים <b>${ok}</b></span><span>לבדיקה <b>${review}</b></span><span>אישור ידני <b>${manual}</b></span>`;
-  }
-}
-
-function ensureStyles(doc) {
-  if (!doc?.head || doc.getElementById('payroll-test-review-fix-styles')) return;
-  const style = doc.createElement('style');
-  style.id = 'payroll-test-review-fix-styles';
-  style.textContent = `
-    [data-payroll-window] .payroll-test-review-reasons{margin:7px 13px;padding:10px 12px;border:1px solid #f0c36d;border-radius:9px;background:#fffaf0;color:#8a5a00;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-    [data-payroll-window] .payroll-test-review-reasons span{padding:4px 8px;border:1px solid #f0d9a5;border-radius:7px;background:#fff}
-  `;
-  doc.head.appendChild(style);
-}
-
 function applyReviewFix(doc) {
   const panel = doc?.querySelector?.('[data-attendance-control]');
   if (!panel || panel.dataset.payrollTestMode !== 'true') return false;
@@ -239,10 +180,8 @@ function applyReviewFix(doc) {
   const prepared = preparePayrollTestReviewResult(sourceResult);
   prepared.result.month = sourceResult.month;
   panel.__payrollTestResult = prepared.result;
-  ensureStyles(doc);
   results.innerHTML = `${banner}${moduleApi.resultsHtml(prepared.result, prepared.result.month || '2027-01')}`;
   results.querySelector('[data-attendance-export]')?.remove();
-  decorateTestResult(doc, prepared.dayStates);
   panel.__payrollTestReviewFixedResult = prepared.result;
   return true;
 }
@@ -250,7 +189,6 @@ function applyReviewFix(doc) {
 function observePopup(popup) {
   if (!popup || popup.closed) return;
   const doc = popup.document;
-  ensureStyles(doc);
   const Observer = doc.defaultView?.MutationObserver || MutationObserver;
   const observer = new Observer(() => applyReviewFix(doc));
   observer.observe(doc.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-payroll-test-mode'] });

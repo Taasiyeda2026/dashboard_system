@@ -65,3 +65,7 @@ config.HOTFIX_VERSION = `payroll-control-tab-20260817-v1-${config.HOTFIX_VERSION
 config.HOTFIX_VERSION = `instructor-onboarding-sharepoint-folder-20260817-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `course-scheduling-recommendation-card-ui-20260817-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `course-scheduling-top-three-ui-20260817-v1-${config.HOTFIX_VERSION}`;
+
+config.HOTFIX_VERSION = `payroll-control-review-states-20260817-v1-${config.HOTFIX_VERSION}`;
+
+config.HOTFIX_VERSION = `payroll-control-zero-kilometers-20260817-v1-${config.HOTFIX_VERSION}`;

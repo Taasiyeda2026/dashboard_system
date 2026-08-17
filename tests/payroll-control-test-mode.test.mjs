@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import * as attendanceControl from '../frontend/src/screens/attendance-control.js';
 import {
   PAYROLL_TEST_MONTH,
@@ -125,4 +126,13 @@ test('test review layer distinguishes manual approval from validation review', (
   const reportedHours = dayStates.get('9903|2027-01-18');
   assert.ok(reportedHours?.reviewReasons.some((reason) => reason.includes('שעות שכר')));
   assert.equal(reportedHours?.status, 'review');
+});
+
+
+test('test mode and live payroll use the shared results renderer', async () => {
+  const testModeSource = await readFile(new URL('../frontend/src/payroll-control-test-mode.js', import.meta.url), 'utf8');
+  const reviewSource = await readFile(new URL('../frontend/src/payroll-control-test-review-fix.js', import.meta.url), 'utf8');
+  assert.match(testModeSource, /moduleApi\.resultsHtml\(result, PAYROLL_TEST_MONTH\)/);
+  assert.match(reviewSource, /moduleApi\.resultsHtml\(prepared\.result/);
+  assert.doesNotMatch(reviewSource, /decorateTestResult|payroll-test-review-reasons/);
 });
