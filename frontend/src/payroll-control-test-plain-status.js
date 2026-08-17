@@ -78,6 +78,14 @@ function ensurePlainStatusStyles(doc) {
     [data-payroll-window] [data-attendance-control][data-payroll-test-mode="true"] .payroll-test-instructor__days>.attendance-control__employee{
       margin:7px 0;
     }
+    [data-payroll-window] [data-attendance-control][data-payroll-test-mode="true"] .payroll-test-instructor__days>.attendance-control__employee>summary{
+      cursor:default!important;
+      list-style:none!important;
+      pointer-events:none!important;
+    }
+    [data-payroll-window] [data-attendance-control][data-payroll-test-mode="true"] .payroll-test-instructor__days>.attendance-control__employee>summary::-webkit-details-marker{
+      display:none!important;
+    }
   `;
   doc.head.appendChild(style);
 }
@@ -111,7 +119,11 @@ function groupResultsByInstructor(doc, results) {
     summary.textContent = name;
     const days = doc.createElement('div');
     days.className = 'payroll-test-instructor__days';
-    instructorCards.forEach((card) => days.appendChild(card));
+    instructorCards.forEach((card) => {
+      card.open = true;
+      card.dataset.payrollTestStaticDay = 'true';
+      days.appendChild(card);
+    });
     accordion.append(summary, days);
     list.appendChild(accordion);
   });
@@ -151,6 +163,9 @@ function applyPlainStatusPresentation(doc) {
   });
 
   groupResultsByInstructor(doc, results);
+  results.querySelectorAll('[data-payroll-test-static-day="true"]').forEach((card) => {
+    card.open = true;
+  });
   return true;
 }
 
