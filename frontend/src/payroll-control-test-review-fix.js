@@ -70,6 +70,7 @@ export function preparePayrollTestReviewResult(sourceResult = {}) {
   };
 
   const manualReasons = new Map();
+  const reviewReasons = new Map();
 
   result.comparisons.forEach((comparison) => {
     const attendance = comparison.attendance || {};
@@ -91,7 +92,7 @@ export function preparePayrollTestReviewResult(sourceResult = {}) {
         comparison.differences = comparison.differences.filter((diff) => diff.key !== 'workHours');
       } else {
         dashboard.payrollHoursRequireReview = true;
-        addReason(manualReasons, key, 'שעות שכר – נדרש אישור');
+        addReason(reviewReasons, key, 'שעות שכר – נדרש לבדוק');
       }
     }
 
@@ -112,15 +113,22 @@ export function preparePayrollTestReviewResult(sourceResult = {}) {
   result.dailyKilometers.forEach((km) => {
     const key = dayKey(km.employeeId, km.date);
     if (km.calculated == null) {
-      if (Number(km.reported || 0) > 0) addReason(manualReasons, key, 'ק״מ – לא ניתן לחשב, נדרש אישור');
+      if (Number(km.reported || 0) > 0) addReason(reviewReasons, key, 'ק״מ – לא ניתן לחשב, נדרש לבדוק');
       return;
     }
-    if (!km.matches) addReason(manualReasons, key, `ק״מ – דווח ${km.reported}, חושב ${km.calculated}`);
+    if (!km.matches) addReason(reviewReasons, key, `ק״מ – דווח ${km.reported}, חושב ${km.calculated}`);
   });
 
   const dayStates = new Map();
   const ensureDay = (key, name = '') => {
-    if (!dayStates.has(key)) dayStates.set(key, { name, gapCount: 0, manualReasons: [], status: 'ok', issueCount: 0 });
+    if (!dayStates.has(key)) dayStates.set(key, {
+      name,
+      gapCount: 0,
+      reviewReasons: [],
+      manualReasons: [],
+      status: 'ok',
+      issueCount: 0
+    });
     if (name && !dayStates.get(key).name) dayStates.get(key).name = name;
     return dayStates.get(key);
   };
@@ -129,7 +137,6 @@ export function preparePayrollTestReviewResult(sourceResult = {}) {
     const attendance = comparison.attendance || {};
     const state = ensureDay(dayKey(attendance.employeeId, attendance.date), attendance.employeeName);
     if (comparison.unmatched || comparison.differences.length) state.gapCount += 1;
-    if (comparison.dashboard?.payrollHoursRequireReview) state.gapCount += 1;
   });
   result.notCompared.forEach((entry) => {
     const attendance = entry.attendance || {};
@@ -141,16 +148,20 @@ export function preparePayrollTestReviewResult(sourceResult = {}) {
     state.gapCount += 1;
   });
 
+  reviewReasons.forEach((reasons, key) => {
+    const state = ensureDay(key);
+    state.reviewReasons = [...reasons];
+  });
   manualReasons.forEach((reasons, key) => {
     const state = ensureDay(key);
     state.manualReasons = [...reasons];
   });
 
   dayStates.forEach((state) => {
-    const hasGaps = state.gapCount > 0;
+    const hasReview = state.gapCount > 0 || state.reviewReasons.length > 0;
     const hasManual = state.manualReasons.length > 0;
-    state.status = hasGaps && hasManual ? 'review_and_manual' : hasGaps ? 'review' : hasManual ? 'manual' : 'ok';
-    state.issueCount = state.gapCount + state.manualReasons.length;
+    state.status = hasReview && hasManual ? 'review_and_manual' : hasReview ? 'review' : hasManual ? 'manual' : 'ok';
+    state.issueCount = state.gapCount + state.reviewReasons.length + state.manualReasons.length;
   });
 
   return { result, dayStates };
@@ -183,10 +194,12 @@ function decorateTestResult(doc, dayStates) {
     if (status) status.textContent = label;
     strong.textContent = strong.textContent.replace(/\|\s*\d+\s+חריגות\s*$/u, `| ${state.issueCount ? `${state.issueCount} נושאים לבדיקה` : 'ללא נושאים לבדיקה'}`);
 
-    if (state.manualReasons.length && !card.querySelector('.payroll-test-manual-review')) {
+    const reasons = [...state.reviewReasons, ...state.manualReasons];
+    if (reasons.length && !card.querySelector('.payroll-test-review-reasons')) {
       const box = doc.createElement('div');
-      box.className = 'payroll-test-manual-review';
-      box.innerHTML = `<strong>נדרש אישור לפני תשלום:</strong> ${state.manualReasons.map((reason) => `<span>${reason}</span>`).join('')}`;
+      box.className = 'payroll-test-review-reasons';
+      const heading = state.manualReasons.length ? 'נדרש טיפול לפני תשלום:' : 'נדרש לבדוק:';
+      box.innerHTML = `<strong>${heading}</strong> ${reasons.map((reason) => `<span>${reason}</span>`).join('')}`;
       card.querySelector('.attendance-control__employee-summary')?.insertAdjacentElement('afterend', box);
     }
   });
@@ -207,8 +220,8 @@ function ensureStyles(doc) {
   const style = doc.createElement('style');
   style.id = 'payroll-test-review-fix-styles';
   style.textContent = `
-    [data-payroll-window] .payroll-test-manual-review{margin:7px 13px;padding:10px 12px;border:1px solid #f0c36d;border-radius:9px;background:#fffaf0;color:#8a5a00;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-    [data-payroll-window] .payroll-test-manual-review span{padding:4px 8px;border:1px solid #f0d9a5;border-radius:7px;background:#fff}
+    [data-payroll-window] .payroll-test-review-reasons{margin:7px 13px;padding:10px 12px;border:1px solid #f0c36d;border-radius:9px;background:#fffaf0;color:#8a5a00;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    [data-payroll-window] .payroll-test-review-reasons span{padding:4px 8px;border:1px solid #f0d9a5;border-radius:7px;background:#fff}
   `;
   doc.head.appendChild(style);
 }
