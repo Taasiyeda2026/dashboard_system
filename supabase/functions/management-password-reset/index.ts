@@ -11,6 +11,7 @@ const MANAGEMENT_ROLES = [
   'instructor_manager'
 ];
 const MANAGEMENT_ROLE_SET = new Set(MANAGEMENT_ROLES);
+const TEST_EMPLOYEE_ID = '9901';
 
 const PROD_ORIGIN = 'https://taasiyeda2026.github.io';
 const DEV_ORIGINS = new Set(['http://localhost:5173', 'http://127.0.0.1:5173']);
@@ -34,6 +35,15 @@ function normalizeEmail(value: unknown) {
   return String(value ?? '').trim().toLowerCase();
 }
 
+function isAllowedRecoveryUser(row: Record<string, unknown> | null | undefined) {
+  if (!row) return false;
+  const role = String(row.role || '').trim();
+  if (MANAGEMENT_ROLE_SET.has(role)) return true;
+  return role === 'instructor'
+    && String(row.user_id || '').trim() === TEST_EMPLOYEE_ID
+    && String(row.emp_id || '').trim() === TEST_EMPLOYEE_ID;
+}
+
 Deno.serve(async (req: Request) => {
   const origin = req.headers.get('origin') || '';
   if (req.method === 'OPTIONS') {
@@ -44,9 +54,8 @@ Deno.serve(async (req: Request) => {
   }
 
   // This endpoint is intentionally unauthenticated because it is used from the login screen.
-  // It never reveals whether an account exists and only sends a recovery email to the
-  // verified management email already stored in the database. Supabase Auth applies its
-  // own recovery-email rate limits as an additional abuse control.
+  // It never reveals whether an account exists and only sends a recovery email to an allowed
+  // organizational account. Employee 9901 is the single pinned instructor test account.
   if (origin && origin !== PROD_ORIGIN && !DEV_ORIGINS.has(origin)) return genericOk(origin);
 
   let email = '';
@@ -69,16 +78,29 @@ Deno.serve(async (req: Request) => {
       auth: { persistSession: false, autoRefreshToken: false }
     });
 
-    // Management is a small set. Load only active management rows and compare the
-    // normalized email in code so addresses containing '_' are not treated as ILIKE wildcards.
-    const { data: managementRows } = await admin
-      .from('users')
-      .select('user_id,email,auth_email,auth_user_id,role,is_active')
-      .eq('is_active', true)
-      .in('role', MANAGEMENT_ROLES);
+    // Management is a small set. Load active management rows plus the single pinned
+    // instructor test account, then compare normalized emails in code so '_' is literal.
+    const [{ data: managementRows }, { data: testEmployeeRow }] = await Promise.all([
+      admin
+        .from('users')
+        .select('user_id,emp_id,email,auth_email,auth_user_id,role,is_active')
+        .eq('is_active', true)
+        .in('role', MANAGEMENT_ROLES),
+      admin
+        .from('users')
+        .select('user_id,emp_id,email,auth_email,auth_user_id,role,is_active')
+        .eq('is_active', true)
+        .eq('user_id', TEST_EMPLOYEE_ID)
+        .eq('emp_id', TEST_EMPLOYEE_ID)
+        .eq('role', 'instructor')
+        .maybeSingle()
+    ]);
 
-    const userRow = (Array.isArray(managementRows) ? managementRows : [])
-      .find((row) => MANAGEMENT_ROLE_SET.has(String(row?.role || '').trim()) && normalizeEmail(row?.email) === email);
+    const candidates = [
+      ...(Array.isArray(managementRows) ? managementRows : []),
+      ...(testEmployeeRow ? [testEmployeeRow] : [])
+    ];
+    const userRow = candidates.find((row) => isAllowedRecoveryUser(row) && normalizeEmail(row?.email) === email);
 
     if (!userRow) return genericOk(origin);
     const authUserId = String(userRow.auth_user_id || '').trim();
