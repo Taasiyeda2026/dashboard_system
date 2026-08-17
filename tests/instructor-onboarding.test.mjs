@@ -19,7 +19,7 @@ function mountedModal(options = {}) {
   dom.window.open = () => null;
   globalThis.window = dom.window;
   const modal = dom.window.document.querySelector('.ds-modal');
-  bindOnboardingModal(modal, { managers: onboardingManagers(settings), ...options });
+  bindOnboardingModal(modal, { managers: onboardingManagers(settings), openMailClient: () => true, ...options });
   return { dom, modal };
 }
 
@@ -71,7 +71,7 @@ for (const staffingAgency of ['מעוף', 'מנפאואר']) {
     const calls = [];
     const { modal } = mountedModal({
       createInstructor: async (row) => { calls.push(['create', row]); return { emp_id: 42 }; },
-      createDraft: async (mail) => { calls.push(['draft', mail]); return { webLink: 'https://outlook.office.com/mail/drafts' }; }
+      createDraft: async (mail) => { calls.push(['draft', mail]); return { draftId: 'draft-1', attachmentCount: 3 }; }
     });
     fill(modal, { employmentType: 'staffing', agency: staffingAgency });
     modal.querySelector('[data-onboarding-prepare]').click(); await tick();
@@ -85,7 +85,7 @@ test('independent onboarding stores עצמאי and uses the עצמאי SharePoin
   const calls = [];
   const { modal } = mountedModal({
     createInstructor: async (row) => { calls.push(['create', row]); return { emp_id: 43 }; },
-    createDraft: async (mail) => { calls.push(['draft', mail]); return { webLink: 'https://outlook.office.com/mail/drafts' }; }
+    createDraft: async (mail) => { calls.push(['draft', mail]); return { draftId: 'draft-1', attachmentCount: 3 }; }
   });
   fill(modal, { employmentType: 'independent' });
   assert.equal(modal.querySelector('[data-onboarding-agency-field]').hidden, true);
@@ -113,7 +113,7 @@ test('retry after Outlook failure uses the original staffing agency snapshot wit
   let attempts = 0;
   const { modal } = mountedModal({
     createInstructor: async (row) => { calls.push(['create', row]); return { emp_id: 42, full_name: row.fullName }; },
-    createDraft: async (mail) => { calls.push(['draft', mail]); attempts += 1; if (attempts === 1) throw new Error('outlook'); return { webLink: 'https://outlook.office.com/mail/drafts' }; }
+    createDraft: async (mail) => { calls.push(['draft', mail]); attempts += 1; if (attempts === 1) throw new Error('outlook'); return { draftId: 'draft-1', attachmentCount: 3 }; }
   });
   fill(modal, { employmentType: 'staffing', agency: 'מעוף' });
   modal.querySelector('[data-onboarding-prepare]').click(); await tick();
@@ -133,11 +133,24 @@ test('retry after Outlook failure uses the original staffing agency snapshot wit
   assert.equal(calls[2][1].employmentType, 'staffing');
 });
 
+test('desktop mail client opens only after the draft is created successfully', async () => {
+  const calls = [];
+  const { modal } = mountedModal({
+    createInstructor: async () => { calls.push('create'); return { emp_id: 42 }; },
+    createDraft: async () => { calls.push('draft'); return { draftId: 'draft-1', attachmentCount: 3 }; },
+    openMailClient: () => { calls.push('desktop'); return true; }
+  });
+  fill(modal);
+  modal.querySelector('[data-onboarding-prepare]').click(); await tick();
+  assert.deepEqual(calls, ['create', 'draft', 'desktop']);
+  assert.match(modal.querySelector('[data-onboarding-status]').textContent, /הטיוטה הוכנה ונשמרה ב-Outlook/);
+});
+
 test('refresh failure remains a successful draft and cannot create another draft', async () => {
   let drafts = 0;
   const { modal } = mountedModal({
     createInstructor: async () => ({ emp_id: 42 }),
-    createDraft: async () => { drafts += 1; return { webLink: 'https://outlook.office.com/mail/drafts' }; },
+    createDraft: async () => { drafts += 1; return { draftId: 'draft-1', attachmentCount: 3 }; },
     onSuccess: async () => { throw new Error('refresh failed'); }
   });
   fill(modal);
@@ -157,7 +170,7 @@ test('invalid email blocks creation', async () => {
   assert.match(modal.querySelector('[data-onboarding-status]').textContent, /כתובת מייל תקינה/);
 });
 
-test('implementation creates delegated drafts with TO and CC and has no send capability', async () => {
+test('implementation creates delegated drafts with TO and CC, then launches desktop mail without web draft navigation or send capability', async () => {
   const [client, edge, migration] = await Promise.all([
     readFile(new URL('../frontend/src/screens/instructor-onboarding.js', import.meta.url), 'utf8'),
     readFile(new URL('../supabase/functions/instructor-onboarding-files/index.ts', import.meta.url), 'utf8'),
@@ -166,7 +179,9 @@ test('implementation creates delegated drafts with TO and CC and has no send cap
   assert.match(client, /'\/me\/messages'/);
   assert.match(client, /toRecipients: \[\{ emailAddress: \{ address: instructorEmail \} \}\]/);
   assert.match(client, /ccRecipients: \[\{ emailAddress: \{ address: manager\.email \} \}\]/);
-  assert.doesNotMatch(client, /mailto:|sendMail|Mail\.Send/i);
+  assert.match(client, /window\.location\.href = 'mailto:'/);
+  assert.doesNotMatch(client, /outlook\.office\.com\/mail\/drafts|reserveOnboardingMailWindow|openPreparedDraft/);
+  assert.doesNotMatch(client, /sendMail|Mail\.Send/i);
   assert.match(migration, /pg_advisory_xact_lock/);
   assert.match(migration, /app_has_permission\('view_employee_files'\)/);
   assert.match(migration, /revoke execute[^;]+from anon/i);
