@@ -3,28 +3,58 @@ import { renderHomeScreen } from './screens/home-screen.js';
 import { renderNewReportScreen } from './screens/new-report-screen.js';
 import { renderMyReportsScreen } from './screens/my-reports-screen.js';
 import { createBottomNav } from './components/bottom-nav.js';
-import { mockMonthSummary, mockReports, ACTIVITY_TYPES } from './services/mock-data.service.js';
 import { signInWithUsername, signOut, getExistingSession } from './auth/auth.service.js';
 import { resolveInstructorIdentity } from './auth/identity.service.js';
 
+// ── App state ────────────────────────────────────────────────────────────────
+const today = new Date();
+
 const state = {
-  loggedIn: false,
-  screen: 'home',
-  instructor: null,
-  reports: [...mockReports]
+  loggedIn:     false,
+  screen:       'home',          // 'home' | 'new-report' | 'my-reports'
+  instructor:   null,            // { userId, name, empId }
+  currentYear:  today.getFullYear(),
+  currentMonth: today.getMonth() + 1  // 1-based
 };
 
 let appRoot = null;
 let navRoot = null;
+
+// ── Navigation ───────────────────────────────────────────────────────────────
 
 function navigate(screen) {
   state.screen = screen;
   renderScreen();
 }
 
-// Real Supabase Auth sign-in, then block entry unless the resulting user resolves to
-// exactly one active instructor (see identity.service.js). Throws on any failure so the
-// login screen's own try/catch shows the message — never treated as logged in either way.
+function prevMonth() {
+  if (state.currentMonth === 1) {
+    state.currentMonth = 12;
+    state.currentYear -= 1;
+  } else {
+    state.currentMonth -= 1;
+  }
+  renderScreen();
+}
+
+function nextMonth() {
+  const now = new Date();
+  // Don't navigate past the current month
+  if (
+    state.currentYear > now.getFullYear() ||
+    (state.currentYear === now.getFullYear() && state.currentMonth >= now.getMonth() + 1)
+  ) return;
+  if (state.currentMonth === 12) {
+    state.currentMonth = 1;
+    state.currentYear += 1;
+  } else {
+    state.currentMonth += 1;
+  }
+  renderScreen();
+}
+
+// ── Auth handlers ────────────────────────────────────────────────────────────
+
 async function handleLoginSubmit({ username, code }) {
   await signInWithUsername(username, code);
   try {
@@ -35,66 +65,80 @@ async function handleLoginSubmit({ username, code }) {
   }
   state.loggedIn = true;
   state.screen = 'home';
+  // Reset month to current on fresh login
+  const now = new Date();
+  state.currentYear  = now.getFullYear();
+  state.currentMonth = now.getMonth() + 1;
   renderScreen();
 }
 
 async function handleLogout() {
   await signOut().catch(() => {});
-  state.loggedIn = false;
+  state.loggedIn   = false;
   state.instructor = null;
   renderScreen();
 }
+
+// ── Render ───────────────────────────────────────────────────────────────────
 
 function renderScreen() {
   appRoot.classList.toggle('app-shell--with-nav', state.loggedIn);
   appRoot.innerHTML = '';
 
   if (!state.loggedIn) {
-    navRoot.hidden = true;
+    navRoot.hidden   = true;
     navRoot.innerHTML = '';
     renderLoginScreen(appRoot, { onLogin: handleLoginSubmit });
     return;
   }
 
-  navRoot.hidden = false;
+  navRoot.hidden   = false;
   navRoot.innerHTML = '';
   navRoot.append(createBottomNav({ active: state.screen, onNavigate: navigate }));
 
   if (state.screen === 'new-report') {
     renderNewReportScreen(appRoot, {
-      activityTypes: ACTIVITY_TYPES,
+      instructor: state.instructor,
+      defaultDate: `${state.currentYear}-${String(state.currentMonth).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`,
       onBack: () => navigate('home'),
-      onSave: (report) => {
-        state.reports = [{ id: Date.now(), status: 'טיוטה', ...report }, ...state.reports];
+      onSaved: () => {
         navigate('my-reports');
       }
     });
+
   } else if (state.screen === 'my-reports') {
     renderMyReportsScreen(appRoot, {
-      reports: state.reports,
-      onBack: () => navigate('home')
+      instructor: state.instructor,
+      year:  state.currentYear,
+      month: state.currentMonth,
+      onBack:      () => navigate('home'),
+      onPrevMonth: prevMonth,
+      onNextMonth: nextMonth,
+      onNewReport: () => navigate('new-report')
     });
+
   } else {
     renderHomeScreen(appRoot, {
-      instructor: state.instructor,
-      summary: mockMonthSummary,
+      instructor:  state.instructor,
+      year:        state.currentYear,
+      month:       state.currentMonth,
       onNewReport: () => navigate('new-report'),
       onMyReports: () => navigate('my-reports'),
-      onSubmitMonth: () => navigate('my-reports'),
-      onLogout: handleLogout
+      onPrevMonth: prevMonth,
+      onNextMonth: nextMonth,
+      onLogout:    handleLogout
     });
   }
 }
 
-// If a valid Supabase session already exists (persisted by supabase-js itself), resolve
-// identity and skip straight past the login screen. A stale/invalid session or an
-// identity that no longer resolves just falls through to a normal, silent logged-out state.
+// ── Bootstrap ────────────────────────────────────────────────────────────────
+
 async function bootstrap() {
   const session = await getExistingSession().catch(() => null);
   if (session?.user?.id) {
     try {
       state.instructor = await resolveInstructorIdentity();
-      state.loggedIn = true;
+      state.loggedIn   = true;
     } catch {
       await signOut().catch(() => {});
     }

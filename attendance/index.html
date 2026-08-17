@@ -23,7 +23,10 @@
 <body>
   <main id="app" class="app-shell"></main>
   <nav id="bottom-nav" hidden></nav>
+  <!-- Supabase client -->
   <script src="./vendor/supabase.js"></script>
+  <!-- SheetJS (xlsx) for Excel export — loaded after supabase, before app modules -->
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
   <script type="module" src="./src/main.js"></script>
 </body>
 </html>

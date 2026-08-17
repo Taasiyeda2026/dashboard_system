@@ -1,12 +1,12 @@
 .av2-home {
   flex: 1;
-  padding: var(--av2-space-3) 0;
+  padding: var(--av2-space-3) 0 var(--av2-space-5);
 }
 
 .av2-home__inner {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
 }
 
 .av2-home__header {
@@ -43,35 +43,74 @@
   color: var(--av2-color-text-muted);
 }
 
-.av2-summary {
+/* Month navigator */
+.av2-month-nav {
   display: flex;
+  align-items: center;
   justify-content: space-between;
-  gap: var(--av2-space-2);
-  padding: 12px;
   background: var(--av2-color-surface);
   border: 1px solid var(--av2-color-border);
   border-radius: 10px;
+  padding: 2px 4px;
 }
 
-.av2-summary__stat {
-  flex: 1;
+.av2-month-nav__label {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--av2-color-text);
+}
+
+.av2-month-nav__btn {
+  width: 36px;
+  height: 36px;
+}
+
+/* Stat cards — 2×2 grid */
+.av2-stats-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.av2-stat-card {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2px;
+  gap: 3px;
+  padding: 12px 8px;
+  background: var(--av2-color-surface);
+  border: 1px solid var(--av2-color-border);
+  border-radius: 10px;
+  text-align: center;
 }
 
-.av2-summary__value {
+.av2-stat-card--skeleton {
+  min-height: 72px;
+  background: linear-gradient(90deg, #f0f0f0 25%, #e8e8e8 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: av2-shimmer 1.2s infinite;
+}
+
+@keyframes av2-shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+.av2-stat-card__value {
   margin: 0;
   font-size: 1.125rem;
   font-weight: 700;
   color: var(--av2-color-text);
 }
 
-.av2-summary__label {
+.av2-stat-card__label {
   margin: 0;
   font-size: 0.6875rem;
   color: var(--av2-color-text-muted);
+}
+
+.av2-home__primary {
+  min-height: 44px;
 }
 
 .av2-home__rows {
@@ -90,4 +129,103 @@
 .av2-row__label {
   flex: 1;
   text-align: start;
+}
+
+/* Monthly approval card */
+.av2-approval-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.av2-approval-card__loading {
+  font-size: 0.8125rem;
+  color: var(--av2-color-text-muted);
+  text-align: center;
+  padding: 8px;
+}
+
+.av2-approval-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 14px;
+  background: var(--av2-color-surface);
+  border: 1px solid var(--av2-color-border);
+  border-radius: 10px;
+}
+
+.av2-approval-inner__title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.av2-approval-inner__title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--av2-color-text);
+}
+
+.av2-approval-inner__meta {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--av2-color-text-muted);
+}
+
+.av2-approval-inner__locked-msg {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--av2-color-text-muted);
+  font-style: italic;
+}
+
+/* Excel button */
+.av2-home__excel-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  background: var(--av2-color-surface);
+  border: 1px solid var(--av2-color-border);
+  border-radius: 8px;
+  color: var(--av2-color-text);
+  cursor: pointer;
+}
+
+.av2-btn--secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  background: var(--av2-color-surface);
+  border: 1px solid var(--av2-color-border);
+  border-radius: 8px;
+  color: var(--av2-color-text);
+  cursor: pointer;
+}
+
+.av2-btn--link {
+  background: none;
+  border: none;
+  color: var(--av2-color-accent);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  font-family: inherit;
+}
+
+.av2-error {
+  color: #dc2626;
+  font-size: 0.8125rem;
+  margin: 0;
 }
