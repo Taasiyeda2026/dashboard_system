@@ -78,6 +78,20 @@ export async function getAuthoritySchoolList(empId) {
   return Array.isArray(data) ? data : [];
 }
 
+/**
+ * Returns ALL authorities + their schools from the central DB (no instructor filter).
+ * Used for manual form entry so the instructor isn't limited to their assigned activities.
+ * Falls back to instructor-scoped list if the central RPC is unavailable.
+ */
+export async function getAllAuthoritySchoolList(empId) {
+  try {
+    const { data, error } = await supabase.rpc('av2_get_all_authority_school_list');
+    if (!error && Array.isArray(data) && data.length > 0) return data;
+  } catch {}
+  // Fallback: use instructor-scoped list (migration 003 not yet applied)
+  return getAuthoritySchoolList(empId);
+}
+
 // ── Helpers ────────────────────────────────────────────────────────────────
 
 /**
