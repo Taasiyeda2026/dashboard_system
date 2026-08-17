@@ -18,10 +18,16 @@ const ACTIVITY_TYPE_MAP = {
   workshop:     'סדנה',
 };
 
-/** Hebrew activity type labels used throughout the form. */
+/** Hebrew activity type labels — exact list, alphabetical order, used in the form select. */
 export const HEBREW_ACTIVITY_TYPES = [
-  'קורס', 'סדנה', 'סיור', 'חדר בריחה', 'צהרון',
-  'הכשרה', 'תפעול', 'ביטול זמן',
+  'ביטול זמן',
+  'הכשרה',
+  'חדר בריחה',
+  'סדנה',
+  'סדנאות קיץ',
+  'סיור',
+  'קורס',
+  'תפעול',
 ];
 
 /**
