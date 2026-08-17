@@ -4,12 +4,14 @@ import fs from 'node:fs';
 import { instructorCard } from '../frontend/src/screens/instructor-workspace-ui.js';
 import { EMPLOYEE_FILE_COMPONENTS, employeeFileModalHtml } from '../frontend/src/screens/instructor-employee-file-ui.js';
 import { canViewEmployeeFiles } from '../frontend/src/permissions.js';
+import { refreshAfterEmployeeFileMutation } from '../frontend/src/screens/instructor-employee-file-data.js';
 
 const instructorsSource = fs.readFileSync(new URL('../frontend/src/screens/instructors.js', import.meta.url), 'utf8');
 const apiSource = fs.readFileSync(new URL('../frontend/src/api.js', import.meta.url), 'utf8');
 const dataSource = fs.readFileSync(new URL('../frontend/src/screens/instructor-employee-file-data.js', import.meta.url), 'utf8');
 const baseMigration = fs.readFileSync(new URL('../supabase/migrations/20260810233000_instructor_employee_files_sharepoint_metadata.sql', import.meta.url), 'utf8');
 const liveMigration = fs.readFileSync(new URL('../supabase/migrations/20260811020235_employee_files_admin_link_and_live_sharepoint.sql', import.meta.url), 'utf8');
+const mutationSyncMigration = fs.readFileSync(new URL('../supabase/migrations/20260817180000_employee_file_refresh_on_actual_folder_change.sql', import.meta.url), 'utf8');
 const edgeSource = fs.readFileSync(new URL('../supabase/functions/instructor-employee-file-live/index.ts', import.meta.url), 'utf8');
 
 const row = (active = 'yes', gender = null) => ({ emp_id: 1507, full_name: 'אלכס זפקה', active, scheduling_profile: gender ? { gender } : null });
@@ -108,15 +110,45 @@ test('folder-link mutation is admin-only on the server', () => {
 });
 
 test('employee-file loader opens directly from the secured Supabase snapshot', () => {
-  assert.match(dataSource, /api\.instructorEmployeeFile/);
-  assert.doesNotMatch(dataSource, /functions\.invoke|instructor-employee-file-live|sharepoint/i);
+  const loaderSource = dataSource.slice(dataSource.indexOf('export async function loadInstructorEmployeeFile'), dataSource.indexOf('export async function refreshInstructorEmployeeFileSnapshot'));
+  assert.match(loaderSource, /api\.instructorEmployeeFile/);
+  assert.doesNotMatch(loaderSource, /functions\.invoke|instructor-employee-file-live|sharepoint/i);
   assert.match(apiSource, /rpc\('get_instructor_employee_file_snapshot'/);
+});
+
+test('a successful employee-file mutation refreshes the snapshot exactly once and failures do not scan', async () => {
+  const calls = [];
+  const saved = await refreshAfterEmployeeFileMutation(
+    async () => { calls.push('mutation'); return { folder_web_url: 'saved' }; },
+    async () => { calls.push('refresh'); }
+  );
+  assert.deepEqual(calls, ['mutation', 'refresh']);
+  assert.equal(saved.folder_web_url, 'saved');
+
+  calls.length = 0;
+  const unchanged = await refreshAfterEmployeeFileMutation(
+    async () => { calls.push('mutation'); return { folder_web_url: 'saved', changed: false }; },
+    async () => { calls.push('refresh'); }
+  );
+  assert.equal(unchanged.changed, false);
+  assert.deepEqual(calls, ['mutation']);
+
+  calls.length = 0;
+  await assert.rejects(refreshAfterEmployeeFileMutation(
+    async () => { calls.push('mutation'); throw new Error('unchanged'); },
+    async () => { calls.push('refresh'); }
+  ), /unchanged/);
+  assert.deepEqual(calls, ['mutation']);
+  assert.match(mutationSyncMigration, /previous_url is distinct from clean_url/);
+  assert.match(mutationSyncMigration, /'changed', did_change/);
 });
 
 test('live SharePoint reader requires an explicit mutation refresh before scanning folders', () => {
   assert.match(edgeSource, /const refresh = body\?\.refresh === true/);
   assert.match(edgeSource, /if \(!refresh\)[^]*reason: "snapshot_only"/);
   assert.ok(edgeSource.indexOf('if (!refresh)') < edgeSource.indexOf('const token = await graphToken()'));
+  assert.match(edgeSource, /await persistComponents\(empId, schoolYear, components\)/);
+  assert.match(dataSource, /updateInstructorEmployeeFolderUrl[^]*refreshInstructorEmployeeFileSnapshot/);
   for (const folder of [
     '01 הסכם ומסמכים/הסכם חתום',
     '01 הסכם ומסמכים/מסמכים נלווים',

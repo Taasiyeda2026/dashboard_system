@@ -65,6 +65,43 @@ async function loadSnapshot(req: Request, empId: number, schoolYear: string) {
   return await response.json();
 }
 
+async function persistComponents(empId: number, schoolYear: string, components: Array<Record<string, unknown>>) {
+  const supabaseUrl = clean(Deno.env.get("SUPABASE_URL"));
+  const serviceKey = clean(Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"));
+  if (!supabaseUrl || !serviceKey) throw new Error("employee_file_snapshot_writer_unavailable");
+
+  const mappingResponse = await fetch(
+    `${supabaseUrl}/rest/v1/instructor_employee_folders?select=id&emp_id=eq.${empId}&school_year=eq.${encodeURIComponent(schoolYear)}&limit=1`,
+    { headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` } },
+  );
+  if (!mappingResponse.ok) throw new Error(`employee_file_mapping_lookup_failed:${mappingResponse.status}`);
+  const mappingId = clean((await mappingResponse.json())?.[0]?.id);
+  if (!mappingId) throw new Error("employee_file_mapping_not_found");
+
+  const rows = components.map((component) => ({
+    folder_mapping_id: mappingId,
+    component_key: clean(component.component_key),
+    completed: component.completed === true,
+    item_count: Math.max(0, Number(component.item_count) || 0),
+    updated_at: new Date().toISOString(),
+    updated_by: null,
+  }));
+  const saveResponse = await fetch(
+    `${supabaseUrl}/rest/v1/instructor_employee_document_status?on_conflict=folder_mapping_id,component_key`,
+    {
+      method: "POST",
+      headers: {
+        apikey: serviceKey,
+        Authorization: `Bearer ${serviceKey}`,
+        "Content-Type": "application/json",
+        Prefer: "resolution=merge-duplicates,return=minimal",
+      },
+      body: JSON.stringify(rows),
+    },
+  );
+  if (!saveResponse.ok) throw new Error(`employee_file_snapshot_save_failed:${saveResponse.status}`);
+}
+
 async function graphToken() {
   const tenantId = clean(Deno.env.get("MS_TENANT_ID"));
   const clientId = clean(Deno.env.get("MS_CLIENT_ID"));
@@ -188,6 +225,7 @@ Deno.serve(async (req) => {
     }
 
     const components = await liveComponents(token, clean(snapshot.folder_web_url));
+    await persistComponents(empId, schoolYear, components);
     return json({
       ...snapshot,
       components,
