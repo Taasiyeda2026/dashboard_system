@@ -14,7 +14,8 @@ const state = {
   screen:       'home',          // 'home' | 'new-report' | 'my-reports'
   instructor:   null,            // { userId, name, empId }
   currentYear:  today.getFullYear(),
-  currentMonth: today.getMonth() + 1  // 1-based
+  currentMonth: today.getMonth() + 1,  // 1-based
+  prefillRecord: null,           // attendance record to duplicate (cleared after use)
 };
 
 let appRoot = null;
@@ -94,16 +95,19 @@ function renderScreen() {
 
   navRoot.hidden   = false;
   navRoot.innerHTML = '';
-  navRoot.append(createBottomNav({ active: state.screen, onNavigate: navigate }));
+  // new-report is an action, not a tab — keep 'home' highlighted when opening it
+  const navActive = state.screen === 'new-report' ? 'home' : state.screen;
+  navRoot.append(createBottomNav({ active: navActive, onNavigate: navigate }));
 
   if (state.screen === 'new-report') {
+    const prefill = state.prefillRecord;
+    state.prefillRecord = null;
     renderNewReportScreen(appRoot, {
       instructor: state.instructor,
       defaultDate: `${state.currentYear}-${String(state.currentMonth).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`,
+      prefillRecord: prefill,
       onBack: () => navigate('home'),
-      onSaved: () => {
-        navigate('my-reports');
-      }
+      onSaved: () => navigate('my-reports'),
     });
 
   } else if (state.screen === 'my-reports') {
@@ -114,7 +118,11 @@ function renderScreen() {
       onBack:      () => navigate('home'),
       onPrevMonth: prevMonth,
       onNextMonth: nextMonth,
-      onNewReport: () => navigate('new-report')
+      onNewReport: () => navigate('new-report'),
+      onDuplicate: (record) => {
+        state.prefillRecord = record;
+        navigate('new-report');
+      },
     });
 
   } else {
