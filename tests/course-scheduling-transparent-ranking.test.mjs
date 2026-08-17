@@ -22,6 +22,35 @@ test('daily efficiency is aggregated across every course meeting', () => {
   assert.equal(placement.newWorkDayMeetingCount, 2);
 });
 
+test('same-school ranking requires matching school_id and never falls back to the school name', () => {
+  const oneMeeting = [meetings[0]];
+  const target = course('school-id-only', { meetings: oneMeeting, school: 'שם זהה', school_id: '' });
+  const existingActivities = [{ ...oneMeeting[0], start_time: '08:00', end_time: '09:00', school: 'שם זהה', school_id: '' }];
+  const placement = analyzeDayPlacement({ activity: target, meetings: oneMeeting, existingActivities, travel: { transitions: {} } });
+  assert.equal(placement.sameSchoolMeetingCount, 0);
+  assert.equal(placement.existingWorkDayMeetingCount, 1);
+});
+
+test('candidate ranking includes real course meetings that cross the displayed half-year boundary', () => {
+  const crossHalfMeetings = [
+    { date: '2027-01-25', start_time: '10:00', end_time: '11:00' },
+    { date: '2027-02-01', start_time: '10:00', end_time: '11:00' }
+  ];
+  const target = course('cross-half', { meetings: crossHalfMeetings });
+  const saved = course('saved-next-half', {
+    emp_id: 'i', instructor_assignment_locked: true, school_id: 100,
+    meetings: [{ ...crossHalfMeetings[1], start_time: '08:00', end_time: '09:00' }]
+  });
+  const result = calculateCourseSchedule({
+    activities: [target, saved], instructors: [instructor('i')], profiles: { i: profile },
+    rules: { i: rules('i') }, exceptions: {}, periodKey: 'first',
+    travel: travelFor('cross-half', 'i'), routeMatrix: {}, referenceDate: '2027-01-01'
+  })[0].recommended;
+  assert.equal(result.continuityMeetingCount, 2);
+  assert.equal(result.sameSchoolMeetingCount, 1);
+  assert.equal(result.newWorkDayMeetingCount, 1);
+});
+
 test('ranking follows efficiency, added travel, availability utilization, and seniority in that order', () => {
   const base = { sameSchoolMeetingCount: 10, nearbyMeetingCount: 0, existingWorkDayMeetingCount: 0, newWorkDayMeetingCount: 2, incrementalTravelKnown: true, relevantTravelMinutes: 20, relevantTravelDistance: 10, utilizationRatio: .5, seniorityYears: 2 };
   assert.ok(compareCandidatesStable({ ...base, instructor: instructor('efficient') }, { ...base, sameSchoolMeetingCount: 0, newWorkDayMeetingCount: 12, instructor: instructor('new-days') }) < 0);

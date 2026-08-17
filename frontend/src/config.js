@@ -76,3 +76,4 @@ config.HOTFIX_VERSION = `employee-file-snapshot-open-20260817-v1-${config.HOTFIX
 config.HOTFIX_VERSION = `employee-file-mutation-snapshot-sync-20260817-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `payroll-control-explicit-dashboard-period-20260817-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `employee-file-sharepoint-return-sync-20260817-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `course-scheduling-transition-and-full-course-ranking-20260817-v1-${config.HOTFIX_VERSION}`;

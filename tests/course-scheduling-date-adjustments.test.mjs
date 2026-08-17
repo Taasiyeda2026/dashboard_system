@@ -32,16 +32,18 @@ test('holidays and another instructor exception are skipped without an arbitrary
   assert.equal(result.valid,true); assert.equal(result.meetings[1].date,'2027-01-31'); assert.equal(result.meetings.length,35);
 });
 
-test('proposed overlaps fail and travel requires a known route plus 15 minute safety',()=>{
+test('proposed overlaps fail and travel requires a known route plus 10 minute safety',()=>{
   const overlap=proposeDateAdjustments({meetings,rules,exceptions:blocked,existingActivities:[{date:'2027-01-17',start_time:'10:30',end_time:'11:30'}]});
   assert.equal(overlap.reason,'proposed_overlap');
-  const unknown=proposeDateAdjustments({meetings,rules,exceptions:blocked,transitions:{'2027-01-17':{previous:{end_time:'09:00',duration_minutes:null}}}});
+  const unknown=proposeDateAdjustments({meetings,rules,exceptions:blocked,transitions:{'2027-01-17':{previous:{end_time:'09:00',duration_minutes:null,distance_km:null}}}});
   assert.equal(unknown.reason,'transition_unverified');
-  const short=proposeDateAdjustments({meetings,rules,exceptions:blocked,transitions:{'2027-01-17':{previous:{end_time:'09:40',duration_minutes:10}}}});
+  const tooFar=proposeDateAdjustments({meetings,rules,exceptions:blocked,transitions:{'2027-01-17':{previous:{end_time:'09:00',duration_minutes:10,distance_km:21}}}});
+  assert.equal(tooFar.reason,'transition_distance_exceeded');
+  const short=proposeDateAdjustments({meetings,rules,exceptions:blocked,transitions:{'2027-01-17':{previous:{end_time:'09:41',duration_minutes:10,distance_km:20}}}});
   assert.equal(short.reason,'transition_insufficient');
-  const exact=proposeDateAdjustments({meetings,rules,exceptions:blocked,transitions:{'2027-01-17':{previous:{end_time:'09:35',duration_minutes:10}}}});
-  assert.equal(exact.valid,true,'a 25-minute gap covers 10 minutes travel plus one 15-minute buffer');
-  const missingMinute=proposeDateAdjustments({meetings,rules,exceptions:blocked,transitions:{'2027-01-17':{previous:{end_time:'09:36',duration_minutes:10}}}});
+  const exact=proposeDateAdjustments({meetings,rules,exceptions:blocked,transitions:{'2027-01-17':{previous:{end_time:'09:40',duration_minutes:10,distance_km:20}}}});
+  assert.equal(exact.valid,true,'a 20-minute gap covers 10 minutes travel plus one 10-minute buffer');
+  const missingMinute=proposeDateAdjustments({meetings,rules,exceptions:blocked,transitions:{'2027-01-17':{previous:{end_time:'09:41',duration_minutes:10,distance_km:20}}}});
   assert.equal(missingMinute.reason,'transition_insufficient');
 });
 

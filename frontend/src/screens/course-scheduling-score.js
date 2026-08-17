@@ -36,7 +36,7 @@ export function courseUrgency(course = {}, referenceDate = null) {
 function sameSchool(first = {}, second = {}) {
   const a = text(first.school_id);
   const b = text(second.school_id);
-  return a && b ? a === b : !!text(first.school) && text(first.school).toLocaleLowerCase('he-IL') === text(second.school).toLocaleLowerCase('he-IL');
+  return !!(a && b && a === b);
 }
 
 const legValue = (leg, field) => Number.isFinite(Number(leg?.[field])) ? Number(leg[field]) : 0;
