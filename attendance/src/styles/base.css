@@ -157,6 +157,32 @@ button {
   opacity: 0.85;
 }
 
+/* Secondary outlined button — used for secondary actions (e.g. Excel export). */
+.av2-btn--secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--av2-space-2);
+  width: auto;
+  min-height: 38px;
+  padding: 8px 14px;
+  border-radius: 10px;
+  background: var(--av2-color-surface);
+  color: var(--av2-color-accent);
+  font-size: 0.875rem;
+  font-weight: 600;
+  border: 1.5px solid var(--av2-color-accent);
+}
+
+.av2-btn--secondary:hover,
+.av2-btn--secondary:focus-visible {
+  background: #eff6ff;
+}
+
+.av2-btn--secondary:active {
+  opacity: 0.85;
+}
+
 /* Icon buttons: ~34px visual chip, but the hit target stays 44px for mobile per design rules. */
 .av2-btn--icon {
   display: inline-flex;
