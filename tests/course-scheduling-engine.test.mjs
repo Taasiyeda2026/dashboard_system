@@ -245,7 +245,7 @@ test('real classification rejects explicit gender mismatch but ignores deprecate
   const html = detailsHtml(result);
   assert.match(html, /לא עברו תנאי סף \(1\)/);
   assert.match(html, /אלדר מיכאל טייב/);
-  assert.match(html, /הקורס דורש מדריכה/);
+  assert.match(html, /לא מתאים לדרישת המגדר/);
   assert.doesNotMatch(html, /אינו מתאים לרמת החינוך של הפעילות/);
   assert.doesNotMatch(html, /פרופילים חסרים להשלמה/);
   assert.doesNotMatch(html, /חסר להשלמה:[^<]*זמינות שבועית/);

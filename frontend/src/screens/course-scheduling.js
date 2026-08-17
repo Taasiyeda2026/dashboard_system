@@ -746,6 +746,27 @@ function alternativeCandidateCardHtml(candidate, { rank, selectedId = '', expand
   </div>`;
 }
 
+function conciseRejectionReason(candidate) {
+  const reason = text(candidate?.failures?.[0]);
+  if (!reason) return 'לא עומד בתנאי הסף';
+
+  if (/מרחק|מגבלה של\s*40\s*ק[״"]?מ/.test(reason)) {
+    const homeKm = Number(candidate?.travel?.home?.distance_km);
+    const distanceFromReason = reason.match(/(\d+(?:\.\d+)?)\s*ק[״"]?מ/)?.[1];
+    const km = Number.isFinite(homeKm) ? homeKm : Number(distanceFromReason);
+    if (Number.isFinite(km)) return `מרחק מהבית ${Math.round(km)} ק״מ`;
+  }
+  if (/חפיפה/.test(reason)) return 'חפיפה עם פעילות קיימת';
+  if (/אין זמן מעבר מספיק|זמן מעבר.*(?:אינו|לא).*מספיק/.test(reason)) return 'אין זמן מעבר מספיק';
+  if (/זמינות|זמין|פנוי|פנויה|שעות.*(?:אינן|לא).*מכס/.test(reason)) return 'לא זמין בשעות הקורס';
+  if (/שפ(?:ת|ה)|עברית|ערבית/.test(reason)) return 'שפה לא מתאימה';
+  if (/מגדר|דורש מדריכ|דרישת.*מדריכ/.test(reason)) return 'לא מתאים לדרישת המגדר';
+  return reason
+    .replace(/\s*-\s*משפיע על (?:מפגש אחד|\d+ מפגשים).*$/, '')
+    .replace(/\s*\([^)]*(?:\d{2}:\d{2}|\d{4}-\d{2}-\d{2})[^)]*\).*$/, '')
+    .trim() || 'לא עומד בתנאי הסף';
+}
+
 function rejectedCandidatesHtml(result) {
   // Hard threshold failures only — incomplete profiles (eligible:false, failures:[]) stay in incompleteProfilesHtml.
   const rejected = (result.checked || []).filter((candidate) => (candidate.failures || []).length);
@@ -756,20 +777,11 @@ function rejectedCandidatesHtml(result) {
   return `<details class="course-scheduling-rejected" data-rejected-candidates><summary>לא עברו תנאי סף (${rows.length})</summary>
     <div class="course-scheduling-rejected-list">
       ${rows.map((candidate) => {
-        const failures = candidate.failures || [];
-        const primary = failures[0] || 'לא עומד בתנאי הסף';
-        const additionalFailures = failures.slice(1);
-        // Avoid re-printing a missing-profile reason already shown as the primary/additional failure.
-        const missing = (candidate.missingProfileData || []).filter((item) => {
-          const value = text(item);
-          return value && !failures.some((failure) => text(failure).includes(value) || value.includes(text(failure)));
-        });
+        const primary = conciseRejectionReason(candidate);
         return `<div class="course-scheduling-rejected-row" data-rejected-candidate="${escapeHtml(emp(candidate))}">
           <strong>${escapeHtml(candidate.instructor?.full_name || emp(candidate) || '—')}</strong>
           <div class="course-scheduling-rejected-row__details">
             <p class="course-scheduling-rejected-primary">${escapeHtml(primary)}</p>
-            ${additionalFailures.length ? `<ul class="course-scheduling-rejected-failures">${additionalFailures.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul>` : ''}
-            ${missing.length ? `<p class="course-scheduling-rejected-missing">נתונים חסרים: ${escapeHtml(missing.join(' · '))}</p>` : ''}
           </div>
         </div>`;
       }).join('')}
