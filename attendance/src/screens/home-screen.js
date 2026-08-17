@@ -6,7 +6,7 @@
 
 import { createIcon } from '../components/icon.js';
 import { getMonthRecords, calcMonthSummary, getMonthApproval, submitMonth } from '../services/attendance.service.js';
-import { canEditMonth, editBlockReason, getMonthKey, formatMonthLabel } from '../services/month-gate.service.js';
+import { canEditMonth, editBlockReason, getMonthKey, formatMonthLabel, shouldShowSubmitReminder } from '../services/month-gate.service.js';
 import { exportMonthToExcel } from '../services/excel.service.js';
 
 export function renderHomeScreen(container, {
@@ -70,19 +70,12 @@ export function renderHomeScreen(container, {
   statsEl.className = 'av2-stats-grid';
   statsEl.innerHTML = buildStatSkeletons();
 
-  // ── Nav rows ───────────────────────────────────────────────────────────
-  const rows = document.createElement('div');
-  rows.className = 'av2-home__rows';
-  rows.append(
-    buildNavRow({ icon: 'list', label: 'הדיווחים שלי', onClick: onMyReports })
-  );
-
   // ── Monthly approval card placeholder ─────────────────────────────────
   const approvalCard = document.createElement('div');
   approvalCard.className = 'av2-approval-card';
   approvalCard.innerHTML = '<p class="av2-approval-card__loading">טוען מצב חודש…</p>';
 
-  inner.append(header, monthNav, newReportBtn, statsEl, rows, approvalCard);
+  inner.append(header, monthNav, newReportBtn, statsEl, approvalCard);
   wrap.append(inner);
   container.append(wrap);
 
@@ -119,6 +112,10 @@ async function loadAndRender({ instructor, year, month, statsEl, approvalCard, n
 
     // Update approval card
     approvalCard.innerHTML = '';
+    // Submit reminder banner: shown from the 25th when month is still open/reopened
+    if (shouldShowSubmitReminder(year, month, approval)) {
+      approvalCard.append(buildSubmitReminderBanner({ year, month }));
+    }
     approvalCard.append(buildApprovalCard({ approval, year, month, instructor, records, summary, editable, onMyReports }));
 
     // Excel export button (if there are records)
@@ -294,15 +291,41 @@ async function handleSubmit({ submitBtn, instructor, year, month, records, wrap 
   }
 }
 
-function buildNavRow({ icon, label, onClick }) {
-  const row = document.createElement('button');
-  row.type = 'button';
-  row.className = 'av2-row av2-row--nav';
-  row.append(createIcon(icon));
-  const text = document.createElement('span');
-  text.className = 'av2-row__label';
-  text.textContent = label;
-  row.append(text, createIcon('chevron-left'));
-  row.addEventListener('click', () => onClick?.());
-  return row;
+function buildSubmitReminderBanner({ year, month }) {
+  const banner = document.createElement('div');
+  banner.className = 'av2-submit-reminder';
+
+  const icon = document.createElement('span');
+  icon.className = 'av2-submit-reminder__icon';
+  icon.setAttribute('aria-hidden', 'true');
+  icon.textContent = '⏰';
+
+  const body = document.createElement('div');
+  body.className = 'av2-submit-reminder__body';
+
+  const title = document.createElement('p');
+  title.className = 'av2-submit-reminder__title';
+  title.textContent = 'תזכורת: הגש את הדיווח החודשי';
+
+  const text = document.createElement('p');
+  text.className = 'av2-submit-reminder__text';
+  text.textContent = `נותרו ימים ספורים לסיום ${formatMonthLabel(year, month)}. יש לסיים ולהגיש את הדיווח החודשי.`;
+
+  const actionBtn = document.createElement('button');
+  actionBtn.type = 'button';
+  actionBtn.className = 'av2-submit-reminder__action';
+  actionBtn.textContent = 'לסגירת החודש ↓';
+  actionBtn.addEventListener('click', () => {
+    // Scroll to the approval card's submit button (or the card itself)
+    const submitBtn = document.querySelector('.av2-approval-inner .av2-btn--primary');
+    const target = submitBtn || document.querySelector('.av2-approval-inner');
+    if (target) {
+      target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      if (submitBtn) submitBtn.focus();
+    }
+  });
+
+  body.append(title, text, actionBtn);
+  banner.append(icon, body);
+  return banner;
 }
