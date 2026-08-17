@@ -15,6 +15,7 @@
 
 import { createIcon } from '../components/icon.js';
 import { createInputField, createSelectField } from '../components/field.js';
+import { createSearchableSelect } from '../components/searchable-select.js';
 import {
   getInstructorActivitiesForDate,
   getSchoolOptions,
@@ -315,7 +316,7 @@ export function renderNewReportScreen(container, {
       id: 'av2-activity-type',
       label: 'סוג פעילות',
       options: [
-        { value: '', label: '— בחר —' },
+        { value: '', label: 'בחר' },
         ...HEBREW_ACTIVITY_TYPES.map(t => ({ value: t, label: t })),
       ],
       value: hebrewType,
@@ -397,74 +398,79 @@ export function renderNewReportScreen(container, {
         schoolEl = sf.wrap;
       }
     } else {
-      // ── Manual mode: dropdowns from DB ─────────────────────────────
-      const authSelectField = createSelectField({
-        id: 'av2-authority',
-        label: 'רשות',
-        options: [
-          { value: '', label: '— בחר רשות —' },
-          ...authoritySchoolData.map(a => ({ value: String(a.authority_id), label: a.authority_name })),
-        ],
-      });
-      authorityEl = authSelectField.wrap;
+      // ── Manual mode: searchable dropdowns from DB ──────────────────
+      // Flat list of all schools (all authorities) for pre-authority selection
+      const allSchoolsFlat = authoritySchoolData.flatMap(a =>
+        (a.schools || []).map(s => ({
+          value:          String(s.id),
+          label:          s.name || String(s.id),
+          authority_id:   a.authority_id,
+          authority_name: a.authority_name,
+          semel_mosad:    s.semel_mosad ?? null,
+        }))
+      );
 
-      // School dropdown — populated when authority is chosen
-      const schoolWrap = document.createElement('div');
-      schoolWrap.className = 'av2-field';
-      const schoolLbl = document.createElement('label');
-      schoolLbl.className = 'av2-field__label';
-      schoolLbl.textContent = 'בית ספר';
-      schoolLbl.htmlFor = 'av2-school-sel';
-      const schoolSel = document.createElement('select');
-      schoolSel.id = 'av2-school-sel';
-      schoolSel.className = 'av2-field__select';
-      schoolWrap.append(schoolLbl, schoolSel);
-      schoolEl = schoolWrap;
-
-      function refreshSchoolOptions(authorityId) {
-        schoolSel.innerHTML = '';
-        const entry   = authoritySchoolData.find(a => a.authority_id === authorityId);
-        const schools = entry?.schools || [];
-        const emptyOpt = document.createElement('option');
-        emptyOpt.value = '';
-        if (!authorityId) {
-          emptyOpt.textContent = '— בחר רשות קודם —';
-          emptyOpt.disabled = true;
-        } else {
-          emptyOpt.textContent = schools.length ? '— בחר בית ספר —' : '— אין בתי ספר —';
-        }
-        schoolSel.append(emptyOpt);
-        for (const s of schools) {
-          const opt = document.createElement('option');
-          opt.value = String(s.id);
-          opt.dataset.name  = s.name || '';
-          opt.dataset.semel = s.semel_mosad != null ? String(s.semel_mosad) : '';
-          opt.textContent = s.name || String(s.id);
-          schoolSel.append(opt);
-        }
-        manualSchoolId = null; manualSchoolName = ''; semelMosad = null;
-        schoolSel.value = '';
+      // Helper: build school option list for a given authority (or all)
+      function schoolOptsFor(authorityId) {
+        if (!authorityId) return allSchoolsFlat;
+        return allSchoolsFlat.filter(s => s.authority_id === authorityId);
       }
 
-      refreshSchoolOptions(null);
-
-      authSelectField.input.addEventListener('change', () => {
-        manualAuthId = authSelectField.input.value ? Number(authSelectField.input.value) : null;
-        const entry  = authoritySchoolData.find(a => a.authority_id === manualAuthId);
-        manualAuthName = entry?.authority_name || '';
-        refreshSchoolOptions(manualAuthId);
+      // ── School searchable select (declared first; referenced by authSel onChange)
+      const schoolSel = createSearchableSelect({
+        id: 'av2-school',
+        label: 'בית ספר',
+        options: allSchoolsFlat,
+        placeholder: 'בחר בית ספר…',
+        searchPlaceholder: 'חיפוש בית ספר…',
+        onChange(value, lbl, opt) {
+          if (value) {
+            manualSchoolId   = Number(value);
+            manualSchoolName = lbl || '';
+            semelMosad       = opt?.semel_mosad ?? null;
+            // Auto-set authority when school is chosen first
+            if (opt?.authority_id && opt.authority_id !== manualAuthId) {
+              manualAuthId   = opt.authority_id;
+              manualAuthName = opt.authority_name || '';
+              authSel.setValue(String(opt.authority_id), opt.authority_name || '');
+              // Narrow school list to the auto-set authority
+              schoolSel.setOptions(schoolOptsFor(manualAuthId));
+            }
+          } else {
+            manualSchoolId = null; manualSchoolName = ''; semelMosad = null;
+          }
+        },
       });
 
-      schoolSel.addEventListener('change', () => {
-        const opt = schoolSel.selectedOptions[0];
-        if (opt?.value) {
-          manualSchoolId   = Number(opt.value);
-          manualSchoolName = opt.dataset.name || '';
-          semelMosad       = opt.dataset.semel ? Number(opt.dataset.semel) : null;
-        } else {
-          manualSchoolId = null; manualSchoolName = ''; semelMosad = null;
-        }
+      // ── Authority searchable select
+      const authSel = createSearchableSelect({
+        id: 'av2-authority',
+        label: 'רשות',
+        options: authoritySchoolData.map(a => ({
+          value: String(a.authority_id),
+          label: a.authority_name,
+        })),
+        placeholder: 'בחר רשות…',
+        searchPlaceholder: 'חיפוש רשות…',
+        onChange(value, lbl) {
+          manualAuthId   = value ? Number(value) : null;
+          manualAuthName = lbl || '';
+          // Filter school list; reset school if it no longer belongs here
+          schoolSel.setOptions(schoolOptsFor(manualAuthId));
+          if (manualSchoolId) {
+            const stillValid = schoolOptsFor(manualAuthId).some(
+              s => s.value === String(manualSchoolId)
+            );
+            if (!stillValid) {
+              manualSchoolId = null; manualSchoolName = ''; semelMosad = null;
+              schoolSel.reset();
+            }
+          }
+        },
       });
+
+      authorityEl = authSel.wrap;
+      schoolEl    = schoolSel.wrap;
     }
 
     form.append(authorityEl, schoolEl);
