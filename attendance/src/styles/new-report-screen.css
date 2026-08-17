@@ -52,21 +52,18 @@
   color: var(--av2-color-text-muted);
 }
 
-.av2-activity-picker__empty {
-  padding: 12px 14px;
-  background: var(--av2-color-surface);
-  border: 1px solid var(--av2-color-border);
-  border-radius: 10px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  align-items: flex-start;
+/* Non-blocking no-activities note */
+.av2-activity-picker__no-activity {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--av2-color-text-muted);
+  font-style: italic;
 }
 
-.av2-activity-picker__empty p {
-  margin: 0;
-  font-size: 0.875rem;
-  color: var(--av2-color-text-muted);
+/* Selected suggestion indicator */
+.av2-activity-card.is-selected {
+  border-color: var(--av2-color-accent);
+  background: color-mix(in srgb, var(--av2-color-accent) 6%, white);
 }
 
 .av2-activity-picker__locked {
@@ -260,6 +257,32 @@
   color: var(--av2-color-accent);
   min-width: 3ch;
   text-align: start;
+}
+
+/* ── Field validation ────────────────────────────────────────────────────── */
+
+.av2-field--invalid > .av2-field__label {
+  color: #dc2626;
+}
+
+.av2-field--invalid .av2-field__input,
+.av2-field--invalid .av2-field__select,
+.av2-field--invalid .av2-time-picker,
+.av2-field--invalid .av2-ssel__trigger {
+  border-color: #dc2626;
+  background: #fef2f2;
+}
+
+/* ── No-activity note ────────────────────────────────────────────────────── */
+
+.av2-report__no-activity-note {
+  margin: 0;
+  padding: 8px 12px;
+  font-size: 0.8125rem;
+  color: var(--av2-color-text-muted);
+  background: var(--av2-color-bg);
+  border: 1px solid var(--av2-color-border);
+  border-radius: 8px;
 }
 
 /* ── Save / error ────────────────────────────────────────────────────────── */
