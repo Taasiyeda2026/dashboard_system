@@ -1,0 +1,79 @@
+/* Manager board only: visually compact the page body without scaling the shell header/sidebar. */
+@media (min-width: 901px) {
+  .manager-board-screen[data-manager-board-root] {
+    width: 125%;
+    max-width: none;
+    zoom: .8;
+  }
+}
+
+/* Calendar must stay flat: no colored pills/bubbles around holidays or activities. */
+.manager-board-calendar-day.is-school-blocked {
+  background: #fff !important;
+}
+
+.manager-board-calendar-day__school {
+  max-width: 92px;
+  padding: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  color: #8a5a12;
+  font-weight: 700;
+}
+
+.manager-board-calendar-event,
+.manager-board-calendar-event.is-mid,
+.manager-board-calendar-event.is-end {
+  width: 100%;
+  min-height: 22px;
+  padding: 3px 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  color: #334155;
+  cursor: pointer;
+  font: inherit;
+  text-align: right;
+  outline-offset: 2px;
+}
+
+.manager-board-calendar-event:hover,
+.manager-board-calendar-event:focus-visible {
+  background: transparent !important;
+  color: #0f172a;
+  text-decoration: underline;
+}
+
+.manager-board-calendar-event strong {
+  color: #475569;
+}
+
+.manager-board-calendar-event.is-mid em {
+  color: #a16207;
+}
+
+.manager-board-calendar-event.is-end em {
+  color: #047857;
+}
+
+.manager-board-calendar-day__number,
+.manager-board-calendar-day.is-today .manager-board-calendar-day__number {
+  border-radius: 0 !important;
+  background: transparent !important;
+  color: #334155 !important;
+}
+
+.manager-board-calendar-day.is-today .manager-board-calendar-day__number {
+  font-weight: 900;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.manager-board-legend i,
+.manager-board-legend i.is-mid,
+.manager-board-legend i.is-end {
+  width: 2px;
+  height: 12px;
+  border-radius: 0 !important;
+  background: currentColor !important;
+}
