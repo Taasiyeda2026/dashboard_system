@@ -1,0 +1,8 @@
+project_id = "dashboard_system"
+
+[remotes.main]
+project_id = "szinlhjuwyiyszdpsdop"
+
+[remotes.main.auth.email.template.recovery]
+subject = "קוד אימות לאיפוס הכניסה – תעשיידע"
+content_path = "./supabase/templates/recovery.html"
