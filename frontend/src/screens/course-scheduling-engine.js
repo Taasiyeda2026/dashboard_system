@@ -201,7 +201,16 @@ function dynamicTravel(course, instructor, existingMeetings, input = {}) {
     const { previous, next } = adjacentActivities(existingMeetings, meeting);
     transitions[meeting.date] = {
       previous: previous ? routeLeg(input.routeMatrix, placeOf(previous), destination, sameSchool(previous, course)) : null,
-      next: next ? routeLeg(input.routeMatrix, destination, placeOf(next), sameSchool(course, next)) : null
+      next: next ? routeLeg(input.routeMatrix, destination, placeOf(next), sameSchool(course, next)) : null,
+      // Route that existed before inserting the course. Subtracting this leg is
+      // what turns surrounding travel into the course's real incremental travel.
+      baseline: previous && next
+        ? routeLeg(input.routeMatrix, placeOf(previous), placeOf(next), sameSchool(previous, next))
+        : previous
+          ? routeLeg(input.routeMatrix, placeOf(previous), text(instructor.address))
+          : next
+            ? routeLeg(input.routeMatrix, text(instructor.address), placeOf(next))
+            : null
     };
   }
   const home = base?.home || null;
@@ -254,8 +263,7 @@ function evaluateCandidate({
   profiles,
   rules,
   exceptions,
-  input,
-  peerPlannerProjectedHours = null
+  input
 }) {
   const empId = text(instructor.emp_id);
   // A: persisted schedule only — approved assignments + saved drafts.

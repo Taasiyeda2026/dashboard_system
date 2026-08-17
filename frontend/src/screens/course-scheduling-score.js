@@ -39,7 +39,9 @@ function sameSchool(first = {}, second = {}) {
   return a && b ? a === b : !!text(first.school) && text(first.school).toLocaleLowerCase('he-IL') === text(second.school).toLocaleLowerCase('he-IL');
 }
 
-/** Classifies every meeting and totals the actual added route legs across the whole course. */
+const legValue = (leg, field) => Number.isFinite(Number(leg?.[field])) ? Number(leg[field]) : 0;
+
+/** Classifies every meeting and totals the real travel added by inserting the course. */
 export function analyzeDayPlacement({ activity = {}, meetings = [], existingActivities = [], travel = null, workDates = new Set() } = {}) {
   const baselineDates = workDates instanceof Set ? workDates : new Set(workDates || []);
   const result = {
@@ -59,17 +61,13 @@ export function analyzeDayPlacement({ activity = {}, meetings = [], existingActi
     else if (rows.length || baselineDates.has(date)) result.existingWorkDayMeetingCount += 1;
     else result.newWorkDayMeetingCount += 1;
 
-    if (previous) {
-      result.totalTravelMinutes += Number(transition.previous?.duration_minutes) || 0;
-      result.totalTravelDistance += Number(transition.previous?.distance_km) || 0;
-    } else {
-      result.totalTravelMinutes += Number(travel?.home?.duration_minutes) || 0;
-      result.totalTravelDistance += Number(travel?.home?.distance_km) || 0;
-    }
-    if (next) {
-      result.totalTravelMinutes += Number(transition.next?.duration_minutes) || 0;
-      result.totalTravelDistance += Number(transition.next?.distance_km) || 0;
-    }
+    const inbound = previous ? transition.previous : travel?.home;
+    const outbound = next ? transition.next : travel?.homeReturn;
+    const baseline = transition.baseline;
+    result.totalTravelMinutes += legValue(inbound, 'duration_minutes')
+      + legValue(outbound, 'duration_minutes') - legValue(baseline, 'duration_minutes');
+    result.totalTravelDistance += legValue(inbound, 'distance_km')
+      + legValue(outbound, 'distance_km') - legValue(baseline, 'distance_km');
   }
   const count = Math.max(1, meetings.length);
   return {
@@ -116,9 +114,17 @@ function compareEmpIds(first, second) {
 
 /** Business priority: daily concentration, added travel, availability use, then seniority. */
 export function compareCandidatesStable(first, second) {
+  const integrated = (candidate) => (Number(candidate.sameSchoolMeetingCount) || 0)
+    + (Number(candidate.nearbyMeetingCount) || 0)
+    + (Number(candidate.existingWorkDayMeetingCount) || 0);
+  const firstIntegrated = integrated(first);
+  const secondIntegrated = integrated(second);
+  if (firstIntegrated !== secondIntegrated) return secondIntegrated - firstIntegrated;
+  const firstNewDays = Number(first.newWorkDayMeetingCount) || 0;
+  const secondNewDays = Number(second.newWorkDayMeetingCount) || 0;
+  if (firstNewDays !== secondNewDays) return firstNewDays - secondNewDays;
   const fields = [
-    ['sameSchoolMeetingCount', -1], ['nearbyMeetingCount', -1],
-    ['existingWorkDayMeetingCount', -1], ['newWorkDayMeetingCount', 1],
+    ['sameSchoolMeetingCount', -1], ['nearbyMeetingCount', -1], ['existingWorkDayMeetingCount', -1],
     ['relevantTravelMinutes', 1], ['relevantTravelDistance', 1],
     ['utilizationRatio', 1], ['seniorityYears', -1]
   ];

@@ -27,6 +27,29 @@ test('ranking follows efficiency, added travel, availability utilization, and se
   assert.ok(compareCandidatesStable({ ...base, relevantTravelMinutes: 12, instructor: instructor('short') }, { ...base, relevantTravelMinutes: 30, instructor: instructor('long') }) < 0);
   assert.ok(compareCandidatesStable({ ...base, utilizationRatio: .2, instructor: instructor('free') }, { ...base, utilizationRatio: .8, instructor: instructor('busy') }) < 0);
   assert.ok(compareCandidatesStable({ ...base, seniorityYears: 8, instructor: instructor('senior') }, { ...base, seniorityYears: 1, instructor: instructor('junior') }) < 0);
+  assert.ok(compareCandidatesStable(
+    { ...base, sameSchoolMeetingCount: 0, existingWorkDayMeetingCount: 12, newWorkDayMeetingCount: 0, instructor: instructor('all-integrated') },
+    { ...base, sameSchoolMeetingCount: 1, existingWorkDayMeetingCount: 0, newWorkDayMeetingCount: 11, instructor: instructor('one-same-school') }
+  ) < 0, '12/12 integrated meetings must outrank one same-school meeting plus 11 new days');
+});
+
+const travelPlacement = ({ previous = null, next = null, previousLeg = null, nextLeg = null, baseline = null, home = null, homeReturn = null }) => analyzeDayPlacement({
+  activity: course('travel', { meetings: [meetings[0]] }), meetings: [meetings[0]],
+  existingActivities: [previous, next].filter(Boolean),
+  travel: { home, homeReturn, transitions: { [meetings[0].date]: { previous: previousLeg, next: nextLeg, baseline } } }
+});
+const activityBefore = { ...meetings[0], start_time: '08:00', end_time: '09:00', school_id: 200 };
+const activityAfter = { ...meetings[0], start_time: '12:00', end_time: '13:00', school_id: 300 };
+const leg = (duration_minutes, distance_km) => ({ duration_minutes, distance_km });
+
+test('incremental travel covers only, first, middle, and last activity positions', () => {
+  assert.deepEqual(
+    (({ relevantTravelMinutes, relevantTravelDistance }) => ({ relevantTravelMinutes, relevantTravelDistance }))(
+      travelPlacement({ home: leg(20, 10), homeReturn: leg(22, 11) })
+    ), { relevantTravelMinutes: 42, relevantTravelDistance: 21 }, 'only activity includes both home legs');
+  assert.equal(travelPlacement({ next: activityAfter, home: leg(20, 10), nextLeg: leg(8, 4), baseline: leg(25, 13) }).relevantTravelMinutes, 3, 'first activity subtracts the old home-to-next route');
+  assert.equal(travelPlacement({ previous: activityBefore, next: activityAfter, previousLeg: leg(7, 3), nextLeg: leg(8, 4), baseline: leg(12, 6) }).relevantTravelMinutes, 3, 'middle activity replaces the old previous-to-next route');
+  assert.equal(travelPlacement({ previous: activityBefore, previousLeg: leg(7, 3), homeReturn: leg(22, 11), baseline: leg(24, 12) }).relevantTravelMinutes, 5, 'last activity subtracts the old previous-to-home route');
 });
 
 test('distance over 40 km is rejected and unavailable or overlapping instructors are not ranked', () => {

@@ -1883,9 +1883,14 @@ export const courseSchedulingScreen = {
       });
       const { error } = await supabase.rpc(rpc, payload);
       if (error) { showToast(translateSchedulingAssignmentError(error.message, 'שמירת הטיוטה נכשלה'), 'error'); updateCandidateActions(false); return; }
+      if (liveCourse) {
+        liveCourse.draft_emp_id = String(payload.p_emp_id);
+        liveCourse.draft_instructor_name = payload.p_instructor_name;
+        if (payload.p_proposed_meetings) liveCourse.draft_proposed_meetings = payload.p_proposed_meetings;
+      }
       clearScreenDataCache?.();
-      showToast('נשמר כטיוטה', 'success');
-      rerender();
+      showToast('נשמר כטיוטה. ההמלצות מתעדכנות.', 'success');
+      await runFindInstructors();
     });
 
     detailRoot.querySelector('[data-confirm-draft]')?.addEventListener('click', async (event) => {

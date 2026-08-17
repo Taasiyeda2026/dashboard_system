@@ -164,6 +164,7 @@ export async function calculateCandidateTravel(preliminary, activities, routeCli
     const homeOrigin = text(candidate.instructor.address);
     const result = {
       home: homeOrigin && destination ? await route(homeOrigin, destination) : null,
+      homeReturn: destination && homeOrigin ? await route(destination, homeOrigin) : null,
       transitions: {}
     };
     for (const meeting of activityMeetings(course)) {
@@ -172,7 +173,14 @@ export async function calculateCandidateTravel(preliminary, activities, routeCli
       const nextPlace = next ? activityPlace(next) : '';
       result.transitions[meeting.date] = {
         previous: previousPlace && destination ? await route(previousPlace, destination) : null,
-        next: destination && nextPlace ? await route(destination, nextPlace) : null
+        next: destination && nextPlace ? await route(destination, nextPlace) : null,
+        baseline: previousPlace && nextPlace
+          ? await route(previousPlace, nextPlace)
+          : previousPlace && homeOrigin
+            ? await route(previousPlace, homeOrigin)
+            : homeOrigin && nextPlace
+              ? await route(homeOrigin, nextPlace)
+              : null
       };
     }
     (travel[activityId(course)] ||= {})[empId] = result;
