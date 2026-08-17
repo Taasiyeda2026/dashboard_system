@@ -109,26 +109,12 @@
   color: var(--av2-color-text-muted);
 }
 
+/* Primary action button — compact, content-width, not full-width */
 .av2-home__primary {
-  min-height: 44px;
-}
-
-.av2-home__rows {
-  display: flex;
-  flex-direction: column;
-  gap: var(--av2-space-2);
-}
-
-.av2-row--nav {
-  font-family: inherit;
-  font-size: 0.8125rem;
-  color: var(--av2-color-text);
-  cursor: pointer;
-}
-
-.av2-row__label {
-  flex: 1;
-  text-align: start;
+  width: auto;
+  align-self: flex-start;
+  padding-inline: 20px;
+  min-height: 40px;
 }
 
 /* Monthly approval card */
@@ -230,6 +216,69 @@
   margin: 0;
 }
 
+/* Submit reminder banner */
+.av2-submit-reminder {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  background: #fffbeb;
+  border: 1px solid #f59e0b;
+  border-radius: 10px;
+  color: #92400e;
+}
+
+.av2-submit-reminder__icon {
+  flex-shrink: 0;
+  font-size: 1.125rem;
+  line-height: 1;
+  margin-top: 1px;
+}
+
+.av2-submit-reminder__body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+}
+
+.av2-submit-reminder__title {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: #78350f;
+}
+
+.av2-submit-reminder__text {
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.4;
+}
+
+.av2-submit-reminder__action {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 6px;
+  padding: 6px 12px;
+  background: #f59e0b;
+  border: none;
+  border-radius: 6px;
+  color: #fff;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  text-decoration: none;
+  align-self: flex-start;
+  transition: background 0.15s;
+}
+
+.av2-submit-reminder__action:hover {
+  background: #d97706;
+}
+
 /* ── Desktop home layout (≥640px) ────────────────────────────────────────── */
 @media (min-width: 640px) {
   /* 4 stat cards in one row */
@@ -246,20 +295,8 @@
     font-size: 1.25rem;
   }
 
-  /* Nav rows side-by-side: "הדיווחים שלי" and "דיווח חודשי" */
-  .av2-home__rows {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 12px;
-  }
-
-  /* Add-report button: compact auto-width, not full-width */
+  /* Add-report button: a bit more breathing room on desktop */
   .av2-home__primary {
-    display: flex;
-  }
-
-  .av2-home__primary .av2-btn--primary {
-    width: auto;
     padding-inline: 28px;
   }
 }
