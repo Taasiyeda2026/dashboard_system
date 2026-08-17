@@ -7,6 +7,8 @@ import { COORDINATION_DOCUMENT_VERSION, finishDispatch, markDispatchDraft, recor
 export const COORDINATION_CORRELATION_PROPERTY = 'String {8ECCC264-8F4A-4E1A-934E-8C0C2A92D8B1} Name ActivityCoordinationDispatch';
 export const COORDINATION_PDF_TEMPLATE_VERSION = COORDINATION_DOCUMENT_VERSION;
 
+let photographyApprovalPromise = null;
+
 export function coordinationCcRecipients(group) {
   return [...new Set((group?.activities || [])
     .map((item) => String(item?.cc_email || '').trim().toLowerCase())
@@ -18,9 +20,18 @@ export function dispatchGroups(items) {
 }
 
 async function photographyApprovalAttachment() {
-  const { data, error } = await supabase.functions.invoke('activity-coordination-photo-approval', { body: {} });
-  if (error || !data?.content_bytes) throw new Error(data?.message || 'לא ניתן לטעון את אישור הצילום מ-SharePoint.');
-  return { name: data.name || 'אישור צילום.pdf', contentType: data.content_type || 'application/pdf', contentBytes: data.content_bytes };
+  if (!photographyApprovalPromise) {
+    photographyApprovalPromise = supabase.functions.invoke('activity-coordination-photo-approval', { body: {} })
+      .then(({ data, error }) => {
+        if (error || !data?.content_bytes) throw new Error(data?.message || 'לא ניתן לטעון את אישור הצילום מ-SharePoint.');
+        return { name: data.name || 'אישור צילום.pdf', contentType: data.content_type || 'application/pdf', contentBytes: data.content_bytes };
+      })
+      .catch((error) => {
+        photographyApprovalPromise = null;
+        throw error;
+      });
+  }
+  return photographyApprovalPromise;
 }
 
 async function replaceStaleDrafts(group, token) {
@@ -64,15 +75,20 @@ export async function prepareCoordinationDraftGroup(group, { token } = {}) {
 
   let draft;
   try {
-    const pdfBlob = await generateActivityCoordinationPdf(snapshots);
-    const [summaryBytes, photo] = await Promise.all([blobToBase64(pdfBlob), photographyApprovalAttachment()]);
+    const [pdfBlob, photo] = await Promise.all([
+      generateActivityCoordinationPdf(snapshots),
+      photographyApprovalAttachment()
+    ]);
+    const summaryBytes = await blobToBase64(pdfBlob);
     draft = await createGraphDraft({
       token, subject: mail.subject, body: mail.body, to: [group.recipient_email],
       cc: coordinationCcRecipients(group),
       extendedProperties: [{ id: COORDINATION_CORRELATION_PROPERTY, value: correlationId }]
     });
-    await addGraphFileAttachment(token, draft.id, { name: summaryFilename, contentType: 'application/pdf', contentBytes: summaryBytes });
-    await addGraphFileAttachment(token, draft.id, photo);
+    await Promise.all([
+      addGraphFileAttachment(token, draft.id, { name: summaryFilename, contentType: 'application/pdf', contentBytes: summaryBytes }),
+      addGraphFileAttachment(token, draft.id, photo)
+    ]);
     await markDispatchDraft(dispatch.id, draft);
     return { dispatch: { ...dispatch, graph_message_id: draft.id }, draft, existing: false };
   } catch (error) {
@@ -84,7 +100,10 @@ export async function prepareCoordinationDraftGroup(group, { token } = {}) {
 
 export async function prepareCoordinationDrafts(items, { loginHint = '', onProgress = () => {} } = {}) {
   const groups = dispatchGroups(items);
-  const token = await delegatedMailToken(loginHint);
+  const [token] = await Promise.all([
+    delegatedMailToken(loginHint),
+    photographyApprovalAttachment()
+  ]);
   return runSequentialGroups(groups, (group) => prepareCoordinationDraftGroup(group, { token }), onProgress);
 }
 

@@ -7,6 +7,7 @@ const api = await readFile(new URL('../frontend/src/api.js', import.meta.url), '
 const graph = await readFile(new URL('../frontend/src/microsoft/graph-mail.js', import.meta.url), 'utf8');
 const photo = await readFile(new URL('../supabase/functions/activity-coordination-photo-approval/index.ts', import.meta.url), 'utf8');
 const view = await readFile(new URL('../frontend/src/activity-coordination/view.js', import.meta.url), 'utf8');
+const outlook = await readFile(new URL('../frontend/src/activity-coordination/outlook.js', import.meta.url), 'utf8');
 const detailHtml = await readFile(new URL('../frontend/src/screens/shared/activity-detail-html.js', import.meta.url), 'utf8');
 
 test('2027 activities keep the coordination workspace but remove the permanent table column', () => {
@@ -44,6 +45,21 @@ test('automatic draft reconciliation never opens an interactive Microsoft sign-i
   assert.match(view, /delegatedMailToken\(loginHint, \{ interactive: false \}\)/);
   assert.match(view, /if \(!token\) return \[\]/);
   assert.match(graph, /if \(!interactive\) return ''[\s\S]*acquireTokenPopup\(request\)/);
+});
+
+test('user-triggered coordination draft preparation never opens an about:blank transition window', () => {
+  assert.match(view, /openCoordinationDraftPlaceholder\(\) \{\s*return null;/);
+  assert.doesNotMatch(view, /open\?\.\('about:blank'/);
+  assert.match(view, /button\.dataset\.coordinationOutlook/);
+  assert.match(view, /button\.textContent = 'OUTLOOK'/);
+  assert.match(view, /טיוטת אישור התיאום מוכנה ב-Outlook/);
+});
+
+test('coordination PDF, photo approval and attachments use parallel work with session photo caching', () => {
+  assert.match(outlook, /let photographyApprovalPromise = null/);
+  assert.match(outlook, /Promise\.all\(\[\s*generateActivityCoordinationPdf\(snapshots\),\s*photographyApprovalAttachment\(\)\s*\]\)/);
+  assert.match(outlook, /await Promise\.all\(\[\s*addGraphFileAttachment[\s\S]*addGraphFileAttachment/);
+  assert.match(outlook, /Promise\.all\(\[\s*delegatedMailToken\(loginHint\),\s*photographyApprovalAttachment\(\)\s*\]\)/);
 });
 
 test('photo approval SharePoint identifiers are configurable secrets', () => {

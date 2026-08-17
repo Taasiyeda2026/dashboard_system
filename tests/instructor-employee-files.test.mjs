@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import { instructorCard } from '../frontend/src/screens/instructor-workspace-ui.js';
 import { EMPLOYEE_FILE_COMPONENTS, employeeFileModalHtml } from '../frontend/src/screens/instructor-employee-file-ui.js';
 import { canViewEmployeeFiles } from '../frontend/src/permissions.js';
-import { createEmployeeFileSharePointReturnSync, refreshAfterEmployeeFileMutation } from '../frontend/src/screens/instructor-employee-file-data.js';
+import { refreshAfterEmployeeFileMutation } from '../frontend/src/screens/instructor-employee-file-data.js';
 
 const instructorsSource = fs.readFileSync(new URL('../frontend/src/screens/instructors.js', import.meta.url), 'utf8');
 const apiSource = fs.readFileSync(new URL('../frontend/src/api.js', import.meta.url), 'utf8');
@@ -39,7 +39,8 @@ test('card keeps separate profile and employee-file buttons', () => {
 
 test('employee-file modal keeps the 2-3-2 structure with balanced outer spacing and quiet missing dots', () => {
   assert.equal(EMPLOYEE_FILE_COMPONENTS.length, 8);
-  const html = employeeFileModalHtml({ components: [{ component_key: 'signed_agreement', completed: true }] });
+  const html = employeeFileModalHtml({ emp_id: 1507, components: [{ component_key: 'signed_agreement', completed: true }] });
+  assert.match(html, /data-employee-file-emp-id="1507"/);
   assert.match(html, /employee-file__group--agreements[^]*signed_agreement[^]*supporting_documents/);
   assert.match(html, /employee-file__group--feedback[^]*intro_feedback[^]*midyear_feedback[^]*year_end_feedback/);
   assert.match(html, /employee-file__group--observations[^]*observation_1[^]*observation_2/);
@@ -109,57 +110,15 @@ test('folder-link mutation is admin-only on the server', () => {
   assert.match(liveMigration, /revoke execute on function public\.update_instructor_employee_file_component/);
 });
 
-test('employee-file loader opens directly from the secured Supabase snapshot', () => {
+test('employee-file opens from snapshot and schedules one non-blocking SharePoint refresh on every open', () => {
   const loaderSource = dataSource.slice(dataSource.indexOf('export async function loadInstructorEmployeeFile'), dataSource.indexOf('export async function refreshInstructorEmployeeFileSnapshot'));
   assert.match(loaderSource, /api\.instructorEmployeeFile/);
-  assert.doesNotMatch(loaderSource, /functions\.invoke|instructor-employee-file-live|sharepoint/i);
-  assert.match(apiSource, /rpc\('get_instructor_employee_file_snapshot'/);
-});
-
-test('SharePoint return sync requires open, leave and return and deduplicates return events', async () => {
-  const windowTarget = new EventTarget();
-  const documentTarget = new EventTarget();
-  Object.defineProperty(documentTarget, 'visibilityState', { value: 'visible', writable: true });
-  const refreshes = [];
-  const sync = createEmployeeFileSharePointReturnSync({
-    windowTarget,
-    documentTarget,
-    refresh: async (empId, schoolYear) => { refreshes.push({ empId, schoolYear }); }
-  });
-  const flushRefresh = async () => { await Promise.resolve(); await Promise.resolve(); };
-
-  windowTarget.dispatchEvent(new Event('focus'));
-  await flushRefresh();
-  assert.deepEqual(refreshes, [], 'focus without a prior SharePoint open does not refresh');
-
-  sync.markSharePointOpened(1507, '2027');
-  windowTarget.dispatchEvent(new Event('focus'));
-  await flushRefresh();
-  assert.deepEqual(refreshes, [], 'clicking/opening without leaving the dashboard does not refresh');
-
-  windowTarget.dispatchEvent(new Event('blur'));
-  windowTarget.dispatchEvent(new Event('focus'));
-  documentTarget.visibilityState = 'visible';
-  documentTarget.dispatchEvent(new Event('visibilitychange'));
-  await flushRefresh();
-  assert.deepEqual(refreshes, [{ empId: 1507, schoolYear: '2027' }], 'focus and visibility return events produce one refresh');
-
-  windowTarget.dispatchEvent(new Event('focus'));
-  await flushRefresh();
-  assert.equal(refreshes.length, 1, 'later focus events do not repeat the completed refresh');
-
-  sync.markSharePointOpened(1507, '2027');
-  documentTarget.visibilityState = 'hidden';
-  documentTarget.dispatchEvent(new Event('visibilitychange'));
-  documentTarget.visibilityState = 'visible';
-  documentTarget.dispatchEvent(new Event('visibilitychange'));
-  windowTarget.dispatchEvent(new Event('focus'));
-  await flushRefresh();
-  assert.equal(refreshes.length, 2, 'a new SharePoint open can schedule one new refresh');
-  sync.destroy();
-
-  assert.match(instructorsSource, /markSharePointOpened\(row\.emp_id, '2027'\)/);
+  assert.match(loaderSource, /scheduleEmployeeFileRefresh\(empId, schoolYear\)/);
+  assert.doesNotMatch(loaderSource, /await refreshInstructorEmployeeFileSnapshot/);
+  assert.match(dataSource, /setTimeout\(\(\) => \{[^]*refreshInstructorEmployeeFileSnapshot\(empId, schoolYear\)[^]*applyEmployeeFileSnapshotToOpenModal/);
   assert.match(dataSource, /body: \{ empId, schoolYear, refresh: true \}/);
+  assert.match(dataSource, /createEmployeeFileSharePointReturnSync\(\)[^]*markSharePointOpened\(\) \{\}/);
+  assert.match(apiSource, /rpc\('get_instructor_employee_file_snapshot'/);
 });
 
 test('a successful employee-file mutation refreshes the snapshot exactly once and failures do not scan', async () => {
@@ -189,12 +148,14 @@ test('a successful employee-file mutation refreshes the snapshot exactly once an
   assert.match(mutationSyncMigration, /'changed', did_change/);
 });
 
-test('live SharePoint reader requires an explicit mutation refresh before scanning folders', () => {
+test('live SharePoint reader refreshes only when requested and supports canonical and sharing links', () => {
   assert.match(edgeSource, /const refresh = body\?\.refresh === true/);
   assert.match(edgeSource, /if \(!refresh\)[^]*reason: "snapshot_only"/);
   assert.ok(edgeSource.indexOf('if (!refresh)') < edgeSource.indexOf('const token = await graphToken()'));
   assert.match(edgeSource, /await persistComponents\(empId, schoolYear, components\)/);
-  assert.match(dataSource, /updateInstructorEmployeeFolderUrl[^]*refreshInstructorEmployeeFileSnapshot/);
+  assert.match(edgeSource, /function graphShareId\(url: string\)/);
+  assert.match(edgeSource, /\/shares\/\$\{encodeURIComponent\(shareId\)\}\/driveItem/);
+  assert.match(edgeSource, /listFolderFilesFromItem/);
   for (const folder of [
     '01 הסכם ומסמכים/הסכם חתום',
     '01 הסכם ומסמכים/מסמכים נלווים',

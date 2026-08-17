@@ -11,6 +11,7 @@ export const ONBOARDING_DOCUMENTS = Object.freeze({
 const SUBJECT = 'הצטרפות לצוות המדריכים של תעשיידע – השלמת תהליך הקליטה';
 const OUTLOOK_WEB_URL = 'https://outlook.office.com/mail/';
 const OUTLOOK_MODE_STORAGE_KEY = 'taasiyeda:outlook-mode';
+const onboardingAttachmentRequests = new Map();
 const AVAILABILITY = `לצורך תכנון השיבוצים והפעילויות, נבקש להשיב למייל זה ולמלא את פרטי הזמינות שלך בצורה מלאה ככל האפשר:
 
 מועד שממנו ניתן להתחיל להדריך:
@@ -166,14 +167,35 @@ export async function ensureOnboardingEmployeeFolder(instructor) {
   return data;
 }
 
+export function loadOnboardingAttachments(employmentType) {
+  const key = String(employmentType || '').trim();
+  if (!key) return Promise.reject(new Error('onboarding_employment_type_required'));
+  if (!onboardingAttachmentRequests.has(key)) {
+    const request = supabase.functions.invoke('instructor-onboarding-files', { body: { employment_type: key } })
+      .then(({ data, error }) => {
+        if (error || !Array.isArray(data?.attachments) || !data.attachments.length) {
+          throw new Error(data?.message || 'לא ניתן לטעון את מסמכי הקליטה מ-SharePoint.');
+        }
+        return data;
+      })
+      .catch((error) => {
+        onboardingAttachmentRequests.delete(key);
+        throw error;
+      });
+    onboardingAttachmentRequests.set(key, request);
+  }
+  return onboardingAttachmentRequests.get(key);
+}
+
+export function warmOnboardingAttachments(employmentType) {
+  return loadOnboardingAttachments(employmentType).catch(() => null);
+}
+
 export async function createOnboardingDraft({ employmentType, manager, instructorName, instructorEmail, loginHint = '' }) {
   const mail = buildOnboardingMail(employmentType, manager, instructorName);
-  const filesPromise = supabase.functions.invoke('instructor-onboarding-files', { body: { employment_type: employmentType } });
+  const filesPromise = loadOnboardingAttachments(employmentType);
   const tokenPromise = delegatedMailToken(loginHint);
-  const [{ data, error }, token] = await Promise.all([filesPromise, tokenPromise]);
-  if (error || !Array.isArray(data?.attachments) || !data.attachments.length) {
-    throw new Error(data?.message || 'לא ניתן לטעון את מסמכי הקליטה מ-SharePoint.');
-  }
+  const [data, token] = await Promise.all([filesPromise, tokenPromise]);
   const draft = await graphMailRequest(token, '/me/messages', {
     method: 'POST', body: JSON.stringify({
       subject: mail.subject, body: { contentType: 'Text', content: mail.body },
@@ -287,13 +309,17 @@ export function bindOnboardingModal(modal, {
       || !employment.value || (staffing && !agency.value) || !managerSelect.value;
   };
   [fullName, phone, email].forEach((input) => input.addEventListener('input', sync));
-  employment.addEventListener('change', () => { if (employment.value !== 'staffing') agency.value = ''; sync(); });
+  employment.addEventListener('change', () => {
+    if (employment.value !== 'staffing') agency.value = '';
+    if (employment.value) warmOnboardingAttachments(employment.value);
+    sync();
+  });
   agency.addEventListener('change', sync);
   managerSelect.addEventListener('change', sync);
   sync();
 
   let createdInstructor = null;
-  let employeeFolder = null;
+  let employeeFolderPromise = null;
   let onboardingSnapshot = null;
   prepare.addEventListener('click', async () => {
     if (draftCreated) return;
@@ -335,11 +361,18 @@ export function bindOnboardingModal(modal, {
         [fullName, phone, email, employment, agency, managerSelect].forEach((field) => { field.disabled = true; });
       }
 
-      if (!employeeFolder) {
-        employeeFolder = await ensureEmployeeFolder({
+      if (!employeeFolderPromise) {
+        const folderTarget = {
           emp_id: createdInstructor.emp_id,
           full_name: createdInstructor.full_name || onboardingSnapshot.fullName
-        });
+        };
+        employeeFolderPromise = Promise.resolve()
+          .then(() => ensureEmployeeFolder(folderTarget))
+          .catch((error) => {
+            employeeFolderPromise = null;
+            globalThis.console?.error?.('[onboarding] employee folder creation failed', error);
+            return null;
+          });
       }
 
       const result = await createDraft({
