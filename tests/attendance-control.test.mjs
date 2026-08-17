@@ -188,9 +188,34 @@ test('payroll view groups reports by work day and compares row kilometers', () =
   const html = resultsHtml(result);
   assert.equal((html.match(/class="attendance-control__employee"/g) || []).length, 1);
   assert.equal((html.match(/class="attendance-control__day"/g) || []).length, 1, 'same-date reports share one day row');
-  assert.match(html, /30<\/td><td>24<\/td><td class="attendance-control__row-status attendance-control__row-status--issue">שונה/, 'row kilometers use the matched activity value');
+  assert.match(html, /30<\/td><td class="attendance-control__field-value--issue">24<\/td><td class="attendance-control__row-status attendance-control__row-status--issue">שונה/, 'row kilometers use the matched activity value');
   assert.match(html, /09:00–10:00[\s\S]*10:00–11:00/, 'reports are ordered by start time');
   assert.doesNotMatch(html, /נוכחות בלבד|נדרש אישור ידני/);
+});
+
+
+test('payroll view marks unavailable kilometers for review', () => {
+  const attendance = { employeeId: '78', employeeName: 'מדריך ק״מ', date: '2027-01-04', startTime: '09:00', endTime: '10:00', workHours: 1, kilometers: 30, activityType: 'קורס' };
+  const dashboard = { ...attendance, kilometers: null };
+  const html = resultsHtml({ comparisons: [{ id: 'km-missing', attendance, dashboard, final: { ...attendance }, differences: [], unmatched: false }], notCompared: [], dashboardOnly: [], dashboardPopulation: [dashboard], dailyKilometers: [] });
+  assert.match(html, /ק״מ<\/th><td>30<\/td><td class="attendance-control__field-value--issue">לא ניתן לחשב<\/td><td class="attendance-control__row-status attendance-control__row-status--issue">לא ניתן לחשב/);
+  assert.match(html, /1\.00 שעות<\/span><span class="attendance-control__row-status attendance-control__row-status--issue">לבדיקה/);
+  assert.match(html, /מדריכים <b>1<\/b>[\s\S]*תקינים <b>0<\/b>[\s\S]*לבדיקה <b>1<\/b>/);
+});
+
+test('manual report days and expense days remain under review without technical labels', () => {
+  for (const activityType of ['הכשרה', 'ביטול זמן', 'תפעול']) {
+    const attendance = { employeeId: activityType, employeeName: `מדריך ${activityType}`, date: '2027-01-05', startTime: '10:00', endTime: '11:00', workHours: 1, activityType };
+    const html = resultsHtml({ comparisons: [], notCompared: [{ id: activityType, attendance, final: { ...attendance } }], dashboardOnly: [], dashboardPopulation: [], dailyKilometers: [] });
+    assert.match(html, /attendance-control__row-status attendance-control__row-status--issue">לבדיקה/, `${activityType} day must require review`);
+    assert.match(html, /תקינים <b>0<\/b>[\s\S]*לבדיקה <b>1<\/b>/);
+    assert.doesNotMatch(html, /נוכחות בלבד|נדרש אישור ידני|נדרש טיפול לפני תשלום/);
+  }
+  const attendance = { employeeId: 'expense', employeeName: 'מדריך הוצאה', date: '2027-01-06', startTime: '09:00', endTime: '10:00', workHours: 1, expenses: 50, activityType: 'קורס' };
+  const dashboard = { ...attendance, expenses: 50 };
+  const html = resultsHtml({ comparisons: [{ id: 'expense', attendance, dashboard, final: { ...attendance }, differences: [], unmatched: false }], notCompared: [], dashboardOnly: [], dashboardPopulation: [dashboard], dailyKilometers: [] });
+  assert.match(html, /הוצאות<\/th><td>50<\/td>[\s\S]*לבדיקה/);
+  assert.match(html, /תקינים <b>0<\/b>[\s\S]*לבדיקה <b>1<\/b>/);
 });
 
 test('employee 1501 May 4 bundles LONG-080 through LONG-082 into one attendance row', () => {
