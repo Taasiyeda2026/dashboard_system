@@ -646,7 +646,7 @@ test('ranked instructor UI shows at most recommendations 1-3 without changing en
     failures: eligible ? [] : ['שפת ההדרכה אינה תואמת']
   });
   const recommended = mk('f1', 'נועה כהן', 88);
-  const alternatives = [mk('a1', 'אלטרנטיבה א', 70), mk('a2', 'אלטרנטיבה ב', 65), mk('a3', 'אלטרנטיבה ג', 62), mk('a4', 'אלטרנטיבה ד', 61), mk('bad', 'פסולה', null, false)];
+  const alternatives = [mk('a1', 'אלטרנטיבה א', 70), mk('a2', 'אלטרנטיבה ב', 65), mk('a3', 'אלטרנטיבה ג', 62), mk('bad', 'פסולה', null, false)];
   const rankedIdsBeforeRender = alternatives.map((candidate) => candidate.instructor.emp_id);
   const html = detailsHtml({
     course: course019({ required_instructor_gender: 'any' }),
@@ -660,7 +660,7 @@ test('ranked instructor UI shows at most recommendations 1-3 without changing en
   assert.match(html, /מומלץ 3/);
   assert.equal((html.match(/class="cs-alt-row(?: is-selected)?"/g) || []).length, 2);
   assert.ok(html.indexOf('אלטרנטיבה א') < html.indexOf('אלטרנטיבה ב'));
-  assert.doesNotMatch(html, /אלטרנטיבה ג|אלטרנטיבה ד/);
+  assert.doesNotMatch(html, /אלטרנטיבה ג/);
   assert.doesNotMatch(html, /חלופה 2|חלופה 3/);
   assert.deepEqual(alternatives.map((candidate) => candidate.instructor.emp_id), rankedIdsBeforeRender);
   const alternativesBlock = html.match(/data-alternatives>[\s\S]*?<\/section>/)?.[0] || '';
@@ -696,8 +696,30 @@ test('no eligible instructor shows only the neutral message and closed details t
   assert.doesNotMatch(beforeDetails, /חפיפה|תנאי סף|סיבות/);
   assert.match(html, /<summary>הצג פרטים<\/summary>/);
   assert.match(html, /מדריך שנדחה/);
-  assert.match(html, /חפיפה טכנית/);
+  assert.match(html, /חפיפה עם פעילות קיימת/);
   assert.doesNotMatch(html, /<button/);
+});
+
+test('rejected instructors show one decisive concise reason without technical detail', () => {
+  const rejected = [
+    { instructor: { emp_id: 'distance', full_name: 'ברקת קטעי' }, eligible: false, failures: ['מרחק הנסיעה לבית הספר הוא 272 ק״מ ועולה על המגבלה של 40 ק״מ', 'סיבה נוספת'], missingProfileData: ['מסלול נסיעה אמין'], travel: { home: { distance_km: 272 } } },
+    { instructor: { emp_id: 'availability', full_name: 'אביגדור שרון' }, eligible: false, failures: ['הזמינות המוגדרת אינה מכסה את שעות 08:45:00–10:30:00 - משפיע על 14 מפגשים'] },
+    { instructor: { emp_id: 'overlap', full_name: 'כרמית סמנדרוב' }, eligible: false, failures: ['חפיפה חוזרת עם פעילות בעלת שם ארוך - משפיע על 3 מפגשים'] },
+    { instructor: { emp_id: 'transition', full_name: 'אלדר מיכאל טייב' }, eligible: false, failures: ['אין זמן מעבר מספיק לאחר פעילות קיימת - משפיע על מפגש אחד'] },
+    { instructor: { emp_id: 'language', full_name: 'אפרת אוחיון' }, eligible: false, failures: ['שפת ההדרכה אינה תואמת: נדרשת ערבית'] },
+    { instructor: { emp_id: 'gender', full_name: 'אילנה טיטייבסקי' }, eligible: false, failures: ['הקורס דורש מדריכה'] }
+  ];
+  const html = detailsHtml({ course: course019(), status: 'נדרש גיוס', recommended: null, checked: rejected });
+
+  assert.match(html, /ברקת קטעי[\s\S]*מרחק מהבית 272 ק״מ/);
+  assert.match(html, /אביגדור שרון[\s\S]*לא זמין בשעות הקורס/);
+  assert.match(html, /כרמית סמנדרוב[\s\S]*חפיפה עם פעילות קיימת/);
+  assert.match(html, /אלדר מיכאל טייב[\s\S]*אין זמן מעבר מספיק/);
+  assert.match(html, /אפרת אוחיון[\s\S]*שפה לא מתאימה/);
+  assert.match(html, /אילנה טיטייבסקי[\s\S]*לא מתאים לדרישת המגדר/);
+  assert.equal((html.match(/course-scheduling-rejected-primary/g) || []).length, rejected.length);
+  assert.doesNotMatch(html, /משפיע על|08:45:00|10:30:00|סיבה נוספת|מסלול נסיעה אמין|שם ארוך/);
+  assert.doesNotMatch(html, /course-scheduling-rejected-failures|course-scheduling-rejected-missing/);
 });
 
 test('proposed meetings and halfOverflow render from candidate data without recomputing scores', () => {
