@@ -21,8 +21,10 @@
   <title>תעשיידע – נוכחות</title>
 </head>
 <body>
-  <main id="app" class="app-shell"></main>
-  <nav id="bottom-nav" hidden></nav>
+  <div id="app-frame">
+    <main id="app" class="app-shell"></main>
+    <nav id="bottom-nav" hidden></nav>
+  </div>
   <!-- Supabase client -->
   <script src="./vendor/supabase.js"></script>
   <!-- SheetJS (xlsx) for Excel export — loaded after supabase, before app modules -->
