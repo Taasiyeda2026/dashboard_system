@@ -100,6 +100,39 @@ test('dashboard meetings expand for both assigned instructors', () => {
   assert.deepEqual(rows.map((row) => row.meetingNo), [1, 1, 2, 2]);
 });
 
+test('May payroll receives and matches a regular activity even while the global period is school 2027', async () => {
+  const attendance = [{
+    employeeId: '1522', employeeName: 'אביב בלנדר', date: '2026-05-03',
+    startTime: '08:00', endTime: '10:00', activityType: 'קורס',
+    program: 'ביומימיקרי', school: 'תל-חי', authority: 'קריית שמונה'
+  }];
+  let requestedScope;
+  const dashboardRows = await loadAttendanceDashboardDataset(attendance, {
+    attendanceControlDashboardSources: async (scope) => {
+      requestedScope = scope;
+      return {
+        activities: [{
+          row_id: 'LONG-105', emp_id: '1522', instructor_name: 'אביב בלנדר',
+          school: 'תל-חי', authority: 'קריית שמונה', activity_name: 'ביומימיקרי',
+          activity_type: 'course', activity_season: 'regular', date_2: '2026-05-03',
+          start_time: '08:00', end_time: '09:40'
+        }],
+        contacts: [], travelCache: [], expenses: []
+      };
+    }
+  }, '2026-05');
+
+  assert.deepEqual(requestedScope, {
+    employeeIds: ['1522'], dates: new Set(['2026-05-03']),
+    fromDate: '2026-05-01', toDate: '2026-05-31'
+  });
+  assert.equal(dashboardRows.length, 1);
+  assert.equal(dashboardRows[0].activityId, 'LONG-105');
+  assert.equal(dashboardRows[0].date, '2026-05-03');
+  const result = compareAttendanceRows(attendance, dashboardRows);
+  assert.equal(result.comparisons[0].unmatched, false);
+});
+
 test('LONG-073 real Oshri Ram case preserves double meetings and exposes the real differences', () => {
   const sheet = XLSX.utils.aoa_to_sheet([
     ['מספר עובד', 'שם עובד', 'תאריך', 'שעת התחלה', 'שעת סיום', 'סוג פעילות', 'שם בית ספר', 'רשות', 'שם תכנית'],
