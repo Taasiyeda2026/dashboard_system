@@ -18,6 +18,16 @@ const ACTIVITY_TYPE_MAP = {
   workshop:     'סדנה',
 };
 
+/** Reverse map: Hebrew form label → English 'lists' table activity_type value. */
+export const HEBREW_TO_DB_TYPE = {
+  'סדנה':        'workshop',
+  'סדנאות קיץ': 'workshop',
+  'קורס':        'course',
+  'חדר בריחה':  'escape_room',
+  'סיור':        'tour',
+  'צהרון':       'after_school',
+};
+
 /** Hebrew activity type labels — exact list, alphabetical order, used in the form select. */
 export const HEBREW_ACTIVITY_TYPES = [
   'ביטול זמן',
@@ -37,6 +47,42 @@ export const HEBREW_ACTIVITY_TYPES = [
 export function toHebrewType(dbType) {
   if (!dbType) return '';
   return ACTIVITY_TYPE_MAP[dbType] || dbType;
+}
+
+/**
+ * Returns distinct activity names (program names) for a given Hebrew activity type,
+ * sourced from the 'lists' table (category='activity_names') in the dashboard DB.
+ * Used to populate the activity-name dropdown in the manual report form.
+ *
+ * @param {string} hebrewType  Hebrew label, e.g. 'סדנה', 'קורס'
+ * @returns {Promise<{value: string, label: string}[]>}
+ */
+export async function getActivityNamesByType(hebrewType) {
+  if (!hebrewType) return [];
+  const dbType = HEBREW_TO_DB_TYPE[hebrewType];
+  if (!dbType) return []; // Administrative types (הכשרה, ביטול זמן, תפעול …) have no catalog
+  try {
+    const { data, error } = await supabase
+      .from('lists')
+      .select('label, activity_name, value')
+      .eq('category', 'activity_names')
+      .eq('activity_type', dbType)
+      .order('label');
+    if (error || !data) return [];
+    const seen = new Set();
+    return data
+      .map(row => {
+        const name = row.label || row.activity_name || row.value || '';
+        return { value: name, label: name };
+      })
+      .filter(o => {
+        if (!o.label || seen.has(o.label)) return false;
+        seen.add(o.label);
+        return true;
+      });
+  } catch {
+    return [];
+  }
 }
 
 // ── Instructor activities for a specific date ──────────────────────────────
