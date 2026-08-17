@@ -73,18 +73,23 @@ function ensurePlainStatusStyles(doc) {
       font-size:1rem;
     }
     [data-payroll-window] [data-attendance-control][data-payroll-test-mode="true"] .payroll-test-instructor__days{
-      padding:0 6px 6px;
+      padding:0 10px 8px;
     }
     [data-payroll-window] [data-attendance-control][data-payroll-test-mode="true"] .payroll-test-instructor__days>.attendance-control__employee{
-      margin:7px 0;
+      margin:0!important;
+      border:0!important;
+      border-top:1px solid #e5e7eb!important;
+      border-radius:0!important;
+      background:#fff!important;
+      overflow:visible!important;
+    }
+    [data-payroll-window] [data-attendance-control][data-payroll-test-mode="true"] .payroll-test-instructor__days>.attendance-control__employee:first-child{
+      border-top:0!important;
     }
     [data-payroll-window] [data-attendance-control][data-payroll-test-mode="true"] .payroll-test-instructor__days>.attendance-control__employee>summary{
-      cursor:default!important;
-      list-style:none!important;
-      pointer-events:none!important;
-    }
-    [data-payroll-window] [data-attendance-control][data-payroll-test-mode="true"] .payroll-test-instructor__days>.attendance-control__employee>summary::-webkit-details-marker{
-      display:none!important;
+      cursor:pointer!important;
+      padding:9px 4px!important;
+      background:#fff!important;
     }
   `;
   doc.head.appendChild(style);
@@ -94,6 +99,18 @@ function instructorNameFromCard(card) {
   const strong = card.querySelector(':scope > summary strong');
   const raw = String(strong?.textContent || '').trim();
   return raw.split('|')[0]?.trim() || 'מדריך';
+}
+
+function dateFromCard(card) {
+  const strong = card.querySelector(':scope > summary strong');
+  return String(strong?.textContent || '').match(/\d{4}-\d{2}-\d{2}/)?.[0] || '';
+}
+
+function removeRepeatedInstructorName(card) {
+  const strong = card.querySelector(':scope > summary strong');
+  if (!strong) return;
+  const parts = String(strong.textContent || '').split('|').map((part) => part.trim()).filter(Boolean);
+  if (parts.length > 1) strong.textContent = parts.slice(1).join(' | ');
 }
 
 function groupResultsByInstructor(doc, results) {
@@ -119,11 +136,15 @@ function groupResultsByInstructor(doc, results) {
     summary.textContent = name;
     const days = doc.createElement('div');
     days.className = 'payroll-test-instructor__days';
-    instructorCards.forEach((card) => {
-      card.open = true;
-      card.dataset.payrollTestStaticDay = 'true';
-      days.appendChild(card);
-    });
+
+    instructorCards
+      .sort((left, right) => dateFromCard(left).localeCompare(dateFromCard(right)))
+      .forEach((card) => {
+        card.open = false;
+        removeRepeatedInstructorName(card);
+        days.appendChild(card);
+      });
+
     accordion.append(summary, days);
     list.appendChild(accordion);
   });
@@ -163,9 +184,6 @@ function applyPlainStatusPresentation(doc) {
   });
 
   groupResultsByInstructor(doc, results);
-  results.querySelectorAll('[data-payroll-test-static-day="true"]').forEach((card) => {
-    card.open = true;
-  });
   return true;
 }
 
