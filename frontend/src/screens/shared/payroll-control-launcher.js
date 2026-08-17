@@ -1,9 +1,19 @@
+const PAYROLL_CONTROL_ROLES = new Set(['admin', 'operation_manager', 'finance']);
+
+function canOpenPayrollControl(state = {}) {
+  return PAYROLL_CONTROL_ROLES.has(String(state?.user?.role || '').trim());
+}
+
 /**
  * Open the existing payroll-control interface in a dedicated window.
  * Keep the window.open call synchronous so browsers treat it as part of the user's click,
  * then lazy-load the existing payroll-control modules to keep Node/shared-nav imports browser-safe.
  */
 export function openPayrollControlWindow(state = {}) {
+  if (!canOpenPayrollControl(state)) {
+    throw new Error('אין הרשאה לפתוח את בקרת השכר.');
+  }
+
   const popup = window.open('', 'dashboard-payroll-control');
   if (!popup) {
     throw new Error('הדפדפן חסם את פתיחת חלון בקרת השכר. יש לאפשר חלונות קופצים ולנסות שוב.');
