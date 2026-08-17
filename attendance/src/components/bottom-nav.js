@@ -1,9 +1,8 @@
 import { createIcon } from './icon.js';
 
 const ITEMS = [
-  { key: 'home', label: 'בית', icon: 'home' },
-  { key: 'new-report', label: 'דיווח חדש', icon: 'plus' },
-  { key: 'my-reports', label: 'הדיווחים שלי', icon: 'list' }
+  { key: 'home',       label: 'בית',          icon: 'home' },
+  { key: 'my-reports', label: 'הדיווחים שלי', icon: 'list' },
 ];
 
 export function createBottomNav({ active, onNavigate } = {}) {
