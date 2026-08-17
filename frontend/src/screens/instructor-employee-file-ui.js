@@ -42,7 +42,7 @@ export function employeeFileModalHtml(payload = {}) {
     ? `<details class="employee-file__admin-link"><summary>ניהול הקישור</summary><div class="employee-file__link-editor"><input class="ds-input" type="url" data-employee-file-folder-url value="${escapeHtml(payload.folder_web_url || '')}" dir="ltr" aria-label="קישור לתיק ב־SharePoint"><button type="button" class="ds-btn ds-btn--sm" data-employee-file-save-url>שמירה</button></div></details>`
     : '';
 
-  return `<div class="employee-file" dir="rtl">
+  return `<div class="employee-file" data-employee-file-emp-id="${escapeHtml(payload.emp_id || '')}" dir="rtl">
     <style>
       .ds-modal.ds-modal--employee-file{inset:auto;left:50%;bottom:auto;top:50%;width:min(404px,calc(100vw - 24px));max-height:calc(100vh - 24px);transform:translate(-50%,calc(-50% + 16px));opacity:0;border:1px solid #c8d1dc;border-radius:14px;background:#fff;box-shadow:0 20px 46px rgba(31,42,55,.20);overflow:hidden}
       .ds-ui-layer.is-modal-open .ds-modal.ds-modal--employee-file{transform:translate(-50%,-50%);opacity:1}
