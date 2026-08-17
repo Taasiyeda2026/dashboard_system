@@ -46,3 +46,69 @@ body {
 button {
   font-family: inherit;
 }
+
+/* Shared narrow app column — every screen centers its content here instead of stretching on desktop. */
+.av2-container {
+  width: 100%;
+  max-width: 460px;
+  margin-inline: auto;
+  padding-inline: var(--av2-space-4);
+}
+
+.av2-btn {
+  font-family: inherit;
+  border: none;
+  border-radius: var(--av2-radius-md);
+  cursor: pointer;
+}
+
+/* The one allowed prominent action per screen — full width of the narrow container, not the viewport. */
+.av2-btn--primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--av2-space-2);
+  width: 100%;
+  min-height: 44px;
+  padding: 11px 20px;
+  background: var(--av2-color-accent);
+  color: var(--av2-color-accent-contrast);
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+
+.av2-btn--primary:active {
+  opacity: 0.85;
+}
+
+/* Icon buttons: ~34px visual chip, but the hit target stays 44px for mobile per design rules. */
+.av2-btn--icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--av2-color-text);
+}
+
+.av2-btn--icon:hover,
+.av2-btn--icon:focus-visible {
+  background: var(--av2-color-border);
+}
+
+.av2-btn--icon:active {
+  background: var(--av2-color-border);
+  opacity: 0.85;
+}
+
+.av2-icon {
+  display: block;
+}
+
+/* This app is RTL-only; directional icons (log-in/out, chevrons) are authored LTR and mirrored once here. */
+.av2-icon--flip-rtl {
+  transform: scaleX(-1);
+}
