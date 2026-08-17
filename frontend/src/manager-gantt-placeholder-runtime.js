@@ -57,13 +57,14 @@ function applyGanttState(board) {
   if (!button) return;
   const panel = ganttPanel(board);
   board.classList.toggle('is-manager-gantt-placeholder', ganttActive);
-  board.querySelectorAll(TAB_SELECTOR).forEach((tab) => {
-    const selected = ganttActive && tab.dataset.managerWorkspaceTab === GANTT_TAB_ID;
-    if (ganttActive) {
+  if (ganttActive) {
+    board.querySelectorAll(TAB_SELECTOR).forEach((tab) => {
+      const selected = tab.dataset.managerWorkspaceTab === GANTT_TAB_ID;
       tab.classList.toggle('is-active', selected);
-      tab.setAttribute('aria-selected', selected ? 'true' : 'false');
-    }
-  });
+      const ariaSelected = selected ? 'true' : 'false';
+      if (tab.getAttribute('aria-selected') !== ariaSelected) tab.setAttribute('aria-selected', ariaSelected);
+    });
+  }
   if (panel) panel.hidden = !ganttActive;
 }
 
@@ -109,7 +110,7 @@ function start() {
   ensureStyles();
   window.addEventListener('click', handleWorkspaceClick, true);
   observer = new MutationObserver(scheduleSync);
-  observer.observe(app, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'aria-selected'] });
+  observer.observe(app, { childList: true, subtree: true });
   scheduleSync();
 }
 
