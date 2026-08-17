@@ -727,7 +727,7 @@ function candidateAltDistanceMeta(candidate) {
   return kmStr;
 }
 
-function alternativeCandidateCardHtml(candidate, { selectedId = '', expandedId = '', name = 'course-candidate' } = {}) {
+function alternativeCandidateCardHtml(candidate, { rank, selectedId = '', expandedId = '', name = 'course-candidate' } = {}) {
   const id = emp(candidate);
   const checked = id && id === selectedId ? ' checked' : '';
   const selected = id && id === selectedId ? ' is-selected' : '';
@@ -735,7 +735,7 @@ function alternativeCandidateCardHtml(candidate, { selectedId = '', expandedId =
   const radioId = `course-candidate-alt-${escapeHtml(id || 'x')}`;
   return `<div class="cs-alt-row${selected}${expanded ? ' is-expanded' : ''}" data-candidate-row="${escapeHtml(id)}" aria-expanded="${expanded}">
     <span class="cs-alt-row__name">${escapeHtml(candidate.instructor?.full_name || id)}</span>
-    <span class="cs-alt-row__score">חלופה ${Number(candidate.rank) || '—'}</span>
+    <span class="cs-alt-row__score">מומלץ ${rank}</span>
     <div class="cs-alt-row__summary">${candidateMetricsHtml(candidate, { compact: true })}</div>
     <button type="button" class="course-scheduling-details-toggle" data-candidate-toggle aria-expanded="${expanded}">${expanded ? 'הסתר פירוט' : 'הצג פירוט'}</button>
     ${expanded ? `<div class="cs-alt-row__details course-scheduling-candidate-expanded" data-candidate-expanded>
@@ -880,13 +880,15 @@ function candidatesResultsLayoutHtml(result, state, { primary, kind }) {
   const selectedId = text(state.courseSchedulingSelectedCandidateId);
   const expandedId = text(state.courseSchedulingExpandedCandidateId);
   const radioName = `course-candidate-${idOf(result.course)}`;
-  const alternatives = (result.alternatives || []).filter((item) => item?.eligible);
+  // The engine keeps the complete, stably ranked candidate set. The primary
+  // results view intentionally presents only the next two eligible candidates.
+  const alternatives = (result.alternatives || []).filter((item) => item?.eligible).slice(0, 2);
   return `<div class="course-scheduling-result-block" data-course-options>
     ${primaryCandidateCardHtml(primary, { kind, selectedId, expandedId, name: radioName })}
     ${alternatives.length ? `<section class="course-scheduling-alternatives" data-alternatives>
-      <p class="course-scheduling-alternatives-label">חלופות מתאימות</p>
+      <p class="course-scheduling-alternatives-label">מדריכים מומלצים נוספים</p>
       <div class="cs-alt-table">
-        ${alternatives.map((item) => alternativeCandidateCardHtml(item, { selectedId, expandedId, name: radioName })).join('')}
+        ${alternatives.map((item, index) => alternativeCandidateCardHtml(item, { rank: index + 2, selectedId, expandedId, name: radioName })).join('')}
       </div>
     </section>` : ''}
     ${rejectedCandidatesHtml(result)}
@@ -929,13 +931,12 @@ export function instructorsResultsHtml(result, state = {}) {
   }
   if (!result?.recommended && result?.status === 'נדרש גיוס') {
     return `<div class="course-scheduling-result-block course-scheduling-result-block--negative">
-      <p class="course-scheduling-result-message">${escapeHtml(result.treatmentReason || 'לא נמצא מדריך שעומד בתנאי הסף.')}</p>
-      <details class="course-scheduling-details"><summary>הצגת פרטים</summary>
+      <p class="course-scheduling-result-message">לא נמצא מדריך מתאים</p>
+      <details class="course-scheduling-details"><summary>הצג פרטים</summary>
+        ${result.treatmentReason ? `<p>${escapeHtml(result.treatmentReason)}</p>` : ''}
         <p>שפת הדרכה: ${escapeHtml(instructionLanguageLabel(result.course))} · מגדר: ${escapeHtml(result.course.required_instructor_gender || 'ללא')}</p>
+        ${rejectedCandidatesHtml(result)}
       </details>
-      ${rejectedCandidatesHtml(result)}
-      ${manualCandidatePickerHtml(result, state)}
-      <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary" data-open-missing-course>פתח פעילות</button>
     </div>`;
   }
   if (!result?.recommended && result?.status === 'נדרש טיפול') {
