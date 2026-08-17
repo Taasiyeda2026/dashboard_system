@@ -5,7 +5,6 @@ import { showToast } from './toast.js';
 export const COURSE_ASSIGNMENT_MANAGER_APPROVAL_REQUEST_TYPE = 'course_assignment_exception';
 
 const text = (value) => String(value ?? '').trim();
-const idOf = (row = {}) => text(row.row_id || row.RowID || row.id);
 
 function firstRpcRow(data) {
   return Array.isArray(data) ? (data[0] || null) : (data || null);
@@ -33,16 +32,43 @@ function schedulingApprovalErrorMessage(error) {
 export async function loadCourseAssignmentManagerApprovalGroups() {
   if (!supabase) return [];
   const { data, error } = await supabase.rpc('course_assignment_manager_approval_requests');
-  if (error) throw new Error(schedulingApprovalErrorMessage(error));
-  return (Array.isArray(data) ? data : []).map((row) => ({
-    ...row,
-    request_type: COURSE_ASSIGNMENT_MANAGER_APPROVAL_REQUEST_TYPE,
-    requested_payload: row?.requested_payload && typeof row.requested_payload === 'object'
+  if (error) {
+    if (String(error.code || '') === '42501' || text(error.message).includes('scheduling_permission_denied')) return [];
+    throw new Error(schedulingApprovalErrorMessage(error));
+  }
+  return (Array.isArray(data) ? data : []).map((row) => {
+    const payload = row?.requested_payload && typeof row.requested_payload === 'object'
       ? row.requested_payload
-      : {},
-    can_approve: true,
-    fields: []
-  }));
+      : {};
+    return {
+      ...row,
+      request_type: COURSE_ASSIGNMENT_MANAGER_APPROVAL_REQUEST_TYPE,
+      requested_payload: payload,
+      can_approve: true,
+      activity: {
+        row_id: row?.source_row_id,
+        activity_name: row?.activity_name,
+        school: row?.school,
+        authority: row?.authority,
+        instructor_name: payload.draft_instructor_name,
+        emp_id: payload.draft_emp_id
+      },
+      fields: [
+        {
+          field_name: 'scheduling_selected_instructor',
+          old_value: '',
+          new_value: payload.draft_instructor_name
+            ? `${payload.draft_instructor_name}${payload.draft_emp_id ? ` (${payload.draft_emp_id})` : ''}`
+            : payload.draft_emp_id || ''
+        },
+        {
+          field_name: 'scheduling_exception_reason',
+          old_value: '',
+          new_value: payload.exception_reason || 'חריגה מכללי השיבוץ'
+        }
+      ]
+    };
+  });
 }
 
 export async function reviewCourseAssignmentManagerApproval(requestId, status) {
@@ -167,11 +193,6 @@ export async function ensureCourseSchedulingManagerApproval(root, { state } = {}
 
     // Ignore a late response after the operator navigated to another course.
     if (text(state?.courseSchedulingSelectedId) !== courseId) return;
-    const selectedResultCourse = (state?.courseSchedulingResults || [])
-      .map((result) => result?.course)
-      .find((course) => idOf(course) === courseId);
-    void selectedResultCourse;
-
     applyApprovalUi({ host, confirmButton, approvalState, courseId });
   } catch (error) {
     confirmButton.disabled = true;
