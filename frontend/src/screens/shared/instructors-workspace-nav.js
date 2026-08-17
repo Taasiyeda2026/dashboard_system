@@ -1,5 +1,6 @@
 import { escapeHtml } from './html.js';
 import { openPayrollControlWindow } from './payroll-control-launcher.js';
+import { ensureCourseSchedulingManualPickerAccess } from './course-scheduling-manual-picker-access.js';
 
 export const INSTRUCTORS_WORKSPACE_TABS = Object.freeze([
   { id: 'list', label: 'רשימת מדריכים', route: 'instructors' },
@@ -164,6 +165,10 @@ export function bindInstructorsWorkspaceNav(root, { state, rerender } = {}) {
   // The legacy payroll/attendance launcher used to live in the work-schedule toolbar.
   // Remove it after every render so the shared tab row is the single entry point.
   root.querySelectorAll('.ds-ops-mgmt-panel__toolbar [data-attendance-open]').forEach((button) => button.remove());
+
+  // course-scheduling.js owns the existing manual-pick handlers and RPC flow.
+  // Inject only the missing access UI before those handlers are bound.
+  ensureCourseSchedulingManualPickerAccess(root, { state });
 
   const tabs = [...root.querySelectorAll('[data-instructors-workspace-tab]')];
   if (!tabs.length) return;
