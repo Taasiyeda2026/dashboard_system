@@ -61,6 +61,31 @@ export function editBlockReason(year, month, approval) {
   return 'לא ניתן לערוך חודש קודם לאחר תקופת הארכה (עד ה-2 בחודש)';
 }
 
+/**
+ * Should we show the "please submit your report" reminder banner?
+ * Returns true when:
+ *   - The viewed month is the current calendar month, AND
+ *   - Today is the 25th or later, AND
+ *   - The month status is still 'open' or 'reopened' (not yet submitted / locked)
+ *
+ * @param {number} year
+ * @param {number} month  1-based
+ * @param {object|null} approval  Row from attendance_month_approvals, or null
+ * @returns {boolean}
+ */
+export function shouldShowSubmitReminder(year, month, approval) {
+  const status = approval?.status ?? 'open';
+  if (status !== 'open' && status !== 'reopened') return false;
+
+  const now = new Date();
+  const cy = now.getFullYear();
+  const cm = now.getMonth() + 1; // 1-based
+  const cd = now.getDate();
+
+  // Only remind for the current calendar month, and only from the 25th onward
+  return year === cy && month === cm && cd >= 25;
+}
+
 /** Current school year as displayed to the user ("תשפ\"ז"). */
 export function currentSchoolYearLabel() {
   const now = new Date();
