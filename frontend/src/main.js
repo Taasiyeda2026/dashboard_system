@@ -1074,7 +1074,9 @@ function shell(content) {
     .join('');
   const attendanceNavBtn = isInstructorUser
     ? `<button type="button" class="shell-nav__btn" data-external-url="https://taasiyeda2026.github.io/attendance/">✅ נוכחות</button><button type="button" class="shell-nav__btn" data-external-url-blank="https://drive.google.com/drive/folders/1qINdcwLXTSmQND6pE_ojjJ18TUuY8UB1?usp=drive_link">📂 סדנאות</button>`
-    : '';
+    : isAdminUser
+      ? `<button type="button" class="shell-nav__btn" data-external-url="/dashboard_system/attendance/">👥 נוכחות</button>`
+      : '';
 
   const displayName = shellUserDisplayName();
   const roleLine = shellUserRoleLine();
