@@ -105,10 +105,20 @@ Deno.serve(async (req) => {
     const accessToken = await graphToken();
     const employeePath = `${EMPLOYEE_FILES_ROOT}/${fullName}`;
     const employeeFolder = await ensureFolder(accessToken, EMPLOYEE_FILES_ROOT, fullName);
-    for (const relativePath of FOLDER_PATHS) {
-      const parts = relativePath.split("/");
-      await ensureFolder(accessToken, `${employeePath}/${parts.slice(0, -1).join("/")}`.replace(/\/$/, ""), parts.at(-1)!);
+
+    // Folders on the same hierarchy level are independent, so create/check them concurrently.
+    // Depth 1 must finish before depth 2 because the latter depends on the former.
+    const depths = [...new Set(FOLDER_PATHS.map((path) => path.split("/").length))].sort((a, b) => a - b);
+    for (const depth of depths) {
+      const levelPaths = FOLDER_PATHS.filter((path) => path.split("/").length === depth);
+      await Promise.all(levelPaths.map(async (relativePath) => {
+        const parts = relativePath.split("/");
+        const parentRelative = parts.slice(0, -1).join("/");
+        const parentPath = parentRelative ? `${employeePath}/${parentRelative}` : employeePath;
+        return await ensureFolder(accessToken, parentPath, parts.at(-1)!);
+      }));
     }
+
     const folderWebUrl = clean(employeeFolder?.webUrl);
     if (!/^https:\/\/think365orgil[.]sharepoint[.]com\//.test(folderWebUrl)) throw new Error("sharepoint_folder_url_invalid");
 
