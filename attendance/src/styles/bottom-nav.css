@@ -41,7 +41,7 @@
   .av2-bottom-nav {
     /* Override fixed-bottom behaviour */
     position: static;
-    max-width: 760px;
+    max-width: none;        /* frame constrains width — nav fills it */
     padding-inline: var(--av2-space-4, 24px);
     padding-bottom: 0;
 
