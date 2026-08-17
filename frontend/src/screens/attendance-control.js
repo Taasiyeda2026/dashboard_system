@@ -743,9 +743,8 @@ export function attendanceControlStylesHtml() {
 .attendance-control__head,.attendance-control__uploads,.attendance-control__metrics,.attendance-control__employee-summary{display:flex;align-items:center;gap:12px;flex-wrap:wrap}.attendance-control__head{justify-content:space-between}.attendance-control__head h2{margin:0}.attendance-control__head p{margin:4px 0;color:#64748b}
 .attendance-control__uploads{margin:16px 0;padding:14px;background:#f8fafc;border-radius:10px}.attendance-control__uploads label{display:grid;gap:6px;min-width:220px;flex:1}.attendance-control__status{color:#b91c1c;font-weight:700}
 .attendance-control__summary-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:12px 0;padding:12px 14px;border-radius:10px;background:#f4f7fb;color:#1f2a37;font-weight:600}.attendance-control__summary-bar span{padding:7px 12px;border:1px solid #d7e0ea;border-radius:8px;background:#ffffff;font-weight:600}.attendance-control__metrics-details{margin:6px 0 12px}.attendance-control__metrics-details>summary{cursor:pointer;color:#64748b;font-size:.92em;padding:4px 2px}.attendance-control__metrics{margin:6px 0;display:flex;flex-wrap:wrap;gap:8px}.attendance-control__metrics>span,.attendance-control__employee-summary>span{padding:9px 12px;border:1px solid #e2e8f0;border-radius:8px;background:#f8fafc}
-.attendance-control__employee{margin:10px 0;border-bottom:1px solid #d7e0ea}.attendance-control__employee>summary{display:flex;justify-content:space-between;gap:12px;padding:12px 4px;cursor:pointer;font-size:1.05em}.attendance-control__employee-days{padding:0 4px 10px}
-.attendance-control__dashboard-only{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:7px 13px;padding:9px 11px;border:1px solid #d7e0ea;border-radius:9px;background:#fff}.attendance-control__dashboard-only-line{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.attendance-control__dashboard-only-line span:last-child{color:#b7791f;font-weight:700}
-.attendance-control__day{border-top:1px solid #e2e8f0}.attendance-control__day>summary{display:grid;grid-template-columns:90px minmax(90px,.7fr) minmax(120px,1.2fr) 110px 90px 70px 80px;gap:10px;align-items:center;padding:9px 2px;cursor:pointer;font-size:.92em}.attendance-control__row-status{font-weight:800;white-space:nowrap;color:#24824d}.attendance-control__row-status--issue,.attendance-control__value--issue{color:#c62828!important}.attendance-control__identity{display:grid;grid-template-columns:repeat(3,minmax(150px,1fr));gap:6px 18px;padding:12px 2px}.attendance-control__identity span{color:#475569}.attendance-control__identity b{color:#172033}.attendance-control__comparison-table{width:100%;border-collapse:collapse;margin:3px 0 14px}.attendance-control__comparison-table th,.attendance-control__comparison-table td{padding:7px 9px;text-align:right;border-bottom:1px solid #e2e8f0}.attendance-control__comparison-table th{color:#5f6f82;font-size:.86em}.attendance-control__comparison-table select,.attendance-control__comparison-table input{max-width:145px}.attendance-control__export{margin-top:14px}@media(max-width:800px){.attendance-control__day>summary{grid-template-columns:80px 1fr 1fr}.attendance-control__day>summary span:nth-child(n+4){font-size:.88em}.attendance-control__identity{grid-template-columns:1fr 1fr}.attendance-control__comparison-table{font-size:.9em}}
+.attendance-control__employee{margin:10px 0;border-bottom:1px solid #d7e0ea}.attendance-control__employee>summary{padding:12px 4px;cursor:pointer;font-size:1.05em}.attendance-control__employee-days{padding:0 4px 10px}
+.attendance-control__day{border-top:1px solid #e2e8f0}.attendance-control__day>summary{display:grid;grid-template-columns:110px 110px 80px;gap:12px;align-items:center;padding:10px 2px;cursor:pointer}.attendance-control__reports{padding:0 10px 8px}.attendance-control__report{padding:10px 0;border-top:1px solid #eef2f6}.attendance-control__report:first-child{border-top:0}.attendance-control__report-line{display:flex;align-items:center;gap:14px;flex-wrap:wrap}.attendance-control__report-line strong{min-width:105px}.attendance-control__row-status{font-weight:800;white-space:nowrap;color:#24824d}.attendance-control__row-status--issue{color:#c62828!important}.attendance-control__identity{display:grid;grid-template-columns:repeat(3,minmax(150px,1fr));gap:6px 18px;padding:10px 0}.attendance-control__identity span{color:#475569}.attendance-control__identity b{color:#172033}.attendance-control__comparison-table{width:100%;border-collapse:collapse;margin:3px 0 8px}.attendance-control__comparison-table th,.attendance-control__comparison-table td{padding:7px 9px;text-align:right;border-bottom:1px solid #e2e8f0}.attendance-control__comparison-table th{color:#5f6f82;font-size:.86em}.attendance-control__comparison-table select,.attendance-control__comparison-table input{max-width:145px}.attendance-control__export{margin-top:14px}@media(max-width:800px){.attendance-control__identity{grid-template-columns:1fr 1fr}.attendance-control__comparison-table{font-size:.9em}}
 @media(max-width:850px){.attendance-control__diff{grid-template-columns:1fr 1fr}.attendance-control__diff strong{grid-column:1/-1}.attendance-control__diff--header{display:none}[data-src-label]::before{content:attr(data-src-label)": ";font-weight:700;font-size:.8em;display:block;color:#5f6f82;margin-bottom:2px}}
 </style>`;
 }
@@ -755,67 +754,79 @@ export function resultsHtml(result, month = '') {
   const employees = new Map();
   const ensureEmployee = (id, name = '') => {
     const key = txt(id);
-    if (!employees.has(key)) employees.set(key, { id: key, name: txt(name) || key, rows: [] });
+    if (!employees.has(key)) employees.set(key, { id: key, name: txt(name) || key, days: new Map() });
     if (name) employees.get(key).name = txt(name);
     return employees.get(key);
   };
-  (result.comparisons || []).forEach((comparison) => ensureEmployee(comparison.attendance.employeeId, comparison.attendance.employeeName)
-    .rows.push({ kind: 'comparison', date: comparison.attendance.date, time: comparison.attendance.startTime, item: comparison }));
-  (result.notCompared || []).forEach((entry) => ensureEmployee(entry.attendance.employeeId, entry.attendance.employeeName)
-    .rows.push({ kind: 'attendance', date: entry.attendance.date, time: entry.attendance.startTime, item: entry }));
-  (result.dashboardOnly || []).forEach((entry) => ensureEmployee(entry.dashboard.employeeId, entry.dashboard.employeeName)
-    .rows.push({ kind: 'dashboard', date: entry.dashboard.date, time: entry.dashboard.startTime, item: entry }));
+  const addRow = (id, name, date, time, kind, item) => {
+    const employee = ensureEmployee(id, name);
+    if (!employee.days.has(date)) employee.days.set(date, []);
+    employee.days.get(date).push({ kind, time: txt(time), item });
+  };
+  (result.comparisons || []).forEach((item) => addRow(item.attendance.employeeId, item.attendance.employeeName, item.attendance.date, item.attendance.startTime, 'comparison', item));
+  (result.notCompared || []).forEach((item) => addRow(item.attendance.employeeId, item.attendance.employeeName, item.attendance.date, item.attendance.startTime, 'attendance', item));
+  (result.dashboardOnly || []).forEach((item) => addRow(item.dashboard.employeeId, item.dashboard.employeeName, item.dashboard.date, item.dashboard.startTime, 'dashboard', item));
 
   const dateLabel = (value) => {
     const match = txt(value).match(/^(\d{4})-(\d{2})-(\d{2})$/);
     return match ? `${match[3]}.${match[2]}.${match[1]}` : txt(value);
   };
   const shown = (value, fallback = '—') => escapeHtml(txt(value) || fallback);
+  const hasValue = (value) => value != null && txt(value) !== '';
+  const kilometerIssue = (attendance, dashboard) => hasValue(attendance?.kilometers) && hasValue(dashboard?.kilometers)
+    && number(attendance.kilometers) !== number(dashboard.kilometers);
+  const comparisonHasIssue = (comparison) => comparison.unmatched || comparison.differences.length > 0
+    || comparison.dashboard?.payrollHoursRequireReview || kilometerIssue(comparison.attendance, comparison.dashboard);
   const identityHtml = (row) => {
     const fields = [
-      ['סוג פעילות / דיווח', row.activityType], ['תאריך', dateLabel(row.date)],
-      ['שעת התחלה–סיום', `${row.startTime || '—'}–${row.endTime || '—'}`], ['תוכנית / פעילות', row.program],
-      ['בית ספר / מוסד', row.school], ['רשות / יישוב', row.authority], ['מספר מפגש', row.meetingNo]
+      ['סוג פעילות / דיווח', row.activityType], ['שעת התחלה–סיום', `${row.startTime || '—'}–${row.endTime || '—'}`],
+      ['תוכנית / פעילות', row.program], ['בית ספר / מוסד', row.school],
+      ['רשות / יישוב', row.authority], ['מספר מפגש', row.meetingNo]
     ].filter(([, value]) => txt(value));
     return `<div class="attendance-control__identity">${fields.map(([label, value]) => `<span>${escapeHtml(label)}: <b>${shown(value)}</b></span>`).join('')}</div>`;
   };
-  const tableHtml = (comparison) => {
+  const comparisonTable = (comparison) => {
     const attendance = comparison.attendance || {};
-    const dashboard = comparison.dashboard || {};
+    const dashboard = comparison.dashboard || null;
     const diffByKey = new Map((comparison.differences || []).map((diff) => [diff.key, diff]));
     const definitions = [
-      ['workHours', 'שעות', rowWorkHours(attendance).toFixed(2), comparison.unmatched ? null : rowWorkHours(dashboard).toFixed(2)],
-      ['kilometers', 'ק״מ', attendance.kilometers, dashboard.kilometers],
-      ['activityType', 'סוג פעילות', activityTypeDisplayLabel(attendance.activityType), activityTypeDisplayLabel(dashboard.activityType)],
-      ['activityHours', 'שעות פעילות', `${attendance.startTime || '—'}–${attendance.endTime || '—'}`, `${dashboard.startTime || '—'}–${dashboard.endTime || '—'}`],
-      ['expenses', 'הוצאות', attendance.expenses, dashboard.expenses], ['meetingNo', 'מספר מפגש', attendance.meetingNo, dashboard.meetingNo]
+      ['workHours', 'שעות', rowWorkHours(attendance).toFixed(2), dashboard ? rowWorkHours(dashboard).toFixed(2) : null],
+      ['kilometers', 'ק״מ', attendance.kilometers, dashboard?.kilometers],
+      ['activityType', 'סוג פעילות', activityTypeDisplayLabel(attendance.activityType), dashboard ? activityTypeDisplayLabel(dashboard.activityType) : null],
+      ['activityHours', 'שעות פעילות', `${attendance.startTime || '—'}–${attendance.endTime || '—'}`, dashboard ? `${dashboard.startTime || '—'}–${dashboard.endTime || '—'}` : null],
+      ['expenses', 'הוצאות', attendance.expenses, dashboard?.expenses], ['meetingNo', 'מספר מפגש', attendance.meetingNo, dashboard?.meetingNo]
     ];
-    const rows = definitions.filter(([key, , left, right]) => ['workHours', 'kilometers', 'activityType', 'activityHours'].includes(key) || txt(left) || txt(right)).map(([key, label, left, right]) => {
+    const rows = definitions.filter(([key, , left, right]) => ['workHours', 'kilometers', 'activityType', 'activityHours'].includes(key) || hasValue(left) || hasValue(right)).map(([key, label, left, right]) => {
       const related = key === 'activityHours' ? ['startTime', 'endTime'].map((field) => diffByKey.get(field)).find(Boolean) : diffByKey.get(key);
-      const issue = comparison.unmatched || Boolean(related) || (key === 'workHours' && dashboard.payrollHoursRequireReview);
+      const issue = key === 'kilometers' ? kilometerIssue(attendance, dashboard) : Boolean(related)
+        || (key === 'workHours' && dashboard?.payrollHoursRequireReview);
+      const unavailable = !dashboard;
       const controls = related ? `<select class="ds-input ds-input--sm" data-attendance-choice aria-label="החלטה עבור ${escapeHtml(label)}"><option value="attendance">נתון הנוכחות</option><option value="dashboard">נתון הדשבורד</option><option value="custom">ערך אחר</option></select><input class="ds-input ds-input--sm" data-attendance-custom hidden aria-label="ערך אחר">` : '';
-      return `<tr${related ? ` data-comparison="${comparison.id}" data-field="${related.key}"` : ''}><th>${escapeHtml(label)}</th><td>${shown(left)}</td><td>${shown(right)}</td><td class="attendance-control__row-status ${issue ? 'attendance-control__row-status--issue' : ''}">${issue ? (comparison.unmatched ? 'אין התאמה' : 'שונה') : 'תקין'}${controls}</td></tr>`;
+      return `<tr${related ? ` data-comparison="${comparison.id}" data-field="${related.key}"` : ''}><th>${escapeHtml(label)}</th><td>${shown(left)}</td><td>${unavailable ? '' : shown(right)}</td><td class="attendance-control__row-status ${issue ? 'attendance-control__row-status--issue' : ''}">${unavailable ? '' : issue ? 'שונה' : 'תקין'}${controls}</td></tr>`;
     }).join('');
-    return `<table class="attendance-control__comparison-table"><thead><tr><th>נתון</th><th>נוכחות</th><th>דשבורד</th><th>סטטוס</th></tr></thead><tbody>${rows}</tbody></table>`;
+    return `<table class="attendance-control__comparison-table"><thead><tr><th>נתון</th><th>נוכחות</th><th>דשבורד / בקרה</th><th>סטטוס</th></tr></thead><tbody>${rows}</tbody></table>`;
   };
-  const attendanceOnlyTable = (row) => {
-    const rows = [['שעות', rowWorkHours(row).toFixed(2)], ['ק״מ', row.kilometers], ['סוג פעילות', row.activityType], ['שעות פעילות', `${row.startTime || '—'}–${row.endTime || '—'}`], ['הוצאות', row.expenses], ['מספר מפגש', row.meetingNo]].filter(([, value]) => txt(value));
-    return `<table class="attendance-control__comparison-table"><thead><tr><th>נתון</th><th>נוכחות</th><th>דשבורד</th><th>סטטוס</th></tr></thead><tbody>${rows.map(([label, value]) => `<tr><th>${escapeHtml(label)}</th><td>${shown(value)}</td><td>—</td><td>נוכחות בלבד</td></tr>`).join('')}</tbody></table>`;
+  const reportHtml = ({ kind, item }) => {
+    const row = kind === 'dashboard' ? item.dashboard : item.attendance;
+    const issue = kind === 'comparison' ? comparisonHasIssue(item) : kind === 'dashboard';
+    const timelineStatus = kind === 'comparison' && !issue ? '<span class="attendance-control__row-status">תקין</span>' : '';
+    const table = kind === 'comparison' ? comparisonTable(item) : kind === 'attendance'
+      ? comparisonTable({ id: item.id, attendance: row, dashboard: null, differences: [], unmatched: false })
+      : `<p class="attendance-control__row-status--issue">פעילות בדשבורד ללא דיווח נוכחות.</p>`;
+    return `<section class="attendance-control__report"><div class="attendance-control__report-line"><strong>${shown(`${row.startTime || '—'}–${row.endTime || '—'}`)}</strong><span>${shown(row.activityType || 'דיווח')}</span>${row.school || row.program ? `<span>${shown(row.school || row.program)}</span>` : ''}${timelineStatus}</div>${identityHtml(row)}${table}</section>`;
   };
   const employeeHtml = [...employees.values()].sort((a, b) => a.name.localeCompare(b.name, 'he')).map((employee) => {
-    const days = employee.rows.sort((a, b) => `${a.date}${a.time}`.localeCompare(`${b.date}${b.time}`)).map(({ kind, item }) => {
-      const row = kind === 'comparison' ? item.attendance : kind === 'attendance' ? item.attendance : item.dashboard;
-      const comparison = kind === 'comparison' ? item : null;
-      const issue = comparison ? comparison.unmatched || comparison.differences.length > 0 || comparison.dashboard?.payrollHoursRequireReview : kind === 'dashboard';
-      const status = kind === 'attendance' ? 'נוכחות בלבד' : kind === 'dashboard' ? 'ללא דיווח נוכחות' : issue ? 'לבדיקה' : 'תקין';
-      const detail = kind === 'comparison' ? tableHtml(item) : kind === 'attendance' ? attendanceOnlyTable(row) : `<p class="attendance-control__value--issue">פעילות בדשבורד ללא דיווח נוכחות.</p>`;
-      return `<details class="attendance-control__day attendance-control__day--${issue ? 'mismatch' : 'ok'}"><summary><span>${shown(dateLabel(row.date))}</span><span>${shown(row.activityType || 'דיווח')}</span><span>${shown(row.school || row.program)}</span><span>${shown(`${row.startTime || '—'}–${row.endTime || '—'}`)}</span><span>${rowWorkHours(row).toFixed(2)} שעות</span><span>${number(row.kilometers)} ק״מ</span><span class="attendance-control__row-status ${issue ? 'attendance-control__row-status--issue' : ''}">${status}</span></summary>${identityHtml(row)}${detail}</details>`;
+    const days = [...employee.days.entries()].sort(([left], [right]) => left.localeCompare(right)).map(([date, rows]) => {
+      rows.sort((left, right) => left.time.localeCompare(right.time));
+      const attendanceRows = rows.filter((row) => row.kind !== 'dashboard');
+      const hours = attendanceRows.reduce((sum, entry) => sum + rowWorkHours(entry.kind === 'comparison' ? entry.item.attendance : entry.item.attendance), 0);
+      const issue = rows.some((entry) => entry.kind === 'dashboard' || (entry.kind === 'comparison' && comparisonHasIssue(entry.item)));
+      return `<details class="attendance-control__day"><summary><span>${shown(dateLabel(date))}</span><span>${hours.toFixed(2)} שעות</span><span class="attendance-control__row-status ${issue ? 'attendance-control__row-status--issue' : ''}">${issue ? 'לבדיקה' : 'תקין'}</span></summary><div class="attendance-control__reports">${rows.map(reportHtml).join('')}</div></details>`;
     }).join('');
-    return `<details class="attendance-control__employee"><summary><strong>${shown(employee.name)}</strong><span>${employee.rows.length} דיווחים</span></summary><div class="attendance-control__employee-days">${days}</div></details>`;
+    return `<details class="attendance-control__employee"><summary><strong>${shown(employee.name)}</strong></summary><div class="attendance-control__employee-days">${days}</div></details>`;
   }).join('');
-  const days = new Set([...employees.values()].flatMap((employee) => employee.rows.filter((row) => row.kind !== 'dashboard').map((row) => `${employee.id}|${row.date}`))).size;
-  const reviewDays = new Set([...employees.values()].flatMap((employee) => employee.rows.filter((row) => row.kind === 'dashboard' || (row.kind === 'comparison' && (row.item.unmatched || row.item.differences.length))).map((row) => `${employee.id}|${row.date}`))).size;
-  const summaryBar = `<div class="attendance-control__summary-bar"><span>מדריכים <b>${totals.employees}</b></span><span>ימים <b>${days}</b></span><span>תקינים <b>${Math.max(0, days - reviewDays)}</b></span><span>לבדיקה <b>${reviewDays}</b></span></div>`;
+  const reviewEmployees = [...employees.values()].filter((employee) => [...employee.days.values()].some((rows) => rows.some((entry) => entry.kind === 'dashboard' || (entry.kind === 'comparison' && comparisonHasIssue(entry.item))))).length;
+  const summaryBar = `<div class="attendance-control__summary-bar"><span>מדריכים <b>${totals.employees}</b></span><span>תקינים <b>${Math.max(0, totals.employees - reviewEmployees)}</b></span><span>לבדיקה <b>${reviewEmployees}</b></span></div>`;
   return `${summaryBar}${employeeHtml}<button type="button" class="ds-btn ds-btn--primary attendance-control__export" data-attendance-export>ייצוא דוח נוכחות מתוקן</button>`;
 }
 

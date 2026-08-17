@@ -170,10 +170,27 @@ test('May non-activity reports stay in export but not in activity exceptions or 
   assert.equal(Math.round(detail.slice(1).reduce((sum, row) => sum + Number(row[5] || 0), 0) * 10) / 10, 512.9);
   const html = resultsHtml(result);
   assert.equal((html.match(/class="attendance-control__employee"/g) || []).length, 1, 'one instructor accordion is rendered');
-  assert.match(html, /class="attendance-control__day attendance-control__day--ok"/, 'attendance-only reports stay in the chronological day list');
-  assert.match(html, /<th>נתון<\/th><th>נוכחות<\/th><th>דשבורד<\/th><th>סטטוס<\/th>/, 'day details use the uniform comparison table');
+  assert.equal((html.match(/class="attendance-control__day"/g) || []).length, 28, 'one day row groups all reports from the same date');
+  assert.match(html, /class="attendance-control__reports"/, 'attendance-only reports stay in the chronological day sequence');
+  assert.match(html, /<th>נתון<\/th><th>נוכחות<\/th><th>דשבורד \/ בקרה<\/th><th>סטטוס<\/th>/, 'report details use the uniform comparison table');
   assert.match(html, />הכשרה</, 'manual activity types are displayed without approval wording');
-  assert.doesNotMatch(html, /נדרש טיפול לפני תשלום|נדרש אישור ידני/, 'the view does not add payment-treatment copy');
+  assert.doesNotMatch(html, /נוכחות בלבד|נדרש טיפול לפני תשלום|נדרש אישור ידני/, 'the view does not add technical payment or attendance-only copy');
+  assert.doesNotMatch(html, /<span>ימים <b>/, 'the top summary does not include a days metric');
+});
+
+
+test('payroll view groups reports by work day and compares row kilometers', () => {
+  const base = { employeeId: '77', employeeName: 'ברקת קטעי', date: '2027-01-03', activityType: 'קורס', school: 'בית ספר X', authority: 'רחובות' };
+  const result = compareAttendanceRows([
+    { ...base, startTime: '09:00', endTime: '10:00', workHours: 1, kilometers: 30, program: 'תוכנית א' },
+    { ...base, startTime: '10:00', endTime: '11:00', workHours: 1, kilometers: 0, activityType: 'הכשרה', program: 'הכשרה' }
+  ], [{ ...base, startTime: '09:00', endTime: '10:00', workHours: 1, kilometers: 24, program: 'תוכנית א' }]);
+  const html = resultsHtml(result);
+  assert.equal((html.match(/class="attendance-control__employee"/g) || []).length, 1);
+  assert.equal((html.match(/class="attendance-control__day"/g) || []).length, 1, 'same-date reports share one day row');
+  assert.match(html, /30<\/td><td>24<\/td><td class="attendance-control__row-status attendance-control__row-status--issue">שונה/, 'row kilometers use the matched activity value');
+  assert.match(html, /09:00–10:00[\s\S]*10:00–11:00/, 'reports are ordered by start time');
+  assert.doesNotMatch(html, /נוכחות בלבד|נדרש אישור ידני/);
 });
 
 test('employee 1501 May 4 bundles LONG-080 through LONG-082 into one attendance row', () => {

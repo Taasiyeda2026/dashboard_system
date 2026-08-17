@@ -345,7 +345,7 @@ async function activateTestMode(doc) {
   button.disabled = true;
   status.textContent = 'טוען נתוני בדיקה של תשפ״ז…';
   try {
-    const moduleApi = await import('./screens/attendance-control.js?v=20260817-instructor-day-v1');
+    const moduleApi = await import('./screens/attendance-control.js?v=20260817-grouped-days-v1');
     const { attendanceRows, dashboardRows, sourceData } = buildPayrollControlTestDataset(moduleApi);
     const result = moduleApi.compareAttendanceRows(attendanceRows, dashboardRows);
     result.month = PAYROLL_TEST_MONTH;
