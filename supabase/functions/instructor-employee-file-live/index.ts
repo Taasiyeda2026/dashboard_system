@@ -43,6 +43,24 @@ function encodeGraphPath(path: string) {
   return path.split("/").filter(Boolean).map((segment) => encodeURIComponent(segment)).join("/");
 }
 
+function graphShareId(url: string) {
+  const bytes = new TextEncoder().encode(url);
+  let binary = "";
+  for (let index = 0; index < bytes.length; index += 0x8000) {
+    binary += String.fromCharCode(...bytes.subarray(index, index + 0x8000));
+  }
+  return `u!${btoa(binary).replace(/=+$/g, "").replace(/\//g, "_").replace(/\+/g, "-")}`;
+}
+
+function looksLikeSharingLink(folderWebUrl: string) {
+  try {
+    const url = new URL(folderWebUrl);
+    return url.pathname.includes("/:f:/") || url.pathname.includes("/:u:/") || url.searchParams.has("e");
+  } catch {
+    return false;
+  }
+}
+
 async function loadSnapshot(req: Request, empId: number, schoolYear: string) {
   const supabaseUrl = clean(Deno.env.get("SUPABASE_URL"));
   const anonKey = clean(Deno.env.get("SUPABASE_ANON_KEY"));
@@ -99,7 +117,10 @@ async function persistComponents(empId: number, schoolYear: string, components: 
       body: JSON.stringify(rows),
     },
   );
-  if (!saveResponse.ok) throw new Error(`employee_file_snapshot_save_failed:${saveResponse.status}`);
+  if (!saveResponse.ok) {
+    const detail = await saveResponse.text();
+    throw new Error(`employee_file_snapshot_save_failed:${saveResponse.status}:${detail.slice(0, 200)}`);
+  }
 }
 
 async function graphToken() {
@@ -155,7 +176,53 @@ async function listFolderFiles(token: string, driveId: string, relativePath: str
   return count;
 }
 
+async function listFolderFilesFromItem(token: string, driveId: string, rootItemId: string, relativePath: string) {
+  const encoded = encodeGraphPath(relativePath);
+  let next: string | null = `/drives/${encodeURIComponent(driveId)}/items/${encodeURIComponent(rootItemId)}:/${encoded}:/children?$select=id,name,file,folder&$top=200`;
+  let count = 0;
+  while (next) {
+    const payload = await graphGet(token, next, true);
+    if (!payload) return 0;
+    for (const item of Array.isArray(payload.value) ? payload.value : []) {
+      if (item?.file) count += 1;
+    }
+    next = clean(payload?.["@odata.nextLink"]) || null;
+  }
+  return count;
+}
+
+async function sharedFolderRoot(token: string, folderWebUrl: string) {
+  if (!looksLikeSharingLink(folderWebUrl)) return null;
+  const shareId = graphShareId(folderWebUrl);
+  const payload = await graphGet(
+    token,
+    `/shares/${encodeURIComponent(shareId)}/driveItem?$select=id,name,webUrl,parentReference,folder,remoteItem`,
+    true,
+  );
+  if (!payload) return null;
+  const item = payload?.remoteItem || payload;
+  const driveId = clean(item?.parentReference?.driveId || payload?.parentReference?.driveId);
+  const itemId = clean(item?.id || payload?.id);
+  if (!driveId || !itemId) return null;
+  return { driveId, itemId };
+}
+
 async function liveComponents(token: string, folderWebUrl: string) {
+  const sharedRoot = await sharedFolderRoot(token, folderWebUrl).catch((error) => {
+    console.warn("[instructor-employee-file-live] shared-link resolution failed; trying canonical path", error);
+    return null;
+  });
+  if (sharedRoot) {
+    return await Promise.all(COMPONENT_PATHS.map(async ([componentKey, suffix]) => {
+      const itemCount = await listFolderFilesFromItem(token, sharedRoot.driveId, sharedRoot.itemId, suffix);
+      return {
+        component_key: componentKey,
+        completed: itemCount > 0,
+        item_count: componentKey === "payroll_reports" ? itemCount : 0,
+      };
+    }));
+  }
+
   const site = await graphGet(
     token,
     `/sites/${SHAREPOINT_HOST}:${SHAREPOINT_SITE_PATH}?$select=id,webUrl`,
@@ -209,9 +276,6 @@ Deno.serve(async (req) => {
     if (!Number.isInteger(empId) || empId <= 0) return json({ error: "employee_file_emp_id_required" }, 400);
 
     const snapshot = await loadSnapshot(req, empId, schoolYear);
-    // Opening an employee file must use the persisted snapshot. SharePoint is
-    // queried only by mutation flows that explicitly request a refresh after a
-    // document upload, deletion, or status-changing operation.
     if (!refresh) {
       return json({ ...snapshot, live: false, source: "stored", reason: "snapshot_only" });
     }
@@ -228,6 +292,7 @@ Deno.serve(async (req) => {
     await persistComponents(empId, schoolYear, components);
     return json({
       ...snapshot,
+      emp_id: empId,
       components,
       live: true,
       source: "sharepoint",
