@@ -19,7 +19,10 @@ export const SCHEDULING_ROUTE_ERROR_HE = {
   server_configuration_missing: 'הגדרות השרת לחישוב מסלולים חסרות. פנו לתמיכה טכנית.',
   missing_or_invalid_locations: 'חסרות כתובות תקינות לחישוב המסלול.',
   missing_address: 'חסרה כתובת למדריך פעיל. המסלולים שלו דולגו עד להשלמת הכתובת במקור הנתונים.',
-  school_address_lookup_failed: 'לא ניתן לטעון את כתובות בתי הספר לשיבוץ. חישוב המרחקים הופסק כדי לא להשתמש בשם בית ספר ככתובת.'
+  school_address_lookup_failed: 'לא ניתן לטעון את כתובות בתי הספר לשיבוץ. חישוב המרחקים הופסק כדי לא להשתמש בשם בית ספר ככתובת.',
+  invalid_payroll_month: 'יש לבחור חודש תקין בפורמט YYYY-MM לפני עדכון מרחקים לבקרת שכר.',
+  payroll_activity_lookup_failed: 'לא ניתן לטעון את פעילויות החודש לחישוב מרחקים. נסו שוב.',
+  payroll_school_catalog_lookup_failed: 'לא ניתן לטעון את קטלוג בתי הספר להשלמת מרחקי בקרת השכר.'
 };
 
 export function translateSchedulingRouteError(codeOrMessage, fallback = 'פעולת המרחקים נכשלה. נסו שוב.') {
@@ -50,7 +53,15 @@ export function emptyDistanceBuildStats() {
     skipped_instructors_missing_address_count: 0,
     failed_count: 0,
     remaining_count: 0,
-    failures: []
+    failures: [],
+    month: '',
+    relevant_meeting_count: 0,
+    relevant_instructor_count: 0,
+    relevant_location_count: 0,
+    unresolved_location_count: 0,
+    ambiguous_location_count: 0,
+    missing_instructor_address_count: 0,
+    exceptions: []
   };
 }
 
@@ -82,6 +93,18 @@ export function mergeDistanceBuildStats(acc, batch) {
     next.skipped_instructors_missing_address_count,
     Number(batch?.skipped_instructors_missing_address_count) || 0
   );
+  if (text(batch?.month)) next.month = text(batch.month);
+  for (const field of [
+    'relevant_meeting_count',
+    'relevant_instructor_count',
+    'relevant_location_count',
+    'unresolved_location_count',
+    'ambiguous_location_count',
+    'missing_instructor_address_count'
+  ]) {
+    if (Number.isFinite(Number(batch?.[field]))) next[field] = Number(batch[field]);
+  }
+  if (Array.isArray(batch?.exceptions)) next.exceptions = batch.exceptions.slice(0, 50);
   next.failed_count += Number(batch?.failed_count) || 0;
   next.remaining_count = Number(batch?.remaining_count) || 0;
   const failures = Array.isArray(batch?.failures) ? batch.failures : [];
@@ -669,14 +692,17 @@ export async function invokeSchedulingRouteBuild(invoke, body) {
   return payload;
 }
 
-export async function loadDistanceCoverage(invoke, scope = 'all') {
-  const coverage = await invokeSchedulingRouteBuild(invoke, { mode: 'coverage', scope });
+export async function loadDistanceCoverage(invoke, scope = 'all', options = {}) {
+  const body = { mode: 'coverage', scope };
+  if (scope === 'payroll_month') body.month = options.month;
+  const coverage = await invokeSchedulingRouteBuild(invoke, body);
   return mergeDistanceBuildStats(emptyDistanceBuildStats(), coverage);
 }
 
 export async function runDistanceBuildLoop({
   invoke,
   scope = 'all',
+  month,
   limit = 25,
   shouldStop = () => false,
   onProgress = async () => {}
@@ -691,12 +717,14 @@ export async function runDistanceBuildLoop({
       stopped = true;
       break;
     }
-    const batch = await invokeSchedulingRouteBuild(invoke, {
+    const body = {
       mode: 'build_cache',
       scope,
       cursor,
       limit
-    });
+    };
+    if (scope === 'payroll_month') body.month = month;
+    const batch = await invokeSchedulingRouteBuild(invoke, body);
     stats = mergeDistanceBuildStats(stats, batch);
     done = !!batch?.done;
     cursor = batch?.next_cursor || null;

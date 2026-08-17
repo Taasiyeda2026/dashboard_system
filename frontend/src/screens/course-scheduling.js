@@ -21,6 +21,7 @@ import {
   runDistanceBuildLoop,
   translateSchedulingRouteError
 } from './course-scheduling-distance-build.js';
+import { parsePayrollMonth } from './course-scheduling-payroll-month-distances.js';
 import { instructionLanguageLabel } from './shared/instruction-language.js';
 import { DEFAULT_COURSE_SCHEDULING_PERIOD_KEY, filterMeetingsByCourseSchedulingPeriod, periodOptions, resolveCourseSchedulingPeriod } from './course-scheduling-periods.js';
 import { OPERATIONAL_DISTRICTS, normalizeOperationalDistrict } from './shared/district-normalization.js';
@@ -1070,6 +1071,10 @@ function maintenanceTabHtml(state) {
   const count = (key) => coverageLoading && stats[key] == null ? '…' : Number(stats[key]) || 0;
   const doneMessage = text(state.courseSchedulingDistanceDoneMessage);
   const doneError = !!state.courseSchedulingDistanceError;
+  const target = text(state.courseSchedulingDistanceTarget) === 'payroll_month' ? 'payroll_month' : 'scheduling';
+  const month = parsePayrollMonth(state.courseSchedulingDistanceMonth);
+  const payrollNeedsMonth = target === 'payroll_month' && !month;
+  const updateDisabled = distanceBusy || coverageLoading || payrollNeedsMonth;
   return `<section class="course-scheduling-maintenance-tab" aria-labelledby="course-scheduling-maintenance-heading">
     <h2 id="course-scheduling-maintenance-heading" class="course-scheduling-visually-hidden">פעולות תחזוקה</h2>
     <article class="course-scheduling-maintenance-card">
@@ -1078,9 +1083,22 @@ function maintenanceTabHtml(state) {
         <p>מרחקים קיימים: ${count('existing_count')} מתוך ${count('required_count')}</p>
         <p>חסרים: ${count('missing_count')}</p>
         <p>דורשים רענון: ${count('refresh_required_count')}</p>
+        ${target === 'payroll_month' ? `
+        <p>מפגשים רלוונטיים: ${count('relevant_meeting_count')}</p>
+        <p>מדריכים רלוונטיים: ${count('relevant_instructor_count')}</p>
+        <p>מקומות רלוונטיים: ${count('relevant_location_count')}</p>
+        <p>מדריכים ללא כתובת: ${count('missing_instructor_address_count')}</p>
+        <p>מקומות לא מזוהים: ${count('unresolved_location_count')}</p>
+        <p>מקומות דו-משמעיים: ${count('ambiguous_location_count')}</p>` : ''}
+        <div class="course-scheduling-distance-target" role="group" aria-label="עדכון מרחקים עבור">
+          <span>עדכון מרחקים עבור:</span>
+          <label><input type="radio" name="cs-distance-target" data-distance-target="scheduling" ${target === 'scheduling' ? 'checked' : ''}> שיבוצים</label>
+          <label><input type="radio" name="cs-distance-target" data-distance-target="payroll_month" ${target === 'payroll_month' ? 'checked' : ''}> בקרת שכר לפי חודש</label>
+          ${target === 'payroll_month' ? `<label>חודש <input class="course-scheduling-input course-scheduling-distance-month" type="month" data-distance-month value="${escapeHtml(month)}" aria-label="חודש לבקרת שכר"></label>` : ''}
+        </div>
         ${doneMessage ? `<p class="${doneError ? 'course-scheduling-alert' : 'course-scheduling-success'}">${escapeHtml(doneMessage)}</p>` : ''}
       </div>
-      <button type="button" class="course-scheduling-btn course-scheduling-btn--primary" data-update-distances ${distanceBusy || coverageLoading ? 'disabled' : ''}>${distanceBusy ? 'מעדכן מרחקים...' : 'עדכן מרחקים'}</button>
+      <button type="button" class="course-scheduling-btn course-scheduling-btn--primary" data-update-distances ${updateDisabled ? 'disabled' : ''}>${distanceBusy ? 'מעדכן מרחקים...' : 'עדכן מרחקים'}</button>
     </article>
   </section>`;
 }
@@ -1273,8 +1291,17 @@ export const courseSchedulingScreen = {
     if (activeTab(state) === 'maintenance'
       && !state.courseSchedulingDistanceCoverageLoaded
       && !state.courseSchedulingDistanceCoverageLoading) {
-      state.courseSchedulingDistanceCoverageLoading = true;
-      loadDistanceCoverage((body) => supabase.functions.invoke('scheduling-route', { body }))
+      const distanceTarget = text(state.courseSchedulingDistanceTarget) === 'payroll_month' ? 'payroll_month' : 'all';
+      const payrollMonth = parsePayrollMonth(state.courseSchedulingDistanceMonth);
+      if (distanceTarget === 'payroll_month' && !payrollMonth) {
+        state.courseSchedulingDistanceCoverageLoaded = true;
+      } else {
+        state.courseSchedulingDistanceCoverageLoading = true;
+        loadDistanceCoverage(
+          (body) => supabase.functions.invoke('scheduling-route', { body }),
+          distanceTarget,
+          { month: payrollMonth }
+        )
         .then((coverage) => {
           state.courseSchedulingDistanceStats = coverage;
           state.courseSchedulingDistanceError = false;
@@ -1289,6 +1316,7 @@ export const courseSchedulingScreen = {
           state.courseSchedulingDistanceCoverageLoaded = true;
           rerender();
         });
+      }
     }
 
     const openMissingCourse = (activityId) => {
@@ -1981,8 +2009,30 @@ export const courseSchedulingScreen = {
       await runFindInstructors();
     });
 
+    root.querySelectorAll('[data-distance-target]').forEach((input) => {
+      input.addEventListener('change', () => {
+        const nextTarget = text(input.getAttribute('data-distance-target')) === 'payroll_month' ? 'payroll_month' : 'scheduling';
+        if (text(state.courseSchedulingDistanceTarget || 'scheduling') === nextTarget) return;
+        state.courseSchedulingDistanceTarget = nextTarget;
+        state.courseSchedulingDistanceCoverageLoaded = false;
+        state.courseSchedulingDistanceStats = null;
+        rerender();
+      });
+    });
+    root.querySelector('[data-distance-month]')?.addEventListener('change', (event) => {
+      const nextMonth = parsePayrollMonth(event.target.value);
+      if (parsePayrollMonth(state.courseSchedulingDistanceMonth) === nextMonth) return;
+      state.courseSchedulingDistanceMonth = nextMonth;
+      state.courseSchedulingDistanceCoverageLoaded = false;
+      state.courseSchedulingDistanceStats = null;
+      rerender();
+    });
+
     root.querySelector('[data-update-distances]')?.addEventListener('click', async () => {
       if (state.courseSchedulingDistanceLoading) return;
+      const distanceTarget = text(state.courseSchedulingDistanceTarget) === 'payroll_month' ? 'payroll_month' : 'all';
+      const payrollMonth = parsePayrollMonth(state.courseSchedulingDistanceMonth);
+      if (distanceTarget === 'payroll_month' && !payrollMonth) return;
       state.courseSchedulingDistanceLoading = true;
       state.courseSchedulingDistanceStopRequested = false;
       state.courseSchedulingDistanceError = false;
@@ -1990,16 +2040,16 @@ export const courseSchedulingScreen = {
       state.courseSchedulingDistanceDetails = '';
       rerender();
       try {
-        const initialCoverage = await loadDistanceCoverage(
-          (body) => supabase.functions.invoke('scheduling-route', { body })
-        );
+        const invoke = (body) => supabase.functions.invoke('scheduling-route', { body });
+        const initialCoverage = await loadDistanceCoverage(invoke, distanceTarget, { month: payrollMonth });
         state.courseSchedulingDistanceStats = {
           ...initialCoverage,
           action_required_count: initialCoverage.missing_count + initialCoverage.refresh_required_count
         };
         const result = await runDistanceBuildLoop({
-          invoke: (body) => supabase.functions.invoke('scheduling-route', { body }),
-          scope: 'all',
+          invoke,
+          scope: distanceTarget,
+          month: payrollMonth,
           limit: 25,
           shouldStop: () => !!state.courseSchedulingDistanceStopRequested,
           onProgress: async ({ stats, done, stopped }) => {
@@ -2014,9 +2064,7 @@ export const courseSchedulingScreen = {
             rerender();
           }
         });
-        const finalCoverage = await loadDistanceCoverage(
-          (body) => supabase.functions.invoke('scheduling-route', { body })
-        );
+        const finalCoverage = await loadDistanceCoverage(invoke, distanceTarget, { month: payrollMonth });
         const finalStats = { ...result.stats, ...finalCoverage };
         const info = distanceDoneMessage(finalStats, { done: result.done, stopped: result.stopped });
         state.courseSchedulingDistanceStats = finalStats;

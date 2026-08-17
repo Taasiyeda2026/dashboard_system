@@ -13,7 +13,7 @@ const MAX_BATCH_LIMIT = 40;
 const BATCH_CONCURRENCY = 4;
 
 type DbClient = ReturnType<typeof createClient>;
-type BuildScope = 'instructor_school' | 'school_school' | 'all';
+type BuildScope = 'instructor_school' | 'school_school' | 'all' | 'payroll_month';
 type OriginType = 'instructor' | 'school';
 
 type SchoolRow = {
@@ -174,7 +174,15 @@ function emptyStats() {
     failures: [] as FailureRow[],
     next_cursor: null as string | null,
     scope: 'all' as BuildScope,
-    phase: null as BuildCursor['phase'] | null
+    phase: null as BuildCursor['phase'] | null,
+    month: '',
+    relevant_meeting_count: 0,
+    relevant_instructor_count: 0,
+    relevant_location_count: 0,
+    unresolved_location_count: 0,
+    ambiguous_location_count: 0,
+    missing_instructor_address_count: 0,
+    exceptions: [] as Array<{ activity_id: string; date: string; authority: string; school: string; reason: string }>
   };
 }
 
@@ -548,6 +556,400 @@ async function loadActiveInstructorsWithAddress(db: DbClient) {
   };
 }
 
+const PAYROLL_MONTH_RE = /^(\d{4})-(0[1-9]|1[0-2])$/;
+const PAYROLL_SKIPPED_STATUSES = new Set([
+  'בוטל', 'cancelled', 'canceled', 'מבוטל', 'נמחק', 'deleted'
+]);
+
+function parsePayrollMonth(value: unknown) {
+  const match = text(value).match(PAYROLL_MONTH_RE);
+  return match ? `${match[1]}-${match[2]}` : '';
+}
+
+function payrollMonthRange(month: string) {
+  const parsed = parsePayrollMonth(month);
+  if (!parsed) return null;
+  const [year, monthNum] = parsed.split('-').map(Number);
+  const lastDay = new Date(Date.UTC(year, monthNum, 0)).getUTCDate();
+  return {
+    month: parsed,
+    fromDate: `${parsed}-01`,
+    toDate: `${parsed}-${String(lastDay).padStart(2, '0')}`
+  };
+}
+
+function isoDate(value: unknown) {
+  const date = text(value).slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : '';
+}
+
+function numericEmpId(value: unknown) {
+  const id = Number(text(value));
+  return Number.isInteger(id) && id > 0 ? id : null;
+}
+
+function streetAddress(...candidates: unknown[]) {
+  for (const candidate of candidates) {
+    const address = text(candidate);
+    if (address) return address;
+  }
+  return '';
+}
+
+function isRemotePayrollActivity(activity: Record<string, unknown>) {
+  const haystack = `${text(activity.school)} ${text(activity.activity_name || activity.program_name || activity.name)}`;
+  return /zoom|זום/u.test(haystack.toLocaleLowerCase('he-IL'));
+}
+
+function isSkippedPayrollActivityStatus(activity: Record<string, unknown>) {
+  return PAYROLL_SKIPPED_STATUSES.has(text(activity.status || activity.activity_status).toLocaleLowerCase('he-IL'));
+}
+
+function assignedPayrollEmpIds(activity: Record<string, unknown>) {
+  return [...new Set([numericEmpId(activity.emp_id), numericEmpId(activity.emp_id_2)].filter((id): id is number => id != null))];
+}
+
+function payrollActivityMeetings(activity: Record<string, unknown>, cancelled: Set<string>) {
+  if (Array.isArray(activity.meetings)) {
+    return (activity.meetings as unknown[])
+      .map((meeting) => typeof meeting === 'string'
+        ? { date: isoDate(meeting), start_time: text(activity.start_time) }
+        : { date: isoDate((meeting as Record<string, unknown>)?.date), start_time: text((meeting as Record<string, unknown>)?.start_time || activity.start_time) })
+      .filter((meeting) => meeting.date && !cancelled.has(meeting.date));
+  }
+  const rows = [];
+  for (let index = 1; index <= 35; index += 1) {
+    const date = isoDate(activity[`date_${index}`]);
+    if (!date || cancelled.has(date)) continue;
+    rows.push({ date, start_time: text(activity.start_time) });
+  }
+  return rows;
+}
+
+type PayrollSchool = SchoolRow;
+
+function buildPayrollSchoolCatalog(schools: Record<string, unknown>[], contactSchools: Record<string, unknown>[]) {
+  const bySchoolId = new Map<number, PayrollSchool>();
+  const byAuthorityAndName = new Map<string, PayrollSchool[]>();
+
+  const rememberName = (school: PayrollSchool) => {
+    const key = `${cacheKey(school.authority_name || '')}|${cacheKey(school.school_name || '')}`;
+    if (key === '|') return;
+    const list = byAuthorityAndName.get(key) || [];
+    if (!list.some((row) => row.school_id === school.school_id && row.entity_key === school.entity_key)) {
+      list.push(school);
+      byAuthorityAndName.set(key, list);
+    }
+  };
+
+  for (const row of schools) {
+    const schoolIdRaw = row.school_id == null && row.id == null ? null : Number(row.school_id ?? row.id);
+    const school: PayrollSchool = {
+      authority_id: row.authority_id == null ? null : Number(row.authority_id),
+      authority_name: text(row.authority_name || row.authority),
+      school_id: Number.isFinite(schoolIdRaw as number) ? Number(schoolIdRaw) : null,
+      school_name: text(row.school_name || row.school),
+      address: streetAddress(row.address, row.institution_address, row.mailing_address),
+      entity_key: ''
+    };
+    school.entity_key = schoolEntityKey(school);
+    if (school.school_id != null) {
+      const current = bySchoolId.get(school.school_id);
+      if (!current || text(school.address).length > text(current.address).length) {
+        bySchoolId.set(school.school_id, school);
+      }
+    }
+    rememberName(school);
+  }
+
+  for (const row of contactSchools) {
+    const schoolId = row.school_id == null ? null : Number(row.school_id);
+    const address = streetAddress(row.address);
+    if (schoolId == null || !Number.isFinite(schoolId) || !address) continue;
+    const current = bySchoolId.get(schoolId);
+    if (current && !text(current.address)) {
+      current.address = address;
+      current.entity_key = schoolEntityKey(current);
+    }
+  }
+
+  return { bySchoolId, byAuthorityAndName };
+}
+
+function resolvePayrollActivitySchool(
+  activity: Record<string, unknown>,
+  catalog: ReturnType<typeof buildPayrollSchoolCatalog>
+) {
+  const schoolId = activity.school_id == null ? null : Number(activity.school_id);
+  if (schoolId != null && Number.isFinite(schoolId) && catalog.bySchoolId.has(schoolId)) {
+    const school = catalog.bySchoolId.get(schoolId)!;
+    if (!text(school.address)) return { status: 'unresolved' as const, reason: 'missing_school_address', school: null };
+    return { status: 'resolved' as const, reason: '', school };
+  }
+  const key = `${cacheKey(text(activity.authority || activity.authority_name))}|${cacheKey(text(activity.school))}`;
+  const matches = key === '|' ? [] : (catalog.byAuthorityAndName.get(key) || []);
+  const unique: PayrollSchool[] = [];
+  for (const school of matches) {
+    const id = school.school_id ?? school.entity_key;
+    if (!unique.some((row) => (row.school_id ?? row.entity_key) === id)) unique.push(school);
+  }
+  if (unique.length === 1) {
+    if (!text(unique[0].address)) return { status: 'unresolved' as const, reason: 'missing_school_address', school: null };
+    return { status: 'resolved' as const, reason: '', school: unique[0] };
+  }
+  if (unique.length > 1) return { status: 'ambiguous' as const, reason: 'ambiguous', school: null };
+  return { status: 'unresolved' as const, reason: 'unresolved', school: null };
+}
+
+function payrollInstructorSchoolPair(instructor: InstructorRow, school: PayrollSchool): TravelPair | null {
+  const originAddress = text(instructor.address);
+  const destinationAddress = text(school.address);
+  if (!originAddress || !destinationAddress) return null;
+  return {
+    pair_kind: 'instructor_school',
+    origin_type: 'instructor',
+    destination_type: 'school',
+    origin_instructor_emp_id: instructor.emp_id,
+    origin_school_id: null,
+    destination_school_id: school.school_id,
+    authority_id: school.authority_id,
+    origin_address: originAddress,
+    destination_address: destinationAddress,
+    query_origin_address: originAddress,
+    query_destination_address: buildGoogleAddressQuery({
+      schoolName: school.school_name,
+      address: destinationAddress,
+      authorityName: school.authority_name
+    }),
+    origin_key: cacheKey(originAddress),
+    destination_key: cacheKey(destinationAddress),
+    origin_entity_key: instructorEntityKey(instructor.emp_id),
+    destination_entity_key: school.entity_key || schoolEntityKey(school)
+  };
+}
+
+function payrollSchoolSchoolPair(origin: PayrollSchool, destination: PayrollSchool): TravelPair | null {
+  const originAddress = text(origin.address);
+  const destinationAddress = text(destination.address);
+  if (!originAddress || !destinationAddress) return null;
+  const originEntity = origin.entity_key || schoolEntityKey(origin);
+  const destinationEntity = destination.entity_key || schoolEntityKey(destination);
+  if (originEntity === destinationEntity) return null;
+  if (origin.school_id != null && destination.school_id != null && origin.school_id === destination.school_id) return null;
+  return {
+    pair_kind: 'school_school',
+    origin_type: 'school',
+    destination_type: 'school',
+    origin_instructor_emp_id: null,
+    origin_school_id: origin.school_id,
+    destination_school_id: destination.school_id,
+    authority_id: origin.authority_id,
+    origin_address: originAddress,
+    destination_address: destinationAddress,
+    query_origin_address: buildGoogleAddressQuery({
+      schoolName: origin.school_name,
+      address: originAddress,
+      authorityName: origin.authority_name
+    }),
+    query_destination_address: buildGoogleAddressQuery({
+      schoolName: destination.school_name,
+      address: destinationAddress,
+      authorityName: destination.authority_name
+    }),
+    origin_key: cacheKey(originAddress),
+    destination_key: cacheKey(destinationAddress),
+    origin_entity_key: originEntity,
+    destination_entity_key: destinationEntity
+  };
+}
+
+async function loadAllRows(db: DbClient, table: string, columns: string) {
+  const rows: Record<string, unknown>[] = [];
+  const pageSize = 1000;
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await db.from(table).select(columns).range(from, from + pageSize - 1);
+    if (error) return { error, rows };
+    rows.push(...((data || []) as Record<string, unknown>[]));
+    if ((data || []).length < pageSize) return { error: null, rows };
+  }
+}
+
+async function loadPayrollMonthPairs(db: DbClient, month: string) {
+  const range = payrollMonthRange(month);
+  if (!range) return { error: 'invalid_payroll_month' as const };
+
+  const dateColumns = Array.from({ length: 35 }, (_, index) => `date_${index + 1}`).join(',');
+  const [activitiesResult, cancellationsResult, schoolsResult, contactsResult] = await Promise.all([
+    loadAllRows(
+      db,
+      'activities',
+      `row_id,emp_id,emp_id_2,school,school_id,authority,authority_id,activity_name,status,start_time,${dateColumns}`
+    ),
+    db.from('course_meeting_cancellations').select('activity_id,meeting_date').gte('meeting_date', range.fromDate).lte('meeting_date', range.toDate),
+    loadAllRows(db, 'schools', 'id,school_name,authority,authority_id,institution_address,mailing_address'),
+    loadAllRows(db, 'contacts_schools', 'school_id,address')
+  ]);
+
+  if (activitiesResult.error) return { error: 'payroll_activity_lookup_failed' as const };
+  if (cancellationsResult.error) return { error: 'payroll_activity_lookup_failed' as const };
+  if (schoolsResult.error) return { error: 'payroll_school_catalog_lookup_failed' as const };
+  if (contactsResult.error) return { error: 'payroll_school_catalog_lookup_failed' as const };
+
+  const cancelledByActivity = new Map<string, Set<string>>();
+  for (const row of cancellationsResult.data || []) {
+    const id = text((row as Record<string, unknown>).activity_id);
+    const date = isoDate((row as Record<string, unknown>).meeting_date);
+    if (!id || !date) continue;
+    if (!cancelledByActivity.has(id)) cancelledByActivity.set(id, new Set());
+    cancelledByActivity.get(id)!.add(date);
+  }
+
+  const assignedIds = new Set<number>();
+  for (const activity of activitiesResult.rows) {
+    if (isSkippedPayrollActivityStatus(activity)) continue;
+    const empIds = assignedPayrollEmpIds(activity);
+    if (!empIds.length) continue;
+    const activityId = text(activity.row_id || activity.id);
+    const cancelled = cancelledByActivity.get(activityId) || new Set<string>();
+    const inMonth = payrollActivityMeetings(activity, cancelled)
+      .some((meeting) => meeting.date >= range.fromDate && meeting.date <= range.toDate);
+    if (!inMonth) continue;
+    for (const empId of empIds) assignedIds.add(empId);
+  }
+
+  const instructorByEmpId = new Map<number, InstructorRow>();
+  if (assignedIds.size) {
+    const { data, error } = await db
+      .from('contacts_instructors')
+      .select('emp_id, address')
+      .in('emp_id', [...assignedIds]);
+    if (error) return { error: 'instructor_lookup_failed' as const };
+    for (const row of data || []) {
+      const empId = numericEmpId((row as Record<string, unknown>).emp_id);
+      if (!empId) continue;
+      instructorByEmpId.set(empId, { emp_id: empId, address: text((row as Record<string, unknown>).address) });
+    }
+  }
+
+  const catalog = buildPayrollSchoolCatalog(schoolsResult.rows, contactsResult.rows);
+  const exceptions: Array<{ activity_id: string; date: string; authority: string; school: string; reason: string }> = [];
+  const missingInstructorIds = new Set<number>();
+  const unresolvedActivities = new Set<string>();
+  const ambiguousActivities = new Set<string>();
+  const locations = new Map<string, PayrollSchool>();
+  const instructorIds = new Set<number>();
+  const dayStops = new Map<string, Array<{ empId: number; date: string; start_time: string; school: PayrollSchool; instructor?: InstructorRow }>>();
+  let relevantMeetingCount = 0;
+
+  for (const activity of activitiesResult.rows) {
+    if (isSkippedPayrollActivityStatus(activity)) continue;
+    const empIds = assignedPayrollEmpIds(activity);
+    if (!empIds.length) continue;
+    const activityId = text(activity.row_id || activity.id);
+    const cancelled = cancelledByActivity.get(activityId) || new Set<string>();
+    const meetings = payrollActivityMeetings(activity, cancelled)
+      .filter((meeting) => meeting.date >= range.fromDate && meeting.date <= range.toDate);
+    if (!meetings.length) continue;
+    relevantMeetingCount += meetings.length;
+    for (const empId of empIds) instructorIds.add(empId);
+    if (isRemotePayrollActivity(activity)) continue;
+
+    const resolved = resolvePayrollActivitySchool(activity, catalog);
+    if (resolved.status !== 'resolved' || !resolved.school) {
+      if (resolved.status === 'ambiguous') ambiguousActivities.add(activityId);
+      else unresolvedActivities.add(activityId);
+      for (const meeting of meetings) {
+        exceptions.push({
+          activity_id: activityId,
+          date: meeting.date,
+          authority: text(activity.authority),
+          school: text(activity.school),
+          reason: resolved.reason
+        });
+      }
+      continue;
+    }
+
+    const school = resolved.school;
+    locations.set(school.entity_key || schoolEntityKey(school), school);
+    for (const meeting of meetings) {
+      for (const empId of empIds) {
+        const instructor = instructorByEmpId.get(empId);
+        if (!text(instructor?.address)) {
+          missingInstructorIds.add(empId);
+          exceptions.push({
+            activity_id: activityId,
+            date: meeting.date,
+            authority: text(activity.authority),
+            school: text(activity.school),
+            reason: 'missing_instructor_address'
+          });
+        }
+        const key = `${empId}|${meeting.date}`;
+        const stops = dayStops.get(key) || [];
+        stops.push({ empId, date: meeting.date, start_time: meeting.start_time, school, instructor });
+        dayStops.set(key, stops);
+      }
+    }
+  }
+
+  const pairsByRoute = new Map<string, TravelPair>();
+  const addPair = (pair: TravelPair | null) => {
+    if (!pair) return;
+    const key = `${pair.origin_key}->${pair.destination_key}`;
+    if (!pairsByRoute.has(key)) pairsByRoute.set(key, pair);
+  };
+
+  for (const stops of dayStops.values()) {
+    stops.sort((a, b) => a.start_time.localeCompare(b.start_time));
+    const sequence: typeof stops = [];
+    for (const stop of stops) {
+      const last = sequence[sequence.length - 1];
+      const key = stop.school.entity_key || schoolEntityKey(stop.school);
+      if (last && (last.school.entity_key || schoolEntityKey(last.school)) === key) continue;
+      sequence.push(stop);
+    }
+    if (!sequence.length) continue;
+    const instructor = sequence[0].instructor;
+    if (instructor) addPair(payrollInstructorSchoolPair(instructor, sequence[0].school));
+    for (let index = 1; index < sequence.length; index += 1) {
+      addPair(payrollSchoolSchoolPair(sequence[index - 1].school, sequence[index].school));
+    }
+    if (instructor) addPair(payrollInstructorSchoolPair(instructor, sequence[sequence.length - 1].school));
+  }
+
+  const uniqueExceptions = [];
+  const seen = new Set<string>();
+  for (const row of exceptions) {
+    const key = `${row.activity_id}|${row.date}|${row.reason}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    uniqueExceptions.push(row);
+  }
+
+  const failures: FailureRow[] = [...missingInstructorIds].slice(0, 50).map((empId) => ({
+    entity_type: 'instructor',
+    entity_id: instructorEntityKey(empId),
+    reason: 'missing_address'
+  }));
+
+  return {
+    error: null as const,
+    pairs: [...pairsByRoute.values()].sort((a, b) => pairSortKey(a).localeCompare(pairSortKey(b))),
+    failures,
+    extras: {
+      month: range.month,
+      relevant_meeting_count: relevantMeetingCount,
+      relevant_instructor_count: instructorIds.size,
+      relevant_location_count: locations.size,
+      missing_instructor_address_count: missingInstructorIds.size,
+      unresolved_location_count: unresolvedActivities.size,
+      ambiguous_location_count: ambiguousActivities.size,
+      exceptions: uniqueExceptions.slice(0, 50)
+    }
+  };
+}
+
 async function mapWithConcurrency<T, R>(
   items: T[],
   concurrency: number,
@@ -660,54 +1062,94 @@ async function processPair(db: DbClient, pair: TravelPair, key: string): Promise
 
 async function runBuildCache(db: DbClient, key: string, payload: Record<string, unknown>) {
   const scopeRaw = text(payload.scope || 'all').toLowerCase();
-  const scope: BuildScope = ['instructor_school', 'school_school', 'all'].includes(scopeRaw)
-    ? scopeRaw as BuildScope
-    : 'all';
   const limit = Math.min(
     MAX_BATCH_LIMIT,
     Math.max(1, Number(payload.limit) || DEFAULT_BATCH_LIMIT)
   );
 
-  const schoolsResult = await loadAuthoritySchools(db);
-  if (schoolsResult.error) {
-    return jsonResponse({ error: 'authority_school_lookup_failed' }, 500);
-  }
-
-  let instructors: InstructorRow[] = [];
+  let scope: BuildScope;
+  let instructorPairs: TravelPair[] = [];
+  let schoolPairs: TravelPair[] = [];
   let skippedEmptyInstructorAddress = 0;
   let skippedInstructorFailures: FailureRow[] = [];
-  if (scope === 'instructor_school' || scope === 'all') {
-    const instructorsResult = await loadActiveInstructorsWithAddress(db);
-    if (instructorsResult.error) {
-      return jsonResponse({ error: 'instructor_lookup_failed' }, 500);
+  let skippedEmptySchoolAddress = 0;
+  let duplicateCount = 0;
+  let payrollExtras: {
+    month: string;
+    relevant_meeting_count: number;
+    relevant_instructor_count: number;
+    relevant_location_count: number;
+    missing_instructor_address_count: number;
+    unresolved_location_count: number;
+    ambiguous_location_count: number;
+    exceptions: Array<{ activity_id: string; date: string; authority: string; school: string; reason: string }>;
+  } | null = null;
+
+  if (scopeRaw === 'payroll_month') {
+    const month = parsePayrollMonth(payload.month);
+    if (!month) return jsonResponse({ error: 'invalid_payroll_month' }, 400);
+    const loaded = await loadPayrollMonthPairs(db, month);
+    if (loaded.error) return jsonResponse({ error: loaded.error }, 500);
+    scope = 'payroll_month';
+    instructorPairs = loaded.pairs;
+    skippedEmptyInstructorAddress = loaded.extras.missing_instructor_address_count;
+    skippedInstructorFailures = loaded.failures;
+    payrollExtras = loaded.extras;
+  } else {
+    scope = ['instructor_school', 'school_school', 'all'].includes(scopeRaw)
+      ? scopeRaw as BuildScope
+      : 'all';
+
+    const schoolsResult = await loadAuthoritySchools(db);
+    if (schoolsResult.error) {
+      return jsonResponse({ error: 'authority_school_lookup_failed' }, 500);
     }
-    instructors = instructorsResult.instructors;
-    skippedEmptyInstructorAddress = instructorsResult.skippedEmptyAddress;
-    skippedInstructorFailures = instructorsResult.skippedFailures || [];
-  }
 
-  const schoolsWithAddress = schoolsResult.schools.filter((school) => text(school.address));
-  const skippedEmptySchoolAddress = schoolsResult.schools.length - schoolsWithAddress.length;
-  const deduped = dedupeAuthoritySchools(schoolsWithAddress);
+    let instructors: InstructorRow[] = [];
+    if (scope === 'instructor_school' || scope === 'all') {
+      const instructorsResult = await loadActiveInstructorsWithAddress(db);
+      if (instructorsResult.error) {
+        return jsonResponse({ error: 'instructor_lookup_failed' }, 500);
+      }
+      instructors = instructorsResult.instructors;
+      skippedEmptyInstructorAddress = instructorsResult.skippedEmptyAddress;
+      skippedInstructorFailures = instructorsResult.skippedFailures || [];
+    }
 
-  const instructorPairs = (scope === 'instructor_school' || scope === 'all')
-    ? dedupeTravelPairs(buildInstructorSchoolPairs(instructors, deduped.schools))
-    : [];
-  let schoolPairs = (scope === 'school_school' || scope === 'all')
-    ? dedupeTravelPairs(buildSchoolSchoolPairs(deduped.schools))
-    : [];
-  if (scope === 'all' && instructorPairs.length) {
-    const instructorRouteKeys = new Set(instructorPairs.map((pair) => `${pair.origin_key}->${pair.destination_key}`));
-    schoolPairs = schoolPairs.filter((pair) => !instructorRouteKeys.has(`${pair.origin_key}->${pair.destination_key}`));
+    const schoolsWithAddress = schoolsResult.schools.filter((school) => text(school.address));
+    skippedEmptySchoolAddress = schoolsResult.schools.length - schoolsWithAddress.length;
+    const deduped = dedupeAuthoritySchools(schoolsWithAddress);
+    duplicateCount = deduped.duplicateCount;
+
+    instructorPairs = (scope === 'instructor_school' || scope === 'all')
+      ? dedupeTravelPairs(buildInstructorSchoolPairs(instructors, deduped.schools))
+      : [];
+    schoolPairs = (scope === 'school_school' || scope === 'all')
+      ? dedupeTravelPairs(buildSchoolSchoolPairs(deduped.schools))
+      : [];
+    if (scope === 'all' && instructorPairs.length) {
+      const instructorRouteKeys = new Set(instructorPairs.map((pair) => `${pair.origin_key}->${pair.destination_key}`));
+      schoolPairs = schoolPairs.filter((pair) => !instructorRouteKeys.has(`${pair.origin_key}->${pair.destination_key}`));
+    }
   }
 
   const stats = emptyStats();
   stats.scope = scope;
   stats.skipped_instructors_missing_address_count = skippedEmptyInstructorAddress;
-  stats.skipped_count = skippedEmptyInstructorAddress + skippedEmptySchoolAddress + deduped.duplicateCount;
+  stats.skipped_count = skippedEmptyInstructorAddress + skippedEmptySchoolAddress + duplicateCount;
   stats.failures.push(...skippedInstructorFailures.slice(0, 50));
   stats.total_count = instructorPairs.length + schoolPairs.length;
   stats.required_count = stats.total_count;
+  if (payrollExtras) {
+    stats.month = payrollExtras.month;
+    stats.relevant_meeting_count = payrollExtras.relevant_meeting_count;
+    stats.relevant_instructor_count = payrollExtras.relevant_instructor_count;
+    stats.relevant_location_count = payrollExtras.relevant_location_count;
+    stats.missing_instructor_address_count = payrollExtras.missing_instructor_address_count;
+    stats.unresolved_location_count = payrollExtras.unresolved_location_count;
+    stats.ambiguous_location_count = payrollExtras.ambiguous_location_count;
+    stats.exceptions = payrollExtras.exceptions;
+  }
 
   const allPairs = [...instructorPairs, ...schoolPairs];
   const inspections = await mapWithConcurrency(allPairs, BATCH_CONCURRENCY, (pair) => inspectPair(db, pair));

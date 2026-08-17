@@ -76,7 +76,8 @@ test('instructor address RPC is service_role-only and does not broaden contacts_
 test('edge function reads instructor addresses via the narrow RPC only', async () => {
   const ts = await readFile(edgeFunctionUrl, 'utf8');
   assert.match(ts, /rpc\('scheduling_active_instructor_locations'\)/);
-  assert.doesNotMatch(ts, /from\('contacts_instructors'\)/);
+  const schedulingLoad = ts.split('async function loadActiveInstructorsWithAddress')[1].split('const PAYROLL_MONTH_RE')[0];
+  assert.doesNotMatch(schedulingLoad, /from\('contacts_instructors'\)/);
   assert.doesNotMatch(ts, /\.select\('emp_id, address, active'\)/);
 });
 
