@@ -1,6 +1,5 @@
-import { renderWelcomeScreen } from './screens/welcome-screen.js';
+import { startApp } from './app.js';
 import { registerServiceWorker } from './services/sw-registration.service.js';
 
-const app = document.getElementById('app');
-renderWelcomeScreen(app);
+startApp(document.getElementById('app'), document.getElementById('bottom-nav'));
 registerServiceWorker();
