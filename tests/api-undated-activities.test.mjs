@@ -170,6 +170,20 @@ test('allActivities export path delegates filtering and projection to the all-ro
   assert.doesNotMatch(match[0], /rowMatchesActivitiesFilters|activityHasDateInRange|filters/);
 });
 
+test('payroll dashboard date-range reads use each explicitly requested activity period', async () => {
+  const source = await readFile(new URL('../frontend/src/api.js', import.meta.url), 'utf8');
+  const rangeReader = source.match(/async function selectActivitiesByDateRangeFromSupabase[\s\S]*?\n}\n\nconst AUTHORITIES_CATALOG_COLUMNS/)?.[0] || '';
+  const allRowsReader = source.match(/async function readAllActivitiesRowsSupabase[\s\S]*?\n}\n\nexport function invalidateAllActivitiesRowsCache/)?.[0] || '';
+  const payrollSource = source.match(/attendanceControlDashboardSources: async[\s\S]*?\n  },\n  /)?.[0] || '';
+
+  assert.match(rangeReader, /activityPeriod = currentGlobalActivityPeriod\(\)/);
+  assert.match(rangeReader, /activitySeasonQueryValues\(activityPeriod\)/);
+  assert.doesNotMatch(rangeReader, /activitySeasonQueryValues\(currentGlobalActivityPeriod\(\)\)/);
+  assert.match(rangeReader, /fallbackSelect[\s\S]*selectActivitiesByDateRangeFromSupabase\(\{[\s\S]*activityPeriod,/);
+  assert.match(allRowsReader, /activityPeriod: selectedSeason/);
+  assert.match(payrollSource, /activityPeriod: ACTIVITY_SEASON_REGULAR[\s\S]*activityPeriod: ACTIVITY_SEASON_SUMMER_2026[\s\S]*activityPeriod: ACTIVITY_SEASON_SCHOOL_2027/);
+});
+
 test('ended open summer workshop appears with status and completion approval exceptions', () => {
   const row = activeCourse({
     RowID: 'SUMMER-ENDED-OPEN',

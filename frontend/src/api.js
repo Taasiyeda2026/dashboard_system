@@ -843,6 +843,7 @@ function buildDateRangeOrFilter(startDate, endDate, { includeStartDate = true, i
 async function selectActivitiesByDateRangeFromSupabase({
   startDate,
   endDate,
+  activityPeriod = currentGlobalActivityPeriod(),
   activityType = '',
   includeEndDate = false,
   select = ACTIVITY_LIST_COLUMNS,
@@ -856,7 +857,7 @@ async function selectActivitiesByDateRangeFromSupabase({
   let query = supabase
     .from('activities')
     .select(select)
-    .in('activity_season', activitySeasonQueryValues(currentGlobalActivityPeriod()));
+    .in('activity_season', activitySeasonQueryValues(activityPeriod));
   if (overlapByStartEnd) {
     query = query.lte('start_date', endDate).gte('end_date', startDate);
   } else {
@@ -878,6 +879,7 @@ async function selectActivitiesByDateRangeFromSupabase({
     return selectActivitiesByDateRangeFromSupabase({
       startDate,
       endDate,
+      activityPeriod,
       activityType,
       includeEndDate,
       select: fallbackSelect,
@@ -6153,6 +6155,7 @@ async function readAllActivitiesRowsSupabase({
     rows = await selectActivitiesByDateRangeFromSupabase({
       startDate,
       endDate,
+      activityPeriod: selectedSeason,
       select,
       includeEndDate: true
     });

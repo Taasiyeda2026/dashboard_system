@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import { instructorCard } from '../frontend/src/screens/instructor-workspace-ui.js';
 import { EMPLOYEE_FILE_COMPONENTS, employeeFileModalHtml } from '../frontend/src/screens/instructor-employee-file-ui.js';
 import { canViewEmployeeFiles } from '../frontend/src/permissions.js';
-import { refreshAfterEmployeeFileMutation } from '../frontend/src/screens/instructor-employee-file-data.js';
+import { createEmployeeFileSharePointReturnSync, refreshAfterEmployeeFileMutation } from '../frontend/src/screens/instructor-employee-file-data.js';
 
 const instructorsSource = fs.readFileSync(new URL('../frontend/src/screens/instructors.js', import.meta.url), 'utf8');
 const apiSource = fs.readFileSync(new URL('../frontend/src/api.js', import.meta.url), 'utf8');
@@ -114,6 +114,52 @@ test('employee-file loader opens directly from the secured Supabase snapshot', (
   assert.match(loaderSource, /api\.instructorEmployeeFile/);
   assert.doesNotMatch(loaderSource, /functions\.invoke|instructor-employee-file-live|sharepoint/i);
   assert.match(apiSource, /rpc\('get_instructor_employee_file_snapshot'/);
+});
+
+test('SharePoint return sync requires open, leave and return and deduplicates return events', async () => {
+  const windowTarget = new EventTarget();
+  const documentTarget = new EventTarget();
+  Object.defineProperty(documentTarget, 'visibilityState', { value: 'visible', writable: true });
+  const refreshes = [];
+  const sync = createEmployeeFileSharePointReturnSync({
+    windowTarget,
+    documentTarget,
+    refresh: async (empId, schoolYear) => { refreshes.push({ empId, schoolYear }); }
+  });
+  const flushRefresh = async () => { await Promise.resolve(); await Promise.resolve(); };
+
+  windowTarget.dispatchEvent(new Event('focus'));
+  await flushRefresh();
+  assert.deepEqual(refreshes, [], 'focus without a prior SharePoint open does not refresh');
+
+  sync.markSharePointOpened(1507, '2027');
+  windowTarget.dispatchEvent(new Event('focus'));
+  await flushRefresh();
+  assert.deepEqual(refreshes, [], 'clicking/opening without leaving the dashboard does not refresh');
+
+  windowTarget.dispatchEvent(new Event('blur'));
+  windowTarget.dispatchEvent(new Event('focus'));
+  documentTarget.visibilityState = 'visible';
+  documentTarget.dispatchEvent(new Event('visibilitychange'));
+  await flushRefresh();
+  assert.deepEqual(refreshes, [{ empId: 1507, schoolYear: '2027' }], 'focus and visibility return events produce one refresh');
+
+  windowTarget.dispatchEvent(new Event('focus'));
+  await flushRefresh();
+  assert.equal(refreshes.length, 1, 'later focus events do not repeat the completed refresh');
+
+  sync.markSharePointOpened(1507, '2027');
+  documentTarget.visibilityState = 'hidden';
+  documentTarget.dispatchEvent(new Event('visibilitychange'));
+  documentTarget.visibilityState = 'visible';
+  documentTarget.dispatchEvent(new Event('visibilitychange'));
+  windowTarget.dispatchEvent(new Event('focus'));
+  await flushRefresh();
+  assert.equal(refreshes.length, 2, 'a new SharePoint open can schedule one new refresh');
+  sync.destroy();
+
+  assert.match(instructorsSource, /markSharePointOpened\(row\.emp_id, '2027'\)/);
+  assert.match(dataSource, /body: \{ empId, schoolYear, refresh: true \}/);
 });
 
 test('a successful employee-file mutation refreshes the snapshot exactly once and failures do not scan', async () => {

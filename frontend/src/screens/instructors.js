@@ -3,7 +3,7 @@ import { dsScreenStack, dsEmptyState } from './shared/layout.js';
 import { showToast } from './shared/toast.js';
 import { canViewEmployeeFiles } from '../permissions.js';
 import { onboardingManagers, onboardingModalHtml, bindOnboardingModal } from './instructor-onboarding.js';
-import { loadInstructorEmployeeFile, saveInstructorEmployeeFolderUrl } from './instructor-employee-file-data.js';
+import { createEmployeeFileSharePointReturnSync, loadInstructorEmployeeFile, saveInstructorEmployeeFolderUrl } from './instructor-employee-file-data.js';
 import { employeeFileModalHtml } from './instructor-employee-file-ui.js';
 import { activityWorkDrawerHtml, patchDrawerDatesSection } from './shared/activity-detail-html.js';
 import {
@@ -24,6 +24,7 @@ import {
 } from './shared/instructors-workspace-nav.js';
 
 const ACTIVE_FILTERS = [{ value: 'yes', label: 'פעילים' }, { value: '', label: 'הכול' }, { value: 'no', label: 'לא פעילים' }];
+const employeeFileSharePointReturnSync = createEmployeeFileSharePointReturnSync();
 
 const INSTRUCTORS_LIST_STYLES = `.instructors-list{display:flex;flex-direction:column;gap:8px}
 .instructors-list__toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding-bottom:8px;border-bottom:1px solid #edeff2}
@@ -376,6 +377,10 @@ export const instructorsScreen = {
           const modal = document.querySelector('.ds-modal.ds-modal--employee-file');
           const status = modal?.querySelector('[data-employee-file-status]');
           const setStatus = (value) => { if (status) status.textContent = value; };
+          const bindSharePointOpen = (anchor) => anchor?.addEventListener('click', () => {
+            employeeFileSharePointReturnSync.markSharePointOpened(row.emp_id, '2027');
+          });
+          bindSharePointOpen(modal?.querySelector('[data-employee-file-link-action] a'));
           modal?.querySelector('[data-employee-file-save-url]')?.addEventListener('click', async (event) => {
             const button = event.currentTarget; const input = modal.querySelector('[data-employee-file-folder-url]');
             try {
@@ -385,6 +390,7 @@ export const instructorsScreen = {
               if (action && saved?.folder_web_url) {
                 const anchor = document.createElement('a'); anchor.className = 'ds-btn employee-file__open';
                 anchor.href = saved.folder_web_url; anchor.target = '_blank'; anchor.rel = 'noopener noreferrer'; anchor.textContent = 'פתח תיק עובד';
+                bindSharePointOpen(anchor);
                 action.replaceChildren(anchor);
               } else if (action) action.innerHTML = '<span class="employee-file__link-note">קישור התיק טרם הוגדר</span>';
               setStatus('הקישור נשמר');

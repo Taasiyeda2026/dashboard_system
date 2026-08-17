@@ -74,3 +74,5 @@ config.HOTFIX_VERSION = `payroll-control-post-1541-display-20260817-v1-${config.
 config.HOTFIX_VERSION = `payroll-control-unmatched-km-priority-20260817-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `employee-file-snapshot-open-20260817-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `employee-file-mutation-snapshot-sync-20260817-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `payroll-control-explicit-dashboard-period-20260817-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `employee-file-sharepoint-return-sync-20260817-v1-${config.HOTFIX_VERSION}`;

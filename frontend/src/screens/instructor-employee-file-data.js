@@ -14,6 +14,51 @@ export async function refreshInstructorEmployeeFileSnapshot(empId, schoolYear = 
   return data;
 }
 
+export function createEmployeeFileSharePointReturnSync({
+  windowTarget = globalThis.window,
+  documentTarget = globalThis.document,
+  refresh = refreshInstructorEmployeeFileSnapshot,
+  logger = globalThis.console
+} = {}) {
+  let pending = null;
+  let dashboardWasLeft = false;
+
+  const markDashboardLeft = () => {
+    if (pending) dashboardWasLeft = true;
+  };
+  const refreshOnReturn = () => {
+    if (!pending || !dashboardWasLeft) return;
+    const refreshTarget = pending;
+    pending = null;
+    dashboardWasLeft = false;
+    Promise.resolve()
+      .then(() => refresh(refreshTarget.empId, refreshTarget.schoolYear))
+      .catch((error) => logger?.error?.('[employee-file] SharePoint return refresh failed', error));
+  };
+  const onVisibilityChange = () => {
+    if (documentTarget?.visibilityState === 'hidden') markDashboardLeft();
+    else if (documentTarget?.visibilityState === 'visible') refreshOnReturn();
+  };
+
+  windowTarget?.addEventListener?.('blur', markDashboardLeft);
+  windowTarget?.addEventListener?.('focus', refreshOnReturn);
+  documentTarget?.addEventListener?.('visibilitychange', onVisibilityChange);
+
+  return {
+    markSharePointOpened(empId, schoolYear = '2027') {
+      pending = { empId, schoolYear };
+      dashboardWasLeft = false;
+    },
+    destroy() {
+      pending = null;
+      dashboardWasLeft = false;
+      windowTarget?.removeEventListener?.('blur', markDashboardLeft);
+      windowTarget?.removeEventListener?.('focus', refreshOnReturn);
+      documentTarget?.removeEventListener?.('visibilitychange', onVisibilityChange);
+    }
+  };
+}
+
 export async function refreshAfterEmployeeFileMutation(mutation, refresh) {
   const saved = await mutation();
   if (saved?.changed !== false) await refresh();
