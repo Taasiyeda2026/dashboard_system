@@ -50,12 +50,19 @@ Deno.serve(async (req) => {
     const files = await listDirectFiles(accessToken, folder.id);
     console.info("[instructor-onboarding-files] SharePoint folder loaded", { selectedFolder, fileCount: files.length });
     if (!files.length) return json({ error: "empty_folder", message: "לא נמצאו מסמכים בתיקיית הקליטה שנבחרה." });
-    const attachments = [];
-    for (const item of files) {
-      const response = await graph(accessToken, `/drives/${encodeURIComponent(DRIVE_ID)}/items/${encodeURIComponent(item.id)}/content`); const bytes = new Uint8Array(await response.arrayBuffer());
-      if (bytes.byteLength > 3 * 1024 * 1024) return json({ error: "attachment_too_large", message: `לא ניתן לצרף את הקובץ "${item.name}" משום שגודלו עולה על 3MB.` });
-      attachments.push({ name: item.name, content_type: response.headers.get("content-type") || "application/pdf", content_bytes: bytesToBase64(bytes) });
-    }
+
+    const downloaded = await Promise.all(files.map(async (item) => {
+      const response = await graph(accessToken, `/drives/${encodeURIComponent(DRIVE_ID)}/items/${encodeURIComponent(item.id)}/content`);
+      const bytes = new Uint8Array(await response.arrayBuffer());
+      return { item, bytes, contentType: response.headers.get("content-type") || "application/pdf" };
+    }));
+    const tooLarge = downloaded.find(({ bytes }) => bytes.byteLength > 3 * 1024 * 1024);
+    if (tooLarge) return json({ error: "attachment_too_large", message: `לא ניתן לצרף את הקובץ "${tooLarge.item.name}" משום שגודלו עולה על 3MB.` });
+    const attachments = downloaded.map(({ item, bytes, contentType }) => ({
+      name: item.name,
+      content_type: contentType,
+      content_bytes: bytesToBase64(bytes),
+    }));
     return json({ source: "sharepoint", folder_url: folder.webUrl, attachment_count: attachments.length, attachments });
   } catch (error) {
     const forbidden = clean((error as Error)?.message) === "not_authorized"; return json({ message: forbidden ? "אין הרשאה להכין קליטת מדריך." : "לא ניתן לטעון את מסמכי הקליטה מ-SharePoint. יש לנסות שוב." }, forbidden ? 403 : 500);
