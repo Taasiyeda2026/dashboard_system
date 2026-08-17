@@ -20,7 +20,7 @@ import {
   getInstructorActivitiesForDate,
   getSchoolOptions,
   calcHours,
-  getAuthoritySchoolList,
+  getAllAuthoritySchoolList,
   HEBREW_ACTIVITY_TYPES,
   toHebrewType,
 } from '../services/activities.service.js';
@@ -136,6 +136,7 @@ function createTimePicker(id, label, defaultValue = '') {
 export function renderNewReportScreen(container, {
   instructor = {},
   defaultDate = new Date().toISOString().slice(0, 10),
+  prefillRecord = null,
   onBack,
   onSaved,
 } = {}) {
@@ -191,7 +192,7 @@ export function renderNewReportScreen(container, {
   let authoritySchoolData = [];
 
   // Pre-load authority/school data (non-blocking, ready well before manual form needed)
-  getAuthoritySchoolList(instructor.empId)
+  getAllAuthoritySchoolList(instructor.empId)
     .then(d => { authoritySchoolData = d; })
     .catch(() => {});
 
@@ -214,104 +215,88 @@ export function renderNewReportScreen(container, {
       }
     } catch {}
 
+    // Show form immediately — no intermediate picker-only gate
     pickerArea.innerHTML = '<div class="av2-activity-picker__loading">מחפש פעילויות מתוכננות…</div>';
-    formArea.hidden = true;
     selectedActivity = null;
+    renderForm(null, dateStr);
 
     try {
-      const activities = await getInstructorActivitiesForDate(instructor.empId, dateStr);
-      renderActivityPicker(activities, dateStr);
-    } catch (err) {
-      pickerArea.innerHTML = `<div class="av2-activity-picker__error">שגיאה בטעינת פעילויות: ${err.message}</div>`;
+      const [activities, authorityList] = await Promise.all([
+        getInstructorActivitiesForDate(instructor.empId, dateStr).catch(() => []),
+        getAllAuthoritySchoolList(instructor.empId).catch(() => authoritySchoolData),
+      ]);
+      authoritySchoolData = authorityList;
+      renderActivitySuggestions(activities, dateStr);
+    } catch {
+      pickerArea.innerHTML = '';
     }
   }
 
-  // ── Activity picker renderer ─────────────────────────────────────────────
-  function renderActivityPicker(activities, dateStr) {
+  // ── Activity suggestions (non-blocking — shown above the always-visible form) ─
+  function renderActivitySuggestions(activities, dateStr) {
     pickerArea.innerHTML = '';
 
     if (activities.length === 0) {
-      const msg = document.createElement('div');
-      msg.className = 'av2-activity-picker__empty';
-      msg.innerHTML = '<p>לא נמצאו פעילויות מתוכננות ליום זה.</p>';
-      const manualBtn = document.createElement('button');
-      manualBtn.type = 'button';
-      manualBtn.className = 'av2-btn av2-btn--secondary';
-      manualBtn.textContent = 'מילוי ידני';
-      manualBtn.addEventListener('click', () => {
-        pickerArea.innerHTML = '';
-        renderForm(null, dateStr);
-      });
-      msg.append(manualBtn);
-      pickerArea.append(msg);
+      const note = document.createElement('p');
+      note.className = 'av2-activity-picker__no-activity';
+      note.textContent = 'לא נמצאו פעילויות מתוכננות לתאריך זה';
+      pickerArea.append(note);
       return;
     }
 
+    if (activities.length === 1) {
+      // Single activity — auto-fill the form silently
+      renderForm(activities[0], dateStr);
+      return;
+    }
+
+    // Multiple activities: keep cards visible; clicking one re-fills the form
     const hdr = document.createElement('p');
     hdr.className = 'av2-activity-picker__header';
-    hdr.textContent = activities.length === 1
-      ? 'נמצאה פעילות מתוכננת ליום זה:'
-      : `נמצאו ${activities.length} פעילויות מתוכננות ליום זה — בחר/י:`;
+    hdr.textContent = `נמצאו ${activities.length} פעילויות מתוכננות — בחר/י לטעינה אוטומטית:`;
     pickerArea.append(hdr);
 
+    const cardEls = [];
     for (const act of activities) {
       const card = buildActivityCard(act, () => {
-        pickerArea.innerHTML = '';
+        cardEls.forEach(c => c.classList.remove('is-selected'));
+        card.classList.add('is-selected');
         renderForm(act, dateStr);
       });
       pickerArea.append(card);
-    }
-
-    const manualLink = document.createElement('button');
-    manualLink.type = 'button';
-    manualLink.className = 'av2-btn av2-btn--link';
-    manualLink.textContent = 'מילוי ידני (ללא פעילות מתוכננת)';
-    manualLink.addEventListener('click', () => {
-      pickerArea.innerHTML = '';
-      renderForm(null, dateStr);
-    });
-    pickerArea.append(manualLink);
-
-    // Auto-select single activity
-    if (activities.length === 1) {
-      pickerArea.innerHTML = '';
-      renderForm(activities[0], dateStr);
+      cardEls.push(card);
     }
   }
 
   // ── Form renderer ────────────────────────────────────────────────────────
-  function renderForm(activity, dateStr) {
+  function renderForm(activity, dateStr, prefillRecord = null) {
     selectedActivity = activity;
     formArea.innerHTML = '';
     formArea.hidden = false;
 
-    // Activity banner (shown when pre-filled from a scheduled activity)
-    if (activity) {
-      const banner = document.createElement('div');
-      banner.className = 'av2-report__activity-banner';
-      banner.innerHTML = `
-        <div class="av2-report__activity-banner-title">${activity.activity_name || activity.activity_no || 'פעילות'}</div>
-        <div class="av2-report__activity-banner-meta">
-          ${activity.activity_type ? `<span>${toHebrewType(activity.activity_type)}</span>` : ''}
-          ${activity.program_name  ? `<span>${activity.program_name}</span>`                : ''}
-          ${activity.meeting_no    ? `<span>מפגש ${activity.meeting_no}</span>`             : ''}
-        </div>
-        <button type="button" class="av2-btn av2-btn--link av2-report__activity-banner-change">שנה פעילות</button>
-      `;
-      banner.querySelector('.av2-report__activity-banner-change').addEventListener('click', () => {
-        formArea.hidden = true;
-        onDateChange();
-      });
-      formArea.append(banner);
+    // Duplicate-source note (only when pre-filling from an existing record)
+    if (prefillRecord && !activity) {
+      const dupNote = document.createElement('p');
+      dupNote.className = 'av2-report__no-activity-note';
+      dupNote.textContent = `שכפול מדיווח מ-${prefillRecord.report_date || ''} — ניתן לערוך לפני השמירה`;
+      formArea.append(dupNote);
     }
 
     const form = document.createElement('form');
     form.className = 'av2-report__form';
     form.noValidate = true;
 
-    // ── ROW 1: Activity type + Meeting no ──────────────────────────────
-    const hebrewType = activity ? toHebrewType(activity.activity_type) : '';
+    // ── ROW 1: שם פעילות (full-width) ─────────────────────────────────
+    const activityNameField = createInputField({
+      id: 'av2-activity-name',
+      label: 'שם פעילות',
+      value: prefillRecord?.activity_name_snapshot || activity?.activity_name || '',
+      placeholder: 'שם התוכנית או הפעילות',
+    });
+    activityNameField.wrap.classList.add('av2-field--full');
+    form.append(activityNameField.wrap);
 
+    // ── ROW 2: Activity type + Meeting no ──────────────────────────────
     const typeField = createSelectField({
       id: 'av2-activity-type',
       label: 'סוג פעילות',
@@ -319,16 +304,18 @@ export function renderNewReportScreen(container, {
         { value: '', label: 'בחר' },
         ...HEBREW_ACTIVITY_TYPES.map(t => ({ value: t, label: t })),
       ],
-      value: hebrewType,
+      value: prefillRecord?.activity_type || '',
     });
 
+    const meetingVal = prefillRecord?.meeting_no != null ? String(prefillRecord.meeting_no)
+                     : activity?.meeting_no   != null ? String(activity.meeting_no) : '';
     const meetingOptions = [{ value: '', label: '—' }];
     for (let i = 1; i <= 20; i++) meetingOptions.push({ value: String(i), label: String(i) });
     const meetingField = createSelectField({
       id: 'av2-meeting-no',
       label: 'מפגש מס׳',
       options: meetingOptions,
-      value: activity?.meeting_no != null ? String(activity.meeting_no) : '',
+      value: meetingVal,
     });
     meetingField.wrap.classList.add('av2-field--narrow');
 
@@ -471,13 +458,44 @@ export function renderNewReportScreen(container, {
 
       authorityEl = authSel.wrap;
       schoolEl    = schoolSel.wrap;
+
+      // ── Apply prefill for authority/school (duplicate mode) ────────
+      if (prefillRecord) {
+        const prefAuthName = prefillRecord.authority_name_snapshot || '';
+        const prefSchoolName = prefillRecord.school_name_snapshot || '';
+        if (prefAuthName) {
+          const matchAuth = authoritySchoolData.find(a => a.authority_name === prefAuthName);
+          if (matchAuth) {
+            authSel.setValue(String(matchAuth.authority_id), matchAuth.authority_name);
+            manualAuthId = matchAuth.authority_id;
+            manualAuthName = matchAuth.authority_name;
+            schoolSel.setOptions(schoolOptsFor(manualAuthId));
+          } else {
+            authSel.setValue('', prefAuthName);
+            manualAuthName = prefAuthName;
+          }
+        }
+        if (prefSchoolName) {
+          const flatSchools = schoolOptsFor(manualAuthId);
+          const matchSchool = flatSchools.find(s => s.label === prefSchoolName);
+          if (matchSchool) {
+            schoolSel.setValue(matchSchool.value, matchSchool.label);
+            manualSchoolId = Number(matchSchool.value);
+            manualSchoolName = matchSchool.label;
+            semelMosad = matchSchool.semel_mosad ?? null;
+          } else {
+            schoolSel.setValue('', prefSchoolName);
+            manualSchoolName = prefSchoolName;
+          }
+        }
+      }
     }
 
     form.append(authorityEl, schoolEl);
 
     // ── ROW 3: Time pickers ────────────────────────────────────────────
-    const startPicker = createTimePicker('av2-start-time', 'שעת התחלה', activity?.start_time || '');
-    const endPicker   = createTimePicker('av2-end-time',   'שעת סיום',  activity?.end_time   || '');
+    const startPicker = createTimePicker('av2-start-time', 'שעת התחלה', prefillRecord?.start_time || activity?.start_time || '');
+    const endPicker   = createTimePicker('av2-end-time',   'שעת סיום',  prefillRecord?.end_time   || activity?.end_time   || '');
 
     // Hours-calculated display (spans full width)
     const hoursDisplay = document.createElement('div');
@@ -516,12 +534,12 @@ export function renderNewReportScreen(container, {
     // ── ROW 4: KM + Expenses ──────────────────────────────────────────
     const kmField = createInputField({
       id: 'av2-km', label: 'קילומטר',
-      type: 'number', value: '',
+      type: 'number', value: prefillRecord?.roundtrip_km ? String(prefillRecord.roundtrip_km) : '',
       attrs: { min: '0', step: '1', placeholder: '0' },
     });
     const expField = createInputField({
       id: 'av2-expenses', label: 'הוצאות (₪)',
-      type: 'number', value: '',
+      type: 'number', value: prefillRecord?.expenses ? String(prefillRecord.expenses) : '',
       attrs: { min: '0', step: '0.01', placeholder: '0' },
     });
     form.append(kmField.wrap, expField.wrap);
@@ -530,6 +548,7 @@ export function renderNewReportScreen(container, {
     const expDetailField = createInputField({
       id: 'av2-expense-detail', label: 'פירוט הוצאות',
       placeholder: 'לדוגמה: חניה, כיבוד, חומרים',
+      value: prefillRecord?.expense_details || '',
     });
     expDetailField.wrap.classList.add('av2-field--full');
     form.append(expDetailField.wrap);
@@ -538,6 +557,7 @@ export function renderNewReportScreen(container, {
     const notesField = createInputField({
       id: 'av2-notes', label: 'הערות',
       placeholder: 'הערות נוספות (אופציונלי)',
+      value: prefillRecord?.notes || '',
     });
     notesField.wrap.classList.add('av2-field--full');
     form.append(notesField.wrap);
@@ -570,16 +590,36 @@ export function renderNewReportScreen(container, {
       const endTime    = endPicker.getValue();
       const totalHours = calcHours(startTime, endTime);
 
+      // ── Full validation — clear then re-mark ──────────────────────
       errorEl.hidden = true;
+      [activityNameField.wrap, typeField.wrap, startPicker.wrap, endPicker.wrap, authorityEl]
+        .forEach(w => w?.classList.remove('av2-field--invalid'));
 
-      if (!startTime || !endTime) {
-        errorEl.textContent = 'יש להזין שעת התחלה וסיום';
-        errorEl.hidden = false;
-        return;
+      const missing = [];
+      let firstInvalid = null;
+
+      function markInvalid(wrap, msg) {
+        wrap?.classList.add('av2-field--invalid');
+        missing.push(msg);
+        if (!firstInvalid) firstInvalid = wrap;
       }
-      if (!typeField.input.value) {
-        errorEl.textContent = 'יש לבחור סוג פעילות';
+
+      if (!activityNameField.input.value.trim()) markInvalid(activityNameField.wrap, 'שם פעילות');
+      if (!typeField.input.value)                markInvalid(typeField.wrap, 'סוג פעילות');
+      if (!startTime)                            markInvalid(startPicker.wrap, 'שעת התחלה');
+      if (!endTime)                              markInvalid(endPicker.wrap, 'שעת סיום');
+      if (startTime && endTime && totalHours <= 0) markInvalid(endPicker.wrap, 'שעת סיום חייבת להיות מאוחרת מהתחלה');
+
+      // Authority required in manual mode
+      if (!activity) {
+        const authLabel = manualAuthName?.trim() || '';
+        if (!authLabel) markInvalid(authorityEl, 'רשות');
+      }
+
+      if (missing.length) {
+        errorEl.textContent = `שדות חובה חסרים: ${[...new Set(missing)].join(' · ')}`;
         errorEl.hidden = false;
+        firstInvalid?.querySelector('input,select,button')?.focus();
         return;
       }
 
@@ -602,7 +642,7 @@ export function renderNewReportScreen(container, {
           activity_row_id:         activity?.row_id          ?? null,
           activity_no:             activity?.activity_no     ?? null,
           activity_season:         activity?.activity_season ?? null,
-          activity_name_snapshot:  activity?.activity_name   ?? null,
+          activity_name_snapshot:  activityNameField.input.value.trim() || (activity?.activity_name ?? null),
           meeting_no:              meetingField.input.value ? Number(meetingField.input.value) : null,
           authority_id:            finalAuthorityId,
           authority_name_snapshot: finalAuthorityName,
@@ -646,8 +686,23 @@ export function renderNewReportScreen(container, {
   }
 
   // Init
-  dateField.input.addEventListener('change', onDateChange);
-  onDateChange();
+  if (prefillRecord) {
+    // Duplicate mode: skip activity picker, go straight to form
+    const prefillDate = prefillRecord.report_date || defaultDate;
+    dateField.input.value = prefillDate;
+    pickerArea.innerHTML = '';
+    getAllAuthoritySchoolList(instructor.empId)
+      .then(d => { authoritySchoolData = d; })
+      .catch(() => {})
+      .finally(() => {
+        pickerArea.innerHTML = '';
+        renderForm(null, prefillDate, prefillRecord);
+      });
+    dateField.input.addEventListener('change', onDateChange);
+  } else {
+    dateField.input.addEventListener('change', onDateChange);
+    onDateChange();
+  }
 }
 
 // ── Activity picker card ──────────────────────────────────────────────────
