@@ -198,8 +198,12 @@ function enhanceMonthInput(input) {
       }
       yearSelect.value = year;
       monthSelect.value = month;
-    } else if (!yearSelect.value) {
-      yearSelect.value = String(new Date().getFullYear());
+    } else {
+      monthSelect.value = '';
+      const currentYear = String(new Date().getFullYear());
+      yearSelect.value = [...yearSelect.options].some((option) => option.value === currentYear)
+        ? currentYear
+        : (yearSelect.options[0]?.value || '');
     }
   };
 
@@ -209,7 +213,8 @@ function enhanceMonthInput(input) {
     } else {
       input.value = `${yearSelect.value}-${monthSelect.value}`;
     }
-    input.dispatchEvent(new Event('change', { bubbles: true }));
+    const EventCtor = doc.defaultView?.Event || Event;
+    input.dispatchEvent(new EventCtor('change', { bubbles: true }));
   };
 
   monthSelect.addEventListener('change', syncToNative);
@@ -239,7 +244,8 @@ function watchTeamSelect(select) {
   if (!select || select.dataset.payrollTeamEnhanced === 'true') return;
   select.dataset.payrollTeamEnhanced = 'true';
   normalizeTeamSelect(select);
-  new MutationObserver(() => normalizeTeamSelect(select)).observe(select, { childList: true, subtree: true, characterData: true });
+  const MutationObserverCtor = select.ownerDocument?.defaultView?.MutationObserver || MutationObserver;
+  new MutationObserverCtor(() => normalizeTeamSelect(select)).observe(select, { childList: true, subtree: true, characterData: true });
 }
 
 function enhancePayrollDocument(doc) {
@@ -263,7 +269,8 @@ function observePayrollPopup(popup) {
   const doc = popup.document;
   if (enhancePayrollDocument(doc)) return;
 
-  const observer = new MutationObserver(() => {
+  const MutationObserverCtor = doc.defaultView?.MutationObserver || MutationObserver;
+  const observer = new MutationObserverCtor(() => {
     if (enhancePayrollDocument(doc)) observer.disconnect();
   });
   observer.observe(doc.documentElement, { childList: true, subtree: true });
