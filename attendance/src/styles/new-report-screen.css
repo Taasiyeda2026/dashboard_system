@@ -27,7 +27,8 @@
   gap: 8px;
 }
 
-/* Activity picker */
+/* ── Activity picker ──────────────────────────────────────────────────────── */
+
 .av2-activity-picker {
   display: flex;
   flex-direction: column;
@@ -42,9 +43,7 @@
   padding: 16px;
 }
 
-.av2-activity-picker__error {
-  color: #dc2626;
-}
+.av2-activity-picker__error { color: #dc2626; }
 
 .av2-activity-picker__header {
   margin: 0;
@@ -83,7 +82,8 @@
   color: var(--av2-color-warning-text);
 }
 
-/* Activity card (picker) */
+/* ── Activity card (picker) ───────────────────────────────────────────────── */
+
 .av2-activity-card {
   display: flex;
   align-items: center;
@@ -98,9 +98,7 @@
   text-align: start;
 }
 
-.av2-activity-card:hover {
-  background: #f0f4f9;
-}
+.av2-activity-card:hover { background: #f0f4f9; }
 
 .av2-activity-card__name {
   flex: 1;
@@ -117,7 +115,8 @@
   text-align: end;
 }
 
-/* Activity banner (after selection) */
+/* ── Activity banner (after selection) ───────────────────────────────────── */
+
 .av2-report__activity-banner {
   padding: 10px 14px;
   background: #eff6ff;
@@ -142,12 +141,8 @@
   gap: 6px;
 }
 
-.av2-report__activity-banner-meta span::after {
-  content: ' ·';
-}
-.av2-report__activity-banner-meta span:last-child::after {
-  content: '';
-}
+.av2-report__activity-banner-meta span::after  { content: ' ·'; }
+.av2-report__activity-banner-meta span:last-child::after { content: ''; }
 
 .av2-report__activity-banner-change {
   font-size: 0.75rem;
@@ -162,47 +157,115 @@
   text-align: start;
 }
 
-/* Form */
+/* ── Form area ────────────────────────────────────────────────────────────── */
+
 .av2-report__form-area {
   display: flex;
   flex-direction: column;
   gap: 2px;
 }
 
+/* 2-column compact grid */
 .av2-report__form {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 12px;
+  align-items: start;
 }
 
-.av2-report__time-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr auto;
-  gap: 8px;
-  align-items: end;
+/* Full-width override */
+.av2-field--full {
+  grid-column: 1 / -1;
 }
+
+/* Narrow column (meeting no, etc.) */
+.av2-field--narrow .av2-field__select {
+  max-width: 100%;
+}
+
+/* Very narrow screens: stack everything */
+@media (max-width: 320px) {
+  .av2-report__form {
+    grid-template-columns: 1fr;
+  }
+  .av2-field--full {
+    grid-column: 1;
+  }
+}
+
+/* ── Compact time picker ─────────────────────────────────────────────────── */
+
+.av2-time-picker {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  border: 1px solid var(--av2-color-border);
+  border-radius: 10px;
+  background: #fff;
+  padding: 0 6px;
+  height: 40px;
+  overflow: hidden;
+}
+
+.av2-time-picker__sel {
+  border: none;
+  background: transparent;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  font-family: inherit;
+  color: var(--av2-color-text);
+  padding: 0 2px;
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  cursor: pointer;
+  /* keep native arrow for accessibility */
+  -webkit-appearance: auto;
+  appearance: auto;
+}
+
+.av2-time-picker__sel:focus {
+  outline: none;
+  background: #eff6ff;
+  border-radius: 6px;
+}
+
+.av2-time-picker__sep {
+  font-weight: 700;
+  color: var(--av2-color-text-muted);
+  font-size: 1rem;
+  flex-shrink: 0;
+  user-select: none;
+}
+
+/* ── Hours calculated display ────────────────────────────────────────────── */
 
 .av2-report__hours-display {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  padding-bottom: 6px;
-  gap: 2px;
+  gap: 6px;
+  justify-content: flex-end;
+  padding: 0 2px 4px;
+  margin-top: -4px;
 }
 
 .av2-report__hours-label {
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
   color: var(--av2-color-text-muted);
 }
 
 .av2-report__hours-value {
-  font-size: 1rem;
+  font-size: 0.9375rem;
   font-weight: 700;
   color: var(--av2-color-accent);
+  min-width: 3ch;
+  text-align: start;
 }
 
+/* ── Save / error ────────────────────────────────────────────────────────── */
+
 .av2-report__save {
-  margin-top: 6px;
+  margin-top: 4px;
   min-height: 46px;
 }
 
@@ -215,7 +278,8 @@
   border-radius: 8px;
 }
 
-/* Attachments */
+/* ── Attachments ─────────────────────────────────────────────────────────── */
+
 .av2-attach-section {
   display: flex;
   flex-direction: column;
@@ -239,12 +303,6 @@
   font-size: 0.8125rem;
 }
 
-.av2-attach-item a {
-  color: var(--av2-color-accent);
-  text-decoration: underline;
-  flex: 1;
-}
-
 .av2-attach-item span {
   flex: 1;
   overflow: hidden;
@@ -266,6 +324,4 @@
   background: #eff6ff;
 }
 
-.av2-attach-upload-btn:hover {
-  background: #dbeafe;
-}
+.av2-attach-upload-btn:hover { background: #dbeafe; }
