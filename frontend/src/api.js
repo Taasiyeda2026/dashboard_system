@@ -6611,14 +6611,20 @@ async function readCatalogProgramsFromSupabase() {
   };
 }
 export const api = {
-  attendanceControlRequest: async (action) => {
+  attendanceControlRequest: async (action, payload = {}) => {
     const response = await fetch(config.attendanceApiUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action })
+      body: JSON.stringify({ ...payload, action })
     });
     if (!response.ok) throw new Error(`attendance_api_${response.status}`);
-    return response.json();
+    const text = await response.text();
+    if (!text) return { success: true };
+    try {
+      return JSON.parse(text);
+    } catch {
+      return { success: true };
+    }
   },
   attendanceControlTeams: async function () {
     const response = await this.attendanceControlRequest('getallemployees');
@@ -6629,6 +6635,66 @@ export const api = {
     const response = await this.attendanceControlRequest('getsummary');
     if (!response?.success || !Array.isArray(response.records)) throw new Error('attendance_records_load_failed');
     return response.records;
+  },
+  attendanceControlUpdateRecord: async function (recordId, fields = {}) {
+    const id = String(recordId || '').trim();
+    if (!id) throw new Error('חסר מזהה רשומת נוכחות לעדכון.');
+    const response = await this.attendanceControlRequest('updaterecord', { recordId: id, ...fields });
+    if (response?.success === false) {
+      throw new Error(String(response.message || response.error || '').trim() || 'עדכון רשומת נוכחות נכשל.');
+    }
+    return response;
+  },
+  listPayrollControlApprovals: async ({ monthKey = '', employeeIds = [] } = {}) => {
+    let query = supabase
+      .from('payroll_control_approvals')
+      .select('*')
+      .eq('status', 'approved_for_payroll')
+      .order('approved_at', { ascending: false });
+    if (monthKey) query = query.eq('month_key', monthKey);
+    if (employeeIds.length) query = query.in('employee_id', employeeIds.map((value) => String(value)));
+    const { data, error } = await query;
+    if (error) throw new Error(error.message || 'payroll_control_approvals_read_failed');
+    return Array.isArray(data) ? data : [];
+  },
+  savePayrollControlApproval: async ({
+    employee_id,
+    employee_name,
+    month_key,
+    approved_by_name,
+    approval_text_version,
+    approved_snapshot,
+    pdf_path = null,
+    pdf_file_name = null
+  } = {}) => {
+    const payload = {
+      employee_id: String(employee_id || '').trim(),
+      employee_name: String(employee_name || '').trim(),
+      month_key: String(month_key || '').trim(),
+      approved_by_name: String(approved_by_name || '').trim(),
+      approved_at: new Date().toISOString(),
+      status: 'approved_for_payroll',
+      approval_text_version: String(approval_text_version || 'payroll-control-declaration-v1').trim(),
+      approved_snapshot: approved_snapshot || {},
+      pdf_path: pdf_path || null,
+      pdf_file_name: pdf_file_name || null
+    };
+    const { data, error } = await supabase
+      .from('payroll_control_approvals')
+      .upsert(payload, { onConflict: 'employee_id,month_key' })
+      .select('*')
+      .single();
+    if (error) throw new Error(error.message || 'payroll_control_approval_save_failed');
+    return data;
+  },
+  payrollControlApprovalSignedUrl: async (filePath) => {
+    const path = String(filePath || '').trim();
+    if (!path) throw new Error('missing_file_path');
+    const { data, error } = await supabase.storage
+      .from('payroll-control-pdfs')
+      .createSignedUrl(path, 60 * 5);
+    if (error) throw new Error(error.message || 'payroll_control_pdf_url_failed');
+    return { signedUrl: data?.signedUrl || '' };
   },
   login: async (user_id, entry_code) => {
     // Auth must complete before any permission-guarded Supabase reads.
@@ -6755,13 +6821,15 @@ export const api = {
   attendanceControlDashboardSources: async ({ employeeIds = [], fromDate = '', toDate = '' } = {}) => {
     const ids = [...new Set((employeeIds || []).map((value) => String(value || '').trim()).filter(Boolean))];
     if (!ids.length || !fromDate || !toDate) return { activities: [], contacts: [], travelCache: [], expenses: [] };
-    const activitySelect = `${ACTIVITY_OPERATIONS_COLUMNS},authority_id`;
-    const [regular, summer, school2027, contactsResult, usersResult] = await Promise.all([
+    const activitySelect = `${ACTIVITY_OPERATIONS_COLUMNS},authority_id,activity_no`;
+    const [regular, summer, school2027, contactsResult, usersResult, catalog, proposalGroupAliases] = await Promise.all([
       readAllActivitiesRowsSupabase({ activityPeriod: ACTIVITY_SEASON_REGULAR, select: activitySelect, startDate: fromDate, endDate: toDate }),
       readAllActivitiesRowsSupabase({ activityPeriod: ACTIVITY_SEASON_SUMMER_2026, select: activitySelect, startDate: fromDate, endDate: toDate }),
       readAllActivitiesRowsSupabase({ activityPeriod: ACTIVITY_SEASON_SCHOOL_2027, select: activitySelect, startDate: fromDate, endDate: toDate }),
       supabase.from('contacts_instructors').select('emp_id,full_name,address,employment_type,active').in('emp_id', ids),
-      supabase.from('users').select('emp_id,auth_user_id').in('emp_id', ids)
+      supabase.from('users').select('emp_id,auth_user_id').in('emp_id', ids),
+      readAuthoritySchoolCatalog(),
+      readProposalGroupAliasesFromSupabase().catch(() => [])
     ]);
     if (contactsResult.error) throw new Error(contactsResult.error.message || 'attendance_contacts_load_failed');
     const activities = [...new Map([...(regular || []), ...(summer || []), ...(school2027 || [])]
@@ -6793,6 +6861,9 @@ export const api = {
       contacts: contactsResult.data || [],
       travelCache,
       expenses,
+      schoolLookup: catalog?.schoolLookup || null,
+      authorityLookup: catalog?.authorityLookup || null,
+      proposalGroupAliases: Array.isArray(proposalGroupAliases) ? proposalGroupAliases : [],
       expenseSourceAvailable: Boolean(authIds.length),
       travelSourceAvailable: routeResults.every((result) => !result.error)
     };

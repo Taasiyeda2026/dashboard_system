@@ -113,10 +113,10 @@ export function preparePayrollTestReviewResult(sourceResult = {}) {
   result.dailyKilometers.forEach((km) => {
     const key = dayKey(km.employeeId, km.date);
     if (km.calculated == null) {
-      if (Number(km.reported || 0) > 0) addReason(reviewReasons, key, 'ק״מ – לא ניתן לחשב, נדרש לבדוק');
+      if (km.hasReportedKm !== false && Number(km.reported || 0) > 0) addReason(reviewReasons, key, 'ק״מ – לא ניתן לחשב, נדרש לבדוק');
       return;
     }
-    if (!km.matches) addReason(reviewReasons, key, `ק״מ – דווח ${km.reported}, חושב ${km.calculated}`);
+    if (km.hasReportedKm !== false && !km.matches) addReason(reviewReasons, key, `ק״מ – דווח ${km.reported}, חושב ${km.calculated}`);
   });
 
   const dayStates = new Map();

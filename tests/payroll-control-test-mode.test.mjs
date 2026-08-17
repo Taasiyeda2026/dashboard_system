@@ -91,8 +91,8 @@ test('test review layer removes false one-day activity gaps without changing the
 
   const summerWorkshop = result.comparisons.find((row) => row.attendance.program === 'T08 – סדנאות קיץ');
   assert.ok(summerWorkshop);
-  assert.ok(!summerWorkshop.differences.some((diff) => diff.key === 'activityType'));
-  assert.equal(dayStates.get('9902|2027-01-10')?.status, 'ok');
+  assert.equal(summerWorkshop.unmatched, true, 'summer workshop attendance label is not the same activity type as dashboard workshop');
+  assert.equal(dayStates.get('9902|2027-01-10')?.status, 'review');
 
   const tour = result.comparisons.find((row) => row.attendance.program === 'T09 – סיור');
   const escapeRoom = result.comparisons.find((row) => row.attendance.program === 'T10 – חדר בריחה');

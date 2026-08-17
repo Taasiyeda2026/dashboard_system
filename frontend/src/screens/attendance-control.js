@@ -1,7 +1,12 @@
 import * as XLSX from 'xlsx';
 import { escapeHtml } from './shared/html.js';
 import { activityMeetings } from './instructor-scheduling-load.js';
-import { activityTypeDisplayLabel, normalizeActivityTypeKey } from './shared/activity-options.js';
+import { activityTypeDisplayLabel, isOneDayActivityType, normalizeActivityTypeKey } from './shared/activity-options.js';
+import {
+  buildPayrollIdentityContext,
+  payrollBundleHasContext,
+  payrollEntityFieldsEquivalent
+} from './payroll-control-identity.js';
 
 export const DETAIL_HEADERS = ['מספר עובד', 'שם עובד', 'תאריך', 'שעת התחלה', 'שעת סיום', 'שעות עבודה', 'סוג פעילות', 'שם בית ספר', 'רשות', 'שם תכנית', 'מספר מפגש', 'קילומטרים', 'הוצאות', 'פירוט הוצאות', 'הערות'];
 export const MONTHLY_HEADERS = ['שם מדריך', 'מספר עובד', 'שעות ביטול זמן', 'שעות הכשרה', 'שעות חדר בריחה', 'שעות סדנה', 'שעות סדנאות קיץ', 'שעות סיור', 'שעות קורס', 'שעות תפעול', 'סה"כ קילומטרים', 'הוצאות', 'פירוט הוצאות'];
@@ -118,6 +123,7 @@ function activityValue(row, names, fallback = '') {
 //   End:   up to 10 minutes late departure is legitimate (wrap-up / student questions).
 const ATTENDANCE_GRACE_START_MINUTES = 15;
 const ATTENDANCE_GRACE_END_MINUTES   = 10;
+const DAILY_KM_TOLERANCE = 5;
 
 // School-clock time is not payroll time. Only the two unambiguous business cases
 // may be converted automatically; unusual timetables stay visible for review.
@@ -126,6 +132,24 @@ function dashboardPayrollHours(startTime, endTime) {
   if (Math.abs(minutes - 45) < 0.01) return 1;
   if (Math.abs(minutes - 90) < 0.01) return 2;
   return null;
+}
+
+function timeMinutesValue(value) {
+  const match = timeText(value).match(/^(\d{2}):(\d{2})$/);
+  return match ? Number(match[1]) * 60 + Number(match[2]) : null;
+}
+
+function formatMinutesAsTime(minutes) {
+  const normalized = ((minutes % 1440) + 1440) % 1440;
+  return `${String(Math.floor(normalized / 60)).padStart(2, '0')}:${String(normalized % 60).padStart(2, '0')}`;
+}
+
+function courseExpectedAttendanceTimes(dashboard) {
+  if (attendanceActivityTypeKey(dashboard?.activityType) !== 'course') return null;
+  const payrollHours = dashboardPayrollHours(dashboard.startTime, dashboard.endTime);
+  const end = timeMinutesValue(dashboard.endTime);
+  if (payrollHours == null || end == null) return null;
+  return { startTime: formatMinutesAsTime(end - payrollHours * 60), endTime: timeText(dashboard.endTime) };
 }
 
 export function buildDashboardAttendanceRows(activities = [], contacts = []) {
@@ -148,16 +172,28 @@ export function buildDashboardAttendanceRows(activities = [], contacts = []) {
       const contact = contactById.get(instructor.employeeId) || {};
       // Resolve activityType before building the row so we can apply payroll compensation.
       const activityType = txt(activityValue(activity, ['activity_type_label', 'activity_type', 'item_type']));
+      const typeKey = normalizeActivityTypeKey(activityType);
+      const explicitMeetings = Array.isArray(activity.meetings);
+      const meetingNo = isOneDayActivityType(typeKey)
+        ? (explicitMeetings && meeting.meeting_no != null ? txt(meeting.meeting_no) : '')
+        : (meeting.meeting_no ?? index + 1);
+      const coursePayroll = typeKey === 'course' ? dashboardPayrollHours(startTime, endTime) : calculateWorkHours(startTime, endTime);
+      const payrollHoursRequireReview = typeKey === 'course'
+        ? coursePayroll == null
+        : !(coursePayroll > 0);
       output.push({
         ...instructor, employeeName: instructor.employeeName || txt(contact.full_name), employmentType: txt(contact.employment_type),
         date, startTime, endTime,
-        workHours: dashboardPayrollHours(startTime, endTime),
-        payrollHoursRequireReview: dashboardPayrollHours(startTime, endTime) == null,
+        workHours: payrollHoursRequireReview ? null : coursePayroll,
+        payrollHoursRequireReview,
         meetingCount: 1, activityType,
         school: txt(activityValue(activity, ['school', 'single_school_name', 'legacy_school'])),
         authority: txt(activityValue(activity, ['authority', 'authority_name'])), program: txt(activityValue(activity, ['activity_name', 'program_name', 'name'])),
-        meetingNo: meeting.meeting_no ?? index + 1, kilometers: null, expenses: null,
-        schoolId: activity.school_id == null ? null : Number(activity.school_id), activityId: txt(activityValue(activity, ['row_id', 'RowID', 'id']))
+        meetingNo, kilometers: null, expenses: null,
+        schoolId: activity.school_id == null ? null : Number(activity.school_id),
+        authorityId: activity.authority_id == null ? null : Number(activity.authority_id),
+        activityNo: txt(activityValue(activity, ['activity_no', 'gefen_number', 'catalog_slug'])),
+        activityId: txt(activityValue(activity, ['row_id', 'RowID', 'id']))
       });
     }));
   }
@@ -254,7 +290,8 @@ export function normalizeAttendanceApiRows(records = []) {
     school: txt(row.schoolName || row.SchoolName || row.school), authority: txt(row.municipality || row.Municipality || row.authority),
     program: txt(row.programName || row.ProgramName || row.program), meetingNo: txt(row.sessionNumber || row.SessionNumber || row.session),
     kilometers: optionalNumber(row.kilometers ?? row.Kilometers ?? row.km), expenses: optionalNumber(row.totalExpenses ?? row.TotalExpenses),
-    expenseDetails: txt(row.expensesDetails || row.ExpensesDetails), notes: txt(row.notes || row.Notes), activityId: txt(row.ID || row.Id || row.id)
+    expenseDetails: txt(row.expensesDetails || row.ExpensesDetails), notes: txt(row.notes || row.Notes), activityId: txt(row.ID || row.Id || row.id),
+    _source: row
   })).filter((row) => row.employeeId && row.date);
 }
 
@@ -364,6 +401,13 @@ export async function loadAttendanceDashboardDataset(attendanceRows, api, month 
     const employeeId = txt(contact.emp_id);
     if (scope.employeeIds.includes(employeeId)) rows.push({ employeeId, employeeName: txt(contact.full_name), employmentType: txt(contact.employment_type), __profile: true });
   }
+  rows.__payrollIdentityContext = buildPayrollIdentityContext({
+    schoolLookup: sources.schoolLookup || null,
+    authorityLookup: sources.authorityLookup || null,
+    activities: sources.activities || [],
+    proposalGroupAliases: sources.proposalGroupAliases || [],
+    dashboardRows: rows
+  });
   return rows;
 }
 
@@ -373,46 +417,124 @@ function minutesBetween(a, b) {
 }
 
 function attendanceActivityTypeKey(value) {
-  const normalized = normalizeActivityTypeKey(value);
-  return normalized === 'after_school' ? 'course' : normalized;
+  return normalizeActivityTypeKey(value);
 }
 
 function bundleComponents(row) {
   return row?.componentRows?.length ? row.componentRows : [row];
 }
 
-function sameBundleText(attendance, dashboard, key) {
+function sameBundleText(attendance, dashboard, key, identityContext = null) {
+  if (identityContext && payrollBundleHasContext(attendance, dashboard, identityContext, key)) return true;
   const expected = normalizeAttendanceName(attendance[key]);
   return Boolean(expected) && bundleComponents(dashboard).some((row) => normalizeAttendanceName(row[key]) === expected);
 }
 
-function componentHasContext(attendance, dashboard) {
-  // Bundle membership needs identity evidence. Authority and activity type are
-  // useful scoring signals, but are too broad to admit a component by themselves.
-  return sameBundleText(attendance, dashboard, 'school')
-    || sameBundleText(attendance, dashboard, 'program');
+function hasActivityIdMatch(attendance, dashboard) {
+  const activityId = txt(attendance.activityId);
+  return Boolean(activityId) && bundleComponents(dashboard).some((row) => txt(row.activityId) === activityId);
 }
 
-function matchScore(attendance, dashboard) {
-  const sameText = (key) => sameBundleText(attendance, dashboard, key);
+export function parseMeetingNumberList(value) {
+  return txt(value).split(/[,،\s]+/).map((part) => txt(part)).filter(Boolean);
+}
+
+function dashboardMeetingNumbers(dashboard) {
+  if (!dashboard) return [];
+  const components = bundleComponents(dashboard);
+  const numbers = components.flatMap((row) => (
+    row.meetingNumbers?.length ? row.meetingNumbers.map((item) => txt(item)) : [txt(row.meetingNo)].filter(Boolean)
+  ));
+  if (numbers.length) return numbers;
+  return parseMeetingNumberList(dashboard.meetingNo);
+}
+
+function meetingNumberListsEqual(left = [], right = []) {
+  const a = (Array.isArray(left) ? left : parseMeetingNumberList(left)).map((value) => txt(value));
+  const b = (Array.isArray(right) ? right : parseMeetingNumberList(right)).map((value) => txt(value));
+  return a.length > 0 && a.length === b.length && a.every((value, index) => value === b[index]);
+}
+
+function meetingSequenceMatchesAttendance(attendance, dashboard) {
+  const expected = parseMeetingNumberList(attendance?.meetingNo);
+  if (!expected.length) return false;
+  const actual = dashboardMeetingNumbers(dashboard);
+  if (!actual.length) return false;
+  if (meetingNumberListsEqual(expected, actual)) return true;
+  if (actual.length < expected.length) return false;
+  for (let index = 0; index <= actual.length - expected.length; index += 1) {
+    if (meetingNumberListsEqual(expected, actual.slice(index, index + expected.length))) return true;
+  }
+  return false;
+}
+
+function hasMeetingNoMatch(attendance, dashboard) {
+  return meetingSequenceMatchesAttendance(attendance, dashboard);
+}
+
+function sameActivityBundleContext(attendance, dashboard, identityContext = null) {
+  if (hasActivityIdMatch(attendance, dashboard)) return true;
+  const components = bundleComponents(dashboard);
+  const attendanceActivityId = txt(attendance.activityId);
+  if (attendanceActivityId && components.some((row) => txt(row.activityId) && txt(row.activityId) !== attendanceActivityId)) return false;
+  const schools = new Set(components.map((row) => normalizeAttendanceName(row.school)).filter(Boolean));
+  const programs = new Set(components.map((row) => normalizeAttendanceName(row.program)).filter(Boolean));
+  if (schools.size > 1 || programs.size > 1) return false;
+  return sameBundleText(attendance, dashboard, 'school', identityContext)
+    || sameBundleText(attendance, dashboard, 'program', identityContext);
+}
+
+function bundleMatchesAttendanceMeetings(attendance, dashboard, identityContext = null) {
+  if (!txt(attendance.meetingNo)) return true;
+  if (!meetingSequenceMatchesAttendance(attendance, dashboard)) return false;
+  if (!sameActivityBundleContext(attendance, dashboard, identityContext)) return false;
+  const attendanceHours = rowWorkHours(attendance);
+  const dashboardHours = rowWorkHours(dashboard);
+  if (attendanceHours == null || dashboardHours == null) return true;
+  return Math.abs(attendanceHours - dashboardHours) < 0.01;
+}
+
+function componentHasContext(attendance, dashboard, identityContext = null) {
+  if (hasActivityIdMatch(attendance, dashboard)) return true;
+  if (hasMeetingNoMatch(attendance, dashboard) && (sameBundleText(attendance, dashboard, 'school', identityContext) || sameBundleText(attendance, dashboard, 'program', identityContext))) return true;
+  return sameBundleText(attendance, dashboard, 'school', identityContext) || sameBundleText(attendance, dashboard, 'program', identityContext);
+}
+
+function matchScore(attendance, dashboard, identityContext = null) {
+  if (hasActivityIdMatch(attendance, dashboard)) return { score: 100, context: 100, time: 0, hours: 0, identity: 'activityId' };
+  const sameText = (key) => sameBundleText(attendance, dashboard, key, identityContext);
   const timePoints = (key) => {
     if (!timeText(attendance[key]) || !timeText(dashboard[key])) return 0;
     return Math.max(0, 20 - Math.min(20, minutesBetween(attendance[key], dashboard[key]) / 3));
   };
   const sameActivityType = Boolean(attendanceActivityTypeKey(attendance.activityType))
     && bundleComponents(dashboard).some((row) => attendanceActivityTypeKey(row.activityType) === attendanceActivityTypeKey(attendance.activityType));
-  const context = (sameText('school') ? 30 : 0) + (sameText('authority') ? 15 : 0)
+  const meetingIdentity = hasMeetingNoMatch(attendance, dashboard) ? 40 : 0;
+  const context = meetingIdentity + (sameText('school') ? 30 : 0) + (sameText('authority') ? 10 : 0)
     + (sameText('program') ? 25 : 0) + (sameActivityType ? 15 : 0);
   const time = timePoints('startTime') + timePoints('endTime');
-  const hourDifference = Math.abs(rowWorkHours(attendance) - rowWorkHours(dashboard));
+  const attendanceHours = rowWorkHours(attendance);
+  const dashboardHours = rowWorkHours(dashboard);
+  const hourDifference = attendanceHours == null || dashboardHours == null ? 0 : Math.abs(attendanceHours - dashboardHours);
   const hours = Math.max(0, 20 - Math.min(20, hourDifference * 8));
-  return { score: context + time + hours, context, time, hours };
+  const identity = meetingIdentity ? 'meeting' : '';
+  return { score: context + time + hours, context, time, hours, identity };
 }
 
-function acceptableMatch(match) {
-  // Time alone is never identity evidence: require at least one non-empty
-  // contextual agreement in addition to a meaningful absolute score.
-  return match.score >= 40 && match.context >= 15;
+function acceptableMatch(match, attendance, dashboard, identityContext = null) {
+  if (match.identity === 'activityId') return true;
+  const attendanceType = attendanceActivityTypeKey(attendance.activityType);
+  const dashboardType = bundleComponents(dashboard).map((row) => attendanceActivityTypeKey(row.activityType)).find(Boolean) || '';
+  if (attendanceType && dashboardType && attendanceType !== dashboardType) return false;
+  if (match.identity === 'meeting' && (sameBundleText(attendance, dashboard, 'school', identityContext) || sameBundleText(attendance, dashboard, 'program', identityContext))) return true;
+  return match.score >= 55 && (sameBundleText(attendance, dashboard, 'school', identityContext) || sameBundleText(attendance, dashboard, 'program', identityContext));
+}
+
+function matchIsUnambiguous(match, attendance, dashboard, identityContext = null) {
+  if (!match || !dashboard) return false;
+  if (match.identity === 'activityId') return true;
+  if (match.identity === 'meeting' && acceptableMatch(match, attendance, dashboard, identityContext)) return true;
+  return acceptableMatch(match, attendance, dashboard, identityContext) && match.score >= 70;
 }
 
 function comparable(type, value) {
@@ -422,9 +544,61 @@ function comparable(type, value) {
   return normalizeAttendanceName(value);
 }
 
-function rowWorkHours(row) {
-  if (row?.payrollHoursRequireReview) return 0;
-  return optionalNumber(row?.workHours) ?? calculateWorkHours(row?.startTime, row?.endTime);
+export function rowWorkHours(row) {
+  if (row?.payrollHoursRequireReview) return null;
+  const hours = optionalNumber(row?.workHours);
+  if (hours != null) return hours;
+  const calculated = calculateWorkHours(row?.startTime, row?.endTime);
+  return calculated > 0 ? calculated : null;
+}
+
+function displayWorkHours(row) {
+  const hours = rowWorkHours(row);
+  if (hours == null) return '—';
+  return hours.toFixed(2);
+}
+
+function displayDashboardWorkHours(dashboard) {
+  if (!dashboard) return '—';
+  const hours = rowWorkHours(dashboard);
+  if (hours != null) return hours.toFixed(2);
+  if (dashboard.payrollHoursRequireReview) return 'לא ניתן לחשב';
+  return '—';
+}
+
+function hasReviewExpense(row) {
+  return number(row?.expenses) > 0;
+}
+
+export function attendanceEntryIsResolved(entry) {
+  if (!entry || entry.source === 'dashboard_only') return true;
+  if (entry.managerResolved === 'approved_as_reported' || entry.managerResolved === 'corrected' || entry.managerResolved === 'auto_ok') return true;
+  if (entry.unmatched || entry.source === 'attendance_not_compared') return false;
+  if ((entry.differences || []).length > 0) return false;
+  if (entry.dashboard?.payrollHoursRequireReview) return false;
+  if (hasReviewExpense(entry.attendance)) return false;
+  return Boolean(entry.dashboard);
+}
+
+export function approveAttendanceEntryAsReported(entry) {
+  if (!entry?.attendance) return entry;
+  entry.final = {
+    ...entry.attendance,
+    workHours: rowWorkHours(entry.attendance) ?? optionalNumber(entry.attendance.workHours)
+  };
+  entry.managerResolved = 'approved_as_reported';
+  return entry;
+}
+
+export function applyAttendanceManualCorrection(entry, changes = {}) {
+  if (!entry?.attendance) return entry;
+  entry.final = {
+    ...entry.attendance,
+    ...changes,
+    workHours: changes.workHours ?? rowWorkHours({ ...entry.attendance, ...changes }) ?? optionalNumber(entry.attendance.workHours)
+  };
+  entry.managerResolved = 'corrected';
+  return entry;
 }
 
 function dashboardBundle(rows) {
@@ -432,7 +606,12 @@ function dashboardBundle(rows) {
   const unique = (key) => [...new Set(ordered.map((row) => txt(row[key])).filter(Boolean))];
   const meetingNumbers = ordered.flatMap((row) => row.meetingNumbers?.length ? row.meetingNumbers : [txt(row.meetingNo)].filter(Boolean));
   const activityIds = unique('activityId');
+  const distinctMeetings = [...new Set(meetingNumbers)];
+  const meetingNo = activityIds.length > 1 && distinctMeetings.length !== 1 ? '' : (distinctMeetings.length === 1 ? distinctMeetings[0] : meetingNumbers.join(', '));
   const joined = (key) => unique(key).join(' + ');
+  const schoolIds = [...new Set(ordered.map((row) => row.schoolId).filter(Number.isFinite))];
+  const authorityIds = [...new Set(ordered.map((row) => row.authorityId).filter(Number.isFinite))];
+  const activityNos = [...new Set(ordered.map((row) => txt(row.activityNo)).filter(Boolean))];
   return {
     ...ordered[0], componentRows: ordered, activityIds, activityId: activityIds.join(' + '),
     startTime: ordered.map((row) => timeText(row.startTime)).filter(Boolean).sort()[0] || '',
@@ -440,24 +619,42 @@ function dashboardBundle(rows) {
     workHours: ordered.some((row) => row.payrollHoursRequireReview) ? null : Math.round(ordered.reduce((sum, row) => sum + rowWorkHours(row), 0) * 100) / 100,
     payrollHoursRequireReview: ordered.some((row) => row.payrollHoursRequireReview),
     meetingCount: ordered.reduce((sum, row) => sum + (number(row.meetingCount) || 1), 0),
-    meetingNumbers, meetingNo: meetingNumbers.join(', '),
-    school: joined('school'), authority: joined('authority'), program: joined('program'), activityType: joined('activityType')
+    meetingNumbers: distinctMeetings.length === 1 ? distinctMeetings : (activityIds.length > 1 ? [] : meetingNumbers),
+    meetingNo,
+    school: joined('school'), authority: joined('authority'), program: joined('program'), activityType: joined('activityType'),
+    schoolId: schoolIds.length === 1 ? schoolIds[0] : null,
+    authorityId: authorityIds.length === 1 ? authorityIds[0] : null,
+    activityNo: activityNos.length === 1 ? activityNos[0] : null
   };
 }
 
-function assignDashboardBundles(attendanceEntries, dashboardRows) {
+function assignDashboardBundles(attendanceEntries, dashboardRows, identityContext = null) {
   const orderedDashboard = [...dashboardRows].sort((a, b) => timeText(a.startTime).localeCompare(timeText(b.startTime)));
   const candidates = attendanceEntries.map(({ attendance }) => {
-    const rows = []; const eligible = orderedDashboard
+    const rows = [];
+    let eligible = orderedDashboard
       .map((row, index) => ({ row, index }))
-      .filter(({ row }) => componentHasContext(attendance, row));
+      .filter(({ row }) => componentHasContext(attendance, row, identityContext));
+    if (txt(attendance.meetingNo)) {
+      const expectedMeetings = parseMeetingNumberList(attendance.meetingNo);
+      const meetingRows = eligible.filter(({ row }) => {
+        const numbers = dashboardMeetingNumbers(row);
+        return expectedMeetings.some((meetingNo) => numbers.includes(meetingNo));
+      });
+      if (meetingRows.length) eligible = meetingRows;
+    }
     for (let eligibleStart = 0; eligibleStart < eligible.length; eligibleStart += 1) {
       for (let eligibleEnd = eligibleStart; eligibleEnd < eligible.length; eligibleEnd += 1) {
         const selected = eligible.slice(eligibleStart, eligibleEnd + 1);
         const componentRows = selected.map(({ row }) => row);
+        const activityIds = new Set(componentRows.map((row) => txt(row.activityId)).filter(Boolean));
+        if (activityIds.size > 1) continue;
+        if (txt(attendance.activityId) && activityIds.size && !activityIds.has(txt(attendance.activityId))) continue;
         const start = selected[0].index; const end = selected.at(-1).index;
-        const bundle = dashboardBundle(componentRows); const match = matchScore(attendance, bundle);
-        if (acceptableMatch(match)) rows.push({ bundle, componentRows, start, end, ...match });
+        const bundle = dashboardBundle(componentRows);
+        if (!bundleMatchesAttendanceMeetings(attendance, bundle, identityContext)) continue;
+        const match = matchScore(attendance, bundle, identityContext);
+        if (acceptableMatch(match, attendance, bundle, identityContext)) rows.push({ bundle, componentRows, start, end, ...match });
       }
     }
     return rows.sort((a, b) => b.score - a.score || b.componentRows.length - a.componentRows.length);
@@ -479,7 +676,10 @@ function assignDashboardBundles(attendanceEntries, dashboardRows) {
   return search(0, 0).assignments;
 }
 
-export function compareAttendanceRows(attendanceRows, dashboardRows) {
+export function compareAttendanceRows(attendanceRows, dashboardRows, options = {}) {
+  const identityContext = options.identityContext
+    || dashboardRows?.__payrollIdentityContext
+    || buildPayrollIdentityContext({ dashboardRows: dashboardRows || [] });
   const attendanceOnly = (attendanceRows || []).filter((row) => isAttendanceOnlyActivityType(row.activityType));
   const comparableAttendance = (attendanceRows || []).filter((row) => !isAttendanceOnlyActivityType(row.activityType));
   const attendanceIds = new Set((attendanceRows || []).map((row) => txt(row.employeeId)).filter(Boolean));
@@ -500,73 +700,43 @@ export function compareAttendanceRows(attendanceRows, dashboardRows) {
   });
   attendanceBuckets.forEach((entries, key) => {
     const orderedEntries = [...entries].sort((a, b) => timeText(a.attendance.startTime).localeCompare(timeText(b.attendance.startTime)));
-    const dayAssignments = assignDashboardBundles(orderedEntries, (buckets.get(key) || []).filter((row) => !row.__profile));
-    dayAssignments.forEach((match, index) => {
+    const dayDashboard = (buckets.get(key) || []).filter((row) => !row.__profile);
+    orderedEntries.forEach(({ attendance, attendanceIndex }) => {
+      const activityId = txt(attendance.activityId);
+      if (!activityId || assignments.has(attendanceIndex)) return;
+      const candidate = dayDashboard.find((row) => !used.has(row) && txt(row.activityId) === activityId);
+      if (!candidate) return;
+      assignments.set(attendanceIndex, { bundle: candidate, componentRows: [candidate], score: 100, identity: 'activityId' });
+      used.add(candidate);
+    });
+    const dayAssignments = assignDashboardBundles(orderedEntries.filter(({ attendanceIndex }) => !assignments.has(attendanceIndex)), dayDashboard.filter((row) => !used.has(row)), identityContext);
+    let assignCursor = 0;
+    orderedEntries.forEach(({ attendanceIndex }) => {
+      if (assignments.has(attendanceIndex)) return;
+      const match = dayAssignments[assignCursor++];
       if (!match) return;
-      assignments.set(orderedEntries[index].attendanceIndex, match);
+      assignments.set(attendanceIndex, match);
       match.componentRows.forEach((row) => used.add(row));
     });
   });
-  // Second pass: soft matching for rows that are unmatched after the main pass.
-  // Requires same authority + same activity type + meaningful time overlap (≥30 min).
-  // Prevents the same activity from appearing as both "נוכחות ללא פעילות" and "פעילות ללא נוכחות".
-  const toMinutes = (v) => { const m = timeText(v).match(/^(\d{2}):(\d{2})$/); return m ? Number(m[1]) * 60 + Number(m[2]) : null; };
-  const unusedByKey = new Map();
-  dashboardPopulation.forEach((row) => {
-    if (row.__profile || used.has(row)) return;
-    const key = `${txt(row.employeeId)}|${row.date}`;
-    if (!unusedByKey.has(key)) unusedByKey.set(key, []);
-    unusedByKey.get(key).push(row);
-  });
-  comparableAttendance.forEach((attendance, attendanceIndex) => {
-    if (assignments.has(attendanceIndex)) return;
-    const key = `${txt(attendance.employeeId)}|${attendance.date}`;
-    const candidates = unusedByKey.get(key) || [];
-    const aStart = toMinutes(attendance.startTime); const aEnd = toMinutes(attendance.endTime);
-    let bestScore = 0; let bestMatch = null;
-    for (const dashRow of candidates) {
-      if (used.has(dashRow)) continue;
-      const sameAuthority = Boolean(normalizeAttendanceName(attendance.authority))
-        && normalizeAttendanceName(attendance.authority) === normalizeAttendanceName(dashRow.authority);
-      const sameType = Boolean(attendanceActivityTypeKey(attendance.activityType))
-        && attendanceActivityTypeKey(attendance.activityType) === attendanceActivityTypeKey(dashRow.activityType);
-      if (!sameAuthority || !sameType) continue;
-      const dStart = toMinutes(dashRow.startTime); const dEnd = toMinutes(dashRow.endTime);
-      const overlapMinutes = (aStart != null && aEnd != null && dStart != null && dEnd != null)
-        ? Math.max(0, Math.min(aEnd, dEnd) - Math.max(aStart, dStart)) : 0;
-      if (overlapMinutes < 30) continue;
-      const score = (sameAuthority ? 15 : 0) + (sameType ? 15 : 0) + Math.min(30, overlapMinutes / 4);
-      if (score > bestScore) { bestScore = score; bestMatch = dashRow; }
-    }
-    if (bestMatch) {
-      const bundle = dashboardBundle([bestMatch]);
-      assignments.set(attendanceIndex, { bundle, componentRows: [bestMatch], score: bestScore, isSoftMatch: true });
-      used.add(bestMatch);
-      unusedByKey.set(key, (unusedByKey.get(key) || []).filter((r) => r !== bestMatch));
-    }
-  });
-  // A dashboard activity may itself represent several meetings. If attendance
-  // reports those meetings separately, reuse that aggregate up to meetingCount
-  // times rather than manufacturing a dashboard-only exception.
   const aggregateUseCount = new Map();
   assignments.forEach((match) => match.componentRows.forEach((row) => aggregateUseCount.set(row, (aggregateUseCount.get(row) || 0) + 1)));
   comparableAttendance.forEach((attendance, attendanceIndex) => {
     if (assignments.has(attendanceIndex)) return;
     const key = `${txt(attendance.employeeId)}|${attendance.date}`;
     const candidate = (buckets.get(key) || []).filter((row) => !row.__profile && number(row.meetingCount) > 1 && number(row.meetingCount) > (aggregateUseCount.get(row) || 0))
-      .map((row) => ({ row, match: matchScore(attendance, row) })).filter(({ match }) => acceptableMatch(match))
+      .map((row) => ({ row, match: matchScore(attendance, row, identityContext) })).filter(({ row, match }) => acceptableMatch(match, attendance, row, identityContext))
       .sort((a, b) => b.match.score - a.match.score)[0];
     if (!candidate) return;
-    const share = { ...candidate.row, meetingCount: 1, workHours: candidate.row.payrollHoursRequireReview ? null : Math.round(rowWorkHours(candidate.row) / number(candidate.row.meetingCount) * 100) / 100 };
+    const share = { ...candidate.row, meetingCount: 1, workHours: candidate.row.payrollHoursRequireReview ? null : Math.round((rowWorkHours(candidate.row) ?? 0) / number(candidate.row.meetingCount) * 100) / 100 };
     assignments.set(attendanceIndex, { bundle: share, componentRows: [candidate.row], score: candidate.match.score, sharedAggregate: true });
     aggregateUseCount.set(candidate.row, (aggregateUseCount.get(candidate.row) || 0) + 1);
     used.add(candidate.row);
   });
+  const toMinutes = (v) => { const m = timeText(v).match(/^(\d{2}):(\d{2})$/); return m ? Number(m[1]) * 60 + Number(m[2]) : null; };
   const comparisons = comparableAttendance.map((attendance, attendanceIndex) => {
     const match = assignments.get(attendanceIndex); const dashboard = match?.bundle || null;
-    // Freeze the attendance payroll value before any manager time decision. The
-    // export must not later derive paid hours from a selected school-clock range.
-    const final = { ...attendance, workHours: rowWorkHours(attendance) };
+    const final = { ...attendance, workHours: rowWorkHours(attendance) ?? optionalNumber(attendance.workHours) };
     const differences = dashboard ? FIELD_DEFS.flatMap(([key, label, type]) => {
       // Travel is audited once for the instructor's complete daily route, never per row.
       if (key === 'kilometers') return [];
@@ -578,6 +748,8 @@ export function compareAttendanceRows(attendanceRows, dashboardRows) {
       // Grace window for time fields: early arrival (≤10 min before start) and late departure
       // (≤10 min after end) are legitimate setup/wrap-up time and must not be flagged.
       if (type === 'time') {
+        const expected = courseExpectedAttendanceTimes(dashboard);
+        if (expected && timeText(attendance.startTime) === expected.startTime && timeText(attendance.endTime) === expected.endTime) return [];
         const aMin = toMinutes(attendanceValue); const dMin = toMinutes(dashboardValue);
         if (aMin !== null && dMin !== null) {
           // School end-time and paid end-time intentionally differ for standard
@@ -594,9 +766,25 @@ export function compareAttendanceRows(attendanceRows, dashboardRows) {
       // Suppress the diff when attendance reports 0 and the dashboard field is absent —
       // there is no actual discrepancy, just a missing dashboard value.
       if (key === 'expenses' && (optionalNumber(attendanceValue) ?? 0) === 0 && optionalNumber(dashboardValue) == null) return [];
+      if (key === 'meetingNo' && meetingNumberListsEqual(parseMeetingNumberList(attendance.meetingNo), dashboardMeetingNumbers(dashboard))) return [];
+      if (['school', 'authority', 'program'].includes(key) && payrollEntityFieldsEquivalent(
+        key,
+        attendance,
+        dashboard,
+        identityContext,
+        { matchUnambiguous: matchIsUnambiguous(match, attendance, dashboard, identityContext) }
+      )) return [];
       return [{ key, label, type, attendance: attendanceValue, dashboard: dashboardValue, choice: 'attendance', custom: '' }];
     }) : [];
-    return { id: `row-${attendanceIndex}`, attendance, dashboard, final, differences, unmatched: !dashboard, matchScore: match?.score ?? null };
+    const autoOk = dashboard
+      && !differences.length
+      && !dashboard.payrollHoursRequireReview
+      && !hasReviewExpense(attendance);
+    return {
+      id: `row-${attendanceIndex}`, attendance, dashboard, final, differences,
+      unmatched: !dashboard, matchScore: match?.score ?? null,
+      managerResolved: autoOk ? 'auto_ok' : null
+    };
   });
   const dashboardOnly = dashboardPopulation
     .filter((row) => !row.__profile && row.date && !used.has(row))
@@ -621,7 +809,9 @@ export function compareAttendanceRows(attendanceRows, dashboardRows) {
     const calculatedValues = dashboard.map((row) => optionalNumber(row.kilometers));
     const calculated = dashboard.length && calculatedValues.every((value) => value != null)
       ? Math.round(calculatedValues.reduce((sum, value) => sum + value, 0) * 100) / 100 : null;
-    dailyKilometers.push({ employeeId, date, reported, calculated, matches: calculated != null && reported === calculated });
+    const hasReportedKm = attendance.some((row) => optionalNumber(row.kilometers) != null);
+    const matches = calculated != null && (!hasReportedKm || Math.abs(reported - calculated) <= DAILY_KM_TOLERANCE);
+    dailyKilometers.push({ employeeId, date, reported, calculated, matches, hasReportedKm });
   });
   return { comparisons, notCompared, dashboardOnly, dashboardPopulation, dailyKilometers };
 }
@@ -637,6 +827,7 @@ export function applyAttendanceChoice(comparison, field, choice, custom = '') {
   difference.choice = choice; difference.custom = custom;
   const value = choice === 'dashboard' ? difference.dashboard : choice === 'custom' ? custom : difference.attendance;
   comparison.final[field] = difference.type === 'number' || difference.type === 'money' ? optionalNumber(value) : value;
+  comparison.managerResolved = 'corrected';
   return comparison;
 }
 
@@ -649,22 +840,107 @@ function activityBucket(value) {
   return -1;
 }
 
-export function buildCorrectedAttendanceWorkbook(comparisons, dashboardRows = []) {
+function mergeFinalIntoSource(final, source) {
+  if (!source || typeof source !== 'object') {
+    return { ...final, workHours: rowWorkHours(final) ?? optionalNumber(final.workHours) };
+  }
+  const merged = { ...source };
+  const assign = (keys, value) => {
+    if (value == null || value === '') return;
+    for (const key of keys) {
+      if (Object.hasOwn(source, key)) { merged[key] = value; return; }
+    }
+  };
+  assign(['startTime', 'StartTime', 'start'], final.startTime);
+  assign(['endTime', 'EndTime', 'end'], final.endTime);
+  assign(['workHours', 'WorkHours', 'hours'], rowWorkHours(final) ?? optionalNumber(final.workHours));
+  assign(['activityType', 'ActivityType', 'activity'], final.activityType);
+  assign(['schoolName', 'SchoolName', 'school'], final.school);
+  assign(['municipality', 'Municipality', 'authority'], final.authority);
+  assign(['programName', 'ProgramName', 'program'], final.program);
+  assign(['sessionNumber', 'SessionNumber', 'session'], final.meetingNo);
+  assign(['kilometers', 'Kilometers', 'km'], final.kilometers);
+  assign(['totalExpenses', 'TotalExpenses', 'expenses'], final.expenses);
+  assign(['expensesDetails', 'ExpensesDetails', 'expenseDetails'], final.expenseDetails);
+  assign(['notes', 'Notes'], final.notes);
+  assign(['ID', 'Id', 'id', 'activityId'], final.activityId);
+  if (final.employmentType) assign(['employmentType', 'EmploymentType'], final.employmentType);
+  return merged;
+}
+
+function isOriginalAttendanceSource(row) {
+  return Boolean(row && typeof row === 'object' && (
+    Object.hasOwn(row, 'attendanceDate') || Object.hasOwn(row, 'AttendanceDate')
+    || Object.hasOwn(row, 'attachmentsNames') || Object.hasOwn(row, 'MonthApproved')
+    || Object.hasOwn(row, 'approvedBy') || Object.hasOwn(row, 'approvedDate')
+    || Object.hasOwn(row, 'status') || Object.hasOwn(row, 'סוג פריט') || Object.hasOwn(row, 'נתיב')
+  ));
+}
+
+function sourceDetailSheet(mergedRows) {
+  const headers = [];
+  const seen = new Set();
+  for (const row of mergedRows) {
+    for (const key of Object.keys(row || {})) {
+      if (key === '_source' || seen.has(key)) continue;
+      seen.add(key);
+      headers.push(key);
+    }
+  }
+  const data = mergedRows.map((row) => headers.map((key) => {
+    let value = row?.[key];
+    if (key === 'workHours' || key === 'WorkHours' || key === 'hours') {
+      return rowWorkHours(row) ?? optionalNumber(value) ?? '';
+    }
+    if (value && typeof value === 'object' && !Array.isArray(value)) return lookupText(value);
+    return value ?? '';
+  }));
+  return styledSheet(headers, data);
+}
+
+function detailRowValues(row) {
+  return [
+    txt(row.employeeId || row.EmployeeId || row.empNum), txt(row.employeeName || row.EmployeeName || row.empName),
+    excelDate(row.date || row.attendanceDate || row.AttendanceDate), timeText(row.startTime || row.StartTime),
+    timeText(row.endTime || row.EndTime), rowWorkHours(row) ?? optionalNumber(row.workHours ?? row.WorkHours) ?? '',
+    lookupText(row.activityType || row.ActivityType), txt(row.school || row.schoolName || row.SchoolName),
+    txt(row.authority || row.municipality || row.Municipality), txt(row.program || row.programName || row.ProgramName),
+    txt(row.meetingNo || row.sessionNumber || row.SessionNumber), optionalNumber(row.kilometers ?? row.Kilometers) ?? '',
+    optionalNumber(row.expenses ?? row.totalExpenses ?? row.TotalExpenses) ?? '',
+    txt(row.expenseDetails || row.expensesDetails || row.ExpensesDetails), txt(row.notes || row.Notes)
+  ];
+}
+
+export function buildCorrectedAttendanceWorkbook(comparisons, dashboardRows = [], options = {}) {
   const employment = new Map((dashboardRows || []).map((row) => [txt(row.employeeId), txt(row.employmentType)]));
-  const rows = (comparisons || [])
-    .filter((entry) => entry.source !== 'dashboard_only' || entry.includeInFinal)
-    .map(({ final }) => ({ ...final, workHours: rowWorkHours(final), employmentType: employment.get(txt(final.employeeId)) || txt(final.employmentType) }));
-  const detail = rows.map((row) => [row.employeeId, row.employeeName, row.date, row.startTime, row.endTime, row.workHours, row.activityType, row.school, row.authority, row.program, row.meetingNo, row.kilometers, row.expenses, row.expenseDetails, row.notes]);
+  const entries = (comparisons || []).filter((entry) => entry.source !== 'dashboard_only');
+  const mergedRows = entries.map((entry) => {
+    const final = { ...(entry.final || {}), employmentType: employment.get(txt(entry.final?.employeeId)) || txt(entry.final?.employmentType) };
+    const source = entry.attendance?._source || entry.final?._source || null;
+    return mergeFinalIntoSource(final, source);
+  });
+  const detailSheet = mergedRows.some(isOriginalAttendanceSource)
+    ? sourceDetailSheet(mergedRows)
+    : styledSheet(DETAIL_HEADERS, mergedRows.map(detailRowValues));
   const monthlyMap = new Map();
-  rows.filter((row) => normalizeAttendanceName(row.employmentType).includes(normalizeAttendanceName('תעשיידע'))).forEach((row) => {
-    const key = txt(row.employeeId); if (!monthlyMap.has(key)) monthlyMap.set(key, { name: row.employeeName, id: key, hours: Array(8).fill(0), km: 0, expenses: 0, details: [] });
-    const item = monthlyMap.get(key); const bucket = activityBucket(row.activityType); if (bucket >= 0) item.hours[bucket] += row.workHours;
-    item.km += optionalNumber(row.kilometers) || 0; item.expenses += optionalNumber(row.expenses) || 0; if (row.expenseDetails) item.details.push(row.expenseDetails);
+  mergedRows.filter((row) => normalizeAttendanceName(lookupText(row.employmentType || row.EmploymentType)).includes(normalizeAttendanceName('תעשיידע'))).forEach((row) => {
+    const key = txt(row.employeeId || row.EmployeeId); if (!monthlyMap.has(key)) monthlyMap.set(key, { name: txt(row.employeeName || row.EmployeeName), id: key, hours: Array(8).fill(0), km: 0, expenses: 0, details: [] });
+    const item = monthlyMap.get(key); const hours = rowWorkHours(row) ?? optionalNumber(row.workHours ?? row.WorkHours) ?? 0;
+    const bucket = activityBucket(lookupText(row.activityType || row.ActivityType)); if (bucket >= 0) item.hours[bucket] += hours;
+    item.km += optionalNumber(row.kilometers ?? row.Kilometers) || 0; item.expenses += optionalNumber(row.expenses ?? row.totalExpenses ?? row.TotalExpenses) || 0;
+    const details = txt(row.expenseDetails || row.expensesDetails || row.ExpensesDetails); if (details) item.details.push(details);
   });
   const monthly = [...monthlyMap.values()].map((item) => [item.name, item.id, ...item.hours.map((v) => Math.round(v * 100) / 100), item.km, item.expenses, [...new Set(item.details)].join('; ')]);
-  const daily = rows.filter((row) => normalizeAttendanceName(row.employmentType).includes(normalizeAttendanceName('כוח אדם'))).map((row) => [row.date, row.employeeName, row.employeeId, row.activityType, row.authority, row.startTime, row.endTime, row.workHours, row.kilometers, row.expenses, row.expenseDetails]);
+  const daily = mergedRows.filter((row) => normalizeAttendanceName(lookupText(row.employmentType || row.EmploymentType)).includes(normalizeAttendanceName('כוח אדם'))).map((row) => [
+    excelDate(row.date || row.attendanceDate || row.AttendanceDate), txt(row.employeeName || row.EmployeeName), txt(row.employeeId || row.EmployeeId),
+    lookupText(row.activityType || row.ActivityType), txt(row.authority || row.municipality || row.Municipality),
+    timeText(row.startTime || row.StartTime), timeText(row.endTime || row.EndTime),
+    rowWorkHours(row) ?? optionalNumber(row.workHours ?? row.WorkHours) ?? '',
+    optionalNumber(row.kilometers ?? row.Kilometers) ?? '', optionalNumber(row.expenses ?? row.totalExpenses ?? row.TotalExpenses) ?? '',
+    txt(row.expenseDetails || row.expensesDetails || row.ExpensesDetails)
+  ]);
   const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, styledSheet(DETAIL_HEADERS, detail), 'פירוט מלא');
+  XLSX.utils.book_append_sheet(workbook, detailSheet, 'פירוט מלא');
   XLSX.utils.book_append_sheet(workbook, styledSheet(MONTHLY_HEADERS, monthly), 'סיכום חודשי');
   XLSX.utils.book_append_sheet(workbook, styledSheet(DAILY_HEADERS, daily), 'תצוגה יומית');
   return workbook;
@@ -706,17 +982,14 @@ export function attendanceAuditSummary(result) {
   const fieldMismatches = matched.filter((c) => c.differences.length);
   const unmatchedAttendance = result.comparisons.filter((c) => c.unmatched);
   const mismatchedComparisons = [...fieldMismatches, ...unmatchedAttendance];
-  const different = new Set([
-    ...mismatchedComparisons.map((c) => c.attendance.employeeId),
-    ...(result.dashboardOnly || []).map((entry) => entry.dashboard.employeeId)
-  ]);
+  const different = new Set(mismatchedComparisons.map((c) => c.attendance.employeeId));
   const sum = (key) => result.comparisons.reduce((total, c) => {
     const attendance = optionalNumber(c.attendance[key]); const dashboard = optionalNumber(c.dashboard?.[key]);
     return attendance == null || dashboard == null ? total : total + Math.abs(attendance - dashboard);
   }, 0);
-  const attendanceHours = result.comparisons.reduce((total, c) => total + rowWorkHours(c.attendance), 0);
-  const notComparedHours = (result.notCompared || []).reduce((total, c) => total + rowWorkHours(c.attendance), 0);
-  const dashboardHours = (result.dashboardPopulation || []).filter((row) => !row.__profile).reduce((total, row) => total + rowWorkHours(row), 0);
+  const attendanceHours = result.comparisons.reduce((total, c) => total + (rowWorkHours(c.attendance) ?? 0), 0);
+  const notComparedHours = (result.notCompared || []).reduce((total, c) => total + (rowWorkHours(c.attendance) ?? 0), 0);
+  const dashboardHours = (result.dashboardPopulation || []).filter((row) => !row.__profile).reduce((total, row) => total + (rowWorkHours(row) ?? 0), 0);
   return {
     employees: employees.size, different: different.size,
     attendanceRows: result.comparisons.length + (result.notCompared || []).length,
@@ -724,8 +997,8 @@ export function attendanceAuditSummary(result) {
     dashboardRowsBeforeProcessing: result.dashboardPopulation?.sourceRowCount ?? (result.dashboardPopulation || []).filter((row) => !row.__profile).length,
     dashboardRows: (result.dashboardPopulation || []).filter((row) => !row.__profile).length,
     fullMatches: matched.length - fieldMismatches.length, fieldMismatches: fieldMismatches.length,
-    unmatchedAttendance: unmatchedAttendance.length, unmatchedDashboard: (result.dashboardOnly || []).length,
-    exceptions: mismatchedComparisons.length + (result.dashboardOnly || []).length,
+    unmatchedAttendance: unmatchedAttendance.length, unmatchedDashboard: 0,
+    exceptions: mismatchedComparisons.length,
     attendanceHours: Math.round(attendanceHours * 100) / 100, notComparedHours: Math.round(notComparedHours * 100) / 100,
     totalReportedHours: Math.round((attendanceHours + notComparedHours) * 100) / 100, dashboardHours: Math.round(dashboardHours * 100) / 100,
     hours: Math.round(Math.abs(attendanceHours - dashboardHours) * 100) / 100,
@@ -743,13 +1016,13 @@ export function attendanceControlStylesHtml() {
 .attendance-control__head,.attendance-control__uploads,.attendance-control__metrics,.attendance-control__employee-summary{display:flex;align-items:center;gap:12px;flex-wrap:wrap}.attendance-control__head{justify-content:space-between}.attendance-control__head h2{margin:0}.attendance-control__head p{margin:4px 0;color:#64748b}
 .attendance-control__uploads{margin:16px 0;padding:14px;background:#f8fafc;border-radius:10px}.attendance-control__uploads label{display:grid;gap:6px;min-width:220px;flex:1}.attendance-control__status{color:#b91c1c;font-weight:700}
 .attendance-control__summary-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:12px 0;padding:12px 14px;border-radius:10px;background:#f4f7fb;color:#1f2a37;font-weight:600}.attendance-control__summary-bar span{padding:7px 12px;border:1px solid #d7e0ea;border-radius:8px;background:#ffffff;font-weight:600}.attendance-control__metrics-details{margin:6px 0 12px}.attendance-control__metrics-details>summary{cursor:pointer;color:#64748b;font-size:.92em;padding:4px 2px}.attendance-control__metrics{margin:6px 0;display:flex;flex-wrap:wrap;gap:8px}.attendance-control__metrics>span,.attendance-control__employee-summary>span{padding:9px 12px;border:1px solid #e2e8f0;border-radius:8px;background:#f8fafc}
-.attendance-control__employee{margin:10px 0;border-bottom:1px solid #d7e0ea}.attendance-control__employee>summary{padding:12px 4px;cursor:pointer;font-size:1.05em}.attendance-control__employee-days{padding:0 4px 10px}
-.attendance-control__day{border-top:1px solid #e2e8f0}.attendance-control__day>summary{display:grid;grid-template-columns:110px 110px 80px;gap:12px;align-items:center;padding:10px 2px;cursor:pointer}.attendance-control__reports{padding:0 10px 8px}.attendance-control__report{padding:12px 8px;border-top:1px solid rgba(37,99,235,.16);background:rgba(37,99,235,.025)}.attendance-control__report:first-child{border-top:0}.attendance-control__report-line{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.attendance-control__report-line strong{font-size:1em}.attendance-control__row-status{font-weight:800;white-space:nowrap;color:#24824d}.attendance-control__row-status--issue,.attendance-control__field-value--issue{color:#c62828!important}.attendance-control__identity{padding:5px 0 8px;color:#475569;font-size:.92em}.attendance-control__comparison-table{width:100%;border-collapse:collapse;margin:3px 0 8px}.attendance-control__comparison-table th,.attendance-control__comparison-table td{padding:7px 9px;text-align:right;border-bottom:1px solid #e2e8f0}.attendance-control__comparison-table th{color:#5f6f82;font-size:.86em}.attendance-control__comparison-table select,.attendance-control__comparison-table input{max-width:145px}.attendance-control__manual-table{width:auto;min-width:min(100%,520px)}.attendance-control__missing-match{margin:5px 0;color:#c62828;font-weight:800}.attendance-control__export{margin-top:14px}@media(max-width:800px){.attendance-control__comparison-table{font-size:.9em}}
+.attendance-control__employee{margin:10px 0;border-bottom:1px solid #d7e0ea}.attendance-control__employee>summary{padding:12px 4px;cursor:pointer;font-size:1.05em}.attendance-control__employee-days{padding:0 4px 10px}.attendance-control__employee-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:4px 4px 8px}.attendance-control__approved{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 4px 8px;padding:8px 10px;border:1px solid #bbf7d0;background:#f0fdf4;border-radius:8px;color:#166534;font-weight:700}.attendance-control__approve-dialog{border:0;border-radius:12px;padding:20px;max-width:480px;color:#1f2a37}.attendance-control__approve-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}.attendance-control__manager-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:8px 0}.attendance-control__resolved-note{margin:8px 0;color:#166534;font-weight:700}.attendance-control__report-km{margin:4px 0 8px;color:#475569;font-size:.92em}
+.attendance-control__day{border-top:1px solid #e2e8f0}.attendance-control__day>summary{display:grid;grid-template-columns:110px 110px 80px;gap:12px;align-items:center;padding:10px 2px;cursor:pointer}.attendance-control__reports{padding:0 10px 8px}.attendance-control__report{padding:12px 8px;border-top:1px solid rgba(37,99,235,.16);background:rgba(37,99,235,.025)}.attendance-control__report:first-child{border-top:0}.attendance-control__report-line{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.attendance-control__report-line strong{font-size:1em}.attendance-control__row-status{font-weight:800;white-space:nowrap;color:#24824d}.attendance-control__row-status--issue,.attendance-control__field-value--issue{color:#c62828!important}.attendance-control__identity{padding:5px 0 8px;color:#475569;font-size:.92em}.attendance-control__comparison-table{width:100%;border-collapse:collapse;margin:3px 0 8px}.attendance-control__comparison-table th,.attendance-control__comparison-table td{padding:7px 9px;text-align:right;border-bottom:1px solid #e2e8f0}.attendance-control__comparison-table th{color:#5f6f82;font-size:.86em}.attendance-control__comparison-table select,.attendance-control__comparison-table input{max-width:145px}.attendance-control__manual-table{width:auto;min-width:min(100%,520px)}.attendance-control__missing-match{margin:5px 0;color:#c62828;font-weight:800}.attendance-control__day-km{padding:0 10px 6px;color:#475569;font-size:.92em}.attendance-control__manual-note{margin:0 0 6px;color:#475569;font-size:.92em}.attendance-control__export{margin-top:14px}@media(max-width:800px){.attendance-control__comparison-table{font-size:.9em}}
 @media(max-width:850px){.attendance-control__diff{grid-template-columns:1fr 1fr}.attendance-control__diff strong{grid-column:1/-1}.attendance-control__diff--header{display:none}[data-src-label]::before{content:attr(data-src-label)": ";font-weight:700;font-size:.8em;display:block;color:#5f6f82;margin-bottom:2px}}
 </style>`;
 }
 
-export function resultsHtml(result, month = '') {
+export function resultsHtml(result, month = '', options = {}) {
   const totals = attendanceAuditSummary(result);
   const employees = new Map();
   const ensureEmployee = (id, name = '') => {
@@ -761,11 +1034,10 @@ export function resultsHtml(result, month = '') {
   const addRow = (id, name, date, time, kind, item) => {
     const employee = ensureEmployee(id, name);
     if (!employee.days.has(date)) employee.days.set(date, []);
-    employee.days.get(date).push({ kind, time: txt(time), item });
+    employee.days.get(date).push({ kind, time: txt(time), item, employeeId: txt(id), date });
   };
   (result.comparisons || []).forEach((item) => addRow(item.attendance.employeeId, item.attendance.employeeName, item.attendance.date, item.attendance.startTime, 'comparison', item));
   (result.notCompared || []).forEach((item) => addRow(item.attendance.employeeId, item.attendance.employeeName, item.attendance.date, item.attendance.startTime, 'attendance', item));
-  (result.dashboardOnly || []).forEach((item) => addRow(item.dashboard.employeeId, item.dashboard.employeeName, item.dashboard.date, item.dashboard.startTime, 'dashboard', item));
 
   const dateLabel = (value) => {
     const match = txt(value).match(/^(\d{4})-(\d{2})-(\d{2})$/);
@@ -773,75 +1045,123 @@ export function resultsHtml(result, month = '') {
   };
   const shown = (value, fallback = '—') => escapeHtml(txt(value) || fallback);
   const hasValue = (value) => value != null && txt(value) !== '';
-  const hasReportedKilometers = (row) => hasValue(row?.kilometers);
-  const kilometerUnavailable = (attendance, dashboard) => hasReportedKilometers(attendance)
-    && (!dashboard || !hasValue(dashboard.kilometers));
-  const kilometerIssue = (attendance, dashboard) => kilometerUnavailable(attendance, dashboard)
-    || (hasReportedKilometers(attendance) && hasValue(dashboard?.kilometers)
-      && number(attendance.kilometers) !== number(dashboard.kilometers));
-  const hasReviewExpense = (row) => number(row?.expenses) > 0;
-  const comparisonHasIssue = (comparison) => comparison.unmatched || comparison.differences.length > 0
-    || comparison.dashboard?.payrollHoursRequireReview || kilometerIssue(comparison.attendance, comparison.dashboard)
-    || hasReviewExpense(comparison.attendance);
+  const dayKmMap = new Map((result.dailyKilometers || []).map((day) => [`${txt(day.employeeId)}|${day.date}`, day]));
+  const dayKmInfo = (employeeId, date) => dayKmMap.get(`${txt(employeeId)}|${date}`) || null;
+  const dayKmIssue = (employeeId, date) => {
+    const day = dayKmInfo(employeeId, date);
+    if (!day) return false;
+    if (day.calculated == null) return Boolean(day.hasReportedKm);
+    return day.hasReportedKm !== false && !day.matches;
+  };
+  const comparisonHasIssue = (comparison) => !attendanceEntryIsResolved(comparison);
+  const entryResolvedLabel = (entry) => {
+    if (entry.managerResolved === 'approved_as_reported') return 'אושר כפי שדווח';
+    if (entry.managerResolved === 'corrected') return 'תוקן על ידי המנהל';
+    return '';
+  };
+  const dayKmLineForReport = (employeeId, date) => {
+    const km = dayKmInfo(employeeId, date);
+    if (!km) return '';
+    const reportedKm = km.hasReportedKm === false || (km.hasReportedKm !== true && optionalNumber(km.reported) == null)
+      ? '—'
+      : shown(km.reported ?? 0);
+    const calculatedKm = km.calculated == null ? 'לא ניתן לחשב' : shown(km.calculated);
+    const kmStatus = km.calculated == null ? 'לא ניתן לחשב ק״מ' : (km.matches ? 'תקין' : 'לבדיקה');
+    return `<div class="attendance-control__report-km">ק״מ ליום: ${reportedKm} מדווח | ${calculatedKm} מחושב | ${kmStatus}</div>`;
+  };
+  const managerActionsHtml = (entry) => {
+    const resolvedLabel = entryResolvedLabel(entry);
+    if (resolvedLabel) return `<p class="attendance-control__resolved-note">${escapeHtml(resolvedLabel)}</p>`;
+    const needsHoursFix = entry.unmatched || entry.source === 'attendance_not_compared' || entry.dashboard?.payrollHoursRequireReview;
+    return `<div class="attendance-control__manager-actions">
+      <button type="button" class="ds-btn ds-btn--sm" data-attendance-approve-reported="${escapeHtml(entry.id)}">אשר כפי שדווח</button>
+      ${needsHoursFix ? `<input class="ds-input ds-input--sm" data-attendance-correct-hours="${escapeHtml(entry.id)}" placeholder="שעות שכר מתוקנות" aria-label="שעות שכר מתוקנות"><button type="button" class="ds-btn ds-btn--sm" data-attendance-save-correction="${escapeHtml(entry.id)}">שמור תיקון</button>` : ''}
+    </div>`;
+  };
   const identityHtml = (row) => {
-    const fields = [row.program, row.school, row.authority, hasValue(row.meetingNo) ? `מפגש ${row.meetingNo}` : ''].filter(hasValue);
+    const fields = [activityTypeDisplayLabel(row.activityType), row.program, row.school, row.authority, hasValue(row.meetingNo) ? `מפגש ${row.meetingNo}` : ''].filter(hasValue);
     return fields.length ? `<div class="attendance-control__identity">${fields.map(shown).join(' | ')}</div>` : '';
   };
-  const manualReportTable = (row) => {
+  const manualReportTable = (row, { cancellation = false } = {}) => {
     const fields = [
-      ['שעות', rowWorkHours(row).toFixed(2)], ['ק״מ', row.kilometers], ['הוצאות', row.expenses],
+      ['שעות שכר', displayWorkHours(row)], ['ק״מ', row.kilometers], ['הוצאות', row.expenses],
       ['פירוט הוצאה', row.expenseDetails], ['הערות', row.notes]
     ].filter(([, value]) => hasValue(value));
-    return `<table class="attendance-control__comparison-table attendance-control__manual-table"><tbody>${fields.map(([label, value]) => `<tr><th>${label}</th><td>${shown(value)}</td></tr>`).join('')}</tbody></table>`;
+    const note = cancellation ? '<p class="attendance-control__manual-note">נשמר ברצף יום העבודה</p>' : '';
+    return `${note}<table class="attendance-control__comparison-table attendance-control__manual-table"><tbody>${fields.map(([label, value]) => `<tr><th>${label}</th><td>${shown(value)}</td></tr>`).join('')}</tbody></table>`;
   };
   const comparisonTable = (comparison) => {
     const attendance = comparison.attendance || {};
     const dashboard = comparison.dashboard || null;
     const diffByKey = new Map((comparison.differences || []).map((diff) => [diff.key, diff]));
+    const payrollReview = dashboard?.payrollHoursRequireReview;
+    const dashboardWorkHoursHelp = payrollReview && displayDashboardWorkHours(dashboard) === 'לא ניתן לחשב'
+      ? '<span class="attendance-control__manual-note">משך פעילות שאינו תואם כלל שכר מוגדר</span>'
+      : '';
     const definitions = [
-      ['workHours', 'שעות', rowWorkHours(attendance).toFixed(2), dashboard ? rowWorkHours(dashboard).toFixed(2) : null],
-      ['kilometers', 'ק״מ', attendance.kilometers, dashboard?.kilometers],
+      ['workHours', payrollReview ? 'שעות שכר לבדיקה' : 'שעות שכר', displayWorkHours(attendance), dashboard ? displayDashboardWorkHours(dashboard) : null],
       ['activityType', 'סוג פעילות', activityTypeDisplayLabel(attendance.activityType), dashboard ? activityTypeDisplayLabel(dashboard.activityType) : null],
       ['activityHours', 'שעות פעילות', `${attendance.startTime || '—'}–${attendance.endTime || '—'}`, dashboard ? `${dashboard.startTime || '—'}–${dashboard.endTime || '—'}` : null],
+      ['school', 'בית ספר', attendance.school, dashboard?.school],
+      ['program', 'שם תכנית', attendance.program, dashboard?.program],
       ['expenses', 'הוצאות', attendance.expenses, dashboard?.expenses], ['meetingNo', 'מספר מפגש', attendance.meetingNo, dashboard?.meetingNo]
     ];
-    const rows = definitions.filter(([key, , left, right]) => ['workHours', 'kilometers', 'activityType', 'activityHours'].includes(key) || hasValue(left) || hasValue(right)).map(([key, label, left, right]) => {
+    const rows = definitions.filter(([key, , left, right]) => ['workHours', 'activityType', 'activityHours'].includes(key) || hasValue(left) || hasValue(right)).map(([key, label, left, right]) => {
       const related = key === 'activityHours' ? ['startTime', 'endTime'].map((field) => diffByKey.get(field)).find(Boolean) : diffByKey.get(key);
-      const kmUnavailable = key === 'kilometers' && kilometerUnavailable(attendance, dashboard);
-      const issue = key === 'kilometers' ? kilometerIssue(attendance, dashboard) : Boolean(related)
-        || (key === 'workHours' && dashboard?.payrollHoursRequireReview)
-        || (key === 'expenses' && hasReviewExpense(attendance));
+      const issue = Boolean(related) || (key === 'workHours' && payrollReview) || (key === 'expenses' && hasReviewExpense(attendance));
       const unavailable = !dashboard;
-      const controls = related ? `<select class="ds-input ds-input--sm" data-attendance-choice aria-label="החלטה עבור ${escapeHtml(label)}"><option value="attendance">נתון הנוכחות</option><option value="dashboard">נתון הדשבורד</option><option value="custom">ערך אחר</option></select><input class="ds-input ds-input--sm" data-attendance-custom hidden aria-label="ערך אחר">` : '';
-      return `<tr${related ? ` data-comparison="${comparison.id}" data-field="${related.key}"` : ''}><th>${escapeHtml(label)}</th><td>${shown(left)}</td><td class="${issue || unavailable ? 'attendance-control__field-value--issue' : ''}">${unavailable ? 'לא נמצאה התאמה' : kmUnavailable ? 'לא ניתן לחשב' : shown(right)}</td><td class="attendance-control__row-status ${issue || unavailable ? 'attendance-control__row-status--issue' : ''}">${unavailable ? 'לבדיקה' : kmUnavailable ? 'לא ניתן לחשב' : issue ? (key === 'expenses' && !related ? 'לבדיקה' : 'שונה') : 'תקין'}${controls}</td></tr>`;
+      const controls = related && !unavailable ? `<select class="ds-input ds-input--sm" data-attendance-choice aria-label="החלטה עבור ${escapeHtml(label)}"><option value="attendance">נתון הנוכחות</option><option value="dashboard">נתון הדשבורד</option><option value="custom">ערך אחר</option></select><input class="ds-input ds-input--sm" data-attendance-custom hidden aria-label="ערך אחר">` : '';
+      const status = unavailable ? '⚠ לא נמצאה פעילות תואמת' : issue ? '⚠ לבדיקה' : 'תקין';
+      return `<tr${related ? ` data-comparison="${comparison.id}" data-field="${related.key}"` : ''}><th>${escapeHtml(label)}</th><td>${shown(left)}</td><td class="${issue || unavailable ? 'attendance-control__field-value--issue' : ''}">${unavailable ? 'לא נמצאה התאמה' : shown(right)}${key === 'workHours' ? dashboardWorkHoursHelp : ''}</td><td class="attendance-control__row-status ${issue || unavailable ? 'attendance-control__row-status--issue' : ''}">${status}${controls}</td></tr>`;
     }).join('');
-    return `<table class="attendance-control__comparison-table"><thead><tr><th>נתון</th><th>נוכחות</th><th>דשבורד / בקרה</th><th>סטטוס</th></tr></thead><tbody>${rows}</tbody></table>`;
+    return `${managerActionsHtml(comparison)}<table class="attendance-control__comparison-table"><thead><tr><th>נתון</th><th>נוכחות</th><th>דשבורד / בקרה</th><th>סטטוס</th></tr></thead><tbody>${rows}</tbody></table>`;
   };
-  const reportHtml = ({ kind, item }) => {
+  const reportHtml = ({ kind, item, employeeId, date }) => {
     const row = kind === 'dashboard' ? item.dashboard : item.attendance;
-    const issue = kind === 'comparison' ? comparisonHasIssue(item) : kind === 'dashboard';
-    const timelineStatus = kind === 'comparison' && !issue ? '<span class="attendance-control__row-status">תקין</span>' : '';
-    const table = kind === 'comparison' ? comparisonTable(item) : kind === 'attendance'
-      ? manualReportTable(row)
-      : `<p class="attendance-control__row-status--issue">פעילות בדשבורד ללא דיווח נוכחות.</p>`;
-    const missingMatch = kind === 'comparison' && item.unmatched ? '<p class="attendance-control__missing-match">לא נמצאה פעילות תואמת</p>' : '';
-    return `<section class="attendance-control__report"><div class="attendance-control__report-line"><strong>${shown(`${row.startTime || '—'}–${row.endTime || '—'} | ${row.activityType || 'דיווח'}`)}</strong>${timelineStatus}</div>${identityHtml(row)}${missingMatch}${table}</section>`;
+    const issue = kind === 'comparison' ? comparisonHasIssue(item) : !attendanceEntryIsResolved(item);
+    const ok = !issue;
+    const timelineStatus = ok ? '<span class="attendance-control__row-status">✓ תקין</span>' : (kind === 'comparison' && item.unmatched ? '<span class="attendance-control__row-status attendance-control__row-status--issue">⚠ לא נמצאה פעילות תואמת</span>' : '');
+    const table = kind === 'comparison'
+      ? (item.unmatched ? `${managerActionsHtml(item)}${manualReportTable(row)}` : comparisonTable(item))
+      : `${managerActionsHtml(item)}${manualReportTable(row, { cancellation: isAttendanceOnlyActivityType(row.activityType) })}`;
+    const missingMatch = kind === 'comparison' && item.unmatched ? '<p class="attendance-control__missing-match">לא נמצאה פעילות תואמת בדשבורד</p>' : '';
+    const manualStatus = kind === 'attendance' && issue ? '<span class="attendance-control__row-status attendance-control__row-status--issue">⚠ לבדיקה</span>' : '';
+    return `<section class="attendance-control__report"><div class="attendance-control__report-line"><strong>${shown(`${row.startTime || '—'}–${row.endTime || '—'} | ${activityTypeDisplayLabel(row.activityType) || 'דיווח'}`)}</strong>${timelineStatus}${manualStatus}</div>${identityHtml(row)}${dayKmLineForReport(employeeId, date)}${missingMatch}${table}</section>`;
   };
   const employeeHtml = [...employees.values()].sort((a, b) => a.name.localeCompare(b.name, 'he')).map((employee) => {
     const days = [...employee.days.entries()].sort(([left], [right]) => left.localeCompare(right)).map(([date, rows]) => {
       rows.sort((left, right) => left.time.localeCompare(right.time));
       const attendanceRows = rows.filter((row) => row.kind !== 'dashboard');
-      const hours = attendanceRows.reduce((sum, entry) => sum + rowWorkHours(entry.kind === 'comparison' ? entry.item.attendance : entry.item.attendance), 0);
-      const issue = rows.some((entry) => entry.kind === 'dashboard' || entry.kind === 'attendance'
-        || (entry.kind === 'comparison' && comparisonHasIssue(entry.item)));
-      return `<details class="attendance-control__day"><summary><span>${shown(dateLabel(date))}</span><span>${hours.toFixed(2)} שעות</span><span class="attendance-control__row-status ${issue ? 'attendance-control__row-status--issue' : ''}">${issue ? 'לבדיקה' : 'תקין'}</span></summary><div class="attendance-control__reports">${rows.map(reportHtml).join('')}</div></details>`;
+      const hours = attendanceRows.reduce((sum, entry) => sum + (rowWorkHours(entry.kind === 'comparison' ? entry.item.attendance : entry.item.attendance) ?? 0), 0);
+      const km = dayKmInfo(employee.id, date);
+      const issue = dayKmIssue(employee.id, date) || rows.some((entry) => {
+        const item = entry.item;
+        return !attendanceEntryIsResolved(item);
+      });
+      const reportedKm = !km || km.hasReportedKm === false || (km.hasReportedKm !== true && optionalNumber(km.reported) == null)
+        ? '—'
+        : shown(km.reported ?? 0);
+      const calculatedKm = km?.calculated == null ? 'לא ניתן לחשב' : shown(km.calculated);
+      const kmStatus = km?.calculated == null ? 'לא ניתן לחשב ק״מ' : (km.matches ? 'תקין' : 'לבדיקה');
+      const kmLine = `<div class="attendance-control__day-km">ק״מ מדווח: ${reportedKm} | ק״מ מחושב: ${calculatedKm} | ${kmStatus}</div>`;
+      return `<details class="attendance-control__day${issue ? '' : ' attendance-control__day--ok'}"><summary><span>${shown(dateLabel(date))}</span><span>${hours.toFixed(2)} שעות</span><span class="attendance-control__row-status ${issue ? 'attendance-control__row-status--issue' : ''}">${issue ? '⚠ לבדיקה' : '✓ תקין'}</span></summary>${kmLine}<div class="attendance-control__reports">${rows.map((row) => reportHtml({ ...row, employeeId: employee.id, date })).join('')}</div></details>`;
     }).join('');
-    return `<details class="attendance-control__employee"><summary><strong>${shown(employee.name)}</strong></summary><div class="attendance-control__employee-days">${days}</div></details>`;
+    const approval = options.approvalsByEmployee?.[employee.id];
+    const approvedHtml = approval
+      ? `<div class="attendance-control__approved"><span>מאושר להעברה לשכר</span><span>${shown(approval.approved_by_name)}</span><span>${shown(approval.approved_at ? new Date(approval.approved_at).toLocaleString('he-IL', { dateStyle: 'short', timeStyle: 'short' }) : '')}</span><button type="button" class="ds-btn ds-btn--sm" data-payroll-view-pdf="${escapeHtml(String(approval.id || ''))}">צפייה בדוח</button></div>`
+      : '';
+    const finishButton = `<div class="attendance-control__employee-actions"><button type="button" class="ds-btn ds-btn--primary" data-payroll-finish="${escapeHtml(employee.id)}" data-payroll-employee-name="${shown(employee.name)}">סיום בדיקה ואישור להעברה לשכר</button></div>`;
+    return `<details class="attendance-control__employee"><summary><strong>${shown(employee.name)}</strong></summary>${approvedHtml}${finishButton}<div class="attendance-control__employee-days">${days}</div></details>`;
   }).join('');
-  const reviewEmployees = [...employees.values()].filter((employee) => [...employee.days.values()].some((rows) => rows.some((entry) => entry.kind === 'dashboard' || entry.kind === 'attendance'
-      || (entry.kind === 'comparison' && comparisonHasIssue(entry.item))))).length;
+  const reviewEmployees = [...employees.values()].filter((employee) => {
+    const entries = [...(result.comparisons || []), ...(result.notCompared || [])]
+      .filter((entry) => txt(entry.attendance?.employeeId) === employee.id);
+    return entries.some((entry) => !attendanceEntryIsResolved(entry))
+      || [...employee.days.entries()].some(([date]) => dayKmIssue(employee.id, date));
+  }).length;
+  const metricsHtml = `<details class="attendance-control__metrics-details"><summary>פרטים</summary><div class="attendance-control__metrics"><span>שורות נוכחות ${totals.attendanceRows}</span><span>התאמות ${totals.fullMatches}</span><span>פערים ${totals.fieldMismatches}</span><span>ללא התאמה ${totals.unmatchedAttendance}</span></div></details>`;
   const summaryBar = `<div class="attendance-control__summary-bar"><span>מדריכים <b>${employees.size}</b></span><span>תקינים <b>${Math.max(0, employees.size - reviewEmployees)}</b></span><span>לבדיקה <b>${reviewEmployees}</b></span></div>`;
-  return `${summaryBar}${employeeHtml}<button type="button" class="ds-btn ds-btn--primary attendance-control__export" data-attendance-export>ייצוא דוח נוכחות מתוקן</button>`;
+  return `${summaryBar}${metricsHtml}${employeeHtml}<button type="button" class="ds-btn ds-btn--primary attendance-control__export" data-attendance-export>ייצוא דוח נוכחות מתוקן</button>`;
 }
 
 function openAttendanceControlWindow(api, state) {
@@ -862,10 +1182,37 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
   const monthInput = panel.querySelector('[data-attendance-month]'); const dashboardMonthInput = panel.querySelector('[data-dashboard-month]');
   const teamInput = panel.querySelector('[data-attendance-team]'); const title = panel.querySelector('[data-attendance-title]');
   const run = panel.querySelector('[data-attendance-run]'); const status = panel.querySelector('[data-attendance-status]'); const results = panel.querySelector('[data-attendance-results]');
-  let result = null; let employees = null; let teamIds = [];
+  let result = null; let employees = null; let teamIds = []; let approvalsByEmployee = {};
   const role = txt(state?.user?.role || state?.user?.display_role).toLowerCase();
   const isManager = role === 'manager' || role === 'instructor_manager';
   const canChooseTeam = ['operations_controller', 'system_admin', 'operation_manager', 'admin'].includes(role);
+  const paintResults = () => {
+    results.innerHTML = result ? resultsHtml(result, result.month, { approvalsByEmployee }) : '';
+  };
+  const loadApprovals = async () => {
+    approvalsByEmployee = {};
+    if (!api?.listPayrollControlApprovals || !result?.month) return;
+    try {
+      const rows = await api.listPayrollControlApprovals({ monthKey: result.month });
+      approvalsByEmployee = Object.fromEntries((rows || []).map((row) => [txt(row.employee_id), row]));
+    } catch { approvalsByEmployee = {}; }
+  };
+  const approvalFromButton = (button) => {
+    const id = txt(button?.dataset?.payrollViewPdf);
+    return Object.values(approvalsByEmployee).find((row) => txt(row.id) === id) || null;
+  };
+  const askForSignature = async (finishMod) => new Promise((resolve) => {
+    const dialog = panel.ownerDocument.createElement('dialog');
+    dialog.className = 'attendance-control__approve-dialog';
+    dialog.innerHTML = `<p>${finishMod.PAYROLL_APPROVAL_TEXT}</p><div class="attendance-control__approve-actions"><button type="button" class="ds-btn ds-btn--primary" data-payroll-sign>מאשר/ת וחותם/ת</button><button type="button" class="ds-btn" data-payroll-cancel>ביטול</button></div>`;
+    panel.appendChild(dialog);
+    const done = (value) => { try { dialog.close(); } catch {} dialog.remove(); resolve(value); };
+    dialog.querySelector('[data-payroll-sign]')?.addEventListener('click', () => done(true));
+    dialog.querySelector('[data-payroll-cancel]')?.addEventListener('click', () => done(false));
+    dialog.addEventListener('cancel', (event) => { event.preventDefault(); done(false); });
+    if (typeof dialog.showModal === 'function') dialog.showModal();
+    else done(window.confirm(`${finishMod.PAYROLL_APPROVAL_TEXT}\n\nמאשר/ת וחותם/ת?`));
+  });
   const update = () => { run.disabled = !employees || !attendanceMonthLabel(monthInput.value) || !attendanceMonthLabel(dashboardMonthInput.value) || !teamInput.value; };
   monthInput.addEventListener('change', update); dashboardMonthInput.addEventListener('change', update); teamInput.addEventListener('change', update);
   root.querySelector('[data-attendance-open]')?.addEventListener('click', () => {
@@ -901,7 +1248,8 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
       if (!attendanceRows.length) throw new Error(`לא נמצאו דיווחי נוכחות עבור ${monthLabel}`);
       const dashboardRows = await loadAttendanceDashboardDataset(attendanceRows, api, dashboardMonth);
       result = compareAttendanceRows(attendanceRows, dashboardRows); result.month = month;
-      title.textContent = `בקרת שכר – ${monthLabel}`; status.textContent = ''; results.innerHTML = resultsHtml(result, month);
+      title.textContent = `בקרת שכר – ${monthLabel}`; status.textContent = '';
+      await loadApprovals(); paintResults();
     } catch (error) { status.textContent = error?.message || 'טעינת נתוני בקרת השכר נכשלה.'; results.innerHTML = ''; }
     finally { update(); }
   });
@@ -917,5 +1265,83 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
     if (event.target.matches('[data-attendance-choice]')) { const custom = diff.querySelector('[data-attendance-custom]'); custom.hidden = event.target.value !== 'custom'; applyAttendanceChoice(comparison, field, event.target.value, custom.value); }
     if (event.target.matches('[data-attendance-custom]')) applyAttendanceChoice(comparison, field, 'custom', event.target.value);
   });
-  results.addEventListener('click', (event) => { if (!event.target.closest('[data-attendance-export]') || !result) return; XLSX.writeFile(buildCorrectedAttendanceWorkbook([...result.comparisons, ...(result.notCompared || []), ...result.dashboardOnly], result.dashboardPopulation), attendanceExportFilename(result.month), { compression: true }); });
+  results.addEventListener('click', async (event) => {
+    const findEntry = (entryId) => (
+      [...(result?.comparisons || []), ...(result?.notCompared || [])].find((entry) => entry.id === entryId) || null
+    );
+    const approveBtn = event.target.closest('[data-attendance-approve-reported]');
+    if (approveBtn && result) {
+      const entry = findEntry(approveBtn.dataset.attendanceApproveReported);
+      if (entry) { approveAttendanceEntryAsReported(entry); paintResults(); status.textContent = ''; }
+      return;
+    }
+    const saveCorrectionBtn = event.target.closest('[data-attendance-save-correction]');
+    if (saveCorrectionBtn && result) {
+      const entry = findEntry(saveCorrectionBtn.dataset.attendanceSaveCorrection);
+      const hoursInput = results.querySelector(`[data-attendance-correct-hours="${saveCorrectionBtn.dataset.attendanceSaveCorrection}"]`);
+      const hours = optionalNumber(hoursInput?.value);
+      if (entry && hours != null) {
+        applyAttendanceManualCorrection(entry, { workHours: hours });
+        paintResults();
+        status.textContent = '';
+      } else if (entry) {
+        status.textContent = 'יש להזין שעות שכר מתוקנות.';
+      }
+      return;
+    }
+    if (event.target.closest('[data-attendance-export]') && result) {
+      XLSX.writeFile(buildCorrectedAttendanceWorkbook([...result.comparisons, ...(result.notCompared || [])], result.dashboardPopulation), attendanceExportFilename(result.month), { compression: true });
+      return;
+    }
+    const viewBtn = event.target.closest('[data-payroll-view-pdf]');
+    if (viewBtn) {
+      const approval = approvalFromButton(viewBtn);
+      if (!approval) return;
+      const finishMod = await import('./payroll-control-finish.js');
+      let signedUrl = '';
+      if (approval.pdf_path && api?.payrollControlApprovalSignedUrl) {
+        try { signedUrl = (await api.payrollControlApprovalSignedUrl(approval.pdf_path)).signedUrl || ''; } catch { signedUrl = ''; }
+      }
+      finishMod.openPayrollApprovalDocument(approval, signedUrl);
+      return;
+    }
+    const finishBtn = event.target.closest('[data-payroll-finish]');
+    if (!finishBtn || !result) return;
+    const employeeId = txt(finishBtn.dataset.payrollFinish);
+    const employeeName = txt(finishBtn.dataset.payrollEmployeeName);
+    finishBtn.disabled = true;
+    status.textContent = 'מזהה שינויים ומעדכן את מערכת הנוכחות…';
+    try {
+      const finishMod = await import('./payroll-control-finish.js');
+      if (finishMod.payrollEmployeeHasUnresolvedEntries(result, employeeId)) {
+        status.textContent = 'לא ניתן לסיים את הבקרה: יש רשומות נוכחות שלא קיבלו החלטת מנהל.';
+        return;
+      }
+      const entries = finishMod.payrollEmployeeEntries(result, employeeId);
+      const updates = finishMod.collectChangedAttendanceUpdates(entries);
+      const failures = await finishMod.writeBackChangedAttendanceRecords(api, updates);
+      if (failures.length) {
+        status.textContent = `עדכון מערכת הנוכחות נכשל. האישור לא נשמר. ${failures.map((item) => item.recordId ? `רשומה ${item.recordId}: ${item.message}` : item.message).join(' ')}`;
+        return;
+      }
+      status.textContent = '';
+      const signed = await askForSignature(finishMod);
+      if (!signed) { status.textContent = 'האישור בוטל. עדכוני הנוכחות כבר נשלחו, אך לא נשמר אישור להעברה לשכר.'; return; }
+      const saved = await api.savePayrollControlApproval({
+        employee_id: employeeId,
+        employee_name: employeeName,
+        month_key: result.month,
+        approved_by_name: txt(state?.user?.full_name || state?.user?.name || state?.user?.username || ''),
+        approval_text_version: finishMod.PAYROLL_APPROVAL_TEXT_VERSION,
+        approved_snapshot: finishMod.buildPayrollApprovedSnapshot({ employeeId, employeeName, monthKey: result.month, entries })
+      });
+      approvalsByEmployee[employeeId] = saved;
+      paintResults();
+      status.textContent = 'הבקרה אושרה להעברה לשכר והמסמך הופק בהצלחה.';
+    } catch (error) {
+      status.textContent = error?.message || 'שמירת האישור נכשלה.';
+    } finally {
+      finishBtn.disabled = false;
+    }
+  });
 }

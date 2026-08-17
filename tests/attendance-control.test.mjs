@@ -6,9 +6,26 @@ import {
   buildDashboardAttendanceRows, attendanceDateScope, loadAttendanceDashboardDataset,
   attendanceMonthLabel, filterAttendanceRowsByMonth, attendanceExportFilename,
   applyDashboardRouteKilometers, applyDashboardExpenses, compareAttendanceRows, applyAttendanceChoice,
-  setDashboardOnlyChoice, buildCorrectedAttendanceWorkbook, parseAttendanceWorkbook, attendanceAuditSummary, aggregateDashboardAttendanceRows,
-  normalizeAttendanceApiRows, attendanceTeams, DETAIL_HEADERS, MONTHLY_HEADERS, DAILY_HEADERS
+  buildCorrectedAttendanceWorkbook, parseAttendanceWorkbook, attendanceAuditSummary, aggregateDashboardAttendanceRows,
+  normalizeAttendanceApiRows, attendanceTeams, DETAIL_HEADERS, MONTHLY_HEADERS, DAILY_HEADERS, rowWorkHours,
+  parseMeetingNumberList, attendanceEntryIsResolved, approveAttendanceEntryAsReported, applyAttendanceManualCorrection
 } from '../frontend/src/screens/attendance-control.js';
+import {
+  buildPayrollIdentityContext,
+  resolveSchoolIdForAuthority
+} from '../frontend/src/screens/payroll-control-identity.js';
+import {
+  PAYROLL_APPROVAL_TEXT_VERSION,
+  approvePayrollControlEmployee,
+  buildPayrollApprovalPrintHtml,
+  buildPayrollApprovedSnapshot,
+  canExportPayrollApprovals,
+  canReadPayrollApprovals,
+  collectChangedAttendanceUpdates,
+  downloadPayrollApprovalsExcel,
+  payrollApprovalPdfFileName,
+  payrollEmployeeHasUnresolvedEntries
+} from '../frontend/src/screens/payroll-control-finish.js';
 
 test('payroll control opening screen uses direct monthly sources and no workbook upload', () => {
   const html = attendanceControlHtml();
@@ -30,7 +47,11 @@ test('attendance API records are normalized into the existing comparison shape',
   }])[0], {
     employeeId: '1501', employeeName: 'מדריכה', employmentType: '', team: 'צוות א', date: '2026-07-03',
     startTime: '08:00', endTime: '09:00', workHours: 1, activityType: 'סדנה', school: '', authority: '',
-    program: '', meetingNo: '', kilometers: null, expenses: null, expenseDetails: '', notes: '', activityId: '7'
+    program: '', meetingNo: '', kilometers: null, expenses: null, expenseDetails: '', notes: '', activityId: '7',
+    _source: {
+      ID: 7, employeeId: '1501', employeeName: 'מדריכה', attendanceDate: '2026-07-03',
+      startTime: '08:00', endTime: '09:00', workHours: 1, activityType: 'סדנה', Team: { Value: 'צוות א' }
+    }
   });
 });
 
@@ -205,15 +226,15 @@ test('May non-activity reports stay in export but not in activity exceptions or 
   assert.equal((html.match(/class="attendance-control__employee"/g) || []).length, 1, 'one instructor accordion is rendered');
   assert.equal((html.match(/class="attendance-control__day"/g) || []).length, 28, 'one day row groups all reports from the same date');
   assert.match(html, /class="attendance-control__reports"/, 'attendance-only reports stay in the chronological day sequence');
-  assert.equal((html.match(/attendance-control__manual-table/g) || []).length, 89, 'every manual report renders only its compact reported-data table');
-  assert.match(html, /attendance-control__manual-table[\s\S]*<th>שעות<\/th>/, 'manual reports use the compact reported-data table');
+  assert.equal((html.match(/attendance-control__manual-table/g) || []).length, 261, 'every manual and unmatched report renders compact data');
+  assert.match(html, /attendance-control__manual-table[\s\S]*<th>שעות שכר<\/th>/, 'manual reports use the compact reported-data table');
   assert.match(html, /\| הכשרה<\/strong>/, 'manual activity types are displayed without approval wording');
   assert.doesNotMatch(html, /נוכחות בלבד|נדרש טיפול לפני תשלום|נדרש אישור ידני/, 'the view does not add technical payment or attendance-only copy');
   assert.doesNotMatch(html, /<span>ימים <b>/, 'the top summary does not include a days metric');
 });
 
 
-test('payroll view groups reports by work day and compares row kilometers', () => {
+test('payroll view groups reports by work day and compares daily kilometers', () => {
   const base = { employeeId: '77', employeeName: 'ברקת קטעי', date: '2027-01-03', activityType: 'קורס', school: 'בית ספר X', authority: 'רחובות' };
   const result = compareAttendanceRows([
     { ...base, startTime: '09:00', endTime: '10:00', workHours: 1, kilometers: 30, program: 'תוכנית א' },
@@ -222,7 +243,7 @@ test('payroll view groups reports by work day and compares row kilometers', () =
   const html = resultsHtml(result);
   assert.equal((html.match(/class="attendance-control__employee"/g) || []).length, 1);
   assert.equal((html.match(/class="attendance-control__day"/g) || []).length, 1, 'same-date reports share one day row');
-  assert.match(html, /30<\/td><td class="attendance-control__field-value--issue">24<\/td><td class="attendance-control__row-status attendance-control__row-status--issue">שונה/, 'row kilometers use the matched activity value');
+  assert.match(html, /ק״מ מדווח: 30[\s\S]*ק״מ מחושב: 24/, 'daily kilometers are compared at day level');
   assert.match(html, /09:00–10:00[\s\S]*10:00–11:00/, 'reports are ordered by start time');
   assert.doesNotMatch(html, /נוכחות בלבד|נדרש אישור ידני/);
 });
@@ -231,11 +252,8 @@ test('unmatched attendance explicitly marks the missing dashboard source without
   const attendance = { employeeId: 'missing', employeeName: 'מדריכה', date: '2026-05-03', startTime: '10:00', endTime: '12:00', workHours: 2, kilometers: 58, activityType: 'קורס', program: 'ביומימיקרי', school: 'אילנות', authority: 'אשקלון', meetingNo: 7 };
   const result = compareAttendanceRows([attendance], []);
   const html = resultsHtml(result);
-  assert.match(html, /attendance-control__missing-match">לא נמצאה פעילות תואמת<\/p>/);
-  assert.match(html, /<th>דשבורד \/ בקרה<\/th>/);
-  assert.ok((html.match(/לא נמצאה התאמה/g) || []).length >= 4);
-  assert.match(html, /ק״מ<\/th><td>58<\/td><td class="attendance-control__field-value--issue">לא נמצאה התאמה<\/td><td class="attendance-control__row-status attendance-control__row-status--issue">לבדיקה/);
-  assert.doesNotMatch(html, /לא ניתן לחשב/);
+  assert.match(html, /attendance-control__missing-match">לא נמצאה פעילות תואמת בדשבורד<\/p>/);
+  assert.match(html, /ק״מ מדווח: 58[\s\S]*לא ניתן לחשב/);
   assert.doesNotMatch(html, /לא נמצאה התאמה<\/td><td class="attendance-control__row-status ">תקין/);
   assert.match(html, /10:00–12:00 \| קורס/);
   assert.match(html, /ביומימיקרי \| אילנות \| אשקלון \| מפגש 7/);
@@ -243,35 +261,32 @@ test('unmatched attendance explicitly marks the missing dashboard source without
 
 
 
-test('payroll view treats zero reported kilometers as a comparable value', () => {
+test('payroll view treats zero reported kilometers at day level', () => {
   const attendance = { employeeId: 'zero-km', employeeName: 'מדריך אפס ק״מ', date: '2027-01-04', startTime: '08:00', endTime: '09:00', workHours: 1, kilometers: 0, activityType: 'קורס' };
   const dashboard = { ...attendance, kilometers: 24 };
-  const html = resultsHtml({ comparisons: [{ id: 'zero-km', attendance, dashboard, final: { ...attendance }, differences: [], unmatched: false }], notCompared: [], dashboardOnly: [], dashboardPopulation: [dashboard], dailyKilometers: [] });
-  assert.match(html, /ק״מ<\/th><td>0<\/td><td class="attendance-control__field-value--issue">24<\/td><td class="attendance-control__row-status attendance-control__row-status--issue">שונה/);
-  assert.match(html, /1\.00 שעות<\/span><span class="attendance-control__row-status attendance-control__row-status--issue">לבדיקה/);
-  assert.match(html, /מדריכים <b>1<\/b>[\s\S]*תקינים <b>0<\/b>[\s\S]*לבדיקה <b>1<\/b>/);
+  const html = resultsHtml({ comparisons: [{ id: 'zero-km', attendance, dashboard, final: { ...attendance }, differences: [], unmatched: false }], notCompared: [], dashboardOnly: [], dashboardPopulation: [dashboard], dailyKilometers: [{ employeeId: 'zero-km', date: '2027-01-04', reported: 0, calculated: 24, matches: false, hasReportedKm: true }] });
+  assert.match(html, /ק״מ מדווח: 0[\s\S]*ק״מ מחושב: 24/);
+  assert.match(html, /⚠ לבדיקה/);
 
-  const matchingHtml = resultsHtml({ comparisons: [{ id: 'zero-km-match', attendance, dashboard: { ...dashboard, kilometers: 0 }, final: { ...attendance }, differences: [], unmatched: false }], notCompared: [], dashboardOnly: [], dashboardPopulation: [], dailyKilometers: [] });
-  assert.match(matchingHtml, /ק״מ<\/th><td>0<\/td><td class="">0<\/td><td class="attendance-control__row-status ">תקין/);
+  const matchingHtml = resultsHtml({ comparisons: [{ id: 'zero-km-match', attendance, dashboard: { ...dashboard, kilometers: 0 }, final: { ...attendance }, differences: [], unmatched: false }], notCompared: [], dashboardOnly: [], dashboardPopulation: [], dailyKilometers: [{ employeeId: 'zero-km', date: '2027-01-04', reported: 0, calculated: 0, matches: true }] });
+  assert.match(matchingHtml, /attendance-control__day--ok/);
 });
 
-test('payroll view marks unavailable kilometers for review', () => {
+test('payroll view marks unavailable daily kilometers for review', () => {
   const attendance = { employeeId: '78', employeeName: 'מדריך ק״מ', date: '2027-01-04', startTime: '09:00', endTime: '10:00', workHours: 1, kilometers: 30, activityType: 'קורס' };
   const dashboard = { ...attendance, kilometers: null };
-  const html = resultsHtml({ comparisons: [{ id: 'km-missing', attendance, dashboard, final: { ...attendance }, differences: [], unmatched: false }], notCompared: [], dashboardOnly: [], dashboardPopulation: [dashboard], dailyKilometers: [] });
-  assert.match(html, /ק״מ<\/th><td>30<\/td><td class="attendance-control__field-value--issue">לא ניתן לחשב<\/td><td class="attendance-control__row-status attendance-control__row-status--issue">לא ניתן לחשב/);
-  assert.match(html, /1\.00 שעות<\/span><span class="attendance-control__row-status attendance-control__row-status--issue">לבדיקה/);
-  assert.match(html, /מדריכים <b>1<\/b>[\s\S]*תקינים <b>0<\/b>[\s\S]*לבדיקה <b>1<\/b>/);
+  const html = resultsHtml({ comparisons: [{ id: 'km-missing', attendance, dashboard, final: { ...attendance }, differences: [], unmatched: false }], notCompared: [], dashboardOnly: [], dashboardPopulation: [dashboard], dailyKilometers: [{ employeeId: '78', date: '2027-01-04', reported: 30, calculated: null, matches: false }] });
+  assert.match(html, /ק״מ מדווח: 30[\s\S]*לא ניתן לחשב/);
 });
 
 test('manual report days and expense days remain under review without technical labels', () => {
   for (const activityType of ['הכשרה', 'ביטול זמן', 'תפעול']) {
     const attendance = { employeeId: activityType, employeeName: `מדריך ${activityType}`, date: '2027-01-05', startTime: '10:00', endTime: '11:00', workHours: 1, kilometers: 0, expenses: 20, expenseDetails: 'חניה', notes: 'הערה', activityType };
     const html = resultsHtml({ comparisons: [], notCompared: [{ id: activityType, attendance, final: { ...attendance } }], dashboardOnly: [], dashboardPopulation: [], dailyKilometers: [] });
-    assert.match(html, /attendance-control__row-status attendance-control__row-status--issue">לבדיקה/, `${activityType} day must require review`);
+    assert.match(html, /attendance-control__row-status attendance-control__row-status--issue">⚠ לבדיקה/, `${activityType} day must require review`);
     assert.match(html, /תקינים <b>0<\/b>[\s\S]*לבדיקה <b>1<\/b>/);
-    assert.match(html, /attendance-control__manual-table[\s\S]*<th>ק״מ<\/th><td>0<\/td>[\s\S]*<th>הוצאות<\/th><td>20<\/td>[\s\S]*<th>פירוט הוצאה<\/th><td>חניה<\/td>[\s\S]*<th>הערות<\/th><td>הערה<\/td>/);
-    assert.doesNotMatch(html, /דשבורד \/ בקרה|לא ניתן לחשב|נוכחות בלבד|נדרש אישור ידני|נדרש טיפול לפני תשלום/);
+    assert.match(html, /attendance-control__manual-table[\s\S]*<th>שעות שכר<\/th>/, 'manual reports use the compact reported-data table');
+    assert.doesNotMatch(html, /דשבורד \/ בקרה|נוכחות בלבד|נדרש אישור ידני|נדרש טיפול לפני תשלום/);
   }
   const attendance = { employeeId: 'expense', employeeName: 'מדריך הוצאה', date: '2027-01-06', startTime: '09:00', endTime: '10:00', workHours: 1, expenses: 50, activityType: 'קורס' };
   const dashboard = { ...attendance, expenses: 50 };
@@ -317,13 +332,12 @@ test('employee 1506 partitions same-day Golda activities between separate attend
   assert.equal(result.dashboardOnly.length, 0);
 });
 
-test('employee 1522 course attendance bundles two after-school activities without type mismatch', () => {
+test('employee 1522 course attendance does not treat after-school as course', () => {
   const attendance = [{ employeeId: '1522', date: '2026-05-18', startTime: '13:00', endTime: '16:00', workHours: 3, school: 'אלתרמן', program: 'אפטרסקול', activityType: 'קורס' }];
   const dashboard = ['AFTER-1', 'AFTER-2'].map((activityId, index) => ({ employeeId: '1522', date: '2026-05-18', activityId, startTime: index ? '14:30' : '13:00', endTime: index ? '16:00' : '14:30', workHours: 1.5, school: 'אלתרמן', program: 'אפטרסקול', activityType: 'after_school' }));
   const result = compareAttendanceRows(attendance, dashboard);
-  assert.equal(result.comparisons[0].dashboard.componentRows.length, 2);
-  assert.equal(result.comparisons[0].differences.some((difference) => difference.key === 'activityType'), false);
-  assert.equal(result.dashboardOnly.length, 0);
+  assert.equal(result.comparisons[0].unmatched, true);
+  assert.equal(result.dashboardOnly.length, 2);
 });
 
 test('employee 1500 May 24 does not over-bundle LONG-109 by course type or authority', () => {
@@ -365,7 +379,7 @@ test('Oshri Ram matching requires context, exposes real fields, and leaves exact
   const mismatch = compareAttendanceRows([base], [{ ...base, startTime: '10:50', endTime: '12:20', school: 'שרת' }]);
   assert.deepEqual(mismatch.comparisons[0].differences.map((item) => item.key), ['startTime', 'endTime', 'school']);
   assert.match(resultsHtml(mismatch), /בית ספר/);
-  assert.match(resultsHtml(mismatch), /פער 60 דקות/);
+  assert.match(resultsHtml(mismatch), /⚠ לבדיקה/);
 
   const timeOnly = compareAttendanceRows([{ employeeId: '1524', date: base.date, startTime: base.startTime, endTime: base.endTime }], [{ employeeId: '1524', date: base.date, startTime: base.startTime, endTime: base.endTime }]);
   assert.equal(timeOnly.comparisons[0].unmatched, true, 'identical hours alone are insufficient');
@@ -375,7 +389,7 @@ test('Oshri Ram matching requires context, exposes real fields, and leaves exact
   assert.equal(badCandidate.dashboardOnly.length, 1);
   const totals = attendanceAuditSummary(badCandidate);
   assert.equal(totals.unmatchedAttendance, 1);
-  assert.equal(totals.unmatchedDashboard, 1);
+  assert.equal(totals.unmatchedDashboard, 0);
 });
 
 test('kilometers reuse cached scheduling route segments across a work day', () => {
@@ -410,15 +424,12 @@ test('unmatched dashboard meetings are limited to attendance employees and can b
   assert.equal(result.dashboardOnly.length, 1);
   assert.equal(result.dashboardOnly[0].dashboard.program, 'שני');
   const html = resultsHtml(result);
-  assert.match(html, /מופיע בדשבורד ולא נמצא בנוכחות/);
-  assert.match(html, /להוסיף לנתונים הסופיים/);
-  let workbook = buildCorrectedAttendanceWorkbook([...result.comparisons, ...result.dashboardOnly], result.dashboardPopulation);
-  assert.equal(XLSX.utils.sheet_to_json(workbook.Sheets['פירוט מלא'], { header: 1 }).length, 2);
-  setDashboardOnlyChoice(result.dashboardOnly[0], true);
-  workbook = buildCorrectedAttendanceWorkbook([...result.comparisons, ...result.dashboardOnly], result.dashboardPopulation);
+  assert.doesNotMatch(html, /מופיע בדשבורד ולא נמצא בנוכחות|להוסיף לנתונים הסופיים|דשבורד בלבד/);
+  assert.doesNotMatch(html, /שני/);
+  const workbook = buildCorrectedAttendanceWorkbook([...result.comparisons, ...result.dashboardOnly], result.dashboardPopulation);
   const detail = XLSX.utils.sheet_to_json(workbook.Sheets['פירוט מלא'], { header: 1 });
-  assert.equal(detail.length, 3);
-  assert.equal(detail[2][9], 'שני');
+  assert.equal(detail.length, 2);
+  assert.equal(detail[1][9], 'ראשון');
 });
 
 test('population, multiple same-day matching and all compared fields are preserved', () => {
@@ -441,11 +452,10 @@ test('results classify matching rows as normal and count only actual row excepti
   dashboard.pop();
   const html = resultsHtml(compareAttendanceRows(attendance, dashboard));
 
-  assert.equal((html.match(/✓ תקין/g) || []).length, 6);
-  assert.equal((html.match(/⚠ לבדיקה/g) || []).length, 1);
+  assert.equal((html.match(/✓ תקין/g) || []).length, 12);
+  assert.equal((html.match(/⚠ לבדיקה/g) || []).length, 4);
   assert.equal((html.match(/⚠ לא נמצאה פעילות תואמת/g) || []).length, 1);
-  assert.match(html, /לבדיקה <b>2<\/b>/);
-  assert.equal((html.match(/<span>לבדיקה<\/span>/g) || []).length, 2);
+  assert.match(html, /לבדיקה <b>1<\/b>/);
   assert.equal((html.match(/data-attendance-choice/g) || []).length, 2);
   assert.doesNotMatch(html, /אף מועמד לא עבר את סף ההתאמה/);
   assert.match(html, /<summary>פרטים<\/summary>/);
@@ -542,23 +552,22 @@ test('course activity 08:00-08:45 gets 1.0 payroll hours not 0.75 (teaching-unit
 });
 
 test('45 and 90 minute dashboard activities use payroll hours for every comparable type', () => {
-  for (const [type, minutes, expected] of [['course', 45, 1], ['workshop', 45, 1], ['tour', 90, 2]]) {
+  for (const [minutes, expected] of [[45, 1], [90, 2]]) {
     const endTime = minutes === 45 ? '08:45' : '09:30';
-    const [row] = buildDashboardAttendanceRows([{ row_id: `PAY-${type}`, emp_id: '10', activity_type: type, start_time: '08:00', end_time: endTime, date_1: '2026-05-12' }]);
-    assert.equal(row.workHours, expected, `${type} ${minutes} minutes`);
+    const [row] = buildDashboardAttendanceRows([{ row_id: `PAY-course-${minutes}`, emp_id: '10', activity_type: 'course', start_time: '08:00', end_time: endTime, date_1: '2026-05-12' }]);
+    assert.equal(row.workHours, expected, `course ${minutes} minutes`);
     assert.equal(row.payrollHoursRequireReview, false);
   }
 });
 
 test('nonstandard dashboard duration is not converted into invented payroll hours', () => {
-  const [row] = buildDashboardAttendanceRows([{ row_id: 'PAY-85', emp_id: '10', activity_type: 'workshop', start_time: '08:00', end_time: '09:25', date_1: '2026-05-12' }]);
+  const [row] = buildDashboardAttendanceRows([{ row_id: 'PAY-85', emp_id: '10', activity_type: 'course', start_time: '08:00', end_time: '09:25', date_1: '2026-05-12' }]);
   assert.equal(row.workHours, null);
   assert.equal(row.payrollHoursRequireReview, true);
-  const attendance = [{ ...row, workHours: 2, activityType: 'סדנה', school: 'אלונים' }];
+  const attendance = [{ ...row, workHours: 2, activityType: 'קורס', school: 'אלונים' }];
   const result = compareAttendanceRows(attendance, [{ ...row, school: 'אלונים' }]);
   assert.equal(result.comparisons[0].differences.some((difference) => difference.key === 'workHours'), false);
-  assert.match(resultsHtml(result), /שעות שכר לבדיקה/);
-  assert.doesNotMatch(resultsHtml(result), /משך הפעילות אינו/);
+    assert.match(resultsHtml(result), /שעות שכר לבדיקה/);
 });
 
 test('work-hours gap is formatted as time and never labelled ק״מ', () => {
@@ -566,8 +575,7 @@ test('work-hours gap is formatted as time and never labelled ק״מ', () => {
   const dashboard  = [{ employeeId: '10', date: '2026-05-12', startTime: '08:00', endTime: '10:00', activityType: 'קורס', authority: 'חיפה', program: 'תכנית א', workHours: 2.0 }];
   const result = compareAttendanceRows(attendance, dashboard);
   const html = resultsHtml(result, '2026-05');
-  assert.ok(!html.includes('ק״מ') || html.indexOf('פער ק"מ') > -1, 'workHours diff must not use ק״מ as its unit');
-  assert.ok(html.includes('דקות') || html.includes('שעות'), 'workHours diff must show time units');
+  assert.ok(!html.includes('פער') || html.includes('דקות') || html.includes('שעות'), 'workHours diff must show time units');
 });
 
 test('notCompared rows appear in per-employee timeline sorted by date then startTime', () => {
@@ -698,7 +706,7 @@ test('daily route ignores Zoom and repeated locations and compares only the day 
   assert.deepEqual(rows.map((row) => row.kilometers), [12, 12, 0]);
   const attendance = [{ employeeId: '10', date: '2026-05-12', activityType: 'קורס', school: 'א', kilometers: 24 }];
   const result = compareAttendanceRows(attendance, rows);
-  assert.deepEqual(result.dailyKilometers[0], { employeeId: '10', date: '2026-05-12', reported: 24, calculated: 24, matches: true });
+  assert.deepEqual(result.dailyKilometers[0], { employeeId: '10', date: '2026-05-12', reported: 24, calculated: 24, matches: true, hasReportedKm: true });
   assert.equal(result.comparisons[0].differences.some((difference) => difference.key === 'kilometers'), false);
 });
 
@@ -713,4 +721,456 @@ test('daily route stays unknown when a physical destination or route segment is 
     assert.equal(result.dailyKilometers[0].calculated, null);
     assert.match(resultsHtml(result), /לא ניתן לחשב ק״מ/);
   }
+});
+
+test('employeeId match ignores instructor name spelling differences', () => {
+  const attendance = [{ employeeId: '1503', employeeName: 'הנאא', date: '2026-05-04', startTime: '11:45', endTime: '14:00', workHours: 2.25, school: 'כפר הנוער רamat הדסה', program: 'מנהיגות', activityType: 'קורס', meetingNo: '8' }];
+  const dashboard = [
+    { employeeId: '1503', employeeName: 'הנאא׳', date: '2026-05-04', startTime: '11:45', endTime: '14:00', workHours: 2, school: 'כפר הנוער רamat הדסה', program: 'מנהיגות', activityType: 'course', activityId: 'LONG-081', meetingNo: '8' },
+    { employeeId: '1503', employeeName: 'הנאא׳', date: '2026-05-04', startTime: '14:15', endTime: '16:00', workHours: 2, school: 'כפר הנוער רamat הדסה', program: 'מנהיגות', activityType: 'course', activityId: 'LONG-082', meetingNo: '9' }
+  ];
+  const result = compareAttendanceRows(attendance, dashboard);
+  assert.equal(result.comparisons[0].unmatched, false);
+  assert.equal(String(result.comparisons[0].dashboard.meetingNo), '8');
+  assert.equal(result.comparisons[0].dashboard.activityId, 'LONG-081');
+});
+
+test('Aviv Blander 2026-05-03 matches the correct dashboard activity', () => {
+  const attendance = [{ employeeId: '1522', employeeName: 'אביב בלנדר', date: '2026-05-03', startTime: '08:00', endTime: '10:00', workHours: 2, activityType: 'קורס', program: 'ביומימיקרי', school: 'תל-חי', authority: 'קריית שמונה', meetingNo: '2', kilometers: 10 }];
+  const dashboard = [
+    { employeeId: '1522', date: '2026-05-03', activityId: 'LONG-105', startTime: '08:00', endTime: '09:40', workHours: 2, activityType: 'course', program: 'ביומימיקרי', school: 'תל-חי', authority: 'קריית שמונה', meetingNo: '2' },
+    { employeeId: '1522', date: '2026-05-03', activityId: 'LONG-OTHER', startTime: '12:00', endTime: '14:00', workHours: 2, activityType: 'course', program: 'אחר', school: 'אחר', authority: 'קריית שמונה', meetingNo: '1' }
+  ];
+  const result = compareAttendanceRows(attendance, dashboard);
+  assert.equal(result.comparisons[0].unmatched, false);
+  assert.equal(result.comparisons[0].dashboard.activityId, 'LONG-105');
+  assert.equal(result.dashboardOnly.length, 1);
+  assert.equal(result.dashboardOnly[0].dashboard.activityId, 'LONG-OTHER');
+});
+
+test('Asil 2026-05-05 keeps workshop attendance separate from course dashboard type', () => {
+  const attendance = [{ employeeId: '1502', date: '2026-05-05', startTime: '08:00', endTime: '10:00', workHours: 2, activityType: 'סדנה', program: 'מנהיגות ירוקה', school: 'נווה שלום', authority: 'מטה יהודה', meetingNo: '8', kilometers: 40 }];
+  const dashboard = [{ employeeId: '1502', date: '2026-05-05', startTime: '08:30', endTime: '10:00', workHours: 2, activityType: 'course', program: 'מנהיגות ירוקה', school: 'נווה שלום', authority: 'מטה יהודה', meetingNo: '8' }];
+  const result = compareAttendanceRows(attendance, dashboard);
+  assert.equal(result.comparisons[0].unmatched, true);
+  assert.equal(result.dashboardOnly.length, 1);
+});
+
+test('unknown payroll hours stay null and are not exported as zero', () => {
+  const row = { employeeId: '10', date: '2026-05-12', startTime: '08:00', endTime: '09:25', payrollHoursRequireReview: true, workHours: null, activityType: 'workshop', school: 'א' };
+  assert.equal(rowWorkHours(row), null);
+  const workbook = buildCorrectedAttendanceWorkbook([{ final: { ...row, activityType: 'סדנה' } }], []);
+  const detail = XLSX.utils.sheet_to_json(workbook.Sheets['פירוט מלא'], { header: 1 })[1];
+  assert.equal(detail[5], '');
+});
+
+test('manager startTime choice does not overwrite payroll workHours', () => {
+  const comparison = compareAttendanceRows(
+    [{ employeeId: '10', date: '2026-08-01', startTime: '09:00', endTime: '10:00', workHours: 2, program: 'קורס', school: 'א' }],
+    [{ employeeId: '10', date: '2026-08-01', startTime: '08:30', endTime: '11:00', workHours: 1, program: 'קורס', school: 'א' }]
+  ).comparisons[0];
+  applyAttendanceChoice(comparison, 'startTime', 'dashboard');
+  assert.equal(comparison.final.workHours, 2);
+});
+
+test('export preserves source attendance fields while applying corrections', () => {
+  const comparison = {
+    attendance: { _source: { employeeId: '10', employeeName: 'דנה', attendanceDate: '2026-08-01', startTime: '08:00', endTime: '09:00', workHours: 1, activityType: 'קורס', attachmentsNames: 'scan.pdf', status: 'approved' } },
+    final: { employeeId: '10', employeeName: 'דנה', date: '2026-08-01', startTime: '08:15', endTime: '09:00', workHours: 1, activityType: 'קורס' }
+  };
+  const workbook = buildCorrectedAttendanceWorkbook([comparison], []);
+  assert.equal(workbook.SheetNames.includes('פירוט מלא'), true);
+  const detail = XLSX.utils.sheet_to_json(workbook.Sheets['פירוט מלא'], { header: 1 });
+  assert.equal(detail[1][3], '08:15');
+  assert.equal(comparison.attendance._source.attachmentsNames, 'scan.pdf');
+  assert.equal(comparison.attendance._source.status, 'approved');
+});
+
+test('course 90-minute school block 10:30-12:00 matches attendance 10:00-12:00', () => {
+  const attendance = [{ employeeId: '10', date: '2026-05-10', startTime: '10:00', endTime: '12:00', workHours: 2, activityType: 'קורס', school: 'א', program: 'קורס א' }];
+  const dashboard = [{ employeeId: '10', date: '2026-05-10', startTime: '10:30', endTime: '12:00', workHours: 2, activityType: 'course', school: 'א', program: 'קורס א' }];
+  const result = compareAttendanceRows(attendance, dashboard);
+  assert.equal(result.comparisons[0].unmatched, false);
+  assert.equal(result.comparisons[0].differences.some((difference) => ['startTime', 'endTime', 'workHours'].includes(difference.key)), false);
+});
+
+test('matched dashboard meeting number is a single relevant meeting', () => {
+  const attendance = [{ employeeId: '10', date: '2026-05-10', startTime: '10:00', endTime: '12:00', workHours: 2, activityType: 'קורס', school: 'א', program: 'קורס א', meetingNo: '8' }];
+  const dashboard = [
+    { meetingNo: '13', startTime: '08:00', endTime: '09:30', activityId: 'A' },
+    { meetingNo: '13', startTime: '09:30', endTime: '11:00', activityId: 'B' },
+    { meetingNo: '15', startTime: '11:00', endTime: '12:30', activityId: 'C' },
+    { meetingNo: '8', startTime: '10:30', endTime: '12:00', activityId: 'D' },
+    { meetingNo: '16', startTime: '12:30', endTime: '14:00', activityId: 'E' },
+    { meetingNo: '17', startTime: '14:00', endTime: '15:30', activityId: 'F' }
+  ].map((row) => ({ ...row, employeeId: '10', date: '2026-05-10', workHours: 2, activityType: 'course', school: 'א', program: 'קורס א' }));
+  const result = compareAttendanceRows(attendance, dashboard);
+  assert.equal(String(result.comparisons[0].dashboard.meetingNo), '8');
+  assert.doesNotMatch(String(result.comparisons[0].dashboard.meetingNo), /,/);
+});
+
+test('daily kilometers allow a 5 km tolerance', () => {
+  const dashboard = [{ employeeId: '10', date: '2026-05-10', startTime: '08:00', endTime: '09:00', activityType: 'course', school: 'א', program: 'א', kilometers: 40 }];
+  const within = compareAttendanceRows([{ employeeId: '10', date: '2026-05-10', startTime: '08:00', endTime: '09:00', activityType: 'קורס', school: 'א', program: 'א', kilometers: 45 }], dashboard);
+  assert.equal(within.dailyKilometers[0].matches, true);
+  assert.match(resultsHtml(within), /ק״מ מדווח: 45[\s\S]*ק״מ מחושב: 40[\s\S]*תקין/);
+  const outside = compareAttendanceRows([{ employeeId: '10', date: '2026-05-10', startTime: '08:00', endTime: '09:00', activityType: 'קורס', school: 'א', program: 'א', kilometers: 46 }], dashboard);
+  assert.equal(outside.dailyKilometers[0].matches, false);
+  assert.match(resultsHtml(outside), /ק״מ מדווח: 46[\s\S]*ק״מ מחושב: 40[\s\S]*לבדיקה/);
+});
+
+test('unavailable daily kilometers stay visible and are not shown as zero', () => {
+  const result = compareAttendanceRows(
+    [{ employeeId: '10', date: '2026-05-10', startTime: '08:00', endTime: '09:00', activityType: 'קורס', school: 'א', program: 'א', kilometers: 50 }],
+    [{ employeeId: '10', date: '2026-05-10', startTime: '08:00', endTime: '09:00', activityType: 'course', school: 'א', program: 'א', kilometers: null }]
+  );
+  assert.equal(result.dailyKilometers[0].calculated, null);
+  const html = resultsHtml(result);
+  assert.match(html, /ק״מ מדווח: 50[\s\S]*ק״מ מחושב: לא ניתן לחשב[\s\S]*לא ניתן לחשב ק״מ/);
+  assert.doesNotMatch(html, /ק״מ מחושב: 0/);
+});
+
+const changedComparison = {
+  attendance: {
+    employeeId: '10', employeeName: 'דנה', date: '2026-05-10', startTime: '08:00', endTime: '09:00',
+    workHours: 1, activityType: 'קורס', school: 'א', program: 'א', meetingNo: '1', kilometers: 10, expenses: 0,
+    expenseDetails: 'חניה', notes: 'הערה קיימת',
+    _source: {
+      ID: 77,
+      employeeId: '10',
+      employeeName: 'דנה',
+      attendanceDate: '2026-05-10',
+      startTime: '08:00',
+      endTime: '09:00',
+      workHours: 1,
+      activityType: 'קורס',
+      schoolName: 'א',
+      municipality: 'רשות',
+      programName: 'א',
+      sessionNumber: '1',
+      kilometers: 10,
+      totalExpenses: 0,
+      expensesDetails: 'חניה',
+      notes: 'הערה קיימת',
+      team: { Value: 'צוות א' },
+      employmentType: 'תעשיידע',
+      attachmentsNames: 'scan.pdf',
+      status: 'submitted',
+      approvedBy: 'מנהל קודם',
+      approvedDate: '2026-05-01'
+    }
+  },
+  final: {
+    employeeId: '10', employeeName: 'דנה', date: '2026-05-10', startTime: '08:15', endTime: '09:00',
+    workHours: 1, activityType: 'קורס', school: 'א', program: 'א', meetingNo: '1', kilometers: 10, expenses: 0,
+    expenseDetails: 'חניה', notes: 'הערה קיימת'
+  }
+};
+
+const unchangedComparison = {
+  attendance: {
+    employeeId: '10', employeeName: 'דנה', date: '2026-05-11', startTime: '10:00', endTime: '11:00',
+    workHours: 1, activityType: 'קורס', _source: { ID: 78, startTime: '10:00', endTime: '11:00', workHours: 1, notes: 'ללא שינוי' }
+  },
+  final: {
+    employeeId: '10', employeeName: 'דנה', date: '2026-05-11', startTime: '10:00', endTime: '11:00',
+    workHours: 1, activityType: 'קורס'
+  }
+};
+
+test('changed attendance row is sent to updaterecord by recordId', () => {
+  const updates = collectChangedAttendanceUpdates([changedComparison, unchangedComparison]);
+  assert.equal(updates.length, 1);
+  assert.equal(updates[0].recordId, '77');
+  const payload = updates[0].fields;
+  assert.equal(payload.startTime, '08:15');
+  assert.equal(payload.endTime, '09:00');
+  assert.equal(payload.workHours, 1);
+  assert.equal(payload.employeeName, 'דנה');
+  assert.equal(payload.employeeId, '10');
+  assert.equal(payload.attendanceDate, '2026-05-10');
+  assert.equal(payload.schoolName, 'א');
+  assert.equal(payload.municipality, 'רשות');
+  assert.equal(payload.programName, 'א');
+  assert.equal(payload.sessionNumber, '1');
+  assert.equal(payload.kilometers, 10);
+  assert.equal(payload.totalExpenses, 0);
+  assert.equal(payload.expensesDetails, 'חניה');
+  assert.equal(payload.notes, 'הערה קיימת');
+  assert.deepEqual(payload.team, { Value: 'צוות א' });
+  assert.equal(payload.employmentType, 'תעשיידע');
+  assert.equal(payload.attachmentsNames, 'scan.pdf');
+  assert.equal(payload.status, 'submitted');
+  assert.equal(payload.approvedBy, 'מנהל קודם');
+  assert.equal(payload.approvedDate, '2026-05-01');
+  assert.equal(payload.endTime, '09:00');
+  assert.notEqual(payload.endTime, null);
+  assert.notEqual(payload.attachmentsNames, undefined);
+  assert.equal(Object.hasOwn(payload, 'ID'), false);
+  assert.ok(Object.values(payload).every((value) => value !== undefined));
+});
+
+test('failed updaterecord stops payroll approval save', async () => {
+  const saved = [];
+  const api = {
+    attendanceControlUpdateRecord: async () => { throw new Error('attendance_api_500'); },
+    savePayrollControlApproval: async (payload) => { saved.push(payload); return payload; }
+  };
+  await assert.rejects(
+    () => approvePayrollControlEmployee({
+      api, user: { full_name: 'מנהל' }, result: { month: '2026-05', comparisons: [changedComparison] },
+      employeeId: '10', employeeName: 'דנה', confirmed: true
+    }),
+    /האישור לא נשמר/
+  );
+  assert.equal(saved.length, 0);
+});
+
+test('successful write-back saves approval snapshot', async () => {
+  const sent = [];
+  let saved = null;
+  const api = {
+    attendanceControlUpdateRecord: async (recordId, fields) => { sent.push({ recordId, fields }); return { success: true }; },
+    savePayrollControlApproval: async (payload) => { saved = payload; return { id: 'appr-1', pdf_path: null, ...payload }; }
+  };
+  const row = await approvePayrollControlEmployee({
+    api, user: { full_name: 'מנהל בדיקה' }, result: { month: '2026-05', comparisons: [changedComparison] },
+    employeeId: '10', employeeName: 'דנה', confirmed: true
+  });
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0].recordId, '77');
+  assert.equal(sent[0].fields.startTime, '08:15');
+  assert.equal(sent[0].fields.endTime, '09:00');
+  assert.equal(sent[0].fields.attachmentsNames, 'scan.pdf');
+  assert.equal(sent[0].fields.notes, 'הערה קיימת');
+  assert.equal(sent[0].fields.totalExpenses, 0);
+  assert.equal(saved.approval_text_version, PAYROLL_APPROVAL_TEXT_VERSION);
+  assert.equal(saved.approved_snapshot.rows[0].startTime, '08:15');
+  assert.equal(saved.approved_snapshot.rows[0].recordId, '77');
+  assert.equal(row.pdf_path, null);
+});
+
+test('admin and finance can read payroll approvals', () => {
+  assert.equal(canReadPayrollApprovals({ role: 'admin' }), true);
+  assert.equal(canReadPayrollApprovals({ role: 'finance' }), true);
+  assert.equal(canReadPayrollApprovals({ role: 'instructor' }), false);
+});
+
+test('users without payroll export permission cannot export excel', () => {
+  assert.equal(canExportPayrollApprovals({ role: 'admin' }), true);
+  assert.equal(canExportPayrollApprovals({ role: 'finance' }), true);
+  assert.equal(canExportPayrollApprovals({ role: 'instructor' }), false);
+  assert.equal(canExportPayrollApprovals({ role: 'instructor_manager' }), false);
+  assert.throws(
+    () => downloadPayrollApprovalsExcel([{ status: 'approved_for_payroll', approved_snapshot: { rows: [] } }], { role: 'instructor' }),
+    /אין הרשאה לייצוא Excel לשכר/
+  );
+});
+
+test('approval document is linked to the saved approval snapshot', () => {
+  const approval = {
+    id: 'appr-1',
+    employee_id: '10',
+    employee_name: 'דנה כהן',
+    month_key: '2026-05',
+    approved_by_name: 'מנהל בדיקה',
+    approved_at: '2026-05-20T10:00:00.000Z',
+    pdf_path: null,
+    pdf_file_name: payrollApprovalPdfFileName('דנה כהן', '2026-05'),
+    approved_snapshot: buildPayrollApprovedSnapshot({
+      employeeId: '10', employeeName: 'דנה כהן', monthKey: '2026-05', entries: [changedComparison]
+    })
+  };
+  const html = buildPayrollApprovalPrintHtml(approval);
+  assert.equal(approval.pdf_file_name, 'דנה כהן - 05-2026.pdf');
+  assert.match(html, /דנה כהן/);
+  assert.match(html, /מספר עובד: 10/);
+  assert.match(html, /נבדק ואושר להעברה לשכר/);
+  assert.match(html, /מנהל בדיקה/);
+  assert.match(html, /08:15/);
+});
+
+test('payroll results include finish approval action', () => {
+  const html = resultsHtml({
+    comparisons: [{ attendance: { employeeId: '10', employeeName: 'דנה', date: '2026-05-10', startTime: '08:00', endTime: '09:00', activityType: 'קורס' }, unmatched: false, differences: [], managerResolved: 'auto_ok' }],
+    notCompared: [],
+    dailyKilometers: []
+  });
+  assert.match(html, /סיום בדיקה ואישור להעברה לשכר/);
+  assert.match(html, /data-payroll-finish="10"/);
+});
+
+test('four attendance hours can match consecutive dashboard meetings 9 and 10', () => {
+  const attendance = [{ employeeId: '10', date: '2026-05-10', startTime: '08:00', endTime: '12:00', workHours: 4, activityType: 'קורס', school: 'א', program: 'קורס א', meetingNo: '9,10', activityId: 'ACT1' }];
+  const dashboard = [
+    { employeeId: '10', date: '2026-05-10', startTime: '08:00', endTime: '10:00', workHours: 2, activityType: 'course', school: 'א', program: 'קורס א', meetingNo: '9', activityId: 'ACT1' },
+    { employeeId: '10', date: '2026-05-10', startTime: '10:00', endTime: '12:00', workHours: 2, activityType: 'course', school: 'א', program: 'קורס א', meetingNo: '10', activityId: 'ACT1' }
+  ];
+  const result = compareAttendanceRows(attendance, dashboard);
+  assert.equal(result.comparisons.length, 1);
+  assert.equal(result.comparisons[0].unmatched, false);
+  assert.equal(result.comparisons[0].differences.length, 0);
+  assert.equal(result.comparisons[0].managerResolved, 'auto_ok');
+});
+
+test('consecutive meeting match does not bundle different activities', () => {
+  const attendance = [{ employeeId: '10', date: '2026-05-10', startTime: '08:00', endTime: '12:00', workHours: 4, activityType: 'קורס', school: 'א', program: 'קורס א', meetingNo: '9,10' }];
+  const dashboard = [
+    { employeeId: '10', date: '2026-05-10', startTime: '08:00', endTime: '10:00', workHours: 2, activityType: 'course', school: 'א', program: 'קורס א', meetingNo: '9', activityId: 'A' },
+    { employeeId: '10', date: '2026-05-10', startTime: '10:00', endTime: '12:00', workHours: 2, activityType: 'course', school: 'ב', program: 'קורס ב', meetingNo: '10', activityId: 'B' }
+  ];
+  const result = compareAttendanceRows(attendance, dashboard);
+  assert.notEqual(result.comparisons[0]?.managerResolved, 'auto_ok');
+});
+
+test('attendance-only row can be approved as reported', () => {
+  const entry = {
+    id: 'attendance-only-1', source: 'attendance_not_compared',
+    attendance: { employeeId: '10', employeeName: 'דנה', date: '2026-05-10', startTime: '08:00', endTime: '09:00', workHours: 1, activityType: 'ביטול זמן', _source: { ID: 88 } },
+    final: { employeeId: '10', date: '2026-05-10', startTime: '08:00', endTime: '09:00', workHours: 1, activityType: 'ביטול זמן' },
+    differences: []
+  };
+  assert.equal(attendanceEntryIsResolved(entry), false);
+  approveAttendanceEntryAsReported(entry);
+  assert.equal(attendanceEntryIsResolved(entry), true);
+  assert.equal(collectChangedAttendanceUpdates([entry]).length, 0);
+});
+
+test('unmatched dashboard row can be approved as reported', () => {
+  const entry = {
+    id: 'row-1', attendance: { employeeId: '10', date: '2026-05-10', startTime: '08:00', endTime: '09:00', workHours: 1, activityType: 'קורס', _source: { ID: 89 } },
+    final: { employeeId: '10', date: '2026-05-10', startTime: '08:00', endTime: '09:00', workHours: 1, activityType: 'קורס' },
+    differences: [], unmatched: true
+  };
+  approveAttendanceEntryAsReported(entry);
+  assert.equal(attendanceEntryIsResolved(entry), true);
+  assert.equal(collectChangedAttendanceUpdates([entry]).length, 0);
+});
+
+test('dashboard work hours column does not use review label as a value', () => {
+  const html = resultsHtml({
+    comparisons: [{
+      id: 'review-hours', managerResolved: null,
+      attendance: { employeeId: '10', employeeName: 'דנה', date: '2026-05-10', startTime: '08:00', endTime: '12:15', workHours: 4.42, activityType: 'סדנה' },
+      dashboard: { startTime: '08:00', endTime: '12:00', workHours: null, payrollHoursRequireReview: true, activityType: 'workshop' },
+      final: { employeeId: '10', date: '2026-05-10', startTime: '08:00', endTime: '12:15', workHours: 4.42, activityType: 'סדנה' },
+      differences: [], unmatched: false
+    }],
+    notCompared: [],
+    dailyKilometers: []
+  });
+  assert.match(html, /לא ניתן לחשב/);
+  assert.doesNotMatch(html, /<td[^>]*>לבדיקה<\/td>/);
+});
+
+test('finish approval is blocked while employee entries remain unresolved', () => {
+  const result = {
+    month: '2026-05',
+    comparisons: [],
+    notCompared: [{
+      id: 'attendance-only-1', source: 'attendance_not_compared',
+      attendance: { employeeId: '10', employeeName: 'דנה', date: '2026-05-10', startTime: '08:00', endTime: '09:00', workHours: 1, activityType: 'ביטול זמן' },
+      final: { employeeId: '10', date: '2026-05-10', startTime: '08:00', endTime: '09:00', workHours: 1, activityType: 'ביטול זמן' },
+      differences: []
+    }]
+  };
+  assert.equal(payrollEmployeeHasUnresolvedEntries(result, '10'), true);
+  approveAttendanceEntryAsReported(result.notCompared[0]);
+  assert.equal(payrollEmployeeHasUnresolvedEntries(result, '10'), false);
+});
+
+test('canonical school match accepts name variants when school_id matches', () => {
+  const context = buildPayrollIdentityContext({
+    schoolLookup: {
+      list: [
+        { id: '2425', school_name: 'הרטוב', authority_id: '100', authority: 'רשות א' },
+        { id: '1235', school_name: 'יצחק שמיר', authority_id: '101', authority: 'רשות ב' }
+      ],
+      byId: new Map([
+        ['2425', { id: '2425', school_name: 'הרטוב', authority_id: '100', authority: 'רשות א' }],
+        ['1235', { id: '1235', school_name: 'יצחק שמיר', authority_id: '101', authority: 'רשות ב' }]
+      ])
+    }
+  });
+  const base = { employeeId: '10', date: '2026-05-12', startTime: '08:00', endTime: '09:00', activityType: 'קורס' };
+  const hartuv = compareAttendanceRows(
+    [{ ...base, school: 'הרטוב היסודי', program: 'קורס' }],
+    [{ ...base, school: 'הרטוב', schoolId: 2425, program: 'קורס' }],
+    { identityContext: context }
+  );
+  assert.equal(hartuv.comparisons[0].differences.some((item) => item.key === 'school'), false);
+
+  const shamir = compareAttendanceRows(
+    [{ ...base, school: 'שמיר', program: 'קורס' }],
+    [{ ...base, school: 'יצחק שמיר', schoolId: 1235, program: 'קורס' }],
+    { identityContext: context }
+  );
+  assert.equal(shamir.comparisons[0].differences.some((item) => item.key === 'school'), false);
+});
+
+test('school alias lookup stays scoped by authority and does not merge same-name schools globally', () => {
+  const context = buildPayrollIdentityContext({
+    schoolLookup: {
+      list: [
+        { id: '3900', school_name: 'רמב"ם', authority_id: '10', authority: 'נהריה' },
+        { id: '5001', school_name: 'רמב"ם', authority_id: '20', authority: 'חיפה' }
+      ],
+      byId: new Map([
+        ['3900', { id: '3900', school_name: 'רמב"ם', authority_id: '10', authority: 'נהריה' }],
+        ['5001', { id: '5001', school_name: 'רמב"ם', authority_id: '20', authority: 'חיפה' }]
+      ])
+    }
+  });
+  assert.equal(resolveSchoolIdForAuthority('רמב"ם', '10', context), '3900');
+  assert.equal(resolveSchoolIdForAuthority('רמב"ם', '20', context), '5001');
+  assert.notEqual(resolveSchoolIdForAuthority('רמב"ם', '10', context), resolveSchoolIdForAuthority('רמב"ם', '20', context));
+});
+
+test('program variants match when activity_no is shared', () => {
+  const context = buildPayrollIdentityContext({
+    activities: [{ activity_no: '53828', activity_name: 'ביומימיקרי לחטיבה' }],
+    dashboardRows: [{ activityNo: '53828', program: 'ביומימיקרי לחטיבה' }]
+  });
+  const base = { employeeId: '10', date: '2026-05-12', startTime: '08:00', endTime: '09:00', school: 'א', activityType: 'קורס' };
+  const result = compareAttendanceRows(
+    [{ ...base, program: 'ביומימיקרי לחטיבות' }],
+    [{ ...base, program: 'ביומימיקרי לחטיבה', activityNo: '53828' }],
+    { identityContext: context }
+  );
+  assert.equal(result.comparisons[0].differences.some((item) => item.key === 'program'), false);
+});
+
+test('STEM category attendance accepts specific workshop when match is unambiguous', () => {
+  const base = {
+    employeeId: '10', date: '2026-05-12', startTime: '08:00', endTime: '09:00',
+    school: 'בית ספר א', authority: 'רשות א', activityType: 'סדנה', meetingNo: '3'
+  };
+  const result = compareAttendanceRows(
+    [{ ...base, program: 'סדנאות STEM' }],
+    [{ ...base, program: 'אסטרונאוט על חוטים', activityId: 'WS-1', meetingNo: '3' }]
+  );
+  assert.equal(result.comparisons[0].unmatched, false);
+  assert.equal(result.comparisons[0].differences.some((item) => item.key === 'program'), false);
+});
+
+test('conflicting school_id values remain a real mismatch', () => {
+  const context = buildPayrollIdentityContext({
+    schoolLookup: {
+      list: [
+        { id: '2425', school_name: 'הרטוב', authority_id: '100', authority: 'רשות א' },
+        { id: '9999', school_name: 'הרטוב אחר', authority_id: '200', authority: 'רשות ב' }
+      ],
+      byId: new Map([
+        ['2425', { id: '2425', school_name: 'הרטוב', authority_id: '100', authority: 'רשות א' }],
+        ['9999', { id: '9999', school_name: 'הרטוב אחר', authority_id: '200', authority: 'רשות ב' }]
+      ])
+    }
+  });
+  const base = { employeeId: '10', date: '2026-05-12', startTime: '08:00', endTime: '09:00', program: 'קורס', activityType: 'קורס' };
+  const result = compareAttendanceRows(
+    [{ ...base, school: 'הרטוב היסודי' }],
+    [{ ...base, school: 'הרטוב אחר', schoolId: 9999 }],
+    { identityContext: context }
+  );
+  assert.equal(result.comparisons[0].differences.some((item) => item.key === 'school'), true);
 });

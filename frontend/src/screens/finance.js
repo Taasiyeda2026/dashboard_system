@@ -6,6 +6,12 @@ import {
   dsScreenStack,
   dsEmptyState
 } from './shared/layout.js';
+import {
+  canExportPayrollApprovals,
+  downloadPayrollApprovalsExcel,
+  openPayrollApprovalDocument,
+  payrollControlApprovalsListHtml
+} from './payroll-control-finish.js';
 
 // ─── Permission ─────────────────────────────────────────────────────────────
 
@@ -347,7 +353,12 @@ function financeSummaryKpis(rows = []) {
 // ─── Screen ──────────────────────────────────────────────────────────────────
 
 export const financeScreen = {
-  load: ({ api }) => api.allActivities(),
+  load: async ({ api }) => {
+    const activities = await api.allActivities();
+    let payrollApprovals = [];
+    try { payrollApprovals = await api.listPayrollControlApprovals(); } catch { payrollApprovals = []; }
+    return { ...activities, payrollApprovals };
+  },
 
   render(data, { state } = {}) {
     if (!canAccessFinance(state?.user)) {
@@ -380,8 +391,13 @@ export const financeScreen = {
         ${otherSection}
       </div>`;
 
+    const payrollApprovals = Array.isArray(data?.payrollApprovals) ? data.payrollApprovals : null;
+    const payrollSection = payrollApprovals
+      ? dsCard({ body: payrollControlApprovalsListHtml(payrollApprovals, { user: state?.user }), padded: true })
+      : '';
     return dsScreenStack(`
       ${dsPageHeader('כספים / גבייה', 'בקרה כספית לפי פעילויות, סוגי תוכניות וסטטוס גבייה')}
+      ${payrollSection}
       ${dsCard({ body, padded: true })}
     `);
   },
@@ -390,9 +406,31 @@ export const financeScreen = {
     if (!canAccessFinance(state?.user)) return;
     const allRows = Array.isArray(data?.rows) ? data.rows : [];
     const rowById = new Map(allRows.map((r) => [activityRowId(r), r]));
+    const approvalById = new Map((Array.isArray(data?.payrollApprovals) ? data.payrollApprovals : []).map((row) => [String(row.id), row]));
 
-    // Toggle collection status
     root.addEventListener('click', async (ev) => {
+      const exportBtn = ev.target.closest('[data-payroll-approvals-export]');
+      if (exportBtn) {
+        if (!canExportPayrollApprovals(state?.user)) {
+          window.alert('אין הרשאה לייצוא Excel לשכר.');
+          return;
+        }
+        try { downloadPayrollApprovalsExcel(data?.payrollApprovals || [], state?.user); }
+        catch (error) { window.alert(error?.message || 'ייצוא Excel לשכר נכשל.'); }
+        return;
+      }
+      const viewBtn = ev.target.closest('[data-payroll-view-pdf]');
+      if (viewBtn) {
+        const approval = approvalById.get(String(viewBtn.dataset.payrollViewPdf || ''));
+        if (!approval) return;
+        let signedUrl = '';
+        if (approval.pdf_path && api?.payrollControlApprovalSignedUrl) {
+          try { signedUrl = (await api.payrollControlApprovalSignedUrl(approval.pdf_path)).signedUrl || ''; } catch { signedUrl = ''; }
+        }
+        try { openPayrollApprovalDocument(approval, signedUrl); }
+        catch (error) { window.alert(error?.message || 'פתיחת המסמך נכשלה.'); }
+        return;
+      }
       const btn = ev.target.closest('[data-fin-toggle-collect]');
       if (!btn) return;
       const rowId = String(btn.dataset.finToggleCollect || '');
