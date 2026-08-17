@@ -93,7 +93,8 @@ button {
     box-shadow:
       0 1px 3px rgba(15, 23, 42, 0.06),
       0 6px 24px rgba(15, 23, 42, 0.08);
-    overflow: hidden;
+    /* No overflow:hidden — lets absolute dropdowns escape the frame,
+       and lets long forms grow the card so the page scrolls naturally. */
   }
 
   /* Nav element moves to the top of the frame */
