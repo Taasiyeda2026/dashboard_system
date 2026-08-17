@@ -29,7 +29,7 @@ test('password change button is limited to management roles', () => {
 test('reset edge function validates management users without account enumeration', () => {
   assert.match(edge, /\.from\('users'\)/);
   assert.match(edge, /\.eq\('is_active', true\)/);
-  assert.match(edge, /MANAGEMENT_ROLES\.has/);
+  assert.match(edge, /MANAGEMENT_ROLE_SET\.has/);
   assert.match(edge, /resetPasswordForEmail\(email\)/);
   assert.match(edge, /return genericOk\(origin\)/);
   assert.match(edge, /SUPABASE_SERVICE_ROLE_KEY/);
