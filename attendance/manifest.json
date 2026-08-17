@@ -7,8 +7,8 @@
   "scope": "/dashboard_system/attendance/",
   "display": "standalone",
   "orientation": "portrait-primary",
-  "background_color": "#4F46E5",
-  "theme_color": "#4F46E5",
+  "background_color": "#1E3A5F",
+  "theme_color": "#1E3A5F",
   "lang": "he",
   "dir": "rtl",
   "categories": [

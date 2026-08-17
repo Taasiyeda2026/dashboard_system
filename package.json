@@ -5,8 +5,8 @@
   "main": "sw.js",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build && node scripts/postbuild-dist.mjs",
+    "dev": "node scripts/sync-attendance-vendor.mjs && vite",
+    "build": "node scripts/sync-attendance-vendor.mjs && vite build && node scripts/postbuild-dist.mjs",
     "preview": "vite preview",
     "test": "npm run check:changed",
     "test:all:legacy": "node --test tests/*.test.mjs",

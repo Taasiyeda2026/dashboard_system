@@ -5,6 +5,8 @@
   align-items: center;
   justify-content: center;
   padding: var(--av2-space-3) 0;
+  /* Scoped to this screen only — a subtle blue-gray tint, not the shared --av2-color-bg. */
+  background: #eef2f7;
 }
 
 /* Login is its own narrow card — tighter than the general app screens, not just av2-container at a smaller size. */
@@ -12,7 +14,10 @@
   width: 100%;
   max-width: 300px;
   margin-inline: auto;
-  padding-inline: var(--av2-space-3);
+  padding: 28px 20px;
+  background: var(--av2-color-surface);
+  border-radius: 14px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08), 0 8px 24px rgba(15, 23, 42, 0.06);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -21,9 +26,8 @@
 }
 
 .av2-login__logo {
-  width: 48px;
-  height: 48px;
-  border-radius: 10px;
+  width: 96px;
+  height: auto;
 }
 
 .av2-login__title {
@@ -35,11 +39,9 @@
 
 .av2-login__subtitle {
   margin: 0 0 var(--av2-space-1);
-  font-size: 0.75rem;
+  font-size: 0.8125rem;
   font-weight: 500;
-  letter-spacing: 0.02em;
   color: var(--av2-color-text-muted);
-  text-transform: uppercase;
 }
 
 .av2-login__form {
@@ -51,4 +53,11 @@
 
 .av2-login__submit {
   margin-top: var(--av2-space-1);
+}
+
+.av2-login__error {
+  margin: 0;
+  font-size: 0.75rem;
+  color: #b91c1c;
+  text-align: center;
 }

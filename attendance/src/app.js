@@ -3,11 +3,14 @@ import { renderHomeScreen } from './screens/home-screen.js';
 import { renderNewReportScreen } from './screens/new-report-screen.js';
 import { renderMyReportsScreen } from './screens/my-reports-screen.js';
 import { createBottomNav } from './components/bottom-nav.js';
-import { mockInstructor, mockMonthSummary, mockReports, ACTIVITY_TYPES } from './services/mock-data.service.js';
+import { mockMonthSummary, mockReports, ACTIVITY_TYPES } from './services/mock-data.service.js';
+import { signInWithUsername, signOut, getExistingSession } from './auth/auth.service.js';
+import { resolveInstructorIdentity } from './auth/identity.service.js';
 
 const state = {
   loggedIn: false,
   screen: 'home',
+  instructor: null,
   reports: [...mockReports]
 };
 
@@ -19,14 +22,26 @@ function navigate(screen) {
   renderScreen();
 }
 
-function handleLogin() {
+// Real Supabase Auth sign-in, then block entry unless the resulting user resolves to
+// exactly one active instructor (see identity.service.js). Throws on any failure so the
+// login screen's own try/catch shows the message — never treated as logged in either way.
+async function handleLoginSubmit({ username, code }) {
+  await signInWithUsername(username, code);
+  try {
+    state.instructor = await resolveInstructorIdentity();
+  } catch (error) {
+    await signOut().catch(() => {});
+    throw error;
+  }
   state.loggedIn = true;
   state.screen = 'home';
   renderScreen();
 }
 
-function handleLogout() {
+async function handleLogout() {
+  await signOut().catch(() => {});
   state.loggedIn = false;
+  state.instructor = null;
   renderScreen();
 }
 
@@ -37,7 +52,7 @@ function renderScreen() {
   if (!state.loggedIn) {
     navRoot.hidden = true;
     navRoot.innerHTML = '';
-    renderLoginScreen(appRoot, { onLogin: handleLogin });
+    renderLoginScreen(appRoot, { onLogin: handleLoginSubmit });
     return;
   }
 
@@ -61,7 +76,7 @@ function renderScreen() {
     });
   } else {
     renderHomeScreen(appRoot, {
-      instructor: mockInstructor,
+      instructor: state.instructor,
       summary: mockMonthSummary,
       onNewReport: () => navigate('new-report'),
       onMyReports: () => navigate('my-reports'),
@@ -71,8 +86,24 @@ function renderScreen() {
   }
 }
 
+// If a valid Supabase session already exists (persisted by supabase-js itself), resolve
+// identity and skip straight past the login screen. A stale/invalid session or an
+// identity that no longer resolves just falls through to a normal, silent logged-out state.
+async function bootstrap() {
+  const session = await getExistingSession().catch(() => null);
+  if (session?.user?.id) {
+    try {
+      state.instructor = await resolveInstructorIdentity();
+      state.loggedIn = true;
+    } catch {
+      await signOut().catch(() => {});
+    }
+  }
+  renderScreen();
+}
+
 export function startApp(root, nav) {
   appRoot = root;
   navRoot = nav;
-  renderScreen();
+  bootstrap();
 }
