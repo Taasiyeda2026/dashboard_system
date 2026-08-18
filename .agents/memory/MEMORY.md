@@ -1,2 +1,3 @@
 - [Scheduling screen redesign](scheduling-redesign.md) — removed inner 3-tab nav; scope bar is now flat flex row; no scrollbar on course list; alternatives are compact table rows; maintenance now 4th workspace tab
 - [SW version rules](sw-version-rules.md) — baseline v1400; never go below; single source frontend/sw.js; dist files copied after build
+- [Attendance SW cache sync](attendance-sw-cache-sync.md) — attendance/sw.js CACHE_VERSION and index.html ?v=N must match; both now at 3; updateViaCache:none + auto-skipWaiting in sw-registration.service.js
