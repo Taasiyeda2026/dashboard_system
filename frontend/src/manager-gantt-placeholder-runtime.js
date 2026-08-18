@@ -4,6 +4,8 @@ const TAB_SELECTOR = '[data-manager-workspace-tab]';
 let ganttActive = false;
 let observer = null;
 let syncScheduled = false;
+/** Track the live board DOM node; reset ganttActive when it changes (SPA re-mount). */
+let currentBoard = null;
 
 function ensureStyles() {
   if (document.getElementById('manager-gantt-placeholder-styles')) return;
@@ -72,7 +74,20 @@ function sync() {
   syncScheduled = false;
   ensureStyles();
   const board = document.querySelector(BOARD_SELECTOR);
-  if (!board) return;
+  if (!board) {
+    // Board removed (user navigated away) — reset so next mount starts clean.
+    if (currentBoard !== null) {
+      ganttActive = false;
+      currentBoard = null;
+    }
+    return;
+  }
+  // Board was replaced by a new DOM node (SPA re-render / navigation back).
+  // Reset ganttActive so the placeholder never bleeds onto non-gantt tabs.
+  if (board !== currentBoard) {
+    ganttActive = false;
+    currentBoard = board;
+  }
   ensureGanttTab(board);
   applyGanttState(board);
 }
