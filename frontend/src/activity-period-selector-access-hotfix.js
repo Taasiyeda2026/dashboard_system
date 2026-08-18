@@ -50,6 +50,27 @@ setTimeout(() => {
   refreshCurrentRoute();
 }, 250);
 
+/**
+ * Immediately close any open manager summary panel (e.g. "לוח מנהל פעילות").
+ * This is a DOM-level overlay above the dashboard route whose `hidden` flag is
+ * owned by dashboard.js, not by app state. A programmatic navigation to the
+ * same route (dashboard → dashboard) does not recreate the DOM synchronously,
+ * so we must close it here before handing off to the router.
+ */
+function closeSummaryPanels() {
+  document.querySelectorAll('[data-summary-panel]').forEach((panel) => {
+    if (panel.hidden) return; // already closed
+    panel.hidden = true;
+    const target = panel.dataset.summaryPanel;
+    if (!target) return;
+    const btn = document.querySelector(`[data-summary-target="${CSS.escape(target)}"]`);
+    if (!btn) return;
+    btn.textContent = 'סיכום';
+    btn.classList.remove('is-active');
+    btn.setAttribute('aria-expanded', 'false');
+  });
+}
+
 document.addEventListener('click', (event) => {
   const option = event.target?.closest?.('[data-global-period-option]');
   if (!option) return;
@@ -66,15 +87,25 @@ document.addEventListener('click', (event) => {
   clearPeriodScreenCache();
   syncSelector(selected);
 
+  // Close the manager summary panel immediately — synchronously, before any
+  // async navigation, so the user never sees it stay open during the transition.
+  closeSummaryPanels();
+
   const menu = option.closest('[data-global-period-wrap]')?.querySelector('[data-global-period-menu]');
   const toggle = option.closest('[data-global-period-wrap]')?.querySelector('[data-global-period-toggle]');
   if (menu) menu.hidden = true;
   if (toggle) toggle.setAttribute('aria-expanded', 'false');
 
-  // Always open the dashboard after switching years, regardless of current screen.
+  // Navigate to the dashboard. If the router's same-route guard would block it
+  // (user already on dashboard), temporarily set route to '__period_switch__'
+  // so the guard detects a change and re-renders fresh data.
   queueMicrotask(() => {
     if (!state.token || !state.route || state.route === 'login') return;
-    state.route = '__period_switch__';
+    if (state.route === 'dashboard') {
+      // Force re-render even when already on dashboard so the period change
+      // is reflected and any stale screen state is reset.
+      state.route = '__period_switch__';
+    }
     document.dispatchEvent(new CustomEvent('app:navigate', { detail: { route: 'dashboard' } }));
   });
 }, true);
