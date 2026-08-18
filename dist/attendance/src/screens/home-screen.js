@@ -75,7 +75,12 @@ export function renderHomeScreen(container, {
   approvalCard.className = 'av2-approval-card';
   approvalCard.innerHTML = '<p class="av2-approval-card__loading">טוען מצב חודש…</p>';
 
-  inner.append(header, monthNav, newReportBtn, statsEl, approvalCard);
+  // Month nav + add button share one compact action row
+  const actionRow = document.createElement('div');
+  actionRow.className = 'av2-home__action-row';
+  actionRow.append(monthNav, newReportBtn);
+
+  inner.append(header, actionRow, statsEl, approvalCard);
   wrap.append(inner);
   container.append(wrap);
 
@@ -229,10 +234,11 @@ function buildApprovalCard({ approval, year, month, instructor, records, summary
     if (editable && records.length > 0) {
       const submitBtn = document.createElement('button');
       submitBtn.type = 'button';
-      submitBtn.className = 'av2-btn av2-btn--primary';
+      // Secondary style — month closure is a significant but non-dominant action
+      submitBtn.className = 'av2-btn av2-btn--secondary av2-home__month-submit';
       const submitLabel = document.createElement('span');
       submitLabel.textContent = 'סיום וסגירת חודש';
-      submitBtn.append(createIcon('check-circle', { size: 16 }), submitLabel);
+      submitBtn.append(createIcon('check-circle', { size: 15 }), submitLabel);
       submitBtn.addEventListener('click', () => handleSubmit({ submitBtn, instructor, year, month, records, wrap }));
       wrap.append(submitBtn);
     } else if (!editable) {

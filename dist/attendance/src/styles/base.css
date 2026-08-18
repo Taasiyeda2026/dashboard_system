@@ -1,26 +1,33 @@
 :root {
   color-scheme: light;
-  --av2-color-bg: #f5f5f7;
-  --av2-color-surface: #ffffff;
-  --av2-color-text: #16181d;
-  --av2-color-text-muted: #6b7280;
-  --av2-color-accent: #1e3a5f;
+  /* ── Palette ──────────────────────────────────────────────────────────── */
+  --av2-color-bg:              #eef1f7;   /* page canvas – light blue-gray     */
+  --av2-color-surface:         #ffffff;
+  --av2-color-text:            #111827;
+  --av2-color-text-muted:      #6b7280;
+  --av2-color-accent:          #1a2e4a;   /* dark navy – primary brand          */
+  --av2-color-accent-hover:    #243d61;
+  --av2-color-accent-subtle:   #eff6ff;   /* pale blue tint for hover/selection */
   --av2-color-accent-contrast: #ffffff;
-  --av2-color-border: #e5e7eb;
-  --av2-radius-md: 12px;
-  --av2-radius-lg: 20px;
-  --av2-space-1: 4px;
-  --av2-space-2: 8px;
+  --av2-color-border:          #dde2ec;   /* blue-tinted border                 */
+  /* ── Radius & spacing ────────────────────────────────────────────────── */
+  --av2-radius-sm:  8px;
+  --av2-radius-md: 10px;
+  --av2-radius-lg: 16px;
+  --av2-space-1:  4px;
+  --av2-space-2:  8px;
   --av2-space-3: 16px;
   --av2-space-4: 24px;
   --av2-space-5: 40px;
+  /* ── Typography ──────────────────────────────────────────────────────── */
   --av2-font: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, Helvetica, sans-serif;
-  --av2-color-success-bg: #dcfce7;
-  --av2-color-success-text: #15803d;
-  --av2-color-warning-bg: #fef3c7;
-  --av2-color-warning-text: #b45309;
-  --av2-color-neutral-bg: #e5e7eb;
-  --av2-color-neutral-text: #4b5563;
+  /* ── Semantic status colours ─────────────────────────────────────────── */
+  --av2-color-success-bg:      #dcfce7;
+  --av2-color-success-text:    #15803d;
+  --av2-color-warning-bg:      #fef3c7;
+  --av2-color-warning-text:    #b45309;
+  --av2-color-neutral-bg:      #e5e7eb;
+  --av2-color-neutral-text:    #4b5563;
 }
 
 * {
@@ -69,14 +76,14 @@ button {
 /* ── Desktop layout (≥640px) ─────────────────────────────────────────────────
    Body becomes a quiet page canvas; #app-frame is a centred work card.      */
 @media (min-width: 640px) {
-  /* Page canvas — soft blue-gray to contrast the white frame */
+  /* Page canvas — blue-gray to contrast the white frame */
   body {
     display: flex;
     flex-direction: column;
     align-items: center;
     min-height: 100dvh;
     padding: 28px 16px 36px;
-    background: #dde3ee;
+    background: #c8d3e4;
   }
 
   /* ── App frame: the centred white work card ─────────────────────────────── */
@@ -88,11 +95,11 @@ button {
     /* Guarantee the card fills visible height even when content is short */
     min-height: calc(100dvh - 64px);
     background: var(--av2-color-surface);
-    border-radius: 16px;
-    border: 1px solid rgba(15, 23, 42, 0.09);
+    border-radius: var(--av2-radius-lg);
+    border: 1px solid rgba(15, 23, 42, 0.08);
     box-shadow:
       0 1px 3px rgba(15, 23, 42, 0.06),
-      0 6px 24px rgba(15, 23, 42, 0.08);
+      0 8px 32px rgba(15, 23, 42, 0.10);
     /* No overflow:hidden — lets absolute dropdowns escape the frame,
        and lets long forms grow the card so the page scrolls naturally. */
   }
@@ -124,6 +131,8 @@ button {
   }
 }
 
+/* ── Buttons ──────────────────────────────────────────────────────────────── */
+
 .av2-btn {
   font-family: inherit;
   border: none;
@@ -131,8 +140,7 @@ button {
   cursor: pointer;
 }
 
-/* The one allowed prominent action per screen — full width of the narrow container, not the viewport.
-   Visually ~38px (per design rules); ::after pads the real tap target out to 44px+ without widening the shape. */
+/* Primary – full width of the container */
 .av2-btn--primary {
   position: relative;
   display: inline-flex;
@@ -140,13 +148,19 @@ button {
   justify-content: center;
   gap: var(--av2-space-2);
   width: 100%;
-  min-height: 38px;
-  padding: 8px 18px;
-  border-radius: 10px;
+  min-height: 40px;
+  padding: 9px 18px;
+  border-radius: var(--av2-radius-md);
   background: var(--av2-color-accent);
   color: var(--av2-color-accent-contrast);
   font-size: 0.875rem;
   font-weight: 600;
+  letter-spacing: 0.01em;
+  transition: background 0.15s;
+}
+
+.av2-btn--primary:hover {
+  background: var(--av2-color-accent-hover);
 }
 
 .av2-btn--primary::after {
@@ -156,10 +170,10 @@ button {
 }
 
 .av2-btn--primary:active {
-  opacity: 0.85;
+  opacity: 0.88;
 }
 
-/* Secondary outlined button — used for secondary actions (e.g. Excel export). */
+/* Secondary – outlined */
 .av2-btn--secondary {
   display: inline-flex;
   align-items: center;
@@ -168,39 +182,42 @@ button {
   width: auto;
   min-height: 38px;
   padding: 8px 14px;
-  border-radius: 10px;
+  border-radius: var(--av2-radius-md);
   background: var(--av2-color-surface);
   color: var(--av2-color-accent);
   font-size: 0.875rem;
   font-weight: 600;
   border: 1.5px solid var(--av2-color-accent);
+  transition: background 0.12s;
 }
 
 .av2-btn--secondary:hover,
 .av2-btn--secondary:focus-visible {
-  background: #eff6ff;
+  background: var(--av2-color-accent-subtle);
 }
 
 .av2-btn--secondary:active {
   opacity: 0.85;
 }
 
-/* Icon buttons: ~34px visual chip, but the hit target stays 44px for mobile per design rules. */
+/* Icon button – 44px tap target */
 .av2-btn--icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 44px;
-  height: 44px;
+  width: 40px;
+  height: 40px;
   padding: 0;
-  border-radius: 10px;
+  border-radius: var(--av2-radius-md);
   background: transparent;
-  color: var(--av2-color-text);
+  color: var(--av2-color-text-muted);
+  transition: background 0.12s, color 0.12s;
 }
 
 .av2-btn--icon:hover,
 .av2-btn--icon:focus-visible {
   background: var(--av2-color-border);
+  color: var(--av2-color-text);
 }
 
 .av2-btn--icon:active {
@@ -212,44 +229,49 @@ button {
   display: block;
 }
 
-/* This app is RTL-only; directional icons (log-in/out, chevrons) are authored LTR and mirrored once here. */
+/* Directional icons mirrored for RTL */
 .av2-icon--flip-rtl {
   transform: scaleX(-1);
 }
 
-/* Shared form field used by every screen with inputs (login, new report, …). */
+/* ── Form field ────────────────────────────────────────────────────────────── */
+
 .av2-field {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 5px;
   text-align: start;
 }
 
 .av2-field__label {
-  font-size: 0.8125rem;
+  font-size: 0.75rem;
   font-weight: 600;
   color: var(--av2-color-text-muted);
+  letter-spacing: 0.01em;
 }
 
 .av2-field__input,
 .av2-field__select {
-  min-height: 38px;
+  min-height: 40px;
   padding: 0 10px;
-  border: 1px solid var(--av2-color-border);
-  border-radius: 10px;
+  border: 1.5px solid var(--av2-color-border);
+  border-radius: var(--av2-radius-md);
   background: var(--av2-color-surface);
   color: var(--av2-color-text);
   font-family: inherit;
   font-size: 0.875rem;
+  transition: border-color 0.12s;
 }
 
 .av2-field__input:focus,
 .av2-field__select:focus {
-  outline: 2px solid var(--av2-color-accent);
-  outline-offset: 1px;
+  outline: none;
+  border-color: var(--av2-color-accent);
+  box-shadow: 0 0 0 3px rgba(26, 46, 74, 0.10);
 }
 
-/* Shared compact row: used for both list rows (my reports) and quiet nav rows (home). */
+/* ── Shared row ───────────────────────────────────────────────────────────── */
+
 .av2-row {
   display: flex;
   align-items: center;
@@ -258,10 +280,11 @@ button {
   padding: 10px 12px;
   background: var(--av2-color-surface);
   border: 1px solid var(--av2-color-border);
-  border-radius: 10px;
+  border-radius: var(--av2-radius-md);
 }
 
-/* Small status pill — success/warning/neutral tones share one shape. */
+/* ── Status badge ─────────────────────────────────────────────────────────── */
+
 .av2-badge {
   display: inline-flex;
   align-items: center;
