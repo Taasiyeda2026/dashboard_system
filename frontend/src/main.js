@@ -2208,14 +2208,14 @@ function bindShell() {
     if (option) {
       ev.stopPropagation();
       const selected = normalizeGlobalActivityPeriod(option.getAttribute('data-global-period-option'));
-      if (selected !== ACTIVE_ACTIVITY_SEASON) {
-        setArchiveActivityPeriod(selected);
-        state.route = 'archive';
-        clearScreenDataCache();
-        scheduleRender();
-      } else if (state.activityPeriodTab !== selected || state.route === 'archive') {
-        setArchiveActivityPeriod(ACTIVE_ACTIVITY_SEASON);
-        setGlobalActivityPeriod(ACTIVE_ACTIVITY_SEASON);
+      // NOTE: the capture-phase listener in activity-period-selector-access-hotfix.js
+      // intercepts year-switch clicks first via stopImmediatePropagation, so this
+      // branch only runs if that file is ever removed. Keep it consistent: both
+      // 2026 and 2027 are live operational periods — always open the dashboard.
+      if (state.activityPeriodTab !== selected || state.route === 'archive') {
+        setArchiveActivityPeriod(ACTIVE_ACTIVITY_SEASON); // clears archiveActivityPeriod → null
+        setGlobalActivityPeriod(selected);
+        state.route = 'dashboard';
         syncGlobalActivityPeriodSelector();
         clearScreenDataCache();
         scheduleRender();
