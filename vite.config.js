@@ -20,7 +20,7 @@ export default defineConfig(() => {
   return {
     root: __dirname,
     base,
-    envPrefix: ['VITE_', 'NEXT_PUBLIC_', 'SUPABASE_'],
+    envPrefix: ['VITE_', 'NEXT_PUBLIC_'],
     publicDir: 'frontend/public',
     appType: 'spa',
     plugins: [manifestLinkPlugin()],
