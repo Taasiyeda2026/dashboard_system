@@ -19,6 +19,7 @@ ${BOARD_SELECTOR}.is-manager-gantt-placeholder .manager-board-layout,
 ${BOARD_SELECTOR}.is-manager-gantt-placeholder .manager-board-panel--instructors{display:none!important}
 .manager-gantt-placeholder{min-height:360px;display:grid;place-items:center;border:1px solid #dbe3ea;border-radius:14px;background:#fff;margin-top:14px;box-shadow:0 2px 8px rgba(15,23,42,.04)}
 .manager-gantt-placeholder strong{font-size:clamp(1.35rem,2.5vw,2rem);letter-spacing:.08em;color:#64748b;font-weight:800}
+[data-manager-gantt-placeholder][hidden]{display:none!important}
 `;
   document.head.appendChild(style);
 }
