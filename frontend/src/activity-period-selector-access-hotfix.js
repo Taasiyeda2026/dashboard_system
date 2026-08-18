@@ -54,8 +54,10 @@ document.addEventListener('click', (event) => {
   const option = event.target?.closest?.('[data-global-period-option]');
   if (!option) return;
 
-  // Override the temporary cutover behavior that redirected 2026 directly to
-  // the archive. Both 2026 and 2027 remain normal selectable operational views.
+  // Single source of truth for year/period switching.
+  // Both 2026 and 2027 are live operational views — never redirect to archive.
+  // stopImmediatePropagation prevents the legacy archive-routing in main.js
+  // and the competing microtask in shell-period-selector.js from running.
   event.preventDefault();
   event.stopImmediatePropagation();
 
@@ -69,5 +71,10 @@ document.addEventListener('click', (event) => {
   if (menu) menu.hidden = true;
   if (toggle) toggle.setAttribute('aria-expanded', 'false');
 
-  queueMicrotask(refreshCurrentRoute);
+  // Always open the dashboard after switching years, regardless of current screen.
+  queueMicrotask(() => {
+    if (!state.token || !state.route || state.route === 'login') return;
+    state.route = '__period_switch__';
+    document.dispatchEvent(new CustomEvent('app:navigate', { detail: { route: 'dashboard' } }));
+  });
 }, true);
