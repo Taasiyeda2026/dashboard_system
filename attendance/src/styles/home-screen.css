@@ -4,6 +4,16 @@
   padding: var(--av2-space-3) 0 var(--av2-space-5);
 }
 
+/* Page title — "דיווחי נוכחות" */
+.av2-home__page-title {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: var(--av2-color-accent);
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+}
+
 .av2-home__inner {
   display: flex;
   flex-direction: column;
@@ -176,23 +186,26 @@
   padding: 8px;
 }
 
+/* Card itself — no padding at bottom; strip handles it */
 .av2-approval-inner {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 14px 14px 12px;
+  gap: 0;
   background: var(--av2-color-surface);
   border: 1px solid var(--av2-color-border);
   border-radius: var(--av2-radius-md);
   border-inline-start: 3px solid var(--av2-color-accent);
+  overflow: hidden;
 }
 
+/* Upper body — title + stats + link */
 .av2-approval-inner__title-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
   flex-wrap: wrap;
+  padding: 14px 14px 10px;
 }
 
 .av2-approval-inner__title {
@@ -205,6 +218,7 @@
   margin: 0;
   font-size: 0.8125rem;
   color: var(--av2-color-text-muted);
+  padding: 0 14px 10px;
 }
 
 .av2-approval-inner__locked-msg {
@@ -212,15 +226,72 @@
   font-size: 0.8125rem;
   color: var(--av2-color-text-muted);
   font-style: italic;
+  padding: 0 14px 14px;
 }
 
-/* Month submit: secondary style — subdued, not full-width primary */
-.av2-home__month-submit {
-  width: auto !important;
-  align-self: flex-start;
+/* 3-cell stats grid inside the card */
+.av2-approval-inner__stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0;
+  border-top: 1px solid var(--av2-color-border);
+  border-bottom: 1px solid var(--av2-color-border);
+}
+
+.av2-approval-inner__stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 10px 8px;
+  text-align: center;
+}
+
+.av2-approval-inner__stat + .av2-approval-inner__stat {
+  border-inline-start: 1px solid var(--av2-color-border);
+}
+
+.av2-approval-inner__stat strong {
+  font-size: 1.0625rem;
+  font-weight: 800;
+  color: var(--av2-color-accent);
+  line-height: 1.1;
+}
+
+.av2-approval-inner__stat span {
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--av2-color-text-muted);
+}
+
+/* "View all reports" link — sits between stats and strip inside approval card */
+.av2-approval-inner .av2-btn--link {
+  display: block;
+  padding: 8px 14px;
+}
+
+/* Bottom action strip — full-width prominent submit area */
+.av2-approval-inner__strip {
+  padding: 10px 14px;
+  background: var(--av2-color-bg);
+  border-top: 1px solid var(--av2-color-border);
+}
+
+.av2-approval-inner__strip--info {
   font-size: 0.8125rem;
-  padding-inline: 12px;
-  min-height: 34px;
+  color: var(--av2-color-text-muted);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Submit button inside strip — full width */
+.av2-home__month-submit {
+  width: 100% !important;
+  font-size: 0.875rem;
+  min-height: 40px;
 }
 
 /* "My reports" text link */
@@ -338,6 +409,10 @@
     gap: 12px;
   }
 
+  .av2-home__page-title {
+    font-size: 1.4375rem;
+  }
+
   /* 4 KPIs side by side */
   .av2-stats-grid {
     grid-template-columns: repeat(4, 1fr);
@@ -356,8 +431,16 @@
     padding-inline: 20px;
   }
 
-  .av2-approval-inner {
-    padding: 16px 18px 14px;
+  .av2-approval-inner__title-row {
+    padding: 16px 18px 12px;
+  }
+
+  .av2-approval-inner__stat strong {
+    font-size: 1.125rem;
+  }
+
+  .av2-approval-inner__strip {
+    padding: 12px 18px;
   }
 
   .av2-month-nav {

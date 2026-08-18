@@ -75,12 +75,17 @@ export function renderHomeScreen(container, {
   approvalCard.className = 'av2-approval-card';
   approvalCard.innerHTML = '<p class="av2-approval-card__loading">טוען מצב חודש…</p>';
 
+  // ── Page title ─────────────────────────────────────────────────────────
+  const pageTitleEl = document.createElement('h1');
+  pageTitleEl.className = 'av2-home__page-title';
+  pageTitleEl.textContent = 'דיווחי נוכחות';
+
   // Month nav + add button share one compact action row
   const actionRow = document.createElement('div');
   actionRow.className = 'av2-home__action-row';
   actionRow.append(monthNav, newReportBtn);
 
-  inner.append(header, actionRow, statsEl, approvalCard);
+  inner.append(header, pageTitleEl, actionRow, statsEl, approvalCard);
   wrap.append(inner);
   container.append(wrap);
 
@@ -214,6 +219,7 @@ function buildApprovalCard({ approval, year, month, instructor, records, summary
 
   const { label: statusLabel, tone } = statusMap[status] || statusMap.open;
 
+  // ── Title row: label + status badge ──────────────────────────────────────
   const titleRow = document.createElement('div');
   titleRow.className = 'av2-approval-inner__title-row';
   const title = document.createElement('span');
@@ -224,23 +230,47 @@ function buildApprovalCard({ approval, year, month, instructor, records, summary
   badge.textContent = statusLabel;
   titleRow.append(title, badge);
 
-  const metaRow = document.createElement('p');
-  metaRow.className = 'av2-approval-inner__meta';
-  metaRow.textContent = `${summary.recordsCount} רשומות · ${summary.totalHours.toFixed(2)} שעות · ${summary.totalKm.toFixed(0)} ק"מ`;
+  // ── Stats row: 3 numbers in a compact grid ────────────────────────────────
+  const statsGrid = document.createElement('div');
+  statsGrid.className = 'av2-approval-inner__stats';
+  [
+    { value: summary.recordsCount,              unit: 'דיווחים' },
+    { value: summary.totalHours.toFixed(2),     unit: 'שעות'    },
+    { value: summary.totalKm.toFixed(0) + ' ק"מ', unit: 'נסיעות' },
+  ].forEach(({ value, unit }) => {
+    const cell = document.createElement('div');
+    cell.className = 'av2-approval-inner__stat';
+    const v = document.createElement('strong');
+    v.textContent = value;
+    const u = document.createElement('span');
+    u.textContent = unit;
+    cell.append(v, u);
+    statsGrid.append(cell);
+  });
 
-  wrap.append(titleRow, metaRow);
+  // ── "View all reports" link ───────────────────────────────────────────────
+  const myReportsLink = document.createElement('button');
+  myReportsLink.type = 'button';
+  myReportsLink.className = 'av2-btn av2-btn--link';
+  myReportsLink.textContent = 'לצפייה בכל הדיווחים ←';
+  myReportsLink.addEventListener('click', () => onMyReports?.());
 
+  wrap.append(titleRow, statsGrid, myReportsLink);
+
+  // ── Bottom action strip ───────────────────────────────────────────────────
   if (status === 'open' || status === 'reopened') {
     if (editable && records.length > 0) {
+      const strip = document.createElement('div');
+      strip.className = 'av2-approval-inner__strip';
       const submitBtn = document.createElement('button');
       submitBtn.type = 'button';
-      // Secondary style — month closure is a significant but non-dominant action
-      submitBtn.className = 'av2-btn av2-btn--secondary av2-home__month-submit';
+      submitBtn.className = 'av2-btn av2-btn--primary av2-home__month-submit';
       const submitLabel = document.createElement('span');
       submitLabel.textContent = 'סיום וסגירת חודש';
       submitBtn.append(createIcon('check-circle', { size: 15 }), submitLabel);
       submitBtn.addEventListener('click', () => handleSubmit({ submitBtn, instructor, year, month, records, wrap }));
-      wrap.append(submitBtn);
+      strip.append(submitBtn);
+      wrap.append(strip);
     } else if (!editable) {
       const msg = document.createElement('p');
       msg.className = 'av2-approval-inner__locked-msg';
@@ -249,20 +279,14 @@ function buildApprovalCard({ approval, year, month, instructor, records, summary
     }
   } else if (status === 'submitted') {
     if (approval?.submitted_at) {
-      const submittedEl = document.createElement('p');
-      submittedEl.className = 'av2-approval-inner__meta';
-      submittedEl.textContent = `הוגש: ${new Date(approval.submitted_at).toLocaleDateString('he-IL')}`;
-      wrap.append(submittedEl);
+      const strip = document.createElement('div');
+      strip.className = 'av2-approval-inner__strip av2-approval-inner__strip--info';
+      const msg = document.createElement('span');
+      msg.textContent = `✓ הוגש ב-${new Date(approval.submitted_at).toLocaleDateString('he-IL')} — ממתין לאישור מנהל`;
+      strip.append(msg);
+      wrap.append(strip);
     }
   }
-
-  // "הדיווחים שלי" link
-  const myReportsLink = document.createElement('button');
-  myReportsLink.type = 'button';
-  myReportsLink.className = 'av2-btn av2-btn--link';
-  myReportsLink.textContent = 'לצפייה בכל הדיווחים ←';
-  myReportsLink.addEventListener('click', () => onMyReports?.());
-  wrap.append(myReportsLink);
 
   return wrap;
 }
