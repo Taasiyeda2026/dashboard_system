@@ -1,0 +1,118 @@
+/* My Reports table — desktop alignment, compact columns and visible actions. */
+@media (min-width: 1024px) {
+  /* Use the available width instead of forcing a minimum that creates a scrollbar. */
+  .av2-report-list {
+    width: 100%;
+    overflow-x: hidden;
+  }
+
+  .av2-report-list__head,
+  .av2-report-row {
+    width: 100%;
+    min-width: 0 !important;
+    grid-template-columns:
+      minmax(0, .82fr)   /* date */
+      minmax(0, .72fr)   /* start */
+      minmax(0, .72fr)   /* end */
+      minmax(0, .78fr)   /* hours */
+      minmax(0, .88fr)   /* activity type */
+      minmax(0, 1.28fr)  /* activity name */
+      minmax(0, 1.08fr)  /* school */
+      minmax(0, 1fr)     /* authority */
+      minmax(0, .52fr)   /* km */
+      minmax(0, .60fr)   /* expenses */
+      minmax(78px, .82fr) !important; /* actions */
+    gap: 0 4px !important;
+    padding-inline: 8px !important;
+  }
+
+  .av2-report-list__head > *,
+  .av2-report-row > * {
+    min-width: 0;
+  }
+
+  /* Center — header and values: date, start, end, total hours, km, expenses. */
+  .av2-report-list__head > :nth-child(1),
+  .av2-report-list__head > :nth-child(2),
+  .av2-report-list__head > :nth-child(3),
+  .av2-report-list__head > :nth-child(4),
+  .av2-report-list__head > :nth-child(9),
+  .av2-report-list__head > :nth-child(10) {
+    text-align: center !important;
+    justify-self: stretch;
+  }
+
+  .av2-rr__date {
+    align-items: center !important;
+    text-align: center !important;
+  }
+
+  .av2-rr__start,
+  .av2-rr__end,
+  .av2-rr__hours,
+  .av2-rr__km,
+  .av2-rr__expenses {
+    text-align: center !important;
+  }
+
+  /* Right aligned — header and values: activity, activity name, school, authority. */
+  .av2-report-list__head > :nth-child(5),
+  .av2-report-list__head > :nth-child(6),
+  .av2-report-list__head > :nth-child(7),
+  .av2-report-list__head > :nth-child(8),
+  .av2-rr__type,
+  .av2-rr__name,
+  .av2-rr__school,
+  .av2-rr__authority {
+    text-align: right !important;
+    direction: rtl;
+  }
+
+  /* Actions: clearly visible, centered, and never transparent. */
+  .av2-report-list__head > :nth-child(11) {
+    text-align: center !important;
+  }
+
+  .av2-rr__actions {
+    justify-content: center !important;
+    gap: 3px !important;
+    overflow: visible;
+  }
+
+  .av2-rr__actions .av2-btn--icon {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 23px !important;
+    height: 23px !important;
+    min-width: 23px;
+    padding: 0 !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+    border: 1px solid currentColor !important;
+  }
+
+  .av2-rr__actions .av2-icon {
+    display: block !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+    width: 13px !important;
+    height: 13px !important;
+    stroke: currentColor !important;
+  }
+
+  .av2-rr__action-copy {
+    color: #2563eb !important;
+    background: #eff6ff !important;
+  }
+
+  .av2-rr__action-dup {
+    color: #7c3aed !important;
+    background: #f5f3ff !important;
+  }
+
+  .av2-rr__action-delete {
+    color: #dc2626 !important;
+    background: #fef2f2 !important;
+  }
+}
