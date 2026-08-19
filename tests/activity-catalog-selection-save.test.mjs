@@ -21,13 +21,36 @@ const CATALOG_6089 = {
     activity_name: 'ביומימיקרי – המצאות בהשראה מן הטבע',
     activity_no: '6089',
     gefen_number: '6089',
-    item_type: 'course',
+    item_type: 'תוכנית',
     meetings_count: 11
   },
   courseRow: {
     short_name: 'ביומימיקרי',
     gefen_number: '6089',
     meetings_count: 11
+  }
+};
+
+const GEFEN_CATALOG_67867 = {
+  selection: { activity_name: 'פעילות גפ״ן קיימת', activity_no: '67867', gefen_number: '' },
+  listRow: {
+    activity_name: 'פעילות גפ״ן קיימת',
+    activity_no: '67867',
+    gefen_number: '',
+    activity_type: 'course',
+    meetings_count: 10
+  },
+  pricingRow: {
+    activity_name: 'פעילות גפ״ן קיימת',
+    activity_no: '67867',
+    gefen_number: '67867',
+    item_type: 'תוכנית',
+    meetings_count: 10
+  },
+  courseRow: {
+    short_name: 'פעילות גפ״ן קיימת',
+    gefen_number: '67867',
+    meetings_count: 10
   }
 };
 
@@ -39,28 +62,34 @@ const NON_GEFEN_CATALOG_1001 = {
     gefen_number: '',
     activity_type: 'course'
   },
-  pricingRow: {
-    // The pricing record is not the activity catalog display source and must
-    // not make this item a Gefen activity.
-    activity_name: 'שם תמחור שונה',
-    activity_no: '1001',
-    gefen_number: '9999',
-    item_type: 'course',
-    meetings_count: 4
-  }
+  pricingRow: null,
+  courseRow: null
 };
 
 function replacementChanges() {
   return catalogActivityChangesFromRows(CATALOG_6089);
 }
 
-test('67867 -> 6089 uses the canonical catalog identity and 11 canonical sessions', () => {
+test('6089 keeps the lists activity type when pricing only labels it a general program', () => {
   assert.deepEqual(replacementChanges(), {
     activity_name: 'ביומימיקרי',
     activity_no: '6089',
     gefen_number: '6089',
     activity_name_override: false,
     sessions: 11,
+    activity_type: 'course',
+    item_type: 'course',
+    exists_in_gefen: true
+  });
+});
+
+test('67867 remains a Gefen activity when lists.gefen_number is blank', () => {
+  assert.deepEqual(catalogActivityChangesFromRows(GEFEN_CATALOG_67867), {
+    activity_name: 'פעילות גפ״ן קיימת',
+    activity_no: '67867',
+    gefen_number: '67867',
+    activity_name_override: false,
+    sessions: 10,
     activity_type: 'course',
     item_type: 'course',
     exists_in_gefen: true
@@ -94,6 +123,16 @@ test('moving from 6089 to non-Gefen 1001 clears the old Gefen identity', () => {
   assert.equal(saved.exists_in_gefen, false);
   assert.equal(saved.price, 9500);
   assert.notEqual(saved.gefen_number, '6089');
+});
+
+test('a Gefen number is never copied into activity_no when no activity number was selected', () => {
+  assert.throws(
+    () => catalogActivityChangesFromRows({
+      selection: { activity_name: 'פעילות ללא מספר פעילות', activity_no: '', gefen_number: '67867' },
+      courseRow: { gefen_number: '67867' }
+    }),
+    /catalog_activity_not_found/
+  );
 });
 
 test('catalog replacement leaves local authority, school, manager, contacts, funding, assignment and dates intact', () => {

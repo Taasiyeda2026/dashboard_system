@@ -23,10 +23,11 @@ function catalogIdentityChanges({
   activity_type
 } = {}, { normalizeActivityType = catalogText } = {}) {
   const canonicalName = catalogText(activity_name);
-  const activityNo = catalogText(activity_no || gefen_number);
-  // activity_no is always the catalog identity, but it is not necessarily a
-  // Gefen number. Keep an absent Gefen value absent so a switch from a Gefen
-  // activity actively clears the previous value in the activity row.
+  // activity_no and gefen_number are independent identities. In particular,
+  // never manufacture an activity number from a Gefen number.
+  const activityNo = catalogText(activity_no);
+  // Keep an absent Gefen value absent so a switch from a Gefen activity
+  // actively clears the previous value in the activity row.
   const gefenNumber = catalogText(gefen_number);
   if (!canonicalName || !activityNo) throw new Error('catalog_activity_not_found');
 
@@ -106,26 +107,27 @@ export function catalogActivityChangesFromRows(
       selection.activity_name
     ),
     activity_no: firstCatalogValue(
-      pricingRow?.activity_no,
       listRow?.activity_no,
+      pricingRow?.activity_no,
+      selection.activity_no
+    ),
+    // A blank lists.gefen_number does not disprove a real Gefen source.
+    // Course and pricing records are authoritative when they supply one.
+    gefen_number: firstCatalogValue(
       courseRow?.gefen_number,
-      selection.activity_no,
+      pricingRow?.gefen_number,
+      listRow?.gefen_number,
       selection.gefen_number
     ),
-    // If the displayed activity catalog row exists, its blank Gefen field is
-    // authoritative. Do not fill it from activity_no or a pricing fallback.
-    gefen_number: listRow && Object.prototype.hasOwnProperty.call(listRow, 'gefen_number')
-      ? catalogText(listRow.gefen_number)
-      : firstCatalogValue(courseRow?.gefen_number, pricingRow?.gefen_number, selection.gefen_number),
     meetings_count: firstCatalogNumber(
       pricingRow?.meetings_count,
       courseRow?.meetings_count,
       listRow?.meetings_count
     ),
     activity_type: firstCatalogValue(
-      pricingRow?.item_type,
       listRow?.activity_type,
-      listRow?.type
+      listRow?.type,
+      pricingRow?.item_type
     )
   }, { normalizeActivityType });
 }
