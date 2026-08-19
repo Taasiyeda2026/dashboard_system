@@ -11,16 +11,21 @@ import {
   FINANCE_ATTENDANCE_EMPLOYMENT_SHEETS,
   FINANCE_ATTENDANCE_GENERAL_SHEET,
   FINANCE_COLLECTION_ACTIVITY_PERIOD,
+  FINANCE_MAOF_DAILY_COLUMNS,
+  FINANCE_MAOF_SHEET,
   attachCollectionTracking,
   buildFinanceAttendanceExcelRows,
   buildFinanceAttendanceWorkbook,
+  buildMaofDailyExcelRows,
   financeEmploymentSheetName,
   financeHourCategory,
   financePayerKey,
+  formatFinanceReportedHourRanges,
   groupFinanceCollectionPayers,
   isFinalPayrollApproval,
   isGefenFunding,
   mapLegacyPaymentCollected,
+  mergeFinanceReportedTimeRanges,
   normalizeFinanceEmploymentType,
   summarizeFinanceAttendance,
   unmappedFinanceActivityTypes
@@ -381,7 +386,38 @@ test('Excel workbook keeps the general sheet and adds employment-type sheets wit
       rows: [snapshotRow({ employeeId: '4', employeeName: 'לא מסווג', employmentType: 'אחר', activityType: 'תפעול', workHours: 1 })]
     })
   ]).rows;
-  const workbook = buildFinanceAttendanceWorkbook(entries);
+  const workbook = buildFinanceAttendanceWorkbook(entries, { approvals: [
+    approval({
+      employee_id: '1',
+      employee_name: 'עובדת תעשיידע',
+      rows: [snapshotRow({ employeeId: '1', employeeName: 'עובדת תעשיידע', employmentType: 'תעשיידע', activityType: 'קורס', workHours: 2 })]
+    }),
+    approval({
+      employee_id: '2',
+      employee_name: 'עובד מעוף',
+      pdf_path: 'https://files.example/maof.pdf',
+      rows: [snapshotRow({
+        employeeId: '2',
+        employeeName: 'עובד מעוף',
+        employmentType: 'מעוף',
+        activityType: 'סדנה',
+        workHours: 3,
+        startTime: '10:00',
+        endTime: '13:00',
+        authority: 'רחובות'
+      })]
+    }),
+    approval({
+      employee_id: '3',
+      employee_name: 'עובד כוח אדם',
+      rows: [snapshotRow({ employeeId: '3', employeeName: 'עובד כוח אדם', employmentType: 'Manpower', activityType: 'סיור', workHours: 4 })]
+    }),
+    approval({
+      employee_id: '4',
+      employee_name: 'לא מסווג',
+      rows: [snapshotRow({ employeeId: '4', employeeName: 'לא מסווג', employmentType: 'אחר', activityType: 'תפעול', workHours: 1 })]
+    })
+  ] });
   assert.deepEqual(workbook.SheetNames, [FINANCE_ATTENDANCE_GENERAL_SHEET, ...FINANCE_ATTENDANCE_EMPLOYMENT_SHEETS]);
 
   const general = sheetAoa(workbook, FINANCE_ATTENDANCE_GENERAL_SHEET);
@@ -395,18 +431,17 @@ test('Excel workbook keeps the general sheet and adds employment-type sheets wit
   ]);
 
   assert.deepEqual(sheetEmployeeNames(workbook, 'תעשיידע'), ['עובדת תעשיידע']);
-  assert.deepEqual(sheetEmployeeNames(workbook, 'מעוף'), ['עובד מעוף']);
+  assert.deepEqual(sheetAoa(workbook, FINANCE_MAOF_SHEET)[0], FINANCE_MAOF_DAILY_COLUMNS);
+  assert.deepEqual(sheetAoa(workbook, FINANCE_MAOF_SHEET).slice(1).map((row) => row[1]), ['עובד מעוף']);
   assert.deepEqual(sheetEmployeeNames(workbook, 'MANPOWER'), ['עובד כוח אדם']);
   const independent = sheetAoa(workbook, 'עצמאי');
   assert.deepEqual(independent, [FINANCE_ATTENDANCE_COLUMNS]);
 
-  for (const name of workbook.SheetNames) {
+  for (const name of workbook.SheetNames.filter((sheet) => sheet !== FINANCE_MAOF_SHEET)) {
     assert.deepEqual(sheetAoa(workbook, name)[0], FINANCE_ATTENDANCE_COLUMNS);
   }
 
-  const maofLink = Object.values(workbook.Sheets.מעוף).find((cell) => cell?.l?.Target === 'https://files.example/maof.pdf');
   const generalLink = Object.values(workbook.Sheets[FINANCE_ATTENDANCE_GENERAL_SHEET]).find((cell) => cell?.l?.Target === 'https://files.example/maof.pdf');
-  assert.ok(maofLink);
   assert.ok(generalLink);
 });
 
@@ -439,8 +474,127 @@ test('Excel employment sheets normalize employmentType spaces and letter case', 
   assert.deepEqual(sheetEmployeeNames(workbook, FINANCE_ATTENDANCE_GENERAL_SHEET).sort(), ['א', 'ב', 'ג']);
   assert.deepEqual(sheetEmployeeNames(workbook, 'MANPOWER').sort(), ['א', 'ב', 'ג']);
   assert.deepEqual(sheetAoa(workbook, 'תעשיידע'), [FINANCE_ATTENDANCE_COLUMNS]);
-  assert.deepEqual(sheetAoa(workbook, 'מעוף'), [FINANCE_ATTENDANCE_COLUMNS]);
+  assert.deepEqual(sheetAoa(workbook, FINANCE_MAOF_SHEET), [FINANCE_MAOF_DAILY_COLUMNS]);
   assert.deepEqual(sheetAoa(workbook, 'עצמאי'), [FINANCE_ATTENDANCE_COLUMNS]);
+});
+
+function maofRow(overrides = {}) {
+  return snapshotRow({
+    employeeId: '1234',
+    employeeName: 'ישראל ישראלי',
+    employmentType: 'מעוף',
+    date: '2026-10-05',
+    authority: 'רחובות',
+    activityType: 'קורס',
+    startTime: '10:00',
+    endTime: '13:00',
+    workHours: 3,
+    kilometers: 0,
+    ...overrides
+  });
+}
+
+function maofApproval(rows, overrides = {}) {
+  return approval({
+    employee_id: '1234',
+    employee_name: 'ישראל ישראלי',
+    rows,
+    ...overrides
+  });
+}
+
+test('Maof Excel merges the same instructor date authority and activity type', () => {
+  const rows = buildMaofDailyExcelRows([
+    maofApproval([
+      maofRow({ startTime: '10:00', endTime: '12:00', workHours: 2, kilometers: 10 }),
+      maofRow({ startTime: '12:00', endTime: '15:00', workHours: 3, kilometers: 32 })
+    ])
+  ]);
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0]['שם מדריך'], 'ישראל ישראלי');
+  assert.equal(rows[0]['מספר עובד'], '1234');
+  assert.equal(rows[0]['רשות'], 'רחובות');
+  assert.equal(rows[0]['סוג פעילות'], 'קורס');
+  assert.equal(rows[0]['שעות פעילות'], '10:00–15:00');
+  assert.equal(rows[0]['סה״כ שעות'], 5);
+  assert.equal(rows[0]['סה״כ ק״מ ליום'], 42);
+});
+
+test('Maof Excel splits different activity types and authorities', () => {
+  const rows = buildMaofDailyExcelRows([
+    maofApproval([
+      maofRow({ activityType: 'קורס', startTime: '10:00', endTime: '13:00', workHours: 3, kilometers: 20 }),
+      maofRow({ activityType: 'הכשרה', startTime: '14:00', endTime: '16:00', workHours: 2, kilometers: 22 }),
+      maofRow({ date: '2026-10-06', authority: 'רחובות', activityType: 'קורס', startTime: '09:00', endTime: '12:00', kilometers: 10 }),
+      maofRow({ date: '2026-10-06', authority: 'ראשון לציון', activityType: 'קורס', startTime: '13:00', endTime: '15:00', kilometers: 26 })
+    ])
+  ]);
+  assert.equal(rows.length, 4);
+  assert.deepEqual(rows.map((row) => [row['תאריך'], row['רשות'], row['סוג פעילות'], row['שעות פעילות'], row['סה״כ שעות']]), [
+    ['05.10.2026', 'רחובות', 'קורס', '10:00–13:00', 3],
+    ['05.10.2026', 'רחובות', 'הכשרה', '14:00–16:00', 2],
+    ['06.10.2026', 'רחובות', 'קורס', '09:00–12:00', 3],
+    ['06.10.2026', 'ראשון לציון', 'קורס', '13:00–15:00', 2]
+  ]);
+});
+
+test('Maof Excel merges consecutive hour ranges and keeps gapped ranges', () => {
+  assert.deepEqual(mergeFinanceReportedTimeRanges([
+    { start: '10:00', end: '12:00' },
+    { start: '12:00', end: '15:00' }
+  ]).map((range) => `${range.start}–${range.end}`), ['10:00–15:00']);
+  assert.equal(formatFinanceReportedHourRanges([
+    { start: '10:00', end: '12:00' },
+    { start: '13:00', end: '15:00' }
+  ]), '10:00–12:00, 13:00–15:00');
+
+  const consecutive = buildMaofDailyExcelRows([
+    maofApproval([
+      maofRow({ startTime: '10:00', endTime: '12:00' }),
+      maofRow({ startTime: '12:00', endTime: '15:00', kilometers: 0 })
+    ])
+  ]);
+  assert.equal(consecutive[0]['שעות פעילות'], '10:00–15:00');
+  assert.equal(consecutive[0]['סה״כ שעות'], 5);
+
+  const gapped = buildMaofDailyExcelRows([
+    maofApproval([
+      maofRow({ date: '2026-10-06', authority: 'ראשון לציון', startTime: '09:00', endTime: '12:00', kilometers: 20 }),
+      maofRow({ date: '2026-10-06', authority: 'ראשון לציון', startTime: '13:00', endTime: '15:00', kilometers: 16 })
+    ])
+  ]);
+  assert.equal(gapped[0]['שעות פעילות'], '09:00–12:00, 13:00–15:00');
+  assert.equal(gapped[0]['סה״כ שעות'], 5);
+});
+
+test('Maof Excel shows daily kilometers once per instructor date', () => {
+  const rows = buildMaofDailyExcelRows([
+    maofApproval([
+      maofRow({ activityType: 'קורס', startTime: '10:00', endTime: '13:00', kilometers: 20 }),
+      maofRow({ activityType: 'הכשרה', startTime: '14:00', endTime: '16:00', kilometers: 22 }),
+      maofRow({ date: '2026-10-06', authority: 'ראשון לציון', startTime: '09:00', endTime: '12:00', kilometers: 10 }),
+      maofRow({ date: '2026-10-06', authority: 'ראשון לציון', startTime: '13:00', endTime: '15:00', kilometers: 26 })
+    ])
+  ]);
+  assert.deepEqual(rows.map((row) => [row['תאריך'], row['סוג פעילות'], row['סה״כ ק״מ ליום']]), [
+    ['05.10.2026', 'קורס', 42],
+    ['05.10.2026', 'הכשרה', ''],
+    ['06.10.2026', 'קורס', 36]
+  ]);
+});
+
+test('Maof Excel uses only final admin snapshots and keeps a header-only sheet', () => {
+  const rows = buildMaofDailyExcelRows([
+    maofApproval([maofRow()], { status: 'manager_approved' }),
+    approval({
+      employee_id: '9',
+      employee_name: 'תעשיידעית',
+      rows: [snapshotRow({ employeeId: '9', employeeName: 'תעשיידעית', employmentType: 'תעשיידע', activityType: 'קורס' })]
+    })
+  ]);
+  assert.deepEqual(rows, []);
+  const workbook = buildFinanceAttendanceWorkbook([], { approvals: [] });
+  assert.deepEqual(sheetAoa(workbook, FINANCE_MAOF_SHEET), [FINANCE_MAOF_DAILY_COLUMNS]);
 });
 
 test('collection grouping uses school for GEFEN, specific authority for רשות, and funding source otherwise', () => {
