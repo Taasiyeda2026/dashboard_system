@@ -96,12 +96,24 @@ export function catalogActivityChangesFromRows(
   { selection = {}, listRow = null, pricingRow = null, courseRow = null } = {},
   { normalizeActivityType = catalogText } = {}
 ) {
+  const catalogType = firstCatalogValue(
+    pricingRow?.item_type,
+    listRow?.activity_type,
+    listRow?.type
+  );
+  const courseShortName = catalogType === 'course' ? catalogText(courseRow?.short_name) : '';
+
   return catalogIdentityChanges({
+    // School-year Gefen course rows are normalized in Supabase by
+    // normalize_school_2027_activity_course_short_name(), which uses
+    // proposal_gefen_courses.short_name. Prefer the same canonical name here
+    // so the requested value and the post-trigger DB value cannot diverge after
+    // an otherwise successful save.
     activity_name: firstCatalogValue(
+      courseShortName,
       listRow?.activity_name,
       listRow?.label_he,
       listRow?.label,
-      courseRow?.short_name,
       pricingRow?.activity_name,
       selection.activity_name
     ),
@@ -122,11 +134,7 @@ export function catalogActivityChangesFromRows(
       courseRow?.meetings_count,
       listRow?.meetings_count
     ),
-    activity_type: firstCatalogValue(
-      pricingRow?.item_type,
-      listRow?.activity_type,
-      listRow?.type
-    )
+    activity_type: catalogType
   }, { normalizeActivityType });
 }
 
