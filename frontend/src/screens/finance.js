@@ -16,12 +16,20 @@ import {
 import {
   FINANCE_COLLECTION_CLOSED,
   FINANCE_COLLECTION_OPEN,
+  FINANCE_COLLECTION_TAB_ALL,
+  FINANCE_COLLECTION_TAB_CLOSED,
+  FINANCE_COLLECTION_TAB_OPEN,
+  FINANCE_NO_END_DATE_MONTH_KEY,
+  FINANCE_NO_END_DATE_MONTH_LABEL,
   activityRowId,
   activityStatusLabel,
   attachCollectionTracking,
+  groupFinanceCollectionByEndMonth,
   groupFinanceCollectionPayers,
   money,
-  normalizeCollectionStatus
+  normalizeCollectionStatus,
+  normalizeFinanceCollectionTab,
+  summarizeFinanceCollectionTotals
 } from './finance-collection.js';
 import { ACTIVITY_SEASON_SCHOOL_2027, getActivityPeriodKey } from './shared/summer-activity.js';
 
@@ -52,19 +60,34 @@ export {
 
 export {
   FINANCE_UNFUNDED_PAYER_LABEL,
+  FINANCE_COLLECTION_TAB_ALL,
+  FINANCE_COLLECTION_TAB_CLOSED,
+  FINANCE_COLLECTION_TAB_OPEN,
+  FINANCE_NO_END_DATE_MONTH_KEY,
+  FINANCE_NO_END_DATE_MONTH_LABEL,
   activityRowId,
   attachCollectionTracking,
+  filterFinanceCollectionActivities,
+  financeActivityEndDate,
+  financeActivityEndMonthKey,
+  financeCollectionSearchHaystack,
   financePayerKey,
+  groupFinanceCollectionByEndMonth,
   groupFinanceCollectionPayers,
   isAuthorityFunding,
   isGefenFunding,
   mapLegacyPaymentCollected,
-  normalizeCollectionStatus
+  normalizeCollectionStatus,
+  normalizeFinanceCollectionTab,
+  summarizeFinanceCollectionTotals
 } from './finance-collection.js';
+
+const FINANCE_COLLECTION_MEETING_DATE_COLUMNS = Array.from({ length: 35 }, (_, index) => `date_${index + 1}`);
 
 export const FINANCE_COLLECTION_ACTIVITY_COLUMNS = [
   'id', 'row_id', 'activity_name', 'activity_type', 'authority', 'school',
-  'school_id', 'authority_id', 'funding', 'price', 'status', 'activity_season'
+  'school_id', 'authority_id', 'funding', 'price', 'status', 'activity_season',
+  'start_date', 'end_date', ...FINANCE_COLLECTION_MEETING_DATE_COLUMNS
 ].join(',');
 
 function permissionYes(value) {
@@ -90,6 +113,7 @@ export function createFinanceVisitState(now = new Date()) {
     collectionActivities: null,
     collectionTracking: null,
     collectionTab: 'open',
+    collectionSearch: '',
     collectionLoading: false,
     collectionError: '',
     collectionSaveState: {}
@@ -286,34 +310,78 @@ function payerCardHtml(group, tab, saveState = {}) {
   </details>`;
 }
 
+function collectionMonthLabel(monthKey) {
+  if (monthKey === FINANCE_NO_END_DATE_MONTH_KEY) return FINANCE_NO_END_DATE_MONTH_LABEL;
+  return attendanceMonthLabel(monthKey) || monthKey;
+}
+
+function collectionSummaryCardsHtml(totals = {}) {
+  const cards = [
+    { label: 'סכום כל הפעילויות', value: money(totals.totalAmount) },
+    { label: 'סה״כ לגבייה', value: money(totals.openAmount) },
+    { label: 'סה״כ גבייה שבוצעה', value: money(totals.closedAmount) }
+  ];
+  return `<div class="ds-fin-collect-summary" dir="rtl">
+    ${cards.map((card) => `
+      <article class="ds-fin-collect-summary-card">
+        <span class="ds-fin-collect-summary-card__label">${escapeHtml(card.label)}</span>
+        <strong class="ds-fin-collect-summary-card__value">${escapeHtml(card.value)}</strong>
+      </article>
+    `).join('')}
+  </div>`;
+}
+
+function collectionMonthSectionHtml(month, tab, saveState = {}) {
+  const payers = month.payers || [];
+  if (!payers.length) return '';
+  const body = payers.map((group) => payerCardHtml(group, tab, saveState)).join('');
+  return `<section class="ds-fin-collect-month">
+    <header class="ds-fin-collect-month__head">
+      <h3 class="ds-fin-collect-month__title">${escapeHtml(collectionMonthLabel(month.monthKey))}</h3>
+      <span class="ds-fin-collect-month__meta">${escapeHtml(`${month.activityCount} פעילויות · ${money(month.totalAmount)}`)}</span>
+    </header>
+    <div class="ds-fin-payers">${body}</div>
+  </section>`;
+}
+
 function collectionViewHtml(data) {
-  const tab = data.collectionTab === 'all' ? 'all' : 'open';
+  const tab = normalizeFinanceCollectionTab(data.collectionTab);
+  const search = data.collectionSearch || '';
   const activities = attachCollectionTracking(
     (data.collectionActivities || []).filter(isFinanceCollectionActivity),
     data.collectionTracking || []
   );
-  const payers = groupFinanceCollectionPayers(activities, { tab });
+  const totals = summarizeFinanceCollectionTotals(activities);
+  const months = groupFinanceCollectionByEndMonth(activities, { tab, search });
+  const emptyMessage = tab === FINANCE_COLLECTION_TAB_CLOSED
+    ? 'אין פעילויות סגורות לגבייה.'
+    : tab === FINANCE_COLLECTION_TAB_OPEN
+      ? 'אין פעילויות פתוחות לגבייה.'
+      : 'אין פעילויות לתצוגה.';
   const body = data.collectionError
     ? dsEmptyState(data.collectionError)
     : data.collectionLoading && data.collectionActivities == null
       ? dsEmptyState('טוען מעקב גבייה…')
-      : payers.length
-        ? payers.map((group) => payerCardHtml(group, tab, data.collectionSaveState || {})).join('')
-        : dsEmptyState(tab === 'open' ? 'אין פעילויות פתוחות לגבייה.' : 'אין פעילויות לתצוגה.');
+      : months.length
+        ? months.map((month) => collectionMonthSectionHtml(month, tab, data.collectionSaveState || {})).join('')
+        : dsEmptyState(search ? 'לא נמצאו פעילויות התואמות לחיפוש.' : emptyMessage);
   return dsScreenStack(`
-    ${dsPageHeader('מעקב גבייה', 'מעקב גבייה מרוכז לפי הגורם המשלם')}
     ${backBarHtml('מעקב גבייה')}
-    ${dsCard({
-      title: 'פעילויות לפי משלם',
-      padded: true,
-      body: `
-        <div class="ds-fin-tabs" role="tablist" dir="rtl">
-          <button type="button" class="ds-fin-tab${tab === 'open' ? ' is-active' : ''}" data-finance-collection-tab="open">פתוח</button>
-          <button type="button" class="ds-fin-tab${tab === 'all' ? ' is-active' : ''}" data-finance-collection-tab="all">הכול</button>
+    <div class="ds-fin-collect-shell" dir="rtl">
+      ${collectionSummaryCardsHtml(totals)}
+      <div class="ds-fin-collect-toolbar">
+        <label class="ds-fin-collect-search">
+          <span class="ds-fin-collect-search__label">חיפוש</span>
+          <input class="ds-input" type="search" data-finance-collection-search value="${escapeHtml(search)}" placeholder="שם פעילות, רשות, בית ספר או גורם משלם">
+        </label>
+        <div class="ds-fin-tabs" role="tablist">
+          <button type="button" class="ds-fin-tab${tab === FINANCE_COLLECTION_TAB_OPEN ? ' is-active' : ''}" data-finance-collection-tab="${FINANCE_COLLECTION_TAB_OPEN}">פתוח</button>
+          <button type="button" class="ds-fin-tab${tab === FINANCE_COLLECTION_TAB_CLOSED ? ' is-active' : ''}" data-finance-collection-tab="${FINANCE_COLLECTION_TAB_CLOSED}">סגור</button>
+          <button type="button" class="ds-fin-tab${tab === FINANCE_COLLECTION_TAB_ALL ? ' is-active' : ''}" data-finance-collection-tab="${FINANCE_COLLECTION_TAB_ALL}">הכול</button>
         </div>
-        <div class="ds-fin-payers">${body}</div>
-      `
-    })}
+      </div>
+      <div class="ds-fin-collect-body">${body}</div>
+    </div>
   `);
 }
 
@@ -435,7 +503,7 @@ export const financeScreen = {
 
       const tabBtn = ev.target.closest('[data-finance-collection-tab]');
       if (tabBtn) {
-        visit.collectionTab = tabBtn.dataset.financeCollectionTab === 'all' ? 'all' : 'open';
+        visit.collectionTab = normalizeFinanceCollectionTab(tabBtn.dataset.financeCollectionTab);
         refresh();
         return;
       }
@@ -531,7 +599,13 @@ export const financeScreen = {
     };
 
     const onSearch = (ev) => {
-      visit.attendanceSearch = ev.target.value || '';
+      if (ev.target.matches('[data-finance-employee-search]')) {
+        visit.attendanceSearch = ev.target.value || '';
+      } else if (ev.target.matches('[data-finance-collection-search]')) {
+        visit.collectionSearch = ev.target.value || '';
+      } else {
+        return;
+      }
       clearTimeout(root._financeSearchTimer);
       root._financeSearchTimer = setTimeout(() => refresh(), 180);
     };
@@ -539,10 +613,12 @@ export const financeScreen = {
     root.addEventListener('click', onClick);
     root.addEventListener('change', onChange);
     root.querySelector('[data-finance-employee-search]')?.addEventListener('input', onSearch);
+    root.querySelector('[data-finance-collection-search]')?.addEventListener('input', onSearch);
     root._financeUnbind = () => {
       root.removeEventListener('click', onClick);
       root.removeEventListener('change', onChange);
       root.querySelector('[data-finance-employee-search]')?.removeEventListener('input', onSearch);
+      root.querySelector('[data-finance-collection-search]')?.removeEventListener('input', onSearch);
     };
   }
 };
