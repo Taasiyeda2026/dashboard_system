@@ -495,12 +495,45 @@
   gap: 3px;
 }
 
-.manager-board-instructor-card__text strong {
+.manager-board-instructor-card__name {
+  width: max-content;
+  max-width: 100%;
   overflow: hidden;
+  border: 0;
+  padding: 0;
+  background: transparent;
   text-overflow: ellipsis;
   white-space: nowrap;
+  cursor: pointer;
+  text-align: start;
+  font: inherit;
   font-size: 13px;
+  font-weight: 700;
   color: #172033;
+}
+
+.manager-board-instructor-card__name:hover,
+.manager-board-instructor-card__name:focus-visible {
+  color: var(--manager-board-accent);
+  text-decoration: underline;
+  outline: none;
+}
+
+.manager-board-instructor-phone-popover {
+  position: fixed;
+  z-index: 10000;
+  max-width: min(300px, calc(100vw - 24px));
+  padding: 9px 12px;
+  border: 1px solid color-mix(in srgb, var(--manager-board-accent) 25%, #cbd5e1);
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, .18);
+  color: #172033;
+  direction: rtl;
+  font-size: 13px;
+  font-weight: 750;
+  line-height: 1.3;
+  pointer-events: none;
 }
 
 .manager-board-instructor-card__text span {
