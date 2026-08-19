@@ -13,6 +13,34 @@ const activityCache = new Map();
 
 let observer = null;
 let observerTimer = null;
+let instructorPhonePopover = null;
+
+function closeInstructorPhonePopover() {
+  instructorPhonePopover?.remove();
+  instructorPhonePopover = null;
+  document.querySelectorAll('[data-manager-instructor-phone][aria-expanded="true"]').forEach((button) => {
+    button.setAttribute('aria-expanded', 'false');
+  });
+}
+
+function showInstructorPhonePopover(button) {
+  closeInstructorPhonePopover();
+  const phone = text(button?.dataset?.managerInstructorPhone);
+  const popover = document.createElement('div');
+  popover.className = 'manager-board-instructor-phone-popover';
+  popover.setAttribute('role', 'status');
+  popover.textContent = phone ? `טלפון: ${phone}` : 'לא הוגדר מספר טלפון למדריך/ה';
+  document.body.append(popover);
+
+  const rect = button.getBoundingClientRect();
+  const popoverRect = popover.getBoundingClientRect();
+  const left = Math.max(12, Math.min(window.innerWidth - popoverRect.width - 12, rect.right - popoverRect.width));
+  const top = Math.max(12, Math.min(window.innerHeight - popoverRect.height - 12, rect.bottom + 8));
+  popover.style.left = `${left}px`;
+  popover.style.top = `${top}px`;
+  button.setAttribute('aria-expanded', 'true');
+  instructorPhonePopover = popover;
+}
 
 function text(value) {
   return String(value ?? '').trim().replace(/\s+/g, ' ');
@@ -215,6 +243,16 @@ function cleanupBoardPresentation(boardRoot) {
 function handleClick(event) {
   const target = event.target instanceof Element ? event.target : null;
   if (!target) return;
+  const instructorName = target.closest('[data-manager-instructor-phone]');
+  if (instructorName) {
+    event.preventDefault();
+    event.stopPropagation();
+    showInstructorPhonePopover(instructorName);
+    return;
+  }
+  if (instructorPhonePopover && !target.closest('.manager-board-instructor-phone-popover')) {
+    closeInstructorPhonePopover();
+  }
   const calendarEvent = target.closest('.manager-board-calendar-event');
   if (!calendarEvent) return;
   event.preventDefault();
@@ -223,6 +261,10 @@ function handleClick(event) {
 }
 
 function handleKeydown(event) {
+  if (event.key === 'Escape' && instructorPhonePopover) {
+    closeInstructorPhonePopover();
+    return;
+  }
   if (event.key !== 'Enter' && event.key !== ' ') return;
   const target = event.target instanceof Element ? event.target : null;
   const calendarEvent = target?.closest('.manager-board-calendar-event');
