@@ -1,0 +1,188 @@
+/* Attendance V2 desktop polish: stronger depth, light professional color, dense data views. */
+
+@media (min-width: 768px) {
+  body,
+  .app-shell {
+    background: #eef3f8;
+  }
+
+  #bottom-nav {
+    box-shadow: -10px 0 28px rgba(15, 23, 42, 0.13);
+  }
+
+  /* Stronger, still professional depth */
+  .av2-stat-card,
+  .av2-approval-inner,
+  .av2-cal,
+  .av2-form-card,
+  .av2-reference-home-summary,
+  .av2-reference-reports-table {
+    box-shadow: 0 9px 22px rgba(30, 41, 59, 0.13), 0 2px 5px rgba(30, 41, 59, 0.07) !important;
+  }
+
+  /* Light KPI tints to improve hierarchy without becoming loud. */
+  .av2-stats-grid .av2-stat-card:nth-child(1) {
+    background: #edf6ff;
+    border-color: #cfe3f7;
+  }
+  .av2-stats-grid .av2-stat-card:nth-child(2) {
+    background: #f5efff;
+    border-color: #dfd0f4;
+  }
+  .av2-stats-grid .av2-stat-card:nth-child(3) {
+    background: #eefaf4;
+    border-color: #cfe9dc;
+  }
+  .av2-stats-grid .av2-stat-card:nth-child(4) {
+    background: #fff8e9;
+    border-color: #f0dfba;
+  }
+
+  .av2-approval-inner {
+    background: #fbfdff;
+  }
+
+  /* Home summary table */
+  .av2-reference-home-summary {
+    border-color: #cfd9e6 !important;
+  }
+  .av2-reference-home-summary__title {
+    background: #f7faff !important;
+  }
+  .av2-reference-home-summary__head {
+    background: #eaf3ff !important;
+    color: #41566f !important;
+  }
+  .av2-reference-home-summary__row:nth-of-type(even) {
+    background: #fbfdff !important;
+  }
+  .av2-reference-home-summary__total {
+    background: #edf5ff !important;
+  }
+
+  /* My Reports: compact calendar with visible depth. */
+  .av2-reports__calendar-wrap {
+    max-width: 690px !important;
+  }
+  .av2-cal {
+    border-color: #cbd8e7;
+    background: #ffffff;
+  }
+
+  /* Dense 30–40-row reports table: one page scroll, sticky header. */
+  .av2-reference-reports-table {
+    border-color: #cbd8e7 !important;
+    overflow: visible !important;
+  }
+  .av2-reference-reports-table__head {
+    position: sticky !important;
+    top: 0;
+    z-index: 20;
+    background: #eaf3ff !important;
+    color: #40566f !important;
+    box-shadow: 0 3px 8px rgba(30, 41, 59, 0.10);
+  }
+  .av2-reference-reports-table__row:nth-of-type(even) {
+    background: #f8fbff;
+  }
+  .av2-reference-reports-table__row:hover {
+    background: #edf5ff !important;
+  }
+  .av2-reference-reports-table__total {
+    background: #eaf3ff !important;
+  }
+
+  /* Form cards: allow custom dropdown panels to escape the card bounds. */
+  .av2-report__form {
+    position: relative;
+  }
+  .av2-form-card {
+    position: relative;
+    overflow: visible !important;
+    border-color: #cbd8e7;
+    background: #ffffff;
+  }
+  .av2-form-card:focus-within {
+    z-index: 80;
+  }
+  .av2-form-card__body {
+    border-radius: 0 0 9px 9px;
+    background: #ffffff;
+  }
+  .av2-form-section-title--activity {
+    background: #e7f8ee !important;
+  }
+  .av2-form-section-title--time {
+    background: #e7f1ff !important;
+  }
+  .av2-form-section-title--expenses {
+    background: #fff2c9 !important;
+  }
+  .av2-form-section-title--notes {
+    background: #f1e7ff !important;
+  }
+
+  .av2-ssel__panel,
+  .av2-csel__panel {
+    z-index: 200 !important;
+    border-color: #c6d2e0 !important;
+    box-shadow: 0 14px 30px rgba(15, 23, 42, 0.20), 0 3px 8px rgba(15, 23, 42, 0.10) !important;
+  }
+
+  /* Time control itself is numeric LTR: hour : minute.
+     Each dropdown remains RTL internally so Hebrew labels/chevrons stay natural. */
+  .av2-time-picker {
+    direction: ltr;
+  }
+  .av2-time-picker .av2-csel__trigger,
+  .av2-time-picker .av2-csel__panel {
+    direction: rtl;
+  }
+
+  /* Match the supplied reference:
+     row 1 = date (right) + total hours (left)
+     row 2 = start time (right) + end time (left). */
+  .av2-form-card:has(#av2-time-date) .av2-field:has(#av2-time-date) {
+    grid-column: 1 !important;
+    grid-row: 1;
+  }
+  .av2-form-card:has(#av2-time-date) .av2-report__hours-display {
+    grid-column: 2 !important;
+    grid-row: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    gap: 3px;
+    margin: 0;
+    padding: 0;
+  }
+  .av2-form-card:has(#av2-time-date) .av2-field:has(#av2-start-time-h-trigger) {
+    grid-column: 1 !important;
+    grid-row: 2;
+  }
+  .av2-form-card:has(#av2-time-date) .av2-field:has(#av2-end-time-h-trigger) {
+    grid-column: 2 !important;
+    grid-row: 2;
+  }
+  .av2-report__hours-label {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    color: var(--av2-color-text-muted);
+    text-align: start;
+  }
+  .av2-report__hours-value {
+    min-height: 38px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 10px;
+    border: 1px solid #cbd8e7;
+    border-radius: 8px;
+    background: #eef4fb;
+    color: #1749b1;
+    font-size: 1.05rem;
+    font-weight: 800;
+    line-height: 1;
+  }
+}
