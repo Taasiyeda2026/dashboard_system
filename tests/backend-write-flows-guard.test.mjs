@@ -31,6 +31,6 @@ test('updateActivityInSupabase (saveActivity) updates by row_id and merges meeti
 
 test('saveActivity re-reads the row after write and guards that requested date changes were actually applied', () => {
   mustMatch(api, /function assertSupabaseActivityUpdateApplied\(operation, requestedChanges = \{\}, returnedRow = \{\}\) \{/);
-  mustMatch(api, /activity_date_update_not_applied:\$\{key\}/);
+  mustMatch(api, /activity_update_not_applied:\$\{key\}/);
   mustMatch(api, /assertSupabaseActivityUpdateApplied\('saveActivity', changes, freshDbRow \|\| \{\}\);/);
 });
