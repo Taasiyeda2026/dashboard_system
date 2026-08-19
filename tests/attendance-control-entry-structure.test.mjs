@@ -69,8 +69,8 @@ test('admin attendance control loads every manager team from the existing roster
 });
 
 test('deploy cache markers were bumped for the unified attendance-control labels', () => {
-  assert.match(swSource, /const CACHE_VERSION = 1553;/);
-  assert.match(configSource, /attendance-control-unified-naming-sw-cache-1553-20260819-v1/);
+  assert.match(swSource, /const CACHE_VERSION = 1554;/);
+  assert.match(configSource, /attendance-control-unified-naming-sw-cache-1554-20260819-v1/);
   assert.match(indexSource, /manager-board-runtime\.js\?v=20260819-attendance-control-unify-v1/);
   assert.match(indexSource, /manager-board-workspace-runtime\.js\?v=20260819-attendance-control-unify-v1/);
 });
