@@ -252,6 +252,14 @@ function renderRecentList(recentSection, records, year, month, selectedDate, onM
 
   const list = document.createElement('div');
   list.className = 'av2-home__report-list';
+  const tableHead = document.createElement('div');
+  tableHead.className = 'av2-home__report-table-head';
+  for (const label of ['תאריך', 'פעילות', 'בית ספר', 'שעות', 'סה״כ שעות', 'נסיעות']) {
+    const cell = document.createElement('span');
+    cell.textContent = label;
+    tableHead.append(cell);
+  }
+  list.append(tableHead);
   if (!visible.length) {
     const empty = document.createElement('p');
     empty.className = 'av2-home__empty';
