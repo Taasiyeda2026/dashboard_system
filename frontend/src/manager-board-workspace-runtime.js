@@ -485,15 +485,6 @@ async function bindEmbeddedAttendance(host, roster, context) {
   host.querySelector('[data-attendance-close]')?.remove();
 }
 
-async function renderManagement(boardRoot, context, roster, renderToken) {
-  const alerts = boardRoot.querySelector('[data-manager-workspace-management-alerts]');
-  if (!alerts) return;
-  alerts.innerHTML = '<div class="manager-workspace-loading">טוען סטטוסי דיווח…</div>';
-  const summary = await loadAttendanceSummary(roster, context.ym);
-  if (renderToken !== currentRenderToken || activeTab !== 'management' || !boardRoot.isConnected) return;
-  alerts.innerHTML = managementAlertsHtml(roster, summary);
-}
-
 async function renderAttendance(boardRoot, context, roster, renderToken) {
   const view = boardRoot.querySelector('[data-manager-workspace-view]');
   if (!view) return;
@@ -501,7 +492,8 @@ async function renderAttendance(boardRoot, context, roster, renderToken) {
   const summary = await loadAttendanceSummary(roster, context.ym);
   if (renderToken !== currentRenderToken || activeTab !== 'attendance' || !boardRoot.isConnected) return;
 
-  view.innerHTML = `<section class="manager-workspace-panel manager-workspace-attendance" dir="rtl">
+  view.innerHTML = `${managementAlertsHtml(roster, summary)}
+    <section class="manager-workspace-panel manager-workspace-attendance" dir="rtl">
     <header class="manager-workspace-panel__head"><div><h2>בקרת נוכחות</h2><p>${escapeHtml(context.manager)} · ${escapeHtml(context.ym)} · צוות אחד ממקור הנתונים המרכזי</p></div><button type="button" class="manager-workspace-run-team" data-manager-attendance-run-team>פתח את בקרת כל הצוות</button></header>
     ${attendanceSummaryTableHtml(roster, summary, context.ym)}
     ${(summary.recordsError || summary.approvalsError) ? `<p class="manager-workspace-inline-error">${escapeHtml(summary.recordsError || summary.approvalsError)}</p>` : ''}
@@ -743,6 +735,11 @@ async function renderWorkspace(force = false) {
   if (!boardRoot.querySelector('[data-manager-workspace-tabs]')) return;
   applyTabVisibility(boardRoot);
 
+  // Management's KPIs/calendar/instructors render synchronously in manager-board-runtime.js and never
+  // touch the workspace alerts/view sections. Returning here (instead of loading a roster nobody uses)
+  // keeps the management tab's markup identical on first load and after every tab round-trip.
+  if (activeTab === 'management') return;
+
   const context = contextFromBoard(boardRoot);
   const signature = activeTab === 'payroll-attendance'
     ? `${context.period}|all-teams|${context.ym}|${context.schoolYear}|${activeTab}`
@@ -752,25 +749,21 @@ async function renderWorkspace(force = false) {
   boardRoot.dataset.managerWorkspaceReady = 'true';
   const renderToken = ++currentRenderToken;
 
-  const alerts = boardRoot.querySelector('[data-manager-workspace-management-alerts]');
   const view = boardRoot.querySelector('[data-manager-workspace-view]');
-  if (activeTab === 'management' && alerts) alerts.innerHTML = '<div class="manager-workspace-loading">טוען נתוני צוות…</div>';
-  if (activeTab !== 'management' && view) view.innerHTML = '<div class="manager-workspace-loading">טוען נתוני צוות…</div>';
+  if (view) view.innerHTML = '<div class="manager-workspace-loading">טוען נתוני צוות…</div>';
 
   try {
     const roster = activeTab === 'payroll-attendance'
       ? await loadAllTeamRosters(context.schoolYear)
       : await loadRoster(context.manager, context.schoolYear);
     if (renderToken !== currentRenderToken || !boardRoot.isConnected) return;
-    if (activeTab === 'management') await renderManagement(boardRoot, context, roster, renderToken);
-    else if (activeTab === 'attendance') await renderAttendance(boardRoot, context, roster, renderToken);
+    if (activeTab === 'attendance') await renderAttendance(boardRoot, context, roster, renderToken);
     else if (activeTab === 'payroll-attendance') await renderPayrollAttendanceAdmin(boardRoot, context, roster, renderToken);
     else renderTracking(boardRoot, context, roster);
   } catch (error) {
     if (renderToken !== currentRenderToken || !boardRoot.isConnected) return;
-    const target = activeTab === 'management' ? alerts : view;
-    if (target) target.innerHTML = `<div class="manager-workspace-error"><strong>לא ניתן לטעון את צוות המנהל</strong><span>${escapeHtml(error?.message || 'אירעה תקלה זמנית.')}</span><button type="button" data-manager-workspace-retry>נסה שוב</button></div>`;
-    target?.querySelector('[data-manager-workspace-retry]')?.addEventListener('click', () => {
+    if (view) view.innerHTML = `<div class="manager-workspace-error"><strong>לא ניתן לטעון את צוות המנהל</strong><span>${escapeHtml(error?.message || 'אירעה תקלה זמנית.')}</span><button type="button" data-manager-workspace-retry>נסה שוב</button></div>`;
+    view?.querySelector('[data-manager-workspace-retry]')?.addEventListener('click', () => {
       rosterCache.delete(`${context.manager}|${context.schoolYear}`);
       attendanceSummaryCache.clear();
       lastContextSignature = '';

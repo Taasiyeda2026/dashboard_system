@@ -3,6 +3,8 @@ import { supabase, waitForSupabaseAuthSession } from './supabase-client.js';
 import { activitySeasonQueryValues, normalizeGlobalActivityPeriod } from './screens/shared/summer-activity.js';
 import { activityWorkDrawerHtml } from './screens/shared/activity-detail-html.js';
 import { createSharedInteractionLayer } from './screens/shared/interactions.js';
+import { monthDayCardsHtml } from './screens/shared/day-session-cards.js';
+import { formatDateHe } from './screens/shared/format-date.js';
 import { escapeHtml } from './screens/shared/html.js';
 
 const MANAGER_BOARD_INTERACTION_ROLES = new Set(['admin', 'operation_manager', 'activities_manager', 'finance']);
@@ -64,24 +66,6 @@ function normalizeDrawerRow(row = {}) {
   };
 }
 
-function eventDescriptor(eventNode, context) {
-  const title = text(eventNode?.getAttribute('title'));
-  const parts = title.split('|').map(text);
-  const meetingPart = parts.find((part) => /^מפגש\s+\d+/.test(part)) || '';
-  const meetingNo = Number(meetingPart.match(/^מפגש\s+(\d+)/)?.[1] || 0);
-  const timePart = parts.find((part) => /^\d{1,2}:\d{2}/.test(part)) || '';
-  const startTime = normalizeClock(timePart.split(/[–-]/)[0]);
-  const day = Number(text(eventNode?.closest('.manager-board-calendar-day')?.querySelector('.manager-board-calendar-day__number')?.textContent));
-  const iso = context.ym && day ? `${context.ym}-${String(day).padStart(2, '0')}` : '';
-  return {
-    activityName: parts[0] || '',
-    school: parts[1] || '',
-    startTime,
-    meetingNo,
-    iso
-  };
-}
-
 async function loadManagerActivities(context) {
   if (!supabase || !context.manager) return [];
   const key = `${context.period}|${context.manager}`;
@@ -101,44 +85,30 @@ async function loadManagerActivities(context) {
   return rows;
 }
 
-function rowName(row) {
-  return text(row?.activity_name || row?.program_name || row?.name || row?.title);
+/** Rows (raw `activities` table records) whose date_1..date_35 fields include the given ISO day. */
+function activitiesOnDate(rows, iso) {
+  return (rows || []).filter((row) => DATE_FIELDS.some((field) => text(row?.[field]).slice(0, 10) === iso));
 }
 
-function rowSchool(row) {
+function sortDayActivities(rows) {
+  return [...rows].sort((a, b) => {
+    const aStart = normalizeClock(a?.start_time);
+    const bStart = normalizeClock(b?.start_time);
+    if (aStart !== bStart) return aStart.localeCompare(bStart);
+    return text(a?.school).localeCompare(text(b?.school), 'he');
+  });
+}
+
+function daySessionSubtitle(row) {
   return text(row?.school || row?.single_school_name || row?.legacy_school);
 }
 
-function rowHasMeeting(row, descriptor) {
-  if (!descriptor.iso) return false;
-  if (descriptor.meetingNo > 0) {
-    return text(row?.[`date_${descriptor.meetingNo}`]).slice(0, 10) === descriptor.iso;
-  }
-  return DATE_FIELDS.some((field) => text(row?.[field]).slice(0, 10) === descriptor.iso);
-}
-
-function scoreActivityMatch(row, descriptor) {
-  if (!rowHasMeeting(row, descriptor)) return -1;
-  let score = 10;
-  if (descriptor.activityName && rowName(row) === descriptor.activityName) score += 6;
-  if (descriptor.school && rowSchool(row) === descriptor.school) score += 4;
-  if (descriptor.startTime && normalizeClock(row?.start_time) === descriptor.startTime) score += 3;
-  return score;
-}
-
-async function resolveCalendarActivity(eventNode, context) {
-  const descriptor = eventDescriptor(eventNode, context);
-  const rows = await loadManagerActivities(context);
-  let best = null;
-  let bestScore = -1;
-  for (const row of rows) {
-    const score = scoreActivityMatch(row, descriptor);
-    if (score > bestScore) {
-      best = row;
-      bestScore = score;
-    }
-  }
-  return best ? normalizeDrawerRow(best) : null;
+function daySessionMeta(row) {
+  const start = normalizeClock(row?.start_time);
+  const end = normalizeClock(row?.end_time);
+  const time = start && end ? `${start}–${end}` : start;
+  const instructors = [row?.instructor_name, row?.instructor_name_2].map(text).filter(Boolean).join(' · ');
+  return [time, instructors || 'ללא מדריך'].filter(Boolean).join(' · ');
 }
 
 function hideDrawerShellHeader(contentRoot) {
@@ -151,29 +121,11 @@ function restoreDrawerShellHeader() {
   if (header) header.hidden = false;
 }
 
-async function openCalendarActivity(eventNode) {
-  const boardRoot = eventNode.closest('[data-manager-board-root]');
-  if (!boardRoot || !canUseManagerBoardInteractions()) return;
-  const context = boardContext(boardRoot);
-  if (!context.manager || !context.ym) return;
-
+/** Level 3: open the full activity detail, reusing the same shared drawer/component the month screen uses. */
+function openActivityDetailDrawer(row) {
   ui.openDrawer({
     title: '',
-    content: '<div class="ds-loading-card" dir="rtl" role="status"><div class="ds-spinner" aria-hidden="true"></div><p>טוען פרטי פעילות…</p></div>',
-    onOpen: hideDrawerShellHeader,
-    onClose: restoreDrawerShellHeader
-  });
-
-  try {
-    const row = await resolveCalendarActivity(eventNode, context);
-    const contentRoot = document.querySelector('.ds-drawer__content');
-    if (!contentRoot) return;
-    if (!row) {
-      contentRoot.innerHTML = '<div class="ds-empty" dir="rtl"><p class="ds-empty__msg">לא נמצאו פרטי הפעילות לפתיחה.</p></div>';
-      hideDrawerShellHeader(contentRoot);
-      return;
-    }
-    contentRoot.innerHTML = activityWorkDrawerHtml(row, {
+    content: activityWorkDrawerHtml(row, {
       privateNote: null,
       canEdit: false,
       canDirectEdit: false,
@@ -187,16 +139,62 @@ async function openCalendarActivity(eventNode) {
       showFinance: false,
       showFinanceFields: false,
       datesLoading: false
-    });
-    hideDrawerShellHeader(contentRoot);
-    contentRoot.scrollTop = 0;
+    }),
+    onOpen: hideDrawerShellHeader,
+    onClose: restoreDrawerShellHeader
+  });
+}
+
+/** Level 2: bind the day drawer's session cards (same `monthsession|date|RowID` contract as screens/month.js). */
+function bindDayDrawer(contentRoot, rowsByRowId) {
+  ui.bindInteractiveCards(contentRoot, (action) => {
+    if (!action.startsWith('monthsession|')) return;
+    const rowId = decodeURIComponent(action.split('|')[2] || '');
+    const row = rowsByRowId.get(rowId);
+    if (row) openActivityDetailDrawer(row);
+  });
+}
+
+/** Level 1 → Level 2: day cell click opens the day's activities, same hierarchy as screens/month.js. */
+async function openDayActivities(dayCell) {
+  const boardRoot = dayCell.closest('[data-manager-board-root]');
+  if (!boardRoot || !canUseManagerBoardInteractions()) return;
+  const context = boardContext(boardRoot);
+  const iso = dayCell.dataset.managerBoardDay || '';
+  if (!context.manager || !iso) return;
+
+  ui.openDrawer({
+    title: 'פעילויות היום',
+    content: '<div class="ds-loading-card" dir="rtl" role="status"><div class="ds-spinner" aria-hidden="true"></div><p>טוען פעילויות…</p></div>'
+  });
+
+  const dateLabel = formatDateHe(iso) || iso;
+  let dayRows;
+  try {
+    const rows = await loadManagerActivities(context);
+    dayRows = sortDayActivities(activitiesOnDate(rows, iso)).map(normalizeDrawerRow);
   } catch (error) {
-    const contentRoot = document.querySelector('.ds-drawer__content');
-    if (contentRoot) {
-      contentRoot.innerHTML = `<div class="ds-empty" dir="rtl"><p class="ds-empty__msg">לא ניתן לפתוח את הפעילות כרגע.</p><small>${escapeHtml(error?.message || '')}</small></div>`;
-      hideDrawerShellHeader(contentRoot);
-    }
+    ui.openDrawer({
+      title: dateLabel,
+      content: `<div class="ds-empty" dir="rtl"><p class="ds-empty__msg">לא ניתן לטעון את פעילויות היום כרגע.</p><small>${escapeHtml(error?.message || '')}</small></div>`
+    });
+    return;
   }
+
+  if (!dayRows.length) {
+    ui.openDrawer({
+      title: dateLabel,
+      content: '<div class="ds-empty" dir="rtl"><p class="ds-empty__msg">לא נמצאו פעילויות ליום זה.</p></div>'
+    });
+    return;
+  }
+
+  const rowsByRowId = new Map(dayRows.map((row) => [String(row.RowID || ''), row]));
+  ui.openDrawer({
+    title: `${dateLabel} · ${dayRows.length} פעילויות`,
+    content: monthDayCardsHtml(dayRows, iso, { subtitleText: daySessionSubtitle, metaText: daySessionMeta }),
+    onOpen: (contentRoot) => bindDayDrawer(contentRoot, rowsByRowId)
+  });
 }
 
 function cleanupBoardPresentation(boardRoot) {
@@ -205,30 +203,34 @@ function cleanupBoardPresentation(boardRoot) {
   const instructorsPanel = boardRoot.querySelector('.manager-board-panel--instructors');
   instructorsPanel?.querySelector('.manager-board-panel__head p')?.remove();
 
-  boardRoot.querySelectorAll('.manager-board-calendar-event').forEach((eventNode) => {
-    eventNode.setAttribute('role', 'button');
-    eventNode.setAttribute('tabindex', '0');
-    eventNode.setAttribute('aria-label', `פתיחת פעילות: ${text(eventNode.getAttribute('title'))}`);
+  boardRoot.querySelectorAll('[data-manager-board-day]').forEach((dayCell) => {
+    if (dayCell.dataset.managerBoardDayBound === 'yes') return;
+    dayCell.dataset.managerBoardDayBound = 'yes';
+    dayCell.setAttribute('role', 'button');
+    dayCell.setAttribute('tabindex', '0');
+    const dayNumber = text(dayCell.querySelector('.manager-board-calendar-day__number')?.textContent);
+    const count = text(dayCell.querySelector('.manager-board-calendar-day__count')?.textContent);
+    dayCell.setAttribute('aria-label', `יום ${dayNumber}${count ? ` — ${count}` : ''} — לחיצה לפתיחת רשימת הפעילויות`);
   });
 }
 
 function handleClick(event) {
   const target = event.target instanceof Element ? event.target : null;
   if (!target) return;
-  const calendarEvent = target.closest('.manager-board-calendar-event');
-  if (!calendarEvent) return;
+  const dayCell = target.closest('[data-manager-board-day]');
+  if (!dayCell) return;
   event.preventDefault();
   event.stopPropagation();
-  void openCalendarActivity(calendarEvent);
+  void openDayActivities(dayCell);
 }
 
 function handleKeydown(event) {
   if (event.key !== 'Enter' && event.key !== ' ') return;
   const target = event.target instanceof Element ? event.target : null;
-  const calendarEvent = target?.closest('.manager-board-calendar-event');
-  if (!calendarEvent) return;
+  const dayCell = target?.closest('[data-manager-board-day]');
+  if (!dayCell) return;
   event.preventDefault();
-  void openCalendarActivity(calendarEvent);
+  void openDayActivities(dayCell);
 }
 
 function syncPresentation() {
