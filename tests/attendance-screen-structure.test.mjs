@@ -52,7 +52,8 @@ test('Attendance calendar shows TODAY highlight and activity content in cells', 
   assert.match(calSource, /onEmptyDayClick/);
 });
 
-test('Attendance New Report keeps its compact desktop 2x2 form grid', () => {
-  assert.match(newReportStyles, /@media \(min-width: 768px\)/);
-  assert.match(newReportStyles, /\.av2-report__form\s*\{\s*grid-template-columns:\s*repeat\(2/);
+test('Attendance New Report uses stacked form sections instead of 2x2 cards', () => {
+  assert.match(newReportStyles, /\.av2-report__form\s*\{\s*display:\s*flex/);
+  assert.match(newReportStyles, /\.av2-form-section__body--times/);
+  assert.match(newReportStyles, /\.av2-form-section__body--bottom/);
 });
