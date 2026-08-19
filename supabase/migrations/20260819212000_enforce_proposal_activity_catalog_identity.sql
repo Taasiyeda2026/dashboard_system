@@ -75,12 +75,11 @@ begin
     return new;
   end if;
 
-  v_canonical_no := nullif(trim(coalesce(
-    v_catalog.activity_no,
-    v_catalog.value,
-    v_catalog.gefen_number,
-    ''
-  )), '');
+  v_canonical_no := coalesce(
+    nullif(trim(coalesce(v_catalog.activity_no, '')), ''),
+    nullif(trim(coalesce(v_catalog.value, '')), ''),
+    nullif(trim(coalesce(v_catalog.gefen_number, '')), '')
+  );
 
   if v_canonical_no is null then
     if tg_op = 'INSERT' then
@@ -90,18 +89,17 @@ begin
   end if;
 
   v_catalog_type := lower(trim(coalesce(
-    v_catalog.activity_type,
-    v_catalog.type,
-    v_catalog.parent_value,
+    nullif(trim(coalesce(v_catalog.activity_type, '')), ''),
+    nullif(trim(coalesce(v_catalog.type, '')), ''),
+    nullif(trim(coalesce(v_catalog.parent_value, '')), ''),
     ''
   )));
 
-  v_operational_name := nullif(trim(coalesce(
-    v_catalog.activity_name,
-    v_catalog.label_he,
-    v_catalog.label,
-    ''
-  )), '');
+  v_operational_name := coalesce(
+    nullif(trim(coalesce(v_catalog.activity_name, '')), ''),
+    nullif(trim(coalesce(v_catalog.label_he, '')), ''),
+    nullif(trim(coalesce(v_catalog.label, '')), '')
+  );
 
   if v_catalog_type in ('course', 'program', 'תוכנית', 'תכנית', 'קורס') then
     select nullif(trim(c.short_name), '')
