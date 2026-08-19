@@ -1,5 +1,5 @@
 /* Final manager-board cleanup: keep the agreed compact tracking view, remove the obsolete monthly-instructors panel,
-   keep month navigation arrow-only, make instructor phone chips reliably interactive, and soften important-date dates. */
+   keep month navigation arrow-only, soften important-date dates, and keep the calendar compact. */
 .manager-board-screen .manager-board-panel--instructors {
   display: none !important;
 }
@@ -8,39 +8,61 @@
   font-weight: 500 !important;
 }
 
-.manager-board-screen .manager-board-month-nav--arrows {
-  gap: 6px;
-}
-
-.manager-board-screen .manager-board-month-nav--arrows button[data-manager-board-month] {
+/* Month navigation stays arrow-only. */
+.manager-board-screen .manager-board-month-nav button[data-manager-board-month] {
   width: 34px;
   min-width: 34px;
-  height: 32px;
-  padding: 0;
-  display: inline-grid;
-  place-items: center;
-  font-size: 22px;
-  line-height: 1;
-  font-weight: 700;
+  padding-inline: 0;
+  white-space: nowrap;
+  font-size: 18px;
+  font-weight: 750;
 }
 
-.manager-board-screen .manager-board-month-nav--arrows button[data-manager-board-month]:disabled {
+.manager-board-screen .manager-board-month-nav button[data-manager-board-month]:disabled {
   cursor: not-allowed;
   opacity: .38;
 }
 
-.manager-board-screen button.manager-board-team-strip__chip[data-instructor-mobile] {
-  position: relative;
-  z-index: 1;
-  pointer-events: auto !important;
-  touch-action: manipulation;
+/* The day cell itself opens the day drawer, so the calendar only needs the activity count.
+   Activity name/time/milestone detail stays inside the drawer and full activity drawer. */
+.manager-board-screen .manager-board-calendar-event,
+.manager-board-screen .manager-board-calendar-more {
+  display: none !important;
 }
 
-.manager-board-screen button.manager-board-team-strip__chip[data-instructor-mobile].is-phone-open {
-  border-color: color-mix(in srgb, var(--manager-board-accent) 45%, #dbe3ed);
-  background: color-mix(in srgb, var(--manager-board-accent) 8%, #fff);
+.manager-board-screen .manager-board-calendar-day {
+  min-height: 82px;
+  padding: 5px 6px;
 }
 
-.manager-board-screen .manager-board-phone-popover {
-  z-index: 50;
+.manager-board-screen .manager-board-calendar-day__head {
+  min-height: 21px;
+  margin-bottom: 2px;
+}
+
+.manager-board-screen .manager-board-calendar-day__number {
+  width: 21px;
+  height: 21px;
+  font-size: 11px;
+}
+
+.manager-board-screen .manager-board-calendar-day__events {
+  gap: 2px;
+}
+
+.manager-board-screen .manager-board-calendar-day__count {
+  margin-top: 2px;
+  margin-bottom: 0;
+  font-size: 11px;
+  line-height: 1.25;
+}
+
+.manager-board-screen .manager-board-calendar__weekdays span {
+  padding-block: 7px;
+}
+
+@media (max-width: 700px) {
+  .manager-board-screen .manager-board-calendar-day {
+    min-height: 76px;
+  }
 }
