@@ -113,6 +113,7 @@ export function ensureFeature(name) {
         import('./proposal-full-clone-runtime.js?v=20260729-independent-clone-v2'),
         import('./proposal-summer-creation-retired.js?v=20260731-retire-summer-v1'),
         import('./proposal-activity-linking.js'),
+        import('./proposal-operational-name-runtime.js'),
         import('./proposal-domain-routing.js'),
         import('./proposal-editor-compact-fixes.js?v=20260804-dual-tables-v1'),
         import('./screens/client-file-layout-polish.js?v=20260721-client-file-layout-v2'),
