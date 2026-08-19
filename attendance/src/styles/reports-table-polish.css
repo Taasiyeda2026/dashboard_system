@@ -6,6 +6,7 @@
     overflow-x: hidden;
   }
 
+  /* Header and every data row use exactly the same grid so all column edges line up. */
   .av2-report-list__head,
   .av2-report-row {
     width: 100%;
@@ -21,14 +22,40 @@
       minmax(0, 1fr)     /* authority */
       minmax(0, .52fr)   /* km */
       minmax(0, .60fr)   /* expenses */
-      minmax(78px, .82fr) !important; /* actions */
-    gap: 0 4px !important;
-    padding-inline: 8px !important;
+      minmax(76px, .78fr) !important; /* actions */
+    gap: 0 !important;
+    padding-inline: 0 !important;
+    align-items: stretch !important;
   }
 
+  /* Symmetric cell rhythm: same padding and full-height vertical dividers in header + rows. */
   .av2-report-list__head > *,
   .av2-report-row > * {
     min-width: 0;
+    padding: 7px 7px;
+    box-sizing: border-box;
+    align-self: stretch;
+  }
+
+  .av2-report-list__head > * {
+    display: flex;
+    align-items: center;
+  }
+
+  .av2-report-row > * {
+    display: flex;
+    align-items: center;
+  }
+
+  /* One consistent vertical line between every pair of columns. In RTL the first
+     column is the rightmost, so the divider starts from the second grid cell. */
+  .av2-report-list__head > :not(:first-child),
+  .av2-report-row > :not(:first-child) {
+    border-inline-start: 1px solid #d9e2ec;
+  }
+
+  .av2-report-list__head > :not(:first-child) {
+    border-inline-start-color: #cfd9e5;
   }
 
   /* Center — header and values: date, start, end, total hours, km, expenses. */
@@ -39,11 +66,13 @@
   .av2-report-list__head > :nth-child(9),
   .av2-report-list__head > :nth-child(10) {
     text-align: center !important;
-    justify-self: stretch;
+    justify-content: center !important;
   }
 
   .av2-rr__date {
+    flex-direction: column;
     align-items: center !important;
+    justify-content: center !important;
     text-align: center !important;
   }
 
@@ -52,6 +81,7 @@
   .av2-rr__hours,
   .av2-rr__km,
   .av2-rr__expenses {
+    justify-content: center !important;
     text-align: center !important;
   }
 
@@ -64,12 +94,14 @@
   .av2-rr__name,
   .av2-rr__school,
   .av2-rr__authority {
+    justify-content: flex-start !important;
     text-align: right !important;
     direction: rtl;
   }
 
-  /* Actions: clearly visible, centered, and never transparent. */
+  /* Actions: visible and centered in their own symmetric column. */
   .av2-report-list__head > :nth-child(11) {
+    justify-content: center !important;
     text-align: center !important;
   }
 
