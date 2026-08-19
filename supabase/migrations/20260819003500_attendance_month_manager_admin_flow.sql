@@ -31,6 +31,11 @@ comment on column public.attendance_month_approvals.manager_pdf_version is
 comment on column public.attendance_month_approvals.manager_approved_snapshot is
   'Manager-approved attendance snapshot (rows and summary) used for final payroll approval.';
 
+-- The Round 1 migration already created this RPC with a shorter OUT row.
+-- PostgreSQL cannot change an OUT-parameter row type with CREATE OR REPLACE,
+-- so drop the old signature first and recreate it below.
+drop function if exists public.get_payroll_attendance_month_statuses(text, text[]);
+
 create or replace function public.get_payroll_attendance_month_statuses(
   p_month_key text,
   p_employee_ids text[] default null
