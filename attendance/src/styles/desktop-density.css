@@ -1,24 +1,10 @@
 /* Attendance V2 desktop density.
-   On desktop only, render the entire attendance application at 75% visual scale
-   while compensating the layout width/height so the interface still fills the viewport.
-   Mobile and tablet layouts remain unchanged. */
+   Desktop only: visually reduce the full attendance interface to 75%.
+   No width/height compensation is applied. Mobile and tablet layouts remain unchanged. */
 
 @media (min-width: 1024px) {
-  body {
-    overflow-x: hidden;
-  }
-
   #app-frame {
-    width: 133.333333%;
-    min-height: 133.333333dvh;
     zoom: 0.75;
-  }
-
-  .app-shell {
-    min-height: 133.333333dvh;
-  }
-
-  .av2-bottom-nav {
-    height: 133.333333dvh !important;
+    margin-inline: auto;
   }
 }
