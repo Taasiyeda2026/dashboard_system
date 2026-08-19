@@ -1,16 +1,17 @@
 import { escapeHtml } from './shared/html.js';
 import {
   dsPageHeader,
-  dsCard,
   dsScreenStack,
   dsEmptyState,
   dsTableWrap
 } from './shared/layout.js';
 import { attendanceMonthLabel } from './attendance-control.js';
 import {
+  FINANCE_ATTENDANCE_EXPORT_OPTIONS,
   FINANCE_HOUR_CATEGORIES,
   currentFinanceMonthKey,
   downloadFinanceAttendanceExcel,
+  normalizeFinanceAttendanceExportType,
   summarizeFinanceAttendance
 } from './finance-attendance-summary.js';
 import {
@@ -38,6 +39,10 @@ export const FINANCE_COLLECTION_ACTIVITY_PERIOD = ACTIVITY_SEASON_SCHOOL_2027;
 export {
   FINANCE_ATTENDANCE_COLUMNS,
   FINANCE_ATTENDANCE_EMPLOYMENT_SHEETS,
+  FINANCE_ATTENDANCE_EXPORT_FULL,
+  FINANCE_ATTENDANCE_EXPORT_MAOF,
+  FINANCE_ATTENDANCE_EXPORT_OPTIONS,
+  FINANCE_ATTENDANCE_EXPORT_TAASIYEDA,
   FINANCE_ATTENDANCE_GENERAL_SHEET,
   FINANCE_HOUR_CATEGORIES,
   FINANCE_MAOF_DAILY_COLUMNS,
@@ -48,11 +53,13 @@ export {
   buildMaofDailyExcelRows,
   currentFinanceMonthKey,
   financeAttendanceDisplayRow,
+  financeAttendanceExportFilename,
   financeEmploymentSheetName,
   financeHourCategory,
   formatFinanceReportedHourRanges,
   isFinalPayrollApproval,
   mergeFinanceReportedTimeRanges,
+  normalizeFinanceAttendanceExportType,
   normalizeFinanceEmploymentType,
   summarizeFinanceAttendance,
   unmappedFinanceActivityTypes
@@ -104,7 +111,7 @@ export function createFinanceVisitState(now = new Date()) {
   return {
     view: 'hub',
     attendanceMonth: currentFinanceMonthKey(now),
-    attendanceSearch: '',
+    attendanceExportType: 'full',
     attendanceByMonth: {},
     attendanceLoading: false,
     attendanceError: '',
@@ -212,10 +219,9 @@ function attendanceTableHtml(entries = []) {
 function attendanceViewHtml(data, { state } = {}) {
   const month = data.attendanceMonth || currentFinanceMonthKey();
   const monthCache = data.attendanceByMonth?.[month];
-  const search = data.attendanceSearch || '';
+  const exportType = normalizeFinanceAttendanceExportType(data.attendanceExportType);
   const summarized = summarizeFinanceAttendance(monthCache?.approvals || [], {
-    employees: data.employees || [],
-    employeeSearch: search
+    employees: data.employees || []
   });
   const loading = data.attendanceLoading;
   const error = data.attendanceError;
@@ -224,25 +230,23 @@ function attendanceViewHtml(data, { state } = {}) {
     : loading && !monthCache
       ? dsEmptyState('טוען נתוני נוכחות…')
       : attendanceTableHtml(summarized.rows);
+  const exportOptions = FINANCE_ATTENDANCE_EXPORT_OPTIONS.map((option) => `
+    <option value="${escapeHtml(option.value)}"${exportType === option.value ? ' selected' : ''}>${escapeHtml(option.label)}</option>
+  `).join('');
   return dsScreenStack(`
-    ${dsPageHeader('דיווח נוכחות', 'ריכוז נתוני נוכחות ושכר לאחר אישור סופי')}
     ${backBarHtml('דיווח נוכחות')}
-    ${dsCard({
-      title: attendanceMonthLabel(month) || 'בחירת חודש',
-      padded: true,
-      body: `
-        <div class="ds-fin-toolbar" dir="rtl">
-          <label>חודש שכר
-            <input class="ds-input" type="month" data-finance-month value="${escapeHtml(month)}">
-          </label>
-          <label>חיפוש עובד
-            <input class="ds-input" type="search" data-finance-employee-search value="${escapeHtml(search)}" placeholder="שם עובד">
-          </label>
-          <button type="button" class="ds-btn ds-btn--primary" data-finance-attendance-export>ייצוא לאקסל</button>
-        </div>
-        ${body}
-      `
-    })}
+    <div class="ds-fin-att-shell" dir="rtl">
+      <div class="ds-fin-att-toolbar">
+        <label class="ds-fin-att-field">חודש שכר
+          <input class="ds-input" type="month" data-finance-month value="${escapeHtml(month)}">
+        </label>
+        <label class="ds-fin-att-field">סוג קובץ
+          <select class="ds-input" data-finance-attendance-export-type>${exportOptions}</select>
+        </label>
+        <button type="button" class="ds-btn ds-btn--primary" data-finance-attendance-export>ייצוא לאקסל</button>
+      </div>
+      ${body}
+    </div>
   `);
 }
 
@@ -535,10 +539,14 @@ export const financeScreen = {
         const month = visit.attendanceMonth || currentFinanceMonthKey();
         const monthCache = visit.attendanceByMonth?.[month];
         const summarized = summarizeFinanceAttendance(monthCache?.approvals || [], {
-          employees: visit.employees || [],
-          employeeSearch: visit.attendanceSearch || ''
+          employees: visit.employees || []
         });
-        try { downloadFinanceAttendanceExcel(summarized.rows, month, { approvals: monthCache?.approvals || [] }); }
+        try {
+          downloadFinanceAttendanceExcel(summarized.rows, month, {
+            approvals: monthCache?.approvals || [],
+            exportType: normalizeFinanceAttendanceExportType(visit.attendanceExportType)
+          });
+        }
         catch (error) { window.alert(error?.message || 'ייצוא Excel נכשל.'); }
         return;
       }
@@ -563,6 +571,12 @@ export const financeScreen = {
     };
 
     const onChange = async (ev) => {
+      const exportTypeSelect = ev.target.closest('[data-finance-attendance-export-type]');
+      if (exportTypeSelect) {
+        visit.attendanceExportType = normalizeFinanceAttendanceExportType(exportTypeSelect.value);
+        return;
+      }
+
       const monthInput = ev.target.closest('[data-finance-month]');
       if (monthInput) {
         visit.attendanceMonth = String(monthInput.value || '').trim() || currentFinanceMonthKey();
@@ -627,12 +641,6 @@ export const financeScreen = {
           visit.collectionSearch = ev.target.value || '';
           updateFinanceCollectionBody(root, visit);
         }, 250);
-        return;
-      }
-      if (ev.target.matches('[data-finance-employee-search]')) {
-        visit.attendanceSearch = ev.target.value || '';
-        clearTimeout(root._financeSearchTimer);
-        root._financeSearchTimer = setTimeout(() => refresh(), 180);
       }
     };
 
@@ -644,7 +652,6 @@ export const financeScreen = {
       root.removeEventListener('change', onChange);
       root.removeEventListener('input', onInput);
       clearTimeout(root._financeCollectionSearchTimer);
-      clearTimeout(root._financeSearchTimer);
     };
   }
 };

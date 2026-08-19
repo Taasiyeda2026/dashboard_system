@@ -25,7 +25,16 @@ export const FINANCE_ATTENDANCE_COLUMNS = [
 
 export const FINANCE_ATTENDANCE_GENERAL_SHEET = 'נוכחות';
 export const FINANCE_ATTENDANCE_EMPLOYMENT_SHEETS = ['תעשיידע', 'מעוף', 'MANPOWER', 'עצמאי'];
+export const FINANCE_TAASIYEDA_SHEET = 'תעשיידע';
 export const FINANCE_MAOF_SHEET = 'מעוף';
+export const FINANCE_ATTENDANCE_EXPORT_FULL = 'full';
+export const FINANCE_ATTENDANCE_EXPORT_MAOF = 'maof';
+export const FINANCE_ATTENDANCE_EXPORT_TAASIYEDA = 'taasiyeda';
+export const FINANCE_ATTENDANCE_EXPORT_OPTIONS = [
+  { value: FINANCE_ATTENDANCE_EXPORT_FULL, label: 'קובץ מלא' },
+  { value: FINANCE_ATTENDANCE_EXPORT_MAOF, label: 'מעוף' },
+  { value: FINANCE_ATTENDANCE_EXPORT_TAASIYEDA, label: 'תעשיידע' }
+];
 export const FINANCE_MAOF_DAILY_COLUMNS = [
   'תאריך',
   'שם מדריך',
@@ -383,6 +392,36 @@ export function financeEmploymentSheetName(employmentType) {
   return FINANCE_ATTENDANCE_EMPLOYMENT_SHEETS.find((label) => normalizeFinanceEmploymentType(label) === key) || '';
 }
 
+export function normalizeFinanceAttendanceExportType(value) {
+  const key = String(value ?? '').trim().toLowerCase();
+  if (key === FINANCE_ATTENDANCE_EXPORT_MAOF) return FINANCE_ATTENDANCE_EXPORT_MAOF;
+  if (key === FINANCE_ATTENDANCE_EXPORT_TAASIYEDA) return FINANCE_ATTENDANCE_EXPORT_TAASIYEDA;
+  return FINANCE_ATTENDANCE_EXPORT_FULL;
+}
+
+function filterEntriesForExportType(entries = [], exportType = FINANCE_ATTENDANCE_EXPORT_FULL) {
+  const type = normalizeFinanceAttendanceExportType(exportType);
+  if (type === FINANCE_ATTENDANCE_EXPORT_MAOF) {
+    return (entries || []).filter((entry) => financeEmploymentSheetName(entry?.employmentType) === FINANCE_MAOF_SHEET);
+  }
+  if (type === FINANCE_ATTENDANCE_EXPORT_TAASIYEDA) {
+    return (entries || []).filter((entry) => financeEmploymentSheetName(entry?.employmentType) === FINANCE_TAASIYEDA_SHEET);
+  }
+  return entries || [];
+}
+
+function filterApprovalsForExportType(approvals = [], exportType = FINANCE_ATTENDANCE_EXPORT_FULL) {
+  const type = normalizeFinanceAttendanceExportType(exportType);
+  if (type === FINANCE_ATTENDANCE_EXPORT_FULL) return approvals || [];
+  return (approvals || []).filter((approval) => {
+    const rows = snapshotRows(approval);
+    const employmentType = approvalEmploymentType(approval, rows);
+    if (type === FINANCE_ATTENDANCE_EXPORT_MAOF) return financeEmploymentSheetName(employmentType) === FINANCE_MAOF_SHEET;
+    if (type === FINANCE_ATTENDANCE_EXPORT_TAASIYEDA) return financeEmploymentSheetName(employmentType) === FINANCE_TAASIYEDA_SHEET;
+    return true;
+  });
+}
+
 function appendFinanceAttendanceSheet(workbook, sheetName, entries = []) {
   const rows = buildFinanceAttendanceExcelRows(entries);
   const sheetRows = [
@@ -411,27 +450,53 @@ function appendMaofDailySheet(workbook, approvals = []) {
   XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(sheetRows), FINANCE_MAOF_SHEET);
 }
 
-export function buildFinanceAttendanceWorkbook(entries = [], { approvals = [] } = {}) {
-  const workbook = XLSX.utils.book_new();
-  appendFinanceAttendanceSheet(workbook, FINANCE_ATTENDANCE_GENERAL_SHEET, entries);
-  for (const sheetName of FINANCE_ATTENDANCE_EMPLOYMENT_SHEETS) {
-    if (sheetName === FINANCE_MAOF_SHEET) {
-      appendMaofDailySheet(workbook, approvals);
-      continue;
+export function buildFinanceAttendanceWorkbook(entries = [], { approvals = [], exportType = FINANCE_ATTENDANCE_EXPORT_FULL } = {}) {
+  const type = normalizeFinanceAttendanceExportType(exportType);
+  if (type === FINANCE_ATTENDANCE_EXPORT_FULL) {
+    const workbook = XLSX.utils.book_new();
+    appendFinanceAttendanceSheet(workbook, FINANCE_ATTENDANCE_GENERAL_SHEET, entries);
+    for (const sheetName of FINANCE_ATTENDANCE_EMPLOYMENT_SHEETS) {
+      if (sheetName === FINANCE_MAOF_SHEET) {
+        appendMaofDailySheet(workbook, approvals);
+        continue;
+      }
+      const typed = (entries || []).filter((entry) => financeEmploymentSheetName(entry?.employmentType) === sheetName);
+      appendFinanceAttendanceSheet(workbook, sheetName, typed);
     }
-    const typed = (entries || []).filter((entry) => financeEmploymentSheetName(entry?.employmentType) === sheetName);
-    appendFinanceAttendanceSheet(workbook, sheetName, typed);
+    return workbook;
   }
+  if (type === FINANCE_ATTENDANCE_EXPORT_MAOF) {
+    const workbook = XLSX.utils.book_new();
+    appendMaofDailySheet(workbook, filterApprovalsForExportType(approvals, type));
+    return workbook;
+  }
+  const workbook = XLSX.utils.book_new();
+  appendFinanceAttendanceSheet(
+    workbook,
+    FINANCE_TAASIYEDA_SHEET,
+    filterEntriesForExportType(entries, type)
+  );
   return workbook;
 }
 
-export function financeAttendanceExportFilename(monthKey) {
+export function financeAttendanceExportFilename(monthKey, exportType = FINANCE_ATTENDANCE_EXPORT_FULL) {
   const label = attendanceMonthLabel(monthKey) || txt(monthKey) || 'חודש';
-  return `דיווח_נוכחות_${label.replace(/\s+/g, '_')}.xlsx`;
+  const type = normalizeFinanceAttendanceExportType(exportType);
+  const suffix = type === FINANCE_ATTENDANCE_EXPORT_MAOF
+    ? 'מעוף'
+    : type === FINANCE_ATTENDANCE_EXPORT_TAASIYEDA
+      ? 'תעשיידע'
+      : 'מלא';
+  return `דיווח_נוכחות_${suffix}_${label.replace(/\s+/g, '_')}.xlsx`;
 }
 
 export function downloadFinanceAttendanceExcel(entries = [], monthKey = '', options = {}) {
-  XLSX.writeFile(buildFinanceAttendanceWorkbook(entries, options), financeAttendanceExportFilename(monthKey), { compression: true });
+  const exportType = normalizeFinanceAttendanceExportType(options.exportType);
+  XLSX.writeFile(
+    buildFinanceAttendanceWorkbook(entries, { ...options, exportType }),
+    financeAttendanceExportFilename(monthKey, exportType),
+    { compression: true }
+  );
 }
 
 export function currentFinanceMonthKey(now = new Date()) {

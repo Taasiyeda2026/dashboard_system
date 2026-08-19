@@ -99,3 +99,4 @@ config.HOTFIX_VERSION = `finance-attendance-excel-employment-sheets-sw-cache-156
 config.HOTFIX_VERSION = `finance-maof-daily-excel-sw-cache-1561-20260819-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `finance-collection-end-month-ui-sw-cache-1563-20260819-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `finance-collection-search-grouping-width-sw-cache-1564-20260819-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `finance-attendance-compact-export-ui-sw-cache-1565-20260819-v1-${config.HOTFIX_VERSION}`;

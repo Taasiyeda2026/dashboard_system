@@ -14435,6 +14435,31 @@ select.ds-input {
 .ds-fin-collect-shell .ds-table-wrap {
   overflow-x: auto;
 }
+.ds-fin-att-shell {
+  width: min(100%, 1100px);
+  margin: 0 auto;
+  padding: 0 12px 28px;
+}
+.ds-fin-att-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.ds-fin-att-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.78rem;
+  color: var(--ds-text-muted);
+}
+.ds-fin-att-field .ds-input {
+  min-width: 0;
+}
+.ds-fin-att-toolbar .ds-btn {
+  margin-inline-start: auto;
+}
 .ds-fin-collect-summary {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

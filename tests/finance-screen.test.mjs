@@ -9,6 +9,10 @@ import {
   financeScreen,
   FINANCE_ATTENDANCE_COLUMNS,
   FINANCE_ATTENDANCE_EMPLOYMENT_SHEETS,
+  FINANCE_ATTENDANCE_EXPORT_FULL,
+  FINANCE_ATTENDANCE_EXPORT_MAOF,
+  FINANCE_ATTENDANCE_EXPORT_OPTIONS,
+  FINANCE_ATTENDANCE_EXPORT_TAASIYEDA,
   FINANCE_ATTENDANCE_GENERAL_SHEET,
   FINANCE_COLLECTION_ACTIVITY_PERIOD,
   FINANCE_MAOF_DAILY_COLUMNS,
@@ -20,6 +24,7 @@ import {
   filterFinanceCollectionActivities,
   financeActivityEndDate,
   financeActivityEndMonthKey,
+  financeAttendanceExportFilename,
   financeCollectionSearchHaystack,
   financeEmploymentSheetName,
   financeHourCategory,
@@ -33,6 +38,7 @@ import {
   isGefenFunding,
   mapLegacyPaymentCollected,
   mergeFinanceReportedTimeRanges,
+  normalizeFinanceAttendanceExportType,
   normalizeFinanceEmploymentType,
   summarizeFinanceCollectionTotals,
   summarizeFinanceAttendance,
@@ -314,6 +320,85 @@ function attendanceHtml(rows) {
   };
   return financeScreen.render(data, { state: { user: financeUser } });
 }
+
+test('attendance view uses a compact shell without employee search and with three export types', () => {
+  const html = attendanceHtml([]);
+  assert.match(html, /ds-fin-att-shell/);
+  assert.match(html, /data-finance-attendance-export-type/);
+  assert.match(html, /data-finance-month/);
+  assert.match(html, /data-finance-attendance-export/);
+  assert.doesNotMatch(html, /data-finance-employee-search/);
+  assert.doesNotMatch(html, /ds-page-header/);
+  assert.doesNotMatch(html, /ds-card/);
+  const dom = new JSDOM(html);
+  const options = [...dom.window.document.querySelectorAll('[data-finance-attendance-export-type] option')];
+  assert.equal(options.length, 3);
+  assert.deepEqual(options.map((option) => option.value), FINANCE_ATTENDANCE_EXPORT_OPTIONS.map((item) => item.value));
+  assert.deepEqual(options.map((option) => option.textContent.trim()), FINANCE_ATTENDANCE_EXPORT_OPTIONS.map((item) => item.label));
+  assert.equal(dom.window.document.querySelectorAll('.ds-fin-backbar strong').length, 1);
+  assert.match(dom.window.document.querySelector('.ds-fin-backbar strong')?.textContent || '', /דיווח נוכחות/);
+});
+
+test('attendance export type normalization defaults to full workbook', () => {
+  assert.equal(normalizeFinanceAttendanceExportType(''), FINANCE_ATTENDANCE_EXPORT_FULL);
+  assert.equal(normalizeFinanceAttendanceExportType('MAOF'), FINANCE_ATTENDANCE_EXPORT_MAOF);
+  assert.equal(normalizeFinanceAttendanceExportType('taasiyeda'), FINANCE_ATTENDANCE_EXPORT_TAASIYEDA);
+});
+
+test('attendance maof export keeps only the maof daily sheet', () => {
+  const approvals = [
+    approval({
+      employee_id: '2',
+      employee_name: 'עובד מעוף',
+      rows: [snapshotRow({
+        employeeId: '2',
+        employeeName: 'עובד מעוף',
+        employmentType: 'מעוף',
+        activityType: 'סדנה',
+        workHours: 3,
+        startTime: '10:00',
+        endTime: '13:00',
+        authority: 'רחובות'
+      })]
+    }),
+    approval({
+      employee_id: '1',
+      employee_name: 'עובדת תעשיידע',
+      rows: [snapshotRow({ employeeId: '1', employeeName: 'עובדת תעשיידע', employmentType: 'תעשיידע', activityType: 'קורס', workHours: 2 })]
+    })
+  ];
+  const entries = summarizeFinanceAttendance(approvals).rows;
+  const workbook = buildFinanceAttendanceWorkbook(entries, {
+    approvals,
+    exportType: FINANCE_ATTENDANCE_EXPORT_MAOF
+  });
+  assert.deepEqual(workbook.SheetNames, [FINANCE_MAOF_SHEET]);
+  assert.deepEqual(sheetAoa(workbook, FINANCE_MAOF_SHEET).slice(1).map((row) => row[1]), ['עובד מעוף']);
+  assert.match(financeAttendanceExportFilename('2026-08', FINANCE_ATTENDANCE_EXPORT_MAOF), /מעוף/);
+});
+
+test('attendance taasiyeda export keeps only taasiyeda monthly rows', () => {
+  const approvals = [
+    approval({
+      employee_id: '1',
+      employee_name: 'עובדת תעשיידע',
+      rows: [snapshotRow({ employeeId: '1', employeeName: 'עובדת תעשיידע', employmentType: 'תעשיידע', activityType: 'קורס', workHours: 2 })]
+    }),
+    approval({
+      employee_id: '2',
+      employee_name: 'עובד מעוף',
+      rows: [snapshotRow({ employeeId: '2', employeeName: 'עובד מעוף', employmentType: 'מעוף', activityType: 'סדנה', workHours: 3 })]
+    })
+  ];
+  const entries = summarizeFinanceAttendance(approvals).rows;
+  const workbook = buildFinanceAttendanceWorkbook(entries, {
+    approvals,
+    exportType: FINANCE_ATTENDANCE_EXPORT_TAASIYEDA
+  });
+  assert.deepEqual(workbook.SheetNames, ['תעשיידע']);
+  assert.deepEqual(sheetEmployeeNames(workbook, 'תעשיידע'), ['עובדת תעשיידע']);
+  assert.match(financeAttendanceExportFilename('2026-08', FINANCE_ATTENDANCE_EXPORT_TAASIYEDA), /תעשיידע/);
+});
 
 test('unmapped approved activity types are identified and not arbitrarily bucketed', () => {
   assert.equal(financeHourCategory('חדר בריחה'), '');
