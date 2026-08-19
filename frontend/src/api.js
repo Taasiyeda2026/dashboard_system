@@ -676,9 +676,11 @@ function normalizeActivityTypeValue(value) {
   const compact = canonicalActivityTypeToken(raw).replace(/_/g, '');
   const oneDayType = canonicalOneDayActivityType(raw);
   if (oneDayType) return oneDayType;
-  if (compact === 'course' || raw === 'קורס' || raw === 'קורסים') return 'course';
+  if (compact === 'course' || raw === 'קורס' || raw === 'קורסים' || raw === 'תוכנית' || raw === 'תכנית' || compact === 'program' || compact === 'programs') return 'course';
   if (compact === 'afterschool' || raw === 'חוג אפטרסקול' || raw === 'אפטרסקול') return 'after_school';
-  return lower || raw;
+  const canonical = ['course', 'workshop', 'escape_room', 'tour', 'after_school'];
+  if (canonical.includes(lower)) return lower;
+  return '';
 }
 
 function rowActivityType(row = {}) {
@@ -5568,6 +5570,8 @@ function sanitizeActivityPayloadForSupabase(payload = {}, { includeRowId = true 
       nextValue = normalizeDateFieldForSupabase(rawValue);
     } else if (key === 'activity_season') {
       nextValue = normalizeActivitySeason(rawValue);
+    } else if (key === 'activity_type' || key === 'item_type') {
+      nextValue = normalizeActivityTypeValue(rawValue) || null;
     } else if (key === 'exists_in_gefen' || key === 'activity_name_override') {
       nextValue = normalizeBooleanFieldForSupabase(rawValue);
     } else if (key === 'participants_count') {

@@ -3,7 +3,7 @@ import { showToast } from './toast.js';
 import { formatDateHe } from './format-date.js';
 import { escapeHtml } from './html.js';
 import { syncActivityEndTimeOptions } from './activity-time-options.js';
-import { activityTypeMatches, getValidInstructorUsers, humanDisplayText, INSTRUCTOR_CONTACTS_MISSING_ERROR_MESSAGE, INSTRUCTOR_IDENTITY_ERROR_MESSAGE, normalizeActivityTypeKey, normalizeOneDayActivityType, resolveInstructorSelectionByEmpId, validateInstructorIdentityPayload } from './activity-options.js';
+import { activityTypeMatches, getValidInstructorUsers, humanDisplayText, INSTRUCTOR_CONTACTS_MISSING_ERROR_MESSAGE, INSTRUCTOR_IDENTITY_ERROR_MESSAGE, isCanonicalActivityTypeKey, normalizeActivityTypeKey, normalizeOneDayActivityType, resolveInstructorSelectionByEmpId, validateInstructorIdentityPayload } from './activity-options.js';
 import { catalogActivityChangesFromSelection, selectedActivityCatalogIdentity, syncActivityCatalogIdentityFromName } from '../../activity-catalog-identity.js';
 import { state } from '../../state.js';
 import { validateCourseFundingSplit } from '../../activity-funding-picker-compact.js';
@@ -105,9 +105,9 @@ function validateActivityTypeAndName(form, statusEl) {
   const nameSel = form.querySelector('[data-role="activity-name-select"]');
   if (!typeEl || !nameSel) return true;
   const selectedType = normalizeActivityTypeKey(typeEl.value);
-  if (!selectedType) {
-    setStatus(statusEl, 'is-error', 'יש לבחור סוג פעילות לפני שם פעילות');
-    showToast('יש לבחור סוג פעילות לפני שם פעילות', 'error', 2600);
+  if (!selectedType || !isCanonicalActivityTypeKey(selectedType)) {
+    setStatus(statusEl, 'is-error', 'יש לבחור סוג פעילות חוקי');
+    showToast('יש לבחור סוג פעילות חוקי', 'error', 2600);
     return false;
   }
   const optionList = Array.from(nameSel.options).filter((opt) => String(opt.value || '').trim());
@@ -456,6 +456,24 @@ export function bindActivityEditForm(contentRoot, {
       // A user-entered name remains a manual override. A normal catalog
       // selection above is explicitly marked as catalog-controlled instead.
       changes.activity_name_override = true;
+    }
+
+    const initialType = normalizeActivityTypeKey(initialValues.activity_type || initialValues.item_type || '');
+    const selectedType = normalizeActivityTypeKey(form.querySelector('[name="activity_type"]')?.value || '');
+    const userChangedActivityType = selectedType !== initialType;
+    if (Object.prototype.hasOwnProperty.call(changes, 'activity_type') && !userChangedActivityType && !catalogSelectionChanged) {
+      delete changes.activity_type;
+      delete changes.item_type;
+    }
+    if (Object.prototype.hasOwnProperty.call(changes, 'activity_type')) {
+      const canonicalType = normalizeActivityTypeKey(changes.activity_type);
+      if (!canonicalType) {
+        delete changes.activity_type;
+        delete changes.item_type;
+      } else {
+        changes.activity_type = canonicalType;
+        changes.item_type = canonicalType;
+      }
     }
 
     const effectiveType = normalizeOneDayActivityType(changes.activity_type || initialValues.activity_type || '');
