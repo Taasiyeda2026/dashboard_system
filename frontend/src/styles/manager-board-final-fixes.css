@@ -1,5 +1,5 @@
 /* Final manager-board cleanup: keep the agreed compact tracking view, remove the obsolete monthly-instructors panel,
-   clarify month navigation in management, and soften dates in the important-dates list. */
+   keep month navigation arrow-only, make instructor phone chips reliably interactive, and soften important-date dates. */
 .manager-board-screen .manager-board-panel--instructors {
   display: none !important;
 }
@@ -8,28 +8,39 @@
   font-weight: 500 !important;
 }
 
-.manager-board-screen .manager-board-month-nav--labeled {
+.manager-board-screen .manager-board-month-nav--arrows {
   gap: 6px;
 }
 
-.manager-board-screen .manager-board-month-nav--labeled button[data-manager-board-month] {
-  width: auto;
-  min-width: 86px;
-  padding-inline: 10px;
-  white-space: nowrap;
-  font-size: 11px;
-  font-weight: 750;
+.manager-board-screen .manager-board-month-nav--arrows button[data-manager-board-month] {
+  width: 34px;
+  min-width: 34px;
+  height: 32px;
+  padding: 0;
+  display: inline-grid;
+  place-items: center;
+  font-size: 22px;
+  line-height: 1;
+  font-weight: 700;
 }
 
-.manager-board-screen .manager-board-month-nav--labeled button[data-manager-board-month]:disabled {
+.manager-board-screen .manager-board-month-nav--arrows button[data-manager-board-month]:disabled {
   cursor: not-allowed;
   opacity: .38;
 }
 
-@media (max-width: 700px) {
-  .manager-board-screen .manager-board-month-nav--labeled button[data-manager-board-month] {
-    min-width: 72px;
-    padding-inline: 7px;
-    font-size: 10px;
-  }
+.manager-board-screen button.manager-board-team-strip__chip[data-instructor-mobile] {
+  position: relative;
+  z-index: 1;
+  pointer-events: auto !important;
+  touch-action: manipulation;
+}
+
+.manager-board-screen button.manager-board-team-strip__chip[data-instructor-mobile].is-phone-open {
+  border-color: color-mix(in srgb, var(--manager-board-accent) 45%, #dbe3ed);
+  background: color-mix(in srgb, var(--manager-board-accent) 8%, #fff);
+}
+
+.manager-board-screen .manager-board-phone-popover {
+  z-index: 50;
 }
