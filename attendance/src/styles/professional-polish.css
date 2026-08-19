@@ -186,3 +186,15 @@
     line-height: 1;
   }
 }
+
+/* My Reports must use the canonical 11-column table from my-reports-screen.js.
+   reference-data-layout.js creates a legacy 9-column presentation table that omits
+   activity name and expenses. Keep that generated table out of the Reports screen
+   and expose the complete source table instead. */
+.av2-reports__content > .av2-reference-reports-table {
+  display: none !important;
+}
+
+.av2-reports__content > .av2-reference-reports-table + .av2-report-list {
+  display: flex !important;
+}
