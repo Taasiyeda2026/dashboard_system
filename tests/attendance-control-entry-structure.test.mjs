@@ -23,6 +23,7 @@ test('instructors, manager board, and admin use the new attendance-control names
   assert.match(workspaceSource, /<h2>בקרת נוכחות אדמין<\/h2>/);
   assert.match(adminHomeSource, /title: 'בקרת נוכחות אדמין'/);
   assert.match(attendanceSource, /data-attendance-title>בקרת נוכחות</);
+  assert.match(attendanceSource, /אישור בקרת נוכחות/);
   assert.match(launcherSource, /popup\.document\.title = 'בקרת נוכחות'/);
 });
 
