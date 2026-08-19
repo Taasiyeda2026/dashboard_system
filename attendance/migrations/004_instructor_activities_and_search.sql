@@ -56,7 +56,7 @@ AS $$
       WHERE acs.activity_id = a.id
     ) linked ON true
     WHERE (
-        btrim(COALESCE(a.emp_id, '')) = p_emp_id::text
+        a.emp_id = p_emp_id
         OR btrim(COALESCE(a.emp_id_2, '')) = p_emp_id::text
       )
       AND COALESCE(a.status, '') NOT IN ('נמחק', 'בוטל', 'cancelled', 'canceled', 'deleted')
