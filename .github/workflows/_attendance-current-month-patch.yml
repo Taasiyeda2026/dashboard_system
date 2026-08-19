@@ -1,0 +1,277 @@
+name: Attendance current-month patch
+
+on:
+  push:
+    branches:
+      - fix-attendance-current-month-monitoring
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix-attendance-current-month-monitoring
+          fetch-depth: 0
+      - name: Apply focused frontend patch
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path, old, new):
+              p = Path(path)
+              text = p.read_text()
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"{path}: expected one match, found {count}\n--- old ---\n{old}")
+              p.write_text(text.replace(old, new, 1))
+
+          manager = 'frontend/src/manager-board-workspace-runtime.js'
+
+          replace_once(manager,
+          "const attendanceSummaryCache = new Map();\n",
+          "const attendanceSummaryCache = new Map();\nlet attendanceYm = '';\n")
+
+          replace_once(manager,
+          "function text(value) {\n  return String(value ?? '').trim().replace(/\\s+/g, ' ');\n}\n\nfunction role() {",
+          "function text(value) {\n  return String(value ?? '').trim().replace(/\\s+/g, ' ');\n}\n\nfunction currentMonthKey() {\n  const now = new Date();\n  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;\n}\n\nfunction shiftAttendanceMonth(ym, delta) {\n  const match = text(ym).match(/^(20\\d{2})-(\\d{2})$/);\n  if (!match) return currentMonthKey();\n  const date = new Date(Number(match[1]), Number(match[2]) - 1 + delta, 1);\n  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;\n}\n\nfunction attendanceMonthLabel(ym) {\n  const match = text(ym).match(/^(20\\d{2})-(\\d{2})$/);\n  if (!match) return ym;\n  return new Intl.DateTimeFormat('he-IL', { month: 'long', year: 'numeric' }).format(new Date(Number(match[1]), Number(match[2]) - 1, 1));\n}\n\nfunction attendanceMonthMode(ym) {\n  const current = currentMonthKey();\n  if (ym === current) return { key: 'current', label: 'בקרה שוטפת' };\n  if (ym < current) return { key: 'closed', label: 'בקרה ואישור' };\n  return { key: 'future', label: 'חודש עתידי' };\n}\n\nfunction attendanceMinMonth(period = periodKey()) {\n  const periodMin = period === 'school_2027' ? '2026-09' : '2025-09';\n  const current = currentMonthKey();\n  return current < periodMin ? current : periodMin;\n}\n\nfunction role() {")
+
+          replace_once(manager,
+          "function contextFromBoard(boardRoot) {\n  const period = periodKey();\n  const manager = currentManagerName(boardRoot);\n  const ym = currentMonth(boardRoot, period);\n  const schoolYear = schoolYearForPeriod(period);\n  return { period, manager, ym, schoolYear };\n}",
+          "function contextFromBoard(boardRoot) {\n  const period = periodKey();\n  const manager = currentManagerName(boardRoot);\n  const ym = activeTab === 'attendance' ? (attendanceYm || currentMonthKey()) : currentMonth(boardRoot, period);\n  const schoolYear = schoolYearForPeriod(period);\n  return { period, manager, ym, schoolYear };\n}")
+
+          replace_once(manager,
+          "function resetBoardMonthIfNeeded(boardRoot) {\n  if (!resetMonthOnNextBoard) return false;",
+          "function resetBoardMonthIfNeeded(boardRoot) {\n  if (activeTab === 'attendance') {\n    resetMonthOnNextBoard = false;\n    return false;\n  }\n  if (!resetMonthOnNextBoard) return false;")
+
+          replace_once(manager,
+          "function applyTabVisibility(boardRoot) {",
+          "function syncAttendanceMonthNav(boardRoot) {\n  if (!boardRoot || activeTab !== 'attendance') return;\n  const nav = boardRoot.querySelector('.manager-board-month-nav');\n  const label = nav?.querySelector('strong');\n  const previous = nav?.querySelector('[data-manager-board-month=\"-1\"]');\n  const next = nav?.querySelector('[data-manager-board-month=\"1\"]');\n  if (!nav || !label || !previous || !next) return;\n  if (nav.dataset.attendanceMonthPatched !== 'true') {\n    nav.dataset.attendanceMonthPatched = 'true';\n    nav.dataset.attendanceOriginalLabel = label.textContent || '';\n    nav.dataset.attendanceOriginalPreviousDisabled = previous.disabled ? 'true' : 'false';\n    nav.dataset.attendanceOriginalNextDisabled = next.disabled ? 'true' : 'false';\n  }\n  if (!attendanceYm) attendanceYm = currentMonthKey();\n  label.textContent = attendanceMonthLabel(attendanceYm);\n  previous.disabled = shiftAttendanceMonth(attendanceYm, -1) < attendanceMinMonth();\n  next.disabled = shiftAttendanceMonth(attendanceYm, 1) > currentMonthKey();\n}\n\nfunction restoreAttendanceMonthNav(boardRoot) {\n  const nav = boardRoot?.querySelector('.manager-board-month-nav');\n  if (!nav || nav.dataset.attendanceMonthPatched !== 'true') return;\n  const label = nav.querySelector('strong');\n  const previous = nav.querySelector('[data-manager-board-month=\"-1\"]');\n  const next = nav.querySelector('[data-manager-board-month=\"1\"]');\n  if (label) label.textContent = nav.dataset.attendanceOriginalLabel || label.textContent;\n  if (previous) previous.disabled = nav.dataset.attendanceOriginalPreviousDisabled === 'true';\n  if (next) next.disabled = nav.dataset.attendanceOriginalNextDisabled === 'true';\n  delete nav.dataset.attendanceMonthPatched;\n  delete nav.dataset.attendanceOriginalLabel;\n  delete nav.dataset.attendanceOriginalPreviousDisabled;\n  delete nav.dataset.attendanceOriginalNextDisabled;\n}\n\nfunction applyTabVisibility(boardRoot) {")
+
+          old_handle = '''function handleWorkspaceClick(event) {
+  const target = event.target instanceof Element ? event.target : null;
+  if (!target) return;
+
+  if (target.closest('[data-manager-board-open]')) {
+    resetMonthOnNextBoard = true;
+    return;
+  }
+
+  const button = target.closest('[data-manager-workspace-tab]');
+  if (!button || !canUseWorkspace()) return;
+  const boardRoot = button.closest('[data-manager-board-root]');
+  if (!boardRoot) return;
+  const next = button.dataset.managerWorkspaceTab;
+  if (!workspaceTabs().includes(next)) return;
+
+  event.preventDefault();
+  setActiveTab(next);
+  embeddedAttendanceSignature = '';
+  lastContextSignature = '';
+  applyTabVisibility(boardRoot);
+  void renderWorkspace(true);
+}'''
+          new_handle = '''function handleWorkspaceClick(event) {
+  const target = event.target instanceof Element ? event.target : null;
+  if (!target) return;
+
+  if (activeTab === 'attendance') {
+    const monthButton = target.closest('[data-manager-board-month]');
+    const monthBoardRoot = monthButton?.closest('[data-manager-board-root]');
+    if (monthButton && monthBoardRoot) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      const delta = Number(monthButton.dataset.managerBoardMonth || 0);
+      if (!delta) return;
+      const nextMonth = shiftAttendanceMonth(attendanceYm || currentMonthKey(), delta);
+      if (nextMonth < attendanceMinMonth() || nextMonth > currentMonthKey()) return;
+      attendanceYm = nextMonth;
+      syncAttendanceMonthNav(monthBoardRoot);
+      embeddedAttendanceSignature = '';
+      lastContextSignature = '';
+      void renderWorkspace(true);
+      return;
+    }
+  }
+
+  if (target.closest('[data-manager-board-open]')) {
+    resetMonthOnNextBoard = true;
+    return;
+  }
+
+  const button = target.closest('[data-manager-workspace-tab]');
+  if (!button || !canUseWorkspace()) return;
+  const boardRoot = button.closest('[data-manager-board-root]');
+  if (!boardRoot) return;
+  const next = button.dataset.managerWorkspaceTab;
+  if (!workspaceTabs().includes(next)) return;
+
+  event.preventDefault();
+  if (activeTab === 'attendance' && next !== 'attendance') restoreAttendanceMonthNav(boardRoot);
+  setActiveTab(next);
+  if (next === 'attendance') {
+    attendanceYm = currentMonthKey();
+    syncAttendanceMonthNav(boardRoot);
+  }
+  embeddedAttendanceSignature = '';
+  lastContextSignature = '';
+  applyTabVisibility(boardRoot);
+  void renderWorkspace(true);
+}'''
+          replace_once(manager, old_handle, new_handle)
+
+          replace_once(manager,
+          "function attendanceStatusBadge(count, approval) {\n  if (!count) return '<span class=\"manager-workspace-status is-muted\">אין דיווח</span>';\n  if (approval) return '<span class=\"manager-workspace-status is-ok\">✓ אושר</span>';\n  return '<span class=\"manager-workspace-status is-pending\">טרם אושר</span>';\n}",
+          "function attendanceStatusBadge(count, approval, ym) {\n  if (!count) return '<span class=\"manager-workspace-status is-muted\">אין דיווח</span>';\n  if (attendanceMonthMode(ym).key === 'current') return '<span class=\"manager-workspace-status is-pending\">בקרה שוטפת</span>';\n  if (approval) return '<span class=\"manager-workspace-status is-ok\">✓ אושר</span>';\n  return '<span class=\"manager-workspace-status is-pending\">טרם אושר</span>';\n}")
+
+          replace_once(manager,
+          "<td>${attendanceStatusBadge(count, approval)}${approvedAt ? `<small>${escapeHtml(approvedAt)}</small>` : ''}</td>",
+          "<td>${attendanceStatusBadge(count, approval, ym)}${approvedAt ? `<small>${escapeHtml(approvedAt)}</small>` : ''}</td>")
+
+          replace_once(manager,
+          "  const attendance = await import('./screens/attendance-control.js');\n  host.innerHTML = `${attendance.attendanceControlStylesHtml()}${attendance.attendanceControlHtml()}`;",
+          "  const attendance = await import('./screens/attendance-control.js');\n  const monthMode = attendanceMonthMode(context.ym);\n  host.dataset.managerAttendanceMonthMode = monthMode.key;\n  host.innerHTML = `<style>\n    [data-manager-attendance-host][data-manager-attendance-month-mode=\"current\"] .attendance-control__employee > .attendance-control__employee-actions,\n    [data-manager-attendance-host][data-manager-attendance-month-mode=\"future\"] .attendance-control__employee > .attendance-control__employee-actions { display:none !important; }\n  </style>${attendance.attendanceControlStylesHtml()}${attendance.attendanceControlHtml()}`;\n  if (host.dataset.managerAttendanceApprovalGuard !== 'true') {\n    host.dataset.managerAttendanceApprovalGuard = 'true';\n    host.addEventListener('click', (event) => {\n      const target = event.target instanceof Element ? event.target : null;\n      if (!target?.closest('[data-payroll-finish]')) return;\n      if (host.dataset.managerAttendanceMonthMode === 'closed') return;\n      event.preventDefault();\n      event.stopImmediatePropagation();\n    }, true);\n  }")
+
+          replace_once(manager,
+          "    <header class=\"manager-workspace-panel__head\"><div><h2>בקרת נוכחות</h2><p>${escapeHtml(context.manager)} · ${escapeHtml(context.ym)} · צוות אחד ממקור הנתונים המרכזי</p></div></header>",
+          "    <header class=\"manager-workspace-panel__head\"><div><h2>בקרת נוכחות</h2><p>${escapeHtml(context.manager)} · ${escapeHtml(context.ym)} · ${escapeHtml(attendanceMonthMode(context.ym).label)}</p></div></header>")
+
+          replace_once(manager,
+          "  if (resetBoardMonthIfNeeded(boardRoot)) return;\n  void renderWorkspace(false);",
+          "  if (activeTab === 'attendance') syncAttendanceMonthNav(boardRoot);\n  if (resetBoardMonthIfNeeded(boardRoot)) return;\n  void renderWorkspace(false);")
+
+          admin = 'frontend/src/admin-attendance-standalone.js'
+
+          replace_once(admin,
+          "function currentMonthKey() {\n  const now = new Date();\n  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;\n}\n",
+          "function currentMonthKey() {\n  const now = new Date();\n  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;\n}\n\nfunction monthMode(monthKey) {\n  const current = currentMonthKey();\n  if (monthKey === current) return { key: 'current', label: 'בקרה שוטפת' };\n  if (monthKey < current) return { key: 'closed', label: 'בקרה ואישור' };\n  return { key: 'future', label: 'חודש עתידי' };\n}\n\nfunction recordMonthKey(row = {}) {\n  const raw = row.attendanceDate || row.AttendanceDate || row.report_date || row.date;\n  if (raw instanceof Date && !Number.isNaN(raw.getTime())) {\n    return `${raw.getFullYear()}-${String(raw.getMonth() + 1).padStart(2, '0')}`;\n  }\n  const value = text(raw);\n  let match = value.match(/^(20\\d{2})-(\\d{2})/);\n  if (match) return `${match[1]}-${match[2]}`;\n  match = value.match(/^\\d{1,2}[/.\\-](\\d{1,2})[/.\\-](20\\d{2})$/);\n  return match ? `${match[2]}-${String(match[1]).padStart(2, '0')}` : '';\n}\n")
+
+          replace_once(admin,
+          "function employeeId(row = {}) {\n  return text(row.emp_id || row.employee_id || row.employeeId);\n}",
+          "function employeeId(row = {}) {\n  return text(row.emp_id || row.employee_id || row.employeeId || row.EmployeeId || row.empNum || row.ID || row.id);\n}")
+
+          replace_once(admin,
+          "    .admin-attendance-standalone__top h1 { margin:0 0 4px; font-size:26px; line-height:1.2; }\n    .admin-attendance-standalone__top p { margin:0; color:var(--color-text-secondary,#64748b); font-size:13px; }",
+          "    .admin-attendance-standalone__top h1 { margin:0; font-size:26px; line-height:1.2; }\n    .admin-attendance-standalone__mode { display:inline-flex; margin-top:6px; border-radius:999px; padding:4px 8px; background:#eef2ff; color:#334155; font-size:11px; font-weight:700; }")
+
+          old_actions = '''function actionButtons(empId, workflowRow, finalApproval) {
+  const status = workflowStatus(workflowRow, finalApproval);
+  const finalButton = status.raw === 'manager_approved' && !finalApproval
+    ? `<button type="button" class="is-primary" data-admin-attendance-final="${escapeHtml(empId)}">אישור סופי</button>`
+    : '';
+  const managerPdfUrl = text(workflowRow.manager_pdf_sharepoint_url);
+  const finalPdfPath = text(finalApproval?.pdf_path);
+  const pdfButton = managerPdfUrl || finalPdfPath
+    ? `<button type="button" data-admin-attendance-pdf="${escapeHtml(empId)}">צפייה ב-PDF</button>`
+    : '';
+  const releaseButton = ['submitted', 'manager_approved', 'approved'].includes(status.raw)
+    ? `<button type="button" data-admin-attendance-release="${escapeHtml(empId)}">שחרור נעילה</button>`
+    : '';
+  return `<div class="admin-attendance-actions">${finalButton}${pdfButton}${releaseButton}</div>`;
+}'''
+          new_actions = '''function actionButtons(empId, workflowRow, finalApproval, monthKey) {
+  const status = workflowStatus(workflowRow, finalApproval);
+  const canApprove = monthMode(monthKey).key === 'closed';
+  const finalButton = canApprove && status.raw === 'manager_approved' && !finalApproval
+    ? `<button type="button" class="is-primary" data-admin-attendance-final="${escapeHtml(empId)}">אישור סופי</button>`
+    : '';
+  const managerPdfUrl = text(workflowRow.manager_pdf_sharepoint_url);
+  const finalPdfPath = text(finalApproval?.pdf_path);
+  const pdfButton = managerPdfUrl || finalPdfPath
+    ? `<button type="button" data-admin-attendance-pdf="${escapeHtml(empId)}">צפייה ב-PDF</button>`
+    : '';
+  const releaseButton = canApprove && ['submitted', 'manager_approved', 'approved'].includes(status.raw)
+    ? `<button type="button" data-admin-attendance-release="${escapeHtml(empId)}">שחרור נעילה</button>`
+    : '';
+  return `<div class="admin-attendance-actions">${finalButton}${pdfButton}${releaseButton}</div>`;
+}'''
+          replace_once(admin, old_actions, new_actions)
+
+          start = Path(admin).read_text()
+          old_summary_start = "function summaryHtml(employees, workflowByEmployee, finalByEmployee) {"
+          old_groups_start = "function groupsHtml(employees, workflowByEmployee, finalByEmployee, monthKey) {"
+          a = start.index(old_summary_start)
+          b = start.index(old_groups_start)
+          summary_replacement = '''function summaryHtml(employees, workflowByEmployee, finalByEmployee, recordCounts, monthKey) {
+  if (monthMode(monthKey).key === 'current') {
+    const reported = employees.filter((employee) => (recordCounts.get(employeeId(employee)) || 0) > 0).length;
+    const records = [...recordCounts.values()].reduce((sum, count) => sum + count, 0);
+    return `<div class="admin-attendance-standalone__summary">
+      <article><span>עובדים פעילים</span><strong>${employees.length}</strong></article>
+      <article><span>דיווחו</span><strong>${reported}</strong></article>
+      <article><span>ללא דיווח</span><strong>${Math.max(0, employees.length - reported)}</strong></article>
+      <article><span>רשומות</span><strong>${records}</strong></article>
+    </div>`;
+  }
+  let employeeApproved = 0;
+  let managerApproved = 0;
+  let finalApproved = 0;
+  for (const employee of employees) {
+    const id = employeeId(employee);
+    const workflow = workflowByEmployee.get(id) || {};
+    if (workflow.submitted_at) employeeApproved += 1;
+    if (workflow.manager_approved_at) managerApproved += 1;
+    if (finalByEmployee.has(id) || text(workflow.workflow_status) === 'approved') finalApproved += 1;
+  }
+  return `<div class="admin-attendance-standalone__summary">
+    <article><span>עובדים פעילים</span><strong>${employees.length}</strong></article>
+    <article><span>אישור עובד</span><strong>${employeeApproved}</strong></article>
+    <article><span>אישור מנהל</span><strong>${managerApproved}</strong></article>
+    <article><span>מוכן לשכר</span><strong>${finalApproved}</strong></article>
+  </div>`;
+}
+
+'''
+          Path(admin).write_text(start[:a] + summary_replacement + start[b:])
+
+          replace_once(admin,
+          "function groupsHtml(employees, workflowByEmployee, finalByEmployee, monthKey) {",
+          "function groupsHtml(employees, workflowByEmployee, finalByEmployee, recordCounts, monthKey) {")
+          replace_once(admin,
+          "      const status = workflowStatus(workflow, finalApproval);\n      return `<tr data-admin-attendance-row=\"${escapeHtml(id)}\">\n        <td class=\"admin-attendance-person\"><strong>${escapeHtml(text(employee.full_name) || id)}</strong><small>${escapeHtml(id)}${text(employee.employment_type) ? ` · ${escapeHtml(text(employee.employment_type))}` : ''}</small></td>",
+          "      const status = workflowStatus(workflow, finalApproval);\n      const reportCount = recordCounts.get(id) || 0;\n      return `<tr data-admin-attendance-row=\"${escapeHtml(id)}\">\n        <td class=\"admin-attendance-person\"><strong>${escapeHtml(text(employee.full_name) || id)}</strong><small>${escapeHtml(id)}${text(employee.employment_type) ? ` · ${escapeHtml(text(employee.employment_type))}` : ''}</small></td>\n        <td>${reportCount ? `<span class=\"admin-attendance-status is-ok\">קיים · ${reportCount}</span>` : '<span class=\"admin-attendance-status\">אין דיווח</span>'}</td>")
+          replace_once(admin,
+          "        <td>${actionButtons(id, workflow, finalApproval)}</td>",
+          "        <td>${actionButtons(id, workflow, finalApproval, monthKey)}</td>")
+          replace_once(admin,
+          "        <thead><tr><th>עובד</th><th>אישור עובד</th><th>אישור מנהל</th><th>אישור סופי</th><th>סטטוס</th><th>פעולות</th></tr></thead>",
+          "        <thead><tr><th>עובד</th><th>דיווח</th><th>אישור עובד</th><th>אישור מנהל</th><th>אישור סופי</th><th>סטטוס</th><th>פעולות</th></tr></thead>")
+
+          replace_once(admin,
+          "    const [workflowRows, finalRows] = await Promise.all([\n      api.attendanceControlMonthWorkflowStatuses({ monthKey, employeeIds: ids }),\n      api.listPayrollControlApprovals({ monthKey, employeeIds: ids, statuses: ['approved_for_payroll'] })\n    ]);",
+          "    const [workflowRows, finalRows, attendanceRows] = await Promise.all([\n      api.attendanceControlMonthWorkflowStatuses({ monthKey, employeeIds: ids }),\n      api.listPayrollControlApprovals({ monthKey, employeeIds: ids, statuses: ['approved_for_payroll'] }),\n      typeof api.attendanceControlRecords === 'function' ? api.attendanceControlRecords({ employeeIds: ids }) : Promise.resolve([])\n    ]);")
+          replace_once(admin,
+          "    const workflowByEmployee = new Map((workflowRows || []).map((row) => [text(row.employee_id || row.employeeId), row]));\n    const finalByEmployee = new Map((finalRows || []).map((row) => [text(row.employee_id || row.employeeId), row]));\n    root.__adminAttendanceContext = { employees, workflowByEmployee, finalByEmployee, monthKey };\n    if (body) body.innerHTML = employees.length\n      ? `${summaryHtml(employees, workflowByEmployee, finalByEmployee)}${groupsHtml(employees, workflowByEmployee, finalByEmployee, monthKey)}`",
+          "    const workflowByEmployee = new Map((workflowRows || []).map((row) => [text(row.employee_id || row.employeeId), row]));\n    const finalByEmployee = new Map((finalRows || []).map((row) => [text(row.employee_id || row.employeeId), row]));\n    const recordCounts = new Map(ids.map((id) => [id, 0]));\n    for (const row of Array.isArray(attendanceRows) ? attendanceRows : []) {\n      const id = employeeId(row);\n      if (!recordCounts.has(id) || recordMonthKey(row) !== monthKey) continue;\n      recordCounts.set(id, (recordCounts.get(id) || 0) + 1);\n    }\n    root.__adminAttendanceContext = { employees, workflowByEmployee, finalByEmployee, recordCounts, monthKey };\n    const modeEl = root.querySelector('[data-admin-attendance-mode]');\n    if (modeEl) modeEl.textContent = monthMode(monthKey).label;\n    if (body) body.innerHTML = employees.length\n      ? `${summaryHtml(employees, workflowByEmployee, finalByEmployee, recordCounts, monthKey)}${groupsHtml(employees, workflowByEmployee, finalByEmployee, recordCounts, monthKey)}`")
+
+          replace_once(admin,
+          "  if (!finalEmpId && !releaseEmpId) return;\n  button.disabled = true;",
+          "  if (!finalEmpId && !releaseEmpId) return;\n  if (monthMode(monthKey).key !== 'closed') {\n    setMessage(root, 'אישור חודשי זמין לאחר סיום החודש.');\n    return;\n  }\n  button.disabled = true;")
+
+          replace_once(admin,
+          "        <div><h1>בקרת נוכחות אדמין</h1><p>בקרה סופית על כלל העובדים, מקובצים לפי צוות ומנהל.</p></div>",
+          "        <div><h1>בקרת נוכחות אדמין</h1><span class=\"admin-attendance-standalone__mode\" data-admin-attendance-mode>בקרה שוטפת</span></div>")
+          replace_once(admin,
+          "        <label class=\"admin-attendance-standalone__month\"><span>חודש דיווח</span><input type=\"month\" value=\"${monthKey}\" data-admin-attendance-month></label>",
+          "        <label class=\"admin-attendance-standalone__month\"><span>חודש</span><input type=\"month\" value=\"${monthKey}\" max=\"${monthKey}\" data-admin-attendance-month></label>")
+
+          sw = Path('frontend/sw.js')
+          sw_text = sw.read_text()
+          if 'const CACHE_VERSION = 1561;' not in sw_text:
+              raise SystemExit('frontend/sw.js: expected CACHE_VERSION 1561')
+          sw.write_text(sw_text.replace('const CACHE_VERSION = 1561;', 'const CACHE_VERSION = 1562;', 1))
+          PY
+
+          node --check frontend/src/manager-board-workspace-runtime.js
+          node --check frontend/src/admin-attendance-standalone.js
+          git diff --check
+          git rm .github/workflows/_attendance-current-month-patch.yml
+          git add frontend/src/manager-board-workspace-runtime.js frontend/src/admin-attendance-standalone.js frontend/sw.js
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Align attendance monitoring and monthly approvals"
+          git push origin HEAD:fix-attendance-current-month-monitoring
