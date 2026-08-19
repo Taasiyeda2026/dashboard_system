@@ -1,7 +1,6 @@
 const SOURCE_LABEL = 'ניהול תפעול';
 const TARGET_LABEL = 'תפעול';
 const WATCHED_ATTRIBUTES = ['aria-label', 'title'];
-let scheduled = false;
 
 function replaceLabel(value) {
   const text = String(value || '');
@@ -25,9 +24,13 @@ function updateElement(element) {
   });
 }
 
-function sync(root = document.getElementById('app') || document.body) {
-  scheduled = false;
+function syncSubtree(root) {
   if (!root) return;
+  if (root.nodeType === Node.TEXT_NODE) {
+    updateTextNode(root);
+    return;
+  }
+  if (!(root instanceof Element)) return;
 
   updateElement(root);
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT);
@@ -39,18 +42,25 @@ function sync(root = document.getElementById('app') || document.body) {
   }
 }
 
-function scheduleSync() {
-  if (scheduled) return;
-  scheduled = true;
-  requestAnimationFrame(() => sync());
-}
-
 function start() {
-  sync();
   const root = document.getElementById('app') || document.body;
   if (!root) return;
+  syncSubtree(root);
 
-  const observer = new MutationObserver(scheduleSync);
+  const observer = new MutationObserver((records) => {
+    records.forEach((record) => {
+      if (record.type === 'characterData') {
+        updateTextNode(record.target);
+        return;
+      }
+      if (record.type === 'attributes') {
+        updateElement(record.target);
+        return;
+      }
+      record.addedNodes.forEach(syncSubtree);
+    });
+  });
+
   observer.observe(root, {
     childList: true,
     subtree: true,
@@ -58,7 +68,8 @@ function start() {
     attributes: true,
     attributeFilter: WATCHED_ATTRIBUTES
   });
-  document.addEventListener('app:navigate', scheduleSync);
+
+  document.addEventListener('app:navigate', () => syncSubtree(root));
 }
 
 if (document.readyState === 'loading') {
