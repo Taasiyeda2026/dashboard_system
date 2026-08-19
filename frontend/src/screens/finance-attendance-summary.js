@@ -23,6 +23,20 @@ export const FINANCE_ATTENDANCE_COLUMNS = [
   'הערות'
 ];
 
+export const FINANCE_ATTENDANCE_GENERAL_SHEET = 'נוכחות';
+export const FINANCE_ATTENDANCE_EMPLOYMENT_SHEETS = ['תעשיידע', 'מעוף', 'MANPOWER', 'עצמאי'];
+export const FINANCE_MAOF_SHEET = 'מעוף';
+export const FINANCE_MAOF_DAILY_COLUMNS = [
+  'תאריך',
+  'שם מדריך',
+  'מספר עובד',
+  'רשות',
+  'סוג פעילות',
+  'שעות פעילות',
+  'סה״כ שעות',
+  'סה״כ ק״מ ליום'
+];
+
 const txt = (value) => String(value ?? '').trim();
 
 function num(value) {
@@ -108,6 +122,147 @@ function rowTeam(row = {}, approval = {}, teamByEmployee = new Map()) {
 
 function rowDate(row = {}) {
   return txt(row.date || row.attendanceDate || row.AttendanceDate).slice(0, 10);
+}
+
+function rowAuthority(row = {}) {
+  return lookupText(row.authority || row.municipality || row.Municipality);
+}
+
+function rowActivityType(row = {}) {
+  return txt(row.activityType || row.ActivityType);
+}
+
+function parseTimeMinutes(value) {
+  const match = txt(value).match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) return null;
+  return Number(match[1]) * 60 + Number(match[2]);
+}
+
+function formatTimeMinutes(total) {
+  const minutes = Math.max(0, Math.round(Number(total) || 0));
+  return `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
+}
+
+export function mergeFinanceReportedTimeRanges(ranges = []) {
+  const parsed = (ranges || [])
+    .map((range) => ({
+      start: parseTimeMinutes(range?.start || range?.startTime),
+      end: parseTimeMinutes(range?.end || range?.endTime)
+    }))
+    .filter((range) => range.start != null && range.end != null && range.end > range.start)
+    .sort((a, b) => a.start - b.start || a.end - b.end);
+  const merged = [];
+  for (const range of parsed) {
+    const last = merged[merged.length - 1];
+    if (last && range.start <= last.end) {
+      last.end = Math.max(last.end, range.end);
+      continue;
+    }
+    merged.push({ ...range });
+  }
+  return merged.map((range) => ({
+    start: formatTimeMinutes(range.start),
+    end: formatTimeMinutes(range.end),
+    hours: roundHours((range.end - range.start) / 60)
+  }));
+}
+
+export function formatFinanceReportedHourRanges(ranges = []) {
+  return mergeFinanceReportedTimeRanges(ranges)
+    .map((range) => `${range.start}–${range.end}`)
+    .join(', ');
+}
+
+function formatMaofDate(value) {
+  const iso = txt(value).slice(0, 10);
+  const match = iso.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return match ? `${match[3]}.${match[2]}.${match[1]}` : iso;
+}
+
+function approvalEmploymentType(approval = {}, rows = []) {
+  return txt(approval?.approved_snapshot?.employmentType || rows[0]?.employmentType);
+}
+
+export function buildMaofDailyExcelRows(approvals = []) {
+  const groups = new Map();
+  const dailyKm = new Map();
+  for (const approval of approvals || []) {
+    if (!isFinalPayrollApproval(approval)) continue;
+    const rows = snapshotRows(approval);
+    if (financeEmploymentSheetName(approvalEmploymentType(approval, rows)) !== FINANCE_MAOF_SHEET) continue;
+    const employeeId = employeeIdOf(approval) || employeeIdOf(approval?.approved_snapshot) || employeeIdOf(rows[0]);
+    if (!employeeId) continue;
+    const employeeName = txt(approval.employee_name || approval.approved_snapshot?.employeeName || rows[0]?.employeeName) || employeeId;
+    for (const row of rows) {
+      const date = rowDate(row);
+      if (!date) continue;
+      const activityType = rowActivityType(row);
+      const authority = rowAuthority(row);
+      const groupKey = `${employeeId}|${date}|${authority}|${activityType}`;
+      let group = groups.get(groupKey);
+      if (!group) {
+        group = {
+          employeeId,
+          employeeName,
+          date,
+          authority,
+          activityType,
+          ranges: [],
+          extraHours: 0
+        };
+        groups.set(groupKey, group);
+      }
+      const startTime = txt(row.startTime || row.StartTime || row.start);
+      const endTime = txt(row.endTime || row.EndTime || row.end);
+      if (parseTimeMinutes(startTime) != null && parseTimeMinutes(endTime) != null) {
+        group.ranges.push({ start: startTime, end: endTime });
+      } else {
+        group.extraHours = roundHours(group.extraHours + num(row.workHours ?? row.WorkHours));
+      }
+      const dayKey = `${employeeId}|${date}`;
+      dailyKm.set(dayKey, roundHours((dailyKm.get(dayKey) || 0) + num(row.kilometers ?? row.Kilometers ?? row.km)));
+    }
+  }
+
+  const entries = [...groups.values()].map((group) => {
+    const merged = mergeFinanceReportedTimeRanges(group.ranges);
+    const rangeHours = merged.reduce((sum, range) => sum + range.hours, 0);
+    return {
+      date: group.date,
+      displayDate: formatMaofDate(group.date),
+      employeeName: group.employeeName,
+      employeeId: group.employeeId,
+      authority: group.authority,
+      activityType: group.activityType,
+      hourRanges: formatFinanceReportedHourRanges(group.ranges),
+      totalHours: roundHours(rangeHours + group.extraHours),
+      firstStart: merged[0]?.start || '',
+      dayKey: `${group.employeeId}|${group.date}`
+    };
+  }).sort((a, b) => (
+    a.date.localeCompare(b.date)
+    || a.employeeName.localeCompare(b.employeeName, 'he')
+    || a.employeeId.localeCompare(b.employeeId, 'he')
+    || a.firstStart.localeCompare(b.firstStart)
+    || a.authority.localeCompare(b.authority, 'he')
+    || a.activityType.localeCompare(b.activityType, 'he')
+  ));
+
+  const seenDay = new Set();
+  return entries.map((entry) => {
+    const showKm = !seenDay.has(entry.dayKey);
+    if (showKm) seenDay.add(entry.dayKey);
+    return {
+      'תאריך': entry.displayDate,
+      'שם מדריך': entry.employeeName,
+      'מספר עובד': entry.employeeId,
+      'רשות': entry.authority,
+      'סוג פעילות': entry.activityType,
+      'שעות פעילות': entry.hourRanges,
+      'סה״כ שעות': entry.totalHours,
+      'סה״כ ק״מ ליום': showKm ? (dailyKm.get(entry.dayKey) || 0) : ''
+    };
+  });
 }
 
 export function unmappedFinanceActivityTypes(approvals = []) {
@@ -219,7 +374,16 @@ export function buildFinanceAttendanceExcelRows(entries = []) {
   return (entries || []).map(financeAttendanceDisplayRow);
 }
 
-export function buildFinanceAttendanceWorkbook(entries = []) {
+export function normalizeFinanceEmploymentType(value) {
+  return String(value ?? '').trim().replace(/\s+/g, '').toLowerCase();
+}
+
+export function financeEmploymentSheetName(employmentType) {
+  const key = normalizeFinanceEmploymentType(employmentType);
+  return FINANCE_ATTENDANCE_EMPLOYMENT_SHEETS.find((label) => normalizeFinanceEmploymentType(label) === key) || '';
+}
+
+function appendFinanceAttendanceSheet(workbook, sheetName, entries = []) {
   const rows = buildFinanceAttendanceExcelRows(entries);
   const sheetRows = [
     FINANCE_ATTENDANCE_COLUMNS,
@@ -235,8 +399,29 @@ export function buildFinanceAttendanceWorkbook(entries = []) {
     cell.v = 'קובץ';
     sheet[cellRef] = cell;
   });
+  XLSX.utils.book_append_sheet(workbook, sheet, sheetName);
+}
+
+function appendMaofDailySheet(workbook, approvals = []) {
+  const rows = buildMaofDailyExcelRows(approvals);
+  const sheetRows = [
+    FINANCE_MAOF_DAILY_COLUMNS,
+    ...rows.map((row) => FINANCE_MAOF_DAILY_COLUMNS.map((header) => row[header] ?? ''))
+  ];
+  XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(sheetRows), FINANCE_MAOF_SHEET);
+}
+
+export function buildFinanceAttendanceWorkbook(entries = [], { approvals = [] } = {}) {
   const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, sheet, 'נוכחות');
+  appendFinanceAttendanceSheet(workbook, FINANCE_ATTENDANCE_GENERAL_SHEET, entries);
+  for (const sheetName of FINANCE_ATTENDANCE_EMPLOYMENT_SHEETS) {
+    if (sheetName === FINANCE_MAOF_SHEET) {
+      appendMaofDailySheet(workbook, approvals);
+      continue;
+    }
+    const typed = (entries || []).filter((entry) => financeEmploymentSheetName(entry?.employmentType) === sheetName);
+    appendFinanceAttendanceSheet(workbook, sheetName, typed);
+  }
   return workbook;
 }
 
@@ -245,8 +430,8 @@ export function financeAttendanceExportFilename(monthKey) {
   return `דיווח_נוכחות_${label.replace(/\s+/g, '_')}.xlsx`;
 }
 
-export function downloadFinanceAttendanceExcel(entries = [], monthKey = '') {
-  XLSX.writeFile(buildFinanceAttendanceWorkbook(entries), financeAttendanceExportFilename(monthKey), { compression: true });
+export function downloadFinanceAttendanceExcel(entries = [], monthKey = '', options = {}) {
+  XLSX.writeFile(buildFinanceAttendanceWorkbook(entries, options), financeAttendanceExportFilename(monthKey), { compression: true });
 }
 
 export function currentFinanceMonthKey(now = new Date()) {

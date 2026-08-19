@@ -30,11 +30,43 @@ let currentRenderToken = 0;
 let lastContextSignature = '';
 let embeddedAttendanceSignature = '';
 let resetMonthOnNextBoard = true;
+let attendanceYm = '';
 const rosterCache = new Map();
 const attendanceSummaryCache = new Map();
 
 function text(value) {
   return String(value ?? '').trim().replace(/\s+/g, ' ');
+}
+
+function currentMonthKey() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function shiftAttendanceMonth(ym, delta) {
+  const match = text(ym).match(/^(20\d{2})-(\d{2})$/);
+  if (!match) return currentMonthKey();
+  const date = new Date(Number(match[1]), Number(match[2]) - 1 + delta, 1);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function attendanceMonthLabel(ym) {
+  const match = text(ym).match(/^(20\d{2})-(\d{2})$/);
+  if (!match) return ym;
+  return new Intl.DateTimeFormat('he-IL', { month: 'long', year: 'numeric' }).format(new Date(Number(match[1]), Number(match[2]) - 1, 1));
+}
+
+function attendanceMonthMode(ym) {
+  const current = currentMonthKey();
+  if (ym === current) return { key: 'current', label: 'בקרה שוטפת' };
+  if (ym < current) return { key: 'closed', label: 'בקרה ואישור' };
+  return { key: 'future', label: 'חודש עתידי' };
+}
+
+function attendanceMinMonth(period = periodKey()) {
+  const periodMin = period === 'school_2027' ? '2026-09' : '2025-09';
+  const current = currentMonthKey();
+  return current < periodMin ? current : periodMin;
 }
 
 function role() {
@@ -114,7 +146,7 @@ function currentMonth(boardRoot, period = periodKey()) {
 function contextFromBoard(boardRoot) {
   const period = periodKey();
   const manager = currentManagerName(boardRoot);
-  const ym = currentMonth(boardRoot, period);
+  const ym = activeTab === 'attendance' ? (attendanceYm || currentMonthKey()) : currentMonth(boardRoot, period);
   const schoolYear = schoolYearForPeriod(period);
   return { period, manager, ym, schoolYear };
 }
@@ -126,6 +158,10 @@ function validBoardRoot() {
 }
 
 function resetBoardMonthIfNeeded(boardRoot) {
+  if (activeTab === 'attendance') {
+    resetMonthOnNextBoard = false;
+    return false;
+  }
   if (!resetMonthOnNextBoard) return false;
   const period = periodKey();
   const shown = currentMonth(boardRoot, period);
@@ -260,6 +296,40 @@ async function loadAttendanceSummary(roster, ym, force = false) {
   return value;
 }
 
+function syncAttendanceMonthNav(boardRoot) {
+  if (!boardRoot || activeTab !== 'attendance') return;
+  const nav = boardRoot.querySelector('.manager-board-month-nav');
+  const label = nav?.querySelector('strong');
+  const previous = nav?.querySelector('[data-manager-board-month="-1"]');
+  const next = nav?.querySelector('[data-manager-board-month="1"]');
+  if (!nav || !label || !previous || !next) return;
+  if (nav.dataset.attendanceMonthPatched !== 'true') {
+    nav.dataset.attendanceMonthPatched = 'true';
+    nav.dataset.attendanceOriginalLabel = label.textContent || '';
+    nav.dataset.attendanceOriginalPreviousDisabled = previous.disabled ? 'true' : 'false';
+    nav.dataset.attendanceOriginalNextDisabled = next.disabled ? 'true' : 'false';
+  }
+  if (!attendanceYm) attendanceYm = currentMonthKey();
+  label.textContent = attendanceMonthLabel(attendanceYm);
+  previous.disabled = shiftAttendanceMonth(attendanceYm, -1) < attendanceMinMonth();
+  next.disabled = shiftAttendanceMonth(attendanceYm, 1) > currentMonthKey();
+}
+
+function restoreAttendanceMonthNav(boardRoot) {
+  const nav = boardRoot?.querySelector('.manager-board-month-nav');
+  if (!nav || nav.dataset.attendanceMonthPatched !== 'true') return;
+  const label = nav.querySelector('strong');
+  const previous = nav.querySelector('[data-manager-board-month="-1"]');
+  const next = nav.querySelector('[data-manager-board-month="1"]');
+  if (label) label.textContent = nav.dataset.attendanceOriginalLabel || label.textContent;
+  if (previous) previous.disabled = nav.dataset.attendanceOriginalPreviousDisabled === 'true';
+  if (next) next.disabled = nav.dataset.attendanceOriginalNextDisabled === 'true';
+  delete nav.dataset.attendanceMonthPatched;
+  delete nav.dataset.attendanceOriginalLabel;
+  delete nav.dataset.attendanceOriginalPreviousDisabled;
+  delete nav.dataset.attendanceOriginalNextDisabled;
+}
+
 function applyTabVisibility(boardRoot) {
   const isManagement = activeTab === 'management';
   boardRoot.classList.toggle('is-manager-workspace-subtab', !isManagement);
@@ -278,6 +348,25 @@ function handleWorkspaceClick(event) {
   const target = event.target instanceof Element ? event.target : null;
   if (!target) return;
 
+  if (activeTab === 'attendance') {
+    const monthButton = target.closest('[data-manager-board-month]');
+    const monthBoardRoot = monthButton?.closest('[data-manager-board-root]');
+    if (monthButton && monthBoardRoot) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      const delta = Number(monthButton.dataset.managerBoardMonth || 0);
+      if (!delta) return;
+      const nextMonth = shiftAttendanceMonth(attendanceYm || currentMonthKey(), delta);
+      if (nextMonth < attendanceMinMonth() || nextMonth > currentMonthKey()) return;
+      attendanceYm = nextMonth;
+      syncAttendanceMonthNav(monthBoardRoot);
+      embeddedAttendanceSignature = '';
+      lastContextSignature = '';
+      void renderWorkspace(true);
+      return;
+    }
+  }
+
   if (target.closest('[data-manager-board-open]')) {
     resetMonthOnNextBoard = true;
     return;
@@ -291,7 +380,12 @@ function handleWorkspaceClick(event) {
   if (!workspaceTabs().includes(next)) return;
 
   event.preventDefault();
+  if (activeTab === 'attendance' && next !== 'attendance') restoreAttendanceMonthNav(boardRoot);
   setActiveTab(next);
+  if (next === 'attendance') {
+    attendanceYm = currentMonthKey();
+    syncAttendanceMonthNav(boardRoot);
+  }
   embeddedAttendanceSignature = '';
   lastContextSignature = '';
   applyTabVisibility(boardRoot);
@@ -316,8 +410,9 @@ function managementAlertsHtml(roster, summary) {
   </div>`;
 }
 
-function attendanceStatusBadge(count, approval) {
+function attendanceStatusBadge(count, approval, ym) {
   if (!count) return '<span class="manager-workspace-status is-muted">אין דיווח</span>';
+  if (attendanceMonthMode(ym).key === 'current') return '<span class="manager-workspace-status is-pending">בקרה שוטפת</span>';
   if (approval) return '<span class="manager-workspace-status is-ok">✓ אושר</span>';
   return '<span class="manager-workspace-status is-pending">טרם אושר</span>';
 }
@@ -332,7 +427,7 @@ function attendanceSummaryTableHtml(roster, summary, ym) {
     return `<tr>
       <td><strong>${escapeHtml(text(row.full_name) || empId)}</strong><small>${escapeHtml(empId)}</small></td>
       <td>${count ? `<span class="manager-workspace-report-count">קיים · ${count} רשומות</span>` : '<span class="manager-workspace-report-count is-missing">לא נמצא דיווח</span>'}</td>
-      <td>${attendanceStatusBadge(count, approval)}${approvedAt ? `<small>${escapeHtml(approvedAt)}</small>` : ''}</td>
+      <td>${attendanceStatusBadge(count, approval, ym)}${approvedAt ? `<small>${escapeHtml(approvedAt)}</small>` : ''}</td>
       <td><button type="button" class="manager-workspace-link-button" data-manager-attendance-open-employee="${escapeHtml(empId)}"${count ? '' : ' disabled'}>צפייה ובקרת דוח</button></td>
     </tr>`;
   }).join('');
@@ -450,6 +545,7 @@ async function waitForEnabledButton(button, timeoutMs = 10000) {
 async function openEmployeeAttendance(empId) {
   const host = document.querySelector('[data-manager-attendance-host]');
   if (!host) return;
+  const panel = host.querySelector('[data-attendance-control]');
   const run = host.querySelector('[data-attendance-run]');
   const results = host.querySelector('[data-attendance-results]');
   if (!results?.querySelector('[data-payroll-employee]')) {
@@ -459,6 +555,13 @@ async function openEmployeeAttendance(empId) {
   while (Date.now() - started < 20000) {
     const detail = host.querySelector(`[data-payroll-employee="${CSS.escape(String(empId))}"]`);
     if (detail) {
+      host.querySelectorAll('[data-payroll-employee]').forEach((item) => {
+        item.hidden = item !== detail;
+        if (item !== detail) item.open = false;
+      });
+      host.hidden = false;
+      if (panel) panel.hidden = false;
+      detail.hidden = false;
       detail.open = true;
       detail.scrollIntoView({ behavior: 'smooth', block: 'start' });
       return;
@@ -475,7 +578,22 @@ async function bindEmbeddedAttendance(host, roster, context) {
   host.dataset.managerAttendanceBound = 'true';
 
   const attendance = await import('./screens/attendance-control.js');
-  host.innerHTML = `${attendance.attendanceControlStylesHtml()}${attendance.attendanceControlHtml()}`;
+  const monthMode = attendanceMonthMode(context.ym);
+  host.dataset.managerAttendanceMonthMode = monthMode.key;
+  host.innerHTML = `<style>
+    [data-manager-attendance-host][data-manager-attendance-month-mode="current"] .attendance-control__employee > .attendance-control__employee-actions,
+    [data-manager-attendance-host][data-manager-attendance-month-mode="future"] .attendance-control__employee > .attendance-control__employee-actions { display:none !important; }
+  </style>${attendance.attendanceControlStylesHtml()}${attendance.attendanceControlHtml()}`;
+  if (host.dataset.managerAttendanceApprovalGuard !== 'true') {
+    host.dataset.managerAttendanceApprovalGuard = 'true';
+    host.addEventListener('click', (event) => {
+      const target = event.target instanceof Element ? event.target : null;
+      if (!target?.closest('[data-payroll-finish]')) return;
+      if (host.dataset.managerAttendanceMonthMode === 'closed') return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+    }, true);
+  }
   const panel = host.querySelector('[data-attendance-control]');
   if (panel) panel.hidden = false;
   attendance.bindAttendanceControl(host, {
@@ -495,8 +613,12 @@ async function bindEmbeddedAttendance(host, roster, context) {
     dashboardMonthInput.dispatchEvent(new Event('change', { bubbles: true }));
   }
 
+  const controls = host.querySelector('.attendance-control__uploads');
+  if (controls) controls.hidden = true;
+  host.hidden = true;
   host.querySelector('[data-attendance-close]')?.remove();
 }
+
 
 async function renderAttendance(boardRoot, context, roster, renderToken) {
   const view = boardRoot.querySelector('[data-manager-workspace-view]');
@@ -507,27 +629,21 @@ async function renderAttendance(boardRoot, context, roster, renderToken) {
 
   view.innerHTML = `${managementAlertsHtml(roster, summary)}
     <section class="manager-workspace-panel manager-workspace-attendance" dir="rtl">
-    <header class="manager-workspace-panel__head"><div><h2>בקרת נוכחות</h2><p>${escapeHtml(context.manager)} · ${escapeHtml(context.ym)} · צוות אחד ממקור הנתונים המרכזי</p></div><button type="button" class="manager-workspace-run-team" data-manager-attendance-run-team>פתח את בקרת כל הצוות</button></header>
+    <header class="manager-workspace-panel__head"><div><h2>בקרת נוכחות</h2><p>${escapeHtml(context.manager)} · ${escapeHtml(context.ym)} · ${escapeHtml(attendanceMonthMode(context.ym).label)}</p></div></header>
     ${attendanceSummaryTableHtml(roster, summary, context.ym)}
     ${(summary.recordsError || summary.approvalsError) ? `<p class="manager-workspace-inline-error">${escapeHtml(summary.recordsError || summary.approvalsError)}</p>` : ''}
-    <div class="manager-workspace-attendance-host" data-manager-attendance-host></div>
+    <div class="manager-workspace-attendance-host" data-manager-attendance-host hidden></div>
   </section>`;
 
   const host = view.querySelector('[data-manager-attendance-host]');
   await bindEmbeddedAttendance(host, roster, context);
   if (renderToken !== currentRenderToken || activeTab !== 'attendance') return;
 
-  view.querySelector('[data-manager-attendance-run-team]')?.addEventListener('click', async () => {
-    const run = host.querySelector('[data-attendance-run]');
-    if (await waitForEnabledButton(run)) run.click();
-    host.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  });
   view.querySelectorAll('[data-manager-attendance-open-employee]').forEach((button) => {
     button.addEventListener('click', () => void openEmployeeAttendance(button.dataset.managerAttendanceOpenEmployee));
   });
 }
 
-/** מעקב צוות is read-only: no RPC call, no change handler, no optimistic update — see trackingTableHtml. */
 function renderTracking(boardRoot, context, roster) {
   const view = boardRoot.querySelector('[data-manager-workspace-view]');
   if (!view) return;
@@ -709,9 +825,8 @@ async function renderWorkspace(force = false) {
   if (!boardRoot.querySelector('[data-manager-workspace-tabs]')) return;
   applyTabVisibility(boardRoot);
 
-  // Management's KPIs/calendar/instructors render synchronously in manager-board-runtime.js and never
-  // touch the workspace alerts/view sections. Returning here (instead of loading a roster nobody uses)
-  // keeps the management tab's markup identical on first load and after every tab round-trip.
+  // Management content is rendered synchronously by manager-board-runtime.js.
+  // Do not load or rewrite workspace content on that tab, which prevents the return-trip layout shift.
   if (activeTab === 'management') return;
 
   const context = contextFromBoard(boardRoot);
@@ -758,6 +873,7 @@ function syncWorkspace() {
     embeddedAttendanceSignature = '';
     return;
   }
+  if (activeTab === 'attendance') syncAttendanceMonthNav(boardRoot);
   if (resetBoardMonthIfNeeded(boardRoot)) return;
   void renderWorkspace(false);
 }

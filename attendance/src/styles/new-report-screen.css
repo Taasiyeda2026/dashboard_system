@@ -11,6 +11,13 @@
   gap: 14px;
 }
 
+/* Forms stay narrower than the general 1080px desktop content column. */
+@media (min-width: 640px) {
+  .av2-report__inner {
+    max-width: 860px;
+  }
+}
+
 .av2-report__header {
   display: flex;
   align-items: center;
@@ -473,6 +480,46 @@
   text-align: center;
   font-size: 0.8125rem;
   color: var(--av2-color-text-muted);
+}
+
+/* ── Save-confirmation summary (compact key-value list, not a table) ──────── */
+
+.av2-summary {
+  display: flex;
+  flex-direction: column;
+}
+
+.av2-summary__row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 2px;
+  border-top: 1px solid var(--av2-color-border);
+  font-size: 0.8125rem;
+}
+
+.av2-summary__row:first-child {
+  border-top: none;
+}
+
+.av2-summary__row span {
+  color: var(--av2-color-text-muted);
+  flex-shrink: 0;
+}
+
+.av2-summary__row strong {
+  color: var(--av2-color-text);
+  font-weight: 600;
+  text-align: end;
+  overflow-wrap: break-word;
+}
+
+.av2-summary__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 4px;
 }
 
 /* ── Attachments ─────────────────────────────────────────────────────────── */

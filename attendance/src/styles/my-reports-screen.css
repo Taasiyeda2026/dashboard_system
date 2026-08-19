@@ -61,24 +61,24 @@
   align-items: center;
 }
 
-/* ── Mini calendar ────────────────────────────────────────────────────────── */
+/* ── Compact calendar (shared component; My Reports uses the smaller default) ─ */
 
 .av2-cal {
   background: var(--av2-color-surface);
   border: 1px solid var(--av2-color-border);
   border-radius: var(--av2-radius-md);
-  padding: 10px 8px;
+  padding: 8px 6px;
 }
 
 .av2-cal__header {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  margin-bottom: 6px;
+  margin-bottom: 4px;
 }
 
 .av2-cal__day-name {
   text-align: center;
-  font-size: 0.6875rem;
+  font-size: 0.65rem;
   color: var(--av2-color-text-muted);
   font-weight: 600;
   padding: 2px 0;
@@ -95,8 +95,8 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 2px;
-  height: 36px;
+  gap: 1px;
+  height: 30px;
   border-radius: 6px;
   cursor: default;
 }
@@ -107,15 +107,30 @@
 
 .av2-cal__cell--has-record {
   background: var(--av2-color-accent-subtle);
+}
+
+.av2-cal__cell--clickable {
   cursor: pointer;
 }
 
-.av2-cal__cell--has-record:hover {
+.av2-cal__cell--clickable:hover {
   background: #dbeafe;
 }
 
+.av2-cal__cell--selected {
+  background: var(--av2-color-accent);
+}
+
+.av2-cal__cell--selected .av2-cal__day-num {
+  color: #fff;
+}
+
+.av2-cal__cell--selected .av2-cal__dot {
+  background: #fff;
+}
+
 .av2-cal__day-num {
-  font-size: 0.8125rem;
+  font-size: 0.75rem;
   font-weight: 500;
   color: var(--av2-color-text);
 }
@@ -133,65 +148,158 @@
   background: var(--av2-color-accent);
 }
 
-/* ── Table ────────────────────────────────────────────────────────────────── */
+/* ── Day filter bar ───────────────────────────────────────────────────────── */
 
-.av2-reports__table-wrap {
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
+.av2-reports__day-filter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 12px;
   border-radius: var(--av2-radius-md);
-  border: 1px solid var(--av2-color-border);
-}
-
-.av2-reports__table {
-  width: 100%;
-  min-width: 700px;
-  border-collapse: collapse;
+  background: var(--av2-color-accent-subtle);
+  color: var(--av2-color-accent);
   font-size: 0.8125rem;
-  background: var(--av2-color-surface);
+  font-weight: 700;
 }
 
-.av2-reports__table th,
-.av2-reports__table td {
-  padding: 9px 10px;
-  text-align: start;
-  border-bottom: 1px solid var(--av2-color-border);
+.av2-reports__day-filter[hidden] {
+  display: none;
+}
+
+/* ── Report rows (compact, real components — not a table) ───────────────────
+   One container surface with internal dividers, rather than a card per row. */
+
+.av2-report-list {
+  display: flex;
+  flex-direction: column;
+  background: var(--av2-color-surface);
+  border: 1px solid var(--av2-color-border);
+  border-radius: var(--av2-radius-md);
+  overflow: hidden;
+}
+
+.av2-report-row {
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--av2-color-border);
+  cursor: pointer;
+  transition: background 0.12s;
+}
+
+.av2-report-row:first-child {
+  border-top: none;
+}
+
+.av2-report-row:hover,
+.av2-report-row:focus-visible {
+  background: var(--av2-color-surface-sunken);
+  outline: none;
+}
+
+.av2-report-row.is-expanded {
+  background: var(--av2-color-surface-sunken);
+}
+
+.av2-report-row__summary {
+  display: grid;
+  grid-template-columns: 58px minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+}
+
+.av2-report-row__date,
+.av2-report-row__main,
+.av2-report-row__time {
+  min-width: 0;
+}
+
+.av2-report-row__date strong,
+.av2-report-row__main strong,
+.av2-report-row__time strong {
+  display: block;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--av2-color-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.av2-reports__table th {
-  background: var(--av2-color-bg);
+.av2-report-row__date span,
+.av2-report-row__main span,
+.av2-report-row__time span {
+  display: block;
+  margin-top: 2px;
   font-size: 0.6875rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
   color: var(--av2-color-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.av2-reports__table tr:last-child td {
-  border-bottom: none;
+.av2-report-row__time {
+  text-align: end;
 }
 
-.av2-reports__table tbody tr:hover {
-  background: #f7f9fc;
-}
-
-.av2-reports__total-row td {
-  background: var(--av2-color-bg);
-  font-weight: 600;
-  font-size: 0.8125rem;
-}
-
-.av2-reports__actions-cell {
+.av2-report-row__actions {
   display: flex;
   align-items: center;
   gap: 2px;
-  padding: 4px 6px !important;
 }
 
-.av2-reports__actions-cell .av2-btn--icon {
-  width: 32px;
-  height: 32px;
-  border-radius: 6px;
+.av2-report-row__actions .av2-btn--icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+}
+
+.av2-report-row__detail {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px 16px;
+  padding: 2px 12px 12px;
+}
+
+.av2-report-row__detail-field {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.av2-report-row__detail-field span {
+  font-size: 0.6875rem;
+  color: var(--av2-color-text-muted);
+}
+
+.av2-report-row__detail-field strong {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--av2-color-text);
+  overflow-wrap: break-word;
+}
+
+.av2-report-list__totals {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 16px;
+  padding: 10px 14px;
+  background: var(--av2-color-surface-sunken);
+  border: 1px solid var(--av2-color-border);
+  border-radius: var(--av2-radius-md);
+  font-size: 0.8125rem;
+}
+
+.av2-report-list__totals span {
+  color: var(--av2-color-text-muted);
+  font-weight: 600;
+}
+
+.av2-report-list__totals strong {
+  color: var(--av2-color-text);
 }
 
 .av2-btn--danger {
@@ -264,8 +372,14 @@
   .av2-modal {
     border-radius: var(--av2-radius-lg);
     max-height: 90dvh;
-    box-shadow: 0 8px 32px rgba(15, 23, 42, 0.14);
+    box-shadow: var(--av2-shadow-md);
   }
+}
+
+/* Wider variant for the edit-report modal (2-column field grid needs more room
+   than the plain attachments-list modal). */
+.av2-modal--form {
+  max-width: 640px;
 }
 
 .av2-modal__header {
@@ -283,77 +397,15 @@
   color: var(--av2-color-text);
 }
 
-.av2-modal__form {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-/* ── Day name in date cell ────────────────────────────────────────────────── */
-
-.av2-reports__day-name {
-  font-size: 0.6875rem;
-  color: var(--av2-color-text-muted);
-  font-weight: 400;
-}
-
-/* ── Desktop: compact table ───────────────────────────────────────────────── */
+/* ── Desktop ───────────────────────────────────────────────────────────────── */
 
 @media (min-width: 640px) {
-  .av2-reports__table-wrap {
-    overflow-x: clip;
+  .av2-report-row__summary {
+    grid-template-columns: 68px minmax(0, 1fr) auto auto;
+    gap: 16px;
   }
 
-  .av2-reports__table {
-    min-width: 0;
-    width: 100%;
-    table-layout: fixed;
-    font-size: 0.75rem;
-  }
-
-  .av2-reports__table th,
-  .av2-reports__table td {
-    padding: 6px 5px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  /*
-   * 11 columns after date+day merge.
-   * Fixed widths; col 5 (סוג פעילות) is auto → takes remaining space.
-   * Total fixed ≈ 598px; container ≈ 710px → type gets ≈ 112px.
-   */
-  .av2-reports__table th:nth-child(1),
-  .av2-reports__table td:nth-child(1) { width: 66px; }   /* תאריך   */
-  .av2-reports__table th:nth-child(2),
-  .av2-reports__table td:nth-child(2) { width: 42px; }   /* התחלה   */
-  .av2-reports__table th:nth-child(3),
-  .av2-reports__table td:nth-child(3) { width: 42px; }   /* סיום    */
-  .av2-reports__table th:nth-child(4),
-  .av2-reports__table td:nth-child(4) { width: 42px; }   /* שעות    */
-  /* col 5 — auto */
-  .av2-reports__table th:nth-child(6),
-  .av2-reports__table td:nth-child(6) { width: 120px; }  /* שם פעילות */
-  .av2-reports__table th:nth-child(7),
-  .av2-reports__table td:nth-child(7) { width: 82px; }   /* בית ספר  */
-  .av2-reports__table th:nth-child(8),
-  .av2-reports__table td:nth-child(8) { width: 70px; }   /* רשות    */
-  .av2-reports__table th:nth-child(9),
-  .av2-reports__table td:nth-child(9) { width: 32px; }   /* ק"מ     */
-  .av2-reports__table th:nth-child(10),
-  .av2-reports__table td:nth-child(10) { width: 44px; }  /* הוצאות  */
-  .av2-reports__table th:nth-child(11),
-  .av2-reports__table td:nth-child(11) { width: 62px; }  /* פעולות  */
-
-  .av2-reports__actions-cell .av2-btn--icon {
-    width: 24px;
-    height: 24px;
-    border-radius: 4px;
-  }
-
-  .av2-reports__total-row td {
-    white-space: nowrap;
-    overflow: hidden;
+  .av2-report-row__detail {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }

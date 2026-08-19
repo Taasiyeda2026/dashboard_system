@@ -16,6 +16,7 @@
 import { createIcon } from '../components/icon.js';
 import { createInputField, createSelectField } from '../components/field.js';
 import { createSearchableSelect } from '../components/searchable-select.js';
+import { createTimePicker } from '../components/time-picker.js';
 import {
   getInstructorActivitiesForDate,
   getSchoolOptions,
@@ -97,23 +98,22 @@ function showReportSummaryDialog(summary = {}) {
     closeBtn.append(createIcon('x'));
     header.append(title, closeBtn);
 
-    const table = document.createElement('table');
-    table.className = 'av2-reports__table';
-    const tbody = document.createElement('tbody');
+    // Compact key-value summary — not a table.
+    const summaryEl = document.createElement('div');
+    summaryEl.className = 'av2-summary';
     for (const [label, value] of rows) {
-      const tr = document.createElement('tr');
-      const th = document.createElement('th');
-      th.textContent = label;
-      const td = document.createElement('td');
-      td.textContent = String(value || '—');
-      tr.append(th, td);
-      tbody.append(tr);
+      const row = document.createElement('div');
+      row.className = 'av2-summary__row';
+      const l = document.createElement('span');
+      l.textContent = label;
+      const v = document.createElement('strong');
+      v.textContent = String(value || '—');
+      row.append(l, v);
+      summaryEl.append(row);
     }
-    table.append(tbody);
 
     const actions = document.createElement('div');
-    actions.className = 'av2-modal__header';
-    actions.style.justifyContent = 'flex-start';
+    actions.className = 'av2-summary__actions';
     const backBtn = document.createElement('button');
     backBtn.type = 'button';
     backBtn.className = 'av2-btn av2-btn--secondary';
@@ -134,110 +134,11 @@ function showReportSummaryDialog(summary = {}) {
     saveBtn.addEventListener('click', () => done(true));
     overlay.addEventListener('click', (e) => { if (e.target === overlay) done(false); });
 
-    modal.append(header, table, actions);
+    modal.append(header, summaryEl, actions);
     overlay.append(modal);
     document.body.append(overlay);
     saveBtn.focus();
   });
-}
-
-// ── Time-picker component ──────────────────────────────────────────────────
-/**
- * Creates a compact two-select time picker (hour + minute).
- * Returns { wrap, hourSel, minSel, getValue(), setMinHour(h) }
- *
- * @param {string} id            Base id (suffixed with -h / -m)
- * @param {string} label         Field label text
- * @param {string} defaultValue  "HH:MM" or ""
- */
-function createTimePicker(id, label, defaultValue = '') {
-  const defMatch = defaultValue.match(/^(\d{1,2}):(\d{2})$/);
-  const defH = defMatch ? parseInt(defMatch[1], 10) : null;
-  const defM = defMatch ? parseInt(defMatch[2], 10) : null;
-
-  const wrap = document.createElement('div');
-  wrap.className = 'av2-field';
-
-  const labelEl = document.createElement('label');
-  labelEl.className = 'av2-field__label';
-  labelEl.textContent = label;
-
-  const row = document.createElement('div');
-  row.className = 'av2-time-picker';
-
-  const hourSel = document.createElement('select');
-  hourSel.id = `${id}-h`;
-  hourSel.className = 'av2-time-picker__sel av2-time-picker__hour';
-  hourSel.setAttribute('aria-label', `${label} — שעה`);
-
-  const sep = document.createElement('span');
-  sep.className = 'av2-time-picker__sep';
-  sep.setAttribute('aria-hidden', 'true');
-  sep.textContent = ':';
-
-  const minSel = document.createElement('select');
-  minSel.id = `${id}-m`;
-  minSel.className = 'av2-time-picker__sel av2-time-picker__min';
-  minSel.setAttribute('aria-label', `${label} — דקות`);
-
-  function buildHours(minHour = 0) {
-    const prev = hourSel.value;
-    hourSel.innerHTML = '';
-    const ph = document.createElement('option');
-    ph.value = ''; ph.textContent = 'שע׳'; ph.disabled = true;
-    hourSel.append(ph);
-    for (let h = minHour; h <= 23; h++) {
-      const opt = document.createElement('option');
-      opt.value = String(h);
-      opt.textContent = String(h).padStart(2, '0');
-      hourSel.append(opt);
-    }
-    // Restore previous if still in range
-    if (prev !== '' && parseInt(prev, 10) >= minHour) {
-      hourSel.value = prev;
-    } else {
-      hourSel.value = '';
-    }
-  }
-
-  function buildMinutes() {
-    minSel.innerHTML = '';
-    const ph = document.createElement('option');
-    ph.value = ''; ph.textContent = 'דק׳'; ph.disabled = true;
-    minSel.append(ph);
-    for (let m = 0; m < 60; m += 5) {
-      const opt = document.createElement('option');
-      opt.value = String(m);
-      opt.textContent = String(m).padStart(2, '0');
-      minSel.append(opt);
-    }
-  }
-
-  buildHours();
-  buildMinutes();
-
-  if (defH !== null) hourSel.value = String(defH);
-  if (defM !== null) {
-    // Round to nearest 5-min slot
-    const rounded = Math.round(defM / 5) * 5;
-    minSel.value = String(rounded < 60 ? rounded : 55);
-  }
-
-  function getValue() {
-    if (hourSel.value === '' || minSel.value === '') return '';
-    return String(hourSel.value).padStart(2, '0') + ':' + String(minSel.value).padStart(2, '0');
-  }
-
-  row.append(hourSel, sep, minSel);
-  wrap.append(labelEl, row);
-
-  return {
-    wrap,
-    hourSel,
-    minSel,
-    getValue,
-    setMinHour: buildHours,
-  };
 }
 
 // ── Main screen ────────────────────────────────────────────────────────────
