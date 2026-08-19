@@ -61,6 +61,17 @@
   padding-block: 7px;
 }
 
+/* Tracking table: use the same subtle border language as the rest of the manager board,
+   with vertical separators between every column as well as the existing row separators. */
+.manager-board-screen .manager-workspace-tracking-table th + th,
+.manager-board-screen .manager-workspace-tracking-table td + td {
+  border-inline-start: 1px solid #e8edf3;
+}
+
+.manager-board-screen .manager-workspace-tracking-table thead th + th {
+  border-inline-start-color: #dbe3ee;
+}
+
 @media (max-width: 700px) {
   .manager-board-screen .manager-board-calendar-day {
     min-height: 76px;
