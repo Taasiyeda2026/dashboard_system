@@ -62,11 +62,12 @@ test('entering 2027 operations cannot render the hidden summer completion-approv
     _operationsTabLoadPromises: new Map()
   }, { state });
 
-  assert.equal(state.operationsManagement.tab, 'workshops');
+  assert.equal(state.operationsManagement.tab, 'home');
   assert.doesNotMatch(html, /בקרת אישורי ביצוע לקיץ 2026/);
-  assert.match(html, /ניהול תפעול/);
+  assert.match(html, /תפעול/);
   assert.match(html, /data-ops-year="2027"/);
-  assert.match(html, /data-ops-tab="workshops"[^>]*aria-pressed="true"/);
+  assert.match(html, /operations-management-home/);
+  assert.doesNotMatch(html, /data-ops-tab="completion_approval"/);
 });
 
 after(async () => {

@@ -62,7 +62,8 @@ function baseState(overrides = {}) {
   const base = {
     activityPeriodTab: 'regular',
     operationsManagement: {
-      tab: 'completion_approval',
+      tab: 'home',
+      customTab: '',
       context: 'operations',
       period: 'regular',
       dateFrom: '2026-01-01',
@@ -259,14 +260,19 @@ test('summer exceptions only include missing instructor or missing date', () => 
 
 test('operations management render includes menu page structure and tabs', () => {
   const html = operationsManagementScreen.render({ rows: TEXT_SCHOOL_ROWS, workshopStockMap: new Map() }, { state: baseState() });
-  assert.match(html, /ניהול תפעול/);
+  assert.match(html, /תפעול/);
+  assert.match(html, /כלי התפעול/);
+  assert.match(html, /operations-management-home/);
+  assert.match(html, /data-ops-home-target-type="ops-tab"/);
+  assert.match(html, /data-ops-home-target-value="workshops"/);
   assert.doesNotMatch(html, /data-ops-tab="instructors"/);
-  assert.match(html, /רשויות/);
-  assert.match(html, /ציוד ומלאי/);
-  assert.match(html, /אישורי ביצוע/);
-  assert.match(html, /ds-exceptions-tabs/);
-  assert.match(html, /data-ops-tab="completion_approval"[^>]*aria-pressed="true"/);
+  assert.doesNotMatch(html, /ds-exceptions-tabs/);
   assert.doesNotMatch(html, /סמל מוסד/);
+
+  const completionState = baseState({ operationsManagement: { ...baseState().operationsManagement, tab: 'completion_approval' } });
+  const completionHtml = operationsManagementScreen.render({ rows: TEXT_SCHOOL_ROWS, workshopStockMap: new Map() }, { state: completionState });
+  assert.match(completionHtml, /אישורי ביצוע/);
+  assert.match(completionHtml, /data-ops-tab="completion_approval"[^>]*aria-pressed="true"/);
 
   const scheduleHtml = operationsManagementScreen.render({ rows: TEXT_SCHOOL_ROWS, workshopStockMap: new Map() }, { state: scheduleState() });
   assert.match(scheduleHtml, /מדריכים/);
@@ -1061,14 +1067,17 @@ test('authorities tab groups schools and dated activities under each authority',
 
 test('operations management tabs stay synced with selected tab content', () => {
   const rows = TEXT_SCHOOL_ROWS;
+  const homeHtml = operationsManagementScreen.render({ rows, workshopStockMap: new Map() }, { state: baseState() });
   const authoritiesState = baseState({ operationsManagement: { ...baseState().operationsManagement, tab: 'authorities' } });
   const workshopsState = baseState({ operationsManagement: { ...baseState().operationsManagement, tab: 'workshops' } });
-  const defaultHtml = operationsManagementScreen.render({ rows, workshopStockMap: new Map() }, { state: baseState() });
+  const completionState = baseState({ operationsManagement: { ...baseState().operationsManagement, tab: 'completion_approval' } });
   const authoritiesHtml = operationsManagementScreen.render({ rows, workshopStockMap: new Map() }, { state: authoritiesState });
   const workshopsHtml = operationsManagementScreen.render({ rows, workshopStockMap: new Map(), adminListsData: { categories: [] } }, { state: workshopsState });
+  const completionHtml = operationsManagementScreen.render({ rows, workshopStockMap: new Map() }, { state: completionState });
   const scheduleHtml = operationsManagementScreen.render({ rows, workshopStockMap: new Map() }, { state: scheduleState() });
-  assert.match(defaultHtml, /data-ops-tab="completion_approval"[^>]*aria-pressed="true"/);
-  assert.doesNotMatch(defaultHtml, /data-ops-tab="instructors"/);
+  assert.match(homeHtml, /operations-management-home/);
+  assert.doesNotMatch(homeHtml, /ds-exceptions-tabs/);
+  assert.match(completionHtml, /data-ops-tab="completion_approval"[^>]*aria-pressed="true"/);
   assert.doesNotMatch(scheduleHtml, /טבלת סידור עבודה/);
   assert.match(authoritiesHtml, /data-ops-tab="authorities"[^>]*aria-pressed="true"/);
   assert.match(authoritiesHtml, /ds-ops-schools-authority/);

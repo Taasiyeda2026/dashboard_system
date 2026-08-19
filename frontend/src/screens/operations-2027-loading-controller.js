@@ -874,7 +874,7 @@ function applyOperations2027Labels(root) {
   if (workshopsTab) workshopsTab.textContent = 'מלאי סדנאות';
 }
 
-function bindCustomTabs(root) {
+function bindCustomTabs(root, state = {}) {
   if (!is2027Root(root)) return;
   ensureStyle();
   const tabs = root.querySelector('.ds-ops-mgmt-tabs');
@@ -893,17 +893,26 @@ function bindCustomTabs(root) {
     button.addEventListener('click', (event) => {
       event.preventDefault();
       event.stopPropagation();
+      if (state?.operationsManagement) state.operationsManagement.customTab = tabKey;
       renderCustomTab(root, tabKey);
     });
   });
   root.querySelectorAll('[data-ops-tab]').forEach((button) => {
     button.addEventListener('click', () => {
       activeCustomTab = '';
+      if (state?.operationsManagement) state.operationsManagement.customTab = '';
       renderToken += 1;
       setActiveTab(root, '');
     });
   });
-  if (activeCustomTab) renderCustomTab(root, activeCustomTab);
+  root.querySelectorAll('[data-route]').forEach((button) => {
+    button.addEventListener('click', () => {
+      activeCustomTab = '';
+      if (state?.operationsManagement) state.operationsManagement.customTab = '';
+    });
+  });
+  const pendingCustomTab = String(state?.operationsManagement?.customTab || activeCustomTab || '').trim();
+  if (pendingCustomTab) renderCustomTab(root, pendingCustomTab);
 }
 
 function installController() {
@@ -922,12 +931,12 @@ function installController() {
     if (!screenRoot) return;
 
     applyOperations2027Labels(screenRoot);
-    bindCustomTabs(screenRoot);
+    bindCustomTabs(screenRoot, context.state || {});
   };
 
   // Used by main.js to add 2027 tabs to the ops sub-route wrapper (invitations/catalog/certificates).
   // Tabs click → set activeCustomTab so ops-management restores it, then call navigateCallback.
-  operationsManagementScreen.applyOps2027ToWrapper = function applyOps2027ToWrapper(wrapperRoot, navigateCallback) {
+  operationsManagementScreen.applyOps2027ToWrapper = function applyOps2027ToWrapper(wrapperRoot, navigateCallback, state = {}) {
     if (!is2027Root(wrapperRoot)) return;
     applyOperations2027Labels(wrapperRoot);
     const tabs = wrapperRoot.querySelector('.ds-ops-mgmt-tabs');
@@ -945,6 +954,10 @@ function installController() {
         event.preventDefault();
         event.stopPropagation();
         activeCustomTab = tabKey;
+        if (state?.operationsManagement) {
+          state.operationsManagement.customTab = tabKey;
+          state.operationsManagement.tab = 'workshops';
+        }
         navigateCallback?.();
       });
     });

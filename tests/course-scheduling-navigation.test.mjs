@@ -219,7 +219,7 @@ test('without document, workspace tabs update route and call rerender', () => {
   }
 });
 
-test('operations management from main nav hides work-schedule and opens first remaining tab', () => {
+test('operations management from main nav hides work-schedule and opens the home screen', () => {
   const state = {
     operationsManagement: {
       tab: 'instructors',
@@ -231,14 +231,14 @@ test('operations management from main nav hides work-schedule and opens first re
     },
     listFilters: { 'operations-management': { q: '', appliedQ: '', status: 'פתוח', visibleCount: 200 } }
   };
+  document.dispatchEvent(new CustomEvent('app:navigate', { detail: { route: 'operations-management' } }));
   const html = operationsManagementScreen.render({ rows: [], workshopStockMap: new Map() }, { state });
-  assert.match(html, /ניהול תפעול/);
+  assert.match(html, /תפעול/);
   assert.doesNotMatch(html, /data-ops-tab="instructors"/);
   assert.doesNotMatch(html, /data-instructors-workspace-tab/);
-  assert.match(html, /data-ops-tab="completion_approval"[^>]*aria-pressed="true"/);
-  assert.match(html, /data-ops-tab="authorities"/);
-  assert.match(html, /data-ops-tab="workshops"/);
-  assert.equal(state.operationsManagement.tab, 'completion_approval');
+  assert.match(html, /operations-management-home/);
+  assert.doesNotMatch(html, /ds-exceptions-tabs/);
+  assert.equal(state.operationsManagement.tab, 'home');
 });
 
 test('instructors context keeps the same operations schedule screen under מדריכים', () => {
@@ -262,7 +262,7 @@ test('instructors context keeps the same operations schedule screen under מדר
   assert.match(html, /סידור עבודה/);
   assert.doesNotMatch(html, /טבלת סידור עבודה/);
   assert.doesNotMatch(html, /data-ops-tab="completion_approval"/);
-  assert.doesNotMatch(html, /ניהול תפעול/);
+  assert.doesNotMatch(html, /תפעול/);
 });
 
 test('workspace tabs respect route permissions', () => {
