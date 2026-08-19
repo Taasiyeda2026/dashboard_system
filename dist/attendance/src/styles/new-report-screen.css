@@ -134,17 +134,17 @@
 /* ── Desktop: 2×2 card grid ────────────────────────────────────────────── */
 @media (min-width: 768px) {
   .av2-report { padding: 34px 0 46px; }
-  .av2-report__inner { max-width: 1080px; margin-inline: auto; width: 100%; gap: 16px; }
+  .av2-report__inner { max-width: 860px; margin-inline: auto; width: 100%; gap: 14px; }
   .av2-report__header { width: 100%; }
   .av2-report__title { font-size: 1.3rem; }
-  .av2-report__section, .av2-activity-picker { width: min(100%, 690px); margin-inline: auto; }
+  .av2-report__section, .av2-activity-picker { width: min(100%, 620px); margin-inline: auto; }
 
-  .av2-report__form { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 18px; }
+  .av2-report__form { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 14px; }
   .av2-field--full { grid-column: 1 / -1; }
 
-  .av2-form-card { min-height: 205px; border-radius: 10px; box-shadow: var(--av2-shadow-sm); }
-  .av2-form-section-title { min-height: 42px; padding: 11px 14px; font-size: 0.76rem; }
-  .av2-form-card__body { gap: 12px; padding: 14px; }
+  .av2-form-card { min-height: 0; border-radius: 9px; box-shadow: var(--av2-shadow-sm); }
+  .av2-form-section-title { min-height: 36px; padding: 8px 12px; font-size: 0.72rem; }
+  .av2-form-card__body { gap: 9px; padding: 11px 12px 12px; }
   .av2-form-card__body--2col { grid-template-columns: repeat(2,minmax(0,1fr)); }
 
   .av2-field__input, .av2-field__select, .av2-ssel__trigger, .av2-csel__trigger { min-height: 38px; }

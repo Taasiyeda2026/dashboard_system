@@ -111,22 +111,24 @@
   .av2-home__page-title { font-size: 1.32rem; }
 
   .av2-home__action-row { justify-content: center; gap: 14px; padding: 2px 0 4px; }
-  .av2-stats-grid { grid-template-columns: repeat(4,minmax(0,1fr)); gap: 14px; }
-  .av2-stat-card { min-height: 102px; max-height: none; padding: 16px 18px 12px; border-radius: 10px; box-shadow: var(--av2-shadow-sm); }
-  .av2-stat-card__value { font-size: 1.55rem; }
+  .av2-stats-grid { width: 100%; max-width: 1060px; margin-inline: auto; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 12px; }
+  .av2-stat-card { min-height: 84px; max-height: 92px; padding: 12px 16px 10px; border-radius: 9px; box-shadow: var(--av2-shadow-sm); }
+  .av2-stat-card__value { font-size: 1.45rem; }
 
   .av2-month-nav { width: 210px; max-width: 210px; flex: 0 0 210px; height: 38px; }
   .av2-home__primary { min-width: 142px; max-width: 160px; min-height: 38px; }
 
-  .av2-home__workspace { grid-template-columns: minmax(0,1fr) minmax(300px,0.42fr); gap: 16px; align-items: stretch; }
-  .av2-home__calendar { max-width: none; min-height: 315px; padding: 16px; border-radius: 10px; }
-  .av2-home__workspace .av2-approval-card { max-width: none; width: 100%; }
+  .av2-home__workspace { grid-template-columns: minmax(0,720px) 300px; justify-content: center; gap: 14px; align-items: start; }
+  .av2-home__calendar { width: 100%; max-width: 720px; min-height: 0; padding: 12px; border-radius: 9px; }
+  .av2-home__calendar .av2-cal { width: min(100%, 660px); align-self: center; }
+  .av2-home__calendar .av2-cal .av2-cal__cell { height: 42px; }
+  .av2-home__workspace .av2-approval-card { max-width: 300px; width: 100%; }
   .av2-home__workspace .av2-approval-inner { height: auto; }
 
-  .av2-home__recent { gap: 10px; padding: 16px 18px 8px; background: var(--av2-color-surface); border: 1px solid var(--av2-color-border); border-radius: 10px; }
-  .av2-home__report-list { width: 100%; }
+  .av2-home__recent { width: 100%; max-width: 1180px; margin-inline: auto; gap: 10px; padding: 14px 16px 8px; background: var(--av2-color-surface); border: 1px solid var(--av2-color-border); border-radius: 9px; }
+  .av2-home__report-list { width: 100%; max-width: 1140px; margin-inline: auto; }
   .av2-home__report-table-head,
-  .av2-home__report-row { grid-template-columns: 70px minmax(0,1.35fr) minmax(0,1fr) 120px 70px 70px; gap: 8px 12px; }
+  .av2-home__report-row { grid-template-columns: 72px minmax(180px,1.35fr) minmax(160px,1.15fr) 108px 82px 82px; gap: 8px 10px; }
   .av2-home__report-table-head { display: grid; padding: 0 4px 8px; color: #8190a5; font-size: 0.67rem; font-weight: 700; border-bottom: 1px solid var(--av2-color-border); }
   .av2-home__report-row { padding: 10px 4px; }
   .av2-home__report-row-school, .av2-home__report-row-hours, .av2-home__report-row-km { display: block; }
