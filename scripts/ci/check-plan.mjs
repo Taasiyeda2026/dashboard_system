@@ -44,6 +44,7 @@ const EXACT_GROUPS = new Map([
   ['frontend/src/permissions.js', ['auth', 'permissions']],
   ['frontend/src/supabase-client.js', ['auth', 'db']],
   ['frontend/src/state.js', ['dashboard', 'activities', 'calendars']],
+  ['frontend/src/activity-catalog-identity.js', ['activities']],
   ['frontend/src/screens/instructor-matching-engine.js', ['scheduling']],
   ['frontend/sw.js', ['pwa']],
   ['sw.js', ['pwa']]

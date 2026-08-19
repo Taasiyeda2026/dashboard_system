@@ -24,6 +24,7 @@ import { normalizeOperationalDistrict } from './screens/shared/district-normaliz
 import { permissionFlagYes, canEditDirect, canAddActivityDirect, canRequestEdit, canRequestCreateActivity, canReviewRequests } from './permissions.js';
 import { mapWithConcurrency } from './bounded-concurrency.js';
 import { config } from './config.js';
+import { catalogActivityChangesFromRows, catalogText } from './activity-catalog-identity.js';
 
 /**
  * Actions that modify server-side data.
@@ -2047,15 +2048,16 @@ function buildClientSettingsFromLists(listsData, settingsRows = [], instructorCo
   const activityNames = activityNameItems.map((i) => {
     const gefenNumber = String(i._row?.gefen_number || '').trim();
     const activityNo = String(i._row?.activity_no || i._row?.number || '').trim();
+    const canonicalName = String(i._row?.activity_name || i._row?.label_he || i.label || i.value || '').trim();
     const meetingsCount = [gefenNumber, activityNo]
       .filter(Boolean)
       .map((stableId) => courseMeetingsByStableId.get(stableId))
       .find((count) => count != null) ?? null;
     return {
-      label:         i.label || i.value,
-      label_he:      String(i._row?.label_he || i.label || i.value || '').trim(),
-      value:         i.value || String(i._row?.activity_name || i.label || '').trim(),
-      activity_name: String(i._row?.activity_name || i.value || i.label || '').trim(),
+      label:         canonicalName,
+      label_he:      canonicalName,
+      value:         canonicalName,
+      activity_name: canonicalName,
       gefen_number:  gefenNumber,
       activity_no:   activityNo || gefenNumber,
       meetings_count: meetingsCount,
@@ -5424,6 +5426,7 @@ const ALLOWED_ACTIVITY_COLUMNS = new Set([
   'item_type',
   'activity_season',
   'activity_no',
+  'gefen_number',
   'activity_name',
   'activity_name_override',
   'sessions',
@@ -5586,6 +5589,70 @@ function sanitizeActivityPayloadForSupabase(payload = {}, { includeRowId = true 
   return sanitized;
 }
 
+function firstCatalogRow(...collections) {
+  for (const collection of collections) {
+    const row = Array.isArray(collection) ? collection.find(Boolean) : collection;
+    if (row) return row;
+  }
+  return null;
+}
+
+async function findCatalogRowsByStableId(table, columns, candidates, fields, filters = {}) {
+  const ids = [...new Set((candidates || []).map(catalogText).filter(Boolean))];
+  if (!ids.length) return [];
+  const queries = ids.flatMap((id) => fields.map((field) => {
+    let query = supabase.from(table).select(columns).eq(field, id).limit(1);
+    Object.entries(filters).forEach(([key, value]) => { query = query.eq(key, value); });
+    return query;
+  }));
+  const results = await Promise.all(queries);
+  const failed = results.find((result) => result?.error);
+  if (failed?.error) throw new Error(failed.error.message || 'catalog_activity_lookup_failed');
+  return results.flatMap((result) => Array.isArray(result?.data) ? result.data : []);
+}
+
+async function resolveCatalogActivityChanges(selection = {}) {
+  const activityNo = catalogText(selection.activity_no);
+  const gefenNumber = catalogText(selection.gefen_number);
+  if (!activityNo && !gefenNumber) throw new Error('catalog_activity_missing_stable_id');
+  const candidates = [activityNo, gefenNumber];
+  const [listRows, pricingRows, courseRows] = await Promise.all([
+    findCatalogRowsByStableId(
+      'lists',
+      'activity_no,gefen_number,activity_name,label_he,label,activity_type,type,parent_value,active',
+      candidates,
+      ['activity_no', 'gefen_number'],
+      { category: 'activity_names' }
+    ),
+    findCatalogRowsByStableId(
+      'proposal_activity_pricing',
+      'activity_no,gefen_number,activity_name,item_type,meetings_count,is_active_for_proposals',
+      candidates,
+      ['activity_no', 'gefen_number']
+    ),
+    findCatalogRowsByStableId(
+      'proposal_gefen_courses',
+      'gefen_number,short_name,meetings_count,is_active',
+      candidates,
+      ['gefen_number']
+    )
+  ]);
+  const matchingRow = (rows, fields) => rows.find((row) => fields.some((field) => {
+    const value = catalogText(row?.[field]);
+    return value && (value === activityNo || value === gefenNumber);
+  })) || firstCatalogRow(rows);
+  const listRow = matchingRow(listRows, ['activity_no', 'gefen_number']);
+  const pricingRow = matchingRow(pricingRows, ['activity_no', 'gefen_number']);
+  const courseRow = matchingRow(courseRows, ['gefen_number']);
+  if (!listRow && !pricingRow && !courseRow) throw new Error('catalog_activity_not_found');
+  return catalogActivityChangesFromRows({
+    selection,
+    listRow,
+    pricingRow,
+    courseRow
+  }, { normalizeActivityType: normalizeActivityTypeValue });
+}
+
 async function validateActivityInstructorBindingsOrThrow(payload = {}) {
   const contactsRows = await readInstructorContactsRowsForBootstrap();
   const contactsUsers = contactsRows
@@ -5701,12 +5768,12 @@ function assertSupabaseActivityUpdateApplied(operation, requestedChanges = {}, r
   }
   for (const [key, expectedRaw] of Object.entries(requestedChanges || {})) {
     const isDate = key === 'start_date' || key === 'end_date' || /^date_\d+$/.test(key);
-    const isActivityName = key === 'activity_name';
-    if (!isDate && !isActivityName) continue;
-    const expected = isActivityName
+    const isCatalogIdentity = ['activity_name', 'activity_no', 'gefen_number', 'sessions'].includes(key);
+    if (!isDate && !isCatalogIdentity) continue;
+    const expected = key === 'activity_name' || isCatalogIdentity
       ? String(expectedRaw ?? '').trim()
       : (normalizeDateFieldForSupabase(expectedRaw) || '');
-    const actual = isActivityName
+    const actual = key === 'activity_name' || isCatalogIdentity
       ? String(returnedRow[key] ?? '').trim()
       : (normalizeDateFieldForSupabase(returnedRow[key]) || '');
     if (expected !== actual) {
@@ -5881,7 +5948,16 @@ async function updateActivityInSupabase(payload = {}) {
   const rowId = String(payload?.source_row_id || payload?.row_id || payload?.RowID || '').trim();
   const sourceSheet = String(payload?.source_sheet || 'activities').trim() || 'activities';
   if (!rowId) throw new Error('missing_row_id');
-  const rawChanges = applyInstructorEmpSync({ ...(payload?.changes || {}) });
+  const catalogAwareChanges = { ...(payload?.changes || {}) };
+  if (catalogAwareChanges.activity_name_override === false && (
+    catalogText(catalogAwareChanges.activity_no) || catalogText(catalogAwareChanges.gefen_number)
+  )) {
+    // Resolve by the submitted stable catalog ID, never by the display label.
+    // The resolver intentionally does not return price, preserving a
+    // proposal-specific agreed amount unless the caller explicitly sent one.
+    Object.assign(catalogAwareChanges, await resolveCatalogActivityChanges(catalogAwareChanges));
+  }
+  const rawChanges = applyInstructorEmpSync(catalogAwareChanges);
   const fundingSourcesChange = Object.prototype.hasOwnProperty.call(rawChanges, 'funding_sources') ? rawChanges.funding_sources : undefined;
   delete rawChanges.funding_sources;
   const meetingNotes = extractMeetingNotes(rawChanges);
@@ -5895,7 +5971,7 @@ async function updateActivityInSupabase(payload = {}) {
   assertActivityPeriodEditable({ activity: existingInstructorRow, changes: rawChanges });
   await validateActivityInstructorBindingsOrThrow({ ...(existingInstructorRow || {}), ...rawChanges });
   let existingForNormalization = null;
-  const needsExisting = Object.keys(mappedChanges).some((key) => ['activity_type', 'item_type', 'activity_family', 'activity_name', 'start_date', 'end_date', 'date_1', 'status'].includes(key) || /^date_\d+$/.test(key));
+  const needsExisting = Object.keys(mappedChanges).some((key) => ['activity_type', 'item_type', 'activity_family', 'activity_name', 'activity_no', 'gefen_number', 'sessions', 'start_date', 'end_date', 'date_1', 'status'].includes(key) || /^date_\d+$/.test(key));
   if (needsExisting) {
     const { data: existingRow, error: existingError } = await supabase
       .from('activities')
@@ -6023,7 +6099,7 @@ async function updateActivityInSupabase(payload = {}) {
   }
   const { data: freshDbRow, error: freshDbError } = await supabase
     .from('activities')
-    .select(`${activityDateSelectColumns()},activity_name`)
+    .select(`${activityDateSelectColumns()},activity_name,activity_no,gefen_number,sessions,price`)
     .eq('row_id', rowId)
     .maybeSingle();
   if (freshDbError) throw buildSupabaseMutationError('saveActivity', freshDbError, 'save_failed');
@@ -8451,8 +8527,15 @@ export const api = {
     if (!canSubmitActivityRequestsUser()) throw new Error('forbidden_submit_edit_request');
     const rowId = String(requestPayload?.source_row_id || source_row_id || '').trim();
     const sourceSheet = String(requestPayload?.source_sheet || source_sheet || 'activities').trim() || 'activities';
-    const rawChanges = requestPayload?.changes || changes || {};
-    const syncedChanges = applyInstructorEmpSync(rawChanges);
+    const catalogAwareChanges = { ...(requestPayload?.changes || changes || {}) };
+    if (catalogAwareChanges.activity_name_override === false && (
+      catalogText(catalogAwareChanges.activity_no) || catalogText(catalogAwareChanges.gefen_number)
+    )) {
+      // Keep the request path identical to direct save so approvers see the
+      // canonical catalog identity, while preserving an explicit price edit.
+      Object.assign(catalogAwareChanges, await resolveCatalogActivityChanges(catalogAwareChanges));
+    }
+    const syncedChanges = applyInstructorEmpSync(catalogAwareChanges);
     const { data: existingInstructorRow, error: existingInstructorError } = await supabase
       .from('activities')
       .select('instructor_name,instructor_name_2,emp_id,emp_id_2,activity_season,start_date')
@@ -8469,7 +8552,9 @@ export const api = {
       }
       const isDateField = key === 'start_date' || key === 'end_date' || /^date_\d+$/.test(key) || /^meeting_date_\d+$/.test(key);
       if (value === null) {
-        if (isDateField) acc[key] = null;
+        // A non-Gefen catalog selection must be able to clear a previously
+        // saved Gefen number through an edit request, not only direct save.
+        if (isDateField || key === 'gefen_number') acc[key] = null;
         return acc;
       }
       const normalizedValue = String(value).trim();
@@ -8577,10 +8662,16 @@ export const api = {
         if (!Object.keys(requestedPayload).length) throw new Error('missing_create_activity_payload');
         await upsertActivityToSupabase({ activity: requestedPayload });
       } else {
-        const requestedValues = applyInstructorEmpSync(parseJsonishObject(reqRow?.requested_values));
-        if (sourceRowId && requestedValues && Object.keys(requestedValues).length) {
+        const requestedValues = { ...parseJsonishObject(reqRow?.requested_values) };
+        if (requestedValues.activity_name_override === false && (
+          catalogText(requestedValues.activity_no) || catalogText(requestedValues.gefen_number)
+        )) {
+          Object.assign(requestedValues, await resolveCatalogActivityChanges(requestedValues));
+        }
+        const syncedRequestedValues = applyInstructorEmpSync(requestedValues);
+        if (sourceRowId && syncedRequestedValues && Object.keys(syncedRequestedValues).length) {
           const sanitizedRequestedValues = sanitizeActivityPayloadForSupabase(
-            mapMeetingDateFieldNamesToSupabase(requestedValues),
+            mapMeetingDateFieldNamesToSupabase(syncedRequestedValues),
             { includeRowId: false }
           );
           const { data: appliedRow, error: applyErr } = await supabase

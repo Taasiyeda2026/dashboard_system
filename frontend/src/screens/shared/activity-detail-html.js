@@ -191,11 +191,13 @@ function normalizeActivityNameOptions(raw) {
       return;
     }
     if (o && typeof o === 'object') {
-      const label = humanDisplayText(o.label || o.activity_name || o.value);
+      const label = humanDisplayText(o.activity_name || o.label_he || o.label || o.value);
       if (!label) return;
       out.push({
         label,
         activity_no: String(o.activity_no || '').trim(),
+        gefen_number: String(o.gefen_number || '').trim(),
+        meetings_count: o.meetings_count ?? '',
         parent_value: normalizeActivityTypeKey(o.parent_value || o.activity_type || ''),
         activity_type: normalizeActivityTypeKey(o.activity_type || o.parent_value || '')
       });
@@ -331,7 +333,7 @@ function resolveActivityNameOptions(settings, activityType) {
   return (filtered.length || hasTagged) ? filtered : all;
 }
 
-function buildActivityNameOpts(options, safeValue, activityType) {
+function buildActivityNameOpts(options, safeValue, activityType, selectedIdentity = {}) {
   const normalizedType = normalizeActivityTypeKey(activityType);
   if (!normalizedType) return '<option value="">בחרו קודם סוג פעילות</option>';
   const sourceOptions = Array.isArray(options) ? options : [];
@@ -339,9 +341,23 @@ function buildActivityNameOpts(options, safeValue, activityType) {
   const hasTagged = sourceOptions.some((o) => String(o?.parent_value || o?.activity_type || '').trim());
   if (!filtered.length && !hasTagged) filtered = sourceOptions;
   const all = filtered.slice();
-  const labelsInList = new Set(all.map((o) => String(o?.label || '').trim()).filter(Boolean));
-  if (safeValue && !labelsInList.has(safeValue)) {
-    all.unshift({ label: safeValue, activity_no: '', parent_value: normalizedType, activity_type: normalizedType });
+  const selectedActivityNo = String(selectedIdentity.activity_no || '').trim();
+  const selectedGefenNumber = String(selectedIdentity.gefen_number || '').trim();
+  const hasStableSelection = Boolean(selectedActivityNo || selectedGefenNumber);
+  const matchingSelectedOption = all.some((option) => {
+    const label = String(option?.label || '').trim();
+    const activityNo = String(option?.activity_no || '').trim();
+    const gefenNumber = String(option?.gefen_number || '').trim();
+    return label === safeValue && (!hasStableSelection || activityNo === selectedActivityNo || gefenNumber === selectedGefenNumber);
+  });
+  if (safeValue && !matchingSelectedOption) {
+    all.unshift({
+      label: safeValue,
+      activity_no: selectedActivityNo,
+      gefen_number: selectedGefenNumber,
+      parent_value: normalizedType,
+      activity_type: normalizedType
+    });
   }
   return [`<option value="">—</option>`]
     .concat(
@@ -349,18 +365,21 @@ function buildActivityNameOpts(options, safeValue, activityType) {
         const label = String(o?.label || '').trim();
         const selected = label === safeValue ? ' selected' : '';
         const actNo = String(o?.activity_no || '').trim();
+        const gefenNumber = String(o?.gefen_number || '').trim();
+        const meetingsCount = String(o?.meetings_count ?? '').trim();
         const actType = String(o?.parent_value || o?.activity_type || activityType || '').trim();
-        return `<option value="${escapeHtml(label)}" data-activity-no="${escapeHtml(actNo)}" data-activity-type="${escapeHtml(actType)}"${selected}>${escapeHtml(label)}</option>`;
+        const isStableMatch = !hasStableSelection || actNo === selectedActivityNo || gefenNumber === selectedGefenNumber;
+        return `<option value="${escapeHtml(label)}" data-activity-no="${escapeHtml(actNo)}" data-gefen-number="${escapeHtml(gefenNumber)}" data-meetings-count="${escapeHtml(meetingsCount)}" data-activity-type="${escapeHtml(actType)}"${selected && isStableMatch ? ' selected' : ''}>${escapeHtml(label)}</option>`;
       })
     )
     .join('');
 }
 
-function activityNameSelectHtml(name, value, options, activityType) {
+function activityNameSelectHtml(name, value, options, activityType, selectedIdentity = {}) {
   const safeValue = String(value || '').trim();
   const normalizedType = normalizeActivityTypeKey(activityType);
   const allJson = escapeHtml(encodeURIComponent(JSON.stringify(Array.isArray(options) ? options : [])));
-  const opts = buildActivityNameOpts(options, safeValue, normalizedType);
+  const opts = buildActivityNameOpts(options, safeValue, normalizedType, selectedIdentity);
   const disabled = normalizedType ? '' : ' disabled';
   return `<select class="ds-input" name="${escapeHtml(name)}" data-role="activity-name-select" data-all-activity-names="${allJson}"${disabled}>${opts}</select>`;
 }
@@ -501,7 +520,7 @@ function blockActivityDetails(row, { settings = {} } = {}) {
         )}
         ${fieldEditOnly(
           activityNameLabel(activityType),
-          activityNameSelectHtml('activity_name', row.activity_name || row.program_name || row.title || row.name, allActivityNames, activityType),
+          activityNameSelectHtml('activity_name', row.activity_name || row.program_name || row.title || row.name, allActivityNames, activityType, row),
           'activity-drawer__field--full'
         )}
         ${fieldEditOnly(
@@ -1242,6 +1261,7 @@ function singleForm(row, { settings = {}, privateNote = null, canEdit = false, c
       data-is-once="${ONCE_TYPES.includes(activityType) ? 'yes' : 'no'}">
       ${editReqBadge}
       <input type="hidden" name="activity_no" value="${escapeHtml(String(row.activity_no || ''))}" data-activity-no>
+      <input type="hidden" name="gefen_number" value="${escapeHtml(String(row.gefen_number || ''))}" data-gefen-number>
       <input type="hidden" name="_activity_idx" value="${idx}">
       ${isOnce
         ? blockViewOnce(row, { settings, hideFunding: hideFundingInView || instructorLimited })
