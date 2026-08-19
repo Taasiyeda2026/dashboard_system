@@ -37,7 +37,7 @@
 }
 
 /* ── Desktop: horizontal top nav ─────────────────────────────────────────── */
-@media (min-width: 640px) {
+@media (min-width: 768px) {
   .av2-bottom-nav {
     /* Override fixed-bottom behaviour */
     position: static;

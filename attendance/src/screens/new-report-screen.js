@@ -16,6 +16,7 @@
 import { createIcon } from '../components/icon.js';
 import { createInputField, createSelectField } from '../components/field.js';
 import { createSearchableSelect } from '../components/searchable-select.js';
+import { createCompactSelect } from '../components/compact-select.js';
 import { createTimePicker } from '../components/time-picker.js';
 import {
   getInstructorActivitiesForDate,
@@ -354,15 +355,22 @@ export function renderNewReportScreen(container, {
                      : activity?.meeting_no   != null ? String(activity.meeting_no) : '';
     const meetingOptions = [{ value: '', label: '—' }];
     for (let i = 1; i <= 20; i++) meetingOptions.push({ value: String(i), label: String(i) });
-    const meetingField = createSelectField({
+    const meetingField = createCompactSelect({
       id: 'av2-meeting-no',
-      label: 'מפגש מס׳',
       options: meetingOptions,
+      placeholder: '—',
       value: meetingVal,
+      maxHeight: 260,
     });
-    meetingField.wrap.classList.add('av2-field--narrow');
+    const meetingWrap = document.createElement('div');
+    meetingWrap.className = 'av2-field';
+    const meetingLbl = document.createElement('label');
+    meetingLbl.className = 'av2-field__label';
+    meetingLbl.textContent = 'מפגש מס׳';
+    meetingLbl.htmlFor = 'av2-meeting-no-trigger';
+    meetingWrap.append(meetingLbl, meetingField.wrap);
 
-    form.append(typeField.wrap, meetingField.wrap);
+    form.append(typeField.wrap, meetingWrap);
 
     // ── Type change → reload activity name options ──────────────────────
     typeField.input.addEventListener('change', async () => {
@@ -393,7 +401,7 @@ export function renderNewReportScreen(container, {
       const trigger = activityNameSel.wrap.querySelector('.av2-ssel__trigger');
       if (trigger) trigger.disabled = true;
       typeField.input.disabled = true;
-      if (activity?.meeting_no != null) meetingField.input.disabled = true;
+      if (activity?.meeting_no != null) meetingField.select.disabled = true;
     }
 
     // ── ROW 2: Authority + School ───────────────────────────────────────
@@ -745,7 +753,7 @@ export function renderNewReportScreen(container, {
       if (missing.length) {
         errorEl.textContent = `שדות חובה חסרים: ${[...new Set(missing)].join(' · ')}`;
         errorEl.hidden = false;
-        firstInvalid?.querySelector('input,select,button')?.focus();
+        firstInvalid?.querySelector('input,select,button,.av2-csel__trigger,.av2-ssel__trigger')?.focus();
         return;
       }
 
@@ -760,7 +768,7 @@ export function renderNewReportScreen(container, {
         authority: finalAuthorityName || '—',
         school: finalSchoolName || '—',
         program: programName || '—',
-        meetingNo: meetingField.input.value || '—',
+        meetingNo: meetingField.getValue() || '—',
         startTime,
         endTime,
         totalHours: totalHours > 0 ? totalHours.toFixed(2) : '—',
@@ -786,7 +794,7 @@ export function renderNewReportScreen(container, {
           activity_no:             activity?.activity_no     ?? null,
           activity_season:         activity?.activity_season ?? null,
           activity_name_snapshot:  activityNameSel.getLabel().trim() || (activity?.activity_name ?? null),
-          meeting_no:              meetingField.input.value ? Number(meetingField.input.value) : null,
+          meeting_no:              meetingField.getValue() ? Number(meetingField.getValue()) : null,
           authority_id:            finalAuthorityId,
           authority_name_snapshot: finalAuthorityName,
           school_id:               finalSchoolId,

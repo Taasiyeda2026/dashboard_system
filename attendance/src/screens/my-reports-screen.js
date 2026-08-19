@@ -56,23 +56,29 @@ export function renderMyReportsScreen(container, {
   title.textContent = 'הדיווחים שלי';
   header.append(backBtn, title);
 
-  // ── Month nav ──────────────────────────────────────────────────────────
+  // ── Month nav + toolbar row ──────────────────────────────────────────
   const monthNav = buildMonthNav(year, month, onPrevMonth, onNextMonth);
+  const toolbar = document.createElement('div');
+  toolbar.className = 'av2-reports__toolbar';
+
+  const controls = document.createElement('div');
+  controls.className = 'av2-reports__controls';
+  controls.append(monthNav, toolbar);
 
   // ── Loading area ───────────────────────────────────────────────────────
   const contentArea = document.createElement('div');
   contentArea.className = 'av2-reports__content';
   contentArea.innerHTML = '<p class="av2-reports__loading">טוען…</p>';
 
-  inner.append(header, monthNav, contentArea);
+  inner.append(header, controls, contentArea);
   wrap.append(inner);
   container.append(wrap);
 
   // Load and render data
-  loadAndRender({ instructor, year, month, contentArea, onNewReport, onDuplicate });
+  loadAndRender({ instructor, year, month, contentArea, toolbar, onNewReport, onDuplicate });
 }
 
-async function loadAndRender({ instructor, year, month, contentArea, onNewReport, onDuplicate }) {
+async function loadAndRender({ instructor, year, month, contentArea, toolbar, onNewReport, onDuplicate }) {
   const monthKey = getMonthKey(year, month);
 
   try {
@@ -87,9 +93,9 @@ async function loadAndRender({ instructor, year, month, contentArea, onNewReport
 
     contentArea.innerHTML = '';
 
-    const onRefresh = () => loadAndRender({ instructor, year, month, contentArea, onNewReport, onDuplicate });
+    const onRefresh = () => loadAndRender({ instructor, year, month, contentArea, toolbar, onNewReport, onDuplicate });
 
-    // ── Status badge ──────────────────────────────────────────────────
+    toolbar.innerHTML = '';
     if (approval) {
       const statusMap = {
         submitted: ['אושר עובד / בבקרת מנהל','warning'],
@@ -113,15 +119,11 @@ async function loadAndRender({ instructor, year, month, contentArea, onNewReport
       contentArea.append(lockMsg);
     }
 
-    // ── Toolbar ────────────────────────────────────────────────────────
-    const toolbar = document.createElement('div');
-    toolbar.className = 'av2-reports__toolbar';
-
+    // ── Toolbar buttons ────────────────────────────────────────────────
     if (editable) {
       const addBtn = document.createElement('button');
       addBtn.type = 'button';
       addBtn.className = 'av2-btn av2-btn--primary';
-      addBtn.style.cssText = 'width:auto;align-self:flex-start;padding-inline:18px;';
       const addLabel = document.createElement('span');
       addLabel.textContent = 'הוסף דיווח';
       addBtn.append(createIcon('plus', { size: 15 }), addLabel);
@@ -140,8 +142,6 @@ async function loadAndRender({ instructor, year, month, contentArea, onNewReport
       xlBtn.addEventListener('click', () => exportMonthToExcel(records, instructor, year, month));
       toolbar.append(xlBtn);
     }
-
-    if (toolbar.children.length) contentArea.append(toolbar);
 
     // ── Calendar + day filter ────────────────────────────────────────────
     let selectedDate = null;
@@ -179,7 +179,11 @@ async function loadAndRender({ instructor, year, month, contentArea, onNewReport
       applyFilter();
     });
 
-    contentArea.append(calWrap, filterBar);
+    const calContainer = document.createElement('div');
+    calContainer.className = 'av2-reports__calendar-wrap';
+    calContainer.append(calWrap);
+
+    contentArea.append(calContainer, filterBar);
 
     // ── Records or empty state ─────────────────────────────────────────
     if (!records.length) {
@@ -254,6 +258,12 @@ function buildRecordRow({ record, editable, instructor, activityTypes, onDuplica
   mainSchool.textContent = record.school_name_snapshot || record.authority_name_snapshot || '—';
   mainCol.append(mainName, mainSchool);
 
+  const schoolCol = document.createElement('div');
+  schoolCol.className = 'av2-report-row__school';
+  const schoolStrong = document.createElement('strong');
+  schoolStrong.textContent = record.school_name_snapshot || record.authority_name_snapshot || '—';
+  schoolCol.append(schoolStrong);
+
   const timeCol = document.createElement('div');
   timeCol.className = 'av2-report-row__time';
   const timeStrong = document.createElement('strong');
@@ -265,7 +275,7 @@ function buildRecordRow({ record, editable, instructor, activityTypes, onDuplica
   const actionsCell = document.createElement('div');
   actionsCell.className = 'av2-report-row__actions';
 
-  summary.append(dateCol, mainCol, timeCol, actionsCell);
+  summary.append(dateCol, mainCol, schoolCol, timeCol, actionsCell);
 
   // ── Detail (expandable): authority, km, expenses, notes, attachments ──────
   const detail = document.createElement('div');

@@ -25,6 +25,32 @@
   color: var(--av2-color-text);
 }
 
+.av2-reports__controls {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.av2-reports__toolbar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.av2-reports__toolbar .av2-btn--primary {
+  width: auto;
+  min-height: 40px;
+  padding-inline: 14px;
+  font-size: 0.8125rem;
+}
+
+.av2-reports__toolbar .av2-btn--secondary {
+  min-height: 38px;
+  padding-inline: 12px;
+  font-size: 0.8125rem;
+}
+
 .av2-reports__loading {
   font-size: 0.875rem;
   color: var(--av2-color-text-muted);
@@ -54,11 +80,8 @@
   gap: 12px;
 }
 
-/* Toolbar */
-.av2-reports__toolbar {
-  display: flex;
-  gap: 8px;
-  align-items: center;
+.av2-reports__calendar-wrap {
+  width: 100%;
 }
 
 /* ── Compact calendar (shared component; My Reports uses the smaller default) ─ */
@@ -167,8 +190,7 @@
   display: none;
 }
 
-/* ── Report rows (compact, real components — not a table) ───────────────────
-   One container surface with internal dividers, rather than a card per row. */
+/* ── Report rows (compact list surface) ──────────────────────────────────── */
 
 .av2-report-list {
   display: flex;
@@ -206,13 +228,18 @@
   grid-template-columns: 58px minmax(0, 1fr) auto auto;
   align-items: center;
   gap: 12px;
-  padding: 10px 12px;
+  padding: 9px 12px;
 }
 
 .av2-report-row__date,
 .av2-report-row__main,
+.av2-report-row__school,
 .av2-report-row__time {
   min-width: 0;
+}
+
+.av2-report-row__school {
+  display: none;
 }
 
 .av2-report-row__date strong,
@@ -325,7 +352,7 @@
 }
 
 .av2-month-nav__label {
-  font-size: 0.9375rem;
+  font-size: 0.875rem;
   font-weight: 600;
   color: var(--av2-color-text);
 }
@@ -376,8 +403,6 @@
   }
 }
 
-/* Wider variant for the edit-report modal (2-column field grid needs more room
-   than the plain attachments-list modal). */
 .av2-modal--form {
   max-width: 640px;
 }
@@ -399,10 +424,63 @@
 
 /* ── Desktop ───────────────────────────────────────────────────────────────── */
 
-@media (min-width: 640px) {
+@media (min-width: 768px) {
+  .av2-reports__inner {
+    max-width: 860px;
+    margin-inline: auto;
+  }
+
+  .av2-reports__title {
+    font-size: 1.375rem;
+  }
+
+  .av2-reports__controls {
+    flex-direction: row;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  .av2-reports__controls .av2-month-nav {
+    width: 230px;
+    max-width: 240px;
+    flex: 0 0 230px;
+  }
+
+  .av2-reports__toolbar {
+    flex: 1;
+    justify-content: flex-end;
+    flex-wrap: nowrap;
+  }
+
+  .av2-reports__toolbar .av2-btn--primary {
+    width: 150px;
+    min-width: 140px;
+    max-width: 160px;
+    padding-inline: 10px;
+  }
+
+  .av2-reports__calendar-wrap {
+    max-width: 720px;
+    margin-inline: auto;
+  }
+
+  .av2-cal .av2-cal__cell {
+    height: 36px;
+  }
+
   .av2-report-row__summary {
-    grid-template-columns: 68px minmax(0, 1fr) auto auto;
-    gap: 16px;
+    grid-template-columns: 68px minmax(0, 1.1fr) minmax(0, 1fr) 88px auto;
+    gap: 10px 12px;
+    padding: 8px 12px;
+  }
+
+  .av2-report-row__school {
+    display: block;
+  }
+
+  .av2-report-row__main span {
+    display: none;
   }
 
   .av2-report-row__detail {

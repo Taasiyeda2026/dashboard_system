@@ -1,7 +1,7 @@
 :root {
   color-scheme: light;
   /* ── Palette ──────────────────────────────────────────────────────────── */
-  --av2-color-bg:              #eef1f7;   /* page canvas – light blue-gray     */
+  --av2-color-bg:              #e7ebf3;   /* page canvas – light blue-gray     */
   --av2-color-surface:         #ffffff;
   --av2-color-text:            #111827;
   --av2-color-text-muted:      #6b7280;
@@ -77,33 +77,30 @@ button {
   padding-inline: var(--av2-space-3);
 }
 
-/* ── Desktop layout (≥640px) ─────────────────────────────────────────────────
+/* ── Desktop layout (≥768px) ─────────────────────────────────────────────────
    Body becomes a quiet page canvas; #app-frame is a centred work card.      */
-@media (min-width: 640px) {
+@media (min-width: 768px) {
   /* Page canvas — quiet, very light cool gray-blue behind the centred frame */
   body {
     display: flex;
     flex-direction: column;
     align-items: center;
     min-height: 100dvh;
-    padding: 28px 20px 40px;
+    padding: 24px 20px 32px;
     background: #e7ebf3;
   }
 
-  /* ── App frame: the centred, compact work card — NOT edge-to-edge ────────── */
+  /* ── App frame: centred application workspace — NOT edge-to-edge ─────────── */
   #app-frame {
     display: flex;
     flex-direction: column;
     width: 100%;
-    max-width: 1080px;
-    /* Guarantee the card fills visible height even when content is short */
-    min-height: calc(100dvh - 68px);
+    max-width: 1180px;
+    min-height: 0;
     background: var(--av2-color-surface);
-    border-radius: var(--av2-radius-lg);
-    border: 1px solid rgba(15, 23, 42, 0.08);
-    box-shadow: var(--av2-shadow-md);
-    /* No overflow:hidden — lets absolute dropdowns escape the frame,
-       and lets long forms grow the card so the page scrolls naturally. */
+    border-radius: 15px;
+    border: 1px solid var(--av2-color-border);
+    box-shadow: var(--av2-shadow-sm);
   }
 
   /* Nav element moves to the top of the frame */
@@ -126,9 +123,9 @@ button {
     padding-bottom: 0;
   }
 
-  /* General desktop content column — compact, centred (sits inside the frame) */
+  /* General desktop content column — full frame width; screens constrain themselves */
   .av2-container {
-    max-width: 1080px;
+    max-width: none;
     padding-inline: var(--av2-space-4);
   }
 }
