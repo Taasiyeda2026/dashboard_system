@@ -23,6 +23,9 @@ import {
   money,
   normalizeCollectionStatus
 } from './finance-collection.js';
+import { ACTIVITY_SEASON_SCHOOL_2027, getActivityPeriodKey } from './shared/summer-activity.js';
+
+export const FINANCE_COLLECTION_ACTIVITY_PERIOD = ACTIVITY_SEASON_SCHOOL_2027;
 
 export {
   FINANCE_ATTENDANCE_COLUMNS,
@@ -276,7 +279,10 @@ function payerCardHtml(group, tab, saveState = {}) {
 
 function collectionViewHtml(data) {
   const tab = data.collectionTab === 'all' ? 'all' : 'open';
-  const activities = attachCollectionTracking(data.collectionActivities || [], data.collectionTracking || []);
+  const activities = attachCollectionTracking(
+    (data.collectionActivities || []).filter(isFinanceCollectionActivity),
+    data.collectionTracking || []
+  );
   const payers = groupFinanceCollectionPayers(activities, { tab });
   const body = data.collectionError
     ? dsEmptyState(data.collectionError)
@@ -309,8 +315,8 @@ function hubViewHtml() {
   `);
 }
 
-function currentPeriod(state) {
-  return String(state?.activityPeriodTab || 'regular').trim() || 'regular';
+function isFinanceCollectionActivity(row = {}) {
+  return getActivityPeriodKey(row) === FINANCE_COLLECTION_ACTIVITY_PERIOD;
 }
 
 async function ensureAttendanceLoaded(data, api, monthKey) {
@@ -341,20 +347,23 @@ async function ensureAttendanceLoaded(data, api, monthKey) {
   }
 }
 
-async function ensureCollectionLoaded(data, api, state) {
-  const period = currentPeriod(state);
-  if (data.collectionActivities && data.collectionPeriod === period) return;
+async function ensureCollectionLoaded(data, api) {
+  if (data.collectionActivities && data.collectionPeriod === FINANCE_COLLECTION_ACTIVITY_PERIOD) return;
   data.collectionLoading = true;
   data.collectionError = '';
   try {
     const [activities, tracking] = await Promise.all([
-      api.allActivities({ select: FINANCE_COLLECTION_ACTIVITY_COLUMNS }),
+      api.allActivities({
+        select: FINANCE_COLLECTION_ACTIVITY_COLUMNS,
+        activity_period: FINANCE_COLLECTION_ACTIVITY_PERIOD
+      }),
       typeof api.listFinanceCollectionTracking === 'function'
         ? api.listFinanceCollectionTracking()
         : Promise.resolve([])
     ]);
-    data.collectionPeriod = period;
-    data.collectionActivities = Array.isArray(activities?.rows) ? activities.rows : [];
+    data.collectionPeriod = FINANCE_COLLECTION_ACTIVITY_PERIOD;
+    data.collectionActivities = (Array.isArray(activities?.rows) ? activities.rows : [])
+      .filter(isFinanceCollectionActivity);
     data.collectionTracking = Array.isArray(tracking) ? tracking : [];
   } catch (error) {
     data.collectionError = error?.message || 'טעינת מעקב הגבייה נכשלה.';
@@ -406,7 +415,7 @@ export const financeScreen = {
         }
         if (nextView === 'collection') {
           refresh();
-          try { await ensureCollectionLoaded(visit, api, state); }
+          try { await ensureCollectionLoaded(visit, api); }
           catch { /* shown via visit.collectionError */ }
           refresh();
           return;

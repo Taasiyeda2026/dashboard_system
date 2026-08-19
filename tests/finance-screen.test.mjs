@@ -7,6 +7,7 @@ import {
   createFinanceVisitState,
   financeScreen,
   FINANCE_ATTENDANCE_COLUMNS,
+  FINANCE_COLLECTION_ACTIVITY_PERIOD,
   attachCollectionTracking,
   buildFinanceAttendanceExcelRows,
   buildFinanceAttendanceWorkbook,
@@ -69,6 +70,7 @@ function activity(overrides = {}) {
     funding: 'גפ״ן',
     price: 1000,
     status: 'פתוח',
+    activity_season: 'school_2027',
     ...overrides
   };
 }
@@ -83,11 +85,14 @@ function mockApi({ activities = [], tracking = [], approvals = [], employees = [
     upsertFinanceCollectionTracking: 0
   };
   const store = [...tracking];
+  const lastArgs = { allActivities: null };
   return {
     counts,
     store,
-    allActivities: async () => {
+    lastArgs,
+    allActivities: async (params = {}) => {
       counts.allActivities += 1;
+      lastArgs.allActivities = params;
       return { rows: activities };
     },
     listPayrollControlApprovals: async () => {
@@ -127,8 +132,8 @@ async function flush() {
   await Promise.resolve();
 }
 
-function mount(data, { api, user = financeUser } = {}) {
-  const state = { user, activityPeriodTab: 'school_2027' };
+function mount(data, { api, user = financeUser, activityPeriodTab = 'school_2027' } = {}) {
+  const state = { user, activityPeriodTab };
   const dom = new JSDOM('<!doctype html><html><body><div id="host"></div></body></html>', { url: 'https://example.test/' });
   globalThis.window = dom.window;
   globalThis.document = dom.window.document;
@@ -186,6 +191,23 @@ test('collection card loads allActivities once and returning to it does not relo
   host.querySelector('[data-finance-open="collection"]').click();
   await flush();
   assert.equal(api.counts.allActivities, 1);
+});
+
+test('collection tracking always requests and shows school_2027 activities even if the global period is regular', async () => {
+  const api = mockApi({
+    activities: [
+      activity({ row_id: 'Y27', activity_name: 'קורס תשפז', activity_season: 'school_2027' }),
+      activity({ row_id: 'Y26', activity_name: 'קורס תשפו', activity_season: 'regular', school: 'בית ספר 2026' })
+    ]
+  });
+  const data = createFinanceVisitState();
+  const { host } = mount(data, { api, activityPeriodTab: 'regular' });
+  host.querySelector('[data-finance-open="collection"]').click();
+  await flush();
+  assert.equal(api.lastArgs.allActivities.activity_period, FINANCE_COLLECTION_ACTIVITY_PERIOD);
+  assert.equal(api.lastArgs.allActivities.activity_period, 'school_2027');
+  assert.match(host.innerHTML, /קורס תשפז/);
+  assert.doesNotMatch(host.innerHTML, /קורס תשפו|בית ספר 2026/);
 });
 
 test('attendance is not loaded until the attendance card is clicked', async () => {
