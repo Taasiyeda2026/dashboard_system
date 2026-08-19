@@ -6,6 +6,7 @@ export const FINANCE_COLLECTION_CLOSED = 'closed';
 export const FINANCE_COLLECTION_TAB_OPEN = 'open';
 export const FINANCE_COLLECTION_TAB_CLOSED = 'closed';
 export const FINANCE_COLLECTION_TAB_ALL = 'all';
+export const FINANCE_COLLECTION_TAB_NO_END_DATE = 'no_end_date';
 export const FINANCE_NO_END_DATE_MONTH_KEY = '__no_end_date__';
 export const FINANCE_NO_END_DATE_MONTH_LABEL = 'ללא תאריך סיום';
 
@@ -66,6 +67,7 @@ export function normalizeFinanceCollectionTab(value) {
   const tab = txt(value).toLowerCase();
   if (tab === FINANCE_COLLECTION_TAB_CLOSED) return FINANCE_COLLECTION_TAB_CLOSED;
   if (tab === FINANCE_COLLECTION_TAB_ALL) return FINANCE_COLLECTION_TAB_ALL;
+  if (tab === FINANCE_COLLECTION_TAB_NO_END_DATE) return FINANCE_COLLECTION_TAB_NO_END_DATE;
   return FINANCE_COLLECTION_TAB_OPEN;
 }
 
@@ -218,8 +220,10 @@ export function filterFinanceCollectionActivities(activities = [], { tab = FINAN
   const query = financeCollectionSearchText(search);
   return (activities || []).filter((activity) => {
     const status = normalizeCollectionStatus(activity.collection_status);
+    const hasEndDate = financeActivityEndMonthKey(activity) !== FINANCE_NO_END_DATE_MONTH_KEY;
     if (normalizedTab === FINANCE_COLLECTION_TAB_OPEN && status !== FINANCE_COLLECTION_OPEN) return false;
     if (normalizedTab === FINANCE_COLLECTION_TAB_CLOSED && status !== FINANCE_COLLECTION_CLOSED) return false;
+    if (normalizedTab === FINANCE_COLLECTION_TAB_NO_END_DATE && hasEndDate) return false;
     if (query && !financeCollectionSearchHaystack(activity).includes(query)) return false;
     return true;
   });
