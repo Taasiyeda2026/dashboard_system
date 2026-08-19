@@ -4,20 +4,10 @@
   padding: var(--av2-space-3) 0 var(--av2-space-5);
 }
 
-/* Page title — "דיווחי נוכחות" */
-.av2-home__page-title {
-  margin: 0;
-  font-size: 1.25rem;
-  font-weight: 800;
-  color: var(--av2-color-accent);
-  letter-spacing: -0.01em;
-  line-height: 1.2;
-}
-
 .av2-home__inner {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
 }
 
 /* ── Header: identity + logout ─────────────────────────────────────────── */
@@ -27,7 +17,6 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--av2-space-2);
-  padding-bottom: 2px;
 }
 
 .av2-home__identity {
@@ -58,6 +47,47 @@
   font-size: 0.6875rem;
   color: var(--av2-color-text-muted);
   letter-spacing: 0.01em;
+}
+
+/* ── Title band: page title + month-status chip ──────────────────────────── */
+
+.av2-home__title-band {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.av2-home__page-title {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: var(--av2-color-accent);
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+}
+
+.av2-home__status-chip {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  padding: 4px 11px;
+  border-radius: 999px;
+  background: var(--av2-color-neutral-bg);
+  color: var(--av2-color-neutral-text);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.av2-home__status-chip[data-tone='success'] {
+  background: var(--av2-color-success-bg);
+  color: var(--av2-color-success-text);
+}
+
+.av2-home__status-chip[data-tone='warning'] {
+  background: var(--av2-color-warning-bg);
+  color: var(--av2-color-warning-text);
 }
 
 /* ── Action row: month nav + add button in one line ─────────────────────── */
@@ -115,7 +145,7 @@
 .av2-stats-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 7px;
+  gap: 8px;
 }
 
 .av2-stat-card {
@@ -123,7 +153,7 @@
   flex-direction: column;
   align-items: flex-start;
   gap: 2px;
-  padding: 10px 10px 8px;
+  padding: 11px 12px 9px;
   background: var(--av2-color-surface);
   border: 1px solid var(--av2-color-border);
   border-radius: var(--av2-radius-md);
@@ -169,6 +199,123 @@
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--av2-color-text-muted);
+}
+
+/* ── Workspace: calendar + monthly approval side by side on desktop ─────── */
+
+.av2-home__workspace {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.av2-home__calendar {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  background: var(--av2-color-surface-sunken);
+  border: 1px solid var(--av2-color-border);
+  border-radius: var(--av2-radius-md);
+}
+
+.av2-home__section-loading {
+  margin: 0;
+  padding: 20px;
+  text-align: center;
+  font-size: 0.8125rem;
+  color: var(--av2-color-text-muted);
+}
+
+/* Heading row shared by the calendar section and the recent-reports list */
+.av2-home__section-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.av2-home__section-heading h2 {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--av2-color-text);
+}
+
+.av2-home__section-heading p {
+  margin: 2px 0 0;
+  font-size: 0.75rem;
+  color: var(--av2-color-text-muted);
+}
+
+/* ── Recent reports (compact list) ───────────────────────────────────────── */
+
+.av2-home__recent {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.av2-home__report-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.av2-home__report-row {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 2px;
+  border-top: 1px solid var(--av2-color-border);
+}
+
+.av2-home__report-row:first-child {
+  border-top: none;
+}
+
+.av2-home__report-row strong,
+.av2-home__report-row span {
+  display: block;
+}
+
+.av2-home__report-row strong {
+  font-size: 0.8125rem;
+  color: var(--av2-color-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.av2-home__report-row span {
+  margin-top: 2px;
+  font-size: 0.6875rem;
+  color: var(--av2-color-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.av2-home__report-row-time {
+  text-align: end;
+}
+
+.av2-home__empty {
+  margin: 0;
+  padding: 14px 0;
+  font-size: 0.8125rem;
+  color: var(--av2-color-text-muted);
+  text-align: center;
+}
+
+/* ── Calendar (Home variant — a touch larger than My Reports' compact one) ── */
+
+.av2-cal--home .av2-cal__cell {
+  height: 40px;
+}
+
+.av2-cal--home .av2-cal__day-num {
+  font-size: 0.8125rem;
 }
 
 /* ── Monthly approval card ─────────────────────────────────────────────── */
@@ -275,7 +422,7 @@
 /* Bottom action strip — full-width prominent submit area */
 .av2-approval-inner__strip {
   padding: 10px 14px;
-  background: var(--av2-color-bg);
+  background: var(--av2-color-surface-sunken);
   border-top: 1px solid var(--av2-color-border);
 }
 
@@ -313,7 +460,7 @@
   opacity: 1;
 }
 
-/* Excel button — ghost/quiet style */
+/* Excel button — ghost/quiet style, a natural secondary action under the card */
 .av2-home__excel-btn {
   display: inline-flex;
   align-items: center;
@@ -331,7 +478,7 @@
 }
 
 .av2-home__excel-btn:hover {
-  background: var(--av2-color-bg);
+  background: var(--av2-color-surface-sunken);
   color: var(--av2-color-text);
 }
 
@@ -406,7 +553,7 @@
 
 @media (min-width: 640px) {
   .av2-home__inner {
-    gap: 12px;
+    gap: 14px;
   }
 
   .av2-home__page-title {
@@ -416,7 +563,7 @@
   /* 4 KPIs side by side */
   .av2-stats-grid {
     grid-template-columns: repeat(4, 1fr);
-    gap: 8px;
+    gap: 10px;
   }
 
   .av2-stat-card {
@@ -429,6 +576,26 @@
 
   .av2-home__primary {
     padding-inline: 20px;
+  }
+
+  /* Calendar + approval card side by side */
+  .av2-home__workspace {
+    flex-direction: row;
+    align-items: stretch;
+  }
+
+  .av2-home__calendar {
+    flex: 1.15;
+    min-width: 0;
+  }
+
+  .av2-home__workspace .av2-approval-card {
+    flex: 0.85;
+    min-width: 280px;
+  }
+
+  .av2-home__workspace .av2-approval-inner {
+    height: 100%;
   }
 
   .av2-approval-inner__title-row {
