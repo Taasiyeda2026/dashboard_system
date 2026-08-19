@@ -5425,6 +5425,7 @@ const ALLOWED_ACTIVITY_COLUMNS = new Set([
   'activity_season',
   'activity_no',
   'activity_name',
+  'activity_name_override',
   'sessions',
   'price',
   'funding',
@@ -5564,7 +5565,7 @@ function sanitizeActivityPayloadForSupabase(payload = {}, { includeRowId = true 
       nextValue = normalizeDateFieldForSupabase(rawValue);
     } else if (key === 'activity_season') {
       nextValue = normalizeActivitySeason(rawValue);
-    } else if (key === 'exists_in_gefen') {
+    } else if (key === 'exists_in_gefen' || key === 'activity_name_override') {
       nextValue = normalizeBooleanFieldForSupabase(rawValue);
     } else if (key === 'participants_count') {
       if (rawValue === '' || rawValue === null || rawValue === undefined) {
@@ -5699,11 +5700,17 @@ function assertSupabaseActivityUpdateApplied(operation, requestedChanges = {}, r
     throw err;
   }
   for (const [key, expectedRaw] of Object.entries(requestedChanges || {})) {
-    if (!(key === 'start_date' || key === 'end_date' || /^date_\d+$/.test(key))) continue;
-    const expected = normalizeDateFieldForSupabase(expectedRaw) || '';
-    const actual = normalizeDateFieldForSupabase(returnedRow[key]) || '';
+    const isDate = key === 'start_date' || key === 'end_date' || /^date_\d+$/.test(key);
+    const isActivityName = key === 'activity_name';
+    if (!isDate && !isActivityName) continue;
+    const expected = isActivityName
+      ? String(expectedRaw ?? '').trim()
+      : (normalizeDateFieldForSupabase(expectedRaw) || '');
+    const actual = isActivityName
+      ? String(returnedRow[key] ?? '').trim()
+      : (normalizeDateFieldForSupabase(returnedRow[key]) || '');
     if (expected !== actual) {
-      const err = new Error(`activity_date_update_not_applied:${key}`);
+      const err = new Error(`activity_update_not_applied:${key}`);
       err.operation = operation;
       err.field = key;
       err.expected = expected;
@@ -5879,6 +5886,12 @@ async function updateActivityInSupabase(payload = {}) {
   delete rawChanges.funding_sources;
   const meetingNotes = extractMeetingNotes(rawChanges);
   const mappedChanges = mapMeetingDateFieldNamesToSupabase(rawChanges);
+  // A direct edit of the visible name is an intentional override of the
+  // catalog display name. The DB trigger still owns automatic names on
+  // creation/import and when the Gefen/activity number changes.
+  if (Object.prototype.hasOwnProperty.call(mappedChanges, 'activity_name')) {
+    mappedChanges.activity_name_override = true;
+  }
   const { data: existingInstructorRow, error: existingInstructorError } = await supabase
     .from('activities')
     .select('instructor_name,instructor_name_2,emp_id,emp_id_2,activity_season,start_date')
@@ -6016,7 +6029,7 @@ async function updateActivityInSupabase(payload = {}) {
   }
   const { data: freshDbRow, error: freshDbError } = await supabase
     .from('activities')
-    .select(activityDateSelectColumns())
+    .select(`${activityDateSelectColumns()},activity_name`)
     .eq('row_id', rowId)
     .maybeSingle();
   if (freshDbError) throw buildSupabaseMutationError('saveActivity', freshDbError, 'save_failed');
