@@ -854,47 +854,6 @@ function setBoardActiveNav() {
   }
 }
 
-function bindPhonePopovers(root) {
-  let openPopover = null;
-
-  function closePopover() {
-    if (openPopover) {
-      openPopover.remove();
-      openPopover = null;
-    }
-  }
-
-  root.querySelectorAll('.manager-board-team-strip__chip[data-instructor-mobile]').forEach((chip) => {
-    chip.addEventListener('click', (event) => {
-      event.stopPropagation();
-      const existing = chip.querySelector('.manager-board-phone-popover');
-      if (existing) {
-        closePopover();
-        return;
-      }
-      closePopover();
-      const mobile = chip.dataset.instructorMobile || '';
-      const popover = document.createElement('span');
-      popover.className = 'manager-board-phone-popover';
-      popover.dir = 'ltr';
-      popover.textContent = mobile || '—';
-      chip.style.position = 'relative';
-      chip.appendChild(popover);
-      openPopover = popover;
-    });
-  });
-
-  document.addEventListener('click', function handler(event) {
-    if (!root.isConnected) {
-      document.removeEventListener('click', handler, true);
-      return;
-    }
-    if (!event.target.closest('.manager-board-team-strip__chip[data-instructor-mobile]')) {
-      closePopover();
-    }
-  }, true);
-}
-
 function bindBoardControls(root, data) {
   root.querySelector('[data-manager-board-manager]')?.addEventListener('change', (event) => {
     selectedManager = normalizedText(event.target.value);
@@ -986,7 +945,6 @@ async function renderManagerBoard(force = false) {
     root.innerHTML = renderBoardMarkup(data, selectedManager, selectedYm);
     lastRenderedSignature = signature;
     bindBoardControls(root, data);
-    bindPhonePopovers(root);
     setBoardActiveNav();
   } catch (error) {
     if (requestId !== boardRequestId || !managerBoardOpen) return;

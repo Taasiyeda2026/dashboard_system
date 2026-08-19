@@ -1,16 +1,18 @@
 const STYLE_ID = 'operations-management-home-cards-style';
 const HOME_ATTRIBUTE = 'data-operations-management-home';
-const TILE_LABEL_ATTRIBUTE = 'data-operations-management-target-label';
+const TILE_TARGET_TYPE_ATTRIBUTE = 'data-operations-management-target-type';
+const TILE_TARGET_VALUE_ATTRIBUTE = 'data-operations-management-target-value';
 const PLACEHOLDER_TEXT = 'בחרו לשונית להצגת הנתונים.';
-const CARD_LABELS = [
-  'מלאי סדנאות',
-  'הזמנות לאירועים',
-  'קטלוג',
-  'תעודות',
-  'הכשרות סדנאות',
-  'הכשרות קורסים',
-  'ערכות דפוס'
-];
+const CARD_TARGETS = Object.freeze([
+  { label: 'מלאי סדנאות', type: 'ops-tab', value: 'workshops' },
+  { label: 'הזמנות לאירועים', type: 'route', value: 'invitations' },
+  { label: 'קטלוג', type: 'route', value: 'catalog' },
+  { label: 'תעודות', type: 'route', value: 'certificates' },
+  { label: 'הכשרות סדנאות', type: 'ops-custom-tab', value: 'summer_training_matrix' },
+  { label: 'הכשרות קורסים', type: 'ops-custom-tab', value: 'course_training_matrix' },
+  { label: 'ערכות דפוס', type: 'ops-custom-tab', value: 'course_print_kits' }
+]);
+const CARD_TARGETS_SIGNATURE = CARD_TARGETS.map(({ type, value }) => `${type}:${value}`).join('|');
 let scheduled = false;
 
 function normalize(value) {
@@ -140,13 +142,6 @@ function ensureStyles() {
   document.head.append(style);
 }
 
-function navButtons(nav) {
-  const buttons = [...nav.querySelectorAll('button[data-ops-tab], button[data-route], button[data-ops-custom-tab]')]
-    .filter((button) => normalize(button.textContent));
-  const byLabel = new Map(buttons.map((button) => [normalize(button.textContent), button]));
-  return CARD_LABELS.map((label) => byLabel.get(label)).filter(Boolean);
-}
-
 function findPlaceholder(nav) {
   const root = nav.closest('#app') || document.getElementById('app');
   if (!root) return null;
@@ -172,17 +167,17 @@ function createHome() {
   return home;
 }
 
-function renderTiles(home, buttons) {
+function renderTiles(home) {
   const grid = home?.querySelector?.('.operations-management-home__grid');
   if (!grid) return;
   grid.replaceChildren();
 
-  buttons.forEach((target) => {
-    const label = normalize(target.textContent);
+  CARD_TARGETS.forEach(({ label, type, value }) => {
     const tile = document.createElement('button');
     tile.type = 'button';
     tile.className = 'operations-management-home__tile';
-    tile.setAttribute(TILE_LABEL_ATTRIBUTE, label);
+    tile.setAttribute(TILE_TARGET_TYPE_ATTRIBUTE, type);
+    tile.setAttribute(TILE_TARGET_VALUE_ATTRIBUTE, value);
     tile.innerHTML = `
       <span class="operations-management-home__icon">${iconSvg(label)}</span>
       <span class="operations-management-home__content">
@@ -196,35 +191,39 @@ function renderTiles(home, buttons) {
     tile.setAttribute('aria-label', `פתיחת ${label}`);
     grid.append(tile);
   });
+  home.dataset.operationsManagementTargets = CARD_TARGETS_SIGNATURE;
 }
 
 function buildOrSyncHome(nav, placeholder) {
-  const buttons = navButtons(nav);
-  if (!buttons.length) return;
-
   let home = findHome(nav);
   if (!home && placeholder) {
     home = createHome();
     placeholder.replaceWith(home);
   }
   if (!home) return;
-  renderTiles(home, buttons);
+  const cardCount = home.querySelectorAll(`.operations-management-home__tile[${TILE_TARGET_TYPE_ATTRIBUTE}]`).length;
+  if (home.dataset.operationsManagementTargets !== CARD_TARGETS_SIGNATURE || cardCount !== CARD_TARGETS.length) {
+    renderTiles(home);
+  }
 }
 
-function currentNavigationTarget(label) {
-  const expected = normalize(label);
-  if (!expected) return null;
-  const navs = [...document.querySelectorAll('.ds-ops-mgmt-tabs')];
-  for (const nav of navs) {
-    const target = navButtons(nav).find((button) => normalize(button.textContent) === expected);
-    if (target?.isConnected && !target.disabled) return target;
-  }
-  return null;
+function currentNavigationTarget(type, value) {
+  const selectors = {
+    'ops-tab': `.ds-ops-mgmt-tabs button[data-ops-tab="${value}"]`,
+    'ops-custom-tab': `.ds-ops-mgmt-tabs button[data-ops-custom-tab="${value}"]`
+  };
+  const selector = selectors[type];
+  return selector ? document.querySelector(selector) : null;
 }
 
 function openTile(tile) {
-  const label = normalize(tile?.getAttribute?.(TILE_LABEL_ATTRIBUTE));
-  const target = currentNavigationTarget(label);
+  const type = String(tile?.getAttribute?.(TILE_TARGET_TYPE_ATTRIBUTE) || '');
+  const value = String(tile?.getAttribute?.(TILE_TARGET_VALUE_ATTRIBUTE) || '');
+  if (type === 'route' && value) {
+    document.dispatchEvent(new CustomEvent('app:navigate', { detail: { route: value } }));
+    return true;
+  }
+  const target = currentNavigationTarget(type, value);
   if (!target) {
     scheduleSync();
     return false;
@@ -235,7 +234,7 @@ function openTile(tile) {
 
 function handleTileClick(event) {
   const target = event.target instanceof Element ? event.target : null;
-  const tile = target?.closest?.(`.operations-management-home__tile[${TILE_LABEL_ATTRIBUTE}]`);
+  const tile = target?.closest?.(`.operations-management-home__tile[${TILE_TARGET_TYPE_ATTRIBUTE}]`);
   if (!tile) return;
   event.preventDefault();
   openTile(tile);

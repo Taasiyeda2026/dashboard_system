@@ -679,10 +679,7 @@ button.manager-board-team-strip__chip:hover {
 }
 
 .manager-board-phone-popover {
-  position: absolute;
-  bottom: calc(100% + 6px);
-  left: 50%;
-  transform: translateX(-50%);
+  position: fixed;
   padding: 5px 10px;
   border-radius: 8px;
   background: #1e293b;
@@ -690,19 +687,9 @@ button.manager-board-team-strip__chip:hover {
   font-size: 13px;
   font-weight: 700;
   white-space: nowrap;
-  z-index: 10;
+  z-index: 10000;
   pointer-events: none;
   box-shadow: 0 4px 12px rgba(0,0,0,.15);
-}
-
-.manager-board-phone-popover::after {
-  content: '';
-  position: absolute;
-  top: 100%;
-  left: 50%;
-  transform: translateX(-50%);
-  border: 5px solid transparent;
-  border-top-color: #1e293b;
 }
 
 .manager-board-nav-button.is-active {

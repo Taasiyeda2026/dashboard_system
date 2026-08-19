@@ -159,17 +159,18 @@ export function bindCoordinationWorkspace(root, context, { loginHint = '', onCha
     const selected = context.items.filter((item) => ids.has(item.activity_row_id));
     const groups = groupActivitiesForDispatch(selected);
     if (!selected.length) return;
-    if (!globalThis.confirm(`יוכנו ${groups.length} מיילים עבור ${selected.length} פעילויות. להמשיך?`)) return;
+    if (!globalThis.confirm(`יישלחו ${groups.length} מיילים עבור ${selected.length} פעילויות. להמשיך?`)) return;
     const progress = root.querySelector('[data-coordination-progress]');
     clearCoordinationOutlookAction(progress);
-    const { prepareCoordinationDrafts } = await import('./outlook.js');
-    const results = await prepareCoordinationDrafts(selected, { loginHint, onProgress: ({ current, total }) => { progress.textContent = `מכין מיילים ${current} מתוך ${total}`; } });
-    const succeeded = results.filter((item) => item.ok && !item.value?.existing).length;
-    const skipped = results.filter((item) => item.ok && item.value?.existing).length;
+    const { sendCoordinationDispatches } = await import('./outlook.js');
+    const results = await sendCoordinationDispatches(selected, { loginHint, onProgress: ({ current, total }) => { progress.textContent = `שולח מיילים ${current} מתוך ${total}`; } });
+    const succeeded = results.filter((item) => item.ok && item.value?.sent && !item.value?.alreadySent).length;
+    const alreadySent = results.filter((item) => item.ok && item.value?.alreadySent).length;
     const failed = results.filter((item) => !item.ok).length;
-    const firstSuccessful = results.find((result) => result.ok);
-    if (firstSuccessful) revealCoordinationDraft(firstSuccessful, null, globalThis, progress);
-    progress.textContent = `נוצרו ${succeeded} טיוטות · ${skipped} דולגו · ${failed} נכשלו${firstSuccessful ? ' · המייל הראשון מוכן ב-Outlook' : ''}`;
+    const firstFailure = results.find((result) => !result.ok);
+    progress.textContent = failed
+      ? `נשלחו ${succeeded} מיילים · ${alreadySent} כבר נשלחו · ${failed} נכשלו: ${firstFailure?.error?.message || 'בדקו את חיבור Microsoft 365 ונסו שוב.'}`
+      : `נשלחו ${succeeded} מיילים${alreadySent ? ` · ${alreadySent} כבר נשלחו קודם` : ''}.`;
     await onChanged(results);
   });
 }
@@ -197,18 +198,18 @@ export function bindCoordinationActivityModal(root, item, { loginHint = '', onCh
     const progress = root.querySelector('[data-coordination-modal-progress]');
     clearCoordinationOutlookAction(progress);
     button.disabled = true;
-    progress.textContent = 'מכין את המייל…';
+    progress.textContent = 'מכין ושולח את המייל…';
     try {
-      const { prepareCoordinationDrafts } = await import('./outlook.js');
-      const results = await prepareCoordinationDrafts([item], { loginHint });
+      const { sendCoordinationDispatches } = await import('./outlook.js');
+      const results = await sendCoordinationDispatches([item], { loginHint });
       const failed = results.find((result) => !result.ok);
       if (failed) throw failed.error;
       const successful = results.find((result) => result.ok);
-      revealCoordinationDraft(successful, null, globalThis, progress);
-      progress.textContent = 'טיוטת אישור התיאום מוכנה ב-Outlook.';
+      if (!successful?.value?.sent) throw new Error('Microsoft 365 לא אישר את שליחת המייל.');
+      progress.textContent = successful.value.alreadySent ? 'אישור התיאום כבר נשלח בעבר.' : 'אישור התיאום נשלח בהצלחה.';
       await onChanged(results);
     } catch (error) {
-      progress.textContent = error?.message || 'לא ניתן להכין את הטיוטה.';
+      progress.textContent = `לא ניתן לשלוח את אישור התיאום: ${error?.message || 'בדקו את חיבור Microsoft 365 ונסו שוב.'}`;
       button.disabled = false;
     }
   });
