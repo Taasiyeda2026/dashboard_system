@@ -9,6 +9,19 @@ function removeMonthlyInstructorPanel(boardRoot) {
   boardRoot?.querySelectorAll('.manager-board-panel--instructors').forEach((panel) => panel.remove());
 }
 
+function setButtonText(button, value) {
+  if (button && button.textContent !== value) button.textContent = value;
+}
+
+function setButtonTitle(button, value) {
+  if (!button) return;
+  if (value) {
+    if (button.title !== value) button.title = value;
+  } else if (button.hasAttribute('title')) {
+    button.removeAttribute('title');
+  }
+}
+
 function syncManagementMonthNavigation(boardRoot) {
   const nav = boardRoot?.querySelector('.manager-board-month-nav');
   if (!nav) return;
@@ -20,15 +33,15 @@ function syncManagementMonthNavigation(boardRoot) {
   nav.classList.toggle('manager-board-month-nav--labeled', isManagement);
 
   if (isManagement) {
-    previous.textContent = '‹ חודש קודם';
-    next.textContent = 'חודש הבא ›';
-    previous.title = previous.disabled ? 'זהו החודש הראשון בשנת הפעילות' : 'מעבר לחודש הקודם';
-    next.title = next.disabled ? 'זהו החודש האחרון בשנת הפעילות' : 'מעבר לחודש הבא';
+    setButtonText(previous, '‹ חודש קודם');
+    setButtonText(next, 'חודש הבא ›');
+    setButtonTitle(previous, previous.disabled ? 'זהו החודש הראשון בשנת הפעילות' : 'מעבר לחודש הקודם');
+    setButtonTitle(next, next.disabled ? 'זהו החודש האחרון בשנת הפעילות' : 'מעבר לחודש הבא');
   } else {
-    previous.textContent = '‹';
-    next.textContent = '›';
-    previous.removeAttribute('title');
-    next.removeAttribute('title');
+    setButtonText(previous, '‹');
+    setButtonText(next, '›');
+    setButtonTitle(previous, '');
+    setButtonTitle(next, '');
   }
 }
 
