@@ -5,9 +5,20 @@
  */
 
 import { createIcon } from '../components/icon.js';
+import { createMiniCalendar } from '../components/mini-calendar.js';
 import { getMonthRecords, calcMonthSummary, getMonthApproval, submitMonth } from '../services/attendance.service.js';
 import { canEditMonth, editBlockReason, getMonthKey, formatMonthLabel, shouldShowSubmitReminder } from '../services/month-gate.service.js';
 import { exportMonthToExcel } from '../services/excel.service.js';
+
+const DAY_NAMES_SHORT = ['א\'', 'ב\'', 'ג\'', 'ד\'', 'ה\'', 'ו\'', 'ש\''];
+
+const STATUS_MAP = {
+  open:     { label: 'פתוח לדיווח', tone: 'neutral' },
+  submitted:{ label: 'אושר על ידי העובד / בבקרת מנהל', tone: 'warning' },
+  locked:   { label: 'אושר על ידי המנהל', tone: 'success' },
+  reopened: { label: 'הוחזר לתיקון — פתוח לדיווח', tone: 'neutral' },
+  approved_for_payroll: { label: 'אושר סופית', tone: 'success' }
+};
 
 export function renderHomeScreen(container, {
   instructor = {},
@@ -53,6 +64,17 @@ export function renderHomeScreen(container, {
 
   header.append(identity, logoutBtn);
 
+  // ── Title band: page title + month status chip (filled after load) ─────
+  const titleBand = document.createElement('div');
+  titleBand.className = 'av2-home__title-band';
+  const pageTitleEl = document.createElement('h1');
+  pageTitleEl.className = 'av2-home__page-title';
+  pageTitleEl.textContent = 'דיווחי נוכחות';
+  const statusChip = document.createElement('span');
+  statusChip.className = 'av2-home__status-chip';
+  statusChip.hidden = true;
+  titleBand.append(pageTitleEl, statusChip);
+
   // ── Month navigator ────────────────────────────────────────────────────
   const monthNav = buildMonthNav(year, month, onPrevMonth, onNextMonth);
 
@@ -65,35 +87,44 @@ export function renderHomeScreen(container, {
   newReportBtn.append(createIcon('plus'), newReportLabel);
   newReportBtn.addEventListener('click', () => onNewReport?.());
 
-  // ── Stat cards placeholder (filled after load) ─────────────────────────
-  const statsEl = document.createElement('div');
-  statsEl.className = 'av2-stats-grid';
-  statsEl.innerHTML = buildStatSkeletons();
-
-  // ── Monthly approval card placeholder ─────────────────────────────────
-  const approvalCard = document.createElement('div');
-  approvalCard.className = 'av2-approval-card';
-  approvalCard.innerHTML = '<p class="av2-approval-card__loading">טוען מצב חודש…</p>';
-
-  // ── Page title ─────────────────────────────────────────────────────────
-  const pageTitleEl = document.createElement('h1');
-  pageTitleEl.className = 'av2-home__page-title';
-  pageTitleEl.textContent = 'דיווחי נוכחות';
-
   // Month nav + add button share one compact action row
   const actionRow = document.createElement('div');
   actionRow.className = 'av2-home__action-row';
   actionRow.append(monthNav, newReportBtn);
 
-  inner.append(header, pageTitleEl, actionRow, statsEl, approvalCard);
+  // ── Stat cards placeholder (filled after load) ─────────────────────────
+  const statsEl = document.createElement('div');
+  statsEl.className = 'av2-stats-grid';
+  statsEl.innerHTML = buildStatSkeletons();
+
+  // ── Workspace: calendar + monthly approval side by side ────────────────
+  const workspace = document.createElement('div');
+  workspace.className = 'av2-home__workspace';
+
+  const calendarSection = document.createElement('section');
+  calendarSection.className = 'av2-home__calendar';
+  calendarSection.innerHTML = '<p class="av2-home__section-loading">טוען לוח שנה…</p>';
+
+  const approvalCard = document.createElement('div');
+  approvalCard.className = 'av2-approval-card';
+  approvalCard.innerHTML = '<p class="av2-approval-card__loading">טוען מצב חודש…</p>';
+
+  workspace.append(calendarSection, approvalCard);
+
+  // ── Recent reports (compact list) ───────────────────────────────────────
+  const recentSection = document.createElement('section');
+  recentSection.className = 'av2-home__recent';
+  recentSection.innerHTML = '<p class="av2-home__section-loading">טוען דיווחים…</p>';
+
+  inner.append(header, titleBand, actionRow, statsEl, workspace, recentSection);
   wrap.append(inner);
   container.append(wrap);
 
-  // ── Load real data ─────────────────────────────────────────────────────
-  loadAndRender({ instructor, year, month, statsEl, approvalCard, newReportBtn, onMyReports });
+  // ── Load real data (single fetch — feeds stats, calendar and recent list) ─
+  loadAndRender({ instructor, year, month, statsEl, approvalCard, newReportBtn, onMyReports, statusChip, calendarSection, recentSection });
 }
 
-async function loadAndRender({ instructor, year, month, statsEl, approvalCard, newReportBtn, onMyReports }) {
+async function loadAndRender({ instructor, year, month, statsEl, approvalCard, newReportBtn, onMyReports, statusChip, calendarSection, recentSection }) {
   const monthKey = getMonthKey(year, month);
   try {
     const [records, approval] = await Promise.all([
@@ -120,6 +151,12 @@ async function loadAndRender({ instructor, year, month, statsEl, approvalCard, n
       newReportBtn.style.opacity = '0.5';
     }
 
+    // Status chip (title band)
+    const { label: statusLabel, tone } = STATUS_MAP[approval?.status ?? 'open'] || STATUS_MAP.open;
+    statusChip.hidden = false;
+    statusChip.textContent = statusLabel;
+    statusChip.dataset.tone = tone;
+
     // Update approval card
     approvalCard.innerHTML = '';
     // Submit reminder banner: shown from the 25th when month is still open/reopened
@@ -133,7 +170,6 @@ async function loadAndRender({ instructor, year, month, statsEl, approvalCard, n
       const xlBtn = document.createElement('button');
       xlBtn.type = 'button';
       xlBtn.className = 'av2-btn av2-btn--secondary av2-home__excel-btn';
-      xlBtn.innerHTML = '';
       xlBtn.append(createIcon('download', { size: 15 }));
       const xlLabel = document.createElement('span');
       xlLabel.textContent = 'ייצוא Excel';
@@ -142,10 +178,134 @@ async function loadAndRender({ instructor, year, month, statsEl, approvalCard, n
       approvalCard.append(xlBtn);
     }
 
+    // Calendar + recent list — both sourced from the single `records` fetch above.
+    renderCalendarSection(calendarSection, recentSection, records, year, month, onMyReports);
+
   } catch (err) {
     statsEl.innerHTML = `<p class="av2-error">${err.message}</p>`;
     approvalCard.innerHTML = '';
+    calendarSection.innerHTML = '';
+    recentSection.innerHTML = '';
   }
+}
+
+// ── Calendar + recent list ──────────────────────────────────────────────────
+
+function renderCalendarSection(calendarSection, recentSection, records, year, month, onMyReports) {
+  calendarSection.innerHTML = '';
+
+  const heading = document.createElement('div');
+  heading.className = 'av2-home__section-heading';
+  const titleBox = document.createElement('div');
+  titleBox.innerHTML = `<h2>לוח חודש</h2><p>${formatMonthLabel(year, month)}</p>`;
+  const clearBtn = document.createElement('button');
+  clearBtn.type = 'button';
+  clearBtn.className = 'av2-btn av2-btn--link';
+  clearBtn.textContent = 'כל החודש';
+  clearBtn.hidden = true;
+  heading.append(titleBox, clearBtn);
+
+  const { wrap: calWrap, clearSelection } = createMiniCalendar({
+    year, month, records,
+    variant: 'home',
+    onDayClick: (dateStr) => {
+      clearBtn.hidden = false;
+      renderRecentList(recentSection, records, year, month, dateStr, onMyReports);
+    }
+  });
+
+  clearBtn.addEventListener('click', () => {
+    clearBtn.hidden = true;
+    clearSelection();
+    renderRecentList(recentSection, records, year, month, null, onMyReports);
+  });
+
+  calendarSection.append(heading, calWrap);
+
+  renderRecentList(recentSection, records, year, month, null, onMyReports);
+}
+
+function renderRecentList(recentSection, records, year, month, selectedDate, onMyReports) {
+  recentSection.innerHTML = '';
+
+  const filtered = selectedDate ? records.filter((r) => r.report_date === selectedDate) : [...records];
+  filtered.sort((a, b) =>
+    String(b.report_date).localeCompare(String(a.report_date)) ||
+    String(b.start_time || '').localeCompare(String(a.start_time || ''))
+  );
+  const visible = selectedDate ? filtered : filtered.slice(0, 5);
+
+  const heading = document.createElement('div');
+  heading.className = 'av2-home__section-heading';
+  const titleBox = document.createElement('div');
+  const h2 = document.createElement('h2');
+  h2.textContent = selectedDate ? `דיווחים ל-${formatDateShort(selectedDate)}` : 'הדיווחים האחרונים';
+  const p = document.createElement('p');
+  p.textContent = selectedDate ? `${filtered.length} דיווחים ביום שנבחר` : `${records.length} דיווחים בחודש`;
+  titleBox.append(h2, p);
+  const allBtn = document.createElement('button');
+  allBtn.type = 'button';
+  allBtn.className = 'av2-btn av2-btn--link';
+  allBtn.textContent = 'לכל הדיווחים ←';
+  allBtn.addEventListener('click', () => onMyReports?.());
+  heading.append(titleBox, allBtn);
+
+  const list = document.createElement('div');
+  list.className = 'av2-home__report-list';
+  if (!visible.length) {
+    const empty = document.createElement('p');
+    empty.className = 'av2-home__empty';
+    empty.textContent = selectedDate ? 'אין דיווחים ביום הזה.' : `אין עדיין דיווחים ב${formatMonthLabel(year, month)}.`;
+    list.append(empty);
+  } else {
+    visible.forEach((record) => list.append(buildReportRow(record)));
+  }
+
+  recentSection.append(heading, list);
+}
+
+function buildReportRow(record) {
+  const row = document.createElement('div');
+  row.className = 'av2-home__report-row';
+
+  const dateCol = document.createElement('div');
+  dateCol.className = 'av2-home__report-row-date';
+  const dStrong = document.createElement('strong');
+  dStrong.textContent = formatDateShort(record.report_date);
+  const dSpan = document.createElement('span');
+  dSpan.textContent = dayNameShort(record.report_date);
+  dateCol.append(dStrong, dSpan);
+
+  const mainCol = document.createElement('div');
+  mainCol.className = 'av2-home__report-row-main';
+  const mStrong = document.createElement('strong');
+  mStrong.textContent = record.activity_name_snapshot || record.activity_type || 'דיווח';
+  const mSpan = document.createElement('span');
+  mSpan.textContent = record.school_name_snapshot || record.authority_name_snapshot || '';
+  mainCol.append(mStrong, mSpan);
+
+  const schoolCol = document.createElement('div');
+  schoolCol.className = 'av2-home__report-row-school';
+  schoolCol.textContent = record.school_name_snapshot || record.authority_name_snapshot || '—';
+
+  const timeCol = document.createElement('div');
+  timeCol.className = 'av2-home__report-row-time';
+  const tStrong = document.createElement('strong');
+  tStrong.textContent = `${formatTimeShort(record.start_time)}–${formatTimeShort(record.end_time)}`;
+  const tSpan = document.createElement('span');
+  tSpan.textContent = `${Number(record.total_hours || 0).toFixed(2)} שעות · ${Number(record.roundtrip_km || 0).toFixed(0)} ק״מ`;
+  timeCol.append(tStrong, tSpan);
+
+  const hoursCol = document.createElement('div');
+  hoursCol.className = 'av2-home__report-row-hours';
+  hoursCol.textContent = `${Number(record.total_hours || 0).toFixed(2)} ש`;
+
+  const kmCol = document.createElement('div');
+  kmCol.className = 'av2-home__report-row-km';
+  kmCol.textContent = `${Number(record.roundtrip_km || 0).toFixed(0)} ק״מ`;
+
+  row.append(dateCol, mainCol, schoolCol, timeCol, hoursCol, kmCol);
+  return row;
 }
 
 // ── Builders ───────────────────────────────────────────────────────────────
@@ -209,15 +369,7 @@ function buildApprovalCard({ approval, year, month, instructor, records, summary
   wrap.className = 'av2-approval-inner';
 
   const status = approval?.status ?? 'open';
-
-  const statusMap = {
-    open:     { label: 'פתוח לעריכה', tone: 'neutral' },
-    submitted:{ label: 'הוגש — ממתין לאישור', tone: 'warning' },
-    locked:   { label: 'נעול על ידי מנהל', tone: 'success' },
-    reopened: { label: 'נפתח מחדש', tone: 'neutral' }
-  };
-
-  const { label: statusLabel, tone } = statusMap[status] || statusMap.open;
+  const { label: statusLabel, tone } = STATUS_MAP[status] || STATUS_MAP.open;
 
   // ── Title row: label + status badge ──────────────────────────────────────
   const titleRow = document.createElement('div');
@@ -259,6 +411,14 @@ function buildApprovalCard({ approval, year, month, instructor, records, summary
 
   // ── Bottom action strip ───────────────────────────────────────────────────
   if (status === 'open' || status === 'reopened') {
+    if (status === 'reopened') {
+      const strip = document.createElement('div');
+      strip.className = 'av2-approval-inner__strip av2-approval-inner__strip--info';
+      const msg = document.createElement('span');
+      msg.textContent = 'החודש הוחזר אליך לתיקון — ניתן לערוך ולהגיש מחדש.';
+      strip.append(msg);
+      wrap.append(strip);
+    }
     if (editable && records.length > 0) {
       const strip = document.createElement('div');
       strip.className = 'av2-approval-inner__strip';
@@ -266,7 +426,7 @@ function buildApprovalCard({ approval, year, month, instructor, records, summary
       submitBtn.type = 'button';
       submitBtn.className = 'av2-btn av2-btn--primary av2-home__month-submit';
       const submitLabel = document.createElement('span');
-      submitLabel.textContent = 'סיום וסגירת חודש';
+      submitLabel.textContent = 'סיום דיווח ואישור';
       submitBtn.append(createIcon('check-circle', { size: 15 }), submitLabel);
       submitBtn.addEventListener('click', () => handleSubmit({ submitBtn, instructor, year, month, records, wrap }));
       strip.append(submitBtn);
@@ -282,10 +442,32 @@ function buildApprovalCard({ approval, year, month, instructor, records, summary
       const strip = document.createElement('div');
       strip.className = 'av2-approval-inner__strip av2-approval-inner__strip--info';
       const msg = document.createElement('span');
-      msg.textContent = `✓ הוגש ב-${new Date(approval.submitted_at).toLocaleDateString('he-IL')} — ממתין לאישור מנהל`;
+      const byName = String(approval?.submitted_by_name || instructor?.name || '').trim();
+      msg.textContent = `✓ אושר על ידי העובד ${byName ? `(${byName}) ` : ''}ב-${new Date(approval.submitted_at).toLocaleString('he-IL', { dateStyle: 'short', timeStyle: 'short' })}`;
       strip.append(msg);
       wrap.append(strip);
     }
+  } else if (status === 'locked') {
+    const strip = document.createElement('div');
+    strip.className = 'av2-approval-inner__strip av2-approval-inner__strip--info';
+    const when = approval?.manager_approved_at
+      ? ` ב-${new Date(approval.manager_approved_at).toLocaleString('he-IL', { dateStyle: 'short', timeStyle: 'short' })}`
+      : '';
+    const who = String(approval?.manager_approved_by_name || '').trim();
+    const msg = document.createElement('span');
+    msg.textContent = `✓ אושר על ידי המנהל${who ? ` (${who})` : ''}${when}`;
+    strip.append(msg);
+    wrap.append(strip);
+  } else if (status === 'approved_for_payroll') {
+    const strip = document.createElement('div');
+    strip.className = 'av2-approval-inner__strip av2-approval-inner__strip--info';
+    const when = approval?.payroll_approved_at
+      ? ` ב-${new Date(approval.payroll_approved_at).toLocaleDateString('he-IL')}`
+      : '';
+    const msg = document.createElement('span');
+    msg.textContent = `✓ החודש אושר סופית${when}`;
+    strip.append(msg);
+    wrap.append(strip);
   }
 
   return wrap;
@@ -302,21 +484,21 @@ async function handleSubmit({ submitBtn, instructor, year, month, records, wrap 
   submitBtn.disabled = true;
   submitBtn.textContent = 'מגיש…';
   try {
-    await submitMonth(instructor.empId, getMonthKey(year, month));
+    await submitMonth(instructor.empId, getMonthKey(year, month), instructor?.name || '');
     const badge = wrap.querySelector('.av2-badge');
     if (badge) {
       badge.className = 'av2-badge av2-badge--warning';
-      badge.textContent = 'הוגש — ממתין לאישור';
+      badge.textContent = 'אושר על ידי העובד / בבקרת מנהל';
     }
     submitBtn.remove();
     const msg = document.createElement('p');
     msg.className = 'av2-approval-inner__meta';
     msg.style.color = 'var(--av2-color-success-text)';
-    msg.textContent = `✓ הוגש בהצלחה ב-${new Date().toLocaleDateString('he-IL')}`;
+    msg.textContent = `✓ אישור העובד נשמר בהצלחה ב-${new Date().toLocaleString('he-IL', { dateStyle: 'short', timeStyle: 'short' })}`;
     wrap.append(msg);
   } catch (err) {
     submitBtn.disabled = false;
-    submitBtn.textContent = 'סיום וסגירת חודש';
+    submitBtn.textContent = 'סיום דיווח ואישור';
     alert(`שגיאה: ${err.message}`);
   }
 }
@@ -358,4 +540,21 @@ function buildSubmitReminderBanner({ year, month }) {
   body.append(title, text, actionBtn);
   banner.append(icon, body);
   return banner;
+}
+
+// ── Formatting helpers ───────────────────────────────────────────────────────
+
+function formatDateShort(isoDate) {
+  if (!isoDate) return '—';
+  const d = new Date(`${isoDate}T12:00:00`);
+  return Number.isNaN(d.getTime()) ? isoDate : d.toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit' });
+}
+
+function dayNameShort(isoDate) {
+  const d = isoDate ? new Date(`${isoDate}T12:00:00`) : null;
+  return !d || Number.isNaN(d.getTime()) ? '' : DAY_NAMES_SHORT[d.getDay()];
+}
+
+function formatTimeShort(t) {
+  return t ? String(t).slice(0, 5) : '—';
 }
