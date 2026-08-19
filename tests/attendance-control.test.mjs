@@ -33,14 +33,13 @@ import {
 
 test('payroll control opening screen uses direct monthly sources and no workbook upload', () => {
   const html = attendanceControlHtml();
-  assert.match(html, /נוכחות/);
-  assert.match(html, /דשבורד/);
+  assert.match(html, /חודש בקרה/);
   assert.match(html, /צוות/);
   assert.match(html, /אישור בקרת שכר/);
   assert.equal((html.match(/type="file"/g) || []).length, 0);
   assert.doesNotMatch(html, /data-attendance-dashboard/);
   assert.match(html, /data-attendance-month/);
-  assert.match(html, /data-dashboard-month/);
+  assert.doesNotMatch(html, /data-dashboard-month/);
   assert.match(html, /data-attendance-run disabled/);
 });
 

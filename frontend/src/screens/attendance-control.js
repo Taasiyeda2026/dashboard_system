@@ -1095,7 +1095,7 @@ export function attendanceAuditSummary(result) {
 }
 
 export function attendanceControlHtml() {
-  return `<section class="attendance-control no-print" data-attendance-control hidden dir="rtl"><div class="attendance-control__head"><div><h2 data-attendance-title>בקרת שכר</h2></div><button type="button" class="ds-btn ds-btn--sm" data-attendance-close>סגירה</button></div><div class="attendance-control__uploads"><label><strong>נוכחות</strong><span>בחר חודש</span><input class="ds-input" type="month" data-attendance-month></label><label><strong>דשבורד</strong><span>בחר חודש</span><input class="ds-input" type="month" data-dashboard-month></label><label><strong>צוות</strong><select class="ds-input" data-attendance-team disabled><option value="">טוען צוותים…</option></select></label><button type="button" class="ds-btn ds-btn--primary" data-attendance-run disabled>אישור בקרת שכר</button></div><p class="attendance-control__status" data-attendance-status aria-live="polite"></p><div data-attendance-results></div></section>`;
+  return `<section class="attendance-control no-print" data-attendance-control hidden dir="rtl"><div class="attendance-control__head"><div><h2 data-attendance-title>בקרת שכר</h2></div><button type="button" class="ds-btn ds-btn--sm" data-attendance-close>סגירה</button></div><div class="attendance-control__uploads"><label><strong>חודש בקרה</strong><span>בחר חודש</span><input class="ds-input" type="month" data-attendance-month></label><label><strong>צוות</strong><select class="ds-input" data-attendance-team disabled><option value="">טוען צוותים…</option></select></label><button type="button" class="ds-btn ds-btn--primary" data-attendance-run disabled>אישור בקרת שכר</button></div><p class="attendance-control__status" data-attendance-status aria-live="polite"></p><div data-attendance-results></div></section>`;
 }
 
 export function attendanceControlStylesHtml() {
@@ -1241,7 +1241,8 @@ export function resultsHtml(result, month = '', options = {}) {
       return `<details class="attendance-control__day${issue ? '' : ' attendance-control__day--ok'}" data-payroll-date="${escapeHtml(date)}"><summary><span>${shown(dateLabel(date))}</span><span>${hours.toFixed(2)} שעות</span><span class="attendance-control__row-status ${issue ? 'attendance-control__row-status--issue' : ''}">${issue ? '⚠ לבדיקה' : '✓ תקין'}</span></summary>${kmLine}<div class="attendance-control__reports">${rows.map((row) => reportHtml({ ...row, employeeId: employee.id, date })).join('')}</div></details>`;
     }).join('');
     const approval = options.approvalsByEmployee?.[employee.id];
-    const workflow = resolvePayrollMonthWorkflow(workflowByEmployee[employee.id] || {});
+    const hasWorkflowRow = Object.prototype.hasOwnProperty.call(workflowByEmployee, employee.id);
+    const workflow = resolvePayrollMonthWorkflow(hasWorkflowRow ? workflowByEmployee[employee.id] : { workflow_status: 'submitted' });
     const workflowHtml = `<p class="attendance-control__manual-note">סטטוס חודש: <strong>${escapeHtml(workflow.label)}</strong></p>`;
     const approvedHtml = approval
       ? `<div class="attendance-control__approved"><span>מאושר להעברה לשכר</span><span>${shown(approval.approved_by_name)}</span><span>${shown(approval.approved_at ? new Date(approval.approved_at).toLocaleString('he-IL', { dateStyle: 'short', timeStyle: 'short' }) : '')}</span><button type="button" class="ds-btn ds-btn--sm" data-payroll-view-pdf="${escapeHtml(String(approval.id || ''))}">צפייה בדוח</button></div>`
@@ -1260,12 +1261,13 @@ export function resultsHtml(result, month = '', options = {}) {
     return `<details class="attendance-control__employee" data-payroll-employee="${escapeHtml(employee.id)}"><summary><strong>${shown(employee.name)}</strong></summary>${workflowHtml}${approvedHtml}${finishControls}<div class="attendance-control__employee-days">${days}</div></details>`;
   }).join('');
   const reviewEmployees = [...employees.values()].filter((employee) => {
-    const workflow = resolvePayrollMonthWorkflow(workflowByEmployee[employee.id] || {});
+    const hasWorkflowRow = Object.prototype.hasOwnProperty.call(workflowByEmployee, employee.id);
+    const workflow = resolvePayrollMonthWorkflow(hasWorkflowRow ? workflowByEmployee[employee.id] : { workflow_status: 'submitted' });
     const entries = [...(result.comparisons || []), ...(result.notCompared || [])]
       .filter((entry) => txt(entry.attendance?.employeeId) === employee.id);
     return entries.some((entry) => !attendanceEntryIsResolved(entry))
       || [...employee.days.entries()].some(([date]) => dayKmIssue(employee.id, date))
-      || workflow.status === 'not_submitted';
+      || (hasWorkflowRow && workflow.status === 'not_submitted');
   }).length;
   const metricsHtml = `<details class="attendance-control__metrics-details" data-payroll-metrics><summary>פרטים</summary><div class="attendance-control__metrics"><span>שורות נוכחות ${totals.attendanceRows}</span><span>התאמות ${totals.fullMatches}</span><span>פערים ${totals.fieldMismatches}</span><span>ללא התאמה ${totals.unmatchedAttendance}</span></div></details>`;
   const summaryBar = `<div class="attendance-control__summary-bar"><span>מדריכים <b>${employees.size}</b></span><span>תקינים <b>${Math.max(0, employees.size - reviewEmployees)}</b></span><span>לבדיקה <b>${reviewEmployees}</b></span></div>`;
@@ -1287,7 +1289,7 @@ function openAttendanceControlWindow(api, state) {
 
 export function bindAttendanceControl(root, { api, state = {}, standalone = false } = {}) {
   const panel = root?.querySelector('[data-attendance-control]'); if (!panel) return;
-  const monthInput = panel.querySelector('[data-attendance-month]'); const dashboardMonthInput = panel.querySelector('[data-dashboard-month]');
+  const monthInput = panel.querySelector('[data-attendance-month]');
   const teamInput = panel.querySelector('[data-attendance-team]'); const title = panel.querySelector('[data-attendance-title]');
   const run = panel.querySelector('[data-attendance-run]'); const status = panel.querySelector('[data-attendance-status]'); const results = panel.querySelector('[data-attendance-results]');
   let result = null; let employees = null; let teamIds = []; let approvalsByEmployee = {}; let workflowByEmployee = {};
@@ -1367,8 +1369,8 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
     if (typeof dialog.showModal === 'function') dialog.showModal();
     else done(window.confirm(`${finishMod.PAYROLL_APPROVAL_TEXT}\n\nמאשר/ת וחותם/ת?`));
   });
-  const update = () => { run.disabled = !employees || !attendanceMonthLabel(monthInput.value) || !attendanceMonthLabel(dashboardMonthInput.value) || !teamInput.value; };
-  monthInput.addEventListener('change', update); dashboardMonthInput.addEventListener('change', update); teamInput.addEventListener('change', update);
+  const update = () => { run.disabled = !employees || !attendanceMonthLabel(monthInput.value) || !teamInput.value; };
+  monthInput.addEventListener('change', update); teamInput.addEventListener('change', update);
   root.querySelector('[data-attendance-open]')?.addEventListener('click', () => {
     try { openAttendanceControlWindow(api, state); } catch (error) { window.alert(error.message); }
   });
@@ -1393,14 +1395,14 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
   run.addEventListener('click', async () => {
     run.disabled = true; status.textContent = 'טוען את נתוני הנוכחות והדשבורד ומבצע בקרת שכר…';
     try {
-      const month = monthInput.value; const dashboardMonth = dashboardMonthInput.value; const monthLabel = attendanceMonthLabel(month);
+      const month = monthInput.value; const monthLabel = attendanceMonthLabel(month);
       if (!monthLabel) throw new Error('יש לבחור חודש לבדיקה לפני ביצוע הבדיקה.');
       const selectedTeam = teamInput.value;
       const records = await api.attendanceControlRecords();
       const attendanceRows = filterAttendanceRowsByMonth(normalizeAttendanceApiRows(records), month)
         .filter((row) => selectedTeam === '__all__' ? teamIds.includes(row.team) : row.team === selectedTeam);
       if (!attendanceRows.length) throw new Error(`לא נמצאו דיווחי נוכחות עבור ${monthLabel}`);
-      const dashboardRows = await loadAttendanceDashboardDataset(attendanceRows, api, dashboardMonth);
+      const dashboardRows = await loadAttendanceDashboardDataset(attendanceRows, api, month);
       result = compareAttendanceRows(attendanceRows, dashboardRows); result.month = month;
       const employeeIds = [...new Set(attendanceRows.map((row) => txt(row.employeeId)).filter(Boolean))];
       title.textContent = `בקרת שכר – ${monthLabel}`; status.textContent = '';
