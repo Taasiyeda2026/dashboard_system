@@ -255,7 +255,7 @@ async function loadBoardData(period) {
 
   const instructorsQuery = supabase
     .from('contacts_instructors')
-    .select('emp_id,full_name,direct_manager,active');
+    .select('emp_id,full_name,mobile,direct_manager,active');
 
   const profileQuery = supabase
     .from('instructor_scheduling_profiles')
@@ -380,9 +380,14 @@ function profileMap(data) {
   return new Map((data?.profiles || []).map((profile) => [normalizedText(profile?.emp_id), profile]));
 }
 
+function instructorContactMap(data) {
+  return new Map((data?.instructors || []).map((instructor) => [normalizedText(instructor?.emp_id), instructor]));
+}
+
 function instructorMonthStats(meetings, data) {
   const stats = new Map();
   const profiles = profileMap(data);
+  const instructorContacts = instructorContactMap(data);
 
   const addInstructor = (empId, name, meeting) => {
     const cleanName = normalizedText(name);
@@ -390,10 +395,12 @@ function instructorMonthStats(meetings, data) {
     const key = instructorKey(empId, cleanName);
     if (!stats.has(key)) {
       const profile = profiles.get(normalizedText(empId));
+      const contact = instructorContacts.get(normalizedText(empId));
       stats.set(key, {
         key,
         empId: normalizedText(empId),
         name: cleanName,
+        phone: normalizedText(contact?.mobile),
         meetings: 0,
         hours: 0,
         knownHours: 0,
@@ -466,7 +473,7 @@ function renderInstructorCards(stats) {
           </div>
         </div>
         <div class="manager-board-instructor-card__text">
-          <strong>${escapeHtml(item.name)}</strong>
+          <button type="button" class="manager-board-instructor-card__name" data-manager-instructor-phone="${escapeAttr(item.phone)}" aria-label="${escapeAttr(`הצגת טלפון של ${item.name}`)}" aria-expanded="false">${escapeHtml(item.name)}</button>
           <span>${item.courses} פעילויות · ${item.meetings} מפגשים</span>
           <small>${escapeHtml(targetLine)}</small>
         </div>
