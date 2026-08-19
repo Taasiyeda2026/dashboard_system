@@ -1091,8 +1091,8 @@ test('approval document is linked to the saved approval snapshot', () => {
   assert.equal(payrollHebrewMonthName('2026-09'), 'ספטמבר');
   assert.match(html, /דנה כהן/);
   assert.match(html, /מספר עובד: 10/);
-  assert.match(html, /נבדק ואושר להעברה לשכר/);
-  assert.match(html, /מנהל בדיקה/);
+  assert.match(html, /דוח נוכחות חודשי מאושר/);
+  assert.match(html, /אישור מנהל: מנהל בדיקה/);
   assert.match(html, /08:15/);
 });
 
