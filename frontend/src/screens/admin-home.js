@@ -205,7 +205,7 @@ export const adminHomeScreen = {
       </section>
     `);
   },
-  bind(root) {
+  bind({ root }) {
     root?.querySelectorAll?.('[data-admin-hub-url]').forEach((button) => {
       button.addEventListener('click', () => {
         const url = String(button.getAttribute('data-admin-hub-url') || '').trim();
