@@ -29,14 +29,18 @@ export const FINANCE_COLLECTION_ACTIVITY_PERIOD = ACTIVITY_SEASON_SCHOOL_2027;
 
 export {
   FINANCE_ATTENDANCE_COLUMNS,
+  FINANCE_ATTENDANCE_EMPLOYMENT_SHEETS,
+  FINANCE_ATTENDANCE_GENERAL_SHEET,
   FINANCE_HOUR_CATEGORIES,
   buildEmployeeTeamMap,
   buildFinanceAttendanceExcelRows,
   buildFinanceAttendanceWorkbook,
   currentFinanceMonthKey,
   financeAttendanceDisplayRow,
+  financeEmploymentSheetName,
   financeHourCategory,
   isFinalPayrollApproval,
+  normalizeFinanceEmploymentType,
   summarizeFinanceAttendance,
   unmappedFinanceActivityTypes
 } from './finance-attendance-summary.js';

@@ -23,6 +23,9 @@ export const FINANCE_ATTENDANCE_COLUMNS = [
   'הערות'
 ];
 
+export const FINANCE_ATTENDANCE_GENERAL_SHEET = 'נוכחות';
+export const FINANCE_ATTENDANCE_EMPLOYMENT_SHEETS = ['תעשיידע', 'מעוף', 'MANPOWER', 'עצמאי'];
+
 const txt = (value) => String(value ?? '').trim();
 
 function num(value) {
@@ -219,7 +222,16 @@ export function buildFinanceAttendanceExcelRows(entries = []) {
   return (entries || []).map(financeAttendanceDisplayRow);
 }
 
-export function buildFinanceAttendanceWorkbook(entries = []) {
+export function normalizeFinanceEmploymentType(value) {
+  return String(value ?? '').trim().replace(/\s+/g, '').toLowerCase();
+}
+
+export function financeEmploymentSheetName(employmentType) {
+  const key = normalizeFinanceEmploymentType(employmentType);
+  return FINANCE_ATTENDANCE_EMPLOYMENT_SHEETS.find((label) => normalizeFinanceEmploymentType(label) === key) || '';
+}
+
+function appendFinanceAttendanceSheet(workbook, sheetName, entries = []) {
   const rows = buildFinanceAttendanceExcelRows(entries);
   const sheetRows = [
     FINANCE_ATTENDANCE_COLUMNS,
@@ -235,8 +247,16 @@ export function buildFinanceAttendanceWorkbook(entries = []) {
     cell.v = 'קובץ';
     sheet[cellRef] = cell;
   });
+  XLSX.utils.book_append_sheet(workbook, sheet, sheetName);
+}
+
+export function buildFinanceAttendanceWorkbook(entries = []) {
   const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, sheet, 'נוכחות');
+  appendFinanceAttendanceSheet(workbook, FINANCE_ATTENDANCE_GENERAL_SHEET, entries);
+  for (const sheetName of FINANCE_ATTENDANCE_EMPLOYMENT_SHEETS) {
+    const typed = (entries || []).filter((entry) => financeEmploymentSheetName(entry?.employmentType) === sheetName);
+    appendFinanceAttendanceSheet(workbook, sheetName, typed);
+  }
   return workbook;
 }
 

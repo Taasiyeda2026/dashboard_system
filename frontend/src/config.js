@@ -95,3 +95,4 @@ config.HOTFIX_VERSION = `attendance-manager-admin-approval-sharepoint-20260819-v
 config.HOTFIX_VERSION = `attendance-control-unified-naming-sw-cache-1554-20260819-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `finance-hub-lazy-collection-sw-cache-1558-20260819-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `finance-collection-school-2027-sw-cache-1559-20260819-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `finance-attendance-excel-employment-sheets-sw-cache-1560-20260819-v1-${config.HOTFIX_VERSION}`;
