@@ -5,6 +5,15 @@
 
 import { createCompactSelect } from './compact-select.js';
 
+function parseTimeValue(value) {
+  const match = String(value || '').match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) return null;
+  const hour = parseInt(match[1], 10);
+  const minute = parseInt(match[2], 10);
+  if (Number.isNaN(hour) || Number.isNaN(minute)) return null;
+  return hour * 60 + minute;
+}
+
 /**
  * @param {string} id
  * @param {string} label
@@ -26,7 +35,7 @@ export function createTimePicker(id, label, defaultValue = '', minuteStep = 5) {
   const row = document.createElement('div');
   row.className = 'av2-time-picker';
 
-  let minHour = 0;
+  let minTimeMinutes = null;
 
   const hourControl = createCompactSelect({
     id: `${id}-h`,
@@ -50,7 +59,6 @@ export function createTimePicker(id, label, defaultValue = '', minuteStep = 5) {
   });
 
   function buildHourOptions(fromHour = 0) {
-    minHour = fromHour;
     const opts = [{ value: '', label: 'שע׳' }];
     for (let h = fromHour; h <= 23; h++) {
       opts.push({ value: String(h), label: String(h).padStart(2, '0') });
@@ -64,16 +72,87 @@ export function createTimePicker(id, label, defaultValue = '', minuteStep = 5) {
     }
   }
 
-  function buildMinuteOptions() {
+  function buildMinuteOptionsForHour(hourValue) {
     const opts = [{ value: '', label: 'דק׳' }];
-    for (let m = 0; m < 60; m += minuteStep) {
+    if (hourValue === '' || hourValue == null) {
+      minControl.setOptions(opts);
+      minControl.setValue('');
+      return;
+    }
+
+    const hour = parseInt(hourValue, 10);
+    if (Number.isNaN(hour)) {
+      minControl.setOptions(opts);
+      minControl.setValue('');
+      return;
+    }
+
+    let startMinute = 0;
+    if (minTimeMinutes != null && hour === Math.floor(minTimeMinutes / 60)) {
+      startMinute = minTimeMinutes % 60;
+    }
+
+    for (let m = startMinute; m < 60; m += minuteStep) {
       opts.push({ value: String(m), label: String(m).padStart(2, '0') });
     }
+
+    const prev = minControl.getValue();
     minControl.setOptions(opts);
+    if (prev !== '' && parseInt(prev, 10) >= startMinute) {
+      minControl.setValue(prev);
+    } else {
+      minControl.setValue('');
+    }
+  }
+
+  function rebuildFromMinTime() {
+    if (minTimeMinutes == null) {
+      buildHourOptions(0);
+      buildMinuteOptionsForHour(hourControl.getValue());
+      return;
+    }
+    const minHour = Math.floor(minTimeMinutes / 60);
+    buildHourOptions(minHour);
+    buildMinuteOptionsForHour(hourControl.getValue());
+  }
+
+  function clearValue() {
+    hourControl.setValue('');
+    minControl.setValue('');
+  }
+
+  function isCurrentValueValid() {
+    const current = parseTimeValue(getValue());
+    if (current == null) return true;
+    if (minTimeMinutes == null) return true;
+    return current >= minTimeMinutes;
+  }
+
+  function enforceValidValue() {
+    if (!isCurrentValueValid()) clearValue();
+    else buildMinuteOptionsForHour(hourControl.getValue());
+  }
+
+  /**
+   * Earliest allowed time (hour + minute together).
+   * For end-time pickers pass start + one step so end is strictly after start.
+   */
+  function setMinTime(minTimeStr) {
+    const parsed = parseTimeValue(minTimeStr);
+    minTimeMinutes = parsed == null ? null : parsed;
+    rebuildFromMinTime();
+    enforceValidValue();
+  }
+
+  /** @deprecated use setMinTime — kept for callers that only had hour granularity */
+  function setMinHour(fromHour = 0) {
+    minTimeMinutes = fromHour * 60;
+    rebuildFromMinTime();
+    enforceValidValue();
   }
 
   buildHourOptions();
-  buildMinuteOptions();
+  buildMinuteOptionsForHour('');
 
   if (defH !== null) hourControl.setValue(String(defH));
   if (defM !== null) {
@@ -83,6 +162,11 @@ export function createTimePicker(id, label, defaultValue = '', minuteStep = 5) {
 
   hourControl.wrap.classList.add('av2-time-picker__part');
   minControl.wrap.classList.add('av2-time-picker__part');
+
+  hourControl.select.addEventListener('change', () => {
+    buildMinuteOptionsForHour(hourControl.getValue());
+    enforceValidValue();
+  });
 
   function getValue() {
     const h = hourControl.getValue();
@@ -99,6 +183,8 @@ export function createTimePicker(id, label, defaultValue = '', minuteStep = 5) {
     hourSel: hourControl.select,
     minSel: minControl.select,
     getValue,
-    setMinHour: buildHourOptions,
+    clearValue,
+    setMinTime,
+    setMinHour,
   };
 }
