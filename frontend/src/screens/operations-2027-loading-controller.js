@@ -56,6 +56,8 @@ export function createOperations2027Store() {
 let store = createOperations2027Store();
 let activeCustomTab = '';
 let renderToken = 0;
+const wrapperNavigationByRoot = new WeakMap();
+let customTabNavigationBound = false;
 
 export function getOperations2027Store() {
   return store;
@@ -890,20 +892,41 @@ function bindCustomTabs(root) {
       button = customTabButton(tabKey, label);
       tabs.appendChild(button);
     }
-    button.addEventListener('click', (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      renderCustomTab(root, tabKey);
-    });
-  });
-  root.querySelectorAll('[data-ops-tab]').forEach((button) => {
-    button.addEventListener('click', () => {
-      activeCustomTab = '';
-      renderToken += 1;
-      setActiveTab(root, '');
-    });
   });
   if (activeCustomTab) renderCustomTab(root, activeCustomTab);
+}
+
+/**
+ * The 2027 tabs are inserted again whenever operations re-renders. Keep their
+ * click behavior on one document-level handler and route strictly by the
+ * stable data-ops-custom-tab value, not the visible Hebrew label.
+ */
+function bindCustomTabNavigation() {
+  if (customTabNavigationBound || typeof document === 'undefined') return;
+  customTabNavigationBound = true;
+
+  document.addEventListener('click', (event) => {
+    const button = event.target?.closest?.('[data-ops-custom-tab]');
+    const tabKey = String(button?.dataset?.opsCustomTab || '');
+    if (!button || ![TAB_WORKSHOP_TRAINING, TAB_COURSE_TRAINING, TAB_PRINT_KITS].includes(tabKey)) return;
+    const root = button.closest('.ds-ops-mgmt-screen');
+    if (!root || !is2027Root(root)) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+    activeCustomTab = tabKey;
+    const navigate = wrapperNavigationByRoot.get(root);
+    if (navigate) {
+      navigate();
+      return;
+    }
+    renderCustomTab(root, tabKey);
+  }, true);
+
+  document.addEventListener('ops-mgmt-standard-tab', () => {
+    activeCustomTab = '';
+    renderToken += 1;
+  });
 }
 
 function installController() {
@@ -932,6 +955,7 @@ function installController() {
     applyOperations2027Labels(wrapperRoot);
     const tabs = wrapperRoot.querySelector('.ds-ops-mgmt-tabs');
     if (!tabs) return;
+    wrapperNavigationByRoot.set(wrapperRoot, navigateCallback);
     const definitions = [
       [TAB_WORKSHOP_TRAINING, 'הכשרות סדנאות'],
       [TAB_COURSE_TRAINING, 'הכשרות קורסים'],
@@ -941,12 +965,6 @@ function installController() {
       if (tabs.querySelector(`[data-ops-custom-tab="${tabKey}"]`)) return;
       const button = customTabButton(tabKey, label);
       tabs.appendChild(button);
-      button.addEventListener('click', (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        activeCustomTab = tabKey;
-        navigateCallback?.();
-      });
     });
   };
 }
@@ -967,4 +985,5 @@ function bindRouteDisposal() {
 }
 
 installController();
+bindCustomTabNavigation();
 bindRouteDisposal();
