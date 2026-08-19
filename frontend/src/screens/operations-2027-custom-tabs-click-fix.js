@@ -32,11 +32,13 @@ function ensureRuntimeMarker(root) {
 }
 
 function recreateCustomTabs(root) {
-  if (!root || root.hasAttribute(REPAIRED_ATTR)) return;
+  if (!root) return;
+
+  // The 2027 loading controller owns creation and click binding for these tabs.
+  // Older repair logic removed the already-bound buttons, which left the
+  // Operations home cards with no [data-ops-custom-tab] target to click.
+  // Preserve the canonical buttons and only mark the runtime as repaired.
   root.setAttribute(REPAIRED_ATTR, '');
-  root.querySelectorAll('[data-ops-custom-tab]').forEach((button) => {
-    if (CUSTOM_TAB_KEYS.has(String(button.dataset.opsCustomTab || ''))) button.remove();
-  });
 }
 
 function repairOperations2027Tabs() {
