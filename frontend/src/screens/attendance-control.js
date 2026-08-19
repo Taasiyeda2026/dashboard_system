@@ -105,9 +105,9 @@ function timeText(value) {
 
 export function calculateWorkHours(start, end) {
   const parse = (value) => { const m = timeText(value).match(/^(\d{2}):(\d{2})$/); return m ? Number(m[1]) * 60 + Number(m[2]) : null; };
-  const from = parse(start); let to = parse(end);
+  const from = parse(start); const to = parse(end);
   if (from === null || to === null) return 0;
-  if (to < from) to += 1440;
+  if (to <= from) return 0;
   return Math.round(((to - from) / 60) * 100) / 100;
 }
 
@@ -584,6 +584,46 @@ export function attendanceEntryIsResolved(entry) {
   // No pending differences, no special requirements, and not unmatched → resolved.
   // (unmatched entries are caught above by the entry.unmatched check.)
   return true;
+}
+
+const MONTH_WORKFLOW_LABELS = {
+  not_submitted: 'לא הוגש',
+  submitted: 'הוגש',
+  in_review: 'בבדיקה',
+  approved: 'אושר'
+};
+
+function normalizeAttendanceSubmissionStatus(value) {
+  const status = txt(value).toLowerCase();
+  if (status === 'submitted') return 'submitted';
+  if (status === 'locked') return 'locked';
+  if (status === 'reopened') return 'reopened';
+  return 'open';
+}
+
+export function resolvePayrollMonthWorkflow(workflow = {}) {
+  const explicit = txt(workflow.workflow_status || workflow.workflowStatus).toLowerCase();
+  const submissionStatus = normalizeAttendanceSubmissionStatus(
+    workflow.attendance_submission_status || workflow.attendanceSubmissionStatus
+  );
+  const hasPayrollApproval = explicit === 'approved'
+    || Boolean(workflow.payroll_approved_at || workflow.payrollApprovedAt)
+    || txt(workflow.payroll_status).toLowerCase() === 'approved_for_payroll';
+  const derivedStatus = hasPayrollApproval
+    ? 'approved'
+    : explicit === 'in_review' || submissionStatus === 'locked'
+      ? 'in_review'
+      : explicit === 'submitted' || submissionStatus === 'submitted'
+        ? 'submitted'
+        : 'not_submitted';
+  const label = submissionStatus === 'reopened' && derivedStatus === 'not_submitted'
+    ? 'לא הוגש (הוחזר לתיקון)'
+    : MONTH_WORKFLOW_LABELS[derivedStatus] || MONTH_WORKFLOW_LABELS.not_submitted;
+  return {
+    status: derivedStatus,
+    label,
+    submissionStatus
+  };
 }
 
 /**
@@ -1072,6 +1112,8 @@ export function attendanceControlStylesHtml() {
 
 export function resultsHtml(result, month = '', options = {}) {
   const totals = attendanceAuditSummary(result);
+  const workflowByEmployee = options.workflowByEmployee || {};
+  const allowSubmissionOverride = options.allowSubmissionOverride === true;
   const employees = new Map();
   const ensureEmployee = (id, name = '') => {
     const key = txt(id);
@@ -1199,17 +1241,31 @@ export function resultsHtml(result, month = '', options = {}) {
       return `<details class="attendance-control__day${issue ? '' : ' attendance-control__day--ok'}" data-payroll-date="${escapeHtml(date)}"><summary><span>${shown(dateLabel(date))}</span><span>${hours.toFixed(2)} שעות</span><span class="attendance-control__row-status ${issue ? 'attendance-control__row-status--issue' : ''}">${issue ? '⚠ לבדיקה' : '✓ תקין'}</span></summary>${kmLine}<div class="attendance-control__reports">${rows.map((row) => reportHtml({ ...row, employeeId: employee.id, date })).join('')}</div></details>`;
     }).join('');
     const approval = options.approvalsByEmployee?.[employee.id];
+    const workflow = resolvePayrollMonthWorkflow(workflowByEmployee[employee.id] || {});
+    const workflowHtml = `<p class="attendance-control__manual-note">סטטוס חודש: <strong>${escapeHtml(workflow.label)}</strong></p>`;
     const approvedHtml = approval
       ? `<div class="attendance-control__approved"><span>מאושר להעברה לשכר</span><span>${shown(approval.approved_by_name)}</span><span>${shown(approval.approved_at ? new Date(approval.approved_at).toLocaleString('he-IL', { dateStyle: 'short', timeStyle: 'short' }) : '')}</span><button type="button" class="ds-btn ds-btn--sm" data-payroll-view-pdf="${escapeHtml(String(approval.id || ''))}">צפייה בדוח</button></div>`
       : '';
-    const finishButton = `<div class="attendance-control__employee-actions"><button type="button" class="ds-btn ds-btn--primary" data-payroll-finish="${escapeHtml(employee.id)}" data-payroll-employee-name="${shown(employee.name)}">סיום בדיקה ואישור להעברה לשכר</button></div>`;
-    return `<details class="attendance-control__employee" data-payroll-employee="${escapeHtml(employee.id)}"><summary><strong>${shown(employee.name)}</strong></summary>${approvedHtml}${finishButton}<div class="attendance-control__employee-days">${days}</div></details>`;
+    let finishControls = '';
+    if (!approval) {
+      if (workflow.status === 'not_submitted') {
+        const overrideButton = allowSubmissionOverride
+          ? `<button type="button" class="ds-btn ds-btn--sm" data-payroll-finish-override="${escapeHtml(employee.id)}" data-payroll-employee-name="${shown(employee.name)}">אישור חריג (ללא הגשה)</button>`
+          : '';
+        finishControls = `<div class="attendance-control__employee-actions"><span class="attendance-control__manual-note">לא ניתן לאשר לשכר לפני הגשת החודש על ידי המדריך.</span>${overrideButton}</div>`;
+      } else if (workflow.status === 'submitted' || workflow.status === 'in_review') {
+        finishControls = `<div class="attendance-control__employee-actions"><button type="button" class="ds-btn ds-btn--primary" data-payroll-finish="${escapeHtml(employee.id)}" data-payroll-employee-name="${shown(employee.name)}">סיום בדיקה ואישור להעברה לשכר</button></div>`;
+      }
+    }
+    return `<details class="attendance-control__employee" data-payroll-employee="${escapeHtml(employee.id)}"><summary><strong>${shown(employee.name)}</strong></summary>${workflowHtml}${approvedHtml}${finishControls}<div class="attendance-control__employee-days">${days}</div></details>`;
   }).join('');
   const reviewEmployees = [...employees.values()].filter((employee) => {
+    const workflow = resolvePayrollMonthWorkflow(workflowByEmployee[employee.id] || {});
     const entries = [...(result.comparisons || []), ...(result.notCompared || [])]
       .filter((entry) => txt(entry.attendance?.employeeId) === employee.id);
     return entries.some((entry) => !attendanceEntryIsResolved(entry))
-      || [...employee.days.entries()].some(([date]) => dayKmIssue(employee.id, date));
+      || [...employee.days.entries()].some(([date]) => dayKmIssue(employee.id, date))
+      || workflow.status === 'not_submitted';
   }).length;
   const metricsHtml = `<details class="attendance-control__metrics-details" data-payroll-metrics><summary>פרטים</summary><div class="attendance-control__metrics"><span>שורות נוכחות ${totals.attendanceRows}</span><span>התאמות ${totals.fullMatches}</span><span>פערים ${totals.fieldMismatches}</span><span>ללא התאמה ${totals.unmatchedAttendance}</span></div></details>`;
   const summaryBar = `<div class="attendance-control__summary-bar"><span>מדריכים <b>${employees.size}</b></span><span>תקינים <b>${Math.max(0, employees.size - reviewEmployees)}</b></span><span>לבדיקה <b>${reviewEmployees}</b></span></div>`;
@@ -1234,10 +1290,11 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
   const monthInput = panel.querySelector('[data-attendance-month]'); const dashboardMonthInput = panel.querySelector('[data-dashboard-month]');
   const teamInput = panel.querySelector('[data-attendance-team]'); const title = panel.querySelector('[data-attendance-title]');
   const run = panel.querySelector('[data-attendance-run]'); const status = panel.querySelector('[data-attendance-status]'); const results = panel.querySelector('[data-attendance-results]');
-  let result = null; let employees = null; let teamIds = []; let approvalsByEmployee = {};
+  let result = null; let employees = null; let teamIds = []; let approvalsByEmployee = {}; let workflowByEmployee = {};
   const role = txt(state?.user?.role || state?.user?.display_role).toLowerCase();
   const isManager = role === 'manager' || role === 'instructor_manager';
   const canChooseTeam = ['operations_controller', 'system_admin', 'operation_manager', 'admin'].includes(role);
+  const canOverrideSubmissionGate = ['admin', 'operation_manager'].includes(role);
   const paintResults = () => {
     // Save open state of employees, days and metrics before replacing innerHTML
     const openEmployees = new Set();
@@ -1250,7 +1307,13 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
     });
     if (results.querySelector('details[data-payroll-metrics][open]')) metricsOpen = true;
 
-    results.innerHTML = result ? resultsHtml(result, result.month, { approvalsByEmployee }) : '';
+    results.innerHTML = result
+      ? resultsHtml(result, result.month, {
+        approvalsByEmployee,
+        workflowByEmployee,
+        allowSubmissionOverride: canOverrideSubmissionGate
+      })
+      : '';
 
     // Restore open state after re-render
     results.querySelectorAll('details[data-payroll-employee]').forEach((el) => {
@@ -1273,6 +1336,20 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
       const rows = await api.listPayrollControlApprovals({ monthKey: result.month });
       approvalsByEmployee = Object.fromEntries((rows || []).map((row) => [txt(row.employee_id), row]));
     } catch { approvalsByEmployee = {}; }
+  };
+  const loadWorkflowStatuses = async (monthKey, employeeIds = []) => {
+    workflowByEmployee = {};
+    if (!monthKey || !employeeIds.length) return;
+    if (!api?.attendanceControlMonthWorkflowStatuses) {
+      workflowByEmployee = Object.fromEntries(employeeIds.map((employeeId) => [txt(employeeId), { workflow_status: 'not_submitted' }]));
+      return;
+    }
+    try {
+      const rows = await api.attendanceControlMonthWorkflowStatuses({ monthKey, employeeIds });
+      workflowByEmployee = Object.fromEntries((rows || []).map((row) => [txt(row.employee_id || row.employeeId), row]));
+    } catch {
+      workflowByEmployee = Object.fromEntries(employeeIds.map((employeeId) => [txt(employeeId), { workflow_status: 'not_submitted' }]));
+    }
   };
   const approvalFromButton = (button) => {
     const id = txt(button?.dataset?.payrollViewPdf);
@@ -1325,9 +1402,15 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
       if (!attendanceRows.length) throw new Error(`לא נמצאו דיווחי נוכחות עבור ${monthLabel}`);
       const dashboardRows = await loadAttendanceDashboardDataset(attendanceRows, api, dashboardMonth);
       result = compareAttendanceRows(attendanceRows, dashboardRows); result.month = month;
+      const employeeIds = [...new Set(attendanceRows.map((row) => txt(row.employeeId)).filter(Boolean))];
       title.textContent = `בקרת שכר – ${monthLabel}`; status.textContent = '';
-      await loadApprovals(); paintResults();
-    } catch (error) { status.textContent = error?.message || 'טעינת נתוני בקרת השכר נכשלה.'; results.innerHTML = ''; }
+      await Promise.all([loadApprovals(), loadWorkflowStatuses(month, employeeIds)]);
+      paintResults();
+    } catch (error) {
+      workflowByEmployee = {};
+      status.textContent = error?.message || 'טעינת נתוני בקרת השכר נכשלה.';
+      results.innerHTML = '';
+    }
     finally { update(); }
   });
   results.addEventListener('change', (event) => {
@@ -1391,10 +1474,30 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
       return;
     }
     const finishBtn = event.target.closest('[data-payroll-finish]');
-    if (!finishBtn || !result) return;
-    const employeeId = txt(finishBtn.dataset.payrollFinish);
-    const employeeName = txt(finishBtn.dataset.payrollEmployeeName);
-    finishBtn.disabled = true;
+    const finishOverrideBtn = event.target.closest('[data-payroll-finish-override]');
+    const activeFinishBtn = finishBtn || finishOverrideBtn;
+    if (!activeFinishBtn || !result) return;
+    const employeeId = txt(activeFinishBtn.dataset.payrollFinish || activeFinishBtn.dataset.payrollFinishOverride);
+    const employeeName = txt(activeFinishBtn.dataset.payrollEmployeeName);
+    const workflow = resolvePayrollMonthWorkflow(workflowByEmployee[employeeId] || {});
+    const requestedOverride = Boolean(finishOverrideBtn);
+    if (!requestedOverride && !['submitted', 'in_review', 'approved'].includes(workflow.status)) {
+      status.textContent = 'לא ניתן לאשר לשכר לפני שהמדריך הגיש את החודש.';
+      return;
+    }
+    let submissionOverrideReason = '';
+    if (requestedOverride) {
+      if (!canOverrideSubmissionGate) {
+        status.textContent = 'פעולת אישור חריגה זמינה רק למנהל מורשה.';
+        return;
+      }
+      submissionOverrideReason = txt(window.prompt('יש להזין סיבת חריגה מפורשת לאישור לפני הגשת מדריך:', '') || '');
+      if (!submissionOverrideReason) {
+        status.textContent = 'האישור החריג בוטל.';
+        return;
+      }
+    }
+    activeFinishBtn.disabled = true;
     try {
       const finishMod = await import('./payroll-control-finish.js');
       if (finishMod.payrollEmployeeHasUnresolvedEntries(result, employeeId)) {
@@ -1405,15 +1508,31 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
       if (!signed) { status.textContent = 'האישור בוטל.'; return; }
       status.textContent = 'שולח עדכונים ושומר אישור להעברה לשכר…';
       const saved = await finishMod.approvePayrollControlEmployee({
-        api, user: state?.user, result, employeeId, employeeName, confirmed: true
+        api,
+        user: state?.user,
+        result,
+        employeeId,
+        employeeName,
+        confirmed: true,
+        monthWorkflow: {
+          workflowStatus: workflow.status,
+          attendanceSubmissionStatus: workflow.submissionStatus
+        },
+        forceSubmissionOverride: requestedOverride,
+        submissionOverrideReason
       });
       approvalsByEmployee[employeeId] = saved;
+      workflowByEmployee[employeeId] = {
+        ...(workflowByEmployee[employeeId] || {}),
+        workflow_status: 'approved',
+        payroll_approved_at: saved?.approved_at || new Date().toISOString()
+      };
       paintResults();
       status.textContent = 'הבקרה אושרה להעברה לשכר והמסמך הופק בהצלחה.';
     } catch (error) {
       status.textContent = error?.message || 'שמירת האישור נכשלה.';
     } finally {
-      finishBtn.disabled = false;
+      activeFinishBtn.disabled = false;
     }
   });
 }

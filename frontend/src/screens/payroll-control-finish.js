@@ -246,6 +246,49 @@ export function canExportPayrollApprovals(user = {}) {
   return role === 'admin' || role === 'finance';
 }
 
+function normalizeWorkflowStatus(value) {
+  const status = txt(value).toLowerCase();
+  if (!status) return 'submitted';
+  if (status === 'submitted' || status === 'in_review' || status === 'approved') return status;
+  return 'not_submitted';
+}
+
+function canUserForceSubmissionOverride(user = {}) {
+  const role = txt(user?.role || user?.display_role).toLowerCase();
+  return role === 'admin' || role === 'operation_manager';
+}
+
+function resolveSubmissionGatePayload({
+  user = {},
+  monthWorkflow = {},
+  forceSubmissionOverride = false,
+  submissionOverrideReason = ''
+} = {}) {
+  const workflowStatus = normalizeWorkflowStatus(monthWorkflow?.workflowStatus);
+  if (workflowStatus === 'submitted' || workflowStatus === 'in_review' || workflowStatus === 'approved') {
+    return {
+      submission_override: false,
+      submission_override_reason: null,
+      submission_attendance_status: txt(monthWorkflow?.attendanceSubmissionStatus || '')
+    };
+  }
+  if (!forceSubmissionOverride) {
+    throw new Error('לא ניתן לאשר העברה לשכר לפני שהמדריך הגיש את החודש.');
+  }
+  if (!canUserForceSubmissionOverride(user)) {
+    throw new Error('אישור חריג לפני הגשת מדריך מותר רק למנהל מורשה.');
+  }
+  const reason = txt(submissionOverrideReason);
+  if (!reason) {
+    throw new Error('נדרשת סיבת חריגה מפורשת כדי לאשר לפני הגשת מדריך.');
+  }
+  return {
+    submission_override: true,
+    submission_override_reason: reason,
+    submission_attendance_status: txt(monthWorkflow?.attendanceSubmissionStatus || '')
+  };
+}
+
 export async function writeBackChangedAttendanceRecords(api, updates = []) {
   const failures = [];
   for (const update of updates) {
@@ -277,7 +320,10 @@ export async function approvePayrollControlEmployee({
   result,
   employeeId,
   employeeName,
-  confirmed = false
+  confirmed = false,
+  monthWorkflow = {},
+  forceSubmissionOverride = false,
+  submissionOverrideReason = ''
 } = {}) {
   if (!confirmed) throw new Error('נדרשת חתימה מפורשת על הצהרת האישור.');
   const monthKey = txt(result?.month);
@@ -287,6 +333,12 @@ export async function approvePayrollControlEmployee({
   if (payrollEmployeeHasUnresolvedEntries(result, employeeId)) {
     throw new Error('לא ניתן לסיים את הבקרה: יש רשומות נוכחות שלא קיבלו החלטת מנהל.');
   }
+  const submissionGatePayload = resolveSubmissionGatePayload({
+    user,
+    monthWorkflow,
+    forceSubmissionOverride,
+    submissionOverrideReason
+  });
   const updates = [
     ...collectChangedAttendanceUpdates(entries),
     ...collectKmCorrectionUpdates(result, employeeId)
@@ -313,7 +365,8 @@ export async function approvePayrollControlEmployee({
     month_key: monthKey,
     approved_by_name: txt(user?.full_name || user?.name || user?.username || ''),
     approval_text_version: PAYROLL_APPROVAL_TEXT_VERSION,
-    approved_snapshot: snapshot
+    approved_snapshot: snapshot,
+    ...submissionGatePayload
   });
 }
 

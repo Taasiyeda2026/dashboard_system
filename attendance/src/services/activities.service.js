@@ -164,13 +164,13 @@ export function getSchoolOptions(activity) {
 
 /**
  * Compute total_hours from HH:MM start and end times (strings).
- * Handles overnight crossing.
+ * Attendance reports are same-day only, so end must be strictly later than start.
  */
 export function calcHours(startTime, endTime) {
   if (!startTime || !endTime) return 0;
   const [sh, sm] = startTime.split(':').map(Number);
   const [eh, em] = endTime.split(':').map(Number);
-  let minutes = (eh * 60 + em) - (sh * 60 + sm);
-  if (minutes < 0) minutes += 24 * 60;
+  const minutes = (eh * 60 + em) - (sh * 60 + sm);
+  if (minutes <= 0) return 0;
   return Math.round((minutes / 60) * 100) / 100;
 }

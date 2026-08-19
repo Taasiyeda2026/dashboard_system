@@ -9,6 +9,7 @@ import {
   buildCorrectedAttendanceWorkbook, parseAttendanceWorkbook, attendanceAuditSummary, aggregateDashboardAttendanceRows,
   normalizeAttendanceApiRows, attendanceTeams, DETAIL_HEADERS, MONTHLY_HEADERS, DAILY_HEADERS, rowWorkHours,
   parseMeetingNumberList, attendanceEntryIsResolved, approveAttendanceEntryAsReported, applyAttendanceManualCorrection,
+  resolvePayrollMonthWorkflow,
   kmDayNeedsDecision, resolveKilometersDay
 } from '../frontend/src/screens/attendance-control.js';
 import {
@@ -467,7 +468,9 @@ test('results classify matching rows as normal and count only actual row excepti
 
 test('a fully matching row has a normal status and no decision control', () => {
   const row = { employeeId: '10', employeeName: 'דנה', date: '2026-08-01', startTime: '08:00', endTime: '09:00', program: 'קורס' };
-  const html = resultsHtml(compareAttendanceRows([row], [{ ...row }]));
+  const html = resultsHtml(compareAttendanceRows([row], [{ ...row }]), '2026-08', {
+    workflowByEmployee: { '10': { workflow_status: 'submitted', attendance_submission_status: 'submitted' } }
+  });
   assert.match(html, /attendance-control__day--ok/);
   assert.match(html, /✓ תקין/);
   assert.doesNotMatch(html, /data-attendance-choice/);
@@ -481,7 +484,7 @@ test('attendance, dashboard and manual choices preserve independent payroll hour
   applyAttendanceChoice(comparison, 'kilometers', 'attendance');
   assert.equal(comparison.final.workHours, 1, 'time decisions must preserve the original payroll duration');
   assert.equal(comparison.final.kilometers, 4);
-  assert.equal(calculateWorkHours('23:30', '01:00'), 1.5);
+  assert.equal(calculateWorkHours('23:30', '01:00'), 0);
 });
 
 test('standard school durations match longer paid attendance end times', () => {
@@ -954,6 +957,47 @@ test('successful write-back saves approval snapshot', async () => {
   assert.equal(row.pdf_path, null);
 });
 
+test('final payroll approval is blocked before month submission unless explicit authorized override is provided', async () => {
+  const api = {
+    attendanceControlUpdateRecord: async () => ({ success: true }),
+    savePayrollControlApproval: async (payload) => payload
+  };
+  await assert.rejects(
+    () => approvePayrollControlEmployee({
+      api,
+      user: { full_name: 'מנהל בדיקה', role: 'operation_manager' },
+      result: { month: '2026-05', comparisons: [changedComparison] },
+      employeeId: '10',
+      employeeName: 'דנה',
+      confirmed: true,
+      monthWorkflow: { workflowStatus: 'not_submitted', attendanceSubmissionStatus: 'open' }
+    }),
+    /לא ניתן לאשר העברה לשכר לפני שהמדריך הגיש את החודש/
+  );
+});
+
+test('explicit authorized override before month submission is saved with override metadata', async () => {
+  let saved = null;
+  const api = {
+    attendanceControlUpdateRecord: async () => ({ success: true }),
+    savePayrollControlApproval: async (payload) => { saved = payload; return payload; }
+  };
+  await approvePayrollControlEmployee({
+    api,
+    user: { full_name: 'מנהל בדיקה', role: 'admin' },
+    result: { month: '2026-05', comparisons: [changedComparison] },
+    employeeId: '10',
+    employeeName: 'דנה',
+    confirmed: true,
+    monthWorkflow: { workflowStatus: 'not_submitted', attendanceSubmissionStatus: 'open' },
+    forceSubmissionOverride: true,
+    submissionOverrideReason: 'חריג מאושר על ידי הנהלה'
+  });
+  assert.equal(saved.submission_override, true);
+  assert.equal(saved.submission_override_reason, 'חריג מאושר על ידי הנהלה');
+  assert.equal(saved.submission_attendance_status, 'open');
+});
+
 test('admin and finance can read payroll approvals', () => {
   assert.equal(canReadPayrollApprovals({ role: 'admin' }), true);
   assert.equal(canReadPayrollApprovals({ role: 'finance' }), true);
@@ -999,9 +1043,42 @@ test('payroll results include finish approval action', () => {
     comparisons: [{ attendance: { employeeId: '10', employeeName: 'דנה', date: '2026-05-10', startTime: '08:00', endTime: '09:00', activityType: 'קורס' }, unmatched: false, differences: [], managerResolved: 'auto_ok' }],
     notCompared: [],
     dailyKilometers: []
+  }, '2026-05', {
+    workflowByEmployee: { '10': { workflow_status: 'submitted', attendance_submission_status: 'submitted' } }
   });
   assert.match(html, /סיום בדיקה ואישור להעברה לשכר/);
   assert.match(html, /data-payroll-finish="10"/);
+});
+
+test('workflow mapping follows not submitted -> submitted -> in review -> approved', () => {
+  assert.deepEqual(resolvePayrollMonthWorkflow({ attendance_submission_status: 'open' }), {
+    status: 'not_submitted',
+    label: 'לא הוגש',
+    submissionStatus: 'open'
+  });
+  assert.equal(resolvePayrollMonthWorkflow({ attendance_submission_status: 'submitted' }).status, 'submitted');
+  assert.equal(resolvePayrollMonthWorkflow({ attendance_submission_status: 'locked' }).status, 'in_review');
+  assert.equal(resolvePayrollMonthWorkflow({ payroll_approved_at: '2026-05-20T10:00:00.000Z' }).status, 'approved');
+});
+
+test('finish approval controls are hidden before month submission and show explicit override for authorized roles', () => {
+  const payload = {
+    comparisons: [{ attendance: { employeeId: '10', employeeName: 'דנה', date: '2026-05-10', startTime: '08:00', endTime: '09:00', activityType: 'קורס' }, unmatched: false, differences: [], managerResolved: 'auto_ok' }],
+    notCompared: [],
+    dailyKilometers: []
+  };
+  const blocked = resultsHtml(payload, '2026-05', {
+    workflowByEmployee: { '10': { workflow_status: 'not_submitted', attendance_submission_status: 'open' } }
+  });
+  assert.match(blocked, /סטטוס חודש: <strong>לא הוגש<\/strong>/);
+  assert.doesNotMatch(blocked, /data-payroll-finish="10"/);
+  assert.match(blocked, /לא ניתן לאשר לשכר לפני הגשת החודש/);
+
+  const withOverride = resultsHtml(payload, '2026-05', {
+    workflowByEmployee: { '10': { workflow_status: 'not_submitted', attendance_submission_status: 'open' } },
+    allowSubmissionOverride: true
+  });
+  assert.match(withOverride, /data-payroll-finish-override="10"/);
 });
 
 test('four attendance hours can match consecutive dashboard meetings 9 and 10', () => {

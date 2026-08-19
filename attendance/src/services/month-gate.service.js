@@ -10,6 +10,7 @@
  *   'submitted'        → read-only (instructor submitted, awaiting manager)
  *   'locked'           → read-only (manager locked)
  *   'reopened'         → editable (manager re-opened after lock)
+ *   'approved_for_payroll' → read-only (final payroll approval completed)
  */
 
 export function getMonthKey(year, month) {
@@ -33,6 +34,7 @@ export function canEditMonth(year, month, approval) {
 
   // Permanently locked by manager
   if (status === 'locked') return false;
+  if (status === 'approved_for_payroll') return false;
 
   // Submitted by instructor — awaiting manager action
   if (status === 'submitted') return false;
@@ -57,6 +59,7 @@ export function canEditMonth(year, month, approval) {
 export function editBlockReason(year, month, approval) {
   const status = approval?.status ?? 'open';
   if (status === 'locked') return 'החודש נעול על ידי המנהל';
+  if (status === 'approved_for_payroll') return 'החודש אושר סופית לשכר';
   if (status === 'submitted') return 'הדיווח הוגש — לא ניתן לערוך עד שיאושר שינוי';
   return 'לא ניתן לערוך חודש קודם לאחר תקופת הארכה (עד ה-2 בחודש)';
 }

@@ -214,7 +214,8 @@ function buildApprovalCard({ approval, year, month, instructor, records, summary
     open:     { label: 'פתוח לעריכה', tone: 'neutral' },
     submitted:{ label: 'הוגש — ממתין לאישור', tone: 'warning' },
     locked:   { label: 'נעול על ידי מנהל', tone: 'success' },
-    reopened: { label: 'נפתח מחדש', tone: 'neutral' }
+    reopened: { label: 'הוחזר לתיקון — פתוח לעריכה', tone: 'neutral' },
+    approved_for_payroll: { label: 'אושר להעברה לשכר', tone: 'success' }
   };
 
   const { label: statusLabel, tone } = statusMap[status] || statusMap.open;
@@ -259,6 +260,14 @@ function buildApprovalCard({ approval, year, month, instructor, records, summary
 
   // ── Bottom action strip ───────────────────────────────────────────────────
   if (status === 'open' || status === 'reopened') {
+    if (status === 'reopened') {
+      const strip = document.createElement('div');
+      strip.className = 'av2-approval-inner__strip av2-approval-inner__strip--info';
+      const msg = document.createElement('span');
+      msg.textContent = 'החודש הוחזר אליך לתיקון — ניתן לערוך ולהגיש מחדש.';
+      strip.append(msg);
+      wrap.append(strip);
+    }
     if (editable && records.length > 0) {
       const strip = document.createElement('div');
       strip.className = 'av2-approval-inner__strip';
@@ -286,6 +295,16 @@ function buildApprovalCard({ approval, year, month, instructor, records, summary
       strip.append(msg);
       wrap.append(strip);
     }
+  } else if (status === 'approved_for_payroll') {
+    const strip = document.createElement('div');
+    strip.className = 'av2-approval-inner__strip av2-approval-inner__strip--info';
+    const when = approval?.payroll_approved_at
+      ? ` ב-${new Date(approval.payroll_approved_at).toLocaleDateString('he-IL')}`
+      : '';
+    const msg = document.createElement('span');
+    msg.textContent = `✓ החודש אושר סופית להעברה לשכר${when}`;
+    strip.append(msg);
+    wrap.append(strip);
   }
 
   return wrap;
