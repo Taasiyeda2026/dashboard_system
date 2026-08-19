@@ -1,6 +1,15 @@
 const STYLE_ID = 'operations-management-home-cards-style';
 const HOME_ATTRIBUTE = 'data-operations-management-home';
 const PLACEHOLDER_TEXT = 'בחרו לשונית להצגת הנתונים.';
+const CARD_LABELS = [
+  'מלאי סדנאות',
+  'הזמנות לאירועים',
+  'קטלוג',
+  'תעודות',
+  'הכשרות סדנאות',
+  'הכשרות קורסים',
+  'ערכות דפוס'
+];
 let scheduled = false;
 
 function normalize(value) {
@@ -27,8 +36,10 @@ function descriptionFor(label) {
   if (text.includes('הזמנות')) return 'הזמנות לאירועים ומעקב תפעולי';
   if (text.includes('קטלוג')) return 'ניהול קטלוג הפעילויות והתכנים';
   if (text.includes('תעודות')) return 'הפקה וניהול של תעודות';
+  if (text === 'הכשרות סדנאות') return 'ניהול הכשרות והיערכות לסדנאות';
+  if (text === 'הכשרות קורסים') return 'ניהול הכשרות והיערכות לקורסים';
   if (text.includes('אישורי')) return 'בקרה והפקת אישורי ביצוע';
-  if (text.includes('הכשרות')) return 'ניהול הכשרות והיערכות לסדנאות';
+  if (text.includes('הכשרות')) return 'ניהול הכשרות והיערכות';
   if (text.includes('הרשאות')) return 'ניהול הרשאות וקורסים תפעוליים';
   if (text.includes('דפוס')) return 'ניהול ערכות וחומרי דפוס';
   if (text.includes('רשויות')) return 'מידע תפעולי לפי רשויות';
@@ -141,8 +152,10 @@ function ensureStyles() {
 }
 
 function navButtons(nav) {
-  return [...nav.querySelectorAll('button[data-ops-tab], button[data-route]')]
+  const buttons = [...nav.querySelectorAll('button[data-ops-tab], button[data-route], button[data-ops-custom-tab]')]
     .filter((button) => normalize(button.textContent));
+  const byLabel = new Map(buttons.map((button) => [normalize(button.textContent), button]));
+  return CARD_LABELS.map((label) => byLabel.get(label)).filter(Boolean);
 }
 
 function findPlaceholder(nav) {
@@ -152,11 +165,12 @@ function findPlaceholder(nav) {
   return candidates.find((element) => normalize(element.textContent) === PLACEHOLDER_TEXT) || null;
 }
 
-function buildHome(nav, placeholder) {
-  if (!placeholder || placeholder.hasAttribute(HOME_ATTRIBUTE)) return;
-  const buttons = navButtons(nav);
-  if (!buttons.length) return;
+function findHome(nav) {
+  const root = nav.closest('#app') || document.getElementById('app');
+  return root?.querySelector?.(`[${HOME_ATTRIBUTE}]`) || null;
+}
 
+function createHome() {
   const home = document.createElement('section');
   home.className = 'operations-management-home';
   home.setAttribute(HOME_ATTRIBUTE, 'true');
@@ -167,7 +181,13 @@ function buildHome(nav, placeholder) {
     </div>
     <div class="operations-management-home__grid"></div>
   `;
-  const grid = home.querySelector('.operations-management-home__grid');
+  return home;
+}
+
+function renderTiles(home, buttons) {
+  const grid = home?.querySelector?.('.operations-management-home__grid');
+  if (!grid) return;
+  grid.replaceChildren();
 
   buttons.forEach((target) => {
     const label = normalize(target.textContent);
@@ -190,8 +210,19 @@ function buildHome(nav, placeholder) {
     });
     grid.append(tile);
   });
+}
 
-  placeholder.replaceWith(home);
+function buildOrSyncHome(nav, placeholder) {
+  const buttons = navButtons(nav);
+  if (!buttons.length) return;
+
+  let home = findHome(nav);
+  if (!home && placeholder) {
+    home = createHome();
+    placeholder.replaceWith(home);
+  }
+  if (!home) return;
+  renderTiles(home, buttons);
 }
 
 function sync() {
@@ -199,7 +230,8 @@ function sync() {
   ensureStyles();
   document.querySelectorAll('.ds-ops-mgmt-tabs').forEach((nav) => {
     const placeholder = findPlaceholder(nav);
-    if (placeholder) buildHome(nav, placeholder);
+    const home = findHome(nav);
+    if (placeholder || home) buildOrSyncHome(nav, placeholder);
   });
 }
 
@@ -213,7 +245,7 @@ function start() {
   ensureStyles();
   const root = document.getElementById('app') || document.documentElement;
   const observer = new MutationObserver(scheduleSync);
-  observer.observe(root, { childList: true, subtree: true });
+  observer.observe(root, { childList: true, subtree: true, characterData: true });
   document.addEventListener('app:navigate', scheduleSync);
   document.addEventListener('ops-mgmt-standard-tab', scheduleSync);
   scheduleSync();
