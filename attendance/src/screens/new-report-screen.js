@@ -180,6 +180,17 @@ export function renderNewReportScreen(container, {
     value: defaultDate,
   });
 
+  const initialTypeField = createSelectField({
+    id: 'av2-initial-activity-type',
+    label: 'סוג פעילות *',
+    options: [
+      { value: '', label: 'בחר' },
+      ...HEBREW_ACTIVITY_TYPES.map((t) => ({ value: t, label: t })),
+    ],
+    value: '',
+  });
+  initialTypeField.wrap.classList.add('av2-field--full');
+
   const pickerArea = document.createElement('div');
   pickerArea.className = 'av2-activity-picker';
 
@@ -189,7 +200,7 @@ export function renderNewReportScreen(container, {
 
   const dateSection = document.createElement('div');
   dateSection.className = 'av2-report__section';
-  dateSection.append(dateField.wrap);
+  dateSection.append(dateField.wrap, initialTypeField.wrap);
 
   inner.append(header, dateSection, pickerArea, formArea);
   wrap.append(inner);
@@ -205,10 +216,17 @@ export function renderNewReportScreen(container, {
     .then(d => { authoritySchoolData = d; })
     .catch(() => {});
 
-  // ── Date change handler ─────────────────────────────────────────────────
-  async function onDateChange() {
+  // ── Entry flow: date + activity type, then existing logic ───────────────
+  async function proceedIfReady() {
     const dateStr = dateField.input.value;
-    if (!dateStr) return;
+    const selectedType = initialTypeField.input.value;
+    if (!dateStr || !selectedType) {
+      pickerArea.innerHTML = '';
+      formArea.hidden = true;
+      selectedActivity = null;
+      pendingFiles.length = 0;
+      return;
+    }
 
     const [y, m] = dateStr.split('-').map(Number);
     const monthKey = getMonthKey(y, m);
@@ -224,10 +242,17 @@ export function renderNewReportScreen(container, {
       }
     } catch {}
 
-    pickerArea.innerHTML = '<div class="av2-activity-picker__loading">מחפש פעילויות מתוכננות…</div>';
     formArea.hidden = true;
     selectedActivity = null;
     pendingFiles.length = 0;
+
+    if (INDEPENDENT_REPORT_TYPES.includes(selectedType)) {
+      pickerArea.innerHTML = '';
+      renderForm(null, dateStr, null, { independentType: selectedType });
+      return;
+    }
+
+    pickerArea.innerHTML = '<div class="av2-activity-picker__loading">מחפש פעילויות מתוכננות…</div>';
 
     try {
       const [activities, authorityList] = await Promise.all([
@@ -235,13 +260,27 @@ export function renderNewReportScreen(container, {
         getAllAuthoritySchoolList(instructor.empId).catch(() => authoritySchoolData),
       ]);
       authoritySchoolData = authorityList;
-      renderActivityChoices(activities, dateStr);
+      const matchingActivities = activities.filter(
+        (activity) => toHebrewType(activity.activity_type) === selectedType,
+      );
+      if (matchingActivities.length) {
+        renderActivityChoices(matchingActivities, dateStr, { hideIndependent: true });
+        return;
+      }
+
+      pickerArea.innerHTML = '';
+      const note = document.createElement('p');
+      note.className = 'av2-activity-picker__no-activity';
+      note.textContent = `לא נמצאו פעילויות מתוכננות מסוג "${selectedType}" ליום זה. ניתן להמשיך לדיווח ידני.`;
+      pickerArea.append(note);
+      renderForm(null, dateStr, null, { lockedType: selectedType });
     } catch {
-      renderActivityChoices([], dateStr);
+      pickerArea.innerHTML = '';
+      renderForm(null, dateStr, null, { lockedType: selectedType });
     }
   }
 
-  function renderActivityChoices(activities, dateStr) {
+  function renderActivityChoices(activities, dateStr, { hideIndependent = false } = {}) {
     pickerArea.innerHTML = '';
     const choiceField = createSelectField({
       id: 'av2-activity-choice',
@@ -252,17 +291,17 @@ export function renderNewReportScreen(container, {
           value: activityChoiceKey(activity),
           label: activityChoiceLabel(activity),
         })),
-        ...INDEPENDENT_REPORT_TYPES.map((type) => ({
+        ...(hideIndependent ? [] : INDEPENDENT_REPORT_TYPES.map((type) => ({
           value: `independent::${type}`,
           label: type,
-        })),
+        }))),
       ],
       value: '',
     });
     choiceField.wrap.classList.add('av2-field--full');
     pickerArea.append(choiceField.wrap);
 
-    if (!activities.length) {
+    if (!activities.length && !hideIndependent) {
       const note = document.createElement('p');
       note.className = 'av2-activity-picker__no-activity';
       note.textContent = 'לא נמצאו פעילויות מתוכננות ליום זה. ניתן לבחור הכשרה / תפעול / ביטול זמן.';
@@ -287,11 +326,12 @@ export function renderNewReportScreen(container, {
   }
 
   // ── Form renderer ────────────────────────────────────────────────────────
-  function renderForm(activity, dateStr, prefillRecord = null, { independentType = '' } = {}) {
+  function renderForm(activity, dateStr, prefillRecord = null, { independentType = '', lockedType = '' } = {}) {
     selectedActivity = activity;
     formArea.innerHTML = '';
     formArea.hidden = false;
     const isIndependentType = !activity && Boolean(independentType);
+    const isLockedType = !activity && Boolean(lockedType) && !isIndependentType;
 
     // Duplicate-source note (only when pre-filling from an existing record)
     if (prefillRecord && !activity) {
@@ -340,6 +380,7 @@ export function renderNewReportScreen(container, {
     // ── ROW 2: Activity type + Meeting no ──────────────────────────────
     // Determine initial Hebrew type from planned activity or duplicate source
     const initialHebrewType = independentType
+      || lockedType
       || prefillRecord?.activity_type
       || (activity ? toHebrewType(activity.activity_type) : '')
       || '';
@@ -409,6 +450,8 @@ export function renderNewReportScreen(container, {
       if (trigger) trigger.disabled = true;
       typeField.input.disabled = true;
       if (activity?.meeting_no != null) meetingField.select.disabled = true;
+    } else if (isLockedType) {
+      typeField.input.disabled = true;
     }
 
     // ── ROW 2: Authority + School ───────────────────────────────────────
@@ -867,10 +910,10 @@ export function renderNewReportScreen(container, {
         pickerArea.innerHTML = '';
         renderForm(null, prefillDate, prefillRecord);
       });
-    dateField.input.addEventListener('change', onDateChange);
+    dateField.input.addEventListener('change', proceedIfReady);
   } else {
-    dateField.input.addEventListener('change', onDateChange);
-    onDateChange();
+    dateField.input.addEventListener('change', proceedIfReady);
+    initialTypeField.input.addEventListener('change', proceedIfReady);
   }
 }
 
