@@ -2,6 +2,7 @@ import { operationsManagementScreen } from './operations-management.js';
 import { ACTIVITY_SEASON_SCHOOL_2027 } from './shared/summer-activity.js';
 
 const HIDDEN_2027_TABS = new Set(['authorities', 'completion_approval']);
+const TAB_HOME = 'home';
 const FIX_MARKER = '__operations2027RemainingFixApplied';
 
 function is2027State(state = {}) {
@@ -89,11 +90,14 @@ function mark2027Root(html) {
 
 function resetHiddenActiveTab(state = {}) {
   if (!is2027State(state)) return;
-  // Instructors work-schedule left operations management; fall back to workshops in 2027 ops context.
+  // Instructors work-schedule left operations management; fall back to home in 2027 ops context.
   if (state?.operationsManagement?.context === 'instructors') return;
-  if (!HIDDEN_2027_TABS.has(activeOperationsTab(state))) return;
+  const tab = activeOperationsTab(state);
+  if (tab === TAB_HOME) return;
+  if (!HIDDEN_2027_TABS.has(tab)) return;
   state.operationsManagement = state.operationsManagement || {};
-  state.operationsManagement.tab = 'workshops';
+  state.operationsManagement.tab = TAB_HOME;
+  state.operationsManagement.customTab = '';
 }
 
 function install2027TabGuard(state = {}) {
@@ -110,7 +114,7 @@ function install2027TabGuard(state = {}) {
     set(next) {
       tabValue = next;
       if (is2027State(state) && ops.context !== 'instructors' && HIDDEN_2027_TABS.has(String(tabValue || '').trim())) {
-        tabValue = 'workshops';
+        tabValue = TAB_HOME;
       }
     }
   });

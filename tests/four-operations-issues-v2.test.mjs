@@ -14,7 +14,7 @@ const [
   coordinationView,
   migration
 ] = await Promise.all([
-  readFile(new URL('../frontend/src/operations-management-home-cards.js', import.meta.url), 'utf8'),
+  readFile(new URL('../frontend/src/screens/operations-management.js', import.meta.url), 'utf8'),
   readFile(new URL('../frontend/src/manager-board-runtime.js', import.meta.url), 'utf8'),
   readFile(new URL('../frontend/src/manager-board-final-fixes-runtime.js', import.meta.url), 'utf8'),
   readFile(new URL('../frontend/src/styles/manager-board.css', import.meta.url), 'utf8'),
@@ -27,15 +27,16 @@ const [
 ]);
 
 test('operations home cards use fixed canonical targets instead of visible labels', () => {
-  assert.match(homeCards, /type: 'ops-tab', value: 'workshops'/);
+  assert.match(homeCards, /type: 'ops-tab', value: TAB_WORKSHOPS/);
   assert.match(homeCards, /type: 'route', value: 'invitations'/);
   assert.match(homeCards, /type: 'route', value: 'catalog'/);
   assert.match(homeCards, /type: 'route', value: 'certificates'/);
-  assert.match(homeCards, /type: 'ops-custom-tab', value: 'summer_training_matrix'/);
-  assert.match(homeCards, /type: 'ops-custom-tab', value: 'course_training_matrix'/);
-  assert.match(homeCards, /type: 'ops-custom-tab', value: 'course_print_kits'/);
-  assert.match(homeCards, /dataset\.operationsManagementTargets/);
-  assert.doesNotMatch(homeCards, /data-operations-management-target-label|function navButtons/);
+  assert.match(homeCards, /type: 'ops-custom-tab', value: OPS_CUSTOM_TAB_WORKSHOP_TRAINING/);
+  assert.match(homeCards, /type: 'ops-custom-tab', value: OPS_CUSTOM_TAB_COURSE_TRAINING/);
+  assert.match(homeCards, /type: 'ops-custom-tab', value: OPS_CUSTOM_TAB_PRINT_KITS/);
+  assert.match(homeCards, /OPERATIONS_HOME_TARGETS/);
+  assert.match(homeCards, /data-ops-home-target-type/);
+  assert.doesNotMatch(homeCards, /MutationObserver|findPlaceholder|PLACEHOLDER_TEXT/);
 });
 
 test('manager phone popover has one fixed, body-mounted delegated implementation', () => {
