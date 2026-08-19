@@ -5,7 +5,12 @@ import { readFile } from 'node:fs/promises';
 const homeSource    = await readFile(new URL('../attendance/src/screens/home-screen.js',    import.meta.url), 'utf8');
 const homeStyles    = await readFile(new URL('../attendance/src/styles/home-screen.css',    import.meta.url), 'utf8');
 const reportsSource = await readFile(new URL('../attendance/src/screens/my-reports-screen.js', import.meta.url), 'utf8');
+const newReportSource = await readFile(new URL('../attendance/src/screens/new-report-screen.js', import.meta.url), 'utf8');
 const newReportStyles = await readFile(new URL('../attendance/src/styles/new-report-screen.css', import.meta.url), 'utf8');
+const newReportLayoutFix = await readFile(new URL('../attendance/src/styles/new-report-layout-fix.css', import.meta.url), 'utf8');
+const activitiesServiceSource = await readFile(new URL('../attendance/src/services/activities.service.js', import.meta.url), 'utf8');
+const attendanceSwSource = await readFile(new URL('../attendance/sw.js', import.meta.url), 'utf8');
+const attendanceIndexSource = await readFile(new URL('../attendance/index.html', import.meta.url), 'utf8');
 const calSource     = await readFile(new URL('../attendance/src/components/mini-calendar.js', import.meta.url), 'utf8');
 
 test('Attendance Home is a clean dashboard without a calendar or report list', () => {
@@ -52,8 +57,18 @@ test('Attendance calendar shows TODAY highlight and activity content in cells', 
   assert.match(calSource, /onEmptyDayClick/);
 });
 
-test('Attendance New Report uses stacked form sections instead of 2x2 cards', () => {
-  assert.match(newReportStyles, /\.av2-report__form\s*\{\s*display:\s*flex/);
+test('Attendance New Report uses three desktop columns and instructor activity IDs', () => {
+  assert.match(newReportStyles, /\.av2-report__form\s*\{/);
+  assert.match(newReportStyles, /grid-template-columns:\s*repeat\(3,\s*minmax\(0,\s*1fr\)\)/);
   assert.match(newReportStyles, /\.av2-form-section__body--times/);
   assert.match(newReportStyles, /\.av2-form-section__body--bottom/);
+  assert.doesNotMatch(newReportLayoutFix, /av2-planned-activity/);
+  assert.match(newReportSource, /getAuthoritySchoolList/);
+  assert.doesNotMatch(newReportSource, /getAllAuthoritySchoolList/);
+  assert.doesNotMatch(newReportSource, /getActivityNamesByType/);
+  assert.doesNotMatch(newReportSource, /av2-planned-activity/);
+  assert.match(newReportSource, /instructorActivitySelectOptions/);
+  assert.match(activitiesServiceSource, /instructorActivitySelectOptions/);
+  assert.match(attendanceSwSource, /const CACHE_VERSION = 28;/);
+  assert.match(attendanceIndexSource, /\?v=28/);
 });

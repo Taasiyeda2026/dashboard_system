@@ -1,0 +1,30 @@
+/* Desktop polish for the three-column New Report form. */
+
+@media (min-width: 768px) {
+  .av2-report__inner {
+    max-width: 1180px !important;
+    gap: 12px !important;
+  }
+
+  .av2-report__form {
+    gap: 12px !important;
+  }
+
+  .av2-form-section__body,
+  .av2-form-card__body {
+    padding: 10px 12px !important;
+  }
+
+  .av2-report__actions {
+    justify-content: flex-start !important;
+    padding-top: 2px !important;
+  }
+}
+
+@media (max-width: 767px) {
+  .av2-form-section__body--activity,
+  .av2-form-section__body--times,
+  .av2-form-section__body--bottom {
+    grid-template-columns: 1fr !important;
+  }
+}

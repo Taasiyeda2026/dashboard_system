@@ -264,6 +264,19 @@ export function attendanceMonthLabel(month) {
   return match ? `${HEBREW_MONTHS[Number(match[2]) - 1]} ${match[1]}` : '';
 }
 
+export function attendanceMonthDateRange(month = '') {
+  const match = txt(month).match(/^(\d{4})-(0[1-9]|1[0-2])$/);
+  if (!match) return { fromDate: '', toDate: '' };
+  const year = Number(match[1]);
+  const mon = Number(match[2]);
+  const lastDay = new Date(year, mon, 0).getDate();
+  const monthKey = `${match[1]}-${match[2]}`;
+  return {
+    fromDate: `${monthKey}-01`,
+    toDate: `${monthKey}-${String(lastDay).padStart(2, '0')}`
+  };
+}
+
 export function filterAttendanceRowsByMonth(attendanceRows = [], month = '') {
   if (!attendanceMonthLabel(month)) throw new Error('יש לבחור חודש לבדיקה לפני ביצוע הבדיקה.');
   return attendanceRows.filter((row) => txt(row.date).startsWith(`${month}-`));
@@ -1398,7 +1411,8 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
       const month = monthInput.value; const monthLabel = attendanceMonthLabel(month);
       if (!monthLabel) throw new Error('יש לבחור חודש לבדיקה לפני ביצוע הבדיקה.');
       const selectedTeam = teamInput.value;
-      const records = await api.attendanceControlRecords();
+      const { fromDate, toDate } = attendanceMonthDateRange(month);
+      const records = await api.attendanceControlRecords({ fromDate, toDate });
       const attendanceRows = filterAttendanceRowsByMonth(normalizeAttendanceApiRows(records), month)
         .filter((row) => selectedTeam === '__all__' ? teamIds.includes(row.team) : row.team === selectedTeam);
       if (!attendanceRows.length) throw new Error(`לא נמצאו דיווחי נוכחות עבור ${monthLabel}`);

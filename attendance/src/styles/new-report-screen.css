@@ -23,7 +23,7 @@
   border-radius: var(--av2-radius-sm);
 }
 
-/* Form layout — stacked sections, not 2×2 cards */
+/* Form layout — three RTL columns on desktop */
 .av2-report__form-area { display: flex; flex-direction: column; }
 .av2-report__form { display: flex; flex-direction: column; gap: 14px; }
 
@@ -165,31 +165,38 @@
 .av2-attach-upload-btn { display: inline-flex; align-items: center; gap: 4px; padding: 5px 8px; font-size: 0.6875rem; font-weight: 600; color: var(--av2-color-accent); border: 1.5px dashed var(--av2-color-accent); border-radius: var(--av2-radius-sm); cursor: pointer; background: var(--av2-color-accent-subtle); transition: background 0.12s; max-width: 160px; }
 .av2-attach-upload-btn:hover { background: #dbeafe; }
 
-/* ── Desktop ───────────────────────────────────────────────────────────── */
+/* ── Desktop — three side-by-side columns (activity | times | expenses) ─── */
 @media (min-width: 768px) {
   .av2-report { padding: 34px 0 46px; }
-  .av2-report__inner { max-width: 860px; margin-inline: auto; width: 100%; gap: 16px; }
+  .av2-report__inner { max-width: 1180px; margin-inline: auto; width: 100%; gap: 16px; }
   .av2-report__title { font-size: 1.3rem; }
 
-  .av2-form-section__body--activity {
+  .av2-report__form {
+    display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+    align-items: start;
   }
-  .av2-form-section__body--activity .av2-field--full,
-  .av2-form-section__body--activity .av2-report__planned-note,
-  .av2-form-section__body--activity .av2-report__school-mount {
+  .av2-report__dup-note,
+  .av2-report__actions,
+  .av2-report__error {
     grid-column: 1 / -1;
   }
-  .av2-form-section__body--activity .av2-ssel:has(#av2-activity-name-trigger) {
-    grid-column: span 2;
+
+  .av2-form-section { min-height: 100%; }
+
+  .av2-form-section__body--activity {
+    grid-template-columns: 1fr;
   }
 
   .av2-form-section__body--times {
-    grid-template-columns: minmax(130px, 1fr) minmax(110px, 1fr) minmax(110px, 1fr) minmax(90px, 0.8fr) minmax(90px, 0.8fr);
-    align-items: end;
+    grid-template-columns: 1fr;
+    gap: 8px;
   }
 
   .av2-form-section__body--bottom {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: 1fr;
+    gap: 10px;
   }
 
   .av2-field__input, .av2-field__select, .av2-ssel__trigger, .av2-csel__trigger { min-height: 38px; }

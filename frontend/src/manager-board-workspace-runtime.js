@@ -3,6 +3,7 @@ import { api } from './api.js';
 import { supabase, waitForSupabaseAuthSession } from './supabase-client.js';
 import { normalizeGlobalActivityPeriod } from './screens/shared/summer-activity.js';
 import { escapeHtml } from './screens/shared/html.js';
+import { attendanceMonthDateRange } from './screens/attendance-control.js';
 
 const MANAGER_WORKSPACE_ROLES = new Set(['admin', 'operation_manager', 'activities_manager', 'finance']);
 const MANAGER_WORKSPACE_TAB_KEY = 'manager_board_workspace_tab';
@@ -266,9 +267,10 @@ async function loadAttendanceSummary(roster, ym, force = false) {
 
   const recordCounts = new Map(ids.map((id) => [id, 0]));
   let recordsError = '';
+  const { fromDate, toDate } = attendanceMonthDateRange(ym);
   try {
     const records = ids.length
-      ? await api.attendanceControlRecords({ employeeIds: ids })
+      ? await api.attendanceControlRecords({ employeeIds: ids, fromDate, toDate })
       : [];
     for (const row of Array.isArray(records) ? records : []) {
       const empId = rawEmployeeId(row);
@@ -414,9 +416,9 @@ function managementAlertsHtml(roster, summary) {
 
 function attendanceStatusBadge(count, approval, ym) {
   if (!count) return '<span class="manager-workspace-status is-muted">אין דיווח</span>';
-  if (attendanceMonthMode(ym).key === 'current') return '<span class="manager-workspace-status is-pending">בקרה שוטפת</span>';
   if (approval) return '<span class="manager-workspace-status is-ok">✓ אושר</span>';
-  return '<span class="manager-workspace-status is-pending">טרם אושר</span>';
+  if (attendanceMonthMode(ym).key === 'current') return '<span class="manager-workspace-status is-pending">בקרה שוטפת</span>';
+  return '<span class="manager-workspace-status is-pending">בתהליך</span>';
 }
 
 function attendanceSummaryTableHtml(roster, summary, ym) {
