@@ -734,6 +734,18 @@ test('collection UI keeps a compact centered shell with summary cards search and
   assert.equal([...html.matchAll(/מעקב גבייה/g)].length, 1);
 });
 
+test('collection keeps payer grouping inside each end month section', () => {
+  const rows = attachCollectionTracking([
+    activity({ row_id: 'G1', end_date: '2027-04-10', school: 'הרצל', school_id: '77', funding: 'גפן' }),
+    activity({ row_id: 'G2', end_date: '2027-04-12', school: 'הרצל', school_id: '77', funding: 'גפן' }),
+    activity({ row_id: 'A1', end_date: '2027-04-15', funding: 'רשות', authority: 'רחובות', authority_id: 'r1' })
+  ], []);
+  const [month] = groupFinanceCollectionByEndMonth(rows, { tab: 'all' });
+  assert.equal(month.monthKey, '2027-04');
+  assert.equal(month.payers.length, 2);
+  assert.equal(month.payers.find((payer) => payer.kind === 'school').activityCount, 2);
+});
+
 test('orphan tracking rows are not shown as activities', () => {
   const merged = attachCollectionTracking(
     [activity({ row_id: 'LIVE' })],
