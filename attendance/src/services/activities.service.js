@@ -49,6 +49,41 @@ export function toHebrewType(dbType) {
   return ACTIVITY_TYPE_MAP[dbType] || dbType;
 }
 
+export function instructorActivityOptionLabel(activity) {
+  const name = activity?.activity_name || toHebrewType(activity?.activity_type) || 'פעילות';
+  const school = activity?.single_school_name
+    || (activity?.school_link_status === 'multiple_schools' ? 'מספר בתי ספר' : '');
+  return school ? `${name} – ${school}` : name;
+}
+
+/**
+ * Map instructor activities to searchable-select options keyed by row_id.
+ * @param {object[]} activities
+ * @param {{ hebrewType?: string }} [opts]
+ */
+export function instructorActivitySelectOptions(activities = [], { hebrewType = '' } = {}) {
+  const seen = new Set();
+  let list = Array.isArray(activities) ? activities : [];
+  if (hebrewType) {
+    list = list.filter((row) => toHebrewType(row?.activity_type) === hebrewType);
+  }
+  return list
+    .map((activity) => {
+      const value = String(activity?.row_id || activity?.id || '').trim();
+      if (!value) return null;
+      return {
+        value,
+        label: instructorActivityOptionLabel(activity),
+        activity,
+      };
+    })
+    .filter((option) => {
+      if (!option || seen.has(option.value)) return false;
+      seen.add(option.value);
+      return true;
+    });
+}
+
 /**
  * Returns distinct activity names (program names) for a given Hebrew activity type,
  * sourced from the 'lists' table (category='activity_names') in the dashboard DB.

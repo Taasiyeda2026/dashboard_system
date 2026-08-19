@@ -1,72 +1,13 @@
-/* Surgical desktop layout correction for the New Report screen. */
+/* Desktop polish for the three-column New Report form. */
 
 @media (min-width: 768px) {
-  /* Keep the form compact and centered instead of stretching across the workspace. */
   .av2-report__inner {
-    max-width: 980px !important;
+    max-width: 1180px !important;
     gap: 12px !important;
   }
 
   .av2-report__form {
-    gap: 10px !important;
-  }
-
-  /* The planned-activity helper is not a separate user-facing step. */
-  .av2-form-section__body--activity > :has(#av2-planned-activity) {
-    display: none !important;
-  }
-
-  /* Activity details: exactly two clean rows.
-     Row 1: type | activity name | meeting.
-     Row 2: authority | school (wider). */
-  .av2-form-section__body--activity {
-    grid-template-columns: minmax(150px, .9fr) minmax(280px, 1.7fr) minmax(110px, .65fr) !important;
-    grid-template-rows: auto auto;
-    gap: 8px 10px !important;
-    align-items: end;
-  }
-
-  .av2-form-section__body--activity > :has(#av2-activity-type) {
-    grid-column: 1 !important;
-    grid-row: 1 !important;
-  }
-
-  .av2-form-section__body--activity > :has(#av2-activity-name-trigger) {
-    grid-column: 2 !important;
-    grid-row: 1 !important;
-  }
-
-  .av2-form-section__body--activity > :has(#av2-meeting-no-trigger) {
-    grid-column: 3 !important;
-    grid-row: 1 !important;
-  }
-
-  .av2-form-section__body--activity > :has(#av2-authority-trigger) {
-    grid-column: 1 !important;
-    grid-row: 2 !important;
-  }
-
-  .av2-form-section__body--activity > .av2-report__school-mount {
-    grid-column: 2 / 4 !important;
-    grid-row: 2 !important;
-  }
-
-  .av2-form-section__body--activity .av2-field--full,
-  .av2-form-section__body--activity .av2-report__school-mount {
-    width: 100%;
-  }
-
-  /* Times and travel: one balanced row. */
-  .av2-form-section__body--times {
-    grid-template-columns: minmax(150px, 1.2fr) minmax(130px, 1fr) minmax(130px, 1fr) minmax(105px, .8fr) minmax(90px, .65fr) !important;
-    gap: 8px 10px !important;
-    align-items: end !important;
-  }
-
-  /* Expenses and notes remain compact; expenses get a little more room. */
-  .av2-form-section__body--bottom {
-    grid-template-columns: minmax(0, 1.35fr) minmax(0, .9fr) !important;
-    gap: 14px !important;
+    gap: 12px !important;
   }
 
   .av2-form-section__body,
@@ -74,14 +15,9 @@
     padding: 10px 12px !important;
   }
 
-  /* Save belongs to the natural RTL end of the form, not the far left. */
   .av2-report__actions {
     justify-content: flex-start !important;
     padding-top: 2px !important;
-  }
-
-  .av2-report__save {
-    min-width: 150px !important;
   }
 }
 
@@ -90,9 +26,5 @@
   .av2-form-section__body--times,
   .av2-form-section__body--bottom {
     grid-template-columns: 1fr !important;
-  }
-
-  .av2-form-section__body--activity > :has(#av2-planned-activity) {
-    display: none !important;
   }
 }
