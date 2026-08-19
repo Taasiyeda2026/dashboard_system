@@ -2,21 +2,26 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { JSDOM } from 'jsdom';
+import * as XLSX from 'xlsx';
 import {
   canAccessFinance,
   createFinanceVisitState,
   financeScreen,
   FINANCE_ATTENDANCE_COLUMNS,
+  FINANCE_ATTENDANCE_EMPLOYMENT_SHEETS,
+  FINANCE_ATTENDANCE_GENERAL_SHEET,
   FINANCE_COLLECTION_ACTIVITY_PERIOD,
   attachCollectionTracking,
   buildFinanceAttendanceExcelRows,
   buildFinanceAttendanceWorkbook,
+  financeEmploymentSheetName,
   financeHourCategory,
   financePayerKey,
   groupFinanceCollectionPayers,
   isFinalPayrollApproval,
   isGefenFunding,
   mapLegacyPaymentCollected,
+  normalizeFinanceEmploymentType,
   summarizeFinanceAttendance,
   unmappedFinanceActivityTypes
 } from '../frontend/src/screens/finance.js';
@@ -339,9 +344,103 @@ test('Excel export uses the same summarized columns, one row per employee, and a
   assert.equal(excelRows[0]['קורס'], 3);
   assert.equal(excelRows[0]['סה״כ ק״מ'], 5);
   const workbook = buildFinanceAttendanceWorkbook(entries);
-  const sheet = workbook.Sheets.נוכחות;
+  const sheet = workbook.Sheets[FINANCE_ATTENDANCE_GENERAL_SHEET];
   const hyperlink = Object.values(sheet).find((cell) => cell?.l?.Target === 'https://files.example/doc.pdf');
   assert.ok(hyperlink);
+});
+
+function sheetAoa(workbook, name) {
+  return XLSX.utils.sheet_to_json(workbook.Sheets[name], { header: 1, raw: true });
+}
+
+function sheetEmployeeNames(workbook, name) {
+  return sheetAoa(workbook, name).slice(1).map((row) => row[1]);
+}
+
+test('Excel workbook keeps the general sheet and adds employment-type sheets with the same columns', () => {
+  const entries = summarizeFinanceAttendance([
+    approval({
+      employee_id: '1',
+      employee_name: 'עובדת תעשיידע',
+      rows: [snapshotRow({ employeeId: '1', employeeName: 'עובדת תעשיידע', employmentType: 'תעשיידע', activityType: 'קורס', workHours: 2 })]
+    }),
+    approval({
+      employee_id: '2',
+      employee_name: 'עובד מעוף',
+      pdf_path: 'https://files.example/maof.pdf',
+      rows: [snapshotRow({ employeeId: '2', employeeName: 'עובד מעוף', employmentType: 'מעוף', activityType: 'סדנה', workHours: 3 })]
+    }),
+    approval({
+      employee_id: '3',
+      employee_name: 'עובד כוח אדם',
+      rows: [snapshotRow({ employeeId: '3', employeeName: 'עובד כוח אדם', employmentType: 'Manpower', activityType: 'סיור', workHours: 4 })]
+    }),
+    approval({
+      employee_id: '4',
+      employee_name: 'לא מסווג',
+      rows: [snapshotRow({ employeeId: '4', employeeName: 'לא מסווג', employmentType: 'אחר', activityType: 'תפעול', workHours: 1 })]
+    })
+  ]).rows;
+  const workbook = buildFinanceAttendanceWorkbook(entries);
+  assert.deepEqual(workbook.SheetNames, [FINANCE_ATTENDANCE_GENERAL_SHEET, ...FINANCE_ATTENDANCE_EMPLOYMENT_SHEETS]);
+
+  const general = sheetAoa(workbook, FINANCE_ATTENDANCE_GENERAL_SHEET);
+  assert.deepEqual(general[0], FINANCE_ATTENDANCE_COLUMNS);
+  assert.equal(general.length, 5);
+  assert.deepEqual(sheetEmployeeNames(workbook, FINANCE_ATTENDANCE_GENERAL_SHEET).sort(), [
+    'לא מסווג',
+    'עובד כוח אדם',
+    'עובד מעוף',
+    'עובדת תעשיידע'
+  ]);
+
+  assert.deepEqual(sheetEmployeeNames(workbook, 'תעשיידע'), ['עובדת תעשיידע']);
+  assert.deepEqual(sheetEmployeeNames(workbook, 'מעוף'), ['עובד מעוף']);
+  assert.deepEqual(sheetEmployeeNames(workbook, 'MANPOWER'), ['עובד כוח אדם']);
+  const independent = sheetAoa(workbook, 'עצמאי');
+  assert.deepEqual(independent, [FINANCE_ATTENDANCE_COLUMNS]);
+
+  for (const name of workbook.SheetNames) {
+    assert.deepEqual(sheetAoa(workbook, name)[0], FINANCE_ATTENDANCE_COLUMNS);
+  }
+
+  const maofLink = Object.values(workbook.Sheets.מעוף).find((cell) => cell?.l?.Target === 'https://files.example/maof.pdf');
+  const generalLink = Object.values(workbook.Sheets[FINANCE_ATTENDANCE_GENERAL_SHEET]).find((cell) => cell?.l?.Target === 'https://files.example/maof.pdf');
+  assert.ok(maofLink);
+  assert.ok(generalLink);
+});
+
+test('Excel employment sheets normalize employmentType spaces and letter case', () => {
+  assert.equal(normalizeFinanceEmploymentType('  Man Power '), 'manpower');
+  assert.equal(financeEmploymentSheetName('MANPOWER'), 'MANPOWER');
+  assert.equal(financeEmploymentSheetName('Manpower'), 'MANPOWER');
+  assert.equal(financeEmploymentSheetName(' manpower '), 'MANPOWER');
+  assert.equal(financeEmploymentSheetName(' עצמאי '), 'עצמאי');
+  assert.equal(financeEmploymentSheetName('אחר'), '');
+
+  const entries = summarizeFinanceAttendance([
+    approval({
+      employee_id: '11',
+      employee_name: 'א',
+      rows: [snapshotRow({ employeeId: '11', employeeName: 'א', employmentType: 'MANPOWER' })]
+    }),
+    approval({
+      employee_id: '12',
+      employee_name: 'ב',
+      rows: [snapshotRow({ employeeId: '12', employeeName: 'ב', employmentType: 'Manpower' })]
+    }),
+    approval({
+      employee_id: '13',
+      employee_name: 'ג',
+      rows: [snapshotRow({ employeeId: '13', employeeName: 'ג', employmentType: '  man power  ' })]
+    })
+  ]).rows;
+  const workbook = buildFinanceAttendanceWorkbook(entries);
+  assert.deepEqual(sheetEmployeeNames(workbook, FINANCE_ATTENDANCE_GENERAL_SHEET).sort(), ['א', 'ב', 'ג']);
+  assert.deepEqual(sheetEmployeeNames(workbook, 'MANPOWER').sort(), ['א', 'ב', 'ג']);
+  assert.deepEqual(sheetAoa(workbook, 'תעשיידע'), [FINANCE_ATTENDANCE_COLUMNS]);
+  assert.deepEqual(sheetAoa(workbook, 'מעוף'), [FINANCE_ATTENDANCE_COLUMNS]);
+  assert.deepEqual(sheetAoa(workbook, 'עצמאי'), [FINANCE_ATTENDANCE_COLUMNS]);
 });
 
 test('collection grouping uses school for GEFEN, specific authority for רשות, and funding source otherwise', () => {
