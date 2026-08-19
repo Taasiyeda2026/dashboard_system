@@ -67,6 +67,7 @@ test('Attendance New Report uses three desktop columns and instructor activity I
   assert.match(newReportSource, /getInstructorActivities/);
   assert.doesNotMatch(newReportSource, /getInstructorActivitiesForDate/);
   assert.match(newReportSource, /ONLINE_REPORT_TYPE/);
+  assert.match(newReportSource, /syncKmForReportType/);
   assert.match(newReportSource, /getAllAuthoritySchoolList/);
   assert.doesNotMatch(newReportSource, /getActivityNamesByType/);
   assert.doesNotMatch(newReportSource, /av2-planned-activity/);
