@@ -94,7 +94,7 @@ export function filterActivitiesForReportType(activities = [], reportType = '') 
 
 export function currentAttendanceActivitySeasons(referenceDateStr) {
   const date = referenceDateStr || new Date().toISOString().slice(0, 10);
-  if (date >= '2026-09-01') return ['school_2027'];
+  if (date >= '2026-08-20') return ['school_2027'];
   return ['regular', 'summer_2026'];
 }
 
