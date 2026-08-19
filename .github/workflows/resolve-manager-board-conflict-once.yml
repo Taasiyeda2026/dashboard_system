@@ -1,0 +1,179 @@
+name: Resolve manager board conflict once
+
+on:
+  push:
+    branches:
+      - claude/manager-activity-board-frontend-ucag6x
+    paths:
+      - .tmp/resolve-manager-board.ready
+
+permissions:
+  contents: write
+
+jobs:
+  resolve:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: claude/manager-activity-board-frontend-ucag6x
+
+      - name: Merge current main and resolve the manager workspace conflict
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin main
+
+          set +e
+          git merge --no-commit --no-ff origin/main
+          merge_rc=$?
+          set -e
+          echo "merge exit code: ${merge_rc}"
+
+          git show origin/main:frontend/src/manager-board-workspace-runtime.js > /tmp/manager-main.js
+
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          path = Path('frontend/src/manager-board-workspace-runtime.js')
+          s = Path('/tmp/manager-main.js').read_text(encoding='utf-8')
+
+          def replace_once(old, new, label):
+              global s
+              if s.count(old) != 1:
+                  raise SystemExit(f'{label}: expected exactly one match, got {s.count(old)}')
+              s = s.replace(old, new, 1)
+
+          def regex_once(pattern, replacement, label):
+              global s
+              s2, count = re.subn(pattern, lambda _m: replacement, s, count=1, flags=re.S)
+              if count != 1:
+                  raise SystemExit(f'{label}: expected exactly one match, got {count}')
+              s = s2
+
+          replace_once(
+              "['police_clearance_confirmed', 'אישור משטרה']",
+              "['police_clearance_file_completed', 'אישור משטרה']",
+              'police followup field'
+          )
+
+          tracking = r'''/** Gender is canonical in instructor_scheduling_profiles.gender ('female'/'male'), passed through get_manager_team_roster. */
+          function isFemaleInstructor(row) {
+            return text(row?.gender).toLowerCase() === 'female';
+          }
+
+          /** Read-only followup cell: ✓ when done, otherwise empty — police clearance is blocked (no mark, no text) for FEMALE. */
+          function followupCellHtml(row, field) {
+            if (field === 'police_clearance_file_completed' && isFemaleInstructor(row)) {
+              return '<td class="manager-workspace-followup-cell manager-workspace-followup-cell--blocked" aria-label="לא רלוונטי"></td>';
+            }
+            return `<td class="manager-workspace-followup-cell${row[field] ? ' is-done' : ''}">${row[field] ? '<span aria-hidden="true">✓</span>' : ''}</td>`;
+          }
+
+          function trackingTableHtml(roster, schoolYear) {
+            if (!roster.length) return '<div class="manager-workspace-empty">אין מדריכים פעילים המשויכים למנהל.</div>';
+            const rows = roster.map((row) => {
+              const empId = text(row.emp_id);
+              const cells = FOLLOWUP_FIELDS.map(([field]) => followupCellHtml(row, field)).join('');
+              const folder = text(row.folder_web_url);
+              return `<tr>
+                <td class="manager-workspace-person"><strong>${escapeHtml(text(row.full_name) || empId)}</strong><small>${escapeHtml(text(row.employment_type))}</small></td>
+                ${cells}
+                <td data-label="תיק עובד">${folder ? `<a class="manager-workspace-folder-link" href="${escapeHtml(folder)}" target="_blank" rel="noopener">פתח תיק</a>` : '<span class="manager-workspace-status is-muted">טרם קושר</span>'}</td>
+              </tr>`;
+            }).join('');
+            return `<div class="manager-workspace-table-wrap"><table class="manager-workspace-table manager-workspace-tracking-table">
+              <thead><tr><th>מדריך</th>${FOLLOWUP_FIELDS.map(([, label]) => `<th>${escapeHtml(label)}</th>`).join('')}<th>תיק עובד</th></tr></thead>
+              <tbody>${rows}</tbody>
+            </table></div><p class="manager-workspace-source-note">תצוגה לקריאה בלבד ממאגר המדריכים המרכזי לשנת ${escapeHtml(schoolYear)}. עדכון הנתונים מתבצע בלשונית מדריכים.</p>`;
+          }
+
+          function sharePointRootButton'''
+          regex_once(
+              r"function trackingTableHtml\(roster, schoolYear\) \{.*?\n\}\n\nfunction sharePointRootButton",
+              tracking,
+              'read-only tracking table'
+          )
+
+          regex_once(
+              r"\nasync function updateFollowupCheckbox\(input, context\) \{.*?\n\}\n\nfunction renderTracking",
+              "\nfunction renderTracking",
+              'remove manager-side followup update'
+          )
+
+          render_tracking = r'''function renderTracking(boardRoot, context, roster) {
+            const view = boardRoot.querySelector('[data-manager-workspace-view]');
+            if (!view) return;
+            view.innerHTML = `<section class="manager-workspace-panel manager-workspace-tracking" dir="rtl">
+              <header class="manager-workspace-panel__head"><div><h2>מעקב צוות</h2><p>${escapeHtml(context.manager)} · שנת ${escapeHtml(context.schoolYear)}</p></div>${sharePointRootButton(context.schoolYear)}</header>
+              ${trackingTableHtml(roster, context.schoolYear)}
+            </section>`;
+          }
+
+          function approvalCell'''
+          regex_once(
+              r"function renderTracking\(boardRoot, context, roster\) \{.*?\n\}\n\nfunction approvalCell",
+              render_tracking,
+              'read-only tracking render'
+          )
+
+          regex_once(
+              r"\nasync function renderManagement\(boardRoot, context, roster, renderToken\) \{.*?\n\}\n",
+              "\n",
+              'remove management alerts renderer'
+          )
+
+          replace_once(
+              'view.innerHTML = `<section class="manager-workspace-panel manager-workspace-attendance" dir="rtl">',
+              'view.innerHTML = `${managementAlertsHtml(roster, summary)}\n    <section class="manager-workspace-panel manager-workspace-attendance" dir="rtl">',
+              'move important reports into attendance'
+          )
+
+          replace_once(
+              "  applyTabVisibility(boardRoot);\n\n  const context = contextFromBoard(boardRoot);",
+              "  applyTabVisibility(boardRoot);\n\n  // Management content is rendered synchronously by manager-board-runtime.js.\n  // Do not load or rewrite workspace content on that tab, which prevents the return-trip layout shift.\n  if (activeTab === 'management') return;\n\n  const context = contextFromBoard(boardRoot);",
+              'management early return'
+          )
+
+          replace_once(
+              "  const alerts = boardRoot.querySelector('[data-manager-workspace-management-alerts]');\n  const view = boardRoot.querySelector('[data-manager-workspace-view]');\n  if (activeTab === 'management' && alerts) alerts.innerHTML = '<div class=\"manager-workspace-loading\">טוען נתוני צוות…</div>';\n  if (activeTab !== 'management' && view) view.innerHTML = '<div class=\"manager-workspace-loading\">טוען נתוני צוות…</div>';",
+              "  const view = boardRoot.querySelector('[data-manager-workspace-view]');\n  if (view) view.innerHTML = '<div class=\"manager-workspace-loading\">טוען נתוני צוות…</div>';",
+              'workspace loading target'
+          )
+
+          replace_once(
+              "    if (activeTab === 'management') await renderManagement(boardRoot, context, roster, renderToken);\n    else if (activeTab === 'attendance') await renderAttendance(boardRoot, context, roster, renderToken);",
+              "    if (activeTab === 'attendance') await renderAttendance(boardRoot, context, roster, renderToken);",
+              'workspace render dispatch'
+          )
+
+          replace_once(
+              "    const target = activeTab === 'management' ? alerts : view;\n    if (target) target.innerHTML = `<div class=\"manager-workspace-error\"><strong>לא ניתן לטעון את צוות המנהל</strong><span>${escapeHtml(error?.message || 'אירעה תקלה זמנית.')}</span><button type=\"button\" data-manager-workspace-retry>נסה שוב</button></div>`;\n    target?.querySelector('[data-manager-workspace-retry]')?.addEventListener('click', () => {",
+              "    if (view) view.innerHTML = `<div class=\"manager-workspace-error\"><strong>לא ניתן לטעון את צוות המנהל</strong><span>${escapeHtml(error?.message || 'אירעה תקלה זמנית.')}</span><button type=\"button\" data-manager-workspace-retry>נסה שוב</button></div>`;\n    view?.querySelector('[data-manager-workspace-retry]')?.addEventListener('click', () => {",
+              'workspace error target'
+          )
+
+          path.write_text(s, encoding='utf-8')
+          PY
+
+          git add frontend/src/manager-board-workspace-runtime.js
+          unresolved="$(git diff --name-only --diff-filter=U)"
+          if [ -n "$unresolved" ]; then
+            echo "Unresolved conflicts remain:"
+            echo "$unresolved"
+            exit 1
+          fi
+
+          node --check frontend/src/manager-board-workspace-runtime.js
+          node --check frontend/src/screens/instructor-onboarding.js
+
+          rm -f .tmp/resolve-manager-board.ready
+          rm -f .github/workflows/resolve-manager-board-conflict-once.yml
+          git add -A
+          git diff --cached --check
+          git commit -m "Merge main and resolve manager board conflict"
+          git push origin HEAD:claude/manager-activity-board-frontend-ucag6x
