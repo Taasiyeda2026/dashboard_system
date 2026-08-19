@@ -16,11 +16,13 @@ const HEBREW_MONTHS = new Map([
   ['יולי', '07'], ['אוגוסט', '08'], ['ספטמבר', '09'], ['אוקטובר', '10'], ['נובמבר', '11'], ['דצמבר', '12']
 ]);
 const FOLLOWUP_FIELDS = [
-  ['intro_call_completed', 'שיחת היכרות'],
-  ['contract_confirmed', 'חוזה'],
-  ['observation_completed', 'תצפית'],
-  ['feedback_completed', 'משוב'],
-  ['police_clearance_file_completed', 'אישור משטרה']
+  ['contract_confirmed', 'הסכם חתום'],
+  ['police_clearance_file_completed', 'אישור משטרה'],
+  ['intro_feedback_completed', 'משוב היכרות'],
+  ['mid_feedback_completed', 'משוב אמצע'],
+  ['end_feedback_completed', 'משוב סוף'],
+  ['observation1_completed', 'תצפית 1'],
+  ['observation2_completed', 'תצפית 2']
 ];
 
 let activeTab = restoreTab();

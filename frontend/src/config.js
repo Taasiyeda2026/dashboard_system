@@ -103,3 +103,4 @@ config.HOTFIX_VERSION = `finance-attendance-compact-export-ui-sw-cache-1565-2026
 config.HOTFIX_VERSION = `finance-post-merge-refresh-sw-cache-1566-20260819-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `manager-board-polish-sw-cache-1567-20260819-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `manager-tracking-employee-file-source-sw-cache-1568-20260819-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `tracking-table-columns-symmetric-sw-cache-1570-20260819-v1-${config.HOTFIX_VERSION}`;
