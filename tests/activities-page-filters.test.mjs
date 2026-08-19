@@ -422,7 +422,7 @@ test('activities render: switching 2026→2027 clears unavailable funding and re
   assert.equal(titleCount(html2027), 3);
 });
 
-test('activities render: assignment + free search + manager/program filters still change the list', () => {
+test('activities render: assignment state + free search + manager/program filters still change the list', () => {
   const rows = fixtureRows();
   const unassignedState = withFilters(baseState({ allActivitiesStatusFilter: 'unassigned' }), {});
   const unassignedHtml = activitiesScreen.render({ rows }, { state: unassignedState });

@@ -391,14 +391,6 @@ function ensureActivityPeriodMonth(state, rows, { force = false } = {}) {
   }
 }
 
-function activityInstructorStatusFilterHtml(state = {}) {
-  const selected = normalizeAllActivitiesStatusFilter(state.allActivitiesStatusFilter);
-  const filters = ALL_ACTIVITIES_STATUS_FILTERS.filter((filter) => ['all', 'unassigned'].includes(filter.key));
-  return `<select class="ds-input ds-input--sm ds-filter-select-inline ds-filter-select-inline--assignment" data-activities-instructor-status-filter aria-label="סינון פעילויות לפי שיבוץ מדריך" title="שיבוץ מדריך" dir="rtl">
-      ${filters.map((filter) => `<option value="${escapeHtml(filter.key)}"${filter.key === selected ? ' selected' : ''}>${escapeHtml(filter.key === 'all' ? 'שיבוץ: הכול' : filter.label)}</option>`).join('')}
-    </select>`;
-}
-
 function activityPeriodUsesMonthNavigation(state = {}) {
   return false;
 }
@@ -2001,13 +1993,11 @@ export const activitiesScreen = {
     const isNavLoading = !!state.activitiesNavLoading;
     const navLoadingChip = isNavLoading ? '<span class="ds-inline-loading-dot is-inline-loading" aria-hidden="true"></span>' : '';
     const viewSwitcher = renderActivitiesViewSwitcher(state, 'activities');
-    const instructorStatusFilter = activityInstructorStatusFilterHtml(state);
     const missingScheduleBanner = state.activitiesMissingScheduleOnly
       ? `<p class="scheduling-warning" role="status" data-missing-schedule-filter-banner>מוצגים רק קורסים פתוחים של תשפ״ז שחסר להם תאריך התחלה או שעת התחלה. <button type="button" class="ds-link-btn" data-clear-missing-schedule-filter>הצג את כל הפעילויות</button></p>`
       : '';
     const mainToolbar = `${missingScheduleBanner}<div class="ds-activities-main-toolbar" dir="rtl" data-local-filters="${ACTIVITIES_SCOPE}">
       <input type="search" class="ds-input ds-input--sm ds-activities-search-sm" data-filter-search="${ACTIVITIES_SCOPE}" value="${escapeHtml(listFilters.q || '')}" placeholder="חיפוש" aria-label="חיפוש פעילויות" title="חיפוש לפי מזהה, פעילות, מדריך, רשות, בית ספר, סטטוס, תאריך או סמל מוסד" />
-      ${instructorStatusFilter}
       ${bareFilters}
       <div class="ds-activities-main-toolbar__actions">
         <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost ds-activities-toolbar-btn" data-filter-clear="${ACTIVITIES_SCOPE}" aria-label="ניקוי כל הסינונים" title="ניקוי כל הסינונים">ניקוי כל הסינונים</button>
@@ -2863,11 +2853,6 @@ export const activitiesScreen = {
       });
     });
 
-    root.querySelector('[data-activities-instructor-status-filter]')?.addEventListener('change', (ev) => {
-      state.allActivitiesStatusFilter = normalizeAllActivitiesStatusFilter(ev.currentTarget?.value);
-      ensureActivityListFilters(state, ACTIVITIES_SCOPE).visibleCount = 200;
-      rerenderLocal();
-    });
     root.querySelector('[data-clear-missing-schedule-filter]')?.addEventListener('click', () => {
       clearMissingScheduleFilter(state);
       ensureActivityListFilters(state, ACTIVITIES_SCOPE).visibleCount = 200;

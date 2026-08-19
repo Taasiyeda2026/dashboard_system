@@ -10011,6 +10011,25 @@ select.ds-input {
   min-height: 32px;
 }
 
+@media (min-width: 960px) {
+  .ds-activities-screen:not(.ds-activities-screen--archive) .ds-activities-main-toolbar {
+    flex-wrap: nowrap;
+  }
+
+  .ds-activities-screen:not(.ds-activities-screen--archive) .ds-activities-main-toolbar .ds-activities-search-sm {
+    flex: 0 0 auto;
+    width: clamp(153px, 20.4vw, 187px);
+    min-width: 153px;
+  }
+
+  .ds-activities-screen:not(.ds-activities-screen--archive) .ds-activities-main-toolbar .ds-filter-select-inline {
+    flex: 1 1 0;
+    min-width: 96px;
+    max-width: none;
+    min-height: 32px;
+  }
+}
+
 .ds-activities-main-toolbar .ds-btn--icon-only {
   min-width: 26px;
   width: 26px;
