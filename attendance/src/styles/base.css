@@ -1,31 +1,36 @@
 :root {
   color-scheme: light;
   /* ── Palette ──────────────────────────────────────────────────────────── */
-  --av2-color-bg:              #e7ebf3;   /* page canvas – light blue-gray     */
+  --av2-color-bg:              #F6F9FB;
   --av2-color-surface:         #ffffff;
-  --av2-color-text:            #111827;
-  --av2-color-text-muted:      #6b7280;
-  --av2-color-accent:          #1a2e4a;   /* dark navy – primary brand          */
-  --av2-color-accent-hover:    #243d61;
-  --av2-color-accent-subtle:   #eff6ff;   /* pale blue tint for hover/selection */
+  --av2-color-text:            #1F2937;
+  --av2-color-text-muted:      #64748B;
+  --av2-color-accent:          #2F6FED;
+  --av2-color-accent-hover:    #2560D4;
+  --av2-color-accent-subtle:   #EBF4FF;
   --av2-color-accent-contrast: #ffffff;
-  --av2-color-border:          #dde2ec;   /* blue-tinted border                 */
+  --av2-color-border:          #DCE4EE;
+  /* ── Section accent headers ──────────────────────────────────────────── */
+  --av2-section-activity:      #E9FCF0;
+  --av2-section-time:          #EBF4FF;
+  --av2-section-expenses:      #FEF0BB;
+  --av2-section-notes:         #EFE1FF;
   /* ── Radius & spacing ────────────────────────────────────────────────── */
   --av2-radius-sm:  8px;
-  --av2-radius-md: 12px;
-  --av2-radius-lg: 16px;
+  --av2-radius-md: 10px;
+  --av2-radius-lg: 14px;
   --av2-space-1:  4px;
-  --av2-space-2: 10px;
+  --av2-space-2:  8px;
   --av2-space-3: 16px;
   --av2-space-4: 24px;
   --av2-space-5: 40px;
-  /* ── Depth (subtle only — restrained shadows, not flat) ─────────────────── */
-  --av2-shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.04), 0 1px 1px rgba(15, 23, 42, 0.03);
-  --av2-shadow-md: 0 1px 2px rgba(15, 23, 42, 0.05), 0 6px 20px rgba(15, 23, 42, 0.06);
-  --av2-color-surface-sunken: #f4f6fa;   /* subtle surface differentiation, not another white card */
+  /* ── Depth ───────────────────────────────────────────────────────────── */
+  --av2-shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.04);
+  --av2-shadow-md: 0 4px 16px rgba(15, 23, 42, 0.06);
+  --av2-color-surface-sunken: #F1F5F9;
   /* ── Typography ──────────────────────────────────────────────────────── */
   --av2-font: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, Helvetica, sans-serif;
-  /* ── Semantic status colours ─────────────────────────────────────────── */
+  /* ── Semantic status ─────────────────────────────────────────────────── */
   --av2-color-success-bg:      #dcfce7;
   --av2-color-success-text:    #15803d;
   --av2-color-warning-bg:      #fef3c7;
@@ -34,16 +39,9 @@
   --av2-color-neutral-text:    #4b5563;
 }
 
-* {
-  box-sizing: border-box;
-}
+* { box-sizing: border-box; }
 
-html,
-body {
-  margin: 0;
-  padding: 0;
-  height: 100%;
-}
+html, body { margin: 0; padding: 0; height: 100%; }
 
 body {
   background: var(--av2-color-bg);
@@ -52,6 +50,8 @@ body {
   direction: rtl;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+  font-size: 14px;
+  line-height: 1.5;
 }
 
 .app-shell {
@@ -60,16 +60,10 @@ body {
   flex-direction: column;
 }
 
-/* Leaves room for the fixed bottom nav once a screen renders below it. */
-.app-shell--with-nav {
-  padding-bottom: 64px;
-}
+.app-shell--with-nav { padding-bottom: 64px; }
 
-button {
-  font-family: inherit;
-}
+button { font-family: inherit; }
 
-/* Shared app column — narrow on mobile, wider on desktop, always centred. */
 .av2-container {
   width: 100%;
   max-width: 420px;
@@ -77,60 +71,41 @@ button {
   padding-inline: var(--av2-space-3);
 }
 
-/* ── Desktop layout (≥768px) ─────────────────────────────────────────────────
-   Body becomes a quiet page canvas; #app-frame is a centred work card.      */
+/* ── Desktop (≥768px) ──────────────────────────────────────────────────── */
 @media (min-width: 768px) {
-  /* Page canvas — quiet, very light cool gray-blue behind the centred frame */
   body {
     display: flex;
     flex-direction: column;
     align-items: center;
     min-height: 100dvh;
-    padding: 24px 20px 32px;
-    background: #e7ebf3;
+    padding: 20px 16px 32px;
+    background: var(--av2-color-bg);
   }
 
-  /* ── App frame: centred application workspace — NOT edge-to-edge ─────────── */
   #app-frame {
     display: flex;
     flex-direction: column;
     width: 100%;
-    max-width: 1180px;
+    max-width: 1140px;
     min-height: 0;
     background: var(--av2-color-surface);
-    border-radius: 15px;
+    border-radius: var(--av2-radius-lg);
     border: 1px solid var(--av2-color-border);
-    box-shadow: var(--av2-shadow-sm);
+    box-shadow: var(--av2-shadow-md);
   }
 
-  /* Nav element moves to the top of the frame */
-  #bottom-nav {
-    order: -1;
-    flex-shrink: 0;
-    width: 100%;
-  }
+  #bottom-nav { order: -1; flex-shrink: 0; width: 100%; }
 
-  /* App shell: auto height so long forms grow the white card instead of
-     overflowing it onto the page canvas. Frame's min-height already
-     guarantees the card fills the viewport when content is short. */
-  .app-shell {
-    min-height: 0;
-    flex: initial;
-  }
+  .app-shell { min-height: 0; flex: initial; }
+  .app-shell--with-nav { padding-bottom: 0; }
 
-  /* No bottom padding — nav is at the top of the frame, not fixed below */
-  .app-shell--with-nav {
-    padding-bottom: 0;
-  }
-
-  /* General desktop content column — full frame width; screens constrain themselves */
   .av2-container {
     max-width: none;
     padding-inline: var(--av2-space-4);
   }
 }
 
-/* ── Buttons ──────────────────────────────────────────────────────────────── */
+/* ── Buttons ───────────────────────────────────────────────────────────── */
 
 .av2-btn {
   font-family: inherit;
@@ -139,106 +114,71 @@ button {
   cursor: pointer;
 }
 
-/* Primary – full width of the container */
 .av2-btn--primary {
   position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: var(--av2-space-2);
+  gap: 6px;
   width: 100%;
   min-height: 40px;
-  padding: 9px 18px;
+  padding: 8px 16px;
   border-radius: var(--av2-radius-md);
   background: var(--av2-color-accent);
   color: var(--av2-color-accent-contrast);
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
   font-weight: 600;
-  letter-spacing: 0.01em;
   transition: background 0.15s;
 }
+.av2-btn--primary:hover { background: var(--av2-color-accent-hover); }
+.av2-btn--primary::after { content: ''; position: absolute; inset: -4px 0; }
+.av2-btn--primary:active { opacity: 0.88; }
 
-.av2-btn--primary:hover {
-  background: var(--av2-color-accent-hover);
-}
-
-.av2-btn--primary::after {
-  content: '';
-  position: absolute;
-  inset: -4px 0;
-}
-
-.av2-btn--primary:active {
-  opacity: 0.88;
-}
-
-/* Secondary – outlined */
 .av2-btn--secondary {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: var(--av2-space-2);
+  gap: 6px;
   width: auto;
-  min-height: 38px;
-  padding: 8px 14px;
+  min-height: 36px;
+  padding: 6px 12px;
   border-radius: var(--av2-radius-md);
   background: var(--av2-color-surface);
   color: var(--av2-color-accent);
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
   font-weight: 600;
   border: 1.5px solid var(--av2-color-accent);
   transition: background 0.12s;
 }
-
 .av2-btn--secondary:hover,
-.av2-btn--secondary:focus-visible {
-  background: var(--av2-color-accent-subtle);
-}
+.av2-btn--secondary:focus-visible { background: var(--av2-color-accent-subtle); }
+.av2-btn--secondary:active { opacity: 0.85; }
 
-.av2-btn--secondary:active {
-  opacity: 0.85;
-}
-
-/* Icon button – 44px tap target */
 .av2-btn--icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
+  width: 36px;
+  height: 36px;
   padding: 0;
   border-radius: var(--av2-radius-md);
   background: transparent;
   color: var(--av2-color-text-muted);
   transition: background 0.12s, color 0.12s;
 }
-
 .av2-btn--icon:hover,
-.av2-btn--icon:focus-visible {
-  background: var(--av2-color-border);
-  color: var(--av2-color-text);
-}
+.av2-btn--icon:focus-visible { background: var(--av2-color-border); color: var(--av2-color-text); }
+.av2-btn--icon:active { background: var(--av2-color-border); opacity: 0.85; }
 
-.av2-btn--icon:active {
-  background: var(--av2-color-border);
-  opacity: 0.85;
-}
+.av2-icon { display: block; }
+.av2-icon--flip-rtl { transform: scaleX(-1); }
 
-.av2-icon {
-  display: block;
-}
-
-/* Directional icons mirrored for RTL */
-.av2-icon--flip-rtl {
-  transform: scaleX(-1);
-}
-
-/* ── Form field ────────────────────────────────────────────────────────────── */
+/* ── Form field ────────────────────────────────────────────────────────── */
 
 .av2-field {
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 4px;
   text-align: start;
 }
 
@@ -251,7 +191,7 @@ button {
 
 .av2-field__input,
 .av2-field__select {
-  min-height: 40px;
+  min-height: 38px;
   padding: 0 10px;
   border: 1.5px solid var(--av2-color-border);
   border-radius: var(--av2-radius-md);
@@ -261,28 +201,34 @@ button {
   font-size: 0.875rem;
   transition: border-color 0.12s;
 }
-
 .av2-field__input:focus,
 .av2-field__select:focus {
   outline: none;
   border-color: var(--av2-color-accent);
-  box-shadow: 0 0 0 3px rgba(26, 46, 74, 0.10);
+  box-shadow: 0 0 0 3px rgba(47, 111, 237, 0.12);
 }
 
-/* ── Shared row ───────────────────────────────────────────────────────────── */
+@media (min-width: 768px) {
+  .av2-field__input,
+  .av2-field__select {
+    min-height: 40px;
+  }
+}
+
+/* ── Shared row ────────────────────────────────────────────────────────── */
 
 .av2-row {
   display: flex;
   align-items: center;
   gap: 10px;
   width: 100%;
-  padding: 10px 12px;
+  padding: 8px 12px;
   background: var(--av2-color-surface);
   border: 1px solid var(--av2-color-border);
   border-radius: var(--av2-radius-md);
 }
 
-/* ── Status badge ─────────────────────────────────────────────────────────── */
+/* ── Status badge ──────────────────────────────────────────────────────── */
 
 .av2-badge {
   display: inline-flex;
@@ -293,18 +239,16 @@ button {
   font-weight: 600;
   white-space: nowrap;
 }
+.av2-badge--success { background: var(--av2-color-success-bg); color: var(--av2-color-success-text); }
+.av2-badge--warning { background: var(--av2-color-warning-bg); color: var(--av2-color-warning-text); }
+.av2-badge--neutral { background: var(--av2-color-neutral-bg); color: var(--av2-color-neutral-text); }
 
-.av2-badge--success {
-  background: var(--av2-color-success-bg);
-  color: var(--av2-color-success-text);
-}
+/* ── Desktop button constraints ────────────────────────────────────────── */
 
-.av2-badge--warning {
-  background: var(--av2-color-warning-bg);
-  color: var(--av2-color-warning-text);
-}
-
-.av2-badge--neutral {
-  background: var(--av2-color-neutral-bg);
-  color: var(--av2-color-neutral-text);
+@media (min-width: 768px) {
+  .av2-btn--primary {
+    width: auto;
+    min-width: 120px;
+    padding: 8px 18px;
+  }
 }

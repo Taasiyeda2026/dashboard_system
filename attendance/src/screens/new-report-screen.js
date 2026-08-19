@@ -307,16 +307,25 @@ export function renderNewReportScreen(container, {
     form.className = 'av2-report__form';
     form.noValidate = true;
 
-    // Helper: section divider inside the 2-col grid (spans full width)
-    function makeSectionTitle(text) {
+    function makeSectionTitle(text, variant = '') {
       const el = document.createElement('div');
-      el.className = 'av2-form-section-title av2-field--full';
+      el.className = 'av2-form-section-title' + (variant ? ` av2-form-section-title--${variant}` : '');
       el.textContent = text;
       return el;
     }
 
-    // ── ROW 1: שם פעילות (full-width) — searchable dropdown, filtered by type ──
-    form.append(makeSectionTitle('פעילות'));
+    function makeCard(headerText, variant, fields) {
+      const card = document.createElement('div');
+      card.className = 'av2-form-card';
+      card.append(makeSectionTitle(headerText, variant));
+      const body = document.createElement('div');
+      body.className = 'av2-form-card__body';
+      for (const f of fields) body.append(f);
+      card.append(body);
+      return card;
+    }
+
+    // ── Card 1: פרטי פעילות ────────────────────────────────────────────
 
     const activityNameSel = createSearchableSelect({
       id: 'av2-activity-name',
@@ -574,17 +583,14 @@ export function renderNewReportScreen(container, {
       }
     }
 
-    form.append(authorityEl, schoolEl);
+    const activityCard = makeCard('פרטי פעילות', 'activity', [
+      activityNameSel.wrap, typeField.wrap, meetingWrap, authorityEl, schoolEl,
+    ]);
+    activityCard.querySelector('.av2-form-card__body').classList.add('av2-form-card__body--2col');
+    activityNameSel.wrap.style.gridColumn = '1 / -1';
+    form.append(activityCard);
 
-    // ── ROW 3: Time pickers ────────────────────────────────────────────
-    form.append(makeSectionTitle('זמן ונסיעות'));
-
-    if (activity?.start_time && activity?.end_time) {
-      const plannedHoursNote = document.createElement('p');
-      plannedHoursNote.className = 'av2-report__no-activity-note av2-field--full';
-      plannedHoursNote.textContent = `שעות הפעילות המתוכננות: ${activity.start_time}–${activity.end_time}. יש להזין כאן את שעות הנוכחות בפועל.`;
-      form.append(plannedHoursNote);
-    }
+    // ── Card 2: זמנים ──────────────────────────────────────────────────
 
     const startPicker = createTimePicker('av2-start-time', 'שעת התחלה', prefillRecord?.start_time || '');
     const endPicker   = createTimePicker('av2-end-time',   'שעת סיום',  prefillRecord?.end_time   || '');
@@ -621,7 +627,16 @@ export function renderNewReportScreen(container, {
 
     updateHours();
     hoursDisplay.append(hoursLbl, hoursVal);
-    form.append(startPicker.wrap, endPicker.wrap, hoursDisplay);
+
+    const timeFields = [];
+    if (activity?.start_time && activity?.end_time) {
+      const plannedNote = document.createElement('p');
+      plannedNote.className = 'av2-report__no-activity-note';
+      plannedNote.style.gridColumn = '1 / -1';
+      plannedNote.textContent = `שעות מתוכננות: ${activity.start_time}–${activity.end_time}. הזן נוכחות בפועל.`;
+      timeFields.push(plannedNote);
+    }
+    timeFields.push(startPicker.wrap, endPicker.wrap, hoursDisplay);
 
     // ── ROW 4: KM + Expenses ──────────────────────────────────────────
     const kmField = createInputField({
@@ -629,48 +644,52 @@ export function renderNewReportScreen(container, {
       type: 'number', value: prefillRecord?.roundtrip_km ? String(prefillRecord.roundtrip_km) : '',
       attrs: { min: '0', step: '1', placeholder: '0' },
     });
-    const expField = createInputField({
-      id: 'av2-expenses', label: 'הוצאות (₪)',
-      type: 'number', value: prefillRecord?.expenses ? String(prefillRecord.expenses) : '',
-      attrs: { min: '0', step: '0.01', placeholder: '0' },
-    });
-    form.append(kmField.wrap, expField.wrap);
 
-    // ── Full-width: Expense detail ─────────────────────────────────────
-    form.append(makeSectionTitle('מידע נוסף'));
+    const timeCard = makeCard('זמנים ונסיעות', 'time', [...timeFields, kmField.wrap]);
+    timeCard.querySelector('.av2-form-card__body').classList.add('av2-form-card__body--2col');
+    hoursDisplay.style.gridColumn = '1 / -1';
+    form.append(timeCard);
 
-    const expDetailField = createInputField({
-      id: 'av2-expense-detail', label: 'פירוט הוצאות',
-      placeholder: 'לדוגמה: חניה, כיבוד, חומרים',
-      value: prefillRecord?.expense_details || '',
-    });
-    expDetailField.wrap.classList.add('av2-field--full');
-    form.append(expDetailField.wrap);
-
-    // ── Full-width: Notes ──────────────────────────────────────────────
+    // ── Card 3: הערות ──────────────────────────────────────────────────
     const notesField = createInputField({
       id: 'av2-notes', label: 'הערות',
       placeholder: 'הערות נוספות (אופציונלי)',
       value: prefillRecord?.notes || '',
     });
-    notesField.wrap.classList.add('av2-field--full');
-    form.append(notesField.wrap);
+    const notesCard = makeCard('הערות', 'notes', [notesField.wrap]);
+    form.append(notesCard);
 
-    // ── Full-width: Attachments ────────────────────────────────────────
+    // ── Card 4: הוצאות ומסמכים ──────────────────────────────────────────
+    const expField = createInputField({
+      id: 'av2-expenses', label: 'הוצאות (₪)',
+      type: 'number', value: prefillRecord?.expenses ? String(prefillRecord.expenses) : '',
+      attrs: { min: '0', step: '0.01', placeholder: '0' },
+    });
+    const expDetailField = createInputField({
+      id: 'av2-expense-detail', label: 'פירוט הוצאות',
+      placeholder: 'לדוגמה: חניה, כיבוד, חומרים',
+      value: prefillRecord?.expense_details || '',
+    });
     const attachmentUi = buildAttachmentSection(pendingFiles);
-    attachmentUi.section.classList.add('av2-field--full');
-    form.append(attachmentUi.section);
+    const expensesCard = makeCard('הוצאות ומסמכים', 'expenses', [
+      expField.wrap, expDetailField.wrap, attachmentUi.section,
+    ]);
+    form.append(expensesCard);
 
-    // ── Full-width: Save button ────────────────────────────────────────
+    // ── Save + Error (full-width below cards) ──────────────────────────
+    const actionsRow = document.createElement('div');
+    actionsRow.className = 'av2-field--full';
+    actionsRow.style.cssText = 'display:flex;gap:8px;align-items:center;justify-content:flex-end;flex-wrap:wrap;';
+
     const saveBtn = document.createElement('button');
     saveBtn.type = 'submit';
-    saveBtn.className = 'av2-btn av2-btn--primary av2-report__save av2-field--full';
+    saveBtn.className = 'av2-btn av2-btn--primary av2-report__save';
     const saveLbl = document.createElement('span');
     saveLbl.textContent = 'שמירת דיווח';
     saveBtn.append(createIcon('check'), saveLbl);
-    form.append(saveBtn);
+    actionsRow.append(saveBtn);
+    form.append(actionsRow);
 
-    // ── Full-width: Error ──────────────────────────────────────────────
     const errorEl = document.createElement('p');
     errorEl.className = 'av2-report__error av2-field--full';
     errorEl.hidden = true;
