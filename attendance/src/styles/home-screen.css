@@ -45,9 +45,8 @@
 .av2-stat-card__value { margin: 0; font-size: 1.25rem; font-weight: 800; color: var(--av2-color-text); line-height: 1.15; }
 .av2-stat-card__label { margin: 0; font-size: 0.5625rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--av2-color-text-muted); }
 
-/* Workspace */
-.av2-home__workspace { display: flex; flex-direction: column; gap: 8px; }
-.av2-home__calendar { display: flex; flex-direction: column; gap: 6px; padding: 8px; background: var(--av2-color-surface); border: 1px solid var(--av2-color-border); border-radius: var(--av2-radius-md); }
+/* Monthly closing/status area */
+.av2-home__status-area { display: flex; flex-direction: column; gap: 6px; width: 100%; max-width: 720px; margin-inline: auto; }
 .av2-home__section-loading { margin: 0; padding: 14px; text-align: center; font-size: 0.75rem; color: var(--av2-color-text-muted); }
 .av2-home__section-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
 .av2-home__section-heading h2 { margin: 0; font-size: 0.75rem; font-weight: 700; color: var(--av2-color-text); }
@@ -65,9 +64,6 @@
 .av2-home__report-row-time { text-align: end; }
 .av2-home__report-row-school, .av2-home__report-row-hours, .av2-home__report-row-km { display: none; }
 .av2-home__empty { margin: 0; padding: 10px 0; font-size: 0.75rem; color: var(--av2-color-text-muted); text-align: center; }
-
-.av2-cal--home .av2-cal__cell { height: 34px; }
-.av2-cal--home .av2-cal__day-num { font-size: 0.75rem; }
 
 /* Approval */
 .av2-approval-card { display: flex; flex-direction: column; gap: 6px; }
@@ -118,12 +114,8 @@
   .av2-month-nav { width: 210px; max-width: 210px; flex: 0 0 210px; height: 38px; }
   .av2-home__primary { min-width: 142px; max-width: 160px; min-height: 38px; }
 
-  .av2-home__workspace { grid-template-columns: minmax(0,720px) 300px; justify-content: center; gap: 14px; align-items: start; }
-  .av2-home__calendar { width: 100%; max-width: 720px; min-height: 0; padding: 12px; border-radius: 9px; }
-  .av2-home__calendar .av2-cal { width: min(100%, 660px); align-self: center; }
-  .av2-home__calendar .av2-cal .av2-cal__cell { height: 42px; }
-  .av2-home__workspace .av2-approval-card { max-width: 300px; width: 100%; }
-  .av2-home__workspace .av2-approval-inner { height: auto; }
+  .av2-home__status-area { max-width: 720px; }
+  .av2-home__status-area .av2-approval-card { width: 100%; }
 
   .av2-home__recent { width: 100%; max-width: 1180px; margin-inline: auto; gap: 10px; padding: 14px 16px 8px; background: var(--av2-color-surface); border: 1px solid var(--av2-color-border); border-radius: 9px; }
   .av2-home__report-list { width: 100%; max-width: 1140px; margin-inline: auto; }
