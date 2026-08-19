@@ -102,10 +102,28 @@ import {
 const SCOPE = 'operations-management';
 const TAB_INSTRUCTORS = 'instructors';
 const TAB_SUMMER = 'summer';
+const TAB_HOME = 'home';
 const TAB_COMPLETION_APPROVAL = 'completion_approval';
 const TAB_WORKSHOPS = 'workshops';
 const TAB_AUTHORITIES = 'authorities';
 const TAB_SCHOOLS = 'schools';
+const OPS_CUSTOM_TAB_WORKSHOP_TRAINING = 'summer_training_matrix';
+const OPS_CUSTOM_TAB_COURSE_TRAINING = 'course_training_matrix';
+const OPS_CUSTOM_TAB_PRINT_KITS = 'course_print_kits';
+const OPERATIONS_CUSTOM_TAB_KEYS = new Set([
+  OPS_CUSTOM_TAB_WORKSHOP_TRAINING,
+  OPS_CUSTOM_TAB_COURSE_TRAINING,
+  OPS_CUSTOM_TAB_PRINT_KITS
+]);
+const OPERATIONS_HOME_TARGETS = Object.freeze([
+  { label: 'מלאי סדנאות', type: 'ops-tab', value: TAB_WORKSHOPS },
+  { label: 'הזמנות לאירועים', type: 'route', value: 'invitations' },
+  { label: 'קטלוג', type: 'route', value: 'catalog' },
+  { label: 'תעודות', type: 'route', value: 'certificates' },
+  { label: 'הכשרות סדנאות', type: 'ops-custom-tab', value: OPS_CUSTOM_TAB_WORKSHOP_TRAINING },
+  { label: 'הכשרות קורסים', type: 'ops-custom-tab', value: OPS_CUSTOM_TAB_COURSE_TRAINING },
+  { label: 'ערכות דפוס', type: 'ops-custom-tab', value: OPS_CUSTOM_TAB_PRINT_KITS }
+]);
 const SUMMER_TRAINING_SESSION_KEY = 'opsSummerTrainingActive';
 const COMPLETION_APPROVAL_SUMMER_FROM = '2026-06-20';
 const COMPLETION_APPROVAL_SUMMER_TO = '2026-08-31';
@@ -125,7 +143,7 @@ let _opsEntryContext = 'operations';
 
 const OPS_CONTEXT_INSTRUCTORS = 'instructors';
 const OPS_CONTEXT_OPERATIONS = 'operations';
-const OPERATIONS_ONLY_TABS = [TAB_COMPLETION_APPROVAL, TAB_AUTHORITIES, TAB_WORKSHOPS];
+const OPERATIONS_ONLY_TABS = [TAB_HOME, TAB_COMPLETION_APPROVAL, TAB_AUTHORITIES, TAB_WORKSHOPS];
 
 function resetOperationsManagementEntry(state) {
   const ops = ensureOpsState(state);
@@ -137,7 +155,8 @@ function resetOperationsManagementEntry(state) {
     ops.appliedScheduleFilters = null;
     ops.scheduleRequestVersion = (ops.scheduleRequestVersion || 0) + 1;
   } else {
-    ops.tab = TAB_COMPLETION_APPROVAL;
+    ops.tab = TAB_HOME;
+    ops.customTab = '';
   }
   try { sessionStorage.removeItem(SUMMER_TRAINING_SESSION_KEY); } catch { /* ignore */ }
 }
@@ -265,8 +284,10 @@ function ensureOpsState(state = {}) {
   if (ops.context === OPS_CONTEXT_INSTRUCTORS) {
     ops.tab = TAB_INSTRUCTORS;
   } else if (!ops.tab || ops.tab === TAB_INSTRUCTORS || !OPERATIONS_ONLY_TABS.includes(ops.tab)) {
-    ops.tab = TAB_COMPLETION_APPROVAL;
+    ops.tab = TAB_HOME;
   }
+  if (typeof ops.customTab !== 'string') ops.customTab = '';
+  if (ops.tab === TAB_HOME) ops.customTab = '';
   const globalPeriod = defaultPeriodKey(state);
   if (ops.period !== globalPeriod) {
     ops.period = globalPeriod;
@@ -716,6 +737,59 @@ function tabsHtml(activeTab, currentRoute = '') {
   </nav>`;
 }
 
+function operationsHomeIconSvg(label) {
+  const text = String(label || '').replace(/\s+/g, ' ').trim();
+  const common = 'viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"';
+  if (text.includes('מלאי') || text.includes('ציוד')) return `<svg ${common}><path d="M4 7h16v13H4z"/><path d="M7 7V4h10v3M8 12h8M8 16h5"/></svg>`;
+  if (text.includes('הזמנות')) return `<svg ${common}><path d="M5 4h14v16H5z"/><path d="M8 8h8M8 12h8M8 16h5"/><path d="M16 2v4M8 2v4"/></svg>`;
+  if (text.includes('קטלוג')) return `<svg ${common}><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H11v16H6.5A2.5 2.5 0 0 0 4 21.5z"/><path d="M20 5.5A2.5 2.5 0 0 0 17.5 3H13v16h4.5a2.5 2.5 0 0 1 2.5 2.5z"/></svg>`;
+  if (text.includes('תעודות') || text.includes('אישורי')) return `<svg ${common}><path d="M7 3h10v18H7z"/><path d="M10 8h4M10 12h4"/><path d="M9 17l2-1 2 1 2-1"/></svg>`;
+  if (text.includes('הכשרות')) return `<svg ${common}><path d="M3 10l9-5 9 5-9 5z"/><path d="M7 13v4c3 2 7 2 10 0v-4"/></svg>`;
+  if (text.includes('דפוס')) return `<svg ${common}><path d="M7 8V3h10v5"/><rect x="4" y="8" width="16" height="9" rx="2"/><path d="M7 14h10v7H7zM16 11h1"/></svg>`;
+  return `<svg ${common}><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8 9h8M8 13h8M8 17h5"/></svg>`;
+}
+
+function operationsHomeDescription(label) {
+  const text = String(label || '').replace(/\s+/g, ' ').trim();
+  if (text.includes('מלאי') || text.includes('ציוד')) return 'ניהול מלאי, ציוד ופריטי סדנאות';
+  if (text.includes('הזמנות')) return 'הזמנות לאירועים ומעקב תפעולי';
+  if (text.includes('קטלוג')) return 'ניהול קטלוג הפעילויות והתכנים';
+  if (text.includes('תעודות')) return 'הפקה וניהול של תעודות';
+  if (text === 'הכשרות סדנאות') return 'ניהול הכשרות והיערכות לסדנאות';
+  if (text === 'הכשרות קורסים') return 'ניהול הכשרות והיערכות לקורסים';
+  if (text.includes('הכשרות')) return 'ניהול הכשרות והיערכות';
+  if (text.includes('דפוס')) return 'ניהול ערכות וחומרי דפוס';
+  return `פתיחת ${text}`;
+}
+
+function operationsHomeHtml() {
+  const tiles = OPERATIONS_HOME_TARGETS.map(({ label, type, value }) => `
+    <button type="button" class="operations-management-home__tile" data-ops-home-target-type="${escapeHtml(type)}" data-ops-home-target-value="${escapeHtml(value)}" aria-label="פתיחת ${escapeHtml(label)}">
+      <span class="operations-management-home__icon">${operationsHomeIconSvg(label)}</span>
+      <span class="operations-management-home__content">
+        <strong>${escapeHtml(label)}</strong>
+        <small>${escapeHtml(operationsHomeDescription(label))}</small>
+      </span>
+      <span class="operations-management-home__arrow" aria-hidden="true">‹</span>
+    </button>`).join('');
+  return `<section class="operations-management-home" data-operations-management-home="true" dir="rtl">
+    <div class="operations-management-home__heading">
+      <h2>כלי התפעול</h2>
+    </div>
+    <div class="operations-management-home__grid">${tiles}</div>
+  </section>`;
+}
+
+function isOperationsHomeView(state = {}) {
+  const ops = ensureOpsState(state);
+  return ops.context !== OPS_CONTEXT_INSTRUCTORS && ops.tab === TAB_HOME && !ops.customTab;
+}
+
+function operationsPageTitle(state = {}, { completionApproval = false } = {}) {
+  if (completionApproval) return 'בקרת אישורי ביצוע לקיץ 2026';
+  return 'תפעול';
+}
+
 /**
  * Generates the full ops-management visual wrapper (header + tab bar + content slot)
  * for sub-route screens (invitations, catalog, certificates) so they share the same chrome.
@@ -734,7 +808,7 @@ export function opsSubRouteWrapperHtml(activeRoute, contentHtml, { is2027 = fals
 .ds-ops-sub-route-content .catalog-embed-screen{height:100%;display:flex;flex-direction:column;min-height:0!important}
 .ds-ops-sub-route-content .catalog-embed-frame-wrap{flex:1;min-height:0;height:0}
 .ds-ops-sub-route-content .catalog-embed-frame{height:100%!important;min-height:0!important}
-</style>${dsPageHeader('ניהול תפעול')}${tabsHtml(null, activeRoute)}<div class="ds-ops-mgmt-content ds-ops-sub-route-content">${contentHtml}</div></div>`;
+</style>${dsPageHeader('תפעול')}${tabsHtml(null, activeRoute)}<div class="ds-ops-mgmt-content ds-ops-sub-route-content">${contentHtml}</div></div>`;
 }
 
 function summaryKpiHtml(items = []) {
@@ -1957,6 +2031,21 @@ function opsManagementStylesHtml() {
       .ds-ops-mgmt-screen .ds-ops-dist-table { width:100% !important; }
       .ds-ops-mgmt-screen .ds-ops-workshops-card { width:100% !important; }
     }
+    .operations-management-home { width:min(100%,1040px); margin:26px auto 0; padding:0 8px 24px; direction:rtl; }
+    .operations-management-home__heading { margin-bottom:14px; }
+    .operations-management-home__heading h2 { margin:0; font-size:18px; line-height:1.3; color:var(--color-text,#172033); font-weight:800; }
+    .operations-management-home__grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px; }
+    .operations-management-home__tile { appearance:none; min-width:0; min-height:120px; display:grid; grid-template-columns:42px minmax(0,1fr) 18px; align-items:center; gap:12px; padding:17px; border:1px solid var(--color-border,#dbe3ec); border-radius:16px; background:var(--color-surface,#fff); color:var(--color-text,#172033); text-align:right; cursor:pointer; box-shadow:0 1px 2px rgba(15,23,42,.04); transition:transform .16s ease,box-shadow .16s ease,border-color .16s ease; }
+    .operations-management-home__tile:hover { transform:translateY(-2px); border-color:var(--color-primary,#1597b8); box-shadow:0 8px 22px rgba(15,23,42,.08); }
+    .operations-management-home__tile:focus-visible { outline:3px solid color-mix(in srgb,var(--color-primary,#1597b8) 26%,transparent); outline-offset:2px; }
+    .operations-management-home__icon { width:42px; height:42px; display:grid; place-items:center; border:1px solid var(--color-border,#dbe3ec); border-radius:12px; background:var(--color-surface-muted,#f8fafc); color:var(--color-primary,#0f7f9b); pointer-events:none; }
+    .operations-management-home__icon svg { width:23px; height:23px; }
+    .operations-management-home__content { min-width:0; display:flex; flex-direction:column; gap:6px; pointer-events:none; }
+    .operations-management-home__content strong { font-size:15.5px; line-height:1.25; font-weight:800; }
+    .operations-management-home__content small { color:var(--color-text-secondary,#64748b); font-size:12.5px; line-height:1.45; }
+    .operations-management-home__arrow { color:var(--color-text-secondary,#94a3b8); font-size:23px; line-height:1; pointer-events:none; }
+    @media (max-width:980px) { .operations-management-home__grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+    @media (max-width:620px) { .operations-management-home { margin-top:18px; } .operations-management-home__grid { grid-template-columns:1fr; gap:10px; } .operations-management-home__tile { min-height:105px; padding:14px; } }
   </style>`;
 }
 
@@ -3178,6 +3267,8 @@ function completionApprovalTabHtml(rows, state, data = {}, directory = buildScho
 
 function renderTab(rows, state, data, allPreparedRows = []) {
   const ops = ensureOpsState(state);
+  if (ops.tab === TAB_HOME && !ops.customTab) return operationsHomeHtml();
+  if (ops.customTab) return '';
   const stockMap = data?.workshopStockMap instanceof Map ? data.workshopStockMap : new Map();
   const directory = buildSchoolsDirectory(data?.schoolsDirectoryRows || []);
   const contactsIndex = buildContactsSchoolsIndex(data?.contactsSchoolsRows || []);
@@ -3234,6 +3325,7 @@ function renderTab(rows, state, data, allPreparedRows = []) {
 }
 
 function operationsTabDataKey(tab) {
+  if (tab === TAB_HOME) return TAB_HOME;
   if (tab === TAB_WORKSHOPS) return TAB_WORKSHOPS;
   if (tab === TAB_COMPLETION_APPROVAL) return TAB_COMPLETION_APPROVAL;
   if (tab === TAB_AUTHORITIES || tab === TAB_SCHOOLS) return 'directory';
@@ -3328,6 +3420,61 @@ export async function loadOperationsTabData(api, tab, { state } = {}) {
   };
 }
 
+async function ensureOperationsTabDataLoaded(tab, { data, api, state, rerender }) {
+  const tabKey = operationsTabDataKey(tab);
+  if (tabKey === TAB_HOME) return;
+  const loadedTabs = new Set(Array.isArray(data?._loadedOperationsTabs) ? data._loadedOperationsTabs : []);
+  if (loadedTabs.has(tabKey)) return;
+  if (tabKey === TAB_WORKSHOPS) {
+    data._workshopsLoading = true;
+    rerender?.();
+  }
+  const promises = data._operationsTabLoadPromises instanceof Map ? data._operationsTabLoadPromises : new Map();
+  data._operationsTabLoadPromises = promises;
+  let request = promises.get(tabKey);
+  if (!request) {
+    request = loadOperationsTabData(api, tabKey, { state }).finally(() => promises.delete(tabKey));
+    promises.set(tabKey, request);
+  }
+  try {
+    Object.assign(data, await request);
+    loadedTabs.add(tabKey);
+    data._loadedOperationsTabs = [...loadedTabs];
+  } catch (_) { /* existing empty-state behavior remains available */ }
+  if (tabKey === TAB_WORKSHOPS) data._workshopsLoading = false;
+}
+
+async function navigateOperationsHomeTarget(type, value, { data, api, state, rerender }) {
+  const ops = ensureOpsState(state);
+  ops.context = OPS_CONTEXT_OPERATIONS;
+  try { sessionStorage.removeItem(SUMMER_TRAINING_SESSION_KEY); } catch { /* ignore */ }
+
+  if (type === 'route') {
+    ops.customTab = '';
+    document.dispatchEvent(new CustomEvent('app:navigate', { detail: { route: value } }));
+    return;
+  }
+
+  if (type === 'ops-custom-tab') {
+    if (!OPERATIONS_CUSTOM_TAB_KEYS.has(value)) return;
+    ops.customTab = value;
+    ops.tab = TAB_WORKSHOPS;
+    document.dispatchEvent(new CustomEvent('app:navigate', { detail: { route: 'operations-management' } }));
+    rerender?.();
+    return;
+  }
+
+  if (type === 'ops-tab') {
+    ops.customTab = '';
+    ops.tab = value || TAB_WORKSHOPS;
+    if (ops.tab === TAB_SUMMER || ops.tab === TAB_INSTRUCTORS) ops.tab = TAB_COMPLETION_APPROVAL;
+    document.dispatchEvent(new CustomEvent('ops-mgmt-standard-tab', { detail: { tab: ops.tab } }));
+    await ensureOperationsTabDataLoaded(ops.tab, { data, api, state, rerender });
+    document.dispatchEvent(new CustomEvent('app:navigate', { detail: { route: 'operations-management' } }));
+    rerender?.();
+  }
+}
+
 export const operationsManagementScreen = {
   load: async ({ api, state }) => {
     const ops = ensureOpsState(state || {});
@@ -3358,6 +3505,22 @@ export const operationsManagementScreen = {
     // school_2027: לא טוענים allActivities בכניסה.
     // כל לשונית תטען את הנתונים שלה בלבד בעת לחיצה, דרך ה-2027 controller.
     if (ops.period === ACTIVITY_SEASON_SCHOOL_2027) {
+      return {
+        rows: [],
+        _loadedOperationsTabs: [],
+        _operationsTabLoadPromises: new Map()
+      };
+    }
+
+    if (ops.tab === TAB_HOME && !ops.customTab) {
+      return {
+        rows: [],
+        _loadedOperationsTabs: [],
+        _operationsTabLoadPromises: new Map()
+      };
+    }
+
+    if (ops.customTab) {
       return {
         rows: [],
         _loadedOperationsTabs: [],
@@ -3427,11 +3590,12 @@ export const operationsManagementScreen = {
       ${!ops.scheduleHasLoaded || ops.period === ACTIVITY_SEASON_SCHOOL_2027 ? '' : `<p class="ds-muted ds-ops-mgmt-count no-print" dir="rtl">מציג ${filteredRows.length} פעילויות מתוך ${allRows.length}</p>`}
     </div>`;
     }
-    return `<div class="ds-screen-stack ds-ops-mgmt-screen" data-ops-context="operations">${opsManagementStylesHtml()}${dsPageHeader(isCompletionApprovalTab ? 'בקרת אישורי ביצוע לקיץ 2026' : 'ניהול תפעול')}
-      ${isCompletionApprovalTab ? '' : topFiltersHtml(filterRows, state)}
-      ${tabsHtml(ops.tab, state.route)}
+    const isHomeView = isOperationsHomeView(state);
+    return `<div class="ds-screen-stack ds-ops-mgmt-screen" data-ops-context="operations">${opsManagementStylesHtml()}${dsPageHeader(operationsPageTitle(state, { completionApproval: isCompletionApprovalTab }))}
+      ${isHomeView || isCompletionApprovalTab ? '' : topFiltersHtml(filterRows, state)}
+      ${isHomeView ? '' : tabsHtml(ops.customTab ? null : ops.tab, state.route)}
       <div class="ds-ops-mgmt-content">${renderTab(activeRows, state, data, prepared)}</div>
-      ${isCompletionApprovalTab || ops.period === ACTIVITY_SEASON_SCHOOL_2027 ? '' : `<p class="ds-muted ds-ops-mgmt-count no-print" dir="rtl">מציג ${filteredRows.length} פעילויות מתוך ${allRows.length}</p>`}
+      ${isHomeView || isCompletionApprovalTab || ops.period === ACTIVITY_SEASON_SCHOOL_2027 ? '' : `<p class="ds-muted ds-ops-mgmt-count no-print" dir="rtl">מציג ${filteredRows.length} פעילויות מתוך ${allRows.length}</p>`}
     </div>`;
   },
   bind({ root, data = {}, api, state, rerender, clearScreenDataCache, ui }) {
@@ -3459,35 +3623,22 @@ export const operationsManagementScreen = {
     root.querySelectorAll('[data-ops-tab]').forEach((btn) => {
       btn.addEventListener('click', async () => {
         ops.context = OPS_CONTEXT_OPERATIONS;
+        ops.customTab = '';
         ops.tab = btn.getAttribute('data-ops-tab') || TAB_COMPLETION_APPROVAL;
         if (ops.tab === TAB_SUMMER || ops.tab === TAB_INSTRUCTORS) ops.tab = TAB_COMPLETION_APPROVAL;
         try { sessionStorage.removeItem(SUMMER_TRAINING_SESSION_KEY); } catch { /* ignore */ }
         document.dispatchEvent(new CustomEvent('ops-mgmt-standard-tab', { detail: { tab: ops.tab } }));
-        const tabKey = operationsTabDataKey(ops.tab);
-        const loadedTabs = new Set(Array.isArray(data?._loadedOperationsTabs) ? data._loadedOperationsTabs : []);
-        if (!loadedTabs.has(tabKey)) {
-          // ציוד ומלאי: הצג loading spinner לפני בקשת Supabase
-          if (tabKey === TAB_WORKSHOPS) {
-            data._workshopsLoading = true;
-            rerender?.();
-          }
-          const promises = data._operationsTabLoadPromises instanceof Map ? data._operationsTabLoadPromises : new Map();
-          data._operationsTabLoadPromises = promises;
-          let request = promises.get(tabKey);
-          if (!request) {
-            request = loadOperationsTabData(api, tabKey, { state }).finally(() => promises.delete(tabKey));
-            promises.set(tabKey, request);
-          }
-          try {
-            Object.assign(data, await request);
-            loadedTabs.add(tabKey);
-            data._loadedOperationsTabs = [...loadedTabs];
-          } catch (_) { /* existing empty-state behavior remains available */ }
-          if (tabKey === TAB_WORKSHOPS) {
-            data._workshopsLoading = false;
-          }
-        }
+        await ensureOperationsTabDataLoaded(ops.tab, { data, api, state, rerender });
         rerender?.();
+      });
+    });
+
+    root.querySelectorAll('[data-ops-home-target-type]').forEach((btn) => {
+      btn.addEventListener('click', async (event) => {
+        event.preventDefault();
+        const type = btn.getAttribute('data-ops-home-target-type') || '';
+        const value = btn.getAttribute('data-ops-home-target-value') || '';
+        await navigateOperationsHomeTarget(type, value, { data, api, state, rerender });
       });
     });
 
@@ -3553,6 +3704,7 @@ export const operationsManagementScreen = {
 
     root.querySelector('[data-ops-period]')?.addEventListener('change', (ev) => {
       ops.scheduleRequestVersion = (ops.scheduleRequestVersion || 0) + 1;
+      ops.customTab = '';
       ops.period = setGlobalActivityPeriod(ev.target.value || ACTIVITY_SEASON_REGULAR);
       const range = defaultDateRange(ops.period);
       ops.dateFrom = range.from;

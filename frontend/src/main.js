@@ -511,7 +511,7 @@ const screenLabels = {
   catalog: 'קטלוג',
   'personal-reports': 'דוחות אישיים',
   'israa-management': 'ניהול איסראא',
-  'operations-management': 'ניהול תפעול',
+  'operations-management': 'תפעול',
   certificates: 'תעודות'
 };
 
@@ -615,6 +615,7 @@ function bindOpsSubRouteWrapper(screenRoot) {
       if (tab) {
         state.operationsManagement = state.operationsManagement || {};
         state.operationsManagement.context = 'operations';
+        state.operationsManagement.customTab = '';
         state.operationsManagement.tab = tab;
       }
       document.dispatchEvent(new CustomEvent('app:navigate', { detail: { route: 'operations-management' } }));
@@ -629,7 +630,7 @@ function bindOpsSubRouteWrapper(screenRoot) {
         state.operationsManagement = state.operationsManagement || {};
         state.operationsManagement.context = 'operations';
         document.dispatchEvent(new CustomEvent('app:navigate', { detail: { route: 'operations-management' } }));
-      });
+      }, state);
     }
   }
 }
