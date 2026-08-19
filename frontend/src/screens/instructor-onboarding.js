@@ -12,6 +12,20 @@ const SUBJECT = 'הצטרפות לצוות המדריכים של תעשיידע 
 const OUTLOOK_WEB_URL = 'https://outlook.office.com/mail/';
 const OUTLOOK_MODE_STORAGE_KEY = 'taasiyeda:outlook-mode';
 const onboardingAttachmentRequests = new Map();
+
+function isFemaleGender(value) {
+  return String(value || '').trim().toLowerCase() === 'female';
+}
+
+function isPoliceClearanceAttachment(attachment) {
+  return /אישור\s*משטרה/i.test(String(attachment?.name || ''));
+}
+
+export function onboardingDocumentsForGender(employmentType, gender) {
+  const list = ONBOARDING_DOCUMENTS[String(employmentType || '').trim()] || [];
+  return isFemaleGender(gender) ? list.filter((name) => name !== 'אישור משטרה') : [...list];
+}
+
 const AVAILABILITY = `לצורך תכנון השיבוצים והפעילויות, נבקש להשיב למייל זה ולמלא את פרטי הזמינות שלך בצורה מלאה ככל האפשר:
 
 מועד שממנו ניתן להתחיל להדריך:
@@ -34,17 +48,16 @@ const AVAILABILITY = `לצורך תכנון השיבוצים והפעילויו�
 
 ---`;
 
-export function buildOnboardingMail(employmentType, manager, instructorName = '') {
+export function buildOnboardingMail(employmentType, manager, instructorName = '', gender = '') {
   const taasiyeda = employmentType === 'taasiyeda';
-  const documentLines = taasiyeda
-    ? '- הסכם העסקה\n- טופס 101\n- נהלים למדריך\n- אישור משטרה (למדריכים גברים בלבד)'
-    : '- נהלים למדריך\n- טופס שמירה על סודיות\n- אישור משטרה (למדריכים גברים בלבד)';
+  const documents = onboardingDocumentsForGender(employmentType, gender);
+  const documentLines = documents.map((name) => `- ${name}`).join('\n');
   const instruction = taasiyeda
     ? 'נבקש לעבור על הסכם ההעסקה, לחתום עליו ולהחזיר אלינו עותק חתום במייל חוזר.'
     : 'נבקש לעבור על המסמכים המצורפים, למלא ולחתום ככל שנדרש ולהחזיר אלינו את המסמכים הרלוונטיים במייל חוזר.';
   const body = `שלום ${String(instructorName || '').trim()},
 
-שמחים על הצטרפותך לצוות המדריכים של תעשיידע.
+שמחים על הצטרפותך לצוות המדריכים של תעשיידע!
 
 מצורפים למייל המסמכים הנדרשים לצורך השלמת תהליך הקליטה:
 
@@ -117,8 +130,7 @@ export function localOutlookMode() {
 }
 
 export function syncLocalOutlookModeFromUrl() {
-  try {
-    if (typeof window === 'undefined' || !window.location) return 'web';
+  try {    if (typeof window === 'undefined' || !window.location) return 'web';
     window.localStorage?.removeItem(OUTLOOK_MODE_STORAGE_KEY);
     const url = new URL(window.location.href);
     if (url.searchParams.has('outlook')) {
@@ -194,11 +206,14 @@ export function warmOnboardingAttachments(employmentType) {
   return loadOnboardingAttachments(employmentType).catch(() => null);
 }
 
-export async function createOnboardingDraft({ employmentType, manager, instructorName, instructorEmail, loginHint = '' }) {
-  const mail = buildOnboardingMail(employmentType, manager, instructorName);
+export async function createOnboardingDraft({ employmentType, manager, instructorName, instructorEmail, gender = '', loginHint = '' }) {
+  const mail = buildOnboardingMail(employmentType, manager, instructorName, gender);
   const filesPromise = loadOnboardingAttachments(employmentType);
   const tokenPromise = delegatedMailToken(loginHint);
   const [data, token] = await Promise.all([filesPromise, tokenPromise]);
+  const attachments = isFemaleGender(gender)
+    ? data.attachments.filter((attachment) => !isPoliceClearanceAttachment(attachment))
+    : data.attachments;
   const draft = await graphMailRequest(token, '/me/messages', {
     method: 'POST', body: JSON.stringify({
       subject: mail.subject, body: { contentType: 'Text', content: mail.body },
@@ -207,7 +222,7 @@ export async function createOnboardingDraft({ employmentType, manager, instructo
     })
   });
   try {
-    const attachmentResults = await Promise.allSettled(data.attachments.map((attachment) => graphMailRequest(
+    const attachmentResults = await Promise.allSettled(attachments.map((attachment) => graphMailRequest(
       token,
       `/me/messages/${encodeURIComponent(draft.id)}/attachments`,
       {
@@ -220,7 +235,7 @@ export async function createOnboardingDraft({ employmentType, manager, instructo
     await graphMailRequest(token, `/me/messages/${encodeURIComponent(draft.id)}`, { method: 'DELETE' }).catch(() => {});
     throw error;
   }
-  return { draftId: draft.id, folderUrl: data.folder_url, attachmentCount: data.attachments.length };
+  return { draftId: draft.id, folderUrl: data.folder_url, attachmentCount: attachments.length };
 }
 
 export function openDesktopMailClient() {
@@ -303,7 +318,7 @@ export function bindOnboardingModal(modal, {
 
   let draftCreated = false;
   const sync = () => {
-    const list = ONBOARDING_DOCUMENTS[employment.value] || [];
+    const list = onboardingDocumentsForGender(employment.value, gender.value);
     const staffing = employment.value === 'staffing';
     agencyField.hidden = !staffing;
     agencyField.style.display = staffing ? 'grid' : 'none';
@@ -386,6 +401,7 @@ export function bindOnboardingModal(modal, {
         manager: onboardingSnapshot.manager,
         instructorName: onboardingSnapshot.fullName,
         instructorEmail: onboardingSnapshot.email,
+        gender: onboardingSnapshot.gender,
         loginHint
       });
       draftCreated = true;
@@ -417,5 +433,4 @@ export function bindOnboardingModal(modal, {
       prepare.textContent = 'שליחת מייל';
       sync();
     }
-  });
-}
+  });}
