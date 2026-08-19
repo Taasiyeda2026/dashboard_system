@@ -1,6 +1,10 @@
 -- Pass the existing canonical gender field (instructor_scheduling_profiles.gender, already used for
 -- course-scheduling matching) through the manager workspace roster, so the manager board can apply the
 -- police-clearance/FEMALE display rule without inferring gender or introducing a new source.
+-- PostgreSQL cannot change TABLE-returning OUT columns with CREATE OR REPLACE, so drop the prior
+-- signature before recreating it with the added gender column.
+drop function if exists public.get_manager_team_roster(text, text);
+
 create or replace function public.get_manager_team_roster(
   p_manager_name text default null,
   p_school_year text default '2027'
