@@ -72,6 +72,8 @@ export function resolveActivityInstructorName(row = {}, { secondary = false } = 
 
 export const NO_ACTIVITY_MANAGER_LABEL = 'ללא';
 
+export const CANONICAL_ACTIVITY_TYPE_KEYS = ['course', 'workshop', 'escape_room', 'tour', 'after_school'];
+
 export const ONE_DAY_ACTIVITY_TYPE_LABELS = {
   workshop: 'סדנה',
   tour: 'סיור',
@@ -99,6 +101,10 @@ const ACTIVITY_TYPE_ALIASES = new Map([
   ['קורסים', 'course'],
   ['course', 'course'],
   ['courses', 'course'],
+  ['תוכנית', 'course'],
+  ['תכנית', 'course'],
+  ['program', 'course'],
+  ['programs', 'course'],
   ['אפטרסקול', 'after_school'],
   ['חוג אפטרסקול', 'after_school'],
   ['חוג_אפטרסקול', 'after_school'],
@@ -137,7 +143,12 @@ export function activityManagerDisplayName(value) {
 export function normalizeActivityTypeKey(value) {
   const clean = text(value).replace(/[\u2010-\u2015]/g, '_').replace(/[-\s]+/g, '_').toLowerCase();
   if (!clean) return '';
-  return ACTIVITY_TYPE_ALIASES.get(clean) || clean;
+  const mapped = ACTIVITY_TYPE_ALIASES.get(clean) || clean;
+  return CANONICAL_ACTIVITY_TYPE_KEYS.includes(mapped) ? mapped : '';
+}
+
+export function isCanonicalActivityTypeKey(value) {
+  return Boolean(normalizeActivityTypeKey(value));
 }
 
 export function normalizeOneDayActivityType(value) {

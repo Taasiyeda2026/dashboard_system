@@ -226,7 +226,7 @@ function instructorSelectHtml({ name, value, rosterUsers, klass = 'ds-input', pl
 function selectHtml({ name, value, options, klass = 'ds-input', placeholder = 'â€”', attrs = '' }) {
   const isActivityTypeField = name === 'activity_type' || name === 'item_type';
   const safeValue = isActivityTypeField
-    ? (normalizeActivityTypeKey(value) || String(value || '').trim())
+    ? normalizeActivityTypeKey(value)
     : (['authority', 'school', 'instructor_name', 'instructor_name_2', 'activity_manager', 'activity_name', 'program_name', 'name', 'title'].includes(name)
       ? humanDisplayText(value)
       : String(value || '').trim());
@@ -241,7 +241,9 @@ function selectHtml({ name, value, options, klass = 'ds-input', placeholder = 'â
     seen.add(option);
     return true;
   });
-  const all = unique.includes(safeValue) || !safeValue ? unique : [safeValue, ...unique];
+  const all = isActivityTypeField
+    ? unique
+    : (unique.includes(safeValue) || !safeValue ? unique : [safeValue, ...unique]);
   const opts = [`<option value="">${escapeHtml(placeholder)}</option>`]
     .concat(
       all.map((o) => {
@@ -1101,7 +1103,7 @@ function blockEditActions({ canEdit = false, canDirectEdit = false, canDeleteAct
 export function patchDrawerDatesSection(sectionEl, datesData) {
   if (!sectionEl) return;
   const schedule = Array.isArray(datesData?.meeting_schedule) ? datesData.meeting_schedule : [];
-  const activityType = String(datesData?.activity_type || '').trim();
+  const activityType = normalizeActivityTypeKey(datesData?.activity_type || datesData?.item_type || '');
   const isOnce = ONCE_TYPES.includes(activityType);
 
   if (isOnce) {
