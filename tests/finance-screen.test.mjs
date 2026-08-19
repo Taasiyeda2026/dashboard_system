@@ -1,82 +1,483 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { JSDOM } from 'jsdom';
+import {
+  canAccessFinance,
+  createFinanceVisitState,
+  financeScreen,
+  FINANCE_ATTENDANCE_COLUMNS,
+  attachCollectionTracking,
+  buildFinanceAttendanceExcelRows,
+  buildFinanceAttendanceWorkbook,
+  financeHourCategory,
+  financePayerKey,
+  groupFinanceCollectionPayers,
+  isFinalPayrollApproval,
+  isGefenFunding,
+  mapLegacyPaymentCollected,
+  summarizeFinanceAttendance,
+  unmappedFinanceActivityTypes
+} from '../frontend/src/screens/finance.js';
 
-const { financeScreen } = await import('../frontend/src/screens/finance.js');
+const migration = readFileSync(new URL('../supabase/migrations/20260819120000_finance_collection_tracking.sql', import.meta.url), 'utf8');
+const apiSource = readFileSync(new URL('../frontend/src/api.js', import.meta.url), 'utf8');
+const financeSource = readFileSync(new URL('../frontend/src/screens/finance.js', import.meta.url), 'utf8');
 
-const rows = [
-  {
-    RowID: 'A1',
-    activity_name: 'קורס רובוטיקה',
-    activity_type: 'course',
-    authority: 'רשות א',
-    school: 'בית ספר א',
-    funding: 'גפ״ן',
-    finance_status: 'open',
-    price: 1000,
-    sessions: 5,
-    Payment: 2,
-    end_date: '2026-01-01',
-    exception_type: 'missing_instructor'
-  },
-  {
-    RowID: 'A2',
-    activity_name: 'סדנת מדע',
-    activity_type: 'workshop',
-    authority: 'רשות ב',
-    school: 'בית ספר ב',
-    funding: 'רשות',
-    finance_status: 'closed',
-    price: 750,
-    Payment: 750,
-    end_date: '2026-04-01'
-  },
-  {
-    RowID: 'A3',
-    activity_name: 'סיור חלל',
-    activity_type: 'tour',
-    authority: 'רשות א',
-    school: 'בית ספר ג',
-    funding: '',
-    finance_status: '',
-    price: 500,
-    end_date: '2026-05-01'
-  }
-];
+const financeUser = { display_role: 'finance', role: 'finance', finance_access: true };
+const blockedUser = { display_role: 'authorized_user', role: 'authorized_user', finance_access: false };
 
-function state(overrides = {}) {
+function snapshotRow(overrides = {}) {
   return {
-    user: { display_role: 'finance', role: 'finance', finance_access: true },
-    financeTab: 'active',
+    employeeId: '1001',
+    employeeName: 'עובד א',
+    employmentType: 'תעשיידע',
+    date: '2026-08-03',
+    workHours: 2,
+    activityType: 'קורס',
+    kilometers: 10,
+    notes: '',
     ...overrides
   };
 }
 
+function approval(overrides = {}) {
+  const employeeId = overrides.employee_id || overrides.employeeId || '1001';
+  const rows = overrides.rows || [snapshotRow({ employeeId })];
+  return {
+    id: overrides.id || `a-${employeeId}`,
+    employee_id: employeeId,
+    employee_name: overrides.employee_name || 'עובד א',
+    month_key: '2026-08',
+    status: overrides.status || 'approved_for_payroll',
+    pdf_path: overrides.pdf_path ?? '',
+    pdf_file_name: overrides.pdf_file_name ?? '',
+    approved_snapshot: overrides.approved_snapshot || { employeeId, employeeName: overrides.employee_name || 'עובד א', rows },
+    ...overrides
+  };
+}
+
+function activity(overrides = {}) {
+  return {
+    row_id: 'ACT-1',
+    activity_name: 'קורס רובוטיקה',
+    activity_type: 'course',
+    authority: 'עיריית רחובות',
+    authority_id: 'auth-1',
+    school: 'בית ספר הרצל',
+    school_id: 'school-1',
+    funding: 'גפ״ן',
+    price: 1000,
+    status: 'פתוח',
+    ...overrides
+  };
+}
+
+function mockApi({ activities = [], tracking = [], approvals = [], employees = [] } = {}) {
+  const counts = {
+    allActivities: 0,
+    listPayrollControlApprovals: 0,
+    attendanceControlTeams: 0,
+    attendanceControlRecords: 0,
+    listFinanceCollectionTracking: 0,
+    upsertFinanceCollectionTracking: 0
+  };
+  const store = [...tracking];
+  return {
+    counts,
+    store,
+    allActivities: async () => {
+      counts.allActivities += 1;
+      return { rows: activities };
+    },
+    listPayrollControlApprovals: async () => {
+      counts.listPayrollControlApprovals += 1;
+      return approvals;
+    },
+    attendanceControlTeams: async () => {
+      counts.attendanceControlTeams += 1;
+      return employees;
+    },
+    attendanceControlRecords: async () => {
+      counts.attendanceControlRecords += 1;
+      return [];
+    },
+    listFinanceCollectionTracking: async () => {
+      counts.listFinanceCollectionTracking += 1;
+      return store;
+    },
+    upsertFinanceCollectionTracking: async (payload) => {
+      counts.upsertFinanceCollectionTracking += 1;
+      const next = {
+        activity_row_id: payload.activity_row_id,
+        collection_status: payload.collection_status,
+        expected_collection_date: payload.expected_collection_date,
+        finance_note: payload.finance_note
+      };
+      const idx = store.findIndex((row) => row.activity_row_id === payload.activity_row_id);
+      if (idx >= 0) store[idx] = next;
+      else store.push(next);
+      return next;
+    }
+  };
+}
+
+async function flush() {
+  await Promise.resolve();
+  await Promise.resolve();
+}
+
+function mount(data, { api, user = financeUser } = {}) {
+  const state = { user, activityPeriodTab: 'school_2027' };
+  const dom = new JSDOM('<!doctype html><html><body><div id="host"></div></body></html>', { url: 'https://example.test/' });
+  globalThis.window = dom.window;
+  globalThis.document = dom.window.document;
+  const host = dom.window.document.getElementById('host');
+  const paint = () => {
+    host.innerHTML = financeScreen.render(data, { state });
+  };
+  paint();
+  financeScreen.bind({ root: host, data, state, api, rerender: paint });
+  return { host, state, paint, window: dom.window };
+}
+
 test('finance screen blocks users without finance_access', () => {
-  const html = financeScreen.render({ rows }, { state: { user: { display_role: 'authorized_user', finance_access: false } } });
-  assert.match(html, /אין הרשאה לעמוד כספים/);
-  assert.doesNotMatch(html, /ריכוז גבייה לפי מימון ורשות/);
+  const html = financeScreen.render(createFinanceVisitState(), { state: { user: blockedUser } });
+  assert.match(html, /אין הרשאה לצפייה בעמוד כספים/);
+  assert.doesNotMatch(html, /דיווח נוכחות/);
+  assert.doesNotMatch(html, /מעקב גבייה/);
 });
 
-test('finance screen is based on activities rows with KPI, filters, groups, and exceptions', () => {
-  const html = financeScreen.render({ rows }, { state: state() });
-  assert.match(html, /עמוד פנימי מבוסס activities בלבד/);
-  assert.match(html, /חריגות כספיות/);
-  assert.match(html, /data-finance-filter="authority"/);
-  assert.match(html, /data-finance-filter="exceptions"/);
-  assert.match(html, /גפ״ן/);
-  assert.match(html, /ללא מימון/);
-  assert.doesNotMatch(html, /סדנת מדע/);
+test('finance hub shows exactly two cards and no KPI or activity tables', () => {
+  const html = financeScreen.render(createFinanceVisitState(), { state: { user: financeUser } });
+  assert.match(html, /דיווח נוכחות/);
+  assert.match(html, /ריכוז נתוני נוכחות ושכר לאחר אישור סופי/);
+  assert.match(html, /מעקב גבייה/);
+  assert.match(html, /מעקב גבייה מרוכז לפי הגורם המשלם/);
+  assert.equal([...html.matchAll(/data-finance-open="(attendance|collection)"/g)].length, 2);
+  assert.doesNotMatch(html, /חריגות כספיות|סה״כ פעילויות|אישורי בקרת נוכחות|data-finance-filter/);
 });
 
-test('finance archive tab shows closed activity groups', () => {
-  const html = financeScreen.render({ rows }, { state: state({ financeTab: 'archive' }) });
-  assert.match(html, /רשות ב/);
-  assert.match(html, /₪750/);
-  assert.doesNotMatch(html, /גפ״ן/);
+test('entering finance does not load activities, attendance, or payroll approvals', async () => {
+  const api = mockApi();
+  const data = await financeScreen.load({ api, state: { user: financeUser } });
+  financeScreen.render(data, { state: { user: financeUser } });
+  assert.equal(api.counts.allActivities, 0);
+  assert.equal(api.counts.listPayrollControlApprovals, 0);
+  assert.equal(api.counts.attendanceControlRecords, 0);
+  assert.equal(api.counts.listFinanceCollectionTracking, 0);
+  assert.doesNotMatch(financeScreen.load.toString(), /allActivities|listPayrollControlApprovals|attendanceControlRecords/);
 });
 
-test('finance filters narrow activities by authority and exceptions-only', () => {
-  const html = financeScreen.render({ rows }, { state: state({ financeAuthorityFilter: 'רשות א', financeExceptionsOnly: true }) });
-  assert.match(html, /רשות א/);
-  assert.doesNotMatch(html, /רשות ב/);
+test('collection card loads allActivities once and returning to it does not reload', async () => {
+  const api = mockApi({ activities: [activity()] });
+  const data = createFinanceVisitState();
+  const { host } = mount(data, { api });
+  host.querySelector('[data-finance-open="collection"]').click();
+  await flush();
+  assert.equal(api.counts.allActivities, 1);
+  assert.equal(api.counts.listPayrollControlApprovals, 0);
+  host.querySelector('[data-finance-open="hub"]').click();
+  await flush();
+  host.querySelector('[data-finance-open="attendance"]').click();
+  await flush();
+  host.querySelector('[data-finance-open="hub"]').click();
+  await flush();
+  host.querySelector('[data-finance-open="collection"]').click();
+  await flush();
+  assert.equal(api.counts.allActivities, 1);
+});
+
+test('attendance is not loaded until the attendance card is clicked', async () => {
+  const api = mockApi({ approvals: [approval()] });
+  const data = createFinanceVisitState();
+  const { host } = mount(data, { api });
+  assert.equal(api.counts.listPayrollControlApprovals, 0);
+  host.querySelector('[data-finance-open="collection"]').click();
+  await flush();
+  assert.equal(api.counts.listPayrollControlApprovals, 0);
+  host.querySelector('[data-finance-open="hub"]').click();
+  host.querySelector('[data-finance-open="attendance"]').click();
+  await flush();
+  assert.equal(api.counts.listPayrollControlApprovals, 1);
+  host.querySelector('[data-finance-open="hub"]').click();
+  host.querySelector('[data-finance-open="attendance"]').click();
+  await flush();
+  assert.equal(api.counts.listPayrollControlApprovals, 1);
+});
+
+test('only final admin payroll approvals enter the attendance table', () => {
+  const rows = summarizeFinanceAttendance([
+    approval({ employee_id: '1', employee_name: 'מאושר', status: 'approved_for_payroll' }),
+    approval({ employee_id: '2', employee_name: 'מנהל בלבד', status: 'manager_approved', rows: [snapshotRow({ employeeId: '2', employeeName: 'מנהל בלבד' })] })
+  ]).rows;
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].employeeName, 'מאושר');
+  assert.equal(isFinalPayrollApproval({ status: 'manager_approved' }), false);
+});
+
+test('one employee appears once with hours, unique work days, km, and file icon only when a file exists', () => {
+  const summarized = summarizeFinanceAttendance([
+    approval({
+      employee_id: '1001',
+      pdf_path: 'https://files.example/report.pdf',
+      pdf_file_name: 'report.pdf',
+      rows: [
+        snapshotRow({ date: '2026-08-01', activityType: 'קורס', workHours: 2, kilometers: 5, notes: 'בוקר' }),
+        snapshotRow({ date: '2026-08-01', activityType: 'סדנה', workHours: 3, kilometers: 7 }),
+        snapshotRow({ date: '2026-08-02', activityType: 'סיור', workHours: 4, kilometers: 1, notes: 'צהריים' }),
+        snapshotRow({ date: '2026-08-03', activityType: 'הכשרה', workHours: 1, kilometers: 0 }),
+        snapshotRow({ date: '2026-08-04', activityType: 'תפעול', workHours: 2, kilometers: 0 }),
+        snapshotRow({ date: '2026-08-05', activityType: 'ביטול זמן', workHours: 0.5, kilometers: 2 })
+      ]
+    }),
+    approval({
+      id: 'no-file',
+      employee_id: '1002',
+      employee_name: 'עובד ב',
+      pdf_path: '',
+      rows: [snapshotRow({ employeeId: '1002', employeeName: 'עובד ב', activityType: 'קורס', workHours: 1, kilometers: 0 })]
+    })
+  ]);
+  assert.equal(summarized.rows.length, 2);
+  const first = summarized.rows.find((row) => row.employeeId === '1001');
+  assert.equal(first.workDays, 5);
+  assert.equal(first.hours.course, 2);
+  assert.equal(first.hours.workshop, 3);
+  assert.equal(first.hours.tour, 4);
+  assert.equal(first.hours.training, 1);
+  assert.equal(first.hours.operations, 2);
+  assert.equal(first.hours.time_cancel, 0.5);
+  assert.equal(first.kilometers, 15);
+  assert.equal(first.hasFile, true);
+  assert.match(first.notes, /בוקר/);
+  const second = summarized.rows.find((row) => row.employeeId === '1002');
+  assert.equal(second.hasFile, false);
+  const html = attendanceHtml(summarized.rows);
+  assert.match(html, /data-finance-file="1001"/);
+  assert.doesNotMatch(html, /https:\/\/files\.example\/report\.pdf/);
+  assert.doesNotMatch(html, /data-finance-file="1002"/);
+});
+
+function attendanceHtml(rows) {
+  const data = createFinanceVisitState();
+  data.view = 'attendance';
+  data.attendanceByMonth = {
+    [data.attendanceMonth]: {
+      approvals: rows.map((row) => approval({
+        employee_id: row.employeeId,
+        employee_name: row.employeeName,
+        pdf_path: row.hasFile ? 'https://x/a.pdf' : '',
+        rows: [snapshotRow({ employeeId: row.employeeId, employeeName: row.employeeName })]
+      }))
+    }
+  };
+  return financeScreen.render(data, { state: { user: financeUser } });
+}
+
+test('unmapped approved activity types are identified and not arbitrarily bucketed', () => {
+  assert.equal(financeHourCategory('חדר בריחה'), '');
+  assert.equal(financeHourCategory('after_school'), '');
+  assert.equal(financeHourCategory('סדנאות קיץ'), '');
+  const types = unmappedFinanceActivityTypes([
+    approval({
+      rows: [
+        snapshotRow({ activityType: 'חדר בריחה', workHours: 8 }),
+        snapshotRow({ activityType: 'קורס', workHours: 2 })
+      ]
+    })
+  ]);
+  assert.deepEqual(types, ['חדר בריחה']);
+  const summary = summarizeFinanceAttendance([
+    approval({
+      rows: [
+        snapshotRow({ activityType: 'חדר בריחה', workHours: 8 }),
+        snapshotRow({ activityType: 'קורס', workHours: 2 })
+      ]
+    })
+  ]).rows[0];
+  assert.equal(summary.hours.course, 2);
+  assert.equal(summary.hours.workshop, 0);
+});
+
+test('Excel export uses the same summarized columns, one row per employee, and a file hyperlink', () => {
+  const entries = summarizeFinanceAttendance([
+    approval({
+      pdf_path: 'https://files.example/doc.pdf',
+      rows: [
+        snapshotRow({ date: '2026-08-01', activityType: 'קורס', workHours: 2, kilometers: 4 }),
+        snapshotRow({ date: '2026-08-01', activityType: 'קורס', workHours: 1, kilometers: 1 })
+      ]
+    })
+  ]).rows;
+  const excelRows = buildFinanceAttendanceExcelRows(entries);
+  assert.deepEqual(Object.keys(excelRows[0]), FINANCE_ATTENDANCE_COLUMNS);
+  assert.equal(excelRows.length, 1);
+  assert.equal(excelRows[0]['ימי עבודה'], 1);
+  assert.equal(excelRows[0]['קורס'], 3);
+  assert.equal(excelRows[0]['סה״כ ק״מ'], 5);
+  const workbook = buildFinanceAttendanceWorkbook(entries);
+  const sheet = workbook.Sheets.נוכחות;
+  const hyperlink = Object.values(sheet).find((cell) => cell?.l?.Target === 'https://files.example/doc.pdf');
+  assert.ok(hyperlink);
+});
+
+test('collection grouping uses school for GEFEN, specific authority for רשות, and funding source otherwise', () => {
+  const rows = attachCollectionTracking([
+    activity({ row_id: 'G1', school: 'בית ספר הרצל', school_id: 's1', funding: 'גפן', activity_name: 'קורס' }),
+    activity({ row_id: 'G2', school: 'בי"ס הרצל', school_id: 's1', funding: "גפ'ן", activity_name: 'סדנה', price: 500 }),
+    activity({ row_id: 'A1', funding: 'רשות', authority: 'עיריית רחובות', authority_id: 'r1', school: 'אחר', price: 200 }),
+    activity({ row_id: 'A2', funding: 'רשות', authority: 'עיריית רחובות ', authority_id: 'r1', school: 'שני', price: 300 }),
+    activity({ row_id: 'F1', funding: 'משרד החינוך', funding_id: 'fund-1', price: 80 }),
+    activity({ row_id: 'F2', funding: 'משרד החינוך ', funding_id: 'fund-1', price: 20 }),
+    activity({ row_id: 'U1', funding: '', activity_name: 'ללא מימון', price: 10 })
+  ], []);
+  const all = groupFinanceCollectionPayers(rows, { tab: 'all' });
+  const gefen = all.find((group) => group.kind === 'school');
+  const authority = all.find((group) => group.kind === 'authority');
+  const other = all.find((group) => group.kind === 'funding');
+  const unfunded = all.find((group) => group.kind === 'unfunded');
+  assert.equal(gefen.activityCount, 2);
+  assert.equal(gefen.label, 'בית ספר הרצל');
+  assert.equal(authority.label, 'עיריית רחובות');
+  assert.equal(authority.activityCount, 2);
+  assert.equal(other.activityCount, 2);
+  assert.equal(unfunded.label, 'ללא גורם מימון');
+  assert.equal(isGefenFunding('גפ״ן'), true);
+  assert.equal(financePayerKey(activity({ funding: 'רשות', authority: 'עיריית רחובות' })).label, 'עיריית רחובות');
+});
+
+test('ids prevent duplicate payer cards when names differ', () => {
+  const payers = groupFinanceCollectionPayers([
+    activity({ row_id: '1', school: 'הרצל', school_id: '77', funding: 'גפ״ן' }),
+    activity({ row_id: '2', school: 'ביה״ס הרצל', school_id: '77', funding: 'גפן' })
+  ], { tab: 'all' });
+  assert.equal(payers.length, 1);
+});
+
+test('activity without tracking defaults to open and closed collection is hidden from the open tab', () => {
+  const merged = attachCollectionTracking(
+    [
+      activity({ row_id: 'OPEN-1', status: 'סגורה' }),
+      activity({ row_id: 'CLOSED-1', activity_name: 'נגבה' })
+    ],
+    [{ activity_row_id: 'CLOSED-1', collection_status: 'closed' }]
+  );
+  assert.equal(merged[0].collection_status, 'open');
+  assert.equal(merged[1].collection_status, 'closed');
+  const openTab = groupFinanceCollectionPayers(merged, { tab: 'open' });
+  const allTab = groupFinanceCollectionPayers(merged, { tab: 'all' });
+  assert.equal(openTab.length, 1);
+  assert.equal(openTab[0].activities[0].row_id, 'OPEN-1');
+  assert.equal(allTab.reduce((sum, group) => sum + group.activityCount, 0), 2);
+  assert.ok(openTab[0].activities[0].status === 'סגורה');
+});
+
+test('orphan tracking rows are not shown as activities', () => {
+  const merged = attachCollectionTracking(
+    [activity({ row_id: 'LIVE' })],
+    [{ activity_row_id: 'GONE', collection_status: 'open', finance_note: 'יתום' }]
+  );
+  assert.equal(merged.length, 1);
+  assert.equal(merged[0].row_id, 'LIVE');
+  const html = financeScreen.render({
+    ...createFinanceVisitState(),
+    view: 'collection',
+    collectionActivities: [activity({ row_id: 'LIVE' })],
+    collectionTracking: [{ activity_row_id: 'GONE', collection_status: 'open' }],
+    collectionTab: 'all'
+  }, { state: { user: financeUser } });
+  assert.doesNotMatch(html, /יתום|GONE/);
+  assert.match(html, /קורס רובוטיקה/);
+});
+
+test('collection status, date, and note are saved and visible after reload from tracking', async () => {
+  const api = mockApi({ activities: [activity({ row_id: 'SAVE-1' })] });
+  const data = createFinanceVisitState();
+  const { host } = mount(data, { api });
+  host.querySelector('[data-finance-open="collection"]').click();
+  await flush();
+  host.querySelector('[data-finance-collection-tab="all"]').click();
+  await flush();
+  const status = host.querySelector('[data-fin-collect-field="collection_status"]');
+  status.value = 'closed';
+  status.dispatchEvent(new host.ownerDocument.defaultView.Event('change', { bubbles: true }));
+  await flush();
+  assert.equal(api.counts.upsertFinanceCollectionTracking, 1);
+  assert.match(host.innerHTML, /נשמר/);
+  const reloaded = attachCollectionTracking([activity({ row_id: 'SAVE-1' })], api.store);
+  assert.equal(reloaded[0].collection_status, 'closed');
+});
+
+test('backend collection RPCs and RLS require finance access, including admin', () => {
+  assert.match(migration, /create table if not exists public\.finance_collection_tracking/);
+  assert.match(migration, /activity_row_id text not null/);
+  assert.match(migration, /collection_status text not null default 'open'/);
+  assert.match(migration, /expected_collection_date date/);
+  assert.match(migration, /finance_note text not null default ''/);
+  const tableBlock = String(migration.match(/create table if not exists public\.finance_collection_tracking \(([\s\S]*?)\);/)?.[1] || '');
+  assert.match(tableBlock, /activity_row_id/);
+  assert.doesNotMatch(tableBlock, /activity_name|school_name|authority_name|\bprice\b|\bfunding\b|activity_type/);
+  assert.match(migration, /app_current_role\(\)[\s\S]*'admin'[\s\S]*'finance'/);
+  assert.match(migration, /app_has_permission\('finance_access'\)/);
+  assert.match(migration, /raise exception 'finance_permission_denied'/);
+  assert.match(migration, /using \(\(select public\.app_can_access_finance\(\)\)\)/);
+  assert.match(apiSource, /rpc\('list_finance_collection_tracking'\)/);
+  assert.match(apiSource, /rpc\('upsert_finance_collection_tracking'/);
+  assert.doesNotMatch(financeSource, /payment_collected/);
+  assert.equal(mapLegacyPaymentCollected('yes'), 'closed');
+  assert.equal(mapLegacyPaymentCollected('נגבה'), 'closed');
+  assert.equal(mapLegacyPaymentCollected(''), 'open');
+});
+
+test('team is filled from the existing employee mapping when the snapshot has no team', () => {
+  const [row] = summarizeFinanceAttendance([
+    approval({ rows: [snapshotRow({ team: '' })] })
+  ], { employees: [{ employeeId: '1001', team: 'צוות צפון' }] }).rows;
+  assert.equal(row.team, 'צוות צפון');
+  assert.equal(row.employmentType, 'תעשיידע');
+});
+
+test('date and note collection fields save, and a failed save does not keep the uncommitted UI value', async () => {
+  const api = mockApi({ activities: [activity({ row_id: 'SAVE-2' })] });
+  api.upsertFinanceCollectionTracking = async (payload) => {
+    api.counts.upsertFinanceCollectionTracking += 1;
+    if (payload.finance_note === 'רע') throw new Error('שמירה נכשלה');
+    const next = {
+      activity_row_id: payload.activity_row_id,
+      collection_status: payload.collection_status,
+      expected_collection_date: payload.expected_collection_date,
+      finance_note: payload.finance_note
+    };
+    api.store.splice(0, api.store.length, next);
+    return next;
+  };
+  const data = createFinanceVisitState();
+  const { host } = mount(data, { api });
+  host.querySelector('[data-finance-open="collection"]').click();
+  await flush();
+  const date = host.querySelector('[data-fin-collect-field="expected_collection_date"]');
+  date.value = '2026-09-15';
+  date.dispatchEvent(new host.ownerDocument.defaultView.Event('change', { bubbles: true }));
+  await flush();
+  const note = host.querySelector('[data-fin-collect-field="finance_note"]');
+  note.value = 'לתזכורת';
+  note.dispatchEvent(new host.ownerDocument.defaultView.Event('change', { bubbles: true }));
+  await flush();
+  const reloaded = attachCollectionTracking([activity({ row_id: 'SAVE-2' })], api.store);
+  assert.equal(reloaded[0].expected_collection_date, '2026-09-15');
+  assert.equal(reloaded[0].finance_note, 'לתזכורת');
+  const failing = host.querySelector('[data-fin-collect-field="finance_note"]');
+  failing.value = 'רע';
+  failing.dispatchEvent(new host.ownerDocument.defaultView.Event('change', { bubbles: true }));
+  await flush();
+  assert.match(host.innerHTML, /שמירה נכשלה/);
+  const afterFail = attachCollectionTracking([activity({ row_id: 'SAVE-2' })], api.store);
+  assert.equal(afterFail[0].finance_note, 'לתזכורת');
+  assert.match(host.querySelector('[data-fin-collect-field="finance_note"]').value, /לתזכורת/);
+});
+
+test('admin users retain finance access', () => {
+  assert.equal(canAccessFinance({ role: 'admin', finance_access: false }), true);
+  assert.equal(canAccessFinance(blockedUser), false);
 });

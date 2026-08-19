@@ -6799,6 +6799,26 @@ export const api = {
     if (error) throw new Error(error.message || 'payroll_control_pdf_url_failed');
     return { signedUrl: data?.signedUrl || '' };
   },
+  listFinanceCollectionTracking: async () => {
+    const { data, error } = await supabase.rpc('list_finance_collection_tracking');
+    if (error) throw new Error(error.message || 'finance_collection_tracking_read_failed');
+    return Array.isArray(data) ? data : [];
+  },
+  upsertFinanceCollectionTracking: async ({
+    activity_row_id,
+    collection_status = 'open',
+    expected_collection_date = null,
+    finance_note = ''
+  } = {}) => {
+    const { data, error } = await supabase.rpc('upsert_finance_collection_tracking', {
+      p_activity_row_id: String(activity_row_id || '').trim(),
+      p_collection_status: String(collection_status || 'open').trim(),
+      p_expected_collection_date: expected_collection_date || null,
+      p_finance_note: String(finance_note || '')
+    });
+    if (error) throw new Error(error.message || 'finance_collection_tracking_save_failed');
+    return data || {};
+  },
   login: async (user_id, entry_code) => {
     // Auth must complete before any permission-guarded Supabase reads.
     const { userRow: user, profileRow } = await loginWithSupabaseAuth(user_id, entry_code);
