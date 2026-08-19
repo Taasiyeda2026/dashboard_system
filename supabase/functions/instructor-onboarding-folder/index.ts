@@ -17,6 +17,9 @@ const FOLDER_PATHS = [
   "03 תצפיות/תצפית 2",
   "04 דוחות שכר",
 ];
+// Police clearance isn't relevant for female instructors, so this folder is only provisioned
+// when the canonical gender (instructor_scheduling_profiles.gender, read server-side below) isn't female.
+const POLICE_CLEARANCE_FOLDER_PATH = "01 הסכם ומסמכים/אישור משטרה";
 
 function clean(value: unknown) { return String(value ?? "").trim(); }
 function encodePath(path: string) { return path.split("/").filter(Boolean).map(encodeURIComponent).join("/"); }
@@ -101,12 +104,15 @@ Deno.serve(async (req) => {
       return json({ folder_web_url: clean(snapshot.folder_web_url), existing: true });
     }
 
+    const isFemale = clean(snapshot?.gender).toLowerCase() === "female";
+    const folderPaths = isFemale ? FOLDER_PATHS : [...FOLDER_PATHS, POLICE_CLEARANCE_FOLDER_PATH];
+
     const accessToken = await graphToken();
     const employeePath = `${EMPLOYEE_FILES_ROOT}/${fullName}`;
     const employeeFolder = await ensureFolder(accessToken, EMPLOYEE_FILES_ROOT, fullName);
 
     const pathsByDepth = new Map<number, string[]>();
-    for (const relativePath of FOLDER_PATHS) {
+    for (const relativePath of folderPaths) {
       const depth = relativePath.split("/").length;
       const levelPaths = pathsByDepth.get(depth) || [];
       levelPaths.push(relativePath);

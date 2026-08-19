@@ -3,6 +3,7 @@ import { escapeHtml } from './shared/html.js';
 export const EMPLOYEE_FILE_COMPONENTS = [
   ['signed_agreement', 'הסכם חתום'],
   ['supporting_documents', 'מסמכים נלווים'],
+  ['police_clearance', 'אישור משטרה'],
   ['intro_feedback', 'משוב היכרות'],
   ['midyear_feedback', 'משוב אמצע שנה'],
   ['year_end_feedback', 'משוב סוף שנה'],
@@ -11,15 +12,27 @@ export const EMPLOYEE_FILE_COMPONENTS = [
   ['payroll_reports', 'דוחות שכר']
 ];
 
+// police_clearance sits next to signed_agreement/supporting_documents but stays its own component —
+// never merged into supporting_documents — because for female instructors it renders as blocked, not missing.
 const DOCUMENT_GROUPS = [
-  { className: 'employee-file__group--agreements', keys: ['signed_agreement', 'supporting_documents'] },
+  { className: 'employee-file__group--agreements', keys: ['signed_agreement', 'supporting_documents', 'police_clearance'] },
   { className: 'employee-file__group--feedback', keys: ['intro_feedback', 'midyear_feedback', 'year_end_feedback'] },
   { className: 'employee-file__group--observations', keys: ['observation_1', 'observation_2'] }
 ];
 
+function isFemaleGender(value) {
+  return String(value || '').trim().toLowerCase() === 'female';
+}
+
 const PAYROLL_MONTHS = ['ספט׳', 'אוק׳', 'נוב׳', 'דצמ׳', 'ינו׳', 'פבר׳', 'מרץ', 'אפר׳', 'מאי', 'יונ׳', 'יול׳', 'אוג׳'];
 
-function documentCard(key, label, item = {}) {
+function documentCard(key, label, item = {}, { blocked = false } = {}) {
+  if (blocked) {
+    return `<div class="employee-file__item employee-file__item--${escapeHtml(key)}">
+      <div class="employee-file__label">${escapeHtml(label)}</div>
+      <div class="employee-file__card is-blocked" aria-label="${escapeHtml(label)}: לא רלוונטי" aria-disabled="true"></div>
+    </div>`;
+  }
   const completed = item.completed === true || Number(item.item_count) > 0;
   return `<div class="employee-file__item employee-file__item--${escapeHtml(key)}">
     <div class="employee-file__label">${escapeHtml(label)}</div>
@@ -30,7 +43,8 @@ function documentCard(key, label, item = {}) {
 export function employeeFileModalHtml(payload = {}) {
   const byKey = new Map((payload.components || []).map((item) => [item.component_key, item]));
   const labels = new Map(EMPLOYEE_FILE_COMPONENTS);
-  const groups = DOCUMENT_GROUPS.map(({ className, keys }) => `<div class="employee-file__group ${className}">${keys.map((key) => documentCard(key, labels.get(key), byKey.get(key))).join('')}</div>`).join('');
+  const isFemale = isFemaleGender(payload.gender);
+  const groups = DOCUMENT_GROUPS.map(({ className, keys }) => `<div class="employee-file__group ${className}">${keys.map((key) => documentCard(key, labels.get(key), byKey.get(key), { blocked: key === 'police_clearance' && isFemale })).join('')}</div>`).join('');
   const payrollCount = Math.min(12, Math.max(0, Number(byKey.get('payroll_reports')?.item_count) || 0));
   const payrollCells = PAYROLL_MONTHS.map((month, index) => `<span class="employee-file__payroll-cell ${index < payrollCount ? 'is-completed' : 'is-missing'}" aria-hidden="true"><span class="employee-file__payroll-month">${month}</span><span class="employee-file__payroll-mark">${index < payrollCount ? '✓' : ''}</span></span>`).join('');
 
@@ -52,13 +66,15 @@ export function employeeFileModalHtml(payload = {}) {
       .ds-modal--employee-file .ds-modal__footer{display:none}
       .employee-file{display:grid;gap:12px;width:100%;max-width:100%;min-width:0;box-sizing:border-box;color:#26313d}
       .employee-file__group{display:grid;justify-content:center;gap:14px;width:fit-content;max-width:100%;margin-inline:auto}
-      .employee-file__group--agreements,.employee-file__group--observations{grid-template-columns:repeat(2,104px)}
+      .employee-file__group--agreements{grid-template-columns:repeat(3,104px)}
+      .employee-file__group--observations{grid-template-columns:repeat(2,104px)}
       .employee-file__group--feedback{grid-template-columns:repeat(3,104px)}
       .employee-file__item{display:grid;gap:4px;min-width:0;text-align:center}
       .employee-file__label{font-size:.74rem;font-weight:650;line-height:1.2;white-space:nowrap;color:#344152}
       .employee-file__card{position:relative;display:grid;place-items:center;height:42px;box-sizing:border-box;border:1px solid #c8d1dc;border-radius:8px;background:linear-gradient(180deg,#fff 0%,#f7f9fb 100%);box-shadow:0 2px 7px rgba(31,42,55,.08),inset 0 1px 0 rgba(255,255,255,.85)}
       .employee-file__card.is-missing::after{content:'';position:absolute;top:6px;inset-inline-end:6px;width:7px;height:7px;border-radius:50%;background:#d94b57;box-shadow:0 0 0 2px #fff}
       .employee-file__card.is-completed span{color:#28705b;font-size:1rem;font-weight:800;line-height:1}
+      .employee-file__card.is-blocked{background:#f1f4f7;border-color:#e1e6eb;box-shadow:none;cursor:default}
       .employee-file .employee-file__payroll{display:block;width:340px;max-width:100%;min-width:0;margin-inline:auto;border:1px solid #c8d1dc;border-radius:8px;overflow:hidden;box-sizing:border-box;background:#fff;box-shadow:0 2px 7px rgba(31,42,55,.06)}
       .employee-file__payroll-title{width:100%;box-sizing:border-box;padding:5px 7px;text-align:center;font-size:.76rem;font-weight:650;color:#465568;background:#f5f7f9;border-bottom:1px solid #d9e0e7}
       .employee-file__payroll-grid{display:grid;width:100%;min-width:0;grid-template-columns:repeat(6,minmax(0,1fr));direction:rtl}
@@ -77,7 +93,7 @@ export function employeeFileModalHtml(payload = {}) {
       .employee-file__link-editor{display:flex;align-items:center;gap:6px;margin-top:5px}
       .employee-file__link-editor .ds-input{flex:1;min-width:0}
       .employee-file__status{min-height:9px;margin:0;text-align:center;font-size:.64rem;color:#65717d}
-      @media(max-width:390px){.ds-modal.ds-modal--employee-file{width:calc(100vw - 16px)}.ds-modal--employee-file .ds-modal__content{padding:11px 10px 9px}.employee-file{gap:10px}.employee-file__group{gap:8px}.employee-file__group--agreements,.employee-file__group--observations{grid-template-columns:repeat(2,minmax(0,96px))}.employee-file__group--feedback{grid-template-columns:repeat(2,minmax(0,96px))}.employee-file__group--feedback .employee-file__item:last-child{grid-column:1/-1;width:96px;justify-self:center}.employee-file__label{font-size:.68rem}.employee-file .employee-file__payroll{width:300px}}
+      @media(max-width:390px){.ds-modal.ds-modal--employee-file{width:calc(100vw - 16px)}.ds-modal--employee-file .ds-modal__content{padding:11px 10px 9px}.employee-file{gap:10px}.employee-file__group{gap:8px}.employee-file__group--agreements,.employee-file__group--observations{grid-template-columns:repeat(2,minmax(0,96px))}.employee-file__group--feedback{grid-template-columns:repeat(2,minmax(0,96px))}.employee-file__group--agreements .employee-file__item:last-child,.employee-file__group--feedback .employee-file__item:last-child{grid-column:1/-1;width:96px;justify-self:center}.employee-file__label{font-size:.68rem}.employee-file .employee-file__payroll{width:300px}}
     </style>
     ${groups}
     <section class="employee-file__payroll" aria-label="דוחות שכר: ${payrollCount} מתוך 12"><div class="employee-file__payroll-title">דוחות שכר</div><div class="employee-file__payroll-grid">${payrollCells}</div></section>

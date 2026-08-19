@@ -20,7 +20,7 @@ const FOLLOWUP_FIELDS = [
   ['contract_confirmed', 'חוזה'],
   ['observation_completed', 'תצפית'],
   ['feedback_completed', 'משוב'],
-  ['police_clearance_confirmed', 'אישור משטרה']
+  ['police_clearance_file_completed', 'אישור משטרה']
 ];
 
 let activeTab = restoreTab();
@@ -349,7 +349,7 @@ function isFemaleInstructor(row) {
 
 /** Read-only followup cell: ✓ when done, otherwise empty — police clearance is blocked (no mark, no text) for FEMALE. */
 function followupCellHtml(row, field) {
-  if (field === 'police_clearance_confirmed' && isFemaleInstructor(row)) {
+  if (field === 'police_clearance_file_completed' && isFemaleInstructor(row)) {
     return '<td class="manager-workspace-followup-cell manager-workspace-followup-cell--blocked" aria-label="לא רלוונטי"></td>';
   }
   return `<td class="manager-workspace-followup-cell${row[field] ? ' is-done' : ''}">${row[field] ? '<span aria-hidden="true">✓</span>' : ''}</td>`;

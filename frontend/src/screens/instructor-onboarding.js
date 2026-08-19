@@ -98,6 +98,7 @@ export function onboardingModalHtml(managers = []) {
     <label><span>שם מלא</span><input class="ds-input" data-onboarding-name autocomplete="name" required></label>
     <label><span>טלפון</span><input class="ds-input" data-onboarding-phone inputmode="tel" autocomplete="tel" required></label>
     <label><span>מייל</span><input class="ds-input" data-onboarding-email type="email" autocomplete="email" required></label>
+    <label><span>מגדר</span><select class="ds-input" data-onboarding-gender required><option value="">בחירה</option><option value="male">זכר</option><option value="female">נקבה</option></select></label>
     <label><span>סוג העסקה</span><select class="ds-input" data-onboarding-employment><option value="">בחירה</option><option value="taasiyeda">תעשיידע</option><option value="staffing">כוח אדם</option><option value="independent">עצמאי</option></select></label>
     <label data-onboarding-agency-field hidden style="display:none"><span>חברת כוח אדם</span><select class="ds-input" data-onboarding-agency><option value="">בחירה</option><option value="מעוף">מעוף</option><option value="מנפאואר">מנפאואר</option></select></label>
     <label><span>מנהל/ת פעילות</span><select class="ds-input" data-onboarding-manager><option value="">בחירה</option>${managers.map((manager) => `<option value="${escapeHtml(manager.name)}">${escapeHtml(manager.name)}</option>`).join('')}</select></label>
@@ -140,10 +141,12 @@ export function openOutlookHome() {
 
 export async function createOnboardingInstructor(instructor) {
   const phone = normalizeOnboardingPhone(instructor?.phone);
-  if (!phone) throw new Error('onboarding_required_fields_missing');
+  const gender = ['male', 'female'].includes(instructor?.gender) ? instructor.gender : '';
+  if (!phone || !gender) throw new Error('onboarding_required_fields_missing');
   const { data, error } = await supabase.rpc('create_instructor_onboarding', {
     p_full_name: instructor.fullName, p_mobile: phone, p_email: instructor.email,
-    p_employment_type: instructor.employmentType, p_direct_manager: instructor.managerName
+    p_employment_type: instructor.employmentType, p_direct_manager: instructor.managerName,
+    p_gender: gender
   });
   if (error) throw new Error(error.message || 'לא ניתן ליצור את המדריך.');
   const result = Array.isArray(data) ? data[0] : data;
@@ -244,6 +247,7 @@ export function bindOnboardingModal(modal, {
   const fullName = modal.querySelector('[data-onboarding-name]');
   const phone = modal.querySelector('[data-onboarding-phone]');
   const email = modal.querySelector('[data-onboarding-email]');
+  const gender = modal.querySelector('[data-onboarding-gender]');
   const employment = modal.querySelector('[data-onboarding-employment]');
   const agencyField = modal.querySelector('[data-onboarding-agency-field]');
   const agency = modal.querySelector('[data-onboarding-agency]');
@@ -306,9 +310,10 @@ export function bindOnboardingModal(modal, {
     documents.hidden = !list.length;
     documents.querySelector('ul').innerHTML = list.map((name) => `<li>📄 ${escapeHtml(name)}</li>`).join('');
     prepare.disabled = draftCreated || !fullName.value.trim() || !normalizeOnboardingPhone(phone.value) || !email.value.trim()
-      || !employment.value || (staffing && !agency.value) || !managerSelect.value;
+      || !gender.value || !employment.value || (staffing && !agency.value) || !managerSelect.value;
   };
   [fullName, phone, email].forEach((input) => input.addEventListener('input', sync));
+  gender.addEventListener('change', sync);
   employment.addEventListener('change', () => {
     if (employment.value !== 'staffing') agency.value = '';
     if (employment.value) warmOnboardingAttachments(employment.value);
@@ -327,12 +332,12 @@ export function bindOnboardingModal(modal, {
     if (!onboardingSnapshot) {
       const manager = managers.find((item) => item.name === managerSelect.value);
       const normalizedPhone = normalizeOnboardingPhone(phone.value);
-      if (!fullName.value.trim() || !normalizedPhone || !email.value.trim() || !employment.value
+      if (!fullName.value.trim() || !normalizedPhone || !email.value.trim() || !gender.value || !employment.value
         || (employment.value === 'staffing' && !agency.value) || !manager) return;
       if (!email.checkValidity()) { status.textContent = 'יש להזין כתובת מייל תקינה.'; return; }
       if (!manager?.phone || !manager?.email) { status.textContent = 'לא הוגדרו טלפון ומייל למנהל/ת הפעילות שנבחר/ה.'; return; }
       submission = Object.freeze({
-        fullName: fullName.value.trim(), phone: normalizedPhone, email: email.value.trim(),
+        fullName: fullName.value.trim(), phone: normalizedPhone, email: email.value.trim(), gender: gender.value,
         employmentType: employment.value, staffingAgency: agency.value, manager: Object.freeze({ ...manager })
       });
     }
@@ -350,6 +355,7 @@ export function bindOnboardingModal(modal, {
         try {
           createdInstructor = await createInstructor({
             fullName: submission.fullName, phone: submission.phone, email: submission.email,
+            gender: submission.gender,
             employmentType: storedEmploymentType,
             managerName: submission.manager.name
           });
@@ -358,7 +364,7 @@ export function bindOnboardingModal(modal, {
           createdInstructor = error.existingInstructor || { already_exists: true, full_name: submission.fullName };
         }
         onboardingSnapshot = submission;
-        [fullName, phone, email, employment, agency, managerSelect].forEach((field) => { field.disabled = true; });
+        [fullName, phone, email, gender, employment, agency, managerSelect].forEach((field) => { field.disabled = true; });
       }
 
       if (!employeeFolderPromise) {

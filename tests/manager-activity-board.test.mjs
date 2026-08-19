@@ -12,6 +12,15 @@ const workspaceSrc = fs.readFileSync(new URL('../frontend/src/manager-board-work
 const interactionsSrc = fs.readFileSync(new URL('../frontend/src/manager-board-interactions-runtime.js', import.meta.url), 'utf8');
 const monthSrc = fs.readFileSync(new URL('../frontend/src/screens/month.js', import.meta.url), 'utf8');
 
+// Police-clearance SharePoint component + required onboarding gender.
+const employeeFileLiveSrc = fs.readFileSync(new URL('../supabase/functions/instructor-employee-file-live/index.ts', import.meta.url), 'utf8');
+const onboardingFolderSrc = fs.readFileSync(new URL('../supabase/functions/instructor-onboarding-folder/index.ts', import.meta.url), 'utf8');
+const employeeFileUiSrc = fs.readFileSync(new URL('../frontend/src/screens/instructor-employee-file-ui.js', import.meta.url), 'utf8');
+const employeeFileDataSrc = fs.readFileSync(new URL('../frontend/src/screens/instructor-employee-file-data.js', import.meta.url), 'utf8');
+const onboardingSrc = fs.readFileSync(new URL('../frontend/src/screens/instructor-onboarding.js', import.meta.url), 'utf8');
+const policeClearanceMigrationSrc = fs.readFileSync(new URL('../supabase/migrations/20260819180000_police_clearance_component.sql', import.meta.url), 'utf8');
+const onboardingGenderMigrationSrc = fs.readFileSync(new URL('../supabase/migrations/20260819190000_instructor_onboarding_gender.sql', import.meta.url), 'utf8');
+
 test('monthDayCardsHtml default behaviour matches the original month.js day drawer (no subtitle, instructor meta)', () => {
   const html = monthDayCardsHtml(
     [{ RowID: 'r1', activity_name: 'חוג רובוטיקה', instructor_name: 'דני כהן', instructor_name_2: '' }],
@@ -136,11 +145,16 @@ test('followup cell renders ✓ for a done status and stays empty for a missing 
 });
 
 test('FEMALE + police clearance renders a blocked, content-free cell with no checkbox and no text', () => {
-  assert.ok(workspaceSrc.includes("field === 'police_clearance_confirmed' && isFemaleInstructor(row)"));
+  assert.ok(workspaceSrc.includes("field === 'police_clearance_file_completed' && isFemaleInstructor(row)"));
   assert.ok(workspaceSrc.includes('manager-workspace-followup-cell--blocked'));
   assert.ok(workspaceSrc.includes(
     "return '<td class=\"manager-workspace-followup-cell manager-workspace-followup-cell--blocked\" aria-label=\"לא רלוונטי\"></td>';"
   ));
+});
+
+test('manager tracking reads police clearance from the SharePoint-derived roster column, not the manual followup table', () => {
+  assert.ok(workspaceSrc.includes("['police_clearance_file_completed', 'אישור משטרה']"));
+  assert.ok(!workspaceSrc.includes("row['police_clearance_confirmed']"));
 });
 
 test('gender check reads the real canonical field (instructor_scheduling_profiles.gender via the roster), never the instructor name', () => {
@@ -160,4 +174,77 @@ test('the gender migration only extends the existing roster RPC (adds a passthro
   assert.ok(!migrationSrc.includes('create table'));
   assert.ok(!migrationSrc.includes('alter table'));
   assert.ok(!migrationSrc.includes('add column'));
+});
+
+// 1-2) police_clearance is a canonical component at the exact SharePoint path, in every scanner/definition.
+const POLICE_CLEARANCE_PATH = '01 הסכם ומסמכים/אישור משטרה';
+test('police_clearance is a canonical component at 01 הסכם ומסמכים/אישור משטרה everywhere it is scanned or listed', () => {
+  assert.ok(employeeFileLiveSrc.includes(`["police_clearance", "${POLICE_CLEARANCE_PATH}"]`));
+  assert.ok(onboardingFolderSrc.includes(`POLICE_CLEARANCE_FOLDER_PATH = "${POLICE_CLEARANCE_PATH}"`));
+  assert.ok(employeeFileUiSrc.includes("['police_clearance', 'אישור משטרה']"));
+  assert.ok(employeeFileDataSrc.includes("'police_clearance',"));
+  assert.ok(policeClearanceMigrationSrc.includes("'payroll_reports', 'police_clearance'"));
+});
+
+// 3-4) completion is generic itemCount>0 truth from SharePoint — police_clearance isn't special-cased away from it.
+test('police_clearance completion is derived the same way as every other component: file count > 0', () => {
+  assert.ok(employeeFileLiveSrc.includes('completed: itemCount > 0,'));
+  assert.ok(!/police_clearance[\s\S]{0,80}completed:\s*(true|false)[,\s]/i.test(employeeFileLiveSrc));
+});
+
+// 5) FEMALE never renders as "missing" — the blocked card has no is-missing class and no ✓/text content.
+test('FEMALE police_clearance card is blocked (no missing indicator, no checkmark, no status text)', () => {
+  assert.ok(employeeFileUiSrc.includes("key === 'police_clearance' && isFemale"));
+  // The whole blocked-branch markup is this one literal div: no is-missing class, no <span> for a ✓ mark, no status text.
+  assert.ok(employeeFileUiSrc.includes('<div class="employee-file__card is-blocked" aria-label="${escapeHtml(label)}: לא רלוונטי" aria-disabled="true"></div>'));
+});
+
+// 6-7) onboarding-folder creates the SharePoint subfolder for non-female instructors only, from server-read gender.
+test('onboarding-folder creates the police-clearance folder for non-female instructors, skips it for female', () => {
+  assert.ok(onboardingFolderSrc.includes('const isFemale = clean(snapshot?.gender).toLowerCase() === "female";'));
+  assert.ok(onboardingFolderSrc.includes('const folderPaths = isFemale ? FOLDER_PATHS : [...FOLDER_PATHS, POLICE_CLEARANCE_FOLDER_PATH];'));
+  assert.ok(onboardingFolderSrc.includes('for (const relativePath of folderPaths) {'));
+});
+
+test('gender for onboarding-folder/employee-file comes from the server-side snapshot RPC, never a client value or the instructor name', () => {
+  assert.ok(policeClearanceMigrationSrc.includes('select sp.gender into v_gender from public.instructor_scheduling_profiles sp where sp.emp_id = p_emp_id;'));
+  assert.ok(policeClearanceMigrationSrc.includes("'gender', v_gender"));
+  assert.ok(!onboardingFolderSrc.includes('body?.gender'));
+});
+
+// 8) Manager Tracking already covered above (police_clearance_file_completed roster column + isFemaleInstructor block).
+
+// New required "מגדר" field in the onboarding modal, saved atomically into instructor_scheduling_profiles.gender.
+test('onboarding modal has a required gender select with canonical male/female values (no Hebrew stored)', () => {
+  assert.ok(onboardingSrc.includes('<label><span>מגדר</span><select class="ds-input" data-onboarding-gender required><option value="">בחירה</option><option value="male">זכר</option><option value="female">נקבה</option></select></label>'));
+});
+
+test('onboarding cannot complete ("שליחת מייל") without a gender selection', () => {
+  assert.ok(onboardingSrc.includes('|| !gender.value || !employment.value'));
+  assert.ok(onboardingSrc.includes("if (!fullName.value.trim() || !normalizedPhone || !email.value.trim() || !gender.value || !employment.value"));
+});
+
+test('the chosen gender value is passed to create_instructor_onboarding unchanged (male stays male, female stays female)', () => {
+  assert.ok(onboardingSrc.includes("const gender = ['male', 'female'].includes(instructor?.gender) ? instructor.gender : '';"));
+  assert.ok(onboardingSrc.includes('if (!phone || !gender) throw new Error'));
+  assert.ok(onboardingSrc.includes('p_gender: gender'));
+});
+
+test('create_instructor_onboarding rejects any gender value other than male/female, server-side, and replaces the old signature', () => {
+  assert.ok(onboardingGenderMigrationSrc.includes('drop function if exists public.create_instructor_onboarding(text, text, text, text, text);'));
+  assert.ok(onboardingGenderMigrationSrc.includes("if v_gender not in ('male', 'female') then"));
+  assert.ok(onboardingGenderMigrationSrc.includes("raise exception 'onboarding_gender_invalid'"));
+});
+
+test('gender is written into instructor_scheduling_profiles.gender for a new instructor only, not a new column on contacts_instructors', () => {
+  assert.ok(onboardingGenderMigrationSrc.includes('insert into public.instructor_scheduling_profiles (emp_id, gender)'));
+  assert.ok(onboardingGenderMigrationSrc.includes('values (v_emp_id, v_gender)'));
+  assert.ok(!onboardingGenderMigrationSrc.includes('contacts_instructors add column'));
+});
+
+test('a duplicate onboarding attempt returns the existing instructor and never touches their stored gender', () => {
+  const foundBranch = onboardingGenderMigrationSrc.indexOf('if found then');
+  const genderInsert = onboardingGenderMigrationSrc.indexOf('insert into public.instructor_scheduling_profiles');
+  assert.ok(foundBranch > -1 && genderInsert > -1 && foundBranch < genderInsert);
+  assert.ok(onboardingGenderMigrationSrc.includes('return query select v_existing.emp_id::bigint, v_existing.full_name::text, true;\n    return;\n  end if;'));
 });
