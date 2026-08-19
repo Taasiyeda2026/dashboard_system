@@ -57,12 +57,11 @@ test('RPC validates active instructor and canonical name', () => {
   assert.match(assignmentSql, /instructor_name_mismatch/);
 });
 
-test('activities screen exposes assignment filter independently of removed all-activities mode', () => {
+test('activities screen keeps assignment filter logic without exposing it in the toolbar', () => {
   const source = fs.readFileSync(new URL('../frontend/src/screens/activities.js', import.meta.url), 'utf8');
   assert.match(source, /label: 'ללא מדריך'/);
-  assert.match(source, /function activityInstructorStatusFilterHtml/);
-  assert.doesNotMatch(source, /function activityInstructorStatusFilterHtml[\s\S]{0,160}isAllActivitiesMode/);
-  assert.match(source, /data-activities-instructor-status-filter/);
+  assert.doesNotMatch(source, /function activityInstructorStatusFilterHtml/);
+  assert.doesNotMatch(source, /data-activities-instructor-status-filter/);
 });
 
 test('unassigned filter requires both primary id and name to be empty', async () => {

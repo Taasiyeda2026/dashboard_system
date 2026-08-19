@@ -106,3 +106,4 @@ config.HOTFIX_VERSION = `manager-tracking-employee-file-source-sw-cache-1568-202
 config.HOTFIX_VERSION = `tracking-table-columns-symmetric-sw-cache-1570-20260819-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `attendance-control-live-records-sw-cache-1572-20260819-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `operations-home-canonical-sw-cache-1573-20260819-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `activities-filter-row-layout-sw-cache-1574-20260819-v1-${config.HOTFIX_VERSION}`;
