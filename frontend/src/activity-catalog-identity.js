@@ -24,13 +24,17 @@ function catalogIdentityChanges({
 } = {}, { normalizeActivityType = catalogText } = {}) {
   const canonicalName = catalogText(activity_name);
   const activityNo = catalogText(activity_no || gefen_number);
-  const gefenNumber = catalogText(gefen_number || activityNo);
+  // activity_no is always the catalog identity, but it is not necessarily a
+  // Gefen number. Keep an absent Gefen value absent so a switch from a Gefen
+  // activity actively clears the previous value in the activity row.
+  const gefenNumber = catalogText(gefen_number);
   if (!canonicalName || !activityNo) throw new Error('catalog_activity_not_found');
 
   const changes = {
     activity_name: canonicalName,
     activity_no: activityNo,
-    gefen_number: gefenNumber,
+    gefen_number: gefenNumber || null,
+    exists_in_gefen: Boolean(gefenNumber),
     activity_name_override: false
   };
   const sessions = firstCatalogNumber(meetings_count);
@@ -40,7 +44,6 @@ function catalogIdentityChanges({
     changes.activity_type = type;
     changes.item_type = type;
   }
-  if (gefenNumber) changes.exists_in_gefen = true;
   return changes;
 }
 
@@ -62,11 +65,17 @@ export function selectedActivityCatalogIdentity(form) {
   };
 }
 
-export function syncActivityCatalogIdentityFromName(form) {
+export function syncActivityCatalogIdentityFromName(form, { clearWhenNoSelection = false } = {}) {
   const activityNoInput = form?.querySelector?.('[data-activity-no]');
   const gefenNumberInput = form?.querySelector?.('[data-gefen-number]');
   const identity = selectedActivityCatalogIdentity(form);
-  if (!identity.activity_name) return identity;
+  if (!identity.activity_name) {
+    if (clearWhenNoSelection) {
+      if (activityNoInput) activityNoInput.value = '';
+      if (gefenNumberInput) gefenNumberInput.value = '';
+    }
+    return identity;
+  }
   if (identity.isCatalogSelection) {
     if (activityNoInput) activityNoInput.value = identity.activity_no;
     if (gefenNumberInput) gefenNumberInput.value = identity.gefen_number;
@@ -89,11 +98,11 @@ export function catalogActivityChangesFromRows(
 ) {
   return catalogIdentityChanges({
     activity_name: firstCatalogValue(
-      pricingRow?.activity_name,
-      courseRow?.short_name,
       listRow?.activity_name,
       listRow?.label_he,
       listRow?.label,
+      courseRow?.short_name,
+      pricingRow?.activity_name,
       selection.activity_name
     ),
     activity_no: firstCatalogValue(
@@ -103,12 +112,11 @@ export function catalogActivityChangesFromRows(
       selection.activity_no,
       selection.gefen_number
     ),
-    gefen_number: firstCatalogValue(
-      pricingRow?.gefen_number,
-      listRow?.gefen_number,
-      courseRow?.gefen_number,
-      selection.gefen_number
-    ),
+    // If the displayed activity catalog row exists, its blank Gefen field is
+    // authoritative. Do not fill it from activity_no or a pricing fallback.
+    gefen_number: listRow && Object.prototype.hasOwnProperty.call(listRow, 'gefen_number')
+      ? catalogText(listRow.gefen_number)
+      : firstCatalogValue(courseRow?.gefen_number, pricingRow?.gefen_number, selection.gefen_number),
     meetings_count: firstCatalogNumber(
       pricingRow?.meetings_count,
       courseRow?.meetings_count,

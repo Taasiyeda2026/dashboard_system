@@ -800,7 +800,7 @@ export function bindActivityEditForm(contentRoot, {
         }
         const nameEl = ev.target.closest('[data-role="activity-name-select"]');
         if (nameEl) {
-          syncActivityCatalogIdentityFromName(form);
+          syncActivityCatalogIdentityFromName(form, { clearWhenNoSelection: true });
         }
 
         const typeEl = ev.target.closest('[name="activity_type"]');
@@ -817,7 +817,7 @@ export function bindActivityEditForm(contentRoot, {
             nameSel.innerHTML = renderActivityNameOptions(filtered, newType);
             nameSel.disabled = !newType;
             nameSel.value = '';
-            syncActivityCatalogIdentityFromName(form);
+            syncActivityCatalogIdentityFromName(form, { clearWhenNoSelection: true });
           }
         }
 

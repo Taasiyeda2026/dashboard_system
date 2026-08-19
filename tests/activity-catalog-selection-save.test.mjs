@@ -18,7 +18,7 @@ const CATALOG_6089 = {
     meetings_count: 11
   },
   pricingRow: {
-    activity_name: 'ביומימיקרי',
+    activity_name: 'ביומימיקרי – המצאות בהשראה מן הטבע',
     activity_no: '6089',
     gefen_number: '6089',
     item_type: 'course',
@@ -28,6 +28,25 @@ const CATALOG_6089 = {
     short_name: 'ביומימיקרי',
     gefen_number: '6089',
     meetings_count: 11
+  }
+};
+
+const NON_GEFEN_CATALOG_1001 = {
+  selection: { activity_name: 'פעילות שאינה גפ״ן', activity_no: '1001', gefen_number: '' },
+  listRow: {
+    activity_name: 'פעילות שאינה גפ״ן',
+    activity_no: '1001',
+    gefen_number: '',
+    activity_type: 'course'
+  },
+  pricingRow: {
+    // The pricing record is not the activity catalog display source and must
+    // not make this item a Gefen activity.
+    activity_name: 'שם תמחור שונה',
+    activity_no: '1001',
+    gefen_number: '9999',
+    item_type: 'course',
+    meetings_count: 4
   }
 };
 
@@ -56,6 +75,25 @@ test('catalog replacement preserves the agreed activity price unless the user ed
 
   const savedWithExplicitPrice = { ...existing, ...replacementChanges(), price: 9700 };
   assert.equal(savedWithExplicitPrice.price, 9700);
+});
+
+test('moving from 6089 to non-Gefen 1001 clears the old Gefen identity', () => {
+  const existingGefenActivity = {
+    activity_name: 'ביומימיקרי',
+    activity_no: '6089',
+    gefen_number: '6089',
+    exists_in_gefen: true,
+    price: 9500
+  };
+  const saved = {
+    ...existingGefenActivity,
+    ...catalogActivityChangesFromRows(NON_GEFEN_CATALOG_1001)
+  };
+  assert.equal(saved.activity_no, '1001');
+  assert.equal(saved.gefen_number, null);
+  assert.equal(saved.exists_in_gefen, false);
+  assert.equal(saved.price, 9500);
+  assert.notEqual(saved.gefen_number, '6089');
 });
 
 test('catalog replacement leaves local authority, school, manager, contacts, funding, assignment and dates intact', () => {
@@ -141,6 +179,7 @@ test('the API resolves catalog replacements by stable IDs in both direct-save an
   assert.match(source, /catalogText\(catalogAwareChanges\.activity_no\).*catalogText\(catalogAwareChanges\.gefen_number\)/s);
   assert.match(source, /requestedValues\.activity_name_override === false/);
   assert.match(source, /if \(!listRow && !pricingRow && !courseRow\) throw new Error\('catalog_activity_not_found'\)/);
+  assert.match(source, /isDateField \|\| key === 'gefen_number'/);
   assert.doesNotMatch(
     source.slice(source.indexOf('async function resolveCatalogActivityChanges'), source.indexOf('async function validateActivityInstructorBindingsOrThrow')),
     /activity_name\)\.eq|\.eq\('activity_name'/,

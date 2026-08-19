@@ -8552,7 +8552,9 @@ export const api = {
       }
       const isDateField = key === 'start_date' || key === 'end_date' || /^date_\d+$/.test(key) || /^meeting_date_\d+$/.test(key);
       if (value === null) {
-        if (isDateField) acc[key] = null;
+        // A non-Gefen catalog selection must be able to clear a previously
+        // saved Gefen number through an edit request, not only direct save.
+        if (isDateField || key === 'gefen_number') acc[key] = null;
         return acc;
       }
       const normalizedValue = String(value).trim();

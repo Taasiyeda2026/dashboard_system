@@ -79,6 +79,13 @@ test('authority catalog filenames are not misread as auth', () => {
   assert.ok(plan.tests.includes('tests/operations-lazy-loading.test.mjs'));
 });
 
+test('activity catalog identity selects activity checks, not the unrelated catalog screen suite', () => {
+  const plan = buildCheckPlan(['frontend/src/activity-catalog-identity.js']);
+  assert.deepEqual(plan.groups, ['activities']);
+  assert.ok(plan.tests.includes('tests/activities-screen.test.mjs'));
+  assert.equal(plan.tests.includes('tests/catalog-screen-display.test.mjs'), false);
+});
+
 test('ordinary SQL selects DB guards, while scheduling SQL also requests Postgres', () => {
   const db = buildCheckPlan(['supabase/migrations/20260810_finance.sql']);
   assert.deepEqual(db.groups, ['db']);
