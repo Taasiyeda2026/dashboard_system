@@ -12,6 +12,20 @@ const SUBJECT = 'הצטרפות לצוות המדריכים של תעשיידע 
 const OUTLOOK_WEB_URL = 'https://outlook.office.com/mail/';
 const OUTLOOK_MODE_STORAGE_KEY = 'taasiyeda:outlook-mode';
 const onboardingAttachmentRequests = new Map();
+
+function isFemaleGender(value) {
+  return String(value || '').trim().toLowerCase() === 'female';
+}
+
+function isPoliceClearanceAttachment(attachment) {
+  return /אישור\s*משטרה/i.test(String(attachment?.name || ''));
+}
+
+export function onboardingDocumentsForGender(employmentType, gender) {
+  const list = ONBOARDING_DOCUMENTS[String(employmentType || '').trim()] || [];
+  return isFemaleGender(gender) ? list.filter((name) => name !== 'אישור משטרה') : [...list];
+}
+
 const AVAILABILITY = `לצורך תכנון השיבוצים והפעילויות, נבקש להשיב למייל זה ולמלא את פרטי הזמינות שלך בצורה מלאה ככל האפשר:
 
 מועד שממנו ניתן להתחיל להדריך:
@@ -34,17 +48,16 @@ const AVAILABILITY = `לצורך תכנון השיבוצים והפעילויו�
 
 ---`;
 
-export function buildOnboardingMail(employmentType, manager, instructorName = '') {
+export function buildOnboardingMail(employmentType, manager, instructorName = '', gender = '') {
   const taasiyeda = employmentType === 'taasiyeda';
-  const documentLines = taasiyeda
-    ? '- הסכם העסקה\n- טופס 101\n- נהלים למדריך\n- אישור משטרה (למדריכים גברים בלבד)'
-    : '- נהלים למדריך\n- טופס שמירה על סודיות\n- אישור משטרה (למדריכים גברים בלבד)';
+  const documents = onboardingDocumentsForGender(employmentType, gender);
+  const documentLines = documents.map((name) => `- ${name}`).join('\n');
   const instruction = taasiyeda
     ? 'נבקש לעבור על הסכם ההעסקה, לחתום עליו ולהחזיר אלינו עותק חתום במייל חוזר.'
     : 'נבקש לעבור על המסמכים המצורפים, למלא ולחתום ככל שנדרש ולהחזיר אלינו את המסמכים הרלוונטיים במייל חוזר.';
   const body = `שלום ${String(instructorName || '').trim()},
 
-שמחים על הצטרפותך לצוות המדריכים של תעשיידע.
+שמחים על הצטרפותך לצוות המדריכים של תעשיידע!
 
 מצורפים למייל המסמכים הנדרשים לצורך השלמת תהליך הקליטה:
 
@@ -98,6 +111,7 @@ export function onboardingModalHtml(managers = []) {
     <label><span>שם מלא</span><input class="ds-input" data-onboarding-name autocomplete="name" required></label>
     <label><span>טלפון</span><input class="ds-input" data-onboarding-phone inputmode="tel" autocomplete="tel" required></label>
     <label><span>מייל</span><input class="ds-input" data-onboarding-email type="email" autocomplete="email" required></label>
+    <label><span>מגדר</span><select class="ds-input" data-onboarding-gender required><option value="">בחירה</option><option value="male">זכר</option><option value="female">נקבה</option></select></label>
     <label><span>סוג העסקה</span><select class="ds-input" data-onboarding-employment><option value="">בחירה</option><option value="taasiyeda">תעשיידע</option><option value="staffing">כוח אדם</option><option value="independent">עצמאי</option></select></label>
     <label data-onboarding-agency-field hidden style="display:none"><span>חברת כוח אדם</span><select class="ds-input" data-onboarding-agency><option value="">בחירה</option><option value="מעוף">מעוף</option><option value="מנפאואר">מנפאואר</option></select></label>
     <label><span>מנהל/ת פעילות</span><select class="ds-input" data-onboarding-manager><option value="">בחירה</option>${managers.map((manager) => `<option value="${escapeHtml(manager.name)}">${escapeHtml(manager.name)}</option>`).join('')}</select></label>
@@ -116,8 +130,7 @@ export function localOutlookMode() {
 }
 
 export function syncLocalOutlookModeFromUrl() {
-  try {
-    if (typeof window === 'undefined' || !window.location) return 'web';
+  try {    if (typeof window === 'undefined' || !window.location) return 'web';
     window.localStorage?.removeItem(OUTLOOK_MODE_STORAGE_KEY);
     const url = new URL(window.location.href);
     if (url.searchParams.has('outlook')) {
@@ -140,10 +153,12 @@ export function openOutlookHome() {
 
 export async function createOnboardingInstructor(instructor) {
   const phone = normalizeOnboardingPhone(instructor?.phone);
-  if (!phone) throw new Error('onboarding_required_fields_missing');
+  const gender = ['male', 'female'].includes(instructor?.gender) ? instructor.gender : '';
+  if (!phone || !gender) throw new Error('onboarding_required_fields_missing');
   const { data, error } = await supabase.rpc('create_instructor_onboarding', {
     p_full_name: instructor.fullName, p_mobile: phone, p_email: instructor.email,
-    p_employment_type: instructor.employmentType, p_direct_manager: instructor.managerName
+    p_employment_type: instructor.employmentType, p_direct_manager: instructor.managerName,
+    p_gender: gender
   });
   if (error) throw new Error(error.message || 'לא ניתן ליצור את המדריך.');
   const result = Array.isArray(data) ? data[0] : data;
@@ -191,11 +206,14 @@ export function warmOnboardingAttachments(employmentType) {
   return loadOnboardingAttachments(employmentType).catch(() => null);
 }
 
-export async function createOnboardingDraft({ employmentType, manager, instructorName, instructorEmail, loginHint = '' }) {
-  const mail = buildOnboardingMail(employmentType, manager, instructorName);
+export async function createOnboardingDraft({ employmentType, manager, instructorName, instructorEmail, gender = '', loginHint = '' }) {
+  const mail = buildOnboardingMail(employmentType, manager, instructorName, gender);
   const filesPromise = loadOnboardingAttachments(employmentType);
   const tokenPromise = delegatedMailToken(loginHint);
   const [data, token] = await Promise.all([filesPromise, tokenPromise]);
+  const attachments = isFemaleGender(gender)
+    ? data.attachments.filter((attachment) => !isPoliceClearanceAttachment(attachment))
+    : data.attachments;
   const draft = await graphMailRequest(token, '/me/messages', {
     method: 'POST', body: JSON.stringify({
       subject: mail.subject, body: { contentType: 'Text', content: mail.body },
@@ -204,7 +222,7 @@ export async function createOnboardingDraft({ employmentType, manager, instructo
     })
   });
   try {
-    const attachmentResults = await Promise.allSettled(data.attachments.map((attachment) => graphMailRequest(
+    const attachmentResults = await Promise.allSettled(attachments.map((attachment) => graphMailRequest(
       token,
       `/me/messages/${encodeURIComponent(draft.id)}/attachments`,
       {
@@ -217,7 +235,7 @@ export async function createOnboardingDraft({ employmentType, manager, instructo
     await graphMailRequest(token, `/me/messages/${encodeURIComponent(draft.id)}`, { method: 'DELETE' }).catch(() => {});
     throw error;
   }
-  return { draftId: draft.id, folderUrl: data.folder_url, attachmentCount: data.attachments.length };
+  return { draftId: draft.id, folderUrl: data.folder_url, attachmentCount: attachments.length };
 }
 
 export function openDesktopMailClient() {
@@ -244,6 +262,7 @@ export function bindOnboardingModal(modal, {
   const fullName = modal.querySelector('[data-onboarding-name]');
   const phone = modal.querySelector('[data-onboarding-phone]');
   const email = modal.querySelector('[data-onboarding-email]');
+  const gender = modal.querySelector('[data-onboarding-gender]');
   const employment = modal.querySelector('[data-onboarding-employment]');
   const agencyField = modal.querySelector('[data-onboarding-agency-field]');
   const agency = modal.querySelector('[data-onboarding-agency]');
@@ -299,16 +318,17 @@ export function bindOnboardingModal(modal, {
 
   let draftCreated = false;
   const sync = () => {
-    const list = ONBOARDING_DOCUMENTS[employment.value] || [];
+    const list = onboardingDocumentsForGender(employment.value, gender.value);
     const staffing = employment.value === 'staffing';
     agencyField.hidden = !staffing;
     agencyField.style.display = staffing ? 'grid' : 'none';
     documents.hidden = !list.length;
     documents.querySelector('ul').innerHTML = list.map((name) => `<li>📄 ${escapeHtml(name)}</li>`).join('');
     prepare.disabled = draftCreated || !fullName.value.trim() || !normalizeOnboardingPhone(phone.value) || !email.value.trim()
-      || !employment.value || (staffing && !agency.value) || !managerSelect.value;
+      || !gender.value || !employment.value || (staffing && !agency.value) || !managerSelect.value;
   };
   [fullName, phone, email].forEach((input) => input.addEventListener('input', sync));
+  gender.addEventListener('change', sync);
   employment.addEventListener('change', () => {
     if (employment.value !== 'staffing') agency.value = '';
     if (employment.value) warmOnboardingAttachments(employment.value);
@@ -327,12 +347,12 @@ export function bindOnboardingModal(modal, {
     if (!onboardingSnapshot) {
       const manager = managers.find((item) => item.name === managerSelect.value);
       const normalizedPhone = normalizeOnboardingPhone(phone.value);
-      if (!fullName.value.trim() || !normalizedPhone || !email.value.trim() || !employment.value
+      if (!fullName.value.trim() || !normalizedPhone || !email.value.trim() || !gender.value || !employment.value
         || (employment.value === 'staffing' && !agency.value) || !manager) return;
       if (!email.checkValidity()) { status.textContent = 'יש להזין כתובת מייל תקינה.'; return; }
       if (!manager?.phone || !manager?.email) { status.textContent = 'לא הוגדרו טלפון ומייל למנהל/ת הפעילות שנבחר/ה.'; return; }
       submission = Object.freeze({
-        fullName: fullName.value.trim(), phone: normalizedPhone, email: email.value.trim(),
+        fullName: fullName.value.trim(), phone: normalizedPhone, email: email.value.trim(), gender: gender.value,
         employmentType: employment.value, staffingAgency: agency.value, manager: Object.freeze({ ...manager })
       });
     }
@@ -350,6 +370,7 @@ export function bindOnboardingModal(modal, {
         try {
           createdInstructor = await createInstructor({
             fullName: submission.fullName, phone: submission.phone, email: submission.email,
+            gender: submission.gender,
             employmentType: storedEmploymentType,
             managerName: submission.manager.name
           });
@@ -358,7 +379,7 @@ export function bindOnboardingModal(modal, {
           createdInstructor = error.existingInstructor || { already_exists: true, full_name: submission.fullName };
         }
         onboardingSnapshot = submission;
-        [fullName, phone, email, employment, agency, managerSelect].forEach((field) => { field.disabled = true; });
+        [fullName, phone, email, gender, employment, agency, managerSelect].forEach((field) => { field.disabled = true; });
       }
 
       if (!employeeFolderPromise) {
@@ -380,6 +401,7 @@ export function bindOnboardingModal(modal, {
         manager: onboardingSnapshot.manager,
         instructorName: onboardingSnapshot.fullName,
         instructorEmail: onboardingSnapshot.email,
+        gender: onboardingSnapshot.gender,
         loginHint
       });
       draftCreated = true;
@@ -411,5 +433,4 @@ export function bindOnboardingModal(modal, {
       prepare.textContent = 'שליחת מייל';
       sync();
     }
-  });
-}
+  });}

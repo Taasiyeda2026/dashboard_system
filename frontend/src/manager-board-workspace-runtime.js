@@ -20,7 +20,7 @@ const FOLLOWUP_FIELDS = [
   ['contract_confirmed', 'חוזה'],
   ['observation_completed', 'תצפית'],
   ['feedback_completed', 'משוב'],
-  ['police_clearance_confirmed', 'אישור משטרה']
+  ['police_clearance_file_completed', 'אישור משטרה']
 ];
 
 let activeTab = restoreTab();
@@ -437,22 +437,35 @@ function attendanceSummaryTableHtml(roster, summary, ym) {
   </table></div>`;
 }
 
+/** Gender is canonical in instructor_scheduling_profiles.gender ('female'/'male'), passed through get_manager_team_roster. */
+function isFemaleInstructor(row) {
+  return text(row?.gender).toLowerCase() === 'female';
+}
+
+/** Read-only followup cell: ✓ when done, otherwise empty — police clearance is blocked (no mark, no text) for FEMALE. */
+function followupCellHtml(row, field) {
+  if (field === 'police_clearance_file_completed' && isFemaleInstructor(row)) {
+    return '<td class="manager-workspace-followup-cell manager-workspace-followup-cell--blocked" aria-label="לא רלוונטי"></td>';
+  }
+  return `<td class="manager-workspace-followup-cell${row[field] ? ' is-done' : ''}">${row[field] ? '<span aria-hidden="true">✓</span>' : ''}</td>`;
+}
+
 function trackingTableHtml(roster, schoolYear) {
   if (!roster.length) return '<div class="manager-workspace-empty">אין מדריכים פעילים המשויכים למנהל.</div>';
   const rows = roster.map((row) => {
     const empId = text(row.emp_id);
-    const checks = FOLLOWUP_FIELDS.map(([field, label]) => `<td data-label="${escapeHtml(label)}"><label class="manager-workspace-check"><input type="checkbox" data-manager-followup-field="${field}" data-manager-followup-emp="${escapeHtml(empId)}" ${row[field] ? 'checked' : ''}><span aria-hidden="true"></span></label></td>`).join('');
+    const cells = FOLLOWUP_FIELDS.map(([field]) => followupCellHtml(row, field)).join('');
     const folder = text(row.folder_web_url);
-    return `<tr data-manager-followup-row="${escapeHtml(empId)}">
+    return `<tr>
       <td class="manager-workspace-person"><strong>${escapeHtml(text(row.full_name) || empId)}</strong><small>${escapeHtml(text(row.employment_type))}</small></td>
-      ${checks}
+      ${cells}
       <td data-label="תיק עובד">${folder ? `<a class="manager-workspace-folder-link" href="${escapeHtml(folder)}" target="_blank" rel="noopener">פתח תיק</a>` : '<span class="manager-workspace-status is-muted">טרם קושר</span>'}</td>
     </tr>`;
   }).join('');
   return `<div class="manager-workspace-table-wrap"><table class="manager-workspace-table manager-workspace-tracking-table">
     <thead><tr><th>מדריך</th>${FOLLOWUP_FIELDS.map(([, label]) => `<th>${escapeHtml(label)}</th>`).join('')}<th>תיק עובד</th></tr></thead>
     <tbody>${rows}</tbody>
-  </table></div><p class="manager-workspace-source-note">רשימת המדריכים מגיעה ממאגר המדריכים המרכזי. בעמוד זה נשמרים רק סימוני המעקב לשנת ${escapeHtml(schoolYear)}.</p>`;
+  </table></div><p class="manager-workspace-source-note">תצוגה לקריאה בלבד ממאגר המדריכים המרכזי לשנת ${escapeHtml(schoolYear)}. עדכון הנתונים מתבצע בלשונית מדריכים.</p>`;
 }
 
 function sharePointRootButton(schoolYear) {
@@ -606,14 +619,6 @@ async function bindEmbeddedAttendance(host, roster, context) {
   host.querySelector('[data-attendance-close]')?.remove();
 }
 
-async function renderManagement(boardRoot, context, roster, renderToken) {
-  const alerts = boardRoot.querySelector('[data-manager-workspace-management-alerts]');
-  if (!alerts) return;
-  alerts.innerHTML = '<div class="manager-workspace-loading">טוען סטטוסי דיווח…</div>';
-  const summary = await loadAttendanceSummary(roster, context.ym);
-  if (renderToken !== currentRenderToken || activeTab !== 'management' || !boardRoot.isConnected) return;
-  alerts.innerHTML = managementAlertsHtml(roster, summary);
-}
 
 async function renderAttendance(boardRoot, context, roster, renderToken) {
   const view = boardRoot.querySelector('[data-manager-workspace-view]');
@@ -622,7 +627,8 @@ async function renderAttendance(boardRoot, context, roster, renderToken) {
   const summary = await loadAttendanceSummary(roster, context.ym);
   if (renderToken !== currentRenderToken || activeTab !== 'attendance' || !boardRoot.isConnected) return;
 
-  view.innerHTML = `<section class="manager-workspace-panel manager-workspace-attendance" dir="rtl">
+  view.innerHTML = `${managementAlertsHtml(roster, summary)}
+    <section class="manager-workspace-panel manager-workspace-attendance" dir="rtl">
     <header class="manager-workspace-panel__head"><div><h2>בקרת נוכחות</h2><p>${escapeHtml(context.manager)} · ${escapeHtml(context.ym)} · ${escapeHtml(attendanceMonthMode(context.ym).label)}</p></div></header>
     ${attendanceSummaryTableHtml(roster, summary, context.ym)}
     ${(summary.recordsError || summary.approvalsError) ? `<p class="manager-workspace-inline-error">${escapeHtml(summary.recordsError || summary.approvalsError)}</p>` : ''}
@@ -638,43 +644,6 @@ async function renderAttendance(boardRoot, context, roster, renderToken) {
   });
 }
 
-async function updateFollowupCheckbox(input, context) {
-  const empId = Number(input.dataset.managerFollowupEmp);
-  const field = input.dataset.managerFollowupField;
-  if (!Number.isFinite(empId) || !field) return;
-  const previous = !input.checked;
-  input.disabled = true;
-  try {
-    await ensureAuthSession();
-    const { data, error } = await supabase.rpc('update_manager_instructor_followup', {
-      p_emp_id: empId,
-      p_school_year: context.schoolYear,
-      p_field: field,
-      p_value: input.checked
-    });
-    if (error) throw error;
-    const key = `${context.manager}|${context.schoolYear}`;
-    const cached = rosterCache.get(key);
-    if (cached) {
-      cached.rows = cached.rows.map((row) => text(row.emp_id) === text(empId) ? { ...row, ...(data || {}) } : row);
-      cached.loadedAt = Date.now();
-    }
-    const row = input.closest('tr');
-    row?.classList.add('is-saved');
-    window.setTimeout(() => row?.classList.remove('is-saved'), 650);
-  } catch (error) {
-    input.checked = previous;
-    const row = input.closest('tr');
-    const note = row?.querySelector('[data-manager-followup-error]') || document.createElement('small');
-    note.dataset.managerFollowupError = 'true';
-    note.className = 'manager-workspace-row-error';
-    note.textContent = error?.message || 'שמירת הסימון נכשלה.';
-    if (!note.isConnected) row?.querySelector('.manager-workspace-person')?.appendChild(note);
-  } finally {
-    input.disabled = false;
-  }
-}
-
 function renderTracking(boardRoot, context, roster) {
   const view = boardRoot.querySelector('[data-manager-workspace-view]');
   if (!view) return;
@@ -682,9 +651,6 @@ function renderTracking(boardRoot, context, roster) {
     <header class="manager-workspace-panel__head"><div><h2>מעקב צוות</h2><p>${escapeHtml(context.manager)} · שנת ${escapeHtml(context.schoolYear)}</p></div>${sharePointRootButton(context.schoolYear)}</header>
     ${trackingTableHtml(roster, context.schoolYear)}
   </section>`;
-  view.querySelectorAll('[data-manager-followup-field]').forEach((input) => {
-    input.addEventListener('change', () => void updateFollowupCheckbox(input, context));
-  });
 }
 
 function approvalCell(name, at, missingLabel) {
@@ -859,6 +825,10 @@ async function renderWorkspace(force = false) {
   if (!boardRoot.querySelector('[data-manager-workspace-tabs]')) return;
   applyTabVisibility(boardRoot);
 
+  // Management content is rendered synchronously by manager-board-runtime.js.
+  // Do not load or rewrite workspace content on that tab, which prevents the return-trip layout shift.
+  if (activeTab === 'management') return;
+
   const context = contextFromBoard(boardRoot);
   const signature = activeTab === 'payroll-attendance'
     ? `${context.period}|all-teams|${context.ym}|${context.schoolYear}|${activeTab}`
@@ -868,25 +838,21 @@ async function renderWorkspace(force = false) {
   boardRoot.dataset.managerWorkspaceReady = 'true';
   const renderToken = ++currentRenderToken;
 
-  const alerts = boardRoot.querySelector('[data-manager-workspace-management-alerts]');
   const view = boardRoot.querySelector('[data-manager-workspace-view]');
-  if (activeTab === 'management' && alerts) alerts.innerHTML = '<div class="manager-workspace-loading">טוען נתוני צוות…</div>';
-  if (activeTab !== 'management' && view) view.innerHTML = '<div class="manager-workspace-loading">טוען נתוני צוות…</div>';
+  if (view) view.innerHTML = '<div class="manager-workspace-loading">טוען נתוני צוות…</div>';
 
   try {
     const roster = activeTab === 'payroll-attendance'
       ? await loadAllTeamRosters(context.schoolYear)
       : await loadRoster(context.manager, context.schoolYear);
     if (renderToken !== currentRenderToken || !boardRoot.isConnected) return;
-    if (activeTab === 'management') await renderManagement(boardRoot, context, roster, renderToken);
-    else if (activeTab === 'attendance') await renderAttendance(boardRoot, context, roster, renderToken);
+    if (activeTab === 'attendance') await renderAttendance(boardRoot, context, roster, renderToken);
     else if (activeTab === 'payroll-attendance') await renderPayrollAttendanceAdmin(boardRoot, context, roster, renderToken);
     else renderTracking(boardRoot, context, roster);
   } catch (error) {
     if (renderToken !== currentRenderToken || !boardRoot.isConnected) return;
-    const target = activeTab === 'management' ? alerts : view;
-    if (target) target.innerHTML = `<div class="manager-workspace-error"><strong>לא ניתן לטעון את צוות המנהל</strong><span>${escapeHtml(error?.message || 'אירעה תקלה זמנית.')}</span><button type="button" data-manager-workspace-retry>נסה שוב</button></div>`;
-    target?.querySelector('[data-manager-workspace-retry]')?.addEventListener('click', () => {
+    if (view) view.innerHTML = `<div class="manager-workspace-error"><strong>לא ניתן לטעון את צוות המנהל</strong><span>${escapeHtml(error?.message || 'אירעה תקלה זמנית.')}</span><button type="button" data-manager-workspace-retry>נסה שוב</button></div>`;
+    view?.querySelector('[data-manager-workspace-retry]')?.addEventListener('click', () => {
       rosterCache.delete(`${context.manager}|${context.schoolYear}`);
       attendanceSummaryCache.clear();
       lastContextSignature = '';

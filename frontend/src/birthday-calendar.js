@@ -10,7 +10,7 @@ let cachedBirthdays = null;
 let birthdaysPromise = null;
 let decorationTimer = null;
 
-async function loadActiveBirthdays() {
+export async function loadActiveBirthdays() {
   if (cachedBirthdays) return cachedBirthdays;
   if (birthdaysPromise) return birthdaysPromise;
 

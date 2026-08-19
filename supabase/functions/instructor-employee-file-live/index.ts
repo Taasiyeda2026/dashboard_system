@@ -12,6 +12,7 @@ const SHAREPOINT_SITE_PATH = "/sites/taasiyeda2027";
 const COMPONENT_PATHS: Array<[string, string]> = [
   ["signed_agreement", "01 הסכם ומסמכים/הסכם חתום"],
   ["supporting_documents", "01 הסכם ומסמכים/מסמכים נלווים"],
+  ["police_clearance", "01 הסכם ומסמכים/אישור משטרה"],
   ["intro_feedback", "02 משובים/משוב היכרות"],
   ["midyear_feedback", "02 משובים/משוב אמצע שנה"],
   ["year_end_feedback", "02 משובים/משוב סוף שנה"],

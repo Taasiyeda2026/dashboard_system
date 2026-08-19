@@ -37,16 +37,16 @@ test('card keeps separate profile and employee-file buttons', () => {
   assert.match(instructorsSource, /querySelectorAll\('\[data-instructor-profile\]'\)/);
 });
 
-test('employee-file modal keeps the 2-3-2 structure with balanced outer spacing and quiet missing dots', () => {
-  assert.equal(EMPLOYEE_FILE_COMPONENTS.length, 8);
+test('employee-file modal keeps the 3-3-2 structure (police_clearance next to signed_agreement/supporting_documents) with balanced outer spacing and quiet missing dots', () => {
+  assert.equal(EMPLOYEE_FILE_COMPONENTS.length, 9);
   const html = employeeFileModalHtml({ emp_id: 1507, components: [{ component_key: 'signed_agreement', completed: true }] });
   assert.match(html, /data-employee-file-emp-id="1507"/);
-  assert.match(html, /employee-file__group--agreements[^]*signed_agreement[^]*supporting_documents/);
+  assert.match(html, /employee-file__group--agreements[^]*signed_agreement[^]*supporting_documents[^]*police_clearance/);
   assert.match(html, /employee-file__group--feedback[^]*intro_feedback[^]*midyear_feedback[^]*year_end_feedback/);
   assert.match(html, /employee-file__group--observations[^]*observation_1[^]*observation_2/);
-  assert.equal((html.match(/class="employee-file__card /g) || []).length, 7);
+  assert.equal((html.match(/class="employee-file__card /g) || []).length, 8);
   assert.equal((html.match(/employee-file__card is-completed/g) || []).length, 1);
-  assert.equal((html.match(/employee-file__card is-missing/g) || []).length, 6);
+  assert.equal((html.match(/employee-file__card is-missing/g) || []).length, 7);
   assert.match(html, /\.employee-file__card\.is-missing[^}]*background:#d94b57/);
   assert.match(html, /width:min\(404px,calc\(100vw - 24px\)\)/);
   assert.match(html, /\.ds-modal--employee-file \.ds-modal__content\{width:100%;max-width:100%;padding:14px 18px 12px/);

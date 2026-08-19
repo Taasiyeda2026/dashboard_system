@@ -1,6 +1,7 @@
 import { escapeHtml } from './shared/html.js';
 import { dsScreenStack, dsCard, dsInteractiveCard } from './shared/layout.js';
 import { activityWorkDrawerHtml } from './shared/activity-detail-html.js';
+import { monthDayCardsHtml } from './shared/day-session-cards.js';
 import { bindActivityEditForm as bindActivityEditFormShared } from './shared/bind-activity-edit-form.js';
 import { formatDateHe } from './shared/format-date.js';
 import { getHolidayLabel } from './shared/holidays.js';
@@ -136,28 +137,6 @@ function activityDotsMeta(n) {
   if (n <= 0) return '';
   if (n <= 5) return '●'.repeat(n);
   return `●●●●● +${n - 5}`;
-}
-
-function itemMeta(item) {
-  const names = [item.instructor_name, item.instructor_name_2]
-    .filter((x) => x && String(x).trim())
-    .join(' · ');
-  return names || 'ללא מדריך';
-}
-
-/** Day drawer content: list of session cards (week-style). */
-function monthDayCardsHtml(items, date) {
-  if (!items.length) {
-    return `<p class="ds-muted">אין פעילויות מתמשכות ביום זה.</p><p class="ds-muted">תאריך: ${escapeHtml(formatDateHe(date) || '')}</p>`;
-  }
-  return `<div class="ds-month-day-cards" dir="rtl">
-    ${items.map((item) => `<div class="ds-week-session-wrap">${dsInteractiveCard({
-      variant: 'session',
-      action: `monthsession|${encodeURIComponent(date)}|${encodeURIComponent(item.RowID)}`,
-      title: item.activity_name || 'ללא שם',
-      meta: itemMeta(item)
-    })}</div>`).join('')}
-  </div>`;
 }
 
 function shiftMonthYm(ym, delta) {

@@ -13,16 +13,10 @@
   display: none !important;
 }
 
-/* Center all follow-up checkbox columns, including their headers. */
+/* Center all read-only follow-up status columns, including their headers. */
 .manager-workspace-tracking-table th:nth-child(n+2):nth-child(-n+6),
 .manager-workspace-tracking-table td:nth-child(n+2):nth-child(-n+6) {
   text-align: center !important;
-}
-
-.manager-workspace-tracking-table td:nth-child(n+2):nth-child(-n+6) .manager-workspace-check {
-  display: flex;
-  width: 100%;
-  justify-content: center;
 }
 
 /* Calendar must stay flat: no colored pills/bubbles around holidays or activities. */
@@ -94,4 +88,173 @@
   height: 12px;
   border-radius: 0 !important;
   background: currentColor !important;
+}
+
+/*
+ * Manager board only: moderate type-scale bump (~10-15%) to counter the zoom(.8) shrink above.
+ * Scoped to .manager-board-screen; the zoom value itself is untouched.
+ */
+.manager-board-screen .manager-board-hero h1 {
+  font-size: clamp(29px, 3vw, 43px);
+}
+
+.manager-board-screen .manager-board-hero p,
+.manager-board-screen .manager-board-panel__head p,
+.manager-board-screen .manager-workspace-panel__head p {
+  font-size: 15px;
+}
+
+.manager-board-screen .manager-board-manager-select > span,
+.manager-board-screen .manager-board-manager-fixed > span {
+  font-size: 12px;
+}
+
+.manager-board-screen .manager-board-month-nav strong {
+  font-size: 15px;
+}
+
+.manager-board-screen .manager-board-team-strip__title {
+  font-size: 14px;
+}
+
+.manager-board-screen .manager-board-kpis span {
+  font-size: 13px;
+}
+
+.manager-board-screen .manager-board-kpis strong {
+  font-size: 34px;
+}
+
+.manager-board-screen .manager-board-kpis small {
+  font-size: 12px;
+}
+
+.manager-board-screen .manager-board-panel__head h2,
+.manager-board-screen .manager-workspace-panel__head h2 {
+  font-size: 18px;
+}
+
+.manager-board-screen .manager-board-legend {
+  font-size: 12px;
+}
+
+.manager-board-screen .manager-board-calendar__weekdays span {
+  font-size: 12px;
+}
+
+.manager-board-screen .manager-board-calendar-day__number {
+  font-size: 13px;
+}
+
+.manager-board-screen .manager-board-calendar-day__school {
+  font-size: 10px;
+}
+
+.manager-board-screen .manager-board-calendar-day__count {
+  font-size: 11px;
+}
+
+.manager-board-screen .manager-board-calendar-event {
+  font-size: 11px;
+}
+
+.manager-board-screen .manager-board-calendar-event strong {
+  font-size: 10px;
+}
+
+.manager-board-screen .manager-board-calendar-event em {
+  font-size: 9px;
+}
+
+.manager-board-screen .manager-board-calendar-more {
+  font-size: 10px;
+}
+
+.manager-board-screen .manager-board-milestones-group__label {
+  font-size: 11px;
+}
+
+.manager-board-screen .manager-board-milestone time,
+.manager-board-screen .manager-board-school-event time {
+  font-size: 11px;
+}
+
+.manager-board-screen .manager-board-milestone__body strong {
+  font-size: 12px;
+}
+
+.manager-board-screen .manager-board-milestone__body span {
+  font-size: 11px;
+}
+
+.manager-board-screen .manager-board-milestone__badge {
+  font-size: 10px;
+}
+
+.manager-board-screen .manager-board-school-event {
+  font-size: 12px;
+}
+
+.manager-board-screen .manager-board-instructor-card__text strong {
+  font-size: 15px;
+}
+
+.manager-board-screen .manager-board-instructor-card__text span {
+  font-size: 11px;
+}
+
+.manager-board-screen .manager-board-instructor-card__text small {
+  font-size: 10px;
+}
+
+.manager-board-screen .manager-board-ring__inner strong {
+  font-size: 18px;
+}
+
+.manager-board-screen .manager-board-ring__inner span {
+  font-size: 9px;
+}
+
+.manager-board-screen .manager-board-empty {
+  font-size: 13px;
+}
+
+.manager-board-screen .manager-workspace-tab {
+  font-size: 15px;
+}
+
+.manager-board-screen .manager-workspace-alert-strip__title strong {
+  font-size: 1.12rem;
+}
+
+.manager-board-screen .manager-workspace-alert-strip__title span {
+  font-size: .92rem;
+}
+
+.manager-board-screen .manager-workspace-alert-strip article span {
+  font-size: .93rem;
+}
+
+.manager-board-screen .manager-workspace-alert-strip article strong {
+  font-size: 1.34rem;
+}
+
+.manager-board-screen .manager-workspace-table th {
+  font-size: .91rem;
+}
+
+.manager-board-screen .manager-workspace-table td strong {
+  font-size: 1.04rem;
+}
+
+.manager-board-screen .manager-workspace-table td small {
+  font-size: .85rem;
+}
+
+.manager-board-screen .manager-workspace-status {
+  font-size: .87rem;
+}
+
+.manager-board-screen .manager-workspace-report-count {
+  font-size: .94rem;
 }

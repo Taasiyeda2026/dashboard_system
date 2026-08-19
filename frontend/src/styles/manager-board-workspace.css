@@ -39,6 +39,7 @@
   grid-template-columns:minmax(170px,1.35fr) repeat(4,minmax(110px,.75fr));
   gap:10px;
   align-items:stretch;
+  margin:0 0 16px;
   padding:12px;
   border:1px solid #dbe3ee;
   border-radius:14px;
@@ -152,28 +153,10 @@
 }
 .manager-workspace-folder-link{padding:5px 9px;border:1px solid #bfdbfe;background:#eff6ff;color:#1d4ed8}
 .manager-workspace-person{min-width:180px}
-.manager-workspace-check{display:inline-flex;align-items:center;justify-content:center;cursor:pointer}
-.manager-workspace-check input{position:absolute;opacity:0;pointer-events:none}
-.manager-workspace-check span{
-  width:25px;
-  height:25px;
-  display:inline-flex;
-  align-items:center;
-  justify-content:center;
-  border:1px solid #cbd5e1;
-  border-radius:7px;
-  background:#fff;
-  transition:all .14s ease;
-}
-.manager-workspace-check span::after{content:'✓';font-size:16px;font-weight:900;color:transparent}
-.manager-workspace-check input:checked+span{border-color:#86efac;background:#dcfce7}
-.manager-workspace-check input:checked+span::after{color:#166534}
-.manager-workspace-check input:focus-visible+span{outline:2px solid #60a5fa;outline-offset:2px}
-.manager-workspace-check input:disabled+span{opacity:.5;cursor:wait}
 .manager-workspace-tracking-table td:not(:first-child){text-align:center}
-.manager-workspace-tracking-table tbody tr.is-saved{background:#f0fdf4}
+.manager-workspace-followup-cell.is-done{color:#166534;font-size:1rem;font-weight:900}
+.manager-workspace-followup-cell--blocked{background:#f1f5f9}
 .manager-workspace-source-note{margin:0;padding:12px 16px;border-top:1px solid #e2e8f0;background:#f8fafc;color:#64748b;font-size:.8rem}
-.manager-workspace-row-error{display:block!important;color:#b91c1c!important;font-weight:700;margin-top:4px!important}
 .manager-workspace-empty,.manager-workspace-loading,.manager-workspace-error{margin:0;padding:28px;text-align:center;color:#64748b;background:#fff;border:1px solid #e2e8f0;border-radius:14px}
 .manager-workspace-loading{border-style:dashed}
 .manager-workspace-error{display:grid;justify-items:center;gap:7px;color:#b91c1c}

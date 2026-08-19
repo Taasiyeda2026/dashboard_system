@@ -3,6 +3,7 @@ import { supabase } from '../supabase-client.js';
 const EMPLOYEE_FILE_COMPONENT_KEYS = [
   'signed_agreement',
   'supporting_documents',
+  'police_clearance',
   'intro_feedback',
   'midyear_feedback',
   'year_end_feedback',
@@ -10,6 +11,10 @@ const EMPLOYEE_FILE_COMPONENT_KEYS = [
   'observation_2',
   'payroll_reports'
 ];
+
+function isFemaleGender(value) {
+  return String(value || '').trim().toLowerCase() === 'female';
+}
 
 function openEmployeeFileRoot(empId) {
   if (typeof document === 'undefined') return null;
@@ -22,8 +27,10 @@ export function applyEmployeeFileSnapshotToOpenModal(empId, payload = {}) {
   const root = openEmployeeFileRoot(empId);
   if (!root) return false;
   const byKey = new Map((payload.components || []).map((item) => [String(item?.component_key || ''), item]));
+  const isFemale = isFemaleGender(payload.gender);
 
   for (const key of EMPLOYEE_FILE_COMPONENT_KEYS.filter((item) => item !== 'payroll_reports')) {
+    if (key === 'police_clearance' && isFemale) continue; // stays rendered as the blocked card from the initial modal HTML.
     const item = byKey.get(key) || {};
     const completed = item.completed === true || Number(item.item_count) > 0;
     const card = root.querySelector(`.employee-file__item--${key} .employee-file__card`);

@@ -10,6 +10,7 @@ import {
   SCHOOL_2027_END_DATE
 } from './screens/shared/summer-activity.js';
 import { escapeHtml } from './screens/shared/html.js';
+import { loadActiveBirthdays } from './birthday-calendar.js';
 
 const MANAGER_BOARD_ACCESS_ROLES = new Set([
   'admin',
@@ -233,6 +234,25 @@ function managerNamesFromData(data) {
   return [...names].sort((a, b) => a.localeCompare(b, 'he'));
 }
 
+const INACTIVE_INSTRUCTOR_VALUES = new Set(['no', 'false', '0', 'לא', 'לא פעיל', 'inactive', 'n']);
+export function isActiveInstructor(instructor) {
+  const value = normalizedText(instructor?.active).toLocaleLowerCase('he-IL');
+  return !INACTIVE_INSTRUCTOR_VALUES.has(value);
+}
+
+export function activeTeamNamesForManager(data, manager) {
+  const key = normalizedName(manager);
+  if (!key) return [];
+  const names = new Set();
+  (data?.instructors || []).forEach((instructor) => {
+    if (normalizedName(instructor?.direct_manager) !== key) return;
+    if (!isActiveInstructor(instructor)) return;
+    const name = normalizedText(instructor?.full_name);
+    if (name) names.add(name);
+  });
+  return [...names].sort((a, b) => a.localeCompare(b, 'he'));
+}
+
 function safeRows(result) {
   if (!result || result.error || !Array.isArray(result.data)) return [];
   return result.data;
@@ -273,12 +293,13 @@ async function loadBoardData(period) {
     .eq('role', 'activities_manager')
     .eq('is_active', true);
 
-  const [activitiesResult, instructorsResult, profileResult, calendarResult, managerUsersResult] = await Promise.all([
+  const [activitiesResult, instructorsResult, profileResult, calendarResult, managerUsersResult, birthdayRows] = await Promise.all([
     activityQuery,
     instructorsQuery,
     profileQuery,
     calendarQuery,
-    managerUsersQuery
+    managerUsersQuery,
+    loadActiveBirthdays().catch(() => [])
   ]);
 
   if (activitiesResult.error) {
@@ -291,7 +312,8 @@ async function loadBoardData(period) {
     instructors: safeRows(instructorsResult),
     profiles: safeRows(profileResult),
     schoolCalendar: safeRows(calendarResult),
-    managerUsers: safeRows(managerUsersResult)
+    managerUsers: safeRows(managerUsersResult),
+    birthdays: Array.isArray(birthdayRows) ? birthdayRows : []
   };
 
   dataCache.set(normalizedPeriod, { data, loadedAt: Date.now() });
@@ -501,26 +523,62 @@ function renderMilestones(meetings) {
   }).join('');
 }
 
-function renderSchoolEvents(events) {
-  const unique = [];
+export function birthdaysForMonth(rows, ym) {
+  const [yearText, monthText] = String(ym || '').split('-');
+  const year = Number(yearText);
+  const month = Number(monthText);
+  if (!year || !month) return [];
+  const byDay = new Map();
+  (rows || []).forEach((row) => {
+    const day = Number(row?.birth_day);
+    if (Number(row?.birth_month) !== month || !day || day < 1 || day > 31) return;
+    const name = normalizedText(row?.employee_name);
+    if (!name) return;
+    const iso = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    if (!byDay.has(iso)) byDay.set(iso, []);
+    byDay.get(iso).push(name);
+  });
+  return [...byDay.entries()].map(([iso, names]) => ({
+    iso,
+    title: names.length === 1 ? `יום הולדת ל${names[0]}` : `ימי הולדת: ${names.join(' · ')}`,
+    isBirthday: true
+  }));
+}
+
+/** "תאריכים חשובים": the main calendar's non-activity layer (holidays/events) plus everyone's birthdays, month-only. */
+export function importantDateEntries(schoolEvents, birthdayRows, ym) {
+  const entries = [];
   const seen = new Set();
-  events.forEach((event) => {
+  schoolEvents.forEach((event) => {
     const key = `${event.iso}|${event.title}`;
     if (seen.has(key)) return;
     seen.add(key);
-    unique.push(event);
+    entries.push({
+      iso: event.iso,
+      title: event.title || event.dayStatus || 'אירוע לוח',
+      isBirthday: false,
+      blocksScheduling: event.blocksScheduling
+    });
   });
-  if (!unique.length) {
-    return '<div class="manager-board-empty manager-board-empty--compact">אין חגים או אירועי לוח להצגה בחודש זה.</div>';
+  entries.push(...birthdaysForMonth(birthdayRows, ym));
+  return entries.sort((a, b) => a.iso.localeCompare(b.iso));
+}
+
+function renderImportantDates(entries) {
+  if (!entries.length) {
+    return '<div class="manager-board-empty manager-board-empty--compact">אין תאריכים חשובים להצגה בחודש זה.</div>';
   }
-  return unique.slice(0, 8).map((event) => `
-    <div class="manager-board-school-event${event.blocksScheduling ? ' is-blocking' : ''}">
-      <time datetime="${escapeAttr(event.iso)}">${escapeHtml(formatShortDate(event.iso))}</time>
-      <span>${escapeHtml(event.title || event.dayStatus || 'אירוע לוח')}</span>
+  return entries.slice(0, 20).map((entry) => `
+    <div class="manager-board-school-event${entry.blocksScheduling ? ' is-blocking' : ''}${entry.isBirthday ? ' is-birthday' : ''}">
+      <time datetime="${escapeAttr(entry.iso)}">${escapeHtml(formatShortDate(entry.iso))}</time>
+      <span>${entry.isBirthday ? '🎂 ' : ''}${escapeHtml(entry.title)}</span>
     </div>`).join('');
 }
 
-function meetingEventHtml(meeting) {
+const CALENDAR_DAY_PREVIEW_LIMIT = 2;
+
+/** Non-interactive preview line inside a day cell — identity comes from the activity name, not the school. */
+function meetingPreviewHtml(meeting) {
   const activity = meeting.activity || {};
   const school = normalizedText(activity.school) || 'ללא בית ספר';
   const activityName = normalizedText(activity.activity_name || activity.program_name) || 'פעילות';
@@ -538,8 +596,8 @@ function meetingEventHtml(meeting) {
 
   return `
     <div class="manager-board-calendar-event${milestoneClass}" title="${escapeAttr(title)}">
-      <strong>${escapeHtml(start || '•')}</strong>
-      <span>${escapeHtml(school)}</span>
+      ${start ? `<strong>${escapeHtml(start)}</strong>` : ''}
+      <span>${escapeHtml(activityName)}</span>
       ${meeting.isMidpoint || meeting.isEnd ? `<em>${meeting.isEnd ? 'סיום' : 'אמצע'}</em>` : ''}
     </div>`;
 }
@@ -569,21 +627,23 @@ function renderCalendar(ym, meetings, schoolEvents) {
     const iso = `${ym}-${String(day).padStart(2, '0')}`;
     const dayMeetings = meetingsByDate.get(iso) || [];
     const daySchoolEvents = schoolByDate.get(iso) || [];
-    const visibleMeetings = dayMeetings.slice(0, 3);
+    const visibleMeetings = dayMeetings.slice(0, CALENDAR_DAY_PREVIEW_LIMIT);
     const extra = dayMeetings.length - visibleMeetings.length;
     const blocking = daySchoolEvents.some((event) => event.blocksScheduling);
     const schoolLabel = daySchoolEvents[0]?.title || '';
     const isToday = iso === new Date().toLocaleDateString('en-CA');
+    const hasMeetings = dayMeetings.length > 0;
 
     cells.push(`
-      <div class="manager-board-calendar-day${blocking ? ' is-school-blocked' : ''}${isToday ? ' is-today' : ''}">
+      <div class="manager-board-calendar-day${blocking ? ' is-school-blocked' : ''}${isToday ? ' is-today' : ''}"${hasMeetings ? ` data-manager-board-day="${escapeAttr(iso)}"` : ''}>
         <div class="manager-board-calendar-day__head">
           <span class="manager-board-calendar-day__number">${day}</span>
           ${schoolLabel ? `<span class="manager-board-calendar-day__school" title="${escapeAttr(schoolLabel)}">${escapeHtml(schoolLabel)}</span>` : ''}
         </div>
         <div class="manager-board-calendar-day__events">
-          ${visibleMeetings.map(meetingEventHtml).join('')}
-          ${extra > 0 ? `<span class="manager-board-calendar-more">+${extra} מפגשים</span>` : ''}
+          ${hasMeetings ? `<span class="manager-board-calendar-day__count">${dayMeetings.length} פעילויות</span>` : ''}
+          ${visibleMeetings.map(meetingPreviewHtml).join('')}
+          ${extra > 0 ? `<span class="manager-board-calendar-more">+${extra} נוספות</span>` : ''}
         </div>
       </div>`);
   }
@@ -633,7 +693,18 @@ function monthNavigationHtml(ym, period) {
     </div>`;
 }
 
-function workspaceShellHtml() {
+function activeTeamStripHtml(names) {
+  const body = names.length
+    ? `<div class="manager-board-team-strip__grid">${names.map((name) => `<span class="manager-board-team-strip__chip">${escapeHtml(name)}</span>`).join('')}</div>`
+    : '<div class="manager-board-empty manager-board-empty--compact">אין מדריכים פעילים משויכים למנהל זה.</div>';
+  return `
+    <section class="manager-board-team-strip" data-manager-board-team-strip>
+      <h2 class="manager-board-team-strip__title">צוות המדריכים הפעיל</h2>
+      ${body}
+    </section>`;
+}
+
+function workspaceShellHtml(activeTeamHtml) {
   // Tab id `payroll-attendance` is kept for backward compatibility; the UI label is "בקרת נוכחות אדמין".
   const adminTab = currentRole() === 'admin'
     ? '<button type="button" class="manager-workspace-tab" data-manager-workspace-tab="payroll-attendance" aria-selected="false">בקרת נוכחות אדמין</button>'
@@ -644,6 +715,7 @@ function workspaceShellHtml() {
     <button type="button" class="manager-workspace-tab" data-manager-workspace-tab="tracking" aria-selected="false">מעקב</button>
     ${adminTab}
   </nav>
+  ${activeTeamHtml}
   <section class="manager-workspace-management-alerts" data-manager-workspace-management-alerts></section>
   <section class="manager-workspace-view" data-manager-workspace-view hidden></section>`;
 }
@@ -652,21 +724,21 @@ function renderBoardMarkup(data, manager, ym) {
   const period = data.period;
   const activities = managerActivitiesFor(data, manager);
   const meetings = buildMeetingRows(activities, ym);
+  const nextYm = shiftMonth(ym, 1);
+  const nextMonthMeetings = buildMeetingRows(activities, nextYm);
   const instructorStats = instructorMonthStats(meetings, data);
   const schoolEvents = schoolCalendarEventsForMonth(data.schoolCalendar, ym);
-  const plannedHours = meetings.reduce((sum, meeting) => sum + (meeting.durationHours || 0), 0);
-  const knownHourMeetings = meetings.filter((meeting) => meeting.durationHours != null).length;
   const managerNames = managerNamesFromData(data);
   const configuredTeam = (data.instructors || []).filter((instructor) =>
     normalizedName(instructor?.direct_manager) === normalizedName(manager)
   );
   const uniqueActivityRows = new Set(activities.map((activity) => normalizedText(activity.row_id || activity.id)).filter(Boolean));
+  const activeTeamNames = activeTeamNamesForManager(data, manager);
 
   return `
     <section class="manager-board-screen" data-manager-board-root dir="rtl">
       <div class="manager-board-hero">
         <div>
-          <span class="manager-board-eyebrow">לוח מנהל · ${escapeHtml(globalActivityPeriodLabel(period))}</span>
           <h1>לוח מנהל פעילות</h1>
           <p>תמונה חודשית אחת של הפעילויות, המדריכים ונקודות הבקרה.</p>
         </div>
@@ -676,7 +748,7 @@ function renderBoardMarkup(data, manager, ym) {
         </div>
       </div>
 
-      ${workspaceShellHtml()}
+      ${workspaceShellHtml(activeTeamStripHtml(activeTeamNames))}
 
       <div class="manager-board-kpis">
         <article>
@@ -685,19 +757,9 @@ function renderBoardMarkup(data, manager, ym) {
           <small>${configuredTeam.length ? `${configuredTeam.length} מדריכים משויכים למנהל` : 'לפי הפעילויות המשויכות'}</small>
         </article>
         <article>
-          <span>מפגשים בחודש</span>
-          <strong>${meetings.length}</strong>
-          <small>${escapeHtml(monthLabel(ym))}</small>
-        </article>
-        <article>
           <span>מדריכים החודש</span>
           <strong>${instructorStats.length}</strong>
           <small>מדריכים עם מפגש מתוכנן בפועל</small>
-        </article>
-        <article>
-          <span>שעות מתוכננות</span>
-          <strong>${escapeHtml(plannedHoursText(plannedHours, knownHourMeetings))}</strong>
-          <small>${knownHourMeetings === meetings.length ? 'לפי שעות הפעילויות' : `${knownHourMeetings} מתוך ${meetings.length} מפגשים עם שעות מלאות`}</small>
         </article>
       </div>
 
@@ -723,17 +785,25 @@ function renderBoardMarkup(data, manager, ym) {
                 <h2>נקודות בקרה</h2>
               </div>
             </div>
-            <div class="manager-board-milestones">${renderMilestones(meetings)}</div>
+            <div class="manager-board-milestones-group">
+              <div class="manager-board-milestones-group__part">
+                <p class="manager-board-milestones-group__label">נקודות בקרה – החודש</p>
+                <div class="manager-board-milestones">${renderMilestones(meetings)}</div>
+              </div>
+              <div class="manager-board-milestones-group__part">
+                <p class="manager-board-milestones-group__label">נקודות בקרה – חודש הבא</p>
+                <div class="manager-board-milestones">${renderMilestones(nextMonthMeetings)}</div>
+              </div>
+            </div>
           </section>
 
           <section class="manager-board-panel">
             <div class="manager-board-panel__head">
               <div>
-                <h2>לוח משרד החינוך</h2>
-                <p>חגים ואירועים רלוונטיים לחודש</p>
+                <h2>תאריכים חשובים</h2>
               </div>
             </div>
-            <div class="manager-board-school-events">${renderSchoolEvents(schoolEvents)}</div>
+            <div class="manager-board-school-events">${renderImportantDates(importantDateEntries(schoolEvents, data.birthdays, ym))}</div>
           </section>
         </aside>
       </div>
