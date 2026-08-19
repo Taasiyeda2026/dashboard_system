@@ -1,5 +1,6 @@
 const BOARD_SELECTOR = '.manager-board-screen[data-manager-board-root]';
 let scheduled = false;
+let openPhoneChip = null;
 
 function activeWorkspaceTab(boardRoot) {
   return boardRoot?.querySelector('[data-manager-workspace-tab].is-active')?.getAttribute('data-manager-workspace-tab') || 'management';
@@ -22,6 +23,31 @@ function setButtonTitle(button, value) {
   }
 }
 
+function closePhonePopover() {
+  if (!openPhoneChip) return;
+  openPhoneChip.querySelector('.manager-board-phone-popover')?.remove();
+  openPhoneChip.classList.remove('is-phone-open');
+  openPhoneChip.setAttribute('aria-expanded', 'false');
+  openPhoneChip = null;
+}
+
+function togglePhonePopover(chip) {
+  if (!chip) return;
+  const alreadyOpen = openPhoneChip === chip && chip.querySelector('.manager-board-phone-popover');
+  closePhonePopover();
+  if (alreadyOpen) return;
+
+  const popover = document.createElement('span');
+  popover.className = 'manager-board-phone-popover';
+  popover.dir = 'ltr';
+  popover.textContent = String(chip.dataset.instructorMobile || '').trim() || '—';
+  chip.style.position = 'relative';
+  chip.classList.add('is-phone-open');
+  chip.setAttribute('aria-expanded', 'true');
+  chip.appendChild(popover);
+  openPhoneChip = chip;
+}
+
 function syncManagementMonthNavigation(boardRoot) {
   const nav = boardRoot?.querySelector('.manager-board-month-nav');
   if (!nav) return;
@@ -30,13 +56,15 @@ function syncManagementMonthNavigation(boardRoot) {
   if (!previous || !next) return;
 
   const isManagement = activeWorkspaceTab(boardRoot) === 'management';
-  nav.classList.toggle('manager-board-month-nav--labeled', isManagement);
+  nav.classList.toggle('manager-board-month-nav--arrows', isManagement);
+  nav.classList.remove('manager-board-month-nav--labeled');
 
   if (isManagement) {
-    setButtonText(previous, '‹ חודש קודם');
-    setButtonText(next, 'חודש הבא ›');
-    setButtonTitle(previous, previous.disabled ? 'זהו החודש הראשון בשנת הפעילות' : 'מעבר לחודש הקודם');
-    setButtonTitle(next, next.disabled ? 'זהו החודש האחרון בשנת הפעילות' : 'מעבר לחודש הבא');
+    // RTL timeline: previous month is on the right and next month is on the left.
+    setButtonText(previous, '›');
+    setButtonText(next, '‹');
+    setButtonTitle(previous, previous.disabled ? 'זהו החודש הראשון בשנת הפעילות' : 'החודש הקודם');
+    setButtonTitle(next, next.disabled ? 'זהו החודש האחרון בשנת הפעילות' : 'החודש הבא');
   } else {
     setButtonText(previous, '‹');
     setButtonText(next, '›');
@@ -59,14 +87,28 @@ function scheduleSync() {
   requestAnimationFrame(syncBoard);
 }
 
+function handleDocumentClick(event) {
+  const target = event.target instanceof Element ? event.target : null;
+  if (!target) return;
+
+  const instructorChip = target.closest('button.manager-board-team-strip__chip[data-instructor-mobile]');
+  if (instructorChip) {
+    // Delegated handling keeps phone clicks working after every board re-render and avoids double-toggle with the older per-chip listener.
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    togglePhonePopover(instructorChip);
+    return;
+  }
+
+  if (!target.closest('.manager-board-phone-popover')) closePhonePopover();
+  if (target.closest('[data-manager-workspace-tab], [data-manager-board-month]')) scheduleSync();
+}
+
 function start() {
   const root = document.getElementById('app') || document.documentElement;
   const observer = new MutationObserver(scheduleSync);
   observer.observe(root, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'disabled'] });
-  document.addEventListener('click', (event) => {
-    const target = event.target instanceof Element ? event.target : null;
-    if (target?.closest('[data-manager-workspace-tab], [data-manager-board-month]')) scheduleSync();
-  }, true);
+  document.addEventListener('click', handleDocumentClick, true);
   scheduleSync();
 }
 
