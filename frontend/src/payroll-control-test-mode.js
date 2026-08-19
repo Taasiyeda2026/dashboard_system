@@ -354,7 +354,7 @@ async function activateTestMode(doc) {
     panel.dataset.payrollTestMode = 'true';
     installResultCapture(panel, moduleApi);
 
-    title.textContent = 'בקרת שכר – מצב בדיקה תשפ״ז';
+    title.textContent = 'בקרת נוכחות – מצב בדיקה תשפ״ז';
     status.textContent = '';
     results.innerHTML = `<div class="payroll-test-mode-banner">מצב בדיקה תשפ״ז — שני מקורות נפרדים, כמו בעבודה האמיתית.<small>נוכחות: ${sourceData.attendanceRecords.length} דיווחי שכר במבנה Attendance. דשבורד: ${sourceData.dashboardSources.activities.length} פעילויות מתוכננות, עם נתוני מסלול והוצאות לבקרה. המנוע עצמו לא תוקן כאן — מצב הבדיקה נועד לחשוף איפה הבקרה הנוכחית מקבלת החלטה לא נכונה. אין קריאה או כתיבה ל-Supabase או למערכת הנוכחות.</small></div>${moduleApi.resultsHtml(result, PAYROLL_TEST_MONTH)}`;
     results.querySelector('[data-attendance-export]')?.remove();

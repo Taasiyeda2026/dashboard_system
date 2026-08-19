@@ -1,6 +1,9 @@
 import { api } from './api.js';
 import { supabase, waitForSupabaseAuthSession } from './supabase-client.js';
 
+// Internal RPC/API names stay `payroll-attendance*` for backward compatibility.
+// User-facing screens use "בקרת נוכחות".
+
 const text = (value) => String(value ?? '').trim();
 
 function legacyRecord(row = {}) {

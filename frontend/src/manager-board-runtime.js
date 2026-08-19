@@ -634,8 +634,9 @@ function monthNavigationHtml(ym, period) {
 }
 
 function workspaceShellHtml() {
+  // Tab id `payroll-attendance` is kept for backward compatibility; the UI label is "בקרת נוכחות אדמין".
   const adminTab = currentRole() === 'admin'
-    ? '<button type="button" class="manager-workspace-tab" data-manager-workspace-tab="payroll-attendance" aria-selected="false">בקרת שכר/נוכחות</button>'
+    ? '<button type="button" class="manager-workspace-tab" data-manager-workspace-tab="payroll-attendance" aria-selected="false">בקרת נוכחות אדמין</button>'
     : '';
   return `<nav class="manager-workspace-tabs" data-manager-workspace-tabs aria-label="לשוניות לוח מנהל">
     <button type="button" class="manager-workspace-tab is-active" data-manager-workspace-tab="management" aria-selected="true">ניהול</button>

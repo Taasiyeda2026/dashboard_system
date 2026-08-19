@@ -442,7 +442,7 @@ export function payrollControlApprovalsListHtml(approvals = [], { user } = {}) {
       .payroll-approvals__table th,.payroll-approvals__table td{padding:8px;border-bottom:1px solid #e2e8f0;text-align:right}
       .payroll-approvals__empty{margin:0;color:#64748b}
     </style>
-    <div class="payroll-approvals__head"><strong>אישורי בקרת שכר</strong>${exportButton}</div>
+    <div class="payroll-approvals__head"><strong>אישורי בקרת נוכחות</strong>${exportButton}</div>
     ${body}
   </section>`;
 }

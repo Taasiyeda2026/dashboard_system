@@ -36,7 +36,7 @@ test('payroll control opening screen uses direct monthly sources and no workbook
   const html = attendanceControlHtml();
   assert.match(html, /חודש בקרה/);
   assert.match(html, /צוות/);
-  assert.match(html, /אישור בקרת שכר/);
+  assert.match(html, /אישור בקרת נוכחות/);
   assert.equal((html.match(/type="file"/g) || []).length, 0);
   assert.doesNotMatch(html, /data-attendance-dashboard/);
   assert.match(html, /data-attendance-month/);
@@ -79,7 +79,7 @@ test('selecting July excludes August attendance rows', () => {
 test('July title and export name use the explicitly selected month', () => {
   assert.equal(attendanceMonthLabel('2026-07'), 'יולי 2026');
   assert.equal(attendanceExportFilename('2026-07'), 'דוח_נוכחות_מתוקן_יולי_2026.xlsx');
-  assert.match(attendanceControlHtml(), /data-attendance-title>בקרת שכר/);
+  assert.match(attendanceControlHtml(), /data-attendance-title>בקרת נוכחות/);
 });
 
 test('a workbook without July attendance produces the clear selected-month message', () => {
@@ -1509,7 +1509,7 @@ test('admin payroll attendance tab is wired for final approval and unlock withou
   const workspace = await readFile(new URL('../frontend/src/manager-board-workspace-runtime.js', import.meta.url), 'utf8');
   const board = await readFile(new URL('../frontend/src/manager-board-runtime.js', import.meta.url), 'utf8');
   const migration = await readFile(new URL('../supabase/migrations/20260819003500_attendance_month_manager_admin_flow.sql', import.meta.url), 'utf8');
-  assert.match(board, /data-manager-workspace-tab="payroll-attendance"[^>]*>בקרת שכר\/נוכחות</);
+  assert.match(board, /data-manager-workspace-tab="payroll-attendance"[^>]*>בקרת נוכחות אדמין</);
   assert.match(workspace, /activeTab === 'payroll-attendance'/);
   assert.match(workspace, /renderPayrollAttendanceAdmin/);
   assert.match(workspace, /adminFinalizeAttendanceMonthPayroll/);
