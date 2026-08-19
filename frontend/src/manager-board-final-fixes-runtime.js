@@ -1,6 +1,7 @@
 const BOARD_SELECTOR = '.manager-board-screen[data-manager-board-root]';
 let scheduled = false;
 let openPhoneChip = null;
+let phonePopover = null;
 
 function activeWorkspaceTab(boardRoot) {
   return boardRoot?.querySelector('[data-manager-workspace-tab].is-active')?.getAttribute('data-manager-workspace-tab') || 'management';
@@ -24,8 +25,9 @@ function setButtonTitle(button, value) {
 }
 
 function closePhonePopover() {
+  phonePopover?.remove();
+  phonePopover = null;
   if (!openPhoneChip) return;
-  openPhoneChip.querySelector('.manager-board-phone-popover')?.remove();
   openPhoneChip.classList.remove('is-phone-open');
   openPhoneChip.setAttribute('aria-expanded', 'false');
   openPhoneChip = null;
@@ -33,7 +35,7 @@ function closePhonePopover() {
 
 function togglePhonePopover(chip) {
   if (!chip) return;
-  const alreadyOpen = openPhoneChip === chip && chip.querySelector('.manager-board-phone-popover');
+  const alreadyOpen = openPhoneChip === chip && phonePopover;
   closePhonePopover();
   if (alreadyOpen) return;
 
@@ -41,10 +43,19 @@ function togglePhonePopover(chip) {
   popover.className = 'manager-board-phone-popover';
   popover.dir = 'ltr';
   popover.textContent = String(chip.dataset.instructorMobile || '').trim() || '—';
-  chip.style.position = 'relative';
   chip.classList.add('is-phone-open');
   chip.setAttribute('aria-expanded', 'true');
-  chip.appendChild(popover);
+  document.body.appendChild(popover);
+  const chipRect = chip.getBoundingClientRect();
+  const popoverRect = popover.getBoundingClientRect();
+  const left = Math.max(12, Math.min(window.innerWidth - popoverRect.width - 12, chipRect.left + ((chipRect.width - popoverRect.width) / 2)));
+  const preferredTop = chipRect.bottom + 8;
+  const top = preferredTop + popoverRect.height <= window.innerHeight - 12
+    ? preferredTop
+    : Math.max(12, chipRect.top - popoverRect.height - 8);
+  popover.style.left = `${left}px`;
+  popover.style.top = `${top}px`;
+  phonePopover = popover;
   openPhoneChip = chip;
 }
 
@@ -109,6 +120,9 @@ function start() {
   const observer = new MutationObserver(scheduleSync);
   observer.observe(root, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'disabled'] });
   document.addEventListener('click', handleDocumentClick, true);
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') closePhonePopover();
+  });
   scheduleSync();
 }
 

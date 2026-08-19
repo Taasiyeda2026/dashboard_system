@@ -22,7 +22,7 @@ export async function delegatedMailToken(loginHint = '', { interactive = true } 
     await msalClient.initialize();
     await msalClient.handleRedirectPromise();
   }
-  const request = { scopes: ['Mail.ReadWrite'], loginHint: loginHint || undefined };
+  const request = { scopes: ['Mail.ReadWrite', 'Mail.Send'], loginHint: loginHint || undefined };
   const account = msalClient.getAllAccounts()[0];
   if (account) {
     try { return (await msalClient.acquireTokenSilent({ ...request, account })).accessToken; }
@@ -52,7 +52,7 @@ export async function graphMailRequest(token, path, options = {}) {
     error.retryAfter = Number(response.headers.get('retry-after') || 0);
     throw error;
   }
-  return response.status === 204 ? null : response.json();
+  return response.status === 204 || response.status === 202 ? null : response.json();
 }
 
 export async function createGraphDraft({ token, subject, body, to, cc = [], extendedProperties = [] }) {
@@ -82,4 +82,8 @@ export function addGraphFileAttachment(token, messageId, attachment) {
 
 export function deleteGraphDraft(token, messageId) {
   return graphMailRequest(token, `/me/messages/${encodeURIComponent(messageId)}`, { method: 'DELETE' });
+}
+
+export function sendGraphMessage(token, messageId) {
+  return graphMailRequest(token, `/me/messages/${encodeURIComponent(messageId)}/send`, { method: 'POST' });
 }

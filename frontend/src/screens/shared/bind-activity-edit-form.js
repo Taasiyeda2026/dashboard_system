@@ -457,6 +457,13 @@ export function bindActivityEditForm(contentRoot, {
 
     if (!validateActivityTypeAndName(form, statusEl)) return;
 
+    // This flag is intentionally produced by the edit form only when the
+    // user changed the visible name. Generic API callers must not turn a
+    // catalog-controlled name into a manual override by accident.
+    if (Object.prototype.hasOwnProperty.call(changes, 'activity_name')) {
+      changes.activity_name_override = true;
+    }
+
     const effectiveType = normalizeOneDayActivityType(changes.activity_type || initialValues.activity_type || '');
     if (effectiveType) {
       const effectiveName = String(changes.activity_name ?? form.querySelector('[name="activity_name"]')?.value ?? initialValues.activity_name ?? '').trim();

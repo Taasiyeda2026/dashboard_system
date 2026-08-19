@@ -1,5 +1,5 @@
 import { supabase } from '../supabase-client.js';
-import { addGraphFileAttachment, createGraphDraft, delegatedMailToken, deleteGraphDraft, graphMailRequest } from '../microsoft/graph-mail.js';
+import { addGraphFileAttachment, createGraphDraft, delegatedMailToken, deleteGraphDraft, graphMailRequest, sendGraphMessage } from '../microsoft/graph-mail.js';
 import { coordinationMailContent, coordinationPdfFilename, documentDataHash, groupActivitiesForDispatch } from './domain.js';
 import { blobToBase64, generateActivityCoordinationPdf } from './pdf.js';
 import { COORDINATION_DOCUMENT_VERSION, finishDispatch, markDispatchDraft, recordReconciliationException, reserveDispatch } from './data.js';
@@ -105,6 +105,51 @@ export async function prepareCoordinationDrafts(items, { loginHint = '', onProgr
     photographyApprovalAttachment()
   ]);
   return runSequentialGroups(groups, (group) => prepareCoordinationDraftGroup(group, { token }), onProgress);
+}
+
+/**
+ * A retry reuses the idempotent draft for this document hash. The dispatch is
+ * marked sent only after Graph accepts its /send request.
+ */
+export async function sendCoordinationDispatchGroup(group, { token } = {}) {
+  const prepared = await prepareCoordinationDraftGroup(group, { token });
+  const dispatch = {
+    ...(prepared.dispatch || {}),
+    graph_message_id: prepared.draft?.id || prepared.dispatch?.graph_message_id || ''
+  };
+  const messageId = String(dispatch.graph_message_id || '').trim();
+  if (!messageId) {
+    throw new Error('אישור התיאום כבר נמצא בהכנה. נסו שוב בעוד רגע — לא נוצר מייל כפול.');
+  }
+
+  if (prepared.existing) {
+    const prior = await reconcileDispatch(dispatch, token);
+    if (prior.status === 'sent') {
+      return { ...prepared, dispatch, sent: true, alreadySent: true, sentAt: prior.sentAt };
+    }
+    if (prior.status !== 'draft') {
+      throw new Error('לא ניתן לשלוח את טיוטת אישור התיאום הקיימת. רעננו את המסך ונסו שוב.');
+    }
+  }
+
+  try {
+    await sendGraphMessage(token, messageId);
+    const sentAt = new Date().toISOString();
+    await finishDispatch(dispatch.id, 'sent', sentAt);
+    return { ...prepared, dispatch, sent: true, alreadySent: false, sentAt };
+  } catch (error) {
+    await recordReconciliationException(
+      dispatch.id,
+      `שליחת אישור התיאום נכשלה: ${String(error?.message || error)}`
+    ).catch(() => {});
+    throw error;
+  }
+}
+
+export async function sendCoordinationDispatches(items, { loginHint = '', onProgress = () => {} } = {}) {
+  const groups = dispatchGroups(items);
+  const token = await delegatedMailToken(loginHint);
+  return runSequentialGroups(groups, (group) => sendCoordinationDispatchGroup(group, { token }), onProgress);
 }
 
 export async function runSequentialGroups(groups, worker, onProgress = () => {}) {
