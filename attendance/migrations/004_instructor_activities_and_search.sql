@@ -28,10 +28,10 @@ AS $$
       a.activity_season,
       a.program_name,
       a.authority_id,
-      COALESCE(auth.name, a.authority) AS authority_name,
-      a.school_id                      AS single_school_id,
-      COALESCE(sch.name, a.school)     AS single_school_name,
-      sch.semel_mosad                  AS single_semel_mosad,
+      COALESCE(auth.authority_name, a.authority) AS authority_name,
+      a.school_id                               AS single_school_id,
+      COALESCE(sch.school_name, a.school)       AS single_school_name,
+      sch.semel_mosad                           AS single_semel_mosad,
       CASE
         WHEN COALESCE(linked.cnt, 0) > 1 THEN 'multiple_schools'
         WHEN a.school_id IS NOT NULL OR btrim(COALESCE(a.school, '')) <> '' THEN 'single_school'
@@ -47,9 +47,9 @@ AS $$
         COALESCE(jsonb_agg(
           jsonb_build_object(
             'id',          ls.id,
-            'name',        ls.name,
+            'name',        ls.school_name,
             'semel_mosad', ls.semel_mosad
-          ) ORDER BY ls.name
+          ) ORDER BY ls.school_name
         ) FILTER (WHERE ls.id IS NOT NULL), '[]'::jsonb) AS linked_schools_json
       FROM public.activity_schools acs
       JOIN public.schools ls ON ls.id = acs.school_id
@@ -96,10 +96,10 @@ AS $$
       a.activity_season,
       a.program_name,
       a.authority_id,
-      COALESCE(auth.name, a.authority) AS authority_name,
-      a.school_id                      AS single_school_id,
-      COALESCE(sch.name, a.school)     AS single_school_name,
-      sch.semel_mosad                  AS single_semel_mosad,
+      COALESCE(auth.authority_name, a.authority) AS authority_name,
+      a.school_id                               AS single_school_id,
+      COALESCE(sch.school_name, a.school)       AS single_school_name,
+      sch.semel_mosad                           AS single_semel_mosad,
       CASE
         WHEN COALESCE(linked.cnt, 0) > 1 THEN 'multiple_schools'
         WHEN a.school_id IS NOT NULL OR btrim(COALESCE(a.school, '')) <> '' THEN 'single_school'
@@ -116,9 +116,9 @@ AS $$
         COALESCE(jsonb_agg(
           jsonb_build_object(
             'id',          ls.id,
-            'name',        ls.name,
+            'name',        ls.school_name,
             'semel_mosad', ls.semel_mosad
-          ) ORDER BY ls.name
+          ) ORDER BY ls.school_name
         ) FILTER (WHERE ls.id IS NOT NULL), '[]'::jsonb) AS linked_schools_json
       FROM public.activity_schools acs
       JOIN public.schools ls ON ls.id = acs.school_id
@@ -143,8 +143,8 @@ AS $$
         OR COALESCE(a.activity_name, '') ILIKE ('%' || q.needle || '%')
         OR COALESCE(a.activity_type, '') ILIKE ('%' || q.needle || '%')
         OR COALESCE(a.activity_no, '') ILIKE ('%' || q.needle || '%')
-        OR COALESCE(auth.name, a.authority, '') ILIKE ('%' || q.needle || '%')
-        OR COALESCE(sch.name, a.school, '') ILIKE ('%' || q.needle || '%')
+        OR COALESCE(auth.authority_name, a.authority, '') ILIKE ('%' || q.needle || '%')
+        OR COALESCE(sch.school_name, a.school, '') ILIKE ('%' || q.needle || '%')
         OR COALESCE(sch.semel_mosad::text, '') ILIKE ('%' || q.needle || '%')
       )
     ORDER BY a.row_id, a.activity_name
