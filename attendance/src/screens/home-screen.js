@@ -289,7 +289,7 @@ function buildReportRow(record) {
   const tStrong = document.createElement('strong');
   tStrong.textContent = `${formatTimeShort(record.start_time)}–${formatTimeShort(record.end_time)}`;
   const tSpan = document.createElement('span');
-  tSpan.textContent = `${Number(record.total_hours || 0).toFixed(2)} שעות`;
+  tSpan.textContent = `${Number(record.total_hours || 0).toFixed(2)} שעות · ${Number(record.roundtrip_km || 0).toFixed(0)} ק״מ`;
   timeCol.append(tStrong, tSpan);
 
   row.append(dateCol, mainCol, timeCol);
