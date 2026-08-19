@@ -112,3 +112,52 @@ test('"דיווחים חשובים" moved to the attendance tab and is not dupli
   assert.ok(!workspaceSrc.includes('function renderManagement('));
   assert.ok(workspaceSrc.includes('view.innerHTML = `${managementAlertsHtml(roster, summary)}'));
 });
+
+// "מעקב צוות" (team tracking) is now read-only: statuses come from the same roster row
+// (get_manager_team_roster / manager_instructor_followup) that already powered the old checkboxes —
+// no new source, no update RPC call, no change handler, no optimistic/rollback state.
+const migrationSrc = fs.readFileSync(
+  new URL('../supabase/migrations/20260819150000_manager_team_roster_gender.sql', import.meta.url),
+  'utf8'
+);
+
+test('מעקב צוות no longer calls the update RPC or binds any change handler', () => {
+  assert.ok(!workspaceSrc.includes('update_manager_instructor_followup'));
+  assert.ok(!workspaceSrc.includes("addEventListener('change'"));
+  assert.ok(!workspaceSrc.includes('data-manager-followup-field'));
+  assert.ok(!workspaceSrc.includes('<input type="checkbox"'));
+  assert.ok(!workspaceSrc.includes('function updateFollowupCheckbox'));
+});
+
+test('followup cell renders ✓ for a done status and stays empty for a missing one, straight from the roster row', () => {
+  assert.ok(workspaceSrc.includes(
+    "return `<td class=\"manager-workspace-followup-cell${row[field] ? ' is-done' : ''}\">${row[field] ? '<span aria-hidden=\"true\">✓</span>' : ''}</td>`;"
+  ));
+});
+
+test('FEMALE + police clearance renders a blocked, content-free cell with no checkbox and no text', () => {
+  assert.ok(workspaceSrc.includes("field === 'police_clearance_confirmed' && isFemaleInstructor(row)"));
+  assert.ok(workspaceSrc.includes('manager-workspace-followup-cell--blocked'));
+  assert.ok(workspaceSrc.includes(
+    "return '<td class=\"manager-workspace-followup-cell manager-workspace-followup-cell--blocked\" aria-label=\"לא רלוונטי\"></td>';"
+  ));
+});
+
+test('gender check reads the real canonical field (instructor_scheduling_profiles.gender via the roster), never the instructor name', () => {
+  assert.ok(workspaceSrc.includes("text(row?.gender).toLowerCase() === 'female'"));
+  assert.ok(!workspaceSrc.includes('full_name.toLowerCase()'));
+});
+
+test('roster still reads through get_manager_team_roster only — no parallel data source was created for tracking', () => {
+  const rpcCalls = (workspaceSrc.match(/supabase\.rpc\('([a-z_]+)'/g) || []);
+  assert.deepEqual(rpcCalls, ["supabase.rpc('get_manager_team_roster'"]);
+});
+
+test('the gender migration only extends the existing roster RPC (adds a passthrough column via LEFT JOIN); no table schema changes', () => {
+  assert.ok(migrationSrc.includes('create or replace function public.get_manager_team_roster'));
+  assert.ok(migrationSrc.includes('left join public.instructor_scheduling_profiles sp'));
+  assert.ok(migrationSrc.includes('sp.gender,'));
+  assert.ok(!migrationSrc.includes('create table'));
+  assert.ok(!migrationSrc.includes('alter table'));
+  assert.ok(!migrationSrc.includes('add column'));
+});

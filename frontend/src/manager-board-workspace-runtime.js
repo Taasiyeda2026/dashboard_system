@@ -342,22 +342,35 @@ function attendanceSummaryTableHtml(roster, summary, ym) {
   </table></div>`;
 }
 
+/** Gender is canonical in instructor_scheduling_profiles.gender ('female'/'male'), passed through get_manager_team_roster. */
+function isFemaleInstructor(row) {
+  return text(row?.gender).toLowerCase() === 'female';
+}
+
+/** Read-only followup cell: ✓ when done, otherwise empty — police clearance is blocked (no mark, no text) for FEMALE. */
+function followupCellHtml(row, field) {
+  if (field === 'police_clearance_confirmed' && isFemaleInstructor(row)) {
+    return '<td class="manager-workspace-followup-cell manager-workspace-followup-cell--blocked" aria-label="לא רלוונטי"></td>';
+  }
+  return `<td class="manager-workspace-followup-cell${row[field] ? ' is-done' : ''}">${row[field] ? '<span aria-hidden="true">✓</span>' : ''}</td>`;
+}
+
 function trackingTableHtml(roster, schoolYear) {
   if (!roster.length) return '<div class="manager-workspace-empty">אין מדריכים פעילים המשויכים למנהל.</div>';
   const rows = roster.map((row) => {
     const empId = text(row.emp_id);
-    const checks = FOLLOWUP_FIELDS.map(([field, label]) => `<td data-label="${escapeHtml(label)}"><label class="manager-workspace-check"><input type="checkbox" data-manager-followup-field="${field}" data-manager-followup-emp="${escapeHtml(empId)}" ${row[field] ? 'checked' : ''}><span aria-hidden="true"></span></label></td>`).join('');
+    const cells = FOLLOWUP_FIELDS.map(([field]) => followupCellHtml(row, field)).join('');
     const folder = text(row.folder_web_url);
-    return `<tr data-manager-followup-row="${escapeHtml(empId)}">
+    return `<tr>
       <td class="manager-workspace-person"><strong>${escapeHtml(text(row.full_name) || empId)}</strong><small>${escapeHtml(text(row.employment_type))}</small></td>
-      ${checks}
+      ${cells}
       <td data-label="תיק עובד">${folder ? `<a class="manager-workspace-folder-link" href="${escapeHtml(folder)}" target="_blank" rel="noopener">פתח תיק</a>` : '<span class="manager-workspace-status is-muted">טרם קושר</span>'}</td>
     </tr>`;
   }).join('');
   return `<div class="manager-workspace-table-wrap"><table class="manager-workspace-table manager-workspace-tracking-table">
     <thead><tr><th>מדריך</th>${FOLLOWUP_FIELDS.map(([, label]) => `<th>${escapeHtml(label)}</th>`).join('')}<th>תיק עובד</th></tr></thead>
     <tbody>${rows}</tbody>
-  </table></div><p class="manager-workspace-source-note">רשימת המדריכים מגיעה ממאגר המדריכים המרכזי. בעמוד זה נשמרים רק סימוני המעקב לשנת ${escapeHtml(schoolYear)}.</p>`;
+  </table></div><p class="manager-workspace-source-note">תצוגה לקריאה בלבד ממאגר המדריכים המרכזי לשנת ${escapeHtml(schoolYear)}. עדכון הנתונים מתבצע בלשונית מדריכים.</p>`;
 }
 
 function sharePointRootButton(schoolYear) {
@@ -514,43 +527,7 @@ async function renderAttendance(boardRoot, context, roster, renderToken) {
   });
 }
 
-async function updateFollowupCheckbox(input, context) {
-  const empId = Number(input.dataset.managerFollowupEmp);
-  const field = input.dataset.managerFollowupField;
-  if (!Number.isFinite(empId) || !field) return;
-  const previous = !input.checked;
-  input.disabled = true;
-  try {
-    await ensureAuthSession();
-    const { data, error } = await supabase.rpc('update_manager_instructor_followup', {
-      p_emp_id: empId,
-      p_school_year: context.schoolYear,
-      p_field: field,
-      p_value: input.checked
-    });
-    if (error) throw error;
-    const key = `${context.manager}|${context.schoolYear}`;
-    const cached = rosterCache.get(key);
-    if (cached) {
-      cached.rows = cached.rows.map((row) => text(row.emp_id) === text(empId) ? { ...row, ...(data || {}) } : row);
-      cached.loadedAt = Date.now();
-    }
-    const row = input.closest('tr');
-    row?.classList.add('is-saved');
-    window.setTimeout(() => row?.classList.remove('is-saved'), 650);
-  } catch (error) {
-    input.checked = previous;
-    const row = input.closest('tr');
-    const note = row?.querySelector('[data-manager-followup-error]') || document.createElement('small');
-    note.dataset.managerFollowupError = 'true';
-    note.className = 'manager-workspace-row-error';
-    note.textContent = error?.message || 'שמירת הסימון נכשלה.';
-    if (!note.isConnected) row?.querySelector('.manager-workspace-person')?.appendChild(note);
-  } finally {
-    input.disabled = false;
-  }
-}
-
+/** מעקב צוות is read-only: no RPC call, no change handler, no optimistic update — see trackingTableHtml. */
 function renderTracking(boardRoot, context, roster) {
   const view = boardRoot.querySelector('[data-manager-workspace-view]');
   if (!view) return;
@@ -558,9 +535,6 @@ function renderTracking(boardRoot, context, roster) {
     <header class="manager-workspace-panel__head"><div><h2>מעקב צוות</h2><p>${escapeHtml(context.manager)} · שנת ${escapeHtml(context.schoolYear)}</p></div>${sharePointRootButton(context.schoolYear)}</header>
     ${trackingTableHtml(roster, context.schoolYear)}
   </section>`;
-  view.querySelectorAll('[data-manager-followup-field]').forEach((input) => {
-    input.addEventListener('change', () => void updateFollowupCheckbox(input, context));
-  });
 }
 
 function approvalCell(name, at, missingLabel) {
