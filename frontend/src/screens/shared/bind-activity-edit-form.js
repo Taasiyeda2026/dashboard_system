@@ -4,6 +4,7 @@ import { formatDateHe } from './format-date.js';
 import { escapeHtml } from './html.js';
 import { syncActivityEndTimeOptions } from './activity-time-options.js';
 import { activityTypeMatches, getValidInstructorUsers, humanDisplayText, INSTRUCTOR_CONTACTS_MISSING_ERROR_MESSAGE, INSTRUCTOR_IDENTITY_ERROR_MESSAGE, normalizeActivityTypeKey, normalizeOneDayActivityType, resolveInstructorSelectionByEmpId, validateInstructorIdentityPayload } from './activity-options.js';
+import { catalogActivityChangesFromSelection, selectedActivityCatalogIdentity, syncActivityCatalogIdentityFromName } from '../../activity-catalog-identity.js';
 import { state } from '../../state.js';
 import { validateCourseFundingSplit } from '../../activity-funding-picker-compact.js';
 import {
@@ -74,14 +75,6 @@ function normalizeActivityStatusForSave(value) {
 
 const GENERIC_ONE_DAY_ACTIVITY_NAMES = new Set(['סדנה', 'סדנאות', 'סיור', 'סיורים', 'חדר בריחה', 'חדרי בריחה']);
 
-function detectActivityNoByName(form, activityName) {
-  const sel = form.querySelector('[data-role="activity-name-select"]');
-  if (!sel) return '';
-  const opt = Array.from(sel.options).find((o) => o.value === activityName);
-  return opt ? String(opt.dataset.activityNo || '') : '';
-}
-
-
 function activityNameOptionsForType(allOptions, activityType) {
   const sourceOptions = Array.isArray(allOptions) ? allOptions : [];
   const normalizedType = normalizeActivityTypeKey(activityType);
@@ -99,20 +92,12 @@ function renderActivityNameOptions(options, activityType = '') {
     .concat((Array.isArray(options) ? options : []).map((o) => {
       const label = String(o?.label || '').trim();
       const actNo = String(o?.activity_no || '').trim();
+      const gefenNumber = String(o?.gefen_number || '').trim();
+      const meetingsCount = String(o?.meetings_count ?? '').trim();
       const actType = String(o?.parent_value || o?.activity_type || '').trim();
-      return `<option value="${escapeHtml(label)}" data-activity-no="${escapeHtml(actNo)}" data-activity-type="${escapeHtml(actType)}">${escapeHtml(label)}</option>`;
+      return `<option value="${escapeHtml(label)}" data-activity-no="${escapeHtml(actNo)}" data-gefen-number="${escapeHtml(gefenNumber)}" data-meetings-count="${escapeHtml(meetingsCount)}" data-activity-type="${escapeHtml(actType)}">${escapeHtml(label)}</option>`;
     }))
     .join('');
-}
-
-function syncActivityNoFromName(form) {
-  const nameSel = form.querySelector('[data-role="activity-name-select"]');
-  const hidden = form.querySelector('[data-activity-no]');
-  if (!nameSel || !hidden) return;
-  const currentName = String(nameSel.value || '').trim();
-  const detectedActivityNo = currentName ? detectActivityNoByName(form, currentName) : '';
-  if (!currentName) hidden.value = '';
-  else if (detectedActivityNo) hidden.value = detectedActivityNo;
 }
 
 function validateActivityTypeAndName(form, statusEl) {
@@ -457,10 +442,19 @@ export function bindActivityEditForm(contentRoot, {
 
     if (!validateActivityTypeAndName(form, statusEl)) return;
 
-    // This flag is intentionally produced by the edit form only when the
-    // user changed the visible name. Generic API callers must not turn a
-    // catalog-controlled name into a manual override by accident.
-    if (Object.prototype.hasOwnProperty.call(changes, 'activity_name')) {
+    const catalogSelection = selectedActivityCatalogIdentity(form);
+    const catalogSelectionChanged = catalogSelection.isCatalogSelection && (
+      catalogSelection.activity_name !== String(initialValues.activity_name || '').trim() ||
+      catalogSelection.activity_no !== String(initialValues.activity_no || '').trim() ||
+      catalogSelection.gefen_number !== String(initialValues.gefen_number || '').trim()
+    );
+    if (catalogSelectionChanged) {
+      Object.assign(changes, catalogActivityChangesFromSelection(catalogSelection, {
+        normalizeActivityType: normalizeActivityTypeKey
+      }));
+    } else if (Object.prototype.hasOwnProperty.call(changes, 'activity_name')) {
+      // A user-entered name remains a manual override. A normal catalog
+      // selection above is explicitly marked as catalog-controlled instead.
       changes.activity_name_override = true;
     }
 
@@ -794,7 +788,7 @@ export function bindActivityEditForm(contentRoot, {
     const nameSel = form.querySelector('[data-role="activity-name-select"]');
     if (nameSel) nameSel.disabled = !normalizeActivityTypeKey(typeEl?.value);
     if (typeEl) form.dataset.activityNameType = normalizeActivityTypeKey(typeEl.value);
-    syncActivityNoFromName(form);
+    syncActivityCatalogIdentityFromName(form);
     captureFormInitialValues(form);
     form._refreshInitialValues = () => captureFormInitialValues(form);
 
@@ -806,9 +800,7 @@ export function bindActivityEditForm(contentRoot, {
         }
         const nameEl = ev.target.closest('[data-role="activity-name-select"]');
         if (nameEl) {
-          const autoNo = detectActivityNoByName(form, String(nameEl.value || ''));
-          const hidden = form.querySelector('[data-activity-no]');
-          if (hidden && autoNo) hidden.value = autoNo;
+          syncActivityCatalogIdentityFromName(form);
         }
 
         const typeEl = ev.target.closest('[name="activity_type"]');
@@ -825,7 +817,7 @@ export function bindActivityEditForm(contentRoot, {
             nameSel.innerHTML = renderActivityNameOptions(filtered, newType);
             nameSel.disabled = !newType;
             nameSel.value = '';
-            syncActivityNoFromName(form);
+            syncActivityCatalogIdentityFromName(form);
           }
         }
 
