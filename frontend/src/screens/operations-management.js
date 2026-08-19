@@ -107,6 +107,7 @@ const TAB_WORKSHOPS = 'workshops';
 const TAB_AUTHORITIES = 'authorities';
 const TAB_SCHOOLS = 'schools';
 const SUMMER_TRAINING_SESSION_KEY = 'opsSummerTrainingActive';
+const OPS_CARD_TARGET_SELECTOR = '.ds-ops-mgmt-screen [data-route], .ds-ops-mgmt-screen [data-ops-tab]';
 const COMPLETION_APPROVAL_SUMMER_FROM = '2026-06-20';
 const COMPLETION_APPROVAL_SUMMER_TO = '2026-08-31';
 const COMPLETION_APPROVAL_MANAGER_ROLES = new Set(['admin', 'operation_manager', 'domain_manager', 'activities_manager', 'instructor_manager', 'finance']);
@@ -714,6 +715,68 @@ function tabsHtml(activeTab, currentRoute = '') {
     ${tabs.map(([key, label]) => `<button type="button" class="ds-exceptions-tab ds-ops-mgmt-tab${activeTab === key ? ' is-active' : ''}" data-ops-tab="${escapeHtml(key)}" aria-pressed="${activeTab === key ? 'true' : 'false'}">${escapeHtml(label)}</button>`).join('')}
     ${routeTabs.map(([route, label]) => `<button type="button" class="ds-exceptions-tab ds-ops-mgmt-tab${currentRoute === route ? ' is-active' : ''}" data-route="${escapeHtml(route)}" aria-pressed="${currentRoute === route ? 'true' : 'false'}">${escapeHtml(label)}</button>`).join('')}
   </nav>`;
+}
+
+async function activateOperationsTab({ data = {}, api, state, rerender }, requestedTab) {
+  const ops = ensureOpsState(state);
+  ops.context = OPS_CONTEXT_OPERATIONS;
+  ops.tab = requestedTab || TAB_COMPLETION_APPROVAL;
+  if (ops.tab === TAB_SUMMER || ops.tab === TAB_INSTRUCTORS) ops.tab = TAB_COMPLETION_APPROVAL;
+  try { sessionStorage.removeItem(SUMMER_TRAINING_SESSION_KEY); } catch { /* ignore */ }
+  document.dispatchEvent(new CustomEvent('ops-mgmt-standard-tab', { detail: { tab: ops.tab } }));
+
+  const tabKey = operationsTabDataKey(ops.tab);
+  const loadedTabs = new Set(Array.isArray(data?._loadedOperationsTabs) ? data._loadedOperationsTabs : []);
+  if (!loadedTabs.has(tabKey)) {
+    if (tabKey === TAB_WORKSHOPS) {
+      data._workshopsLoading = true;
+      rerender?.();
+    }
+    const promises = data._operationsTabLoadPromises instanceof Map ? data._operationsTabLoadPromises : new Map();
+    data._operationsTabLoadPromises = promises;
+    let request = promises.get(tabKey);
+    if (!request) {
+      request = loadOperationsTabData(api, tabKey, { state }).finally(() => promises.delete(tabKey));
+      promises.set(tabKey, request);
+    }
+    try {
+      Object.assign(data, await request);
+      loadedTabs.add(tabKey);
+      data._loadedOperationsTabs = [...loadedTabs];
+    } catch (_) { /* existing empty-state behavior remains available */ }
+    if (tabKey === TAB_WORKSHOPS) data._workshopsLoading = false;
+  }
+  rerender?.();
+}
+
+/**
+ * Operations navigation cards are recreated by each screen render. Bind one
+ * delegated click handler to the persistent screen host so all current and
+ * future cards resolve by their canonical route/tab attribute, never by label.
+ */
+function bindOperationsCardTargets(root, context) {
+  root._operationsCardNavigationContext = context;
+  if (root.dataset.operationsCardNavigationBound === 'true') return;
+  root.dataset.operationsCardNavigationBound = 'true';
+
+  root.addEventListener('click', (event) => {
+    const target = event.target instanceof Element ? event.target.closest(OPS_CARD_TARGET_SELECTOR) : null;
+    if (!target || !root.contains(target)) return;
+    const current = root._operationsCardNavigationContext;
+    if (!current) return;
+
+    const route = String(target.getAttribute('data-route') || '').trim();
+    if (route) {
+      event.preventDefault();
+      document.dispatchEvent(new CustomEvent('app:navigate', { detail: { route } }));
+      return;
+    }
+
+    const tab = String(target.getAttribute('data-ops-tab') || '').trim();
+    if (!tab) return;
+    event.preventDefault();
+    void activateOperationsTab(current, tab);
+  });
 }
 
 /**
@@ -3439,6 +3502,7 @@ export const operationsManagementScreen = {
     state = state || {};
     const ops = ensureOpsState(state);
     const filters = ensureActivityListFilters(state, SCOPE);
+    bindOperationsCardTargets(root, { data, api, state, rerender });
 
     if (_opsNeedsEntryReset) {
       _opsNeedsEntryReset = false;
@@ -3448,48 +3512,6 @@ export const operationsManagementScreen = {
     if (ops.context === OPS_CONTEXT_INSTRUCTORS) bindAttendanceControl(root, { api, state });
 
     bindSummerContactsModalEvents(root, { ui, api, rows: data?.instructorSchedulePrintContactsRows || [], logPrefix: 'operations-management' });
-
-    root.querySelectorAll('[data-route]').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        const route = btn.getAttribute('data-route');
-        if (route) document.dispatchEvent(new CustomEvent('app:navigate', { detail: { route } }));
-      });
-    });
-
-    root.querySelectorAll('[data-ops-tab]').forEach((btn) => {
-      btn.addEventListener('click', async () => {
-        ops.context = OPS_CONTEXT_OPERATIONS;
-        ops.tab = btn.getAttribute('data-ops-tab') || TAB_COMPLETION_APPROVAL;
-        if (ops.tab === TAB_SUMMER || ops.tab === TAB_INSTRUCTORS) ops.tab = TAB_COMPLETION_APPROVAL;
-        try { sessionStorage.removeItem(SUMMER_TRAINING_SESSION_KEY); } catch { /* ignore */ }
-        document.dispatchEvent(new CustomEvent('ops-mgmt-standard-tab', { detail: { tab: ops.tab } }));
-        const tabKey = operationsTabDataKey(ops.tab);
-        const loadedTabs = new Set(Array.isArray(data?._loadedOperationsTabs) ? data._loadedOperationsTabs : []);
-        if (!loadedTabs.has(tabKey)) {
-          // ציוד ומלאי: הצג loading spinner לפני בקשת Supabase
-          if (tabKey === TAB_WORKSHOPS) {
-            data._workshopsLoading = true;
-            rerender?.();
-          }
-          const promises = data._operationsTabLoadPromises instanceof Map ? data._operationsTabLoadPromises : new Map();
-          data._operationsTabLoadPromises = promises;
-          let request = promises.get(tabKey);
-          if (!request) {
-            request = loadOperationsTabData(api, tabKey, { state }).finally(() => promises.delete(tabKey));
-            promises.set(tabKey, request);
-          }
-          try {
-            Object.assign(data, await request);
-            loadedTabs.add(tabKey);
-            data._loadedOperationsTabs = [...loadedTabs];
-          } catch (_) { /* existing empty-state behavior remains available */ }
-          if (tabKey === TAB_WORKSHOPS) {
-            data._workshopsLoading = false;
-          }
-        }
-        rerender?.();
-      });
-    });
 
     root.querySelectorAll('[data-ops-completion-subtab]').forEach((btn) => {
       btn.addEventListener('click', () => {
