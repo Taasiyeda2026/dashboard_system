@@ -101,9 +101,9 @@
     stroke: currentColor !important;
   }
 
+  /* Remove only the Copy action. Keep Edit, Duplicate and Delete. */
   .av2-rr__action-copy {
-    color: #2563eb !important;
-    background: #eff6ff !important;
+    display: none !important;
   }
 
   .av2-rr__action-dup {
