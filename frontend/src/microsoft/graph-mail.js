@@ -83,3 +83,11 @@ export function addGraphFileAttachment(token, messageId, attachment) {
 export function deleteGraphDraft(token, messageId) {
   return graphMailRequest(token, `/me/messages/${encodeURIComponent(messageId)}`, { method: 'DELETE' });
 }
+
+/**
+ * Microsoft Graph accepts a successful POST with 202 No Content only after it
+ * has accepted the already-prepared draft for delivery.
+ */
+export function sendGraphMessage(token, messageId) {
+  return graphMailRequest(token, `/me/messages/${encodeURIComponent(messageId)}/send`, { method: 'POST' });
+}
