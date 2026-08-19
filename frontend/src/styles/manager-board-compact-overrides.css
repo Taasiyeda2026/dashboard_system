@@ -1,9 +1,12 @@
-/* Manager board only: visually compact the page body without scaling the shell header/sidebar. */
+/* Manager board only: compact every inner tab uniformly, without compensating type-size overrides. */
 @media (min-width: 901px) {
   .manager-board-screen[data-manager-board-root] {
-    width: 100%;
-    max-width: none;
-    zoom: .8;
+    zoom: .75;
+    margin-inline: auto;
+  }
+
+  .manager-board-screen[data-manager-board-root] .manager-workspace-tabs {
+    margin-inline: auto;
   }
 }
 
@@ -13,13 +16,13 @@
   display: none !important;
 }
 
-/* Center all read-only follow-up status columns, including their headers. */
-.manager-workspace-tracking-table th:nth-child(n+2):nth-child(-n+6),
-.manager-workspace-tracking-table td:nth-child(n+2):nth-child(-n+6) {
+/* Center all seven read-only follow-up columns, including their headers. */
+.manager-workspace-tracking-table th:nth-child(n+2):nth-child(-n+8),
+.manager-workspace-tracking-table td:nth-child(n+2):nth-child(-n+8) {
   text-align: center !important;
 }
 
-/* Calendar must stay flat: no colored pills/bubbles around holidays or activities. */
+/* Calendar stays flat: no colored pills/bubbles around holidays or activities. */
 .manager-board-calendar-day.is-school-blocked {
   background: #fff !important;
 }
@@ -90,195 +93,13 @@
   background: currentColor !important;
 }
 
-/*
- * Manager board only: moderate type-scale bump (~10-15%) to counter the zoom(.8) shrink above.
- * Scoped to .manager-board-screen; the zoom value itself is untouched.
- */
-.manager-board-screen .manager-board-hero h1 {
-  font-size: clamp(29px, 3vw, 43px);
-}
-
-.manager-board-screen .manager-board-hero p,
-.manager-board-screen .manager-board-panel__head p,
-.manager-board-screen .manager-workspace-panel__head p {
-  font-size: 15px;
-}
-
-.manager-board-screen .manager-board-manager-select > span,
-.manager-board-screen .manager-board-manager-fixed > span {
-  font-size: 12px;
-}
-
-.manager-board-screen .manager-board-month-nav strong {
-  font-size: 15px;
-}
-
-.manager-board-screen .manager-board-team-strip__title {
-  font-size: 14px;
-}
-
-.manager-board-screen .manager-board-kpis span {
-  font-size: 13px;
-}
-
-.manager-board-screen .manager-board-kpis strong {
-  font-size: 34px;
-}
-
-.manager-board-screen .manager-board-kpis small {
-  font-size: 12px;
-}
-
-.manager-board-screen .manager-board-panel__head h2,
-.manager-board-screen .manager-workspace-panel__head h2 {
-  font-size: 18px;
-}
-
-.manager-board-screen .manager-board-legend {
-  font-size: 12px;
-}
-
-.manager-board-screen .manager-board-calendar__weekdays span {
-  font-size: 12px;
-}
-
-.manager-board-screen .manager-board-calendar-day__number {
-  font-size: 13px;
-}
-
-.manager-board-screen .manager-board-calendar-day__school {
-  font-size: 10px;
-}
-
-.manager-board-screen .manager-board-calendar-day__count {
-  font-size: 11px;
-}
-
-.manager-board-screen .manager-board-calendar-event {
-  font-size: 11px;
-}
-
-.manager-board-screen .manager-board-calendar-event strong {
-  font-size: 10px;
-}
-
-.manager-board-screen .manager-board-calendar-event em {
-  font-size: 9px;
-}
-
-.manager-board-screen .manager-board-calendar-more {
-  font-size: 10px;
-}
-
-.manager-board-screen .manager-board-milestones-group__label {
-  font-size: 13px;
-}
-
-.manager-board-screen .manager-board-milestone time,
-.manager-board-screen .manager-board-school-event time {
-  font-size: 12px;
-}
-
-.manager-board-screen .manager-board-milestone__body strong {
-  font-size: 14px;
-}
-
-.manager-board-screen .manager-board-milestone__body span {
-  font-size: 12px;
-}
-
-.manager-board-screen .manager-board-milestone__badge {
-  font-size: 11px;
-}
-
-.manager-board-screen .manager-board-school-event {
-  font-size: 13px;
-}
-
-.manager-board-screen .manager-board-instructor-card__text strong {
-  font-size: 15px;
-}
-
-.manager-board-screen .manager-board-instructor-card__text span {
-  font-size: 11px;
-}
-
-.manager-board-screen .manager-board-instructor-card__text small {
-  font-size: 10px;
-}
-
-.manager-board-screen .manager-board-ring__inner strong {
-  font-size: 18px;
-}
-
-.manager-board-screen .manager-board-ring__inner span {
-  font-size: 9px;
-}
-
-.manager-board-screen .manager-board-empty {
-  font-size: 13px;
-}
-
-.manager-board-screen .manager-workspace-tab {
-  font-size: 15px;
-}
-
-.manager-board-screen .manager-workspace-alert-strip__title strong {
-  font-size: 1.12rem;
-}
-
-.manager-board-screen .manager-workspace-alert-strip__title span {
-  font-size: .92rem;
-}
-
-.manager-board-screen .manager-workspace-alert-strip article span {
-  font-size: .93rem;
-}
-
-.manager-board-screen .manager-workspace-alert-strip article strong {
-  font-size: 1.34rem;
-}
-
-.manager-board-screen .manager-workspace-table th {
-  font-size: .91rem;
-}
-
-.manager-board-screen .manager-workspace-table td strong {
-  font-size: 1.04rem;
-}
-
-.manager-board-screen .manager-workspace-table td small {
-  font-size: .85rem;
-}
-
-.manager-board-screen .manager-workspace-status {
-  font-size: .87rem;
-}
-
-.manager-board-screen .manager-workspace-report-count {
-  font-size: .94rem;
-}
-
-/* Manager control statuses are plain text, never colored pill/bubble badges. */
-.manager-board-screen .manager-workspace-status {
-  display: inline;
-  min-width: 0;
+/* Control-point labels remain visible as plain text, never as colored/rounded badges. */
+.manager-board-milestone__badge {
   padding: 0 !important;
   border: 0 !important;
   border-radius: 0 !important;
   background: transparent !important;
   box-shadow: none !important;
-  white-space: nowrap;
-}
-
-.manager-board-screen .manager-workspace-status.is-ok {
-  color: #166534;
-}
-
-.manager-board-screen .manager-workspace-status.is-pending {
-  color: #9a3412;
-}
-
-.manager-board-screen .manager-workspace-status.is-muted {
   color: #64748b;
+  font-weight: 700;
 }
