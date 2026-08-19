@@ -83,6 +83,10 @@ $$;
 -- 3) The manager board's read-only "מעקב צוות" shows one team at a time, so it reads police clearance
 -- in bulk from the same SharePoint-derived component (via instructor_employee_document_status), not the
 -- manual manager_instructor_followup.police_clearance_confirmed field, which this column replaces for display.
+-- PostgreSQL cannot change TABLE-returning OUT columns with CREATE OR REPLACE, so drop the gender-only
+-- version from the prior migration before recreating it with police_clearance_file_completed.
+drop function if exists public.get_manager_team_roster(text, text);
+
 create or replace function public.get_manager_team_roster(
   p_manager_name text default null,
   p_school_year text default '2027'
