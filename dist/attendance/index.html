@@ -12,13 +12,13 @@
   <link rel="manifest" href="./manifest.json" />
   <link rel="icon" href="./assets/icons/icon-192.png" type="image/png" />
   <link rel="apple-touch-icon" href="./assets/icons/apple-touch-icon.png" />
-  <!-- v=3 busts the browser HTTP cache whenever CSS changes (keep in sync with sw.js CACHE_VERSION) -->
-  <link rel="stylesheet" href="./src/styles/base.css?v=3" />
-  <link rel="stylesheet" href="./src/styles/login-screen.css?v=3" />
-  <link rel="stylesheet" href="./src/styles/home-screen.css?v=3" />
-  <link rel="stylesheet" href="./src/styles/new-report-screen.css?v=3" />
-  <link rel="stylesheet" href="./src/styles/my-reports-screen.css?v=3" />
-  <link rel="stylesheet" href="./src/styles/bottom-nav.css?v=3" />
+  <!-- v=10 busts the browser HTTP cache whenever CSS/JS changes (keep in sync with sw.js CACHE_VERSION) -->
+  <link rel="stylesheet" href="./src/styles/base.css?v=10" />
+  <link rel="stylesheet" href="./src/styles/login-screen.css?v=10" />
+  <link rel="stylesheet" href="./src/styles/home-screen.css?v=10" />
+  <link rel="stylesheet" href="./src/styles/new-report-screen.css?v=10" />
+  <link rel="stylesheet" href="./src/styles/my-reports-screen.css?v=10" />
+  <link rel="stylesheet" href="./src/styles/bottom-nav.css?v=10" />
   <title>תעשיידע – נוכחות</title>
 </head>
 <body>
@@ -27,9 +27,9 @@
     <nav id="bottom-nav" hidden></nav>
   </div>
   <!-- Supabase client -->
-  <script src="./vendor/supabase.js?v=3"></script>
+  <script src="./vendor/supabase.js?v=10"></script>
   <!-- SheetJS (xlsx) for Excel export — loaded after supabase, before app modules -->
   <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
-  <script type="module" src="./src/main.js?v=3"></script>
+  <script type="module" src="./src/main.js?v=10"></script>
 </body>
 </html>
