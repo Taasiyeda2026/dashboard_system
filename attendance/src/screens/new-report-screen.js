@@ -900,6 +900,7 @@ export function renderNewReportScreen(container, {
   // Init
   if (prefillRecord) {
     // Duplicate mode: skip activity picker, go straight to form
+    initialTypeField.wrap.hidden = true;
     const prefillDate = prefillRecord.report_date || defaultDate;
     dateField.input.value = prefillDate;
     pickerArea.innerHTML = '';
@@ -910,7 +911,6 @@ export function renderNewReportScreen(container, {
         pickerArea.innerHTML = '';
         renderForm(null, prefillDate, prefillRecord);
       });
-    dateField.input.addEventListener('change', proceedIfReady);
   } else {
     dateField.input.addEventListener('change', proceedIfReady);
     initialTypeField.input.addEventListener('change', proceedIfReady);
