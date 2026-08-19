@@ -21,5 +21,5 @@ test('payroll control is limited to admin operations and finance', () => {
   assert.match(navSource, /tab\?\.id === 'payroll-control' && !hasPayrollControlRole\(state\)/);
   assert.match(launcherSource, expectedRoles);
   assert.match(launcherSource, /if \(!canOpenPayrollControl\(state\)\)/);
-  assert.match(launcherSource, /אין הרשאה לפתוח את בקרת השכר/);
+  assert.match(launcherSource, /אין הרשאה לפתוח את בקרת הנוכחות/);
 });

@@ -8,11 +8,12 @@ const configSource = await readFile(new URL('../frontend/src/config.js', import.
 const swSource = await readFile(new URL('../frontend/sw.js', import.meta.url), 'utf8');
 
 test('payroll control is a shared instructors tab next to maintenance', () => {
-  const payrollIndex = navSource.indexOf("{ id: 'payroll-control', label: 'בקרת שכר'");
+  const payrollIndex = navSource.indexOf("{ id: 'payroll-control', label: 'בקרת נוכחות'");
   const maintenanceIndex = navSource.indexOf("{ id: 'maintenance', label: 'תחזוקה'");
-  assert.ok(payrollIndex >= 0, 'missing payroll control tab');
-  assert.ok(maintenanceIndex > payrollIndex, 'payroll control tab must appear immediately before maintenance');
+  assert.ok(payrollIndex >= 0, 'missing attendance control tab');
+  assert.ok(maintenanceIndex > payrollIndex, 'attendance control tab must appear immediately before maintenance');
   assert.match(navSource, /openPayrollControlWindow\(state\)/);
+  assert.doesNotMatch(navSource, /label: 'בקרת שכר'/);
 });
 
 test('legacy work-schedule toolbar launcher is removed after render', () => {

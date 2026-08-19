@@ -50,6 +50,8 @@ function canUsePayrollAttendanceAdminTab() {
 }
 
 function workspaceTabs() {
+  // Tab id `payroll-attendance` is kept for backward compatibility (localStorage).
+  // The UI label is "בקרת נוכחות אדמין".
   return canUsePayrollAttendanceAdminTab()
     ? ['management', 'attendance', 'tracking', 'payroll-attendance']
     : ['management', 'attendance', 'tracking'];
@@ -162,6 +164,39 @@ async function loadRoster(manager, schoolYear, force = false) {
   return rows;
 }
 
+async function distinctDirectManagerNames() {
+  await ensureAuthSession();
+  const { data, error } = await supabase
+    .from('contacts_instructors')
+    .select('direct_manager,active');
+  if (error) throw new Error(error.message || 'טעינת רשימת המנהלים נכשלה.');
+  const names = new Set();
+  for (const row of Array.isArray(data) ? data : []) {
+    const active = text(row?.active).toLowerCase();
+    if (['no', 'false', '0', 'לא'].includes(active)) continue;
+    const name = text(row?.direct_manager);
+    if (name) names.add(name);
+  }
+  return [...names];
+}
+
+async function loadAllTeamRosters(schoolYear, force = false) {
+  const managers = await distinctDirectManagerNames();
+  const lists = await Promise.all(managers.map((name) => loadRoster(name, schoolYear, force).catch(() => [])));
+  const byId = new Map();
+  for (const rows of lists) {
+    for (const row of rows) {
+      const id = text(row.emp_id);
+      if (id && !byId.has(id)) byId.set(id, row);
+    }
+  }
+  return [...byId.values()].sort((a, b) => {
+    const managerCmp = text(a.direct_manager).localeCompare(text(b.direct_manager), 'he');
+    if (managerCmp) return managerCmp;
+    return text(a.full_name).localeCompare(text(b.full_name), 'he') || String(a.emp_id).localeCompare(String(b.emp_id));
+  });
+}
+
 function rawEmployeeId(row) {
   return text(row?.employeeId || row?.EmployeeId || row?.empNum || row?.emp_id || row?.ID || row?.id);
 }
@@ -194,7 +229,9 @@ async function loadAttendanceSummary(roster, ym, force = false) {
   const recordCounts = new Map(ids.map((id) => [id, 0]));
   let recordsError = '';
   try {
-    const records = await api.attendanceControlRecords();
+    const records = ids.length
+      ? await api.attendanceControlRecords({ employeeIds: ids })
+      : [];
     for (const row of Array.isArray(records) ? records : []) {
       const empId = rawEmployeeId(row);
       if (!recordCounts.has(empId) || rawRecordMonth(row) !== ym) continue;
@@ -358,8 +395,13 @@ function buildScopedAttendanceApi(roster) {
     get(target, prop) {
       if (prop === 'attendanceControlTeams') return async () => syntheticEmployees;
       if (prop === 'attendanceControlRecords') {
-        return async () => {
-          const records = await target.attendanceControlRecords();
+        return async (opts = {}) => {
+          const employeeIds = [...rosterIds];
+          if (!employeeIds.length) return [];
+          const records = await target.attendanceControlRecords({
+            ...opts,
+            employeeIds
+          });
           return (Array.isArray(records) ? records : [])
             .filter((row) => rosterIds.has(rawEmployeeId(row)))
             .map((row) => ({ ...row, team: SYNTHETIC_TEAM_ID, Team: SYNTHETIC_TEAM_ID }));
@@ -539,7 +581,7 @@ function approvalCell(name, at, missingLabel) {
 async function renderPayrollAttendanceAdmin(boardRoot, context, roster, renderToken) {
   const view = boardRoot.querySelector('[data-manager-workspace-view]');
   if (!view) return;
-  view.innerHTML = '<div class="manager-workspace-loading">טוען בקרת שכר/נוכחות…</div>';
+  view.innerHTML = '<div class="manager-workspace-loading">טוען בקרת נוכחות אדמין…</div>';
 
   const employeeIds = roster.map((row) => text(row.emp_id)).filter(Boolean);
   const monthKey = context.ym;
@@ -579,6 +621,7 @@ async function renderPayrollAttendanceAdmin(boardRoot, context, roster, renderTo
       : '';
     return `<tr data-admin-payroll-row="${escapeHtml(empId)}">
       <td><strong>${escapeHtml(text(row.full_name) || empId)}</strong><small>${escapeHtml(empId)}</small></td>
+      <td>${escapeHtml(text(row.direct_manager) || '—')}</td>
       <td>${escapeHtml(monthKey)}</td>
       <td>${approvalCell(workflowRow.submitted_by_name, workflowRow.submitted_at, 'טרם אושר עובד')}</td>
       <td>${approvalCell(workflowRow.manager_approved_by_name, workflowRow.manager_approved_at, 'טרם אושר מנהל')}</td>
@@ -591,8 +634,8 @@ async function renderPayrollAttendanceAdmin(boardRoot, context, roster, renderTo
   view.innerHTML = `<section class="manager-workspace-panel manager-workspace-payroll-attendance" dir="rtl">
     <header class="manager-workspace-panel__head">
       <div>
-        <h2>בקרת שכר/נוכחות</h2>
-        <p>${escapeHtml(context.manager)} · ${escapeHtml(context.ym)} · לפי צוות</p>
+        <h2>בקרת נוכחות אדמין</h2>
+        <p>${escapeHtml(context.ym)} · כלל העובדים לפי שיוך צוות למנהל</p>
       </div>
       <button type="button" class="manager-workspace-run-team" data-admin-payroll-refresh>רענון</button>
     </header>
@@ -600,9 +643,9 @@ async function renderPayrollAttendanceAdmin(boardRoot, context, roster, renderTo
     <div class="manager-workspace-table-wrap">
       <table class="manager-workspace-table">
         <thead>
-          <tr><th>עובד</th><th>חודש</th><th>אישור עובד</th><th>אישור מנהל</th><th>אישור מנהל סופי</th><th>סטטוס</th><th>פעולות</th></tr>
+          <tr><th>עובד</th><th>מנהל</th><th>חודש</th><th>אישור עובד</th><th>אישור מנהל</th><th>אישור מנהל סופי</th><th>סטטוס</th><th>פעולות</th></tr>
         </thead>
-        <tbody>${rowsHtml || '<tr><td colspan="7">לא נמצאו עובדים בצוות זה.</td></tr>'}</tbody>
+        <tbody>${rowsHtml || '<tr><td colspan="8">לא נמצאו עובדים.</td></tr>'}</tbody>
       </table>
     </div>
     <p class="manager-workspace-inline-error" data-admin-payroll-status hidden></p>
@@ -701,7 +744,9 @@ async function renderWorkspace(force = false) {
   applyTabVisibility(boardRoot);
 
   const context = contextFromBoard(boardRoot);
-  const signature = `${context.period}|${context.manager}|${context.ym}|${context.schoolYear}|${activeTab}`;
+  const signature = activeTab === 'payroll-attendance'
+    ? `${context.period}|all-teams|${context.ym}|${context.schoolYear}|${activeTab}`
+    : `${context.period}|${context.manager}|${context.ym}|${context.schoolYear}|${activeTab}`;
   if (!force && signature === lastContextSignature && boardRoot.dataset.managerWorkspaceReady === 'true') return;
   lastContextSignature = signature;
   boardRoot.dataset.managerWorkspaceReady = 'true';
@@ -713,7 +758,9 @@ async function renderWorkspace(force = false) {
   if (activeTab !== 'management' && view) view.innerHTML = '<div class="manager-workspace-loading">טוען נתוני צוות…</div>';
 
   try {
-    const roster = await loadRoster(context.manager, context.schoolYear);
+    const roster = activeTab === 'payroll-attendance'
+      ? await loadAllTeamRosters(context.schoolYear)
+      : await loadRoster(context.manager, context.schoolYear);
     if (renderToken !== currentRenderToken || !boardRoot.isConnected) return;
     if (activeTab === 'management') await renderManagement(boardRoot, context, roster, renderToken);
     else if (activeTab === 'attendance') await renderAttendance(boardRoot, context, roster, renderToken);

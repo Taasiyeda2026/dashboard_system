@@ -97,8 +97,8 @@ function managementTilesHtml() {
       icon: 'team'
     }),
     tileButton({
-      title: 'בקרת נוכחות',
-      description: 'בקרה ואישור דוחות נוכחות ושכר',
+      title: 'בקרת נוכחות אדמין',
+      description: 'בקרה ואישור דוחות נוכחות לכלל העובדים',
       icon: 'control',
       managerTab: 'payroll-attendance'
     })

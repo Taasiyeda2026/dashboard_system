@@ -5,23 +5,24 @@ function canOpenPayrollControl(state = {}) {
 }
 
 /**
- * Open the existing payroll-control interface in a dedicated window.
+ * Open the central attendance-control interface in a dedicated window.
+ * Internal names (`payroll-control`, `dashboard-payroll-control`) stay for backward compatibility only.
  * Keep the window.open call synchronous so browsers treat it as part of the user's click,
- * then lazy-load the existing payroll-control modules to keep Node/shared-nav imports browser-safe.
+ * then lazy-load the existing attendance-control modules to keep Node/shared-nav imports browser-safe.
  */
 export function openPayrollControlWindow(state = {}) {
   if (!canOpenPayrollControl(state)) {
-    throw new Error('אין הרשאה לפתוח את בקרת השכר.');
+    throw new Error('אין הרשאה לפתוח את בקרת הנוכחות.');
   }
 
   const popup = window.open('', 'dashboard-payroll-control');
   if (!popup) {
-    throw new Error('הדפדפן חסם את פתיחת חלון בקרת השכר. יש לאפשר חלונות קופצים ולנסות שוב.');
+    throw new Error('הדפדפן חסם את פתיחת חלון בקרת הנוכחות. יש לאפשר חלונות קופצים ולנסות שוב.');
   }
 
-  popup.document.title = 'בקרת שכר';
+  popup.document.title = 'בקרת נוכחות';
   popup.document.documentElement.lang = 'he';
-  popup.document.body.innerHTML = '<main dir="rtl" style="padding:24px;font-family:Arial,sans-serif">טוען בקרת שכר…</main>';
+  popup.document.body.innerHTML = '<main dir="rtl" style="padding:24px;font-family:Arial,sans-serif">טוען בקרת נוכחות…</main>';
   popup.focus();
 
   void Promise.all([
@@ -48,7 +49,7 @@ export function openPayrollControlWindow(state = {}) {
   }).catch((error) => {
     try { popup.close(); } catch {}
     if (typeof window !== 'undefined') {
-      window.alert(error?.message || 'פתיחת בקרת השכר נכשלה.');
+      window.alert(error?.message || 'פתיחת בקרת הנוכחות נכשלה.');
     }
   });
 }

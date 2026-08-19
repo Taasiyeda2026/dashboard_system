@@ -7,7 +7,8 @@ export const INSTRUCTORS_WORKSPACE_TABS = Object.freeze([
   { id: 'list', label: 'רשימת מדריכים', route: 'instructors' },
   { id: 'scheduling', label: 'שיבוצים', route: 'course-scheduling' },
   { id: 'work-schedule', label: 'סידור עבודה', route: 'operations-management', opsContext: 'instructors' },
-  { id: 'payroll-control', label: 'בקרת שכר', route: 'operations-management', opsContext: 'instructors', action: 'payroll-control' },
+  // id `payroll-control` is kept for backward compatibility; the UI label is Attendance Control.
+  { id: 'payroll-control', label: 'בקרת נוכחות', route: 'operations-management', opsContext: 'instructors', action: 'payroll-control' },
   { id: 'maintenance', label: 'תחזוקה', route: 'course-scheduling' }
 ]);
 
@@ -141,7 +142,7 @@ function activateTab(tabId, { state, rerender } = {}) {
     try {
       openPayrollControlWindow(state);
     } catch (error) {
-      if (typeof window !== 'undefined') window.alert(error?.message || 'פתיחת בקרת השכר נכשלה.');
+      if (typeof window !== 'undefined') window.alert(error?.message || 'פתיחת בקרת הנוכחות נכשלה.');
     }
     return;
   }

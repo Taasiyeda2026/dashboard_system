@@ -1095,7 +1095,7 @@ export function attendanceAuditSummary(result) {
 }
 
 export function attendanceControlHtml() {
-  return `<section class="attendance-control no-print" data-attendance-control hidden dir="rtl"><div class="attendance-control__head"><div><h2 data-attendance-title>בקרת שכר</h2></div><button type="button" class="ds-btn ds-btn--sm" data-attendance-close>סגירה</button></div><div class="attendance-control__uploads"><label><strong>חודש בקרה</strong><span>בחר חודש</span><input class="ds-input" type="month" data-attendance-month></label><label><strong>צוות</strong><select class="ds-input" data-attendance-team disabled><option value="">טוען צוותים…</option></select></label><button type="button" class="ds-btn ds-btn--primary" data-attendance-run disabled>אישור בקרת שכר</button></div><p class="attendance-control__status" data-attendance-status aria-live="polite"></p><div data-attendance-results></div></section>`;
+  return `<section class="attendance-control no-print" data-attendance-control hidden dir="rtl"><div class="attendance-control__head"><div><h2 data-attendance-title>בקרת נוכחות</h2></div><button type="button" class="ds-btn ds-btn--sm" data-attendance-close>סגירה</button></div><div class="attendance-control__uploads"><label><strong>חודש בקרה</strong><span>בחר חודש</span><input class="ds-input" type="month" data-attendance-month></label><label><strong>צוות</strong><select class="ds-input" data-attendance-team disabled><option value="">טוען צוותים…</option></select></label><button type="button" class="ds-btn ds-btn--primary" data-attendance-run disabled>אישור בקרת נוכחות</button></div><p class="attendance-control__status" data-attendance-status aria-live="polite"></p><div data-attendance-results></div></section>`;
 }
 
 export function attendanceControlStylesHtml() {
@@ -1278,8 +1278,8 @@ export function resultsHtml(result, month = '', options = {}) {
 
 function openAttendanceControlWindow(api, state) {
   const popup = window.open('', 'dashboard-payroll-control');
-  if (!popup) throw new Error('הדפדפן חסם את פתיחת חלון בקרת השכר. יש לאפשר חלונות קופצים ולנסות שוב.');
-  popup.document.title = 'בקרת שכר';
+  if (!popup) throw new Error('הדפדפן חסם את פתיחת חלון בקרת הנוכחות. יש לאפשר חלונות קופצים ולנסות שוב.');
+  popup.document.title = 'בקרת נוכחות';
   popup.document.documentElement.lang = 'he';
   popup.document.body.innerHTML = `<main data-payroll-window>${attendanceControlStylesHtml()}${attendanceControlHtml()}</main>`;
   popup.document.head.insertAdjacentHTML('beforeend', '<meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0;padding:24px;background:#f1f5f9;font-family:Arial,sans-serif}.ds-input{box-sizing:border-box;padding:9px;border:1px solid #cbd5e1;border-radius:8px}.ds-btn{padding:9px 14px;border:1px solid #94a3b8;border-radius:8px;background:#fff;cursor:pointer}.ds-btn--primary{background:#2563eb;color:#fff}.ds-btn:disabled{opacity:.55;cursor:not-allowed}</style>');
@@ -1393,7 +1393,7 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
     }).catch(() => { status.textContent = 'טעינת נתוני מערכת הנוכחות נכשלה.'; });
   }
   run.addEventListener('click', async () => {
-    run.disabled = true; status.textContent = 'טוען את נתוני הנוכחות והדשבורד ומבצע בקרת שכר…';
+    run.disabled = true; status.textContent = 'טוען את נתוני הנוכחות והדשבורד ומבצע בקרת נוכחות…';
     try {
       const month = monthInput.value; const monthLabel = attendanceMonthLabel(month);
       if (!monthLabel) throw new Error('יש לבחור חודש לבדיקה לפני ביצוע הבדיקה.');
@@ -1405,12 +1405,12 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
       const dashboardRows = await loadAttendanceDashboardDataset(attendanceRows, api, month);
       result = compareAttendanceRows(attendanceRows, dashboardRows); result.month = month;
       const employeeIds = [...new Set(attendanceRows.map((row) => txt(row.employeeId)).filter(Boolean))];
-      title.textContent = `בקרת שכר – ${monthLabel}`; status.textContent = '';
+      title.textContent = `בקרת נוכחות – ${monthLabel}`; status.textContent = '';
       await Promise.all([loadApprovals(), loadWorkflowStatuses(month, employeeIds)]);
       paintResults();
     } catch (error) {
       workflowByEmployee = {};
-      status.textContent = error?.message || 'טעינת נתוני בקרת השכר נכשלה.';
+      status.textContent = error?.message || 'טעינת נתוני בקרת הנוכחות נכשלה.';
       results.innerHTML = '';
     }
     finally { update(); }
