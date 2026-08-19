@@ -171,28 +171,28 @@
 }
 
 .manager-board-screen .manager-board-milestones-group__label {
-  font-size: 11px;
+  font-size: 13px;
 }
 
 .manager-board-screen .manager-board-milestone time,
 .manager-board-screen .manager-board-school-event time {
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .manager-board-screen .manager-board-milestone__body strong {
-  font-size: 12px;
+  font-size: 14px;
 }
 
 .manager-board-screen .manager-board-milestone__body span {
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .manager-board-screen .manager-board-milestone__badge {
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .manager-board-screen .manager-board-school-event {
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .manager-board-screen .manager-board-instructor-card__text strong {
