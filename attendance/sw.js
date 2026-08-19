@@ -3,7 +3,7 @@
  * Registered with an explicit scope of "attendance/" (see src/services/sw-registration.service.js),
  * so it never controls pages outside this app. Independent cache namespace from the dashboard's sw.js.
  */
-const CACHE_VERSION = 19;
+const CACHE_VERSION = 25;
 const CACHE_PREFIX = 'attendance-static-v';
 const CACHE_NAME = `${CACHE_PREFIX}${CACHE_VERSION}`;
 
