@@ -3704,6 +3704,7 @@ export const operationsManagementScreen = {
 
     root.querySelector('[data-ops-period]')?.addEventListener('change', (ev) => {
       ops.scheduleRequestVersion = (ops.scheduleRequestVersion || 0) + 1;
+      ops.customTab = '';
       ops.period = setGlobalActivityPeriod(ev.target.value || ACTIVITY_SEASON_REGULAR);
       const range = defaultDateRange(ops.period);
       ops.dateFrom = range.from;
