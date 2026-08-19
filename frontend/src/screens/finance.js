@@ -32,14 +32,19 @@ export {
   FINANCE_ATTENDANCE_EMPLOYMENT_SHEETS,
   FINANCE_ATTENDANCE_GENERAL_SHEET,
   FINANCE_HOUR_CATEGORIES,
+  FINANCE_MAOF_DAILY_COLUMNS,
+  FINANCE_MAOF_SHEET,
   buildEmployeeTeamMap,
   buildFinanceAttendanceExcelRows,
   buildFinanceAttendanceWorkbook,
+  buildMaofDailyExcelRows,
   currentFinanceMonthKey,
   financeAttendanceDisplayRow,
   financeEmploymentSheetName,
   financeHourCategory,
+  formatFinanceReportedHourRanges,
   isFinalPayrollApproval,
+  mergeFinanceReportedTimeRanges,
   normalizeFinanceEmploymentType,
   summarizeFinanceAttendance,
   unmappedFinanceActivityTypes
@@ -443,7 +448,7 @@ export const financeScreen = {
           employees: visit.employees || [],
           employeeSearch: visit.attendanceSearch || ''
         });
-        try { downloadFinanceAttendanceExcel(summarized.rows, month); }
+        try { downloadFinanceAttendanceExcel(summarized.rows, month, { approvals: monthCache?.approvals || [] }); }
         catch (error) { window.alert(error?.message || 'ייצוא Excel נכשל.'); }
         return;
       }
