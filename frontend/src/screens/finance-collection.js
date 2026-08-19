@@ -221,8 +221,8 @@ export function filterFinanceCollectionActivities(activities = [], { tab = FINAN
   return (activities || []).filter((activity) => {
     const status = normalizeCollectionStatus(activity.collection_status);
     const hasEndDate = financeActivityEndMonthKey(activity) !== FINANCE_NO_END_DATE_MONTH_KEY;
-    if (normalizedTab === FINANCE_COLLECTION_TAB_OPEN && (status !== FINANCE_COLLECTION_OPEN || !hasEndDate)) return false;
-    if (normalizedTab === FINANCE_COLLECTION_TAB_CLOSED && (status !== FINANCE_COLLECTION_CLOSED || !hasEndDate)) return false;
+    if (normalizedTab === FINANCE_COLLECTION_TAB_OPEN && status !== FINANCE_COLLECTION_OPEN) return false;
+    if (normalizedTab === FINANCE_COLLECTION_TAB_CLOSED && status !== FINANCE_COLLECTION_CLOSED) return false;
     if (normalizedTab === FINANCE_COLLECTION_TAB_NO_END_DATE && hasEndDate) return false;
     if (query && !financeCollectionSearchHaystack(activity).includes(query)) return false;
     return true;
@@ -313,7 +313,7 @@ export function groupFinanceCollectionByEndMonth(activities = [], { tab = FINANC
     .sort((a, b) => {
       if (a.monthKey === FINANCE_NO_END_DATE_MONTH_KEY) return 1;
       if (b.monthKey === FINANCE_NO_END_DATE_MONTH_KEY) return -1;
-      return a.monthKey.localeCompare(b.monthKey);
+      return b.monthKey.localeCompare(a.monthKey);
     });
 
   return months;
