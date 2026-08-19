@@ -1,4 +1,5 @@
 import { state } from './state.js';
+import { ensureFeature } from './feature-loaders.js';
 import { supabase, waitForSupabaseAuthSession } from './supabase-client.js';
 import { activitySeasonQueryValues, normalizeGlobalActivityPeriod } from './screens/shared/summer-activity.js';
 import { activityWorkDrawerHtml } from './screens/shared/activity-detail-html.js';
@@ -122,7 +123,23 @@ function restoreDrawerShellHeader() {
 }
 
 /** Level 3: open the full activity detail, reusing the same shared drawer/component the month screen uses. */
-function openActivityDetailDrawer(row) {
+async function openActivityDetailDrawer(row) {
+  ui.openDrawer({
+    title: '',
+    content: '<div class="ds-loading-card" dir="rtl" role="status"><div class="ds-spinner" aria-hidden="true"></div><p>טוען פרטי פעילות…</p></div>'
+  });
+
+  try {
+    await ensureFeature('activityDrawer');
+  } catch (error) {
+    console.error('[manager-board] failed to load activity drawer feature', error);
+    ui.openDrawer({
+      title: 'פרטי פעילות',
+      content: '<div class="ds-empty" dir="rtl"><p class="ds-empty__msg">לא ניתן לטעון את תצוגת הפעילות כרגע.</p></div>'
+    });
+    return;
+  }
+
   ui.openDrawer({
     title: '',
     content: activityWorkDrawerHtml(row, {
@@ -151,7 +168,7 @@ function bindDayDrawer(contentRoot, rowsByRowId) {
     if (!action.startsWith('monthsession|')) return;
     const rowId = decodeURIComponent(action.split('|')[2] || '');
     const row = rowsByRowId.get(rowId);
-    if (row) openActivityDetailDrawer(row);
+    if (row) void openActivityDetailDrawer(row);
   });
 }
 
