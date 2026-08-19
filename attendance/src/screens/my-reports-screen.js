@@ -89,7 +89,12 @@ async function loadAndRender({ instructor, year, month, contentArea, onNewReport
 
     // ── Status badge ──────────────────────────────────────────────────
     if (approval) {
-      const statusMap = { submitted: ['ממתין לאישור','warning'], locked: ['נעול','success'], reopened: ['נפתח מחדש','neutral'] };
+      const statusMap = {
+        submitted: ['אושר עובד / בבקרת מנהל','warning'],
+        locked: ['אושר על ידי המנהל','success'],
+        reopened: ['הוחזר לתיקון','neutral'],
+        approved_for_payroll: ['אושר סופית','success']
+      };
       const [statusLabel, tone] = statusMap[approval.status] || ['פתוח','neutral'];
       const badge = document.createElement('span');
       badge.className = `av2-badge av2-badge--${tone}`;

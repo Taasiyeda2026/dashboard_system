@@ -286,9 +286,12 @@ test('supabase client prefers env vars and keeps production fallback when unset'
   assert.match(source, /isConfigured/);
 });
 
-test('vite exposes SUPABASE_ env prefix for Preview integrations', async () => {
+test('vite exposes only explicit public Supabase env keys for Preview integrations', async () => {
   const source = await readFile(VITE_FILE, 'utf8');
-  assert.match(source, /envPrefix:\s*\[[^\]]*'SUPABASE_'/);
+  assert.match(source, /envPrefix:\s*\[[^\]]*'SUPABASE_URL'/);
+  assert.match(source, /envPrefix:\s*\[[^\]]*'SUPABASE_ANON_KEY'/);
+  assert.match(source, /envPrefix:\s*\[[^\]]*'SUPABASE_PUBLISHABLE_KEY'/);
+  assert.doesNotMatch(source, /envPrefix:\s*\[[^\]]*'SUPABASE_'/);
 });
 
 test('optional stabilize/reconcile migrations were removed', async () => {

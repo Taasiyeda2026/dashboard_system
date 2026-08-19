@@ -12,7 +12,7 @@ import {
 export const PAYROLL_APPROVAL_STATUS = 'approved_for_payroll';
 export const PAYROLL_APPROVAL_TEXT_VERSION = 'payroll-control-declaration-v1';
 export const PAYROLL_APPROVAL_TEXT =
-  'אני מאשר/ת כי בדקתי את דיווח הנוכחות, ביצעתי את הבקרה הנדרשת והנתונים מאושרים להעברה לשכר.';
+  'אני מאשר/ת כי בדקתי את דיווח הנוכחות החודשי, ביצעתי את התיקונים הנדרשים והדוח מאושר על ידי מנהל.';
 
 const txt = (value) => String(value ?? '').trim();
 const optionalNumber = (value) => {
@@ -215,23 +215,43 @@ export function snapshotAttendanceRow(entry) {
   };
 }
 
-export function buildPayrollApprovedSnapshot({ employeeId, employeeName, monthKey, entries = [] } = {}) {
+export function buildPayrollApprovedSnapshot({
+  employeeId,
+  employeeName,
+  monthKey,
+  entries = [],
+  employeeApprovalName = '',
+  employeeApprovalAt = '',
+  managerApprovalName = '',
+  managerApprovalAt = ''
+} = {}) {
   const rows = (entries || []).filter((entry) => entry?.source !== 'dashboard_only').map(snapshotAttendanceRow);
   return {
     employeeId: txt(employeeId),
     employeeName: txt(employeeName),
     monthKey: txt(monthKey),
+    employeeApprovalName: txt(employeeApprovalName),
+    employeeApprovalAt: txt(employeeApprovalAt),
+    managerApprovalName: txt(managerApprovalName),
+    managerApprovalAt: txt(managerApprovalAt),
     rows
   };
 }
 
 export function payrollMonthFileLabel(monthKey) {
-  const match = txt(monthKey).match(/^(\d{4})-(\d{2})$/);
-  return match ? `${match[2]}-${match[1]}` : txt(monthKey);
+  return attendanceMonthLabel(monthKey) || txt(monthKey);
 }
 
-export function payrollApprovalPdfFileName(employeeName, monthKey) {
-  return `${txt(employeeName) || 'עובד'} - ${payrollMonthFileLabel(monthKey)}.pdf`;
+export function payrollHebrewMonthName(monthKey) {
+  const label = attendanceMonthLabel(monthKey);
+  return label ? label.replace(/\s+\d{4}$/, '') : txt(monthKey);
+}
+
+export function payrollApprovalPdfFileName(employeeName, monthKey, version = 1) {
+  const monthLabel = payrollMonthFileLabel(monthKey);
+  const base = `דוח נוכחות - ${txt(employeeName) || 'עובד'} - ${monthLabel} - מאושר`;
+  const numericVersion = Number(version);
+  return Number.isFinite(numericVersion) && numericVersion > 1 ? `${base} - ${numericVersion}.pdf` : `${base}.pdf`;
 }
 
 export function canReadPayrollApprovals(user = {}) {
@@ -244,6 +264,12 @@ export function canReadPayrollApprovals(user = {}) {
 export function canExportPayrollApprovals(user = {}) {
   const role = txt(user?.role || user?.display_role).toLowerCase();
   return role === 'admin' || role === 'finance';
+}
+
+function normalizeWorkflowStatus(value) {
+  const status = txt(value).toLowerCase();
+  if (status === 'submitted' || status === 'manager_approved' || status === 'approved') return status;
+  return 'not_submitted';
 }
 
 export async function writeBackChangedAttendanceRecords(api, updates = []) {
@@ -277,11 +303,15 @@ export async function approvePayrollControlEmployee({
   result,
   employeeId,
   employeeName,
-  confirmed = false
+  confirmed = false,
+  monthWorkflow = {}
 } = {}) {
   if (!confirmed) throw new Error('נדרשת חתימה מפורשת על הצהרת האישור.');
   const monthKey = txt(result?.month);
   if (!monthKey) throw new Error('חסר חודש לאישור.');
+  if (normalizeWorkflowStatus(monthWorkflow?.workflowStatus) !== 'submitted') {
+    throw new Error('לא ניתן לאשר מנהל לפני שהעובד השלים ואישר את החודש.');
+  }
   const entries = payrollEmployeeEntries(result, employeeId);
   if (!entries.length) throw new Error('לא נמצאו רשומות נוכחות לעובד זה.');
   if (payrollEmployeeHasUnresolvedEntries(result, employeeId)) {
@@ -301,20 +331,53 @@ export async function approvePayrollControlEmployee({
     error.failures = failures;
     throw error;
   }
+  const managerApprovalName = txt(user?.full_name || user?.name || user?.username || '');
+  const managerApprovalAt = new Date().toISOString();
   const snapshot = buildPayrollApprovedSnapshot({
     employeeId,
     employeeName: employeeName || entries[0]?.final?.employeeName || entries[0]?.attendance?.employeeName,
     monthKey,
-    entries
+    entries,
+    employeeApprovalName: txt(monthWorkflow?.submittedByName),
+    employeeApprovalAt: txt(monthWorkflow?.submittedAt),
+    managerApprovalName,
+    managerApprovalAt
   });
-  return api.savePayrollControlApproval({
+  const artifacts = await api.attendanceManagerApprovalArtifacts({
     employee_id: txt(employeeId),
     employee_name: snapshot.employeeName,
     month_key: monthKey,
-    approved_by_name: txt(user?.full_name || user?.name || user?.username || ''),
-    approval_text_version: PAYROLL_APPROVAL_TEXT_VERSION,
+    manager_approval_name: managerApprovalName,
+    manager_approval_at: managerApprovalAt,
+    employee_approval_name: txt(monthWorkflow?.submittedByName),
+    employee_approval_at: txt(monthWorkflow?.submittedAt),
     approved_snapshot: snapshot
   });
+  if (!txt(artifacts?.sharepointWebUrl) || !txt(artifacts?.fileName)) {
+    throw new Error('שמירת ה-PDF ב-SharePoint נכשלה. אישור המנהל לא נשמר.');
+  }
+  const saved = await api.managerFinalizeAttendanceMonthReview({
+    employee_id: txt(employeeId),
+    month_key: monthKey,
+    manager_name: managerApprovalName,
+    manager_pdf_sharepoint_url: txt(artifacts?.sharepointWebUrl),
+    manager_pdf_sharepoint_item_id: txt(artifacts?.sharepointItemId) || null,
+    manager_pdf_file_name: txt(artifacts?.fileName),
+    manager_pdf_version: Number(artifacts?.managerPdfVersion || 0),
+    manager_approved_snapshot: snapshot
+  });
+  return {
+    ...saved,
+    employee_id: txt(employeeId),
+    month_key: monthKey,
+    status: 'manager_approved',
+    manager_approved_by_name: saved?.manager_approved_by_name || managerApprovalName,
+    manager_approved_at: saved?.manager_approved_at || managerApprovalAt,
+    manager_pdf_sharepoint_url: saved?.manager_pdf_sharepoint_url || txt(artifacts?.sharepointWebUrl),
+    manager_pdf_file_name: saved?.manager_pdf_file_name || txt(artifacts?.fileName),
+    manager_pdf_version: saved?.manager_pdf_version || Number(artifacts?.managerPdfVersion || 0),
+    mailed_at: txt(artifacts?.mailedAt || '')
+  };
 }
 
 export function buildPayrollApprovalsWorkbook(approvals = []) {
@@ -412,16 +475,23 @@ export function buildPayrollApprovalPrintHtml(approval = {}) {
   const monthLabel = attendanceMonthLabel(approval.month_key || snapshot.monthKey) || payrollMonthFileLabel(approval.month_key || snapshot.monthKey);
   const employeeName = txt(approval.employee_name || snapshot.employeeName);
   const employeeId = txt(approval.employee_id || snapshot.employeeId);
+  const employeeApprovedBy = txt(snapshot.employeeApprovalName || approval.submitted_by_name);
+  const employeeApprovedAt = formatApprovalWhen(snapshot.employeeApprovalAt || approval.submitted_at);
+  const managerApprovedBy = txt(snapshot.managerApprovalName || approval.manager_approved_by_name || approval.approved_by_name);
+  const managerApprovedAt = formatApprovalWhen(snapshot.managerApprovalAt || approval.manager_approved_at || approval.approved_at);
   const table = rows.map((row) => `<tr>
     <td>${escapeHtml(row.date || '')}</td>
-    <td>${escapeHtml(`${row.startTime || '—'}–${row.endTime || '—'}`)}</td>
-    <td>${escapeHtml(row.workHours == null ? '—' : String(row.workHours))}</td>
     <td>${escapeHtml(activityTypeDisplayLabel(row.activityType) || row.activityType || '')}</td>
+    <td>${escapeHtml(row.authority || '')}</td>
     <td>${escapeHtml(row.school || '')}</td>
     <td>${escapeHtml(row.program || '')}</td>
     <td>${escapeHtml(row.meetingNo || '')}</td>
+    <td>${escapeHtml(`${row.startTime || '—'}–${row.endTime || '—'}`)}</td>
+    <td>${escapeHtml(row.workHours == null ? '—' : String(row.workHours))}</td>
     <td>${escapeHtml(row.kilometers == null ? '—' : String(row.kilometers))}</td>
     <td>${escapeHtml(row.expenses == null ? '—' : String(row.expenses))}</td>
+    <td>${escapeHtml(row.expenseDetails || '')}</td>
+    <td>${escapeHtml(row.notes || '')}</td>
   </tr>`).join('');
   const typeRows = summary.byType.map(([type, hours]) => `<li>${escapeHtml(type)}: ${hours}</li>`).join('');
   const expenseLine = summary.expenses
@@ -430,21 +500,20 @@ export function buildPayrollApprovalPrintHtml(approval = {}) {
   return `<!doctype html><html lang="he" dir="rtl"><head><meta charset="utf-8"><title>${escapeHtml(payrollApprovalPdfFileName(employeeName, approval.month_key || snapshot.monthKey))}</title>
     <style>body{font-family:Arial,sans-serif;padding:24px;color:#1f2a37}table{width:100%;border-collapse:collapse;margin:16px 0}th,td{border-bottom:1px solid #d7e0ea;padding:8px;text-align:right}h1{margin:0 0 8px}.sign{margin-top:32px;border-top:1px solid #cbd5e1;padding-top:16px}</style>
     </head><body>
-    <h1>בקרת שכר</h1>
+    <h1>דוח נוכחות חודשי מאושר</h1>
     <p>שם עובד: ${escapeHtml(employeeName || '—')}</p>
     <p>מספר עובד: ${escapeHtml(employeeId || '—')}</p>
     <p>חודש: ${escapeHtml(monthLabel || '—')}</p>
-    <table><thead><tr><th>תאריך</th><th>שעות</th><th>שעות שכר</th><th>סוג פעילות</th><th>בית ספר</th><th>תכנית</th><th>מפגש</th><th>ק״מ</th><th>הוצאות</th></tr></thead>
-    <tbody>${table || '<tr><td colspan="9">אין רשומות מאושרות</td></tr>'}</tbody></table>
+    <table><thead><tr><th>תאריך</th><th>סוג פעילות</th><th>רשות</th><th>בית ספר</th><th>תכנית</th><th>מפגש</th><th>שעות התחלה/סיום</th><th>סה״כ שעות</th><th>ק״מ</th><th>הוצאות</th><th>פירוט הוצאה</th><th>הערות</th></tr></thead>
+    <tbody>${table || '<tr><td colspan="12">אין רשומות מאושרות</td></tr>'}</tbody></table>
     <p>סיכום לפי סוג פעילות</p>
     <ul>${typeRows || '<li>אין נתונים</li>'}</ul>
     <p>סה״כ שעות: ${escapeHtml(String(summary.hours))}</p>
     <p>סה״כ ק״מ: ${escapeHtml(String(summary.km))}</p>
     ${expenseLine}
     <div class="sign">
-      <p>נבדק ואושר להעברה לשכר</p>
-      <p>שם המנהל: ${escapeHtml(txt(approval.approved_by_name) || '—')}</p>
-      <p>תאריך ושעת האישור: ${escapeHtml(formatApprovalWhen(approval.approved_at))}</p>
+      <p>אישור עובד: ${escapeHtml(employeeApprovedBy || '—')} · ${escapeHtml(employeeApprovedAt)}</p>
+      <p>אישור מנהל: ${escapeHtml(managerApprovedBy || '—')} · ${escapeHtml(managerApprovedAt)}</p>
     </div>
     </body></html>`;
 }

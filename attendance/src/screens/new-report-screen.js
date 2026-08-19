@@ -33,6 +33,114 @@ import { canEditMonth, editBlockReason, getMonthKey } from '../services/month-ga
 import { uploadAttachment } from '../services/storage.service.js';
 import { createAttachmentRecord } from '../services/attendance.service.js';
 
+const INDEPENDENT_REPORT_TYPES = ['הכשרה', 'תפעול', 'ביטול זמן'];
+
+function activityChoiceKey(activity) {
+  return [
+    'planned',
+    activity?.row_id || activity?.id || activity?.activity_no || activity?.activity_name || '',
+    activity?.meeting_no || '',
+    activity?.single_school_id || activity?.school_id || ''
+  ].join('::');
+}
+
+function activityChoiceLabel(activity) {
+  const name = activity?.activity_name || toHebrewType(activity?.activity_type) || 'פעילות';
+  const school = activity?.single_school_name
+    || (activity?.school_link_status === 'multiple_schools' ? 'מספר בתי ספר' : '');
+  return school ? `${name} – ${school}` : name;
+}
+
+function buildReportSummaryRows(summary = {}) {
+  const filesText = Array.isArray(summary.attachments) && summary.attachments.length
+    ? summary.attachments.join(', ')
+    : 'ללא קבצים';
+  return [
+    ['תאריך', summary.reportDate || '—'],
+    ['סוג פעילות', summary.activityType || '—'],
+    ['רשות', summary.authority || '—'],
+    ['בית ספר', summary.school || '—'],
+    ['שם התוכנית', summary.program || '—'],
+    ['מספר מפגש', summary.meetingNo || '—'],
+    ['שעת התחלה בפועל', summary.startTime || '—'],
+    ['שעת סיום בפועל', summary.endTime || '—'],
+    ['סך שעות', summary.totalHours || '—'],
+    ['קילומטרים', summary.km || '0'],
+    ['הוצאות', summary.expenses || '0'],
+    ['הערה', summary.notes || '—'],
+    ['קבצים מצורפים', filesText],
+  ];
+}
+
+function showReportSummaryDialog(summary = {}) {
+  return new Promise((resolve) => {
+    document.querySelector('.av2-modal-overlay')?.remove();
+    const rows = buildReportSummaryRows(summary);
+
+    const overlay = document.createElement('div');
+    overlay.className = 'av2-modal-overlay';
+
+    const modal = document.createElement('div');
+    modal.className = 'av2-modal';
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-modal', 'true');
+
+    const header = document.createElement('div');
+    header.className = 'av2-modal__header';
+    const title = document.createElement('h2');
+    title.className = 'av2-modal__title';
+    title.textContent = 'סיכום לפני שמירה';
+    const closeBtn = document.createElement('button');
+    closeBtn.type = 'button';
+    closeBtn.className = 'av2-btn av2-btn--icon';
+    closeBtn.setAttribute('aria-label', 'חזרה לעריכה');
+    closeBtn.append(createIcon('x'));
+    header.append(title, closeBtn);
+
+    const table = document.createElement('table');
+    table.className = 'av2-reports__table';
+    const tbody = document.createElement('tbody');
+    for (const [label, value] of rows) {
+      const tr = document.createElement('tr');
+      const th = document.createElement('th');
+      th.textContent = label;
+      const td = document.createElement('td');
+      td.textContent = String(value || '—');
+      tr.append(th, td);
+      tbody.append(tr);
+    }
+    table.append(tbody);
+
+    const actions = document.createElement('div');
+    actions.className = 'av2-modal__header';
+    actions.style.justifyContent = 'flex-start';
+    const backBtn = document.createElement('button');
+    backBtn.type = 'button';
+    backBtn.className = 'av2-btn av2-btn--secondary';
+    backBtn.textContent = 'חזרה לעריכה';
+    const saveBtn = document.createElement('button');
+    saveBtn.type = 'button';
+    saveBtn.className = 'av2-btn av2-btn--primary';
+    saveBtn.textContent = 'אישור ושמירת הדיווח';
+    actions.append(backBtn, saveBtn);
+
+    const done = (ok) => {
+      overlay.remove();
+      resolve(ok);
+    };
+
+    closeBtn.addEventListener('click', () => done(false));
+    backBtn.addEventListener('click', () => done(false));
+    saveBtn.addEventListener('click', () => done(true));
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) done(false); });
+
+    modal.append(header, table, actions);
+    overlay.append(modal);
+    document.body.append(overlay);
+    saveBtn.focus();
+  });
+}
+
 // ── Time-picker component ──────────────────────────────────────────────────
 /**
  * Creates a compact two-select time picker (hour + minute).
@@ -216,10 +324,10 @@ export function renderNewReportScreen(container, {
       }
     } catch {}
 
-    // Show form immediately — no intermediate picker-only gate
     pickerArea.innerHTML = '<div class="av2-activity-picker__loading">מחפש פעילויות מתוכננות…</div>';
+    formArea.hidden = true;
     selectedActivity = null;
-    renderForm(null, dateStr);
+    pendingFiles.length = 0;
 
     try {
       const [activities, authorityList] = await Promise.all([
@@ -227,53 +335,63 @@ export function renderNewReportScreen(container, {
         getAllAuthoritySchoolList(instructor.empId).catch(() => authoritySchoolData),
       ]);
       authoritySchoolData = authorityList;
-      renderActivitySuggestions(activities, dateStr);
+      renderActivityChoices(activities, dateStr);
     } catch {
-      pickerArea.innerHTML = '';
+      renderActivityChoices([], dateStr);
     }
   }
 
-  // ── Activity suggestions (non-blocking — shown above the always-visible form) ─
-  function renderActivitySuggestions(activities, dateStr) {
+  function renderActivityChoices(activities, dateStr) {
     pickerArea.innerHTML = '';
+    const choiceField = createSelectField({
+      id: 'av2-activity-choice',
+      label: 'איזו פעילות בוצעה?',
+      options: [
+        { value: '', label: 'בחר' },
+        ...activities.map((activity) => ({
+          value: activityChoiceKey(activity),
+          label: activityChoiceLabel(activity),
+        })),
+        ...INDEPENDENT_REPORT_TYPES.map((type) => ({
+          value: `independent::${type}`,
+          label: type,
+        })),
+      ],
+      value: '',
+    });
+    choiceField.wrap.classList.add('av2-field--full');
+    pickerArea.append(choiceField.wrap);
 
-    if (activities.length === 0) {
+    if (!activities.length) {
       const note = document.createElement('p');
       note.className = 'av2-activity-picker__no-activity';
-      note.textContent = 'לא נמצאו פעילויות מתוכננות לתאריך זה';
+      note.textContent = 'לא נמצאו פעילויות מתוכננות ליום זה. ניתן לבחור הכשרה / תפעול / ביטול זמן.';
       pickerArea.append(note);
-      return;
     }
 
-    if (activities.length === 1) {
-      // Single activity — auto-fill the form silently
-      renderForm(activities[0], dateStr);
-      return;
-    }
-
-    // Multiple activities: keep cards visible; clicking one re-fills the form
-    const hdr = document.createElement('p');
-    hdr.className = 'av2-activity-picker__header';
-    hdr.textContent = `נמצאו ${activities.length} פעילויות מתוכננות — בחר/י לטעינה אוטומטית:`;
-    pickerArea.append(hdr);
-
-    const cardEls = [];
-    for (const act of activities) {
-      const card = buildActivityCard(act, () => {
-        cardEls.forEach(c => c.classList.remove('is-selected'));
-        card.classList.add('is-selected');
-        renderForm(act, dateStr);
-      });
-      pickerArea.append(card);
-      cardEls.push(card);
-    }
+    choiceField.input.addEventListener('change', () => {
+      const value = choiceField.input.value;
+      if (!value) {
+        formArea.hidden = true;
+        return;
+      }
+      pendingFiles.length = 0;
+      if (value.startsWith('independent::')) {
+        const type = value.split('::')[1] || '';
+        renderForm(null, dateStr, null, { independentType: type });
+        return;
+      }
+      const activity = activities.find((item) => activityChoiceKey(item) === value) || null;
+      renderForm(activity, dateStr);
+    });
   }
 
   // ── Form renderer ────────────────────────────────────────────────────────
-  function renderForm(activity, dateStr, prefillRecord = null) {
+  function renderForm(activity, dateStr, prefillRecord = null, { independentType = '' } = {}) {
     selectedActivity = activity;
     formArea.innerHTML = '';
     formArea.hidden = false;
+    const isIndependentType = !activity && Boolean(independentType);
 
     // Duplicate-source note (only when pre-filling from an existing record)
     if (prefillRecord && !activity) {
@@ -312,17 +430,22 @@ export function renderNewReportScreen(container, {
 
     // ── ROW 2: Activity type + Meeting no ──────────────────────────────
     // Determine initial Hebrew type from planned activity or duplicate source
-    const initialHebrewType = prefillRecord?.activity_type
+    const initialHebrewType = independentType
+      || prefillRecord?.activity_type
       || (activity ? toHebrewType(activity.activity_type) : '')
       || '';
 
+    const typeOptions = [
+      { value: '', label: 'בחר' },
+      ...HEBREW_ACTIVITY_TYPES.map(t => ({ value: t, label: t })),
+    ];
+    if (initialHebrewType && !typeOptions.some((opt) => opt.value === initialHebrewType)) {
+      typeOptions.push({ value: initialHebrewType, label: initialHebrewType });
+    }
     const typeField = createSelectField({
       id: 'av2-activity-type',
       label: 'סוג פעילות',
-      options: [
-        { value: '', label: 'בחר' },
-        ...HEBREW_ACTIVITY_TYPES.map(t => ({ value: t, label: t })),
-      ],
+      options: typeOptions,
       value: initialHebrewType,
     });
 
@@ -361,6 +484,15 @@ export function renderNewReportScreen(container, {
           const s = prefillRecord?.activity_name_snapshot || activity?.activity_name || '';
           if (s) activityNameSel.setValue(s, s);
         });
+    }
+
+    if (activity || isIndependentType) {
+      const fixedName = activity?.activity_name || prefillRecord?.activity_name_snapshot || independentType || '';
+      if (fixedName) activityNameSel.setValue(fixedName, fixedName);
+      const trigger = activityNameSel.wrap.querySelector('.av2-ssel__trigger');
+      if (trigger) trigger.disabled = true;
+      typeField.input.disabled = true;
+      if (activity?.meeting_no != null) meetingField.input.disabled = true;
     }
 
     // ── ROW 2: Authority + School ───────────────────────────────────────
@@ -538,8 +670,15 @@ export function renderNewReportScreen(container, {
     // ── ROW 3: Time pickers ────────────────────────────────────────────
     form.append(makeSectionTitle('זמן ונסיעות'));
 
-    const startPicker = createTimePicker('av2-start-time', 'שעת התחלה', prefillRecord?.start_time || activity?.start_time || '');
-    const endPicker   = createTimePicker('av2-end-time',   'שעת סיום',  prefillRecord?.end_time   || activity?.end_time   || '');
+    if (activity?.start_time && activity?.end_time) {
+      const plannedHoursNote = document.createElement('p');
+      plannedHoursNote.className = 'av2-report__no-activity-note av2-field--full';
+      plannedHoursNote.textContent = `שעות הפעילות המתוכננות: ${activity.start_time}–${activity.end_time}. יש להזין כאן את שעות הנוכחות בפועל.`;
+      form.append(plannedHoursNote);
+    }
+
+    const startPicker = createTimePicker('av2-start-time', 'שעת התחלה', prefillRecord?.start_time || '');
+    const endPicker   = createTimePicker('av2-end-time',   'שעת סיום',  prefillRecord?.end_time   || '');
 
     // Hours-calculated display (spans full width)
     const hoursDisplay = document.createElement('div');
@@ -609,9 +748,9 @@ export function renderNewReportScreen(container, {
     form.append(notesField.wrap);
 
     // ── Full-width: Attachments ────────────────────────────────────────
-    const attachSection = buildAttachmentSection(pendingFiles);
-    attachSection.classList.add('av2-field--full');
-    form.append(attachSection);
+    const attachmentUi = buildAttachmentSection(pendingFiles);
+    attachmentUi.section.classList.add('av2-field--full');
+    form.append(attachmentUi.section);
 
     // ── Full-width: Save button ────────────────────────────────────────
     const saveBtn = document.createElement('button');
@@ -629,8 +768,48 @@ export function renderNewReportScreen(container, {
     form.append(errorEl);
 
     // ── Submit ─────────────────────────────────────────────────────────
+    let savedRecordForAttachmentRetry = null;
+
+    async function uploadPendingFiles(recordId) {
+      const queue = [...pendingFiles];
+      pendingFiles.length = 0;
+      const failedFiles = [];
+      for (const file of queue) {
+        try {
+          const storagePath = await uploadAttachment(file, instructor.empId, recordId);
+          await createAttachmentRecord(instructor.empId, recordId, {
+            storagePath,
+            fileName: file.name,
+            fileType: file.type,
+            fileSize: file.size,
+          });
+        } catch (uploadErr) {
+          console.warn('File upload failed:', uploadErr.message);
+          failedFiles.push(file);
+        }
+      }
+      pendingFiles.push(...failedFiles);
+      attachmentUi.refresh();
+      return failedFiles;
+    }
+
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
+
+      if (savedRecordForAttachmentRetry) {
+        saveBtn.disabled = true;
+        saveBtn.querySelector('span').textContent = 'מעלה קבצים…';
+        const failedFiles = await uploadPendingFiles(savedRecordForAttachmentRetry.id);
+        if (failedFiles.length) {
+          errorEl.textContent = `הדיווח נשמר, אך ${failedFiles.length} קבצים עדיין לא עלו. אפשר לנסות שוב.`;
+          errorEl.hidden = false;
+          saveBtn.disabled = false;
+          saveBtn.querySelector('span').textContent = 'נסה שוב העלאת קבצים';
+          return;
+        }
+        onSaved?.(savedRecordForAttachmentRetry);
+        return;
+      }
 
       const startTime  = startPicker.getValue();
       const endTime    = endPicker.getValue();
@@ -650,14 +829,14 @@ export function renderNewReportScreen(container, {
         if (!firstInvalid) firstInvalid = wrap;
       }
 
-      if (!activityNameSel.getLabel().trim()) markInvalid(activityNameSel.wrap, 'שם פעילות');
-      if (!typeField.input.value)                markInvalid(typeField.wrap, 'סוג פעילות');
-      if (!startTime)                            markInvalid(startPicker.wrap, 'שעת התחלה');
-      if (!endTime)                              markInvalid(endPicker.wrap, 'שעת סיום');
+      if (!activityNameSel.getLabel().trim())       markInvalid(activityNameSel.wrap, 'שם פעילות');
+      if (!typeField.input.value)                   markInvalid(typeField.wrap, 'סוג פעילות');
+      if (!startTime)                               markInvalid(startPicker.wrap, 'שעת התחלה');
+      if (!endTime)                                 markInvalid(endPicker.wrap, 'שעת סיום');
       if (startTime && endTime && totalHours <= 0) markInvalid(endPicker.wrap, 'שעת סיום חייבת להיות מאוחרת מהתחלה');
 
-      // Authority required in manual mode
-      if (!activity) {
+      // Authority required in manual mode (except independent types)
+      if (!activity && !isIndependentType) {
         const authLabel = manualAuthName?.trim() || '';
         if (!authLabel) markInvalid(authorityEl, 'רשות');
       }
@@ -669,15 +848,32 @@ export function renderNewReportScreen(container, {
         return;
       }
 
+      const finalAuthorityId   = activity?.authority_id   ?? manualAuthId   ?? null;
+      const finalAuthorityName = activity?.authority_name ?? manualAuthName  ?? null;
+      const finalSchoolId      = activity ? (schoolId || null)      : (manualSchoolId   || null);
+      const finalSchoolName    = activity ? (schoolName || null)    : (manualSchoolName || null);
+      const programName = activity?.program_name || activityNameSel.getLabel().trim() || null;
+      const summaryConfirmed = await showReportSummaryDialog({
+        reportDate: dateStr,
+        activityType: typeField.input.value || '—',
+        authority: finalAuthorityName || '—',
+        school: finalSchoolName || '—',
+        program: programName || '—',
+        meetingNo: meetingField.input.value || '—',
+        startTime,
+        endTime,
+        totalHours: totalHours > 0 ? totalHours.toFixed(2) : '—',
+        km: kmField.input.value || '0',
+        expenses: expField.input.value || '0',
+        notes: notesField.input.value.trim() || '—',
+        attachments: pendingFiles.map((file) => file.name),
+      });
+      if (!summaryConfirmed) return;
+
       saveBtn.disabled = true;
       saveBtn.querySelector('span').textContent = 'שומר…';
 
       try {
-        const finalAuthorityId   = activity?.authority_id   ?? manualAuthId   ?? null;
-        const finalAuthorityName = activity?.authority_name ?? manualAuthName  ?? null;
-        const finalSchoolId      = activity ? (schoolId || null)      : (manualSchoolId   || null);
-        const finalSchoolName    = activity ? (schoolName || null)    : (manualSchoolName || null);
-
         const payload = {
           report_date:             dateStr,
           start_time:              startTime,
@@ -696,7 +892,7 @@ export function renderNewReportScreen(container, {
           school_name_snapshot:    finalSchoolName,
           semel_mosad:             semelMosad || null,
           program_name:            activity?.program_name    ?? null,
-          program_name_snapshot:   activity?.program_name    ?? null,
+          program_name_snapshot:   programName,
           roundtrip_km:            kmField.input.value ? Number(kmField.input.value) : 0,
           expenses:                expField.input.value ? Number(expField.input.value) : 0,
           expense_details:         expDetailField.input.value.trim() || null,
@@ -704,19 +900,14 @@ export function renderNewReportScreen(container, {
         };
 
         const record = await createRecord(instructor.empId, payload);
-
-        for (const file of pendingFiles) {
-          try {
-            const storagePath = await uploadAttachment(file, instructor.empId, record.id);
-            await createAttachmentRecord(instructor.empId, record.id, {
-              storagePath,
-              fileName: file.name,
-              fileType: file.type,
-              fileSize: file.size,
-            });
-          } catch (uploadErr) {
-            console.warn('File upload failed:', uploadErr.message);
-          }
+        const failedFiles = await uploadPendingFiles(record.id);
+        if (failedFiles.length) {
+          savedRecordForAttachmentRetry = record;
+          errorEl.textContent = `הדיווח נשמר, אבל ${failedFiles.length} קבצים לא עלו. אפשר לנסות לצרף שוב ואז ללחוץ "נסה שוב העלאת קבצים".`;
+          errorEl.hidden = false;
+          saveBtn.disabled = false;
+          saveBtn.querySelector('span').textContent = 'נסה שוב העלאת קבצים';
+          return;
         }
 
         onSaved?.(record);
@@ -828,5 +1019,5 @@ function buildAttachmentSection(pendingFiles) {
 
   renderFileList();
   section.append(label, fileList, uploadBtn);
-  return section;
+  return { section, refresh: renderFileList };
 }

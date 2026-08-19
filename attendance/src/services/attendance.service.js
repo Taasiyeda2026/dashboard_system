@@ -108,22 +108,43 @@ export async function deleteRecord(recordId, empId) {
  * Returns the approval row for a month_key ("YYYY-MM"), or null if not yet created (= open).
  */
 export async function getMonthApproval(empId, monthKey) {
-  const { data, error } = await supabase
-    .from('attendance_month_approvals')
-    .select('*')
-    .eq('emp_id', empId)
-    .eq('month_key', monthKey)
-    .maybeSingle();
+  const [monthApprovalRes, payrollApprovalRes] = await Promise.all([
+    supabase
+      .from('attendance_month_approvals')
+      .select('*')
+      .eq('emp_id', empId)
+      .eq('month_key', monthKey)
+      .maybeSingle(),
+    supabase
+      .from('payroll_control_approvals')
+      .select('id,approved_at,approved_by_name,status')
+      .eq('employee_id', String(empId))
+      .eq('month_key', monthKey)
+      .eq('status', 'approved_for_payroll')
+      .maybeSingle()
+  ]);
 
-  if (error) throw new Error(`שגיאה בבדיקת סטטוס חודש: ${error.message}`);
-  return data; // null = 'open'
+  if (monthApprovalRes.error) throw new Error(`שגיאה בבדיקת סטטוס חודש: ${monthApprovalRes.error.message}`);
+  if (payrollApprovalRes.error) throw new Error(`שגיאה בבדיקת אישור שכר: ${payrollApprovalRes.error.message}`);
+
+  // Final payroll approval is the terminal state exposed to both instructor and manager.
+  if (payrollApprovalRes.data) {
+    return {
+      ...(monthApprovalRes.data || {}),
+      status: 'approved_for_payroll',
+      payroll_approved_at: payrollApprovalRes.data.approved_at || null,
+      payroll_approved_by_name: payrollApprovalRes.data.approved_by_name || null
+    };
+  }
+
+  return monthApprovalRes.data; // null = 'open'
 }
 
 /**
  * Submit a month (instructor confirms the month is complete).
  * Status becomes 'submitted'; manager must lock/approve separately.
  */
-export async function submitMonth(empId, monthKey) {
+export async function submitMonth(empId, monthKey, submittedByName = '') {
   const now = new Date().toISOString();
   const { data, error } = await supabase
     .from('attendance_month_approvals')
@@ -133,6 +154,7 @@ export async function submitMonth(empId, monthKey) {
         month_key: monthKey,
         status: 'submitted',
         submitted_at: now,
+        submitted_by_name: String(submittedByName || '').trim(),
         updated_at: now
       },
       { onConflict: 'emp_id,month_key' }

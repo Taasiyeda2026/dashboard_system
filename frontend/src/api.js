@@ -6645,17 +6645,114 @@ export const api = {
     }
     return response;
   },
-  listPayrollControlApprovals: async ({ monthKey = '', employeeIds = [] } = {}) => {
+  listPayrollControlApprovals: async ({ monthKey = '', employeeIds = [], statuses = ['approved_for_payroll'] } = {}) => {
+    const normalizedStatuses = Array.isArray(statuses)
+      ? statuses.map((value) => String(value || '').trim()).filter(Boolean)
+      : [];
     let query = supabase
       .from('payroll_control_approvals')
       .select('*')
-      .eq('status', 'approved_for_payroll')
       .order('approved_at', { ascending: false });
+    if (normalizedStatuses.length === 1) query = query.eq('status', normalizedStatuses[0]);
+    else if (normalizedStatuses.length > 1) query = query.in('status', normalizedStatuses);
+    else query = query.eq('status', 'approved_for_payroll');
     if (monthKey) query = query.eq('month_key', monthKey);
     if (employeeIds.length) query = query.in('employee_id', employeeIds.map((value) => String(value)));
     const { data, error } = await query;
     if (error) throw new Error(error.message || 'payroll_control_approvals_read_failed');
     return Array.isArray(data) ? data : [];
+  },
+  attendanceControlMonthWorkflowStatuses: async ({ monthKey = '', employeeIds = [] } = {}) => {
+    const month = String(monthKey || '').trim();
+    if (!month) return [];
+    const ids = Array.isArray(employeeIds) ? employeeIds.map((value) => String(value || '').trim()).filter(Boolean) : [];
+    const { data, error } = await supabase.rpc('get_payroll_attendance_month_statuses', {
+      p_month_key: month,
+      p_employee_ids: ids.length ? ids : null
+    });
+    if (error) throw new Error(error.message || 'attendance_month_workflow_status_read_failed');
+    return Array.isArray(data) ? data : [];
+  },
+  attendanceManagerApprovalArtifacts: async ({
+    employee_id,
+    employee_name,
+    month_key,
+    manager_approval_name,
+    manager_approval_at = '',
+    employee_approval_name = '',
+    employee_approval_at = '',
+    approved_snapshot = {}
+  } = {}) => {
+    const body = {
+      employeeId: String(employee_id || '').trim(),
+      employeeName: String(employee_name || '').trim(),
+      monthKey: String(month_key || '').trim(),
+      managerApprovalName: String(manager_approval_name || '').trim(),
+      managerApprovalAt: String(manager_approval_at || '').trim() || undefined,
+      employeeApprovalName: String(employee_approval_name || '').trim() || undefined,
+      employeeApprovalAt: String(employee_approval_at || '').trim() || undefined,
+      approvedSnapshot: approved_snapshot || {}
+    };
+    const { data, error } = await supabase.functions.invoke('payroll-attendance-pdf-dispatch', { body });
+    if (error || data?.error) {
+      const detail = String(data?.error || error?.message || '').trim();
+      throw new Error(
+        detail
+          ? `שמירת ה-PDF ב-SharePoint או שליחת המייל נכשלה. אישור המנהל לא נשמר. ${detail}`
+          : 'שמירת ה-PDF ב-SharePoint או שליחת המייל נכשלה. אישור המנהל לא נשמר.'
+      );
+    }
+    return data || {};
+  },
+  managerFinalizeAttendanceMonthReview: async ({
+    employee_id,
+    month_key,
+    manager_name,
+    manager_pdf_sharepoint_url,
+    manager_pdf_sharepoint_item_id = null,
+    manager_pdf_file_name,
+    manager_pdf_version,
+    manager_approved_snapshot = {}
+  } = {}) => {
+    const payload = {
+      p_employee_id: String(employee_id || '').trim(),
+      p_month_key: String(month_key || '').trim(),
+      p_manager_name: String(manager_name || '').trim(),
+      p_manager_pdf_sharepoint_url: String(manager_pdf_sharepoint_url || '').trim(),
+      p_manager_pdf_sharepoint_item_id: manager_pdf_sharepoint_item_id ? String(manager_pdf_sharepoint_item_id).trim() : null,
+      p_manager_pdf_file_name: String(manager_pdf_file_name || '').trim(),
+      p_manager_pdf_version: Number(manager_pdf_version || 0),
+      p_manager_approved_snapshot: manager_approved_snapshot || {}
+    };
+    const { data, error } = await supabase.rpc('manager_finalize_attendance_month_review', payload);
+    if (error) throw new Error(error.message || 'manager_finalize_attendance_month_review_failed');
+    return data || {};
+  },
+  adminFinalizeAttendanceMonthPayroll: async ({
+    employee_id,
+    month_key,
+    final_approved_by_name = ''
+  } = {}) => {
+    const { data, error } = await supabase.rpc('admin_finalize_attendance_month_payroll', {
+      p_employee_id: String(employee_id || '').trim(),
+      p_month_key: String(month_key || '').trim(),
+      p_final_approved_by_name: String(final_approved_by_name || '').trim() || null
+    });
+    if (error) throw new Error(error.message || 'admin_finalize_attendance_month_payroll_failed');
+    return data || {};
+  },
+  adminReopenAttendanceMonthForCorrection: async ({
+    employee_id,
+    month_key,
+    reason = ''
+  } = {}) => {
+    const { data, error } = await supabase.rpc('admin_reopen_attendance_month_for_correction', {
+      p_employee_id: String(employee_id || '').trim(),
+      p_month_key: String(month_key || '').trim(),
+      p_reason: String(reason || '').trim() || null
+    });
+    if (error) throw new Error(error.message || 'admin_reopen_attendance_month_for_correction_failed');
+    return data || {};
   },
   savePayrollControlApproval: async ({
     employee_id,
@@ -6665,7 +6762,10 @@ export const api = {
     approval_text_version,
     approved_snapshot,
     pdf_path = null,
-    pdf_file_name = null
+    pdf_file_name = null,
+    submission_override = false,
+    submission_override_reason = null,
+    submission_attendance_status = ''
   } = {}) => {
     const payload = {
       employee_id: String(employee_id || '').trim(),
@@ -6677,7 +6777,10 @@ export const api = {
       approval_text_version: String(approval_text_version || 'payroll-control-declaration-v1').trim(),
       approved_snapshot: approved_snapshot || {},
       pdf_path: pdf_path || null,
-      pdf_file_name: pdf_file_name || null
+      pdf_file_name: pdf_file_name || null,
+      submission_override: submission_override === true,
+      submission_override_reason: submission_override_reason ? String(submission_override_reason).trim() : null,
+      submission_attendance_status: String(submission_attendance_status || '').trim() || null
     };
     const { data, error } = await supabase
       .from('payroll_control_approvals')

@@ -20,7 +20,8 @@ export default defineConfig(() => {
   return {
     root: __dirname,
     base,
-    envPrefix: ['VITE_', 'NEXT_PUBLIC_'],
+    // Only allow explicit public Supabase keys; never expose service-role secrets.
+    envPrefix: ['VITE_', 'NEXT_PUBLIC_', 'SUPABASE_URL', 'SUPABASE_ANON_KEY', 'SUPABASE_PUBLISHABLE_KEY'],
     publicDir: 'frontend/public',
     appType: 'spa',
     plugins: [manifestLinkPlugin()],

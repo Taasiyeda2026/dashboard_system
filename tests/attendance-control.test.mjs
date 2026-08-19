@@ -9,6 +9,7 @@ import {
   buildCorrectedAttendanceWorkbook, parseAttendanceWorkbook, attendanceAuditSummary, aggregateDashboardAttendanceRows,
   normalizeAttendanceApiRows, attendanceTeams, DETAIL_HEADERS, MONTHLY_HEADERS, DAILY_HEADERS, rowWorkHours,
   parseMeetingNumberList, attendanceEntryIsResolved, approveAttendanceEntryAsReported, applyAttendanceManualCorrection,
+  resolvePayrollMonthWorkflow,
   kmDayNeedsDecision, resolveKilometersDay
 } from '../frontend/src/screens/attendance-control.js';
 import {
@@ -16,7 +17,6 @@ import {
   resolveSchoolIdForAuthority
 } from '../frontend/src/screens/payroll-control-identity.js';
 import {
-  PAYROLL_APPROVAL_TEXT_VERSION,
   approvePayrollControlEmployee,
   buildAttendanceUpdatePayload,
   buildPayrollApprovalPrintHtml,
@@ -27,19 +27,20 @@ import {
   collectKmCorrectionUpdates,
   downloadPayrollApprovalsExcel,
   payrollApprovalPdfFileName,
-  payrollEmployeeHasUnresolvedEntries
+  payrollEmployeeHasUnresolvedEntries,
+  payrollHebrewMonthName
 } from '../frontend/src/screens/payroll-control-finish.js';
+import { readFile } from 'node:fs/promises';
 
 test('payroll control opening screen uses direct monthly sources and no workbook upload', () => {
   const html = attendanceControlHtml();
-  assert.match(html, /נוכחות/);
-  assert.match(html, /דשבורד/);
+  assert.match(html, /חודש בקרה/);
   assert.match(html, /צוות/);
   assert.match(html, /אישור בקרת שכר/);
   assert.equal((html.match(/type="file"/g) || []).length, 0);
   assert.doesNotMatch(html, /data-attendance-dashboard/);
   assert.match(html, /data-attendance-month/);
-  assert.match(html, /data-dashboard-month/);
+  assert.doesNotMatch(html, /data-dashboard-month/);
   assert.match(html, /data-attendance-run disabled/);
 });
 
@@ -467,7 +468,9 @@ test('results classify matching rows as normal and count only actual row excepti
 
 test('a fully matching row has a normal status and no decision control', () => {
   const row = { employeeId: '10', employeeName: 'דנה', date: '2026-08-01', startTime: '08:00', endTime: '09:00', program: 'קורס' };
-  const html = resultsHtml(compareAttendanceRows([row], [{ ...row }]));
+  const html = resultsHtml(compareAttendanceRows([row], [{ ...row }]), '2026-08', {
+    workflowByEmployee: { '10': { workflow_status: 'submitted', attendance_submission_status: 'submitted' } }
+  });
   assert.match(html, /attendance-control__day--ok/);
   assert.match(html, /✓ תקין/);
   assert.doesNotMatch(html, /data-attendance-choice/);
@@ -481,7 +484,7 @@ test('attendance, dashboard and manual choices preserve independent payroll hour
   applyAttendanceChoice(comparison, 'kilometers', 'attendance');
   assert.equal(comparison.final.workHours, 1, 'time decisions must preserve the original payroll duration');
   assert.equal(comparison.final.kilometers, 4);
-  assert.equal(calculateWorkHours('23:30', '01:00'), 1.5);
+  assert.equal(calculateWorkHours('23:30', '01:00'), 0);
 });
 
 test('standard school durations match longer paid attendance end times', () => {
@@ -918,28 +921,55 @@ test('failed updaterecord stops payroll approval save', async () => {
   const saved = [];
   const api = {
     attendanceControlUpdateRecord: async () => { throw new Error('attendance_api_500'); },
-    savePayrollControlApproval: async (payload) => { saved.push(payload); return payload; }
+    attendanceManagerApprovalArtifacts: async (payload) => { saved.push(payload); return payload; },
+    managerFinalizeAttendanceMonthReview: async (payload) => { saved.push(payload); return payload; }
   };
   await assert.rejects(
     () => approvePayrollControlEmployee({
       api, user: { full_name: 'מנהל' }, result: { month: '2026-05', comparisons: [changedComparison] },
-      employeeId: '10', employeeName: 'דנה', confirmed: true
+      employeeId: '10', employeeName: 'דנה', confirmed: true,
+      monthWorkflow: { workflowStatus: 'submitted', attendanceSubmissionStatus: 'submitted' }
     }),
     /האישור לא נשמר/
   );
   assert.equal(saved.length, 0);
 });
 
-test('successful write-back saves approval snapshot', async () => {
+test('successful write-back saves manager approval after PDF SharePoint and email artifacts', async () => {
   const sent = [];
+  let artifactsPayload = null;
   let saved = null;
   const api = {
     attendanceControlUpdateRecord: async (recordId, fields) => { sent.push({ recordId, fields }); return { success: true }; },
-    savePayrollControlApproval: async (payload) => { saved = payload; return { id: 'appr-1', pdf_path: null, ...payload }; }
+    attendanceManagerApprovalArtifacts: async (payload) => {
+      artifactsPayload = payload;
+      return {
+        sharepointWebUrl: 'https://think365orgil.sharepoint.com/file',
+        sharepointItemId: 'item-1',
+        fileName: payrollApprovalPdfFileName('דנה', '2026-05'),
+        managerPdfVersion: 1,
+        mailedAt: '2026-05-20T10:00:00.000Z'
+      };
+    },
+    managerFinalizeAttendanceMonthReview: async (payload) => {
+      saved = payload;
+      return {
+        ...payload,
+        manager_approved_by_name: 'מנהל בדיקה',
+        manager_approved_at: '2026-05-20T10:00:00.000Z',
+        manager_pdf_sharepoint_url: payload.manager_pdf_sharepoint_url
+      };
+    }
   };
   const row = await approvePayrollControlEmployee({
     api, user: { full_name: 'מנהל בדיקה' }, result: { month: '2026-05', comparisons: [changedComparison] },
-    employeeId: '10', employeeName: 'דנה', confirmed: true
+    employeeId: '10', employeeName: 'דנה', confirmed: true,
+    monthWorkflow: {
+      workflowStatus: 'submitted',
+      attendanceSubmissionStatus: 'submitted',
+      submittedByName: 'דנה',
+      submittedAt: '2026-05-03T08:00:00.000Z'
+    }
   });
   assert.equal(sent.length, 1);
   assert.equal(sent[0].recordId, '77');
@@ -948,10 +978,79 @@ test('successful write-back saves approval snapshot', async () => {
   assert.equal(sent[0].fields.attachmentsNames, 'scan.pdf');
   assert.equal(sent[0].fields.notes, 'הערה קיימת');
   assert.equal(sent[0].fields.totalExpenses, 0);
-  assert.equal(saved.approval_text_version, PAYROLL_APPROVAL_TEXT_VERSION);
-  assert.equal(saved.approved_snapshot.rows[0].startTime, '08:15');
-  assert.equal(saved.approved_snapshot.rows[0].recordId, '77');
-  assert.equal(row.pdf_path, null);
+  assert.equal(artifactsPayload.month_key, '2026-05');
+  assert.equal(artifactsPayload.approved_snapshot.rows[0].startTime, '08:15');
+  assert.equal(artifactsPayload.approved_snapshot.rows[0].recordId, '77');
+  assert.equal(saved.manager_pdf_sharepoint_url, 'https://think365orgil.sharepoint.com/file');
+  assert.equal(saved.manager_pdf_file_name, 'דוח נוכחות - דנה - מאי 2026 - מאושר.pdf');
+  assert.equal(row.status, 'manager_approved');
+  assert.equal(row.mailed_at, '2026-05-20T10:00:00.000Z');
+});
+
+test('manager approval is blocked before employee month submission', async () => {
+  const api = {
+    attendanceControlUpdateRecord: async () => ({ success: true }),
+    attendanceManagerApprovalArtifacts: async (payload) => payload,
+    managerFinalizeAttendanceMonthReview: async (payload) => payload
+  };
+  await assert.rejects(
+    () => approvePayrollControlEmployee({
+      api,
+      user: { full_name: 'מנהל בדיקה', role: 'operation_manager' },
+      result: { month: '2026-05', comparisons: [changedComparison] },
+      employeeId: '10',
+      employeeName: 'דנה',
+      confirmed: true,
+      monthWorkflow: { workflowStatus: 'not_submitted', attendanceSubmissionStatus: 'open' }
+    }),
+    /לא ניתן לאשר מנהל לפני שהעובד השלים ואישר את החודש/
+  );
+});
+
+test('manager approval without a submitted workflow is blocked even for admin', async () => {
+  let saved = null;
+  const api = {
+    attendanceControlUpdateRecord: async () => ({ success: true }),
+    attendanceManagerApprovalArtifacts: async (payload) => payload,
+    managerFinalizeAttendanceMonthReview: async (payload) => { saved = payload; return payload; }
+  };
+  await assert.rejects(
+    () => approvePayrollControlEmployee({
+      api,
+      user: { full_name: 'מנהל בדיקה', role: 'admin' },
+      result: { month: '2026-05', comparisons: [changedComparison] },
+      employeeId: '10',
+      employeeName: 'דנה',
+      confirmed: true,
+      monthWorkflow: { workflowStatus: 'not_submitted', attendanceSubmissionStatus: 'open' }
+    }),
+    /לא ניתן לאשר מנהל לפני שהעובד השלים ואישר את החודש/
+  );
+  assert.equal(saved, null);
+});
+
+test('SharePoint or email artifact failure blocks manager approval save', async () => {
+  let finalized = null;
+  const api = {
+    attendanceControlUpdateRecord: async () => ({ success: true }),
+    attendanceManagerApprovalArtifacts: async () => {
+      throw new Error('שמירת ה-PDF ב-SharePoint או שליחת המייל נכשלה. אישור המנהל לא נשמר.');
+    },
+    managerFinalizeAttendanceMonthReview: async (payload) => { finalized = payload; return payload; }
+  };
+  await assert.rejects(
+    () => approvePayrollControlEmployee({
+      api,
+      user: { full_name: 'מנהל בדיקה' },
+      result: { month: '2026-05', comparisons: [changedComparison] },
+      employeeId: '10',
+      employeeName: 'דנה',
+      confirmed: true,
+      monthWorkflow: { workflowStatus: 'submitted', attendanceSubmissionStatus: 'submitted' }
+    }),
+    /אישור המנהל לא נשמר/
+  );
+  assert.equal(finalized, null);
 });
 
 test('admin and finance can read payroll approvals', () => {
@@ -986,22 +1085,62 @@ test('approval document is linked to the saved approval snapshot', () => {
     })
   };
   const html = buildPayrollApprovalPrintHtml(approval);
-  assert.equal(approval.pdf_file_name, 'דנה כהן - 05-2026.pdf');
+  assert.equal(approval.pdf_file_name, 'דוח נוכחות - דנה כהן - מאי 2026 - מאושר.pdf');
+  assert.equal(payrollApprovalPdfFileName('דנה כהן', '2026-05'), 'דוח נוכחות - דנה כהן - מאי 2026 - מאושר.pdf');
+  assert.equal(payrollApprovalPdfFileName('דנה כהן', '2026-09', 2), 'דוח נוכחות - דנה כהן - ספטמבר 2026 - מאושר - 2.pdf');
+  assert.equal(payrollHebrewMonthName('2026-09'), 'ספטמבר');
   assert.match(html, /דנה כהן/);
   assert.match(html, /מספר עובד: 10/);
-  assert.match(html, /נבדק ואושר להעברה לשכר/);
-  assert.match(html, /מנהל בדיקה/);
+  assert.match(html, /דוח נוכחות חודשי מאושר/);
+  assert.match(html, /אישור מנהל: מנהל בדיקה/);
   assert.match(html, /08:15/);
 });
 
-test('payroll results include finish approval action', () => {
+test('payroll results include manager approval action after employee submit', () => {
   const html = resultsHtml({
     comparisons: [{ attendance: { employeeId: '10', employeeName: 'דנה', date: '2026-05-10', startTime: '08:00', endTime: '09:00', activityType: 'קורס' }, unmatched: false, differences: [], managerResolved: 'auto_ok' }],
     notCompared: [],
     dailyKilometers: []
+  }, '2026-05', {
+    workflowByEmployee: { '10': { workflow_status: 'submitted', attendance_submission_status: 'submitted' } }
   });
-  assert.match(html, /סיום בדיקה ואישור להעברה לשכר/);
+  assert.match(html, /אישור מנהל/);
   assert.match(html, /data-payroll-finish="10"/);
+  assert.doesNotMatch(html, /סיום בדיקה ואישור להעברה לשכר/);
+});
+
+test('workflow mapping follows employee submit -> manager approved -> final approved', () => {
+  assert.deepEqual(resolvePayrollMonthWorkflow({ attendance_submission_status: 'open' }), {
+    status: 'not_submitted',
+    label: 'פתוח לדיווח',
+    submissionStatus: 'open'
+  });
+  assert.equal(resolvePayrollMonthWorkflow({ attendance_submission_status: 'submitted' }).status, 'submitted');
+  assert.equal(resolvePayrollMonthWorkflow({ attendance_submission_status: 'submitted' }).label, 'אושר על ידי העובד / בבקרת מנהל');
+  assert.equal(resolvePayrollMonthWorkflow({ attendance_submission_status: 'locked', manager_approved_at: '2026-05-20T10:00:00.000Z' }).status, 'manager_approved');
+  assert.equal(resolvePayrollMonthWorkflow({ payroll_approved_at: '2026-05-20T10:00:00.000Z' }).status, 'approved');
+});
+
+test('finish approval controls are hidden before month submission and have no override', () => {
+  const payload = {
+    comparisons: [{ attendance: { employeeId: '10', employeeName: 'דנה', date: '2026-05-10', startTime: '08:00', endTime: '09:00', activityType: 'קורס' }, unmatched: false, differences: [], managerResolved: 'auto_ok' }],
+    notCompared: [],
+    dailyKilometers: []
+  };
+  const blocked = resultsHtml(payload, '2026-05', {
+    workflowByEmployee: { '10': { workflow_status: 'not_submitted', attendance_submission_status: 'open' } }
+  });
+  assert.match(blocked, /סטטוס חודש: <strong>פתוח לדיווח<\/strong>/);
+  assert.doesNotMatch(blocked, /data-payroll-finish="10"/);
+  assert.match(blocked, /העובד טרם ביצע סיום דיווח ואישור לחודש זה/);
+  assert.doesNotMatch(blocked, /data-payroll-finish-override="10"/);
+
+  const withOverride = resultsHtml(payload, '2026-05', {
+    workflowByEmployee: { '10': { workflow_status: 'not_submitted', attendance_submission_status: 'open' } },
+    allowSubmissionOverride: true
+  });
+  assert.doesNotMatch(withOverride, /data-payroll-finish-override="10"/);
+  assert.doesNotMatch(withOverride, /data-payroll-finish="10"/);
 });
 
 test('four attendance hours can match consecutive dashboard meetings 9 and 10', () => {
@@ -1279,7 +1418,8 @@ test('entry with multiple differences resolves only when all differences are dec
 test('daily km issue without decision blocks approval', async () => {
   const api = {
     attendanceControlUpdateRecord: async () => ({ success: true }),
-    savePayrollControlApproval: async (p) => p
+    attendanceManagerApprovalArtifacts: async (p) => p,
+    managerFinalizeAttendanceMonthReview: async (p) => p
   };
   const result = {
     month: '2026-05',
@@ -1287,7 +1427,10 @@ test('daily km issue without decision blocks approval', async () => {
     dailyKilometers: [{ employeeId: '10', date: '2026-05-10', reported: 30, calculated: 20, matches: false, hasReportedKm: true, managerResolved: null }]
   };
   await assert.rejects(
-    () => approvePayrollControlEmployee({ api, user: { full_name: 'מנהל' }, result, employeeId: '10', employeeName: 'דנה', confirmed: true }),
+    () => approvePayrollControlEmployee({
+      api, user: { full_name: 'מנהל' }, result, employeeId: '10', employeeName: 'דנה', confirmed: true,
+      monthWorkflow: { workflowStatus: 'submitted', attendanceSubmissionStatus: 'submitted' }
+    }),
     /רשומות נוכחות שלא קיבלו/
   );
 });
@@ -1296,14 +1439,23 @@ test('daily km within tolerance is auto_ok and does not block approval', async (
   let saved = null;
   const api = {
     attendanceControlUpdateRecord: async () => ({ success: true }),
-    savePayrollControlApproval: async (p) => { saved = p; return { ...p }; }
+    attendanceManagerApprovalArtifacts: async () => ({
+      sharepointWebUrl: 'https://think365orgil.sharepoint.com/file',
+      sharepointItemId: 'item-1',
+      fileName: 'report.pdf',
+      managerPdfVersion: 1
+    }),
+    managerFinalizeAttendanceMonthReview: async (p) => { saved = p; return { ...p }; }
   };
   const result = {
     month: '2026-05',
     comparisons: [{ ...changedComparison }],
     dailyKilometers: [{ employeeId: '10', date: '2026-05-10', reported: 22, calculated: 20, matches: true, hasReportedKm: true, managerResolved: 'auto_ok' }]
   };
-  await approvePayrollControlEmployee({ api, user: { full_name: 'מנהל' }, result, employeeId: '10', employeeName: 'דנה', confirmed: true });
+  await approvePayrollControlEmployee({
+    api, user: { full_name: 'מנהל' }, result, employeeId: '10', employeeName: 'דנה', confirmed: true,
+    monthWorkflow: { workflowStatus: 'submitted', attendanceSubmissionStatus: 'submitted' }
+  });
   assert.ok(saved, 'approval snapshot should be saved when km is auto_ok');
 });
 
@@ -1339,4 +1491,42 @@ test('buildAttendanceUpdatePayload throws when Logic App field is absent from bo
     /חסר נתון מקור/,
     'must throw when Logic App fields are missing from both source and fallback'
   );
+});
+
+test('SharePoint payroll PDF uses the mapped personal folder, payroll subfolder, and reporting month', async () => {
+  const source = await readFile(new URL('../supabase/functions/payroll-attendance-pdf-dispatch/index.ts', import.meta.url), 'utf8');
+  assert.match(source, /instructor_employee_folders/);
+  assert.match(source, /PAYROLL_SUBFOLDER = "04 דוחות שכר"/);
+  assert.match(source, /hebrewMonthName\(monthKey\)/);
+  assert.match(source, /schoolYearFromMonthKey/);
+  assert.match(source, /conflictBehavior=fail/);
+  assert.match(source, /"@microsoft\.graph\.conflictBehavior": "fail"/);
+  assert.doesNotMatch(source, /דוחות נוכחות/);
+  assert.doesNotMatch(source, /conflictBehavior": "replace"/);
+});
+
+test('admin payroll attendance tab is wired for final approval and unlock without deleting PDF history', async () => {
+  const workspace = await readFile(new URL('../frontend/src/manager-board-workspace-runtime.js', import.meta.url), 'utf8');
+  const board = await readFile(new URL('../frontend/src/manager-board-runtime.js', import.meta.url), 'utf8');
+  const migration = await readFile(new URL('../supabase/migrations/20260819003500_attendance_month_manager_admin_flow.sql', import.meta.url), 'utf8');
+  assert.match(board, /data-manager-workspace-tab="payroll-attendance"[^>]*>בקרת שכר\/נוכחות</);
+  assert.match(workspace, /activeTab === 'payroll-attendance'/);
+  assert.match(workspace, /renderPayrollAttendanceAdmin/);
+  assert.match(workspace, /adminFinalizeAttendanceMonthPayroll/);
+  assert.match(workspace, /adminReopenAttendanceMonthForCorrection/);
+  assert.match(workspace, /canUsePayrollAttendanceAdminTab\(\) \{\n  return role\(\) === 'admin';/);
+  assert.match(migration, /manager_pdf_version is intentionally preserved/);
+  assert.match(migration, /create or replace function public\.admin_finalize_attendance_month_payroll/);
+  assert.doesNotMatch(migration, /delete from.*sharepoint/i);
+});
+
+test('employee month submit action stores the employee name and uses the final submit label', async () => {
+  const home = await readFile(new URL('../attendance/src/screens/home-screen.js', import.meta.url), 'utf8');
+  const service = await readFile(new URL('../attendance/src/services/attendance.service.js', import.meta.url), 'utf8');
+  const gate = await readFile(new URL('../attendance/src/services/month-gate.service.js', import.meta.url), 'utf8');
+  assert.match(home, /סיום דיווח ואישור/);
+  assert.match(home, /submitMonth\(instructor\.empId, getMonthKey\(year, month\), instructor\?\.name \|\| ''\)/);
+  assert.match(service, /submitted_by_name: String\(submittedByName \|\| ''\)\.trim\(\)/);
+  assert.match(gate, /status === 'submitted'\) return false/);
+  assert.match(gate, /העובד אישר את החודש/);
 });
