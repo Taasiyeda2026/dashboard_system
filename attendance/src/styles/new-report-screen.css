@@ -131,6 +131,8 @@
 .av2-ssel__option:hover, .av2-ssel__option:focus { background: var(--av2-color-bg); outline: none; }
 .av2-ssel__option.is-selected { color: var(--av2-color-accent); font-weight: 600; background: var(--av2-color-accent-subtle); }
 .av2-ssel__empty { padding: 6px; text-align: center; font-size: 0.75rem; color: var(--av2-color-text-muted); }
+.av2-ssel__extended { display: block; width: calc(100% - 8px); margin: 4px; padding: 5px 8px; border: 1px dashed var(--av2-color-accent); border-radius: var(--av2-radius-sm); background: var(--av2-color-accent-subtle); color: var(--av2-color-accent); font-family: inherit; font-size: 0.6875rem; font-weight: 600; cursor: pointer; text-align: center; }
+.av2-ssel__extended:hover, .av2-ssel__extended:focus { background: #dbeafe; outline: none; }
 
 .av2-csel { position: relative; }
 .av2-csel__trigger { display: flex; align-items: center; justify-content: space-between; width: 100%; min-height: 34px; padding: 0 8px; border: 1px solid var(--av2-color-border); border-radius: var(--av2-radius-md); background: var(--av2-color-surface); color: var(--av2-color-text); font-family: inherit; font-size: 0.75rem; text-align: start; cursor: pointer; gap: 4px; transition: border-color 0.12s; }

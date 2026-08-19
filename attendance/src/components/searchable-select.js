@@ -1,15 +1,13 @@
 /**
  * searchable-select.js
  *
- * A custom dropdown that looks identical to .av2-field__select but adds
- * an inline search field as the FIRST item inside the opened dropdown.
+ * Custom dropdown with inline search. Supports optional extended search mode
+ * (lazy-loaded options outside the default assignment list).
  *
  * Public API:
- *   createSearchableSelect({ id, label, options, placeholder, searchPlaceholder, onChange })
- *   → { wrap, getValue(), getLabel(), setValue(value, label), setOptions(opts), reset() }
- *
- * onChange(value, label, option) — called on selection; `option` is the full
- * option object so callers can read extra fields (authority_id, semel_mosad …).
+ *   createSearchableSelect({ id, label, options, placeholder, searchPlaceholder,
+ *     filterFn, extendedSearch, onChange })
+ *   → { wrap, getValue(), getLabel(), setValue(), setOptions(), reset(), setDisabled() }
  */
 
 export function createSearchableSelect({
@@ -19,18 +17,21 @@ export function createSearchableSelect({
   placeholder    = 'בחר…',
   searchPlaceholder = 'חיפוש…',
   emptyText      = 'לא נמצאו תוצאות',
+  filterFn,
+  extendedSearch = null,
   onChange,
 } = {}) {
+  let defaultOptions = [...options];
   let currentOptions = [...options];
   let selectedValue  = '';
   let selectedLabel  = '';
   let isOpen         = false;
+  let extendedMode   = false;
+  let extendedLoading = false;
 
-  // ── Root ─────────────────────────────────────────────────────────────────
   const wrap = document.createElement('div');
   wrap.className = 'av2-field av2-ssel';
 
-  // ── Label ─────────────────────────────────────────────────────────────────
   if (label) {
     const labelEl = document.createElement('label');
     labelEl.className = 'av2-field__label';
@@ -39,7 +40,6 @@ export function createSearchableSelect({
     wrap.append(labelEl);
   }
 
-  // ── Trigger button (mimics <select> appearance) ───────────────────────────
   const trigger = document.createElement('button');
   trigger.type = 'button';
   trigger.id = `${id}-trigger`;
@@ -57,13 +57,11 @@ export function createSearchableSelect({
 
   trigger.append(triggerText, chevron);
 
-  // ── Dropdown panel ─────────────────────────────────────────────────────────
   const panel = document.createElement('div');
   panel.className = 'av2-ssel__panel';
   panel.hidden = true;
   panel.setAttribute('role', 'listbox');
 
-  // Search row — first item inside the panel
   const searchWrap = document.createElement('div');
   searchWrap.className = 'av2-ssel__search-wrap';
 
@@ -75,26 +73,69 @@ export function createSearchableSelect({
   searchInput.setAttribute('spellcheck', 'false');
   searchWrap.append(searchInput);
 
-  // Scrollable options list
   const optList = document.createElement('div');
   optList.className = 'av2-ssel__options';
 
   panel.append(searchWrap, optList);
   wrap.append(trigger, panel);
 
-  // ── Render options ─────────────────────────────────────────────────────────
+  function filterOptions(list, filter) {
+    const q = filter.trim().toLowerCase();
+    if (!q) return list;
+    if (typeof filterFn === 'function') {
+      return list.filter((option) => filterFn(option, q));
+    }
+    return list.filter((option) => String(option.label || '').toLowerCase().includes(q));
+  }
+
+  function appendExtendedToggle() {
+    if (!extendedSearch || extendedMode) return;
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'av2-ssel__extended';
+    btn.textContent = extendedSearch.label || 'חיפוש מורחב';
+    btn.addEventListener('mousedown', (e) => e.preventDefault());
+    btn.addEventListener('click', () => {
+      extendedMode = true;
+      void loadExtendedOptions(searchInput.value);
+    });
+    optList.append(btn);
+  }
+
+  async function loadExtendedOptions(query = '') {
+    if (!extendedSearch?.loadOptions) return;
+    extendedLoading = true;
+    renderOptions(query);
+    try {
+      const loaded = await extendedSearch.loadOptions(query);
+      currentOptions = Array.isArray(loaded) ? loaded : [];
+    } catch {
+      currentOptions = [];
+    } finally {
+      extendedLoading = false;
+      renderOptions(query);
+    }
+  }
+
   function renderOptions(filter = '') {
     optList.innerHTML = '';
-    const q = filter.trim().toLowerCase();
-    const visible = q
-      ? currentOptions.filter(o => o.label.toLowerCase().includes(q))
-      : currentOptions;
+
+    if (extendedLoading) {
+      const loading = document.createElement('div');
+      loading.className = 'av2-ssel__empty';
+      loading.textContent = 'טוען…';
+      optList.append(loading);
+      return;
+    }
+
+    const visible = filterOptions(currentOptions, filter);
 
     if (visible.length === 0) {
       const empty = document.createElement('div');
       empty.className = 'av2-ssel__empty';
       empty.textContent = emptyText;
       optList.append(empty);
+      appendExtendedToggle();
       return;
     }
 
@@ -105,14 +146,14 @@ export function createSearchableSelect({
       btn.setAttribute('role', 'option');
       if (opt.value === selectedValue) btn.classList.add('is-selected');
       btn.textContent = opt.label;
-      // Prevent focus from leaving searchInput on mousedown, so click still fires
-      btn.addEventListener('mousedown', e => e.preventDefault());
+      btn.addEventListener('mousedown', (e) => e.preventDefault());
       btn.addEventListener('click', () => selectOption(opt));
       optList.append(btn);
     }
+
+    appendExtendedToggle();
   }
 
-  // ── Select ─────────────────────────────────────────────────────────────────
   function selectOption(opt) {
     selectedValue = opt.value;
     selectedLabel = opt.label;
@@ -122,14 +163,14 @@ export function createSearchableSelect({
     onChange?.(opt.value, opt.label, opt);
   }
 
-  // ── Open / close ───────────────────────────────────────────────────────────
   function openPanel() {
     if (trigger.disabled) return;
     isOpen = true;
+    extendedMode = false;
+    currentOptions = [...defaultOptions];
     panel.hidden = false;
     trigger.classList.add('is-open');
     trigger.setAttribute('aria-expanded', 'true');
-    // Elevate this wrapper above sibling grid items so the panel floats freely
     wrap.style.zIndex = '10';
     searchInput.value = '';
     renderOptions();
@@ -139,36 +180,40 @@ export function createSearchableSelect({
   function closePanel() {
     if (!isOpen) return;
     isOpen = false;
+    extendedMode = false;
+    currentOptions = [...defaultOptions];
     panel.hidden = true;
     trigger.classList.remove('is-open');
     trigger.setAttribute('aria-expanded', 'false');
     wrap.style.zIndex = '';
   }
 
-  // ── Events ─────────────────────────────────────────────────────────────────
   trigger.addEventListener('click', () => {
     if (isOpen) closePanel();
     else openPanel();
   });
 
-  // Escape key closes
-  panel.addEventListener('keydown', e => {
+  panel.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') { closePanel(); trigger.focus(); }
   });
 
-  searchInput.addEventListener('input', () => renderOptions(searchInput.value));
+  searchInput.addEventListener('input', () => {
+    const q = searchInput.value;
+    if (extendedMode && extendedSearch?.loadOptions) {
+      void loadExtendedOptions(q);
+      return;
+    }
+    renderOptions(q);
+  });
 
-  // Close when focus leaves the entire component
-  wrap.addEventListener('focusout', e => {
+  wrap.addEventListener('focusout', (e) => {
     if (!wrap.contains(e.relatedTarget)) closePanel();
   });
 
-  // Close on outside click/tap (capture phase so it runs before re-open)
-  document.addEventListener('mousedown', e => {
+  document.addEventListener('mousedown', (e) => {
     if (!wrap.contains(e.target)) closePanel();
   }, true);
 
-  // ── Public API ─────────────────────────────────────────────────────────────
   return {
     wrap,
     getValue: () => selectedValue,
@@ -182,9 +227,9 @@ export function createSearchableSelect({
     },
 
     setOptions(opts) {
+      defaultOptions = [...opts];
       currentOptions = [...opts];
-      // Clear selection when the chosen value is no longer in the list
-      if (selectedValue && !currentOptions.some(o => o.value === selectedValue)) {
+      if (selectedValue && !defaultOptions.some((o) => o.value === selectedValue)) {
         selectedValue = '';
         selectedLabel = '';
         triggerText.textContent = placeholder;
@@ -198,6 +243,10 @@ export function createSearchableSelect({
       selectedLabel = '';
       triggerText.textContent = placeholder;
       triggerText.dataset.empty = 'true';
+    },
+
+    setDisabled(disabled) {
+      trigger.disabled = !!disabled;
     },
   };
 }

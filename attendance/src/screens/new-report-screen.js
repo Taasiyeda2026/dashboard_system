@@ -1,8 +1,8 @@
 /**
  * new-report-screen.js — Add a new attendance record
  *
- * Opens directly to the full three-column form (activity | times | expenses).
- * Activity names come from the instructor's scheduled activities (row_id), not static lists.
+ * Flow: date → activity type → activity name (filtered by canonical DB type).
+ * Instructor assignments load once (not per date). Extended search is lazy.
  */
 
 import { createIcon } from '../components/icon.js';
@@ -11,13 +11,21 @@ import { createSearchableSelect } from '../components/searchable-select.js';
 import { createCompactSelect } from '../components/compact-select.js';
 import { createTimePicker } from '../components/time-picker.js';
 import {
-  getInstructorActivitiesForDate,
+  getInstructorActivities,
+  getMeetingNoForActivityOnDate,
   getSchoolOptions,
   calcHours,
-  getAuthoritySchoolList,
+  getAllAuthoritySchoolList,
+  deriveAuthoritySchoolListFromActivities,
   instructorActivitySelectOptions,
+  searchCanonicalActivities,
+  activityMatchesReportType,
+  activitySearchHaystack,
   HEBREW_ACTIVITY_TYPES,
-  toHebrewType,
+  ONLINE_REPORT_TYPE,
+  TRAINING_REPORT_TYPE,
+  NO_ACTIVITY_NAME_REPORT_TYPES,
+  OPEN_FIELD_REPORT_TYPES,
 } from '../services/activities.service.js';
 import {
   createRecord,
@@ -27,7 +35,6 @@ import {
 import { canEditMonth, editBlockReason, getMonthKey } from '../services/month-gate.service.js';
 import { uploadAttachment } from '../services/storage.service.js';
 
-const INDEPENDENT_REPORT_TYPES = ['הכשרה', 'תפעול', 'ביטול זמן'];
 const TIME_MINUTE_STEP = 5;
 
 function activityRowId(activity) {
@@ -145,8 +152,6 @@ function makeFormSection(title, variant, bodyClass, fields) {
   return section;
 }
 
-// ── Main screen ────────────────────────────────────────────────────────────
-
 export function renderNewReportScreen(container, {
   instructor = {},
   defaultDate = new Date().toISOString().slice(0, 10),
@@ -188,11 +193,14 @@ export function renderNewReportScreen(container, {
 
   let selectedActivity = null;
   let instructorActivities = [];
+  /** @type {Map<string, object>} */
+  const extendedActivityByRowId = new Map();
+  let assignmentAuthoritySchoolData = [];
+  let allAuthoritySchoolData = [];
   let pendingFiles = [];
-  let authoritySchoolData = [];
   let formLocked = false;
+  let previousReportType = '';
 
-  // IDs / names used on submit
   let schoolId = null;
   let schoolName = '';
   let semelMosad = null;
@@ -206,6 +214,9 @@ export function renderNewReportScreen(container, {
   let schoolMount = null;
   let typeField = null;
   let activityNameSel = null;
+  let activityNameWrap = null;
+  let trainingDescField = null;
+  let trainingDescWrap = null;
   let meetingField = null;
   let dateField = null;
   let startPicker = null;
@@ -223,38 +234,101 @@ export function renderNewReportScreen(container, {
     return dateField?.input?.value || defaultDate;
   }
 
-  function isIndependentTypeSelected() {
-    return INDEPENDENT_REPORT_TYPES.includes(typeField?.input?.value || '');
+  function getReportType() {
+    return typeField?.input?.value || '';
+  }
+
+  function isOnlineReportType(reportType = getReportType()) {
+    return reportType === ONLINE_REPORT_TYPE;
+  }
+
+  function isNoActivityNameType(reportType = getReportType()) {
+    return NO_ACTIVITY_NAME_REPORT_TYPES.includes(reportType);
+  }
+
+  function isOpenFieldType(reportType = getReportType()) {
+    return OPEN_FIELD_REPORT_TYPES.includes(reportType);
+  }
+
+  function requiresActivityName(reportType = getReportType()) {
+    return reportType && !isNoActivityNameType(reportType) && !isOpenFieldType(reportType);
+  }
+
+  function findActivityByRowId(rowId) {
+    const id = String(rowId || '').trim();
+    if (!id) return null;
+    return instructorActivities.find((item) => activityRowId(item) === id)
+      || extendedActivityByRowId.get(id)
+      || null;
+  }
+
+  function rememberExtendedActivity(activity) {
+    const id = activityRowId(activity);
+    if (id) extendedActivityByRowId.set(id, activity);
+  }
+
+  function flatSchoolOptions(sourceData, authorityId = null) {
+    const allSchoolsFlat = sourceData.flatMap((a) =>
+      (a.schools || []).map((s) => ({
+        value: String(s.id),
+        label: a.authority_name ? `${s.name} — ${a.authority_name}` : (s.name || String(s.id)),
+        authority_id: a.authority_id,
+        authority_name: a.authority_name,
+        semel_mosad: s.semel_mosad ?? null,
+        searchText: [s.name, a.authority_name, s.semel_mosad].filter(Boolean).join(' ').toLowerCase(),
+      })),
+    );
+    return authorityId
+      ? allSchoolsFlat.filter((s) => s.authority_id === authorityId)
+      : allSchoolsFlat;
+  }
+
+  function defaultAuthorityOptions() {
+    const source = isOpenFieldType() ? allAuthoritySchoolData : assignmentAuthoritySchoolData;
+    return source.map((a) => ({
+      value: String(a.authority_id),
+      label: a.authority_name,
+      searchText: String(a.authority_name || '').toLowerCase(),
+    }));
+  }
+
+  function setActivityNameVisible(visible) {
+    if (activityNameWrap) activityNameWrap.hidden = !visible;
+  }
+
+  function setTrainingDescVisible(visible) {
+    if (trainingDescWrap) trainingDescWrap.hidden = !visible;
   }
 
   function setActivityNameEnabled(enabled) {
-    const trigger = activityNameSel?.wrap?.querySelector('.av2-ssel__trigger');
-    if (trigger) trigger.disabled = !enabled;
-  }
-
-  function setTypeFieldEnabled(enabled) {
-    if (typeField?.input) typeField.input.disabled = !enabled;
+    activityNameSel?.setDisabled(!enabled);
   }
 
   function setMeetingEnabled(enabled) {
     if (meetingField?.select) meetingField.select.disabled = !enabled;
   }
 
+  function syncKmForReportType(newType, prevType) {
+    if (!kmField?.input) return;
+    if (newType === ONLINE_REPORT_TYPE) {
+      kmField.input.value = '0';
+      kmField.input.readOnly = true;
+      kmField.input.disabled = true;
+      return;
+    }
+    if (prevType === ONLINE_REPORT_TYPE) {
+      kmField.input.readOnly = false;
+      kmField.input.disabled = false;
+      kmField.input.value = '';
+    }
+  }
+
   function mountManualSchoolSelect() {
     schoolMount.innerHTML = '';
-    const allSchoolsFlat = authoritySchoolData.flatMap((a) =>
-      (a.schools || []).map((s) => ({
-        value: String(s.id),
-        label: s.name || String(s.id),
-        authority_id: a.authority_id,
-        authority_name: a.authority_name,
-        semel_mosad: s.semel_mosad ?? null,
-      })),
-    );
+    const source = isOpenFieldType() ? allAuthoritySchoolData : assignmentAuthoritySchoolData;
 
     function schoolOptsFor(authorityId) {
-      if (!authorityId) return allSchoolsFlat;
-      return allSchoolsFlat.filter((s) => s.authority_id === authorityId);
+      return flatSchoolOptions(source, authorityId);
     }
 
     schoolSel = createSearchableSelect({
@@ -263,10 +337,23 @@ export function renderNewReportScreen(container, {
       options: schoolOptsFor(manualAuthId),
       placeholder: 'בחר בית ספר…',
       searchPlaceholder: 'חיפוש בית ספר…',
+      filterFn: (option, q) => String(option.searchText || option.label || '').includes(q),
+      extendedSearch: {
+        label: 'חיפוש מורחב',
+        loadOptions: async (query) => {
+          const opts = flatSchoolOptions(allAuthoritySchoolData, manualAuthId);
+          const q = query.trim().toLowerCase();
+          if (!q) return opts;
+          return opts.filter((o) => String(o.searchText || o.label || '').includes(q));
+        },
+      },
       onChange(value, lbl, opt) {
+        if (selectedActivity && !isOpenFieldType()) {
+          clearLinkedActivity({ keepManualLocation: true });
+        }
         if (value) {
           manualSchoolId = Number(value);
-          manualSchoolName = lbl || '';
+          manualSchoolName = (opt?.label || lbl || '').split(' — ')[0]?.trim() || lbl || '';
           semelMosad = opt?.semel_mosad ?? null;
           if (opt?.authority_id && opt.authority_id !== manualAuthId) {
             manualAuthId = opt.authority_id;
@@ -343,69 +430,67 @@ export function renderNewReportScreen(container, {
     schoolMount.append(sf.wrap);
   }
 
-  function clearActivitySelection() {
+  function clearLinkedActivity({ keepManualLocation = false } = {}) {
     selectedActivity = null;
     schoolId = null;
     schoolName = '';
-    semelMosad = null;
-    manualAuthId = null;
-    manualAuthName = '';
-    manualSchoolId = null;
-    manualSchoolName = '';
-    setTypeFieldEnabled(true);
-    setActivityNameEnabled(true);
-    setMeetingEnabled(true);
-    if (authSel?.wrap?.querySelector('.av2-ssel__trigger')) {
-      authSel.wrap.querySelector('.av2-ssel__trigger').disabled = false;
+    if (!keepManualLocation) {
+      semelMosad = null;
+      manualAuthId = null;
+      manualAuthName = '';
+      manualSchoolId = null;
+      manualSchoolName = '';
+      authSel?.setValue('', '');
+      authSel?.setDisabled(false);
+      const { schoolOptsFor } = mountManualSchoolSelect();
+      schoolSel?.setOptions(schoolOptsFor(manualAuthId));
     }
-    authSel?.setValue('', '');
-    const { schoolOptsFor } = mountManualSchoolSelect();
-    schoolSel.setOptions(schoolOptsFor(manualAuthId));
     activityNameSel?.reset();
+    setMeetingEnabled(true);
+    meetingField?.setValue('');
   }
 
   function refreshActivityNameOptions({ preserveSelection = true } = {}) {
     if (!activityNameSel) return;
-    const hebrewType = typeField?.input?.value || '';
-    const options = instructorActivitySelectOptions(instructorActivities, {
-      hebrewType: INDEPENDENT_REPORT_TYPES.includes(hebrewType) ? '' : hebrewType,
-    });
+    const reportType = getReportType();
+    if (!requiresActivityName(reportType)) return;
+
+    const options = instructorActivitySelectOptions(instructorActivities, { reportType });
     const current = preserveSelection ? activityNameSel.getValue() : '';
     activityNameSel.setOptions(options);
+
     if (current && options.some((opt) => opt.value === current)) {
-      activityNameSel.setValue(current, options.find((opt) => opt.value === current)?.label || '');
+      const match = options.find((opt) => opt.value === current);
+      activityNameSel.setValue(current, match?.label || '');
+      selectedActivity = findActivityByRowId(current);
     } else if (preserveSelection && current) {
-      clearActivitySelection();
+      clearLinkedActivity();
     }
   }
 
-  async function applySelectedActivity(activity) {
-    selectedActivity = activity || null;
-    if (!activity) {
-      clearActivitySelection();
-      return;
+  async function syncMeetingForSelectedDate() {
+    if (!selectedActivity) return;
+    const meetingNo = await getMeetingNoForActivityOnDate(
+      instructor.empId,
+      activityRowId(selectedActivity),
+      getReportDate(),
+    );
+    if (meetingNo != null) {
+      meetingField.setValue(String(meetingNo));
+      setMeetingEnabled(false);
+    } else {
+      setMeetingEnabled(true);
     }
+  }
 
-    const hebrewType = toHebrewType(activity.activity_type);
-    typeField.input.value = hebrewType;
-    setTypeFieldEnabled(false);
-
-    const rowId = activityRowId(activity);
-    const options = instructorActivitySelectOptions(instructorActivities);
-    activityNameSel.setOptions(options);
-    const match = options.find((opt) => opt.value === rowId);
-    if (rowId && match) activityNameSel.setValue(rowId, match.label);
-    setActivityNameEnabled(false);
-
+  function syncAuthoritySchoolFromActivity(activity) {
     manualAuthId = activity.authority_id || null;
-    manualAuthName = activity.authority_name || '';
+    manualAuthName = activity.authority_name || activity.authority || '';
     authSel.setValue(
       activity.authority_id ? String(activity.authority_id) : '',
-      activity.authority_name || '',
+      manualAuthName,
     );
-    if (authSel.wrap.querySelector('.av2-ssel__trigger')) {
-      authSel.wrap.querySelector('.av2-ssel__trigger').disabled = true;
-    }
+    authSel.setDisabled(true);
 
     if (activity.school_link_status === 'multiple_schools') {
       mountMultiSchoolSelect(activity);
@@ -414,12 +499,83 @@ export function renderNewReportScreen(container, {
     } else {
       mountReadonlySchool(activity);
     }
+  }
 
-    if (activity.meeting_no != null) {
-      meetingField.setValue(String(activity.meeting_no));
-      setMeetingEnabled(false);
+  async function applySelectedActivity(activity) {
+    if (!activity) {
+      clearLinkedActivity();
+      return;
+    }
+
+    rememberExtendedActivity(activity);
+    selectedActivity = activity;
+
+    const rowId = activityRowId(activity);
+    const reportType = getReportType();
+    const options = instructorActivitySelectOptions(instructorActivities, { reportType });
+    const match = options.find((opt) => opt.value === rowId)
+      || instructorActivitySelectOptions([activity], { reportType })[0];
+    if (match) {
+      activityNameSel.setOptions([
+        ...options.filter((opt) => opt.value !== rowId),
+        match,
+      ].sort((a, b) => a.label.localeCompare(b.label, 'he')));
+      activityNameSel.setValue(rowId, match.label);
+    }
+
+    syncAuthoritySchoolFromActivity(activity);
+    await syncMeetingForSelectedDate();
+  }
+
+  function onActivityTypeChange() {
+    const newType = getReportType();
+    const prevType = previousReportType;
+    previousReportType = newType;
+
+    syncKmForReportType(newType, prevType);
+
+    if (isNoActivityNameType(newType)) {
+      clearLinkedActivity();
+      setActivityNameVisible(false);
+      setTrainingDescVisible(false);
+      authSel?.setDisabled(false);
+      mountManualSchoolSelect();
+      return;
+    }
+
+    if (isOpenFieldType(newType)) {
+      clearLinkedActivity();
+      setActivityNameVisible(false);
+      setTrainingDescVisible(true);
+      authSel?.setOptions(defaultAuthorityOptions());
+      authSel?.setDisabled(false);
+      mountManualSchoolSelect();
+      return;
+    }
+
+    setActivityNameVisible(true);
+    setTrainingDescVisible(false);
+
+    if (selectedActivity) {
+      if (newType === ONLINE_REPORT_TYPE) {
+        const stillAssigned = instructorActivities.some(
+          (item) => activityRowId(item) === activityRowId(selectedActivity),
+        ) || extendedActivityByRowId.has(activityRowId(selectedActivity));
+        if (!stillAssigned) clearLinkedActivity();
+      } else if (!activityMatchesReportType(selectedActivity, newType)) {
+        clearLinkedActivity();
+      }
+    }
+
+    authSel?.setOptions(defaultAuthorityOptions());
+    refreshActivityNameOptions({ preserveSelection: true });
+    setActivityNameEnabled(!!newType);
+
+    if (selectedActivity) {
+      syncAuthoritySchoolFromActivity(selectedActivity);
     } else {
-      setMeetingEnabled(true);
+      authSel?.setDisabled(false);
+      mountManualSchoolSelect();
     }
   }
 
@@ -444,13 +600,15 @@ export function renderNewReportScreen(container, {
     lockBanner.hidden = true;
     formLocked = false;
     formArea.querySelector('form')?.querySelectorAll('input,select,button,.av2-ssel__trigger,.av2-csel__trigger')
-      .forEach((el) => { el.disabled = false; });
+      .forEach((el) => {
+        if (el === kmField?.input && isOnlineReportType()) {
+          el.disabled = true;
+          return;
+        }
+        el.disabled = false;
+      });
 
-    if (selectedActivity) {
-      await applySelectedActivity(null);
-    }
-    instructorActivities = await getInstructorActivitiesForDate(instructor.empId, dateStr).catch(() => []);
-    refreshActivityNameOptions({ preserveSelection: false });
+    await syncMeetingForSelectedDate();
   }
 
   function syncEndTimeConstraints() {
@@ -471,8 +629,9 @@ export function renderNewReportScreen(container, {
     formArea.innerHTML = '';
     selectedActivity = null;
     pendingFiles.length = 0;
+    previousReportType = prefill?.activity_type || '';
 
-    if (prefill && !selectedActivity) {
+    if (prefill) {
       const dupNote = document.createElement('p');
       dupNote.className = 'av2-report__dup-note';
       dupNote.textContent = `שכפול מדיווח מ-${prefill.report_date || ''} — ניתן לערוך לפני השמירה`;
@@ -483,38 +642,117 @@ export function renderNewReportScreen(container, {
     form.className = 'av2-report__form';
     form.noValidate = true;
 
-    // ── Activity fields ────────────────────────────────────────────────
-    const initialHebrewType = prefill?.activity_type || '';
+    const initialReportType = prefill?.activity_type || '';
+
+    dateField = createInputField({
+      id: 'av2-report-date',
+      label: 'תאריך *',
+      type: 'date',
+      value: prefill?.report_date || defaultDate,
+    });
+
     const typeOptions = [
       { value: '', label: 'בחר' },
       ...HEBREW_ACTIVITY_TYPES.map((t) => ({ value: t, label: t })),
     ];
-    if (initialHebrewType && !typeOptions.some((opt) => opt.value === initialHebrewType)) {
-      typeOptions.push({ value: initialHebrewType, label: initialHebrewType });
+    if (initialReportType && !typeOptions.some((opt) => opt.value === initialReportType)) {
+      typeOptions.push({ value: initialReportType, label: initialReportType });
     }
     typeField = createSelectField({
       id: 'av2-activity-type',
       label: 'סוג פעילות *',
       options: typeOptions,
-      value: initialHebrewType,
+      value: initialReportType,
     });
 
+    activityNameWrap = document.createElement('div');
     activityNameSel = createSearchableSelect({
       id: 'av2-activity-name',
       label: 'שם פעילות *',
-      options: instructorActivitySelectOptions(instructorActivities),
+      options: instructorActivitySelectOptions(instructorActivities, { reportType: initialReportType }),
       placeholder: 'בחר פעילות מהשיבוצים שלך',
       searchPlaceholder: 'חיפוש פעילות…',
-      emptyText: 'לא נמצאו פעילויות לתאריך שנבחר',
+      emptyText: 'לא נמצאו פעילויות',
+      filterFn: (option, q) => String(option.searchText || option.label || '').includes(q),
+      extendedSearch: {
+        label: 'חיפוש מורחב',
+        loadOptions: async (query) => {
+          const rows = await searchCanonicalActivities({
+            query,
+            reportType: getReportType(),
+            referenceDateStr: getReportDate(),
+          });
+          for (const row of rows) rememberExtendedActivity(row);
+          return instructorActivitySelectOptions(rows, { reportType: getReportType() });
+        },
+      },
       onChange(value) {
         if (!value) {
-          clearActivitySelection();
+          clearLinkedActivity();
           return;
         }
-        const activity = instructorActivities.find((item) => activityRowId(item) === value) || null;
-        applySelectedActivity(activity);
+        const activity = findActivityByRowId(value);
+        if (activity) void applySelectedActivity(activity);
       },
     });
+    activityNameWrap.append(activityNameSel.wrap);
+
+    trainingDescWrap = document.createElement('div');
+    trainingDescWrap.hidden = true;
+    trainingDescField = createInputField({
+      id: 'av2-training-desc',
+      label: 'תיאור ההכשרה',
+      placeholder: 'תיאור ההכשרה (אופציונלי)',
+      value: prefill?.activity_type === TRAINING_REPORT_TYPE
+        ? (prefill.activity_name_snapshot || '')
+        : '',
+    });
+    trainingDescWrap.append(trainingDescField.wrap);
+
+    authSel = createSearchableSelect({
+      id: 'av2-authority',
+      label: 'רשות *',
+      options: defaultAuthorityOptions(),
+      placeholder: 'בחר רשות…',
+      searchPlaceholder: 'חיפוש רשות…',
+      filterFn: (option, q) => String(option.searchText || option.label || '').includes(q),
+      extendedSearch: {
+        label: 'חיפוש מורחב',
+        loadOptions: async (query) => {
+          const q = query.trim().toLowerCase();
+          const opts = allAuthoritySchoolData.map((a) => ({
+            value: String(a.authority_id),
+            label: a.authority_name,
+            searchText: String(a.authority_name || '').toLowerCase(),
+          }));
+          if (!q) return opts;
+          return opts.filter((o) => o.searchText.includes(q));
+        },
+      },
+      onChange(value, lbl) {
+        if (selectedActivity) clearLinkedActivity({ keepManualLocation: true });
+        manualAuthId = value ? Number(value) : null;
+        manualAuthName = lbl || '';
+        if (schoolSel) {
+          const source = isOpenFieldType() ? allAuthoritySchoolData : assignmentAuthoritySchoolData;
+          schoolSel.setOptions(flatSchoolOptions(source, manualAuthId));
+          if (manualSchoolId) {
+            const filtered = flatSchoolOptions(source, manualAuthId);
+            const stillValid = filtered.some((s) => s.value === String(manualSchoolId));
+            if (!stillValid) {
+              manualSchoolId = null;
+              manualSchoolName = '';
+              semelMosad = null;
+              schoolSel.reset();
+            }
+          }
+        }
+      },
+    });
+
+    schoolMount = document.createElement('div');
+    schoolMount.className = 'av2-report__school-mount';
+    mountManualSchoolSelect();
 
     const meetingVal = prefill?.meeting_no != null ? String(prefill.meeting_no) : '';
     const meetingOptions = [{ value: '', label: '—' }];
@@ -534,69 +772,20 @@ export function renderNewReportScreen(container, {
     meetingLbl.htmlFor = 'av2-meeting-no-trigger';
     meetingWrap.append(meetingLbl, meetingField.wrap);
 
-    authSel = createSearchableSelect({
-      id: 'av2-authority',
-      label: 'רשות *',
-      options: authoritySchoolData.map((a) => ({
-        value: String(a.authority_id),
-        label: a.authority_name,
-      })),
-      placeholder: 'בחר רשות…',
-      searchPlaceholder: 'חיפוש רשות…',
-      onChange(value, lbl) {
-        manualAuthId = value ? Number(value) : null;
-        manualAuthName = lbl || '';
-        if (schoolSel) {
-          const allSchoolsFlat = authoritySchoolData.flatMap((a) =>
-            (a.schools || []).map((s) => ({
-              value: String(s.id),
-              label: s.name || String(s.id),
-              authority_id: a.authority_id,
-              authority_name: a.authority_name,
-              semel_mosad: s.semel_mosad ?? null,
-            })),
-          );
-          const filtered = manualAuthId
-            ? allSchoolsFlat.filter((s) => s.authority_id === manualAuthId)
-            : allSchoolsFlat;
-          schoolSel.setOptions(filtered);
-          if (manualSchoolId) {
-            const stillValid = filtered.some((s) => s.value === String(manualSchoolId));
-            if (!stillValid) {
-              manualSchoolId = null;
-              manualSchoolName = '';
-              semelMosad = null;
-              schoolSel.reset();
-            }
-          }
-        }
-      },
-    });
-
-    schoolMount = document.createElement('div');
-    schoolMount.className = 'av2-report__school-mount';
-    mountManualSchoolSelect();
-
     const activitySection = makeFormSection(
       'פרטי פעילות',
       'activity',
       'av2-form-section__body--activity',
       [
+        dateField.wrap,
         typeField.wrap,
-        activityNameSel.wrap,
+        activityNameWrap,
+        trainingDescWrap,
         authSel.wrap,
         schoolMount,
         meetingWrap,
       ],
     );
-
-    // ── Times & travel ───────────────────────────────────────────────────
-    dateField = createInputField({
-      id: 'av2-report-date',
-      label: 'תאריך *',
-      type: 'date',
-      value: prefill?.report_date || defaultDate,
-    });
 
     startPicker = createTimePicker('av2-start-time', 'שעת התחלה', prefill?.start_time || '', TIME_MINUTE_STEP);
     endPicker = createTimePicker('av2-end-time', 'שעת סיום', prefill?.end_time || '', TIME_MINUTE_STEP);
@@ -622,10 +811,9 @@ export function renderNewReportScreen(container, {
       'זמנים ונסיעות',
       'times',
       'av2-form-section__body--times',
-      [dateField.wrap, startPicker.wrap, endPicker.wrap, hoursDisplay, kmField.wrap],
+      [startPicker.wrap, endPicker.wrap, hoursDisplay, kmField.wrap],
     );
 
-    // ── Expenses | Notes ─────────────────────────────────────────────────
     expField = createInputField({
       id: 'av2-expenses',
       label: 'סה"כ הוצאות (₪)',
@@ -688,30 +876,8 @@ export function renderNewReportScreen(container, {
     errorEl.hidden = true;
     form.append(errorEl);
 
-    // ── Event wiring ─────────────────────────────────────────────────────
-    typeField.input.addEventListener('change', async () => {
-      if (selectedActivity) {
-        await applySelectedActivity(null);
-        authSel.wrap.querySelector('.av2-ssel__trigger').disabled = false;
-      }
-      activityNameSel.reset();
-      const hebrewType = typeField.input.value;
-      if (!hebrewType) {
-        refreshActivityNameOptions({ preserveSelection: false });
-        setActivityNameEnabled(true);
-        return;
-      }
-      if (INDEPENDENT_REPORT_TYPES.includes(hebrewType)) {
-        activityNameSel.setOptions([{ value: hebrewType, label: hebrewType }]);
-        activityNameSel.setValue(hebrewType, hebrewType);
-        setActivityNameEnabled(false);
-        return;
-      }
-      setActivityNameEnabled(true);
-      refreshActivityNameOptions({ preserveSelection: false });
-    });
-
-    dateField.input.addEventListener('change', () => { onReportDateChange(); });
+    typeField.input.addEventListener('change', () => { onActivityTypeChange(); });
+    dateField.input.addEventListener('change', () => { void onReportDateChange(); });
 
     startPicker.hourSel.addEventListener('change', () => {
       syncEndTimeConstraints();
@@ -733,13 +899,20 @@ export function renderNewReportScreen(container, {
     syncEndTimeConstraints();
     updateHoursDisplay();
 
-    // Prefill duplicate values
+    if (initialReportType) {
+      onActivityTypeChange();
+    } else {
+      setActivityNameVisible(false);
+      setTrainingDescVisible(false);
+      setActivityNameEnabled(false);
+    }
+
     if (prefill) {
-      if (initialHebrewType) typeField.input.dispatchEvent(new Event('change'));
       const prefAuthName = prefill.authority_name_snapshot || '';
       const prefSchoolName = prefill.school_name_snapshot || '';
       if (prefAuthName) {
-        const matchAuth = authoritySchoolData.find((a) => a.authority_name === prefAuthName);
+        const matchAuth = [...assignmentAuthoritySchoolData, ...allAuthoritySchoolData]
+          .find((a) => a.authority_name === prefAuthName);
         if (matchAuth) {
           authSel.setValue(String(matchAuth.authority_id), matchAuth.authority_name);
           manualAuthId = matchAuth.authority_id;
@@ -750,23 +923,14 @@ export function renderNewReportScreen(container, {
         }
       }
       if (prefSchoolName && schoolSel) {
-        const allSchoolsFlat = authoritySchoolData.flatMap((a) =>
-          (a.schools || []).map((s) => ({
-            value: String(s.id),
-            label: s.name || String(s.id),
-            authority_id: a.authority_id,
-            semel_mosad: s.semel_mosad ?? null,
-          })),
-        );
-        const filtered = manualAuthId
-          ? allSchoolsFlat.filter((s) => s.authority_id === manualAuthId)
-          : allSchoolsFlat;
+        const source = isOpenFieldType() ? allAuthoritySchoolData : assignmentAuthoritySchoolData;
+        const filtered = flatSchoolOptions(source, manualAuthId);
         schoolSel.setOptions(filtered);
-        const matchSchool = filtered.find((s) => s.label === prefSchoolName);
+        const matchSchool = filtered.find((s) => s.label.startsWith(prefSchoolName) || s.label.includes(prefSchoolName));
         if (matchSchool) {
           schoolSel.setValue(matchSchool.value, matchSchool.label);
           manualSchoolId = Number(matchSchool.value);
-          manualSchoolName = matchSchool.label;
+          manualSchoolName = prefSchoolName;
           semelMosad = matchSchool.semel_mosad ?? null;
         } else {
           schoolSel.setValue('', prefSchoolName);
@@ -774,10 +938,8 @@ export function renderNewReportScreen(container, {
         }
       }
       if (prefill.activity_row_id) {
-        const match = instructorActivities.find((item) => activityRowId(item) === String(prefill.activity_row_id));
+        const match = findActivityByRowId(prefill.activity_row_id);
         if (match) void applySelectedActivity(match);
-      } else if (prefill.activity_name_snapshot && !INDEPENDENT_REPORT_TYPES.includes(initialHebrewType)) {
-        activityNameSel.setValue(prefill.activity_name_snapshot, prefill.activity_name_snapshot);
       }
     }
 
@@ -830,10 +992,13 @@ export function renderNewReportScreen(container, {
       const endTime = endPicker.getValue();
       const totalHours = calcHours(startTime, endTime);
       const activity = selectedActivity;
-      const isIndependent = isIndependentTypeSelected();
+      const reportType = getReportType();
+      const isNoActivity = isNoActivityNameType(reportType);
+      const isOpen = isOpenFieldType(reportType);
+      const isOnline = isOnlineReportType(reportType);
 
       errorEl.hidden = true;
-      [activityNameSel.wrap, typeField.wrap, startPicker.wrap, endPicker.wrap, authSel.wrap]
+      [activityNameSel?.wrap, typeField.wrap, startPicker.wrap, endPicker.wrap, authSel.wrap]
         .forEach((w) => w?.classList.remove('av2-field--invalid'));
 
       const missing = [];
@@ -844,15 +1009,21 @@ export function renderNewReportScreen(container, {
         if (!firstInvalid) firstInvalid = wrap;
       }
 
-      if (!activityNameSel.getLabel().trim()) markInvalid(activityNameSel.wrap, 'שם פעילות');
-      if (!typeField.input.value) markInvalid(typeField.wrap, 'סוג פעילות');
+      if (!reportType) markInvalid(typeField.wrap, 'סוג פעילות');
+      if (requiresActivityName(reportType) && !activityNameSel.getLabel().trim()) {
+        markInvalid(activityNameSel.wrap, 'שם פעילות');
+      }
       if (!dateStr) markInvalid(dateField.wrap, 'תאריך');
       if (!startTime) markInvalid(startPicker.wrap, 'שעת התחלה');
       if (!endTime) markInvalid(endPicker.wrap, 'שעת סיום');
       if (startTime && endTime && totalHours <= 0) {
         markInvalid(endPicker.wrap, 'שעת סיום חייבת להיות מאוחרת מהתחלה');
       }
-      if (!activity && !isIndependent) {
+      if (!activity && !isNoActivity && !isOpen) {
+        const authLabel = manualAuthName?.trim() || '';
+        if (!authLabel) markInvalid(authSel.wrap, 'רשות');
+      }
+      if (isOpen) {
         const authLabel = manualAuthName?.trim() || '';
         if (!authLabel) markInvalid(authSel.wrap, 'רשות');
       }
@@ -865,14 +1036,32 @@ export function renderNewReportScreen(container, {
       }
 
       const finalAuthorityId = activity?.authority_id ?? manualAuthId ?? null;
-      const finalAuthorityName = activity?.authority_name ?? manualAuthName ?? null;
+      const finalAuthorityName = activity?.authority_name ?? activity?.authority ?? manualAuthName ?? null;
       const finalSchoolId = activity ? (schoolId || null) : (manualSchoolId || null);
       const finalSchoolName = activity ? (schoolName || null) : (manualSchoolName || null);
-      const programName = activity?.program_name || activityNameSel.getLabel().trim() || null;
+
+      let activityNameSnapshot = null;
+      if (isOpen) {
+        activityNameSnapshot = trainingDescField.input.value.trim() || TRAINING_REPORT_TYPE;
+      } else if (requiresActivityName(reportType)) {
+        activityNameSnapshot = activityNameSel.getLabel().trim() || (activity?.activity_name ?? null);
+      } else if (isNoActivity) {
+        activityNameSnapshot = reportType;
+      }
+
+      const programName = activity?.program_name || activityNameSnapshot || null;
+
+      let kmValue = 0;
+      if (isOnline) {
+        kmValue = 0;
+      } else {
+        kmValue = kmField.input.value ? Number(kmField.input.value) : 0;
+      }
+      if (isOnline && kmValue > 0) kmValue = 0;
 
       const summaryConfirmed = await showReportSummaryDialog({
         reportDate: dateStr,
-        activityType: typeField.input.value || '—',
+        activityType: reportType || '—',
         authority: finalAuthorityName || '—',
         school: finalSchoolName || '—',
         program: programName || '—',
@@ -880,7 +1069,7 @@ export function renderNewReportScreen(container, {
         startTime,
         endTime,
         totalHours: totalHours > 0 ? totalHours.toFixed(2) : '—',
-        km: kmField.input.value || '0',
+        km: String(kmValue),
         expenses: expField.input.value || '0',
         notes: notesField.input.value.trim() || '—',
         attachments: pendingFiles.map((file) => file.name),
@@ -896,12 +1085,12 @@ export function renderNewReportScreen(container, {
           start_time: startTime,
           end_time: endTime,
           total_hours: totalHours,
-          activity_type: typeField.input.value,
+          activity_type: reportType,
           activity_id: activity?.id ?? null,
           activity_row_id: activity?.row_id ?? null,
           activity_no: activity?.activity_no ?? null,
           activity_season: activity?.activity_season ?? null,
-          activity_name_snapshot: activityNameSel.getLabel().trim() || (activity?.activity_name ?? null),
+          activity_name_snapshot: activityNameSnapshot,
           meeting_no: meetingField.getValue() ? Number(meetingField.getValue()) : null,
           authority_id: finalAuthorityId,
           authority_name_snapshot: finalAuthorityName,
@@ -910,7 +1099,7 @@ export function renderNewReportScreen(container, {
           semel_mosad: semelMosad || null,
           program_name: activity?.program_name ?? null,
           program_name_snapshot: programName,
-          roundtrip_km: kmField.input.value ? Number(kmField.input.value) : 0,
+          roundtrip_km: kmValue,
           expenses: expField.input.value ? Number(expField.input.value) : 0,
           expense_details: expDetailField.input.value.trim() || null,
           notes: notesField.input.value.trim() || null,
@@ -937,14 +1126,24 @@ export function renderNewReportScreen(container, {
     });
 
     formArea.append(form);
+    void onReportDateChange();
   }
 
-  getAuthoritySchoolList(instructor.empId)
-    .then((d) => { authoritySchoolData = d; })
+  Promise.all([
+    getInstructorActivities(instructor.empId, defaultDate),
+    getAllAuthoritySchoolList(instructor.empId),
+  ])
+    .then(([activities, allAuthorities]) => {
+      instructorActivities = activities;
+      assignmentAuthoritySchoolData = deriveAuthoritySchoolListFromActivities(activities);
+      if (!assignmentAuthoritySchoolData.length) {
+        assignmentAuthoritySchoolData = allAuthorities;
+      }
+      allAuthoritySchoolData = allAuthorities;
+    })
     .catch(() => {})
-    .finally(async () => {
+    .finally(() => {
       buildForm(prefillRecord);
-      await onReportDateChange();
     });
 }
 
