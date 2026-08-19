@@ -1,5 +1,6 @@
 const STYLE_ID = 'operations-management-home-cards-style';
 const HOME_ATTRIBUTE = 'data-operations-management-home';
+const TILE_LABEL_ATTRIBUTE = 'data-operations-management-target-label';
 const PLACEHOLDER_TEXT = 'בחרו לשונית להצגת הנתונים.';
 const CARD_LABELS = [
   'מלאי סדנאות',
@@ -24,9 +25,7 @@ function iconSvg(label) {
   if (text.includes('קטלוג')) return `<svg ${common}><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H11v16H6.5A2.5 2.5 0 0 0 4 21.5z"/><path d="M20 5.5A2.5 2.5 0 0 0 17.5 3H13v16h4.5a2.5 2.5 0 0 1 2.5 2.5z"/></svg>`;
   if (text.includes('תעודות') || text.includes('אישורי')) return `<svg ${common}><path d="M7 3h10v18H7z"/><path d="M10 8h4M10 12h4"/><path d="M9 17l2-1 2 1 2-1"/></svg>`;
   if (text.includes('הכשרות')) return `<svg ${common}><path d="M3 10l9-5 9 5-9 5z"/><path d="M7 13v4c3 2 7 2 10 0v-4"/></svg>`;
-  if (text.includes('הרשאות')) return `<svg ${common}><path d="M12 3l7 3v5c0 4.4-2.8 8.4-7 10-4.2-1.6-7-5.6-7-10V6z"/><path d="M9.5 12l1.8 1.8 3.5-4"/></svg>`;
   if (text.includes('דפוס')) return `<svg ${common}><path d="M7 8V3h10v5"/><rect x="4" y="8" width="16" height="9" rx="2"/><path d="M7 14h10v7H7zM16 11h1"/></svg>`;
-  if (text.includes('רשויות')) return `<svg ${common}><path d="M3 21h18M5 21V9l7-4 7 4v12"/><path d="M9 13h6M9 17h6"/></svg>`;
   return `<svg ${common}><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8 9h8M8 13h8M8 17h5"/></svg>`;
 }
 
@@ -38,11 +37,8 @@ function descriptionFor(label) {
   if (text.includes('תעודות')) return 'הפקה וניהול של תעודות';
   if (text === 'הכשרות סדנאות') return 'ניהול הכשרות והיערכות לסדנאות';
   if (text === 'הכשרות קורסים') return 'ניהול הכשרות והיערכות לקורסים';
-  if (text.includes('אישורי')) return 'בקרה והפקת אישורי ביצוע';
   if (text.includes('הכשרות')) return 'ניהול הכשרות והיערכות';
-  if (text.includes('הרשאות')) return 'ניהול הרשאות וקורסים תפעוליים';
   if (text.includes('דפוס')) return 'ניהול ערכות וחומרי דפוס';
-  if (text.includes('רשויות')) return 'מידע תפעולי לפי רשויות';
   return `פתיחת ${text}`;
 }
 
@@ -57,9 +53,7 @@ function ensureStyles() {
       padding: 0 8px 24px;
       direction: rtl;
     }
-    .operations-management-home__heading {
-      margin-bottom: 14px;
-    }
+    .operations-management-home__heading { margin-bottom: 14px; }
     .operations-management-home__heading h2 {
       margin: 0;
       font-size: 18px;
@@ -108,16 +102,15 @@ function ensureStyles() {
       border-radius: 12px;
       background: var(--color-surface-muted, #f8fafc);
       color: var(--color-primary, #0f7f9b);
+      pointer-events: none;
     }
-    .operations-management-home__icon svg {
-      width: 23px;
-      height: 23px;
-    }
+    .operations-management-home__icon svg { width: 23px; height: 23px; }
     .operations-management-home__content {
       min-width: 0;
       display: flex;
       flex-direction: column;
       gap: 6px;
+      pointer-events: none;
     }
     .operations-management-home__content strong {
       font-size: 15.5px;
@@ -133,6 +126,7 @@ function ensureStyles() {
       color: var(--color-text-secondary, #94a3b8);
       font-size: 23px;
       line-height: 1;
+      pointer-events: none;
     }
     @media (max-width: 980px) {
       .operations-management-home__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -188,6 +182,7 @@ function renderTiles(home, buttons) {
     const tile = document.createElement('button');
     tile.type = 'button';
     tile.className = 'operations-management-home__tile';
+    tile.setAttribute(TILE_LABEL_ATTRIBUTE, label);
     tile.innerHTML = `
       <span class="operations-management-home__icon">${iconSvg(label)}</span>
       <span class="operations-management-home__content">
@@ -199,9 +194,6 @@ function renderTiles(home, buttons) {
     tile.querySelector('strong').textContent = label;
     tile.querySelector('small').textContent = descriptionFor(label);
     tile.setAttribute('aria-label', `פתיחת ${label}`);
-    tile.addEventListener('click', () => {
-      if (target.isConnected) target.click();
-    });
     grid.append(tile);
   });
 }
@@ -217,6 +209,36 @@ function buildOrSyncHome(nav, placeholder) {
   }
   if (!home) return;
   renderTiles(home, buttons);
+}
+
+function currentNavigationTarget(label) {
+  const expected = normalize(label);
+  if (!expected) return null;
+  const navs = [...document.querySelectorAll('.ds-ops-mgmt-tabs')];
+  for (const nav of navs) {
+    const target = navButtons(nav).find((button) => normalize(button.textContent) === expected);
+    if (target?.isConnected && !target.disabled) return target;
+  }
+  return null;
+}
+
+function openTile(tile) {
+  const label = normalize(tile?.getAttribute?.(TILE_LABEL_ATTRIBUTE));
+  const target = currentNavigationTarget(label);
+  if (!target) {
+    scheduleSync();
+    return false;
+  }
+  target.click();
+  return true;
+}
+
+function handleTileClick(event) {
+  const target = event.target instanceof Element ? event.target : null;
+  const tile = target?.closest?.(`.operations-management-home__tile[${TILE_LABEL_ATTRIBUTE}]`);
+  if (!tile) return;
+  event.preventDefault();
+  openTile(tile);
 }
 
 function sync() {
@@ -240,6 +262,7 @@ function start() {
   const root = document.getElementById('app') || document.documentElement;
   const observer = new MutationObserver(scheduleSync);
   observer.observe(root, { childList: true, subtree: true, characterData: true });
+  document.addEventListener('click', handleTileClick, true);
   document.addEventListener('app:navigate', scheduleSync);
   document.addEventListener('ops-mgmt-standard-tab', scheduleSync);
   scheduleSync();
