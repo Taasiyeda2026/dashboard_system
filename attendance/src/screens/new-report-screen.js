@@ -173,25 +173,23 @@ export function renderNewReportScreen(container, {
   title.textContent = 'דיווח חדש';
   header.append(backBtn, title);
 
-  // ── Date picker ────────────────────────────────────────────────────────
-  const dateSection = document.createElement('div');
-  dateSection.className = 'av2-report__section';
   const dateField = createInputField({
     id: 'av2-report-date',
-    label: 'תאריך הדיווח',
+    label: 'תאריך *',
     type: 'date',
     value: defaultDate,
   });
-  dateSection.append(dateField.wrap);
 
-  // ── Activity picker area ────────────────────────────────────────────────
   const pickerArea = document.createElement('div');
   pickerArea.className = 'av2-activity-picker';
 
-  // ── Form area ──────────────────────────────────────────────────────────
   const formArea = document.createElement('div');
   formArea.className = 'av2-report__form-area';
   formArea.hidden = true;
+
+  const dateSection = document.createElement('div');
+  dateSection.className = 'av2-report__section';
+  dateSection.append(dateField.wrap);
 
   inner.append(header, dateSection, pickerArea, formArea);
   wrap.append(inner);
@@ -584,11 +582,10 @@ export function renderNewReportScreen(container, {
     }
 
     const activityCard = makeCard('פרטי פעילות', 'activity', [
-      activityNameSel.wrap, typeField.wrap, meetingWrap, authorityEl, schoolEl,
+      typeField.wrap, meetingWrap, authorityEl, schoolEl, activityNameSel.wrap,
     ]);
     activityCard.querySelector('.av2-form-card__body').classList.add('av2-form-card__body--2col');
     activityNameSel.wrap.style.gridColumn = '1 / -1';
-    form.append(activityCard);
 
     // ── Card 2: זמנים ──────────────────────────────────────────────────
 
@@ -628,7 +625,14 @@ export function renderNewReportScreen(container, {
     updateHours();
     hoursDisplay.append(hoursLbl, hoursVal);
 
-    const timeFields = [];
+    const dateDisplay = createInputField({
+      id: 'av2-time-date',
+      label: 'תאריך *',
+      type: 'date',
+      value: dateStr,
+    });
+    dateDisplay.input.readOnly = true;
+    const timeFields = [dateDisplay.wrap];
     if (activity?.start_time && activity?.end_time) {
       const plannedNote = document.createElement('p');
       plannedNote.className = 'av2-report__no-activity-note';
@@ -645,36 +649,36 @@ export function renderNewReportScreen(container, {
       attrs: { min: '0', step: '1', placeholder: '0' },
     });
 
-    const timeCard = makeCard('זמנים ונסיעות', 'time', [...timeFields, kmField.wrap]);
+    const timeCard = makeCard('זמנים', 'time', [...timeFields, kmField.wrap]);
     timeCard.querySelector('.av2-form-card__body').classList.add('av2-form-card__body--2col');
     hoursDisplay.style.gridColumn = '1 / -1';
-    form.append(timeCard);
 
-    // ── Card 3: הערות ──────────────────────────────────────────────────
+    // ── Card 3: הוצאות ומסמכים ──────────────────────────────────────────
+    const expField = createInputField({
+      id: 'av2-expenses', label: 'סה"כ הוצאות (₪)',
+      type: 'number', value: prefillRecord?.expenses ? String(prefillRecord.expenses) : '',
+      attrs: { min: '0', step: '0.01', placeholder: '0.00' },
+    });
+    const expDetailField = createInputField({
+      id: 'av2-expense-detail', label: 'פירוט הוצאות',
+      placeholder: 'פרט את ההוצאות',
+      value: prefillRecord?.expense_details || '',
+    });
+    const attachmentUi = buildAttachmentSection(pendingFiles);
+    const expensesCard = makeCard('הוצאות', 'expenses', [
+      expField.wrap, expDetailField.wrap, attachmentUi.section,
+    ]);
+
+    // ── Card 4: הערות ──────────────────────────────────────────────────
     const notesField = createInputField({
-      id: 'av2-notes', label: 'הערות',
+      id: 'av2-notes', label: 'הערות נוספות',
       placeholder: 'הערות נוספות (אופציונלי)',
       value: prefillRecord?.notes || '',
     });
     const notesCard = makeCard('הערות', 'notes', [notesField.wrap]);
-    form.append(notesCard);
 
-    // ── Card 4: הוצאות ומסמכים ──────────────────────────────────────────
-    const expField = createInputField({
-      id: 'av2-expenses', label: 'הוצאות (₪)',
-      type: 'number', value: prefillRecord?.expenses ? String(prefillRecord.expenses) : '',
-      attrs: { min: '0', step: '0.01', placeholder: '0' },
-    });
-    const expDetailField = createInputField({
-      id: 'av2-expense-detail', label: 'פירוט הוצאות',
-      placeholder: 'לדוגמה: חניה, כיבוד, חומרים',
-      value: prefillRecord?.expense_details || '',
-    });
-    const attachmentUi = buildAttachmentSection(pendingFiles);
-    const expensesCard = makeCard('הוצאות ומסמכים', 'expenses', [
-      expField.wrap, expDetailField.wrap, attachmentUi.section,
-    ]);
-    form.append(expensesCard);
+    // Grid order (RTL): row1=[timeCard(right), activityCard(left)], row2=[expensesCard(right), notesCard(left)]
+    form.append(timeCard, activityCard, expensesCard, notesCard);
 
     // ── Save + Error (full-width below cards) ──────────────────────────
     const actionsRow = document.createElement('div');
