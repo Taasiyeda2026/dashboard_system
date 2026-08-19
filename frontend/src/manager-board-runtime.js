@@ -240,17 +240,24 @@ export function isActiveInstructor(instructor) {
   return !INACTIVE_INSTRUCTOR_VALUES.has(value);
 }
 
-export function activeTeamNamesForManager(data, manager) {
+export function activeTeamForManager(data, manager) {
   const key = normalizedName(manager);
   if (!key) return [];
-  const names = new Set();
+  const seen = new Set();
+  const result = [];
   (data?.instructors || []).forEach((instructor) => {
     if (normalizedName(instructor?.direct_manager) !== key) return;
     if (!isActiveInstructor(instructor)) return;
     const name = normalizedText(instructor?.full_name);
-    if (name) names.add(name);
+    if (!name || seen.has(name)) return;
+    seen.add(name);
+    result.push({ name, mobile: normalizedText(instructor?.mobile) });
   });
-  return [...names].sort((a, b) => a.localeCompare(b, 'he'));
+  return result.sort((a, b) => a.name.localeCompare(b.name, 'he'));
+}
+
+export function activeTeamNamesForManager(data, manager) {
+  return activeTeamForManager(data, manager).map((item) => item.name);
 }
 
 function safeRows(result) {
@@ -275,7 +282,7 @@ async function loadBoardData(period) {
 
   const instructorsQuery = supabase
     .from('contacts_instructors')
-    .select('emp_id,full_name,direct_manager,active');
+    .select('emp_id,full_name,direct_manager,active,mobile');
 
   const profileQuery = supabase
     .from('instructor_scheduling_profiles')
@@ -693,10 +700,11 @@ function monthNavigationHtml(ym, period) {
     </div>`;
 }
 
-function activeTeamStripHtml(names) {
-  const body = names.length
-    ? `<div class="manager-board-team-strip__grid">${names.map((name) => `<span class="manager-board-team-strip__chip">${escapeHtml(name)}</span>`).join('')}</div>`
-    : '<div class="manager-board-empty manager-board-empty--compact">אין מדריכים פעילים משויכים למנהל זה.</div>';
+function activeTeamStripHtml(team, activityCount) {
+  const activityChip = `<span class="manager-board-team-strip__chip manager-board-team-strip__chip--kpi"><span>פעילויות פעילות</span><strong>${activityCount}</strong></span>`;
+  const body = team.length
+    ? `<div class="manager-board-team-strip__grid">${activityChip}${team.map((item) => `<button type="button" class="manager-board-team-strip__chip" data-instructor-mobile="${escapeAttr(item.mobile || '')}">${escapeHtml(item.name)}</button>`).join('')}</div>`
+    : `<div class="manager-board-team-strip__grid">${activityChip}</div>`;
   return `
     <section class="manager-board-team-strip" data-manager-board-team-strip>
       <h2 class="manager-board-team-strip__title">צוות המדריכים הפעיל</h2>
@@ -733,14 +741,13 @@ function renderBoardMarkup(data, manager, ym) {
     normalizedName(instructor?.direct_manager) === normalizedName(manager)
   );
   const uniqueActivityRows = new Set(activities.map((activity) => normalizedText(activity.row_id || activity.id)).filter(Boolean));
-  const activeTeamNames = activeTeamNamesForManager(data, manager);
+  const activeTeam = activeTeamForManager(data, manager);
 
   return `
     <section class="manager-board-screen" data-manager-board-root dir="rtl">
       <div class="manager-board-hero">
         <div>
           <h1>לוח מנהל פעילות</h1>
-          <p>תמונה חודשית אחת של הפעילויות, המדריכים ונקודות הבקרה.</p>
         </div>
         <div class="manager-board-hero__controls">
           ${managerSelectorHtml(managerNames, manager)}
@@ -748,20 +755,8 @@ function renderBoardMarkup(data, manager, ym) {
         </div>
       </div>
 
-      ${workspaceShellHtml(activeTeamStripHtml(activeTeamNames))}
+      ${workspaceShellHtml(activeTeamStripHtml(activeTeam, uniqueActivityRows.size))}
 
-      <div class="manager-board-kpis">
-        <article>
-          <span>פעילויות פעילות</span>
-          <strong>${uniqueActivityRows.size}</strong>
-          <small>${configuredTeam.length ? `${configuredTeam.length} מדריכים משויכים למנהל` : 'לפי הפעילויות המשויכות'}</small>
-        </article>
-        <article>
-          <span>מדריכים החודש</span>
-          <strong>${instructorStats.length}</strong>
-          <small>מדריכים עם מפגש מתוכנן בפועל</small>
-        </article>
-      </div>
 
       <div class="manager-board-layout">
         <section class="manager-board-panel manager-board-panel--calendar">
@@ -859,6 +854,47 @@ function setBoardActiveNav() {
   }
 }
 
+function bindPhonePopovers(root) {
+  let openPopover = null;
+
+  function closePopover() {
+    if (openPopover) {
+      openPopover.remove();
+      openPopover = null;
+    }
+  }
+
+  root.querySelectorAll('.manager-board-team-strip__chip[data-instructor-mobile]').forEach((chip) => {
+    chip.addEventListener('click', (event) => {
+      event.stopPropagation();
+      const existing = chip.querySelector('.manager-board-phone-popover');
+      if (existing) {
+        closePopover();
+        return;
+      }
+      closePopover();
+      const mobile = chip.dataset.instructorMobile || '';
+      const popover = document.createElement('span');
+      popover.className = 'manager-board-phone-popover';
+      popover.dir = 'ltr';
+      popover.textContent = mobile || '—';
+      chip.style.position = 'relative';
+      chip.appendChild(popover);
+      openPopover = popover;
+    });
+  });
+
+  document.addEventListener('click', function handler(event) {
+    if (!root.isConnected) {
+      document.removeEventListener('click', handler, true);
+      return;
+    }
+    if (!event.target.closest('.manager-board-team-strip__chip[data-instructor-mobile]')) {
+      closePopover();
+    }
+  }, true);
+}
+
 function bindBoardControls(root, data) {
   root.querySelector('[data-manager-board-manager]')?.addEventListener('change', (event) => {
     selectedManager = normalizedText(event.target.value);
@@ -950,6 +986,7 @@ async function renderManagerBoard(force = false) {
     root.innerHTML = renderBoardMarkup(data, selectedManager, selectedYm);
     lastRenderedSignature = signature;
     bindBoardControls(root, data);
+    bindPhonePopovers(root);
     setBoardActiveNav();
   } catch (error) {
     if (requestId !== boardRequestId || !managerBoardOpen) return;

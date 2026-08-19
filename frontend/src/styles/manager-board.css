@@ -212,11 +212,12 @@
   gap: 16px;
   padding: 15px 17px 12px;
   border-bottom: 1px solid #eef2f7;
+  border-inline-start: 3px solid var(--manager-board-accent);
 }
 
 .manager-board-panel__head h2 {
   margin: 0 0 2px;
-  font-size: 16px;
+  font-size: 18px;
   color: #0f172a;
 }
 
@@ -419,9 +420,8 @@
   margin: 0;
   padding: 10px 14px 0;
   color: #64748b;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 850;
-  text-transform: uppercase;
   letter-spacing: .02em;
 }
 
@@ -447,7 +447,7 @@
 .manager-board-milestone time,
 .manager-board-school-event time {
   color: #64748b;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 800;
 }
 
@@ -460,7 +460,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 11px;
+  font-size: 13px;
   color: #1e293b;
 }
 
@@ -468,7 +468,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 10px;
+  font-size: 11px;
   color: #64748b;
 }
 
@@ -477,7 +477,7 @@
   border-radius: 999px;
   background: #f8fafc;
   color: #475569;
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 850;
   white-space: nowrap;
 }
@@ -490,7 +490,7 @@
   padding: 9px 0;
   border-bottom: 1px solid #eef2f7;
   color: #334155;
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .manager-board-school-event.is-blocking span {
@@ -645,6 +645,64 @@
   padding: 8px 13px;
   font-weight: 750;
   cursor: pointer;
+}
+
+.manager-board-team-strip__chip--kpi {
+  background: color-mix(in srgb, var(--manager-board-accent) 8%, #fff);
+  border-color: color-mix(in srgb, var(--manager-board-accent) 25%, #dbe3ed);
+  flex-direction: column;
+  gap: 2px;
+  cursor: default;
+}
+
+.manager-board-team-strip__chip--kpi span {
+  font-size: 10px;
+  color: #64748b;
+  font-weight: 800;
+}
+
+.manager-board-team-strip__chip--kpi strong {
+  font-size: 22px;
+  line-height: 1;
+  color: var(--manager-board-accent);
+}
+
+button.manager-board-team-strip__chip {
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+button.manager-board-team-strip__chip:hover {
+  background: color-mix(in srgb, var(--manager-board-accent) 6%, #fff);
+}
+
+.manager-board-phone-popover {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 5px 10px;
+  border-radius: 8px;
+  background: #1e293b;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+  z-index: 10;
+  pointer-events: none;
+  box-shadow: 0 4px 12px rgba(0,0,0,.15);
+}
+
+.manager-board-phone-popover::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-top-color: #1e293b;
 }
 
 .manager-board-nav-button.is-active {
