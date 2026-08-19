@@ -11,34 +11,11 @@
   "theme_color": "#1E3A5F",
   "lang": "he",
   "dir": "rtl",
-  "categories": [
-    "business",
-    "productivity"
-  ],
+  "categories": ["business", "productivity"],
   "icons": [
-    {
-      "src": "./assets/icons/icon-192.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any"
-    },
-    {
-      "src": "./assets/icons/icon-512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any"
-    },
-    {
-      "src": "./assets/icons/icon-maskable-512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "maskable"
-    },
-    {
-      "src": "./assets/icons/apple-touch-icon.png",
-      "sizes": "180x180",
-      "type": "image/png",
-      "purpose": "any"
-    }
+    {"src":"./assets/icons/icon-192x192.png?v=26","sizes":"192x192","type":"image/png","purpose":"any"},
+    {"src":"./assets/icons/icon-512x512.png?v=26","sizes":"512x512","type":"image/png","purpose":"any"},
+    {"src":"./assets/icons/icon-192x192-maskable.png?v=26","sizes":"192x192","type":"image/png","purpose":"maskable"},
+    {"src":"./assets/icons/icon-512x512-maskable.png?v=26","sizes":"512x512","type":"image/png","purpose":"maskable"}
   ]
 }
