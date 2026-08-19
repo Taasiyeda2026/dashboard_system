@@ -6,7 +6,7 @@ let scheduled = false;
 export function initRound3Ui(root = document.getElementById('app')) {
   if (!root) return;
   const observer = new MutationObserver(() => schedule(root));
-  observer.observe(root, { childList: true, subtree: true });
+  observer.observe(document.body || root, { childList: true, subtree: true });
   schedule(root);
 }
 
