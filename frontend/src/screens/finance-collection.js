@@ -1,6 +1,13 @@
+import { getActivityDateColumns } from './shared/format-date.js';
+
 export const FINANCE_UNFUNDED_PAYER_LABEL = 'ללא גורם מימון';
 export const FINANCE_COLLECTION_OPEN = 'open';
 export const FINANCE_COLLECTION_CLOSED = 'closed';
+export const FINANCE_COLLECTION_TAB_OPEN = 'open';
+export const FINANCE_COLLECTION_TAB_CLOSED = 'closed';
+export const FINANCE_COLLECTION_TAB_ALL = 'all';
+export const FINANCE_NO_END_DATE_MONTH_KEY = '__no_end_date__';
+export const FINANCE_NO_END_DATE_MONTH_LABEL = 'ללא תאריך סיום';
 
 const txt = (value) => String(value ?? '').trim();
 
@@ -22,6 +29,11 @@ function compactToken(value) {
     .replace(/["'`׳״]/g, '')
     .replace(/[\s_\-./\\]+/g, '')
     .toLowerCase();
+}
+
+function normalizeIsoDate(value) {
+  const match = /^(\d{4}-\d{2}-\d{2})/.exec(txt(value));
+  return match ? match[1] : '';
 }
 
 export function isGefenFunding(value) {
@@ -48,6 +60,26 @@ export function normalizeCollectionStatus(value) {
   return txt(value).toLowerCase() === FINANCE_COLLECTION_CLOSED
     ? FINANCE_COLLECTION_CLOSED
     : FINANCE_COLLECTION_OPEN;
+}
+
+export function normalizeFinanceCollectionTab(value) {
+  const tab = txt(value).toLowerCase();
+  if (tab === FINANCE_COLLECTION_TAB_CLOSED) return FINANCE_COLLECTION_TAB_CLOSED;
+  if (tab === FINANCE_COLLECTION_TAB_ALL) return FINANCE_COLLECTION_TAB_ALL;
+  return FINANCE_COLLECTION_TAB_OPEN;
+}
+
+export function financeActivityEndDate(row = {}) {
+  const endDate = normalizeIsoDate(row.end_date ?? row.date_end);
+  const latestMeeting = getActivityDateColumns(row).reduce((max, dateKey) => (
+    !max || dateKey > max ? dateKey : max
+  ), '');
+  return endDate || latestMeeting || '';
+}
+
+export function financeActivityEndMonthKey(row = {}) {
+  const endDate = financeActivityEndDate(row);
+  return endDate ? endDate.slice(0, 7) : FINANCE_NO_END_DATE_MONTH_KEY;
 }
 
 function primaryFunding(row = {}) {
@@ -132,12 +164,69 @@ export function activityStatusLabel(row = {}) {
   return txt(row.status) || '—';
 }
 
-export function groupFinanceCollectionPayers(activities = [], { tab = 'open' } = {}) {
-  const wantOpenOnly = tab !== 'all';
-  const groups = new Map();
-  for (const activity of activities || []) {
+function financeCollectionSearchText(value) {
+  return txt(value)
+    .normalize('NFKD')
+    .toLowerCase()
+    .replace(/[׳״'"`´’‘“”.,;:()\[\]{}\-_/\\\u05BE\u2010-\u2015]/g, '')
+    .replace(/\s+/g, '');
+}
+
+export function financeCollectionSearchHaystack(activity = {}) {
+  const payer = financePayerKey(activity);
+  return financeCollectionSearchText([
+    activity.activity_name,
+    activity.authority,
+    activity.school,
+    activity.funding,
+    payer.label
+  ].filter(Boolean).join(' '));
+}
+
+export function filterFinanceCollectionActivities(activities = [], { tab = FINANCE_COLLECTION_TAB_OPEN, search = '' } = {}) {
+  const normalizedTab = normalizeFinanceCollectionTab(tab);
+  const query = financeCollectionSearchText(search);
+  return (activities || []).filter((activity) => {
     const status = normalizeCollectionStatus(activity.collection_status);
-    if (wantOpenOnly && status !== FINANCE_COLLECTION_OPEN) continue;
+    if (normalizedTab === FINANCE_COLLECTION_TAB_OPEN && status !== FINANCE_COLLECTION_OPEN) return false;
+    if (normalizedTab === FINANCE_COLLECTION_TAB_CLOSED && status !== FINANCE_COLLECTION_CLOSED) return false;
+    if (query && !financeCollectionSearchHaystack(activity).includes(query)) return false;
+    return true;
+  });
+}
+
+export function summarizeFinanceCollectionTotals(activities = []) {
+  let totalAmount = 0;
+  let openAmount = 0;
+  let closedAmount = 0;
+  let openCount = 0;
+  let closedCount = 0;
+  for (const activity of activities || []) {
+    const price = num(activity.price ?? activity.amount ?? activity.activity_price);
+    totalAmount += price;
+    if (normalizeCollectionStatus(activity.collection_status) === FINANCE_COLLECTION_CLOSED) {
+      closedAmount += price;
+      closedCount += 1;
+    } else {
+      openAmount += price;
+      openCount += 1;
+    }
+  }
+  return {
+    totalAmount,
+    openAmount,
+    closedAmount,
+    activityCount: (activities || []).length,
+    openCount,
+    closedCount
+  };
+}
+
+export function groupFinanceCollectionPayers(activities = [], { tab = FINANCE_COLLECTION_TAB_OPEN } = {}) {
+  const filtered = filterFinanceCollectionActivities(activities, { tab, search: '' });
+  const groups = new Map();
+  for (const activity of filtered) {
+    const status = normalizeCollectionStatus(activity.collection_status);
     const payer = financePayerKey(activity);
     let group = groups.get(payer.key);
     if (!group) {
@@ -162,4 +251,35 @@ export function groupFinanceCollectionPayers(activities = [], { tab = 'open' } =
       activityCount: group.activities.length
     }))
     .sort((a, b) => a.label.localeCompare(b.label, 'he'));
+}
+
+export function groupFinanceCollectionByEndMonth(activities = [], { tab = FINANCE_COLLECTION_TAB_OPEN, search = '' } = {}) {
+  const filtered = filterFinanceCollectionActivities(activities, { tab, search });
+  const monthMap = new Map();
+  for (const activity of filtered) {
+    const monthKey = financeActivityEndMonthKey(activity);
+    let month = monthMap.get(monthKey);
+    if (!month) {
+      month = { monthKey, activities: [] };
+      monthMap.set(monthKey, month);
+    }
+    month.activities.push(activity);
+  }
+
+  const months = [...monthMap.values()]
+    .map((month) => ({
+      monthKey: month.monthKey,
+      payers: groupFinanceCollectionPayers(month.activities, { tab: FINANCE_COLLECTION_TAB_ALL }),
+      activityCount: month.activities.length,
+      totalAmount: month.activities.reduce((sum, activity) => (
+        sum + num(activity.price ?? activity.amount ?? activity.activity_price)
+      ), 0)
+    }))
+    .sort((a, b) => {
+      if (a.monthKey === FINANCE_NO_END_DATE_MONTH_KEY) return 1;
+      if (b.monthKey === FINANCE_NO_END_DATE_MONTH_KEY) return -1;
+      return b.monthKey.localeCompare(a.monthKey);
+    });
+
+  return months;
 }

@@ -14409,7 +14409,93 @@ select.ds-input {
 }
 .ds-fin-save.is-saved { color: var(--ds-accent); font-weight: 700; }
 .ds-fin-save.is-error { color: #b91c1c; }
+.ds-fin-collect-shell {
+  width: min(100%, 1160px);
+  margin: 0 auto;
+  padding: 0 12px 28px;
+}
+.ds-fin-collect-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin: 12px 0 16px;
+}
+.ds-fin-collect-summary-card {
+  min-height: 96px;
+  padding: 14px 16px;
+  border: 1px solid var(--ds-border);
+  border-radius: 14px;
+  background: var(--ds-surface);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 8px;
+}
+.ds-fin-collect-summary-card__label {
+  font-size: 0.82rem;
+  color: var(--ds-text-muted);
+}
+.ds-fin-collect-summary-card__value {
+  font-size: clamp(1.15rem, 2vw, 1.45rem);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+.ds-fin-collect-toolbar {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.ds-fin-collect-search {
+  flex: 1 1 260px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.ds-fin-collect-search__label {
+  font-size: 0.78rem;
+  color: var(--ds-text-muted);
+}
+.ds-fin-collect-toolbar .ds-fin-tabs {
+  margin-bottom: 0;
+}
+.ds-fin-collect-body {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.ds-fin-collect-month {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.ds-fin-collect-month__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 0 2px;
+}
+.ds-fin-collect-month__title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 800;
+}
+.ds-fin-collect-month__meta {
+  font-size: 0.82rem;
+  color: var(--ds-text-muted);
+}
 @media (max-width: 760px) {
+  .ds-fin-collect-summary {
+    grid-template-columns: 1fr;
+  }
+  .ds-fin-collect-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
   .ds-fin-hub {
     flex-direction: column;
     align-items: center;

@@ -17,16 +17,24 @@ import {
   buildFinanceAttendanceExcelRows,
   buildFinanceAttendanceWorkbook,
   buildMaofDailyExcelRows,
+  filterFinanceCollectionActivities,
+  financeActivityEndDate,
+  financeActivityEndMonthKey,
+  financeCollectionSearchHaystack,
   financeEmploymentSheetName,
   financeHourCategory,
   financePayerKey,
   formatFinanceReportedHourRanges,
+  groupFinanceCollectionByEndMonth,
   groupFinanceCollectionPayers,
+  FINANCE_NO_END_DATE_MONTH_KEY,
+  FINANCE_NO_END_DATE_MONTH_LABEL,
   isFinalPayrollApproval,
   isGefenFunding,
   mapLegacyPaymentCollected,
   mergeFinanceReportedTimeRanges,
   normalizeFinanceEmploymentType,
+  summarizeFinanceCollectionTotals,
   summarizeFinanceAttendance,
   unmappedFinanceActivityTypes
 } from '../frontend/src/screens/finance.js';
@@ -646,6 +654,96 @@ test('activity without tracking defaults to open and closed collection is hidden
   assert.equal(openTab[0].activities[0].row_id, 'OPEN-1');
   assert.equal(allTab.reduce((sum, group) => sum + group.activityCount, 0), 2);
   assert.ok(openTab[0].activities[0].status === 'סגורה');
+});
+
+test('collection end-month grouping uses end date or latest meeting and keeps each activity once', () => {
+  const rows = attachCollectionTracking([
+    activity({ row_id: 'A1', end_date: '2027-06-15', price: 100 }),
+    activity({ row_id: 'A2', end_date: '', date_1: '2027-03-01', date_2: '2027-05-20', price: 200 }),
+    activity({ row_id: 'A3', end_date: '', price: 50 })
+  ], []);
+  assert.equal(financeActivityEndDate(rows[0]), '2027-06-15');
+  assert.equal(financeActivityEndDate(rows[1]), '2027-05-20');
+  assert.equal(financeActivityEndMonthKey(rows[2]), FINANCE_NO_END_DATE_MONTH_KEY);
+
+  const months = groupFinanceCollectionByEndMonth(rows, { tab: 'all' });
+  assert.deepEqual(months.map((month) => month.monthKey), ['2027-06', '2027-05', FINANCE_NO_END_DATE_MONTH_KEY]);
+  const allIds = months.flatMap((month) => month.payers.flatMap((payer) => payer.activities.map((row) => row.row_id)));
+  assert.deepEqual(allIds.sort(), ['A1', 'A2', 'A3']);
+
+  const moved = attachCollectionTracking([
+    activity({ row_id: 'A1', end_date: '2027-08-01', price: 100 })
+  ], []);
+  assert.equal(financeActivityEndMonthKey(moved[0]), '2027-08');
+});
+
+test('collection tabs and search filter together by end month and payer grouping', () => {
+  const rows = attachCollectionTracking([
+    activity({ row_id: 'O1', end_date: '2027-04-10', authority: 'עיריית רחובות', price: 100 }),
+    activity({ row_id: 'C1', end_date: '2027-04-20', authority: 'עיריית רחובות', price: 200 }),
+    activity({ row_id: 'O2', end_date: '2027-05-01', authority: 'ראשון לציון', price: 300 })
+  ], [{ activity_row_id: 'C1', collection_status: 'closed' }]);
+
+  const openMonths = groupFinanceCollectionByEndMonth(rows, { tab: 'open' });
+  assert.deepEqual(openMonths.map((month) => month.monthKey), ['2027-05', '2027-04']);
+  assert.deepEqual(openMonths.flatMap((month) => month.payers.flatMap((payer) => payer.activities.map((row) => row.row_id))).sort(), ['O1', 'O2']);
+
+  const closedMonths = groupFinanceCollectionByEndMonth(rows, { tab: 'closed' });
+  assert.deepEqual(closedMonths.map((month) => month.monthKey), ['2027-04']);
+  assert.deepEqual(closedMonths[0].payers[0].activities.map((row) => row.row_id), ['C1']);
+
+  const searched = groupFinanceCollectionByEndMonth(rows, { tab: 'closed', search: 'רחובות' });
+  assert.equal(searched.length, 1);
+  assert.equal(searched[0].payers[0].activities[0].row_id, 'C1');
+  assert.deepEqual(filterFinanceCollectionActivities(rows, { tab: 'open', search: 'ראשון' }).map((row) => row.row_id), ['O2']);
+  assert.match(financeCollectionSearchHaystack(rows[0]), /רחובות/);
+});
+
+test('collection summary cards total open and closed without double counting', () => {
+  const rows = attachCollectionTracking([
+    activity({ row_id: '1', price: 100 }),
+    activity({ row_id: '2', price: 250 }),
+    activity({ row_id: '3', price: 150 })
+  ], [{ activity_row_id: '2', collection_status: 'closed' }]);
+  const totals = summarizeFinanceCollectionTotals(rows);
+  assert.equal(totals.totalAmount, 500);
+  assert.equal(totals.openAmount, 250);
+  assert.equal(totals.closedAmount, 250);
+  assert.equal(totals.totalAmount, totals.openAmount + totals.closedAmount);
+});
+
+test('collection UI keeps a compact centered shell with summary cards search and three tabs', () => {
+  const html = financeScreen.render({
+    ...createFinanceVisitState(),
+    view: 'collection',
+    collectionActivities: [
+      activity({ row_id: 'UI-1', end_date: '2027-07-01', authority: 'עיריית רחובות' })
+    ],
+    collectionTracking: [],
+    collectionTab: 'open',
+    collectionSearch: ''
+  }, { state: { user: financeUser } });
+  assert.match(html, /ds-fin-collect-shell/);
+  assert.match(html, /סכום כל הפעילויות/);
+  assert.match(html, /סה״כ לגבייה/);
+  assert.match(html, /סה״כ גבייה שבוצעה/);
+  assert.match(html, /data-finance-collection-search/);
+  assert.match(html, /data-finance-collection-tab="closed"/);
+  assert.match(html, /ds-fin-collect-month/);
+  assert.doesNotMatch(html, /פעילויות לפי משלם/);
+  assert.equal([...html.matchAll(/מעקב גבייה/g)].length, 1);
+});
+
+test('collection keeps payer grouping inside each end month section', () => {
+  const rows = attachCollectionTracking([
+    activity({ row_id: 'G1', end_date: '2027-04-10', school: 'הרצל', school_id: '77', funding: 'גפן' }),
+    activity({ row_id: 'G2', end_date: '2027-04-12', school: 'הרצל', school_id: '77', funding: 'גפן' }),
+    activity({ row_id: 'A1', end_date: '2027-04-15', funding: 'רשות', authority: 'רחובות', authority_id: 'r1' })
+  ], []);
+  const [month] = groupFinanceCollectionByEndMonth(rows, { tab: 'all' });
+  assert.equal(month.monthKey, '2027-04');
+  assert.equal(month.payers.length, 2);
+  assert.equal(month.payers.find((payer) => payer.kind === 'school').activityCount, 2);
 });
 
 test('orphan tracking rows are not shown as activities', () => {
