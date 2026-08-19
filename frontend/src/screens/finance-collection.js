@@ -97,9 +97,38 @@ function primaryFunding(row = {}) {
   };
 }
 
+function normalizeStableId(value) {
+  if (value == null) return '';
+  const raw = String(value).trim();
+  return raw || '';
+}
+
+function rowFundingName(row = {}) {
+  const direct = txt(row.funding);
+  if (direct) return direct;
+  return txt(primaryFunding(row).name);
+}
+
+function isRowGefenFunding(row = {}) {
+  return isGefenFunding(rowFundingName(row));
+}
+
+function isRowAuthorityFunding(row = {}) {
+  return isAuthorityFunding(rowFundingName(row));
+}
+
+function pickPayerLabel(current = '', candidate = '') {
+  const left = txt(current);
+  const right = txt(candidate);
+  if (!left) return right;
+  if (!right) return left;
+  return right.length > left.length ? right : left;
+}
+
 export function financePayerKey(row = {}) {
   const funding = primaryFunding(row);
-  if (!funding.name && !funding.id) {
+  const fundingName = rowFundingName(row) || funding.name;
+  if (!fundingName && !funding.id) {
     return {
       key: 'unfunded',
       kind: 'unfunded',
@@ -107,31 +136,32 @@ export function financePayerKey(row = {}) {
       label: FINANCE_UNFUNDED_PAYER_LABEL
     };
   }
-  if (isGefenFunding(funding.name)) {
-    const schoolId = txt(row.school_id || row.semel_mosad);
-    const label = txt(row.school) || 'בית ספר ללא שם';
+  if (isRowGefenFunding(row)) {
+    const schoolId = normalizeStableId(row.school_id ?? row.semel_mosad ?? row.single_school_id);
+    const label = txt(row.school || row.single_school_name) || 'בית ספר ללא שם';
     return {
-      key: `school:${schoolId || compactToken(label)}`,
+      key: schoolId ? `school:id:${schoolId}` : `school:name:${compactToken(label)}`,
       kind: 'school',
       id: schoolId,
       label
     };
   }
-  if (isAuthorityFunding(funding.name)) {
-    const authorityId = txt(row.authority_id);
+  if (isRowAuthorityFunding(row)) {
+    const authorityId = normalizeStableId(row.authority_id);
     const label = txt(row.authority) || 'רשות ללא שם';
     return {
-      key: `authority:${authorityId || compactToken(label)}`,
+      key: authorityId ? `authority:id:${authorityId}` : `authority:name:${compactToken(label)}`,
       kind: 'authority',
       id: authorityId,
       label
     };
   }
-  const label = funding.name || 'גורם מימון';
+  const fundingId = normalizeStableId(funding.id || row.funding_id || row.funding_source_id);
+  const label = fundingName || 'גורם מימון';
   return {
-    key: `funding:${funding.id || compactToken(label)}`,
+    key: fundingId ? `funding:id:${fundingId}` : `funding:name:${compactToken(label)}`,
     kind: 'funding',
-    id: funding.id,
+    id: fundingId,
     label
   };
 }
@@ -241,6 +271,7 @@ export function groupFinanceCollectionPayers(activities = [], { tab = FINANCE_CO
       };
       groups.set(payer.key, group);
     }
+    group.label = pickPayerLabel(group.label, payer.label);
     group.activities.push(activity);
     group.totalAmount += num(activity.price ?? activity.amount ?? activity.activity_price);
     if (status === FINANCE_COLLECTION_OPEN) group.openCount += 1;

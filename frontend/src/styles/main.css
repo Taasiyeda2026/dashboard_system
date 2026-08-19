@@ -14410,9 +14410,30 @@ select.ds-input {
 .ds-fin-save.is-saved { color: var(--ds-accent); font-weight: 700; }
 .ds-fin-save.is-error { color: #b91c1c; }
 .ds-fin-collect-shell {
-  width: min(100%, 1160px);
-  margin: 0 auto;
-  padding: 0 12px 28px;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 1100px;
+  margin-inline: auto;
+  padding: 0 16px 28px;
+}
+.ds-fin-collect-shell > * {
+  max-width: 100%;
+}
+.ds-fin-collect-shell .ds-fin-backbar,
+.ds-fin-collect-shell .ds-fin-collect-summary,
+.ds-fin-collect-shell .ds-fin-collect-toolbar,
+.ds-fin-collect-shell .ds-fin-collect-body,
+.ds-fin-collect-shell .ds-fin-collect-month,
+.ds-fin-collect-shell .ds-fin-payers,
+.ds-fin-collect-shell .ds-fin-payer,
+.ds-fin-collect-shell .ds-table-wrap,
+.ds-fin-collect-shell .ds-table {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+.ds-fin-collect-shell .ds-table-wrap {
+  overflow-x: auto;
 }
 .ds-fin-collect-summary {
   display: grid;
