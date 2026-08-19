@@ -3,10 +3,9 @@
  *
  * Features:
  * - Month navigator (synced with app.js state)
- * - Mini calendar with dots for days that have records
- * - Horizontal-scrolling table: date | day | start | end | hours | type | school | authority | km | expenses | actions
- * - Month totals row
- * - Edit modal (full form, inline)
+ * - Compact calendar; clicking a day with records filters the list to that day
+ * - Compact report rows (primary fields visible, secondary fields expandable)
+ * - Edit modal (same field sections + shared time-picker as New Report)
  * - Delete with confirm
  * - Excel export
  * - Monthly approval status display
@@ -14,6 +13,8 @@
 
 import { createIcon } from '../components/icon.js';
 import { createInputField, createSelectField } from '../components/field.js';
+import { createTimePicker } from '../components/time-picker.js';
+import { createMiniCalendar } from '../components/mini-calendar.js';
 import { getMonthRecords, calcMonthSummary, updateRecord, deleteRecord,
          getMonthApproval, getActivityTypes, deleteAttachmentRecord } from '../services/attendance.service.js';
 import { canEditMonth, editBlockReason, getMonthKey, formatMonthLabel } from '../services/month-gate.service.js';
@@ -22,7 +23,6 @@ import { deleteAttachment, getSignedUrl } from '../services/storage.service.js';
 import { exportMonthToExcel } from '../services/excel.service.js';
 
 const DAY_NAMES_SHORT = ['א\'','ב\'','ג\'','ד\'','ה\'','ו\'','ש\''];
-const DAY_NAMES_FULL  = ['ראשון','שני','שלישי','רביעי','חמישי','שישי','שבת'];
 
 export function renderMyReportsScreen(container, {
   instructor = {},
@@ -87,6 +87,8 @@ async function loadAndRender({ instructor, year, month, contentArea, onNewReport
 
     contentArea.innerHTML = '';
 
+    const onRefresh = () => loadAndRender({ instructor, year, month, contentArea, onNewReport, onDuplicate });
+
     // ── Status badge ──────────────────────────────────────────────────
     if (approval) {
       const statusMap = {
@@ -141,9 +143,43 @@ async function loadAndRender({ instructor, year, month, contentArea, onNewReport
 
     if (toolbar.children.length) contentArea.append(toolbar);
 
-    // ── Mini calendar ─────────────────────────────────────────────────
-    const calEl = buildMiniCalendar(year, month, records);
-    contentArea.append(calEl);
+    // ── Calendar + day filter ────────────────────────────────────────────
+    let selectedDate = null;
+    const rowEntries = [];
+
+    const filterBar = document.createElement('div');
+    filterBar.className = 'av2-reports__day-filter';
+    filterBar.hidden = true;
+    const filterText = document.createElement('span');
+    const filterClearBtn = document.createElement('button');
+    filterClearBtn.type = 'button';
+    filterClearBtn.className = 'av2-btn av2-btn--link';
+    filterClearBtn.textContent = 'כל החודש';
+    filterBar.append(filterText, filterClearBtn);
+
+    function applyFilter() {
+      for (const row of rowEntries) {
+        row.hidden = selectedDate ? row.dataset.reportDate !== selectedDate : false;
+      }
+      filterBar.hidden = !selectedDate;
+      filterText.textContent = selectedDate ? `דיווחים ליום ${formatDateHeb(selectedDate)}` : '';
+    }
+
+    const { wrap: calWrap, clearSelection } = createMiniCalendar({
+      year, month, records,
+      onDayClick: (dateStr) => {
+        selectedDate = dateStr;
+        applyFilter();
+      }
+    });
+
+    filterClearBtn.addEventListener('click', () => {
+      selectedDate = null;
+      clearSelection();
+      applyFilter();
+    });
+
+    contentArea.append(calWrap, filterBar);
 
     // ── Records or empty state ─────────────────────────────────────────
     if (!records.length) {
@@ -154,45 +190,31 @@ async function loadAndRender({ instructor, year, month, contentArea, onNewReport
       return;
     }
 
-    // ── Table ──────────────────────────────────────────────────────────
-    const tableWrap = document.createElement('div');
-    tableWrap.className = 'av2-reports__table-wrap';
-
-    const table = document.createElement('table');
-    table.className = 'av2-reports__table';
-
-    const thead = document.createElement('thead');
-    thead.innerHTML = `<tr>
-      <th>תאריך</th><th>התחלה</th><th>סיום</th><th>שעות</th>
-      <th>סוג פעילות</th><th>שם פעילות</th><th>בית ספר</th><th>רשות</th><th>ק"מ</th><th>הוצאות</th>
-      <th>פעולות</th>
-    </tr>`;
-
-    const tbody = document.createElement('tbody');
+    // ── Report rows ────────────────────────────────────────────────────
+    const listWrap = document.createElement('div');
+    listWrap.className = 'av2-report-list';
 
     for (const record of records) {
-      const tr = buildRecordRow({ record, editable, instructor, activityTypes, onDuplicate, onRefresh: () =>
-        loadAndRender({ instructor, year, month, contentArea, onNewReport, onDuplicate })
-      });
-      tbody.append(tr);
+      const row = buildRecordRow({ record, editable, instructor, activityTypes, onDuplicate, onRefresh });
+      row.dataset.reportDate = record.report_date;
+      rowEntries.push(row);
+      listWrap.append(row);
     }
 
-    // ── Totals row ─────────────────────────────────────────────────────
-    const totalRow = document.createElement('tr');
-    totalRow.className = 'av2-reports__total-row';
-    totalRow.innerHTML = `
-      <td colspan="3"><strong>סה"כ</strong></td>
-      <td><strong>${summary.totalHours.toFixed(2)}</strong></td>
-      <td colspan="4"></td>
-      <td><strong>${summary.totalKm.toFixed(0)}</strong></td>
-      <td><strong>${summary.totalExpenses.toFixed(2)}</strong></td>
-      <td></td>
-    `;
-    tbody.append(totalRow);
+    // ── Totals ─────────────────────────────────────────────────────────
+    const totals = document.createElement('div');
+    totals.className = 'av2-report-list__totals';
+    const totalsLabel = document.createElement('span');
+    totalsLabel.textContent = 'סה״כ החודש';
+    const totalsHours = document.createElement('strong');
+    totalsHours.textContent = `${summary.totalHours.toFixed(2)} שעות`;
+    const totalsKm = document.createElement('strong');
+    totalsKm.textContent = `${summary.totalKm.toFixed(0)} ק"מ`;
+    const totalsExp = document.createElement('strong');
+    totalsExp.textContent = `₪${summary.totalExpenses.toFixed(2)}`;
+    totals.append(totalsLabel, totalsHours, totalsKm, totalsExp);
 
-    table.append(thead, tbody);
-    tableWrap.append(table);
-    contentArea.append(tableWrap);
+    contentArea.append(listWrap, totals);
 
   } catch (err) {
     contentArea.innerHTML = `<p class="av2-error">שגיאה בטעינת נתונים: ${err.message}</p>`;
@@ -202,47 +224,85 @@ async function loadAndRender({ instructor, year, month, contentArea, onNewReport
 // ── Record row ─────────────────────────────────────────────────────────────
 
 function buildRecordRow({ record, editable, instructor, activityTypes, onDuplicate, onRefresh }) {
-  const tr = document.createElement('tr');
-  tr.dataset.recordId = record.id;
+  const row = document.createElement('div');
+  row.className = 'av2-report-row';
+  row.dataset.recordId = record.id;
+  row.tabIndex = 0;
+  row.setAttribute('role', 'button');
+  row.setAttribute('aria-expanded', 'false');
 
-  const d = new Date(record.report_date);
-  const dayName = DAY_NAMES_SHORT[d.getDay()];
+  const d = new Date(`${record.report_date}T12:00:00`);
+  const dayName = Number.isNaN(d.getTime()) ? '' : DAY_NAMES_SHORT[d.getDay()];
 
-  tr.innerHTML = `
-    <td>${formatDateHeb(record.report_date)}<br><small class="av2-reports__day-name">${dayName}</small></td>
-    <td dir="ltr">${formatTime(record.start_time)}</td>
-    <td dir="ltr">${formatTime(record.end_time)}</td>
-    <td>${Number(record.total_hours || 0).toFixed(2)}</td>
-    <td title="${record.activity_type || ''}">${truncate(record.activity_type, 10)}</td>
-    <td title="${record.activity_name_snapshot || ''}">${truncate(record.activity_name_snapshot, 18)}</td>
-    <td title="${record.school_name_snapshot || ''}">${truncate(record.school_name_snapshot, 14)}</td>
-    <td title="${record.authority_name_snapshot || ''}">${truncate(record.authority_name_snapshot, 12)}</td>
-    <td>${Number(record.roundtrip_km || 0).toFixed(0)}</td>
-    <td>${Number(record.expenses || 0).toFixed(0)}</td>
-    <td></td>
-  `;
+  // ── Summary (always visible): date, activity, school, actual start/end, hours ──
+  const summary = document.createElement('div');
+  summary.className = 'av2-report-row__summary';
 
-  // Actions cell
-  const actionsCell = tr.cells[tr.cells.length - 1];
-  actionsCell.className = 'av2-reports__actions-cell';
+  const dateCol = document.createElement('div');
+  dateCol.className = 'av2-report-row__date';
+  const dateStrong = document.createElement('strong');
+  dateStrong.textContent = formatDateHeb(record.report_date);
+  const dateSpan = document.createElement('span');
+  dateSpan.textContent = dayName;
+  dateCol.append(dateStrong, dateSpan);
 
+  const mainCol = document.createElement('div');
+  mainCol.className = 'av2-report-row__main';
+  const mainName = document.createElement('strong');
+  mainName.textContent = record.activity_name_snapshot || record.activity_type || '—';
+  const mainSchool = document.createElement('span');
+  mainSchool.textContent = record.school_name_snapshot || record.authority_name_snapshot || '—';
+  mainCol.append(mainName, mainSchool);
+
+  const timeCol = document.createElement('div');
+  timeCol.className = 'av2-report-row__time';
+  const timeStrong = document.createElement('strong');
+  timeStrong.textContent = `${formatTime(record.start_time)}–${formatTime(record.end_time)}`;
+  const timeSpan = document.createElement('span');
+  timeSpan.textContent = `${Number(record.total_hours || 0).toFixed(2)} שעות`;
+  timeCol.append(timeStrong, timeSpan);
+
+  const actionsCell = document.createElement('div');
+  actionsCell.className = 'av2-report-row__actions';
+
+  summary.append(dateCol, mainCol, timeCol, actionsCell);
+
+  // ── Detail (expandable): authority, km, expenses, notes, attachments ──────
+  const detail = document.createElement('div');
+  detail.className = 'av2-report-row__detail';
+  detail.hidden = true;
+  detail.append(
+    buildDetailField('רשות', record.authority_name_snapshot),
+    buildDetailField('ק"מ', Number(record.roundtrip_km || 0).toFixed(0)),
+    buildDetailField('הוצאות', '₪' + Number(record.expenses || 0).toFixed(2)),
+    buildDetailField('הערות', record.notes)
+  );
+  if (record.attendance_record_attachments?.length) {
+    detail.append(buildDetailField('קבצים מצורפים', `${record.attendance_record_attachments.length} קבצים`));
+  }
+
+  row.append(summary, detail);
+
+  const toggle = () => {
+    const expanded = detail.hidden;
+    detail.hidden = !expanded;
+    row.setAttribute('aria-expanded', String(expanded));
+    row.classList.toggle('is-expanded', expanded);
+  };
+  row.addEventListener('click', (e) => { if (!e.target.closest('button,a')) toggle(); });
+  row.addEventListener('keydown', (e) => {
+    if ((e.key === 'Enter' || e.key === ' ') && !e.target.closest('button,a')) { e.preventDefault(); toggle(); }
+  });
+
+  // ── Actions ────────────────────────────────────────────────────────────
   if (record.attendance_record_attachments?.length) {
     const attachBtn = document.createElement('button');
     attachBtn.type = 'button';
     attachBtn.className = 'av2-btn av2-btn--icon';
     attachBtn.setAttribute('aria-label', `${record.attendance_record_attachments.length} מסמכים`);
     attachBtn.append(createIcon('paperclip', { size: 14 }));
-    attachBtn.addEventListener('click', () => viewAttachments(record.attendance_record_attachments));
+    attachBtn.addEventListener('click', (e) => { e.stopPropagation(); viewAttachments(record.attendance_record_attachments); });
     actionsCell.append(attachBtn);
-  }
-
-  if (record.notes) {
-    const noteBtn = document.createElement('button');
-    noteBtn.type = 'button';
-    noteBtn.className = 'av2-btn av2-btn--icon';
-    noteBtn.title = record.notes;
-    noteBtn.append(createIcon('message-square', { size: 14 }));
-    actionsCell.append(noteBtn);
   }
 
   // Duplicate — always available (not limited to editable months)
@@ -253,7 +313,7 @@ function buildRecordRow({ record, editable, instructor, activityTypes, onDuplica
     dupBtn.setAttribute('aria-label', 'שכפל דיווח');
     dupBtn.title = 'שכפל דיווח';
     dupBtn.append(createIcon('copy', { size: 14 }));
-    dupBtn.addEventListener('click', () => onDuplicate(record));
+    dupBtn.addEventListener('click', (e) => { e.stopPropagation(); onDuplicate(record); });
     actionsCell.append(dupBtn);
   }
 
@@ -263,32 +323,44 @@ function buildRecordRow({ record, editable, instructor, activityTypes, onDuplica
     editBtn.className = 'av2-btn av2-btn--icon';
     editBtn.setAttribute('aria-label', 'עריכה');
     editBtn.append(createIcon('edit', { size: 14 }));
-    editBtn.addEventListener('click', () => showEditModal({ record, instructor, activityTypes, onRefresh }));
+    editBtn.addEventListener('click', (e) => { e.stopPropagation(); showEditModal({ record, instructor, activityTypes, onRefresh }); });
 
     const deleteBtn = document.createElement('button');
     deleteBtn.type = 'button';
     deleteBtn.className = 'av2-btn av2-btn--icon av2-btn--danger';
     deleteBtn.setAttribute('aria-label', 'מחיקה');
     deleteBtn.append(createIcon('trash', { size: 14 }));
-    deleteBtn.addEventListener('click', () => handleDelete({ record, instructor, tr, onRefresh }));
+    deleteBtn.addEventListener('click', (e) => { e.stopPropagation(); handleDelete({ record, instructor, row, onRefresh }); });
 
     actionsCell.append(editBtn, deleteBtn);
   }
 
-  return tr;
+  return row;
+}
+
+function buildDetailField(label, value) {
+  const field = document.createElement('div');
+  field.className = 'av2-report-row__detail-field';
+  const l = document.createElement('span');
+  l.textContent = label;
+  const v = document.createElement('strong');
+  v.textContent = value || '—';
+  field.append(l, v);
+  return field;
 }
 
 // ── Edit modal ─────────────────────────────────────────────────────────────
+// Uses the same field-section grouping and the same shared time-picker as the
+// New Report form (createTimePicker, .av2-report__form / .av2-form-section-title).
 
 function showEditModal({ record, instructor, activityTypes, onRefresh }) {
-  // Remove any existing modal
   document.querySelector('.av2-modal-overlay')?.remove();
 
   const overlay = document.createElement('div');
   overlay.className = 'av2-modal-overlay';
 
   const modal = document.createElement('div');
-  modal.className = 'av2-modal';
+  modal.className = 'av2-modal av2-modal--form';
   modal.setAttribute('role', 'dialog');
   modal.setAttribute('aria-modal', 'true');
 
@@ -310,55 +382,79 @@ function showEditModal({ record, instructor, activityTypes, onRefresh }) {
   const typeOptions = activityTypes.length ? activityTypes : ['קורס','סדנה','סיור','הכשרה','תפעול','ביטול זמן'];
 
   const form = document.createElement('form');
-  form.className = 'av2-modal__form';
+  form.className = 'av2-report__form';
   form.noValidate = true;
 
-  const timeRow = document.createElement('div');
-  timeRow.className = 'av2-report__time-row';
-  const startTimeField = createInputField({ id: 'edit-start-time', label: 'שעת התחלה', type: 'time', value: record.start_time || '' });
-  const endTimeField   = createInputField({ id: 'edit-end-time',   label: 'שעת סיום',  type: 'time', value: record.end_time || '' });
+  function sectionTitle(text) {
+    const el = document.createElement('div');
+    el.className = 'av2-form-section-title av2-field--full';
+    el.textContent = text;
+    return el;
+  }
+
+  // ── פעילות ───────────────────────────────────────────────────────────
+  form.append(sectionTitle('פעילות'));
+
+  const actNameField = createInputField({ id: 'edit-activity-name', label: 'שם פעילות', value: record.activity_name_snapshot || '', placeholder: 'שם התוכנית או הפעילות' });
+  actNameField.wrap.classList.add('av2-field--full');
+  const typeOpts = [{ value: '', label: 'בחר' }, ...typeOptions.map(t => typeof t === 'string' ? { value: t, label: t } : t)];
+  const typeField = createSelectField({ id: 'edit-type', label: 'סוג פעילות', options: typeOpts, value: '' });
+  typeField.input.value = record.activity_type || '';
+  const meetField = createInputField({ id: 'edit-meeting', label: 'מפגש מס\'', type: 'number', value: record.meeting_no != null ? String(record.meeting_no) : '', attrs: { min: '0', max: '50' } });
+
+  form.append(actNameField.wrap, typeField.wrap, meetField.wrap);
+
+  const authField   = createInputField({ id: 'edit-authority', label: 'רשות',    value: record.authority_name_snapshot || '' });
+  const schoolField = createInputField({ id: 'edit-school',    label: 'בית ספר', value: record.school_name_snapshot || '' });
+  form.append(authField.wrap, schoolField.wrap);
+
+  // ── זמן ונסיעות ──────────────────────────────────────────────────────
+  form.append(sectionTitle('זמן ונסיעות'));
+
+  // minuteStep=1: edit must preserve exact stored minute values (unlike the
+  // 5-minute-step New Report picker), so an untouched time never gets rounded.
+  const startTimeField = createTimePicker('edit-start-time', 'שעת התחלה', record.start_time || '', 1);
+  const endTimeField   = createTimePicker('edit-end-time',   'שעת סיום',  record.end_time || '', 1);
+
   const hoursDisplay = document.createElement('div');
-  hoursDisplay.className = 'av2-report__hours-display';
+  hoursDisplay.className = 'av2-report__hours-display av2-field--full';
   const hoursLabel = document.createElement('span');
   hoursLabel.className = 'av2-report__hours-label';
-  hoursLabel.textContent = 'שעות:';
+  hoursLabel.textContent = 'סה״כ שעות:';
   const hoursValue = document.createElement('span');
   hoursValue.className = 'av2-report__hours-value';
   function updateHours() {
-    const h = calcHours(startTimeField.input.value, endTimeField.input.value);
+    const h = calcHours(startTimeField.getValue(), endTimeField.getValue());
     hoursValue.textContent = h > 0 ? h.toFixed(2) : '—';
   }
-  startTimeField.input.addEventListener('change', updateHours);
-  endTimeField.input.addEventListener('change', updateHours);
+  startTimeField.hourSel.addEventListener('change', updateHours);
+  startTimeField.minSel.addEventListener('change', updateHours);
+  endTimeField.hourSel.addEventListener('change', updateHours);
+  endTimeField.minSel.addEventListener('change', updateHours);
   updateHours();
   hoursDisplay.append(hoursLabel, hoursValue);
-  timeRow.append(startTimeField.wrap, endTimeField.wrap, hoursDisplay);
-  form.append(timeRow);
+  form.append(startTimeField.wrap, endTimeField.wrap, hoursDisplay);
 
-  const actNameField = createInputField({ id: 'edit-activity-name', label: 'שם פעילות', value: record.activity_name_snapshot || '', placeholder: 'שם התוכנית או הפעילות' });
-  const typeOpts = [{ value: '', label: 'בחר' }, ...typeOptions.map(t => typeof t === 'string' ? { value: t, label: t } : t)];
-  const typeField   = createSelectField({ id: 'edit-type',      label: 'סוג פעילות', options: typeOpts, value: '' });
-  const authField   = createInputField({ id: 'edit-authority',  label: 'רשות',        value: record.authority_name_snapshot || '' });
-  const schoolField = createInputField({ id: 'edit-school',     label: 'בית ספר',     value: record.school_name_snapshot || '' });
-  const meetField   = createInputField({ id: 'edit-meeting',    label: 'מפגש מס\'',   type: 'number', value: record.meeting_no != null ? String(record.meeting_no) : '', attrs: { min: '0', max: '50' } });
-  const kmField     = createInputField({ id: 'edit-km',         label: 'ק"מ הלוך-חזור', type: 'number', value: String(record.roundtrip_km || 0), attrs: { min: '0', step: '1' } });
-  const expField    = createInputField({ id: 'edit-expenses',   label: 'הוצאות (₪)', type: 'number', value: String(record.expenses || 0), attrs: { min: '0', step: '0.01' } });
-  const expDField   = createInputField({ id: 'edit-exp-detail', label: 'פירוט הוצאות', value: record.expense_details || '' });
-  const notesField  = createInputField({ id: 'edit-notes',      label: 'הערות',       value: record.notes || '' });
+  const kmField  = createInputField({ id: 'edit-km',       label: 'ק"מ הלוך-חזור', type: 'number', value: String(record.roundtrip_km || 0), attrs: { min: '0', step: '1' } });
+  const expField = createInputField({ id: 'edit-expenses', label: 'הוצאות (₪)',    type: 'number', value: String(record.expenses || 0),      attrs: { min: '0', step: '0.01' } });
+  form.append(kmField.wrap, expField.wrap);
 
-  typeField.input.value = record.activity_type || '';
-
-  form.append(actNameField.wrap, typeField.wrap, authField.wrap, schoolField.wrap, meetField.wrap,
-              kmField.wrap, expField.wrap, expDField.wrap, notesField.wrap);
+  // ── מידע נוסף ────────────────────────────────────────────────────────
+  form.append(sectionTitle('מידע נוסף'));
+  const expDField  = createInputField({ id: 'edit-exp-detail', label: 'פירוט הוצאות', value: record.expense_details || '' });
+  const notesField = createInputField({ id: 'edit-notes',      label: 'הערות',        value: record.notes || '' });
+  expDField.wrap.classList.add('av2-field--full');
+  notesField.wrap.classList.add('av2-field--full');
+  form.append(expDField.wrap, notesField.wrap);
 
   const errorEl = document.createElement('p');
-  errorEl.className = 'av2-report__error';
+  errorEl.className = 'av2-report__error av2-field--full';
   errorEl.hidden = true;
   form.append(errorEl);
 
   const saveBtn = document.createElement('button');
   saveBtn.type = 'submit';
-  saveBtn.className = 'av2-btn av2-btn--primary';
+  saveBtn.className = 'av2-btn av2-btn--primary av2-field--full';
   const saveBtnLabel = document.createElement('span');
   saveBtnLabel.textContent = 'שמירת שינויים';
   saveBtn.append(createIcon('check', { size: 15 }), saveBtnLabel);
@@ -368,8 +464,8 @@ function showEditModal({ record, instructor, activityTypes, onRefresh }) {
     e.preventDefault();
     errorEl.hidden = true;
 
-    const startTime  = startTimeField.input.value;
-    const endTime    = endTimeField.input.value;
+    const startTime  = startTimeField.getValue();
+    const endTime    = endTimeField.getValue();
     const totalHours = calcHours(startTime, endTime);
 
     // ── Validation ──────────────────────────────────────────────────────
@@ -382,7 +478,7 @@ function showEditModal({ record, instructor, activityTypes, onRefresh }) {
     if (missing.length) {
       errorEl.textContent = `שדות חובה: ${missing.join(' · ')}`;
       errorEl.hidden = false;
-      if (!startTime || !endTime) startTimeField.input.focus();
+      if (!startTime || !endTime) startTimeField.hourSel.focus();
       else if (!typeField.input.value) typeField.input.focus();
       else if (!actNameField.input.value.trim()) actNameField.input.focus();
       else authField.input.focus();
@@ -420,16 +516,16 @@ function showEditModal({ record, instructor, activityTypes, onRefresh }) {
   modal.append(modalHeader, form);
   overlay.append(modal);
   document.body.append(overlay);
-  startTimeField.input.focus();
+  startTimeField.hourSel.focus();
 }
 
 // ── Delete ─────────────────────────────────────────────────────────────────
 
-async function handleDelete({ record, instructor, tr, onRefresh }) {
+async function handleDelete({ record, instructor, row, onRefresh }) {
   const dateStr = formatDateHeb(record.report_date);
   if (!confirm(`למחוק את הדיווח מתאריך ${dateStr}?\nפעולה זו אינה הפיכה.`)) return;
 
-  tr.style.opacity = '0.5';
+  row.style.opacity = '0.5';
   try {
     // Delete storage files first
     const attachments = record.attendance_record_attachments || [];
@@ -444,7 +540,7 @@ async function handleDelete({ record, instructor, tr, onRefresh }) {
     await deleteRecord(record.id, instructor.empId);
     onRefresh();
   } catch (err) {
-    tr.style.opacity = '1';
+    row.style.opacity = '1';
     alert(`שגיאה במחיקה: ${err.message}`);
   }
 }
@@ -500,65 +596,6 @@ async function viewAttachments(attachments) {
   }
 }
 
-// ── Mini calendar ──────────────────────────────────────────────────────────
-
-function buildMiniCalendar(year, month, records) {
-  const datesWithRecords = new Set(records.map(r => r.report_date));
-
-  const wrap = document.createElement('div');
-  wrap.className = 'av2-cal';
-
-  // Day headers (Sun–Sat, RTL: Sun first)
-  const daysHeader = document.createElement('div');
-  daysHeader.className = 'av2-cal__header';
-  for (const d of DAY_NAMES_SHORT) {
-    const cell = document.createElement('div');
-    cell.className = 'av2-cal__day-name';
-    cell.textContent = d;
-    daysHeader.append(cell);
-  }
-
-  const grid = document.createElement('div');
-  grid.className = 'av2-cal__grid';
-
-  const firstDay = new Date(year, month - 1, 1);
-  const lastDay  = new Date(year, month, 0);
-  const startDow = firstDay.getDay(); // 0=Sun
-
-  // Leading empty cells
-  for (let i = 0; i < startDow; i++) {
-    const empty = document.createElement('div');
-    empty.className = 'av2-cal__cell av2-cal__cell--empty';
-    grid.append(empty);
-  }
-
-  for (let day = 1; day <= lastDay.getDate(); day++) {
-    const pad = (n) => String(n).padStart(2, '0');
-    const dateStr = `${year}-${pad(month)}-${pad(day)}`;
-    const hasRecord = datesWithRecords.has(dateStr);
-
-    const cell = document.createElement('div');
-    cell.className = 'av2-cal__cell' + (hasRecord ? ' av2-cal__cell--has-record' : '');
-
-    const num = document.createElement('span');
-    num.className = 'av2-cal__day-num';
-    num.textContent = String(day);
-
-    cell.append(num);
-
-    if (hasRecord) {
-      const dot = document.createElement('span');
-      dot.className = 'av2-cal__dot';
-      cell.append(dot);
-    }
-
-    grid.append(cell);
-  }
-
-  wrap.append(daysHeader, grid);
-  return wrap;
-}
-
 // ── Month navigator ────────────────────────────────────────────────────────
 
 function buildMonthNav(year, month, onPrev, onNext) {
@@ -605,9 +642,4 @@ function formatDateHeb(isoDate) {
 function formatTime(t) {
   if (!t) return '—';
   return String(t).slice(0, 5);
-}
-
-function truncate(str, max) {
-  if (!str) return '—';
-  return str.length <= max ? str : str.slice(0, max) + '…';
 }
