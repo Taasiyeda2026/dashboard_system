@@ -723,6 +723,55 @@ test('ids prevent duplicate payer cards when names differ', () => {
   assert.equal(payers.length, 1);
 });
 
+test('finance payer key uses stable ids so spelling variants do not split groups', () => {
+  const bySchoolId = financePayerKey(activity({ school_id: 77, school: 'הרצל', funding: 'גפן' }));
+  const bySchoolIdVariant = financePayerKey(activity({ school_id: '77', school: 'ביה״ס הרצל', funding: 'גפ״ן' }));
+  assert.equal(bySchoolId.key, 'school:id:77');
+  assert.equal(bySchoolId.key, bySchoolIdVariant.key);
+
+  const byAuthorityId = financePayerKey(activity({ authority_id: 'r1', authority: 'עיריית רחובות', funding: 'רשות' }));
+  const byAuthorityVariant = financePayerKey(activity({ authority_id: 'r1', authority: 'עיריית רחובות ', funding: 'רשות' }));
+  assert.equal(byAuthorityId.key, 'authority:id:r1');
+  assert.equal(byAuthorityId.key, byAuthorityVariant.key);
+
+  const byFundingId = financePayerKey(activity({ funding_id: 'f1', funding: 'משרד החינוך' }));
+  const byFundingVariant = financePayerKey(activity({ funding_id: 'f1', funding: 'משרד  החינוך' }));
+  assert.equal(byFundingId.key, 'funding:id:f1');
+  assert.equal(byFundingId.key, byFundingVariant.key);
+
+  const payers = groupFinanceCollectionPayers([
+    activity({ row_id: '1', school_id: '77', school: 'הרצל', funding: 'גפן', end_date: '2027-04-01' }),
+    activity({ row_id: '2', school_id: '77', school: 'ביה״ס הרצל', funding: 'גפ״ן', end_date: '2027-04-02' })
+  ], { tab: 'all' });
+  assert.equal(payers.length, 1);
+  assert.equal(payers[0].activityCount, 2);
+});
+
+test('collection search debounces list filtering without recreating the input', async () => {
+  const api = mockApi({
+    activities: [
+      activity({ row_id: 'S1', activity_name: 'קורס רחובות', end_date: '2027-04-10', authority: 'עיריית רחובות' }),
+      activity({ row_id: 'S2', activity_name: 'סדנה אחרת', end_date: '2027-04-11', authority: 'ראשון לציון' })
+    ]
+  });
+  const data = createFinanceVisitState();
+  const { host, window } = mount(data, { api });
+  host.querySelector('[data-finance-open="collection"]').click();
+  await flush();
+  await flush();
+  const input = host.querySelector('[data-finance-collection-search]');
+  assert.ok(input);
+  input.focus();
+  input.value = 'רחובות';
+  input.dispatchEvent(new window.Event('input', { bubbles: true }));
+  assert.equal(host.querySelector('[data-finance-collection-search]'), input);
+  assert.equal(window.document.activeElement, input);
+  await new Promise((resolve) => setTimeout(resolve, 280));
+  assert.equal(host.querySelector('[data-finance-collection-search]'), input);
+  assert.match(host.querySelector('[data-finance-collection-body]')?.innerHTML || '', /קורס רחובות/);
+  assert.doesNotMatch(host.querySelector('[data-finance-collection-body]')?.innerHTML || '', /סדנה אחרת/);
+});
+
 test('activity without tracking defaults to open and closed collection is hidden from the open tab', () => {
   const merged = attachCollectionTracking(
     [
@@ -809,6 +858,7 @@ test('collection UI keeps a compact centered shell with summary cards search and
     collectionSearch: ''
   }, { state: { user: financeUser } });
   assert.match(html, /ds-fin-collect-shell/);
+  assert.match(html, /ds-fin-collect-shell[\s\S]*ds-fin-backbar/);
   assert.match(html, /סכום כל הפעילויות/);
   assert.match(html, /סה״כ לגבייה/);
   assert.match(html, /סה״כ גבייה שבוצעה/);
