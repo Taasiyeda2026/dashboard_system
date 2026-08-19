@@ -93,3 +93,5 @@ config.HOTFIX_VERSION = `attendance-month-workflow-gates-20260818-v1-${config.HO
 config.HOTFIX_VERSION = `attendance-round2-reporting-flow-20260819-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `attendance-manager-admin-approval-sharepoint-20260819-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `attendance-control-unified-naming-sw-cache-1554-20260819-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `finance-hub-lazy-collection-sw-cache-1558-20260819-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `finance-collection-school-2027-sw-cache-1559-20260819-v1-${config.HOTFIX_VERSION}`;

@@ -1,457 +1,539 @@
 import { escapeHtml } from './shared/html.js';
-import { formatDateHe } from './shared/format-date.js';
 import {
   dsPageHeader,
   dsCard,
   dsScreenStack,
-  dsEmptyState
+  dsEmptyState,
+  dsTableWrap
 } from './shared/layout.js';
+import { attendanceMonthLabel } from './attendance-control.js';
 import {
-  canExportPayrollApprovals,
-  downloadPayrollApprovalsExcel,
-  openPayrollApprovalDocument,
-  payrollControlApprovalsListHtml
-} from './payroll-control-finish.js';
+  FINANCE_HOUR_CATEGORIES,
+  currentFinanceMonthKey,
+  downloadFinanceAttendanceExcel,
+  summarizeFinanceAttendance
+} from './finance-attendance-summary.js';
+import {
+  FINANCE_COLLECTION_CLOSED,
+  FINANCE_COLLECTION_OPEN,
+  activityRowId,
+  activityStatusLabel,
+  attachCollectionTracking,
+  groupFinanceCollectionPayers,
+  money,
+  normalizeCollectionStatus
+} from './finance-collection.js';
+import { ACTIVITY_SEASON_SCHOOL_2027, getActivityPeriodKey } from './shared/summer-activity.js';
 
-// ─── Permission ─────────────────────────────────────────────────────────────
+export const FINANCE_COLLECTION_ACTIVITY_PERIOD = ACTIVITY_SEASON_SCHOOL_2027;
+
+export {
+  FINANCE_ATTENDANCE_COLUMNS,
+  FINANCE_HOUR_CATEGORIES,
+  buildEmployeeTeamMap,
+  buildFinanceAttendanceExcelRows,
+  buildFinanceAttendanceWorkbook,
+  currentFinanceMonthKey,
+  financeAttendanceDisplayRow,
+  financeHourCategory,
+  isFinalPayrollApproval,
+  summarizeFinanceAttendance,
+  unmappedFinanceActivityTypes
+} from './finance-attendance-summary.js';
+
+export {
+  FINANCE_UNFUNDED_PAYER_LABEL,
+  activityRowId,
+  attachCollectionTracking,
+  financePayerKey,
+  groupFinanceCollectionPayers,
+  isAuthorityFunding,
+  isGefenFunding,
+  mapLegacyPaymentCollected,
+  normalizeCollectionStatus
+} from './finance-collection.js';
+
+export const FINANCE_COLLECTION_ACTIVITY_COLUMNS = [
+  'id', 'row_id', 'activity_name', 'activity_type', 'authority', 'school',
+  'school_id', 'authority_id', 'funding', 'price', 'status', 'activity_season'
+].join(',');
 
 function permissionYes(value) {
   return value === true || ['yes', 'true', '1'].includes(String(value || '').trim().toLowerCase());
 }
 
-function canAccessFinance(user = {}) {
-  // finance_access is set from has_finance_access which includes view_finance = "yes"
-  return permissionYes(user?.finance_access) || String(user?.role || user?.display_role || '').trim() === 'finance';
+export function canAccessFinance(user = {}) {
+  const role = String(user?.role || user?.display_role || '').trim().toLowerCase();
+  if (role === 'admin' || role === 'finance') return true;
+  return permissionYes(user?.finance_access) || permissionYes(user?.view_finance);
 }
 
-// ─── Normalize helpers ───────────────────────────────────────────────────────
-
-function num(v) {
-  if (typeof v === 'number') return Number.isFinite(v) ? v : 0;
-  const cleaned = String(v ?? '').replace(/[₪,\s]/g, '');
-  const n = Number(cleaned);
-  return Number.isFinite(n) ? n : 0;
+export function createFinanceVisitState(now = new Date()) {
+  return {
+    view: 'hub',
+    attendanceMonth: currentFinanceMonthKey(now),
+    attendanceSearch: '',
+    attendanceByMonth: {},
+    attendanceLoading: false,
+    attendanceError: '',
+    employees: null,
+    collectionPeriod: '',
+    collectionActivities: null,
+    collectionTracking: null,
+    collectionTab: 'open',
+    collectionLoading: false,
+    collectionError: '',
+    collectionSaveState: {}
+  };
 }
 
-function money(v) {
-  const n = num(v);
-  if (!n) return '—';
-  return `₪${n.toLocaleString('he-IL', { maximumFractionDigits: 0 })}`;
+function hubIcon(name) {
+  const common = 'viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"';
+  if (name === 'attendance') {
+    return `<svg ${common}><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 9h16"/><path d="M9 14l2 2 4-4"/></svg>`;
+  }
+  if (name === 'file') {
+    return `<svg ${common}><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg>`;
+  }
+  return `<svg ${common}><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18M16 15h2"/><path d="M7 6V4h10v2"/></svg>`;
 }
 
-function hasValidPrice(row = {}) {
-  const raw = row.price ?? row.amount ?? row.activity_price;
-  if (raw === null || raw === undefined || raw === '') return false;
-  const n = num(raw);
-  return n > 0;
-}
-
-function rowPrice(row = {}) {
-  return num(row.price ?? row.amount ?? row.activity_price);
-}
-
-function isCollected(row = {}) {
-  const v = String(row.payment_collected ?? row.collected ?? '').trim().toLowerCase();
-  return v === 'yes' || v === 'true' || v === '1' || v === 'נגבה';
-}
-
-function activityRowId(row = {}) {
-  return String(row.RowID || row.row_id || row.source_row_id || '').trim();
-}
-
-function rowEndDate(row = {}) {
-  return String(row.end_date || row.date_end || row.start_date || '').trim();
-}
-
-function isActivityClosed(row = {}) {
-  const status = String(row.status || '').trim().toLowerCase();
-  if (['סגור', 'closed', 'inactive', 'נמחק', 'deleted'].includes(status)) return true;
-  const endRaw = rowEndDate(row);
-  if (!endRaw) return false;
-  const endDate = new Date(endRaw);
-  if (isNaN(endDate.getTime())) return false;
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  return endDate < today;
-}
-
-// ─── Activity type normalization ─────────────────────────────────────────────
-
-const FINANCE_ACTIVITY_TYPES = [
-  { key: 'course', label: 'קורסים' },
-  { key: 'workshop', label: 'סדנאות' },
-  { key: 'escape_room', label: 'חדרי בריחה' },
-  { key: 'after_school', label: 'After School' }
-];
-const FINANCE_TYPE_LABEL = Object.fromEntries(FINANCE_ACTIVITY_TYPES.map((t) => [t.key, t.label]));
-
-function normalizeFinanceActivityType(value) {
-  const raw = String(value || '').trim();
-  const compact = raw.toLowerCase().replace(/[\s_\-]+/g, '');
-  if (['course', 'courses', 'קורס', 'קורסים'].includes(compact)) return 'course';
-  if (['workshop', 'workshops', 'סדנה', 'סדנאות'].includes(compact)) return 'workshop';
-  if (['escaproom', 'escaperoom', 'escape_room', 'חדרבריחה', 'חדריבריחה'].includes(compact)) return 'escape_room';
-  if (['afterschool', 'after_school', 'אפטרסקול', 'חוגאפטרסקול'].includes(compact)) return 'after_school';
-  return 'other';
-}
-
-// ─── Finance exceptions ───────────────────────────────────────────────────────
-
-function financeExceptions(row = {}) {
-  const out = [];
-  if (!hasValidPrice(row)) out.push('no_price');
-  if (!String(row.funding || '').trim()) out.push('no_funding');
-  if (!String(row.activity_type || '').trim()) out.push('no_activity_type');
-  if (!String(row.activity_season || row.season || '').trim()) out.push('no_season');
-  if (isActivityClosed(row) && !hasValidPrice(row)) out.push('closed_no_price');
-  const price = rowPrice(row);
-  if (price > 0 && isNaN(price)) out.push('invalid_price');
-  return [...new Set(out)];
-}
-
-const EXCEPTION_LABELS = {
-  no_price: 'ללא מחיר',
-  no_funding: 'ללא גורם מימון',
-  no_activity_type: 'ללא סוג פעילות',
-  no_season: 'ללא עונה',
-  closed_no_price: 'סגורה ללא מחיר',
-  invalid_price: 'מחיר לא תקין'
-};
-
-function exceptionLabel(type) {
-  return EXCEPTION_LABELS[type] || type;
-}
-
-// ─── Data grouping ────────────────────────────────────────────────────────────
-
-function buildFinanceTree(rows = []) {
-  // tree: activityTypeKey → fundingKey → clusterKey → rows[]
-  const tree = {};
-  for (const row of rows) {
-    const typeKey = normalizeFinanceActivityType(row.activity_type);
-    const funding = String(row.funding || '').trim() || 'ללא מימון';
-    const authority = String(row.authority || '').trim() || '—';
-    const school = String(row.school || '').trim() || '—';
-    // cluster logic per spec
-    let clusterKey;
-    if (funding === 'גפ״ן' || funding === "גפ'ן" || funding === 'גפן') {
-      clusterKey = school;
-    } else if (funding === 'רשות') {
-      clusterKey = authority;
-    } else {
-      clusterKey = funding;
+function hubCardsHtml() {
+  const cards = [
+    {
+      view: 'attendance',
+      icon: 'attendance',
+      title: 'דיווח נוכחות',
+      description: 'ריכוז נתוני נוכחות ושכר לאחר אישור סופי'
+    },
+    {
+      view: 'collection',
+      icon: 'collection',
+      title: 'מעקב גבייה',
+      description: 'מעקב גבייה מרוכז לפי הגורם המשלם'
     }
-    if (!tree[typeKey]) tree[typeKey] = {};
-    if (!tree[typeKey][funding]) tree[typeKey][funding] = {};
-    if (!tree[typeKey][funding][clusterKey]) tree[typeKey][funding][clusterKey] = [];
-    tree[typeKey][funding][clusterKey].push(row);
-  }
-  return tree;
-}
-
-function treeStats(rows = []) {
-  let total = 0, collected = 0, notCollected = 0, noPrice = 0, open = 0, closed = 0, totalPrice = 0, collectedPrice = 0;
-  for (const row of rows) {
-    total++;
-    const price = rowPrice(row);
-    totalPrice += price;
-    if (isActivityClosed(row)) closed++;
-    else open++;
-    if (!hasValidPrice(row)) { noPrice++; }
-    if (isCollected(row)) { collected++; collectedPrice += price; }
-    else notCollected++;
-  }
-  return { total, collected, notCollected, noPrice, open, closed, totalPrice, collectedPrice };
-}
-
-// ─── HTML helpers ─────────────────────────────────────────────────────────────
-
-function kpiBox(label, value, sub = '') {
-  return `<div class="ds-fin-kpi">
-    <div class="ds-fin-kpi__val">${escapeHtml(String(value))}</div>
-    <div class="ds-fin-kpi__label">${escapeHtml(label)}</div>
-    ${sub ? `<div class="ds-fin-kpi__sub">${escapeHtml(sub)}</div>` : ''}
+  ];
+  return `<div class="ds-fin-hub" dir="rtl">
+    ${cards.map((card) => `
+      <button type="button" class="ds-fin-hub-card" data-finance-open="${card.view}">
+        <span class="ds-fin-hub-card__icon">${hubIcon(card.icon)}</span>
+        <span class="ds-fin-hub-card__body">
+          <strong>${escapeHtml(card.title)}</strong>
+          <small>${escapeHtml(card.description)}</small>
+        </span>
+      </button>
+    `).join('')}
   </div>`;
 }
 
-function kpiRow(stats) {
-  return `<div class="ds-fin-kpis">
-    ${kpiBox('סה״כ', stats.total)}
-    ${kpiBox('ללא מחיר', stats.noPrice)}
-    ${kpiBox('נגבו', stats.collected, stats.collectedPrice ? money(stats.collectedPrice) : '')}
-    ${kpiBox('יתרה לגבייה', stats.notCollected)}
-    ${kpiBox('פתוחות', stats.open)}
-    ${kpiBox('סגורות', stats.closed)}
-    ${kpiBox('סך מחיר', '', money(stats.totalPrice))}
+function backBarHtml(title) {
+  return `<div class="ds-fin-backbar" dir="rtl">
+    <button type="button" class="ds-btn ds-btn--ghost ds-btn--sm" data-finance-open="hub">חזרה לכספים</button>
+    <strong>${escapeHtml(title)}</strong>
   </div>`;
 }
 
-function activityRowHtml(row, showSaveBtn = false) {
-  const rowId = escapeHtml(activityRowId(row));
-  const price = rowPrice(row);
-  const collected = isCollected(row);
-  const closed = isActivityClosed(row);
-  const exceptions = financeExceptions(row);
-  const excText = exceptions.map(exceptionLabel).join(', ');
-  const dateStr = escapeHtml(formatDateHe(rowEndDate(row)) || rowEndDate(row) || '—');
-  const collectLabel = collected ? 'נגבה' : 'לא נגבה';
-  const collectClass = collected ? 'ds-fin-badge--collected' : 'ds-fin-badge--not-collected';
-  const statusLabel = closed ? 'סגורה' : 'פתוחה';
-  const statusClass = closed ? 'ds-fin-badge--closed' : 'ds-fin-badge--open';
-  return `<tr class="ds-fin-row" data-fin-row-id="${rowId}">
-    <td class="ds-fin-col--name">${escapeHtml(row.activity_name || '—')}</td>
-    <td class="ds-fin-col--type">${escapeHtml(FINANCE_TYPE_LABEL[normalizeFinanceActivityType(row.activity_type)] || row.activity_type || '—')}</td>
-    <td class="ds-fin-col--date" style="text-align:center">${dateStr}</td>
-    <td class="ds-fin-col--school">${escapeHtml(String(row.school || '—'))}</td>
-    <td class="ds-fin-col--price" style="text-align:left">${price ? escapeHtml(money(price)) : '—'}</td>
-    <td class="ds-fin-col--collect">
-      <span class="ds-fin-badge ${collectClass}">${collectLabel}</span>
-      ${showSaveBtn ? `<button type="button" class="ds-fin-toggle-btn ds-btn ds-btn--xs ds-btn--ghost" data-fin-toggle-collect="${rowId}">${collected ? 'בטל גבייה' : 'סמן כנגבה'}</button>` : ''}
+function formatHours(value) {
+  const n = Number(value) || 0;
+  if (!n) return '0';
+  return String(Number(n.toFixed(2)));
+}
+
+function attendanceTableHtml(entries = []) {
+  if (!entries.length) return dsEmptyState('אין דיווחי נוכחות מאושרים להעברה לשכר בחודש זה.');
+  const hourHeaders = FINANCE_HOUR_CATEGORIES.map((item) => `<th class="ds-fin-num">${escapeHtml(item.label)}</th>`).join('');
+  const body = entries.map((entry) => {
+    const hourCells = FINANCE_HOUR_CATEGORIES.map((item) => `<td class="ds-fin-num">${escapeHtml(formatHours(entry.hours?.[item.key]))}</td>`).join('');
+    const fileCell = entry.hasFile
+      ? `<button type="button" class="ds-fin-file" data-finance-file="${escapeHtml(entry.employeeId)}" title="פתיחת קובץ" aria-label="פתיחת קובץ">${hubIcon('file')}</button>`
+      : '';
+    return `<tr>
+      <td>${escapeHtml(entry.team || '—')}</td>
+      <td>${escapeHtml(entry.employeeName || '—')}</td>
+      <td>${escapeHtml(entry.employmentType || '—')}</td>
+      <td class="ds-fin-num">${entry.workDays || 0}</td>
+      ${hourCells}
+      <td class="ds-fin-num">${escapeHtml(formatHours(entry.kilometers))}</td>
+      <td class="ds-fin-file-cell">${fileCell}</td>
+      <td>${escapeHtml(entry.notes || '')}</td>
+    </tr>`;
+  }).join('');
+  return dsTableWrap(`<table class="ds-table ds-fin-att-table" dir="rtl">
+    <thead>
+      <tr>
+        <th rowspan="2">צוות</th>
+        <th rowspan="2">שם העובד</th>
+        <th rowspan="2">סוג העסקה</th>
+        <th rowspan="2" class="ds-fin-num">ימי עבודה</th>
+        <th colspan="6">סה״כ שעות</th>
+        <th rowspan="2" class="ds-fin-num">סה״כ ק״מ</th>
+        <th rowspan="2">קובץ</th>
+        <th rowspan="2">הערות</th>
+      </tr>
+      <tr>${hourHeaders}</tr>
+    </thead>
+    <tbody>${body}</tbody>
+  </table>`);
+}
+
+function attendanceViewHtml(data, { state } = {}) {
+  const month = data.attendanceMonth || currentFinanceMonthKey();
+  const monthCache = data.attendanceByMonth?.[month];
+  const search = data.attendanceSearch || '';
+  const summarized = summarizeFinanceAttendance(monthCache?.approvals || [], {
+    employees: data.employees || [],
+    employeeSearch: search
+  });
+  const loading = data.attendanceLoading;
+  const error = data.attendanceError;
+  const body = error
+    ? dsEmptyState(error)
+    : loading && !monthCache
+      ? dsEmptyState('טוען נתוני נוכחות…')
+      : attendanceTableHtml(summarized.rows);
+  return dsScreenStack(`
+    ${dsPageHeader('דיווח נוכחות', 'ריכוז נתוני נוכחות ושכר לאחר אישור סופי')}
+    ${backBarHtml('דיווח נוכחות')}
+    ${dsCard({
+      title: attendanceMonthLabel(month) || 'בחירת חודש',
+      padded: true,
+      body: `
+        <div class="ds-fin-toolbar" dir="rtl">
+          <label>חודש שכר
+            <input class="ds-input" type="month" data-finance-month value="${escapeHtml(month)}">
+          </label>
+          <label>חיפוש עובד
+            <input class="ds-input" type="search" data-finance-employee-search value="${escapeHtml(search)}" placeholder="שם עובד">
+          </label>
+          <button type="button" class="ds-btn ds-btn--primary" data-finance-attendance-export>ייצוא לאקסל</button>
+        </div>
+        ${body}
+      `
+    })}
+  `);
+}
+
+function saveStatusHtml(rowId, saveState = {}) {
+  const status = saveState[rowId];
+  if (status === 'saved') return '<span class="ds-fin-save is-saved">נשמר</span>';
+  if (status === 'saving') return '<span class="ds-fin-save">שומר…</span>';
+  if (status && status !== 'saved' && status !== 'saving') {
+    return `<span class="ds-fin-save is-error">${escapeHtml(status)}</span>`;
+  }
+  return '<span class="ds-fin-save"></span>';
+}
+
+function collectionActivityRowHtml(activity, saveState = {}) {
+  const id = escapeHtml(activityRowId(activity));
+  const status = normalizeCollectionStatus(activity.collection_status);
+  const expected = String(activity.expected_collection_date || '').slice(0, 10);
+  return `<tr data-fin-activity-id="${id}">
+    <td>${escapeHtml(activity.activity_name || '—')}</td>
+    <td>${escapeHtml(activity.authority || '—')}</td>
+    <td>${escapeHtml(activity.school || '—')}</td>
+    <td>${escapeHtml(activity.funding || '—')}</td>
+    <td class="ds-fin-num">${escapeHtml(money(activity.price))}</td>
+    <td>${escapeHtml(activityStatusLabel(activity))}</td>
+    <td>
+      <select class="ds-input ds-fin-inline" data-fin-collect-field="collection_status" data-fin-activity-id="${id}">
+        <option value="${FINANCE_COLLECTION_OPEN}"${status === FINANCE_COLLECTION_OPEN ? ' selected' : ''}>פתוח</option>
+        <option value="${FINANCE_COLLECTION_CLOSED}"${status === FINANCE_COLLECTION_CLOSED ? ' selected' : ''}>סגור</option>
+      </select>
     </td>
-    <td class="ds-fin-col--status"><span class="ds-fin-badge ${statusClass}">${statusLabel}</span></td>
-    <td class="ds-fin-col--exc">${excText ? escapeHtml(excText) : ''}</td>
+    <td>
+      <input class="ds-input ds-fin-inline" type="date" data-fin-collect-field="expected_collection_date" data-fin-activity-id="${id}" value="${escapeHtml(expected)}">
+    </td>
+    <td>
+      <input class="ds-input ds-fin-inline" type="text" data-fin-collect-field="finance_note" data-fin-activity-id="${id}" value="${escapeHtml(activity.finance_note || '')}" placeholder="הערה">
+      ${saveStatusHtml(activityRowId(activity), saveState)}
+    </td>
   </tr>`;
 }
 
-function clusterAccordionHtml(clusterKey, clusterRows, fundingKey, typeKey, expandAll = false) {
-  const stats = treeStats(clusterRows);
-  const clusterLabel = clusterKey;
-  const rowsHtml = clusterRows
-    .slice()
-    .sort((a, b) => String(rowEndDate(a)).localeCompare(String(rowEndDate(b))))
-    .map((row) => activityRowHtml(row, true))
-    .join('');
-  const tableHtml = `<table class="ds-fin-table" dir="rtl">
-    <thead><tr>
-      <th class="ds-fin-col--name">שם פעילות</th>
-      <th class="ds-fin-col--type">סוג</th>
-      <th class="ds-fin-col--date" style="text-align:center">תאריך</th>
-      <th class="ds-fin-col--school">בית ספר</th>
-      <th class="ds-fin-col--price">מחיר</th>
-      <th class="ds-fin-col--collect">גבייה</th>
-      <th class="ds-fin-col--status">סטטוס</th>
-      <th class="ds-fin-col--exc">חריגה</th>
-    </tr></thead>
-    <tbody>${rowsHtml}</tbody>
-  </table>`;
-  const summaryLine = `${stats.total} פעילויות · ${stats.collected} נגבו · ${stats.notCollected} לא נגבו · ${stats.noPrice} ללא מחיר · ${money(stats.totalPrice)}`;
-  return `<details class="ds-fin-acc ds-fin-acc--cluster"${expandAll ? ' open' : ''} data-fin-cluster="${escapeHtml(fundingKey)}|${escapeHtml(clusterKey)}|${escapeHtml(typeKey)}">
-    <summary class="ds-fin-acc__summary">
-      <span class="ds-fin-acc__title">${escapeHtml(clusterLabel)}</span>
-      <span class="ds-fin-acc__meta">${escapeHtml(summaryLine)}</span>
+function payerCardHtml(group, tab, saveState = {}) {
+  const openMeta = tab === 'all'
+    ? `${group.activityCount} פעילויות · ${money(group.totalAmount)} · ${group.openCount} פתוחות`
+    : `${group.activityCount} פעילויות · ${money(group.totalAmount)}`;
+  const rows = group.activities.map((activity) => collectionActivityRowHtml(activity, saveState)).join('');
+  return `<details class="ds-fin-payer">
+    <summary>
+      <span class="ds-fin-payer__title">${escapeHtml(group.label)}</span>
+      <span class="ds-fin-payer__meta">${escapeHtml(openMeta)}</span>
     </summary>
-    <div class="ds-fin-acc__body">${tableHtml}</div>
+    ${dsTableWrap(`<table class="ds-table ds-fin-pay-table" dir="rtl">
+      <thead><tr>
+        <th>פעילות</th>
+        <th>רשות</th>
+        <th>בית ספר</th>
+        <th>גורם מימון</th>
+        <th class="ds-fin-num">מחיר</th>
+        <th>סטטוס פעילות</th>
+        <th>סטטוס גבייה</th>
+        <th>צפי לגבייה</th>
+        <th>הערה</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`)}
   </details>`;
 }
 
-function fundingAccordionHtml(fundingKey, clusterMap, typeKey) {
-  const allRows = Object.values(clusterMap).flat();
-  const stats = treeStats(allRows);
-  const isGafan = (fundingKey === 'גפ״ן' || fundingKey === "גפ'ן" || fundingKey === 'גפן');
-  const isReshut = fundingKey === 'רשות';
-  const clusterLabel = isGafan ? 'בתי ספר' : isReshut ? 'רשויות' : 'גורם ריכוז';
-  const clusterCount = Object.keys(clusterMap).length;
-  const summaryLine = `${stats.total} פעילויות · ${clusterCount} ${clusterLabel} · ${money(stats.totalPrice)}`;
-  const clustersHtml = Object.entries(clusterMap)
-    .sort(([a], [b]) => a.localeCompare(b, 'he'))
-    .map(([clusterKey, rows]) => clusterAccordionHtml(clusterKey, rows, fundingKey, typeKey))
-    .join('');
-  return `<details class="ds-fin-acc ds-fin-acc--funding" data-fin-funding="${escapeHtml(fundingKey)}|${escapeHtml(typeKey)}">
-    <summary class="ds-fin-acc__summary">
-      <span class="ds-fin-acc__title">${escapeHtml(fundingKey)}</span>
-      <span class="ds-fin-acc__meta">${escapeHtml(summaryLine)}</span>
-    </summary>
-    <div class="ds-fin-acc__body">${clustersHtml}</div>
-  </details>`;
+function collectionViewHtml(data) {
+  const tab = data.collectionTab === 'all' ? 'all' : 'open';
+  const activities = attachCollectionTracking(
+    (data.collectionActivities || []).filter(isFinanceCollectionActivity),
+    data.collectionTracking || []
+  );
+  const payers = groupFinanceCollectionPayers(activities, { tab });
+  const body = data.collectionError
+    ? dsEmptyState(data.collectionError)
+    : data.collectionLoading && data.collectionActivities == null
+      ? dsEmptyState('טוען מעקב גבייה…')
+      : payers.length
+        ? payers.map((group) => payerCardHtml(group, tab, data.collectionSaveState || {})).join('')
+        : dsEmptyState(tab === 'open' ? 'אין פעילויות פתוחות לגבייה.' : 'אין פעילויות לתצוגה.');
+  return dsScreenStack(`
+    ${dsPageHeader('מעקב גבייה', 'מעקב גבייה מרוכז לפי הגורם המשלם')}
+    ${backBarHtml('מעקב גבייה')}
+    ${dsCard({
+      title: 'פעילויות לפי משלם',
+      padded: true,
+      body: `
+        <div class="ds-fin-tabs" role="tablist" dir="rtl">
+          <button type="button" class="ds-fin-tab${tab === 'open' ? ' is-active' : ''}" data-finance-collection-tab="open">פתוח</button>
+          <button type="button" class="ds-fin-tab${tab === 'all' ? ' is-active' : ''}" data-finance-collection-tab="all">הכול</button>
+        </div>
+        <div class="ds-fin-payers">${body}</div>
+      `
+    })}
+  `);
 }
 
-function programSummaryHtml(rows = []) {
-  const byName = new Map();
-  for (const row of rows) {
-    const name = String(row.activity_name || '').trim() || 'ללא שם';
-    if (!byName.has(name)) byName.set(name, []);
-    byName.get(name).push(row);
+function hubViewHtml() {
+  return dsScreenStack(`
+    ${dsPageHeader('כספים')}
+    ${hubCardsHtml()}
+  `);
+}
+
+function isFinanceCollectionActivity(row = {}) {
+  return getActivityPeriodKey(row) === FINANCE_COLLECTION_ACTIVITY_PERIOD;
+}
+
+async function ensureAttendanceLoaded(data, api, monthKey) {
+  const month = String(monthKey || data.attendanceMonth || currentFinanceMonthKey()).trim();
+  data.attendanceMonth = month;
+  if (data.attendanceByMonth?.[month]) return data.attendanceByMonth[month];
+  data.attendanceLoading = true;
+  data.attendanceError = '';
+  const employeesPromise = data.employees
+    ? Promise.resolve(data.employees)
+    : (typeof api?.attendanceControlTeams === 'function'
+      ? api.attendanceControlTeams().catch(() => [])
+      : Promise.resolve([]));
+  try {
+    const [approvals, employees] = await Promise.all([
+      api.listPayrollControlApprovals({ monthKey: month, statuses: ['approved_for_payroll'] }),
+      employeesPromise
+    ]);
+    if (!data.employees) data.employees = Array.isArray(employees) ? employees : [];
+    const payload = { approvals: Array.isArray(approvals) ? approvals : [] };
+    data.attendanceByMonth = { ...(data.attendanceByMonth || {}), [month]: payload };
+    return payload;
+  } catch (error) {
+    data.attendanceError = error?.message || 'טעינת נתוני הנוכחות נכשלה.';
+    throw error;
+  } finally {
+    data.attendanceLoading = false;
   }
-  if (!byName.size) return '';
-  const sortedNames = [...byName.entries()].sort(([, a], [, b]) => b.length - a.length);
-  const tableRows = sortedNames.map(([name, nameRows]) => {
-    const stats = treeStats(nameRows);
-    return `<tr>
-      <td>${escapeHtml(name)}</td>
-      <td style="text-align:center">${stats.total}</td>
-      <td style="text-align:left">${stats.totalPrice ? escapeHtml(money(stats.totalPrice)) : '—'}</td>
-      <td style="text-align:center">${stats.noPrice}</td>
-      <td style="text-align:center">${stats.collected}</td>
-      <td style="text-align:center">${stats.notCollected}</td>
-      <td style="text-align:center">${stats.open} פתוחות / ${stats.closed} סגורות</td>
-    </tr>`;
-  }).join('');
-  return `<details class="ds-fin-acc ds-fin-acc--programs">
-    <summary class="ds-fin-acc__summary"><span class="ds-fin-acc__title">סיכום לפי שמות תוכניות</span></summary>
-    <div class="ds-fin-acc__body">
-      <table class="ds-fin-table" dir="rtl">
-        <thead><tr>
-          <th>שם פעילות / תוכנית</th>
-          <th style="text-align:center">כמות</th>
-          <th>סך מחיר</th>
-          <th style="text-align:center">ללא מחיר</th>
-          <th style="text-align:center">נגבו</th>
-          <th style="text-align:center">לא נגבו</th>
-          <th style="text-align:center">סטטוס</th>
-        </tr></thead>
-        <tbody>${tableRows}</tbody>
-      </table>
-    </div>
-  </details>`;
 }
 
-function activityTypeAccordionHtml(typeKey, typeLabel, fundingTree, allTypeRows) {
-  const stats = treeStats(allTypeRows);
-  const fundingsHtml = Object.entries(fundingTree)
-    .sort(([a], [b]) => a.localeCompare(b, 'he'))
-    .map(([fundingKey, clusterMap]) => fundingAccordionHtml(fundingKey, clusterMap, typeKey))
-    .join('');
-  const programsSummary = programSummaryHtml(allTypeRows);
-  return `<details class="ds-fin-acc ds-fin-acc--type" data-fin-type="${escapeHtml(typeKey)}">
-    <summary class="ds-fin-acc__summary ds-fin-acc__summary--type">
-      <span class="ds-fin-acc__title ds-fin-acc__title--type">${escapeHtml(typeLabel)}</span>
-      <span class="ds-fin-acc__meta">${stats.total} פעילויות · ${money(stats.totalPrice)}</span>
-    </summary>
-    <div class="ds-fin-acc__body">
-      ${kpiRow(stats)}
-      ${programsSummary}
-      ${fundingsHtml}
-    </div>
-  </details>`;
+async function ensureCollectionLoaded(data, api) {
+  if (data.collectionActivities && data.collectionPeriod === FINANCE_COLLECTION_ACTIVITY_PERIOD) return;
+  data.collectionLoading = true;
+  data.collectionError = '';
+  try {
+    const [activities, tracking] = await Promise.all([
+      api.allActivities({
+        select: FINANCE_COLLECTION_ACTIVITY_COLUMNS,
+        activity_period: FINANCE_COLLECTION_ACTIVITY_PERIOD
+      }),
+      typeof api.listFinanceCollectionTracking === 'function'
+        ? api.listFinanceCollectionTracking()
+        : Promise.resolve([])
+    ]);
+    data.collectionPeriod = FINANCE_COLLECTION_ACTIVITY_PERIOD;
+    data.collectionActivities = (Array.isArray(activities?.rows) ? activities.rows : [])
+      .filter(isFinanceCollectionActivity);
+    data.collectionTracking = Array.isArray(tracking) ? tracking : [];
+  } catch (error) {
+    data.collectionError = error?.message || 'טעינת מעקב הגבייה נכשלה.';
+    throw error;
+  } finally {
+    data.collectionLoading = false;
+  }
 }
 
-function financeSummaryKpis(rows = []) {
-  const stats = treeStats(rows);
-  const exceptionCount = rows.reduce((sum, row) => sum + financeExceptions(row).length, 0);
-  return `<div class="ds-fin-top-kpis" dir="rtl">
-    <div class="ds-fin-kpi-group">
-      <div class="ds-fin-kpi-group__label">גבייה וכספים</div>
-      <div class="ds-fin-kpi-group__items">
-        ${kpiBox('סה״כ פעילויות', stats.total)}
-        ${kpiBox('נגבו', stats.collected, money(stats.collectedPrice))}
-        ${kpiBox('יתרה לגבייה', stats.notCollected)}
-        ${kpiBox('סך מחיר', '', money(stats.totalPrice))}
-        ${kpiBox('חריגות', exceptionCount)}
-      </div>
-    </div>
-    <div class="ds-fin-kpi-group">
-      <div class="ds-fin-kpi-group__label">פעילות</div>
-      <div class="ds-fin-kpi-group__items">
-        ${kpiBox('פתוחות', stats.open)}
-        ${kpiBox('סגורות', stats.closed)}
-        ${kpiBox('טרם תומחרו', stats.noPrice)}
-      </div>
-    </div>
-  </div>`;
+function findActivity(data, rowId) {
+  return (data.collectionActivities || []).find((row) => activityRowId(row) === String(rowId || '').trim());
 }
 
-// ─── Screen ──────────────────────────────────────────────────────────────────
+function findTracking(data, rowId) {
+  const id = String(rowId || '').trim();
+  return (data.collectionTracking || []).find((row) => String(row.activity_row_id || activityRowId(row)).trim() === id);
+}
 
 export const financeScreen = {
-  load: async ({ api }) => {
-    const activities = await api.allActivities();
-    let payrollApprovals = [];
-    try { payrollApprovals = await api.listPayrollControlApprovals(); } catch { payrollApprovals = []; }
-    return { ...activities, payrollApprovals };
-  },
+  load: async () => createFinanceVisitState(),
 
   render(data, { state } = {}) {
     if (!canAccessFinance(state?.user)) {
       return dsScreenStack(`${dsPageHeader('כספים', 'גישה מוגבלת')} ${dsEmptyState('אין הרשאה לצפייה בעמוד כספים.')}`);
     }
-
-    const allRows = Array.isArray(data?.rows) ? data.rows : [];
-    const tree = buildFinanceTree(allRows);
-    const stats = treeStats(allRows);
-    void stats;
-
-    const typeAccordions = FINANCE_ACTIVITY_TYPES.map(({ key, label }) => {
-      const fundingTree = tree[key];
-      if (!fundingTree) return '';
-      const allTypeRows = Object.values(fundingTree).flatMap((cm) => Object.values(cm)).flat();
-      return activityTypeAccordionHtml(key, label, fundingTree, allTypeRows);
-    }).join('');
-
-    // Other types not in the main list
-    const knownTypes = new Set(FINANCE_ACTIVITY_TYPES.map((t) => t.key));
-    const otherTypeRows = allRows.filter((r) => !knownTypes.has(normalizeFinanceActivityType(r.activity_type)));
-    const otherSection = otherTypeRows.length > 0
-      ? activityTypeAccordionHtml('other', 'אחר', buildFinanceTree(otherTypeRows)['other'] || {}, otherTypeRows)
-      : '';
-
-    const body = `
-      ${financeSummaryKpis(allRows)}
-      <div class="ds-fin-accordions" dir="rtl">
-        ${typeAccordions}
-        ${otherSection}
-      </div>`;
-
-    const payrollApprovals = Array.isArray(data?.payrollApprovals) ? data.payrollApprovals : null;
-    const payrollSection = payrollApprovals
-      ? dsCard({ body: payrollControlApprovalsListHtml(payrollApprovals, { user: state?.user }), padded: true })
-      : '';
-    return dsScreenStack(`
-      ${dsPageHeader('כספים / גבייה', 'בקרה כספית לפי פעילויות, סוגי תוכניות וסטטוס גבייה')}
-      ${payrollSection}
-      ${dsCard({ body, padded: true })}
-    `);
+    const view = data?.view || 'hub';
+    if (view === 'attendance') return attendanceViewHtml(data, { state });
+    if (view === 'collection') return collectionViewHtml(data);
+    return hubViewHtml();
   },
 
   bind({ root, data, state, api, rerender }) {
-    if (!canAccessFinance(state?.user)) return;
-    const allRows = Array.isArray(data?.rows) ? data.rows : [];
-    const rowById = new Map(allRows.map((r) => [activityRowId(r), r]));
-    const approvalById = new Map((Array.isArray(data?.payrollApprovals) ? data.payrollApprovals : []).map((row) => [String(row.id), row]));
+    if (!canAccessFinance(state?.user) || !root) return;
+    const visit = data || {};
+    if (typeof root._financeUnbind === 'function') root._financeUnbind();
 
-    root.addEventListener('click', async (ev) => {
-      const exportBtn = ev.target.closest('[data-payroll-approvals-export]');
-      if (exportBtn) {
-        if (!canExportPayrollApprovals(state?.user)) {
-          window.alert('אין הרשאה לייצוא Excel לשכר.');
+    const refresh = () => rerender?.();
+    const onClick = async (ev) => {
+      const openBtn = ev.target.closest('[data-finance-open]');
+      if (openBtn) {
+        const nextView = String(openBtn.dataset.financeOpen || 'hub');
+        visit.view = nextView;
+        if (nextView === 'attendance') {
+          refresh();
+          try { await ensureAttendanceLoaded(visit, api, visit.attendanceMonth); }
+          catch { /* shown via visit.attendanceError */ }
+          refresh();
           return;
         }
-        try { downloadPayrollApprovalsExcel(data?.payrollApprovals || [], state?.user); }
-        catch (error) { window.alert(error?.message || 'ייצוא Excel לשכר נכשל.'); }
-        return;
-      }
-      const viewBtn = ev.target.closest('[data-payroll-view-pdf]');
-      if (viewBtn) {
-        const approval = approvalById.get(String(viewBtn.dataset.payrollViewPdf || ''));
-        if (!approval) return;
-        let signedUrl = '';
-        if (approval.pdf_path && api?.payrollControlApprovalSignedUrl) {
-          try { signedUrl = (await api.payrollControlApprovalSignedUrl(approval.pdf_path)).signedUrl || ''; } catch { signedUrl = ''; }
+        if (nextView === 'collection') {
+          refresh();
+          try { await ensureCollectionLoaded(visit, api); }
+          catch { /* shown via visit.collectionError */ }
+          refresh();
+          return;
         }
-        try { openPayrollApprovalDocument(approval, signedUrl); }
-        catch (error) { window.alert(error?.message || 'פתיחת המסמך נכשלה.'); }
+        refresh();
         return;
       }
-      const btn = ev.target.closest('[data-fin-toggle-collect]');
-      if (!btn) return;
-      const rowId = String(btn.dataset.finToggleCollect || '');
-      const row = rowById.get(rowId);
-      if (!row) return;
-      btn.disabled = true;
-      const newCollected = !isCollected(row);
-      const newValue = newCollected ? 'yes' : 'no';
-      try {
-        await api.saveActivity({
-          source_row_id: rowId,
-          source_sheet: 'activities',
-          changes: { payment_collected: newValue }
-        });
-        row.payment_collected = newValue;
-        rerender?.();
-      } catch (err) {
-        console.error('[finance] toggle collect failed', err);
-      } finally {
-        btn.disabled = false;
+
+      const tabBtn = ev.target.closest('[data-finance-collection-tab]');
+      if (tabBtn) {
+        visit.collectionTab = tabBtn.dataset.financeCollectionTab === 'all' ? 'all' : 'open';
+        refresh();
+        return;
       }
-    });
+
+      const exportBtn = ev.target.closest('[data-finance-attendance-export]');
+      if (exportBtn) {
+        const month = visit.attendanceMonth || currentFinanceMonthKey();
+        const monthCache = visit.attendanceByMonth?.[month];
+        const summarized = summarizeFinanceAttendance(monthCache?.approvals || [], {
+          employees: visit.employees || [],
+          employeeSearch: visit.attendanceSearch || ''
+        });
+        try { downloadFinanceAttendanceExcel(summarized.rows, month); }
+        catch (error) { window.alert(error?.message || 'ייצוא Excel נכשל.'); }
+        return;
+      }
+
+      const fileBtn = ev.target.closest('[data-finance-file]');
+      if (fileBtn) {
+        const month = visit.attendanceMonth || currentFinanceMonthKey();
+        const summarized = summarizeFinanceAttendance(visit.attendanceByMonth?.[month]?.approvals || [], {
+          employees: visit.employees || []
+        });
+        const entry = summarized.rows.find((row) => row.employeeId === String(fileBtn.dataset.financeFile || ''));
+        if (!entry?.hasFile) return;
+        let url = entry.fileUrl;
+        if (!url) {
+          const approval = (visit.attendanceByMonth?.[month]?.approvals || []).find((row) => String(row.employee_id || '') === entry.employeeId);
+          if (approval?.pdf_path && api?.payrollControlApprovalSignedUrl && !/^https?:\/\//i.test(String(approval.pdf_path))) {
+            try { url = (await api.payrollControlApprovalSignedUrl(approval.pdf_path)).signedUrl || ''; } catch { url = ''; }
+          }
+        }
+        if (url) window.open(url, '_blank', 'noopener');
+      }
+    };
+
+    const onChange = async (ev) => {
+      const monthInput = ev.target.closest('[data-finance-month]');
+      if (monthInput) {
+        visit.attendanceMonth = String(monthInput.value || '').trim() || currentFinanceMonthKey();
+        refresh();
+        try { await ensureAttendanceLoaded(visit, api, visit.attendanceMonth); }
+        catch { /* shown via visit.attendanceError */ }
+        refresh();
+        return;
+      }
+
+      const field = ev.target.closest('[data-fin-collect-field]');
+      if (!field) return;
+      const rowId = String(field.dataset.finActivityId || '');
+      const key = String(field.dataset.finCollectField || '');
+      const activity = findActivity(visit, rowId);
+      if (!activity || !key) return;
+      const previous = {
+        collection_status: normalizeCollectionStatus(activity.collection_status),
+        expected_collection_date: String(activity.expected_collection_date || '').slice(0, 10) || null,
+        finance_note: String(activity.finance_note || '')
+      };
+      const next = { ...previous };
+      if (key === 'collection_status') next.collection_status = normalizeCollectionStatus(field.value);
+      if (key === 'expected_collection_date') next.expected_collection_date = String(field.value || '').slice(0, 10) || null;
+      if (key === 'finance_note') next.finance_note = String(field.value || '');
+      try {
+        const saved = await api.upsertFinanceCollectionTracking({
+          activity_row_id: rowId,
+          ...next
+        });
+        activity.collection_status = next.collection_status;
+        activity.expected_collection_date = next.expected_collection_date || '';
+        activity.finance_note = next.finance_note;
+        const existing = findTracking(visit, rowId);
+        const merged = {
+          ...(existing || {}),
+          ...(saved || {}),
+          activity_row_id: rowId,
+          collection_status: next.collection_status,
+          expected_collection_date: next.expected_collection_date,
+          finance_note: next.finance_note
+        };
+        if (existing) Object.assign(existing, merged);
+        else visit.collectionTracking = [...(visit.collectionTracking || []), merged];
+        visit.collectionSaveState = { ...(visit.collectionSaveState || {}), [rowId]: 'saved' };
+      } catch (error) {
+        activity.collection_status = previous.collection_status;
+        activity.expected_collection_date = previous.expected_collection_date || '';
+        activity.finance_note = previous.finance_note;
+        visit.collectionSaveState = {
+          ...(visit.collectionSaveState || {}),
+          [rowId]: error?.message || 'השמירה נכשלה'
+        };
+      }
+      refresh();
+    };
+
+    const onSearch = (ev) => {
+      visit.attendanceSearch = ev.target.value || '';
+      clearTimeout(root._financeSearchTimer);
+      root._financeSearchTimer = setTimeout(() => refresh(), 180);
+    };
+
+    root.addEventListener('click', onClick);
+    root.addEventListener('change', onChange);
+    root.querySelector('[data-finance-employee-search]')?.addEventListener('input', onSearch);
+    root._financeUnbind = () => {
+      root.removeEventListener('click', onClick);
+      root.removeEventListener('change', onChange);
+      root.querySelector('[data-finance-employee-search]')?.removeEventListener('input', onSearch);
+    };
   }
 };
