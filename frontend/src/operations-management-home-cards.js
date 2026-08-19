@@ -61,16 +61,11 @@ function ensureStyles() {
       margin-bottom: 14px;
     }
     .operations-management-home__heading h2 {
-      margin: 0 0 4px;
+      margin: 0;
       font-size: 18px;
       line-height: 1.3;
       color: var(--color-text, #172033);
       font-weight: 800;
-    }
-    .operations-management-home__heading p {
-      margin: 0;
-      color: var(--color-text-secondary, #64748b);
-      font-size: 13px;
     }
     .operations-management-home__grid {
       display: grid;
@@ -177,7 +172,6 @@ function createHome() {
   home.innerHTML = `
     <div class="operations-management-home__heading">
       <h2>כלי התפעול</h2>
-      <p>בחרו תחום עבודה. הלשוניות הקבועות נשארות זמינות למעבר מהיר בכל שלב.</p>
     </div>
     <div class="operations-management-home__grid"></div>
   `;
