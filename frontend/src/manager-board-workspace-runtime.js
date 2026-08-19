@@ -437,6 +437,7 @@ async function waitForEnabledButton(button, timeoutMs = 10000) {
 async function openEmployeeAttendance(empId) {
   const host = document.querySelector('[data-manager-attendance-host]');
   if (!host) return;
+  const panel = host.querySelector('[data-attendance-control]');
   const run = host.querySelector('[data-attendance-run]');
   const results = host.querySelector('[data-attendance-results]');
   if (!results?.querySelector('[data-payroll-employee]')) {
@@ -446,6 +447,13 @@ async function openEmployeeAttendance(empId) {
   while (Date.now() - started < 20000) {
     const detail = host.querySelector(`[data-payroll-employee="${CSS.escape(String(empId))}"]`);
     if (detail) {
+      host.querySelectorAll('[data-payroll-employee]').forEach((item) => {
+        item.hidden = item !== detail;
+        if (item !== detail) item.open = false;
+      });
+      host.hidden = false;
+      if (panel) panel.hidden = false;
+      detail.hidden = false;
       detail.open = true;
       detail.scrollIntoView({ behavior: 'smooth', block: 'start' });
       return;
@@ -482,6 +490,9 @@ async function bindEmbeddedAttendance(host, roster, context) {
     dashboardMonthInput.dispatchEvent(new Event('change', { bubbles: true }));
   }
 
+  const controls = host.querySelector('.attendance-control__uploads');
+  if (controls) controls.hidden = true;
+  host.hidden = true;
   host.querySelector('[data-attendance-close]')?.remove();
 }
 
@@ -502,21 +513,16 @@ async function renderAttendance(boardRoot, context, roster, renderToken) {
   if (renderToken !== currentRenderToken || activeTab !== 'attendance' || !boardRoot.isConnected) return;
 
   view.innerHTML = `<section class="manager-workspace-panel manager-workspace-attendance" dir="rtl">
-    <header class="manager-workspace-panel__head"><div><h2>בקרת נוכחות</h2><p>${escapeHtml(context.manager)} · ${escapeHtml(context.ym)} · צוות אחד ממקור הנתונים המרכזי</p></div><button type="button" class="manager-workspace-run-team" data-manager-attendance-run-team>פתח את בקרת כל הצוות</button></header>
+    <header class="manager-workspace-panel__head"><div><h2>בקרת נוכחות</h2><p>${escapeHtml(context.manager)} · ${escapeHtml(context.ym)} · צוות אחד ממקור הנתונים המרכזי</p></div></header>
     ${attendanceSummaryTableHtml(roster, summary, context.ym)}
     ${(summary.recordsError || summary.approvalsError) ? `<p class="manager-workspace-inline-error">${escapeHtml(summary.recordsError || summary.approvalsError)}</p>` : ''}
-    <div class="manager-workspace-attendance-host" data-manager-attendance-host></div>
+    <div class="manager-workspace-attendance-host" data-manager-attendance-host hidden></div>
   </section>`;
 
   const host = view.querySelector('[data-manager-attendance-host]');
   await bindEmbeddedAttendance(host, roster, context);
   if (renderToken !== currentRenderToken || activeTab !== 'attendance') return;
 
-  view.querySelector('[data-manager-attendance-run-team]')?.addEventListener('click', async () => {
-    const run = host.querySelector('[data-attendance-run]');
-    if (await waitForEnabledButton(run)) run.click();
-    host.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  });
   view.querySelectorAll('[data-manager-attendance-open-employee]').forEach((button) => {
     button.addEventListener('click', () => void openEmployeeAttendance(button.dataset.managerAttendanceOpenEmployee));
   });
