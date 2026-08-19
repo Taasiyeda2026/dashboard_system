@@ -144,7 +144,7 @@ export async function getMonthApproval(empId, monthKey) {
  * Submit a month (instructor confirms the month is complete).
  * Status becomes 'submitted'; manager must lock/approve separately.
  */
-export async function submitMonth(empId, monthKey) {
+export async function submitMonth(empId, monthKey, submittedByName = '') {
   const now = new Date().toISOString();
   const { data, error } = await supabase
     .from('attendance_month_approvals')
@@ -154,6 +154,7 @@ export async function submitMonth(empId, monthKey) {
         month_key: monthKey,
         status: 'submitted',
         submitted_at: now,
+        submitted_by_name: String(submittedByName || '').trim(),
         updated_at: now
       },
       { onConflict: 'emp_id,month_key' }

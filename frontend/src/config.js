@@ -91,3 +91,4 @@ config.HOTFIX_VERSION = `manager-workspace-zoom-context-cleanup-sw-cache-1541-20
 config.HOTFIX_VERSION = `management-password-recovery-20260818-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `attendance-month-workflow-gates-20260818-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `attendance-round2-reporting-flow-20260819-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `attendance-manager-admin-approval-sharepoint-20260819-v1-${config.HOTFIX_VERSION}`;

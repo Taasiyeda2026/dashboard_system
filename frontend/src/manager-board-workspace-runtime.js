@@ -45,17 +45,27 @@ function canUseWorkspace() {
   return MANAGER_WORKSPACE_ROLES.has(role());
 }
 
+function canUsePayrollAttendanceAdminTab() {
+  return role() === 'admin';
+}
+
+function workspaceTabs() {
+  return canUsePayrollAttendanceAdminTab()
+    ? ['management', 'attendance', 'tracking', 'payroll-attendance']
+    : ['management', 'attendance', 'tracking'];
+}
+
 function restoreTab() {
   try {
     const stored = localStorage.getItem(MANAGER_WORKSPACE_TAB_KEY);
-    return ['management', 'attendance', 'tracking'].includes(stored) ? stored : 'management';
+    return workspaceTabs().includes(stored) ? stored : 'management';
   } catch {
     return 'management';
   }
 }
 
 function setActiveTab(tab) {
-  activeTab = ['management', 'attendance', 'tracking'].includes(tab) ? tab : 'management';
+  activeTab = workspaceTabs().includes(tab) ? tab : 'management';
   try { localStorage.setItem(MANAGER_WORKSPACE_TAB_KEY, activeTab); } catch { /* ignore */ }
 }
 
@@ -241,7 +251,7 @@ function handleWorkspaceClick(event) {
   const boardRoot = button.closest('[data-manager-board-root]');
   if (!boardRoot) return;
   const next = button.dataset.managerWorkspaceTab;
-  if (!['management', 'attendance', 'tracking'].includes(next)) return;
+  if (!workspaceTabs().includes(next)) return;
 
   event.preventDefault();
   setActiveTab(next);
@@ -286,7 +296,7 @@ function attendanceSummaryTableHtml(roster, summary, ym) {
       <td><strong>${escapeHtml(text(row.full_name) || empId)}</strong><small>${escapeHtml(empId)}</small></td>
       <td>${count ? `<span class="manager-workspace-report-count">קיים · ${count} רשומות</span>` : '<span class="manager-workspace-report-count is-missing">לא נמצא דיווח</span>'}</td>
       <td>${attendanceStatusBadge(count, approval)}${approvedAt ? `<small>${escapeHtml(approvedAt)}</small>` : ''}</td>
-      <td><button type="button" class="manager-workspace-link-button" data-manager-attendance-open-employee="${escapeHtml(empId)}"${count ? '' : ' disabled'}>פתח בקרה</button></td>
+      <td><button type="button" class="manager-workspace-link-button" data-manager-attendance-open-employee="${escapeHtml(empId)}"${count ? '' : ' disabled'}>צפייה ובקרת דוח</button></td>
     </tr>`;
   }).join('');
   return `<div class="manager-workspace-table-wrap"><table class="manager-workspace-table manager-workspace-attendance-table">
@@ -519,6 +529,171 @@ function renderTracking(boardRoot, context, roster) {
   });
 }
 
+function approvalCell(name, at, missingLabel) {
+  const who = text(name);
+  const when = at ? new Date(at).toLocaleString('he-IL', { dateStyle: 'short', timeStyle: 'short' }) : '';
+  if (!who && !when) return `<span class="manager-workspace-status is-muted">${escapeHtml(missingLabel)}</span>`;
+  return `<div class="manager-workspace-approval-cell"><strong>${escapeHtml(who || '—')}</strong><small>${escapeHtml(when || '—')}</small></div>`;
+}
+
+async function renderPayrollAttendanceAdmin(boardRoot, context, roster, renderToken) {
+  const view = boardRoot.querySelector('[data-manager-workspace-view]');
+  if (!view) return;
+  view.innerHTML = '<div class="manager-workspace-loading">טוען בקרת שכר/נוכחות…</div>';
+
+  const employeeIds = roster.map((row) => text(row.emp_id)).filter(Boolean);
+  const monthKey = context.ym;
+  const [workflowRows, finalRows] = await Promise.all([
+    api.attendanceControlMonthWorkflowStatuses({ monthKey, employeeIds }),
+    api.listPayrollControlApprovals({ monthKey, employeeIds, statuses: ['approved_for_payroll'] })
+  ]);
+  if (renderToken !== currentRenderToken || activeTab !== 'payroll-attendance' || !boardRoot.isConnected) return;
+
+  const workflowByEmployee = new Map((workflowRows || []).map((row) => [text(row.employee_id || row.employeeId), row]));
+  const finalByEmployee = new Map((finalRows || []).map((row) => [text(row.employee_id || row.employeeId), row]));
+
+  const rowsHtml = roster.map((row) => {
+    const empId = text(row.emp_id);
+    const workflowRow = workflowByEmployee.get(empId) || {};
+    const workflow = {
+      status: text(workflowRow.workflow_status || 'not_submitted'),
+      label: text(workflowRow.workflow_status || 'not_submitted') === 'approved'
+        ? 'אושר סופית'
+        : text(workflowRow.workflow_status || '') === 'manager_approved'
+          ? 'אושר על ידי המנהל'
+          : text(workflowRow.workflow_status || '') === 'submitted'
+            ? 'אושר על ידי העובד / בבקרת מנהל'
+            : 'פתוח לדיווח'
+    };
+    const finalApproval = finalByEmployee.get(empId) || null;
+    const finalApproveBtn = workflow.status === 'manager_approved' && !finalApproval
+      ? `<button type="button" class="ds-btn ds-btn--sm ds-btn--primary" data-admin-payroll-final="${escapeHtml(empId)}">אישור סופי</button>`
+      : '';
+    const lockReleaseBtn = (workflow.status === 'submitted' || workflow.status === 'manager_approved' || workflow.status === 'approved')
+      ? `<button type="button" class="ds-btn ds-btn--sm" data-admin-payroll-release="${escapeHtml(empId)}">שחרור נעילה</button>`
+      : '';
+    const managerPdfUrl = text(workflowRow.manager_pdf_sharepoint_url);
+    const finalPdfPath = text(finalApproval?.pdf_path);
+    const openPdfBtn = (managerPdfUrl || finalPdfPath)
+      ? `<button type="button" class="ds-btn ds-btn--sm" data-admin-payroll-open-pdf="${escapeHtml(empId)}">צפייה ב-PDF</button>`
+      : '';
+    return `<tr data-admin-payroll-row="${escapeHtml(empId)}">
+      <td><strong>${escapeHtml(text(row.full_name) || empId)}</strong><small>${escapeHtml(empId)}</small></td>
+      <td>${escapeHtml(monthKey)}</td>
+      <td>${approvalCell(workflowRow.submitted_by_name, workflowRow.submitted_at, 'טרם אושר עובד')}</td>
+      <td>${approvalCell(workflowRow.manager_approved_by_name, workflowRow.manager_approved_at, 'טרם אושר מנהל')}</td>
+      <td>${approvalCell(finalApproval?.approved_by_name, finalApproval?.approved_at, 'טרם אושר סופית')}</td>
+      <td><span class="manager-workspace-status ${workflow.status === 'approved' ? 'is-ok' : (workflow.status === 'not_submitted' ? 'is-muted' : 'is-pending')}">${escapeHtml(workflow.label)}</span></td>
+      <td><div class="manager-workspace-actions">${finalApproveBtn}${openPdfBtn}${lockReleaseBtn}</div></td>
+    </tr>`;
+  }).join('');
+
+  view.innerHTML = `<section class="manager-workspace-panel manager-workspace-payroll-attendance" dir="rtl">
+    <header class="manager-workspace-panel__head">
+      <div>
+        <h2>בקרת שכר/נוכחות</h2>
+        <p>${escapeHtml(context.manager)} · ${escapeHtml(context.ym)} · לפי צוות</p>
+      </div>
+      <button type="button" class="manager-workspace-run-team" data-admin-payroll-refresh>רענון</button>
+    </header>
+    <p class="manager-workspace-source-note">האישור הסופי הופך את החודש ל״מוכן לביצוע שכר״. שחרור נעילה מבטל אישורים נדרשים עד לאישור מחדש.</p>
+    <div class="manager-workspace-table-wrap">
+      <table class="manager-workspace-table">
+        <thead>
+          <tr><th>עובד</th><th>חודש</th><th>אישור עובד</th><th>אישור מנהל</th><th>אישור מנהל סופי</th><th>סטטוס</th><th>פעולות</th></tr>
+        </thead>
+        <tbody>${rowsHtml || '<tr><td colspan="7">לא נמצאו עובדים בצוות זה.</td></tr>'}</tbody>
+      </table>
+    </div>
+    <p class="manager-workspace-inline-error" data-admin-payroll-status hidden></p>
+  </section>`;
+
+  const statusEl = view.querySelector('[data-admin-payroll-status]');
+  const setStatus = (message = '', isError = false) => {
+    if (!statusEl) return;
+    statusEl.hidden = !message;
+    statusEl.textContent = message;
+    statusEl.style.color = isError ? '#b91c1c' : '#166534';
+  };
+
+  view.querySelector('[data-admin-payroll-refresh]')?.addEventListener('click', () => {
+    lastContextSignature = '';
+    void renderWorkspace(true);
+  });
+
+  view.querySelectorAll('[data-admin-payroll-open-pdf]').forEach((button) => {
+    button.addEventListener('click', async () => {
+      const empId = text(button.dataset.adminPayrollOpenPdf);
+      const workflowRow = workflowByEmployee.get(empId) || {};
+      const finalApproval = finalByEmployee.get(empId) || null;
+      const managerPdfUrl = text(workflowRow.manager_pdf_sharepoint_url);
+      if (managerPdfUrl) {
+        window.open(managerPdfUrl, '_blank', 'noopener');
+        return;
+      }
+      const finalPdfPath = text(finalApproval?.pdf_path);
+      if (!finalPdfPath) return;
+      if (finalPdfPath.startsWith('http://') || finalPdfPath.startsWith('https://')) {
+        window.open(finalPdfPath, '_blank', 'noopener');
+        return;
+      }
+      try {
+        const signed = await api.payrollControlApprovalSignedUrl(finalPdfPath);
+        if (signed?.signedUrl) window.open(signed.signedUrl, '_blank', 'noopener');
+      } catch (error) {
+        setStatus(error?.message || 'פתיחת PDF נכשלה.', true);
+      }
+    });
+  });
+
+  view.querySelectorAll('[data-admin-payroll-final]').forEach((button) => {
+    button.addEventListener('click', async () => {
+      const empId = text(button.dataset.adminPayrollFinal);
+      if (!empId) return;
+      button.disabled = true;
+      try {
+        setStatus('שומר אישור סופי…');
+        await api.adminFinalizeAttendanceMonthPayroll({
+          employee_id: empId,
+          month_key: monthKey,
+          final_approved_by_name: text(state?.user?.full_name || state?.user?.name || state?.user?.username)
+        });
+        setStatus('האישור הסופי נשמר בהצלחה.');
+        lastContextSignature = '';
+        await renderWorkspace(true);
+      } catch (error) {
+        setStatus(error?.message || 'שמירת אישור סופי נכשלה.', true);
+      } finally {
+        button.disabled = false;
+      }
+    });
+  });
+
+  view.querySelectorAll('[data-admin-payroll-release]').forEach((button) => {
+    button.addEventListener('click', async () => {
+      const empId = text(button.dataset.adminPayrollRelease);
+      if (!empId) return;
+      const reason = window.prompt('סיבת שחרור נעילה (אופציונלי):', '') || '';
+      button.disabled = true;
+      try {
+        setStatus('משחרר נעילה…');
+        await api.adminReopenAttendanceMonthForCorrection({
+          employee_id: empId,
+          month_key: monthKey,
+          reason
+        });
+        setStatus('החודש שוחרר בהצלחה ונפתח לתיקון.');
+        lastContextSignature = '';
+        await renderWorkspace(true);
+      } catch (error) {
+        setStatus(error?.message || 'שחרור נעילה נכשל.', true);
+      } finally {
+        button.disabled = false;
+      }
+    });
+  });
+}
+
 async function renderWorkspace(force = false) {
   const boardRoot = validBoardRoot();
   if (!boardRoot) return;
@@ -542,6 +717,7 @@ async function renderWorkspace(force = false) {
     if (renderToken !== currentRenderToken || !boardRoot.isConnected) return;
     if (activeTab === 'management') await renderManagement(boardRoot, context, roster, renderToken);
     else if (activeTab === 'attendance') await renderAttendance(boardRoot, context, roster, renderToken);
+    else if (activeTab === 'payroll-attendance') await renderPayrollAttendanceAdmin(boardRoot, context, roster, renderToken);
     else renderTracking(boardRoot, context, roster);
   } catch (error) {
     if (renderToken !== currentRenderToken || !boardRoot.isConnected) return;

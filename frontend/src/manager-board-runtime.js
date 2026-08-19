@@ -634,10 +634,14 @@ function monthNavigationHtml(ym, period) {
 }
 
 function workspaceShellHtml() {
+  const adminTab = currentRole() === 'admin'
+    ? '<button type="button" class="manager-workspace-tab" data-manager-workspace-tab="payroll-attendance" aria-selected="false">בקרת שכר/נוכחות</button>'
+    : '';
   return `<nav class="manager-workspace-tabs" data-manager-workspace-tabs aria-label="לשוניות לוח מנהל">
     <button type="button" class="manager-workspace-tab is-active" data-manager-workspace-tab="management" aria-selected="true">ניהול</button>
     <button type="button" class="manager-workspace-tab" data-manager-workspace-tab="attendance" aria-selected="false">בקרת נוכחות</button>
     <button type="button" class="manager-workspace-tab" data-manager-workspace-tab="tracking" aria-selected="false">מעקב</button>
+    ${adminTab}
   </nav>
   <section class="manager-workspace-management-alerts" data-manager-workspace-management-alerts></section>
   <section class="manager-workspace-view" data-manager-workspace-view hidden></section>`;

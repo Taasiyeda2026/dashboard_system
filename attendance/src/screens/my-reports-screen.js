@@ -90,10 +90,10 @@ async function loadAndRender({ instructor, year, month, contentArea, onNewReport
     // ── Status badge ──────────────────────────────────────────────────
     if (approval) {
       const statusMap = {
-        submitted: ['הוגש','warning'],
-        locked: ['בבדיקה','warning'],
+        submitted: ['אושר עובד / בבקרת מנהל','warning'],
+        locked: ['אושר על ידי המנהל','success'],
         reopened: ['הוחזר לתיקון','neutral'],
-        approved_for_payroll: ['אושר לשכר','success']
+        approved_for_payroll: ['אושר סופית','success']
       };
       const [statusLabel, tone] = statusMap[approval.status] || ['פתוח','neutral'];
       const badge = document.createElement('span');

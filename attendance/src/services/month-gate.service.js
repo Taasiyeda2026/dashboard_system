@@ -58,9 +58,9 @@ export function canEditMonth(year, month, approval) {
 /** Short human-readable reason why a month is locked (for UI messages). */
 export function editBlockReason(year, month, approval) {
   const status = approval?.status ?? 'open';
-  if (status === 'locked') return 'החודש נעול על ידי המנהל';
+  if (status === 'locked') return 'החודש אושר על ידי המנהל ונעול לעריכה';
   if (status === 'approved_for_payroll') return 'החודש אושר סופית לשכר';
-  if (status === 'submitted') return 'הדיווח הוגש — לא ניתן לערוך עד שיאושר שינוי';
+  if (status === 'submitted') return 'העובד אישר את החודש — לא ניתן לערוך עד שחרור מנהל/אדמין';
   return 'לא ניתן לערוך חודש קודם לאחר תקופת הארכה (עד ה-2 בחודש)';
 }
 

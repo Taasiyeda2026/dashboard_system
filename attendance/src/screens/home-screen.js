@@ -211,11 +211,11 @@ function buildApprovalCard({ approval, year, month, instructor, records, summary
   const status = approval?.status ?? 'open';
 
   const statusMap = {
-    open:     { label: 'פתוח לעריכה', tone: 'neutral' },
-    submitted:{ label: 'הוגש — ממתין לאישור', tone: 'warning' },
-    locked:   { label: 'נעול על ידי מנהל', tone: 'success' },
-    reopened: { label: 'הוחזר לתיקון — פתוח לעריכה', tone: 'neutral' },
-    approved_for_payroll: { label: 'אושר להעברה לשכר', tone: 'success' }
+    open:     { label: 'פתוח לדיווח', tone: 'neutral' },
+    submitted:{ label: 'אושר על ידי העובד / בבקרת מנהל', tone: 'warning' },
+    locked:   { label: 'אושר על ידי המנהל', tone: 'success' },
+    reopened: { label: 'הוחזר לתיקון — פתוח לדיווח', tone: 'neutral' },
+    approved_for_payroll: { label: 'אושר סופית', tone: 'success' }
   };
 
   const { label: statusLabel, tone } = statusMap[status] || statusMap.open;
@@ -275,7 +275,7 @@ function buildApprovalCard({ approval, year, month, instructor, records, summary
       submitBtn.type = 'button';
       submitBtn.className = 'av2-btn av2-btn--primary av2-home__month-submit';
       const submitLabel = document.createElement('span');
-      submitLabel.textContent = 'סיום וסגירת חודש';
+      submitLabel.textContent = 'סיום דיווח ואישור';
       submitBtn.append(createIcon('check-circle', { size: 15 }), submitLabel);
       submitBtn.addEventListener('click', () => handleSubmit({ submitBtn, instructor, year, month, records, wrap }));
       strip.append(submitBtn);
@@ -291,10 +291,22 @@ function buildApprovalCard({ approval, year, month, instructor, records, summary
       const strip = document.createElement('div');
       strip.className = 'av2-approval-inner__strip av2-approval-inner__strip--info';
       const msg = document.createElement('span');
-      msg.textContent = `✓ הוגש ב-${new Date(approval.submitted_at).toLocaleDateString('he-IL')} — ממתין לאישור מנהל`;
+      const byName = String(approval?.submitted_by_name || instructor?.name || '').trim();
+      msg.textContent = `✓ אושר על ידי העובד ${byName ? `(${byName}) ` : ''}ב-${new Date(approval.submitted_at).toLocaleString('he-IL', { dateStyle: 'short', timeStyle: 'short' })}`;
       strip.append(msg);
       wrap.append(strip);
     }
+  } else if (status === 'locked') {
+    const strip = document.createElement('div');
+    strip.className = 'av2-approval-inner__strip av2-approval-inner__strip--info';
+    const when = approval?.manager_approved_at
+      ? ` ב-${new Date(approval.manager_approved_at).toLocaleString('he-IL', { dateStyle: 'short', timeStyle: 'short' })}`
+      : '';
+    const who = String(approval?.manager_approved_by_name || '').trim();
+    const msg = document.createElement('span');
+    msg.textContent = `✓ אושר על ידי המנהל${who ? ` (${who})` : ''}${when}`;
+    strip.append(msg);
+    wrap.append(strip);
   } else if (status === 'approved_for_payroll') {
     const strip = document.createElement('div');
     strip.className = 'av2-approval-inner__strip av2-approval-inner__strip--info';
@@ -302,7 +314,7 @@ function buildApprovalCard({ approval, year, month, instructor, records, summary
       ? ` ב-${new Date(approval.payroll_approved_at).toLocaleDateString('he-IL')}`
       : '';
     const msg = document.createElement('span');
-    msg.textContent = `✓ החודש אושר סופית להעברה לשכר${when}`;
+    msg.textContent = `✓ החודש אושר סופית${when}`;
     strip.append(msg);
     wrap.append(strip);
   }
@@ -321,21 +333,21 @@ async function handleSubmit({ submitBtn, instructor, year, month, records, wrap 
   submitBtn.disabled = true;
   submitBtn.textContent = 'מגיש…';
   try {
-    await submitMonth(instructor.empId, getMonthKey(year, month));
+    await submitMonth(instructor.empId, getMonthKey(year, month), instructor?.name || '');
     const badge = wrap.querySelector('.av2-badge');
     if (badge) {
       badge.className = 'av2-badge av2-badge--warning';
-      badge.textContent = 'הוגש — ממתין לאישור';
+      badge.textContent = 'אושר על ידי העובד / בבקרת מנהל';
     }
     submitBtn.remove();
     const msg = document.createElement('p');
     msg.className = 'av2-approval-inner__meta';
     msg.style.color = 'var(--av2-color-success-text)';
-    msg.textContent = `✓ הוגש בהצלחה ב-${new Date().toLocaleDateString('he-IL')}`;
+    msg.textContent = `✓ אישור העובד נשמר בהצלחה ב-${new Date().toLocaleString('he-IL', { dateStyle: 'short', timeStyle: 'short' })}`;
     wrap.append(msg);
   } catch (err) {
     submitBtn.disabled = false;
-    submitBtn.textContent = 'סיום וסגירת חודש';
+    submitBtn.textContent = 'סיום דיווח ואישור';
     alert(`שגיאה: ${err.message}`);
   }
 }
