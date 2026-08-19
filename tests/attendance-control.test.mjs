@@ -5,6 +5,7 @@ import {
   attendanceControlHtml, resultsHtml, normalizeAttendanceName, calculateWorkHours,
   buildDashboardAttendanceRows, attendanceDateScope, loadAttendanceDashboardDataset,
   attendanceMonthLabel, filterAttendanceRowsByMonth, attendanceExportFilename,
+  attendanceMonthDateRange,
   applyDashboardRouteKilometers, applyDashboardExpenses, compareAttendanceRows, applyAttendanceChoice,
   buildCorrectedAttendanceWorkbook, parseAttendanceWorkbook, attendanceAuditSummary, aggregateDashboardAttendanceRows,
   normalizeAttendanceApiRows, attendanceTeams, DETAIL_HEADERS, MONTHLY_HEADERS, DAILY_HEADERS, rowWorkHours,
@@ -78,6 +79,9 @@ test('selecting July excludes August attendance rows', () => {
 
 test('July title and export name use the explicitly selected month', () => {
   assert.equal(attendanceMonthLabel('2026-07'), 'יולי 2026');
+  assert.deepEqual(attendanceMonthDateRange('2026-02'), { fromDate: '2026-02-01', toDate: '2026-02-28' });
+  assert.deepEqual(attendanceMonthDateRange('2024-02'), { fromDate: '2024-02-01', toDate: '2024-02-29' });
+  assert.deepEqual(attendanceMonthDateRange(''), { fromDate: '', toDate: '' });
   assert.equal(attendanceExportFilename('2026-07'), 'דוח_נוכחות_מתוקן_יולי_2026.xlsx');
   assert.match(attendanceControlHtml(), /data-attendance-title>בקרת נוכחות/);
 });
