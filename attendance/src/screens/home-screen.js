@@ -5,7 +5,6 @@
  */
 
 import { createIcon } from '../components/icon.js';
-import { createMiniCalendar } from '../components/mini-calendar.js';
 import { getMonthRecords, calcMonthSummary, getMonthApproval, submitMonth } from '../services/attendance.service.js';
 import { canEditMonth, editBlockReason, getMonthKey, formatMonthLabel, shouldShowSubmitReminder } from '../services/month-gate.service.js';
 import { exportMonthToExcel } from '../services/excel.service.js';
@@ -97,19 +96,15 @@ export function renderHomeScreen(container, {
   statsEl.className = 'av2-stats-grid';
   statsEl.innerHTML = buildStatSkeletons();
 
-  // ── Workspace: calendar + monthly approval side by side ────────────────
+  // ── Monthly report closing/status area ──────────────────────────────────
   const workspace = document.createElement('div');
-  workspace.className = 'av2-home__workspace';
-
-  const calendarSection = document.createElement('section');
-  calendarSection.className = 'av2-home__calendar';
-  calendarSection.innerHTML = '<p class="av2-home__section-loading">טוען לוח שנה…</p>';
+  workspace.className = 'av2-home__status-area';
 
   const approvalCard = document.createElement('div');
   approvalCard.className = 'av2-approval-card';
   approvalCard.innerHTML = '<p class="av2-approval-card__loading">טוען מצב חודש…</p>';
 
-  workspace.append(calendarSection, approvalCard);
+  workspace.append(approvalCard);
 
   // ── Recent reports (compact list) ───────────────────────────────────────
   const recentSection = document.createElement('section');
@@ -120,11 +115,11 @@ export function renderHomeScreen(container, {
   wrap.append(inner);
   container.append(wrap);
 
-  // ── Load real data (single fetch — feeds stats, calendar and recent list) ─
-  loadAndRender({ instructor, year, month, statsEl, approvalCard, newReportBtn, onMyReports, statusChip, calendarSection, recentSection });
+  // ── Load real data (single fetch — feeds stats, status and recent list) ─
+  loadAndRender({ instructor, year, month, statsEl, approvalCard, newReportBtn, onMyReports, statusChip, recentSection });
 }
 
-async function loadAndRender({ instructor, year, month, statsEl, approvalCard, newReportBtn, onMyReports, statusChip, calendarSection, recentSection }) {
+async function loadAndRender({ instructor, year, month, statsEl, approvalCard, newReportBtn, onMyReports, statusChip, recentSection }) {
   const monthKey = getMonthKey(year, month);
   try {
     const [records, approval] = await Promise.all([
@@ -178,51 +173,14 @@ async function loadAndRender({ instructor, year, month, statsEl, approvalCard, n
       approvalCard.append(xlBtn);
     }
 
-    // Calendar + recent list — both sourced from the single `records` fetch above.
-    renderCalendarSection(calendarSection, recentSection, records, year, month, onMyReports);
+    // The activity summary table is sourced from the same month records.
+    renderRecentList(recentSection, records, year, month, null, onMyReports);
 
   } catch (err) {
     statsEl.innerHTML = `<p class="av2-error">${err.message}</p>`;
     approvalCard.innerHTML = '';
-    calendarSection.innerHTML = '';
     recentSection.innerHTML = '';
   }
-}
-
-// ── Calendar + recent list ──────────────────────────────────────────────────
-
-function renderCalendarSection(calendarSection, recentSection, records, year, month, onMyReports) {
-  calendarSection.innerHTML = '';
-
-  const heading = document.createElement('div');
-  heading.className = 'av2-home__section-heading';
-  const titleBox = document.createElement('div');
-  titleBox.innerHTML = `<h2>לוח חודש</h2><p>${formatMonthLabel(year, month)}</p>`;
-  const clearBtn = document.createElement('button');
-  clearBtn.type = 'button';
-  clearBtn.className = 'av2-btn av2-btn--link';
-  clearBtn.textContent = 'כל החודש';
-  clearBtn.hidden = true;
-  heading.append(titleBox, clearBtn);
-
-  const { wrap: calWrap, clearSelection } = createMiniCalendar({
-    year, month, records,
-    variant: 'home',
-    onDayClick: (dateStr) => {
-      clearBtn.hidden = false;
-      renderRecentList(recentSection, records, year, month, dateStr, onMyReports);
-    }
-  });
-
-  clearBtn.addEventListener('click', () => {
-    clearBtn.hidden = true;
-    clearSelection();
-    renderRecentList(recentSection, records, year, month, null, onMyReports);
-  });
-
-  calendarSection.append(heading, calWrap);
-
-  renderRecentList(recentSection, records, year, month, null, onMyReports);
 }
 
 function renderRecentList(recentSection, records, year, month, selectedDate, onMyReports) {
@@ -252,6 +210,14 @@ function renderRecentList(recentSection, records, year, month, selectedDate, onM
 
   const list = document.createElement('div');
   list.className = 'av2-home__report-list';
+  const tableHead = document.createElement('div');
+  tableHead.className = 'av2-home__report-table-head';
+  for (const label of ['תאריך', 'פעילות', 'בית ספר', 'שעות', 'סה״כ שעות', 'נסיעות']) {
+    const cell = document.createElement('span');
+    cell.textContent = label;
+    tableHead.append(cell);
+  }
+  list.append(tableHead);
   if (!visible.length) {
     const empty = document.createElement('p');
     empty.className = 'av2-home__empty';

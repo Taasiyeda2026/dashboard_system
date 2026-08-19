@@ -57,21 +57,17 @@ button { font-family: inherit; }
 /* ── Desktop ───────────────────────────────────────────────────────────── */
 @media (min-width: 768px) {
   body {
-    display: flex; flex-direction: column; align-items: center;
-    min-height: 100dvh; padding: 16px 12px 24px;
+    display: block; min-height: 100dvh; padding: 0;
+    background: #f2f5f8;
   }
   #app-frame {
-    display: flex; flex-direction: column;
-    width: 100%; max-width: 1100px;
-    background: var(--av2-color-surface);
-    border-radius: var(--av2-radius-lg);
-    border: 1px solid var(--av2-color-border);
-    box-shadow: var(--av2-shadow-md);
+    display: block; width: 100%; max-width: none;
+    background: transparent; border: 0; border-radius: 0; box-shadow: none;
   }
-  #bottom-nav { order: -1; flex-shrink: 0; width: 100%; }
-  .app-shell { min-height: 0; flex: initial; }
-  .app-shell--with-nav { padding-bottom: 0; }
-  .av2-container { max-width: none; padding-inline: var(--av2-space-4); }
+  #bottom-nav { width: 224px; }
+  .app-shell { min-height: 100dvh; background: #f6f8fb; }
+  .app-shell--with-nav { margin-inline-start: 224px; padding-bottom: 0; }
+  .av2-container { max-width: none; padding-inline: 38px; }
 }
 
 /* ── Buttons ───────────────────────────────────────────────────────────── */
