@@ -26,6 +26,25 @@ function currentMonthKey() {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 }
 
+function monthMode(monthKey) {
+  const current = currentMonthKey();
+  if (monthKey === current) return { key: 'current', label: 'בקרה שוטפת' };
+  if (monthKey < current) return { key: 'closed', label: 'בקרה ואישור' };
+  return { key: 'future', label: 'חודש עתידי' };
+}
+
+function recordMonthKey(row = {}) {
+  const raw = row.attendanceDate || row.AttendanceDate || row.report_date || row.date;
+  if (raw instanceof Date && !Number.isNaN(raw.getTime())) {
+    return `${raw.getFullYear()}-${String(raw.getMonth() + 1).padStart(2, '0')}`;
+  }
+  const value = text(raw);
+  let match = value.match(/^(20\d{2})-(\d{2})/);
+  if (match) return `${match[1]}-${match[2]}`;
+  match = value.match(/^(\d{1,2})[/.\-](\d{1,2})[/.\-](20\d{2})$/);
+  return match ? `${match[3]}-${String(match[2]).padStart(2, '0')}` : '';
+}
+
 function isActiveEmployee(row = {}) {
   if (row.active === false || row.is_active === false) return false;
   const value = text(row.active ?? row.is_active).toLowerCase();
@@ -33,7 +52,7 @@ function isActiveEmployee(row = {}) {
 }
 
 function employeeId(row = {}) {
-  return text(row.emp_id || row.employee_id || row.employeeId);
+  return text(row.emp_id || row.employee_id || row.employeeId || row.EmployeeId || row.empNum || row.ID || row.id);
 }
 
 function ensureStyles() {
@@ -47,8 +66,8 @@ function ensureStyles() {
     .admin-attendance-standalone__top { display:flex; align-items:flex-start; justify-content:space-between; gap:18px; margin-bottom:18px; }
     .admin-attendance-standalone__title-wrap { display:flex; align-items:flex-start; gap:12px; min-width:0; }
     .admin-attendance-standalone__back { appearance:none; border:1px solid var(--color-border,#dbe3ec); background:var(--color-surface,#fff); color:var(--color-text,#172033); border-radius:10px; padding:8px 11px; cursor:pointer; font:inherit; }
-    .admin-attendance-standalone__top h1 { margin:0 0 4px; font-size:26px; line-height:1.2; }
-    .admin-attendance-standalone__top p { margin:0; color:var(--color-text-secondary,#64748b); font-size:13px; }
+    .admin-attendance-standalone__top h1 { margin:0; font-size:26px; line-height:1.2; }
+    .admin-attendance-standalone__mode { display:inline-flex; margin-top:6px; border-radius:999px; padding:4px 8px; background:#eef2ff; color:#334155; font-size:11px; font-weight:700; }
     .admin-attendance-standalone__tools { display:flex; align-items:end; gap:8px; flex-wrap:wrap; }
     .admin-attendance-standalone__month { display:grid; gap:4px; font-size:12px; color:var(--color-text-secondary,#64748b); }
     .admin-attendance-standalone__month input { min-height:38px; border:1px solid var(--color-border,#dbe3ec); border-radius:10px; padding:6px 10px; background:var(--color-surface,#fff); color:var(--color-text,#172033); font:inherit; }
@@ -62,7 +81,7 @@ function ensureStyles() {
     .admin-attendance-team__head h2 { margin:0; font-size:16px; }
     .admin-attendance-team__head span { color:var(--color-text-secondary,#64748b); font-size:12px; }
     .admin-attendance-table-wrap { overflow:auto; }
-    .admin-attendance-table { width:100%; border-collapse:collapse; min-width:900px; }
+    .admin-attendance-table { width:100%; border-collapse:collapse; min-width:980px; }
     .admin-attendance-table th,.admin-attendance-table td { text-align:right; padding:11px 13px; border-bottom:1px solid var(--color-border,#edf1f5); vertical-align:middle; font-size:13px; }
     .admin-attendance-table th { color:var(--color-text-secondary,#64748b); font-size:12px; font-weight:700; background:rgba(248,250,252,.65); }
     .admin-attendance-table tr:last-child td { border-bottom:0; }
@@ -152,9 +171,10 @@ function groupEmployees(employees) {
   return [...groups.entries()].sort(([a], [b]) => a.localeCompare(b, 'he'));
 }
 
-function actionButtons(empId, workflowRow, finalApproval) {
+function actionButtons(empId, workflowRow, finalApproval, monthKey) {
   const status = workflowStatus(workflowRow, finalApproval);
-  const finalButton = status.raw === 'manager_approved' && !finalApproval
+  const canApprove = monthMode(monthKey).key === 'closed';
+  const finalButton = canApprove && status.raw === 'manager_approved' && !finalApproval
     ? `<button type="button" class="is-primary" data-admin-attendance-final="${escapeHtml(empId)}">אישור סופי</button>`
     : '';
   const managerPdfUrl = text(workflowRow.manager_pdf_sharepoint_url);
@@ -162,13 +182,23 @@ function actionButtons(empId, workflowRow, finalApproval) {
   const pdfButton = managerPdfUrl || finalPdfPath
     ? `<button type="button" data-admin-attendance-pdf="${escapeHtml(empId)}">צפייה ב-PDF</button>`
     : '';
-  const releaseButton = ['submitted', 'manager_approved', 'approved'].includes(status.raw)
+  const releaseButton = canApprove && ['submitted', 'manager_approved', 'approved'].includes(status.raw)
     ? `<button type="button" data-admin-attendance-release="${escapeHtml(empId)}">שחרור נעילה</button>`
     : '';
   return `<div class="admin-attendance-actions">${finalButton}${pdfButton}${releaseButton}</div>`;
 }
 
-function summaryHtml(employees, workflowByEmployee, finalByEmployee) {
+function summaryHtml(employees, workflowByEmployee, finalByEmployee, recordCounts, monthKey) {
+  if (monthMode(monthKey).key === 'current') {
+    const reported = employees.filter((employee) => (recordCounts.get(employeeId(employee)) || 0) > 0).length;
+    const records = [...recordCounts.values()].reduce((sum, count) => sum + count, 0);
+    return `<div class="admin-attendance-standalone__summary">
+      <article><span>עובדים פעילים</span><strong>${employees.length}</strong></article>
+      <article><span>דיווחו</span><strong>${reported}</strong></article>
+      <article><span>ללא דיווח</span><strong>${Math.max(0, employees.length - reported)}</strong></article>
+      <article><span>רשומות</span><strong>${records}</strong></article>
+    </div>`;
+  }
   let employeeApproved = 0;
   let managerApproved = 0;
   let finalApproved = 0;
@@ -187,26 +217,28 @@ function summaryHtml(employees, workflowByEmployee, finalByEmployee) {
   </div>`;
 }
 
-function groupsHtml(employees, workflowByEmployee, finalByEmployee, monthKey) {
+function groupsHtml(employees, workflowByEmployee, finalByEmployee, recordCounts, monthKey) {
   return groupEmployees(employees).map(([manager, rows]) => {
     const body = rows.map((employee) => {
       const id = employeeId(employee);
       const workflow = workflowByEmployee.get(id) || {};
       const finalApproval = finalByEmployee.get(id) || null;
       const status = workflowStatus(workflow, finalApproval);
+      const reportCount = recordCounts.get(id) || 0;
       return `<tr data-admin-attendance-row="${escapeHtml(id)}">
         <td class="admin-attendance-person"><strong>${escapeHtml(text(employee.full_name) || id)}</strong><small>${escapeHtml(id)}${text(employee.employment_type) ? ` · ${escapeHtml(text(employee.employment_type))}` : ''}</small></td>
+        <td>${reportCount ? `<span class="admin-attendance-status is-ok">קיים · ${reportCount}</span>` : '<span class="admin-attendance-status">אין דיווח</span>'}</td>
         <td>${approvalCell(workflow.submitted_by_name, workflow.submitted_at, 'טרם אושר עובד')}</td>
         <td>${approvalCell(workflow.manager_approved_by_name, workflow.manager_approved_at, 'טרם אושר מנהל')}</td>
         <td>${approvalCell(finalApproval?.approved_by_name, finalApproval?.approved_at, 'טרם אושר סופית')}</td>
         <td><span class="admin-attendance-status ${status.cls}">${escapeHtml(status.label)}</span></td>
-        <td>${actionButtons(id, workflow, finalApproval)}</td>
+        <td>${actionButtons(id, workflow, finalApproval, monthKey)}</td>
       </tr>`;
     }).join('');
     return `<section class="admin-attendance-team">
       <header class="admin-attendance-team__head"><h2>${escapeHtml(manager)}</h2><span>${rows.length} עובדים · ${escapeHtml(monthKey)}</span></header>
       <div class="admin-attendance-table-wrap"><table class="admin-attendance-table">
-        <thead><tr><th>עובד</th><th>אישור עובד</th><th>אישור מנהל</th><th>אישור סופי</th><th>סטטוס</th><th>פעולות</th></tr></thead>
+        <thead><tr><th>עובד</th><th>דיווח</th><th>אישור עובד</th><th>אישור מנהל</th><th>אישור סופי</th><th>סטטוס</th><th>פעולות</th></tr></thead>
         <tbody>${body}</tbody>
       </table></div>
     </section>`;
@@ -230,16 +262,25 @@ async function renderData(root, monthKey, message = '') {
   try {
     const employees = await loadEmployees();
     const ids = employees.map(employeeId).filter(Boolean);
-    const [workflowRows, finalRows] = await Promise.all([
+    const [workflowRows, finalRows, attendanceRows] = await Promise.all([
       api.attendanceControlMonthWorkflowStatuses({ monthKey, employeeIds: ids }),
-      api.listPayrollControlApprovals({ monthKey, employeeIds: ids, statuses: ['approved_for_payroll'] })
+      api.listPayrollControlApprovals({ monthKey, employeeIds: ids, statuses: ['approved_for_payroll'] }),
+      typeof api.attendanceControlRecords === 'function' ? api.attendanceControlRecords({ employeeIds: ids }) : Promise.resolve([])
     ]);
     if (token !== renderToken || !root.isConnected) return;
     const workflowByEmployee = new Map((workflowRows || []).map((row) => [text(row.employee_id || row.employeeId), row]));
     const finalByEmployee = new Map((finalRows || []).map((row) => [text(row.employee_id || row.employeeId), row]));
-    root.__adminAttendanceContext = { employees, workflowByEmployee, finalByEmployee, monthKey };
+    const recordCounts = new Map(ids.map((id) => [id, 0]));
+    for (const row of Array.isArray(attendanceRows) ? attendanceRows : []) {
+      const id = employeeId(row);
+      if (!recordCounts.has(id) || recordMonthKey(row) !== monthKey) continue;
+      recordCounts.set(id, (recordCounts.get(id) || 0) + 1);
+    }
+    root.__adminAttendanceContext = { employees, workflowByEmployee, finalByEmployee, recordCounts, monthKey };
+    const modeEl = root.querySelector('[data-admin-attendance-mode]');
+    if (modeEl) modeEl.textContent = monthMode(monthKey).label;
     if (body) body.innerHTML = employees.length
-      ? `${summaryHtml(employees, workflowByEmployee, finalByEmployee)}${groupsHtml(employees, workflowByEmployee, finalByEmployee, monthKey)}`
+      ? `${summaryHtml(employees, workflowByEmployee, finalByEmployee, recordCounts, monthKey)}${groupsHtml(employees, workflowByEmployee, finalByEmployee, recordCounts, monthKey)}`
       : '<div class="admin-attendance-empty">לא נמצאו עובדים פעילים להצגה.</div>';
   } catch (error) {
     if (token !== renderToken || !root.isConnected) return;
@@ -277,6 +318,10 @@ async function handleAction(button, root) {
     return;
   }
   if (!finalEmpId && !releaseEmpId) return;
+  if (monthMode(monthKey).key !== 'closed') {
+    setMessage(root, 'אישור חודשי זמין לאחר סיום החודש.');
+    return;
+  }
   button.disabled = true;
   try {
     if (finalEmpId) {
@@ -306,10 +351,10 @@ function standaloneHtml() {
     <div class="admin-attendance-standalone__top">
       <div class="admin-attendance-standalone__title-wrap">
         <button type="button" class="admin-attendance-standalone__back" data-admin-attendance-back>חזרה לניהול</button>
-        <div><h1>בקרת נוכחות אדמין</h1><p>בקרה סופית על כלל העובדים, מקובצים לפי צוות ומנהל.</p></div>
+        <div><h1>בקרת נוכחות אדמין</h1><span class="admin-attendance-standalone__mode" data-admin-attendance-mode>בקרה שוטפת</span></div>
       </div>
       <div class="admin-attendance-standalone__tools">
-        <label class="admin-attendance-standalone__month"><span>חודש דיווח</span><input type="month" value="${monthKey}" data-admin-attendance-month></label>
+        <label class="admin-attendance-standalone__month"><span>חודש</span><input type="month" value="${monthKey}" max="${monthKey}" data-admin-attendance-month></label>
         <button type="button" class="admin-attendance-standalone__refresh" data-admin-attendance-refresh>רענון</button>
       </div>
     </div>
@@ -377,7 +422,13 @@ function handleChange(event) {
   if (!input?.matches('[data-admin-attendance-month]')) return;
   const root = input.closest(`[${STANDALONE_ATTRIBUTE}]`);
   if (!root) return;
-  void renderData(root, text(input.value) || currentMonthKey());
+  const month = text(input.value) || currentMonthKey();
+  if (month > currentMonthKey()) {
+    input.value = currentMonthKey();
+    void renderData(root, currentMonthKey());
+    return;
+  }
+  void renderData(root, month);
 }
 
 function start() {
