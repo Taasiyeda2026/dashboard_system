@@ -258,3 +258,27 @@
 .manager-board-screen .manager-workspace-report-count {
   font-size: .94rem;
 }
+
+/* Manager control statuses are plain text, never colored pill/bubble badges. */
+.manager-board-screen .manager-workspace-status {
+  display: inline;
+  min-width: 0;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  white-space: nowrap;
+}
+
+.manager-board-screen .manager-workspace-status.is-ok {
+  color: #166534;
+}
+
+.manager-board-screen .manager-workspace-status.is-pending {
+  color: #9a3412;
+}
+
+.manager-board-screen .manager-workspace-status.is-muted {
+  color: #64748b;
+}
