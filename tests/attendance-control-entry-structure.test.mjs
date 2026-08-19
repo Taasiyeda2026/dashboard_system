@@ -10,6 +10,7 @@ const workspaceSource = await readFile(new URL('../frontend/src/manager-board-wo
 const adminHomeSource = await readFile(new URL('../frontend/src/screens/admin-home.js', import.meta.url), 'utf8');
 const rosterSql = await readFile(new URL('../supabase/migrations/20260817213953_manager_workspace_role_access.sql', import.meta.url), 'utf8');
 const recordsSql = await readFile(new URL('../supabase/migrations/20260817215048_payroll_attendance_v2_control_bridge.sql', import.meta.url), 'utf8');
+const liveRecordsSql = await readFile(new URL('../supabase/migrations/20260819223000_payroll_attendance_live_records_access.sql', import.meta.url), 'utf8');
 const configSource = await readFile(new URL('../frontend/src/config.js', import.meta.url), 'utf8');
 const swSource = await readFile(new URL('../frontend/sw.js', import.meta.url), 'utf8');
 const indexSource = await readFile(new URL('../index.html', import.meta.url), 'utf8');
@@ -46,11 +47,14 @@ test('both בקרת נוכחות entry points bind the same central attendance-c
 test('manager-board attendance scopes records to the manager team at the query, not only in the UI', () => {
   assert.match(workspaceSource, /supabase\.rpc\('get_manager_team_roster'/);
   assert.match(workspaceSource, /employeeIds/);
+  assert.match(workspaceSource, /attendanceMonthDateRange\(ym\)/);
   assert.match(workspaceSource, /target\.attendanceControlRecords\(\{\s*\.\.\.opts,\s*employeeIds\s*\}\)/);
   assert.match(workspaceSource, /if \(!employeeIds\.length\) return \[\];/);
   assert.match(rosterSql, /if v_role = 'activities_manager' then\s+v_manager_name := v_own_name;/);
   assert.match(recordsSql, /v_role = 'activities_manager'/);
   assert.match(recordsSql, /lower\(trim\(coalesce\(ci\.direct_manager, ''\)\)\) = lower\(trim\(coalesce\(v_own_name, ''\)\)\)/);
+  assert.match(liveRecordsSql, /'manager', 'instructor_manager'/);
+  assert.match(liveRecordsSql, /month submission status is unrelated/);
 });
 
 test('activities_manager cannot pick another manager on the board', () => {
@@ -69,8 +73,7 @@ test('admin attendance control loads every manager team from the existing roster
 });
 
 test('deploy cache markers were bumped for the unified attendance-control labels', () => {
-  assert.match(swSource, /const CACHE_VERSION = 1554;/);
-  assert.match(configSource, /attendance-control-unified-naming-sw-cache-1554-20260819-v1/);
-  assert.match(indexSource, /manager-board-runtime\.js\?v=20260819-attendance-control-unify-v1/);
-  assert.match(indexSource, /manager-board-workspace-runtime\.js\?v=20260819-attendance-control-unify-v1/);
+  assert.match(swSource, /const CACHE_VERSION = 1572;/);
+  assert.match(configSource, /attendance-control-live-records-sw-cache-1572-20260819-v1/);
+  assert.match(indexSource, /manager-board-workspace-runtime\.js\?v=20260819-attendance-control-live-records-v1/);
 });
