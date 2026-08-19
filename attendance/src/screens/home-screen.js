@@ -284,6 +284,10 @@ function buildReportRow(record) {
   mSpan.textContent = record.school_name_snapshot || record.authority_name_snapshot || '';
   mainCol.append(mStrong, mSpan);
 
+  const schoolCol = document.createElement('div');
+  schoolCol.className = 'av2-home__report-row-school';
+  schoolCol.textContent = record.school_name_snapshot || record.authority_name_snapshot || '—';
+
   const timeCol = document.createElement('div');
   timeCol.className = 'av2-home__report-row-time';
   const tStrong = document.createElement('strong');
@@ -292,7 +296,15 @@ function buildReportRow(record) {
   tSpan.textContent = `${Number(record.total_hours || 0).toFixed(2)} שעות · ${Number(record.roundtrip_km || 0).toFixed(0)} ק״מ`;
   timeCol.append(tStrong, tSpan);
 
-  row.append(dateCol, mainCol, timeCol);
+  const hoursCol = document.createElement('div');
+  hoursCol.className = 'av2-home__report-row-hours';
+  hoursCol.textContent = `${Number(record.total_hours || 0).toFixed(2)} ש`;
+
+  const kmCol = document.createElement('div');
+  kmCol.className = 'av2-home__report-row-km';
+  kmCol.textContent = `${Number(record.roundtrip_km || 0).toFixed(0)} ק״מ`;
+
+  row.append(dateCol, mainCol, schoolCol, timeCol, hoursCol, kmCol);
   return row;
 }
 

@@ -1,17 +1,15 @@
 /**
- * time-picker.js — shared compact two-select time picker (hour + minute).
- * Used by both the New Report form and the My Reports edit form, so
- * creation and editing render the exact same start/end-time control.
+ * time-picker.js — shared compact time picker (hour + minute dropdowns).
+ * Used by both the New Report form and the My Reports edit form.
  */
 
+import { createCompactSelect } from './compact-select.js';
+
 /**
- * Creates a compact two-select time picker (hour + minute).
- * Returns { wrap, hourSel, minSel, getValue(), setMinHour(h) }
- *
- * @param {string} id            Base id (suffixed with -h / -m)
- * @param {string} label         Field label text
+ * @param {string} id
+ * @param {string} label
  * @param {string} defaultValue  "HH:MM" or ""
- * @param {number} minuteStep    Minute increment (default 5; edit uses 1 for exact legacy values)
+ * @param {number} minuteStep   Minute increment (default 5)
  */
 export function createTimePicker(id, label, defaultValue = '', minuteStep = 5) {
   const defMatch = defaultValue.match(/^(\d{1,2}):(\d{2})$/);
@@ -28,77 +26,79 @@ export function createTimePicker(id, label, defaultValue = '', minuteStep = 5) {
   const row = document.createElement('div');
   row.className = 'av2-time-picker';
 
-  const hourSel = document.createElement('select');
-  hourSel.id = `${id}-h`;
-  hourSel.className = 'av2-time-picker__sel av2-time-picker__hour';
-  hourSel.setAttribute('aria-label', `${label} — שעה`);
+  let minHour = 0;
+
+  const hourControl = createCompactSelect({
+    id: `${id}-h`,
+    placeholder: 'שע׳',
+    ariaLabel: `${label} — שעה`,
+    maxHeight: 260,
+    compact: true,
+  });
 
   const sep = document.createElement('span');
   sep.className = 'av2-time-picker__sep';
   sep.setAttribute('aria-hidden', 'true');
   sep.textContent = ':';
 
-  const minSel = document.createElement('select');
-  minSel.id = `${id}-m`;
-  minSel.className = 'av2-time-picker__sel av2-time-picker__min';
-  minSel.setAttribute('aria-label', `${label} — דקות`);
+  const minControl = createCompactSelect({
+    id: `${id}-m`,
+    placeholder: 'דק׳',
+    ariaLabel: `${label} — דקות`,
+    maxHeight: 260,
+    compact: true,
+  });
 
-  function buildHours(minHour = 0) {
-    const prev = hourSel.value;
-    hourSel.innerHTML = '';
-    const ph = document.createElement('option');
-    ph.value = ''; ph.textContent = 'שע׳'; ph.disabled = true;
-    hourSel.append(ph);
-    for (let h = minHour; h <= 23; h++) {
-      const opt = document.createElement('option');
-      opt.value = String(h);
-      opt.textContent = String(h).padStart(2, '0');
-      hourSel.append(opt);
+  function buildHourOptions(fromHour = 0) {
+    minHour = fromHour;
+    const opts = [{ value: '', label: 'שע׳' }];
+    for (let h = fromHour; h <= 23; h++) {
+      opts.push({ value: String(h), label: String(h).padStart(2, '0') });
     }
-    // Restore previous if still in range
-    if (prev !== '' && parseInt(prev, 10) >= minHour) {
-      hourSel.value = prev;
+    const prev = hourControl.getValue();
+    hourControl.setOptions(opts);
+    if (prev !== '' && parseInt(prev, 10) >= fromHour) {
+      hourControl.setValue(prev);
     } else {
-      hourSel.value = '';
+      hourControl.setValue('');
     }
   }
 
-  function buildMinutes() {
-    minSel.innerHTML = '';
-    const ph = document.createElement('option');
-    ph.value = ''; ph.textContent = 'דק׳'; ph.disabled = true;
-    minSel.append(ph);
+  function buildMinuteOptions() {
+    const opts = [{ value: '', label: 'דק׳' }];
     for (let m = 0; m < 60; m += minuteStep) {
-      const opt = document.createElement('option');
-      opt.value = String(m);
-      opt.textContent = String(m).padStart(2, '0');
-      minSel.append(opt);
+      opts.push({ value: String(m), label: String(m).padStart(2, '0') });
     }
+    minControl.setOptions(opts);
   }
 
-  buildHours();
-  buildMinutes();
+  buildHourOptions();
+  buildMinuteOptions();
 
-  if (defH !== null) hourSel.value = String(defH);
+  if (defH !== null) hourControl.setValue(String(defH));
   if (defM !== null) {
-    // Round to nearest valid minute slot
     const rounded = Math.round(defM / minuteStep) * minuteStep;
-    minSel.value = String(rounded < 60 ? rounded : 60 - minuteStep);
+    minControl.setValue(String(rounded < 60 ? rounded : 60 - minuteStep));
   }
+
+  hourControl.wrap.classList.add('av2-time-picker__part');
+  minControl.wrap.classList.add('av2-time-picker__part');
 
   function getValue() {
-    if (hourSel.value === '' || minSel.value === '') return '';
-    return String(hourSel.value).padStart(2, '0') + ':' + String(minSel.value).padStart(2, '0');
+    const h = hourControl.getValue();
+    const m = minControl.getValue();
+    if (h === '' || m === '') return '';
+    return String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0');
   }
 
-  row.append(hourSel, sep, minSel);
+  row.append(hourControl.wrap, sep, minControl.wrap);
   wrap.append(labelEl, row);
 
   return {
     wrap,
-    hourSel,
-    minSel,
+    hourSel: hourControl.select,
+    minSel: minControl.select,
     getValue,
-    setMinHour: buildHours,
+    setMinHour: buildHourOptions,
   };
 }

@@ -11,10 +11,16 @@
   gap: 14px;
 }
 
-/* Forms stay narrower than the general 1080px desktop content column. */
-@media (min-width: 640px) {
+@media (min-width: 768px) {
   .av2-report__inner {
-    max-width: 860px;
+    max-width: 700px;
+    margin-inline: auto;
+    width: 100%;
+    gap: 16px;
+  }
+
+  .av2-report__title {
+    font-size: 1.375rem;
   }
 }
 
@@ -35,6 +41,26 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+@media (min-width: 768px) {
+  .av2-report__form-area {
+    gap: 0;
+  }
+
+  .av2-form-section-title {
+    margin-top: 22px;
+    padding-bottom: 5px;
+    font-size: 0.75rem;
+  }
+
+  .av2-form-section-title:first-child {
+    margin-top: 0;
+  }
+
+  .av2-report__form {
+    gap: 13px 14px;
+  }
 }
 
 /* ── Section dividers inside the form grid ───────────────────────────────── */
@@ -195,7 +221,7 @@
 /* 2-column compact grid */
 .av2-report__form {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px 14px;
   align-items: start;
 }
@@ -219,14 +245,14 @@
 
 .av2-time-picker {
   display: flex;
-  align-items: center;
-  gap: 2px;
+  align-items: stretch;
+  gap: 0;
   border: 1.5px solid var(--av2-color-border);
   border-radius: var(--av2-radius-md);
   background: var(--av2-color-surface);
-  padding: 0 6px;
-  height: 40px;
-  overflow: hidden;
+  padding: 0;
+  min-height: 42px;
+  overflow: visible;
   transition: border-color 0.12s;
 }
 
@@ -235,34 +261,45 @@
   box-shadow: 0 0 0 3px rgba(26, 46, 74, 0.10);
 }
 
-.av2-time-picker__sel {
-  border: none;
-  background: transparent;
-  font-size: 0.9375rem;
-  font-weight: 600;
-  font-family: inherit;
-  color: var(--av2-color-text);
-  padding: 0 2px;
+.av2-time-picker__part {
   flex: 1;
   min-width: 0;
-  height: 100%;
-  cursor: pointer;
-  -webkit-appearance: auto;
-  appearance: auto;
+  position: relative;
 }
 
-.av2-time-picker__sel:focus {
-  outline: none;
+.av2-time-picker__part .av2-csel__trigger {
+  border: none;
+  border-radius: 0;
+  min-height: 40px;
+  box-shadow: none;
+  background: transparent;
+}
+
+.av2-time-picker__part .av2-csel__trigger.is-open,
+.av2-time-picker__part .av2-csel__trigger:focus {
+  box-shadow: none;
   background: var(--av2-color-accent-subtle);
-  border-radius: 6px;
+}
+
+.av2-time-picker__part:first-child .av2-csel__trigger {
+  border-end-start-radius: var(--av2-radius-md);
+  border-start-start-radius: var(--av2-radius-md);
+}
+
+.av2-time-picker__part:last-child .av2-csel__trigger {
+  border-end-end-radius: var(--av2-radius-md);
+  border-start-end-radius: var(--av2-radius-md);
 }
 
 .av2-time-picker__sep {
+  display: flex;
+  align-items: center;
   font-weight: 700;
   color: var(--av2-color-text-muted);
-  font-size: 1rem;
+  font-size: 0.9375rem;
   flex-shrink: 0;
   user-select: none;
+  padding: 0 2px;
 }
 
 /* ── Hours calculated display ────────────────────────────────────────────── */
@@ -298,7 +335,8 @@
 .av2-field--invalid .av2-field__input,
 .av2-field--invalid .av2-field__select,
 .av2-field--invalid .av2-time-picker,
-.av2-field--invalid .av2-ssel__trigger {
+.av2-field--invalid .av2-ssel__trigger,
+.av2-field--invalid .av2-csel__trigger {
   border-color: #dc2626;
   background: #fef2f2;
 }
@@ -480,6 +518,136 @@
   text-align: center;
   font-size: 0.8125rem;
   color: var(--av2-color-text-muted);
+}
+
+/* ── Compact select (.av2-csel) — short lists, no search ─────────────────── */
+
+.av2-csel {
+  position: relative;
+}
+
+.av2-csel__trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-height: 42px;
+  padding: 0 10px;
+  border: 1.5px solid var(--av2-color-border);
+  border-radius: var(--av2-radius-md);
+  background: var(--av2-color-surface);
+  color: var(--av2-color-text);
+  font-family: inherit;
+  font-size: 0.875rem;
+  text-align: start;
+  cursor: pointer;
+  gap: 6px;
+  transition: border-color 0.12s;
+}
+
+.av2-csel__trigger:hover {
+  border-color: #b0b9cc;
+}
+
+.av2-csel__trigger:focus,
+.av2-csel__trigger.is-open {
+  outline: none;
+  border-color: var(--av2-color-accent);
+  box-shadow: 0 0 0 3px rgba(26, 46, 74, 0.10);
+}
+
+.av2-csel__trigger:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.av2-csel__trigger-text {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.av2-csel__trigger-text[data-empty='true'] {
+  color: var(--av2-color-text-muted);
+}
+
+.av2-csel__chevron {
+  flex-shrink: 0;
+  width: 0;
+  height: 0;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-top: 5px solid var(--av2-color-text-muted);
+  transition: transform 0.15s;
+}
+
+.av2-csel__trigger.is-open .av2-csel__chevron {
+  transform: rotate(180deg);
+}
+
+.av2-csel__panel {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 60;
+  background: var(--av2-color-surface);
+  border: 1px solid var(--av2-color-border);
+  border-radius: var(--av2-radius-md);
+  box-shadow: 0 4px 20px rgba(15, 23, 42, 0.12);
+  overflow: hidden;
+}
+
+.av2-csel__panel[hidden] {
+  display: none !important;
+}
+
+.av2-csel__options {
+  overflow-y: auto;
+  max-height: var(--av2-csel-max-height, 260px);
+  overscroll-behavior: contain;
+}
+
+.av2-csel__option {
+  display: block;
+  width: 100%;
+  padding: 7px 10px;
+  text-align: start;
+  font-family: inherit;
+  font-size: 0.875rem;
+  color: var(--av2-color-text);
+  background: none;
+  border: none;
+  cursor: pointer;
+  line-height: 1.35;
+}
+
+.av2-csel__option:hover,
+.av2-csel__option:focus {
+  background: var(--av2-color-bg);
+  outline: none;
+}
+
+.av2-csel__option.is-selected {
+  color: var(--av2-color-accent);
+  font-weight: 600;
+  background: var(--av2-color-accent-subtle);
+}
+
+.av2-csel--compact .av2-csel__trigger {
+  min-height: 40px;
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+
+@media (min-width: 768px) {
+  .av2-field__input,
+  .av2-field__select,
+  .av2-ssel__trigger,
+  .av2-csel__trigger {
+    min-height: 42px;
+  }
 }
 
 /* ── Save-confirmation summary (compact key-value list, not a table) ──────── */
