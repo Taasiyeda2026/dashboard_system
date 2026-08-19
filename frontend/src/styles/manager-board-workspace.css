@@ -153,7 +153,13 @@
 }
 .manager-workspace-folder-link{padding:5px 9px;border:1px solid #bfdbfe;background:#eff6ff;color:#1d4ed8}
 .manager-workspace-person{min-width:180px}
-.manager-workspace-tracking-table td:not(:first-child){text-align:center}
+.manager-workspace-tracking-table{table-layout:fixed;width:100%}
+.manager-workspace-tracking-table th,.manager-workspace-tracking-table td{text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.manager-workspace-tracking-table th:first-child,.manager-workspace-tracking-table td:first-child{width:24%;text-align:start;white-space:normal}
+.manager-workspace-tracking-table th:last-child,.manager-workspace-tracking-table td:last-child{width:10%}
+.manager-workspace-tracking-table th:not(:first-child):not(:last-child),.manager-workspace-tracking-table td:not(:first-child):not(:last-child){width:calc(66% / 7)}
+.manager-workspace-table-wrap:has(.manager-workspace-tracking-table){overflow-x:auto}
+.manager-workspace-tracking-table{min-width:780px}
 .manager-workspace-followup-cell.is-done{color:#166534;font-size:1rem;font-weight:900}
 .manager-workspace-followup-cell--blocked{background:#f1f5f9}
 .manager-workspace-source-note{margin:0;padding:12px 16px;border-top:1px solid #e2e8f0;background:#f8fafc;color:#64748b;font-size:.8rem}
