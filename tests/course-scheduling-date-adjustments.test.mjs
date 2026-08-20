@@ -15,6 +15,28 @@ test('an available=false exception proposes the next weekly dates and leaves the
   assert.equal(result.movedCount,2); assert.deepEqual(meetings,original);
 });
 
+test('an active blocking school holiday shifts the sequence without an instructor exception',()=>{
+  const holidayMeetings=['2026-10-20','2026-10-27','2026-11-03'].map((date)=>({date,start_time:'10:00',end_time:'11:00'}));
+  const result=proposeDateAdjustments({
+    meetings:holidayMeetings,
+    rules:[{weekday:2,available:true,start_time:'08:00',end_time:'15:00'}],
+    schoolCalendar:[{start_date:'2026-10-27',end_date:'2026-10-27',blocks_scheduling:true,is_active:true}]
+  });
+  assert.equal(result?.valid,true);
+  assert.deepEqual(result.meetings.map(x=>x.date),['2026-10-20','2026-11-03','2026-11-10']);
+  assert.equal(result.meetings.length,holidayMeetings.length);
+  assert.equal(result.meetings.some(x=>x.date==='2026-10-27'),false);
+});
+
+test('two consecutive blocking holidays skip two weeks and leave unaffected sequences unchanged',()=>{
+  const holidayMeetings=['2026-10-20','2026-10-27','2026-11-03'].map((date)=>({date,start_time:'10:00',end_time:'11:00'}));
+  const schoolCalendar=['2026-10-27','2026-11-03'].map((date)=>({start_date:date,end_date:date,blocks_scheduling:true,is_active:true}));
+  const result=proposeDateAdjustments({meetings:holidayMeetings,rules:[{weekday:2,available:true,start_time:'08:00',end_time:'15:00'}],schoolCalendar});
+  assert.deepEqual(result.meetings.map(x=>x.date),['2026-10-20','2026-11-10','2026-11-17']);
+  assert.equal(result.meetings.length,holidayMeetings.length);
+  assert.equal(proposeDateAdjustments({meetings:holidayMeetings,rules:[{weekday:2,available:true,start_time:'08:00',end_time:'15:00'}],schoolCalendar:[]}),null);
+});
+
 test('a narrower exception proposes an adjustment even though regular weekly availability covers the meeting',()=>{
   const result=proposeDateAdjustments({meetings,rules,exceptions:[{exception_date:'2027-01-10',available:true,start_time:'10:30',end_time:'12:00'}]});
   assert.equal(result?.valid,true);
@@ -79,6 +101,18 @@ test('migration stores draft proposals separately and applies dates atomically t
   assert.match(trigger,/foreach holder in array holders/);
   assert.doesNotMatch(trigger,/holder:=coalesce/);
   assert.doesNotMatch(sql,/backfill|approval_override/i);
+});
+
+test('calendar-change migration shifts only affected open series and guards the five election-day rows',async()=>{
+  const sql=await readFile(new URL('../supabase/migrations/20260820120000_shift_open_activity_series_after_calendar_block.sql',import.meta.url),'utf8');
+  assert.match(sql,/sc\.is_active is true\s+and sc\.blocks_scheduling is true/s);
+  assert.match(sql,/first_blocked\.\.(?:array_length|coalesce)/);
+  assert.match(sql,/candidate := candidate \+ 7/);
+  assert.match(sql,/start_date = \$36, end_date = \$37/);
+  assert.match(sql,/lower\(btrim\(coalesce\(a\.status::text, ''\)\)\) in \('פתוח', 'open'\)/);
+  assert.match(sql,/expected_5_open_activities_on_2026_10_27_found_/);
+  assert.match(sql,/title = 'יום הבחירות לכנסת ה-26'/);
+  assert.doesNotMatch(sql,/update public\.activities[\s\S]*?emp_id\s*=/);
 });
 
 test('SQL validation preserves the official meeting count and proposed-date eligibility gates',async()=>{
