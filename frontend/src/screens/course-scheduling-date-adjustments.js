@@ -58,6 +58,7 @@ export function proposeDateAdjustments({ meetings = [], rules = [], exceptions =
   });
   const hasEndTimeCap = ordered.some((m, i) => m.end_time !== String(meetings[i]?.end_time || ''));
   const firstBlocked = ordered.findIndex((meeting) => {
+    if (blockedDates.has(meeting.date)) return true;
     const exception = exceptionMap.get(meeting.date);
     if (!exception || !weeklyAllows(meeting, rules)) return false;
     return exception.available === false
