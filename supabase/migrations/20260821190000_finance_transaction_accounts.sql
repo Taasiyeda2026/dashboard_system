@@ -65,6 +65,11 @@ alter table public.finance_transaction_accounts enable row level security;
 alter table public.finance_transaction_account_lines enable row level security;
 alter table public.finance_transaction_account_meetings enable row level security;
 
+-- Finance users need the same cancellation facts used by the server-side billing calculator.
+create policy finance_course_meeting_cancellations_read on public.course_meeting_cancellations
+for select to authenticated
+using ((select public.app_can_access_finance()));
+
 -- Generating rows are reservation claims, not billed history. Normal finance reads only see finalized/cancelled documents.
 create policy finance_transaction_accounts_read on public.finance_transaction_accounts
 for select to authenticated
@@ -138,7 +143,6 @@ begin
     raise exception 'invalid_transaction_account';
   end if;
 
-  -- Serialize retries for one school/batch and return the existing reservation unchanged.
   perform pg_advisory_xact_lock(hashtextextended(p_idempotency_key::text || ':' || btrim(p_institution_symbol), 0));
   select * into v_account
   from public.finance_transaction_accounts
@@ -163,6 +167,14 @@ begin
     where s.id=v_activity.school_id;
     if v_activity_symbol is null or v_activity_symbol <> btrim(p_institution_symbol) then
       raise exception 'activity_institution_mismatch';
+    end if;
+
+    -- Preserve the supported denormalized activity contact-email fallback when no explicit recipient was supplied.
+    if v_account.customer_email_snapshot is null and nullif(btrim(coalesce(v_activity.contact_email,'')),'') is not null then
+      update public.finance_transaction_accounts
+      set customer_email_snapshot=nullif(btrim(v_activity.contact_email),'')
+      where id=v_account.id
+      returning * into v_account;
     end if;
 
     select count(*)::integer into v_scheduled_count
@@ -225,7 +237,6 @@ begin
     ) requested
     where slot between 1 and 35;
 
-    -- The server, not the browser, decides the complete billable set for the cutoff.
     if cardinality(v_expected_slots)=0 or v_selected_slots is distinct from v_expected_slots then
       raise exception 'invalid_meeting_selection';
     end if;
@@ -303,7 +314,7 @@ create or replace function public.finalize_finance_transaction_account(
 language plpgsql security definer set search_path=public as $$
 declare v public.finance_transaction_accounts;
 begin
-  if not public.app_can_access_finance() then raise exception 'finance_permission_denied' using errcode='42501'; end if;
+  if coalesce(auth.role(),'') <> 'service_role' then raise exception 'backend_only' using errcode='42501'; end if;
   if btrim(coalesce(p_filename,''))='' or btrim(coalesce(p_item_id,''))='' then raise exception 'missing_generated_document'; end if;
   update public.finance_transaction_accounts set
     document_status='issued',generated_filename=p_filename,pdf_sha256=p_pdf_sha256,
@@ -323,7 +334,7 @@ create or replace function public.mark_finance_transaction_outlook(
 ) returns void
 language plpgsql security definer set search_path=public as $$
 begin
-  if not public.app_can_access_finance() then raise exception 'finance_permission_denied' using errcode='42501'; end if;
+  if coalesce(auth.role(),'') <> 'service_role' then raise exception 'backend_only' using errcode='42501'; end if;
   if p_status not in('draft_ready','failed','missing_recipient') then raise exception 'invalid_outlook_status'; end if;
   update public.finance_transaction_accounts set
     outlook_status=p_status,outlook_message_id=p_message_id,outlook_error=p_error,
@@ -347,5 +358,6 @@ begin
   where id=p_account_id;
 end $$;
 
-revoke all on function public.reserve_finance_transaction_account(uuid,date,text,text,text,jsonb), public.finalize_finance_transaction_account(uuid,text,text,text,text,text,text), public.mark_finance_transaction_outlook(uuid,text,text,text), public.cancel_generating_finance_transaction_account(uuid,text) from public,anon;
-grant execute on function public.reserve_finance_transaction_account(uuid,date,text,text,text,jsonb), public.finalize_finance_transaction_account(uuid,text,text,text,text,text,text), public.mark_finance_transaction_outlook(uuid,text,text,text), public.cancel_generating_finance_transaction_account(uuid,text) to authenticated;
+revoke all on function public.reserve_finance_transaction_account(uuid,date,text,text,text,jsonb), public.finalize_finance_transaction_account(uuid,text,text,text,text,text,text), public.mark_finance_transaction_outlook(uuid,text,text,text), public.cancel_generating_finance_transaction_account(uuid,text) from public,anon,authenticated;
+grant execute on function public.reserve_finance_transaction_account(uuid,date,text,text,text,jsonb), public.cancel_generating_finance_transaction_account(uuid,text) to authenticated;
+grant execute on function public.finalize_finance_transaction_account(uuid,text,text,text,text,text,text), public.mark_finance_transaction_outlook(uuid,text,text,text) to service_role;
