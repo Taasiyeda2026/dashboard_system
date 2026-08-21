@@ -215,7 +215,10 @@ export function buildTransactionPreview(activities = [], options = {}) {
     mode,
     now: options.now || new Date()
   }));
-  const candidates = summaries.filter((row) => row.eligible
+  const relevantSummaries = mode === TRANSACTION_MODE_AUTOMATIC
+    ? summaries.filter((row) => row.gefenFunding)
+    : summaries;
+  const candidates = relevantSummaries.filter((row) => row.eligible
     && !row.blockedReason
     && (!selectionProvided || selected.has(row.activityRowId)));
   const accounts = new Map();
@@ -236,8 +239,8 @@ export function buildTransactionPreview(activities = [], options = {}) {
     mode,
     cutoff: options.cutoff,
     accounts: rows,
-    deferred: summaries.filter((row) => !row.eligible && !row.blockedReason),
-    blocked: summaries.filter((row) => row.blockedReason),
+    deferred: relevantSummaries.filter((row) => !row.eligible && !row.blockedReason),
+    blocked: relevantSummaries.filter((row) => row.blockedReason),
     totals: {
       schools: rows.length,
       activities: rows.reduce((sum, row) => sum + row.lines.length, 0),
