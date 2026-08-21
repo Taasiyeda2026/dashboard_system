@@ -1,6 +1,8 @@
 export const TRANSACTION_MEETING_HOURS = 1.5;
 export const TRANSACTION_MIN_MEETINGS = 3;
 export const FINANCE_TIME_ZONE = 'Asia/Jerusalem';
+export const TRANSACTION_MODE_AUTOMATIC = 'automatic';
+export const TRANSACTION_MODE_MANUAL = 'manual';
 
 const text = (value) => String(value ?? '').trim();
 const iso = (value) => (/^\d{4}-\d{2}-\d{2}/.exec(text(value)) || [])[0] || '';
@@ -24,6 +26,31 @@ export function financeCycleCutoff(now = new Date()) {
   const firstOfMonth = new Date(Date.UTC(Number(p.year), Number(p.month) - 1, 1));
   const previousDay = new Date(firstOfMonth.getTime() - 86400000);
   return previousDay.toISOString().slice(0, 10);
+}
+
+export function financePaymentDueDate(issueDate = financeToday()) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(text(issueDate));
+  if (!match) return '';
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const monthEnd = new Date(Date.UTC(year, month, 0));
+  monthEnd.setUTCDate(monthEnd.getUTCDate() + 30);
+  return monthEnd.toISOString().slice(0, 10);
+}
+
+function compactFundingPart(value) {
+  return text(value)
+    .normalize('NFKC')
+    .replace(/["'`׳״]/g, '')
+    .replace(/[\s_\-./\\]+/g, '')
+    .toLowerCase();
+}
+
+export function hasGefenFunding(value) {
+  return text(value)
+    .split('+')
+    .map(compactFundingPart)
+    .some((token) => token === 'גפן' || token === 'gefen' || token === 'gafan');
 }
 
 export function activityMeetingSlots(activity = {}) {
@@ -72,8 +99,6 @@ function billedSlotNumbers(slots, billedSlots = [], billedDates = []) {
     .filter(Number.isFinite));
   if (explicit.size) return explicit;
 
-  // Legacy/context compatibility: meeting rows may currently be passed as dates.
-  // Use a multiset so two date slots on the same day remain two distinct meetings.
   const counts = new Map();
   for (const value of billedDates || []) {
     const date = iso(value);
@@ -96,6 +121,7 @@ export function transactionActivitySummary(activity = {}, {
   billedSlots = [],
   billedDates = [],
   billedAmount = 0,
+  mode = TRANSACTION_MODE_AUTOMATIC,
   now = new Date()
 } = {}) {
   const slots = activityMeetingSlots(activity);
@@ -119,13 +145,15 @@ export function transactionActivitySummary(activity = {}, {
   const unbilledHours = unbilledSlots.length * TRANSACTION_MEETING_HOURS;
   const unbilledAmount = unbilledHours * hourlyRate;
   const isFinal = finished && unbilledSlots.length > 0;
-  const eligible = unbilledSlots.length >= TRANSACTION_MIN_MEETINGS || isFinal;
+  const automaticEligible = hasGefenFunding(activity.funding)
+    && (unbilledSlots.length >= TRANSACTION_MIN_MEETINGS || isFinal);
+  const manualEligible = unbilledSlots.length > 0;
+  const eligible = mode === TRANSACTION_MODE_MANUAL ? manualEligible : automaticEligible;
   const targetRatio = plannedCount > 0 ? Math.min(nonCancelledSlots.length, plannedCount) / plannedCount : 0;
   const closingTarget = Number.isFinite(price) ? price * targetRatio : 0;
   const issuableAmount = eligible
     ? (isFinal ? Math.max(0, closingTarget - Number(billedAmount || 0)) : unbilledAmount)
     : 0;
-  // Existing collection UI reads `amount` for “בוצע וטרם חויב”, so deferred work must retain its value.
   const amount = eligible ? issuableAmount : unbilledAmount;
 
   let blockedReason = '';
@@ -139,6 +167,8 @@ export function transactionActivitySummary(activity = {}, {
     institutionSymbol: text(activity.semel_mosad),
     customerName: text(activity.school),
     customerEmail: text(activity.contact_email),
+    funding: text(activity.funding),
+    gefenFunding: hasGefenFunding(activity.funding),
     plannedCount,
     scheduledCount: slots.length,
     completedCount: completedSlots.length,
@@ -151,35 +181,54 @@ export function transactionActivitySummary(activity = {}, {
     hourlyRate,
     amount,
     issuableAmount,
+    automaticEligible,
+    manualEligible,
     eligible,
     closingBill: eligible && isFinal,
     blockedReason
   };
 }
 
+function uniqueEmails(values = []) {
+  const map = new Map();
+  for (const raw of values) {
+    for (const value of text(raw).split(/[;,]/)) {
+      const email = text(value);
+      if (email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) map.set(email.toLowerCase(), email);
+    }
+  }
+  return [...map.values()];
+}
+
 export function buildTransactionPreview(activities = [], options = {}) {
+  const mode = options.mode === TRANSACTION_MODE_MANUAL ? TRANSACTION_MODE_MANUAL : TRANSACTION_MODE_AUTOMATIC;
+  const selected = new Set((options.activityIds || []).map((value) => text(value)).filter(Boolean));
   const summaries = activities.map((activity) => transactionActivitySummary(activity, {
     cutoff: options.cutoff,
     cancelledDates: options.cancelledByActivity?.[activity.row_id] || [],
     billedSlots: options.billedSlotsByActivity?.[activity.row_id] || [],
     billedDates: options.billedByActivity?.[activity.row_id] || [],
     billedAmount: options.billedAmountByActivity?.[activity.row_id] || 0,
+    mode,
     now: options.now || new Date()
   }));
+  const candidates = summaries.filter((row) => row.eligible && !row.blockedReason && (!selected.size || selected.has(row.activityRowId)));
   const accounts = new Map();
-  for (const item of summaries.filter((row) => row.eligible && !row.blockedReason)) {
+  for (const item of candidates) {
     if (!accounts.has(item.institutionSymbol)) accounts.set(item.institutionSymbol, {
       institutionSymbol: item.institutionSymbol,
       customerName: item.customerName,
-      customerEmail: item.customerEmail,
+      customerEmails: [],
       lines: [], totalAmount: 0
     });
     const account = accounts.get(item.institutionSymbol);
     account.lines.push(item);
+    account.customerEmails = uniqueEmails([...account.customerEmails, item.customerEmail]);
     account.totalAmount += item.issuableAmount;
   }
   const rows = [...accounts.values()];
   return {
+    mode,
     cutoff: options.cutoff,
     accounts: rows,
     deferred: summaries.filter((row) => !row.eligible && !row.blockedReason),
