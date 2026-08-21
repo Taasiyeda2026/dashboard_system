@@ -2,6 +2,19 @@ const BOARD_SELECTOR = '.manager-board-screen[data-manager-board-root]';
 let scheduled = false;
 let openPhoneChip = null;
 let phonePopover = null;
+let monthDefaultsReset = false;
+
+function clearPersistedManagerMonthDefaults() {
+  if (monthDefaultsReset) return;
+  monthDefaultsReset = true;
+  try {
+    ['regular', 'summer_2026', 'school_2027'].forEach((period) => {
+      localStorage.removeItem(`manager_board_month:${period}`);
+    });
+  } catch {
+    // Ignore storage restrictions. The board runtime will still use its built-in period default.
+  }
+}
 
 function activeWorkspaceTab(boardRoot) {
   return boardRoot?.querySelector('[data-manager-workspace-tab].is-active')?.getAttribute('data-manager-workspace-tab') || 'management';
@@ -116,6 +129,7 @@ function handleDocumentClick(event) {
 }
 
 function start() {
+  clearPersistedManagerMonthDefaults();
   const root = document.getElementById('app') || document.documentElement;
   const observer = new MutationObserver(scheduleSync);
   observer.observe(root, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'disabled'] });

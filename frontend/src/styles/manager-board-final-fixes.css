@@ -38,12 +38,28 @@
 .manager-board-screen .manager-board-calendar-day__head {
   min-height: 21px;
   margin-bottom: 2px;
+  align-items: flex-start;
+}
+
+/* Important-date descriptions must remain readable in the calendar cell.
+   Never replace long text with an ellipsis; wrap naturally to the next line. */
+.manager-board-screen .manager-board-calendar-day__school {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: calc(100% - 28px) !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+  white-space: normal !important;
+  overflow-wrap: anywhere;
+  word-break: normal;
+  line-height: 1.25;
 }
 
 .manager-board-screen .manager-board-calendar-day__number {
   width: 21px;
   height: 21px;
   font-size: 11px;
+  flex: 0 0 21px;
 }
 
 .manager-board-screen .manager-board-calendar-day__events {
