@@ -109,3 +109,5 @@ config.HOTFIX_VERSION = `operations-home-canonical-sw-cache-1573-20260819-v1-${c
 config.HOTFIX_VERSION = `activities-filter-row-layout-sw-cache-1574-20260819-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `activity-type-tochenit-fix-sw-cache-1575-20260819-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `course-scheduling-calendar-shift-sw-cache-1576-20260820-v1-${config.HOTFIX_VERSION}`;
+
+config.HOTFIX_VERSION = `course-scheduling-assigned-management-20260821-v1-${config.HOTFIX_VERSION}`;
