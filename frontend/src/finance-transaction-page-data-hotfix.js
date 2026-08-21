@@ -1,4 +1,3 @@
-import { api } from './api.js';
 import { supabase, waitForSupabaseAuthSession } from './supabase-client.js';
 
 const PAGE_SIZE = 1000;
@@ -94,7 +93,8 @@ function applyResolvedActivityContact(row = {}) {
   };
 }
 
-if (api && !api.__financeTransactionPageDataPatched) {
+function patchFinanceApi(api) {
+  if (!api || api.__financeTransactionPageDataPatched) return;
   const originalAllActivities = api.allActivities?.bind(api);
 
   if (originalAllActivities) {
@@ -118,4 +118,9 @@ if (api && !api.__financeTransactionPageDataPatched) {
   });
 }
 
-export { applyResolvedActivityContact, financeActivitySelect, isFinanceActivityRequest, readAllPages };
+if (typeof window !== 'undefined') {
+  const apiModule = await import('./api.js');
+  patchFinanceApi(apiModule?.api);
+}
+
+export { applyResolvedActivityContact, financeActivitySelect, isFinanceActivityRequest, patchFinanceApi, readAllPages };
