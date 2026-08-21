@@ -38,7 +38,9 @@ test('deferred meetings accumulate and all four bill', () => assert.equal(summar
 
 test('deferred activity still exposes performed-unbilled monetary value', () => {
   const s = transactionActivitySummary(activity(3, { date_3: '2026-12-01' }), { cutoff: '2026-10-31' });
-  assert.equal(s.amount, 0);
+  assert.equal(s.eligible, false);
+  assert.equal(s.issuableAmount, 0);
+  assert.equal(s.amount, 6000);
   assert.equal(s.unbilledAmount, 6000);
 });
 
@@ -140,6 +142,12 @@ test('server reservation recomputes sessions denominator and requires complete s
   assert.match(sql, /meeting_slots/);
   assert.match(sql, /v_selected_slots is distinct from v_expected_slots/);
   assert.doesNotMatch(sql, /select distinct \(to_jsonb\(v_activity\).*date_/i);
+});
+
+test('generating reservations are hidden from normal finance read policies', () => {
+  const sql = fs.readFileSync('supabase/migrations/20260821190000_finance_transaction_accounts.sql', 'utf8');
+  assert.match(sql, /document_status <> 'generating'/);
+  assert.match(sql, /cancel_generating_finance_transaction_account/);
 });
 
 test('PDF implementation embeds fonts, compact logo and text instead of screenshot/canvas', () => {
