@@ -1,4 +1,5 @@
 import { supabase, waitForSupabaseAuthSession } from './supabase-client.js';
+import { api } from './api.js';
 
 const PAGE_SIZE = 1000;
 const CONTACT_BATCH_SIZE = 200;
@@ -67,6 +68,15 @@ async function readFinanceTransactionContext() {
   return { cancelled, accounts, schools };
 }
 
+function isFinanceActivityRequest(filters = {}) {
+  const select = text(filters.select);
+  return text(filters.activity_period) === 'school_2027'
+    && select.includes('price')
+    && select.includes('sessions')
+    && select.includes('contact_email')
+    && select.includes('school_id');
+}
+
 function financeActivitySelect(select) {
   const value = text(select);
   if (!value || value.includes('school_contact_id')) return value;
@@ -93,8 +103,6 @@ async function readContactsBy(column, values = []) {
 }
 
 async function readFinanceActivityContacts(rows = []) {
-  if (!supabase || !rows.length) return [];
-  await waitForSupabaseAuthSession();
   const contactIds = [...new Set(rows.map((row) => text(row.school_contact_id)).filter(Boolean))];
   const schoolIds = [...new Set(rows.map((row) => text(row.school_id)).filter(Boolean))];
   const [linked, schoolContacts] = await Promise.all([
@@ -130,22 +138,39 @@ function applyResolvedActivityContact(row = {}, contacts = []) {
   };
 }
 
-async function readFinanceActivities(api, filters = {}) {
-  if (typeof api?.allActivities !== 'function') throw new Error('finance_activities_reader_unavailable');
-  const result = await api.allActivities({
-    ...filters,
-    select: financeActivitySelect(filters.select)
+function patchFinanceApi(targetApi) {
+  if (!targetApi || targetApi.__financeTransactionPageDataPatched) return;
+  const originalAllActivities = targetApi.allActivities?.bind(targetApi);
+
+  if (originalAllActivities) {
+    targetApi.allActivities = async (filters = {}) => {
+      const financeRequest = isFinanceActivityRequest(filters);
+      const patchedFilters = financeRequest
+        ? { ...filters, select: financeActivitySelect(filters.select) }
+        : filters;
+      const result = await originalAllActivities(patchedFilters);
+      if (!financeRequest || !Array.isArray(result?.rows)) return result;
+      const contacts = await readFinanceActivityContacts(result.rows);
+      return { ...result, rows: result.rows.map((row) => applyResolvedActivityContact(row, contacts)) };
+    };
+  }
+
+  targetApi.financeTransactionContext = readFinanceTransactionContext;
+  Object.defineProperty(targetApi, '__financeTransactionPageDataPatched', {
+    value: true,
+    enumerable: false,
+    configurable: false,
+    writable: false
   });
-  if (!Array.isArray(result?.rows)) return result;
-  const contacts = await readFinanceActivityContacts(result.rows);
-  return { ...result, rows: result.rows.map((row) => applyResolvedActivityContact(row, contacts)) };
 }
+
+patchFinanceApi(api);
 
 export {
   applyResolvedActivityContact,
   financeActivitySelect,
+  isFinanceActivityRequest,
+  patchFinanceApi,
   readAllPages,
-  readFinanceActivities,
-  readFinanceActivityContacts,
-  readFinanceTransactionContext
+  readFinanceActivityContacts
 };
