@@ -1,8 +1,4 @@
 import { state } from './state.js';
-import { activitiesScreen } from './screens/activities.js';
-import { instructorsScreen } from './screens/instructors.js';
-import { exceptionsScreen } from './screens/exceptions.js';
-import { endDatesScreen } from './screens/end-dates.js';
 import { normalizeOperationalDistrict } from './screens/shared/district-normalization.js';
 
 const DASHBOARD_DRILL_STATE_KEY = '__dashboardDrilldown';
@@ -17,6 +13,7 @@ const SHORT_ACTIVITY_TYPES = new Set(['workshop', 'tour', 'escape_room']);
 const EXCLUDED_MONTHLY_STATUSES = new Set([
   'נמחק', 'בוטל', 'deleted', 'cancelled', 'canceled'
 ]);
+let patchPromise = null;
 
 function clean(value) {
   return String(value ?? '').trim();
@@ -129,7 +126,7 @@ function ensureActivityFiltersForDrill(drill) {
   state.activitiesMonthYm = drill.month;
 }
 
-function patchActivitiesScreen() {
+function patchActivitiesScreen(activitiesScreen) {
   if (!activitiesScreen || activitiesScreen.__dashboardDrilldownPatched) return;
   activitiesScreen.__dashboardDrilldownPatched = true;
   const originalLoad = activitiesScreen.load?.bind(activitiesScreen);
@@ -177,7 +174,7 @@ async function activityRowsForInstructorDrill(context, drill) {
   return Array.isArray(response?.rows) ? response.rows : [];
 }
 
-function patchInstructorsScreen() {
+function patchInstructorsScreen(instructorsScreen) {
   if (!instructorsScreen || instructorsScreen.__dashboardDrilldownPatched) return;
   instructorsScreen.__dashboardDrilldownPatched = true;
   const originalLoad = instructorsScreen.load?.bind(instructorsScreen);
@@ -201,7 +198,7 @@ function patchInstructorsScreen() {
   };
 }
 
-function patchExceptionsScreen() {
+function patchExceptionsScreen(exceptionsScreen) {
   if (!exceptionsScreen || exceptionsScreen.__dashboardDrilldownPatched) return;
   exceptionsScreen.__dashboardDrilldownPatched = true;
   const originalLoad = exceptionsScreen.load?.bind(exceptionsScreen);
@@ -226,7 +223,7 @@ function patchExceptionsScreen() {
   };
 }
 
-function patchEndDatesScreen() {
+function patchEndDatesScreen(endDatesScreen) {
   if (!endDatesScreen || endDatesScreen.__dashboardDrilldownPatched) return;
   endDatesScreen.__dashboardDrilldownPatched = true;
   const originalRender = endDatesScreen.render?.bind(endDatesScreen);
@@ -240,12 +237,30 @@ function patchEndDatesScreen() {
   };
 }
 
-patchActivitiesScreen();
-patchInstructorsScreen();
-patchExceptionsScreen();
-patchEndDatesScreen();
+function ensurePatchedScreens() {
+  if (patchPromise) return patchPromise;
+  patchPromise = Promise.all([
+    import('./screens/activities.js'),
+    import('./screens/instructors.js?v=20260809-guides-list-assignment-filter-fix-v2'),
+    import('./screens/exceptions.js'),
+    import('./screens/end-dates.js')
+  ]).then(([activitiesModule, instructorsModule, exceptionsModule, endDatesModule]) => {
+    patchActivitiesScreen(activitiesModule.activitiesScreen);
+    patchInstructorsScreen(instructorsModule.instructorsScreen);
+    patchExceptionsScreen(exceptionsModule.exceptionsScreen);
+    patchEndDatesScreen(endDatesModule.endDatesScreen);
+  }).catch((error) => {
+    patchPromise = null;
+    console.warn('[dashboard-drilldown] failed to prepare destination filters', error);
+  });
+  return patchPromise;
+}
 
 if (typeof document !== 'undefined') {
+  document.addEventListener('app:navigate', (event) => {
+    if (clean(event?.detail?.route) === 'dashboard') void ensurePatchedScreens();
+  });
+
   document.addEventListener('click', (event) => {
     const target = event.target instanceof Element ? event.target : null;
     if (!target) return;
@@ -253,6 +268,7 @@ if (typeof document !== 'undefined') {
     const dashboardCard = target.closest('.ds-dashboard-wrap [data-card-action]');
     if (dashboardCard) {
       captureDashboardDrill(dashboardCard.getAttribute('data-card-action') || '');
+      void ensurePatchedScreens();
       return;
     }
 
@@ -264,4 +280,9 @@ if (typeof document !== 'undefined') {
     const routeButton = target.closest('[data-route]');
     if (routeButton && !target.closest('.ds-dashboard-wrap')) clearDashboardDrill();
   }, true);
+
+  const root = document.getElementById('app') || document.documentElement;
+  new MutationObserver(() => {
+    if (document.querySelector('.ds-dashboard-wrap')) void ensurePatchedScreens();
+  }).observe(root, { childList: true, subtree: true });
 }
