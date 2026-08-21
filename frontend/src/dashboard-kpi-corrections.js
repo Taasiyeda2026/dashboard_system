@@ -18,6 +18,12 @@ const EXCLUDED_MONTHLY_STATUSES = new Set([
   'canceled'
 ]);
 
+const DASHBOARD_MONTH_ACTIVITY_COLUMNS = [
+  'row_id', 'activity_family', 'activity_manager', 'district', 'activity_type', 'status',
+  'emp_id', 'instructor_name', 'emp_id_2', 'instructor_name_2', 'start_date', 'end_date',
+  ...Array.from({ length: 35 }, (_, index) => `date_${index + 1}`)
+].join(',');
+
 function asNumber(value) {
   const n = Number(value);
   return Number.isFinite(n) ? n : 0;
@@ -260,7 +266,7 @@ async function normalizeDashboardKpis(payload, args) {
   }
 
   try {
-    const allActivities = await api.allActivities({});
+    const allActivities = await api.allActivities({ select: DASHBOARD_MONTH_ACTIVITY_COLUMNS });
     return buildFullMonthPayload(payload, allActivities?.rows, month);
   } catch (error) {
     console.warn('[dashboard-monthly-scope] full-month calculation failed; using consistent open-row fallback', {
