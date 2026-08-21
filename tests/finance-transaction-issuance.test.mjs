@@ -65,6 +65,15 @@ test('automatic preview includes mixed Gefen but excludes non-Gefen', () => {
   assert.equal(preview.accounts[0].lines[0].activityRowId, 'g1');
 });
 
+test('automatic blocked list only reports Gefen activities', () => {
+  const preview = buildTransactionPreview([
+    activity({ row_id: 'g1', funding: 'גפן', semel_mosad: '', date_3: '2026-10-03' }),
+    activity({ row_id: 'r1', funding: 'רשות', semel_mosad: '', date_3: '2026-10-03' })
+  ], { cutoff: '2026-10-31', mode: TRANSACTION_MODE_AUTOMATIC });
+  assert.equal(preview.blocked.length, 1);
+  assert.equal(preview.blocked[0].activityRowId, 'g1');
+});
+
 test('grouped account collects unique activity contact emails', () => {
   const preview = buildTransactionPreview([
     activity({ row_id: 'a1', contact_email: 'one@example.org', date_3: '2026-10-03' }),
