@@ -34,6 +34,11 @@ import {
 } from './finance-collection.js';
 import { ACTIVITY_SEASON_SCHOOL_2027, getActivityPeriodKey } from './shared/summer-activity.js';
 import { financeCycleCutoff, transactionActivitySummary } from './finance-transaction-accounts.js';
+import {
+  handleTransactionSelection,
+  runTransactionIssuance,
+  transactionAccountsViewHtml
+} from './finance-transaction-issuance.js';
 
 export const FINANCE_COLLECTION_ACTIVITY_PERIOD = ACTIVITY_SEASON_SCHOOL_2027;
 
@@ -95,7 +100,7 @@ const FINANCE_COLLECTION_MEETING_DATE_COLUMNS = Array.from({ length: 35 }, (_, i
 export const FINANCE_COLLECTION_ACTIVITY_COLUMNS = [
   'id', 'row_id', 'activity_name', 'activity_type', 'authority', 'school',
   'school_id', 'authority_id', 'funding', 'price', 'status', 'activity_season', 'activity_no', 'sessions',
-  'start_date', 'end_date', ...FINANCE_COLLECTION_MEETING_DATE_COLUMNS
+  'contact_email', 'end_time', 'start_date', 'end_date', ...FINANCE_COLLECTION_MEETING_DATE_COLUMNS
 ].join(',');
 
 function permissionYes(value) {
@@ -124,7 +129,11 @@ export function createFinanceVisitState(now = new Date()) {
     collectionSearch: '',
     collectionLoading: false,
     collectionError: '',
-    collectionSaveState: {}
+    collectionSaveState: {},
+    transactionTab: 'automatic',
+    transactionManualSelected: {},
+    transactionActionMessage: '',
+    transactionRunning: false
   };
 }
 
@@ -135,6 +144,9 @@ function hubIcon(name) {
   }
   if (name === 'file') {
     return `<svg ${common}><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg>`;
+  }
+  if (name === 'transaction') {
+    return `<svg ${common}><path d="M6 3h9l4 4v14H6z"/><path d="M15 3v5h5"/><path d="M9 13h7M9 17h5"/></svg>`;
   }
   return `<svg ${common}><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18M16 15h2"/><path d="M7 6V4h10v2"/></svg>`;
 }
@@ -152,6 +164,12 @@ function hubCardsHtml() {
       icon: 'collection',
       title: 'מעקב גבייה',
       description: 'מעקב גבייה מרוכז לפי הגורם המשלם'
+    },
+    {
+      view: 'transactions',
+      icon: 'transaction',
+      title: 'חשבונות עסקה',
+      description: 'סבב גפן, הפקה ידנית והיסטוריית חשבונות'
     }
   ];
   return `<div class="ds-fin-hub" dir="rtl">
@@ -373,11 +391,21 @@ function buildFinanceCollectionActivities(data) {
     const accounts = data.transactionContext?.accounts || [];
     const lines = accounts.flatMap((account) => (account.finance_transaction_account_lines || []).map((line) => ({ ...line, account })));
     const activityLines = lines.filter((line) => line.activity_row_id === activityRowId(activity) && line.account.document_status !== 'cancelled');
-    const billedDates = activityLines.flatMap((line) => (line.finance_transaction_account_meetings || []).map((meeting) => meeting.meeting_date));
+    const billedSlots = activityLines.flatMap((line) => (line.finance_transaction_account_meetings || []).map((meeting) => meeting.meeting_slot));
     const cancelledDates = (data.transactionContext?.cancelled || []).filter((row) => row.activity_id === activityRowId(activity)).map((row) => row.meeting_date);
     const school = (data.transactionContext?.schools || []).find((row) => String(row.id) === String(activity.school_id));
     const latest = activityLines.sort((a, b) => String(b.account.issue_date).localeCompare(String(a.account.issue_date)))[0];
-    return { ...activity, semel_mosad: school?.semel_mosad || '', transaction_summary: transactionActivitySummary({ ...activity, semel_mosad: school?.semel_mosad || '' }, { cutoff: financeCycleCutoff(), cancelledDates, billedDates, billedAmount: activityLines.reduce((sum, line) => sum + Number(line.amount || 0), 0) }), last_transaction_account: latest?.account || null };
+    return {
+      ...activity,
+      semel_mosad: school?.semel_mosad || '',
+      transaction_summary: transactionActivitySummary({ ...activity, semel_mosad: school?.semel_mosad || '' }, {
+        cutoff: financeCycleCutoff(),
+        cancelledDates,
+        billedSlots,
+        billedAmount: activityLines.reduce((sum, line) => sum + Number(line.amount || 0), 0)
+      }),
+      last_transaction_account: latest?.account || null
+    };
   });
 }
 
@@ -475,11 +503,14 @@ async function ensureAttendanceLoaded(data, api, monthKey) {
   }
 }
 
-async function ensureCollectionLoaded(data, api) {
-  if (data.collectionActivities && data.collectionPeriod === FINANCE_COLLECTION_ACTIVITY_PERIOD) return;
+async function ensureCollectionLoaded(data, api, { force = false } = {}) {
+  if (!force && data.collectionActivities && data.collectionPeriod === FINANCE_COLLECTION_ACTIVITY_PERIOD) return;
   data.collectionLoading = true;
   data.collectionError = '';
   try {
+    const transactionPromise = typeof api.financeTransactionContext === 'function'
+      ? api.financeTransactionContext().catch(() => ({ cancelled: [], accounts: [], schools: [] }))
+      : Promise.resolve({ cancelled: [], accounts: [], schools: [] });
     const [activities, tracking, transactionContext] = await Promise.all([
       api.allActivities({
         select: FINANCE_COLLECTION_ACTIVITY_COLUMNS,
@@ -488,7 +519,7 @@ async function ensureCollectionLoaded(data, api) {
       typeof api.listFinanceCollectionTracking === 'function'
         ? api.listFinanceCollectionTracking()
         : Promise.resolve([]),
-      typeof api.financeTransactionContext === 'function' ? api.financeTransactionContext() : Promise.resolve({ cancelled: [], accounts: [], schools: [] })
+      transactionPromise
     ]);
     data.collectionPeriod = FINANCE_COLLECTION_ACTIVITY_PERIOD;
     data.collectionActivities = (Array.isArray(activities?.rows) ? activities.rows : [])
@@ -522,6 +553,7 @@ export const financeScreen = {
     const view = data?.view || 'hub';
     if (view === 'attendance') return attendanceViewHtml(data, { state });
     if (view === 'collection') return collectionViewHtml(data);
+    if (view === 'transactions') return transactionAccountsViewHtml(data, backBarHtml);
     return hubViewHtml();
   },
 
@@ -543,7 +575,7 @@ export const financeScreen = {
           refresh();
           return;
         }
-        if (nextView === 'collection') {
+        if (nextView === 'collection' || nextView === 'transactions') {
           refresh();
           try { await ensureCollectionLoaded(visit, api); }
           catch { /* shown via visit.collectionError */ }
@@ -551,6 +583,38 @@ export const financeScreen = {
           return;
         }
         refresh();
+        return;
+      }
+
+      const transactionTab = ev.target.closest('[data-finance-transaction-tab]');
+      if (transactionTab) {
+        visit.transactionTab = String(transactionTab.dataset.financeTransactionTab || 'automatic');
+        visit.transactionActionMessage = '';
+        refresh();
+        return;
+      }
+
+      const transactionRun = ev.target.closest('[data-finance-transaction-run]');
+      if (transactionRun) {
+        if (visit.transactionRunning) return;
+        const mode = String(transactionRun.dataset.financeTransactionRun || 'automatic');
+        const label = mode === 'manual' ? 'החשבונות המסומנים' : 'סבב גפן';
+        if (!window.confirm(`להפיק עכשיו את ${label}? לאחר ההפקה מספרי החשבונות והמפגשים יחויבו ולא ישתנו אוטומטית.`)) return;
+        visit.transactionRunning = true;
+        visit.transactionActionMessage = 'מפיק חשבונות עסקה…';
+        refresh();
+        try {
+          const results = await runTransactionIssuance(visit, api, mode);
+          visit.transactionActionMessage = `הופקו ${results.length} חשבונות עסקה. קובצי ה-PDF נשמרו ב-SharePoint וטיוטות Outlook הוכנו בהתאם לנמענים.`;
+          if (mode === 'manual') visit.transactionManualSelected = {};
+          await ensureCollectionLoaded(visit, api, { force: true });
+          visit.transactionTab = 'history';
+        } catch (error) {
+          visit.transactionActionMessage = error?.message || 'הפקת חשבונות העסקה נכשלה.';
+        } finally {
+          visit.transactionRunning = false;
+          refresh();
+        }
         return;
       }
 
@@ -599,6 +663,13 @@ export const financeScreen = {
     };
 
     const onChange = async (ev) => {
+      const transactionSelect = ev.target.closest('[data-finance-transaction-select]');
+      if (transactionSelect) {
+        handleTransactionSelection(visit, transactionSelect.dataset.financeTransactionSelect, transactionSelect.checked);
+        refresh();
+        return;
+      }
+
       const exportTypeSelect = ev.target.closest('[data-finance-attendance-export-type]');
       if (exportTypeSelect) {
         visit.attendanceExportType = normalizeFinanceAttendanceExportType(exportTypeSelect.value);
