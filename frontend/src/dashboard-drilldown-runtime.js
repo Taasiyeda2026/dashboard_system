@@ -1,5 +1,6 @@
 import { state } from './state.js';
 import { normalizeOperationalDistrict } from './screens/shared/district-normalization.js';
+import { syncActivitiesGapQuery } from './screens/shared/route-query.js';
 
 const DASHBOARD_DRILL_STATE_KEY = '__dashboardDrilldown';
 const ACTIVITY_TYPE_ACTIONS = new Map([
@@ -63,6 +64,7 @@ export function dashboardDrillActivityFamilyForAction(action = '') {
   const activityType = ACTIVITY_TYPE_ACTIONS.get(value) || '';
   if (SHORT_ACTIVITY_TYPES.has(activityType) || value === 'kpi|short') return 'short';
   if (activityType || value === 'kpi|long' || value === 'kpi|missing_instructor' || value === 'kpi|missing_start_date') return 'long';
+  if (value.startsWith('mstat|') && (value.split('|')[2] || '') === 'long') return 'long';
   return '';
 }
 
@@ -88,14 +90,29 @@ function districtFromAction(action = '') {
 function captureDashboardDrill(action) {
   const target = dashboardDrillTargetForAction(action);
   if (!target) return;
+  const month = validYm(state.dashboardMonthYm);
   state[DASHBOARD_DRILL_STATE_KEY] = {
     target,
     action: clean(action),
-    month: validYm(state.dashboardMonthYm),
+    month,
     period: clean(state.activityPeriodTab),
     district: districtFromAction(action),
     capturedAt: Date.now()
   };
+
+  if (target === 'end-dates') {
+    state.endDatesMonthYm = month;
+    state.endDatesManager = '';
+  } else if (target === 'exceptions') {
+    state.exceptionsMonthYm = month;
+  } else if (target === 'instructors') {
+    state.instructorsWorkspace = {
+      ...(state.instructorsWorkspace || {}),
+      q: '',
+      active: 'yes',
+      assignment: ''
+    };
+  }
 }
 
 function activeDrill(target) {
@@ -112,18 +129,22 @@ function clearDashboardDrill() {
 function ensureActivityFiltersForDrill(drill) {
   const action = drill?.action || '';
   const type = ACTIVITY_TYPE_ACTIONS.get(action) || '';
-  if (type) {
-    state.listFilters = state.listFilters || {};
-    const previous = state.listFilters.activities || {};
-    state.listFilters.activities = {
-      ...previous,
-      activity_type: type,
-      visibleCount: 200
-    };
-  }
-  const family = dashboardDrillActivityFamilyForAction(action);
-  if (family) state.activityQuickFamily = family;
+  state.listFilters = state.listFilters || {};
+  state.listFilters.activities = {
+    q: '',
+    appliedQ: '',
+    visibleCount: 200,
+    ...(type ? { activity_type: type } : {})
+  };
+  state.activityQuickFamily = dashboardDrillActivityFamilyForAction(action);
   state.activitiesMonthYm = drill.month;
+  state.activitiesInnerTab = 'year_all';
+  state.activityFinanceStatus = '';
+  state.allActivitiesStatusFilter = 'all';
+  if (action !== 'kpi|missing_instructor' && action !== 'kpi|missing_start_date') {
+    state.activitiesGapFilter = '';
+    syncActivitiesGapQuery('');
+  }
 }
 
 function patchActivitiesScreen(activitiesScreen) {
@@ -185,6 +206,12 @@ function patchInstructorsScreen(instructorsScreen) {
     const drill = activeDrill('instructors');
     if (!drill || !Array.isArray(result?.rows)) return result;
 
+    state.instructorsWorkspace = {
+      ...(state.instructorsWorkspace || {}),
+      q: '',
+      active: 'yes',
+      assignment: ''
+    };
     const activityRows = await activityRowsForInstructorDrill(context, drill);
     const matchingRows = activityRows.filter((row) => {
       if (!monthlyDashboardRow(row, drill.month)) return false;
@@ -209,12 +236,14 @@ function patchExceptionsScreen(exceptionsScreen) {
     if (drill) {
       state.exceptionsMonthYm = drill.month;
       state.listFilters = state.listFilters || {};
-      const previous = state.listFilters.exceptions || {};
       state.listFilters.exceptions = {
-        ...previous,
         q: '',
+        appliedQ: '',
         district: drill.district ? canonicalDashboardExceptionDistrict(drill.district) : '',
         activity_manager: '',
+        authority: '',
+        funding: '',
+        school: '',
         exception_type: '',
         visibleCount: 200
       };
@@ -278,7 +307,15 @@ if (typeof document !== 'undefined') {
     }
 
     const routeButton = target.closest('[data-route]');
-    if (routeButton && !target.closest('.ds-dashboard-wrap')) clearDashboardDrill();
+    if (routeButton && !target.closest('.ds-dashboard-wrap')) {
+      const route = clean(routeButton.getAttribute('data-route'));
+      clearDashboardDrill();
+      if (route === 'end-dates') {
+        state.endDatesMonthYm = '';
+        state.endDatesManager = '';
+      }
+      if (route === 'exceptions') state.exceptionsMonthYm = '';
+    }
   }, true);
 
   const root = document.getElementById('app') || document.documentElement;
