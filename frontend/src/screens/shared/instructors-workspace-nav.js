@@ -28,6 +28,30 @@ function hasPayrollControlRole(state = {}) {
   return PAYROLL_CONTROL_ROLES.has(roleOf(state));
 }
 
+function rowId(row = {}) {
+  return String(row?.row_id ?? row?.RowID ?? row?.id ?? '').trim();
+}
+
+/**
+ * Exit the temporary instructor-replacement workspace without touching the
+ * confirmed assignment. Only the calculation result created for the replacement
+ * course is discarded; ordinary results for other courses remain intact.
+ */
+export function clearCourseSchedulingReplacementState(state = {}) {
+  const replacementId = String(state.courseSchedulingReplacementCourseId || '').trim();
+  state.courseSchedulingReplacementCourseId = '';
+  state.courseSchedulingReplacementMeetings = 0;
+  state.courseSchedulingReplacementReason = '';
+  state.courseSchedulingReplacementEffectiveFrom = '';
+  state.courseSchedulingReplacementConfirmed = false;
+  state.courseSchedulingSelectedCandidateId = '';
+  state.courseSchedulingExpandedCandidateId = '';
+  if (replacementId && Array.isArray(state.courseSchedulingResults)) {
+    state.courseSchedulingResults = state.courseSchedulingResults.filter((result) => rowId(result?.course) !== replacementId);
+  }
+  return replacementId;
+}
+
 function availableRoutes(state) {
   const source = Array.isArray(state?.effectiveRoutes)
     ? state.effectiveRoutes
@@ -147,6 +171,10 @@ function activateTab(tabId, { state, rerender } = {}) {
     return;
   }
 
+  if (tab.id !== 'scheduling' && state?.courseSchedulingReplacementCourseId) {
+    clearCourseSchedulingReplacementState(state);
+  }
+
   // A lightweight/bootstrap route refresh can replace effectiveRoutes after this
   // tab row was already rendered. Restore the same explicit grant main.js applies
   // so a visible scheduling/maintenance button never becomes a silent no-op.
@@ -182,6 +210,29 @@ export function bindInstructorsWorkspaceNav(root, { state, rerender } = {}) {
   // Inject only the missing access UI before those handlers are bound.
   ensureCourseSchedulingManualPickerAccess(root, { state });
   void ensureCourseSchedulingManagerApproval(root, { state });
+
+  // course-scheduling.js reuses the same state object across re-renders. Clear the
+  // temporary replacement calculation before its ordinary handlers process an exit
+  // action, so another course never inherits replacement-only labels or controls.
+  root.addEventListener('click', (event) => {
+    if (!state?.courseSchedulingReplacementCourseId) return;
+    const target = event.target;
+    const courseCard = target?.closest?.('[data-course-card]');
+    const calendarCourse = target?.closest?.('[data-calendar-course]');
+    const periodButton = target?.closest?.('[data-period-key]');
+    const clearCandidate = target?.closest?.('[data-clear-candidate]');
+    const innerTab = target?.closest?.('[data-switch-tab]');
+    if (courseCard || calendarCourse || periodButton || clearCandidate || (innerTab && innerTab.dataset.switchTab !== 'courses')) {
+      clearCourseSchedulingReplacementState(state);
+    }
+  }, true);
+
+  root.addEventListener('change', (event) => {
+    if (!state?.courseSchedulingReplacementCourseId) return;
+    if (event.target?.matches?.('[data-district-filter], [data-authority-filter]')) {
+      clearCourseSchedulingReplacementState(state);
+    }
+  }, true);
 
   const tabs = [...root.querySelectorAll('[data-instructors-workspace-tab]')];
   if (!tabs.length) return;
