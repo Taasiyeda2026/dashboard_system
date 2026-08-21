@@ -88,7 +88,7 @@ const SCHEDULING_ASSIGNMENT_ERROR_HE = {
   scheduling_no_existing_assignment:  'לקורס אין מדריך משובץ',
   scheduling_reason_required:          'יש להזין סיבה',
   scheduling_effective_date_required:  'יש לבחור תאריך כניסה לתוקף',
-  scheduling_reassignment_locked:      'לאחר שני מפגשים נדרשת החלפה תפעולית',
+  scheduling_course_locked_for_reassignment: 'לאחר שני מפגשים נדרשת החלפה תפעולית',
 };
 
 function translateSchedulingAssignmentError(codeOrMessage, prefix = 'הפעולה נכשלה') {
@@ -114,6 +114,19 @@ export function buildCourseAssignmentDraftRpc({ activityId, selected, topCandida
     ...(proposedMeetings ? { p_proposed_meetings: proposedMeetings } : {})
   };
   return { rpc, payload };
+}
+
+export function buildCourseReassignmentRpc({ activityId, selectedId, selected, topCandidate, decisionType, reason = null }) {
+  return {
+    p_activity_id: activityId,
+    p_new_emp_id: Number(selectedId),
+    p_new_instructor_name: selected.instructor.full_name,
+    p_top_emp_id: Number(emp(topCandidate)),
+    p_selected_score: selected.score,
+    p_top_score: topCandidate.score,
+    p_decision_type: decisionType || (selectedId === emp(topCandidate) ? 'approved' : 'overridden'),
+    p_reason: text(reason) || null
+  };
 }
 
 const text = (value) => String(value ?? '').trim();
@@ -1999,11 +2012,14 @@ export const courseSchedulingScreen = {
         const payload = meetingsDone >= 2 ? {
           p_activity_id: selectedCourseId, p_new_emp_id: Number(selectedId), p_new_instructor_name: selected.instructor.full_name,
           p_effective_from: effectiveFrom, p_reason: reason
-        } : {
-          p_activity_id: selectedCourseId, p_emp_id: Number(selectedId), p_instructor_name: selected.instructor.full_name,
-          p_top_emp_id: Number(emp(topCandidate)), p_selected_score: selected.score, p_top_score: topCandidate.score,
-          p_decision_type: selectedId === emp(result.recommended) ? 'approved' : 'overridden', p_reason: reason || null
-        };
+        } : buildCourseReassignmentRpc({
+          activityId: selectedCourseId,
+          selectedId,
+          selected,
+          topCandidate,
+          decisionType: selectedId === emp(result.recommended) ? 'approved' : 'overridden',
+          reason
+        });
         const { data: updatedActivity, error } = await supabase.rpc(rpc, payload);
         if (error) { showToast(translateSchedulingAssignmentError(error.message, 'החלפת המדריך נכשלה'), 'error'); updateCandidateActions(false); return; }
         applyReturnedSchedulingActivity(data.activities, updatedActivity);

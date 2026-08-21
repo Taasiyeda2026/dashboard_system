@@ -69,6 +69,7 @@ begin
       draft_emp_id = null,
       draft_instructor_name = null,
       draft_created_at = null,
+      draft_created_by = null,
       draft_proposed_meetings = null
   where row_id = p_activity_id
   returning * into result;

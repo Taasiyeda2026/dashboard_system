@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import {
   assignedDetailHtml,
+  buildCourseReassignmentRpc,
   isAssignedCourseSchedulingManageable
 } from '../frontend/src/screens/course-scheduling.js';
 import { isCourseSchedulingInterfaceEligible } from '../frontend/src/screens/shared/activity-scheduling-eligibility.js';
@@ -43,4 +44,31 @@ test('replacement UI routes by completed meeting count and enforces operational 
   assert.match(source, /meetingsDone >= 2 \? 'replace_locked_course_instructor' : 'reassign_locked_course_instructor'/);
   assert.match(source, /meetingsDone === 1 && !reason/);
   assert.match(source, /!reason \|\| !effectiveFrom \|\| !state\.courseSchedulingReplacementConfirmed/);
+});
+
+test('ordinary reassignment payload matches the deployed RPC parameter names', () => {
+  const selected = { instructor: { emp_id: '52', full_name: 'יעל לוי' }, score: 91 };
+  const topCandidate = { instructor: { emp_id: '52', full_name: 'יעל לוי' }, score: 91 };
+  const payload = buildCourseReassignmentRpc({ activityId: 'course-1', selectedId: '52', selected, topCandidate, reason: '' });
+  assert.equal(payload.p_new_emp_id, 52);
+  assert.equal(payload.p_new_instructor_name, 'יעל לוי');
+  assert.equal(Object.hasOwn(payload, 'p_emp_id'), false);
+  assert.equal(Object.hasOwn(payload, 'p_instructor_name'), false);
+});
+
+test('backend reassignment transition guards block 2+ meetings and require reason after one', async () => {
+  const sql = await readFile(new URL('../supabase/migrations/20260821130000_restore_reassignment_transition_guards.sql', import.meta.url), 'utf8');
+  assert.match(sql, /meetings_done >= 2 then\s+raise exception 'scheduling_course_locked_for_reassignment'/);
+  assert.match(sql, /meetings_done >= 1 and nullif\(btrim\(p_reason\), ''\) is null then\s+raise exception 'scheduling_reason_required'/);
+  assert.match(sql, /scheduling_course_instructor_violations\(p_activity_id, p_new_emp_id, false\)/);
+});
+
+test('cancellation clears all draft metadata and error mapping uses the canonical lock code', async () => {
+  const [migration, source] = await Promise.all([
+    readFile(new URL('../supabase/migrations/20260821120000_cancel_confirmed_course_assignment.sql', import.meta.url), 'utf8'),
+    readFile(new URL('../frontend/src/screens/course-scheduling.js', import.meta.url), 'utf8')
+  ]);
+  assert.match(migration, /draft_created_by = null/);
+  assert.match(source, /scheduling_course_locked_for_reassignment:/);
+  assert.doesNotMatch(source, /scheduling_reassignment_locked:/);
 });
