@@ -1,5 +1,4 @@
 import { supabase, waitForSupabaseAuthSession } from './supabase-client.js';
-import { api } from './api.js';
 
 const PAGE_SIZE = 1000;
 const CONTACT_BATCH_SIZE = 200;
@@ -164,7 +163,11 @@ function patchFinanceApi(targetApi) {
   });
 }
 
-patchFinanceApi(api);
+if (typeof window !== 'undefined') {
+  import('./api.js')
+    .then((apiModule) => patchFinanceApi(apiModule?.api))
+    .catch((error) => console.error('[finance] transaction page data patch failed', error));
+}
 
 export {
   applyResolvedActivityContact,
