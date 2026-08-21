@@ -1,132 +1,86 @@
-# חשבונות עסקה — ממצאי investigation ותכנית מימוש
+# חשבונות עסקה — ממצאי investigation ומימוש מאושר
 
-תאריך הבדיקה: 21.08.2026. מסמך זה הוא שער האישור לפני יצירת migration או כתיבה
-לסביבת production; הוא אינו משנה נתונים, סכמות או התנהגות אפליקטיבית.
+תאריך בדיקה: 21.08.2026.
 
-## מצב repository
+מסמך זה מתעד את ההכרעות שעליהן מבוסס המימוש של חשבונות העסקה באזור הכספים. `activities` נשארת מקור האמת לפעילות; `finance_collection_tracking` נשארת שכבת מעקב גבייה נפרדת.
 
-ה־checkout שסופק נמצא על branch מקומי בשם `work` וללא remote מוגדר. לכן לא ניתן
-היה לבצע `fetch/pull` מ־`main`. הוקם ממנו branch ממוקד
-`feat/finance-transaction-accounts`. לפני תחילת implementation יש לחבר את remote,
-לבצע rebase על `origin/main`, ולפתור פערים אם קיימים.
+## מקור הנתונים וחוקי החישוב
 
-## מה קיים וניתן למחזר
+- מפגשים נקראים מ־`activities.date_1..date_35` ונשמרת זהות **slot** (`date_1` = 1 וכו'). שני מפגשים באותו תאריך הם שני מפגשים נפרדים ואינם מתאחדים.
+- מספר המפגשים המתוכנן לצורך מחיר לשעה נלקח מ־`activities.sessions` כאשר הוא מספר חיובי; בהיעדרו משתמשים במספר slots מתוזמנים.
+- כל מפגש = 1.5 שעות.
+- מחיר לשעה = `activities.price / (planned_meeting_count * 1.5)`.
+- ביטולים נלקחים מ־`course_meeting_cancellations`; ביטול מוציא את המפגש מחיוב אך **אינו משנה את מכנה מחיר הפעילות**.
+- מפגש נחשב שבוצע אם מועדו לפני cutoff. אם cutoff הוא היום, המפגש של היום נחשב רק לאחר `end_time`, לפי `Asia/Jerusalem`.
+- במחזור הרגיל cutoff הוא היום האחרון של החודש הקודם.
+- פחות משלושה מפגשים שבוצעו וטרם חויבו נדחים. שלושה ומעלה מחייבים את כל היתרה שבוצעה וטרם חויבה.
+- closing bill מותר גם ל־1–2 מפגשים כאשר כל slots המתוכננים והלא־מבוטלים הסתיימו.
+- מפגש שכבר נתפס בחשבון מזוהה לפי `(activity_row_id, meeting_slot)`, לא לפי תאריך בלבד.
+- פעילות ללא סמל מוסד חסומה להפקה; אין איחוד לפי שם בית ספר בלבד.
+- מספר הלקוח הוא סמל המוסד ושם הלקוח הוא שם בית הספר.
+- כתובת נמען יכולה להגיע מהכתובת שנבחרה בתהליך ההפקה; אם אין כתובת כזו נשמר fallback של `activities.contact_email`. בהיעדר נמען החשבון נשמר אך טיוטת Outlook אינה נוצרת.
 
-* מסך הכספים כבר מפריד בין נוכחות לבין גבייה, אוכף הרשאות
-  `admin/finance/finance_access/view_finance`, טוען פעילויות דרך ה־API ושומר נתוני
-  מעקב גבייה בלי לשנות את הפעילות.
-* `finance-collection.js` מרכז normalization, זיהוי `row_id`, חלוקה לפי גורם
-  מממן/בית ספר, חיפוש, סכומים וסטטוס פתוח/סגור. יש להרחיב את תצוגת הגבייה תוך
-  שימוש בפונקציות האלה, ולא להחליפן.
-* `finance-attendance-summary.js` הוא תחום נפרד; אין צורך לשנותו. כך נשמרת תאימות
-  למסך הנוכחות.
-* `finance_collection_tracking` היא בכוונה טבלה צרה: מפתח לפעילות, סטטוס גבייה,
-  צפי והערה. ה־RLS והפונקציה `app_can_access_finance()` הם החוזה שיש למחזר.
-* פעילויות הן מקור האמת: `activities.row_id`, `activity_name`, `activity_no`
-  (מספר גפ״ן), `price`, `sessions`, `school`, `school_id`, `school_contact_id`,
-  `start_date`, `end_date`, ו־`date_1..date_35`.
-* קורא התאריכים המשותף `getActivityDateColumns` כבר מטפל בעמודות התאריכים
-  הקנוניות ובווריאנטים ישנים. ביטולים נשמרים ב־`course_meeting_cancellations`
-  לפי פעילות ותאריך, ו־`course-scheduling-meetings.js` כבר מצרף אותם לפעילות.
-  חישובי כספים ישתמשו באותם מקורות אך לא ישנו קוד תפעולי.
-* שפת העיצוב הטבלאית של הצעות המחיר קיימת ב־`proposals-agreements.js` ובתיקוני
-  המסמך המאושר. ניתן למחזר את העקרונות החזותיים, אך לא את מנגנון ההדפסה של DOM.
-* קיימת תשתית PDF אמיתי בצד Edge: `pdf-lib`, `fontkit`, פונטי Arimo ו־`bidi-js`.
-  היא כבר יוצרת A4 עם טקסט מוטמע/selectable בעברית. זה הבסיס הנכון למסמך החדש.
-* קיימת אינטגרציית Microsoft Graph בשני אופנים: client-credentials ב־Edge לשמירה
-  ב־SharePoint, ו־MSAL delegated עם `Mail.ReadWrite` ליצירת טיוטה והוספת קובץ.
-  מנגנון תיאום הפעילות כולל idempotency/retry לטיוטות וניתן למחזר את הדפוס שלו.
+## מודל הנתונים
 
-## מקורות נתונים וחוקי חישוב
+המיגרציה `20260821190000_finance_transaction_accounts.sql` מוסיפה:
 
-1. מפגשים מתוכננים ייקראו מ־`activities.date_1..date_35`; `sessions` ישמש רק
-   לבדיקת עקביות/כמות מתוכננת כאשר הוא מספר תקין.
-2. מפגש שבוצע הוא תאריך ISO שאינו מאוחר מ־cutoff ואינו מופיע בטבלת הביטולים.
-3. מפגש שכבר נמצא בטבלת snapshot של חשבון לא יהיה מועמד שוב. הגנה סופית תהיה
-   unique DB על `(activity_row_id, meeting_date)`.
-4. מחיר המקור הוא `activities.price`. הוא יומר ל־numeric באופן מפורש; ערך לא
-   תקין יוצג כחריגה ולא יחויב בשקט.
-5. `school_id` הוא מזהה פנימי ואינו בהכרח סמל מוסד. סמל המוסד ייקרא מ־`schools`
-   או `contacts_schools.semel_mosad`; פעילות ללא סמל תסומן כחסומה ולא תאוחד לפי
-   שם בלבד.
-6. כתובת המייל תילקח מ־`school_contact_id` אל `contacts_schools` ומהמייל הראשי
-   ב־`contact_emails`. בהיעדרה החשבון יישמר, אך טיוטה לא תיווצר.
+1. `finance_transaction_account_number_seq`, החל מ־8525.
+2. `finance_transaction_accounts` — snapshot של המסמך, הלקוח, סטטוס המסמך/גבייה/Outlook ומטא־דאטה של הקובץ.
+3. `finance_transaction_account_lines` — snapshot של כל פעילות וסכום החיוב שלה.
+4. `finance_transaction_account_meetings` — snapshot של slot, תאריך ו־1.5 שעות, עם unique על `(activity_row_id, meeting_slot)`.
+5. `reserve_finance_transaction_account` — reservation אידמפוטנטי; השרת מחשב מחדש את כל slots הזכאים ודורש שהבחירה שקיבל תואמת בדיוק למקור האמת.
+6. `finalize_finance_transaction_account` — מעבר ל־issued רק דרך backend/service role לאחר יצירת PDF והעלאה מוצלחת.
+7. `mark_finance_transaction_outlook` — עדכון מצב הטיוטה דרך backend/service role בלבד.
+8. `cancel_generating_finance_transaction_account` — שחרור reservation תקוע בלי למחזר את מספר החשבון.
 
-כללי 1.5 שעות, סף שלושה מפגשים, צבירת מפגשים ישנים ו־closing bill יחושבו
-בפונקציית preview משותפת. חישוב כספי יישמר ב־`numeric` בדיוק מלא; רק סכום השורה
-והמסמך יעוגלו לאגורות. בשורת הסיום יותאם ההפרש כך שסך החיובים לפעילות יהיה בדיוק
-מחיר הפעילות.
+רשומות `generating` הן claims זמניים ואינן מוצגות כהיסטוריית חיוב רגילה דרך RLS. הן עדיין תופסות את slot ברמת DB כדי למנוע שתי הפקות מקבילות על אותו מפגש.
 
-## תכנית migration (דורשת אישור לפני הפעלה)
+Finance מקבל הרשאת קריאה לביטולי מפגשים כדי שה־UI והשרת ישתמשו באותה אמת.
 
-Migration יחיד, הפיך לוגית וללא backfill של נתוני פעילות:
+## PDF
 
-1. sequence גלובלי `finance_transaction_account_number_seq START 8525`; הקצאה
-   תתרחש רק בתוך RPC ההפקה. מספר שבוטל לא יוחזר לרצף.
-2. `finance_transaction_accounts`: מספר unique, תאריכי issue/cutoff, snapshot
-   לקוח וסמל, total מדויק, סטטוס מסמך, סטטוס גבייה, שם/PDF, metadata של
-   SharePoint, מצב/מזהה/error של Outlook, audit וביטול.
-3. `finance_transaction_account_lines`: FK לחשבון, `activity_row_id` כהפניה
-   בלבד, וכל שדות ה־snapshot הנדרשים למסמך.
-4. `finance_transaction_account_meetings`: FK לשורה, פעילות, תאריך, `hours=1.5`
-   ו־unique `(activity_row_id, meeting_date)` למניעת חיוב כפול גם בתחרות.
-5. RLS לכל שלוש הטבלאות על בסיס `app_can_access_finance()`; כתיבת snapshot תהיה
-   דרך RPC בלבד. עדכון סטטוס גבייה יהיה RPC נפרד ומצומצם.
-6. RPC preview לקריאה בלבד ו־RPC finalize טרנזקציוני. finalize יבצע נעילה,
-   יחשב מחדש מול מקור האמת, יקצה מספר לכל סמל מוסד, יכתוב account/lines/meetings
-   וייכשל כולו במקרה collision. idempotency key של batch/manual ימנע הפקה כפולה.
-7. אין שינוי או backfill ל־`finance_collection_tracking`, ואין תלות ב־
-   `activity_completion_approval_uploads`.
+ה־Edge Function `finance-transaction-accounts` מייצר PDF A4 אמיתי באמצעות `pdf-lib`, `fontkit`, Arimo ו־`bidi-js`.
 
-ה־PDF והעלאת SharePoint יבוצעו ב־Edge function חדש וממוקד. ה־RPC ישמור תחילה
-snapshot במצב `generating`; לאחר PDF והעלאה מוצלחים RPC finalize יסמן `issued`.
-מפגשים יישמרו באותה טרנזקציה עם החשבון, אך preview יתעלם רק מחשבונות final;
-רשומות generating תקועות ידרשו resume של אותו idempotency key, לא מספר חדש.
-טיוטת Outlook תתרחש אחרי finalize וכשל בה יעדכן רק `outlook_status=failed`.
+המסמך כולל:
+- header קומפקטי עם פרטי תעשיידע ולוגו.
+- תאריך הפקה.
+- `חשבון עסקה | {NUMBER} | מקור`.
+- שם בית ספר וסמל מוסד.
+- `תוכניות חינוכיות – שנת תשפ"ז`.
+- טבלה: תוכנית / פעילות, מס׳ גפ״ן, שעות לחיוב, מחיר לשעה, סכום.
+- מתחת לכל פעילות: `פירוט ביצוע לחיוב` עם תאריך ושעות בלבד.
+- סה"כ לתשלום.
 
-## PDF, SharePoint ו־Outlook
+הטקסט נשאר selectable/searchable; אין screenshot או canvas.
 
-* PDF: Edge + `pdf-lib/fontkit/bidi-js`, A4, Arimo מוטמע, טקסט וקטורי בלבד,
-  header קומפקטי, טבלה ראשית ופירוט תאריכים. בדיקה תוודא קיום font/text operators
-  והיעדר עמוד שהוא XObject תמונה בלבד.
-* SharePoint: בחירת התיקייה תספק `driveId/itemId/webUrl` שנפתרו דרך Graph. השרת
-  יאמת שהיעד שייך ל־site המותר לפני upload. יישמרו מזהה item, תיקייה ושם קובץ;
-  URL לא יופיע במסמך או במייל.
-* Outlook: שימוש ב־`graph-mail.js` וב־MSAL הקיימים, יצירת draft בלבד וצירוף bytes
-  של ה־PDF. retry יקבל `account_id`, יבדוק/יחליף רק טיוטה ולא יקצה מספר או יחייב
-  מפגש.
+## SharePoint ו־Outlook
 
-## קבצים ממוקדים לשלב implementation
+- ה־PDF נשמר בתיקיית SharePoint שנבחרה.
+- ה־Edge Function מאמת שה־`driveId` הוא drive מאושר ומוודא ש־`folderItemId` הוא תיקייה באותו drive לפני upload.
+- retry של אותו חשבון מחליף את אותו קובץ בעל שם ייחודי לפי מספר החשבון, במקום להיתקע על filename collision.
+- לאחר finalize נוצרת טיוטת Outlook בלבד, עם ה־PDF מצורף וללא קישור SharePoint.
+- טיוטה שכבר נוצרה אינה נוצרת שוב ב־retry.
+- כשל Outlook אינו מבטל חשבון שכבר הופק ונשמר.
 
-* migration חדש תחת `supabase/migrations/`.
-* Edge function חדש `supabase/functions/finance-transaction-accounts/` (עם
-  helpers קטנים משותפים רק אם חילוץ מתשתית ה־Graph הקיימת נדרש).
-* מודול חישוב/תצוגה חדש תחת `frontend/src/screens/finance-transaction-accounts.js`.
-* הרחבות נקודתיות ב־`frontend/src/screens/finance.js`, `frontend/src/api.js`
-  וב־CSS הכספים הקיים.
-* tests ממוקדים חדשים ללוגיקת החישוב, חוזה migration, PDF ו־failure/retry.
-* בגלל שזה frontend deployable: marker חדש ב־`frontend/src/config.js`, העלאת
-  `CACHE_VERSION` ב־`frontend/sw.js`, ועדכון query version רק אם entry ישיר
-  מ־`index.html` ישתנה.
+נוסח המייל:
 
-אין צורך לשנות את מסכי התפעול, `finance-attendance-summary.js`, רכיבי אישור
-ביצוע או טבלאות פעילות.
+```text
+שלום,
 
-## סיכונים וחסמים לאישור
+מצורף חשבון עסקה מס׳ {NUMBER} עבור הפעילויות שבוצעו בתקופה הרלוונטית.
 
-* אין remote ב־checkout ולכן טרם אומתה התאמה ל־main העדכני.
-* דרוש אישור להרצת migration; בשלב זה לא נוצרה ולא הורצה migration ולא בוצעה
-  כתיבה לנתוני אמת.
-* שמירת SharePoint דורשת secrets קיימים `MS_TENANT_ID`, `MS_CLIENT_ID`,
-  `MS_CLIENT_SECRET` והרשאות application מתאימות ל־site/drive. בחירת תיקייה
-  דינמית דורשת שהאפליקציה תהיה מורשית ליעד שנבחר.
-* Outlook delegated דורש consent ל־`Mail.ReadWrite`; `Mail.Send` אינו נדרש
-  ליצירת draft בלבד וניתן לצמצמו בכפוף להגדרת האפליקציה. אין ליצור auth חדש.
-* יש להכריע האם “הפעילות הסתיימה” פירושו שכל התאריכים הלא־מבוטלים עד cutoff,
-  או גם `end_date <= cutoff`. ההמלצה היא שכל המפגשים המתוכננים הלא־מבוטלים
-  הגיעו ל־cutoff; `end_date` לבדו אינו אמין מספיק.
-* יש לאשר את site/drive המורשים ואת זהות תיקיית היעד לפני הטמעת picker.
+נשמח להסדרת התשלום בהתאם לתנאי התשלום המפורטים בחשבון.
+```
 
-לאחר אישור מפורש של התכנית וההכרעות לעיל אפשר לבצע את ה־implementation, להריץ
-רק את הבדיקות הממוקדות המפורטות בדרישה, ולמסור PR נוסף מוכן לבדיקה — ללא merge
-וללא הפעלת migration ב־production.
+## אבטחה ושלמות חשבונאית
+
+- מספרים מוקצים בשרת מרצף גלובלי שמתחיל ב־8525.
+- reservation משתמש ב־advisory lock וב־idempotency key.
+- הפעילות ננעלת בזמן חישוב reservation והשרת מאמת מחדש סמל מוסד, cutoff, ביטולים, slots, מחיר ומספר מפגשים.
+- `finalize` ו־`mark_outlook` אינם ניתנים להפעלה ישירה על ידי משתמש authenticated; הם backend-only דרך service role.
+- SharePoint target מוגבל ל־drive המאושר.
+- Snapshot שהופק אינו מחושב מחדש מנתוני פעילות עתידיים.
+
+## גבולות המימוש הנוכחי
+
+מסך בקרת הגבייה מציג את שכבת הביצוע והחיוב וה־API/backend קיימים. ממשק מלא לבחירת תיקיית SharePoint, מסך אישור סבב מפורט והיסטוריית חשבונות אינטראקטיבית הם שכבת UI נוספת ואינם חלק מה־diff הנוכחי.
