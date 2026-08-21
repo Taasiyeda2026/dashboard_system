@@ -6906,6 +6906,41 @@ export const api = {
     if (error) throw new Error(error.message || 'finance_collection_tracking_save_failed');
     return data || {};
   },
+  listFinanceTransactionAccounts: async () => {
+    const { data, error } = await supabase.from('finance_transaction_accounts')
+      .select('*,finance_transaction_account_lines(*,finance_transaction_account_meetings(*))')
+      .order('issue_date', { ascending: false });
+    if (error) throw new Error(error.message || 'finance_transaction_accounts_read_failed');
+    return data || [];
+  },
+  financeTransactionContext: async () => {
+    const [cancelled, accounts, schools] = await Promise.all([
+      supabase.from('course_meeting_cancellations').select('activity_id,meeting_date'),
+      supabase.from('finance_transaction_accounts').select('*,finance_transaction_account_lines(*,finance_transaction_account_meetings(*))').order('issue_date', { ascending: false }),
+      supabase.from('schools').select('id,semel_mosad,school_name')
+    ]);
+    const failed = [cancelled, accounts, schools].find((result) => result.error);
+    if (failed) throw new Error(failed.error.message || 'finance_transaction_context_failed');
+    return { cancelled: cancelled.data || [], accounts: accounts.data || [], schools: schools.data || [] };
+  },
+  reserveFinanceTransactionAccount: async (payload = {}) => {
+    const { data, error } = await supabase.rpc('reserve_finance_transaction_account', {
+      p_idempotency_key: payload.idempotencyKey,
+      p_cutoff_date: payload.cutoffDate,
+      p_institution_symbol: payload.institutionSymbol,
+      p_customer_name: payload.customerName,
+      p_customer_email: payload.customerEmail || null,
+      p_lines: payload.lines || []
+    });
+    if (error) throw new Error(error.message || 'finance_transaction_account_reserve_failed');
+    return data;
+  },
+  dispatchFinanceTransactionAccount: async (body = {}) => {
+    const { data, error } = await supabase.functions.invoke('finance-transaction-accounts', { body });
+    if (error) throw new Error(error.message || 'finance_transaction_account_dispatch_failed');
+    if (data?.error) throw new Error(data.error);
+    return data;
+  },
   login: async (user_id, entry_code) => {
     // Auth must complete before any permission-guarded Supabase reads.
     const { userRow: user, profileRow } = await loginWithSupabaseAuth(user_id, entry_code);

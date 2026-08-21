@@ -33,6 +33,7 @@ import {
   summarizeFinanceCollectionTotals
 } from './finance-collection.js';
 import { ACTIVITY_SEASON_SCHOOL_2027, getActivityPeriodKey } from './shared/summer-activity.js';
+import { financeCycleCutoff, transactionActivitySummary } from './finance-transaction-accounts.js';
 
 export const FINANCE_COLLECTION_ACTIVITY_PERIOD = ACTIVITY_SEASON_SCHOOL_2027;
 
@@ -93,7 +94,7 @@ const FINANCE_COLLECTION_MEETING_DATE_COLUMNS = Array.from({ length: 35 }, (_, i
 
 export const FINANCE_COLLECTION_ACTIVITY_COLUMNS = [
   'id', 'row_id', 'activity_name', 'activity_type', 'authority', 'school',
-  'school_id', 'authority_id', 'funding', 'price', 'status', 'activity_season',
+  'school_id', 'authority_id', 'funding', 'price', 'status', 'activity_season', 'activity_no', 'sessions',
   'start_date', 'end_date', ...FINANCE_COLLECTION_MEETING_DATE_COLUMNS
 ].join(',');
 
@@ -264,12 +265,21 @@ function collectionActivityRowHtml(activity, saveState = {}) {
   const id = escapeHtml(activityRowId(activity));
   const status = normalizeCollectionStatus(activity.collection_status);
   const expected = String(activity.expected_collection_date || '').slice(0, 10);
+  const tx = activity.transaction_summary || {};
+  const last = activity.last_transaction_account;
   return `<tr data-fin-activity-id="${id}">
     <td>${escapeHtml(activity.activity_name || '—')}</td>
     <td>${escapeHtml(activity.authority || '—')}</td>
     <td>${escapeHtml(activity.school || '—')}</td>
     <td>${escapeHtml(activity.funding || '—')}</td>
+    <td>${escapeHtml(activity.semel_mosad || 'חסר — חסום להפקה')}</td>
+    <td>${escapeHtml(activity.activity_no || '—')}</td>
     <td class="ds-fin-num">${escapeHtml(money(activity.price))}</td>
+    <td class="ds-fin-num">${escapeHtml(String(tx.plannedCount ?? 0))}</td>
+    <td class="ds-fin-num">${escapeHtml(String(tx.completedCount ?? 0))}</td>
+    <td class="ds-fin-num">${escapeHtml(String(tx.billedCount ?? 0))}</td>
+    <td><strong>בוצע וטרם חויב: ${escapeHtml(`${tx.unbilledCount || 0} מפגשים | ${tx.unbilledHours || 0} שעות | ${money(tx.amount || 0)}`)}</strong></td>
+    <td>${last ? escapeHtml(`${last.transaction_account_number} · ${String(last.issue_date || '').slice(0,10)}`) : '—'}</td>
     <td>${escapeHtml(activityStatusLabel(activity))}</td>
     <td>
       <select class="ds-input ds-fin-inline" data-fin-collect-field="collection_status" data-fin-activity-id="${id}">
@@ -303,7 +313,14 @@ function payerCardHtml(group, tab, saveState = {}) {
         <th>רשות</th>
         <th>בית ספר</th>
         <th>גורם מימון</th>
+        <th>סמל מוסד</th>
+        <th>מס׳ גפ״ן</th>
         <th class="ds-fin-num">מחיר</th>
+        <th>מפגשים מתוכננים</th>
+        <th>מפגשים שבוצעו</th>
+        <th>מפגשים שחויבו</th>
+        <th>בוצע וטרם חויב</th>
+        <th>חשבון אחרון</th>
         <th>סטטוס פעילות</th>
         <th>סטטוס גבייה</th>
         <th>צפי לגבייה</th>
@@ -352,7 +369,16 @@ function buildFinanceCollectionActivities(data) {
   return attachCollectionTracking(
     (data.collectionActivities || []).filter(isFinanceCollectionActivity),
     data.collectionTracking || []
-  );
+  ).map((activity) => {
+    const accounts = data.transactionContext?.accounts || [];
+    const lines = accounts.flatMap((account) => (account.finance_transaction_account_lines || []).map((line) => ({ ...line, account })));
+    const activityLines = lines.filter((line) => line.activity_row_id === activityRowId(activity) && line.account.document_status !== 'cancelled');
+    const billedDates = activityLines.flatMap((line) => (line.finance_transaction_account_meetings || []).map((meeting) => meeting.meeting_date));
+    const cancelledDates = (data.transactionContext?.cancelled || []).filter((row) => row.activity_id === activityRowId(activity)).map((row) => row.meeting_date);
+    const school = (data.transactionContext?.schools || []).find((row) => String(row.id) === String(activity.school_id));
+    const latest = activityLines.sort((a, b) => String(b.account.issue_date).localeCompare(String(a.account.issue_date)))[0];
+    return { ...activity, semel_mosad: school?.semel_mosad || '', transaction_summary: transactionActivitySummary({ ...activity, semel_mosad: school?.semel_mosad || '' }, { cutoff: financeCycleCutoff(), cancelledDates, billedDates, billedAmount: activityLines.reduce((sum, line) => sum + Number(line.amount || 0), 0) }), last_transaction_account: latest?.account || null };
+  });
 }
 
 export function buildFinanceCollectionBodyHtml(data) {
@@ -454,19 +480,21 @@ async function ensureCollectionLoaded(data, api) {
   data.collectionLoading = true;
   data.collectionError = '';
   try {
-    const [activities, tracking] = await Promise.all([
+    const [activities, tracking, transactionContext] = await Promise.all([
       api.allActivities({
         select: FINANCE_COLLECTION_ACTIVITY_COLUMNS,
         activity_period: FINANCE_COLLECTION_ACTIVITY_PERIOD
       }),
       typeof api.listFinanceCollectionTracking === 'function'
         ? api.listFinanceCollectionTracking()
-        : Promise.resolve([])
+        : Promise.resolve([]),
+      typeof api.financeTransactionContext === 'function' ? api.financeTransactionContext() : Promise.resolve({ cancelled: [], accounts: [], schools: [] })
     ]);
     data.collectionPeriod = FINANCE_COLLECTION_ACTIVITY_PERIOD;
     data.collectionActivities = (Array.isArray(activities?.rows) ? activities.rows : [])
       .filter(isFinanceCollectionActivity);
     data.collectionTracking = Array.isArray(tracking) ? tracking : [];
+    data.transactionContext = transactionContext;
   } catch (error) {
     data.collectionError = error?.message || 'טעינת מעקב הגבייה נכשלה.';
     throw error;

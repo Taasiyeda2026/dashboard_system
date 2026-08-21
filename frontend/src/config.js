@@ -113,3 +113,4 @@ config.HOTFIX_VERSION = `course-scheduling-calendar-shift-sw-cache-1576-20260820
 config.HOTFIX_VERSION = `course-scheduling-assigned-management-20260821-v1-${config.HOTFIX_VERSION}`;
 
 config.HOTFIX_VERSION = `course-scheduling-assigned-management-review-fixes-20260821-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `finance-transaction-accounts-20260821-v1-${config.HOTFIX_VERSION}`;
