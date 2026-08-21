@@ -66,8 +66,28 @@ function completedByCutoff(slot, activity, cutoff, now) {
   return (Number(p.hour) * 60 + Number(p.minute)) >= endMinutes;
 }
 
-function billedSlotNumbers(billedSlots = []) {
-  return new Set((billedSlots || []).map((value) => Number(value?.slot ?? value?.meeting_slot ?? value)).filter(Number.isFinite));
+function billedSlotNumbers(slots, billedSlots = [], billedDates = []) {
+  const explicit = new Set((billedSlots || [])
+    .map((value) => Number(value?.slot ?? value?.meeting_slot ?? value))
+    .filter(Number.isFinite));
+  if (explicit.size) return explicit;
+
+  // Legacy/context compatibility: meeting rows may currently be passed as dates.
+  // Use a multiset so two date slots on the same day remain two distinct meetings.
+  const counts = new Map();
+  for (const value of billedDates || []) {
+    const date = iso(value);
+    if (date) counts.set(date, (counts.get(date) || 0) + 1);
+  }
+  const resolved = new Set();
+  for (const slot of slots) {
+    const left = counts.get(slot.date) || 0;
+    if (left > 0) {
+      resolved.add(slot.slot);
+      counts.set(slot.date, left - 1);
+    }
+  }
+  return resolved;
 }
 
 export function transactionActivitySummary(activity = {}, {
@@ -81,11 +101,8 @@ export function transactionActivitySummary(activity = {}, {
   const slots = activityMeetingSlots(activity);
   const plannedCount = plannedMeetingCount(activity, slots);
   const cancelled = new Set(cancelledDates.map(iso).filter(Boolean));
-  const billedSlotSet = billedSlotNumbers(billedSlots);
-  const legacyBilledDates = new Set(billedDates.map(iso).filter(Boolean));
-  const slotIsBilled = (slot) => billedSlotSet.size
-    ? billedSlotSet.has(slot.slot)
-    : legacyBilledDates.has(slot.date);
+  const billedSlotSet = billedSlotNumbers(slots, billedSlots, billedDates);
+  const slotIsBilled = (slot) => billedSlotSet.has(slot.slot);
 
   const nonCancelledSlots = slots.filter((slot) => !cancelled.has(slot.date));
   const completedSlots = nonCancelledSlots.filter((slot) => completedByCutoff(slot, activity, cutoff, now));
