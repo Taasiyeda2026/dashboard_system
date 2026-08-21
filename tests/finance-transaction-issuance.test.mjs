@@ -49,6 +49,12 @@ test('manual mode allows any funding source with at least one performed-unbilled
   assert.equal(manual.eligible, true);
 });
 
+test('manual preview requires explicit activity selection', () => {
+  const all = [activity({ funding: 'רשות' })];
+  assert.equal(buildTransactionPreview(all, { cutoff: '2026-10-31', mode: TRANSACTION_MODE_MANUAL, activityIds: [] }).accounts.length, 0);
+  assert.equal(buildTransactionPreview(all, { cutoff: '2026-10-31', mode: TRANSACTION_MODE_MANUAL, activityIds: ['a1'] }).accounts.length, 1);
+});
+
 test('automatic preview includes mixed Gefen but excludes non-Gefen', () => {
   const preview = buildTransactionPreview([
     activity({ row_id: 'g1', funding: 'גפן + ויצו', date_3: '2026-10-03' }),
