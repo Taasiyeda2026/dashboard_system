@@ -209,6 +209,13 @@ async function buildPdf(account: any) {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
+
+  let accountId = "";
+  let userClient: ReturnType<typeof createClient> | null = null;
+  let graphAccessToken = "";
+  let uploadedItemId = "";
+  let finalized = false;
+
   try {
     const auth = req.headers.get("authorization") || "";
     const url = clean(Deno.env.get("SUPABASE_URL"));
@@ -216,12 +223,12 @@ Deno.serve(async (req) => {
     const service = clean(Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"));
     if (!url || !anon || !service) throw new Error("supabase_function_not_configured");
 
-    const userClient = createClient(url, anon, { global: { headers: { Authorization: auth } } });
+    userClient = createClient(url, anon, { global: { headers: { Authorization: auth } } });
     const { data: allowed, error: allowError } = await userClient.rpc("app_can_access_finance");
     if (allowError || !allowed) throw new Error("not_authorized");
 
     const body = await req.json();
-    const accountId = clean(body.accountId);
+    accountId = clean(body.accountId);
     if (!accountId) throw new Error("account_required");
 
     const admin = createClient(url, service);
@@ -242,7 +249,7 @@ Deno.serve(async (req) => {
       }), { headers: { ...cors, "Content-Type": "application/json" } });
     }
 
-    const graphAccessToken = await graphToken();
+    graphAccessToken = await graphToken();
     await validateTransactionFolder(graphAccessToken);
 
     let bytes: Uint8Array;
@@ -260,10 +267,11 @@ Deno.serve(async (req) => {
       );
       if (!upload.ok) throw new Error(`sharepoint_upload_failed:${upload.status}:${(await upload.text()).slice(0, 180)}`);
       const item = await upload.json();
+      uploadedItemId = clean(item.id);
       const hash = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)))
         .map((x) => x.toString(16).padStart(2, "0"))
         .join("");
-      const { data: finalized, error: finalizeError } = await admin.rpc("finalize_finance_transaction_account", {
+      const { data: finalizedAccount, error: finalizeError } = await admin.rpc("finalize_finance_transaction_account", {
         p_account_id: accountId,
         p_filename: filename,
         p_pdf_sha256: hash,
@@ -273,8 +281,10 @@ Deno.serve(async (req) => {
         p_web_url: item.webUrl
       });
       if (finalizeError) throw finalizeError;
-      Object.assign(account, finalized);
+      Object.assign(account, finalizedAccount);
+      finalized = true;
     } else {
+      finalized = true;
       bytes = await buildPdf(account);
     }
 
@@ -328,7 +338,21 @@ Deno.serve(async (req) => {
       }), { headers: { ...cors, "Content-Type": "application/json" } });
     }
   } catch (error) {
-    return new Response(JSON.stringify({ error: clean((error as Error).message) }), {
+    const message = clean((error as Error).message) || "transaction_dispatch_failed";
+    if (!finalized && uploadedItemId && graphAccessToken) {
+      try {
+        await graph(graphAccessToken, `/drives/${encodeURIComponent(TRANSACTION_DRIVE_ID)}/items/${encodeURIComponent(uploadedItemId)}`, { method: "DELETE" });
+      } catch { /* best-effort orphan cleanup */ }
+    }
+    if (!finalized && accountId && userClient) {
+      try {
+        await userClient.rpc("cancel_generating_finance_transaction_account", {
+          p_account_id: accountId,
+          p_reason: `dispatch_failed:${message.slice(0, 240)}`
+        });
+      } catch { /* a concurrently finalized account must not be cancelled */ }
+    }
+    return new Response(JSON.stringify({ error: message }), {
       status: 400,
       headers: { ...cors, "Content-Type": "application/json" }
     });
