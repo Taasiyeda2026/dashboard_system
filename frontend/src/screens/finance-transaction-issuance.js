@@ -82,15 +82,17 @@ export function transactionPreviewForVisit(data, mode = TRANSACTION_MODE_AUTOMAT
     ...activity,
     semel_mosad: schoolMap.get(String(activity.school_id))?.semel_mosad || ''
   }));
-  const activityIds = effectiveMode === TRANSACTION_MODE_MANUAL
-    ? Object.entries(data.transactionManualSelected || {}).filter(([, checked]) => checked).map(([id]) => id)
-    : [];
-  return buildTransactionPreview(activities, {
+  const options = {
     mode: effectiveMode,
     cutoff,
-    activityIds,
     ...maps
-  });
+  };
+  if (effectiveMode === TRANSACTION_MODE_MANUAL) {
+    options.activityIds = Object.entries(data.transactionManualSelected || {})
+      .filter(([, checked]) => checked)
+      .map(([id]) => id);
+  }
+  return buildTransactionPreview(activities, options);
 }
 
 function summaryCards(preview) {
@@ -109,9 +111,9 @@ function summaryCards(preview) {
 function accountPreviewHtml(account) {
   const emails = account.customerEmails?.length ? account.customerEmails.join(', ') : 'חסר נמען';
   const rows = account.lines.map((line) => `<tr>
-    <td>${escapeHtml(line.customerName || account.customerName || '—')}</td>
+    <td>${escapeHtml(line.activityName || line.activityRowId || '—')}</td>
+    <td>${escapeHtml(line.gefenNumber || '—')}</td>
     <td>${escapeHtml(line.funding || '—')}</td>
-    <td>${escapeHtml(line.activityRowId || '—')}</td>
     <td>${escapeHtml(`${line.unbilledCount} מפגשים`)}</td>
     <td>${escapeHtml(`${line.unbilledHours} שעות`)}</td>
     <td>${escapeHtml(formatAmount(line.issuableAmount))}</td>
@@ -119,7 +121,7 @@ function accountPreviewHtml(account) {
   return `<details class="ds-fin-payer" open>
     <summary><span class="ds-fin-payer__title">${escapeHtml(account.customerName || 'בית ספר')}</span><span class="ds-fin-payer__meta">${escapeHtml(`${account.institutionSymbol} · ${formatAmount(account.totalAmount)}`)}</span></summary>
     <div style="padding:10px 12px"><strong>נמען:</strong> ${escapeHtml(emails)}</div>
-    ${dsTableWrap(`<table class="ds-table" dir="rtl"><thead><tr><th>בית ספר</th><th>גורם מימון</th><th>פעילות</th><th>מפגשים</th><th>שעות</th><th>סכום</th></tr></thead><tbody>${rows}</tbody></table>`)}
+    ${dsTableWrap(`<table class="ds-table" dir="rtl"><thead><tr><th>פעילות</th><th>מס׳ גפ״ן</th><th>גורם מימון</th><th>מפגשים</th><th>שעות</th><th>סכום</th></tr></thead><tbody>${rows}</tbody></table>`)}
   </details>`;
 }
 
