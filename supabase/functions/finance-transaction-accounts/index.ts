@@ -10,6 +10,7 @@ const cors = {
 };
 const clean = (value: unknown) => String(value ?? "").trim();
 const bidi = bidiFactory();
+const DEFAULT_ALLOWED_DRIVE_ID = "b!7yHSW8aMokunngKw03vHhB5QSRQPWQ1JhXcgoDOvU2BFY5HnYLNMTZS2gZux2CMR";
 
 function rtl(value: unknown) {
   const source = clean(value);
@@ -67,6 +68,14 @@ async function graph(token: string, path: string, options: RequestInit = {}) {
   });
   if (!response.ok) throw new Error(`graph_request_failed:${response.status}:${(await response.text()).slice(0, 160)}`);
   return response.status === 204 ? null : response.json();
+}
+
+async function validateSharePointTarget(token: string, driveId: string, folderId: string) {
+  const allowedDriveId = clean(Deno.env.get("MS_SHAREPOINT_DRIVE_ID")) || DEFAULT_ALLOWED_DRIVE_ID;
+  if (driveId !== allowedDriveId) throw new Error("sharepoint_drive_not_allowed");
+  const item = await graph(token, `/drives/${encodeURIComponent(driveId)}/items/${encodeURIComponent(folderId)}?$select=id,folder,parentReference`);
+  if (!item?.id || !item?.folder) throw new Error("sharepoint_folder_not_allowed");
+  if (clean(item?.parentReference?.driveId) && clean(item.parentReference.driveId) !== driveId) throw new Error("sharepoint_folder_not_allowed");
 }
 
 function drawRight(page: PDFPage, font: PDFFont, value: string, y: number, size = 9, rightX = 565) {
@@ -192,29 +201,29 @@ Deno.serve(async (req) => {
     if (error) throw error;
     if (!["generating", "issued", "mail_draft_ready"].includes(account.document_status)) throw new Error("account_not_dispatchable");
 
-    // An already-created draft is idempotent: do not create a second Outlook message.
     if (account.outlook_status === "draft_ready" && account.outlook_message_id) {
       return new Response(JSON.stringify({ accountId, filename: account.generated_filename, outlookStatus: "draft_ready", messageId: account.outlook_message_id }), {
         headers: { ...cors, "Content-Type": "application/json" }
       });
     }
 
+    const graphAccessToken = await graphToken();
+    await validateSharePointTarget(graphAccessToken, driveId, folderId);
+
     let bytes: Uint8Array;
     let filename = account.generated_filename;
     if (account.document_status === "generating") {
       bytes = await buildPdf(account);
       filename = `חשבון עסקה ${account.transaction_account_number} - ${clean(account.customer_name_snapshot).replace(/[\\/:*?\"<>|]/g, " ")} - ${date(account.issue_date)}.pdf`;
-      const token = await graphToken();
-      // Same-account retries overwrite the same unique account-number filename instead of getting stuck on 409.
       const upload = await fetch(`https://graph.microsoft.com/v1.0/drives/${encodeURIComponent(driveId)}/items/${encodeURIComponent(folderId)}:/${encodeURIComponent(filename)}:/content?@microsoft.graph.conflictBehavior=replace`, {
         method: "PUT",
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/pdf" },
+        headers: { Authorization: `Bearer ${graphAccessToken}`, "Content-Type": "application/pdf" },
         body: bytes
       });
       if (!upload.ok) throw new Error(`sharepoint_upload_failed:${upload.status}`);
       const item = await upload.json();
       const hash = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes))).map((x) => x.toString(16).padStart(2, "0")).join("");
-      const { data: finalized, error: finalizeError } = await userClient.rpc("finalize_finance_transaction_account", {
+      const { data: finalized, error: finalizeError } = await admin.rpc("finalize_finance_transaction_account", {
         p_account_id: accountId,
         p_filename: filename,
         p_pdf_sha256: hash,
@@ -231,17 +240,16 @@ Deno.serve(async (req) => {
 
     const recipient = clean(account.customer_email_snapshot);
     if (!recipient) {
-      await userClient.rpc("mark_finance_transaction_outlook", { p_account_id: accountId, p_status: "missing_recipient" });
+      await admin.rpc("mark_finance_transaction_outlook", { p_account_id: accountId, p_status: "missing_recipient" });
       return new Response(JSON.stringify({ accountId, filename, outlookStatus: "missing_recipient" }), {
         headers: { ...cors, "Content-Type": "application/json" }
       });
     }
 
     try {
-      const token = await graphToken();
       const sender = clean(Deno.env.get("MS_MAIL_SENDER"));
       if (!sender) throw new Error("mail_sender_not_configured");
-      const draft = await graph(token, `/users/${encodeURIComponent(sender)}/messages`, {
+      const draft = await graph(graphAccessToken, `/users/${encodeURIComponent(sender)}/messages`, {
         method: "POST",
         body: JSON.stringify({
           subject: `חשבון עסקה ${account.transaction_account_number} – תעשיידע – ${account.customer_name_snapshot}`,
@@ -258,12 +266,12 @@ Deno.serve(async (req) => {
           }]
         })
       });
-      await userClient.rpc("mark_finance_transaction_outlook", { p_account_id: accountId, p_status: "draft_ready", p_message_id: draft.id });
+      await admin.rpc("mark_finance_transaction_outlook", { p_account_id: accountId, p_status: "draft_ready", p_message_id: draft.id });
       return new Response(JSON.stringify({ accountId, filename, outlookStatus: "draft_ready" }), {
         headers: { ...cors, "Content-Type": "application/json" }
       });
     } catch (mailError) {
-      await userClient.rpc("mark_finance_transaction_outlook", {
+      await admin.rpc("mark_finance_transaction_outlook", {
         p_account_id: accountId,
         p_status: "failed",
         p_error: clean((mailError as Error).message)
