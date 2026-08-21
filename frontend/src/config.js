@@ -116,3 +116,4 @@ config.HOTFIX_VERSION = `course-scheduling-assigned-management-review-fixes-2026
 config.HOTFIX_VERSION = `finance-transaction-accounts-20260821-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `finance-transaction-issuance-20260821-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `finance-transaction-summary-layout-20260821-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `finance-transaction-page-data-20260821-v1-${config.HOTFIX_VERSION}`;
