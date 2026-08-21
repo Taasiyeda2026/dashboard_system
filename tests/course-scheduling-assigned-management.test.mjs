@@ -7,6 +7,7 @@ import {
   isAssignedCourseSchedulingManageable
 } from '../frontend/src/screens/course-scheduling.js';
 import { isCourseSchedulingInterfaceEligible } from '../frontend/src/screens/shared/activity-scheduling-eligibility.js';
+import { clearCourseSchedulingReplacementState } from '../frontend/src/screens/shared/instructors-workspace-nav.js';
 
 const assigned = {
   row_id: 'course-1', activity_season: 'school_2027', activity_type: 'קורס', status: 'פתוח',
@@ -37,6 +38,12 @@ test('confirmed cancellation RPC requires reason, audits, preserves completed hi
   assert.match(sql, /previous_emp_id, previous_instructor_name/);
   assert.match(sql, /emp_id = null[\s\S]*instructor_assignment_locked = false[\s\S]*draft_emp_id = null/);
   assert.match(sql, /grant execute on function public\.cancel_confirmed_course_assignment\(text,text\) to authenticated/);
+});
+
+test('cancellation audit keeps a non-null identity for the prior assignment', async () => {
+  const sql = await readFile(new URL('../supabase/migrations/20260821120000_cancel_confirmed_course_assignment.sql', import.meta.url), 'utf8');
+  assert.match(sql, /p_activity_id,\s*prior_emp_id,\s*coalesce\(nullif\(btrim\(prior_instructor_name\), ''\), prior_emp_id\),\s*'assignment_cancelled'/);
+  assert.doesNotMatch(sql, /p_activity_id,\s*null,\s*null,\s*'assignment_cancelled'/);
 });
 
 test('replacement UI routes by completed meeting count and enforces operational inputs', async () => {
@@ -71,4 +78,30 @@ test('cancellation clears all draft metadata and error mapping uses the canonica
   assert.match(migration, /draft_created_by = null/);
   assert.match(source, /scheduling_course_locked_for_reassignment:/);
   assert.doesNotMatch(source, /scheduling_reassignment_locked:/);
+});
+
+test('replacement cleanup resets temporary state without discarding other course results', () => {
+  const state = {
+    courseSchedulingReplacementCourseId: 'course-1',
+    courseSchedulingReplacementMeetings: 2,
+    courseSchedulingReplacementReason: 'החלפה תפעולית',
+    courseSchedulingReplacementEffectiveFrom: '2027-01-15',
+    courseSchedulingReplacementConfirmed: true,
+    courseSchedulingSelectedCandidateId: '52',
+    courseSchedulingExpandedCandidateId: '52',
+    courseSchedulingResults: [
+      { course: { row_id: 'course-1' }, status: 'הצעה מוכנה' },
+      { course: { row_id: 'course-2' }, status: 'הצעה מוכנה' }
+    ]
+  };
+
+  assert.equal(clearCourseSchedulingReplacementState(state), 'course-1');
+  assert.equal(state.courseSchedulingReplacementCourseId, '');
+  assert.equal(state.courseSchedulingReplacementMeetings, 0);
+  assert.equal(state.courseSchedulingReplacementReason, '');
+  assert.equal(state.courseSchedulingReplacementEffectiveFrom, '');
+  assert.equal(state.courseSchedulingReplacementConfirmed, false);
+  assert.equal(state.courseSchedulingSelectedCandidateId, '');
+  assert.equal(state.courseSchedulingExpandedCandidateId, '');
+  assert.deepEqual(state.courseSchedulingResults.map((result) => result.course.row_id), ['course-2']);
 });
