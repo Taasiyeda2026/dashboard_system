@@ -67,12 +67,19 @@ async function readFinanceTransactionContext() {
   return { cancelled, accounts, schools };
 }
 
+function isFinanceActivityRequest(filters = {}) {
+  const select = text(filters.select);
+  return text(filters.activity_period) === 'school_2027'
+    && select.includes('price')
+    && select.includes('sessions')
+    && select.includes('contact_email')
+    && select.includes('school_id');
+}
+
 function financeActivitySelect(select) {
   const value = text(select);
-  if (!value) return value;
-  const fields = value.split(',').map((item) => item.trim()).filter(Boolean);
-  if (fields.includes('school_id') && !fields.includes('school_contact_id')) fields.push('school_contact_id');
-  return fields.join(',');
+  if (!value || value.includes('school_contact_id')) return value;
+  return `${value},school_contact_id`;
 }
 
 function applyResolvedActivityContact(row = {}) {
@@ -92,10 +99,12 @@ if (api && !api.__financeTransactionPageDataPatched) {
 
   if (originalAllActivities) {
     api.allActivities = async (filters = {}) => {
-      const patchedFilters = { ...filters };
-      if (patchedFilters.select) patchedFilters.select = financeActivitySelect(patchedFilters.select);
+      const financeRequest = isFinanceActivityRequest(filters);
+      const patchedFilters = financeRequest
+        ? { ...filters, select: financeActivitySelect(filters.select) }
+        : filters;
       const result = await originalAllActivities(patchedFilters);
-      if (!Array.isArray(result?.rows)) return result;
+      if (!financeRequest || !Array.isArray(result?.rows)) return result;
       return { ...result, rows: result.rows.map(applyResolvedActivityContact) };
     };
   }
@@ -109,4 +118,4 @@ if (api && !api.__financeTransactionPageDataPatched) {
   });
 }
 
-export { applyResolvedActivityContact, financeActivitySelect, readAllPages };
+export { applyResolvedActivityContact, financeActivitySelect, isFinanceActivityRequest, readAllPages };
