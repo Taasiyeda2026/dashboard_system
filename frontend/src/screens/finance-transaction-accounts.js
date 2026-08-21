@@ -164,6 +164,8 @@ export function transactionActivitySummary(activity = {}, {
 
   return {
     activityRowId: text(activity.row_id),
+    activityName: text(activity.activity_name),
+    gefenNumber: text(activity.activity_no),
     institutionSymbol: text(activity.semel_mosad),
     customerName: text(activity.school),
     customerEmail: text(activity.contact_email),
@@ -202,6 +204,7 @@ function uniqueEmails(values = []) {
 
 export function buildTransactionPreview(activities = [], options = {}) {
   const mode = options.mode === TRANSACTION_MODE_MANUAL ? TRANSACTION_MODE_MANUAL : TRANSACTION_MODE_AUTOMATIC;
+  const selectionProvided = Array.isArray(options.activityIds);
   const selected = new Set((options.activityIds || []).map((value) => text(value)).filter(Boolean));
   const summaries = activities.map((activity) => transactionActivitySummary(activity, {
     cutoff: options.cutoff,
@@ -212,7 +215,9 @@ export function buildTransactionPreview(activities = [], options = {}) {
     mode,
     now: options.now || new Date()
   }));
-  const candidates = summaries.filter((row) => row.eligible && !row.blockedReason && (!selected.size || selected.has(row.activityRowId)));
+  const candidates = summaries.filter((row) => row.eligible
+    && !row.blockedReason
+    && (!selectionProvided || selected.has(row.activityRowId)));
   const accounts = new Map();
   for (const item of candidates) {
     if (!accounts.has(item.institutionSymbol)) accounts.set(item.institutionSymbol, {
