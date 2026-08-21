@@ -122,9 +122,11 @@ export function transactionActivitySummary(activity = {}, {
   const eligible = unbilledSlots.length >= TRANSACTION_MIN_MEETINGS || isFinal;
   const targetRatio = plannedCount > 0 ? Math.min(nonCancelledSlots.length, plannedCount) / plannedCount : 0;
   const closingTarget = Number.isFinite(price) ? price * targetRatio : 0;
-  const amount = eligible
+  const issuableAmount = eligible
     ? (isFinal ? Math.max(0, closingTarget - Number(billedAmount || 0)) : unbilledAmount)
     : 0;
+  // Existing collection UI reads `amount` for “בוצע וטרם חויב”, so deferred work must retain its value.
+  const amount = eligible ? issuableAmount : unbilledAmount;
 
   let blockedReason = '';
   if (!text(activity.semel_mosad)) blockedReason = 'חסר סמל מוסד';
@@ -148,6 +150,7 @@ export function transactionActivitySummary(activity = {}, {
     unbilledAmount,
     hourlyRate,
     amount,
+    issuableAmount,
     eligible,
     closingBill: eligible && isFinal,
     blockedReason
@@ -173,7 +176,7 @@ export function buildTransactionPreview(activities = [], options = {}) {
     });
     const account = accounts.get(item.institutionSymbol);
     account.lines.push(item);
-    account.totalAmount += item.amount;
+    account.totalAmount += item.issuableAmount;
   }
   const rows = [...accounts.values()];
   return {
