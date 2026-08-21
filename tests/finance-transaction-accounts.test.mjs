@@ -150,6 +150,18 @@ test('generating reservations are hidden from normal finance read policies', () 
   assert.match(sql, /cancel_generating_finance_transaction_account/);
 });
 
+test('finance can read cancellation facts and reserve falls back to activity contact email', () => {
+  const sql = fs.readFileSync('supabase/migrations/20260821190000_finance_transaction_accounts.sql', 'utf8');
+  assert.match(sql, /finance_course_meeting_cancellations_read/);
+  assert.match(sql, /v_activity\.contact_email/);
+});
+
+test('finalize and Outlook state transitions are service-role only', () => {
+  const sql = fs.readFileSync('supabase/migrations/20260821190000_finance_transaction_accounts.sql', 'utf8');
+  assert.match(sql, /auth\.role\(\).*service_role/);
+  assert.match(sql, /grant execute[\s\S]*finalize_finance_transaction_account[\s\S]*service_role/i);
+});
+
 test('PDF implementation embeds fonts, compact logo and text instead of screenshot/canvas', () => {
   const source = fs.readFileSync('supabase/functions/finance-transaction-accounts/index.ts', 'utf8');
   assert.match(source, /embedFont/);
@@ -159,10 +171,23 @@ test('PDF implementation embeds fonts, compact logo and text instead of screensh
   assert.doesNotMatch(source, /html2canvas|screenshot/i);
 });
 
+test('SharePoint target is restricted to an allowed drive and verified as a folder', () => {
+  const source = fs.readFileSync('supabase/functions/finance-transaction-accounts/index.ts', 'utf8');
+  assert.match(source, /MS_SHAREPOINT_DRIVE_ID/);
+  assert.match(source, /sharepoint_drive_not_allowed/);
+  assert.match(source, /sharepoint_folder_not_allowed/);
+});
+
 test('SharePoint retry replaces same account file instead of failing on filename collision', () => {
   const source = fs.readFileSync('supabase/functions/finance-transaction-accounts/index.ts', 'utf8');
   assert.match(source, /conflictBehavior=replace/);
   assert.doesNotMatch(source, /conflictBehavior=fail/);
+});
+
+test('Edge uses service client for backend-only finalize and Outlook markers', () => {
+  const source = fs.readFileSync('supabase/functions/finance-transaction-accounts/index.ts', 'utf8');
+  assert.match(source, /admin\.rpc\("finalize_finance_transaction_account"/);
+  assert.match(source, /admin\.rpc\("mark_finance_transaction_outlook"/);
 });
 
 test('Outlook failure is non-critical and draft-ready retry is idempotent', () => {
