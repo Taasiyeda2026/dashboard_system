@@ -103,3 +103,11 @@ test('Outlook recipients come from account activity-contact snapshot and support
   assert.match(source, /recipientAddresses\(account\.customer_email_snapshot\)/);
   assert.match(source, /toRecipients: recipients\.map/);
 });
+
+test('fatal dispatch failure releases generating reservation and cleans uploaded orphan best-effort', () => {
+  const source = fs.readFileSync('supabase/functions/finance-transaction-accounts/index.ts', 'utf8');
+  assert.match(source, /cancel_generating_finance_transaction_account/);
+  assert.match(source, /dispatch_failed:/);
+  assert.match(source, /uploadedItemId[\s\S]*method: "DELETE"/);
+  assert.match(source, /if \(!finalized/);
+});
