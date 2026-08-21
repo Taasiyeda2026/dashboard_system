@@ -1,6 +1,7 @@
 import { supabase, waitForSupabaseAuthSession } from './supabase-client.js';
 
 const PAGE_SIZE = 1000;
+const CONTACT_BATCH_SIZE = 200;
 const SCHOOL_CACHE_TTL_MS = 15 * 60 * 1000;
 
 let schoolsCache = null;
@@ -81,15 +82,58 @@ function financeActivitySelect(select) {
   return `${value},school_contact_id`;
 }
 
-function applyResolvedActivityContact(row = {}) {
-  const resolvedEmail = text(row.resolved_contact_email);
-  const resolvedName = text(row.resolved_contact_name);
-  const resolvedPhone = text(row.resolved_contact_phone);
+function contactIsActive(contact = {}) {
+  return text(contact.active) !== 'לא פעיל';
+}
+
+async function readContactsBy(column, values = []) {
+  if (!supabase || !values.length) return [];
+  const rows = [];
+  for (let index = 0; index < values.length; index += CONTACT_BATCH_SIZE) {
+    const batch = values.slice(index, index + CONTACT_BATCH_SIZE);
+    const { data, error } = await supabase
+      .from('contacts_schools')
+      .select('id,school_id,contact_name,contact_role,phone,mobile,email,active')
+      .in(column, batch);
+    if (error) throw error;
+    rows.push(...(Array.isArray(data) ? data : []));
+  }
+  return rows;
+}
+
+async function readFinanceActivityContacts(rows = []) {
+  const contactIds = [...new Set(rows.map((row) => text(row.school_contact_id)).filter(Boolean))];
+  const schoolIds = [...new Set(rows.map((row) => text(row.school_id)).filter(Boolean))];
+  const [linked, schoolContacts] = await Promise.all([
+    readContactsBy('id', contactIds),
+    readContactsBy('school_id', schoolIds)
+  ]);
+  return [...new Map([...linked, ...schoolContacts].map((row) => [String(row.id), row])).values()];
+}
+
+function applyResolvedActivityContact(row = {}, contacts = []) {
+  const active = contacts.filter(contactIsActive);
+  const savedId = text(row.school_contact_id);
+  let selected = savedId
+    ? active.find((contact) => text(contact.id) === savedId) || null
+    : null;
+
+  if (!selected) {
+    const schoolId = text(row.school_id);
+    const matches = schoolId
+      ? active.filter((contact) => text(contact.school_id) === schoolId)
+      : [];
+    if (matches.length === 1) selected = matches[0];
+  }
+
+  const resolvedEmail = text(selected?.email) || text(row.contact_email);
   return {
     ...row,
-    contact_email: resolvedEmail || text(row.contact_email),
-    contact_name: resolvedName || text(row.contact_name),
-    contact_phone: resolvedPhone || text(row.contact_phone)
+    resolved_contact_email: resolvedEmail,
+    resolved_contact_name: text(selected?.contact_name) || text(row.contact_name),
+    resolved_contact_phone: text(selected?.mobile) || text(selected?.phone) || text(row.contact_phone),
+    resolved_contact_role: text(selected?.contact_role) || text(row.contact_role),
+    contact_email: resolvedEmail
   };
 }
 
@@ -105,7 +149,8 @@ function patchFinanceApi(api) {
         : filters;
       const result = await originalAllActivities(patchedFilters);
       if (!financeRequest || !Array.isArray(result?.rows)) return result;
-      return { ...result, rows: result.rows.map(applyResolvedActivityContact) };
+      const contacts = await readFinanceActivityContacts(result.rows);
+      return { ...result, rows: result.rows.map((row) => applyResolvedActivityContact(row, contacts)) };
     };
   }
 
@@ -123,4 +168,11 @@ if (typeof window !== 'undefined') {
   patchFinanceApi(apiModule?.api);
 }
 
-export { applyResolvedActivityContact, financeActivitySelect, isFinanceActivityRequest, patchFinanceApi, readAllPages };
+export {
+  applyResolvedActivityContact,
+  financeActivitySelect,
+  isFinanceActivityRequest,
+  patchFinanceApi,
+  readAllPages,
+  readFinanceActivityContacts
+};
