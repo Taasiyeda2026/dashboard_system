@@ -79,7 +79,10 @@ begin
     previous_status, new_status, meetings_completed_at_decision,
     previous_emp_id, previous_instructor_name
   ) values (
-    p_activity_id, null, null, 'assignment_cancelled', btrim(p_reason),
+    p_activity_id,
+    prior_emp_id,
+    coalesce(nullif(btrim(prior_instructor_name), ''), prior_emp_id),
+    'assignment_cancelled', btrim(p_reason),
     prior_status, result.instructor_assignment_status, meetings_done,
     prior_emp_id, prior_instructor_name
   );
