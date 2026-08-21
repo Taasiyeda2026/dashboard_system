@@ -10,7 +10,11 @@ const cors = {
 };
 const clean = (value: unknown) => String(value ?? "").trim();
 const bidi = bidiFactory();
-const DEFAULT_ALLOWED_DRIVE_ID = "b!7yHSW8aMokunngKw03vHhB5QSRQPWQ1JhXcgoDOvU2BFY5HnYLNMTZS2gZux2CMR";
+
+// חשבונות עסקה - תשפז
+// Site9 / Shared Documents / עידן - טוני / חשבונות עסקה - תשפז
+const TRANSACTION_DRIVE_ID = "b!AtuGFxdZBk6FLP0KPlKdH27mOwNzeTRErL1YKP0yl5EP6fDqQimqQ4QpOG6yQbMh";
+const TRANSACTION_FOLDER_ID = "01LT7GPE6FW7O7REM6WJBIXX6II2IDYTXM";
 
 function rtl(value: unknown) {
   const source = clean(value);
@@ -37,6 +41,16 @@ const base64 = (bytes: Uint8Array) => {
   for (let i = 0; i < bytes.length; i += 8192) result += String.fromCharCode(...bytes.subarray(i, i + 8192));
   return btoa(result);
 };
+
+function recipientAddresses(value: unknown) {
+  const unique = new Map<string, string>();
+  for (const part of clean(value).split(/[;,]/)) {
+    const email = clean(part);
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) continue;
+    unique.set(email.toLowerCase(), email);
+  }
+  return [...unique.values()];
+}
 
 async function graphToken() {
   const tenant = clean(Deno.env.get("MS_TENANT_ID"));
@@ -66,16 +80,19 @@ async function graph(token: string, path: string, options: RequestInit = {}) {
       ...(options.headers || {})
     }
   });
-  if (!response.ok) throw new Error(`graph_request_failed:${response.status}:${(await response.text()).slice(0, 160)}`);
+  if (!response.ok) throw new Error(`graph_request_failed:${response.status}:${(await response.text()).slice(0, 180)}`);
   return response.status === 204 ? null : response.json();
 }
 
-async function validateSharePointTarget(token: string, driveId: string, folderId: string) {
-  const allowedDriveId = clean(Deno.env.get("MS_SHAREPOINT_DRIVE_ID")) || DEFAULT_ALLOWED_DRIVE_ID;
-  if (driveId !== allowedDriveId) throw new Error("sharepoint_drive_not_allowed");
-  const item = await graph(token, `/drives/${encodeURIComponent(driveId)}/items/${encodeURIComponent(folderId)}?$select=id,folder,parentReference`);
-  if (!item?.id || !item?.folder) throw new Error("sharepoint_folder_not_allowed");
-  if (clean(item?.parentReference?.driveId) && clean(item.parentReference.driveId) !== driveId) throw new Error("sharepoint_folder_not_allowed");
+async function validateTransactionFolder(token: string) {
+  const item = await graph(
+    token,
+    `/drives/${encodeURIComponent(TRANSACTION_DRIVE_ID)}/items/${encodeURIComponent(TRANSACTION_FOLDER_ID)}?$select=id,name,folder,parentReference`
+  );
+  if (!item?.id || item.id !== TRANSACTION_FOLDER_ID || !item?.folder) throw new Error("transaction_sharepoint_folder_invalid");
+  if (clean(item?.parentReference?.driveId) && clean(item.parentReference.driveId) !== TRANSACTION_DRIVE_ID) {
+    throw new Error("transaction_sharepoint_folder_invalid");
+  }
 }
 
 function drawRight(page: PDFPage, font: PDFFont, value: string, y: number, size = 9, rightX = 565) {
@@ -112,9 +129,18 @@ function drawTableRow(page: PDFPage, font: PDFFont, values: string[], widths: nu
 
 async function buildPdf(account: any) {
   const [regularBytes, boldBytes, logoBytes] = await Promise.all([
-    fetch("https://raw.githubusercontent.com/Taasiyeda2026/dashboard_system/main/frontend/assets/fonts/Arimo-Regular.ttf").then((r) => r.arrayBuffer()),
-    fetch("https://raw.githubusercontent.com/Taasiyeda2026/dashboard_system/main/frontend/assets/fonts/Arimo-Bold.ttf").then((r) => r.arrayBuffer()),
-    fetch("https://raw.githubusercontent.com/Taasiyeda2026/dashboard_system/main/frontend/assets/logo1.png").then((r) => r.arrayBuffer())
+    fetch("https://raw.githubusercontent.com/Taasiyeda2026/dashboard_system/main/frontend/assets/fonts/Arimo-Regular.ttf").then((r) => {
+      if (!r.ok) throw new Error("pdf_regular_font_load_failed");
+      return r.arrayBuffer();
+    }),
+    fetch("https://raw.githubusercontent.com/Taasiyeda2026/dashboard_system/main/frontend/assets/fonts/Arimo-Bold.ttf").then((r) => {
+      if (!r.ok) throw new Error("pdf_bold_font_load_failed");
+      return r.arrayBuffer();
+    }),
+    fetch("https://raw.githubusercontent.com/Taasiyeda2026/dashboard_system/main/frontend/assets/logo1.png").then((r) => {
+      if (!r.ok) throw new Error("pdf_logo_load_failed");
+      return r.arrayBuffer();
+    })
   ]);
   const doc = await PDFDocument.create();
   doc.registerFontkit(fontkit);
@@ -170,8 +196,14 @@ async function buildPdf(account: any) {
     y -= 12;
   }
 
-  if (y < 70) { page = doc.addPage([595, 842]); y = 800; }
-  drawRight(page, bold, `סה"כ לתשלום: ${money(account.total_amount)}`, y, 13);
+  if (y < 155) { page = doc.addPage([595, 842]); y = 800; }
+  drawRight(page, bold, `סה"כ לתשלום: ${money(account.total_amount)}`, y, 13); y -= 26;
+  drawRight(page, bold, `לתשלום עד: ${date(account.payment_due_date)}`, y, 11); y -= 30;
+  drawRight(page, bold, 'פרטי חשבון בנק להעברה:', y, 10); y -= 17;
+  drawRight(page, regular, 'בנק הפועלים סניף 611 חשבון 300120', y, 10); y -= 19;
+  drawRight(page, regular, 'או בשיק לפקודת: תעשיידע - תעשייה למען חינוך מתקדם (ע"ר)', y, 10); y -= 19;
+  drawRight(page, regular, 'יש לציין: "למוטב בלבד" עם קרוס.', y, 10);
+
   return new Uint8Array(await doc.save());
 }
 
@@ -182,15 +214,15 @@ Deno.serve(async (req) => {
     const url = clean(Deno.env.get("SUPABASE_URL"));
     const anon = clean(Deno.env.get("SUPABASE_ANON_KEY"));
     const service = clean(Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"));
+    if (!url || !anon || !service) throw new Error("supabase_function_not_configured");
+
     const userClient = createClient(url, anon, { global: { headers: { Authorization: auth } } });
     const { data: allowed, error: allowError } = await userClient.rpc("app_can_access_finance");
     if (allowError || !allowed) throw new Error("not_authorized");
 
     const body = await req.json();
     const accountId = clean(body.accountId);
-    const driveId = clean(body.driveId);
-    const folderId = clean(body.folderItemId);
-    if (!accountId || !driveId || !folderId) throw new Error("account_and_sharepoint_folder_required");
+    if (!accountId) throw new Error("account_required");
 
     const admin = createClient(url, service);
     const { data: account, error } = await admin
@@ -202,33 +234,41 @@ Deno.serve(async (req) => {
     if (!["generating", "issued", "mail_draft_ready"].includes(account.document_status)) throw new Error("account_not_dispatchable");
 
     if (account.outlook_status === "draft_ready" && account.outlook_message_id) {
-      return new Response(JSON.stringify({ accountId, filename: account.generated_filename, outlookStatus: "draft_ready", messageId: account.outlook_message_id }), {
-        headers: { ...cors, "Content-Type": "application/json" }
-      });
+      return new Response(JSON.stringify({
+        accountId,
+        filename: account.generated_filename,
+        outlookStatus: "draft_ready",
+        messageId: account.outlook_message_id
+      }), { headers: { ...cors, "Content-Type": "application/json" } });
     }
 
     const graphAccessToken = await graphToken();
-    await validateSharePointTarget(graphAccessToken, driveId, folderId);
+    await validateTransactionFolder(graphAccessToken);
 
     let bytes: Uint8Array;
     let filename = account.generated_filename;
     if (account.document_status === "generating") {
       bytes = await buildPdf(account);
       filename = `חשבון עסקה ${account.transaction_account_number} - ${clean(account.customer_name_snapshot).replace(/[\\/:*?\"<>|]/g, " ")} - ${date(account.issue_date)}.pdf`;
-      const upload = await fetch(`https://graph.microsoft.com/v1.0/drives/${encodeURIComponent(driveId)}/items/${encodeURIComponent(folderId)}:/${encodeURIComponent(filename)}:/content?@microsoft.graph.conflictBehavior=replace`, {
-        method: "PUT",
-        headers: { Authorization: `Bearer ${graphAccessToken}`, "Content-Type": "application/pdf" },
-        body: bytes
-      });
-      if (!upload.ok) throw new Error(`sharepoint_upload_failed:${upload.status}`);
+      const upload = await fetch(
+        `https://graph.microsoft.com/v1.0/drives/${encodeURIComponent(TRANSACTION_DRIVE_ID)}/items/${encodeURIComponent(TRANSACTION_FOLDER_ID)}:/${encodeURIComponent(filename)}:/content?@microsoft.graph.conflictBehavior=replace`,
+        {
+          method: "PUT",
+          headers: { Authorization: `Bearer ${graphAccessToken}`, "Content-Type": "application/pdf" },
+          body: bytes
+        }
+      );
+      if (!upload.ok) throw new Error(`sharepoint_upload_failed:${upload.status}:${(await upload.text()).slice(0, 180)}`);
       const item = await upload.json();
-      const hash = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes))).map((x) => x.toString(16).padStart(2, "0")).join("");
+      const hash = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)))
+        .map((x) => x.toString(16).padStart(2, "0"))
+        .join("");
       const { data: finalized, error: finalizeError } = await admin.rpc("finalize_finance_transaction_account", {
         p_account_id: accountId,
         p_filename: filename,
         p_pdf_sha256: hash,
-        p_drive_id: driveId,
-        p_folder_item_id: folderId,
+        p_drive_id: TRANSACTION_DRIVE_ID,
+        p_folder_item_id: TRANSACTION_FOLDER_ID,
         p_item_id: item.id,
         p_web_url: item.webUrl
       });
@@ -238,8 +278,8 @@ Deno.serve(async (req) => {
       bytes = await buildPdf(account);
     }
 
-    const recipient = clean(account.customer_email_snapshot);
-    if (!recipient) {
+    const recipients = recipientAddresses(account.customer_email_snapshot);
+    if (!recipients.length) {
       await admin.rpc("mark_finance_transaction_outlook", { p_account_id: accountId, p_status: "missing_recipient" });
       return new Response(JSON.stringify({ accountId, filename, outlookStatus: "missing_recipient" }), {
         headers: { ...cors, "Content-Type": "application/json" }
@@ -257,7 +297,7 @@ Deno.serve(async (req) => {
             contentType: "Text",
             content: `שלום,\n\nמצורף חשבון עסקה מס׳ ${account.transaction_account_number} עבור הפעילויות שבוצעו בתקופה הרלוונטית.\n\nנשמח להסדרת התשלום בהתאם לתנאי התשלום המפורטים בחשבון.`
           },
-          toRecipients: [{ emailAddress: { address: recipient } }],
+          toRecipients: recipients.map((address) => ({ emailAddress: { address } })),
           attachments: [{
             "@odata.type": "#microsoft.graph.fileAttachment",
             name: filename,
@@ -266,8 +306,12 @@ Deno.serve(async (req) => {
           }]
         })
       });
-      await admin.rpc("mark_finance_transaction_outlook", { p_account_id: accountId, p_status: "draft_ready", p_message_id: draft.id });
-      return new Response(JSON.stringify({ accountId, filename, outlookStatus: "draft_ready" }), {
+      await admin.rpc("mark_finance_transaction_outlook", {
+        p_account_id: accountId,
+        p_status: "draft_ready",
+        p_message_id: draft.id
+      });
+      return new Response(JSON.stringify({ accountId, filename, outlookStatus: "draft_ready", recipients }), {
         headers: { ...cors, "Content-Type": "application/json" }
       });
     } catch (mailError) {
