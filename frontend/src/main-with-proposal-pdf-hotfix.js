@@ -8,7 +8,7 @@ import './completion-approval-performance-runtime.js';
 import './interaction-performance.js';
 import './auth-session-isolation-hotfix.js';
 import './session-security-runtime.js';
-import './activity-period-selector-access-hotfix.js?v=20260801-school-2027-cutover-v1';
+import './activity-period-selector-access-hotfix.js?v=20260821-dashboard-period-sync-v2';
 import './progressive-route-warmup.js';
 import './main.js';
 import './feature-route-loader.js';
