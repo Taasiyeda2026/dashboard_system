@@ -65,9 +65,27 @@ alter table public.finance_transaction_accounts enable row level security;
 alter table public.finance_transaction_account_lines enable row level security;
 alter table public.finance_transaction_account_meetings enable row level security;
 
-create policy finance_transaction_accounts_read on public.finance_transaction_accounts for select to authenticated using ((select public.app_can_access_finance()));
-create policy finance_transaction_lines_read on public.finance_transaction_account_lines for select to authenticated using ((select public.app_can_access_finance()));
-create policy finance_transaction_meetings_read on public.finance_transaction_account_meetings for select to authenticated using ((select public.app_can_access_finance()));
+-- Generating rows are reservation claims, not billed history. Normal finance reads only see finalized/cancelled documents.
+create policy finance_transaction_accounts_read on public.finance_transaction_accounts
+for select to authenticated
+using ((select public.app_can_access_finance()) and document_status <> 'generating');
+
+create policy finance_transaction_lines_read on public.finance_transaction_account_lines
+for select to authenticated
+using ((select public.app_can_access_finance()) and exists (
+  select 1 from public.finance_transaction_accounts a
+  where a.id=account_id and a.document_status <> 'generating'
+));
+
+create policy finance_transaction_meetings_read on public.finance_transaction_account_meetings
+for select to authenticated
+using ((select public.app_can_access_finance()) and exists (
+  select 1
+  from public.finance_transaction_account_lines l
+  join public.finance_transaction_accounts a on a.id=l.account_id
+  where l.id=account_line_id and a.document_status <> 'generating'
+));
+
 revoke all on public.finance_transaction_accounts, public.finance_transaction_account_lines, public.finance_transaction_account_meetings from public, anon, authenticated;
 grant select on public.finance_transaction_accounts, public.finance_transaction_account_lines, public.finance_transaction_account_meetings to authenticated;
 
@@ -110,8 +128,13 @@ begin
      or p_cutoff_date is null
      or p_cutoff_date > v_today
      or btrim(coalesce(p_institution_symbol,''))=''
-     or jsonb_typeof(coalesce(p_lines,'[]'::jsonb)) <> 'array'
-     or jsonb_array_length(coalesce(p_lines,'[]'::jsonb))=0 then
+     or btrim(coalesce(p_customer_name,''))='' then
+    raise exception 'invalid_transaction_account';
+  end if;
+  if p_lines is null or jsonb_typeof(p_lines) <> 'array' then
+    raise exception 'invalid_transaction_account';
+  end if;
+  if jsonb_array_length(p_lines)=0 then
     raise exception 'invalid_transaction_account';
   end if;
 
@@ -135,7 +158,7 @@ begin
     for update;
     if not found then raise exception 'activity_not_found'; end if;
 
-    select nullif(btrim(s.semel_mosad),'') into v_activity_symbol
+    select nullif(btrim(s.semel_mosad::text),'') into v_activity_symbol
     from public.schools s
     where s.id=v_activity.school_id;
     if v_activity_symbol is null or v_activity_symbol <> btrim(p_institution_symbol) then
@@ -202,7 +225,7 @@ begin
     ) requested
     where slot between 1 and 35;
 
-    -- The server, not the browser, decides the full billable set for the cutoff.
+    -- The server, not the browser, decides the complete billable set for the cutoff.
     if cardinality(v_expected_slots)=0 or v_selected_slots is distinct from v_expected_slots then
       raise exception 'invalid_meeting_selection';
     end if;
@@ -319,7 +342,9 @@ begin
   using public.finance_transaction_account_lines l
   where m.account_line_id=l.id and l.account_id=p_account_id;
   delete from public.finance_transaction_account_lines where account_id=p_account_id;
-  update public.finance_transaction_accounts set document_status='cancelled',cancelled_at=now(),cancelled_by=auth.uid(),cancellation_reason=nullif(btrim(p_reason),'') where id=p_account_id;
+  update public.finance_transaction_accounts set
+    document_status='cancelled',cancelled_at=now(),cancelled_by=auth.uid(),cancellation_reason=nullif(btrim(p_reason),'')
+  where id=p_account_id;
 end $$;
 
 revoke all on function public.reserve_finance_transaction_account(uuid,date,text,text,text,jsonb), public.finalize_finance_transaction_account(uuid,text,text,text,text,text,text), public.mark_finance_transaction_outlook(uuid,text,text,text), public.cancel_generating_finance_transaction_account(uuid,text) from public,anon;
