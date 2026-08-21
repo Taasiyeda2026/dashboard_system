@@ -1,3 +1,4 @@
+import '../finance-transaction-page-data-hotfix.js';
 import { escapeHtml } from './shared/html.js';
 import { dsEmptyState, dsScreenStack, dsTableWrap } from './shared/layout.js';
 import { activityRowId, money } from './finance-collection.js';
@@ -53,13 +54,21 @@ function contextMaps(data) {
   return { cancelledByActivity, billedSlotsByActivity, billedAmountByActivity };
 }
 
+function enrichFinanceActivity(activity = {}, schoolMap = new Map()) {
+  const school = schoolMap.get(String(activity.school_id));
+  return {
+    ...activity,
+    semel_mosad: text(activity.semel_mosad) || text(school?.semel_mosad),
+    contact_email: text(activity.resolved_contact_email) || text(activity.contact_email)
+  };
+}
+
 export function transactionIssuanceActivities(data, { mode = TRANSACTION_MODE_AUTOMATIC, cutoff } = {}) {
   const schoolMap = new Map((data.transactionContext?.schools || []).map((row) => [String(row.id), row]));
   const maps = contextMaps(data);
   const effectiveCutoff = cutoff || (mode === TRANSACTION_MODE_MANUAL ? financeToday() : financeCycleCutoff());
   return (data.collectionActivities || []).map((activity) => {
-    const school = schoolMap.get(String(activity.school_id));
-    const enriched = { ...activity, semel_mosad: school?.semel_mosad || '' };
+    const enriched = enrichFinanceActivity(activity, schoolMap);
     return {
       ...enriched,
       transaction_summary: transactionActivitySummary(enriched, {
@@ -78,10 +87,7 @@ export function transactionPreviewForVisit(data, mode = TRANSACTION_MODE_AUTOMAT
   const cutoff = effectiveMode === TRANSACTION_MODE_MANUAL ? financeToday() : financeCycleCutoff();
   const maps = contextMaps(data);
   const schoolMap = new Map((data.transactionContext?.schools || []).map((row) => [String(row.id), row]));
-  const activities = (data.collectionActivities || []).map((activity) => ({
-    ...activity,
-    semel_mosad: schoolMap.get(String(activity.school_id))?.semel_mosad || ''
-  }));
+  const activities = (data.collectionActivities || []).map((activity) => enrichFinanceActivity(activity, schoolMap));
   const options = {
     mode: effectiveMode,
     cutoff,
@@ -146,18 +152,19 @@ function automaticView(data) {
 
 function manualView(data) {
   const rows = transactionIssuanceActivities(data, { mode: TRANSACTION_MODE_MANUAL, cutoff: financeToday() })
-    .filter((row) => row.transaction_summary.manualEligible || row.transaction_summary.blockedReason)
+    .filter((row) => row.transaction_summary.manualEligible)
     .map((row) => {
       const tx = row.transaction_summary;
       const checked = data.transactionManualSelected?.[activityRowId(row)] === true;
       const disabled = tx.blockedReason || !tx.manualEligible;
+      const recipient = text(row.resolved_contact_email) || text(row.contact_email) || 'חסר';
       return `<tr>
         <td><input type="checkbox" data-finance-transaction-select="${escapeHtml(activityRowId(row))}"${checked ? ' checked' : ''}${disabled ? ' disabled' : ''}></td>
         <td>${escapeHtml(row.school || '—')}</td>
         <td>${escapeHtml(row.activity_name || '—')}</td>
         <td>${escapeHtml(row.funding || '—')}</td>
         <td>${escapeHtml(row.semel_mosad || '—')}</td>
-        <td>${escapeHtml(row.contact_email || 'חסר')}</td>
+        <td>${escapeHtml(recipient)}</td>
         <td>${escapeHtml(`${tx.unbilledCount} | ${tx.unbilledHours} | ${money(tx.unbilledAmount)}`)}</td>
         <td>${escapeHtml(tx.blockedReason || 'מוכן להפקה ידנית')}</td>
       </tr>`;
@@ -165,7 +172,7 @@ function manualView(data) {
   const preview = transactionPreviewForVisit(data, TRANSACTION_MODE_MANUAL);
   return `
     <div class="ds-fin-collect-toolbar" dir="rtl">
-      <div><strong>הפקה ידנית</strong><br><small>זמינה לכל גורמי המימון. החשבון כולל את כל המפגשים שבוצעו וטרם חויבו עד היום.</small></div>
+      <div><strong>הפקה ידנית</strong><br><small>זמינה לכל גורמי המימון. מוצגות רק פעילויות שבהן יש מפגשים שבוצעו וטרם חויבו עד היום.</small></div>
       <button type="button" class="ds-btn ds-btn--primary" data-finance-transaction-run="manual"${preview.accounts.length ? '' : ' disabled'}>הפק חשבונות מסומנים</button>
     </div>
     ${summaryCards(preview)}

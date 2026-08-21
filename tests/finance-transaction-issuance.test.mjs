@@ -87,6 +87,18 @@ test('שוטף + 30 is end of issue month plus 30 calendar days', () => {
   assert.equal(financePaymentDueDate('2027-01-10'), '2027-03-02');
 });
 
+test('finance page uses complete paginated school catalog and the dashboard-resolved activity contact', () => {
+  const hotfix = fs.readFileSync('frontend/src/finance-transaction-page-data-hotfix.js', 'utf8');
+  const issuance = fs.readFileSync('frontend/src/screens/finance-transaction-issuance.js', 'utf8');
+  assert.match(hotfix, /const PAGE_SIZE = 1000/);
+  assert.match(hotfix, /\.range\(from, to\)/);
+  assert.match(hotfix, /school_contact_id/);
+  assert.match(hotfix, /resolved_contact_email/);
+  assert.match(issuance, /resolved_contact_email/);
+  assert.match(issuance, /filter\(\(row\) => row\.transaction_summary\.manualEligible\)/);
+  assert.doesNotMatch(issuance, /manualEligible \|\| row\.transaction_summary\.blockedReason/);
+});
+
 test('migration enforces automatic Gefen mode while preserving manual issuance for all funding', () => {
   const sql = fs.readFileSync('supabase/migrations/20260821203000_finance_transaction_issuance_modes.sql', 'utf8');
   assert.match(sql, /issue_mode text not null default 'manual'/);
