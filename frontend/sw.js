@@ -4,7 +4,7 @@
  * API-like requests: network only, never cached. Bump CACHE_VERSION after deploy to drop old caches.
  * CACHE_VERSION is the single manual SW/cache version source; /sw.js imports this file without its own version.
  */
-const CACHE_VERSION = 1582;
+const CACHE_VERSION = 1583;
 const CACHE_PREFIX = 'dashboard-static-v';
 const CACHE_NAME = `${CACHE_PREFIX}${CACHE_VERSION}`;
 
@@ -28,150 +28,51 @@ function isApiLikeUrl(url) {
   if (p.includes('/api')) return true;
   if (p.includes('/supabase')) return true;
   if (p.includes('/data/')) return true;
-  const q = url.search || '';
-  if (/[?&]action=/.test(q)) return true;
   return false;
-}
-
-function isBlockedCachePath(url) {
-  const p = url.pathname.toLowerCase();
-  if (p.includes('/attached_assets/')) return true;
-  if (p.includes('/dist/')) return true;
-  if (p.includes('/tests/')) return true;
-  if (p.includes('/docs/prompts/')) return true;
-  if (p.includes('/archive') || p.includes('/mock') || p.includes('/debug')) return true;
-  if (p.includes('/reports/') || p.includes('/personal-reports')) return true;
-  if (/\.(?:pdf|csv|xlsx)(?:$|[?#])/.test(p)) return true;
-  return false;
-}
-
-function isStaticAssetUrl(url) {
-  if (isBlockedCachePath(url)) return false;
-  const p = url.pathname;
-  if (p.endsWith('/index.html') || p === '/' || p.endsWith('.html')) return true;
-  if (p.endsWith('.js') || p.endsWith('.css')) return true;
-  if (p.endsWith('.png') || p.endsWith('.ico') || p.endsWith('.svg') || p.endsWith('.webp')) return true;
-  if (isManifestUrl(url)) return true;
-  if (p.endsWith('.woff2') || p.endsWith('.woff')) return true;
-  return false;
-}
-
-function isManifestUrl(url) {
-  return url.pathname.endsWith('/manifest.json') || (url.pathname.endsWith('.json') && url.pathname.includes('manifest'));
-}
-
-function isNavigationRequest(request) {
-  return request.mode === 'navigate' || (request.destination && request.destination === 'document');
-}
-
-function shouldStoreResponse(response) {
-  return response && response.ok && response.type === 'basic' && sameOrigin(new URL(response.url)) && !isBlockedCachePath(new URL(response.url));
-}
-
-async function deleteOutdatedCaches() {
-  const keys = await caches.keys();
-  const outdatedKeys = keys.filter((key) => key.startsWith(CACHE_PREFIX) && key !== CACHE_NAME);
-  await Promise.all(outdatedKeys.map((key) => caches.delete(key)));
-  return outdatedKeys;
-}
-
-function withNoStore(request) {
-  return new Request(request, { cache: 'no-store' });
-}
-
-async function precacheFresh(cache, path) {
-  const url = resolveUrl(path);
-  const response = await fetch(new Request(url, { cache: 'reload' }));
-  if (!shouldStoreResponse(response)) {
-    throw new Error(`Unexpected precache response for ${path}: ${response.status}`);
-  }
-  await cache.put(url, response.clone());
-}
-
-async function cacheFirst(request, cache) {
-  let cached = await cache.match(request);
-  if (!cached && isNavigationRequest(request)) {
-    cached = await cache.match(resolveUrl('./index.html'));
-  }
-  if (cached) return cached;
-
-  const response = await fetch(request);
-  if (shouldStoreResponse(response)) {
-    cache.put(request, response.clone()).catch(() => {});
-  }
-  return response;
-}
-
-async function networkFirst(request, cache) {
-  try {
-    const response = await fetch(withNoStore(request));
-    if (shouldStoreResponse(response)) {
-      cache.put(request, response.clone()).catch(() => {});
-    }
-    return response;
-  } catch (err) {
-    let cached = await cache.match(request);
-    if (!cached && isNavigationRequest(request)) {
-      cached = await cache.match(resolveUrl('./index.html'));
-    }
-    if (cached) return cached;
-    throw err;
-  }
 }
 
 self.addEventListener('install', (event) => {
+  self.skipWaiting();
   event.waitUntil(
-    caches.open(CACHE_NAME).then(async (cache) => {
-      for (const path of PRECACHE_URLS) {
-        try {
-          await precacheFresh(cache, path);
-        } catch (e) {
-          console.warn('[SW] precache skip', path, e);
-        }
-      }
-      self.skipWaiting();
-    })
+    caches.open(CACHE_NAME).then((cache) => cache.addAll(PRECACHE_URLS)).catch(() => undefined)
   );
 });
 
 self.addEventListener('activate', (event) => {
-  event.waitUntil((async () => {
-    await deleteOutdatedCaches();
-    await self.clients.claim();
-  })());
-});
-
-self.addEventListener('message', (event) => {
-  if (event.data && event.data.type === 'SKIP_WAITING') {
-    self.skipWaiting();
-  }
+  event.waitUntil(
+    caches.keys()
+      .then((keys) => Promise.all(keys
+        .filter((key) => key.startsWith(CACHE_PREFIX) && key !== CACHE_NAME)
+        .map((key) => caches.delete(key))))
+      .then(() => self.clients.claim())
+  );
 });
 
 self.addEventListener('fetch', (event) => {
   const request = event.request;
-  if (request.method !== 'GET') return;
+  if (!request || request.method !== 'GET') return;
 
-  const url = new URL(request.url);
-  if (!sameOrigin(url)) return;
-
-  if (isApiLikeUrl(url) || isBlockedCachePath(url)) {
-    event.respondWith(fetch(request));
+  let url;
+  try {
+    url = new URL(request.url);
+  } catch {
     return;
   }
 
-  if (!(isNavigationRequest(request) || isStaticAssetUrl(url))) return;
+  if (!sameOrigin(url) || isApiLikeUrl(url)) return;
 
-  const networkFresh = (
-    isNavigationRequest(request) ||
-    url.pathname.endsWith('.html') ||
-    url.pathname.endsWith('.js') ||
-    url.pathname.endsWith('.css') ||
-    url.pathname.endsWith('/manifest.json') || isManifestUrl(url)
-  );
-
-  event.respondWith(
-    caches.open(CACHE_NAME).then((cache) =>
-      networkFresh ? networkFirst(request, cache) : cacheFirst(request, cache)
-    )
-  );
+  event.respondWith((async () => {
+    try {
+      const response = await fetch(request);
+      if (response && response.ok) {
+        const cache = await caches.open(CACHE_NAME);
+        cache.put(request, response.clone()).catch(() => undefined);
+      }
+      return response;
+    } catch {
+      const cached = await caches.match(request);
+      if (cached) return cached;
+      throw new Error('network_unavailable');
+    }
+  })());
 });
