@@ -126,3 +126,4 @@ config.HOTFIX_VERSION = `proposal-approval-admin-only-20260823-v1-${config.HOTFI
 config.HOTFIX_VERSION = `canonical-proposal-permissions-migration-20260823-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `permissions-main-sync-20260823-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `permissions-hidden-preserve-20260823-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `israa-private-activities-20260823-v1-${config.HOTFIX_VERSION}`;

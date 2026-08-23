@@ -16,7 +16,7 @@ test('user without the Israa role, permission, or existing exception is blocked'
   assert.equal(canViewIsraaManagement({ role: 'instructor', display_role: 'מדריך' }), false);
 });
 
-test('authorized Israa screen continues loading tracking rows and rendering table and simulator tabs', async () => {
+test('authorized Israa screen loads tracking rows and renders proposal, activities and simulator tabs', async () => {
   let loads = 0;
   const state = { user: { role: 'admin', display_role: 'מנהל מערכת' }, clientSettings: {} };
   const data = await israaManagementScreen.load({
@@ -25,7 +25,8 @@ test('authorized Israa screen continues loading tracking rows and rendering tabl
   });
   const html = israaManagementScreen.render(data, { state });
   assert.equal(loads, 1);
-  assert.match(html, /טבלת תוכניות/);
+  assert.match(html, /data-israa-tab="table"[^>]*>מעקב הצעות/);
+  assert.match(html, /data-israa-tab="activities"[^>]*>פעילויות/);
   assert.match(html, /data-israa-tab="simulator"[^>]*>סימולטור/);
   assert.doesNotMatch(html, /אין גישה לעמוד זה/);
 });
