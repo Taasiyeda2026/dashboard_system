@@ -529,6 +529,17 @@ function blockActivityDetails(row, { settings = {} } = {}) {
           'סטטוס',
           selectHtml({ name: 'status', value: normalizedStatus, options: statusOptions, placeholder: 'פתוח' })
         )}
+        ${is2027Row ? fieldEditOnly(
+          'תחום פעילות',
+          selectHtml({
+            name: 'activity_domain',
+            value: ['E', 'Y'].includes(String(row.activity_domain || '').trim().toUpperCase())
+              ? String(row.activity_domain).trim().toUpperCase()
+              : '',
+            options: ['E', 'Y'],
+            placeholder: 'בחרו תחום'
+          })
+        ) : ''}
       </div>
     </section>
   `;
