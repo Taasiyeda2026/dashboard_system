@@ -14,9 +14,9 @@ alter table public.activities
   check (activity_domain is null or activity_domain in ('E', 'Y'));
 
 -- Keep trg_guard_proposal_linked_activity_domain_y, the existing E-routing guard,
--- unchanged. This separate server-side trigger
--- guarantees that every activity linked to a Y proposal receives Y without
--- trusting a browser payload.
+-- unchanged. This separate server-side trigger initializes Y from a linked
+-- proposal only when the activity has no domain yet; activity_domain remains
+-- the final source of truth after a user saves a manual value.
 create or replace function public.assign_y_proposal_domain_to_activity()
 returns trigger
 language plpgsql
@@ -49,7 +49,7 @@ begin
   from public.proposals_agreements pa
   where pa.id = v_proposal_id;
 
-  if v_domain = 'Y' then
+  if v_domain = 'Y' and new.activity_domain is null then
     new.activity_domain := 'Y';
   end if;
 
@@ -59,13 +59,13 @@ $function$;
 
 drop trigger if exists trg_assign_y_proposal_domain_to_activity on public.activities;
 create trigger trg_assign_y_proposal_domain_to_activity
-before insert or update of proposal_agreement_id, proposal_item_id, activity_domain
+before insert or update of proposal_agreement_id, proposal_item_id
 on public.activities
 for each row
 execute function public.assign_y_proposal_domain_to_activity();
 
 comment on function public.assign_y_proposal_domain_to_activity() is
-  'Sets activity_domain to Y server-side when an activity is linked to a proposal-domain Y source. The existing E-to-Israa guard remains unchanged.';
+  'Initializes a NULL activity_domain to Y server-side when an activity is linked to a proposal-domain Y source. A saved activity_domain remains authoritative. The existing E-to-Israa guard remains unchanged.';
 
 -- Backfill only school_2027 rows with one unambiguous, real proposal source.
 -- Direct agreement links are authoritative when present; an item link may resolve
