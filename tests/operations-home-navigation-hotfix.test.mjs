@@ -4,7 +4,6 @@ import { readFile } from 'node:fs/promises';
 
 const operationsSource = await readFile(new URL('../frontend/src/screens/operations-management.js', import.meta.url), 'utf8');
 const controllerSource = await readFile(new URL('../frontend/src/screens/operations-2027-loading-controller.js', import.meta.url), 'utf8');
-const hotfixSource = await readFile(new URL('../frontend/src/operations-home-navigation-hotfix.js', import.meta.url), 'utf8');
 const bootstrapSource = await readFile(new URL('../frontend/src/main-with-proposal-pdf-hotfix.js', import.meta.url), 'utf8');
 
 const expectedTargets = [
@@ -37,13 +36,50 @@ test('custom Operations cards use the same keys as the 2027 controller', () => {
   assert.match(controllerSource, /course_print_kits/);
 });
 
-test('same-route reset is suppressed only for internal Operations home cards', () => {
-  assert.match(hotfixSource, /new Set\(\['ops-tab', 'ops-custom-tab'\]\)/);
-  assert.match(hotfixSource, /route !== INTERNAL_ROUTE/);
-  assert.match(hotfixSource, /event\.stopImmediatePropagation\(\)/);
-  assert.doesNotMatch(hotfixSource, /INTERNAL_HOME_TARGET_TYPES.*route/s);
-});
-
 test('navigation hotfix is loaded by the production bootstrap', () => {
   assert.match(bootstrapSource, /operations-home-navigation-hotfix\.js\?v=20260823-v1/);
+});
+
+test('internal cards suppress only the broken same-route reset event', async () => {
+  const listeners = new Map();
+  class FakeElement {
+    constructor(type = '', value = '') { this.type = type; this.value = value; }
+    closest(selector) {
+      return selector.includes('data-ops-home-target-type') && this.type ? this : null;
+    }
+    getAttribute(name) {
+      if (name === 'data-ops-home-target-type') return this.type;
+      if (name === 'data-ops-home-target-value') return this.value;
+      return '';
+    }
+  }
+  globalThis.Element = FakeElement;
+  globalThis.document = {
+    documentElement: { dataset: {} },
+    addEventListener(type, handler) { listeners.set(type, handler); }
+  };
+
+  const hotfix = await import(`../frontend/src/operations-home-navigation-hotfix.js?test=${Date.now()}`);
+
+  let stopped = 0;
+  hotfix.markInternalHomeNavigation({ target: new FakeElement('ops-tab', 'workshops') });
+  hotfix.suppressSameRouteReset({
+    detail: { route: 'operations-management' },
+    stopImmediatePropagation() { stopped += 1; }
+  });
+  assert.equal(stopped, 1, 'standard internal card must not be reset back to Operations home');
+
+  hotfix.markInternalHomeNavigation({ target: new FakeElement('ops-custom-tab', 'course_training_matrix') });
+  hotfix.suppressSameRouteReset({
+    detail: { route: 'operations-management' },
+    stopImmediatePropagation() { stopped += 1; }
+  });
+  assert.equal(stopped, 2, 'custom internal card must not be reset back to Operations home');
+
+  hotfix.markInternalHomeNavigation({ target: new FakeElement('route', 'catalog') });
+  hotfix.suppressSameRouteReset({
+    detail: { route: 'catalog' },
+    stopImmediatePropagation() { stopped += 1; }
+  });
+  assert.equal(stopped, 2, 'external route cards must remain normal application navigation');
 });
