@@ -11,7 +11,7 @@ import './session-security-runtime.js';
 import './activity-period-selector-access-hotfix.js?v=20260821-dashboard-period-sync-v2';
 import './dashboard-drilldown-runtime.js?v=20260821-v1';
 import './manager-board-management-docs-link.js?v=20260821-v1';
-import './admin-data-tool.js?v=20260823-v1';
+import './admin-data-tool.js?v=20260823-v2';
 import './admin-data-admin-guard.js?v=20260823-v1';
 import './admin-permissions-management-v2.js?v=20260823-v2';
 import './operations-home-navigation-hotfix.js?v=20260823-v1';
