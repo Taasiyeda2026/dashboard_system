@@ -471,12 +471,15 @@ function headerHtml(row, { mode = 'single', summaryDate = '', exportAction = tru
   {
     const typeTag = activityTypeLabel(row?.activity_type);
     const statusVal = statusText(row?.status);
+    const domainRaw = String(row?.activity_domain || '').trim().toUpperCase();
+    const domainVal = ['E', 'Y'].includes(domainRaw) ? domainRaw : '';
     const schoolVal = humanDisplayText(row?.school) || '';
     const authorityVal = humanDisplayText(row?.authority) || '';
     const isOpen = normStatus(row?.status) !== 'closed';
     const metaTags = [
       typeTag ? `<span class="activity-drawer__meta-tag">${escapeHtml(typeTag)}</span>` : '',
       statusVal ? `<span class="activity-drawer__meta-tag activity-drawer__meta-tag--status${isOpen ? ' activity-drawer__meta-tag--open' : ' activity-drawer__meta-tag--closed'}">${escapeHtml(statusVal)}</span>` : '',
+      domainVal ? `<span class="activity-drawer__meta-tag">${escapeHtml(domainVal)}</span>` : '',
       authorityVal ? `<span class="activity-drawer__meta-tag">${escapeHtml(authorityVal)}</span>` : '',
       schoolVal ? `<span class="activity-drawer__meta-tag">${escapeHtml(schoolVal)}</span>` : '',
     ].filter(Boolean).join('');
@@ -906,7 +909,8 @@ function buildDateChipsHtml(schedule, isOnce) {
       const date = String(item?.date || '').trim();
       const isDone = doneCount > 0;
       const countLabel = count > 1 ? ` · ${count} מפגשים` : '';
-      const noteText = notes.join('\n');
+      const noteText = notes.join('\
+');
       const noteIcon = noteText
         ? `<span class="activity-drawer__date-note-icon" role="img" tabindex="0" title="${escapeHtml(noteText)}" aria-label="הערה למפגש: ${escapeHtml(noteText)}">💬</span>`
         : '';
