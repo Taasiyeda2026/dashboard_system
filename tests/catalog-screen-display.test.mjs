@@ -41,7 +41,11 @@ test('catalog admin action is permission-driven', async () => {
     state: {
       user: {
         role: 'authorized_user',
-        permissions: { view_catalog: 'yes', manage_catalog: 'yes' }
+        permissions: {
+          view_operations_management: 'yes',
+          view_catalog: 'yes',
+          manage_catalog: 'yes'
+        }
       }
     }
   });
