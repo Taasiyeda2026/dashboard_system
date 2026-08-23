@@ -1,6 +1,7 @@
 import { supabase } from './supabase-client.js';
 
 const ACTION_BUTTON_STYLE = 'width:100%;max-width:100%;box-sizing:border-box;white-space:normal;line-height:1.2;padding:5px 6px';
+let workspaceImportPromise = null;
 
 function clean(value) {
   return String(value == null ? '' : value).replace(/\s+/g, ' ').trim();
@@ -16,6 +17,19 @@ function selectedProposalItemIds(draft) {
   return new Set((Array.isArray(draft?.selected_activity_drafts) ? draft.selected_activity_drafts : [])
     .map((item) => clean(item?.proposal_item_id))
     .filter(Boolean));
+}
+
+function ensureMainActivitiesWorkspace() {
+  if (typeof document === 'undefined') return Promise.resolve();
+  if (!document.querySelector('.israa-mgmt [data-israa-tab="activities"].is-active')) return Promise.resolve();
+  if (!workspaceImportPromise) {
+    workspaceImportPromise = import('./israa-activities-main-workspace.js?v=20260824-v2')
+      .catch((error) => {
+        workspaceImportPromise = null;
+        console.error('[israa-main-activities-loader]', error);
+      });
+  }
+  return workspaceImportPromise;
 }
 
 function decoratePrivateDraftRemovalButtons() {
@@ -38,10 +52,18 @@ function installRuntimeSelectionBridge() {
   globalThis.__israaActivitySelectionBridgeInstalled = true;
 
   decoratePrivateDraftRemovalButtons();
-  const observer = new MutationObserver(() => decoratePrivateDraftRemovalButtons());
+  const observer = new MutationObserver(() => {
+    decoratePrivateDraftRemovalButtons();
+    ensureMainActivitiesWorkspace();
+  });
   observer.observe(document.documentElement, { childList: true, subtree: true });
 
   document.addEventListener('click', async (event) => {
+    const activitiesTab = event.target?.closest?.('.israa-mgmt [data-israa-tab="activities"]');
+    if (activitiesTab) {
+      setTimeout(() => ensureMainActivitiesWorkspace(), 0);
+    }
+
     const selectButton = event.target?.closest?.('[data-israa-select-activity]');
     const inIsraaUi = selectButton && (selectButton.closest('.israa-mgmt') || selectButton.closest('.ds-drawer--israa-exact'));
     if (inIsraaUi) {
