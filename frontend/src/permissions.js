@@ -15,7 +15,7 @@ export function canViewEmployeeFiles(user = {}) {
 export function canViewIsraaManagement(user = {}) {
   const nested = user?.permissions && typeof user.permissions === 'object' ? user.permissions : {};
   const role = String(user?.role || '').trim().toLowerCase();
-  const explicit = user?.view_israa_management ?? nested.view_israa_management;
+  const explicit = nested.view_israa_management ?? user?.view_israa_management;
   return role === 'admin'
     || permissionFlagYes(explicit);
 }
@@ -58,6 +58,17 @@ export function canRequestCreateActivity(user = {}) {
 
 export function canReviewRequests(user = {}) {
   return activityChildPermission(user, 'can_review_requests', ['can_review_requests_2']);
+}
+
+export function canSendActivityCoordinationApprovals(user = {}) {
+  return activityChildPermission(user, 'send_activity_coordination_approvals');
+}
+
+export function canManageInstructorOnboarding(user = {}) {
+  return isAdmin(user) || (
+    permissionFlagYes(permissionValue(user, 'view_instructors'))
+    && permissionFlagYes(permissionValue(user, 'manage_instructor_onboarding'))
+  );
 }
 
 export function activityPermissions(user = {}) {

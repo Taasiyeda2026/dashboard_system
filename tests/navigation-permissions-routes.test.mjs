@@ -27,15 +27,15 @@ test('catalog and orders are default routes for requested manager and finance ro
   }
 });
 
-test('edit-requests route is available to request submitters while review remains direct-manager only', async () => {
+test('edit-requests route is available only through explicit request or review capabilities', async () => {
   const src = await readApiSource();
 
   for (const role of ['admin', 'operation_manager', 'activities_manager', 'instructor_manager', 'business_development_manager', 'finance']) {
     assert.doesNotMatch(extractRoleRoutes(src, role), /'edit-requests'/, `${role} should not receive edit-requests from its role alone`);
   }
 
-  assert.match(src, /const canReviewRequests = canDirectManageActivities;/, 'review permission should stay limited to admin and operation_manager');
-  assert.match(src, /const canViewEditRequests = canReviewRequests \|\| canRequestEdit \|\| permissionFlagYes\(flat\.view_edit_requests\);/, 'bootstrap should derive route access only from relevant capabilities');
+  assert.match(src, /const canReviewRequests = canReviewEditRequestsUser\(flat\);/, 'review permission should use its dedicated canonical capability');
+  assert.match(src, /const canViewEditRequests = canReviewRequests \|\| canRequestEdit \|\| canRequestCreateActivity\(flat\) \|\| permissionFlagYes\(flat\.view_edit_requests\);/, 'bootstrap should derive route access only from relevant capabilities');
   assert.match(src, /if \(canViewEditRequests && !allowedRoutes\.includes\('edit-requests'\)\)/, 'bootstrap should expose edit-requests to users who may view or submit edit requests');
   assert.match(src, /if \(!canReviewEditRequestsUser\(\)\) throw new Error\('forbidden_review_edit_request'\);/, 'review action should keep the server-side non-reviewer guard');
 });
@@ -45,7 +45,7 @@ test('edit request submission uses can_request_edit and its legacy alias, never 
     readApiSource(),
     readFile(new URL('../frontend/src/permissions.js', import.meta.url), 'utf8')
   ]);
-  assert.match(permissionsSource, /p\.can_request_edit, p\.can_request_edit_2/);
+  assert.match(permissionsSource, /activityChildPermission\(user, 'can_request_edit', \['can_request_edit_2'\]\)/);
   assert.doesNotMatch(`${apiSource}\n${permissionsSource}`, /can_edit_request/);
 });
 

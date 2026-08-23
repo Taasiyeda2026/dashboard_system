@@ -5,20 +5,21 @@ import { readFile } from 'node:fs/promises';
 const data = await readFile(new URL('../frontend/src/activity-coordination/data.js', import.meta.url), 'utf8');
 const visibility = await readFile(new URL('../frontend/src/activity-coordination/admin-visibility.js', import.meta.url), 'utf8');
 const migration = await readFile(new URL('../supabase/migrations/20260815001500_activity_coordination_admin_only.sql', import.meta.url), 'utf8');
+const permissionMigration = await readFile(new URL('../supabase/migrations/20260823200000_apply_approved_permission_matrix.sql', import.meta.url), 'utf8');
 const index = await readFile(new URL('../index.html', import.meta.url), 'utf8');
 
-test('coordination data waits for auth, fails closed for non-admin users and uses an admin-only email RPC', () => {
+test('coordination data waits for auth, fails closed without the dedicated permission and uses its scoped email RPC', () => {
   assert.match(data, /waitForSupabaseAuthSession/);
   assert.match(data, /await waitForSupabaseAuthSession\(\{ timeoutMs: 8000 \}\)/);
   assert.match(data, /if \(!session\?\.user\?\.id\) return false/);
   assert.match(data, /rpc\('activity_coordination_is_admin'\)/);
-  assert.match(data, /if \(!isAdmin\) return \{ items: \[\], byActivityId: new Map\(\), access: 'denied' \}/);
+  assert.match(data, /if \(!canSend\) return \{ items: \[\], byActivityId: new Map\(\), access: 'denied' \}/);
   assert.match(data, /rpc\('activity_coordination_contact_emails'/);
   assert.doesNotMatch(data, /from\('contact_emails'\)/);
 });
 
 test('admin visibility waits for auth restore and rechecks on auth lifecycle events', () => {
-  assert.match(index, /activity-coordination\/admin-visibility\.js\?v=20260815-admin-only-v2/);
+  assert.match(index, /activity-coordination\/admin-visibility\.js\?v=20260823-permission-v1/);
   assert.match(visibility, /waitForSupabaseAuthSession/);
   assert.match(visibility, /await waitForSupabaseAuthSession\(\{ timeoutMs: 8000 \}\)/);
   assert.match(visibility, /onAuthStateChange/);
@@ -47,4 +48,9 @@ test('database coordination reads and writes require the app admin role', () => 
   assert.match(migration, /record_activity_coordination_reconciliation[\s\S]*if not public\.activity_coordination_is_admin\(\)/i);
   assert.match(migration, /where public\.activity_coordination_is_admin\(\)/i);
   assert.doesNotMatch(migration, /grant select on (table )?public\.contact_emails to authenticated/i);
+});
+
+test('forward permission migration replaces admin-only coordination access with the dedicated canonical permission', () => {
+  assert.match(permissionMigration, /activity_coordination_is_admin\(\)[\s\S]*app_has_permission\('send_activity_coordination_approvals'\)/i);
+  assert.doesNotMatch(permissionMigration, /activity_coordination_is_admin\(\)[\s\S]{0,220}app_can_edit_direct/i);
 });

@@ -30,9 +30,9 @@ async function assertAllowed(req: Request) {
   if (!auth || !url || !key) throw new Error("not_authorized");
   const response = await fetch(`${url}/rest/v1/rpc/get_current_app_user`, { method: "POST", headers: { apikey: key, Authorization: auth, "Content-Type": "application/json" }, body: "{}" });
   const currentUsers = response.ok ? await response.json() : []; const user = Array.isArray(currentUsers) ? currentUsers[0] : currentUsers;
-  const roles = new Set(["admin", "operation_manager", "finance", "activities_manager", "domain_manager", "business_development_manager", "instructor_manager"]);
-  const explicit = user?.permissions?.view_employee_files;
-  if (!user?.is_active || (explicit != null ? ![true, "yes", "true", "1", 1].includes(explicit) : !roles.has(clean(user?.role)))) throw new Error("not_authorized");
+  const allowed = [true, "yes", "true", "1", 1].includes(user?.permissions?.manage_instructor_onboarding)
+    && [true, "yes", "true", "1", 1].includes(user?.permissions?.view_instructors);
+  if (!user?.is_active || (clean(user?.role) !== "admin" && !allowed)) throw new Error("not_authorized");
 }
 async function listDirectFiles(accessToken: string, folderId: string) {
   let next = `/drives/${encodeURIComponent(DRIVE_ID)}/items/${encodeURIComponent(folderId)}/children?$select=id,name,file,folder&$top=200`;

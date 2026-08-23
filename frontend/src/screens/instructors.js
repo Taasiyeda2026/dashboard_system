@@ -1,7 +1,7 @@
 import { escapeHtml } from './shared/html.js';
 import { dsScreenStack, dsEmptyState } from './shared/layout.js';
 import { showToast } from './shared/toast.js';
-import { canViewEmployeeFiles } from '../permissions.js';
+import { canManageInstructorOnboarding, canViewEmployeeFiles } from '../permissions.js';
 import { hasPermission } from '../permission-policy.js';
 import { onboardingManagers, onboardingModalHtml, bindOnboardingModal } from './instructor-onboarding.js';
 import { createEmployeeFileSharePointReturnSync, loadInstructorEmployeeFile, saveInstructorEmployeeFolderUrl } from './instructor-employee-file-data.js';
@@ -285,6 +285,7 @@ export const instructorsScreen = {
       return true;
     });
     const employeeFilesAllowed = canViewEmployeeFiles(state?.user);
+    const onboardingAllowed = canManageInstructorOnboarding(state?.user);
     const body = rows.length ? `<div class="instructors-workspace-grid">${rows.map((row) => instructorCard(row, { canViewEmployeeFiles: employeeFilesAllowed })).join('')}</div>` : dsEmptyState('לא נמצאו מדריכים בהתאם לסינון');
     return dsScreenStack(`${instructorsWorkspaceNavStylesHtml()}<style>${INSTRUCTORS_LIST_STYLES}</style>
       <div class="instructors-list">
@@ -293,7 +294,7 @@ export const instructorsScreen = {
         <div class="instructors-list__toolbar">
           <span class="ds-badge">${rows.length}</span>
           <span class="ds-muted">סטטוס:</span>${chips(ACTIVE_FILTERS, filters.active, 'data-instructors-active')}
-          ${employeeFilesAllowed ? '<button type="button" class="ds-btn ds-btn--sm" data-open-instructor-onboarding><span aria-hidden="true">＋</span> קליטת מדריך</button>' : ''}
+          ${onboardingAllowed ? '<button type="button" class="ds-btn ds-btn--sm" data-open-instructor-onboarding><span aria-hidden="true">＋</span> קליטת מדריך</button>' : ''}
         </div>
         ${body}
       </div>`);
@@ -303,10 +304,11 @@ export const instructorsScreen = {
     const rows = data?.rows || [];
     const canEdit = hasPermission(state?.user, 'manage_instructor_maintenance');
     const employeeFilesAllowed = canViewEmployeeFiles(state?.user);
+    const onboardingAllowed = canManageInstructorOnboarding(state?.user);
     state.instructorsWorkspace = state.instructorsWorkspace || { q: '', active: 'yes', assignment: '' };
     bindInstructorsWorkspaceNav(root, { state, rerender });
     root.querySelector('[data-open-instructor-onboarding]')?.addEventListener('click', () => {
-      if (!ui || !employeeFilesAllowed) return;
+      if (!ui || !onboardingAllowed) return;
       const managers = onboardingManagers(state?.clientSettings || {});
       ui.openModal({ title: 'קליטת מדריך', modalClass: 'ds-modal--instructor-onboarding', content: onboardingModalHtml(managers), actions: '<button type="button" class="ds-btn ds-btn--primary" data-onboarding-prepare disabled>שליחת מייל</button>' });
       const modal = document.querySelector('.ds-modal.ds-modal--instructor-onboarding');

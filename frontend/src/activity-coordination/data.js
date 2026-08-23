@@ -12,7 +12,7 @@ export const COORDINATION_DOCUMENT_VERSION = 'coordination-pdf-v7';
 
 const rowId = (row) => String(row?.row_id || row?.RowID || '').trim();
 
-async function activityCoordinationAdminAccess() {
+async function activityCoordinationSendAccess() {
   const session = await waitForSupabaseAuthSession({ timeoutMs: 8000 });
   if (!session?.user?.id) return false;
   const { data, error } = await supabase.rpc('activity_coordination_is_admin');
@@ -29,8 +29,8 @@ function managerContacts(settings = {}) {
 }
 
 export async function loadActivityCoordinationContext(activities = [], settings = {}) {
-  const isAdmin = await activityCoordinationAdminAccess();
-  if (!isAdmin) return { items: [], byActivityId: new Map(), access: 'denied' };
+  const canSend = await activityCoordinationSendAccess();
+  if (!canSend) return { items: [], byActivityId: new Map(), access: 'denied' };
 
   const rows = activities.filter((row) => String(row?.activity_season || '').trim() === 'school_2027');
   const ids = rows.map(rowId).filter(Boolean);
@@ -108,7 +108,7 @@ export async function loadActivityCoordinationContext(activities = [], settings 
       persisted
     });
   }
-  return { items, byActivityId: new Map(items.map((item) => [item.activity_row_id, item])), access: 'admin' };
+  return { items, byActivityId: new Map(items.map((item) => [item.activity_row_id, item])), access: 'allowed' };
 }
 
 export async function reserveDispatch(group, { subject, summaryFilename, photographyFilename, idempotencyKey, correlationId }) {

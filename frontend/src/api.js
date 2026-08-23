@@ -4791,9 +4791,7 @@ function normalizeSupabaseRole(role) {
 }
 
 function canManagePersonalReportsUser(user = {}) {
-  const role = String(user?.role || '').trim().toLowerCase();
-  if (role === 'admin') return true;
-  return permissionFlagYes(user?.personal_reports_manager);
+  return hasPermission(user, 'personal_reports_manager');
 }
 
 function personalReportsProfileFlagYes(value) {
@@ -4810,6 +4808,13 @@ function profileCanAccessPersonalReports(profileRow) {
 
 function userCanAccessPersonalReportsFromPermissions(flat = {}) {
   return permissionFlagYes(flat.can_access_personal_reports);
+}
+
+function effectivePersonalReportsAccess(flat = {}, profileRow = null) {
+  if (Object.prototype.hasOwnProperty.call(flat, 'can_access_personal_reports')) {
+    return userCanAccessPersonalReportsFromPermissions(flat);
+  }
+  return profileCanAccessPersonalReports(profileRow);
 }
 
 async function readPersonalReportsProfile(authUserId, options = {}) {
@@ -4870,6 +4875,7 @@ async function readPersonalReportsProfilesByAuthIds(authUserIds = []) {
 
 function mergePersonalReportsProfileIntoFlatUser(flat, profileRow) {
   if (!flat || !profileRow) return flat;
+  if (Object.prototype.hasOwnProperty.call(flat, 'can_access_personal_reports')) return flat;
   return {
     ...flat,
     can_access_personal_reports: profileCanAccessPersonalReports(profileRow) ? 'yes' : 'no'
@@ -5012,9 +5018,7 @@ function buildBootstrapFromUser(userRow, profileRow = null) {
   if (canViewEditRequests && !allowedRoutes.includes('edit-requests')) {
     allowedRoutes.push('edit-requests');
   }
-  const hasPersonalReportsAccess =
-    profileCanAccessPersonalReports(profileRow) ||
-    userCanAccessPersonalReportsFromPermissions(flat);
+  const hasPersonalReportsAccess = effectivePersonalReportsAccess(flat, profileRow);
   const hasPersonalReportsManager = canManagePersonalReportsUser(flat);
   const personalReportsIdx = allowedRoutes.indexOf('personal-reports');
   if (hasPersonalReportsAccess && personalReportsIdx === -1) allowedRoutes.push('personal-reports');
@@ -6980,9 +6984,7 @@ export const api = {
     ]);
     const token = makeSessionToken(user);
     const flat = flattenUserRow(user);
-    const hasPersonalReportsAccess =
-      profileCanAccessPersonalReports(profileRow) ||
-      userCanAccessPersonalReportsFromPermissions(flat);
+    const hasPersonalReportsAccess = effectivePersonalReportsAccess(flat, profileRow);
     const proposalFlags = proposalSessionUserFlagsFromFlatUser(flat);
     const bootstrap = buildBootstrapFromUser(user, profileRow);
     const effectiveUser = mergeBootstrapPermissionsIntoUser({
@@ -8789,7 +8791,7 @@ export const api = {
     if (existing.error || !existing.data) throw new Error('user_not_found');
     const permissions = { ...(existing.data.permissions || {}) };
     Object.entries(row || {}).forEach(([k, v]) => {
-      if (['user_id', 'role', 'display_role', 'default_view', 'active', 'full_name', 'entry_code', 'emp_id', 'display_role2', 'can_access_personal_reports'].includes(k)) return;
+      if (['user_id', 'role', 'display_role', 'default_view', 'active', 'full_name', 'entry_code', 'emp_id', 'display_role2'].includes(k)) return;
       permissions[k] = v;
     });
     const nextRole = row.role || existing.data.role;

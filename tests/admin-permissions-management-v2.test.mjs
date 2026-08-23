@@ -28,8 +28,8 @@ test('permission editor presents a business hierarchy and keeps legacy aliases b
   assert.match(runtime, /data-apm-child-of/);
   assert.match(runtime, /LEGACY_PERMISSION_ALIASES/);
   assert.doesNotMatch(runtime, /view_proposals_agreements:\s*\['view_proposals'\]/);
-  assert.match(runtime, /if \(!enabled\) child\.checked = false/);
-  assert.match(runtime, /\[data-apm-permission\]\[disabled\]/);
+  assert.match(runtime, /data-apm-stored-checked/);
+  assert.match(runtime, /child\.checked = enabled && child\.dataset\.apmStoredChecked === 'yes'/);
   assert.match(runtime, /payload\.view_permissions = role === ADMIN_ROLE/);
 
   assert.match(runtime, /payload\.approve_proposals_agreements = role === ADMIN_ROLE/);
@@ -43,6 +43,7 @@ test('saving an employee preserves permissions that are not rendered in the busi
   assert.match(runtime, /if \(storedValue !== undefined\) payload\[key\] = storedValue/);
   assert.match(runtime, /permissionPayload\(drawer, values\.role, existingRow\)/);
   assert.doesNotMatch(runtime, /payload\[key\] = el\?\.checked \? 'yes' : 'no'/);
+  assert.match(runtime, /el\.disabled \? \(el\.dataset\.apmStoredChecked \|\| 'no'\)/);
 });
 
 test('new instructors and permission records stay linked by employee number', () => {
@@ -54,6 +55,6 @@ test('new instructors and permission records stay linked by employee number', ()
 
 test('redesigned permissions runtime is loaded by the application bootstrap', () => {
 
-  assert.match(bootstrap, /admin-permissions-management-v2\.js\?v=20260823-v8/);
+  assert.match(bootstrap, /admin-permissions-management-v2\.js\?v=20260823-v9/);
 
 });

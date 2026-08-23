@@ -14,7 +14,7 @@ import './manager-board-management-docs-link.js?v=20260821-v1';
 import './admin-data-tool.js?v=20260823-v2';
 import './admin-data-activity-number-hotfix.js?v=20260823-v1';
 import './admin-data-admin-guard.js?v=20260823-v1';
-import './admin-permissions-management-v2.js?v=20260823-v8';
+import './admin-permissions-management-v2.js?v=20260823-v9';
 import './operations-home-navigation-hotfix.js?v=20260823-v1';
 import './progressive-route-warmup.js';
 import './main.js';

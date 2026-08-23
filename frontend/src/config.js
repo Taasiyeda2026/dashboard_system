@@ -127,3 +127,4 @@ config.HOTFIX_VERSION = `canonical-proposal-permissions-migration-20260823-v1-${
 config.HOTFIX_VERSION = `permissions-main-sync-20260823-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `permissions-hidden-preserve-20260823-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `permissions-canonical-hierarchy-20260823-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `approved-seven-user-permission-matrix-20260823-v1-${config.HOTFIX_VERSION}`;

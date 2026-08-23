@@ -131,7 +131,7 @@ test('savePermission: role is handled as its own column, not folded into the gen
   const source = await readFile(API_FILE, 'utf8');
   const fnMatch = source.match(/savePermission: async \(row\) => \{[\s\S]*?return \{ ok: true \};\n  \},/);
   assert.ok(fnMatch, 'savePermission must exist');
-  assert.match(fnMatch[0], /\['user_id', 'role', 'display_role', 'default_view', 'active', 'full_name', 'entry_code', 'emp_id', 'display_role2', 'can_access_personal_reports'\]\.includes\(k\)/,
+  assert.match(fnMatch[0], /\['user_id', 'role', 'display_role', 'default_view', 'active', 'full_name', 'entry_code', 'emp_id', 'display_role2'\]\.includes\(k\)/,
     'savePermission must exclude dedicated user columns from the generic permissions patch loop');
   assert.match(fnMatch[0], /const nextRole = row\.role \|\| existing\.data\.role;/);
   assert.match(fnMatch[0], /role: nextRole,/);
