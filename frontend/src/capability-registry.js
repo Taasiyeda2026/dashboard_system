@@ -78,7 +78,7 @@ const STAFF_COMMON = [
   'view_dashboard', 'view_activities', 'view_activity_calendar', 'view_activity_exceptions',
   'view_activity_end_dates', 'view_activity_archive', 'view_contacts', 'view_instructors',
   'view_instructor_list', 'view_instructor_contacts', 'view_certificates',
-  'can_access_personal_reports', 'view_operations_management'
+  'can_access_personal_reports'
 ];
 
 export const ROLE_PERMISSION_TEMPLATES = Object.freeze({
