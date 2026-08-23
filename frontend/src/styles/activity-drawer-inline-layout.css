@@ -172,6 +172,12 @@
   gap: 8px;
 }
 
+/* The activity domain is already shown as E/Y in the drawer header.
+   Hide its duplicate grid card while viewing, but keep the control available in edit mode. */
+.activity-drawer-inline-layout .activity-drawer-inline__field:has([name="activity_domain"]):has(> .activity-drawer-inline__edit[hidden]) {
+  display: none;
+}
+
 .activity-drawer-inline-layout .activity-drawer__section--edit-group,
 .activity-drawer-inline-layout [data-central-info-section] {
   display: none !important;
