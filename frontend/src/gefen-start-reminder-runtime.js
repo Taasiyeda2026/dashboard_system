@@ -3,7 +3,7 @@ import { supabase, waitForSupabaseAuthSession } from './supabase-client.js';
 
 const REMINDER_TABLE = 'gefen_start_reminder_acknowledgements';
 const REMINDER_YEAR = 2027;
-const REMINDER_LEAD_DAYS = 8;
+const REMINDER_LEAD_DAYS = 10;
 const CHECK_THROTTLE_MS = 5 * 60 * 1000;
 const POLL_INTERVAL_MS = 30 * 1000;
 const JERUSALEM_TIME_ZONE = 'Asia/Jerusalem';

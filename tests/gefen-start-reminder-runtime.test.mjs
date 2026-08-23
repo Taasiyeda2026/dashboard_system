@@ -6,9 +6,9 @@ const runtime = await readFile(new URL('../frontend/src/gefen-start-reminder-run
 const indexHtml = await readFile(new URL('../index.html', import.meta.url), 'utf8');
 const migration = await readFile(new URL('../supabase/migrations/20260823054500_add_gefen_start_reminder_acknowledgements.sql', import.meta.url), 'utf8');
 
-test('Gefen reminder targets 2027 Gefen-only activities within eight days', () => {
+test('Gefen reminder targets 2027 Gefen-only activities within ten days', () => {
   assert.match(runtime, /const REMINDER_YEAR = 2027/);
-  assert.match(runtime, /const REMINDER_LEAD_DAYS = 8/);
+  assert.match(runtime, /const REMINDER_LEAD_DAYS = 10/);
   assert.match(runtime, /normalizeFunding\(activity\?\.funding\) === 'גפן'/);
   assert.match(runtime, /daysUntilStart >= 0 && daysUntilStart <= REMINDER_LEAD_DAYS/);
   assert.match(runtime, /start_date,date_1/);
@@ -29,5 +29,5 @@ test('Gefen reminder acknowledgement is per activity and per authenticated user'
 });
 
 test('Gefen reminder runtime is loaded by the application shell', () => {
-  assert.match(indexHtml, /gefen-start-reminder-runtime\.js\?v=20260823-v1/);
+  assert.match(indexHtml, /gefen-start-reminder-runtime\.js\?v=20260823-v2/);
 });
