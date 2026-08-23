@@ -2,3 +2,4 @@
 - [SW version rules](sw-version-rules.md) — baseline v1400; never go below; single source frontend/sw.js; dist files copied after build
 - [Attendance SW cache sync](attendance-sw-cache-sync.md) — attendance/sw.js CACHE_VERSION and index.html ?v=N must match; both now at 3; updateViaCache:none + auto-skipWaiting in sw-registration.service.js
 - [Activity-domain phase-one scope](activity-domain-phase-one-scope.md) — keep activity_domain independent of proposal-domain and Israa changes; scope is school_2027 backfill and activity UI only.
+- [Activity drawer lifecycle](activity-drawer-lifecycle.md) — apply structural drawer enhancements only after a form is mounted inside the actual drawer.

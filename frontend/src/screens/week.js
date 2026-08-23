@@ -1,6 +1,7 @@
 import { escapeHtml } from './shared/html.js';
 import { dsScreenStack, dsInteractiveCard } from './shared/layout.js';
 import { activityWorkDrawerHtml } from './shared/activity-detail-html.js';
+import { applyActivityDrawerLayoutPipeline } from '../activity-drawer-layout-pipeline.js';
 import { bindActivityEditForm as bindActivityEditFormShared } from './shared/bind-activity-edit-form.js';
 import { formatDateHe } from './shared/format-date.js';
 import { getHolidayLabel } from './shared/holidays.js';
@@ -329,6 +330,10 @@ export const weekScreen = {
 
     const bindActivityEditForm = (contentRoot) =>
       bindActivityEditFormShared(contentRoot, { api, ui, clearScreenDataCache, rerender, onRowSaved: (p) => patchCachedActivityDetail(p, state) });
+    const onOpenActivityDrawer = (contentRoot) => {
+      applyActivityDrawerLayoutPipeline(contentRoot, state?.clientSettings || {});
+      if (canEditActivity) bindActivityEditForm(contentRoot);
+    };
 
     const prevBtn = root.querySelector('[data-week-prev]');
     const nextBtn = root.querySelector('[data-week-next]');
@@ -456,7 +461,7 @@ export const weekScreen = {
             instructorLimited,
             currMode
           ),
-          onOpen: canEditActivity ? bindActivityEditForm : undefined
+          onOpen: onOpenActivityDrawer
         });
       };
       const rows = mode === 'summary' ? summaryGroup : [item];

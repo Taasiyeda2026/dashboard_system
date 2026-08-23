@@ -3,10 +3,8 @@ import { showToast } from './toast.js';
 import { formatDateHe } from './format-date.js';
 import { escapeHtml } from './html.js';
 import { syncActivityEndTimeOptions } from './activity-time-options.js';
-import { enhanceActivityDrawerForm } from '../../activity-drawer-inline-layout.js';
-import { applyActivityDrawerTypeLayoutFix } from '../../activity-drawer-type-layout-fix.js';
-import { guardInitialValueRefreshWhileEditing, polishActivityDrawerEditOptions } from '../../activity-drawer-edit-dedup.js';
-import { dockActivityDrawerActions } from '../../activity-drawer-floating-actions.js';
+import { applyActivityDrawerLayoutPipeline } from '../../activity-drawer-layout-pipeline.js';
+import { guardInitialValueRefreshWhileEditing } from '../../activity-drawer-edit-dedup.js';
 import { applyApprovedDrawerFixes } from '../../activity-drawer-approved-fixes.js';
 import { activityTypeMatches, getValidInstructorUsers, humanDisplayText, INSTRUCTOR_CONTACTS_MISSING_ERROR_MESSAGE, INSTRUCTOR_IDENTITY_ERROR_MESSAGE, isCanonicalActivityTypeKey, normalizeActivityTypeKey, normalizeOneDayActivityType, resolveInstructorSelectionByEmpId, validateInstructorIdentityPayload } from './activity-options.js';
 import { catalogActivityChangesFromSelection, selectedActivityCatalogIdentity, syncActivityCatalogIdentityFromName } from '../../activity-catalog-identity.js';
@@ -381,12 +379,7 @@ export function bindActivityEditForm(contentRoot, {
   contentRoot._activityEditAbort = abortController;
   const { signal } = abortController;
 
-  // Drawer markup is complete when this binder is attached. Apply the layout
-  // pipeline once here instead of observing the entire document for mutations.
-  contentRoot.querySelectorAll('[data-drawer-form]').forEach((form) => {
-    enhanceActivityDrawerForm(form);
-    applyActivityDrawerTypeLayoutFix(form);
-  });
+  applyActivityDrawerLayoutPipeline(contentRoot, state?.clientSettings || {});
 
   async function saveActivityForm(form) {
     if (blockReadOnlyActivityMutation(form)) return;
@@ -823,8 +816,6 @@ export function bindActivityEditForm(contentRoot, {
     captureFormInitialValues(form);
     form._refreshInitialValues = () => captureFormInitialValues(form);
     guardInitialValueRefreshWhileEditing(form);
-    polishActivityDrawerEditOptions(form, state?.clientSettings);
-    dockActivityDrawerActions(form);
 
     form.addEventListener(
       'change',

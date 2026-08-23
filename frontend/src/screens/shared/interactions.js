@@ -1,5 +1,6 @@
 import { escapeHtml } from './html.js';
 import { exportSingleActivityToExcel } from './excel-export.js';
+import { applyActivityDrawerLayoutPipeline } from '../../activity-drawer-layout-pipeline.js';
 
 const UI_LAYER_ID = 'ds-shared-ui-layer';
 
@@ -205,6 +206,7 @@ export function createSharedInteractionLayer() {
 
     titleNode.innerHTML = defaultDrawerTitle(title);
     contentNode.innerHTML = asHtml(content);
+    applyActivityDrawerLayoutPipeline(contentNode);
     bindDrawerExport(contentNode);
     drawer.scrollTop = 0;
     contentNode.scrollTop = 0;

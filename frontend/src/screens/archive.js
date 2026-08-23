@@ -18,6 +18,7 @@ import {
 import { activityManagerDisplayName, getRosterUsers, normalizeActivityTypeKey } from './shared/activity-options.js';
 import { isReadOnlyActivityRow } from './shared/activity-readonly-period.js';
 import { hasPermission } from '../permission-policy.js';
+import { applyActivityDrawerLayoutPipeline } from '../activity-drawer-layout-pipeline.js';
 
 const ARCHIVE_SCOPE = 'archive';
 const ARCHIVE_SEARCH_DEBOUNCE_MS = 280;
@@ -578,6 +579,7 @@ export const archiveScreen = {
         showFinanceFields: false,
         datesLoading: false
       });
+      applyActivityDrawerLayoutPipeline(contentNode, settings);
       hideShellHeader(contentNode);
       bindReopenBtn(contentNode, detailRow, canReopenRow);
       const latestDates = state?.screenDataCache?.[datesCacheKey(summaryRow)]?.data;

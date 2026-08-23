@@ -12,13 +12,23 @@ function installDom(html) {
   globalThis.MutationObserver = dom.window.MutationObserver;
   globalThis.Element = dom.window.Element;
   globalThis.Node = dom.window.Node;
+  globalThis.HTMLElement = dom.window.HTMLElement;
+  globalThis.sessionStorage = dom.window.sessionStorage;
+  globalThis.localStorage = dom.window.localStorage;
+  globalThis.requestAnimationFrame = (callback) => {
+    callback();
+    return 0;
+  };
   return dom;
 }
 
 globalThis.__ACTIVITY_DRAWER_INLINE_LAYOUT_TEST__ = true;
 globalThis.__ACTIVITY_DRAWER_EDIT_DEDUP_TEST__ = true;
+globalThis.__ACTIVITY_DRAWER_TYPE_LAYOUT_FIX_TEST__ = true;
 const moduleUrl = new URL('../frontend/src/activity-drawer-inline-layout.js', import.meta.url);
 const dedupModuleUrl = new URL('../frontend/src/activity-drawer-edit-dedup.js', import.meta.url);
+const pipelineModuleUrl = new URL('../frontend/src/activity-drawer-layout-pipeline.js', import.meta.url);
+const interactionsModuleUrl = new URL('../frontend/src/screens/shared/interactions.js', import.meta.url);
 const { enhanceActivityDrawerForm } = await import(`${moduleUrl.href}?test=${Date.now()}`);
 const { polishActivityDrawerEditOptions } = await import(`${dedupModuleUrl.href}?test=${Date.now()}`);
 const { activityWorkDrawerHtml } = await import('../frontend/src/screens/shared/activity-detail-html.js');
@@ -199,4 +209,98 @@ test('desktop activity details use four responsive columns', async () => {
 test('edit mode CSS hides the display heading instead of stacking it above the fields', async () => {
   const css = await readFile(HEADER_POLISH_CSS, 'utf8');
   assert.match(css, /\[data-editing="yes"\][\s\S]*\.activity-drawer__heading[\s\S]*display:\s*none\s*!important/);
+});
+
+test('mounted read-only activity drawers receive the shared layout without edit binding', async () => {
+  const row = {
+    RowID: 'READ-ONLY-1',
+    activity_type: 'course',
+    item_type: 'course',
+    activity_name: 'קורס לצפייה',
+    activity_no: 'RO-1',
+    status: 'פתוח',
+    activity_season: 'school_2027'
+  };
+  const dom = installDom(`<!doctype html><html><body>
+    <div class="ds-ui-layer"><aside class="ds-drawer"><div class="ds-drawer__content">
+      ${activityWorkDrawerHtml(row, { canEdit: false })}
+    </div></aside></div>
+  </body></html>`);
+  const contentRoot = dom.window.document.querySelector('.ds-drawer__content');
+  const form = contentRoot.querySelector('[data-drawer-form]');
+  const { applyActivityDrawerLayoutPipeline } = await import(`${pipelineModuleUrl.href}?test=${Date.now()}`);
+
+  assert.equal(form.hasAttribute('data-activity-drawer-inline-layout'), false);
+  assert.equal(applyActivityDrawerLayoutPipeline(contentRoot, {}), true);
+  assert.equal(form.hasAttribute('data-activity-drawer-inline-layout'), true);
+  assert.ok(form.querySelector(':scope > .activity-drawer-inline__header'));
+  assert.ok(form.querySelector(':scope > .activity-drawer-inline__body'));
+  assert.equal(contentRoot._activityEditAbort, undefined);
+  assert.equal(form.querySelector('[data-action="save-edit"]'), null);
+  dom.window.close();
+});
+
+test('month and week activity drawers apply layout before permission-gated edit binding', async () => {
+  const monthSource = await readFile(new URL('../frontend/src/screens/month.js', import.meta.url), 'utf8');
+  const weekSource = await readFile(new URL('../frontend/src/screens/week.js', import.meta.url), 'utf8');
+
+  [monthSource, weekSource].forEach((source) => {
+    assert.match(source, /const onOpenActivityDrawer = \(contentRoot\) => \{[\s\S]*?applyActivityDrawerLayoutPipeline\(contentRoot, state\?\.clientSettings \|\| \{\}\);[\s\S]*?if \(canEditActivity\) bindActivityEditForm\(contentRoot\);/);
+    assert.match(source, /onOpen:\s*onOpenActivityDrawer/);
+    assert.doesNotMatch(source, /onOpen:\s*canEditActivity \? bindActivityEditForm : undefined/);
+  });
+});
+
+test('a read-only activity opened without an onOpen handler receives the shared layout', async () => {
+  const row = {
+    RowID: 'ARCHIVE-READ-ONLY-1',
+    activity_type: 'course',
+    item_type: 'course',
+    activity_name: 'פעילות ארכיון',
+    activity_no: 'ARCH-1',
+    status: 'הושלם',
+    activity_season: 'school_2027'
+  };
+  const dom = installDom('<!doctype html><html><body></body></html>');
+  const { createSharedInteractionLayer } = await import(`${interactionsModuleUrl.href}?test=${Date.now()}`);
+  const ui = createSharedInteractionLayer();
+
+  ui.openDrawer({
+    title: 'פעילות',
+    content: activityWorkDrawerHtml(row, { canEdit: false })
+  });
+
+  const contentRoot = dom.window.document.querySelector('.ds-drawer__content');
+  const form = contentRoot.querySelector('[data-drawer-form]');
+  assert.equal(form.hasAttribute('data-activity-drawer-inline-layout'), true);
+  assert.ok(form.querySelector(':scope > .activity-drawer-inline__header'));
+  assert.equal(contentRoot._activityEditAbort, undefined);
+  ui.closeDrawer();
+  dom.window.close();
+});
+
+test('an archive-style async detail replacement receives the layout immediately', async () => {
+  const row = {
+    RowID: 'ARCHIVE-ASYNC-1',
+    activity_type: 'course',
+    item_type: 'course',
+    activity_name: 'פעילות ארכיון מלאה',
+    activity_no: 'ARCH-ASYNC-1',
+    status: 'הושלם',
+    activity_season: 'school_2027'
+  };
+  const dom = installDom(`<!doctype html><html><body>
+    <div class="ds-ui-layer"><aside class="ds-drawer"><div class="ds-drawer__content"></div></aside></div>
+  </body></html>`);
+  const contentRoot = dom.window.document.querySelector('.ds-drawer__content');
+  const { applyActivityDrawerLayoutPipeline } = await import(`${pipelineModuleUrl.href}?archive-replacement=${Date.now()}`);
+  contentRoot.innerHTML = activityWorkDrawerHtml(row, { canEdit: false });
+
+  assert.equal(applyActivityDrawerLayoutPipeline(contentRoot, {}), true);
+  assert.equal(contentRoot.querySelector('[data-drawer-form]').hasAttribute('data-activity-drawer-inline-layout'), true);
+  assert.ok(contentRoot.querySelector('.activity-drawer-inline__body'));
+
+  const archiveSource = await readFile(new URL('../frontend/src/screens/archive.js', import.meta.url), 'utf8');
+  assert.match(archiveSource, /contentNode\.innerHTML\s*=\s*reopenBtn \+ activityWorkDrawerHtml\([\s\S]*?applyActivityDrawerLayoutPipeline\(contentNode, settings\);/);
+  dom.window.close();
 });

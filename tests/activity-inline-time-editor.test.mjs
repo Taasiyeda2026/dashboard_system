@@ -87,8 +87,10 @@ test('approved drawer moves the domain once and validates typed times without ch
 
 test('approved drawer fixes run from the form binding lifecycle', () => {
   const binder = fs.readFileSync('frontend/src/screens/shared/bind-activity-edit-form.js', 'utf8');
-  assert.match(binder, /enhanceActivityDrawerForm\(form\)/);
-  assert.match(binder, /applyActivityDrawerTypeLayoutFix\(form\)/);
+  const pipeline = fs.readFileSync('frontend/src/activity-drawer-layout-pipeline.js', 'utf8');
+  assert.match(pipeline, /enhanceActivityDrawerForm\(form\)/);
+  assert.match(pipeline, /applyActivityDrawerTypeLayoutFix\(form\)/);
+  assert.match(binder, /applyActivityDrawerLayoutPipeline\(contentRoot/);
   assert.match(binder, /applyApprovedDrawerFixes\(form\)/);
   assert.match(binder, /isApprovedTimeEditor/);
 });

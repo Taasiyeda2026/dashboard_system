@@ -14,9 +14,11 @@ test('changing start time keeps a valid end time and clamps an earlier end immed
   const start = document.querySelector('[name="start_time"]');
   const end = document.querySelector('[name="end_time"]');
   assert.equal(syncActivityEndTimeOptions(start, end), '10:00');
-  assert.equal(end.options[0].value, '10:00');
+  assert.equal(document.querySelector('[name="end_time"]').value, '10:00');
 
-  end.value = '11:30';
-  start.replaceChildren(Object.assign(document.createElement('option'), { value: '10:30', textContent: '10:30' }));
-  assert.equal(syncActivityEndTimeOptions(start, end), '11:30');
+  const upgradedStart = document.querySelector('[name="start_time"]');
+  const upgradedEnd = document.querySelector('[name="end_time"]');
+  upgradedEnd.value = '11:30';
+  upgradedStart.value = '10:30';
+  assert.equal(syncActivityEndTimeOptions(upgradedStart, upgradedEnd), '11:30');
 });

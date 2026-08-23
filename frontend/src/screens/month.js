@@ -2,6 +2,7 @@ import { escapeHtml } from './shared/html.js';
 import { dsScreenStack, dsCard, dsInteractiveCard } from './shared/layout.js';
 import { activityWorkDrawerHtml } from './shared/activity-detail-html.js';
 import { monthDayCardsHtml } from './shared/day-session-cards.js';
+import { applyActivityDrawerLayoutPipeline } from '../activity-drawer-layout-pipeline.js';
 import { bindActivityEditForm as bindActivityEditFormShared } from './shared/bind-activity-edit-form.js';
 import { formatDateHe } from './shared/format-date.js';
 import { getHolidayLabel } from './shared/holidays.js';
@@ -324,6 +325,10 @@ export const monthScreen = {
 
     const bindActivityEditForm = (contentRoot) =>
       bindActivityEditFormShared(contentRoot, { api, ui, clearScreenDataCache, rerender, onRowSaved: (p) => patchCachedActivityDetail(p, state) });
+    const onOpenActivityDrawer = (contentRoot) => {
+      applyActivityDrawerLayoutPipeline(contentRoot, state?.clientSettings || {});
+      if (canEditActivity) bindActivityEditForm(contentRoot);
+    };
 
     /** Bind the accordion toggles and activity card clicks inside a day drawer. */
     const bindDayDrawer = (contentRoot) => {
@@ -368,7 +373,7 @@ export const monthScreen = {
               settings: state?.clientSettings || {},
               instructorLimited
             }),
-            onOpen: canEditActivity ? bindActivityEditForm : undefined
+            onOpen: onOpenActivityDrawer
           });
         };
         const cached = getCachedActivityDetail(item, state);
