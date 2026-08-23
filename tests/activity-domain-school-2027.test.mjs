@@ -16,7 +16,10 @@ test('activity-domain migration keeps the data transition scoped to school_2027'
   assert.match(migration, /new\.activity_season is distinct from 'school_2027'/);
   assert.match(migration, /direct_proposal_id = item_proposal_id/);
   assert.match(migration, /assign_y_proposal_domain_to_activity/);
+  assert.match(migration, /if v_domain = 'Y' and new\.activity_domain is null then/);
   assert.match(migration, /new\.activity_domain := 'Y'/);
+  assert.match(migration, /before insert or update of proposal_agreement_id, proposal_item_id\s+on public\.activities/);
+  assert.doesNotMatch(migration, /update of proposal_agreement_id, proposal_item_id, activity_domain/i);
   assert.match(migration, /trg_guard_proposal_linked_activity_domain_y/);
   assert.doesNotMatch(migration, /drop trigger if exists trg_guard_proposal_linked_activity_domain_y/i);
   assert.doesNotMatch(migration, /alter column proposal_domain/i);
@@ -32,6 +35,7 @@ test('activity-domain UI is limited to school_2027 create and edit forms', async
   assert.match(activities, /name="activity_domain" required/);
   assert.match(activities, /isSchool2027Activity && !\['E', 'Y'\]\.includes\(activityDomain\)/);
   assert.match(detail, /is2027Row \? fieldEditOnly\(\s*'תחום פעילות'/);
+  assert.doesNotMatch(detail.match(/is2027Row \? fieldEditOnly\([\s\S]*?placeholder: 'בחרו תחום'[\s\S]*?\) : ''/)?.[0] || '', /disabled/);
   assert.match(api, /'activity_domain'/);
   assert.match(api, /invalid_activity_domain/);
   assert.doesNotMatch(api.match(/ACTIVITY_TABLE_COLUMNS = \[[\s\S]*?\]\.join\(','\);/)?.[0] || '', /activity_domain/);
