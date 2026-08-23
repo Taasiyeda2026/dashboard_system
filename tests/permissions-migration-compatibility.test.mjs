@@ -49,15 +49,14 @@ test('migration uses a frozen legacy snapshot, not current role templates', () =
   assert.doesNotMatch(authorizedBlock, /view_operations_management|view_catalog|view_orders|view_proposals_agreements|finance_access|can_access_personal_reports|view_employee_files|view_israa_management/);
 });
 
-test('legacy proposal view is canonicalized once and never consulted at runtime', async () => {
+test('legacy proposal view is not promoted into canonical database access', async () => {
   const [policy, api] = await Promise.all([
     readFile(new URL('../frontend/src/permission-policy.js', import.meta.url), 'utf8'),
     readFile(new URL('../frontend/src/api.js', import.meta.url), 'utf8')
   ]);
   assert.doesNotMatch(policy, /view_proposals_agreements:\s*\['view_proposals'\]/);
   assert.doesNotMatch(api, /permissionFlagYes\(flat\.view_proposals\)/);
-  assert.match(migration, /not \(coalesce\(u\.permissions, '\{\}'::jsonb\) \? 'view_proposals_agreements'\)/);
-  assert.match(migration, /permissions ->> 'view_proposals'/);
+  assert.doesNotMatch(migration, /permissions\s*->>\s*'view_proposals'/);
   const readHelper = migration.match(/create or replace function public\.app_can_use_proposals_agreements\(\)[\s\S]*?\$\$;/)?.[0] || '';
   assert.doesNotMatch(readHelper, /view_proposals'/);
 });
