@@ -23,29 +23,49 @@ function mountedModal(options = {}) {
   return { dom, modal };
 }
 
-function fill(modal, { manager = 'גיל נאמן', email = 'new@example.org', employmentType = 'taasiyeda', agency = '' } = {}) {
+function fill(modal, { manager = 'גיל נאמן', email = 'new@example.org', employmentType = 'taasiyeda', agency = '', hourlyRate = '70' } = {}) {
   const values = [['name', 'אייל ישראלי'], ['phone', '050-123 4567'], ['email', email]];
   for (const [key, value] of values) {
     const input = modal.querySelector(`[data-onboarding-${key}]`); input.value = value; input.dispatchEvent(new window.Event('input'));
   }
   const employment = modal.querySelector('[data-onboarding-employment]'); employment.value = employmentType; employment.dispatchEvent(new window.Event('change'));
+  const rateSelect = modal.querySelector('[data-onboarding-rate]'); rateSelect.value = employmentType === 'taasiyeda' ? hourlyRate : ''; rateSelect.dispatchEvent(new window.Event('change'));
   const agencySelect = modal.querySelector('[data-onboarding-agency]'); agencySelect.value = agency; agencySelect.dispatchEvent(new window.Event('change'));
   const managerSelect = modal.querySelector('[data-onboarding-manager]'); managerSelect.value = manager; managerSelect.dispatchEvent(new window.Event('change'));
 }
 
-test('five required onboarding fields gate the compact RTL primary action', () => {
+test('required onboarding fields gate the compact RTL primary action and Taasiyeda exposes hourly rate', () => {
   const { modal } = mountedModal();
   const root = modal.querySelector('.instructor-onboarding');
   assert.equal(root.getAttribute('dir'), 'rtl');
   assert.equal(root.querySelectorAll('input').length, 3);
-  assert.equal(root.querySelectorAll('select').length, 3);
+  assert.equal(root.querySelectorAll('select').length, 4);
   assert.equal(modal.querySelector('[data-onboarding-agency-field]').hidden, true);
-  assert.equal(modal.querySelector('[data-onboarding-agency-field]').style.display, 'none');
+  assert.equal(modal.querySelector('[data-onboarding-rate-field]').hidden, true);
   assert.equal(modal.querySelector('[data-onboarding-prepare]').disabled, true);
   fill(modal);
   assert.equal(modal.querySelector('[data-onboarding-agency-field]').hidden, true);
-  assert.equal(modal.querySelector('[data-onboarding-agency-field]').style.display, 'none');
+  assert.equal(modal.querySelector('[data-onboarding-rate-field]').hidden, false);
+  assert.equal(modal.querySelector('[data-onboarding-rate-field]').style.display, 'grid');
+  assert.equal(modal.querySelector('[data-onboarding-rate]').value, '70');
   assert.equal(modal.querySelector('[data-onboarding-prepare]').disabled, false);
+});
+
+test('Taasiyeda requires an explicit 70/75/80/85 hourly rate and passes it to draft creation', async () => {
+  const calls = [];
+  const { modal } = mountedModal({
+    createInstructor: async () => ({ emp_id: 44, full_name: 'אייל ישראלי' }),
+    createDraft: async (mail) => { calls.push(mail); return { draftId: 'draft-1', attachmentCount: 4 }; }
+  });
+  fill(modal, { hourlyRate: '' });
+  assert.equal(modal.querySelector('[data-onboarding-prepare]').disabled, true);
+  const rate = modal.querySelector('[data-onboarding-rate]');
+  rate.value = '85'; rate.dispatchEvent(new window.Event('change'));
+  assert.equal(modal.querySelector('[data-onboarding-prepare]').disabled, false);
+  assert.match(modal.querySelector('[data-onboarding-documents]').textContent, /הסכם העסקה – 85 ₪ לשעה/);
+  modal.querySelector('[data-onboarding-prepare]').click(); await tick();
+  assert.equal(calls[0].employmentType, 'taasiyeda');
+  assert.equal(calls[0].hourlyRate, '85');
 });
 
 test('invalid normalized phone is disabled and never reaches instructor creation', async () => {
@@ -73,6 +93,7 @@ test('staffing requires a visible agency selection and clears it when switching 
   fill(modal, { employmentType: 'staffing' });
   assert.equal(modal.querySelector('[data-onboarding-agency-field]').hidden, false);
   assert.equal(modal.querySelector('[data-onboarding-agency-field]').style.display, 'grid');
+  assert.equal(modal.querySelector('[data-onboarding-rate-field]').hidden, true);
   assert.equal(modal.querySelector('[data-onboarding-prepare]').disabled, true);
   const agency = modal.querySelector('[data-onboarding-agency]');
   agency.value = 'מעוף'; agency.dispatchEvent(new window.Event('change'));
@@ -80,8 +101,10 @@ test('staffing requires a visible agency selection and clears it when switching 
   const employment = modal.querySelector('[data-onboarding-employment]');
   employment.value = 'taasiyeda'; employment.dispatchEvent(new window.Event('change'));
   assert.equal(modal.querySelector('[data-onboarding-agency-field]').hidden, true);
+  assert.equal(modal.querySelector('[data-onboarding-rate-field]').hidden, false);
   assert.equal(modal.querySelector('[data-onboarding-agency-field]').style.display, 'none');
   assert.equal(agency.value, '');
+  assert.equal(modal.querySelector('[data-onboarding-prepare]').disabled, true);
 });
 
 for (const staffingAgency of ['מעוף', 'מנפאואר']) {
@@ -89,12 +112,13 @@ for (const staffingAgency of ['מעוף', 'מנפאואר']) {
     const calls = [];
     const { modal } = mountedModal({
       createInstructor: async (row) => { calls.push(['create', row]); return { emp_id: 42 }; },
-      createDraft: async (mail) => { calls.push(['draft', mail]); return { draftId: 'draft-1', attachmentCount: 3 }; }
+      createDraft: async (mail) => { calls.push(['draft', mail]); return { draftId: 'draft-1', attachmentCount: 4 }; }
     });
     fill(modal, { employmentType: 'staffing', agency: staffingAgency });
     modal.querySelector('[data-onboarding-prepare]').click(); await tick();
     assert.equal(calls[0][1].employmentType, staffingAgency);
     assert.equal(calls[1][1].employmentType, 'staffing');
+    assert.equal(calls[1][1].hourlyRate, '');
     assert.equal(onboardingFolder(calls[1][1].employmentType), 'כוח אדם');
   });
 }
@@ -103,15 +127,16 @@ test('independent onboarding stores עצמאי and uses the עצמאי SharePoin
   const calls = [];
   const { modal } = mountedModal({
     createInstructor: async (row) => { calls.push(['create', row]); return { emp_id: 43 }; },
-    createDraft: async (mail) => { calls.push(['draft', mail]); return { draftId: 'draft-1', attachmentCount: 3 }; }
+    createDraft: async (mail) => { calls.push(['draft', mail]); return { draftId: 'draft-1', attachmentCount: 4 }; }
   });
   fill(modal, { employmentType: 'independent' });
   assert.equal(modal.querySelector('[data-onboarding-agency-field]').hidden, true);
-  assert.equal(modal.querySelector('[data-onboarding-agency-field]').style.display, 'none');
+  assert.equal(modal.querySelector('[data-onboarding-rate-field]').hidden, true);
   assert.equal(modal.querySelector('[data-onboarding-prepare]').disabled, false);
   modal.querySelector('[data-onboarding-prepare]').click(); await tick();
   assert.equal(calls[0][1].employmentType, 'עצמאי');
   assert.equal(calls[1][1].employmentType, 'independent');
+  assert.equal(calls[1][1].hourlyRate, '');
   assert.equal(onboardingFolder(calls[1][1].employmentType), 'עצמאי');
 });
 
@@ -120,6 +145,8 @@ test('real instructor and approved manager details appear in mail', () => {
     const mail = buildOnboardingMail('taasiyeda', manager, 'אייל ישראלי');
     assert.match(mail.body, /שלום אייל ישראלי,/);
     assert.match(mail.body, new RegExp(`${manager.name} \\| ${manager.phone}`));
+    assert.match(mail.body, /נוהל 009 - מניעת הטרדה מינית/);
+    assert.doesNotMatch(mail.body, /שמירה על סודיות|כללים ונהלים - מדריכים 2027/);
     assert.doesNotMatch(mail.body, /\[שם המדריך\/ה\]/);
   }
   assert.equal(onboardingManagers(settings)[0].email, 'GilNeeman@think.org.il');
@@ -131,7 +158,7 @@ test('retry after Outlook failure uses the original staffing agency snapshot wit
   let attempts = 0;
   const { modal } = mountedModal({
     createInstructor: async (row) => { calls.push(['create', row]); return { emp_id: 42, full_name: row.fullName }; },
-    createDraft: async (mail) => { calls.push(['draft', mail]); attempts += 1; if (attempts === 1) throw new Error('outlook'); return { draftId: 'draft-1', attachmentCount: 3 }; }
+    createDraft: async (mail) => { calls.push(['draft', mail]); attempts += 1; if (attempts === 1) throw new Error('outlook'); return { draftId: 'draft-1', attachmentCount: 4 }; }
   });
   fill(modal, { employmentType: 'staffing', agency: 'מעוף' });
   modal.querySelector('[data-onboarding-prepare]').click(); await tick();
@@ -155,7 +182,7 @@ test('desktop mail client opens only after the draft is created successfully', a
   const calls = [];
   const { modal } = mountedModal({
     createInstructor: async () => { calls.push('create'); return { emp_id: 42 }; },
-    createDraft: async () => { calls.push('draft'); return { draftId: 'draft-1', attachmentCount: 3 }; },
+    createDraft: async () => { calls.push('draft'); return { draftId: 'draft-1', attachmentCount: 4 }; },
     openMailClient: () => { calls.push('desktop'); return true; }
   });
   fill(modal);
@@ -212,7 +239,7 @@ test('refresh failure remains a successful draft and cannot create another draft
   let drafts = 0;
   const { modal } = mountedModal({
     createInstructor: async () => ({ emp_id: 42 }),
-    createDraft: async () => { drafts += 1; return { draftId: 'draft-1', attachmentCount: 3 }; },
+    createDraft: async () => { drafts += 1; return { draftId: 'draft-1', attachmentCount: 4 }; },
     onSuccess: async () => { throw new Error('refresh failed'); }
   });
   fill(modal);
@@ -242,6 +269,8 @@ test('implementation creates delegated drafts with TO and CC, then launches desk
   assert.match(client, /toRecipients: \[\{ emailAddress: \{ address: instructorEmail \} \}\]/);
   assert.match(client, /ccRecipients: \[\{ emailAddress: \{ address: manager\.email \} \}\]/);
   assert.match(client, /window\.location\.href = 'mailto:'/);
+  assert.match(client, /TAASIYEDA_HOURLY_RATES = Object\.freeze\(\['70', '75', '80', '85'\]\)/);
+  assert.match(client, /hourly_rate: rate/);
   assert.doesNotMatch(client, /outlook\.office\.com\/mail\/drafts|reserveOnboardingMailWindow|openPreparedDraft/);
   assert.doesNotMatch(client, /sendMail|Mail\.Send/i);
   assert.match(migration, /pg_advisory_xact_lock/);
@@ -252,6 +281,9 @@ test('implementation creates delegated drafts with TO and CC, then launches desk
   assert.match(migration, /regexp_replace\(coalesce\(ci\.mobile/);
   assert.match(migration, /'yes'/);
   assert.match(edge, /BASE_FOLDER = "תיקים אישיים\/קליטת מדריך"/);
+  assert.match(edge, /TAASIYEDA_HOURLY_RATES = new Set\(\["70", "75", "80", "85"\]\)/);
+  assert.match(edge, /body\.hourly_rate/);
+  assert.match(edge, /selectedAgreements\.length !== 1/);
   assert.doesNotMatch(edge, /sendMail/i);
 });
 

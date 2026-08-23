@@ -6,9 +6,14 @@ const HOST = "think365orgil.sharepoint.com";
 const SITE_ID = "think365orgil.sharepoint.com,5bd221ef-8cc6-4ba2-a79e-02b0d37bc784,1449501e-590f-490d-8577-20a033af5360";
 const DRIVE_ID = "b!7yHSW8aMokunngKw03vHhB5QSRQPWQ1JhXcgoDOvU2BFY5HnYLNMTZS2gZux2CMR";
 const BASE_FOLDER = "תיקים אישיים/קליטת מדריך";
+const TAASIYEDA_HOURLY_RATES = new Set(["70", "75", "80", "85"]);
 function clean(value: unknown) { return String(value ?? "").trim(); }
 function json(body: unknown, status = 200) { return new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, "Content-Type": "application/json; charset=utf-8" } }); }
 function encodePath(path: string) { return path.split("/").filter(Boolean).map(encodeURIComponent).join("/"); }
+function taasiyedaAgreementRate(name: unknown) {
+  const match = clean(name).match(/פורמט\s*הסכם[\s\S]*?-\s*(70|75|80|85)\s*[.]pdf$/i);
+  return clean(match?.[1]);
+}
 async function token() {
   const tenant = clean(Deno.env.get("MS_TENANT_ID")); const client = clean(Deno.env.get("MS_CLIENT_ID")); const secret = clean(Deno.env.get("MS_CLIENT_SECRET"));
   if (!tenant || !client || !secret) throw new Error("graph_not_configured");
@@ -48,10 +53,28 @@ Deno.serve(async (req) => {
     const folderPath = `${BASE_FOLDER}/${selectedFolder}`; const folder = await (await graph(accessToken, `/drives/${encodeURIComponent(DRIVE_ID)}/root:/${encodePath(folderPath)}?$select=id,webUrl`)).json();
     if (body.folder_only) return json({ folder_url: folder.webUrl });
     const files = await listDirectFiles(accessToken, folder.id);
-    console.info("[instructor-onboarding-files] SharePoint folder loaded", { selectedFolder, fileCount: files.length });
     if (!files.length) return json({ error: "empty_folder", message: "לא נמצאו מסמכים בתיקיית הקליטה שנבחרה." });
 
-    const downloaded = await Promise.all(files.map(async (item) => {
+    let selectedFiles = files;
+    let selectedHourlyRate = "";
+    if (clean(body.employment_type) === "taasiyeda") {
+      selectedHourlyRate = clean(body.hourly_rate);
+      if (selectedHourlyRate && !TAASIYEDA_HOURLY_RATES.has(selectedHourlyRate)) {
+        return json({ error: "hourly_rate_invalid", message: "שכר לשעה חייב להיות 70, 75, 80 או 85." }, 400);
+      }
+      if (selectedHourlyRate) {
+        const agreementFiles = files.filter((item) => taasiyedaAgreementRate(item?.name));
+        const selectedAgreements = agreementFiles.filter((item) => taasiyedaAgreementRate(item?.name) === selectedHourlyRate);
+        if (selectedAgreements.length !== 1) {
+          return json({ error: "agreement_selection_failed", message: `לא נמצא הסכם יחיד לשכר של ${selectedHourlyRate} ₪ לשעה בתיקיית הקליטה.` }, 500);
+        }
+        const selectedAgreementId = selectedAgreements[0].id;
+        selectedFiles = files.filter((item) => !taasiyedaAgreementRate(item?.name) || item.id === selectedAgreementId);
+      }
+    }
+
+    console.info("[instructor-onboarding-files] SharePoint folder loaded", { selectedFolder, fileCount: files.length, selectedFileCount: selectedFiles.length, selectedHourlyRate });
+    const downloaded = await Promise.all(selectedFiles.map(async (item) => {
       const response = await graph(accessToken, `/drives/${encodeURIComponent(DRIVE_ID)}/items/${encodeURIComponent(item.id)}/content`);
       const bytes = new Uint8Array(await response.arrayBuffer());
       return { item, bytes, contentType: response.headers.get("content-type") || "application/pdf" };
@@ -63,7 +86,7 @@ Deno.serve(async (req) => {
       content_type: contentType,
       content_bytes: bytesToBase64(bytes),
     }));
-    return json({ source: "sharepoint", folder_url: folder.webUrl, attachment_count: attachments.length, attachments });
+    return json({ source: "sharepoint", folder_url: folder.webUrl, attachment_count: attachments.length, selected_hourly_rate: selectedHourlyRate || null, attachments });
   } catch (error) {
     const forbidden = clean((error as Error)?.message) === "not_authorized"; return json({ message: forbidden ? "אין הרשאה להכין קליטת מדריך." : "לא ניתן לטעון את מסמכי הקליטה מ-SharePoint. יש לנסות שוב." }, forbidden ? 403 : 500);
   }
