@@ -21,13 +21,23 @@ test('Gefen reminder is shown to all authenticated dashboard users except instru
   assert.match(runtime, /אישור והמשך עבודה/);
 });
 
-test('Gefen reminder acknowledgement is per activity and per authenticated user', () => {
+test('Gefen reminders are grouped into one popup with a single acknowledgement action', () => {
+  assert.match(runtime, /function reminderDialogHtml\(activities, today\)/);
+  assert.match(runtime, /activities\.map\(\(activity\) =>/);
+  assert.match(runtime, /data-gefen-reminder-count/);
+  assert.match(runtime, /const acknowledgementRows = activities\.map/);
+  assert.match(runtime, /\.insert\(acknowledgementRows\)/);
+  assert.match(runtime, /await showAndAcknowledgeReminders\(dueReminders, authUserId, today\)/);
+  assert.doesNotMatch(runtime, /for \(const activity of dueReminders\)/);
+});
+
+test('Gefen reminder acknowledgement remains per activity and per authenticated user', () => {
   assert.match(migration, /primary key \(activity_id, user_id\)/i);
   assert.match(migration, /auth\.uid\(\).*user_id/s);
-  assert.match(runtime, /from\(REMINDER_TABLE\)/);
-  assert.match(runtime, /activity_id: activity\.id, user_id: authUserId/);
+  assert.match(runtime, /activity_id: activity\.id/);
+  assert.match(runtime, /user_id: authUserId/);
 });
 
 test('Gefen reminder runtime is loaded by the application shell', () => {
-  assert.match(indexHtml, /gefen-start-reminder-runtime\.js\?v=20260823-v2/);
+  assert.match(indexHtml, /gefen-start-reminder-runtime\.js\?v=20260823-v3/);
 });
