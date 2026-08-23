@@ -20,8 +20,8 @@ test('Israa workspace stays scoped and uses the dedicated E write path', () => {
   assert.match(workspace, /api\.shareIsraaActivity/);
   assert.match(workspace, /remove_israa_activity_draft/);
   assert.match(workspace, /activity_domain: 'E'/);
-  assert.match(workspace, /can_edit_direct: 'yes'/);
-  assert.match(workspace, /can_add_activity: 'no'/);
+  assert.match(workspace, /can_edit_direct: true/);
+  assert.match(workspace, /can_add_activity: false/);
   assert.match(workspace, /israa_workspace_action_not_allowed/);
 });
 
@@ -33,7 +33,10 @@ test('selecting an Israa proposal activity no longer reloads or closes the page'
   assert.doesNotMatch(proposalItems, /REOPEN_ACTIVITIES_KEY/);
 });
 
-test('workspace is loaded by the app and cache is bumped', () => {
-  assert.match(bootstrap, /israa-activities-main-workspace\.js\?v=20260824-v1/);
-  assert.match(serviceWorker, /const CACHE_VERSION = 1614;/);
+test('workspace loads lazily from Israa management itself', () => {
+  assert.match(proposalItems, /import\('\.\/israa-activities-main-workspace\.js\?v=20260824-v2'\)/);
+  assert.match(proposalItems, /data-israa-tab="activities"/);
+  assert.match(proposalItems, /ensureMainActivitiesWorkspace\(\)/);
+  assert.doesNotMatch(bootstrap, /israa-activities-main-workspace/);
+  assert.match(serviceWorker, /const CACHE_VERSION = 1615;/);
 });
