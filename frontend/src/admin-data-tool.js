@@ -29,15 +29,18 @@ function ensureStyles() {
     .admin-data-back{appearance:none;border:0;background:transparent;color:var(--color-primary,#2563eb);font:inherit;font-weight:750;cursor:pointer;padding:5px 0;white-space:nowrap}
     .admin-data-back:hover{text-decoration:underline}.admin-data-back:focus-visible{outline:2px solid var(--color-primary,#2563eb);outline-offset:3px}
     .admin-data-filters{display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap;padding:13px 0 16px;border-top:1px solid var(--color-border,#dbe3ec);border-bottom:1px solid var(--color-border,#dbe3ec)}
+    .admin-data-filter-divider{align-self:stretch;width:1px;min-height:36px;background:var(--color-border,#dbe3ec);margin:0 4px}.admin-data-filter-label{align-self:center;color:var(--color-text-secondary,#64748b);font-size:12px;font-weight:750;white-space:nowrap}
     .admin-data-field{display:flex;flex-direction:column;gap:5px}.admin-data-field label{font-size:12px;font-weight:750;color:var(--color-text-secondary,#64748b)}
     .admin-data-field input{width:150px;height:36px;box-sizing:border-box;border:1px solid var(--color-border,#cbd5e1);border-radius:7px;background:var(--color-surface,#fff);color:var(--color-text,#172033);padding:0 9px;font:inherit;font-size:13px}
     .admin-data-field input:focus{outline:2px solid color-mix(in srgb,var(--color-primary,#2563eb) 24%,transparent);border-color:var(--color-primary,#2563eb)}
-    .admin-data-show{height:36px;border:1px solid var(--color-primary,#2563eb);border-radius:7px;background:var(--color-primary,#2563eb);color:#fff;padding:0 17px;font:inherit;font-size:13px;font-weight:800;cursor:pointer}.admin-data-show:disabled{opacity:.6;cursor:wait}
+    .admin-data-show,.admin-data-show-all{height:36px;border-radius:7px;padding:0 17px;font:inherit;font-size:13px;font-weight:800;cursor:pointer;white-space:nowrap}
+    .admin-data-show{border:1px solid var(--color-primary,#2563eb);background:var(--color-primary,#2563eb);color:#fff}.admin-data-show-all{border:1px solid var(--color-primary,#2563eb);background:var(--color-surface,#fff);color:var(--color-primary,#2563eb)}
+    .admin-data-show:hover,.admin-data-show-all:hover{filter:brightness(.98)}.admin-data-show:disabled,.admin-data-show-all:disabled{opacity:.6;cursor:wait}
     .admin-data-message{padding:24px 0;color:var(--color-text-secondary,#64748b);font-size:13px}.admin-data-error{color:#b42318;font-weight:700}
-    .admin-data-summary{display:flex;gap:18px;align-items:center;flex-wrap:wrap;margin:17px 0 12px;font-size:13px}.admin-data-summary strong{font-size:15px}.admin-data-summary span{color:var(--color-text-secondary,#64748b)}
+    .admin-data-summary{display:flex;gap:18px;align-items:center;flex-wrap:wrap;margin:17px 0 12px;font-size:13px}.admin-data-summary strong{font-size:15px}.admin-data-summary span{color:var(--color-text-secondary,#64748b)}.admin-data-summary__scope{font-weight:750}
     .admin-data-alert{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:10px 0;margin:6px 0 18px;border-top:1px solid #f1c56b;border-bottom:1px solid #f1c56b;font-size:13px}.admin-data-alert[hidden]{display:none}.admin-data-alert button{appearance:none;border:0;background:transparent;color:var(--color-primary,#2563eb);font:inherit;font-weight:800;cursor:pointer;padding:3px 0;white-space:nowrap}
-    .admin-data-section{margin-top:22px}.admin-data-section__title{margin:0 0 10px;font-size:17px;font-weight:850}.admin-data-section__hint{margin:-5px 0 10px;color:var(--color-text-secondary,#64748b);font-size:12px}
-    .admin-data-district-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;align-items:start}.admin-data-district{min-width:0}.admin-data-district h3{margin:0 0 7px;font-size:14px;font-weight:850}
+    .admin-data-section{margin-top:22px}.admin-data-section--funding{margin-top:32px;padding-top:25px;border-top:2px solid color-mix(in srgb,var(--color-primary,#1698b8) 35%,var(--color-border,#dbe3ec))}.admin-data-section__title{margin:0 0 10px;font-size:17px;font-weight:850}.admin-data-section__hint{margin:-5px 0 10px;color:var(--color-text-secondary,#64748b);font-size:12px}
+    .admin-data-district-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0;align-items:start}.admin-data-district{min-width:0;padding:0 16px}.admin-data-district:first-child{padding-inline-start:0}.admin-data-district:last-child{padding-inline-end:0}.admin-data-district+ .admin-data-district{border-inline-start:1px solid color-mix(in srgb,var(--color-primary,#1698b8) 22%,var(--color-border,#dbe3ec))}.admin-data-district h3{margin:0 0 7px;font-size:14px;font-weight:850}
     .admin-data-table-wrap{width:100%;overflow:auto;border:1px solid var(--color-border,#dbe3ec);border-radius:8px;background:var(--color-surface,#fff)}
     .admin-data-table-wrap--funding{width:min(100%,690px)}
     .admin-data-table{width:100%;border-collapse:collapse;table-layout:auto;font-size:12.5px}.admin-data-table th,.admin-data-table td{padding:8px 10px;border-bottom:1px solid var(--color-border,#e5e7eb);vertical-align:middle}.admin-data-table tr:last-child td{border-bottom:0}.admin-data-table th{background:var(--color-surface-muted,#f8fafc);font-size:11.5px;font-weight:850;color:var(--color-text-secondary,#475569);white-space:nowrap}.admin-data-table th:first-child,.admin-data-table td:first-child{text-align:right}.admin-data-table th:not(:first-child),.admin-data-table td:not(:first-child){text-align:center;white-space:nowrap;width:82px}.admin-data-table tfoot td{font-weight:850;background:var(--color-surface-muted,#f8fafc)}
@@ -47,8 +50,8 @@ function ensureStyles() {
     .admin-data-drawer{position:fixed;z-index:9999;inset-block:0;right:0;width:min(440px,92vw);background:var(--color-surface,#fff);border-left:1px solid var(--color-border,#dbe3ec);box-shadow:-12px 0 32px rgba(15,23,42,.12);display:flex;flex-direction:column;direction:rtl}
     .admin-data-drawer__head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:18px 18px 13px;border-bottom:1px solid var(--color-border,#e5e7eb)}.admin-data-drawer__head h2{margin:0 0 4px;font-size:19px}.admin-data-drawer__head p{margin:0;color:var(--color-text-secondary,#64748b);font-size:12px}.admin-data-drawer__close{appearance:none;border:0;background:transparent;color:var(--color-text-secondary,#64748b);font-size:25px;line-height:1;cursor:pointer;padding:0 2px}
     .admin-data-drawer__body{padding:14px 18px 24px;overflow:auto}.admin-data-drawer .admin-data-table{font-size:12px}
-    @media(max-width:900px){.admin-data-district-grid{grid-template-columns:1fr}.admin-data-district{width:min(100%,620px)}}
-    @media(max-width:620px){.admin-data-page__top{align-items:center}.admin-data-page__title h1{font-size:23px}.admin-data-field{flex:1 1 135px}.admin-data-field input{width:100%}.admin-data-show{flex:1 1 140px}.admin-data-table th,.admin-data-table td{padding:7px 8px}}
+    @media(max-width:900px){.admin-data-district-grid{grid-template-columns:1fr;gap:18px}.admin-data-district{width:min(100%,620px);padding:0!important;border-inline-start:0!important}.admin-data-district+ .admin-data-district{padding-top:18px!important;border-top:1px solid var(--color-border,#dbe3ec)}}
+    @media(max-width:620px){.admin-data-page__top{align-items:center}.admin-data-page__title h1{font-size:23px}.admin-data-filter-divider{display:none}.admin-data-filter-label{flex-basis:100%;margin-top:4px}.admin-data-field{flex:1 1 135px}.admin-data-field input{width:100%}.admin-data-show,.admin-data-show-all{flex:1 1 140px}.admin-data-table th,.admin-data-table td{padding:7px 8px}}
   `;
   document.head.appendChild(style);
 }
@@ -81,15 +84,18 @@ function pageHtml() {
   return `
     <section class="admin-data-page" ${PAGE_ATTR}="true" aria-label="נתונים">
       <div class="admin-data-page__top">
-        <div class="admin-data-page__title"><h1>נתונים</h1><p>סיכום פעילויות שנת 2027 לפי טווח תאריכים</p></div>
+        <div class="admin-data-page__title"><h1>נתונים</h1><p>סיכום פעילויות שנת 2027 — תצוגה שנתית מלאה או סינון לפי טווח תאריכים</p></div>
         <button type="button" class="admin-data-back" data-admin-data-back>חזרה לניהול</button>
       </div>
-      <div class="admin-data-filters" role="group" aria-label="טווח תאריכים">
+      <div class="admin-data-filters" role="group" aria-label="הצגת נתוני שנת 2027">
+        <button type="button" class="admin-data-show-all" data-admin-data-show-all>הצג הכל</button>
+        <span class="admin-data-filter-divider" aria-hidden="true"></span>
+        <span class="admin-data-filter-label">סינון לפי טווח תאריכים</span>
         <div class="admin-data-field"><label for="adminDataFrom">מתאריך</label><input id="adminDataFrom" data-admin-data-from type="date" min="${SCHOOL_YEAR_FROM}" max="${SCHOOL_YEAR_TO}" value=""></div>
         <div class="admin-data-field"><label for="adminDataTo">עד תאריך</label><input id="adminDataTo" data-admin-data-to type="date" min="${SCHOOL_YEAR_FROM}" max="${SCHOOL_YEAR_TO}" value=""></div>
-        <button type="button" class="admin-data-show" data-admin-data-show>הצג נתונים</button>
+        <button type="button" class="admin-data-show" data-admin-data-show>סנן לפי תאריכים</button>
       </div>
-      <div data-admin-data-results><div class="admin-data-message">בחרו טווח תאריכים ולחצו על „הצג נתונים”.</div></div>
+      <div data-admin-data-results><div class="admin-data-message">לחצו על „הצג הכל” להצגת כל פעילויות שנת 2027, כולל פעילויות ללא תאריך, או בחרו טווח תאריכים לסינון ממוקד.</div></div>
     </section>`;
 }
 
@@ -104,7 +110,8 @@ function openDataPage() {
   host.insertAdjacentHTML('beforeend', pageHtml());
   const page = host.querySelector(`[${PAGE_ATTR}]`);
   page?.querySelector('[data-admin-data-back]')?.addEventListener('click', closeDataPage);
-  page?.querySelector('[data-admin-data-show]')?.addEventListener('click', () => loadAndRender(page));
+  page?.querySelector('[data-admin-data-show-all]')?.addEventListener('click', () => loadAndRender(page, { mode: 'all' }));
+  page?.querySelector('[data-admin-data-show]')?.addEventListener('click', () => loadAndRender(page, { mode: 'range' }));
 }
 
 function closeDataPage() {
@@ -316,15 +323,15 @@ function tableHtml(rows, { clickable = false, emptyText = 'אין נתונים',
     </div>`;
 }
 
-function resultsHtml(filtered, districtAgg, fundingAgg, alertRows) {
+function resultsHtml(filtered, districtAgg, fundingAgg, alertRows, scopeLabel = '') {
   const grandTotal = filtered.reduce((sum, activity) => sum + validMoney(activity?.price), 0);
   return `
-    <div class="admin-data-summary"><strong>סה״כ ${formatQty(filtered.length)} קורסים</strong><span>${formatMoney(grandTotal)}</span></div>
+    <div class="admin-data-summary"><strong>סה״כ ${formatQty(filtered.length)} קורסים</strong><span>${formatMoney(grandTotal)}</span>${scopeLabel ? `<span class="admin-data-summary__scope">${escapeHtml(scopeLabel)}</span>` : ''}</div>
     <div class="admin-data-alert" data-admin-data-alert ${alertRows.length ? '' : 'hidden'}>
       <span>לתשומת לבך: נמצאו <strong>${formatQty(alertRows.length)}</strong> קורסים שהחלו בין 1.9.2026–20.12.2026 ומסתיימים אחרי 31.1.2027.</span>
       <button type="button" data-admin-data-alert-open>הצג קורסים</button>
     </div>
-    <section class="admin-data-section">
+    <section class="admin-data-section admin-data-section--districts">
       <h2 class="admin-data-section__title">לפי פעילות ומחוז</h2>
       <div class="admin-data-district-grid">
         ${DISTRICTS.map((district) => {
@@ -334,50 +341,66 @@ function resultsHtml(filtered, districtAgg, fundingAgg, alertRows) {
       </div>
       ${districtAgg.unassignedCount ? `<div class="admin-data-unassigned">${formatQty(districtAgg.unassignedCount)} קורסים ללא מחוז משויך (${formatMoney(districtAgg.unassignedAmount)}) אינם נכללים בשלוש טבלאות המחוז.</div>` : ''}
     </section>
-    <section class="admin-data-section">
+    <section class="admin-data-section admin-data-section--funding">
       <h2 class="admin-data-section__title">לפי גורם מימון</h2>
       <p class="admin-data-section__hint">לחיצה על שורה פותחת את פירוט בתי הספר או הרשויות שנכללו בסכום.</p>
       ${tableHtml(fundingAgg.rows, { clickable: true })}
     </section>`;
 }
 
-async function loadAndRender(page) {
+function setLoading(page, active, mode = '') {
+  const rangeButton = page.querySelector('[data-admin-data-show]');
+  const allButton = page.querySelector('[data-admin-data-show-all]');
+  if (rangeButton) {
+    rangeButton.disabled = active;
+    rangeButton.textContent = active && mode === 'range' ? 'טוען…' : 'סנן לפי תאריכים';
+  }
+  if (allButton) {
+    allButton.disabled = active;
+    allButton.textContent = active && mode === 'all' ? 'טוען…' : 'הצג הכל';
+  }
+}
+
+async function loadAndRender(page, { mode = 'range' } = {}) {
   const fromInput = page.querySelector('[data-admin-data-from]');
   const toInput = page.querySelector('[data-admin-data-to]');
-  const button = page.querySelector('[data-admin-data-show]');
   const target = page.querySelector('[data-admin-data-results]');
   const from = String(fromInput?.value || '');
   const to = String(toInput?.value || '');
+  const showAll = mode === 'all';
 
-  if (!from || !to) {
-    target.innerHTML = '<div class="admin-data-message admin-data-error">יש לבחור תאריך התחלה ותאריך סיום.</div>';
-    return;
-  }
-  if (from > to) {
-    target.innerHTML = '<div class="admin-data-message admin-data-error">תאריך ההתחלה חייב להיות לפני תאריך הסיום.</div>';
-    return;
-  }
-  if (from < SCHOOL_YEAR_FROM || to > SCHOOL_YEAR_TO) {
-    target.innerHTML = `<div class="admin-data-message admin-data-error">ניתן לבחור טווח בתוך שנת 2027 בלבד (${formatDate(SCHOOL_YEAR_FROM)}–${formatDate(SCHOOL_YEAR_TO)}).</div>`;
-    return;
+  if (!showAll) {
+    if (!from || !to) {
+      target.innerHTML = '<div class="admin-data-message admin-data-error">יש לבחור תאריך התחלה ותאריך סיום.</div>';
+      return;
+    }
+    if (from > to) {
+      target.innerHTML = '<div class="admin-data-message admin-data-error">תאריך ההתחלה חייב להיות לפני תאריך הסיום.</div>';
+      return;
+    }
+    if (from < SCHOOL_YEAR_FROM || to > SCHOOL_YEAR_TO) {
+      target.innerHTML = `<div class="admin-data-message admin-data-error">ניתן לבחור טווח בתוך שנת 2027 בלבד (${formatDate(SCHOOL_YEAR_FROM)}–${formatDate(SCHOOL_YEAR_TO)}).</div>`;
+      return;
+    }
   }
 
-  button.disabled = true;
-  button.textContent = 'טוען…';
+  setLoading(page, true, mode);
   target.innerHTML = '<div class="admin-data-message">טוען נתונים…</div>';
   try {
     const source = await fetchSourceData();
     const eligible = source.activities.filter((activity) => ACTIVE_STATUSES.has(String(activity?.status || '').trim()));
-    const filtered = eligible.filter((activity) => overlapsRange(activity, from, to));
+    const filtered = showAll ? eligible : eligible.filter((activity) => overlapsRange(activity, from, to));
     const alertRows = eligible.filter((activity) => dateInRange(String(activity?.start_date || '').slice(0, 10), ALERT_START_FROM, ALERT_START_TO) && String(activity?.end_date || '').slice(0, 10) > ALERT_END_AFTER);
+    const emptyText = showAll ? 'לא נמצאו פעילויות בשנת 2027.' : 'לא נמצאו פעילויות בטווח שנבחר.';
     if (!filtered.length) {
-      target.innerHTML = `${alertRows.length ? `<div class="admin-data-alert"><span>לתשומת לבך: נמצאו <strong>${formatQty(alertRows.length)}</strong> קורסים שהחלו בין 1.9.2026–20.12.2026 ומסתיימים אחרי 31.1.2027.</span><button type="button" data-admin-data-alert-open>הצג קורסים</button></div>` : ''}<div class="admin-data-message">לא נמצאו פעילויות בטווח שנבחר.</div>`;
+      target.innerHTML = `${alertRows.length ? `<div class="admin-data-alert"><span>לתשומת לבך: נמצאו <strong>${formatQty(alertRows.length)}</strong> קורסים שהחלו בין 1.9.2026–20.12.2026 ומסתיימים אחרי 31.1.2027.</span><button type="button" data-admin-data-alert-open>הצג קורסים</button></div>` : ''}<div class="admin-data-message">${emptyText}</div>`;
       target.querySelector('[data-admin-data-alert-open]')?.addEventListener('click', () => openAlertDrawer(alertRows));
       return;
     }
     const districtAgg = aggregateByActivityAndDistrict(filtered);
     const fundingAgg = aggregateFunding(filtered, source.splits, source.sources);
-    target.innerHTML = resultsHtml(filtered, districtAgg, fundingAgg, alertRows);
+    const scopeLabel = showAll ? 'כל שנת 2027 — כולל פעילויות ללא תאריך' : `${formatDate(from)}–${formatDate(to)}`;
+    target.innerHTML = resultsHtml(filtered, districtAgg, fundingAgg, alertRows, scopeLabel);
     target.querySelectorAll('[data-funding-source]').forEach((row) => {
       const open = () => openFundingDrawer(row.getAttribute('data-funding-source') || '', fundingAgg.contributions);
       row.addEventListener('click', open);
@@ -393,8 +416,7 @@ async function loadAndRender(page) {
     console.error('[admin-data-tool] failed to load', error);
     target.innerHTML = '<div class="admin-data-message admin-data-error">לא ניתן היה לטעון את הנתונים. נסו שוב.</div>';
   } finally {
-    button.disabled = false;
-    button.textContent = 'הצג נתונים';
+    setLoading(page, false, mode);
   }
 }
 
