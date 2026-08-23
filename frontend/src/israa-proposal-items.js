@@ -1,6 +1,5 @@
 import { supabase } from './supabase-client.js';
 
-const REOPEN_ACTIVITIES_KEY = 'israa_reopen_activities_after_reload';
 const ACTION_BUTTON_STYLE = 'width:100%;max-width:100%;box-sizing:border-box;white-space:normal;line-height:1.2;padding:5px 6px';
 
 function clean(value) {
@@ -19,33 +18,6 @@ function selectedProposalItemIds(draft) {
     .filter(Boolean));
 }
 
-function markActivitiesTabForReload() {
-  try { sessionStorage.setItem(REOPEN_ACTIVITIES_KEY, '1'); } catch {}
-}
-
-function reopenActivitiesTabAfterReload() {
-  if (typeof document === 'undefined') return;
-  let shouldReopen = false;
-  try {
-    shouldReopen = sessionStorage.getItem(REOPEN_ACTIVITIES_KEY) === '1';
-    if (shouldReopen) sessionStorage.removeItem(REOPEN_ACTIVITIES_KEY);
-  } catch {}
-  if (!shouldReopen) return;
-
-  let observer;
-  const open = () => {
-    const tab = document.querySelector('.israa-mgmt [data-israa-tab="activities"]');
-    if (!tab) return false;
-    observer?.disconnect();
-    tab.click();
-    return true;
-  };
-  if (open()) return;
-  observer = new MutationObserver(() => open());
-  observer.observe(document.documentElement, { childList: true, subtree: true });
-  setTimeout(() => observer?.disconnect(), 8000);
-}
-
 function decoratePrivateDraftRemovalButtons() {
   if (typeof document === 'undefined') return;
   document.querySelectorAll('.israa-activity-card[data-israa-draft][data-tracking-id]').forEach((card) => {
@@ -61,11 +33,21 @@ function decoratePrivateDraftRemovalButtons() {
   });
 }
 
+function emitActivitiesChanged() {
+  window.dispatchEvent(new CustomEvent('israa-activities-changed'));
+  window.dispatchEvent(new CustomEvent('israa-tracking-updated'));
+}
+
+function closeActivityDrawer(button) {
+  const drawer = button?.closest?.('.ds-drawer');
+  const close = drawer?.querySelector('[data-ui-close-drawer], .ds-drawer__close, [aria-label="סגירה"]');
+  close?.click();
+}
+
 function installRuntimeSelectionBridge() {
   if (typeof document === 'undefined' || globalThis.__israaActivitySelectionBridgeInstalled) return;
   globalThis.__israaActivitySelectionBridgeInstalled = true;
 
-  reopenActivitiesTabAfterReload();
   decoratePrivateDraftRemovalButtons();
   const observer = new MutationObserver(() => decoratePrivateDraftRemovalButtons());
   observer.observe(document.documentElement, { childList: true, subtree: true });
@@ -86,8 +68,7 @@ function installRuntimeSelectionBridge() {
         });
         if (error) throw error;
         selectButton.textContent = 'כבר בפעילויות';
-        markActivitiesTabForReload();
-        setTimeout(() => window.location.reload(), 120);
+        emitActivitiesChanged();
       } catch (error) {
         console.error('[israa-select-activity]', error);
         selectButton.disabled = false;
@@ -109,8 +90,8 @@ function installRuntimeSelectionBridge() {
         p_proposal_item_id: removeButton.dataset.israaRemoveDraft
       });
       if (error) throw error;
-      markActivitiesTabForReload();
-      window.location.reload();
+      closeActivityDrawer(removeButton);
+      emitActivitiesChanged();
     } catch (error) {
       console.error('[israa-remove-activity-draft]', error);
       removeButton.disabled = false;
