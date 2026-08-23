@@ -1,6 +1,7 @@
 import { activitiesScreen } from './screens/activities.js';
 import { api } from './api.js';
 import { state, clearScreenDataCache } from './state.js';
+import { supabase } from './supabase-client.js';
 
 const PANEL_SELECTOR = '.israa-mgmt .israa-activities-panel';
 const ACTIVE_TAB_SELECTOR = '.israa-mgmt [data-israa-tab="activities"].is-active';
@@ -72,9 +73,9 @@ function normalizeDraftRow(tracking = {}, draft = {}) {
     notes: draft.notes || '',
     activity_season: 'school_2027',
     activity_domain: 'E',
-    israaa_private_draft: true,
-    israaa_tracking_id: tracking.id,
-    israaa_source_item_id: proposalItemId
+    israa_private_draft: true,
+    israa_tracking_id: tracking.id,
+    israa_source_item_id: proposalItemId
   };
   for (let i = 1; i <= 35; i += 1) {
     const key = `date_${i}`;
@@ -98,7 +99,15 @@ function syncWorkspaceState() {
   const sourceUser = state?.user || {};
   workspaceState.user = {
     ...sourceUser,
-    permissions: { ...(sourceUser.permissions || {}), view_activities: 'yes' },
+    permissions: {
+      ...(sourceUser.permissions || {}),
+      view_activities: 'yes',
+      can_edit_direct: 'yes',
+      can_add_activity: 'no',
+      can_request_edit: 'no',
+      can_request_create_activity: 'no',
+      can_review_requests: 'no'
+    },
     can_edit_direct: true,
     can_add_activity: false,
     can_request_edit: false,
@@ -175,7 +184,8 @@ const workspaceApi = new Proxy(api, {
 });
 
 function closeActivityDrawer() {
-  const drawer = document.querySelector('.activity-drawer__form')?.closest('.ds-drawer');
+  const form = document.querySelector('.activity-drawer__form[data-row-id^="israa-draft|"]');
+  const drawer = form?.closest('.ds-drawer');
   const close = drawer?.querySelector('[data-ui-close-drawer], .ds-drawer__close, [aria-label="סגירה"]');
   close?.click();
 }
@@ -186,7 +196,8 @@ function injectWorkspaceStyle() {
   style.id = 'israa-main-activities-workspace-style';
   style.textContent = `
     .israa-activities-panel[data-${WORKSPACE_MARK}="yes"]{display:block!important;min-width:0;width:100%}
-    html.israa-main-activities-active [data-action="delete-activity"]{display:none!important}
+    html.israa-main-activities-active [data-action="delete-activity"],
+    html.israa-main-activities-active [data-activities-add-btn]{display:none!important}
     .israa-draft-special-actions{display:flex;gap:8px;flex-wrap:wrap;padding:10px 16px;margin:0 0 8px;border:1px solid #dbe3ee;border-radius:10px;background:#f8fafc}
     .israa-draft-special-actions button{min-height:34px}
   `;
@@ -214,6 +225,7 @@ function decorateDraftDrawer() {
       await api.shareIsraaActivity(ref.trackingId, ref.proposalItemId);
       closeActivityDrawer();
       await refreshWorkspace();
+      window.dispatchEvent(new CustomEvent('israa-activities-changed'));
     } catch (error) {
       console.error('[israa-workspace-share]', error);
       button.disabled = false;
@@ -225,7 +237,11 @@ function decorateDraftDrawer() {
     const button = event.currentTarget;
     button.disabled = true;
     try {
-      await api.removeIsraaActivityDraft(ref.trackingId, ref.proposalItemId);
+      const { error } = await supabase.rpc('remove_israa_activity_draft', {
+        p_tracking_id: ref.trackingId,
+        p_proposal_item_id: ref.proposalItemId
+      });
+      if (error) throw error;
       closeActivityDrawer();
       await refreshWorkspace();
       window.dispatchEvent(new CustomEvent('israa-activities-changed'));
@@ -234,6 +250,14 @@ function decorateDraftDrawer() {
       button.disabled = false;
       window.alert('לא ניתן להסיר את הפעילות כרגע.');
     }
+  });
+}
+
+function isolateWorkspaceEvents(panel) {
+  if (panel.dataset.israaWorkspaceEventsIsolated === 'yes') return;
+  panel.dataset.israaWorkspaceEventsIsolated = 'yes';
+  ['click', 'change', 'input', 'submit'].forEach((type) => {
+    panel.addEventListener(type, (event) => event.stopPropagation());
   });
 }
 
@@ -257,6 +281,7 @@ function renderWorkspace() {
       ui: { bindInteractiveCards() {} },
       clearScreenDataCache
     });
+    isolateWorkspaceEvents(panel);
     requestAnimationFrame(decorateDraftDrawer);
   };
   rerender();
@@ -291,7 +316,7 @@ async function enhance(force = false) {
 
 function schedule(force = false) {
   clearTimeout(timer);
-  timer = setTimeout(() => enhance(force), 80);
+  timer = setTimeout(() => enhance(force), 40);
 }
 
 window.addEventListener('israa-activities-changed', () => schedule(true));
