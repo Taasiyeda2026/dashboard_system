@@ -100,7 +100,15 @@ test('double click shares one flight: one proposal save, one item save, one stat
 import { JSDOM } from 'jsdom';
 
 test('screen timeout clears saving state and a responsive retry reuses the same insert identity', async () => {
-  const manager = { user: { role: 'operation_manager', manage_proposals_agreements: true } };
+  const manager = {
+    user: {
+      role: 'operation_manager',
+      permissions: {
+        view_proposals_agreements: 'yes',
+        manage_proposals_agreements: 'yes'
+      }
+    }
+  };
   const data = {
     rows: [], contactOptions: [], activityNameOptions: [],
     proposalActivityGroups: [{ group_key: 'gefen', display_name: 'גפן', is_active: true }],
