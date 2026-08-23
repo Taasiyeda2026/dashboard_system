@@ -8920,6 +8920,30 @@ export const api = {
     if (error) throw new Error(error.message || 'israa_program_tracking_read_failed');
     return { rows: Array.isArray(data) ? data : [] };
   },
+  israaSharedActivities: async () => {
+    await waitForSupabaseAuthSession();
+    const { data, error } = await supabase.from('activities').select('*').not('israa_tracking_id', 'is', null);
+    if (error) throw new Error(error.message || 'israa_shared_activities_read_failed');
+    return { rows: Array.isArray(data) ? data : [] };
+  },
+  saveIsraaActivityDraft: async (trackingId, proposalItemId, draft) => {
+    await waitForSupabaseAuthSession();
+    const { data, error } = await supabase.rpc('save_israa_activity_draft', { p_tracking_id: trackingId, p_proposal_item_id: proposalItemId, p_draft: draft });
+    if (error) throw new Error(error.message || 'israa_draft_save_failed');
+    return { draft: data };
+  },
+  shareIsraaActivity: async (trackingId, proposalItemId) => {
+    await waitForSupabaseAuthSession();
+    const { data, error } = await supabase.rpc('share_israa_activity', { p_tracking_id: trackingId, p_proposal_item_id: proposalItemId });
+    if (error) throw new Error(error.message || 'israa_activity_share_failed');
+    return data;
+  },
+  updateIsraaSharedActivity: async (rowId, changes) => {
+    await waitForSupabaseAuthSession();
+    const { data, error } = await supabase.rpc('update_israa_shared_activity', { p_row_id: rowId, p_changes: changes });
+    if (error) throw new Error(error.message || 'israa_shared_activity_update_failed');
+    return { row: data };
+  },
   israaInsertRow: async (row) => {
     await waitForSupabaseAuthSession();
     const { data, error } = await supabase

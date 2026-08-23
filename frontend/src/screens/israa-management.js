@@ -1,6 +1,9 @@
 import { escapeHtml } from './shared/html.js';
 import { dsScreenStack } from './shared/layout.js';
 import { canViewIsraaManagement } from '../permissions.js';
+import { activitiesTable } from '../israa-proposal-items.js';
+import { activityWorkDrawerHtml } from './shared/activity-detail-html.js';
+import { bindActivityEditForm } from './shared/bind-activity-edit-form.js';
 
 const SIM_GOAL = 1_000_000;
 
@@ -15,6 +18,7 @@ let _addingNew = false;
 let _newData = {};
 let _error = null;
 let _expandedId = null;
+let _sharedActivities = [];
 
 // ── Simulator state ────────────────────────────────────────────────────────────
 // _simLoaded / _simLoading guard: data is fetched exactly once per session.
@@ -165,7 +169,9 @@ function progRowHtml(row, editingId, editData, expandedId, actNames) {
         : '';
     }).join('');
 
-    detailContent = parts || `<span class="prog-detail__empty">אין פרטי איש קשר</span>`;
+    detailContent = (parts || `<span class="prog-detail__empty">אין פרטי איש קשר</span>`)
+      + (Array.isArray(row.proposal_items) && row.proposal_items.length
+        ? `<div class="israa-proposal-activities">${activitiesTable(row, { selectable: true })}</div>` : '');
   }
 
   return mainRow + `<tr class="prog-detail-row" data-detail-for="${escapeHtml(row.id)}">
@@ -425,16 +431,53 @@ function simPanelHtml(rows, editingId, editData, addingNew, newData, error, load
 
 function tabBarHtml(activeTab) {
   return `<div class="israa-tabbar" role="tablist" dir="rtl">
-      <button class="israa-tab${activeTab === 'table' ? ' is-active' : ''}" data-israa-tab="table" role="tab">טבלת תוכניות</button>
+      <button class="israa-tab${activeTab === 'table' ? ' is-active' : ''}" data-israa-tab="table" role="tab">מעקב הצעות</button>
+      <button class="israa-tab${activeTab === 'activities' ? ' is-active' : ''}" data-israa-tab="activities" role="tab">פעילויות</button>
       <button class="israa-tab${activeTab === 'simulator' ? ' is-active' : ''}" data-israa-tab="simulator" role="tab">סימולטור</button>
     </div>`;
 }
 
-function fullHtml(activeTab, actNames) {
+function israaActivityEditor(row, settings) {
+  return activityWorkDrawerHtml(row, {
+    settings,
+    canEdit: true,
+    canDirectEdit: true,
+    canRequestEdit: false,
+    canDeleteActivity: false,
+    canSchedule: false,
+    exportAction: false
+  });
+}
+
+function activitiesPanelHtml(settings = {}) {
+  const cards = [];
+  _rows.forEach((tracking) => {
+    (Array.isArray(tracking.selected_activity_drafts) ? tracking.selected_activity_drafts : []).forEach((draft) => {
+      const shared = _sharedActivities.filter((a) => String(a.israa_tracking_id) === String(tracking.id)
+        && String(a.israa_source_item_id) === String(draft.proposal_item_id));
+      if (shared.length) {
+        shared.forEach((activity) => cards.push(`<section class="israa-activity-card" data-israa-editor-card>
+          <header><strong>${escapeHtml(activity.activity_name || draft.program_name || 'פעילות')}</strong><span class="israa-shared-badge">נמצא בפעילויות</span></header>
+          <div class="israa-existing-card">${israaActivityEditor(activity, settings)}</div></section>`));
+      } else {
+        const draftRow = { ...draft, row_id: `israa-draft|${tracking.id}|${draft.proposal_item_id}`, source_sheet: 'activities',
+          activity_name: draft.activity_name || draft.program_name, activity_no: draft.activity_no || draft.gefen_number,
+          school: tracking.school_name, authority: tracking.authority, activity_season: 'school_2027', activity_domain: 'E', status: 'פתוח' };
+        cards.push(`<section class="israa-activity-card" data-israa-editor-card data-israa-draft="${escapeHtml(draft.proposal_item_id)}" data-tracking-id="${escapeHtml(tracking.id)}">
+          <header><strong>${escapeHtml(draft.program_name || 'פעילות')}</strong><span>טיוטה פרטית · ${escapeHtml(draft.quantity || 1)} קבוצות</span></header>
+          <div class="israa-existing-card">${israaActivityEditor(draftRow, settings)}</div><div class="israa-activity-actions"><button class="israa-btn israa-btn--primary" type="button" data-israa-share>שתף לפעילויות</button></div></section>`);
+      }
+    });
+  });
+  return `<div class="israa-activities-panel">${cards.join('') || '<div class="israa-empty">טרם נבחרו פעילויות. פתחי הצעה ובחרי „העבר לפעילויות”.</div>'}</div>`;
+}
+
+function fullHtml(activeTab, actNames, settings = {}) {
   if (activeTab === 'simulator') {
     return tabBarHtml(activeTab) +
       `<div class="sim-panel">${simPanelHtml(_simRows, _simEditingId, _simEditData, _simAddingNew, _simNewData, _simError, _simLoading, _simCollab)}</div>`;
   }
+  if (activeTab === 'activities') return tabBarHtml(activeTab) + activitiesPanelHtml(settings);
 
   return tabBarHtml(activeTab) + progTableHtml(_rows, _editingId, _editData, _addingNew, _newData, _error, _expandedId, actNames);
 }
@@ -732,6 +775,8 @@ const ISRAA_CSS = `<style data-israa-styles>
   color:#fff;
   border-color:var(--ds-accent,#1a3358);
 }
+.israa-proposal-activities{width:100%;margin-top:12px}.israa-proposal-activities table{width:100%;border-collapse:collapse}.israa-proposal-activities th,.israa-proposal-activities td{padding:6px;border:1px solid #e2e8f0}
+.israa-activities-panel{display:grid;gap:14px}.israa-activity-card{background:#fff;border:1px solid #dbe3ee;border-radius:10px;padding:16px;box-shadow:0 2px 8px #0f172a0d}.israa-activity-card header{display:flex;justify-content:space-between;gap:12px;margin-bottom:12px}.israa-shared-badge{color:#166534;background:#dcfce7;border-radius:999px;padding:3px 9px}.israa-activity-fields{display:grid;grid-template-columns:repeat(5,minmax(110px,1fr));gap:10px;margin:12px 0}.israa-activity-fields label{display:grid;gap:4px;font-size:12px}.israa-activity-fields__notes{grid-column:1/-1}.israa-activity-actions{display:flex;gap:8px}.israa-existing-card{background:#f8fafc;padding:10px;border-radius:6px;font-size:12px}
 
 /* ── Simulator ─────────────────────────────────────────────────────────────── */
 
@@ -1129,8 +1174,12 @@ export const israaManagementScreen = {
   load: async ({ api, state }) => {
     if (!isAllowedUser(state)) return { rows: [] };
 
-    const result = await api.israaProgramTracking();
+    const [result, shared] = await Promise.all([
+      api.israaProgramTracking(),
+      typeof api.israaSharedActivities === 'function' ? api.israaSharedActivities() : Promise.resolve({ rows: [] })
+    ]);
     _rows = Array.isArray(result?.rows) ? result.rows : [];
+    _sharedActivities = Array.isArray(shared?.rows) ? shared.rows : [];
 
     return { rows: _rows };
   },
@@ -1144,7 +1193,7 @@ export const israaManagementScreen = {
       _rows = Array.isArray(data.rows) ? data.rows : _rows;
     }
 
-    return dsScreenStack(ISRAA_CSS + '<div class="israa-mgmt">' + fullHtml(_activeTab, getActivityNames(state)) + '</div>');
+    return dsScreenStack(ISRAA_CSS + '<div class="israa-mgmt">' + fullHtml(_activeTab, getActivityNames(state), state?.clientSettings || {}) + '</div>');
   },
 
   bind({ root, state, api }) {
@@ -1153,7 +1202,8 @@ export const israaManagementScreen = {
 
     function repaint() {
       if (!root.contains(mgmt)) return;
-      mgmt.innerHTML = fullHtml(_activeTab, getActivityNames(state));
+      mgmt.innerHTML = fullHtml(_activeTab, getActivityNames(state), state?.clientSettings || {});
+      bindIsraaActivityEditors();
     }
 
     async function loadSimIfNeeded() {
@@ -1176,6 +1226,42 @@ export const israaManagementScreen = {
       repaint();
     }
 
+    async function refreshActivities() {
+      const [tracking, shared] = await Promise.all([api.israaProgramTracking(), api.israaSharedActivities()]);
+      _rows = Array.isArray(tracking?.rows) ? tracking.rows : [];
+      _sharedActivities = Array.isArray(shared?.rows) ? shared.rows : [];
+      repaint();
+    }
+
+    function bindIsraaActivityEditors() {
+      if (_activeTab !== 'activities') return;
+      const israApi = {
+        ...api,
+        saveActivity: async (payload) => {
+          const rowId = String(payload?.source_row_id || '');
+          if (rowId.startsWith('israa-draft|')) {
+            const [, trackingId, proposalItemId] = rowId.split('|');
+            const result = await api.saveIsraaActivityDraft(trackingId, proposalItemId, payload.changes || {});
+            return { row: { ...(result?.draft || {}), row_id: rowId, source_sheet: 'activities', activity_season: 'school_2027', activity_domain: 'E' } };
+          }
+          return api.updateIsraaSharedActivity(rowId, payload?.changes || {});
+        }
+      };
+      bindActivityEditForm(mgmt, {
+        api: israApi,
+        ui: {},
+        appState: state,
+        forceDirectEdit: true,
+        clearScreenDataCache: () => {},
+        rerender: repaint,
+        onRowSaved: () => {},
+        onSaveSuccess: refreshActivities,
+        quietRefresh: refreshActivities
+      });
+    }
+
+    bindIsraaActivityEditors();
+
     mgmt.addEventListener('click', async (e) => {
       const t = e.target;
 
@@ -1188,6 +1274,32 @@ export const israaManagementScreen = {
           loadSimIfNeeded();
         }
 
+        return;
+      }
+
+      const selectBtn = t.closest('[data-israa-select-activity]');
+      if (selectBtn) {
+        selectBtn.disabled = true;
+        try {
+          await api.saveIsraaActivityDraft(selectBtn.dataset.israaTrackingId, selectBtn.dataset.israaSelectActivity, {});
+          _activeTab = 'activities';
+          await refreshActivities();
+        } catch (err) {
+          _error = err.message || 'שגיאה בבחירת הפעילות'; repaint();
+        }
+        return;
+      }
+
+      const shareBtn = t.closest('[data-israa-share]');
+      if (shareBtn) {
+        const form = shareBtn.closest('[data-israa-draft]');
+        shareBtn.disabled = true;
+        try {
+          await api.shareIsraaActivity(form.dataset.trackingId, form.dataset.israaDraft);
+          await refreshActivities();
+        } catch (err) {
+          _error = err.message || 'שגיאה בשיתוף הפעילות'; shareBtn.disabled = false;
+        }
         return;
       }
 
@@ -1441,6 +1553,7 @@ export const israaManagementScreen = {
         repaint();
       }
     });
+
 
     mgmt.addEventListener('input', (e) => {
       if (!e.target.matches('[data-sim-collab]')) return;

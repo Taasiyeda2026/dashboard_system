@@ -8,7 +8,6 @@ import { guardInitialValueRefreshWhileEditing } from '../../activity-drawer-edit
 import { applyApprovedDrawerFixes } from '../../activity-drawer-approved-fixes.js';
 import { activityTypeMatches, getValidInstructorUsers, humanDisplayText, INSTRUCTOR_CONTACTS_MISSING_ERROR_MESSAGE, INSTRUCTOR_IDENTITY_ERROR_MESSAGE, isCanonicalActivityTypeKey, normalizeActivityTypeKey, normalizeOneDayActivityType, resolveInstructorSelectionByEmpId, validateInstructorIdentityPayload } from './activity-options.js';
 import { catalogActivityChangesFromSelection, selectedActivityCatalogIdentity, syncActivityCatalogIdentityFromName } from '../../activity-catalog-identity.js';
-import { state } from '../../state.js';
 import { validateCourseFundingSplit } from '../../activity-funding-picker-compact.js';
 import {
   READ_ONLY_ACTIVITY_PERIOD_MESSAGE,
@@ -19,17 +18,17 @@ import {
  * Event-level guard for the historical 2026 period: even a direct click handler call
  * must not be able to start an edit, save, or delete a read-only activity.
  */
-function isReadOnlyActivityForm(form) {
+function isReadOnlyActivityForm(form, appState = {}) {
   if (!form) return false;
   if (String(form.dataset.activityReadOnly || '') === 'yes') return true;
   return isActivityMutationBlocked({
-    activityPeriod: String(state?.activityPeriodTab || ''),
+    activityPeriod: String(appState?.activityPeriodTab || ''),
     activitySeason: String(form.getAttribute('data-activity-season') || '')
   });
 }
 
-function blockReadOnlyActivityMutation(form) {
-  if (!isReadOnlyActivityForm(form)) return false;
+function blockReadOnlyActivityMutation(form, appState = {}) {
+  if (!isReadOnlyActivityForm(form, appState)) return false;
   setStatus(form?.querySelector?.('.ds-activity-edit-status'), 'is-error', READ_ONLY_ACTIVITY_PERIOD_MESSAGE);
   showToast(READ_ONLY_ACTIVITY_PERIOD_MESSAGE, 'error', 3200);
   return true;
@@ -368,10 +367,11 @@ export function bindActivityEditForm(contentRoot, {
   rerender,
   onRowSaved,
   onSaveSuccess,
-  quietRefresh
+  quietRefresh,
+  forceDirectEdit = false,
+  appState = {}
 }) {
   if (!api || !contentRoot) return;
-
   if (contentRoot._activityEditAbort) {
     contentRoot._activityEditAbort.abort();
   }
@@ -379,10 +379,10 @@ export function bindActivityEditForm(contentRoot, {
   contentRoot._activityEditAbort = abortController;
   const { signal } = abortController;
 
-  applyActivityDrawerLayoutPipeline(contentRoot, state?.clientSettings || {});
+  applyActivityDrawerLayoutPipeline(contentRoot, appState?.clientSettings || {});
 
   async function saveActivityForm(form) {
-    if (blockReadOnlyActivityMutation(form)) return;
+    if (blockReadOnlyActivityMutation(form, appState)) return;
     if (form.dataset.saveInFlight === 'yes') {
       // eslint-disable-next-line no-console
       console.warn('[activity-save:duplicate-submit-blocked]', {
@@ -397,8 +397,8 @@ export function bindActivityEditForm(contentRoot, {
     const sourceRowId = form.getAttribute('data-row-id') || '';
     const rawCanDirectEdit = String(form.dataset.canDirectEdit || '') === 'yes';
     const canRequestEdit = String(form.dataset.canRequestEdit || '') === 'yes';
-    const sessionRequestOnly = !state?.user?.can_edit_direct && !!state?.user?.can_request_edit;
-    const canDirectEdit = rawCanDirectEdit && !sessionRequestOnly;
+    const sessionRequestOnly = !appState?.user?.can_edit_direct && !!appState?.user?.can_request_edit;
+    const canDirectEdit = rawCanDirectEdit && (forceDirectEdit || !sessionRequestOnly);
     const changes = {};
     const initialValues = form._initialValues || {};
 
@@ -535,7 +535,7 @@ export function bindActivityEditForm(contentRoot, {
       }
     }
 
-    const roster = getValidInstructorUsers(state?.clientSettings || {});
+    const roster = getValidInstructorUsers(appState?.clientSettings || {});
     const selectedInstructorEmpId = Object.prototype.hasOwnProperty.call(changes, 'emp_id')
       ? changes.emp_id
       : String(form.querySelector('[name="emp_id"]')?.value ?? initialValues.emp_id ?? '').trim();
@@ -703,7 +703,7 @@ export function bindActivityEditForm(contentRoot, {
       if (!form) return;
 
       if (ev.target.closest('[data-action="start-edit"]')) {
-        if (blockReadOnlyActivityMutation(form)) return;
+        if (blockReadOnlyActivityMutation(form, appState)) return;
         setEditMode(form, true);
         applyApprovedDrawerFixes(form);
         captureFormInitialValues(form);
@@ -727,13 +727,13 @@ export function bindActivityEditForm(contentRoot, {
 
       if (ev.target.closest('[data-action="save-edit"]')) {
         ev.preventDefault();
-        if (blockReadOnlyActivityMutation(form)) return;
+        if (blockReadOnlyActivityMutation(form, appState)) return;
         void saveActivityForm(form);
         return;
       }
       if (ev.target.closest('[data-action="delete-activity"]')) {
         ev.preventDefault();
-        if (blockReadOnlyActivityMutation(form)) return;
+        if (blockReadOnlyActivityMutation(form, appState)) return;
         const rowId = String(form.getAttribute('data-row-id') || '').trim();
         if (!rowId) return;
         const ok = window.confirm('האם למחוק את הפעילות? הפעילות תוסתר מהמסכים ולא תימחק פיזית מהמערכת.');

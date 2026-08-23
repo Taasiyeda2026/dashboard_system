@@ -2333,6 +2333,7 @@ export const activitiesScreen = {
       bindActivityEditFormShared(contentRoot, {
         api,
         ui,
+        appState: state,
         clearScreenDataCache,
         rerender,
         onRowSaved: ({ sourceSheet, sourceRowId, changes, row }) => {

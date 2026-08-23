@@ -17,7 +17,7 @@ export function proposalItemRows(draft) {
   }));
 }
 
-export function activitiesTable(draft) {
+export function activitiesTable(draft, { selectable = false } = {}) {
   const items = proposalItemRows(draft);
   if (!items.length) {
     return `<div class="israa-drawer__legacy-activities">
@@ -25,6 +25,12 @@ export function activitiesTable(draft) {
       <div><strong>מספרי גפ״ן:</strong> ${escapeHtml(clean(draft?.gefen_numbers) || '—')}</div>
     </div>`;
   }
-  const cells = items.map((item) => `<tr><td>${escapeHtml(item.program_name || '—')}</td><td>${escapeHtml(item.gefen_number || '—')}</td><td>${escapeHtml(item.quantity ?? '—')}</td></tr>`).join('');
-  return `<table class="israa-drawer__activities"><thead><tr><th>שם הפעילות</th><th>מספר גפ״ן</th><th>מספר קבוצות</th></tr></thead><tbody>${cells}</tbody></table>`;
+  const cells = items.map((item, index) => {
+    const source = draft.proposal_items[index] || {};
+    const action = selectable && source.proposal_item_id
+      ? `<td><button type="button" class="israa-btn" data-israa-select-activity="${escapeHtml(source.proposal_item_id)}" data-israa-tracking-id="${escapeHtml(draft.id)}">העבר לפעילויות</button></td>`
+      : '';
+    return `<tr><td>${escapeHtml(item.program_name || '—')}</td><td>${escapeHtml(item.gefen_number || '—')}</td><td>${escapeHtml(item.quantity ?? '—')}</td>${action}</tr>`;
+  }).join('');
+  return `<table class="israa-drawer__activities"><thead><tr><th>שם הפעילות</th><th>מספר גפ״ן</th><th>מספר קבוצות</th>${selectable ? '<th>פעולה</th>' : ''}</tr></thead><tbody>${cells}</tbody></table>`;
 }
