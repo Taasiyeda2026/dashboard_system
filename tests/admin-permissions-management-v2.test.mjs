@@ -22,6 +22,15 @@ test('employee editor manages identity, contact details and permissions together
   assert.match(runtime, /employee_profiles/);
 });
 
+test('permission editor presents a business hierarchy and keeps legacy aliases behind the scenes', () => {
+  assert.match(runtime, /PERMISSION_PAGES/);
+  assert.match(runtime, /data-apm-parent/);
+  assert.match(runtime, /data-apm-child-of/);
+  assert.match(runtime, /LEGACY_PERMISSION_ALIASES/);
+  assert.match(runtime, /payload\.view_permissions = role === ADMIN_ROLE/);
+  assert.doesNotMatch(runtime, /<th[^>]*>הרשאות<\/th>/);
+});
+
 test('new instructors and permission records stay linked by employee number', () => {
   assert.match(migration, /sync_instructor_contact_to_employee_profile/);
   assert.match(migration, /sync_user_to_employee_profile/);
@@ -30,5 +39,5 @@ test('new instructors and permission records stay linked by employee number', ()
 });
 
 test('redesigned permissions runtime is loaded by the application bootstrap', () => {
-  assert.match(bootstrap, /admin-permissions-management-v2\.js\?v=20260823-v2/);
+  assert.match(bootstrap, /admin-permissions-management-v2\.js\?v=20260823-v3/);
 });
