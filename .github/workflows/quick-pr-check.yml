@@ -9,48 +9,9 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  autofix-known-ci-assertions:
-    name: apply focused CI assertion fix
-    if: github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          ref: ${{ github.event.pull_request.head.ref }}
-          fetch-depth: 0
-      - name: Patch the two verified failing assertions and restore workflow
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-          p = Path('tests/operations-management-screen.test.mjs')
-          s = p.read_text()
-          old_filter = """  assert.doesNotMatch(html, /לפני/);\n  assert.doesNotMatch(html, /אחרי/);\n  assert.doesNotMatch(html, /קורס/);\n  assert.doesNotMatch(html, /גפן/);"""
-          new_filter = """  assert.doesNotMatch(html, />לפני</);\n  assert.doesNotMatch(html, />אחרי</);\n  assert.doesNotMatch(html, />קורס</);\n  assert.doesNotMatch(html, />גפן</);"""
-          if s.count(old_filter) != 1:
-              raise SystemExit(f'expected exactly one selected-date assertion block, found {s.count(old_filter)}')
-          s = s.replace(old_filter, new_filter, 1)
-          marker = "test('workshops inventory preserves special stock_group_key mappings for kofet kesem guitar and watch', () => {"
-          start = s.index(marker)
-          end_marker = "test('workshop stock edit drawer uses special stock_group_key values for admin inventory edits'"
-          end = s.index(end_marker, start)
-          block = s[start:end]
-          old_edit = "  assert.doesNotMatch(html, /data-ops-open-stock-edit/);"
-          if block.count(old_edit) != 1:
-              raise SystemExit(f'expected exactly one obsolete stock edit assertion, found {block.count(old_edit)}')
-          block = block.replace(old_edit, "  assert.match(html, /data-ops-open-stock-edit/);", 1)
-          s = s[:start] + block + s[end:]
-          p.write_text(s)
-          PY
-          git show "${{ github.event.pull_request.base.sha }}:.github/workflows/quick-pr-check.yml" > .github/workflows/quick-pr-check.yml
-          git config user.name "chatgpt-ci-fix"
-          git config user.email "chatgpt-ci-fix@users.noreply.github.com"
-          git add tests/operations-management-screen.test.mjs .github/workflows/quick-pr-check.yml
-          git commit -m "Fix operations management CI assertions"
-          git push origin "HEAD:${{ github.event.pull_request.head.ref }}"
-
   select:
     name: select changed-file checks
     runs-on: ubuntu-latest

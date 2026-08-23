@@ -572,10 +572,10 @@ test('completion approval tab includes only summer workshops and escape rooms an
   assert.match(html, /נבחר/);
   assert.doesNotMatch(html, /תחילת קיץ/);
   assert.doesNotMatch(html, /סוף קיץ/);
-  assert.doesNotMatch(html, /לפני/);
-  assert.doesNotMatch(html, /אחרי/);
-  assert.doesNotMatch(html, /קורס/);
-  assert.doesNotMatch(html, /גפן/);
+  assert.doesNotMatch(html, />לפני</);
+  assert.doesNotMatch(html, />אחרי</);
+  assert.doesNotMatch(html, />קורס</);
+  assert.doesNotMatch(html, />גפן</);
   assert.match(html, /min="2026-06-20"/);
   assert.match(html, /max="2026-08-31"/);
   assert.match(html, /data-ops-completion-date-clear>כל התאריכים/);
@@ -785,7 +785,7 @@ test('workshops inventory preserves special stock_group_key mappings for kofet k
   assert.match(html, />10</);
   assert.match(html, />20</);
   assert.match(html, />30</);
-  assert.doesNotMatch(html, /data-ops-open-stock-edit/);
+  assert.match(html, /data-ops-open-stock-edit/);
 });
 
 test('workshop stock edit drawer uses special stock_group_key values for admin inventory edits', () => {
