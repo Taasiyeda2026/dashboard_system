@@ -196,6 +196,7 @@ test('activities render: giln can request adding an activity when direct add is 
     username: 'giln',
     display_role: 'מנהל פעילויות',
     role: 'activities_manager',
+    permissions: { view_activities: 'yes' },
     can_add_activity: false,
     can_edit_direct: false,
     can_request_create_activity: true,
@@ -241,7 +242,12 @@ test('activities render: non-admin does not see admin toolbar buttons', () => {
 test('activities render: operation_manager sees add activity button', () => {
   const state = baseState();
   state.activityPeriodTab = 'school_2027';
-  state.user = { display_role: 'operation_manager', role: 'operation_manager', can_add_activity: true };
+  state.user = {
+    display_role: 'operation_manager',
+    role: 'operation_manager',
+    permissions: { view_activities: 'yes' },
+    can_add_activity: true
+  };
   const html = activitiesScreen.render({ rows: [] }, { state });
   assert.match(html, /data-activities-add-btn/);
 });
