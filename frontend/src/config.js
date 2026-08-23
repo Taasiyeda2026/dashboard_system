@@ -117,3 +117,4 @@ config.HOTFIX_VERSION = `finance-transaction-accounts-20260821-v1-${config.HOTFI
 config.HOTFIX_VERSION = `finance-transaction-issuance-20260821-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `finance-transaction-summary-layout-20260821-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `finance-transaction-page-data-20260821-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `gefen-start-reminder-20260823-v1-${config.HOTFIX_VERSION}`;
