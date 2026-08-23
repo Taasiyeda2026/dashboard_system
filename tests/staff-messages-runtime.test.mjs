@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
 const popupRuntime = await readFile(new URL('../frontend/src/staff-message-popup-runtime.js', import.meta.url), 'utf8');
+const priorityRuntime = await readFile(new URL('../frontend/src/popup-priority-runtime.js', import.meta.url), 'utf8');
 const adminRuntime = await readFile(new URL('../frontend/src/admin-messages-runtime.js', import.meta.url), 'utf8');
 const cardRuntime = await readFile(new URL('../frontend/src/admin-messages-card-runtime.js', import.meta.url), 'utf8');
 const indexHtml = await readFile(new URL('../index.html', import.meta.url), 'utf8');
@@ -63,8 +64,25 @@ test('Supabase tables use RLS and explicit Data API grants', () => {
   assert.match(migration, /not in \('', 'instructor'\)/);
 });
 
+test('blocking popup order is birthday then Gefen then admin messages', () => {
+  assert.match(priorityRuntime, /POPUP_PRIORITY = Object\.freeze\(\['birthday', 'gefen', 'admin'\]\)/);
+  assert.match(priorityRuntime, /ensureBirthdayTurnFinished/);
+  assert.match(priorityRuntime, /ensureGefenTurnFinished/);
+  assert.match(priorityRuntime, /import\('\.\/birthday-popup\.js'\)/);
+  assert.match(priorityRuntime, /gefen_start_reminder_acknowledgements/);
+  assert.match(priorityRuntime, /\.gefen-start-reminder-overlay/);
+  assert.match(priorityRuntime, /\.staff-message-popup-overlay/);
+
+  const coordinatorIndex = indexHtml.indexOf('popup-priority-runtime.js?v=20260823-v1');
+  const gefenIndex = indexHtml.indexOf('gefen-start-reminder-runtime.js?v=20260823-v3');
+  const staffIndex = indexHtml.indexOf('staff-message-popup-runtime.js?v=20260823-v1');
+  assert.ok(coordinatorIndex >= 0 && coordinatorIndex < gefenIndex);
+  assert.ok(gefenIndex >= 0 && gefenIndex < staffIndex);
+});
+
 test('staff message runtimes are loaded and cache is bumped', () => {
   assert.match(indexHtml, /admin-messages-card-runtime\.js\?v=20260823-v1/);
+  assert.match(indexHtml, /popup-priority-runtime\.js\?v=20260823-v1/);
   assert.match(indexHtml, /staff-message-popup-runtime\.js\?v=20260823-v1/);
-  assert.match(sw, /const CACHE_VERSION = 1592/);
+  assert.match(sw, /const CACHE_VERSION = 1593/);
 });
