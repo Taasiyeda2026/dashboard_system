@@ -134,28 +134,9 @@ function ensureStyles(doc) {
   doc.head.append(style);
 }
 
-function makeHeaderField(doc, control) {
-  const field = doc.createElement('div');
-  field.className = 'activity-drawer-inline__header-field activity-drawer-inline__header-field--domain';
-  field.dataset.approvedHeaderField = 'activity_domain';
-
-  const label = doc.createElement('div');
-  label.className = 'activity-drawer-inline__header-label';
-  label.textContent = 'תחום';
-  field.append(label, control);
-  return field;
-}
-
 function compactHeader(form) {
   const grid = form.querySelector('.activity-drawer-inline__header-grid');
   if (!grid) return false;
-
-  const domainControl = form.querySelector('[name="activity_domain"]');
-  if (domainControl && !grid.contains(domainControl)) {
-    const oldField = domainControl.closest('.activity-drawer-inline__field, .activity-drawer__field');
-    grid.append(makeHeaderField(form.ownerDocument, domainControl));
-    oldField?.remove();
-  }
 
   const fields = [...grid.querySelectorAll(':scope > .activity-drawer-inline__header-field')];
   fields.forEach((field) => {

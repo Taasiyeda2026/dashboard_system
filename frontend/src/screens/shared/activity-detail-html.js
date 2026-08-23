@@ -388,8 +388,21 @@ function activityNameSelectHtml(name, value, options, activityType, selectedIden
 
 function autoEndDate(row) {
   const schedule = Array.isArray(row?.meeting_schedule) ? row.meeting_schedule : [];
-  if (!schedule.length) return '';
-  return String(schedule[schedule.length - 1]?.date || '').trim();
+  return schedule
+    .map((meeting) => String(meeting?.date || '').trim().slice(0, 10))
+    .filter((date) => /^\d{4}-\d{2}-\d{2}$/.test(date))
+    .sort()
+    .at(-1) || '';
+}
+
+function resolvedEndDate(row) {
+  return [
+    autoEndDate(row),
+    String(row?.end_date || '').trim().slice(0, 10)
+  ]
+    .filter((date) => /^\d{4}-\d{2}-\d{2}$/.test(date))
+    .sort()
+    .at(-1) || '';
 }
 
 function fmtWeekdayShort(iso) {
@@ -996,7 +1009,7 @@ function blockDates(row, { canEdit = false, canDirectEdit = false, datesLoading 
     `;
   }
 
-  const computedEnd = autoEndDate(row) || String(row?.end_date || '');
+  const computedEnd = resolvedEndDate(row);
   const doneFromSchedule = countDoneMeetings(schedule);
   const doneFallback = numericOrNull(row?.meetings_done);
   const done = doneFromSchedule > 0 ? doneFromSchedule : (doneFallback ?? 0);
@@ -1148,7 +1161,7 @@ export function patchDrawerDatesSection(sectionEl, datesData) {
   }, schedule);
   sectionEl.dataset.sessionTotal = String(total);
   const progressPct = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 0;
-  const computedEnd = autoEndDate({ meeting_schedule: schedule }) || String(datesData?.end_date || '');
+  const computedEnd = resolvedEndDate({ ...datesData, meeting_schedule: schedule });
 
   const progressMeta = sectionEl.querySelector('[data-dates-progress-meta]');
   if (progressMeta) {

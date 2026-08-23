@@ -149,6 +149,7 @@ function headerEditor(form, header, row) {
   const typeControls = extractFieldControls(form, ['activity_type']);
   const nameControls = extractFieldControls(form, ['activity_name']);
   const statusControls = extractFieldControls(form, ['status']);
+  const domainControls = extractFieldControls(form, ['activity_domain']);
   const authorityControls = extractFieldControls(form, ['authority']);
   const schoolControls = extractFieldControls(form, ['school']);
 
@@ -172,6 +173,11 @@ function headerEditor(form, header, row) {
     makeEditOnlyField(doc, { label: 'סוג פעילות', editControls: typeControls }),
     nameField,
     makeEditOnlyField(doc, { label: 'סטטוס', editControls: statusControls }),
+    makeEditOnlyField(doc, {
+      label: 'תחום',
+      editControls: domainControls,
+      className: 'activity-drawer-inline__header-field--domain'
+    }),
     makeEditOnlyField(doc, { label: 'רשות', editControls: authorityControls }),
     makeEditOnlyField(doc, { label: 'בית ספר', editControls: schoolControls })
   ].filter(Boolean).forEach((field) => grid.append(field));

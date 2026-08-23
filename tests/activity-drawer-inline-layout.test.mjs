@@ -240,6 +240,38 @@ test('mounted read-only activity drawers receive the shared layout without edit 
   dom.window.close();
 });
 
+test('activity domain has one view tag and its sole edit selector lives in the header', () => {
+  const row = {
+    RowID: 'DOMAIN-HEADER-1',
+    activity_type: 'course',
+    item_type: 'course',
+    activity_name: 'קורס תחום',
+    activity_no: 'DOMAIN-1',
+    status: 'פתוח',
+    activity_season: 'school_2027',
+    activity_domain: 'Y'
+  };
+  const dom = installDom(`<!doctype html><html><body>
+    <div class="ds-ui-layer"><aside class="ds-drawer"><div class="ds-drawer__content">
+      ${activityWorkDrawerHtml(row, { canEdit: true, canDirectEdit: true })}
+    </div></aside></div>
+  </body></html>`);
+  const form = dom.window.document.querySelector('[data-drawer-form]');
+
+  assert.equal(enhanceActivityDrawerForm(form), true);
+  const header = form.querySelector(':scope > .activity-drawer__header');
+  const body = form.querySelector(':scope > .activity-drawer__body');
+  assert.equal(header.querySelectorAll('.activity-drawer__meta-tag').length, 3);
+  assert.equal([...header.querySelectorAll('.activity-drawer__meta-tag')]
+    .filter((tag) => tag.textContent.trim() === 'Y').length, 1);
+  assert.equal(header.querySelectorAll('[name="activity_domain"]').length, 1);
+  assert.equal(body.querySelector('[name="activity_domain"]'), null);
+  assert.equal(form.querySelectorAll('[name="activity_domain"]').length, 1);
+  assert.equal(header.querySelector('[name="activity_domain"]')?.closest('.activity-drawer-inline__header-field')
+    ?.querySelector('.activity-drawer-inline__header-label')?.textContent, 'תחום');
+  dom.window.close();
+});
+
 test('month and week activity drawers apply layout before permission-gated edit binding', async () => {
   const monthSource = await readFile(new URL('../frontend/src/screens/month.js', import.meta.url), 'utf8');
   const weekSource = await readFile(new URL('../frontend/src/screens/week.js', import.meta.url), 'utf8');

@@ -24,7 +24,9 @@ test('approved drawer edit controls stay compact without document observers', ()
   const timeOptions = fs.readFileSync('frontend/src/screens/shared/activity-time-options.js', 'utf8');
   assert.match(source, /HEADER_ORDER/);
   assert.match(source, /'activity_domain'/);
-  assert.match(source, /oldField\?\.remove\(\)/);
+  assert.doesNotMatch(source, /makeHeaderField|oldField\?\.remove\(\)/);
+  assert.match(inlineLayout, /const domainControls = extractFieldControls\(form, \['activity_domain'\]\)/);
+  assert.match(inlineLayout, /label: 'תחום',[\s\S]*?editControls: domainControls/);
   assert.match(source, /activity-drawer-inline__header-field--name/);
   assert.match(source, /grid-column: auto !important/);
   assert.match(source, /activity-approved-time-row/);
@@ -35,19 +37,18 @@ test('approved drawer edit controls stay compact without document observers', ()
   });
 });
 
-test('approved drawer moves the domain once and validates typed times without changing the end time', () => {
+test('approved drawer retains the domain in its source header and validates typed times without changing the end time', () => {
   const dom = new JSDOM(`<!doctype html><html><head></head><body>
     <form data-drawer-form data-activity-drawer-inline-layout>
       <div class="activity-drawer-inline__header-grid">
         <div class="activity-drawer-inline__header-field"><select name="activity_type"><option>קורס</option></select></div>
         <div class="activity-drawer-inline__header-field activity-drawer-inline__header-field--name"><select name="activity_name"><option>שם קורס</option></select></div>
         <div class="activity-drawer-inline__header-field"><select name="status"><option>פתוח</option></select></div>
+        <div class="activity-drawer-inline__header-field activity-drawer-inline__header-field--domain"><select name="activity_domain"><option value="E" selected>E</option><option value="Y">Y</option></select></div>
         <div class="activity-drawer-inline__header-field"><input name="authority" value="רשות"></div>
         <div class="activity-drawer-inline__header-field"><input name="school" value="בית ספר"></div>
       </div>
-      <div class="activity-drawer-inline__field" data-domain-field>
-        <div class="activity-drawer-inline__edit"><select name="activity_domain"><option value="E" selected>E</option><option value="Y">Y</option></select></div>
-      </div>
+      <div class="activity-drawer-inline__field" data-domain-body></div>
       <div class="activity-drawer-inline__field">
         <div class="activity-drawer-inline__edit">
           <select name="start_time"><option value="08:00" selected>08:00</option></select>
@@ -63,7 +64,7 @@ test('approved drawer moves the domain once and validates typed times without ch
   assert.equal(applyApprovedDrawerFixes(form), true);
   assert.equal(applyApprovedDrawerFixes(form), true);
   assert.equal(form.querySelectorAll('[name="activity_domain"]').length, 1);
-  assert.equal(form.querySelector('[data-domain-field]'), null);
+  assert.equal(form.querySelector('[data-domain-body] [name="activity_domain"]'), null);
   assert.equal(form.querySelector('.activity-drawer-inline__header-grid [name="activity_domain"]').value, 'E');
 
   const start = form.querySelector('[name="start_time"]');

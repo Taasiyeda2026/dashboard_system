@@ -42,6 +42,28 @@ test('asynchronously loaded dates map onto matching persisted rows', () => {
   assert.equal(section.querySelector('input[data-meeting-idx="1"]').value, '2026-10-08');
 });
 
+test('end date shows the latest valid value from full details or an async meeting schedule', () => {
+  const document = renderDrawer({
+    activity_type: 'course',
+    sessions: '3',
+    meeting_schedule: [{ date: '2026-10-01' }],
+    end_date: '2026-10-29'
+  });
+  assert.equal(document.querySelector('[data-computed-end-display]').textContent, '29/10/2026');
+
+  const asyncDocument = renderDrawer({ activity_type: 'course', sessions: '3', meeting_schedule: [] }, { datesLoading: true });
+  const section = asyncDocument.querySelector('[data-dates-section]');
+  patchDrawerDatesSection(section, {
+    activity_type: 'course',
+    meeting_schedule: [
+      { date: '2026-11-21' },
+      { date: '' },
+      { date: '2026-11-07' }
+    ]
+  });
+  assert.equal(section.querySelector('[data-computed-end-display]').textContent, '21/11/2026');
+});
+
 test('session total resolver enforces priority, fallbacks, bounds, and one-day types', () => {
   assert.equal(resolveActivitySessionTotal({ activity_type: 'course', sessions: '10', meetings_total: 7 }, []), 10);
   assert.equal(resolveActivitySessionTotal({ activity_type: 'course', sessions: '0', meetings_total: 7 }, []), 7);
