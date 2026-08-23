@@ -3,6 +3,11 @@ import { showToast } from './toast.js';
 import { formatDateHe } from './format-date.js';
 import { escapeHtml } from './html.js';
 import { syncActivityEndTimeOptions } from './activity-time-options.js';
+import { enhanceActivityDrawerForm } from '../../activity-drawer-inline-layout.js';
+import { applyActivityDrawerTypeLayoutFix } from '../../activity-drawer-type-layout-fix.js';
+import { guardInitialValueRefreshWhileEditing, polishActivityDrawerEditOptions } from '../../activity-drawer-edit-dedup.js';
+import { dockActivityDrawerActions } from '../../activity-drawer-floating-actions.js';
+import { applyApprovedDrawerFixes } from '../../activity-drawer-approved-fixes.js';
 import { activityTypeMatches, getValidInstructorUsers, humanDisplayText, INSTRUCTOR_CONTACTS_MISSING_ERROR_MESSAGE, INSTRUCTOR_IDENTITY_ERROR_MESSAGE, isCanonicalActivityTypeKey, normalizeActivityTypeKey, normalizeOneDayActivityType, resolveInstructorSelectionByEmpId, validateInstructorIdentityPayload } from './activity-options.js';
 import { catalogActivityChangesFromSelection, selectedActivityCatalogIdentity, syncActivityCatalogIdentityFromName } from '../../activity-catalog-identity.js';
 import { state } from '../../state.js';
@@ -376,6 +381,13 @@ export function bindActivityEditForm(contentRoot, {
   contentRoot._activityEditAbort = abortController;
   const { signal } = abortController;
 
+  // Drawer markup is complete when this binder is attached. Apply the layout
+  // pipeline once here instead of observing the entire document for mutations.
+  contentRoot.querySelectorAll('[data-drawer-form]').forEach((form) => {
+    enhanceActivityDrawerForm(form);
+    applyActivityDrawerTypeLayoutFix(form);
+  });
+
   async function saveActivityForm(form) {
     if (blockReadOnlyActivityMutation(form)) return;
     if (form.dataset.saveInFlight === 'yes') {
@@ -700,6 +712,7 @@ export function bindActivityEditForm(contentRoot, {
       if (ev.target.closest('[data-action="start-edit"]')) {
         if (blockReadOnlyActivityMutation(form)) return;
         setEditMode(form, true);
+        applyApprovedDrawerFixes(form);
         captureFormInitialValues(form);
         const nameSel = form.querySelector('[data-role="activity-name-select"]');
         if (nameSel && nameSel.options.length < 2) {
@@ -809,11 +822,15 @@ export function bindActivityEditForm(contentRoot, {
     syncActivityCatalogIdentityFromName(form);
     captureFormInitialValues(form);
     form._refreshInitialValues = () => captureFormInitialValues(form);
+    guardInitialValueRefreshWhileEditing(form);
+    polishActivityDrawerEditOptions(form, state?.clientSettings);
+    dockActivityDrawerActions(form);
 
     form.addEventListener(
       'change',
       (ev) => {
-        if (ev.target.matches('[name="start_time"]')) {
+        const isApprovedTimeEditor = Boolean(ev.target.closest?.('[data-activity-time-editor-enhanced="true"]'));
+        if (ev.target.matches('[name="start_time"]') && !isApprovedTimeEditor) {
           syncActivityEndTimeOptions(ev.target, form.querySelector('[name="end_time"]'));
         }
         const nameEl = ev.target.closest('[data-role="activity-name-select"]');

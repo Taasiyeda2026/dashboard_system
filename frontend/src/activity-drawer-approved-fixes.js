@@ -305,33 +305,3 @@ export function applyApprovedDrawerFixes(form) {
   form.setAttribute(APPLIED_ATTR, 'true');
   return true;
 }
-
-function applyAll(root = document) {
-  const forms = [];
-  if (root?.matches?.(`[data-drawer-form][${ENHANCED_ATTR}]`)) forms.push(root);
-  root?.querySelectorAll?.(`[data-drawer-form][${ENHANCED_ATTR}]`).forEach((form) => forms.push(form));
-  forms.forEach((form) => applyApprovedDrawerFixes(form));
-}
-
-function initialize() {
-  if (typeof document === 'undefined' || typeof MutationObserver === 'undefined') return;
-  let scheduled = false;
-  const schedule = () => {
-    if (scheduled) return;
-    scheduled = true;
-    queueMicrotask(() => {
-      scheduled = false;
-      applyAll(document);
-    });
-  };
-
-  new MutationObserver(schedule).observe(document.documentElement, {
-    childList: true,
-    subtree: true,
-    attributes: true,
-    attributeFilter: [ENHANCED_ATTR]
-  });
-  schedule();
-}
-
-initialize();

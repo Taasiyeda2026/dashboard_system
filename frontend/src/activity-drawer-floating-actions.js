@@ -37,26 +37,3 @@ export function dockActivityDrawerActionBars(root = document) {
   });
   return changed;
 }
-
-function initialize() {
-  if (typeof document === 'undefined' || typeof MutationObserver === 'undefined') return;
-
-  let scheduled = false;
-  const schedule = () => {
-    if (scheduled) return;
-    scheduled = true;
-    queueMicrotask(() => {
-      scheduled = false;
-      dockActivityDrawerActionBars(document);
-    });
-  };
-
-  new MutationObserver(schedule).observe(document.documentElement, {
-    childList: true,
-    subtree: true
-  });
-
-  schedule();
-}
-
-if (globalThis[TEST_FLAG] !== true) initialize();

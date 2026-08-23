@@ -204,28 +204,3 @@ export function polishActivityDrawerEditOptionsIn(root = document, settings = {}
     polishActivityDrawerEditOptions(form, settings);
   });
 }
-
-async function initialize() {
-  if (typeof document === 'undefined' || typeof MutationObserver === 'undefined') return;
-
-  const { state } = await import('./state.js');
-  let scheduled = false;
-  const schedule = () => {
-    if (scheduled) return;
-    scheduled = true;
-    queueMicrotask(() => {
-      scheduled = false;
-      polishActivityDrawerEditOptionsIn(document, state.clientSettings);
-    });
-  };
-
-  new MutationObserver(schedule).observe(document.documentElement, {
-    childList: true,
-    subtree: true,
-    attributes: true,
-    attributeFilter: [ENHANCED_ATTR]
-  });
-  schedule();
-}
-
-if (globalThis[TEST_FLAG] !== true) initialize().catch(() => {});

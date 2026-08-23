@@ -435,22 +435,3 @@ export function enhanceActivityDrawers(root = document) {
   root.querySelectorAll?.('[data-drawer-form]').forEach((form) => enhanceActivityDrawerForm(form));
   syncDrawerClasses(root);
 }
-
-function initialize() {
-  if (typeof document === 'undefined' || typeof MutationObserver === 'undefined') return;
-  let scheduled = false;
-  const schedule = () => {
-    if (scheduled) return;
-    scheduled = true;
-    queueMicrotask(() => {
-      scheduled = false;
-      enhanceActivityDrawers(document);
-    });
-  };
-
-  const observer = new MutationObserver(schedule);
-  observer.observe(document.documentElement, { childList: true, subtree: true });
-  schedule();
-}
-
-if (globalThis[TEST_FLAG] !== true) initialize();

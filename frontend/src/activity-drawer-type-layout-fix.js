@@ -446,27 +446,3 @@ export function applyActivityDrawerTypeLayoutFixes(root = document) {
     applyActivityDrawerTypeLayoutFix(form);
   });
 }
-
-function initialize() {
-  if (typeof document === 'undefined' || typeof MutationObserver === 'undefined') return;
-  let scheduled = false;
-  const schedule = () => {
-    if (scheduled) return;
-    scheduled = true;
-    queueMicrotask(() => {
-      scheduled = false;
-      applyActivityDrawerTypeLayoutFixes(document);
-    });
-  };
-
-  const observer = new MutationObserver(schedule);
-  observer.observe(document.documentElement, {
-    childList: true,
-    subtree: true,
-    attributes: true,
-    attributeFilter: [ENHANCED_ATTR]
-  });
-  schedule();
-}
-
-if (globalThis[TEST_FLAG] !== true) initialize();

@@ -324,22 +324,3 @@ export function upgradeActivityTimeControls(root = globalThis.document) {
 
   enhanceInlineActivityTimeEditors(root);
 }
-
-function installActivityTimeInputUpgrade() {
-  if (typeof document === 'undefined') return;
-  upgradeActivityTimeControls(document);
-  if (typeof MutationObserver === 'undefined') return;
-  if (globalThis.__activityTimeInputUpgradeObserver) return;
-
-  const observer = new MutationObserver((mutations) => {
-    mutations.forEach((mutation) => {
-      mutation.addedNodes.forEach((node) => {
-        if (node?.nodeType === 1) upgradeActivityTimeControls(node);
-      });
-    });
-  });
-  observer.observe(document.documentElement, { childList: true, subtree: true });
-  globalThis.__activityTimeInputUpgradeObserver = observer;
-}
-
-installActivityTimeInputUpgrade();
