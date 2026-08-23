@@ -33,17 +33,6 @@ function decoratePrivateDraftRemovalButtons() {
   });
 }
 
-function emitActivitiesChanged() {
-  window.dispatchEvent(new CustomEvent('israa-activities-changed'));
-  window.dispatchEvent(new CustomEvent('israa-tracking-updated'));
-}
-
-function closeActivityDrawer(button) {
-  const drawer = button?.closest?.('.ds-drawer');
-  const close = drawer?.querySelector('[data-ui-close-drawer], .ds-drawer__close, [aria-label="סגירה"]');
-  close?.click();
-}
-
 function installRuntimeSelectionBridge() {
   if (typeof document === 'undefined' || globalThis.__israaActivitySelectionBridgeInstalled) return;
   globalThis.__israaActivitySelectionBridgeInstalled = true;
@@ -54,7 +43,8 @@ function installRuntimeSelectionBridge() {
 
   document.addEventListener('click', async (event) => {
     const selectButton = event.target?.closest?.('[data-israa-select-activity]');
-    if (selectButton && selectButton.closest('.ds-drawer--israa-exact')) {
+    const inIsraaUi = selectButton && (selectButton.closest('.israa-mgmt') || selectButton.closest('.ds-drawer--israa-exact'));
+    if (inIsraaUi) {
       event.preventDefault();
       event.stopPropagation();
       if (selectButton.disabled) return;
@@ -68,7 +58,8 @@ function installRuntimeSelectionBridge() {
         });
         if (error) throw error;
         selectButton.textContent = 'כבר בפעילויות';
-        emitActivitiesChanged();
+        selectButton.disabled = true;
+        window.dispatchEvent(new CustomEvent('israa-activities-changed'));
       } catch (error) {
         console.error('[israa-select-activity]', error);
         selectButton.disabled = false;
@@ -90,8 +81,8 @@ function installRuntimeSelectionBridge() {
         p_proposal_item_id: removeButton.dataset.israaRemoveDraft
       });
       if (error) throw error;
-      closeActivityDrawer(removeButton);
-      emitActivitiesChanged();
+      removeButton.closest('.israa-activity-card')?.remove();
+      window.dispatchEvent(new CustomEvent('israa-activities-changed'));
     } catch (error) {
       console.error('[israa-remove-activity-draft]', error);
       removeButton.disabled = false;
