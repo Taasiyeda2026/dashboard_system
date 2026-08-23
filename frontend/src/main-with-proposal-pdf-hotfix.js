@@ -16,6 +16,7 @@ import './admin-data-activity-number-hotfix.js?v=20260823-v1';
 import './admin-data-admin-guard.js?v=20260823-v1';
 import './admin-permissions-management-v2.js?v=20260823-v9';
 import './operations-home-navigation-hotfix.js?v=20260823-v1';
+import './israa-activities-main-workspace.js?v=20260824-v1';
 import './progressive-route-warmup.js';
 import './main.js';
 import './feature-route-loader.js';
