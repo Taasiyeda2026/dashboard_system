@@ -1764,6 +1764,7 @@ function applyBootstrapUserFlags(bootstrap) {
   }
   if (bootstrap.permission_flags && typeof bootstrap.permission_flags === 'object') {
     Object.assign(state.user, bootstrap.permission_flags);
+    state.user.permissions = { ...(state.user.permissions || {}), ...bootstrap.permission_flags };
   }
   state.user.can_add_activity = permissionEnabled(bootstrap.can_add_activity);
   state.user.can_edit_direct = permissionEnabled(bootstrap.can_edit_direct);

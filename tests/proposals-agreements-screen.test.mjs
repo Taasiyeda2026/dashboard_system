@@ -69,7 +69,7 @@ const SCREEN_FILE = new URL('../frontend/src/screens/proposals-agreements.js', i
 const STYLES_FILE = new URL('../frontend/src/styles/main.css', import.meta.url);
 const MIGRATION_FILE = new URL('../supabase/migrations/20260518_create_proposals_agreements.sql', import.meta.url);
 const ROLE_UPDATE_MIGRATION_FILE = new URL('../supabase/migrations/20260602_add_business_development_manager_role.sql', import.meta.url);
-const APPROVAL_GUARD_MIGRATION_FILE = new URL('../supabase/migrations/20260616_proposals_agreements_approval_guard.sql', import.meta.url);
+const APPROVAL_GUARD_MIGRATION_FILE = new URL('../supabase/migrations/20260823130000_permissions_ui_source_of_truth.sql', import.meta.url);
 const CLIENT_FILE_VERSIONS_MIGRATION_FILE = new URL('../supabase/migrations/20260720143000_proposal_versions_for_client_file.sql', import.meta.url);
 const GEFEN_MIGRATION_FILE = new URL('../supabase/migrations/20260726223144_add_gefen_proposal_template.sql', import.meta.url);
 const GEFEN_DOCUMENT_REFINEMENT_MIGRATION_FILE = new URL('../supabase/migrations/20260726230813_refine_gefen_proposal_document.sql', import.meta.url);
@@ -1257,15 +1257,15 @@ test('proposal approval API and RLS guard direct approval writes', async () => {
   const apiSource = await readFile(API_FILE, 'utf8');
   const migration = await readFile(APPROVAL_GUARD_MIGRATION_FILE, 'utf8');
 
-  assert.match(apiSource, /function canApproveProposalsAgreementsApi\(\)[\s\S]*role === 'admin'[\s\S]*approve_proposals_agreements/);
+  assert.match(apiSource, /function canApproveProposalsAgreementsApi\(\)[\s\S]*hasPermission\(state\?\.user, 'approve_proposals_agreements'\)/);
   assert.match(apiSource, /assertProposalAgreementApprovalPayloadAllowed[\s\S]*PROPOSALS_AGREEMENTS_APPROVAL_COLUMNS[\s\S]*requestedStatus === 'approved'/);
   assert.match(apiSource, /PROPOSALS_AGREEMENTS_APPROVAL_COLUMNS = new Set\(\['approved_by', 'approved_at', 'signature_position', 'signature_meta'\]\)/);
-  assert.match(apiSource, /updateProposalAgreementStatus[\s\S]*cleanStatus === 'approved' && !canApproveProposalsAgreementsApi\(\)[\s\S]*proposals_agreements_approval_forbidden/);
+  assert.match(apiSource, /updateProposalAgreementStatus[\s\S]*\['approved', 'returned_for_changes', 'cancelled'\]\.includes\(cleanStatus\)[\s\S]*canApproveProposalsAgreementsApi/);
 
   assert.match(migration, /app_can_approve_proposals_agreements[\s\S]*app_current_role\(\) = 'admin'[\s\S]*app_has_permission\('approve_proposals_agreements'\)/);
-  assert.match(migration, /guard_proposals_agreements_approval_update[\s\S]*new\.status = 'approved'[\s\S]*new\.approved_by is distinct from old\.approved_by[\s\S]*new\.approved_at is distinct from old\.approved_at[\s\S]*new\.signature_meta is distinct from old\.signature_meta/);
+  assert.match(migration, /guard_proposals_agreements_explicit_permissions[\s\S]*new\.status = 'approved'[\s\S]*new\.approved_by is distinct from old\.approved_by[\s\S]*new\.approved_at is distinct from old\.approved_at[\s\S]*new\.signature_meta is distinct from old\.signature_meta/);
   assert.match(migration, /raise exception 'proposals_agreements_approval_forbidden'/);
-  assert.match(migration, /create trigger trg_guard_proposals_agreements_approval_update/);
+  assert.match(migration, /create trigger proposals_agreements_explicit_permissions/);
 });
 
 test('table structure includes all required columns including status', () => {
@@ -5528,12 +5528,12 @@ test('rollback: manage permission does not expose approve actions for non-admin'
   assert.doesNotMatch(html, /אישור וחתימה/);
 });
 
-test('legacy approve permission does not replace Idan signature authority', () => {
+test('explicit approve permission exposes approval actions without granting management', () => {
   const pendingRow = { id: '44444444-4444-4444-4444-444444444444', status: 'pending_approval', client_authority: 'רשות', school_framework: 'בית ספר' };
   const sentRow = { ...pendingRow, id: '55555555-5555-5555-5555-555555555555', status: 'sent' };
   const approverState = { user: { role: 'authorized_user', view_proposals_agreements: 'yes', approve_proposals_agreements: 'yes' } };
   const pendingHtml = proposalsAgreementsScreen.render({ rows: [pendingRow] }, { state: approverState });
-  assert.doesNotMatch(pendingHtml, /חתום ואשר/);
+  assert.match(pendingHtml, /חתום ואשר/);
   const idanHtml = proposalsAgreementsScreen.render({ rows: [pendingRow] }, { state: stateFor('admin') });
   assert.match(idanHtml, /חתום ואשר/);
   const sentHtml = proposalsAgreementsScreen.render({ rows: [sentRow] }, { state: approverState });

@@ -121,3 +121,4 @@ config.HOTFIX_VERSION = `gefen-start-reminder-20260823-v1-${config.HOTFIX_VERSIO
 config.HOTFIX_VERSION = `admin-permissions-hierarchy-20260823-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `permission-enforcement-source-of-truth-20260823-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `capability-registry-complete-20260823-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `permission-login-proposal-security-20260823-v1-${config.HOTFIX_VERSION}`;

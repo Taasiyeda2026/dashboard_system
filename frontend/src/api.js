@@ -26,7 +26,7 @@ import { mapWithConcurrency } from './bounded-concurrency.js';
 import { config } from './config.js';
 import { catalogActivityChangesFromRows, catalogText } from './activity-catalog-identity.js';
 import { enforceManagedRoutes, hasPermission } from './permission-policy.js';
-import { ROLE_PERMISSION_TEMPLATES } from './capability-registry.js';
+import { ALL_PERMISSION_KEYS, ROLE_PERMISSION_TEMPLATES } from './capability-registry.js';
 
 /**
  * Actions that modify server-side data.
@@ -5066,8 +5066,22 @@ function buildBootstrapFromUser(userRow, profileRow = null) {
     can_request_edit: canRequestEdit,
     can_request_create_activity: canRequestCreateActivity(flat),
     can_review_requests: canReviewRequests,
-    permission_flags: Object.fromEntries(Object.entries(flat).filter(([key]) => key.startsWith('view_') || key.startsWith('can_') || ['finance_access', 'personal_reports_manager', 'manage_proposals_agreements', 'approve_proposals_agreements'].includes(key))),
+    permission_flags: Object.fromEntries(Object.entries(flat).filter(([key]) =>
+      ALL_PERMISSION_KEYS.includes(key)
+      || ['view_proposals', 'view_finance', 'view_inventory', 'can_request_edit_2', 'can_review_requests_2'].includes(key)
+    )),
     client_settings: {}
+  };
+}
+
+function mergeBootstrapPermissionsIntoUser(user = {}, bootstrap = {}) {
+  const flags = bootstrap?.permission_flags && typeof bootstrap.permission_flags === 'object'
+    ? bootstrap.permission_flags
+    : {};
+  return {
+    ...user,
+    ...flags,
+    permissions: { ...(user?.permissions || {}), ...flags }
   };
 }
 
@@ -6966,35 +6980,37 @@ export const api = {
       profileCanAccessPersonalReports(profileRow) ||
       userCanAccessPersonalReportsFromPermissions(flat);
     const proposalFlags = proposalSessionUserFlagsFromFlatUser(flat);
+    const bootstrap = buildBootstrapFromUser(user, profileRow);
+    const effectiveUser = mergeBootstrapPermissionsIntoUser({
+      user_id: flat.user_id,
+      username: flat.username_display,
+      username_display: flat.username_display,
+      username_for_login: flat.username_for_login,
+      email: String(flat.email || user.email || '').trim(),
+      auth_email: String(flat.auth_email || '').trim(),
+      role: flat.role,
+      display_role: flat.display_role,
+      default_view: flat.default_view,
+      display_role_label: flat.display_role_label,
+      display_role2: flat.display_role2,
+      full_name: flat.full_name,
+      emp_id: flat.emp_id,
+      auth_user_id: flat.auth_user_id,
+      personal_reports_user_id: flat.auth_user_id,
+      can_add_activity: canAddActivitiesUser(flat),
+      can_edit_direct: canDirectManageActivitiesUser(flat),
+      can_request_edit: canSubmitActivityRequestsUser(flat),
+      can_review_requests: canReviewEditRequestsUser(flat),
+      finance_access: hasPermission(flat, 'finance_access'),
+      profile_is_active: profileRow?.is_active !== false,
+      can_access_personal_reports: hasPersonalReportsAccess,
+      personal_reports_manager: permissionFlagYes(flat.personal_reports_manager) ? 'yes' : 'no',
+      ...proposalFlags
+    }, bootstrap);
     return {
       token,
-      user: {
-        user_id: flat.user_id,
-        username: flat.username_display,
-        username_display: flat.username_display,
-        username_for_login: flat.username_for_login,
-        email: String(flat.email || user.email || '').trim(),
-        auth_email: String(flat.auth_email || '').trim(),
-        role: flat.role,
-        display_role: flat.display_role,
-        default_view: flat.default_view,
-        display_role_label: flat.display_role_label,
-        display_role2: flat.display_role2,
-        full_name: flat.full_name,
-        emp_id: flat.emp_id,
-        auth_user_id: flat.auth_user_id,
-        personal_reports_user_id: flat.auth_user_id,
-        can_add_activity: canAddActivitiesUser(flat),
-        can_edit_direct: canDirectManageActivitiesUser(flat),
-        can_request_edit: canSubmitActivityRequestsUser(flat),
-        can_review_requests: canReviewEditRequestsUser(flat),
-        finance_access: hasPermission(flat, 'finance_access'),
-        profile_is_active: profileRow?.is_active !== false,
-        can_access_personal_reports: hasPersonalReportsAccess,
-        personal_reports_manager: permissionFlagYes(flat.personal_reports_manager) ? 'yes' : 'no',
-        ...proposalFlags
-      },
-      ...buildBootstrapFromUser(user, profileRow),
+      user: effectiveUser,
+      ...bootstrap,
       // catalogData = null: school/authority are lazy-loaded on demand, not at login.
       client_settings: buildClientSettingsFromLists(listsData, settingsRows, instructorContactsRows, courseMeetingsRows, null)
     };
@@ -7807,12 +7823,15 @@ export const api = {
     return { ok: true, id: rowId };
   },
   updateProposalAgreementStatus: async (id, status, approvalNote = '', signatureMeta = null) => {
-    assertCanManageProposalsAgreementsApi();
     const rowId = cleanProposalAgreementText(id);
     const cleanStatus = cleanProposalAgreementText(status);
     if (!rowId) throw new Error('missing_proposal_agreement_id');
     if (!PA_VALID_STATUSES_SET.has(cleanStatus)) throw new Error('invalid_proposal_agreement_status');
-    if (cleanStatus === 'approved' && !canApproveProposalsAgreementsApi()) throw new Error('proposals_agreements_approval_forbidden');
+    if (['approved', 'returned_for_changes', 'cancelled'].includes(cleanStatus)) {
+      if (!canApproveProposalsAgreementsApi()) throw new Error('proposals_agreements_approval_forbidden');
+    } else {
+      assertCanManageProposalsAgreementsApi();
+    }
     if (cleanStatus === 'approved' && !(signatureMeta && typeof signatureMeta === 'object' && !Array.isArray(signatureMeta) && Object.keys(signatureMeta).length)) throw new Error('נדרשת חתימה לפני אישור ההצעה.');
     const { data: currentRow, error: currentRowError } = await supabase
       .from('proposals_agreements').select('status,signature_meta,approved_by,approved_at').eq('id', rowId).single();
@@ -8992,6 +9011,7 @@ export {
   canonicalOneDayActivityType,
   flattenUserRow,
   buildBootstrapFromUser,
+  mergeBootstrapPermissionsIntoUser,
   buildProposalGroupLookup,
   buildProposalGroupHintsFromTemplateSections,
   mergeProposalGroupLookups,

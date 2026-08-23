@@ -135,6 +135,91 @@ returns boolean language sql stable security definer set search_path = public as
     or public.app_has_permission('approve_proposals_agreements'), false)
 $$;
 
+-- Read compatibility is intentionally limited to SELECT. No legacy view flag
+-- participates in a write predicate.
+drop policy if exists proposals_agreements_select_allowed_roles on public.proposals_agreements;
+drop policy if exists proposals_agreements_insert_allowed_roles on public.proposals_agreements;
+drop policy if exists proposals_agreements_update_allowed_roles on public.proposals_agreements;
+drop policy if exists proposals_agreements_delete_explicit_manage on public.proposals_agreements;
+create policy proposals_agreements_select_allowed_roles on public.proposals_agreements
+  for select to authenticated using (public.app_can_use_proposals_agreements());
+create policy proposals_agreements_insert_allowed_roles on public.proposals_agreements
+  for insert to authenticated with check (public.app_can_manage_proposals_agreements());
+create policy proposals_agreements_update_allowed_roles on public.proposals_agreements
+  for update to authenticated
+  using (public.app_can_manage_proposals_agreements() or public.app_can_approve_proposals_agreements())
+  with check (public.app_can_manage_proposals_agreements() or public.app_can_approve_proposals_agreements());
+create policy proposals_agreements_delete_explicit_manage on public.proposals_agreements
+  for delete to authenticated using (public.app_can_manage_proposals_agreements());
+grant select, insert, update, delete on public.proposals_agreements to authenticated;
+alter view public.proposals_agreements_directory_view set (security_invoker = true);
+
+drop policy if exists proposal_agreement_items_select on public.proposal_agreement_items;
+drop policy if exists proposal_agreement_items_insert on public.proposal_agreement_items;
+drop policy if exists proposal_agreement_items_update on public.proposal_agreement_items;
+drop policy if exists proposal_agreement_items_delete on public.proposal_agreement_items;
+create policy proposal_agreement_items_select on public.proposal_agreement_items
+  for select to authenticated using (public.app_can_use_proposals_agreements());
+create policy proposal_agreement_items_insert on public.proposal_agreement_items
+  for insert to authenticated with check (public.app_can_manage_proposals_agreements());
+create policy proposal_agreement_items_update on public.proposal_agreement_items
+  for update to authenticated using (public.app_can_manage_proposals_agreements())
+  with check (public.app_can_manage_proposals_agreements());
+create policy proposal_agreement_items_delete on public.proposal_agreement_items
+  for delete to authenticated using (public.app_can_manage_proposals_agreements());
+grant select, insert, update, delete on public.proposal_agreement_items to authenticated;
+
+create or replace function public.guard_proposals_agreements_explicit_permissions()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if public.app_current_role() = 'admin' then return new; end if;
+  if public.app_can_manage_proposals_agreements() then
+    if (new.status = 'approved' and new.status is distinct from old.status)
+      or new.approved_by is distinct from old.approved_by
+      or new.approved_at is distinct from old.approved_at
+      or new.signature_meta is distinct from old.signature_meta then
+      if not public.app_can_approve_proposals_agreements() then
+        raise exception 'proposals_agreements_approval_forbidden' using errcode = '42501';
+      end if;
+    end if;
+    return new;
+  end if;
+  if public.app_can_approve_proposals_agreements()
+    and (to_jsonb(new) - array['status','approval_note','signature_meta','approved_by','approved_at','updated_at'])
+      = (to_jsonb(old) - array['status','approval_note','signature_meta','approved_by','approved_at','updated_at'])
+    and new.status in ('approved', 'returned_for_changes', 'cancelled') then
+    return new;
+  end if;
+  raise exception 'proposals_agreements_manage_forbidden' using errcode = '42501';
+end;
+$$;
+drop trigger if exists proposals_agreements_explicit_permissions on public.proposals_agreements;
+create trigger proposals_agreements_explicit_permissions before update on public.proposals_agreements
+  for each row execute function public.guard_proposals_agreements_explicit_permissions();
+
+alter function public.save_proposal_agreement_items_atomic(uuid, jsonb)
+  rename to save_proposal_agreement_items_atomic_legacy_impl;
+revoke all on function public.save_proposal_agreement_items_atomic_legacy_impl(uuid, jsonb)
+  from public, anon, authenticated;
+create function public.save_proposal_agreement_items_atomic(
+  p_proposal_id uuid, p_items jsonb default '[]'::jsonb
+) returns table(id uuid, item_name text, sort_order integer)
+language plpgsql security definer set search_path = public as $$
+begin
+  if auth.uid() is null or not public.app_can_manage_proposals_agreements() then
+    raise exception 'proposal_agreement_items_forbidden' using errcode = '42501';
+  end if;
+  return query select * from public.save_proposal_agreement_items_atomic_legacy_impl(p_proposal_id, p_items);
+end;
+$$;
+grant execute on function public.save_proposal_agreement_items_atomic(uuid, jsonb) to authenticated;
+
+drop policy if exists "proposal_final_pdfs_storage_insert" on storage.objects;
+create policy "proposal_final_pdfs_storage_insert" on storage.objects
+  for insert to authenticated with check (
+    bucket_id = 'proposal-final-pdfs' and public.app_can_manage_proposals_agreements()
+  );
+
 create or replace function public.app_can_access_finance()
 returns boolean language sql stable security definer set search_path = public as $$
   select coalesce(public.app_current_role() = 'admin'

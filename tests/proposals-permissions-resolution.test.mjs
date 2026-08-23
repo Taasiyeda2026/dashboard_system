@@ -30,12 +30,14 @@ if (!globalThis.localStorage) {
 const {
   flattenUserRow,
   buildBootstrapFromUser,
+  mergeBootstrapPermissionsIntoUser,
   proposalPermissionFlagsFromFlatUser,
   proposalSessionUserFlagsFromFlatUser,
   canUseProposalsAgreementsApi,
   canManageProposalsAgreementsApi,
   canApproveProposalsAgreementsApi
 } = await import('../frontend/src/api.js');
+const { enforceManagedRoutes, hasPermission } = await import('../frontend/src/permission-policy.js');
 const { state } = await import('../frontend/src/state.js');
 const {
   canAccessProposalsAgreements,
@@ -175,6 +177,59 @@ test('JSONB view_proposals_agreements allows proposals route and API access', ()
   });
 });
 
+test('first login user contains all bootstrap permission flags before any reload', () => {
+  const row = {
+    user_id: 'first-login', role: 'authorized_user', is_active: true,
+    permissions: {
+      view_activities: 'yes', view_operations_management: 'yes',
+      view_instructors: 'yes', view_operations_scheduling: 'yes',
+      view_attendance_control: 'no', finance_access: 'no',
+      view_proposals_agreements: 'yes'
+    }
+  };
+  const bootstrap = buildBootstrapFromUser(row);
+  const user = mergeBootstrapPermissionsIntoUser({ user_id: row.user_id, role: row.role }, bootstrap);
+  for (const [key, value] of Object.entries(row.permissions)) {
+    assert.equal(user[key], value, key);
+    assert.equal(user.permissions[key], value, `nested ${key}`);
+  }
+  assert.ok(enforceManagedRoutes(bootstrap.routes, user).includes('operations-management'));
+  assert.ok(enforceManagedRoutes(bootstrap.routes, user).includes('course-scheduling'));
+  assert.equal(hasPermission(user, 'view_attendance_control'), false);
+  assert.equal(hasPermission(user, 'finance_access'), false);
+  assert.equal(hasPermission(user, 'view_proposals_agreements'), true);
+});
+
+test('legacy and canonical proposal viewers remain read-only while manage and approve stay independent', () => {
+  const legacyViewer = { role: 'authorized_user', permissions: { view_proposals: 'yes', manage_proposals_agreements: 'no', approve_proposals_agreements: 'no' } };
+  const viewer = { role: 'authorized_user', permissions: { view_proposals_agreements: 'yes', manage_proposals_agreements: 'no', approve_proposals_agreements: 'no' } };
+  const manager = { role: 'authorized_user', permissions: { view_proposals_agreements: 'yes', manage_proposals_agreements: 'yes', approve_proposals_agreements: 'no' } };
+  const approver = { role: 'authorized_user', permissions: { view_proposals_agreements: 'yes', manage_proposals_agreements: 'no', approve_proposals_agreements: 'yes' } };
+  for (const readOnly of [legacyViewer, viewer]) {
+    assert.equal(hasPermission(readOnly, 'view_proposals_agreements'), true);
+    assert.equal(hasPermission(readOnly, 'manage_proposals_agreements'), false);
+    assert.equal(hasPermission(readOnly, 'approve_proposals_agreements'), false);
+  }
+  assert.equal(hasPermission(manager, 'manage_proposals_agreements'), true);
+  assert.equal(hasPermission(manager, 'approve_proposals_agreements'), false);
+  assert.equal(hasPermission(approver, 'manage_proposals_agreements'), false);
+  assert.equal(hasPermission(approver, 'approve_proposals_agreements'), true);
+  assert.equal(hasPermission({ role: 'admin' }, 'manage_proposals_agreements'), true);
+  assert.equal(hasPermission({ role: 'admin' }, 'approve_proposals_agreements'), true);
+});
+
+test('proposal database contract never uses the view helper for writes', async () => {
+  const migration = await readFile(new URL('../supabase/migrations/20260823130000_permissions_ui_source_of_truth.sql', import.meta.url), 'utf8');
+  assert.match(migration, /proposal_agreement_items_insert[\s\S]*app_can_manage_proposals_agreements/);
+  assert.match(migration, /proposal_agreement_items_select[\s\S]*app_can_use_proposals_agreements/);
+  assert.match(migration, /proposal_agreement_items_update[\s\S]*app_can_manage_proposals_agreements/);
+  assert.match(migration, /proposal_agreement_items_delete[\s\S]*app_can_manage_proposals_agreements/);
+  assert.match(migration, /save_proposal_agreement_items_atomic[\s\S]*app_can_manage_proposals_agreements/);
+  assert.match(migration, /proposal_final_pdfs_storage_insert[\s\S]*app_can_manage_proposals_agreements/);
+  assert.match(migration, /guard_proposals_agreements_explicit_permissions/);
+  assert.match(migration, /proposals_agreements_directory_view set \(security_invoker = true\)/);
+});
+
 test('view-only user does not receive manage or approve permissions from manage-only JSONB', () => {
   const userRow = {
     user_id: 'viewer-only',
@@ -194,6 +249,7 @@ test('manage permission does not automatically grant approve permission', () => 
     role: 'authorized_user',
     is_active: true,
     permissions: {},
+    view_proposals_agreements: 'yes',
     manage_proposals_agreements: 'yes'
   };
   const flat = flattenUserRow(userRow);
@@ -204,7 +260,7 @@ test('manage permission does not automatically grant approve permission', () => 
     assert.equal(canApproveProposalsAgreementsApi(), false);
   });
   assert.equal(flags.approve_proposals_agreements, undefined);
-  assert.equal(flags.view_proposals_agreements, undefined);
+  assert.equal(flags.view_proposals_agreements, 'yes');
   assert.equal(proposalSessionUserFlagsFromFlatUser(flat).view_proposals_agreements, true);
 });
 
@@ -232,6 +288,7 @@ test('top-level approve_proposals_agreements allows approval only when explicit'
     role: 'authorized_user',
     is_active: true,
     permissions: {},
+    view_proposals_agreements: 'yes',
     approve_proposals_agreements: 'yes'
   };
   const flat = flattenUserRow(userRow);
