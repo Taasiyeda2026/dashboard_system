@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { CAPABILITY_REGISTRY, capabilityById, routeCapability } from '../frontend/src/capability-registry.js';
+import { CAPABILITY_REGISTRY, ROLE_PERMISSION_TEMPLATES, capabilityById, routeCapability } from '../frontend/src/capability-registry.js';
 
 const read = (path) => readFile(new URL(path, import.meta.url), 'utf8');
 const collect = (source, regex) => [...source.matchAll(regex)].map((match) => match[1]).filter(Boolean);
@@ -20,6 +20,15 @@ test('every capability is managed or explicitly admin-only and has a valid paren
   const approval = capabilityById.get('proposals.approve');
   assert.equal(approval?.adminOnly, true);
   assert.equal(approval?.legacyPermission, 'approve_proposals_agreements');
+});
+
+test('role templates do not grant the operations workspace beyond legacy roles', () => {
+  for (const role of ['operation_manager', 'activities_manager']) {
+    assert.equal(ROLE_PERMISSION_TEMPLATES[role]?.view_operations_management, 'yes', `${role} should retain operations access`);
+  }
+  for (const role of ['finance', 'domain_manager', 'business_development_manager', 'instructor_manager', 'authorized_user']) {
+    assert.notEqual(ROLE_PERMISSION_TEMPLATES[role]?.view_operations_management, 'yes', `${role} must not gain operations access by template`);
+  }
 });
 
 test('every application route is classified by the capability registry', async () => {
