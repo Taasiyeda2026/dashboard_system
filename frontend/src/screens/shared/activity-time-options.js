@@ -55,6 +55,10 @@ function ensureInlineTimeEditorStyles(doc) {
     .activity-drawer-inline__field.activity-drawer-inline__field--time-editor {
       grid-column: span 2;
     }
+    .activity-inline-time-editor__host {
+      display: block !important;
+      min-inline-size: 0;
+    }
     .activity-inline-time-editor {
       display: grid;
       grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
@@ -214,6 +218,8 @@ export function enhanceInlineActivityTimeEditors(root = globalThis.document) {
     startSelect.remove();
     endSelect.remove();
     sharedParent.textContent = '';
+    sharedParent.classList.remove('activity-drawer__field-controls--inline');
+    sharedParent.classList.add('activity-inline-time-editor__host');
 
     const editor = doc.createElement('div');
     editor.className = 'activity-inline-time-editor';
