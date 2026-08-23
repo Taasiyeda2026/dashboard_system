@@ -82,7 +82,7 @@ function ensureStyles(doc) {
       block-size: 36px !important;
       padding-block: 5px !important;
       padding-inline: 9px 26px !important;
-      font-size: .86rem !important;
+      font-size: .79rem !important;
     }
     .ds-drawer.ds-drawer--activity-inline .activity-drawer-inline__field.activity-drawer-inline__field--approved-time {
       grid-column: auto !important;

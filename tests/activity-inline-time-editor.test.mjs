@@ -29,6 +29,7 @@ test('approved drawer edit controls stay compact without document observers', ()
   assert.match(inlineLayout, /label: 'תחום',[\s\S]*?editControls: domainControls/);
   assert.match(source, /activity-drawer-inline__header-field--name/);
   assert.match(source, /grid-column: auto !important/);
+  assert.match(source, /activity-drawer-inline__header-field input[\s\S]*?font-size:\s*\.79rem !important/);
   assert.match(source, /activity-approved-time-row/);
   assert.match(source, /event\.stopPropagation\(\)/);
   assert.match(source, /שעת הסיום חייבת להיות מאוחרת משעת ההתחלה/);
