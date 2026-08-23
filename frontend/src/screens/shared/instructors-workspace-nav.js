@@ -47,13 +47,15 @@ export function clearCourseSchedulingReplacementState(state = {}) {
 }
 
 function availableRoutes(state) {
-  const source = Array.isArray(state?.effectiveRoutes)
+  const hasEffectiveRoutes = Array.isArray(state?.effectiveRoutes);
+  const source = hasEffectiveRoutes
     ? state.effectiveRoutes
     : (Array.isArray(state?.routes) ? state.routes : []);
   const routes = new Set(source);
-  // Keep the shared instructors navigation aligned with main.js, which explicitly
-  // grants course-scheduling to these two roles even when bootstrap routes omit it.
-  if (hasCourseSchedulingRole(state)) routes.add(COURSE_SCHEDULING_ROUTE);
+  const isAdmin = String(state?.user?.role || state?.user?.display_role || '').trim() === 'admin';
+  // An explicit effectiveRoutes list is authoritative for non-admin users. This
+  // prevents stale raw session routes from restoring a route removed at bootstrap.
+  if (hasCourseSchedulingRole(state) && (!hasEffectiveRoutes || isAdmin)) routes.add(COURSE_SCHEDULING_ROUTE);
   return routes;
 }
 
@@ -69,6 +71,8 @@ function canOpenTab(tab, routes, state = {}) {
 
 function ensureCourseSchedulingRouteInState(tab, state = {}) {
   if (tab?.route !== COURSE_SCHEDULING_ROUTE || !hasCourseSchedulingRole(state)) return;
+  const isAdmin = String(state?.user?.role || state?.user?.display_role || '').trim() === 'admin';
+  if (Array.isArray(state?.effectiveRoutes) && !state.effectiveRoutes.includes(COURSE_SCHEDULING_ROUTE) && !isAdmin) return;
   const addRoute = (key) => {
     const current = Array.isArray(state?.[key]) ? state[key] : [];
     if (!current.includes(COURSE_SCHEDULING_ROUTE)) state[key] = [...current, COURSE_SCHEDULING_ROUTE];

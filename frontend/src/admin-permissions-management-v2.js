@@ -384,7 +384,15 @@ function fieldValue(drawer, key) {
   return String(el.value || '').trim();
 }
 
-function permissionPayload(drawer, role) {
+function storedPermissionValue(row, key) {
+  if (!row) return undefined;
+  if (Object.prototype.hasOwnProperty.call(row, key) && row[key] != null) return row[key];
+  const nested = row.permissions;
+  if (nested && Object.prototype.hasOwnProperty.call(nested, key) && nested[key] != null) return nested[key];
+  return undefined;
+}
+
+function permissionPayload(drawer, role, existingRow = null) {
   const payload = {};
   const allKeys = uiState.data?.permissionKeys || CORE_PERMISSION_KEYS;
   if (role === ADMIN_ROLE) {
@@ -393,7 +401,15 @@ function permissionPayload(drawer, role) {
   }
   allKeys.forEach((key) => {
     const el = drawer.querySelector(`[data-apm-permission="${CSS.escape(key)}"]`);
-    payload[key] = el?.checked ? 'yes' : 'no';
+    if (el) {
+      payload[key] = el.checked ? 'yes' : 'no';
+      return;
+    }
+    // A permission that is not represented in the current business tree must
+    // survive an unrelated employee edit. Missing controls are not an explicit
+    // administrator decision to revoke access.
+    const storedValue = storedPermissionValue(existingRow, key);
+    if (storedValue !== undefined) payload[key] = storedValue;
   });
   drawer.querySelectorAll('[data-apm-permission]').forEach((el) => {
     payload[el.dataset.apmPermission] = el.checked ? 'yes' : 'no';
@@ -484,7 +500,7 @@ async function saveDrawer(existingRow, drawer) {
     values.role = ADMIN_ROLE;
     values.active = true;
   }
-  const perms = permissionPayload(drawer, values.role);
+  const perms = permissionPayload(drawer, values.role, existingRow);
 
   saveButton.disabled = true;
   if (status) status.textContent = 'שומר…';

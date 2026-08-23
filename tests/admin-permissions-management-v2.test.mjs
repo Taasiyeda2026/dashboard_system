@@ -28,8 +28,18 @@ test('permission editor presents a business hierarchy and keeps legacy aliases b
   assert.match(runtime, /data-apm-child-of/);
   assert.match(runtime, /LEGACY_PERMISSION_ALIASES/);
   assert.match(runtime, /payload\.view_permissions = role === ADMIN_ROLE/);
+
   assert.match(runtime, /payload\.approve_proposals_agreements = role === ADMIN_ROLE/);
+
   assert.doesNotMatch(runtime, /<th[^>]*>הרשאות<\/th>/);
+});
+
+test('saving an employee preserves permissions that are not rendered in the business tree', () => {
+  assert.match(runtime, /function permissionPayload\(drawer, role, existingRow = null\)/);
+  assert.match(runtime, /const storedValue = storedPermissionValue\(existingRow, key\)/);
+  assert.match(runtime, /if \(storedValue !== undefined\) payload\[key\] = storedValue/);
+  assert.match(runtime, /permissionPayload\(drawer, values\.role, existingRow\)/);
+  assert.doesNotMatch(runtime, /payload\[key\] = el\?\.checked \? 'yes' : 'no'/);
 });
 
 test('new instructors and permission records stay linked by employee number', () => {
@@ -40,5 +50,7 @@ test('new instructors and permission records stay linked by employee number', ()
 });
 
 test('redesigned permissions runtime is loaded by the application bootstrap', () => {
-  assert.match(bootstrap, /admin-permissions-management-v2\.js\?v=20260823-v5/);
+
+  assert.match(bootstrap, /admin-permissions-management-v2\.js\?v=20260823-v7/);
+
 });
