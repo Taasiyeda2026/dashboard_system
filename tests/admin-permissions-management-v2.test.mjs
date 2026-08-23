@@ -27,6 +27,9 @@ test('permission editor presents a business hierarchy and keeps legacy aliases b
   assert.match(runtime, /data-apm-parent/);
   assert.match(runtime, /data-apm-child-of/);
   assert.match(runtime, /LEGACY_PERMISSION_ALIASES/);
+  assert.doesNotMatch(runtime, /view_proposals_agreements:\s*\['view_proposals'\]/);
+  assert.match(runtime, /if \(!enabled\) child\.checked = false/);
+  assert.match(runtime, /\[data-apm-permission\]\[disabled\]/);
   assert.match(runtime, /payload\.view_permissions = role === ADMIN_ROLE/);
 
   assert.match(runtime, /payload\.approve_proposals_agreements = role === ADMIN_ROLE/);
@@ -51,6 +54,6 @@ test('new instructors and permission records stay linked by employee number', ()
 
 test('redesigned permissions runtime is loaded by the application bootstrap', () => {
 
-  assert.match(bootstrap, /admin-permissions-management-v2\.js\?v=20260823-v7/);
+  assert.match(bootstrap, /admin-permissions-management-v2\.js\?v=20260823-v8/);
 
 });

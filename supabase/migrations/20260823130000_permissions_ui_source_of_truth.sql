@@ -56,20 +56,20 @@ with legacy_effective_permissions(role, defaults) as (values
     'view_instructor_completion_approvals','yes','view_instructor_guidelines','yes'))
 )
 update public.users u
-set permissions = lep.defaults || coalesce(u.permissions, '{}'::jsonb)
-    || jsonb_strip_nulls(jsonb_build_object(
+set permissions = lep.defaults || jsonb_strip_nulls(jsonb_build_object(
       'view_proposals_agreements', u.view_proposals_agreements,
       'manage_proposals_agreements', u.manage_proposals_agreements,
-      'approve_proposals_agreements', u.approve_proposals_agreements)),
+      'approve_proposals_agreements', u.approve_proposals_agreements))
+    || coalesce(u.permissions, '{}'::jsonb),
     updated_at = now()
 from legacy_effective_permissions lep
 where u.role = lep.role
   and coalesce(u.permissions, '{}'::jsonb) is distinct from
-    (lep.defaults || coalesce(u.permissions, '{}'::jsonb)
-      || jsonb_strip_nulls(jsonb_build_object(
+    (lep.defaults || jsonb_strip_nulls(jsonb_build_object(
         'view_proposals_agreements', u.view_proposals_agreements,
         'manage_proposals_agreements', u.manage_proposals_agreements,
-        'approve_proposals_agreements', u.approve_proposals_agreements)));
+        'approve_proposals_agreements', u.approve_proposals_agreements))
+      || coalesce(u.permissions, '{}'::jsonb));
 
 -- Legacy view_proposals is intentionally not promoted to the canonical
 -- proposals/agreement permission. The old SPA flag could expose a route while

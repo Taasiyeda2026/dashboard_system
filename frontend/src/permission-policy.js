@@ -10,9 +10,15 @@ export const PERMISSION_ALIASES = Object.freeze({
 
 function rawPermission(user = {}, key) {
   const nested = user?.permissions && typeof user.permissions === 'object' ? user.permissions : {};
-  const values = [user?.[key], nested?.[key]];
-  for (const alias of PERMISSION_ALIASES[key] || []) values.push(user?.[alias], nested?.[alias]);
-  return values.some(permissionFlagYes);
+  const canonical = nested?.[key] ?? user?.[key];
+  if (canonical !== undefined && canonical !== null && String(canonical).trim() !== '') {
+    return permissionFlagYes(canonical);
+  }
+  for (const alias of PERMISSION_ALIASES[key] || []) {
+    const legacy = nested?.[alias] ?? user?.[alias];
+    if (legacy !== undefined && legacy !== null && String(legacy).trim() !== '') return permissionFlagYes(legacy);
+  }
+  return false;
 }
 
 export function hasPermission(user = {}, key) {

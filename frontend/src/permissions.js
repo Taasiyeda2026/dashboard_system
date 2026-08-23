@@ -6,9 +6,10 @@ export function permissionFlagYes(value) {
 
 export function canViewEmployeeFiles(user = {}) {
   const nested = user?.permissions && typeof user.permissions === 'object' ? user.permissions : {};
-  const explicit = user?.view_employee_files ?? nested.view_employee_files;
+  const explicit = nested.view_employee_files ?? user?.view_employee_files;
+  const parent = nested.view_instructors ?? user?.view_instructors;
   const role = String(user?.role || user?.display_role || '').trim();
-  return role === 'admin' || permissionFlagYes(explicit);
+  return role === 'admin' || (permissionFlagYes(parent) && permissionFlagYes(explicit));
 }
 
 export function canViewIsraaManagement(user = {}) {
@@ -23,35 +24,40 @@ function firstDefined(...values) {
   return values.find((value) => value !== undefined && value !== null && String(value).trim() !== '');
 }
 
-function userPermissions(user = {}) {
+function permissionValue(user = {}, canonical, aliases = []) {
   const nested = user?.permissions && typeof user.permissions === 'object' ? user.permissions : {};
-  return { ...nested, ...user };
+  return firstDefined(nested[canonical], user[canonical], ...aliases.flatMap((key) => [nested[key], user[key]]));
+}
+
+function isAdmin(user = {}) {
+  return String(user?.role || user?.display_role || '').trim() === 'admin';
+}
+
+function activityChildPermission(user, canonical, aliases = []) {
+  return isAdmin(user) || (
+    permissionFlagYes(permissionValue(user, 'view_activities'))
+    && permissionFlagYes(permissionValue(user, canonical, aliases))
+  );
 }
 
 export function canEditDirect(user = {}) {
-  const p = userPermissions(user);
-  return permissionFlagYes(firstDefined(p.can_edit_direct, p.permissions?.can_edit_direct));
+  return activityChildPermission(user, 'can_edit_direct');
 }
 
 export function canAddActivityDirect(user = {}) {
-  const p = userPermissions(user);
-  return permissionFlagYes(firstDefined(p.can_add_activity, p.permissions?.can_add_activity));
+  return activityChildPermission(user, 'can_add_activity');
 }
 
 export function canRequestEdit(user = {}) {
-  const p = userPermissions(user);
-  return permissionFlagYes(firstDefined(p.can_request_edit, p.can_request_edit_2, p.permissions?.can_request_edit, p.permissions?.can_request_edit_2));
+  return activityChildPermission(user, 'can_request_edit', ['can_request_edit_2']);
 }
 
 export function canRequestCreateActivity(user = {}) {
-  const p = userPermissions(user);
-  return permissionFlagYes(firstDefined(p.can_request_create_activity, p.permissions?.can_request_create_activity))
-    || canRequestEdit(user);
+  return activityChildPermission(user, 'can_request_create_activity');
 }
 
 export function canReviewRequests(user = {}) {
-  const p = userPermissions(user);
-  return permissionFlagYes(firstDefined(p.can_review_requests, p.can_review_requests_2, p.permissions?.can_review_requests, p.permissions?.can_review_requests_2));
+  return activityChildPermission(user, 'can_review_requests', ['can_review_requests_2']);
 }
 
 export function activityPermissions(user = {}) {

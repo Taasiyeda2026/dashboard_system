@@ -4964,10 +4964,12 @@ function flattenUserRow(userRow = {}) {
   if (userRow.can_request_create_activity != null) flat.can_request_create_activity = userRow.can_request_create_activity;
   if (userRow.can_edit_direct != null) flat.can_edit_direct = userRow.can_edit_direct;
   if (userRow.can_add_activity != null) flat.can_add_activity = userRow.can_add_activity;
-  if (userRow.can_review_requests != null) flat.can_review_requests = userRow.can_review_requests;
-  if (userRow.view_proposals_agreements != null) flat.view_proposals_agreements = userRow.view_proposals_agreements;
-  if (userRow.manage_proposals_agreements != null) flat.manage_proposals_agreements = userRow.manage_proposals_agreements;
-  if (userRow.approve_proposals_agreements != null) flat.approve_proposals_agreements = userRow.approve_proposals_agreements;
+  // users.permissions is canonical. Top-level columns are read only as a
+  // compatibility fallback until every deployed database has run the backfill.
+  if (permissions.can_review_requests == null && userRow.can_review_requests != null) flat.can_review_requests = userRow.can_review_requests;
+  if (permissions.view_proposals_agreements == null && userRow.view_proposals_agreements != null) flat.view_proposals_agreements = userRow.view_proposals_agreements;
+  if (permissions.manage_proposals_agreements == null && userRow.manage_proposals_agreements != null) flat.manage_proposals_agreements = userRow.manage_proposals_agreements;
+  if (permissions.approve_proposals_agreements == null && userRow.approve_proposals_agreements != null) flat.approve_proposals_agreements = userRow.approve_proposals_agreements;
   return flat;
 }
 
@@ -5005,8 +5007,8 @@ function buildBootstrapFromUser(userRow, profileRow = null) {
   if (permissionFlagYes(flat.view_proposals_agreements) && !allowedRoutes.includes('proposals-agreements')) {
     allowedRoutes.push('proposals-agreements');
   }
-  const canReviewRequests = canDirectManageActivities;
-  const canViewEditRequests = canReviewRequests || canRequestEdit || permissionFlagYes(flat.view_edit_requests);
+  const canReviewRequests = canReviewEditRequestsUser(flat);
+  const canViewEditRequests = canReviewRequests || canRequestEdit || canRequestCreateActivity(flat) || permissionFlagYes(flat.view_edit_requests);
   if (canViewEditRequests && !allowedRoutes.includes('edit-requests')) {
     allowedRoutes.push('edit-requests');
   }
@@ -8803,7 +8805,7 @@ export const api = {
         display_role2: row.display_role2 ?? permissions.display_role2 ?? ''
       }
     };
-    for (const key of ['view_proposals_agreements', 'manage_proposals_agreements', 'approve_proposals_agreements']) {
+    for (const key of ['can_review_requests', 'view_proposals_agreements', 'manage_proposals_agreements', 'approve_proposals_agreements']) {
       if (Object.prototype.hasOwnProperty.call(row || {}, key)) patch[key] = row[key];
     }
     const { error } = await supabase.from('users').update(patch).eq('user_id', userId);
