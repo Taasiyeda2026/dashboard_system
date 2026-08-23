@@ -6,7 +6,7 @@ const source = await readFile(new URL('../frontend/src/admin-data-tool.js', impo
 const bootstrap = await readFile(new URL('../frontend/src/main-with-proposal-pdf-hotfix.js', import.meta.url), 'utf8');
 
 test('admin data tool is loaded and appends the ninth management tile', () => {
-  assert.match(bootstrap, /admin-data-tool\.js\?v=20260823-v1/);
+  assert.match(bootstrap, /admin-data-tool\.js\?v=20260823-v2/);
   assert.match(source, /grid\.appendChild\(buildTile\(\)\)/);
   assert.match(source, /<strong>נתונים<\/strong>/);
 });
@@ -14,19 +14,29 @@ test('admin data tool is loaded and appends the ninth management tile', () => {
 test('data is fetched only for school 2027 open or closed activities after explicit display action', () => {
   assert.match(source, /\.eq\('activity_season', 'school_2027'\)/);
   assert.match(source, /\.in\('status', \['פתוח', 'סגור'\]\)/);
+  assert.match(source, /data-admin-data-show-all/);
   assert.match(source, /data-admin-data-show/);
-  assert.match(source, /בחרו טווח תאריכים ולחצו על „הצג נתונים”/);
 });
 
-test('date range counts an overlapping course once as a whole course', () => {
+test('show all includes every eligible school 2027 course even when dates are missing', () => {
+  assert.match(source, /const filtered = showAll \? eligible : eligible\.filter/);
+  assert.match(source, /כולל פעילויות ללא תאריך/);
+  assert.doesNotMatch(source, /showAll \? eligible\.filter/);
+});
+
+test('date range remains a focused overlap filter and counts a course once as a whole course', () => {
   assert.match(source, /return start <= to && end >= from/);
   assert.match(source, /row\.quantity \+= 1/);
   assert.match(source, /row\.amount \+= validMoney\(activity\?\.price\)/);
+  assert.match(source, /סנן לפי תאריכים/);
 });
 
-test('district output is limited to north center south and uses compact tables', () => {
+test('district output is limited to north center south and uses compact separated sections', () => {
   assert.match(source, /const DISTRICTS = \['צפון', 'מרכז', 'דרום'\]/);
   assert.match(source, /admin-data-district-grid/);
+  assert.match(source, /admin-data-section--funding/);
+  assert.match(source, /border-top:2px solid/);
+  assert.match(source, /admin-data-district\+ \.admin-data-district/);
   assert.match(source, /admin-data-table-wrap--funding\{width:min\(100%,690px\)\}/);
   assert.match(source, /text-align:right/);
   assert.match(source, /text-align:center/);
