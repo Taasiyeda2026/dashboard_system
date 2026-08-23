@@ -1,6 +1,7 @@
 import { supabase } from './supabase-client.js';
 
 const REOPEN_ACTIVITIES_KEY = 'israa_reopen_activities_after_reload';
+const ACTION_BUTTON_STYLE = 'width:100%;max-width:100%;box-sizing:border-box;white-space:normal;line-height:1.2;padding:5px 6px';
 
 function clean(value) {
   return String(value == null ? '' : value).replace(/\s+/g, ' ').trim();
@@ -146,10 +147,11 @@ export function activitiesTable(draft, { selectable = true } = {}) {
     const selected = sourceId && selectedIds.has(sourceId);
     const action = selectable && sourceId
       ? `<td>${selected
-        ? '<button type="button" class="israa-btn" disabled>כבר בפעילויות</button>'
-        : `<button type="button" class="israa-btn" data-israa-select-activity="${escapeHtml(sourceId)}" data-israa-tracking-id="${escapeHtml(draft.id)}">העבר לפעילויות</button>`}</td>`
+        ? `<button type="button" class="israa-btn" style="${ACTION_BUTTON_STYLE}" disabled>כבר בפעילויות</button>`
+        : `<button type="button" class="israa-btn" style="${ACTION_BUTTON_STYLE}" data-israa-select-activity="${escapeHtml(sourceId)}" data-israa-tracking-id="${escapeHtml(draft.id)}">העבר לפעילויות</button>`}</td>`
       : '';
     return `<tr><td>${escapeHtml(item.program_name || '—')}</td><td>${escapeHtml(item.gefen_number || '—')}</td><td>${escapeHtml(item.quantity ?? '—')}</td>${action}</tr>`;
   }).join('');
-  return `<table class="israa-drawer__activities"><thead><tr><th>שם הפעילות</th><th>מספר גפ״ן</th><th>מספר קבוצות</th>${selectable ? '<th>פעולה</th>' : ''}</tr></thead><tbody>${cells}</tbody></table>`;
+  const widths = selectable ? ['43%', '18%', '14%', '25%'] : ['60%', '23%', '17%'];
+  return `<table class="israa-drawer__activities"><thead><tr><th style="width:${widths[0]}">שם הפעילות</th><th style="width:${widths[1]}">מספר גפ״ן</th><th style="width:${widths[2]}">מספר קבוצות</th>${selectable ? `<th style="width:${widths[3]}">פעולה</th>` : ''}</tr></thead><tbody>${cells}</tbody></table>`;
 }
