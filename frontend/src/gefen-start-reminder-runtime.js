@@ -15,6 +15,11 @@ function normalizeFunding(value) {
   return String(value || '').replace(/\s+/g, ' ').trim();
 }
 
+function isEligibleReminderUser(user = state?.user) {
+  const role = String(user?.role || '').trim().toLowerCase();
+  return Boolean(user?.user_id) && role !== 'instructor';
+}
+
 function isIsoDate(value) {
   return /^\d{4}-\d{2}-\d{2}$/.test(String(value || '').trim());
 }
@@ -333,7 +338,11 @@ function showAndAcknowledgeReminder(activity, authUserId, today) {
 }
 
 function authenticatedShellIsReady() {
-  return Boolean(state?.user?.user_id && state?.route !== 'login' && document.querySelector('.app-shell'));
+  return Boolean(
+    isEligibleReminderUser(state?.user)
+    && state?.route !== 'login'
+    && document.querySelector('.app-shell')
+  );
 }
 
 function shouldThrottle(authUserId, dateKey) {
@@ -393,6 +402,7 @@ export {
   REMINDER_LEAD_DAYS,
   REMINDER_YEAR,
   firstActivityDate,
+  isEligibleReminderUser,
   isReminderDue,
   normalizeFunding,
   todayInJerusalem
