@@ -60,6 +60,11 @@ const {
 
 function baseState(overrides = {}) {
   const base = {
+    user: {
+      role: 'operation_manager', view_operations_management: 'yes',
+      view_activity_approvals: 'yes', view_workshop_stock: 'yes',
+      view_operations_schedule_overview: 'yes'
+    },
     activityPeriodTab: 'regular',
     operationsManagement: {
       tab: 'home',
@@ -259,7 +264,7 @@ test('summer exceptions only include missing instructor or missing date', () => 
 });
 
 test('operations management render includes menu page structure and tabs', () => {
-  const html = operationsManagementScreen.render({ rows: TEXT_SCHOOL_ROWS, workshopStockMap: new Map() }, { state: baseState() });
+  const html = operationsManagementScreen.render({ rows: TEXT_SCHOOL_ROWS, workshopStockMap: new Map() }, { state: baseState({ user: { role: 'operation_manager', view_operations_management: 'yes', view_workshop_stock: 'yes', view_activity_approvals: 'yes' } }) });
   assert.match(html, /תפעול/);
   assert.match(html, /כלי התפעול/);
   assert.match(html, /operations-management-home/);
@@ -269,7 +274,7 @@ test('operations management render includes menu page structure and tabs', () =>
   assert.doesNotMatch(html, /ds-exceptions-tabs/);
   assert.doesNotMatch(html, /סמל מוסד/);
 
-  const completionState = baseState({ operationsManagement: { ...baseState().operationsManagement, tab: 'completion_approval' } });
+  const completionState = baseState({ user: { role: 'operation_manager', view_operations_management: 'yes', view_activity_approvals: 'yes', view_workshop_stock: 'yes' }, operationsManagement: { ...baseState().operationsManagement, tab: 'completion_approval' } });
   const completionHtml = operationsManagementScreen.render({ rows: TEXT_SCHOOL_ROWS, workshopStockMap: new Map() }, { state: completionState });
   assert.match(completionHtml, /אישורי ביצוע/);
   assert.match(completionHtml, /data-ops-tab="completion_approval"[^>]*aria-pressed="true"/);
@@ -567,10 +572,10 @@ test('completion approval tab includes only summer workshops and escape rooms an
   assert.match(html, /נבחר/);
   assert.doesNotMatch(html, /תחילת קיץ/);
   assert.doesNotMatch(html, /סוף קיץ/);
-  assert.doesNotMatch(html, /לפני/);
-  assert.doesNotMatch(html, /אחרי/);
-  assert.doesNotMatch(html, /קורס/);
-  assert.doesNotMatch(html, /גפן/);
+  assert.doesNotMatch(html, />לפני</);
+  assert.doesNotMatch(html, />אחרי</);
+  assert.doesNotMatch(html, />קורס</);
+  assert.doesNotMatch(html, />גפן</);
   assert.match(html, /min="2026-06-20"/);
   assert.match(html, /max="2026-08-31"/);
   assert.match(html, /data-ops-completion-date-clear>כל התאריכים/);
@@ -780,7 +785,7 @@ test('workshops inventory preserves special stock_group_key mappings for kofet k
   assert.match(html, />10</);
   assert.match(html, />20</);
   assert.match(html, />30</);
-  assert.doesNotMatch(html, /data-ops-open-stock-edit/);
+  assert.match(html, /data-ops-open-stock-edit/);
 });
 
 test('workshop stock edit drawer uses special stock_group_key values for admin inventory edits', () => {
@@ -1438,7 +1443,7 @@ test('collectWorkshopStockEditorItems exposes only real stock_group_key inventor
   assert.equal(items.some((item) => item.label === 'ללא מיפוי'), false);
 });
 
-test('workshops tab shows stock edit button for admin and operation_manager', () => {
+test('workshops tab shows stock edit button for admin and explicitly granted manager', () => {
   const adminListsData = { categories: [{ category: 'workshop_stock', items: [
     { value: 'frog', label: 'פרוגי המקפצת', _row: { category: 'workshop_stock', value: 'frog', label: 'פרוגי המקפצת', active: true, stock_group_key: 'frog_stock', stock_quantity: 120 } }
   ] }] };
@@ -1448,7 +1453,7 @@ test('workshops tab shows stock edit button for admin and operation_manager', ()
     adminListsData
   };
   const adminState = baseState({ user: { role: 'admin' }, operationsManagement: { ...baseState().operationsManagement, tab: 'workshops', dateFrom: '2026-07-01', dateTo: '2026-07-31' } });
-  const managerState = baseState({ user: { role: 'operation_manager' }, operationsManagement: { ...baseState().operationsManagement, tab: 'workshops', dateFrom: '2026-07-01', dateTo: '2026-07-31' } });
+  const managerState = baseState({ user: { role: 'operation_manager', view_operations_management: 'yes', view_workshop_stock: 'yes' }, operationsManagement: { ...baseState().operationsManagement, tab: 'workshops', dateFrom: '2026-07-01', dateTo: '2026-07-31' } });
   const adminHtml = operationsManagementScreen.render(payload, { state: adminState });
   const managerHtml = operationsManagementScreen.render(payload, { state: managerState });
   assert.match(adminHtml, /data-ops-open-stock-edit/);

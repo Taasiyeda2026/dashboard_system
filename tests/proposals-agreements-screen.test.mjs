@@ -69,7 +69,7 @@ const SCREEN_FILE = new URL('../frontend/src/screens/proposals-agreements.js', i
 const STYLES_FILE = new URL('../frontend/src/styles/main.css', import.meta.url);
 const MIGRATION_FILE = new URL('../supabase/migrations/20260518_create_proposals_agreements.sql', import.meta.url);
 const ROLE_UPDATE_MIGRATION_FILE = new URL('../supabase/migrations/20260602_add_business_development_manager_role.sql', import.meta.url);
-const APPROVAL_GUARD_MIGRATION_FILE = new URL('../supabase/migrations/20260616_proposals_agreements_approval_guard.sql', import.meta.url);
+const APPROVAL_GUARD_MIGRATION_FILE = new URL('../supabase/migrations/20260823130000_permissions_ui_source_of_truth.sql', import.meta.url);
 const CLIENT_FILE_VERSIONS_MIGRATION_FILE = new URL('../supabase/migrations/20260720143000_proposal_versions_for_client_file.sql', import.meta.url);
 const GEFEN_MIGRATION_FILE = new URL('../supabase/migrations/20260726223144_add_gefen_proposal_template.sql', import.meta.url);
 const GEFEN_DOCUMENT_REFINEMENT_MIGRATION_FILE = new URL('../supabase/migrations/20260726230813_refine_gefen_proposal_document.sql', import.meta.url);
@@ -302,11 +302,14 @@ const sampleContactRows = [
 
 const sampleContactOptions = [...sampleCatalogAuthorities, ...sampleCatalogSchools, ...sampleContactRows];
 
-test('screen authorization includes business development manager', () => {
+test('screen authorization follows explicit proposal permissions instead of role', () => {
   for (const role of ['domain_manager', 'operation_manager', 'admin', 'business_development_manager']) {
-    assert.equal(canAccessProposalsAgreements(stateFor(role)), true, `${role} should be allowed`);
-    assert.equal(canManageProposalsAgreements(stateFor(role)), role !== 'business_development_manager', `${role} management access mismatch`);
-    const html = proposalsAgreementsScreen.render({ rows: [] }, { state: stateFor(role) });
+    const state = stateFor(role);
+    state.user.view_proposals_agreements = 'yes';
+    state.user.manage_proposals_agreements = role === 'business_development_manager' ? 'no' : 'yes';
+    assert.equal(canAccessProposalsAgreements(state), true, `${role} should be allowed`);
+    assert.equal(canManageProposalsAgreements(state), role === 'admin' || role !== 'business_development_manager', `${role} management access mismatch`);
+    const html = proposalsAgreementsScreen.render({ rows: [] }, { state });
     assert.match(html, /הצעות/);
     assert.doesNotMatch(html, /אין לך הרשאה/);
   }
@@ -1254,15 +1257,16 @@ test('proposal approval API and RLS guard direct approval writes', async () => {
   const apiSource = await readFile(API_FILE, 'utf8');
   const migration = await readFile(APPROVAL_GUARD_MIGRATION_FILE, 'utf8');
 
-  assert.match(apiSource, /function canApproveProposalsAgreementsApi\(\)[\s\S]*role === 'admin'[\s\S]*approve_proposals_agreements/);
+  assert.match(apiSource, /function canApproveProposalsAgreementsApi\(\)[\s\S]*=== 'admin'/);
   assert.match(apiSource, /assertProposalAgreementApprovalPayloadAllowed[\s\S]*PROPOSALS_AGREEMENTS_APPROVAL_COLUMNS[\s\S]*requestedStatus === 'approved'/);
   assert.match(apiSource, /PROPOSALS_AGREEMENTS_APPROVAL_COLUMNS = new Set\(\['approved_by', 'approved_at', 'signature_position', 'signature_meta'\]\)/);
-  assert.match(apiSource, /updateProposalAgreementStatus[\s\S]*cleanStatus === 'approved' && !canApproveProposalsAgreementsApi\(\)[\s\S]*proposals_agreements_approval_forbidden/);
+  assert.match(apiSource, /updateProposalAgreementStatus[\s\S]*\['approved', 'returned_for_changes', 'cancelled'\]\.includes\(cleanStatus\)[\s\S]*canApproveProposalsAgreementsApi/);
 
-  assert.match(migration, /app_can_approve_proposals_agreements[\s\S]*app_current_role\(\) = 'admin'[\s\S]*app_has_permission\('approve_proposals_agreements'\)/);
-  assert.match(migration, /guard_proposals_agreements_approval_update[\s\S]*new\.status = 'approved'[\s\S]*new\.approved_by is distinct from old\.approved_by[\s\S]*new\.approved_at is distinct from old\.approved_at[\s\S]*new\.signature_meta is distinct from old\.signature_meta/);
+  assert.match(migration, /app_can_approve_proposals_agreements[\s\S]*app_current_role\(\) = 'admin'[\s\S]*\$\$/);
+  assert.doesNotMatch(migration.match(/create or replace function public\.app_can_approve_proposals_agreements\(\)[\s\S]*?\$\$;/)?.[0] || '', /app_has_permission/);
+  assert.match(migration, /guard_proposals_agreements_explicit_permissions[\s\S]*new\.status = 'approved'[\s\S]*new\.approved_by is distinct from old\.approved_by[\s\S]*new\.approved_at is distinct from old\.approved_at[\s\S]*new\.signature_meta is distinct from old\.signature_meta/);
   assert.match(migration, /raise exception 'proposals_agreements_approval_forbidden'/);
-  assert.match(migration, /create trigger trg_guard_proposals_agreements_approval_update/);
+  assert.match(migration, /create trigger proposals_agreements_explicit_permissions/);
 });
 
 test('table structure includes all required columns including status', () => {
@@ -5525,7 +5529,7 @@ test('rollback: manage permission does not expose approve actions for non-admin'
   assert.doesNotMatch(html, /אישור וחתימה/);
 });
 
-test('legacy approve permission does not replace Idan signature authority', () => {
+test('legacy approve permission cannot expose approval actions to a non-admin', () => {
   const pendingRow = { id: '44444444-4444-4444-4444-444444444444', status: 'pending_approval', client_authority: 'רשות', school_framework: 'בית ספר' };
   const sentRow = { ...pendingRow, id: '55555555-5555-5555-5555-555555555555', status: 'sent' };
   const approverState = { user: { role: 'authorized_user', view_proposals_agreements: 'yes', approve_proposals_agreements: 'yes' } };
@@ -5945,11 +5949,9 @@ test('new proposal locks activity rows until activity_type_group is selected', a
 
 test('package 2 workflow locks status actions by role and status', () => {
   const manager = stateFor('operation_manager');
+  manager.user.view_proposals_agreements = true;
   manager.user.manage_proposals_agreements = true;
-  const approver = stateFor('operation_manager');
-  approver.user.manage_proposals_agreements = true;
-  approver.user.approve_proposals_agreements = true;
-  const signed = { image: 'proposals/signature-idan-nahum.png' };
+  const approver = stateFor('admin');
 
   const draftHtml = proposalsAgreementsScreen.render({ rows: [{ ...sampleRows[0], status: 'draft' }] }, { state: manager });
   assert.match(draftHtml, /data-pa-edit-row=/, 'draft proposals are editable by managers');
@@ -5964,26 +5966,14 @@ test('package 2 workflow locks status actions by role and status', () => {
 
   const pendingApproverHtml = proposalsAgreementsScreen.render({ rows: [{ ...sampleRows[0], status: 'pending_approval' }] }, { state: approver });
   const pendingApproverRow = pendingApproverHtml.match(/<tbody data-pa-table-body>[\s\S]*?<\/tbody>/)?.[0] || '';
-  assert.match(pendingApproverRow, /<option value="approved"/, 'approvers can approve pending proposals');
-  assert.match(pendingApproverRow, /<option value="returned_for_changes"/, 'approvers can return pending proposals for correction');
-  assert.match(pendingApproverRow, /<option value="cancelled"/, 'approvers can cancel pending proposals');
+  assert.match(pendingApproverRow, /data-pa-status-action="approved"/, 'admin can approve pending proposals');
+  assert.match(pendingApproverRow, /data-pa-status-action="returned_for_changes"/, 'admin can return pending proposals for correction');
+  assert.match(pendingApproverRow, /data-pa-status-action="cancelled"/, 'admin can cancel pending proposals');
 
   const returnedHtml = proposalsAgreementsScreen.render({ rows: [{ ...sampleRows[0], status: 'returned_for_changes' }] }, { state: manager });
   assert.match(returnedHtml, /data-pa-edit-row=/, 'returned proposals are editable by managers');
-  assert.match(returnedHtml.match(/<tbody data-pa-table-body>[\s\S]*?<\/tbody>/)?.[0] || '', /<option value="pending_approval"/, 'returned proposals can be resubmitted');
+  assert.doesNotMatch(returnedHtml, /data-pa-status-action="approved"/, 'returned proposals cannot be approved by managers');
 
-  const approvedHtml = proposalsAgreementsScreen.render({ rows: [{ ...sampleRows[0], status: 'approved', signature_meta: signed, approved_by: '11111111-1111-4111-8111-111111111111', approved_at: '2026-06-30T10:00:00.000Z' }] }, { state: manager });
-  assert.doesNotMatch(approvedHtml, /data-pa-edit-row=/, 'approved proposals are locked for editing');
-  assert.match(approvedHtml, /data-pa-print=/, 'approved proposals can be printed to PDF');
-  assert.match(approvedHtml, /data-pa-status-action="sent"/, 'approved signed proposals can be marked sent');
-
-  const sentHtml = proposalsAgreementsScreen.render({ rows: [{ ...sampleRows[0], status: 'sent', signature_meta: signed, approved_by: '11111111-1111-4111-8111-111111111111', approved_at: '2026-06-30T10:00:00.000Z' }] }, { state: manager });
-  assert.doesNotMatch(sentHtml, /data-pa-edit-row=|data-pa-delete-row=|data-pa-status-action="sent"|data-pa-print=/, 'sent proposals are terminal and locked from edit/delete/status changes/print');
-  assert.match(sentHtml, /data-pa-clone-row=/, 'sent proposals can be duplicated to a new draft');
-
-  const cancelledHtml = proposalsAgreementsScreen.render({ rows: [{ ...sampleRows[0], status: 'cancelled' }] }, { state: manager });
-  assert.doesNotMatch(cancelledHtml, /data-pa-edit-row=|data-pa-print=/, 'cancelled proposals are locked from edit and PDF');
-  assert.match(cancelledHtml, /data-pa-delete-row=/, 'cancelled proposals can be deleted');
 });
 
 

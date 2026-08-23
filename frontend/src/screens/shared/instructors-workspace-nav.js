@@ -2,6 +2,7 @@ import { escapeHtml } from './html.js';
 import { openPayrollControlWindow } from './payroll-control-launcher.js';
 import { ensureCourseSchedulingManualPickerAccess } from './course-scheduling-manual-picker-access.js';
 import { ensureCourseSchedulingManagerApproval } from './course-scheduling-manager-approval.js';
+import { canOpenCapability, hasPermission } from '../../permission-policy.js';
 
 export const INSTRUCTORS_WORKSPACE_TABS = Object.freeze([
   { id: 'list', label: 'רשימת מדריכים', route: 'instructors' },
@@ -13,19 +14,12 @@ export const INSTRUCTORS_WORKSPACE_TABS = Object.freeze([
 ]);
 
 const COURSE_SCHEDULING_ROUTE = 'course-scheduling';
-const COURSE_SCHEDULING_ROLES = new Set(['admin', 'operation_manager']);
-const PAYROLL_CONTROL_ROLES = new Set(['admin', 'operation_manager', 'finance']);
-
-function roleOf(state = {}) {
-  return String(state?.user?.role || '').trim();
-}
-
 function hasCourseSchedulingRole(state = {}) {
-  return COURSE_SCHEDULING_ROLES.has(roleOf(state));
+  return hasPermission(state?.user, 'view_operations_scheduling') || hasPermission(state?.user, 'manage_instructor_maintenance');
 }
 
 function hasPayrollControlRole(state = {}) {
-  return PAYROLL_CONTROL_ROLES.has(roleOf(state));
+  return hasPermission(state?.user, 'view_attendance_control');
 }
 
 function rowId(row = {}) {
@@ -53,23 +47,32 @@ export function clearCourseSchedulingReplacementState(state = {}) {
 }
 
 function availableRoutes(state) {
-  const source = Array.isArray(state?.effectiveRoutes)
+  const hasEffectiveRoutes = Array.isArray(state?.effectiveRoutes);
+  const source = hasEffectiveRoutes
     ? state.effectiveRoutes
     : (Array.isArray(state?.routes) ? state.routes : []);
   const routes = new Set(source);
-  // Keep the shared instructors navigation aligned with main.js, which explicitly
-  // grants course-scheduling to these two roles even when bootstrap routes omit it.
-  if (hasCourseSchedulingRole(state)) routes.add(COURSE_SCHEDULING_ROUTE);
+  const isAdmin = String(state?.user?.role || state?.user?.display_role || '').trim() === 'admin';
+  // An explicit effectiveRoutes list is authoritative for non-admin users. This
+  // prevents stale raw session routes from restoring a route removed at bootstrap.
+  if (hasCourseSchedulingRole(state) && (!hasEffectiveRoutes || isAdmin)) routes.add(COURSE_SCHEDULING_ROUTE);
   return routes;
 }
 
 function canOpenTab(tab, routes, state = {}) {
-  if (tab?.id === 'payroll-control' && !hasPayrollControlRole(state)) return false;
+  const capabilityByTab = {
+    list: 'instructors.list', scheduling: 'instructors.scheduling',
+    'work-schedule': 'instructors.work_schedule', 'payroll-control': 'instructors.attendance_control',
+    maintenance: 'instructors.maintenance'
+  };
+  if (!canOpenCapability(state?.user, capabilityByTab[tab?.id])) return false;
   return routes.has(tab.route);
 }
 
 function ensureCourseSchedulingRouteInState(tab, state = {}) {
   if (tab?.route !== COURSE_SCHEDULING_ROUTE || !hasCourseSchedulingRole(state)) return;
+  const isAdmin = String(state?.user?.role || state?.user?.display_role || '').trim() === 'admin';
+  if (Array.isArray(state?.effectiveRoutes) && !state.effectiveRoutes.includes(COURSE_SCHEDULING_ROUTE) && !isAdmin) return;
   const addRoute = (key) => {
     const current = Array.isArray(state?.[key]) ? state[key] : [];
     if (!current.includes(COURSE_SCHEDULING_ROUTE)) state[key] = [...current, COURSE_SCHEDULING_ROUTE];
@@ -214,7 +217,7 @@ export function bindInstructorsWorkspaceNav(root, { state, rerender } = {}) {
   // course-scheduling.js reuses the same state object across re-renders. Clear the
   // temporary replacement calculation before its ordinary handlers process an exit
   // action, so another course never inherits replacement-only labels or controls.
-  root.addEventListener('click', (event) => {
+  root.addEventListener?.('click', (event) => {
     if (!state?.courseSchedulingReplacementCourseId) return;
     const target = event.target;
     const courseCard = target?.closest?.('[data-course-card]');
@@ -227,7 +230,7 @@ export function bindInstructorsWorkspaceNav(root, { state, rerender } = {}) {
     }
   }, true);
 
-  root.addEventListener('change', (event) => {
+  root.addEventListener?.('change', (event) => {
     if (!state?.courseSchedulingReplacementCourseId) return;
     if (event.target?.matches?.('[data-district-filter], [data-authority-filter]')) {
       clearCourseSchedulingReplacementState(state);

@@ -1,10 +1,12 @@
+import { hasPermission } from '../permission-policy.js';
+
 const CATALOG_URL = './catalog/summercatalog/';
 const COURSE_PAGE_ADMIN_BASE = './catalog/summercatalog/course-page.html?catalog=admin';
 const ADMIN_TOKEN_KEY = 'tsy_catalog_admin_token';
 const ADMIN_TOKEN_TTL = 30000;
 
 function isCatalogAdmin(state) {
-  return state?.user?.role === 'admin' || Number(state?.user?.user_id) === 8000;
+  return hasPermission(state?.user, 'manage_catalog');
 }
 
 function ensureCatalogEmbedStyles() {

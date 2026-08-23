@@ -18,6 +18,8 @@ import {
 import { activityManagerDisplayName, getFilterOptionOverrides } from './shared/activity-options.js';
 import { isEmptyValue } from '../utils/empty-value.js';
 import { EXCEPTION_TYPE_ORDER, exceptionActivityKey, normalizedExceptionTypes, uniqueExceptionActivityCount } from './shared/exceptions-metrics.js';
+import { hasPermission } from '../permission-policy.js';
+import { canEditDirect } from '../permissions.js';
 import {
   ACTIVITY_SEASON_REGULAR,
   isSummerActivity,
@@ -396,10 +398,10 @@ export const exceptionsScreen = {
     try { sessionStorage.removeItem('ds_exceptions_save_notice'); } catch { /* ignore */ }
     const allRows   = prepareExceptionDisplayRows(data);
     bindLocalFilters(root, state, EXCEPTIONS_SCOPE, rerender, { debounceMs: 150 });
-    const canSeePrivateNotes = state?.user?.display_role === 'operation_manager';
+    const canSeePrivateNotes = hasPermission(state?.user, 'manage_activity_archive');
     const canEditActivity = !!(state?.user?.can_edit_direct || state?.user?.can_request_edit);
     const hideEmpIds = !!state?.clientSettings?.hide_emp_id_on_screens;
-    const canDeleteActivity = ['admin', 'operation_manager'].includes(String(state?.user?.display_role || state?.user?.role || '').trim());
+    const canDeleteActivity = canEditDirect(state?.user);
     const hideRowId = !!state?.clientSettings?.hide_row_id_in_ui;
     const hideActivityNo = !!state?.clientSettings?.hide_activity_no_on_screens;
 

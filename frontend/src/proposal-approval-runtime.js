@@ -6,13 +6,13 @@ import {
 } from './screens/proposals-agreements.js';
 import { showToast } from './screens/shared/toast.js';
 import { escapeHtml } from './screens/shared/html.js';
+import { hasPermission } from './permission-policy.js';
 
 const RUNTIME_FLAG = '__dsProposalApprovalRuntimeInstalled';
 const TEST_FLAG = '__PROPOSAL_APPROVAL_RUNTIME_TEST__';
 const APPROVAL_SELECTOR = '[data-pa-status-action="approved"][data-pa-action-id]';
 const OVERLAY_ID = 'pa-preview-overlay';
 const SIGNATURE_IMAGE = 'proposals/signature-idan-nahum.png';
-const APPROVER_AUTH_USER_ID = 'e9ca304a-4e66-4774-830e-14f1318c4908';
 const OPEN_TIMEOUT_MS = 15000;
 const SAVE_TIMEOUT_MS = 20000;
 
@@ -20,19 +20,8 @@ function clean(value) {
   return String(value == null ? '' : value).replace(/\s+/g, ' ').trim();
 }
 
-function truthyPermission(value) {
-  return value === true || value === 1 || value === '1' || value === 'yes' || value === 'true';
-}
-
 function canApprove(state) {
-  const user = state?.user || {};
-  const userId = clean(user.user_id || user.emp_id || user.employee_id);
-  const username = clean(user.username_for_login || user.username || user.username_display).toLowerCase();
-  const authUserId = clean(user.auth_user_id).toLowerCase();
-  return userId === '8000'
-    || username === 'idann'
-    || authUserId === APPROVER_AUTH_USER_ID
-    || truthyPermission(user.approve_proposals_agreements);
+  return hasPermission(state?.user, 'approve_proposals_agreements');
 }
 
 function withTimeout(promise, timeoutMs, message) {

@@ -60,6 +60,7 @@ import {
 } from './shared/activity-readonly-period.js';
 import { showToast } from './shared/toast.js';
 import { canEditDirect, canAddActivityDirect, canRequestEdit, canRequestCreateActivity, canReviewRequests } from '../permissions.js';
+import { hasPermission } from '../permission-policy.js';
 import { bindInstructorScheduling } from './instructor-scheduling-workflow.js';
 import { loadActivityCoordinationContext } from '../activity-coordination/data.js';
 import { bindCoordinationActivityModal, bindCoordinationWorkspace, coordinationDrawerActionHtml, reconcileVisibleDrafts, renderCoordinationActivityModal, renderCoordinationWorkspace } from '../activity-coordination/view.js';
@@ -105,14 +106,6 @@ function defaultActivityPeriodTab() {
 }
 const INACTIVE_ACTIVITY_STATUSES = new Set(['סגור', 'נמחק', 'בוטל', 'closed', 'deleted', 'inactive', 'cancelled', 'canceled']);
 const ACTIVITY_LAYOUT_SEASON = 'summer_2026';
-const ACTIVITIES_ACCESS_ROLES = new Set([
-  'operation_manager',
-  'domain_manager',
-  'activities_manager',
-  'instructor_manager',
-  'business_development_manager'
-]);
-const ACTIVITY_LAYOUT_ALLOWED_ROLES = new Set(['admin', ...ACTIVITIES_ACCESS_ROLES]);
 
 function canDirectManageActivities(state) {
   return canEditDirect(state?.user);
@@ -429,16 +422,10 @@ export function getActivitiesAccessDebug(state = {}) {
   const displayRole = String(currentUser.display_role || '').trim();
   const permissions = currentUser.permissions && typeof currentUser.permissions === 'object' ? currentUser.permissions : {};
   const routes = currentUserRoutes(state);
-  const hasActivitiesAccess =
-    role === 'admin' ||
-    ACTIVITIES_ACCESS_ROLES.has(role) ||
-    permissionFlagYes(currentUser.view_activities ?? permissions.view_activities) ||
-    routes.includes('activities');
+  const hasActivitiesAccess = hasPermission(currentUser, 'view_activities');
   const deniedReasons = [];
   if (!hasActivitiesAccess) {
-    deniedReasons.push('role is not admin or an allowed activities role');
-    deniedReasons.push('permissions.view_activities is not yes');
-    deniedReasons.push('user.routes/state routes do not include activities');
+    deniedReasons.push('view_activities is not granted');
   }
   return {
     currentUser,
@@ -1365,8 +1352,7 @@ function nextMeetingDate(row) {
 }
 
 function canUseActivityLayout(state) {
-  const role = String(state?.user?.role || '').trim();
-  return ACTIVITY_LAYOUT_ALLOWED_ROLES.has(role);
+  return hasPermission(state?.user, 'can_edit_direct');
 }
 
 function cleanText(value) {
@@ -2362,7 +2348,7 @@ export const activitiesScreen = {
                 canDeleteActivity,
                 hideEmpIds, hideRowId, hideActivityNo,
                 mergeSettingsWithFallback(state?.clientSettings || {}, buildFallbackOptionsFromRows(activitiesRows)),
-                { datesLoading: false, canSchedule: ['admin', 'operation_manager'].includes(String(state?.user?.role || '')) }
+                { datesLoading: false, canSchedule: hasPermission(state?.user, 'view_operations_scheduling') }
               );
               hideShellHeader(contentRoot);
               bindActivityEditForm(contentRoot);
@@ -2675,7 +2661,7 @@ export const activitiesScreen = {
       const buildDrawerContent = (row, datesLoading) => {
         const base = activityDrawerContent(
           row, canSeePrivateNotes, canEditActivity, canDirectEdit, canRequestEdit,
-          canDeleteActivity, hideEmpIds, hideRowId, hideActivityNo, settings, { datesLoading, canSchedule: ['admin', 'operation_manager'].includes(String(state?.user?.role || '')) }
+          canDeleteActivity, hideEmpIds, hideRowId, hideActivityNo, settings, { datesLoading, canSchedule: hasPermission(state?.user, 'view_operations_scheduling') }
         );
         if (!canReopenActivity) return base;
         return `<div style="padding:12px 16px 0;text-align:right">

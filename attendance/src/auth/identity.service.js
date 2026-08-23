@@ -15,6 +15,11 @@ export async function resolveInstructorIdentity() {
   if (userRow.is_active !== true) throw new AttendanceIdentityError('המשתמש אינו פעיל');
   if (userRow.role !== 'instructor') throw new AttendanceIdentityError('המשתמש אינו רשום כמדריך');
 
+  const { data: attendanceAllowed, error: permissionError } = await supabase
+    .rpc('app_has_permission', { flag: 'access_attendance_reporting' });
+  if (permissionError) throw new AttendanceIdentityError('שגיאה בבדיקת הרשאת מערכת הנוכחות');
+  if (attendanceAllowed !== true) throw new AttendanceIdentityError('אין הרשאה למערכת דיווח הנוכחות');
+
   const empId = Number(userRow.emp_id);
   if (!empId) throw new AttendanceIdentityError('לא הוגדר מספר עובד עבור המשתמש');
 

@@ -2,8 +2,6 @@ import { supabase, waitForSupabaseAuthSession } from './supabase-client.js';
 
 const NAV_ATTRIBUTE = 'data-educational-feedback-admin-nav-item';
 const ADMIN_URL = 'https://taasiyeda2026.github.io/dev/summer/admin.html';
-const ALLOWED_USER_IDS = new Set(['8000', '6000']);
-const ALLOWED_ROLES = new Set(['admin', 'operation_manager']);
 const STYLE_ID = 'educational-feedback-admin-nav-styles';
 
 let accessPromise = null;
@@ -31,13 +29,11 @@ async function currentUserCanManageEducationalFeedback() {
       .eq('auth_user_id', authUserId)
       .maybeSingle();
 
-    const userId = normalize(data?.user_id);
     const role = normalize(data?.role).toLowerCase();
     cachedAuthUserId = authUserId;
     cachedAccess = !error
       && data?.is_active === true
-      && ALLOWED_USER_IDS.has(userId)
-      && ALLOWED_ROLES.has(role);
+      && role === 'admin';
     return cachedAccess;
   })();
 

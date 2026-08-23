@@ -53,7 +53,16 @@ test('2027 inventory entry defers activity and inventory reads until its tab loa
 test('inventory tab loader reads only catalog, opening balances and 2027 activities', async () => {
   const calls = [];
   await loadOperationsTabData(trackedApi(calls), 'workshops', {
-    state: { operationsManagement: { period: 'school_2027' } }
+    state: {
+      user: {
+        role: 'operation_manager',
+        permissions: {
+          view_operations_management: 'yes',
+          view_workshop_stock: 'yes'
+        }
+      },
+      operationsManagement: { period: 'school_2027' }
+    }
   });
   assert.deepEqual(calls.sort(), [
     'adminLists',

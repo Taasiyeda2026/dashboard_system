@@ -8,7 +8,6 @@ import { monthDayCardsHtml } from './screens/shared/day-session-cards.js';
 import { formatDateHe } from './screens/shared/format-date.js';
 import { escapeHtml } from './screens/shared/html.js';
 
-const MANAGER_BOARD_INTERACTION_ROLES = new Set(['admin', 'operation_manager', 'activities_manager', 'finance']);
 const CALENDAR_ACTIVITY_CACHE_TTL_MS = 90 * 1000;
 const DATE_FIELDS = Array.from({ length: 35 }, (_, index) => `date_${index + 1}`);
 const ui = createSharedInteractionLayer();
@@ -22,7 +21,7 @@ function text(value) {
 }
 
 function canUseManagerBoardInteractions() {
-  return MANAGER_BOARD_INTERACTION_ROLES.has(text(state?.user?.role));
+  return text(state?.user?.role) === 'admin';
 }
 
 function managerName(boardRoot) {

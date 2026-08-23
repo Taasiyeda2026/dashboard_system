@@ -49,7 +49,10 @@ const migration = readFileSync(new URL('../supabase/migrations/20260819120000_fi
 const apiSource = readFileSync(new URL('../frontend/src/api.js', import.meta.url), 'utf8');
 const financeSource = readFileSync(new URL('../frontend/src/screens/finance.js', import.meta.url), 'utf8');
 
-const financeUser = { display_role: 'finance', role: 'finance', finance_access: true };
+const financeUser = {
+  display_role: 'finance', role: 'finance', finance_access: true,
+  view_finance_payroll: true, view_finance_collection: true, manage_finance_transactions: true
+};
 const blockedUser = { display_role: 'authorized_user', role: 'authorized_user', finance_access: false };
 
 function snapshotRow(overrides = {}) {
@@ -177,14 +180,24 @@ test('finance screen blocks users without finance_access', () => {
   assert.doesNotMatch(html, /מעקב גבייה/);
 });
 
-test('finance hub shows exactly two cards and no KPI or activity tables', () => {
+test('finance hub shows only explicitly granted business tools and no KPI or activity tables', () => {
   const html = financeScreen.render(createFinanceVisitState(), { state: { user: financeUser } });
   assert.match(html, /דיווח נוכחות/);
   assert.match(html, /ריכוז נתוני נוכחות ושכר לאחר אישור סופי/);
   assert.match(html, /מעקב גבייה/);
   assert.match(html, /מעקב גבייה מרוכז לפי הגורם המשלם/);
-  assert.equal([...html.matchAll(/data-finance-open="(attendance|collection)"/g)].length, 2);
+  assert.match(html, /חשבונות עסקה/);
+  assert.equal([...html.matchAll(/data-finance-open="(attendance|collection|transactions)"/g)].length, 3);
   assert.doesNotMatch(html, /חריגות כספיות|סה״כ פעילויות|אישורי בקרת נוכחות|data-finance-filter/);
+});
+
+test('finance parent does not bypass a disabled business-tool permission', () => {
+  const user = { ...financeUser, view_finance_collection: false };
+  const data = { ...createFinanceVisitState(), view: 'collection' };
+  const html = financeScreen.render(data, { state: { user } });
+  assert.doesNotMatch(html, /data-finance-open="collection"/);
+  assert.doesNotMatch(html, /data-finance-collection-body/);
+  assert.match(html, /data-finance-open="attendance"/);
 });
 
 test('entering finance does not load activities, attendance, or payroll approvals', async () => {

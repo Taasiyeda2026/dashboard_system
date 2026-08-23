@@ -2,6 +2,7 @@ import { supabase } from './supabase-client.js';
 import { state, clearScreenDataCache } from './state.js';
 import { showToast } from './screens/shared/toast.js';
 import { escapeHtml } from './screens/shared/html.js';
+import { hasPermission } from './permission-policy.js';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const ELIGIBLE_STATUSES = new Set(['approved', 'sent', 'מאושר', 'מאושר וחתום', 'נשלח']);
@@ -39,12 +40,8 @@ function normalizedProposalGroup(value) {
 }
 
 function canRouteToIsraa() {
-  const user = state?.user || {};
-  const role = clean(user.display_role || user.role);
-  return clean(user.user_id) === '3030'
-    || role === 'admin'
-    || ['operation_manager', 'domain_manager'].includes(role)
-    || truthy(user.manage_proposals_agreements);
+  return hasPermission(state?.user, 'manage_proposals_agreements')
+    && hasPermission(state?.user, 'view_israa_management');
 }
 
 function toast(message, type = 'success') {

@@ -5,7 +5,6 @@ import { normalizeGlobalActivityPeriod } from './screens/shared/summer-activity.
 import { escapeHtml } from './screens/shared/html.js';
 import { attendanceMonthDateRange } from './screens/attendance-control.js';
 
-const MANAGER_WORKSPACE_ROLES = new Set(['admin', 'operation_manager', 'activities_manager', 'finance']);
 const MANAGER_WORKSPACE_TAB_KEY = 'manager_board_workspace_tab';
 const TEAM_ROSTER_TTL_MS = 90 * 1000;
 const ATTENDANCE_SUMMARY_TTL_MS = 60 * 1000;
@@ -77,7 +76,7 @@ function role() {
 }
 
 function canUseWorkspace() {
-  return MANAGER_WORKSPACE_ROLES.has(role());
+  return role() === 'admin';
 }
 
 function canUsePayrollAttendanceAdminTab() {

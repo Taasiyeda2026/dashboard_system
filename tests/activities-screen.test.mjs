@@ -139,7 +139,7 @@ test('activities access: admin idann can view without edit or add permissions', 
 });
 
 
-test('activities access: allowed technical roles can view when display_role is Hebrew label', () => {
+test('activities access: role labels do not override the explicit view permission', () => {
   const users = [
     ['idann', 'admin', 'מנהל מערכת'],
     ['edenc', 'operation_manager', 'מנהלת תפעול'],
@@ -155,16 +155,17 @@ test('activities access: allowed technical roles can view when display_role is H
       username,
       role,
       display_role: displayRole,
-      permissions: {},
+      permissions: { view_activities: 'no' },
       can_edit_direct: false,
       can_add_activity: false
     };
     const debug = getActivitiesAccessDebug(state);
     assert.equal(debug.role, role);
     assert.equal(debug.displayRole, displayRole);
-    assert.equal(debug.hasActivitiesAccess, true, `${username} with role=${role} should access activities`);
+    assert.equal(debug.hasActivitiesAccess, role === 'admin', `${username} with role=${role} access mismatch`);
     const html = activitiesScreen.render({ rows: [] }, { state });
-    assert.doesNotMatch(html, /אין הרשאה/, `${username} with role=${role} should not see access denied`);
+    if (role === 'admin') assert.doesNotMatch(html, /אין הרשאה/);
+    else assert.match(html, /אין הרשאה/);
   }
 });
 
@@ -195,6 +196,7 @@ test('activities render: giln can request adding an activity when direct add is 
     username: 'giln',
     display_role: 'מנהל פעילויות',
     role: 'activities_manager',
+    permissions: { view_activities: 'yes' },
     can_add_activity: false,
     can_edit_direct: false,
     can_request_create_activity: true,
@@ -205,7 +207,7 @@ test('activities render: giln can request adding an activity when direct add is 
   assert.match(html, /בקשה להוספת פעילות/);
 });
 
-test('activities access: view permission and activities route allow viewing without add/edit permissions', () => {
+test('activities access: view permission allows access but a route alone does not', () => {
   const permittedByPermission = baseState();
   permittedByPermission.user = {
     display_role: 'authorized_user',
@@ -224,7 +226,7 @@ test('activities access: view permission and activities route allow viewing with
     can_edit_direct: false,
     can_add_activity: false
   };
-  assert.equal(getActivitiesAccessDebug(permittedByRoute).hasActivitiesAccess, true);
+  assert.equal(getActivitiesAccessDebug(permittedByRoute).hasActivitiesAccess, false);
 });
 
 test('activities render: non-admin does not see admin toolbar buttons', () => {
@@ -240,7 +242,12 @@ test('activities render: non-admin does not see admin toolbar buttons', () => {
 test('activities render: operation_manager sees add activity button', () => {
   const state = baseState();
   state.activityPeriodTab = 'school_2027';
-  state.user = { display_role: 'operation_manager', role: 'operation_manager', can_add_activity: true };
+  state.user = {
+    display_role: 'operation_manager',
+    role: 'operation_manager',
+    permissions: { view_activities: 'yes' },
+    can_add_activity: true
+  };
   const html = activitiesScreen.render({ rows: [] }, { state });
   assert.match(html, /data-activities-add-btn/);
 });

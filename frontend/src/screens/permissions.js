@@ -19,7 +19,6 @@ const KEY_PERM_FLAGS = [
   'view_proposals',
   'view_proposals_agreements',
   'manage_proposals_agreements',
-  'approve_proposals_agreements',
   'view_israa_management',
   'view_operations_management',
   'view_employee_files',
@@ -313,8 +312,7 @@ function buildPermissionsDetailsHtml(row) {
 export const permissionsScreen = {
   load: ({ api }) => api.permissions(),
   render(data, { state }) {
-    const canEdit =
-      state?.user?.display_role === 'admin' || state?.user?.display_role === 'operation_manager';
+    const canEdit = state?.user?.display_role === 'admin';
     const isAdmin = state?.user?.display_role === 'admin';
     const safeRows = Array.isArray(data?.rows) ? data.rows : [];
     const adminCount = safeRows.filter((r) => permRowRoleCode(r) === 'admin').length;

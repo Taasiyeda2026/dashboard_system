@@ -1,4 +1,5 @@
 import { escapeHtml } from './shared/html.js';
+import { hasPermission } from '../permission-policy.js';
 import { formatDateHe, formatTimeShort } from './shared/format-date.js';
 import { hebrewColumn, hebrewActivityType } from './shared/ui-hebrew.js';
 import {
@@ -93,7 +94,7 @@ export const operationsScreen = {
     const hideEmpIds = !!state?.clientSettings?.hide_emp_id_on_screens;
     const hideRowId = !!state?.clientSettings?.hide_row_id_in_ui;
     const hideActivityNo = !!state?.clientSettings?.hide_activity_no_on_screens;
-    const canSeePrivateNotes = ['operation_manager', 'admin'].includes(state?.user?.display_role);
+    const canSeePrivateNotes = hasPermission(state?.user, 'manage_activity_archive');
     const canEditActivity   = !!(state?.user?.can_edit_direct || state?.user?.can_request_edit);
     const canDirectEdit     = !!state?.user?.can_edit_direct;
     const settings = state?.clientSettings || {};

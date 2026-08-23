@@ -64,6 +64,7 @@ function buildTile() {
   const button = document.createElement('button');
   button.type = 'button';
   button.className = 'admin-management-tile';
+  button.dataset.capabilityId = 'admin.data';
   button.setAttribute(TOOL_ATTR, 'true');
   button.innerHTML = `
     <span class="admin-management-tile__icon">${iconSvg()}</span>

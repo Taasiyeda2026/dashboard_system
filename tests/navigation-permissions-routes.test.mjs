@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+import { ROLE_PERMISSION_TEMPLATES } from '../frontend/src/capability-registry.js';
 
 const API_FILE = new URL('../frontend/src/api.js', import.meta.url).pathname;
 
@@ -12,13 +13,6 @@ function extractRoleRoutes(src, role) {
   const pattern = new RegExp(`${role}: \\[([^\\]]*)\\]`);
   const match = src.match(pattern);
   assert.ok(match, `missing routes for role ${role}`);
-  return match[1];
-}
-
-function extractDefaultPermission(src, role) {
-  const pattern = new RegExp(`${role}: \\{([^\\}]*)\\}`);
-  const match = src.match(pattern);
-  assert.ok(match, `missing default permissions for role ${role}`);
   return match[1];
 }
 
@@ -62,14 +56,13 @@ test('default_view is normalized only to an allowed active route', async () => {
   assert.doesNotMatch(src, /['"]operations['"]\s*[,\]]/);
 });
 
-test('default permissions grant catalog but not edit-review to requested roles', async () => {
-  const src = await readApiSource();
-
+test('role permission templates grant catalog and orders but not edit-review to requested roles', () => {
   for (const role of ['activities_manager', 'instructor_manager', 'finance']) {
-    const defaults = extractDefaultPermission(src, role);
-    assert.match(defaults, /view_catalog: 'yes'/, `${role} should get catalog default permission`);
-    assert.match(defaults, /view_orders: 'yes'/, `${role} should get orders default permission`);
-    assert.match(defaults, /can_review_requests: 'no'/, `${role} should not get review permission`);
+    const defaults = ROLE_PERMISSION_TEMPLATES[role];
+    assert.ok(defaults, `missing permission template for role ${role}`);
+    assert.equal(defaults.view_catalog, 'yes', `${role} should get catalog default permission`);
+    assert.equal(defaults.view_orders, 'yes', `${role} should get orders default permission`);
+    assert.notEqual(defaults.can_review_requests, 'yes', `${role} should not get review permission`);
   }
 });
 

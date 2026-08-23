@@ -2,6 +2,7 @@ import { escapeHtml } from './shared/html.js';
 import { dsScreenStack, dsEmptyState } from './shared/layout.js';
 import { showToast } from './shared/toast.js';
 import { canViewEmployeeFiles } from '../permissions.js';
+import { hasPermission } from '../permission-policy.js';
 import { onboardingManagers, onboardingModalHtml, bindOnboardingModal } from './instructor-onboarding.js';
 import { createEmployeeFileSharePointReturnSync, loadInstructorEmployeeFile, saveInstructorEmployeeFolderUrl } from './instructor-employee-file-data.js';
 import { employeeFileModalHtml } from './instructor-employee-file-ui.js';
@@ -300,7 +301,7 @@ export const instructorsScreen = {
 
   bind({ root, data, state, rerender, api, ui, clearScreenDataCache }) {
     const rows = data?.rows || [];
-    const canEdit = ['admin', 'operation_manager'].includes(text(state?.user?.role || state?.user?.display_role));
+    const canEdit = hasPermission(state?.user, 'manage_instructor_maintenance');
     const employeeFilesAllowed = canViewEmployeeFiles(state?.user);
     state.instructorsWorkspace = state.instructorsWorkspace || { q: '', active: 'yes', assignment: '' };
     bindInstructorsWorkspaceNav(root, { state, rerender });

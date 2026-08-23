@@ -22,13 +22,8 @@ function quotedActivityCount(value) {
   return Math.max(1, Math.min(100, Math.floor(parsed)));
 }
 
-function role() {
-  return clean(state?.user?.display_role || state?.user?.role);
-}
-
 function canCreateActivitiesFromProposal() {
-  return canAddActivityDirect(state?.user)
-    || ['admin', 'operation_manager', 'domain_manager'].includes(role());
+  return canAddActivityDirect(state?.user);
 }
 
 function normalizedProposalGroup(value) {

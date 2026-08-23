@@ -1,7 +1,6 @@
 import { state } from '../state.js';
 import { dsPageHeader, dsScreenStack } from './shared/layout.js';
 
-const SUMMER_FEEDBACK_ALLOWED_USER_IDS = new Set(['8000', '6000']);
 
 function iconSvg(name) {
   const common = 'viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"';
@@ -26,12 +25,12 @@ function effectiveRoutes() {
 }
 
 function canViewSummerFeedback() {
-  const userId = String(state?.user?.user_id || '').trim();
-  return SUMMER_FEEDBACK_ALLOWED_USER_IDS.has(userId);
+  return String(state?.user?.role || state?.user?.display_role || '').trim() === 'admin';
 }
 
-function tileButton({ title, description, icon, route = '', url = '', managerTab = '' }) {
+function tileButton({ title, description, icon, route = '', url = '', managerTab = '', capabilityId = '' }) {
   const attrs = [];
+  if (capabilityId) attrs.push(`data-capability-id="${capabilityId}"`);
   if (route) attrs.push(`data-route="${route}"`);
   if (url) attrs.push(`data-admin-hub-url="${url}"`);
   if (managerTab) {
@@ -59,47 +58,55 @@ function managementTilesHtml() {
       title: 'איסראא',
       description: 'מעקב וניהול פעילות איסראא',
       icon: 'israa',
+      capabilityId: 'israa',
       route: 'israa-management'
     }),
     routes.has('personal-reports') && tileButton({
       title: 'דוחות אישיים',
       description: 'צפייה וניהול דוחות אישיים',
       icon: 'reports',
+      capabilityId: 'reports',
       route: 'personal-reports'
     }),
     routes.has('finance') && tileButton({
       title: 'כספים',
       description: 'נתונים וכלים פיננסיים',
       icon: 'finance',
+      capabilityId: 'finance',
       route: 'finance'
     }),
     canViewSummerFeedback() && tileButton({
       title: 'משוב קיץ',
       description: 'משובי הקיץ של הצוות החינוכי',
       icon: 'summer',
+      capabilityId: 'admin.summer_feedback',
       url: 'https://taasiyeda2026.github.io/dev/summer/admin.html'
     }),
     routes.has('permissions') && tileButton({
       title: 'הרשאות',
       description: 'ניהול משתמשים והרשאות במערכת',
       icon: 'permissions',
+      capabilityId: 'admin.permissions',
       route: 'permissions'
     }),
     tileButton({
       title: 'מערכת נוכחות',
       description: 'כניסה למערכת דיווח הנוכחות',
       icon: 'attendance',
+      capabilityId: 'attendance_reporting',
       url: '/dashboard_system/attendance/'
     }),
     tileButton({
       title: 'לוח מנהל צוות',
       description: 'תמונת מצב וניהול צוות המדריכים',
-      icon: 'team'
+      icon: 'team',
+      capabilityId: 'admin.team_board'
     }),
     tileButton({
       title: 'בקרת נוכחות אדמין',
       description: 'בקרה ואישור דוחות נוכחות לכלל העובדים',
       icon: 'control',
+      capabilityId: 'admin.attendance',
       managerTab: 'payroll-attendance'
     })
   ].filter(Boolean);

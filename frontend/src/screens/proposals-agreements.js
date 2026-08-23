@@ -4,6 +4,7 @@ import { dsCard, dsEmptyState, dsPageHeader, dsScreenStack, dsTableWrap } from '
 import { showToast } from './shared/toast.js';
 import { countPendingApprovedProposals, isProposalApprovedPendingSend } from './shared/proposals-pending-count.js';
 import { handleSupabaseSessionFailure } from '../session-security-runtime.js';
+import { hasPermission } from '../permission-policy.js';
 
 export { countPendingApprovedProposals, isProposalApprovedPendingSend };
 
@@ -115,26 +116,16 @@ function permFlag(v) { return v === true || v === 'yes' || v === 1; }
 
 export function canAccessProposalsAgreements(state) {
   if (!state?.user) return false;
-  return PROPOSALS_AGREEMENTS_ALLOWED_ROLES.has(userRole(state))
-    || permFlag(state.user.view_proposals_agreements)
-    || permFlag(state.user.manage_proposals_agreements)
-    || (Array.isArray(state.effectiveRoutes) && state.effectiveRoutes.includes('proposals-agreements'));
+  return hasPermission(state.user, 'view_proposals_agreements');
 }
 
 export function canManageProposalsAgreements(state) {
   if (!state?.user) return false;
-  return PROPOSALS_AGREEMENTS_MANAGE_ROLES.has(userRole(state))
-    || permFlag(state.user.manage_proposals_agreements);
+  return hasPermission(state.user, 'manage_proposals_agreements');
 }
 
 function canApproveProposalsAgreements(state) {
-  const user = state?.user || {};
-  const userId = text(user.user_id || user.emp_id || user.employee_id);
-  const username = text(user.username_for_login || user.username || user.username_display).toLowerCase();
-  const authUserId = text(user.auth_user_id).toLowerCase();
-  return userId === '8000'
-    || username === 'idann'
-    || authUserId === IDAN_NAHUM_AUTH_USER_ID;
+  return hasPermission(state?.user, 'approve_proposals_agreements');
 }
 
 function text(value) {

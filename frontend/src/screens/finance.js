@@ -6,6 +6,7 @@ import {
   dsTableWrap
 } from './shared/layout.js';
 import { attendanceMonthLabel } from './attendance-control.js';
+import { hasPermission } from '../permission-policy.js';
 import {
   FINANCE_ATTENDANCE_EXPORT_OPTIONS,
   FINANCE_HOUR_CATEGORIES,
@@ -108,9 +109,7 @@ function permissionYes(value) {
 }
 
 export function canAccessFinance(user = {}) {
-  const role = String(user?.role || user?.display_role || '').trim().toLowerCase();
-  if (role === 'admin' || role === 'finance') return true;
-  return permissionYes(user?.finance_access) || permissionYes(user?.view_finance);
+  return hasPermission(user, 'finance_access');
 }
 
 export function createFinanceVisitState(now = new Date()) {
@@ -151,7 +150,17 @@ function hubIcon(name) {
   return `<svg ${common}><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18M16 15h2"/><path d="M7 6V4h10v2"/></svg>`;
 }
 
-function hubCardsHtml() {
+const FINANCE_VIEW_PERMISSIONS = Object.freeze({
+  attendance: 'view_finance_payroll',
+  collection: 'view_finance_collection',
+  transactions: 'manage_finance_transactions'
+});
+
+function canOpenFinanceView(user, view) {
+  return view === 'hub' || hasPermission(user, FINANCE_VIEW_PERMISSIONS[view]);
+}
+
+function hubCardsHtml(user) {
   const cards = [
     {
       view: 'attendance',
@@ -173,7 +182,7 @@ function hubCardsHtml() {
     }
   ];
   return `<div class="ds-fin-hub" dir="rtl">
-    ${cards.map((card) => `
+    ${cards.filter((card) => canOpenFinanceView(user, card.view)).map((card) => `
       <button type="button" class="ds-fin-hub-card" data-finance-open="${card.view}">
         <span class="ds-fin-hub-card__icon">${hubIcon(card.icon)}</span>
         <span class="ds-fin-hub-card__body">
@@ -464,10 +473,10 @@ function collectionViewHtml(data) {
   `);
 }
 
-function hubViewHtml() {
+function hubViewHtml(user) {
   return dsScreenStack(`
     ${dsPageHeader('כספים')}
-    ${hubCardsHtml()}
+    ${hubCardsHtml(user)}
   `);
 }
 
@@ -550,11 +559,12 @@ export const financeScreen = {
     if (!canAccessFinance(state?.user)) {
       return dsScreenStack(`${dsPageHeader('כספים', 'גישה מוגבלת')} ${dsEmptyState('אין הרשאה לצפייה בעמוד כספים.')}`);
     }
-    const view = data?.view || 'hub';
+    const requestedView = data?.view || 'hub';
+    const view = canOpenFinanceView(state?.user, requestedView) ? requestedView : 'hub';
     if (view === 'attendance') return attendanceViewHtml(data, { state });
     if (view === 'collection') return collectionViewHtml(data);
     if (view === 'transactions') return transactionAccountsViewHtml(data, backBarHtml);
-    return hubViewHtml();
+    return hubViewHtml(state?.user);
   },
 
   bind({ root, data, state, api, rerender }) {
@@ -567,6 +577,7 @@ export const financeScreen = {
       const openBtn = ev.target.closest('[data-finance-open]');
       if (openBtn) {
         const nextView = String(openBtn.dataset.financeOpen || 'hub');
+        if (!canOpenFinanceView(state?.user, nextView)) return;
         visit.view = nextView;
         if (nextView === 'attendance') {
           refresh();
