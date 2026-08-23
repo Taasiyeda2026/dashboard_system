@@ -59,16 +59,18 @@ Deno.serve(async (req) => {
     let selectedHourlyRate = "";
     if (clean(body.employment_type) === "taasiyeda") {
       selectedHourlyRate = clean(body.hourly_rate);
-      if (!TAASIYEDA_HOURLY_RATES.has(selectedHourlyRate)) {
-        return json({ error: "hourly_rate_required", message: "יש לבחור שכר לשעה: 70, 75, 80 או 85." }, 400);
+      if (selectedHourlyRate && !TAASIYEDA_HOURLY_RATES.has(selectedHourlyRate)) {
+        return json({ error: "hourly_rate_invalid", message: "שכר לשעה חייב להיות 70, 75, 80 או 85." }, 400);
       }
-      const agreementFiles = files.filter((item) => taasiyedaAgreementRate(item?.name));
-      const selectedAgreements = agreementFiles.filter((item) => taasiyedaAgreementRate(item?.name) === selectedHourlyRate);
-      if (selectedAgreements.length !== 1) {
-        return json({ error: "agreement_selection_failed", message: `לא נמצא הסכם יחיד לשכר של ${selectedHourlyRate} ₪ לשעה בתיקיית הקליטה.` }, 500);
+      if (selectedHourlyRate) {
+        const agreementFiles = files.filter((item) => taasiyedaAgreementRate(item?.name));
+        const selectedAgreements = agreementFiles.filter((item) => taasiyedaAgreementRate(item?.name) === selectedHourlyRate);
+        if (selectedAgreements.length !== 1) {
+          return json({ error: "agreement_selection_failed", message: `לא נמצא הסכם יחיד לשכר של ${selectedHourlyRate} ₪ לשעה בתיקיית הקליטה.` }, 500);
+        }
+        const selectedAgreementId = selectedAgreements[0].id;
+        selectedFiles = files.filter((item) => !taasiyedaAgreementRate(item?.name) || item.id === selectedAgreementId);
       }
-      const selectedAgreementId = selectedAgreements[0].id;
-      selectedFiles = files.filter((item) => !taasiyedaAgreementRate(item?.name) || item.id === selectedAgreementId);
     }
 
     console.info("[instructor-onboarding-files] SharePoint folder loaded", { selectedFolder, fileCount: files.length, selectedFileCount: selectedFiles.length, selectedHourlyRate });
