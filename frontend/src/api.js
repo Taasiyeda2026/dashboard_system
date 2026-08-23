@@ -4791,9 +4791,7 @@ function normalizeSupabaseRole(role) {
 }
 
 function canManagePersonalReportsUser(user = {}) {
-  const role = String(user?.role || '').trim().toLowerCase();
-  if (role === 'admin') return true;
-  return permissionFlagYes(user?.personal_reports_manager);
+  return hasPermission(user, 'personal_reports_manager');
 }
 
 function personalReportsProfileFlagYes(value) {
@@ -4810,6 +4808,13 @@ function profileCanAccessPersonalReports(profileRow) {
 
 function userCanAccessPersonalReportsFromPermissions(flat = {}) {
   return permissionFlagYes(flat.can_access_personal_reports);
+}
+
+function effectivePersonalReportsAccess(flat = {}, profileRow = null) {
+  if (Object.prototype.hasOwnProperty.call(flat, 'can_access_personal_reports')) {
+    return userCanAccessPersonalReportsFromPermissions(flat);
+  }
+  return profileCanAccessPersonalReports(profileRow);
 }
 
 async function readPersonalReportsProfile(authUserId, options = {}) {
@@ -4870,6 +4875,7 @@ async function readPersonalReportsProfilesByAuthIds(authUserIds = []) {
 
 function mergePersonalReportsProfileIntoFlatUser(flat, profileRow) {
   if (!flat || !profileRow) return flat;
+  if (Object.prototype.hasOwnProperty.call(flat, 'can_access_personal_reports')) return flat;
   return {
     ...flat,
     can_access_personal_reports: profileCanAccessPersonalReports(profileRow) ? 'yes' : 'no'
@@ -4964,10 +4970,12 @@ function flattenUserRow(userRow = {}) {
   if (userRow.can_request_create_activity != null) flat.can_request_create_activity = userRow.can_request_create_activity;
   if (userRow.can_edit_direct != null) flat.can_edit_direct = userRow.can_edit_direct;
   if (userRow.can_add_activity != null) flat.can_add_activity = userRow.can_add_activity;
-  if (userRow.can_review_requests != null) flat.can_review_requests = userRow.can_review_requests;
-  if (userRow.view_proposals_agreements != null) flat.view_proposals_agreements = userRow.view_proposals_agreements;
-  if (userRow.manage_proposals_agreements != null) flat.manage_proposals_agreements = userRow.manage_proposals_agreements;
-  if (userRow.approve_proposals_agreements != null) flat.approve_proposals_agreements = userRow.approve_proposals_agreements;
+  // users.permissions is canonical. Top-level columns are read only as a
+  // compatibility fallback until every deployed database has run the backfill.
+  if (permissions.can_review_requests == null && userRow.can_review_requests != null) flat.can_review_requests = userRow.can_review_requests;
+  if (permissions.view_proposals_agreements == null && userRow.view_proposals_agreements != null) flat.view_proposals_agreements = userRow.view_proposals_agreements;
+  if (permissions.manage_proposals_agreements == null && userRow.manage_proposals_agreements != null) flat.manage_proposals_agreements = userRow.manage_proposals_agreements;
+  if (permissions.approve_proposals_agreements == null && userRow.approve_proposals_agreements != null) flat.approve_proposals_agreements = userRow.approve_proposals_agreements;
   return flat;
 }
 
@@ -5005,14 +5013,12 @@ function buildBootstrapFromUser(userRow, profileRow = null) {
   if (permissionFlagYes(flat.view_proposals_agreements) && !allowedRoutes.includes('proposals-agreements')) {
     allowedRoutes.push('proposals-agreements');
   }
-  const canReviewRequests = canDirectManageActivities;
-  const canViewEditRequests = canReviewRequests || canRequestEdit || permissionFlagYes(flat.view_edit_requests);
+  const canReviewRequests = canReviewEditRequestsUser(flat);
+  const canViewEditRequests = canReviewRequests || canRequestEdit || canRequestCreateActivity(flat) || permissionFlagYes(flat.view_edit_requests);
   if (canViewEditRequests && !allowedRoutes.includes('edit-requests')) {
     allowedRoutes.push('edit-requests');
   }
-  const hasPersonalReportsAccess =
-    profileCanAccessPersonalReports(profileRow) ||
-    userCanAccessPersonalReportsFromPermissions(flat);
+  const hasPersonalReportsAccess = effectivePersonalReportsAccess(flat, profileRow);
   const hasPersonalReportsManager = canManagePersonalReportsUser(flat);
   const personalReportsIdx = allowedRoutes.indexOf('personal-reports');
   if (hasPersonalReportsAccess && personalReportsIdx === -1) allowedRoutes.push('personal-reports');
@@ -6978,9 +6984,7 @@ export const api = {
     ]);
     const token = makeSessionToken(user);
     const flat = flattenUserRow(user);
-    const hasPersonalReportsAccess =
-      profileCanAccessPersonalReports(profileRow) ||
-      userCanAccessPersonalReportsFromPermissions(flat);
+    const hasPersonalReportsAccess = effectivePersonalReportsAccess(flat, profileRow);
     const proposalFlags = proposalSessionUserFlagsFromFlatUser(flat);
     const bootstrap = buildBootstrapFromUser(user, profileRow);
     const effectiveUser = mergeBootstrapPermissionsIntoUser({
@@ -8787,7 +8791,7 @@ export const api = {
     if (existing.error || !existing.data) throw new Error('user_not_found');
     const permissions = { ...(existing.data.permissions || {}) };
     Object.entries(row || {}).forEach(([k, v]) => {
-      if (['user_id', 'role', 'display_role', 'default_view', 'active', 'full_name', 'entry_code', 'emp_id', 'display_role2', 'can_access_personal_reports'].includes(k)) return;
+      if (['user_id', 'role', 'display_role', 'default_view', 'active', 'full_name', 'entry_code', 'emp_id', 'display_role2'].includes(k)) return;
       permissions[k] = v;
     });
     const nextRole = row.role || existing.data.role;
@@ -8803,7 +8807,7 @@ export const api = {
         display_role2: row.display_role2 ?? permissions.display_role2 ?? ''
       }
     };
-    for (const key of ['view_proposals_agreements', 'manage_proposals_agreements', 'approve_proposals_agreements']) {
+    for (const key of ['can_review_requests', 'view_proposals_agreements', 'manage_proposals_agreements', 'approve_proposals_agreements']) {
       if (Object.prototype.hasOwnProperty.call(row || {}, key)) patch[key] = row[key];
     }
     const { error } = await supabase.from('users').update(patch).eq('user_id', userId);

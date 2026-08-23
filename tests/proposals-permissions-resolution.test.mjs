@@ -137,7 +137,7 @@ test('flattenUserRow separates display username from internal login fallback', (
   assert.equal(flat.full_name, '');
 });
 
-test('flattenUserRow preserves JSONB permissions and top-level columns override JSON values', () => {
+test('flattenUserRow preserves canonical JSONB permissions over legacy top-level columns', () => {
   const flat = flattenUserRow({
     user_id: 'u1',
     name: 'Test User',
@@ -153,9 +153,9 @@ test('flattenUserRow preserves JSONB permissions and top-level columns override 
     approve_proposals_agreements: 'yes'
   });
 
-  assert.equal(flat.view_proposals_agreements, 'yes');
-  assert.equal(flat.manage_proposals_agreements, 'yes');
-  assert.equal(flat.approve_proposals_agreements, 'yes');
+  assert.equal(flat.view_proposals_agreements, 'no');
+  assert.equal(flat.manage_proposals_agreements, 'no');
+  assert.equal(flat.approve_proposals_agreements, 'no');
 });
 
 test('JSONB view_proposals_agreements allows proposals route and API access', () => {

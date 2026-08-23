@@ -1,4 +1,5 @@
 import { execFileSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import path from 'node:path';
 
 // Explicit, deliberately small suites. Add a test here only when its assertions cover
@@ -182,5 +183,6 @@ export function collectChangedFiles({ repoRoot = process.cwd(), base, head } = {
   }
   return execFileSync('git', ['status', '--porcelain=v1', '-uall'], { cwd: repoRoot, encoding: 'utf8' })
     .split(/\r?\n/).filter(Boolean)
-    .map((line) => line.slice(3).split(' -> ').pop().replace(/^"|"$/g, ''));
+    .map((line) => line.slice(3).split(' -> ').pop().replace(/^"|"$/g, ''))
+    .filter((file) => existsSync(path.join(repoRoot, file)));
 }

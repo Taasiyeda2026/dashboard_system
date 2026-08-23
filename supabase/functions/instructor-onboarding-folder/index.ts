@@ -65,6 +65,14 @@ async function rpc(req: Request, name: string, body: Record<string, unknown>) {
   return await response.json();
 }
 
+async function assertOnboardingAllowed(req: Request) {
+  const user = await rpc(req, "get_current_app_user", {});
+  const current = Array.isArray(user) ? user[0] : user;
+  const allowed = [true, "yes", "true", "1", 1].includes(current?.permissions?.manage_instructor_onboarding)
+    && [true, "yes", "true", "1", 1].includes(current?.permissions?.view_instructors);
+  if (!current?.is_active || (clean(current?.role) !== "admin" && !allowed)) throw new Error("not_authorized");
+}
+
 async function getFolder(accessToken: string, path: string) {
   return await graph(accessToken, `/drives/${encodeURIComponent(DRIVE_ID)}/root:/${encodePath(path)}?$select=id,name,webUrl,folder`, {}, true);
 }
@@ -91,6 +99,7 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return json({ message: "method_not_allowed" }, 405);
   try {
+    await assertOnboardingAllowed(req);
     const body = await req.json().catch(() => ({}));
     const empId = Number(body?.emp_id);
     const fullName = clean(body?.full_name);

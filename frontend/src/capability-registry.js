@@ -15,6 +15,7 @@ export const CAPABILITY_REGISTRY = Object.freeze([
   { id: 'activities.request_edit', parent: 'activities', label: 'בקשת שינוי', type: 'action', permission: 'can_request_edit' },
   { id: 'activities.request_create', parent: 'activities', label: 'בקשת יצירת פעילות', type: 'action', permission: 'can_request_create_activity' },
   { id: 'activities.review', parent: 'activities', label: 'אישור בקשות', type: 'action', permission: 'can_review_requests', route: 'edit-requests' },
+  { id: 'activities.coordination_send', parent: 'activities', label: 'שליחת אישורי סיכום תיאום', type: 'action', permission: 'send_activity_coordination_approvals' },
   { id: 'contacts', label: 'אנשי קשר', type: 'page', permission: 'view_contacts', route: 'contacts' },
 
   { id: 'instructors', label: 'מדריכים', type: 'workspace', permission: 'view_instructors' },
@@ -25,6 +26,7 @@ export const CAPABILITY_REGISTRY = Object.freeze([
   { id: 'instructors.attendance_control', parent: 'instructors', label: 'בקרת נוכחות', type: 'tab', permission: 'view_attendance_control', route: 'operations-management', tab: 'payroll-control', context: 'instructors' },
   { id: 'instructors.maintenance', parent: 'instructors', label: 'תחזוקה', type: 'tab', permission: 'manage_instructor_maintenance', route: 'course-scheduling', tab: 'maintenance' },
   { id: 'instructors.employee_files', parent: 'instructors', label: 'תיקי עובדים', type: 'tool', permission: 'view_employee_files' },
+  { id: 'instructors.onboarding', parent: 'instructors', label: 'קליטת מדריך', type: 'action', permission: 'manage_instructor_onboarding' },
   { id: 'attendance_reporting', label: 'מערכת דיווח נוכחות למדריך', type: 'external_app', permission: 'access_attendance_reporting' },
 
   { id: 'instructor_portal', label: 'אזור אישי למדריך', type: 'workspace', permission: 'view_instructor_portal' },

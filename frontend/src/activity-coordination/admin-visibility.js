@@ -1,20 +1,20 @@
 import { supabase, waitForSupabaseAuthSession } from '../supabase-client.js';
 
-const ADMIN_CLASS = 'activity-coordination-admin';
-const STYLE_ID = 'activity-coordination-admin-only-style';
+const ACCESS_CLASS = 'activity-coordination-send-allowed';
+const STYLE_ID = 'activity-coordination-permission-style';
 let accessResolved = false;
-let isAdmin = false;
+let canSend = false;
 let redirectInFlight = false;
 let accessPromise = null;
 
-function installAdminOnlyStyles() {
+function installPermissionStyles() {
   if (document.getElementById(STYLE_ID)) return;
   const style = document.createElement('style');
   style.id = STYLE_ID;
   style.textContent = `
-    html:not(.${ADMIN_CLASS}) [data-activity-period-tab="coordination_approvals"],
-    html:not(.${ADMIN_CLASS}) [data-coordination-approval],
-    html:not(.${ADMIN_CLASS}) .coordination-workspace {
+    html:not(.${ACCESS_CLASS}) [data-activity-period-tab="coordination_approvals"],
+    html:not(.${ACCESS_CLASS}) [data-coordination-approval],
+    html:not(.${ACCESS_CLASS}) .coordination-workspace {
       display: none !important;
     }
   `;
@@ -22,7 +22,7 @@ function installAdminOnlyStyles() {
 }
 
 function redirectAwayFromCoordinationWorkspace() {
-  if (!accessResolved || isAdmin || redirectInFlight) return;
+  if (!accessResolved || canSend || redirectInFlight) return;
   if (!document.querySelector('.coordination-workspace')) return;
   const allActivitiesTab = document.querySelector('[data-activity-period-tab="year_all"]');
   if (!(allActivitiesTab instanceof HTMLElement)) return;
@@ -31,10 +31,10 @@ function redirectAwayFromCoordinationWorkspace() {
   queueMicrotask(() => { redirectInFlight = false; });
 }
 
-function applyAccessState(admin) {
-  isAdmin = admin === true;
+function applyAccessState(allowed) {
+  canSend = allowed === true;
   accessResolved = true;
-  document.documentElement.classList.toggle(ADMIN_CLASS, isAdmin);
+  document.documentElement.classList.toggle(ACCESS_CLASS, canSend);
   redirectAwayFromCoordinationWorkspace();
 }
 
@@ -65,7 +65,7 @@ async function resolveAccess() {
   }
 }
 
-installAdminOnlyStyles();
+installPermissionStyles();
 
 const observer = new MutationObserver(() => {
   redirectAwayFromCoordinationWorkspace();
