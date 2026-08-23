@@ -5,6 +5,7 @@ import { isActivitySchedulingEligible } from './shared/activity-scheduling-eligi
 import { showToast } from './shared/toast.js';
 import { formatDateDots, formatTimeRangeShort } from './shared/format-date.js';
 import { resolveInstructionLanguage } from './shared/instruction-language.js';
+import { hasPermission } from '../permission-policy.js';
 
 const txt = (value) => String(value ?? '').trim();
 function datesText(activity) {
@@ -110,7 +111,7 @@ export function bindInstructorScheduling(root, { ui, state, activitiesRows, onRe
       showToast('דרישות שיבוץ זמינות רק לפעילות פתוחה בשנת תשפ״ז', 'error');
       return;
     }
-    if (!['admin', 'operation_manager'].includes(txt(state?.user?.role))) {
+    if (!hasPermission(state?.user, 'view_operations_scheduling')) {
       showToast('אין הרשאה לשמור דרישות שיבוץ', 'error');
       return;
     }
@@ -177,4 +178,3 @@ export function bindInstructorScheduling(root, { ui, state, activitiesRows, onRe
     });
   });
 }
-

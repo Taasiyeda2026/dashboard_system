@@ -256,14 +256,13 @@ export function payrollApprovalPdfFileName(employeeName, monthKey, version = 1) 
 
 export function canReadPayrollApprovals(user = {}) {
   const role = txt(user?.role || user?.display_role).toLowerCase();
-  if (role === 'admin' || role === 'finance') return true;
+  if (role === 'admin') return true;
   const flag = (value) => ['yes', 'true', '1'].includes(txt(value).toLowerCase()) || value === true;
   return flag(user?.finance_access) || flag(user?.view_finance);
 }
 
 export function canExportPayrollApprovals(user = {}) {
-  const role = txt(user?.role || user?.display_role).toLowerCase();
-  return role === 'admin' || role === 'finance';
+  return canReadPayrollApprovals(user);
 }
 
 function normalizeWorkflowStatus(value) {

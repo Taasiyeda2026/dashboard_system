@@ -1,7 +1,7 @@
-const PAYROLL_CONTROL_ROLES = new Set(['admin', 'operation_manager', 'finance']);
+import { hasPermission } from '../../permission-policy.js';
 
 function canOpenPayrollControl(state = {}) {
-  return PAYROLL_CONTROL_ROLES.has(String(state?.user?.role || '').trim());
+  return hasPermission(state?.user, 'view_attendance_control');
 }
 
 /**

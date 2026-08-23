@@ -2,7 +2,7 @@ import { escapeHtml } from './html.js';
 import { openPayrollControlWindow } from './payroll-control-launcher.js';
 import { ensureCourseSchedulingManualPickerAccess } from './course-scheduling-manual-picker-access.js';
 import { ensureCourseSchedulingManagerApproval } from './course-scheduling-manager-approval.js';
-import { hasPermission } from '../../permission-policy.js';
+import { canOpenCapability, hasPermission } from '../../permission-policy.js';
 
 export const INSTRUCTORS_WORKSPACE_TABS = Object.freeze([
   { id: 'list', label: 'רשימת מדריכים', route: 'instructors' },
@@ -15,7 +15,7 @@ export const INSTRUCTORS_WORKSPACE_TABS = Object.freeze([
 
 const COURSE_SCHEDULING_ROUTE = 'course-scheduling';
 function hasCourseSchedulingRole(state = {}) {
-  return hasPermission(state?.user, 'view_operations_scheduling');
+  return hasPermission(state?.user, 'view_operations_scheduling') || hasPermission(state?.user, 'manage_instructor_maintenance');
 }
 
 function hasPayrollControlRole(state = {}) {
@@ -58,7 +58,12 @@ function availableRoutes(state) {
 }
 
 function canOpenTab(tab, routes, state = {}) {
-  if (tab?.id === 'payroll-control' && !hasPayrollControlRole(state)) return false;
+  const capabilityByTab = {
+    list: 'instructors.list', scheduling: 'instructors.scheduling',
+    'work-schedule': 'instructors.work_schedule', 'payroll-control': 'instructors.attendance_control',
+    maintenance: 'instructors.maintenance'
+  };
+  if (!canOpenCapability(state?.user, capabilityByTab[tab?.id])) return false;
   return routes.has(tab.route);
 }
 
@@ -208,7 +213,7 @@ export function bindInstructorsWorkspaceNav(root, { state, rerender } = {}) {
   // course-scheduling.js reuses the same state object across re-renders. Clear the
   // temporary replacement calculation before its ordinary handlers process an exit
   // action, so another course never inherits replacement-only labels or controls.
-  root.addEventListener('click', (event) => {
+  root.addEventListener?.('click', (event) => {
     if (!state?.courseSchedulingReplacementCourseId) return;
     const target = event.target;
     const courseCard = target?.closest?.('[data-course-card]');
@@ -221,7 +226,7 @@ export function bindInstructorsWorkspaceNav(root, { state, rerender } = {}) {
     }
   }, true);
 
-  root.addEventListener('change', (event) => {
+  root.addEventListener?.('change', (event) => {
     if (!state?.courseSchedulingReplacementCourseId) return;
     if (event.target?.matches?.('[data-district-filter], [data-authority-filter]')) {
       clearCourseSchedulingReplacementState(state);

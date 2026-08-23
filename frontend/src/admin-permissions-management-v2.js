@@ -3,6 +3,7 @@ import { state } from './state.js';
 import { supabase, waitForSupabaseAuthSession } from './supabase-client.js';
 import { escapeHtml } from './screens/shared/html.js';
 import { hebrewPermissionField, hebrewRole } from './screens/shared/ui-hebrew.js';
+import { ADMIN_ONLY_CAPABILITIES, ALL_PERMISSION_KEYS, capabilityTree } from './capability-registry.js';
 
 const VERSION = '20260823-v3';
 const STYLE_ID = 'admin-permissions-management-v2-style';
@@ -20,66 +21,8 @@ const ROLE_OPTIONS = [
   'instructor_manager'
 ];
 
-const CORE_PERMISSION_KEYS = [
-  'view_admin',
-  'view_activities',
-  'view_permissions',
-  'view_catalog',
-  'view_orders',
-  'view_proposals',
-  'view_proposals_agreements',
-  'manage_proposals_agreements',
-  'approve_proposals_agreements',
-  'view_israa_management',
-  'view_operations_management',
-  'view_employee_files',
-  'finance_access',
-  'can_access_personal_reports',
-  'personal_reports_manager',
-  'can_add_activity',
-  'can_edit_direct',
-  'can_request_edit',
-  'can_request_edit_2',
-  'can_request_create_activity',
-  'can_review_requests',
-  'can_review_requests_2'
-  , 'view_operations_scheduling', 'view_attendance_control', 'view_activity_approvals',
-  'view_workshop_stock', 'view_workshop_stock_distributions'
-];
-
-// Business hierarchy shown to administrators. Technical aliases remain in the
-// persistence payload for compatibility, but are deliberately not exposed.
-const PERMISSION_PAGES = [
-  {
-    title: 'פעילויות', parent: 'view_activities',
-    children: [
-      ['can_add_activity', 'הוספת פעילות'], ['can_edit_direct', 'עריכה ישירה'],
-      ['can_request_edit', 'בקשת שינוי'], ['can_request_create_activity', 'בקשת יצירת פעילות'],
-      ['can_review_requests', 'אישור בקשות']
-    ]
-  },
-  {
-    title: 'ניהול תפעול', parent: 'view_operations_management',
-    children: [
-      ['view_operations_scheduling', 'שיבוצים'], ['view_attendance_control', 'בקרת נוכחות'],
-      ['view_activity_approvals', 'אישורי פעילות'], ['view_workshop_stock', 'מלאי'],
-      ['view_workshop_stock_distributions', 'הפצות']
-    ]
-  },
-  {
-    title: 'הצעות מחיר והסכמים', parent: 'view_proposals_agreements',
-    children: [
-      ['view_proposals', 'צפייה'], ['manage_proposals_agreements', 'יצירה, עריכה וניהול'],
-      ['approve_proposals_agreements', 'אישור וחתימה']
-    ]
-  },
-  { title: 'כספים', parent: 'finance_access', children: [] },
-  { title: 'דוחות אישיים', parent: 'can_access_personal_reports', children: [['personal_reports_manager', 'ניהול דוחות עובדים']] },
-  { title: 'תיקי עובדים', parent: 'view_employee_files', children: [] },
-  { title: 'קטלוג', parent: 'view_catalog', children: [] },
-  { title: 'הזמנות', parent: 'view_orders', children: [] },
-  { title: 'ניהול איסראא', parent: 'view_israa_management', children: [] }
-];
+const CORE_PERMISSION_KEYS = [...ALL_PERMISSION_KEYS, 'view_permissions', 'can_request_edit_2', 'can_review_requests_2', 'view_inventory', 'view_proposals', 'view_finance'];
+const PERMISSION_PAGES = capabilityTree().filter((item) => item.permission);
 
 const LEGACY_PERMISSION_ALIASES = Object.freeze({
   can_request_edit: ['can_request_edit_2'],
@@ -325,19 +268,32 @@ function closeDrawer() {
 
 function primaryAccessLabel(row) {
   if (roleCode(row) === ADMIN_ROLE) return 'גישה מלאה';
-  const labels = PERMISSION_PAGES.filter((page) => effectivePermissionValue(row, page.parent)).map((page) => page.title);
+  const labels = PERMISSION_PAGES.filter((page) => effectivePermissionValue(row, page.permission)).map((page) => page.label);
   return labels.slice(0, 2).join(' · ') || 'ללא גישה לעמודים';
 }
 
 function permissionGroupsHtml(row, role, isNew = false) {
   const defaults = uiState.data?.roleDefaults?.[role] || {};
   const checked = (key) => role === ADMIN_ROLE || (isNew ? effectivePermissionValue(defaults, key) : effectivePermissionValue(row, key));
-  return PERMISSION_PAGES.map((page, index) => {
-    const parentOn = checked(page.parent);
+  const renderNode = (node, parentPermission = '', depth = 0) => {
+    if (!node.permission) return '';
+    const on = checked(node.permission);
+    const parentOn = !parentPermission || checked(parentPermission);
     const disabled = role === ADMIN_ROLE || !parentOn;
-    const children = page.children.map(([key, label]) => `<label class="apm-permission-item"><input type="checkbox" data-apm-permission="${escapeHtml(key)}" data-apm-child-of="${escapeHtml(page.parent)}"${checked(key) ? ' checked' : ''}${disabled ? ' disabled' : ''}><span>${escapeHtml(label)}</span></label>`).join('');
-    return `<details class="apm-permission-group"${parentOn || index < 2 ? ' open' : ''}><summary><label class="apm-checkline"><input type="checkbox" data-apm-permission="${escapeHtml(page.parent)}" data-apm-parent${parentOn ? ' checked' : ''}${role === ADMIN_ROLE ? ' disabled' : ''}> ${escapeHtml(page.title)}</label></summary>${children ? `<div class="apm-permission-grid">${children}</div>` : ''}</details>`;
+    const children = (node.children || []).filter((child) => child.permission).map((child) => renderNode(child, node.permission, depth + 1)).join('');
+    const input = `<label class="apm-permission-item"><input type="checkbox" data-apm-permission="${escapeHtml(node.permission)}"${children ? ' data-apm-parent' : ''}${parentPermission ? ` data-apm-child-of="${escapeHtml(parentPermission)}"` : ''}${on ? ' checked' : ''}${disabled ? ' disabled' : ''}><span>${escapeHtml(node.label)}</span></label>`;
+    return depth === 0
+      ? `<details class="apm-permission-group"${on ? ' open' : ''}><summary>${input}</summary>${children ? `<div class="apm-permission-grid">${children}</div>` : ''}</details>`
+      : `<div class="apm-permission-node" style="margin-inline-start:${depth * 12}px">${input}${children}</div>`;
+  };
+  return PERMISSION_PAGES.map((page) => {
+    return renderNode(page);
   }).join('');
+}
+
+function adminOnlyCapabilitiesHtml() {
+  const labels = ADMIN_ONLY_CAPABILITIES.filter((item) => item.parent === 'admin.home').map((item) => `<li>${escapeHtml(item.label)}</li>`).join('');
+  return `<details class="apm-permission-group"><summary><strong>כלי מנהל מערכת בלבד</strong></summary><p class="apm-role-default-note">כלים אלה אינם ניתנים להענקה לעובד רגיל.</p><ul>${labels}</ul></details>`;
 }
 
 function drawerHtml(row) {
@@ -372,7 +328,7 @@ function drawerHtml(row) {
         </section>
         <section class="apm-section">
           <h3>הרשאות מערכת</h3>
-          <div data-apm-permissions>${permissionGroupsHtml(row || {}, role, isNew)}</div>
+          <div data-apm-permissions>${permissionGroupsHtml(row || {}, role, isNew)}${adminOnlyCapabilitiesHtml()}</div>
           <p class="apm-role-default-note">שינוי תפקיד מחיל את ברירת המחדל של התפקיד. לאחר מכן ניתן לדייק הרשאות ידנית.</p>
         </section>
       </div>
@@ -410,10 +366,14 @@ function openEmployeeDrawer(row) {
 
 function bindPermissionHierarchy(drawer) {
   drawer.querySelectorAll('[data-apm-parent]').forEach((parent) => parent.addEventListener('change', () => {
-    drawer.querySelectorAll(`[data-apm-child-of="${CSS.escape(parent.dataset.apmPermission)}"]`).forEach((child) => {
-      child.disabled = !parent.checked;
-      if (!parent.checked) child.checked = false;
-    });
+    const updateChildren = (permission, enabled) => {
+      drawer.querySelectorAll(`[data-apm-child-of="${CSS.escape(permission)}"]`).forEach((child) => {
+        child.disabled = !enabled;
+        if (!enabled) child.checked = false;
+        updateChildren(child.dataset.apmPermission, enabled && child.checked);
+      });
+    };
+    updateChildren(parent.dataset.apmPermission, parent.checked);
   }));
 }
 

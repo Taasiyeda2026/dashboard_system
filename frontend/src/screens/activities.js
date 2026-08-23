@@ -2348,7 +2348,7 @@ export const activitiesScreen = {
                 canDeleteActivity,
                 hideEmpIds, hideRowId, hideActivityNo,
                 mergeSettingsWithFallback(state?.clientSettings || {}, buildFallbackOptionsFromRows(activitiesRows)),
-                { datesLoading: false, canSchedule: ['admin', 'operation_manager'].includes(String(state?.user?.role || '')) }
+                { datesLoading: false, canSchedule: hasPermission(state?.user, 'view_operations_scheduling') }
               );
               hideShellHeader(contentRoot);
               bindActivityEditForm(contentRoot);
@@ -2661,7 +2661,7 @@ export const activitiesScreen = {
       const buildDrawerContent = (row, datesLoading) => {
         const base = activityDrawerContent(
           row, canSeePrivateNotes, canEditActivity, canDirectEdit, canRequestEdit,
-          canDeleteActivity, hideEmpIds, hideRowId, hideActivityNo, settings, { datesLoading, canSchedule: ['admin', 'operation_manager'].includes(String(state?.user?.role || '')) }
+          canDeleteActivity, hideEmpIds, hideRowId, hideActivityNo, settings, { datesLoading, canSchedule: hasPermission(state?.user, 'view_operations_scheduling') }
         );
         if (!canReopenActivity) return base;
         return `<div style="padding:12px 16px 0;text-align:right">

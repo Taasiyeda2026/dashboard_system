@@ -24,6 +24,7 @@ function createCard() {
   button.type = 'button';
   button.className = 'admin-management-tile';
   button.setAttribute(CARD_ATTRIBUTE, 'true');
+  button.dataset.capabilityId = 'admin.messages';
   button.innerHTML = `
     <span class="admin-management-tile__icon">${messagesIcon()}</span>
     <span class="admin-management-tile__content">

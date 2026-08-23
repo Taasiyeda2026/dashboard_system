@@ -17,6 +17,7 @@ import {
 } from './shared/activity-list-filters.js';
 import { activityManagerDisplayName, getRosterUsers, normalizeActivityTypeKey } from './shared/activity-options.js';
 import { isReadOnlyActivityRow } from './shared/activity-readonly-period.js';
+import { hasPermission } from '../permission-policy.js';
 
 const ARCHIVE_SCOPE = 'archive';
 const ARCHIVE_SEARCH_DEBOUNCE_MS = 280;
@@ -314,7 +315,7 @@ export const archiveScreen = {
 
   bind({ root, data, state, rerender, ui, api }) {
     const rowsRef = () => (Array.isArray(data?.rows) ? data.rows : []);
-    const canSeePrivateNotes = ['operation_manager', 'admin'].includes(state?.user?.display_role);
+    const canSeePrivateNotes = hasPermission(state?.user, 'manage_activity_archive');
     const hideEmpIds = !!state?.clientSettings?.hide_emp_id_on_screens;
     const hideRowId = !!state?.clientSettings?.hide_row_id_in_ui;
     const hideActivityNo = !!state?.clientSettings?.hide_activity_no_on_screens;
@@ -454,7 +455,7 @@ export const archiveScreen = {
       }
     });
 
-    const canReopen = ['admin', 'operation_manager'].includes(state?.user?.display_role);
+    const canReopen = hasPermission(state?.user, 'manage_activity_archive');
 
     async function openDetail(summaryRow) {
       if (!summaryRow || !ui) return;
@@ -554,7 +555,7 @@ export const archiveScreen = {
       const openForm = contentNode?.querySelector('[data-drawer-form]');
       if (!contentNode || !openForm) return;
       if (String(openForm.getAttribute('data-row-id') || '').trim() !== String(summaryRow?.RowID || '').trim()) return;
-      const canReopenRow = ['admin', 'operation_manager'].includes(state?.user?.display_role)
+      const canReopenRow = hasPermission(state?.user, 'manage_activity_archive')
         && !isReadOnlyActivityRow(detailRow);
       const privateNote = canSeePrivateNotes ? detailRow.private_note || '—' : null;
       const reopenBtn = canReopenRow

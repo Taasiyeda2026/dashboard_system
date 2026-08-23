@@ -53,6 +53,59 @@ where u.role = t.role
         'manage_proposals_agreements', u.manage_proposals_agreements,
         'approve_proposals_agreements', u.approve_proposals_agreements)));
 
+-- Complete the business capability inventory while preserving every explicit
+-- value already managed by an administrator.
+with complete_templates(role, defaults) as (values
+  ('operation_manager', jsonb_build_object(
+    'view_dashboard','yes','view_activity_calendar','yes','view_activity_exceptions','yes',
+    'view_activity_end_dates','yes','view_activity_archive','yes','manage_activity_archive','yes',
+    'view_contacts','yes','view_instructors','yes','view_instructor_list','yes',
+    'view_instructor_contacts','yes','view_instructor_work_schedule','yes',
+    'manage_instructor_maintenance','yes','view_certificates','yes','view_operations_management','yes',
+    'view_operations_schedule_overview','yes')),
+  ('activities_manager', jsonb_build_object(
+    'view_dashboard','yes','view_activity_calendar','yes','view_activity_exceptions','yes',
+    'view_activity_end_dates','yes','view_activity_archive','yes','view_contacts','yes',
+    'view_instructors','yes','view_instructor_list','yes','view_instructor_contacts','yes',
+    'view_instructor_work_schedule','yes','view_certificates','yes','view_operations_management','yes',
+    'view_operations_schedule_overview','yes')),
+  ('finance', jsonb_build_object(
+    'view_dashboard','yes','view_activity_calendar','yes','view_activity_exceptions','yes',
+    'view_activity_end_dates','yes','view_activity_archive','yes','view_contacts','yes',
+    'view_instructors','yes','view_instructor_list','yes','view_instructor_contacts','yes',
+    'view_attendance_control','yes','view_certificates','yes','view_operations_management','yes',
+    'view_finance_payroll','yes','view_finance_collection','yes','manage_finance_transactions','yes')),
+  ('domain_manager', jsonb_build_object(
+    'view_dashboard','yes','view_activity_calendar','yes','view_activity_exceptions','yes',
+    'view_activity_end_dates','yes','view_activity_archive','yes','view_contacts','yes',
+    'view_instructors','yes','view_instructor_list','yes','view_instructor_contacts','yes',
+    'view_certificates','yes','view_operations_management','yes')),
+  ('business_development_manager', jsonb_build_object(
+    'view_dashboard','yes','view_activity_calendar','yes','view_activity_exceptions','yes',
+    'view_activity_end_dates','yes','view_activity_archive','yes','view_contacts','yes',
+    'view_instructors','yes','view_instructor_list','yes','view_instructor_contacts','yes',
+    'view_certificates','yes','view_operations_management','yes')),
+  ('instructor_manager', jsonb_build_object(
+    'view_dashboard','yes','view_activity_calendar','yes','view_activity_exceptions','yes',
+    'view_activity_end_dates','yes','view_activity_archive','yes','view_contacts','yes',
+    'view_instructors','yes','view_instructor_list','yes','view_instructor_contacts','yes',
+    'view_certificates','yes','view_operations_management','yes')),
+  ('authorized_user', jsonb_build_object(
+    'view_dashboard','yes','view_activity_calendar','yes','view_activity_exceptions','yes',
+    'view_activity_end_dates','yes','view_activity_archive','yes','view_contacts','yes',
+    'view_instructors','yes','view_instructor_list','yes','view_instructor_contacts','yes',
+    'view_certificates','yes','view_operations_management','yes')),
+  ('instructor', jsonb_build_object(
+    'access_attendance_reporting','yes','view_instructor_portal','yes',
+    'view_instructor_calendar','yes','view_instructor_data','yes',
+    'view_instructor_completion_approvals','yes','view_instructor_guidelines','yes'))
+)
+update public.users u
+set permissions = t.defaults || coalesce(u.permissions, '{}'::jsonb), updated_at = now()
+from complete_templates t
+where u.role = t.role
+  and coalesce(u.permissions, '{}'::jsonb) is distinct from (t.defaults || coalesce(u.permissions, '{}'::jsonb));
+
 create or replace function public.app_can_edit_direct()
 returns boolean language sql stable security definer set search_path = public as $$
   select coalesce(public.app_current_role() = 'admin' or public.app_has_permission('can_edit_direct'), false)
@@ -96,6 +149,62 @@ $$;
 
 revoke all on function public.app_can_access_operations_area(text) from public, anon;
 grant execute on function public.app_can_access_operations_area(text) to authenticated;
+
+-- Keep the existing finance implementations intact, but put explicit business
+-- tool checks in front of their SECURITY DEFINER entry points.
+alter function public.list_finance_collection_tracking() rename to list_finance_collection_tracking_legacy_impl;
+alter function public.upsert_finance_collection_tracking(text, text, date, text) rename to upsert_finance_collection_tracking_legacy_impl;
+alter function public.reserve_finance_transaction_account(uuid, date, text, text, text, jsonb) rename to reserve_finance_transaction_account_legacy_impl;
+
+revoke all on function public.list_finance_collection_tracking_legacy_impl() from public, anon, authenticated;
+revoke all on function public.upsert_finance_collection_tracking_legacy_impl(text, text, date, text) from public, anon, authenticated;
+revoke all on function public.reserve_finance_transaction_account_legacy_impl(uuid, date, text, text, text, jsonb) from public, anon, authenticated;
+
+create function public.list_finance_collection_tracking()
+returns setof public.finance_collection_tracking
+language plpgsql stable security definer set search_path = public as $$
+begin
+  if public.app_current_role() <> 'admin' and not public.app_has_permission('view_finance_collection') then
+    raise exception 'finance_collection_permission_denied' using errcode = '42501';
+  end if;
+  return query select * from public.list_finance_collection_tracking_legacy_impl();
+end;
+$$;
+
+create function public.upsert_finance_collection_tracking(
+  p_activity_row_id text, p_collection_status text,
+  p_expected_collection_date date default null, p_finance_note text default ''
+) returns public.finance_collection_tracking
+language plpgsql security definer set search_path = public as $$
+begin
+  if public.app_current_role() <> 'admin' and not public.app_has_permission('view_finance_collection') then
+    raise exception 'finance_collection_permission_denied' using errcode = '42501';
+  end if;
+  return public.upsert_finance_collection_tracking_legacy_impl(
+    p_activity_row_id, p_collection_status, p_expected_collection_date, p_finance_note
+  );
+end;
+$$;
+
+create function public.reserve_finance_transaction_account(
+  p_idempotency_key uuid, p_cutoff_date date, p_institution_symbol text,
+  p_customer_name text, p_customer_email text, p_lines jsonb
+) returns public.finance_transaction_accounts
+language plpgsql security definer set search_path = public as $$
+begin
+  if public.app_current_role() <> 'admin' and not public.app_has_permission('manage_finance_transactions') then
+    raise exception 'finance_transactions_permission_denied' using errcode = '42501';
+  end if;
+  return public.reserve_finance_transaction_account_legacy_impl(
+    p_idempotency_key, p_cutoff_date, p_institution_symbol,
+    p_customer_name, p_customer_email, p_lines
+  );
+end;
+$$;
+
+grant execute on function public.list_finance_collection_tracking() to authenticated;
+grant execute on function public.upsert_finance_collection_tracking(text, text, date, text) to authenticated;
+grant execute on function public.reserve_finance_transaction_account(uuid, date, text, text, text, jsonb) to authenticated;
 
 -- The distribution table contains employee-level issue history. Replace broad
 -- authenticated policies with the explicit distribution permission when present.

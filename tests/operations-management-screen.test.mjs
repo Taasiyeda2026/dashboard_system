@@ -60,6 +60,11 @@ const {
 
 function baseState(overrides = {}) {
   const base = {
+    user: {
+      role: 'operation_manager', view_operations_management: 'yes',
+      view_activity_approvals: 'yes', view_workshop_stock: 'yes',
+      view_operations_schedule_overview: 'yes'
+    },
     activityPeriodTab: 'regular',
     operationsManagement: {
       tab: 'home',
@@ -259,7 +264,7 @@ test('summer exceptions only include missing instructor or missing date', () => 
 });
 
 test('operations management render includes menu page structure and tabs', () => {
-  const html = operationsManagementScreen.render({ rows: TEXT_SCHOOL_ROWS, workshopStockMap: new Map() }, { state: baseState({ user: { role: 'operation_manager', view_workshop_stock: 'yes', view_activity_approvals: 'yes' } }) });
+  const html = operationsManagementScreen.render({ rows: TEXT_SCHOOL_ROWS, workshopStockMap: new Map() }, { state: baseState({ user: { role: 'operation_manager', view_operations_management: 'yes', view_workshop_stock: 'yes', view_activity_approvals: 'yes' } }) });
   assert.match(html, /תפעול/);
   assert.match(html, /כלי התפעול/);
   assert.match(html, /operations-management-home/);
@@ -269,7 +274,7 @@ test('operations management render includes menu page structure and tabs', () =>
   assert.doesNotMatch(html, /ds-exceptions-tabs/);
   assert.doesNotMatch(html, /סמל מוסד/);
 
-  const completionState = baseState({ user: { role: 'operation_manager', view_activity_approvals: 'yes', view_workshop_stock: 'yes' }, operationsManagement: { ...baseState().operationsManagement, tab: 'completion_approval' } });
+  const completionState = baseState({ user: { role: 'operation_manager', view_operations_management: 'yes', view_activity_approvals: 'yes', view_workshop_stock: 'yes' }, operationsManagement: { ...baseState().operationsManagement, tab: 'completion_approval' } });
   const completionHtml = operationsManagementScreen.render({ rows: TEXT_SCHOOL_ROWS, workshopStockMap: new Map() }, { state: completionState });
   assert.match(completionHtml, /אישורי ביצוע/);
   assert.match(completionHtml, /data-ops-tab="completion_approval"[^>]*aria-pressed="true"/);
@@ -1448,7 +1453,7 @@ test('workshops tab shows stock edit button for admin and explicitly granted man
     adminListsData
   };
   const adminState = baseState({ user: { role: 'admin' }, operationsManagement: { ...baseState().operationsManagement, tab: 'workshops', dateFrom: '2026-07-01', dateTo: '2026-07-31' } });
-  const managerState = baseState({ user: { role: 'operation_manager', view_workshop_stock: 'yes' }, operationsManagement: { ...baseState().operationsManagement, tab: 'workshops', dateFrom: '2026-07-01', dateTo: '2026-07-31' } });
+  const managerState = baseState({ user: { role: 'operation_manager', view_operations_management: 'yes', view_workshop_stock: 'yes' }, operationsManagement: { ...baseState().operationsManagement, tab: 'workshops', dateFrom: '2026-07-01', dateTo: '2026-07-31' } });
   const adminHtml = operationsManagementScreen.render(payload, { state: adminState });
   const managerHtml = operationsManagementScreen.render(payload, { state: managerState });
   assert.match(adminHtml, /data-ops-open-stock-edit/);

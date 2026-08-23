@@ -39,5 +39,5 @@ test('new instructors and permission records stay linked by employee number', ()
 });
 
 test('redesigned permissions runtime is loaded by the application bootstrap', () => {
-  assert.match(bootstrap, /admin-permissions-management-v2\.js\?v=20260823-v4/);
+  assert.match(bootstrap, /admin-permissions-management-v2\.js\?v=20260823-v5/);
 });

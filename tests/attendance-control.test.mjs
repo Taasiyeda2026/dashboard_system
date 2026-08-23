@@ -1057,15 +1057,16 @@ test('SharePoint or email artifact failure blocks manager approval save', async 
   assert.equal(finalized, null);
 });
 
-test('admin and finance can read payroll approvals', () => {
+test('admin and explicitly permitted finance users can read payroll approvals', () => {
   assert.equal(canReadPayrollApprovals({ role: 'admin' }), true);
-  assert.equal(canReadPayrollApprovals({ role: 'finance' }), true);
+  assert.equal(canReadPayrollApprovals({ role: 'finance', finance_access: 'yes' }), true);
+  assert.equal(canReadPayrollApprovals({ role: 'finance', finance_access: 'no' }), false);
   assert.equal(canReadPayrollApprovals({ role: 'instructor' }), false);
 });
 
 test('users without payroll export permission cannot export excel', () => {
   assert.equal(canExportPayrollApprovals({ role: 'admin' }), true);
-  assert.equal(canExportPayrollApprovals({ role: 'finance' }), true);
+  assert.equal(canExportPayrollApprovals({ role: 'finance', finance_access: 'yes' }), true);
   assert.equal(canExportPayrollApprovals({ role: 'instructor' }), false);
   assert.equal(canExportPayrollApprovals({ role: 'instructor_manager' }), false);
   assert.throws(

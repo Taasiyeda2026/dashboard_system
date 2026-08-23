@@ -65,6 +65,7 @@ test('שיבוצים is removed from the main activities subnav while course-sch
 
 test('instructors workspace tabs render consistently on list and scheduling screens', () => {
   const state = {
+    user: { role: 'admin' },
     routes: ['instructors', 'course-scheduling', 'operations-management'],
     route: 'instructors',
     user: { role: 'admin' },
@@ -135,6 +136,7 @@ function bindNavWithDocument(state, tabButtons, { onNavigate } = {}) {
 test('work-schedule tab prepares instructors context and navigates without pre-setting route', () => {
   const tabButton = makeTabButton('work-schedule');
   const state = {
+    user: { role: 'admin' },
     routes: ['instructors', 'course-scheduling', 'operations-management'],
     route: 'instructors',
     operationsManagement: { tab: 'completion_approval', context: 'operations' }
@@ -156,6 +158,7 @@ test('workspace tabs perform a real screen transition via app:navigate for all t
     makeTabButton('work-schedule')
   ];
   const state = {
+    user: { role: 'admin' },
     routes: ['instructors', 'course-scheduling', 'operations-management'],
     effectiveRoutes: ['instructors', 'course-scheduling', 'operations-management'],
     route: 'instructors',
@@ -195,6 +198,7 @@ test('without document, workspace tabs update route and call rerender', () => {
     // eslint-disable-next-line no-global-assign
     globalThis.document = undefined;
     const state = {
+      user: { role: 'admin' },
       routes: ['instructors', 'course-scheduling', 'operations-management'],
       route: 'instructors',
       operationsManagement: { tab: 'completion_approval', context: 'operations' }
@@ -243,6 +247,7 @@ test('operations management from main nav hides work-schedule and opens the home
 
 test('instructors context keeps the same operations schedule screen under מדריכים', () => {
   const state = {
+    user: { role: 'admin' },
     routes: ['instructors', 'course-scheduling', 'operations-management'],
     route: 'operations-management',
     operationsManagement: {
@@ -268,14 +273,14 @@ test('instructors context keeps the same operations schedule screen under מדר
 test('workspace tabs respect route permissions', () => {
   const noScheduling = instructorsWorkspaceNavHtml({
     activeTab: 'list',
-    state: { routes: ['instructors', 'operations-management'] }
+    state: { user: { role: 'instructor', view_instructors: 'yes', view_instructor_list: 'yes', view_instructor_work_schedule: 'yes' }, routes: ['instructors', 'operations-management'] }
   });
   assert.doesNotMatch(noScheduling, /data-instructors-workspace-tab="scheduling"/);
   assert.match(noScheduling, /data-instructors-workspace-tab="work-schedule"/);
 
   const noOps = instructorsWorkspaceNavHtml({
     activeTab: 'list',
-    state: { routes: ['instructors', 'course-scheduling'] }
+    state: { user: { role: 'instructor', view_instructors: 'yes', view_instructor_list: 'yes', view_operations_scheduling: 'yes' }, routes: ['instructors', 'course-scheduling'] }
   });
   assert.match(noOps, /data-instructors-workspace-tab="scheduling"/);
   assert.doesNotMatch(noOps, /data-instructors-workspace-tab="work-schedule"/);
@@ -285,6 +290,7 @@ test('effectiveRoutes hides scheduling even when routes still includes course-sc
   const html = instructorsWorkspaceNavHtml({
     activeTab: 'list',
     state: {
+      user: { role: 'instructor', view_instructors: 'yes', view_instructor_list: 'yes', view_instructor_work_schedule: 'yes', view_operations_scheduling: 'yes' },
       routes: ['instructors', 'course-scheduling', 'operations-management'],
       effectiveRoutes: ['instructors', 'operations-management']
     }
@@ -307,7 +313,7 @@ test('deep link helpers keep the active instructors workspace tab', () => {
   }), '');
   const header = instructorsWorkspaceHeaderHtml({
     activeTab: 'scheduling',
-    state: { routes: ['instructors', 'course-scheduling', 'operations-management'], route: 'course-scheduling' }
+    state: { user: { role: 'admin' }, routes: ['instructors', 'course-scheduling', 'operations-management'], route: 'course-scheduling' }
   });
   assert.match(header, /data-instructors-workspace-tab="scheduling"[^>]*aria-selected="true"/);
 });

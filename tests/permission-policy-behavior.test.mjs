@@ -18,7 +18,7 @@ test('roles never override an explicit unchecked managed permission', () => {
     'business_development_manager', 'instructor_manager', 'instructor'
   ]) {
     const user = { role, permissions: {} };
-    assert.deepEqual(enforceManagedRoutes(managedRoutes, user), ['dashboard'], role);
+    assert.deepEqual(enforceManagedRoutes(managedRoutes, user), [], role);
     assert.equal(canOpenOperationsTab(user, 'completion_approval'), false, role);
     assert.equal(canOpenOperationsTab(user, 'workshops'), false, role);
   }
@@ -28,8 +28,10 @@ test('individual grants control routes and operations tabs independent of role',
   const user = {
     role: 'instructor',
     permissions: {
+      view_dashboard: 'yes',
       view_activities: 'yes',
       view_operations_management: 'yes',
+      view_instructors: 'yes',
       view_operations_scheduling: 'yes',
       view_activity_approvals: 'yes',
       view_workshop_stock: 'no'
@@ -45,8 +47,8 @@ test('individual grants control routes and operations tabs independent of role',
 test('admin receives full access and aliases remain compatible', () => {
   assert.deepEqual(enforceManagedRoutes(managedRoutes, { role: 'admin' }), managedRoutes);
   assert.equal(canOpenOperationsTab({ role: 'admin' }, 'workshops'), true);
-  assert.equal(hasPermission({ role: 'instructor', permissions: { view_inventory: 'yes' } }, 'view_workshop_stock'), true);
-  assert.equal(hasPermission({ role: 'instructor', permissions: { can_request_edit_2: 'yes' } }, 'can_request_edit'), true);
+  assert.equal(hasPermission({ role: 'instructor', permissions: { view_operations_management: 'yes', view_inventory: 'yes' } }, 'view_workshop_stock'), true);
+  assert.equal(hasPermission({ role: 'instructor', permissions: { view_activities: 'yes', can_request_edit_2: 'yes' } }, 'can_request_edit'), true);
   assert.equal(hasPermission({ role: 'instructor', permissions: { view_finance: 'yes' } }, 'finance_access'), true);
 });
 

@@ -2,7 +2,7 @@ import { escapeHtml } from './shared/html.js';
 import { bindSummerContactsModalEvents, renderSummerContactsButton } from './shared/summer-contacts-modal.js';
 import { supabase } from '../supabase-client.js';
 import { setGlobalActivityPeriod } from '../state.js';
-import { canOpenOperationsTab, hasPermission } from '../permission-policy.js';
+import { canOpenCapability, canOpenOperationsTab, hasPermission } from '../permission-policy.js';
 import { formatDateHe, formatDateHeWithWeekday } from './shared/format-date.js';
 import {
   dsPageHeader,
@@ -726,13 +726,13 @@ function tabsHtml(activeTab, currentRoute = '', state = {}) {
     [TAB_WORKSHOPS, 'ציוד ומלאי']
   ];
   const routeTabs = [
-    ['invitations', 'הזמנות לאירועים'],
-    ['catalog', 'קטלוג'],
-    ['certificates', 'תעודות']
+    ['invitations', 'הזמנות לאירועים', 'operations.orders'],
+    ['catalog', 'קטלוג', 'operations.catalog'],
+    ['certificates', 'תעודות', 'operations.certificates']
   ];
   return `<nav class="ds-exceptions-tabs ds-ops-mgmt-tabs no-print" aria-label="לשוניות ניהול תפעול" dir="rtl">
     ${tabs.filter(([key]) => canOpenOperationsTab(state?.user, key)).map(([key, label]) => `<button type="button" class="ds-exceptions-tab ds-ops-mgmt-tab${activeTab === key ? ' is-active' : ''}" data-ops-tab="${escapeHtml(key)}" aria-pressed="${activeTab === key ? 'true' : 'false'}">${escapeHtml(label)}</button>`).join('')}
-    ${routeTabs.map(([route, label]) => `<button type="button" class="ds-exceptions-tab ds-ops-mgmt-tab${currentRoute === route ? ' is-active' : ''}" data-route="${escapeHtml(route)}" aria-pressed="${currentRoute === route ? 'true' : 'false'}">${escapeHtml(label)}</button>`).join('')}
+    ${routeTabs.filter(([, , capability]) => canOpenCapability(state?.user, capability)).map(([route, label]) => `<button type="button" class="ds-exceptions-tab ds-ops-mgmt-tab${currentRoute === route ? ' is-active' : ''}" data-route="${escapeHtml(route)}" aria-pressed="${currentRoute === route ? 'true' : 'false'}">${escapeHtml(label)}</button>`).join('')}
   </nav>`;
 }
 
@@ -762,7 +762,11 @@ function operationsHomeDescription(label) {
 }
 
 function operationsHomeHtml(state = {}) {
-  const tiles = OPERATIONS_HOME_TARGETS.filter(({ type, value }) => type !== 'ops-tab' || canOpenOperationsTab(state?.user, value)).map(({ label, type, value }) => `
+  const tiles = OPERATIONS_HOME_TARGETS.filter(({ type, value }) => {
+    if (type === 'ops-tab' || type === 'ops-custom-tab') return canOpenOperationsTab(state?.user, value);
+    if (type === 'route') return canOpenCapability(state?.user, value === 'invitations' ? 'operations.orders' : `operations.${value}`);
+    return false;
+  }).map(({ label, type, value }) => `
     <button type="button" class="operations-management-home__tile" data-ops-home-target-type="${escapeHtml(type)}" data-ops-home-target-value="${escapeHtml(value)}" aria-label="פתיחת ${escapeHtml(label)}">
       <span class="operations-management-home__icon">${operationsHomeIconSvg(label)}</span>
       <span class="operations-management-home__content">
@@ -3456,7 +3460,7 @@ async function navigateOperationsHomeTarget(type, value, { data, api, state, rer
   }
 
   if (type === 'ops-custom-tab') {
-    if (!OPERATIONS_CUSTOM_TAB_KEYS.has(value)) return;
+    if (!OPERATIONS_CUSTOM_TAB_KEYS.has(value) || !canOpenOperationsTab(state?.user, value)) return;
     ops.customTab = value;
     ops.tab = TAB_WORKSHOPS;
     document.dispatchEvent(new CustomEvent('app:navigate', { detail: { route: 'operations-management' } }));

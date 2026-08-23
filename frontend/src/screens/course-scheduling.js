@@ -1,4 +1,5 @@
 import { supabase } from '../supabase-client.js';
+import { hasPermission } from '../permission-policy.js';
 import { escapeHtml } from './shared/html.js';
 import { dsEmptyState, dsScreenStack, dsTableWrap } from './shared/layout.js';
 import { showToast } from './shared/toast.js';
@@ -1264,7 +1265,8 @@ export const courseSchedulingScreen = {
 
   render(data, { state }) {
     ensureCourseSchedulingStyles();
-    if (!['admin', 'operation_manager'].includes(text(state?.user?.role))) {
+    const requiredPermission = activeTab(state) === 'maintenance' ? 'manage_instructor_maintenance' : 'view_operations_scheduling';
+    if (!hasPermission(state?.user, requiredPermission)) {
       return dsScreenStack(dsEmptyState('אין הרשאה לצפייה בשיבוץ קורסים.'));
     }
 
@@ -1324,7 +1326,7 @@ export const courseSchedulingScreen = {
   },
 
   bind({ root, data, state, rerender, clearScreenDataCache }) {
-    const canEdit = ['admin', 'operation_manager'].includes(text(state?.user?.role));
+    const canEdit = hasPermission(state?.user, activeTab(state) === 'maintenance' ? 'manage_instructor_maintenance' : 'view_operations_scheduling');
     const resultByCourseId = new Map((state.courseSchedulingResults || []).map((result) => [idOf(result.course), result]));
     const allInterfaceCourses = schedulingWorkspaceCourses(data.activities || []);
     const interfaceCourses = filteredInterfaceCourses(allInterfaceCourses, state);
