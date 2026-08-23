@@ -25,6 +25,7 @@ import { permissionFlagYes, canEditDirect, canAddActivityDirect, canRequestEdit,
 import { mapWithConcurrency } from './bounded-concurrency.js';
 import { config } from './config.js';
 import { catalogActivityChangesFromRows, catalogText } from './activity-catalog-identity.js';
+import { enforceManagedRoutes, hasPermission } from './permission-policy.js';
 
 /**
  * Actions that modify server-side data.
@@ -126,7 +127,6 @@ function isActiveInstructorPilotUser(user = state?.user || {}) {
   return [user.emp_id, user.employee_id, user.user_id].map((v) => String(v || '').trim()).some((id) => ACTIVE_INSTRUCTOR_EMP_IDS.has(id));
 }
 
-const COMPLETION_APPROVAL_MANAGER_ROLES = new Set(['admin', 'operation_manager', 'domain_manager', 'activities_manager', 'instructor_manager']);
 
 const ACTIVITY_MEETING_DATE_COLUMNS = Array.from({ length: 35 }, (_, index) => `date_${index + 1}`);
 const DASHBOARD_ACTIVITY_COLUMNS = [
@@ -3382,30 +3382,23 @@ function notesWithActivityNames(notes, activity_names) {
 }
 
 function canUseProposalsAgreementsApi() {
-  const role = String(state?.user?.role || '').trim();
-  return PROPOSALS_AGREEMENTS_ALLOWED_ROLES.has(role)
-    || permissionFlagYes(state?.user?.view_proposals_agreements)
-    || permissionFlagYes(state?.user?.manage_proposals_agreements);
+  return hasPermission(state?.user, 'view_proposals_agreements');
 }
 
 function canManageProposalsAgreementsApi() {
-  const role = String(state?.user?.role || '').trim();
-  return PROPOSALS_AGREEMENTS_MANAGE_ROLES.has(role)
-    || permissionFlagYes(state?.user?.manage_proposals_agreements);
+  return hasPermission(state?.user, 'manage_proposals_agreements');
 }
 
 function assertCanUseProposalsAgreementsApi() {
   if (!canUseProposalsAgreementsApi()) throw new Error('proposals_agreements_forbidden');
 }
 
+function assertPermission(key, code = 'permission_denied') {
+  if (!hasPermission(state?.user, key)) throw new Error(code);
+}
+
 function canApproveProposalsAgreementsApi() {
-  const user = state?.user || {};
-  const userId = cleanProposalAgreementText(user.user_id || user.emp_id || user.employee_id);
-  const username = cleanProposalAgreementText(user.username_for_login || user.username || user.username_display).toLowerCase();
-  const authUserId = cleanProposalAgreementText(user.auth_user_id).toLowerCase();
-  return userId === '8000'
-    || username === 'idann'
-    || authUserId === IDAN_NAHUM_AUTH_USER_ID;
+  return hasPermission(state?.user, 'approve_proposals_agreements');
 }
 
 function assertCanManageProposalsAgreementsApi() {
@@ -5001,12 +4994,11 @@ function proposalSessionUserFlagsFromFlatUser(flat = {}) {
 function buildBootstrapFromUser(userRow, profileRow = null) {
   const flat = flattenUserRow(userRow);
   const role = normalizeSupabaseRole(flat.role);
-  const allowedRoutes = [...(SUPABASE_ROLE_ROUTES[role] || SUPABASE_ROLE_ROUTES.authorized_user)];
-  const isBusinessDevelopmentManager = role === 'business_development_manager';
+  let allowedRoutes = [...(SUPABASE_ROLE_ROUTES[role] || SUPABASE_ROLE_ROUTES.authorized_user)];
   const canDirectManageActivities = canEditDirect(flat);
   const canAddActivities = canAddActivityDirect(flat);
   const canRequestEdit = canSubmitActivityRequestsUser(flat);
-  const hasFinanceAccess = isBusinessDevelopmentManager ? false : (role === 'finance' || permissionFlagYes(parsePermissions(userRow?.permissions).finance_access) || permissionFlagYes(parsePermissions(userRow?.permissions).view_finance));
+  const hasFinanceAccess = role === 'admin' || permissionFlagYes(flat.finance_access) || permissionFlagYes(flat.view_finance);
   const financeIdx = allowedRoutes.indexOf('finance');
   if (hasFinanceAccess && financeIdx === -1) allowedRoutes.push('finance');
   if (!hasFinanceAccess && financeIdx >= 0) allowedRoutes.splice(financeIdx, 1);
@@ -5042,20 +5034,21 @@ function buildBootstrapFromUser(userRow, profileRow = null) {
       if (idx >= 0) allowedRoutes.splice(idx, 1);
     });
   }
-  // Israa management tab — requires view_israa_management=yes AND (the esraaa username or admin role).
-  const isIsraaUser = String(flat.username_for_login || '').trim().toLowerCase() === 'esraaa';
-  const isAdminRole = role === 'admin';
-  if ((isIsraaUser || isAdminRole) && permissionFlagYes(flat.view_israa_management)) {
+  if (hasPermission(flat, 'view_israa_management')) {
     if (!allowedRoutes.includes('israa-management')) allowedRoutes.push('israa-management');
   }
   if (permissionFlagYes(flat.view_operations_management) && !allowedRoutes.includes('operations-management')) {
     allowedRoutes.push('operations-management');
+  }
+  if (permissionFlagYes(flat.view_operations_scheduling) && !allowedRoutes.includes('course-scheduling')) {
+    allowedRoutes.push('course-scheduling');
   }
   if (isKnownInstructorIdentity(flat)) {
     for (const route of ['instructor-calendar', 'my-data', 'instructor-completion-approvals', 'instructor-guidelines']) {
       if (!allowedRoutes.includes(route)) allowedRoutes.push(route);
     }
   }
+  allowedRoutes = enforceManagedRoutes(allowedRoutes, flat);
   return {
     routes: [...allowedRoutes],
     default_route: (() => {
@@ -5077,6 +5070,7 @@ function buildBootstrapFromUser(userRow, profileRow = null) {
     can_request_edit: canRequestEdit,
     can_request_create_activity: canRequestCreateActivity(flat),
     can_review_requests: canReviewRequests,
+    permission_flags: Object.fromEntries(Object.entries(flat).filter(([key]) => key.startsWith('view_') || key.startsWith('can_') || ['finance_access', 'personal_reports_manager', 'manage_proposals_agreements', 'approve_proposals_agreements'].includes(key))),
     client_settings: {}
   };
 }
@@ -6699,6 +6693,7 @@ async function readCatalogProgramsFromSupabase() {
 }
 export const api = {
   attendanceControlRequest: async (action, payload = {}) => {
+    assertPermission('view_attendance_control', 'attendance_control_forbidden');
     const response = await fetch(config.attendanceApiUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -6714,16 +6709,19 @@ export const api = {
     }
   },
   attendanceControlTeams: async function () {
+    assertPermission('view_attendance_control', 'attendance_control_forbidden');
     const response = await this.attendanceControlRequest('getallemployees');
     if (!response?.success || !Array.isArray(response.employees)) throw new Error('attendance_employees_load_failed');
     return response.employees;
   },
   attendanceControlRecords: async function () {
+    assertPermission('view_attendance_control', 'attendance_control_forbidden');
     const response = await this.attendanceControlRequest('getsummary');
     if (!response?.success || !Array.isArray(response.records)) throw new Error('attendance_records_load_failed');
     return response.records;
   },
   attendanceControlUpdateRecord: async function (recordId, fields = {}) {
+    assertPermission('view_attendance_control', 'attendance_control_forbidden');
     const id = String(recordId || '').trim();
     if (!id) throw new Error('חסר מזהה רשומת נוכחות לעדכון.');
     const response = await this.attendanceControlRequest('updaterecord', { recordId: id, ...fields });
@@ -6750,6 +6748,7 @@ export const api = {
     return Array.isArray(data) ? data : [];
   },
   attendanceControlMonthWorkflowStatuses: async ({ monthKey = '', employeeIds = [] } = {}) => {
+    assertPermission('view_attendance_control', 'attendance_control_forbidden');
     const month = String(monthKey || '').trim();
     if (!month) return [];
     const ids = Array.isArray(employeeIds) ? employeeIds.map((value) => String(value || '').trim()).filter(Boolean) : [];
@@ -6770,6 +6769,7 @@ export const api = {
     employee_approval_at = '',
     approved_snapshot = {}
   } = {}) => {
+    assertPermission('view_attendance_control', 'attendance_control_forbidden');
     const body = {
       employeeId: String(employee_id || '').trim(),
       employeeName: String(employee_name || '').trim(),
@@ -6801,6 +6801,7 @@ export const api = {
     manager_pdf_version,
     manager_approved_snapshot = {}
   } = {}) => {
+    assertPermission('view_attendance_control', 'attendance_control_forbidden');
     const payload = {
       p_employee_id: String(employee_id || '').trim(),
       p_month_key: String(month_key || '').trim(),
@@ -6820,6 +6821,7 @@ export const api = {
     month_key,
     final_approved_by_name = ''
   } = {}) => {
+    assertPermission('view_attendance_control', 'attendance_control_forbidden');
     const { data, error } = await supabase.rpc('admin_finalize_attendance_month_payroll', {
       p_employee_id: String(employee_id || '').trim(),
       p_month_key: String(month_key || '').trim(),
@@ -6833,6 +6835,7 @@ export const api = {
     month_key,
     reason = ''
   } = {}) => {
+    assertPermission('view_attendance_control', 'attendance_control_forbidden');
     const { data, error } = await supabase.rpc('admin_reopen_attendance_month_for_correction', {
       p_employee_id: String(employee_id || '').trim(),
       p_month_key: String(month_key || '').trim(),
@@ -6981,7 +6984,7 @@ export const api = {
         can_edit_direct: canDirectManageActivitiesUser(flat),
         can_request_edit: canSubmitActivityRequestsUser(flat),
         can_review_requests: canReviewEditRequestsUser(flat),
-        finance_access: (flat.role === 'finance' || permissionFlagYes(flat.finance_access) || permissionFlagYes(flat.view_finance)),
+        finance_access: hasPermission(flat, 'finance_access'),
         profile_is_active: profileRow?.is_active !== false,
         can_access_personal_reports: hasPersonalReportsAccess,
         personal_reports_manager: permissionFlagYes(flat.personal_reports_manager) ? 'yes' : 'no',
@@ -7064,6 +7067,7 @@ export const api = {
     return { rows, _source: 'supabase_metadata' };
   },
   attendanceControlDashboardSources: async ({ employeeIds = [], fromDate = '', toDate = '' } = {}) => {
+    assertPermission('view_attendance_control', 'attendance_control_forbidden');
     const ids = [...new Set((employeeIds || []).map((value) => String(value || '').trim()).filter(Boolean))];
     if (!ids.length || !fromDate || !toDate) return { activities: [], contacts: [], travelCache: [], expenses: [] };
     const activitySelect = `${ACTIVITY_OPERATIONS_COLUMNS},authority_id,activity_no`;
@@ -7245,6 +7249,7 @@ export const api = {
 
 
   schoolContactResponsibles: async (params = {}) => {
+    assertPermission('view_activity_approvals', 'activity_approvals_forbidden');
     const rows = await readSchoolContactResponsiblesRows({
       fromDate: params?.fromDate || params?.dateFrom || '',
       toDate: params?.toDate || params?.dateTo || '',
@@ -7257,8 +7262,7 @@ export const api = {
     return { rows, _source: 'supabase' };
   },
   saveSchoolContactResponsible: async ({ activityDate, schoolId = '', school = '', responsibleEmpId = '', responsibleName = '' } = {}) => {
-    const role = String(state?.user?.role || '').trim();
-    if (!['admin', 'operation_manager', 'domain_manager'].includes(role)) throw new Error('school_contact_responsible_forbidden');
+    assertPermission('view_activity_approvals', 'activity_approvals_forbidden');
     const row = {
       activity_date: String(activityDate || '').slice(0, 10),
       school_id: String(schoolId || '').trim(),
@@ -7287,6 +7291,7 @@ export const api = {
     return { row: data, _source: 'supabase' };
   },
   completionApprovalUploads: async ({ limit = null, offset = 0, fromDate = '', toDate = '' } = {}) => {
+    assertPermission('view_activity_approvals', 'activity_approvals_forbidden');
     const role = String(state?.user?.role || '').trim();
     let query = supabase
       .from('activity_completion_approval_uploads')
@@ -7311,6 +7316,7 @@ export const api = {
     return { rows: Array.isArray(data) ? data : [], _source: 'supabase' };
   },
   completionApprovalSignedUrl: async ({ filePath, download = false } = {}) => {
+    assertPermission('view_activity_approvals', 'activity_approvals_forbidden');
     const path = String(filePath || '').trim();
     if (!path) throw new Error('missing_file_path');
     const { data, error } = await supabase.storage
@@ -7326,8 +7332,7 @@ export const api = {
     return { signedUrl: data?.signedUrl || '' };
   },
   reviewCompletionApprovalUpload: async ({ id, status, reviewNote = '' } = {}) => {
-    const role = String(state?.user?.role || '').trim();
-    if (!['admin', 'operation_manager', 'domain_manager'].includes(role)) throw new Error('completion_approval_review_forbidden');
+    assertPermission('view_activity_approvals', 'activity_approvals_forbidden');
     const nextStatus = String(status || '').trim();
     if (!['approved', 'rejected'].includes(nextStatus)) throw new Error('invalid_completion_approval_status');
     const reviewer = String(state?.user?.full_name || state?.user?.username || state?.user?.user_id || '').trim();
@@ -7337,6 +7342,7 @@ export const api = {
     return { row: data, _source: 'supabase' };
   },
   deleteCompletionApprovalUpload: async ({ id } = {}) => {
+    assertPermission('view_activity_approvals', 'activity_approvals_forbidden');
     const uploadId = String(id || '').trim();
     if (!uploadId) throw new Error('missing_upload_id');
     const existing = await supabase.from('activity_completion_approval_uploads').select('*').eq('id', uploadId).single();
@@ -7351,6 +7357,7 @@ export const api = {
     return { ok: true, _source: 'supabase' };
   },
   replaceCompletionApprovalUpload: async ({ id, uploadId, file } = {}) => {
+    assertPermission('view_activity_approvals', 'activity_approvals_forbidden');
     const targetId = String(uploadId || id || '').trim();
     if (!targetId) throw new Error('missing_upload_id');
     if (!completionApprovalUploadAllowedFile(file)) throw new Error('ניתן להעלות PDF, JPG, JPEG או PNG בלבד.');
@@ -7385,6 +7392,7 @@ export const api = {
     return { row: { ...data, storage_exists: true, storage_status: 'exists' }, _source: 'supabase' };
   },
   uploadCompletionApproval: async ({ approval, file, instructorEmpId, instructorName } = {}) => {
+    assertPermission('view_activity_approvals', 'activity_approvals_forbidden');
     const role = String(state?.user?.role || '').trim();
     const ownEmpIds = currentUserIdentityValues();
     const requestedEmpId = String(instructorEmpId || approval?.instructorEmpId || '').trim();
@@ -7394,8 +7402,6 @@ export const api = {
     if (role === 'instructor') {
       if (!isActiveInstructorPilotUser()) throw new Error('תצוגת מדריך אינה פעילה למשתמש זה.');
       if (!ownEmpIds.includes(empId)) throw new Error('מדריך יכול להעלות אישור ביצוע רק עבור עצמו.');
-    } else if (requestedEmpId && !COMPLETION_APPROVAL_MANAGER_ROLES.has(role)) {
-      throw new Error('אין הרשאה להעלות אישור ביצוע עבור מדריך אחר.');
     }
     if (!completionApprovalUploadAllowedFile(file)) throw new Error('ניתן להעלות PDF, JPG, JPEG או PNG בלבד.');
     const filePath = completionApprovalUploadPath({ approval, file, instructorEmpId: empId });
@@ -7420,6 +7426,7 @@ export const api = {
     return { row: data, _source: 'supabase' };
   },
   photoApprovalUploads: async ({ schoolIds = [], limit = null, offset = 0 } = {}) => {
+    assertPermission('view_activity_approvals', 'activity_approvals_forbidden');
     const role = String(state?.user?.role || '').trim();
     let query = supabase
       .from('photo_approval_uploads')
@@ -7441,6 +7448,7 @@ export const api = {
     return { rows: Array.isArray(data) ? data : [], _source: 'supabase' };
   },
   photoApprovalSignedUrl: async ({ filePath } = {}) => {
+    assertPermission('view_activity_approvals', 'activity_approvals_forbidden');
     const path = String(filePath || '').trim();
     if (!path) throw new Error('missing_file_path');
     const { data, error } = await supabase.storage
@@ -7450,6 +7458,7 @@ export const api = {
     return { signedUrl: data?.signedUrl || '' };
   },
   uploadPhotoApproval: async ({ instructorEmpId, instructorName, school, authority, schoolId, file } = {}) => {
+    assertPermission('view_activity_approvals', 'activity_approvals_forbidden');
     const role = String(state?.user?.role || '').trim();
     const ownEmpIds = currentUserIdentityValues();
     const empId = String(instructorEmpId || '').trim();
@@ -7457,8 +7466,6 @@ export const api = {
     if (role === 'instructor') {
       if (!isActiveInstructorPilotUser()) throw new Error('תצוגת מדריך אינה פעילה למשתמש זה.');
       if (!ownEmpIds.includes(empId)) throw new Error('מדריך יכול להעלות אישור צילום רק עבור עצמו.');
-    } else if (!COMPLETION_APPROVAL_MANAGER_ROLES.has(role)) {
-      throw new Error('אין הרשאה להעלות אישור צילום.');
     }
     if (!completionApprovalUploadAllowedFile(file)) throw new Error('ניתן להעלות PDF, JPG, JPEG או PNG בלבד.');
     const schoolVal = String(school || '').trim();
@@ -7607,7 +7614,7 @@ export const api = {
       rows,
       roleDefaults: {
         admin: { can_add_activity: 'yes', can_edit_direct: 'yes', can_request_edit: 'yes', can_review_requests: 'yes', view_admin: 'yes', view_permissions: 'yes', view_catalog: 'yes', view_orders: 'yes', view_proposals: 'yes', view_israa_management: 'yes', view_employee_files: 'yes', can_access_personal_reports: 'yes' },
-        operation_manager: { can_add_activity: 'yes', can_edit_direct: 'yes', can_request_edit: 'yes', can_review_requests: 'yes', view_admin: 'no', view_permissions: 'no', view_catalog: 'yes', view_orders: 'yes', view_proposals: 'yes', view_israa_management: 'no', view_employee_files: 'yes', can_access_personal_reports: 'yes' },
+        operation_manager: { can_add_activity: 'yes', can_edit_direct: 'yes', can_request_edit: 'yes', can_review_requests: 'yes', view_admin: 'no', view_permissions: 'no', view_activities: 'yes', view_catalog: 'yes', view_orders: 'yes', view_proposals: 'yes', view_proposals_agreements: 'yes', manage_proposals_agreements: 'yes', view_israa_management: 'no', view_operations_management: 'yes', view_operations_scheduling: 'yes', view_attendance_control: 'yes', view_activity_approvals: 'yes', view_workshop_stock: 'yes', view_workshop_stock_distributions: 'yes', view_employee_files: 'yes', can_access_personal_reports: 'yes' },
         authorized_user: { can_add_activity: 'yes', can_edit_direct: 'no', can_request_edit: 'yes', can_review_requests: 'no', view_admin: 'no', view_permissions: 'no', view_proposals: 'no', view_israa_management: 'no', can_access_personal_reports: 'yes' },
         finance: { can_add_activity: 'no', can_edit_direct: 'no', can_request_edit: 'no', can_review_requests: 'no', view_admin: 'no', view_permissions: 'no', finance_access: 'yes', view_finance: 'yes', view_catalog: 'yes', view_orders: 'yes', view_proposals: 'no', view_israa_management: 'no', view_employee_files: 'yes', can_access_personal_reports: 'yes' },
         activities_manager: { can_add_activity: 'yes', can_edit_direct: 'no', can_request_edit: 'yes', can_review_requests: 'no', view_admin: 'no', view_permissions: 'no', view_catalog: 'yes', view_orders: 'yes', view_proposals: 'no', view_israa_management: 'no', view_employee_files: 'yes', can_access_personal_reports: 'yes' },
@@ -7681,12 +7688,14 @@ export const api = {
    * Queries only activity_names + workshop_stock (~79 rows vs ~997 for adminLists).
    */
   workshopLists: async () => {
+    assertPermission('view_workshop_stock', 'workshop_stock_forbidden');
     const supabaseData = await readWorkshopListsFromSupabase();
     if (supabaseData) return supabaseData;
     return buildSupabaseErrorPayload({ categories: [] }, 'workshop_lists_supabase_failed');
   },
 
   workshopStockDistributions: async () => {
+    if (!hasPermission(state?.user, 'view_workshop_stock_distributions')) throw new Error('workshop_stock_distributions_forbidden');
     const { data, error } = await supabase
       .from('workshop_stock_distributions')
       .select('*');
@@ -7694,6 +7703,7 @@ export const api = {
     return { rows: Array.isArray(data) ? data : [], _source: 'supabase' };
   },
   workshopInventoryOpeningBalances: async ({ inventoryYear } = {}) => {
+    assertPermission('view_workshop_stock', 'workshop_stock_forbidden');
     const year = Number(inventoryYear);
     let query = supabase
       .from('workshop_inventory_opening_balances')
@@ -8795,6 +8805,9 @@ export const api = {
         display_role2: row.display_role2 ?? permissions.display_role2 ?? ''
       }
     };
+    for (const key of ['view_proposals_agreements', 'manage_proposals_agreements', 'approve_proposals_agreements']) {
+      if (Object.prototype.hasOwnProperty.call(row || {}, key)) patch[key] = row[key];
+    }
     const { error } = await supabase.from('users').update(patch).eq('user_id', userId);
     if (error) throw new Error(error.message || 'save_permission_failed');
     const authUserId = String(existing.data.auth_user_id || '').trim();

@@ -2,6 +2,7 @@ import { escapeHtml } from './shared/html.js';
 import { bindSummerContactsModalEvents, renderSummerContactsButton } from './shared/summer-contacts-modal.js';
 import { supabase } from '../supabase-client.js';
 import { setGlobalActivityPeriod } from '../state.js';
+import { canOpenOperationsTab, hasPermission } from '../permission-policy.js';
 import { formatDateHe, formatDateHeWithWeekday } from './shared/format-date.js';
 import {
   dsPageHeader,
@@ -127,15 +128,13 @@ const OPERATIONS_HOME_TARGETS = Object.freeze([
 const SUMMER_TRAINING_SESSION_KEY = 'opsSummerTrainingActive';
 const COMPLETION_APPROVAL_SUMMER_FROM = '2026-06-20';
 const COMPLETION_APPROVAL_SUMMER_TO = '2026-08-31';
-const COMPLETION_APPROVAL_MANAGER_ROLES = new Set(['admin', 'operation_manager', 'domain_manager', 'activities_manager', 'instructor_manager', 'finance']);
 
 function isOperationsAdmin(state = {}) {
   return String(state?.user?.role || state?.user?.display_role || '').trim() === 'admin';
 }
 
 function canEditOperationsInventory(state = {}) {
-  const roles = [state?.user?.role, state?.user?.display_role].map((role) => String(role || '').trim());
-  return roles.includes('admin') || roles.includes('operation_manager');
+  return hasPermission(state?.user, 'view_workshop_stock');
 }
 
 let _opsNeedsEntryReset = false;
@@ -719,7 +718,7 @@ function normalizeInventoryUsage(value) {
   return Number.isFinite(n) ? n : 0;
 }
 
-function tabsHtml(activeTab, currentRoute = '') {
+function tabsHtml(activeTab, currentRoute = '', state = {}) {
   // Work schedule moved to the Instructors workspace — omit it from operations management tabs.
   const tabs = [
     [TAB_COMPLETION_APPROVAL, 'אישורי ביצוע'],
@@ -732,7 +731,7 @@ function tabsHtml(activeTab, currentRoute = '') {
     ['certificates', 'תעודות']
   ];
   return `<nav class="ds-exceptions-tabs ds-ops-mgmt-tabs no-print" aria-label="לשוניות ניהול תפעול" dir="rtl">
-    ${tabs.map(([key, label]) => `<button type="button" class="ds-exceptions-tab ds-ops-mgmt-tab${activeTab === key ? ' is-active' : ''}" data-ops-tab="${escapeHtml(key)}" aria-pressed="${activeTab === key ? 'true' : 'false'}">${escapeHtml(label)}</button>`).join('')}
+    ${tabs.filter(([key]) => canOpenOperationsTab(state?.user, key)).map(([key, label]) => `<button type="button" class="ds-exceptions-tab ds-ops-mgmt-tab${activeTab === key ? ' is-active' : ''}" data-ops-tab="${escapeHtml(key)}" aria-pressed="${activeTab === key ? 'true' : 'false'}">${escapeHtml(label)}</button>`).join('')}
     ${routeTabs.map(([route, label]) => `<button type="button" class="ds-exceptions-tab ds-ops-mgmt-tab${currentRoute === route ? ' is-active' : ''}" data-route="${escapeHtml(route)}" aria-pressed="${currentRoute === route ? 'true' : 'false'}">${escapeHtml(label)}</button>`).join('')}
   </nav>`;
 }
@@ -762,8 +761,8 @@ function operationsHomeDescription(label) {
   return `פתיחת ${text}`;
 }
 
-function operationsHomeHtml() {
-  const tiles = OPERATIONS_HOME_TARGETS.map(({ label, type, value }) => `
+function operationsHomeHtml(state = {}) {
+  const tiles = OPERATIONS_HOME_TARGETS.filter(({ type, value }) => type !== 'ops-tab' || canOpenOperationsTab(state?.user, value)).map(({ label, type, value }) => `
     <button type="button" class="operations-management-home__tile" data-ops-home-target-type="${escapeHtml(type)}" data-ops-home-target-value="${escapeHtml(value)}" aria-label="פתיחת ${escapeHtml(label)}">
       <span class="operations-management-home__icon">${operationsHomeIconSvg(label)}</span>
       <span class="operations-management-home__content">
@@ -3165,8 +3164,7 @@ function completionApprovalSummerRows(rows = []) {
 
 function completionApprovalTabHtml(rows, state, data = {}, directory = buildSchoolsDirectory([]), contactsIndex = new Map(), summerPrintContactsIndex = new Map()) {
   const approvalState = ensureOpsState(state).completionApproval || {};
-  const userRole = String(state?.user?.role || '').trim();
-  const isManager = COMPLETION_APPROVAL_MANAGER_ROLES.has(userRole);
+  const isManager = hasPermission(state?.user, 'view_activity_approvals');
   const summerRows = completionApprovalSummerRows(rows);
   const selectedDate = clampCompletionApprovalDate(approvalState.selectedDate || approvalState.date);
   const instructors = completionApprovalInstructorOptions(summerRows);
@@ -3267,7 +3265,7 @@ function completionApprovalTabHtml(rows, state, data = {}, directory = buildScho
 
 function renderTab(rows, state, data, allPreparedRows = []) {
   const ops = ensureOpsState(state);
-  if (ops.tab === TAB_HOME && !ops.customTab) return operationsHomeHtml();
+  if (ops.tab === TAB_HOME && !ops.customTab) return operationsHomeHtml(state);
   if (ops.customTab) return '';
   const stockMap = data?.workshopStockMap instanceof Map ? data.workshopStockMap : new Map();
   const directory = buildSchoolsDirectory(data?.schoolsDirectoryRows || []);
@@ -3333,6 +3331,7 @@ function operationsTabDataKey(tab) {
 }
 
 export async function loadOperationsTabData(api, tab, { state } = {}) {
+  if (!canOpenOperationsTab(state?.user, tab)) throw new Error('operations_tab_forbidden');
   const key = operationsTabDataKey(tab);
   if (key === TAB_WORKSHOPS) {
     const ops = ensureOpsState(state || {});
@@ -3421,6 +3420,7 @@ export async function loadOperationsTabData(api, tab, { state } = {}) {
 }
 
 async function ensureOperationsTabDataLoaded(tab, { data, api, state, rerender }) {
+  if (!canOpenOperationsTab(state?.user, tab)) return;
   const tabKey = operationsTabDataKey(tab);
   if (tabKey === TAB_HOME) return;
   const loadedTabs = new Set(Array.isArray(data?._loadedOperationsTabs) ? data._loadedOperationsTabs : []);
@@ -3465,6 +3465,7 @@ async function navigateOperationsHomeTarget(type, value, { data, api, state, rer
   }
 
   if (type === 'ops-tab') {
+    if (!canOpenOperationsTab(state?.user, value)) return;
     ops.customTab = '';
     ops.tab = value || TAB_WORKSHOPS;
     if (ops.tab === TAB_SUMMER || ops.tab === TAB_INSTRUCTORS) ops.tab = TAB_COMPLETION_APPROVAL;
@@ -3478,6 +3479,10 @@ async function navigateOperationsHomeTarget(type, value, { data, api, state, rer
 export const operationsManagementScreen = {
   load: async ({ api, state }) => {
     const ops = ensureOpsState(state || {});
+    if (!canOpenOperationsTab(state?.user, ops.tab)) {
+      ops.tab = TAB_HOME;
+      ops.customTab = '';
+    }
     if (_opsNeedsEntryReset) {
       resetOperationsManagementEntry(state || {});
     }
@@ -3593,7 +3598,7 @@ export const operationsManagementScreen = {
     const isHomeView = isOperationsHomeView(state);
     return `<div class="ds-screen-stack ds-ops-mgmt-screen" data-ops-context="operations">${opsManagementStylesHtml()}${dsPageHeader(operationsPageTitle(state, { completionApproval: isCompletionApprovalTab }))}
       ${isHomeView || isCompletionApprovalTab ? '' : topFiltersHtml(filterRows, state)}
-      ${isHomeView ? '' : tabsHtml(ops.customTab ? null : ops.tab, state.route)}
+      ${isHomeView ? '' : tabsHtml(ops.customTab ? null : ops.tab, state.route, state)}
       <div class="ds-ops-mgmt-content">${renderTab(activeRows, state, data, prepared)}</div>
       ${isHomeView || isCompletionApprovalTab || ops.period === ACTIVITY_SEASON_SCHOOL_2027 ? '' : `<p class="ds-muted ds-ops-mgmt-count no-print" dir="rtl">מציג ${filteredRows.length} פעילויות מתוך ${allRows.length}</p>`}
     </div>`;
@@ -3624,7 +3629,9 @@ export const operationsManagementScreen = {
       btn.addEventListener('click', async () => {
         ops.context = OPS_CONTEXT_OPERATIONS;
         ops.customTab = '';
-        ops.tab = btn.getAttribute('data-ops-tab') || TAB_COMPLETION_APPROVAL;
+        const requestedTab = btn.getAttribute('data-ops-tab') || TAB_COMPLETION_APPROVAL;
+        if (!canOpenOperationsTab(state?.user, requestedTab)) return;
+        ops.tab = requestedTab;
         if (ops.tab === TAB_SUMMER || ops.tab === TAB_INSTRUCTORS) ops.tab = TAB_COMPLETION_APPROVAL;
         try { sessionStorage.removeItem(SUMMER_TRAINING_SESSION_KEY); } catch { /* ignore */ }
         document.dispatchEvent(new CustomEvent('ops-mgmt-standard-tab', { detail: { tab: ops.tab } }));

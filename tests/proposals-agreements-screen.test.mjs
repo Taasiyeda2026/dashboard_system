@@ -302,11 +302,14 @@ const sampleContactRows = [
 
 const sampleContactOptions = [...sampleCatalogAuthorities, ...sampleCatalogSchools, ...sampleContactRows];
 
-test('screen authorization includes business development manager', () => {
+test('screen authorization follows explicit proposal permissions instead of role', () => {
   for (const role of ['domain_manager', 'operation_manager', 'admin', 'business_development_manager']) {
-    assert.equal(canAccessProposalsAgreements(stateFor(role)), true, `${role} should be allowed`);
-    assert.equal(canManageProposalsAgreements(stateFor(role)), role !== 'business_development_manager', `${role} management access mismatch`);
-    const html = proposalsAgreementsScreen.render({ rows: [] }, { state: stateFor(role) });
+    const state = stateFor(role);
+    state.user.view_proposals_agreements = 'yes';
+    state.user.manage_proposals_agreements = role === 'business_development_manager' ? 'no' : 'yes';
+    assert.equal(canAccessProposalsAgreements(state), true, `${role} should be allowed`);
+    assert.equal(canManageProposalsAgreements(state), role === 'admin' || role !== 'business_development_manager', `${role} management access mismatch`);
+    const html = proposalsAgreementsScreen.render({ rows: [] }, { state });
     assert.match(html, /הצעות/);
     assert.doesNotMatch(html, /אין לך הרשאה/);
   }

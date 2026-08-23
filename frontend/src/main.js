@@ -15,6 +15,7 @@ import { clearFinancePrefsIfUserChanged } from './screens/shared/finance-prefs-s
 import { applyGlobalAccent, accentNameFromStorage, bindAccentPickerOnce as bindAccentPickerListenerOnce } from './accent-picker.js';
 import { waitForSupabaseAuthSession } from './supabase-client.js';
 import { permissionFlagYes as permissionEnabled } from './permissions.js';
+import { hasPermission } from './permission-policy.js';
 import { countPendingApprovedProposals } from './screens/shared/proposals-pending-count.js';
 import { bootstrapLocalBaselineMonitor } from './local-baseline-monitor.js';
 
@@ -765,14 +766,6 @@ function effectiveRoutes() {
   return Array.isArray(state.routes) ? state.routes : [];
 }
 
-const ACTIVITIES_ACCESS_ROLES = new Set([
-  'operation_manager',
-  'domain_manager',
-  'activities_manager',
-  'instructor_manager',
-  'business_development_manager'
-]);
-
 function currentUserRoutesForAccess() {
   if (Array.isArray(state?.user?.routes)) return state.user.routes;
   return effectiveRoutes();
@@ -784,11 +777,7 @@ function hasActivitiesRouteAccess() {
   const role = String(user.role || '').trim();
   const displayRole = String(user.display_role || '').trim();
   const routes = currentUserRoutesForAccess();
-  const hasActivitiesAccess =
-    role === 'admin' ||
-    ACTIVITIES_ACCESS_ROLES.has(role) ||
-    permissionEnabled(user.view_activities ?? permissions.view_activities) ||
-    routes.includes('activities');
+  const hasActivitiesAccess = hasPermission(user, 'view_activities');
   console.info('[activities-access]', {
     username: user.username,
     role,
@@ -796,7 +785,7 @@ function hasActivitiesRouteAccess() {
     permissions,
     routes,
     hasActivitiesAccess,
-    reasonDenied: hasActivitiesAccess ? '' : 'role/permissions/routes do not allow activities'
+    reasonDenied: hasActivitiesAccess ? '' : 'view_activities is not granted'
   });
   return hasActivitiesAccess;
 }
@@ -1026,24 +1015,18 @@ function shellUserRoleLine() {
 // מסכים אלו מגיעים מניווט גריד בלבד — לא מוצגים בסרגל הצד
 const ACTIVITIES_CHILD_ROUTES = new Set(['week', 'month', 'instructors', 'course-scheduling', 'end-dates', 'exceptions', 'instructor-contacts', 'archive', 'contacts', 'edit-requests']);
 
-const PROPOSALS_AGREEMENTS_NAV_ROLES = new Set(['admin', 'operation_manager', 'domain_manager', 'business_development_manager']);
-
 function enforceProposalsAgreementsRoute() {
   if (!state.token || !state.user) return;
   if (!screenLoaders['proposals-agreements']) return;
   if ((state.effectiveRoutes || []).includes('proposals-agreements')) return;
-  const role = String(state.user.role || '').trim();
-  const hasRole = PROPOSALS_AGREEMENTS_NAV_ROLES.has(role);
-  const hasFlag = permissionEnabled(state.user.view_proposals_agreements)
-    || permissionEnabled(state.user.manage_proposals_agreements);
-  if (hasRole || hasFlag) {
+  if (hasPermission(state.user, 'view_proposals_agreements')) {
     state.effectiveRoutes = [...(state.effectiveRoutes || []), 'proposals-agreements'];
     state.routes = state.effectiveRoutes;
   }
 }
 
 function enforceCourseSchedulingRoute() {
-  if (!state.token || !['admin', 'operation_manager'].includes(String(state?.user?.role || '').trim())) return;
+  if (!state.token || !hasPermission(state?.user, 'view_operations_scheduling')) return;
   if (!(state.effectiveRoutes || []).includes('course-scheduling')) state.effectiveRoutes = [...(state.effectiveRoutes || []), 'course-scheduling'];
   state.routes = state.effectiveRoutes;
 }
@@ -1778,6 +1761,9 @@ function applyBootstrapUserFlags(bootstrap) {
     bootstrap.profile.display_role2 != null ? String(bootstrap.profile.display_role2) : '';
   if (bootstrap.profile.display_role_label != null) {
     state.user.display_role_label = String(bootstrap.profile.display_role_label);
+  }
+  if (bootstrap.permission_flags && typeof bootstrap.permission_flags === 'object') {
+    Object.assign(state.user, bootstrap.permission_flags);
   }
   state.user.can_add_activity = permissionEnabled(bootstrap.can_add_activity);
   state.user.can_edit_direct = permissionEnabled(bootstrap.can_edit_direct);

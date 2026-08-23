@@ -2,6 +2,7 @@ import { escapeHtml } from './html.js';
 import { openPayrollControlWindow } from './payroll-control-launcher.js';
 import { ensureCourseSchedulingManualPickerAccess } from './course-scheduling-manual-picker-access.js';
 import { ensureCourseSchedulingManagerApproval } from './course-scheduling-manager-approval.js';
+import { hasPermission } from '../../permission-policy.js';
 
 export const INSTRUCTORS_WORKSPACE_TABS = Object.freeze([
   { id: 'list', label: 'רשימת מדריכים', route: 'instructors' },
@@ -13,19 +14,12 @@ export const INSTRUCTORS_WORKSPACE_TABS = Object.freeze([
 ]);
 
 const COURSE_SCHEDULING_ROUTE = 'course-scheduling';
-const COURSE_SCHEDULING_ROLES = new Set(['admin', 'operation_manager']);
-const PAYROLL_CONTROL_ROLES = new Set(['admin', 'operation_manager', 'finance']);
-
-function roleOf(state = {}) {
-  return String(state?.user?.role || '').trim();
-}
-
 function hasCourseSchedulingRole(state = {}) {
-  return COURSE_SCHEDULING_ROLES.has(roleOf(state));
+  return hasPermission(state?.user, 'view_operations_scheduling');
 }
 
 function hasPayrollControlRole(state = {}) {
-  return PAYROLL_CONTROL_ROLES.has(roleOf(state));
+  return hasPermission(state?.user, 'view_attendance_control');
 }
 
 function rowId(row = {}) {

@@ -6,6 +6,7 @@ import {
   dsTableWrap
 } from './shared/layout.js';
 import { attendanceMonthLabel } from './attendance-control.js';
+import { hasPermission } from '../permission-policy.js';
 import {
   FINANCE_ATTENDANCE_EXPORT_OPTIONS,
   FINANCE_HOUR_CATEGORIES,
@@ -108,9 +109,7 @@ function permissionYes(value) {
 }
 
 export function canAccessFinance(user = {}) {
-  const role = String(user?.role || user?.display_role || '').trim().toLowerCase();
-  if (role === 'admin' || role === 'finance') return true;
-  return permissionYes(user?.finance_access) || permissionYes(user?.view_finance);
+  return hasPermission(user, 'finance_access');
 }
 
 export function createFinanceVisitState(now = new Date()) {
