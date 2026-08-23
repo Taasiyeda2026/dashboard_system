@@ -942,6 +942,10 @@ function addActivityModalHtml(settings, activityPeriodTab = '') {
           : `<label class="ds-activity-add-field ds-activity-add-field--compact"><span>עונת פעילות</span><select class="ds-input" name="activity_season">${activitySeasonSelectHtml(settings, initialSeason)}</select></label>`
         }
         <label class="ds-activity-add-field ds-activity-add-field--compact"><span>סטטוס</span><select class="ds-input" name="status">${optionsHtml(statusOptions, initialStatus)}</select></label>
+        ${initialSeason === ACTIVITY_SEASON_SCHOOL_2027
+          ? `<label class="ds-activity-add-field ds-activity-add-field--compact"><span>תחום פעילות</span><select class="ds-input" name="activity_domain" required><option value="">בחרו תחום</option><option value="E">E</option><option value="Y">Y</option></select></label>`
+          : ''
+        }
         <fieldset class="ds-activity-add-field ds-activity-add-field--span2" data-funding-picker><legend>מימון</legend><div style="display:grid;gap:6px">${(settings?.dropdown_options?.funding_source_records || []).map((source) => `<label style="display:grid;grid-template-columns:auto 1fr minmax(100px,140px);align-items:center;gap:8px"><input type="checkbox" data-funding-source-id="${escapeHtml(source.id)}"><span>${escapeHtml(source.name)}</span><input class="ds-input" type="number" min="0" step="0.01" inputmode="decimal" data-funding-amount placeholder="סכום (רשות)"></label>`).join('')}</div></fieldset>
         <label class="ds-activity-add-field ds-activity-add-field--compact"><span>מחיר</span><input class="ds-input" name="price" type="number" min="0" step="1"></label>
         <label class="ds-activity-add-field"><span>קבוצה / כיתה</span><input class="ds-input" name="class_group" type="text"></label>
@@ -3048,6 +3052,8 @@ export const activitiesScreen = {
       const sessionsValue = get('sessions') || '1';
       const isOneDay = isOneDayActivityTypeValue(get('activity_type'));
       const oneDayDate = String(get('one_day_date') || get('start_date') || get('end_date') || '').trim();
+      const activitySeason = normalizeActivitySeason(get('activity_season'));
+      const activityDomain = get('activity_domain').toUpperCase();
       let meetingDateValues = [];
       const payload = {
         source: isOneDay ? 'short' : 'long',
@@ -3061,7 +3067,8 @@ export const activitiesScreen = {
         class_group: get('class_group'),
         activity_type: selectedType || get('activity_type'),
         item_type: selectedType || get('activity_type'),
-        activity_season: normalizeActivitySeason(get('activity_season')),
+        activity_season: activitySeason,
+        ...(activitySeason === ACTIVITY_SEASON_SCHOOL_2027 ? { activity_domain: activityDomain } : {}),
         activity_name: humanDisplayText(selectedName),
         activity_no: String(hit?.activity_no || get('activity_no') || ''),
         sessions: isOneDay ? '1' : sessionsValue,
@@ -3174,6 +3181,11 @@ export const activitiesScreen = {
       const missing = required.filter(([key]) => !String(payload[key] || '').trim()).map(([, label]) => label);
       if (missing.length) {
         setAddActivityStatus(statusEl, `לא ניתן לשמור: חסר ${missing.join(' / ')}`, { isError: true });
+        resetAddActivitySavingState(form, submitBtn);
+        return;
+      }
+      if (isSchool2027Activity && !['E', 'Y'].includes(activityDomain)) {
+        setAddActivityStatus(statusEl, 'יש לבחור תחום פעילות E או Y', { isError: true });
         resetAddActivitySavingState(form, submitBtn);
         return;
       }

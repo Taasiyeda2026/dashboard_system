@@ -1009,6 +1009,7 @@ test('activity add validation clears saving state and does not show duplicate in
     assert.equal(addCalls, 0);
 
     form.querySelector('[name="one_day_date"]').value = '2026-06-15';
+    form.querySelector('[name="activity_domain"]').value = 'Y';
     form.dispatchEvent(new dom.window.Event('submit', { bubbles: true, cancelable: true }));
     await new Promise((resolve) => setTimeout(resolve, 0));
     assert.equal(addCalls, 1);

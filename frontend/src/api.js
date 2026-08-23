@@ -5426,6 +5426,7 @@ const ALLOWED_ACTIVITY_COLUMNS = new Set([
   'activity_type',
   'item_type',
   'activity_season',
+  'activity_domain',
   'activity_no',
   'gefen_number',
   'activity_name',
@@ -5569,6 +5570,12 @@ function sanitizeActivityPayloadForSupabase(payload = {}, { includeRowId = true 
       nextValue = normalizeDateFieldForSupabase(rawValue);
     } else if (key === 'activity_season') {
       nextValue = normalizeActivitySeason(rawValue);
+    } else if (key === 'activity_domain') {
+      const domain = String(rawValue ?? '').trim().toUpperCase();
+      if (domain && domain !== 'E' && domain !== 'Y') {
+        throw new Error('invalid_activity_domain');
+      }
+      nextValue = domain || null;
     } else if (key === 'activity_type' || key === 'item_type') {
       nextValue = normalizeActivityTypeValue(rawValue) || null;
     } else if (key === 'exists_in_gefen' || key === 'activity_name_override') {
