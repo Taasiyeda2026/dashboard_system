@@ -14,7 +14,7 @@ permissions:
 jobs:
   autofix-known-ci-assertions:
     name: apply focused CI assertion fix
-    if: github.event.pull_request.head.sha == '425a03dc612b2263a91a8a570d5c49b2964f0110' && github.event.pull_request.head.repo.full_name == github.repository
+    if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
