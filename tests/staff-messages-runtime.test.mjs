@@ -89,9 +89,12 @@ test('blocking popup order is birthday then Gefen then admin messages', () => {
   assert.match(priorityRuntime, /gefen_start_reminder_acknowledgements/);
   assert.match(priorityRuntime, /\.gefen-start-reminder-overlay/);
   assert.match(priorityRuntime, /\.staff-message-popup-overlay/);
+  assert.match(priorityRuntime, /const GEFEN_SEASON = 'school_2027'/);
+  assert.match(priorityRuntime, /\.eq\('activity_season', GEFEN_SEASON\)/);
+  assert.doesNotMatch(priorityRuntime, /startDate\.startsWith/);
 
-  const coordinatorIndex = indexHtml.indexOf('popup-priority-runtime.js?v=20260823-v1');
-  const gefenIndex = indexHtml.indexOf('gefen-start-reminder-runtime.js?v=20260823-v3');
+  const coordinatorIndex = indexHtml.indexOf('popup-priority-runtime.js?v=20260823-v2');
+  const gefenIndex = indexHtml.indexOf('gefen-start-reminder-runtime.js?v=20260823-v4');
   const staffIndex = indexHtml.indexOf('staff-message-popup-runtime.js?v=20260823-v2');
   assert.ok(coordinatorIndex >= 0 && coordinatorIndex < gefenIndex);
   assert.ok(gefenIndex >= 0 && gefenIndex < staffIndex);
@@ -100,7 +103,7 @@ test('blocking popup order is birthday then Gefen then admin messages', () => {
 test('staff message runtimes are loaded and cache is bumped', () => {
   assert.match(indexHtml, /admin-messages-card-runtime\.js\?v=20260823-v2/);
   assert.match(cardRuntime, /admin-messages-runtime\.js\?v=20260823-v2/);
-  assert.match(indexHtml, /popup-priority-runtime\.js\?v=20260823-v1/);
+  assert.match(indexHtml, /popup-priority-runtime\.js\?v=20260823-v2/);
   assert.match(indexHtml, /staff-message-popup-runtime\.js\?v=20260823-v2/);
   assert.match(sw, /const CACHE_VERSION = 1593/);
 });

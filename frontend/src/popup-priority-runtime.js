@@ -2,18 +2,16 @@ import { state } from './state.js';
 import { supabase, waitForSupabaseAuthSession } from './supabase-client.js';
 
 /**
- * Single presentation coordinator for blocking dashboard popups.
- * Business logic stays in each feature; this file only controls who may be visible.
- * Priority is intentionally fixed by product decision:
- *   1. Birthday greeting
- *   2. Gefen start reminder
- *   3. Admin-authored staff messages
+ * Blocking dashboard popup priority:
+ * 1. Birthday
+ * 2. Gefen start reminder
+ * 3. Admin-authored staff messages
  */
 const POPUP_PRIORITY = Object.freeze(['birthday', 'gefen', 'admin']);
 const HOLD_CLASS = 'dashboard-popup-priority-hold';
 const STYLE_ID = 'dashboard-popup-priority-styles';
 const JERUSALEM_TIME_ZONE = 'Asia/Jerusalem';
-const GEFEN_YEAR = 2027;
+const GEFEN_SEASON = 'school_2027';
 const GEFEN_LEAD_DAYS = 10;
 const GEFEN_GATE_CACHE_MS = 10_000;
 
@@ -72,6 +70,7 @@ function visiblePriorityType() {
 function focusHighestPopup() {
   const type = visiblePriorityType();
   if (!type) return;
+
   const root = document.querySelector(SELECTORS[type]);
   const target = root?.querySelector(FOCUS_SELECTORS[type]);
   if (target && typeof target.focus === 'function') {
@@ -118,11 +117,15 @@ function waitForSelectorClear(selector, quietMs = 180) {
         quietTimer = null;
         return;
       }
+
       if (quietTimer) window.clearTimeout(quietTimer);
       quietTimer = window.setTimeout(finish, quietMs);
     }
 
-    observer.observe(document.documentElement, { childList: true, subtree: true });
+    observer.observe(document.documentElement, {
+      childList: true,
+      subtree: true
+    });
     check();
   });
 }
@@ -146,7 +149,10 @@ function waitForSelector(selector, timeoutMs = 8000) {
       if (element) finish(element);
     }
 
-    observer.observe(document.documentElement, { childList: true, subtree: true });
+    observer.observe(document.documentElement, {
+      childList: true,
+      subtree: true
+    });
   });
 }
 
@@ -172,14 +178,26 @@ function isEligibleGefenUser(user = state?.user) {
 }
 
 function todayInJerusalem() {
-  const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone: JERUSALEM_TIME_ZONE,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit'
-  }).formatToParts(new Date());
-  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
-  return `${values.year}-${values.month}-${values.day}`;
+  try {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: JERUSALEM_TIME_ZONE,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    }).formatToParts(new Date());
+
+    const values = Object.fromEntries(
+      parts.map((part) => [part.type, part.value])
+    );
+    return `${values.year}-${values.month}-${values.day}`;
+  } catch {
+    const now = new Date();
+    return [
+      now.getFullYear(),
+      String(now.getMonth() + 1).padStart(2, '0'),
+      String(now.getDate()).padStart(2, '0')
+    ].join('-');
+  }
 }
 
 function isIsoDate(value) {
@@ -201,7 +219,6 @@ function firstActivityDate(activity) {
 
 function isGefenDue(startDate, today) {
   if (!isIsoDate(startDate) || !isIsoDate(today)) return false;
-  if (!startDate.startsWith(`${GEFEN_YEAR}-`)) return false;
   const daysUntilStart = dateOrdinal(startDate) - dateOrdinal(today);
   return daysUntilStart >= 0 && daysUntilStart <= GEFEN_LEAD_DAYS;
 }
@@ -211,10 +228,12 @@ async function hasPendingGefenReminder() {
 
   const session = await waitForSupabaseAuthSession({ timeoutMs: 8000 });
   const authUserId = normalize(session?.user?.id);
+
   if (!authUserId || !isEligibleGefenUser()) return false;
 
   const today = todayInJerusalem();
   const cacheKey = `${authUserId}:${today}`;
+
   if (
     gefenGateCache.key === cacheKey
     && (Date.now() - gefenGateCache.at) < GEFEN_GATE_CACHE_MS
@@ -224,20 +243,37 @@ async function hasPendingGefenReminder() {
 
   const { data: activities, error: activitiesError } = await supabase
     .from('activities')
-    .select('id,funding,start_date,date_1')
+    .select('id,funding,activity_season,start_date,date_1')
+    .eq('activity_season', GEFEN_SEASON)
     .ilike('funding', '%גפן%')
     .or('start_date.not.is.null,date_1.not.is.null');
 
   if (activitiesError) throw activitiesError;
 
   const dueIds = (activities || [])
-    .filter((activity) => normalize(activity?.funding).replace(/\s+/g, ' ') === 'גפן')
-    .map((activity) => ({ id: activity.id, startDate: firstActivityDate(activity) }))
-    .filter((activity) => activity.id != null && isGefenDue(activity.startDate, today))
+    .filter((activity) => activity?.activity_season === GEFEN_SEASON)
+    .filter(
+      (activity) => normalize(activity?.funding)
+        .replace(/\s+/g, ' ') === 'גפן'
+    )
+    .map((activity) => ({
+      id: activity.id,
+      startDate: firstActivityDate(activity)
+    }))
+    .filter(
+      (activity) => (
+        activity.id != null
+        && isGefenDue(activity.startDate, today)
+      )
+    )
     .map((activity) => activity.id);
 
   if (!dueIds.length) {
-    gefenGateCache = { key: cacheKey, at: Date.now(), pending: false };
+    gefenGateCache = {
+      key: cacheKey,
+      at: Date.now(),
+      pending: false
+    };
     return false;
   }
 
@@ -248,9 +284,19 @@ async function hasPendingGefenReminder() {
     .in('activity_id', dueIds);
 
   if (acknowledgementsError) throw acknowledgementsError;
-  const acknowledgedIds = new Set((acknowledgements || []).map((row) => Number(row.activity_id)));
-  const pending = dueIds.some((id) => !acknowledgedIds.has(Number(id)));
-  gefenGateCache = { key: cacheKey, at: Date.now(), pending };
+
+  const acknowledgedIds = new Set(
+    (acknowledgements || []).map((row) => Number(row.activity_id))
+  );
+  const pending = dueIds.some(
+    (id) => !acknowledgedIds.has(Number(id))
+  );
+
+  gefenGateCache = {
+    key: cacheKey,
+    at: Date.now(),
+    pending
+  };
   return pending;
 }
 
@@ -269,11 +315,12 @@ async function ensureGefenTurnFinished() {
     console.warn('[popup-priority] Gefen pending check failed', error);
     return;
   }
+
   if (!pending) return;
 
-  // Ask the existing Gefen runtime to perform its normal check without duplicating
-  // its display or acknowledgement logic.
+  // Ask the existing Gefen runtime to run its normal check.
   window.dispatchEvent(new Event('focus'));
+
   const popup = await waitForSelector(SELECTORS.gefen, 8000);
   if (!popup) return;
 
@@ -285,7 +332,6 @@ async function ensureGefenTurnFinished() {
 async function enforcePriorityOrder() {
   reconcileVisibleStack();
 
-  // Birthday always gets the first turn whenever a lower-priority popup exists.
   if (hasPopup('gefen') || hasPopup('admin')) {
     await ensureBirthdayTurnFinished();
     reconcileVisibleStack();
@@ -293,14 +339,11 @@ async function enforcePriorityOrder() {
 
   if (hasPopup('birthday')) return;
 
-  // If Gefen is already present, it stays ahead of every admin-authored message.
   if (hasPopup('gefen')) {
     reconcileVisibleStack();
     return;
   }
 
-  // An admin-authored message may have arrived before the Gefen runtime finished
-  // its network check. Gate it until any due Gefen reminder has been handled.
   if (hasPopup('admin')) {
     setHeld('admin', true);
     await ensureGefenTurnFinished();
@@ -310,6 +353,7 @@ async function enforcePriorityOrder() {
 
 function queueEnforcement() {
   if (enforcementQueued) return;
+
   enforcementQueued = true;
   enforcementPromise = enforcementPromise
     .catch(() => {})
@@ -326,10 +370,13 @@ function queueEnforcement() {
 function inspectAddedNode(node) {
   if (!(node instanceof Element)) return;
 
-  const lowerSelectors = [SELECTORS.gefen, SELECTORS.admin];
-  for (const selector of lowerSelectors) {
-    if (node.matches(selector)) node.classList.add(HOLD_CLASS);
-    node.querySelectorAll?.(selector).forEach((element) => element.classList.add(HOLD_CLASS));
+  for (const selector of [SELECTORS.gefen, SELECTORS.admin]) {
+    if (node.matches(selector)) {
+      node.classList.add(HOLD_CLASS);
+    }
+    node.querySelectorAll?.(selector).forEach((element) => {
+      element.classList.add(HOLD_CLASS);
+    });
   }
 
   if (
@@ -344,20 +391,28 @@ function inspectAddedNode(node) {
 function startPopupPriorityRuntime() {
   if (globalThis.__DASHBOARD_POPUP_PRIORITY_RUNTIME_STARTED__) return;
   globalThis.__DASHBOARD_POPUP_PRIORITY_RUNTIME_STARTED__ = true;
+
   ensureStyles();
 
-  popupElements('gefen').forEach((element) => element.classList.add(HOLD_CLASS));
-  popupElements('admin').forEach((element) => element.classList.add(HOLD_CLASS));
+  popupElements('gefen').forEach((element) => {
+    element.classList.add(HOLD_CLASS);
+  });
+  popupElements('admin').forEach((element) => {
+    element.classList.add(HOLD_CLASS);
+  });
+
   reconcileVisibleStack();
 
-  // Capture before feature-level focus traps. If a lower-priority modal is held,
-  // keyboard focus remains inside the popup that is actually visible.
   document.addEventListener('keydown', (event) => {
     if (event.key !== 'Tab' && event.key !== 'Escape') return;
+
     const type = visiblePriorityType();
     if (!type) return;
-    const lowerExists = POPUP_PRIORITY.slice(POPUP_PRIORITY.indexOf(type) + 1)
+
+    const lowerExists = POPUP_PRIORITY
+      .slice(POPUP_PRIORITY.indexOf(type) + 1)
       .some((lowerType) => hasPopup(lowerType));
+
     if (!lowerExists) return;
 
     event.preventDefault();
@@ -369,23 +424,34 @@ function startPopupPriorityRuntime() {
     mutations.forEach((mutation) => {
       mutation.addedNodes.forEach(inspectAddedNode);
     });
+
     reconcileVisibleStack();
     queueEnforcement();
   });
 
-  observer.observe(document.documentElement, { childList: true, subtree: true });
+  observer.observe(document.documentElement, {
+    childList: true,
+    subtree: true
+  });
+
   queueEnforcement();
 }
 
 if (typeof window !== 'undefined' && typeof document !== 'undefined') {
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', startPopupPriorityRuntime, { once: true });
+    document.addEventListener(
+      'DOMContentLoaded',
+      startPopupPriorityRuntime,
+      { once: true }
+    );
   } else {
     startPopupPriorityRuntime();
   }
 }
 
 export {
+  GEFEN_LEAD_DAYS,
+  GEFEN_SEASON,
   POPUP_PRIORITY,
   SELECTORS,
   firstActivityDate,

@@ -6,12 +6,15 @@ const runtime = await readFile(new URL('../frontend/src/gefen-start-reminder-run
 const indexHtml = await readFile(new URL('../index.html', import.meta.url), 'utf8');
 const migration = await readFile(new URL('../supabase/migrations/20260823054500_add_gefen_start_reminder_acknowledgements.sql', import.meta.url), 'utf8');
 
-test('Gefen reminder targets 2027 Gefen-only activities within ten days', () => {
-  assert.match(runtime, /const REMINDER_YEAR = 2027/);
+test('Gefen reminder targets school_2027 Gefen-only activities within ten days', () => {
+  assert.match(runtime, /const REMINDER_SEASON = 'school_2027'/);
   assert.match(runtime, /const REMINDER_LEAD_DAYS = 10/);
   assert.match(runtime, /normalizeFunding\(activity\?\.funding\) === 'גפן'/);
+  assert.match(runtime, /\.eq\('activity_season', REMINDER_SEASON\)/);
+  assert.match(runtime, /activity_season,start_date,date_1/);
   assert.match(runtime, /daysUntilStart >= 0 && daysUntilStart <= REMINDER_LEAD_DAYS/);
-  assert.match(runtime, /start_date,date_1/);
+  assert.doesNotMatch(runtime, /startDate\.startsWith/);
+  assert.doesNotMatch(runtime, /startDate\.startsWith\(`\$\{REMINDER_YEAR\}-`\)/);
 });
 
 test('Gefen reminder is shown to all authenticated dashboard users except instructors', () => {
@@ -27,7 +30,7 @@ test('Gefen reminders are grouped into one popup with a single acknowledgement a
   assert.match(runtime, /data-gefen-reminder-count/);
   assert.match(runtime, /const acknowledgementRows = activities\.map/);
   assert.match(runtime, /\.insert\(acknowledgementRows\)/);
-  assert.match(runtime, /await showAndAcknowledgeReminders\(dueReminders, authUserId, today\)/);
+  assert.match(runtime, /await showAndAcknowledgeReminders\(/);
   assert.doesNotMatch(runtime, /for \(const activity of dueReminders\)/);
 });
 
@@ -38,6 +41,6 @@ test('Gefen reminder acknowledgement remains per activity and per authenticated 
   assert.match(runtime, /user_id: authUserId/);
 });
 
-test('Gefen reminder runtime is loaded by the application shell', () => {
-  assert.match(indexHtml, /gefen-start-reminder-runtime\.js\?v=20260823-v3/);
+test('Gefen reminder runtime is loaded by the application shell with refreshed cache key', () => {
+  assert.match(indexHtml, /gefen-start-reminder-runtime\.js\?v=20260823-v4/);
 });
