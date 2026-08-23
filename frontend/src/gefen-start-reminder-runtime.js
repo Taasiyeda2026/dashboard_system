@@ -2,7 +2,7 @@ import { state } from './state.js';
 import { supabase, waitForSupabaseAuthSession } from './supabase-client.js';
 
 const REMINDER_TABLE = 'gefen_start_reminder_acknowledgements';
-const REMINDER_YEAR = 2027;
+const REMINDER_SEASON = 'school_2027';
 const REMINDER_LEAD_DAYS = 10;
 const CHECK_THROTTLE_MS = 5 * 60 * 1000;
 const POLL_INTERVAL_MS = 30 * 1000;
@@ -16,7 +16,7 @@ function normalizeFunding(value) {
 }
 
 function isEligibleReminderUser(user = state?.user) {
-  const role = String(user?.role || '').trim().toLowerCase();
+  const role = String(user?.role || user?.display_role || '').trim().toLowerCase();
   return Boolean(user?.user_id) && role !== 'instructor';
 }
 
@@ -43,26 +43,26 @@ function todayInJerusalem() {
       return `${values.year}-${values.month}-${values.day}`;
     }
   } catch {
-    // Fall through to the browser-local date only if Intl timezone resolution fails.
+    // Browser-local fallback only if timezone formatting is unavailable.
   }
+
   const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const day = String(now.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
+  return [
+    now.getFullYear(),
+    String(now.getMonth() + 1).padStart(2, '0'),
+    String(now.getDate()).padStart(2, '0')
+  ].join('-');
 }
 
 function firstActivityDate(activity) {
-  const dates = [activity?.start_date, activity?.date_1]
+  return [activity?.start_date, activity?.date_1]
     .map((value) => String(value || '').trim())
     .filter(isIsoDate)
-    .sort();
-  return dates[0] || '';
+    .sort()[0] || '';
 }
 
 function isReminderDue(startDate, today) {
   if (!isIsoDate(startDate) || !isIsoDate(today)) return false;
-  if (!startDate.startsWith(`${REMINDER_YEAR}-`)) return false;
   const daysUntilStart = dateOrdinal(startDate) - dateOrdinal(today);
   return daysUntilStart >= 0 && daysUntilStart <= REMINDER_LEAD_DAYS;
 }
@@ -89,11 +89,13 @@ function escapeHtml(value) {
 
 function ensureReminderStyles() {
   if (document.getElementById('gefen-start-reminder-styles')) return;
+
   const style = document.createElement('style');
   style.id = 'gefen-start-reminder-styles';
   style.textContent = `
     html.gefen-start-reminder-open,
     html.gefen-start-reminder-open body { overflow: hidden !important; }
+
     .gefen-start-reminder-overlay {
       position: fixed;
       inset: 0;
@@ -105,6 +107,7 @@ function ensureReminderStyles() {
       background: rgba(15, 23, 42, 0.64);
       backdrop-filter: blur(2px);
     }
+
     .gefen-start-reminder-dialog {
       width: min(920px, 100%);
       max-height: calc(100vh - 48px);
@@ -114,13 +117,14 @@ function ensureReminderStyles() {
       border: 1px solid #d9e1ea;
       border-top: 6px solid #c62828;
       border-radius: 14px;
-      background: #ffffff;
+      background: #fff;
       color: #172033;
       box-shadow: 0 24px 70px rgba(15, 23, 42, 0.30);
       direction: rtl;
       text-align: right;
       font-family: inherit;
     }
+
     .gefen-start-reminder-head {
       display: flex;
       gap: 12px;
@@ -129,6 +133,7 @@ function ensureReminderStyles() {
       border-bottom: 1px solid #e6ebf1;
       flex: 0 0 auto;
     }
+
     .gefen-start-reminder-icon {
       flex: 0 0 36px;
       width: 36px;
@@ -142,33 +147,37 @@ function ensureReminderStyles() {
       font-weight: 900;
       line-height: 1;
     }
+
     .gefen-start-reminder-title {
       margin: 0;
       font-size: 21px;
       line-height: 1.35;
       font-weight: 800;
-      color: #172033;
     }
+
     .gefen-start-reminder-subtitle {
       margin: 5px 0 0;
       color: #5a6679;
       font-size: 14px;
       line-height: 1.5;
     }
+
     .gefen-start-reminder-body {
       padding: 18px 24px 24px;
       min-height: 0;
       display: flex;
       flex-direction: column;
     }
+
     .gefen-start-reminder-table-wrap {
       margin: 0 0 18px;
       max-height: min(46vh, 430px);
       overflow: auto;
       border: 1px solid #dfe5ec;
       border-radius: 10px;
-      background: #ffffff;
+      background: #fff;
     }
+
     .gefen-start-reminder-table {
       width: 100%;
       min-width: 700px;
@@ -177,6 +186,7 @@ function ensureReminderStyles() {
       font-size: 13.5px;
       line-height: 1.45;
     }
+
     .gefen-start-reminder-table th,
     .gefen-start-reminder-table td {
       padding: 10px 12px;
@@ -184,6 +194,7 @@ function ensureReminderStyles() {
       vertical-align: top;
       text-align: right;
     }
+
     .gefen-start-reminder-table th {
       position: sticky;
       top: 0;
@@ -194,27 +205,33 @@ function ensureReminderStyles() {
       white-space: nowrap;
       box-shadow: 0 1px 0 #dfe5ec;
     }
+
     .gefen-start-reminder-table tbody tr:last-child td { border-bottom: 0; }
-    .gefen-start-reminder-table td { color: #172033; font-weight: 650; overflow-wrap: anywhere; }
+    .gefen-start-reminder-table td {
+      color: #172033;
+      font-weight: 650;
+      overflow-wrap: anywhere;
+    }
     .gefen-start-reminder-table td:last-child { white-space: nowrap; }
+
     .gefen-start-reminder-question {
       margin: 0 0 18px;
       padding: 14px 0;
       border-top: 1px solid #edf0f4;
       border-bottom: 1px solid #edf0f4;
-      color: #172033;
       font-size: 17px;
       line-height: 1.65;
       font-weight: 800;
       flex: 0 0 auto;
     }
+
     .gefen-start-reminder-action {
       width: 100%;
       min-height: 46px;
       border: 0;
       border-radius: 9px;
       background: #1e4f8f;
-      color: #ffffff;
+      color: #fff;
       font: inherit;
       font-size: 15px;
       font-weight: 800;
@@ -222,10 +239,15 @@ function ensureReminderStyles() {
       transition: background .15s ease, transform .15s ease;
       flex: 0 0 auto;
     }
+
     .gefen-start-reminder-action:hover:not(:disabled) { background: #173f74; }
     .gefen-start-reminder-action:active:not(:disabled) { transform: translateY(1px); }
-    .gefen-start-reminder-action:focus-visible { outline: 3px solid rgba(30, 79, 143, .28); outline-offset: 2px; }
+    .gefen-start-reminder-action:focus-visible {
+      outline: 3px solid rgba(30, 79, 143, .28);
+      outline-offset: 2px;
+    }
     .gefen-start-reminder-action:disabled { cursor: wait; opacity: .70; }
+
     .gefen-start-reminder-error {
       min-height: 20px;
       margin: 10px 0 0;
@@ -235,33 +257,51 @@ function ensureReminderStyles() {
       line-height: 1.5;
       flex: 0 0 auto;
     }
+
     @media (max-width: 620px) {
-      .gefen-start-reminder-overlay { padding: 12px; align-items: flex-start; overflow-y: auto; }
-      .gefen-start-reminder-dialog { margin-top: 3vh; max-height: 92vh; }
+      .gefen-start-reminder-overlay {
+        padding: 12px;
+        align-items: flex-start;
+        overflow-y: auto;
+      }
+      .gefen-start-reminder-dialog {
+        margin-top: 3vh;
+        max-height: 92vh;
+      }
       .gefen-start-reminder-head { padding: 18px 18px 12px; }
       .gefen-start-reminder-body { padding: 14px 18px 18px; }
       .gefen-start-reminder-table-wrap { max-height: 45vh; }
       .gefen-start-reminder-question { font-size: 16px; }
     }
   `;
+
   document.head.appendChild(style);
 }
 
 async function loadDueReminders(authUserId, today) {
   const { data: activities, error: activitiesError } = await supabase
     .from('activities')
-    .select('id,row_id,school,authority,activity_name,funding,start_date,date_1')
+    .select('id,row_id,school,authority,activity_name,funding,activity_season,start_date,date_1')
+    .eq('activity_season', REMINDER_SEASON)
     .ilike('funding', '%גפן%')
     .or('start_date.not.is.null,date_1.not.is.null');
 
   if (activitiesError) throw activitiesError;
 
   const due = (activities || [])
+    .filter((activity) => activity?.activity_season === REMINDER_SEASON)
     .filter((activity) => normalizeFunding(activity?.funding) === 'גפן')
-    .map((activity) => ({ ...activity, reminder_start_date: firstActivityDate(activity) }))
-    .filter((activity) => activity.id != null && isReminderDue(activity.reminder_start_date, today))
+    .map((activity) => ({
+      ...activity,
+      reminder_start_date: firstActivityDate(activity)
+    }))
+    .filter((activity) => (
+      activity.id != null
+      && isReminderDue(activity.reminder_start_date, today)
+    ))
     .sort((a, b) => {
-      const dateCompare = String(a.reminder_start_date).localeCompare(String(b.reminder_start_date));
+      const dateCompare = String(a.reminder_start_date)
+        .localeCompare(String(b.reminder_start_date));
       if (dateCompare !== 0) return dateCompare;
       return String(a.school || '').localeCompare(String(b.school || ''), 'he');
     });
@@ -276,13 +316,18 @@ async function loadDueReminders(authUserId, today) {
     .in('activity_id', dueIds);
 
   if (acknowledgementError) throw acknowledgementError;
-  const acknowledgedIds = new Set((acknowledgements || []).map((row) => Number(row.activity_id)));
+
+  const acknowledgedIds = new Set(
+    (acknowledgements || []).map((row) => Number(row.activity_id))
+  );
   return due.filter((activity) => !acknowledgedIds.has(Number(activity.id)));
 }
 
 function reminderDialogHtml(activities, today) {
   const activityCount = activities.length;
-  const countText = activityCount === 1 ? 'פעילות גפ״ן אחת' : `${activityCount} פעילויות גפ״ן`;
+  const countText = activityCount === 1
+    ? 'פעילות גפ״ן אחת'
+    : `${activityCount} פעילויות גפ״ן`;
   const timingText = activityCount === 1
     ? `שמתחילה בתוך ${REMINDER_LEAD_DAYS} ימים ודורשת בדיקה`
     : `שמתחילות בתוך ${REMINDER_LEAD_DAYS} ימים ודורשות בדיקה`;
@@ -309,16 +354,26 @@ function reminderDialogHtml(activities, today) {
   }).join('');
 
   return `
-    <section class="gefen-start-reminder-dialog" role="dialog" aria-modal="true" aria-labelledby="gefenReminderTitle" aria-describedby="gefenReminderQuestion">
+    <section class="gefen-start-reminder-dialog"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="gefenReminderTitle"
+      aria-describedby="gefenReminderQuestion">
       <header class="gefen-start-reminder-head">
         <span class="gefen-start-reminder-icon" aria-hidden="true">!</span>
         <div>
-          <h2 class="gefen-start-reminder-title" id="gefenReminderTitle">תזכורת חשובה — פעילויות גפ״ן</h2>
-          <p class="gefen-start-reminder-subtitle">נמצאו ${escapeHtml(countText)} ${escapeHtml(timingText)}. נדרש אישור אחד לפני המשך העבודה.</p>
+          <h2 class="gefen-start-reminder-title" id="gefenReminderTitle">
+            תזכורת חשובה — פעילויות גפ״ן
+          </h2>
+          <p class="gefen-start-reminder-subtitle">
+            נמצאו ${escapeHtml(countText)} ${escapeHtml(timingText)}.
+            נדרש אישור אחד לפני המשך העבודה.
+          </p>
         </div>
       </header>
       <div class="gefen-start-reminder-body">
-        <div class="gefen-start-reminder-table-wrap" aria-label="פעילויות גפן הדורשות בדיקה">
+        <div class="gefen-start-reminder-table-wrap"
+          aria-label="פעילויות גפן הדורשות בדיקה">
           <table class="gefen-start-reminder-table">
             <thead>
               <tr>
@@ -331,9 +386,15 @@ function reminderDialogHtml(activities, today) {
             <tbody>${rows}</tbody>
           </table>
         </div>
-        <p class="gefen-start-reminder-question" id="gefenReminderQuestion">${escapeHtml(question)}</p>
-        <button class="gefen-start-reminder-action" type="button">אישור והמשך עבודה</button>
-        <p class="gefen-start-reminder-error" role="alert" aria-live="assertive"></p>
+        <p class="gefen-start-reminder-question" id="gefenReminderQuestion">
+          ${escapeHtml(question)}
+        </p>
+        <button class="gefen-start-reminder-action" type="button">
+          אישור והמשך עבודה
+        </button>
+        <p class="gefen-start-reminder-error"
+          role="alert"
+          aria-live="assertive"></p>
       </div>
     </section>
   `;
@@ -354,7 +415,6 @@ async function acknowledgeReminders(activities, authUserId) {
   if (!error) return;
   if (String(error.code || '') !== '23505') throw error;
 
-  // Another tab may have acknowledged part of the same grouped popup. Re-read and save only missing rows.
   const activityIds = acknowledgementRows.map((row) => row.activity_id);
   const { data: existing, error: readError } = await supabase
     .from(REMINDER_TABLE)
@@ -364,27 +424,22 @@ async function acknowledgeReminders(activities, authUserId) {
 
   if (readError) throw readError;
 
-  const existingIds = new Set((existing || []).map((row) => Number(row.activity_id)));
-  const missingRows = acknowledgementRows.filter((row) => !existingIds.has(Number(row.activity_id)));
+  const existingIds = new Set(
+    (existing || []).map((row) => Number(row.activity_id))
+  );
+  const missingRows = acknowledgementRows.filter(
+    (row) => !existingIds.has(Number(row.activity_id))
+  );
+
   if (!missingRows.length) return;
 
   const { error: retryError } = await supabase
     .from(REMINDER_TABLE)
     .insert(missingRows);
 
-  if (retryError && String(retryError.code || '') !== '23505') throw retryError;
-  if (!retryError) return;
-
-  const { data: finalRows, error: finalReadError } = await supabase
-    .from(REMINDER_TABLE)
-    .select('activity_id')
-    .eq('user_id', authUserId)
-    .in('activity_id', activityIds);
-
-  if (finalReadError) throw finalReadError;
-  const finalIds = new Set((finalRows || []).map((row) => Number(row.activity_id)));
-  const allAcknowledged = activityIds.every((id) => finalIds.has(Number(id)));
-  if (!allAcknowledged) throw retryError;
+  if (retryError && String(retryError.code || '') !== '23505') {
+    throw retryError;
+  }
 }
 
 function showAndAcknowledgeReminders(activities, authUserId, today) {
@@ -392,6 +447,7 @@ function showAndAcknowledgeReminders(activities, authUserId, today) {
     ensureReminderStyles();
 
     document.querySelector('.gefen-start-reminder-overlay')?.remove();
+
     const overlay = document.createElement('div');
     overlay.className = 'gefen-start-reminder-overlay';
     overlay.setAttribute('data-gefen-reminder-count', String(activities.length));
@@ -408,6 +464,7 @@ function showAndAcknowledgeReminders(activities, authUserId, today) {
         button?.focus({ preventScroll: true });
       }
     };
+
     document.addEventListener('keydown', keepFocusInside, true);
 
     const close = () => {
@@ -419,7 +476,9 @@ function showAndAcknowledgeReminders(activities, authUserId, today) {
 
     button?.addEventListener('click', async () => {
       button.disabled = true;
-      button.textContent = activities.length === 1 ? 'שומר אישור…' : 'שומר אישורים…';
+      button.textContent = activities.length === 1
+        ? 'שומר אישור…'
+        : 'שומר אישורים…';
       errorBox.textContent = '';
 
       try {
@@ -427,7 +486,8 @@ function showAndAcknowledgeReminders(activities, authUserId, today) {
         close();
       } catch (error) {
         console.warn('[gefen-start-reminder] acknowledgement failed', error);
-        errorBox.textContent = 'לא ניתן היה לשמור את האישור. יש לנסות שוב כדי להמשיך.';
+        errorBox.textContent =
+          'לא ניתן היה לשמור את האישור. יש לנסות שוב כדי להמשיך.';
         button.disabled = false;
         button.textContent = 'אישור והמשך עבודה';
         button.focus({ preventScroll: true });
@@ -453,21 +513,32 @@ function shouldThrottle(authUserId, dateKey) {
 }
 
 async function checkGefenStartReminders() {
-  if (checkPromise || !supabase || !authenticatedShellIsReady()) return checkPromise;
+  if (checkPromise || !supabase || !authenticatedShellIsReady()) {
+    return checkPromise;
+  }
 
   checkPromise = (async () => {
     const session = await waitForSupabaseAuthSession({ timeoutMs: 8000 });
     const authUserId = String(session?.user?.id || '').trim();
+
     if (!authUserId || !authenticatedShellIsReady()) return;
 
     const today = todayInJerusalem();
     if (shouldThrottle(authUserId, today)) return;
 
     const dueReminders = await loadDueReminders(authUserId, today);
-    lastSuccessfulCheck = { authUserId, dateKey: today, at: Date.now() };
+    lastSuccessfulCheck = {
+      authUserId,
+      dateKey: today,
+      at: Date.now()
+    };
 
     if (dueReminders.length && authenticatedShellIsReady()) {
-      await showAndAcknowledgeReminders(dueReminders, authUserId, today);
+      await showAndAcknowledgeReminders(
+        dueReminders,
+        authUserId,
+        today
+      );
     }
   })()
     .catch((error) => {
@@ -486,7 +557,11 @@ function scheduleReminderCheck() {
 
 if (typeof window !== 'undefined' && typeof document !== 'undefined') {
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', scheduleReminderCheck, { once: true });
+    document.addEventListener(
+      'DOMContentLoaded',
+      scheduleReminderCheck,
+      { once: true }
+    );
   } else {
     scheduleReminderCheck();
   }
@@ -494,17 +569,20 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
   window.setInterval(scheduleReminderCheck, POLL_INTERVAL_MS);
   window.addEventListener('focus', scheduleReminderCheck);
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') scheduleReminderCheck();
+    if (document.visibilityState === 'visible') {
+      scheduleReminderCheck();
+    }
   });
 }
 
 export {
   REMINDER_LEAD_DAYS,
-  REMINDER_YEAR,
+  REMINDER_SEASON,
   acknowledgeReminders,
   firstActivityDate,
   isEligibleReminderUser,
   isReminderDue,
+  loadDueReminders,
   normalizeFunding,
   reminderDialogHtml,
   todayInJerusalem
