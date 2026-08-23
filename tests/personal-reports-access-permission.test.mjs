@@ -6,8 +6,7 @@ const API_FILE = new URL('../frontend/src/api.js', import.meta.url);
 const PR_FILE = new URL('../frontend/src/screens/personal-reports.js', import.meta.url);
 const PERM_FILE = new URL('../frontend/src/screens/permissions.js', import.meta.url);
 const MAIN_FILE = new URL('../frontend/src/main.js', import.meta.url);
-const MIGRATION_FILE = new URL('../supabase/migrations/20260609_profiles_personal_reports_access.sql', import.meta.url);
-const MANAGER_MIGRATION_FILE = new URL('../supabase/migrations/20260610_personal_reports_manager_permission.sql', import.meta.url);
+const APPROVED_MATRIX_MIGRATION_FILE = new URL('../supabase/migrations/20260823200000_apply_approved_permission_matrix.sql', import.meta.url);
 
 test('personal-reports route is not granted by role alone', async () => {
   const source = await readFile(API_FILE, 'utf8');
@@ -16,7 +15,7 @@ test('personal-reports route is not granted by role alone', async () => {
   assert.doesNotMatch(routesBlock[0], /'personal-reports'/);
 });
 
-test('buildBootstrapFromUser gates personal-reports on profiles.can_access_personal_reports and is_active', async () => {
+test('buildBootstrapFromUser prefers canonical personal-report permission and uses profile only as compatibility fallback', async () => {
   const source = await readFile(API_FILE, 'utf8');
   assert.match(source, /function profileCanAccessPersonalReports\(/);
   assert.match(source, /PROFILE_PERSONAL_REPORTS_COLUMNS = 'id,is_active,can_access_personal_reports'/);
@@ -25,7 +24,8 @@ test('buildBootstrapFromUser gates personal-reports on profiles.can_access_perso
   assert.match(source, /readPersonalReportsProfile\(/);
   assert.match(source, /hasPersonalReportsAccess/);
   assert.match(source, /has_personal_reports_access: hasPersonalReportsAccess/);
-  assert.doesNotMatch(source, /parsePermissions\(userRow\?\.permissions\)\.can_access_personal_reports/);
+  assert.match(source, /Object\.prototype\.hasOwnProperty\.call\(flat, 'can_access_personal_reports'\)/);
+  assert.match(source, /effectivePersonalReportsAccess\(flat, profileRow\)/);
 });
 
 test('login exposes can_access_personal_reports from profiles on session user', async () => {
@@ -39,9 +39,9 @@ test('permissions editor includes can_access_personal_reports key flag', async (
   assert.match(source, /'can_access_personal_reports'/);
 });
 
-test('savePermission writes can_access_personal_reports to profiles not users.permissions', async () => {
+test('savePermission writes canonical can_access_personal_reports and aligns the compatibility profile', async () => {
   const source = await readFile(API_FILE, 'utf8');
-  assert.match(source, /'can_access_personal_reports'\]\.includes\(k\)/);
+  assert.doesNotMatch(source, /'display_role2', 'can_access_personal_reports'\]\.includes\(k\)/);
   assert.match(source, /\.from\('profiles'\)\s*\n\s*\.update\(profilePatch\)/);
 });
 
@@ -97,29 +97,15 @@ test('main syncs personal_reports_manager from bootstrap', async () => {
   assert.match(source, /state\.user\.personal_reports_manager = !!bootstrap\.has_personal_reports_manager/);
 });
 
-test('migration scopes personal reports manager to personal reports RLS only', async () => {
-  const sql = await readFile(MANAGER_MIGRATION_FILE, 'utf8');
-  assert.match(sql, /dashboard_user_can_manage_personal_reports/);
+test('approved matrix stores personal reports manager canonically without granting admin tools', async () => {
+  const sql = await readFile(APPROVED_MATRIX_MIGRATION_FILE, 'utf8');
   assert.match(sql, /personal_reports_manager/);
-  assert.match(sql, /reports_select_admin/);
-  assert.match(sql, /reports_update_admin/);
-  assert.match(sql, /profiles_select_admin/);
-  assert.doesNotMatch(sql, /view_admin/);
-  assert.doesNotMatch(sql, /view_permissions/);
+  assert.match(sql, /'7000'[\s\S]*'personal_reports_manager'/);
+  assert.match(sql, /'view_permissions',case when m\.user_id = '8000' then 'yes' else 'no'/);
 });
 
-test('migration grants personal reports access only to explicit profile whitelist', async () => {
-  const sql = await readFile(MIGRATION_FILE, 'utf8');
-  assert.match(sql, /DEFAULT false/);
-  assert.match(sql, /SET can_access_personal_reports = false/);
-  assert.match(sql, /idann@think\.org\.il/);
-  assert.match(sql, /esraas@think\.org\.il/);
-  assert.match(sql, /gilneeman@think\.org\.il/);
-  assert.match(sql, /hilar@think\.org\.il/);
-  assert.match(sql, /toni@think\.org\.il/);
-  assert.match(sql, /edenc@think\.org\.il/);
-  assert.doesNotMatch(sql, /WHERE is_active = true[\s\S]*SET can_access_personal_reports = true/);
-  assert.match(sql, /public\.profiles/);
-  assert.match(sql, /dashboard_user_can_access_personal_reports/);
-  assert.match(sql, /DROP FUNCTION IF EXISTS public\.verify_personal_reports_entry_code\(text, text\)/);
+test('approved matrix aligns profile compatibility access for exactly the seven user IDs', async () => {
+  const sql = await readFile(APPROVED_MATRIX_MIGRATION_FILE, 'utf8');
+  assert.match(sql, /set can_access_personal_reports = u\.user_id in \('8000','6000','3030','7000','1500','5000'\)/);
+  assert.match(sql, /u\.user_id = any\(array\['8000','6000','3000','3030','7000','1500','5000'\]\)/);
 });

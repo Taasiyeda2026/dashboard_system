@@ -12,8 +12,9 @@ async function assertAllowed(req: Request) {
   const response = await fetch(`${url}/rest/v1/rpc/get_current_app_user`, { method: "POST", headers: { apikey: key, Authorization: auth, "Content-Type": "application/json" }, body: "{}" });
   const payload = response.ok ? await response.json() : [];
   const user = Array.isArray(payload) ? payload[0] : payload;
-  const direct = [true, "yes", "true", "1", 1].includes(user?.permissions?.can_edit_direct);
-  if (!user?.is_active || (!direct && !["admin", "operation_manager"].includes(clean(user?.role)))) throw new Error("not_authorized");
+  const allowed = [true, "yes", "true", "1", 1].includes(user?.permissions?.send_activity_coordination_approvals)
+    && [true, "yes", "true", "1", 1].includes(user?.permissions?.view_activities);
+  if (!user?.is_active || (clean(user?.role) !== "admin" && !allowed)) throw new Error("not_authorized");
 }
 
 async function graphToken() {

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
 const migration = await readFile(new URL('../supabase/migrations/20260814190000_activity_coordination_dispatches.sql', import.meta.url), 'utf8');
+const permissionMigration = await readFile(new URL('../supabase/migrations/20260823200000_apply_approved_permission_matrix.sql', import.meta.url), 'utf8');
 
 test('coordination migration adds nullable preparation without altering activity field types', () => {
   assert.match(migration, /catalog_program_syllabus[\s\S]*school_preparation text null/i);
@@ -25,6 +26,7 @@ test('database idempotency and RPC-only writes are explicit', () => {
   assert.match(migration, /pg_advisory_xact_lock/i);
   assert.match(migration, /revoke insert, update, delete[\s\S]*from authenticated/i);
   assert.match(migration, /if not public\.app_can_edit_direct\(\)/i);
+  assert.match(permissionMigration, /activity_coordination_is_admin[\s\S]*send_activity_coordination_approvals/i);
   assert.doesNotMatch(migration, /for (insert|update)[\s\S]{0,120}(using|with check)\s*\(true\)/i);
 });
 

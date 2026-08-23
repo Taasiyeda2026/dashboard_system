@@ -5,7 +5,7 @@ import { escapeHtml } from './screens/shared/html.js';
 import { hebrewPermissionField, hebrewRole } from './screens/shared/ui-hebrew.js';
 import { ADMIN_ONLY_CAPABILITIES, ALL_PERMISSION_KEYS, capabilityTree } from './capability-registry.js';
 
-const VERSION = '20260823-v3';
+const VERSION = '20260823-v5';
 const STYLE_ID = 'admin-permissions-management-v2-style';
 const ROOT_ATTR = 'data-admin-permissions-management-v2';
 const ADMIN_ROLE = 'admin';
@@ -28,7 +28,6 @@ const LEGACY_PERMISSION_ALIASES = Object.freeze({
   can_request_edit: ['can_request_edit_2'],
   can_review_requests: ['can_review_requests_2'],
   view_workshop_stock: ['view_inventory'],
-  view_proposals_agreements: ['view_proposals'],
   finance_access: ['view_finance']
 });
 
@@ -98,7 +97,7 @@ function permissionValue(row, key) {
 }
 
 function effectivePermissionValue(row, key) {
-  if (permissionValue(row, key)) return true;
+  if (row && Object.prototype.hasOwnProperty.call(row, key)) return permissionValue(row, key);
   return (LEGACY_PERMISSION_ALIASES[key] || []).some((alias) => permissionValue(row, alias));
 }
 
@@ -275,13 +274,13 @@ function primaryAccessLabel(row) {
 function permissionGroupsHtml(row, role, isNew = false) {
   const defaults = uiState.data?.roleDefaults?.[role] || {};
   const checked = (key) => role === ADMIN_ROLE || (isNew ? effectivePermissionValue(defaults, key) : effectivePermissionValue(row, key));
-  const renderNode = (node, parentPermission = '', depth = 0) => {
+  const renderNode = (node, parentPermission = '', depth = 0, ancestorsOn = true) => {
     if (!node.permission) return '';
     const on = checked(node.permission);
-    const parentOn = !parentPermission || checked(parentPermission);
-    const disabled = role === ADMIN_ROLE || !parentOn;
-    const children = (node.children || []).filter((child) => child.permission).map((child) => renderNode(child, node.permission, depth + 1)).join('');
-    const input = `<label class="apm-permission-item"><input type="checkbox" data-apm-permission="${escapeHtml(node.permission)}"${children ? ' data-apm-parent' : ''}${parentPermission ? ` data-apm-child-of="${escapeHtml(parentPermission)}"` : ''}${on ? ' checked' : ''}${disabled ? ' disabled' : ''}><span>${escapeHtml(node.label)}</span></label>`;
+    const effectiveOn = ancestorsOn && on;
+    const disabled = role === ADMIN_ROLE || !ancestorsOn;
+    const children = (node.children || []).filter((child) => child.permission).map((child) => renderNode(child, node.permission, depth + 1, effectiveOn)).join('');
+    const input = `<label class="apm-permission-item"><input type="checkbox" data-apm-permission="${escapeHtml(node.permission)}" data-apm-stored-checked="${on ? 'yes' : 'no'}"${children ? ' data-apm-parent' : ''}${parentPermission ? ` data-apm-child-of="${escapeHtml(parentPermission)}"` : ''}${effectiveOn ? ' checked' : ''}${disabled ? ' disabled' : ''}><span>${escapeHtml(node.label)}</span></label>`;
     return depth === 0
       ? `<details class="apm-permission-group"${on ? ' open' : ''}><summary>${input}</summary>${children ? `<div class="apm-permission-grid">${children}</div>` : ''}</details>`
       : `<div class="apm-permission-node" style="margin-inline-start:${depth * 12}px">${input}${children}</div>`;
@@ -368,8 +367,9 @@ function bindPermissionHierarchy(drawer) {
   drawer.querySelectorAll('[data-apm-parent]').forEach((parent) => parent.addEventListener('change', () => {
     const updateChildren = (permission, enabled) => {
       drawer.querySelectorAll(`[data-apm-child-of="${CSS.escape(permission)}"]`).forEach((child) => {
+        if (!child.disabled) child.dataset.apmStoredChecked = child.checked ? 'yes' : 'no';
         child.disabled = !enabled;
-        if (!enabled) child.checked = false;
+        child.checked = enabled && child.dataset.apmStoredChecked === 'yes';
         updateChildren(child.dataset.apmPermission, enabled && child.checked);
       });
     };
@@ -402,7 +402,7 @@ function permissionPayload(drawer, role, existingRow = null) {
   allKeys.forEach((key) => {
     const el = drawer.querySelector(`[data-apm-permission="${CSS.escape(key)}"]`);
     if (el) {
-      payload[key] = el.checked ? 'yes' : 'no';
+      payload[key] = el.disabled ? (el.dataset.apmStoredChecked || 'no') : (el.checked ? 'yes' : 'no');
       return;
     }
     // A permission that is not represented in the current business tree must
@@ -412,7 +412,7 @@ function permissionPayload(drawer, role, existingRow = null) {
     if (storedValue !== undefined) payload[key] = storedValue;
   });
   drawer.querySelectorAll('[data-apm-permission]').forEach((el) => {
-    payload[el.dataset.apmPermission] = el.checked ? 'yes' : 'no';
+    payload[el.dataset.apmPermission] = el.disabled ? (el.dataset.apmStoredChecked || 'no') : (el.checked ? 'yes' : 'no');
   });
   for (const [canonical, aliases] of Object.entries(LEGACY_PERMISSION_ALIASES)) {
     aliases.forEach((alias) => { payload[alias] = payload[canonical] || 'no'; });

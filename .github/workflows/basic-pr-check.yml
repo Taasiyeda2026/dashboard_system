@@ -1,0 +1,57 @@
+name: Basic PR Check
+
+on:
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: basic-pr-check-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  basic:
+    name: basic changed-file validation
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Check changed files only
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # Always compare with the current target branch, not the PR's historical base SHA.
+          BASE_SHA="$(git rev-parse "origin/${BASE_REF}")"
+
+          # Fast whitespace / malformed-patch sanity check.
+          git diff --check "$BASE_SHA" "$HEAD_SHA"
+
+          js_count=0
+          json_count=0
+
+          while IFS= read -r -d '' file; do
+            [ -f "$file" ] || continue
+
+            case "$file" in
+              *.js|*.mjs|*.cjs)
+                node --check "$file"
+                js_count=$((js_count + 1))
+                ;;
+              *.json)
+                node -e 'JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"))' "$file"
+                json_count=$((json_count + 1))
+                ;;
+            esac
+          done < <(git diff --name-only --diff-filter=ACMR -z "$BASE_SHA" "$HEAD_SHA")
+
+          echo "Checked ${js_count} changed JavaScript files and ${json_count} changed JSON files."

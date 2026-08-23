@@ -61,3 +61,18 @@ test('flat values loaded after login and nested values loaded after refresh are 
   assert.equal(hasPermission(restored, 'finance_access'), false);
   assert.deepEqual(enforceManagedRoutes(managedRoutes, flat), enforceManagedRoutes(managedRoutes, restored));
 });
+
+test('canonical nested values win over stale columns and children require every parent', () => {
+  assert.equal(hasPermission({
+    role: 'authorized_user', can_review_requests: true,
+    permissions: { view_activities: 'yes', can_review_requests: 'no' }
+  }, 'can_review_requests'), false);
+  assert.equal(hasPermission({
+    role: 'authorized_user',
+    permissions: { view_instructors: 'no', view_instructor_list: 'yes' }
+  }, 'view_instructor_list'), false);
+  assert.equal(hasPermission({
+    role: 'authorized_user',
+    permissions: { view_operations_management: 'yes', view_workshop_stock: 'no', view_workshop_stock_distributions: 'yes' }
+  }, 'view_workshop_stock_distributions'), false);
+});

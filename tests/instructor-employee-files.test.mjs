@@ -90,7 +90,7 @@ test('employee-file frontend uses explicit permission for non-admin users and ke
   assert.equal(canViewEmployeeFiles({ role: 'admin', permissions: { view_employee_files: 'no' } }), true, 'admin: explicit no does not remove admin bypass');
 
   for (const role of ['operation_manager','finance','activities_manager','domain_manager','business_development_manager','instructor_manager','authorized_user']) {
-    assert.equal(canViewEmployeeFiles({ role, permissions: { view_employee_files: 'yes' } }), true, `${role}: explicit yes`);
+    assert.equal(canViewEmployeeFiles({ role, permissions: { view_instructors: 'yes', view_employee_files: 'yes' } }), true, `${role}: explicit yes`);
     assert.equal(canViewEmployeeFiles({ role }), false, `${role}: no runtime role fallback`);
     assert.equal(canViewEmployeeFiles({ role, permissions: { view_employee_files: 'no' } }), false, `${role}: explicit no`);
   }
