@@ -36,7 +36,22 @@ test('Israa activity editing reuses the shared activity drawer and binder', () =
   assert.doesNotMatch(screen, /function activityFields\(/);
 });
 
+test('draft type comes from the proposal item and is normalized without a course fallback', () => {
+  assert.match(migration, /normalize_israa_activity_type\(coalesce\(nullif\(p_draft->>'activity_type', ''\), v_item->>'item_type'\)\)/);
+  assert.doesNotMatch(migration, /'activity_type', coalesce\([^\n]+, 'course'\)/);
+});
+
+test('share revalidates the current tracking snapshot and protects provenance writes', () => {
+  assert.match(migration, /jsonb_array_elements\(coalesce\(v_tracking\.proposal_items/);
+  assert.match(migration, /security invoker[\s\S]*israa_provenance_write_forbidden/i);
+  assert.match(migration, /pai\.proposal_agreement_id = t\.proposal_agreement_id/);
+});
+
+test('typed activity fields use explicit PostgreSQL casts', () => {
+  for (const cast of ["::bigint", "::date", "::time"]) assert.match(migration, new RegExp(cast));
+});
+
 test('existing Y proposal guard remains and only permits a validated Israa source exception', () => {
-  assert.match(migration, /if new\.israa_tracking_id is not null then/i);
+  assert.match(migration, /if new\.israa_tracking_id is not null or new\.israa_source_item_id is not null/i);
   assert.match(migration, /if coalesce\(v_domain,''\) <> 'Y' then raise exception 'proposal_domain_not_routed_to_activities'/i);
 });

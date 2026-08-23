@@ -128,3 +128,4 @@ config.HOTFIX_VERSION = `permissions-main-sync-20260823-v1-${config.HOTFIX_VERSI
 config.HOTFIX_VERSION = `permissions-hidden-preserve-20260823-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `israa-private-activities-20260823-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `israa-shared-activity-editor-20260823-v2-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `israa-provenance-and-types-20260823-v3-${config.HOTFIX_VERSION}`;

@@ -28,9 +28,9 @@ create table public.activities (
   row_id text primary key, activity_family text, activity_manager text, authority text, authority_id bigint,
   school text, school_id bigint, grade text, class_group text, activity_type text, item_type text,
   activity_no text, gefen_number text, activity_name text, program_name text, name text, title text,
-  sessions text, price text, funding text, contact_name text, contact_phone text, contact_email text,
-  emp_id text, instructor_name text, emp_id_2 text, instructor_name_2 text,
-  start_date text, end_date text, date_1 text, start_time text, end_time text, notes text, status text,
+  sessions text, price bigint, funding text, contact_name text, contact_phone text, contact_email text,
+  emp_id bigint, instructor_name text, emp_id_2 bigint, instructor_name_2 text,
+  start_date date, end_date date, date_1 date, start_time time, end_time time, notes text, status text,
   activity_season text, activity_domain text, proposal_agreement_id uuid, proposal_item_id uuid,
   updated_at timestamptz default now()
 );
