@@ -7,6 +7,7 @@ const migration = await readFile(
   'utf8'
 );
 
+// Frozen expectations guard the migration against accidental privilege expansion.
 const LEGACY_EFFECTIVE = Object.freeze({
   view_activities: new Set(['operation_manager', 'activities_manager', 'finance', 'domain_manager', 'business_development_manager', 'instructor_manager', 'authorized_user']),
   view_operations_management: new Set(['operation_manager', 'activities_manager']),
