@@ -19,7 +19,8 @@ const expectedTargets = [
 
 test('Operations home exposes the seven intended navigation targets', () => {
   for (const [label, type, valueToken] of expectedTargets) {
-    assert.match(operationsSource, new RegExp(`label: '${label}', type: '${type}', value: ${valueToken.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&')}`));
+    const needle = `{ label: '${label}', type: '${type}', value: ${valueToken} }`;
+    assert.ok(operationsSource.includes(needle), `missing Operations home target: ${label}`);
   }
 });
 
