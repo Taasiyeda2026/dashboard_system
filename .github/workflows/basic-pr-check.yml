@@ -24,11 +24,14 @@ jobs:
 
       - name: Check changed files only
         env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          BASE_REF: ${{ github.base_ref }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         shell: bash
         run: |
           set -euo pipefail
+
+          # Always compare with the current target branch, not the PR's historical base SHA.
+          BASE_SHA="$(git rev-parse "origin/${BASE_REF}")"
 
           # Fast whitespace / malformed-patch sanity check.
           git diff --check "$BASE_SHA" "$HEAD_SHA"
