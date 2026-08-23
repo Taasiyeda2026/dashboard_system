@@ -35,7 +35,7 @@ function createCard() {
   button.addEventListener('click', async () => {
     button.disabled = true;
     try {
-      const module = await import('./admin-messages-runtime.js?v=20260823-v1');
+      const module = await import('./admin-messages-runtime.js?v=20260823-v2');
       await module.openAdminMessagesManager();
     } catch (error) {
       console.warn('[admin-staff-messages] manager load failed', error);

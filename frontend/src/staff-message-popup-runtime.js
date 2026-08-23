@@ -36,6 +36,14 @@ function isEligibleStaffUser(user = state?.user) {
   return Boolean(user?.user_id) && role !== 'instructor';
 }
 
+function messageTargetsUser(message, authUserId) {
+  const audience = normalize(message?.audience) || 'all_non_instructors';
+  if (audience === 'all_non_instructors') return true;
+  if (audience !== 'selected_users') return false;
+  const recipients = Array.isArray(message?.recipient_user_ids) ? message.recipient_user_ids : [];
+  return recipients.some((id) => normalize(id) === normalize(authUserId));
+}
+
 function jerusalemNowParts(date = new Date()) {
   const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone: JERUSALEM_TIME_ZONE,
@@ -178,74 +186,26 @@ function ensurePopupStyles() {
     html.staff-message-popup-open,
     html.staff-message-popup-open body { overflow: hidden !important; }
     .staff-message-popup-overlay {
-      position: fixed;
-      inset: 0;
-      z-index: 2147482800;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 24px;
-      background: rgba(15, 23, 42, .62);
-      backdrop-filter: blur(2px);
+      position: fixed; inset: 0; z-index: 2147482800; display: flex;
+      align-items: center; justify-content: center; padding: 24px;
+      background: rgba(15, 23, 42, .62); backdrop-filter: blur(2px);
     }
     .staff-message-popup-card {
-      width: min(560px, 100%);
-      max-height: calc(100vh - 48px);
-      overflow: auto;
-      border: 1px solid #dbe3ec;
-      border-top: 5px solid #64748b;
-      border-radius: 14px;
-      background: #fff;
-      color: #172033;
-      box-shadow: 0 24px 70px rgba(15, 23, 42, .30);
-      direction: rtl;
-      text-align: right;
-      font-family: inherit;
+      width: min(560px, 100%); max-height: calc(100vh - 48px); overflow: auto;
+      border: 1px solid #dbe3ec; border-top: 5px solid #64748b; border-radius: 14px;
+      background: #fff; color: #172033; box-shadow: 0 24px 70px rgba(15,23,42,.30);
+      direction: rtl; text-align: right; font-family: inherit;
     }
     .staff-message-popup-card[data-importance="important"] { border-top-color: #d97706; }
     .staff-message-popup-card[data-importance="critical"] { border-top-color: #c62828; }
-    .staff-message-popup-head {
-      padding: 22px 24px 14px;
-      border-bottom: 1px solid #e7ecf2;
-    }
-    .staff-message-popup-title {
-      margin: 0;
-      font-size: 21px;
-      line-height: 1.35;
-      font-weight: 850;
-      color: #172033;
-    }
+    .staff-message-popup-head { padding: 22px 24px 14px; border-bottom: 1px solid #e7ecf2; }
+    .staff-message-popup-title { margin: 0; font-size: 21px; line-height: 1.35; font-weight: 850; color: #172033; }
     .staff-message-popup-body { padding: 20px 24px 24px; }
-    .staff-message-popup-text {
-      margin: 0 0 22px;
-      color: #334155;
-      font-size: 16px;
-      line-height: 1.75;
-      font-weight: 550;
-      white-space: pre-wrap;
-      overflow-wrap: anywhere;
-    }
-    .staff-message-popup-confirm {
-      width: 100%;
-      min-height: 46px;
-      border: 0;
-      border-radius: 9px;
-      background: #1e4f8f;
-      color: #fff;
-      font: inherit;
-      font-size: 15px;
-      font-weight: 800;
-      cursor: pointer;
-    }
+    .staff-message-popup-text { margin: 0 0 22px; color: #334155; font-size: 16px; line-height: 1.75; font-weight: 550; white-space: pre-wrap; overflow-wrap: anywhere; }
+    .staff-message-popup-confirm { width: 100%; min-height: 46px; border: 0; border-radius: 9px; background: #1e4f8f; color: #fff; font: inherit; font-size: 15px; font-weight: 800; cursor: pointer; }
     .staff-message-popup-confirm:hover:not(:disabled) { background: #173f74; }
     .staff-message-popup-confirm:disabled { cursor: wait; opacity: .72; }
-    .staff-message-popup-error {
-      min-height: 18px;
-      margin: 10px 0 0;
-      color: #b42318;
-      font-size: 13px;
-      font-weight: 700;
-    }
+    .staff-message-popup-error { min-height: 18px; margin: 10px 0 0; color: #b42318; font-size: 13px; font-weight: 700; }
     @media (max-width: 620px) {
       .staff-message-popup-overlay { padding: 14px; align-items: flex-start; overflow-y: auto; }
       .staff-message-popup-card { margin-top: 8vh; }
@@ -337,12 +297,14 @@ function showMessagePopup(item, authUserId) {
 }
 
 async function loadPendingMessages(authUserId) {
-  const { data: messages, error: messagesError } = await supabase
+  const { data: rows, error: messagesError } = await supabase
     .from(MESSAGE_TABLE)
-    .select('id,title,body,schedule_type,scheduled_date,monthly_day,scheduled_time,importance,audience,active_from,is_active,created_at')
+    .select('id,title,body,schedule_type,scheduled_date,monthly_day,scheduled_time,importance,audience,recipient_user_ids,active_from,is_active,created_at')
     .eq('is_active', true);
   if (messagesError) throw messagesError;
-  if (!messages?.length) return [];
+
+  const messages = (rows || []).filter((message) => messageTargetsUser(message, authUserId));
+  if (!messages.length) return [];
 
   const messageIds = messages.map((message) => message.id).filter(Boolean);
   const { data: acknowledgements, error: ackError } = await supabase
@@ -407,5 +369,6 @@ export {
   isEligibleStaffUser,
   jerusalemNowParts,
   messageOccurrenceDates,
+  messageTargetsUser,
   pendingItemsFromMessages
 };
