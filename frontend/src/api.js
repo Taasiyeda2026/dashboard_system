@@ -3397,7 +3397,7 @@ function assertAnyPermission(keys, code = 'permission_denied') {
 }
 
 function canApproveProposalsAgreementsApi() {
-  return hasPermission(state?.user, 'approve_proposals_agreements');
+  return String(state?.user?.role || state?.user?.display_role || '').trim() === 'admin';
 }
 
 function assertCanManageProposalsAgreementsApi() {

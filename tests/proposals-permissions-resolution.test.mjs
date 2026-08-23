@@ -213,7 +213,7 @@ test('legacy and canonical proposal viewers remain read-only while manage and ap
   assert.equal(hasPermission(manager, 'manage_proposals_agreements'), true);
   assert.equal(hasPermission(manager, 'approve_proposals_agreements'), false);
   assert.equal(hasPermission(approver, 'manage_proposals_agreements'), false);
-  assert.equal(hasPermission(approver, 'approve_proposals_agreements'), true);
+  assert.equal(hasPermission(approver, 'approve_proposals_agreements'), false);
   assert.equal(hasPermission({ role: 'admin' }, 'manage_proposals_agreements'), true);
   assert.equal(hasPermission({ role: 'admin' }, 'approve_proposals_agreements'), true);
 });
@@ -282,7 +282,7 @@ test('login session proposal flags match stable behavior without approve in sess
   assert.equal(sessionFlags.approve_proposals_agreements, undefined);
 });
 
-test('top-level approve_proposals_agreements allows approval only when explicit', () => {
+test('legacy approve_proposals_agreements never grants approval to a non-admin', () => {
   const userRow = {
     user_id: 'approver-top',
     role: 'authorized_user',
@@ -294,7 +294,7 @@ test('top-level approve_proposals_agreements allows approval only when explicit'
   const flat = flattenUserRow(userRow);
 
   withUser(flat, () => {
-    assert.equal(canApproveProposalsAgreementsApi(), true);
+    assert.equal(canApproveProposalsAgreementsApi(), false);
     assert.equal(canManageProposalsAgreementsApi(), false);
   });
 });

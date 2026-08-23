@@ -131,8 +131,7 @@ $$;
 
 create or replace function public.app_can_approve_proposals_agreements()
 returns boolean language sql stable security definer set search_path = public as $$
-  select coalesce(public.app_current_role() = 'admin'
-    or public.app_has_permission('approve_proposals_agreements'), false)
+  select coalesce(public.app_current_role() = 'admin', false)
 $$;
 
 -- Read compatibility is intentionally limited to SELECT. No legacy view flag
@@ -147,8 +146,8 @@ create policy proposals_agreements_insert_allowed_roles on public.proposals_agre
   for insert to authenticated with check (public.app_can_manage_proposals_agreements());
 create policy proposals_agreements_update_allowed_roles on public.proposals_agreements
   for update to authenticated
-  using (public.app_can_manage_proposals_agreements() or public.app_can_approve_proposals_agreements())
-  with check (public.app_can_manage_proposals_agreements() or public.app_can_approve_proposals_agreements());
+  using (public.app_can_manage_proposals_agreements())
+  with check (public.app_can_manage_proposals_agreements());
 create policy proposals_agreements_delete_explicit_manage on public.proposals_agreements
   for delete to authenticated using (public.app_can_manage_proposals_agreements());
 grant select, insert, update, delete on public.proposals_agreements to authenticated;
@@ -182,12 +181,6 @@ begin
         raise exception 'proposals_agreements_approval_forbidden' using errcode = '42501';
       end if;
     end if;
-    return new;
-  end if;
-  if public.app_can_approve_proposals_agreements()
-    and (to_jsonb(new) - array['status','approval_note','signature_meta','approved_by','approved_at','updated_at'])
-      = (to_jsonb(old) - array['status','approval_note','signature_meta','approved_by','approved_at','updated_at'])
-    and new.status in ('approved', 'returned_for_changes', 'cancelled') then
     return new;
   end if;
   raise exception 'proposals_agreements_manage_forbidden' using errcode = '42501';

@@ -50,6 +50,8 @@ test('admin receives full access and aliases remain compatible', () => {
   assert.equal(hasPermission({ role: 'instructor', permissions: { view_operations_management: 'yes', view_inventory: 'yes' } }, 'view_workshop_stock'), true);
   assert.equal(hasPermission({ role: 'instructor', permissions: { view_activities: 'yes', can_request_edit_2: 'yes' } }, 'can_request_edit'), true);
   assert.equal(hasPermission({ role: 'instructor', permissions: { view_finance: 'yes' } }, 'finance_access'), true);
+  assert.equal(hasPermission({ role: 'operation_manager', permissions: { approve_proposals_agreements: 'yes' } }, 'approve_proposals_agreements'), false);
+  assert.equal(hasPermission({ role: 'admin' }, 'approve_proposals_agreements'), true);
 });
 
 test('flat values loaded after login and nested values loaded after refresh are equivalent', () => {

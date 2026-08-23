@@ -114,7 +114,7 @@ function permissionKeysFor(rows = []) {
   const keys = new Set(CORE_PERMISSION_KEYS);
   for (const row of rows) {
     Object.keys(row || {}).forEach((key) => {
-      if (key.startsWith('view_') || key.startsWith('can_') || ['finance_access', 'personal_reports_manager', 'manage_proposals_agreements', 'approve_proposals_agreements'].includes(key)) {
+      if (key !== 'approve_proposals_agreements' && (key.startsWith('view_') || key.startsWith('can_') || ['finance_access', 'personal_reports_manager', 'manage_proposals_agreements'].includes(key))) {
         keys.add(key);
       }
     });
@@ -292,7 +292,7 @@ function permissionGroupsHtml(row, role, isNew = false) {
 }
 
 function adminOnlyCapabilitiesHtml() {
-  const labels = ADMIN_ONLY_CAPABILITIES.filter((item) => item.parent === 'admin.home').map((item) => `<li>${escapeHtml(item.label)}</li>`).join('');
+  const labels = ADMIN_ONLY_CAPABILITIES.filter((item) => item.id !== 'admin.home').map((item) => `<li>${escapeHtml(item.label)}</li>`).join('');
   return `<details class="apm-permission-group"><summary><strong>כלי מנהל מערכת בלבד</strong></summary><p class="apm-role-default-note">כלים אלה אינם ניתנים להענקה לעובד רגיל.</p><ul>${labels}</ul></details>`;
 }
 
@@ -403,6 +403,9 @@ function permissionPayload(drawer, role) {
   }
   // The permissions workspace is admin-only and this legacy flag can never grant it.
   payload.view_permissions = role === ADMIN_ROLE ? 'yes' : 'no';
+  // Historical values are retained in storage compatibility, but approval is
+  // never grantable to a non-admin from this workspace.
+  payload.approve_proposals_agreements = role === ADMIN_ROLE ? 'yes' : 'no';
   return payload;
 }
 

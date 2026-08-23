@@ -17,6 +17,9 @@ test('every capability is managed or explicitly admin-only and has a valid paren
   for (const item of CAPABILITY_REGISTRY) {
     if (item.parent) assert.ok(capabilityById.has(item.parent), `orphan capability ${item.id}`);
   }
+  const approval = capabilityById.get('proposals.approve');
+  assert.equal(approval?.adminOnly, true);
+  assert.equal(approval?.legacyPermission, 'approve_proposals_agreements');
 });
 
 test('every application route is classified by the capability registry', async () => {

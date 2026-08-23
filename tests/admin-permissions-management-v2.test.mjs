@@ -28,6 +28,7 @@ test('permission editor presents a business hierarchy and keeps legacy aliases b
   assert.match(runtime, /data-apm-child-of/);
   assert.match(runtime, /LEGACY_PERMISSION_ALIASES/);
   assert.match(runtime, /payload\.view_permissions = role === ADMIN_ROLE/);
+  assert.match(runtime, /payload\.approve_proposals_agreements = role === ADMIN_ROLE/);
   assert.doesNotMatch(runtime, /<th[^>]*>הרשאות<\/th>/);
 });
 

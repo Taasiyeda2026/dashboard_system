@@ -48,7 +48,7 @@ export const CAPABILITY_REGISTRY = Object.freeze([
 
   { id: 'proposals', label: 'הצעות מחיר והסכמים', type: 'page', permission: 'view_proposals_agreements', route: 'proposals-agreements' },
   { id: 'proposals.manage', parent: 'proposals', label: 'יצירה, עריכה וניהול', type: 'action', permission: 'manage_proposals_agreements' },
-  { id: 'proposals.approve', parent: 'proposals', label: 'אישור וחתימה', type: 'action', permission: 'approve_proposals_agreements' },
+  { id: 'proposals.approve', parent: 'proposals', label: 'אישור וחתימה — עידן נחום', type: 'action', adminOnly: true, legacyPermission: 'approve_proposals_agreements' },
   { id: 'finance', label: 'כספים', type: 'workspace', permission: 'finance_access', route: 'finance' },
   { id: 'finance.attendance', parent: 'finance', label: 'נוכחות ושכר', type: 'tool', permission: 'view_finance_payroll' },
   { id: 'finance.collection', parent: 'finance', label: 'מעקב גבייה', type: 'tool', permission: 'view_finance_collection' },

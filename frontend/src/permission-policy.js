@@ -18,6 +18,7 @@ function rawPermission(user = {}, key) {
 
 export function hasPermission(user = {}, key) {
   if (String(user?.role || user?.display_role || '').trim() === 'admin') return true;
+  if (CAPABILITY_REGISTRY.some((item) => item.adminOnly && item.legacyPermission === key)) return false;
   if (!rawPermission(user, key)) return false;
   const capability = CAPABILITY_REGISTRY.find((item) => item.permission === key);
   let parent = capability?.parent ? CAPABILITY_REGISTRY.find((item) => item.id === capability.parent) : null;

@@ -19,7 +19,6 @@ const KEY_PERM_FLAGS = [
   'view_proposals',
   'view_proposals_agreements',
   'manage_proposals_agreements',
-  'approve_proposals_agreements',
   'view_israa_management',
   'view_operations_management',
   'view_employee_files',
