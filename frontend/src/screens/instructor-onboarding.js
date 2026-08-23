@@ -3,10 +3,12 @@ import { supabase } from '../supabase-client.js';
 import { delegatedMailToken, graphMailRequest } from '../microsoft/graph-mail.js';
 
 export const ONBOARDING_DOCUMENTS = Object.freeze({
-  taasiyeda: ['הסכם העסקה', 'טופס 101', 'נהלים למדריך', 'אישור משטרה'],
-  staffing: ['נהלים למדריך', 'שמירה על סודיות', 'אישור משטרה'],
-  independent: ['נהלים למדריך', 'שמירה על סודיות', 'אישור משטרה']
+  taasiyeda: ['הסכם העסקה', 'טופס 101', 'נוהל 009 - מניעת הטרדה מינית', 'אישור משטרה'],
+  staffing: ['כללים ונהלים - מדריכים 2027', 'נוהל 009 - מניעת הטרדה מינית', 'שמירה על סודיות', 'אישור משטרה'],
+  independent: ['כללים ונהלים - מדריכים 2027', 'נוהל 009 - מניעת הטרדה מינית', 'שמירה על סודיות', 'אישור משטרה']
 });
+
+export const TAASIYEDA_HOURLY_RATES = Object.freeze(['70', '75', '80', '85']);
 
 const SUBJECT = 'הצטרפות לצוות המדריכים של תעשיידע – השלמת תהליך הקליטה';
 const OUTLOOK_WEB_URL = 'https://outlook.office.com/mail/';
@@ -19,6 +21,11 @@ function isFemaleGender(value) {
 
 function isPoliceClearanceAttachment(attachment) {
   return /אישור\s*משטרה/i.test(String(attachment?.name || ''));
+}
+
+function normalizeHourlyRate(value) {
+  const rate = String(value || '').trim();
+  return TAASIYEDA_HOURLY_RATES.includes(rate) ? rate : '';
 }
 
 export function onboardingDocumentsForGender(employmentType, gender) {
@@ -113,6 +120,7 @@ export function onboardingModalHtml(managers = []) {
     <label><span>מייל</span><input class="ds-input" data-onboarding-email type="email" autocomplete="email" required></label>
     <label><span>מגדר</span><select class="ds-input" data-onboarding-gender required><option value="">בחירה</option><option value="male">זכר</option><option value="female">נקבה</option></select></label>
     <label><span>סוג העסקה</span><select class="ds-input" data-onboarding-employment><option value="">בחירה</option><option value="taasiyeda">תעשיידע</option><option value="staffing">כוח אדם</option><option value="independent">עצמאי</option></select></label>
+    <label data-onboarding-rate-field hidden style="display:none"><span>שכר לשעה</span><select class="ds-input" data-onboarding-rate><option value="">בחירה</option>${TAASIYEDA_HOURLY_RATES.map((rate) => `<option value="${rate}">${rate} ₪</option>`).join('')}</select></label>
     <label data-onboarding-agency-field hidden style="display:none"><span>חברת כוח אדם</span><select class="ds-input" data-onboarding-agency><option value="">בחירה</option><option value="מעוף">מעוף</option><option value="מנפאואר">מנפאואר</option></select></label>
     <label><span>מנהל/ת פעילות</span><select class="ds-input" data-onboarding-manager><option value="">בחירה</option>${managers.map((manager) => `<option value="${escapeHtml(manager.name)}">${escapeHtml(manager.name)}</option>`).join('')}</select></label>
     <section data-onboarding-documents hidden><strong>מסמכים שיצורפו למייל</strong><ul></ul></section>
@@ -130,7 +138,8 @@ export function localOutlookMode() {
 }
 
 export function syncLocalOutlookModeFromUrl() {
-  try {    if (typeof window === 'undefined' || !window.location) return 'web';
+  try {
+    if (typeof window === 'undefined' || !window.location) return 'web';
     window.localStorage?.removeItem(OUTLOOK_MODE_STORAGE_KEY);
     const url = new URL(window.location.href);
     if (url.searchParams.has('outlook')) {
@@ -182,11 +191,16 @@ export async function ensureOnboardingEmployeeFolder(instructor) {
   return data;
 }
 
-export function loadOnboardingAttachments(employmentType) {
+export function loadOnboardingAttachments(employmentType, hourlyRate = '') {
   const key = String(employmentType || '').trim();
   if (!key) return Promise.reject(new Error('onboarding_employment_type_required'));
-  if (!onboardingAttachmentRequests.has(key)) {
-    const request = supabase.functions.invoke('instructor-onboarding-files', { body: { employment_type: key } })
+  const rate = key === 'taasiyeda' ? normalizeHourlyRate(hourlyRate) : '';
+  if (key === 'taasiyeda' && !rate) return Promise.reject(new Error('יש לבחור שכר לשעה.'));
+  const requestKey = rate ? `${key}:${rate}` : key;
+  if (!onboardingAttachmentRequests.has(requestKey)) {
+    const request = supabase.functions.invoke('instructor-onboarding-files', {
+      body: { employment_type: key, ...(rate ? { hourly_rate: rate } : {}) }
+    })
       .then(({ data, error }) => {
         if (error || !Array.isArray(data?.attachments) || !data.attachments.length) {
           throw new Error(data?.message || 'לא ניתן לטעון את מסמכי הקליטה מ-SharePoint.');
@@ -194,21 +208,21 @@ export function loadOnboardingAttachments(employmentType) {
         return data;
       })
       .catch((error) => {
-        onboardingAttachmentRequests.delete(key);
+        onboardingAttachmentRequests.delete(requestKey);
         throw error;
       });
-    onboardingAttachmentRequests.set(key, request);
+    onboardingAttachmentRequests.set(requestKey, request);
   }
-  return onboardingAttachmentRequests.get(key);
+  return onboardingAttachmentRequests.get(requestKey);
 }
 
-export function warmOnboardingAttachments(employmentType) {
-  return loadOnboardingAttachments(employmentType).catch(() => null);
+export function warmOnboardingAttachments(employmentType, hourlyRate = '') {
+  return loadOnboardingAttachments(employmentType, hourlyRate).catch(() => null);
 }
 
-export async function createOnboardingDraft({ employmentType, manager, instructorName, instructorEmail, gender = '', loginHint = '' }) {
+export async function createOnboardingDraft({ employmentType, manager, instructorName, instructorEmail, gender = '', hourlyRate = '', loginHint = '' }) {
   const mail = buildOnboardingMail(employmentType, manager, instructorName, gender);
-  const filesPromise = loadOnboardingAttachments(employmentType);
+  const filesPromise = loadOnboardingAttachments(employmentType, hourlyRate);
   const tokenPromise = delegatedMailToken(loginHint);
   const [data, token] = await Promise.all([filesPromise, tokenPromise]);
   const attachments = isFemaleGender(gender)
@@ -264,6 +278,8 @@ export function bindOnboardingModal(modal, {
   const email = modal.querySelector('[data-onboarding-email]');
   const gender = modal.querySelector('[data-onboarding-gender]');
   const employment = modal.querySelector('[data-onboarding-employment]');
+  const rateField = modal.querySelector('[data-onboarding-rate-field]');
+  const hourlyRate = modal.querySelector('[data-onboarding-rate]');
   const agencyField = modal.querySelector('[data-onboarding-agency-field]');
   const agency = modal.querySelector('[data-onboarding-agency]');
   const managerSelect = modal.querySelector('[data-onboarding-manager]');
@@ -320,18 +336,31 @@ export function bindOnboardingModal(modal, {
   const sync = () => {
     const list = onboardingDocumentsForGender(employment.value, gender.value);
     const staffing = employment.value === 'staffing';
+    const taasiyeda = employment.value === 'taasiyeda';
     agencyField.hidden = !staffing;
     agencyField.style.display = staffing ? 'grid' : 'none';
-    documents.hidden = !list.length;
-    documents.querySelector('ul').innerHTML = list.map((name) => `<li>📄 ${escapeHtml(name)}</li>`).join('');
+    rateField.hidden = !taasiyeda;
+    rateField.style.display = taasiyeda ? 'grid' : 'none';
+    const displayList = taasiyeda && hourlyRate.value
+      ? list.map((name) => name === 'הסכם העסקה' ? `הסכם העסקה – ${hourlyRate.value} ₪ לשעה` : name)
+      : list;
+    documents.hidden = !displayList.length;
+    documents.querySelector('ul').innerHTML = displayList.map((name) => `<li>📄 ${escapeHtml(name)}</li>`).join('');
     prepare.disabled = draftCreated || !fullName.value.trim() || !normalizeOnboardingPhone(phone.value) || !email.value.trim()
-      || !gender.value || !employment.value || (staffing && !agency.value) || !managerSelect.value;
+      || !gender.value || !employment.value || (staffing && !agency.value) || (taasiyeda && !normalizeHourlyRate(hourlyRate.value)) || !managerSelect.value;
   };
   [fullName, phone, email].forEach((input) => input.addEventListener('input', sync));
   gender.addEventListener('change', sync);
   employment.addEventListener('change', () => {
     if (employment.value !== 'staffing') agency.value = '';
-    if (employment.value) warmOnboardingAttachments(employment.value);
+    if (employment.value !== 'taasiyeda') hourlyRate.value = '';
+    if (employment.value && employment.value !== 'taasiyeda') warmOnboardingAttachments(employment.value);
+    sync();
+  });
+  hourlyRate.addEventListener('change', () => {
+    if (employment.value === 'taasiyeda' && normalizeHourlyRate(hourlyRate.value)) {
+      warmOnboardingAttachments(employment.value, hourlyRate.value);
+    }
     sync();
   });
   agency.addEventListener('change', sync);
@@ -347,13 +376,14 @@ export function bindOnboardingModal(modal, {
     if (!onboardingSnapshot) {
       const manager = managers.find((item) => item.name === managerSelect.value);
       const normalizedPhone = normalizeOnboardingPhone(phone.value);
+      const normalizedRate = employment.value === 'taasiyeda' ? normalizeHourlyRate(hourlyRate.value) : '';
       if (!fullName.value.trim() || !normalizedPhone || !email.value.trim() || !gender.value || !employment.value
-        || (employment.value === 'staffing' && !agency.value) || !manager) return;
+        || (employment.value === 'staffing' && !agency.value) || (employment.value === 'taasiyeda' && !normalizedRate) || !manager) return;
       if (!email.checkValidity()) { status.textContent = 'יש להזין כתובת מייל תקינה.'; return; }
       if (!manager?.phone || !manager?.email) { status.textContent = 'לא הוגדרו טלפון ומייל למנהל/ת הפעילות שנבחר/ה.'; return; }
       submission = Object.freeze({
         fullName: fullName.value.trim(), phone: normalizedPhone, email: email.value.trim(), gender: gender.value,
-        employmentType: employment.value, staffingAgency: agency.value, manager: Object.freeze({ ...manager })
+        employmentType: employment.value, staffingAgency: agency.value, hourlyRate: normalizedRate, manager: Object.freeze({ ...manager })
       });
     }
 
@@ -379,7 +409,7 @@ export function bindOnboardingModal(modal, {
           createdInstructor = error.existingInstructor || { already_exists: true, full_name: submission.fullName };
         }
         onboardingSnapshot = submission;
-        [fullName, phone, email, gender, employment, agency, managerSelect].forEach((field) => { field.disabled = true; });
+        [fullName, phone, email, gender, employment, hourlyRate, agency, managerSelect].forEach((field) => { field.disabled = true; });
       }
 
       if (!employeeFolderPromise) {
@@ -402,6 +432,7 @@ export function bindOnboardingModal(modal, {
         instructorName: onboardingSnapshot.fullName,
         instructorEmail: onboardingSnapshot.email,
         gender: onboardingSnapshot.gender,
+        hourlyRate: onboardingSnapshot.hourlyRate,
         loginHint
       });
       draftCreated = true;
@@ -433,4 +464,5 @@ export function bindOnboardingModal(modal, {
       prepare.textContent = 'שליחת מייל';
       sync();
     }
-  });}
+  });
+}
