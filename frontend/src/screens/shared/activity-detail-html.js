@@ -909,8 +909,7 @@ function buildDateChipsHtml(schedule, isOnce) {
       const date = String(item?.date || '').trim();
       const isDone = doneCount > 0;
       const countLabel = count > 1 ? ` · ${count} מפגשים` : '';
-      const noteText = notes.join('\
-');
+      const noteText = notes.join('\n');
       const noteIcon = noteText
         ? `<span class="activity-drawer__date-note-icon" role="img" tabindex="0" title="${escapeHtml(noteText)}" aria-label="הערה למפגש: ${escapeHtml(noteText)}">💬</span>`
         : '';
