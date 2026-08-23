@@ -71,15 +71,9 @@ where u.role = lep.role
         'manage_proposals_agreements', u.manage_proposals_agreements,
         'approve_proposals_agreements', u.approve_proposals_agreements)));
 
--- Canonicalize an explicit legacy view grant only when no canonical decision
--- exists. The legacy key itself is never consulted after this migration.
-update public.users u
-set permissions = coalesce(u.permissions, '{}'::jsonb)
-    || jsonb_build_object('view_proposals_agreements', 'yes'),
-    updated_at = now()
-where u.view_proposals_agreements is null
-  and not (coalesce(u.permissions, '{}'::jsonb) ? 'view_proposals_agreements')
-  and lower(coalesce(u.permissions ->> 'view_proposals', '')) in ('yes','true','1');
+-- Legacy view_proposals is intentionally not promoted to the canonical
+-- proposals/agreement permission. The old SPA flag could expose a route while
+-- database RLS still denied access, so promoting it here would widen access.
 
 create or replace function public.app_can_edit_direct()
 returns boolean language sql stable security definer set search_path = public as $$
