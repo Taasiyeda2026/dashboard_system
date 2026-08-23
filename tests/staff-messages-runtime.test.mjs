@@ -66,5 +66,5 @@ test('Supabase tables use RLS and explicit Data API grants', () => {
 test('staff message runtimes are loaded and cache is bumped', () => {
   assert.match(indexHtml, /admin-messages-card-runtime\.js\?v=20260823-v1/);
   assert.match(indexHtml, /staff-message-popup-runtime\.js\?v=20260823-v1/);
-  assert.match(sw, /const CACHE_VERSION = 1591/);
+  assert.match(sw, /const CACHE_VERSION = 1592/);
 });
