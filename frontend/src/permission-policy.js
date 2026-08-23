@@ -5,7 +5,6 @@ export const PERMISSION_ALIASES = Object.freeze({
   can_request_edit: ['can_request_edit_2'],
   can_review_requests: ['can_review_requests_2'],
   view_workshop_stock: ['view_inventory'],
-  view_proposals_agreements: ['view_proposals'],
   finance_access: ['view_finance']
 });
 

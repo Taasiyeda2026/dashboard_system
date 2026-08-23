@@ -200,17 +200,20 @@ test('first login user contains all bootstrap permission flags before any reload
   assert.equal(hasPermission(user, 'view_proposals_agreements'), true);
 });
 
-test('legacy and canonical proposal viewers remain read-only while manage and approve stay independent', () => {
+test('legacy view flag is inert while canonical view, manage and approve stay independent', () => {
   const legacyViewer = { role: 'authorized_user', permissions: { view_proposals: 'yes', manage_proposals_agreements: 'no', approve_proposals_agreements: 'no' } };
   const viewer = { role: 'authorized_user', permissions: { view_proposals_agreements: 'yes', manage_proposals_agreements: 'no', approve_proposals_agreements: 'no' } };
   const manager = { role: 'authorized_user', permissions: { view_proposals_agreements: 'yes', manage_proposals_agreements: 'yes', approve_proposals_agreements: 'no' } };
+  const orphanManager = { role: 'authorized_user', permissions: { view_proposals_agreements: 'no', manage_proposals_agreements: 'yes' } };
   const approver = { role: 'authorized_user', permissions: { view_proposals_agreements: 'yes', manage_proposals_agreements: 'no', approve_proposals_agreements: 'yes' } };
-  for (const readOnly of [legacyViewer, viewer]) {
+  assert.equal(hasPermission(legacyViewer, 'view_proposals_agreements'), false);
+  for (const readOnly of [viewer]) {
     assert.equal(hasPermission(readOnly, 'view_proposals_agreements'), true);
     assert.equal(hasPermission(readOnly, 'manage_proposals_agreements'), false);
     assert.equal(hasPermission(readOnly, 'approve_proposals_agreements'), false);
   }
   assert.equal(hasPermission(manager, 'manage_proposals_agreements'), true);
+  assert.equal(hasPermission(orphanManager, 'manage_proposals_agreements'), false);
   assert.equal(hasPermission(manager, 'approve_proposals_agreements'), false);
   assert.equal(hasPermission(approver, 'manage_proposals_agreements'), false);
   assert.equal(hasPermission(approver, 'approve_proposals_agreements'), false);
@@ -226,6 +229,8 @@ test('proposal database contract never uses the view helper for writes', async (
   assert.match(migration, /proposal_agreement_items_delete[\s\S]*app_can_manage_proposals_agreements/);
   assert.match(migration, /save_proposal_agreement_items_atomic[\s\S]*app_can_manage_proposals_agreements/);
   assert.match(migration, /proposal_final_pdfs_storage_insert[\s\S]*app_can_manage_proposals_agreements/);
+  assert.match(migration, /app_can_manage_proposals_agreements[\s\S]*app_has_permission\('view_proposals_agreements'\)[\s\S]*app_has_permission\('manage_proposals_agreements'\)/);
+  assert.doesNotMatch(migration.match(/create or replace function public\.app_can_use_proposals_agreements\(\)[\s\S]*?\$\$;/)?.[0] || '', /view_proposals'/);
   assert.match(migration, /guard_proposals_agreements_explicit_permissions/);
   assert.match(migration, /proposals_agreements_directory_view set \(security_invoker = true\)/);
 });

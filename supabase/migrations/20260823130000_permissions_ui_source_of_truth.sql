@@ -1,110 +1,85 @@
 -- Align sensitive DB predicates with the explicit permissions managed in the
--- Admin permissions workspace. Roles remain templates; only admin bypasses flags.
+-- Admin permissions workspace. Roles remain templates for future UI actions;
+-- this migration only materializes access that the legacy runtime already gave.
 
--- Preserve every access path that roles supplied before this migration. Existing
--- explicit values win, including "no", so no administrator override is changed.
-with role_templates(role, defaults) as (values
+-- Snapshot of legacy effective route/action access. This is deliberately not
+-- ROLE_PERMISSION_TEMPLATES: adding a permission to a future role template must
+-- never change this compatibility migration. Existing JSON values (including
+-- explicit "no") and canonical proposal columns always win.
+with legacy_effective_permissions(role, defaults) as (values
   ('operation_manager', jsonb_build_object(
-    'view_activities','yes','can_add_activity','yes','can_edit_direct','yes',
-    'can_request_edit','yes','can_review_requests','yes','view_catalog','yes',
-    'view_orders','yes','view_proposals_agreements','yes','view_proposals','yes',
-    'manage_proposals_agreements','yes','view_operations_management','yes',
-    'view_operations_scheduling','yes','view_attendance_control','yes',
-    'view_activity_approvals','yes','view_workshop_stock','yes',
-    'view_workshop_stock_distributions','yes','view_employee_files','yes',
-    'can_access_personal_reports','yes')),
+    'view_dashboard','yes','view_activities','yes','view_activity_calendar','yes',
+    'view_activity_exceptions','yes','view_activity_end_dates','yes','view_activity_archive','yes',
+    'view_contacts','yes','view_instructors','yes','view_instructor_list','yes',
+    'view_instructor_contacts','yes','view_certificates','yes','view_catalog','yes','view_orders','yes',
+    'view_proposals_agreements','yes','manage_proposals_agreements','yes',
+    'view_operations_management','yes','view_operations_scheduling','yes',
+    'view_attendance_control','yes','view_activity_approvals','yes','view_workshop_stock','yes',
+    'view_workshop_stock_distributions','yes','can_add_activity','yes','can_edit_direct','yes',
+    'can_request_edit','yes','can_review_requests','yes')),
   ('activities_manager', jsonb_build_object(
-    'view_activities','yes','can_add_activity','yes','can_request_edit','yes',
-    'view_catalog','yes','view_orders','yes','view_operations_management','yes',
-    'view_employee_files','yes','can_access_personal_reports','yes')),
+    'view_dashboard','yes','view_activities','yes','view_activity_calendar','yes',
+    'view_activity_exceptions','yes','view_activity_end_dates','yes','view_activity_archive','yes',
+    'view_contacts','yes','view_instructors','yes','view_instructor_list','yes',
+    'view_instructor_contacts','yes','view_certificates','yes','view_catalog','yes','view_orders','yes',
+    'view_operations_management','yes','can_add_activity','yes','can_request_edit','yes')),
   ('finance', jsonb_build_object(
-    'view_activities','yes','finance_access','yes','view_finance','yes',
-    'view_catalog','yes','view_orders','yes','view_employee_files','yes',
-    'can_access_personal_reports','yes')),
+    'view_dashboard','yes','view_activities','yes','view_activity_calendar','yes',
+    'view_activity_exceptions','yes','view_activity_end_dates','yes','view_activity_archive','yes',
+    'view_contacts','yes','view_instructors','yes','view_instructor_list','yes',
+    'view_instructor_contacts','yes','view_certificates','yes','view_catalog','yes','view_orders','yes')),
   ('domain_manager', jsonb_build_object(
-    'view_activities','yes','view_catalog','yes','view_orders','yes',
-    'view_proposals_agreements','yes','view_proposals','yes',
-    'manage_proposals_agreements','yes','view_employee_files','yes',
-    'can_access_personal_reports','yes')),
+    'view_dashboard','yes','view_activities','yes','view_activity_calendar','yes',
+    'view_activity_exceptions','yes','view_activity_end_dates','yes','view_activity_archive','yes',
+    'view_contacts','yes','view_instructors','yes','view_instructor_list','yes',
+    'view_instructor_contacts','yes','view_certificates','yes','view_catalog','yes','view_orders','yes',
+    'view_proposals_agreements','yes','manage_proposals_agreements','yes')),
   ('business_development_manager', jsonb_build_object(
-    'view_activities','yes','can_add_activity','yes','can_request_edit','yes',
-    'view_catalog','yes','view_orders','yes','view_proposals_agreements','yes',
-    'view_proposals','yes','view_employee_files','yes','can_access_personal_reports','yes')),
+    'view_dashboard','yes','view_activities','yes','view_activity_calendar','yes',
+    'view_activity_exceptions','yes','view_activity_end_dates','yes','view_activity_archive','yes',
+    'view_contacts','yes','view_instructors','yes','view_instructor_list','yes',
+    'view_instructor_contacts','yes','view_certificates','yes','view_catalog','yes','view_orders','yes',
+    'view_proposals_agreements','yes','can_add_activity','yes','can_request_edit','yes')),
   ('instructor_manager', jsonb_build_object(
-    'view_activities','yes','can_add_activity','yes','can_request_edit','yes',
-    'view_catalog','yes','view_orders','yes','view_employee_files','yes',
-    'can_access_personal_reports','yes')),
+    'view_dashboard','yes','view_activities','yes','view_activity_calendar','yes',
+    'view_activity_exceptions','yes','view_activity_end_dates','yes','view_activity_archive','yes',
+    'view_contacts','yes','view_instructors','yes','view_instructor_list','yes',
+    'view_instructor_contacts','yes','view_certificates','yes','view_catalog','yes','view_orders','yes',
+    'can_add_activity','yes','can_request_edit','yes')),
   ('authorized_user', jsonb_build_object(
-    'view_activities','yes','can_add_activity','yes','can_request_edit','yes',
-    'can_access_personal_reports','yes')),
-  ('instructor', jsonb_build_object('can_access_personal_reports','yes'))
+    'view_dashboard','yes','view_activities','yes','view_activity_calendar','yes',
+    'view_activity_exceptions','yes','view_activity_end_dates','yes','view_activity_archive','yes',
+    'view_contacts','yes','view_instructors','yes','view_instructor_list','yes',
+    'view_instructor_contacts','yes','view_certificates','yes','can_add_activity','yes','can_request_edit','yes')),
+  ('instructor', jsonb_build_object(
+    'view_instructor_portal','yes','view_instructor_calendar','yes','view_instructor_data','yes',
+    'view_instructor_completion_approvals','yes','view_instructor_guidelines','yes'))
 )
 update public.users u
-set permissions = t.defaults || coalesce(u.permissions, '{}'::jsonb) || jsonb_strip_nulls(jsonb_build_object(
+set permissions = lep.defaults || coalesce(u.permissions, '{}'::jsonb)
+    || jsonb_strip_nulls(jsonb_build_object(
       'view_proposals_agreements', u.view_proposals_agreements,
       'manage_proposals_agreements', u.manage_proposals_agreements,
       'approve_proposals_agreements', u.approve_proposals_agreements)),
     updated_at = now()
-from role_templates t
-where u.role = t.role
+from legacy_effective_permissions lep
+where u.role = lep.role
   and coalesce(u.permissions, '{}'::jsonb) is distinct from
-      (t.defaults || coalesce(u.permissions, '{}'::jsonb) || jsonb_strip_nulls(jsonb_build_object(
+    (lep.defaults || coalesce(u.permissions, '{}'::jsonb)
+      || jsonb_strip_nulls(jsonb_build_object(
         'view_proposals_agreements', u.view_proposals_agreements,
         'manage_proposals_agreements', u.manage_proposals_agreements,
         'approve_proposals_agreements', u.approve_proposals_agreements)));
 
--- Complete the business capability inventory while preserving every explicit
--- value already managed by an administrator.
-with complete_templates(role, defaults) as (values
-  ('operation_manager', jsonb_build_object(
-    'view_dashboard','yes','view_activity_calendar','yes','view_activity_exceptions','yes',
-    'view_activity_end_dates','yes','view_activity_archive','yes','manage_activity_archive','yes',
-    'view_contacts','yes','view_instructors','yes','view_instructor_list','yes',
-    'view_instructor_contacts','yes','view_instructor_work_schedule','yes',
-    'manage_instructor_maintenance','yes','view_certificates','yes','view_operations_management','yes',
-    'view_operations_schedule_overview','yes')),
-  ('activities_manager', jsonb_build_object(
-    'view_dashboard','yes','view_activity_calendar','yes','view_activity_exceptions','yes',
-    'view_activity_end_dates','yes','view_activity_archive','yes','view_contacts','yes',
-    'view_instructors','yes','view_instructor_list','yes','view_instructor_contacts','yes',
-    'view_instructor_work_schedule','yes','view_certificates','yes','view_operations_management','yes',
-    'view_operations_schedule_overview','yes')),
-  ('finance', jsonb_build_object(
-    'view_dashboard','yes','view_activity_calendar','yes','view_activity_exceptions','yes',
-    'view_activity_end_dates','yes','view_activity_archive','yes','view_contacts','yes',
-    'view_instructors','yes','view_instructor_list','yes','view_instructor_contacts','yes',
-    'view_attendance_control','yes','view_certificates','yes','view_operations_management','yes',
-    'view_finance_payroll','yes','view_finance_collection','yes','manage_finance_transactions','yes')),
-  ('domain_manager', jsonb_build_object(
-    'view_dashboard','yes','view_activity_calendar','yes','view_activity_exceptions','yes',
-    'view_activity_end_dates','yes','view_activity_archive','yes','view_contacts','yes',
-    'view_instructors','yes','view_instructor_list','yes','view_instructor_contacts','yes',
-    'view_certificates','yes','view_operations_management','yes')),
-  ('business_development_manager', jsonb_build_object(
-    'view_dashboard','yes','view_activity_calendar','yes','view_activity_exceptions','yes',
-    'view_activity_end_dates','yes','view_activity_archive','yes','view_contacts','yes',
-    'view_instructors','yes','view_instructor_list','yes','view_instructor_contacts','yes',
-    'view_certificates','yes','view_operations_management','yes')),
-  ('instructor_manager', jsonb_build_object(
-    'view_dashboard','yes','view_activity_calendar','yes','view_activity_exceptions','yes',
-    'view_activity_end_dates','yes','view_activity_archive','yes','view_contacts','yes',
-    'view_instructors','yes','view_instructor_list','yes','view_instructor_contacts','yes',
-    'view_certificates','yes','view_operations_management','yes')),
-  ('authorized_user', jsonb_build_object(
-    'view_dashboard','yes','view_activity_calendar','yes','view_activity_exceptions','yes',
-    'view_activity_end_dates','yes','view_activity_archive','yes','view_contacts','yes',
-    'view_instructors','yes','view_instructor_list','yes','view_instructor_contacts','yes',
-    'view_certificates','yes','view_operations_management','yes')),
-  ('instructor', jsonb_build_object(
-    'access_attendance_reporting','yes','view_instructor_portal','yes',
-    'view_instructor_calendar','yes','view_instructor_data','yes',
-    'view_instructor_completion_approvals','yes','view_instructor_guidelines','yes'))
-)
+-- Canonicalize an explicit legacy view grant only when no canonical decision
+-- exists. The legacy key itself is never consulted after this migration.
 update public.users u
-set permissions = t.defaults || coalesce(u.permissions, '{}'::jsonb), updated_at = now()
-from complete_templates t
-where u.role = t.role
-  and coalesce(u.permissions, '{}'::jsonb) is distinct from (t.defaults || coalesce(u.permissions, '{}'::jsonb));
+set permissions = coalesce(u.permissions, '{}'::jsonb)
+    || jsonb_build_object('view_proposals_agreements', 'yes'),
+    updated_at = now()
+where u.view_proposals_agreements is null
+  and not (coalesce(u.permissions, '{}'::jsonb) ? 'view_proposals_agreements')
+  and lower(coalesce(u.permissions ->> 'view_proposals', '')) in ('yes','true','1');
 
 create or replace function public.app_can_edit_direct()
 returns boolean language sql stable security definer set search_path = public as $$
@@ -119,14 +94,21 @@ $$;
 create or replace function public.app_can_use_proposals_agreements()
 returns boolean language sql stable security definer set search_path = public as $$
   select coalesce(public.app_current_role() = 'admin'
-    or public.app_has_permission('view_proposals_agreements')
-    or public.app_has_permission('view_proposals'), false)
+    or public.app_has_permission('view_proposals_agreements'), false)
 $$;
 
 create or replace function public.app_can_manage_proposals_agreements()
 returns boolean language sql stable security definer set search_path = public as $$
   select coalesce(public.app_current_role() = 'admin'
-    or public.app_has_permission('manage_proposals_agreements'), false)
+    or (
+      public.app_has_permission('view_proposals_agreements')
+      and public.app_has_permission('manage_proposals_agreements')
+    ), false)
+$$;
+
+create or replace function public.app_can_view_proposals_agreements()
+returns boolean language sql stable security definer set search_path = public as $$
+  select public.app_can_use_proposals_agreements()
 $$;
 
 create or replace function public.app_can_approve_proposals_agreements()

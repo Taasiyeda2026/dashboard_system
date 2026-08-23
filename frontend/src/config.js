@@ -123,3 +123,4 @@ config.HOTFIX_VERSION = `permission-enforcement-source-of-truth-20260823-v1-${co
 config.HOTFIX_VERSION = `capability-registry-complete-20260823-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `permission-login-proposal-security-20260823-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `proposal-approval-admin-only-20260823-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `canonical-proposal-permissions-migration-20260823-v1-${config.HOTFIX_VERSION}`;

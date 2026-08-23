@@ -3329,8 +3329,6 @@ function normalizeData(data) {
 }
 
 
-const PROPOSALS_AGREEMENTS_ALLOWED_ROLES = new Set(['domain_manager', 'operation_manager', 'admin', 'business_development_manager']);
-const PROPOSALS_AGREEMENTS_MANAGE_ROLES = new Set(['domain_manager', 'operation_manager', 'admin']);
 const PROPOSALS_AGREEMENTS_COLUMNS = 'id,authority_id,school_id,contact_school_id,client_authority,school_framework,document_type,activity_type_group,proposal_domain,proposal_date,activity_names,contact_name,contact_role,phone,email,contact_phone,contact_email,notes,status,approval_note,total_amount,custom_document_sections,include_catalog,signature_meta,approved_by,approved_at,sent_by,sent_at,locked_at,locked_by,locked_reason,final_pdf_path,final_pdf_file_name,final_pdf_created_at,final_pdf_created_by,document_snapshot,document_html_snapshot,proposal_series_id,version_number,supersedes_proposal_id,archived_at,quote_number,valid_until,combine_gefen_approval,gfen_signed_or_ordered,created_at,updated_at';
 // List/directory projection — no snapshots/HTML/signature payloads.
 const PROPOSALS_AGREEMENTS_LIST_COLUMNS = 'id,authority_id,authority_code,school_id,contact_school_id,semel_mosad,authority_name,legacy_client_authority,contact_client_type,contact_client_name,school_name,legacy_school_framework,document_type,activity_type_group,proposal_domain,proposal_date,activity_names,contact_name,contact_role,phone,email,notes,status,approval_note,total_amount,include_catalog,has_approval_signature,approved_by,approved_at,sent_by,sent_at,locked_at,locked_by,locked_reason,final_pdf_path,final_pdf_file_name,final_pdf_created_at,final_pdf_created_by,proposal_series_id,version_number,supersedes_proposal_id,archived_at,quote_number,valid_until,combine_gefen_approval,gfen_signed_or_ordered,created_at,updated_at';
@@ -4772,12 +4770,12 @@ function isKnownInstructorIdentity(user = {}) {
 
 const SUPABASE_ROLE_ROUTES = {
   admin: ['dashboard', 'activities', 'archive', 'catalog', 'invitations', 'proposals-agreements', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'permissions', 'admin-home', 'admin-settings', 'admin-lists', 'finance', 'operations-management', 'certificates'],
-  operation_manager: ['dashboard', 'activities', 'archive', 'catalog', 'invitations', 'proposals-agreements', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'permissions', 'operations-management', 'certificates'],
+  operation_manager: ['dashboard', 'activities', 'archive', 'catalog', 'invitations', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'permissions', 'operations-management', 'certificates'],
   authorized_user: ['dashboard', 'activities', 'archive', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'certificates'],
   finance: ['dashboard', 'activities', 'archive', 'catalog', 'orders', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'certificates'],
   activities_manager: ['dashboard', 'activities', 'archive', 'catalog', 'orders', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'operations-management', 'certificates'],
-  domain_manager: ['dashboard', 'activities', 'archive', 'catalog', 'invitations', 'proposals-agreements', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'certificates'],
-  business_development_manager: ['dashboard', 'activities', 'archive', 'proposals-agreements', 'catalog', 'invitations', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'certificates'],
+  domain_manager: ['dashboard', 'activities', 'archive', 'catalog', 'invitations', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'certificates'],
+  business_development_manager: ['dashboard', 'activities', 'archive', 'catalog', 'invitations', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'certificates'],
   instructor_manager: ['dashboard', 'activities', 'archive', 'catalog', 'orders', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'certificates'],
   instructor: ['instructor-calendar', 'my-data', 'instructor-completion-approvals', 'instructor-guidelines']
 };
@@ -4982,7 +4980,7 @@ function proposalPermissionFlagsFromFlatUser(flat = {}) {
 }
 
 function proposalSessionUserFlagsFromFlatUser(flat = {}) {
-  const view = permissionFlagYes(flat.view_proposals_agreements) || permissionFlagYes(flat.manage_proposals_agreements);
+  const view = permissionFlagYes(flat.view_proposals_agreements);
   const manage = permissionFlagYes(flat.manage_proposals_agreements);
   return {
     view_proposals_agreements: view || undefined,
@@ -5004,12 +5002,9 @@ function buildBootstrapFromUser(userRow, profileRow = null) {
   if (permissionFlagYes(flat.view_activities) && !allowedRoutes.includes('activities')) allowedRoutes.push('activities');
   if (permissionFlagYes(flat.view_catalog) && !allowedRoutes.includes('catalog')) allowedRoutes.push('catalog');
   if ((permissionFlagYes(flat.view_orders) || permissionFlagYes(flat.view_invitations)) && !allowedRoutes.includes('invitations')) allowedRoutes.push('invitations');
-  if (
-    PROPOSALS_AGREEMENTS_ALLOWED_ROLES.has(role) ||
-    permissionFlagYes(flat.view_proposals) ||
-    permissionFlagYes(flat.view_proposals_agreements) ||
-    permissionFlagYes(flat.manage_proposals_agreements)
-  ) { if (!allowedRoutes.includes('proposals-agreements')) allowedRoutes.push('proposals-agreements'); }
+  if (permissionFlagYes(flat.view_proposals_agreements) && !allowedRoutes.includes('proposals-agreements')) {
+    allowedRoutes.push('proposals-agreements');
+  }
   const canReviewRequests = canDirectManageActivities;
   const canViewEditRequests = canReviewRequests || canRequestEdit || permissionFlagYes(flat.view_edit_requests);
   if (canViewEditRequests && !allowedRoutes.includes('edit-requests')) {
