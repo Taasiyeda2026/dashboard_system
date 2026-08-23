@@ -1,3 +1,5 @@
+import './activity-drawer-approved-fixes.js?v=20260823-v1';
+
 const TEST_FLAG = '__ACTIVITY_DRAWER_TYPE_LAYOUT_FIX_TEST__';
 const ENHANCED_ATTR = 'data-activity-drawer-inline-layout';
 const FIXED_ATTR = 'data-activity-drawer-type-layout-fixed';
