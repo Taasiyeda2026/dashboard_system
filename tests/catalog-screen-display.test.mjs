@@ -21,38 +21,32 @@ async function loadCatalogScreen() {
   return mod.catalogScreen;
 }
 
-function mockCatalogProgram(overrides = {}) {
-  return {
-    id: '67867',
-    name: 'מנהיגות ירוקה',
-    catalogTitle: 'מנהיגות ירוקה',
-    catalogCardTitle: 'מנהיגות ירוקה',
-    audienceLevel: 'יסודי',
-    productType: 'קורס',
-    targetGrades: 'ד׳–ו׳',
-    domain: 'קיימות',
-    scope: '10 מפגשים',
-    sessionDuration: '90 דקות',
-    syllabus: [{ meeting_label: '1', title: 'מפגש ראשון', description: 'היכרות' }],
-    ...overrides
-  };
-}
+test('catalog screen embeds the current summer catalog', async () => {
+  const catalogScreen = await loadCatalogScreen();
+  const html = catalogScreen.render({}, { state: { user: { role: 'authorized_user' } } });
 
-async function readCatalogSource() {
-  return readFile(CATALOG_JS, 'utf8');
-}
+  assert.match(html, /<h2 id="catalog-embed-title">קטלוג<\/h2>/);
+  assert.match(html, /src="\.\/catalog\/summercatalog\/"/);
+  assert.match(html, /פתח בחלון חדש/);
+  assert.doesNotMatch(html, /catalog-admin-open-btn/);
+});
 
-test('catalog card titles prefer short display-only names', async () => {
-  const src = await readCatalogSource();
+test('catalog admin action is permission-driven', async () => {
+  const src = await readFile(CATALOG_JS, 'utf8');
+  assert.match(src, /import \{ hasPermission \} from '\.\.\/permission-policy\.js'/);
+  assert.match(src, /hasPermission\(state\?\.user, 'manage_catalog'\)/);
 
-  assert.match(src, /function catalogCardTitleFromFields\(p, fullName\)/);
-  assert.match(src, /p\?\.catalog_short_title/);
-  assert.match(src, /p\?\.short_name/);
-  assert.match(src, /\['טכנולוגיות חלל', 'טכנולוגיות החלל'\]/);
-  assert.match(src, /\['סודות ויסודות הבינה המלאכותית', 'בינה מלאכותית'\]/);
-  assert.match(src, /program\.catalogSubtitle/);
-  assert.match(src, /<h3>\$\{escapeHtml\(program\.catalogCardTitle \|\| program\.catalogTitle \|\| program\.name\)\}<\/h3>/);
-  assert.match(src, /<h1>\$\{escapeHtml\(selected\.name\)\}<\/h1>/);
+  const catalogScreen = await loadCatalogScreen();
+  const html = catalogScreen.render({}, {
+    state: {
+      user: {
+        role: 'authorized_user',
+        permissions: { view_catalog: 'yes', manage_catalog: 'yes' }
+      }
+    }
+  });
+  assert.match(html, /catalog-admin-open-btn/);
+  assert.match(html, /הפקת קטלוג אדמין/);
 });
 
 test('catalog API mapping selects activity_no, audience_level and maps קורס to תוכנית', async () => {
@@ -63,71 +57,13 @@ test('catalog API mapping selects activity_no, audience_level and maps קורס 
   assert.match(src, /itemType === 'קורס'/);
 });
 
-test('catalog grid renders course programs from Supabase-shaped rows', async () => {
+test('catalog embed keeps the admin marketer choices and iframe contract', async () => {
   const catalogScreen = await loadCatalogScreen();
-  const data = {
-    programs: [
-      mockCatalogProgram(),
-      mockCatalogProgram({
-        id: '2',
-        name: 'סודות ויסודות הבינה המלאכותית',
-        catalogTitle: 'סודות ויסודות הבינה המלאכותית',
-        catalogCardTitle: 'בינה מלאכותית',
-        audienceLevel: 'חטיבה',
-        productType: 'קורס'
-      }),
-      mockCatalogProgram({
-        id: '3',
-        name: 'התנסות בתעשייה',
-        catalogTitle: 'התנסות בתעשייה',
-        catalogCardTitle: 'התנסות בתעשייה',
-        audienceLevel: 'תיכון',
-        productType: 'סיור'
-      })
-    ],
-    selectedId: '',
-    audience: 'הכול',
-    type: 'הכול',
-    groupMode: '',
-    standaloneCategory: 'makers',
-    loadError: ''
-  };
+  const html = catalogScreen.render({}, { state: { user: { role: 'admin' } } });
 
-  const html = catalogScreen.render(data);
-
-  assert.match(html, /יסודי/);
-  assert.match(html, /חטיבה/);
-  assert.match(html, /מנהיגות ירוקה/);
-  assert.match(html, /בינה מלאכותית/);
-  assert.match(html, /סדנאות, סיורים וחוגים/);
-  assert.doesNotMatch(html, /לא נמצאו תוכניות מתאימות לסינון שנבחר/);
-});
-
-test('catalog filters default to showing all programs', async () => {
-  const catalogScreen = await loadCatalogScreen();
-  const data = {
-    programs: [mockCatalogProgram()],
-    selectedId: '',
-    audience: 'הכול',
-    type: 'הכול',
-    groupMode: '',
-    standaloneCategory: 'makers',
-    loadError: ''
-  };
-  const html = catalogScreen.render(data);
-  assert.match(html, /מנהיגות ירוקה/);
-});
-
-test('program detail uses updated catalog fields and syllabus meeting cards', async () => {
-  const src = await readCatalogSource();
-
-  assert.match(src, /const targetGrades = String\(pickFirstNonEmpty\(p\.target_grades, p\.targetGrades\)/);
-  assert.match(src, /programFlow: String\(pickFirstNonEmpty\(p\.program_flow, p\.programFlow\)/);
-  assert.doesNotMatch(src, /full_description/);
-  assert.doesNotMatch(src, /programFlow:[^\n]*goals/);
-  assert.match(src, /parseSkills\(program\.participantsReceive, program\.studentDevelops\)/);
-  assert.match(src, /catalog-syllabus-item/);
-  assert.match(src, /catalog-syllabus-badge/);
-  assert.doesNotMatch(src, /<thead><tr><th>מפגש<\/th>/);
-  assert.match(src, /syllabusMeetingText\(item\)/);
+  assert.match(html, /id="catalog-admin-marketer-select"/);
+  assert.match(html, /value="yael">יעל אביב/);
+  assert.match(html, /value="israa">איסראא אבו-ראס/);
+  assert.match(html, /class="catalog-embed-frame"/);
+  assert.match(html, /title="קטלוג תעשיידע לקיץ"/);
 });
