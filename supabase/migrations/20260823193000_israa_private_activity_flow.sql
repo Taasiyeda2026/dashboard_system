@@ -24,15 +24,10 @@ stable
 security definer
 set search_path = public, pg_temp
 as $$
-  select exists (
-    select 1 from public.users u
-    where u.auth_user_id = (select auth.uid())
-      and coalesce(u.is_active, true)
-      and (
-        lower(coalesce(to_jsonb(u)->>'view_israa_management', '')) in ('yes', 'true', '1')
-        or lower(coalesce(u.role, '')) = 'admin'
-        or u.user_id = '3030'
-      )
+  select coalesce(
+    public.app_current_role() = 'admin'
+    or public.app_has_permission('view_israa_management'),
+    false
   );
 $$;
 
@@ -50,6 +45,7 @@ declare
   v_tracking public.israa_program_tracking%rowtype;
   v_item jsonb;
   v_draft jsonb;
+  v_existing_draft jsonb;
 begin
   if not public.app_can_manage_israa() then
     raise exception 'israa_management_forbidden' using errcode = '42501';
@@ -60,6 +56,10 @@ begin
   from jsonb_array_elements(coalesce(v_tracking.proposal_items, '[]'::jsonb)) value
   where value->>'proposal_item_id' = p_proposal_item_id::text limit 1;
   if v_item is null then raise exception 'proposal_item_not_in_israa_tracking'; end if;
+  select value into v_existing_draft
+  from jsonb_array_elements(coalesce(v_tracking.selected_activity_drafts, '[]'::jsonb)) value
+  where value->>'proposal_item_id' = p_proposal_item_id::text limit 1;
+  p_draft := coalesce(v_existing_draft, '{}'::jsonb) || coalesce(p_draft, '{}'::jsonb);
 
   v_draft := jsonb_strip_nulls(jsonb_build_object(
     'proposal_item_id', p_proposal_item_id,
@@ -67,6 +67,14 @@ begin
     'gefen_number', coalesce(nullif(btrim(p_draft->>'gefen_number'), ''), v_item->>'gefen_number'),
     'quantity', greatest(1, coalesce((v_item->>'quantity')::integer, 1)),
     'activity_type', coalesce(nullif(btrim(p_draft->>'activity_type'), ''), 'course'),
+    'activity_name', nullif(btrim(p_draft->>'activity_name'), ''),
+    'activity_no', nullif(btrim(p_draft->>'activity_no'), ''),
+    'price', nullif(btrim(p_draft->>'price'), ''),
+    'funding', nullif(btrim(p_draft->>'funding'), ''),
+    'activity_manager', nullif(btrim(p_draft->>'activity_manager'), ''),
+    'contact_name', nullif(btrim(p_draft->>'contact_name'), ''),
+    'contact_phone', nullif(btrim(p_draft->>'contact_phone'), ''),
+    'contact_email', nullif(btrim(p_draft->>'contact_email'), ''),
     'grade', nullif(btrim(p_draft->>'grade'), ''),
     'class_group', nullif(btrim(p_draft->>'class_group'), ''),
     'sessions', coalesce(nullif(btrim(p_draft->>'sessions'), ''), v_item->>'meetings_count'),
@@ -98,6 +106,8 @@ as $$
 declare
   v_tracking public.israa_program_tracking%rowtype;
   v_draft jsonb;
+  v_item public.proposal_agreement_items%rowtype;
+  v_proposal public.proposals_agreements%rowtype;
   v_quantity integer;
   v_group integer;
   v_row public.activities%rowtype;
@@ -112,22 +122,41 @@ begin
   select value into v_draft from jsonb_array_elements(v_tracking.selected_activity_drafts) value
   where value->>'proposal_item_id' = p_proposal_item_id::text limit 1;
   if v_draft is null then raise exception 'israa_activity_not_selected'; end if;
+  select * into v_item from public.proposal_agreement_items where id = p_proposal_item_id;
+  if found and v_item.proposal_agreement_id <> v_tracking.proposal_agreement_id then
+    raise exception 'proposal_item_not_in_israa_tracking';
+  end if;
+  select * into v_proposal from public.proposals_agreements where id = v_tracking.proposal_agreement_id;
   v_quantity := greatest(1, coalesce((v_draft->>'quantity')::integer, 1));
 
   for v_group in 1..v_quantity loop
     v_row_id := 'ISR-' || replace(p_tracking_id::text, '-', '') || '-' || replace(p_proposal_item_id::text, '-', '') || '-' || v_group;
     insert into public.activities (
-      row_id, activity_family, authority, school, grade, class_group,
-      activity_type, activity_no, activity_name, sessions, start_date, date_1,
-      start_time, end_time, notes, status, activity_season, activity_domain,
+      row_id, activity_family, authority, authority_id, school, school_id, grade, class_group,
+      activity_type, item_type, activity_no, gefen_number, activity_name, program_name, name, title,
+      sessions, price, funding, contact_name, contact_phone, contact_email, start_date, date_1,
+      start_time, end_time, notes, status, activity_season, activity_domain, proposal_agreement_id,
       israa_tracking_id, israa_source_item_id, israa_group_number
     ) values (
       v_row_id, case when coalesce(v_draft->>'activity_type','course') in ('course','after_school') then 'program' else 'one_day' end,
-      v_tracking.authority, v_tracking.school_name, v_draft->>'grade',
+      v_tracking.authority, v_tracking.authority_id, v_tracking.school_name, v_tracking.school_id, v_draft->>'grade',
       coalesce(nullif(v_draft->>'class_group',''), 'קבוצה ' || v_group),
-      coalesce(v_draft->>'activity_type','course'), v_draft->>'gefen_number', v_draft->>'program_name',
-      v_draft->>'sessions', v_draft->>'start_date', v_draft->>'start_date',
-      v_draft->>'start_time', v_draft->>'end_time', v_draft->>'notes', 'פתוח', 'school_2027', 'E',
+      coalesce(nullif(v_draft->>'activity_type',''), nullif(v_item.item_type,''), 'course'),
+      coalesce(nullif(v_draft->>'activity_type',''), nullif(v_item.item_type,''), 'course'),
+      coalesce(nullif(v_draft->>'activity_no',''), nullif(v_item.activity_no,'')),
+      coalesce(nullif(v_draft->>'gefen_number',''), nullif(v_item.gefen_number,'')),
+      coalesce(nullif(v_draft->>'activity_name',''), nullif(v_draft->>'program_name',''), nullif(v_item.item_name,'')),
+      coalesce(nullif(v_draft->>'activity_name',''), nullif(v_draft->>'program_name',''), nullif(v_item.item_name,'')),
+      coalesce(nullif(v_draft->>'activity_name',''), nullif(v_draft->>'program_name',''), nullif(v_item.item_name,'')),
+      coalesce(nullif(v_draft->>'activity_name',''), nullif(v_draft->>'program_name',''), nullif(v_item.item_name,'')),
+      coalesce(nullif(v_draft->>'sessions',''), v_item.meetings_count::text),
+      coalesce(nullif(v_draft->>'price',''), round(coalesce(v_item.total_price, v_item.unit_price))::bigint::text),
+      coalesce(nullif(v_draft->>'funding',''), case when nullif(btrim(v_item.gefen_number),'') is not null then 'גפן' end),
+      coalesce(nullif(v_draft->>'contact_name',''), nullif(v_tracking.contact_person,''), nullif(v_proposal.contact_name,'')),
+      coalesce(nullif(v_draft->>'contact_phone',''), nullif(v_tracking.phone,''), nullif(v_proposal.contact_phone,''), nullif(v_proposal.phone,'')),
+      coalesce(nullif(v_draft->>'contact_email',''), nullif(v_tracking.email,''), nullif(v_proposal.contact_email,''), nullif(v_proposal.email,'')),
+      v_draft->>'start_date', v_draft->>'start_date',
+      v_draft->>'start_time', v_draft->>'end_time', v_draft->>'notes', 'פתוח', 'school_2027', 'E', v_tracking.proposal_agreement_id,
       p_tracking_id, p_proposal_item_id, v_group
     )
     on conflict (israa_tracking_id, israa_source_item_id, israa_group_number)
@@ -155,10 +184,27 @@ begin
   where row_id = p_row_id and activity_domain = 'E' and israa_tracking_id is not null for update;
   if not found then raise exception 'israa_activity_edit_forbidden' using errcode = '42501'; end if;
   update public.activities set
+    activity_manager = case when p_changes ? 'activity_manager' then nullif(btrim(p_changes->>'activity_manager'),'') else activity_manager end,
+    activity_type = case when p_changes ? 'activity_type' then nullif(btrim(p_changes->>'activity_type'),'') else activity_type end,
+    item_type = case when p_changes ? 'activity_type' then nullif(btrim(p_changes->>'activity_type'),'') else item_type end,
+    activity_no = case when p_changes ? 'activity_no' then nullif(btrim(p_changes->>'activity_no'),'') else activity_no end,
+    gefen_number = case when p_changes ? 'gefen_number' then nullif(btrim(p_changes->>'gefen_number'),'') else gefen_number end,
+    activity_name = case when p_changes ? 'activity_name' then nullif(btrim(p_changes->>'activity_name'),'') else activity_name end,
+    sessions = case when p_changes ? 'sessions' then nullif(btrim(p_changes->>'sessions'),'') else sessions end,
+    price = case when p_changes ? 'price' then nullif(btrim(p_changes->>'price'),'') else price end,
+    funding = case when p_changes ? 'funding' then nullif(btrim(p_changes->>'funding'),'') else funding end,
+    contact_name = case when p_changes ? 'contact_name' then nullif(btrim(p_changes->>'contact_name'),'') else contact_name end,
+    contact_phone = case when p_changes ? 'contact_phone' then nullif(btrim(p_changes->>'contact_phone'),'') else contact_phone end,
+    contact_email = case when p_changes ? 'contact_email' then nullif(btrim(p_changes->>'contact_email'),'') else contact_email end,
+    emp_id = case when p_changes ? 'emp_id' then nullif(btrim(p_changes->>'emp_id'),'') else emp_id end,
+    instructor_name = case when p_changes ? 'instructor_name' then nullif(btrim(p_changes->>'instructor_name'),'') else instructor_name end,
+    emp_id_2 = case when p_changes ? 'emp_id_2' then nullif(btrim(p_changes->>'emp_id_2'),'') else emp_id_2 end,
+    instructor_name_2 = case when p_changes ? 'instructor_name_2' then nullif(btrim(p_changes->>'instructor_name_2'),'') else instructor_name_2 end,
     grade = case when p_changes ? 'grade' then nullif(btrim(p_changes->>'grade'),'') else grade end,
     class_group = case when p_changes ? 'class_group' then nullif(btrim(p_changes->>'class_group'),'') else class_group end,
     start_date = case when p_changes ? 'start_date' then nullif(btrim(p_changes->>'start_date'),'') else start_date end,
     date_1 = case when p_changes ? 'start_date' then nullif(btrim(p_changes->>'start_date'),'') else date_1 end,
+    end_date = case when p_changes ? 'end_date' then nullif(btrim(p_changes->>'end_date'),'') else end_date end,
     start_time = case when p_changes ? 'start_time' then nullif(btrim(p_changes->>'start_time'),'') else start_time end,
     end_time = case when p_changes ? 'end_time' then nullif(btrim(p_changes->>'end_time'),'') else end_time end,
     notes = case when p_changes ? 'notes' then nullif(btrim(p_changes->>'notes'),'') else notes end,

@@ -8,12 +8,13 @@ import { guardInitialValueRefreshWhileEditing } from '../../activity-drawer-edit
 import { applyApprovedDrawerFixes } from '../../activity-drawer-approved-fixes.js';
 import { activityTypeMatches, getValidInstructorUsers, humanDisplayText, INSTRUCTOR_CONTACTS_MISSING_ERROR_MESSAGE, INSTRUCTOR_IDENTITY_ERROR_MESSAGE, isCanonicalActivityTypeKey, normalizeActivityTypeKey, normalizeOneDayActivityType, resolveInstructorSelectionByEmpId, validateInstructorIdentityPayload } from './activity-options.js';
 import { catalogActivityChangesFromSelection, selectedActivityCatalogIdentity, syncActivityCatalogIdentityFromName } from '../../activity-catalog-identity.js';
-import { state } from '../../state.js';
 import { validateCourseFundingSplit } from '../../activity-funding-picker-compact.js';
 import {
   READ_ONLY_ACTIVITY_PERIOD_MESSAGE,
   isActivityMutationBlocked
 } from './activity-readonly-period.js';
+
+let activityEditorState = {};
 
 /**
  * Event-level guard for the historical 2026 period: even a direct click handler call
@@ -23,7 +24,7 @@ function isReadOnlyActivityForm(form) {
   if (!form) return false;
   if (String(form.dataset.activityReadOnly || '') === 'yes') return true;
   return isActivityMutationBlocked({
-    activityPeriod: String(state?.activityPeriodTab || ''),
+    activityPeriod: String(activityEditorState?.activityPeriodTab || ''),
     activitySeason: String(form.getAttribute('data-activity-season') || '')
   });
 }
@@ -368,9 +369,12 @@ export function bindActivityEditForm(contentRoot, {
   rerender,
   onRowSaved,
   onSaveSuccess,
-  quietRefresh
+  quietRefresh,
+  forceDirectEdit = false,
+  appState = {}
 }) {
   if (!api || !contentRoot) return;
+  activityEditorState = appState || {};
 
   if (contentRoot._activityEditAbort) {
     contentRoot._activityEditAbort.abort();
@@ -379,7 +383,7 @@ export function bindActivityEditForm(contentRoot, {
   contentRoot._activityEditAbort = abortController;
   const { signal } = abortController;
 
-  applyActivityDrawerLayoutPipeline(contentRoot, state?.clientSettings || {});
+  applyActivityDrawerLayoutPipeline(contentRoot, activityEditorState?.clientSettings || {});
 
   async function saveActivityForm(form) {
     if (blockReadOnlyActivityMutation(form)) return;
@@ -397,8 +401,8 @@ export function bindActivityEditForm(contentRoot, {
     const sourceRowId = form.getAttribute('data-row-id') || '';
     const rawCanDirectEdit = String(form.dataset.canDirectEdit || '') === 'yes';
     const canRequestEdit = String(form.dataset.canRequestEdit || '') === 'yes';
-    const sessionRequestOnly = !state?.user?.can_edit_direct && !!state?.user?.can_request_edit;
-    const canDirectEdit = rawCanDirectEdit && !sessionRequestOnly;
+    const sessionRequestOnly = !activityEditorState?.user?.can_edit_direct && !!activityEditorState?.user?.can_request_edit;
+    const canDirectEdit = rawCanDirectEdit && (forceDirectEdit || !sessionRequestOnly);
     const changes = {};
     const initialValues = form._initialValues || {};
 
@@ -535,7 +539,7 @@ export function bindActivityEditForm(contentRoot, {
       }
     }
 
-    const roster = getValidInstructorUsers(state?.clientSettings || {});
+    const roster = getValidInstructorUsers(activityEditorState?.clientSettings || {});
     const selectedInstructorEmpId = Object.prototype.hasOwnProperty.call(changes, 'emp_id')
       ? changes.emp_id
       : String(form.querySelector('[name="emp_id"]')?.value ?? initialValues.emp_id ?? '').trim();

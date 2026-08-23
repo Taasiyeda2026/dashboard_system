@@ -2,7 +2,8 @@ import { escapeHtml } from './shared/html.js';
 import { dsScreenStack } from './shared/layout.js';
 import { canViewIsraaManagement } from '../permissions.js';
 import { activitiesTable } from '../israa-proposal-items.js';
-import { activityRowDetailHtml } from './shared/activity-detail-html.js';
+import { activityWorkDrawerHtml } from './shared/activity-detail-html.js';
+import { bindActivityEditForm } from './shared/bind-activity-edit-form.js';
 
 const SIM_GOAL = 1_000_000;
 
@@ -436,44 +437,47 @@ function tabBarHtml(activeTab) {
     </div>`;
 }
 
-function activityFields(row) {
-  return `<div class="israa-activity-fields">
-    <label>שכבה<input class="israa-inp" name="grade" value="${escapeHtml(row.grade || '')}"></label>
-    <label>קבוצה<input class="israa-inp" name="class_group" value="${escapeHtml(row.class_group || '')}"></label>
-    <label>תאריך<input class="israa-inp" type="date" name="start_date" value="${escapeHtml(row.start_date || '')}"></label>
-    <label>שעת התחלה<input class="israa-inp" type="time" name="start_time" value="${escapeHtml(row.start_time || '')}"></label>
-    <label>שעת סיום<input class="israa-inp" type="time" name="end_time" value="${escapeHtml(row.end_time || '')}"></label>
-    <label class="israa-activity-fields__notes">הערות<textarea class="israa-inp" name="notes">${escapeHtml(row.notes || '')}</textarea></label>
-  </div>`;
+function israaActivityEditor(row, settings) {
+  return activityWorkDrawerHtml(row, {
+    settings,
+    canEdit: true,
+    canDirectEdit: true,
+    canRequestEdit: false,
+    canDeleteActivity: false,
+    canSchedule: false,
+    exportAction: false
+  });
 }
 
-function activitiesPanelHtml() {
+function activitiesPanelHtml(settings = {}) {
   const cards = [];
   _rows.forEach((tracking) => {
     (Array.isArray(tracking.selected_activity_drafts) ? tracking.selected_activity_drafts : []).forEach((draft) => {
       const shared = _sharedActivities.filter((a) => String(a.israa_tracking_id) === String(tracking.id)
         && String(a.israa_source_item_id) === String(draft.proposal_item_id));
       if (shared.length) {
-        shared.forEach((activity) => cards.push(`<form class="israa-activity-card" data-israa-shared-row="${escapeHtml(activity.row_id)}">
+        shared.forEach((activity) => cards.push(`<section class="israa-activity-card" data-israa-editor-card>
           <header><strong>${escapeHtml(activity.activity_name || draft.program_name || 'פעילות')}</strong><span class="israa-shared-badge">נמצא בפעילויות</span></header>
-          <div class="israa-existing-card">${activityRowDetailHtml(activity, { hideFunding: true })}</div>${activityFields(activity)}
-          <button class="israa-btn israa-btn--primary" type="submit">שמירת שינויים</button></form>`));
+          <div class="israa-existing-card">${israaActivityEditor(activity, settings)}</div></section>`));
       } else {
-        cards.push(`<form class="israa-activity-card" data-israa-draft="${escapeHtml(draft.proposal_item_id)}" data-tracking-id="${escapeHtml(tracking.id)}">
+        const draftRow = { ...draft, row_id: `israa-draft|${tracking.id}|${draft.proposal_item_id}`, source_sheet: 'activities',
+          activity_name: draft.activity_name || draft.program_name, activity_no: draft.activity_no || draft.gefen_number,
+          school: tracking.school_name, authority: tracking.authority, activity_season: 'school_2027', activity_domain: 'E', status: 'פתוח' };
+        cards.push(`<section class="israa-activity-card" data-israa-editor-card data-israa-draft="${escapeHtml(draft.proposal_item_id)}" data-tracking-id="${escapeHtml(tracking.id)}">
           <header><strong>${escapeHtml(draft.program_name || 'פעילות')}</strong><span>טיוטה פרטית · ${escapeHtml(draft.quantity || 1)} קבוצות</span></header>
-          ${activityFields(draft)}<div class="israa-activity-actions"><button class="israa-btn" type="submit">שמירת טיוטה</button><button class="israa-btn israa-btn--primary" type="button" data-israa-share>שתף לפעילויות</button></div></form>`);
+          <div class="israa-existing-card">${israaActivityEditor(draftRow, settings)}</div><div class="israa-activity-actions"><button class="israa-btn israa-btn--primary" type="button" data-israa-share>שתף לפעילויות</button></div></section>`);
       }
     });
   });
   return `<div class="israa-activities-panel">${cards.join('') || '<div class="israa-empty">טרם נבחרו פעילויות. פתחי הצעה ובחרי „העבר לפעילויות”.</div>'}</div>`;
 }
 
-function fullHtml(activeTab, actNames) {
+function fullHtml(activeTab, actNames, settings = {}) {
   if (activeTab === 'simulator') {
     return tabBarHtml(activeTab) +
       `<div class="sim-panel">${simPanelHtml(_simRows, _simEditingId, _simEditData, _simAddingNew, _simNewData, _simError, _simLoading, _simCollab)}</div>`;
   }
-  if (activeTab === 'activities') return tabBarHtml(activeTab) + activitiesPanelHtml();
+  if (activeTab === 'activities') return tabBarHtml(activeTab) + activitiesPanelHtml(settings);
 
   return tabBarHtml(activeTab) + progTableHtml(_rows, _editingId, _editData, _addingNew, _newData, _error, _expandedId, actNames);
 }
@@ -1189,7 +1193,7 @@ export const israaManagementScreen = {
       _rows = Array.isArray(data.rows) ? data.rows : _rows;
     }
 
-    return dsScreenStack(ISRAA_CSS + '<div class="israa-mgmt">' + fullHtml(_activeTab, getActivityNames(state)) + '</div>');
+    return dsScreenStack(ISRAA_CSS + '<div class="israa-mgmt">' + fullHtml(_activeTab, getActivityNames(state), state?.clientSettings || {}) + '</div>');
   },
 
   bind({ root, state, api }) {
@@ -1198,7 +1202,8 @@ export const israaManagementScreen = {
 
     function repaint() {
       if (!root.contains(mgmt)) return;
-      mgmt.innerHTML = fullHtml(_activeTab, getActivityNames(state));
+      mgmt.innerHTML = fullHtml(_activeTab, getActivityNames(state), state?.clientSettings || {});
+      bindIsraaActivityEditors();
     }
 
     async function loadSimIfNeeded() {
@@ -1221,17 +1226,41 @@ export const israaManagementScreen = {
       repaint();
     }
 
-    function formChanges(form) {
-      return Object.fromEntries(['grade', 'class_group', 'start_date', 'start_time', 'end_time', 'notes']
-        .map((name) => [name, form.querySelector(`[name="${name}"]`)?.value || null]));
-    }
-
     async function refreshActivities() {
       const [tracking, shared] = await Promise.all([api.israaProgramTracking(), api.israaSharedActivities()]);
       _rows = Array.isArray(tracking?.rows) ? tracking.rows : [];
       _sharedActivities = Array.isArray(shared?.rows) ? shared.rows : [];
       repaint();
     }
+
+    function bindIsraaActivityEditors() {
+      if (_activeTab !== 'activities') return;
+      const israApi = {
+        ...api,
+        saveActivity: async (payload) => {
+          const rowId = String(payload?.source_row_id || '');
+          if (rowId.startsWith('israa-draft|')) {
+            const [, trackingId, proposalItemId] = rowId.split('|');
+            const result = await api.saveIsraaActivityDraft(trackingId, proposalItemId, payload.changes || {});
+            return { row: { ...(result?.draft || {}), row_id: rowId, source_sheet: 'activities', activity_season: 'school_2027', activity_domain: 'E' } };
+          }
+          return api.updateIsraaSharedActivity(rowId, payload?.changes || {});
+        }
+      };
+      bindActivityEditForm(mgmt, {
+        api: israApi,
+        ui: {},
+        appState: state,
+        forceDirectEdit: true,
+        clearScreenDataCache: () => {},
+        rerender: repaint,
+        onRowSaved: () => {},
+        onSaveSuccess: refreshActivities,
+        quietRefresh: refreshActivities
+      });
+    }
+
+    bindIsraaActivityEditors();
 
     mgmt.addEventListener('click', async (e) => {
       const t = e.target;
@@ -1266,7 +1295,6 @@ export const israaManagementScreen = {
         const form = shareBtn.closest('[data-israa-draft]');
         shareBtn.disabled = true;
         try {
-          await api.saveIsraaActivityDraft(form.dataset.trackingId, form.dataset.israaDraft, formChanges(form));
           await api.shareIsraaActivity(form.dataset.trackingId, form.dataset.israaDraft);
           await refreshActivities();
         } catch (err) {
@@ -1526,20 +1554,6 @@ export const israaManagementScreen = {
       }
     });
 
-    mgmt.addEventListener('submit', async (e) => {
-      const draftForm = e.target.closest('[data-israa-draft]');
-      const sharedForm = e.target.closest('[data-israa-shared-row]');
-      if (!draftForm && !sharedForm) return;
-      e.preventDefault();
-      const button = e.submitter; if (button) button.disabled = true;
-      try {
-        if (draftForm) await api.saveIsraaActivityDraft(draftForm.dataset.trackingId, draftForm.dataset.israaDraft, formChanges(draftForm));
-        else await api.updateIsraaSharedActivity(sharedForm.dataset.israaSharedRow, formChanges(sharedForm));
-        await refreshActivities();
-      } catch (err) {
-        _error = err.message || 'שמירת הפעילות נכשלה'; if (button) button.disabled = false;
-      }
-    });
 
     mgmt.addEventListener('input', (e) => {
       if (!e.target.matches('[data-sim-collab]')) return;
