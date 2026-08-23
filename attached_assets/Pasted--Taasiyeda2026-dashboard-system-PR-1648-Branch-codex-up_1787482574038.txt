@@ -1,0 +1,121 @@
+עבוד על הריפו:
+Taasiyeda2026/dashboard_system
+
+PR:
+#1648
+
+Branch:
+codex/upgrade-admin-permissions-screen-6yxunz
+
+המטרה כרגע היא אחת בלבד:
+לתקן את כשל ה-CI האחרון בצורה נקודתית, בלי להחליש את מערכת ההרשאות ובלי לבצע שינויים צדדיים.
+
+ה-CI האחרון שנכשל:
+Run ID: 32633909725
+Job ID: 97180715399
+Job: focused syntax, tests and build
+הכשל נמצא בשלב:
+Run changed-file plan
+
+חשוב:
+לפני שינוי קוד, פתח את הלוג המלא של Job 97180715399 ומצא את הטסט הראשון שנכשל ואת הודעת השגיאה המדויקת.
+אל תנחש ואל תתקן קוד production לפני שאתה יודע מה הכשל.
+
+הכשל הקודם שכבר זוהה במערכת היה:
+
+tests/operations-lazy-loading.test.mjs
+
+Subtest:
+inventory tab loader reads only catalog, opening balances and 2027 activities
+
+Error:
+operations_tab_forbidden
+
+Stack:
+loadOperationsTabData
+frontend/src/screens/operations-management.js
+
+אם זה עדיין הכשל שמופיע בלוג האחרון, צריך לתקן אותו כך:
+
+1. אין לשנות, להסיר או לעקוף את:
+   canOpenOperationsTab
+   enforceManagedRoutes
+   hasPermission
+   או כל מנגנון הרשאות אחר ב-production.
+
+2. הבעיה היא ככל הנראה שה-test fixture עדיין מייצג משתמש לפי מודל ההרשאות הישן.
+
+3. פתח:
+   frontend/src/permission-policy.js
+
+   ובדוק את:
+   TAB_PERMISSION_MAP
+   canOpenOperationsTab
+
+   מצא מהי הרשאת הלשונית המדויקת שנדרשת עבור לשונית המלאי / inventory / workshop.
+   אל תנחש את שם ההרשאה.
+
+4. עדכן ב:
+   tests/operations-lazy-loading.test.mjs
+
+   רק את ה-user/session/currentUser fixture של הטסט כך שהמשתמש יהיה משתמש מורשה אמיתי לפי המדיניות החדשה.
+
+   הוא חייב לכלול לפחות:
+
+   permissions: {
+     view_operations_management: 'yes',
+     <EXACT_INVENTORY_TAB_PERMISSION>: 'yes'
+   }
+
+   כאשר <EXACT_INVENTORY_TAB_PERMISSION> חייב להיות המפתח המדויק שמופיע ב-permission-policy.js.
+
+5. אל תשנה את assertions של ה-lazy loading.
+   מטרת הטסט עדיין צריכה להיות לוודא שהמידע לא נטען לפני פתיחת הלשונית, וכאשר פותחים את לשונית המלאי נטענים רק המקורות הנדרשים.
+
+6. אם הלוג האחרון כבר עבר את operations-lazy-loading ומראה טסט אחר:
+   אל תחזור לתקן את הטסט הזה.
+   תקן רק את הכשל הראשון שמופיע בלוג האחרון.
+
+   במקרה כזה בדוק האם גם שם מדובר ב-test fixture ישן שלא כולל את ההרשאות המפורשות החדשות.
+   יש להתאים את הטסט למדיניות החדשה — לא להרחיב הרשאות באפליקציה כדי לגרום לטסט לעבור.
+
+7. אסור במסגרת התיקון:
+   - לתת view_operations_management לכל STAFF_COMMON
+   - להוסיף fallback לפי role במקום הרשאה מפורשת
+   - להחזיר הרשאות proposal ישנות
+   - להרחיב הרשאות ב-Supabase migration
+   - לעקוף בדיקות הרשאה
+   - לבצע refactor לא קשור
+   - לשנות UI שאינו קשור לכשל
+
+8. לאחר התיקון הרץ קודם את קובץ הטסט שנכשל ישירות.
+
+   אם הכשל הוא operations-lazy-loading:
+   node --test tests/operations-lazy-loading.test.mjs
+
+   לאחר שהוא עובר הרץ:
+   npm run ci:quick
+
+9. אם npm run ci:quick מגלה כשל נוסף:
+   קרא את הכשל המדויק ותקן רק אותו.
+   המשך עד שכל Quick PR Check ירוק.
+
+10. בצע commit ודחוף לאותו branch בלבד:
+    codex/upgrade-admin-permissions-screen-6yxunz
+
+11. בסיום תן לי תשובה קצרה ומדויקת הכוללת:
+    - מה היה הטסט שנכשל
+    - מה הייתה סיבת הכשל
+    - איזה קובץ שינית
+    - מה בדיוק שינית
+    - Commit SHA
+    - האם Quick PR Check כולו ירוק
+
+חשוב מאוד:
+אל תבצע Merge ל-main.
+אל תריץ migration ב-Supabase.
+אל תרשום migration ידנית.
+אל תיצור PR חדש.
+
+המטרה שלך היא להביא את PR #1648 למצב CI ירוק בלבד.
+את ה-Merge ואת מיגרציית Supabase נבצע בנפרד אחרי האימות.
