@@ -6,6 +6,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
 const DASHBOARD_JS = new URL('../frontend/src/screens/dashboard.js', import.meta.url);
+const API_JS = new URL('../frontend/src/api.js', import.meta.url);
 const PKG_JSON = new URL('../package.json', import.meta.url);
 const PKG_LOCK = new URL('../package-lock.json', import.meta.url);
 
@@ -32,6 +33,12 @@ test('dashboard.js: uses dashboardSnapshot only (no dashboardSheet / api.dashboa
     /api\.dashboard\s*\(\s*\{/,
     'must not call api.dashboard({ — use dashboardSnapshot only'
   );
+});
+
+test('api.js: dashboard activity projections preserve activity_season for 2027 filtering', async () => {
+  const src = await readText(API_JS);
+  assert.match(src, /const DASHBOARD_ACTIVITY_COLUMNS = \[[\s\S]*'activity_season'[\s\S]*\]\.join\(','\)/);
+  assert.match(src, /const DASHBOARD_ACTIVITY_MIN_COLUMNS = '[^']*activity_season[^']*'/);
 });
 
 test('dashboard.js: stale banner covers read model, is_stale, and snapshot unavailable', async () => {
