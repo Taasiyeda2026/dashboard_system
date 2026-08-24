@@ -396,14 +396,17 @@ test('opening an instructor after an activity restores the regular drawer and a 
   assert.equal(drawer.classList.contains('ds-drawer--activity-inline'), true);
 
   ui.closeDrawer();
-  ui.openDrawer({ title: instructor.full_name, content: profileHtml(instructor, [], false, true) });
+  ui.openDrawer({ title: `${instructor.full_name} | ${instructor.emp_id}`, content: profileHtml(instructor, [], false, true) });
 
   assert.equal(drawer.classList.contains('ds-drawer--activity-inline'), false);
   assert.ok(drawer.querySelector(':scope > .ds-drawer__header'));
   assert.ok(drawer.querySelector(':scope > .ds-drawer__content > .instructor-profile'));
-  assert.equal(drawer.querySelector('.ds-drawer__title').textContent, instructor.full_name);
+  assert.equal(drawer.querySelector('.ds-drawer__title').textContent, `${instructor.full_name} | ${instructor.emp_id}`);
   assert.equal(drawer.textContent.split(instructor.full_name).length - 1, 1);
-  assert.equal(drawer.querySelector('.instructor-profile__id').textContent, instructor.emp_id);
+  assert.equal(drawer.textContent.split(instructor.emp_id).length - 1, 1);
+  assert.equal(drawer.querySelector('.instructor-profile__identity'), null);
+  assert.doesNotMatch(drawer.querySelector('.instructor-profile').textContent, /(^|\s)פעיל(?=\s|$)/u);
+  assert.doesNotMatch(drawer.querySelector('.instructor-profile').textContent, /לא משובץ|פרופיל שיבוץ מלא/);
 
   ui.closeDrawer();
   dom.window.close();

@@ -51,17 +51,24 @@ test('constraints edit action is rendered only when editing is allowed', () => {
   assert.doesNotMatch(readonly, /data-edit-instructor-contact/);
 });
 
-test('profile header renders dynamic statuses as plain separated text', () => {
-  const complete = {
-    ...rows()[1], address: 'חיפה', availability_rules: [{ weekday: 0, available: true, start_time: '13:30:00', end_time: '15:00:00' }],
+test('profile body omits the identity status area while preserving warnings, sections and actions', () => {
+  const incomplete = {
+    ...rows()[1], availability_rules: [{ weekday: 0, available: true, start_time: '13:30:00', end_time: '15:00:00' }],
     scheduling_profile: { gender: 'male', instruction_languages: ['he', 'ar'] }
   };
-  const dom = new JSDOM(profileHtml(complete, [], true, true));
-  const status = dom.window.document.querySelector('[data-instructor-status-line]');
-  assert.equal(status.textContent, 'פעיל | לא משובץ | פרופיל שיבוץ מלא');
-  assert.equal(status.querySelectorAll('.ds-status-chip').length, 0);
-  assert.doesNotMatch(dom.window.document.body.textContent, /בשלב זה המערכת מרכזת נתונים/);
-  assert.deepEqual([...dom.window.document.querySelectorAll('[name="language"]')].map((input) => input.nextElementSibling?.textContent), []);
+  const dom = new JSDOM(profileHtml(incomplete, [], true, true));
+  const body = dom.window.document.body;
+  assert.equal(body.querySelector('.instructor-profile__identity'), null);
+  assert.equal(body.querySelector('[data-instructor-status-line]'), null);
+  assert.doesNotMatch(body.textContent, /(^|\s)פעיל(?=\s|$)/u);
+  assert.doesNotMatch(body.textContent, /לא משובץ|פרופיל שיבוץ מלא/);
+  assert.match(body.querySelector('.scheduling-warning')?.textContent || '', /חסר להשלמה/);
+  assert.ok(body.querySelector('[data-edit-instructor-contact]'));
+  assert.ok(body.querySelector('[data-edit-instructor-constraints]'));
+  assert.ok(body.querySelector('[data-edit-instructor-matching]'));
+  assert.deepEqual([...body.querySelectorAll('h3')].map((heading) => heading.textContent.trim()), [
+    'פרטי מדריך', 'זמינות ואילוצים', 'התאמה לשיבוץ', 'פעילויות פעילות ועתידיות 0'
+  ]);
   dom.window.close();
 });
 
@@ -89,13 +96,15 @@ test('profile opens from every card without requiring an existing assignment', a
     const data = { rows: rows(), detail_rows: [], scheduling: { loaded: true }, _schedulingLoaded: true };
     root.innerHTML = instructorsScreen.render(data, { state });
     let opened = 0;
+    let drawerTitle = '';
     instructorsScreen.bind({
       root, data, state, rerender: () => {}, api: {},
-      ui: { openDrawer: () => { opened += 1; }, closeDrawer: () => {} }
+      ui: { openDrawer: ({ title }) => { opened += 1; drawerTitle = title; }, closeDrawer: () => {} }
     });
     root.querySelector('[data-instructor-profile="1501"]').click();
     await new Promise((resolve) => setTimeout(resolve, 0));
     assert.equal(opened, 1);
+    assert.equal(drawerTitle, 'מדריך לא משובץ | 1501');
   } finally {
     Object.assign(globalThis, saved);
     dom.window.close();

@@ -362,7 +362,8 @@ export const instructorsScreen = {
       }
       const activities = activitiesFor(data, row);
       const reopen = () => requestAnimationFrame(() => openProfile(row));
-      ui.openDrawer({ title: row.full_name || row.emp_id, content: profileHtml(row, activities, canEdit, !!data?.scheduling?.loaded) });
+      const profileTitle = row.full_name && row.emp_id ? `${row.full_name} | ${row.emp_id}` : row.full_name || row.emp_id;
+      ui.openDrawer({ title: profileTitle, content: profileHtml(row, activities, canEdit, !!data?.scheduling?.loaded) });
       requestAnimationFrame(() => {
         document.querySelector('[data-edit-instructor-contact]')?.addEventListener('click', () => openContact(row, reopen));
         document.querySelector('[data-edit-instructor-constraints]')?.addEventListener('click', () => openConstraints(row, reopen));
