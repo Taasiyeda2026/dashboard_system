@@ -193,6 +193,46 @@ test('activity drawer becomes one inline view/edit template without duplicate he
   dom.window.close();
 });
 
+test('gender and instruction language are ordinary activity edit fields in the shared grid', () => {
+  const row = {
+    RowID: 'REQ-FIELDS-1',
+    row_id: 'REQ-FIELDS-1',
+    activity_type: 'course',
+    item_type: 'course',
+    activity_name: 'ביומימיקרי',
+    status: 'פתוח',
+    activity_season: 'school_2027',
+    required_instructor_gender: 'any',
+    instruction_language: 'he'
+  };
+  const dom = installDom(`<!doctype html><html><body>
+    <div class="ds-ui-layer"><aside class="ds-drawer"><div class="ds-drawer__content">
+      ${activityWorkDrawerHtml(row, { canEdit: true, canDirectEdit: true })}
+    </div></aside></div>
+  </body></html>`);
+  const form = dom.window.document.querySelector('[data-drawer-form]');
+  assert.equal(enhanceActivityDrawerForm(form), true);
+
+  const grid = form.querySelector('.activity-drawer-inline__grid');
+  const gender = grid.querySelector('[name="required_instructor_gender"]');
+  const language = grid.querySelector('[name="instruction_language"]');
+  assert.ok(gender);
+  assert.ok(language);
+  assert.equal(gender.closest('.activity-drawer-inline__field').querySelector('.activity-drawer-inline__label').textContent, 'מגדר');
+  assert.equal(language.closest('.activity-drawer-inline__field').querySelector('.activity-drawer-inline__label').textContent, 'שפת הדרכה');
+  assert.equal(form.querySelector('[data-scheduling-fields]'), null);
+  assert.equal(form.textContent.includes('דרישת מגדר'), false);
+  assert.equal(form.textContent.includes('לא חובה'), false);
+  dom.window.close();
+});
+
+test('contact and notes support cards use an equal 50/50 desktop grid', async () => {
+  const css = await readFile(new URL('../frontend/src/styles/activity-drawer-inline-layout.css', import.meta.url), 'utf8');
+  assert.match(css, /\.activity-drawer-inline__support\s*\{[\s\S]*?grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/);
+  assert.doesNotMatch(css, /\.activity-drawer-inline__support\s*\{[\s\S]*?grid-template-columns:\s*minmax\(0,\s*2fr\)/);
+  assert.match(css, /@media \(max-width: 640px\)[\s\S]*?\.activity-drawer-inline__support,[\s\S]*?grid-template-columns:\s*1fr/);
+});
+
 test('desktop activity details use four responsive columns', async () => {
   const css = await readFile(new URL('../frontend/src/styles/activity-drawer-inline-layout.css', import.meta.url), 'utf8');
   const typeLayoutCss = await readFile(new URL('../frontend/src/styles/activity-drawer-type-layout-fix.css', import.meta.url), 'utf8');
