@@ -190,6 +190,51 @@ function buildMeetingPickerCell(form, idx, dateValue) {
   return cell;
 }
 
+export function syncMeetingDatesToSessionCount(form, targetCount) {
+  const grid = form?.querySelector?.('[data-meeting-dates-edit]');
+  if (!grid || form?.dataset?.isOnce === 'yes') return false;
+
+  const total = Math.max(1, Math.min(35, Number.parseInt(String(targetCount ?? ''), 10) || 0));
+  if (!total) return false;
+
+  let cards = Array.from(grid.querySelectorAll(':scope > .activity-drawer__date-card'));
+  while (cards.length > total) {
+    cards[cards.length - 1]?.remove();
+    cards = Array.from(grid.querySelectorAll(':scope > .activity-drawer__date-card'));
+  }
+
+  while (cards.length < total) {
+    const idx = cards.length;
+    const previousPicker = cards[idx - 1]?.querySelector('input[data-meeting-idx]');
+    const previousDate = String(previousPicker?.value || '').trim();
+    const nextDate = previousDate ? addDays(previousDate, 7) : '';
+    grid.appendChild(buildMeetingPickerCell(form, idx, nextDate));
+    cards = Array.from(grid.querySelectorAll(':scope > .activity-drawer__date-card'));
+  }
+
+  const pickers = Array.from(grid.querySelectorAll('input[data-meeting-idx]'))
+    .sort((a, b) => Number(a.dataset.meetingIdx) - Number(b.dataset.meetingIdx));
+  let previousDate = '';
+  pickers.forEach((picker) => {
+    const current = String(picker.value || '').trim();
+    if (current) {
+      previousDate = current;
+      return;
+    }
+    if (!previousDate) return;
+    const generated = addDays(previousDate, 7);
+    if (!generated) return;
+    picker.value = generated;
+    previousDate = generated;
+  });
+
+  reindexMeetingDateCards(form);
+  updateMeetingWeekdays(form);
+  updateMoreDatesToggle(form);
+  updateEndDateDisplay(form);
+  return true;
+}
+
 function updateMeetingWeekdays(form) {
   form.querySelectorAll('.activity-drawer__date-card').forEach((cell) => {
     const picker = cell.querySelector('input[data-meeting-idx]');
@@ -443,8 +488,6 @@ export function bindActivityEditForm(contentRoot, {
       changes.status = 'פתוח';
     }
 
-    collectMeetingDateChanges(form, initialValues, changes);
-
     if (!validateActivityTypeAndName(form, statusEl)) return;
 
     const catalogSelection = selectedActivityCatalogIdentity(form);
@@ -453,6 +496,12 @@ export function bindActivityEditForm(contentRoot, {
       catalogSelection.activity_no !== String(initialValues.activity_no || '').trim() ||
       catalogSelection.gefen_number !== String(initialValues.gefen_number || '').trim()
     );
+    if (catalogSelectionChanged && Number.isFinite(Number(catalogSelection.meetings_count))) {
+      syncMeetingDatesToSessionCount(form, catalogSelection.meetings_count);
+    }
+
+    collectMeetingDateChanges(form, initialValues, changes);
+
     if (catalogSelectionChanged) {
       Object.assign(changes, catalogActivityChangesFromSelection(catalogSelection, {
         normalizeActivityType: normalizeActivityTypeKey
@@ -826,7 +875,10 @@ export function bindActivityEditForm(contentRoot, {
         }
         const nameEl = ev.target.closest('[data-role="activity-name-select"]');
         if (nameEl) {
-          syncActivityCatalogIdentityFromName(form, { clearWhenNoSelection: true });
+          const catalogIdentity = syncActivityCatalogIdentityFromName(form, { clearWhenNoSelection: true });
+          if (catalogIdentity?.isCatalogSelection && Number.isFinite(Number(catalogIdentity.meetings_count))) {
+            syncMeetingDatesToSessionCount(form, catalogIdentity.meetings_count);
+          }
         }
 
         const typeEl = ev.target.closest('[name="activity_type"]');
