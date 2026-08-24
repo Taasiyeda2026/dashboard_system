@@ -252,12 +252,11 @@ test('view values isolate RTL-sensitive hours and class pairs and the view foote
   dom.window.close();
 });
 
-test('contact and notes are 50/50 only in edit mode and keep the original view layout', async () => {
+test('contact and notes use an equal 50/50 grid in both view and edit modes', async () => {
   const css = await readFile(new URL('../frontend/src/styles/activity-drawer-inline-layout.css', import.meta.url), 'utf8');
-  assert.match(css, /\.activity-drawer-inline__support\s*\{[\s\S]*?grid-template-columns:\s*minmax\(0,\s*2fr\)\s+minmax\(0,\s*1fr\)/);
-  assert.match(css, /\[data-editing="yes"\]\s+\.activity-drawer-inline__support\s*\{[\s\S]*?grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/);
+  assert.match(css, /\.activity-drawer-inline__support\s*\{[\s\S]*?grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/);
+  assert.doesNotMatch(css, /\.activity-drawer-inline__support\s*\{[\s\S]*?grid-template-columns:\s*minmax\(0,\s*2fr\)/);
   assert.match(css, /@media \(max-width: 640px\)[\s\S]*?\.activity-drawer-inline__support,[\s\S]*?grid-template-columns:\s*1fr/);
-  assert.match(css, /@media \(max-width: 640px\)[\s\S]*?\[data-editing="yes"\]\s+\.activity-drawer-inline__support\s*\{[\s\S]*?grid-template-columns:\s*1fr/);
 });
 
 test('desktop activity details use four responsive columns', async () => {
