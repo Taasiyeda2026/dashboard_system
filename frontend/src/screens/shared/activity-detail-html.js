@@ -484,15 +484,12 @@ function headerHtml(row, { mode = 'single', summaryDate = '', exportAction = tru
   {
     const typeTag = activityTypeLabel(row?.activity_type);
     const statusVal = statusText(row?.status);
-    const domainRaw = String(row?.activity_domain || '').trim().toUpperCase();
-    const domainVal = ['E', 'Y'].includes(domainRaw) ? domainRaw : '';
     const schoolVal = humanDisplayText(row?.school) || '';
     const authorityVal = humanDisplayText(row?.authority) || '';
     const isOpen = normStatus(row?.status) !== 'closed';
     const metaTags = [
       typeTag ? `<span class="activity-drawer__meta-tag">${escapeHtml(typeTag)}</span>` : '',
       statusVal ? `<span class="activity-drawer__meta-tag activity-drawer__meta-tag--status${isOpen ? ' activity-drawer__meta-tag--open' : ' activity-drawer__meta-tag--closed'}">${escapeHtml(statusVal)}</span>` : '',
-      domainVal ? `<span class="activity-drawer__meta-tag">${escapeHtml(domainVal)}</span>` : '',
       authorityVal ? `<span class="activity-drawer__meta-tag">${escapeHtml(authorityVal)}</span>` : '',
       schoolVal ? `<span class="activity-drawer__meta-tag">${escapeHtml(schoolVal)}</span>` : '',
     ].filter(Boolean).join('');
@@ -903,7 +900,8 @@ function buildDateChipsHtml(schedule, isOnce) {
   const source = isOnce ? schedule.slice(0, 1) : schedule;
   const grouped = source.reduce((acc, item) => {
     const date = String(item?.date || '').trim();
-    const key = date || '__empty__';
+    if (!date) return acc;
+    const key = date;
     if (!acc.has(key)) {
       acc.set(key, { item, count: 0, doneCount: 0, notes: [] });
     }
@@ -934,6 +932,12 @@ function buildDateChipsHtml(schedule, isOnce) {
       `;
     })
     .join('') || '';
+}
+
+function missingDatesWarningHtml(total, schedule = []) {
+  const dated = (Array.isArray(schedule) ? schedule : []).filter((item) => /^\d{4}-\d{2}-\d{2}$/.test(String(item?.date || '').trim())).length;
+  const missing = Math.max(0, Number(total || 0) - dated);
+  return `<div class="activity-drawer__missing-dates-warning" data-dates-missing-warning${missing ? '' : ' hidden'}>${missing ? `חסרים תאריכים ל־${missing} מפגשים` : ''}</div>`;
 }
 
 function buildOneDayViewHtml(schedule, row, datesLoading) {
@@ -1059,7 +1063,8 @@ function blockDates(row, { canEdit = false, canDirectEdit = false, datesLoading 
       </div>
       <div class="activity-drawer__dates activity-drawer__dates--view" data-mode="view" data-dates-view-chips>
         <div class="activity-drawer__date-chip ds-muted" aria-busy="true">טוען...</div>
-      </div>`
+      </div>
+      <div class="activity-drawer__missing-dates-warning" data-dates-missing-warning hidden></div>`
     : `${dateSummaryHtml}<div class="activity-drawer__progress-row" data-mode="view"><div class="activity-drawer__progress" data-dates-progress>
         <div class="activity-drawer__progress-meta" data-dates-progress-meta>
           <span>${done} מתוך ${total} מפגשים</span>
@@ -1072,7 +1077,8 @@ function blockDates(row, { canEdit = false, canDirectEdit = false, datesLoading 
       </div>
       <div class="activity-drawer__dates activity-drawer__dates--view" data-mode="view" data-dates-view-chips>
         ${viewChips}
-      </div>`;
+      </div>
+      ${missingDatesWarningHtml(total, schedule)}`;
 
   const progressTitle = isCourse ? 'התקדמות הקורס' : 'מפגשים ותאריכים';
   return `
@@ -1178,6 +1184,14 @@ export function patchDrawerDatesSection(sectionEl, datesData) {
 
   const chipsDiv = sectionEl.querySelector('[data-dates-view-chips]');
   if (chipsDiv) chipsDiv.innerHTML = buildDateChipsHtml(schedule, false);
+
+  const datedCount = schedule.filter((item) => /^\d{4}-\d{2}-\d{2}$/.test(String(item?.date || '').trim())).length;
+  const missingDates = Math.max(0, total - datedCount);
+  const missingWarning = sectionEl.querySelector('[data-dates-missing-warning]');
+  if (missingWarning) {
+    missingWarning.textContent = missingDates ? `חסרים תאריכים ל־${missingDates} מפגשים` : '';
+    missingWarning.hidden = missingDates === 0;
+  }
 
   const editGrid = sectionEl.querySelector('[data-meeting-dates-edit]');
   if (editGrid) {
