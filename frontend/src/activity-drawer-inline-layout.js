@@ -285,7 +285,7 @@ function coreDetails(form, body, row, existingValues) {
   const instructorView = twoInstructors
     ? [existingValues.get('מדריך/ה 1') || row.instructor_name, existingValues.get('מדריך/ה 2') || row.instructor_name_2].filter(clean).join(' / ')
     : (existingValues.get('מדריך/ה') || row.instructor_name || '—');
-  const classView = existingValues.get('כיתה / קבוצה') || isolatedPair(row.grade, row.class_group);
+  const classView = isolatedPair(row.grade, row.class_group) || existingValues.get('כיתה / קבוצה');
   const timeView = existingValues.get('שעות') || (
     clean(row.start_time) && clean(row.end_time) ? `${clean(row.start_time).slice(0, 5)}–${clean(row.end_time).slice(0, 5)}` : ''
   );
