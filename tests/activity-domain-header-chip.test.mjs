@@ -4,16 +4,16 @@ import { readFile } from 'node:fs/promises';
 
 const ROOT = new URL('../', import.meta.url);
 
-test('activity drawer shows E/Y as a compact header tag and keeps domain editable', async () => {
+test('activity domain stays editable without exposing internal E/Y codes in view mode', async () => {
   const detail = await readFile(
     new URL('frontend/src/screens/shared/activity-detail-html.js', ROOT),
     'utf8'
   );
 
-  assert.match(detail, /const domainRaw = String\(row\?\.activity_domain \|\| ''\)\.trim\(\)\.toUpperCase\(\)/);
-  assert.match(detail, /const domainVal = \['E', 'Y'\]\.includes\(domainRaw\) \? domainRaw : ''/);
-  assert.match(detail, /domainVal \? `<span class="activity-drawer__meta-tag">\$\{escapeHtml\(domainVal\)\}<\/span>` : ''/);
-  assert.match(detail, /statusVal[\s\S]*domainVal[\s\S]*authorityVal[\s\S]*schoolVal/);
+  const headerStart = detail.indexOf('function headerHtml');
+  const headerEnd = detail.indexOf('function blockActivityDetails');
+  const headerSource = detail.slice(headerStart, headerEnd);
+  assert.doesNotMatch(headerSource, /domainVal|domainRaw|activity_domain/);
   assert.match(detail, /name: 'activity_domain'/);
   assert.match(detail, /'תחום פעילות',[\s\S]*name: 'activity_domain'/);
 });
