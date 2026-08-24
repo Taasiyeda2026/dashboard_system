@@ -155,7 +155,9 @@
 }
 
 .activity-drawer-inline__field--mixed-bidi .activity-drawer-inline__value {
-  unicode-bidi: plaintext;
+  direction: ltr;
+  unicode-bidi: isolate;
+  text-align: right;
 }
 
 .activity-drawer-inline__edit,
@@ -485,6 +487,10 @@
   .activity-drawer-inline__support,
   .activity-drawer-inline-layout .activity-drawer__dates--view,
   .activity-drawer-inline-layout .activity-drawer__dates--edit {
+    grid-template-columns: 1fr;
+  }
+
+  .activity-drawer-inline-layout[data-editing="yes"] .activity-drawer-inline__support {
     grid-template-columns: 1fr;
   }
 
