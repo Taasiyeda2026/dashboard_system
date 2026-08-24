@@ -226,10 +226,36 @@ test('gender and instruction language are ordinary activity edit fields in the s
   dom.window.close();
 });
 
-test('contact and notes support cards use an equal 50/50 desktop grid', async () => {
+test('view values isolate RTL-sensitive hours and class pairs and the view footer is not sticky', async () => {
+  const row = {
+    row_id: 'RTL-1',
+    activity_type: 'course',
+    activity_name: 'בדיקה',
+    activity_season: 'school_2027',
+    grade: 'ו׳',
+    class_group: '1',
+    start_time: '09:45',
+    end_time: '11:15'
+  };
+  const dom = installDom(`<!doctype html><html><body><div class="ds-drawer__content">${activityWorkDrawerHtml(row, { canEdit: true, canDirectEdit: true })}</div></body></html>`);
+  const form = dom.window.document.querySelector('[data-drawer-form]');
+  assert.equal(enhanceActivityDrawerForm(form), true);
+  const classValue = form.querySelector('.activity-drawer-inline__field--mixed-bidi .activity-drawer-inline__value');
+  const timeValue = form.querySelector('.activity-drawer-inline__field--time-bidi .activity-drawer-inline__value');
+  assert.ok(classValue.textContent.includes('ו׳'));
+  assert.ok(classValue.textContent.includes('1'));
+  assert.equal(timeValue.textContent, '09:45–11:15');
+
   const css = await readFile(new URL('../frontend/src/styles/activity-drawer-inline-layout.css', import.meta.url), 'utf8');
-  assert.match(css, /\.activity-drawer-inline__support\s*\{[\s\S]*?grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/);
-  assert.doesNotMatch(css, /\.activity-drawer-inline__support\s*\{[\s\S]*?grid-template-columns:\s*minmax\(0,\s*2fr\)/);
+  assert.match(css, /activity-drawer-inline__field--time-bidi[\s\S]*?direction:\s*ltr/);
+  assert.match(css, /\.activity-drawer-inline-layout \.activity-drawer__view-footer\s*\{[\s\S]*?position:\s*static/);
+  dom.window.close();
+});
+
+test('contact and notes are 50/50 only in edit mode and keep the original view layout', async () => {
+  const css = await readFile(new URL('../frontend/src/styles/activity-drawer-inline-layout.css', import.meta.url), 'utf8');
+  assert.match(css, /\.activity-drawer-inline__support\s*\{[\s\S]*?grid-template-columns:\s*minmax\(0,\s*2fr\)\s+minmax\(0,\s*1fr\)/);
+  assert.match(css, /\[data-editing="yes"\]\s+\.activity-drawer-inline__support\s*\{[\s\S]*?grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/);
   assert.match(css, /@media \(max-width: 640px\)[\s\S]*?\.activity-drawer-inline__support,[\s\S]*?grid-template-columns:\s*1fr/);
 });
 
@@ -242,7 +268,7 @@ test('desktop activity details use four responsive columns', async () => {
   assert.match(css, /@media \(max-width: 900px\)[\s\S]*?\.activity-drawer-inline__grid\s*\{[\s\S]*?repeat\(2,/);
   assert.match(typeLayoutCss, /@media \(max-width: 900px\)\s*\{\s*\.activity-drawer-inline__grid\[data-activity-layout="course"\]\s*\{[^}]*grid-template-columns:\s*repeat\(2,/);
   assert.match(css, /@media \(max-width: 640px\)[\s\S]*?\.activity-drawer-inline__grid,[\s\S]*?grid-template-columns:\s*1fr/);
-  assert.match(typeLayoutCss, /data-activity-layout="course"\]\s*\[data-field-key="funding"\]\s*\{\s*grid-column:\s*span 3/);
+  assert.match(typeLayoutCss, /data-activity-layout="course"\]\s*\[data-field-key="funding"\],[\s\S]*?data-field-key="price"\]\s*\{\s*grid-column:\s*span 2/);
   assert.match(typeLayoutCss, /@media \(max-width: 900px\)[\s\S]*?data-field-key="funding"\][^}]*grid-column:\s*span 1/);
 });
 
@@ -280,7 +306,7 @@ test('mounted read-only activity drawers receive the shared layout without edit 
   dom.window.close();
 });
 
-test('activity domain has one view tag and its sole edit selector lives in the header', () => {
+test('activity domain stays editable but its internal E/Y code is hidden in view mode', () => {
   const row = {
     RowID: 'DOMAIN-HEADER-1',
     activity_type: 'course',
@@ -301,9 +327,9 @@ test('activity domain has one view tag and its sole edit selector lives in the h
   assert.equal(enhanceActivityDrawerForm(form), true);
   const header = form.querySelector(':scope > .activity-drawer__header');
   const body = form.querySelector(':scope > .activity-drawer__body');
-  assert.equal(header.querySelectorAll('.activity-drawer__meta-tag').length, 3);
+  assert.equal(header.querySelectorAll('.activity-drawer__meta-tag').length, 2);
   assert.equal([...header.querySelectorAll('.activity-drawer__meta-tag')]
-    .filter((tag) => tag.textContent.trim() === 'Y').length, 1);
+    .filter((tag) => tag.textContent.trim() === 'Y').length, 0);
   assert.equal(header.querySelectorAll('[name="activity_domain"]').length, 1);
   assert.equal(body.querySelector('[name="activity_domain"]'), null);
   assert.equal(form.querySelectorAll('[name="activity_domain"]').length, 1);
