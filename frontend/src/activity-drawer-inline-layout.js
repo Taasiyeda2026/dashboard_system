@@ -85,6 +85,29 @@ function extractFieldControls(form, names) {
   return controls;
 }
 
+function extractStandaloneControl(form, name) {
+  const control = form.querySelector(`[name="${name}"]`);
+  if (!control) return null;
+  const controls = form.ownerDocument.createElement('div');
+  controls.className = 'activity-drawer-inline__controls';
+  controls.append(control);
+  return controls;
+}
+
+function makeEditOnlyActivityField(doc, { label, editControls, className = '' }) {
+  if (!editControls) return null;
+  const field = doc.createElement('div');
+  field.className = ['activity-drawer-inline__field', className].filter(Boolean).join(' ');
+  field.setAttribute('data-mode', 'edit');
+  field.hidden = true;
+
+  const labelEl = doc.createElement('div');
+  labelEl.className = 'activity-drawer-inline__label';
+  labelEl.textContent = label;
+  field.append(labelEl, editControls);
+  return field;
+}
+
 function makeField(doc, { label, viewValue = '—', editControls = null, className = '' }) {
   const field = doc.createElement('div');
   field.className = ['activity-drawer-inline__field', className].filter(Boolean).join(' ');
@@ -233,6 +256,8 @@ function coreDetails(form, body, row, existingValues) {
   const instructorControls = extractFieldControls(form, ['emp_id']);
   const classControls = extractFieldControls(form, ['grade', 'class_group']);
   const timeControls = extractFieldControls(form, ['start_time', 'end_time']);
+  const genderControls = extractStandaloneControl(form, 'required_instructor_gender');
+  const languageControls = extractStandaloneControl(form, 'instruction_language');
   // The central association picker is the only funding UI. Keep the legacy
   // activities.funding value intact, but never render its edit control.
   const fundingControls = extractFieldControls(form, ['funding_sources']);
@@ -265,6 +290,8 @@ function coreDetails(form, body, row, existingValues) {
     makeField(doc, { label: twoInstructors ? 'מדריכים' : 'מדריך/ה', viewValue: instructorView, editControls: instructorControls }),
     makeField(doc, { label: 'כיתה / קבוצה', viewValue: classView, editControls: classControls }),
     makeField(doc, { label: 'שעות', viewValue: timeView, editControls: timeControls }),
+    makeEditOnlyActivityField(doc, { label: 'מגדר', editControls: genderControls, className: 'activity-drawer-inline__field--gender' }),
+    makeEditOnlyActivityField(doc, { label: 'שפת הדרכה', editControls: languageControls, className: 'activity-drawer-inline__field--language' }),
     makeField(doc, {
       label: 'גורם מימון',
       viewValue: (row.funding_sources || []).map((source) => source?.name).filter(clean).join(' + ') || row.funding,
@@ -280,6 +307,10 @@ function coreDetails(form, body, row, existingValues) {
   ].filter(Boolean).forEach((field) => grid.append(field));
 
   addRemainingEditFields(form, grid, row);
+  // Scheduling requirements are ordinary activity fields in edit mode. Their
+  // controls were moved into the shared activity grid above, so the old wrapper
+  // must not remain as a separate floating block.
+  form.querySelector('[data-scheduling-fields]')?.remove();
 
   const typeSelect = form.querySelector('[name="activity_type"]');
   const syncParticipantsVisibility = () => {
