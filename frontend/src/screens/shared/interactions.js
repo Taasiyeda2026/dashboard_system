@@ -204,6 +204,9 @@ export function createSharedInteractionLayer() {
       prev();
     }
 
+    // Drawer variants belong to the content being replaced. Activity content
+    // may add this class again in the layout pipeline below.
+    drawer.classList.remove('ds-drawer--activity-inline');
     titleNode.innerHTML = defaultDrawerTitle(title);
     contentNode.innerHTML = asHtml(content);
     applyActivityDrawerLayoutPipeline(contentNode);
