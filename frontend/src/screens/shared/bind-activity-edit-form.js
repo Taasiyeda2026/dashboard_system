@@ -886,9 +886,10 @@ export function bindActivityEditForm(contentRoot, {
             const requestKey = `${catalogIdentity.activity_no || catalogIdentity.gefen_number || catalogIdentity.activity_name}:${catalogIdentity.meetings_count}`;
             form.dataset.catalogDateSyncRequest = requestKey;
             resizeMeetingDateCardsToSessionCount(form, catalogIdentity.meetings_count);
-            void syncCatalogMeetingDates(form, catalogIdentity).then(() => {
+            const season = String(form.getAttribute('data-activity-season') || form.dataset.activitySeason || '').trim();
+            void loadSchoolCalendarRows().then((rows) => {
               if (form.dataset.catalogDateSyncRequest !== requestKey) return;
-              updateEndDateDisplay(form);
+              syncMeetingDatesToSessionCount(form, catalogIdentity.meetings_count, isSummerActivitySeason(season) ? [] : rows);
             });
           }
         }
