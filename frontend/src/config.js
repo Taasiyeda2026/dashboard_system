@@ -129,3 +129,4 @@ config.HOTFIX_VERSION = `permissions-hidden-preserve-20260823-v1-${config.HOTFIX
 config.HOTFIX_VERSION = `permissions-canonical-hierarchy-20260823-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `approved-seven-user-permission-matrix-20260823-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `instructor-drawer-variant-reset-20260824-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `instructor-drawer-title-cleanup-20260824-v1-${config.HOTFIX_VERSION}`;
