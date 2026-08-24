@@ -125,11 +125,11 @@ function currentUserIdentityValues() {
 
 const ACTIVITY_MEETING_DATE_COLUMNS = Array.from({ length: 35 }, (_, index) => `date_${index + 1}`);
 const DASHBOARD_ACTIVITY_COLUMNS = [
-  'row_id', 'activity_family', 'activity_manager', 'activity_name', 'authority', 'school',
+  'row_id', 'activity_season', 'activity_family', 'activity_manager', 'activity_name', 'authority', 'school',
   'instructor_name', 'instructor_name_2', 'emp_id', 'emp_id_2', 'start_date', 'end_date',
   'status', 'activity_type', 'district', ...ACTIVITY_MEETING_DATE_COLUMNS
 ].join(',');
-const DASHBOARD_ACTIVITY_MIN_COLUMNS = 'row_id,activity_family,activity_manager,activity_name,authority,school,instructor_name,instructor_name_2,emp_id,emp_id_2,start_date,end_date,status,activity_type';
+const DASHBOARD_ACTIVITY_MIN_COLUMNS = 'row_id,activity_season,activity_family,activity_manager,activity_name,authority,school,instructor_name,instructor_name_2,emp_id,emp_id_2,start_date,end_date,status,activity_type';
 // Explicit list/read-model projections. Full activity rows are fetched only by activityDetail.
 const ACTIVITY_LIST_COLUMNS = [
   'id', 'row_id', 'activity_family', 'activity_manager', 'district', 'authority_id', 'school_id',

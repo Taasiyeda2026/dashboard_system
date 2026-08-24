@@ -63,7 +63,8 @@ import { canEditDirect, canAddActivityDirect, canRequestEdit, canRequestCreateAc
 import { hasPermission } from '../permission-policy.js';
 import { bindInstructorScheduling } from './instructor-scheduling-workflow.js';
 import { loadActivityCoordinationContext } from '../activity-coordination/data.js';
-import { bindCoordinationActivityModal, bindCoordinationWorkspace, coordinationDrawerActionHtml, reconcileVisibleDrafts, renderCoordinationActivityModal, renderCoordinationWorkspace } from '../activity-coordination/view.js';
+import { COORDINATION_STATUS } from '../activity-coordination/domain.js';
+import { bindCoordinationActivityModal, bindCoordinationWorkspace, coordinationDrawerActionHtml, coordinationUiStatus, reconcileVisibleDrafts, renderCoordinationActivityModal, renderCoordinationWorkspace } from '../activity-coordination/view.js';
 const taasiyedaLogoSrc = new URL('../../assets/logo1.png', import.meta.url).href;
 
 const inflightActivityDetailRequests = new Map();
@@ -391,7 +392,13 @@ function activityPeriodUsesMonthNavigation(state = {}) {
 function activityPeriodTabsHtml(rows, activeYearKey, state = {}) {
   const yearKey = normalizeActivityPeriodTab(activeYearKey);
   const activeTab = normalizeActivitiesInnerTab(state.activitiesInnerTab, yearKey);
-  const countFor = (tabKey) => activityRowsForInnerTab(rows, { ...state, activityPeriodTab: yearKey, activitiesInnerTab: tabKey }).length;
+  const countFor = (tabKey) => {
+    if (yearKey === ACTIVITY_SEASON_SCHOOL_2027 && tabKey === ACTIVITIES_INNER_TAB_COORDINATION) {
+      const coordinationItems = Array.isArray(state?.activityCoordination?.items) ? state.activityCoordination.items : [];
+      return coordinationItems.filter((item) => coordinationUiStatus(item) === COORDINATION_STATUS.READY).length;
+    }
+    return activityRowsForInnerTab(rows, { ...state, activityPeriodTab: yearKey, activitiesInnerTab: tabKey }).length;
+  };
   return `<div class="ds-activities-period-tabs" role="tablist" aria-label="חלוקה פנימית לפעילויות ${escapeHtml(globalActivityPeriodLabel(yearKey))}" dir="rtl">
     ${activityInnerTabsForYear(yearKey).map((tab) => `<button type="button" class="ds-chip ds-chip--tab ds-activities-period-tab${tab.key === activeTab ? ' is-active' : ''}" role="tab" aria-selected="${tab.key === activeTab ? 'true' : 'false'}" data-activity-period-tab="${escapeHtml(tab.key)}">
       <span>${escapeHtml(tab.label)}</span><strong>${escapeHtml(String(countFor(tab.key)))}</strong>

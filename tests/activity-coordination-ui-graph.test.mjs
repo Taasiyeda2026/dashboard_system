@@ -28,6 +28,10 @@ test('activities list projection includes activity_no for syllabus preparation m
   assert.match(api, /const ACTIVITY_TABLE_COLUMNS = \[[\s\S]*'activity_no'[\s\S]*\]\.join\(','\)/);
 });
 
+test('coordination tab badge counts only activities that are actually ready to send', () => {
+  assert.match(activities, /tabKey === ACTIVITIES_INNER_TAB_COORDINATION[\s\S]*coordinationUiStatus\(item\) === COORDINATION_STATUS\.READY/);
+});
+
 test('coordination selection keeps the existing ready-only group preparation flow', () => {
   assert.match(view, /data-coordination-select-ready[\s\S]*row\?\.dataset\.status === COORDINATION_STATUS\.READY/);
   assert.match(view, /groupActivitiesForDispatch\(selected\)/);
