@@ -290,14 +290,14 @@ function coreDetails(form, body, row, existingValues) {
     makeField(doc, { label: twoInstructors ? 'מדריכים' : 'מדריך/ה', viewValue: instructorView, editControls: instructorControls }),
     makeField(doc, { label: 'כיתה / קבוצה', viewValue: classView, editControls: classControls }),
     makeField(doc, { label: 'שעות', viewValue: timeView, editControls: timeControls }),
-    makeEditOnlyActivityField(doc, { label: 'מגדר', editControls: genderControls, className: 'activity-drawer-inline__field--gender' }),
-    makeEditOnlyActivityField(doc, { label: 'שפת הדרכה', editControls: languageControls, className: 'activity-drawer-inline__field--language' }),
     makeField(doc, {
       label: 'גורם מימון',
       viewValue: (row.funding_sources || []).map((source) => source?.name).filter(clean).join(' + ') || row.funding,
       editControls: fundingControls
     }),
     makeField(doc, { label: 'מחיר', viewValue: formatMoney(row.price), editControls: priceControls }),
+    makeEditOnlyActivityField(doc, { label: 'מגדר', editControls: genderControls, className: 'activity-drawer-inline__field--gender' }),
+    makeEditOnlyActivityField(doc, { label: 'שפת הדרכה', editControls: languageControls, className: 'activity-drawer-inline__field--language' }),
     hasOwnParticipantsSection ? null : makeField(doc, {
       label: 'מספר משתתפים',
       viewValue: existingValues.get('מספר משתתפים') || row.participants_count,
