@@ -134,17 +134,8 @@ test('saving an unrelated note does not include or erase the selected course nam
 });
 
 
-test('changing a catalog course automatically resizes and extends weekly meeting dates', async () => {
-  installStorageMocks();
-  const { bindActivityEditForm } = await import('../frontend/src/screens/shared/bind-activity-edit-form.js');
-  const settings = {
-    dropdown_options: {
-      activity_names: [
-        { label: 'בינה מלאכותית', activity_no: '9545', gefen_number: '9545', activity_type: 'course', meetings_count: 8 },
-        { label: 'ביומימיקרי', activity_no: '6089', gefen_number: '6089', activity_type: 'course', meetings_count: 11 }
-      ]
-    }
-  };
+test('catalog session sync extends dates weekly and skips school holidays', async () => {
+  const { syncMeetingDatesToSessionCount } = await import('../frontend/src/screens/shared/bind-activity-edit-form.js');
   const row = {
     RowID: 'AUTO-DATES-1',
     source_sheet: 'activities',
@@ -152,7 +143,6 @@ test('changing a catalog course automatically resizes and extends weekly meeting
     item_type: 'course',
     activity_name: 'בינה מלאכותית',
     activity_no: '9545',
-    gefen_number: '9545',
     sessions: 8,
     status: 'פתוח',
     date_1: '2026-10-08',
@@ -164,38 +154,32 @@ test('changing a catalog course automatically resizes and extends weekly meeting
     date_7: '2026-11-19',
     date_8: '2026-11-26'
   };
-  const dom = new JSDOM(`<main>${activityWorkDrawerHtml(row, { canEdit: true, canDirectEdit: true, settings })}</main>`);
-  const previousAbortController = globalThis.AbortController;
-  globalThis.AbortController = dom.window.AbortController;
+  const dom = new JSDOM(`<main>${activityWorkDrawerHtml(row, { canEdit: true, canDirectEdit: true })}</main>`);
+  const previousDocument = globalThis.document;
+  globalThis.document = dom.window.document;
   try {
-    const root = dom.window.document.querySelector('main');
-    bindActivityEditForm(root, { api: {}, ui: {} });
-    root.querySelector('[data-action="start-edit"]').click();
+    const form = dom.window.document.querySelector('[data-drawer-form]');
+    const holiday = [{
+      title: 'חנוכה',
+      start_date: '2026-12-06',
+      end_date: '2026-12-12',
+      blocks_scheduling: true,
+      show_on_main_calendar: true,
+      is_active: true
+    }];
 
-    const nameSelect = root.querySelector('[data-role="activity-name-select"]');
-    nameSelect.value = 'ביומימיקרי';
-    nameSelect.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
-
-    const dates = [...root.querySelectorAll('[data-meeting-dates-edit] input[data-meeting-idx]')].map((input) => input.value);
-    assert.equal(dates.length, 11);
-    assert.deepEqual(dates.slice(8), ['2026-12-03', '2026-12-10', '2026-12-17']);
-    assert.equal(root.querySelector('[data-computed-end-display]').textContent, '17/12/2026');
+    assert.equal(syncMeetingDatesToSessionCount(form, 11, holiday), true);
+    const dates = [...form.querySelectorAll('[data-meeting-dates-edit] input[data-meeting-idx]')].map((input) => input.value);
+    assert.deepEqual(dates.slice(8), ['2026-12-03', '2026-12-17', '2026-12-24']);
+    assert.equal(form.querySelector('[data-computed-end-display]').textContent, '24/12/2026');
+    assert.match(form.querySelector('[data-session-deferral-note]').textContent, /נדחה בשבוע/);
   } finally {
-    globalThis.AbortController = previousAbortController;
+    globalThis.document = previousDocument;
   }
 });
 
-test('changing to a catalog course with fewer sessions removes trailing meeting dates', async () => {
-  installStorageMocks();
-  const { bindActivityEditForm } = await import('../frontend/src/screens/shared/bind-activity-edit-form.js');
-  const settings = {
-    dropdown_options: {
-      activity_names: [
-        { label: 'קורס 11', activity_no: 'C-11', activity_type: 'course', meetings_count: 11 },
-        { label: 'קורס 8', activity_no: 'C-8', activity_type: 'course', meetings_count: 8 }
-      ]
-    }
-  };
+test('catalog session sync trims trailing dates when the replacement course is shorter', async () => {
+  const { syncMeetingDatesToSessionCount } = await import('../frontend/src/screens/shared/bind-activity-edit-form.js');
   const row = {
     RowID: 'AUTO-DATES-2',
     source_sheet: 'activities',
@@ -214,26 +198,20 @@ test('changing to a catalog course with fewer sessions removes trailing meeting 
     date_7: '2026-11-19',
     date_8: '2026-11-26',
     date_9: '2026-12-03',
-    date_10: '2026-12-10',
-    date_11: '2026-12-17'
+    date_10: '2026-12-17',
+    date_11: '2026-12-24'
   };
-  const dom = new JSDOM(`<main>${activityWorkDrawerHtml(row, { canEdit: true, canDirectEdit: true, settings })}</main>`);
-  const previousAbortController = globalThis.AbortController;
-  globalThis.AbortController = dom.window.AbortController;
+  const dom = new JSDOM(`<main>${activityWorkDrawerHtml(row, { canEdit: true, canDirectEdit: true })}</main>`);
+  const previousDocument = globalThis.document;
+  globalThis.document = dom.window.document;
   try {
-    const root = dom.window.document.querySelector('main');
-    bindActivityEditForm(root, { api: {}, ui: {} });
-    root.querySelector('[data-action="start-edit"]').click();
-
-    const nameSelect = root.querySelector('[data-role="activity-name-select"]');
-    nameSelect.value = 'קורס 8';
-    nameSelect.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
-
-    const dates = [...root.querySelectorAll('[data-meeting-dates-edit] input[data-meeting-idx]')].map((input) => input.value);
+    const form = dom.window.document.querySelector('[data-drawer-form]');
+    assert.equal(syncMeetingDatesToSessionCount(form, 8, []), true);
+    const dates = [...form.querySelectorAll('[data-meeting-dates-edit] input[data-meeting-idx]')].map((input) => input.value);
     assert.equal(dates.length, 8);
     assert.equal(dates.at(-1), '2026-11-26');
-    assert.equal(root.querySelector('[data-computed-end-display]').textContent, '26/11/2026');
+    assert.equal(form.querySelector('[data-computed-end-display]').textContent, '26/11/2026');
   } finally {
-    globalThis.AbortController = previousAbortController;
+    globalThis.document = previousDocument;
   }
 });

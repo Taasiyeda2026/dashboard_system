@@ -9,6 +9,9 @@ import { applyApprovedDrawerFixes } from '../../activity-drawer-approved-fixes.j
 import { activityTypeMatches, getValidInstructorUsers, humanDisplayText, INSTRUCTOR_CONTACTS_MISSING_ERROR_MESSAGE, INSTRUCTOR_IDENTITY_ERROR_MESSAGE, isCanonicalActivityTypeKey, normalizeActivityTypeKey, normalizeOneDayActivityType, resolveInstructorSelectionByEmpId, validateInstructorIdentityPayload } from './activity-options.js';
 import { catalogActivityChangesFromSelection, selectedActivityCatalogIdentity, syncActivityCatalogIdentityFromName } from '../../activity-catalog-identity.js';
 import { validateCourseFundingSplit } from '../../activity-funding-picker-compact.js';
+import { generateSessionDatesFromFirstMeeting } from './school-calendar-form-guard.js';
+import { loadSchoolCalendarRows } from './school-calendar-data.js';
+import { isSummerActivitySeason } from './school-calendar-logic.js';
 import {
   READ_ONLY_ACTIVITY_PERIOD_MESSAGE,
   isActivityMutationBlocked
@@ -190,12 +193,12 @@ function buildMeetingPickerCell(form, idx, dateValue) {
   return cell;
 }
 
-export function syncMeetingDatesToSessionCount(form, targetCount) {
+function resizeMeetingDateCardsToSessionCount(form, targetCount) {
   const grid = form?.querySelector?.('[data-meeting-dates-edit]');
-  if (!grid || form?.dataset?.isOnce === 'yes') return false;
+  if (!grid || form?.dataset?.isOnce === 'yes') return 0;
 
   const parsedTotal = Number.parseInt(String(targetCount ?? ''), 10);
-  if (!Number.isFinite(parsedTotal) || parsedTotal < 1) return false;
+  if (!Number.isFinite(parsedTotal) || parsedTotal < 1) return 0;
   const total = Math.min(35, parsedTotal);
 
   let cards = Array.from(grid.querySelectorAll(':scope > .activity-drawer__date-card'));
@@ -205,35 +208,37 @@ export function syncMeetingDatesToSessionCount(form, targetCount) {
   }
 
   while (cards.length < total) {
-    const idx = cards.length;
-    const previousPicker = cards[idx - 1]?.querySelector('input[data-meeting-idx]');
-    const previousDate = String(previousPicker?.value || '').trim();
-    const nextDate = previousDate ? addDays(previousDate, 7) : '';
-    grid.appendChild(buildMeetingPickerCell(form, idx, nextDate));
+    grid.appendChild(buildMeetingPickerCell(form, cards.length, ''));
     cards = Array.from(grid.querySelectorAll(':scope > .activity-drawer__date-card'));
   }
 
-  const pickers = Array.from(grid.querySelectorAll('input[data-meeting-idx]'))
-    .sort((a, b) => Number(a.dataset.meetingIdx) - Number(b.dataset.meetingIdx));
-  let previousDate = '';
-  pickers.forEach((picker) => {
-    const current = String(picker.value || '').trim();
-    if (current) {
-      previousDate = current;
-      return;
-    }
-    if (!previousDate) return;
-    const generated = addDays(previousDate, 7);
-    if (!generated) return;
-    picker.value = generated;
-    previousDate = generated;
-  });
-
+  const datesSection = grid.closest('[data-dates-section]');
+  if (datesSection) datesSection.dataset.sessionTotal = String(total);
   reindexMeetingDateCards(form);
+  updateMeetingWeekdays(form);
+  updateMoreDatesToggle(form);
+  return total;
+}
+
+export function syncMeetingDatesToSessionCount(form, targetCount, blockedDatesContext = []) {
+  const total = resizeMeetingDateCardsToSessionCount(form, targetCount);
+  if (!total) return false;
+
+  generateSessionDatesFromFirstMeeting(form, blockedDatesContext);
   updateMeetingWeekdays(form);
   updateMoreDatesToggle(form);
   updateEndDateDisplay(form);
   return true;
+}
+
+async function syncCatalogMeetingDates(form, catalogIdentity) {
+  if (!catalogIdentity?.isCatalogSelection || !Number.isFinite(Number(catalogIdentity.meetings_count))) return false;
+  const total = resizeMeetingDateCardsToSessionCount(form, catalogIdentity.meetings_count);
+  if (!total) return false;
+
+  const season = String(form.getAttribute('data-activity-season') || form.dataset.activitySeason || '').trim();
+  const calendarRows = isSummerActivitySeason(season) ? [] : await loadSchoolCalendarRows();
+  return syncMeetingDatesToSessionCount(form, total, calendarRows);
 }
 
 function updateMeetingWeekdays(form) {
@@ -498,7 +503,7 @@ export function bindActivityEditForm(contentRoot, {
       catalogSelection.gefen_number !== String(initialValues.gefen_number || '').trim()
     );
     if (catalogSelectionChanged && Number.isFinite(Number(catalogSelection.meetings_count))) {
-      syncMeetingDatesToSessionCount(form, catalogSelection.meetings_count);
+      await syncCatalogMeetingDates(form, catalogSelection);
     }
 
     collectMeetingDateChanges(form, initialValues, changes);
@@ -878,7 +883,14 @@ export function bindActivityEditForm(contentRoot, {
         if (nameEl) {
           const catalogIdentity = syncActivityCatalogIdentityFromName(form, { clearWhenNoSelection: true });
           if (catalogIdentity?.isCatalogSelection && Number.isFinite(Number(catalogIdentity.meetings_count))) {
-            syncMeetingDatesToSessionCount(form, catalogIdentity.meetings_count);
+            const requestKey = `${catalogIdentity.activity_no || catalogIdentity.gefen_number || catalogIdentity.activity_name}:${catalogIdentity.meetings_count}`;
+            form.dataset.catalogDateSyncRequest = requestKey;
+            resizeMeetingDateCardsToSessionCount(form, catalogIdentity.meetings_count);
+            const season = String(form.getAttribute('data-activity-season') || form.dataset.activitySeason || '').trim();
+            void loadSchoolCalendarRows().then((rows) => {
+              if (form.dataset.catalogDateSyncRequest !== requestKey) return;
+              syncMeetingDatesToSessionCount(form, catalogIdentity.meetings_count, isSummerActivitySeason(season) ? [] : rows);
+            });
           }
         }
 
