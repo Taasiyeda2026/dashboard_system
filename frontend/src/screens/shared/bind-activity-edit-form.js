@@ -72,6 +72,73 @@ const HUMAN_DISPLAY_FIELDS = new Set([
   'title'
 ]);
 
+function drawerExportRow(form) {
+  try {
+    return JSON.parse(form?.dataset?.exportRow || '{}') || {};
+  } catch {
+    return {};
+  }
+}
+
+export function ensureExistingActivityNameSelected(form) {
+  const select = form?.querySelector?.('[data-role="activity-name-select"]');
+  if (!select) return false;
+
+  const row = drawerExportRow(form);
+  const storedName = humanDisplayText(
+    row.activity_name
+    || row.program_name
+    || row.title
+    || row.name
+    || form?._initialValues?.activity_name
+  );
+  if (!storedName) return false;
+
+  const activityNoInput = form.querySelector('[data-activity-no], [name="activity_no"]');
+  const gefenNumberInput = form.querySelector('[data-gefen-number], [name="gefen_number"]');
+  const storedActivityNo = String(row.activity_no || activityNoInput?.value || '').trim();
+  const storedGefenNumber = String(row.gefen_number || gefenNumberInput?.value || '').trim();
+  const storedType = normalizeActivityTypeKey(row.activity_type || row.item_type || form.querySelector('[name="activity_type"]')?.value || '');
+  const storedMeetings = String(row.sessions ?? '').trim();
+
+  const candidates = Array.from(select.options).filter((option) => String(option.value || '').trim() === storedName);
+  let selectedOption = candidates.find((option) => {
+    const optionActivityNo = String(option.dataset.activityNo || '').trim();
+    const optionGefenNumber = String(option.dataset.gefenNumber || '').trim();
+    if (!storedActivityNo && !storedGefenNumber) return true;
+    return (storedActivityNo && optionActivityNo === storedActivityNo)
+      || (storedGefenNumber && optionGefenNumber === storedGefenNumber);
+  }) || null;
+
+  if (!selectedOption) {
+    selectedOption = form.ownerDocument.createElement('option');
+    selectedOption.value = storedName;
+    selectedOption.textContent = storedName;
+    select.appendChild(selectedOption);
+  }
+
+  if (storedActivityNo && !String(selectedOption.dataset.activityNo || '').trim()) {
+    selectedOption.dataset.activityNo = storedActivityNo;
+  }
+  if (storedGefenNumber && !String(selectedOption.dataset.gefenNumber || '').trim()) {
+    selectedOption.dataset.gefenNumber = storedGefenNumber;
+  }
+  if (storedMeetings && !String(selectedOption.dataset.meetingsCount || '').trim()) {
+    selectedOption.dataset.meetingsCount = storedMeetings;
+  }
+  if (storedType && !String(selectedOption.dataset.activityType || '').trim()) {
+    selectedOption.dataset.activityType = storedType;
+  }
+
+  Array.from(select.options).forEach((option) => {
+    option.selected = option === selectedOption;
+  });
+  select.value = storedName;
+  if (activityNoInput && storedActivityNo) activityNoInput.value = storedActivityNo;
+  if (gefenNumberInput && storedGefenNumber) gefenNumberInput.value = storedGefenNumber;
+  return select.value === storedName;
+}
+
 function normalizeActivityStatusForSave(value) {
   const clean = String(value || '').trim();
   if (clean === 'סגור' || clean.toLowerCase() === 'closed') return 'סגור';
@@ -759,8 +826,10 @@ export function bindActivityEditForm(contentRoot, {
 
       if (ev.target.closest('[data-action="start-edit"]')) {
         if (blockReadOnlyActivityMutation(form, appState)) return;
+        ensureExistingActivityNameSelected(form);
         setEditMode(form, true);
         applyApprovedDrawerFixes(form);
+        ensureExistingActivityNameSelected(form);
         captureFormInitialValues(form);
         const nameSel = form.querySelector('[data-role="activity-name-select"]');
         if (nameSel && nameSel.options.length < 2) {
@@ -867,6 +936,7 @@ export function bindActivityEditForm(contentRoot, {
     const nameSel = form.querySelector('[data-role="activity-name-select"]');
     if (nameSel) nameSel.disabled = !normalizeActivityTypeKey(typeEl?.value);
     if (typeEl) form.dataset.activityNameType = normalizeActivityTypeKey(typeEl.value);
+    ensureExistingActivityNameSelected(form);
     syncActivityCatalogIdentityFromName(form);
     captureFormInitialValues(form);
     form._refreshInitialValues = () => captureFormInitialValues(form);
