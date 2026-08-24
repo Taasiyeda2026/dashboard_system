@@ -172,6 +172,13 @@
   gap: 8px;
 }
 
+@media (min-width: 901px) {
+  .activity-drawer-inline__grid[data-activity-layout="course"] .activity-drawer-inline__field--gender,
+  .activity-drawer-inline__grid[data-activity-layout="course"] .activity-drawer-inline__field--language {
+    grid-column: span 2;
+  }
+}
+
 .activity-drawer-inline-layout .activity-drawer__section--edit-group,
 .activity-drawer-inline-layout [data-central-info-section] {
   display: none !important;
