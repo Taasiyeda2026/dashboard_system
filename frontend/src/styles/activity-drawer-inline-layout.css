@@ -323,13 +323,9 @@
 
 .activity-drawer-inline__support {
   display: grid;
-  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   align-items: stretch;
   gap: 12px;
-}
-
-.activity-drawer-inline-layout[data-editing="yes"] .activity-drawer-inline__support {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .activity-drawer-inline__field--support,

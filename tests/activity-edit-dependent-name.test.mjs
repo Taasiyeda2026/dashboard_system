@@ -79,6 +79,54 @@ test('entering edit preserves the existing activity name and only a genuine type
   }
 });
 
+test('entering edit preserves the stored course even when the polished catalog contains the same label with a different identity', async () => {
+  installStorageMocks();
+  const { bindActivityEditForm } = await import('../frontend/src/screens/shared/bind-activity-edit-form.js');
+  const settings = {
+    program_activity_types: ['course'],
+    dropdown_options: {
+      activity_names: [
+        { label: 'ביומימיקרי', activity_no: 'WRONG-6089', gefen_number: '', activity_type: 'course', meetings_count: 10 }
+      ]
+    }
+  };
+  const html = activityWorkDrawerHtml({
+    RowID: 'school_2027_101',
+    source_sheet: 'activities',
+    activity_season: 'school_2027',
+    activity_type: 'course',
+    item_type: 'course',
+    activity_name: 'ביומימיקרי',
+    activity_no: '6089',
+    gefen_number: '6089',
+    sessions: 11,
+    status: 'פתוח'
+  }, { canEdit: true, canDirectEdit: true, settings });
+  const dom = new JSDOM(`<div class="ds-drawer"><main>${html}</main></div>`);
+  const previousAbortController = globalThis.AbortController;
+  globalThis.AbortController = dom.window.AbortController;
+  try {
+    const root = dom.window.document.querySelector('main');
+    bindActivityEditForm(root, { api: {}, ui: {}, appState: { clientSettings: settings } });
+
+    const nameSelect = root.querySelector('[data-role="activity-name-select"]');
+    const current = () => nameSelect.selectedOptions[0];
+    assert.equal(nameSelect.value, 'ביומימיקרי');
+    assert.equal(current()?.dataset.activityNo, '6089');
+    assert.equal(current()?.dataset.gefenNumber, '6089');
+    assert.equal(current()?.dataset.meetingsCount, '11');
+
+    root.querySelector('[data-action="start-edit"]').click();
+
+    assert.equal(nameSelect.value, 'ביומימיקרי');
+    assert.equal(current()?.dataset.activityNo, '6089');
+    assert.equal(current()?.dataset.gefenNumber, '6089');
+    assert.equal(current()?.dataset.meetingsCount, '11');
+  } finally {
+    globalThis.AbortController = previousAbortController;
+  }
+});
+
 test('legacy fallback name is injected and selected without replacing its activity number', async () => {
   installStorageMocks();
   const { bindActivityEditForm } = await import('../frontend/src/screens/shared/bind-activity-edit-form.js');
