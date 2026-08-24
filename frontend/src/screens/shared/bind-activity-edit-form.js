@@ -165,7 +165,7 @@ function getChainMode(form) {
 }
 
 function buildMeetingPickerCell(form, idx, dateValue) {
-  const cell = document.createElement('div');
+  const cell = form.ownerDocument.createElement('div');
   cell.className = 'activity-drawer__date-card';
   cell.dataset.meetingIndex = String(idx);
   const dayLetter = (() => {
@@ -194,8 +194,9 @@ export function syncMeetingDatesToSessionCount(form, targetCount) {
   const grid = form?.querySelector?.('[data-meeting-dates-edit]');
   if (!grid || form?.dataset?.isOnce === 'yes') return false;
 
-  const total = Math.max(1, Math.min(35, Number.parseInt(String(targetCount ?? ''), 10) || 0));
-  if (!total) return false;
+  const parsedTotal = Number.parseInt(String(targetCount ?? ''), 10);
+  if (!Number.isFinite(parsedTotal) || parsedTotal < 1) return false;
+  const total = Math.min(35, parsedTotal);
 
   let cards = Array.from(grid.querySelectorAll(':scope > .activity-drawer__date-card'));
   while (cards.length > total) {
