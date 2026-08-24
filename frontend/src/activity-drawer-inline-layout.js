@@ -247,6 +247,11 @@ function addRemainingEditFields(form, coreGrid, row) {
   });
 }
 
+function isolatedPair(first, second) {
+  const values = [first, second].map((value) => clean(value)).filter(Boolean);
+  return values.map((value) => `\u2068${value}\u2069`).join(' / ');
+}
+
 function coreDetails(form, body, row, existingValues) {
   const doc = form.ownerDocument;
   const activityType = normalizeType(row.activity_type || row.item_type);
@@ -280,7 +285,7 @@ function coreDetails(form, body, row, existingValues) {
   const instructorView = twoInstructors
     ? [existingValues.get('מדריך/ה 1') || row.instructor_name, existingValues.get('מדריך/ה 2') || row.instructor_name_2].filter(clean).join(' / ')
     : (existingValues.get('מדריך/ה') || row.instructor_name || '—');
-  const classView = existingValues.get('כיתה / קבוצה') || [row.grade, row.class_group].filter(clean).join(' / ');
+  const classView = isolatedPair(row.grade, row.class_group) || existingValues.get('כיתה / קבוצה');
   const timeView = existingValues.get('שעות') || (
     clean(row.start_time) && clean(row.end_time) ? `${clean(row.start_time).slice(0, 5)}–${clean(row.end_time).slice(0, 5)}` : ''
   );
@@ -288,8 +293,8 @@ function coreDetails(form, body, row, existingValues) {
   [
     makeField(doc, { label: 'מנהל פעילות', viewValue: managerView, editControls: managerControls }),
     makeField(doc, { label: twoInstructors ? 'מדריכים' : 'מדריך/ה', viewValue: instructorView, editControls: instructorControls }),
-    makeField(doc, { label: 'כיתה / קבוצה', viewValue: classView, editControls: classControls }),
-    makeField(doc, { label: 'שעות', viewValue: timeView, editControls: timeControls }),
+    makeField(doc, { label: 'כיתה / קבוצה', viewValue: classView, editControls: classControls, className: 'activity-drawer-inline__field--mixed-bidi' }),
+    makeField(doc, { label: 'שעות', viewValue: timeView, editControls: timeControls, className: 'activity-drawer-inline__field--time-bidi' }),
     makeField(doc, {
       label: 'גורם מימון',
       viewValue: (row.funding_sources || []).map((source) => source?.name).filter(clean).join(' + ') || row.funding,

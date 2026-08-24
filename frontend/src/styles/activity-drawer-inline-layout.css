@@ -147,6 +147,19 @@
   overflow-wrap: anywhere;
 }
 
+.activity-drawer-inline__field--time-bidi .activity-drawer-inline__value {
+  direction: ltr;
+  unicode-bidi: isolate;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.activity-drawer-inline__field--mixed-bidi .activity-drawer-inline__value {
+  direction: ltr;
+  unicode-bidi: isolate;
+  text-align: right;
+}
+
 .activity-drawer-inline__edit,
 .activity-drawer-inline__controls {
   min-inline-size: 0;
@@ -292,15 +305,31 @@
   margin-block-start: 10px;
 }
 
+.activity-drawer-inline-layout .activity-drawer__missing-dates-warning {
+  margin-block-start: 10px;
+  padding: 8px 10px;
+  border: 1px solid #e2b93b;
+  border-radius: 9px;
+  background: #fff9e8;
+  color: #7a5b00;
+  font-size: 0.76rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
 .activity-drawer-inline-layout .activity-drawer__action--ghost[data-action="add-meeting"] {
   margin-block-start: 10px;
 }
 
 .activity-drawer-inline__support {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
   align-items: stretch;
   gap: 12px;
+}
+
+.activity-drawer-inline-layout[data-editing="yes"] .activity-drawer-inline__support {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .activity-drawer-inline__field--support,
@@ -375,8 +404,7 @@
   min-block-size: 0;
 }
 
-.activity-drawer-inline-layout .activity-drawer__section--actions,
-.activity-drawer-inline-layout .activity-drawer__view-footer {
+.activity-drawer-inline-layout .activity-drawer__section--actions {
   position: sticky;
   inset-block-end: -16px;
   z-index: 5;
@@ -388,6 +416,16 @@
   background: rgba(255, 255, 255, 0.96) !important;
   box-shadow: 0 -3px 10px rgba(15, 23, 42, 0.06) !important;
   backdrop-filter: blur(10px);
+}
+
+.activity-drawer-inline-layout .activity-drawer__view-footer {
+  position: static;
+  margin: 14px 0 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  backdrop-filter: none;
 }
 
 .activity-drawer-inline-layout .activity-drawer__edit-actions {
@@ -452,6 +490,10 @@
     grid-template-columns: 1fr;
   }
 
+  .activity-drawer-inline-layout[data-editing="yes"] .activity-drawer-inline__support {
+    grid-template-columns: 1fr;
+  }
+
   .activity-drawer-inline-layout .activity-drawer__progress-row {
     grid-template-columns: 1fr;
   }
@@ -460,11 +502,15 @@
     min-inline-size: 0;
   }
 
-  .activity-drawer-inline-layout .activity-drawer__section--actions,
-  .activity-drawer-inline-layout .activity-drawer__view-footer {
+  .activity-drawer-inline-layout .activity-drawer__section--actions {
     inset-block-end: -12px;
     margin: 14px -12px -12px !important;
     padding: 10px 12px !important;
+  }
+
+  .activity-drawer-inline-layout .activity-drawer__view-footer {
+    margin: 12px 0 0 !important;
+    padding: 0 !important;
   }
 }
 

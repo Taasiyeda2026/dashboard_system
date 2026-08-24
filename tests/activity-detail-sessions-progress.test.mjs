@@ -17,11 +17,15 @@ test('existing 10-session course renders ten empty edit rows and correct progres
   assert.match(document.querySelector('[data-dates-progress-meta]').textContent, /0 מתוך 10 מפגשים/);
 });
 
-test('partial dates keep the persisted row count and their original positions', () => {
+test('partial dates keep the persisted row count and clearly warn about missing meeting dates', () => {
   for (const schedule of [[{ date: '2026-09-01' }], Array.from({ length: 5 }, (_, i) => ({ date: `2026-09-0${i + 1}` }))]) {
     const document = renderDrawer({ activity_type: 'course', sessions: '10', meeting_schedule: schedule });
     assert.equal(editRows(document).length, 10);
     assert.equal(document.querySelector('input[data-meeting-idx="0"]').value, '2026-09-01');
+    const warning = document.querySelector('[data-dates-missing-warning]');
+    assert.ok(warning);
+    assert.match(warning.textContent, new RegExp(`חסרים תאריכים ל־${10 - schedule.length} מפגשים`));
+    assert.equal(warning.hidden, false);
   }
 });
 
@@ -33,13 +37,15 @@ test('empty asynchronous schedule cannot shrink persisted edit rows or progress 
   assert.match(section.querySelector('[data-dates-progress-meta]').textContent, /0 מתוך 10 מפגשים/);
 });
 
-test('asynchronously loaded dates map onto matching persisted rows', () => {
+test('asynchronously loaded dates map onto matching persisted rows and retain the missing-date warning', () => {
   const document = renderDrawer({ activity_type: 'course', sessions: '10', meeting_schedule: [] });
   const section = document.querySelector('[data-dates-section]');
   patchDrawerDatesSection(section, { activity_type: 'course', meeting_schedule: [{ date: '2026-10-01' }, { date: '2026-10-08' }] });
   assert.equal(editRows(document).length, 10);
   assert.equal(section.querySelector('input[data-meeting-idx="0"]').value, '2026-10-01');
   assert.equal(section.querySelector('input[data-meeting-idx="1"]').value, '2026-10-08');
+  assert.equal(section.querySelectorAll('[data-dates-view-chips] [data-date-card]').length, 2);
+  assert.match(section.querySelector('[data-dates-missing-warning]').textContent, /חסרים תאריכים ל־8 מפגשים/);
 });
 
 test('end date shows the latest valid value from full details or an async meeting schedule', () => {
@@ -81,6 +87,7 @@ test('activity drawer progress uses persisted sessions when the loaded schedule 
       <div class="activity-drawer__progress-fill"></div>
       <strong data-computed-end-display></strong>
       <div data-dates-view-chips></div>
+      <div data-dates-missing-warning hidden></div>
       <div data-meeting-dates-edit></div>
     </section>
   `);
@@ -92,4 +99,5 @@ test('activity drawer progress uses persisted sessions when the loaded schedule 
   });
 
   assert.match(section.querySelector('[data-dates-progress-meta]').textContent, /0 מתוך 11 מפגשים/);
+  assert.match(section.querySelector('[data-dates-missing-warning]').textContent, /חסרים תאריכים ל־11 מפגשים/);
 });

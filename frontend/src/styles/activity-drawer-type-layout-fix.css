@@ -9,8 +9,9 @@
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
-.activity-drawer-inline__grid[data-activity-layout="course"] [data-field-key="funding"] {
-  grid-column: span 3;
+.activity-drawer-inline__grid[data-activity-layout="course"] [data-field-key="funding"],
+.activity-drawer-inline__grid[data-activity-layout="course"] [data-field-key="price"] {
+  grid-column: span 2;
 }
 
 .activity-drawer-inline__grid[data-activity-layout="workshop"] [data-field-key="manager"],
@@ -159,7 +160,8 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .activity-drawer-inline__grid[data-activity-layout="course"] [data-field-key="funding"] {
+  .activity-drawer-inline__grid[data-activity-layout="course"] [data-field-key="funding"],
+  .activity-drawer-inline__grid[data-activity-layout="course"] [data-field-key="price"] {
     grid-column: span 1;
   }
 }
