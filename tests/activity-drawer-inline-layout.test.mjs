@@ -32,6 +32,7 @@ const interactionsModuleUrl = new URL('../frontend/src/screens/shared/interactio
 const { enhanceActivityDrawerForm } = await import(`${moduleUrl.href}?test=${Date.now()}`);
 const { polishActivityDrawerEditOptions } = await import(`${dedupModuleUrl.href}?test=${Date.now()}`);
 const { activityWorkDrawerHtml } = await import('../frontend/src/screens/shared/activity-detail-html.js');
+const { profileHtml } = await import('../frontend/src/screens/instructor-workspace-ui.js');
 
 test('course start/end summary precedes progress and meeting cards without a boxed divider widget', async () => {
   const html = activityWorkDrawerHtml({
@@ -373,6 +374,37 @@ test('a read-only activity opened without an onOpen handler receives the shared 
   assert.equal(form.hasAttribute('data-activity-drawer-inline-layout'), true);
   assert.ok(form.querySelector(':scope > .activity-drawer-inline__header'));
   assert.equal(contentRoot._activityEditAbort, undefined);
+  ui.closeDrawer();
+  dom.window.close();
+});
+
+test('opening an instructor after an activity restores the regular drawer and a single profile title', async () => {
+  const dom = installDom('<!doctype html><html><body></body></html>');
+  const { createSharedInteractionLayer } = await import(`${interactionsModuleUrl.href}?instructor-after-activity=${Date.now()}`);
+  const ui = createSharedInteractionLayer();
+  const activity = {
+    RowID: 'ACTIVITY-BEFORE-INSTRUCTOR', activity_type: 'course', item_type: 'course',
+    activity_name: 'פעילות לפני מדריך', activity_no: 'ACT-1', status: 'פתוח'
+  };
+  const instructor = {
+    emp_id: '1500', full_name: 'מדריך לבדיקה', active: 'yes', address: 'תל אביב',
+    availability_rules: [], availability_exceptions: [], scheduling_profile: {}
+  };
+
+  ui.openDrawer({ title: '', content: activityWorkDrawerHtml(activity, { canEdit: false }) });
+  const drawer = document.querySelector('.ds-drawer');
+  assert.equal(drawer.classList.contains('ds-drawer--activity-inline'), true);
+
+  ui.closeDrawer();
+  ui.openDrawer({ title: instructor.full_name, content: profileHtml(instructor, [], false, true) });
+
+  assert.equal(drawer.classList.contains('ds-drawer--activity-inline'), false);
+  assert.ok(drawer.querySelector(':scope > .ds-drawer__header'));
+  assert.ok(drawer.querySelector(':scope > .ds-drawer__content > .instructor-profile'));
+  assert.equal(drawer.querySelector('.ds-drawer__title').textContent, instructor.full_name);
+  assert.equal(drawer.textContent.split(instructor.full_name).length - 1, 1);
+  assert.equal(drawer.querySelector('.instructor-profile__id').textContent, instructor.emp_id);
+
   ui.closeDrawer();
   dom.window.close();
 });
