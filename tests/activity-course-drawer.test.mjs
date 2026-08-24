@@ -72,6 +72,9 @@ test('course drawer keeps polished dates, meeting notes, edit-only scheduling fi
   assert.equal(schedulingFields.getAttribute('data-mode'), 'edit');
   assert.ok(schedulingFields.querySelector('[name="required_instructor_gender"]'));
   assert.ok(schedulingFields.querySelector('[name="instruction_language"]'));
+  assert.match(schedulingFields.textContent, /מגדר/);
+  assert.match(schedulingFields.textContent, /שפת הדרכה/);
+  assert.doesNotMatch(schedulingFields.textContent, /דרישת מגדר|לא חובה/);
   const actions = rendered.querySelector('[data-activity-actions]');
   assert.ok(actions.querySelector('[data-coordination-approval]'));
   assert.equal(actions.textContent.trim(), 'אישור תיאום');
