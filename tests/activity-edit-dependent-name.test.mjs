@@ -132,3 +132,108 @@ test('saving an unrelated note does not include or erase the selected course nam
     globalThis.AbortController = previousAbortController;
   }
 });
+
+
+test('changing a catalog course automatically resizes and extends weekly meeting dates', async () => {
+  installStorageMocks();
+  const { bindActivityEditForm } = await import('../frontend/src/screens/shared/bind-activity-edit-form.js');
+  const settings = {
+    dropdown_options: {
+      activity_names: [
+        { label: 'בינה מלאכותית', activity_no: '9545', gefen_number: '9545', activity_type: 'course', meetings_count: 8 },
+        { label: 'ביומימיקרי', activity_no: '6089', gefen_number: '6089', activity_type: 'course', meetings_count: 11 }
+      ]
+    }
+  };
+  const row = {
+    RowID: 'AUTO-DATES-1',
+    source_sheet: 'activities',
+    activity_type: 'course',
+    item_type: 'course',
+    activity_name: 'בינה מלאכותית',
+    activity_no: '9545',
+    gefen_number: '9545',
+    sessions: 8,
+    status: 'פתוח',
+    date_1: '2026-10-08',
+    date_2: '2026-10-15',
+    date_3: '2026-10-22',
+    date_4: '2026-10-29',
+    date_5: '2026-11-05',
+    date_6: '2026-11-12',
+    date_7: '2026-11-19',
+    date_8: '2026-11-26'
+  };
+  const dom = new JSDOM(`<main>${activityWorkDrawerHtml(row, { canEdit: true, canDirectEdit: true, settings })}</main>`);
+  const previousAbortController = globalThis.AbortController;
+  globalThis.AbortController = dom.window.AbortController;
+  try {
+    const root = dom.window.document.querySelector('main');
+    bindActivityEditForm(root, { api: {}, ui: {} });
+    root.querySelector('[data-action="start-edit"]').click();
+
+    const nameSelect = root.querySelector('[data-role="activity-name-select"]');
+    nameSelect.value = 'ביומימיקרי';
+    nameSelect.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+
+    const dates = [...root.querySelectorAll('[data-meeting-dates-edit] input[data-meeting-idx]')].map((input) => input.value);
+    assert.equal(dates.length, 11);
+    assert.deepEqual(dates.slice(8), ['2026-12-03', '2026-12-10', '2026-12-17']);
+    assert.equal(root.querySelector('[data-computed-end-display]').textContent, '17/12/2026');
+  } finally {
+    globalThis.AbortController = previousAbortController;
+  }
+});
+
+test('changing to a catalog course with fewer sessions removes trailing meeting dates', async () => {
+  installStorageMocks();
+  const { bindActivityEditForm } = await import('../frontend/src/screens/shared/bind-activity-edit-form.js');
+  const settings = {
+    dropdown_options: {
+      activity_names: [
+        { label: 'קורס 11', activity_no: 'C-11', activity_type: 'course', meetings_count: 11 },
+        { label: 'קורס 8', activity_no: 'C-8', activity_type: 'course', meetings_count: 8 }
+      ]
+    }
+  };
+  const row = {
+    RowID: 'AUTO-DATES-2',
+    source_sheet: 'activities',
+    activity_type: 'course',
+    item_type: 'course',
+    activity_name: 'קורס 11',
+    activity_no: 'C-11',
+    sessions: 11,
+    status: 'פתוח',
+    date_1: '2026-10-08',
+    date_2: '2026-10-15',
+    date_3: '2026-10-22',
+    date_4: '2026-10-29',
+    date_5: '2026-11-05',
+    date_6: '2026-11-12',
+    date_7: '2026-11-19',
+    date_8: '2026-11-26',
+    date_9: '2026-12-03',
+    date_10: '2026-12-10',
+    date_11: '2026-12-17'
+  };
+  const dom = new JSDOM(`<main>${activityWorkDrawerHtml(row, { canEdit: true, canDirectEdit: true, settings })}</main>`);
+  const previousAbortController = globalThis.AbortController;
+  globalThis.AbortController = dom.window.AbortController;
+  try {
+    const root = dom.window.document.querySelector('main');
+    bindActivityEditForm(root, { api: {}, ui: {} });
+    root.querySelector('[data-action="start-edit"]').click();
+
+    const nameSelect = root.querySelector('[data-role="activity-name-select"]');
+    nameSelect.value = 'קורס 8';
+    nameSelect.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+
+    const dates = [...root.querySelectorAll('[data-meeting-dates-edit] input[data-meeting-idx]')].map((input) => input.value);
+    assert.equal(dates.length, 8);
+    assert.equal(dates.at(-1), '2026-11-26');
+    assert.equal(root.querySelector('[data-computed-end-display]').textContent, '26/11/2026');
+  } finally {
+    globalThis.AbortController = previousAbortController;
+  }
+});
