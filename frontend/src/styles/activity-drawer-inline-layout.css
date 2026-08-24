@@ -291,7 +291,8 @@
 
 .activity-drawer-inline__support {
   display: grid;
-  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: stretch;
   gap: 12px;
 }
 
@@ -348,6 +349,18 @@
 .activity-drawer-inline__embedded [data-contact-2027-preview],
 .activity-drawer-inline__embedded [data-contact-2027-add-form] {
   margin-block-start: 8px !important;
+}
+
+.activity-drawer-inline__embedded [data-contact-2027-preview] {
+  padding: 6px 0 !important;
+  background: transparent !important;
+  border-radius: 0 !important;
+}
+
+.activity-drawer-inline-layout[data-editing="yes"] .activity-drawer-inline__field--note textarea {
+  inline-size: 100%;
+  min-block-size: 96px;
+  resize: vertical;
 }
 
 .activity-drawer-inline-layout .activity-view-notes--empty {
