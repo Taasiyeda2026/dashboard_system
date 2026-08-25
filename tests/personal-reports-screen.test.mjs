@@ -9,7 +9,7 @@ global.fetch = async () => new Response(JSON.stringify([]), {
   headers: { 'content-type': 'application/json' }
 });
 
-const { personalReportsScreen } = await import('../frontend/src/screens/personal-reports.js');
+const { personalReportsScreen, resolvePersonalReportsAuthIdentity } = await import('../frontend/src/screens/personal-reports.js');
 
 const EMPLOYEE_UUID = '123e4567-e89b-42d3-a456-426614174000';
 const ADMIN_UUID = '123e4567-e89b-42d3-a456-426614174001';
@@ -79,7 +79,9 @@ test('source keeps personal reports auth temporary and maps verified login to au
   assert.match(source, /function resetPersonalReportsAuth/);
   assert.match(source, /isPersonalReportsUnlocked = false/);
   assert.match(source, /function authenticateInternalEmployee/);
-  assert.match(source, /buildInternalAuthEmail/);
+  assert.match(source, /resolvePersonalReportsAuthIdentity/);
+  assert.match(source, /email: authIdentity\.authEmail/);
+  assert.doesNotMatch(source, /buildInternalAuthEmail/);
   assert.match(source, /auth\.signInWithPassword/);
   assert.match(source, /const authUserId = authData\.user\.id/);
   assert.match(source, /resolveActiveUserRowAfterAuth/);
@@ -242,7 +244,62 @@ test('source guards personal reports loads with requestKey and abortable listene
   assert.match(source, /forceReload: true/);
 });
 
-test('internal login keeps access code as trimmed string and uses current dashboard user', async () => {
+test('personal reports resolves every linked Auth account without deriving email from username', () => {
+  const linkedUsers = [
+    {
+      name: 'גיל נאמן',
+      username: 'gil.neeman',
+      auth_user_id: EMPLOYEE_UUID,
+      auth_email: 'gil.naaman.auth@example.test'
+    },
+    {
+      name: 'איסראא',
+      username: 'israa',
+      auth_user_id: '123e4567-e89b-42d3-a456-426614174002',
+      auth_email: 'israa.khalil.auth@example.test'
+    },
+    {
+      name: 'טוני',
+      username: 'tony',
+      auth_user_id: '123e4567-e89b-42d3-a456-426614174003',
+      auth_email: 'toni.rubin.auth@example.test'
+    }
+  ];
+
+  for (const user of linkedUsers) {
+    const identity = resolvePersonalReportsAuthIdentity(user);
+    assert.deepEqual(identity, {
+      username: user.username,
+      authUserId: user.auth_user_id,
+      authEmail: user.auth_email
+    }, user.name);
+    assert.notEqual(identity.authEmail, `${identity.username}@think.org.il`, user.name);
+  }
+});
+
+test('personal reports does not fall back to a non-Auth email when the linked Auth email is missing', () => {
+  assert.equal(resolvePersonalReportsAuthIdentity({
+    username: 'israa',
+    email: 'israa@example.test',
+    auth_user_id: EMPLOYEE_UUID
+  }), null);
+});
+
+test('personal reports keeps a linked Auth email when it is identical to the username', () => {
+  const identity = resolvePersonalReportsAuthIdentity({
+    username: 'worker@example.test',
+    auth_user_id: ADMIN_UUID,
+    auth_email: 'worker@example.test'
+  });
+
+  assert.deepEqual(identity, {
+    username: 'worker@example.test',
+    authUserId: ADMIN_UUID,
+    authEmail: 'worker@example.test'
+  });
+});
+
+test('internal login keeps access code as trimmed string and uses the linked dashboard Auth identity', async () => {
   const source = await readFile(new URL('../frontend/src/screens/personal-reports.js', import.meta.url), 'utf8');
 
   assert.match(source, /normalizeAccessCode\(fd\.get\('access_code'\)\)/);
@@ -252,8 +309,12 @@ test('internal login keeps access code as trimmed string and uses current dashbo
   assert.match(source, /user\?\.username/);
   assert.match(source, /isNumericLoginIdentifier/);
   assert.match(source, /dashboardAuthUserId/);
-  assert.match(source, /buildInternalAuthEmail\(login\)/);
+  assert.match(source, /const authIdentity = resolvePersonalReportsAuthIdentity\(user\)/);
+  assert.match(source, /email: authIdentity\.authEmail/);
+  assert.match(source, /authUserId !== authIdentity\.authUserId/);
+  assert.match(source, /authenticatedAuthEmail !== authIdentity\.authEmail/);
   assert.match(source, /sameDashboardUser\(userRow, user\)/);
+  assert.doesNotMatch(source, /buildInternalAuthEmail/);
   assert.doesNotMatch(source, /Number\(fd\.get\('access_code'\)/);
 });
 

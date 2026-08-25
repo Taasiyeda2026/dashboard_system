@@ -561,11 +561,6 @@ function normalizeAccessCode(value) {
   return String(value).trim();
 }
 
-function buildInternalAuthEmail(employeeCode) {
-  const code = String(employeeCode || '').trim();
-  return code.includes('@') ? code : `${code}@think.org.il`;
-}
-
 function isNumericLoginIdentifier(value) {
   return /^\d+$/.test(String(value || '').trim());
 }
@@ -597,31 +592,32 @@ function dashboardAuthUserId(user) {
   return String(user?.auth_user_id || user?.personal_reports_user_id || user?.supabase_user_id || '').trim();
 }
 
+export function resolvePersonalReportsAuthIdentity(user) {
+  const authUserId = dashboardAuthUserId(user);
+  const authEmail = String(user?.auth_email || '').trim().toLowerCase();
+  if (!authUserId || !authEmail) return null;
+  return {
+    username: personalReportsLoginIdentifier(user).toLowerCase(),
+    authUserId,
+    authEmail
+  };
+}
+
 function sameDashboardUser(userRow, dashboardUser) {
   if (!userRow || !dashboardUser) return false;
 
   const rowAuthId = String(userRow.auth_user_id || '').trim();
   const dashAuthId = dashboardAuthUserId(dashboardUser);
-  if (rowAuthId && dashAuthId && rowAuthId === dashAuthId) return true;
-
-  const rowUsername = String(userRow.username || '').trim().toLowerCase();
-  const dashUsername = String(dashboardUser.username || '').trim().toLowerCase();
-  if (rowUsername && dashUsername && rowUsername === dashUsername) return true;
-
-  const expected = [dashboardUser.username, dashboardUser.email, dashboardUser.work_email, dashboardUser.emp_id, dashboardUser.employee_id]
-    .map((value) => String(value || '').trim().toLowerCase())
-    .filter(Boolean);
-  const actual = [userRow.username, userRow.email, userRow.emp_id]
-    .map((value) => String(value || '').trim().toLowerCase())
-    .filter(Boolean);
-  if (!expected.length || !actual.length) return false;
-  return expected.some((value) => actual.includes(value));
+  return Boolean(rowAuthId && dashAuthId && rowAuthId === dashAuthId);
 }
 
 function internalLoginErrorMessage(error) {
   const raw = String(error?.message || error?.code || error || '').trim();
   if (/missing_employee_uuid/i.test(raw)) {
     return 'לא נמצא מזהה עובד תקין במערכת. יש לצאת ולהיכנס מחדש לדשבורד, ואז לנסות שוב.';
+  }
+  if (/missing_dashboard_auth_identity/i.test(raw)) {
+    return 'לא נמצא חשבון התחברות מקושר. יש לצאת ולהיכנס מחדש לדשבורד, ואז לנסות שוב.';
   }
   return friendlyPersonalReportsError(error, 'שם משתמש או סיסמה שגויים');
 }
@@ -945,14 +941,17 @@ function authUnavailableHtml(message = 'לא נמצא משתמש מחובר במ
 
 async function authenticateInternalEmployee(dashboardUser, accessCode) {
   const user = dashboardUser || dashboardUserForAuth();
-  const login = personalReportsLoginIdentifier(user);
+  const authIdentity = resolvePersonalReportsAuthIdentity(user);
   const password = normalizeAccessCode(accessCode);
-  if (!login || !password) {
+  if (!authIdentity) {
+    throw new Error('missing_dashboard_auth_identity');
+  }
+  if (!password) {
     throw new Error('invalid_credentials');
   }
 
   const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-    email: buildInternalAuthEmail(login),
+    email: authIdentity.authEmail,
     password
   });
   if (authError || !authData?.user?.id) {
@@ -962,15 +961,20 @@ async function authenticateInternalEmployee(dashboardUser, accessCode) {
   resetSupabaseAuthSessionWait();
 
   const authUserId = authData.user.id;
-  const authEmail = buildInternalAuthEmail(login).trim().toLowerCase();
-  const username = login.toLowerCase();
+  const authenticatedAuthEmail = String(authData.user.email || '').trim().toLowerCase();
+  if (
+    authUserId !== authIdentity.authUserId
+    || (authenticatedAuthEmail && authenticatedAuthEmail !== authIdentity.authEmail)
+  ) {
+    throw new Error('invalid_credentials');
+  }
+
   const { userRow } = await resolveActiveUserRowAfterAuth({
     supabase,
-    columns: 'user_id,username,email,name,role,emp_id,is_active,auth_user_id',
-    authEmail,
-    username,
+    columns: 'user_id,username,email,name,role,emp_id,is_active,auth_user_id,auth_email',
+    authEmail: authIdentity.authEmail,
+    username: authIdentity.username,
     authUserId,
-    loginMode: true,
     requireAuthUserMatch: true
   });
 
@@ -979,8 +983,8 @@ async function authenticateInternalEmployee(dashboardUser, accessCode) {
       console.warn('[login-diagnostic]', {
         code: 'auth_ok_user_row_not_found',
         auth_user_id: authUserId,
-        auth_email: authEmail,
-        username
+        auth_email: authIdentity.authEmail,
+        username: authIdentity.username
       });
       throw new Error('auth_ok_user_row_not_found');
     }
@@ -990,10 +994,10 @@ async function authenticateInternalEmployee(dashboardUser, accessCode) {
   const profile = {
     id: authUserId,
     email: String(userRow.email || authData.user.email || '').trim(),
-    full_name: String(userRow.name || userRow.email || login).trim(),
+    full_name: String(userRow.name || userRow.email || authIdentity.username).trim(),
     role: isAdminRole(userRow.role) ? 'admin' : 'employee',
     display_role: String(userRow.role || '').trim(),
-    emp_id: String(userRow.emp_id || userRow.user_id || login).trim(),
+    emp_id: String(userRow.emp_id || userRow.user_id || authIdentity.username).trim(),
     personal_reports_manager: permissionYes(user?.personal_reports_manager) ? 'yes' : 'no',
     can_manage_personal_reports: canManagePersonalReports(user)
   };
