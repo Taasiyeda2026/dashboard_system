@@ -6,6 +6,11 @@ alter table public.proposals_agreements
   add column if not exists authority_code bigint,
   add column if not exists semel_mosad bigint;
 
+-- Migration-only backfill: the existing runtime permission trigger blocks
+-- service-side bulk updates because there is no app user context. Disable only
+-- that trigger for this one transactional backfill and restore it immediately.
+alter table public.proposals_agreements disable trigger proposals_agreements_explicit_permissions;
+
 -- One-time historical backfill. Strongest evidence wins: linked contact, school,
 -- authority, then the legacy unlinked "other" shape.
 with inferred as (
@@ -44,6 +49,8 @@ set
     else pa.semel_mosad end
 from inferred i
 where i.id = pa.id;
+
+alter table public.proposals_agreements enable trigger proposals_agreements_explicit_permissions;
 
 -- ROLLOUT BRIDGE ONLY: the old frontend does not send snapshot columns. This
 -- trigger activates only when client_type is missing. The new frontend always
