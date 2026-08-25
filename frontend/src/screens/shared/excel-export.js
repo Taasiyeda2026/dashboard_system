@@ -1,6 +1,11 @@
 import { escapeHtml } from './html.js';
 import { formatDateHe, formatActivityDateColumnsHe } from './format-date.js';
 import { activityManagerDisplayName, humanDisplayText } from './activity-options.js';
+import { supabase } from '../../supabase-client.js';
+
+const ACTIVITY_EXPORT_DETAIL_COLUMNS = 'row_id,activity_manager,funding,price,notes';
+const ACTIVITY_EXPORT_DETAIL_CHUNK_SIZE = 200;
+const ACTIVITY_EXPORT_DETAIL_FIELDS = ['activity_manager', 'funding', 'price', 'notes'];
 
 function activityStatusDisplay(status) {
   const clean = String(status || '').trim();
@@ -11,6 +16,50 @@ function activityStatusDisplay(status) {
 function safeFilePart(value, fallback = 'export') {
   const clean = String(value || fallback).replace(/[\\/?%*:|"<>]/g, '_').trim();
   return (clean || fallback).slice(0, 48);
+}
+
+function activityExportIdentity(row = {}) {
+  return String(row.RowID ?? row.row_id ?? '').trim();
+}
+
+function hasActivityExportDetailFields(row = {}) {
+  return ACTIVITY_EXPORT_DETAIL_FIELDS.every((field) => Object.prototype.hasOwnProperty.call(row, field));
+}
+
+export function mergeActivityExportDetails(rows = [], details = []) {
+  const safeRows = (Array.isArray(rows) ? rows : [rows]).filter(Boolean);
+  const detailsByRowId = new Map(
+    (Array.isArray(details) ? details : [])
+      .filter(Boolean)
+      .map((detail) => [activityExportIdentity(detail), detail])
+      .filter(([rowId]) => Boolean(rowId))
+  );
+
+  return safeRows.map((row) => {
+    const detail = detailsByRowId.get(activityExportIdentity(row));
+    return detail ? { ...row, ...detail } : row;
+  });
+}
+
+export async function enrichActivityExportRows(rows = []) {
+  const safeRows = (Array.isArray(rows) ? rows : [rows]).filter(Boolean);
+  if (!safeRows.length || safeRows.every(hasActivityExportDetailFields) || !supabase) return safeRows;
+
+  const rowIds = [...new Set(safeRows.map(activityExportIdentity).filter(Boolean))];
+  if (!rowIds.length) return safeRows;
+
+  const details = [];
+  for (let index = 0; index < rowIds.length; index += ACTIVITY_EXPORT_DETAIL_CHUNK_SIZE) {
+    const chunk = rowIds.slice(index, index + ACTIVITY_EXPORT_DETAIL_CHUNK_SIZE);
+    const { data, error } = await supabase
+      .from('activities')
+      .select(ACTIVITY_EXPORT_DETAIL_COLUMNS)
+      .in('row_id', chunk);
+    if (error) throw new Error(error.message || 'activity_export_details_failed');
+    if (Array.isArray(data)) details.push(...data);
+  }
+
+  return mergeActivityExportDetails(safeRows, details);
 }
 
 export function triggerExcelDownload(blob, filename) {
@@ -87,9 +136,21 @@ export const ACTIVITY_EXPORT_HEADERS = [
 ];
 
 export function exportActivitiesToExcel(rows, filenameBase = 'פעילויות') {
-  const normalizedRows = (Array.isArray(rows) ? rows : [rows]).filter(Boolean).map(activityExportRow);
+  const sourceRows = (Array.isArray(rows) ? rows : [rows]).filter(Boolean);
   const stamp = new Date().toISOString().slice(0, 10);
-  triggerExcelDownload(buildHtmlExcelBlob(ACTIVITY_EXPORT_HEADERS, normalizedRows), `${safeFilePart(filenameBase, 'פעילויות')}_${stamp}.xls`);
+
+  void enrichActivityExportRows(sourceRows)
+    .catch((error) => {
+      console.error('[activity-export] Failed to enrich activity export rows', error);
+      return sourceRows;
+    })
+    .then((completeRows) => {
+      const normalizedRows = completeRows.map(activityExportRow);
+      triggerExcelDownload(
+        buildHtmlExcelBlob(ACTIVITY_EXPORT_HEADERS, normalizedRows),
+        `${safeFilePart(filenameBase, 'פעילויות')}_${stamp}.xls`
+      );
+    });
 }
 
 export function exportSingleActivityToExcel(row) {
