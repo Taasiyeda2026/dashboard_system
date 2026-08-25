@@ -4,6 +4,9 @@ const GEFEN_INTRO_LIST_SELECTOR = `${GEFEN_INTRO_SELECTOR} .pa-proposal-list`;
 const GEFEN_PRINT_STYLE_ID = 'gefen-proposal-print-layout-v4';
 const GEFEN_INTRO_ITEM_COUNT = 12;
 const GEFEN_INTRO_ROWS = 3;
+const GEFEN_FONT_DELTA_PX = 0.5;
+const GEFEN_LINE_HEIGHT_DELTA = 0.25;
+const GEFEN_TYPOGRAPHY_VERSION = 'font-plus-0.5-line-plus-0.25-v1';
 
 function setImportantStyle(element, property, value) {
   element?.style?.setProperty(property, value, 'important');
@@ -146,6 +149,46 @@ function ensureGefenProposalPrintStyles() {
   document.head.appendChild(style);
 }
 
+function hasDirectText(element) {
+  return Array.from(element?.childNodes || []).some((node) => node.nodeType === 3 && String(node.textContent || '').trim());
+}
+
+function applyGefenTypography(root = document) {
+  if (typeof window === 'undefined' || typeof window.getComputedStyle !== 'function') return;
+  const contents = [];
+  if (root?.matches?.(GEFEN_DOCUMENT_CONTENT_SELECTOR)) contents.push(root);
+  root?.querySelectorAll?.(GEFEN_DOCUMENT_CONTENT_SELECTOR).forEach((content) => contents.push(content));
+
+  contents.forEach((content) => {
+    if (content.dataset.gefenTypographyVersion === GEFEN_TYPOGRAPHY_VERSION) return;
+
+    const candidates = [content, ...Array.from(content.querySelectorAll('*'))]
+      .filter((element) => hasDirectText(element));
+    const measurements = candidates.map((element) => {
+      const computed = window.getComputedStyle(element);
+      const fontSize = Number.parseFloat(computed.fontSize);
+      const lineHeightPx = Number.parseFloat(computed.lineHeight);
+      const display = String(computed.display || '').toLowerCase();
+      const canAdjustLineHeight = !['inline', 'contents', 'none'].includes(display);
+      const baseLineHeightRatio = Number.isFinite(lineHeightPx) && Number.isFinite(fontSize) && fontSize > 0
+        ? lineHeightPx / fontSize
+        : 1.2;
+      return { element, fontSize, baseLineHeightRatio, canAdjustLineHeight };
+    });
+
+    measurements.forEach(({ element, fontSize, baseLineHeightRatio, canAdjustLineHeight }) => {
+      if (Number.isFinite(fontSize) && fontSize > 0) {
+        setImportantStyle(element, 'font-size', `${fontSize + GEFEN_FONT_DELTA_PX}px`);
+      }
+      if (canAdjustLineHeight && Number.isFinite(baseLineHeightRatio)) {
+        setImportantStyle(element, 'line-height', String(baseLineHeightRatio + GEFEN_LINE_HEIGHT_DELTA));
+      }
+    });
+
+    content.dataset.gefenTypographyVersion = GEFEN_TYPOGRAPHY_VERSION;
+  });
+}
+
 export function moveGefenProposalDateAboveTitle(root = document) {
   const contents = [];
   if (root?.matches?.(GEFEN_DOCUMENT_CONTENT_SELECTOR)) contents.push(root);
@@ -229,6 +272,7 @@ export function applyGefenProposalLayout(root = document) {
   ensureGefenProposalPrintStyles();
   moveGefenProposalDateAboveTitle(root);
   layoutGefenIntroSkills(root);
+  applyGefenTypography(root);
 }
 
 let layoutQueued = false;
