@@ -73,6 +73,7 @@ const APPROVAL_GUARD_MIGRATION_FILE = new URL('../supabase/migrations/2026082313
 const CLIENT_FILE_VERSIONS_MIGRATION_FILE = new URL('../supabase/migrations/20260720143000_proposal_versions_for_client_file.sql', import.meta.url);
 const GEFEN_MIGRATION_FILE = new URL('../supabase/migrations/20260726223144_add_gefen_proposal_template.sql', import.meta.url);
 const GEFEN_DOCUMENT_REFINEMENT_MIGRATION_FILE = new URL('../supabase/migrations/20260726230813_refine_gefen_proposal_document.sql', import.meta.url);
+const CLIENT_IDENTITY_SNAPSHOT_MIGRATION_FILE = new URL('../supabase/migrations/20260825143000_proposal_client_identity_snapshot.sql', import.meta.url);
 
 const { proposalsAgreementsScreen, proposalsAgreementsTableRowsHtml, canAccessProposalsAgreements, canManageProposalsAgreements, STATUS_LABELS, STATUS_OPTIONS, buildProposalCatalogPdfEntries, proposalPreviewBodyHtml, normalizeProposalAgreementRow, countPendingApprovedProposals, isProposalApprovedPendingSend, extractItemsFromForm, sortRows, calculateTourTotal, validatePayload, resetRecipientDependentFields, stepComplete, buildProposalDocumentSnapshot, proposalLockedPreviewHtml, proposalHasFinalPdf, isProposalLegacySentWithoutPdf, upsertProposalContactOption, calculateProposalValidityDate, gefenEligibleItems, gefenApprovalItems, gefenApprovalValidationMessage, gefenApprovalDocumentHtml, proposalClientIdentifier, clientLockedBannerHtml, mergeProposalAgreementRow } = await import('../frontend/src/screens/proposals-agreements.js');
 const { normalizeProposalAgreementRow: normalizeProposalAgreementReadRow } = await import('../frontend/src/api.js');
@@ -2072,12 +2073,11 @@ test('client selector fills school fields without auto-selecting contact', async
   );
 });
 
-test('saving and reloading an other client linked to an authority keeps it without an identifier', async () => {
+test('saving another client persists its snapshot without maintaining contacts_schools', async () => {
   const apiSource = await readFile(API_FILE, 'utf8');
-  assert.match(apiSource, /function proposalNeedsClientTypeContactLink/);
-  assert.match(apiSource, /clientType === 'other' && Boolean\(authority && clientName\)/);
-  assert.match(apiSource, /addProposalAgreement:[\s\S]*proposalShouldEnsureContactSchool\(enrichedPayload\)/);
-  assert.match(apiSource, /updateProposalAgreement:[\s\S]*proposalShouldEnsureContactSchool\(enrichedPayload\)/);
+  const saveBlock = apiSource.slice(apiSource.indexOf('addProposalAgreement: async'), apiSource.indexOf('updateProposalAgreementGfenSignedOrOrdered: async'));
+  assert.match(saveBlock, /assertCompleteProposalClientSnapshot\(payload\)/);
+  assert.doesNotMatch(saveBlock, /contacts_schools|ensure_contact_school_from_proposal|readAuthoritySchoolCatalog|resolveProposalSchoolCatalogIds/);
 
   const reloadedProposal = normalizeProposalAgreementReadRow({
     client_authority: 'רשות לדוגמה',
@@ -3415,6 +3415,48 @@ test('updateProposalAgreementStatus uses statusForDb before Supabase write', asy
   assert.doesNotMatch(statusBlock, /proposals_agreements_directory_view|readAuthoritySchoolCatalog|auth\.getUser/);
 });
 
+test('proposal identity migration atomically preserves the workflow state machine', async () => {
+  const migration = await readFile(CLIENT_IDENTITY_SNAPSHOT_MIGRATION_FILE, 'utf8');
+  assert.match(migration, /guard_proposals_agreements_explicit_permissions[\s\S]*old\.status = 'sent'[\s\S]*old\.status = 'cancelled'/);
+  assert.match(migration, /new\.status = 'approved'[\s\S]*old\.status <> 'pending_approval'/);
+  assert.match(migration, /new\.status = 'returned_for_changes'[\s\S]*old\.status <> 'pending_approval'/);
+  assert.match(migration, /new\.status = 'pending_approval'[\s\S]*old\.status not in \('draft', 'returned_for_changes'\)/);
+  assert.match(migration, /new\.status = 'draft'[\s\S]*old\.status <> 'returned_for_changes'/);
+  assert.match(migration, /new\.status = 'sent'[\s\S]*old\.status <> 'approved'[\s\S]*new\.locked_at is null/);
+  assert.match(migration, /new\.status is not distinct from old\.status then return new/);
+});
+
+test('proposal identity migration backfills linked and unlinked other clients without an authority default', async () => {
+  const migration = await readFile(CLIENT_IDENTITY_SNAPSHOT_MIGRATION_FILE, 'utf8');
+  assert.match(migration, /when cs\.client_type in \('school', 'authority', 'other'\) then cs\.client_type/);
+  assert.match(migration, /when pa\.authority_id is not null or nullif\(btrim\(pa\.client_authority\), ''\) is not null then 'authority'[\s\S]*else 'other'/);
+  assert.match(migration, /when i\.inferred_client_type = 'other' then nullif\(btrim\(pa\.school_framework\), ''\)/);
+  assert.doesNotMatch(migration, /default 'authority'/i);
+});
+
+test('legacy snapshot bridge is isolated to missing client_type and view keeps security invoker', async () => {
+  const migration = await readFile(CLIENT_IDENTITY_SNAPSHOT_MIGRATION_FILE, 'utf8');
+  assert.match(migration, /ROLLOUT BRIDGE ONLY/);
+  assert.match(migration, /if new\.client_type is not null then return new/);
+  assert.match(migration, /Remove\/harden this trigger after the snapshot-writing frontend is fully rolled out/);
+  assert.match(migration, /alter view public\.proposals_agreements_directory_view set \(security_invoker = true\)/);
+});
+
+test('saved proposal rendering never enriches identity or contact fields from live contacts', async () => {
+  const screenSource = await readFile(SCREEN_FILE, 'utf8');
+  assert.doesNotMatch(screenSource, /function enrichProposalRowFromContactOptions/);
+  assert.match(screenSource, /const rowWithCentralContact = \(row\) => \{\s*return row;\s*\}/);
+  const saved = {
+    id: 'saved-contact-snapshot', client_type: 'authority', authority_id: 449,
+    client_authority: 'ראמה', authority_code: '543', contact_name: 'שם שמור',
+    contact_role: 'תפקיד שמור', phone: '050-1111111', email: 'saved@example.com'
+  };
+  const merged = mergeProposalAgreementRow(saved, { id: saved.id, status: 'approved' });
+  for (const field of ['client_authority', 'authority_code', 'contact_name', 'contact_role', 'phone', 'email']) {
+    assert.equal(merged[field], saved[field]);
+  }
+});
+
 
 test('proposal agreement table persists the complete client identity snapshot', async () => {
   const apiSource = await readFile(API_FILE, 'utf8');
@@ -3441,7 +3483,9 @@ test('proposal agreement table persists the complete client identity snapshot', 
     /semel_mosad:/,
     'sanitizeProposalAgreementPayload copies semel_mosad into the proposal row'
   );
-  assert.match(apiSource, /if \(rpcSemelMosad\) rpcArgs\.p_semel_mosad = rpcSemelMosad;/, 'contact-school RPC may still receive semel_mosad');
+  const saveBlock = apiSource.slice(apiSource.indexOf('addProposalAgreement: async'), apiSource.indexOf('updateProposalAgreementGfenSignedOrOrdered: async'));
+  assert.doesNotMatch(saveBlock, /contacts_schools|ensure_contact_school_from_proposal|readAuthoritySchoolCatalog|resolveProposalSchoolCatalogIds/,
+    'normal proposal persistence must write the selected snapshot without contact/catalog maintenance');
 });
 
 test('proposal payload preserves numeric bigint business ids while approval uses only auth UUID', async () => {
@@ -4437,23 +4481,18 @@ test('table, drawer and print/preview all show the proposal\'s own client_author
     assert.match(drawer.innerHTML, /חורה/);
     assert.match(drawer.innerHTML, /עמל עהד חורה למצוינות/);
     assert.doesNotMatch(drawer.innerHTML, /ג'דיידה|גדידה/, 'drawer must never show the colliding schools.id record');
-    // Missing contact channels are filled only from the correctly matched contacts_schools record.
-    assert.match(drawer.innerHTML, /מנהל חורה/);
-    assert.match(drawer.innerHTML, /050-4040404/);
+    // Missing saved contact channels remain missing; live contacts never modify a saved proposal.
+    assert.doesNotMatch(drawer.innerHTML, /מנהל חורה|050-4040404|hura@example\.com/);
     assert.doesNotMatch(drawer.innerHTML, /מנהל גדידה|03-9999999|jadeida@example\.com/);
 
-    // Preview (identical row must flow through unchanged)
-    root.querySelector(`[data-pa-preview="${row.id}"]`)?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
-    await delay(20);
-    const address = dom.window.document.querySelector('.pa-doc-address');
-    assert.ok(address, 'preview recipient block should render');
-    assert.match(address.textContent, /חורה/);
-    assert.match(address.textContent, /עמל עהד חורה למצוינות/);
-    assert.doesNotMatch(address.textContent, /ג'דיידה|גדידה/, 'preview must never show the colliding schools.id record');
+    const previewHtml = proposalPreviewBodyHtml(row, [], []);
+    assert.match(previewHtml, /חורה/);
+    assert.match(previewHtml, /עמל עהד חורה למצוינות/);
+    assert.doesNotMatch(previewHtml, /ג'דיידה|גדידה/, 'preview must never show the colliding schools.id record');
   });
 });
 
-test('print preview uses the same recipient row as the table/drawer despite a colliding contact_school_id', async () => {
+test('print document uses the saved recipient despite a colliding contact_school_id', async () => {
   const row = {
     ...sampleRows[0],
     id: 'row-404-print',
@@ -4470,35 +4509,14 @@ test('print preview uses the same recipient row as the table/drawer despite a co
     { id: '404', source_table: 'contacts_schools', authority: 'חורה', school: 'עמל עהד חורה למצוינות', contact_name: 'מנהל חורה', mobile: '050-4040404', email: 'hura@example.com' }
   ];
 
-  // jsdom does not put requestAnimationFrame on the global scope; openPreview's autoPrint branch
-  // calls the bare identifier, so stub it for the duration of this test only (print fires ~150ms
-  // after that callback, well past our short delay below, so window.print() itself is never reached).
-  const savedRAF = globalThis.requestAnimationFrame;
-  globalThis.requestAnimationFrame = (cb) => setTimeout(cb, 0);
-  try {
-    await withJSDOM(proposalsAgreementsScreen.render({ rows: [row] }, { state: stateFor('admin') }), async (root, dom) => {
-      proposalsAgreementsScreen.bind({
-        root,
-        data: { rows: [row], contactOptions },
-        state: stateFor('admin'),
-        api: { readProposalAgreementItems: async () => [] }
-      });
-      // print shares openPreview() with the preview button (only differing by an auto window.print()
-      // fired ~150ms later), so asserting on the same overlay here proves print and preview never diverge.
-      root.querySelector(`[data-pa-print="${row.id}"]`)?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
-      await delay(20);
-      const address = dom.window.document.querySelector('.pa-doc-address');
-      assert.ok(address, 'print preview recipient block should render');
-      assert.match(address.textContent, /חורה/);
-      assert.match(address.textContent, /עמל עהד חורה למצוינות/);
-      assert.doesNotMatch(address.textContent, /ג'דיידה|גדידה/, 'print must never show the colliding schools.id record');
-    });
-  } finally {
-    globalThis.requestAnimationFrame = savedRAF;
-  }
+  const html = proposalPreviewBodyHtml(row, [], []);
+  assert.match(html, /חורה/);
+  assert.match(html, /עמל עהד חורה למצוינות/);
+  assert.doesNotMatch(html, /ג'דיידה|גדידה|מנהל חורה|050-4040404|hura@example\.com/);
+  assert.equal(contactOptions.length, 2, 'live contacts are irrelevant to document rendering');
 });
 
-test('contact enrichment fills only missing mobile/email and never replaces an existing recipient', async () => {
+test('saved proposal does not fill missing mobile/email from a later contact change', async () => {
   const row = {
     ...sampleRows[0],
     contact_school_id: '9001',
@@ -4533,10 +4551,8 @@ test('contact enrichment fills only missing mobile/email and never replaces an e
     assert.match(drawer.innerHTML, /קשר קיים/);
     assert.match(drawer.innerHTML, /תפקיד קיים/);
     assert.doesNotMatch(drawer.innerHTML, /קשר אחר לגמרי|תפקיד אחר/);
-    // Missing channels are filled in, and phone only ever comes from mobile — never the landline.
-    assert.match(drawer.innerHTML, /052-7654321/);
-    assert.match(drawer.innerHTML, /new@example\.com/);
-    assert.doesNotMatch(drawer.innerHTML, /03-1234567/);
+    // Missing saved channels stay missing; later contact values are irrelevant to the document.
+    assert.doesNotMatch(drawer.innerHTML, /052-7654321|new@example\.com|03-1234567/);
   });
 });
 

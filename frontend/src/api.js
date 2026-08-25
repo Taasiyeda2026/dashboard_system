@@ -3638,42 +3638,6 @@ function hasProposalAgreementSignature(row = {}) {
   return Boolean(cleanProposalAgreementText(meta?.signature?.image || meta?.image));
 }
 
-function canTransitionProposalAgreementStatus(currentRow = {}, cleanStatus = '') {
-  const currentStatus = normalizeProposalAgreementStatusForDb(currentRow.status || 'draft');
-  const targetStatus = normalizeProposalAgreementStatusForDb(cleanStatus);
-  if (currentStatus === 'sent') throw new Error('הצעה שנשלחה נעולה ולא ניתן לשנות את סטטוסה.');
-  if (currentStatus === 'cancelled') throw new Error('הצעה שבוטלה נעולה. ניתן למחוק אותה או לשכפל להצעה חדשה.');
-  if (targetStatus === currentStatus) return true;
-  if (targetStatus === 'approved') {
-    if (!canApproveProposalsAgreementsApi()) throw new Error('proposals_agreements_approval_forbidden');
-    const needsResign = currentStatus === 'approved' && (!hasProposalAgreementSignature(currentRow) || !cleanProposalAgreementText(currentRow.approved_at));
-    if (currentStatus !== 'pending_approval' && !needsResign) throw new Error('ניתן לאשר רק הצעה שממתינה לאישור או הצעה מאושרת ללא חתימה.');
-    return true;
-  }
-  if (targetStatus === 'returned_for_changes') {
-    if (!canApproveProposalsAgreementsApi()) throw new Error('proposals_agreements_approval_forbidden');
-    if (currentStatus !== 'pending_approval') throw new Error('ניתן להחזיר לתיקון רק הצעה שממתינה לאישור.');
-    return true;
-  }
-  if (targetStatus === 'sent') {
-    throw new Error('שליחת הצעה דורשת נעילת מסמך והעלאת PDF סופי. השתמשו בפעולת "סימון כנשלח".');
-  }
-  if (targetStatus === 'cancelled') {
-    if (!canApproveProposalsAgreementsApi()) throw new Error('proposals_agreements_approval_forbidden');
-    if (!['draft', 'pending_approval', 'returned_for_changes'].includes(currentStatus)) throw new Error('לא ניתן לבטל הצעה בסטטוס הנוכחי.');
-    return true;
-  }
-  if (targetStatus === 'pending_approval') {
-    if (!['draft', 'returned_for_changes'].includes(currentStatus)) throw new Error('ניתן לשלוח לאישור רק טיוטה או הצעה שהוחזרה לתיקון.');
-    return true;
-  }
-  if (targetStatus === 'draft') {
-    if (currentStatus !== 'returned_for_changes') throw new Error('ניתן להחזיר לטיוטה רק הצעה שהוחזרה לתיקון.');
-    return true;
-  }
-  throw new Error('invalid_proposal_agreement_status_transition');
-}
-
 const PA_VALID_STATUSES_SET = new Set(['draft', 'sent', 'pending_approval', 'returned_for_changes', 'approved', 'cancelled']);
 
 // Proposal group definitions and legacy-name aliases are business data and live in Supabase
@@ -4001,6 +3965,25 @@ function sanitizeProposalAgreementPayload(payload = {}, groupLookup = proposalGr
   );
 }
 
+function assertCompleteProposalClientSnapshot(payload = {}) {
+  const clientType = cleanProposalAgreementText(payload.client_type);
+  if (!['authority', 'school', 'other'].includes(clientType)) {
+    throw new Error('missing_proposal_client_type');
+  }
+  if (clientType === 'other') {
+    if (!cleanProposalAgreementText(payload.client_name)) throw new Error('missing_proposal_client_name');
+    return;
+  }
+  if (!bigintIdOrNull(payload.authority_id) || !cleanProposalAgreementText(payload.client_authority)) {
+    throw new Error('missing_proposal_authority_identity');
+  }
+  if (clientType === 'school' && (
+    !bigintIdOrNull(payload.school_id) || !cleanProposalAgreementText(payload.school_framework)
+  )) {
+    throw new Error('missing_proposal_school_identity');
+  }
+}
+
 export async function recoverIdempotentProposalInsert(error, submissionId, readExisting) {
   if (error?.code !== '23505' || !uuidOrNull(submissionId) || typeof readExisting !== 'function') return null;
   const { data, error: existingError } = await readExisting(submissionId);
@@ -4042,139 +4025,6 @@ function proposalContactMatches(existing = {}, next = {}, original = {}) {
   const nextAuthority = normalizeProposalContactText(next.authority);
   return Boolean(existingAuthority && nextAuthority && existingAuthority === nextAuthority);
 }
-
-async function resolveProposalSchoolCatalogIds(payload = {}, catalog = null) {
-  const clientType = cleanProposalAgreementText(payload.client_type) || (payload.school_id ? 'school' : 'authority');
-  if (clientType !== 'school') {
-    return {
-      authority_id: bigintIdOrNull(payload.authority_id),
-      school_id: null,
-      semel_mosad: null
-    };
-  }
-  let authority_id = bigintIdOrNull(payload.authority_id);
-  let school_id = bigintIdOrNull(payload.school_id);
-  let semel_mosad = bigintIdOrNull(payload.semel_mosad) || (!bigintIdOrNull(payload.school_id) ? bigintIdOrNull(payload.school_id) : null) || null;
-  const schoolLookup = catalog?.schoolLookup || (await readAuthoritySchoolCatalog()).schoolLookup;
-  const schoolMeta = resolveSchoolCatalogEntry(schoolLookup, {
-    school_id,
-    semel_mosad,
-    school: cleanProposalAgreementText(payload.school_framework || payload.school_name || payload.school),
-    authority: cleanProposalAgreementText(payload.client_authority || payload.authority_name || payload.authority)
-  });
-  if (schoolMeta) {
-    school_id = school_id || bigintIdOrNull(schoolMeta.id);
-    authority_id = authority_id || bigintIdOrNull(schoolMeta.authority_id);
-    semel_mosad = semel_mosad || bigintIdOrNull(schoolMeta.semel_mosad) || null;
-  }
-  return { authority_id, school_id, semel_mosad };
-}
-
-function enrichProposalAgreementRowFromCatalog(row = {}, catalog = null) {
-  if (!row || typeof row !== 'object') return row;
-  const schoolLookup = catalog?.schoolLookup;
-  if (!schoolLookup) return row;
-  const schoolMeta = resolveSchoolCatalogEntry(schoolLookup, {
-    school_id: row.school_id,
-    semel_mosad: row.semel_mosad,
-    school: cleanProposalAgreementText(row.school_framework || row.school_name || row.school),
-    authority: cleanProposalAgreementText(row.client_authority || row.authority_name || row.authority)
-  });
-  if (!schoolMeta) return row;
-  return {
-    ...row,
-    client_type: cleanProposalAgreementText(row.client_type) || (row.school_id || schoolMeta.id ? 'school' : row.client_type),
-    authority_id: row.authority_id ?? schoolMeta.authority_id ?? null,
-    school_id: row.school_id ?? schoolMeta.id ?? null,
-    semel_mosad: cleanProposalAgreementText(row.semel_mosad) || schoolMeta.semel_mosad || null,
-    principal_name: cleanProposalAgreementText(row.principal_name) || schoolMeta.principal_name || null,
-    school_phone: cleanProposalAgreementText(row.school_phone) || schoolMeta.school_phone || null,
-    school_address: cleanProposalAgreementText(row.school_address || row.institution_address) || schoolMeta.institution_address || null,
-    city: cleanProposalAgreementText(row.city) || schoolMeta.city || null
-  };
-}
-
-async function ensureContactSchoolFromProposal(payload = {}) {
-  const orig = (payload?._contact_original && typeof payload._contact_original === 'object')
-    ? payload._contact_original
-    : {};
-  const authority = cleanProposalAgreementText(payload.client_authority);
-  const school = cleanProposalAgreementText(payload.client_type) === 'other' ? '' : cleanProposalAgreementText(payload.school_framework);
-  if (!authority) return null;
-  const resolvedSchool = await resolveProposalSchoolCatalogIds(payload);
-  const clientType = cleanProposalAgreementText(orig.client_type) || cleanProposalAgreementText(payload.client_type) || (resolvedSchool.school_id || school ? 'school' : 'authority');
-  const clientName = cleanProposalAgreementText(orig.client_name) || cleanProposalAgreementText(payload.client_name) || (clientType === 'school' ? school : authority);
-  const rpcArgs = {
-    p_client_type:   clientType,
-    p_client_name:   clientName || authority,
-    p_authority:     authority,
-    p_school:        school || null,
-    p_contact_name:  cleanProposalAgreementText(payload.contact_name) || null,
-    p_contact_role:  cleanProposalAgreementText(payload.contact_role) || null,
-    p_phone:         cleanProposalAgreementText(payload.phone) || null,
-    p_mobile:        cleanProposalAgreementText(orig.mobile) || cleanProposalAgreementText(payload.phone) || null,
-    p_email:         cleanProposalAgreementText(payload.email) || null,
-    p_address:       null,
-    p_notes:         cleanProposalAgreementText(payload.notes) || null
-  };
-  const rpcSchoolId = bigintIdOrNull(resolvedSchool.school_id);
-  const rpcAuthorityId = bigintIdOrNull(resolvedSchool.authority_id);
-  const rpcSemelMosad = bigintIdOrNull(resolvedSchool.semel_mosad);
-  if (rpcSchoolId) rpcArgs.p_school_id = rpcSchoolId;
-  if (rpcAuthorityId) rpcArgs.p_authority_id = rpcAuthorityId;
-  if (rpcSemelMosad) rpcArgs.p_semel_mosad = rpcSemelMosad;
-  const { data: contactSchoolId, error } = await supabase.rpc(
-    'ensure_contact_school_from_proposal',
-    rpcArgs
-  );
-  if (error) throw new Error(error.message || 'ensure_contact_school_failed');
-  return contactSchoolId ?? null;
-}
-
-async function resolveValidProposalContactSchoolId(value) {
-  const id = bigintIdOrNull(value);
-  if (!id) return null;
-  const { data, error } = await supabase
-    .from('contacts_schools')
-    .select('id')
-    .eq('id', id)
-    .maybeSingle();
-  if (error) throw new Error(error.message || 'contact_school_validation_failed');
-  return data?.id != null ? Number(data.id) : null;
-}
-
-function proposalRequiresValidContactSchool(payload = {}) {
-  const status = statusForDb(cleanProposalAgreementText(payload.status));
-  const clientType = cleanProposalAgreementText(payload.client_type);
-  return clientType !== 'other' && (status === 'pending_approval' || status === 'sent' || status === 'approved');
-}
-
-function proposalNeedsClientTypeContactLink(payload = {}) {
-  const clientType = cleanProposalAgreementText(payload.client_type);
-  const authority = cleanProposalAgreementText(payload.client_authority || payload.authority_name || payload.authority);
-  const clientName = cleanProposalAgreementText(payload.client_name || payload.school_framework || payload.school_name || payload.school);
-  return clientType === 'other' && Boolean(authority && clientName);
-}
-
-function proposalShouldEnsureContactSchool(payload = {}) {
-  return Boolean(
-    cleanProposalAgreementText(payload.contact_name)
-    && cleanProposalAgreementText(payload.client_authority)
-  ) || proposalNeedsClientTypeContactLink(payload);
-}
-
-async function ensureValidProposalContactSchoolId(payload = {}) {
-  const existingId = await resolveValidProposalContactSchoolId(payload.contact_school_id);
-  if (existingId != null) return existingId;
-  const ensuredId = await ensureContactSchoolFromProposal(payload);
-  const validEnsuredId = await resolveValidProposalContactSchoolId(ensuredId);
-  if (validEnsuredId != null) return validEnsuredId;
-  if (proposalRequiresValidContactSchool(payload)) {
-    throw new Error('לא ניתן לשלוח לאישור לפני בחירת איש קשר/מוסד תקף.');
-  }
-  return null;
-}
-
 
 function isProposalTestHoursItem(item = {}) {
   const identity = [item.item_name, item.item_type, item.activity_name, item.description]
@@ -7748,20 +7598,11 @@ export const api = {
   updateWorkshopStockItems: updateWorkshopStockItemsInSupabase,
   addProposalAgreement: async (payload) => {
     assertCanManageProposalsAgreementsApi();
+    assertCompleteProposalClientSnapshot(payload);
     const groupLookup = await getProposalGroupLookup();
-    const catalog = await readAuthoritySchoolCatalog();
-    const resolvedSchool = await resolveProposalSchoolCatalogIds(payload, catalog);
-    const enrichedPayload = {
-      ...payload,
-      ...resolvedSchool,
-      client_type: cleanProposalAgreementText(payload.client_type) || (resolvedSchool.school_id ? 'school' : 'authority')
-    };
-    const insert = sanitizeProposalAgreementPayload(enrichedPayload, groupLookup);
+    const insert = sanitizeProposalAgreementPayload(payload, groupLookup);
     const submissionId = uuidOrNull(payload?._submission_id);
     if (submissionId) insert.id = submissionId;
-    if (proposalShouldEnsureContactSchool(enrichedPayload)) {
-      insert.contact_school_id = await ensureValidProposalContactSchoolId({ ...enrichedPayload, ...insert, _contact_original: enrichedPayload?._contact_original });
-    }
     const { data, error } = await supabase
       .from('proposals_agreements')
       .insert(insert)
@@ -7781,25 +7622,10 @@ export const api = {
     assertCanManageProposalsAgreementsApi();
     const rowId = cleanProposalAgreementText(id);
     if (!rowId) throw new Error('missing_proposal_agreement_id');
-    const { data: currentRow, error: currentRowError } = await supabase
-      .from('proposals_agreements').select('status').eq('id', rowId).single();
-    if (!currentRowError && currentRow) {
-      const cs = cleanProposalAgreementText(currentRow.status);
-      if (cs === 'sent') throw new Error('הצעה שנשלחה נעולה ולא ניתן לערוך אותה.');
-    }
+    assertCompleteProposalClientSnapshot(payload);
     const groupLookup = await getProposalGroupLookup();
-    const catalog = await readAuthoritySchoolCatalog();
-    const resolvedSchool = await resolveProposalSchoolCatalogIds(payload, catalog);
-    const enrichedPayload = {
-      ...payload,
-      ...resolvedSchool,
-      client_type: cleanProposalAgreementText(payload.client_type) || (resolvedSchool.school_id ? 'school' : 'authority')
-    };
-    const patch = sanitizeProposalAgreementPayload(enrichedPayload, groupLookup);
+    const patch = sanitizeProposalAgreementPayload(payload, groupLookup);
     patch.updated_at = new Date().toISOString();
-    if (proposalShouldEnsureContactSchool(enrichedPayload)) {
-      patch.contact_school_id = await ensureValidProposalContactSchoolId({ ...enrichedPayload, ...patch, _contact_original: enrichedPayload?._contact_original });
-    }
     const { data, error } = await supabase
       .from('proposals_agreements')
       .update(patch)
