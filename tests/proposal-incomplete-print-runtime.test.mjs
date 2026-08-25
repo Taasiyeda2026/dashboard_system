@@ -24,6 +24,15 @@ test('preview PDF action bypasses the legacy generator and uses browser print', 
   assert.doesNotMatch(runtimeSource, /createElement\(['"]canvas['"]\)/);
 });
 
+test('proposal browser print isolates the preview from dashboard layout', () => {
+  assert.match(runtimeSource, /enterProposalPrintMode/);
+  assert.match(runtimeSource, /classList\.add\('is-print-preview'\)/);
+  assert.match(runtimeSource, /classList\.remove\('is-print-preview'\)/);
+  assert.match(runtimeSource, /addEventListener\('beforeprint', enterProposalPrintMode\)/);
+  assert.match(runtimeSource, /addEventListener\('afterprint', exitProposalPrintMode\)/);
+  assert.match(runtimeSource, /invokeProposalBrowserPrint\(\)/);
+});
+
 test('direct proposal PDF actions are intercepted before the legacy raster path', () => {
   assert.match(runtimeSource, /DIRECT_PRINT_SELECTOR = '\[data-pa-print\]'/);
   assert.match(runtimeSource, /directPrintButton/);
@@ -61,6 +70,6 @@ test('preview button configuration is idempotent and does not create an observer
   assert.equal(textWriteCount, 1, 'textContent must be written only once');
   assert.equal(button.dataset.paBrowserPrint, 'yes');
   assert.equal(button.textContent, 'הדפסה / PDF');
-  assert.equal(button.title, 'הדפסה או שמירה כ־PDF');
+  assert.equal(button.title, PRINT_TITLE = 'הדפסה או שמירה כ־PDF');
   assert.equal(button.getAttribute('aria-label'), 'הדפסה או שמירה כ־PDF');
 });
