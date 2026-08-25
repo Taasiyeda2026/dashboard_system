@@ -39,13 +39,26 @@ test('operations home cards use fixed canonical targets instead of visible label
   assert.doesNotMatch(homeCards, /MutationObserver|findPlaceholder|PLACEHOLDER_TEXT/);
 });
 
-test('manager phone popover has one fixed, body-mounted delegated implementation', () => {
-  assert.doesNotMatch(managerRuntime, /function bindPhonePopovers|bindPhonePopovers\(root\)/);
-  assert.match(managerPhoneFix, /document\.body\.appendChild\(popover\)/);
-  assert.match(managerPhoneFix, /event\.key === 'Escape'/);
-  assert.match(managerPhoneFix, /String\(chip\.dataset\.instructorMobile \|\| ''\)\.trim\(\) \|\| '—'/);
-  assert.doesNotMatch(managerPhoneFix, /טלפון:/);
-  assert.match(managerStyles, /\.manager-board-phone-popover \{\s+position: fixed;/);
+test('manager instructor chips open the inline instructor center without the legacy phone popover', () => {
+  assert.match(managerRuntime, /data-instructor-id=/);
+  assert.match(managerRuntime, /data-manager-board-monthly-region/);
+  assert.match(managerRuntime, /data-manager-instructor-back/);
+  assert.match(managerRuntime, /activity\?\.emp_id, activity\?\.emp_id_2/);
+  assert.match(managerRuntime, /const instructorCenterCache = new Map\(\)/);
+  assert.match(managerRuntime, /function instructorCenterCacheKey\(empId, period\)/);
+  assert.match(managerRuntime, /currentSessionKey\(\) \|\| 'session'/);
+  assert.match(managerRuntime, /const token = \+\+instructorCenterRenderToken/);
+  assert.match(managerRuntime, /get_instructor_employee_file_snapshot.*p_emp_id: Number\(key\)/);
+  assert.match(managerRuntime, /\.select\('emp_id,full_name,direct_manager,active'\)/);
+  assert.doesNotMatch(managerRuntime, /\.select\('emp_id,full_name,direct_manager,active,mobile'\)/);
+  assert.doesNotMatch(managerRuntime, /const \[contactResult, profileResult, snapshotResult\]/);
+  assert.match(managerRuntime, /formatFullDate\(point\.iso\)/);
+  assert.doesNotMatch(managerRuntime, /משוב אמצע טרם בוצע|משוב סוף טרם בוצע|תצפית ראשונה טרם בוצעה|תצפית שנייה טרם בוצעה/);
+  assert.match(managerRuntime, /state\.pendingInstructorEdit = 'profile';[\s\S]*closeManagerBoard\(\);[\s\S]*route: 'instructors'/);
+  assert.doesNotMatch(managerRuntime, /loadInstructorSchedulingData/);
+  assert.doesNotMatch(managerRuntime, /data-instructor-mobile/);
+  assert.doesNotMatch(managerPhoneFix, /PhonePopover|instructorMobile|appendChild\(popover\)/);
+  assert.doesNotMatch(managerStyles, /manager-board-phone-popover/);
 });
 
 test('only explicit name edits request an activity-name override and saves verify the persisted name', () => {

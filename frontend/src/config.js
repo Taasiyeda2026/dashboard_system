@@ -131,3 +131,4 @@ config.HOTFIX_VERSION = `approved-seven-user-permission-matrix-20260823-v1-${con
 config.HOTFIX_VERSION = `instructor-drawer-variant-reset-20260824-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `instructor-drawer-title-cleanup-20260824-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `proposal-gefen-authority-client-20260825-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `manager-board-instructor-center-20260825-v1-${config.HOTFIX_VERSION}`;

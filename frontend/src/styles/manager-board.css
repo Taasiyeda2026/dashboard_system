@@ -678,18 +678,50 @@ button.manager-board-team-strip__chip:hover {
   background: color-mix(in srgb, var(--manager-board-accent) 6%, #fff);
 }
 
-.manager-board-phone-popover {
-  position: fixed;
-  padding: 5px 10px;
-  border-radius: 8px;
-  background: #1e293b;
-  color: #fff;
-  font-size: 13px;
-  font-weight: 700;
-  white-space: nowrap;
-  z-index: 10000;
-  pointer-events: none;
-  box-shadow: 0 4px 12px rgba(0,0,0,.15);
+button.manager-board-team-strip__chip.selected {
+  color: var(--manager-board-accent);
+  border-color: color-mix(in srgb, var(--manager-board-accent) 42%, #dbe3ed);
+  background: color-mix(in srgb, var(--manager-board-accent) 10%, #fff);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--manager-board-accent) 9%, transparent);
+}
+
+.manager-instructor-center { display: grid; gap: 18px; padding: 20px; background: #fff; }
+.manager-instructor-center__header { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 16px; padding-bottom: 16px; border-bottom: 1px solid #e6ebf1; }
+.manager-instructor-center__header h2 { margin: 0 0 5px; font-size: clamp(21px,2vw,28px); color: #172033; }
+.manager-instructor-center__header h2 span { color: #64748b; font-weight: 600; }
+.manager-instructor-center__header p { margin: 0; color: #64748b; overflow-wrap: anywhere; }
+.manager-instructor-center__back,.manager-instructor-center__profile { border: 1px solid #dbe3ed; border-radius: 8px; padding: 8px 11px; background: #fff; color: var(--manager-board-accent); font: inherit; font-weight: 750; cursor: pointer; }
+.manager-instructor-center__profile { background: var(--manager-board-soft); }
+.manager-instructor-center__kpis { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 12px; }
+.manager-instructor-center__kpis article { position: relative; display: grid; gap: 7px; min-height: 92px; padding: 15px; overflow: hidden; border: 1px solid #e1e7ee; border-radius: 11px; background: #fbfcfd; }
+.manager-instructor-center__kpis span { color: #64748b; font-size: 13px; font-weight: 700; }
+.manager-instructor-center__kpis strong { align-self: end; font-size: 28px; color: #172033; }
+.manager-instructor-center__kpis .is-share { background: color-mix(in srgb,var(--manager-board-accent) 5%,#fff); }
+.manager-instructor-center__kpis .is-share i { position: absolute; inset-inline-end: 14px; bottom: 15px; width: 34px; height: 34px; border-radius: 50%; background: conic-gradient(var(--manager-board-accent) var(--share),#e5eaf0 0); mask: radial-gradient(circle,#0000 47%,#000 49%); opacity: .55; }
+.manager-instructor-center__section { padding: 16px; border: 1px solid #e1e7ee; border-radius: 11px; background: #fff; }
+.manager-instructor-center__section h3 { margin: 0 0 13px; font-size: 17px; }
+.manager-instructor-center__milestones { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; }
+.manager-instructor-center__milestones article { padding: 12px; border: 1px solid #e8edf2; border-radius: 9px; background: #fafbfd; }
+.manager-instructor-center__milestones article>strong,.manager-instructor-center__milestones article>small { display: block; }
+.manager-instructor-center__milestones small { margin-top: 2px; color: #758194; }
+.manager-instructor-center__milestones ul,.manager-instructor-center__attention ul { margin: 9px 0 0; padding-inline-start: 20px; }
+.manager-instructor-center__milestones li { margin-top: 4px; }
+.manager-instructor-center__milestones li span { font-weight: 750; }
+.manager-instructor-center__attention { background: #fcfcfb; }
+.manager-instructor-center__attention p { margin: 0; }
+.manager-instructor-center__attention .is-clear { color: #27734b; font-weight: 750; }
+.manager-instructor-center__attention .is-error { color: #a23b3b; }
+
+@media (max-width: 850px) {
+  .manager-instructor-center__header { grid-template-columns: 1fr auto; }
+  .manager-instructor-center__header>div { grid-column: 1/-1; grid-row: 1; }
+  .manager-instructor-center__kpis { grid-template-columns: repeat(2,minmax(0,1fr)); }
+}
+@media (max-width: 560px) {
+  .manager-instructor-center { padding: 13px; }
+  .manager-instructor-center__header { grid-template-columns: 1fr; }
+  .manager-instructor-center__header>div,.manager-instructor-center__header>* { grid-column: 1; }
+  .manager-instructor-center__kpis,.manager-instructor-center__milestones { grid-template-columns: 1fr; }
 }
 
 .manager-board-nav-button.is-active {
