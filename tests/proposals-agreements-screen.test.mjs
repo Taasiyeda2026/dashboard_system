@@ -74,7 +74,7 @@ const CLIENT_FILE_VERSIONS_MIGRATION_FILE = new URL('../supabase/migrations/2026
 const GEFEN_MIGRATION_FILE = new URL('../supabase/migrations/20260726223144_add_gefen_proposal_template.sql', import.meta.url);
 const GEFEN_DOCUMENT_REFINEMENT_MIGRATION_FILE = new URL('../supabase/migrations/20260726230813_refine_gefen_proposal_document.sql', import.meta.url);
 
-const { proposalsAgreementsScreen, proposalsAgreementsTableRowsHtml, canAccessProposalsAgreements, canManageProposalsAgreements, STATUS_LABELS, STATUS_OPTIONS, buildProposalCatalogPdfEntries, proposalPreviewBodyHtml, normalizeProposalAgreementRow, countPendingApprovedProposals, isProposalApprovedPendingSend, extractItemsFromForm, sortRows, calculateTourTotal, validatePayload, resetRecipientDependentFields, stepComplete, buildProposalDocumentSnapshot, proposalLockedPreviewHtml, proposalHasFinalPdf, isProposalLegacySentWithoutPdf, upsertProposalContactOption, calculateProposalValidityDate, gefenEligibleItems, gefenApprovalItems, gefenApprovalValidationMessage, gefenApprovalDocumentHtml, proposalClientIdentifier, clientLockedBannerHtml } = await import('../frontend/src/screens/proposals-agreements.js');
+const { proposalsAgreementsScreen, proposalsAgreementsTableRowsHtml, canAccessProposalsAgreements, canManageProposalsAgreements, STATUS_LABELS, STATUS_OPTIONS, buildProposalCatalogPdfEntries, proposalPreviewBodyHtml, normalizeProposalAgreementRow, countPendingApprovedProposals, isProposalApprovedPendingSend, extractItemsFromForm, sortRows, calculateTourTotal, validatePayload, resetRecipientDependentFields, stepComplete, buildProposalDocumentSnapshot, proposalLockedPreviewHtml, proposalHasFinalPdf, isProposalLegacySentWithoutPdf, upsertProposalContactOption, calculateProposalValidityDate, gefenEligibleItems, gefenApprovalItems, gefenApprovalValidationMessage, gefenApprovalDocumentHtml, proposalClientIdentifier, clientLockedBannerHtml, mergeProposalAgreementRow } = await import('../frontend/src/screens/proposals-agreements.js');
 const { normalizeProposalAgreementRow: normalizeProposalAgreementReadRow } = await import('../frontend/src/api.js');
 
 function stateFor(role) {
@@ -476,6 +476,51 @@ test('GEFEN authority without authority code is blocked with the authority-speci
 
   assert.equal(gefenApprovalValidationMessage(row, items), message);
   assert.match(gefenApprovalDocumentHtml(row, items), new RegExp(message));
+});
+
+test('partial approval response merges without changing the saved proposal identity', () => {
+  const authorityProposal = {
+    id: 'rama-proposal', client_type: 'authority', authority_id: 449,
+    client_authority: 'ראמה', authority_code: '543', school_framework: 'ראמה', status: 'pending_approval'
+  };
+  const approvedAuthority = mergeProposalAgreementRow(authorityProposal, {
+    id: 'rama-proposal', status: 'approved', approved_at: '2026-08-25T12:00:00Z'
+  });
+  assert.equal(approvedAuthority.authority_code, '543');
+  assert.equal(approvedAuthority.client_type, 'authority');
+  assert.equal(gefenApprovalValidationMessage(approvedAuthority, [
+    { item_name: 'קורס גפן', proposal_group: 'gefen', gefen_number: '46091' }
+  ]), '');
+
+  const schoolProposal = {
+    id: 'school-proposal', client_type: 'school', authority_id: 449, school_id: 10,
+    client_authority: 'ראמה', school_framework: 'בית ספר', authority_code: '543',
+    semel_mosad: '654321', status: 'pending_approval'
+  };
+  const approvedSchool = mergeProposalAgreementRow(schoolProposal, { id: 'school-proposal', status: 'approved' });
+  assert.equal(approvedSchool.semel_mosad, '654321');
+  assert.equal(approvedSchool.authority_code, '543');
+});
+
+test('saved proposal identity is independent of later directory/contact changes', () => {
+  const saved = {
+    id: 'historical-proposal', client_type: 'authority', authority_id: 449,
+    client_authority: 'ראמה בעת השליחה', authority_code: '543', contact_name: 'איש קשר מקורי'
+  };
+  const statusPatch = { id: saved.id, status: 'sent', updated_at: '2026-08-25T13:00:00Z' };
+  assert.deepEqual(
+    Object.fromEntries(['client_type', 'authority_id', 'client_authority', 'authority_code', 'contact_name']
+      .map((key) => [key, mergeProposalAgreementRow(saved, statusPatch)[key]])),
+    Object.fromEntries(['client_type', 'authority_id', 'client_authority', 'authority_code', 'contact_name']
+      .map((key) => [key, saved[key]]))
+  );
+});
+
+test('GEFEN school without semel mosad is blocked with the school-specific message', () => {
+  const items = [{ item_name: 'קורס גפן', proposal_group: 'gefen', gefen_number: '46091' }];
+  assert.equal(gefenApprovalValidationMessage({
+    client_type: 'school', school_id: 10, semel_mosad: '', activity_type_group: 'gefen'
+  }, items), 'חסר סמל מוסד. יש להשלים אותו לפני הפקת אישור גפ״ן.');
 });
 
 test('mixed next-year GEFEN approval contains courses only and does not mutate the proposal', () => {
@@ -3361,13 +3406,20 @@ test('updateProposalAgreementStatus uses statusForDb before Supabase write', asy
     apiSource,
     /sanitizeProposalAgreementPayload[\s\S]*pending_approval \? 'sent'/
   );
+  const statusBlock = apiSource.slice(
+    apiSource.indexOf('updateProposalAgreementStatus: async'),
+    apiSource.indexOf('lockAndSendProposalAgreement: async')
+  );
+  assert.equal((statusBlock.match(/\.from\('proposals_agreements'\)/g) || []).length, 1,
+    'a status change performs only its update request and never reloads/enriches the proposal');
+  assert.doesNotMatch(statusBlock, /proposals_agreements_directory_view|readAuthoritySchoolCatalog|auth\.getUser/);
 });
 
 
-test('proposal agreement table writes do not request or persist semel_mosad', async () => {
+test('proposal agreement table persists the complete client identity snapshot', async () => {
   const apiSource = await readFile(API_FILE, 'utf8');
   const tableColumnsMatch = apiSource.match(/const PROPOSALS_AGREEMENTS_COLUMNS = '([^']+)'/);
-  const directoryColumnsMatch = apiSource.match(/const PROPOSALS_AGREEMENTS_DIRECTORY_COLUMNS = '([^']+)'/);
+  const directoryColumnsMatch = apiSource.match(/const PROPOSALS_AGREEMENTS_LIST_COLUMNS = '([^']+)'/);
   const writableColumnsMatch = apiSource.match(/const PROPOSALS_AGREEMENTS_WRITABLE_COLUMNS = new Set\(\[([\s\S]*?)\]\);/);
   assert.ok(tableColumnsMatch, 'table columns constant should be defined');
   assert.ok(directoryColumnsMatch, 'directory columns constant should be defined');
@@ -3375,17 +3427,19 @@ test('proposal agreement table writes do not request or persist semel_mosad', as
 
   const tableColumns = tableColumnsMatch[1].split(',').map((column) => column.trim());
   const directoryColumns = directoryColumnsMatch[1].split(',').map((column) => column.trim());
-  assert.ok(!tableColumns.includes('semel_mosad'), 'direct proposals_agreements selects must not request semel_mosad');
+  assert.ok(tableColumns.includes('semel_mosad'), 'direct proposal reads include the saved school symbol');
+  assert.ok(tableColumns.includes('authority_code'), 'direct proposal reads include the saved authority symbol');
+  assert.ok(tableColumns.includes('client_type'), 'direct proposal reads include the saved client type');
   assert.ok(directoryColumns.includes('semel_mosad'), 'directory view selects should include semel_mosad');
-  assert.doesNotMatch(writableColumnsMatch[1], /['"]semel_mosad['"]/, 'direct writes must not include semel_mosad');
+  assert.match(writableColumnsMatch[1], /['"]semel_mosad['"]/, 'direct writes persist semel_mosad');
   const sanitizeBody = apiSource.slice(
     apiSource.indexOf('function sanitizeProposalAgreementPayload'),
     apiSource.indexOf('function proposalContactMatches')
   );
-  assert.doesNotMatch(
+  assert.match(
     sanitizeBody,
     /semel_mosad:/,
-    'sanitizeProposalAgreementPayload must not add semel_mosad to the DB row'
+    'sanitizeProposalAgreementPayload copies semel_mosad into the proposal row'
   );
   assert.match(apiSource, /if \(rpcSemelMosad\) rpcArgs\.p_semel_mosad = rpcSemelMosad;/, 'contact-school RPC may still receive semel_mosad');
 });
@@ -3415,15 +3469,16 @@ test('proposal payload preserves numeric bigint business ids while approval uses
     assert.equal(dbPayload.authority_id, 537);
     assert.equal(dbPayload.school_id, 537);
     assert.equal(dbPayload.contact_school_id, 537);
-    assert.equal(dbPayload.semel_mosad, undefined, 'semel_mosad is not written directly to proposals_agreements');
+    assert.equal(dbPayload.semel_mosad, 123456, 'semel_mosad is copied directly into the proposal snapshot');
     assert.equal(dbPayload.id, undefined, 'proposal id remains outside the bigint sanitizer payload');
   } finally {
     state.user = previousUser;
   }
 
   const apiSource = await readFile(API_FILE, 'utf8');
-  assert.match(apiSource, /let approvedByUuid = uuidOrNull\(state\?\.user\?\.auth_user_id\)/);
-  assert.match(apiSource, /approvedByUuid = uuidOrNull\(authData\?\.user\?\.id\)/, 'falls back to the Supabase Auth session user id when state has no valid auth_user_id');
+  assert.match(apiSource, /const approvedByUuid = uuidOrNull\(state\?\.user\?\.auth_user_id\)/);
+  const statusBlock = apiSource.slice(apiSource.indexOf('updateProposalAgreementStatus: async'), apiSource.indexOf('lockAndSendProposalAgreement: async'));
+  assert.doesNotMatch(statusBlock, /supabase\.auth\.getUser\(\)/, 'approval does not issue an auth enrichment request');
   assert.match(apiSource, /if \(approvedByUuid\) patch\.approved_by = approvedByUuid;/, 'approved_by is only set when a valid UUID was resolved');
   assert.doesNotMatch(apiSource, /approved_by = state\?\.user\?\.auth_user_id \|\| state\?\.user\?\.user_id/);
   assert.match(apiSource, /patch\.status = 'approved'/);

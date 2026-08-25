@@ -6189,10 +6189,15 @@ function validatePayload(payload, statusOverride, options = {}) {
   return errors;
 }
 
+export function mergeProposalAgreementRow(existingRow = {}, savedRow = {}) {
+  return normalizeProposalAgreementRow({ ...existingRow, ...savedRow });
+}
+
 function replaceLocalRow(data, savedRow) {
-  const normalized = normalizeProposalAgreementRow(savedRow);
   const rows = Array.isArray(data.rows) ? data.rows : [];
-  const idx = rows.findIndex((row) => text(row.id) === normalized.id);
+  const savedId = text(savedRow?.id);
+  const idx = rows.findIndex((row) => text(row.id) === savedId);
+  const normalized = mergeProposalAgreementRow(idx >= 0 ? rows[idx] : {}, savedRow);
   if (idx >= 0) rows[idx] = normalized;
   else rows.unshift(normalized);
   data.rows = dedupeById(sortRows(rows.map(normalizeProposalAgreementRow)));

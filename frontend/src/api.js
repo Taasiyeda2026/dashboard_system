@@ -3329,7 +3329,7 @@ function normalizeData(data) {
 }
 
 
-const PROPOSALS_AGREEMENTS_COLUMNS = 'id,authority_id,school_id,contact_school_id,client_authority,school_framework,document_type,activity_type_group,proposal_domain,proposal_date,activity_names,contact_name,contact_role,phone,email,contact_phone,contact_email,notes,status,approval_note,total_amount,custom_document_sections,include_catalog,signature_meta,approved_by,approved_at,sent_by,sent_at,locked_at,locked_by,locked_reason,final_pdf_path,final_pdf_file_name,final_pdf_created_at,final_pdf_created_by,document_snapshot,document_html_snapshot,proposal_series_id,version_number,supersedes_proposal_id,archived_at,quote_number,valid_until,combine_gefen_approval,gfen_signed_or_ordered,created_at,updated_at';
+const PROPOSALS_AGREEMENTS_COLUMNS = 'id,client_type,client_name,authority_id,authority_code,school_id,semel_mosad,contact_school_id,client_authority,school_framework,document_type,activity_type_group,proposal_domain,proposal_date,activity_names,contact_name,contact_role,phone,email,contact_phone,contact_email,notes,status,approval_note,total_amount,custom_document_sections,include_catalog,signature_meta,approved_by,approved_at,sent_by,sent_at,locked_at,locked_by,locked_reason,final_pdf_path,final_pdf_file_name,final_pdf_created_at,final_pdf_created_by,document_snapshot,document_html_snapshot,proposal_series_id,version_number,supersedes_proposal_id,archived_at,quote_number,valid_until,combine_gefen_approval,gfen_signed_or_ordered,created_at,updated_at';
 // List/directory projection — no snapshots/HTML/signature payloads.
 const PROPOSALS_AGREEMENTS_LIST_COLUMNS = 'id,authority_id,authority_code,school_id,contact_school_id,semel_mosad,authority_name,legacy_client_authority,contact_client_type,contact_client_name,school_name,legacy_school_framework,document_type,activity_type_group,proposal_domain,proposal_date,activity_names,contact_name,contact_role,phone,email,notes,status,approval_note,total_amount,include_catalog,has_approval_signature,approved_by,approved_at,sent_by,sent_at,locked_at,locked_by,locked_reason,final_pdf_path,final_pdf_file_name,final_pdf_created_at,final_pdf_created_by,proposal_series_id,version_number,supersedes_proposal_id,archived_at,quote_number,valid_until,combine_gefen_approval,gfen_signed_or_ordered,created_at,updated_at';
 const PROPOSALS_AGREEMENTS_DIRECTORY_COLUMNS = PROPOSALS_AGREEMENTS_LIST_COLUMNS;
@@ -3339,6 +3339,7 @@ const GEFEN_APPROVAL_DOCUMENT_TYPE = 'gefen_approval';
 const IDAN_NAHUM_AUTH_USER_ID = 'e9ca304a-4e66-4774-830e-14f1318c4908';
 const PROPOSALS_AGREEMENTS_WRITABLE_COLUMNS = new Set([
   'authority_id', 'school_id', 'contact_school_id', 'client_authority', 'school_framework',
+  'client_type', 'client_name', 'authority_code', 'semel_mosad',
   'document_type', 'activity_type_group', 'proposal_date', 'activity_names', 'contact_name',
   'contact_role', 'phone', 'email', 'contact_phone', 'contact_email', 'notes', 'status', 'approval_note', 'total_amount',
   'custom_document_sections', 'include_catalog', 'proposal_domain', 'supersedes_proposal_id'
@@ -3522,7 +3523,8 @@ function normalizeProposalAgreementRow(row = {}) {
   const schoolFramework = cleanProposalAgreementText(row.school_framework || row.legacy_school_framework || row.school_name || row.contact_client_name || row.school);
   const normalized = {
     id:                  cleanProposalAgreementText(row.id),
-    client_type:         cleanProposalAgreementText(row.contact_client_type) || (row.school_id ? 'school' : 'authority'),
+    client_type:         cleanProposalAgreementText(row.client_type || row.contact_client_type) || (row.school_id ? 'school' : 'authority'),
+    client_name:         cleanProposalAgreementText(row.client_name || row.contact_client_name),
     authority_id:        row.authority_id ?? null,
     school_id:           row.school_id ?? null,
     contact_school_id:   row.contact_school_id ?? null,
@@ -3956,8 +3958,12 @@ function sanitizeProposalAgreementPayload(payload = {}, groupLookup = proposalGr
   const clientAuthority = cleanProposalAgreementText(payload.client_authority || payload.authority_name || payload.authority);
   const schoolFramework = cleanProposalAgreementText(payload.school_framework || payload.school_name || payload.school) || (clientType === 'other' ? cleanProposalAgreementText(payload.client_name) : clientAuthority);
   const row = {
+    client_type:         clientType,
+    client_name:         cleanProposalAgreementText(payload.client_name) || (clientType === 'other' ? schoolFramework : ''),
     authority_id:        bigintIdOrNull(payload.authority_id),
+    authority_code:      bigintIdOrNull(payload.authority_code),
     school_id:           clientType === 'school' ? bigintIdOrNull(payload.school_id) : null,
+    semel_mosad:         clientType === 'school' ? bigintIdOrNull(payload.semel_mosad) : null,
     contact_school_id:   bigintIdOrNull(payload.contact_school_id),
     client_authority:    clientAuthority,
     school_framework:    schoolFramework,
@@ -7853,22 +7859,10 @@ export const api = {
       assertCanManageProposalsAgreementsApi();
     }
     if (cleanStatus === 'approved' && !(signatureMeta && typeof signatureMeta === 'object' && !Array.isArray(signatureMeta) && Object.keys(signatureMeta).length)) throw new Error('נדרשת חתימה לפני אישור ההצעה.');
-    const { data: currentRow, error: currentRowError } = await supabase
-      .from('proposals_agreements').select('status,signature_meta,approved_by,approved_at').eq('id', rowId).single();
-    if (currentRowError || !currentRow) throw new Error('proposals_agreement_not_found');
-    canTransitionProposalAgreementStatus(currentRow, cleanStatus);
     const patch = { status: statusForDb(cleanStatus), approval_note: cleanProposalAgreementText(approvalNote), updated_at: new Date().toISOString() };
     if (cleanStatus === 'approved') {
       patch.status = 'approved';
-      let approvedByUuid = uuidOrNull(state?.user?.auth_user_id);
-      if (!approvedByUuid && supabase) {
-        try {
-          const { data: authData } = await supabase.auth.getUser();
-          approvedByUuid = uuidOrNull(authData?.user?.id);
-        } catch {
-          /* ignore — approved_by is an audit field, not a gate on approval */
-        }
-      }
+      const approvedByUuid = uuidOrNull(state?.user?.auth_user_id);
       if (approvedByUuid) patch.approved_by = approvedByUuid;
       patch.approved_at = new Date().toISOString();
       patch.signature_meta = (signatureMeta && typeof signatureMeta === 'object' && !Array.isArray(signatureMeta)) ? signatureMeta : {};
