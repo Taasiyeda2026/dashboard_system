@@ -16,6 +16,8 @@ const PRINT_LABEL = 'הדפסה / PDF';
 const PRINT_TITLE = 'הדפסה או שמירה כ־PDF';
 const PRINT_READY_TIMEOUT_MS = 10000;
 
+let printModeAddedByRuntime = false;
+
 function cleanText(value) {
   return String(value == null ? '' : value).trim();
 }
@@ -51,6 +53,32 @@ function waitForValue(resolver, timeoutMs = PRINT_READY_TIMEOUT_MS) {
     };
     tick();
   });
+}
+
+function enterProposalPrintMode() {
+  if (typeof document === 'undefined') return false;
+  if (!document.querySelector(PREVIEW_SELECTOR)) return false;
+  if (document.body.classList.contains('is-print-preview')) return true;
+  document.body.classList.add('is-print-preview');
+  printModeAddedByRuntime = true;
+  return true;
+}
+
+function exitProposalPrintMode() {
+  if (typeof document === 'undefined') return;
+  if (!printModeAddedByRuntime) return;
+  document.body.classList.remove('is-print-preview');
+  printModeAddedByRuntime = false;
+}
+
+function invokeProposalBrowserPrint() {
+  enterProposalPrintMode();
+  try {
+    window.print();
+  } catch (error) {
+    exitProposalPrintMode();
+    throw error;
+  }
 }
 
 async function waitForPrintablePreview() {
@@ -109,7 +137,7 @@ async function openProposalPreview(proposalId) {
 async function printProposalById(proposalId) {
   if (!proposalId) throw new Error('proposal_browser_print_missing_id');
   await openProposalPreview(proposalId);
-  window.print();
+  invokeProposalBrowserPrint();
 }
 
 export function configureProposalPreviewPrintButton(button) {
@@ -164,6 +192,9 @@ export function installProposalIncompletePrintRuntime() {
   if (typeof document === 'undefined' || typeof window === 'undefined') return false;
   globalThis.__dsProposalIncompletePrintRuntimeInstalled = true;
 
+  window.addEventListener('beforeprint', enterProposalPrintMode);
+  window.addEventListener('afterprint', exitProposalPrintMode);
+
   document.addEventListener('click', (event) => {
     const previewPrintButton = event.target?.closest?.(PREVIEW_PRINT_SELECTOR);
     if (previewPrintButton) {
@@ -171,7 +202,7 @@ export function installProposalIncompletePrintRuntime() {
       event.stopPropagation();
       event.stopImmediatePropagation();
       requestAnimationFrame(() => {
-        try { window.print(); }
+        try { invokeProposalBrowserPrint(); }
         catch (error) { console.error('[proposal browser print failed]', error); }
       });
       return;
