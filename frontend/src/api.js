@@ -4143,6 +4143,20 @@ function proposalRequiresValidContactSchool(payload = {}) {
   return clientType !== 'other' && (status === 'pending_approval' || status === 'sent' || status === 'approved');
 }
 
+function proposalNeedsClientTypeContactLink(payload = {}) {
+  const clientType = cleanProposalAgreementText(payload.client_type);
+  const authority = cleanProposalAgreementText(payload.client_authority || payload.authority_name || payload.authority);
+  const clientName = cleanProposalAgreementText(payload.client_name || payload.school_framework || payload.school_name || payload.school);
+  return clientType === 'other' && Boolean(authority && clientName);
+}
+
+function proposalShouldEnsureContactSchool(payload = {}) {
+  return Boolean(
+    cleanProposalAgreementText(payload.contact_name)
+    && cleanProposalAgreementText(payload.client_authority)
+  ) || proposalNeedsClientTypeContactLink(payload);
+}
+
 async function ensureValidProposalContactSchoolId(payload = {}) {
   const existingId = await resolveValidProposalContactSchoolId(payload.contact_school_id);
   if (existingId != null) return existingId;
@@ -7739,7 +7753,7 @@ export const api = {
     const insert = sanitizeProposalAgreementPayload(enrichedPayload, groupLookup);
     const submissionId = uuidOrNull(payload?._submission_id);
     if (submissionId) insert.id = submissionId;
-    if (cleanProposalAgreementText(enrichedPayload.contact_name) && cleanProposalAgreementText(enrichedPayload.client_authority)) {
+    if (proposalShouldEnsureContactSchool(enrichedPayload)) {
       insert.contact_school_id = await ensureValidProposalContactSchoolId({ ...enrichedPayload, ...insert, _contact_original: enrichedPayload?._contact_original });
     }
     const { data, error } = await supabase
@@ -7777,7 +7791,7 @@ export const api = {
     };
     const patch = sanitizeProposalAgreementPayload(enrichedPayload, groupLookup);
     patch.updated_at = new Date().toISOString();
-    if (cleanProposalAgreementText(enrichedPayload.contact_name) && cleanProposalAgreementText(enrichedPayload.client_authority)) {
+    if (proposalShouldEnsureContactSchool(enrichedPayload)) {
       patch.contact_school_id = await ensureValidProposalContactSchoolId({ ...enrichedPayload, ...patch, _contact_original: enrichedPayload?._contact_original });
     }
     const { data, error } = await supabase
@@ -9051,6 +9065,7 @@ export {
   canManageProposalsAgreementsApi,
   canApproveProposalsAgreementsApi,
   statusForDb,
+  normalizeProposalAgreementRow,
   sanitizeProposalAgreementPayload,
   USER_PUBLIC_COLUMNS,
   USER_PUBLIC_COLUMNS_EXTENDED

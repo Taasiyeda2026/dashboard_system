@@ -74,7 +74,8 @@ const CLIENT_FILE_VERSIONS_MIGRATION_FILE = new URL('../supabase/migrations/2026
 const GEFEN_MIGRATION_FILE = new URL('../supabase/migrations/20260726223144_add_gefen_proposal_template.sql', import.meta.url);
 const GEFEN_DOCUMENT_REFINEMENT_MIGRATION_FILE = new URL('../supabase/migrations/20260726230813_refine_gefen_proposal_document.sql', import.meta.url);
 
-const { proposalsAgreementsScreen, proposalsAgreementsTableRowsHtml, canAccessProposalsAgreements, canManageProposalsAgreements, STATUS_LABELS, STATUS_OPTIONS, buildProposalCatalogPdfEntries, proposalPreviewBodyHtml, normalizeProposalAgreementRow, countPendingApprovedProposals, isProposalApprovedPendingSend, extractItemsFromForm, sortRows, calculateTourTotal, validatePayload, resetRecipientDependentFields, stepComplete, buildProposalDocumentSnapshot, proposalLockedPreviewHtml, proposalHasFinalPdf, isProposalLegacySentWithoutPdf, upsertProposalContactOption, calculateProposalValidityDate, gefenEligibleItems, gefenApprovalItems, gefenApprovalDocumentHtml } = await import('../frontend/src/screens/proposals-agreements.js');
+const { proposalsAgreementsScreen, proposalsAgreementsTableRowsHtml, canAccessProposalsAgreements, canManageProposalsAgreements, STATUS_LABELS, STATUS_OPTIONS, buildProposalCatalogPdfEntries, proposalPreviewBodyHtml, normalizeProposalAgreementRow, countPendingApprovedProposals, isProposalApprovedPendingSend, extractItemsFromForm, sortRows, calculateTourTotal, validatePayload, resetRecipientDependentFields, stepComplete, buildProposalDocumentSnapshot, proposalLockedPreviewHtml, proposalHasFinalPdf, isProposalLegacySentWithoutPdf, upsertProposalContactOption, calculateProposalValidityDate, gefenEligibleItems, gefenApprovalItems, gefenApprovalDocumentHtml, proposalClientIdentifier, clientLockedBannerHtml } = await import('../frontend/src/screens/proposals-agreements.js');
+const { normalizeProposalAgreementRow: normalizeProposalAgreementReadRow } = await import('../frontend/src/api.js');
 
 function stateFor(role) {
   const idanIdentity = role === 'admin'
@@ -1935,6 +1936,26 @@ test('client selector fills school fields without auto-selecting contact', async
   );
 });
 
+test('saving and reloading an other client linked to an authority keeps it without an identifier', async () => {
+  const apiSource = await readFile(API_FILE, 'utf8');
+  assert.match(apiSource, /function proposalNeedsClientTypeContactLink/);
+  assert.match(apiSource, /clientType === 'other' && Boolean\(authority && clientName\)/);
+  assert.match(apiSource, /addProposalAgreement:[\s\S]*proposalShouldEnsureContactSchool\(enrichedPayload\)/);
+  assert.match(apiSource, /updateProposalAgreement:[\s\S]*proposalShouldEnsureContactSchool\(enrichedPayload\)/);
+
+  const reloadedProposal = normalizeProposalAgreementReadRow({
+    client_authority: 'רשות לדוגמה',
+    school_framework: 'לקוח אחר בע"מ',
+    authority_id: 10,
+    authority_code: '101',
+    contact_client_type: 'other',
+    contact_client_name: 'לקוח אחר בע"מ'
+  });
+
+  assert.equal(reloadedProposal.client_type, 'other');
+  assert.equal(proposalClientIdentifier(reloadedProposal), null);
+});
+
 test('new proposal form starts with school recipient type and authority search', async () => {
   await withJSDOM(
     proposalsAgreementsScreen.render({ rows: [], contactOptions: sampleContactOptions }, { state: stateFor('admin') }),
@@ -3024,6 +3045,92 @@ test('proposal preview recipient block respects selected recipient type', async 
       }
       assert.doesNotMatch(address.textContent, /undefined|null|,,|,\s*$/);
     });
+  }
+});
+
+test('school proposal shows only the school identifier in client card, preview, and locked document', () => {
+  const row = {
+    client_type: 'school',
+    authority_id: 'auth-a',
+    school_id: 'school-a',
+    client_authority: 'רשות א',
+    school_framework: 'בית ספר א',
+    semel_mosad: '11111',
+    authority_code: '101',
+    document_type: 'הצעת מחיר',
+    activity_type_group: 'summer',
+    proposal_date: '2026-07-01'
+  };
+  assert.deepEqual(proposalClientIdentifier(row), { label: 'סמל מוסד', value: '11111' });
+  const card = clientLockedBannerHtml('רשות א', 'בית ספר א', '', '', '', '', 'בית ספר א', row, { clientType: 'school', schoolId: 'school-a', authorityCode: '101' });
+  const preview = proposalPreviewBodyHtml(row, [], []);
+  const lockedPreview = proposalLockedPreviewHtml({ document_snapshot: buildProposalDocumentSnapshot(row, [], []) });
+  for (const html of [card, preview, lockedPreview]) {
+    assert.match(html, /סמל מוסד/);
+    assert.match(html, /11111/);
+    assert.doesNotMatch(html, /סמל רשות|101/);
+  }
+});
+
+test('authority proposal shows only the authority identifier in client card, preview, and locked document', () => {
+  const row = {
+    client_type: 'authority',
+    authority_id: 'auth-a',
+    client_authority: 'רשות א',
+    school_framework: '',
+    semel_mosad: '11111',
+    authority_code: '101',
+    document_type: 'הצעת מחיר',
+    activity_type_group: 'summer',
+    proposal_date: '2026-07-01'
+  };
+  assert.deepEqual(proposalClientIdentifier(row), { label: 'סמל רשות', value: '101' });
+  const card = clientLockedBannerHtml('רשות א', '', '', '', '', '', 'רשות א', row, { clientType: 'authority', authorityCode: '101' });
+  const preview = proposalPreviewBodyHtml(row, [], []);
+  const lockedPreview = proposalLockedPreviewHtml({ document_snapshot: buildProposalDocumentSnapshot(row, [], []) });
+  for (const html of [card, preview, lockedPreview]) {
+    assert.match(html, /סמל רשות/);
+    assert.match(html, /101/);
+    assert.doesNotMatch(html, /סמל מוסד|11111/);
+  }
+});
+
+test('other client shows no client identifier in client card, preview, or locked document', () => {
+  const row = {
+    client_type: 'other',
+    client_name: 'עמותת בדיקה',
+    school_framework: 'עמותת בדיקה',
+    semel_mosad: '11111',
+    authority_code: '101',
+    document_type: 'הצעת מחיר',
+    activity_type_group: 'summer',
+    proposal_date: '2026-07-01'
+  };
+  assert.equal(proposalClientIdentifier(row), null);
+  const card = clientLockedBannerHtml('', '', '', '', '', '', 'עמותת בדיקה', row, { clientType: 'other' });
+  const preview = proposalPreviewBodyHtml(row, [], []);
+  const lockedPreview = proposalLockedPreviewHtml({ document_snapshot: buildProposalDocumentSnapshot(row, [], []) });
+  for (const html of [card, preview, lockedPreview]) {
+    assert.doesNotMatch(html, /סמל מוסד|סמל רשות|11111|101/);
+  }
+});
+
+test('legacy school proposal with a semel retains its institution symbol in preview and locked output', () => {
+  const legacyRow = {
+    client_authority: 'רשות ותיקה',
+    school_framework: 'בית ספר ותיק',
+    semel_mosad: '630046',
+    document_type: 'הצעת מחיר',
+    activity_type_group: 'summer',
+    proposal_date: '2026-07-01'
+  };
+
+  assert.deepEqual(proposalClientIdentifier(legacyRow), { label: 'סמל מוסד', value: '630046' });
+  const preview = proposalPreviewBodyHtml(legacyRow, [], []);
+  const lockedPreview = proposalLockedPreviewHtml({ document_snapshot: buildProposalDocumentSnapshot(legacyRow, [], []) });
+  for (const html of [preview, lockedPreview]) {
+    assert.match(html, /סמל מוסד/);
+    assert.match(html, /630046/);
   }
 });
 

@@ -1182,6 +1182,8 @@ export function buildProposalDocumentSnapshot(row = {}, items = [], templateSect
     id: text(row.id),
     client_authority: text(row.client_authority),
     school_framework: text(row.school_framework),
+    client_type: text(row.client_type),
+    authority_code: text(row.authority_code),
     document_type: text(row.document_type),
     activity_type_group: activityTypeGroup,
     proposal_domain: normalizeProposalDomain(row.proposal_domain),
@@ -1473,11 +1475,25 @@ function inferProposalClientType(row = {}) {
   if (explicitType === 'other') return 'other';
   if (explicitType === 'authority') return 'authority';
   if (explicitType === 'school') return 'school';
+  if (text(row.semel_mosad)) return 'school';
   if (text(row.school_id)) return 'school';
   if (text(row.authority_id) && !text(row.school_id)) return 'authority';
   if (text(row.client_name) && !text(row.authority_id) && !text(row.school_id) && !text(row.client_authority)) return 'other';
   if (!text(row.authority_id) && !text(row.school_id) && !text(row.client_authority) && text(row.school_framework)) return 'other';
   return 'school';
+}
+
+export function proposalClientIdentifier(row = {}) {
+  const clientType = inferProposalClientType(row);
+  if (clientType === 'school') {
+    const value = text(row.semel_mosad);
+    return value ? { label: 'סמל מוסד', value } : null;
+  }
+  if (clientType === 'authority') {
+    const value = text(row.authority_code);
+    return value ? { label: 'סמל רשות', value } : null;
+  }
+  return null;
 }
 
 function selectedRecipientType(form) {
@@ -3138,6 +3154,10 @@ function proposalRecipientLines(row = {}) {
 
 function recipientBlockHtml(row = {}) {
   const safeVal = (v) => { const s = text(v); return (!s || s === 'undefined' || s === 'null') ? '' : s; };
+  const identifier = proposalClientIdentifier(row);
+  const identifierLine = identifier
+    ? `<p class="pa-client-identifier"><strong>${escapeHtml(identifier.label)}:</strong> ${escapeHtml(identifier.value)}</p>`
+    : '';
   const contactName = safeVal(row.contact_name);
   const contactRole = normalizeContactRoleDisplay(safeVal(row.contact_role));
   const phone = safeVal(row.phone);
@@ -3153,10 +3173,9 @@ function recipientBlockHtml(row = {}) {
   if (normalizeProposalGroup(row.activity_type_group) === 'gefen') {
     const schoolName = safeVal(row.school_framework || row.school_name);
     const authorityName = safeVal(row.client_authority || row.authority_name);
-    const semelMosad = safeVal(row.semel_mosad);
     const schoolMetaParts = [];
     if (schoolName) schoolMetaParts.push(`<strong>בית ספר:</strong> ${escapeHtml(schoolName)}`);
-    if (semelMosad) schoolMetaParts.push(`<strong>סמל מוסד:</strong> ${escapeHtml(semelMosad)}`);
+    if (identifier) schoolMetaParts.push(`<strong>${escapeHtml(identifier.label)}:</strong> ${escapeHtml(identifier.value)}`);
     if (authorityName) schoolMetaParts.push(`<strong>רשות:</strong> ${escapeHtml(authorityName)}`);
     const schoolMetaLine = schoolMetaParts.length
       ? `<p class="pa-gefen-school-meta">${schoolMetaParts.join(' | ')}</p>`
@@ -3173,7 +3192,7 @@ function recipientBlockHtml(row = {}) {
     </div>`;
   }
   const orgLines = proposalRecipientLines(row).map((line) => recipientLineHtml(line));
-  const lines = [contactLine, contactDetailsLine, ...orgLines].filter(Boolean);
+  const lines = [contactLine, contactDetailsLine, identifierLine, ...orgLines].filter(Boolean);
   const recipientLinesHtml = lines.join('\n    ');
   return `<div class="pa-doc-address pa-to-block" style="margin:0 0 6mm 0;">
   <p class="pa-label-to" style="margin:0;"><strong>לכבוד:</strong></p>
@@ -4544,7 +4563,7 @@ function schoolDetailsLines(contact = {}) {
   return [
     catalogSchoolName(contact) ? ['בית ספר', catalogSchoolName(contact)] : null,
     catalogAuthorityName(contact) ? ['רשות', catalogAuthorityName(contact)] : null,
-    text(contact.semel_mosad) ? ['סמל מוסד', text(contact.semel_mosad)] : null,
+    proposalClientIdentifier({ ...contact, client_type: 'school' }) ? ['סמל מוסד', text(contact.semel_mosad)] : null,
     text(contact.principal_name || contact.contact_name) ? ['מנהל/ת', text(contact.principal_name || contact.contact_name)] : null,
     text(contact.mobile) ? ['נייד', text(contact.mobile)] : null,
     text(contact.school_address || contact.address || contact.institution_address) ? ['כתובת', text(contact.school_address || contact.address || contact.institution_address)] : null,
@@ -4586,14 +4605,19 @@ function enrichProposalRowFromContactOptions(row = {}, contactOptions = []) {
 
 export function clientLockedBannerHtml(auth, school, contactName, contactRole, phone, email, clientName = '', schoolMeta = null, recipient = {}) {
   if (!auth && !clientName) return '';
-  const semelMosad = text(schoolMeta?.semel_mosad);
   const clientType = text(recipient.clientType || recipient.client_type);
   const isSchool = clientType === 'school' || Boolean(recipient.schoolId || recipient.school_id);
   const isAuthority = clientType === 'authority';
   const modeClass = isSchool ? ' is-school' : (isAuthority ? ' is-authority' : ' is-other');
+  const identifier = proposalClientIdentifier({
+    client_type: isSchool ? 'school' : (isAuthority ? 'authority' : 'other'),
+    school_id: recipient.schoolId || recipient.school_id,
+    semel_mosad: recipient.semel_mosad || schoolMeta?.semel_mosad,
+    authority_code: recipient.authority_code || recipient.authorityCode || schoolMeta?.authority_code
+  });
   return `<div class="ds-pa-client-locked${modeClass}">
     <div class="ds-pa-client-locked-body">
-      ${isSchool && semelMosad ? `<p class="ds-pa-client-locked-state"><span>סמל מוסד</span><strong>${escapeHtml(semelMosad)}</strong></p>` : ''}
+      ${identifier ? `<p class="ds-pa-client-locked-state"><span>${escapeHtml(identifier.label)}</span><strong>${escapeHtml(identifier.value)}</strong></p>` : ''}
     </div>
   </div>`;
 }
@@ -4674,7 +4698,7 @@ function buildContactSourceFromRow(row = {}) {
   const inferredClientType = inferProposalClientType(row);
   if (inferredClientType === 'other') {
     return {
-      id: null, authority_id: row.authority_id || null, school_id: null, semel_mosad: null, school_required: 'no',
+      id: null, authority_id: row.authority_id || null, school_id: null, semel_mosad: null, authority_code: null, school_required: 'no',
       client_type: 'other', client_name: text(row.client_name || row.school_framework), authority: text(row.client_authority), school: '',
       contact_name: text(row.contact_name), contact_role: text(row.contact_role), phone: text(row.phone), email: text(row.email), mobile: ''
     };
@@ -4686,6 +4710,7 @@ function buildContactSourceFromRow(row = {}) {
     authority_id: row.authority_id,
     school_id:    row.school_id || null,
     semel_mosad:  text(row.semel_mosad),
+    authority_code: text(row.authority_code),
     client_type:  text(row.client_type) || (row.school_id ? 'school' : 'authority'),
     client_name:  school || text(row.client_authority),
     authority:    text(row.client_authority),
@@ -4702,7 +4727,7 @@ function emptyContactSourceForRecipientType(nextClientType, otherName = '') {
   const type = ['school', 'authority', 'other'].includes(text(nextClientType)) ? text(nextClientType) : 'school';
   if (type === 'other') {
     return {
-      id: null, authority_id: null, school_id: null, semel_mosad: null,
+      id: null, authority_id: null, school_id: null, semel_mosad: null, authority_code: null,
       school_required: 'no', client_type: 'other',
       client_name: otherName, authority: '', school: '',
       contact_name: '', contact_role: '', phone: '', mobile: '', email: '', source_table: ''
@@ -4710,14 +4735,14 @@ function emptyContactSourceForRecipientType(nextClientType, otherName = '') {
   }
   if (type === 'authority') {
     return {
-      id: null, authority_id: null, school_id: null, semel_mosad: null,
+      id: null, authority_id: null, school_id: null, semel_mosad: null, authority_code: null,
       school_required: 'no', client_type: 'authority',
       client_name: '', authority: '', school: '',
       contact_name: '', contact_role: '', phone: '', mobile: '', email: '', source_table: ''
     };
   }
   return {
-    id: null, authority_id: null, school_id: null, semel_mosad: null,
+    id: null, authority_id: null, school_id: null, semel_mosad: null, authority_code: null,
     school_required: 'yes', client_type: 'school',
     client_name: '', authority: '', school: '',
     contact_name: '', contact_role: '', phone: '', mobile: '', email: '', source_table: ''
@@ -4834,6 +4859,7 @@ function contactSourceInputsHtml(contact = {}) {
     <input type="hidden" name="contact_source_authority_id" value="${escapeHtml(text(source.authority_id))}">
     <input type="hidden" name="contact_source_school_id" value="${escapeHtml(text(source.school_id))}">
     <input type="hidden" name="contact_source_semel_mosad" value="${escapeHtml(text(source.semel_mosad))}">
+    <input type="hidden" name="contact_source_authority_code" value="${escapeHtml(text(source.authority_code))}">
     <input type="hidden" name="contact_source_school_required" value="${escapeHtml(text(source.school_required))}">
     <input type="hidden" name="contact_source_client_type" value="${escapeHtml(text(source.client_type))}">
     <input type="hidden" name="contact_source_client_name" value="${escapeHtml(text(source.client_name))}">
@@ -5038,7 +5064,7 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
             ${clientSearchHtml(contactOptions, row)}
             <div class="ds-pa-other-client-section" data-pa-other-client-field${initOther ? '' : ' hidden'}><label class="ds-pa-form-field ds-pa-other-client-field"><span>שם הלקוח / חברה</span><input class="ds-input ds-input--sm" name="other_client_name" value="${escapeHtml(initOther ? (row.client_name || initSchool) : '')}" placeholder="שם הלקוח"></label></div>
           </div>
-          <div data-pa-client-card${isLocked ? '' : ' hidden'}>${isLocked ? clientLockedBannerHtml(initAuth, initSchool, initContact, initRole, initPhone, initEmail, initClientName, initSchoolMeta, { clientType: initClientType, schoolId: initSchoolId }) : ''}</div>
+          <div data-pa-client-card${isLocked ? '' : ' hidden'}>${isLocked ? clientLockedBannerHtml(initAuth, initSchool, initContact, initRole, initPhone, initEmail, initClientName, initSchoolMeta, { clientType: initClientType, schoolId: initSchoolId, authorityCode: text(initContactSource?.authority_code) || text(row.authority_code) }) : ''}</div>
           <div class="ds-pa-client-hidden-values" data-pa-client-fields hidden>
             ${hiddenField('client_authority', row.client_authority)}
             ${hiddenField('school_framework', initOther ? '' : row.school_framework)}
@@ -5215,6 +5241,7 @@ function drawerHtml(row, activityNameOptions = [], state = null) {
     : '';
 
   const drawerClientType = inferProposalClientType(row);
+  const drawerIdentifier = proposalClientIdentifier(row);
   const schoolName = drawerClientType === 'other'
     ? (text(row.school_framework) || text(row.client_name) || '—')
     : (text(row.school_framework) || text(row.client_name) || '—');
@@ -5307,7 +5334,7 @@ function drawerHtml(row, activityNameOptions = [], state = null) {
       </div>
       <div class="ds-pa-drawer-body">
         <div class="ds-pa-proposal-info-grid">
-          <section class="ds-pa-info-card"><h4 class="ds-pa-card-title">פרטי ההצעה</h4><div class="ds-pa-info-grid">${infoCell('רשות', authorityName, false, { showEmpty: true })}${infoCell('בית ספר / גוף', schoolName, false, { showEmpty: true })}${infoCell('סוג הצעה', clientFacingProposalTypeLabel(row), false, { showEmpty: true })}${infoCell('תאריך הצעה', proposalDate, false, { showEmpty: true })}${infoCell('תוקף עד', formatDateDisplay(row.valid_until), false, { showEmpty: true })}${infoCell('סטטוס', statusText, false, { showEmpty: true })}${infoCell('תחום', proposalDomain, false, { showEmpty: true })}${infoCell('סמל מוסד', text(row.semel_mosad), false, { showEmpty: true })}${infoCell('מספר הצעה', text(row.quote_number), false, { showEmpty: true })}${infoCell('אישור גפ״ן', isGefenApprovalApplicable(row) ? gefenApprovalStatusDisplay(row) : '—', false, { showEmpty: true })}${infoCell('הערות', text(row.notes), true)}</div></section>
+          <section class="ds-pa-info-card"><h4 class="ds-pa-card-title">פרטי ההצעה</h4><div class="ds-pa-info-grid">${infoCell('רשות', authorityName, false, { showEmpty: true })}${infoCell('בית ספר / גוף', schoolName, false, { showEmpty: true })}${infoCell('סוג הצעה', clientFacingProposalTypeLabel(row), false, { showEmpty: true })}${infoCell('תאריך הצעה', proposalDate, false, { showEmpty: true })}${infoCell('תוקף עד', formatDateDisplay(row.valid_until), false, { showEmpty: true })}${infoCell('סטטוס', statusText, false, { showEmpty: true })}${infoCell('תחום', proposalDomain, false, { showEmpty: true })}${drawerIdentifier ? infoCell(drawerIdentifier.label, drawerIdentifier.value, false, { showEmpty: true }) : ''}${infoCell('מספר הצעה', text(row.quote_number), false, { showEmpty: true })}${infoCell('אישור גפ״ן', isGefenApprovalApplicable(row) ? gefenApprovalStatusDisplay(row) : '—', false, { showEmpty: true })}${infoCell('הערות', text(row.notes), true)}</div></section>
           ${contactCard}
           ${sendingCard || '<section class="ds-pa-info-card"><h4 class="ds-pa-card-title">פרטי שליחה</h4><p class="ds-muted">טרם נשלחה</p></section>'}
         </div>
@@ -5961,6 +5988,7 @@ function payloadFromForm(form) {
   payload._items = items;
   const selectedClientType = text(formData.get('client_type_selector')) || text(formData.get('contact_source_client_type')) || (text(formData.get('contact_source_school_id')) ? 'school' : 'authority');
   payload.client_type = ['school', 'authority', 'other'].includes(selectedClientType) ? selectedClientType : 'school';
+  payload.authority_code = text(formData.get('contact_source_authority_code'));
   if (payload.client_type === 'other') {
     const otherClientName = text(formData.get('other_client_name'));
     payload.school_framework = '';
@@ -5988,6 +6016,7 @@ function payloadFromForm(form) {
     authority_id: text(formData.get('contact_source_authority_id')) || null,
     school_id:    text(formData.get('contact_source_school_id')) || null,
     semel_mosad:  text(formData.get('contact_source_semel_mosad')) || null,
+    authority_code: text(formData.get('contact_source_authority_code')) || null,
     client_name:  text(formData.get('contact_source_client_name')),
     authority:    text(formData.get('contact_source_authority')),
     school:       text(formData.get('contact_source_school')),
@@ -7205,6 +7234,7 @@ export const proposalsAgreementsScreen = {
         clientType = 'school',
         clientName = '',
         semel_mosad = '',
+        authority_code = '',
         schoolMeta = null
       } = ctx;
 
@@ -7219,6 +7249,7 @@ export const proposalsAgreementsScreen = {
           authority_id: authorityId || null,
           school_id: null,
           semel_mosad: null,
+          authority_code: null,
           school_required: 'no',
           client_type: 'other',
           client_name: otherName || clientName || '',
@@ -7286,6 +7317,7 @@ export const proposalsAgreementsScreen = {
         authority,
         school
       }) || {};
+      const currentSource = contactSourceFromForm(form);
       const pickerHost = form.querySelector('[data-pa-contact-picker-host]');
       // Contact must never be auto-filled on client selection — the school/authority
       // principal metadata is still offered as a pickable option inside contactPickerHtml,
@@ -7295,6 +7327,7 @@ export const proposalsAgreementsScreen = {
         authority_id: authorityId || null,
         school_id: isAuthorityOnly ? null : (schoolId || null),
         semel_mosad: isAuthorityOnly ? '' : (text(semel_mosad) || text(catalogSchool.semel_mosad)),
+        authority_code: text(authority_code) || text(currentSource.authority_code) || text(catalogSchool.authority_code),
         school_required: isAuthorityOnly ? 'no' : 'yes',
         client_type: clientType,
         client_name: clientName || school || authority,
@@ -7337,7 +7370,7 @@ export const proposalsAgreementsScreen = {
         text(defaultContact?.email),
         clientName || school || authority,
         catalogSchool,
-        { clientType, schoolId: isAuthorityOnly ? null : schoolId }
+        { clientType, schoolId: isAuthorityOnly ? null : schoolId, authorityCode: baseSource.authority_code }
       );
 
       const searchField = form.querySelector('[data-pa-client-search-field]');
@@ -7449,6 +7482,7 @@ export const proposalsAgreementsScreen = {
       authority_id: text(form?.querySelector('input[name="contact_source_authority_id"]')?.value) || null,
       school_id: text(form?.querySelector('input[name="contact_source_school_id"]')?.value) || null,
       semel_mosad: text(form?.querySelector('input[name="contact_source_semel_mosad"]')?.value) || null,
+      authority_code: text(form?.querySelector('input[name="contact_source_authority_code"]')?.value) || null,
       school_required: text(form?.querySelector('input[name="contact_source_school_required"]')?.value) || 'yes',
       client_type: text(form?.querySelector('input[name="contact_source_client_type"]')?.value) || 'school',
       client_name: text(form?.querySelector('input[name="contact_source_client_name"]')?.value),
@@ -7489,7 +7523,8 @@ export const proposalsAgreementsScreen = {
             null,
             {
               clientType: text(form.querySelector('input[name="contact_source_client_type"]')?.value),
-              schoolId: text(form.querySelector('input[name="contact_source_school_id"]')?.value)
+              schoolId: text(form.querySelector('input[name="contact_source_school_id"]')?.value),
+              authorityCode: text(form.querySelector('input[name="contact_source_authority_code"]')?.value)
             }
           );
           showManualContactFields(form);
@@ -7506,7 +7541,7 @@ export const proposalsAgreementsScreen = {
           fillContactFields(form, contact);
           setContactSource(form, contact);
           setAddContactRowState(form, { visible: false, showNoContactNote: false });
-          lockClientFields(form, text(contact.authority), text(contact.school), text(contact.contact_name), text(contact.contact_role), text(contact.mobile || ''), text(contact.email || ''), text(contact.client_name) || text(contact.school) || text(contact.authority), contact, { clientType: text(contact.client_type), schoolId: text(contact.school_id) });
+          lockClientFields(form, text(contact.authority), text(contact.school), text(contact.contact_name), text(contact.contact_role), text(contact.mobile || ''), text(contact.email || ''), text(contact.client_name) || text(contact.school) || text(contact.authority), contact, { clientType: text(contact.client_type), schoolId: text(contact.school_id), authorityCode: text(contact.authority_code) });
           if (form) setTimeout(() => calcGrandTotal(form), 0);
         }
       }, { signal });
@@ -7673,6 +7708,7 @@ export const proposalsAgreementsScreen = {
       setContactSource(form, {
         authority_id: authorityId || null,
         school_id: null,
+        authority_code: text(contact.authority_code),
         school_required: 'yes',
         client_type: 'school',
         client_name: authorityName,
@@ -7703,7 +7739,8 @@ export const proposalsAgreementsScreen = {
           form.dataset.paNewClient = 'no';
           applyContactSelectionAfterClient(form, {
             authority: authorityName, school: '', authorityId, schoolId: '',
-            clientType: 'other', clientName: otherClientName || authorityName
+            clientType: 'other', clientName: otherClientName || authorityName,
+            authority_code: text(contact.authority_code)
           });
         } else if (selectedType === 'authority') {
           const authorityName = catalogAuthorityName(contact);
@@ -7717,7 +7754,8 @@ export const proposalsAgreementsScreen = {
             authorityId,
             schoolId: '',
             clientType: 'authority',
-            clientName: authorityName
+            clientName: authorityName,
+            authority_code: text(contact.authority_code)
           });
         } else {
           applyAuthoritySelection(form, contact);
@@ -10151,7 +10189,8 @@ export const proposalsAgreementsScreen = {
           null,
           {
             clientType: text(form.querySelector('input[name="contact_source_client_type"]')?.value),
-            schoolId: text(form.querySelector('input[name="contact_source_school_id"]')?.value)
+            schoolId: text(form.querySelector('input[name="contact_source_school_id"]')?.value),
+            authorityCode: text(form.querySelector('input[name="contact_source_authority_code"]')?.value)
           }
         );
         showManualContactFields(form);

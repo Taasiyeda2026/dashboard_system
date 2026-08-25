@@ -92,34 +92,23 @@
     background: #eaf3ff !important;
   }
 
-  /* Form cards: allow custom dropdown panels to escape the card bounds. */
+  /* New report form sections */
   .av2-report__form {
     position: relative;
   }
-  .av2-form-card {
+  .av2-form-section {
     position: relative;
     overflow: visible !important;
     border-color: #cbd8e7;
     background: #ffffff;
+    box-shadow: none !important;
   }
-  .av2-form-card:focus-within {
+  .av2-form-section:focus-within {
     z-index: 80;
   }
-  .av2-form-card__body {
-    border-radius: 0 0 9px 9px;
-    background: #ffffff;
-  }
-  .av2-form-section-title--activity {
-    background: #e7f8ee !important;
-  }
-  .av2-form-section-title--time {
-    background: #e7f1ff !important;
-  }
-  .av2-form-section-title--expenses {
-    background: #fff2c9 !important;
-  }
-  .av2-form-section-title--notes {
-    background: #f1e7ff !important;
+  .av2-form-section__title {
+    background: #f4f7fb !important;
+    color: #4b5f78 !important;
   }
 
   .av2-ssel__panel,
@@ -129,8 +118,6 @@
     box-shadow: 0 14px 30px rgba(15, 23, 42, 0.20), 0 3px 8px rgba(15, 23, 42, 0.10) !important;
   }
 
-  /* Time control itself is numeric LTR: hour : minute.
-     Each dropdown remains RTL internally so Hebrew labels/chevrons stay natural. */
   .av2-time-picker {
     direction: ltr;
   }
@@ -138,51 +125,16 @@
   .av2-time-picker .av2-csel__panel {
     direction: rtl;
   }
+}
 
-  /* Match the supplied reference:
-     row 1 = date (right) + total hours (left)
-     row 2 = start time (right) + end time (left). */
-  .av2-form-card:has(#av2-time-date) .av2-field:has(#av2-time-date) {
-    grid-column: 1 !important;
-    grid-row: 1;
-  }
-  .av2-form-card:has(#av2-time-date) .av2-report__hours-display {
-    grid-column: 2 !important;
-    grid-row: 1;
-    display: flex;
-    flex-direction: column;
-    align-items: stretch;
-    justify-content: flex-start;
-    gap: 3px;
-    margin: 0;
-    padding: 0;
-  }
-  .av2-form-card:has(#av2-time-date) .av2-field:has(#av2-start-time-h-trigger) {
-    grid-column: 1 !important;
-    grid-row: 2;
-  }
-  .av2-form-card:has(#av2-time-date) .av2-field:has(#av2-end-time-h-trigger) {
-    grid-column: 2 !important;
-    grid-row: 2;
-  }
-  .av2-report__hours-label {
-    font-size: 0.6875rem;
-    font-weight: 600;
-    color: var(--av2-color-text-muted);
-    text-align: start;
-  }
-  .av2-report__hours-value {
-    min-height: 38px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 0 10px;
-    border: 1px solid #cbd8e7;
-    border-radius: 8px;
-    background: #eef4fb;
-    color: #1749b1;
-    font-size: 1.05rem;
-    font-weight: 800;
-    line-height: 1;
-  }
+/* My Reports must use the canonical 11-column table from my-reports-screen.js.
+   reference-data-layout.js creates a legacy 9-column presentation table that omits
+   activity name and expenses. Keep that generated table out of the Reports screen
+   and expose the complete source table instead. */
+.av2-reports__content > .av2-reference-reports-table {
+  display: none !important;
+}
+
+.av2-reports__content > .av2-reference-reports-table + .av2-report-list {
+  display: flex !important;
 }
