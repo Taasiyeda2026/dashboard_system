@@ -5591,6 +5591,7 @@ function mergeClientFileIdentity(file, row = {}) {
   file.authority_id = file.authority_id || row.authority_id || null;
   file.school_id = file.school_id || row.school_id || null;
   file.authority = file.authority || authority;
+  file.authority_code = file.authority_code || text(row.authority_code);
   file.school = file.school || (type === 'authority' ? '' : school);
   file.semel_mosad = file.semel_mosad || text(row.semel_mosad);
   file.domain = file.domain || text(row.proposal_domain || row.contact_domain);
@@ -5624,7 +5625,7 @@ function buildClientFiles(data = {}) {
   const ensureFile = (row) => {
     const key = clientFileKey(row);
     if (!key || key.endsWith(':')) return null;
-    if (!files.has(key)) files.set(key, { key, client_type: '', authority_id: null, school_id: null, authority: '', school: '', semel_mosad: '', domain: '', city: '', district: '', contacts: [], proposals: [] });
+    if (!files.has(key)) files.set(key, { key, client_type: '', authority_id: null, school_id: null, authority: '', authority_code: '', school: '', semel_mosad: '', domain: '', city: '', district: '', contacts: [], proposals: [] });
     return mergeClientFileIdentity(files.get(key), row);
   };
 
@@ -5679,7 +5680,7 @@ function buildClientFiles(data = {}) {
 
 function clientFileSearchText(file = {}) {
   return [
-    file.authority, file.school, file.semel_mosad, file.domain, file.city, file.district,
+    file.authority, file.authority_code, file.school, file.semel_mosad, file.domain, file.city, file.district,
     ...(file.contacts || []).flatMap((contact) => [contact.contact_name, contact.contact_role, contact.mobile, contact.phone, contact.email])
   ].map(normalizedClientPart).filter(Boolean).join(' ');
 }
@@ -5772,10 +5773,20 @@ function clientSearchResultsHtml(files, query) {
   if (!needle) return '';
   const matches = files.filter((file) => clientFileSearchText(file).includes(needle)).slice(0, 30);
   if (!matches.length) return '<p class="ds-client-search-empty">לא נמצא תיק לקוח מתאים</p>';
-  return matches.map((file) => `<button type="button" class="ds-client-search-result" data-pa-open-client="${escapeHtml(file.key)}">
-    <strong>${escapeHtml(clientFileLabel(file))}</strong>
-    <span>${escapeHtml([file.authority && file.authority !== clientFileLabel(file) ? file.authority : '', file.semel_mosad ? `סמל ${file.semel_mosad}` : '', file.contacts.length ? `${file.contacts.length} אנשי קשר` : ''].filter(Boolean).join(' · '))}</span>
-  </button>`).join('');
+  return matches.map((file) => {
+    const isSchool = file.client_type === 'school' || Boolean(file.school_id || file.semel_mosad);
+    const meta = [
+      !isSchool ? 'רשות' : (file.authority && file.authority !== clientFileLabel(file) ? file.authority : ''),
+      !isSchool
+        ? (file.authority_code ? `סמל רשות ${file.authority_code}` : '')
+        : (file.semel_mosad ? `סמל מוסד ${file.semel_mosad}` : ''),
+      file.contacts.length ? `${file.contacts.length} אנשי קשר` : ''
+    ].filter(Boolean);
+    return `<button type="button" class="ds-client-search-result" data-pa-open-client="${escapeHtml(file.key)}">
+      <strong>${escapeHtml(clientFileLabel(file))}</strong>
+      <span>${escapeHtml(meta.join(' · '))}</span>
+    </button>`;
+  }).join('');
 }
 
 function clientContactsHtml(file = {}, canManage = false) {
@@ -5798,6 +5809,10 @@ function selectedClientFileHtml(file, state = {}) {
   const proposals = collapseSemanticDuplicates(dedupeById(file.proposals || []), {}).rows;
   const current = proposals.filter((row) => !isArchivedClientProposal(row, proposals));
   const archive = proposals.filter((row) => isArchivedClientProposal(row, proposals));
+  const isSchool = file.client_type === 'school' || Boolean(file.school_id || file.semel_mosad);
+  const identifier = isSchool
+    ? (file.semel_mosad ? { label: 'סמל מוסד', value: file.semel_mosad } : null)
+    : (file.client_type === 'authority' && file.authority_code ? { label: 'סמל רשות', value: file.authority_code } : null);
   return `<div class="ds-client-file" data-pa-client-file="${escapeHtml(file.key)}">
     <button type="button" class="ds-client-file__close" data-pa-client-close aria-label="סגירת תיק לקוח">✕</button>
     <section class="ds-client-file__identity">
@@ -5805,7 +5820,7 @@ function selectedClientFileHtml(file, state = {}) {
       <p><span>רשות</span><strong>${escapeHtml(file.authority || 'לא הוגדרה')}</strong></p>
       <p><span>תחום</span><strong>${escapeHtml(file.domain || 'לא הוגדר')}</strong></p>
       ${file.school ? `<p><span>בית ספר</span><strong>${escapeHtml(file.school)}</strong></p>` : ''}
-      <p><span>סמל מוסד</span><strong>${escapeHtml(file.semel_mosad || 'לא הוגדר')}</strong></p>
+      ${identifier ? `<p><span>${identifier.label}</span><strong>${escapeHtml(identifier.value)}</strong></p>` : ''}
       <div class="ds-client-file__contacts-head"><h3>אנשי קשר</h3>${canManage ? '<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-pa-client-add-contact>＋ איש קשר</button>' : ''}</div>
       <div class="ds-client-contacts">${clientContactsHtml(file, canManage)}</div>
     </section>
@@ -6933,7 +6948,9 @@ export const proposalsAgreementsScreen = {
         return;
       }
       const selectedFile = currentClientFile();
-      await loadSelectedClientProposals(selectedFile);
+      if (typeof api.proposalsAgreements === 'function') {
+        await loadSelectedClientProposals(selectedFile);
+      }
       if (signal.aborted || !root.isConnected) return;
       proposalDetailContext = null;
       setProposalDetailMode(false);

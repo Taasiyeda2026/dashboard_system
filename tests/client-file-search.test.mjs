@@ -76,6 +76,95 @@ for (const [name, query, expected] of cases) {
   });
 }
 
+test('תוצאת חיפוש רשות מציגה סמל רשות ומספר אנשי קשר', () => {
+  const authorityFiles = buildClientFiles({
+    rows: [],
+    contactOptions: [{
+      client_type: 'authority',
+      authority_id: '10',
+      authority: 'עיריית נהרייה',
+      authority_code: '543',
+      contact_name: 'דנה לוי',
+      contact_role: 'מנהלת'
+    }]
+  });
+  const html = clientSearchResultsHtml(authorityFiles, 'נהריה');
+  assert.match(html, /עיריית נהרייה/);
+  assert.match(html, /רשות · סמל רשות 543 · 1 אנשי קשר/);
+  assert.doesNotMatch(html, /סמל מוסד/);
+});
+
+test('תוצאת חיפוש בית ספר ממשיכה להציג את הרשות ואת סמל המוסד', () => {
+  const schoolFiles = buildClientFiles({
+    rows: [],
+    contactOptions: [{
+      client_type: 'school',
+      authority_id: '20',
+      authority: 'קריית ביאליק',
+      school_id: '30',
+      school: 'בית–ספר גבעות',
+      semel_mosad: '123456',
+      contact_name: 'דנה לוי'
+    }]
+  });
+  const html = clientSearchResultsHtml(schoolFiles, 'גבעות');
+  assert.match(html, /קריית ביאליק · סמל מוסד 123456 · 1 אנשי קשר/);
+  assert.doesNotMatch(html, /סמל רשות/);
+});
+
+test('פתיחת תיק רשות מציגה סמל רשות בלבד', async () => {
+  const authorityData = {
+    rows: [],
+    contactOptions: [{
+      client_type: 'authority',
+      authority_id: '10',
+      authority: 'עיריית נהרייה',
+      authority_code: '543',
+      contact_name: 'דנה לוי',
+      contact_role: 'מנהלת'
+    }],
+    _contactsLoaded: true
+  };
+  await withJSDOM(proposalsAgreementsScreen.render(authorityData, { state }), async (root, dom) => {
+    proposalsAgreementsScreen.bind({ root, data: authorityData, state, api: {} });
+    const search = root.querySelector('[data-pa-client-search]');
+    search.value = 'נהריה';
+    search.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+    await new Promise((resolve) => setTimeout(resolve, 320));
+    root.querySelector('[data-pa-open-client]')?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    const fileText = root.querySelector('[data-pa-client-file]')?.textContent || '';
+    assert.match(fileText, /סמל רשות\s*543/);
+    assert.doesNotMatch(fileText, /סמל מוסד/);
+  });
+});
+
+test('פתיחת תיק בית ספר מציגה סמל מוסד בלבד', async () => {
+  const schoolData = {
+    rows: [],
+    contactOptions: [{
+      client_type: 'school',
+      authority_id: '20',
+      authority: 'קריית ביאליק',
+      school_id: '30',
+      school: 'בית–ספר גבעות',
+      semel_mosad: '123456',
+      contact_name: 'דנה לוי'
+    }],
+    _contactsLoaded: true
+  };
+  await withJSDOM(proposalsAgreementsScreen.render(schoolData, { state }), async (root, dom) => {
+    proposalsAgreementsScreen.bind({ root, data: schoolData, state, api: {} });
+    const search = root.querySelector('[data-pa-client-search]');
+    search.value = 'גבעות';
+    search.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+    await new Promise((resolve) => setTimeout(resolve, 320));
+    root.querySelector('[data-pa-open-client]')?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    const fileText = root.querySelector('[data-pa-client-file]')?.textContent || '';
+    assert.match(fileText, /סמל מוסד\s*123456/);
+    assert.doesNotMatch(fileText, /סמל רשות/);
+  });
+});
+
 test('חיפוש תיק לקוח טוען את קטלוג אנשי הקשר ומשלב אותו עם חיפוש שרת', async () => {
   const source = await readFile(new URL('../frontend/src/screens/proposals-agreements.js', import.meta.url), 'utf8');
   const handlerStart = source.indexOf("const input = event.target.closest?.('[data-pa-client-search]')");
