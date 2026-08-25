@@ -130,6 +130,64 @@ function buildKpiCards(typeCounts, uniqueInstructorCount, courseEndings, payload
   ];
 }
 
+function mergeCurrentExceptionMetrics(payload, exceptionPayload) {
+  if (!payload || typeof payload !== 'object' || !exceptionPayload || typeof exceptionPayload !== 'object') return payload;
+  if (exceptionPayload.error || exceptionPayload?._debug?.error) return payload;
+
+  const uniqueExceptionActivities = asNumber(
+    exceptionPayload.uniqueExceptionActivities ??
+    exceptionPayload.totalExceptionRows ??
+    exceptionPayload.totalExceptionInstances
+  );
+  const totalExceptionRows = asNumber(exceptionPayload.totalExceptionRows ?? uniqueExceptionActivities);
+  const totalExceptionInstances = asNumber(exceptionPayload.totalExceptionInstances ?? totalExceptionRows);
+  const counts = exceptionPayload.counts && typeof exceptionPayload.counts === 'object'
+    ? exceptionPayload.counts
+    : {};
+  const byDistrict = exceptionPayload.byDistrict && typeof exceptionPayload.byDistrict === 'object'
+    ? exceptionPayload.byDistrict
+    : (exceptionPayload.byManager && typeof exceptionPayload.byManager === 'object' ? exceptionPayload.byManager : {});
+
+  const existingManagers = Array.isArray(payload.by_activity_manager) ? payload.by_activity_manager : [];
+  const managerByName = new Map(existingManagers.map((row) => [cleanText(row.activity_manager), { ...row }]));
+  for (const [district, count] of Object.entries(byDistrict)) {
+    const name = cleanText(district);
+    if (!name) continue;
+    const current = managerByName.get(name) || { activity_manager: name };
+    managerByName.set(name, { ...current, exceptions: asNumber(count) });
+  }
+
+  return {
+    ...payload,
+    totals: {
+      ...(payload.totals || {}),
+      exceptions_count: uniqueExceptionActivities
+    },
+    summary: {
+      ...(payload.summary || {}),
+      missing_instructor_count: asNumber(counts.missing_instructor),
+      missing_district_count: asNumber(counts.missing_district),
+      missing_start_date_count: asNumber(counts.missing_start_date),
+      missing_end_date_count: asNumber(counts.missing_end_date),
+      missing_date_count: asNumber(counts.missing_start_date),
+      end_date_after_cutoff_count: asNumber(counts.end_date_after_cutoff),
+      end_date_passed_count: asNumber(counts.end_date_passed),
+      operational_gaps_count: uniqueExceptionActivities,
+      operational_gaps_unique_count: uniqueExceptionActivities,
+      operationalTotal: uniqueExceptionActivities,
+      exceptions_count: uniqueExceptionActivities,
+      totalExceptionRows,
+      total_exception_rows: totalExceptionRows,
+      totalExceptionInstances,
+      counts,
+      exceptions_unavailable: false
+    },
+    by_activity_manager: [...managerByName.values()],
+    exceptionCount: uniqueExceptionActivities,
+    exceptionsUnavailable: false
+  };
+}
+
 function fallbackNormalize(payload) {
   if (!payload || typeof payload !== 'object') return payload;
   const typeCounts = {
@@ -266,8 +324,20 @@ async function normalizeDashboardKpis(payload, args) {
   }
 
   try {
-    const allActivities = await api.allActivities({ select: DASHBOARD_MONTH_ACTIVITY_COLUMNS });
-    return buildFullMonthPayload(payload, allActivities?.rows, month);
+    const [allActivities, currentExceptions] = await Promise.all([
+      api.allActivities({ select: DASHBOARD_MONTH_ACTIVITY_COLUMNS }),
+      typeof api.exceptions === 'function'
+        ? api.exceptions({ month }).catch((error) => {
+          console.warn('[dashboard-open-exceptions] full-period calculation failed; preserving dashboard fallback', {
+            month,
+            error: error?.message || String(error)
+          });
+          return null;
+        })
+        : Promise.resolve(null)
+    ]);
+    const payloadWithCurrentExceptions = mergeCurrentExceptionMetrics(payload, currentExceptions);
+    return buildFullMonthPayload(payloadWithCurrentExceptions, allActivities?.rows, month);
   } catch (error) {
     console.warn('[dashboard-monthly-scope] full-month calculation failed; using consistent open-row fallback', {
       month,
