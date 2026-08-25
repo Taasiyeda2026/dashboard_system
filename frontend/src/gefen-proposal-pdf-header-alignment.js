@@ -1,10 +1,26 @@
 const PROPOSAL_DOCUMENT_SELECTOR = '.proposal-document';
 const TITLE_SELECTOR = '.pa-doc-title';
 const DATE_SELECTOR = '.pa-doc-date';
+const REGULAR_GEFEN_SELECTOR = '.pa-proposal-doc--gefen:not(.pa-gefen-approval-document)';
 const TITLE_DATE_ROW_ATTRIBUTE = 'data-pa-title-date-row';
+
+const TITLE_ALIGNMENT_PROPERTIES = [
+  'grid-column', 'grid-row', 'display', 'width', 'max-width', 'justify-self',
+  'align-self', 'text-align', 'direction', 'margin', 'padding', 'position', 'transform'
+];
+const DATE_ALIGNMENT_PROPERTIES = [
+  'grid-column', 'grid-row', 'display', 'width', 'max-width', 'justify-self',
+  'align-self', 'text-align', 'direction', 'white-space', 'margin', 'padding',
+  'position', 'transform'
+];
 
 function setImportantStyle(element, property, value) {
   element?.style?.setProperty(property, value, 'important');
+}
+
+function clearInlineProperties(element, properties) {
+  if (!element?.style) return;
+  properties.forEach((property) => element.style.removeProperty(property));
 }
 
 function proposalDocumentsWithin(root) {
@@ -33,6 +49,25 @@ function ensureTitleDateRow(proposalDocument, title) {
     row.appendChild(title);
   }
   return row;
+}
+
+function restoreRegularGefenHeader(proposalDocument, title) {
+  const row = title.closest(`[${TITLE_DATE_ROW_ATTRIBUTE}]`);
+  const content = proposalDocument.querySelector('.proposal-document-content') || title.parentElement;
+  const date = proposalDocument.querySelector(`${DATE_SELECTOR}:not(.pa-gefen-approval-date)`);
+
+  // Older alignment passes may already have wrapped the GEFEN title/date in a grid row.
+  // Undo only that wrapper and its inline !important styles. The dedicated GEFEN
+  // positioning runtime owns the final location: recipient -> date -> title.
+  if (row && content) {
+    if (date?.parentElement === row) content.insertBefore(date, row);
+    content.insertBefore(title, row);
+    row.remove();
+  }
+
+  clearInlineProperties(title, TITLE_ALIGNMENT_PROPERTIES);
+  clearInlineProperties(date, DATE_ALIGNMENT_PROPERTIES);
+  return true;
 }
 
 function styleTitleDateRow(row, title, date) {
@@ -85,6 +120,12 @@ export function alignProposalPdfTitleDate(root = typeof document !== 'undefined'
   proposalDocumentsWithin(root).forEach((proposalDocument) => {
     const title = proposalDocument.querySelector(TITLE_SELECTOR);
     if (!title) return;
+
+    if (proposalDocument.matches(REGULAR_GEFEN_SELECTOR)) {
+      restoreRegularGefenHeader(proposalDocument, title);
+      alignedCount += 1;
+      return;
+    }
 
     const date = proposalDocument.querySelector(DATE_SELECTOR);
     const row = ensureTitleDateRow(proposalDocument, title);
