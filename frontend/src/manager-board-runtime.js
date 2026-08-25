@@ -58,6 +58,8 @@ let observer = null;
 let observerTimer = null;
 let lastRenderedSignature = '';
 const dataCache = new Map();
+const instructorCenterCache = new Map();
+let instructorCenterRenderToken = 0;
 
 function normalizedText(value) {
   return String(value || '').trim().replace(/\s+/g, ' ');
@@ -249,9 +251,10 @@ export function activeTeamForManager(data, manager) {
     if (normalizedName(instructor?.direct_manager) !== key) return;
     if (!isActiveInstructor(instructor)) return;
     const name = normalizedText(instructor?.full_name);
-    if (!name || seen.has(name)) return;
-    seen.add(name);
-    result.push({ name, mobile: normalizedText(instructor?.mobile) });
+    const empId = normalizedText(instructor?.emp_id);
+    if (!name || !empId || seen.has(empId)) return;
+    seen.add(empId);
+    result.push({ empId, name, mobile: normalizedText(instructor?.mobile) });
   });
   return result.sort((a, b) => a.name.localeCompare(b.name, 'he'));
 }
@@ -368,6 +371,43 @@ function buildMeetingRows(activities, ym) {
     if (aStart !== bStart) return aStart.localeCompare(bStart);
     return normalizedText(a.activity?.school).localeCompare(normalizedText(b.activity?.school), 'he');
   });
+}
+
+function activityMatchesInstructor(activity, empId) {
+  const id = normalizedText(empId);
+  return !!id && [activity?.emp_id, activity?.emp_id_2].some((value) => normalizedText(value) === id);
+}
+
+export function instructorCenterSummary(activities, meetings, empId) {
+  const assignedActivities = (activities || []).filter((activity) => activityMatchesInstructor(activity, empId));
+  const assignedMeetings = (meetings || []).filter((meeting) => activityMatchesInstructor(meeting.activity, empId));
+  const managerActivityKeys = new Set((activities || []).map((activity) => normalizedText(activity?.row_id || activity?.id)).filter(Boolean));
+  const activityKeys = new Set(assignedActivities.map((activity) => normalizedText(activity?.row_id || activity?.id)).filter(Boolean));
+  const knownHours = assignedMeetings.filter((meeting) => meeting.durationHours != null);
+  return {
+    activities: activityKeys.size,
+    managerShare: managerActivityKeys.size ? (activityKeys.size / managerActivityKeys.size) * 100 : 0,
+    meetings: assignedMeetings.length,
+    hours: knownHours.reduce((sum, meeting) => sum + meeting.durationHours, 0),
+    knownHourMeetings: knownHours.length,
+    assignedMeetings
+  };
+}
+
+export function instructorCenterMilestones(meetings) {
+  const groups = new Map();
+  (meetings || []).forEach((meeting) => {
+    const points = [];
+    if (meeting.meetingNo === 1) points.push('התחלה');
+    if (meeting.isMidpoint) points.push('אמצע');
+    if (meeting.isEnd) points.push('סיום');
+    if (!points.length) return;
+    const activity = meeting.activity || {};
+    const key = normalizedText(activity.row_id || activity.id) || `${normalizedText(activity.activity_name)}|${normalizedText(activity.school || activity.authority)}`;
+    if (!groups.has(key)) groups.set(key, { activity, points: [] });
+    points.forEach((label) => groups.get(key).points.push({ label, iso: meeting.iso }));
+  });
+  return [...groups.values()];
 }
 
 function managerActivitiesFor(data, manager) {
@@ -703,7 +743,7 @@ function monthNavigationHtml(ym, period) {
 function activeTeamStripHtml(team, activityCount) {
   const activityChip = `<span class="manager-board-team-strip__chip manager-board-team-strip__chip--kpi"><span>פעילויות פעילות</span><strong>${activityCount}</strong></span>`;
   const body = team.length
-    ? `<div class="manager-board-team-strip__grid">${activityChip}${team.map((item) => `<button type="button" class="manager-board-team-strip__chip" data-instructor-mobile="${escapeAttr(item.mobile || '')}">${escapeHtml(item.name)}</button>`).join('')}</div>`
+    ? `<div class="manager-board-team-strip__grid">${activityChip}${team.map((item) => `<button type="button" class="manager-board-team-strip__chip" data-instructor-id="${escapeAttr(item.empId)}" aria-pressed="false">${escapeHtml(item.name)}</button>`).join('')}</div>`
     : `<div class="manager-board-team-strip__grid">${activityChip}</div>`;
   return `
     <section class="manager-board-team-strip" data-manager-board-team-strip>
@@ -759,7 +799,7 @@ function renderBoardMarkup(data, manager, ym) {
 
 
       <div class="manager-board-layout">
-        <section class="manager-board-panel manager-board-panel--calendar">
+        <section class="manager-board-panel manager-board-panel--calendar" data-manager-board-monthly-region>
           <div class="manager-board-panel__head">
             <div>
               <h2>לוח חודשי</h2>
@@ -815,6 +855,115 @@ function renderBoardMarkup(data, manager, ym) {
     </section>`;
 }
 
+function instructorSchoolYear(period) {
+  return normalizeGlobalActivityPeriod(period) === 'school_2027' ? '2027' : '2026';
+}
+
+async function loadInstructorCenterDetails(empId, period) {
+  const key = normalizedText(empId);
+  if (instructorCenterCache.has(key)) return instructorCenterCache.get(key);
+  await waitForSupabaseAuthSession({ timeoutMs: 7000 }).catch(() => null);
+  const schoolYear = instructorSchoolYear(period);
+  const [contactResult, profileResult, snapshotResult] = await Promise.all([
+    supabase.from('contacts_instructors').select('emp_id,full_name,mobile,email,address').eq('emp_id', key).maybeSingle(),
+    supabase.from('instructor_scheduling_profiles').select('emp_id,gender').eq('emp_id', key).maybeSingle(),
+    supabase.rpc('get_instructor_employee_file_snapshot', { p_emp_id: Number(key), p_school_year: schoolYear })
+  ]);
+  if (contactResult.error) throw new Error(contactResult.error.message || 'טעינת פרטי המדריך נכשלה.');
+  if (profileResult.error) throw new Error(profileResult.error.message || 'טעינת פרטי המדריך נכשלה.');
+  if (snapshotResult.error) throw new Error(snapshotResult.error.message || 'טעינת סטטוסי המדריך נכשלה.');
+  const statuses = Array.isArray(snapshotResult.data?.components) ? snapshotResult.data.components : [];
+  const details = { ...(contactResult.data || {}), gender: normalizedText(profileResult.data?.gender), statuses };
+  instructorCenterCache.set(key, details);
+  return details;
+}
+
+function instructorAttentionItems(details) {
+  const completed = new Set((details?.statuses || [])
+    .filter((row) => row.completed || Number(row.item_count) > 0)
+    .map((row) => normalizedText(row.component_key)));
+  const fields = [
+    ['signed_agreement', 'הסכם חתום חסר'],
+    ['intro_feedback', 'משוב היכרות טרם בוצע'],
+    ['midyear_feedback', 'משוב אמצע טרם בוצע'],
+    ['year_end_feedback', 'משוב סוף טרם בוצע'],
+    ['observation_1', 'תצפית ראשונה טרם בוצעה'],
+    ['observation_2', 'תצפית שנייה טרם בוצעה']
+  ];
+  if (normalizedText(details?.gender).toLowerCase() !== 'female') fields.splice(1, 0, ['police_clearance', 'אישור משטרה חסר']);
+  return fields.filter(([key]) => !completed.has(key)).map(([, label]) => label);
+}
+
+function renderInstructorCenter(region, { instructor, activities, meetings, ym, details, loading = false, error = '' }) {
+  const summary = instructorCenterSummary(activities, meetings, instructor.empId);
+  const milestones = instructorCenterMilestones(summary.assignedMeetings);
+  const percent = Math.round(summary.managerShare * 10) / 10;
+  const hours = summary.knownHourMeetings ? plannedHoursText(summary.hours, summary.knownHourMeetings) : '—';
+  const contact = details || instructor;
+  const attention = details ? instructorAttentionItems(details) : [];
+  region.innerHTML = `<div class="manager-instructor-center" data-manager-instructor-center data-instructor-id="${escapeAttr(instructor.empId)}">
+    <header class="manager-instructor-center__header">
+      <button type="button" class="manager-instructor-center__back" data-manager-instructor-back>חזרה ללוח החודשי</button>
+      <div><h2>${escapeHtml(contact.full_name || instructor.name)} <span>| ${escapeHtml(instructor.empId)}</span></h2>
+      <p>${[contact.mobile, contact.email, contact.address].map(normalizedText).filter(Boolean).map(escapeHtml).join(' · ') || 'פרטי קשר נטענים…'}</p></div>
+      <button type="button" class="manager-instructor-center__profile" data-open-full-instructor-profile="${escapeAttr(instructor.empId)}">פתיחת פרופיל מלא</button>
+    </header>
+    <div class="manager-instructor-center__kpis">
+      <article><span>פעילויות פעילות</span><strong>${summary.activities}</strong></article>
+      <article class="is-share"><span>מפעילות המנהל</span><strong>${percent}%</strong><i style="--share:${Math.min(100, percent)}%"></i></article>
+      <article><span>מפגשים החודש</span><strong>${summary.meetings}</strong></article>
+      <article><span>שעות הדרכה החודש</span><strong>${escapeHtml(hours)}</strong></article>
+    </div>
+    <section class="manager-instructor-center__section"><h3>מועדים מרכזיים בחודש · ${escapeHtml(monthLabel(ym))}</h3>
+      <div class="manager-instructor-center__milestones">${milestones.length ? milestones.map(({ activity, points }) => `<article><strong>${escapeHtml(normalizedText(activity.activity_name || activity.program_name) || 'פעילות')}</strong>${normalizedText(activity.school || activity.authority) ? `<small>${escapeHtml(normalizedText(activity.school || activity.authority))}</small>` : ''}<ul>${points.map((point) => `<li><span>${point.label}:</span> <time datetime="${escapeAttr(point.iso)}">${escapeHtml(formatShortDate(point.iso))}</time></li>`).join('')}</ul></article>`).join('') : '<p class="manager-board-empty manager-board-empty--compact">אין נקודות בקרה בחודש זה.</p>'}</div>
+    </section>
+    <section class="manager-instructor-center__section manager-instructor-center__attention"><h3>דורש תשומת לב</h3>
+      ${loading ? '<p>טוען מידע ניהולי…</p>' : error ? `<p class="is-error">${escapeHtml(error)}</p>` : attention.length ? `<strong>${attention.length} נושאים לטיפול</strong><ul>${attention.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul>` : '<p class="is-clear">✓ אין נושאים פתוחים</p>'}
+    </section></div>`;
+}
+
+async function openInstructorCenter(root, data, instructor) {
+  const region = root.querySelector('[data-manager-board-monthly-region]');
+  if (!region || !instructor?.empId) return;
+  if (!region.dataset.monthlyMarkup) region.dataset.monthlyMarkup = region.innerHTML;
+  root.querySelectorAll('[data-instructor-id]').forEach((chip) => {
+    const selected = chip.dataset.instructorId === instructor.empId;
+    chip.classList.toggle('selected', selected);
+    chip.setAttribute('aria-pressed', String(selected));
+  });
+  const activities = managerActivitiesFor(data, selectedManager);
+  const meetings = buildMeetingRows(activities, selectedYm);
+  const token = ++instructorCenterRenderToken;
+  const cached = instructorCenterCache.get(instructor.empId);
+  renderInstructorCenter(region, { instructor, activities, meetings, ym: selectedYm, details: cached, loading: !cached });
+  bindInstructorCenterControls(root, data, instructor);
+  if (cached) return;
+  try {
+    const details = await loadInstructorCenterDetails(instructor.empId, data.period);
+    if (token !== instructorCenterRenderToken || region.querySelector('[data-manager-instructor-center]')?.dataset.instructorId !== instructor.empId) return;
+    renderInstructorCenter(region, { instructor, activities, meetings, ym: selectedYm, details });
+    bindInstructorCenterControls(root, data, instructor);
+  } catch (error) {
+    if (token !== instructorCenterRenderToken) return;
+    renderInstructorCenter(region, { instructor, activities, meetings, ym: selectedYm, error: error?.message || 'המידע הניהולי אינו זמין כרגע.' });
+    bindInstructorCenterControls(root, data, instructor);
+  }
+}
+
+function bindInstructorCenterControls(root, data, instructor) {
+  root.querySelector('[data-manager-instructor-back]')?.addEventListener('click', () => {
+    instructorCenterRenderToken += 1;
+    const region = root.querySelector('[data-manager-board-monthly-region]');
+    if (region?.dataset.monthlyMarkup) region.innerHTML = region.dataset.monthlyMarkup;
+    root.querySelectorAll('[data-instructor-id]').forEach((chip) => { chip.classList.remove('selected'); chip.setAttribute('aria-pressed', 'false'); });
+  });
+  root.querySelector('[data-open-full-instructor-profile]')?.addEventListener('click', () => {
+    state.pendingInstructorEmpId = instructor.empId;
+    state.pendingInstructorEdit = 'profile';
+    document.dispatchEvent(new CustomEvent('app:navigate', { detail: { route: 'instructors' } }));
+  });
+}
+
 function renderLoading(root) {
   root.innerHTML = `
     <section class="manager-board-screen manager-board-screen--loading" data-manager-board-root dir="rtl">
@@ -855,6 +1004,11 @@ function setBoardActiveNav() {
 }
 
 function bindBoardControls(root, data) {
+  root.querySelectorAll('button[data-instructor-id]').forEach((button) => button.addEventListener('click', () => {
+    const empId = normalizedText(button.dataset.instructorId);
+    const instructor = activeTeamForManager(data, selectedManager).find((item) => item.empId === empId);
+    if (instructor) void openInstructorCenter(root, data, instructor);
+  }));
   root.querySelector('[data-manager-board-manager]')?.addEventListener('change', (event) => {
     selectedManager = normalizedText(event.target.value);
     try {

@@ -463,6 +463,7 @@ export const instructorsScreen = {
       state.pendingInstructorEdit = '';
       if (pendingRow) requestAnimationFrame(() => {
         if (pendingEdit === 'constraints') openConstraints(pendingRow);
+        else if (pendingEdit === 'profile') openProfile(pendingRow);
         else openMatching(pendingRow);
       });
     }
