@@ -17,12 +17,12 @@ create table public.proposals_agreements (
 );
 create table public.proposal_agreement_items (
   id uuid primary key, proposal_agreement_id uuid, item_type text, activity_no text, gefen_number text,
-  item_name text, meetings_count integer, total_price numeric, unit_price numeric
+  item_name text, meetings_count integer, total_price numeric, unit_price numeric, quantity numeric
 );
 create table public.israa_program_tracking (
   id uuid primary key, proposal_agreement_id uuid, proposal_items jsonb default '[]', authority text,
   authority_id bigint, school_name text, school_id bigint, contact_person text, phone text, email text,
-  updated_at timestamptz default now()
+  grade text, updated_at timestamptz default now()
 );
 create table public.activities (
   row_id text primary key, activity_family text, activity_manager text, authority text, authority_id bigint,
