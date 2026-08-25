@@ -74,7 +74,7 @@ const CLIENT_FILE_VERSIONS_MIGRATION_FILE = new URL('../supabase/migrations/2026
 const GEFEN_MIGRATION_FILE = new URL('../supabase/migrations/20260726223144_add_gefen_proposal_template.sql', import.meta.url);
 const GEFEN_DOCUMENT_REFINEMENT_MIGRATION_FILE = new URL('../supabase/migrations/20260726230813_refine_gefen_proposal_document.sql', import.meta.url);
 
-const { proposalsAgreementsScreen, proposalsAgreementsTableRowsHtml, canAccessProposalsAgreements, canManageProposalsAgreements, STATUS_LABELS, STATUS_OPTIONS, buildProposalCatalogPdfEntries, proposalPreviewBodyHtml, normalizeProposalAgreementRow, countPendingApprovedProposals, isProposalApprovedPendingSend, extractItemsFromForm, sortRows, calculateTourTotal, validatePayload, resetRecipientDependentFields, stepComplete, buildProposalDocumentSnapshot, proposalLockedPreviewHtml, proposalHasFinalPdf, isProposalLegacySentWithoutPdf, upsertProposalContactOption, calculateProposalValidityDate, gefenEligibleItems, gefenApprovalItems, gefenApprovalDocumentHtml, proposalClientIdentifier, clientLockedBannerHtml } = await import('../frontend/src/screens/proposals-agreements.js');
+const { proposalsAgreementsScreen, proposalsAgreementsTableRowsHtml, canAccessProposalsAgreements, canManageProposalsAgreements, STATUS_LABELS, STATUS_OPTIONS, buildProposalCatalogPdfEntries, proposalPreviewBodyHtml, normalizeProposalAgreementRow, countPendingApprovedProposals, isProposalApprovedPendingSend, extractItemsFromForm, sortRows, calculateTourTotal, validatePayload, resetRecipientDependentFields, stepComplete, buildProposalDocumentSnapshot, proposalLockedPreviewHtml, proposalHasFinalPdf, isProposalLegacySentWithoutPdf, upsertProposalContactOption, calculateProposalValidityDate, gefenEligibleItems, gefenApprovalItems, gefenApprovalValidationMessage, gefenApprovalDocumentHtml, proposalClientIdentifier, clientLockedBannerHtml } = await import('../frontend/src/screens/proposals-agreements.js');
 const { normalizeProposalAgreementRow: normalizeProposalAgreementReadRow } = await import('../frontend/src/api.js');
 
 function stateFor(role) {
@@ -385,6 +385,97 @@ test('GEFEN approval includes only numbered non-summer rows and displays rounded
   assert.doesNotMatch(html, /☒/);
   assert.doesNotMatch(html, /סדנת קיץ/);
   assert.doesNotMatch(html, /קורס ללא גפן/);
+});
+
+test('GEFEN school proposal and approval keep school recipient metadata and validate semel mosad', () => {
+  const row = {
+    client_type: 'school',
+    authority_id: 'authority-1',
+    school_id: 'school-1',
+    client_authority: 'רשות גפן',
+    school_framework: 'בית ספר גפן',
+    semel_mosad: '654321',
+    authority_code: '543',
+    activity_type_group: 'gefen',
+    proposal_date: '2026-08-03'
+  };
+  const items = [{ item_name: 'קורס גפן', proposal_group: 'gefen', gefen_number: '46091', quantity: 1, total_price: 12000 }];
+
+  assert.equal(gefenApprovalValidationMessage(row, items), '');
+  for (const html of [proposalPreviewBodyHtml(row, items, []), gefenApprovalDocumentHtml(row, items)]) {
+    assert.match(html, /בית ספר:<\/strong> בית ספר גפן/);
+    assert.match(html, /סמל מוסד:<\/strong> 654321/);
+    assert.match(html, /רשות:<\/strong> רשות גפן/);
+    assert.doesNotMatch(html, /סמל רשות/);
+  }
+
+  assert.equal(
+    gefenApprovalValidationMessage({ ...row, semel_mosad: '' }, items),
+    'חסר סמל מוסד. יש להשלים אותו לפני הפקת אישור גפ״ן.'
+  );
+});
+
+test('GEFEN authority proposal, snapshots, and approval use authority name and code despite legacy school framework', () => {
+  const row = {
+    client_type: 'authority',
+    authority_id: 'authority-543',
+    client_authority: 'ראמה',
+    authority_name: 'ראמה',
+    authority_code: '543',
+    school_framework: 'ראמה',
+    school_id: '',
+    semel_mosad: '',
+    activity_type_group: 'gefen',
+    proposal_date: '2026-08-03'
+  };
+  const items = [{ item_name: 'קורס גפן', proposal_group: 'gefen', gefen_number: '46091', quantity: 1, total_price: 12000 }];
+  const snapshot = buildProposalDocumentSnapshot(row, items, []);
+  const htmlSnapshot = proposalPreviewBodyHtml(row, items, []);
+  const outputs = [
+    htmlSnapshot,
+    proposalLockedPreviewHtml({ document_html_snapshot: htmlSnapshot }),
+    proposalLockedPreviewHtml({ document_snapshot: snapshot }),
+    gefenApprovalDocumentHtml(row, items)
+  ];
+
+  assert.equal(gefenApprovalValidationMessage(row, items), '');
+  assert.deepEqual(
+    {
+      client_type: snapshot.row.client_type,
+      authority_id: snapshot.row.authority_id,
+      authority_code: snapshot.row.authority_code,
+      authority_name: snapshot.row.authority_name,
+      client_authority: snapshot.row.client_authority
+    },
+    {
+      client_type: 'authority',
+      authority_id: 'authority-543',
+      authority_code: '543',
+      authority_name: 'ראמה',
+      client_authority: 'ראמה'
+    }
+  );
+  for (const html of outputs) {
+    assert.match(html, /רשות:<\/strong> ראמה \| <strong>סמל רשות:<\/strong> 543/);
+    assert.doesNotMatch(html, /בית ספר:<\/strong> ראמה|סמל מוסד|חסר מספר מוסד/);
+  }
+});
+
+test('GEFEN authority without authority code is blocked with the authority-specific message', () => {
+  const row = {
+    client_type: 'authority',
+    authority_id: 'authority-543',
+    client_authority: 'ראמה',
+    authority_code: '',
+    school_framework: 'ראמה',
+    activity_type_group: 'gefen',
+    proposal_date: '2026-08-03'
+  };
+  const items = [{ item_name: 'קורס גפן', proposal_group: 'gefen', gefen_number: '46091', quantity: 1, total_price: 12000 }];
+  const message = 'חסר סמל רשות. יש להשלים אותו לפני הפקת אישור גפ״ן.';
+
+  assert.equal(gefenApprovalValidationMessage(row, items), message);
+  assert.match(gefenApprovalDocumentHtml(row, items), new RegExp(message));
 });
 
 test('mixed next-year GEFEN approval contains courses only and does not mutate the proposal', () => {
