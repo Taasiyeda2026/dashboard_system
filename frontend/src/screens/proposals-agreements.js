@@ -1180,6 +1180,9 @@ export function buildProposalDocumentSnapshot(row = {}, items = [], templateSect
   const sectionsSource = resolveDocumentSections(row, filteredSections);
   const normalizedRow = {
     id: text(row.id),
+    authority_id: text(row.authority_id),
+    authority_name: text(row.authority_name),
+    school_id: text(row.school_id),
     client_authority: text(row.client_authority),
     school_framework: text(row.school_framework),
     client_type: text(row.client_type),
@@ -3171,12 +3174,18 @@ function recipientBlockHtml(row = {}) {
   if (email) contactDetailParts.push(`דוא״ל: ${escapeHtml(email)}`);
   const contactDetailsLine = contactDetailParts.length ? `<p class="pa-contact-details pa-print-hidden-contact-details">${contactDetailParts.join(' | ')}</p>` : '';
   if (normalizeProposalGroup(row.activity_type_group) === 'gefen') {
+    const clientType = inferProposalClientType(row);
     const schoolName = safeVal(row.school_framework || row.school_name);
     const authorityName = safeVal(row.client_authority || row.authority_name);
     const schoolMetaParts = [];
-    if (schoolName) schoolMetaParts.push(`<strong>בית ספר:</strong> ${escapeHtml(schoolName)}`);
-    if (identifier) schoolMetaParts.push(`<strong>${escapeHtml(identifier.label)}:</strong> ${escapeHtml(identifier.value)}`);
-    if (authorityName) schoolMetaParts.push(`<strong>רשות:</strong> ${escapeHtml(authorityName)}`);
+    if (clientType === 'authority') {
+      if (authorityName) schoolMetaParts.push(`<strong>רשות:</strong> ${escapeHtml(authorityName)}`);
+      if (identifier) schoolMetaParts.push(`<strong>${escapeHtml(identifier.label)}:</strong> ${escapeHtml(identifier.value)}`);
+    } else {
+      if (schoolName) schoolMetaParts.push(`<strong>בית ספר:</strong> ${escapeHtml(schoolName)}`);
+      if (identifier) schoolMetaParts.push(`<strong>${escapeHtml(identifier.label)}:</strong> ${escapeHtml(identifier.value)}`);
+      if (authorityName) schoolMetaParts.push(`<strong>רשות:</strong> ${escapeHtml(authorityName)}`);
+    }
     const schoolMetaLine = schoolMetaParts.length
       ? `<p class="pa-gefen-school-meta">${schoolMetaParts.join(' | ')}</p>`
       : '';
@@ -4146,11 +4155,20 @@ function gefenApprovalStatusDisplay(
   return `${generated ? 'הופק' : 'חסר'}${quoteNumber ? ` · הצעה ${quoteNumber}` : ''}`;
 }
 
-function gefenApprovalValidationMessage(row = {}, items = []) {
+export function gefenApprovalValidationMessage(row = {}, items = []) {
   if (isNextYearProposalGroup(row.activity_type_group) && !gefenApprovalItems(row, items).length) {
     return 'לא נבחרו קורסים להפקת אישור גפ״ן.';
   }
-  if (!text(row.semel_mosad)) return 'חסר מספר מוסד. יש להשלים אותו לפני הפקת אישור גפ״ן.';
+  const clientType = inferProposalClientType(row);
+  if (clientType === 'authority' && !text(row.authority_code)) {
+    return 'חסר סמל רשות. יש להשלים אותו לפני הפקת אישור גפ״ן.';
+  }
+  if (clientType === 'school' && !text(row.semel_mosad)) {
+    return 'חסר סמל מוסד. יש להשלים אותו לפני הפקת אישור גפ״ן.';
+  }
+  if (clientType === 'other' && !text(row.semel_mosad)) {
+    return 'חסר מספר מוסד. יש להשלים אותו לפני הפקת אישור גפ״ן.';
+  }
   if (!gefenApprovalItems(row, items).length) {
     return 'חסר פירוט קורסים או סיורים עם מספר גפ״ן. לא ניתן להפיק את האישור.';
   }
