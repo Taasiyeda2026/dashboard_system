@@ -202,7 +202,7 @@ function ensurePopupStyles() {
     .staff-message-popup-title { margin: 0; font-size: 21px; line-height: 1.35; font-weight: 850; color: #172033; }
     .staff-message-popup-body { padding: 20px 24px 24px; }
     .staff-message-popup-text { margin: 0 0 22px; color: #334155; font-size: 16px; line-height: 1.75; font-weight: 550; white-space: pre-wrap; overflow-wrap: anywhere; }
-    .staff-message-popup-confirm { width: 100%; min-height: 46px; border: 0; border-radius: 9px; background: #1e4f8f; color: #fff; font: inherit; font-size: 15px; font-weight: 800; cursor: pointer; }
+    .staff-message-popup-confirm { width: auto; min-width: 96px; min-height: 38px; padding: 0 24px; display: block; margin: 0 auto; border: 0; border-radius: 9px; background: #1e4f8f; color: #fff; font: inherit; font-size: 15px; font-weight: 800; cursor: pointer; }
     .staff-message-popup-confirm:hover:not(:disabled) { background: #173f74; }
     .staff-message-popup-confirm:disabled { cursor: wait; opacity: .72; }
     .staff-message-popup-error { min-height: 18px; margin: 10px 0 0; color: #b42318; font-size: 13px; font-weight: 700; }
