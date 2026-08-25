@@ -70,6 +70,6 @@ test('preview button configuration is idempotent and does not create an observer
   assert.equal(textWriteCount, 1, 'textContent must be written only once');
   assert.equal(button.dataset.paBrowserPrint, 'yes');
   assert.equal(button.textContent, 'הדפסה / PDF');
-  assert.equal(button.title, PRINT_TITLE = 'הדפסה או שמירה כ־PDF');
+  assert.equal(button.title, 'הדפסה או שמירה כ־PDF');
   assert.equal(button.getAttribute('aria-label'), 'הדפסה או שמירה כ־PDF');
 });
