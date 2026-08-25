@@ -63,7 +63,7 @@ test('dashboard exception card uses the exact unique activity count from the exc
   assert.equal(payload.kpi_cards.find((card) => card.id === 'exceptions').value, 0);
 });
 
-test('the hotfix is loaded before main.js and reconciles the snapshot path used by the dashboard screen', async () => {
+test('the dashboard exceptions path is always scoped to the selected global activity period', async () => {
   const [entrySource, hotfixSource] = await Promise.all([
     readFile(entryUrl, 'utf8'),
     readFile(hotfixUrl, 'utf8')
@@ -74,8 +74,10 @@ test('the hotfix is loaded before main.js and reconciles the snapshot path used 
 
   assert.ok(hotfixImport >= 0);
   assert.ok(mainImport > hotfixImport);
+  assert.match(hotfixSource, /installExceptionPeriodGuard\(\)/);
+  assert.match(hotfixSource, /activity_period:\s*input\.activity_period\s*\|\|\s*selectedActivityPeriod\(\)/);
   assert.match(hotfixSource, /installDashboardReconciler\('dashboardSnapshot'\)/);
   assert.match(hotfixSource, /installDashboardReconciler\('dashboardReadModel'\)/);
   assert.match(hotfixSource, /api\.exceptions\(\{/);
-  assert.match(hotfixSource, /activity_period: state\?\.activityPeriodTab/);
+  assert.match(hotfixSource, /activity_period:\s*selectedActivityPeriod\(\)/);
 });
