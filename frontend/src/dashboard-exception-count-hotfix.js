@@ -1,6 +1,25 @@
 import { api } from './api.js';
 import { state } from './state.js';
 
+function selectedActivityPeriod() {
+  return String(state?.activityPeriodTab || '').trim() || 'school_2027';
+}
+
+function installExceptionPeriodGuard() {
+  const flag = '__dsDashboardExceptionPeriodGuard';
+  const originalExceptions = api?.exceptions?.bind(api);
+  if (typeof originalExceptions !== 'function' || globalThis[flag]) return;
+  globalThis[flag] = true;
+
+  api.exceptions = (filters = {}) => {
+    const input = filters && typeof filters === 'object' ? filters : {};
+    return originalExceptions({
+      ...input,
+      activity_period: input.activity_period || selectedActivityPeriod()
+    });
+  };
+}
+
 function finiteCount(...values) {
   for (const value of values) {
     const number = Number(value);
@@ -103,7 +122,7 @@ async function reconcileDashboardPayload(originalMethod, methodName, args) {
   try {
     const exceptions = await api.exceptions({
       month,
-      activity_period: state?.activityPeriodTab
+      activity_period: selectedActivityPeriod()
     });
     if (exceptions?.error || exceptions?._debug?.error) return payload;
     return applyDashboardExceptionSummary(payload, exceptions);
@@ -111,6 +130,7 @@ async function reconcileDashboardPayload(originalMethod, methodName, args) {
     console.warn('[dashboard-exception-count-hotfix] exception reconciliation failed', {
       method: methodName,
       month,
+      activity_period: selectedActivityPeriod(),
       error: error?.message || String(error)
     });
     return payload;
@@ -125,5 +145,6 @@ function installDashboardReconciler(methodName) {
   api[methodName] = (...args) => reconcileDashboardPayload(originalMethod, methodName, args);
 }
 
+installExceptionPeriodGuard();
 installDashboardReconciler('dashboardSnapshot');
 installDashboardReconciler('dashboardReadModel');
