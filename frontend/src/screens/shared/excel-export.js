@@ -1,3 +1,4 @@
+import * as XLSX from 'xlsx';
 import { escapeHtml } from './html.js';
 import { formatDateHe, formatActivityDateColumnsHe } from './format-date.js';
 import { activityManagerDisplayName, humanDisplayText } from './activity-options.js';
@@ -6,6 +7,9 @@ import { supabase } from '../../supabase-client.js';
 const ACTIVITY_EXPORT_DETAIL_COLUMNS = 'row_id,activity_manager,funding,price,notes';
 const ACTIVITY_EXPORT_DETAIL_CHUNK_SIZE = 200;
 const ACTIVITY_EXPORT_DETAIL_FIELDS = ['activity_manager', 'funding', 'price', 'notes'];
+const ACTIVITY_EXPORT_SHEET_NAME = 'פעילויות';
+const ACTIVITY_EXPORT_XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+const ACTIVITY_EXPORT_COLUMN_WIDTHS = [14, 30, 16, 12, 24, 18, 12, 18, 18, 18, 18, 14, 14, 45, 12, 12, 18, 14, 38];
 
 function activityStatusDisplay(status) {
   const clean = String(status || '').trim();
@@ -24,6 +28,23 @@ function activityExportIdentity(row = {}) {
 
 function hasActivityExportDetailFields(row = {}) {
   return ACTIVITY_EXPORT_DETAIL_FIELDS.every((field) => Object.prototype.hasOwnProperty.call(row, field));
+}
+
+function excelDateValue(value) {
+  const iso = String(value || '').trim().slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) return '';
+  const [year, month, day] = iso.split('-').map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return Number.isNaN(date.getTime()) ? '' : date;
+}
+
+function excelNumberValue(value) {
+  if (value == null || value === '') return '';
+  if (typeof value === 'number') return Number.isFinite(value) ? value : '';
+  const clean = String(value).replace(/[₪,\s]/g, '').trim();
+  if (!clean) return '';
+  const parsed = Number(clean);
+  return Number.isFinite(parsed) ? parsed : String(value).trim();
 }
 
 export function mergeActivityExportDetails(rows = [], details = []) {
@@ -135,6 +156,73 @@ export const ACTIVITY_EXPORT_HEADERS = [
   'הערות'
 ];
 
+function activityWorkbookRow(row = {}) {
+  const displayRow = activityExportRow(row);
+  return ACTIVITY_EXPORT_HEADERS.map((header) => {
+    if (header === 'תאריך התחלה') return excelDateValue(row.start_date);
+    if (header === 'תאריך סיום') return excelDateValue(row.end_date);
+    if (header === 'מחיר') return excelNumberValue(row.price);
+    return displayRow[header] ?? '';
+  });
+}
+
+function decorateActivitySheet(sheet, rowCount) {
+  sheet['!cols'] = ACTIVITY_EXPORT_COLUMN_WIDTHS.map((wch) => ({ wch }));
+  sheet['!rows'] = [{ hpt: 24 }, ...Array.from({ length: rowCount }, () => ({ hpt: 24 }))];
+  sheet['!autofilter'] = { ref: `A1:${XLSX.utils.encode_col(ACTIVITY_EXPORT_HEADERS.length - 1)}${Math.max(1, rowCount + 1)}` };
+  sheet['!freeze'] = { xSplit: 0, ySplit: 1, topLeftCell: 'A2', activePane: 'bottomLeft', state: 'frozen' };
+
+  const range = XLSX.utils.decode_range(sheet['!ref'] || `A1:${XLSX.utils.encode_col(ACTIVITY_EXPORT_HEADERS.length - 1)}1`);
+  for (let rowIndex = range.s.r; rowIndex <= range.e.r; rowIndex += 1) {
+    for (let colIndex = range.s.c; colIndex <= range.e.c; colIndex += 1) {
+      const cell = sheet[XLSX.utils.encode_cell({ r: rowIndex, c: colIndex })];
+      if (!cell) continue;
+      cell.s = {
+        font: { bold: rowIndex === 0 },
+        fill: rowIndex === 0 ? { fgColor: { rgb: 'E2E8F0' } } : undefined,
+        alignment: {
+          horizontal: 'right',
+          vertical: 'center',
+          wrapText: rowIndex === 0 || colIndex === 13 || colIndex === 18
+        }
+      };
+    }
+  }
+
+  for (let rowIndex = 1; rowIndex <= rowCount; rowIndex += 1) {
+    for (const colIndex of [11, 12]) {
+      const cell = sheet[XLSX.utils.encode_cell({ r: rowIndex, c: colIndex })];
+      if (cell?.v) cell.z = 'dd/mm/yyyy';
+    }
+    const priceCell = sheet[XLSX.utils.encode_cell({ r: rowIndex, c: 17 })];
+    if (priceCell && typeof priceCell.v === 'number') priceCell.z = '#,##0.00';
+  }
+}
+
+export function buildActivityWorkbook(rows = []) {
+  const safeRows = (Array.isArray(rows) ? rows : [rows]).filter(Boolean);
+  const sheet = XLSX.utils.aoa_to_sheet(
+    [ACTIVITY_EXPORT_HEADERS, ...safeRows.map(activityWorkbookRow)],
+    { cellDates: true }
+  );
+  decorateActivitySheet(sheet, safeRows.length);
+
+  const workbook = XLSX.utils.book_new();
+  workbook.Workbook = { Views: [{ RTL: true }] };
+  XLSX.utils.book_append_sheet(workbook, sheet, ACTIVITY_EXPORT_SHEET_NAME);
+  return workbook;
+}
+
+export function buildActivityXlsxBlob(rows = []) {
+  const bytes = XLSX.write(buildActivityWorkbook(rows), {
+    bookType: 'xlsx',
+    type: 'array',
+    cellStyles: true,
+    compression: true
+  });
+  return new Blob([bytes], { type: ACTIVITY_EXPORT_XLSX_MIME });
+}
+
 export function exportActivitiesToExcel(rows, filenameBase = 'פעילויות') {
   const sourceRows = (Array.isArray(rows) ? rows : [rows]).filter(Boolean);
   const stamp = new Date().toISOString().slice(0, 10);
@@ -145,10 +233,9 @@ export function exportActivitiesToExcel(rows, filenameBase = 'פעילויות')
       return sourceRows;
     })
     .then((completeRows) => {
-      const normalizedRows = completeRows.map(activityExportRow);
       triggerExcelDownload(
-        buildHtmlExcelBlob(ACTIVITY_EXPORT_HEADERS, normalizedRows),
-        `${safeFilePart(filenameBase, 'פעילויות')}_${stamp}.xls`
+        buildActivityXlsxBlob(completeRows),
+        `${safeFilePart(filenameBase, 'פעילויות')}_${stamp}.xlsx`
       );
     });
 }
