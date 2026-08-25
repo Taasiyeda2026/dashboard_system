@@ -48,6 +48,7 @@ const ACTIVITY_SELECT = [
 const BOARD_CACHE_TTL_MS = 90 * 1000;
 const monthFormatter = new Intl.DateTimeFormat('he-IL', { month: 'long', year: 'numeric' });
 const shortDateFormatter = new Intl.DateTimeFormat('he-IL', { day: '2-digit', month: '2-digit' });
+const fullDateFormatter = new Intl.DateTimeFormat('he-IL', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
 let managerBoardOpen = false;
 let autoOpenedSessionKey = '';
@@ -188,6 +189,12 @@ function formatShortDate(iso) {
   return shortDateFormatter.format(new Date(year, month - 1, day));
 }
 
+function formatFullDate(iso) {
+  const [year, month, day] = String(iso).split('-').map(Number);
+  if (!year || !month || !day) return iso;
+  return fullDateFormatter.format(new Date(year, month - 1, day));
+}
+
 function escapeAttr(value) {
   return escapeHtml(normalizedText(value));
 }
@@ -254,7 +261,7 @@ export function activeTeamForManager(data, manager) {
     const empId = normalizedText(instructor?.emp_id);
     if (!name || !empId || seen.has(empId)) return;
     seen.add(empId);
-    result.push({ empId, name, mobile: normalizedText(instructor?.mobile) });
+    result.push({ empId, name });
   });
   return result.sort((a, b) => a.name.localeCompare(b.name, 'he'));
 }
@@ -285,7 +292,7 @@ async function loadBoardData(period) {
 
   const instructorsQuery = supabase
     .from('contacts_instructors')
-    .select('emp_id,full_name,direct_manager,active,mobile');
+    .select('emp_id,full_name,direct_manager,active');
 
   const profileQuery = supabase
     .from('instructor_scheduling_profiles')
@@ -859,22 +866,30 @@ function instructorSchoolYear(period) {
   return normalizeGlobalActivityPeriod(period) === 'school_2027' ? '2027' : '2026';
 }
 
+function instructorCenterCacheKey(empId, period) {
+  return `${currentSessionKey() || 'session'}|${instructorSchoolYear(period)}|${normalizedText(empId)}`;
+}
+
 async function loadInstructorCenterDetails(empId, period) {
   const key = normalizedText(empId);
-  if (instructorCenterCache.has(key)) return instructorCenterCache.get(key);
+  const cacheKey = instructorCenterCacheKey(key, period);
+  if (instructorCenterCache.has(cacheKey)) return instructorCenterCache.get(cacheKey);
   await waitForSupabaseAuthSession({ timeoutMs: 7000 }).catch(() => null);
   const schoolYear = instructorSchoolYear(period);
-  const [contactResult, profileResult, snapshotResult] = await Promise.all([
+  const [contactResult, snapshotResult] = await Promise.all([
     supabase.from('contacts_instructors').select('emp_id,full_name,mobile,email,address').eq('emp_id', key).maybeSingle(),
-    supabase.from('instructor_scheduling_profiles').select('emp_id,gender').eq('emp_id', key).maybeSingle(),
     supabase.rpc('get_instructor_employee_file_snapshot', { p_emp_id: Number(key), p_school_year: schoolYear })
   ]);
   if (contactResult.error) throw new Error(contactResult.error.message || 'טעינת פרטי המדריך נכשלה.');
-  if (profileResult.error) throw new Error(profileResult.error.message || 'טעינת פרטי המדריך נכשלה.');
-  if (snapshotResult.error) throw new Error(snapshotResult.error.message || 'טעינת סטטוסי המדריך נכשלה.');
-  const statuses = Array.isArray(snapshotResult.data?.components) ? snapshotResult.data.components : [];
-  const details = { ...(contactResult.data || {}), gender: normalizedText(profileResult.data?.gender), statuses };
-  instructorCenterCache.set(key, details);
+  const attentionError = snapshotResult.error ? 'סטטוסי המעקב אינם זמינים כרגע.' : '';
+  const statuses = !snapshotResult.error && Array.isArray(snapshotResult.data?.components) ? snapshotResult.data.components : [];
+  const details = {
+    ...(contactResult.data || {}),
+    gender: normalizedText(snapshotResult.data?.gender),
+    statuses,
+    attentionError
+  };
+  instructorCenterCache.set(cacheKey, details);
   return details;
 }
 
@@ -884,13 +899,9 @@ function instructorAttentionItems(details) {
     .map((row) => normalizedText(row.component_key)));
   const fields = [
     ['signed_agreement', 'הסכם חתום חסר'],
-    ['intro_feedback', 'משוב היכרות טרם בוצע'],
-    ['midyear_feedback', 'משוב אמצע טרם בוצע'],
-    ['year_end_feedback', 'משוב סוף טרם בוצע'],
-    ['observation_1', 'תצפית ראשונה טרם בוצעה'],
-    ['observation_2', 'תצפית שנייה טרם בוצעה']
+    ['intro_feedback', 'משוב היכרות טרם בוצע']
   ];
-  if (normalizedText(details?.gender).toLowerCase() !== 'female') fields.splice(1, 0, ['police_clearance', 'אישור משטרה חסר']);
+  if (normalizedText(details?.gender).toLowerCase() === 'male') fields.splice(1, 0, ['police_clearance', 'אישור משטרה חסר']);
   return fields.filter(([key]) => !completed.has(key)).map(([, label]) => label);
 }
 
@@ -898,7 +909,7 @@ function renderInstructorCenter(region, { instructor, activities, meetings, ym, 
   const summary = instructorCenterSummary(activities, meetings, instructor.empId);
   const milestones = instructorCenterMilestones(summary.assignedMeetings);
   const percent = Math.round(summary.managerShare * 10) / 10;
-  const hours = summary.knownHourMeetings ? plannedHoursText(summary.hours, summary.knownHourMeetings) : '—';
+  const hours = summary.knownHourMeetings ? `${plannedHoursText(summary.hours, summary.knownHourMeetings)} ש׳` : '—';
   const contact = details || instructor;
   const attention = details ? instructorAttentionItems(details) : [];
   region.innerHTML = `<div class="manager-instructor-center" data-manager-instructor-center data-instructor-id="${escapeAttr(instructor.empId)}">
@@ -915,10 +926,10 @@ function renderInstructorCenter(region, { instructor, activities, meetings, ym, 
       <article><span>שעות הדרכה החודש</span><strong>${escapeHtml(hours)}</strong></article>
     </div>
     <section class="manager-instructor-center__section"><h3>מועדים מרכזיים בחודש · ${escapeHtml(monthLabel(ym))}</h3>
-      <div class="manager-instructor-center__milestones">${milestones.length ? milestones.map(({ activity, points }) => `<article><strong>${escapeHtml(normalizedText(activity.activity_name || activity.program_name) || 'פעילות')}</strong>${normalizedText(activity.school || activity.authority) ? `<small>${escapeHtml(normalizedText(activity.school || activity.authority))}</small>` : ''}<ul>${points.map((point) => `<li><span>${point.label}:</span> <time datetime="${escapeAttr(point.iso)}">${escapeHtml(formatShortDate(point.iso))}</time></li>`).join('')}</ul></article>`).join('') : '<p class="manager-board-empty manager-board-empty--compact">אין נקודות בקרה בחודש זה.</p>'}</div>
+      <div class="manager-instructor-center__milestones">${milestones.length ? milestones.map(({ activity, points }) => `<article><strong>${escapeHtml(normalizedText(activity.activity_name || activity.program_name) || 'פעילות')}</strong>${normalizedText(activity.school || activity.authority) ? `<small>${escapeHtml(normalizedText(activity.school || activity.authority))}</small>` : ''}<ul>${points.map((point) => `<li><span>${point.label}:</span> <time datetime="${escapeAttr(point.iso)}">${escapeHtml(formatFullDate(point.iso))}</time></li>`).join('')}</ul></article>`).join('') : '<p class="manager-board-empty manager-board-empty--compact">אין נקודות בקרה בחודש זה.</p>'}</div>
     </section>
     <section class="manager-instructor-center__section manager-instructor-center__attention"><h3>דורש תשומת לב</h3>
-      ${loading ? '<p>טוען מידע ניהולי…</p>' : error ? `<p class="is-error">${escapeHtml(error)}</p>` : attention.length ? `<strong>${attention.length} נושאים לטיפול</strong><ul>${attention.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul>` : '<p class="is-clear">✓ אין נושאים פתוחים</p>'}
+      ${loading ? '<p>טוען מידע ניהולי…</p>' : error ? `<p class="is-error">${escapeHtml(error)}</p>` : details?.attentionError ? `<p class="is-error">${escapeHtml(details.attentionError)}</p>` : attention.length ? `<strong>${attention.length} נושאים לטיפול</strong><ul>${attention.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul>` : '<p class="is-clear">✓ אין נושאים פתוחים</p>'}
     </section></div>`;
 }
 
@@ -934,7 +945,8 @@ async function openInstructorCenter(root, data, instructor) {
   const activities = managerActivitiesFor(data, selectedManager);
   const meetings = buildMeetingRows(activities, selectedYm);
   const token = ++instructorCenterRenderToken;
-  const cached = instructorCenterCache.get(instructor.empId);
+  const cacheKey = instructorCenterCacheKey(instructor.empId, data.period);
+  const cached = instructorCenterCache.get(cacheKey);
   renderInstructorCenter(region, { instructor, activities, meetings, ym: selectedYm, details: cached, loading: !cached });
   bindInstructorCenterControls(root, data, instructor);
   if (cached) return;
@@ -960,6 +972,7 @@ function bindInstructorCenterControls(root, data, instructor) {
   root.querySelector('[data-open-full-instructor-profile]')?.addEventListener('click', () => {
     state.pendingInstructorEmpId = instructor.empId;
     state.pendingInstructorEdit = 'profile';
+    closeManagerBoard();
     document.dispatchEvent(new CustomEvent('app:navigate', { detail: { route: 'instructors' } }));
   });
 }
@@ -1189,6 +1202,8 @@ function handleDocumentClick(event) {
     selectedManager = '';
     selectedYm = '';
     dataCache.clear();
+    instructorCenterCache.clear();
+    instructorCenterRenderToken += 1;
   }
 }
 
