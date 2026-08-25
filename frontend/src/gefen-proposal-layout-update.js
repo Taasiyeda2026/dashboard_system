@@ -128,6 +128,19 @@ function ensureGefenProposalPrintStyles() {
         width: 100% !important;
         text-align: left !important;
       }
+      .pa-proposal-doc--gefen:not(.pa-gefen-approval-document) .pa-gefen-contact-details {
+        display: flex !important;
+        align-items: center !important;
+        flex-wrap: nowrap !important;
+        gap: 1.5mm !important;
+        white-space: nowrap !important;
+        direction: rtl !important;
+      }
+      .pa-proposal-doc--gefen:not(.pa-gefen-approval-document) .pa-gefen-contact-details > span,
+      .pa-proposal-doc--gefen:not(.pa-gefen-approval-document) .pa-gefen-contact-details bdi {
+        flex: 0 0 auto !important;
+        white-space: nowrap !important;
+      }
     }
   `;
   document.head.appendChild(style);
