@@ -5,8 +5,8 @@ const GEFEN_PRINT_STYLE_ID = 'gefen-proposal-print-layout-v4';
 const GEFEN_INTRO_ITEM_COUNT = 12;
 const GEFEN_INTRO_ROWS = 3;
 const GEFEN_FONT_DELTA_PX = 0.5;
-const GEFEN_LINE_HEIGHT_DELTA = 0.25;
-const GEFEN_TYPOGRAPHY_VERSION = 'font-plus-0.5-line-plus-0.25-v1';
+const GEFEN_LINE_HEIGHT_DELTA_PX = 0.25;
+const GEFEN_TYPOGRAPHY_VERSION = 'font-plus-0.5-line-plus-0.25px-v2';
 
 function setImportantStyle(element, property, value) {
   element?.style?.setProperty(property, value, 'important');
@@ -123,6 +123,9 @@ function ensureGefenProposalPrintStyles() {
       line-height: 1.2 !important;
     }
     @media print {
+      .pa-proposal-doc--gefen:not(.pa-gefen-approval-document) .proposal-document-content {
+        display: block !important;
+      }
       .pa-proposal-doc--gefen:not(.pa-gefen-approval-document) .proposal-document-content > .pa-doc-title {
         width: 100% !important;
         text-align: center !important;
@@ -170,18 +173,15 @@ function applyGefenTypography(root = document) {
       const lineHeightPx = Number.parseFloat(computed.lineHeight);
       const display = String(computed.display || '').toLowerCase();
       const canAdjustLineHeight = !['inline', 'contents', 'none'].includes(display);
-      const baseLineHeightRatio = Number.isFinite(lineHeightPx) && Number.isFinite(fontSize) && fontSize > 0
-        ? lineHeightPx / fontSize
-        : 1.2;
-      return { element, fontSize, baseLineHeightRatio, canAdjustLineHeight };
+      return { element, fontSize, lineHeightPx, canAdjustLineHeight };
     });
 
-    measurements.forEach(({ element, fontSize, baseLineHeightRatio, canAdjustLineHeight }) => {
+    measurements.forEach(({ element, fontSize, lineHeightPx, canAdjustLineHeight }) => {
       if (Number.isFinite(fontSize) && fontSize > 0) {
         setImportantStyle(element, 'font-size', `${fontSize + GEFEN_FONT_DELTA_PX}px`);
       }
-      if (canAdjustLineHeight && Number.isFinite(baseLineHeightRatio)) {
-        setImportantStyle(element, 'line-height', String(baseLineHeightRatio + GEFEN_LINE_HEIGHT_DELTA));
+      if (canAdjustLineHeight && Number.isFinite(lineHeightPx) && lineHeightPx > 0) {
+        setImportantStyle(element, 'line-height', `${lineHeightPx + GEFEN_LINE_HEIGHT_DELTA_PX}px`);
       }
     });
 
