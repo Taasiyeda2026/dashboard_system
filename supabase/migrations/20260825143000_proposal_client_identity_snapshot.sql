@@ -124,12 +124,49 @@ begin
     end if;
   end if;
 
-  if new.status is not distinct from old.status then return new; end if;
-
   if old.status = 'sent' then
-    raise exception 'proposal_status_transition_sent_locked' using errcode = '23514';
+    if new.status is distinct from old.status then
+      raise exception 'proposal_status_transition_sent_locked' using errcode = '23514';
+    end if;
+
+    -- Post-send operational exception 1: the GEFEN signed/ordered checkbox is
+    -- deliberately mutable after sending. No proposal/document identity may ride
+    -- along with that update.
+    if (to_jsonb(new) - array['updated_at', 'gfen_signed_or_ordered'])
+      is not distinct from
+      (to_jsonb(old) - array['updated_at', 'gfen_signed_or_ordered']) then
+      return new;
+    end if;
+
+    -- Post-send operational exception 2: legacy sent rows may receive their one
+    -- missing final PDF record. This is the existing historical snapshot backfill,
+    -- not a route for rebuilding or editing an already-finalized document.
+    if nullif(btrim(old.final_pdf_path), '') is null
+      and (old.document_snapshot is not null or nullif(btrim(old.document_html_snapshot), '') is not null)
+      and nullif(btrim(new.final_pdf_path), '') is not null
+      and (to_jsonb(new) - array[
+        'updated_at', 'final_pdf_path', 'final_pdf_file_name',
+        'final_pdf_created_at', 'final_pdf_created_by',
+        'document_snapshot', 'document_html_snapshot'
+      ]) is not distinct from (to_jsonb(old) - array[
+        'updated_at', 'final_pdf_path', 'final_pdf_file_name',
+        'final_pdf_created_at', 'final_pdf_created_by',
+        'document_snapshot', 'document_html_snapshot'
+      ]) then
+      return new;
+    end if;
+
+    raise exception 'proposal_sent_content_locked' using errcode = '23514';
   elsif old.status = 'cancelled' then
-    raise exception 'proposal_status_transition_cancelled_locked' using errcode = '23514';
+    if new.status is distinct from old.status then
+      raise exception 'proposal_status_transition_cancelled_locked' using errcode = '23514';
+    end if;
+    if (to_jsonb(new) - 'updated_at') is not distinct from (to_jsonb(old) - 'updated_at') then
+      return new;
+    end if;
+    raise exception 'proposal_cancelled_content_locked' using errcode = '23514';
+  elsif new.status is not distinct from old.status then
+    return new;
   elsif new.status = 'approved' then
     if old.status <> 'pending_approval' and not (
       old.status = 'approved' and (

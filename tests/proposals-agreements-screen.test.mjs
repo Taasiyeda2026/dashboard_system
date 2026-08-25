@@ -3423,7 +3423,25 @@ test('proposal identity migration atomically preserves the workflow state machin
   assert.match(migration, /new\.status = 'pending_approval'[\s\S]*old\.status not in \('draft', 'returned_for_changes'\)/);
   assert.match(migration, /new\.status = 'draft'[\s\S]*old\.status <> 'returned_for_changes'/);
   assert.match(migration, /new\.status = 'sent'[\s\S]*old\.status <> 'approved'[\s\S]*new\.locked_at is null/);
-  assert.match(migration, /new\.status is not distinct from old\.status then return new/);
+  assert.match(migration, /new\.status is not distinct from old\.status then\s+return new/);
+});
+
+test('sent and cancelled same-status content edits stay locked with narrow post-send exceptions', async () => {
+  const migration = await readFile(CLIENT_IDENTITY_SNAPSHOT_MIGRATION_FILE, 'utf8');
+  const sentGuard = migration.slice(migration.indexOf("if old.status = 'sent'"), migration.indexOf("elsif old.status = 'cancelled'"));
+  assert.doesNotMatch(sentGuard, /new\.status is not distinct from old\.status then return new/,
+    'the generic same-status return must not run inside the sent-row branch');
+  assert.ok(migration.indexOf('proposal_sent_content_locked') < migration.indexOf("elsif new.status is not distinct from old.status"),
+    'the sent-row content lock must run before the generic same-status return');
+  assert.match(sentGuard, /array\['updated_at', 'gfen_signed_or_ordered'\]/,
+    'the existing post-send GEFEN operational checkbox remains writable by itself');
+  assert.match(sentGuard, /nullif\(btrim\(old\.final_pdf_path\), ''\) is null[\s\S]*old\.document_snapshot is not null[\s\S]*nullif\(btrim\(new\.final_pdf_path\), ''\) is not null/,
+    'the existing one-time historical final-PDF backfill remains allowed');
+  assert.match(sentGuard, /raise exception 'proposal_sent_content_locked'/);
+
+  const cancelledGuard = migration.slice(migration.indexOf("elsif old.status = 'cancelled'"), migration.indexOf("elsif new.status is not distinct from old.status"));
+  assert.match(cancelledGuard, /to_jsonb\(new\) - 'updated_at'/);
+  assert.match(cancelledGuard, /raise exception 'proposal_cancelled_content_locked'/);
 });
 
 test('proposal identity migration backfills linked and unlinked other clients without an authority default', async () => {
