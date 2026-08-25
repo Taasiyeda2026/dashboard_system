@@ -4597,30 +4597,6 @@ function schoolDetailsPanelHtml(contact = {}) {
   </div>`;
 }
 
-function enrichProposalRowFromContactOptions(row = {}, contactOptions = []) {
-  if (!row || typeof row !== 'object') return row;
-  const authorityName = text(row.client_authority);
-  const schoolName = text(row.school_framework);
-  const schoolContact = findSchoolCatalogContact(contactOptions, {
-    authorityId: row.authority_id,
-    schoolId: row.school_id,
-    authority: authorityName,
-    school: schoolName
-  });
-  if (!schoolContact) return row;
-  return {
-    ...row,
-    client_type: text(row.client_type) || 'school',
-    authority_id: row.authority_id ?? schoolContact.authority_id ?? null,
-    school_id: row.school_id ?? schoolContact.school_id ?? null,
-    semel_mosad: text(row.semel_mosad) || text(schoolContact.semel_mosad),
-    principal_name: text(row.principal_name) || text(schoolContact.principal_name || schoolContact.contact_name),
-    school_phone: text(row.school_phone) || text(schoolContact.school_phone || schoolContact.phone),
-    school_address: text(row.school_address) || text(schoolContact.school_address || schoolContact.address || schoolContact.institution_address),
-    city: text(row.city) || text(schoolContact.city)
-  };
-}
-
 export function clientLockedBannerHtml(auth, school, contactName, contactRole, phone, email, clientName = '', schoolMeta = null, recipient = {}) {
   if (!auth && !clientName) return '';
   const clientType = text(recipient.clientType || recipient.client_type);
@@ -5003,7 +4979,6 @@ function catalogAttachHtml(row = {}) {
 
 function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [], items = [], pricingOptions = [], state = null, contactOptionsError = '') {
   const title = mode === 'edit' ? 'עריכת הצעת מחיר' : 'יצירת הצעת מחיר';
-  row = enrichProposalRowFromContactOptions(row, contactOptions);
   const normalizedActivityGroup = normalizeProposalGroup(row.activity_type_group);
   const filteredPricing = filterPricingByProposalType(pricingOptions, normalizedActivityGroup);
   const currentStatus = STATUS_OPTIONS.includes(normalizeProposalStatus(row.status)) ? normalizeProposalStatus(row.status) : 'draft';
@@ -5013,21 +4988,16 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
   const initRole = text(row.contact_role);
   const initPhone = text(row.phone);
   const initEmail = text(row.email);
-  // Prefer building from the saved row data — the chosen contact is source of truth.
-  // Only fall back to directory lookup when the row has no authority_id (very old rows).
-  const initContactSource = buildContactSourceFromRow(row) || findContactForProposalRow(contactOptions, row);
+  // A persisted proposal is self-contained. Live contacts are available only to
+  // the explicit selector handlers, never as an editor/document fallback.
+  const initContactSource = buildContactSourceFromRow(row);
   const isLocked = !!initAuth;
   const initClientType = text(initContactSource?.client_type) || text(row.client_type) || inferProposalClientType(row);
   const initAuthorityOnly = initClientType === 'authority';
   const initOther = initClientType === 'other';
   const initSchoolId = text(initContactSource?.school_id) || text(row.school_id);
   const initAuthorityId = text(initContactSource?.authority_id) || text(row.authority_id) || null;
-  const initSchoolMeta = findSchoolCatalogContact(contactOptions, {
-    authorityId: initAuthorityId,
-    schoolId: initSchoolId,
-    authority: initAuth,
-    school: initSchool
-  }) || row;
+  const initSchoolMeta = row;
   const contactPanelVisible = initOther || (isLocked && (initAuthorityOnly ? Boolean(initAuthorityId) : Boolean(initSchoolId)));
   const channelsStatusVisible = contactPanelVisible && Boolean(initContact);
   const initPickerHtml = contactPanelVisible && !initOther ? contactPickerHtml(
@@ -6189,10 +6159,15 @@ function validatePayload(payload, statusOverride, options = {}) {
   return errors;
 }
 
+export function mergeProposalAgreementRow(existingRow = {}, savedRow = {}) {
+  return normalizeProposalAgreementRow({ ...existingRow, ...savedRow });
+}
+
 function replaceLocalRow(data, savedRow) {
-  const normalized = normalizeProposalAgreementRow(savedRow);
   const rows = Array.isArray(data.rows) ? data.rows : [];
-  const idx = rows.findIndex((row) => text(row.id) === normalized.id);
+  const savedId = text(savedRow?.id);
+  const idx = rows.findIndex((row) => text(row.id) === savedId);
+  const normalized = mergeProposalAgreementRow(idx >= 0 ? rows[idx] : {}, savedRow);
   if (idx >= 0) rows[idx] = normalized;
   else rows.unshift(normalized);
   data.rows = dedupeById(sortRows(rows.map(normalizeProposalAgreementRow)));
@@ -6495,23 +6470,7 @@ export const proposalsAgreementsScreen = {
     // Contacts provided with the screen payload (editor/tests) are already available.
     if (contactOptions.length) data._contactsLoaded = true;
     const rowWithCentralContact = (row) => {
-      if (!row) return row;
-      const enriched = enrichProposalRowFromContactOptions(row, contactOptions);
-      const contact = findContactForProposalRow(contactOptions, enriched);
-      if (!contact) return enriched;
-      const savedContactName = text(enriched.contact_name);
-      // Live-display enrichment only: client_authority, school_framework, client_name, client_type,
-      // authority_id, school_id and contact_school_id are the saved proposal's own identity fields —
-      // they are the single source of truth for table/drawer/preview/print and must never be replaced
-      // by a matched contact. Only missing contact channels are filled in here, and phone is only
-      // ever taken from mobile (never a landline).
-      return {
-        ...enriched,
-        contact_name: savedContactName || text(contact.contact_name),
-        contact_role: text(enriched.contact_role) || text(contact.contact_role),
-        phone:        text(enriched.phone) || contactDisplayPhone(contact),
-        email:        text(enriched.email) || text(contact.email)
-      };
+      return row;
     };
     const syncContactOptions = (nextOptions = [], error = null) => {
       contactOptions = mergeFetchedContactsWithInserted(nextOptions, Array.from(newlyInsertedContacts.values()));
@@ -8287,7 +8246,6 @@ export const proposalsAgreementsScreen = {
         formHost.innerHTML = `<div class="ds-empty ds-pa-editor-load-error" role="alert"><strong>לא הצלחנו לטעון את נתוני ההצעה.</strong><span>ניתן לחזור ולנסות שוב.</span><button type="button" class="ds-btn ds-btn--primary" data-pa-cancel-form>← ${errorBackLabel}</button></div>`;
         return;
       }
-      row = enrichProposalRowFromContactOptions(row, contactOptions);
       let items = preloadedItems;
       if (mode === 'edit' && text(row.id) && !preloadedItems.length) {
         try {
