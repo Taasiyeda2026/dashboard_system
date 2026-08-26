@@ -194,6 +194,42 @@ function ensureStyles() {
       font-size: 12px;
       font-weight: 800;
     }
+    .admin-date-simulator__results-tools {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .admin-date-simulator__copy {
+      appearance: none;
+      width: 30px;
+      height: 30px;
+      display: grid;
+      place-items: center;
+      padding: 0;
+      border: 1px solid var(--color-border, #dbe3ec);
+      border-radius: 9px;
+      background: var(--color-surface, #fff);
+      color: var(--color-text-secondary, #64748b);
+      cursor: pointer;
+      transition: border-color .15s ease, color .15s ease, background .15s ease;
+    }
+    .admin-date-simulator__copy:hover {
+      border-color: var(--color-primary, #0ea5e9);
+      color: var(--color-primary, #0ea5e9);
+    }
+    .admin-date-simulator__copy:focus-visible {
+      outline: 3px solid color-mix(in srgb, var(--color-primary, #0ea5e9) 18%, transparent);
+      outline-offset: 2px;
+    }
+    .admin-date-simulator__copy.is-copied {
+      color: #15803d;
+      border-color: #86efac;
+      background: #f0fdf4;
+    }
+    .admin-date-simulator__copy svg {
+      width: 16px;
+      height: 16px;
+    }
     .admin-date-simulator__list {
       max-height: 340px;
       overflow: auto;
@@ -269,6 +305,33 @@ function resultRowsHtml(timeline) {
   }).join('');
 }
 
+function simulationCopyText(simulation) {
+  return (simulation?.timeline || []).map((item) => {
+    if (item.type === 'skipped') {
+      return `לא נספר\t${formatDateHeWithWeekday(item.date)}\tדולג: ${item.reason}`;
+    }
+    return `מפגש ${item.meeting}\t${formatDateHeWithWeekday(item.date)}`;
+  }).join('\n');
+}
+
+async function copyTextToClipboard(text) {
+  if (navigator?.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+
+  const textarea = document.createElement('textarea');
+  textarea.value = text;
+  textarea.setAttribute('readonly', '');
+  textarea.style.position = 'fixed';
+  textarea.style.opacity = '0';
+  document.body.appendChild(textarea);
+  textarea.select();
+  const copied = document.execCommand('copy');
+  textarea.remove();
+  if (!copied) throw new Error('copy failed');
+}
+
 export function openAdminDateSimulator() {
   if (!isAdmin() || typeof document === 'undefined') return;
 
@@ -309,7 +372,15 @@ export function openAdminDateSimulator() {
         <section class="admin-date-simulator__results" data-date-simulator-results hidden>
           <div class="admin-date-simulator__results-head">
             <span>רצף התאריכים</span>
-            <span data-date-simulator-summary></span>
+            <span class="admin-date-simulator__results-tools">
+              <span data-date-simulator-summary></span>
+              <button type="button" class="admin-date-simulator__copy" data-date-simulator-copy aria-label="העתקת התוצאות" title="העתקת התוצאות">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <rect x="9" y="9" width="11" height="11" rx="2"/>
+                  <path d="M15 9V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h3"/>
+                </svg>
+              </button>
+            </span>
           </div>
           <div class="admin-date-simulator__list" data-date-simulator-list></div>
         </section>
@@ -325,20 +396,34 @@ export function openAdminDateSimulator() {
   const results = dialog.querySelector('[data-date-simulator-results]');
   const summary = dialog.querySelector('[data-date-simulator-summary]');
   const list = dialog.querySelector('[data-date-simulator-list]');
+  const copyButton = dialog.querySelector('[data-date-simulator-copy]');
   let requestVersion = 0;
+  let lastSimulation = null;
+  let copyResetTimer = null;
+
+  const resetCopyButton = () => {
+    if (!copyButton) return;
+    copyButton.classList.remove('is-copied');
+    copyButton.setAttribute('aria-label', 'העתקת התוצאות');
+    copyButton.title = 'העתקת התוצאות';
+  };
 
   const resetOutput = () => {
+    lastSimulation = null;
     status.textContent = '';
     status.classList.remove('is-error');
     results.hidden = true;
     summary.textContent = '';
     list.innerHTML = '';
+    resetCopyButton();
   };
 
   const renderSimulation = async () => {
     const startDate = String(startInput.value || '').trim();
     const meetingCount = Math.floor(Number(countInput.value) || 0);
     const requestId = ++requestVersion;
+    lastSimulation = null;
+    resetCopyButton();
 
     if (!startDate || meetingCount < 1) {
       resetOutput();
@@ -367,6 +452,7 @@ export function openAdminDateSimulator() {
       return;
     }
 
+    lastSimulation = simulation;
     list.innerHTML = resultRowsHtml(simulation.timeline);
     summary.textContent = simulation.skipped.length
       ? `${simulation.dates.length} מפגשים · ${simulation.skipped.length} דולגו`
@@ -380,10 +466,27 @@ export function openAdminDateSimulator() {
 
   const closeDialog = () => {
     requestVersion += 1;
+    if (copyResetTimer) clearTimeout(copyResetTimer);
     dialog.close?.();
   };
 
   dialog.querySelector('[data-date-simulator-close]')?.addEventListener('click', closeDialog);
+  copyButton?.addEventListener('click', async () => {
+    const text = simulationCopyText(lastSimulation);
+    if (!text) return;
+
+    try {
+      await copyTextToClipboard(text);
+      copyButton.classList.add('is-copied');
+      copyButton.setAttribute('aria-label', 'הועתק');
+      copyButton.title = 'הועתק';
+      if (copyResetTimer) clearTimeout(copyResetTimer);
+      copyResetTimer = setTimeout(resetCopyButton, 1600);
+    } catch {
+      status.textContent = 'לא ניתן היה להעתיק את התוצאות.';
+      status.classList.add('is-error');
+    }
+  });
   dialog.addEventListener('cancel', (event) => {
     event.preventDefault();
     closeDialog();
