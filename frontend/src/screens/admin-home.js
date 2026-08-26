@@ -80,7 +80,7 @@ function managementTilesHtml() {
       route: 'finance'
     }),
     canViewAdminOnlyTools() && tileButton({
-      title: 'סימולטור תמחור',
+      title: 'סימולטור סיורים',
       description: 'בדיקת רווחיות לקבוצה ולעסקה בית־ספרית',
       icon: 'pricing',
       capabilityId: 'admin.pricing_simulator',
