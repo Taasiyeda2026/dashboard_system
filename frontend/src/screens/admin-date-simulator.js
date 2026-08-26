@@ -1,9 +1,9 @@
 import { state } from '../state.js';
 import { formatDateHeWithWeekday } from './shared/format-date.js';
+import { escapeHtml } from './shared/html.js';
 import {
   addCalendarDays,
-  blockingSchoolCalendarEvent,
-  nextAllowedWeeklyDate
+  blockingSchoolCalendarEvent
 } from './shared/school-calendar-logic.js';
 import { loadSchoolCalendarRows } from './shared/school-calendar-data.js';
 
@@ -14,45 +14,56 @@ function isAdmin() {
   return String(state?.user?.role || state?.user?.display_role || '').trim() === 'admin';
 }
 
-function weekDistance(fromIso, toIso) {
-  const from = new Date(`${fromIso}T12:00:00`).getTime();
-  const to = new Date(`${toIso}T12:00:00`).getTime();
-  if (!Number.isFinite(from) || !Number.isFinite(to) || to <= from) return 0;
-  return Math.max(0, Math.round((to - from) / (7 * 24 * 60 * 60 * 1000)));
-}
-
 /**
  * Pure simulator: weekly recurrence, using the same school-calendar blocking rules
- * used by activity scheduling. Nothing is persisted.
+ * used by activity scheduling. Blocked weekly dates remain visible in the timeline,
+ * but are not counted as meetings. Nothing is persisted.
  */
 export function simulateWeeklyDates(rows = [], startDate, meetingCount) {
   const total = Math.min(MAX_MEETINGS, Math.max(0, Math.floor(Number(meetingCount) || 0)));
   const cleanStart = String(startDate || '').trim().slice(0, 10);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(cleanStart) || !total) {
-    return { dates: [], exhausted: false };
+    return { dates: [], timeline: [], skipped: [], exhausted: false };
   }
 
   const dates = [];
+  const timeline = [];
+  const skipped = [];
   let candidate = cleanStart;
 
-  for (let index = 0; index < total; index += 1) {
-    const requestedDate = candidate;
-    const allowedDate = nextAllowedWeeklyDate(rows, requestedDate, { maxSkips: MAX_SKIPPED_WEEKS });
+  for (let meetingIndex = 0; meetingIndex < total; meetingIndex += 1) {
+    let skippedWeeks = 0;
+    let blockingEvent = blockingSchoolCalendarEvent(rows, candidate);
 
-    if (!allowedDate || blockingSchoolCalendarEvent(rows, allowedDate)) {
-      return { dates, exhausted: true };
+    while (blockingEvent && skippedWeeks < MAX_SKIPPED_WEEKS) {
+      const skippedItem = {
+        type: 'skipped',
+        date: candidate,
+        reason: blockingEvent.title || 'חופשה או יום ללא לימודים',
+        intendedMeeting: meetingIndex + 1
+      };
+      skipped.push(skippedItem);
+      timeline.push(skippedItem);
+      candidate = addCalendarDays(candidate, 7);
+      skippedWeeks += 1;
+      blockingEvent = blockingSchoolCalendarEvent(rows, candidate);
     }
 
-    dates.push({
-      meeting: index + 1,
-      date: allowedDate,
-      skippedWeeks: weekDistance(requestedDate, allowedDate)
-    });
+    if (!candidate || blockingEvent) {
+      return { dates, timeline, skipped, exhausted: true };
+    }
 
-    candidate = addCalendarDays(allowedDate, 7);
+    const meetingItem = {
+      type: 'meeting',
+      meeting: meetingIndex + 1,
+      date: candidate
+    };
+    dates.push(meetingItem);
+    timeline.push(meetingItem);
+    candidate = addCalendarDays(candidate, 7);
   }
 
-  return { dates, exhausted: false };
+  return { dates, timeline, skipped, exhausted: false };
 }
 
 function ensureStyles() {
@@ -61,8 +72,8 @@ function ensureStyles() {
   style.id = 'admin-date-simulator-styles';
   style.textContent = `
     .admin-date-simulator {
-      width: min(92vw, 560px);
-      max-width: 560px;
+      width: min(92vw, 580px);
+      max-width: 580px;
       margin: auto;
       padding: 0;
       border: 1px solid var(--color-border, #dbe3ec);
@@ -79,7 +90,7 @@ function ensureStyles() {
     .admin-date-simulator__shell {
       display: flex;
       flex-direction: column;
-      max-height: min(78vh, 680px);
+      max-height: min(80vh, 700px);
     }
     .admin-date-simulator__header {
       display: flex;
@@ -184,12 +195,12 @@ function ensureStyles() {
       font-weight: 800;
     }
     .admin-date-simulator__list {
-      max-height: 320px;
+      max-height: 340px;
       overflow: auto;
     }
     .admin-date-simulator__row {
       display: grid;
-      grid-template-columns: 72px minmax(0, 1fr) auto;
+      grid-template-columns: 78px minmax(0, 1fr) auto;
       align-items: center;
       gap: 10px;
       min-height: 42px;
@@ -200,42 +211,62 @@ function ensureStyles() {
     .admin-date-simulator__row:last-child {
       border-bottom: 0;
     }
+    .admin-date-simulator__row.is-skipped {
+      background: #fff8ed;
+      color: #7a4a00;
+      border-inline-start: 3px solid #f0a23a;
+    }
     .admin-date-simulator__meeting {
       font-weight: 800;
+    }
+    .admin-date-simulator__row.is-skipped .admin-date-simulator__meeting {
+      color: #9a6700;
     }
     .admin-date-simulator__date {
       min-width: 0;
       white-space: nowrap;
     }
     .admin-date-simulator__skip {
-      color: #8a5a00;
-      background: #fff7e6;
+      display: inline-flex;
+      align-items: center;
+      max-width: 190px;
+      color: #7a4a00;
+      background: #ffedcc;
       border-radius: 999px;
-      padding: 3px 7px;
+      padding: 4px 8px;
       font-size: 10.5px;
-      white-space: nowrap;
+      line-height: 1.25;
+      white-space: normal;
     }
     @media (max-width: 560px) {
       .admin-date-simulator__header,
       .admin-date-simulator__body { padding-inline: 16px; }
       .admin-date-simulator__inputs { grid-template-columns: 1fr; }
-      .admin-date-simulator__row { grid-template-columns: 68px minmax(0, 1fr); }
-      .admin-date-simulator__skip { grid-column: 2; justify-self: start; }
+      .admin-date-simulator__row { grid-template-columns: 72px minmax(0, 1fr); }
+      .admin-date-simulator__skip { grid-column: 2; justify-self: start; max-width: 100%; }
     }
   `;
   document.head.appendChild(style);
 }
 
-function resultRowsHtml(dates) {
-  return dates.map((item) => `
-    <div class="admin-date-simulator__row">
-      <span class="admin-date-simulator__meeting">מפגש ${item.meeting}</span>
-      <span class="admin-date-simulator__date">${formatDateHeWithWeekday(item.date)}</span>
-      ${item.skippedWeeks
-        ? `<span class="admin-date-simulator__skip">דילוג ${item.skippedWeeks === 1 ? 'שבוע' : `${item.skippedWeeks} שבועות`}</span>`
-        : '<span></span>'}
-    </div>
-  `).join('');
+function resultRowsHtml(timeline) {
+  return timeline.map((item) => {
+    if (item.type === 'skipped') {
+      return `
+        <div class="admin-date-simulator__row is-skipped">
+          <span class="admin-date-simulator__meeting">לא נספר</span>
+          <span class="admin-date-simulator__date">${formatDateHeWithWeekday(item.date)}</span>
+          <span class="admin-date-simulator__skip">דולג: ${escapeHtml(item.reason)}</span>
+        </div>`;
+    }
+
+    return `
+      <div class="admin-date-simulator__row">
+        <span class="admin-date-simulator__meeting">מפגש ${item.meeting}</span>
+        <span class="admin-date-simulator__date">${formatDateHeWithWeekday(item.date)}</span>
+        <span></span>
+      </div>`;
+  }).join('');
 }
 
 export function openAdminDateSimulator() {
@@ -259,7 +290,7 @@ export function openAdminDateSimulator() {
       <header class="admin-date-simulator__header">
         <div>
           <h2 class="admin-date-simulator__title">סימולטור תאריכים</h2>
-          <p class="admin-date-simulator__subtitle">רצף שבועי שמדלג אוטומטית על חופשות וימים ללא לימודים.</p>
+          <p class="admin-date-simulator__subtitle">רצף שבועי שמציג גם תאריכים שנדחו, אך לא סופר אותם כמפגש.</p>
         </div>
         <button type="button" class="admin-date-simulator__close" data-date-simulator-close aria-label="סגירה">×</button>
       </header>
@@ -277,7 +308,7 @@ export function openAdminDateSimulator() {
         <p class="admin-date-simulator__status" data-date-simulator-status aria-live="polite"></p>
         <section class="admin-date-simulator__results" data-date-simulator-results hidden>
           <div class="admin-date-simulator__results-head">
-            <span>רצף המפגשים</span>
+            <span>רצף התאריכים</span>
             <span data-date-simulator-summary></span>
           </div>
           <div class="admin-date-simulator__list" data-date-simulator-list></div>
@@ -329,15 +360,17 @@ export function openAdminDateSimulator() {
     if (requestId !== requestVersion || !dialog.isConnected) return;
 
     const simulation = simulateWeeklyDates(rows, startDate, meetingCount);
-    if (!simulation.dates.length) {
+    if (!simulation.dates.length && !simulation.timeline.length) {
       resetOutput();
       status.textContent = 'לא ניתן ליצור רצף מהנתונים שנבחרו.';
       status.classList.add('is-error');
       return;
     }
 
-    list.innerHTML = resultRowsHtml(simulation.dates);
-    summary.textContent = `${simulation.dates.length} מפגשים`;
+    list.innerHTML = resultRowsHtml(simulation.timeline);
+    summary.textContent = simulation.skipped.length
+      ? `${simulation.dates.length} מפגשים · ${simulation.skipped.length} דולגו`
+      : `${simulation.dates.length} מפגשים`;
     results.hidden = false;
     status.textContent = simulation.exhausted
       ? 'הרצף נעצר לאחר שלא נמצא תאריך לימודים תקין בהמשך.'
