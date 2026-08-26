@@ -130,6 +130,24 @@ function selectedContactPayload(form) {
   }
 }
 
+function sanitizeContactSchoolSource(form) {
+  const sourceIdInput = form?.querySelector?.('input[name="contact_source_id"]');
+  const sourceTableInput = form?.querySelector?.('input[name="contact_source_table"]');
+  if (!sourceIdInput) return false;
+
+  const sourceId = String(sourceIdInput.value || '').trim();
+  const sourceTable = String(sourceTableInput?.value || '').trim();
+  if (!sourceId || !sourceTable || sourceTable === 'contacts_schools') return false;
+
+  // proposals_agreements.contact_school_id is a FK to contacts_schools.id only.
+  // School/authority catalogue rows have their own independent ids, so carrying
+  // those ids into contact_school_id causes FK failures (or an incorrect link if
+  // the numeric ids happen to collide). Keep authority_id/school_id intact and
+  // clear only the contact link when the selected source is not contacts_schools.
+  sourceIdInput.value = '';
+  return true;
+}
+
 function hydrateContactSourceFromPicker(form) {
   const sourceIdInput = form.querySelector('input[name="contact_source_id"]');
   if (!sourceIdInput || String(sourceIdInput.value || '').trim()) return;
@@ -137,14 +155,15 @@ function hydrateContactSourceFromPicker(form) {
   const contact = selectedContactPayload(form);
   const sourceId = String(contact?.id || contact?.source_id || '').trim();
   if (!sourceId) return;
+  const sourceTable = String(contact?.source_table || '').trim();
 
   const setValue = (name, value) => {
     const input = form.querySelector(`input[name="${name}"]`);
     if (input && !String(input.value || '').trim()) input.value = value == null ? '' : String(value);
   };
 
-  sourceIdInput.value = sourceId;
-  setValue('contact_source_table', contact.source_table || 'contacts_schools');
+  sourceIdInput.value = sourceTable && sourceTable !== 'contacts_schools' ? '' : sourceId;
+  setValue('contact_source_table', sourceTable || 'contacts_schools');
   setValue('contact_source_authority_id', contact.authority_id);
   setValue('contact_source_school_id', contact.school_id);
   setValue('contact_source_semel_mosad', contact.semel_mosad);
@@ -161,6 +180,7 @@ function ensureContactSaveButton(form) {
   if (!fieldsBlock) return;
 
   hydrateContactSourceFromPicker(form);
+  sanitizeContactSchoolSource(form);
   const sourceId = String(form.querySelector('input[name="contact_source_id"]')?.value || '').trim();
   const existing = fieldsBlock.querySelector('[data-pa-contact-channels-save]');
   if (!sourceId) {
@@ -187,6 +207,7 @@ function triggerContactSave(button) {
   if (!form || !fieldsBlock || button.disabled) return;
 
   hydrateContactSourceFromPicker(form);
+  sanitizeContactSchoolSource(form);
   const target = fieldsBlock.querySelector('input[name="phone"]')
     || fieldsBlock.querySelector('input[name="email"]');
   if (!target) return;
@@ -221,6 +242,7 @@ function compactEditor(form) {
   normalizeNextYearWorkshopRows(form);
   markSummaryLayout(form);
   markDuplicateEditorTotals(form);
+  sanitizeContactSchoolSource(form);
   ensureContactSaveButton(form);
   markProposalType(form);
   if (form.dataset.paCompactLayoutApplied !== 'true') form.dataset.paCompactLayoutApplied = 'true';
@@ -280,6 +302,12 @@ if (typeof document !== 'undefined') {
   });
 
   document.addEventListener('click', (event) => {
+    const proposalSaveButton = event.target?.closest?.('[data-pa-save-draft], [data-pa-save-pending]');
+    if (proposalSaveButton) {
+      const form = proposalSaveButton.closest?.('[data-pa-form]');
+      if (form) sanitizeContactSchoolSource(form);
+    }
+
     const contactSaveButton = event.target?.closest?.('[data-pa-contact-channels-save]');
     if (contactSaveButton) {
       event.preventDefault();
@@ -320,6 +348,7 @@ export {
   markSummaryLayout,
   markDuplicateEditorTotals,
   selectedContactPayload,
+  sanitizeContactSchoolSource,
   hydrateContactSourceFromPicker,
   ensureContactSaveButton,
   triggerContactSave,
