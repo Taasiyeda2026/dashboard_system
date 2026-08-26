@@ -24,7 +24,7 @@ function ensureMainActivitiesWorkspace() {
   if (typeof document === 'undefined') return Promise.resolve();
   if (!document.querySelector('.israa-mgmt [data-israa-tab="activities"].is-active')) return Promise.resolve();
   if (!workspaceImportPromise) {
-    workspaceImportPromise = import('./israa-activities-main-workspace.js?v=20260827-v3')
+    workspaceImportPromise = import('./israa-activities-main-workspace.js?v=20260827-v4')
       .catch((error) => {
         workspaceImportPromise = null;
         console.error('[israa-main-activities-loader]', error);
