@@ -134,3 +134,4 @@ config.HOTFIX_VERSION = `proposal-gefen-authority-client-20260825-v1-${config.HO
 config.HOTFIX_VERSION = `manager-board-instructor-center-20260825-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `proposal-client-identity-snapshot-20260825-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `proposal-client-snapshot-atomic-rollout-20260825-v2-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `israa-tour-pricing-launcher-20260827-v1-${config.HOTFIX_VERSION}`;

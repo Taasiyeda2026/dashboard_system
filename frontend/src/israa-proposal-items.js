@@ -52,12 +52,14 @@ function decorateTourPricingSimulatorButton() {
   if (typeof document === 'undefined') return;
   const management = document.querySelector('.israa-mgmt');
   if (!management || management.querySelector('[data-israa-tour-pricing]')) return;
-  const toolbar = management.querySelector('.israa-toolbar');
+
+  const toolbar = management.querySelector('.israa-v2__toolbar')
+    || management.querySelector('.israa-toolbar');
   if (!toolbar) return;
 
   const button = document.createElement('button');
   button.type = 'button';
-  button.className = 'israa-btn';
+  button.className = toolbar.classList.contains('israa-v2__toolbar') ? 'israa-v2__btn' : 'israa-btn';
   button.dataset.israaTourPricing = 'true';
   button.textContent = 'סימולטור סיורים';
   button.title = 'פתיחת סימולטור סיורים';
