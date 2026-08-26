@@ -1,0 +1,118 @@
+name: Apply course scheduling operational scope fix
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.event.pull_request.head.ref == 'chatgpt/course-scheduling-operational-scope-20260826' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+
+      - name: Apply focused scheduling scope fix
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          screen = Path('frontend/src/screens/course-scheduling.js')
+          text = screen.read_text(encoding='utf-8')
+          old = """          periodKey: selectedPeriodKey(state),
+          authority: text(state.courseSchedulingAuthority || ''),
+          instructors: data.instructors,
+"""
+          new = """          periodKey: selectedPeriodKey(state),
+          district: normalizeOperationalDistrict(state.courseSchedulingDistrict || ''),
+          authority: text(state.courseSchedulingAuthority || ''),
+          instructors: data.instructors,
+"""
+          if text.count(old) != 1:
+              raise SystemExit(f'expected exactly one ordinary scheduling input block, found {text.count(old)}')
+          text = text.replace(old, new, 1)
+          screen.write_text(text, encoding='utf-8')
+
+          test = Path('tests/course-scheduling-district-scope-wiring.test.mjs')
+          test.write_text("""import test from 'node:test';
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+
+test('ordinary instructor search carries the selected district into matching and ranking', async () => {
+  const source = await readFile(new URL('../frontend/src/screens/course-scheduling.js', import.meta.url), 'utf8');
+  const start = source.indexOf('const runFindInstructors = async () => {');
+  const end = source.indexOf('const runDistrictSimulation = async () => {');
+  assert.ok(start >= 0 && end > start, 'ordinary scheduling calculation block must exist');
+  const block = source.slice(start, end);
+  assert.match(
+    block,
+    /district:\\s*normalizeOperationalDistrict\\(state\\.courseSchedulingDistrict \\|\\| ''\\)/,
+    'selected district must scope the ordinary calculation, not only the visible list'
+  );
+  assert.match(block, /authority:\\s*text\\(state\\.courseSchedulingAuthority \\|\\| ''\\)/);
+});
+
+test('district simulation remains district-wide and is not narrowed by the authority filter', async () => {
+  const source = await readFile(new URL('../frontend/src/screens/course-scheduling.js', import.meta.url), 'utf8');
+  const start = source.indexOf('const runDistrictSimulation = async () => {');
+  assert.ok(start >= 0, 'district simulation block must exist');
+  const block = source.slice(start);
+  const inputStart = block.indexOf('const input = {');
+  const inputEnd = block.indexOf('};', inputStart);
+  assert.ok(inputStart >= 0 && inputEnd > inputStart, 'district simulation input must exist');
+  const input = block.slice(inputStart, inputEnd);
+  assert.match(input, /district,/);
+  assert.doesNotMatch(input, /courseSchedulingAuthority/, 'district planning must stay district-wide');
+});
+""", encoding='utf-8')
+
+          config = Path('frontend/src/config.js')
+          config_text = config.read_text(encoding='utf-8')
+          marker = 'course-scheduling-operational-district-scope-20260826-v1'
+          if marker not in config_text:
+              config_text = config_text.rstrip() + f"\nconfig.HOTFIX_VERSION = `{marker}-${{config.HOTFIX_VERSION}}`;\n"
+          config.write_text(config_text, encoding='utf-8')
+
+          sw = Path('frontend/sw.js')
+          sw_text = sw.read_text(encoding='utf-8')
+          sw_text, count = re.subn(r'^const CACHE_VERSION = 1627;$', 'const CACHE_VERSION = 1628;', sw_text, count=1, flags=re.MULTILINE)
+          if count != 1:
+              raise SystemExit('expected frontend/sw.js CACHE_VERSION 1627')
+          sw.write_text(sw_text, encoding='utf-8')
+
+          Path('.github/workflows/apply-course-scheduling-operational-scope-20260826.yml').unlink()
+          PY
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify focused scheduling behavior
+        run: |
+          node --test tests/course-scheduling-district-scope-wiring.test.mjs
+          node --test tests/course-scheduling-district-simulation*.test.mjs
+          npm run check:changed
+          npm run check:build
+          npm run check:pwa
+          git diff --check
+
+      - name: Commit verified fix
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Fix ordinary course scheduling district scope"
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
