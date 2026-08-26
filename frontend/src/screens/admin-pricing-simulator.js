@@ -1,6 +1,5 @@
 import { state } from '../state.js';
 import {
-  ADMIN_PRICING_CONFIG,
   calculateInstructorWage,
   calculatePricingGroup,
   calculateSchoolPricing
@@ -13,6 +12,12 @@ const DEFAULT_WAGE_INPUTS = Object.freeze({
   wageMultiplier: '1.3',
   kilometers: '80',
   kilometerMultiplier: '1.5'
+});
+const DEFAULT_PRICING_INPUTS = Object.freeze({
+  studentPrice: '111',
+  commissionRate: '10',
+  targetMargin: '30',
+  venueCost: '800'
 });
 
 function isAdmin() {
@@ -45,6 +50,11 @@ function wageInputsComplete(values) {
     .every((key) => hasValue(values?.[key]));
 }
 
+function pricingInputsComplete(values) {
+  return ['studentPrice', 'commissionRate', 'targetMargin', 'venueCost']
+    .every((key) => hasValue(values?.[key]));
+}
+
 function blankGroup() {
   return { instructorCharge: '', studentCount: '', transportCost: '' };
 }
@@ -67,8 +77,8 @@ function ensureStyles() {
       overflow: hidden;
     }
     .admin-pricing-simulator {
-      width:min(820px,calc(100vw - 36px));
-      max-height: min(90vh, 820px);
+      width: min(820px, calc(100vw - 36px));
+      max-height: min(92vh, 850px);
       display: flex;
       flex-direction: column;
       overflow: hidden;
@@ -88,7 +98,7 @@ function ensureStyles() {
       padding: 10px 14px;
       border-bottom: 1px solid var(--color-border, #e2e8f0);
     }
-    .admin-pricing-simulator__title { margin: 0; font-size: 18px; font-weight: 850; }
+    .admin-pricing-simulator__title { margin: 0; font-size: 18px; font-weight: 900; }
     .admin-pricing-simulator__subtitle { margin: 3px 0 0; color: var(--color-text-secondary, #64748b); font-size: 11px; }
     .admin-pricing-simulator__actions,
     .admin-pricing-simulator__groups-tools { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
@@ -110,7 +120,7 @@ function ensureStyles() {
       gap: 9px;
       padding: 10px;
       overflow-y: auto;
-      overflow-x:hidden;
+      overflow-x: hidden;
     }
     .admin-pricing-simulator__section,
     .admin-pricing-simulator__summary {
@@ -132,63 +142,79 @@ function ensureStyles() {
       background: var(--color-surface-muted, #f8fafc);
     }
     .admin-pricing-simulator__section-head h3,
-    .admin-pricing-simulator__summary-head strong { margin: 0; font-size: 12px; font-weight: 850; }
+    .admin-pricing-simulator__summary-head strong { margin: 0; font-size: 12px; font-weight: 900; }
     .admin-pricing-simulator__section-head small,
     .admin-pricing-simulator__summary-progress { color: var(--color-text-secondary, #64748b); font-size: 10px; }
-    .admin-pricing-simulator__wage-row {
-      display: grid;
-      grid-template-columns: repeat(5, minmax(0, 1fr)) 116px;
-      gap: 7px;
-      align-items: end;
-      padding: 9px;
+    .admin-pricing-simulator__field { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+    .admin-pricing-simulator__field label {
+      color: var(--color-text-secondary, #475569);
+      font-size: 10px;
+      line-height: 1.2;
+      font-weight: 800;
     }
-    .admin-pricing-simulator__field { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
-    .admin-pricing-simulator__field label { color: var(--color-text-secondary, #475569); font-size: 10px; font-weight: 750; }
     .admin-pricing-simulator__field input,
     .admin-pricing-simulator__group-count {
       box-sizing: border-box;
       width: 100%;
       min-width: 0;
-      height: 30px;
+      height: 31px;
       border: 1px solid var(--color-border, #cbd5e1);
       border-radius: 7px;
-      padding: 4px 6px;
+      padding: 4px 7px;
       background: var(--color-surface, #fff);
       color: var(--color-text, #172033);
       font: inherit;
       font-size: 11.5px;
+      font-weight: 750;
       outline: none;
     }
     .admin-pricing-simulator__field input:focus,
     .admin-pricing-simulator__group-count:focus {
-      border-color: var(--color-primary, #0ea5e9);
-      box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-primary, #0ea5e9) 13%, transparent);
+      border-color: var(--color-primary, #2563eb);
+      box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-primary, #2563eb) 13%, transparent);
+    }
+    .admin-pricing-simulator__wage-row {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr)) 128px;
+      gap: 7px;
+      align-items: end;
+      padding: 9px;
     }
     .admin-pricing-simulator__wage-total {
-      height: 30px;
+      min-height: 48px;
       display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 5px;
-      padding: 0 8px;
-      border: 1px solid var(--color-border, #dbe3ec);
-      border-radius: 7px;
+      flex-direction: column;
+      justify-content: center;
+      gap: 2px;
+      padding: 5px 9px;
+      border: 1px solid var(--color-border, #cbd5e1);
+      border-radius: 8px;
       background: var(--color-surface-muted, #f8fafc);
       white-space: nowrap;
     }
-    .admin-pricing-simulator__wage-total span { color: var(--color-text-secondary, #64748b); font-size: 9.5px; }
-    .admin-pricing-simulator__wage-total strong { font-size: 13px; font-weight: 900; }
-    .admin-pricing-simulator__constants {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 3px 12px;
-      padding: 0 9px 8px;
-      color: var(--color-text-secondary, #64748b);
-      font-size: 9.5px;
+    .admin-pricing-simulator__wage-total span { color: var(--color-text-secondary, #64748b); font-size: 9.5px; font-weight: 750; }
+    .admin-pricing-simulator__wage-total strong { color: var(--color-text, #172033); font-size: 18px; line-height: 1.1; font-weight: 950; }
+    .admin-pricing-simulator__assumptions {
+      border-top: 1px solid var(--color-border, #edf2f7);
+      background: #fbfcfe;
     }
-    .admin-pricing-simulator__constants strong { color: var(--color-text, #334155); font-weight: 850; }
+    .admin-pricing-simulator__assumptions-title {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 7px 9px 0;
+    }
+    .admin-pricing-simulator__assumptions-title strong { font-size: 10.5px; font-weight: 900; }
+    .admin-pricing-simulator__assumptions-title span { color: var(--color-text-secondary, #64748b); font-size: 9.5px; }
+    .admin-pricing-simulator__assumptions-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 7px;
+      padding: 7px 9px 9px;
+    }
     .admin-pricing-simulator__groups-section { min-height: 0; flex: 0 0 auto; display: flex; flex-direction: column; }
-    .admin-pricing-simulator__count-wrap { display: inline-flex; align-items: center; gap: 5px; color: var(--color-text-secondary, #475569); font-size: 10px; font-weight: 750; }
+    .admin-pricing-simulator__count-wrap { display: inline-flex; align-items: center; gap: 5px; color: var(--color-text-secondary, #475569); font-size: 10px; font-weight: 800; }
     .admin-pricing-simulator__group-count { width: 58px; height: 28px; text-align: center; }
     .admin-pricing-simulator__groups-head,
     .admin-pricing-simulator__group-row {
@@ -201,7 +227,7 @@ function ensureStyles() {
       padding: 5px 7px;
       color: var(--color-text-secondary, #64748b);
       font-size: 9px;
-      font-weight: 800;
+      font-weight: 850;
       border-bottom: 1px solid var(--color-border, #edf2f7);
       background: #fbfcfe;
       text-align: center;
@@ -210,13 +236,13 @@ function ensureStyles() {
       min-height: 0;
       max-height: 330px;
       overflow-y: auto;
-      overflow-x:hidden;
+      overflow-x: hidden;
       scrollbar-gutter: stable;
     }
     .admin-pricing-simulator__group-item { border-bottom: 1px solid var(--color-border, #edf2f7); }
     .admin-pricing-simulator__group-item:last-child { border-bottom: 0; }
     .admin-pricing-simulator__group-row { min-height: 46px; padding: 5px 7px; }
-    .admin-pricing-simulator__group-name { font-size: 10.5px; font-weight: 850; white-space: nowrap; text-align: center; }
+    .admin-pricing-simulator__group-name { font-size: 10.5px; font-weight: 900; white-space: nowrap; text-align: center; }
     .admin-pricing-simulator__group-row input {
       box-sizing: border-box;
       width: 100%;
@@ -228,11 +254,12 @@ function ensureStyles() {
       color: var(--color-text, #172033);
       font: inherit;
       font-size: 11px;
+      font-weight: 750;
       text-align: center;
       outline: none;
     }
-    .admin-pricing-simulator__group-row input:focus { border-color: var(--color-primary, #0ea5e9); }
-    .admin-pricing-simulator__result { min-width: 0; font-size: 10.5px; font-weight: 850; text-align: center; white-space: nowrap; }
+    .admin-pricing-simulator__group-row input:focus { border-color: var(--color-primary, #2563eb); }
+    .admin-pricing-simulator__result { min-width: 0; color: var(--color-text, #172033); font-size: 11px; font-weight: 900; text-align: center; white-space: nowrap; }
     .admin-pricing-simulator__badge {
       display: inline-flex;
       align-items: center;
@@ -241,13 +268,13 @@ function ensureStyles() {
       border-radius: 999px;
       padding: 2px 6px;
       font-size: 8.5px;
-      font-weight: 850;
+      font-weight: 900;
       line-height: 1.1;
       white-space: nowrap;
     }
     .admin-pricing-simulator__badge.is-approved { color: #166534; background: #dcfce7; border: 1px solid #bbf7d0; }
     .admin-pricing-simulator__badge.is-rejected { color: #991b1b; background: #fee2e2; border: 1px solid #fecaca; }
-    .admin-pricing-simulator__badge.is-pending { color: #64748b; background: #f1f5f9; border: 1px solid #e2e8f0; }
+    .admin-pricing-simulator__badge.is-pending { color: #475569; background: #f1f5f9; border: 1px solid #e2e8f0; }
     .admin-pricing-simulator__details-toggle {
       appearance: none;
       width: 26px;
@@ -278,8 +305,8 @@ function ensureStyles() {
       font-size: 9px;
     }
     .admin-pricing-simulator__detail span { display: block; color: var(--color-text-secondary, #64748b); margin-bottom: 2px; }
-    .admin-pricing-simulator__detail strong { font-size: 10px; font-weight: 850; }
-    .admin-pricing-simulator__summary { flex: 0 0 auto; }
+    .admin-pricing-simulator__detail strong { color: var(--color-text, #172033); font-size: 10.5px; font-weight: 900; }
+    .admin-pricing-simulator__summary { flex: 0 0 auto; border-color: var(--color-border, #cbd5e1); }
     .admin-pricing-simulator__summary-row {
       display: grid;
       grid-template-columns: repeat(5, 1fr) 122px;
@@ -288,20 +315,20 @@ function ensureStyles() {
     }
     .admin-pricing-simulator__summary-item,
     .admin-pricing-simulator__summary-status { background: var(--color-surface, #fff); }
-    .admin-pricing-simulator__summary-item { min-width: 0; padding: 6px 7px; }
-    .admin-pricing-simulator__summary-item span { display: block; margin-bottom: 1px; color: var(--color-text-secondary, #64748b); font-size: 9px; }
-    .admin-pricing-simulator__summary-item strong { font-size: 12px; font-weight: 900; white-space: nowrap; }
+    .admin-pricing-simulator__summary-item { min-width: 0; padding: 8px 8px; }
+    .admin-pricing-simulator__summary-item span { display: block; margin-bottom: 2px; color: var(--color-text-secondary, #64748b); font-size: 9.5px; font-weight: 750; }
+    .admin-pricing-simulator__summary-item strong { color: var(--color-text, #172033); font-size: 14px; font-weight: 950; white-space: nowrap; }
     .admin-pricing-simulator__summary-status { display: grid; place-items: center; padding: 5px; }
     @media (max-width: 760px) {
       .admin-pricing-overlay { padding: 8px; }
-      .admin-pricing-simulator { width: calc(100vw - 16px); max-height: 92vh; }
+      .admin-pricing-simulator { width: calc(100vw - 16px); max-height: 94vh; }
       .admin-pricing-simulator__subtitle { display: none; }
       .admin-pricing-simulator__wage-row { grid-template-columns: repeat(2, 1fr); }
       .admin-pricing-simulator__wage-total { grid-column: 1 / -1; }
+      .admin-pricing-simulator__assumptions-grid { grid-template-columns: repeat(2, 1fr); }
       .admin-pricing-simulator__groups-head { display: none; }
-      .admin-pricing-simulator__groups-list { max-height: 44vh; }
+      .admin-pricing-simulator__groups-list { max-height: 42vh; }
       .admin-pricing-simulator__group-row { grid-template-columns: 52px repeat(2, 1fr); align-items: end; }
-      .admin-pricing-simulator__group-row > *:nth-child(n+4) { grid-column: auto; }
       .admin-pricing-simulator__result { padding: 4px; border: 1px solid var(--color-border, #edf2f7); border-radius: 6px; }
       .admin-pricing-simulator__group-details { grid-template-columns: repeat(2, 1fr); }
       .admin-pricing-simulator__summary-row { grid-template-columns: repeat(2, 1fr); }
@@ -327,8 +354,8 @@ function groupRowsHtml(groups) {
         <button type="button" class="admin-pricing-simulator__details-toggle" data-group-details-toggle aria-label="פירוט הוצאות קבוצה ${index + 1}" title="פירוט הוצאות">⌄</button>
       </div>
       <div class="admin-pricing-simulator__group-details">
-        <div class="admin-pricing-simulator__detail"><span>מחיר לתלמיד</span><strong>${ADMIN_PRICING_CONFIG.studentPrice} ₪</strong></div>
-        <div class="admin-pricing-simulator__detail"><span>עמלה 10%</span><strong data-group-result="commission">—</strong></div>
+        <div class="admin-pricing-simulator__detail"><span>מחיר לתלמיד</span><strong data-group-result="studentPrice">—</strong></div>
+        <div class="admin-pricing-simulator__detail"><span>עמלה</span><strong data-group-result="commission">—</strong></div>
         <div class="admin-pricing-simulator__detail"><span>שכר מדריך</span><strong data-group-result="instructorWage">—</strong></div>
         <div class="admin-pricing-simulator__detail"><span>עלות מקום</span><strong data-group-result="venueCost">—</strong></div>
         <div class="admin-pricing-simulator__detail"><span>סה״כ הוצאות</span><strong data-group-result="totalExpenses">—</strong></div>
@@ -361,10 +388,10 @@ export function openAdminPricingSimulator() {
       <header class="admin-pricing-simulator__header">
         <div>
           <h2 class="admin-pricing-simulator__title" id="admin-pricing-title">סימולטור סיורים</h2>
-          <p class="admin-pricing-simulator__subtitle">בדיקת רווחיות לקבוצה ולעסקה בית־ספרית · הנתונים אינם נשמרים</p>
+          <p class="admin-pricing-simulator__subtitle">בדיקת רווחיות לקבוצה ולעסקה בית־ספרית · כל שינוי הוא לסימולציה בלבד ואינו נשמר</p>
         </div>
         <div class="admin-pricing-simulator__actions">
-          <button type="button" class="admin-pricing-simulator__button" data-pricing-reset>איפוס</button>
+          <button type="button" class="admin-pricing-simulator__button" data-pricing-reset>איפוס לברירת מחדל</button>
           <button type="button" class="admin-pricing-simulator__close" data-pricing-close aria-label="סגירה">×</button>
         </div>
       </header>
@@ -372,7 +399,7 @@ export function openAdminPricingSimulator() {
         <section class="admin-pricing-simulator__section">
           <div class="admin-pricing-simulator__section-head">
             <h3>שכר מדריך</h3>
-            <small>מחושב פעם אחת ומשמש בכל הקבוצות</small>
+            <small>ערכי ברירת מחדל · ניתן לערוך לצורך הסימולציה</small>
           </div>
           <div class="admin-pricing-simulator__wage-row">
             <div class="admin-pricing-simulator__field"><label>שעות</label><input type="number" min="0" step="0.25" data-wage-input="hours" value="${DEFAULT_WAGE_INPUTS.hours}"></div>
@@ -382,11 +409,17 @@ export function openAdminPricingSimulator() {
             <div class="admin-pricing-simulator__field"><label>מכפיל ק״מ</label><input type="number" min="0" step="0.1" data-wage-input="kilometerMultiplier" value="${DEFAULT_WAGE_INPUTS.kilometerMultiplier}"></div>
             <div class="admin-pricing-simulator__wage-total"><span>שכר מחושב</span><strong data-pricing-wage-total>—</strong></div>
           </div>
-          <div class="admin-pricing-simulator__constants">
-            <span>מחיר לתלמיד: <strong>${ADMIN_PRICING_CONFIG.studentPrice} ₪</strong></span>
-            <span>עמלה: <strong>${ADMIN_PRICING_CONFIG.commissionRate * 100}%</strong></span>
-            <span>יעד רווחיות: <strong>${ADMIN_PRICING_CONFIG.targetMargin * 100}%</strong></span>
-            <span>עלות מקום: <strong>${ADMIN_PRICING_CONFIG.venueCost} ₪</strong></span>
+          <div class="admin-pricing-simulator__assumptions">
+            <div class="admin-pricing-simulator__assumptions-title">
+              <strong>הנחות סימולציה</strong>
+              <span>ברירת המחדל קבועה, אך ניתן לשנות זמנית</span>
+            </div>
+            <div class="admin-pricing-simulator__assumptions-grid">
+              <div class="admin-pricing-simulator__field"><label>מחיר לתלמיד (₪)</label><input type="number" min="0" step="1" data-config-input="studentPrice" value="${DEFAULT_PRICING_INPUTS.studentPrice}"></div>
+              <div class="admin-pricing-simulator__field"><label>עמלה (%)</label><input type="number" min="0" max="99" step="0.1" data-config-input="commissionRate" value="${DEFAULT_PRICING_INPUTS.commissionRate}"></div>
+              <div class="admin-pricing-simulator__field"><label>יעד רווחיות (%)</label><input type="number" min="0" max="99" step="0.1" data-config-input="targetMargin" value="${DEFAULT_PRICING_INPUTS.targetMargin}"></div>
+              <div class="admin-pricing-simulator__field"><label>עלות מקום (₪)</label><input type="number" min="0" step="1" data-config-input="venueCost" value="${DEFAULT_PRICING_INPUTS.venueCost}"></div>
+            </div>
           </div>
         </section>
 
@@ -397,7 +430,6 @@ export function openAdminPricingSimulator() {
               <label class="admin-pricing-simulator__count-wrap">מספר קבוצות
                 <input class="admin-pricing-simulator__group-count" type="number" min="1" max="${MAX_GROUPS}" step="1" value="1" data-pricing-group-count>
               </label>
-              <button type="button" class="admin-pricing-simulator__button" data-pricing-copy-first hidden>העתק קבוצה 1 לכולן</button>
             </div>
           </div>
           <div class="admin-pricing-simulator__groups-head" aria-hidden="true">
@@ -427,7 +459,6 @@ export function openAdminPricingSimulator() {
 
   const groupsBody = overlay.querySelector('[data-pricing-groups-body]');
   const groupCountInput = overlay.querySelector('[data-pricing-group-count]');
-  const copyFirstButton = overlay.querySelector('[data-pricing-copy-first]');
   const wageTotal = overlay.querySelector('[data-pricing-wage-total]');
   const summaryProgress = overlay.querySelector('[data-pricing-summary-progress]');
   const summaryStatus = overlay.querySelector('[data-pricing-summary-status]');
@@ -441,23 +472,72 @@ export function openAdminPricingSimulator() {
     return values;
   };
 
+  const readPricingInputs = () => {
+    const values = {};
+    overlay.querySelectorAll('[data-config-input]').forEach((input) => {
+      values[input.dataset.configInput] = input.value;
+    });
+    return values;
+  };
+
+  const getPricingConfig = (values) => ({
+    studentPrice: Number(values.studentPrice) || 0,
+    commissionRate: (Number(values.commissionRate) || 0) / 100,
+    targetMargin: (Number(values.targetMargin) || 0) / 100,
+    venueCost: Number(values.venueCost) || 0
+  });
+
   const renderSummaryValue = (name, value) => {
     const element = overlay.querySelector(`[data-pricing-summary="${name}"]`);
     if (element) element.textContent = name === 'margin' ? percent(value) : money(value);
   };
 
+  const clearResults = (message) => {
+    groups.forEach((group, index) => {
+      const row = groupsBody.querySelector(`[data-pricing-group-row="${index}"]`);
+      if (!row) return;
+      ['finalPrice', 'minimumPrice', 'profit', 'margin', 'studentPrice', 'commission', 'instructorWage', 'venueCost', 'totalExpenses']
+        .forEach((name) => setResult(row, name, '—'));
+      const status = row.querySelector('[data-group-result="status"]');
+      if (status) status.innerHTML = '<span class="admin-pricing-simulator__badge is-pending">חסרים נתונים</span>';
+    });
+    ['finalPrice', 'minimumPrice', 'totalExpenses', 'profit', 'margin'].forEach((name) => {
+      const element = overlay.querySelector(`[data-pricing-summary="${name}"]`);
+      if (element) element.textContent = '—';
+    });
+    summaryProgress.textContent = `0/${groups.length} קבוצות`;
+    summaryStatus.innerHTML = `<span class="admin-pricing-simulator__badge is-pending">${message}</span>`;
+  };
+
   const renderCalculations = () => {
     const wageInputs = readWageInputs();
+    const pricingInputs = readPricingInputs();
     const wageComplete = wageInputsComplete(wageInputs);
+    const pricingComplete = pricingInputsComplete(pricingInputs);
     const instructorWage = wageComplete ? calculateInstructorWage(wageInputs) : 0;
     wageTotal.textContent = wageComplete ? money(instructorWage) : '—';
+
+    if (!wageComplete) {
+      clearResults('יש להשלים שכר מדריך');
+      return;
+    }
+    if (!pricingComplete) {
+      clearResults('יש להשלים הנחות סימולציה');
+      return;
+    }
+
+    const config = getPricingConfig(pricingInputs);
+    if (config.commissionRate < 0 || config.targetMargin < 0 || config.commissionRate + config.targetMargin >= 1) {
+      clearResults('עמלה + יעד רווחיות חייבים להיות מתחת ל־100%');
+      return;
+    }
 
     const completedResults = [];
     groups.forEach((group, index) => {
       const row = groupsBody.querySelector(`[data-pricing-group-row="${index}"]`);
       if (!row) return;
-      const complete = wageComplete && groupComplete(group);
-      const names = ['finalPrice', 'minimumPrice', 'profit', 'margin', 'commission', 'instructorWage', 'venueCost', 'totalExpenses'];
+      const complete = groupComplete(group);
+      const names = ['finalPrice', 'minimumPrice', 'profit', 'margin', 'studentPrice', 'commission', 'instructorWage', 'venueCost', 'totalExpenses'];
 
       if (!complete) {
         names.forEach((name) => setResult(row, name, '—'));
@@ -471,12 +551,13 @@ export function openAdminPricingSimulator() {
         studentCount: group.studentCount,
         transportCost: group.transportCost,
         instructorWage
-      });
+      }, config);
       completedResults.push(result);
       setResult(row, 'finalPrice', money(result.finalPrice));
       setResult(row, 'minimumPrice', money(result.minimumPrice));
       setResult(row, 'profit', money(result.profit));
       setResult(row, 'margin', percent(result.margin));
+      setResult(row, 'studentPrice', money(result.studentPrice));
       setResult(row, 'commission', money(result.commission));
       setResult(row, 'instructorWage', money(result.instructorWage));
       setResult(row, 'venueCost', money(result.venueCost));
@@ -497,11 +578,11 @@ export function openAdminPricingSimulator() {
         const element = overlay.querySelector(`[data-pricing-summary="${name}"]`);
         if (element) element.textContent = '—';
       });
-      summaryStatus.innerHTML = `<span class="admin-pricing-simulator__badge is-pending">${wageComplete ? 'יש להשלים נתונים' : 'יש להשלים שכר מדריך'}</span>`;
+      summaryStatus.innerHTML = '<span class="admin-pricing-simulator__badge is-pending">יש להשלים נתונים</span>';
       return;
     }
 
-    const school = calculateSchoolPricing(completedResults);
+    const school = calculateSchoolPricing(completedResults, config);
     renderSummaryValue('finalPrice', school.finalPrice);
     renderSummaryValue('minimumPrice', school.minimumPrice);
     renderSummaryValue('totalExpenses', school.totalExpenses);
@@ -520,7 +601,6 @@ export function openAdminPricingSimulator() {
 
   const renderGroups = () => {
     groupsBody.innerHTML = groupRowsHtml(groups);
-    copyFirstButton.hidden = groups.length < 2;
     renderCalculations();
   };
 
@@ -532,7 +612,9 @@ export function openAdminPricingSimulator() {
     renderGroups();
   };
 
-  overlay.querySelectorAll('[data-wage-input]').forEach((input) => input.addEventListener('input', renderCalculations));
+  overlay.querySelectorAll('[data-wage-input], [data-config-input]').forEach((input) => {
+    input.addEventListener('input', renderCalculations);
+  });
 
   groupCountInput.addEventListener('input', () => resizeGroups(groupCountInput.value));
 
@@ -554,15 +636,13 @@ export function openAdminPricingSimulator() {
     toggle.textContent = row?.classList.contains('is-open') ? '⌃' : '⌄';
   });
 
-  copyFirstButton.addEventListener('click', () => {
-    const source = { ...groups[0] };
-    groups = groups.map((group, index) => index === 0 ? group : { ...source });
-    renderGroups();
-  });
-
   const resetSimulator = () => {
     Object.entries(DEFAULT_WAGE_INPUTS).forEach(([key, value]) => {
       const input = overlay.querySelector(`[data-wage-input="${key}"]`);
+      if (input) input.value = value;
+    });
+    Object.entries(DEFAULT_PRICING_INPUTS).forEach(([key, value]) => {
+      const input = overlay.querySelector(`[data-config-input="${key}"]`);
       if (input) input.value = value;
     });
     groups = [blankGroup()];
