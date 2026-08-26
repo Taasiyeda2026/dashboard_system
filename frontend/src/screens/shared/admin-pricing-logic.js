@@ -1,4 +1,5 @@
 export const ADMIN_PRICING_CONFIG = Object.freeze({
+  instructorPrice: 769.5,
   studentPrice: 111,
   commissionRate: 0.10,
   targetMargin: 0.30,
@@ -27,11 +28,11 @@ export function calculateInstructorWage({
 }
 
 export function calculatePricingGroup({
-  instructorCharge = 0,
   studentCount = 0,
   transportCost = 0,
   instructorWage = 0
 } = {}, config = ADMIN_PRICING_CONFIG) {
+  const instructorPrice = nonNegativeNumber(config.instructorPrice);
   const studentPrice = nonNegativeNumber(config.studentPrice);
   const commissionRate = nonNegativeNumber(config.commissionRate);
   const targetMargin = nonNegativeNumber(config.targetMargin);
@@ -42,12 +43,11 @@ export function calculatePricingGroup({
     throw new Error('Invalid pricing configuration: commission plus target margin must be below 100%.');
   }
 
-  const normalizedInstructorCharge = nonNegativeNumber(instructorCharge);
   const normalizedStudentCount = nonNegativeNumber(studentCount);
   const normalizedTransportCost = nonNegativeNumber(transportCost);
   const normalizedInstructorWage = nonNegativeNumber(instructorWage);
 
-  const finalPrice = normalizedInstructorCharge
+  const finalPrice = instructorPrice
     + (normalizedStudentCount * studentPrice)
     + normalizedTransportCost;
   const minimumPrice = Math.ceil(
@@ -63,6 +63,7 @@ export function calculatePricingGroup({
   const approved = finalPrice > 0 && margin + Number.EPSILON >= targetMargin;
 
   return {
+    instructorPrice,
     studentPrice,
     finalPrice,
     minimumPrice,
