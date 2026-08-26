@@ -33,11 +33,17 @@ test('Israa workspace stays E-scoped while allowing a manual add only through th
 });
 
 test('Israa activities exposes a labelled manual add button and locks the canonical form to domain E', () => {
-  assert.match(workspace, /button\.textContent = '\+ הוספת פעילות'/);
+  assert.match(workspace, /button\.textContent !== '\+ הוספת פעילות'/);
   assert.match(workspace, /\[data-activities-add-btn\]/);
   assert.match(workspace, /domain\.value = 'E'/);
   assert.match(workspace, /field\.hidden = true/);
   assert.doesNotMatch(workspace, /\[data-activities-add-btn\]\{display:none!important\}/);
+});
+
+test('manual add decoration is idempotent so MutationObserver cannot loop on text changes', () => {
+  assert.match(workspace, /button\.dataset\.israaManualAddDecorated === 'yes'/);
+  assert.match(workspace, /button\.dataset\.israaManualAddDecorated = 'yes'/);
+  assert.match(workspace, /if \(button\.textContent !== '\+ הוספת פעילות'\) button\.textContent = '\+ הוספת פעילות'/);
 });
 
 test('selecting an Israa proposal activity no longer reloads or closes the page', () => {
