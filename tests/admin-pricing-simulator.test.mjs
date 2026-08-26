@@ -118,12 +118,21 @@ test('instructor price is editable only as a simulation assumption, not per grou
   assert.doesNotMatch(simulatorSource, /עלות מדריך/);
 });
 
+test('wage and simulation assumptions are collapsed by default with compact summaries', () => {
+  assert.match(simulatorSource, /<details data-settings-details="wage">/);
+  assert.match(simulatorSource, /<details data-settings-details="assumptions">/);
+  assert.doesNotMatch(simulatorSource, /<details[^>]*data-settings-details="(?:wage|assumptions)"[^>]*\sopen(?:\s|>)/);
+  assert.match(simulatorSource, /data-wage-summary/);
+  assert.match(simulatorSource, /data-assumptions-summary/);
+  assert.match(simulatorSource, /details\.open = false/);
+});
+
 test('editable defaults and reset remain available without copy-all control', () => {
   assert.match(simulatorSource, /data-config-input="studentPrice"/);
   assert.match(simulatorSource, /data-config-input="commissionRate"/);
   assert.match(simulatorSource, /data-config-input="targetMargin"/);
   assert.match(simulatorSource, /data-config-input="venueCost"/);
-  assert.match(simulatorSource, /איפוס לברירת מחדל/);
+  assert.match(simulatorSource, /data-pricing-reset>איפוס</);
   assert.doesNotMatch(simulatorSource, /העתק קבוצה 1 לכולן/);
   assert.doesNotMatch(simulatorSource, /data-pricing-copy-first/);
 });
