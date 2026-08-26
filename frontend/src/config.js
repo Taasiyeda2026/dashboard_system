@@ -67,7 +67,6 @@ config.HOTFIX_VERSION = `course-scheduling-top-three-ui-20260817-v1-${config.HOT
 config.HOTFIX_VERSION = `course-scheduling-concise-rejections-20260817-v1-${config.HOTFIX_VERSION}`;
 
 config.HOTFIX_VERSION = `payroll-control-review-states-20260817-v1-${config.HOTFIX_VERSION}`;
-
 config.HOTFIX_VERSION = `payroll-control-zero-kilometers-20260817-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `payroll-control-post-1541-display-20260817-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `payroll-control-unmatched-km-priority-20260817-v1-${config.HOTFIX_VERSION}`;
@@ -137,3 +136,4 @@ config.HOTFIX_VERSION = `proposal-client-snapshot-atomic-rollout-20260825-v2-${c
 config.HOTFIX_VERSION = `israa-tour-pricing-launcher-20260827-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `israa-tour-pricing-tabbar-20260827-v2-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `course-scheduling-single-target-20260826-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `israa-canonical-add-form-20260827-v1-${config.HOTFIX_VERSION}`;
