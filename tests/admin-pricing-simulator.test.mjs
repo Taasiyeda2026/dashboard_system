@@ -71,11 +71,46 @@ test('school summary matches all six workbook groups', () => {
   assert.equal(school.approved, true);
 });
 
+test('custom simulation assumptions affect pricing without changing defaults', () => {
+  const custom = calculatePricingGroup({
+    instructorCharge: 900,
+    studentCount: 28,
+    transportCost: 1800,
+    instructorWage: wage
+  }, {
+    studentPrice: 120,
+    commissionRate: 0.08,
+    targetMargin: 0.25,
+    venueCost: 700
+  });
+
+  assert.equal(custom.studentPrice, 120);
+  assert.equal(custom.finalPrice, 6060);
+  assert.equal(custom.venueCost, 700);
+  assert.equal(custom.minimumPrice, Math.ceil((432 + 1800 + 700) / 0.67));
+});
+
 test('tour simulator remains compact and avoids the old wide table dialog', () => {
   assert.match(simulatorSource, /admin-pricing-overlay/);
-  assert.match(simulatorSource, /width:min\(820px,calc\(100vw - 36px\)\)/);
-  assert.match(simulatorSource, /overflow-x:hidden/);
+  assert.match(simulatorSource, /width:\s*min\(820px,\s*calc\(100vw - 36px\)\)/);
+  assert.match(simulatorSource, /overflow-x:\s*hidden/);
   assert.doesNotMatch(simulatorSource, /min-width:\s*1570px/);
   assert.doesNotMatch(simulatorSource, /<table/);
   assert.doesNotMatch(simulatorSource, /createElement\(['"]dialog['"]\)/);
+});
+
+test('editable defaults are exposed for simulation and copy-all control is removed', () => {
+  assert.match(simulatorSource, /data-config-input="studentPrice"/);
+  assert.match(simulatorSource, /data-config-input="commissionRate"/);
+  assert.match(simulatorSource, /data-config-input="targetMargin"/);
+  assert.match(simulatorSource, /data-config-input="venueCost"/);
+  assert.match(simulatorSource, /איפוס לברירת מחדל/);
+  assert.doesNotMatch(simulatorSource, /העתק קבוצה 1 לכולן/);
+  assert.doesNotMatch(simulatorSource, /data-pricing-copy-first/);
+});
+
+test('tour simulator does not use orange status or accent colors', () => {
+  assert.doesNotMatch(simulatorSource, /orange/i);
+  assert.doesNotMatch(simulatorSource, /#f59e0b/i);
+  assert.doesNotMatch(simulatorSource, /#fb923c/i);
 });
