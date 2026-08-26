@@ -118,13 +118,17 @@ test('instructor price is editable only as a simulation assumption, not per grou
   assert.doesNotMatch(simulatorSource, /עלות מדריך/);
 });
 
-test('wage and simulation assumptions are collapsed by default with compact summaries', () => {
-  assert.match(simulatorSource, /<details data-settings-details="wage">/);
-  assert.match(simulatorSource, /<details data-settings-details="assumptions">/);
-  assert.doesNotMatch(simulatorSource, /<details[^>]*data-settings-details="(?:wage|assumptions)"[^>]*\sopen(?:\s|>)/);
-  assert.match(simulatorSource, /data-wage-summary/);
-  assert.match(simulatorSource, /data-assumptions-summary/);
-  assert.match(simulatorSource, /details\.open = false/);
+test('all wage and pricing defaults live inside one collapsed simulation assumptions section', () => {
+  assert.match(simulatorSource, /<details class="admin-pricing-simulator__settings" data-settings-details="assumptions">/);
+  assert.doesNotMatch(simulatorSource, /data-settings-details="wage"/);
+  assert.doesNotMatch(simulatorSource, /data-wage-summary/);
+  assert.doesNotMatch(simulatorSource, /data-assumptions-summary/);
+  assert.match(simulatorSource, /<span class="admin-pricing-simulator__settings-title">הנחות סימולציה<\/span>/);
+  assert.match(simulatorSource, /data-wage-input="hours"/);
+  assert.match(simulatorSource, /data-pricing-wage-total/);
+  assert.match(simulatorSource, /data-config-input="instructorPrice"/);
+  assert.doesNotMatch(simulatorSource, /<details[^>]*data-settings-details="assumptions"[^>]*\sopen(?:\s|>)/);
+  assert.match(simulatorSource, /settings\.open = false/);
 });
 
 test('editable defaults and reset remain available without copy-all control', () => {
