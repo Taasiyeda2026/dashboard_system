@@ -4,6 +4,7 @@ import fs from 'node:fs';
 
 const workspace = fs.readFileSync(new URL('../frontend/src/israa-activities-main-workspace.js', import.meta.url), 'utf8');
 const proposalItems = fs.readFileSync(new URL('../frontend/src/israa-proposal-items.js', import.meta.url), 'utf8');
+const activities = fs.readFileSync(new URL('../frontend/src/screens/activities.js', import.meta.url), 'utf8');
 const bootstrap = fs.readFileSync(new URL('../frontend/src/main-with-proposal-pdf-hotfix.js', import.meta.url), 'utf8');
 const serviceWorker = fs.readFileSync(new URL('../frontend/sw.js', import.meta.url), 'utf8');
 
@@ -32,15 +33,20 @@ test('Israa workspace stays E-scoped while allowing a manual add only through th
   assert.doesNotMatch(workspace, /prop === 'deleteActivity' \|\| prop === 'addActivity'/);
 });
 
-test('Israa activities exposes a labelled manual add button and locks the canonical form to domain E', () => {
+test('Israa manual add uses the exact canonical activities form without hiding domain or funding fields', () => {
   assert.match(workspace, /button\.textContent !== '\+ הוספת פעילות'/);
   assert.match(workspace, /\[data-activities-add-btn\]/);
-  assert.match(workspace, /domain\.value = 'E'/);
-  assert.match(workspace, /field\.hidden = true/);
+  assert.match(workspace, /canonical main activities add form unchanged/);
+  assert.doesNotMatch(workspace, /domain\.value = 'E'/);
+  assert.doesNotMatch(workspace, /field\.hidden = true/);
+  assert.doesNotMatch(workspace, /pointerEvents = 'none'/);
+  assert.match(activities, /name=\"activity_domain\"/);
+  assert.match(activities, /funding_source_records/);
+  assert.match(activities, /content: addActivityModalHtml\(state\?\.clientSettings \|\| \{\}, state\.activityPeriodTab\)/);
   assert.doesNotMatch(workspace, /\[data-activities-add-btn\]\{display:none!important\}/);
 });
 
-test('manual add decoration is idempotent so MutationObserver cannot loop on text changes', () => {
+test('manual add button decoration is idempotent so MutationObserver cannot loop on text changes', () => {
   assert.match(workspace, /button\.dataset\.israaManualAddDecorated === 'yes'/);
   assert.match(workspace, /button\.dataset\.israaManualAddDecorated = 'yes'/);
   assert.match(workspace, /if \(button\.textContent !== '\+ הוספת פעילות'\) button\.textContent = '\+ הוספת פעילות'/);
@@ -55,9 +61,9 @@ test('selecting an Israa proposal activity no longer reloads or closes the page'
 });
 
 test('workspace loads lazily with a fresh module and cache version', () => {
-  assert.match(proposalItems, /import\('\.\/israa-activities-main-workspace\.js\?v=20260827-v3'\)/);
-  assert.match(proposalItems, /data-israa-tab="activities"/);
+  assert.match(proposalItems, /import\('\.\/israa-activities-main-workspace\.js\?v=20260827-v4'\)/);
+  assert.match(proposalItems, /data-israa-tab=\"activities\"/);
   assert.match(proposalItems, /ensureMainActivitiesWorkspace\(\)/);
   assert.doesNotMatch(bootstrap, /israa-activities-main-workspace/);
-  assert.match(serviceWorker, /const CACHE_VERSION = 1630;/);
+  assert.match(serviceWorker, /const CACHE_VERSION = 1632;/);
 });
