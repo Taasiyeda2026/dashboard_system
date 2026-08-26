@@ -2,6 +2,7 @@ import { supabase } from './supabase-client.js';
 
 const ACTION_BUTTON_STYLE = 'width:100%;max-width:100%;box-sizing:border-box;white-space:normal;line-height:1.2;padding:5px 6px';
 let workspaceImportPromise = null;
+let tourPricingImportPromise = null;
 
 function clean(value) {
   return String(value == null ? '' : value).replace(/\s+/g, ' ').trim();
@@ -47,18 +48,61 @@ function decoratePrivateDraftRemovalButtons() {
   });
 }
 
+function decorateTourPricingSimulatorButton() {
+  if (typeof document === 'undefined') return;
+  const management = document.querySelector('.israa-mgmt');
+  if (!management || management.querySelector('[data-israa-tour-pricing]')) return;
+  const toolbar = management.querySelector('.israa-toolbar');
+  if (!toolbar) return;
+
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'israa-btn';
+  button.dataset.israaTourPricing = 'true';
+  button.textContent = 'סימולטור סיורים';
+  button.title = 'פתיחת סימולטור סיורים';
+  toolbar.append(button);
+}
+
+async function openTourPricingSimulator() {
+  try {
+    if (!tourPricingImportPromise) {
+      tourPricingImportPromise = import('./screens/admin-pricing-simulator.js')
+        .catch((error) => {
+          tourPricingImportPromise = null;
+          throw error;
+        });
+    }
+    const module = await tourPricingImportPromise;
+    module.openAdminPricingSimulator?.();
+  } catch (error) {
+    console.error('[israa-tour-pricing-simulator]', error);
+    window.alert('לא ניתן לפתוח את סימולטור הסיורים כרגע.');
+  }
+}
+
 function installRuntimeSelectionBridge() {
   if (typeof document === 'undefined' || globalThis.__israaActivitySelectionBridgeInstalled) return;
   globalThis.__israaActivitySelectionBridgeInstalled = true;
 
   decoratePrivateDraftRemovalButtons();
+  decorateTourPricingSimulatorButton();
   const observer = new MutationObserver(() => {
     decoratePrivateDraftRemovalButtons();
+    decorateTourPricingSimulatorButton();
     ensureMainActivitiesWorkspace();
   });
   observer.observe(document.documentElement, { childList: true, subtree: true });
 
   document.addEventListener('click', async (event) => {
+    const tourPricingButton = event.target?.closest?.('.israa-mgmt [data-israa-tour-pricing]');
+    if (tourPricingButton) {
+      event.preventDefault();
+      event.stopPropagation();
+      await openTourPricingSimulator();
+      return;
+    }
+
     const activitiesTab = event.target?.closest?.('.israa-mgmt [data-israa-tab="activities"]');
     if (activitiesTab) {
       setTimeout(() => ensureMainActivitiesWorkspace(), 0);
