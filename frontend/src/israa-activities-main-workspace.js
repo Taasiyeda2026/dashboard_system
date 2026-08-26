@@ -258,19 +258,7 @@ function decorateManualAddButton(panel = document.querySelector(PANEL_SELECTOR))
 }
 
 function decorateManualAddModal() {
-  if (!document.querySelector(ACTIVE_TAB_SELECTOR)) return;
-  const form = document.querySelector('.ds-modal__content [data-add-activity-form]');
-  if (!form || form.dataset.israaManualDecorated === 'yes') return;
-  form.dataset.israaManualDecorated = 'yes';
-  const domain = form.querySelector('[name="activity_domain"]');
-  if (domain) {
-    domain.value = 'E';
-    domain.setAttribute('aria-readonly', 'true');
-    domain.tabIndex = -1;
-    domain.style.pointerEvents = 'none';
-    const field = domain.closest('label');
-    if (field) field.hidden = true;
-  }
+  // Intentionally empty: Israa uses the canonical main activities add form unchanged.
 }
 
 const workspaceUi = {
