@@ -248,8 +248,9 @@ function injectWorkspaceStyle() {
 function decorateManualAddButton(panel = document.querySelector(PANEL_SELECTOR)) {
   if (!panel) return;
   const button = panel.querySelector('[data-activities-add-btn]');
-  if (!button) return;
-  button.textContent = '+ הוספת פעילות';
+  if (!button || button.dataset.israaManualAddDecorated === 'yes') return;
+  button.dataset.israaManualAddDecorated = 'yes';
+  if (button.textContent !== '+ הוספת פעילות') button.textContent = '+ הוספת פעילות';
   button.classList.remove('ds-btn--icon-only');
   button.classList.add('ds-activities-toolbar-btn');
   button.setAttribute('aria-label', 'הוספת פעילות');
