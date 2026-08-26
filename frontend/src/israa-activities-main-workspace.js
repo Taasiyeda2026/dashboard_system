@@ -9,6 +9,7 @@ const ACTIVE_TAB_SELECTOR = '.israa-mgmt [data-israa-tab="activities"].is-active
 const WORKSPACE_MARK = 'israaMainActivitiesWorkspace';
 const workspaceState = {};
 const sharedUi = createSharedInteractionLayer();
+const workspaceUi = sharedUi;
 let workspaceRows = [];
 let workspaceTracking = [];
 let running = false;
@@ -257,18 +258,6 @@ function decorateManualAddButton(panel = document.querySelector(PANEL_SELECTOR))
   button.title = 'הוספת פעילות';
 }
 
-function decorateManualAddModal() {
-  // Intentionally empty: Israa uses the canonical main activities add form unchanged.
-}
-
-const workspaceUi = {
-  ...sharedUi,
-  openModal(options = {}) {
-    sharedUi.openModal(options);
-    requestAnimationFrame(decorateManualAddModal);
-  }
-};
-
 function decorateDraftDrawer() {
   if (!document.querySelector(ACTIVE_TAB_SELECTOR)) return;
   const form = document.querySelector('.activity-drawer__form[data-row-id^="israa-draft|"]');
@@ -348,10 +337,7 @@ function renderWorkspace() {
     });
     isolateWorkspaceEvents(panel);
     decorateManualAddButton(panel);
-    requestAnimationFrame(() => {
-      decorateDraftDrawer();
-      decorateManualAddModal();
-    });
+    requestAnimationFrame(decorateDraftDrawer);
   };
   rerender();
 }
@@ -370,7 +356,6 @@ async function enhance(force = false) {
   if (!force && panel.dataset[WORKSPACE_MARK] === 'yes') {
     decorateDraftDrawer();
     decorateManualAddButton(panel);
-    decorateManualAddModal();
     return;
   }
   running = true;
@@ -396,7 +381,6 @@ new MutationObserver(() => {
   schedule(false);
   decorateDraftDrawer();
   decorateManualAddButton();
-  decorateManualAddModal();
 }).observe(document.documentElement, { childList: true, subtree: true });
 
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => schedule(), { once: true });
