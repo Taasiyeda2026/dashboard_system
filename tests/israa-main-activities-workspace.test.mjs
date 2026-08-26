@@ -9,20 +9,35 @@ const serviceWorker = fs.readFileSync(new URL('../frontend/sw.js', import.meta.u
 
 test('Israa activities tab reuses the canonical main activities screen', () => {
   assert.match(workspace, /import \{ activitiesScreen \} from '\.\/screens\/activities\.js'/);
+  assert.match(workspace, /createSharedInteractionLayer/);
   assert.match(workspace, /activitiesScreen\.render\(data, \{ state: workspaceState \}\)/);
   assert.match(workspace, /activitiesScreen\.bind\(\{/);
+  assert.match(workspace, /ui: workspaceUi/);
   assert.match(workspace, /PANEL_SELECTOR = '\.israa-mgmt \.israa-activities-panel'/);
 });
 
-test('Israa workspace stays scoped and uses the dedicated E write path', () => {
+test('Israa workspace stays E-scoped while allowing a manual add only through the dedicated RPC', () => {
+  assert.match(workspace, /\.eq\('activity_domain', 'E'\)/);
   assert.match(workspace, /api\.saveIsraaActivityDraft/);
   assert.match(workspace, /api\.updateIsraaSharedActivity/);
   assert.match(workspace, /api\.shareIsraaActivity/);
   assert.match(workspace, /remove_israa_activity_draft/);
+  assert.match(workspace, /create_israa_manual_activity/);
+  assert.match(workspace, /update_israa_manual_activity/);
   assert.match(workspace, /activity_domain: 'E'/);
+  assert.match(workspace, /activity_season: 'school_2027'/);
   assert.match(workspace, /can_edit_direct: true/);
-  assert.match(workspace, /can_add_activity: false/);
-  assert.match(workspace, /israa_workspace_action_not_allowed/);
+  assert.match(workspace, /can_add_activity: true/);
+  assert.match(workspace, /prop === 'deleteActivity' \|\| prop === 'submitCreateActivityRequest'/);
+  assert.doesNotMatch(workspace, /prop === 'deleteActivity' \|\| prop === 'addActivity'/);
+});
+
+test('Israa activities exposes a labelled manual add button and locks the canonical form to domain E', () => {
+  assert.match(workspace, /button\.textContent = '\+ הוספת פעילות'/);
+  assert.match(workspace, /\[data-activities-add-btn\]/);
+  assert.match(workspace, /domain\.value = 'E'/);
+  assert.match(workspace, /field\.hidden = true/);
+  assert.doesNotMatch(workspace, /\[data-activities-add-btn\]\{display:none!important\}/);
 });
 
 test('selecting an Israa proposal activity no longer reloads or closes the page', () => {
@@ -33,10 +48,10 @@ test('selecting an Israa proposal activity no longer reloads or closes the page'
   assert.doesNotMatch(proposalItems, /REOPEN_ACTIVITIES_KEY/);
 });
 
-test('workspace loads lazily from Israa management itself', () => {
-  assert.match(proposalItems, /import\('\.\/israa-activities-main-workspace\.js\?v=20260824-v2'\)/);
+test('workspace loads lazily with a fresh module and cache version', () => {
+  assert.match(proposalItems, /import\('\.\/israa-activities-main-workspace\.js\?v=20260827-v3'\)/);
   assert.match(proposalItems, /data-israa-tab="activities"/);
   assert.match(proposalItems, /ensureMainActivitiesWorkspace\(\)/);
   assert.doesNotMatch(bootstrap, /israa-activities-main-workspace/);
-  assert.match(serviceWorker, /const CACHE_VERSION = 1615;/);
+  assert.match(serviceWorker, /const CACHE_VERSION = 1630;/);
 });

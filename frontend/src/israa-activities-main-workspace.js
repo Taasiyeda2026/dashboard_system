@@ -1,4 +1,5 @@
 import { activitiesScreen } from './screens/activities.js';
+import { createSharedInteractionLayer } from './screens/shared/interactions.js';
 import { api } from './api.js';
 import { state, clearScreenDataCache } from './state.js';
 import { supabase } from './supabase-client.js';
@@ -7,6 +8,7 @@ const PANEL_SELECTOR = '.israa-mgmt .israa-activities-panel';
 const ACTIVE_TAB_SELECTOR = '.israa-mgmt [data-israa-tab="activities"].is-active';
 const WORKSPACE_MARK = 'israaMainActivitiesWorkspace';
 const workspaceState = {};
+const sharedUi = createSharedInteractionLayer();
 let workspaceRows = [];
 let workspaceTracking = [];
 let running = false;
@@ -103,13 +105,13 @@ function syncWorkspaceState() {
       ...(sourceUser.permissions || {}),
       view_activities: 'yes',
       can_edit_direct: 'yes',
-      can_add_activity: 'no',
+      can_add_activity: 'yes',
       can_request_edit: 'no',
       can_request_create_activity: 'no',
       can_review_requests: 'no'
     },
     can_edit_direct: true,
-    can_add_activity: false,
+    can_add_activity: true,
     can_request_edit: false,
     can_request_create_activity: false,
     can_review_requests: false
@@ -119,10 +121,11 @@ function syncWorkspaceState() {
 async function loadWorkspaceRows() {
   const [trackingResult, sharedResult] = await Promise.all([
     api.israaProgramTracking(),
-    api.israaSharedActivities()
+    supabase.from('activities').select('*').eq('activity_domain', 'E')
   ]);
+  if (sharedResult?.error) throw new Error(sharedResult.error.message || 'israa_activities_read_failed');
   workspaceTracking = Array.isArray(trackingResult?.rows) ? trackingResult.rows : [];
-  const shared = (Array.isArray(sharedResult?.rows) ? sharedResult.rows : []).map(normalizeSharedRow);
+  const shared = (Array.isArray(sharedResult?.data) ? sharedResult.data : []).map(normalizeSharedRow);
   const sharedKeys = new Set(shared.map((row) => `${clean(row.israa_tracking_id)}|${clean(row.israa_source_item_id)}`));
   const drafts = [];
   workspaceTracking.forEach((tracking) => {
@@ -146,8 +149,44 @@ async function refreshWorkspace({ rerender = true } = {}) {
   if (rerender) renderWorkspace();
 }
 
+async function createManualActivity(payload = {}) {
+  const activity = payload?.activity && typeof payload.activity === 'object' ? payload.activity : payload;
+  const { data, error } = await supabase.rpc('create_israa_manual_activity', {
+    p_activity: {
+      ...(activity || {}),
+      activity_season: 'school_2027',
+      activity_domain: 'E'
+    }
+  });
+  if (error) throw new Error(error.message || 'israa_manual_activity_create_failed');
+  await refreshWorkspace({ rerender: false });
+  const row = normalizeSharedRow(data?.row || data || {});
+  return {
+    ok: true,
+    RowID: row.RowID,
+    row_id: row.row_id,
+    source_sheet: 'activities',
+    row
+  };
+}
+
+async function updateManualActivity(rowId, changes = {}) {
+  const { data, error } = await supabase.rpc('update_israa_manual_activity', {
+    p_row_id: rowId,
+    p_changes: changes || {}
+  });
+  if (error) throw new Error(error.message || 'israa_manual_activity_update_failed');
+  return { row: normalizeSharedRow(data?.row || data || {}) };
+}
+
 const workspaceApi = new Proxy(api, {
   get(target, prop) {
+    if (prop === 'activities') {
+      return async () => ({ rows: await loadWorkspaceRows() });
+    }
+    if (prop === 'addActivity') {
+      return createManualActivity;
+    }
     if (prop === 'saveActivity') {
       return async (payload = {}) => {
         const rowId = clean(payload.source_row_id || payload.row_id || payload.RowID || payload.id);
@@ -158,7 +197,10 @@ const workspaceApi = new Proxy(api, {
           await refreshWorkspace({ rerender: false });
           return { row: currentDraftRow(rowId) || { ...(result?.draft || {}), RowID: rowId, row_id: rowId, source_sheet: 'activities', activity_season: 'school_2027', activity_domain: 'E' } };
         }
-        const result = await api.updateIsraaSharedActivity(rowId, changes);
+        const current = workspaceRows.find((row) => clean(row.RowID || row.row_id) === rowId);
+        const result = current?.israa_tracking_id
+          ? await api.updateIsraaSharedActivity(rowId, changes)
+          : await updateManualActivity(rowId, changes);
         await refreshWorkspace({ rerender: false });
         return result;
       };
@@ -176,7 +218,7 @@ const workspaceApi = new Proxy(api, {
         return api.activityDates(rowId, sourceSheet);
       };
     }
-    if (prop === 'deleteActivity' || prop === 'addActivity' || prop === 'submitCreateActivityRequest') {
+    if (prop === 'deleteActivity' || prop === 'submitCreateActivityRequest') {
       return async () => { throw new Error('israa_workspace_action_not_allowed'); };
     }
     return target[prop];
@@ -196,13 +238,47 @@ function injectWorkspaceStyle() {
   style.id = 'israa-main-activities-workspace-style';
   style.textContent = `
     .israa-activities-panel[data-${WORKSPACE_MARK}="yes"]{display:block!important;min-width:0;width:100%}
-    html.israa-main-activities-active [data-action="delete-activity"],
-    html.israa-main-activities-active [data-activities-add-btn]{display:none!important}
+    html.israa-main-activities-active [data-action="delete-activity"]{display:none!important}
     .israa-draft-special-actions{display:flex;gap:8px;flex-wrap:wrap;padding:10px 16px;margin:0 0 8px;border:1px solid #dbe3ee;border-radius:10px;background:#f8fafc}
     .israa-draft-special-actions button{min-height:34px}
   `;
   document.head.appendChild(style);
 }
+
+function decorateManualAddButton(panel = document.querySelector(PANEL_SELECTOR)) {
+  if (!panel) return;
+  const button = panel.querySelector('[data-activities-add-btn]');
+  if (!button) return;
+  button.textContent = '+ הוספת פעילות';
+  button.classList.remove('ds-btn--icon-only');
+  button.classList.add('ds-activities-toolbar-btn');
+  button.setAttribute('aria-label', 'הוספת פעילות');
+  button.title = 'הוספת פעילות';
+}
+
+function decorateManualAddModal() {
+  if (!document.querySelector(ACTIVE_TAB_SELECTOR)) return;
+  const form = document.querySelector('.ds-modal__content [data-add-activity-form]');
+  if (!form || form.dataset.israaManualDecorated === 'yes') return;
+  form.dataset.israaManualDecorated = 'yes';
+  const domain = form.querySelector('[name="activity_domain"]');
+  if (domain) {
+    domain.value = 'E';
+    domain.setAttribute('aria-readonly', 'true');
+    domain.tabIndex = -1;
+    domain.style.pointerEvents = 'none';
+    const field = domain.closest('label');
+    if (field) field.hidden = true;
+  }
+}
+
+const workspaceUi = {
+  ...sharedUi,
+  openModal(options = {}) {
+    sharedUi.openModal(options);
+    requestAnimationFrame(decorateManualAddModal);
+  }
+};
 
 function decorateDraftDrawer() {
   if (!document.querySelector(ACTIVE_TAB_SELECTOR)) return;
@@ -278,11 +354,15 @@ function renderWorkspace() {
       rerender,
       rerenderActivitiesView: rerender,
       api: workspaceApi,
-      ui: { bindInteractiveCards() {} },
+      ui: workspaceUi,
       clearScreenDataCache
     });
     isolateWorkspaceEvents(panel);
-    requestAnimationFrame(decorateDraftDrawer);
+    decorateManualAddButton(panel);
+    requestAnimationFrame(() => {
+      decorateDraftDrawer();
+      decorateManualAddModal();
+    });
   };
   rerender();
 }
@@ -300,6 +380,8 @@ async function enhance(force = false) {
   if (!panel) return;
   if (!force && panel.dataset[WORKSPACE_MARK] === 'yes') {
     decorateDraftDrawer();
+    decorateManualAddButton(panel);
+    decorateManualAddModal();
     return;
   }
   running = true;
@@ -324,6 +406,8 @@ window.addEventListener('israa-tracking-updated', () => schedule(true));
 new MutationObserver(() => {
   schedule(false);
   decorateDraftDrawer();
+  decorateManualAddButton();
+  decorateManualAddModal();
 }).observe(document.documentElement, { childList: true, subtree: true });
 
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => schedule(), { once: true });
