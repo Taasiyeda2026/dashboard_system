@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import {
+  ADMIN_PRICING_CONFIG,
   calculateInstructorWage,
   calculatePricingGroup,
   calculateSchoolPricing
@@ -17,77 +18,87 @@ const wage = calculateInstructorWage({
   kilometerMultiplier: 1.5
 });
 
-test('instructor wage matches the workbook formula', () => {
+test('instructor wage remains a separate internal expense', () => {
   assert.equal(wage, 432);
 });
 
-test('group 1 matches workbook pricing and minimum price', () => {
+test('default assumptions include instructor and student selling prices', () => {
+  assert.equal(ADMIN_PRICING_CONFIG.instructorPrice, 769.5);
+  assert.equal(ADMIN_PRICING_CONFIG.studentPrice, 111);
+  assert.equal(ADMIN_PRICING_CONFIG.commissionRate, 0.10);
+  assert.equal(ADMIN_PRICING_CONFIG.targetMargin, 0.30);
+  assert.equal(ADMIN_PRICING_CONFIG.venueCost, 800);
+});
+
+test('group price uses global instructor price plus students plus transport', () => {
   const result = calculatePricingGroup({
-    instructorCharge: 900,
     studentCount: 28,
     transportCost: 1800,
     instructorWage: wage
   });
 
-  assert.equal(result.finalPrice, 5808);
+  assert.equal(result.instructorPrice, 769.5);
+  assert.equal(result.finalPrice, 5677.5);
   assert.equal(result.minimumPrice, 5054);
-  assert.equal(result.commission, 580.8000000000001);
-  assert.equal(result.totalExpenses, 3612.8);
-  assert.equal(result.profit, 2195.2);
+  assert.equal(result.commission, 567.75);
+  assert.equal(result.totalExpenses, 3599.75);
+  assert.equal(result.profit, 2077.75);
+  assert.ok(Math.abs(result.margin - 0.365962131219727) < 1e-12);
   assert.equal(result.approved, true);
 });
 
-test('group 2 is below the 30 percent profitability target', () => {
+test('a lower-margin group remains rejected under the global instructor price', () => {
   const result = calculatePricingGroup({
-    instructorCharge: 800,
     studentCount: 20,
     transportCost: 1900,
     instructorWage: wage
   });
 
-  assert.equal(result.finalPrice, 4920);
+  assert.equal(result.finalPrice, 4889.5);
   assert.equal(result.minimumPrice, 5220);
   assert.equal(result.approved, false);
 });
 
-test('school summary matches all six workbook groups', () => {
+test('school summary uses the same global instructor price for every selected group', () => {
   const inputs = [
-    [900, 28, 1800],
-    [800, 20, 1900],
-    [500, 30, 1800],
-    [700, 25, 1600],
-    [500, 15, 1350],
-    [800, 25, 2000]
+    [28, 1800],
+    [20, 1900],
+    [30, 1800],
+    [25, 1600],
+    [15, 1350],
+    [25, 2000]
   ];
-  const school = calculateSchoolPricing(inputs.map(([instructorCharge, studentCount, transportCost]) =>
-    calculatePricingGroup({ instructorCharge, studentCount, transportCost, instructorWage: wage })
+  const school = calculateSchoolPricing(inputs.map(([studentCount, transportCost]) =>
+    calculatePricingGroup({ studentCount, transportCost, instructorWage: wage })
   ));
 
-  assert.equal(school.finalPrice, 30523);
+  assert.equal(school.finalPrice, 30940);
   assert.equal(school.minimumPrice, 29739);
-  assert.ok(Math.abs(school.totalExpenses - 20894.3) < 1e-9);
-  assert.ok(Math.abs(school.profit - 9628.7) < 1e-9);
-  assert.ok(Math.abs(school.margin - 0.3154571962126921) < 1e-12);
+  assert.equal(school.totalExpenses, 20936);
+  assert.equal(school.profit, 10004);
+  assert.ok(Math.abs(school.margin - 0.3233354880413704) < 1e-12);
   assert.equal(school.approved, true);
 });
 
-test('custom simulation assumptions affect pricing without changing defaults', () => {
+test('custom simulation assumptions affect all pricing components without changing defaults', () => {
   const custom = calculatePricingGroup({
-    instructorCharge: 900,
     studentCount: 28,
     transportCost: 1800,
     instructorWage: wage
   }, {
+    instructorPrice: 850,
     studentPrice: 120,
     commissionRate: 0.08,
     targetMargin: 0.25,
     venueCost: 700
   });
 
+  assert.equal(custom.instructorPrice, 850);
   assert.equal(custom.studentPrice, 120);
-  assert.equal(custom.finalPrice, 6060);
+  assert.equal(custom.finalPrice, 6010);
   assert.equal(custom.venueCost, 700);
   assert.equal(custom.minimumPrice, Math.ceil((432 + 1800 + 700) / 0.67));
+  assert.equal(ADMIN_PRICING_CONFIG.instructorPrice, 769.5);
 });
 
 test('tour simulator remains compact and avoids the old wide table dialog', () => {
@@ -99,7 +110,15 @@ test('tour simulator remains compact and avoids the old wide table dialog', () =
   assert.doesNotMatch(simulatorSource, /createElement\(['"]dialog['"]\)/);
 });
 
-test('editable defaults are exposed for simulation and copy-all control is removed', () => {
+test('instructor price is editable only as a simulation assumption, not per group', () => {
+  assert.match(simulatorSource, /data-config-input="instructorPrice"/);
+  assert.match(simulatorSource, /value="\$\{DEFAULT_PRICING_INPUTS\.instructorPrice\}"/);
+  assert.match(simulatorSource, /מחיר מדריך \(₪\)/);
+  assert.doesNotMatch(simulatorSource, /data-group-input="instructorCharge"/);
+  assert.doesNotMatch(simulatorSource, /עלות מדריך/);
+});
+
+test('editable defaults and reset remain available without copy-all control', () => {
   assert.match(simulatorSource, /data-config-input="studentPrice"/);
   assert.match(simulatorSource, /data-config-input="commissionRate"/);
   assert.match(simulatorSource, /data-config-input="targetMargin"/);
