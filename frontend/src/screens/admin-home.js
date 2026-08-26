@@ -12,7 +12,8 @@ function iconSvg(name) {
     permissions: `<svg ${common}><path d="M12 3l7 3v5c0 4.4-2.8 8.4-7 10-4.2-1.6-7-5.6-7-10V6z"/><path d="M9.5 12l1.8 1.8 3.5-4"/></svg>`,
     attendance: `<svg ${common}><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 9h16"/><path d="M9 14l2 2 4-4"/></svg>`,
     team: `<svg ${common}><circle cx="9" cy="8" r="3"/><circle cx="17" cy="10" r="2.5"/><path d="M3.5 19c.6-3.5 2.6-5.5 5.5-5.5s4.9 2 5.5 5.5"/><path d="M14.5 15c2.8-.7 5.1.8 6 3.5"/></svg>`,
-    control: `<svg ${common}><path d="M9 4h6l1 2h3v15H5V6h3z"/><path d="M9 4v3h6V4"/><path d="M9 13l2 2 4-4"/></svg>`
+    control: `<svg ${common}><path d="M9 4h6l1 2h3v15H5V6h3z"/><path d="M9 4v3h6V4"/><path d="M9 13l2 2 4-4"/></svg>`,
+    dates: `<svg ${common}><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4M17 3v4M3 9h18"/><path d="M8 13h3M13 13h3M8 17h3M13 17h3"/></svg>`
   };
   return icons[name] || icons.reports;
 }
@@ -24,15 +25,16 @@ function effectiveRoutes() {
   return new Set(Array.isArray(routes) ? routes : []);
 }
 
-function canViewSummerFeedback() {
+function canViewAdminOnlyTools() {
   return String(state?.user?.role || state?.user?.display_role || '').trim() === 'admin';
 }
 
-function tileButton({ title, description, icon, route = '', url = '', managerTab = '', capabilityId = '' }) {
+function tileButton({ title, description, icon, route = '', url = '', managerTab = '', capabilityId = '', dateSimulator = false }) {
   const attrs = [];
   if (capabilityId) attrs.push(`data-capability-id="${capabilityId}"`);
   if (route) attrs.push(`data-route="${route}"`);
   if (url) attrs.push(`data-admin-hub-url="${url}"`);
+  if (dateSimulator) attrs.push('data-admin-date-simulator="true"');
   if (managerTab) {
     attrs.push('data-manager-board-open="true"');
     attrs.push(`data-admin-hub-manager-tab="${managerTab}"`);
@@ -75,7 +77,7 @@ function managementTilesHtml() {
       capabilityId: 'finance',
       route: 'finance'
     }),
-    canViewSummerFeedback() && tileButton({
+    canViewAdminOnlyTools() && tileButton({
       title: 'משוב קיץ',
       description: 'משובי הקיץ של הצוות החינוכי',
       icon: 'summer',
@@ -108,6 +110,12 @@ function managementTilesHtml() {
       icon: 'control',
       capabilityId: 'admin.attendance',
       managerTab: 'payroll-attendance'
+    }),
+    canViewAdminOnlyTools() && tileButton({
+      title: 'תאריכים',
+      description: 'סימולציית רצף מפגשים לפי לוח הלימודים',
+      icon: 'dates',
+      dateSimulator: true
     })
   ].filter(Boolean);
 
@@ -218,6 +226,12 @@ export const adminHomeScreen = {
         const url = String(button.getAttribute('data-admin-hub-url') || '').trim();
         if (url) window.location.assign(url);
       });
+    });
+
+    root?.querySelector?.('[data-admin-date-simulator]')?.addEventListener('click', () => {
+      void import('./admin-date-simulator.js')
+        .then(({ openAdminDateSimulator }) => openAdminDateSimulator())
+        .catch((error) => console.error('[admin-date-simulator] failed to open', error));
     });
   }
 };
