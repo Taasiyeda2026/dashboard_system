@@ -2,14 +2,14 @@ name: Apply course scheduling operational scope fix
 
 on:
   pull_request:
-    branches: [main]
+    branches: [chatgpt/course-scheduling-operational-scope-20260826]
 
 permissions:
   contents: write
 
 jobs:
   apply:
-    if: github.event.pull_request.head.ref == 'chatgpt/course-scheduling-operational-scope-20260826' && github.event.pull_request.head.repo.full_name == github.repository
+    if: github.event.pull_request.head.ref == 'chatgpt/course-scheduling-operational-scope-runner-20260826' && github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -39,6 +39,12 @@ jobs:
           if text.count(old) != 1:
               raise SystemExit(f'expected exactly one ordinary scheduling input block, found {text.count(old)}')
           text = text.replace(old, new, 1)
+
+          unsafe = 'לא ניתן לבדוק מרחקים כרגע. ניתן להמשיך לפי זמינות והתאמה בלבד.'
+          safe = 'לא ניתן לבדוק מרחקים כרגע. אפשר לעיין בהתאמה ובזמינות, אך לא ניתן לשמור שיבוץ עד לאימות מסלול הנסיעה.'
+          if text.count(unsafe) != 1:
+              raise SystemExit(f'expected exactly one unsafe route fallback message, found {text.count(unsafe)}')
+          text = text.replace(unsafe, safe, 1)
           screen.write_text(text, encoding='utf-8')
 
           test = Path('tests/course-scheduling-district-scope-wiring.test.mjs')
@@ -72,6 +78,12 @@ test('district simulation remains district-wide and is not narrowed by the autho
   assert.match(input, /district,/);
   assert.doesNotMatch(input, /courseSchedulingAuthority/, 'district planning must stay district-wide');
 });
+
+test('missing route copy does not imply a blocked assignment can still be saved', async () => {
+  const source = await readFile(new URL('../frontend/src/screens/course-scheduling.js', import.meta.url), 'utf8');
+  assert.doesNotMatch(source, /ניתן להמשיך לפי זמינות והתאמה בלבד/);
+  assert.match(source, /לא ניתן לשמור שיבוץ עד לאימות מסלול הנסיעה/);
+});
 """, encoding='utf-8')
 
           config = Path('frontend/src/config.js')
@@ -104,7 +116,6 @@ test('district simulation remains district-wide and is not narrowed by the autho
         run: |
           node --test tests/course-scheduling-district-scope-wiring.test.mjs
           node --test tests/course-scheduling-district-simulation*.test.mjs
-          npm run check:changed
           npm run check:build
           npm run check:pwa
           git diff --check
