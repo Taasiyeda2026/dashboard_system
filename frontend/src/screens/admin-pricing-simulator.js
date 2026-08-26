@@ -1,4 +1,5 @@
 import { state } from '../state.js';
+import { canViewIsraaManagement } from '../permissions.js';
 import {
   calculateInstructorWage,
   calculatePricingGroup,
@@ -21,8 +22,9 @@ const DEFAULT_PRICING_INPUTS = Object.freeze({
   venueCost: '800'
 });
 
-function isAdmin() {
-  return String(state?.user?.role || state?.user?.display_role || '').trim() === 'admin';
+function canOpenPricingSimulator() {
+  const role = String(state?.user?.role || state?.user?.display_role || '').trim().toLowerCase();
+  return role === 'admin' || canViewIsraaManagement(state?.user);
 }
 
 function money(value) {
@@ -465,7 +467,7 @@ function setResult(row, name, text) {
 }
 
 export function openAdminPricingSimulator() {
-  if (!isAdmin() || typeof document === 'undefined') return;
+  if (!canOpenPricingSimulator() || typeof document === 'undefined') return;
 
   const existing = document.querySelector('[data-admin-pricing-simulator-overlay]');
   if (existing) {
