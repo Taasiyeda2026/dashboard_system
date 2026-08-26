@@ -1,10 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import {
   calculateInstructorWage,
   calculatePricingGroup,
   calculateSchoolPricing
 } from '../frontend/src/screens/shared/admin-pricing-logic.js';
+
+const simulatorSource = await readFile(new URL('../frontend/src/screens/admin-pricing-simulator.js', import.meta.url), 'utf8');
 
 const wage = calculateInstructorWage({
   hours: 3,
@@ -66,4 +69,13 @@ test('school summary matches all six workbook groups', () => {
   assert.ok(Math.abs(school.profit - 9628.7) < 1e-9);
   assert.ok(Math.abs(school.margin - 0.3154571962126921) < 1e-12);
   assert.equal(school.approved, true);
+});
+
+test('tour simulator remains compact and avoids the old wide table dialog', () => {
+  assert.match(simulatorSource, /admin-pricing-overlay/);
+  assert.match(simulatorSource, /width:min\(820px,calc\(100vw - 36px\)\)/);
+  assert.match(simulatorSource, /overflow-x:hidden/);
+  assert.doesNotMatch(simulatorSource, /min-width:\s*1570px/);
+  assert.doesNotMatch(simulatorSource, /<table/);
+  assert.doesNotMatch(simulatorSource, /createElement\(['"]dialog['"]\)/);
 });
