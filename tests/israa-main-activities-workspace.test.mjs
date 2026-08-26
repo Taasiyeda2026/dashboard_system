@@ -36,7 +36,8 @@ test('Israa workspace stays E-scoped while allowing a manual add only through th
 test('Israa manual add uses the exact canonical activities form without hiding domain or funding fields', () => {
   assert.match(workspace, /button\.textContent !== '\+ הוספת פעילות'/);
   assert.match(workspace, /\[data-activities-add-btn\]/);
-  assert.match(workspace, /canonical main activities add form unchanged/);
+  assert.match(workspace, /const workspaceUi = sharedUi;/);
+  assert.doesNotMatch(workspace, /decorateManualAddModal/);
   assert.doesNotMatch(workspace, /domain\.value = 'E'/);
   assert.doesNotMatch(workspace, /field\.hidden = true/);
   assert.doesNotMatch(workspace, /pointerEvents = 'none'/);
