@@ -150,20 +150,29 @@ function sanitizeContactSchoolSource(form) {
 
 function hydrateContactSourceFromPicker(form) {
   const sourceIdInput = form.querySelector('input[name="contact_source_id"]');
-  if (!sourceIdInput || String(sourceIdInput.value || '').trim()) return;
+  if (!sourceIdInput) return;
 
   const contact = selectedContactPayload(form);
-  const sourceId = String(contact?.id || contact?.source_id || '').trim();
-  if (!sourceId) return;
-  const sourceTable = String(contact?.source_table || '').trim();
-
   const setValue = (name, value) => {
     const input = form.querySelector(`input[name="${name}"]`);
-    if (input && !String(input.value || '').trim()) input.value = value == null ? '' : String(value);
+    if (input && !String(input.value || '').trim() && value != null && String(value).trim()) {
+      input.value = String(value);
+    }
   };
 
-  sourceIdInput.value = sourceTable && sourceTable !== 'contacts_schools' ? '' : sourceId;
-  setValue('contact_source_table', sourceTable || 'contacts_schools');
+  // Preserve recipient identity even when an older/stale editor already carries
+  // a non-contact catalogue id in contact_source_id. The old implementation
+  // returned early in that case, so sanitizing contact_source_id could leave the
+  // proposal without authority_id/school_id and client validation blocked the save
+  // before any Supabase request was sent.
+  setValue('contact_source_authority_id', form?.dataset?.paAuthorityId || '');
+
+  if (!contact) return;
+
+  const sourceId = String(contact?.id || contact?.source_id || '').trim();
+  const sourceTable = String(contact?.source_table || '').trim();
+
+  setValue('contact_source_table', sourceTable || (sourceId ? 'contacts_schools' : ''));
   setValue('contact_source_authority_id', contact.authority_id);
   setValue('contact_source_school_id', contact.school_id);
   setValue('contact_source_semel_mosad', contact.semel_mosad);
@@ -173,6 +182,12 @@ function hydrateContactSourceFromPicker(form) {
   setValue('contact_source_role', contact.contact_role);
   setValue('contact_source_mobile', contact.mobile);
   setValue('contact_source_email', contact.email);
+
+  if (sourceTable && sourceTable !== 'contacts_schools') {
+    sourceIdInput.value = '';
+  } else if (!String(sourceIdInput.value || '').trim() && sourceId) {
+    sourceIdInput.value = sourceId;
+  }
 }
 
 function ensureContactSaveButton(form) {
@@ -242,6 +257,7 @@ function compactEditor(form) {
   normalizeNextYearWorkshopRows(form);
   markSummaryLayout(form);
   markDuplicateEditorTotals(form);
+  hydrateContactSourceFromPicker(form);
   sanitizeContactSchoolSource(form);
   ensureContactSaveButton(form);
   markProposalType(form);
@@ -305,7 +321,10 @@ if (typeof document !== 'undefined') {
     const proposalSaveButton = event.target?.closest?.('[data-pa-save-draft], [data-pa-save-pending]');
     if (proposalSaveButton) {
       const form = proposalSaveButton.closest?.('[data-pa-form]');
-      if (form) sanitizeContactSchoolSource(form);
+      if (form) {
+        hydrateContactSourceFromPicker(form);
+        sanitizeContactSchoolSource(form);
+      }
     }
 
     const contactSaveButton = event.target?.closest?.('[data-pa-contact-channels-save]');

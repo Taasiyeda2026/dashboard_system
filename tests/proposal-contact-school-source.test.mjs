@@ -6,7 +6,7 @@ const {
   hydrateContactSourceFromPicker
 } = await import('../frontend/src/proposal-editor-compact-fixes.js');
 
-function fakeForm(fields = {}, optionPayload = null) {
+function fakeForm(fields = {}, optionPayload = null, dataset = {}) {
   const inputs = new Map(Object.entries(fields).map(([name, value]) => [name, { value }]));
   const option = optionPayload
     ? { dataset: { paContactOption: encodeURIComponent(JSON.stringify(optionPayload)) } }
@@ -14,6 +14,7 @@ function fakeForm(fields = {}, optionPayload = null) {
 
   return {
     inputs,
+    dataset,
     querySelector(selector) {
       if (selector === '[data-pa-contact-select] option:checked[data-pa-contact-option]') return option;
       const match = selector.match(/^input\[name="([^"]+)"\]$/);
@@ -85,4 +86,47 @@ test('picker hydration never promotes an explicit schools id into contact_school
   assert.equal(form.inputs.get('contact_source_table').value, 'schools');
   assert.equal(form.inputs.get('contact_source_authority_id').value, '10');
   assert.equal(form.inputs.get('contact_source_school_id').value, '20');
+});
+
+test('stale school catalogue id is cleared only after recipient identity is restored', () => {
+  const form = fakeForm({
+    contact_source_id: '404',
+    contact_source_table: 'schools',
+    contact_source_authority_id: '',
+    contact_source_school_id: '',
+    contact_source_semel_mosad: '',
+    contact_source_authority: '',
+    contact_source_school: '',
+    contact_source_name: '',
+    contact_source_role: '',
+    contact_source_mobile: '',
+    contact_source_email: ''
+  }, {
+    id: '404',
+    source_table: 'schools',
+    authority_id: '10',
+    school_id: '20',
+    semel_mosad: '123456',
+    authority: 'רשות בדיקה',
+    school: 'בית ספר בדיקה'
+  });
+
+  hydrateContactSourceFromPicker(form);
+  sanitizeContactSchoolSource(form);
+
+  assert.equal(form.inputs.get('contact_source_id').value, '');
+  assert.equal(form.inputs.get('contact_source_authority_id').value, '10');
+  assert.equal(form.inputs.get('contact_source_school_id').value, '20');
+});
+
+test('authority identity can be restored from the selected recipient step', () => {
+  const form = fakeForm({
+    contact_source_id: '',
+    contact_source_table: '',
+    contact_source_authority_id: ''
+  }, null, { paAuthorityId: '77' });
+
+  hydrateContactSourceFromPicker(form);
+
+  assert.equal(form.inputs.get('contact_source_authority_id').value, '77');
 });
