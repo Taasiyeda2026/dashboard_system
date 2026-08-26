@@ -1612,6 +1612,9 @@ export const courseSchedulingScreen = {
         const profiles = Object.fromEntries((scheduling.profiles || []).map((row) => [text(row.emp_id), row]));
         const input = {
           activities: activitiesWithCancellations,
+          // Narrow recommendation targets without removing context activities used
+          // for persisted assignments, drafts, overlaps, workload and transitions.
+          targetCourseId: selectedCourseId,
           periodKey: selectedPeriodKey(state),
           authority: text(state.courseSchedulingAuthority || ''),
           instructors: data.instructors,

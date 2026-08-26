@@ -390,6 +390,9 @@ export function runDistrictSchedulingSimulation(input = {}) {
     ...input,
     periodKey,
     district,
+    // District simulation always plans every eligible course in its district.
+    targetCourseId: '',
+    targetActivityId: '',
     // District simulation must not inherit the ordinary authority list filter.
     authority: '',
     // Include open unassigned courses that lack dates/hours so they appear as חסרים נתונים.

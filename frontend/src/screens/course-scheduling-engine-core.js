@@ -475,12 +475,16 @@ function evaluateCourseCandidates({
 export function calculateCourseSchedule(input = {}) {
   const activities = input.activities || [];
   const periodKey = input.periodKey || DEFAULT_COURSE_SCHEDULING_PERIOD_KEY;
-  const courses = schedulingCourses(activities, {
+  const scopedCourses = schedulingCourses(activities, {
     periodKey,
     authority: input.authority,
     district: input.district,
     includeIncompleteWithoutPeriodMeetings: !!input.includeIncompleteWithoutPeriodMeetings
   });
+  const targetCourseId = text(input.targetCourseId || input.targetActivityId);
+  const courses = targetCourseId
+    ? scopedCourses.filter((course) => idOf(course) === targetCourseId)
+    : scopedCourses;
   const profiles = input.profiles || {};
   const rules = input.rules || {};
   const instructors = schedulingInstructors(input.instructors || [], profiles, rules);
