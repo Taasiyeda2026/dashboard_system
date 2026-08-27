@@ -40,6 +40,8 @@ function ensureActivitySessionCountInput(form) {
     input.type = 'hidden';
     input.name = 'sessions';
     input.dataset.activitySessionsAuto = 'yes';
+    input.value = String(count);
+    input.defaultValue = String(count);
     form.appendChild(input);
   }
 
