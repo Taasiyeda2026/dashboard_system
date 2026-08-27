@@ -15,6 +15,57 @@ function firstCatalogNumber(...values) {
   return null;
 }
 
+function editableMeetingCardCount(form) {
+  if (!form || String(form?.dataset?.isOnce || '') === 'yes') return null;
+  const grid = form.querySelector?.('[data-meeting-dates-edit]');
+  if (!grid) return null;
+  const count = grid.querySelectorAll(':scope > .activity-drawer__date-card').length;
+  return Number.isInteger(count) && count >= 1 && count <= 35 ? count : null;
+}
+
+/**
+ * The activity-level session count is operational data, not catalog metadata.
+ * Keep a lightweight hidden form field synchronized with the number of meeting
+ * cards so removing/adding meetings in the drawer persists the new contract
+ * count together with the date changes.
+ */
+function ensureActivitySessionCountInput(form) {
+  const count = editableMeetingCardCount(form);
+  if (count === null) return form?.querySelector?.('[name="sessions"]') || null;
+
+  let input = form.querySelector?.('[name="sessions"]') || null;
+  if (!input) {
+    input = form.ownerDocument?.createElement?.('input') || null;
+    if (!input) return null;
+    input.type = 'hidden';
+    input.name = 'sessions';
+    input.dataset.activitySessionsAuto = 'yes';
+    input.value = String(count);
+    input.defaultValue = String(count);
+    form.appendChild(input);
+  }
+
+  const sync = () => {
+    const nextCount = editableMeetingCardCount(form);
+    if (nextCount !== null && input.dataset.activitySessionsAuto === 'yes') {
+      input.value = String(nextCount);
+    }
+  };
+  sync();
+
+  if (!form._activitySessionsCountObserver) {
+    const grid = form.querySelector?.('[data-meeting-dates-edit]');
+    const MutationObserverCtor = form.ownerDocument?.defaultView?.MutationObserver;
+    if (grid && MutationObserverCtor) {
+      const observer = new MutationObserverCtor(sync);
+      observer.observe(grid, { childList: true });
+      form._activitySessionsCountObserver = observer;
+    }
+  }
+
+  return input;
+}
+
 function catalogIdentityChanges({
   activity_name,
   activity_no,
@@ -48,6 +99,7 @@ function catalogIdentityChanges({
 }
 
 export function selectedActivityCatalogIdentity(form) {
+  const sessionInput = ensureActivitySessionCountInput(form);
   const nameSelect = form?.querySelector?.('[data-role="activity-name-select"]');
   const option = nameSelect?.selectedOptions?.[0] || null;
   if (!nameSelect || !option || !catalogText(nameSelect.value)) {
@@ -55,12 +107,24 @@ export function selectedActivityCatalogIdentity(form) {
   }
   const activityNo = catalogText(option.dataset.activityNo);
   const gefenNumber = catalogText(option.dataset.gefenNumber);
+  const currentActivityNo = catalogText(form?.querySelector?.('[data-activity-no], [name="activity_no"]')?.value);
+  const currentGefenNumber = catalogText(form?.querySelector?.('[data-gefen-number], [name="gefen_number"]')?.value);
+  const sameCatalogIdentity = Boolean(activityNo || gefenNumber) && (
+    (activityNo && currentActivityNo === activityNo)
+    || (gefenNumber && currentGefenNumber === gefenNumber)
+  );
+  const localMeetingCount = firstCatalogNumber(sessionInput?.value, editableMeetingCardCount(form));
   return {
     isCatalogSelection: Boolean(activityNo || gefenNumber),
     activity_name: catalogText(nameSelect.value),
     activity_no: activityNo,
     gefen_number: gefenNumber,
-    meetings_count: firstCatalogNumber(option.dataset.meetingsCount),
+    // The catalog count is only a default when the user actually switches to
+    // another catalog item. Once the selected item is the activity's current
+    // identity, the locally edited meeting count is authoritative.
+    meetings_count: sameCatalogIdentity && localMeetingCount !== null
+      ? localMeetingCount
+      : firstCatalogNumber(option.dataset.meetingsCount),
     activity_type: catalogText(option.dataset.activityType)
   };
 }
