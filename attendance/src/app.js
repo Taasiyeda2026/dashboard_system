@@ -5,7 +5,11 @@ import { renderMyReportsScreen } from './screens/my-reports-screen.js';
 import { createBottomNav } from './components/bottom-nav.js';
 import { signInWithUsername, signOut, getExistingSession } from './auth/auth.service.js';
 import { resolveInstructorIdentity, resolveAdminPreviewIdentity } from './auth/identity.service.js';
-import { isAdminPreviewRequested } from './preview/preview-mode.js';
+import {
+  getPreviewApprovalStatus,
+  isAdminPreviewRequested,
+  setPreviewApprovalStatus,
+} from './preview/preview-mode.js';
 
 // ── App state ────────────────────────────────────────────────────────────────
 const today = new Date();
@@ -101,12 +105,13 @@ function ensurePreviewStyles() {
   style.id = 'av2-admin-preview-style';
   style.textContent = `
     .av2-admin-preview {
-      width: min(100% - 24px, 760px);
+      width: min(100% - 24px, 980px);
       margin: 10px auto 0;
       padding: 8px 10px;
       display: flex;
       align-items: center;
       justify-content: space-between;
+      flex-wrap: wrap;
       gap: 10px;
       border: 1px solid #bfdbfe;
       border-radius: 10px;
@@ -116,6 +121,31 @@ function ensurePreviewStyles() {
       line-height: 1.35;
     }
     .av2-admin-preview strong { font-weight: 800; }
+    .av2-admin-preview__tools {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-inline-start: auto;
+    }
+    .av2-admin-preview__status-label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .av2-admin-preview__status-select {
+      min-height: 30px;
+      padding: 4px 28px 4px 8px;
+      border: 1px solid #93c5fd;
+      border-radius: 8px;
+      background: #fff;
+      color: #1e3a5f;
+      font: inherit;
+      font-weight: 700;
+      cursor: pointer;
+    }
     .av2-admin-preview button {
       flex: 0 0 auto;
       min-height: 30px;
@@ -128,11 +158,18 @@ function ensurePreviewStyles() {
       font-weight: 700;
       cursor: pointer;
     }
-    @media (max-width: 520px) {
+    @media (max-width: 680px) {
       .av2-admin-preview { align-items: flex-start; }
+      .av2-admin-preview__tools { width: 100%; margin-inline-start: 0; }
+      .av2-admin-preview__status-label { flex: 1 1 100%; }
+      .av2-admin-preview__status-select { flex: 1 1 auto; }
     }
   `;
   document.head.append(style);
+}
+
+function currentPreviewMonthKey() {
+  return `${state.currentYear}-${String(state.currentMonth).padStart(2, '0')}`;
 }
 
 function renderPreviewBanner() {
@@ -145,12 +182,48 @@ function renderPreviewBanner() {
   const text = document.createElement('span');
   text.innerHTML = '<strong>מצב בדיקה לאדמין</strong> · תצוגת עובד מלאה · כל הנתונים כאן הם נתוני הדגמה ולא נשמרים במערכת.';
 
+  const tools = document.createElement('div');
+  tools.className = 'av2-admin-preview__tools';
+
+  const statusLabel = document.createElement('label');
+  statusLabel.className = 'av2-admin-preview__status-label';
+  statusLabel.textContent = 'סטטוס חודש לבדיקה';
+
+  const statusSelect = document.createElement('select');
+  statusSelect.className = 'av2-admin-preview__status-select';
+  statusSelect.setAttribute('aria-label', 'סטטוס חודש במצב בדיקה');
+  const statusOptions = [
+    ['open', 'פתוח לדיווח'],
+    ['submitted', 'הוגש / בבקרת מנהל'],
+    ['locked', 'אושר על ידי המנהל'],
+    ['reopened', 'הוחזר לתיקון'],
+    ['approved_for_payroll', 'אושר סופית לשכר'],
+  ];
+  for (const [value, label] of statusOptions) {
+    const option = document.createElement('option');
+    option.value = value;
+    option.textContent = label;
+    statusSelect.append(option);
+  }
+  const monthKey = currentPreviewMonthKey();
+  statusSelect.value = getPreviewApprovalStatus(monthKey);
+  statusSelect.addEventListener('change', () => {
+    setPreviewApprovalStatus(monthKey, statusSelect.value, {
+      employeeName: state.instructor?.name || 'עובד/ת לדוגמה',
+      adminName: state.instructor?.adminName || 'אדמין לדוגמה',
+    });
+    state.prefillRecord = null;
+    renderScreen();
+  });
+  statusLabel.append(statusSelect);
+
   const exitBtn = document.createElement('button');
   exitBtn.type = 'button';
   exitBtn.textContent = 'חזרה לניהול';
   exitBtn.addEventListener('click', () => window.location.assign('/dashboard_system/'));
 
-  banner.append(text, exitBtn);
+  tools.append(statusLabel, exitBtn);
+  banner.append(text, tools);
   appRoot.prepend(banner);
 }
 
