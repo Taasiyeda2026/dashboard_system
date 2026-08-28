@@ -9,7 +9,7 @@ export const OPEN_FIELD_REPORT_TYPES = [TRAINING_REPORT_TYPE];
 
 export const HEBREW_TO_DB_TYPE = {
   'סדנה':        'workshop',
-  'סדנאות קיץ': 'workshop',
+  'סדנאות קיץ': 'workshop', // legacy label: treated exactly as סדנה
   'קורס':        'course',
   'חדר בריחה':  'escape_room',
   'סיור':        'tour',
@@ -47,16 +47,20 @@ export const HEBREW_ACTIVITY_TYPES = [
   'חדר בריחה',
   'מקוון',
   'סדנה',
-  'סדנאות קיץ',
   'סיור',
   'קורס',
   'תפעול',
 ];
 
+export function normalizeAttendanceReportType(value) {
+  const raw = String(value || '').trim();
+  return raw === 'סדנאות קיץ' ? 'סדנה' : raw;
+}
+
 export function toHebrewType(dbType) {
   if (!dbType) return '';
   const key = String(dbType).trim();
-  return ACTIVITY_TYPE_MAP[key] || ACTIVITY_TYPE_MAP[key.toLowerCase()] || key;
+  return ACTIVITY_TYPE_MAP[key] || ACTIVITY_TYPE_MAP[key.toLowerCase()] || normalizeAttendanceReportType(key);
 }
 
 export function normalizeDbActivityType(value) {
@@ -69,10 +73,11 @@ export function normalizeDbActivityType(value) {
 }
 
 export function getDbTypesForReportType(reportType) {
-  if (!reportType || reportType === ONLINE_REPORT_TYPE) return null;
-  if (NO_ACTIVITY_NAME_REPORT_TYPES.includes(reportType)) return [];
-  if (OPEN_FIELD_REPORT_TYPES.includes(reportType)) return [];
-  const db = HEBREW_TO_DB_TYPE[reportType];
+  const normalizedReportType = normalizeAttendanceReportType(reportType);
+  if (!normalizedReportType || normalizedReportType === ONLINE_REPORT_TYPE) return null;
+  if (NO_ACTIVITY_NAME_REPORT_TYPES.includes(normalizedReportType)) return [];
+  if (OPEN_FIELD_REPORT_TYPES.includes(normalizedReportType)) return [];
+  const db = HEBREW_TO_DB_TYPE[normalizedReportType];
   return db ? [db] : [];
 }
 
