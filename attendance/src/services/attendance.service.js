@@ -7,6 +7,18 @@
  */
 
 import { supabase } from '../api/client.js';
+import {
+  createPreviewAttachment,
+  createPreviewRecord,
+  deletePreviewAttachment,
+  deletePreviewRecord,
+  getPreviewApproval,
+  getPreviewRecords,
+  isAdminPreviewRequested,
+  previewActivityTypes,
+  submitPreviewMonth,
+  updatePreviewRecord,
+} from '../preview/preview-mode.js';
 
 // ─── Records ────────────────────────────────────────────────────────────────
 
@@ -15,9 +27,10 @@ import { supabase } from '../api/client.js';
  * Includes attached file stubs for display.
  */
 export async function getMonthRecords(empId, year, month) {
+  if (isAdminPreviewRequested()) return getPreviewRecords(year, month);
+
   const pad = (n) => String(n).padStart(2, '0');
   const startDate = `${year}-${pad(month)}-01`;
-  // Last calendar day of the month
   const lastDay = new Date(year, month, 0).getDate();
   const endDate = `${year}-${pad(month)}-${pad(lastDay)}`;
 
@@ -25,7 +38,7 @@ export async function getMonthRecords(empId, year, month) {
     .from('attendance_records')
     .select(`
       *,
-      attendance_record_attachments (id, file_name, file_type, file_size)
+      attendance_record_attachments (id, storage_path, file_name, file_type, file_size)
     `)
     .eq('emp_id', empId)
     .gte('report_date', startDate)
@@ -55,6 +68,8 @@ export function calcMonthSummary(records) {
  * resolved identity (not from user-visible form input).
  */
 export async function createRecord(empId, payload) {
+  if (isAdminPreviewRequested()) return createPreviewRecord(payload);
+
   const row = {
     ...payload,
     emp_id: empId,
@@ -76,6 +91,8 @@ export async function createRecord(empId, payload) {
  * (RLS enforces this server-side; we also pass it for the WHERE clause).
  */
 export async function updateRecord(recordId, empId, payload) {
+  if (isAdminPreviewRequested()) return updatePreviewRecord(recordId, payload);
+
   const { data, error } = await supabase
     .from('attendance_records')
     .update({ ...payload, updated_at: new Date().toISOString() })
@@ -93,6 +110,11 @@ export async function updateRecord(recordId, empId, payload) {
  * Storage files are deleted separately in storage.service.js before calling this.
  */
 export async function deleteRecord(recordId, empId) {
+  if (isAdminPreviewRequested()) {
+    deletePreviewRecord(recordId);
+    return;
+  }
+
   const { error } = await supabase
     .from('attendance_records')
     .delete()
@@ -108,6 +130,8 @@ export async function deleteRecord(recordId, empId) {
  * Returns the approval row for a month_key ("YYYY-MM"), or null if not yet created (= open).
  */
 export async function getMonthApproval(empId, monthKey) {
+  if (isAdminPreviewRequested()) return getPreviewApproval(monthKey);
+
   const [monthApprovalRes, payrollApprovalRes] = await Promise.all([
     supabase
       .from('attendance_month_approvals')
@@ -127,7 +151,6 @@ export async function getMonthApproval(empId, monthKey) {
   if (monthApprovalRes.error) throw new Error(`שגיאה בבדיקת סטטוס חודש: ${monthApprovalRes.error.message}`);
   if (payrollApprovalRes.error) throw new Error(`שגיאה בבדיקת אישור שכר: ${payrollApprovalRes.error.message}`);
 
-  // Final payroll approval is the terminal state exposed to both instructor and manager.
   if (payrollApprovalRes.data) {
     return {
       ...(monthApprovalRes.data || {}),
@@ -137,7 +160,7 @@ export async function getMonthApproval(empId, monthKey) {
     };
   }
 
-  return monthApprovalRes.data; // null = 'open'
+  return monthApprovalRes.data;
 }
 
 /**
@@ -145,6 +168,8 @@ export async function getMonthApproval(empId, monthKey) {
  * Status becomes 'submitted'; manager must lock/approve separately.
  */
 export async function submitMonth(empId, monthKey, submittedByName = '') {
+  if (isAdminPreviewRequested()) return submitPreviewMonth(monthKey, submittedByName);
+
   const now = new Date().toISOString();
   const { data, error } = await supabase
     .from('attendance_month_approvals')
@@ -170,6 +195,10 @@ export async function submitMonth(empId, monthKey, submittedByName = '') {
 
 /** Save attachment metadata after a successful Storage upload. */
 export async function createAttachmentRecord(empId, recordId, { storagePath, fileName, fileType, fileSize }) {
+  if (isAdminPreviewRequested()) {
+    return createPreviewAttachment(recordId, { storagePath, fileName, fileType, fileSize });
+  }
+
   const { data, error } = await supabase
     .from('attendance_record_attachments')
     .insert([{
@@ -189,6 +218,11 @@ export async function createAttachmentRecord(empId, recordId, { storagePath, fil
 
 /** Delete attachment metadata (call after successful Storage delete). */
 export async function deleteAttachmentRecord(attachmentId, empId) {
+  if (isAdminPreviewRequested()) {
+    deletePreviewAttachment(attachmentId);
+    return;
+  }
+
   const { error } = await supabase
     .from('attendance_record_attachments')
     .delete()
@@ -202,9 +236,10 @@ export async function deleteAttachmentRecord(attachmentId, empId) {
 
 /** Fetch distinct activity_type values used in the activities table. */
 export async function getActivityTypes() {
+  if (isAdminPreviewRequested()) return previewActivityTypes();
+
   const { data, error } = await supabase.rpc('av2_get_distinct_activity_types');
   if (error) {
-    // Fallback if RPC is not yet deployed
     return ['ביטול זמן','הכשרה','חדר בריחה','סדנה','סדנאות קיץ','סיור','קורס','תפעול'];
   }
   return Array.isArray(data) ? data : ['ביטול זמן','הכשרה','חדר בריחה','סדנה','סדנאות קיץ','סיור','קורס','תפעול'];
