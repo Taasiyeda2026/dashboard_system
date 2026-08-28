@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
 const bridgeSource = await readFile(new URL('../frontend/src/payroll-attendance-v2-bridge.js', import.meta.url), 'utf8');
-const migrationSource = await readFile(new URL('../supabase/migrations/20260829001000_attendance_retention_foundation.sql', import.meta.url), 'utf8');
+const migrationSource = await readFile(new URL('../supabase/migrations/20260828223936_attendance_retention_foundation.sql', import.meta.url), 'utf8');
 
 test('attendance-control team discovery does not scan accumulated attendance history', () => {
   assert.match(bridgeSource, /attendanceControlTeams\s*=\s*async function[\s\S]*get_payroll_attendance_team_roster/);
