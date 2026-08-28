@@ -51,94 +51,6 @@ function nextMinuteStepTime(startTime) {
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 }
 
-function buildReportSummaryRows(summary = {}) {
-  const filesText = Array.isArray(summary.attachments) && summary.attachments.length
-    ? summary.attachments.join(', ')
-    : 'ללא קבצים';
-  return [
-    ['תאריך', summary.reportDate || '—'],
-    ['סוג פעילות', summary.activityType || '—'],
-    ['רשות', summary.authority || '—'],
-    ['בית ספר', summary.school || '—'],
-    ['שם התוכנית', summary.program || '—'],
-    ['מספר מפגש', summary.meetingNo || '—'],
-    ['שעת התחלה בפועל', summary.startTime || '—'],
-    ['שעת סיום בפועל', summary.endTime || '—'],
-    ['סך שעות', summary.totalHours || '—'],
-    ['קילומטרים', summary.km || '0'],
-    ['הוצאות', summary.expenses || '0'],
-    ['הערה', summary.notes || '—'],
-    ['קבצים מצורפים', filesText],
-  ];
-}
-
-function showReportSummaryDialog(summary = {}) {
-  return new Promise((resolve) => {
-    document.querySelector('.av2-modal-overlay')?.remove();
-    const rows = buildReportSummaryRows(summary);
-
-    const overlay = document.createElement('div');
-    overlay.className = 'av2-modal-overlay';
-
-    const modal = document.createElement('div');
-    modal.className = 'av2-modal';
-    modal.setAttribute('role', 'dialog');
-    modal.setAttribute('aria-modal', 'true');
-
-    const header = document.createElement('div');
-    header.className = 'av2-modal__header';
-    const title = document.createElement('h2');
-    title.className = 'av2-modal__title';
-    title.textContent = 'סיכום לפני שמירה';
-    const closeBtn = document.createElement('button');
-    closeBtn.type = 'button';
-    closeBtn.className = 'av2-btn av2-btn--icon';
-    closeBtn.setAttribute('aria-label', 'חזרה לעריכה');
-    closeBtn.append(createIcon('x'));
-    header.append(title, closeBtn);
-
-    const summaryEl = document.createElement('div');
-    summaryEl.className = 'av2-summary';
-    for (const [label, value] of rows) {
-      const row = document.createElement('div');
-      row.className = 'av2-summary__row';
-      const l = document.createElement('span');
-      l.textContent = label;
-      const v = document.createElement('strong');
-      v.textContent = String(value || '—');
-      row.append(l, v);
-      summaryEl.append(row);
-    }
-
-    const actions = document.createElement('div');
-    actions.className = 'av2-summary__actions';
-    const backBtn = document.createElement('button');
-    backBtn.type = 'button';
-    backBtn.className = 'av2-btn av2-btn--secondary';
-    backBtn.textContent = 'חזרה לעריכה';
-    const saveBtn = document.createElement('button');
-    saveBtn.type = 'button';
-    saveBtn.className = 'av2-btn av2-btn--primary';
-    saveBtn.textContent = 'אישור ושמירת הדיווח';
-    actions.append(backBtn, saveBtn);
-
-    const done = (ok) => {
-      overlay.remove();
-      resolve(ok);
-    };
-
-    closeBtn.addEventListener('click', () => done(false));
-    backBtn.addEventListener('click', () => done(false));
-    saveBtn.addEventListener('click', () => done(true));
-    overlay.addEventListener('click', (e) => { if (e.target === overlay) done(false); });
-
-    modal.append(header, summaryEl, actions);
-    overlay.append(modal);
-    document.body.append(overlay);
-    saveBtn.focus();
-  });
-}
-
 function makeFormSection(title, variant, bodyClass, fields) {
   const section = document.createElement('section');
   section.className = `av2-form-section av2-form-section--${variant}`;
@@ -938,6 +850,12 @@ export function renderNewReportScreen(container, {
 
     let savedRecordForAttachmentRetry = null;
 
+    function finishSuccessfulSave(record) {
+      saveBtn.disabled = true;
+      saveBtn.querySelector('span').textContent = 'הדיווח נשמר בהצלחה';
+      window.setTimeout(() => onSaved?.(record), 700);
+    }
+
     async function uploadPendingFiles(recordId) {
       const queue = [...pendingFiles];
       pendingFiles.length = 0;
@@ -976,7 +894,7 @@ export function renderNewReportScreen(container, {
           saveBtn.querySelector('span').textContent = 'נסה שוב העלאת קבצים';
           return;
         }
-        onSaved?.(savedRecordForAttachmentRetry);
+        finishSuccessfulSave(savedRecordForAttachmentRetry);
         return;
       }
 
@@ -1052,23 +970,6 @@ export function renderNewReportScreen(container, {
       }
       if (isOnline && kmValue > 0) kmValue = 0;
 
-      const summaryConfirmed = await showReportSummaryDialog({
-        reportDate: dateStr,
-        activityType: reportType || '—',
-        authority: finalAuthorityName || '—',
-        school: finalSchoolName || '—',
-        program: programName || '—',
-        meetingNo: meetingField.getValue() || '—',
-        startTime,
-        endTime,
-        totalHours: totalHours > 0 ? totalHours.toFixed(2) : '—',
-        km: String(kmValue),
-        expenses: expField.input.value || '0',
-        notes: notesField.input.value.trim() || '—',
-        attachments: pendingFiles.map((file) => file.name),
-      });
-      if (!summaryConfirmed) return;
-
       saveBtn.disabled = true;
       saveBtn.querySelector('span').textContent = 'שומר…';
 
@@ -1109,7 +1010,7 @@ export function renderNewReportScreen(container, {
           return;
         }
 
-        onSaved?.(record);
+        finishSuccessfulSave(record);
       } catch (err) {
         errorEl.textContent = err.message;
         errorEl.hidden = false;
