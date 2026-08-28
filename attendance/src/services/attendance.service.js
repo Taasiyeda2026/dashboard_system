@@ -22,10 +22,14 @@ import {
 
 const LEGACY_SUMMER_WORKSHOP = 'סדנאות קיץ';
 const WORKSHOP_LABEL = 'סדנה';
+const LEGACY_ONLINE_LABEL = 'מקוון';
+const ZOOM_LABEL = 'זום';
 
 function normalizeAttendanceActivityTypeLabel(value) {
   const raw = String(value || '').trim();
-  return raw === LEGACY_SUMMER_WORKSHOP ? WORKSHOP_LABEL : raw;
+  if (raw === LEGACY_SUMMER_WORKSHOP) return WORKSHOP_LABEL;
+  if (raw === LEGACY_ONLINE_LABEL) return ZOOM_LABEL;
+  return raw;
 }
 
 function normalizeAttendanceRecord(record) {
@@ -42,7 +46,17 @@ function normalizeActivityTypeList(values) {
     .filter(Boolean))];
 }
 
-const FALLBACK_ACTIVITY_TYPES = ['ביטול זמן','הכשרה','חדר בריחה','מקוון','סדנה','סיור','קורס','תפעול'];
+function normalizeRecordPayload(payload = {}) {
+  const activityType = normalizeAttendanceActivityTypeLabel(payload?.activity_type);
+  return {
+    ...payload,
+    activity_type: activityType,
+    // Zoom is always remote and therefore never carries travel kilometres.
+    ...(activityType === ZOOM_LABEL ? { roundtrip_km: 0 } : {}),
+  };
+}
+
+const FALLBACK_ACTIVITY_TYPES = ['ביטול זמן','הכשרה','חדר בריחה','זום','סדנה','סיור','קורס','תפעול'];
 
 // ─── Records ────────────────────────────────────────────────────────────────
 
@@ -94,10 +108,7 @@ export function calcMonthSummary(records) {
  * resolved identity (not from user-visible form input).
  */
 export async function createRecord(empId, payload) {
-  const normalizedPayload = {
-    ...payload,
-    activity_type: normalizeAttendanceActivityTypeLabel(payload?.activity_type),
-  };
+  const normalizedPayload = normalizeRecordPayload(payload);
   if (isAdminPreviewRequested()) return createPreviewRecord(normalizedPayload);
 
   const row = {
@@ -121,10 +132,7 @@ export async function createRecord(empId, payload) {
  * (RLS enforces this server-side; we also pass it for the WHERE clause).
  */
 export async function updateRecord(recordId, empId, payload) {
-  const normalizedPayload = {
-    ...payload,
-    activity_type: normalizeAttendanceActivityTypeLabel(payload?.activity_type),
-  };
+  const normalizedPayload = normalizeRecordPayload(payload);
   if (isAdminPreviewRequested()) return updatePreviewRecord(recordId, normalizedPayload);
 
   const { data, error } = await supabase
