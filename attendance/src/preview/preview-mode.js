@@ -1,6 +1,14 @@
 const PREVIEW_PARAM = 'adminPreview';
 export const PREVIEW_EMP_ID = 9900001;
 
+export const PREVIEW_APPROVAL_STATUSES = [
+  'open',
+  'submitted',
+  'locked',
+  'reopened',
+  'approved_for_payroll',
+];
+
 function clone(value) {
   return value == null ? value : JSON.parse(JSON.stringify(value));
 }
@@ -216,6 +224,91 @@ export function deletePreviewRecord(recordId) {
 
 export function getPreviewApproval(monthKey) {
   return clone(state.approvals.get(String(monthKey)) || null);
+}
+
+export function getPreviewApprovalStatus(monthKey) {
+  return state.approvals.get(String(monthKey))?.status || 'open';
+}
+
+export function setPreviewApprovalStatus(monthKey, status, {
+  employeeName = 'עובד/ת לדוגמה',
+  adminName = 'אדמין לדוגמה',
+} = {}) {
+  const key = String(monthKey || '').trim();
+  const nextStatus = String(status || 'open').trim();
+  if (!key) throw new Error('חודש בדיקה לא תקין');
+  if (!PREVIEW_APPROVAL_STATUSES.includes(nextStatus)) {
+    throw new Error('סטטוס בדיקה לא נתמך');
+  }
+
+  if (nextStatus === 'open') {
+    state.approvals.delete(key);
+    return null;
+  }
+
+  const now = new Date().toISOString();
+  const existing = state.approvals.get(key) || {};
+  const submittedByName = String(employeeName || 'עובד/ת לדוגמה').trim();
+  const managerName = 'מנהל/ת לדוגמה';
+  const finalAdminName = String(adminName || 'אדמין לדוגמה').trim();
+  const row = {
+    ...existing,
+    emp_id: PREVIEW_EMP_ID,
+    month_key: key,
+    status: nextStatus,
+    updated_at: now,
+  };
+
+  if (nextStatus === 'submitted') {
+    Object.assign(row, {
+      submitted_at: now,
+      submitted_by_name: submittedByName,
+      manager_approved_at: null,
+      manager_approved_by_name: null,
+      manager_pdf_sharepoint_url: null,
+      manager_pdf_file_name: null,
+      payroll_approved_at: null,
+      payroll_approved_by_name: null,
+    });
+  } else if (nextStatus === 'locked') {
+    Object.assign(row, {
+      submitted_at: existing.submitted_at || now,
+      submitted_by_name: existing.submitted_by_name || submittedByName,
+      manager_approved_at: now,
+      manager_approved_by_name: managerName,
+      manager_pdf_sharepoint_url: 'preview://manager-approved-attendance.pdf',
+      manager_pdf_file_name: `attendance-${key}-preview.pdf`,
+      payroll_approved_at: null,
+      payroll_approved_by_name: null,
+    });
+  } else if (nextStatus === 'reopened') {
+    Object.assign(row, {
+      submitted_at: existing.submitted_at || now,
+      submitted_by_name: existing.submitted_by_name || submittedByName,
+      reopened_at: now,
+      reopen_reason: 'הוחזר לתיקון — מצב בדיקה',
+      manager_approved_at: null,
+      manager_approved_by_name: null,
+      manager_pdf_sharepoint_url: null,
+      manager_pdf_file_name: null,
+      payroll_approved_at: null,
+      payroll_approved_by_name: null,
+    });
+  } else if (nextStatus === 'approved_for_payroll') {
+    Object.assign(row, {
+      submitted_at: existing.submitted_at || now,
+      submitted_by_name: existing.submitted_by_name || submittedByName,
+      manager_approved_at: existing.manager_approved_at || now,
+      manager_approved_by_name: existing.manager_approved_by_name || managerName,
+      manager_pdf_sharepoint_url: existing.manager_pdf_sharepoint_url || 'preview://manager-approved-attendance.pdf',
+      manager_pdf_file_name: existing.manager_pdf_file_name || `attendance-${key}-preview.pdf`,
+      payroll_approved_at: now,
+      payroll_approved_by_name: finalAdminName,
+    });
+  }
+
+  state.approvals.set(key, row);
+  return clone(row);
 }
 
 export function submitPreviewMonth(monthKey, submittedByName = '') {
