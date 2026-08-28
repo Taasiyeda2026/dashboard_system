@@ -12,17 +12,17 @@
     width: 100%;
     min-width: 0 !important;
     grid-template-columns:
-      minmax(64px, .52fr) /* date */
-      minmax(54px, .44fr) /* start */
-      minmax(54px, .44fr) /* end */
-      minmax(58px, .48fr) /* hours */
-      minmax(0, .72fr)   /* activity type */
-      minmax(0, 1.65fr)  /* activity name */
-      minmax(0, 1.35fr)  /* school */
-      minmax(0, 1.25fr)  /* authority */
-      minmax(42px, .34fr) /* km */
-      minmax(42px, .34fr) /* expenses */
-      minmax(88px, .74fr) !important; /* actions */
+      minmax(64px, .52fr)  /* date */
+      minmax(54px, .44fr)  /* start */
+      minmax(54px, .44fr)  /* end */
+      minmax(58px, .48fr)  /* hours */
+      minmax(0, .72fr)     /* activity type */
+      minmax(0, 1.65fr)    /* activity name */
+      minmax(0, 1.18fr)    /* school — slightly narrower */
+      minmax(0, .92fr)     /* authority — narrower */
+      minmax(42px, .34fr)  /* km */
+      minmax(42px, .34fr)  /* expenses */
+      minmax(118px, 1.12fr) !important; /* actions — wider for icon spacing */
     gap: 0 !important;
     padding-inline: 0 !important;
     align-items: stretch !important;
