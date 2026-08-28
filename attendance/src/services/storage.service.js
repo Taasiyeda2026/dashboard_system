@@ -6,6 +6,7 @@
  */
 
 import { supabase } from '../api/client.js';
+import { isAdminPreviewRequested } from '../preview/preview-mode.js';
 
 const BUCKET = 'attendance-attachments';
 
@@ -20,6 +21,8 @@ export async function uploadAttachment(file, empId, recordId) {
   const safeName = file.name.replace(/[^a-zA-Z0-9._\-\u0590-\u05FF]/g, '_');
   const uid = crypto.randomUUID().slice(0, 8);
   const path = `${empId}/${recordId}/${uid}_${safeName}`;
+
+  if (isAdminPreviewRequested()) return `preview/${path}`;
 
   const { error } = await supabase.storage
     .from(BUCKET)
@@ -36,6 +39,10 @@ export async function uploadAttachment(file, empId, recordId) {
  * Get a signed URL valid for 60 minutes.
  */
 export async function getSignedUrl(storagePath) {
+  if (isAdminPreviewRequested()) {
+    return `data:text/plain;charset=utf-8,${encodeURIComponent('קובץ הדגמה — מצב בדיקה, לא נשמר קובץ אמיתי.')}`;
+  }
+
   const { data, error } = await supabase.storage
     .from(BUCKET)
     .createSignedUrl(storagePath, 3600);
@@ -48,6 +55,8 @@ export async function getSignedUrl(storagePath) {
  * Delete a file from Storage (call before deleting the DB row).
  */
 export async function deleteAttachment(storagePath) {
+  if (isAdminPreviewRequested()) return;
+
   const { error } = await supabase.storage
     .from(BUCKET)
     .remove([storagePath]);
