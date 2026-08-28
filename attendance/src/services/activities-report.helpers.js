@@ -1,11 +1,21 @@
 /** Pure helpers for attendance new-report activity selection (no Supabase imports). */
 
-export const ONLINE_REPORT_TYPE = 'מקוון';
+export const ONLINE_REPORT_TYPE = 'זום';
+export const LEGACY_ONLINE_REPORT_TYPE = 'מקוון';
 export const TRAINING_REPORT_TYPE = 'הכשרה';
 export const OPERATIONS_REPORT_TYPE = 'תפעול';
+export const CANCELLATION_REPORT_TYPE = 'ביטול זמן';
 
-export const NO_ACTIVITY_NAME_REPORT_TYPES = [OPERATIONS_REPORT_TYPE, 'ביטול זמן'];
-export const OPEN_FIELD_REPORT_TYPES = [TRAINING_REPORT_TYPE];
+// Operational work is not linked to an activity and is described with free text.
+export const NO_ACTIVITY_NAME_REPORT_TYPES = [];
+export const OPEN_FIELD_REPORT_TYPES = [OPERATIONS_REPORT_TYPE];
+
+// These report types may refer to any canonical activity type rather than one DB type.
+export const UNFILTERED_ACTIVITY_REPORT_TYPES = [
+  CANCELLATION_REPORT_TYPE,
+  TRAINING_REPORT_TYPE,
+  ONLINE_REPORT_TYPE,
+];
 
 export const HEBREW_TO_DB_TYPE = {
   'סדנה':        'workshop',
@@ -42,19 +52,21 @@ const DB_TYPE_ALIASES = {
 };
 
 export const HEBREW_ACTIVITY_TYPES = [
-  'ביטול זמן',
-  'הכשרה',
+  CANCELLATION_REPORT_TYPE,
+  TRAINING_REPORT_TYPE,
   'חדר בריחה',
-  'מקוון',
+  ONLINE_REPORT_TYPE,
   'סדנה',
   'סיור',
   'קורס',
-  'תפעול',
+  OPERATIONS_REPORT_TYPE,
 ];
 
 export function normalizeAttendanceReportType(value) {
   const raw = String(value || '').trim();
-  return raw === 'סדנאות קיץ' ? 'סדנה' : raw;
+  if (raw === 'סדנאות קיץ') return 'סדנה';
+  if (raw === LEGACY_ONLINE_REPORT_TYPE) return ONLINE_REPORT_TYPE;
+  return raw;
 }
 
 export function toHebrewType(dbType) {
@@ -74,7 +86,7 @@ export function normalizeDbActivityType(value) {
 
 export function getDbTypesForReportType(reportType) {
   const normalizedReportType = normalizeAttendanceReportType(reportType);
-  if (!normalizedReportType || normalizedReportType === ONLINE_REPORT_TYPE) return null;
+  if (!normalizedReportType || UNFILTERED_ACTIVITY_REPORT_TYPES.includes(normalizedReportType)) return null;
   if (NO_ACTIVITY_NAME_REPORT_TYPES.includes(normalizedReportType)) return [];
   if (OPEN_FIELD_REPORT_TYPES.includes(normalizedReportType)) return [];
   const db = HEBREW_TO_DB_TYPE[normalizedReportType];
