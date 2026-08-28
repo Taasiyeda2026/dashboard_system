@@ -24,15 +24,28 @@ function formatDisplayedHours(root = document) {
   }
 }
 
-function scheduleFormat() {
-  requestAnimationFrame(() => formatDisplayedHours(document));
+function polishAttachmentLabels(root = document) {
+  for (const node of root.querySelectorAll?.('.av2-attach-section .av2-field__label') || []) {
+    if (String(node.textContent || '').trim() === 'מסמכים מצורפים (אופציונלי)') {
+      node.textContent = 'מסמכים מצורפים';
+    }
+  }
+}
+
+function applyProfessionalPolish(root = document) {
+  formatDisplayedHours(root);
+  polishAttachmentLabels(root);
+}
+
+function schedulePolish() {
+  requestAnimationFrame(() => applyProfessionalPolish(document));
 }
 
 if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', scheduleFormat, { once: true });
+  document.addEventListener('DOMContentLoaded', schedulePolish, { once: true });
 } else {
-  scheduleFormat();
+  schedulePolish();
 }
 
-const observer = new MutationObserver(scheduleFormat);
+const observer = new MutationObserver(schedulePolish);
 observer.observe(document.documentElement, { childList: true, subtree: true, characterData: true });
