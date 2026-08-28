@@ -153,11 +153,12 @@
 .av2-report-list__head,
 .av2-report-row {
   display: grid;
-  grid-template-columns: 88px 88px 88px 100px 92px minmax(150px, 1.35fr) minmax(125px, 1.05fr) minmax(115px, 1fr) 64px 76px 112px;
-  min-width: 1180px;
+  grid-template-columns: 72px 60px 60px 68px 82px minmax(170px, 1.55fr) minmax(145px, 1.25fr) minmax(135px, 1.15fr) 46px 48px 100px;
+  min-width: 1040px;
   align-items: center;
   gap: 0 8px;
 }
+.av2-report-row[hidden] { display: none !important; }
 
 .av2-report-list__head {
   padding: 10px 12px;
@@ -206,6 +207,10 @@
 .av2-rr__hours,
 .av2-rr__km,
 .av2-rr__expenses { font-variant-numeric: tabular-nums; }
+.av2-rr__expense-indicator { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: #9a6700; cursor: pointer; }
+.av2-rr__expense-indicator:hover,
+.av2-rr__expense-indicator:focus-visible { background: #fff7d6; outline: none; }
+.av2-rr__expense-indicator.is-revealed::after { content: attr(data-tooltip); position: absolute; z-index: 30; inset-block-end: calc(100% + 5px); inset-inline-start: 50%; transform: translateX(-50%); width: max-content; max-width: 180px; padding: 4px 7px; border-radius: 5px; background: #172033; color: #fff; font-size: 0.6875rem; white-space: nowrap; box-shadow: 0 3px 10px rgba(15, 23, 42, .2); }
 .av2-rr__type { font-size: 0.6875rem; color: var(--av2-color-text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .av2-rr__name { font-size: 0.75rem; font-weight: 600; color: var(--av2-color-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .av2-rr__school,
@@ -290,5 +295,5 @@
   .av2-cal__day-num { min-width: 22px; height: 22px; font-size: 0.68rem; }
   .av2-cal__presence-dot { width: 5px; height: 5px; flex-basis: 5px; }
   .av2-report-list__head,
-  .av2-report-row { min-width: 1080px; }
+  .av2-report-row { min-width: 1040px; }
 }

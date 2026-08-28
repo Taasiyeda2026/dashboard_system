@@ -12,17 +12,17 @@
     width: 100%;
     min-width: 0 !important;
     grid-template-columns:
-      minmax(0, .68fr)   /* date */
-      minmax(0, .72fr)   /* start */
-      minmax(0, .72fr)   /* end */
-      minmax(0, .78fr)   /* hours */
+      minmax(64px, .52fr) /* date */
+      minmax(54px, .44fr) /* start */
+      minmax(54px, .44fr) /* end */
+      minmax(58px, .48fr) /* hours */
       minmax(0, .72fr)   /* activity type */
-      minmax(0, 1.28fr)  /* activity name */
-      minmax(0, 1.08fr)  /* school */
-      minmax(0, 1fr)     /* authority */
-      minmax(0, .52fr)   /* km */
-      minmax(0, .60fr)   /* expenses */
-      minmax(96px, 1.08fr) !important; /* actions */
+      minmax(0, 1.65fr)  /* activity name */
+      minmax(0, 1.35fr)  /* school */
+      minmax(0, 1.25fr)  /* authority */
+      minmax(42px, .34fr) /* km */
+      minmax(42px, .34fr) /* expenses */
+      minmax(88px, .74fr) !important; /* actions */
     gap: 0 !important;
     padding-inline: 0 !important;
     align-items: stretch !important;
@@ -131,11 +131,6 @@
     width: 13px !important;
     height: 13px !important;
     stroke: currentColor !important;
-  }
-
-  /* Remove only the Copy action. Keep Edit, Duplicate and Delete. */
-  .av2-rr__action-copy {
-    display: none !important;
   }
 
   .av2-rr__action-dup {

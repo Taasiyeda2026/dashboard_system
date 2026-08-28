@@ -153,8 +153,8 @@ async function loadAndRender({ instructor, year, month, contentArea, toolbar, on
     filterBar.append(filterText, filterClearBtn);
 
     function applyFilter() {
-      for (const row of rowEntries) {
-        row.hidden = selectedDate ? row.dataset.reportDate !== selectedDate : false;
+      for (const { row, reportDate } of rowEntries) {
+        row.hidden = selectedDate ? reportDate !== selectedDate : false;
       }
       filterBar.hidden = !selectedDate;
       filterText.textContent = selectedDate ? `דיווחים ליום ${formatDateHeb(selectedDate)}` : '';
@@ -217,7 +217,7 @@ async function loadAndRender({ instructor, year, month, contentArea, toolbar, on
     for (const record of sorted) {
       const row = buildRecordRow({ record, editable, instructor, activityTypes, onDuplicate, onRefresh });
       row.dataset.reportDate = record.report_date;
-      rowEntries.push(row);
+      rowEntries.push({ row, reportDate: record.report_date });
       listWrap.append(row);
     }
 
@@ -303,9 +303,23 @@ function buildRecordRow({ record, editable, instructor, activityTypes, onDuplica
   // ── 10. Expenses ─────────────────────────────────────────────────────────
   const expCell = document.createElement('div');
   expCell.className = 'av2-rr__expenses';
-  expCell.textContent = Number(record.expenses || 0) > 0
-    ? '₪' + Number(record.expenses).toFixed(0)
-    : '—';
+  const expenseAmount = Number(record.expenses || 0);
+  if (expenseAmount > 0) {
+    const expenseLabel = `הוצאות: ${expenseAmount.toLocaleString('he-IL', { maximumFractionDigits: 2 })} ₪`;
+    const expenseBtn = document.createElement('button');
+    expenseBtn.type = 'button';
+    expenseBtn.className = 'av2-rr__expense-indicator';
+    expenseBtn.title = expenseLabel;
+    expenseBtn.setAttribute('aria-label', expenseLabel);
+    expenseBtn.dataset.tooltip = expenseLabel;
+    expenseBtn.append(createIcon('receipt', { size: 15 }));
+    expenseBtn.addEventListener('click', (event) => {
+      event.stopPropagation();
+      expenseBtn.classList.toggle('is-revealed');
+    });
+    expenseBtn.addEventListener('blur', () => expenseBtn.classList.remove('is-revealed'));
+    expCell.append(expenseBtn);
+  }
 
   // ── 11. Actions ───────────────────────────────────────────────────────────
   const actionsCell = document.createElement('div');
@@ -315,8 +329,8 @@ function buildRecordRow({ record, editable, instructor, activityTypes, onDuplica
   const copyBtn = document.createElement('button');
   copyBtn.type = 'button';
   copyBtn.className = 'av2-btn av2-btn--icon av2-rr__action-copy';
-  copyBtn.setAttribute('aria-label', 'העתק');
-  copyBtn.title = 'העתק';
+  copyBtn.setAttribute('aria-label', 'העתק פרטי דיווח');
+  copyBtn.title = 'העתק פרטי דיווח';
   copyBtn.append(createIcon('copy', { size: 14 }));
   copyBtn.addEventListener('click', (e) => { e.stopPropagation(); handleCopy(record, copyBtn); });
   actionsCell.append(copyBtn);
@@ -326,9 +340,9 @@ function buildRecordRow({ record, editable, instructor, activityTypes, onDuplica
     const dupBtn = document.createElement('button');
     dupBtn.type = 'button';
     dupBtn.className = 'av2-btn av2-btn--icon av2-rr__action-dup';
-    dupBtn.setAttribute('aria-label', 'שכפל');
-    dupBtn.title = 'שכפל';
-    dupBtn.append(createIcon('copy', { size: 14 }));
+    dupBtn.setAttribute('aria-label', 'שכפל דיווח');
+    dupBtn.title = 'שכפל דיווח';
+    dupBtn.append(createIcon('duplicate', { size: 14 }));
     dupBtn.addEventListener('click', (e) => { e.stopPropagation(); onDuplicate(record); });
     actionsCell.append(dupBtn);
   }

@@ -39,7 +39,7 @@ export function createTimePicker(id, label, defaultValue = '', minuteStep = 5) {
 
   const hourControl = createCompactSelect({
     id: `${id}-h`,
-    placeholder: 'שע׳',
+    placeholder: '--',
     ariaLabel: `${label} — שעה`,
     maxHeight: 260,
     compact: true,
@@ -52,14 +52,14 @@ export function createTimePicker(id, label, defaultValue = '', minuteStep = 5) {
 
   const minControl = createCompactSelect({
     id: `${id}-m`,
-    placeholder: 'דק׳',
+    placeholder: '--',
     ariaLabel: `${label} — דקות`,
     maxHeight: 260,
     compact: true,
   });
 
   function buildHourOptions(fromHour = 0) {
-    const opts = [{ value: '', label: 'שע׳' }];
+    const opts = [{ value: '', label: '—' }];
     for (let h = fromHour; h <= 23; h++) {
       opts.push({ value: String(h), label: String(h).padStart(2, '0') });
     }
@@ -73,7 +73,7 @@ export function createTimePicker(id, label, defaultValue = '', minuteStep = 5) {
   }
 
   function buildMinuteOptionsForHour(hourValue) {
-    const opts = [{ value: '', label: 'דק׳' }];
+    const opts = [{ value: '', label: '—' }];
     if (hourValue === '' || hourValue == null) {
       minControl.setOptions(opts);
       minControl.setValue('');
