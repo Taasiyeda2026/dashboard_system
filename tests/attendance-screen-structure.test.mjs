@@ -98,6 +98,6 @@ test('Attendance New Report uses three desktop columns and instructor activity I
   assert.doesNotMatch(newReportSource, /av2-planned-activity/);
   assert.match(newReportSource, /instructorActivitySelectOptions/);
   assert.match(activitiesServiceSource, /instructorActivitySelectOptions/);
-  assert.match(attendanceSwSource, /const CACHE_VERSION = 33;/);
-  assert.match(attendanceIndexSource, /\?v=33/);
+  assert.match(attendanceSwSource, /const CACHE_VERSION = 37;/);
+  assert.match(attendanceIndexSource, /\?v=37/);
 });
