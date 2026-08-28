@@ -139,3 +139,4 @@ config.HOTFIX_VERSION = `israa-tour-pricing-tabbar-20260827-v2-${config.HOTFIX_V
 config.HOTFIX_VERSION = `course-scheduling-single-target-20260826-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `israa-canonical-add-form-20260827-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `activity-session-count-source-of-truth-20260827-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `attendance-direct-report-save-20260828-v1-${config.HOTFIX_VERSION}`;
