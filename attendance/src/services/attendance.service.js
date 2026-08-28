@@ -20,6 +20,30 @@ import {
   updatePreviewRecord,
 } from '../preview/preview-mode.js';
 
+const LEGACY_SUMMER_WORKSHOP = 'סדנאות קיץ';
+const WORKSHOP_LABEL = 'סדנה';
+
+function normalizeAttendanceActivityTypeLabel(value) {
+  const raw = String(value || '').trim();
+  return raw === LEGACY_SUMMER_WORKSHOP ? WORKSHOP_LABEL : raw;
+}
+
+function normalizeAttendanceRecord(record) {
+  if (!record || typeof record !== 'object') return record;
+  return {
+    ...record,
+    activity_type: normalizeAttendanceActivityTypeLabel(record.activity_type),
+  };
+}
+
+function normalizeActivityTypeList(values) {
+  return [...new Set((Array.isArray(values) ? values : [])
+    .map(normalizeAttendanceActivityTypeLabel)
+    .filter(Boolean))];
+}
+
+const FALLBACK_ACTIVITY_TYPES = ['ביטול זמן','הכשרה','חדר בריחה','מקוון','סדנה','סיור','קורס','תפעול'];
+
 // ─── Records ────────────────────────────────────────────────────────────────
 
 /**
@@ -27,7 +51,9 @@ import {
  * Includes attached file stubs for display.
  */
 export async function getMonthRecords(empId, year, month) {
-  if (isAdminPreviewRequested()) return getPreviewRecords(year, month);
+  if (isAdminPreviewRequested()) {
+    return getPreviewRecords(year, month).map(normalizeAttendanceRecord);
+  }
 
   const pad = (n) => String(n).padStart(2, '0');
   const startDate = `${year}-${pad(month)}-01`;
@@ -47,7 +73,7 @@ export async function getMonthRecords(empId, year, month) {
     .order('start_time', { ascending: true });
 
   if (error) throw new Error(`שגיאה בטעינת רשומות: ${error.message}`);
-  return data || [];
+  return (data || []).map(normalizeAttendanceRecord);
 }
 
 /**
@@ -68,10 +94,14 @@ export function calcMonthSummary(records) {
  * resolved identity (not from user-visible form input).
  */
 export async function createRecord(empId, payload) {
-  if (isAdminPreviewRequested()) return createPreviewRecord(payload);
+  const normalizedPayload = {
+    ...payload,
+    activity_type: normalizeAttendanceActivityTypeLabel(payload?.activity_type),
+  };
+  if (isAdminPreviewRequested()) return createPreviewRecord(normalizedPayload);
 
   const row = {
-    ...payload,
+    ...normalizedPayload,
     emp_id: empId,
     updated_at: new Date().toISOString()
   };
@@ -83,7 +113,7 @@ export async function createRecord(empId, payload) {
     .single();
 
   if (error) throw new Error(`שגיאה בשמירת רשומה: ${error.message}`);
-  return data;
+  return normalizeAttendanceRecord(data);
 }
 
 /**
@@ -91,18 +121,22 @@ export async function createRecord(empId, payload) {
  * (RLS enforces this server-side; we also pass it for the WHERE clause).
  */
 export async function updateRecord(recordId, empId, payload) {
-  if (isAdminPreviewRequested()) return updatePreviewRecord(recordId, payload);
+  const normalizedPayload = {
+    ...payload,
+    activity_type: normalizeAttendanceActivityTypeLabel(payload?.activity_type),
+  };
+  if (isAdminPreviewRequested()) return updatePreviewRecord(recordId, normalizedPayload);
 
   const { data, error } = await supabase
     .from('attendance_records')
-    .update({ ...payload, updated_at: new Date().toISOString() })
+    .update({ ...normalizedPayload, updated_at: new Date().toISOString() })
     .eq('id', recordId)
     .eq('emp_id', empId)
     .select()
     .single();
 
   if (error) throw new Error(`שגיאה בעדכון רשומה: ${error.message}`);
-  return data;
+  return normalizeAttendanceRecord(data);
 }
 
 /**
@@ -236,11 +270,10 @@ export async function deleteAttachmentRecord(attachmentId, empId) {
 
 /** Fetch distinct activity_type values used in the activities table. */
 export async function getActivityTypes() {
-  if (isAdminPreviewRequested()) return previewActivityTypes();
+  if (isAdminPreviewRequested()) return normalizeActivityTypeList(previewActivityTypes());
 
   const { data, error } = await supabase.rpc('av2_get_distinct_activity_types');
-  if (error) {
-    return ['ביטול זמן','הכשרה','חדר בריחה','סדנה','סדנאות קיץ','סיור','קורס','תפעול'];
-  }
-  return Array.isArray(data) ? data : ['ביטול זמן','הכשרה','חדר בריחה','סדנה','סדנאות קיץ','סיור','קורס','תפעול'];
+  if (error) return FALLBACK_ACTIVITY_TYPES;
+  const normalized = normalizeActivityTypeList(data);
+  return normalized.length ? normalized : FALLBACK_ACTIVITY_TYPES;
 }
