@@ -8,6 +8,8 @@ const reportsSource = await readFile(new URL('../attendance/src/screens/my-repor
 const newReportSource = await readFile(new URL('../attendance/src/screens/new-report-screen.js', import.meta.url), 'utf8');
 const newReportStyles = await readFile(new URL('../attendance/src/styles/new-report-screen.css', import.meta.url), 'utf8');
 const newReportLayoutFix = await readFile(new URL('../attendance/src/styles/new-report-layout-fix.css', import.meta.url), 'utf8');
+const reportsStyles = await readFile(new URL('../attendance/src/styles/my-reports-screen.css', import.meta.url), 'utf8');
+const timePickerSource = await readFile(new URL('../attendance/src/components/time-picker.js', import.meta.url), 'utf8');
 const activitiesServiceSource = await readFile(new URL('../attendance/src/services/activities.service.js', import.meta.url), 'utf8');
 const attendanceSwSource = await readFile(new URL('../attendance/sw.js', import.meta.url), 'utf8');
 const attendanceIndexSource = await readFile(new URL('../attendance/index.html', import.meta.url), 'utf8');
@@ -50,6 +52,29 @@ test('Attendance My Reports table has all required columns', () => {
   assert.match(reportsSource, /av2-rr__action-delete/);
 });
 
+test('Attendance report-day filtering uses report_date and hides non-matching grid rows', () => {
+  assert.match(reportsSource, /rowEntries\.push\(\{ row, reportDate: record\.report_date \}\)/);
+  assert.match(reportsSource, /row\.hidden = selectedDate \? reportDate !== selectedDate : false/);
+  assert.match(reportsStyles, /\.av2-report-row\[hidden\]\s*\{\s*display:\s*none\s*!important/);
+});
+
+test('Attendance report actions and expenses use distinct accessible indicators', () => {
+  assert.match(reportsSource, /aria-label', 'העתק פרטי דיווח'/);
+  assert.match(reportsSource, /aria-label', 'שכפל דיווח'/);
+  assert.match(reportsSource, /createIcon\('copy'/);
+  assert.match(reportsSource, /createIcon\('duplicate'/);
+  assert.match(reportsSource, /createIcon\('receipt'/);
+  assert.match(reportsSource, /if \(expenseAmount > 0\)/);
+  assert.match(reportsSource, /classList\.toggle\('is-revealed'\)/);
+});
+
+test('shared Attendance time picker uses compact numeric placeholders', () => {
+  assert.doesNotMatch(timePickerSource, /placeholder: 'שע׳'|placeholder: 'דק׳'/);
+  assert.match(timePickerSource, /placeholder: '--'/);
+  assert.match(newReportStyles, /\.av2-time-picker__part\s*\{[^}]*width:\s*64px/);
+  assert.match(newReportStyles, /\.av2-time-picker__sep\s*\{[^}]*justify-content:\s*center/);
+});
+
 test('Attendance calendar shows TODAY highlight and activity content in cells', () => {
   assert.match(calSource, /av2-cal__cell--today/);
   assert.match(calSource, /av2-cal__event-pill/);
@@ -73,6 +98,6 @@ test('Attendance New Report uses three desktop columns and instructor activity I
   assert.doesNotMatch(newReportSource, /av2-planned-activity/);
   assert.match(newReportSource, /instructorActivitySelectOptions/);
   assert.match(activitiesServiceSource, /instructorActivitySelectOptions/);
-  assert.match(attendanceSwSource, /const CACHE_VERSION = 32;/);
-  assert.match(attendanceIndexSource, /\?v=32/);
+  assert.match(attendanceSwSource, /const CACHE_VERSION = 33;/);
+  assert.match(attendanceIndexSource, /\?v=33/);
 });
