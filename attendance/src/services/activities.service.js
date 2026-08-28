@@ -9,6 +9,15 @@ import {
   getDbTypesForReportType,
   currentAttendanceActivitySeasons,
 } from './activities-report.helpers.js';
+import {
+  getPreviewActivities,
+  getPreviewAuthorities,
+  isAdminPreviewRequested,
+} from '../preview/preview-mode.js';
+import {
+  activityMatchesReportType,
+  activitySearchHaystack,
+} from './activities-report.helpers.js';
 export {
   ONLINE_REPORT_TYPE,
   TRAINING_REPORT_TYPE,
@@ -54,6 +63,8 @@ async function aggregateActivitiesFromDateRpc(empId, seasons) {
 }
 
 export async function getInstructorActivities(empId, referenceDateStr) {
+  if (isAdminPreviewRequested()) return getPreviewActivities();
+
   const seasons = currentAttendanceActivitySeasons(referenceDateStr);
   try {
     const { data, error } = await supabase.rpc('av2_get_instructor_activities', {
@@ -73,6 +84,14 @@ export async function searchCanonicalActivities({
   referenceDateStr,
   limit = 50,
 } = {}) {
+  if (isAdminPreviewRequested()) {
+    const q = String(query || '').trim().toLowerCase();
+    return getPreviewActivities()
+      .filter((activity) => activityMatchesReportType(activity, reportType))
+      .filter((activity) => !q || activitySearchHaystack(activity).includes(q))
+      .slice(0, limit);
+  }
+
   const dbTypes = getDbTypesForReportType(reportType);
   const seasons = currentAttendanceActivitySeasons(referenceDateStr);
   try {
@@ -90,6 +109,8 @@ export async function searchCanonicalActivities({
 }
 
 export async function getInstructorActivitiesForDate(empId, dateStr) {
+  if (isAdminPreviewRequested()) return getPreviewActivities();
+
   const { data, error } = await supabase.rpc('av2_get_instructor_activities_for_date', {
     p_emp_id: empId,
     p_date:   dateStr,
@@ -100,6 +121,12 @@ export async function getInstructorActivitiesForDate(empId, dateStr) {
 
 export async function getMeetingNoForActivityOnDate(empId, activityRowId, dateStr) {
   if (!empId || !activityRowId || !dateStr) return null;
+  if (isAdminPreviewRequested()) {
+    const match = getPreviewActivities().find(
+      (row) => String(row?.row_id || '').trim() === String(activityRowId).trim(),
+    );
+    return match?.meeting_no ?? null;
+  }
   try {
     const rows = await getInstructorActivitiesForDate(empId, dateStr);
     const match = rows.find((row) => String(row?.row_id || '').trim() === String(activityRowId).trim());
@@ -110,6 +137,8 @@ export async function getMeetingNoForActivityOnDate(empId, activityRowId, dateSt
 }
 
 export async function getAuthoritySchoolList(empId) {
+  if (isAdminPreviewRequested()) return getPreviewAuthorities();
+
   const { data, error } = await supabase.rpc('av2_get_authority_school_list', {
     p_emp_id: empId,
   });
@@ -118,6 +147,8 @@ export async function getAuthoritySchoolList(empId) {
 }
 
 export async function getAllAuthoritySchoolList(empId) {
+  if (isAdminPreviewRequested()) return getPreviewAuthorities();
+
   try {
     const { data, error } = await supabase.rpc('av2_get_all_authority_school_list');
     if (!error && Array.isArray(data) && data.length > 0) return data;
@@ -129,6 +160,16 @@ export async function getActivityNamesByType(hebrewType) {
   if (!hebrewType) return [];
   const dbType = HEBREW_TO_DB_TYPE[hebrewType];
   if (!dbType) return [];
+
+  if (isAdminPreviewRequested()) {
+    const seen = new Set();
+    return getPreviewActivities()
+      .filter((row) => String(row.activity_type || '') === dbType)
+      .map((row) => row.activity_name || '')
+      .filter((name) => name && !seen.has(name) && seen.add(name))
+      .map((name) => ({ value: name, label: name }));
+  }
+
   try {
     const { data, error } = await supabase
       .from('lists')
