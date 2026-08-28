@@ -23,7 +23,7 @@
   border-radius: var(--av2-radius-sm);
 }
 
-/* Form layout — three RTL columns on desktop */
+/* Form layout — two balanced RTL cards on wider screens */
 .av2-report__form-area { display: flex; flex-direction: column; }
 .av2-report__form { display: flex; flex-direction: column; gap: 14px; }
 
@@ -70,6 +70,12 @@
 }
 .av2-form-section__sub { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .av2-field--full { grid-column: 1 / -1; }
+.av2-report__times-grid,
+.av2-report__expense-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; align-items: end; }
+.av2-report__expenses { display: flex; flex-direction: column; gap: 14px; padding-top: 18px; border-top: 1px solid var(--av2-color-border); }
+.av2-report__expenses .av2-form-section__subtitle { margin: 0; font-size: 0.875rem; color: var(--av2-color-text); }
+.av2-report__expenses .av2-attach-upload-btn { width: 100%; max-width: none; min-height: 42px; justify-content: center; }
+.av2-report__expenses .av2-field__input { width: 100%; }
 
 /* Time picker */
 .av2-time-picker { display: flex; direction: ltr; align-items: stretch; justify-content: center; gap: 0; width: fit-content; max-width: 100%; border: 1px solid var(--av2-color-border); border-radius: var(--av2-radius-md); background: var(--av2-color-surface); min-height: 34px; overflow: visible; transition: border-color 0.12s; }
@@ -168,17 +174,17 @@
 .av2-attach-upload-btn { display: inline-flex; align-items: center; gap: 4px; padding: 5px 8px; font-size: 0.6875rem; font-weight: 600; color: var(--av2-color-accent); border: 1.5px dashed var(--av2-color-accent); border-radius: var(--av2-radius-sm); cursor: pointer; background: var(--av2-color-accent-subtle); transition: background 0.12s; max-width: 160px; }
 .av2-attach-upload-btn:hover { background: #dbeafe; }
 
-/* ── Desktop — three side-by-side columns (activity | times | expenses) ─── */
-@media (min-width: 768px) {
+/* Keep the reference-like two-card composition down to compact tablets. */
+@media (min-width: 640px) {
   .av2-report { padding: 34px 0 46px; }
   .av2-report__inner { max-width: 1180px; margin-inline: auto; width: 100%; gap: 16px; }
   .av2-report__title { font-size: 1.3rem; }
 
   .av2-report__form {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 12px;
-    align-items: start;
+    grid-template-columns: minmax(0, 1.04fr) minmax(0, 0.96fr);
+    gap: 22px;
+    align-items: stretch;
   }
   .av2-report__dup-note,
   .av2-report__actions,
@@ -186,7 +192,9 @@
     grid-column: 1 / -1;
   }
 
-  .av2-form-section { min-height: 100%; }
+  .av2-form-section { min-height: 100%; border-radius: 14px; box-shadow: 0 4px 18px rgba(30, 58, 95, 0.06); }
+  .av2-form-section__title { padding: 16px 20px; font-size: 0.9rem; color: var(--av2-color-text); background: var(--av2-color-surface); border-radius: 14px 14px 0 0; }
+  .av2-form-section__body { padding: 18px 20px 22px; }
 
   .av2-form-section__body--activity {
     grid-template-columns: 1fr;
@@ -194,7 +202,7 @@
 
   .av2-form-section__body--times {
     grid-template-columns: 1fr;
-    gap: 8px;
+    gap: 20px;
   }
 
   .av2-form-section__body--bottom {
@@ -205,4 +213,9 @@
   .av2-field__input, .av2-field__select, .av2-ssel__trigger, .av2-csel__trigger { min-height: 38px; }
   .av2-report__hours-value { min-height: 38px; }
   .av2-report__save { min-height: 40px; min-width: 150px; }
+}
+
+@media (max-width: 639px) {
+  .av2-report__times-grid,
+  .av2-report__expense-fields { grid-template-columns: 1fr; }
 }
