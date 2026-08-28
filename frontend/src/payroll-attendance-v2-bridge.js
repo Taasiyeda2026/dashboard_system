@@ -103,6 +103,15 @@ function syntheticEmployeesFromRecords(records = []) {
   return [...managers.values(), ...instructors.values()];
 }
 
+function rosterRecord(row = {}) {
+  return {
+    employeeId: text(row.employee_id),
+    employeeName: text(row.employee_name),
+    employmentType: text(row.employment_type),
+    team: text(row.team),
+  };
+}
+
 api.attendanceControlRecords = async function ({ employeeIds = [], fromDate = '', toDate = '' } = {}) {
   await waitForSupabaseAuthSession({ timeoutMs: 7000 }).catch(() => null);
   const numericEmployeeIds = [...new Set((employeeIds || [])
@@ -118,8 +127,10 @@ api.attendanceControlRecords = async function ({ employeeIds = [], fromDate = ''
 };
 
 api.attendanceControlTeams = async function () {
-  const records = await api.attendanceControlRecords();
-  return syntheticEmployeesFromRecords(records);
+  await waitForSupabaseAuthSession({ timeoutMs: 7000 }).catch(() => null);
+  const { data, error } = await supabase.rpc('get_payroll_attendance_team_roster');
+  if (error) throw new Error(error.message || 'attendance_team_roster_supabase_load_failed');
+  return syntheticEmployeesFromRecords((Array.isArray(data) ? data : []).map(rosterRecord));
 };
 
 api.attendanceControlUpdateRecord = async function (recordId, fields = {}) {
