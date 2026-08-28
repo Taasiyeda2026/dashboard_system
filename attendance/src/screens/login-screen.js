@@ -1,4 +1,3 @@
-import { createIcon } from '../components/icon.js';
 import { createInputField } from '../components/field.js';
 
 export function renderLoginScreen(container, { onLogin } = {}) {
@@ -14,10 +13,6 @@ export function renderLoginScreen(container, { onLogin } = {}) {
   logo.className = 'av2-login__logo';
   logo.src = new URL('../../assets/logo.png', import.meta.url).href;
   logo.alt = 'תעשיידע';
-
-  const title = document.createElement('h1');
-  title.className = 'av2-login__title';
-  title.textContent = 'תעשיידע';
 
   const subtitle = document.createElement('p');
   subtitle.className = 'av2-login__subtitle';
@@ -46,7 +41,7 @@ export function renderLoginScreen(container, { onLogin } = {}) {
   submit.className = 'av2-btn av2-btn--primary av2-login__submit';
   const submitLabel = document.createElement('span');
   submitLabel.textContent = 'כניסה למערכת';
-  submit.append(createIcon('log-in', { className: 'av2-icon--flip-rtl' }), submitLabel);
+  submit.append(submitLabel);
 
   const errorEl = document.createElement('p');
   errorEl.className = 'av2-login__error';
@@ -78,7 +73,7 @@ export function renderLoginScreen(container, { onLogin } = {}) {
     }
   });
 
-  inner.append(logo, title, subtitle, form);
+  inner.append(logo, subtitle, form);
   wrap.append(inner);
   container.append(wrap);
 }

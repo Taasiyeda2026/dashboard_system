@@ -30,13 +30,6 @@
   height: auto;
 }
 
-.av2-login__title {
-  margin: 0;
-  font-size: 1.1875rem;
-  font-weight: 700;
-  color: var(--av2-color-text);
-}
-
 .av2-login__subtitle {
   margin: 0 0 var(--av2-space-1);
   font-size: 0.8125rem;
@@ -52,7 +45,12 @@
 }
 
 .av2-login__submit {
+  align-self: center;
+  width: fit-content;
+  max-width: 100%;
   margin-top: var(--av2-space-1);
+  padding-inline: 12px;
+  white-space: nowrap;
 }
 
 .av2-login__error {
