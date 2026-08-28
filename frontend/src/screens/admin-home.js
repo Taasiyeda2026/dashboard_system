@@ -103,8 +103,8 @@ function managementTilesHtml() {
     }),
     isAdmin
       ? tileButton({
-          title: 'תצוגת עובד',
-          description: 'בדיקת התהליך והעיצוב של מערכת הנוכחות ללא שמירת נתונים',
+          title: 'מערכת נוכחות',
+          description: 'תצוגת בדיקה לאדמין בלבד',
           icon: 'attendance',
           capabilityId: 'attendance_reporting',
           url: '/dashboard_system/attendance/?adminPreview=1'
