@@ -352,5 +352,5 @@ export function deletePreviewAttachment(attachmentId) {
 }
 
 export function previewActivityTypes() {
-  return ['ביטול זמן','הכשרה','חדר בריחה','מקוון','סדנה','סיור','קורס','תפעול'];
+  return ['ביטול זמן','הכשרה','חדר בריחה','זום','סדנה','סיור','קורס','תפעול'];
 }
