@@ -57,6 +57,7 @@ function tileButton({ title, description, icon, route = '', url = '', managerTab
 
 function managementTilesHtml() {
   const routes = effectiveRoutes();
+  const isAdmin = canViewAdminOnlyTools();
   const tiles = [
     routes.has('israa-management') && tileButton({
       title: 'איסראא',
@@ -79,14 +80,14 @@ function managementTilesHtml() {
       capabilityId: 'finance',
       route: 'finance'
     }),
-    canViewAdminOnlyTools() && tileButton({
+    isAdmin && tileButton({
       title: 'סימולטור סיורים',
       description: 'בדיקת רווחיות לקבוצה ולעסקה בית־ספרית',
       icon: 'pricing',
       capabilityId: 'admin.pricing_simulator',
       pricingSimulator: true
     }),
-    canViewAdminOnlyTools() && tileButton({
+    isAdmin && tileButton({
       title: 'משוב קיץ',
       description: 'משובי הקיץ של הצוות החינוכי',
       icon: 'summer',
@@ -100,13 +101,21 @@ function managementTilesHtml() {
       capabilityId: 'admin.permissions',
       route: 'permissions'
     }),
-    tileButton({
-      title: 'מערכת נוכחות',
-      description: 'כניסה למערכת דיווח הנוכחות',
-      icon: 'attendance',
-      capabilityId: 'attendance_reporting',
-      url: '/dashboard_system/attendance/'
-    }),
+    isAdmin
+      ? tileButton({
+          title: 'תצוגת עובד',
+          description: 'בדיקת התהליך והעיצוב של מערכת הנוכחות ללא שמירת נתונים',
+          icon: 'attendance',
+          capabilityId: 'attendance_reporting',
+          url: '/dashboard_system/attendance/?adminPreview=1'
+        })
+      : tileButton({
+          title: 'מערכת נוכחות',
+          description: 'כניסה למערכת דיווח הנוכחות',
+          icon: 'attendance',
+          capabilityId: 'attendance_reporting',
+          url: '/dashboard_system/attendance/'
+        }),
     tileButton({
       title: 'לוח מנהל צוות',
       description: 'תמונת מצב וניהול צוות המדריכים',
@@ -120,7 +129,7 @@ function managementTilesHtml() {
       capabilityId: 'admin.attendance',
       managerTab: 'payroll-attendance'
     }),
-    canViewAdminOnlyTools() && tileButton({
+    isAdmin && tileButton({
       title: 'תאריכים',
       description: 'סימולציית רצף מפגשים לפי לוח הלימודים',
       icon: 'dates',
