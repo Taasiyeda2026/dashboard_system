@@ -451,6 +451,21 @@ function monthlyWorkStatusText(absences = []) {
   return parts.length ? parts.join(', ') : 'חודש עבודה מלא';
 }
 
+function monthlyWorkStatusFromTotals(workDays, absences = {}) {
+  if (workDays !== null && workDays !== undefined && workDays !== '') {
+    return fmtNum(Number(workDays));
+  }
+  const vacation = Number(absences.vacation || 0);
+  const sick = Number(absences.sick || 0);
+  const declaration = Number(absences.declaration || 0);
+  const parts = [
+    vacation > 0 ? `חופש: ${fmtNum(vacation)} ימים` : '',
+    sick > 0 ? `מחלה: ${fmtNum(sick)} ימים` : '',
+    declaration > 0 ? `הצהרה: ${fmtNum(declaration)} ימים` : ''
+  ].filter(Boolean);
+  return parts.length ? parts.join(', ') : 'חודש מלא';
+}
+
 function missingSickAttachments(absences, attachments) {
   return (absences || []).filter((absence) => absence?.absence_type === 'sick'
     && !attachmentForEntry(attachments, 'absence_entry_id', absence.id));
@@ -1402,6 +1417,7 @@ async function buildEmployeeReportsManagementRows(month, year) {
       month,
       year,
       totals: report?.totals || { travel: 0, expenses: 0, all: 0 },
+      absences: report?.absenceTotals || { vacation: 0, sick: 0, declaration: 0 },
       workDays: report?.work_days_in_month ?? null
     };
   });
@@ -1458,22 +1474,41 @@ async function loadMyReportCardData(employeeId, month, year, { force = false } =
 async function enrichReportsWithTotals(reports) {
   const ids = reports.map((r) => r.id).filter(Boolean);
   if (!ids.length) return reports;
-  const [travelRes, publicTravelRes, expensesRes] = await Promise.all([
+  const [travelRes, publicTravelRes, expensesRes, absencesRes] = await Promise.all([
     supabase.from('declared_travel_entries').select('report_id, amount').in('report_id', ids),
     supabase.from('public_transport_entries').select('report_id, amount').in('report_id', ids),
-    supabase.from('expense_entries').select('report_id, amount').in('report_id', ids)
+    supabase.from('expense_entries').select('report_id, amount').in('report_id', ids),
+    supabase.from('absence_entries').select('report_id, absence_type, start_date, end_date').in('report_id', ids)
   ]);
   if (travelRes.error) throw travelRes.error;
   if (publicTravelRes.error) throw publicTravelRes.error;
   if (expensesRes.error) throw expensesRes.error;
+  if (absencesRes.error) throw absencesRes.error;
 
-  const totals = new Map(ids.map((id) => [id, { travel: 0, expenses: 0 }]));
+  const totals = new Map(ids.map((id) => [id, {
+    travel: 0,
+    expenses: 0,
+    absences: { vacation: 0, sick: 0, declaration: 0 }
+  }]));
   for (const row of travelRes.data || []) totals.get(row.report_id).travel += Number(row.amount || 0);
   for (const row of publicTravelRes.data || []) totals.get(row.report_id).travel += Number(row.amount || 0);
   for (const row of expensesRes.data || []) totals.get(row.report_id).expenses += Number(row.amount || 0);
+  for (const row of absencesRes.data || []) {
+    const t = totals.get(row.report_id);
+    if (!t || !Object.hasOwn(t.absences, row.absence_type)) continue;
+    t.absences[row.absence_type] += calculatedAbsenceDays(row);
+  }
   return reports.map((report) => {
-    const t = totals.get(report.id) || { travel: 0, expenses: 0 };
-    return { ...report, totals: { ...t, all: t.travel + t.expenses } };
+    const t = totals.get(report.id) || {
+      travel: 0,
+      expenses: 0,
+      absences: { vacation: 0, sick: 0, declaration: 0 }
+    };
+    return {
+      ...report,
+      totals: { travel: t.travel, expenses: t.expenses, all: t.travel + t.expenses },
+      absenceTotals: { ...t.absences }
+    };
   });
 }
 
@@ -1526,9 +1561,7 @@ function downloadAdminReportsCsv(rows, monthValue) {
     const employee = row.employee || {};
     const report = row.report || null;
     const totals = row.totals || { travel: 0, expenses: 0 };
-    const workDays = row.workDays === null || row.workDays === undefined || row.workDays === ''
-      ? ''
-      : fmtNum(row.workDays);
+    const workDays = monthlyWorkStatusFromTotals(row.workDays, row.absences || {});
     lines.push([
       employee.full_name || '—',
       monthLabel(row.month, row.year),
@@ -1606,7 +1639,7 @@ function buildPersonalReportPrintSection({ report, profile, travel = [], expense
   const totalVacationDays = sumAbsenceDays(absences, 'vacation');
   const totalSickDays = sumAbsenceDays(absences, 'sick');
   const totalDeclarationDays = sumAbsenceDays(absences, 'declaration');
-  const totalAbsenceDays = totalVacationDays + totalSickDays + totalDeclarationDays;
+  const totalOtherAbsenceDays = totalSickDays + totalDeclarationDays;
   const totalPayable = totalTravel + totalExpenses;
   const reportPeriod = reportPeriodRange(report.report_month, report.report_year);
   const workDaysLabel = report.work_days_in_month === null || report.work_days_in_month === undefined ? 'חודש מלא' : fmtNum(Number(report.work_days_in_month));
@@ -1659,7 +1692,7 @@ function buildPersonalReportPrintSection({ report, profile, travel = [], expense
     hasPrintValue(report.work_days_in_month) ? printSummaryBox('ימי עבודה / שכר', workDaysLabel) : '',
     hasPrintValue(totalVacationDays) ? printSummaryBox('ימי חופש', fmtNum(totalVacationDays)) : '',
     hasPrintValue(totalSickDays) ? printSummaryBox('ימי מחלה', fmtNum(totalSickDays)) : '',
-    hasPrintValue(totalDeclarationDays) || hasPrintValue(totalAbsenceDays) ? printSummaryBox('ימי הצהרה / היעדרות', `${fmtNum(totalDeclarationDays)} / ${fmtNum(totalAbsenceDays)}`) : '',
+    hasPrintValue(totalDeclarationDays) || hasPrintValue(totalOtherAbsenceDays) ? printSummaryBox('ימי הצהרה / היעדרות', `${fmtNum(totalDeclarationDays)} / ${fmtNum(totalOtherAbsenceDays)}`) : '',
     printSummaryBox('סה״כ החזרים לכל הדוח', `₪${fmt(totalPayable)}`, { total: true })
   ].filter(Boolean).join('');
 
@@ -1802,9 +1835,7 @@ function personalReportsModeTabsHtml(activeMode, { showManagement = true } = {})
 }
 
 function myReportSummaryHtml(totals = {}, workDays = null, absences = {}) {
-  const workDaysLabel = workDays === null || workDays === undefined || workDays === ''
-    ? 'חודש מלא'
-    : fmtNum(workDays);
+  const workDaysLabel = monthlyWorkStatusFromTotals(workDays, absences);
   const absenceItems = [
     Number(absences.vacation || 0) > 0 ? `<div class="pr-my-report-summary__item"><span class="pr-my-report-summary__label">חופש</span><strong class="pr-my-report-summary__value">${fmtNum(absences.vacation)}</strong></div>` : '',
     Number(absences.sick || 0) > 0 ? `<div class="pr-my-report-summary__item"><span class="pr-my-report-summary__label">מחלה</span><strong class="pr-my-report-summary__value">${fmtNum(absences.sick)}</strong></div>` : '',
@@ -2486,9 +2517,7 @@ function employeeReportsManagementHtml(rows, filters = _prLastAdminFilters) {
     const reportId = String(row.reportId || report?.id || '').trim();
     const reportStatus = String(row.reportStatus || report?.status || '').trim();
     const totals = row.totals || { travel: 0, expenses: 0 };
-    const workDaysLabel = row.workDays === null || row.workDays === undefined || row.workDays === ''
-      ? 'חודש מלא'
-      : fmtNum(row.workDays);
+    const workDaysLabel = monthlyWorkStatusFromTotals(row.workDays, row.absences || {});
     return `
       <tr class="pr-admin-report-row"
         data-employee-id="${escapeHtml(employee.id)}"
@@ -2839,7 +2868,7 @@ function adminReportViewHtml(report, travel, expenses, absences, attachments) {
   const profile = report.profiles || {};
   const reportPeriod = reportPeriodRange(report.report_month, report.report_year);
   const workDaysLabel = report.work_days_in_month === null || report.work_days_in_month === undefined
-    ? 'חודש מלא'
+    ? monthlyWorkStatusText(absences)
     : fmtNum(Number(report.work_days_in_month));
   const { kmTravel, publicTransport } = splitTravelEntries(travel);
   const totalKmTravelKm = sumTravelKm(kmTravel);
