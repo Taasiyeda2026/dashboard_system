@@ -15,7 +15,7 @@ import { createMiniCalendar } from '../components/mini-calendar.js';
 import { getMonthRecords, calcMonthSummary, updateRecord, deleteRecord,
          getMonthApproval, getActivityTypes, deleteAttachmentRecord } from '../services/attendance.service.js';
 import { canEditMonth, editBlockReason, getMonthKey, formatMonthLabel } from '../services/month-gate.service.js';
-import { calcHours } from '../services/activities.service.js';
+import { calcHours, ONLINE_REPORT_TYPE, OPERATIONS_REPORT_TYPE } from '../services/activities.service.js';
 import { deleteAttachment, getSignedUrl } from '../services/storage.service.js';
 import { exportMonthToExcel } from '../services/excel.service.js';
 
@@ -487,7 +487,7 @@ function showEditModal({ record, instructor, activityTypes, onRefresh }) {
   modalHeader.append(modalTitle, closeBtn);
   overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
 
-  const typeOptions = activityTypes.length ? activityTypes : ['קורס','סדנה','סיור','הכשרה','תפעול','ביטול זמן'];
+  const typeOptions = activityTypes.length ? activityTypes : ['ביטול זמן','הכשרה','חדר בריחה','זום','סדנה','סיור','קורס','תפעול'];
 
   const form = document.createElement('form');
   form.className = 'av2-report__form';
@@ -543,6 +543,37 @@ function showEditModal({ record, instructor, activityTypes, onRefresh }) {
   const expField = createInputField({ id: 'edit-expenses', label: 'הוצאות (₪)',    type: 'number', value: String(record.expenses || 0),      attrs: { min: '0', step: '0.01' } });
   form.append(kmField.wrap, expField.wrap);
 
+  let kmBeforeZoom = record.activity_type === ONLINE_REPORT_TYPE ? '' : kmField.input.value;
+  function syncEditTypeUi() {
+    const reportType = typeField.input.value;
+    const isOperations = reportType === OPERATIONS_REPORT_TYPE;
+    const isZoom = reportType === ONLINE_REPORT_TYPE;
+
+    const activityLabel = actNameField.wrap.querySelector('.av2-field__label');
+    if (activityLabel) activityLabel.textContent = isOperations ? 'פרטי תפעול *' : 'שם פעילות';
+    actNameField.input.placeholder = isOperations
+      ? 'לדוגמה: פגישת צוות, הכנת ציוד או עבודה תפעולית'
+      : 'שם התוכנית';
+
+    meetField.wrap.hidden = isOperations;
+    authField.wrap.hidden = isOperations;
+    schoolField.wrap.hidden = isOperations;
+
+    if (isZoom) {
+      if (!kmField.input.disabled) kmBeforeZoom = kmField.input.value;
+      kmField.input.value = '0';
+      kmField.input.readOnly = true;
+      kmField.input.disabled = true;
+    } else {
+      const wasDisabled = kmField.input.disabled;
+      kmField.input.readOnly = false;
+      kmField.input.disabled = false;
+      if (wasDisabled) kmField.input.value = kmBeforeZoom;
+    }
+  }
+  typeField.input.addEventListener('change', syncEditTypeUi);
+  syncEditTypeUi();
+
   form.append(sectionTitle('מידע נוסף'));
   const expDField  = createInputField({ id: 'edit-exp-detail', label: 'פירוט הוצאות', value: record.expense_details || '' });
   const notesField = createInputField({ id: 'edit-notes',      label: 'הערות',        value: record.notes || '' });
@@ -570,13 +601,16 @@ function showEditModal({ record, instructor, activityTypes, onRefresh }) {
     const startTime  = startTimeField.getValue();
     const endTime    = endTimeField.getValue();
     const totalHours = calcHours(startTime, endTime);
+    const reportType = typeField.input.value;
+    const isOperations = reportType === OPERATIONS_REPORT_TYPE;
+    const isZoom = reportType === ONLINE_REPORT_TYPE;
 
     const missing = [];
     if (!startTime || !endTime) missing.push('שעות');
     if (startTime && endTime && totalHours <= 0) missing.push('שעת סיום חייבת להיות מאוחרת מהתחלה');
-    if (!typeField.input.value) missing.push('סוג פעילות');
-    if (!actNameField.input.value.trim()) missing.push('שם פעילות');
-    if (!authField.input.value.trim()) missing.push('רשות');
+    if (!reportType) missing.push('סוג פעילות');
+    if (!actNameField.input.value.trim()) missing.push(isOperations ? 'פרטי תפעול' : 'שם פעילות');
+    if (!isOperations && !authField.input.value.trim()) missing.push('רשות');
     if (missing.length) {
       errorEl.textContent = `שדות חובה: ${missing.join(' · ')}`;
       errorEl.hidden = false;
@@ -591,12 +625,20 @@ function showEditModal({ record, instructor, activityTypes, onRefresh }) {
         start_time:              startTime,
         end_time:                endTime,
         total_hours:             totalHours,
-        activity_type:           typeField.input.value,
+        activity_type:           reportType,
+        activity_id:             isOperations ? null : (record.activity_id ?? null),
+        activity_row_id:         isOperations ? null : (record.activity_row_id ?? null),
+        activity_no:             isOperations ? null : (record.activity_no ?? null),
+        activity_season:         isOperations ? null : (record.activity_season ?? null),
         activity_name_snapshot:  actNameField.input.value.trim() || null,
-        authority_name_snapshot: authField.input.value.trim() || null,
-        school_name_snapshot:    schoolField.input.value.trim() || null,
-        meeting_no:              meetField.input.value ? Number(meetField.input.value) : null,
-        roundtrip_km:            kmField.input.value ? Number(kmField.input.value) : 0,
+        authority_id:            isOperations ? null : (record.authority_id ?? null),
+        authority_name_snapshot: isOperations ? null : (authField.input.value.trim() || null),
+        school_id:               isOperations ? null : (record.school_id ?? null),
+        school_name_snapshot:    isOperations ? null : (schoolField.input.value.trim() || null),
+        semel_mosad:             isOperations ? null : (record.semel_mosad ?? null),
+        meeting_no:              isOperations ? null : (meetField.input.value ? Number(meetField.input.value) : null),
+        program_name:            isOperations ? null : (record.program_name ?? null),
+        roundtrip_km:            isZoom ? 0 : (kmField.input.value ? Number(kmField.input.value) : 0),
         expenses:                expField.input.value ? Number(expField.input.value) : 0,
         expense_details:         expDField.input.value.trim() || null,
         notes:                   notesField.input.value.trim() || null
