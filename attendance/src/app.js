@@ -4,13 +4,15 @@ import { renderNewReportScreen } from './screens/new-report-screen.js';
 import { renderMyReportsScreen } from './screens/my-reports-screen.js';
 import { createBottomNav } from './components/bottom-nav.js';
 import { signInWithUsername, signOut, getExistingSession } from './auth/auth.service.js';
-import { resolveInstructorIdentity } from './auth/identity.service.js';
+import { resolveInstructorIdentity, resolveAdminPreviewIdentity } from './auth/identity.service.js';
+import { isAdminPreviewRequested } from './preview/preview-mode.js';
 
 // ── App state ────────────────────────────────────────────────────────────────
 const today = new Date();
 
 const state = {
   loggedIn:     false,
+  previewMode:  isAdminPreviewRequested(),
   screen:       'home',          // 'home' | 'new-report' | 'my-reports'
   instructor:   null,            // { userId, name, empId }
   currentYear:  today.getFullYear(),
@@ -56,17 +58,24 @@ function nextMonth() {
 
 // ── Auth handlers ────────────────────────────────────────────────────────────
 
+async function resolveCurrentIdentity() {
+  return state.previewMode
+    ? resolveAdminPreviewIdentity()
+    : resolveInstructorIdentity();
+}
+
 async function handleLoginSubmit({ username, code }) {
   await signInWithUsername(username, code);
   try {
-    state.instructor = await resolveInstructorIdentity();
+    state.instructor = await resolveCurrentIdentity();
   } catch (error) {
-    await signOut().catch(() => {});
+    // In preview mode the session may also belong to the dashboard. Do not sign
+    // the admin out of the main system merely because preview authorization failed.
+    if (!state.previewMode) await signOut().catch(() => {});
     throw error;
   }
   state.loggedIn = true;
   state.screen = 'home';
-  // Reset month to current on fresh login
   const now = new Date();
   state.currentYear  = now.getFullYear();
   state.currentMonth = now.getMonth() + 1;
@@ -74,10 +83,75 @@ async function handleLoginSubmit({ username, code }) {
 }
 
 async function handleLogout() {
+  if (state.previewMode) {
+    window.location.assign('/dashboard_system/');
+    return;
+  }
   await signOut().catch(() => {});
   state.loggedIn   = false;
   state.instructor = null;
   renderScreen();
+}
+
+// ── Admin preview banner ─────────────────────────────────────────────────────
+
+function ensurePreviewStyles() {
+  if (!state.previewMode || document.getElementById('av2-admin-preview-style')) return;
+  const style = document.createElement('style');
+  style.id = 'av2-admin-preview-style';
+  style.textContent = `
+    .av2-admin-preview {
+      width: min(100% - 24px, 760px);
+      margin: 10px auto 0;
+      padding: 8px 10px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      border: 1px solid #bfdbfe;
+      border-radius: 10px;
+      background: #eff6ff;
+      color: #1e3a5f;
+      font-size: 12px;
+      line-height: 1.35;
+    }
+    .av2-admin-preview strong { font-weight: 800; }
+    .av2-admin-preview button {
+      flex: 0 0 auto;
+      min-height: 30px;
+      padding: 5px 10px;
+      border: 1px solid #93c5fd;
+      border-radius: 8px;
+      background: #fff;
+      color: #1e3a5f;
+      font: inherit;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    @media (max-width: 520px) {
+      .av2-admin-preview { align-items: flex-start; }
+    }
+  `;
+  document.head.append(style);
+}
+
+function renderPreviewBanner() {
+  if (!state.previewMode || !state.loggedIn || !appRoot) return;
+  ensurePreviewStyles();
+  const banner = document.createElement('div');
+  banner.className = 'av2-admin-preview';
+  banner.setAttribute('role', 'status');
+
+  const text = document.createElement('span');
+  text.innerHTML = '<strong>מצב בדיקה לאדמין</strong> · תצוגת עובד מלאה · כל הנתונים כאן הם נתוני הדגמה ולא נשמרים במערכת.';
+
+  const exitBtn = document.createElement('button');
+  exitBtn.type = 'button';
+  exitBtn.textContent = 'חזרה לניהול';
+  exitBtn.addEventListener('click', () => window.location.assign('/dashboard_system/'));
+
+  banner.append(text, exitBtn);
+  appRoot.prepend(banner);
 }
 
 // ── Render ───────────────────────────────────────────────────────────────────
@@ -95,8 +169,6 @@ function renderScreen() {
 
   navRoot.hidden   = false;
   navRoot.innerHTML = '';
-  // Keep the mobile tab state unchanged while allowing the desktop sidebar to
-  // show the active new-report destination.
   const navActive = state.screen === 'new-report' ? 'home' : state.screen;
   navRoot.append(createBottomNav({
     active: navActive,
@@ -144,6 +216,8 @@ function renderScreen() {
       onLogout:    handleLogout
     });
   }
+
+  renderPreviewBanner();
 }
 
 // ── Bootstrap ────────────────────────────────────────────────────────────────
@@ -152,10 +226,10 @@ async function bootstrap() {
   const session = await getExistingSession().catch(() => null);
   if (session?.user?.id) {
     try {
-      state.instructor = await resolveInstructorIdentity();
+      state.instructor = await resolveCurrentIdentity();
       state.loggedIn   = true;
     } catch {
-      await signOut().catch(() => {});
+      if (!state.previewMode) await signOut().catch(() => {});
     }
   }
   renderScreen();
