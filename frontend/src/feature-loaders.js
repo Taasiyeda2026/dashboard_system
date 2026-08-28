@@ -115,6 +115,7 @@ export function ensureFeature(name) {
         import('./proposal-activity-linking.js'),
         import('./proposal-operational-name-runtime.js'),
         import('./proposal-domain-routing.js'),
+        import('./proposal-filtered-tab-count-runtime.js?v=20260828-v1'),
         import('./proposal-editor-compact-fixes.js?v=20260804-dual-tables-v1'),
         import('./screens/client-file-layout-polish.js?v=20260721-client-file-layout-v2'),
         import('./proposal-details-public-cleanup.js?v=20260801-perf-startup-v1')
