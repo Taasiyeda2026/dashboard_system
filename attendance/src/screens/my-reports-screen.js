@@ -232,7 +232,7 @@ async function loadAndRender({ instructor, year, month, contentArea, toolbar, on
     totalsKm.textContent = `${summary.totalKm.toFixed(0)} ק"מ`;
     const totalsExp = document.createElement('strong');
     totalsExp.textContent = `₪${summary.totalExpenses.toFixed(2)}`;
-    totals.append(totalsLabel, totalsHours, totalsExp);
+    totals.append(totalsLabel, totalsHours, totalsKm, totalsExp);
 
     contentArea.append(listWrap, totals);
 
