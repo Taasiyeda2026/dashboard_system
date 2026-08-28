@@ -276,12 +276,11 @@ export async function deleteAttachmentRecord(attachmentId, empId) {
 
 // ─── Activity types list ──────────────────────────────────────────────────────
 
-/** Fetch distinct activity_type values used in the activities table. */
+/** Report-facing types are fixed business choices, not raw activities.activity_type values. */
 export async function getActivityTypes() {
-  if (isAdminPreviewRequested()) return normalizeActivityTypeList(previewActivityTypes());
-
-  const { data, error } = await supabase.rpc('av2_get_distinct_activity_types');
-  if (error) return FALLBACK_ACTIVITY_TYPES;
-  const normalized = normalizeActivityTypeList(data);
-  return normalized.length ? normalized : FALLBACK_ACTIVITY_TYPES;
+  if (isAdminPreviewRequested()) {
+    const preview = normalizeActivityTypeList(previewActivityTypes());
+    return preview.length ? preview : [...FALLBACK_ACTIVITY_TYPES];
+  }
+  return [...FALLBACK_ACTIVITY_TYPES];
 }
