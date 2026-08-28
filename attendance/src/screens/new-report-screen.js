@@ -24,6 +24,7 @@ import {
   HEBREW_ACTIVITY_TYPES,
   ONLINE_REPORT_TYPE,
   TRAINING_REPORT_TYPE,
+  OPERATIONS_REPORT_TYPE,
   NO_ACTIVITY_NAME_REPORT_TYPES,
   OPEN_FIELD_REPORT_TYPES,
 } from '../services/activities.service.js';
@@ -36,6 +37,7 @@ import { canEditMonth, editBlockReason, getMonthKey } from '../services/month-ga
 import { uploadAttachment } from '../services/storage.service.js';
 
 const TIME_MINUTE_STEP = 5;
+const ALL_CANONICAL_REPORT_TYPES = new Set(['ביטול זמן', TRAINING_REPORT_TYPE, ONLINE_REPORT_TYPE]);
 
 function activityRowId(activity) {
   return String(activity?.row_id || activity?.id || '').trim();
@@ -112,6 +114,7 @@ export function renderNewReportScreen(container, {
   let pendingFiles = [];
   let formLocked = false;
   let previousReportType = '';
+  let canonicalLoadToken = 0;
 
   let schoolId = null;
   let schoolName = '';
@@ -130,6 +133,7 @@ export function renderNewReportScreen(container, {
   let trainingDescField = null;
   let trainingDescWrap = null;
   let meetingField = null;
+  let meetingWrap = null;
   let dateField = null;
   let startPicker = null;
   let endPicker = null;
@@ -210,6 +214,12 @@ export function renderNewReportScreen(container, {
 
   function setTrainingDescVisible(visible) {
     if (trainingDescWrap) trainingDescWrap.hidden = !visible;
+  }
+
+  function setLocationFieldsVisible(visible) {
+    if (authSel?.wrap) authSel.wrap.hidden = !visible;
+    if (schoolMount) schoolMount.hidden = !visible;
+    if (meetingWrap) meetingWrap.hidden = !visible;
   }
 
   function setActivityNameEnabled(enabled) {
@@ -380,6 +390,30 @@ export function renderNewReportScreen(container, {
     }
   }
 
+  async function loadAllCanonicalActivityOptions(reportType) {
+    if (!ALL_CANONICAL_REPORT_TYPES.has(reportType) || !activityNameSel) return;
+    const token = ++canonicalLoadToken;
+    try {
+      const rows = await searchCanonicalActivities({
+        query: '',
+        reportType,
+        referenceDateStr: getReportDate(),
+        limit: 100,
+      });
+      if (token !== canonicalLoadToken || getReportType() !== reportType) return;
+      for (const row of rows) rememberExtendedActivity(row);
+      const options = instructorActivitySelectOptions([...instructorActivities, ...rows], { reportType });
+      const current = activityNameSel.getValue();
+      activityNameSel.setOptions(options);
+      if (current && options.some((opt) => opt.value === current)) {
+        const match = options.find((opt) => opt.value === current);
+        activityNameSel.setValue(current, match?.label || '');
+      }
+    } catch {
+      // Extended search remains available if the initial canonical preload fails.
+    }
+  }
+
   async function syncMeetingForSelectedDate() {
     if (!selectedActivity) return;
     const meetingNo = await getMeetingNoForActivityOnDate(
@@ -443,6 +477,7 @@ export function renderNewReportScreen(container, {
     const newType = getReportType();
     const prevType = previousReportType;
     previousReportType = newType;
+    canonicalLoadToken += 1;
 
     syncKmForReportType(newType, prevType);
 
@@ -450,6 +485,7 @@ export function renderNewReportScreen(container, {
       clearLinkedActivity();
       setActivityNameVisible(false);
       setTrainingDescVisible(false);
+      setLocationFieldsVisible(true);
       authSel?.setDisabled(false);
       mountManualSchoolSelect();
       return;
@@ -459,12 +495,12 @@ export function renderNewReportScreen(container, {
       clearLinkedActivity();
       setActivityNameVisible(false);
       setTrainingDescVisible(true);
-      authSel?.setOptions(defaultAuthorityOptions());
+      setLocationFieldsVisible(false);
       authSel?.setDisabled(false);
-      mountManualSchoolSelect();
       return;
     }
 
+    setLocationFieldsVisible(true);
     setActivityNameVisible(true);
     setTrainingDescVisible(false);
 
@@ -482,6 +518,9 @@ export function renderNewReportScreen(container, {
     authSel?.setOptions(defaultAuthorityOptions());
     refreshActivityNameOptions({ preserveSelection: true });
     setActivityNameEnabled(!!newType);
+    if (ALL_CANONICAL_REPORT_TYPES.has(newType)) {
+      void loadAllCanonicalActivityOptions(newType);
+    }
 
     if (selectedActivity) {
       syncAuthoritySchoolFromActivity(selectedActivity);
@@ -582,7 +621,7 @@ export function renderNewReportScreen(container, {
       id: 'av2-activity-name',
       label: 'שם פעילות *',
       options: instructorActivitySelectOptions(instructorActivities, { reportType: initialReportType }),
-      placeholder: 'בחר פעילות מהשיבוצים שלך',
+      placeholder: 'בחר פעילות',
       searchPlaceholder: 'חיפוש פעילות…',
       emptyText: 'לא נמצאו פעילויות',
       filterFn: (option, q) => String(option.searchText || option.label || '').includes(q),
@@ -612,10 +651,10 @@ export function renderNewReportScreen(container, {
     trainingDescWrap = document.createElement('div');
     trainingDescWrap.hidden = true;
     trainingDescField = createInputField({
-      id: 'av2-training-desc',
-      label: 'תיאור ההכשרה',
-      placeholder: 'תיאור ההכשרה (אופציונלי)',
-      value: prefill?.activity_type === TRAINING_REPORT_TYPE
+      id: 'av2-operation-desc',
+      label: 'פרטי תפעול *',
+      placeholder: 'לדוגמה: פגישת צוות, הכנת ציוד או עבודה תפעולית',
+      value: prefill?.activity_type === OPERATIONS_REPORT_TYPE
         ? (prefill.activity_name_snapshot || '')
         : '',
     });
@@ -676,7 +715,7 @@ export function renderNewReportScreen(container, {
       value: meetingVal,
       maxHeight: 260,
     });
-    const meetingWrap = document.createElement('div');
+    meetingWrap = document.createElement('div');
     meetingWrap.className = 'av2-field';
     const meetingLbl = document.createElement('label');
     meetingLbl.className = 'av2-field__label';
@@ -809,6 +848,7 @@ export function renderNewReportScreen(container, {
     } else {
       setActivityNameVisible(false);
       setTrainingDescVisible(false);
+      setLocationFieldsVisible(true);
       setActivityNameEnabled(false);
     }
 
@@ -909,7 +949,7 @@ export function renderNewReportScreen(container, {
       const isOnline = isOnlineReportType(reportType);
 
       errorEl.hidden = true;
-      [activityNameSel?.wrap, typeField.wrap, startPicker.wrap, endPicker.wrap, authSel.wrap]
+      [activityNameSel?.wrap, trainingDescField?.wrap, typeField.wrap, startPicker.wrap, endPicker.wrap, authSel.wrap]
         .forEach((w) => w?.classList.remove('av2-field--invalid'));
 
       const missing = [];
@@ -924,6 +964,9 @@ export function renderNewReportScreen(container, {
       if (requiresActivityName(reportType) && !activityNameSel.getLabel().trim()) {
         markInvalid(activityNameSel.wrap, 'שם פעילות');
       }
+      if (isOpen && !trainingDescField.input.value.trim()) {
+        markInvalid(trainingDescField.wrap, 'פרטי תפעול');
+      }
       if (!dateStr) markInvalid(dateField.wrap, 'תאריך');
       if (!startTime) markInvalid(startPicker.wrap, 'שעת התחלה');
       if (!endTime) markInvalid(endPicker.wrap, 'שעת סיום');
@@ -931,10 +974,6 @@ export function renderNewReportScreen(container, {
         markInvalid(endPicker.wrap, 'שעת סיום חייבת להיות מאוחרת מהתחלה');
       }
       if (!activity && !isNoActivity && !isOpen) {
-        const authLabel = manualAuthName?.trim() || '';
-        if (!authLabel) markInvalid(authSel.wrap, 'רשות');
-      }
-      if (isOpen) {
         const authLabel = manualAuthName?.trim() || '';
         if (!authLabel) markInvalid(authSel.wrap, 'רשות');
       }
@@ -946,14 +985,14 @@ export function renderNewReportScreen(container, {
         return;
       }
 
-      const finalAuthorityId = activity?.authority_id ?? manualAuthId ?? null;
-      const finalAuthorityName = activity?.authority_name ?? activity?.authority ?? manualAuthName ?? null;
-      const finalSchoolId = activity ? (schoolId || null) : (manualSchoolId || null);
-      const finalSchoolName = activity ? (schoolName || null) : (manualSchoolName || null);
+      const finalAuthorityId = isOpen ? null : (activity?.authority_id ?? manualAuthId ?? null);
+      const finalAuthorityName = isOpen ? null : (activity?.authority_name ?? activity?.authority ?? manualAuthName ?? null);
+      const finalSchoolId = isOpen ? null : (activity ? (schoolId || null) : (manualSchoolId || null));
+      const finalSchoolName = isOpen ? null : (activity ? (schoolName || null) : (manualSchoolName || null));
 
       let activityNameSnapshot = null;
       if (isOpen) {
-        activityNameSnapshot = trainingDescField.input.value.trim() || TRAINING_REPORT_TYPE;
+        activityNameSnapshot = trainingDescField.input.value.trim() || OPERATIONS_REPORT_TYPE;
       } else if (requiresActivityName(reportType)) {
         activityNameSnapshot = activityNameSel.getLabel().trim() || (activity?.activity_name ?? null);
       } else if (isNoActivity) {
@@ -980,18 +1019,18 @@ export function renderNewReportScreen(container, {
           end_time: endTime,
           total_hours: totalHours,
           activity_type: reportType,
-          activity_id: activity?.id ?? null,
-          activity_row_id: activity?.row_id ?? null,
-          activity_no: activity?.activity_no ?? null,
-          activity_season: activity?.activity_season ?? null,
+          activity_id: isOpen ? null : (activity?.id ?? null),
+          activity_row_id: isOpen ? null : (activity?.row_id ?? null),
+          activity_no: isOpen ? null : (activity?.activity_no ?? null),
+          activity_season: isOpen ? null : (activity?.activity_season ?? null),
           activity_name_snapshot: activityNameSnapshot,
-          meeting_no: meetingField.getValue() ? Number(meetingField.getValue()) : null,
+          meeting_no: isOpen ? null : (meetingField.getValue() ? Number(meetingField.getValue()) : null),
           authority_id: finalAuthorityId,
           authority_name_snapshot: finalAuthorityName,
           school_id: finalSchoolId,
           school_name_snapshot: finalSchoolName,
-          semel_mosad: semelMosad || null,
-          program_name: activity?.program_name ?? null,
+          semel_mosad: isOpen ? null : (semelMosad || null),
+          program_name: isOpen ? null : (activity?.program_name ?? null),
           program_name_snapshot: programName,
           roundtrip_km: kmValue,
           expenses: expField.input.value ? Number(expField.input.value) : 0,
