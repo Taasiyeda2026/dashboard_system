@@ -1,13 +1,13 @@
-/* Desktop polish for the three-column New Report form. */
+/* Desktop polish for the two-card New Report form. */
 
-@media (min-width: 768px) {
+@media (min-width: 640px) {
   .av2-report__inner {
     max-width: 1180px !important;
     gap: 12px !important;
   }
 
   .av2-report__form {
-    gap: 12px !important;
+    gap: 22px !important;
   }
 
   .av2-form-section__body,
@@ -21,7 +21,7 @@
   }
 }
 
-@media (max-width: 767px) {
+@media (max-width: 639px) {
   .av2-form-section__body--activity,
   .av2-form-section__body--times,
   .av2-form-section__body--bottom {

@@ -807,12 +807,9 @@ export function renderNewReportScreen(container, {
       attrs: { min: '0', step: '1', placeholder: '0' },
     });
 
-    const timesSection = makeFormSection(
-      'זמנים ונסיעות',
-      'times',
-      'av2-form-section__body--times',
-      [startPicker.wrap, endPicker.wrap, hoursDisplay, kmField.wrap],
-    );
+    const timesGrid = document.createElement('div');
+    timesGrid.className = 'av2-report__times-grid';
+    timesGrid.append(startPicker.wrap, endPicker.wrap, hoursDisplay, kmField.wrap);
 
     expField = createInputField({
       id: 'av2-expenses',
@@ -839,26 +836,22 @@ export function renderNewReportScreen(container, {
     const expensesHeading = document.createElement('h3');
     expensesHeading.className = 'av2-form-section__subtitle';
     expensesHeading.textContent = 'הוצאות';
+    const expenseFields = document.createElement('div');
+    expenseFields.className = 'av2-report__expense-fields';
+    expenseFields.append(expField.wrap, expDetailField.wrap);
+
     const expensesInner = document.createElement('div');
-    expensesInner.className = 'av2-form-section__sub av2-form-section__sub--expenses';
-    expensesInner.append(expensesHeading, expField.wrap, expDetailField.wrap, attachmentUi.section);
+    expensesInner.className = 'av2-report__expenses';
+    expensesInner.append(expensesHeading, expenseFields, attachmentUi.section, notesField.wrap);
 
-    const notesHeading = document.createElement('h3');
-    notesHeading.className = 'av2-form-section__subtitle';
-    notesHeading.textContent = 'הערות';
-    const notesInner = document.createElement('div');
-    notesInner.className = 'av2-form-section__sub av2-form-section__sub--notes';
-    notesInner.append(notesHeading, notesField.wrap);
-
-    const bottomSection = makeFormSection(
-      'הוצאות והערות',
-      'bottom',
-      'av2-form-section__body--bottom',
-      [expensesInner, notesInner],
+    const timesSection = makeFormSection(
+      'זמנים ונסיעות',
+      'times',
+      'av2-form-section__body--times',
+      [timesGrid, expensesInner],
     );
-    bottomSection.querySelector('.av2-form-section__title').remove();
 
-    form.append(activitySection, timesSection, bottomSection);
+    form.append(activitySection, timesSection);
 
     const actionsRow = document.createElement('div');
     actionsRow.className = 'av2-report__actions';
