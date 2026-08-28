@@ -11,9 +11,10 @@ const storageService = await readFile(new URL('../attendance/src/services/storag
 const previewMode = await readFile(new URL('../attendance/src/preview/preview-mode.js', import.meta.url), 'utf8');
 
 test('admin management opens employee preview while non-admin attendance stays unchanged', () => {
-  assert.match(adminHome, /title:\s*'תצוגת עובד'/);
-  assert.match(adminHome, /attendance\/\?adminPreview=1/);
   assert.match(adminHome, /title:\s*'מערכת נוכחות'/);
+  assert.match(adminHome, /description:\s*'תצוגת בדיקה לאדמין בלבד'/);
+  assert.match(adminHome, /attendance\/\?adminPreview=1/);
+  assert.match(adminHome, /description:\s*'כניסה למערכת דיווח הנוכחות'/);
   assert.match(adminHome, /url:\s*'\/dashboard_system\/attendance\/'/);
 });
 
