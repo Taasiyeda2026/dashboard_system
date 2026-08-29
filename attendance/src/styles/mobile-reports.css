@@ -1,0 +1,206 @@
+/* Mobile-only report rows: compact summary + tap-to-expand details. */
+.av2-rr-mobile__summary { display: none; }
+
+@media (max-width: 767px) {
+  .av2-reports__content { overflow-x: hidden; }
+
+  .av2-report-list {
+    width: 100%;
+    overflow-x: hidden !important;
+    overflow-y: visible;
+  }
+
+  .av2-report-list__head { display: none !important; }
+
+  .av2-report-row {
+    display: block !important;
+    width: 100%;
+    min-width: 0 !important;
+    padding: 0 !important;
+    border-top: 1px solid #d7e0ea;
+    background: #fff;
+    overflow: hidden;
+  }
+
+  .av2-report-row:first-of-type { border-top: 0; }
+  .av2-report-row:hover { background: #fff; }
+  .av2-report-row.is-expanded { background: #fff; }
+  .av2-report-row.is-mobile-expanded { background: #fbfdff; }
+
+  .av2-rr-mobile__summary {
+    width: 100%;
+    min-width: 0;
+    display: grid;
+    grid-template-columns: 74px minmax(0, 1fr) 52px 18px;
+    align-items: center;
+    gap: 8px;
+    padding: 11px 12px;
+    border: 0;
+    background: transparent;
+    color: var(--av2-color-text);
+    direction: rtl;
+    text-align: right;
+    cursor: pointer;
+  }
+
+  .av2-rr-mobile__summary:focus-visible {
+    outline: 2px solid var(--av2-color-accent);
+    outline-offset: -2px;
+  }
+
+  .av2-rr-mobile__date,
+  .av2-rr-mobile__activity,
+  .av2-rr-mobile__hours {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .av2-rr-mobile__date strong {
+    font-size: 0.76rem;
+    font-weight: 800;
+    white-space: nowrap;
+  }
+
+  .av2-rr-mobile__date small,
+  .av2-rr-mobile__activity small,
+  .av2-rr-mobile__hours small {
+    margin-top: 2px;
+    font-size: 0.59rem;
+    color: var(--av2-color-text-muted);
+    line-height: 1.15;
+  }
+
+  .av2-rr-mobile__activity strong {
+    margin-top: 2px;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.76rem;
+    font-weight: 700;
+  }
+
+  .av2-rr-mobile__hours {
+    align-items: center;
+    text-align: center;
+  }
+
+  .av2-rr-mobile__hours strong {
+    font-size: 0.78rem;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .av2-rr-mobile__chevron {
+    width: 8px;
+    height: 8px;
+    justify-self: center;
+    border-inline-end: 2px solid #64748b;
+    border-block-end: 2px solid #64748b;
+    transform: rotate(45deg);
+    transition: transform 0.16s ease;
+  }
+
+  .av2-report-row.is-mobile-expanded .av2-rr-mobile__chevron {
+    transform: rotate(225deg);
+  }
+
+  /* Desktop table cells stay hidden until the row is expanded. */
+  .av2-report-row > .av2-rr__date,
+  .av2-report-row > .av2-rr__start,
+  .av2-report-row > .av2-rr__end,
+  .av2-report-row > .av2-rr__hours,
+  .av2-report-row > .av2-rr__type,
+  .av2-report-row > .av2-rr__name,
+  .av2-report-row > .av2-rr__school,
+  .av2-report-row > .av2-rr__authority,
+  .av2-report-row > .av2-rr__km,
+  .av2-report-row > .av2-rr__expenses,
+  .av2-report-row > .av2-rr__actions,
+  .av2-report-row > .av2-rr__notes-row {
+    display: none !important;
+  }
+
+  .av2-report-row.is-mobile-expanded > .av2-rr__start,
+  .av2-report-row.is-mobile-expanded > .av2-rr__end,
+  .av2-report-row.is-mobile-expanded > .av2-rr__name,
+  .av2-report-row.is-mobile-expanded > .av2-rr__school,
+  .av2-report-row.is-mobile-expanded > .av2-rr__authority,
+  .av2-report-row.is-mobile-expanded > .av2-rr__km,
+  .av2-report-row.is-mobile-expanded > .av2-rr__expenses,
+  .av2-report-row.is-mobile-expanded > .av2-rr__notes-row {
+    display: grid !important;
+    grid-template-columns: 92px minmax(0, 1fr);
+    align-items: start;
+    gap: 10px;
+    min-width: 0;
+    padding: 8px 12px;
+    border-top: 1px solid #edf1f5;
+    white-space: normal;
+    overflow: visible;
+    font-size: 0.72rem;
+    color: var(--av2-color-text);
+  }
+
+  .av2-report-row.is-mobile-expanded > [data-mobile-label]::before {
+    content: attr(data-mobile-label);
+    color: var(--av2-color-text-muted);
+    font-size: 0.66rem;
+    font-weight: 700;
+  }
+
+  .av2-report-row.is-mobile-expanded > .av2-rr__name,
+  .av2-report-row.is-mobile-expanded > .av2-rr__school,
+  .av2-report-row.is-mobile-expanded > .av2-rr__authority {
+    text-overflow: clip;
+  }
+
+  .av2-report-row.is-mobile-expanded > .av2-rr__expenses .av2-rr__expense-indicator {
+    display: none !important;
+  }
+
+  .av2-report-row.is-mobile-expanded > .av2-rr__expenses::after {
+    content: attr(data-mobile-value);
+    min-width: 0;
+    color: var(--av2-color-text);
+  }
+
+  .av2-report-row.is-mobile-expanded > .av2-rr__notes-row span:first-child {
+    display: none;
+  }
+
+  .av2-report-row.is-mobile-expanded > .av2-rr__notes-row span:last-child {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .av2-report-row.is-mobile-expanded > .av2-rr__actions {
+    display: flex !important;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 7px;
+    padding: 9px 12px 11px;
+    border-top: 1px solid #edf1f5;
+  }
+
+  .av2-report-row.is-mobile-expanded > .av2-rr__actions::before {
+    content: 'פעולות';
+    margin-inline-end: auto;
+    color: var(--av2-color-text-muted);
+    font-size: 0.66rem;
+    font-weight: 700;
+  }
+
+  .av2-report-row.is-mobile-expanded > .av2-rr__actions .av2-btn--icon {
+    display: inline-flex !important;
+    width: 31px;
+    height: 31px;
+    min-width: 31px;
+  }
+
+  .av2-report-list__totals {
+    width: 100%;
+    justify-content: flex-start;
+  }
+}
