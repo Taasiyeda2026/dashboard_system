@@ -143,3 +143,8 @@
     background: #fef2f2 !important;
   }
 }
+
+/* Copy is intentionally not exposed in the attendance report actions. */
+.av2-rr__actions .av2-rr__action-copy {
+  display: none !important;
+}
