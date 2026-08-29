@@ -98,6 +98,14 @@ test('Attendance New Report uses three desktop columns and instructor activity I
   assert.doesNotMatch(newReportSource, /av2-planned-activity/);
   assert.match(newReportSource, /instructorActivitySelectOptions/);
   assert.match(activitiesServiceSource, /instructorActivitySelectOptions/);
-  assert.match(attendanceSwSource, /const CACHE_VERSION = 40;/);
-  assert.match(attendanceIndexSource, /\?v=40/);
+  assert.match(attendanceSwSource, /const CACHE_VERSION = 41;/);
+  assert.match(attendanceIndexSource, /\?v=41/);
+});
+
+test('Attendance New Report keeps mobile fields inside padded page gutters', () => {
+  assert.match(newReportLayoutFix, /@media \(max-width: 639px\)/);
+  assert.match(newReportLayoutFix, /\.av2-report__inner\s*\{[\s\S]*padding-inline:\s*20px\s*!important/);
+  assert.match(newReportLayoutFix, /\.av2-field__input,[\s\S]*width:\s*100%/);
+  assert.match(newReportLayoutFix, /min-width:\s*0/);
+  assert.match(newReportLayoutFix, /max-width:\s*100%/);
 });
