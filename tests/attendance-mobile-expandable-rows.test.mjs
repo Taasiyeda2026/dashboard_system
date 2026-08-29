@@ -28,9 +28,10 @@ test('expanded mobile row exposes the secondary details and actions', () => {
   }
   assert.match(styles, /is-mobile-expanded > \.av2-rr__actions/);
   assert.match(styles, /is-mobile-expanded > \.av2-rr__notes-row/);
+  assert.match(styles, /is-mobile-expanded > \.av2-rr__actions \.av2-rr__action-copy\s*\{\s*display:\s*none\s*!important/);
 });
 
 test('mobile report assets are loaded with the current cache version', () => {
-  assert.match(index, /mobile-reports\.css\?v=41/);
-  assert.match(index, /mobile-reports-enhancer\.js\?v=41/);
+  assert.match(index, /mobile-reports\.css\?v=42/);
+  assert.match(index, /mobile-reports-enhancer\.js\?v=42/);
 });
