@@ -22,9 +22,47 @@
 }
 
 @media (max-width: 639px) {
+  /* Keep a visible page gutter on phones and prevent native/custom controls
+     from using their intrinsic width to escape the card. */
+  .av2-report__inner {
+    width: 100%;
+    padding-inline: 20px !important;
+  }
+
+  .av2-report__form,
+  .av2-report__form-area,
+  .av2-form-section,
+  .av2-form-section__body,
+  .av2-form-section__sub,
+  .av2-field,
+  .av2-ssel,
+  .av2-csel {
+    min-width: 0;
+    max-width: 100%;
+  }
+
   .av2-form-section__body--activity,
   .av2-form-section__body--times,
   .av2-form-section__body--bottom {
-    grid-template-columns: 1fr !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .av2-form-section__body {
+    padding-inline: 14px !important;
+  }
+
+  .av2-field__input,
+  .av2-field__select,
+  .av2-ssel__trigger,
+  .av2-csel__trigger,
+  .av2-report__hours-value,
+  .av2-attach-upload-btn {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .av2-time-picker {
+    max-width: 100%;
   }
 }
