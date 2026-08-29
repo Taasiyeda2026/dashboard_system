@@ -106,7 +106,6 @@
     transform: rotate(225deg);
   }
 
-  /* Desktop table cells stay hidden until the row is expanded. */
   .av2-report-row > .av2-rr__date,
   .av2-report-row > .av2-rr__start,
   .av2-report-row > .av2-rr__end,
@@ -197,6 +196,10 @@
     width: 31px;
     height: 31px;
     min-width: 31px;
+  }
+
+  .av2-report-row.is-mobile-expanded > .av2-rr__actions .av2-rr__action-copy {
+    display: none !important;
   }
 
   .av2-report-list__totals {
