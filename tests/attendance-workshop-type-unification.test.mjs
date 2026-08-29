@@ -28,6 +28,6 @@ test('Attendance exposes one workshop type while preserving legacy summer-worksh
   assert.match(attendanceServiceSource, /LEGACY_SUMMER_WORKSHOP = 'סדנאות קיץ'/);
   assert.match(attendanceServiceSource, /activity_type: activityType/);
   assert.doesNotMatch(previewSource, /'סדנה','סדנאות קיץ'/);
-  assert.match(swSource, /const CACHE_VERSION = 41;/);
-  assert.match(indexSource, /\?v=41/);
+  assert.match(swSource, /const CACHE_VERSION = 42;/);
+  assert.match(indexSource, /\?v=42/);
 });
