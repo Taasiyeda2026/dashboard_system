@@ -41,14 +41,14 @@ test('New report supports all-activity choices, operations details and zero-trav
   assert.match(newReportSource, /label:\s*'פרטי תפעול \*'/);
   assert.match(newReportSource, /setLocationFieldsVisible\(false\)/);
   assert.match(newReportSource, /activity_id:\s*isOpen \? null/);
-  assert.match(newReportSource, /newType === ONLINE_REPORT_TYPE[\s\S]*value = '0'[\s\S]*disabled = true/);
-  assert.match(newReportSource, /if \(isOnline\)[\s\S]*kmValue = 0/);
+  assert.match(newReportSource, /newType === ONLINE_REPORT_TYPE[\s\S]*value = '0'/);
+  assert.match(newReportSource, /const kmValue = \(!isOnline && !usesPublicTransport/);
 });
 
 test('Attendance service and edit flow enforce the same Zoom and operations rules', () => {
   assert.match(attendanceServiceSource, /LEGACY_ONLINE_LABEL = 'מקוון'/);
   assert.match(attendanceServiceSource, /ZOOM_LABEL = 'זום'/);
-  assert.match(attendanceServiceSource, /activityType === ZOOM_LABEL \? \{ roundtrip_km: 0 \}/);
+  assert.match(attendanceServiceSource, /activityType === ZOOM_LABEL \|\| usesPublicTransport/);
   assert.match(attendanceServiceSource, /return \[\.\.\.FALLBACK_ACTIVITY_TYPES\]/);
 
   assert.match(reportsSource, /ONLINE_REPORT_TYPE, OPERATIONS_REPORT_TYPE/);
@@ -62,7 +62,7 @@ test('Attendance service and edit flow enforce the same Zoom and operations rule
 });
 
 test('Attendance cache is synchronized for the report type behavior release', () => {
-  assert.match(swSource, /const CACHE_VERSION = 42;/);
-  assert.match(indexSource, /\?v=42/);
-  assert.doesNotMatch(indexSource, /\?v=41/);
+  assert.match(swSource, /const CACHE_VERSION = 43;/);
+  assert.match(indexSource, /\?v=43/);
+  assert.doesNotMatch(indexSource, /\?v=42/);
 });

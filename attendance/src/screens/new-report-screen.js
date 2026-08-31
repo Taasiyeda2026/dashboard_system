@@ -141,6 +141,9 @@ export function renderNewReportScreen(container, {
   let errorEl = null;
   let hoursVal = null;
   let kmField = null;
+  let publicTransportInput = null;
+  let publicTransportCostField = null;
+  let publicTransportCostWrap = null;
   let expField = null;
   let expDetailField = null;
   let notesField = null;
@@ -230,19 +233,32 @@ export function renderNewReportScreen(container, {
     if (meetingField?.select) meetingField.select.disabled = !enabled;
   }
 
+  function syncTravelMode() {
+    if (!kmField?.input || !publicTransportInput || !publicTransportCostWrap) return;
+    const online = isOnlineReportType();
+    if (online) {
+      publicTransportInput.checked = false;
+      publicTransportInput.disabled = true;
+    } else {
+      publicTransportInput.disabled = false;
+    }
+
+    const usesPublicTransport = !online && publicTransportInput.checked;
+    kmField.wrap.hidden = usesPublicTransport;
+    kmField.input.disabled = online || usesPublicTransport;
+    kmField.input.readOnly = online || usesPublicTransport;
+    publicTransportCostWrap.hidden = !usesPublicTransport;
+    publicTransportCostField.input.disabled = !usesPublicTransport;
+
+    if (online || usesPublicTransport) kmField.input.value = '0';
+    if (!usesPublicTransport) publicTransportCostField.input.value = '';
+  }
+
   function syncKmForReportType(newType, prevType) {
     if (!kmField?.input) return;
-    if (newType === ONLINE_REPORT_TYPE) {
-      kmField.input.value = '0';
-      kmField.input.readOnly = true;
-      kmField.input.disabled = true;
-      return;
-    }
-    if (prevType === ONLINE_REPORT_TYPE) {
-      kmField.input.readOnly = false;
-      kmField.input.disabled = false;
-      kmField.input.value = '';
-    }
+    if (newType === ONLINE_REPORT_TYPE) kmField.input.value = '0';
+    if (prevType === ONLINE_REPORT_TYPE && newType !== ONLINE_REPORT_TYPE) kmField.input.value = '';
+    syncTravelMode();
   }
 
   function mountManualSchoolSelect() {
@@ -552,7 +568,7 @@ export function renderNewReportScreen(container, {
     formLocked = false;
     formArea.querySelector('form')?.querySelectorAll('input,select,button,.av2-ssel__trigger,.av2-csel__trigger')
       .forEach((el) => {
-        if (el === kmField?.input && isOnlineReportType()) {
+        if ((el === kmField?.input || el === publicTransportInput) && isOnlineReportType()) {
           el.disabled = true;
           return;
         }
@@ -758,9 +774,28 @@ export function renderNewReportScreen(container, {
       attrs: { min: '0', step: '1', placeholder: '0' },
     });
 
+    const publicTransportToggle = document.createElement('label');
+    publicTransportToggle.className = 'av2-report__transport-toggle';
+    publicTransportInput = document.createElement('input');
+    publicTransportInput.type = 'checkbox';
+    publicTransportInput.checked = prefill?.public_transport === true;
+    const publicTransportLabel = document.createElement('span');
+    publicTransportLabel.textContent = 'תחבורה ציבורית';
+    publicTransportToggle.append(publicTransportInput, publicTransportLabel);
+
+    publicTransportCostField = createInputField({
+      id: 'av2-public-transport-cost',
+      label: 'עלות תחבורה ציבורית (₪)',
+      type: 'number',
+      value: prefill?.public_transport_cost ? String(prefill.public_transport_cost) : '',
+      attrs: { min: '0', step: '0.01', placeholder: '0.00' },
+    });
+    publicTransportCostWrap = publicTransportCostField.wrap;
+    publicTransportInput.addEventListener('change', syncTravelMode);
+
     const timesGrid = document.createElement('div');
     timesGrid.className = 'av2-report__times-grid';
-    timesGrid.append(startPicker.wrap, endPicker.wrap, hoursDisplay, kmField.wrap);
+    timesGrid.append(startPicker.wrap, endPicker.wrap, hoursDisplay, publicTransportToggle, kmField.wrap, publicTransportCostWrap);
 
     expField = createInputField({
       id: 'av2-expenses',
@@ -842,6 +877,7 @@ export function renderNewReportScreen(container, {
 
     syncEndTimeConstraints();
     updateHoursDisplay();
+    syncTravelMode();
 
     if (initialReportType) {
       onActivityTypeChange();
@@ -1001,13 +1037,13 @@ export function renderNewReportScreen(container, {
 
       const programName = activity?.program_name || activityNameSnapshot || null;
 
-      let kmValue = 0;
-      if (isOnline) {
-        kmValue = 0;
-      } else {
-        kmValue = kmField.input.value ? Number(kmField.input.value) : 0;
-      }
-      if (isOnline && kmValue > 0) kmValue = 0;
+      const usesPublicTransport = !isOnline && publicTransportInput.checked;
+      const kmValue = (!isOnline && !usesPublicTransport && kmField.input.value)
+        ? Number(kmField.input.value)
+        : 0;
+      const publicTransportCost = usesPublicTransport && publicTransportCostField.input.value
+        ? Number(publicTransportCostField.input.value)
+        : 0;
 
       saveBtn.disabled = true;
       saveBtn.querySelector('span').textContent = 'שומר…';
@@ -1033,6 +1069,8 @@ export function renderNewReportScreen(container, {
           program_name: isOpen ? null : (activity?.program_name ?? null),
           program_name_snapshot: programName,
           roundtrip_km: kmValue,
+          public_transport: usesPublicTransport,
+          public_transport_cost: publicTransportCost,
           expenses: expField.input.value ? Number(expField.input.value) : 0,
           expense_details: expDetailField.input.value.trim() || null,
           notes: notesField.input.value.trim() || null,

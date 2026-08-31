@@ -19,7 +19,6 @@ import { calcHours, ONLINE_REPORT_TYPE, OPERATIONS_REPORT_TYPE } from '../servic
 import { deleteAttachment, getSignedUrl } from '../services/storage.service.js';
 import { exportMonthToExcel } from '../services/excel.service.js';
 
-const DAY_NAMES_SHORT = ['א\'','ב\'','ג\'','ד\'','ה\'','ו\'','ש\''];
 
 export function renderMyReportsScreen(container, {
   instructor = {},
@@ -248,17 +247,12 @@ function buildRecordRow({ record, editable, instructor, activityTypes, onDuplica
   row.className = 'av2-report-row';
   row.dataset.recordId = record.id;
 
-  const d = new Date(`${record.report_date}T12:00:00`);
-  const dayName = Number.isNaN(d.getTime()) ? '' : DAY_NAMES_SHORT[d.getDay()];
-
   // ── 1. Date ─────────────────────────────────────────────────────────────
   const dateCell = document.createElement('div');
   dateCell.className = 'av2-rr__date';
   const dateStrong = document.createElement('strong');
   dateStrong.textContent = formatDateHeb(record.report_date);
-  const dateDay = document.createElement('span');
-  dateDay.textContent = dayName;
-  dateCell.append(dateStrong, dateDay);
+  dateCell.append(dateStrong);
 
   // ── 2. Start time ────────────────────────────────────────────────────────
   const startCell = document.createElement('div');
