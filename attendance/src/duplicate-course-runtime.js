@@ -170,12 +170,6 @@ function ensureStyles() {
       padding: 8px 10px;
       font: inherit;
     }
-    .av2-duplicate-course-hint {
-      margin: 6px 0 0;
-      color: #64748b;
-      font-size: 11px;
-      line-height: 1.45;
-    }
     .av2-duplicate-course-empty {
       margin: 8px 0 0;
       padding: 8px 10px;
@@ -225,7 +219,7 @@ async function enhanceDuplicateCourseForm() {
     const schedule = await loadCourseSchedule(sourceRecord);
     if (!schedule.length) {
       form.setAttribute(ENHANCED_ATTR, 'no-schedule');
-      duplicateNote.textContent = 'שכפול הדיווח נטען, אך לא נמצאו תאריכי מפגשים לקורס. ניתן לערוך לפני השמירה.';
+      duplicateNote.textContent = 'שכפול הדיווח נטען, אך לא נמצאו תאריכי מפגשים לקורס.';
       try { sessionStorage.removeItem(DUPLICATE_RECORD_KEY); } catch {}
       return;
     }
@@ -244,7 +238,7 @@ async function enhanceDuplicateCourseForm() {
     });
 
     ensureStyles();
-    duplicateNote.textContent = 'שכפול דיווח — כל פרטי הדיווח הועתקו. יש לבחור רק את מפגש הקורס החדש; התאריך ומספר המפגש מתעדכנים יחד.';
+    duplicateNote.textContent = 'שכפול דיווח — כל פרטי הדיווח הועתקו.';
 
     const fieldWrap = dateInput.closest('.av2-field');
     const label = fieldWrap?.querySelector('.av2-field__label');
@@ -280,10 +274,7 @@ async function enhanceDuplicateCourseForm() {
       dateSelect.append(option);
     }
 
-    const hint = document.createElement('p');
-    hint.className = 'av2-duplicate-course-hint';
-    hint.textContent = 'שאר פרטי הדיווח נשארים זהים לרשומה המקורית.';
-    fieldWrap?.append(dateSelect, hint);
+    fieldWrap?.append(dateSelect);
 
     const applySelection = () => {
       const option = dateSelect.selectedOptions[0];
@@ -314,7 +305,7 @@ async function enhanceDuplicateCourseForm() {
   } catch (error) {
     console.warn('[attendance duplicate course] enhancement failed', error);
     form.setAttribute(ENHANCED_ATTR, 'failed');
-    duplicateNote.textContent = 'שכפול הדיווח נטען. לא ניתן היה לטעון אוטומטית את לוח מפגשי הקורס, ולכן ניתן לערוך לפני השמירה.';
+    duplicateNote.textContent = 'שכפול הדיווח נטען. לא ניתן היה לטעון אוטומטית את לוח מפגשי הקורס.';
     try { sessionStorage.removeItem(DUPLICATE_RECORD_KEY); } catch {}
   }
 }
