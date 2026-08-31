@@ -14,7 +14,8 @@ function iconSvg(name) {
     attendance: `<svg ${common}><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 9h16"/><path d="M9 14l2 2 4-4"/></svg>`,
     team: `<svg ${common}><circle cx="9" cy="8" r="3"/><circle cx="17" cy="10" r="2.5"/><path d="M3.5 19c.6-3.5 2.6-5.5 5.5-5.5s4.9 2 5.5 5.5"/><path d="M14.5 15c2.8-.7 5.1.8 6 3.5"/></svg>`,
     control: `<svg ${common}><path d="M9 4h6l1 2h3v15H5V6h3z"/><path d="M9 4v3h6V4"/><path d="M9 13l2 2 4-4"/></svg>`,
-    dates: `<svg ${common}><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4M17 3v4M3 9h18"/><path d="M8 13h3M13 13h3M8 17h3M13 17h3"/></svg>`
+    dates: `<svg ${common}><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4M17 3v4M3 9h18"/><path d="M8 13h3M13 13h3M8 17h3M13 17h3"/></svg>`,
+    keyboard: `<svg ${common}><rect x="2.5" y="5.5" width="19" height="13" rx="2.5"/><path d="M6 9h.01M9 9h.01M12 9h.01M15 9h.01M18 9h.01M6 12h.01M9 12h.01M12 12h.01M15 12h.01M18 12h.01M7 15h10"/></svg>`
   };
   return icons[name] || icons.reports;
 }
@@ -30,13 +31,14 @@ function canViewAdminOnlyTools() {
   return String(state?.user?.role || state?.user?.display_role || '').trim() === 'admin';
 }
 
-function tileButton({ title, description, icon, route = '', url = '', managerTab = '', capabilityId = '', dateSimulator = false, pricingSimulator = false }) {
+function tileButton({ title, description, icon, route = '', url = '', managerTab = '', capabilityId = '', dateSimulator = false, pricingSimulator = false, keyboardConverter = false }) {
   const attrs = [];
   if (capabilityId) attrs.push(`data-capability-id="${capabilityId}"`);
   if (route) attrs.push(`data-route="${route}"`);
   if (url) attrs.push(`data-admin-hub-url="${url}"`);
   if (dateSimulator) attrs.push('data-admin-date-simulator="true"');
   if (pricingSimulator) attrs.push('data-admin-pricing-simulator="true"');
+  if (keyboardConverter) attrs.push('data-admin-keyboard-converter="true"');
   if (managerTab) {
     attrs.push('data-manager-board-open="true"');
     attrs.push(`data-admin-hub-manager-tab="${managerTab}"`);
@@ -134,6 +136,13 @@ function managementTilesHtml() {
       description: 'סימולציית רצף מפגשים לפי לוח הלימודים',
       icon: 'dates',
       dateSimulator: true
+    }),
+    isAdmin && tileButton({
+      title: 'ממיר מקלדת',
+      description: 'תיקון טקסט שהוקלד בפריסת מקלדת שגויה',
+      icon: 'keyboard',
+      capabilityId: 'admin.keyboard_converter',
+      keyboardConverter: true
     })
   ].filter(Boolean);
 
@@ -256,6 +265,12 @@ export const adminHomeScreen = {
       void import('./admin-date-simulator.js')
         .then(({ openAdminDateSimulator }) => openAdminDateSimulator())
         .catch((error) => console.error('[admin-date-simulator] failed to open', error));
+    });
+
+    root?.querySelector?.('[data-admin-keyboard-converter]')?.addEventListener('click', () => {
+      void import('./admin-keyboard-converter.js')
+        .then(({ openAdminKeyboardConverter }) => openAdminKeyboardConverter())
+        .catch((error) => console.error('[admin-keyboard-converter] failed to open', error));
     });
   }
 };
