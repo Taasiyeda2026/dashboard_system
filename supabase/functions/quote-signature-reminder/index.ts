@@ -107,16 +107,17 @@ Deno.serve(async (request: Request) => {
       });
     }
 
-    const quoteUrl = new URL("/rest/v1/proposals_agreements", Deno.env.get("SUPABASE_URL"));
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    if (!supabaseUrl || !serviceRoleKey) {
+      throw new Error("Supabase service credentials are not configured");
+    }
+
+    const quoteUrl = new URL("/rest/v1/proposals_agreements", supabaseUrl);
     quoteUrl.searchParams.set("select", "id");
     quoteUrl.searchParams.set("status", "eq.pending_approval");
     quoteUrl.searchParams.set("document_type", "eq.הצעת מחיר");
     quoteUrl.searchParams.set("archived_at", "is.null");
-
-    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-    if (!serviceRoleKey) {
-      throw new Error("Supabase service credentials are not configured");
-    }
 
     const countResponse = await fetch(quoteUrl, {
       headers: {
