@@ -24,6 +24,7 @@ const LEGACY_SUMMER_WORKSHOP = 'סדנאות קיץ';
 const WORKSHOP_LABEL = 'סדנה';
 const LEGACY_ONLINE_LABEL = 'מקוון';
 const ZOOM_LABEL = 'זום';
+const EDIT_RECORD_KEY = 'av2_edit_record_id';
 
 function normalizeAttendanceActivityTypeLabel(value) {
   const raw = String(value || '').trim();
@@ -60,6 +61,23 @@ function normalizeRecordPayload(payload = {}) {
     // Zoom and public-transport reports never carry reimbursable travel kilometres.
     ...((activityType === ZOOM_LABEL || usesPublicTransport) ? { roundtrip_km: 0 } : {}),
   };
+}
+
+function activeEditRecordId() {
+  try {
+    const form = document.querySelector('.av2-report__form[data-av2-edit-record-id]');
+    return String(form?.dataset?.av2EditRecordId || '').trim();
+  } catch {
+    return '';
+  }
+}
+
+function clearActiveEditRecord() {
+  try {
+    sessionStorage.removeItem(EDIT_RECORD_KEY);
+    const form = document.querySelector('.av2-report__form[data-av2-edit-record-id]');
+    if (form) delete form.dataset.av2EditRecordId;
+  } catch {}
 }
 
 const FALLBACK_ACTIVITY_TYPES = ['ביטול זמן','הכשרה','חדר בריחה','זום','סדנה','סיור','קורס','תפעול'];
@@ -109,12 +127,20 @@ export function calcMonthSummary(records) {
 }
 
 /**
- * Create a new attendance record.
- * payload must include all required fields; emp_id is added here from the
- * resolved identity (not from user-visible form input).
+ * Create a new attendance record. When the full report form is explicitly in
+ * edit mode, the same payload updates the existing record instead of inserting
+ * a second row. This keeps new/edit forms functionally identical.
  */
 export async function createRecord(empId, payload) {
   const normalizedPayload = normalizeRecordPayload(payload);
+  const editRecordId = activeEditRecordId();
+
+  if (editRecordId) {
+    const updated = await updateRecord(editRecordId, empId, normalizedPayload);
+    clearActiveEditRecord();
+    return updated;
+  }
+
   if (isAdminPreviewRequested()) return createPreviewRecord(normalizedPayload);
 
   const row = {
