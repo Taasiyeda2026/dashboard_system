@@ -13,6 +13,13 @@ function isSchool2027(row = {}) {
   return text(row.activity_season ?? row.activitySeason) === 'school_2027';
 }
 
+export function isPrivateIsraaActivity(row = {}) {
+  const domain = text(row.activity_domain ?? row.activityDomain);
+  if (domain !== 'E') return false;
+  const value = row.israa_shared;
+  return value === false || ['false', '0', 'no'].includes(text(value).toLowerCase());
+}
+
 function mergeActivityContactMeta(row = {}, metaByRowId = new Map()) {
   const rowId = text(row.RowID || row.row_id);
   const meta = metaByRowId.get(rowId) || {};
@@ -21,7 +28,9 @@ function mergeActivityContactMeta(row = {}, metaByRowId = new Map()) {
     school_contact_id: meta.school_contact_id ?? row.school_contact_id ?? null,
     contact_name: text(meta.contact_name) || text(row.contact_name),
     contact_phone: text(meta.contact_phone) || text(row.contact_phone),
-    contact_email: text(meta.contact_email) || text(row.contact_email)
+    contact_email: text(meta.contact_email) || text(row.contact_email),
+    activity_domain: text(meta.activity_domain) || text(row.activity_domain),
+    israa_shared: meta.israa_shared ?? row.israa_shared ?? true
   };
 }
 
@@ -30,7 +39,7 @@ async function readActivityContactMetadata(rows = []) {
   if (!rowIds.length) return new Map();
   const { data, error } = await supabase
     .from('activities')
-    .select('row_id,school_contact_id,contact_name,contact_phone,contact_email')
+    .select('row_id,school_contact_id,contact_name,contact_phone,contact_email,activity_domain,israa_shared')
     .in('row_id', rowIds);
   if (error) throw error;
   return new Map((Array.isArray(data) ? data : []).map((row) => [text(row.row_id), row]));
@@ -72,10 +81,11 @@ export async function enrichSchool2027ActivityContacts(payload = {}) {
   const rowsWithMeta = payload.rows.map((row) => (
     isSchool2027(row) ? mergeActivityContactMeta(row, metaByRowId) : row
   ));
-  const contactRows = await readRelevantSchoolContacts(rowsWithMeta.filter(isSchool2027));
+  const visibleRows = rowsWithMeta.filter((row) => !isPrivateIsraaActivity(row));
+  const contactRows = await readRelevantSchoolContacts(visibleRows.filter(isSchool2027));
   return {
     ...payload,
-    rows: rowsWithMeta.map((row) => (
+    rows: visibleRows.map((row) => (
       isSchool2027(row) ? withResolvedSchool2027Contact(row, contactRows) : row
     ))
   };
