@@ -11,7 +11,9 @@ const MANAGEMENT_ROLES = [
   'instructor_manager'
 ];
 const MANAGEMENT_ROLE_SET = new Set(MANAGEMENT_ROLES);
-const TEST_EMPLOYEE_ID = '9901';
+const INSTRUCTOR_ROLE = 'instructor';
+const RECOVERY_PERMISSION = 'access_password_recovery';
+const BLOCKED_INSTRUCTOR_EMP_ID = '1519';
 const MIN_PASSWORD_LENGTH = 8;
 const MAX_CODE_ATTEMPTS = 5;
 const CHALLENGE_MINUTES = 10;
@@ -39,13 +41,24 @@ function normalizeEmail(value: unknown) {
   return String(value ?? '').trim().toLowerCase();
 }
 
+function isValidEmail(value: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
+
+function permissionEnabled(row: Record<string, unknown>, key: string) {
+  const permissions = row?.permissions;
+  if (!permissions || typeof permissions !== 'object' || Array.isArray(permissions)) return false;
+  const value = (permissions as Record<string, unknown>)[key];
+  return ['yes', 'true', '1'].includes(String(value ?? '').trim().toLowerCase());
+}
+
 function isAllowedRecoveryUser(row: Record<string, unknown> | null | undefined) {
-  if (!row) return false;
+  if (!row || row.is_active !== true) return false;
   const role = String(row.role || '').trim();
   if (MANAGEMENT_ROLE_SET.has(role)) return true;
-  return role === 'instructor'
-    && String(row.user_id || '').trim() === TEST_EMPLOYEE_ID
-    && String(row.emp_id || '').trim() === TEST_EMPLOYEE_ID;
+  return role === INSTRUCTOR_ROLE
+    && String(row.emp_id || '').trim() !== BLOCKED_INSTRUCTOR_EMP_ID
+    && permissionEnabled(row, RECOVERY_PERMISSION);
 }
 
 function fakeChallengeId() {
@@ -110,6 +123,16 @@ Deno.serve(async (req: Request) => {
       return json(origin, { ok: false, error: 'invalid_or_expired' });
     }
 
+    const { data: currentUser } = await admin
+      .from('users')
+      .select('user_id,emp_id,role,is_active,permissions,auth_user_id')
+      .eq('user_id', String(challenge.user_id))
+      .maybeSingle();
+    if (!isAllowedRecoveryUser(currentUser || undefined)
+      || String(currentUser?.auth_user_id || '') !== String(challenge.auth_user_id)) {
+      return json(origin, { ok: false, error: 'invalid_or_expired' });
+    }
+
     const verifier = createClient(supabaseUrl, anonKey, {
       auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
     });
@@ -143,7 +166,7 @@ Deno.serve(async (req: Request) => {
 
   const email = normalizeEmail(payload?.email);
   const fakeId = fakeChallengeId();
-  if (!email || !email.endsWith('@think.org.il')) return json(origin, { ok: true, challenge_id: fakeId });
+  if (!email || !isValidEmail(email)) return json(origin, { ok: true, challenge_id: fakeId });
 
   try {
     const tenMinutesAgo = new Date(Date.now() - 10 * 60_000).toISOString();
@@ -154,26 +177,13 @@ Deno.serve(async (req: Request) => {
       .gte('created_at', tenMinutesAgo);
     if (Number(recentCount || 0) >= MAX_REQUESTS_PER_TEN_MINUTES) return json(origin, { ok: true, challenge_id: fakeId });
 
-    const [{ data: managementRows }, { data: testEmployeeRow }] = await Promise.all([
-      admin
-        .from('users')
-        .select('user_id,emp_id,email,auth_email,auth_user_id,role,is_active')
-        .eq('is_active', true)
-        .in('role', MANAGEMENT_ROLES),
-      admin
-        .from('users')
-        .select('user_id,emp_id,email,auth_email,auth_user_id,role,is_active')
-        .eq('is_active', true)
-        .eq('user_id', TEST_EMPLOYEE_ID)
-        .eq('emp_id', TEST_EMPLOYEE_ID)
-        .eq('role', 'instructor')
-        .maybeSingle()
-    ]);
+    const { data: candidateRows } = await admin
+      .from('users')
+      .select('user_id,emp_id,email,auth_email,auth_user_id,role,is_active,permissions')
+      .eq('is_active', true)
+      .in('role', [...MANAGEMENT_ROLES, INSTRUCTOR_ROLE]);
 
-    const candidates = [
-      ...(Array.isArray(managementRows) ? managementRows : []),
-      ...(testEmployeeRow ? [testEmployeeRow] : [])
-    ];
+    const candidates = Array.isArray(candidateRows) ? candidateRows : [];
     const userRow = candidates.find((row) => isAllowedRecoveryUser(row) && normalizeEmail(row?.email) === email);
     if (!userRow) return json(origin, { ok: true, challenge_id: fakeId });
 
