@@ -6,7 +6,7 @@
 import { createCompactSelect } from './compact-select.js';
 
 function parseTimeValue(value) {
-  const match = String(value || '').match(/^(\d{1,2}):(\d{2})$/);
+  const match = String(value || '').match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
   if (!match) return null;
   const hour = parseInt(match[1], 10);
   const minute = parseInt(match[2], 10);
@@ -17,11 +17,11 @@ function parseTimeValue(value) {
 /**
  * @param {string} id
  * @param {string} label
- * @param {string} defaultValue  "HH:MM" or ""
+ * @param {string} defaultValue  "HH:MM", "HH:MM:SS" or ""
  * @param {number} minuteStep   Minute increment (default 5)
  */
 export function createTimePicker(id, label, defaultValue = '', minuteStep = 5) {
-  const defMatch = defaultValue.match(/^(\d{1,2}):(\d{2})$/);
+  const defMatch = String(defaultValue || '').match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
   const defH = defMatch ? parseInt(defMatch[1], 10) : null;
   const defM = defMatch ? parseInt(defMatch[2], 10) : null;
 
