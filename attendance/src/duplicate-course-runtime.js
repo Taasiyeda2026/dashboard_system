@@ -5,6 +5,7 @@ import {
 } from './preview/preview-mode.js';
 
 const DUPLICATE_RECORD_KEY = 'av2_duplicate_record_id';
+const EDIT_RECORD_KEY = 'av2_edit_record_id';
 const COURSE_REPORT_TYPE = 'קורס';
 const ENHANCED_ATTR = 'data-duplicate-course-enhanced';
 
@@ -27,12 +28,24 @@ function localDateShift(dateStr, days) {
   return `${y}-${m}-${day}`;
 }
 
+function isEditFlow() {
+  try {
+    return !!clean(sessionStorage.getItem(EDIT_RECORD_KEY));
+  } catch {
+    return false;
+  }
+}
+
 function rememberDuplicateRecordId(event) {
   const button = event.target.closest?.('.av2-rr__action-dup');
-  const row = button?.closest?.('.av2-report-row');
+  if (!button) return;
+  if (button.dataset.av2EditForward === '1') return;
+
+  const row = button.closest?.('.av2-report-row');
   const recordId = clean(row?.dataset?.recordId);
   if (!recordId) return;
   try {
+    sessionStorage.removeItem(EDIT_RECORD_KEY);
     sessionStorage.setItem(DUPLICATE_RECORD_KEY, recordId);
   } catch {}
 }
@@ -186,6 +199,8 @@ function lockAllButDate(form, dateSelect) {
 }
 
 async function enhanceDuplicateCourseForm() {
+  if (isEditFlow()) return;
+
   const form = document.querySelector('.av2-report__form');
   const duplicateNote = document.querySelector('.av2-report__dup-note');
   const dateInput = document.getElementById('av2-report-date');
