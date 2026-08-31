@@ -48,11 +48,17 @@ function normalizeActivityTypeList(values) {
 
 function normalizeRecordPayload(payload = {}) {
   const activityType = normalizeAttendanceActivityTypeLabel(payload?.activity_type);
+  const hasPublicTransport = Object.prototype.hasOwnProperty.call(payload, 'public_transport');
+  const usesPublicTransport = activityType !== ZOOM_LABEL && payload?.public_transport === true;
   return {
     ...payload,
     activity_type: activityType,
-    // Zoom is always remote and therefore never carries travel kilometres.
-    ...(activityType === ZOOM_LABEL ? { roundtrip_km: 0 } : {}),
+    ...(hasPublicTransport || activityType === ZOOM_LABEL ? {
+      public_transport: usesPublicTransport,
+      public_transport_cost: usesPublicTransport ? Number(payload?.public_transport_cost || 0) : 0,
+    } : {}),
+    // Zoom and public-transport reports never carry reimbursable travel kilometres.
+    ...((activityType === ZOOM_LABEL || usesPublicTransport) ? { roundtrip_km: 0 } : {}),
   };
 }
 
@@ -95,7 +101,7 @@ export async function getMonthRecords(empId, year, month) {
  */
 export function calcMonthSummary(records) {
   return {
-    recordsCount: records.length,
+    recordsCount: new Set(records.map((record) => record.report_date).filter(Boolean)).size,
     totalHours: records.reduce((s, r) => s + Number(r.total_hours || 0), 0),
     totalKm: records.reduce((s, r) => s + Number(r.roundtrip_km || 0), 0),
     totalExpenses: records.reduce((s, r) => s + Number(r.expenses || 0), 0)

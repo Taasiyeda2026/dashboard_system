@@ -77,14 +77,16 @@ test('shared Attendance time picker uses compact numeric placeholders', () => {
 
 test('Attendance calendar shows TODAY highlight and activity content in cells', () => {
   assert.match(calSource, /av2-cal__cell--today/);
-  assert.match(calSource, /av2-cal__event-pill/);
-  assert.match(calSource, /av2-cal__today-badge/);
+  assert.match(calSource, /av2-cal__presence-dot/);
+  assert.match(calSource, /aria-current', 'date'/);
   assert.match(calSource, /onEmptyDayClick/);
 });
 
-test('Attendance New Report uses three desktop columns and instructor activity IDs', () => {
+test('Attendance New Report uses two compact desktop cards and instructor activity IDs', () => {
   assert.match(newReportStyles, /\.av2-report__form\s*\{/);
-  assert.match(newReportStyles, /grid-template-columns:\s*repeat\(3,\s*minmax\(0,\s*1fr\)\)/);
+  assert.match(newReportLayoutFix, /grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*255px\)\)/);
+  assert.match(newReportLayoutFix, /gap:\s*14px 30px/);
+  assert.match(newReportLayoutFix, /max-width:\s*221px/);
   assert.match(newReportStyles, /\.av2-form-section__body--times/);
   assert.match(newReportStyles, /\.av2-form-section__body--bottom/);
   assert.doesNotMatch(newReportLayoutFix, /av2-planned-activity/);
@@ -98,8 +100,10 @@ test('Attendance New Report uses three desktop columns and instructor activity I
   assert.doesNotMatch(newReportSource, /av2-planned-activity/);
   assert.match(newReportSource, /instructorActivitySelectOptions/);
   assert.match(activitiesServiceSource, /instructorActivitySelectOptions/);
-  assert.match(attendanceSwSource, /const CACHE_VERSION = 42;/);
-  assert.match(attendanceIndexSource, /\?v=42/);
+  assert.match(newReportSource, /תחבורה ציבורית/);
+  assert.match(newReportSource, /public_transport_cost/);
+  assert.match(attendanceSwSource, /const CACHE_VERSION = 44;/);
+  assert.match(attendanceIndexSource, /\?v=44/);
 });
 
 test('Attendance New Report keeps mobile fields inside padded page gutters', () => {
@@ -108,4 +112,26 @@ test('Attendance New Report keeps mobile fields inside padded page gutters', () 
   assert.match(newReportLayoutFix, /\.av2-field__input,[\s\S]*width:\s*100%/);
   assert.match(newReportLayoutFix, /min-width:\s*0/);
   assert.match(newReportLayoutFix, /max-width:\s*100%/);
+});
+
+test('Attendance monthly summary and report rows use unique days and date-only display', () => {
+  assert.match(homeSource, /buildStat\(summary\.recordsCount,\s*'ימים'/);
+  assert.doesNotMatch(reportsSource, /DAY_NAMES_SHORT|dateDay|dayName/);
+});
+
+test('Attendance travel modes clear the inactive reimbursement value', () => {
+  assert.match(newReportSource, /kmField\.input\.value = '0'/);
+  assert.match(newReportSource, /publicTransportCostField\.input\.value = ''/);
+  assert.match(newReportSource, /public_transport: usesPublicTransport/);
+  assert.match(newReportSource, /roundtrip_km: kmValue/);
+});
+
+test('Attendance New Report enforces dependent location choices and course-only meeting numbers', () => {
+  assert.match(newReportSource, /authSel\?\.setDisabled\(!hasType/);
+  assert.match(newReportSource, /setSchoolEnabled\(hasType && showsLocation && hasSelectedAuthority\(\)\)/);
+  assert.match(newReportSource, /meetingWrap\.hidden = !course/);
+  assert.match(newReportSource, /meetingField\.select\.disabled = !course \|\| !hasSelectedAuthority\(\) \|\| !hasSelectedSchool\(\)/);
+  assert.match(newReportSource, /manualSchoolId = null;[\s\S]*clearMeetingSelection\(\)/);
+  assert.match(newReportSource, /meeting_no: isCourseReportType\(reportType\)/);
+  assert.match(reportsSource, /meeting_no:\s+isCourse && meetField\.input\.value/);
 });

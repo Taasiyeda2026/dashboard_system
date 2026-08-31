@@ -37,6 +37,7 @@ import { canEditMonth, editBlockReason, getMonthKey } from '../services/month-ga
 import { uploadAttachment } from '../services/storage.service.js';
 
 const TIME_MINUTE_STEP = 5;
+const COURSE_REPORT_TYPE = 'קורס';
 const ALL_CANONICAL_REPORT_TYPES = new Set(['ביטול זמן', TRAINING_REPORT_TYPE, ONLINE_REPORT_TYPE]);
 
 function activityRowId(activity) {
@@ -127,6 +128,7 @@ export function renderNewReportScreen(container, {
   let authSel = null;
   let schoolSel = null;
   let schoolMount = null;
+  let schoolControl = null;
   let typeField = null;
   let activityNameSel = null;
   let activityNameWrap = null;
@@ -141,6 +143,9 @@ export function renderNewReportScreen(container, {
   let errorEl = null;
   let hoursVal = null;
   let kmField = null;
+  let publicTransportInput = null;
+  let publicTransportCostField = null;
+  let publicTransportCostWrap = null;
   let expField = null;
   let expDetailField = null;
   let notesField = null;
@@ -219,34 +224,80 @@ export function renderNewReportScreen(container, {
   function setLocationFieldsVisible(visible) {
     if (authSel?.wrap) authSel.wrap.hidden = !visible;
     if (schoolMount) schoolMount.hidden = !visible;
-    if (meetingWrap) meetingWrap.hidden = !visible;
   }
 
   function setActivityNameEnabled(enabled) {
     activityNameSel?.setDisabled(!enabled);
   }
 
-  function setMeetingEnabled(enabled) {
-    if (meetingField?.select) meetingField.select.disabled = !enabled;
+  function isCourseReportType(reportType = getReportType()) {
+    return reportType === COURSE_REPORT_TYPE;
+  }
+
+  function hasSelectedAuthority() {
+    return !!(authSel?.getValue() || manualAuthId || selectedActivity?.authority_id);
+  }
+
+  function hasSelectedSchool() {
+    return !!(schoolSel?.getValue?.() || schoolId || manualSchoolId);
+  }
+
+  function clearMeetingSelection() {
+    meetingField?.setValue('');
+  }
+
+  function syncMeetingFieldState() {
+    if (!meetingWrap || !meetingField?.select) return;
+    const course = isCourseReportType();
+    meetingWrap.hidden = !course;
+    meetingField.select.disabled = !course || !hasSelectedAuthority() || !hasSelectedSchool();
+    if (!course) clearMeetingSelection();
+  }
+
+  function setSchoolEnabled(enabled) {
+    schoolSel?.setDisabled(!enabled);
+    if (schoolControl) schoolControl.disabled = !enabled;
+  }
+
+  function syncLocationDependencies() {
+    const hasType = !!getReportType();
+    const showsLocation = !isOpenFieldType();
+    authSel?.setDisabled(!hasType || !showsLocation || !!selectedActivity);
+    setSchoolEnabled(hasType && showsLocation && hasSelectedAuthority());
+    syncMeetingFieldState();
+  }
+
+  function syncTravelMode() {
+    if (!kmField?.input || !publicTransportInput || !publicTransportCostWrap) return;
+    const online = isOnlineReportType();
+    if (online) {
+      publicTransportInput.checked = false;
+      publicTransportInput.disabled = true;
+    } else {
+      publicTransportInput.disabled = false;
+    }
+
+    const usesPublicTransport = !online && publicTransportInput.checked;
+    kmField.wrap.hidden = usesPublicTransport;
+    kmField.input.disabled = online || usesPublicTransport;
+    kmField.input.readOnly = online || usesPublicTransport;
+    publicTransportCostWrap.hidden = !usesPublicTransport;
+    publicTransportCostField.input.disabled = !usesPublicTransport;
+
+    if (online || usesPublicTransport) kmField.input.value = '0';
+    if (!usesPublicTransport) publicTransportCostField.input.value = '';
   }
 
   function syncKmForReportType(newType, prevType) {
     if (!kmField?.input) return;
-    if (newType === ONLINE_REPORT_TYPE) {
-      kmField.input.value = '0';
-      kmField.input.readOnly = true;
-      kmField.input.disabled = true;
-      return;
-    }
-    if (prevType === ONLINE_REPORT_TYPE) {
-      kmField.input.readOnly = false;
-      kmField.input.disabled = false;
-      kmField.input.value = '';
-    }
+    if (newType === ONLINE_REPORT_TYPE) kmField.input.value = '0';
+    if (prevType === ONLINE_REPORT_TYPE && newType !== ONLINE_REPORT_TYPE) kmField.input.value = '';
+    syncTravelMode();
   }
 
   function mountManualSchoolSelect() {
     schoolMount.innerHTML = '';
+    schoolControl = null;
     const source = isOpenFieldType() ? allAuthoritySchoolData : assignmentAuthoritySchoolData;
 
     function schoolOptsFor(authorityId) {
@@ -270,6 +321,7 @@ export function renderNewReportScreen(container, {
         },
       },
       onChange(value, lbl, opt) {
+        clearMeetingSelection();
         if (selectedActivity && !isOpenFieldType()) {
           clearLinkedActivity({ keepManualLocation: true });
         }
@@ -288,14 +340,17 @@ export function renderNewReportScreen(container, {
           manualSchoolName = '';
           semelMosad = null;
         }
+        syncMeetingFieldState();
       },
     });
     schoolMount.append(schoolSel.wrap);
+    setSchoolEnabled(!!getReportType() && hasSelectedAuthority());
     return { schoolOptsFor };
   }
 
   function mountMultiSchoolSelect(activity) {
     schoolMount.innerHTML = '';
+    schoolSel = null;
     schoolId = null;
     schoolName = '';
     semelMosad = null;
@@ -321,7 +376,9 @@ export function renderNewReportScreen(container, {
       opt.textContent = s.name + (s.semel_mosad ? ` (${s.semel_mosad})` : '');
       schoolSelect.append(opt);
     }
+    schoolControl = schoolSelect;
     schoolSelect.addEventListener('change', () => {
+      clearMeetingSelection();
       const opt = schoolSelect.selectedOptions[0];
       if (opt?.value) {
         schoolId = Number(opt.value);
@@ -332,13 +389,17 @@ export function renderNewReportScreen(container, {
         schoolName = '';
         semelMosad = null;
       }
+      syncMeetingFieldState();
+      if (schoolId) void syncMeetingForSelectedDate();
     });
     schoolWrap.append(schoolLbl, schoolSelect);
     schoolMount.append(schoolWrap);
+    syncLocationDependencies();
   }
 
   function mountReadonlySchool(activity) {
     schoolMount.innerHTML = '';
+    schoolSel = null;
     const sf = createInputField({
       id: 'av2-school-readonly',
       label: 'בית ספר',
@@ -346,10 +407,12 @@ export function renderNewReportScreen(container, {
       placeholder: activity.school_link_status === 'authority_or_place_only' ? 'רשות / מקום בלבד' : 'שם בית הספר',
     });
     if (activity.school_link_status === 'single_school') sf.input.readOnly = true;
+    schoolControl = sf.input;
     schoolId = activity.single_school_id || null;
     schoolName = activity.single_school_name || '';
     semelMosad = activity.single_semel_mosad || null;
     schoolMount.append(sf.wrap);
+    syncLocationDependencies();
   }
 
   function clearLinkedActivity({ keepManualLocation = false } = {}) {
@@ -368,8 +431,8 @@ export function renderNewReportScreen(container, {
       schoolSel?.setOptions(schoolOptsFor(manualAuthId));
     }
     activityNameSel?.reset();
-    setMeetingEnabled(true);
-    meetingField?.setValue('');
+    clearMeetingSelection();
+    syncLocationDependencies();
   }
 
   function refreshActivityNameOptions({ preserveSelection = true } = {}) {
@@ -415,7 +478,8 @@ export function renderNewReportScreen(container, {
   }
 
   async function syncMeetingForSelectedDate() {
-    if (!selectedActivity) return;
+    syncMeetingFieldState();
+    if (!isCourseReportType() || !selectedActivity || !hasSelectedAuthority() || !hasSelectedSchool()) return;
     const meetingNo = await getMeetingNoForActivityOnDate(
       instructor.empId,
       activityRowId(selectedActivity),
@@ -423,9 +487,9 @@ export function renderNewReportScreen(container, {
     );
     if (meetingNo != null) {
       meetingField.setValue(String(meetingNo));
-      setMeetingEnabled(false);
+      meetingField.select.disabled = true;
     } else {
-      setMeetingEnabled(true);
+      syncMeetingFieldState();
     }
   }
 
@@ -470,6 +534,7 @@ export function renderNewReportScreen(container, {
     }
 
     syncAuthoritySchoolFromActivity(activity);
+    syncLocationDependencies();
     await syncMeetingForSelectedDate();
   }
 
@@ -479,6 +544,8 @@ export function renderNewReportScreen(container, {
     previousReportType = newType;
     canonicalLoadToken += 1;
 
+    if (newType !== prevType) clearLinkedActivity();
+    syncMeetingFieldState();
     syncKmForReportType(newType, prevType);
 
     if (isNoActivityNameType(newType)) {
@@ -486,8 +553,8 @@ export function renderNewReportScreen(container, {
       setActivityNameVisible(false);
       setTrainingDescVisible(false);
       setLocationFieldsVisible(true);
-      authSel?.setDisabled(false);
       mountManualSchoolSelect();
+      syncLocationDependencies();
       return;
     }
 
@@ -496,7 +563,7 @@ export function renderNewReportScreen(container, {
       setActivityNameVisible(false);
       setTrainingDescVisible(true);
       setLocationFieldsVisible(false);
-      authSel?.setDisabled(false);
+      syncLocationDependencies();
       return;
     }
 
@@ -525,9 +592,9 @@ export function renderNewReportScreen(container, {
     if (selectedActivity) {
       syncAuthoritySchoolFromActivity(selectedActivity);
     } else {
-      authSel?.setDisabled(false);
       mountManualSchoolSelect();
     }
+    syncLocationDependencies();
   }
 
   async function onReportDateChange() {
@@ -552,12 +619,14 @@ export function renderNewReportScreen(container, {
     formLocked = false;
     formArea.querySelector('form')?.querySelectorAll('input,select,button,.av2-ssel__trigger,.av2-csel__trigger')
       .forEach((el) => {
-        if (el === kmField?.input && isOnlineReportType()) {
+        if ((el === kmField?.input || el === publicTransportInput) && isOnlineReportType()) {
           el.disabled = true;
           return;
         }
         el.disabled = false;
       });
+    syncTravelMode();
+    syncLocationDependencies();
 
     await syncMeetingForSelectedDate();
   }
@@ -684,20 +753,18 @@ export function renderNewReportScreen(container, {
         if (selectedActivity) clearLinkedActivity({ keepManualLocation: true });
         manualAuthId = value ? Number(value) : null;
         manualAuthName = lbl || '';
+        manualSchoolId = null;
+        manualSchoolName = '';
+        schoolId = null;
+        schoolName = '';
+        semelMosad = null;
+        clearMeetingSelection();
         if (schoolSel) {
           const source = isOpenFieldType() ? allAuthoritySchoolData : assignmentAuthoritySchoolData;
           schoolSel.setOptions(flatSchoolOptions(source, manualAuthId));
-          if (manualSchoolId) {
-            const filtered = flatSchoolOptions(source, manualAuthId);
-            const stillValid = filtered.some((s) => s.value === String(manualSchoolId));
-            if (!stillValid) {
-              manualSchoolId = null;
-              manualSchoolName = '';
-              semelMosad = null;
-              schoolSel.reset();
-            }
-          }
+          schoolSel.reset();
         }
+        syncLocationDependencies();
       },
     });
 
@@ -758,9 +825,28 @@ export function renderNewReportScreen(container, {
       attrs: { min: '0', step: '1', placeholder: '0' },
     });
 
+    const publicTransportToggle = document.createElement('label');
+    publicTransportToggle.className = 'av2-report__transport-toggle';
+    publicTransportInput = document.createElement('input');
+    publicTransportInput.type = 'checkbox';
+    publicTransportInput.checked = prefill?.public_transport === true;
+    const publicTransportLabel = document.createElement('span');
+    publicTransportLabel.textContent = 'תחבורה ציבורית';
+    publicTransportToggle.append(publicTransportInput, publicTransportLabel);
+
+    publicTransportCostField = createInputField({
+      id: 'av2-public-transport-cost',
+      label: 'עלות תחבורה ציבורית (₪)',
+      type: 'number',
+      value: prefill?.public_transport_cost ? String(prefill.public_transport_cost) : '',
+      attrs: { min: '0', step: '0.01', placeholder: '0.00' },
+    });
+    publicTransportCostWrap = publicTransportCostField.wrap;
+    publicTransportInput.addEventListener('change', syncTravelMode);
+
     const timesGrid = document.createElement('div');
     timesGrid.className = 'av2-report__times-grid';
-    timesGrid.append(startPicker.wrap, endPicker.wrap, hoursDisplay, kmField.wrap);
+    timesGrid.append(startPicker.wrap, endPicker.wrap, hoursDisplay, publicTransportToggle, kmField.wrap, publicTransportCostWrap);
 
     expField = createInputField({
       id: 'av2-expenses',
@@ -842,6 +928,7 @@ export function renderNewReportScreen(container, {
 
     syncEndTimeConstraints();
     updateHoursDisplay();
+    syncTravelMode();
 
     if (initialReportType) {
       onActivityTypeChange();
@@ -850,6 +937,7 @@ export function renderNewReportScreen(container, {
       setTrainingDescVisible(false);
       setLocationFieldsVisible(true);
       setActivityNameEnabled(false);
+      syncLocationDependencies();
     }
 
     if (prefill) {
@@ -884,8 +972,24 @@ export function renderNewReportScreen(container, {
       }
       if (prefill.activity_row_id) {
         const match = findActivityByRowId(prefill.activity_row_id);
-        if (match) void applySelectedActivity(match);
+        if (match) {
+          void (async () => {
+            await applySelectedActivity(match);
+            if (prefSchoolName && schoolControl instanceof HTMLSelectElement) {
+              const option = [...schoolControl.options].find((item) => item.dataset.name === prefSchoolName);
+              if (option) {
+                schoolControl.value = option.value;
+                schoolId = Number(option.value);
+                schoolName = option.dataset.name || prefSchoolName;
+                semelMosad = option.dataset.semel ? Number(option.dataset.semel) : null;
+              }
+            }
+            if (isCourseReportType() && meetingVal) meetingField.setValue(meetingVal);
+            syncLocationDependencies();
+          })();
+        }
       }
+      syncLocationDependencies();
     }
 
     let savedRecordForAttachmentRetry = null;
@@ -1001,13 +1105,13 @@ export function renderNewReportScreen(container, {
 
       const programName = activity?.program_name || activityNameSnapshot || null;
 
-      let kmValue = 0;
-      if (isOnline) {
-        kmValue = 0;
-      } else {
-        kmValue = kmField.input.value ? Number(kmField.input.value) : 0;
-      }
-      if (isOnline && kmValue > 0) kmValue = 0;
+      const usesPublicTransport = !isOnline && publicTransportInput.checked;
+      const kmValue = (!isOnline && !usesPublicTransport && kmField.input.value)
+        ? Number(kmField.input.value)
+        : 0;
+      const publicTransportCost = usesPublicTransport && publicTransportCostField.input.value
+        ? Number(publicTransportCostField.input.value)
+        : 0;
 
       saveBtn.disabled = true;
       saveBtn.querySelector('span').textContent = 'שומר…';
@@ -1024,7 +1128,7 @@ export function renderNewReportScreen(container, {
           activity_no: isOpen ? null : (activity?.activity_no ?? null),
           activity_season: isOpen ? null : (activity?.activity_season ?? null),
           activity_name_snapshot: activityNameSnapshot,
-          meeting_no: isOpen ? null : (meetingField.getValue() ? Number(meetingField.getValue()) : null),
+          meeting_no: isCourseReportType(reportType) && meetingField.getValue() ? Number(meetingField.getValue()) : null,
           authority_id: finalAuthorityId,
           authority_name_snapshot: finalAuthorityName,
           school_id: finalSchoolId,
@@ -1033,6 +1137,8 @@ export function renderNewReportScreen(container, {
           program_name: isOpen ? null : (activity?.program_name ?? null),
           program_name_snapshot: programName,
           roundtrip_km: kmValue,
+          public_transport: usesPublicTransport,
+          public_transport_cost: publicTransportCost,
           expenses: expField.input.value ? Number(expField.input.value) : 0,
           expense_details: expDetailField.input.value.trim() || null,
           notes: notesField.input.value.trim() || null,

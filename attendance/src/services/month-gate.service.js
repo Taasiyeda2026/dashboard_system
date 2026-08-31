@@ -9,7 +9,7 @@
  *   'open'             → editable
  *   'submitted'        → read-only (instructor submitted, awaiting manager)
  *   'locked'           → read-only (manager locked)
- *   'reopened'         → editable (manager re-opened after lock)
+ *   'reopened'         → editable through day 7 of the following month
  *   'approved_for_payroll' → read-only (final payroll approval completed)
  */
 
@@ -29,7 +29,7 @@ export function formatMonthLabel(year, month) {
  * @param {object|null} approval  Row from attendance_month_approvals, or null (= open)
  * @returns {boolean}
  */
-export function canEditMonth(year, month, approval) {
+export function canEditMonth(year, month, approval, now = new Date()) {
   const status = approval?.status ?? 'open';
 
   // Permanently locked by manager
@@ -40,7 +40,6 @@ export function canEditMonth(year, month, approval) {
   if (status === 'submitted') return false;
 
   // 'open' and 'reopened' are both editable, subject to time rules
-  const now = new Date();
   const cy = now.getFullYear();
   const cm = now.getMonth() + 1; // 1-based
   const cd = now.getDate();
@@ -48,9 +47,12 @@ export function canEditMonth(year, month, approval) {
   // Current month is always editable
   if (year === cy && month === cm) return true;
 
-  // Previous month is editable during grace period (days 1–2 of current month)
+  // Previous month: normal grace through day 2; reopened correction through day 7.
   const [prevY, prevM] = cm === 1 ? [cy - 1, 12] : [cy, cm - 1];
-  if (year === prevY && month === prevM && cd <= 2) return true;
+  if (year === prevY && month === prevM) {
+    if (cd <= 2) return true;
+    return status === 'reopened' && cd <= 7;
+  }
 
   return false;
 }
@@ -61,6 +63,7 @@ export function editBlockReason(year, month, approval) {
   if (status === 'locked') return 'החודש אושר על ידי המנהל ונעול לעריכה';
   if (status === 'approved_for_payroll') return 'החודש אושר סופית לשכר';
   if (status === 'submitted') return 'העובד אישר את החודש — לא ניתן לערוך עד שחרור מנהל/אדמין';
+  if (status === 'reopened') return 'חלון התיקונים לחודש זה הסתיים (עד ה-7 בחודש העוקב)';
   return 'לא ניתן לערוך חודש קודם לאחר תקופת הארכה (עד ה-2 בחודש)';
 }
 

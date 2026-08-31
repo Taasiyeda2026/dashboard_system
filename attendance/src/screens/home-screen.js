@@ -121,10 +121,10 @@ async function loadAndRender({ instructor, year, month, statsEl, actionStripEl, 
     // KPI cards
     statsEl.innerHTML = '';
     statsEl.append(
-      buildStat(summary.recordsCount,                     'דיווחים',  'list'),
+      buildStat(summary.recordsCount,                     'ימים',     'list'),
       buildStat(summary.totalHours.toFixed(2),            'שעות',     'clock'),
       buildStat(summary.totalKm.toFixed(0) + '\u00a0ק"מ','נסיעות',   'map-pin'),
-      buildStat('₪' + summary.totalExpenses.toFixed(0),  'הוצאות',   'dollar-sign')
+      buildStat('₪' + summary.totalExpenses.toFixed(0),  'הוצאות',   'shekel-sign')
     );
 
     // Disable add-report when month is locked

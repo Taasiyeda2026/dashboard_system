@@ -19,7 +19,8 @@ import { calcHours, ONLINE_REPORT_TYPE, OPERATIONS_REPORT_TYPE } from '../servic
 import { deleteAttachment, getSignedUrl } from '../services/storage.service.js';
 import { exportMonthToExcel } from '../services/excel.service.js';
 
-const DAY_NAMES_SHORT = ['א\'','ב\'','ג\'','ד\'','ה\'','ו\'','ש\''];
+const COURSE_REPORT_TYPE = 'קורס';
+
 
 export function renderMyReportsScreen(container, {
   instructor = {},
@@ -248,17 +249,12 @@ function buildRecordRow({ record, editable, instructor, activityTypes, onDuplica
   row.className = 'av2-report-row';
   row.dataset.recordId = record.id;
 
-  const d = new Date(`${record.report_date}T12:00:00`);
-  const dayName = Number.isNaN(d.getTime()) ? '' : DAY_NAMES_SHORT[d.getDay()];
-
   // ── 1. Date ─────────────────────────────────────────────────────────────
   const dateCell = document.createElement('div');
   dateCell.className = 'av2-rr__date';
   const dateStrong = document.createElement('strong');
   dateStrong.textContent = formatDateHeb(record.report_date);
-  const dateDay = document.createElement('span');
-  dateDay.textContent = dayName;
-  dateCell.append(dateStrong, dateDay);
+  dateCell.append(dateStrong);
 
   // ── 2. Start time ────────────────────────────────────────────────────────
   const startCell = document.createElement('div');
@@ -548,6 +544,7 @@ function showEditModal({ record, instructor, activityTypes, onRefresh }) {
     const reportType = typeField.input.value;
     const isOperations = reportType === OPERATIONS_REPORT_TYPE;
     const isZoom = reportType === ONLINE_REPORT_TYPE;
+    const isCourse = reportType === COURSE_REPORT_TYPE;
 
     const activityLabel = actNameField.wrap.querySelector('.av2-field__label');
     if (activityLabel) activityLabel.textContent = isOperations ? 'פרטי תפעול *' : 'שם פעילות';
@@ -555,7 +552,8 @@ function showEditModal({ record, instructor, activityTypes, onRefresh }) {
       ? 'לדוגמה: פגישת צוות, הכנת ציוד או עבודה תפעולית'
       : 'שם התוכנית';
 
-    meetField.wrap.hidden = isOperations;
+    meetField.wrap.hidden = !isCourse;
+    if (!isCourse) meetField.input.value = '';
     authField.wrap.hidden = isOperations;
     schoolField.wrap.hidden = isOperations;
 
@@ -604,6 +602,7 @@ function showEditModal({ record, instructor, activityTypes, onRefresh }) {
     const reportType = typeField.input.value;
     const isOperations = reportType === OPERATIONS_REPORT_TYPE;
     const isZoom = reportType === ONLINE_REPORT_TYPE;
+    const isCourse = reportType === COURSE_REPORT_TYPE;
 
     const missing = [];
     if (!startTime || !endTime) missing.push('שעות');
@@ -636,7 +635,7 @@ function showEditModal({ record, instructor, activityTypes, onRefresh }) {
         school_id:               isOperations ? null : (record.school_id ?? null),
         school_name_snapshot:    isOperations ? null : (schoolField.input.value.trim() || null),
         semel_mosad:             isOperations ? null : (record.semel_mosad ?? null),
-        meeting_no:              isOperations ? null : (meetField.input.value ? Number(meetField.input.value) : null),
+        meeting_no:              isCourse && meetField.input.value ? Number(meetField.input.value) : null,
         program_name:            isOperations ? null : (record.program_name ?? null),
         roundtrip_km:            isZoom ? 0 : (kmField.input.value ? Number(kmField.input.value) : 0),
         expenses:                expField.input.value ? Number(expField.input.value) : 0,
