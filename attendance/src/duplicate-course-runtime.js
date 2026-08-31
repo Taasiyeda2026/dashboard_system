@@ -218,11 +218,13 @@ async function enhanceDuplicateCourseForm() {
     const existingReports = await loadExistingCourseReports(sourceRecord, schedule).catch(() => []);
     const usedKeys = new Set(existingReports.map((row) => `${Number(row.meeting_no) || 0}|${clean(row.report_date)}`));
     const usedMeetingNos = new Set(existingReports.map((row) => Number(row.meeting_no)).filter((value) => Number.isInteger(value) && value > 0));
+    const usedDates = new Set(existingReports.map((row) => clean(row.report_date)).filter(Boolean));
 
     const available = schedule.filter((item) => {
       if (clean(item.date) === clean(sourceRecord.report_date) && item.meeting_no === Number(sourceRecord.meeting_no)) return false;
       if (usedKeys.has(`${item.meeting_no}|${item.date}`)) return false;
       if (usedMeetingNos.has(item.meeting_no)) return false;
+      if (usedDates.has(item.date)) return false;
       return true;
     });
 
@@ -274,10 +276,12 @@ async function enhanceDuplicateCourseForm() {
       dateInput.value = dateSelect.value;
       dateInput.dispatchEvent(new Event('change', { bubbles: true }));
       window.setTimeout(() => {
+        dateSelect.disabled = false;
         setMeetingNumberThroughUi(meetingNo);
         lockAllButDate(form, dateSelect);
       }, 250);
       window.setTimeout(() => {
+        dateSelect.disabled = false;
         setMeetingNumberThroughUi(meetingNo);
         lockAllButDate(form, dateSelect);
       }, 900);
