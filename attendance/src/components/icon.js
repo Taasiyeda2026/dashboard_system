@@ -21,7 +21,7 @@ const ICONS = {
   clock:           '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
   'map-pin':       '<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>',
   'dollar-sign':   '<line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>',
-  'shekel-sign':   '<path d="M6 19V5l12 14V5"/><path d="M6 12h4a4 4 0 0 1 4 4v3"/>',
+  'shekel-sign':   '<text x="12" y="17" text-anchor="middle" font-size="18" font-family="Arial, sans-serif" font-weight="500" fill="currentColor" stroke="none">₪</text>',
   receipt:         '<path d="M6 2l2 1.5L10 2l2 1.5L14 2l2 1.5L18 2v20l-2-1.5-2 1.5-2-1.5-2 1.5-2-1.5L6 22z"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/>',
   download:        '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>',
   paperclip:       '<path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>',
