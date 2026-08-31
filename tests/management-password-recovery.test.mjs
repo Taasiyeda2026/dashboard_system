@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
 const runtime = await readFile(new URL('../frontend/src/management-password-runtime.js', import.meta.url), 'utf8');
+const instructorRecovery = await readFile(new URL('../frontend/src/instructor-password-recovery-runtime.js', import.meta.url), 'utf8');
 const edge = await readFile(new URL('../supabase/functions/management-password-reset/index.ts', import.meta.url), 'utf8');
 const migration = await readFile(new URL('../supabase/migrations/20260818022500_password_recovery_email_code_challenges.sql', import.meta.url), 'utf8');
 const recoveryTemplate = await readFile(new URL('../supabase/templates/recovery.html', import.meta.url), 'utf8');
@@ -10,15 +11,15 @@ const supabaseConfig = await readFile(new URL('../supabase/config.toml', import.
 const index = await readFile(new URL('../index.html', import.meta.url), 'utf8');
 const sw = await readFile(new URL('../frontend/sw.js', import.meta.url), 'utf8');
 
-test('password runtime uses an emailed one-time code instead of a clickable recovery link', () => {
+test('password recovery uses an emailed one-time code instead of a clickable recovery link', () => {
   assert.match(runtime, /שכחתי קוד כניסה/);
-  assert.match(runtime, /קוד אימות בן 6 ספרות/);
-  assert.match(runtime, /action: 'request'/);
-  assert.match(runtime, /action: 'complete'/);
-  assert.match(runtime, /challenge_id: challengeId/);
-  assert.match(runtime, /new_password: password/);
-  assert.doesNotMatch(runtime, /PASSWORD_RECOVERY/);
-  assert.doesNotMatch(runtime, /type=recovery/);
+  assert.match(instructorRecovery, /קוד אימות בן 6 ספרות/);
+  assert.match(instructorRecovery, /action: 'request'/);
+  assert.match(instructorRecovery, /action: 'complete'/);
+  assert.match(instructorRecovery, /challenge_id: challengeId/);
+  assert.match(instructorRecovery, /new_password: password/);
+  assert.doesNotMatch(instructorRecovery, /PASSWORD_RECOVERY/);
+  assert.doesNotMatch(instructorRecovery, /type=recovery/);
 });
 
 test('authenticated password change remains limited to management roles', () => {
@@ -56,13 +57,23 @@ test('recovery email template contains only a six digit Supabase token and no re
   assert.match(supabaseConfig, /content_path = "\.\/supabase\/templates\/recovery\.html"/);
 });
 
-test('employee 9901 is the only instructor explicitly admitted to the recovery pilot', () => {
-  assert.match(edge, /const TEST_EMPLOYEE_ID = '9901'/);
-  assert.match(edge, /role === 'instructor'/);
-  assert.match(edge, /String\(row\.user_id \|\| ''\)\.trim\(\) === TEST_EMPLOYEE_ID/);
-  assert.match(edge, /String\(row\.emp_id \|\| ''\)\.trim\(\) === TEST_EMPLOYEE_ID/);
-  assert.match(edge, /\.eq\('user_id', TEST_EMPLOYEE_ID\)/);
-  assert.match(edge, /\.eq\('emp_id', TEST_EMPLOYEE_ID\)/);
+test('active instructors require explicit recovery permission and Avigdor remains blocked', () => {
+  assert.match(edge, /const RECOVERY_PERMISSION = 'access_password_recovery'/);
+  assert.match(edge, /const BLOCKED_INSTRUCTOR_EMP_ID = '1519'/);
+  assert.match(edge, /role === INSTRUCTOR_ROLE/);
+  assert.match(edge, /permissionEnabled\(row, RECOVERY_PERMISSION\)/);
+  assert.match(edge, /String\(row\.emp_id \|\| ''\)\.trim\(\) !== BLOCKED_INSTRUCTOR_EMP_ID/);
+  assert.match(edge, /\.select\('user_id,emp_id,email,auth_email,auth_user_id,role,is_active,permissions'\)/);
+  assert.doesNotMatch(edge, /TEST_EMPLOYEE_ID/);
+});
+
+test('instructor recovery accepts the registered email instead of requiring a think.org.il address', () => {
+  assert.match(instructorRecovery, /הזינו את המייל הרשום במערכת/);
+  assert.match(instructorRecovery, /name@example\.com/);
+  assert.match(instructorRecovery, /\[\^\\s@\]\+@\[\^\\s@\]\+\\\.\[\^\\s@\]\+/);
+  assert.doesNotMatch(instructorRecovery, /endsWith\('@think\.org\.il'\)/);
+  assert.match(edge, /isValidEmail\(email\)/);
+  assert.doesNotMatch(edge, /endsWith\('@think\.org\.il'\)/);
 });
 
 test('recovery challenge table is server-only and RLS protected', () => {
@@ -72,7 +83,7 @@ test('recovery challenge table is server-only and RLS protected', () => {
   assert.match(migration, /grant all on table public\.password_recovery_challenges to service_role/);
 });
 
-test('dashboard deploy markers remain on recovery v2 because frontend is unchanged', () => {
-  assert.match(index, /management-password-runtime\.js\?v=20260818-management-password-v2/);
-  assert.match(sw, /const CACHE_VERSION = 1543;/);
+test('dashboard deploy markers include instructor recovery and current cache', () => {
+  assert.match(index, /instructor-password-recovery-runtime\.js\?v=20260901-instructor-recovery-v1/);
+  assert.match(sw, /const CACHE_VERSION = 1641;/);
 });
