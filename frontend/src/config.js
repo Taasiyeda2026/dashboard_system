@@ -143,3 +143,4 @@ config.HOTFIX_VERSION = `attendance-direct-report-save-20260828-v1-${config.HOTF
 
 config.HOTFIX_VERSION = `attendance-public-transport-compact-form-20260831-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `attendance-dependent-fields-reopen-window-20260831-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `admin-keyboard-converter-20260831-v1-${config.HOTFIX_VERSION}`;
