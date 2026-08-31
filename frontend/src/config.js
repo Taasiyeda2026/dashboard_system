@@ -142,3 +142,4 @@ config.HOTFIX_VERSION = `activity-session-count-source-of-truth-20260827-v1-${co
 config.HOTFIX_VERSION = `attendance-direct-report-save-20260828-v1-${config.HOTFIX_VERSION}`;
 
 config.HOTFIX_VERSION = `attendance-public-transport-compact-form-20260831-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `attendance-dependent-fields-reopen-window-20260831-v1-${config.HOTFIX_VERSION}`;

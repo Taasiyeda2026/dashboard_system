@@ -102,8 +102,8 @@ test('Attendance New Report uses two compact desktop cards and instructor activi
   assert.match(activitiesServiceSource, /instructorActivitySelectOptions/);
   assert.match(newReportSource, /תחבורה ציבורית/);
   assert.match(newReportSource, /public_transport_cost/);
-  assert.match(attendanceSwSource, /const CACHE_VERSION = 43;/);
-  assert.match(attendanceIndexSource, /\?v=43/);
+  assert.match(attendanceSwSource, /const CACHE_VERSION = 44;/);
+  assert.match(attendanceIndexSource, /\?v=44/);
 });
 
 test('Attendance New Report keeps mobile fields inside padded page gutters', () => {
@@ -124,4 +124,14 @@ test('Attendance travel modes clear the inactive reimbursement value', () => {
   assert.match(newReportSource, /publicTransportCostField\.input\.value = ''/);
   assert.match(newReportSource, /public_transport: usesPublicTransport/);
   assert.match(newReportSource, /roundtrip_km: kmValue/);
+});
+
+test('Attendance New Report enforces dependent location choices and course-only meeting numbers', () => {
+  assert.match(newReportSource, /authSel\?\.setDisabled\(!hasType/);
+  assert.match(newReportSource, /setSchoolEnabled\(hasType && showsLocation && hasSelectedAuthority\(\)\)/);
+  assert.match(newReportSource, /meetingWrap\.hidden = !course/);
+  assert.match(newReportSource, /meetingField\.select\.disabled = !course \|\| !hasSelectedAuthority\(\) \|\| !hasSelectedSchool\(\)/);
+  assert.match(newReportSource, /manualSchoolId = null;[\s\S]*clearMeetingSelection\(\)/);
+  assert.match(newReportSource, /meeting_no: isCourseReportType\(reportType\)/);
+  assert.match(reportsSource, /meeting_no:\s+isCourse && meetField\.input\.value/);
 });

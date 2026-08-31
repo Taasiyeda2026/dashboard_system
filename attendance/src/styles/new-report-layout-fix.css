@@ -118,3 +118,11 @@
   .av2-report__expenses .av2-attach-upload-btn { width: auto; align-self: center; }
   .av2-report__actions { justify-content: center; }
 }
+
+/* Native controls use the same clear disabled treatment as custom dropdowns. */
+.av2-report .av2-field__input:disabled,
+.av2-report .av2-field__select:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  background: var(--av2-color-surface-sunken);
+}
