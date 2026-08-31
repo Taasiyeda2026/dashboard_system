@@ -81,7 +81,7 @@ function ensureStyles() {
       align-items: flex-start;
       justify-content: space-between;
       gap: 16px;
-      padding: 20px 22px 14px;
+      padding: 18px 22px 12px;
       border-bottom: 1px solid var(--color-border, #e2e8f0);
     }
     .admin-keyboard-converter__title {
@@ -114,16 +114,16 @@ function ensureStyles() {
       line-height: 1;
     }
     .admin-keyboard-converter__body {
-      padding: 18px 22px 20px;
+      padding: 14px 22px 16px;
       overflow: auto;
     }
     .admin-keyboard-converter__field {
       display: flex;
       flex-direction: column;
-      gap: 8px;
+      gap: 6px;
     }
     .admin-keyboard-converter__field + .admin-keyboard-converter__field {
-      margin-top: 18px;
+      margin-top: 12px;
     }
     .admin-keyboard-converter__label-row {
       display: flex;
@@ -138,16 +138,17 @@ function ensureStyles() {
     }
     .admin-keyboard-converter__textarea {
       width: 100%;
-      min-height: 124px;
+      height: 92px;
+      min-height: 92px;
       box-sizing: border-box;
-      padding: 12px 13px;
+      padding: 10px 12px;
       border: 1px solid var(--color-border, #cbd5e1);
       border-radius: 12px;
       background: var(--color-surface, #fff);
       color: var(--color-text, #172033);
       font: inherit;
       font-size: 15px;
-      line-height: 1.65;
+      line-height: 1.55;
       resize: vertical;
       outline: none;
       transition: border-color .15s ease, box-shadow .15s ease;
@@ -206,18 +207,18 @@ function ensureStyles() {
       display: flex;
       align-items: center;
       gap: 9px;
-      margin-top: 16px;
+      margin-top: 12px;
     }
     .admin-keyboard-converter__actions .admin-keyboard-converter__button {
       width: 132px;
       padding-inline: 10px;
     }
     .admin-keyboard-converter__status {
-      min-height: 18px;
-      margin: 10px 0 0;
+      min-height: 16px;
+      margin: 8px 0 0;
       color: var(--color-text-secondary, #64748b);
       font-size: 12px;
-      line-height: 1.4;
+      line-height: 1.35;
     }
     .admin-keyboard-converter__status.is-success {
       color: #15803d;
@@ -231,7 +232,8 @@ function ensureStyles() {
         padding-inline: 16px;
       }
       .admin-keyboard-converter__textarea {
-        min-height: 112px;
+        height: 86px;
+        min-height: 86px;
       }
       .admin-keyboard-converter__actions {
         display: grid;
