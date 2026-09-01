@@ -2,6 +2,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@^2/cors";
 
+const BLOCKED_INSTRUCTOR_EMP_ID = 1519;
 const ACCESS_PERMISSIONS = Object.freeze({
   view_dashboard: 'yes',
   access_attendance_reporting: 'yes',
@@ -83,6 +84,9 @@ Deno.serve(async (req: Request) => {
     if (!Number.isSafeInteger(empId) || empId <= 0) {
       return json({ ok: false, message: 'invalid_employee_id' }, 400);
     }
+    if (empId === BLOCKED_INSTRUCTOR_EMP_ID) {
+      return json({ ok: false, message: 'instructor_access_blocked' }, 403);
+    }
 
     const supabaseUrl = clean(Deno.env.get('SUPABASE_URL'));
     const serviceRoleKey = clean(Deno.env.get('SUPABASE_SERVICE_ROLE_KEY'));
@@ -105,7 +109,7 @@ Deno.serve(async (req: Request) => {
     const userId = String(empId);
     const { data: existingUser, error: existingUserError } = await admin
       .from('users')
-      .select('user_id,emp_id,username,name,full_name,email,role,is_active,permissions,auth_user_id,auth_email,migrated_to_auth')
+      .select('user_id,emp_id,username,name,full_name,email,role,display_role,is_active,permissions,auth_user_id,auth_email,migrated_to_auth')
       .eq('user_id', userId)
       .maybeSingle();
     if (existingUserError) throw existingUserError;
