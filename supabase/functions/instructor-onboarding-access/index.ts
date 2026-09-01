@@ -55,7 +55,9 @@ function syntheticAuthEmail(empId: number) {
 }
 
 function randomInitialPassword() {
-  const bytes = crypto.getRandomValues(new Uint8Array(32));
+  // bcrypt accepts at most 72 bytes. 24 random bytes -> 48 hex chars,
+  // leaving this generated password safely below that limit.
+  const bytes = crypto.getRandomValues(new Uint8Array(24));
   const token = Array.from(bytes).map((byte) => byte.toString(16).padStart(2, '0')).join('');
   return `Taasiyeda-${token}!9a`;
 }
