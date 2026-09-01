@@ -33,6 +33,40 @@ export function isSummerActivitySeason(value) {
   return String(value || '').trim().toLowerCase().startsWith('summer_');
 }
 
+export function normalizeCalendarSector(value) {
+  const raw = String(value || '').trim().toLowerCase();
+  if (['jewish', 'יהודי'].includes(raw)) return 'jewish';
+  if (['arab', 'arabic', 'ערבי', 'bedouin', 'בדואי'].includes(raw)) return 'arab';
+  if (['druze', 'דרוזי', 'circassian', 'צרקסי'].includes(raw)) return 'druze';
+  if (['general', 'כללי', 'all'].includes(raw)) return 'general';
+  return '';
+}
+
+export function calendarSectorLabel(value) {
+  switch (normalizeCalendarSector(value)) {
+    case 'jewish': return 'יהודי';
+    case 'arab': return 'ערבי';
+    case 'druze': return 'דרוזי';
+    case 'general': return 'כללי';
+    default: return '';
+  }
+}
+
+/**
+ * Scheduling gets a sector and therefore sees that sector + general events.
+ * An empty sector intentionally means "no filter" so shared calendar views
+ * (all activities / manager board) keep displaying every visible event.
+ */
+export function filterSchoolCalendarRowsBySector(rows = [], sector = '') {
+  const normalizedSector = normalizeCalendarSector(sector);
+  const source = Array.isArray(rows) ? rows : [];
+  if (!normalizedSector) return source;
+  return source.filter((row) => {
+    const rowSector = normalizeCalendarSector(row?.calendar_sector) || 'general';
+    return rowSector === 'general' || rowSector === normalizedSector;
+  });
+}
+
 export function normalizeSchoolCalendarRow(row = {}) {
   const startDate = normalizeIsoDate(row.start_date);
   const endDate = normalizeIsoDate(row.end_date) || startDate;
@@ -40,6 +74,7 @@ export function normalizeSchoolCalendarRow(row = {}) {
     ...row,
     external_key: String(row.external_key || '').trim(),
     title: String(row.title || '').trim(),
+    calendar_sector: normalizeCalendarSector(row.calendar_sector) || 'general',
     start_date: startDate,
     end_date: endDate,
     resume_date: normalizeIsoDate(row.resume_date),
