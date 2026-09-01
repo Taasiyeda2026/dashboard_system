@@ -3,7 +3,8 @@ import { formatDateHeWithWeekday } from './shared/format-date.js';
 import { escapeHtml } from './shared/html.js';
 import {
   addCalendarDays,
-  blockingSchoolCalendarEvent
+  blockingSchoolCalendarEvent,
+  filterSchoolCalendarRowsBySector
 } from './shared/school-calendar-logic.js';
 import { loadSchoolCalendarRows } from './shared/school-calendar-data.js';
 
@@ -72,8 +73,8 @@ function ensureStyles() {
   style.id = 'admin-date-simulator-styles';
   style.textContent = `
     .admin-date-simulator {
-      width: min(92vw, 580px);
-      max-width: 580px;
+      width: min(94vw, 680px);
+      max-width: 680px;
       margin: auto;
       padding: 0;
       border: 1px solid var(--color-border, #dbe3ec);
@@ -133,7 +134,7 @@ function ensureStyles() {
     }
     .admin-date-simulator__inputs {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) 150px;
+      grid-template-columns: 145px minmax(0, 1fr) 145px;
       gap: 12px;
       align-items: end;
     }
@@ -147,7 +148,8 @@ function ensureStyles() {
       font-size: 12.5px;
       font-weight: 750;
     }
-    .admin-date-simulator__field input {
+    .admin-date-simulator__field input,
+    .admin-date-simulator__field select {
       width: 100%;
       min-width: 0;
       height: 42px;
@@ -160,7 +162,8 @@ function ensureStyles() {
       font: inherit;
       outline: none;
     }
-    .admin-date-simulator__field input:focus {
+    .admin-date-simulator__field input:focus,
+    .admin-date-simulator__field select:focus {
       border-color: var(--color-primary, #0ea5e9);
       box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary, #0ea5e9) 14%, transparent);
     }
@@ -171,18 +174,14 @@ function ensureStyles() {
       font-size: 12px;
       line-height: 1.4;
     }
-    .admin-date-simulator__status.is-error {
-      color: #b42318;
-    }
+    .admin-date-simulator__status.is-error { color: #b42318; }
     .admin-date-simulator__results {
       margin-top: 10px;
       border: 1px solid var(--color-border, #e2e8f0);
       border-radius: 12px;
       overflow: hidden;
     }
-    .admin-date-simulator__results[hidden] {
-      display: none;
-    }
+    .admin-date-simulator__results[hidden] { display: none; }
     .admin-date-simulator__results-head {
       display: flex;
       justify-content: space-between;
@@ -218,7 +217,7 @@ function ensureStyles() {
       color: var(--color-primary, #0ea5e9);
     }
     .admin-date-simulator__copy:focus-visible {
-      outline: 3px solid color-mix(in srgb, var(--color-primary, #0ea5e9) 18%, transparent);
+      outline: 3px solid color-mix(in srgb, var(--color-primary, #2563eb) 18%, transparent);
       outline-offset: 2px;
     }
     .admin-date-simulator__copy.is-copied {
@@ -226,14 +225,8 @@ function ensureStyles() {
       border-color: #86efac;
       background: #f0fdf4;
     }
-    .admin-date-simulator__copy svg {
-      width: 16px;
-      height: 16px;
-    }
-    .admin-date-simulator__list {
-      max-height: 340px;
-      overflow: auto;
-    }
+    .admin-date-simulator__copy svg { width: 16px; height: 16px; }
+    .admin-date-simulator__list { max-height: 340px; overflow: auto; }
     .admin-date-simulator__row {
       display: grid;
       grid-template-columns: 78px minmax(0, 1fr) auto;
@@ -244,24 +237,15 @@ function ensureStyles() {
       border-bottom: 1px solid var(--color-border, #edf2f7);
       font-size: 12.5px;
     }
-    .admin-date-simulator__row:last-child {
-      border-bottom: 0;
-    }
+    .admin-date-simulator__row:last-child { border-bottom: 0; }
     .admin-date-simulator__row.is-skipped {
       background: #fff8ed;
       color: #7a4a00;
       border-inline-start: 3px solid #f0a23a;
     }
-    .admin-date-simulator__meeting {
-      font-weight: 800;
-    }
-    .admin-date-simulator__row.is-skipped .admin-date-simulator__meeting {
-      color: #9a6700;
-    }
-    .admin-date-simulator__date {
-      min-width: 0;
-      white-space: nowrap;
-    }
+    .admin-date-simulator__meeting { font-weight: 800; }
+    .admin-date-simulator__row.is-skipped .admin-date-simulator__meeting { color: #9a6700; }
+    .admin-date-simulator__date { min-width: 0; white-space: nowrap; }
     .admin-date-simulator__skip {
       display: inline-flex;
       align-items: center;
@@ -274,7 +258,7 @@ function ensureStyles() {
       line-height: 1.25;
       white-space: normal;
     }
-    @media (max-width: 560px) {
+    @media (max-width: 650px) {
       .admin-date-simulator__header,
       .admin-date-simulator__body { padding-inline: 16px; }
       .admin-date-simulator__inputs { grid-template-columns: 1fr; }
@@ -307,9 +291,7 @@ function resultRowsHtml(timeline) {
 
 function simulationCopyText(simulation) {
   return (simulation?.timeline || []).map((item) => {
-    if (item.type === 'skipped') {
-      return `לא נספר\t${formatDateHeWithWeekday(item.date)}\tדולג: ${item.reason}`;
-    }
+    if (item.type === 'skipped') return `לא נספר\t${formatDateHeWithWeekday(item.date)}\tדולג: ${item.reason}`;
     return `מפגש ${item.meeting}\t${formatDateHeWithWeekday(item.date)}`;
   }).join('\n');
 }
@@ -319,7 +301,6 @@ async function copyTextToClipboard(text) {
     await navigator.clipboard.writeText(text);
     return;
   }
-
   const textarea = document.createElement('textarea');
   textarea.value = text;
   textarea.setAttribute('readonly', '');
@@ -353,12 +334,20 @@ export function openAdminDateSimulator() {
       <header class="admin-date-simulator__header">
         <div>
           <h2 class="admin-date-simulator__title">סימולטור תאריכים</h2>
-          <p class="admin-date-simulator__subtitle">רצף שבועי שמציג גם תאריכים שנדחו, אך לא סופר אותם כמפגש.</p>
+          <p class="admin-date-simulator__subtitle">רצף שבועי לפי המגזר שנבחר. אירועים כלליים חלים על כל המגזרים.</p>
         </div>
         <button type="button" class="admin-date-simulator__close" data-date-simulator-close aria-label="סגירה">×</button>
       </header>
       <div class="admin-date-simulator__body">
         <div class="admin-date-simulator__inputs">
+          <div class="admin-date-simulator__field">
+            <label for="admin-date-simulator-sector">מגזר</label>
+            <select id="admin-date-simulator-sector" data-date-simulator-sector>
+              <option value="jewish">יהודי</option>
+              <option value="arab">ערבי</option>
+              <option value="druze">דרוזי</option>
+            </select>
+          </div>
           <div class="admin-date-simulator__field">
             <label for="admin-date-simulator-start">תאריך מפגש ראשון</label>
             <input id="admin-date-simulator-start" type="date" autocomplete="off" data-date-simulator-start>
@@ -390,6 +379,7 @@ export function openAdminDateSimulator() {
 
   document.body.appendChild(dialog);
 
+  const sectorInput = dialog.querySelector('[data-date-simulator-sector]');
   const startInput = dialog.querySelector('[data-date-simulator-start]');
   const countInput = dialog.querySelector('[data-date-simulator-count]');
   const status = dialog.querySelector('[data-date-simulator-status]');
@@ -419,13 +409,14 @@ export function openAdminDateSimulator() {
   };
 
   const renderSimulation = async () => {
+    const sector = String(sectorInput?.value || '').trim();
     const startDate = String(startInput.value || '').trim();
     const meetingCount = Math.floor(Number(countInput.value) || 0);
     const requestId = ++requestVersion;
     lastSimulation = null;
     resetCopyButton();
 
-    if (!startDate || meetingCount < 1) {
+    if (!sector || !startDate || meetingCount < 1) {
       resetOutput();
       return;
     }
@@ -444,7 +435,8 @@ export function openAdminDateSimulator() {
     const rows = await loadSchoolCalendarRows();
     if (requestId !== requestVersion || !dialog.isConnected) return;
 
-    const simulation = simulateWeeklyDates(rows, startDate, meetingCount);
+    const sectorRows = filterSchoolCalendarRowsBySector(rows, sector);
+    const simulation = simulateWeeklyDates(sectorRows, startDate, meetingCount);
     if (!simulation.dates.length && !simulation.timeline.length) {
       resetOutput();
       status.textContent = 'לא ניתן ליצור רצף מהנתונים שנבחרו.';
@@ -474,7 +466,6 @@ export function openAdminDateSimulator() {
   copyButton?.addEventListener('click', async () => {
     const text = simulationCopyText(lastSimulation);
     if (!text) return;
-
     try {
       await copyTextToClipboard(text);
       copyButton.classList.add('is-copied');
@@ -492,12 +483,12 @@ export function openAdminDateSimulator() {
     closeDialog();
   });
   dialog.addEventListener('close', () => {
-    // The simulator result is intentionally ephemeral: no local/session storage and no server writes.
     dialog.remove();
   }, { once: true });
   dialog.addEventListener('click', (event) => {
     if (event.target === dialog) closeDialog();
   });
+  sectorInput?.addEventListener('change', () => void renderSimulation());
   startInput.addEventListener('change', () => void renderSimulation());
   countInput.addEventListener('input', () => void renderSimulation());
 
