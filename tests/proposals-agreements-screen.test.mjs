@@ -2437,6 +2437,81 @@ test('tour proposal live total separates student and additional cost components'
   );
 });
 
+test('tour five-row rapid pricing keeps totals immediate and preview rebuilds bounded', async () => {
+  const tourManagerState = {
+    ...stateFor('admin'),
+    user: {
+      ...stateFor('admin').user,
+      permissions: { view_proposals_agreements: true, manage_proposals_agreements: true }
+    }
+  };
+  await withJSDOM(
+    proposalsAgreementsScreen.render({ rows: [], contactOptions: sampleContactOptions }, { state: tourManagerState }),
+    async (root, dom) => {
+      const pageErrors = [];
+      dom.window.addEventListener('error', (event) => pageErrors.push(event.error || event.message));
+      proposalsAgreementsScreen.bind({
+        root,
+        data: {
+          rows: [],
+          contactOptions: sampleContactOptions,
+          proposalActivityGroups: [{ group_key: 'tour', display_name: 'סיור', template_key: 'tour' }]
+        },
+        state: tourManagerState,
+        api: {}
+      });
+
+      root.querySelector('[data-pa-tab="new"]')?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+      await delay(20);
+      const form = root.querySelector('[data-pa-form]');
+      assert.ok(form, 'new tour proposal form should open');
+      const typeInput = form.querySelector('[name="activity_type_group"]');
+      typeInput.value = 'tour';
+      typeInput.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+      await delay(20);
+
+      const addButton = form.querySelector('[data-pa-add-tour-component]');
+      for (let index = 0; index < 5; index += 1) addButton.click();
+      await delay(20);
+      const rows = Array.from(form.querySelectorAll('[data-pa-tour-component-row]'));
+      assert.equal(rows.length, 5);
+
+      const preview = form.querySelector('[data-pa-live-preview]');
+      let previewRebuilds = 0;
+      const observer = new dom.window.MutationObserver(() => { previewRebuilds += 1; });
+      observer.observe(preview, { childList: true });
+      const values = [
+        ['class', 'כיתה ח1', '100', '33'],
+        ['class', 'כיתה ח2', '200', '42'],
+        ['class', 'כיתה ח3', '300', '32'],
+        ['guide', '', '400', '3'],
+        ['bus', '', '800', '3']
+      ];
+      rows.forEach((row, index) => {
+        const [type, className, price, quantity] = values[index];
+        row.querySelector('[data-pa-tour-component-type]').value = type;
+        row.querySelector('[data-pa-tour-component-type]').dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+        const classInput = row.querySelector('[data-pa-tour-component-class-name]');
+        classInput.value = className;
+        classInput.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+        for (const [selector, value] of [['[data-pa-tour-component-price]', price], ['[data-pa-tour-component-quantity]', quantity]]) {
+          const input = row.querySelector(selector);
+          input.value = value;
+          input.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+        }
+      });
+
+      assert.deepEqual(rows.map((row) => row.querySelector('[data-pa-tour-component-total]').value), ['3300.00', '8400.00', '9600.00', '1200.00', '2400.00']);
+      assert.equal(form.querySelector('[data-pa-tour-total]').value, '24900.00');
+      assert.equal(form.querySelector('[data-pa-grand-total]').textContent, '₪ 24,900');
+      await delay(260);
+      observer.disconnect();
+      assert.ok(previewRebuilds <= 2, `expected at most two coalesced preview rebuilds, got ${previewRebuilds}`);
+      assert.deepEqual(pageErrors, []);
+    }
+  );
+});
+
 
 test('extractItemsFromForm saves tour_table_v2 with additional cost components', async () => {
   await withJSDOM(`<form data-pa-form>
