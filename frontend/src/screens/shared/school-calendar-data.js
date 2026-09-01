@@ -4,6 +4,7 @@ const SCHOOL_CALENDAR_COLUMNS = [
   'external_key',
   'title',
   'category',
+  'calendar_sector',
   'start_date',
   'end_date',
   'resume_date',
