@@ -40,6 +40,16 @@ function normalizeDecodedPath(path: string) {
   }
 }
 
+function resolveSharePointFolderPath(folderWebUrl: string) {
+  const url = new URL(folderWebUrl);
+  const embeddedPath = clean(url.searchParams.get("id") || url.searchParams.get("RootFolder"));
+  if (embeddedPath) {
+    const normalizedEmbeddedPath = normalizeDecodedPath(embeddedPath);
+    if (normalizedEmbeddedPath.startsWith("/")) return normalizedEmbeddedPath;
+  }
+  return normalizeDecodedPath(url.pathname);
+}
+
 function encodeGraphPath(path: string) {
   return path.split("/").filter(Boolean).map((segment) => encodeURIComponent(segment)).join("/");
 }
@@ -233,8 +243,7 @@ async function liveComponents(token: string, folderWebUrl: string) {
 
   const drives = await graphGet(token, `/sites/${encodeURIComponent(siteId)}/drives?$select=id,name,webUrl,driveType`);
   const driveRows = Array.isArray(drives?.value) ? drives.value : [];
-  const folderUrl = new URL(folderWebUrl);
-  const targetPath = normalizeDecodedPath(folderUrl.pathname);
+  const targetPath = resolveSharePointFolderPath(folderWebUrl);
 
   let drive = driveRows.find((row: any) => {
     if (!row?.webUrl) return false;
