@@ -145,3 +145,4 @@ config.HOTFIX_VERSION = `attendance-public-transport-compact-form-20260831-v1-${
 config.HOTFIX_VERSION = `attendance-dependent-fields-reopen-window-20260831-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `admin-keyboard-converter-20260831-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `admin-keyboard-converter-compact-20260831-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `proposal-tour-input-performance-20260901-v1-${config.HOTFIX_VERSION}`;

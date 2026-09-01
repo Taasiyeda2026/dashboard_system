@@ -374,8 +374,14 @@ function isGefenProposalDocument(documentRoot) {
   );
 }
 
+export function isTourProposalDocument(documentRoot) {
+  return Boolean(
+    documentRoot?.matches?.('.pa-proposal-doc--tour')
+    || documentRoot?.querySelector?.('.pa-tour-cost-table, [data-pa-proposal-type="tour"]')
+  );
+}
+
 export function normalizeProposalWorkflowDocument(root = document) {
-  normalizeNextYearWorkshopTables(root);
   const documents = [];
   if (root?.matches?.('.proposal-document')) documents.push(root);
   root?.querySelectorAll?.('.proposal-document').forEach((documentRoot) => documents.push(documentRoot));
@@ -384,7 +390,8 @@ export function normalizeProposalWorkflowDocument(root = document) {
     // previews use their own tables and must never be rewritten by the generic
     // next-year splitter; doing so can trigger a heavy observer/render cascade
     // when a second GEFEN course is selected.
-    if (isGefenProposalDocument(documentRoot)) return;
+    if (isGefenProposalDocument(documentRoot) || isTourProposalDocument(documentRoot)) return;
+    normalizeNextYearWorkshopTables(documentRoot);
     splitGenericNextYearTable(documentRoot);
     normalizeNextYearActivityIntro(documentRoot);
   });

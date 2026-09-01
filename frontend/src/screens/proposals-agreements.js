@@ -7133,7 +7133,15 @@ export const proposalsAgreementsScreen = {
       const form = container?.closest?.('[data-pa-form]') || container?.querySelector?.('[data-pa-form]');
       if (!form || form.dataset.paStepperBound === 'yes') return;
       form.dataset.paStepperBound = 'yes';
-      form.addEventListener('input', () => { updateProposalStepper(form); calcGrandTotal(form); renderContactChannelsStatus(form); }, { signal });
+      form.addEventListener('input', (event) => {
+        const tourComponentInput = event.target?.matches?.('[data-pa-tour-component-price], [data-pa-tour-component-quantity], [data-pa-tour-component-class-name]');
+        updateProposalStepper(form);
+        calcGrandTotal(form, tourComponentInput ? {
+          tourRow: event.target.closest('[data-pa-tour-component-row]'),
+          previewDelay: 200
+        } : {});
+        renderContactChannelsStatus(form);
+      }, { signal });
       form.addEventListener('change', () => setTimeout(() => { updateProposalStepper(form); calcGrandTotal(form); }, 0), { signal });
       updateProposalStepper(form);
       setupCatalogAttach(form);
@@ -7944,11 +7952,20 @@ export const proposalsAgreementsScreen = {
 
 
     let previewFrame = 0;
+    let previewTimer = 0;
     let pendingPreviewForm = null;
-    const updateLivePreview = (container) => {
+    const updateLivePreview = (container, delay = 0) => {
       const form = container?.closest?.('[data-pa-form]') || (container?.matches?.('[data-pa-form]') ? container : null);
       if (!form) return;
       pendingPreviewForm = form;
+      if (delay > 0) {
+        if (previewTimer) clearTimeout(previewTimer);
+        previewTimer = setTimeout(() => {
+          previewTimer = 0;
+          updateLivePreview(pendingPreviewForm);
+        }, delay);
+        return;
+      }
       if (previewFrame) return;
       previewFrame = requestAnimationFrame(() => {
         previewFrame = 0;
@@ -7968,7 +7985,9 @@ export const proposalsAgreementsScreen = {
         proposal_date: payload.proposal_date || localDateInputValue()
       });
       const templateSections = filterTemplateSectionsForGroup(proposalTemplateSections, row.activity_type_group);
-      previewHost.innerHTML = proposalPreviewBodyHtml(row, payload._items || [], templateSections);
+      const nextHtml = proposalPreviewBodyHtml(row, payload._items || [], templateSections);
+      if (previewHost.innerHTML === nextHtml) return;
+      previewHost.innerHTML = nextHtml;
       proposalPdfDocumentNormalizer?.(previewHost);
     };
 
@@ -7979,36 +7998,50 @@ export const proposalsAgreementsScreen = {
       const totalInput = rowEl.querySelector('[data-pa-item-total]');
       const totalDisplay = rowEl.querySelector('[data-pa-item-total-display]');
       const total = qty && price ? qty * price : 0;
-      if (totalInput) totalInput.value = total ? total.toFixed(2) : '';
-      if (totalDisplay) totalDisplay.textContent = total ? `₪ ${formatCurrency(total)}` : '';
+      const totalValue = total ? total.toFixed(2) : '';
+      const totalText = total ? `₪ ${formatCurrency(total)}` : '';
+      if (totalInput && totalInput.value !== totalValue) totalInput.value = totalValue;
+      if (totalDisplay && totalDisplay.textContent !== totalText) totalDisplay.textContent = totalText;
       return total;
     };
 
-    const calcTourTotal = (container) => {
+    const calcTourComponentRow = (row) => {
+      const typeInput = row.querySelector('[data-pa-tour-component-type]');
+      const component_type = text(typeInput?.value);
+      const classNameField = row.querySelector('[data-pa-tour-class-name-field]');
+      const classFieldHidden = component_type !== 'class';
+      if (classNameField && classNameField.hidden !== classFieldHidden) classNameField.hidden = classFieldHidden;
+      const classNameInput = row.querySelector('[data-pa-tour-component-class-name]');
+      const customLabel = component_type === 'class' ? text(classNameInput?.value) : null;
+      const labelInput = row.querySelector('[data-pa-tour-component-label]');
+      const label = customLabel || TOUR_COST_COMPONENT_LABELS.get(component_type) || text(labelInput?.value);
+      if (labelInput && labelInput.value !== label) labelInput.value = label;
+      const unit_price = numberValue(row.querySelector('[data-pa-tour-component-price]')?.value) ?? 0;
+      const quantity = numberValue(row.querySelector('[data-pa-tour-component-quantity]')?.value) ?? 1;
+      const total_price = unit_price * quantity;
+      const totalValue = total_price ? total_price.toFixed(2) : '';
+      const rowTotal = row.querySelector('[data-pa-tour-component-total]');
+      if (rowTotal && rowTotal.value !== totalValue) rowTotal.value = totalValue;
+      return { component_type, label, unit_price, quantity, total_price };
+    };
+
+    const calcTourTotal = (container, changedRow = null) => {
       const details = container.querySelector('[data-pa-tour-details]');
       if (!details) return null;
       const totalInput = details.querySelector('[data-pa-tour-total]');
       const costComponents = Array.from(details.querySelectorAll('[data-pa-tour-component-row]')).map((row) => {
-        const typeInput = row.querySelector('[data-pa-tour-component-type]');
-        const component_type = text(typeInput?.value);
-        // Show/hide class name field based on component type
-        const classNameField = row.querySelector('[data-pa-tour-class-name-field]');
-        if (classNameField) classNameField.hidden = (component_type !== 'class');
-        // Resolve label: class uses custom name input; others use fixed display label
-        const classNameInput = row.querySelector('[data-pa-tour-component-class-name]');
-        const customLabel = component_type === 'class' ? text(classNameInput?.value) : null;
-        const labelInput = row.querySelector('[data-pa-tour-component-label]');
-        const label = customLabel || TOUR_COST_COMPONENT_LABELS.get(component_type) || text(labelInput?.value);
-        if (labelInput) labelInput.value = label;
-        const unit_price = numberValue(row.querySelector('[data-pa-tour-component-price]')?.value) ?? 0;
-        const componentQuantity = numberValue(row.querySelector('[data-pa-tour-component-quantity]')?.value) ?? 1;
-        const total_price = unit_price * componentQuantity;
-        const rowTotal = row.querySelector('[data-pa-tour-component-total]');
-        if (rowTotal) rowTotal.value = total_price ? total_price.toFixed(2) : '';
-        return { component_type, label, unit_price, quantity: componentQuantity, total_price };
+        if (!changedRow || row === changedRow) return calcTourComponentRow(row);
+        return {
+          component_type: text(row.querySelector('[data-pa-tour-component-type]')?.value),
+          label: text(row.querySelector('[data-pa-tour-component-label]')?.value),
+          unit_price: numberValue(row.querySelector('[data-pa-tour-component-price]')?.value) ?? 0,
+          quantity: numberValue(row.querySelector('[data-pa-tour-component-quantity]')?.value) ?? 1,
+          total_price: numberValue(row.querySelector('[data-pa-tour-component-total]')?.value) ?? 0
+        };
       });
       const calculated = calculateTourTotal({ costComponents });
-      if (totalInput) totalInput.value = calculated ? calculated.toFixed(2) : '';
+      const totalValue = calculated ? calculated.toFixed(2) : '';
+      if (totalInput && totalInput.value !== totalValue) totalInput.value = totalValue;
       return calculated ?? 0;
     };
 
@@ -8030,8 +8063,8 @@ export const proposalsAgreementsScreen = {
       });
     };
 
-    const calcGrandTotal = (container) => {
-      let subtotal = calcTourTotal(container);
+    const calcGrandTotal = (container, options = {}) => {
+      let subtotal = calcTourTotal(container, options.tourRow);
       if (subtotal == null) {
         subtotal = 0;
         container.querySelectorAll('[data-pa-item-row]').forEach((rowEl) => { subtotal += calcItemRow(rowEl); });
@@ -8042,24 +8075,33 @@ export const proposalsAgreementsScreen = {
       const discount = discountType === 'percent' ? subtotal * (Math.min(discountValue, 100) / 100) : Math.min(discountValue, subtotal);
       const sum = Math.max(subtotal - discount, 0);
       const el = container.querySelector('[data-pa-grand-total]');
-      if (el) el.textContent = sum ? `₪ ${formatCurrency(sum)}` : '₪ 0';
+      const grandTotalText = sum ? `₪ ${formatCurrency(sum)}` : '₪ 0';
+      if (el && el.textContent !== grandTotalText) el.textContent = grandTotalText;
       const subtotalEl = container.querySelector('[data-pa-summary-subtotal]');
-      if (subtotalEl) subtotalEl.textContent = subtotal ? `₪ ${formatCurrency(subtotal)}` : '₪ 0';
+      const subtotalText = subtotal ? `₪ ${formatCurrency(subtotal)}` : '₪ 0';
+      if (subtotalEl && subtotalEl.textContent !== subtotalText) subtotalEl.textContent = subtotalText;
       const discountEl = container.querySelector('[data-pa-summary-discount]');
-      if (discountEl) discountEl.textContent = discount ? `-₪ ${formatCurrency(discount)}` : '₪ 0';
-      container.querySelectorAll('[data-pa-summary-discount-row]').forEach((el) => { el.hidden = discount <= 0; });
+      const discountText = discount ? `-₪ ${formatCurrency(discount)}` : '₪ 0';
+      if (discountEl && discountEl.textContent !== discountText) discountEl.textContent = discountText;
+      container.querySelectorAll('[data-pa-summary-discount-row]').forEach((el) => {
+        const hidden = discount <= 0;
+        if (el.hidden !== hidden) el.hidden = hidden;
+      });
       const summaryEl = container.querySelector('[data-pa-summary-total]');
-      if (summaryEl) summaryEl.textContent = sum ? `₪ ${formatCurrency(sum)}` : '₪ 0';
+      if (summaryEl && summaryEl.textContent !== grandTotalText) summaryEl.textContent = grandTotalText;
       // Update summary card fields
       const form = container.closest?.('[data-pa-form]') || (container.matches?.('[data-pa-form]') ? container : null);
       if (form) {
         const clientEl = form.querySelector('[data-pa-summary-client]');
-        if (clientEl) clientEl.textContent = text(form.querySelector('[name="client_authority"]')?.value) || '—';
+        const clientText = text(form.querySelector('[name="client_authority"]')?.value) || '—';
+        if (clientEl && clientEl.textContent !== clientText) clientEl.textContent = clientText;
         const typeEl = form.querySelector('[data-pa-summary-type]');
-        if (typeEl) typeEl.textContent = proposalGroupDisplayName(form.querySelector('[name="activity_type_group"]')?.value) || '—';
+        const typeText = proposalGroupDisplayName(form.querySelector('[name="activity_type_group"]')?.value) || '—';
+        if (typeEl && typeEl.textContent !== typeText) typeEl.textContent = typeText;
         const countEl = form.querySelector('[data-pa-summary-count]');
-        if (countEl) countEl.textContent = String(form.querySelectorAll('[data-pa-item-row]').length) || '—';
-        updateLivePreview(form);
+        const countText = String(form.querySelectorAll('[data-pa-item-row]').length) || '—';
+        if (countEl && countEl.textContent !== countText) countEl.textContent = countText;
+        updateLivePreview(form, options.previewDelay || 0);
       }
       return sum;
     };
