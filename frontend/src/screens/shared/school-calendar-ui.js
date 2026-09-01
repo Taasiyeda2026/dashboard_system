@@ -1,5 +1,5 @@
 import { formatDateHe } from './format-date.js';
-import { compactSchoolCalendarLabel, schoolCalendarEventsForDate } from './school-calendar-logic.js';
+import { calendarSectorLabel, compactSchoolCalendarLabel, schoolCalendarEventsForDate } from './school-calendar-logic.js';
 import { loadSchoolCalendarRows } from './school-calendar-data.js';
 
 const HEBREW_MONTH_INDEX = new Map([
@@ -115,6 +115,15 @@ function displayedMonthSpec() {
   return null;
 }
 
+function eventTitleWithSector(event = {}) {
+  const sector = calendarSectorLabel(event.calendar_sector);
+  return sector ? `${event.title} · ${sector}` : event.title;
+}
+
+function labeledEvents(events = []) {
+  return events.map((event) => ({ ...event, title: eventTitleWithSector(event) }));
+}
+
 function setMonthSubtitle(card, label) {
   let subtitle = card.querySelector('.ds-interactive-card__subtitle');
   if (!subtitle) {
@@ -141,12 +150,12 @@ function decorateMonth(rows) {
     const events = schoolCalendarEventsForDate(rows, isoDate);
     if (!events.length) return;
 
-    setMonthSubtitle(card, compactSchoolCalendarLabel(events, { maxTitles: 1 }));
+    setMonthSubtitle(card, compactSchoolCalendarLabel(labeledEvents(events), { maxTitles: 1 }));
     card.classList.add('is-school-calendar-day');
     card.classList.toggle('is-school-holiday', events.some((event) => event.blocks_scheduling));
     card.title = events.map((event) => {
       const resume = event.resume_date ? ` · חזרה ${formatDateHe(event.resume_date) || event.resume_date}` : '';
-      return `${event.title}${resume}`;
+      return `${eventTitleWithSector(event)}${resume}`;
     }).join('\n');
   });
 }
@@ -168,11 +177,11 @@ function decorateWeek(rows) {
       header.appendChild(label);
     }
 
-    const text = compactSchoolCalendarLabel(events, { maxTitles: 2 });
+    const text = compactSchoolCalendarLabel(labeledEvents(events), { maxTitles: 2 });
     label.dataset.schoolCalendarLabel = 'true';
     if (label.textContent !== text) label.textContent = text;
     label.classList.toggle('is-school-holiday', events.some((event) => event.blocks_scheduling));
-    label.title = events.map((event) => event.title).join('\n');
+    label.title = events.map((event) => eventTitleWithSector(event)).join('\n');
   });
 }
 
