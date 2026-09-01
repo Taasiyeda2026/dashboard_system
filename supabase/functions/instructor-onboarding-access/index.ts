@@ -115,14 +115,15 @@ Deno.serve(async (req: Request) => {
       .eq('user_id', userId)
       .maybeSingle();
     if (existingUserError) throw existingUserError;
+    if (!existingUser) throw new Error('onboarding_user_row_missing');
 
     const permissions = {
-      ...(existingUser?.permissions && typeof existingUser.permissions === 'object' ? existingUser.permissions : {}),
+      ...(existingUser.permissions && typeof existingUser.permissions === 'object' ? existingUser.permissions : {}),
       ...ACCESS_PERMISSIONS,
     };
 
     let authUser = null;
-    const linkedAuthId = clean(existingUser?.auth_user_id);
+    const linkedAuthId = clean(existingUser.auth_user_id);
     if (linkedAuthId) {
       const { data, error } = await admin.auth.admin.getUserById(linkedAuthId);
       if (!error && data?.user) authUser = data.user;
@@ -151,27 +152,27 @@ Deno.serve(async (req: Request) => {
     }
     if (!authUser?.id) throw new Error('auth_user_not_created');
 
-    const payload = {
-      user_id: userId,
-      emp_id: userId,
-      username: clean(existingUser?.username) || userId,
-      name: clean(instructor.full_name),
-      full_name: clean(instructor.full_name),
-      role: 'instructor',
-      display_role: clean(existingUser?.display_role) || 'instructor',
-      email: clean(instructor.email),
-      is_active: true,
-      permissions,
-      auth_user_id: authUser.id,
-      auth_email: clean(authUser.email) || authEmail,
-      migrated_to_auth: true,
-      updated_at: new Date().toISOString(),
-    };
-
-    const { error: upsertError } = await admin
+    const { data: updatedRows, error: updateError } = await admin
       .from('users')
-      .upsert(payload, { onConflict: 'user_id' });
-    if (upsertError) throw upsertError;
+      .update({
+        emp_id: clean(existingUser.emp_id) || userId,
+        username: clean(existingUser.username) || userId,
+        name: clean(instructor.full_name),
+        full_name: clean(instructor.full_name),
+        role: 'instructor',
+        display_role: clean(existingUser.display_role) || 'instructor',
+        email: clean(instructor.email),
+        is_active: true,
+        permissions,
+        auth_user_id: authUser.id,
+        auth_email: clean(authUser.email) || authEmail,
+        migrated_to_auth: true,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('user_id', userId)
+      .select('user_id');
+    if (updateError) throw updateError;
+    if (!Array.isArray(updatedRows) || updatedRows.length !== 1) throw new Error('onboarding_user_update_failed');
 
     return json({
       ok: true,
