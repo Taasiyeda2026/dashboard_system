@@ -16,6 +16,7 @@ import {
   compareCandidatesStable
 } from './course-scheduling-score.js';
 import { normalizeOperationalDistrict } from './shared/district-normalization.js';
+import { filterSchoolCalendarRowsBySector } from './shared/school-calendar-logic.js';
 
 export { courseUrgency };
 
@@ -41,7 +42,6 @@ export function schedulingCourses(rows = [], options = {}) {
     .filter((row) => {
       const meetings = activityMeetings(row);
       if (meetings.some((meeting) => isDateInCourseSchedulingPeriod(meeting.date, periodKey))) return true;
-      // District simulation must still surface courses that lack dates/hours as חסרים נתונים.
       if (includeIncompleteWithoutPeriodMeetings && !meetings.length) return true;
       return false;
     });
@@ -59,6 +59,7 @@ export function missingCourseInformation(activity, options = {}) {
   const missing = [];
   if (!text(activity?.school)) missing.push('בית ספר');
   if (!text(activity?.school_address)) missing.push('כתובת בית הספר');
+  if (!text(activity?.calendar_sector)) missing.push('מגזר בית הספר');
   const periodKey = options.periodKey || DEFAULT_COURSE_SCHEDULING_PERIOD_KEY;
   const meetings = activityMeetings(activity).filter((meeting) => isDateInCourseSchedulingPeriod(meeting.date, periodKey));
   if (!meetings.length) missing.push('תאריכי מפגשים');
@@ -77,7 +78,7 @@ export function availabilityHours(profile = {}, rules = []) {
   void profile;
   const availableRules = rules.filter((rule) => rule.available && Number(rule.weekday) !== 6);
   if (!availableRules.length) return 0;
-  return availableRules.reduce((sum, rule) => sum + Math.max(0, minutes(rule.end_time) - minutes(rule.start_time)) / 60, 0);
+  return availableRules.reduce((sum, rule) => sum + Math.max(0, minutes(rule.end_time) - minutes(rule.start_time)) / 60, 0;
 }
 
 export function instructorLoad(assignments = [], profile = {}, rules = [], options = {}) {
@@ -131,20 +132,23 @@ export function instructorLoad(assignments = [], profile = {}, rules = [], optio
 function meetingAssignments(rows = [], options = {}) {
   const periodKey = options.periodKey || DEFAULT_COURSE_SCHEDULING_PERIOD_KEY;
   const schoolCalendar = options.schoolCalendar || [];
-  return rows.flatMap((activity) => activityMeetings(activity?.draft_emp_id && Array.isArray(activity.draft_proposed_meetings)
-    ? { ...activity, meetings: activity.draft_proposed_meetings }
-    : activity)
-    .filter((meeting) => options.allDates || isDateInCourseSchedulingPeriod(meeting.date, periodKey))
-    .map((meeting) => ({
-      ...meeting,
-      end_time: effectiveEndTime(text(meeting.date).slice(0, 10), meeting.end_time || activity.end_time, schoolCalendar),
-      activity_id: idOf(activity),
-      school: activity.school,
-      school_id: activity.school_id,
-      authority: activity.authority,
-      school_address: activity.school_address,
-      activity_name: activity.activity_name
-    })));
+  return rows.flatMap((activity) => {
+    const activityCalendar = filterSchoolCalendarRowsBySector(schoolCalendar, activity?.calendar_sector);
+    return activityMeetings(activity?.draft_emp_id && Array.isArray(activity.draft_proposed_meetings)
+      ? { ...activity, meetings: activity.draft_proposed_meetings }
+      : activity)
+      .filter((meeting) => options.allDates || isDateInCourseSchedulingPeriod(meeting.date, periodKey))
+      .map((meeting) => ({
+        ...meeting,
+        end_time: effectiveEndTime(text(meeting.date).slice(0, 10), meeting.end_time || activity.end_time, activityCalendar),
+        activity_id: idOf(activity),
+        school: activity.school,
+        school_id: activity.school_id,
+        authority: activity.authority,
+        school_address: activity.school_address,
+        activity_name: activity.activity_name
+      }));
+  });
 }
 
 function assignedRowsByInstructor(rows = [], supplied = {}) {
@@ -202,8 +206,6 @@ function dynamicTravel(course, instructor, existingMeetings, input = {}) {
     transitions[meeting.date] = {
       previous: previous ? routeLeg(input.routeMatrix, placeOf(previous), destination, sameSchool(previous, course)) : null,
       next: next ? routeLeg(input.routeMatrix, destination, placeOf(next), sameSchool(course, next)) : null,
-      // Route that existed before inserting the course. Subtracting this leg is
-      // what turns surrounding travel into the course's real incremental travel.
       baseline: previous && next
         ? routeLeg(input.routeMatrix, placeOf(previous), placeOf(next), sameSchool(previous, next))
         : previous
@@ -224,7 +226,6 @@ function dynamicTravel(course, instructor, existingMeetings, input = {}) {
   };
 }
 
-/** Planning-state activity row — prefers proposed meetings of a selected candidate. */
 function draftActivityFromCandidate(course, candidate) {
   if (!course) return null;
   const meetings = (candidate?.proposedMeetings && candidate.proposedMeetings.length)
@@ -244,7 +245,6 @@ function draftActivityFromCandidate(course, candidate) {
   };
 }
 
-/** Internal planning recommendations only (unsaved automatic picks). */
 function planningRowsForInstructor(planningDraft, empId, ordered, excludeCourseId = '') {
   return [...planningDraft.entries()]
     .filter(([courseId, candidate]) => courseId !== excludeCourseId && text(candidate.instructor?.emp_id) === empId)
@@ -266,22 +266,20 @@ function evaluateCandidate({
   input
 }) {
   const empId = text(instructor.emp_id);
-  // A: persisted schedule only — approved assignments + saved drafts.
   const persistedRows = [...(assignedRows[empId] || [])];
-  // Unsaved automatic recommendations are intentionally ignored. Only approved
-  // assignments and drafts that the user actually saved may affect another course.
   void planningRows;
   const periodKey = input.periodKey || DEFAULT_COURSE_SCHEDULING_PERIOD_KEY;
   const allMeetings = activityMeetings(course);
   const periodMeetings = allMeetings.filter((meeting) => isDateInCourseSchedulingPeriod(meeting.date, periodKey));
   const originalPeriodCourse = { ...course, meetings: periodMeetings };
+  const courseSchoolCalendar = filterSchoolCalendarRowsBySector(input.schoolCalendar || [], course?.calendar_sector);
   const meetingOptions = { periodKey, allDates: true, schoolCalendar: input.schoolCalendar || [] };
   const persistedMeetings = meetingAssignments(persistedRows, meetingOptions);
   const adjustmentInput = {
     meetings: allMeetings,
     rules: rules[empId] || [],
     exceptions: exceptions[empId] || [],
-    schoolCalendar: input.schoolCalendar || [],
+    schoolCalendar: courseSchoolCalendar,
     existingActivities: persistedMeetings,
     halfEnd: resolveCourseSchedulingPeriod(periodKey).end
   };
@@ -299,19 +297,12 @@ function evaluateCandidate({
   }
   const periodCourse = adjustment?.valid ? { ...course, meetings: adjustment.meetings } : originalPeriodCourse;
 
-  // User-facing workload / workdays: persisted rows (+ current course for projected) only.
   const persistedBaselineLoad = instructorLoad(persistedRows, profiles[empId], rules[empId] || [], { periodKey });
   const persistedProjectedLoad = instructorLoad([...persistedRows, periodCourse], profiles[empId], rules[empId] || [], { periodKey });
   const persistedPeriodMeetings = meetingAssignments(persistedRows, { periodKey, schoolCalendar: input.schoolCalendar || [] });
-  // Hard-gate must inspect every active meeting of the course, not only those inside
-  // the selected half-year window.  The period filter is for display/planning only.
-  // allMeetingsCourse: when a date adjustment is valid its meetings already span the
-  // full adjusted schedule; otherwise fall back to all non-cancelled course meetings.
   const plannerAllMeetings = meetingAssignments(persistedRows, meetingOptions);
   const allMeetingsCourse = adjustment?.valid ? periodCourse : { ...course, meetings: allMeetings };
   const gateTravel = dynamicTravel(allMeetingsCourse, instructor, plannerAllMeetings, input);
-  // Display metadata may stay period-scoped, but threshold checks and ranking both use
-  // the complete real course schedule (including meetings that cross into the next half).
   const travel = dynamicTravel(periodCourse, instructor, persistedPeriodMeetings, input);
   const gate = evaluateInstructor({
     instructor,
@@ -365,7 +356,6 @@ function evaluateCandidate({
     travel,
     periodCourse,
     originalPeriodCourse,
-    // User-facing / hard-gate neighbors: persisted only. Soft scorer keeps planner meetings separately.
     existingMeetings: persistedPeriodMeetings,
     plannerMeetings: persistedPeriodMeetings,
     planningMeetings: [],
@@ -468,10 +458,6 @@ function evaluateCourseCandidates({
   return rescoreEligiblePeers(raw, course);
 }
 
-/**
- * Stage 3 sequential planner: order courses by urgency/scarcity, score instructors,
- * recommend one primary + up to three alternatives. Temporary planning state only.
- */
 export function calculateCourseSchedule(input = {}) {
   const activities = input.activities || [];
   const periodKey = input.periodKey || DEFAULT_COURSE_SCHEDULING_PERIOD_KEY;
@@ -495,7 +481,6 @@ export function calculateCourseSchedule(input = {}) {
   const referenceDate = input.referenceDate || input.now || null;
   const urgencyByCourse = new Map(ready.map((course) => [idOf(course), courseUrgency(course, referenceDate)]));
 
-  // Baseline eligibility counts — against approved/draft only, before planning recommendations.
   const baselineEligibleCount = new Map();
   for (const course of ready) {
     const baseline = evaluateCourseCandidates({
@@ -595,9 +580,6 @@ export function calculateCourseSchedule(input = {}) {
         ? 'לא ניתן להשלים את בדיקת השיבוץ משום שחסרים נתונים בפרופילי מדריכים.'
         : !recommended ? primaryRejectionReason(checked) : ''
     });
-
-    // Do not feed this unsaved recommendation into later courses. A subsequent
-    // calculation will see it only after it has been persisted as a saved draft.
   }
 
   const incompleteResults = courses
@@ -613,7 +595,6 @@ export function calculateCourseSchedule(input = {}) {
       eligibleCandidateCount: 0
     }));
 
-  // Ready courses are returned in planning order; incomplete courses follow.
   return [...ordered.map((course) => resultsById.get(idOf(course))), ...incompleteResults];
 }
 
