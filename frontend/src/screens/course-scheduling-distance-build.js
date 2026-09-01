@@ -12,6 +12,7 @@ export const SCHEDULING_ROUTE_ERROR_HE = {
   route_not_found: 'לא נמצא מסלול עבור אחת הכתובות. בדקו את הכתובת במקור הנתונים.',
   google_key_not_configured: 'מפתח Google Maps אינו מוגדר בשרת. לא ניתן לבנות את מאגר המרחקים עד להגדרתו.',
   scheduling_permission_denied: 'אין הרשאה לבניית מאגר המרחקים. נדרשת הרשאת מנהל או מנהל תפעול.',
+  scheduling_school_sector_missing: 'לא ניתן לבצע שיבוץ לפני שיוגדר בית ספר עם מגזר תקין.',
   authentication_required: 'יש להתחבר מחדש כדי לבנות את מאגר המרחקים.',
   authorization_check_failed: 'בדיקת ההרשאות נכשלה. נסו להתחבר מחדש ואז להריץ שוב.',
   instructor_lookup_failed: 'לא ניתן לטעון את רשימת המדריכים לחישוב מרחקים. נסו שוב.',
@@ -29,7 +30,7 @@ export function translateSchedulingRouteError(codeOrMessage, fallback = 'פעו�
   const raw = text(codeOrMessage);
   if (!raw) return fallback;
   if (/edge function returned a non-2xx status code/i.test(raw)) {
-    return 'שירות חישוב המרחקים החזיר שגיאה. בדקו הרשאות, מפתח מפות וחיבור — ואז הריצו שוב.';
+    return 'שירות חישוב המסלולים החזיר שגיאה. בדקו הרשאות, מפתח מפות וחיבור — ואז הריצו שוב.';
   }
   if (SCHEDULING_ROUTE_ERROR_HE[raw]) return SCHEDULING_ROUTE_ERROR_HE[raw];
   for (const [code, message] of Object.entries(SCHEDULING_ROUTE_ERROR_HE)) {
@@ -87,7 +88,6 @@ export function mergeDistanceBuildStats(acc, batch) {
   next.inserted_count += Number(batch?.inserted_count) || 0;
   next.renewed_count += Number(batch?.renewed_count) || 0;
   next.already_valid_count += Number(batch?.already_valid_count) || 0;
-  // Skip counters are absolute per build, not per-batch deltas — keep a stable max.
   next.skipped_count = Math.max(next.skipped_count, Number(batch?.skipped_count) || 0);
   next.skipped_instructors_missing_address_count = Math.max(
     next.skipped_instructors_missing_address_count,
@@ -214,6 +214,7 @@ export function courseReadinessMissingFields(course = {}) {
   if (!text(course.activity_name || course.program_name || course.name || course.title)) missing.push('שם קורס');
   if (!text(course.school)) missing.push('בית ספר');
   if (!text(course.school_address)) missing.push('כתובת בית ספר תקינה');
+  if (!text(course.calendar_sector)) missing.push('מגזר בית הספר');
   if (!meetings.length) missing.push('תאריכי המפגשים');
   if (!text(course.start_time) || meetings.some((meeting) => !text(meeting.start_time || course.start_time))) missing.push('שעת התחלה');
   if (!text(course.end_time) || meetings.some((meeting) => !text(meeting.end_time || course.end_time))) missing.push('שעת סיום');
@@ -354,24 +355,33 @@ export function buildSchoolLocationLookup(schoolRows = []) {
   return { schools, bySchoolId, byAuthorityAndName, duplicateCount, uniqueCount };
 }
 
-export function resolveCanonicalSchoolAddress(activity = {}, lookup) {
+export function resolveCanonicalSchoolRow(activity = {}, lookup) {
   const schoolId = activity.school_id == null ? null : Number(activity.school_id);
   if (schoolId != null && Number.isFinite(schoolId) && lookup?.bySchoolId?.has(schoolId)) {
-    return text(lookup.bySchoolId.get(schoolId).address);
+    return lookup.bySchoolId.get(schoolId) || null;
   }
-  return '';
+  return null;
+}
+
+export function resolveCanonicalSchoolAddress(activity = {}, lookup) {
+  return text(resolveCanonicalSchoolRow(activity, lookup)?.address);
 }
 
 export function enrichActivitiesWithSchoolAddresses(activities = [], schoolRows = []) {
   const lookup = buildSchoolLocationLookup(schoolRows);
   let missingCount = 0;
   const enriched = (activities || []).map((activity) => {
-    const school_address = resolveCanonicalSchoolAddress(activity, lookup);
+    const schoolRow = resolveCanonicalSchoolRow(activity, lookup);
+    const school_address = text(schoolRow?.address);
+    const school_sector = text(schoolRow?.school_sector);
+    const calendar_sector = text(schoolRow?.calendar_sector);
     if (!school_address) missingCount += 1;
     return {
       ...activity,
       school_address,
-      school_address_missing: !school_address
+      school_address_missing: !school_address,
+      school_sector,
+      calendar_sector
     };
   });
   return {
@@ -388,7 +398,6 @@ export function travelCacheKey(originAddress, destinationAddress) {
 }
 
 function isFiniteMetric(value) {
-  // Reject null/'' explicitly — Number(null) is 0 and must not count as a valid metric.
   if (value == null || value === '') return false;
   return Number.isFinite(Number(value));
 }
@@ -397,7 +406,6 @@ export function isLookupTravelCacheValid(cached, originAddress, destinationAddre
   if (!cached) return false;
   const cachedOrigin = text(cached.origin_address);
   const cachedDestination = text(cached.destination_address);
-  // Address fields are enforced only when present (legacy rows may omit them).
   if (cachedOrigin && cachedOrigin !== text(originAddress)) return false;
   if (cachedDestination && cachedDestination !== text(destinationAddress)) return false;
   const expiresAt = new Date(String(cached.expires_at || '')).getTime();
@@ -444,8 +452,6 @@ export function calculateTravelCoverage(pairs = [], cacheRows = [], now = Date.n
   };
 }
 
-// Pure single-pair cache resolver used by integration tests to prove the consumer
-// hits the same address keys produced by the distance-build repository.
 export function resolveSinglePairFromTravelCache(cacheRows = [], originAddress, destinationAddress, now = Date.now()) {
   const originKey = normalizePlaceKey(originAddress);
   const destinationKey = normalizePlaceKey(destinationAddress);
@@ -469,7 +475,6 @@ export function resolveSinglePairFromTravelCache(cacheRows = [], originAddress, 
     };
   }
 
-  // Same normalized address never calls Google — persist/renew a zero same_school row.
   if (originKey === destinationKey) {
     return {
       calculated: true,
@@ -612,8 +617,6 @@ export function findCachedRowForPair(cacheRows = [], pair = {}) {
   )) || null;
 }
 
-// Pure classifier used by tests to verify insert → already_valid across two builds
-// without calling Google Maps.
 export function classifyTravelCachePair(cacheRows = [], pair = {}, now = Date.now()) {
   const existing = findCachedRowForPair(cacheRows, pair);
   if (shouldSkipValidCacheEntry(existing, pair.origin_address, pair.destination_address, now)) {
