@@ -1,15 +1,41 @@
+import { state } from '../../state.js';
 import { formatDateHe } from './format-date.js';
 import { showToast } from './toast.js';
 import {
   addCalendarDays,
   blockingSchoolCalendarEvent,
   isSummerActivitySeason,
-  nextAllowedWeeklyDate,
   shortenedSchoolDayConflict
 } from './school-calendar-logic.js';
 import { getCachedSchoolCalendarRows, loadSchoolCalendarRows } from './school-calendar-data.js';
 
 const saveBypass = new WeakSet();
+const EDEN_HOLIDAY_OVERRIDE_DATE = '2026-09-30';
+const EDEN_USER_ID = '6000';
+const EDEN_EMAIL = 'edenc@think.org.il';
+
+function currentUserCanUseEdenHolidayOverride(isoDate) {
+  if (String(isoDate || '').trim() !== EDEN_HOLIDAY_OVERRIDE_DATE) return false;
+  const user = state?.user || {};
+  const userId = String(user.user_id || '').trim();
+  const email = String(user.auth_email || user.email || '').trim().toLowerCase();
+  return userId === EDEN_USER_ID || email === EDEN_EMAIL;
+}
+
+function blockingEventForFormDate(form, rows, isoDate) {
+  if (currentUserCanUseEdenHolidayOverride(isoDate)) return null;
+  return blockingSchoolCalendarEvent(rows, isoDate);
+}
+
+function nextAllowedWeeklyDateForForm(form, rows, isoDate, maxSkips = 20) {
+  let candidate = String(isoDate || '').trim();
+  let skips = 0;
+  while (candidate && blockingEventForFormDate(form, rows, candidate) && skips < maxSkips) {
+    candidate = addCalendarDays(candidate, 7);
+    skips += 1;
+  }
+  return candidate;
+}
 
 function meetingPickers(form) {
   return Array.from(form.querySelectorAll('[data-meeting-dates-edit] input[data-meeting-idx]')).sort(
@@ -82,11 +108,11 @@ export function generateSessionDatesFromFirstMeeting(form, blockedDatesContext =
   for (let index = 0; index < total; index += 1) {
     if (index > 0) candidate = addCalendarDays(candidate, 7);
     let skippedWeeks = 0;
-    while (blockingSchoolCalendarEvent(blockedDatesContext, candidate) && skippedWeeks < 52) {
+    while (blockingEventForFormDate(form, blockedDatesContext, candidate) && skippedWeeks < 52) {
       candidate = addCalendarDays(candidate, 7);
       skippedWeeks += 1;
     }
-    if (!candidate || blockingSchoolCalendarEvent(blockedDatesContext, candidate)) {
+    if (!candidate || blockingEventForFormDate(form, blockedDatesContext, candidate)) {
       result.exhausted = true;
       break;
     }
@@ -120,7 +146,7 @@ async function skipHolidaysInChain(form, changedIndex) {
 
   for (let position = startPosition; position < pickers.length; position += 1) {
     if (position > startPosition) candidate = addCalendarDays(candidate, 7);
-    const allowedDate = nextAllowedWeeklyDate(rows, candidate);
+    const allowedDate = nextAllowedWeeklyDateForForm(form, rows, candidate);
     if (allowedDate !== String(pickers[position].value || '')) changed = true;
     pickers[position].value = allowedDate;
     pickers[position].dataset.prevValue = allowedDate;
@@ -137,10 +163,12 @@ function validationMessage(form, rows) {
   const dates = meetingPickers(form).map((picker) => String(picker.value || '').trim()).filter(Boolean);
 
   for (const isoDate of dates) {
-    const holiday = blockingSchoolCalendarEvent(rows, isoDate);
+    const holiday = blockingEventForFormDate(form, rows, isoDate);
     if (holiday) {
       return `לא ניתן לשמור פעילות ב־${formatDateHe(isoDate) || isoDate}: ${holiday.title}.`;
     }
+
+    if (currentUserCanUseEdenHolidayOverride(isoDate)) continue;
 
     const shortDay = shortenedSchoolDayConflict(rows, isoDate, endTime);
     if (shortDay) {
