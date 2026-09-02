@@ -80,6 +80,9 @@ test('proposal controller survives next-year row and type-switch stress within r
   }
 
   await expect(form.locator('[data-pa-item-row]')).toHaveCount(20);
+  // Removing a proposal row is intentionally guarded by the product confirmation dialog.
+  // Accept it just as a real user would; Playwright auto-dismisses unhandled dialogs.
+  page.on('dialog', (dialog) => dialog.accept());
   for (let index = 0; index < 5; index += 1) {
     const rows = form.locator('[data-pa-item-row]');
     const count = await rows.count();
