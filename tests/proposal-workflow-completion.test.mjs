@@ -99,6 +99,28 @@ test('mixed next-year document is normalized into course and workshop tables wit
   assert.doesNotMatch(documentRoot.textContent, /ההצעה יכולה לכלול קורסים, סדנאות או שילוב ביניהם/);
 });
 
+test('live next-year editor preview is not re-normalized by the workflow observer', () => {
+  const dom = new JSDOM(`<div data-pa-live-preview>
+    <article class="proposal-document">
+      <section class="pa-section">
+        <h3 class="pa-section-heading">הפעילות המוצעת</h3>
+        <div class="pa-cost-table-block">
+          <table class="pa-cost-table pa-activities-table">
+            <tbody>
+              <tr><td>אופק יזמות פרימיום בתעשייה</td><td>₪ 13,500</td></tr>
+              <tr><td>סדנאות חלל</td><td>₪ 1,000</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </article>
+  </div>`);
+  normalizeProposalWorkflowDocument(dom.window.document);
+  assert.equal(dom.window.document.querySelectorAll('.pa-next-year-course-table').length, 0);
+  assert.equal(dom.window.document.querySelectorAll('.pa-next-year-workshop-table').length, 0);
+  assert.equal(dom.window.document.querySelectorAll('.pa-cost-table tbody tr').length, 2);
+});
+
 test('GEFEN editor totals update row, group and proposal total', () => {
   const dom = new JSDOM(`<form data-pa-form>
     <section data-pa-items-group="gefen"><div data-pa-item-row>
@@ -142,6 +164,8 @@ test('proposal type filter is populated and a dedicated summer tab is added', ()
 test('runtime prewarms editor dependencies and leaves approval/PDF ownership to the integrity runtime', () => {
   assert.match(source, /proposalEditorDepsMemoized/);
   assert.match(source, /requestIdleCallback/);
+  assert.match(source, /paStepperBound === 'yes'/);
+  assert.match(source, /data-pa-live-preview/);
   assert.doesNotMatch(source, /dataset\.paGenerateGefenApproval/);
   assert.doesNotMatch(source, /data-pa-status-action="approved"/);
   assert.doesNotMatch(source, /scheduleAutomaticPdf/);
