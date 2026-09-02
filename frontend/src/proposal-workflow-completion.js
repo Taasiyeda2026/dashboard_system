@@ -155,6 +155,9 @@ function proposalFormEvent(event) {
   const target = event.target;
   if (!target?.matches?.('[data-pa-item-qty], [data-pa-item-price], [data-pa-discount-value], [data-pa-discount-type], [data-pa-pricing-select]')) return;
   const form = target.closest('[data-pa-form]');
+  // The main proposals screen already owns totals and live preview updates once its
+  // stepper is bound. Running this fallback too doubles the DOM work for every input.
+  if (form?.dataset?.paStepperBound === 'yes') return;
   // proposals-agreements.js exclusively owns GEFEN pricing selections.
   if (target.matches('[data-pa-pricing-select]') && text(form?.querySelector?.('[name="activity_type_group"]')?.value) === 'gefen') return;
   if (form) queueMicrotask(() => calculateFormTotals(form));
@@ -381,16 +384,22 @@ export function isTourProposalDocument(documentRoot) {
   );
 }
 
+function isLiveProposalPreviewDocument(documentRoot) {
+  return Boolean(documentRoot?.closest?.('[data-pa-live-preview]'));
+}
+
 export function normalizeProposalWorkflowDocument(root = document) {
   const documents = [];
   if (root?.matches?.('.proposal-document')) documents.push(root);
   root?.querySelectorAll?.('.proposal-document').forEach((documentRoot) => documents.push(documentRoot));
   documents.forEach((documentRoot) => {
-    // This runtime exists to normalize תשפ״ז course/workshop documents. GEFEN
-    // previews use their own tables and must never be rewritten by the generic
-    // next-year splitter; doing so can trigger a heavy observer/render cascade
-    // when a second GEFEN course is selected.
-    if (isGefenProposalDocument(documentRoot) || isTourProposalDocument(documentRoot)) return;
+    // The live editor preview is already rendered with the correct proposal-specific
+    // tables by proposals-agreements.js. Re-normalizing it on every DOM replacement
+    // can trigger a MutationObserver/render cascade, especially with multiple items.
+    // Saved/printed snapshots still pass through this normalizer below.
+    if (isLiveProposalPreviewDocument(documentRoot)
+      || isGefenProposalDocument(documentRoot)
+      || isTourProposalDocument(documentRoot)) return;
     normalizeNextYearWorkshopTables(documentRoot);
     splitGenericNextYearTable(documentRoot);
     normalizeNextYearActivityIntro(documentRoot);
