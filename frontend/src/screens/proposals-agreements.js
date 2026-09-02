@@ -2313,9 +2313,10 @@ function itemsEditorHtml(items = [], pricingOptions = [], activityTypeGroup = ''
         unifiedNextYear: true
       })).join('');
       const hiddenAttr = groupItems.length ? '' : ' hidden';
-      return `<div class="ds-pa-items-section ds-pa-items-section--group" data-pa-items-group="${escapeHtml(groupKey)}"${hiddenAttr}>
+      return `<div class="ds-pa-items-section ds-pa-items-section--group" data-pa-items-group="${escapeHtml(groupKey)}">
         <div class="ds-pa-items-header">
           <span class="ds-pa-items-section-label">${escapeHtml(label)}</span>
+          <button type="button" class="ds-btn ds-btn--xs" data-pa-add-item data-pa-add-item-group="${escapeHtml(groupKey)}">${NEXT_YEAR_UNIFIED_ADD_LABEL}</button>
         </div>
         <div class="ds-pa-items-list" data-pa-items-body data-pa-items-group-body="${escapeHtml(groupKey)}">${rowsHtml}</div>
         <div class="ds-pa-items-group-total-row" data-pa-items-group-total-row="${escapeHtml(groupKey)}"${hiddenAttr}>
@@ -2325,9 +2326,6 @@ function itemsEditorHtml(items = [], pricingOptions = [], activityTypeGroup = ''
       </div>`;
     };
     return `<div class="ds-pa-items-section ds-pa-items-unified-next-year" data-pa-next-year-unified="yes" data-pa-next-year-shared-picker="yes">
-      <div class="ds-pa-items-header">
-        <button type="button" class="ds-btn ds-btn--xs" data-pa-add-item data-pa-add-item-group="next_year">${NEXT_YEAR_UNIFIED_ADD_LABEL}</button>
-      </div>
       ${renderGroupSection('next_year_courses', 'קורסים ותוכניות', courseItems, 0)}
       ${renderGroupSection('next_year_workshops', 'סדנאות', workshopItems, courseItems.length || 0)}
       ${footer}
@@ -7192,6 +7190,9 @@ export const proposalsAgreementsScreen = {
           modeEl.classList.remove('ds-pa-template-mode--custom');
         }
         updateProposalStepper(form);
+        // Newly built controls use the screen's delegated item handler; bind any
+        // self-contained picker controls exactly once within the fresh subtree.
+        setupActivityPickers(itemsHost);
         calcGrandTotal(form);
       }, { signal });
     };
@@ -10060,7 +10061,9 @@ export const proposalsAgreementsScreen = {
         if (!normalizeProposalGroup(currentType)) return;
         const unifiedNextYear = Boolean(unifiedHost) || isNextYearUnifiedActivitiesGroup(currentType) || isNextYearUnifiedActivitiesGroup(groupKey);
         // Shared תשפ״ז picker lands new blank rows in the programs table until classified.
-        const landingGroup = unifiedNextYear ? 'next_year_courses' : (groupKey || currentType);
+        const landingGroup = unifiedNextYear
+          ? (isNextYearInternalRowGroup(groupKey) ? groupKey : 'next_year_courses')
+          : (groupKey || currentType);
         const landingSection = sharedPicker
           ? form?.querySelector(`[data-pa-items-group="${landingGroup}"]`)
           : groupSection;

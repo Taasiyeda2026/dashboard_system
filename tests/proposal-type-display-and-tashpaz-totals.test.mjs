@@ -248,11 +248,11 @@ test('a single-area תשפ״ז document shows one table and no empty table', () 
   assert.equal(parsed.querySelectorAll('.pa-next-year-combined-total').length, 0);
 });
 
-test('תשפ״ז keeps dual tables with one shared add-activity action', async () => {
+test('תשפ״ז keeps dual tables with explicit course and workshop add actions', async () => {
   const screenSource = await readFile(SCREEN_FILE, 'utf8');
 
   assert.match(screenSource, /data-pa-next-year-shared-picker="yes"/, 'תשפ״ז editor must expose a shared activity picker host');
-  assert.match(screenSource, /\+ הוסף פעילות/, 'תשפ״ז must expose a single add-activity action');
+  assert.match(screenSource, /data-pa-add-item-group="\$\{escapeHtml\(groupKey\)\}"/, 'each תשפ״ז area must expose its typed add action');
   assert.match(screenSource, /renderGroupSection\('next_year_courses'/);
   assert.match(screenSource, /renderGroupSection\('next_year_workshops'/);
   assert.match(screenSource, /data-pa-items-group="\$\{escapeHtml\(groupKey\)\}"/);
@@ -276,7 +276,7 @@ test('תשפ״ז keeps dual tables with one shared add-activity action', async (
     screenSource.indexOf('const setupTypeChangeHandler'),
     screenSource.indexOf('// ── Client lock / unlock helpers')
   );
-  assert.match(typeHandler, /event\.stopPropagation\(\)[\s\S]*?calcGrandTotal\(form\)/, 'type change must consume the synthetic event and run exactly one controller transaction');
+  assert.match(typeHandler, /event\.stopPropagation\(\)[\s\S]*?setupActivityPickers\(itemsHost\)[\s\S]*?calcGrandTotal\(form\)/, 'type change must build, bind and run exactly one controller transaction');
   assert.doesNotMatch(typeHandler, /setupItemCalc|updateLivePreview/, 'type change must not schedule a second preview path');
 
   ['addItemBtn', 'removeItemBtn'].forEach((handler) => {
