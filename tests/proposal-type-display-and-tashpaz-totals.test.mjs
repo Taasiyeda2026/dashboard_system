@@ -283,7 +283,7 @@ test('תשפ״ז keeps dual tables with explicit course and workshop add actions
     assert.ok(screenSource.includes(handler), `${handler} must exist`);
   });
   assert.match(screenSource, /form\.addEventListener\('input', \(event\) => \{[\s\S]*?calcGrandTotal\(form,/);
-  assert.match(screenSource, /form\.addEventListener\('change', \(\) => setTimeout\(\(\) => \{[\s\S]*?calcGrandTotal\(form\);/);
+  assert.match(screenSource, /form\.addEventListener\('change', \(event\) => \{[\s\S]*?if \(isProposalPricingSelectionChange\(event\.target\)\) return;[\s\S]*?calcGrandTotal\(form\);/);
 });
 
 test('contact mobile and email fields use container-responsive tracks without overflow', async () => {

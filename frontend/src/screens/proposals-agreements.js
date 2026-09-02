@@ -141,6 +141,10 @@ function text(value) {
   return String(value == null ? '' : value).replace(/\s+/g, ' ').trim();
 }
 
+export function isProposalPricingSelectionChange(target) {
+  return Boolean(target?.closest?.('[data-pa-pricing-select]'));
+}
+
 export function normalizeProposalSignedOrOrdered(value) {
   if (value === true || value === 1) return true;
   if (value === false || value === 0 || value == null) return false;
@@ -7152,7 +7156,12 @@ export const proposalsAgreementsScreen = {
         } : {});
         renderContactChannelsStatus(form);
       }, { signal });
-      form.addEventListener('change', () => setTimeout(() => { updateProposalStepper(form); calcGrandTotal(form); }, 0), { signal });
+      form.addEventListener('change', (event) => {
+        // Pricing selection owns hydration + totals + preview in the capture-phase
+        // handler below. The generic form owner handles every other change only.
+        if (isProposalPricingSelectionChange(event.target)) return;
+        setTimeout(() => { updateProposalStepper(form); calcGrandTotal(form); }, 0);
+      }, { signal });
       updateProposalStepper(form);
       setupCatalogAttach(form);
     };
