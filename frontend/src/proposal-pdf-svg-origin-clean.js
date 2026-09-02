@@ -1,3 +1,5 @@
+import './proposal-direct-approval-no-auto-pdf.js';
+
 const PATCH_KEY = '__proposalPdfSvgOriginCleanInstalled';
 const SVG_SOURCE = Symbol('proposalPdfSvgSource');
 
