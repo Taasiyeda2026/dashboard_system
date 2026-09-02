@@ -272,6 +272,12 @@ test('תשפ״ז keeps dual tables with one shared add-activity action', async (
   assert.match(calculation, /calcGroupTotals\(container\);/, 'the grand total must refresh the area totals');
   assert.match(calculation, /\[data-pa-grand-total\]/);
   assert.match(screenSource, /getPreviewController\(form\)\.change\(\{[\s\S]*?calculateOptions: options/, 'totals and preview must run through the single controller transaction');
+  const typeHandler = screenSource.slice(
+    screenSource.indexOf('const setupTypeChangeHandler'),
+    screenSource.indexOf('// ── Client lock / unlock helpers')
+  );
+  assert.match(typeHandler, /event\.stopPropagation\(\)[\s\S]*?calcGrandTotal\(form\)/, 'type change must consume the synthetic event and run exactly one controller transaction');
+  assert.doesNotMatch(typeHandler, /setupItemCalc|updateLivePreview/, 'type change must not schedule a second preview path');
 
   ['addItemBtn', 'removeItemBtn'].forEach((handler) => {
     assert.ok(screenSource.includes(handler), `${handler} must exist`);

@@ -7165,7 +7165,10 @@ export const proposalsAgreementsScreen = {
       if (!form) return;
       const typeSelect = form.querySelector('[name="activity_type_group"]');
       if (!typeSelect) return;
-      typeSelect.addEventListener('change', () => {
+      typeSelect.addEventListener('change', (event) => {
+        // A type-card click dispatches this one scoped change event. Consume it at
+        // the type owner so it cannot also schedule the generic form transaction.
+        event.stopPropagation();
         const newType = text(typeSelect.value);
         const tableNoteField = form.querySelector('[data-pa-table-note-field]');
         if (tableNoteField) tableNoteField.hidden = !isNextYearProposalGroup(newType);
@@ -7188,8 +7191,8 @@ export const proposalsAgreementsScreen = {
           modeEl.textContent = 'סוג ההצעה השתנה';
           modeEl.classList.remove('ds-pa-template-mode--custom');
         }
-        setupItemCalc(form);
         updateProposalStepper(form);
+        calcGrandTotal(form);
       }, { signal });
     };
 
