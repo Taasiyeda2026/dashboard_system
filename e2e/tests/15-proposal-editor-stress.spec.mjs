@@ -89,7 +89,14 @@ test('proposal controller survives next-year row and type-switch stress within r
     await oneRender(page, form, () => rows.last().locator('[data-pa-remove-item]').click());
     await expect(rows).toHaveCount(count - 1);
   }
-  await oneRender(page, form, () => form.locator('[name="notes"]').fill('בדיקת עומס — המצב האחרון חייב להופיע'));
+
+  // Notes live inside a deliberately collapsed <details> control; follow the real UI path.
+  const notes = form.locator('[name="notes"]');
+  if (!(await notes.isVisible())) {
+    await form.locator('.ds-pa-notes-summary').click();
+    await expect(notes).toBeVisible();
+  }
+  await oneRender(page, form, () => notes.fill('בדיקת עומס — המצב האחרון חייב להופיע'));
   await expect(form.locator('[data-pa-live-preview]')).toContainText('בדיקת עומס');
   const rowTotals = await form.locator('[data-pa-item-total]').evaluateAll((inputs) => inputs.map((input) => Number(input.value || 0)));
   expect(amount(await form.locator('[data-pa-grand-total]').innerText())).toBe(rowTotals.reduce((sum, value) => sum + value, 0));
