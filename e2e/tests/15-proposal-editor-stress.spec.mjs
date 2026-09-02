@@ -90,14 +90,16 @@ test('proposal controller survives next-year row and type-switch stress within r
     await expect(rows).toHaveCount(count - 1);
   }
 
-  // Notes live inside a deliberately collapsed <details> control; follow the real UI path.
+  // Proposal-level notes are internal editor metadata, not a customer-document section.
+  // Verify the editor state keeps the last value while preserving the one-render budget.
   const notes = form.locator('[name="notes"]');
   if (!(await notes.isVisible())) {
     await form.locator('.ds-pa-notes-summary').click();
     await expect(notes).toBeVisible();
   }
-  await oneRender(page, form, () => notes.fill('בדיקת עומס — המצב האחרון חייב להופיע'));
-  await expect(form.locator('[data-pa-live-preview]')).toContainText('בדיקת עומס');
+  const noteText = 'בדיקת עומס — המצב האחרון חייב להישמר';
+  await oneRender(page, form, () => notes.fill(noteText));
+  await expect(notes).toHaveValue(noteText);
   const rowTotals = await form.locator('[data-pa-item-total]').evaluateAll((inputs) => inputs.map((input) => Number(input.value || 0)));
   expect(amount(await form.locator('[data-pa-grand-total]').innerText())).toBe(rowTotals.reduce((sum, value) => sum + value, 0));
 
