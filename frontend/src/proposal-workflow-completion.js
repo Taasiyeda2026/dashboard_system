@@ -427,37 +427,11 @@ function wrapSnapshotMethod(targetApi, methodName, documentRef) {
   };
 }
 
-function refreshProposalScreen(root = document) {
+function refreshProposalScreen(root = globalThis.document) {
+  if (!root) return;
   ensureTypeFilterOptions(root);
   ensureSummerTab(root);
   updateSummerCounts(root);
-}
-
-function installObservers(scope = globalThis) {
-  const documentRef = scope?.document;
-  if (!documentRef?.documentElement || typeof scope.MutationObserver !== 'function') return;
-  new scope.MutationObserver((mutations) => {
-    mutations.forEach((mutation) => mutation.addedNodes.forEach((node) => {
-      if (!(node instanceof scope.Element)) return;
-      if (node.matches?.('.proposal-document') || node.querySelector?.('.proposal-document')) normalizeProposalWorkflowDocument(node);
-    }));
-  }).observe(documentRef.documentElement, { childList: true, subtree: true });
-
-  let queued = false;
-  const queueRefresh = (mutations = []) => {
-    const relevant = !mutations.length || mutations.some((mutation) => Array.from(mutation.addedNodes)
-      .some((node) => node instanceof scope.Element && (node.matches?.('.ds-pa-screen, [data-pa-table], tr[data-pa-row-id]') || node.querySelector?.('.ds-pa-screen, [data-pa-table], tr[data-pa-row-id]'))));
-    if (!relevant || queued) return;
-    queued = true;
-    const run = () => {
-      queued = false;
-      refreshProposalScreen(documentRef);
-    };
-    if (typeof scope.requestAnimationFrame === 'function') scope.requestAnimationFrame(run);
-    else scope.setTimeout(run, 0);
-  };
-  new scope.MutationObserver(queueRefresh).observe(documentRef.getElementById('app') || documentRef.documentElement, { childList: true, subtree: true });
-  queueRefresh();
 }
 
 export function installProposalWorkflowCompletion(targetApi = api, scope = globalThis) {
@@ -470,9 +444,9 @@ export function installProposalWorkflowCompletion(targetApi = api, scope = globa
   wrapSnapshotMethod(targetApi, 'uploadGefenApprovalDocument', scope.document);
   setProposalPdfDocumentNormalizer(normalizeProposalWorkflowDocument);
 
-  scope.document?.addEventListener('input', proposalFormEvent, true);
-  scope.document?.addEventListener('change', proposalFormEvent, true);
-  installObservers(scope);
+  // Editor input, totals and preview are owned by ProposalEditorController in the
+  // screen. This compatibility module now only adapts API payloads/snapshots.
+  refreshProposalScreen(scope.document);
   prewarmEditorDeps(targetApi, scope);
 
   Object.defineProperty(targetApi, PATCH_KEY, {

@@ -370,5 +370,3 @@ export function installProposalNextYearWorkshops(targetApi = api, scope = global
   Object.defineProperty(targetApi, PATCH_KEY, { value: true, configurable: false, enumerable: false, writable: false });
   return true;
 }
-
-installProposalNextYearWorkshops(api, globalThis);

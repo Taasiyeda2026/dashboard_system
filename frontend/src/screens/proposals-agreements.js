@@ -5,6 +5,7 @@ import { showToast } from './shared/toast.js';
 import { countPendingApprovedProposals, isProposalApprovedPendingSend } from './shared/proposals-pending-count.js';
 import { handleSupabaseSessionFailure } from '../session-security-runtime.js';
 import { hasPermission } from '../permission-policy.js';
+import { ProposalEditorController } from '../proposal-editor-controller.js';
 
 export { countPendingApprovedProposals, isProposalApprovedPendingSend };
 
@@ -7951,34 +7952,26 @@ export const proposalsAgreementsScreen = {
     };
 
 
-    let previewFrame = 0;
-    let previewTimer = 0;
-    let pendingPreviewForm = null;
+    const previewControllers = new WeakMap();
+    const getPreviewController = (form) => {
+      let controller = previewControllers.get(form);
+      if (controller) return controller;
+      controller = new ProposalEditorController(form, {
+        readState: (activeForm) => payloadFromForm(activeForm),
+        renderPreview: renderLivePreview
+      });
+      previewControllers.set(form, controller);
+      return controller;
+    };
     const updateLivePreview = (container, delay = 0) => {
       const form = container?.closest?.('[data-pa-form]') || (container?.matches?.('[data-pa-form]') ? container : null);
       if (!form) return;
-      pendingPreviewForm = form;
-      if (delay > 0) {
-        if (previewTimer) clearTimeout(previewTimer);
-        previewTimer = setTimeout(() => {
-          previewTimer = 0;
-          updateLivePreview(pendingPreviewForm);
-        }, delay);
-        return;
-      }
-      if (previewFrame) return;
-      previewFrame = requestAnimationFrame(() => {
-        previewFrame = 0;
-        const nextForm = pendingPreviewForm;
-        pendingPreviewForm = null;
-        renderLivePreview(nextForm);
-      });
+      getPreviewController(form).change({ delay });
     };
 
-    const renderLivePreview = (form) => {
+    function renderLivePreview(form, payload) {
       const previewHost = form?.querySelector?.('[data-pa-live-preview]');
       if (!form || !previewHost) return;
-      const payload = payloadFromForm(form);
       const row = normalizeProposalAgreementRow({
         ...payload,
         id: text(form.dataset.paId),
@@ -7989,7 +7982,7 @@ export const proposalsAgreementsScreen = {
       if (previewHost.innerHTML === nextHtml) return;
       previewHost.innerHTML = nextHtml;
       proposalPdfDocumentNormalizer?.(previewHost);
-    };
+    }
 
     // ── Items calc ────────────────────────────────────────────────────────────
     const calcItemRow = (rowEl) => {
