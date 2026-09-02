@@ -1,12 +1,9 @@
 import { api } from './api.js';
 
 const PATCH_KEY = Symbol.for('taasiyeda.proposalWorkflowUiIntegrity');
-const APPROVAL_WRAP_KEY = Symbol.for('taasiyeda.proposalApprovalAutomaticPdf');
 const PRICING_WRAP_KEY = Symbol.for('taasiyeda.proposalGenericPricingCache');
 const NEXT_YEAR_INTERNAL_GROUPS = new Set(['next_year_courses', 'next_year_workshops']);
 const pendingForms = new WeakSet();
-const pendingPdfIds = new Set();
-let directApprovalPendingUntil = 0;
 let cachedPricingRows = [];
 
 function text(value) {
@@ -297,44 +294,6 @@ function refreshProposalUi(root = document) {
   root.querySelectorAll?.('[data-pa-form]').forEach((form) => scheduleTotals(form));
 }
 
-function scheduleAutomaticPdf(proposalId, scope = globalThis) {
-  const id = text(proposalId);
-  if (!id || !scope.document || pendingPdfIds.has(id)) return;
-  pendingPdfIds.add(id);
-  const startedAt = Date.now();
-  const timer = scope.setInterval(() => {
-    const escaped = scope.CSS?.escape ? scope.CSS.escape(id) : id.replace(/["\\]/g, '\\$&');
-    const button = scope.document.querySelector(`[data-pa-print="${escaped}"]`);
-    if (button && !button.disabled) {
-      scope.clearInterval(timer);
-      button.click();
-      scope.setTimeout(() => pendingPdfIds.delete(id), 5000);
-      return;
-    }
-    if (Date.now() - startedAt > 30000) {
-      scope.clearInterval(timer);
-      pendingPdfIds.delete(id);
-    }
-  }, 350);
-}
-
-function wrapApprovalStatus(targetApi, scope) {
-  const original = targetApi?.updateProposalAgreementStatus;
-  if (typeof original !== 'function' || original[APPROVAL_WRAP_KEY]) return;
-  const wrapped = async function updateStatusAndGeneratePdf(...args) {
-    const result = await original.apply(this, args);
-    const requestedStatus = text(args[1]);
-    const row = result?.row;
-    const directApproval = requestedStatus === 'approved' && Date.now() <= directApprovalPendingUntil;
-    if (directApproval && text(row?.id || args[0])) {
-      directApprovalPendingUntil = 0;
-      scheduleAutomaticPdf(text(row?.id || args[0]), scope);
-    }
-    return result;
-  };
-  Object.defineProperty(wrapped, APPROVAL_WRAP_KEY, { value: true });
-  targetApi.updateProposalAgreementStatus = wrapped;
-}
 
 function installDomRuntime(scope) {
   const documentRef = scope?.document;
@@ -374,8 +333,6 @@ function installDomRuntime(scope) {
   documentRef.addEventListener('input', editorEvent, true);
   documentRef.addEventListener('change', editorEvent, true);
   documentRef.addEventListener('click', (event) => {
-    const directApprove = event.target?.closest?.('[data-pa-save-pending][data-pa-target-status="approved"]');
-    if (directApprove) directApprovalPendingUntil = Date.now() + 120000;
 
     const tab = event.target?.closest?.('[data-pa-tab]');
     const screen = tab?.closest?.('.ds-pa-screen');
@@ -411,7 +368,6 @@ function installDomRuntime(scope) {
 export function installProposalWorkflowUiIntegrity(targetApi = api, scope = globalThis) {
   if (!targetApi || targetApi[PATCH_KEY]) return false;
   wrapPricingSources(targetApi);
-  wrapApprovalStatus(targetApi, scope);
   installDomRuntime(scope);
   Object.defineProperty(targetApi, PATCH_KEY, {
     value: true,
