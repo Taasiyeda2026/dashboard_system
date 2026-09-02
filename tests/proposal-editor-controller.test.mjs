@@ -32,6 +32,29 @@ test('proposal editor controller replaces stale preview renders with the latest 
   assert.equal(form.dataset.paPreviewRenderCount, '1');
 });
 
+test('proposal editor controller skips an identical settled preview snapshot', () => {
+  const callbacks = new Map();
+  let sequence = 0;
+  let renders = 0;
+  const form = { isConnected: true, dataset: {}, value: 'same' };
+  const controller = new ProposalEditorController(form, {
+    readState: (activeForm) => ({ value: activeForm.value }),
+    calculate: () => 100,
+    renderPreview: () => { renders += 1; },
+    frame: (callback) => { const id = ++sequence; callbacks.set(id, callback); return id; },
+    cancelFrame: (id) => callbacks.delete(id)
+  });
+
+  controller.change();
+  callbacks.get(1)();
+  controller.change();
+  callbacks.get(2)();
+
+  assert.equal(renders, 1);
+  assert.equal(controller.renderCount, 1);
+  assert.equal(form.dataset.paPreviewRenderCount, '1');
+});
+
 test('proposal editor controller does not commit after its form is detached', () => {
   let callback;
   const form = { isConnected: true, dataset: {} };
