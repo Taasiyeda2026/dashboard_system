@@ -7,7 +7,7 @@ const corsHeaders = {
   'Content-Type': 'application/json'
 };
 
-const CACHE_TTL_MS = 30 * 86400000;
+const PERMANENT_CACHE_EXPIRES_AT = '9999-12-31T23:59:59.999Z';
 const DEFAULT_BATCH_LIMIT = 25;
 const MAX_BATCH_LIMIT = 40;
 const BATCH_CONCURRENCY = 4;
@@ -337,7 +337,7 @@ function cacheRowPayload(pair: TravelPair, distanceKm: number, durationMinutes: 
     duration_minutes: durationMinutes,
     provider,
     calculated_at: new Date(now).toISOString(),
-    expires_at: new Date(now + CACHE_TTL_MS).toISOString(),
+    expires_at: PERMANENT_CACHE_EXPIRES_AT,
     authority_id: pair.authority_id,
     origin_school_id: pair.origin_school_id,
     destination_school_id: pair.destination_school_id,
@@ -1151,13 +1151,40 @@ async function runBuildCache(db: DbClient, key: string, payload: Record<string, 
     stats.exceptions = payrollExtras.exceptions;
   }
 
+  // Coverage used to issue one or more PostgREST queries per route pair on every batch.
+  // With ~1,700 pairs this repeated the same work thousands of times and could exhaust
+  // the Edge Function worker. Read the durable cache in pages once, then inspect it in memory.
   const allPairs = [...instructorPairs, ...schoolPairs];
-  const inspections = await mapWithConcurrency(allPairs, BATCH_CONCURRENCY, (pair) => inspectPair(db, pair));
-  const inspectionError = inspections.find((item) => item?.error)?.error || null;
-  if (inspectionError) return jsonResponse({ error: 'cache_read_failed' }, 500);
-  stats.existing_count = inspections.filter((item) => item.state !== 'missing').length;
-  stats.missing_count = stats.required_count - stats.existing_count;
-  stats.refresh_required_count = inspections.filter((item) => item.state === 'refresh_required').length;
+  const cacheRowsResult = await loadAllRows(
+    db,
+    'scheduling_travel_cache',
+    'origin_key,destination_key,distance_km,duration_minutes,origin_address,destination_address,origin_entity_key,destination_entity_key,expires_at'
+  );
+  if (cacheRowsResult.error) return jsonResponse({ error: 'cache_read_failed' }, 500);
+
+  const cacheByRoute = new Map<string, Record<string, unknown>>();
+  const cacheByEntityPair = new Map<string, Record<string, unknown>>();
+  for (const row of cacheRowsResult.rows) {
+    const originKey = text(row.origin_key);
+    const destinationKey = text(row.destination_key);
+    if (originKey && destinationKey) cacheByRoute.set(`${originKey}->${destinationKey}`, row);
+    const originEntity = text(row.origin_entity_key);
+    const destinationEntity = text(row.destination_entity_key);
+    if (originEntity && destinationEntity) cacheByEntityPair.set(`${originEntity}->${destinationEntity}`, row);
+  }
+
+  let existingCount = 0;
+  for (const pair of allPairs) {
+    const cached = cacheByRoute.get(`${pair.origin_key}->${pair.destination_key}`)
+      || cacheByEntityPair.get(`${pair.origin_entity_key}->${pair.destination_entity_key}`)
+      || null;
+    if (isUsableForPair(cached, pair)) existingCount += 1;
+  }
+  stats.existing_count = existingCount;
+  stats.missing_count = Math.max(0, stats.required_count - existingCount);
+  // Route age is not a refresh condition. Address changes are detected by isUsableForPair
+  // and therefore surface as missing until the new permanent route is stored.
+  stats.refresh_required_count = 0;
 
   if (payload.coverage_only === true || text(payload.mode).toLowerCase() === 'coverage') {
     return jsonResponse({ calculated: true, coverage: true, ...stats, done: true });
@@ -1334,7 +1361,7 @@ Deno.serve(async (req) => {
       duration_minutes: 0,
       provider: 'same_school',
       calculated_at: new Date().toISOString(),
-      expires_at: new Date(Date.now() + CACHE_TTL_MS).toISOString(),
+      expires_at: PERMANENT_CACHE_EXPIRES_AT,
       origin_address: origin,
       destination_address: destination,
       query_origin_address: origin,
@@ -1367,7 +1394,7 @@ Deno.serve(async (req) => {
     duration_minutes: route.duration_minutes,
     provider: 'google',
     calculated_at: new Date().toISOString(),
-    expires_at: new Date(Date.now() + CACHE_TTL_MS).toISOString(),
+    expires_at: PERMANENT_CACHE_EXPIRES_AT,
     origin_address: origin,
     destination_address: destination,
     query_origin_address: origin,
