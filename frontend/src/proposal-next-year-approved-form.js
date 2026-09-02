@@ -1,6 +1,6 @@
 const COURSE_GROUP = 'next_year_courses';
 const WORKSHOP_GROUP = 'next_year_workshops';
-const INSTALL_KEY = Symbol.for('taasiyeda.nextYearMixedProposalTables.v6');
+const INSTALL_KEY = Symbol.for('taasiyeda.nextYearMixedProposalTables.v7');
 let refreshTimer = null;
 let refreshRunning = false;
 
@@ -158,8 +158,14 @@ function replacementRegion(documentRoot) {
   return existingTable.closest('.pa-next-year-cost-group') || existingTable;
 }
 
+function isEditorLivePreviewDocument(documentRoot) {
+  return Boolean(documentRoot?.closest?.('[data-pa-live-preview]'));
+}
+
 function normalizeDocument(documentRoot) {
-  if (!documentRoot?.isConnected || documentRoot.dataset.approvedNextYearNormalizing === 'yes') return;
+  if (!documentRoot?.isConnected
+    || isEditorLivePreviewDocument(documentRoot)
+    || documentRoot.dataset.approvedNextYearNormalizing === 'yes') return;
   const form = currentNextYearForm(documentRoot.ownerDocument);
   if (!form) return;
 
@@ -214,6 +220,14 @@ function isRelevantEditorEvent(target) {
   ));
 }
 
+function containsNonEditorProposalDocument(node) {
+  if (node?.nodeType !== 1) return false;
+  const documents = [];
+  if (node.matches?.('.proposal-document')) documents.push(node);
+  node.querySelectorAll?.('.proposal-document').forEach((documentRoot) => documents.push(documentRoot));
+  return documents.some((documentRoot) => !isEditorLivePreviewDocument(documentRoot));
+}
+
 function install() {
   if (document[INSTALL_KEY]) return;
   Object.defineProperty(document, INSTALL_KEY, { value: true, configurable: false });
@@ -225,7 +239,9 @@ function install() {
     if (isRelevantEditorEvent(event.target)) refreshDocuments(220);
   }, true);
   document.addEventListener('click', (event) => {
-    if (event.target?.closest?.('[data-pa-add-item], [data-pa-remove-item], [data-pa-preview], [data-pa-print]')) {
+    const editorMutation = event.target?.closest?.('[data-pa-form] [data-pa-add-item], [data-pa-form] [data-pa-remove-item]');
+    if (editorMutation) return;
+    if (event.target?.closest?.('[data-pa-preview], [data-pa-print]')) {
       refreshDocuments(220);
     }
   }, true);
@@ -233,10 +249,7 @@ function install() {
   const root = document.getElementById('app') || document.documentElement;
   if (typeof MutationObserver === 'function') {
     new MutationObserver((mutations) => {
-      const addedDocument = mutations.some((mutation) => Array.from(mutation.addedNodes).some((node) => {
-        if (node.nodeType !== 1) return false;
-        return node.matches?.('.proposal-document') || Boolean(node.querySelector?.('.proposal-document'));
-      }));
+      const addedDocument = mutations.some((mutation) => Array.from(mutation.addedNodes).some(containsNonEditorProposalDocument));
       if (addedDocument) refreshDocuments(100);
     }).observe(root, { childList: true, subtree: true });
   }
