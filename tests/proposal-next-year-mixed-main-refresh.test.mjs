@@ -49,12 +49,12 @@ test('mixed next-year editor preserves new rows and guards hydration notificatio
   assert.equal(count(selectionHydration, 'export function calculateNextYearTotals'), 1);
 });
 
-test('mixed next-year document replaces the complete cost group atomically', async () => {
+test('mixed next-year document replaces the complete cost group atomically without touching live editor preview', async () => {
   const source = await readFile(
     new URL('../frontend/src/proposal-next-year-approved-form.js', import.meta.url),
     'utf8'
   );
-  assert.match(source, /INSTALL_KEY = Symbol\.for\('taasiyeda\.nextYearMixedProposalTables\.v6'\)/);
+  assert.match(source, /INSTALL_KEY = Symbol\.for\('taasiyeda\.nextYearMixedProposalTables\.v7'\)/);
   assert.match(source, /if \(!courses\.length && !workshops\.length\) return/);
   assert.match(source, /closest\('\.pa-next-year-cost-group'\)/);
   assert.match(source, /region\.replaceWith\(wrapper\)/);
@@ -67,6 +67,11 @@ test('mixed next-year document replaces the complete cost group atomically', asy
   assert.doesNotMatch(source, /pa-next-year-activities-table|data-pa-next-year-unified-table/);
   assert.match(source, /approvedNextYearNormalizing/);
   assert.match(source, /if \(refreshRunning\) return/);
+  assert.match(source, /isEditorLivePreviewDocument/);
+  assert.match(source, /closest\?\.\('\[data-pa-live-preview\]'\)/);
+  assert.match(source, /containsNonEditorProposalDocument/);
+  assert.match(source, /const editorMutation = event\.target\?\.closest\?\./);
+  assert.match(source, /if \(editorMutation\) return/);
   assert.equal(count(source, "document.addEventListener('change'"), 1);
   assert.equal(count(source, "document.addEventListener('input'"), 1);
   assert.equal(count(source, "document.addEventListener('click'"), 1);
