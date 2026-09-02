@@ -67,7 +67,12 @@ test('proposal controller survives next-year row and type-switch stress within r
     await oneRender(page, form, () => select.selectOption(option));
     if (index % 4 === 0) {
       await oneRender(page, form, () => row.locator('[data-pa-item-qty]').fill(String(index + 2)));
-      await oneRender(page, form, () => row.locator('[data-pa-item-price]').fill(String(500 + index)));
+      const price = row.locator('[data-pa-item-price]');
+      if (!(await price.isVisible())) {
+        await row.locator('[data-pa-item-edit-toggle]').click();
+        await expect(price).toBeVisible();
+      }
+      await oneRender(page, form, () => price.fill(String(500 + index)));
     }
   }
 
