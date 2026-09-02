@@ -31,6 +31,7 @@ const {
   installProposalWorkflowCompletion,
   normalizeProposalWorkflowDocument
 } = await import(moduleUrl.href);
+const { runProposalScreenLifecycleEnhancer } = await import('../frontend/src/screens/proposals-agreements.js');
 
 const course = {
   activity_name: 'אופק יזמות פרימיום בתעשייה',
@@ -159,6 +160,23 @@ test('proposal type filter is populated and a dedicated summer tab is added', ()
   const values = Array.from(dom.window.document.querySelector('[data-pa-filter]').options).map((option) => option.value);
   assert.deepEqual(values, ['', 'next_year', 'gefen', 'summer', 'tour', 'combined']);
   assert.equal(dom.window.document.querySelectorAll('[data-pa-summer-tab]').length, 1);
+});
+
+test('cold proposal navigation creates the summer tab from the explicit screen lifecycle', () => {
+  const dom = new JSDOM(`<main><div class="ds-pa-screen">
+    <button data-pa-tab="records">הצעות</button>
+    <select data-pa-filter="activity_type_group"><option value="">הכול</option></select>
+    <table data-pa-table><tbody><tr data-pa-row-id="1"><td>קיץ</td></tr></tbody></table>
+  </div></main>`);
+  installProposalWorkflowCompletion({}, { document: dom.window.document });
+  assert.equal(dom.window.document.querySelector('[data-pa-summer-tab]'), null);
+  runProposalScreenLifecycleEnhancer(dom.window.document.querySelector('main'));
+  const tab = dom.window.document.querySelector('[data-pa-summer-tab]');
+  assert.ok(tab);
+  const previousEvent = globalThis.Event;
+  globalThis.Event = dom.window.Event;
+  try { tab.click(); } finally { globalThis.Event = previousEvent; }
+  assert.equal(dom.window.document.querySelector('[data-pa-filter="activity_type_group"]').value, 'summer');
 });
 
 test('runtime prewarms editor dependencies and leaves approval/PDF ownership to the integrity runtime', () => {

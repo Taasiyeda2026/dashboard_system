@@ -1,5 +1,8 @@
 import { api } from './api.js';
-import { setProposalPdfDocumentNormalizer } from './screens/proposals-agreements.js';
+import {
+  setProposalPdfDocumentNormalizer,
+  setProposalScreenLifecycleEnhancer
+} from './screens/proposals-agreements.js';
 import {
   augmentNextYearActivityGroups,
   augmentNextYearProposalPayload,
@@ -456,7 +459,7 @@ export function installProposalWorkflowCompletion(targetApi = api, scope = globa
 
   // Editor input, totals and preview are owned by ProposalEditorController in the
   // screen. This compatibility module now only adapts API payloads/snapshots.
-  refreshProposalScreen(scope.document);
+  setProposalScreenLifecycleEnhancer(refreshProposalScreen);
   prewarmEditorDeps(targetApi, scope);
 
   Object.defineProperty(targetApi, PATCH_KEY, {

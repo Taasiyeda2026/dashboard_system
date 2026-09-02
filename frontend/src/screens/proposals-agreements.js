@@ -9,6 +9,14 @@ import { ProposalEditorController } from '../proposal-editor-controller.js';
 
 export { countPendingApprovedProposals, isProposalApprovedPendingSend };
 
+let proposalScreenLifecycleEnhancer = null;
+export function setProposalScreenLifecycleEnhancer(enhancer) {
+  proposalScreenLifecycleEnhancer = typeof enhancer === 'function' ? enhancer : null;
+}
+export function runProposalScreenLifecycleEnhancer(root) {
+  proposalScreenLifecycleEnhancer?.(root);
+}
+
 export const PROPOSALS_AGREEMENTS_ALLOWED_ROLES = new Set(['domain_manager', 'operation_manager', 'admin', 'business_development_manager']);
 export const PROPOSALS_AGREEMENTS_MANAGE_ROLES = new Set(['domain_manager', 'operation_manager', 'admin']);
 const SEARCH_DEBOUNCE_MS = 280;
@@ -6445,6 +6453,9 @@ export const proposalsAgreementsScreen = {
   },
   bind({ root, data, state, api }) {
     if (!root || data?.unauthorized || !canAccessProposalsAgreements(state)) return;
+    // Feature adapters run only after render() has committed .ds-pa-screen. This is
+    // the explicit cold-navigation lifecycle hook; no DOM observer is involved.
+    runProposalScreenLifecycleEnhancer(root);
     const canManage = canManageProposalsAgreements(state);
     if (root._paAbort) root._paAbort.abort();
     const abortController = new AbortController();

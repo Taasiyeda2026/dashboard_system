@@ -267,16 +267,16 @@ test('תשפ״ז keeps dual tables with one shared add-activity action', async (
     'area totals must reuse the existing row calculation'
   );
 
-  const grandTotal = screenSource.match(/const calcGrandTotal = \(container\) => \{[\s\S]*?\n    \};/)?.[0] || '';
-  assert.ok(grandTotal, 'calcGrandTotal must be present');
-  assert.match(grandTotal, /calcGroupTotals\(container\);/, 'the grand total must refresh the area totals');
-  assert.match(grandTotal, /\[data-pa-grand-total\]/);
-  assert.match(grandTotal, /updateLivePreview\(form\);/, 'the preview must refresh with the totals');
+  const calculation = screenSource.match(/const calculateGrandTotalDom = \(container, options = \{\}\) => \{[\s\S]*?\n    \};/)?.[0] || '';
+  assert.ok(calculation, 'the controller totals adapter must be present');
+  assert.match(calculation, /calcGroupTotals\(container\);/, 'the grand total must refresh the area totals');
+  assert.match(calculation, /\[data-pa-grand-total\]/);
+  assert.match(screenSource, /getPreviewController\(form\)\.change\(\{[\s\S]*?calculateOptions: options/, 'totals and preview must run through the single controller transaction');
 
   ['addItemBtn', 'removeItemBtn'].forEach((handler) => {
     assert.ok(screenSource.includes(handler), `${handler} must exist`);
   });
-  assert.match(screenSource, /form\.addEventListener\('input', \(\) => \{[\s\S]*?calcGrandTotal\(form\);/);
+  assert.match(screenSource, /form\.addEventListener\('input', \(event\) => \{[\s\S]*?calcGrandTotal\(form,/);
   assert.match(screenSource, /form\.addEventListener\('change', \(\) => setTimeout\(\(\) => \{[\s\S]*?calcGrandTotal\(form\);/);
 });
 

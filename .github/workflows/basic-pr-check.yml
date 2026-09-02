@@ -55,3 +55,46 @@ jobs:
           done < <(git diff --name-only --diff-filter=ACMR -z "$BASE_SHA" "$HEAD_SHA")
 
           echo "Checked ${js_count} changed JavaScript files and ${json_count} changed JSON files."
+
+  proposal-editor-stress:
+    name: proposal editor Chromium stress
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      E2E_USERNAME: ${{ secrets.E2E_USERNAME }}
+      E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
+      E2E_BASE_URL: http://127.0.0.1:4173
+      E2E_START_PREVIEW: "true"
+      VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+      VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Build production frontend
+        run: npm run build
+
+      - name: Run proposal editor stress suite
+        run: npx playwright test -c e2e/playwright.config.mjs e2e/tests/15-proposal-editor-stress.spec.mjs
+
+      - name: Upload stress artifacts
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: proposal-editor-stress-${{ github.run_attempt }}
+          path: e2e/artifacts
+          if-no-files-found: ignore
+          retention-days: 7
