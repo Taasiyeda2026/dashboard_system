@@ -3,6 +3,14 @@
  * for turning form controls into the persisted payload, while this controller owns
  * the current snapshot and commits at most one preview for the latest revision.
  */
+function previewStateKey(state, total) {
+  try {
+    return JSON.stringify({ state, total });
+  } catch {
+    return null;
+  }
+}
+
 export class ProposalEditorController {
   constructor(form, { readState, calculate, renderPreview, frame = globalThis.requestAnimationFrame, cancelFrame = globalThis.cancelAnimationFrame } = {}) {
     this.form = form;
@@ -16,6 +24,7 @@ export class ProposalEditorController {
     this.renderCount = 0;
     this.pendingFrame = 0;
     this.pendingTimer = 0;
+    this.lastRenderedStateKey = null;
   }
 
   change({ delay = 0, recalculate = true, calculateOptions = {} } = {}) {
@@ -42,7 +51,14 @@ export class ProposalEditorController {
     this.pendingFrame = this.frame(() => {
       this.pendingFrame = 0;
       if (revision !== this.revision || !this.form?.isConnected) return;
+      const stateKey = previewStateKey(this.state, this.lastTotal);
+      // Native controls often emit `input` while editing and a follow-up `change`
+      // on blur. If the settled proposal snapshot is identical to the preview that
+      // was already committed, the second event is not a new editor transaction and
+      // must not rewrite/count the full preview again.
+      if (stateKey != null && stateKey === this.lastRenderedStateKey) return;
       this.renderPreview(this.form, this.state);
+      this.lastRenderedStateKey = stateKey;
       this.renderCount += 1;
       this.form.dataset.paPreviewRenderCount = String(this.renderCount);
     });
