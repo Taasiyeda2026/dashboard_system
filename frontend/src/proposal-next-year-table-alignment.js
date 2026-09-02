@@ -108,24 +108,6 @@ export function installProposalNextYearTableAlignment(targetApi = api, scope = g
   wrapSnapshotMethod(targetApi, 'uploadProposalFinalPdf', documentRef);
   wrapSnapshotMethod(targetApi, 'lockAndSendProposalAgreement', documentRef);
 
-  if (documentRef?.documentElement && typeof scope?.MutationObserver === 'function') {
-    let queued = false;
-    const schedule = () => {
-      if (queued) return;
-      queued = true;
-      queueMicrotask(() => {
-        queued = false;
-        normalizeNextYearTableAlignment(documentRef);
-      });
-    };
-
-    if (documentRef.readyState === 'loading') documentRef.addEventListener('DOMContentLoaded', schedule, { once: true });
-    else schedule();
-
-    scope.addEventListener?.('beforeprint', schedule);
-    new scope.MutationObserver(schedule).observe(documentRef.documentElement, { childList: true, subtree: true });
-  }
-
   Object.defineProperty(targetApi, PATCH_KEY, {
     value: true,
     configurable: false,
@@ -134,5 +116,3 @@ export function installProposalNextYearTableAlignment(targetApi = api, scope = g
   });
   return true;
 }
-
-installProposalNextYearTableAlignment(api, globalThis);

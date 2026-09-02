@@ -7958,6 +7958,7 @@ export const proposalsAgreementsScreen = {
       if (controller) return controller;
       controller = new ProposalEditorController(form, {
         readState: (activeForm) => payloadFromForm(activeForm),
+        calculate: (activeForm, options) => calculateGrandTotalDom(activeForm, options),
         renderPreview: renderLivePreview
       });
       previewControllers.set(form, controller);
@@ -7966,7 +7967,7 @@ export const proposalsAgreementsScreen = {
     const updateLivePreview = (container, delay = 0) => {
       const form = container?.closest?.('[data-pa-form]') || (container?.matches?.('[data-pa-form]') ? container : null);
       if (!form) return;
-      getPreviewController(form).change({ delay });
+      getPreviewController(form).change({ delay, recalculate: false });
     };
 
     function renderLivePreview(form, payload) {
@@ -8056,7 +8057,7 @@ export const proposalsAgreementsScreen = {
       });
     };
 
-    const calcGrandTotal = (container, options = {}) => {
+    const calculateGrandTotalDom = (container, options = {}) => {
       let subtotal = calcTourTotal(container, options.tourRow);
       if (subtotal == null) {
         subtotal = 0;
@@ -8094,9 +8095,17 @@ export const proposalsAgreementsScreen = {
         const countEl = form.querySelector('[data-pa-summary-count]');
         const countText = String(form.querySelectorAll('[data-pa-item-row]').length) || '—';
         if (countEl && countEl.textContent !== countText) countEl.textContent = countText;
-        updateLivePreview(form, options.previewDelay || 0);
       }
       return sum;
+    };
+
+    const calcGrandTotal = (container, options = {}) => {
+      const form = container?.closest?.('[data-pa-form]') || (container?.matches?.('[data-pa-form]') ? container : null);
+      if (!form) return calculateGrandTotalDom(container, options);
+      return getPreviewController(form).change({
+        delay: options.previewDelay || 0,
+        calculateOptions: options
+      });
     };
 
     const setupItemCalc = (container) => { calcGrandTotal(container); };

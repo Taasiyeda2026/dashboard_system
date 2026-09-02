@@ -7,9 +7,11 @@ test('proposal editor controller replaces stale preview renders with the latest 
   let sequence = 0;
   const cancelled = [];
   const rendered = [];
+  const calculations = [];
   const form = { isConnected: true, dataset: {}, value: 'first' };
   const controller = new ProposalEditorController(form, {
     readState: (activeForm) => ({ value: activeForm.value }),
+    calculate: (activeForm) => calculations.push(activeForm.value),
     renderPreview: (_activeForm, state) => rendered.push(state),
     frame: (callback) => { const id = ++sequence; callbacks.set(id, callback); return id; },
     cancelFrame: (id) => { cancelled.push(id); callbacks.delete(id); }
@@ -19,6 +21,7 @@ test('proposal editor controller replaces stale preview renders with the latest 
   form.value = 'latest';
   controller.change();
   assert.deepEqual(cancelled, [1]);
+  assert.deepEqual(calculations, ['first', 'latest']);
   callbacks.get(2)();
   assert.deepEqual(rendered, [{ value: 'latest' }]);
   assert.equal(form.dataset.paPreviewRenderCount, '1');

@@ -1,9 +1,13 @@
 import { api } from './api.js';
 import { setProposalPdfDocumentNormalizer } from './screens/proposals-agreements.js';
 import {
+  augmentNextYearActivityGroups,
+  augmentNextYearProposalPayload,
   augmentNextYearPricingRows,
   normalizeNextYearWorkshopTables
 } from './proposal-next-year-workshops.js';
+import { normalizeProposalPricingTables } from './proposal-next-year-pricing-display.js';
+import { normalizeNextYearTableAlignment } from './proposal-next-year-table-alignment.js';
 
 const PATCH_KEY = Symbol.for('taasiyeda.proposalWorkflowCompletion');
 const NEXT_YEAR_ALIASES = new Set(['next_year', 'שנה הבאה', 'שנת הלימודים תשפ״ז', 'תוכניות תשפ״ז', 'תשפ״ז']);
@@ -66,11 +70,23 @@ function cachePricingPayload(payload = {}) {
   return payload;
 }
 
+function augmentAndCacheProposalPayload(payload = {}) {
+  return cachePricingPayload(augmentNextYearProposalPayload(payload));
+}
+
 function wrapPayloadMethod(targetApi, methodName) {
   const original = targetApi?.[methodName];
   if (typeof original !== 'function') return;
   targetApi[methodName] = async function proposalWorkflowPayload(...args) {
-    return cachePricingPayload(await original.apply(this, args));
+    return augmentAndCacheProposalPayload(await original.apply(this, args));
+  };
+}
+
+function wrapGroupMethod(targetApi, methodName) {
+  const original = targetApi?.[methodName];
+  if (typeof original !== 'function') return;
+  targetApi[methodName] = async function proposalWorkflowGroups(...args) {
+    return augmentNextYearActivityGroups(await original.apply(this, args));
   };
 }
 
@@ -79,8 +95,9 @@ function wrapPricingMethod(targetApi, methodName) {
   if (typeof original !== 'function') return;
   targetApi[methodName] = async function proposalWorkflowPricing(...args) {
     const rows = await original.apply(this, args);
-    if (Array.isArray(rows)) cachedPricingRows = augmentNextYearPricingRows(rows);
-    return rows;
+    if (!Array.isArray(rows)) return rows;
+    cachedPricingRows = augmentNextYearPricingRows(rows);
+    return cachedPricingRows;
   };
 }
 
@@ -92,7 +109,7 @@ function memoizeEditorDeps(targetApi) {
     if (editorDepsPromise) return editorDepsPromise;
     editorDepsPromise = Promise.resolve(original.apply(this, args))
       .then((payload) => {
-        editorDepsValue = cachePricingPayload(payload || {});
+        editorDepsValue = augmentAndCacheProposalPayload(payload || {});
         return editorDepsValue;
       })
       .catch((error) => {
@@ -149,18 +166,6 @@ export function calculateFormTotals(form) {
     if (element && element.textContent !== value) element.textContent = value;
   });
   return total;
-}
-
-function proposalFormEvent(event) {
-  const target = event.target;
-  if (!target?.matches?.('[data-pa-item-qty], [data-pa-item-price], [data-pa-discount-value], [data-pa-discount-type], [data-pa-pricing-select]')) return;
-  const form = target.closest('[data-pa-form]');
-  // The main proposals screen already owns totals and live preview updates once its
-  // stepper is bound. Running this fallback too doubles the DOM work for every input.
-  if (form?.dataset?.paStepperBound === 'yes') return;
-  // proposals-agreements.js exclusively owns GEFEN pricing selections.
-  if (target.matches('[data-pa-pricing-select]') && text(form?.querySelector?.('[name="activity_type_group"]')?.value) === 'gefen') return;
-  if (form) queueMicrotask(() => calculateFormTotals(form));
 }
 
 export function ensureTypeFilterOptions(root = document) {
@@ -404,6 +409,10 @@ export function normalizeProposalWorkflowDocument(root = document) {
     splitGenericNextYearTable(documentRoot);
     normalizeNextYearActivityIntro(documentRoot);
   });
+  // Pure, idempotent presentation passes run only against the explicit preview,
+  // print or snapshot root supplied by its lifecycle owner.
+  normalizeProposalPricingTables(root);
+  normalizeNextYearTableAlignment(root);
   return root;
 }
 
@@ -438,6 +447,7 @@ export function installProposalWorkflowCompletion(targetApi = api, scope = globa
   if (!targetApi || targetApi[PATCH_KEY]) return false;
   wrapPayloadMethod(targetApi, 'proposalsAgreements');
   wrapPricingMethod(targetApi, 'readProposalActivityPricing');
+  wrapGroupMethod(targetApi, 'readProposalActivityGroups');
   memoizeEditorDeps(targetApi);
   wrapSnapshotMethod(targetApi, 'uploadProposalFinalPdf', scope.document);
   wrapSnapshotMethod(targetApi, 'lockAndSendProposalAgreement', scope.document);

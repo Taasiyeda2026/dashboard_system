@@ -4,9 +4,10 @@
  * the current snapshot and commits at most one preview for the latest revision.
  */
 export class ProposalEditorController {
-  constructor(form, { readState, renderPreview, frame = globalThis.requestAnimationFrame, cancelFrame = globalThis.cancelAnimationFrame } = {}) {
+  constructor(form, { readState, calculate, renderPreview, frame = globalThis.requestAnimationFrame, cancelFrame = globalThis.cancelAnimationFrame } = {}) {
     this.form = form;
     this.readState = readState;
+    this.calculate = calculate;
     this.renderPreview = renderPreview;
     this.frame = typeof frame === 'function' ? frame.bind(globalThis) : (callback) => setTimeout(callback, 0);
     this.cancelFrame = typeof cancelFrame === 'function' ? cancelFrame.bind(globalThis) : clearTimeout;
@@ -17,7 +18,8 @@ export class ProposalEditorController {
     this.pendingTimer = 0;
   }
 
-  change({ delay = 0 } = {}) {
+  change({ delay = 0, recalculate = true, calculateOptions = {} } = {}) {
+    if (recalculate) this.lastTotal = this.calculate?.(this.form, calculateOptions);
     this.state = this.readState(this.form);
     this.revision += 1;
     if (this.pendingTimer) clearTimeout(this.pendingTimer);
@@ -32,6 +34,7 @@ export class ProposalEditorController {
       return;
     }
     this.schedule();
+    return this.lastTotal;
   }
 
   schedule() {

@@ -57,7 +57,7 @@ function pricingIdentity(row = {}) {
   return [groupKey(row), text(row.pricing_key), text(row.activity_no), text(row.activity_name)].join('|');
 }
 
-function internalGroups(groups = []) {
+export function augmentNextYearActivityGroups(groups = []) {
   const rows = Array.isArray(groups) ? groups.map((group) => ({ ...group })) : [];
   const byKey = new Map(rows.map((group) => [text(group.group_key), group]));
   const nextYear = byKey.get(NEXT_YEAR_GROUP);
@@ -143,7 +143,7 @@ export function augmentNextYearProposalPayload(payload = {}) {
   if (!payload || typeof payload !== 'object') return payload;
   return {
     ...payload,
-    proposalActivityGroups: internalGroups(payload.proposalActivityGroups),
+    proposalActivityGroups: augmentNextYearActivityGroups(payload.proposalActivityGroups),
     proposalActivityPricing: augmentNextYearPricingRows(payload.proposalActivityPricing)
   };
 }
@@ -358,7 +358,7 @@ export function installProposalNextYearWorkshops(targetApi = api, scope = global
   const originalGroups = targetApi.readProposalActivityGroups;
   if (typeof originalGroups === 'function') {
     targetApi.readProposalActivityGroups = async function nextYearWorkshopGroups(...args) {
-      return internalGroups(await originalGroups.apply(this, args));
+      return augmentNextYearActivityGroups(await originalGroups.apply(this, args));
     };
   }
 

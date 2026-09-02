@@ -148,5 +148,3 @@ export function installProposalNextYearPricingDisplay(targetApi = api, scope = g
   });
   return true;
 }
-
-installProposalNextYearPricingDisplay(api, globalThis);
