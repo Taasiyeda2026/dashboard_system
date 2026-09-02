@@ -33,3 +33,27 @@ test('PDF jobs are idempotent, observable and preserve an approved proposal on f
   assert.doesNotMatch(worker, /status:\s*"(?:draft|cancelled)"/);
   assert.match(migration, /'idle', 'queued', 'generating', 'completed', 'failed'/);
 });
+
+test('PDF migration preserves the complete proposal workflow guard', () => {
+  assert.match(migration, /if coalesce\(auth\.role\(\), ''\) = 'service_role' then return new; end if;/);
+  for (const invariant of [
+    'proposal_status_transition_sent_locked',
+    'proposal_sent_content_locked',
+    'proposal_status_transition_cancelled_locked',
+    'proposal_cancelled_content_locked',
+    'proposal_status_transition_approval_invalid',
+    'proposal_status_transition_return_invalid',
+    'proposal_status_transition_cancel_invalid',
+    'proposal_status_transition_pending_invalid',
+    'proposal_status_transition_draft_invalid',
+    'proposal_status_transition_sent_invalid',
+    'invalid_proposal_agreement_status_transition',
+    'gfen_signed_or_ordered'
+  ]) assert.match(migration, new RegExp(invariant));
+});
+
+test('worker prefers configured dashboard base and uses the correct production fallback', () => {
+  assert.match(worker, /DASHBOARD_PUBLIC_BASE_URL/);
+  assert.match(worker, /https:\/\/taasiyeda2026\.github\.io\/dashboard_system\//);
+  assert.doesNotMatch(worker, /https:\/\/taasiyeda\.github\.io\/dashboard_system\//);
+});

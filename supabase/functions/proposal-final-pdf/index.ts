@@ -25,7 +25,7 @@ async function generate(proposalId: string, htmlSnapshot: string, documentSnapsh
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const browserlessUrl = Deno.env.get("BROWSERLESS_URL")!;
   const browserlessToken = Deno.env.get("BROWSERLESS_TOKEN")!;
-  const publicBase = Deno.env.get("DASHBOARD_PUBLIC_BASE_URL") || "https://taasiyeda.github.io/dashboard_system/";
+  const publicBase = Deno.env.get("DASHBOARD_PUBLIC_BASE_URL") || "https://taasiyeda2026.github.io/dashboard_system/";
     let cssUrl = Deno.env.get("DASHBOARD_PROPOSAL_PRINT_CSS_URL") || "";
     if (!cssUrl) {
       const indexHtml = await fetch(publicBase).then((response) => response.ok ? response.text() : "");
