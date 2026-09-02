@@ -72,7 +72,10 @@ test('proposal controller survives next-year row and type-switch stress within r
         await row.locator('[data-pa-item-edit-toggle]').click();
         await expect(price).toBeVisible();
       }
-      await oneRender(page, form, () => price.fill(String(500 + index)));
+      await oneRender(page, form, async () => {
+        await price.fill(String(500 + index));
+        await price.blur();
+      });
     }
   }
 
