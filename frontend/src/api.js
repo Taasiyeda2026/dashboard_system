@@ -67,6 +67,7 @@ const MUTATING_ACTIONS = {
   updateProposalAgreementStatus: true,
   lockAndSendProposalAgreement: true,
   uploadProposalFinalPdf: true,
+  requestProposalFinalPdf: true,
   uploadGefenApprovalDocument: true,
   deleteProposalAgreement: true,
   saveProposalAgreementItems: true,
@@ -3329,7 +3330,7 @@ function normalizeData(data) {
 }
 
 
-const PROPOSALS_AGREEMENTS_COLUMNS = 'id,client_type,client_name,authority_id,authority_code,school_id,semel_mosad,contact_school_id,client_authority,school_framework,document_type,activity_type_group,proposal_domain,proposal_date,activity_names,contact_name,contact_role,phone,email,contact_phone,contact_email,notes,status,approval_note,total_amount,custom_document_sections,include_catalog,signature_meta,approved_by,approved_at,sent_by,sent_at,locked_at,locked_by,locked_reason,final_pdf_path,final_pdf_file_name,final_pdf_created_at,final_pdf_created_by,document_snapshot,document_html_snapshot,proposal_series_id,version_number,supersedes_proposal_id,archived_at,quote_number,valid_until,combine_gefen_approval,gfen_signed_or_ordered,created_at,updated_at';
+const PROPOSALS_AGREEMENTS_COLUMNS = 'id,client_type,client_name,authority_id,authority_code,school_id,semel_mosad,contact_school_id,client_authority,school_framework,document_type,activity_type_group,proposal_domain,proposal_date,activity_names,contact_name,contact_role,phone,email,contact_phone,contact_email,notes,status,approval_note,total_amount,custom_document_sections,include_catalog,signature_meta,approved_by,approved_at,sent_by,sent_at,locked_at,locked_by,locked_reason,final_pdf_path,final_pdf_file_name,final_pdf_created_at,final_pdf_created_by,final_pdf_generation_status,final_pdf_generation_error,final_pdf_generation_attempts,document_snapshot,document_html_snapshot,proposal_series_id,version_number,supersedes_proposal_id,archived_at,quote_number,valid_until,combine_gefen_approval,gfen_signed_or_ordered,created_at,updated_at';
 // List/directory projection — no snapshots/HTML/signature payloads.
 const PROPOSALS_AGREEMENTS_LIST_COLUMNS = 'id,authority_id,authority_code,school_id,contact_school_id,semel_mosad,authority_name,legacy_client_authority,contact_client_type,contact_client_name,school_name,legacy_school_framework,document_type,activity_type_group,proposal_domain,proposal_date,activity_names,contact_name,contact_role,phone,email,notes,status,approval_note,total_amount,include_catalog,has_approval_signature,approved_by,approved_at,sent_by,sent_at,locked_at,locked_by,locked_reason,final_pdf_path,final_pdf_file_name,final_pdf_created_at,final_pdf_created_by,proposal_series_id,version_number,supersedes_proposal_id,archived_at,quote_number,valid_until,combine_gefen_approval,gfen_signed_or_ordered,created_at,updated_at';
 const PROPOSALS_AGREEMENTS_DIRECTORY_COLUMNS = PROPOSALS_AGREEMENTS_LIST_COLUMNS;
@@ -3578,6 +3579,9 @@ function normalizeProposalAgreementRow(row = {}) {
     final_pdf_file_name: cleanProposalAgreementText(row.final_pdf_file_name),
     final_pdf_created_at: cleanProposalAgreementText(row.final_pdf_created_at),
     final_pdf_created_by: cleanProposalAgreementText(row.final_pdf_created_by),
+    final_pdf_generation_status: cleanProposalAgreementText(row.final_pdf_generation_status) || 'idle',
+    final_pdf_generation_error: cleanProposalAgreementText(row.final_pdf_generation_error),
+    final_pdf_generation_attempts: Math.max(0, Number(row.final_pdf_generation_attempts) || 0),
     document_snapshot:   (row.document_snapshot && typeof row.document_snapshot === 'object' && !Array.isArray(row.document_snapshot)) ? row.document_snapshot : null,
     document_html_snapshot: cleanProposalAgreementText(row.document_html_snapshot),
     gefen_approval_status: cleanProposalAgreementText(row.gefen_approval_status) || 'missing',
@@ -7710,6 +7714,21 @@ export const api = {
       .single();
     if (error) throw new Error(error.message || 'proposals_agreement_status_update_failed');
     return { ok: true, row: normalizeProposalAgreementRow(data) };
+  },
+  requestProposalFinalPdf: async (id, payload = {}) => {
+    const proposalId = cleanProposalAgreementText(id);
+    if (!proposalId) throw new Error('missing_proposal_agreement_id');
+    const documentSnapshot = payload?.documentSnapshot ?? payload?.document_snapshot;
+    const documentHtmlSnapshot = cleanProposalAgreementText(payload?.documentHtmlSnapshot ?? payload?.document_html_snapshot);
+    if (!documentSnapshot || typeof documentSnapshot !== 'object' || Array.isArray(documentSnapshot)) {
+      throw new Error('missing_document_snapshot');
+    }
+    if (!documentHtmlSnapshot) throw new Error('missing_document_html_snapshot');
+    const { data, error } = await supabase.functions.invoke('proposal-final-pdf', {
+      body: { proposalId, documentSnapshot, documentHtmlSnapshot }
+    });
+    if (error) throw new Error(error.message || 'proposal_final_pdf_request_failed');
+    return data || { ok: true, queued: true };
   },
   lockAndSendProposalAgreement: async (id, payload = {}) => {
     assertCanManageProposalsAgreementsApi();

@@ -8798,7 +8798,7 @@ export const proposalsAgreementsScreen = {
     };
 
     const approvalRequests = new Set();
-    const approveProposalWithSignature = async (proposalId, signatureMeta) => {
+    const approveProposalWithSignature = async (proposalId, signatureMeta, pdfContext = {}) => {
       const id = text(proposalId);
       if (!id) throw new Error('לא נמצא מזהה להצעה. יש לשמור אותה ולנסות שוב.');
       if (approvalRequests.has(id)) throw new Error('האישור והחתימה כבר מתבצעים. יש להמתין לסיום הפעולה.');
@@ -8815,6 +8815,18 @@ export const proposalsAgreementsScreen = {
         const savedRow = result?.row;
         if (!savedRow || normalizeProposalStatus(savedRow.status) !== 'approved' || !proposalHasSavedApprovalSignature(savedRow) || !text(savedRow.approved_at)) {
           throw new Error('החתימה לא נשמרה במלואה ולכן סטטוס ההצעה לא עודכן בממשק.');
+        }
+        const pdfItems = proposalItemsWithFallback(pdfContext.items || [], savedRow);
+        const templateSections = Array.isArray(pdfContext.templateSections)
+          ? pdfContext.templateSections
+          : requiredTemplateSectionsForRow(savedRow);
+        const documentHtmlSnapshot = proposalPreviewBodyHtml(savedRow, pdfItems, templateSections, { showSignatureImage: true });
+        const documentSnapshot = buildProposalDocumentSnapshot(savedRow, pdfItems, templateSections);
+        // Approval is complete at this point. Do not await PDF generation: the Edge
+        // Function acknowledges the job and continues it in the background.
+        if (typeof api.requestProposalFinalPdf === 'function') {
+          void api.requestProposalFinalPdf(id, { documentSnapshot, documentHtmlSnapshot })
+            .catch((error) => console.error('[proposal-pdf-background-request-failed]', { proposalId: id, error }));
         }
         return savedRow;
       } finally {
@@ -8927,7 +8939,7 @@ export const proposalsAgreementsScreen = {
         btn.disabled = true;
         try {
           const signatureMeta = readSignatureMeta();
-          const savedApproval = await approveProposalWithSignature(text(freshRow.id), signatureMeta);
+          const savedApproval = await approveProposalWithSignature(text(freshRow.id), signatureMeta, { items, templateSections });
           replaceLocalRow(data, savedApproval);
           refreshTable();
           const approvedRow = data.rows.find((item) => text(item.id) === text(freshRow.id)) || { ...freshRow, status: 'approved', signature_meta: signatureMeta };
@@ -9032,7 +9044,7 @@ export const proposalsAgreementsScreen = {
           finalRow = submittedStatusResult?.row || { ...finalRow, status: 'pending_approval' };
           showToast('ההצעה נשמרה ונשלחה לאישור', 'success');
         } else if (approvingWithSignature && savedId) {
-          finalRow = await approveProposalWithSignature(savedId, signatureMeta || defaultSignatureMeta());
+          finalRow = await approveProposalWithSignature(savedId, signatureMeta || defaultSignatureMeta(), { items });
           showToast('ההצעה אושרה ונחתמה', 'success');
         } else if (targetStatus === 'draft') {
           showToast('הטיוטה נשמרה בהצלחה', 'success');
@@ -9298,7 +9310,7 @@ export const proposalsAgreementsScreen = {
             onSignatureConfirm: async (signatureMeta, closeOverlay) => {
               rowStatusSelect.disabled = true;
               try {
-                const savedApproval = await approveProposalWithSignature(id, signatureMeta);
+                const savedApproval = await approveProposalWithSignature(id, signatureMeta, { row, items });
                 replaceLocalRow(data, savedApproval);
                 refreshTable();
                 closeOverlay?.();
@@ -9825,7 +9837,7 @@ export const proposalsAgreementsScreen = {
             await openPreview(row, items, {
               signatureMode: true,
               onSignatureConfirm: async (signatureMeta, closeOverlay) => {
-                const savedApproval = await approveProposalWithSignature(id, signatureMeta);
+                const savedApproval = await approveProposalWithSignature(id, signatureMeta, { row, items });
                 replaceLocalRow(data, savedApproval);
                 refreshTable();
                 const updated = data.rows.find((item) => text(item.id) === id);
