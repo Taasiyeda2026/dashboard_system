@@ -31,6 +31,7 @@ const {
   installProposalWorkflowCompletion,
   normalizeProposalWorkflowDocument
 } = await import(moduleUrl.href);
+const { runProposalScreenLifecycleEnhancer } = await import('../frontend/src/screens/proposals-agreements.js');
 
 const course = {
   activity_name: 'אופק יזמות פרימיום בתעשייה',
@@ -99,7 +100,7 @@ test('mixed next-year document is normalized into course and workshop tables wit
   assert.doesNotMatch(documentRoot.textContent, /ההצעה יכולה לכלול קורסים, סדנאות או שילוב ביניהם/);
 });
 
-test('live next-year editor preview is not re-normalized by the workflow observer', () => {
+test('live next-year editor preview is not split again by the explicit document pipeline', () => {
   const dom = new JSDOM(`<div data-pa-live-preview>
     <article class="proposal-document">
       <section class="pa-section">
@@ -161,14 +162,59 @@ test('proposal type filter is populated and a dedicated summer tab is added', ()
   assert.equal(dom.window.document.querySelectorAll('[data-pa-summer-tab]').length, 1);
 });
 
+test('cold proposal navigation creates the summer tab from the explicit screen lifecycle', () => {
+  const dom = new JSDOM(`<main><div class="ds-pa-screen">
+    <button data-pa-tab="records">הצעות</button>
+    <select data-pa-filter="activity_type_group"><option value="">הכול</option></select>
+    <table data-pa-table><tbody><tr data-pa-row-id="1"><td>קיץ</td></tr></tbody></table>
+  </div></main>`);
+  installProposalWorkflowCompletion({}, { document: dom.window.document });
+  assert.equal(dom.window.document.querySelector('[data-pa-summer-tab]'), null);
+  runProposalScreenLifecycleEnhancer(dom.window.document.querySelector('main'));
+  const tab = dom.window.document.querySelector('[data-pa-summer-tab]');
+  assert.ok(tab);
+  const previousEvent = globalThis.Event;
+  globalThis.Event = dom.window.Event;
+  try { tab.click(); } finally { globalThis.Event = previousEvent; }
+  assert.equal(dom.window.document.querySelector('[data-pa-filter="activity_type_group"]').value, 'summer');
+});
+
 test('runtime prewarms editor dependencies and leaves approval/PDF ownership to the integrity runtime', () => {
   assert.match(source, /proposalEditorDepsMemoized/);
   assert.match(source, /requestIdleCallback/);
-  assert.match(source, /paStepperBound === 'yes'/);
-  assert.match(source, /data-pa-live-preview/);
   assert.doesNotMatch(source, /dataset\.paGenerateGefenApproval/);
   assert.doesNotMatch(source, /data-pa-status-action="approved"/);
   assert.doesNotMatch(source, /scheduleAutomaticPdf/);
   assert.match(source, /uploadProposalFinalPdf/);
   assert.match(source, /lockAndSendProposalAgreement/);
+  assert.doesNotMatch(source, /new (?:scope\.)?MutationObserver|document(?:Ref)?\?*\.addEventListener\(['"](?:input|change)['"]/);
+});
+
+test('workflow adapter restores next-year groups, workshops and pure snapshot presentation', async () => {
+  const dom = new JSDOM('<!doctype html><body></body>');
+  const saved = [];
+  const groups = [{ group_key: 'next_year', display_name: 'תשפ״ז' }];
+  const fakeApi = {
+    proposalsAgreements: async () => ({ proposalActivityGroups: groups, proposalActivityPricing: [course, workshop] }),
+    proposalsAgreementsEditorDeps: async () => ({ proposalActivityGroups: groups, proposalActivityPricing: [course, workshop] }),
+    readProposalActivityPricing: async () => [course, workshop],
+    readProposalActivityGroups: async () => groups,
+    uploadProposalFinalPdf: async (_id, payload) => saved.push(payload),
+    lockAndSendProposalAgreement: async (_id, payload) => saved.push(payload),
+    uploadGefenApprovalDocument: async (_id, payload) => saved.push(payload)
+  };
+  installProposalWorkflowCompletion(fakeApi, { document: dom.window.document, setTimeout, requestAnimationFrame: (callback) => callback() });
+  const payload = await fakeApi.proposalsAgreements();
+  assert.ok(payload.proposalActivityGroups.some((group) => group.group_key === 'next_year_courses'));
+  assert.ok(payload.proposalActivityGroups.some((group) => group.group_key === 'next_year_workshops'));
+  assert.ok(payload.proposalActivityPricing.some((row) => row.group_key === 'next_year_workshops'));
+  assert.ok((await fakeApi.readProposalActivityPricing()).some((row) => row.group_key === 'next_year_workshops'));
+  assert.ok((await fakeApi.readProposalActivityGroups()).some((group) => group.group_key === 'next_year_workshops'));
+
+  const html = `<article class="proposal-document"><table class="pa-next-year-course-table"><tbody><tr>
+    <td>יישומי הבינה המלאכותית</td><td>53819</td><td>10</td><td>1</td><td>15.00</td><td>₪ 633.333</td><td>₪ 9,500</td>
+  </tr></tbody></table></article>`;
+  await fakeApi.uploadProposalFinalPdf('p-1', { documentHtmlSnapshot: html });
+  assert.match(saved[0].documentHtmlSnapshot, /יישומי AI בשיתוף GOOGLE/);
+  assert.match(saved[0].documentHtmlSnapshot, /width:\s*72%/);
 });

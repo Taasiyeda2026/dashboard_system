@@ -139,13 +139,14 @@ test('legacy mixed snapshots stay split into course and workshop tables', () => 
   assert.match(parsed.body.textContent, /10,300/);
 });
 
-test('editor keeps one shared add button and two typed sections', async () => {
+test('editor keeps a shared catalog with explicit add controls in both typed sections', async () => {
   const screenSource = await readFile(SCREEN_FILE, 'utf8');
   assert.match(screenSource, /data-pa-next-year-shared-picker="yes"/);
   assert.match(screenSource, /\+ הוסף פעילות/);
   assert.match(screenSource, /renderGroupSection\('next_year_courses'/);
   assert.match(screenSource, /renderGroupSection\('next_year_workshops'/);
   assert.match(screenSource, /data-pa-items-group="\$\{escapeHtml\(groupKey\)\}"/);
+  assert.match(screenSource, /data-pa-add-item-group="\$\{escapeHtml\(groupKey\)\}"/);
   assert.doesNotMatch(screenSource, /NEXT_YEAR_UNIFIED_SECTION_TITLE = 'פעילויות ומחירים'/);
 });
 

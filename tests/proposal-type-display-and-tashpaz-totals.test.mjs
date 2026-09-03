@@ -248,11 +248,11 @@ test('a single-area תשפ״ז document shows one table and no empty table', () 
   assert.equal(parsed.querySelectorAll('.pa-next-year-combined-total').length, 0);
 });
 
-test('תשפ״ז keeps dual tables with one shared add-activity action', async () => {
+test('תשפ״ז keeps dual tables with explicit course and workshop add actions', async () => {
   const screenSource = await readFile(SCREEN_FILE, 'utf8');
 
   assert.match(screenSource, /data-pa-next-year-shared-picker="yes"/, 'תשפ״ז editor must expose a shared activity picker host');
-  assert.match(screenSource, /\+ הוסף פעילות/, 'תשפ״ז must expose a single add-activity action');
+  assert.match(screenSource, /data-pa-add-item-group="\$\{escapeHtml\(groupKey\)\}"/, 'each תשפ״ז area must expose its typed add action');
   assert.match(screenSource, /renderGroupSection\('next_year_courses'/);
   assert.match(screenSource, /renderGroupSection\('next_year_workshops'/);
   assert.match(screenSource, /data-pa-items-group="\$\{escapeHtml\(groupKey\)\}"/);
@@ -267,17 +267,23 @@ test('תשפ״ז keeps dual tables with one shared add-activity action', async (
     'area totals must reuse the existing row calculation'
   );
 
-  const grandTotal = screenSource.match(/const calcGrandTotal = \(container\) => \{[\s\S]*?\n    \};/)?.[0] || '';
-  assert.ok(grandTotal, 'calcGrandTotal must be present');
-  assert.match(grandTotal, /calcGroupTotals\(container\);/, 'the grand total must refresh the area totals');
-  assert.match(grandTotal, /\[data-pa-grand-total\]/);
-  assert.match(grandTotal, /updateLivePreview\(form\);/, 'the preview must refresh with the totals');
+  const calculation = screenSource.match(/const calculateGrandTotalDom = \(container, options = \{\}\) => \{[\s\S]*?\n    \};/)?.[0] || '';
+  assert.ok(calculation, 'the controller totals adapter must be present');
+  assert.match(calculation, /calcGroupTotals\(container\);/, 'the grand total must refresh the area totals');
+  assert.match(calculation, /\[data-pa-grand-total\]/);
+  assert.match(screenSource, /getPreviewController\(form\)\.change\(\{[\s\S]*?calculateOptions: options/, 'totals and preview must run through the single controller transaction');
+  const typeHandler = screenSource.slice(
+    screenSource.indexOf('const setupTypeChangeHandler'),
+    screenSource.indexOf('// ── Client lock / unlock helpers')
+  );
+  assert.match(typeHandler, /event\.stopPropagation\(\)[\s\S]*?setupActivityPickers\(itemsHost\)[\s\S]*?calcGrandTotal\(form\)/, 'type change must build, bind and run exactly one controller transaction');
+  assert.doesNotMatch(typeHandler, /setupItemCalc|updateLivePreview/, 'type change must not schedule a second preview path');
 
   ['addItemBtn', 'removeItemBtn'].forEach((handler) => {
     assert.ok(screenSource.includes(handler), `${handler} must exist`);
   });
-  assert.match(screenSource, /form\.addEventListener\('input', \(\) => \{[\s\S]*?calcGrandTotal\(form\);/);
-  assert.match(screenSource, /form\.addEventListener\('change', \(\) => setTimeout\(\(\) => \{[\s\S]*?calcGrandTotal\(form\);/);
+  assert.match(screenSource, /form\.addEventListener\('input', \(event\) => \{[\s\S]*?calcGrandTotal\(form,/);
+  assert.match(screenSource, /form\.addEventListener\('change', \(event\) => \{[\s\S]*?if \(isProposalPricingSelectionChange\(event\.target\)\) return;[\s\S]*?calcGrandTotal\(form\);/);
 });
 
 test('contact mobile and email fields use container-responsive tracks without overflow', async () => {

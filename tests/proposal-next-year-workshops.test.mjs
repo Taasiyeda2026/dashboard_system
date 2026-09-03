@@ -232,9 +232,10 @@ test('real next-year preview renders workshop-only, course-only and mixed saved 
 
 test('the editor live preview normalizes only its freshly rendered host', async () => {
   const screenSource = await readFile(new URL('../frontend/src/screens/proposals-agreements.js', import.meta.url), 'utf8');
-  const renderStart = screenSource.indexOf('const renderLivePreview = (form) =>');
+  const renderStart = screenSource.indexOf('function renderLivePreview(form, payload)');
   const renderBody = screenSource.slice(renderStart, screenSource.indexOf('// ── Items calc', renderStart));
-  assert.match(renderBody, /previewHost\.innerHTML = proposalPreviewBodyHtml/);
+  assert.match(renderBody, /const nextHtml = proposalPreviewBodyHtml/);
+  assert.match(renderBody, /previewHost\.innerHTML = nextHtml/);
   assert.match(renderBody, /proposalPdfDocumentNormalizer\?\.\(previewHost\)/);
   assert.doesNotMatch(renderBody, /normalizeNextYearWorkshopTables\(document/);
 

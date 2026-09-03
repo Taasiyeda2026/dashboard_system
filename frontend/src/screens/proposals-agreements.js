@@ -5,8 +5,17 @@ import { showToast } from './shared/toast.js';
 import { countPendingApprovedProposals, isProposalApprovedPendingSend } from './shared/proposals-pending-count.js';
 import { handleSupabaseSessionFailure } from '../session-security-runtime.js';
 import { hasPermission } from '../permission-policy.js';
+import { ProposalEditorController } from '../proposal-editor-controller.js';
 
 export { countPendingApprovedProposals, isProposalApprovedPendingSend };
+
+let proposalScreenLifecycleEnhancer = null;
+export function setProposalScreenLifecycleEnhancer(enhancer) {
+  proposalScreenLifecycleEnhancer = typeof enhancer === 'function' ? enhancer : null;
+}
+export function runProposalScreenLifecycleEnhancer(root) {
+  proposalScreenLifecycleEnhancer?.(root);
+}
 
 export const PROPOSALS_AGREEMENTS_ALLOWED_ROLES = new Set(['domain_manager', 'operation_manager', 'admin', 'business_development_manager']);
 export const PROPOSALS_AGREEMENTS_MANAGE_ROLES = new Set(['domain_manager', 'operation_manager', 'admin']);
@@ -130,6 +139,10 @@ function canApproveProposalsAgreements(state) {
 
 function text(value) {
   return String(value == null ? '' : value).replace(/\s+/g, ' ').trim();
+}
+
+export function isProposalPricingSelectionChange(target) {
+  return Boolean(target?.closest?.('[data-pa-pricing-select]'));
 }
 
 export function normalizeProposalSignedOrOrdered(value) {
@@ -2304,9 +2317,10 @@ function itemsEditorHtml(items = [], pricingOptions = [], activityTypeGroup = ''
         unifiedNextYear: true
       })).join('');
       const hiddenAttr = groupItems.length ? '' : ' hidden';
-      return `<div class="ds-pa-items-section ds-pa-items-section--group" data-pa-items-group="${escapeHtml(groupKey)}"${hiddenAttr}>
+      return `<div class="ds-pa-items-section ds-pa-items-section--group" data-pa-items-group="${escapeHtml(groupKey)}">
         <div class="ds-pa-items-header">
           <span class="ds-pa-items-section-label">${escapeHtml(label)}</span>
+          <button type="button" class="ds-btn ds-btn--xs" data-pa-add-item data-pa-add-item-group="${escapeHtml(groupKey)}">${NEXT_YEAR_UNIFIED_ADD_LABEL}</button>
         </div>
         <div class="ds-pa-items-list" data-pa-items-body data-pa-items-group-body="${escapeHtml(groupKey)}">${rowsHtml}</div>
         <div class="ds-pa-items-group-total-row" data-pa-items-group-total-row="${escapeHtml(groupKey)}"${hiddenAttr}>
@@ -2316,9 +2330,6 @@ function itemsEditorHtml(items = [], pricingOptions = [], activityTypeGroup = ''
       </div>`;
     };
     return `<div class="ds-pa-items-section ds-pa-items-unified-next-year" data-pa-next-year-unified="yes" data-pa-next-year-shared-picker="yes">
-      <div class="ds-pa-items-header">
-        <button type="button" class="ds-btn ds-btn--xs" data-pa-add-item data-pa-add-item-group="next_year">${NEXT_YEAR_UNIFIED_ADD_LABEL}</button>
-      </div>
       ${renderGroupSection('next_year_courses', 'קורסים ותוכניות', courseItems, 0)}
       ${renderGroupSection('next_year_workshops', 'סדנאות', workshopItems, courseItems.length || 0)}
       ${footer}
@@ -6444,6 +6455,9 @@ export const proposalsAgreementsScreen = {
   },
   bind({ root, data, state, api }) {
     if (!root || data?.unauthorized || !canAccessProposalsAgreements(state)) return;
+    // Feature adapters run only after render() has committed .ds-pa-screen. This is
+    // the explicit cold-navigation lifecycle hook; no DOM observer is involved.
+    runProposalScreenLifecycleEnhancer(root);
     const canManage = canManageProposalsAgreements(state);
     if (root._paAbort) root._paAbort.abort();
     const abortController = new AbortController();
@@ -7142,7 +7156,12 @@ export const proposalsAgreementsScreen = {
         } : {});
         renderContactChannelsStatus(form);
       }, { signal });
-      form.addEventListener('change', () => setTimeout(() => { updateProposalStepper(form); calcGrandTotal(form); }, 0), { signal });
+      form.addEventListener('change', (event) => {
+        // Pricing selection owns hydration + totals + preview in the capture-phase
+        // handler below. The generic form owner handles every other change only.
+        if (isProposalPricingSelectionChange(event.target)) return;
+        setTimeout(() => { updateProposalStepper(form); calcGrandTotal(form); }, 0);
+      }, { signal });
       updateProposalStepper(form);
       setupCatalogAttach(form);
     };
@@ -7153,7 +7172,10 @@ export const proposalsAgreementsScreen = {
       if (!form) return;
       const typeSelect = form.querySelector('[name="activity_type_group"]');
       if (!typeSelect) return;
-      typeSelect.addEventListener('change', () => {
+      typeSelect.addEventListener('change', (event) => {
+        // A type-card click dispatches this one scoped change event. Consume it at
+        // the type owner so it cannot also schedule the generic form transaction.
+        event.stopPropagation();
         const newType = text(typeSelect.value);
         const tableNoteField = form.querySelector('[data-pa-table-note-field]');
         if (tableNoteField) tableNoteField.hidden = !isNextYearProposalGroup(newType);
@@ -7176,8 +7198,11 @@ export const proposalsAgreementsScreen = {
           modeEl.textContent = 'סוג ההצעה השתנה';
           modeEl.classList.remove('ds-pa-template-mode--custom');
         }
-        setupItemCalc(form);
         updateProposalStepper(form);
+        // Newly built controls use the screen's delegated item handler; bind any
+        // self-contained picker controls exactly once within the fresh subtree.
+        setupActivityPickers(itemsHost);
+        calcGrandTotal(form);
       }, { signal });
     };
 
@@ -7951,34 +7976,27 @@ export const proposalsAgreementsScreen = {
     };
 
 
-    let previewFrame = 0;
-    let previewTimer = 0;
-    let pendingPreviewForm = null;
+    const previewControllers = new WeakMap();
+    const getPreviewController = (form) => {
+      let controller = previewControllers.get(form);
+      if (controller) return controller;
+      controller = new ProposalEditorController(form, {
+        readState: (activeForm) => payloadFromForm(activeForm),
+        calculate: (activeForm, options) => calculateGrandTotalDom(activeForm, options),
+        renderPreview: renderLivePreview
+      });
+      previewControllers.set(form, controller);
+      return controller;
+    };
     const updateLivePreview = (container, delay = 0) => {
       const form = container?.closest?.('[data-pa-form]') || (container?.matches?.('[data-pa-form]') ? container : null);
       if (!form) return;
-      pendingPreviewForm = form;
-      if (delay > 0) {
-        if (previewTimer) clearTimeout(previewTimer);
-        previewTimer = setTimeout(() => {
-          previewTimer = 0;
-          updateLivePreview(pendingPreviewForm);
-        }, delay);
-        return;
-      }
-      if (previewFrame) return;
-      previewFrame = requestAnimationFrame(() => {
-        previewFrame = 0;
-        const nextForm = pendingPreviewForm;
-        pendingPreviewForm = null;
-        renderLivePreview(nextForm);
-      });
+      getPreviewController(form).change({ delay, recalculate: false });
     };
 
-    const renderLivePreview = (form) => {
+    function renderLivePreview(form, payload) {
       const previewHost = form?.querySelector?.('[data-pa-live-preview]');
       if (!form || !previewHost) return;
-      const payload = payloadFromForm(form);
       const row = normalizeProposalAgreementRow({
         ...payload,
         id: text(form.dataset.paId),
@@ -7989,7 +8007,7 @@ export const proposalsAgreementsScreen = {
       if (previewHost.innerHTML === nextHtml) return;
       previewHost.innerHTML = nextHtml;
       proposalPdfDocumentNormalizer?.(previewHost);
-    };
+    }
 
     // ── Items calc ────────────────────────────────────────────────────────────
     const calcItemRow = (rowEl) => {
@@ -8063,7 +8081,7 @@ export const proposalsAgreementsScreen = {
       });
     };
 
-    const calcGrandTotal = (container, options = {}) => {
+    const calculateGrandTotalDom = (container, options = {}) => {
       let subtotal = calcTourTotal(container, options.tourRow);
       if (subtotal == null) {
         subtotal = 0;
@@ -8101,9 +8119,17 @@ export const proposalsAgreementsScreen = {
         const countEl = form.querySelector('[data-pa-summary-count]');
         const countText = String(form.querySelectorAll('[data-pa-item-row]').length) || '—';
         if (countEl && countEl.textContent !== countText) countEl.textContent = countText;
-        updateLivePreview(form, options.previewDelay || 0);
       }
       return sum;
+    };
+
+    const calcGrandTotal = (container, options = {}) => {
+      const form = container?.closest?.('[data-pa-form]') || (container?.matches?.('[data-pa-form]') ? container : null);
+      if (!form) return calculateGrandTotalDom(container, options);
+      return getPreviewController(form).change({
+        delay: options.previewDelay || 0,
+        calculateOptions: options
+      });
     };
 
     const setupItemCalc = (container) => { calcGrandTotal(container); };
@@ -10044,7 +10070,9 @@ export const proposalsAgreementsScreen = {
         if (!normalizeProposalGroup(currentType)) return;
         const unifiedNextYear = Boolean(unifiedHost) || isNextYearUnifiedActivitiesGroup(currentType) || isNextYearUnifiedActivitiesGroup(groupKey);
         // Shared תשפ״ז picker lands new blank rows in the programs table until classified.
-        const landingGroup = unifiedNextYear ? 'next_year_courses' : (groupKey || currentType);
+        const landingGroup = unifiedNextYear
+          ? (isNextYearInternalRowGroup(groupKey) ? groupKey : 'next_year_courses')
+          : (groupKey || currentType);
         const landingSection = sharedPicker
           ? form?.querySelector(`[data-pa-items-group="${landingGroup}"]`)
           : groupSection;
