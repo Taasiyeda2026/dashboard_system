@@ -1,7 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
-import { generateSessionDatesFromFirstMeeting } from '../frontend/src/screens/shared/school-calendar-form-guard.js';
+
+const bootstrapDom = new JSDOM('<!doctype html>', { url: 'https://example.test/' });
+globalThis.window = bootstrapDom.window;
+globalThis.document = bootstrapDom.window.document;
+globalThis.sessionStorage = bootstrapDom.window.sessionStorage;
+globalThis.localStorage = bootstrapDom.window.localStorage;
+Object.defineProperty(globalThis, 'navigator', { value: bootstrapDom.window.navigator, configurable: true });
+
+const { generateSessionDatesFromFirstMeeting } = await import('../frontend/src/screens/shared/school-calendar-form-guard.js');
 
 const holiday = [{
   title: 'חופשת חנוכה', start_date: '2026-12-09', end_date: '2026-12-09',

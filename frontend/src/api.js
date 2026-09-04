@@ -897,7 +897,7 @@ async function selectActivitiesByDateRangeFromSupabase({
 }
 
 const AUTHORITIES_CATALOG_COLUMNS = 'id,authority_name,authority_code,authority_type,hp_number,long_name,district,active';
-const SCHOOLS_CATALOG_COLUMNS = 'id,semel_mosad,school_name,authority,authority_id,district,city,principal_name,school_phone,institution_address,active';
+const SCHOOLS_CATALOG_COLUMNS = 'id,semel_mosad,school_name,authority,authority_id,district,city,sector,principal_name,school_phone,institution_address,active';
 const CONTACTS_INSTRUCTORS_SCREEN_COLUMNS = 'emp_id,full_name,mobile,email,address,employment_type,direct_manager,active';
 const CONTACTS_CATALOG_CACHE_TTL_MS = 10 * 60 * 1000;
 let authoritySchoolCatalogCache = null;
@@ -1092,6 +1092,7 @@ function buildSchoolCatalogLookup(schools = []) {
       authority_id: authority_id || null,
       district: normalizeCatalogText(row.district),
       city: normalizeCatalogText(row.city),
+      sector: normalizeCatalogText(row.sector),
       principal_name: normalizeCatalogText(row.principal_name),
       school_phone: normalizeCatalogText(row.school_phone),
       institution_address: normalizeCatalogText(row.institution_address),
@@ -1269,7 +1270,8 @@ function buildAuthoritySchoolCatalogClientSettings(authorityLookup, schoolLookup
     school_id: school.id,
     authority_id: school.authority_id,
     authority: school.authority,
-    semel_mosad: school.semel_mosad
+    semel_mosad: school.semel_mosad,
+    sector: school.sector
   })).filter((school) => school.name);
   const authority_records = activeAuthorities.map((authority) => ({
     id: authority.id,

@@ -941,6 +941,8 @@ test('activity add validation clears saving state and does not show duplicate in
   const settings = activityNameSettings();
   settings.dropdown_options.authorities = ['רשות א'];
   settings.dropdown_options.schools = ['בית ספר א'];
+  settings.dropdown_options.authority_records = [{ id: 1, name: 'רשות א' }];
+  settings.dropdown_options.school_records = [{ school_id: 10, authority_id: 1, name: 'בית ספר א', sector: 'general' }];
   settings.dropdown_options.activity_managers = ['מנהלת א'];
   const state = baseState();
   state.activityPeriodTab = 'school_2027';
@@ -997,6 +999,7 @@ test('activity add validation clears saving state and does not show duplicate in
     nameSelect.value = 'חדר בריחה חלל';
     nameSelect.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
     form.querySelector('[name="authority"]').value = 'רשות א';
+    form.querySelector('[name="authority"]').dispatchEvent(new dom.window.Event('change', { bubbles: true }));
     form.querySelector('[name="school"]').value = 'בית ספר א';
 
     form.dispatchEvent(new dom.window.Event('submit', { bubbles: true, cancelable: true }));

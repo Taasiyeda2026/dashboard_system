@@ -581,8 +581,10 @@ function blockAssignment(row, { settings = {} } = {}) {
         <input type="hidden" name="authority_id" value="${escapeHtml(authorityId)}" data-role="activity-authority-id">
         ${fieldEditOnly(
           'בית ספר',
-          `${inputHtml({ name: 'school', value: row.school, type: 'search', attrs: `list="activity-school-list" autocomplete="off" placeholder="חיפוש בית ספר…" data-role="activity-school"` })}
-          <datalist id="activity-school-list" data-role="activity-school-options">${schools.map((school) => `<option value="${escapeHtml(school)}"></option>`).join('')}</datalist>
+          `<div class="activity-school-picker" data-role="activity-school-picker">
+            ${inputHtml({ name: 'school', value: row.school, type: 'search', attrs: `autocomplete="off" placeholder="חיפוש בית ספר…" data-role="activity-school" aria-autocomplete="list" aria-expanded="false"` })}
+            <div class="activity-school-picker__menu" data-role="activity-school-options" role="listbox" hidden>${schools.map((school) => `<button type="button" role="option" data-school-name="${escapeHtml(school)}">${escapeHtml(school)}</button>`).join('')}</div>
+          </div>
           ${invalidSchoolLink ? '<p class="ds-error-text" role="alert">בית הספר השמור אינו שייך לרשות של הפעילות. יש לתקן את השיוך לפני השמירה.</p>' : ''}`
         )}
         <input type="hidden" name="school_id" value="${escapeHtml(String(row.school_id || ''))}" data-role="activity-school-id">

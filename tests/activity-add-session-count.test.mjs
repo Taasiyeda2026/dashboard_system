@@ -22,6 +22,7 @@ Object.defineProperty(globalThis, 'localStorage', {
 const {
   applyActivityCatalogSelectionToAddForm,
   bindAddActivitySessionCountSync,
+  regenerateAddActivitySessionDates,
   syncSessionDateRows
 } = await import('../frontend/src/screens/activities.js');
 
@@ -94,6 +95,31 @@ test('manual session count change triggers date-row synchronization', () => {
   input.dispatchEvent(new window.Event('input', { bubbles: true }));
 
   assert.equal(rowCount(form), 6);
+});
+
+test('new activity weekly chain skips a sector-applicable blocked date', async () => {
+  const form = createForm('course', '3');
+  form.querySelector('[data-add-date-rows]').setAttribute('data-meeting-dates-edit', '');
+  form.dataset.addAuthorityRecords = encodeURIComponent(JSON.stringify([{ id: 1, name: 'רשות א' }]));
+  form.dataset.addSchoolRecords = encodeURIComponent(JSON.stringify([
+    { school_id: 10, authority_id: 1, name: 'בית ספר א', sector: 'jewish' },
+  ]));
+  form.insertAdjacentHTML('afterbegin', '<input name="authority" value="רשות א"><input name="school" value="בית ספר א">');
+  form.querySelector('[name="start_date"]').value = '2026-10-20';
+  syncSessionDateRows(form);
+
+  const result = await regenerateAddActivitySessionDates(form, [{
+    title: 'יום הבחירות לכנסת ה-26',
+    start_date: '2026-10-27',
+    end_date: '2026-10-27',
+    blocks_scheduling: true,
+    is_active: true,
+    show_on_main_calendar: true,
+    calendar_sector: 'general',
+  }]);
+
+  assert.deepEqual(result.dates, ['2026-10-20', '2026-11-03', '2026-11-10']);
+  assert.equal(form.querySelector('[name="end_date"]').value, '2026-11-10');
 });
 
 test('workshop hides sessions and remains a single-day activity', () => {

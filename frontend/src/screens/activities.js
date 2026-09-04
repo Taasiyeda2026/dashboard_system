@@ -40,6 +40,9 @@ import {
   resolveGradeOptions
 } from './shared/activity-options.js';
 import { deriveActivityMeetingRange, resolveAuthorityRecord, resolveSchoolRecord, schoolBelongsToAuthority, schoolsForAuthority } from './shared/activity-form-rules.js';
+import { generateSessionDatesFromFirstMeeting } from './shared/school-calendar-form-guard.js';
+import { loadSchoolCalendarRows } from './shared/school-calendar-data.js';
+import { filterSchoolCalendarRowsBySector } from './shared/school-calendar-logic.js';
 import { readActivitiesGapFromQuery, syncActivitiesGapQuery, isActivitiesGapQueryValue } from './shared/route-query.js';
 import { rowMatchesActivityGapFilter } from './shared/activity-gap-filter.js';
 import { activityMatchesInstructorStatusFilter } from './shared/activity-instructor-filter.js';
@@ -764,7 +767,7 @@ export function syncSessionDateRows(form) {
   const prev = Array.from(container.querySelectorAll('input[data-add-session-date]')).map((input) => String(input.value || '').trim());
   container.innerHTML = Array.from({ length: sessions }, (_, idx) => {
     const value = idx === 0 ? (startDate || prev[idx] || '') : (prev[idx] || computeNextSessionDate(startDate, idx));
-    return `<label class="ds-add-date-row"><span>מפגש ${idx + 1}</span><input class="ds-input ds-input--sm" type="date" data-add-session-date="${idx + 1}" value="${escapeHtml(value)}"></label>`;
+    return `<label class="ds-add-date-row activity-drawer__date-card"><span>מפגש ${idx + 1}</span><input class="ds-input ds-input--sm" type="date" data-meeting-idx="${idx}" data-add-session-date="${idx + 1}" value="${escapeHtml(value)}"></label>`;
   }).join('');
   syncAddActivityMeetingRange(form);
 }
@@ -787,6 +790,18 @@ export function bindAddActivitySessionCountSync(form, listenerOptions) {
   const sync = () => syncSessionDateRows(form);
   sessionsInput?.addEventListener('input', sync, listenerOptions);
   sessionsInput?.addEventListener('change', sync, listenerOptions);
+}
+
+export async function regenerateAddActivitySessionDates(form, calendarRows = null) {
+  const schoolRecords = decodeJsonAttr(form?.dataset?.addSchoolRecords, []);
+  const authorityRecords = decodeJsonAttr(form?.dataset?.addAuthorityRecords, []);
+  const authority = resolveAuthorityRecord(authorityRecords, form?.querySelector?.('[name="authority"]')?.value);
+  const school = resolveSchoolRecord(schoolRecords, form?.querySelector?.('[name="school"]')?.value, authority?.id);
+  const rows = Array.isArray(calendarRows) ? calendarRows : await loadSchoolCalendarRows();
+  const scopedRows = filterSchoolCalendarRowsBySector(rows, school?.sector || 'general');
+  const result = generateSessionDatesFromFirstMeeting(form, scopedRows);
+  syncAddActivityMeetingRange(form);
+  return result;
 }
 
 function optionsHtml(values, selected = '', placeholder = '—', labelFn = null) {
@@ -964,7 +979,7 @@ function addActivityModalHtml(settings, activityPeriodTab = '') {
         <label class="ds-activity-add-field ds-activity-add-field--compact" data-field-one-day-date style="display:none"><span>תאריך הפעילות</span><input class="ds-input" name="one_day_date" type="date"></label>
         <div class="ds-activity-add-field ds-activity-add-field--span2" data-add-date-rows-wrap>
           <span>תאריכי מפגשים</span>
-          <div class="ds-activity-add-date-rows" data-add-date-rows></div>
+          <div class="ds-activity-add-date-rows" data-add-date-rows data-meeting-dates-edit></div>
         </div>
 
         <p class="ds-activity-add-section">צוות וניהול</p>
@@ -2918,15 +2933,19 @@ export const activitiesScreen = {
         refreshActivityNameSelect(form);
       }, addActivitySig);
       bindAddActivitySessionCountSync(form, addActivitySig);
-      form.querySelector('[name="start_date"]')?.addEventListener('change', () => syncSessionDateRows(form), addActivitySig);
+      const rebuildSessions = async () => {
+        syncSessionDateRows(form);
+        await regenerateAddActivitySessionDates(form);
+      };
+      form.querySelector('[data-add-sessions]')?.addEventListener('change', () => { void rebuildSessions(); }, addActivitySig);
+      form.querySelector('[name="start_date"]')?.addEventListener('change', () => { void rebuildSessions(); }, addActivitySig);
       form.querySelector('[name="one_day_date"]')?.addEventListener('change', () => syncSessionDateRows(form), addActivitySig);
       form.querySelector('[data-add-date-rows]')?.addEventListener('change', (ev) => {
         const firstDate = ev.target.closest('input[data-add-session-date="1"]');
         if (!firstDate) return;
         const startDateInput = form.querySelector('[name="start_date"]');
         if (startDateInput) startDateInput.value = String(firstDate.value || '').trim();
-        syncSessionDateRows(form);
-        syncAddActivityMeetingRange(form);
+        void regenerateAddActivitySessionDates(form);
       }, addActivitySig);
       bindAuthoritySchoolPicker(form);
       bindEntityFieldToggle(form, 'authority');
@@ -2951,7 +2970,8 @@ export const activitiesScreen = {
         list.innerHTML = filtered.map((school) => `<option value="${escapeHtml(humanDisplayText(school?.name || school?.value))}"></option>`).join('');
       };
       authorityInput.addEventListener('input', sync, addActivitySig);
-      authorityInput.addEventListener('change', sync, addActivitySig);
+      authorityInput.addEventListener('change', () => { sync(); void regenerateAddActivitySessionDates(form); }, addActivitySig);
+      schoolInput.addEventListener('change', () => { void regenerateAddActivitySessionDates(form); }, addActivitySig);
       sync();
     }
 
