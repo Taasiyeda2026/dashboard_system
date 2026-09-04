@@ -66,9 +66,28 @@ test('attendance warning remains advisory and does not gate createRecord', () =>
   assert.doesNotMatch(submit, /if \(syncDateWarning\(\)\) return/);
 });
 
-test('database trigger guards school-authority links and new second-instructor assignments', () => {
-  const sql = fs.readFileSync(new URL('../supabase/migrations/20260904120000_activity_school_and_second_instructor_guards.sql', import.meta.url), 'utf8');
-  assert.match(sql, /school_authority_id is distinct from new\.authority_id/);
+const activityIntegritySql = fs.readFileSync(
+  new URL('../supabase/migrations/20260904123000_canonicalize_activity_authority_school_snapshots.sql', import.meta.url),
+  'utf8',
+);
+
+test('database backfill and trigger overwrite stale text from valid canonical IDs', () => {
+  assert.match(activityIntegritySql, /update public\.activities activity[\s\S]*activity\.authority_id = school\.authority_id/);
+  assert.match(activityIntegritySql, /set authority = authority\.authority_name,[\s\S]*school = school\.school_name/);
+  assert.match(activityIntegritySql, /new\.authority := canonical_authority_name/);
+  assert.match(activityIntegritySql, /new\.school := canonical_school_name/);
+  assert.match(activityIntegritySql, /before insert or update\s+on public\.activities/i);
+});
+
+test('database trigger blocks mismatched school IDs and exposes them only through audit', () => {
+  assert.match(activityIntegritySql, /school_authority_id is distinct from new\.authority_id/);
+  assert.match(activityIntegritySql, /activity_school_authority_mismatch_audit/);
+  assert.match(activityIntegritySql, /school\.authority_id is distinct from activity\.authority_id/);
+  assert.doesNotMatch(activityIntegritySql, /update public\.activities[\s\S]*set authority_id\s*=/i);
+});
+
+test('database trigger guards new second-instructor assignments', () => {
+  const sql = activityIntegritySql;
   assert.match(sql, /new_activity_instructors_must_use_scheduling/);
   assert.match(sql, /second_instructor_requires_tamir_workshop/);
   assert.match(sql, /proposal_activity_pricing/);
