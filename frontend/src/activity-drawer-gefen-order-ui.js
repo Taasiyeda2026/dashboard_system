@@ -1,3 +1,5 @@
+import { supabase } from './supabase-client.js';
+
 const ENHANCED_ATTR = 'data-gefen-order-ui';
 const CONTROL_ATTR = 'data-gefen-order-control';
 const STYLE_ID = 'activity-drawer-gefen-order-ui-styles';
@@ -23,6 +25,29 @@ function exportRow(form) {
     return JSON.parse(form?.dataset?.exportRow || '{}') || {};
   } catch {
     return {};
+  }
+}
+
+function activityRowId(row = {}) {
+  return clean(row.row_id || row.RowID || row.rowId);
+}
+
+async function loadGefenOrderConfirmation(rowId) {
+  const normalizedRowId = clean(rowId);
+  if (!supabase || !normalizedRowId) return null;
+
+  try {
+    const { data, error } = await supabase
+      .from('activities')
+      .select('exists_in_gefen')
+      .eq('row_id', normalizedRowId)
+      .maybeSingle();
+    if (error) throw error;
+    if (!data || typeof data.exists_in_gefen !== 'boolean') return null;
+    return data.exists_in_gefen;
+  } catch (error) {
+    console.warn('[activity-gefen-order] failed to hydrate order confirmation', error);
+    return null;
   }
 }
 
@@ -145,11 +170,15 @@ function isFundingInteractionTarget(target) {
   );
 }
 
-export function enhanceGefenOrderUi(form) {
+export function enhanceGefenOrderUi(form, { loadConfirmation = loadGefenOrderConfirmation } = {}) {
   if (!form || form.hasAttribute(ENHANCED_ATTR)) return false;
   const checkbox = form.querySelector('[data-gefen-exists-checkbox]');
   const field = fundingField(form);
   if (!checkbox || !field) return false;
+
+  const row = exportRow(form);
+  const rowHasConfirmation = typeof row.exists_in_gefen === 'boolean';
+  if (rowHasConfirmation) checkbox.checked = row.exists_in_gefen;
 
   const created = createChoiceControl(form, checkbox, field);
   if (!created) return false;
@@ -157,6 +186,7 @@ export function enhanceGefenOrderUi(form) {
   ensureStyles(form.ownerDocument);
 
   let lastGefenFunding = hasGefenFunding(form);
+  let confirmationTouched = false;
 
   const sync = ({ fundingChanged = false } = {}) => {
     const gefenFunding = hasGefenFunding(form);
@@ -167,6 +197,7 @@ export function enhanceGefenOrderUi(form) {
       // particular, removing Gefen clears a previous "yes", and adding Gefen
       // never inherits a stale confirmation from an unrelated state.
       checkbox.checked = false;
+      confirmationTouched = true;
     }
 
     lastGefenFunding = gefenFunding;
@@ -176,6 +207,7 @@ export function enhanceGefenOrderUi(form) {
   };
 
   select.addEventListener('change', () => {
+    confirmationTouched = true;
     checkbox.checked = select.value === 'true';
     sync();
   });
@@ -192,6 +224,7 @@ export function enhanceGefenOrderUi(form) {
 
   form.addEventListener('reset', () => {
     queueMicrotask(() => {
+      confirmationTouched = false;
       lastGefenFunding = hasGefenFunding(form);
       sync();
     });
@@ -199,7 +232,23 @@ export function enhanceGefenOrderUi(form) {
 
   form.setAttribute(ENHANCED_ATTR, 'yes');
   sync();
+
+  // Most activity-list projections deliberately omit operational detail fields.
+  // When that happens the legacy checkbox is rendered unchecked even if the
+  // database says an order exists. Hydrate only the one boolean needed by this
+  // drawer, and never overwrite a choice the user has already made in edit mode.
+  const rowId = activityRowId(row);
+  if (!rowHasConfirmation && lastGefenFunding && rowId && typeof loadConfirmation === 'function') {
+    Promise.resolve(loadConfirmation(rowId)).then((confirmed) => {
+      if (typeof confirmed !== 'boolean' || confirmationTouched || !hasGefenFunding(form)) return;
+      checkbox.checked = confirmed;
+      sync();
+    }).catch((error) => {
+      console.warn('[activity-gefen-order] failed to hydrate order confirmation', error);
+    });
+  }
+
   return true;
 }
 
-export { hasGefenFunding, isGefenName };
+export { hasGefenFunding, isGefenName, loadGefenOrderConfirmation };

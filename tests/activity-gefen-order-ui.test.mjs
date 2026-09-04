@@ -3,13 +3,16 @@ import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
 import { enhanceGefenOrderUi } from '../frontend/src/activity-drawer-gefen-order-ui.js';
 
-function fixture({ gefenSelected = true, existsInGefen = false } = {}) {
+function fixture({ gefenSelected = true, existsInGefen = false, exportedConfirmation } = {}) {
   const selectedGefen = gefenSelected ? ' selected' : '';
   const selectedOther = gefenSelected ? '' : ' selected';
   const checked = existsInGefen ? ' checked' : '';
-  const row = JSON.stringify({
+  const exportData = {
+    row_id: 'ACT-GEFEN-1',
     funding_sources: [gefenSelected ? { id: 'gefen', name: 'גפן' } : { id: 'other', name: 'רמי שני' }]
-  }).replaceAll('&', '&amp;').replaceAll('"', '&quot;');
+  };
+  if (typeof exportedConfirmation === 'boolean') exportData.exists_in_gefen = exportedConfirmation;
+  const row = JSON.stringify(exportData).replaceAll('&', '&amp;').replaceAll('"', '&quot;');
 
   return new JSDOM(`
     <div class="ds-drawer">
@@ -56,6 +59,38 @@ test('Gefen funding exposes an edit-only yes/no order choice and marks the fundi
   assert.equal(form.querySelector('.activity-drawer__gefen-exists'), null);
 });
 
+test('an explicit exported confirmation is authoritative even if legacy checkbox markup is stale', () => {
+  const dom = fixture({ gefenSelected: true, existsInGefen: false, exportedConfirmation: true });
+  const form = dom.window.document.querySelector('form');
+
+  enhanceGefenOrderUi(form);
+
+  assert.equal(form.querySelector('[data-gefen-exists-checkbox]').checked, true);
+  assert.equal(form.querySelector('[data-gefen-order-choice]').value, 'true');
+  assert.equal(form.querySelector('.activity-drawer-inline__field').dataset.gefenOrderConfirmed, 'yes');
+});
+
+test('hydrates confirmation for a Gefen drawer when the list projection omitted exists_in_gefen', async () => {
+  const dom = fixture({ gefenSelected: true, existsInGefen: false });
+  const form = dom.window.document.querySelector('form');
+  const loadedRowIds = [];
+
+  enhanceGefenOrderUi(form, {
+    loadConfirmation: async (rowId) => {
+      loadedRowIds.push(rowId);
+      return true;
+    }
+  });
+
+  await Promise.resolve();
+  await Promise.resolve();
+
+  assert.deepEqual(loadedRowIds, ['ACT-GEFEN-1']);
+  assert.equal(form.querySelector('[data-gefen-exists-checkbox]').checked, true);
+  assert.equal(form.querySelector('[data-gefen-order-choice]').value, 'true');
+  assert.equal(form.querySelector('.activity-drawer-inline__field').dataset.gefenOrderConfirmed, 'yes');
+});
+
 test('non-Gefen funding keeps the order choice unavailable and never marks the funding cell', () => {
   const dom = fixture({ gefenSelected: false, existsInGefen: true });
   const form = dom.window.document.querySelector('form');
@@ -95,6 +130,7 @@ test('changing Gefen funding during edit clears stale confirmation and requires 
   choice.value = 'true';
   choice.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
   assert.equal(checkbox.checked, true);
+  assert.equal(choice.value, 'true');
   assert.equal(field.dataset.gefenOrderConfirmed, 'yes');
 
   gefenOption.selected = false;
