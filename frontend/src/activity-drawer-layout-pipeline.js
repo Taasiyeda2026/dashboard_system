@@ -13,7 +13,18 @@ export function applyActivityDrawerLayoutPipeline(contentRoot, settings = null) 
   let changed = false;
   contentRoot.querySelectorAll('[data-drawer-form]').forEach((form) => {
     if (!form.closest('.ds-drawer')) return;
+
+    // The legacy exists_in_gefen checkbox lives inside an edit-group section.
+    // The inline-layout pass removes those legacy sections after moving their
+    // visible controls, so retain the checkbox node and restore it to the form
+    // before the Gefen enhancer relocates it into the funding cell.
+    const gefenExistsCheckbox = form.querySelector('[data-gefen-exists-checkbox]');
+
     changed = enhanceActivityDrawerForm(form) || changed;
+    if (gefenExistsCheckbox && !form.contains(gefenExistsCheckbox)) {
+      form.append(gefenExistsCheckbox);
+      changed = true;
+    }
     changed = enhanceGefenOrderUi(form) || changed;
     changed = applyActivityDrawerTypeLayoutFix(form) || changed;
     if (settings) polishActivityDrawerEditOptions(form, settings);
