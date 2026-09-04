@@ -85,7 +85,8 @@ function catalogIdentityChanges({
     activity_name: canonicalName,
     activity_no: activityNo,
     gefen_number: gefenNumber || null,
-    exists_in_gefen: Boolean(gefenNumber),
+    // External Gefen order existence is a manual operational confirmation.
+    // Catalog identity must never infer or overwrite exists_in_gefen.
     activity_name_override: false
   };
   const sessions = firstCatalogNumber(meetings_count);

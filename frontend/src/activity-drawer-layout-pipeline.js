@@ -1,4 +1,5 @@
 import { enhanceActivityDrawerForm } from './activity-drawer-inline-layout.js';
+import { enhanceGefenOrderUi } from './activity-drawer-gefen-order-ui.js';
 import { applyActivityDrawerTypeLayoutFix } from './activity-drawer-type-layout-fix.js';
 import { polishActivityDrawerEditOptions } from './activity-drawer-edit-dedup.js';
 import { dockActivityDrawerActions } from './activity-drawer-floating-actions.js';
@@ -13,6 +14,7 @@ export function applyActivityDrawerLayoutPipeline(contentRoot, settings = null) 
   contentRoot.querySelectorAll('[data-drawer-form]').forEach((form) => {
     if (!form.closest('.ds-drawer')) return;
     changed = enhanceActivityDrawerForm(form) || changed;
+    changed = enhanceGefenOrderUi(form) || changed;
     changed = applyActivityDrawerTypeLayoutFix(form) || changed;
     if (settings) polishActivityDrawerEditOptions(form, settings);
     changed = dockActivityDrawerActions(form) || changed;
