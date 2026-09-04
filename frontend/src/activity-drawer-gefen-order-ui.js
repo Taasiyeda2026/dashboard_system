@@ -112,8 +112,10 @@ function ensureStyles(doc) {
 
 function createChoiceControl(form, checkbox, field) {
   const doc = form.ownerDocument;
-  const editHost = field.querySelector('.activity-drawer-inline__edit');
-  if (!editHost) return null;
+  // Editors keep the control inside the funding cell. Read-only drawers do not
+  // have an edit host, so keep the native value in the form but never expose a
+  // second visible field in view mode.
+  const editHost = field.querySelector('.activity-drawer-inline__edit') || form;
 
   const previousHost = checkbox.closest('.activity-drawer__gefen-exists') || checkbox.parentElement;
   const control = doc.createElement('div');
@@ -130,8 +132,8 @@ function createChoiceControl(form, checkbox, field) {
   select.setAttribute('aria-label', 'האם קיימת הזמנה במערכת גפ״ן');
   select.innerHTML = '<option value="false">לא</option><option value="true">כן</option>';
 
-  previousHost?.remove();
   control.append(question, select, checkbox);
+  if (previousHost && previousHost !== editHost && previousHost !== form) previousHost.remove();
   editHost.append(control);
   return { control, select };
 }
