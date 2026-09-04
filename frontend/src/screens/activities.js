@@ -27,7 +27,6 @@ import {
   getActivityCatalog,
   getActivityTypesByFamily,
   getRosterUsers,
-  getValidInstructorUsers,
   activityTypeDisplayLabel,
   activityTypeMatches,
   normalizeActivityTypeKey,
@@ -37,12 +36,10 @@ import {
   getFilterOptionOverrides,
   cleanUnique,
   humanDisplayText,
-  INSTRUCTOR_IDENTITY_ERROR_MESSAGE,
   NO_ACTIVITY_MANAGER_LABEL,
-  resolveInstructorSelectionByEmpId,
-  validateInstructorIdentityPayload,
   resolveGradeOptions
 } from './shared/activity-options.js';
+import { deriveActivityMeetingRange, resolveAuthorityRecord, resolveSchoolRecord, schoolBelongsToAuthority, schoolsForAuthority } from './shared/activity-form-rules.js';
 import { readActivitiesGapFromQuery, syncActivitiesGapQuery, isActivitiesGapQueryValue } from './shared/route-query.js';
 import { rowMatchesActivityGapFilter } from './shared/activity-gap-filter.js';
 import { activityMatchesInstructorStatusFilter } from './shared/activity-instructor-filter.js';
@@ -769,6 +766,20 @@ export function syncSessionDateRows(form) {
     const value = idx === 0 ? (startDate || prev[idx] || '') : (prev[idx] || computeNextSessionDate(startDate, idx));
     return `<label class="ds-add-date-row"><span>מפגש ${idx + 1}</span><input class="ds-input ds-input--sm" type="date" data-add-session-date="${idx + 1}" value="${escapeHtml(value)}"></label>`;
   }).join('');
+  syncAddActivityMeetingRange(form);
+}
+
+export function syncAddActivityMeetingRange(form) {
+  const isOneDay = isOneDayActivityTypeValue(form?.querySelector?.('[name="activity_type"]')?.value);
+  const values = isOneDay
+    ? [form?.querySelector?.('[name="one_day_date"]')?.value]
+    : Array.from(form?.querySelectorAll?.('input[data-add-session-date]') || []).map((input) => input.value);
+  const range = deriveActivityMeetingRange(values);
+  const start = form?.querySelector?.('[name="start_date"]');
+  const end = form?.querySelector?.('[name="end_date"]');
+  if (start && range.startDate) start.value = range.startDate;
+  if (end) end.value = range.endDate || (isOneDay ? range.startDate || '' : '');
+  return range;
 }
 
 export function bindAddActivitySessionCountSync(form, listenerOptions) {
@@ -860,30 +871,13 @@ function datalistHtml(id, values) {
 }
 
 
-function instructorOptionsHtml(rosterUsers, selected = '', placeholder = '—') {
-  const safeSelected = String(selected || '').trim();
-  const valid = (Array.isArray(rosterUsers) ? rosterUsers : [])
-    .map((u) => ({ name: humanDisplayText(u?.name), emp_id: String(u?.emp_id || '').trim() }))
-    .filter((u) => u.name && u.emp_id);
-  const seen = new Set();
-  const unique = valid.filter((u) => {
-    if (seen.has(u.emp_id)) return false;
-    seen.add(u.emp_id);
-    return true;
-  });
-  return [`<option value="">${escapeHtml(placeholder)}</option>`]
-    .concat(unique.map((u) => `<option value="${escapeHtml(u.emp_id)}"${u.emp_id === safeSelected ? ' selected' : ''}>${escapeHtml(u.name)}</option>`))
-    .join('');
-}
-
 function addActivityModalHtml(settings, activityPeriodTab = '') {
   const allActivityNames = getActivityCatalog(settings);
   const allTypes = ADD_ACTIVITY_TYPE_ORDER.slice();
-  const rosterUsers = getValidInstructorUsers(settings);
   const managerRoleNames = getManagerUsers(settings);
   const gradeOptions = resolveGradeOptions(settings);
   const schoolRecords = Array.isArray(settings?.dropdown_options?.school_records) ? settings.dropdown_options.school_records : [];
-  const schoolOptions = mergeOptions(settings, ['school', 'schools']);
+  const authorityRecords = Array.isArray(settings?.dropdown_options?.authority_records) ? settings.dropdown_options.authority_records : [];
   const authorityOptions = mergeOptions(settings, ['authority', 'authorities']);
   const managerOptions = managerRoleNames.length
     ? managerRoleNames
@@ -907,7 +901,7 @@ function addActivityModalHtml(settings, activityPeriodTab = '') {
         <span>רשות</span>
         <button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-entity-toggle="authority">+ רשות חדשה</button>
       </div>
-      <input class="ds-input" name="authority" type="text" list="add-authority-list" autocomplete="off" data-entity-select="authority">
+      <input class="ds-input" name="authority" type="text" list="add-authority-list" autocomplete="off" data-entity-select="authority" data-authority-search>
       ${datalistHtml('add-authority-list', authorityOptions)}
       <input class="ds-input" name="authority_custom" type="text" placeholder="הזנת רשות חדשה" style="display:none" data-entity-custom="authority">
     </div>`;
@@ -918,16 +912,16 @@ function addActivityModalHtml(settings, activityPeriodTab = '') {
         <span>בית ספר</span>
         <button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-entity-toggle="school">+ בית ספר חדש</button>
       </div>
-      <input class="ds-input" name="school" type="text" list="add-school-list" autocomplete="off" data-entity-select="school">
-      ${datalistHtml('add-school-list', schoolOptions)}
+      <input class="ds-input" name="school" type="search" list="add-school-list" autocomplete="off" data-entity-select="school" data-school-search disabled placeholder="בחרו קודם רשות">
+      <datalist id="add-school-list" data-school-options></datalist>
       <input class="ds-input" name="school_custom" type="text" placeholder="הזנת בית ספר חדש" style="display:none" data-entity-custom="school">
     </div>`;
 
   return `
     <form class="ds-activity-add-form" dir="rtl" data-add-activity-form
       data-add-activity-names="${escapeHtml(encodeURIComponent(JSON.stringify(allActivityNames)))}"
-      data-add-roster-users="${escapeHtml(encodeURIComponent(JSON.stringify(rosterUsers)))}"
-      data-add-school-records="${escapeHtml(encodeURIComponent(JSON.stringify(schoolRecords)))}">
+      data-add-school-records="${escapeHtml(encodeURIComponent(JSON.stringify(schoolRecords)))}"
+      data-add-authority-records="${escapeHtml(encodeURIComponent(JSON.stringify(authorityRecords)))}">
       <input type="hidden" name="source" value="catalog">
       <div class="ds-activity-add-grid">
         <p class="ds-activity-add-section">פרטי פעילות</p>
@@ -966,7 +960,7 @@ function addActivityModalHtml(settings, activityPeriodTab = '') {
         <label class="ds-activity-add-field ds-activity-add-field--compact"><span>שעת התחלה</span><select class="ds-input" name="start_time">${optionsHtml(TIME_OPTIONS)}</select></label>
         <label class="ds-activity-add-field ds-activity-add-field--compact"><span>שעת סיום</span><select class="ds-input" name="end_time">${optionsHtml(TIME_OPTIONS)}</select></label>
         <label class="ds-activity-add-field ds-activity-add-field--compact" data-field-start-date><span>תאריך התחלה</span><input class="ds-input" name="start_date" type="date"></label>
-        <label class="ds-activity-add-field ds-activity-add-field--compact" data-field-end-date><span>תאריך סיום</span><input class="ds-input" name="end_date" type="date"></label>
+        <input name="end_date" type="hidden">
         <label class="ds-activity-add-field ds-activity-add-field--compact" data-field-one-day-date style="display:none"><span>תאריך הפעילות</span><input class="ds-input" name="one_day_date" type="date"></label>
         <div class="ds-activity-add-field ds-activity-add-field--span2" data-add-date-rows-wrap>
           <span>תאריכי מפגשים</span>
@@ -975,8 +969,6 @@ function addActivityModalHtml(settings, activityPeriodTab = '') {
 
         <p class="ds-activity-add-section">צוות וניהול</p>
         <label class="ds-activity-add-field"><span>מנהל פעילות</span><select class="ds-input" name="activity_manager">${optionsHtml(managerOptions, '', NO_ACTIVITY_MANAGER_LABEL)}</select></label>
-        <label class="ds-activity-add-field"><span>מדריך/ה ראשי/ת</span><select class="ds-input" name="emp_id" data-add-instructor>${instructorOptionsHtml(rosterUsers)}</select></label>
-        <label class="ds-activity-add-field" data-field-instructor2><span>מדריך/ה נוסף/ת (אופציונלי)</span><select class="ds-input" name="emp_id_2" data-add-instructor-2>${instructorOptionsHtml(rosterUsers)}</select></label>
 
         <p class="ds-activity-add-section">הערות</p>
         <label class="ds-activity-add-field ds-activity-add-field--span2"><span>הערות</span><textarea class="ds-input" name="notes" rows="2"></textarea></label>
@@ -2934,9 +2926,33 @@ export const activitiesScreen = {
         const startDateInput = form.querySelector('[name="start_date"]');
         if (startDateInput) startDateInput.value = String(firstDate.value || '').trim();
         syncSessionDateRows(form);
+        syncAddActivityMeetingRange(form);
       }, addActivitySig);
+      bindAuthoritySchoolPicker(form);
       bindEntityFieldToggle(form, 'authority');
       bindEntityFieldToggle(form, 'school');
+    }
+
+    function bindAuthoritySchoolPicker(form) {
+      const authorityInput = form.querySelector('[data-authority-search]');
+      const schoolInput = form.querySelector('[data-school-search]');
+      const list = form.querySelector('[data-school-options]');
+      if (!authorityInput || !schoolInput || !list) return;
+      const schools = decodeJsonAttr(form.dataset.addSchoolRecords, []);
+      const authorities = decodeJsonAttr(form.dataset.addAuthorityRecords, []);
+      const sync = () => {
+        const authority = resolveAuthorityRecord(authorities, authorityInput.value);
+        const authorityId = String(authority?.id || '').trim();
+        const filtered = schoolsForAuthority(schools, authorityId);
+        const current = resolveSchoolRecord(schools, schoolInput.value, authorityId);
+        if (schoolInput.value && !current) schoolInput.value = '';
+        schoolInput.disabled = !authorityId;
+        schoolInput.placeholder = authorityId ? 'חיפוש בית ספר…' : 'בחרו קודם רשות';
+        list.innerHTML = filtered.map((school) => `<option value="${escapeHtml(humanDisplayText(school?.name || school?.value))}"></option>`).join('');
+      };
+      authorityInput.addEventListener('input', sync, addActivitySig);
+      authorityInput.addEventListener('change', sync, addActivitySig);
+      sync();
     }
 
     function bindEntityFieldToggle(form, entityKey) {
@@ -3005,18 +3021,18 @@ export const activitiesScreen = {
         return;
       }
       const activityMap = decodeJsonAttr(form.dataset.addActivityNames, []);
-      const roster = decodeJsonAttr(form.dataset.addRosterUsers, []);
       const schoolRecords = decodeJsonAttr(form.dataset.addSchoolRecords, []);
+      const authorityRecords = decodeJsonAttr(form.dataset.addAuthorityRecords, []);
       const fd = new (window?.FormData || FormData)(form);
       const get = (k) => String(fd.get(k) || '').trim();
       const authorityCustom = get('authority_custom');
       const schoolCustom = get('school_custom');
       const authorityValue = humanDisplayText(authorityCustom || get('authority'));
       const schoolValue = humanDisplayText(schoolCustom || get('school'));
-      const selectedSchool = !schoolCustom ? schoolRecords.find((school) => {
-        const label = humanDisplayText(school?.name || school?.value);
-        return label && label === schoolValue;
-      }) : null;
+      const selectedAuthority = resolveAuthorityRecord(authorityRecords, authorityValue);
+      const selectedSchool = !schoolCustom
+        ? resolveSchoolRecord(schoolRecords, schoolValue, selectedAuthority?.id)
+        : null;
       const selectedName = get('activity_name');
       const selectedType = normalizeOneDayActivityType(get('activity_type')) || normalizeActivityTypeKey(get('activity_type'));
       let activityAddDiagnostics = {};
@@ -3040,23 +3056,6 @@ export const activitiesScreen = {
         resetAddActivitySavingState(form, submitBtn);
         return;
       }
-      const selectedInstructorEmpId = get('emp_id');
-      const selectedInstructor2EmpId = get('emp_id_2');
-      const instructor1 = resolveInstructorSelectionByEmpId(selectedInstructorEmpId, roster);
-      const instructor2 = resolveInstructorSelectionByEmpId(selectedInstructor2EmpId, roster);
-      if (instructor1.error || instructor2.error) {
-        setAddActivityStatus(statusEl, instructor1.error === 'instructor_not_in_contacts' || instructor2.error === 'instructor_not_in_contacts' ? 'לא ניתן לשמור: המדריך שנבחר לא קיים בטבלת המדריכים. יש לעדכן את רשימת המדריכים.' : INSTRUCTOR_IDENTITY_ERROR_MESSAGE, { isError: true });
-        resetAddActivitySavingState(form, submitBtn);
-        return;
-      }
-      const instructor1Name = instructor1.name;
-      const instructor2Name = instructor2.name;
-      console.info('[activity-add:instructor-selection]', {
-        selectedInstructorEmpId,
-        selectedInstructorName: instructor1Name,
-        selectedInstructor2EmpId,
-        selectedInstructor2Name: instructor2Name
-      });
       const sessionsValue = get('sessions') || '1';
       const isOneDay = isOneDayActivityTypeValue(get('activity_type'));
       const oneDayDate = String(get('one_day_date') || get('start_date') || get('end_date') || '').trim();
@@ -3067,7 +3066,7 @@ export const activitiesScreen = {
         source: isOneDay ? 'short' : 'long',
         activity_family: isOneDay ? 'one_day' : 'program',
         activity_manager: humanDisplayText(get('activity_manager')),
-        authority_id: String(selectedSchool?.authority_id || '').trim() || null,
+        authority_id: String(selectedAuthority?.id || '').trim() || null,
         school_id: String(selectedSchool?.school_id || '').trim() || null,
         authority: authorityValue || humanDisplayText(selectedSchool?.authority),
         school: schoolValue,
@@ -3084,12 +3083,8 @@ export const activitiesScreen = {
         funding_sources: Array.from(form.querySelectorAll('[data-funding-source-id]:checked')).map((checkbox) => ({ funding_source_id: checkbox.dataset.fundingSourceId, amount: checkbox.closest('label')?.querySelector('[data-funding-amount]')?.value || null })),
         start_time: get('start_time'),
         end_time: get('end_time'),
-        instructor_name: instructor1Name,
-        emp_id: instructor1.emp_id,
-        instructor_name_2: instructor2Name,
-        emp_id_2: instructor2.emp_id,
         start_date: isOneDay ? oneDayDate : get('start_date'),
-        end_date: isOneDay ? oneDayDate || null : get('end_date') || null,
+        end_date: isOneDay ? oneDayDate || null : null,
         status: get('status') || 'פתוח',
         notes: get('notes')
       };
@@ -3116,10 +3111,9 @@ export const activitiesScreen = {
           payload.date_1 = firstMeetingDate;
         }
       }
-      if (!payload.end_date) {
-        const lastDate = meetingDateValues.filter(Boolean).pop();
-        payload.end_date = lastDate || payload.start_date || null;
-      }
+      const meetingRange = deriveActivityMeetingRange(meetingDateValues);
+      payload.start_date = meetingRange.startDate || payload.start_date || null;
+      payload.end_date = meetingRange.endDate || payload.start_date || null;
       const participantType = normalizeActivityTypeKey(selectedType || payload.activity_type);
       if (participantType === 'workshop' || participantType === 'escape_room') {
         const rawParticipants = get('participants_count');
@@ -3138,8 +3132,6 @@ export const activitiesScreen = {
         start_time: payload.start_time,
         end_time: payload.end_time,
         activity_manager: payload.activity_manager,
-        main_instructor: payload.instructor_name,
-        extra_instructor: payload.instructor_name_2,
         notes: payload.notes,
         selected_activity_no: payload.activity_no,
         selected_activity_name: payload.activity_name,
@@ -3202,9 +3194,8 @@ export const activitiesScreen = {
         resetAddActivitySavingState(form, submitBtn);
         return;
       }
-      const instructorPayloadGuard = validateInstructorIdentityPayload(payload, roster);
-      if (!instructorPayloadGuard.valid) {
-        setAddActivityStatus(statusEl, 'לא ניתן לשמור: המדריך שנבחר לא קיים בטבלת המדריכים. יש לעדכן את רשימת המדריכים.', { isError: true });
+      if (!schoolCustom && (!selectedAuthority || !selectedSchool || !schoolBelongsToAuthority(schoolRecords, selectedSchool.school_id, selectedAuthority.id))) {
+        setAddActivityStatus(statusEl, 'לא ניתן לשמור: בית הספר שנבחר אינו שייך לרשות שנבחרה. יש לבחור בית ספר מהרשימה המסוננת.', { isError: true });
         resetAddActivitySavingState(form, submitBtn);
         return;
       }

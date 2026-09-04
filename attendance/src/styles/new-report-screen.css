@@ -166,6 +166,19 @@
 .av2-summary__row strong { color: var(--av2-color-text); font-weight: 600; text-align: end; overflow-wrap: break-word; }
 .av2-summary__actions { display: flex; justify-content: flex-end; gap: 6px; padding-top: 4px; }
 
+.av2-report__date-warning {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid #f59e0b;
+  border-radius: var(--av2-radius-sm);
+  background: #fffbeb;
+  color: #92400e;
+  font-weight: 600;
+  line-height: 1.6;
+  white-space: pre-line;
+}
+
 /* Attachments */
 .av2-attach-section { display: flex; flex-direction: column; gap: 4px; }
 .av2-attach-list { display: flex; flex-direction: column; gap: 2px; }

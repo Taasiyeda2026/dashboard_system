@@ -35,6 +35,7 @@ import {
 } from '../services/attendance.service.js';
 import { canEditMonth, editBlockReason, getMonthKey } from '../services/month-gate.service.js';
 import { uploadAttachment } from '../services/storage.service.js';
+import { attendanceDateWarning } from '../services/activity-date-warning.js';
 
 const TIME_MINUTE_STEP = 5;
 const COURSE_REPORT_TYPE = 'קורס';
@@ -141,6 +142,7 @@ export function renderNewReportScreen(container, {
   let endPicker = null;
   let saveBtn = null;
   let errorEl = null;
+  let dateWarningEl = null;
   let hoursVal = null;
   let kmField = null;
   let publicTransportInput = null;
@@ -157,6 +159,14 @@ export function renderNewReportScreen(container, {
 
   function getReportType() {
     return typeField?.input?.value || '';
+  }
+
+  function syncDateWarning() {
+    if (!dateWarningEl) return '';
+    const warning = attendanceDateWarning(selectedActivity, getReportDate());
+    dateWarningEl.textContent = warning;
+    dateWarningEl.hidden = !warning;
+    return warning;
   }
 
   function isOnlineReportType(reportType = getReportType()) {
@@ -433,6 +443,7 @@ export function renderNewReportScreen(container, {
     activityNameSel?.reset();
     clearMeetingSelection();
     syncLocationDependencies();
+    syncDateWarning();
   }
 
   function refreshActivityNameOptions({ preserveSelection = true } = {}) {
@@ -536,6 +547,7 @@ export function renderNewReportScreen(container, {
     syncAuthoritySchoolFromActivity(activity);
     syncLocationDependencies();
     await syncMeetingForSelectedDate();
+    syncDateWarning();
   }
 
   function onActivityTypeChange() {
@@ -629,6 +641,7 @@ export function renderNewReportScreen(container, {
     syncLocationDependencies();
 
     await syncMeetingForSelectedDate();
+    syncDateWarning();
   }
 
   function syncEndTimeConstraints() {
@@ -905,6 +918,11 @@ export function renderNewReportScreen(container, {
     errorEl.className = 'av2-report__error';
     errorEl.hidden = true;
     form.append(errorEl);
+    dateWarningEl = document.createElement('p');
+    dateWarningEl.className = 'av2-report__date-warning';
+    dateWarningEl.setAttribute('role', 'status');
+    dateWarningEl.hidden = true;
+    actionsRow.before(dateWarningEl);
 
     typeField.input.addEventListener('change', () => { onActivityTypeChange(); });
     dateField.input.addEventListener('change', () => { void onReportDateChange(); });
@@ -1026,6 +1044,7 @@ export function renderNewReportScreen(container, {
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       if (formLocked) return;
+      syncDateWarning();
 
       if (savedRecordForAttachmentRetry) {
         saveBtn.disabled = true;
