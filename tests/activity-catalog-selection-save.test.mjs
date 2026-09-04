@@ -54,7 +54,7 @@ function replacementChanges() {
   return catalogActivityChangesFromRows(CATALOG_6089);
 }
 
-test('67867 -> 6089 uses the canonical catalog identity and 11 canonical sessions', () => {
+test('67867 -> 6089 uses the canonical catalog identity and 11 canonical sessions without changing order confirmation', () => {
   assert.deepEqual(replacementChanges(), {
     activity_name: 'ביומימיקרי',
     activity_no: '6089',
@@ -62,9 +62,9 @@ test('67867 -> 6089 uses the canonical catalog identity and 11 canonical session
     activity_name_override: false,
     sessions: 11,
     activity_type: 'course',
-    item_type: 'course',
-    exists_in_gefen: true
+    item_type: 'course'
   });
+  assert.equal(Object.hasOwn(replacementChanges(), 'exists_in_gefen'), false);
 });
 
 test('catalog replacement preserves the agreed activity price unless the user edits it', () => {
@@ -77,7 +77,7 @@ test('catalog replacement preserves the agreed activity price unless the user ed
   assert.equal(savedWithExplicitPrice.price, 9700);
 });
 
-test('moving from 6089 to non-Gefen 1001 clears the old Gefen identity', () => {
+test('moving from 6089 to non-Gefen 1001 clears catalog identity but preserves manual order confirmation', () => {
   const existingGefenActivity = {
     activity_name: 'ביומימיקרי',
     activity_no: '6089',
@@ -91,7 +91,7 @@ test('moving from 6089 to non-Gefen 1001 clears the old Gefen identity', () => {
   };
   assert.equal(saved.activity_no, '1001');
   assert.equal(saved.gefen_number, null);
-  assert.equal(saved.exists_in_gefen, false);
+  assert.equal(saved.exists_in_gefen, true);
   assert.equal(saved.price, 9500);
   assert.notEqual(saved.gefen_number, '6089');
 });
