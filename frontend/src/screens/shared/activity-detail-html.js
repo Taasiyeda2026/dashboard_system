@@ -575,15 +575,17 @@ function blockAssignment(row, { settings = {} } = {}) {
         ${fieldEditOnly(
           'רשות',
           authorities.length
-            ? selectHtml({ name: 'authority', value: row.authority, options: authorities })
-            : inputHtml({ name: 'authority', value: row.authority })
+            ? selectHtml({ name: 'authority', value: row.authority, options: authorities, attrs: 'data-role="activity-authority"' })
+            : inputHtml({ name: 'authority', value: row.authority, attrs: 'data-role="activity-authority"' })
         )}
+        <input type="hidden" name="authority_id" value="${escapeHtml(authorityId)}" data-role="activity-authority-id">
         ${fieldEditOnly(
           'בית ספר',
-          `${inputHtml({ name: 'school', value: row.school, attrs: `type="search" list="activity-school-list" autocomplete="off" placeholder="חיפוש בית ספר…"` })}
-          <datalist id="activity-school-list">${schools.map((school) => `<option value="${escapeHtml(school)}"></option>`).join('')}</datalist>
+          `${inputHtml({ name: 'school', value: row.school, type: 'search', attrs: `list="activity-school-list" autocomplete="off" placeholder="חיפוש בית ספר…" data-role="activity-school"` })}
+          <datalist id="activity-school-list" data-role="activity-school-options">${schools.map((school) => `<option value="${escapeHtml(school)}"></option>`).join('')}</datalist>
           ${invalidSchoolLink ? '<p class="ds-error-text" role="alert">בית הספר השמור אינו שייך לרשות של הפעילות. יש לתקן את השיוך לפני השמירה.</p>' : ''}`
         )}
+        <input type="hidden" name="school_id" value="${escapeHtml(String(row.school_id || ''))}" data-role="activity-school-id">
         ${fieldEditOnly(
           'כיתה / קבוצה',
           `<div class="activity-drawer__field-controls activity-drawer__field-controls--inline">
@@ -1298,6 +1300,8 @@ function singleForm(row, { settings = {}, privateNote = null, canEdit = false, c
   return `
     <form class="activity-drawer__form" data-drawer-form data-editing="no"
       data-export-row="${jsonAttr(row)}"
+      data-authority-records="${escapeHtml(encodeURIComponent(JSON.stringify(settings?.dropdown_options?.authority_records || [])))}"
+      data-school-records="${escapeHtml(encodeURIComponent(JSON.stringify(settings?.dropdown_options?.school_records || [])))}"
       data-source-sheet="${escapeHtml(String(row.source_sheet || ''))}"
       data-row-id="${escapeHtml(String(row.RowID || row.row_id || row.source_row_id || ''))}"
       data-activity-season="${escapeHtml(String(row.activity_season || ''))}"
