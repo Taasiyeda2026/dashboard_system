@@ -10,7 +10,7 @@ globalThis.localStorage = dom.window.localStorage;
 Object.defineProperty(globalThis, 'navigator', { value: dom.window.navigator, configurable: true });
 globalThis.CustomEvent = dom.window.CustomEvent;
 
-const { activityEditLocationChanges, captureActivityEditLocationValues, syncActivityEditLocation } = await import(
+const { activityEditLocationChanges, captureActivityEditLocationValues, handleActivityAuthorityChange, syncActivityEditLocation } = await import(
   '../frontend/src/screens/shared/bind-activity-edit-form.js'
 );
 
@@ -35,7 +35,7 @@ function editForm() {
     <input name="authority_id" value="1" data-role="activity-authority-id">
     <input name="school" value="בית ספר A" data-role="activity-school">
     <input name="school_id" value="10" data-role="activity-school-id">
-    <datalist data-role="activity-school-options"></datalist>
+    <div data-role="activity-school-options" hidden></div>
   </form>`;
   return document.querySelector('form');
 }
@@ -57,15 +57,18 @@ test('editing school A to B sends the canonical B ID with all location fields', 
 test('changing authority filters schools and clears a school from the old authority', () => {
   const form = editForm();
   form.querySelector('[name="authority"]').value = 'רשות ב';
-  const location = syncActivityEditLocation(form, { resetInvalidSchool: true });
+  const location = handleActivityAuthorityChange(form);
 
   assert.equal(form.querySelector('[name="authority_id"]').value, '2');
   assert.equal(form.querySelector('[name="school"]').value, '');
   assert.equal(form.querySelector('[name="school_id"]').value, '');
   assert.deepEqual(
-    [...form.querySelector('[data-role="activity-school-options"]').options].map((option) => option.value),
+    [...form.querySelectorAll('[data-role="activity-school-options"] [data-school-name]')].map((option) => option.dataset.schoolName),
     ['בית ספר ג'],
   );
+  assert.equal(form.querySelector('[data-role="activity-school-options"]').hidden, false);
+  assert.equal(form.querySelector('[name="school"]').getAttribute('aria-expanded'), 'true');
+  assert.equal(document.activeElement, form.querySelector('[name="school"]'));
   assert.equal(location.valid, true);
 });
 

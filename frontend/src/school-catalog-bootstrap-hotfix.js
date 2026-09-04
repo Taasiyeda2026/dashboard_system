@@ -2,7 +2,7 @@ import { supabase, waitForSupabaseAuthSession } from './supabase-client.js';
 
 const PAGE_SIZE = 1000;
 const CACHE_TTL_MS = 15 * 60 * 1000;
-const SCHOOL_COLUMNS = 'id,semel_mosad,school_name,authority,authority_id,active';
+const SCHOOL_COLUMNS = 'id,semel_mosad,school_name,authority,authority_id,sector,active';
 const AUTHORITY_COLUMNS = 'id,authority_name,authority_code,active';
 
 let catalogCache = null;
@@ -50,7 +50,8 @@ function buildCatalog(schoolRows = [], authorityRows = []) {
       school_id: text(row.id),
       authority_id: text(row.authority_id),
       authority: text(row.authority),
-      semel_mosad: text(row.semel_mosad)
+      semel_mosad: text(row.semel_mosad),
+      sector: text(row.sector)
     }))
     .sort((a, b) => collator.compare(a.authority, b.authority) || collator.compare(a.name, b.name));
 
@@ -138,13 +139,18 @@ export async function ensureSchoolAuthorityCatalogInState(state) {
         state.clientSettings.dropdown_options = {};
       }
       const d = state.clientSettings.dropdown_options;
-      // Always overwrite with catalog data — catalog is the authoritative source for school/authority.
-      d.school            = catalog.schools;
-      d.schools           = catalog.schools;
-      d.school_records    = catalog.school_records;
-      d.authority         = catalog.authorities;
-      d.authorities       = catalog.authorities;
-      d.authority_records = catalog.authority_records;
+      // Never erase a usable bootstrap catalog when a transient/unauthenticated
+      // read returns an empty result. Non-empty DB catalogs remain authoritative.
+      if (catalog.school_records.length) {
+        d.school = catalog.schools;
+        d.schools = catalog.schools;
+        d.school_records = catalog.school_records;
+      }
+      if (catalog.authority_records.length) {
+        d.authority = catalog.authorities;
+        d.authorities = catalog.authorities;
+        d.authority_records = catalog.authority_records;
+      }
     }
     return catalog;
   } catch (err) {
