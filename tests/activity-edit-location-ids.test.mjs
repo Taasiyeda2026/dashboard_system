@@ -10,7 +10,7 @@ globalThis.localStorage = dom.window.localStorage;
 Object.defineProperty(globalThis, 'navigator', { value: dom.window.navigator, configurable: true });
 globalThis.CustomEvent = dom.window.CustomEvent;
 
-const { activityEditLocationChanges, syncActivityEditLocation } = await import(
+const { activityEditLocationChanges, captureActivityEditLocationValues, syncActivityEditLocation } = await import(
   '../frontend/src/screens/shared/bind-activity-edit-form.js'
 );
 
@@ -76,4 +76,30 @@ test('unresolved school text cannot produce a valid edit payload', () => {
 
   assert.equal(location.valid, false);
   assert.equal(form.querySelector('[name="school_id"]').value, '');
+});
+
+test('missing DB authority ID is still sent when another field is the only user edit', () => {
+  const form = editForm();
+  form.querySelector('[name="school"]').value = "מקיף ה' כללי";
+  form.querySelector('[name="school_id"]').value = '250';
+  form.dataset.schoolRecords = encodeURIComponent(JSON.stringify([
+    { school_id: 250, authority_id: 268, name: "מקיף ה' כללי" },
+  ]));
+  form.dataset.authorityRecords = encodeURIComponent(JSON.stringify([
+    { id: 268, name: 'אשדוד' },
+  ]));
+  form.querySelector('[name="authority"]').innerHTML = '<option value="אשדוד" selected>אשדוד</option>';
+  form.querySelector('[name="authority_id"]').value = '';
+
+  const dbLocation = captureActivityEditLocationValues(form);
+  const location = syncActivityEditLocation(form);
+  const payload = activityEditLocationChanges(dbLocation, location.values);
+
+  assert.equal(location.valid, true);
+  assert.deepEqual(payload, {
+    authority: 'אשדוד',
+    authority_id: '268',
+    school: "מקיף ה' כללי",
+    school_id: '250',
+  });
 });

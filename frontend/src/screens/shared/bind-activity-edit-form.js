@@ -133,6 +133,13 @@ export function activityEditLocationChanges(initialValues = {}, values = null) {
   return changed ? Object.fromEntries(keys.map((key) => [key, values[key] || ''])) : {};
 }
 
+export function captureActivityEditLocationValues(form) {
+  return Object.fromEntries(['authority', 'authority_id', 'school', 'school_id'].map((name) => [
+    name,
+    String(form?.querySelector?.(`[name="${name}"]`)?.value ?? '').trim(),
+  ]));
+}
+
 function drawerExportRow(form) {
   try {
     return JSON.parse(form?.dataset?.exportRow || '{}') || {};
@@ -620,7 +627,7 @@ export function bindActivityEditForm(contentRoot, {
       changes[name] = nextValue;
     });
 
-    Object.assign(changes, activityEditLocationChanges(initialValues, location.values));
+    Object.assign(changes, activityEditLocationChanges(form._initialLocationValues || initialValues, location.values));
 
     // An empty scheduling language is a real optional value, never an implicit Hebrew default.
     if (Object.prototype.hasOwnProperty.call(changes, 'instruction_language') && changes.instruction_language === '') {
@@ -1013,9 +1020,13 @@ export function bindActivityEditForm(contentRoot, {
     authorityInput?.addEventListener('change', () => syncActivityEditLocation(form, { resetInvalidSchool: true }), { signal });
     schoolInput?.addEventListener('input', () => syncActivityEditLocation(form), { signal });
     schoolInput?.addEventListener('change', () => syncActivityEditLocation(form), { signal });
+    form._initialLocationValues = captureActivityEditLocationValues(form);
     syncActivityEditLocation(form);
     captureFormInitialValues(form);
-    form._refreshInitialValues = () => captureFormInitialValues(form);
+    form._refreshInitialValues = () => {
+      form._initialLocationValues = captureActivityEditLocationValues(form);
+      return captureFormInitialValues(form);
+    };
     guardInitialValueRefreshWhileEditing(form);
 
     form.addEventListener(
