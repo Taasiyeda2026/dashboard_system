@@ -338,6 +338,11 @@ function constraintFieldFromApiError(raw) {
 export function translateApiErrorForUser(message) {
   if (message === undefined || message === null || message === '') return API_ERROR_HE.server_error;
   const raw = String(message).trim();
+  const holidayMatch = /activity_date_on_school_holiday[^\d]*(\d{4}-\d{2}-\d{2})\|([^|\n]+)/i.exec(raw);
+  if (holidayMatch) {
+    const date = holidayMatch[1].split('-').reverse().join('.');
+    return `לא ניתן לשמור פעילות בתאריך ${date} – ${holidayMatch[2].trim()}.`;
+  }
   if (/^DASHBOARD_MONTH_NOT_FOUND:/i.test(raw)) {
     return 'החודש שנבחר לא קיים בגיליון הדשבורד.';
   }

@@ -897,7 +897,7 @@ async function selectActivitiesByDateRangeFromSupabase({
 }
 
 const AUTHORITIES_CATALOG_COLUMNS = 'id,authority_name,authority_code,authority_type,hp_number,long_name,district,active';
-const SCHOOLS_CATALOG_COLUMNS = 'id,semel_mosad,school_name,authority,authority_id,district,city,principal_name,school_phone,institution_address,active';
+const SCHOOLS_CATALOG_COLUMNS = 'id,semel_mosad,school_name,authority,authority_id,district,city,sector,principal_name,school_phone,institution_address,active';
 const CONTACTS_INSTRUCTORS_SCREEN_COLUMNS = 'emp_id,full_name,mobile,email,address,employment_type,direct_manager,active';
 const CONTACTS_CATALOG_CACHE_TTL_MS = 10 * 60 * 1000;
 let authoritySchoolCatalogCache = null;
@@ -1092,6 +1092,7 @@ function buildSchoolCatalogLookup(schools = []) {
       authority_id: authority_id || null,
       district: normalizeCatalogText(row.district),
       city: normalizeCatalogText(row.city),
+      sector: normalizeCatalogText(row.sector),
       principal_name: normalizeCatalogText(row.principal_name),
       school_phone: normalizeCatalogText(row.school_phone),
       institution_address: normalizeCatalogText(row.institution_address),
@@ -1269,7 +1270,8 @@ function buildAuthoritySchoolCatalogClientSettings(authorityLookup, schoolLookup
     school_id: school.id,
     authority_id: school.authority_id,
     authority: school.authority,
-    semel_mosad: school.semel_mosad
+    semel_mosad: school.semel_mosad,
+    sector: school.sector
   })).filter((school) => school.name);
   const authority_records = activeAuthorities.map((authority) => ({
     id: authority.id,
@@ -5599,8 +5601,33 @@ async function saveActivitySchoolsForActivity(activityRow = {}, source = {}) {
   if (error) throw new Error(error.message || 'activity_schools_save_failed');
 }
 
+function assertNewActivityHasNoInstructors(activity = {}) {
+  if (['emp_id', 'instructor_name', 'emp_id_2', 'instructor_name_2'].some(
+    (key) => String(activity?.[key] ?? '').trim(),
+  )) {
+    throw new Error('יש ליצור פעילות ללא מדריכים ולבצע שיבוץ רק דרך ממשק השיבוצים');
+  }
+}
+
+async function assertSchoolAuthorityLink(activity = {}) {
+  const schoolId = String(activity?.school_id || '').trim();
+  const authorityId = String(activity?.authority_id || '').trim();
+  if (!schoolId && !authorityId) return;
+  if (!schoolId || !authorityId) throw new Error('יש לבחור רשות ובית ספר תואמים');
+  const { data: school, error } = await supabase
+    .from('schools')
+    .select('id,authority_id')
+    .eq('id', schoolId)
+    .maybeSingle();
+  if (error) throw new Error(error.message || 'school_authority_validation_failed');
+  if (!school || String(school.authority_id) !== authorityId) {
+    throw new Error('בית הספר שנבחר אינו שייך לרשות שנבחרה');
+  }
+}
+
 async function upsertActivityToSupabase(payload = {}) {
   const act = applyInstructorEmpSync(payload?.activity || payload || {});
+  assertNewActivityHasNoInstructors(act);
   await validateActivityInstructorBindingsOrThrow(act);
   const row = sanitizeActivityPayloadForSupabase(synchronizeStartDateAndFirstMeeting(sanitizeActivityPayload(act)), { includeRowId: true });
   const rawSchoolIds = Array.isArray(act.school_ids) ? act.school_ids.map((id) => String(id || '').trim()).filter(Boolean) : [];
@@ -5609,6 +5636,7 @@ async function upsertActivityToSupabase(payload = {}) {
   const existingEndDate = normalizeDateFieldForSupabase(row.end_date);
   const startDate = normalizeDateFieldForSupabase(row.start_date);
   row.end_date = derivedEnd || existingEndDate || startDate || null;
+  await assertSchoolAuthorityLink(row);
   logActivityMutationDebug('request', 'addActivity', { source_sheet: 'activities', source_row_id: row.row_id, changes: row });
   const { data, error } = await supabase.from('activities').insert(row).select().single();
   if (error) {
@@ -8374,6 +8402,8 @@ export const api = {
   submitCreateActivityRequest: async (activity) => {
     if (!canSubmitCreateActivityRequestsUser()) throw new Error('forbidden_create_activity_request');
     assertActivityPeriodEditable({ activity: activity || {}, changes: activity || {} });
+    assertNewActivityHasNoInstructors(activity || {});
+    await assertSchoolAuthorityLink(activity || {});
     const currentUser = state?.user || {};
     const requestedPayload = sanitizeActivityPayloadForSupabase(
       synchronizeStartDateAndFirstMeeting(sanitizeActivityPayload(activity || {})),

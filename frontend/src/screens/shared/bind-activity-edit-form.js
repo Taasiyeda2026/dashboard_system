@@ -12,6 +12,7 @@ import { validateCourseFundingSplit } from '../../activity-funding-picker-compac
 import { generateSessionDatesFromFirstMeeting } from './school-calendar-form-guard.js';
 import { loadSchoolCalendarRows } from './school-calendar-data.js';
 import { isSummerActivitySeason } from './school-calendar-logic.js';
+import { resolveAuthorityRecord, resolveSchoolRecord, schoolsForAuthority } from './activity-form-rules.js';
 import {
   READ_ONLY_ACTIVITY_PERIOD_MESSAGE,
   isActivityMutationBlocked
@@ -71,6 +72,100 @@ const HUMAN_DISPLAY_FIELDS = new Set([
   'name',
   'title'
 ]);
+
+function decodeFormRecords(value) {
+  try {
+    const parsed = JSON.parse(decodeURIComponent(String(value || '')));
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+export function syncActivityEditLocation(form, { resetInvalidSchool = false } = {}) {
+  const authorityInput = form?.querySelector?.('[data-role="activity-authority"]');
+  const authorityIdInput = form?.querySelector?.('[data-role="activity-authority-id"]');
+  const schoolInput = form?.querySelector?.('[data-role="activity-school"]');
+  const schoolIdInput = form?.querySelector?.('[data-role="activity-school-id"]');
+  const schoolList = form?.querySelector?.('[data-role="activity-school-options"]');
+  if (!authorityInput || !authorityIdInput || !schoolInput || !schoolIdInput) return { valid: true, values: null };
+
+  const authorityRecords = decodeFormRecords(form.dataset.authorityRecords);
+  const schoolRecords = decodeFormRecords(form.dataset.schoolRecords);
+  const authority = resolveAuthorityRecord(authorityRecords, authorityInput.value);
+  const authorityId = String(authority?.id || '').trim();
+  authorityIdInput.value = authorityId;
+
+  const filteredSchools = schoolsForAuthority(schoolRecords, authorityId);
+  if (schoolList) {
+    schoolList.innerHTML = filteredSchools
+      .map((school) => {
+        const name = humanDisplayText(school?.name || school?.value);
+        return `<button type="button" role="option" data-school-name="${escapeHtml(name)}">${escapeHtml(name)}</button>`;
+      })
+      .join('');
+  }
+
+  let school = resolveSchoolRecord(schoolRecords, schoolInput.value || schoolIdInput.value, authorityId);
+  if (!school && resetInvalidSchool) {
+    schoolInput.value = '';
+    schoolIdInput.value = '';
+  } else {
+    schoolIdInput.value = String(school?.school_id ?? school?.id ?? '').trim();
+    if (school) schoolInput.value = humanDisplayText(school?.name || school?.value);
+  }
+
+  school = resolveSchoolRecord(schoolRecords, schoolInput.value || schoolIdInput.value, authorityId);
+  const hasAuthorityText = Boolean(humanDisplayText(authorityInput.value));
+  const hasSchoolText = Boolean(humanDisplayText(schoolInput.value));
+  return {
+    valid: (!hasAuthorityText || Boolean(authority)) && (!hasSchoolText || Boolean(school)),
+    values: {
+      authority: authority ? humanDisplayText(authority?.name || authority?.value) : '',
+      authority_id: authorityId,
+      school: school ? humanDisplayText(school?.name || school?.value) : '',
+      school_id: String(school?.school_id ?? school?.id ?? '').trim(),
+    },
+  };
+}
+
+export function setActivitySchoolPickerOpen(form, open) {
+  const input = form?.querySelector?.('[data-role="activity-school"]');
+  const menu = form?.querySelector?.('[data-role="activity-school-options"]');
+  if (!input || !menu) return;
+  menu.hidden = !open;
+  input.setAttribute('aria-expanded', open ? 'true' : 'false');
+}
+
+export function filterActivitySchoolPicker(form) {
+  const input = form?.querySelector?.('[data-role="activity-school"]');
+  const query = humanDisplayText(input?.value).toLowerCase();
+  form?.querySelectorAll?.('[data-role="activity-school-options"] [data-school-name]').forEach((option) => {
+    option.hidden = Boolean(query) && !humanDisplayText(option.dataset.schoolName).toLowerCase().includes(query);
+  });
+}
+
+export function handleActivityAuthorityChange(form) {
+  const location = syncActivityEditLocation(form, { resetInvalidSchool: true });
+  const schoolInput = form?.querySelector?.('[data-role="activity-school"]');
+  schoolInput?.focus();
+  setActivitySchoolPickerOpen(form, true);
+  return location;
+}
+
+export function activityEditLocationChanges(initialValues = {}, values = null) {
+  if (!values) return {};
+  const keys = ['authority', 'authority_id', 'school', 'school_id'];
+  const changed = keys.some((key) => String(values[key] || '') !== String(initialValues[key] || ''));
+  return changed ? Object.fromEntries(keys.map((key) => [key, values[key] || ''])) : {};
+}
+
+export function captureActivityEditLocationValues(form) {
+  return Object.fromEntries(['authority', 'authority_id', 'school', 'school_id'].map((name) => [
+    name,
+    String(form?.querySelector?.(`[name="${name}"]`)?.value ?? '').trim(),
+  ]));
+}
 
 function drawerExportRow(form) {
   try {
@@ -519,6 +614,13 @@ export function bindActivityEditForm(contentRoot, {
     const canDirectEdit = rawCanDirectEdit && (forceDirectEdit || !sessionRequestOnly);
     const changes = {};
     const initialValues = form._initialValues || {};
+    const location = syncActivityEditLocation(form);
+    if (!location.valid) {
+      const message = 'יש לבחור רשות ובית ספר תקינים מתוך הרשימות המסוננות';
+      setStatus(statusEl, 'is-error', message);
+      showToast(message, 'error', 3000);
+      return;
+    }
 
     form.querySelectorAll('[name]').forEach((el) => {
       const name = el.getAttribute('name');
@@ -551,6 +653,8 @@ export function bindActivityEditForm(contentRoot, {
       if (nextValue === prevValue) return;
       changes[name] = nextValue;
     });
+
+    Object.assign(changes, activityEditLocationChanges(form._initialLocationValues || initialValues, location.values));
 
     // An empty scheduling language is a real optional value, never an implicit Hebrew default.
     if (Object.prototype.hasOwnProperty.call(changes, 'instruction_language') && changes.instruction_language === '') {
@@ -938,8 +1042,30 @@ export function bindActivityEditForm(contentRoot, {
     if (typeEl) form.dataset.activityNameType = normalizeActivityTypeKey(typeEl.value);
     ensureExistingActivityNameSelected(form);
     syncActivityCatalogIdentityFromName(form);
+    const authorityInput = form.querySelector('[data-role="activity-authority"]');
+    const schoolInput = form.querySelector('[data-role="activity-school"]');
+    authorityInput?.addEventListener('change', () => handleActivityAuthorityChange(form), { signal });
+    schoolInput?.addEventListener('focus', () => setActivitySchoolPickerOpen(form, true), { signal });
+    schoolInput?.addEventListener('input', () => {
+      syncActivityEditLocation(form);
+      filterActivitySchoolPicker(form);
+      setActivitySchoolPickerOpen(form, true);
+    }, { signal });
+    schoolInput?.addEventListener('change', () => syncActivityEditLocation(form), { signal });
+    form.querySelector('[data-role="activity-school-options"]')?.addEventListener('click', (event) => {
+      const option = event.target.closest('[data-school-name]');
+      if (!option || !schoolInput) return;
+      schoolInput.value = option.dataset.schoolName || '';
+      syncActivityEditLocation(form);
+      setActivitySchoolPickerOpen(form, false);
+    }, { signal });
+    form._initialLocationValues = captureActivityEditLocationValues(form);
+    syncActivityEditLocation(form);
     captureFormInitialValues(form);
-    form._refreshInitialValues = () => captureFormInitialValues(form);
+    form._refreshInitialValues = () => {
+      form._initialLocationValues = captureActivityEditLocationValues(form);
+      return captureFormInitialValues(form);
+    };
     guardInitialValueRefreshWhileEditing(form);
 
     form.addEventListener(

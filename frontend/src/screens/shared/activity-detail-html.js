@@ -1,6 +1,7 @@
 import { escapeHtml } from './html.js';
 import { formatDateHe, formatDateHeWithWeekday, formatTimeShort, formatTimeRangeShort, formatActivityDateColumnsHe } from './format-date.js';
-import { activityManagerDisplayName, activityTypeDisplayLabel, activityTypeMatches, cleanActivityManagerName, getManagerUsers, getContactsInstructorUsers, getRosterUsers, getValidInstructorUsers, humanDisplayText, INVALID_ACTIVITY_INSTRUCTOR_STATUS, validateInstructorBinding, NO_ACTIVITY_MANAGER_LABEL, normalizeActivityTypeKey, normalizeOneDayActivityType, resolveActivityInstructorName, resolveGradeOptions } from './activity-options.js';
+import { activityManagerDisplayName, activityTypeDisplayLabel, activityTypeMatches, cleanActivityManagerName, getActivityCatalog, getManagerUsers, getContactsInstructorUsers, getRosterUsers, getValidInstructorUsers, humanDisplayText, INVALID_ACTIVITY_INSTRUCTOR_STATUS, validateInstructorBinding, NO_ACTIVITY_MANAGER_LABEL, normalizeActivityTypeKey, normalizeOneDayActivityType, resolveActivityInstructorName, resolveGradeOptions } from './activity-options.js';
+import { activityAllowsSecondInstructor, schoolBelongsToAuthority, schoolsForAuthority } from './activity-form-rules.js';
 import { resolveSchool2027Contact } from './school-2027-contact.js';
 import { ACTIVITY_SEASON_OPTIONS, ACTIVITY_SEASON_SCHOOL_2027, activityPeriodDisplayLabel, activitySeasonLabel, normalizeActivitySeason } from './summer-activity.js';
 import { isActivitySchedulingEligible } from './activity-scheduling-eligibility.js';
@@ -560,9 +561,12 @@ function blockActivityDetails(row, { settings = {} } = {}) {
 
 function blockAssignment(row, { settings = {} } = {}) {
   const options = settings?.dropdown_options || {};
-  const schools = mergeListStrings(options, ['school', 'schools']);
+  const schoolRecords = Array.isArray(options.school_records) ? options.school_records : [];
   const authorities = mergeListStrings(options, ['authority', 'authorities']);
   const grades = resolveGradeOptions(settings);
+  const authorityId = String(row.authority_id || '').trim();
+  const schools = schoolsForAuthority(schoolRecords, authorityId).map((school) => school.name || school.value).filter(Boolean);
+  const invalidSchoolLink = Boolean(row.school_id && authorityId && !schoolBelongsToAuthority(schoolRecords, row.school_id, authorityId));
 
   return `
     <section class="activity-drawer__section activity-drawer__section--edit-group" data-mode="edit" hidden>
@@ -571,15 +575,19 @@ function blockAssignment(row, { settings = {} } = {}) {
         ${fieldEditOnly(
           'רשות',
           authorities.length
-            ? selectHtml({ name: 'authority', value: row.authority, options: authorities })
-            : inputHtml({ name: 'authority', value: row.authority })
+            ? selectHtml({ name: 'authority', value: row.authority, options: authorities, attrs: 'data-role="activity-authority"' })
+            : inputHtml({ name: 'authority', value: row.authority, attrs: 'data-role="activity-authority"' })
         )}
+        <input type="hidden" name="authority_id" value="${escapeHtml(authorityId)}" data-role="activity-authority-id">
         ${fieldEditOnly(
           'בית ספר',
-          schools.length
-            ? selectHtml({ name: 'school', value: row.school, options: schools })
-            : inputHtml({ name: 'school', value: row.school })
+          `<div class="activity-school-picker" data-role="activity-school-picker">
+            ${inputHtml({ name: 'school', value: row.school, type: 'search', attrs: `autocomplete="off" placeholder="חיפוש בית ספר…" data-role="activity-school" aria-autocomplete="list" aria-expanded="false"` })}
+            <div class="activity-school-picker__menu" data-role="activity-school-options" role="listbox" hidden>${schools.map((school) => `<button type="button" role="option" data-school-name="${escapeHtml(school)}">${escapeHtml(school)}</button>`).join('')}</div>
+          </div>
+          ${invalidSchoolLink ? '<p class="ds-error-text" role="alert">בית הספר השמור אינו שייך לרשות של הפעילות. יש לתקן את השיוך לפני השמירה.</p>' : ''}`
         )}
+        <input type="hidden" name="school_id" value="${escapeHtml(String(row.school_id || ''))}" data-role="activity-school-id">
         ${fieldEditOnly(
           'כיתה / קבוצה',
           `<div class="activity-drawer__field-controls activity-drawer__field-controls--inline">
@@ -604,7 +612,7 @@ function blockTeamTimes(row, { settings = {}, schedulingManaged = false } = {}) 
   const instructor1EmpId = String(row.emp_id || '').trim();
   const instructor2EmpId = String(row.emp_id_2 || '').trim();
   const activityType = normalizeActivityTypeKey(row.activity_type || row.item_type);
-  const twoInstructors = activityType === 'workshop' || activityType === 'escape_room';
+  const twoInstructors = activityAllowsSecondInstructor(row, getActivityCatalog(settings));
   try {
     console.info('[activity-edit][instructors-options]', {
       contacts_count: contactsUsers.length,
@@ -781,13 +789,14 @@ function blockViewOnce(row, { settings = {}, hideFunding = false } = {}) {
     ? formatTimeRangeShort(row.start_time, row.end_time)
     : '';
   const fundingDisplay = String(row.funding || '').trim();
+  const twoInstructors = activityAllowsSecondInstructor(row, getActivityCatalog(settings));
 
   return `
     <section class="activity-view-card activity-view-card--once" data-mode="view" data-central-info-section>
       <div class="activity-view-card__grid">
         ${viewField('מנהל פעילות', viewMgr(row.activity_manager))}
-        ${viewField('מדריך/ה 1', viewVal(instr1))}
-        ${viewField('מדריך/ה 2', viewVal(instr2))}
+        ${viewField(twoInstructors ? 'מדריך/ה 1' : 'מדריך/ה', viewVal(instr1))}
+        ${twoInstructors ? viewField('מדריך/ה 2', viewVal(instr2)) : ''}
         ${viewField('כיתה / קבוצה', classLabel)}
         ${viewField('שעות', hoursLabel)}
         ${hideFunding ? '' : viewField('מימון', fundingDisplay)}
@@ -828,7 +837,7 @@ function blockCentralInfo(row, { settings = {}, hideFunding = false } = {}) {
   const instructor1Display = instructorViewDisplay(resolveActivityInstructorName(row) || resolveInstructorDisplayName(row.instructor_name, row.emp_id, instructorLookup), row.emp_id, contactsUsers);
   const instructor2Display = instructorViewDisplay(resolveActivityInstructorName(row, { secondary: true }) || resolveInstructorDisplayName(row.instructor_name_2, row.emp_id_2, instructorLookup), row.emp_id_2, contactsUsers);
   const activityType = normalizeActivityTypeKey(row.activity_type || row.item_type);
-  const twoInstructors = activityType === 'workshop' || activityType === 'escape_room';
+  const twoInstructors = activityAllowsSecondInstructor(row, getActivityCatalog(settings));
   const gradeVal = String(row.grade || '').trim();
   const classGroupVal = String(row.class_group || '').trim();
   const classLabel = [gradeVal, classGroupVal].filter(Boolean).join(' / ') || '—';
@@ -1293,6 +1302,8 @@ function singleForm(row, { settings = {}, privateNote = null, canEdit = false, c
   return `
     <form class="activity-drawer__form" data-drawer-form data-editing="no"
       data-export-row="${jsonAttr(row)}"
+      data-authority-records="${escapeHtml(encodeURIComponent(JSON.stringify(settings?.dropdown_options?.authority_records || [])))}"
+      data-school-records="${escapeHtml(encodeURIComponent(JSON.stringify(settings?.dropdown_options?.school_records || [])))}"
       data-source-sheet="${escapeHtml(String(row.source_sheet || ''))}"
       data-row-id="${escapeHtml(String(row.RowID || row.row_id || row.source_row_id || ''))}"
       data-activity-season="${escapeHtml(String(row.activity_season || ''))}"
