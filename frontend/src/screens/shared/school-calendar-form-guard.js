@@ -4,6 +4,7 @@ import { showToast } from './toast.js';
 import {
   addCalendarDays,
   blockingSchoolCalendarEvent,
+  filterSchoolCalendarRowsBySector,
   isSummerActivitySeason,
   shortenedSchoolDayConflict
 } from './school-calendar-logic.js';
@@ -41,6 +42,48 @@ function meetingPickers(form) {
   return Array.from(form.querySelectorAll('[data-meeting-dates-edit] input[data-meeting-idx]')).sort(
     (a, b) => Number(a.dataset.meetingIdx) - Number(b.dataset.meetingIdx)
   );
+}
+
+function parseOriginalActivity(form) {
+  try {
+    return JSON.parse(form?.dataset?.exportRow || '{}') || {};
+  } catch {
+    return {};
+  }
+}
+
+function parseSchoolRecords(form) {
+  try {
+    const records = JSON.parse(decodeURIComponent(String(form?.dataset?.schoolRecords || '')));
+    return Array.isArray(records) ? records : [];
+  } catch {
+    return [];
+  }
+}
+
+function schoolSector(form, schoolId) {
+  const wanted = String(schoolId || '').trim();
+  const school = parseSchoolRecords(form).find((record) => (
+    String(record?.school_id ?? record?.id ?? '').trim() === wanted
+  ));
+  return String(school?.sector || school?.calendar_sector || '').trim();
+}
+
+function originalMeetingDate(row, index) {
+  return String(
+    row?.[`meeting_date_${index}`]
+    || row?.[`date_${index + 1}`]
+    || row?.[`Date${index + 1}`]
+    || ''
+  ).trim().slice(0, 10);
+}
+
+function dateConflict(form, rows, isoDate, endTime) {
+  const holiday = blockingEventForFormDate(form, rows, isoDate);
+  if (holiday) return { type: 'holiday', event: holiday };
+  if (currentUserCanUseEdenHolidayOverride(isoDate)) return null;
+  const shortDay = shortenedSchoolDayConflict(rows, isoDate, endTime);
+  return shortDay ? { type: 'short-day', event: shortDay } : null;
 }
 
 function activitySeason(form) {
@@ -157,24 +200,34 @@ async function skipHolidaysInChain(form, changedIndex) {
   return changed;
 }
 
-function validationMessage(form, rows) {
+export function schoolCalendarValidationMessage(form, rows) {
   if (isSummerActivitySeason(activitySeason(form))) return '';
   const endTime = String(form.querySelector('[name="end_time"]')?.value || '').trim();
-  const dates = meetingPickers(form).map((picker) => String(picker.value || '').trim()).filter(Boolean);
+  const original = parseOriginalActivity(form);
+  const originalEndTime = String(original.end_time || endTime).trim();
+  const currentSchoolId = String(form.querySelector('[name="school_id"]')?.value || original.school_id || '').trim();
+  const originalSchoolId = String(original.school_id || currentSchoolId).trim();
+  const currentRows = filterSchoolCalendarRowsBySector(rows, schoolSector(form, currentSchoolId));
+  const originalRows = filterSchoolCalendarRowsBySector(rows, schoolSector(form, originalSchoolId));
 
-  for (const isoDate of dates) {
-    const holiday = blockingEventForFormDate(form, rows, isoDate);
-    if (holiday) {
-      return `לא ניתן לשמור פעילות ב־${formatDateHe(isoDate) || isoDate}: ${holiday.title}.`;
-    }
+  for (const picker of meetingPickers(form)) {
+    const isoDate = String(picker.value || '').trim();
+    if (!isoDate) continue;
+    const index = Number(picker.dataset.meetingIdx);
+    const conflict = dateConflict(form, currentRows, isoDate, endTime);
+    if (!conflict) continue;
 
-    if (currentUserCanUseEdenHolidayOverride(isoDate)) continue;
+    const oldDate = originalMeetingDate(original, index);
+    const oldConflict = oldDate === isoDate
+      ? dateConflict(form, originalRows, oldDate, originalEndTime)
+      : null;
+    if (oldConflict) continue;
 
-    const shortDay = shortenedSchoolDayConflict(rows, isoDate, endTime);
-    if (shortDay) {
-      const limit = String(shortDay.school_day_end_time || '').slice(0, 5);
+    if (conflict.type === 'short-day') {
+      const limit = String(conflict.event.school_day_end_time || '').slice(0, 5);
       return `לא ניתן לשמור פעילות ב־${formatDateHe(isoDate) || isoDate}: הלימודים מסתיימים בשעה ${limit}.`;
     }
+    return `לא ניתן לשמור פעילות ב־${formatDateHe(isoDate) || isoDate}: ${conflict.event.title}.`;
   }
 
   return '';
@@ -197,9 +250,9 @@ function suppressCurrentSave(button) {
   queueMicrotask(() => button.setAttribute('data-action', action));
 }
 
-async function validateThenResume(button, form) {
-  const rows = await loadSchoolCalendarRows();
-  const message = validationMessage(form, rows);
+async function validateThenResume(button, form, loadRows = loadSchoolCalendarRows) {
+  const rows = await loadRows();
+  const message = schoolCalendarValidationMessage(form, rows);
   if (message) {
     showValidationError(form, message);
     return;
@@ -208,7 +261,10 @@ async function validateThenResume(button, form) {
   button.click();
 }
 
-export function startSchoolCalendarFormGuard() {
+export function startSchoolCalendarFormGuard({
+  getRows = getCachedSchoolCalendarRows,
+  loadRows = loadSchoolCalendarRows
+} = {}) {
   document.addEventListener('change', (event) => {
     const picker = event.target.closest('input[data-meeting-idx]');
     if (!picker) return;
@@ -259,15 +315,15 @@ export function startSchoolCalendarFormGuard() {
       return;
     }
 
-    const rows = getCachedSchoolCalendarRows();
+    const rows = getRows();
     if (!rows) {
       event.preventDefault();
       suppressCurrentSave(saveButton);
-      void validateThenResume(saveButton, form);
+      void validateThenResume(saveButton, form, loadRows);
       return;
     }
 
-    const message = validationMessage(form, rows);
+    const message = schoolCalendarValidationMessage(form, rows);
     if (!message) return;
     event.preventDefault();
     suppressCurrentSave(saveButton);
