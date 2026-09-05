@@ -58,6 +58,7 @@ config.HOTFIX_VERSION = `activity-edit-location-ids-20260904-v1-${config.HOTFIX_
 config.HOTFIX_VERSION = `activity-edit-missing-authority-id-20260904-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `activity-school-picker-calendar-guards-20260904-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `activity-location-inline-gefen-add-20260904-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `activity-historical-calendar-validation-20260905-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `proposal-sent-silent-pdf-upload-20260817-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `course-scheduling-transparent-ranking-20260817-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `course-scheduling-incremental-travel-ranking-20260817-v2-${config.HOTFIX_VERSION}`;
