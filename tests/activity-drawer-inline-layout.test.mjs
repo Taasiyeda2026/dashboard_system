@@ -194,6 +194,27 @@ test('activity drawer becomes one inline view/edit template without duplicate he
   dom.window.close();
 });
 
+test('inline layout keeps canonical authority and school IDs inside the activity form', () => {
+  const row = {
+    row_id: 'LOCATION-1', activity_type: 'course', activity_name: 'בדיקה', activity_season: 'school_2027',
+    authority: 'רשות א', authority_id: 'A_ID', school: 'בית ספר א1', school_id: 'A1_ID'
+  };
+  const settings = { dropdown_options: {
+    authority: ['רשות א', 'רשות ב'],
+    authority_records: [{ id: 'A_ID', name: 'רשות א' }, { id: 'B_ID', name: 'רשות ב' }],
+    school_records: [{ school_id: 'A1_ID', authority_id: 'A_ID', name: 'בית ספר א1' }]
+  } };
+  const dom = installDom(`<div class="ds-drawer__content">${activityWorkDrawerHtml(row, { settings, canEdit: true, canDirectEdit: true })}</div>`);
+  const form = dom.window.document.querySelector('[data-drawer-form]');
+
+  assert.equal(enhanceActivityDrawerForm(form), true);
+  assert.equal(form.querySelector('[name="authority_id"]')?.value, 'A_ID');
+  assert.equal(form.querySelector('[name="school_id"]')?.value, 'A1_ID');
+  assert.equal(form.contains(form.querySelector('[name="authority_id"]')), true);
+  assert.equal(form.contains(form.querySelector('[name="school_id"]')), true);
+  dom.window.close();
+});
+
 test('gender and instruction language are ordinary activity edit fields in the shared grid', () => {
   const row = {
     RowID: 'REQ-FIELDS-1',

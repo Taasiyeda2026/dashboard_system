@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
-import { enhanceGefenOrderUi } from '../frontend/src/activity-drawer-gefen-order-ui.js';
+import { activityCreateGefenValue, enhanceAddActivityGefenOrderUi, enhanceGefenOrderUi } from '../frontend/src/activity-drawer-gefen-order-ui.js';
 
 function fixture({ gefenSelected = true, existsInGefen = false, exportedConfirmation } = {}) {
   const selectedGefen = gefenSelected ? ' selected' : '';
@@ -142,4 +142,46 @@ test('changing Gefen funding during edit clears stale confirmation and requires 
   assert.equal(checkbox.checked, false);
   assert.equal(choice.value, 'false');
   assert.equal(field.dataset.gefenOrderConfirmed, 'no');
+});
+
+test('add activity shows and resets the shared Gefen order choice as funding changes', async () => {
+  const dom = new JSDOM(`<form data-add-activity-form>
+    <fieldset data-funding-picker>
+      <label><input type="checkbox" data-funding-source-id="gefen" data-funding-name="גפ״ן"><span>גפ״ן</span></label>
+      <label><input type="checkbox" data-funding-source-id="other" data-funding-name="רמי שני"><span>רמי שני</span></label>
+    </fieldset>
+    <div data-add-gefen-order-host hidden><input type="checkbox" name="exists_in_gefen" value="true" data-gefen-exists-checkbox hidden></div>
+  </form>`, { url: 'https://example.test/' });
+  const form = dom.window.document.querySelector('form');
+  const gefen = form.querySelector('[data-funding-source-id="gefen"]');
+  const other = form.querySelector('[data-funding-source-id="other"]');
+
+  assert.equal(enhanceAddActivityGefenOrderUi(form), true);
+  const host = form.querySelector('[data-add-gefen-order-host]');
+  const choice = form.querySelector('[data-gefen-order-choice]');
+  assert.equal(host.hidden, true);
+  assert.equal(activityCreateGefenValue(form), false);
+
+  gefen.checked = true;
+  gefen.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+  await Promise.resolve();
+  assert.equal(host.hidden, false);
+  assert.equal(choice.value, 'false');
+
+  choice.value = 'true';
+  choice.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+  assert.equal(activityCreateGefenValue(form), true);
+
+  other.checked = true;
+  other.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+  await Promise.resolve();
+  assert.equal(host.hidden, false);
+  assert.equal(activityCreateGefenValue(form), true);
+
+  gefen.checked = false;
+  gefen.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+  await Promise.resolve();
+  assert.equal(host.hidden, true);
+  assert.equal(form.querySelector('[data-gefen-exists-checkbox]').checked, false);
+  assert.equal(activityCreateGefenValue(form), false);
 });

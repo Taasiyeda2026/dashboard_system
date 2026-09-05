@@ -63,6 +63,11 @@ function selectedFundingNames(form) {
     return [...nativeSelect.selectedOptions].map((option) => clean(option.textContent)).filter(Boolean);
   }
 
+  const addSelections = [...form.querySelectorAll('[data-funding-source-id]:checked')]
+    .map((checkbox) => clean(checkbox.dataset.fundingName || checkbox.closest('label')?.querySelector('span')?.textContent))
+    .filter(Boolean);
+  if (addSelections.length) return addSelections;
+
   const row = exportRow(form);
   const sources = Array.isArray(row.funding_sources) ? row.funding_sources : [];
   const names = sources.map((source) => clean(source?.name)).filter(Boolean);
@@ -92,6 +97,9 @@ function ensureStyles(doc) {
       border-top: 1px solid rgba(148, 163, 184, 0.28);
     }
     [data-drawer-form][data-editing="yes"] [${CONTROL_ATTR}][data-gefen-funded="yes"] {
+      display: grid;
+    }
+    [data-add-gefen-order-host]:not([hidden]) [${CONTROL_ATTR}][data-gefen-funded="yes"] {
       display: grid;
     }
     [${CONTROL_ATTR}] .activity-drawer-gefen-order__question {
@@ -163,10 +171,55 @@ function createChoiceControl(form, checkbox, field) {
   return { control, select };
 }
 
+function syncGefenChoice(form, { control, select, checkbox, field = null }) {
+  const gefenFunding = hasGefenFunding(form);
+  if (!gefenFunding) checkbox.checked = false;
+  control.dataset.gefenFunded = gefenFunding ? 'yes' : 'no';
+  control.hidden = !gefenFunding;
+  select.value = checkbox.checked ? 'true' : 'false';
+  if (field) field.dataset.gefenOrderConfirmed = gefenFunding && checkbox.checked ? 'yes' : 'no';
+  return gefenFunding;
+}
+
+export function activityCreateGefenValue(form) {
+  return hasGefenFunding(form) && Boolean(form?.querySelector?.('[data-gefen-exists-checkbox]')?.checked);
+}
+
+export function enhanceAddActivityGefenOrderUi(form) {
+  if (!form || form.hasAttribute(ENHANCED_ATTR)) return false;
+  const host = form.querySelector('[data-add-gefen-order-host]');
+  const checkbox = form.querySelector('[data-gefen-exists-checkbox]');
+  if (!host || !checkbox) return false;
+
+  const created = createChoiceControl(form, checkbox, { querySelector: () => host });
+  const { control, select } = created;
+  ensureStyles(form.ownerDocument);
+  const sync = () => {
+    const funded = syncGefenChoice(form, { control, select, checkbox });
+    host.hidden = !funded;
+  };
+
+  select.addEventListener('change', () => {
+    checkbox.checked = select.value === 'true';
+    sync();
+  });
+  form.addEventListener('change', (event) => {
+    if (event.target === select || !isFundingInteractionTarget(event.target)) return;
+    queueMicrotask(sync);
+  });
+  form.addEventListener('click', (event) => {
+    if (event.target?.closest?.('[data-funding-compact-remove], [data-funding-compact-add]')) queueMicrotask(sync);
+  });
+  form.addEventListener('reset', () => queueMicrotask(sync));
+  form.setAttribute(ENHANCED_ATTR, 'yes');
+  sync();
+  return true;
+}
+
 function isFundingInteractionTarget(target) {
   if (!target?.matches) return false;
   return target.matches(
-    'select[name="funding_sources"], [data-funding-compact-select], [data-funding-compact-remove], [data-funding-compact-add]'
+    'select[name="funding_sources"], [data-funding-source-id], [data-funding-compact-select], [data-funding-compact-remove], [data-funding-compact-add]'
   );
 }
 
