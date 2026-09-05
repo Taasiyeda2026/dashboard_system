@@ -94,6 +94,13 @@ function extractStandaloneControl(form, name) {
   return controls;
 }
 
+function preserveLocationIds(form) {
+  ['authority_id', 'school_id'].forEach((name) => {
+    const control = form.querySelector(`[name="${name}"]`);
+    if (control) form.append(control);
+  });
+}
+
 function makeEditOnlyActivityField(doc, { label, editControls, className = '' }) {
   if (!editControls) return null;
   const field = doc.createElement('div');
@@ -165,6 +172,9 @@ function wrapFormAroundDrawer(form) {
 function headerEditor(form, header, row) {
   if (!header) return;
   const doc = form.ownerDocument;
+  // The visible location controls are moved out of the legacy edit section. Keep
+  // their canonical IDs at form level before that section is removed as empty.
+  preserveLocationIds(form);
   const headerTop = header.querySelector('.activity-drawer__header-top') || header;
   const heading = header.querySelector('.activity-drawer__heading');
   if (heading) heading.setAttribute('data-mode', 'view');

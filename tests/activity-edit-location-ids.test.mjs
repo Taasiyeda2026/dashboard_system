@@ -13,6 +13,8 @@ globalThis.CustomEvent = dom.window.CustomEvent;
 const { activityEditLocationChanges, captureActivityEditLocationValues, handleActivityAuthorityChange, syncActivityEditLocation } = await import(
   '../frontend/src/screens/shared/bind-activity-edit-form.js'
 );
+const { enhanceActivityDrawerForm } = await import('../frontend/src/activity-drawer-inline-layout.js');
+const { activityWorkDrawerHtml } = await import('../frontend/src/screens/shared/activity-detail-html.js');
 
 const authorities = [
   { id: 1, name: 'רשות א' },
@@ -105,4 +107,33 @@ test('missing DB authority ID is still sent when another field is the only user 
     school: "מקיף ה' כללי",
     school_id: '250',
   });
+});
+
+test('rendered existing activity keeps canonical IDs and saves the new authority school after inline enhancement', () => {
+  const settings = { dropdown_options: {
+    authority: ['רשות א', 'רשות ב'], authority_records: authorities, school_records: schools
+  } };
+  document.body.innerHTML = `<div class="ds-drawer__content">${activityWorkDrawerHtml({
+    row_id: 'LOCATION-FLOW', activity_type: 'course', activity_name: 'בדיקה', activity_season: 'school_2027',
+    authority: 'רשות א', authority_id: '1', school: 'בית ספר A', school_id: '10'
+  }, { settings, canEdit: true, canDirectEdit: true })}</div>`;
+  const form = document.querySelector('[data-drawer-form]');
+  assert.equal(enhanceActivityDrawerForm(form), true);
+  assert.equal(form.querySelector('[name="authority_id"]')?.value, '1');
+  assert.equal(form.querySelector('[name="school_id"]')?.value, '10');
+
+  form.dataset.editing = 'yes';
+  form.querySelector('[name="authority"]').value = 'רשות ב';
+  const cleared = handleActivityAuthorityChange(form);
+  assert.equal(form.querySelector('[name="authority_id"]').value, '2');
+  assert.equal(form.querySelector('[name="school"]').value, '');
+  assert.equal(form.querySelector('[name="school_id"]').value, '');
+  assert.equal(form.querySelector('[data-role="activity-school-options"]').hidden, false);
+  assert.deepEqual([...form.querySelectorAll('[data-school-name]')].map((option) => option.dataset.schoolName), ['בית ספר ג']);
+
+  form.querySelector('[name="school"]').value = 'בית ספר ג';
+  const selected = syncActivityEditLocation(form);
+  const payload = activityEditLocationChanges({ authority: 'רשות א', authority_id: '1', school: 'בית ספר A', school_id: '10' }, selected.values);
+  assert.equal(cleared.valid, true);
+  assert.deepEqual(payload, { authority: 'רשות ב', authority_id: '2', school: 'בית ספר ג', school_id: '20' });
 });

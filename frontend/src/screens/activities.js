@@ -59,6 +59,7 @@ import {
   isReadOnlyGlobalActivityPeriod
 } from './shared/activity-readonly-period.js';
 import { showToast } from './shared/toast.js';
+import { activityCreateGefenValue, enhanceAddActivityGefenOrderUi } from '../activity-drawer-gefen-order-ui.js';
 import { canEditDirect, canAddActivityDirect, canRequestEdit, canRequestCreateActivity, canReviewRequests } from '../permissions.js';
 import { hasPermission } from '../permission-policy.js';
 import { bindInstructorScheduling } from './instructor-scheduling-workflow.js';
@@ -962,7 +963,10 @@ function addActivityModalHtml(settings, activityPeriodTab = '') {
           ? `<label class="ds-activity-add-field ds-activity-add-field--compact"><span>תחום פעילות</span><select class="ds-input" name="activity_domain" required><option value="">בחרו תחום</option><option value="E">E</option><option value="Y">Y</option></select></label>`
           : ''
         }
-        <fieldset class="ds-activity-add-field ds-activity-add-field--span2" data-funding-picker><legend>מימון</legend><div style="display:grid;gap:6px">${(settings?.dropdown_options?.funding_source_records || []).map((source) => `<label style="display:grid;grid-template-columns:auto 1fr minmax(100px,140px);align-items:center;gap:8px"><input type="checkbox" data-funding-source-id="${escapeHtml(source.id)}"><span>${escapeHtml(source.name)}</span><input class="ds-input" type="number" min="0" step="0.01" inputmode="decimal" data-funding-amount placeholder="סכום (רשות)"></label>`).join('')}</div></fieldset>
+        <fieldset class="ds-activity-add-field ds-activity-add-field--span2" data-funding-picker><legend>מימון</legend><div style="display:grid;gap:6px">${(settings?.dropdown_options?.funding_source_records || []).map((source) => `<label style="display:grid;grid-template-columns:auto 1fr minmax(100px,140px);align-items:center;gap:8px"><input type="checkbox" data-funding-source-id="${escapeHtml(source.id)}" data-funding-name="${escapeHtml(source.name)}"><span>${escapeHtml(source.name)}</span><input class="ds-input" type="number" min="0" step="0.01" inputmode="decimal" data-funding-amount placeholder="סכום (רשות)"></label>`).join('')}</div></fieldset>
+        <div class="ds-activity-add-field ds-activity-add-field--span2" data-add-gefen-order-host hidden>
+          <input type="checkbox" name="exists_in_gefen" value="true" data-gefen-exists-checkbox hidden>
+        </div>
         <label class="ds-activity-add-field ds-activity-add-field--compact"><span>מחיר</span><input class="ds-input" name="price" type="number" min="0" step="1"></label>
         <label class="ds-activity-add-field"><span>קבוצה / כיתה</span><input class="ds-input" name="class_group" type="text"></label>
         <label class="ds-activity-add-field"><span>כיתה / שכבה</span><select class="ds-input" name="grade">${optionsHtml(gradeOptions, '', '— בחרו כיתה —')}</select></label>
@@ -2933,6 +2937,7 @@ export const activitiesScreen = {
         refreshActivityNameSelect(form);
       }, addActivitySig);
       bindAddActivitySessionCountSync(form, addActivitySig);
+      enhanceAddActivityGefenOrderUi(form);
       const rebuildSessions = async () => {
         syncSessionDateRows(form);
         await regenerateAddActivitySessionDates(form);
@@ -3101,6 +3106,7 @@ export const activitiesScreen = {
         sessions: isOneDay ? '1' : sessionsValue,
         price: get('price'),
         funding_sources: Array.from(form.querySelectorAll('[data-funding-source-id]:checked')).map((checkbox) => ({ funding_source_id: checkbox.dataset.fundingSourceId, amount: checkbox.closest('label')?.querySelector('[data-funding-amount]')?.value || null })),
+        exists_in_gefen: activityCreateGefenValue(form),
         start_time: get('start_time'),
         end_time: get('end_time'),
         start_date: isOneDay ? oneDayDate : get('start_date'),
