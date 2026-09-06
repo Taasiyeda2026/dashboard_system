@@ -494,6 +494,9 @@ const screenLabels = {
   contacts: 'אנשי קשר',
   'end-dates': 'תאריכי סיום',
   'instructor-calendar': 'לוח שנה',
+  'instructor-dashboard': 'לוח בקרה',
+  'instructor-work-schedule': 'סידור עבודה',
+  'instructor-reports': 'דיווחים',
   'my-data': 'הפעילויות שלי',
   'instructor-completion-approvals': 'אישורי ביצוע',
   'instructor-guidelines': 'נהלים',
@@ -647,8 +650,11 @@ const screenLoaders = {
   'instructor-contacts': () => import('./screens/instructor-contacts.js').then((m) => m.instructorContactsScreen),
   contacts: () => import('./screens/contacts.js').then((m) => m.contactsScreen),
   'end-dates': () => import('./screens/end-dates.js').then((m) => m.endDatesScreen),
-  'instructor-calendar': () => import('./screens/instructor-calendar.js').then((m) => m.instructorCalendarScreen),
-  'my-data': () => import('./screens/my-data.js').then((m) => m.myDataScreen),
+  'instructor-calendar': () => import('./screens/instructor-portal/calendar.js').then((m) => m.instructorPortalCalendarScreen),
+  'instructor-dashboard': () => import('./screens/instructor-portal/dashboard.js').then((m) => m.instructorDashboardScreen),
+  'instructor-work-schedule': () => import('./screens/instructor-portal/work-schedule.js').then((m) => m.instructorWorkScheduleScreen),
+  'instructor-reports': () => import('./screens/instructor-portal/reports.js').then((m) => m.instructorReportsScreen),
+  'my-data': () => import('./screens/instructor-portal/my-activities.js').then((m) => m.instructorMyActivitiesScreen),
   'instructor-completion-approvals': () => import('./screens/instructor-completion-approvals.js').then((m) => m.instructorCompletionApprovalsScreen),
   'instructor-guidelines': () => import('./screens/instructor-guidelines.js').then((m) => m.instructorGuidelinesScreen),
   'edit-requests': () => import('./screens/edit-requests.js').then((m) => m.editRequestsScreen),
@@ -712,16 +718,17 @@ function isActiveInstructorPilotUser(user = state?.user || {}) {
   return [user.emp_id, user.employee_id, user.user_id].map((v) => String(v || '').trim()).some((id) => ACTIVE_INSTRUCTOR_EMP_IDS.has(id));
 }
 function instructorOnlyRoutes() {
-  return ['instructor-calendar', 'my-data', 'instructor-completion-approvals', 'instructor-guidelines'];
+  return ['instructor-dashboard', 'instructor-work-schedule', 'instructor-calendar', 'instructor-reports', 'my-data', 'instructor-completion-approvals', 'instructor-guidelines'];
 }
 
 const INSTRUCTOR_MOBILE_NAV = [
+  { route: 'instructor-dashboard', short: 'בית', icon: '🏠' },
+  { route: 'instructor-work-schedule', short: 'סידור', icon: '🗓️' },
   { route: 'instructor-calendar', short: 'לוח שנה', icon: '📅' },
   { route: 'my-data', short: 'פעילויות', icon: '📋' },
-  { route: 'instructor-completion-approvals', short: 'אישורים', icon: '✍️' },
-  { route: 'instructor-guidelines', short: 'נהלים', icon: '📖' },
-  { route: null, short: 'נוכחות', icon: '✅', externalUrl: 'https://taasiyeda2026.github.io/attendance/' },
-  { route: null, short: 'סדנאות', icon: '📂', externalUrlBlank: 'https://drive.google.com/drive/folders/1qINdcwLXTSmQND6pE_ojjJ18TUuY8UB1?usp=drive_link' }
+  { route: 'instructor-reports', short: 'דיווחים', icon: '📊' },
+  { route: null, short: 'נוכחות', icon: '✅', externalUrl: config.instructorAttendanceUrl },
+  { route: null, short: 'מצגות', icon: '📂', externalUrlBlank: config.instructorPresentationsUrl }
 ];
 
 function instructorBottomNavHtml(currentRoute) {
@@ -1043,7 +1050,16 @@ function shell(content) {
   const isInstructorUser = String(state?.user?.role || '').trim() === 'instructor';
   // לאדמין: הנתונים שלי — מוסתר לחלוטין; הרשאות — בסרגל בלבד
   const adminSidebarExclude = isAdminUser && !isActiveInstructorPilotUser() ? new Set(['my-data']) : new Set();
-  const nav = effectiveRoutes()
+  const instructorSidebarItems = [
+    { route: 'instructor-dashboard', label: 'לוח בקרה' },
+    { route: 'instructor-work-schedule', label: 'סידור עבודה' },
+    { route: 'instructor-calendar', label: 'לוח שנה' },
+    { label: 'מערכת נוכחות', externalUrl: config.instructorAttendanceUrl },
+    { label: 'מצגות', externalUrlBlank: config.instructorPresentationsUrl },
+    { route: 'instructor-reports', label: 'דיווחים' },
+    { route: 'my-data', label: 'הפעילויות שלי' }
+  ];
+  const regularNav = effectiveRoutes()
     .filter((route) =>
       !hiddenSet.has(route) &&
       !contextualSet.has(route) &&
@@ -1056,9 +1072,16 @@ function shell(content) {
         `<button type="button" class="shell-nav__btn ${route === state.route ? 'is-active' : ''}" data-route="${route}">${navLabelHtmlForRoute(route)}</button>`
     )
     .join('');
-  const attendanceNavBtn = isInstructorUser
-    ? `<button type="button" class="shell-nav__btn" data-external-url="https://taasiyeda2026.github.io/attendance/">✅ נוכחות</button><button type="button" class="shell-nav__btn" data-external-url-blank="https://drive.google.com/drive/folders/1qINdcwLXTSmQND6pE_ojjJ18TUuY8UB1?usp=drive_link">📂 סדנאות</button>`
-    : isAdminUser
+  const instructorNav = instructorSidebarItems.map((item) => {
+    const target = item.externalUrl
+      ? `data-external-url="${escapeHtml(item.externalUrl)}"`
+      : item.externalUrlBlank
+        ? `data-external-url-blank="${escapeHtml(item.externalUrlBlank)}"`
+        : `data-route="${escapeHtml(item.route)}"`;
+    return `<button type="button" class="shell-nav__btn ${item.route === state.route ? 'is-active' : ''}" ${target}>${escapeHtml(item.label)}</button>`;
+  }).join('');
+  const nav = isInstructorUser ? instructorNav : regularNav;
+  const attendanceNavBtn = isAdminUser
       ? `<button type="button" class="shell-nav__btn" data-external-url="/dashboard_system/attendance/">👥 נוכחות</button>`
       : '';
 
