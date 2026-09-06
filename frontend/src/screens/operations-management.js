@@ -86,9 +86,9 @@ import {
 } from './shared/instructors-workspace-nav.js';
 import {
   buildReadyCourseScheduleRows,
-  sortReadyCourseScheduleRows,
-  formatCourseScheduleRangeShort
+  sortReadyCourseScheduleRows
 } from './shared/instructor-course-schedule-2027.js';
+import { courseScheduleSummaryHtml, courseScheduleTableHtml } from './shared/instructor-course-schedule-view.js';
 import {
   buildCourseSchedulePrintHtml,
   courseSchedulePrintCss,
@@ -2412,82 +2412,19 @@ function printSchoolsSchedule() {
   setTimeout(() => printWindow.print(), 250);
 }
 
-function courseScheduleDatesListHtml(dates = []) {
-  return `<ul class="ds-ops-course-dates-list">${dates.map((date) => `<li>${escapeHtml(formatDateHeWithWeekday(date))}</li>`).join('')}</ul>`;
-}
-
-// school_2027 "סידור עבודה": one compact row per ready course (see
-// buildReadyCourseScheduleRows), never one row per meeting. Kept as a
-// separate function from instructorsTabHtml below so the existing
-// summer_2026 / regular per-meeting table and its print path are untouched.
 function courseScheduleTabHtml2027(rows, state) {
   const ops = ensureOpsState(state);
   const filters = ensureActivityListFilters(state, SCOPE);
   const selectedInstructorFilter = String(filters.instructor || '').trim();
-  const readyRows = sortReadyCourseScheduleRows(
-    buildReadyCourseScheduleRows(rows),
-    { instructorSelected: Boolean(selectedInstructorFilter) }
-  );
+  const readyRows = sortReadyCourseScheduleRows(buildReadyCourseScheduleRows(rows), { instructorSelected: Boolean(selectedInstructorFilter) });
   _courseSchedulePrintContext2027 = { rows: readyRows, instructorName: selectedInstructorFilter };
-
-  const totalMeetings = readyRows.reduce((sum, row) => sum + row.dates.length, 0);
-  const schoolsCount = uniqueSorted(readyRows.map((row) => row.school)).length;
-  const authoritiesCount = uniqueSorted(readyRows.map((row) => row.authority)).length;
-  const summaryLine = compactSummaryLineHtml([
-    { label: 'קורסים', value: readyRows.length },
-    { label: 'מפגשים', value: totalMeetings },
-    { label: 'בתי ספר', value: schoolsCount },
-    { label: 'רשויות', value: authoritiesCount }
-  ]);
-
-  const tableRows = readyRows.map((row) => {
-    const isExpanded = Boolean(ops.expandedCourseDates[row.key]);
-    const instructorLabel = row.instructorNames.join(', ');
-    const datesToggleLabel = row.dates.length === 1 ? 'תאריך אחד' : `${row.dates.length} תאריכים`;
-    const mainRow = `<tr>
-      <td class="ds-ops-course-col--name" title="${escapeHtml(row.name)}"><strong>${escapeHtml(row.name)}</strong></td>
-      <td class="ds-ops-course-col--authority" title="${escapeHtml(row.authority)}">${escapeHtml(row.authority)}</td>
-      <td class="ds-ops-course-col--school" title="${escapeHtml(row.school)}">${escapeHtml(row.school)}</td>
-      <td class="ds-ops-course-col--instructor" title="${escapeHtml(instructorLabel)}">${escapeHtml(instructorLabel)}</td>
-      <td class="ds-ops-course-col--weekday">${row.weekday ? escapeHtml(row.weekday) : '<span class="ds-ops-mgmt-cell-muted">—</span>'}</td>
-      <td class="ds-ops-course-col--time">${escapeHtml(row.timeRange || '—')}</td>
-      <td class="ds-ops-course-col--period">${escapeHtml(formatCourseScheduleRangeShort(row.startDate, row.endDate) || '—')}</td>
-      <td class="ds-ops-course-col--grade">${row.grade ? escapeHtml(row.grade) : '<span class="ds-ops-mgmt-cell-muted">—</span>'}</td>
-      <td class="ds-ops-course-col--sessions">${row.sessionsCount}</td>
-      <td class="ds-ops-course-col--dates"><button type="button" class="ds-ops-course-dates-toggle no-print" data-ops-course-dates-toggle="${escapeHtml(row.key)}" aria-expanded="${isExpanded ? 'true' : 'false'}">${escapeHtml(datesToggleLabel)}</button><span class="only-print">${escapeHtml(datesToggleLabel)}</span></td>
-    </tr>`;
-    const datesRow = `<tr class="ds-ops-course-dates-row" data-ops-course-dates-row="${escapeHtml(row.key)}"${isExpanded ? '' : ' hidden'}><td colspan="10">${courseScheduleDatesListHtml(row.dates)}</td></tr>`;
-    return mainRow + datesRow;
-  }).join('');
-
-  const table = readyRows.length
-    ? dsTableWrap(`<table class="ds-table ds-table--compact ds-ops-course-schedule-table"><thead><tr>
-        <th class="ds-ops-course-col--name">שם הקורס</th>
-        <th class="ds-ops-course-col--authority">רשות</th>
-        <th class="ds-ops-course-col--school">בית ספר</th>
-        <th class="ds-ops-course-col--instructor">מדריך</th>
-        <th class="ds-ops-course-col--weekday">יום</th>
-        <th class="ds-ops-course-col--time">שעות</th>
-        <th class="ds-ops-course-col--period">תקופת הקורס</th>
-        <th class="ds-ops-course-col--grade">כיתה</th>
-        <th class="ds-ops-course-col--sessions">מס׳ מפגשים</th>
-        <th class="ds-ops-course-col--dates">תאריכי המפגשים</th>
-      </tr></thead><tbody>${tableRows}</tbody></table>`)
-    : dsEmptyState('לא נמצאו קורסים מוכנים לסידור עבודה בטווח הנבחר');
-
   const printHeaderTitle = selectedInstructorFilter ? `סידור עבודה — ${selectedInstructorFilter}` : 'סידור עבודה — כל המדריכים';
-
   return `<section class="ds-ops-mgmt-panel" dir="rtl">
     ${attendanceControlHtml()}
-    ${summaryLine}
-    <div class="ds-ops-mgmt-panel__toolbar no-print">
-      <button type="button" class="ds-btn ds-btn--sm ds-btn--primary" data-ops-print>הדפס סידור עבודה</button>
-      <button type="button" class="ds-btn ds-btn--sm" data-attendance-open>בקרת נוכחות</button>
-    </div>
-    <div class="ds-ops-mgmt-print-header only-print">
-      <h2>${escapeHtml(printHeaderTitle)}</h2>
-    </div>
-    <div class="ds-ops-schedule-wrap"><section class="ds-card"><div class="ds-card__body">${table}</div></section></div>
+    ${courseScheduleSummaryHtml(readyRows)}
+    <div class="ds-ops-mgmt-panel__toolbar no-print"><button type="button" class="ds-btn ds-btn--sm ds-btn--primary" data-ops-print>הדפס סידור עבודה</button><button type="button" class="ds-btn ds-btn--sm" data-attendance-open>בקרת נוכחות</button></div>
+    <div class="ds-ops-mgmt-print-header only-print"><h2>${escapeHtml(printHeaderTitle)}</h2></div>
+    <div class="ds-ops-schedule-wrap"><section class="ds-card"><div class="ds-card__body">${courseScheduleTableHtml(readyRows, { expandedDates: ops.expandedCourseDates })}</div></section></div>
   </section>`;
 }
 

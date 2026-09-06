@@ -17,7 +17,7 @@ export const instructorDashboardScreen = {
   load: ({ api }) => loadInstructorActivities(api),
   render(data, { state } = {}) {
     const summary = monthlyInstructorSummary(data?.rows, state, selectedMonth);
-    const kpis = [{ label: 'סה״כ פעילויות', value: summary.total }, ...summary.types].slice(0, 4);
+    const kpis = [{ label: 'סה״כ פעילויות', value: summary.total }, ...summary.types];
     return dsScreenStack(`<section class="instructor-area instructor-portal-dashboard">
       ${dsPageHeader('לוח בקרה', 'האזור האישי שלך')}
       <label class="instructor-portal-month">חודש <input class="ds-input" type="month" value="${escapeHtml(selectedMonth)}" data-portal-month></label>

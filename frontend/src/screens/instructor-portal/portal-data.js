@@ -1,5 +1,6 @@
 import { assignedToCurrentInstructor, currentInstructorIds, isoDate } from '../instructor-utils.js';
 import { buildReadyCourseScheduleRows, sortReadyCourseScheduleRows } from '../shared/instructor-course-schedule-2027.js';
+import { activityTypeDisplayLabel, normalizeActivityTypeKey } from '../shared/activity-options.js';
 
 export function instructorActivities(rows, state) {
   const ids = currentInstructorIds(state);
@@ -19,7 +20,9 @@ export function monthlyInstructorSummary(rows, state, month) {
   const selected = instructorActivities(rows, state).filter((row) => activityMonth(row) === month);
   const types = new Map();
   selected.forEach((row) => {
-    const label = String(row?.activity_type || row?.type || 'פעילות').trim() || 'פעילות';
+    const rawType = row?.activity_type || row?.type || '';
+    const canonicalType = normalizeActivityTypeKey(rawType);
+    const label = activityTypeDisplayLabel(canonicalType || rawType) || 'פעילות';
     types.set(label, (types.get(label) || 0) + 1);
   });
   return { total: selected.length, types: [...types.entries()].map(([label, value]) => ({ label, value })) };

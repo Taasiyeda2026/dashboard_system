@@ -2,7 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { instructorActivities, monthlyInstructorSummary, instructorScheduleRows } from '../frontend/src/screens/instructor-portal/portal-data.js';
-import { organizationalCalendarEvents } from '../frontend/src/screens/instructor-portal/calendar-events.js';
+import { organizationalEventsForDate, organizationalCalendarDayLabel } from '../frontend/src/screens/instructor-portal/calendar-events.js';
+import { courseScheduleTableHtml } from '../frontend/src/screens/shared/instructor-course-schedule-view.js';
 import { activityWorkDrawerHtml } from '../frontend/src/screens/shared/activity-detail-html.js';
 
 const stateA = { user: { emp_id: 'A-1', role: 'instructor' } };
@@ -33,10 +34,19 @@ test('work schedule reuses ready-course source and scopes it to authenticated in
 
 test('organizational calendar combines all sectors and birthdays without instructor-sector filtering', () => {
   const sectors = ['general', 'jewish', 'arab', 'druze'];
-  const rows = sectors.map((calendar_sector, i) => ({ start_date: `2026-09-0${i + 1}`, title: calendar_sector, category: 'holiday', calendar_sector }));
-  const events = organizationalCalendarEvents(rows, [{ employee_name: 'נועה', birth_month: 9, birth_day: 8 }], '2026-09');
+  const rows = sectors.map((calendar_sector) => ({ start_date: '2026-09-08', end_date: '2026-09-08', title: calendar_sector, category: 'holiday', calendar_sector, is_active: true }));
+  const events = organizationalEventsForDate(rows, [{ employee_name: 'נועה', birth_month: 9, birth_day: 8 }], '2026-09-08');
   assert.equal(events.length, 5);
-  sectors.forEach((sector) => assert.ok(events.some((event) => event.meta.includes(sector))));
+  sectors.forEach((sector) => assert.ok(events.some((event) => event.title === sector)));
+  assert.match(organizationalCalendarDayLabel(events), /יום הולדת לנועה/);
+});
+
+test('manager and instructor schedules consume the same responsive course table renderer', () => {
+  const operationSource = fs.readFileSync(new URL('../frontend/src/screens/operations-management.js', import.meta.url), 'utf8');
+  assert.match(operationSource, /courseScheduleTableHtml\(readyRows/);
+  const html = courseScheduleTableHtml([{ key: 'one', name: 'קורס', authority: 'רשות', school: 'בית ספר', instructorNames: ['א'], weekday: 'ראשון', timeRange: '14:00–15:00', startDate: '2026-09-01', endDate: '2026-09-08', grade: 'ה', sessionsCount: 2, dates: ['2026-09-01', '2026-09-08'] }]);
+  assert.match(html, /ds-ops-course-schedule-table/);
+  assert.match(html, /data-ops-course-dates-toggle/);
 });
 
 test('instructor activity drawer is shared, read-only, includes contact, and omits admin actions', () => {
