@@ -30,8 +30,11 @@ export const CAPABILITY_REGISTRY = Object.freeze([
   { id: 'attendance_reporting', label: 'מערכת דיווח נוכחות למדריך', type: 'external_app', permission: 'access_attendance_reporting' },
 
   { id: 'instructor_portal', label: 'אזור אישי למדריך', type: 'workspace', permission: 'view_instructor_portal' },
+  { id: 'instructor_portal.dashboard', parent: 'instructor_portal', label: 'לוח בקרה', type: 'page', permission: 'view_instructor_portal', route: 'instructor-dashboard' },
+  { id: 'instructor_portal.work_schedule', parent: 'instructor_portal', label: 'סידור עבודה', type: 'page', permission: 'view_instructor_data', route: 'instructor-work-schedule' },
   { id: 'instructor_portal.calendar', parent: 'instructor_portal', label: 'לוח שנה', type: 'page', permission: 'view_instructor_calendar', route: 'instructor-calendar' },
   { id: 'instructor_portal.data', parent: 'instructor_portal', label: 'הפעילויות שלי', type: 'page', permission: 'view_instructor_data', route: 'my-data' },
+  { id: 'instructor_portal.reports', parent: 'instructor_portal', label: 'דיווחים', type: 'page', permission: 'view_instructor_portal', route: 'instructor-reports' },
   { id: 'instructor_portal.approvals', parent: 'instructor_portal', label: 'אישורי ביצוע', type: 'page', permission: 'view_instructor_completion_approvals', route: 'instructor-completion-approvals' },
   { id: 'instructor_portal.guidelines', parent: 'instructor_portal', label: 'נהלים', type: 'page', permission: 'view_instructor_guidelines', route: 'instructor-guidelines' },
 
