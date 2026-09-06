@@ -47,6 +47,30 @@ test('manager and instructor schedules consume the same responsive course table 
   const html = courseScheduleTableHtml([{ key: 'one', name: 'קורס', authority: 'רשות', school: 'בית ספר', instructorNames: ['א'], weekday: 'ראשון', timeRange: '14:00–15:00', startDate: '2026-09-01', endDate: '2026-09-08', grade: 'ה', sessionsCount: 2, dates: ['2026-09-01', '2026-09-08'] }]);
   assert.match(html, /ds-ops-course-schedule-table/);
   assert.match(html, /data-ops-course-dates-toggle/);
+  assert.match(html, /course-schedule-desktop/);
+  assert.match(html, /course-schedule-mobile-card/);
+});
+
+test('portal calendar stays a seven-column grid with compact mobile day details', () => {
+  const source = fs.readFileSync(new URL('../frontend/src/screens/instructor-portal/calendar.js', import.meta.url), 'utf8');
+  assert.match(source, /ds-cal-grid/);
+  assert.match(source, /ds-interactive-card--day-cell|variant: 'day-cell'/);
+  assert.match(source, /ui\?\.openDrawer/);
+});
+
+test('my activities provides mobile cards that open the shared activity drawer', () => {
+  const source = fs.readFileSync(new URL('../frontend/src/screens/instructor-portal/my-activities.js', import.meta.url), 'utf8');
+  assert.match(source, /portal-activities-mobile/);
+  assert.match(source, /portal-activity-card/);
+  assert.match(source, /activityWorkDrawerHtml/);
+});
+
+test('instructor navigation keeps portal areas and omits approvals and guidelines from visible nav', () => {
+  const source = fs.readFileSync(new URL('../frontend/src/main.js', import.meta.url), 'utf8');
+  const sidebar = source.slice(source.indexOf('const instructorSidebarItems'), source.indexOf('const regularNav'));
+  assert.doesNotMatch(sidebar, /instructor-completion-approvals|instructor-guidelines/);
+  assert.match(sidebar, /instructor-dashboard/);
+  assert.match(sidebar, /instructor-work-schedule/);
 });
 
 test('instructor activity drawer is shared, read-only, includes contact, and omits admin actions', () => {
