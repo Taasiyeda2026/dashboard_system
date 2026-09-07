@@ -11,7 +11,7 @@
 - **Frontend:** Vanilla JS עם ES Modules, בנוי ב-Vite, מוגש כאתר סטטי מ-`dist/`
 - **Backend / נתונים:** Supabase (PostgreSQL + Auth)
 - **PWA:** `manifest.json` + `sw.js` עם precache
-- **בדיקות דפדפן:** Playwright עם Chromium, בדיקות E2E, בדיקות ביצועים ו-Smoke לאחר פריסה
+- **בדיקות דפדפן:** Playwright עם Chromium זמין לבדיקה ידנית לפי צורך; בדיקות דפדפן כבדות אינן רצות אוטומטית בכל Pull Request
 
 כל הקריאות, לקריאה ולכתיבה, מתבצעות ישירות מה-frontend ל-Supabase דרך `frontend/src/api.js`.
 
@@ -36,12 +36,12 @@ npx serve dist -l 5000
 ```text
 .
 ├── .github/workflows/
-│   ├── e2e-performance-gate.yml      ← בדיקות E2E מדורגות ושער ביצועים ל-PRים אל main
-│   └── e2e-post-deploy-smoke.yml     ← בדיקת Smoke לאחר פריסה ל-GitHub Pages
+│   ├── basic-pr-check.yml             ← בדיקה אוטומטית קלה לקבצים שהשתנו בכל PR אל main
+│   └── deploy.yml                     ← build ופריסה ל-GitHub Pages לאחר שינוי ב-main
 ├── e2e/
-│   ├── tests/                         ← בדיקות מסכים, פעולות וביצועים
+│   ├── tests/                         ← בדיקות מסכים, פעולות וביצועים להרצה ידנית לפי צורך
 │   ├── helpers/                       ← ניווט, ניטור רשת, מדידה וכלי עזר
-│   ├── smoke/                         ← בדיקות האתר החי לאחר פריסה
+│   ├── smoke/                         ← בדיקות האתר החי להרצה ידנית
 │   ├── baselines/                     ← baseline ביצועים מחויב לריפו
 │   └── artifacts/                     ← דוחות וראיות מקומיות, לא נשמרים ב-Git
 ├── frontend/
@@ -54,7 +54,7 @@ npx serve dist -l 5000
 │   │   ├── styles/main.css
 │   │   └── screens/                   ← קובץ אחד לכל מסך
 │   └── sw.js                          ← Service Worker, כולל CACHE_VERSION
-├── scripts/select-e2e-scope.mjs       ← מיפוי קבצים שהשתנו להיקף בדיקות מתאים
+├── scripts/select-e2e-scope.mjs       ← כלי עזר לבחירת היקף בדיקות E2E כאשר מריצים אותן ידנית
 ├── dist/                              ← פלט ה-build שמוגש בייצור
 ├── tests/                             ← Node test-runner ובדיקות helpers
 ├── supabase/migrations/               ← קבצי SQL להרצה ידנית ב-Supabase
@@ -124,6 +124,8 @@ npm run check:changed
 
 תשתית Playwright מריצה Chromium אמיתי, מתחברת באמצעות משתמש בדיקה ייעודי ובודקת מסכים מרכזיים, ניווט, פעולות, בקשות רשת, שגיאות Console, טעינות כבדות ומדדי ביצועים.
 
+הבדיקות האלה **אינן חלק מהבדיקה האוטומטית של כל Pull Request**. מריצים אותן ידנית רק כאשר השינוי באמת מצריך בדיקת דפדפן, Smoke או ביצועים.
+
 בהרצה מקומית ראשונה:
 
 ```bash
@@ -140,63 +142,57 @@ npm run test:e2e:baseline
 npm run test:e2e:helpers
 ```
 
-- `npm run test:e2e` — מריץ את בדיקות ה-E2E ואת שער הביצועים.
-- `npm run test:e2e:smoke` — מריץ Smoke מול האתר החי לאחר פריסה.
+- `npm run test:e2e` — מריץ את בדיקות ה-E2E ואת שער הביצועים ידנית.
+- `npm run test:e2e:smoke` — מריץ Smoke מול האתר החי באופן ידני.
 - `npm run test:e2e:baseline` — מודד וכותב baseline ביצועים חדש.
 - `npm run test:e2e:helpers` — בודק את כלי העזר של ניטור הרשת והביצועים.
 
-כשל בבדיקה שומר לפי הצורך דוח HTML, צילום מסך, וידאו, Trace, נתוני Network ונתוני Console תחת `e2e/artifacts/`. ב-GitHub Actions הראיות מועלות כ-artifact לתקופה מוגבלת.
+כשל בבדיקה שומר לפי הצורך דוח HTML, צילום מסך, וידאו, Trace, נתוני Network ונתוני Console תחת `e2e/artifacts/`.
 
 ### מדיניות לשינויים חדשים
 
-בכל שינוי שמשפיע על ממשק, נתונים, ניווט, טעינה או ביצועים:
-
-1. יש לבדוק אם קיימת בדיקת Playwright מתאימה ולעדכן אותה.
-2. כאשר אין כיסוי מתאים, יש להוסיף בדיקה ממוקדת לתרחיש החדש.
-3. אין ליצור תשתית בדיקות מקבילה כאשר ניתן להרחיב את התשתית הקיימת.
-4. אין להחליש assertion, סף ביצועים או בדיקת רשת רק כדי להעביר CI.
-5. אין לעדכן baseline בעקבות הרצה כושלת.
-6. baseline חדש נוצר רק לאחר הרצה ירוקה ובדיקה שהמדידה מייצגת התנהגות תקינה.
-7. אין לשמור credentials, קובצי `storageState` או ערכי Secrets בריפו או ב-artifacts.
+- בדיקות Playwright/E2E נבחרות לפי הצורך האמיתי של השינוי ואינן ברירת מחדל לכל משימה.
+- כאשר נדרשת בדיקת דפדפן, יש להעדיף תרחיש ממוקד שמכסה את ההתנהגות ששונתה.
+- אין ליצור תשתית בדיקות מקבילה כאשר ניתן להרחיב את התשתית הקיימת.
+- אין להחליש assertion, סף ביצועים או בדיקת רשת רק כדי להעביר בדיקה.
+- אין לעדכן baseline בעקבות הרצה כושלת.
+- baseline חדש נוצר רק לאחר הרצה ירוקה ובדיקה שהמדידה מייצגת התנהגות תקינה.
+- אין לשמור credentials, קובצי `storageState` או ערכי Secrets בריפו או ב-artifacts.
 
 ---
 
-## GitHub Actions לבדיקות
+## GitHub Actions
 
-### E2E and Performance Gate
+### Basic PR Check
 
-ה-workflow `.github/workflows/e2e-performance-gate.yml` פועל בכל Pull Request אל `main`, מזהה את הקבצים שהשתנו ובוחר אוטומטית את היקף הבדיקה:
+ה-workflow `.github/workflows/basic-pr-check.yml` פועל בכל Pull Request אל `main`.
 
-- שינויי תיעוד וקבצים שאינם משפיעים על המערכת מסיימים בדיקה קצרה ללא Chromium וללא Playwright.
-- פתיחת PR חדש שאינו Draft מריצה נקודת בדיקה מלאה אחת.
-- עדכון רגיל של PR קיים מריץ בדיקות ממוקדות למסכים שהושפעו.
-- מעבר מ-Draft למוכן לבדיקה או פתיחה מחדש של PR מריצים נקודת בדיקה מלאה.
-- שינוי בקוד משותף, בתשתית, בבסיס הנתונים, בבדיקות או בקובץ מערכת שלא מופיע במיפוי מריץ את כל הבדיקות.
-- הפעלה ידנית של ה-workflow מריצה את כל הבדיקות ויכולה לשמש גם לעדכון baseline מאושר.
+מטרתו להיות מהיר וקל בלבד:
 
-מנגנון הבחירה מנוהל בקובץ `scripts/select-e2e-scope.mjs`. קובץ שאינו מזוהה כשינוי מקומי למסך מסוים נשלח כברירת מחדל להרצה מלאה.
+- בודק תקינות בסיסית של ה-diff.
+- מבצע בדיקת syntax רק לקובצי JavaScript שהשתנו.
+- בודק JSON רק לקובצי JSON שהשתנו.
+- אינו מתקין Chromium.
+- אינו מריץ Playwright, E2E, בדיקות ביצועים או Stress.
+- אינו מריץ build מלא או suite רחב באופן אוטומטי.
 
-שם בדיקת ה-status המדויק:
+בדיקות נוספות מבוצעות רק באופן ממוקד כאשר הן באמת רלוונטיות לשינוי.
 
-```text
-E2E and Performance Gate / e2e-performance
-```
+### Deploy to GitHub Pages
 
-זהו השם שיש להגדיר כ-required status check בהגנת הענף.
+ה-workflow `.github/workflows/deploy.yml` פועל לאחר push אל `main` או בהפעלה ידנית. הוא מתקין dependencies, בונה את גרסת ה-production ומפרסם את `dist/` ל-GitHub Pages.
 
-### E2E Post-Deploy Smoke
-
-ה-workflow `.github/workflows/e2e-post-deploy-smoke.yml` מופעל לאחר הצלחה של `Deploy to GitHub Pages`. הוא בודק את האתר החי ומוודא שהגרסה שנפרסה תואמת ל-commit הצפוי.
+זהו workflow של פריסה ולא בדיקת PR, ולכן ה-build שבו נשאר נדרש.
 
 ### GitHub Actions Secrets
 
-ה-workflows משתמשים ב-Secrets הבאים:
+הפריסה משתמשת ב-Secrets הבאים:
 
-- `E2E_USERNAME`
-- `E2E_PASSWORD`
-- `E2E_BASE_URL`
 - `VITE_SUPABASE_URL`
 - `VITE_SUPABASE_ANON_KEY`
+- `VITE_MICROSOFT_CLIENT_ID`
+- `VITE_MICROSOFT_TENANT_ID`
+- `VITE_MICROSOFT_REDIRECT_URI`
 
 אין לכתוב את הערכים שלהם ב-README, בקוד, בלוגים, בתגובות PR או בקובצי בדיקה.
 
