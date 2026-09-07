@@ -1,4 +1,4 @@
-import { SCHEDULING_SEASON, BLOCKED_SCHEDULING_STATUSES, normalizeSchedulingStatus } from './shared/activity-scheduling-eligibility.js';
+import { SCHEDULING_SEASON, BLOCKED_SCHEDULING_STATUSES, isSchedulableActivityType, normalizeSchedulingStatus } from './shared/activity-scheduling-eligibility.js';
 
 const text = (value) => String(value ?? '').trim();
 
@@ -144,8 +144,7 @@ export function formatDistanceBuildProgress(stats = {}, { stopped = false, done 
 
 export function isOpenSchool2027Course(activity = {}) {
   if (text(activity.activity_season) !== SCHEDULING_SEASON) return false;
-  const type = text(activity.activity_type || activity.type).toLocaleLowerCase('he-IL');
-  if (!['קורס', 'course', 'program'].includes(type)) return false;
+  if (!isSchedulableActivityType(activity.activity_type || activity.type)) return false;
   const status = normalizeSchedulingStatus(activity.status ?? activity.activity_status);
   if (BLOCKED_SCHEDULING_STATUSES.has(status)) return false;
   return ['פתוח', 'open'].includes(status);
@@ -211,7 +210,7 @@ export function courseReadinessMissingFields(course = {}) {
   const meetings = Array.isArray(course.meetings) && course.meetings.length
     ? course.meetings
     : Array.from({ length: 35 }, (_, index) => course[`date_${index + 1}`]).filter(Boolean).map((date) => ({ date, start_time: course.start_time, end_time: course.end_time }));
-  if (!text(course.activity_name || course.program_name || course.name || course.title)) missing.push('שם קורס');
+  if (!text(course.activity_name || course.program_name || course.name || course.title)) missing.push('שם פעילות');
   if (!text(course.school)) missing.push('בית ספר');
   if (!text(course.school_address)) missing.push('כתובת בית ספר תקינה');
   if (!text(course.calendar_sector)) missing.push('מגזר בית הספר');

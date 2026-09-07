@@ -16,7 +16,7 @@ export const DISTRICT_SIMULATION_STATUSES = Object.freeze({
 });
 
 export const DISTRICT_SIMULATION_LABEL = 'סימולציה בלבד - השיבוצים טרם נשמרו';
-export const DISTRICT_SIMULATION_ROUTE_MISSING_MESSAGE = 'לא ניתן להשלים קורסים שחסר עבורם מסלול נסיעה אמין. הם סומנו כחסרים נתונים.';
+export const DISTRICT_SIMULATION_ROUTE_MISSING_MESSAGE = 'לא ניתן להשלים פעילויות שחסר עבורן מסלול נסיעה אמין. הן סומנו כחסרות נתונים.';
 
 const text = (value) => String(value ?? '').trim();
 const idOf = (row) => text(row?.row_id || row?.RowID || row?.id);
@@ -308,8 +308,8 @@ export function districtSimulationDraftSaveBlockReason({
     return status === DISTRICT_SIMULATION_STATUSES.recruit ? 'נדרש גיוס — לא ניתן לשמור' : 'חסרים נתונים — לא ניתן לשמור';
   }
   const liveCourse = course || row?.engineResult?.course || {};
-  if (text(liveCourse.emp_id)) return 'הקורס כבר שובץ';
-  if (text(liveCourse.draft_emp_id)) return 'הקורס כבר נשמר כטיוטה';
+  if (text(liveCourse.emp_id)) return 'הפעילות כבר שובצה';
+  if (text(liveCourse.draft_emp_id)) return 'הפעילות כבר נשמרה כטיוטה';
   if (!hasValidProposedInstructor(row)) return 'אין מדריך מוצע תקף';
   if (!isDistrictSimulationRowSelectable(row, liveCourse)) return 'לא ניתן לבחור שורה זו לשמירה';
   const candidate = selectedSimulationCandidate(row.engineResult || {});
@@ -477,7 +477,7 @@ function dsTable(body) {
         <th>סטטוס</th>
         <th>רשות</th>
         <th>בית ספר</th>
-        <th>שם קורס</th>
+        <th>שם פעילות</th>
         <th>יום</th>
         <th>שעת התחלה</th>
         <th>שעת סיום</th>
@@ -562,10 +562,10 @@ export function districtSimulationPanelHtml({
     ${error ? `<p class="course-scheduling-alert">${escapeHtml(error)}</p>` : ''}
     ${districtSimulationSaveResultHtml(saveResult)}
     <div class="course-scheduling-sim-toolbar">
-      <p class="course-scheduling-muted">מחוז ${escapeHtml(district || '—')} · ${rows.length} קורסים בסימולציה</p>
+      <p class="course-scheduling-muted">מחוז ${escapeHtml(district || '—')} · ${rows.length} פעילויות בסימולציה</p>
       ${districtSimulationStatusFilterHtml(statusFilter)}
       <button type="button" class="course-scheduling-btn course-scheduling-btn--primary" data-save-simulation-drafts ${saveDisabled ? 'disabled' : ''}>${escapeHtml(saveLabel)}</button>
-      <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary" data-close-district-simulation>חזרה לרשימת הקורסים</button>
+      <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary" data-close-district-simulation>חזרה לרשימת הפעילויות</button>
     </div>
     <section class="course-scheduling-summary course-scheduling-summary--simulation">${districtSimulationSummaryCardsHtml(counts)}</section>
     ${districtSimulationTableHtml(rows, { statusFilter, selectedId, selectedCourseIds: selectedIds })}

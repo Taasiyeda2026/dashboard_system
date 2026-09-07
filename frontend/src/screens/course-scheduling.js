@@ -13,7 +13,7 @@ import {
   israelTodayIso,
   meetingsCompletedForCourse
 } from './course-scheduling-meetings.js';
-import { isCourseSchedulingInterfaceEligible, isSchedulingActivityActive } from './shared/activity-scheduling-eligibility.js';
+import { isCourseSchedulingInterfaceEligible, isSchedulableActivityType, isSchedulingActivityActive, schedulingActivityTypeCategory } from './shared/activity-scheduling-eligibility.js';
 import { formatDateHe, formatTimeRangeShort } from './shared/format-date.js';
 import { weekRange, shiftWeek, buildWeekRows, weekCalendarHtml, fixedScheduleHtml, weekNavLabel } from './course-scheduling-calendar.js';
 import {
@@ -72,7 +72,7 @@ const SCHEDULING_ASSIGNMENT_ERROR_HE = {
   scheduling_home_route_unverified:    'המרחק מבית המדריך לבית הספר לא חושב. הריצו עדכון מרחקים ונסו שנית',
   scheduling_distance_exceeded:        `המדריך גר מעל ${MAX_HOME_DISTANCE_KM} ק"מ מבית הספר`,
   scheduling_home_distance_exceeded:   `המדריך גר מעל ${MAX_HOME_DISTANCE_KM} ק"מ מבית הספר`,
-  scheduling_assignment_locked:        'הקורס כבר שובץ או נשמר כטיוטה — רעננו את המסך ונסו שנית',
+  scheduling_assignment_locked:        'הפעילות כבר שובצה או נשמרה כטיוטה — רעננו את המסך ונסו שנית',
   scheduling_gender_mismatch:          'מגדר המדריך אינו עומד בדרישת הקורס',
   scheduling_language_mismatch:        'המדריך אינו מלמד בשפת הוראה הנדרשת',
   scheduling_instructor_profile_incomplete: 'פרופיל המדריך אינו מלא (מגדר/שפות)',
@@ -86,7 +86,7 @@ const SCHEDULING_ASSIGNMENT_ERROR_HE = {
   instructor_inactive:                 'המדריך אינו פעיל',
   instructor_name_mismatch:            'שם המדריך אינו תואם — ייתכן שנתוני המדריך השתנו',
   activity_not_found:                  'הפעילות לא נמצאה',
-  scheduling_no_existing_assignment:  'לקורס אין מדריך משובץ',
+  scheduling_no_existing_assignment:  'לפעילות אין מדריך משובץ',
   scheduling_reason_required:          'יש להזין סיבה',
   scheduling_effective_date_required:  'יש לבחור תאריך כניסה לתוקף',
   scheduling_course_locked_for_reassignment: 'לאחר שני מפגשים נדרשת החלפה תפעולית',
@@ -305,7 +305,9 @@ function filteredInterfaceCourses(courses = [], state = {}) {
   const periodKey = selectedPeriodKey(state);
   const district = text(state.courseSchedulingDistrict || '');
   const authority = text(state.courseSchedulingAuthority || '');
+  const activityType = text(state.activitySchedulingType || 'all');
   return courses
+    .filter((activity) => activityType === 'all' || schedulingActivityTypeCategory(activity.activity_type || activity.type) === activityType)
     .filter((course) => {
       const meetings = activityMeetings(course);
       return meetings.length === 0 || filterMeetingsByCourseSchedulingPeriod(meetings, periodKey).length;
@@ -317,9 +319,8 @@ function filteredInterfaceCourses(courses = [], state = {}) {
 
 /** Assigned courses are display-only until the user explicitly starts replacement. */
 export function isAssignedCourseSchedulingManageable(activity = {}) {
-  const type = text(activity.activity_type || activity.type).toLocaleLowerCase('he-IL');
   return isSchedulingActivityActive(activity)
-    && ['קורס', 'course', 'program'].includes(type)
+    && isSchedulableActivityType(activity.activity_type || activity.type)
     && !!text(activity.emp_id);
 }
 
@@ -339,10 +340,14 @@ function schedulingScopeHtml(allCourses = [], state = {}) {
   const authoritySelectHtml = `<option value="">כל הרשויות</option>${authorityList.map((item) => `<option value="${escapeHtml(item)}"${item === selectedAuthority ? ' selected' : ''}>${escapeHtml(item)}</option>`).join('')}`;
   const periodRange = `${formatDateHeDots(period.start)} – ${formatDateHeDots(period.end)}`;
   const districtPlanDisabled = !district || !!state.courseSchedulingSimulationLoading;
+  const selectedActivityType = text(state.activitySchedulingType || 'all');
+  const activityTypeOptions = [['all', 'הכול'], ['course', 'קורסים'], ['workshop', 'סדנאות'], ['tour', 'סיורים']]
+    .map(([value, label]) => `<option value="${value}"${value === selectedActivityType ? ' selected' : ''}>${label}</option>`).join('');
   return `<section class="course-scheduling-scope"><div class="course-scheduling-scope-inner">
     <div class="course-scheduling-tabs course-scheduling-tabs--inner">${periodButtons}</div>
     <label class="course-scheduling-filter-label">מחוז<select class="course-scheduling-input" data-district-filter>${districtSelectHtml}</select></label>
     <label class="course-scheduling-filter-label">רשות<select class="course-scheduling-input" data-authority-filter>${authoritySelectHtml}</select></label>
+    <label class="course-scheduling-filter-label">סוג פעילות<select class="course-scheduling-input" data-activity-type-filter>${activityTypeOptions}</select></label>
     <button type="button" class="course-scheduling-btn course-scheduling-btn--primary" data-run-district-simulation ${districtPlanDisabled ? 'disabled' : ''} title="${district ? 'הפעלת סימולציית תכנון למחוז הנבחר' : 'יש לבחור מחוז'}">הפעל תכנון מחוזי</button>
     <p class="course-scheduling-period-range course-scheduling-period-range--push">${escapeHtml(periodRange)}</p>
   </div></section>`;
@@ -493,11 +498,11 @@ function courseListHtml(rowModels, selectedId) {
   const groups = LIST_GROUPS.map((group) => ({ ...group, rows: rowModels.filter((row) => row.bucket === group.key) })).filter((group) => group.rows.length);
   if (!groups.length) {
     return `<div class="course-scheduling-empty">
-      <strong>אין קורסים הממתינים לשיבוץ</strong>
+      <strong>אין פעילויות הממתינות לשיבוץ</strong>
       <p>שיבוצים שבוצעו יופיעו בלשונית המערכת השבועית.</p>
     </div>`;
   }
-  const header = '<div class="course-scheduling-compact-table-head" aria-hidden="true"><span>בית ספר</span><span>רשות</span><span>קורס</span><span>סטטוס</span></div>';
+  const header = '<div class="course-scheduling-compact-table-head" aria-hidden="true"><span>בית ספר</span><span>רשות</span><span>פעילות</span><span>סטטוס</span></div>';
   return header + groups.map((group) => `<section class="course-scheduling-course-group"><h3>${escapeHtml(group.label)} <span class="course-scheduling-badge">${group.rows.length}</span></h3>${group.rows.map((row) => courseListCardHtml(row, selectedId)).join('')}</section>`).join('');
 }
 
@@ -543,7 +548,7 @@ function candidateConstraintBadgesHtml(candidate, course = {}) {
     ...(genderRequired ? [['מגדר מתאים', checks.gender?.passed === true, `מגדר: ${checks.gender?.label || 'מתאים'}`]] : []),
     ['זמינות מתאימה', checks.availability?.passed === true, `זמינות: ${checks.availability?.label || 'מתאימה'}`]
   ];
-  return `<span class="course-scheduling-candidate-badges" aria-label="התאמה לדרישות הקורס">${rows.map(([label, passed, title]) => `<span class="course-scheduling-mini-check${passed ? ' is-pass' : ' is-fail'}" title="${escapeHtml(title)}">${passed ? '✓' : '✗'} ${escapeHtml(label)}<span class="sr-only"> ${escapeHtml(title)}</span></span>`).join('')}</span>`;
+  return `<span class="course-scheduling-candidate-badges" aria-label="התאמה לדרישות הפעילות">${rows.map(([label, passed, title]) => `<span class="course-scheduling-mini-check${passed ? ' is-pass' : ' is-fail'}" title="${escapeHtml(title)}">${passed ? '✓' : '✗'} ${escapeHtml(label)}<span class="sr-only"> ${escapeHtml(title)}</span></span>`).join('')}</span>`;
 }
 
 function dateAdjustmentHtml(candidate) {
@@ -639,7 +644,7 @@ export function requirementsFitHtml(candidate, course = {}) {
       ? (travel.reason || travel.label || 'לא מתאים')
       : (travel.reason || 'לא נבדק');
   return `<div class="course-scheduling-requirements-fit">
-    <h4>התאמה לדרישות הקורס</h4>
+    <h4>התאמה לדרישות הפעילות</h4>
     <ul class="course-scheduling-check-list">
       ${checkRowHtml('מגדר', checks.gender)}
       ${checkRowHtml('שפה', checks.language)}
@@ -825,6 +830,39 @@ function manualCandidateBlocked(candidate = {}) {
   return manualCandidateWarnings(candidate).some((reason) => /חפיפה/.test(reason));
 }
 
+export function manualCandidateConfirmationHtml(confirmation = null) {
+  if (!confirmation) return '';
+  const reasons = Array.isArray(confirmation.reasons) ? confirmation.reasons.filter(text) : [];
+  return `<div class="course-scheduling-overlay" data-manual-candidate-confirmation>
+    <div class="course-scheduling-modal" role="dialog" aria-modal="true" aria-labelledby="manual-candidate-confirmation-title">
+      <h2 id="manual-candidate-confirmation-title">בחירת מדריך ידנית</h2>
+      <p>המדריך שנבחר אינו עומד בכל תנאי ההתאמה לפעילות. האם להמשיך בכל זאת?</p>
+      ${reasons.length ? `<div class="course-scheduling-alert" role="alert"><strong>סיבות אי־ההתאמה:</strong><ul>${reasons.map((reason) => `<li>${escapeHtml(reason)}</li>`).join('')}</ul></div>` : ''}
+      <div class="course-scheduling-detail-actions">
+        <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary" data-cancel-manual-candidate>חזרה</button>
+        <button type="button" class="course-scheduling-btn course-scheduling-btn--primary" data-confirm-manual-candidate>המשך בבחירה ידנית</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+export function openManualCandidateConfirmation(state, candidate) {
+  state.courseSchedulingManualConfirmation = {
+    candidateId: emp(candidate),
+    reasons: manualCandidateWarnings(candidate)
+  };
+}
+
+export function closeManualCandidateConfirmation(state) {
+  state.courseSchedulingManualConfirmation = null;
+}
+
+export function consumeManualCandidateConfirmation(state, candidates = []) {
+  const candidateId = text(state.courseSchedulingManualConfirmation?.candidateId);
+  closeManualCandidateConfirmation(state);
+  return candidates.find((candidate) => emp(candidate) === candidateId) || null;
+}
+
 function manualCandidatePickerHtml(result, state = {}) {
   const candidates = (result?.manualCandidates || result?.checked || []).filter((candidate) => emp(candidate));
   if (!candidates.length) return '';
@@ -961,7 +999,7 @@ function incompleteProfilesHtml(result) {
 export function instructorsResultsHtml(result, state = {}) {
   if (!result?.recommended && result?.status === 'חסר מידע') {
     return `<div class="course-scheduling-result-block">
-      <h3>חסרים פרטים לקורס זה</h3>
+      <h3>חסרים פרטים לפעילות זו</h3>
       <p>${escapeHtml((result.missing || []).join(' · ') || 'יש להשלים פרטים בפעילות לפני שיבוץ.')}</p>
       <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary" data-open-missing-course>פתח פעילות לתיקון</button>
     </div>`;
@@ -1079,8 +1117,8 @@ export function assignedDetailHtml(row, state = {}) {
 function selectedCoursePanelHtml(row, state) {
   if (!row) {
     return `<div class="course-scheduling-empty course-scheduling-empty--center">
-      <strong>בחר קורס כדי להתחיל</strong>
-      <p>בחרו קורס מהרשימה כדי לראות פרטים ולמצוא מדריכים מתאימים.</p>
+      <strong>בחרו פעילות כדי להתחיל</strong>
+      <p>בחרו פעילות מהרשימה כדי לראות פרטים ולמצוא מדריכים מתאימים.</p>
     </div>`;
   }
   if (row.isAssigned && state.courseSchedulingReplacementCourseId !== row.id) return assignedDetailHtml(row, state);
@@ -1160,8 +1198,8 @@ function calendarTabHtml({ interfaceCourses, selectedId, state }) {
     calendarBody = `<div class="course-scheduling-empty-wrap">
       <div class="course-scheduling-empty course-scheduling-empty--compact course-scheduling-calendar-empty">
         <strong>אין שיבוצים בשבוע זה</strong>
-        <p>שיבוצים שבוצעו במסך "קורסים לשיבוץ" יופיעו כאן.</p>
-        <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary course-scheduling-empty-action" data-switch-tab="courses">מעבר לקורסים לשיבוץ</button>
+        <p>שיבוצים שבוצעו במסך "פעילויות לשיבוץ" יופיעו כאן.</p>
+        <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary course-scheduling-empty-action" data-switch-tab="courses">מעבר לפעילויות לשיבוץ</button>
       </div>
     </div>`;
   }
@@ -1267,7 +1305,7 @@ export const courseSchedulingScreen = {
     ensureCourseSchedulingStyles();
     const requiredPermission = activeTab(state) === 'maintenance' ? 'manage_instructor_maintenance' : 'view_operations_scheduling';
     if (!hasPermission(state?.user, requiredPermission)) {
-      return dsScreenStack(dsEmptyState('אין הרשאה לצפייה בשיבוץ קורסים.'));
+      return dsScreenStack(dsEmptyState('אין הרשאה לצפייה בשיבוץ פעילויות.'));
     }
 
     state.meetingState = data.meetingState;
@@ -1310,8 +1348,8 @@ export const courseSchedulingScreen = {
         <section class="course-scheduling-detail" data-course-detail>${
           !interfaceCourses.length
             ? `<div class="course-scheduling-empty course-scheduling-empty--center">
-                <strong>אין קורסים לשיבוץ כרגע</strong>
-                <p>כשיופיעו קורסים ממתינים, תוכלו לבחור קורס ולהתחיל שיבוץ.</p>
+                <strong>אין פעילויות לשיבוץ כרגע</strong>
+                <p>כשיופיעו פעילויות ממתינות, תוכלו לבחור פעילות ולהתחיל שיבוץ.</p>
               </div>`
             : selectedCoursePanelHtml(selectedRow?.course ? selectedRow : null, state)
         }</section>
@@ -1320,8 +1358,9 @@ export const courseSchedulingScreen = {
     ${state.courseSchedulingCancelCourseId ? (() => {
       const course = (data.activities || []).find((item) => idOf(item) === state.courseSchedulingCancelCourseId) || {};
       const completed = meetingsCompletedForCourse(course, data.meetingState) || 0;
-      return `<div class="course-scheduling-overlay" data-cancel-assignment-overlay><div class="course-scheduling-modal" role="dialog" aria-modal="true"><h2>ביטול שיבוץ מדריך</h2><p><b>${escapeHtml(course.instructor_name || course.emp_id)}</b></p><p>${escapeHtml(course.activity_name || '—')} · ${escapeHtml(course.school || '—')}</p>${completed ? '<p class="course-scheduling-alert">הביטול יחול על המשך הקורס. היסטוריית המפגשים הקודמים תישמר.</p>' : ''}<label>סיבת הביטול *<textarea class="course-scheduling-input" data-cancel-assignment-reason>${escapeHtml(state.courseSchedulingCancelReason || '')}</textarea></label><div class="course-scheduling-detail-actions"><button class="course-scheduling-btn course-scheduling-btn--secondary" data-close-cancel-assignment>חזרה</button><button class="course-scheduling-btn course-scheduling-btn--primary" data-confirm-cancel-assignment>בטל שיבוץ</button></div></div></div>`;
+      return `<div class="course-scheduling-overlay" data-cancel-assignment-overlay><div class="course-scheduling-modal" role="dialog" aria-modal="true"><h2>ביטול שיבוץ מדריך</h2><p><b>${escapeHtml(course.instructor_name || course.emp_id)}</b></p><p>${escapeHtml(course.activity_name || '—')} · ${escapeHtml(course.school || '—')}</p>${completed ? '<p class="course-scheduling-alert">הביטול יחול על המשך הפעילות. היסטוריית המפגשים הקודמים תישמר.</p>' : ''}<label>סיבת הביטול *<textarea class="course-scheduling-input" data-cancel-assignment-reason>${escapeHtml(state.courseSchedulingCancelReason || '')}</textarea></label><div class="course-scheduling-detail-actions"><button class="course-scheduling-btn course-scheduling-btn--secondary" data-close-cancel-assignment>חזרה</button><button class="course-scheduling-btn course-scheduling-btn--primary" data-confirm-cancel-assignment>בטל שיבוץ</button></div></div></div>`;
     })() : ''}
+    ${manualCandidateConfirmationHtml(state.courseSchedulingManualConfirmation)}
     </div>`);
   },
 
@@ -1420,6 +1459,13 @@ export const courseSchedulingScreen = {
       }
       rerender();
     });
+    root.querySelector('[data-activity-type-filter]')?.addEventListener('change', (event) => {
+      state.activitySchedulingType = event.target.value;
+      state.courseSchedulingSelectedId = '';
+      state.courseSchedulingResults = [];
+      clearDistrictSimulation();
+      rerender();
+    });
 
     root.querySelectorAll('[data-switch-tab]').forEach((button) => {
       button.addEventListener('click', () => {
@@ -1499,7 +1545,7 @@ export const courseSchedulingScreen = {
         supabase.rpc('scheduling_course_meetings_completed', { p_activity_id: selectedCourseId }),
         supabase.rpc('scheduling_course_meeting_instructors', { p_activity_id: selectedCourseId })
       ]);
-      if (error) { showToast(translateSchedulingAssignmentError(error.message, 'בדיקת הקורס נכשלה'), 'error'); return; }
+      if (error) { showToast(translateSchedulingAssignmentError(error.message, 'בדיקת הפעילות נכשלה'), 'error'); return; }
       state.courseSchedulingMeetingHistory ||= {};
       state.courseSchedulingMeetingHistory[selectedCourseId] = historyResult.data || [];
       state.courseSchedulingReplacementCourseId = selectedCourseId;
@@ -1531,7 +1577,7 @@ export const courseSchedulingScreen = {
       state.courseSchedulingCancelReason = '';
       state.courseSchedulingResults = (state.courseSchedulingResults || []).filter((result) => idOf(result.course) !== selectedCourseId);
       clearScreenDataCache?.();
-      showToast('השיבוץ בוטל והקורס חזר להמתנה לשיבוץ', 'success');
+      showToast('השיבוץ בוטל והפעילות חזרה להמתנה לשיבוץ', 'success');
       rerender();
     });
 
@@ -1692,14 +1738,11 @@ export const courseSchedulingScreen = {
         candidateButton.hidden = !!query && !text(candidateButton.dataset.manualCandidateSearchText).includes(query);
       });
     });
-    detailRoot.querySelectorAll('[data-manual-candidate]').forEach((button) => {
-      button.addEventListener('click', async () => {
-        if (!canEdit || !selectedCourseId || button.disabled) return;
+    const saveManualCandidate = async (candidate, button) => {
+        if (!canEdit || !selectedCourseId || !candidate || button?.disabled) return;
         const result = resultByCourseId.get(selectedCourseId);
-        const candidate = (result?.manualCandidates || result?.checked || []).find((item) => emp(item) === text(button.dataset.manualCandidate));
         if (!candidate || manualCandidateBlocked(candidate)) return;
-        if (!window.confirm('המדריך אינו עומד בכל תנאי ההתאמה. להמשיך בבחירה ידנית?')) return;
-        button.disabled = true;
+        if (button) button.disabled = true;
         const topCandidate = result?.recommended || result?.bestAvailable || candidate;
         const payload = {
           p_activity_id: selectedCourseId,
@@ -1712,7 +1755,7 @@ export const courseSchedulingScreen = {
         };
         const { error } = await supabase.rpc('save_course_assignment_manual_draft', payload);
         if (error) {
-          button.disabled = false;
+          if (button) button.disabled = false;
           showToast(translateSchedulingAssignmentError(error.message, 'שמירת הבחירה הידנית נכשלה'), 'error');
           return;
         }
@@ -1725,7 +1768,26 @@ export const courseSchedulingScreen = {
         clearScreenDataCache?.();
         showToast('הבחירה הידנית נשמרה כטיוטה. יתר התכנון מתעדכן.', 'success');
         await runFindInstructors();
+    };
+    detailRoot.querySelectorAll('[data-manual-candidate]').forEach((button) => {
+      button.addEventListener('click', () => {
+        if (!canEdit || !selectedCourseId || button.disabled) return;
+        const result = resultByCourseId.get(selectedCourseId);
+        const candidate = (result?.manualCandidates || result?.checked || []).find((item) => emp(item) === text(button.dataset.manualCandidate));
+        if (!candidate || manualCandidateBlocked(candidate)) return;
+        openManualCandidateConfirmation(state, candidate);
+        rerender();
       });
+    });
+    root.querySelector('[data-cancel-manual-candidate]')?.addEventListener('click', () => {
+      closeManualCandidateConfirmation(state);
+      rerender();
+    });
+    root.querySelector('[data-confirm-manual-candidate]')?.addEventListener('click', async (event) => {
+      const result = resultByCourseId.get(selectedCourseId);
+      const candidate = consumeManualCandidateConfirmation(state, result?.manualCandidates || result?.checked || []);
+      rerender();
+      await saveManualCandidate(candidate, event.currentTarget);
     });
 
     const runDistrictSimulation = async () => {
@@ -1922,8 +1984,8 @@ export const courseSchedulingScreen = {
         if (error) {
           const message = text(error.message);
           let reason = message || 'שמירת הטיוטה נכשלה';
-          if (/draft|טיוט/i.test(message)) reason = 'הקורס כבר נשמר כטיוטה';
-          else if (/assigned|שובץ|locked|מאושר/i.test(message)) reason = 'הקורס כבר שובץ';
+          if (/draft|טיוט/i.test(message)) reason = 'הפעילות כבר נשמרה כטיוטה';
+          else if (/assigned|שובץ|locked|מאושר/i.test(message)) reason = 'הפעילות כבר שובצה';
           else if (/instructor|מדריך/i.test(message)) reason = 'המדריך אינו זמין עוד';
           outcomes.push({ ok: false, courseId, courseLabel, reason });
           continue;
@@ -2038,7 +2100,7 @@ export const courseSchedulingScreen = {
       const adjustment = selected.dateAdjustment;
       const approvalMessage = adjustment?.exceedsHalf
         ? `המועדים המוצעים חורגים מהמחצית ומסתיימים בתאריך ${formatDateHe(adjustment.newEndDate)}. לאשר סופית את שינוי המועדים ואת שיבוץ ${selected.instructor.full_name}?`
-        : `לשבץ את ${selected.instructor.full_name} לקורס ${result.course.activity_name}?`;
+        : `לשבץ את ${selected.instructor.full_name} לפעילות ${result.course.activity_name}?`;
       if (!window.confirm(approvalMessage)) return;
       updateCandidateActions(true);
       const proposedMeetings = adjustment?.meetings?.map(({ date }) => ({ date })) || null;
@@ -2071,7 +2133,7 @@ export const courseSchedulingScreen = {
       const selected = allCandidatesForResult(result).find((item) => emp(item) === selectedId);
       const liveCourse = (data.activities || []).find((row) => idOf(row) === selectedCourseId) || selectedCourse;
       if (text(liveCourse?.draft_emp_id)) {
-        showToast('הקורס כבר נשמר כטיוטה', 'error');
+        showToast('הפעילות כבר נשמרה כטיוטה', 'error');
         updateCandidateActions(false);
         return;
       }
