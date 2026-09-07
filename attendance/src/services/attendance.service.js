@@ -19,6 +19,8 @@ import {
   submitPreviewMonth,
   updatePreviewRecord,
 } from '../preview/preview-mode.js';
+import { isGeneratedTravelCancellation, sourceAttendanceRecords } from './travel-compensation.js';
+export { isGeneratedTravelCancellation, sourceAttendanceRecords } from './travel-compensation.js';
 
 const LEGACY_SUMMER_WORKSHOP = 'סדנאות קיץ';
 const WORKSHOP_LABEL = 'סדנה';
@@ -80,7 +82,12 @@ function clearActiveEditRecord() {
   } catch {}
 }
 
-const FALLBACK_ACTIVITY_TYPES = ['ביטול זמן','הכשרה','חדר בריחה','זום','סדנה','סיור','קורס','תפעול'];
+export const ATTENDANCE_ACTIVITY_TYPES = ['קורס','סדנה','סיור','זום','חדר בריחה','הכשרה','ביטול זמן','תפעול'];
+const FALLBACK_ACTIVITY_TYPES = ATTENDANCE_ACTIVITY_TYPES;
+
+export function generatedCancellationFor(records = [], sourceId = '') {
+  return records.find((record) => isGeneratedTravelCancellation(record) && record.source_attendance_record_id === sourceId) || null;
+}
 
 // ─── Records ────────────────────────────────────────────────────────────────
 
@@ -111,7 +118,19 @@ export async function getMonthRecords(empId, year, month) {
     .order('start_time', { ascending: true });
 
   if (error) throw new Error(`שגיאה בטעינת רשומות: ${error.message}`);
-  return (data || []).map(normalizeAttendanceRecord);
+  const rows = (data || []).map(normalizeAttendanceRecord);
+  const sourceIds = sourceAttendanceRecords(rows).map((row) => row.id);
+  if (!sourceIds.length) return rows;
+  // A load is also the lazy freshness check: the server compares trusted route
+  // fingerprints and safely keeps failures unresolved rather than treating them as zero.
+  await Promise.allSettled(sourceIds.map((id) => reconcileTravelCompensation(id)));
+  const { data: compensation, error: compensationError } = await supabase.from('attendance_travel_compensations')
+    .select('*').in('source_attendance_record_id', sourceIds);
+  if (compensationError && !/attendance_travel_compensations/i.test(compensationError.message || '')) {
+    throw new Error(`שגיאה בטעינת חישובי נסיעה: ${compensationError.message}`);
+  }
+  const bySource = new Map((compensation || []).map((item) => [item.source_attendance_record_id, item]));
+  return rows.map((row) => bySource.has(row.id) ? { ...row, travel_compensation: bySource.get(row.id) } : row);
 }
 
 /**
@@ -157,6 +176,40 @@ export async function createRecord(empId, payload) {
 
   if (error) throw new Error(`שגיאה בשמירת רשומה: ${error.message}`);
   return normalizeAttendanceRecord(data);
+}
+
+export async function reconcileTravelCompensation(sourceRecordId) {
+  if (isAdminPreviewRequested()) return null;
+  const { data: prepared, error: prepareError } = await supabase.rpc('av2_mark_attendance_travel_pending', {
+    p_source_id: sourceRecordId
+  });
+  if (prepareError) return { eligible: true, status: 'unavailable', failure_code: 'context_prepare_failed' };
+  if (prepared?.eligible === false) return { eligible: false, status: 'not_applicable' };
+  const { data, error } = await supabase.functions.invoke('attendance-travel-compensation', {
+    body: { source_attendance_record_id: sourceRecordId }
+  });
+  if (error) return { eligible: true, status: 'unavailable', failure_code: data?.failure_code || 'route_service_unavailable' };
+  return data;
+}
+
+export async function overrideTravelCompensation(sourceRecordId, finalMinutes) {
+  const { data, error } = await supabase.rpc('av2_override_attendance_time_cancellation', {
+    p_source_id: sourceRecordId,
+    p_final_minutes: Math.max(0, Math.round(Number(finalMinutes) || 0))
+  });
+  if (error) throw new Error(error.message || 'עדכון ביטול הזמן נכשל');
+  return data;
+}
+
+export async function getOperationOptions() {
+  if (isAdminPreviewRequested()) return [
+    { id: 'preview-toast', label: 'הרמת כוסית', active: true, sort_order: 10, is_other: false },
+    { id: 'preview-other', label: 'אחר', active: true, sort_order: 999999, is_other: true }
+  ];
+  const { data, error } = await supabase.from('attendance_operation_options').select('id,label,active,sort_order,is_other')
+    .eq('active', true).order('is_other').order('sort_order').order('label');
+  if (error) throw new Error(`שגיאה בטעינת סוגי תפעול: ${error.message}`);
+  return data || [];
 }
 
 /**
@@ -244,22 +297,10 @@ export async function getMonthApproval(empId, monthKey) {
 export async function submitMonth(empId, monthKey, submittedByName = '') {
   if (isAdminPreviewRequested()) return submitPreviewMonth(monthKey, submittedByName);
 
-  const now = new Date().toISOString();
-  const { data, error } = await supabase
-    .from('attendance_month_approvals')
-    .upsert(
-      {
-        emp_id: empId,
-        month_key: monthKey,
-        status: 'submitted',
-        submitted_at: now,
-        submitted_by_name: String(submittedByName || '').trim(),
-        updated_at: now
-      },
-      { onConflict: 'emp_id,month_key' }
-    )
-    .select()
-    .single();
+  const { data, error } = await supabase.rpc('av2_submit_attendance_month', {
+    p_month_key: monthKey,
+    p_submitted_by_name: String(submittedByName || '').trim()
+  });
 
   if (error) throw new Error(`שגיאה בהגשת חודש: ${error.message}`);
   return data;

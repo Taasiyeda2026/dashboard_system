@@ -6,7 +6,7 @@ import { supabase, waitForSupabaseAuthSession } from './supabase-client.js';
 
 const text = (value) => String(value ?? '').trim();
 
-function legacyRecord(row = {}) {
+function legacyRecord(row = {}, travel = null) {
   const employeeId = text(row.employee_id);
   const team = text(row.team);
   return {
@@ -58,6 +58,15 @@ function legacyRecord(row = {}) {
     authorityId: row.authority_id ?? null,
     schoolId: row.school_id ?? null,
     semelMosad: row.semel_mosad ?? null,
+    sourceAttendanceRecordId: text(travel?.source_record_id),
+    generationKind: travel ? 'travel_time_cancellation' : '',
+    outboundTravelMinutes: travel?.outbound_travel_minutes ?? null,
+    returnTravelMinutes: travel?.return_travel_minutes ?? null,
+    calculatedCancellationMinutes: travel?.calculated_cancellation_minutes ?? null,
+    finalCancellationMinutes: travel?.final_cancellation_minutes ?? null,
+    manuallyOverridden: travel?.manually_overridden === true,
+    overrideByName: text(travel?.override_by_name),
+    overrideAt: text(travel?.override_at),
     attachmentsNames: '',
     status: '',
     approvedBy: '',
@@ -117,13 +126,19 @@ api.attendanceControlRecords = async function ({ employeeIds = [], fromDate = ''
   const numericEmployeeIds = [...new Set((employeeIds || [])
     .map((value) => Number(text(value)))
     .filter((value) => Number.isSafeInteger(value) && value > 0))];
-  const { data, error } = await supabase.rpc('get_payroll_attendance_records', {
+  const params = {
     p_employee_ids: numericEmployeeIds.length ? numericEmployeeIds : null,
     p_from_date: text(fromDate) || null,
     p_to_date: text(toDate) || null
-  });
+  };
+  const [{ data, error }, travelResult] = await Promise.all([
+    supabase.rpc('get_payroll_attendance_records', params),
+    supabase.rpc('get_payroll_attendance_travel_compensations', params)
+  ]);
   if (error) throw new Error(error.message || 'attendance_records_supabase_load_failed');
-  return (Array.isArray(data) ? data : []).map(legacyRecord);
+  if (travelResult.error) throw new Error(travelResult.error.message || 'attendance_travel_compensations_load_failed');
+  const travelByGenerated = new Map((travelResult.data || []).map((item) => [text(item.generated_record_id), item]));
+  return (Array.isArray(data) ? data : []).map((row) => legacyRecord(row, travelByGenerated.get(text(row.record_id))));
 };
 
 api.attendanceControlTeams = async function () {

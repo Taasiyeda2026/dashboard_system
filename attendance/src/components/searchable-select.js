@@ -19,6 +19,7 @@ export function createSearchableSelect({
   emptyText      = 'לא נמצאו תוצאות',
   filterFn,
   extendedSearch = null,
+  searchMode = 'always',
   onChange,
 } = {}) {
   let defaultOptions = [...options];
@@ -97,9 +98,29 @@ export function createSearchableSelect({
     btn.addEventListener('mousedown', (e) => e.preventDefault());
     btn.addEventListener('click', () => {
       extendedMode = true;
+      searchWrap.hidden = false;
       void loadExtendedOptions(searchInput.value);
+      requestAnimationFrame(() => searchInput.focus());
     });
     optList.append(btn);
+  }
+
+  function appendExtendedBack() {
+    if (!extendedSearch || !extendedMode) return;
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'av2-ssel__extended av2-ssel__extended--back';
+    btn.textContent = 'חזרה לפעילויות שלי';
+    btn.addEventListener('mousedown', (event) => event.preventDefault());
+    btn.addEventListener('click', () => {
+      extendedMode = false;
+      currentOptions = [...defaultOptions];
+      searchInput.value = '';
+      searchWrap.hidden = searchMode === 'extended-only';
+      renderOptions();
+      optList.querySelector('button')?.focus();
+    });
+    optList.prepend(btn);
   }
 
   async function loadExtendedOptions(query = '') {
@@ -136,6 +157,7 @@ export function createSearchableSelect({
       empty.textContent = emptyText;
       optList.append(empty);
       appendExtendedToggle();
+      appendExtendedBack();
       return;
     }
 
@@ -152,6 +174,7 @@ export function createSearchableSelect({
     }
 
     appendExtendedToggle();
+    appendExtendedBack();
   }
 
   function selectOption(opt) {
@@ -173,8 +196,12 @@ export function createSearchableSelect({
     trigger.setAttribute('aria-expanded', 'true');
     wrap.style.zIndex = '10';
     searchInput.value = '';
+    searchWrap.hidden = searchMode === 'extended-only';
     renderOptions();
-    requestAnimationFrame(() => searchInput.focus());
+    requestAnimationFrame(() => {
+      if (!searchWrap.hidden) searchInput.focus();
+      else optList.querySelector('button')?.focus();
+    });
   }
 
   function closePanel() {
@@ -195,6 +222,14 @@ export function createSearchableSelect({
 
   panel.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') { closePanel(); trigger.focus(); }
+    if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(e.key)) return;
+    const choices = [...optList.querySelectorAll('button:not([disabled])')];
+    if (!choices.length) return;
+    e.preventDefault();
+    const current = choices.indexOf(document.activeElement);
+    const next = e.key === 'Home' ? 0 : e.key === 'End' ? choices.length - 1
+      : e.key === 'ArrowDown' ? Math.min(choices.length - 1, current + 1) : Math.max(0, current < 0 ? choices.length - 1 : current - 1);
+    choices[next].focus();
   });
 
   searchInput.addEventListener('input', () => {

@@ -4,9 +4,11 @@
  */
 
 import { createIcon } from '../components/icon.js';
-import { getMonthRecords, calcMonthSummary, getMonthApproval, submitMonth } from '../services/attendance.service.js';
+import { getMonthRecords, calcMonthSummary, getMonthApproval, submitMonth, sourceAttendanceRecords, reconcileTravelCompensation } from '../services/attendance.service.js';
 import { canEditMonth, editBlockReason, getMonthKey, formatMonthLabel, shouldShowSubmitReminder } from '../services/month-gate.service.js';
 import { exportMonthToExcel } from '../services/excel.service.js';
+import { createReportSummaryRow } from '../components/report-summary-row.js';
+import { openSubmitConfirmationDialog } from '../submit-confirmation-dialog.js';
 
 const STATUS_MAP = {
   open:                { label: 'פתוח לדיווח',                         tone: 'neutral'  },
@@ -66,10 +68,7 @@ export function renderHomeScreen(container, {
   const pageTitleEl = document.createElement('h1');
   pageTitleEl.className = 'av2-home__page-title';
   pageTitleEl.textContent = 'דיווחי נוכחות';
-  const statusChip = document.createElement('span');
-  statusChip.className = 'av2-home__status-chip';
-  statusChip.hidden = true;
-  titleBand.append(pageTitleEl, statusChip);
+  titleBand.append(pageTitleEl);
 
   // ── Month navigator + primary action ──────────────────────────────────────
   const monthNav = buildMonthNav(year, month, onPrevMonth, onNextMonth);
@@ -96,7 +95,7 @@ export function renderHomeScreen(container, {
   statusArea.className = 'av2-home__status-area';
 
   const actionStripEl = document.createElement('div');
-  actionStripEl.className = 'av2-home__action-strip';
+  actionStripEl.className = 'av2-home__status-mount';
   actionStripEl.innerHTML = '<p class="av2-home__strip-loading">טוען…</p>';
   statusArea.append(actionStripEl);
 
@@ -104,10 +103,10 @@ export function renderHomeScreen(container, {
   wrap.append(inner);
   container.append(wrap);
 
-  loadAndRender({ instructor, year, month, statsEl, actionStripEl, newReportBtn, statusChip, onMyReports });
+  loadAndRender({ instructor, year, month, statsEl, actionStripEl, newReportBtn, onMyReports });
 }
 
-async function loadAndRender({ instructor, year, month, statsEl, actionStripEl, newReportBtn, statusChip, onMyReports }) {
+async function loadAndRender({ instructor, year, month, statsEl, actionStripEl, newReportBtn, onMyReports }) {
   const monthKey = getMonthKey(year, month);
   try {
     const [records, approval] = await Promise.all([
@@ -115,13 +114,14 @@ async function loadAndRender({ instructor, year, month, statsEl, actionStripEl, 
       getMonthApproval(instructor.empId, monthKey)
     ]);
 
+    const sourceRecords = sourceAttendanceRecords(records);
     const summary  = calcMonthSummary(records);
     const editable = canEditMonth(year, month, approval);
 
     // KPI cards
     statsEl.innerHTML = '';
     statsEl.append(
-      buildStat(summary.recordsCount,                     'ימים',     'list'),
+      buildStat(sourceRecords.length,                     'דיווחים',  'list'),
       buildStat(summary.totalHours.toFixed(2),            'שעות',     'clock'),
       buildStat(summary.totalKm.toFixed(0) + '\u00a0ק"מ','נסיעות',   'map-pin'),
       buildStat('₪' + summary.totalExpenses.toFixed(0),  'הוצאות',   'shekel-sign')
@@ -134,19 +134,13 @@ async function loadAndRender({ instructor, year, month, statsEl, actionStripEl, 
       newReportBtn.style.opacity = '0.5';
     }
 
-    // Status chip (title band)
-    const { label: statusLabel, tone } = STATUS_MAP[approval?.status ?? 'open'] || STATUS_MAP.open;
-    statusChip.hidden = false;
-    statusChip.textContent = statusLabel;
-    statusChip.dataset.tone = tone;
-
     // Action strip
     actionStripEl.innerHTML = '';
     if (shouldShowSubmitReminder(year, month, approval)) {
       actionStripEl.append(buildSubmitReminderBanner({ year, month }));
     }
     actionStripEl.append(
-      buildActionStrip({ approval, year, month, instructor, records, summary, editable, onMyReports })
+      buildActionStrip({ approval, year, month, instructor, records, sourceRecords, summary, editable, onMyReports })
     );
 
   } catch (err) {
@@ -157,12 +151,17 @@ async function loadAndRender({ instructor, year, month, statsEl, actionStripEl, 
 
 // ── Compact action strip (no duplicated stats) ────────────────────────────────
 
-function buildActionStrip({ approval, year, month, instructor, records, summary, editable, onMyReports }) {
+function buildActionStrip({ approval, year, month, instructor, records, sourceRecords, summary, editable, onMyReports }) {
   const strip = document.createElement('div');
   strip.className = 'av2-home__action-strip';
 
   const status = approval?.status ?? 'open';
   const { label: statusLabel, tone } = STATUS_MAP[status] || STATUS_MAP.open;
+
+  const heading = document.createElement('strong');
+  heading.className = 'av2-home__reports-heading';
+  heading.textContent = 'הדיווחים שלי';
+  strip.append(heading);
 
   const badge = document.createElement('span');
   badge.className = `av2-badge av2-badge--${tone}`;
@@ -181,7 +180,7 @@ function buildActionStrip({ approval, year, month, instructor, records, summary,
   actions.className = 'av2-home__strip-actions';
 
   // Excel button
-  if (records.length > 0) {
+  if (sourceRecords.length > 0) {
     const xlBtn = document.createElement('button');
     xlBtn.type = 'button';
     xlBtn.className = 'av2-btn av2-btn--secondary av2-home__excel-btn';
@@ -194,14 +193,14 @@ function buildActionStrip({ approval, year, month, instructor, records, summary,
   }
 
   // Submit button
-  if ((status === 'open' || status === 'reopened') && editable && records.length > 0) {
+  if ((status === 'open' || status === 'reopened') && editable && sourceRecords.length > 0) {
     const submitBtn = document.createElement('button');
     submitBtn.type = 'button';
     submitBtn.className = 'av2-btn av2-btn--primary av2-home__month-submit';
     const submitLabel = document.createElement('span');
     submitLabel.textContent = status === 'reopened' ? 'הגשה מחדש' : 'סיום ואישור';
     submitBtn.append(createIcon('check-circle', { size: 14 }), submitLabel);
-    submitBtn.addEventListener('click', () => handleSubmit({ submitBtn, instructor, year, month, records, strip }));
+    submitBtn.addEventListener('click', () => handleSubmit({ submitBtn, instructor, year, month, sourceRecords, strip }));
     actions.append(submitBtn);
   }
 
@@ -234,38 +233,40 @@ function buildActionStrip({ approval, year, month, instructor, records, summary,
   }
 
   strip.append(actions);
+  const list = document.createElement('div'); list.className = 'av2-home__report-list';
+  if (!sourceRecords.length) {
+    const empty = document.createElement('p'); empty.className = 'av2-home__empty'; empty.textContent = 'אין כרגע דיווחים בחודש זה'; list.append(empty);
+  } else {
+    sourceRecords.slice().sort((a,b) => String(b.report_date).localeCompare(String(a.report_date))).slice(0, 6)
+      .forEach((record) => list.append(createReportSummaryRow(record, { onOpen: () => onMyReports?.() })));
+  }
+  strip.append(list);
   return strip;
 }
 
-async function handleSubmit({ submitBtn, instructor, year, month, records, strip }) {
-  if (!records.length) return;
-  const confirmed = confirm(
-    `להגיש את דיווח ${formatMonthLabel(year, month)}?\n` +
-    `יש ${records.length} רשומות. לאחר ההגשה לא ניתן יהיה לערוך עד אישור מנהל.`
-  );
-  if (!confirmed) return;
-
-  submitBtn.disabled = true;
-  const submitLabel = submitBtn.querySelector('span');
-  if (submitLabel) submitLabel.textContent = 'מגיש…';
-  try {
-    await submitMonth(instructor.empId, getMonthKey(year, month), instructor?.name || '');
+async function handleSubmit({ submitBtn, instructor, year, month, sourceRecords, strip }) {
+  if (!sourceRecords.length) return;
+  await openSubmitConfirmationDialog({
+    monthLabel: formatMonthLabel(year, month), sourceCount: sourceRecords.length, trigger: submitBtn,
+    onRetry: async (issues) => {
+      const ids = issues.length ? issues.map((item) => item.source_id) : sourceRecords.map((record) => record.id);
+      await Promise.all(ids.map((id) => reconcileTravelCompensation(id)));
+    },
+    onApprove: async () => {
+      await submitMonth(instructor.empId, getMonthKey(year, month), instructor?.name || '');
     const badge = strip.querySelector('.av2-badge');
     if (badge) {
       badge.className = 'av2-badge av2-badge--warning';
       badge.textContent = 'אושר על ידי העובד / בבקרת מנהל';
     }
-    submitBtn.remove();
+      submitBtn.remove();
     const meta = document.createElement('span');
     meta.className = 'av2-home__strip-meta';
     meta.textContent = `✓ הוגש בהצלחה ב-${new Date().toLocaleString('he-IL', { dateStyle: 'short', timeStyle: 'short' })}`;
     const actions = strip.querySelector('.av2-home__strip-actions');
-    if (actions) actions.append(meta);
-  } catch (err) {
-    submitBtn.disabled = false;
-    if (submitLabel) submitLabel.textContent = 'סיום ואישור';
-    alert(`שגיאה: ${err.message}`);
-  }
+      if (actions) actions.append(meta);
+    }
+  });
 }
 
 function buildSubmitReminderBanner({ year, month }) {
