@@ -28,11 +28,8 @@ const sampleActivities = [
   { row_id: 'e1', activity_name: 'בריחה', activity_type: 'escape_room', authority_id: 5, authority_name: 'עיר', single_school_id: 501, single_school_name: 'טכנולוגי' },
 ];
 
-test('HEBREW_ACTIVITY_TYPES includes מקוון in alphabetical order', () => {
-  assert.ok(HEBREW_ACTIVITY_TYPES.includes('מקוון'));
-  const idxOnline = HEBREW_ACTIVITY_TYPES.indexOf('מקוון');
-  const idxWorkshop = HEBREW_ACTIVITY_TYPES.indexOf('סדנה');
-  assert.ok(idxOnline < idxWorkshop);
+test('HEBREW_ACTIVITY_TYPES uses the approved display order', () => {
+  assert.deepEqual(HEBREW_ACTIVITY_TYPES, ['קורס','סדנה','סיור','זום','חדר בריחה','הכשרה','ביטול זמן','תפעול']);
 });
 
 test('report type filters use canonical DB activity_type values', () => {
@@ -41,7 +38,7 @@ test('report type filters use canonical DB activity_type values', () => {
   assert.deepEqual(getDbTypesForReportType('סדנאות קיץ'), ['workshop']);
   assert.equal(getDbTypesForReportType(ONLINE_REPORT_TYPE), null);
   assert.deepEqual(getDbTypesForReportType(OPERATIONS_REPORT_TYPE), []);
-  assert.deepEqual(getDbTypesForReportType(TRAINING_REPORT_TYPE), []);
+  assert.equal(getDbTypesForReportType(TRAINING_REPORT_TYPE), null);
 });
 
 test('instructor with 3 courses and 4 workshops gets exact counts per type', () => {

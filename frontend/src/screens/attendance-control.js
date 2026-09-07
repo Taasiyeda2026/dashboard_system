@@ -1189,11 +1189,15 @@ export function resultsHtml(result, month = '', options = {}) {
     return fields.length ? `<div class="attendance-control__identity">${fields.map(shown).join(' | ')}</div>` : '';
   };
   const manualReportTable = (row, { cancellation = false } = {}) => {
+    const source = row?._source || {};
+    const autoCancellation = source.generationKind === 'travel_time_cancellation';
+    const minutesLabel = (value) => `${Math.floor((Number(value) || 0) / 60)}:${String((Number(value) || 0) % 60).padStart(2, '0')}`;
     const fields = [
       ['שעות שכר', displayWorkHours(row)], ['ק״מ', row.kilometers], ['הוצאות', row.expenses],
       ['פירוט הוצאה', row.expenseDetails], ['הערות', row.notes]
     ].filter(([, value]) => hasValue(value));
-    const note = cancellation ? '<p class="attendance-control__manual-note">נשמר ברצף יום העבודה</p>' : '';
+    const autoAudit = autoCancellation ? `<div class="attendance-control__manual-note" title="${escapeHtml(source.overrideByName ? `נערך על ידי ${source.overrideByName}${source.overrideAt ? ` · ${source.overrideAt}` : ''}` : '')}"><strong>ביטול זמן: ${escapeHtml(minutesLabel(source.finalCancellationMinutes))}</strong>${source.manuallyOverridden ? `<br>נערך ידנית<br>מחושב במקור: ${escapeHtml(minutesLabel(source.calculatedCancellationMinutes))}` : '<br>מחושב אוטומטית לפי זמן הנסיעה'}</div>` : '';
+    const note = cancellation && !autoCancellation ? '<p class="attendance-control__manual-note">נשמר ברצף יום העבודה</p>' : autoAudit;
     return `${note}<table class="attendance-control__comparison-table attendance-control__manual-table"><tbody>${fields.map(([label, value]) => `<tr><th>${label}</th><td>${shown(value)}</td></tr>`).join('')}</tbody></table>`;
   };
   const comparisonTable = (comparison) => {
