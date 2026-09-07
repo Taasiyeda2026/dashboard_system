@@ -49,6 +49,14 @@ function formatDateDisplay(iso) {
   return s;
 }
 
+function formatTimeDisplay(value) {
+  const s = String(value || '').trim();
+  if (!s) return '';
+  const match = /^(\d{1,2}):(\d{2})/.exec(s);
+  if (!match) return s;
+  return `${String(Number(match[1])).padStart(2, '0')}:${match[2]}`;
+}
+
 function fieldLabelHe(field) {
   const f = String(field || '').trim();
   if (!f) return 'שדה';
@@ -125,34 +133,14 @@ export function renderGroup(group, canReview) {
   const fallbackDate = isCreateRequest ? group?.requested_payload?.date_1 : activity?.date_1;
   const startD = formatDateDisplay(String((isCreateRequest ? group?.requested_payload?.start_date : activity?.start_date) || fallbackDate || '').trim());
   const endD = formatDateDisplay(String((isCreateRequest ? group?.requested_payload?.end_date : activity?.end_date) || '').trim());
-  const startEnd = [startD, endD].filter(Boolean).join(' — ') || '—';
-  const startTime = String((isCreateRequest ? group?.requested_payload?.start_time : activity?.start_time) || '').trim();
-  const endTime = String((isCreateRequest ? group?.requested_payload?.end_time : activity?.end_time) || '').trim();
+  const startEnd = startD && endD && startD !== endD ? `${startD} — ${endD}` : (startD || endD || '—');
+  const startTime = formatTimeDisplay(isCreateRequest ? group?.requested_payload?.start_time : activity?.start_time);
+  const endTime = formatTimeDisplay(isCreateRequest ? group?.requested_payload?.end_time : activity?.end_time);
   const activityTimes = [startTime, endTime].filter(Boolean).join('–') || '—';
 
-  const warnIncomplete = (!hasActivity && !isCreateRequest && !isSchedulingApproval)
-    ? `<div class="ds-er-warn" role="alert">לא נמצאו פרטי פעילות מלאים לבדיקה — לא ניתן לאשר עד שנטענת הפעילות מהמערכת.</div>`
-    : '';
-
-  const fieldsRows = (group.fields || []).map((f) => {
-    const { oldHtml, newHtml } = displayOldNew(f.field_name, f.old_value, f.new_value);
-    if (isSchedulingApproval) {
-      return `
-      <tr>
-        <td class="ds-er-field-name">${escapeHtml(fieldLabelHe(f.field_name))}</td>
-        <td class="${f.field_name === 'scheduling_exception_reason' ? 'ds-er-exception-warning' : 'ds-er-new'}" colspan="3">${newHtml}</td>
-      </tr>`;
-    }
-    return `
-    <tr>
-      <td class="ds-er-field-name">${escapeHtml(fieldLabelHe(f.field_name))}</td>
-      <td class="ds-er-old">${oldHtml}</td>
-      <td class="ds-er-arrow">→</td>
-      <td class="ds-er-new">${newHtml}</td>
-    </tr>`;
-  }).join('');
-
-  const canApprove = canReview && group.status === 'pending' && group.can_approve !== false;
+  const canApprove = isSchedulingApproval
+    ? group.status === 'pending' && group.can_approve === true
+    : canReview && group.status === 'pending' && group.can_approve !== false;
   const actionsHtml = canApprove ? `
     <div class="ds-er-actions">
       <button type="button" class="ds-btn ds-btn--success ds-btn--sm" data-action="approve" data-request-id="${escapeHtml(group.request_id)}">אישור</button>
@@ -163,6 +151,59 @@ export function renderGroup(group, canReview) {
   const reviewerNoteHtml = group.review_note ? `
     <p class="ds-er-reviewer-note"><span class="ds-muted">הערת סוקר:</span> ${escapeHtml(group.review_note)}</p>
   ` : '';
+
+  if (isSchedulingApproval) {
+    const requestedInstructor = instructorLine(activity);
+    const exceptionReason = String(
+      (group.fields || []).find((field) => field?.field_name === 'scheduling_exception_reason')?.new_value
+      || group?.requested_payload?.exception_reason
+      || 'חריגה מכללי השיבוץ'
+    ).trim();
+    const schedulingSummary = [activityType, school, authority].filter((value) => value && value !== '—').join(' · ') || '—';
+    const timeHtml = activityTimes === '—'
+      ? ''
+      : ` · <span dir="ltr">${escapeHtml(activityTimes)}</span>`;
+
+    return `
+    <article class="ds-er-group" data-status="${escapeHtml(group.status || '')}" data-request-id="${escapeHtml(group.request_id)}" data-request-type="${escapeHtml(requestType)}">
+      <header class="ds-er-card-head">
+        <h3 class="ds-er-card-title">${escapeHtml(requestTypeLabel(requestType))}: ${escapeHtml(titleName)}</h3>
+        <div>${dsStatusChip(statusLabel(group.status), statusVariant(group.status))}</div>
+      </header>
+      <div class="ds-er-meta-grid" dir="rtl">
+        <p><span class="ds-muted">פעילות:</span> <strong>${escapeHtml(schedulingSummary)}</strong></p>
+        <p><span class="ds-muted">מועד:</span> <strong>${escapeHtml(startEnd)}</strong>${timeHtml}</p>
+        <p><span class="ds-muted">מדריך מבוקש:</span> <strong>${escapeHtml(requestedInstructor)}</strong></p>
+      </div>
+      <div class="ds-er-warn ds-er-exception-warning" role="note">
+        <strong>סיבת החריגה:</strong> ${escapeHtml(exceptionReason)}
+      </div>
+      <p class="ds-er-requester-line" dir="rtl">
+        <span class="ds-muted">נשלח על ידי:</span>
+        ${escapeHtml(group.requested_by_name || group.requested_by_user_id || '—')}
+        <span class="ds-muted"> · </span>
+        ${escapeHtml(formatDateDisplay(group.requested_at) || String(group.requested_at || '—'))}
+      </p>
+      ${reviewerNoteHtml}
+      ${actionsHtml}
+    </article>
+  `;
+  }
+
+  const warnIncomplete = (!hasActivity && !isCreateRequest)
+    ? `<div class="ds-er-warn" role="alert">לא נמצאו פרטי פעילות מלאים לבדיקה — לא ניתן לאשר עד שנטענת הפעילות מהמערכת.</div>`
+    : '';
+
+  const fieldsRows = (group.fields || []).map((f) => {
+    const { oldHtml, newHtml } = displayOldNew(f.field_name, f.old_value, f.new_value);
+    return `
+    <tr>
+      <td class="ds-er-field-name">${escapeHtml(fieldLabelHe(f.field_name))}</td>
+      <td class="ds-er-old">${oldHtml}</td>
+      <td class="ds-er-arrow">→</td>
+      <td class="ds-er-new">${newHtml}</td>
+    </tr>`;
+  }).join('');
 
   return `
     <article class="ds-er-group" data-status="${escapeHtml(group.status || '')}" data-request-id="${escapeHtml(group.request_id)}" data-request-type="${escapeHtml(requestType)}">
@@ -188,13 +229,11 @@ export function renderGroup(group, canReview) {
         ${escapeHtml(formatDateDisplay(group.requested_at) || String(group.requested_at || '—'))}
       </p>
       ${warnIncomplete}
-      <h4 class="ds-er-section-title">${isSchedulingApproval ? 'פרטי החריגה' : (isCreateRequest ? 'פרטי הפעילות המבוקשת' : 'מה השתנה?')}</h4>
+      <h4 class="ds-er-section-title">${isCreateRequest ? 'פרטי הפעילות המבוקשת' : 'מה השתנה?'}</h4>
       <div class="ds-table-wrap ds-er-fields-wrap">
         <table class="ds-table ds-er-fields-table">
           <thead>
-            ${isSchedulingApproval
-              ? '<tr><th>פרט</th><th colspan="3">ערך</th></tr>'
-              : `<tr><th>שדה</th><th>${isCreateRequest ? 'פרט' : 'ערך נוכחי'}</th><th></th><th>${isCreateRequest ? 'ערך' : 'ערך מבוקש'}</th></tr>`}
+            <tr><th>שדה</th><th>${isCreateRequest ? 'פרט' : 'ערך נוכחי'}</th><th></th><th>${isCreateRequest ? 'ערך' : 'ערך מבוקש'}</th></tr>
           </thead>
           <tbody>${fieldsRows}</tbody>
         </table>
@@ -214,10 +253,13 @@ function isOpen(group) {
 export const editRequestsScreen = {
   async load({ api }) {
     const base = await api.editRequests();
+    const baseGroups = (Array.isArray(base?.groups) ? base.groups : []).filter(
+      (group) => String(group?.request_type || '') !== COURSE_ASSIGNMENT_MANAGER_APPROVAL_REQUEST_TYPE
+    );
     const schedulingGroups = await loadCourseAssignmentManagerApprovalGroups();
     return {
       ...base,
-      groups: [...(Array.isArray(base?.groups) ? base.groups : []), ...schedulingGroups]
+      groups: [...baseGroups, ...schedulingGroups]
     };
   },
   render(data) {
