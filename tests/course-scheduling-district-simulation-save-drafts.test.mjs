@@ -290,7 +290,7 @@ test('9. approved assignments are never overwritten', () => {
     instructors: [instructor],
     candidateHardBlockReason
   });
-  assert.equal(reason, 'הקורס כבר שובץ');
+  assert.equal(reason, 'הפעילות כבר שובצה');
   assert.equal(isDistrictSimulationRowSelectable(row, course('approved-course', { emp_id: '999' })), false);
 });
 
@@ -302,7 +302,7 @@ test('10. existing drafts are never overwritten', () => {
     instructors: [instructor],
     candidateHardBlockReason
   });
-  assert.equal(reason, 'הקורס כבר נשמר כטיוטה');
+  assert.equal(reason, 'הפעילות כבר נשמרה כטיוטה');
   assert.equal(
     isDistrictSimulationRowSelectable(row, course('draft-course', { draft_emp_id: '300' })),
     false
