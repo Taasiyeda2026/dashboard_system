@@ -52,13 +52,13 @@ const DB_TYPE_ALIASES = {
 };
 
 export const HEBREW_ACTIVITY_TYPES = [
-  CANCELLATION_REPORT_TYPE,
-  TRAINING_REPORT_TYPE,
-  'חדר בריחה',
-  ONLINE_REPORT_TYPE,
+  'קורס',
   'סדנה',
   'סיור',
-  'קורס',
+  ONLINE_REPORT_TYPE,
+  'חדר בריחה',
+  TRAINING_REPORT_TYPE,
+  CANCELLATION_REPORT_TYPE,
   OPERATIONS_REPORT_TYPE,
 ];
 

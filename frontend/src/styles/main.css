@@ -7008,6 +7008,12 @@ select.ds-input {
   font-weight: 500;
 }
 
+.ds-er-exception-warning {
+  color: #9a3412;
+  background: #fff7ed;
+  font-weight: 600;
+}
+
 .ds-er-arrow {
   color: var(--ds-text-muted);
   font-size: 0.85rem;

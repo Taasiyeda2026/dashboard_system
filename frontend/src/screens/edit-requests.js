@@ -104,13 +104,13 @@ function requestTypeLabel(type) {
   return 'בקשת עריכה';
 }
 
-function renderGroup(group, canReview) {
+export function renderGroup(group, canReview) {
   const activity = group.activity || null;
   const requestType = String(group.request_type || '');
   const isCreateRequest = requestType === 'create_activity';
   const isSchedulingApproval = requestType === COURSE_ASSIGNMENT_MANAGER_APPROVAL_REQUEST_TYPE;
   const hasActivity = Boolean(activity);
-  const titleName = String(group.activity_name || activity?.activity_name || '').trim() || 'פעילות ללא שם';
+  const titleName = String((isSchedulingApproval ? activity?.activity_name : group.activity_name) || activity?.activity_name || '').trim() || 'פעילות ללא שם';
   const rowId = String(group.source_row_id || '').trim();
   const activityTypeRaw = String((isCreateRequest ? group?.requested_payload?.activity_type : activity?.activity_type) || '').trim();
   const activityType = activityTypeRaw
@@ -119,12 +119,16 @@ function renderGroup(group, canReview) {
         return he && he !== 'לא מסווג' ? he : activityTypeRaw;
       })()
     : '—';
-  const authority = String(group.authority || activity?.authority || '').trim() || '—';
-  const school = String(group.school || activity?.school || '').trim() || '—';
+  const authority = String((isSchedulingApproval ? activity?.authority : group.authority) || activity?.authority || '').trim() || '—';
+  const school = String((isSchedulingApproval ? activity?.school : group.school) || activity?.school || '').trim() || '—';
   const manager = String((isCreateRequest ? group?.requested_payload?.activity_manager : activity?.activity_manager) || '').trim() || '—';
-  const startD = formatDateDisplay(String((isCreateRequest ? group?.requested_payload?.start_date : activity?.start_date) || '').trim());
+  const fallbackDate = isCreateRequest ? group?.requested_payload?.date_1 : activity?.date_1;
+  const startD = formatDateDisplay(String((isCreateRequest ? group?.requested_payload?.start_date : activity?.start_date) || fallbackDate || '').trim());
   const endD = formatDateDisplay(String((isCreateRequest ? group?.requested_payload?.end_date : activity?.end_date) || '').trim());
   const startEnd = [startD, endD].filter(Boolean).join(' — ') || '—';
+  const startTime = String((isCreateRequest ? group?.requested_payload?.start_time : activity?.start_time) || '').trim();
+  const endTime = String((isCreateRequest ? group?.requested_payload?.end_time : activity?.end_time) || '').trim();
+  const activityTimes = [startTime, endTime].filter(Boolean).join('–') || '—';
 
   const warnIncomplete = (!hasActivity && !isCreateRequest && !isSchedulingApproval)
     ? `<div class="ds-er-warn" role="alert">לא נמצאו פרטי פעילות מלאים לבדיקה — לא ניתן לאשר עד שנטענת הפעילות מהמערכת.</div>`
@@ -136,7 +140,7 @@ function renderGroup(group, canReview) {
       return `
       <tr>
         <td class="ds-er-field-name">${escapeHtml(fieldLabelHe(f.field_name))}</td>
-        <td class="ds-er-new" colspan="3">${newHtml}</td>
+        <td class="${f.field_name === 'scheduling_exception_reason' ? 'ds-er-exception-warning' : 'ds-er-new'}" colspan="3">${newHtml}</td>
       </tr>`;
     }
     return `
@@ -175,6 +179,7 @@ function renderGroup(group, canReview) {
         <p><span class="ds-muted">מנהל פעילות:</span> ${escapeHtml(manager)}</p>
         <p><span class="ds-muted">מדריך:</span> ${escapeHtml(isCreateRequest ? instructorLine(group.requested_payload || {}) : instructorLine(activity))}</p>
         <p><span class="ds-muted">תאריכי התחלה–סיום:</span> ${escapeHtml(startEnd)}</p>
+        <p><span class="ds-muted">שעות הפעילות:</span> ${escapeHtml(activityTimes)}</p>
       </div>
       <p class="ds-er-requester-line" dir="rtl">
         <span class="ds-muted">נשלח על ידי:</span>

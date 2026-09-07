@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { instructorActivities, monthlyInstructorSummary, instructorScheduleRows } from '../frontend/src/screens/instructor-portal/portal-data.js';
-import { organizationalEventsForDate, organizationalCalendarDayLabel } from '../frontend/src/screens/instructor-portal/calendar-events.js';
+import { INSTRUCTOR_CALENDAR_ACTIVE_PERIOD, clampInstructorCalendarMonth, moveInstructorCalendarMonth, organizationalEventsForDate, organizationalCalendarDayLabel } from '../frontend/src/screens/instructor-portal/calendar-events.js';
 import { courseScheduleTableHtml } from '../frontend/src/screens/shared/instructor-course-schedule-view.js';
 import { activityWorkDrawerHtml } from '../frontend/src/screens/shared/activity-detail-html.js';
 
@@ -73,6 +73,19 @@ test('portal calendar stays a seven-column grid with compact mobile day details'
   assert.match(source, /ui\?\.openDrawer/);
   assert.doesNotMatch(source, /חגים, חופשות, מועדים וימי הולדת מכל המגזרים/);
   assert.match(source, /events\.length > 1/);
+});
+
+test('instructor calendar navigation follows the active school season across calendar years', () => {
+  assert.equal(INSTRUCTOR_CALENDAR_ACTIVE_PERIOD, 'school_2027');
+  assert.equal(moveInstructorCalendarMonth('2026-09', -1), '2026-09');
+  assert.equal(moveInstructorCalendarMonth('2026-09', 1), '2026-10');
+  assert.equal(moveInstructorCalendarMonth('2026-11', 1), '2026-12');
+  assert.equal(moveInstructorCalendarMonth('2026-12', 1), '2027-01');
+  assert.equal(moveInstructorCalendarMonth('2027-01', 1), '2027-02');
+  assert.equal(moveInstructorCalendarMonth('2027-07', 1), '2027-08');
+  assert.equal(moveInstructorCalendarMonth('2027-08', 1), '2027-08');
+  assert.equal(clampInstructorCalendarMonth('2026-08'), '2026-09');
+  assert.equal(clampInstructorCalendarMonth('2027-09'), '2027-08');
 });
 
 test('my activities provides mobile cards that open the shared activity drawer', () => {

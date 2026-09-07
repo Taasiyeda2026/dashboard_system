@@ -13,7 +13,8 @@ import { createInputField, createSelectField } from '../components/field.js';
 import { createTimePicker } from '../components/time-picker.js';
 import { createMiniCalendar } from '../components/mini-calendar.js';
 import { getMonthRecords, calcMonthSummary, updateRecord, deleteRecord,
-         getMonthApproval, getActivityTypes, deleteAttachmentRecord } from '../services/attendance.service.js';
+         getMonthApproval, getActivityTypes, deleteAttachmentRecord, sourceAttendanceRecords,
+         generatedCancellationFor, reconcileTravelCompensation, overrideTravelCompensation } from '../services/attendance.service.js';
 import { canEditMonth, editBlockReason, getMonthKey, formatMonthLabel } from '../services/month-gate.service.js';
 import { calcHours, ONLINE_REPORT_TYPE, OPERATIONS_REPORT_TYPE } from '../services/activities.service.js';
 import { deleteAttachment, getSignedUrl } from '../services/storage.service.js';
@@ -85,6 +86,7 @@ async function loadAndRender({ instructor, year, month, contentArea, toolbar, on
       getActivityTypes()
     ]);
 
+    const sourceRecords = sourceAttendanceRecords(records);
     const editable = canEditMonth(year, month, approval);
     const summary  = calcMonthSummary(records);
 
@@ -127,7 +129,7 @@ async function loadAndRender({ instructor, year, month, contentArea, toolbar, on
       toolbar.append(addBtn);
     }
 
-    if (records.length > 0) {
+    if (sourceRecords.length > 0) {
       const xlBtn = document.createElement('button');
       xlBtn.type = 'button';
       xlBtn.className = 'av2-btn av2-btn--secondary';
@@ -162,7 +164,7 @@ async function loadAndRender({ instructor, year, month, contentArea, toolbar, on
     }
 
     const { wrap: calWrap, clearSelection } = createMiniCalendar({
-      year, month, records,
+      year, month, records: sourceRecords,
       onDayClick: (dateStr) => { selectedDate = dateStr; applyFilter(); },
       onEmptyDayClick: editable ? () => onNewReport?.() : undefined
     });
@@ -179,7 +181,7 @@ async function loadAndRender({ instructor, year, month, contentArea, toolbar, on
     contentArea.append(calContainer, filterBar);
 
     // ── Empty state ───────────────────────────────────────────────────────
-    if (!records.length) {
+    if (!sourceRecords.length) {
       const empty = document.createElement('p');
       empty.className = 'av2-reports__empty';
       empty.textContent = `אין דיווחים לחודש ${formatMonthLabel(year, month)}.`;
@@ -194,7 +196,7 @@ async function loadAndRender({ instructor, year, month, contentArea, toolbar, on
     contentArea.append(tableTitle);
 
     // ── Sort: date DESC, then start_time ASC within same date ────────────
-    const sorted = [...records].sort((a, b) => {
+    const sorted = [...sourceRecords].sort((a, b) => {
       const dc = String(b.report_date).localeCompare(String(a.report_date));
       if (dc !== 0) return dc;
       return String(a.start_time || '').localeCompare(String(b.start_time || ''));
@@ -216,7 +218,7 @@ async function loadAndRender({ instructor, year, month, contentArea, toolbar, on
     listWrap.append(listHead);
 
     for (const record of sorted) {
-      const row = buildRecordRow({ record, editable, instructor, activityTypes, onDuplicate, onRefresh });
+      const row = buildRecordRow({ record, generated: generatedCancellationFor(records, record.id), editable, instructor, activityTypes, onDuplicate, onRefresh });
       row.dataset.reportDate = record.report_date;
       rowEntries.push({ row, reportDate: record.report_date });
       listWrap.append(row);
@@ -244,7 +246,12 @@ async function loadAndRender({ instructor, year, month, contentArea, toolbar, on
 
 // ── Record row (11 columns on desktop) ────────────────────────────────────────
 
-function buildRecordRow({ record, editable, instructor, activityTypes, onDuplicate, onRefresh }) {
+export function formatCancellationMinutes(value) {
+  const minutes = Math.max(0, Math.round(Number(value) || 0));
+  return `${Math.floor(minutes / 60)}:${String(minutes % 60).padStart(2, '0')}`;
+}
+
+function buildRecordRow({ record, generated, editable, instructor, activityTypes, onDuplicate, onRefresh }) {
   const row = document.createElement('div');
   row.className = 'av2-report-row';
   row.dataset.recordId = record.id;
@@ -377,6 +384,53 @@ function buildRecordRow({ record, editable, instructor, activityTypes, onDuplica
   }
 
   row.append(dateCell, startCell, endCell, hoursCell, typeCell, nameCell, schoolCell, authCell, kmCell, expCell, actionsCell);
+
+  const compensation = record.travel_compensation;
+  if (compensation?.calculation_status === 'resolved' && Number(compensation.final_cancellation_minutes) > 0) {
+    const detail = document.createElement('div');
+    detail.className = 'av2-rr__travel-compensation';
+    const text = document.createElement('span');
+    text.innerHTML = `<strong>ביטול זמן: ${formatCancellationMinutes(compensation.final_cancellation_minutes)}</strong> · מחושב אוטומטית לפי זמן הנסיעה`;
+    detail.append(text);
+    if (compensation.manually_overridden) {
+      const audit = document.createElement('span');
+      audit.className = 'av2-rr__travel-audit';
+      audit.textContent = `נערך ידנית · מחושב במקור: ${formatCancellationMinutes(compensation.calculated_cancellation_minutes)}`;
+      audit.title = compensation.override_at ? `עודכן ${new Date(compensation.override_at).toLocaleString('he-IL')}` : 'נערך ידנית';
+      detail.append(audit);
+    }
+    if (editable) {
+      const edit = document.createElement('button');
+      edit.type = 'button'; edit.className = 'av2-btn av2-btn--link'; edit.textContent = 'עריכה';
+      edit.addEventListener('click', () => {
+        edit.hidden = true;
+        const input = document.createElement('input');
+        input.type = 'number'; input.min = '0'; input.step = '1'; input.value = String(compensation.final_cancellation_minutes);
+        input.className = 'av2-rr__travel-minutes'; input.setAttribute('aria-label', 'משך ביטול זמן בדקות');
+        const save = document.createElement('button'); save.type = 'button'; save.className = 'av2-btn av2-btn--link'; save.textContent = 'שמירה';
+        save.addEventListener('click', async () => {
+          save.disabled = true;
+          try { await overrideTravelCompensation(record.id, Number(input.value)); onRefresh(); }
+          catch (error) { save.disabled = false; save.textContent = error.message || 'השמירה נכשלה'; }
+        });
+        detail.append(input, save); input.focus(); input.select();
+      });
+      detail.append(edit);
+    }
+    row.append(detail);
+  } else if (compensation && compensation.calculation_status !== 'resolved') {
+    const pending = document.createElement('div');
+    pending.className = 'av2-rr__travel-compensation av2-rr__travel-compensation--pending';
+    pending.textContent = 'חישוב ביטול הזמן לפי נסיעה טרם הושלם.';
+    if (editable) {
+      const retry = document.createElement('button'); retry.type = 'button'; retry.className = 'av2-btn av2-btn--link'; retry.textContent = 'נסה לחשב שוב';
+      retry.addEventListener('click', async () => { retry.disabled = true; await reconcileTravelCompensation(record.id); onRefresh(); });
+      pending.append(retry);
+    }
+    row.append(pending);
+  } else if (generated) {
+    row.dataset.generatedCompensation = generated.id;
+  }
 
   // Notes expandable (notes only, not shown in main grid)
   if (record.notes) {

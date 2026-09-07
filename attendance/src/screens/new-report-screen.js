@@ -32,10 +32,13 @@ import {
   createRecord,
   getMonthApproval,
   createAttachmentRecord,
+  getOperationOptions,
+  reconcileTravelCompensation,
 } from '../services/attendance.service.js';
 import { canEditMonth, editBlockReason, getMonthKey } from '../services/month-gate.service.js';
 import { uploadAttachment } from '../services/storage.service.js';
 import { attendanceDateWarning } from '../services/activity-date-warning.js';
+import { formatTravelMinutes } from '../components/report-summary-row.js';
 
 const TIME_MINUTE_STEP = 5;
 const COURSE_REPORT_TYPE = 'קורס';
@@ -152,6 +155,8 @@ export function renderNewReportScreen(container, {
   let expDetailField = null;
   let notesField = null;
   let attachmentUi = null;
+  let operationOptions = [];
+  let operationChoiceField = null;
 
   function getReportDate() {
     return dateField?.input?.value || defaultDate;
@@ -229,6 +234,18 @@ export function renderNewReportScreen(container, {
 
   function setTrainingDescVisible(visible) {
     if (trainingDescWrap) trainingDescWrap.hidden = !visible;
+    if (visible) syncOperationDetailVisibility();
+  }
+
+  function syncOperationDetailVisibility() {
+    if (!trainingDescField?.wrap || !operationChoiceField?.input) return;
+    const chosen = operationOptions.find((item) => item.id === operationChoiceField.input.value);
+    trainingDescField.wrap.hidden = !chosen?.is_other;
+  }
+
+  function operationSnapshot() {
+    const chosen = operationOptions.find((item) => item.id === operationChoiceField?.input?.value);
+    return chosen?.is_other ? trainingDescField.input.value.trim() : String(chosen?.label || '').trim();
   }
 
   function setLocationFieldsVisible(visible) {
@@ -706,6 +723,7 @@ export function renderNewReportScreen(container, {
       placeholder: 'בחר פעילות',
       searchPlaceholder: 'חיפוש פעילות…',
       emptyText: 'לא נמצאו פעילויות',
+      searchMode: 'extended-only',
       filterFn: (option, q) => String(option.searchText || option.label || '').includes(q),
       extendedSearch: {
         label: 'חיפוש מורחב',
@@ -732,15 +750,24 @@ export function renderNewReportScreen(container, {
 
     trainingDescWrap = document.createElement('div');
     trainingDescWrap.hidden = true;
+    const legacyOperationSnapshot = initialReportType === OPERATIONS_REPORT_TYPE ? String(prefill?.activity_name_snapshot || '') : '';
+    const matchedOperation = operationOptions.find((item) => !item.is_other && item.label === legacyOperationSnapshot);
+    const otherOperation = operationOptions.find((item) => item.is_other);
+    operationChoiceField = createSelectField({
+      id: 'av2-operation-choice',
+      label: 'פרטי תפעול *',
+      options: [{ value: '', label: 'בחר סוג תפעול…' }, ...operationOptions.map((item) => ({ value: item.id, label: item.label }))],
+      value: matchedOperation?.id || (legacyOperationSnapshot ? otherOperation?.id : ''),
+    });
     trainingDescField = createInputField({
       id: 'av2-operation-desc',
-      label: 'פרטי תפעול *',
-      placeholder: 'לדוגמה: פגישת צוות, הכנת ציוד או עבודה תפעולית',
-      value: prefill?.activity_type === OPERATIONS_REPORT_TYPE
-        ? (prefill.activity_name_snapshot || '')
-        : '',
+      label: 'פירוט אחר *',
+      placeholder: 'יש לפרט את סוג התפעול',
+      value: legacyOperationSnapshot && !matchedOperation ? legacyOperationSnapshot : '',
     });
-    trainingDescWrap.append(trainingDescField.wrap);
+    operationChoiceField.input.addEventListener('change', syncOperationDetailVisibility);
+    trainingDescWrap.append(operationChoiceField.wrap, trainingDescField.wrap);
+    syncOperationDetailVisibility();
 
     authSel = createSearchableSelect({
       id: 'av2-authority',
@@ -860,6 +887,13 @@ export function renderNewReportScreen(container, {
     const timesGrid = document.createElement('div');
     timesGrid.className = 'av2-report__times-grid';
     timesGrid.append(startPicker.wrap, endPicker.wrap, hoursDisplay, publicTransportToggle, kmField.wrap, publicTransportCostWrap);
+    const existingCompensation = prefill?.travel_compensation;
+    if (existingCompensation?.calculation_status === 'resolved' && Number(existingCompensation.final_cancellation_minutes) > 0) {
+      const compensationRow = document.createElement('div');
+      compensationRow.className = 'av2-report__time-cancellation';
+      compensationRow.innerHTML = `<strong>ביטול זמן</strong><span>${formatTravelMinutes(existingCompensation.final_cancellation_minutes)}</span><small>מחושב אוטומטית לפי זמן הנסיעה</small>`;
+      timesGrid.append(compensationRow);
+    }
 
     expField = createInputField({
       id: 'av2-expenses',
@@ -1087,8 +1121,10 @@ export function renderNewReportScreen(container, {
       if (requiresActivityName(reportType) && !activityNameSel.getLabel().trim()) {
         markInvalid(activityNameSel.wrap, 'שם פעילות');
       }
-      if (isOpen && !trainingDescField.input.value.trim()) {
-        markInvalid(trainingDescField.wrap, 'פרטי תפעול');
+      if (isOpen && !operationChoiceField.input.value) {
+        markInvalid(operationChoiceField.wrap, 'פרטי תפעול');
+      } else if (isOpen && !operationSnapshot()) {
+        markInvalid(trainingDescField.wrap, 'פירוט אחר');
       }
       if (!dateStr) markInvalid(dateField.wrap, 'תאריך');
       if (!startTime) markInvalid(startPicker.wrap, 'שעת התחלה');
@@ -1115,7 +1151,7 @@ export function renderNewReportScreen(container, {
 
       let activityNameSnapshot = null;
       if (isOpen) {
-        activityNameSnapshot = trainingDescField.input.value.trim() || OPERATIONS_REPORT_TYPE;
+        activityNameSnapshot = operationSnapshot();
       } else if (requiresActivityName(reportType)) {
         activityNameSnapshot = activityNameSel.getLabel().trim() || (activity?.activity_name ?? null);
       } else if (isNoActivity) {
@@ -1164,6 +1200,11 @@ export function renderNewReportScreen(container, {
         };
 
         const record = await createRecord(instructor.empId, payload);
+        const travelResult = await reconcileTravelCompensation(record.id);
+        if (travelResult?.status === 'unavailable') {
+          errorEl.textContent = 'הדיווח נשמר. חישוב זמן הנסיעה טרם הושלם וניתן לנסות שוב מהדיווחים שלי.';
+          errorEl.hidden = false;
+        }
         const failedFiles = await uploadPendingFiles(record.id);
         if (failedFiles.length) {
           savedRecordForAttachmentRetry = record;
@@ -1190,14 +1231,16 @@ export function renderNewReportScreen(container, {
   Promise.all([
     getInstructorActivities(instructor.empId, defaultDate),
     getAllAuthoritySchoolList(instructor.empId),
+    getOperationOptions(),
   ])
-    .then(([activities, allAuthorities]) => {
+    .then(([activities, allAuthorities, operations]) => {
       instructorActivities = activities;
       assignmentAuthoritySchoolData = deriveAuthoritySchoolListFromActivities(activities);
       if (!assignmentAuthoritySchoolData.length) {
         assignmentAuthoritySchoolData = allAuthorities;
       }
       allAuthoritySchoolData = allAuthorities;
+      operationOptions = operations;
     })
     .catch(() => {})
     .finally(() => {

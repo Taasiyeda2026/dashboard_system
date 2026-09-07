@@ -15,11 +15,11 @@ const attendanceSwSource = await readFile(new URL('../attendance/sw.js', import.
 const attendanceIndexSource = await readFile(new URL('../attendance/index.html', import.meta.url), 'utf8');
 const calSource     = await readFile(new URL('../attendance/src/components/mini-calendar.js', import.meta.url), 'utf8');
 
-test('Attendance Home is a clean dashboard without a calendar or report list', () => {
+test('Attendance Home is a compact dashboard with source report rows and no calendar', () => {
   // No calendar whatsoever on Home
   assert.doesNotMatch(homeSource, /createMiniCalendar|av2-home__calendar|renderCalendarSection/);
-  // No individual report list / recent section
-  assert.doesNotMatch(homeSource, /renderRecentList|av2-home__recent|av2-home__report-list/);
+  assert.match(homeSource, /av2-home__report-list/);
+  assert.match(homeSource, /אין כרגע דיווחים בחודש זה/);
   // Has the status area and compact action strip
   assert.match(homeSource, /av2-home__status-area/);
   assert.match(homeSource, /av2-home__action-strip/);
@@ -88,7 +88,6 @@ test('Attendance New Report uses two compact desktop cards and instructor activi
   assert.match(newReportLayoutFix, /gap:\s*14px 30px/);
   assert.match(newReportLayoutFix, /max-width:\s*221px/);
   assert.match(newReportStyles, /\.av2-form-section__body--times/);
-  assert.match(newReportStyles, /\.av2-form-section__body--bottom/);
   assert.doesNotMatch(newReportLayoutFix, /av2-planned-activity/);
   assert.match(newReportSource, /deriveAuthoritySchoolListFromActivities/);
   assert.match(newReportSource, /getInstructorActivities/);
@@ -102,8 +101,8 @@ test('Attendance New Report uses two compact desktop cards and instructor activi
   assert.match(activitiesServiceSource, /instructorActivitySelectOptions/);
   assert.match(newReportSource, /תחבורה ציבורית/);
   assert.match(newReportSource, /public_transport_cost/);
-  assert.match(attendanceSwSource, /const CACHE_VERSION = 44;/);
-  assert.match(attendanceIndexSource, /\?v=44/);
+  assert.match(attendanceSwSource, /const CACHE_VERSION = 52;/);
+  assert.match(attendanceIndexSource, /\?v=52/);
 });
 
 test('Attendance New Report keeps mobile fields inside padded page gutters', () => {
@@ -114,8 +113,8 @@ test('Attendance New Report keeps mobile fields inside padded page gutters', () 
   assert.match(newReportLayoutFix, /max-width:\s*100%/);
 });
 
-test('Attendance monthly summary and report rows use unique days and date-only display', () => {
-  assert.match(homeSource, /buildStat\(summary\.recordsCount,\s*'ימים'/);
+test('Attendance monthly summary counts source reports and report rows use date-only display', () => {
+  assert.match(homeSource, /buildStat\(sourceRecords\.length,\s*'דיווחים'/);
   assert.doesNotMatch(reportsSource, /DAY_NAMES_SHORT|dateDay|dayName/);
 });
 

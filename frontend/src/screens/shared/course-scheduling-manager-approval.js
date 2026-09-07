@@ -36,7 +36,18 @@ export async function loadCourseAssignmentManagerApprovalGroups() {
     if (String(error.code || '') === '42501' || text(error.message).includes('scheduling_permission_denied')) return [];
     throw new Error(schedulingApprovalErrorMessage(error));
   }
-  return (Array.isArray(data) ? data : []).map((row) => {
+  const rows = Array.isArray(data) ? data : [];
+  const activityIds = [...new Set(rows.map((row) => text(row?.source_row_id)).filter(Boolean))];
+  let activitiesById = new Map();
+  if (activityIds.length) {
+    const { data: activities, error: activitiesError } = await supabase
+      .from('activities')
+      .select('row_id,activity_type,activity_name,school,authority,activity_manager,start_date,end_date,date_1,start_time,end_time')
+      .in('row_id', activityIds);
+    if (activitiesError) throw new Error(schedulingApprovalErrorMessage(activitiesError));
+    activitiesById = new Map((activities || []).map((activity) => [text(activity.row_id), activity]));
+  }
+  return rows.map((row) => {
     const payload = row?.requested_payload && typeof row.requested_payload === 'object'
       ? row.requested_payload
       : {};
@@ -46,10 +57,8 @@ export async function loadCourseAssignmentManagerApprovalGroups() {
       requested_payload: payload,
       can_approve: true,
       activity: {
+        ...(activitiesById.get(text(row?.source_row_id)) || {}),
         row_id: row?.source_row_id,
-        activity_name: row?.activity_name,
-        school: row?.school,
-        authority: row?.authority,
         instructor_name: payload.draft_instructor_name,
         emp_id: payload.draft_emp_id
       },
