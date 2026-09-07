@@ -3,6 +3,8 @@ import { instructionLanguageLabel, profileSpeaksLanguage, resolveInstructionLang
 const LANGUAGE_LABELS = { he: 'עברית', ar: 'ערבית' };
 /** One-way driving-route home→school hard eligibility limit (km). Inclusive at exactly this value. */
 export const MAX_HOME_DISTANCE_KM = 40;
+/** A manual home-distance exception needs manager approval only from this threshold (km). */
+export const MANAGER_APPROVAL_DISTANCE_KM = 60;
 /** Required gap between consecutive meetings = raw travel minutes + this buffer. Applied once only. */
 export const TRANSITION_BUFFER_MINUTES = 10;
 /** Maximum driving distance allowed between two consecutive activities. */
@@ -24,6 +26,11 @@ export function homeDistanceLimitFailureMessage(distanceKm) {
 export function exceedsHomeDistanceLimit(distanceKm) {
   const km = Number(distanceKm);
   return Number.isFinite(km) && km > MAX_HOME_DISTANCE_KM;
+}
+
+export function homeDistanceRequiresManagerApproval(distanceKm) {
+  const km = Number(distanceKm);
+  return Number.isFinite(km) && km >= MANAGER_APPROVAL_DISTANCE_KM;
 }
 
 export function schedulingQualityBand(score, eligible = true) {
