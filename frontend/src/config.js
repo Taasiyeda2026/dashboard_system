@@ -160,3 +160,4 @@ config.HOTFIX_VERSION = `admin-keyboard-converter-20260831-v1-${config.HOTFIX_VE
 config.HOTFIX_VERSION = `admin-keyboard-converter-compact-20260831-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `proposal-tour-input-performance-20260901-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `proposal-editor-controller-architecture-20260902-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `scheduling-approvals-admin-only-compact-card-20260908-v1-${config.HOTFIX_VERSION}`;
