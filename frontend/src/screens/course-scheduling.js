@@ -830,6 +830,39 @@ function manualCandidateBlocked(candidate = {}) {
   return manualCandidateWarnings(candidate).some((reason) => /חפיפה/.test(reason));
 }
 
+export function manualCandidateConfirmationHtml(confirmation = null) {
+  if (!confirmation) return '';
+  const reasons = Array.isArray(confirmation.reasons) ? confirmation.reasons.filter(text) : [];
+  return `<div class="course-scheduling-overlay" data-manual-candidate-confirmation>
+    <div class="course-scheduling-modal" role="dialog" aria-modal="true" aria-labelledby="manual-candidate-confirmation-title">
+      <h2 id="manual-candidate-confirmation-title">בחירת מדריך ידנית</h2>
+      <p>המדריך שנבחר אינו עומד בכל תנאי ההתאמה לפעילות. האם להמשיך בכל זאת?</p>
+      ${reasons.length ? `<div class="course-scheduling-alert" role="alert"><strong>סיבות אי־ההתאמה:</strong><ul>${reasons.map((reason) => `<li>${escapeHtml(reason)}</li>`).join('')}</ul></div>` : ''}
+      <div class="course-scheduling-detail-actions">
+        <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary" data-cancel-manual-candidate>חזרה</button>
+        <button type="button" class="course-scheduling-btn course-scheduling-btn--primary" data-confirm-manual-candidate>המשך בבחירה ידנית</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+export function openManualCandidateConfirmation(state, candidate) {
+  state.courseSchedulingManualConfirmation = {
+    candidateId: emp(candidate),
+    reasons: manualCandidateWarnings(candidate)
+  };
+}
+
+export function closeManualCandidateConfirmation(state) {
+  state.courseSchedulingManualConfirmation = null;
+}
+
+export function consumeManualCandidateConfirmation(state, candidates = []) {
+  const candidateId = text(state.courseSchedulingManualConfirmation?.candidateId);
+  closeManualCandidateConfirmation(state);
+  return candidates.find((candidate) => emp(candidate) === candidateId) || null;
+}
+
 function manualCandidatePickerHtml(result, state = {}) {
   const candidates = (result?.manualCandidates || result?.checked || []).filter((candidate) => emp(candidate));
   if (!candidates.length) return '';
@@ -1327,6 +1360,7 @@ export const courseSchedulingScreen = {
       const completed = meetingsCompletedForCourse(course, data.meetingState) || 0;
       return `<div class="course-scheduling-overlay" data-cancel-assignment-overlay><div class="course-scheduling-modal" role="dialog" aria-modal="true"><h2>ביטול שיבוץ מדריך</h2><p><b>${escapeHtml(course.instructor_name || course.emp_id)}</b></p><p>${escapeHtml(course.activity_name || '—')} · ${escapeHtml(course.school || '—')}</p>${completed ? '<p class="course-scheduling-alert">הביטול יחול על המשך הפעילות. היסטוריית המפגשים הקודמים תישמר.</p>' : ''}<label>סיבת הביטול *<textarea class="course-scheduling-input" data-cancel-assignment-reason>${escapeHtml(state.courseSchedulingCancelReason || '')}</textarea></label><div class="course-scheduling-detail-actions"><button class="course-scheduling-btn course-scheduling-btn--secondary" data-close-cancel-assignment>חזרה</button><button class="course-scheduling-btn course-scheduling-btn--primary" data-confirm-cancel-assignment>בטל שיבוץ</button></div></div></div>`;
     })() : ''}
+    ${manualCandidateConfirmationHtml(state.courseSchedulingManualConfirmation)}
     </div>`);
   },
 
@@ -1704,14 +1738,11 @@ export const courseSchedulingScreen = {
         candidateButton.hidden = !!query && !text(candidateButton.dataset.manualCandidateSearchText).includes(query);
       });
     });
-    detailRoot.querySelectorAll('[data-manual-candidate]').forEach((button) => {
-      button.addEventListener('click', async () => {
-        if (!canEdit || !selectedCourseId || button.disabled) return;
+    const saveManualCandidate = async (candidate, button) => {
+        if (!canEdit || !selectedCourseId || !candidate || button?.disabled) return;
         const result = resultByCourseId.get(selectedCourseId);
-        const candidate = (result?.manualCandidates || result?.checked || []).find((item) => emp(item) === text(button.dataset.manualCandidate));
         if (!candidate || manualCandidateBlocked(candidate)) return;
-        if (!window.confirm('המדריך אינו עומד בכל תנאי ההתאמה. להמשיך בבחירה ידנית?')) return;
-        button.disabled = true;
+        if (button) button.disabled = true;
         const topCandidate = result?.recommended || result?.bestAvailable || candidate;
         const payload = {
           p_activity_id: selectedCourseId,
@@ -1724,7 +1755,7 @@ export const courseSchedulingScreen = {
         };
         const { error } = await supabase.rpc('save_course_assignment_manual_draft', payload);
         if (error) {
-          button.disabled = false;
+          if (button) button.disabled = false;
           showToast(translateSchedulingAssignmentError(error.message, 'שמירת הבחירה הידנית נכשלה'), 'error');
           return;
         }
@@ -1737,7 +1768,26 @@ export const courseSchedulingScreen = {
         clearScreenDataCache?.();
         showToast('הבחירה הידנית נשמרה כטיוטה. יתר התכנון מתעדכן.', 'success');
         await runFindInstructors();
+    };
+    detailRoot.querySelectorAll('[data-manual-candidate]').forEach((button) => {
+      button.addEventListener('click', () => {
+        if (!canEdit || !selectedCourseId || button.disabled) return;
+        const result = resultByCourseId.get(selectedCourseId);
+        const candidate = (result?.manualCandidates || result?.checked || []).find((item) => emp(item) === text(button.dataset.manualCandidate));
+        if (!candidate || manualCandidateBlocked(candidate)) return;
+        openManualCandidateConfirmation(state, candidate);
+        rerender();
       });
+    });
+    root.querySelector('[data-cancel-manual-candidate]')?.addEventListener('click', () => {
+      closeManualCandidateConfirmation(state);
+      rerender();
+    });
+    root.querySelector('[data-confirm-manual-candidate]')?.addEventListener('click', async (event) => {
+      const result = resultByCourseId.get(selectedCourseId);
+      const candidate = consumeManualCandidateConfirmation(state, result?.manualCandidates || result?.checked || []);
+      rerender();
+      await saveManualCandidate(candidate, event.currentTarget);
     });
 
     const runDistrictSimulation = async () => {
