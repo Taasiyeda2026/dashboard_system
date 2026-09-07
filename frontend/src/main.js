@@ -477,7 +477,7 @@ function applyBootstrapFromLoginData(data) {
   state.effectiveRoutes = effectiveRoutes;
   enforceProposalsAgreementsRoute();
   enforceCourseSchedulingRoute();
-  state.route = resolveAllowedDefaultRoute(data.default_route, state.effectiveRoutes);
+  state.route = resolveInitialAuthenticatedRoute(data.default_route, state.effectiveRoutes);
   saveRoutesToStorage(state.routes, state.route, state.clientSettings);
   consumePendingRouteFromUrlOrSession();
 }
@@ -723,9 +723,8 @@ function instructorOnlyRoutes() {
 
 const INSTRUCTOR_MOBILE_NAV = [
   { route: 'instructor-dashboard', short: 'בית', icon: '🏠' },
-  { route: 'instructor-work-schedule', short: 'סידור', icon: '🗓️' },
-  { route: 'instructor-calendar', short: 'לוח שנה', icon: '📅' },
   { route: 'my-data', short: 'פעילויות', icon: '📋' },
+  { route: 'instructor-calendar', short: 'לוח שנה', icon: '📅' },
   { route: 'instructor-reports', short: 'דיווחים', icon: '📊' },
   { route: null, short: 'נוכחות', icon: '✅', externalUrl: config.instructorAttendanceUrl },
   { route: null, short: 'מצגות', icon: '📂', externalUrlBlank: config.instructorPresentationsUrl }
@@ -834,6 +833,17 @@ function consumePendingRouteFromUrlOrSession() {
     }
   }
   if (!pending) return;
+  // A stale deep link must not replace the instructor portal's first screen.
+  // Normal in-session navigation still uses app:navigate and is unaffected.
+  if (String(state?.user?.role || '').trim() === 'instructor' && !hasMountedAuthenticatedShell) {
+    try { sessionStorage.removeItem('dashboard_pending_route'); } catch { /* ignore */ }
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.delete('route');
+      window.history.replaceState({}, '', url);
+    } catch { /* ignore */ }
+    return;
+  }
   if (!state.token || !effectiveRoutes().length) {
     try { sessionStorage.setItem('dashboard_pending_route', pending); } catch { /* ignore */ }
     return;
@@ -860,6 +870,14 @@ function resolveAllowedDefaultRoute(preferred, routes) {
   const knownRoutes = Array.isArray(routes) ? routes.filter((r) => !!screenLoaders[r] && !PERMANENTLY_DISABLED_ROUTES.has(r)) : [];
   if (preferred && screenLoaders[preferred] && knownRoutes.includes(preferred)) return preferred;
   return knownRoutes[0] || 'my-data';
+}
+
+function resolveInitialAuthenticatedRoute(preferred, routes) {
+  if (String(state?.user?.role || '').trim() === 'instructor' && routes?.includes?.('instructor-dashboard')) {
+    setGlobalActivityPeriod(ACTIVE_ACTIVITY_SEASON);
+    return 'instructor-dashboard';
+  }
+  return resolveAllowedDefaultRoute(preferred, routes);
 }
 
 function resolveAuthenticatedRoute(preferred, routes = effectiveRoutes()) {
@@ -1052,12 +1070,11 @@ function shell(content) {
   const adminSidebarExclude = isAdminUser && !isActiveInstructorPilotUser() ? new Set(['my-data']) : new Set();
   const instructorSidebarItems = [
     { route: 'instructor-dashboard', label: 'לוח בקרה' },
-    { route: 'instructor-work-schedule', label: 'סידור עבודה' },
+    { route: 'my-data', label: 'הפעילויות שלי' },
     { route: 'instructor-calendar', label: 'לוח שנה' },
     { label: 'מערכת נוכחות', externalUrl: config.instructorAttendanceUrl },
     { label: 'מצגות', externalUrlBlank: config.instructorPresentationsUrl },
-    { route: 'instructor-reports', label: 'דיווחים' },
-    { route: 'my-data', label: 'הפעילויות שלי' }
+    { route: 'instructor-reports', label: 'דיווחים' }
   ];
   const regularNav = effectiveRoutes()
     .filter((route) =>
@@ -1125,12 +1142,12 @@ function shell(content) {
         <hr class="shell-sidebar__divider" />
         <nav class="shell-nav">${nav}${attendanceNavBtn}</nav>
         <div class="shell-sidebar__footer" dir="rtl">
-          <div class="shell-period-wrap" data-global-period-wrap>
+          ${isInstructorUser ? '' : `<div class="shell-period-wrap" data-global-period-wrap>
             <button type="button" class="shell-period-btn" data-global-period-toggle aria-haspopup="listbox" aria-expanded="false" aria-label="תקופת פעילות גלובלית" title="${escapeHtml(globalActivityPeriodFullLabel(state.activityPeriodTab))}">${escapeHtml(globalActivityPeriodLabel(state.activityPeriodTab))}</button>
             <div class="shell-period-menu" data-global-period-menu hidden role="listbox" aria-label="בחירת תקופת פעילות">
               ${globalActivityPeriodOptions().map((option) => `<button type="button" class="shell-period-option${normalizeGlobalActivityPeriod(state.activityPeriodTab) === option.value ? ' is-active' : ''}" data-global-period-option="${escapeHtml(option.value)}" role="option" aria-selected="${normalizeGlobalActivityPeriod(state.activityPeriodTab) === option.value ? 'true' : 'false'}"><span>${escapeHtml(option.label)}</span><strong>${escapeHtml(option.shortLabel)}</strong></button>`).join('')}
             </div>
-          </div>
+          </div>`}
           <div class="ds-accent-picker-wrap" data-accent-picker-wrap>
             <button type="button" class="ds-accent-picker-btn" data-accent-picker-btn aria-label="צבע ממשק" title="צבע ממשק"></button>
             <div class="ds-accent-picker-popover" data-accent-picker-popover hidden>
@@ -1768,7 +1785,7 @@ function tryRestoreRoutesInstant() {
     state.effectiveRoutes = effectiveR;
     enforceProposalsAgreementsRoute();
     enforceCourseSchedulingRoute();
-    state.route = resolveAllowedDefaultRoute(saved.defaultRoute || '', state.effectiveRoutes);
+    state.route = resolveInitialAuthenticatedRoute(saved.defaultRoute || '', state.effectiveRoutes);
     restoreScreenCacheFromStorage();
     return true;
   } catch { return false; }
@@ -1875,7 +1892,7 @@ async function restoreSession() {
   await prepareAuthenticatedSupabaseSession();
   const bootstrap = await api.bootstrap();
   applyBootstrapRoutes(bootstrap);
-  state.route = resolveAllowedDefaultRoute(bootstrap.default_route, state.effectiveRoutes);
+  state.route = resolveInitialAuthenticatedRoute(bootstrap.default_route, state.effectiveRoutes);
   saveRoutesToStorage(state.routes, state.route, state.clientSettings);
   consumePendingRouteFromUrlOrSession();
   clearFinancePrefsIfUserChanged(state.user?.user_id);
@@ -2218,6 +2235,11 @@ function bindShell() {
     }
     if (option) {
       ev.stopPropagation();
+      if (String(state?.user?.role || '').trim() === 'instructor') {
+        setGlobalActivityPeriod(ACTIVE_ACTIVITY_SEASON);
+        setPeriodMenuOpen(false);
+        return;
+      }
       const selected = normalizeGlobalActivityPeriod(option.getAttribute('data-global-period-option'));
       // NOTE: the capture-phase listener in activity-period-selector-access-hotfix.js
       // intercepts year-switch clicks first via stopImmediatePropagation, so this

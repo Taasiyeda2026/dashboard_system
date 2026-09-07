@@ -48,7 +48,7 @@ if (!resolvedUrl) {
 
 export const config = {
   apiUrl: resolvedUrl,
-  instructorAttendanceUrl: String(runtimeConfig.instructorAttendanceUrl || 'https://taasiyeda2026.github.io/attendance/').trim(),
+  instructorAttendanceUrl: String(runtimeConfig.instructorAttendanceUrl || 'https://taasiyeda2026.github.io/dashboard_system/attendance/').trim(),
   instructorPresentationsUrl: String(runtimeConfig.instructorPresentationsUrl || 'https://drive.google.com/drive/folders/1qINdcwLXTSmQND6pE_ojjJ18TUuY8UB1?usp=drive_link').trim(),
   attendanceApiUrl: String(runtimeConfig.attendanceApiUrl || 'https://prod-01.israelcentral.logic.azure.com:443/workflows/04031e5e47bd4f6e90abfd3e95b1768b/triggers/manual/paths/invoke?api-version=2016-10-01&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=HrWXi-vhW2ni_HyFDpZWof0aFU3dGwTrZ-CHiKuwe5Q').trim(),
   DIAGNOSTICS_UI_ENABLED: false,
@@ -76,6 +76,7 @@ config.HOTFIX_VERSION = `course-scheduling-recommendation-card-ui-20260817-v1-${
 config.HOTFIX_VERSION = `course-scheduling-top-three-ui-20260817-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `course-scheduling-concise-rejections-20260817-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `instructor-portal-20260906-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `instructor-portal-production-fixes-20260907-v1-${config.HOTFIX_VERSION}`;
 
 config.HOTFIX_VERSION = `payroll-control-review-states-20260817-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `payroll-control-zero-kilometers-20260817-v1-${config.HOTFIX_VERSION}`;

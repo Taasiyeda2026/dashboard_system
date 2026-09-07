@@ -13,10 +13,12 @@ const basicRows = [
   { RowID: 'three', emp_id: 'B-1', emp_id_2: 'A-1', activity_name: 'מדריך שני', activity_type: 'סדנה', start_date: '2026-09-04' }
 ];
 
-test('dashboard defines exactly the six requested shortcuts and reuses configured external links', () => {
+test('dashboard defines title-only shortcuts without a separate work schedule card', () => {
   const source = fs.readFileSync(new URL('../frontend/src/screens/instructor-portal/dashboard.js', import.meta.url), 'utf8');
-  assert.equal((source.match(/action: '/g) || []).length, 6);
-  for (const label of ['סידור עבודה', 'לוח שנה', 'מערכת נוכחות', 'מצגות', 'דיווחים', 'הפעילויות שלי']) assert.match(source, new RegExp(label));
+  assert.equal((source.match(/action: '/g) || []).length, 5);
+  for (const label of ['לוח שנה', 'מערכת נוכחות', 'מצגות', 'דיווחים', 'הפעילויות שלי']) assert.match(source, new RegExp(label));
+  assert.doesNotMatch(source, /title: 'סידור עבודה'/);
+  assert.doesNotMatch(source, /subtitle:/);
   assert.match(source, /config\.instructorAttendanceUrl/);
   assert.match(source, /config\.instructorPresentationsUrl/);
 });
@@ -32,13 +34,26 @@ test('work schedule reuses ready-course source and scopes it to authenticated in
   assert.deepEqual(instructorScheduleRows([make('mine', 'A-1'), make('other', 'B-1')], stateA).map((row) => row.name), ['mine']);
 });
 
-test('organizational calendar combines all sectors and birthdays without instructor-sector filtering', () => {
+test('organizational calendar hides sectors while preserving distinct events and birthdays', () => {
   const sectors = ['general', 'jewish', 'arab', 'druze'];
   const rows = sectors.map((calendar_sector) => ({ start_date: '2026-09-08', end_date: '2026-09-08', title: calendar_sector, category: 'holiday', calendar_sector, is_active: true }));
   const events = organizationalEventsForDate(rows, [{ employee_name: 'נועה', birth_month: 9, birth_day: 8 }], '2026-09-08');
   assert.equal(events.length, 5);
   sectors.forEach((sector) => assert.ok(events.some((event) => event.title === sector)));
+  events.forEach((event) => assert.doesNotMatch(event.displayTitle, /יהודי|ערבי|דרוזי/));
   assert.match(organizationalCalendarDayLabel(events), /יום הולדת לנועה/);
+});
+
+test('organizational calendar consolidates only equivalent cross-sector occurrences', () => {
+  const base = { start_date: '2026-12-24', end_date: '2027-01-08', title: 'חופשת חורף', category: 'חופשה', day_status: 'חופשה', is_active: true };
+  const rows = [
+    { ...base, external_key: 'ARAB-WINTER', calendar_sector: 'arab' },
+    { ...base, external_key: 'DRUZE-WINTER', calendar_sector: 'druze' },
+    { ...base, external_key: 'OTHER', calendar_sector: 'general', title: 'אירוע אחר' }
+  ];
+  const birthdays = [{ employee_name: 'נועה', birth_month: 12, birth_day: 24 }, { employee_name: 'רוני', birth_month: 12, birth_day: 24 }];
+  const events = organizationalEventsForDate(rows, birthdays, '2026-12-24');
+  assert.deepEqual(events.map((event) => event.displayTitle), ['אירוע אחר', 'חופשת חורף', '🎂 יום הולדת לנועה', '🎂 יום הולדת לרוני']);
 });
 
 test('manager and instructor schedules consume the same responsive course table renderer', () => {
@@ -56,6 +71,8 @@ test('portal calendar stays a seven-column grid with compact mobile day details'
   assert.match(source, /ds-cal-grid/);
   assert.match(source, /ds-interactive-card--day-cell|variant: 'day-cell'/);
   assert.match(source, /ui\?\.openDrawer/);
+  assert.doesNotMatch(source, /חגים, חופשות, מועדים וימי הולדת מכל המגזרים/);
+  assert.match(source, /events\.length > 1/);
 });
 
 test('my activities provides mobile cards that open the shared activity drawer', () => {
@@ -63,6 +80,8 @@ test('my activities provides mobile cards that open the shared activity drawer',
   assert.match(source, /portal-activities-mobile/);
   assert.match(source, /portal-activity-card/);
   assert.match(source, /activityWorkDrawerHtml/);
+  assert.match(source, /data-open-work-schedule/);
+  assert.doesNotMatch(source, /<th>סוג<\/th>/);
 });
 
 test('instructor navigation keeps portal areas and omits approvals and guidelines from visible nav', () => {
@@ -70,12 +89,43 @@ test('instructor navigation keeps portal areas and omits approvals and guideline
   const sidebar = source.slice(source.indexOf('const instructorSidebarItems'), source.indexOf('const regularNav'));
   assert.doesNotMatch(sidebar, /instructor-completion-approvals|instructor-guidelines/);
   assert.match(sidebar, /instructor-dashboard/);
-  assert.match(sidebar, /instructor-work-schedule/);
+  assert.match(sidebar, /my-data/);
+  assert.doesNotMatch(sidebar, /instructor-work-schedule/);
+  assert.ok(sidebar.indexOf('instructor-dashboard') < sidebar.indexOf('my-data'));
+  const mobile = source.slice(source.indexOf('const INSTRUCTOR_MOBILE_NAV'), source.indexOf('function instructorBottomNavHtml'));
+  assert.ok(mobile.indexOf('instructor-dashboard') < mobile.indexOf('my-data'));
+  assert.doesNotMatch(mobile, /instructor-work-schedule/);
+  for (const route of ['instructor-calendar', 'instructor-reports']) assert.match(mobile, new RegExp(route));
+  assert.match(source, /resolveInitialAuthenticatedRoute/);
+  assert.match(source, /role \|\| ''\)\.trim\(\) === 'instructor'.*instructor-dashboard/s);
+  assert.match(source, /isInstructorUser \? '' : `<div class="shell-period-wrap"/);
+});
+
+test('instructor attendance URL targets the deployed dashboard attendance path', () => {
+  const source = fs.readFileSync(new URL('../frontend/src/config.js', import.meta.url), 'utf8');
+  assert.match(source, /https:\/\/taasiyeda2026\.github\.io\/dashboard_system\/attendance\//);
+});
+
+test('instructor calendar wrapping and birthday decoration are role scoped', () => {
+  const css = fs.readFileSync(new URL('../frontend/src/styles/main.css', import.meta.url), 'utf8');
+  const birthdays = fs.readFileSync(new URL('../frontend/src/birthday-calendar.js', import.meta.url), 'utf8');
+  assert.match(css, /route-instructor-calendar[^}]+ds-interactive-card__subtitle[^}]+white-space:normal/);
+  assert.match(css, /activity-drawer__form--instructor-limited/);
+  assert.match(birthdays, /app-shell--instructor\.route-instructor-calendar/);
+});
+
+test('capture-phase period switching also refuses instructor year changes', () => {
+  const source = fs.readFileSync(new URL('../frontend/src/activity-period-selector-access-hotfix.js', import.meta.url), 'utf8');
+  assert.match(source, /effectiveInitialPeriod/);
+  assert.match(source, /role \|\| ''\)\.trim\(\) === 'instructor'/);
+  assert.match(source, /setGlobalActivityPeriod\(ACTIVE_ACTIVITY_SEASON\)/);
 });
 
 test('instructor activity drawer is shared, read-only, includes contact, and omits admin actions', () => {
-  const html = activityWorkDrawerHtml({ RowID: '1', activity_name: 'סדנה', activity_type: 'סדנה', school: 'בית ספר', authority: 'רשות', contact_name: 'נועה', contact_phone: '0501234567' }, { instructorLimited: true, canEdit: false, canDirectEdit: false, canRequestEdit: false, canDeleteActivity: false, exportAction: false });
+  const html = activityWorkDrawerHtml({ RowID: '1', activity_name: 'סדנה', activity_type: 'סדנה', school: 'בית ספר', authority: 'רשות', emp_id_2: 'A-1', resolved_contact_name: 'נועה', resolved_contact_phone: '0501234567', price: '900', funding: 'פנימי' }, { instructorLimited: true, currentInstructorIds: ['A-1'], currentInstructorName: 'רות', canEdit: false, canDirectEdit: false, canRequestEdit: false, canDeleteActivity: false, exportAction: false });
   assert.match(html, /נועה/);
+  assert.match(html, /רות/);
+  assert.doesNotMatch(html, /מדריך לא תקף|מדריך לא קיים|מחיר|מימון|900|פנימי/);
   assert.doesNotMatch(html, /data-action="edit"|data-action="delete"|data-action="save"/);
 });
 

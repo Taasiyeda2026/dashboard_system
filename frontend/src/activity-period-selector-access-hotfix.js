@@ -1,5 +1,6 @@
 import { state, setGlobalActivityPeriod } from './state.js';
 import {
+  ACTIVE_ACTIVITY_SEASON,
   defaultMonthForGlobalActivityPeriod,
   globalActivityPeriodFullLabel,
   globalActivityPeriodLabel,
@@ -55,8 +56,11 @@ function refreshCurrentRoute() {
 }
 
 const { period: initialPeriod, didCutover } = storedOrDefaultPeriod();
-setGlobalActivityPeriod(initialPeriod, { persist: false });
-syncDashboardMonthToPeriod(initialPeriod);
+const effectiveInitialPeriod = String(state?.user?.role || '').trim() === 'instructor'
+  ? ACTIVE_ACTIVITY_SEASON
+  : initialPeriod;
+setGlobalActivityPeriod(effectiveInitialPeriod, { persist: false });
+syncDashboardMonthToPeriod(effectiveInitialPeriod);
 if (didCutover) clearPeriodScreenCache();
 state.archiveActivityPeriod = null;
 
@@ -97,6 +101,11 @@ document.addEventListener('click', (event) => {
   // and the competing microtask in shell-period-selector.js from running.
   event.preventDefault();
   event.stopImmediatePropagation();
+
+  if (String(state?.user?.role || '').trim() === 'instructor') {
+    setGlobalActivityPeriod(ACTIVE_ACTIVITY_SEASON);
+    return;
+  }
 
   const selected = normalizeGlobalActivityPeriod(option.getAttribute('data-global-period-option'));
   setGlobalActivityPeriod(selected);

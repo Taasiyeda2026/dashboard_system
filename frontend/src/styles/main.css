@@ -19962,6 +19962,14 @@ select.ds-input {
 .instr-calendar-day .instr-status{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .instr-calendar-day .instr-day-count{max-width:100%}
 .route-my-data .instructor-area{max-width:960px;margin-inline:auto;width:100%}
+.instructor-my-activities-actions{display:flex;justify-content:flex-start}
+.instructor-portal-shortcut{min-height:76px;align-items:center;justify-content:center;text-align:center}
+.instructor-portal-shortcut .ds-interactive-card__title{font-size:1rem;line-height:1.35;text-align:center;width:100%}
+.activity-drawer__form--instructor-limited{display:grid;gap:14px;direction:rtl}
+.activity-drawer__instructor-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.activity-drawer__form--instructor-limited .activity-drawer__field{min-width:0}
+.activity-drawer__form--instructor-limited .activity-drawer__view{white-space:normal;overflow-wrap:anywhere;line-height:1.45}
+.activity-drawer__instructor-actions{display:flex;justify-content:flex-end}
 .route-instructor-completion-approvals .instructor-area{max-width:840px;margin-inline:auto;width:100%}
 
 /* Compact instructor calendar page only */
@@ -19983,7 +19991,9 @@ select.ds-input {
 .route-instructor-calendar .instr-calendar-day div{gap:3px}
 .route-instructor-calendar .instr-day-count,.route-instructor-calendar .instr-calendar-day .instr-status{font-size:9.5px;padding:1px 5px;line-height:1.1}
 .route-instructor-calendar .instr-calendar-day.is-today{border:2px solid #22afcb;background:#eaf9fc;box-shadow:inset 0 0 0 1px rgba(34,175,203,.18)}
-@media (max-width:900px){.route-instructor-calendar .shell-main{padding:8px 6px}.route-instructor-calendar .instr-calendar-card{width:100%;padding:6px}.route-instructor-calendar .instr-calendar-day{min-height:52px;padding:3px 4px}.route-instructor-calendar .instr-calendar-toolbar{align-items:flex-start;flex-direction:column}}
+.route-instructor-calendar .ds-interactive-card--day-cell,.route-instructor-calendar .ds-interactive-card--day-cell>*{min-width:0;max-width:100%}
+.route-instructor-calendar .ds-interactive-card--day-cell .ds-interactive-card__subtitle,.route-instructor-calendar .birthday-calendar-label{white-space:normal;overflow-wrap:anywhere;word-break:normal;line-height:1.35;text-align:center}
+@media (max-width:900px){.route-instructor-calendar .shell-main{padding:8px 6px}.route-instructor-calendar .instr-calendar-card{width:100%;padding:6px}.route-instructor-calendar .instr-calendar-day{min-height:52px;padding:3px 4px}.route-instructor-calendar .instr-calendar-toolbar{align-items:flex-start;flex-direction:column}.activity-drawer__instructor-grid{grid-template-columns:1fr}}
 
 /* Instructor My Activities compact daily workflow */
 .instructor-area--table{max-width:980px;margin-inline:auto;width:100%;gap:10px}
