@@ -1,5 +1,23 @@
 export const SCHEDULING_SEASON = 'school_2027';
 
+export const SCHEDULABLE_ACTIVITY_TYPES = new Set([
+  'course', 'program', 'קורס', 'קורסים', 'תוכנית', 'תכנית',
+  'workshop', 'סדנה', 'סדנא', 'סדנאות',
+  'tour', 'סיור', 'סיורים'
+]);
+
+export function isSchedulableActivityType(value) {
+  return SCHEDULABLE_ACTIVITY_TYPES.has(String(value ?? '').trim().toLocaleLowerCase('he-IL'));
+}
+
+export function schedulingActivityTypeCategory(value) {
+  const type = String(value ?? '').trim().toLocaleLowerCase('he-IL');
+  if (['course', 'program', 'קורס', 'קורסים', 'תוכנית', 'תכנית'].includes(type)) return 'course';
+  if (['workshop', 'סדנה', 'סדנא', 'סדנאות'].includes(type)) return 'workshop';
+  if (['tour', 'סיור', 'סיורים'].includes(type)) return 'tour';
+  return '';
+}
+
 export const BLOCKED_SCHEDULING_STATUSES = new Set([
   'סגור', 'closed', 'בוטל', 'cancelled', 'canceled', 'נמחק', 'deleted', 'inactive', 'לא פעיל'
 ]);
@@ -25,10 +43,9 @@ export function isSchedulingBlockingAssignment(activity = {}) {
 export function isActivitySchedulingEligible(activity) {
   if (!activity || String(activity.activity_season ?? '').trim() !== SCHEDULING_SEASON) return false;
   const status = normalizeSchedulingStatus(activity.status ?? activity.activity_status);
-  const type = String(activity.activity_type ?? activity.type ?? '').trim().toLocaleLowerCase('he-IL');
-  const isCourse = ['קורס', 'course', 'program'].includes(type);
+  const isSupportedActivity = isSchedulableActivityType(activity.activity_type ?? activity.type);
   const isOpen = ['פתוח', 'open'].includes(status);
-  return isCourse && isOpen && !BLOCKED_SCHEDULING_STATUSES.has(status) && !hasAssignedInstructor(activity);
+  return isSupportedActivity && isOpen && !BLOCKED_SCHEDULING_STATUSES.has(status) && !hasAssignedInstructor(activity);
 }
 
 const text = (value) => String(value ?? '').trim();
@@ -70,7 +87,7 @@ function hasValidSchoolId(value) {
 /** Single source of truth for data allowed into the scheduling UI and engine. */
 export function activitySchedulingReadinessMissingFields(activity = {}) {
   const missing = [];
-  if (!text(activity.activity_name || activity.program_name || activity.name || activity.title)) missing.push('שם קורס');
+  if (!text(activity.activity_name || activity.program_name || activity.name || activity.title)) missing.push('שם פעילות');
   if (!hasValidSchoolId(activity.school_id)) missing.push('בית ספר');
   if (!text(activity.school_address)) missing.push('כתובת בית ספר תקינה');
   const meetings = schedulingMeetings(activity);

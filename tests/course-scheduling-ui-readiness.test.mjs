@@ -76,7 +76,7 @@ test('courses start collapsed and render details only after course selection', (
   assert.match(html, /data-course-card="later"/);
   assert.doesNotMatch(html, /course-scheduling-course-card is-selected/);
   assert.doesNotMatch(html, /data-expanded-course-details/);
-  assert.match(html, /בחר קורס כדי להתחיל/);
+  assert.match(html, /בחרו פעילות כדי להתחיל/);
 
   state.courseSchedulingSelectedId = 'later';
   const openedHtml = courseSchedulingScreen.render({
@@ -90,7 +90,7 @@ test('courses start collapsed and render details only after course selection', (
   assert.match(openedHtml, /course-scheduling-course-card is-selected/);
   assert.match(openedHtml, /data-expanded-course-details/);
   assert.match(openedHtml, /מצא מדריכים מתאימים/);
-  assert.doesNotMatch(openedHtml, /בחר קורס כדי להתחיל/);
+  assert.doesNotMatch(openedHtml, /בחרו פעילות כדי להתחיל/);
   assert.doesNotMatch(html, /טרם בוצע חישוב/);
   assert.doesNotMatch(html, /בניית ועדכון מאגר מרחקים/);
   assert.doesNotMatch(html, /מוכנות לשיבוץ/);
@@ -137,8 +137,27 @@ test('empty selection prompt appears only when no course can be auto-selected', 
     scheduling: {},
     meetingState: { loaded: true, approvedDates: new Map(), cancelledDates: new Map(), error: '' }
   }, { state: { user: { role: 'admin' } } });
-  assert.match(html, /אין קורסים לשיבוץ כרגע/);
+  assert.match(html, /אין פעילויות לשיבוץ כרגע/);
   assert.doesNotMatch(html, /מצא מדריכים מתאימים/);
+});
+
+test('course, workshop and tour appear in the scheduling UI with a four-way type filter', () => {
+  const ready = (type, row_id) => openCourse({
+    row_id, activity_type: type, start_date: '2026-09-08', start_time: '10:00',
+    date_1: '2026-09-08', school_id: 7, school_address: 'רחוב הבדיקה 1', instruction_language: 'he'
+  });
+  const data = {
+    activities: [ready('course', 'course-1'), ready('workshop', 'workshop-1'), ready('tour', 'tour-1'), ready('lecture', 'other-1')],
+    instructors: [], scheduling: {},
+    meetingState: { loaded: true, approvedDates: new Map(), cancelledDates: new Map(), error: '' }
+  };
+  const html = courseSchedulingScreen.render(data, { state: { user: { role: 'admin' } } });
+  assert.match(html, /data-course-card="course-1"/);
+  assert.match(html, /data-course-card="workshop-1"/);
+  assert.match(html, /data-course-card="tour-1"/);
+  assert.doesNotMatch(html, /data-course-card="other-1"/);
+  assert.match(html, /data-activity-type-filter/);
+  assert.match(html, />הכול<\/option>[\s\S]*>קורסים<\/option>[\s\S]*>סדנאות<\/option>[\s\S]*>סיורים<\/option>/);
 });
 
 test('non-admin users do not reach maintenance controls', () => {
@@ -194,7 +213,7 @@ test('meeting-state load failure does not dump technical warnings into the main 
     meetingState: { loaded: false, approvedDates: new Map(), cancelledDates: new Map(), error: 'permission denied' }
   }, { state: { user: { role: 'admin' } } });
   assert.match(html, /data-course-card="a"/);
-  assert.match(html, /בחר קורס כדי להתחיל/);
+  assert.match(html, /בחרו פעילות כדי להתחיל/);
   assert.doesNotMatch(html, /permission denied/);
   assert.doesNotMatch(html, /מידע על מפגשים שהתקיימו או בוטלו לא נטען/);
 });
@@ -327,7 +346,7 @@ test('removed legacy calendar tab state falls back to the approved courses works
   assert.match(html, /data-cs-tab="calendar"/);
   assert.match(html, /data-instructors-workspace-tab="scheduling"[^>]*aria-selected="true"/);
   assert.match(html, /data-course-card="a1"/);
-  assert.match(html, /בחר קורס כדי להתחיל/);
+  assert.match(html, /בחרו פעילות כדי להתחיל/);
   assert.doesNotMatch(html, /course-scheduling-calendar-pane/);
   assert.doesNotMatch(html, /data-switch-tab=/);
 });
