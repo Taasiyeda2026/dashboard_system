@@ -5,12 +5,11 @@ import { loadInstructorActivities, monthlyInstructorSummary } from './portal-dat
 
 let selectedMonth = new Date().toISOString().slice(0, 7);
 export const PORTAL_SHORTCUTS = Object.freeze([
-  { title: 'סידור עבודה', action: 'route:instructor-work-schedule', subtitle: 'הקורסים והמפגשים ששובצו לך' },
-  { title: 'לוח שנה', action: 'route:instructor-calendar', subtitle: 'חגים, חופשות ואירועים ארגוניים' },
-  { title: 'מערכת נוכחות', action: 'external:attendance', subtitle: 'מעבר למערכת הדיווח הקיימת' },
-  { title: 'מצגות', action: 'external:presentations', subtitle: 'פתיחת תיקיית המצגות' },
-  { title: 'דיווחים', action: 'route:instructor-reports', subtitle: 'אזור לפיתוח עתידי' },
-  { title: 'הפעילויות שלי', action: 'route:my-data', subtitle: 'כל הפעילויות שמשויכות אליך' }
+  { title: 'לוח שנה', action: 'route:instructor-calendar' },
+  { title: 'מערכת נוכחות', action: 'external:attendance' },
+  { title: 'מצגות', action: 'external:presentations' },
+  { title: 'דיווחים', action: 'route:instructor-reports' },
+  { title: 'הפעילויות שלי', action: 'route:my-data' }
 ]);
 
 export const instructorDashboardScreen = {
@@ -22,7 +21,7 @@ export const instructorDashboardScreen = {
       ${dsPageHeader('לוח בקרה', 'האזור האישי שלך')}
       <label class="instructor-portal-month">חודש <input class="ds-input" type="month" value="${escapeHtml(selectedMonth)}" data-portal-month></label>
       ${dsKpiGrid(kpis)}
-      <div class="instructor-portal-shortcuts">${PORTAL_SHORTCUTS.map((item) => dsInteractiveCard({ action: item.action, title: item.title, subtitle: item.subtitle, variant: 'mini', extraClass: 'instructor-portal-shortcut' })).join('')}</div>
+      <div class="instructor-portal-shortcuts">${PORTAL_SHORTCUTS.map((item) => dsInteractiveCard({ action: item.action, title: item.title, variant: 'mini', extraClass: 'instructor-portal-shortcut' })).join('')}</div>
     </section>`);
   },
   bind({ root, rerender }) {

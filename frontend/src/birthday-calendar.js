@@ -89,6 +89,8 @@ function setMonthBirthdayLabel(card, rows) {
 }
 
 function decorateMonth(rows) {
+  // The instructor portal already renders birthdays from its event model.
+  if (document.querySelector('.app-shell--instructor.route-instructor-calendar')) return;
   const spec = displayedMonthSpec();
   if (!spec) return;
 

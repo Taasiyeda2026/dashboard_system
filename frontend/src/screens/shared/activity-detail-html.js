@@ -1277,7 +1277,39 @@ function jsonAttr(value) {
   }
 }
 
-function singleForm(row, { settings = {}, privateNote = null, canEdit = false, canDirectEdit = false, canRequestEdit = false, canDeleteActivity = false, canSchedule = false, showPrivateNote = false, idx = 0, datesLoading = false, instructorLimited = false } = {}) {
+function instructorLimitedForm(row, { currentInstructorIds = [], currentInstructorName = '' } = {}) {
+  const ids = new Set((Array.isArray(currentInstructorIds) ? currentInstructorIds : [currentInstructorIds]).map((value) => String(value || '').trim()).filter(Boolean));
+  const instructorValue = (name, empId) => {
+    const cleanName = humanDisplayText(name);
+    const cleanId = String(empId || '').trim();
+    if (cleanName) return cleanName;
+    if (cleanId && ids.has(cleanId) && currentInstructorName) return currentInstructorName;
+    return cleanId || '';
+  };
+  const instructors = [
+    instructorValue(row.instructor_name || row.instructor, row.emp_id),
+    instructorValue(row.instructor_name_2 || row.instructor_2, row.emp_id_2)
+  ].filter((value, index, values) => value && values.indexOf(value) === index);
+  const contactName = viewVal(row.resolved_contact_name || row.school_contact_name || row.contact_name);
+  const contactRole = viewVal(row.resolved_contact_role || row.school_contact_role || row.contact_role);
+  const contactPhone = viewVal(row.resolved_contact_phone || row.school_contact_phone || row.contact_phone);
+  const fields = [
+    ['פעילות', fallback(row.activity_name)],
+    ['תאריך', formatDateHe(row.start_date || row.activity_date) || '—'],
+    ['שעות', formatTimeRangeShort(row.start_time, row.end_time) || '—'],
+    ['רשות', fallback(row.authority)],
+    ['בית ספר', fallback(row.school)],
+    ['שכבה / קבוצה', viewVal(row.grade || row.class_group) || '—'],
+    ['מדריך/ה', instructors.join(' · ') || 'לא הוגדר'],
+    contactName || contactRole || contactPhone
+      ? ['איש קשר', [contactName, contactRole, contactPhone].filter(Boolean).join(' · ')]
+      : ['איש קשר', 'לא הוגדר']
+  ];
+  return `<div class="activity-drawer__form activity-drawer__form--instructor-limited" dir="rtl"><div class="activity-drawer__instructor-grid">${fields.map(([label, value]) => fieldViewCard(label, value)).join('')}</div><div class="activity-drawer__instructor-actions"><button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-ui-close-drawer>סגור</button></div></div>`;
+}
+
+function singleForm(row, { settings = {}, privateNote = null, canEdit = false, canDirectEdit = false, canRequestEdit = false, canDeleteActivity = false, canSchedule = false, showPrivateNote = false, idx = 0, datesLoading = false, instructorLimited = false, currentInstructorIds = [], currentInstructorName = '' } = {}) {
+  if (instructorLimited) return instructorLimitedForm(row, { currentInstructorIds, currentInstructorName });
   const computedEnd = autoEndDate(row);
   const activityType = normalizeActivityTypeKey(row.activity_type || row.item_type);
   const is2027 = normalizeActivitySeason(row.activity_season) === ACTIVITY_SEASON_SCHOOL_2027;
@@ -1360,7 +1392,7 @@ export function activityRowDetailHtml(row, { privateNote = null, hideActivityNo 
 }
 
 export function activityWorkDrawerHtml(row, opts = {}) {
-  const { mode = 'single', summaryDate = '', privateNote = null, settings = {}, datesLoading = false, exportAction = true, instructorLimited = false } = opts;
+  const { mode = 'single', summaryDate = '', privateNote = null, settings = {}, datesLoading = false, exportAction = true, instructorLimited = false, currentInstructorIds = [], currentInstructorName = '' } = opts;
   /**
    * 2026 is read-only at the markup level: mutating controls are never rendered for
    * a historical activity, whatever the calling screen passes in.
@@ -1393,7 +1425,9 @@ export function activityWorkDrawerHtml(row, opts = {}) {
             ...capabilitiesFor(item),
             showPrivateNote: privateNote !== null,
             idx,
-            instructorLimited
+            instructorLimited,
+            currentInstructorIds,
+            currentInstructorName
           })}
         </div>
       `)
@@ -1416,7 +1450,9 @@ export function activityWorkDrawerHtml(row, opts = {}) {
         showPrivateNote: privateNote !== null,
         datesLoading,
         idx: 0,
-        instructorLimited
+        instructorLimited,
+        currentInstructorIds,
+        currentInstructorName
       })}
     </div>
   `;
