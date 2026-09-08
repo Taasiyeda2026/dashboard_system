@@ -7,7 +7,9 @@ export function formatTravelMinutes(value) {
 
 export function createReportSummaryRow(record, { onOpen } = {}) {
   const row = document.createElement('button');
-  row.type = 'button'; row.className = 'av2-report-summary-row';
+  row.type = 'button';
+  row.className = 'av2-report-summary-row';
+  if (record?.id != null) row.dataset.recordId = String(record.id);
   row.addEventListener('click', () => onOpen?.(record));
   const date = String(record.report_date || '').split('-').reverse().join('.');
   const compensation = record.travel_compensation;
