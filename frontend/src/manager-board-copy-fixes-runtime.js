@@ -82,7 +82,7 @@ async function refreshMilestones() {
     const badge = row.querySelector('.manager-board-milestone__badge');
     if (!badge) return;
     const current = text(badge.textContent);
-    const typeLabel = typeMap.get(activityKey(name, school)) || (current.includes('סדנה') ? 'סדנה' : 'קורס');
+    const typeLabel = typeMap.get(activityKey(name, school)) || 'פעילות';
     badge.textContent = correctedMilestoneLabel(current, typeLabel);
   });
 }
