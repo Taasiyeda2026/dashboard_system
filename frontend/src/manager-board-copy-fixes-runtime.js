@@ -2,6 +2,7 @@ import { supabase, waitForSupabaseAuthSession } from './supabase-client.js';
 
 const typeCache = new Map();
 let refreshToken = 0;
+let refreshScheduled = false;
 
 function text(value) {
   return String(value ?? '').trim().replace(/\s+/g, ' ');
@@ -83,16 +84,26 @@ async function refreshMilestones() {
     if (!badge) return;
     const current = text(badge.textContent);
     const typeLabel = typeMap.get(activityKey(name, school)) || 'פעילות';
-    badge.textContent = correctedMilestoneLabel(current, typeLabel);
+    const next = correctedMilestoneLabel(current, typeLabel);
+    if (next !== current) badge.textContent = next;
   });
 }
 
 function scheduleRefresh() {
-  queueMicrotask(() => void refreshMilestones());
+  if (refreshScheduled) return;
+  refreshScheduled = true;
+  const run = () => {
+    refreshScheduled = false;
+    void refreshMilestones();
+  };
+  if (typeof requestAnimationFrame === 'function') requestAnimationFrame(run);
+  else setTimeout(run, 0);
 }
 
 if (typeof document !== 'undefined') {
-  const observer = new MutationObserver(scheduleRefresh);
+  const observer = new MutationObserver(() => {
+    if (document.querySelector('[data-manager-board-root]')) scheduleRefresh();
+  });
   observer.observe(document.documentElement, { childList: true, subtree: true });
   document.addEventListener('change', (event) => {
     if (event.target instanceof Element && event.target.matches('[data-manager-board-manager]')) {
