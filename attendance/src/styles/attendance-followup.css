@@ -1,0 +1,94 @@
+/* Follow-up fixes: time cancellation is a real table column and fixed operation addresses stay compact. */
+
+.av2-operation-address[hidden] { display: none !important; }
+.av2-operation-address .av2-field__input[readonly] {
+  background: #f8fafc;
+  color: #334155;
+  cursor: default;
+}
+
+.av2-time-cancel-edit {
+  min-width: 0;
+}
+.av2-time-cancel-edit__note,
+.av2-time-cancel-edit__error {
+  display: block;
+  margin-top: 4px;
+  font-size: .66rem;
+  line-height: 1.25;
+}
+.av2-time-cancel-edit__note { color: var(--av2-color-text-muted); }
+.av2-time-cancel-edit__error { color: #b91c1c; font-weight: 700; }
+
+@media (min-width: 768px) {
+  .av2-report-list__head,
+  .av2-report-row {
+    grid-template-columns:
+      78px  /* date */
+      64px  /* start */
+      64px  /* end */
+      62px  /* hours */
+      72px  /* time cancellation */
+      72px  /* type */
+      minmax(170px, 1.5fr) /* activity */
+      minmax(138px, 1.15fr) /* school */
+      minmax(125px, 1fr) /* authority */
+      46px  /* km */
+      50px  /* expenses */
+      104px /* actions */ !important;
+  }
+
+  .av2-rr__time-cancel-head,
+  .av2-rr__time-cancel {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 0;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .av2-rr__time-cancel {
+    font-size: .72rem;
+    font-weight: 800;
+    color: #334155;
+  }
+
+  .av2-rr__time-cancel.is-pending {
+    color: #9a5b00;
+    font-size: .66rem;
+  }
+
+  /* The old full-width compensation banner is intentionally retired. */
+  .av2-report-row > .av2-rr__travel-compensation {
+    display: none !important;
+  }
+}
+
+@media (max-width: 767px) {
+  .av2-report-row > .av2-rr__time-cancel {
+    display: none !important;
+  }
+
+  .av2-report-row.is-mobile-expanded > .av2-rr__time-cancel {
+    display: grid !important;
+    grid-template-columns: 92px minmax(0, 1fr);
+    align-items: start;
+    gap: 10px;
+    min-width: 0;
+    padding: 8px 12px;
+    border-top: 1px solid #edf1f5;
+    font-size: .72rem;
+  }
+
+  .av2-report-row.is-mobile-expanded > .av2-rr__time-cancel::before {
+    content: attr(data-mobile-label);
+    color: var(--av2-color-text-muted);
+    font-size: .66rem;
+    font-weight: 700;
+  }
+
+  .av2-report-row > .av2-rr__travel-compensation {
+    display: none !important;
+  }
+}
