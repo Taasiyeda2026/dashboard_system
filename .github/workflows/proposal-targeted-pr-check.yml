@@ -30,7 +30,9 @@ jobs:
           tests/proposal-existing-contact-update.test.mjs
           tests/proposals-entry-performance.test.mjs
           tests/client-contact-persistence-flow.test.mjs
-          tests/startup-client-file-performance.test.mjs
+          tests/proposal-editor-compact-fixes.test.mjs
+          tests/proposal-contact-school-source.test.mjs
+          tests/proposal-recipient-search-row-fix.test.mjs
 
       - name: Production build
         env:
