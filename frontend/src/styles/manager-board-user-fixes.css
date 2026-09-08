@@ -38,39 +38,81 @@
   line-height: 1.4;
 }
 
+/* Control points: one compact readable line: activity | school | milestone. */
 .manager-board-screen .manager-board-milestone {
-  grid-template-columns: 54px minmax(0, 1fr);
-  column-gap: 10px;
-  row-gap: 4px;
-  padding: 10px 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 8px;
+  padding: 9px 0;
+  min-width: 0;
 }
 
 .manager-board-screen .manager-board-milestone time {
+  flex: 0 0 54px;
   font-size: 13px;
   font-weight: 800;
   line-height: 1.35;
 }
 
 .manager-board-screen .manager-board-milestone__body {
-  gap: 3px;
+  display: inline-flex;
+  align-items: center;
+  flex: 1 1 auto;
+  min-width: 0;
+  gap: 0;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.manager-board-screen .manager-board-milestone__body strong,
+.manager-board-screen .manager-board-milestone__body span {
+  display: inline-block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .manager-board-screen .manager-board-milestone__body strong {
-  font-size: 15px;
+  flex: 0 1 auto;
+  font-size: 14px;
   line-height: 1.35;
   font-weight: 800;
 }
 
+.manager-board-screen .manager-board-milestone__body strong::after {
+  content: " | ";
+  color: #94a3b8;
+  font-weight: 500;
+  padding-inline: 3px;
+}
+
 .manager-board-screen .manager-board-milestone__body span {
+  flex: 0 1 auto;
   font-size: 13px;
   line-height: 1.4;
 }
 
+.manager-board-screen .manager-board-milestone__body::after {
+  content: " | ";
+  flex: 0 0 auto;
+  color: #94a3b8;
+  font-weight: 500;
+  padding-inline: 3px;
+}
+
+.manager-board-screen .manager-board-milestone:has(.manager-board-milestone__badge[hidden]) .manager-board-milestone__body::after,
+.manager-board-screen .manager-board-milestone:has(.manager-board-milestone__badge:empty) .manager-board-milestone__body::after {
+  display: none;
+}
+
 .manager-board-screen .manager-board-milestone__badge {
-  grid-column: 2;
-  font-size: 12.5px !important;
-  line-height: 1.4;
-  font-weight: 700;
+  flex: 0 0 auto;
+  font-size: 13px !important;
+  line-height: 1.35;
+  font-weight: 800;
+  white-space: nowrap;
 }
 
 .manager-board-screen .manager-workspace-table th {
@@ -104,5 +146,15 @@
 @media (max-width: 1100px) {
   .manager-board-screen .manager-board-calendar-day {
     min-height: 84px;
+  }
+
+  .manager-board-screen .manager-board-milestone {
+    gap: 6px;
+  }
+
+  .manager-board-screen .manager-board-milestone__body strong,
+  .manager-board-screen .manager-board-milestone__body span,
+  .manager-board-screen .manager-board-milestone__badge {
+    font-size: 12.5px !important;
   }
 }
