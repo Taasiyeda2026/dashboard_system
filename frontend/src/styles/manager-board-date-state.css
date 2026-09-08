@@ -1,0 +1,83 @@
+/* Manager board date state: TODAY is accent/bold; elapsed items collapse into a compact monthly group. */
+
+.manager-board-screen .manager-board-milestone.is-today,
+.manager-board-screen .manager-board-school-event.is-today {
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--ds-accent, var(--manager-board-accent, #1a3358)) 8%, #fff);
+  box-shadow: inset 3px 0 0 color-mix(in srgb, var(--ds-accent, var(--manager-board-accent, #1a3358)) 70%, transparent);
+}
+
+.manager-board-screen .manager-board-milestone.is-today time,
+.manager-board-screen .manager-board-milestone.is-today .manager-board-milestone__body strong,
+.manager-board-screen .manager-board-milestone.is-today .manager-board-milestone__body span,
+.manager-board-screen .manager-board-milestone.is-today .manager-board-milestone__badge,
+.manager-board-screen .manager-board-school-event.is-today time,
+.manager-board-screen .manager-board-school-event.is-today span {
+  color: var(--ds-accent, var(--manager-board-accent, #1a3358)) !important;
+  font-weight: 900 !important;
+}
+
+.manager-board-screen .manager-board-milestone.is-past,
+.manager-board-screen .manager-board-school-event.is-past {
+  opacity: .72;
+}
+
+.manager-board-past-details {
+  margin: 4px 0 6px;
+}
+
+.manager-board-past-details__toggle {
+  display: inline-flex;
+  align-items: center;
+  min-height: 23px;
+  padding: 3px 8px;
+  border: 1px solid color-mix(in srgb, var(--ds-accent, var(--manager-board-accent, #1a3358)) 20%, #dbe3ed);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ds-accent, var(--manager-board-accent, #1a3358)) 4%, #fff);
+  color: #64748b;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1.1;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+
+.manager-board-past-details__toggle::-webkit-details-marker { display: none; }
+.manager-board-past-details__toggle::before {
+  content: '▸';
+  margin-inline-end: 4px;
+  color: var(--ds-accent, var(--manager-board-accent, #1a3358));
+  font-size: 9px;
+  transition: transform .15s ease;
+}
+.manager-board-past-details[open] > .manager-board-past-details__toggle::before {
+  transform: rotate(90deg);
+}
+
+.manager-board-past-details__toggle:hover {
+  color: var(--ds-accent, var(--manager-board-accent, #1a3358));
+  background: color-mix(in srgb, var(--ds-accent, var(--manager-board-accent, #1a3358)) 7%, #fff);
+}
+
+.manager-board-past-details__list {
+  margin-top: 4px;
+  border-top: 1px dashed #e5eaf1;
+}
+
+.manager-board-past-details__list .manager-board-milestone,
+.manager-board-past-details__list .manager-board-school-event {
+  padding-block: 5px !important;
+}
+
+.manager-board-past-details__list .manager-board-milestone time,
+.manager-board-past-details__list .manager-board-school-event time {
+  font-size: 11px !important;
+}
+
+.manager-board-past-details__list .manager-board-milestone__body strong,
+.manager-board-past-details__list .manager-board-milestone__body span,
+.manager-board-past-details__list .manager-board-milestone__badge,
+.manager-board-past-details__list .manager-board-school-event span {
+  font-size: 11.5px !important;
+}
