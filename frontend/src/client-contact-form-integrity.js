@@ -43,6 +43,25 @@ function proposalContactClientType(form) {
     || 'school';
 }
 
+function selectedExistingProposalContactSource(form, { hydrate = false } = {}) {
+  const directId = namedValue(form, 'contact_source_id');
+  const directTable = namedValue(form, 'contact_source_table');
+  if (directId) {
+    return { source_id: directId, source_table: directTable || 'contacts_schools' };
+  }
+
+  const payload = readContactOption(selectedContactOption(form));
+  const sourceId = clean(payload?.source_id ?? payload?.id);
+  const sourceTable = clean(payload?.source_table);
+  if (!sourceId || sourceTable !== 'contacts_schools') return null;
+
+  if (hydrate) {
+    setNamedValue(form, 'contact_source_id', sourceId);
+    setNamedValue(form, 'contact_source_table', sourceTable);
+  }
+  return { source_id: sourceId, source_table: sourceTable };
+}
+
 export function isManualProposalContact(form) {
   if (!form?.querySelector?.('[data-pa-contact-channels-fields]')) return false;
   if (namedValue(form, 'contact_selection_mode') !== 'other') return false;
@@ -51,7 +70,7 @@ export function isManualProposalContact(form) {
 
 export function isExistingProposalContact(form) {
   if (!form?.querySelector?.('[data-pa-contact-channels-fields]')) return false;
-  return Boolean(namedValue(form, 'contact_source_id'));
+  return Boolean(selectedExistingProposalContactSource(form));
 }
 
 export function proposalManualContactCandidate(form) {
@@ -218,7 +237,8 @@ export async function saveManualProposalContact(form, dependencies = {}) {
 }
 
 export async function saveExistingProposalContact(form, dependencies = {}) {
-  if (!isExistingProposalContact(form)) return null;
+  const source = selectedExistingProposalContactSource(form, { hydrate: true });
+  if (!source) return null;
   const fields = proposalExistingContactFields(form);
   const validationError = validateExistingProposalContact(fields);
   if (validationError) {
@@ -227,8 +247,8 @@ export async function saveExistingProposalContact(form, dependencies = {}) {
     throw error;
   }
 
-  const sourceId = namedValue(form, 'contact_source_id');
-  const sourceTable = namedValue(form, 'contact_source_table') || 'contacts_schools';
+  const sourceId = source.source_id;
+  const sourceTable = source.source_table;
   const targetApi = dependencies.api || (await import('./api.js')).api;
   if (typeof targetApi?.updateUnifiedContactRecord !== 'function') {
     throw new Error('contact_update_unavailable');
@@ -293,7 +313,8 @@ export function ensureProposalExistingContactUpdate(form) {
   const fields = form?.querySelector?.('[data-pa-contact-channels-fields]');
   if (!fields) return null;
   let button = fields.querySelector('[data-pa-existing-contact-save]');
-  if (!isExistingProposalContact(form)) {
+  const source = selectedExistingProposalContactSource(form, { hydrate: true });
+  if (!source) {
     button?.remove();
     return null;
   }

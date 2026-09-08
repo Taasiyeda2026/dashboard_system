@@ -7,9 +7,9 @@ import {
   saveExistingProposalContact,
 } from '../frontend/src/client-contact-form-integrity.js';
 
-function existingContactFormHtml() {
+function existingContactFormHtml({ hiddenSourceId = '654', payloadHasId = true } = {}) {
   const optionPayload = encodeURIComponent(JSON.stringify({
-    id: 654,
+    ...(payloadHasId ? { id: 654 } : {}),
     source_id: 654,
     source_table: 'contacts_schools',
     contact_name: 'שם ישן',
@@ -19,8 +19,8 @@ function existingContactFormHtml() {
   }));
   return `<main id="app"><form data-pa-form>
     <input type="hidden" name="contact_selection_mode" value="">
-    <input type="hidden" name="contact_source_table" value="contacts_schools">
-    <input type="hidden" name="contact_source_id" value="654">
+    <input type="hidden" name="contact_source_table" value="${hiddenSourceId ? 'contacts_schools' : ''}">
+    <input type="hidden" name="contact_source_id" value="${hiddenSourceId}">
     <input type="hidden" name="contact_source_name" value="שם ישן">
     <input type="hidden" name="contact_source_role" value="תפקיד ישן">
     <input type="hidden" name="contact_source_mobile" value="0500000000">
@@ -53,6 +53,38 @@ test('existing proposal contact receives an explicit update save button', () => 
     assert.ok(button);
     assert.equal(button.textContent, 'שמירת עדכון');
     assert.equal(form.querySelector('[data-pa-manual-contact-save]'), null);
+  } finally {
+    globalThis.document = previousDocument;
+    dom.window.close();
+  }
+});
+
+test('unified view source_id without id still restores the existing-contact save action and database link', async () => {
+  const dom = new JSDOM(existingContactFormHtml({ hiddenSourceId: '', payloadHasId: false }));
+  const { document } = dom.window;
+  const previousDocument = globalThis.document;
+  globalThis.document = document;
+  try {
+    const form = document.querySelector('[data-pa-form]');
+    assert.equal(isExistingProposalContact(form), true, 'selected contacts_schools source_id should identify an existing contact');
+
+    ensureClientContactFormIntegrity(document);
+    assert.ok(form.querySelector('[data-pa-existing-contact-save]'));
+    assert.equal(form.querySelector('[name="contact_source_id"]').value, '654');
+    assert.equal(form.querySelector('[name="contact_source_table"]').value, 'contacts_schools');
+
+    const calls = [];
+    await saveExistingProposalContact(form, {
+      api: {
+        updateUnifiedContactRecord: async (payload) => {
+          calls.push(payload);
+          return { ok: true };
+        }
+      }
+    });
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].source_table, 'contacts_schools');
+    assert.equal(calls[0].source_id, '654');
   } finally {
     globalThis.document = previousDocument;
     dom.window.close();
