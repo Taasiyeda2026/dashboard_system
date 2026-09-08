@@ -25,4 +25,3 @@ test('Israas approved permission matrix includes proposal management', () => {
   const israaRow = approvedMatrix.match(/\('3030', array\[(.*?)\]\)/s)?.[1] || '';
   assert.match(israaRow, /'manage_proposals_agreements'/);
 });
-

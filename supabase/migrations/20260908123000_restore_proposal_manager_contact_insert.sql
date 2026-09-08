@@ -13,4 +13,3 @@ with check (
   public.app_is_admin_or_operation_manager()
   or public.app_can_manage_proposals_agreements()
 );
-
