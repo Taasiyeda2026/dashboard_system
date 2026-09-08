@@ -3,6 +3,32 @@ function clean(value) {
 }
 
 const SCHOOL_CONTACT_UNIQUE_CONSTRAINT = 'contacts_schools_authority_school_contact_name_key';
+const SCHOOL_CONTACT_INSERT_FIELDS = [
+  'authority',
+  'school',
+  'contact_name',
+  'contact_role',
+  'phone',
+  'mobile',
+  'email',
+  'address',
+  'notes',
+  'active',
+  'client_type',
+  'client_name',
+  'semel_mosad',
+  'school_id',
+  'authority_id',
+];
+
+function schoolContactInsertRow(contactFields = {}) {
+  const source = contactFields && typeof contactFields === 'object' ? contactFields : {};
+  const row = {};
+  SCHOOL_CONTACT_INSERT_FIELDS.forEach((field) => {
+    if (Object.prototype.hasOwnProperty.call(source, field)) row[field] = source[field];
+  });
+  return row;
+}
 
 function isSchoolContactDuplicate(error) {
   const constraint = clean(error?.constraint);
@@ -23,10 +49,7 @@ function savedSchoolContact(contactFields, row, alreadyExisted = false) {
 }
 
 export async function persistNewClientContact(api, contactFields) {
-  const row = { ...contactFields };
-  delete row.id;
-  delete row.source_id;
-  delete row.source_table;
+  const row = schoolContactInsertRow(contactFields);
   let result;
   try {
     result = await api.addContact({ kind: 'school', row });
