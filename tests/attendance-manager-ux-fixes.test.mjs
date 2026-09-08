@@ -56,6 +56,14 @@ test('manager milestone copy distinguishes activity type and removes redundant m
   assert.match(milestoneRuntime, /current\.replace\(\/\\s\*·\\s\*מפגש\\s\*1/);
 });
 
+test('workshop control points do not show redundant start or end milestones', () => {
+  assert.match(milestoneRuntime, /typeLabel === 'סדנה'/);
+  assert.match(milestoneRuntime, /\^\(תחילת\|סיום\)/);
+  assert.match(milestoneRuntime, /hideWorkshopMilestone/);
+  assert.match(milestoneRuntime, /badge\.hidden = hideWorkshopMilestone/);
+  assert.match(rootIndex, /manager-board-copy-fixes-runtime\.js\?v=20260908-manager-workshop-milestones-v3/);
+});
+
 test('dashboard loads internal system dialogs for native confirm and alert calls', () => {
   assert.match(dialogRuntime, /window\.confirm = function systemConfirm/);
   assert.match(dialogRuntime, /window\.alert = function systemAlert/);

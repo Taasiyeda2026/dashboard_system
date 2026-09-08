@@ -61,6 +61,16 @@ async function loadManagerTypeMap(manager) {
 }
 
 function correctedMilestoneLabel(current, typeLabel) {
+  if (typeLabel === 'סדנה') {
+    const parts = current.split('·').map(text).filter(Boolean);
+    const remaining = parts.filter((part) => {
+      if (/^(תחילת|סיום)\b/.test(part)) return false;
+      if (/^מפגש\s*1\b/.test(part)) return false;
+      return true;
+    });
+    return remaining.join(' · ');
+  }
+
   const labels = [];
   if (current.includes('תחילת')) labels.push(`תחילת ${typeLabel}`);
   if (current.includes('אמצע')) labels.push(`אמצע ${typeLabel}`);
@@ -85,7 +95,10 @@ async function refreshMilestones() {
     const current = text(badge.textContent);
     const typeLabel = typeMap.get(activityKey(name, school)) || 'פעילות';
     const next = correctedMilestoneLabel(current, typeLabel);
-    if (next !== current) badge.textContent = next;
+    const hideWorkshopMilestone = typeLabel === 'סדנה' && !next;
+
+    if (badge.hidden !== hideWorkshopMilestone) badge.hidden = hideWorkshopMilestone;
+    if (!hideWorkshopMilestone && next !== current) badge.textContent = next;
   });
 }
 
