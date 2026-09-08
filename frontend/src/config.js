@@ -164,3 +164,4 @@ config.HOTFIX_VERSION = `proposal-editor-controller-architecture-20260902-v1-${c
 config.HOTFIX_VERSION = `scheduling-approvals-admin-only-compact-card-20260908-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `approval-alerts-text-only-cache-refresh-20260908-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `proposal-contact-payload-filter-20260908-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `proposal-existing-contact-source-id-20260908-v1-${config.HOTFIX_VERSION}`;
