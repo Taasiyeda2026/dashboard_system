@@ -1562,7 +1562,7 @@ test('client file creates contacts inside the selected school without leaving th
       root,
       data,
       state: stateFor('admin'),
-      api: { addContact: async (payload) => { savedContact = payload; return { ok: true }; } }
+      api: { addContact: async (payload) => { savedContact = payload; return { ok: true, row: { ...payload.row, id: 901 } }; } }
     });
     const search = root.querySelector('[data-pa-client-search]');
     search.value = '11111';
@@ -1571,6 +1571,13 @@ test('client file creates contacts inside the selected school without leaving th
     root.querySelector('[data-pa-open-client]')?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
     root.querySelector('[data-pa-client-add-contact]')?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
     const form = root.querySelector('[data-pa-client-contact-form]');
+    const submit = form.querySelector('button[type="submit"]');
+    assert.ok(form.querySelector('[name="phone"]'), 'the optional additional-phone field should remain in the final modal DOM');
+    assert.ok(form.querySelector('[data-pa-client-contact-error]'), 'the final modal DOM should retain its error region');
+    assert.ok(submit, 'admin should receive the contact submit action');
+    assert.equal(submit.hidden, false);
+    assert.notEqual(submit.style.display, 'none');
+    assert.ok(form.querySelector('[data-pa-client-contact-close]'), 'the final modal DOM should retain a cancel action');
     form.querySelector('[name="contact_name"]').value = 'נועה לוי';
     form.querySelector('[name="contact_role"]').value = 'רכזת';
     form.querySelector('[name="mobile"]').value = '050-9876543';
@@ -1580,6 +1587,33 @@ test('client file creates contacts inside the selected school without leaving th
     assert.equal(savedContact?.row.school_id, 'school-a');
     assert.equal(savedContact?.row.contact_name, 'נועה לוי');
     assert.match(root.querySelector('[data-pa-client-file]')?.textContent || '', /נועה לוי/);
+  });
+});
+
+test('proposal capability controls the client contact add action', async () => {
+  const rows = [{ ...sampleRows[0], authority_id: 'auth-a', school_id: 'school-a', semel_mosad: '11111' }];
+  const openFile = async (state, assertion) => {
+    const data = { rows, contactOptions: sampleContactOptions, activityNameOptions: [] };
+    await withJSDOM(proposalsAgreementsScreen.render(data, { state }), async (root, dom) => {
+      proposalsAgreementsScreen.bind({ root, data, state, api: {} });
+      const search = root.querySelector('[data-pa-client-search]');
+      search.value = '11111';
+      search.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+      await delay(300);
+      root.querySelector('[data-pa-open-client]')?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+      await assertion(root, dom);
+    });
+  };
+
+  await openFile({ user: { role: 'authorized_user', permissions: { view_proposals_agreements: 'yes', manage_proposals_agreements: 'yes' } } }, async (root, dom) => {
+    const add = root.querySelector('[data-pa-client-add-contact]');
+    assert.ok(add, 'a capability-authorized proposal manager should receive the add action');
+    add.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    assert.ok(root.querySelector('[data-pa-client-contact-form] button[type="submit"]'));
+  });
+
+  await openFile({ user: { role: 'authorized_user', permissions: { view_proposals_agreements: 'yes', manage_proposals_agreements: 'no' } } }, async (root) => {
+    assert.equal(root.querySelector('[data-pa-client-add-contact]'), null, 'a view-only user must not receive the add action');
   });
 });
 
