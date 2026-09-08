@@ -217,10 +217,9 @@ export function preloadScreenModule(route) {
           import('./screens/end-dates.js')
         ]);
       case 'proposals-agreements':
-        return Promise.all([
-          ensureFeature('proposals'),
-          import('./screens/proposals-agreements.js')
-        ]);
+        // Hover/focus should warm only the route screen. Heavy proposal editor/PDF
+        // features are scheduled after the first list paint by feature-route-loader.
+        return import('./screens/proposals-agreements.js');
       case 'operations-management':
         return Promise.all([
           ensureFeature('operations'),

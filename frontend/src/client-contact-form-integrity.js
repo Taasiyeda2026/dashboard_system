@@ -49,6 +49,11 @@ export function isManualProposalContact(form) {
   return !namedValue(form, 'contact_source_id');
 }
 
+export function isExistingProposalContact(form) {
+  if (!form?.querySelector?.('[data-pa-contact-channels-fields]')) return false;
+  return Boolean(namedValue(form, 'contact_source_id'));
+}
+
 export function proposalManualContactCandidate(form) {
   const fields = form?.querySelector?.('[data-pa-contact-channels-fields]');
   const clientType = proposalContactClientType(form);
@@ -73,6 +78,16 @@ export function proposalManualContactCandidate(form) {
   };
 }
 
+export function proposalExistingContactFields(form) {
+  const fields = form?.querySelector?.('[data-pa-contact-channels-fields]');
+  return {
+    contact_name: namedValue(form, 'contact_name'),
+    contact_role: namedValue(form, 'contact_role'),
+    mobile: clean(fields?.querySelector?.('input[name="phone"]')?.value || namedValue(form, 'phone')),
+    email: clean(fields?.querySelector?.('input[name="email"]')?.value || namedValue(form, 'email'))
+  };
+}
+
 function validateProposalContactCandidate(row) {
   if (!row.contact_name) return 'יש להזין שם איש קשר';
   if (row.client_type === 'school' && (!row.authority_id || !row.school_id)) {
@@ -84,9 +99,78 @@ function validateProposalContactCandidate(row) {
   return '';
 }
 
+function validateExistingProposalContact(fields) {
+  if (!fields.contact_name) return 'יש להזין שם איש קשר';
+  return '';
+}
+
 function setNamedValue(form, name, value) {
   const input = namedField(form, name);
   if (input) input.value = value == null ? '' : String(value);
+}
+
+function selectedContactOption(form) {
+  return form?.querySelector?.('[data-pa-contact-select] option:checked[data-pa-contact-option]')
+    || form?.querySelector?.('[data-pa-contact-select]')?.selectedOptions?.[0]
+    || null;
+}
+
+function readContactOption(option) {
+  const encoded = clean(option?.dataset?.paContactOption);
+  if (!encoded) return null;
+  try {
+    const parsed = JSON.parse(decodeURIComponent(encoded));
+    return parsed && typeof parsed === 'object' ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeContactOption(option, row) {
+  if (!option || !row) return;
+  option.dataset.paContactOption = encodeURIComponent(JSON.stringify(row));
+}
+
+function syncExistingContactToForm(form, fields) {
+  setNamedValue(form, 'contact_source_name', fields.contact_name);
+  setNamedValue(form, 'contact_source_role', fields.contact_role);
+  setNamedValue(form, 'contact_source_mobile', fields.mobile);
+  setNamedValue(form, 'contact_source_email', fields.email);
+
+  const option = selectedContactOption(form);
+  const payload = readContactOption(option);
+  if (payload) {
+    writeContactOption(option, {
+      ...payload,
+      contact_name: fields.contact_name,
+      contact_role: fields.contact_role,
+      mobile: fields.mobile,
+      email: fields.email
+    });
+  }
+}
+
+function restoreSelectedContactPayload(form) {
+  const option = selectedContactOption(form);
+  const payload = readContactOption(option);
+  if (!payload) return;
+  const sourceId = namedValue(form, 'contact_source_id');
+  const optionId = clean(payload.source_id ?? payload.id);
+  if (sourceId && optionId && sourceId !== optionId) return;
+
+  const values = {
+    contact_name: clean(payload.contact_name),
+    contact_role: clean(payload.contact_role),
+    phone: clean(payload.mobile),
+    email: clean(payload.email)
+  };
+  Object.entries(values).forEach(([name, value]) => setNamedValue(form, name, value));
+  syncExistingContactToForm(form, {
+    contact_name: values.contact_name,
+    contact_role: values.contact_role,
+    mobile: values.phone,
+    email: values.email
+  });
 }
 
 function syncSavedProposalContact(form, saved, candidate) {
@@ -133,6 +217,37 @@ export async function saveManualProposalContact(form, dependencies = {}) {
   return saved;
 }
 
+export async function saveExistingProposalContact(form, dependencies = {}) {
+  if (!isExistingProposalContact(form)) return null;
+  const fields = proposalExistingContactFields(form);
+  const validationError = validateExistingProposalContact(fields);
+  if (validationError) {
+    const error = new Error(validationError);
+    error.code = 'proposal_existing_contact_validation';
+    throw error;
+  }
+
+  const sourceId = namedValue(form, 'contact_source_id');
+  const sourceTable = namedValue(form, 'contact_source_table') || 'contacts_schools';
+  const targetApi = dependencies.api || (await import('./api.js')).api;
+  if (typeof targetApi?.updateUnifiedContactRecord !== 'function') {
+    throw new Error('contact_update_unavailable');
+  }
+
+  await targetApi.updateUnifiedContactRecord({
+    source_table: sourceTable,
+    source_id: sourceId,
+    fields: {
+      contact_name: fields.contact_name,
+      contact_role: fields.contact_role,
+      mobile: fields.mobile,
+      email: fields.email
+    }
+  });
+  syncExistingContactToForm(form, fields);
+  return { source_id: sourceId, source_table: sourceTable, ...fields };
+}
+
 function proposalManualSaveButton() {
   const button = document.createElement('button');
   button.type = 'button';
@@ -140,6 +255,19 @@ function proposalManualSaveButton() {
   button.dataset.paManualContactSave = 'true';
   button.textContent = 'שמירה';
   button.setAttribute('aria-label', 'שמירת איש הקשר החדש');
+  button.style.alignSelf = 'end';
+  button.style.whiteSpace = 'nowrap';
+  button.style.marginInlineStart = '8px';
+  return button;
+}
+
+function proposalExistingUpdateButton() {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'ds-btn ds-btn--sm ds-btn--primary';
+  button.dataset.paExistingContactSave = 'true';
+  button.textContent = 'שמירת עדכון';
+  button.setAttribute('aria-label', 'שמירת עדכון פרטי איש הקשר');
   button.style.alignSelf = 'end';
   button.style.whiteSpace = 'nowrap';
   button.style.marginInlineStart = '8px';
@@ -161,6 +289,21 @@ export function ensureProposalManualContactSave(form) {
   return button;
 }
 
+export function ensureProposalExistingContactUpdate(form) {
+  const fields = form?.querySelector?.('[data-pa-contact-channels-fields]');
+  if (!fields) return null;
+  let button = fields.querySelector('[data-pa-existing-contact-save]');
+  if (!isExistingProposalContact(form)) {
+    button?.remove();
+    return null;
+  }
+  if (!button) {
+    button = proposalExistingUpdateButton();
+    fields.appendChild(button);
+  }
+  return button;
+}
+
 function setProposalContactMessage(form, message, isError = false) {
   const host = form?.querySelector?.('[data-pa-form-error]');
   if (!host) return;
@@ -170,8 +313,13 @@ function setProposalContactMessage(form, message, isError = false) {
   else delete host.dataset.paManualContactMessage;
 }
 
+function ensureProposalContactActions(form) {
+  ensureProposalManualContactSave(form);
+  ensureProposalExistingContactUpdate(form);
+}
+
 /** Completes a contact modal created by a previously cached screen renderer and
- * restores the explicit save action for a new manual contact inside a proposal. */
+ * restores explicit save actions for new and existing contacts inside a proposal. */
 export function ensureClientContactFormIntegrity(root = document) {
   root.querySelectorAll?.('[data-pa-client-contact-form]').forEach((form) => {
     const emailLabel = form.querySelector('[name="email"]')?.closest('label') || null;
@@ -187,43 +335,111 @@ export function ensureClientContactFormIntegrity(root = document) {
     if (!form.querySelector('button[type="submit"]')) addContactActions(form);
   });
 
-  if (root.matches?.('[data-pa-form]')) ensureProposalManualContactSave(root);
-  root.querySelectorAll?.('[data-pa-form]').forEach(ensureProposalManualContactSave);
+  if (root.matches?.('[data-pa-form]')) ensureProposalContactActions(root);
+  root.querySelectorAll?.('[data-pa-form]').forEach(ensureProposalContactActions);
 }
 
 if (typeof document !== 'undefined' && !globalThis.__proposalManualContactSaveBound) {
   globalThis.__proposalManualContactSaveBound = true;
+
+  // Existing contacts are edited explicitly. Suppress the old partial auto-save
+  // that wrote mobile/email immediately on field blur before the user pressed save.
+  document.addEventListener('change', (event) => {
+    const target = event.target;
+    const form = target?.closest?.('[data-pa-form]');
+    if (!form) return;
+
+    if (target?.matches?.('[data-pa-contact-select]')) {
+      setTimeout(() => {
+        restoreSelectedContactPayload(form);
+        ensureProposalContactActions(form);
+      }, 0);
+      return;
+    }
+
+    if (!isExistingProposalContact(form)) return;
+    if (!target?.closest?.('[data-pa-contact-channels-fields]')) return;
+    if (target.name !== 'phone' && target.name !== 'email') return;
+    event.stopImmediatePropagation();
+  }, true);
+
   document.addEventListener('click', async (event) => {
-    const button = event.target?.closest?.('[data-pa-manual-contact-save]');
-    if (!button) return;
+    const contactToggle = event.target?.closest?.('[data-pa-contact-channels-toggle]');
+    if (contactToggle) {
+      const form = contactToggle.closest?.('[data-pa-form]');
+      if (form && isExistingProposalContact(form)) {
+        form.querySelectorAll('[data-pa-contact-manual-fields]').forEach((el) => { el.hidden = false; });
+        ensureProposalExistingContactUpdate(form);
+      }
+      return;
+    }
+
+    const manualButton = event.target?.closest?.('[data-pa-manual-contact-save]');
+    if (manualButton) {
+      event.preventDefault();
+      event.stopPropagation();
+      const form = manualButton.closest?.('[data-pa-form]');
+      if (!form || manualButton.disabled) return;
+
+      manualButton.disabled = true;
+      manualButton.textContent = 'שומר...';
+      setProposalContactMessage(form, '');
+      try {
+        const saved = await saveManualProposalContact(form);
+        if (!saved) return;
+        manualButton.remove();
+        ensureProposalExistingContactUpdate(form);
+        setProposalContactMessage(form, 'איש הקשר נשמר ונבחר להצעה');
+        try {
+          const { showToast } = await import('./screens/shared/toast.js');
+          showToast(saved.already_existed ? 'איש הקשר כבר קיים ונבחר' : 'איש הקשר נשמר בהצלחה', 'success', 2200);
+        } catch { /* inline confirmation remains visible */ }
+      } catch (error) {
+        console.error('[proposal manual contact save failed]', error);
+        const message = clean(error?.message) || 'לא ניתן היה לשמור את איש הקשר';
+        setProposalContactMessage(form, message, true);
+        try {
+          const { showToast } = await import('./screens/shared/toast.js');
+          showToast(message, 'error', 3200);
+        } catch { /* inline error remains visible */ }
+        if (manualButton.isConnected) {
+          manualButton.disabled = false;
+          manualButton.textContent = 'שמירה';
+        }
+      }
+      return;
+    }
+
+    const updateButton = event.target?.closest?.('[data-pa-existing-contact-save]');
+    if (!updateButton) return;
     event.preventDefault();
     event.stopPropagation();
-    const form = button.closest?.('[data-pa-form]');
-    if (!form || button.disabled) return;
+    const form = updateButton.closest?.('[data-pa-form]');
+    if (!form || updateButton.disabled) return;
 
-    button.disabled = true;
-    button.textContent = 'שומר...';
+    updateButton.disabled = true;
+    updateButton.textContent = 'שומר...';
     setProposalContactMessage(form, '');
     try {
-      const saved = await saveManualProposalContact(form);
+      const saved = await saveExistingProposalContact(form);
       if (!saved) return;
-      button.remove();
-      setProposalContactMessage(form, 'איש הקשר נשמר ונבחר להצעה');
+      setProposalContactMessage(form, 'פרטי איש הקשר עודכנו ונשמרו');
       try {
         const { showToast } = await import('./screens/shared/toast.js');
-        showToast(saved.already_existed ? 'איש הקשר כבר קיים ונבחר' : 'איש הקשר נשמר בהצלחה', 'success', 2200);
+        showToast('פרטי איש הקשר עודכנו ונשמרו', 'success', 2200);
       } catch { /* inline confirmation remains visible */ }
     } catch (error) {
-      console.error('[proposal manual contact save failed]', error);
-      const message = clean(error?.message) || 'לא ניתן היה לשמור את איש הקשר';
+      console.error('[proposal existing contact save failed]', error);
+      const message = clean(error?.message) || 'לא ניתן היה לשמור את עדכון איש הקשר';
       setProposalContactMessage(form, message, true);
       try {
         const { showToast } = await import('./screens/shared/toast.js');
         showToast(message, 'error', 3200);
       } catch { /* inline error remains visible */ }
-      if (button.isConnected) {
-        button.disabled = false;
-        button.textContent = 'שמירה';
+    } finally {
+      if (updateButton.isConnected) {
+        updateButton.disabled = false;
+        updateButton.textContent = 'שמירת עדכון';
       }
     }
   }, true);
