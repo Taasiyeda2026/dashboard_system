@@ -25,7 +25,15 @@ test('attendance desktop navigation removes duplicate actions and adds dashboard
   assert.match(attendanceCss, /\.av2-report__header > \.av2-btn--icon\s*\{\s*display:\s*none\s*!important/);
   assert.match(attendanceRuntime, /dataset\.av2Dashboard/);
   assert.match(attendanceRuntime, /window\.location\.assign\('\/dashboard_system\/'\)/);
-  assert.match(attendanceIndex, /attendance-ux-fixes-runtime\.js\?v=54/);
+  assert.match(attendanceIndex, /attendance-ux-fixes-runtime\.js\?v=55/);
+});
+
+test('attendance desktop controls stay compact and travel status is not a full-width banner', () => {
+  assert.match(attendanceCss, /grid-template-columns:\s*repeat\(auto-fit, minmax\(112px, 128px\)\)/);
+  assert.match(attendanceCss, /\.av2-home__month-submit[\s\S]*?width:\s*128px/);
+  assert.match(attendanceCss, /\.av2-bottom-nav__dashboard[\s\S]*?flex:\s*0 0 auto/);
+  assert.match(attendanceCss, /\.av2-bottom-nav__dashboard[\s\S]*?min-width:\s*92px/);
+  assert.match(attendanceCss, /\.av2-report-row \.av2-rr__travel-compensation[\s\S]*?width:\s*max-content/);
 });
 
 test('home report rows target a specific report rather than only opening the generic list', () => {
