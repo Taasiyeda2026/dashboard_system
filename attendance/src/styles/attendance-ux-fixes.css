@@ -11,9 +11,9 @@
   .av2-reports__header > .av2-btn--icon,
   .av2-report__header > .av2-btn--icon { display: none !important; }
 
-  /* Home: central month, no duplicated add-report action. */
+  /* Home: central/prominent month, no duplicated add-report action. */
   .av2-home__title-band { justify-content: center; text-align: center; }
-  .av2-home__page-title { font-size: 1.15rem; }
+  .av2-home__page-title { font-size: 1.05rem; font-weight: 750; color: #475569; }
   .av2-home__action-row { justify-content: center; }
   .av2-home__primary { display: none !important; }
   .av2-home .av2-month-nav {
@@ -25,8 +25,8 @@
     box-shadow: 0 2px 8px rgba(15, 23, 42, .06);
   }
   .av2-home .av2-month-nav__label {
-    font-size: 1rem;
-    font-weight: 800;
+    font-size: 1.1rem;
+    font-weight: 850;
     color: #172033;
   }
 
