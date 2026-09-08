@@ -32,9 +32,17 @@ function ganttPanel(board) {
     panel.dataset.managerGanttPlaceholder = 'true';
     panel.setAttribute('dir', 'rtl');
     panel.innerHTML = '<strong>COMING SOON...</strong>';
-    const tabs = board.querySelector('[data-manager-workspace-tabs]');
-    tabs?.insertAdjacentElement('afterend', panel);
   }
+
+  // The team selector is shared context for every manager-board tab. Keep it
+  // directly below the tabs, and put tab-specific Gantt content after it.
+  const tabs = board.querySelector('[data-manager-workspace-tabs]');
+  const teamStrip = board.querySelector('[data-manager-board-team-strip]');
+  const anchor = teamStrip || tabs;
+  if (anchor && panel.previousElementSibling !== anchor) {
+    anchor.insertAdjacentElement('afterend', panel);
+  }
+
   panel.hidden = !ganttActive;
   return panel;
 }
