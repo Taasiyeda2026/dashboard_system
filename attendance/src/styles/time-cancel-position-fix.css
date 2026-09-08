@@ -1,0 +1,8 @@
+/* Keep the automatic time-cancellation line attached to the report content in RTL layouts. */
+@media (min-width: 768px) {
+  .av2-report-row .av2-rr__travel-compensation {
+    justify-self: start;
+    direction: rtl;
+    text-align: right;
+  }
+}
