@@ -1,4 +1,7 @@
-/* Follow-up fixes: time cancellation is a real table column and fixed operation addresses stay compact. */
+/* Structural attendance follow-up fixes.
+ * Keep the reports table as one explicit 12-column grid and keep home report
+ * expansion inside the home page instead of navigating to edit/reports screens.
+ */
 
 .av2-operation-address[hidden] { display: none !important; }
 .av2-operation-address .av2-field__input[readonly] {
@@ -7,9 +10,7 @@
   cursor: default;
 }
 
-.av2-time-cancel-edit {
-  min-width: 0;
-}
+.av2-time-cancel-edit { min-width: 0; }
 .av2-time-cancel-edit__note,
 .av2-time-cancel-edit__error {
   display: block;
@@ -20,22 +21,80 @@
 .av2-time-cancel-edit__note { color: var(--av2-color-text-muted); }
 .av2-time-cancel-edit__error { color: #b91c1c; font-weight: 700; }
 
+/* The header must use its real DOM labels. The older nth-child ::after labels
+ * became incorrect as soon as "ביטול זמן" was added as the fifth column. */
+.av2-report-list__head {
+  font-size: .6875rem !important;
+}
+.av2-report-list__head span {
+  font-size: .6875rem !important;
+}
+.av2-report-list__head span::after {
+  content: none !important;
+  display: none !important;
+}
+
 @media (min-width: 768px) {
   .av2-report-list__head,
   .av2-report-row {
     grid-template-columns:
-      78px  /* date */
-      64px  /* start */
-      64px  /* end */
-      62px  /* hours */
-      72px  /* time cancellation */
-      72px  /* type */
-      minmax(170px, 1.5fr) /* activity */
-      minmax(138px, 1.15fr) /* school */
-      minmax(125px, 1fr) /* authority */
-      46px  /* km */
-      50px  /* expenses */
-      104px /* actions */ !important;
+      70px                         /* date */
+      56px                         /* start */
+      56px                         /* end */
+      62px                         /* total hours */
+      66px                         /* time cancellation */
+      58px                         /* activity type */
+      minmax(175px, 1.65fr)        /* activity name */
+      minmax(130px, 1.10fr)        /* school */
+      minmax(100px, .85fr)         /* authority */
+      36px                         /* km */
+      38px                         /* expenses */
+      94px                         /* actions */ !important;
+    gap: 0 !important;
+    align-items: stretch !important;
+    box-sizing: border-box;
+  }
+
+  .av2-report-list__head > *,
+  .av2-report-row > * {
+    min-width: 0;
+    box-sizing: border-box;
+    padding-inline: 6px !important;
+  }
+
+  /* Numeric / short columns are deliberately narrow and centered. */
+  .av2-report-list__head > :nth-child(1),
+  .av2-report-list__head > :nth-child(2),
+  .av2-report-list__head > :nth-child(3),
+  .av2-report-list__head > :nth-child(4),
+  .av2-report-list__head > :nth-child(5),
+  .av2-report-list__head > :nth-child(10),
+  .av2-report-list__head > :nth-child(11),
+  .av2-report-list__head > :nth-child(12),
+  .av2-rr__date,
+  .av2-rr__start,
+  .av2-rr__end,
+  .av2-rr__hours,
+  .av2-rr__time-cancel,
+  .av2-rr__km,
+  .av2-rr__expenses,
+  .av2-rr__actions {
+    justify-content: center !important;
+    text-align: center !important;
+  }
+
+  /* Text columns keep useful room, with school before authority in the grid. */
+  .av2-report-list__head > :nth-child(6),
+  .av2-report-list__head > :nth-child(7),
+  .av2-report-list__head > :nth-child(8),
+  .av2-report-list__head > :nth-child(9),
+  .av2-rr__type,
+  .av2-rr__name,
+  .av2-rr__school,
+  .av2-rr__authority {
+    justify-content: flex-start !important;
+    text-align: right !important;
+    direction: rtl;
   }
 
   .av2-rr__time-cancel-head,
@@ -53,23 +112,40 @@
     font-weight: 800;
     color: #334155;
   }
-
   .av2-rr__time-cancel.is-pending {
     color: #9a5b00;
     font-size: .66rem;
   }
 
-  /* The old full-width compensation banner is intentionally retired. */
+  .av2-rr__actions {
+    gap: 3px !important;
+    overflow: visible !important;
+    white-space: nowrap;
+  }
+
+  /* The old full-width compensation banner is retired. */
   .av2-report-row > .av2-rr__travel-compensation {
     display: none !important;
   }
 }
 
-@media (max-width: 767px) {
-  .av2-report-row > .av2-rr__time-cancel {
-    display: none !important;
+@media (min-width: 768px) and (max-width: 1023px) {
+  .av2-report-list__head,
+  .av2-report-row {
+    min-width: 980px !important;
   }
+}
 
+@media (min-width: 1024px) {
+  .av2-report-list__head,
+  .av2-report-row {
+    width: 100%;
+    min-width: 0 !important;
+  }
+}
+
+@media (max-width: 767px) {
+  .av2-report-row > .av2-rr__time-cancel { display: none !important; }
   .av2-report-row.is-mobile-expanded > .av2-rr__time-cancel {
     display: grid !important;
     grid-template-columns: 92px minmax(0, 1fr);
@@ -80,15 +156,106 @@
     border-top: 1px solid #edf1f5;
     font-size: .72rem;
   }
-
   .av2-report-row.is-mobile-expanded > .av2-rr__time-cancel::before {
     content: attr(data-mobile-label);
     color: var(--av2-color-text-muted);
     font-size: .66rem;
     font-weight: 700;
   }
+  .av2-report-row > .av2-rr__travel-compensation { display: none !important; }
+}
 
-  .av2-report-row > .av2-rr__travel-compensation {
-    display: none !important;
+/* Home: clicking a report expands its full information in place. */
+.av2-report-summary-row {
+  display: block !important;
+  width: 100%;
+  padding: 0 !important;
+  overflow: hidden;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: var(--av2-color-bg);
+}
+.av2-report-summary-row.is-expanded {
+  border-color: #d9e2ec;
+  background: #fff;
+}
+.av2-report-summary-row__toggle {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr) auto auto 18px;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px;
+  border: 0;
+  background: transparent;
+  color: var(--av2-color-text);
+  text-align: right;
+  font: inherit;
+  cursor: pointer;
+}
+.av2-report-summary-row__toggle:hover { background: rgba(47, 111, 237, .035); }
+.av2-report-summary-row__date,
+.av2-report-summary-row__hours,
+.av2-report-summary-row__travel {
+  font-size: .7rem;
+  white-space: nowrap;
+}
+.av2-report-summary-row__main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.av2-report-summary-row__main strong,
+.av2-report-summary-row__main small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.av2-report-summary-row__main strong { font-size: .72rem; }
+.av2-report-summary-row__main small { font-size: .64rem; color: var(--av2-color-text-muted); }
+.av2-report-summary-row__travel { color: var(--av2-color-accent); font-weight: 700; }
+.av2-report-summary-row__pending { color: #b45309; }
+.av2-report-summary-row__chevron {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform .16s ease;
+}
+.av2-report-summary-row.is-expanded .av2-report-summary-row__chevron { transform: rotate(-90deg); }
+.av2-report-summary-row__details {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px 12px;
+  padding: 9px 10px 10px;
+  border-top: 1px solid #e5ebf2;
+  background: #fff;
+}
+.av2-report-summary-row__details[hidden] { display: none !important; }
+.av2-report-summary-row__detail {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.av2-report-summary-row__detail--wide { grid-column: span 2; }
+.av2-report-summary-row__detail-label {
+  font-size: .6rem;
+  font-weight: 700;
+  color: var(--av2-color-text-muted);
+}
+.av2-report-summary-row__detail-value {
+  font-size: .7rem;
+  font-weight: 600;
+  color: var(--av2-color-text);
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 640px) {
+  .av2-report-summary-row__toggle {
+    grid-template-columns: 64px minmax(0, 1fr) auto 18px;
   }
+  .av2-report-summary-row__travel { display: none; }
+  .av2-report-summary-row__details { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .av2-report-summary-row__detail--wide { grid-column: 1 / -1; }
 }
