@@ -1,0 +1,44 @@
+name: Proposal Targeted PR Check
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  proposal-regression-and-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Proposal regression tests
+        run: >-
+          node --test
+          tests/proposal-manual-contact-save.test.mjs
+          tests/proposal-existing-contact-update.test.mjs
+          tests/proposals-entry-performance.test.mjs
+          tests/client-contact-persistence-flow.test.mjs
+          tests/startup-client-file-performance.test.mjs
+
+      - name: Production build
+        env:
+          VITE_BASE: /dashboard_system/
+          VITE_BUILD_SHA: ${{ github.sha }}
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          VITE_MICROSOFT_CLIENT_ID: ${{ secrets.VITE_MICROSOFT_CLIENT_ID }}
+          VITE_MICROSOFT_TENANT_ID: ${{ secrets.VITE_MICROSOFT_TENANT_ID }}
+          VITE_MICROSOFT_REDIRECT_URI: ${{ secrets.VITE_MICROSOFT_REDIRECT_URI }}
+        run: npm run build
