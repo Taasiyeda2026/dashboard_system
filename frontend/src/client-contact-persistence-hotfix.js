@@ -2,6 +2,7 @@ import { supabase } from './supabase-client.js';
 import { clearScreenDataCache } from './state.js';
 import { deletePersistedCacheByPrefixes } from './cache-persist.js';
 import { showToast } from './screens/shared/toast.js';
+import { ensureClientContactFormIntegrity } from './client-contact-form-integrity.js';
 
 const FORM_SELECTOR = '#app [data-pa-client-contact-form]';
 const CARD_SELECTOR = '#app [data-pa-client-file] .ds-client-contact';
@@ -383,6 +384,7 @@ function handleProposalApprovalClick(event) {
 
 function applyMobilePolicy(root = document) {
   ensureMobilePolicyStyle();
+  ensureClientContactFormIntegrity(root);
   annotateContactForms(root);
   decorateVisibleContactCards(root);
 }
