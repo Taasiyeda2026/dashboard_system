@@ -10,6 +10,7 @@ const validContact = {
   client_type: 'school',
   client_name: 'בית ספר לדוגמה',
   authority_id: 12,
+  authority_code: 'A12',
   school_id: 34,
   semel_mosad: '123456',
   authority: 'רשות לדוגמה',
@@ -43,10 +44,11 @@ test('new client contact persists once with the returned database identity and a
   assert.equal('id' in inserts[0].row, false);
   assert.equal('source_id' in inserts[0].row, false);
   assert.equal('source_table' in inserts[0].row, false);
+  assert.equal('authority_code' in inserts[0].row, false, 'proposal-only authority_code must not be sent to contacts_schools');
   assert.equal(saved.id, 987);
   assert.equal(saved.source_id, 987);
   assert.equal(saved.source_table, 'contacts_schools');
-  for (const key of ['client_type', 'client_name', 'authority_id', 'school_id', 'semel_mosad', 'authority', 'school']) {
+  for (const key of ['client_type', 'client_name', 'authority_id', 'authority_code', 'school_id', 'semel_mosad', 'authority', 'school']) {
     assert.equal(saved[key], validContact[key]);
   }
 });
