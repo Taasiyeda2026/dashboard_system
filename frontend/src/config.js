@@ -56,6 +56,7 @@ export const config = {
 };
 config.HOTFIX_VERSION = `client-contact-form-integrity-20260908-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `attendance-travel-compensation-20260908-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `proposals-performance-instrumentation-20260909-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `proposal-server-chromium-pdf-20260902-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `activity-assignment-attendance-guards-20260904-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `activity-edit-location-ids-20260904-v1-${config.HOTFIX_VERSION}`;
@@ -165,5 +166,3 @@ config.HOTFIX_VERSION = `scheduling-approvals-admin-only-compact-card-20260908-v
 config.HOTFIX_VERSION = `approval-alerts-text-only-cache-refresh-20260908-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `proposal-contact-payload-filter-20260908-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `proposal-existing-contact-source-id-20260908-v1-${config.HOTFIX_VERSION}`;
-config.HOTFIX_VERSION = `manager-board-saas-polish-20260909-v1-${config.HOTFIX_VERSION}`;
-config.HOTFIX_VERSION = `manager-tracking-inline-deadlines-20260909-v1-${config.HOTFIX_VERSION}`;
