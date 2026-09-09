@@ -56,6 +56,7 @@ export const config = {
 };
 config.HOTFIX_VERSION = `client-contact-form-integrity-20260908-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `attendance-travel-compensation-20260908-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `proposals-performance-instrumentation-20260909-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `proposal-server-chromium-pdf-20260902-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `activity-assignment-attendance-guards-20260904-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `activity-edit-location-ids-20260904-v1-${config.HOTFIX_VERSION}`;

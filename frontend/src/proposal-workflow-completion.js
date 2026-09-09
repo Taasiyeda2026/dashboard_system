@@ -126,7 +126,16 @@ function memoizeEditorDeps(targetApi) {
 function prewarmEditorDeps(targetApi, scope = globalThis) {
   const run = () => {
     if (typeof targetApi?.proposalsAgreementsEditorDeps !== 'function') return;
-    targetApi.proposalsAgreementsEditorDeps().catch(() => {});
+    const timing = scope.__dsLocalBaseline?.startTiming?.('proposals:editor-deps-prewarm', { request_type: 'editor-dependencies' });
+    targetApi.proposalsAgreementsEditorDeps()
+      .then((payload) => {
+        if (timing) scope.__dsLocalBaseline?.endTiming?.(timing, {
+          row_count: Array.isArray(payload?.proposalActivityPricing) ? payload.proposalActivityPricing.length : 0
+        });
+      })
+      .catch(() => {
+        if (timing) scope.__dsLocalBaseline?.endTiming?.(timing);
+      });
   };
   if (typeof scope.requestIdleCallback === 'function') scope.requestIdleCallback(run, { timeout: 1200 });
   else scope.setTimeout?.(run, 350);
