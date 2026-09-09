@@ -124,16 +124,20 @@
 
 .manager-board-team-strip__grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+  align-items: stretch;
 }
 
 .manager-board-team-strip__chip {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 34px;
-  padding: 6px 10px;
+  width: 100%;
+  min-width: 0;
+  height: 48px;
+  min-height: 48px;
+  padding: 8px 12px;
   border: 1px solid #edf1f6;
   border-radius: 9px;
   background: #fbfcfe;
@@ -142,8 +146,9 @@
   font-weight: 700;
   text-align: center;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 1.25;
+  white-space: normal;
+  text-wrap: balance;
 }
 
 .manager-board-kpis {
@@ -432,7 +437,7 @@
 
 .manager-board-milestone {
   display: grid;
-  grid-template-columns: 42px minmax(0, 1fr) auto;
+  grid-template-columns: 62px minmax(0, 1fr) auto;
   gap: 9px;
   align-items: center;
   padding: 10px 0;

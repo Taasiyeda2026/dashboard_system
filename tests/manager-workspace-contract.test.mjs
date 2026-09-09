@@ -57,7 +57,8 @@ test('server-side manager roster and follow-up access matches UI roles', () => {
 
 test('checkpoints include course start and no old subtitle', () => {
   assert.match(board, /meeting\.meetingNo === 1 \|\| meeting\.isMidpoint \|\| meeting\.isEnd/);
-  assert.match(board, /תחילת קורס · מפגש 1/);
+  assert.match(board, /labels\.push\('תחילת קורס'\)/);
+  assert.match(board, /return 'סדנה'/);
   assert.doesNotMatch(board, /אמצע וסיום קורסים בחודש/);
 });
 

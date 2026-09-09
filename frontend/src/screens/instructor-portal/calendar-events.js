@@ -1,4 +1,4 @@
-import { compactSchoolCalendarLabel, schoolCalendarEventsForDate } from '../shared/school-calendar-logic.js';
+import { compactSchoolCalendarLabel, dedupeSchoolCalendarOccurrences, schoolCalendarEventsForDate } from '../shared/school-calendar-logic.js';
 import { ACTIVE_ACTIVITY_SEASON, SCHOOL_2027_START_DATE, SCHOOL_2027_END_DATE } from '../shared/summer-activity.js';
 
 const ACTIVE_CALENDAR_START_MONTH = SCHOOL_2027_START_DATE.slice(0, 7);
@@ -43,7 +43,7 @@ function consolidateEquivalentSectorOccurrences(events) {
 export function organizationalEventsForDate(calendarRows, birthdays, isoDate) {
   const month = Number(String(isoDate).slice(5, 7));
   const day = Number(String(isoDate).slice(8, 10));
-  const schoolEvents = consolidateEquivalentSectorOccurrences(schoolCalendarEventsForDate(Array.isArray(calendarRows) ? calendarRows : [], isoDate)).map((event) => ({
+  const schoolEvents = dedupeSchoolCalendarOccurrences(consolidateEquivalentSectorOccurrences(schoolCalendarEventsForDate(Array.isArray(calendarRows) ? calendarRows : [], isoDate))).map((event) => ({
     ...event,
     kind: 'school-calendar',
     displayTitle: event.title

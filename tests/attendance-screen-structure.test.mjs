@@ -114,7 +114,7 @@ test('Attendance New Report keeps mobile fields inside padded page gutters', () 
 });
 
 test('Attendance monthly summary counts source reports and report rows use date-only display', () => {
-  assert.match(homeSource, /buildStat\(sourceRecords\.length,\s*'דיווחים'/);
+  assert.match(homeSource, /buildStat\(distinctAttendanceWorkDays\(records\),\s*'ימי עבודה'/);
   assert.doesNotMatch(reportsSource, /DAY_NAMES_SHORT|dateDay|dayName/);
 });
 

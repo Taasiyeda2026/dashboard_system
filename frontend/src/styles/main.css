@@ -19972,6 +19972,7 @@ select.ds-input {
 .instructor-portal-shortcut{min-height:76px;align-items:center;justify-content:center;text-align:center}
 .instructor-portal-shortcut .ds-interactive-card__title{font-size:1rem;line-height:1.35;text-align:center;width:100%}
 .activity-drawer__form--instructor-limited{display:grid;gap:14px;direction:rtl}
+.instructor-activity-drawer-shell{display:grid;gap:12px}.instructor-activity-drawer-shell__eyebrow{margin:0;padding:8px 12px;border-radius:var(--ds-radius-sm);background:var(--ds-accent-soft);color:var(--ds-accent);font-size:.75rem;font-weight:900}.instructor-activity-drawer-shell .activity-drawer__section{border:1px solid color-mix(in srgb,var(--ds-accent) 16%,var(--ds-border));border-radius:var(--ds-radius-md);background:var(--ds-surface);box-shadow:var(--ds-shadow-xs);padding:14px}.instructor-activity-drawer-shell .activity-drawer__label{color:var(--ds-text-secondary);font-size:.74rem}.instructor-activity-drawer-shell .activity-drawer__view{font-weight:750;color:var(--ds-text)}
 .activity-drawer__instructor-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
 .activity-drawer__form--instructor-limited .activity-drawer__field{min-width:0}
 .activity-drawer__form--instructor-limited .activity-drawer__view{white-space:normal;overflow-wrap:anywhere;line-height:1.45}
@@ -23026,6 +23027,7 @@ select.ds-input {
 
 /* Instructor Portal: composes the existing card, KPI, table and shell primitives. */
 .instructor-portal-dashboard{max-width:1080px;width:100%;margin-inline:auto}
+.instructor-portal-dashboard__toolbar{display:grid;grid-template-columns:minmax(190px,.35fr) minmax(0,1fr);gap:14px;align-items:stretch}.instructor-portal-focus{display:grid;gap:4px;padding:14px 18px;border:1px solid color-mix(in srgb,var(--ds-accent) 22%,var(--ds-border));border-radius:var(--ds-radius-md);background:linear-gradient(135deg,var(--ds-accent-soft),var(--ds-surface));box-shadow:var(--ds-shadow-sm)}.instructor-portal-focus span{font-size:.75rem;font-weight:800;color:var(--ds-accent)}.instructor-portal-focus strong{font-size:1.05rem}.instructor-portal-focus small{color:var(--ds-text-secondary)}.instructor-portal-shortcut{border-color:color-mix(in srgb,var(--ds-accent) 18%,var(--ds-border));background:linear-gradient(145deg,var(--ds-surface),color-mix(in srgb,var(--ds-accent-soft) 45%,white));box-shadow:var(--ds-shadow-sm)}
 .instructor-portal-month{display:flex;align-items:center;gap:10px;font-weight:800;color:#102a43;width:max-content}
 .instructor-portal-month .ds-input{min-width:170px}
 .instructor-portal-shortcuts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}

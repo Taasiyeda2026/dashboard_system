@@ -11,6 +11,7 @@ import {
 } from './screens/shared/summer-activity.js';
 import { escapeHtml } from './screens/shared/html.js';
 import { loadActiveBirthdays } from './birthday-calendar.js';
+import { calendarPresentationTitle, dedupeSchoolCalendarOccurrences } from './screens/shared/school-calendar-logic.js';
 
 const MANAGER_BOARD_ACCESS_ROLES = new Set([
   'admin',
@@ -550,10 +551,31 @@ function renderInstructorCards(stats) {
   }).join('');
 }
 
-function renderMilestones(meetings) {
-  const milestoneRows = meetings
+export function managerMilestoneLabel(meeting) {
+  const type = normalizedText(meeting?.activity?.activity_type).toLocaleLowerCase('he-IL');
+  if (type.includes('workshop') || type.includes('סדנה')) return 'סדנה';
+  const labels = [];
+  if (meeting?.meetingNo === 1) labels.push('תחילת קורס');
+  if (meeting?.isMidpoint) labels.push('אמצע קורס');
+  if (meeting?.isEnd) labels.push('סיום קורס');
+  return labels.join(' · ');
+}
+
+export function managerMilestoneRows(meetings = []) {
+  const seen = new Set();
+  return meetings
     .filter((meeting) => meeting.meetingNo === 1 || meeting.isMidpoint || meeting.isEnd)
-    .slice(0, 12);
+    .filter((meeting) => {
+      const activity = meeting.activity || {};
+      const key = [activity.row_id || activity.id, meeting.iso, managerMilestoneLabel(meeting)].join('|');
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+}
+
+function renderMilestones(meetings) {
+  const milestoneRows = managerMilestoneRows(meetings).slice(0, 12);
 
   if (!milestoneRows.length) {
     return '<div class="manager-board-empty manager-board-empty--compact">אין נקודות בקרה בחודש זה.</div>';
@@ -561,10 +583,7 @@ function renderMilestones(meetings) {
 
   return milestoneRows.map((meeting) => {
     const activity = meeting.activity || {};
-    const labels = [];
-    if (meeting.meetingNo === 1) labels.push('תחילת קורס · מפגש 1');
-    if (meeting.isMidpoint) labels.push('אמצע קורס');
-    if (meeting.isEnd) labels.push('סיום קורס');
+    const label = managerMilestoneLabel(meeting);
     return `
       <div class="manager-board-milestone">
         <time datetime="${escapeAttr(meeting.iso)}">${escapeHtml(formatShortDate(meeting.iso))}</time>
@@ -572,7 +591,7 @@ function renderMilestones(meetings) {
           <strong>${escapeHtml(normalizedText(activity.activity_name || activity.program_name) || 'פעילות')}</strong>
           <span>${escapeHtml(normalizedText(activity.school) || 'ללא בית ספר')}</span>
         </div>
-        <span class="manager-board-milestone__badge">${escapeHtml(labels.join(' · '))}</span>
+        <span class="manager-board-milestone__badge">${escapeHtml(label)}</span>
       </div>`;
   }).join('');
 }
@@ -603,13 +622,14 @@ export function birthdaysForMonth(rows, ym) {
 export function importantDateEntries(schoolEvents, birthdayRows, ym) {
   const entries = [];
   const seen = new Set();
-  schoolEvents.forEach((event) => {
-    const key = `${event.iso}|${event.title}`;
+  dedupeSchoolCalendarOccurrences(schoolEvents).forEach((event) => {
+    const title = calendarPresentationTitle(event.title);
+    const key = `${event.iso}|${title}`;
     if (seen.has(key)) return;
     seen.add(key);
     entries.push({
       iso: event.iso,
-      title: event.title || event.dayStatus || 'אירוע לוח',
+      title: title || calendarPresentationTitle(event.dayStatus) || 'אירוע לוח',
       isBirthday: false,
       blocksScheduling: event.blocksScheduling
     });
@@ -791,7 +811,7 @@ function renderBoardMarkup(data, manager, ym) {
   const activeTeam = activeTeamForManager(data, manager);
 
   return `
-    <section class="manager-board-screen" data-manager-board-root dir="rtl">
+    <section class="manager-board-screen" data-manager-board-root data-manager-board-period="${escapeAttr(period)}" data-manager-board-month="${escapeAttr(ym)}" data-manager-board-school-year="${escapeAttr(instructorSchoolYear(period))}" dir="rtl">
       <div class="manager-board-hero">
         <div class="manager-board-hero__title">
           <h1>לוח מנהל פעילות</h1>
@@ -1164,6 +1184,12 @@ function openManagerBoard() {
   }, 0);
 }
 
+function forceDashboardRender() {
+  closeManagerBoard();
+  try { sessionStorage.removeItem('admin_management_pending_manager_tab'); } catch { /* ignore */ }
+  document.dispatchEvent(new CustomEvent('app:navigate', { detail: { route: 'dashboard', force: true } }));
+}
+
 function closeManagerBoard() {
   if (!managerBoardOpen) return;
   managerBoardOpen = false;
@@ -1193,6 +1219,12 @@ function handleDocumentClick(event) {
 
   const routeButton = event.target.closest('[data-route]');
   if (routeButton && managerBoardOpen) {
+    if (routeButton.dataset.route === 'dashboard') {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      forceDashboardRender();
+      return;
+    }
     closeManagerBoard();
     return;
   }

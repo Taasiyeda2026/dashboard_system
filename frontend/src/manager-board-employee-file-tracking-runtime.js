@@ -31,6 +31,8 @@ function managerFromPanel(panel) {
 }
 
 function schoolYearFromPanel(panel) {
+  const canonical = text(panel?.closest('[data-manager-board-root]')?.dataset?.managerBoardSchoolYear);
+  if (/^20\d{2}$/.test(canonical)) return canonical;
   const heading = text(panel?.querySelector('.manager-workspace-panel__head p')?.textContent);
   return heading.match(/שנת\s+(20\d{2})/)?.[1] || '2027';
 }
@@ -112,7 +114,7 @@ async function replaceTrackingProjection(panel) {
   const contextKey = `${manager}|${schoolYear}`;
   const sameContext = panel.dataset.employeeFileTrackingContext === contextKey;
   const state = panel.dataset.employeeFileTrackingReady;
-  if (sameContext && (state === 'loading' || state === 'true')) return;
+  if (sameContext && state === 'loading') return;
 
   panel.dataset.employeeFileTrackingContext = contextKey;
   panel.dataset.employeeFileTrackingReady = 'loading';
@@ -159,7 +161,17 @@ document.addEventListener('change', (event) => {
 
 document.addEventListener('click', (event) => {
   const target = event.target instanceof Element ? event.target : null;
-  if (target?.closest('[data-manager-workspace-tab="tracking"]')) queueMicrotask(refreshVisibleTracking);
+  if (target?.closest('[data-manager-workspace-tab="tracking"]')) {
+    const panel = document.querySelector('.manager-workspace-panel.manager-workspace-tracking');
+    if (panel) panel.dataset.employeeFileTrackingReady = '';
+    queueMicrotask(refreshVisibleTracking);
+  }
+});
+
+document.addEventListener('manager-board:tracking-invalidate', () => {
+  const panel = document.querySelector('.manager-workspace-panel.manager-workspace-tracking');
+  if (panel) panel.dataset.employeeFileTrackingReady = '';
+  queueMicrotask(refreshVisibleTracking);
 });
 
 refreshVisibleTracking();

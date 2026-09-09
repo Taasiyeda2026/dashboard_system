@@ -52,6 +52,22 @@ export function calendarSectorLabel(value) {
   }
 }
 
+const PRESENTATION_SECTOR_SUFFIX = /\s*[·|\-]\s*(יהודי|ערבי|דרוזי|בדואי|צרקסי|כללי)\s*$/u;
+
+export function calendarPresentationTitle(value) {
+  return String(value || '').trim().replace(PRESENTATION_SECTOR_SUFFIX, '').trim();
+}
+
+export function dedupeSchoolCalendarOccurrences(rows = []) {
+  const seen = new Set();
+  return (Array.isArray(rows) ? rows : []).filter((row) => {
+    const key = [calendarPresentationTitle(row?.title), row?.start_date || row?.iso, row?.end_date || row?.iso, row?.day_status].join('|');
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 /**
  * Scheduling gets a sector and therefore sees that sector + general events.
  * An empty sector intentionally means "no filter" so shared calendar views
@@ -73,7 +89,7 @@ export function normalizeSchoolCalendarRow(row = {}) {
   return {
     ...row,
     external_key: String(row.external_key || '').trim(),
-    title: String(row.title || '').trim(),
+    title: calendarPresentationTitle(row.title),
     calendar_sector: normalizeCalendarSector(row.calendar_sector) || 'general',
     start_date: startDate,
     end_date: endDate,

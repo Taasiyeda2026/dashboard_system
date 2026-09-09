@@ -19,6 +19,7 @@ import { canEditMonth, editBlockReason, getMonthKey, formatMonthLabel } from '..
 import { calcHours, ONLINE_REPORT_TYPE, OPERATIONS_REPORT_TYPE } from '../services/activities.service.js';
 import { deleteAttachment, getSignedUrl } from '../services/storage.service.js';
 import { exportMonthToExcel } from '../services/excel.service.js';
+import { reportPresentation } from '../components/report-summary-row.js';
 
 const COURSE_REPORT_TYPE = 'קורס';
 
@@ -286,12 +287,13 @@ function buildRecordRow({ record, generated, editable, instructor, activityTypes
   // ── 6. Activity name ─────────────────────────────────────────────────────
   const nameCell = document.createElement('div');
   nameCell.className = 'av2-rr__name';
-  nameCell.textContent = record.activity_name_snapshot || '—';
+  const presentation = reportPresentation(record);
+  nameCell.textContent = presentation.activity || '—';
 
   // ── 7. School ────────────────────────────────────────────────────────────
   const schoolCell = document.createElement('div');
   schoolCell.className = 'av2-rr__school';
-  schoolCell.textContent = record.school_name_snapshot || '—';
+  schoolCell.textContent = presentation.secondary || '—';
 
   // ── 8. Authority ─────────────────────────────────────────────────────────
   const authCell = document.createElement('div');
@@ -390,7 +392,7 @@ function buildRecordRow({ record, generated, editable, instructor, activityTypes
     const detail = document.createElement('div');
     detail.className = 'av2-rr__travel-compensation';
     const text = document.createElement('span');
-    text.innerHTML = `<strong>ביטול זמן: ${formatCancellationMinutes(compensation.final_cancellation_minutes)}</strong> · מחושב אוטומטית לפי זמן הנסיעה`;
+    text.innerHTML = `<strong aria-label="זמן נסיעה מזכה">${formatCancellationMinutes(compensation.final_cancellation_minutes)}</strong><span class="av2-rr__metric-divider" aria-hidden="true"></span><small>מחושב אוטומטית לפי זמן הנסיעה</small>`;
     detail.append(text);
     if (compensation.manually_overridden) {
       const audit = document.createElement('span');
