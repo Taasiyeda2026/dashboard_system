@@ -99,6 +99,7 @@ export function ensureFeature(name) {
         import('./proposal-gefen-approval-list-status.js?v=20260804-v1'),
         import('./proposal-approval-runtime.js'),
         import('./client-contact-persistence-hotfix.js?v=20260908-contact-form-integrity-v1'),
+        import('./proposal-new-contact-link-runtime.js?v=20260909-v1'),
         import('./school-catalog-bootstrap-hotfix.js?v=20260730-full-school-catalog-v1'),
         import('./school-calendar-runtime.js'),
         import('./gefen-proposal-layout-update.js'),
@@ -175,6 +176,8 @@ export function ensureFeature(name) {
 
     case 'admin':
       return loadOnce('admin', () => Promise.all([
+        // Wait for Supabase auth and retry empty lists catalog on direct
+        // operations-management entry (2027 workshop inventory) without visiting admin-lists first.
         import('./admin-lists-auth-hotfix.js'),
         import('./admin-permissions-access-hotfix.js'),
         import('./school-catalog-bootstrap-hotfix.js?v=20260730-full-school-catalog-v1')
