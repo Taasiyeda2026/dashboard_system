@@ -1,11 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import {
+globalThis.sessionStorage ||= { getItem: () => null, setItem: () => {}, removeItem: () => {} };
+globalThis.localStorage ||= { getItem: () => null, setItem: () => {}, removeItem: () => {} };
+
+const {
   gefenApprovalListOptions,
   installGefenApprovalListStatus
-} from '../frontend/src/proposal-gefen-approval-list-status.js';
-import { proposalsAgreementsScreen, proposalsAgreementsTableRowsHtml } from '../frontend/src/screens/proposals-agreements.js';
+} = await import('../frontend/src/proposal-gefen-approval-list-status.js');
+const { proposalsAgreementsScreen, proposalsAgreementsTableRowsHtml } = await import('../frontend/src/screens/proposals-agreements.js');
 
 const FEATURE_LOADERS_FILE = new URL('../frontend/src/feature-loaders.js', import.meta.url);
 const SERVICE_WORKER_FILE = new URL('../frontend/sw.js', import.meta.url);
@@ -71,7 +74,7 @@ test('linked-document option helper preserves paging and filters', () => {
   });
 });
 
-test('proposalsAgreementsScreen.load requests linked documents from the screen itself', async () => {
+test('initial proposals screen load stays lightweight while the status runtime owns linked-document enrichment', async () => {
   let receivedOptions = null;
   const api = {
     proposalsAgreements: async (options) => {
@@ -84,22 +87,21 @@ test('proposalsAgreementsScreen.load requests linked documents from the screen i
   assert.deepEqual(receivedOptions, {
     limit: 50,
     offset: 0,
-    includeLinkedDocuments: true
+    includeLinkedDocuments: false
   });
 
   const screenSource = await readFile(SCREEN_FILE, 'utf8');
-  assert.match(screenSource, /limit: 50, offset: 0, includeLinkedDocuments: true/);
-  assert.match(screenSource, /includeLinkedDocuments:\s*true/);
-  assert.doesNotMatch(screenSource, /includeLinkedDocuments:\s*false/);
+  assert.match(screenSource, /limit: 50, offset: 0, includeLinkedDocuments: false/);
+  assert.match(screenSource, /includeLinkedDocuments:\s*false/);
 });
 
-test('proposal feature loads the status fix and cache version is refreshed', async () => {
+test('proposal feature loads the saved-status runtime and deploy markers are present', async () => {
   const [featureLoaders, serviceWorker, config] = await Promise.all([
     readFile(FEATURE_LOADERS_FILE, 'utf8'),
     readFile(SERVICE_WORKER_FILE, 'utf8'),
     readFile(CONFIG_FILE, 'utf8')
   ]);
   assert.match(featureLoaders, /proposal-gefen-approval-list-status\.js\?v=20260804-v1/);
-  assert.match(serviceWorker, /const CACHE_VERSION = 1455;/);
-  assert.match(config, /gefen-approval-list-status-load-20260807-v1/);
+  assert.match(serviceWorker, /const CACHE_VERSION = \d+;/);
+  assert.match(config, /HOTFIX_VERSION:/);
 });

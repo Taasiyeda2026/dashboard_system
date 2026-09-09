@@ -93,7 +93,8 @@ test('bootstrap entry stays minimal and feature modules load on demand', () => {
 });
 
 test('index.html keeps a single app entry and no screen hotfix scripts', () => {
-  assert.match(indexSource, /main-with-proposal-pdf-hotfix\.js\?v=20260802-e2e-gate-fixes-v1/);
+  assert.match(indexSource, /main-with-proposal-pdf-hotfix\.js\?v=[^"']+/);
+  assert.equal((indexSource.match(/main-with-proposal-pdf-hotfix\.js/g) || []).length, 1);
   assert.doesNotMatch(indexSource, /dashboard-kpi-corrections\.js/);
   assert.doesNotMatch(indexSource, /proposal-editor-compact-fixes\.js/);
   assert.doesNotMatch(indexSource, /client-file-layout-polish\.js/);
