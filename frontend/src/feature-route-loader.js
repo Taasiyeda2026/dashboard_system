@@ -33,16 +33,7 @@ import { state } from './state.js';
   }
 
   function loadRouteFeatures(route) {
-    const timing = route === 'proposals-agreements'
-      ? globalThis.__dsLocalBaseline?.startTiming?.('proposals:deferred-features', { request_type: 'feature-bundle' })
-      : null;
-    ensureFeaturesForRoute(route)
-      .then(() => {
-        if (timing) globalThis.__dsLocalBaseline?.endTiming?.(timing);
-      })
-      .catch(() => {
-        if (timing) globalThis.__dsLocalBaseline?.endTiming?.(timing);
-      });
+    ensureFeaturesForRoute(route).catch(() => {});
   }
 
   function scheduleRouteFeatures(route) {

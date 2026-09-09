@@ -421,18 +421,6 @@ function flushPaint() {
   });
 }
 
-function finishProposalsInitialContentTiming(timing, meta = {}) {
-  if (!timing) return;
-  const finish = () => window.__dsLocalBaseline?.endTiming?.(timing, meta);
-  if (typeof window.requestAnimationFrame !== 'function') {
-    setTimeout(finish, 0);
-    return;
-  }
-  // The first callback runs before the next paint; the second runs only after that
-  // frame has been presented, so this metric represents viewable content, not DOM readiness.
-  window.requestAnimationFrame(() => window.requestAnimationFrame(finish));
-}
-
 function screenLoadingMarkup() {
   if (state.route === 'activities') {
     return `
@@ -1669,12 +1657,8 @@ function renderScreenIntoRoot({ route, screen, data, screenRoot, phase, cacheKey
   console.info('[route-render:start]', { route, data_keys: dataKeys });
   const renderStart = performance.now();
   try {
-    const proposalsRenderTiming = route === 'proposals-agreements'
-      ? window.__dsLocalBaseline?.startTiming?.('proposals:render')
-      : null;
     const markup = wrapWithOpsIfSubRoute(screen.render(data, { state }), route);
     screenRoot.innerHTML = markup;
-    if (proposalsRenderTiming) window.__dsLocalBaseline?.endTiming?.(proposalsRenderTiming, { row_count: data?.rows?.length });
     const text = (screenRoot.textContent || '').trim();
     if (text === 'טוען נתונים...' && data && typeof data === 'object') {
       // eslint-disable-next-line no-console
@@ -1686,11 +1670,7 @@ function renderScreenIntoRoot({ route, screen, data, screenRoot, phase, cacheKey
       throw new Error('render_stuck_on_loading');
     }
     beginPerfTimer('route:bindScreen');
-    const proposalsBindTiming = route === 'proposals-agreements'
-      ? window.__dsLocalBaseline?.startTiming?.('proposals:bind')
-      : null;
     bindScreen(screen, screenRoot, data);
-    if (proposalsBindTiming) window.__dsLocalBaseline?.endTiming?.(proposalsBindTiming, { row_count: data?.rows?.length });
     endPerfTimer('route:bindScreen');
     recordRenderPerf(route, phase || 'fresh-data-render', performance.now() - renderStart, {
       cache_key: cacheKey
@@ -1933,12 +1913,6 @@ async function mountScreen() {
   beginPerfTimer('route:transition');
   beginPerfTimer(transitionLabel);
   const mountStartMs = performance.now();
-  const proposalsModuleTiming = requestedRoute === 'proposals-agreements'
-    ? window.__dsLocalBaseline?.startTiming?.('proposals:navigation-to-module-ready', { request_type: 'screen-module' })
-    : null;
-  const proposalsContentTiming = requestedRoute === 'proposals-agreements'
-    ? window.__dsLocalBaseline?.startTiming?.('proposals:navigation-to-initial-content')
-    : null;
   if (requestedRoute === 'activities') activitiesNavStartMs = mountStartMs;
   if (isDesktopViewport()) {
     isMobileNavOpen = false;
@@ -1980,7 +1954,6 @@ async function mountScreen() {
   }
 
   let screen = await getScreen(state.route);
-  if (proposalsModuleTiming) window.__dsLocalBaseline?.endTiming?.(proposalsModuleTiming);
   if (!screen) {
     const fallback = effectiveRoutes().find((r) => !!screenLoaders[r]);
     if (fallback) {
@@ -2009,12 +1982,8 @@ async function mountScreen() {
   if (!shellExists) {
     // First mount: build shell HTML.
     // Use any available entry (fresh or stale) to paint immediately.
-      const cachedRenderTiming = rawEntry && requestedRoute === 'proposals-agreements'
-        ? window.__dsLocalBaseline?.startTiming?.('proposals:render')
-        : null;
-      const shellBody = rawEntry ? screen.render(rawEntry.data, { state }) : screenLoadingMarkup();
-      app.innerHTML = shell(shellBody);
-      if (cachedRenderTiming) window.__dsLocalBaseline?.endTiming?.(cachedRenderTiming, { row_count: rawEntry.data?.rows?.length });
+    const shellBody = rawEntry ? screen.render(rawEntry.data, { state }) : screenLoadingMarkup();
+    app.innerHTML = shell(shellBody);
     bindShell();
     bindAccentPickerOnce();
     applyGlobalAccent(accentNameFromStorage(state.clientSettings));
@@ -2024,11 +1993,7 @@ async function mountScreen() {
       const screenRoot = document.getElementById('screenRoot');
       if (screenRoot) {
         beginPerfTimer('route:bindScreen');
-        const cachedBindTiming = requestedRoute === 'proposals-agreements'
-          ? window.__dsLocalBaseline?.startTiming?.('proposals:bind')
-          : null;
         bindScreen(screen, screenRoot, rawEntry.data);
-        if (cachedBindTiming) window.__dsLocalBaseline?.endTiming?.(cachedBindTiming, { row_count: rawEntry.data?.rows?.length });
         endPerfTimer('route:bindScreen');
       }
       endPerfTimer('route:renderScreen');
@@ -2038,7 +2003,6 @@ async function mountScreen() {
       });
       if (routeChanged) lastRenderedRoute = state.route;
       if (isStale) backgroundRefreshScreen(screen, cacheKey);
-      finishProposalsInitialContentTiming(proposalsContentTiming, { row_count: rawEntry.data?.rows?.length, cache_hit: true });
       finishRouteTransition(transitionLabel, requestedRoute, cacheKey, mountStartMs, transitionToken);
       return;
     }
@@ -2050,17 +2014,9 @@ async function mountScreen() {
     updateNavActiveClasses();
     const screenRoot = document.getElementById('screenRoot');
     if (screenRoot) {
-      const cachedRenderTiming = requestedRoute === 'proposals-agreements'
-        ? window.__dsLocalBaseline?.startTiming?.('proposals:render')
-        : null;
       screenRoot.innerHTML = screen.render(rawEntry.data, { state });
-      if (cachedRenderTiming) window.__dsLocalBaseline?.endTiming?.(cachedRenderTiming, { row_count: rawEntry.data?.rows?.length });
       beginPerfTimer('route:bindScreen');
-      const cachedBindTiming = requestedRoute === 'proposals-agreements'
-        ? window.__dsLocalBaseline?.startTiming?.('proposals:bind')
-        : null;
       bindScreen(screen, screenRoot, rawEntry.data);
-      if (cachedBindTiming) window.__dsLocalBaseline?.endTiming?.(cachedBindTiming, { row_count: rawEntry.data?.rows?.length });
       endPerfTimer('route:bindScreen');
     }
     endPerfTimer('route:renderScreen');
@@ -2070,7 +2026,6 @@ async function mountScreen() {
     });
     if (routeChanged) lastRenderedRoute = state.route;
     if (isStale) backgroundRefreshScreen(screen, cacheKey);
-    finishProposalsInitialContentTiming(proposalsContentTiming, { row_count: rawEntry.data?.rows?.length, cache_hit: true });
     finishRouteTransition(transitionLabel, requestedRoute, cacheKey, mountStartMs, transitionToken);
     return;
   } else {
@@ -2122,7 +2077,6 @@ async function mountScreen() {
       cacheKey
     });
     window.__dsLocalBaseline?.markContent?.({ route: requestedRoute });
-    finishProposalsInitialContentTiming(proposalsContentTiming, { row_count: data?.rows?.length, cache_hit: false });
     endPerfTimer('route:renderScreen');
     // eslint-disable-next-line no-console
     console.info('[route-load:success]', {

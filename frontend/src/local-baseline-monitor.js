@@ -100,7 +100,6 @@ export function installLocalBaselineMonitor(options = {}) {
   const timers = new Set();
   const pendingFetches = [];
   let sequence = 0;
-  let timingSequence = 0;
   let scenario = null;
   let removed = false;
 
@@ -176,46 +175,6 @@ export function installLocalBaselineMonitor(options = {}) {
     endScenario() { if (scenario) scenario.ended_at_ms = now(); return scenario; },
     markNavigation(meta = {}) { options.onNavigation?.({ route: String(meta.route || 'unknown'), started_at_ms: now() }); },
     markContent(meta = {}) { options.onContent?.({ route: String(meta.route || 'unknown'), displayed_at_ms: now() }); },
-    startTiming(name, meta = {}) {
-      const safeName = String(name || 'unknown').replace(/[^a-z0-9:._-]/gi, '-');
-      const id = `timing-${++timingSequence}`;
-      const markName = `ds:${safeName}:${id}:start`;
-      const startedAt = now();
-      scope.performance?.mark?.(markName);
-      return {
-        id,
-        name: safeName,
-        markName,
-        startedAt,
-        meta: {
-          request_type: meta.request_type ? String(meta.request_type) : undefined,
-          cache_hit: typeof meta.cache_hit === 'boolean' ? meta.cache_hit : undefined,
-          included: typeof meta.included === 'boolean' ? meta.included : undefined
-        }
-      };
-    },
-    endTiming(timing, meta = {}) {
-      if (!timing?.id || !timing?.markName) return null;
-      const endedAt = now();
-      const endMark = `ds:${timing.name}:${timing.id}:end`;
-      scope.performance?.mark?.(endMark);
-      try { scope.performance?.measure?.(`ds:${timing.name}`, timing.markName, endMark); } catch { /* unsupported performance implementation */ }
-      const record = {
-        id: timing.id,
-        source: 'timing',
-        name: timing.name,
-        started_at_ms: timing.startedAt,
-        duration_ms: endedAt - timing.startedAt,
-        ...timing.meta,
-        row_count: Number.isFinite(meta.row_count) ? Number(meta.row_count) : undefined,
-        cache_hit: typeof meta.cache_hit === 'boolean' ? meta.cache_hit : timing.meta.cache_hit,
-        included: typeof meta.included === 'boolean' ? meta.included : timing.meta.included,
-        context: safeContext(options.getContext),
-        scenario
-      };
-      records.push(record);
-      return record;
-    },
     snapshot() { return { schema_version: 1, generated_at: new Date().toISOString(), records: exportableRecords() }; },
     exportJson() { return JSON.stringify(this.snapshot(), null, 2); },
     uninstall() {

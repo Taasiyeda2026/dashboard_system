@@ -1,0 +1,377 @@
+/* Scoped visual polish for the activity-manager board. No shared shell styles are changed here. */
+.manager-board-screen[data-manager-board-root] {
+  --manager-board-border: #e4eaf0;
+  --manager-board-soft: color-mix(in srgb, var(--ds-accent, #168c9d) 6%, #f8fafc);
+  width: min(1540px, 100%);
+  padding: 12px 20px 24px;
+  color: #17233b;
+}
+
+.manager-board-screen[data-manager-board-root] .manager-board-hero {
+  align-items: center;
+  gap: 16px 24px;
+  margin-bottom: 8px;
+}
+
+.manager-board-screen[data-manager-board-root] .manager-board-hero__title {
+  display: grid;
+  gap: 4px;
+}
+
+.manager-board-screen[data-manager-board-root] .manager-board-hero h1 {
+  margin: 0;
+  font-size: clamp(28px, 2.2vw, 32px);
+  line-height: 1.2;
+  color: #13213a;
+}
+
+.manager-board-screen[data-manager-board-root] .manager-board-hero p {
+  font-size: 13px;
+  font-weight: 650;
+  color: #68768a;
+}
+
+.manager-board-screen[data-manager-board-root] .manager-board-hero__controls {
+  align-items: end;
+  gap: 8px;
+}
+
+.manager-board-screen[data-manager-board-root] .manager-board-manager-select,
+.manager-board-screen[data-manager-board-root] .manager-board-manager-fixed {
+  gap: 4px;
+  min-width: 200px;
+}
+
+.manager-board-screen[data-manager-board-root] .manager-board-manager-select select,
+.manager-board-screen[data-manager-board-root] .manager-board-manager-fixed strong,
+.manager-board-screen[data-manager-board-root] .manager-board-month-nav {
+  min-height: 38px;
+  border-color: #dfe6ed;
+  border-radius: 10px;
+  box-shadow: none;
+}
+
+.manager-board-screen[data-manager-board-root] .manager-workspace-tabs {
+  width: 100%;
+  margin: 4px 0 12px;
+  padding: 0;
+  gap: 4px;
+  border: 0;
+  border-bottom: 1px solid #e4eaf0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.manager-board-screen[data-manager-board-root] .manager-workspace-tab {
+  min-width: 104px;
+  min-height: 36px;
+  padding: 7px 14px;
+  border: 1px solid transparent;
+  border-radius: 9px 9px 0 0;
+  color: #526174;
+  box-shadow: none;
+  transition: background-color .15s ease, color .15s ease, border-color .15s ease;
+}
+
+.manager-board-screen[data-manager-board-root] .manager-workspace-tab:hover {
+  background: #f7fafc;
+  color: #17233b;
+}
+
+.manager-board-screen[data-manager-board-root] .manager-workspace-tab.is-active {
+  border-color: color-mix(in srgb, var(--manager-board-accent) 20%, #e4eaf0);
+  border-bottom-color: #fff;
+  background: color-mix(in srgb, var(--manager-board-accent) 8%, #fff);
+  color: var(--manager-board-accent);
+  box-shadow: none;
+}
+
+.manager-board-screen[data-manager-board-root] :is(button, select):focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--manager-board-accent) 60%, #fff);
+  outline-offset: 2px;
+}
+
+.manager-board-screen[data-manager-board-root] .manager-board-team-strip {
+  margin-bottom: 12px;
+  padding: 12px 14px;
+  border-color: #e4eaf0;
+  border-radius: 12px;
+  box-shadow: none;
+}
+
+.manager-board-screen[data-manager-board-root] .manager-board-team-strip__title {
+  margin-bottom: 8px;
+  font-size: 16px;
+  color: #24344e;
+}
+
+.manager-board-screen[data-manager-board-root] .manager-board-team-strip__grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.manager-board-screen[data-manager-board-root] .manager-board-team-strip__chip {
+  width: auto;
+  height: 32px;
+  min-height: 32px;
+  padding: 5px 11px;
+  border-color: #e4eaf0;
+  border-radius: 9px;
+  background: #fafbfd;
+  color: #334155;
+  font-size: 12.5px;
+}
+
+.manager-board-screen[data-manager-board-root] .manager-board-team-strip__chip--kpi {
+  order: -1;
+  width: 150px;
+  height: 48px;
+  min-height: 48px;
+  align-self: center;
+  padding: 6px 14px;
+  border-color: #dce6eb;
+  background: #fff;
+  box-shadow: none;
+}
+
+.manager-board-screen[data-manager-board-root] .manager-board-team-strip__chip--kpi strong {
+  font-size: 26px;
+  color: #13213a;
+}
+
+.manager-board-screen[data-manager-board-root] .manager-board-layout {
+  grid-template-columns: minmax(0, 2.65fr) minmax(280px, 1fr);
+  gap: 16px;
+}
+
+.manager-board-screen[data-manager-board-root] .manager-board-side {
+  gap: 16px;
+}
+
+.manager-board-screen[data-manager-board-root] .manager-board-panel {
+  border-color: #e4eaf0;
+  border-radius: 12px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, .025);
+}
+
+.manager-board-screen[data-manager-board-root] .manager-board-panel__head {
+  padding: 13px 16px 11px;
+  border-bottom-color: #edf1f5;
+  border-inline-start: 0;
+}
+
+.manager-board-screen[data-manager-board-root] .manager-board-panel__head h2 {
+  font-size: 17px;
+  color: #17233b;
+}
+
+.manager-board-screen[data-manager-board-root] .manager-board-calendar {
+  padding: 0 10px 10px;
+}
+
+.manager-board-screen[data-manager-board-root] .manager-board-calendar__weekdays {
+  border-bottom-color: #e4eaf0;
+  background: #fafbfd;
+}
+
+.manager-board-screen[data-manager-board-root] .manager-board-calendar__weekdays span {
+  padding-block: 8px;
+  color: #536176;
+  font-size: 12px;
+}
+
+.manager-board-screen[data-manager-board-root] .manager-board-calendar__grid {
+  border-inline-start-color: #edf1f5;
+}
+
+.manager-board-screen[data-manager-board-root] .manager-board-calendar-day {
+  min-height: 100px;
+  padding: 9px;
+  border-color: #edf1f5;
+}
+
+.manager-board-screen[data-manager-board-root] .manager-board-calendar-day.is-empty {
+  background: #fbfcfd;
+}
+
+.manager-board-screen[data-manager-board-root] .manager-board-calendar-day.is-today {
+  background: color-mix(in srgb, var(--manager-board-accent) 5%, #fff);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--manager-board-accent) 42%, transparent);
+}
+
+.manager-board-screen[data-manager-board-root] .manager-board-calendar-day__number {
+  color: #23324a !important;
+  font-size: 13px;
+  text-decoration: none;
+}
+
+.manager-board-screen[data-manager-board-root] .manager-board-calendar-day.is-today .manager-board-calendar-day__number {
+  color: var(--manager-board-accent) !important;
+  text-decoration: none;
+}
+
+.manager-board-screen[data-manager-board-root] .manager-board-calendar-day__count {
+  display: inline-flex;
+  width: max-content;
+  max-width: 100%;
+  align-items: center;
+  gap: 5px;
+  margin-top: 4px;
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--manager-board-accent) 8%, #fff);
+  color: var(--manager-board-accent);
+  font-size: 11.5px;
+}
+
+.manager-board-screen[data-manager-board-root] .manager-board-calendar-day__count::before {
+  content: '';
+  width: 5px;
+  height: 5px;
+  flex: 0 0 5px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.manager-board-screen[data-manager-board-root] .manager-board-milestones,
+.manager-board-screen[data-manager-board-root] .manager-board-school-events {
+  padding: 4px 14px 10px;
+}
+
+.manager-board-screen[data-manager-board-root] .manager-board-milestones-group__label {
+  padding: 10px 14px 2px;
+  color: #6b7789;
+  font-size: 11.5px;
+}
+
+.manager-board-screen[data-manager-board-root] .manager-board-milestone {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  align-items: start;
+  gap: 2px 10px;
+  padding: 10px 0;
+  border-bottom-color: #edf1f5;
+}
+
+.manager-board-screen[data-manager-board-root] .manager-board-milestone time {
+  grid-row: 1 / span 2;
+  color: #506078;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.manager-board-screen[data-manager-board-root] .manager-board-milestone__body {
+  display: grid;
+  gap: 2px;
+  white-space: normal;
+  overflow: visible;
+}
+
+.manager-board-screen[data-manager-board-root] .manager-board-milestone__body strong,
+.manager-board-screen[data-manager-board-root] .manager-board-milestone__body span {
+  display: block;
+  overflow: visible;
+  white-space: normal;
+}
+
+.manager-board-screen[data-manager-board-root] .manager-board-milestone__body strong {
+  font-size: 13px;
+  color: #26364e;
+}
+
+.manager-board-screen[data-manager-board-root] .manager-board-milestone__body strong::after,
+.manager-board-screen[data-manager-board-root] .manager-board-milestone__body::after {
+  display: none;
+}
+
+.manager-board-screen[data-manager-board-root] .manager-board-milestone__body span,
+.manager-board-screen[data-manager-board-root] .manager-board-milestone__badge {
+  font-size: 11.5px !important;
+  color: #6b7789;
+}
+
+.manager-board-screen[data-manager-board-root] .manager-board-milestone__badge {
+  grid-column: 2;
+  white-space: normal;
+}
+
+@media (max-width: 1180px) {
+  .manager-board-screen[data-manager-board-root] .manager-board-layout {
+    grid-template-columns: minmax(0, 1.9fr) minmax(260px, 1fr);
+  }
+}
+
+@media (max-width: 900px) {
+  .manager-board-screen[data-manager-board-root] {
+    zoom: 1;
+    padding: 12px 14px 20px;
+  }
+
+  .manager-board-screen[data-manager-board-root] .manager-board-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .manager-board-screen[data-manager-board-root] .manager-board-side {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 700px) {
+  .manager-board-screen[data-manager-board-root] .manager-board-hero {
+    align-items: stretch;
+  }
+
+  .manager-board-screen[data-manager-board-root] .manager-board-hero__controls {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .manager-board-screen[data-manager-board-root] .manager-workspace-tabs {
+    display: flex;
+    overflow-x: auto;
+  }
+
+  .manager-board-screen[data-manager-board-root] .manager-workspace-tab {
+    flex: 1 0 auto;
+  }
+
+  .manager-board-screen[data-manager-board-root] .manager-board-side {
+    grid-template-columns: 1fr;
+  }
+
+  .manager-board-screen[data-manager-board-root] .manager-board-calendar {
+    overflow-x: visible;
+    padding-inline: 4px;
+  }
+
+  .manager-board-screen[data-manager-board-root] .manager-board-calendar__weekdays,
+  .manager-board-screen[data-manager-board-root] .manager-board-calendar__grid {
+    min-width: 0;
+  }
+
+  .manager-board-screen[data-manager-board-root] .manager-board-calendar-day {
+    min-height: 68px;
+    padding: 5px 3px;
+  }
+
+  .manager-board-screen[data-manager-board-root] .manager-board-calendar-day__head {
+    display: grid;
+    gap: 1px;
+  }
+
+  .manager-board-screen[data-manager-board-root] .manager-board-calendar-day__school {
+    max-width: 100% !important;
+    font-size: 8.5px;
+  }
+
+  .manager-board-screen[data-manager-board-root] .manager-board-calendar-day__count {
+    padding: 2px 4px;
+    font-size: 9px;
+  }
+
+  .manager-board-screen[data-manager-board-root] .manager-board-calendar-day__count::before {
+    display: none;
+  }
+}

@@ -793,8 +793,9 @@ function renderBoardMarkup(data, manager, ym) {
   return `
     <section class="manager-board-screen" data-manager-board-root dir="rtl">
       <div class="manager-board-hero">
-        <div>
+        <div class="manager-board-hero__title">
           <h1>לוח מנהל פעילות</h1>
+          <p>${escapeHtml(manager || '—')} · ${escapeHtml(monthLabel(ym))}</p>
         </div>
         <div class="manager-board-hero__controls">
           ${managerSelectorHtml(managerNames, manager)}

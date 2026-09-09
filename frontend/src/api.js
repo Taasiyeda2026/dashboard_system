@@ -4521,7 +4521,6 @@ async function readProposalsAgreementsFromSupabase({
   includeLinkedDocuments = false,
   paginate = true
 } = {}) {
-  const listTiming = globalThis.__dsLocalBaseline?.startTiming?.('proposals:screen-load-to-list-complete', { request_type: 'proposals-list' });
   assertCanUseProposalsAgreementsApi();
   await waitForSupabaseAuthSession();
   lastProposalLoaderDebug = {};
@@ -4546,19 +4545,15 @@ async function readProposalsAgreementsFromSupabase({
   const paResult = await proposalsQuery;
   if (paResult.error) throw new Error(paResult.error.message || 'proposals_agreements_read_failed');
   const rawRows = Array.isArray(paResult.data) ? paResult.data : [];
-  if (listTiming) globalThis.__dsLocalBaseline?.endTiming?.(listTiming, { row_count: rawRows.length });
   noteProposalRead('rows', rawRows, null);
   const pageIds = rawRows.map((row) => cleanProposalAgreementText(row?.id)).filter(Boolean);
   const gefenEligibilityByProposalId = new Map();
-  const eligibilityTiming = globalThis.__dsLocalBaseline?.startTiming?.('proposals:list-to-gefen-eligibility-complete', { request_type: 'gefen-eligibility' });
-  let eligibilityRowCount = 0;
   if (pageIds.length) {
     const { data: eligibilityRows, error: eligibilityError } = await supabase
       .from('proposal_agreement_items')
       .select('proposal_agreement_id,proposal_group,item_type,gefen_number,proposal_display_mode')
       .in('proposal_agreement_id', pageIds);
     if (eligibilityError) throw new Error(eligibilityError.message || 'proposal_gefen_eligibility_read_failed');
-    eligibilityRowCount = Array.isArray(eligibilityRows) ? eligibilityRows.length : 0;
     pageIds.forEach((id) => gefenEligibilityByProposalId.set(id, false));
     (Array.isArray(eligibilityRows) ? eligibilityRows : []).forEach((item) => {
       const proposalId = cleanProposalAgreementText(item?.proposal_agreement_id);
@@ -4571,22 +4566,17 @@ async function readProposalsAgreementsFromSupabase({
       }
     });
   }
-  if (eligibilityTiming) globalThis.__dsLocalBaseline?.endTiming?.(eligibilityTiming, { row_count: eligibilityRowCount });
-  const linkedDocumentsTiming = includeLinkedDocuments
-    ? globalThis.__dsLocalBaseline?.startTiming?.('proposals:linked-documents-query', { request_type: 'linked-documents', included: true })
-    : null;
   const proposalLinkedDocuments = includeLinkedDocuments
     ? await readProposalLinkedDocumentsFromSupabase({ proposalIds: pageIds })
     : [];
-  if (linkedDocumentsTiming) globalThis.__dsLocalBaseline?.endTiming?.(linkedDocumentsTiming, { row_count: proposalLinkedDocuments.length, included: true });
-  const normalizationTiming = globalThis.__dsLocalBaseline?.startTiming?.('proposals:client-normalization');
   const linkedDocumentByProposalId = new Map(
     proposalLinkedDocuments.map((row) => [
       cleanProposalAgreementText(row?.proposal_agreement_id),
       row
     ])
   );
-  const rows = rawRows
+  return {
+    rows: rawRows
       .map(normalizeProposalAgreementRow)
       .map((row) => {
         const linked = linkedDocumentByProposalId.get(row.id);
@@ -4602,10 +4592,7 @@ async function readProposalsAgreementsFromSupabase({
           gefen_approval_combined: linked?.combined_with_proposal === true,
           gefen_approval_applicable: gefenEligibilityByProposalId.get(row.id) === true
         };
-      });
-  if (normalizationTiming) globalThis.__dsLocalBaseline?.endTiming?.(normalizationTiming, { row_count: rows.length });
-  return {
-    rows,
+      }),
     activityNameOptions: [],
     contactOptions: [],
     contactOptionsError: null,

@@ -60,33 +60,6 @@ test('uninstall is complete and does not overwrite a later wrapper', () => {
   assert.equal(scope.fetch, later); assert.equal(disconnected, 1); assert.equal(removed, 1); assert.equal(scope.__dsLocalBaseline, undefined);
 });
 
-test('phase timings emit performance measures and retain only non-sensitive metadata', () => {
-  let now = 10;
-  const marks = [];
-  const measures = [];
-  const scope = {
-    fetch: () => Promise.resolve(new Response()),
-    Request,
-    performance: {
-      now: () => now,
-      mark: (name) => marks.push(name),
-      measure: (...args) => measures.push(args)
-    }
-  };
-  const api = installLocalBaselineMonitor({ scope, now: () => now });
-  const timing = api.startTiming('proposals:list', { request_type: 'list', customer_name: 'private' });
-  now = 35;
-  api.endTiming(timing, { row_count: 50, proposal_id: 'private-id' });
-  const row = api.snapshot().records.find((record) => record.source === 'timing');
-  assert.equal(row.duration_ms, 25);
-  assert.equal(row.row_count, 50);
-  assert.equal(row.request_type, 'list');
-  assert.equal(JSON.stringify(row).includes('private'), false);
-  assert.equal(marks.length, 2);
-  assert.equal(measures.length, 1);
-  api.uninstall();
-});
-
 test('bootstrap performs no installation without both flags', () => {
   let observerCreated = 0; let listenerAdded = 0;
   class Observer { constructor() { observerCreated += 1; } }
