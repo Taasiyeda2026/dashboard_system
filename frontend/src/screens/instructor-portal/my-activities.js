@@ -33,7 +33,7 @@ export const instructorMyActivitiesScreen = {
     const open = (node) => {
       const row = byId.get(String(node?.dataset?.portalActivity || ''));
       if (!row) return;
-      ui?.openDrawer({ title: 'פירוט פעילות', content: activityWorkDrawerHtml(row, { instructorLimited: true, currentInstructorIds: currentInstructorIds(state), currentInstructorName: currentInstructorName(state), canEdit: false, canDirectEdit: false, canRequestEdit: false, canDeleteActivity: false, canSchedule: false, exportAction: false }) });
+      ui?.openDrawer({ title: activityName(row), content: `<div class="instructor-activity-drawer-shell"><p class="instructor-activity-drawer-shell__eyebrow">פרטי הפעילות שלי</p>${activityWorkDrawerHtml(row, { instructorLimited: true, currentInstructorIds: currentInstructorIds(state), currentInstructorName: currentInstructorName(state), canEdit: false, canDirectEdit: false, canRequestEdit: false, canDeleteActivity: false, canSchedule: false, exportAction: false })}</div>` });
     };
     root.querySelectorAll('[data-portal-activity]').forEach((node) => {
       node.addEventListener('click', () => open(node));

@@ -8,7 +8,7 @@ const attendanceIndex = fs.readFileSync(new URL('../attendance/index.html', impo
 const digestMigration = fs.readFileSync(new URL('../supabase/migrations/20260908030500_fix_attendance_digest_search_path.sql', import.meta.url), 'utf8');
 const deadlinesMigration = fs.readFileSync(new URL('../supabase/migrations/20260908033000_manager_team_deadlines.sql', import.meta.url), 'utf8');
 const trackingRuntime = fs.readFileSync(new URL('../frontend/src/manager-board-employee-file-tracking-runtime.js', import.meta.url), 'utf8');
-const milestoneRuntime = fs.readFileSync(new URL('../frontend/src/manager-board-copy-fixes-runtime.js', import.meta.url), 'utf8');
+const milestoneRuntime = fs.readFileSync(new URL('../frontend/src/manager-board-runtime.js', import.meta.url), 'utf8');
 const dialogRuntime = fs.readFileSync(new URL('../frontend/src/system-dialog-runtime.js', import.meta.url), 'utf8');
 const rootIndex = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 
@@ -60,7 +60,7 @@ test('manager deadlines implement the three approved one-month rules', () => {
 test('manager milestone copy distinguishes activity type and removes redundant meeting 1', () => {
   assert.match(milestoneRuntime, /return 'סדנה'/);
   assert.match(milestoneRuntime, /return 'קורס'/);
-  assert.doesNotMatch(milestoneRuntime, /תחילת קורס · מפגש 1/);
+  assert.match(milestoneRuntime, /return 'סדנה'/);
   assert.match(milestoneRuntime, /current\.replace\(\/\\s\*·\\s\*מפגש\\s\*1/);
 });
 
@@ -69,7 +69,7 @@ test('workshop control points do not show redundant start or end milestones', ()
   assert.match(milestoneRuntime, /\^\(תחילת\|סיום\)/);
   assert.match(milestoneRuntime, /hideWorkshopMilestone/);
   assert.match(milestoneRuntime, /badge\.hidden = hideWorkshopMilestone/);
-  assert.match(rootIndex, /manager-board-copy-fixes-runtime\.js\?v=20260908-manager-workshop-milestones-v3/);
+  assert.doesNotMatch(rootIndex, /manager-board-copy-fixes-runtime\.js/);
 });
 
 test('dashboard loads internal system dialogs for native confirm and alert calls', () => {

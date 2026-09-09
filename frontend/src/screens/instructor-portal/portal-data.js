@@ -25,7 +25,11 @@ export function monthlyInstructorSummary(rows, state, month) {
     const label = activityTypeDisplayLabel(canonicalType || rawType) || 'פעילות';
     types.set(label, (types.get(label) || 0) + 1);
   });
-  return { total: selected.length, types: [...types.entries()].map(([label, value]) => ({ label, value })) };
+  const today = new Date().toISOString().slice(0, 10);
+  const next = [...selected].filter((row) => isoDate(row?.start_date || row?.activity_date || row?.date_1) >= today)
+    .sort((a, b) => isoDate(a?.start_date || a?.activity_date || a?.date_1).localeCompare(isoDate(b?.start_date || b?.activity_date || b?.date_1)))[0] || null;
+  const missingDates = selected.filter((row) => !isoDate(row?.start_date || row?.activity_date || row?.date_1)).length;
+  return { total: selected.length, types: [...types.entries()].map(([label, value]) => ({ label, value })), next, attention: missingDates };
 }
 
 export async function loadInstructorActivities(api) {

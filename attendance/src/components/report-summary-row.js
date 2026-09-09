@@ -13,6 +13,29 @@ function formatTime(value) {
   return String(value || '').slice(0, 5) || '—';
 }
 
+function normalizedLabel(value) {
+  return String(value || '').trim().replace(/\s+/g, ' ').toLocaleLowerCase('he-IL');
+}
+
+export function reportPresentation(record = {}) {
+  const activity = String(record.activity_name_snapshot || record.program_name_snapshot || record.activity_type || 'פעילות').trim();
+  const activityKey = normalizedLabel(activity);
+  const secondary = [];
+  [record.program_name_snapshot, record.school_name_snapshot, record.authority_name_snapshot]
+    .map((value) => String(value || '').trim()).filter(Boolean).forEach((value) => {
+      const key = normalizedLabel(value);
+      if (!key || activityKey.includes(key) || key.includes(activityKey)) return;
+      if (!secondary.some((existing) => normalizedLabel(existing) === key)) secondary.push(value);
+    });
+  return { activity, secondary: secondary.join(' · ') };
+}
+
+export function distinctAttendanceWorkDays(records = []) {
+  return new Set((Array.isArray(records) ? records : [])
+    .filter((record) => !record?.generation_kind && !record?.source_attendance_record_id)
+    .map((record) => String(record?.report_date || '').slice(0, 10)).filter(Boolean)).size;
+}
+
 function addDetail(container, label, value, { wide = false } = {}) {
   const item = document.createElement('div');
   item.className = `av2-report-summary-row__detail${wide ? ' av2-report-summary-row__detail--wide' : ''}`;
@@ -29,7 +52,7 @@ function addDetail(container, label, value, { wide = false } = {}) {
   container.append(item);
 }
 
-export function createReportSummaryRow(record, _options = {}) {
+export function createReportSummaryRow(record, options = {}) {
   const wrapper = document.createElement('div');
   wrapper.className = 'av2-report-summary-row';
   if (record?.id != null) wrapper.dataset.recordId = String(record.id);
@@ -46,20 +69,23 @@ export function createReportSummaryRow(record, _options = {}) {
   const main = document.createElement('span');
   main.className = 'av2-report-summary-row__main';
   const activity = document.createElement('strong');
-  activity.textContent = record.activity_name_snapshot || record.activity_type || 'פעילות';
+  const presentation = reportPresentation(record);
+  activity.textContent = presentation.activity;
   const school = document.createElement('small');
-  school.textContent = record.school_name_snapshot || record.authority_name_snapshot || '';
+  school.textContent = presentation.secondary;
   main.append(activity, school);
 
   const hours = document.createElement('span');
   hours.className = 'av2-report-summary-row__hours';
-  hours.textContent = `${Number(record.total_hours || 0).toFixed(2)} שעות`;
+  hours.textContent = Number(record.total_hours || 0).toFixed(2);
+  hours.setAttribute('aria-label', `${hours.textContent} שעות עבודה`);
 
   const compensation = record.travel_compensation;
   const travel = document.createElement('span');
   travel.className = 'av2-report-summary-row__travel';
   if (compensation?.calculation_status === 'resolved' && Number(compensation.final_cancellation_minutes) > 0) {
-    travel.textContent = `ביטול זמן ${formatTravelMinutes(compensation.final_cancellation_minutes)}`;
+    travel.textContent = formatTravelMinutes(compensation.final_cancellation_minutes);
+    travel.setAttribute('aria-label', `זמן נסיעה מזכה ${travel.textContent}`);
   } else if (compensation && compensation.calculation_status !== 'resolved') {
     travel.classList.add('av2-report-summary-row__pending');
     travel.textContent = 'חישוב נסיעה ממתין';
@@ -103,6 +129,19 @@ export function createReportSummaryRow(record, _options = {}) {
   addDetail(details, 'הוצאות', `₪${Number(record.expenses || 0).toFixed(2)}`);
   if (record.expense_details) addDetail(details, 'פירוט הוצאות', record.expense_details, { wide: true });
   if (record.notes) addDetail(details, 'הערות', record.notes, { wide: true });
+  if (record.attachments?.length || record.attachment_names) addDetail(details, 'קבצים', record.attachment_names || `${record.attachments.length} קבצים`, { wide: true });
+  addDetail(details, 'סטטוס', record.status || 'פתוח', { wide: true });
+  if (options.editable && typeof options.onEdit === 'function') {
+    const actions = document.createElement('div');
+    actions.className = 'av2-report-summary-row__actions';
+    const edit = document.createElement('button');
+    edit.type = 'button';
+    edit.className = 'av2-btn av2-btn--secondary';
+    edit.textContent = 'עריכה';
+    edit.addEventListener('click', (event) => { event.stopPropagation(); options.onEdit(record); });
+    actions.append(edit);
+    details.append(actions);
+  }
 
   toggle.addEventListener('click', () => {
     const expanded = details.hidden;

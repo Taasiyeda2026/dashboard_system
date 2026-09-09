@@ -146,10 +146,10 @@ function currentMonth(boardRoot, period = periodKey()) {
 }
 
 function contextFromBoard(boardRoot) {
-  const period = periodKey();
+  const period = normalizeGlobalActivityPeriod(boardRoot?.dataset?.managerBoardPeriod || periodKey());
   const manager = currentManagerName(boardRoot);
-  const ym = activeTab === 'attendance' ? (attendanceYm || currentMonthKey()) : currentMonth(boardRoot, period);
-  const schoolYear = schoolYearForPeriod(period);
+  const ym = activeTab === 'attendance' ? (attendanceYm || currentMonthKey()) : text(boardRoot?.dataset?.managerBoardMonth) || currentMonth(boardRoot, period);
+  const schoolYear = text(boardRoot?.dataset?.managerBoardSchoolYear) || schoolYearForPeriod(period);
   return { period, manager, ym, schoolYear };
 }
 
@@ -385,6 +385,11 @@ function handleWorkspaceClick(event) {
   event.preventDefault();
   if (activeTab === 'attendance' && next !== 'attendance') restoreAttendanceMonthNav(boardRoot);
   setActiveTab(next);
+  if (next === 'tracking') {
+    const context = contextFromBoard(boardRoot);
+    rosterCache.delete(`${context.manager}|${context.schoolYear}`);
+    document.dispatchEvent(new CustomEvent('manager-board:tracking-invalidate', { detail: context }));
+  }
   if (next === 'attendance') {
     attendanceYm = currentMonthKey();
     syncAttendanceMonthNav(boardRoot);
@@ -847,7 +852,7 @@ async function renderWorkspace(force = false) {
   try {
     const roster = activeTab === 'payroll-attendance'
       ? await loadAllTeamRosters(context.schoolYear)
-      : await loadRoster(context.manager, context.schoolYear);
+      : await loadRoster(context.manager, context.schoolYear, force && activeTab === 'tracking');
     if (renderToken !== currentRenderToken || !boardRoot.isConnected) return;
     if (activeTab === 'attendance') await renderAttendance(boardRoot, context, roster, renderToken);
     else if (activeTab === 'payroll-attendance') await renderPayrollAttendanceAdmin(boardRoot, context, roster, renderToken);

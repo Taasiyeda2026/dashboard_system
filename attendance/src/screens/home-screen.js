@@ -7,7 +7,7 @@ import { createIcon } from '../components/icon.js';
 import { getMonthRecords, calcMonthSummary, getMonthApproval, submitMonth, sourceAttendanceRecords, reconcileTravelCompensation } from '../services/attendance.service.js';
 import { canEditMonth, editBlockReason, getMonthKey, formatMonthLabel, shouldShowSubmitReminder } from '../services/month-gate.service.js';
 import { exportMonthToExcel } from '../services/excel.service.js';
-import { createReportSummaryRow } from '../components/report-summary-row.js';
+import { createReportSummaryRow, distinctAttendanceWorkDays } from '../components/report-summary-row.js';
 import { openSubmitConfirmationDialog } from '../submit-confirmation-dialog.js';
 
 const STATUS_MAP = {
@@ -121,7 +121,7 @@ async function loadAndRender({ instructor, year, month, statsEl, actionStripEl, 
     // KPI cards
     statsEl.innerHTML = '';
     statsEl.append(
-      buildStat(sourceRecords.length,                     'דיווחים',  'list'),
+      buildStat(distinctAttendanceWorkDays(records),      'ימי עבודה', 'calendar'),
       buildStat(summary.totalHours.toFixed(2),            'שעות',     'clock'),
       buildStat(summary.totalKm.toFixed(0) + '\u00a0ק"מ','נסיעות',   'map-pin'),
       buildStat('₪' + summary.totalExpenses.toFixed(0),  'הוצאות',   'shekel-sign')
@@ -238,7 +238,7 @@ function buildActionStrip({ approval, year, month, instructor, records, sourceRe
     const empty = document.createElement('p'); empty.className = 'av2-home__empty'; empty.textContent = 'אין כרגע דיווחים בחודש זה'; list.append(empty);
   } else {
     sourceRecords.slice().sort((a,b) => String(b.report_date).localeCompare(String(a.report_date))).slice(0, 6)
-      .forEach((record) => list.append(createReportSummaryRow(record, { onOpen: () => onMyReports?.() })));
+      .forEach((record) => list.append(createReportSummaryRow(record, { editable, onEdit: () => onMyReports?.() })));
   }
   strip.append(list);
   return strip;
