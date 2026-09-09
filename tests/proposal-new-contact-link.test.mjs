@@ -1,5 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+
+globalThis.sessionStorage ||= { getItem: () => null, setItem: () => {}, removeItem: () => {} };
+globalThis.localStorage ||= { getItem: () => null, setItem: () => {}, removeItem: () => {} };
 
 const {
   newProposalContactCandidate,
@@ -58,7 +62,7 @@ test('new school proposal creates or resolves a contacts_schools row before prop
   assert.equal(linked._contact_original.source_table, 'contacts_schools');
 });
 
-test('existing contact link, edit/clone payloads and non-school clients do not create a contact', async () => {
+test('existing contact link, clone payloads and non-school clients do not create a contact', async () => {
   assert.equal(newProposalContactCandidate(newSchoolProposal({ contact_school_id: 44 })), null);
   assert.equal(newProposalContactCandidate(newSchoolProposal({ supersedes_proposal_id: 'old-proposal' })), null);
   assert.equal(newProposalContactCandidate(newSchoolProposal({ client_type: 'authority', school_id: null })), null);
@@ -106,4 +110,9 @@ test('existing contacts_schools identity passes through without another contact 
   const result = await targetApi.addProposalAgreement(payload);
   assert.equal(contactWrites, 0);
   assert.equal(result.row.contact_school_id, 321);
+});
+
+test('proposal feature bundle loads the linkage runtime after first-paint deferral', async () => {
+  const featureLoaders = await readFile(new URL('../frontend/src/feature-loaders.js', import.meta.url), 'utf8');
+  assert.match(featureLoaders, /proposal-new-contact-link-runtime\.js\?v=20260909-v1/);
 });
