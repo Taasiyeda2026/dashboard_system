@@ -25,7 +25,7 @@ test('attendance desktop navigation removes duplicate actions and adds dashboard
   assert.match(attendanceCss, /\.av2-report__header > \.av2-btn--icon\s*\{\s*display:\s*none\s*!important/);
   assert.match(attendanceRuntime, /dataset\.av2Dashboard/);
   assert.match(attendanceRuntime, /window\.location\.assign\('\/dashboard_system\/'\)/);
-  assert.match(attendanceIndex, /attendance-ux-fixes-runtime\.js\?v=55/);
+  assert.match(attendanceIndex, /attendance-ux-fixes-runtime\.js\?v=62/);
 });
 
 test('attendance desktop controls stay compact and travel status is not a full-width banner', () => {
@@ -49,7 +49,7 @@ test('attendance digest fix resolves pgcrypto through the extensions schema', ()
 
 test('manager deadlines implement the three approved one-month rules', () => {
   assert.match(deadlinesMigration, /intro_feedback_due_date/);
-  assert.match(deadlinesMigration, /employee_created_at::date \+ interval '1 month'/);
+  assert.match(deadlinesMigration, /coalesce\(usr\.employee_created_at, ef\.created_at\)::date \+ interval '1 month'/);
   assert.match(deadlinesMigration, /first_activity_date \+ interval '1 month'/);
   assert.match(deadlinesMigration, /observation_1_completed_at::date \+ interval '1 month'/);
   assert.match(trackingRuntime, /intro_feedback_due_date/);
@@ -57,18 +57,17 @@ test('manager deadlines implement the three approved one-month rules', () => {
   assert.match(trackingRuntime, /observation_2_due_date/);
 });
 
-test('manager milestone copy distinguishes activity type and removes redundant meeting 1', () => {
+test('manager milestone renderer distinguishes workshops from course checkpoints', () => {
+  assert.match(milestoneRuntime, /type\.includes\('workshop'\) \|\| type\.includes\('סדנה'\)/);
   assert.match(milestoneRuntime, /return 'סדנה'/);
-  assert.match(milestoneRuntime, /return 'קורס'/);
-  assert.match(milestoneRuntime, /return 'סדנה'/);
-  assert.match(milestoneRuntime, /current\.replace\(\/\\s\*·\\s\*מפגש\\s\*1/);
+  assert.match(milestoneRuntime, /labels\.push\('תחילת קורס'\)/);
+  assert.match(milestoneRuntime, /labels\.push\('סיום קורס'\)/);
 });
 
 test('workshop control points do not show redundant start or end milestones', () => {
-  assert.match(milestoneRuntime, /typeLabel === 'סדנה'/);
-  assert.match(milestoneRuntime, /\^\(תחילת\|סיום\)/);
-  assert.match(milestoneRuntime, /hideWorkshopMilestone/);
-  assert.match(milestoneRuntime, /badge\.hidden = hideWorkshopMilestone/);
+  assert.match(milestoneRuntime, /function managerMilestoneLabel/);
+  assert.match(milestoneRuntime, /const label = managerMilestoneLabel\(meeting\)/);
+  assert.doesNotMatch(milestoneRuntime, /hideWorkshopMilestone|badge\.hidden/);
   assert.doesNotMatch(rootIndex, /manager-board-copy-fixes-runtime\.js/);
 });
 
@@ -76,5 +75,5 @@ test('dashboard loads internal system dialogs for native confirm and alert calls
   assert.match(dialogRuntime, /window\.confirm = function systemConfirm/);
   assert.match(dialogRuntime, /window\.alert = function systemAlert/);
   assert.match(dialogRuntime, /role', kind === 'confirm' \? 'alertdialog' : 'dialog'/);
-  assert.match(rootIndex, /system-dialog-runtime\.js\?v=20260908-system-dialog-v1/);
+  assert.match(rootIndex, /system-dialog-runtime\.js\?v=20260909-manager-attendance-ui-v1/);
 });
