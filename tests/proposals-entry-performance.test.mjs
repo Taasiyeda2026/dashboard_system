@@ -79,4 +79,5 @@ test('local proposal instrumentation covers entry, query, render, bind, deferred
   assert.match(workflowRuntime, /proposals:editor-deps-prewarm/);
   assert.match(baselineMonitor, /performance\?\.mark/);
   assert.match(baselineMonitor, /performance\?\.measure/);
+  assert.match(mainSource, /finishProposalsInitialContentTiming[\s\S]*?requestAnimationFrame\(\(\) => window\.requestAnimationFrame\(finish\)\)/);
 });

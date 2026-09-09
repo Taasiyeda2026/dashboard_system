@@ -103,5 +103,5 @@ test('proposal feature loads the saved-status runtime and deploy markers are pre
   ]);
   assert.match(featureLoaders, /proposal-gefen-approval-list-status\.js\?v=20260804-v1/);
   assert.match(serviceWorker, /const CACHE_VERSION = \d+;/);
-  assert.match(config, /HOTFIX_VERSION:/);
+  assert.match(config, /proposals-performance-instrumentation-20260909-v1/);
 });

@@ -421,6 +421,18 @@ function flushPaint() {
   });
 }
 
+function finishProposalsInitialContentTiming(timing, meta = {}) {
+  if (!timing) return;
+  const finish = () => window.__dsLocalBaseline?.endTiming?.(timing, meta);
+  if (typeof window.requestAnimationFrame !== 'function') {
+    setTimeout(finish, 0);
+    return;
+  }
+  // The first callback runs before the next paint; the second runs only after that
+  // frame has been presented, so this metric represents viewable content, not DOM readiness.
+  window.requestAnimationFrame(() => window.requestAnimationFrame(finish));
+}
+
 function screenLoadingMarkup() {
   if (state.route === 'activities') {
     return `
@@ -2026,7 +2038,7 @@ async function mountScreen() {
       });
       if (routeChanged) lastRenderedRoute = state.route;
       if (isStale) backgroundRefreshScreen(screen, cacheKey);
-      if (proposalsContentTiming) window.__dsLocalBaseline?.endTiming?.(proposalsContentTiming, { row_count: rawEntry.data?.rows?.length, cache_hit: true });
+      finishProposalsInitialContentTiming(proposalsContentTiming, { row_count: rawEntry.data?.rows?.length, cache_hit: true });
       finishRouteTransition(transitionLabel, requestedRoute, cacheKey, mountStartMs, transitionToken);
       return;
     }
@@ -2058,7 +2070,7 @@ async function mountScreen() {
     });
     if (routeChanged) lastRenderedRoute = state.route;
     if (isStale) backgroundRefreshScreen(screen, cacheKey);
-    if (proposalsContentTiming) window.__dsLocalBaseline?.endTiming?.(proposalsContentTiming, { row_count: rawEntry.data?.rows?.length, cache_hit: true });
+    finishProposalsInitialContentTiming(proposalsContentTiming, { row_count: rawEntry.data?.rows?.length, cache_hit: true });
     finishRouteTransition(transitionLabel, requestedRoute, cacheKey, mountStartMs, transitionToken);
     return;
   } else {
@@ -2110,7 +2122,7 @@ async function mountScreen() {
       cacheKey
     });
     window.__dsLocalBaseline?.markContent?.({ route: requestedRoute });
-    if (proposalsContentTiming) window.__dsLocalBaseline?.endTiming?.(proposalsContentTiming, { row_count: data?.rows?.length, cache_hit: false });
+    finishProposalsInitialContentTiming(proposalsContentTiming, { row_count: data?.rows?.length, cache_hit: false });
     endPerfTimer('route:renderScreen');
     // eslint-disable-next-line no-console
     console.info('[route-load:success]', {
