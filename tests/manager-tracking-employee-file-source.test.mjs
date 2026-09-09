@@ -51,3 +51,13 @@ test('manager tracking projection is read-only and loaded after manager workspac
   assert.ok(workspaceIndex >= 0);
   assert.ok(trackingIndex > workspaceIndex);
 });
+
+test('manager tracking shows existing deadlines inline without info popovers', () => {
+  assert.match(runtime, /manager-workspace-deadline-date/);
+  assert.match(runtime, />עד \$\{escapeHtml\(due\)\}<\/span>/);
+  assert.match(runtime, /match\[1\]\.slice\(2\)/);
+  assert.match(runtime, /manager-workspace-deadline-empty/);
+  assert.doesNotMatch(runtime, /manager-workspace-deadline-info/);
+  assert.doesNotMatch(runtime, /manager-workspace-deadline-popover/);
+  assert.doesNotMatch(runtime, /נותרו \$\{days\} ימים/);
+});

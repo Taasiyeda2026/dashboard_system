@@ -42,48 +42,15 @@ function dateOnly(value) {
 function formatDate(value) {
   const iso = dateOnly(value);
   const match = iso.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  return match ? `${match[3]}.${match[2]}.${match[1]}` : '';
+  return match ? `${match[3]}.${match[2]}.${match[1].slice(2)}` : '';
 }
 
-function deadlineState(row, deadline, completed) {
-  if (!deadline) return null;
-  const due = dateOnly(row?.[deadline.due]);
-  const anchor = dateOnly(row?.[deadline.anchor]);
-  const completedAt = dateOnly(row?.[deadline.completedAt]);
-  if (completed) return { tone: 'done', label: 'בוצע', due, anchor, completedAt };
-  if (!due) return { tone: 'waiting', label: 'טרם התחיל', due: '', anchor, completedAt: '' };
-
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const dueDate = new Date(`${due}T00:00:00`);
-  const days = Math.ceil((dueDate.getTime() - today.getTime()) / 86400000);
-  if (days < 0) return { tone: 'overdue', label: 'עבר המועד', due, anchor, completedAt: '' };
-  if (days <= 7) return { tone: 'soon', label: `נותרו ${days} ימים`, due, anchor, completedAt: '' };
-  return { tone: 'open', label: 'לביצוע', due, anchor, completedAt: '' };
-}
-
-function deadlineInfoHtml(row, deadline, completed, label) {
+function deadlineDisplayHtml(row, deadline) {
   if (!deadline) return '';
-  const state = deadlineState(row, deadline, completed);
-  const lines = [];
-  if (state.anchor) lines.push(`<span><b>${escapeHtml(deadline.anchorLabel)}:</b> ${escapeHtml(formatDate(state.anchor))}</span>`);
-  if (state.due) lines.push(`<span><b>מועד לביצוע:</b> ${escapeHtml(formatDate(state.due))}</span>`);
-  if (state.completedAt) lines.push(`<span><b>בוצע:</b> ${escapeHtml(formatDate(state.completedAt))}</span>`);
-  if (!state.due && !completed) {
-    const waitingCopy = deadline.due === 'observation_1_due_date'
-      ? 'המועד ייקבע לאחר הפעילות הראשונה.'
-      : deadline.due === 'observation_2_due_date'
-        ? 'המועד ייקבע לאחר ביצוע תצפית 1.'
-        : 'טרם קיים מועד יעד.';
-    lines.push(`<span>${escapeHtml(waitingCopy)}</span>`);
-  }
-  lines.push(`<span class="manager-workspace-deadline-popover__status"><b>סטטוס:</b> ${escapeHtml(state.label)}</span>`);
-
-  const title = `${label}: ${state.label}${state.due ? ` · עד ${formatDate(state.due)}` : ''}`;
-  return `<span class="manager-workspace-deadline manager-workspace-deadline--${escapeHtml(state.tone)}">
-    <button type="button" class="manager-workspace-deadline-info" aria-label="מידע על מועד ${escapeHtml(label)}" aria-expanded="false" title="${escapeHtml(title)}">i</button>
-    <span class="manager-workspace-deadline-popover" role="status" hidden>${lines.join('')}</span>
-  </span>`;
+  const due = formatDate(row?.[deadline.due]);
+  return due
+    ? `<span class="manager-workspace-deadline-date">עד ${escapeHtml(due)}</span>`
+    : '<span class="manager-workspace-deadline-empty" aria-label="אין תאריך יעד">—</span>';
 }
 
 function completionCell(row, column) {
@@ -92,8 +59,10 @@ function completionCell(row, column) {
     return `<td class="manager-workspace-followup-cell manager-workspace-followup-cell--blocked" data-label="${escapeHtml(label)}" aria-label="${escapeHtml(label)}: לא רלוונטי"></td>`;
   }
   const completed = row?.[field] === true;
-  const deadlineHtml = deadlineInfoHtml(row, deadline, completed, label);
-  return `<td class="manager-workspace-followup-cell${completed ? ' is-done' : ''}" data-label="${escapeHtml(label)}" aria-label="${escapeHtml(label)}: ${completed ? 'קיים' : 'חסר'}"><span class="manager-workspace-followup-cell__content">${completed ? '<span aria-hidden="true">✓</span>' : ''}${deadlineHtml}</span></td>`;
+  const due = deadline ? formatDate(row?.[deadline.due]) : '';
+  const display = completed ? '<span aria-hidden="true">✓</span>' : deadlineDisplayHtml(row, deadline);
+  const stateLabel = completed ? 'בוצע' : due ? `לביצוע עד ${due}` : deadline ? 'אין תאריך יעד' : 'חסר';
+  return `<td class="manager-workspace-followup-cell${completed ? ' is-done' : ''}" data-label="${escapeHtml(label)}" aria-label="${escapeHtml(label)}: ${escapeHtml(stateLabel)}"><span class="manager-workspace-followup-cell__content">${display}</span></td>`;
 }
 
 function tableHtml(rows, schoolYear) {
@@ -127,27 +96,11 @@ function installStyles() {
     .manager-workspace-tracking-table--employee-file{min-width:1180px}
     .manager-workspace-tracking-table--employee-file th:not(:first-child),
     .manager-workspace-tracking-table--employee-file td:not(:first-child){text-align:center}
-    .manager-workspace-followup-cell__content{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:28px}
-    .manager-workspace-deadline{position:relative;display:inline-flex;align-items:center;justify-content:center}
-    .manager-workspace-deadline-info{width:18px;height:18px;padding:0;border:1px solid #94a3b8;border-radius:50%;background:#fff;color:#64748b;font:700 11px/16px inherit;cursor:pointer}
-    .manager-workspace-deadline--soon .manager-workspace-deadline-info{border-color:#d97706;color:#b45309;background:#fffbeb}
-    .manager-workspace-deadline--overdue .manager-workspace-deadline-info{border-color:#dc2626;color:#b91c1c;background:#fef2f2}
-    .manager-workspace-deadline--done .manager-workspace-deadline-info{border-color:#16a34a;color:#15803d;background:#f0fdf4}
-    .manager-workspace-deadline--waiting .manager-workspace-deadline-info{opacity:.55}
-    .manager-workspace-deadline-popover{position:absolute;z-index:80;inset-block-start:calc(100% + 7px);inset-inline-start:50%;transform:translateX(50%);width:max-content;max-width:250px;padding:9px 11px;border:1px solid #d8e0ea;border-radius:9px;background:#fff;color:#334155;box-shadow:0 8px 24px rgba(15,23,42,.16);text-align:right;font-size:12.5px;line-height:1.55;white-space:normal}
-    .manager-workspace-deadline-popover[hidden]{display:none!important}
-    .manager-workspace-deadline-popover span{display:block}
-    .manager-workspace-deadline-popover__status{margin-top:3px;padding-top:4px;border-top:1px solid #eef2f6}
+    .manager-workspace-followup-cell__content{display:inline-flex;align-items:center;justify-content:center;min-height:28px}
+    .manager-workspace-deadline-date{color:#475569;font-size:12px;font-weight:700;white-space:nowrap}
+    .manager-workspace-deadline-empty{color:#94a3b8;font-size:13px}
   `;
   document.head.appendChild(style);
-}
-
-function closeDeadlinePopovers(except = null) {
-  document.querySelectorAll('.manager-workspace-deadline-popover:not([hidden])').forEach((popover) => {
-    if (popover === except) return;
-    popover.hidden = true;
-    popover.previousElementSibling?.setAttribute('aria-expanded', 'false');
-  });
 }
 
 async function replaceTrackingProjection(panel) {
@@ -207,22 +160,6 @@ document.addEventListener('change', (event) => {
 document.addEventListener('click', (event) => {
   const target = event.target instanceof Element ? event.target : null;
   if (target?.closest('[data-manager-workspace-tab="tracking"]')) queueMicrotask(refreshVisibleTracking);
-
-  const info = target?.closest('.manager-workspace-deadline-info');
-  if (info) {
-    event.stopPropagation();
-    const popover = info.nextElementSibling;
-    const willOpen = !!popover?.hidden;
-    closeDeadlinePopovers(popover);
-    if (popover) popover.hidden = !willOpen;
-    info.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
-    return;
-  }
-  closeDeadlinePopovers();
-});
-
-document.addEventListener('keydown', (event) => {
-  if (event.key === 'Escape') closeDeadlinePopovers();
 });
 
 refreshVisibleTracking();
