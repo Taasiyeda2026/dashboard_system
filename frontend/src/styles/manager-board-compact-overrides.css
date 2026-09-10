@@ -32,7 +32,7 @@
   padding: 0 !important;
   border-radius: 0 !important;
   background: transparent !important;
-  color: #8a5a12;
+  color: #334155;
   font-weight: 700;
 }
 
@@ -64,7 +64,7 @@
 }
 
 .manager-board-calendar-event.is-mid em {
-  color: #a16207;
+  color: var(--manager-board-accent, var(--ds-accent, #1a3358));
 }
 
 .manager-board-calendar-event.is-end em {
