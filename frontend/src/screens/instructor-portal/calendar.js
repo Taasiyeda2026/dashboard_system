@@ -39,7 +39,7 @@ export const instructorPortalCalendarScreen = {
   render(data, { state } = {}) {
     data.activities = instructorActivities(data?.rows, state);
     const [year, month] = selectedMonth.split('-').map(Number);
-    return dsScreenStack(`<section class="instructor-area">${dsPageHeader('לוח שנה')}<nav class="ds-cal-nav" role="navigation" aria-label="ניווט חודשי" dir="rtl"><button type="button" class="ds-btn ds-btn--sm ds-btn--nav-arrow" data-calendar-prev aria-label="חודש קודם">▶</button><span class="ds-cal-nav__label">${MONTHS[month - 1]} ${year}</span><button type="button" class="ds-btn ds-btn--sm ds-btn--today" data-calendar-today>היום</button><button type="button" class="ds-btn ds-btn--sm ds-btn--nav-arrow" data-calendar-next aria-label="חודש הבא">◀</button></nav>${dsCard({ body: organizationalCalendarGridHtml(data), padded: false })}</section>`);
+    return dsScreenStack(`<section class="instructor-area route-instructor-calendar">${dsPageHeader('לוח שנה')}<nav class="ds-cal-nav" role="navigation" aria-label="ניווט חודשי" dir="rtl"><button type="button" class="ds-btn ds-btn--sm ds-btn--nav-arrow" data-calendar-prev aria-label="חודש קודם">▶</button><span class="ds-cal-nav__label">${MONTHS[month - 1]} ${year}</span><button type="button" class="ds-btn ds-btn--sm ds-btn--today" data-calendar-today>היום</button><button type="button" class="ds-btn ds-btn--sm ds-btn--nav-arrow" data-calendar-next aria-label="חודש הבא">◀</button></nav>${dsCard({ body: organizationalCalendarGridHtml(data), padded: false })}</section>`);
   },
   bind({ root, data, rerender, ui }) {
     const move = (offset) => { const nextMonth = moveInstructorCalendarMonth(selectedMonth, offset); if (nextMonth === selectedMonth) return; selectedMonth = nextMonth; rerender?.(); };
