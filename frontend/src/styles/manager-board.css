@@ -586,6 +586,8 @@
   font-size: 13px;
   color: #172033;
 }
+.manager-board-instructor-card__name { appearance: none; display: block; width: fit-content; padding: 0; border: 0; background: transparent; color: inherit; font: inherit; font-weight: 800; text-align: start; cursor: pointer; }
+.manager-board-instructor-card__name:hover,.manager-board-instructor-card__name:focus-visible { color: var(--manager-board-accent); text-decoration: underline; text-underline-offset: 3px; }
 
 .manager-board-instructor-card__text span {
   color: #475569;
