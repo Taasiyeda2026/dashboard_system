@@ -176,3 +176,4 @@ config.HOTFIX_VERSION = `manager-board-direct-interactions-20260910-v1-${config.
 config.HOTFIX_VERSION = `proposal-gefen-approval-opt-in-20260910-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `proposal-gefen-approval-opt-in-review-20260910-v2-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `edit-requests-card-ux-20260910-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `admin-home-hide-attendance-preview-card-20260910-v1-${config.HOTFIX_VERSION}`;
