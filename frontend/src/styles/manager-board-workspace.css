@@ -67,8 +67,8 @@
 }
 .manager-workspace-alert-strip article span{font-size:.83rem;color:#64748b}
 .manager-workspace-alert-strip article strong{font-size:1.2rem;color:#0f172a}
-.manager-workspace-alert-strip article.is-warning{border-color:#fed7aa;background:#fff7ed}
-.manager-workspace-alert-strip article.is-warning strong{color:#c2410c}
+.manager-workspace-alert-strip article.is-warning{border-color:color-mix(in srgb,var(--ds-accent,#1a3358) 28%,#dbe3ee);background:color-mix(in srgb,var(--ds-accent-soft,#e8eef6) 70%,#fff)}
+.manager-workspace-alert-strip article.is-warning strong{color:var(--ds-accent,#1a3358)}
 .manager-workspace-alert-strip article.is-ok{border-color:#bbf7d0;background:#f0fdf4}
 .manager-workspace-alert-strip article.is-ok strong{color:#15803d}
 .manager-workspace-inline-error{grid-column:1/-1;margin:0;padding:7px 10px;border-radius:8px;background:#fef2f2;color:#b91c1c;font-size:.84rem;font-weight:700}
@@ -112,10 +112,10 @@
   white-space:nowrap;
 }
 .manager-workspace-status.is-ok{background:#dcfce7;color:#166534}
-.manager-workspace-status.is-pending{background:#fff7ed;color:#c2410c}
+.manager-workspace-status.is-pending{background:color-mix(in srgb,var(--ds-accent-soft,#e8eef6) 70%,#fff);color:var(--ds-accent,#1a3358)}
 .manager-workspace-status.is-muted{background:#f1f5f9;color:#64748b}
 .manager-workspace-report-count{font-size:.84rem;color:#334155}
-.manager-workspace-report-count.is-missing{color:#b45309;font-weight:700}
+.manager-workspace-report-count.is-missing{color:var(--ds-accent,#1a3358);font-weight:700}
 .manager-workspace-link-button,
 .manager-workspace-run-team,
 .manager-workspace-sharepoint-root,

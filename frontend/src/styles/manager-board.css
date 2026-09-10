@@ -249,7 +249,7 @@
 }
 
 .manager-board-legend i.is-mid {
-  background: #f59e0b;
+  background: var(--manager-board-accent, var(--ds-accent, #1a3358));
 }
 
 .manager-board-legend i.is-end {
@@ -295,7 +295,7 @@
 }
 
 .manager-board-calendar-day.is-school-blocked {
-  background: #fffaf4;
+  background: color-mix(in srgb, var(--ds-accent-soft, #e8eef6) 40%, #f8fafc);
 }
 
 .manager-board-calendar-day.is-today {
@@ -356,8 +356,8 @@
   white-space: nowrap;
   padding: 2px 5px;
   border-radius: 999px;
-  background: #fff1dd;
-  color: #9a5b00;
+  background: color-mix(in srgb, var(--ds-accent-soft, #e8eef6) 55%, #fff);
+  color: #334155;
   font-size: 9px;
   font-weight: 700;
 }
@@ -400,8 +400,8 @@
 }
 
 .manager-board-calendar-event.is-mid {
-  border-inline-start-color: #f59e0b;
-  background: #fff9e9;
+  border-inline-start-color: var(--manager-board-accent, var(--ds-accent, #1a3358));
+  background: color-mix(in srgb, var(--ds-accent-soft, #e8eef6) 55%, #fff);
 }
 
 .manager-board-calendar-event.is-end {
@@ -512,7 +512,7 @@
 }
 
 .manager-board-school-event.is-birthday span {
-  color: #9a5b00;
+  color: var(--manager-board-accent, var(--ds-accent, #1a3358));
 }
 
 .manager-board-panel--instructors {

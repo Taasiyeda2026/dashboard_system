@@ -181,3 +181,4 @@ config.HOTFIX_VERSION = `manager-board-month-attr-collision-20260910-v1-${config
 config.HOTFIX_VERSION = `manager-team-tracking-seniority-20260910-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `manager-team-feedback-windows-20260910-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `manager-board-ui-polish-20260910-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `manager-board-no-warm-colors-20260910-v1-${config.HOTFIX_VERSION}`;
