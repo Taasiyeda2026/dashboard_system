@@ -103,21 +103,13 @@ function managementTilesHtml() {
       capabilityId: 'admin.permissions',
       route: 'permissions'
     }),
-    isAdmin
-      ? tileButton({
-          title: 'מערכת נוכחות',
-          description: 'תצוגת בדיקה לאדמין בלבד',
-          icon: 'attendance',
-          capabilityId: 'attendance_reporting',
-          url: '/dashboard_system/attendance/?adminPreview=1'
-        })
-      : tileButton({
-          title: 'מערכת נוכחות',
-          description: 'כניסה למערכת דיווח הנוכחות',
-          icon: 'attendance',
-          capabilityId: 'attendance_reporting',
-          url: '/dashboard_system/attendance/'
-        }),
+    !isAdmin && tileButton({
+      title: 'מערכת נוכחות',
+      description: 'כניסה למערכת דיווח הנוכחות',
+      icon: 'attendance',
+      capabilityId: 'attendance_reporting',
+      url: '/dashboard_system/attendance/'
+    }),
     tileButton({
       title: 'לוח מנהל צוות',
       description: 'תמונת מצב וניהול צוות המדריכים',
