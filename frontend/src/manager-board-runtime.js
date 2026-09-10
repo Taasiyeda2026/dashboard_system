@@ -301,7 +301,7 @@ async function loadBoardData(period) {
 
   const calendarQuery = supabase
     .from('school_calendar')
-    .select('id,title,category,start_date,end_date,resume_date,day_status,blocks_scheduling,show_on_main_calendar,is_active')
+    .select('id,title,category,calendar_sector,start_date,end_date,resume_date,day_status,school_day_end_time,blocks_scheduling,enforce_end_time,show_on_main_calendar,is_active')
     .eq('is_active', true)
     .eq('show_on_main_calendar', true);
 
@@ -444,8 +444,13 @@ function schoolCalendarEventsForMonth(events, ym) {
         iso,
         title: normalizedText(event?.title),
         category: normalizedText(event?.category),
-        dayStatus: normalizedText(event?.day_status),
-        blocksScheduling: !!event?.blocks_scheduling
+        start_date: normalizedText(event?.start_date),
+        end_date: normalizedText(event?.end_date) || normalizedText(event?.start_date),
+        day_status: normalizedText(event?.day_status),
+        blocks_scheduling: !!event?.blocks_scheduling,
+        enforce_end_time: !!event?.enforce_end_time,
+        school_day_end_time: normalizedText(event?.school_day_end_time),
+        calendar_sector: normalizedText(event?.calendar_sector)
       });
       cursor.setDate(cursor.getDate() + 1);
     }
@@ -633,19 +638,14 @@ export function birthdaysForMonth(rows, ym) {
 
 /** "תאריכים חשובים": the main calendar's non-activity layer (holidays/events) plus everyone's birthdays, month-only. */
 export function importantDateEntries(schoolEvents, birthdayRows, ym) {
-  const entries = [];
-  const seen = new Set();
-  dedupeSchoolCalendarOccurrences(schoolEvents).forEach((event) => {
+  const entries = dedupeSchoolCalendarOccurrences(schoolEvents).map((event) => {
     const title = calendarPresentationTitle(event.title);
-    const key = `${event.iso}|${title}`;
-    if (seen.has(key)) return;
-    seen.add(key);
-    entries.push({
+    return {
       iso: event.iso,
-      title: title || calendarPresentationTitle(event.dayStatus) || 'אירוע לוח',
+      title: title || calendarPresentationTitle(event.day_status) || 'אירוע לוח',
       isBirthday: false,
-      blocksScheduling: event.blocksScheduling
-    });
+      blocksScheduling: event.blocks_scheduling
+    };
   });
   entries.push(...birthdaysForMonth(birthdayRows, ym));
   return entries.sort((a, b) => a.iso.localeCompare(b.iso));

@@ -17,7 +17,8 @@ export function activityMonth(row) {
 }
 
 export function monthlyInstructorSummary(rows, state, month) {
-  const selected = instructorActivities(rows, state).filter((row) => activityMonth(row) === month);
+  const assigned = instructorActivities(rows, state);
+  const selected = assigned.filter((row) => activityMonth(row) === month);
   const types = new Map();
   selected.forEach((row) => {
     const rawType = row?.activity_type || row?.type || '';
@@ -29,7 +30,7 @@ export function monthlyInstructorSummary(rows, state, month) {
   const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   const next = [...selected].filter((row) => isoDate(row?.start_date || row?.activity_date || row?.date_1) >= today)
     .sort((a, b) => isoDate(a?.start_date || a?.activity_date || a?.date_1).localeCompare(isoDate(b?.start_date || b?.activity_date || b?.date_1)))[0] || null;
-  const missingDates = selected.filter((row) => !isoDate(row?.start_date || row?.activity_date || row?.date_1)).length;
+  const missingDates = assigned.filter((row) => !isoDate(row?.start_date || row?.activity_date || row?.date_1)).length;
   return { total: selected.length, types: [...types.entries()].map(([label, value]) => ({ label, value })), next, attention: missingDates };
 }
 

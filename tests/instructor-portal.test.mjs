@@ -26,6 +26,7 @@ test('dashboard defines title-only shortcuts without a separate work schedule ca
 test('portal selectors include primary and secondary assignments and exclude another instructor', () => {
   assert.deepEqual(instructorActivities(basicRows, stateA).map((row) => row.RowID), ['one', 'three']);
   assert.equal(monthlyInstructorSummary(basicRows, stateA, '2026-09').total, 2);
+  assert.equal(monthlyInstructorSummary([...basicRows, { RowID: 'undated', emp_id: 'A-1', activity_name: 'ללא תאריך' }], stateA, '2026-09').attention, 1);
 });
 
 test('work schedule reuses ready-course source and scopes it to authenticated instructor IDs', () => {
@@ -68,6 +69,7 @@ test('manager and instructor schedules consume the same responsive course table 
 
 test('portal calendar stays a seven-column grid with compact mobile day details', () => {
   const source = fs.readFileSync(new URL('../frontend/src/screens/instructor-portal/calendar.js', import.meta.url), 'utf8');
+  const schoolCalendarUi = fs.readFileSync(new URL('../frontend/src/screens/shared/school-calendar-ui.js', import.meta.url), 'utf8');
   assert.match(source, /ds-cal-grid/);
   assert.match(source, /ds-interactive-card--day-cell|variant: 'day-cell'/);
   assert.match(source, /ui\?\.openDrawer/);
@@ -78,6 +80,8 @@ test('portal calendar stays a seven-column grid with compact mobile day details'
   assert.equal(instructorActivityEventsForDate([{ RowID: 'mine', activity_name: 'פעילות שלי', date_1: '2026-09-08' }], '2026-09-08').length, 1);
   assert.match(source, /hasSchoolCalendar \? 'is-school-calendar-day'/);
   assert.match(source, /hasActivity \? 'has-instructor-activity'/);
+  assert.match(schoolCalendarUi, /isInstructorCalendarView\(\)/);
+  assert.match(schoolCalendarUi, /if \(isInstructorCalendarView\(\)\) return false/);
 });
 
 test('instructor calendar navigation follows the active school season across calendar years', () => {
@@ -146,7 +150,7 @@ test('instructor activity drawer is shared, read-only, includes contact, and omi
   assert.doesNotMatch(html, /מדריך לא תקף|מדריך לא קיים/);
   assert.match(html, /activity-drawer__section/);
   assert.match(html, /data-central-info-section/);
-  assert.doesNotMatch(html, /data-action="edit"|data-action="delete"|data-action="save"/);
+  assert.doesNotMatch(html, /data-coordination-approval|data-scheduling-fields|data-contact-2027-(?:select|save-new|add-btn)|data-action="(?:edit|delete|save|remove-meeting|add-meeting)"/);
 });
 
 test('reports is a placeholder and does not load completion approvals', () => {

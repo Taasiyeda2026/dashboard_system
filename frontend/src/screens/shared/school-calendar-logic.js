@@ -63,6 +63,7 @@ export function dedupeSchoolCalendarOccurrences(rows = []) {
   return (Array.isArray(rows) ? rows : []).filter((row) => {
     const key = [
       calendarPresentationTitle(row?.title),
+      row?.iso,
       row?.start_date || row?.iso,
       row?.end_date || row?.iso,
       row?.day_status,

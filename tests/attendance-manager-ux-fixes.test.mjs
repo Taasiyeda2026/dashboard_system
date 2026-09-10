@@ -78,5 +78,5 @@ test('dashboard loads internal system dialogs for native confirm and alert calls
   assert.match(dialogRuntime, /window\.confirm = function systemConfirm/);
   assert.match(dialogRuntime, /window\.alert = function systemAlert/);
   assert.match(dialogRuntime, /role', kind === 'confirm' \? 'alertdialog' : 'dialog'/);
-  assert.match(rootIndex, /system-dialog-runtime\.js\?v=20260910-pr1776-review-fixes-v1/);
+  assert.match(rootIndex, /system-dialog-runtime\.js\?v=20260910-pr1776-final-fixes-v1/);
 });

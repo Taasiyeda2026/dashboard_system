@@ -169,3 +169,5 @@ config.HOTFIX_VERSION = `proposal-contact-payload-filter-20260908-v1-${config.HO
 config.HOTFIX_VERSION = `proposal-existing-contact-source-id-20260908-v1-${config.HOTFIX_VERSION}`;
 
 config.HOTFIX_VERSION = `pr1776-review-fixes-20260910-v1-${config.HOTFIX_VERSION}`;
+
+config.HOTFIX_VERSION = `pr1776-final-conflict-fixes-20260910-v1-${config.HOTFIX_VERSION}`;

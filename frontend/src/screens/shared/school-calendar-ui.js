@@ -9,6 +9,10 @@ const HEBREW_MONTH_INDEX = new Map([
 
 let decorationTimer = null;
 
+function isInstructorCalendarView() {
+  return Boolean(document.querySelector('#app .route-instructor-calendar'));
+}
+
 function ensureSchoolCalendarStyles() {
   if (document.getElementById('school-calendar-style')) return;
   const style = document.createElement('style');
@@ -99,6 +103,7 @@ function ensureSchoolCalendarStyles() {
 }
 
 function hasSchoolCalendarView() {
+  if (isInstructorCalendarView()) return false;
   return Boolean(
     document.querySelector('#app nav[aria-label="ניווט חודשי"] .ds-cal-nav__label')
       || document.querySelector('#app .ds-week-col[aria-label]')
@@ -137,6 +142,7 @@ function setMonthSubtitle(card, label) {
 }
 
 function decorateMonth(rows) {
+  if (isInstructorCalendarView()) return;
   const spec = displayedMonthSpec();
   if (!spec) return;
 
@@ -189,6 +195,7 @@ async function decorateSchoolCalendarViews() {
   if (!hasSchoolCalendarView()) return;
 
   const rows = await loadSchoolCalendarRows();
+  if (isInstructorCalendarView()) return;
   decorateMonth(rows);
   decorateWeek(rows);
 }
