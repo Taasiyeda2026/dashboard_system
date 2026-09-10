@@ -8,9 +8,12 @@ const attendanceIndex = fs.readFileSync(new URL('../attendance/index.html', impo
 const digestMigration = fs.readFileSync(new URL('../supabase/migrations/20260908030500_fix_attendance_digest_search_path.sql', import.meta.url), 'utf8');
 const deadlinesMigration = fs.readFileSync(new URL('../supabase/migrations/20260908033000_manager_team_deadlines.sql', import.meta.url), 'utf8');
 const trackingRuntime = fs.readFileSync(new URL('../frontend/src/manager-board-employee-file-tracking-runtime.js', import.meta.url), 'utf8');
+const trackingLogic = fs.readFileSync(new URL('../frontend/src/manager-board-employee-file-tracking.js', import.meta.url), 'utf8');
+const trackingSources = `${trackingRuntime}\n${trackingLogic}`;
 const milestoneRuntime = fs.readFileSync(new URL('../frontend/src/manager-board-runtime.js', import.meta.url), 'utf8');
 const dialogRuntime = fs.readFileSync(new URL('../frontend/src/system-dialog-runtime.js', import.meta.url), 'utf8');
 const rootIndex = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+const seniorityMigration = fs.readFileSync(new URL('../supabase/migrations/20260910193000_manager_team_roster_seniority_intro_due.sql', import.meta.url), 'utf8');
 
 test('attendance operation detail appears only for the Other option', () => {
   assert.match(attendanceRuntime, /selectedLabel === 'אחר'/);
@@ -55,9 +58,12 @@ test('manager deadlines implement the three approved one-month rules', () => {
   assert.match(deadlinesMigration, /coalesce\(usr\.employee_created_at, ef\.created_at\)::date \+ interval '1 month'/);
   assert.match(deadlinesMigration, /first_activity_date \+ interval '1 month'/);
   assert.match(deadlinesMigration, /observation_1_completed_at::date \+ interval '1 month'/);
-  assert.match(trackingRuntime, /intro_feedback_due_date/);
-  assert.match(trackingRuntime, /observation_1_due_date/);
-  assert.match(trackingRuntime, /observation_2_due_date/);
+  assert.match(seniorityMigration, /when v_school_year = 2027 and ci\.seniority_years > 1 then date '2026-10-20'/);
+  assert.match(seniorityMigration, /first_activity_date \+ interval '1 month'/);
+  assert.match(seniorityMigration, /observation_1_completed_at::date \+ interval '1 month'/);
+  assert.match(trackingSources, /intro_feedback_due_date/);
+  assert.match(trackingSources, /observation_1_due_date/);
+  assert.match(trackingSources, /observation_2_due_date/);
 });
 
 test('manager milestone renderer distinguishes workshops from course checkpoints', () => {
