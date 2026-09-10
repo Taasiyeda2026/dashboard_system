@@ -600,14 +600,14 @@ function renderMilestones(meetings) {
     const label = managerMilestoneLabel(meeting);
     const visibleKey = [meeting.iso, normalizedText(activity.activity_name || activity.program_name), normalizedText(activity.school), label].join('|');
     const needsDistinction = visibleCounts.get(visibleKey) > 1;
-    const distinction = normalizedText(activity.class_group || activity.group_name || activity.activity_no || activity.RowID || activity.row_id || activity.id);
+    const distinction = normalizedText(activity.class_group || activity.group_name);
     return `
       <div class="manager-board-milestone">
         <time datetime="${escapeAttr(meeting.iso)}">${escapeHtml(formatShortDate(meeting.iso))}</time>
         <div class="manager-board-milestone__body">
           <strong>${escapeHtml(normalizedText(activity.activity_name || activity.program_name) || 'פעילות')}</strong>
           <span>${escapeHtml(normalizedText(activity.school) || 'ללא בית ספר')}</span>
-          ${needsDistinction && distinction ? `<small class="manager-board-milestone__distinction">קבוצה / פעילות: ${escapeHtml(distinction)}</small>` : ''}
+          ${needsDistinction && distinction ? `<small class="manager-board-milestone__distinction">קבוצה: ${escapeHtml(distinction)}</small>` : ''}
         </div>
         <span class="manager-board-milestone__badge">${escapeHtml(label)}</span>
       </div>`;
@@ -1051,11 +1051,6 @@ function setBoardActiveNav() {
 }
 
 function bindBoardControls(root, data) {
-  root.querySelectorAll('button[data-instructor-id]').forEach((button) => button.addEventListener('click', () => {
-    const empId = normalizedText(button.dataset.instructorId);
-    const instructor = activeTeamForManager(data, selectedManager).find((item) => item.empId === empId);
-    if (instructor) void openInstructorCenter(root, data, instructor);
-  }));
   root.querySelector('[data-manager-board-manager]')?.addEventListener('change', (event) => {
     selectedManager = normalizedText(event.target.value);
     try {
@@ -1222,7 +1217,27 @@ function maybeAutoOpenForActivityManager() {
 }
 
 function handleDocumentClick(event) {
-  const openButton = event.target.closest('[data-manager-board-open]');
+  const target = event.target instanceof Element ? event.target : null;
+  if (!target) return;
+
+  const instructorButton = target.closest('button[data-instructor-id]');
+  if (instructorButton && managerBoardOpen) {
+    const period = normalizeGlobalActivityPeriod(state?.activityPeriodTab);
+    const data = dataCache.get(period)?.data;
+    const empId = normalizedText(instructorButton.dataset.instructorId);
+    const instructor = data
+      ? activeTeamForManager(data, selectedManager).find((item) => item.empId === empId)
+      : null;
+    const root = document.getElementById('screenRoot');
+    if (root && instructor) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      void openInstructorCenter(root, data, instructor);
+    }
+    return;
+  }
+
+  const openButton = target.closest('[data-manager-board-open]');
   if (openButton) {
     event.preventDefault();
     event.stopPropagation();
@@ -1230,7 +1245,7 @@ function handleDocumentClick(event) {
     return;
   }
 
-  const routeButton = event.target.closest('[data-route]');
+  const routeButton = target.closest('[data-route]');
   if (routeButton && managerBoardOpen) {
     if (routeButton.dataset.route === 'dashboard') {
       event.preventDefault();
@@ -1242,7 +1257,7 @@ function handleDocumentClick(event) {
     return;
   }
 
-  if (event.target.closest('.shell-logout-btn, #logoutBtn')) {
+  if (target.closest('.shell-logout-btn, #logoutBtn')) {
     closeManagerBoard();
     autoOpenedSessionKey = '';
     selectedManager = '';
