@@ -46,24 +46,30 @@ async function loadInteractiveRuntimes() {
   ]);
 }
 
-test('live day cells open by click, Enter and Space after rerender', async () => {
+test('live day cells open by click, keyboard and after innerHTML restore', async () => {
   const [{ bindManagerBoardDayCells }] = await loadInteractiveRuntimes();
   const root = document.getElementById('screenRoot');
   const opened = [];
-  const render = (iso) => {
-    root.innerHTML = `<section data-manager-board-root><div data-manager-board-day="${iso}"></div></section>`;
-    bindManagerBoardDayCells(root, (cell) => opened.push(cell.dataset.managerBoardDay));
-    return root.querySelector('[data-manager-board-day]');
-  };
+  const openDay = (cell) => opened.push(cell.dataset.managerBoardDay);
 
-  let day = render('2026-09-10');
+  root.innerHTML = '<section data-manager-board-root><div data-manager-board-day="2026-09-10" data-manager-board-day-bound="yes"></div></section>';
+  bindManagerBoardDayCells(root, openDay);
+  let day = root.querySelector('[data-manager-board-day]');
   day.click();
   day.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
   day.dispatchEvent(new window.KeyboardEvent('keydown', { key: ' ', bubbles: true }));
-  day = render('2026-09-11');
+
+  // Instructor-center navigation stores/restores monthly markup with innerHTML.
+  // Restored nodes are new DOM objects and must be rebound even if legacy markup
+  // still carries the old data-manager-board-day-bound marker.
+  const savedMonthlyMarkup = root.innerHTML;
+  root.innerHTML = '<div data-manager-instructor-center></div>';
+  root.innerHTML = savedMonthlyMarkup;
+  day = root.querySelector('[data-manager-board-day]');
+  bindManagerBoardDayCells(root, openDay);
   day.click();
 
-  assert.deepEqual(opened, ['2026-09-10', '2026-09-10', '2026-09-10', '2026-09-11']);
+  assert.deepEqual(opened, ['2026-09-10', '2026-09-10', '2026-09-10', '2026-09-10']);
 });
 
 test('rendered instructor controls carry emp_id and directly open the instructor center after rerender', async () => {
