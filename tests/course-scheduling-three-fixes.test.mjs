@@ -58,10 +58,12 @@ test('approval request card uses activity source details, date_1 fallback, hours
       { field_name: 'scheduling_exception_reason', new_value: 'מרחק 61 ק״מ' }
     ]
   }, true);
-  for (const value of ['סדנה', 'סדנת רובוטיקה', 'בית ספר א', 'רשות א', 'מנהלת א', '12/10/2026', '10:00–12:00', 'מדריכה א']) {
+  for (const value of ['סדנה', 'סדנת רובוטיקה', 'בית ספר א', 'רשות א', '12/10/2026', '10:00–12:00', 'מדריכה א']) {
     assert.match(html, new RegExp(value));
   }
-  assert.match(html, /ds-er-exception-warning[^>]*>מרחק 61 ק״מ/);
+  assert.match(html, /מדריכה א \(17\)/);
+  assert.doesNotMatch(html, /מנהל פעילות:/);
+  assert.match(html, /ds-er-exception-warning[\s\S]*סיבת החריגה:[\s\S]*מרחק 61 ק״מ/);
   assert.doesNotMatch(html, /ds-er-new[^>]*>מרחק 61 ק״מ/);
 });
 

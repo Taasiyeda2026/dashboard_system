@@ -14,6 +14,41 @@ import {
   reviewCourseAssignmentManagerApproval
 } from './shared/course-scheduling-manager-approval.js';
 
+/** Fields that are system/debug identifiers — hide from manager-facing cards only. */
+const TECHNICAL_DISPLAY_FIELDS = new Set([
+  'row_id',
+  'RowID',
+  'rowid',
+  'id',
+  'request_id',
+  'source_row_id',
+  'source_sheet',
+  'emp_id',
+  'emp_id_2',
+  'authority_id',
+  'school_id',
+  'school_contact_id',
+  'activity_name_override'
+]);
+
+const LOCAL_FIELD_LABELS = {
+  start_time: 'שעת התחלה',
+  end_time: 'שעת סיום',
+  contact_phone: 'טלפון איש קשר',
+  contact_email: 'דוא״ל איש קשר',
+  district: 'מחוז',
+  activity_season: 'עונה',
+  activity_domain: 'תחום',
+  item_type: 'סוג פריט',
+  participants_count: 'מספר משתתפים',
+  operations_private_notes: 'הערות תפעול',
+  activity_family: 'משפחת פעילות',
+  activity_no: 'מספר פעילות',
+  gefen_number: 'מספר גפ״ן',
+  exists_in_gefen: 'קיים בגפ״ן',
+  funding: 'מימון'
+};
+
 function statusLabel(status) {
   if (status === 'pending') return 'ממתין';
   if (status === 'approved') return 'אושר';
@@ -57,6 +92,22 @@ function formatTimeDisplay(value) {
   return `${String(Number(match[1])).padStart(2, '0')}:${match[2]}`;
 }
 
+function isTechnicalDisplayField(field) {
+  const f = String(field || '').trim();
+  if (!f) return true;
+  if (TECHNICAL_DISPLAY_FIELDS.has(f)) return true;
+  // Foreign-key / system id columns (e.g. authority_id) — not business copy.
+  if (/_id$/i.test(f)) return true;
+  return false;
+}
+
+function hasDisplayValue(raw) {
+  if (raw === null || raw === undefined) return false;
+  if (typeof raw === 'boolean') return true;
+  if (typeof raw === 'number') return Number.isFinite(raw);
+  return String(raw).trim() !== '';
+}
+
 function fieldLabelHe(field) {
   const f = String(field || '').trim();
   if (!f) return 'שדה';
@@ -65,6 +116,7 @@ function fieldLabelHe(field) {
   if (f === 'scheduling_exception_reason') return 'סיבת החריגה';
   const m = /^date_(\d+)$/.exec(f);
   if (m) return `מפגש ${Number(m[1])}`;
+  if (LOCAL_FIELD_LABELS[f]) return LOCAL_FIELD_LABELS[f];
   return hebrewColumn(f);
 }
 
@@ -75,9 +127,16 @@ function formatFieldValueForDisplay(fieldName, raw) {
   if (fn === 'start_date' || fn === 'end_date' || /^date_\d+$/.test(fn)) {
     return formatDateDisplay(s) || s;
   }
-  if (fn === 'activity_type') {
+  if (fn === 'start_time' || fn === 'end_time') {
+    return formatTimeDisplay(s) || s;
+  }
+  if (fn === 'activity_type' || fn === 'item_type') {
     const he = hebrewActivityType(s);
     return he && he !== 'לא מסווג' ? he : s;
+  }
+  if (fn === 'exists_in_gefen' || fn === 'activity_name_override') {
+    if (s === 'true' || s === 'yes' || s === '1') return 'כן';
+    if (s === 'false' || s === 'no' || s === '0') return 'לא';
   }
   return s;
 }
@@ -93,16 +152,19 @@ function displayOldNew(fieldName, oldVal, newVal) {
   };
 }
 
-function instructorLine(activity) {
-  if (!activity) return '—';
+/** Scheduling cards may still show emp_id; edit/create cards pass includeEmpId=false. */
+function instructorLine(activity, { includeEmpId = false } = {}) {
+  if (!activity) return '';
   const n1 = String(activity.instructor_name || '').trim();
   const n2 = String(activity.instructor_name_2 || '').trim();
   const e1 = String(activity.emp_id || '').trim();
   const e2 = String(activity.emp_id_2 || '').trim();
   const parts = [];
-  if (n1 || e1) parts.push(n1 ? (e1 ? `${n1} (${e1})` : n1) : e1);
-  if (n2 || e2) parts.push(n2 ? (e2 ? `${n2} (${e2})` : n2) : e2);
-  return parts.length ? parts.join(' · ') : '—';
+  if (n1) parts.push(includeEmpId && e1 ? `${n1} (${e1})` : n1);
+  else if (includeEmpId && e1) parts.push(e1);
+  if (n2) parts.push(includeEmpId && e2 ? `${n2} (${e2})` : n2);
+  else if (includeEmpId && e2) parts.push(e2);
+  return parts.join(' · ');
 }
 
 function requestTypeLabel(type) {
@@ -112,6 +174,44 @@ function requestTypeLabel(type) {
   return 'בקשת עריכה';
 }
 
+function activityTypeDisplay(raw) {
+  const activityTypeRaw = String(raw || '').trim();
+  if (!activityTypeRaw) return '';
+  const he = hebrewActivityType(activityTypeRaw);
+  return he && he !== 'לא מסווג' ? he : activityTypeRaw;
+}
+
+function metaItem(label, value) {
+  const v = String(value || '').trim();
+  if (!v) return '';
+  return `<p><span class="ds-muted">${escapeHtml(label)}:</span> ${escapeHtml(v)}</p>`;
+}
+
+function visibleChangeFields(fields, { isCreateRequest }) {
+  const list = Array.isArray(fields) ? fields : [];
+  return list.filter((f) => {
+    const name = String(f?.field_name || '').trim();
+    if (!name || isTechnicalDisplayField(name)) return false;
+    if (isCreateRequest) return hasDisplayValue(f?.new_value);
+    return true;
+  });
+}
+
+function requesterFooterHtml(group) {
+  const name = String(group.requested_by_name || '').trim();
+  const when = formatDateDisplay(group.requested_at) || String(group.requested_at || '').trim();
+  const who = name || 'לא צוין';
+  return `
+    <div class="ds-er-footer" dir="rtl">
+      <p class="ds-er-requester-line">
+        <span class="ds-muted">נשלח על ידי:</span>
+        ${escapeHtml(who)}
+      </p>
+      ${when ? `<p class="ds-er-request-date"><span class="ds-muted">תאריך הבקשה:</span> ${escapeHtml(when)}</p>` : ''}
+    </div>
+  `;
+}
+
 export function renderGroup(group, canReview) {
   const activity = group.activity || null;
   const requestType = String(group.request_type || '');
@@ -119,24 +219,19 @@ export function renderGroup(group, canReview) {
   const isSchedulingApproval = requestType === COURSE_ASSIGNMENT_MANAGER_APPROVAL_REQUEST_TYPE;
   const hasActivity = Boolean(activity);
   const titleName = String((isSchedulingApproval ? activity?.activity_name : group.activity_name) || activity?.activity_name || '').trim() || 'פעילות ללא שם';
-  const rowId = String(group.source_row_id || '').trim();
-  const activityTypeRaw = String((isCreateRequest ? group?.requested_payload?.activity_type : activity?.activity_type) || '').trim();
-  const activityType = activityTypeRaw
-    ? (() => {
-        const he = hebrewActivityType(activityTypeRaw);
-        return he && he !== 'לא מסווג' ? he : activityTypeRaw;
-      })()
-    : '—';
-  const authority = String((isSchedulingApproval ? activity?.authority : group.authority) || activity?.authority || '').trim() || '—';
-  const school = String((isSchedulingApproval ? activity?.school : group.school) || activity?.school || '').trim() || '—';
-  const manager = String((isCreateRequest ? group?.requested_payload?.activity_manager : activity?.activity_manager) || '').trim() || '—';
+  const activityType = activityTypeDisplay(
+    isCreateRequest ? group?.requested_payload?.activity_type : activity?.activity_type
+  );
+  const authority = String((isSchedulingApproval ? activity?.authority : group.authority) || activity?.authority || '').trim();
+  const school = String((isSchedulingApproval ? activity?.school : group.school) || activity?.school || '').trim();
+  const manager = String((isCreateRequest ? group?.requested_payload?.activity_manager : activity?.activity_manager) || '').trim();
   const fallbackDate = isCreateRequest ? group?.requested_payload?.date_1 : activity?.date_1;
   const startD = formatDateDisplay(String((isCreateRequest ? group?.requested_payload?.start_date : activity?.start_date) || fallbackDate || '').trim());
   const endD = formatDateDisplay(String((isCreateRequest ? group?.requested_payload?.end_date : activity?.end_date) || '').trim());
-  const startEnd = startD && endD && startD !== endD ? `${startD} — ${endD}` : (startD || endD || '—');
+  const startEnd = startD && endD && startD !== endD ? `${startD} — ${endD}` : (startD || endD || '');
   const startTime = formatTimeDisplay(isCreateRequest ? group?.requested_payload?.start_time : activity?.start_time);
   const endTime = formatTimeDisplay(isCreateRequest ? group?.requested_payload?.end_time : activity?.end_time);
-  const activityTimes = [startTime, endTime].filter(Boolean).join('–') || '—';
+  const activityTimes = [startTime, endTime].filter(Boolean).join('–');
 
   const canApprove = isSchedulingApproval
     ? group.status === 'pending' && group.can_approve === true
@@ -153,16 +248,16 @@ export function renderGroup(group, canReview) {
   ` : '';
 
   if (isSchedulingApproval) {
-    const requestedInstructor = instructorLine(activity);
+    const requestedInstructor = instructorLine(activity, { includeEmpId: true }) || '—';
     const exceptionReason = String(
       (group.fields || []).find((field) => field?.field_name === 'scheduling_exception_reason')?.new_value
       || group?.requested_payload?.exception_reason
       || 'חריגה מכללי השיבוץ'
     ).trim();
-    const schedulingSummary = [activityType, school, authority].filter((value) => value && value !== '—').join(' · ') || '—';
-    const timeHtml = activityTimes === '—'
-      ? ''
-      : ` · <span dir="ltr">${escapeHtml(activityTimes)}</span>`;
+    const schedulingSummary = [activityType, school, authority].filter(Boolean).join(' · ') || '—';
+    const timeHtml = activityTimes
+      ? ` · <span dir="ltr">${escapeHtml(activityTimes)}</span>`
+      : '';
 
     return `
     <article class="ds-er-group" data-status="${escapeHtml(group.status || '')}" data-request-id="${escapeHtml(group.request_id)}" data-request-type="${escapeHtml(requestType)}">
@@ -172,7 +267,7 @@ export function renderGroup(group, canReview) {
       </header>
       <div class="ds-er-meta-grid" dir="rtl">
         <p><span class="ds-muted">פעילות:</span> <strong>${escapeHtml(schedulingSummary)}</strong></p>
-        <p><span class="ds-muted">מועד:</span> <strong>${escapeHtml(startEnd)}</strong>${timeHtml}</p>
+        <p><span class="ds-muted">מועד:</span> <strong>${escapeHtml(startEnd || '—')}</strong>${timeHtml}</p>
         <p><span class="ds-muted">מדריך מבוקש:</span> <strong>${escapeHtml(requestedInstructor)}</strong></p>
       </div>
       <div class="ds-er-warn ds-er-exception-warning" role="note">
@@ -194,8 +289,31 @@ export function renderGroup(group, canReview) {
     ? `<div class="ds-er-warn" role="alert">לא נמצאו פרטי פעילות מלאים לבדיקה — לא ניתן לאשר עד שנטענת הפעילות מהמערכת.</div>`
     : '';
 
-  const fieldsRows = (group.fields || []).map((f) => {
+  const instructorNames = instructorLine(
+    isCreateRequest ? (group.requested_payload || {}) : activity,
+    { includeEmpId: false }
+  );
+
+  const metaHtml = [
+    metaItem('רשות', authority),
+    metaItem('בית ספר', school),
+    metaItem('סוג פעילות', activityType),
+    metaItem('מדריך', instructorNames),
+    metaItem('מנהל פעילות', manager),
+    metaItem('תאריך', startEnd),
+    metaItem('שעות', activityTimes)
+  ].filter(Boolean).join('');
+
+  const changeFields = visibleChangeFields(group.fields, { isCreateRequest });
+  const fieldsRows = changeFields.map((f) => {
     const { oldHtml, newHtml } = displayOldNew(f.field_name, f.old_value, f.new_value);
+    if (isCreateRequest) {
+      return `
+    <tr>
+      <td class="ds-er-field-name">${escapeHtml(fieldLabelHe(f.field_name))}</td>
+      <td class="ds-er-new">${newHtml}</td>
+    </tr>`;
+    }
     return `
     <tr>
       <td class="ds-er-field-name">${escapeHtml(fieldLabelHe(f.field_name))}</td>
@@ -205,40 +323,37 @@ export function renderGroup(group, canReview) {
     </tr>`;
   }).join('');
 
-  return `
-    <article class="ds-er-group" data-status="${escapeHtml(group.status || '')}" data-request-id="${escapeHtml(group.request_id)}" data-request-type="${escapeHtml(requestType)}">
-      <header class="ds-er-card-head">
-        <h3 class="ds-er-card-title">${escapeHtml(requestTypeLabel(requestType))}: ${escapeHtml(titleName)}</h3>
-        <div>${dsStatusChip(statusLabel(group.status), statusVariant(group.status))}</div>
-      </header>
-      <div class="ds-er-meta-grid" dir="rtl">
-        <p><span class="ds-muted">מזהה:</span> <strong>${escapeHtml(rowId || (isCreateRequest ? 'ייווצר באישור' : '—'))}</strong></p>
-        <p><span class="ds-muted">סוג בקשה:</span> ${escapeHtml(requestTypeLabel(requestType))}</p>
-        <p><span class="ds-muted">סוג פעילות:</span> ${escapeHtml(activityType)}</p>
-        <p><span class="ds-muted">רשות:</span> ${escapeHtml(authority)}</p>
-        <p><span class="ds-muted">בית ספר:</span> ${escapeHtml(school)}</p>
-        <p><span class="ds-muted">מנהל פעילות:</span> ${escapeHtml(manager)}</p>
-        <p><span class="ds-muted">מדריך:</span> ${escapeHtml(isCreateRequest ? instructorLine(group.requested_payload || {}) : instructorLine(activity))}</p>
-        <p><span class="ds-muted">תאריכי התחלה–סיום:</span> ${escapeHtml(startEnd)}</p>
-        <p><span class="ds-muted">שעות הפעילות:</span> ${escapeHtml(activityTimes)}</p>
-      </div>
-      <p class="ds-er-requester-line" dir="rtl">
-        <span class="ds-muted">נשלח על ידי:</span>
-        ${escapeHtml(group.requested_by_name || group.requested_by_user_id || '—')}
-        <span class="ds-muted"> · בתאריך </span>
-        ${escapeHtml(formatDateDisplay(group.requested_at) || String(group.requested_at || '—'))}
-      </p>
-      ${warnIncomplete}
-      <h4 class="ds-er-section-title">${isCreateRequest ? 'פרטי הפעילות המבוקשת' : 'מה השתנה?'}</h4>
+  const sectionTitle = isCreateRequest ? 'פרטי הפעילות המבוקשת' : 'מה מבוקש לשנות?';
+  const tableHead = isCreateRequest
+    ? '<tr><th>שדה</th><th>ערך</th></tr>'
+    : '<tr><th>שדה</th><th>ערך נוכחי</th><th></th><th>ערך מבוקש</th></tr>';
+  const fieldsTableHtml = changeFields.length ? `
+      <h4 class="ds-er-section-title">${sectionTitle}</h4>
       <div class="ds-table-wrap ds-er-fields-wrap">
-        <table class="ds-table ds-er-fields-table">
-          <thead>
-            <tr><th>שדה</th><th>${isCreateRequest ? 'פרט' : 'ערך נוכחי'}</th><th></th><th>${isCreateRequest ? 'ערך' : 'ערך מבוקש'}</th></tr>
-          </thead>
+        <table class="ds-table ds-er-fields-table${isCreateRequest ? ' ds-er-fields-table--create' : ''}">
+          <thead>${tableHead}</thead>
           <tbody>${fieldsRows}</tbody>
         </table>
       </div>
+  ` : `
+      <h4 class="ds-er-section-title">${sectionTitle}</h4>
+      <p class="ds-er-empty-changes ds-muted">אין פרטים להצגה</p>
+  `;
+
+  return `
+    <article class="ds-er-group" data-status="${escapeHtml(group.status || '')}" data-request-id="${escapeHtml(group.request_id)}" data-request-type="${escapeHtml(requestType)}">
+      <header class="ds-er-card-head">
+        <div class="ds-er-card-heading">
+          <p class="ds-er-card-kicker">${escapeHtml(requestTypeLabel(requestType))}</p>
+          <h3 class="ds-er-card-title">${escapeHtml(titleName)}</h3>
+        </div>
+        <div>${dsStatusChip(statusLabel(group.status), statusVariant(group.status))}</div>
+      </header>
+      ${metaHtml ? `<div class="ds-er-meta-grid" dir="rtl">${metaHtml}</div>` : ''}
+      ${warnIncomplete}
+      ${fieldsTableHtml}
       ${reviewerNoteHtml}
+      ${requesterFooterHtml(group)}
       ${actionsHtml}
     </article>
   `;
