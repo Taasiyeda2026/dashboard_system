@@ -3,8 +3,10 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
 const runtime = fs.readFileSync(new URL('../frontend/src/manager-board-employee-file-tracking-runtime.js', import.meta.url), 'utf8');
+const trackingLogic = fs.readFileSync(new URL('../frontend/src/manager-board-employee-file-tracking.js', import.meta.url), 'utf8');
 const migration = fs.readFileSync(new URL('../supabase/migrations/20260819112000_manager_tracking_employee_file_source.sql', import.meta.url), 'utf8');
 const indexHtml = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+const sources = `${runtime}\n${trackingLogic}`;
 
 const expectedComponents = [
   ['signed_agreement_completed', 'הסכם חתום'],
@@ -19,11 +21,12 @@ const expectedComponents = [
 
 test('manager tracking mirrors employee-file components and excludes payroll', () => {
   for (const [field, label] of expectedComponents) {
-    assert.match(runtime, new RegExp(field));
-    assert.ok(runtime.includes(label));
+    assert.match(sources, new RegExp(field));
+    assert.ok(sources.includes(label));
   }
-  assert.doesNotMatch(runtime, /payroll_reports/);
-  assert.ok(runtime.includes('דוחות שכר אינם מוצגים כאן'));
+  assert.doesNotMatch(sources, /payroll_reports/);
+  assert.doesNotMatch(sources, /תצוגה לקריאה בלבד של תיק העובד/);
+  assert.doesNotMatch(sources, /דוחות שכר אינם מוצגים כאן/);
 });
 
 test('manager roster derives tracking completion only from employee document status', () => {
@@ -44,7 +47,7 @@ test('manager roster derives tracking completion only from employee document sta
 });
 
 test('manager tracking projection is read-only and loaded after manager workspace', () => {
-  assert.doesNotMatch(runtime, /update_manager_instructor_followup/);
+  assert.doesNotMatch(sources, /update_manager_instructor_followup/);
   assert.doesNotMatch(runtime, /\.update\s*\(/);
   const workspaceIndex = indexHtml.indexOf('manager-board-workspace-runtime.js');
   const trackingIndex = indexHtml.indexOf('manager-board-employee-file-tracking-runtime.js');
@@ -53,11 +56,11 @@ test('manager tracking projection is read-only and loaded after manager workspac
 });
 
 test('manager tracking shows existing deadlines inline without info popovers', () => {
-  assert.match(runtime, /manager-workspace-deadline-date/);
-  assert.match(runtime, />עד \$\{escapeHtml\(due\)\}<\/span>/);
-  assert.match(runtime, /match\[1\]\.slice\(2\)/);
-  assert.match(runtime, /manager-workspace-deadline-empty/);
-  assert.doesNotMatch(runtime, /manager-workspace-deadline-info/);
-  assert.doesNotMatch(runtime, /manager-workspace-deadline-popover/);
-  assert.doesNotMatch(runtime, /נותרו \$\{days\} ימים/);
+  assert.match(sources, /manager-workspace-deadline-date/);
+  assert.match(sources, />עד \$\{escapeHtml\(due\)\}<\/span>/);
+  assert.match(sources, /match\[1\]\.slice\(2\)/);
+  assert.match(sources, /manager-workspace-deadline-empty/);
+  assert.doesNotMatch(sources, /manager-workspace-deadline-info/);
+  assert.doesNotMatch(sources, /manager-workspace-deadline-popover/);
+  assert.doesNotMatch(sources, /נותרו \$\{days\} ימים/);
 });
