@@ -716,7 +716,7 @@ function renderCalendar(ym, meetings, schoolEvents) {
     const daySchoolEvents = schoolByDate.get(iso) || [];
     const visibleMeetings = dayMeetings.slice(0, CALENDAR_DAY_PREVIEW_LIMIT);
     const extra = dayMeetings.length - visibleMeetings.length;
-    const blocking = daySchoolEvents.some((event) => event.blocksScheduling);
+    const blocking = daySchoolEvents.some((event) => event.blocks_scheduling);
     const schoolLabel = daySchoolEvents[0]?.title || '';
     const isToday = iso === new Date().toLocaleDateString('en-CA');
     const hasMeetings = dayMeetings.length > 0;
