@@ -35,6 +35,36 @@ function setButtonTitle(button, value) {
   }
 }
 
+/**
+ * A stale shared interaction backdrop can leave the visible manager board unable
+ * to receive clicks even though no drawer/modal is actually open. Repair only
+ * that inconsistent state; never close a real visible drawer or modal.
+ */
+function releaseStaleInteractionBackdrop() {
+  const layer = document.getElementById('ds-shared-ui-layer');
+  if (!layer) return;
+
+  const drawerOpen = Boolean(layer.querySelector('.ds-drawer[aria-hidden="false"]'));
+  const modalOpen = Boolean(layer.querySelector('.ds-modal[aria-hidden="false"]'));
+  if (drawerOpen || modalOpen) return;
+
+  layer.classList.remove(
+    'is-backdrop-visible',
+    'is-drawer-open',
+    'is-modal-open',
+    'is-secondary-drawer-open'
+  );
+
+  const backdrop = layer.querySelector('.ds-ui-backdrop');
+  if (backdrop) {
+    backdrop.hidden = true;
+    backdrop.style.removeProperty('pointer-events');
+    backdrop.style.removeProperty('opacity');
+  }
+
+  layer.querySelector('.ds-secondary-drawer')?.setAttribute('aria-hidden', 'true');
+}
+
 function syncManagementMonthNavigation(boardRoot) {
   const nav = boardRoot?.querySelector('.manager-board-month-nav');
   if (!nav) return;
@@ -62,7 +92,11 @@ function syncManagementMonthNavigation(boardRoot) {
 
 function syncBoard() {
   scheduled = false;
-  document.querySelectorAll(BOARD_SELECTOR).forEach((boardRoot) => {
+  const boards = document.querySelectorAll(BOARD_SELECTOR);
+  if (!boards.length) return;
+
+  releaseStaleInteractionBackdrop();
+  boards.forEach((boardRoot) => {
     removeMonthlyInstructorPanel(boardRoot);
     syncManagementMonthNavigation(boardRoot);
   });
@@ -85,8 +119,12 @@ function start() {
   clearPersistedManagerMonthDefaults();
   const root = document.getElementById('app') || document.documentElement;
   const observer = new MutationObserver(scheduleSync);
-  observer.observe(root, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'disabled'] });
+  // Child-list changes are enough to detect board mounts/re-renders. Watching the
+  // same class/disabled attributes this runtime mutates can create unnecessary
+  // feedback churn and, in a bad state, starve pointer interaction.
+  observer.observe(root, { childList: true, subtree: true });
   document.addEventListener('click', handleDocumentClick, true);
+  document.addEventListener('app:navigate', scheduleSync);
   scheduleSync();
 }
 
