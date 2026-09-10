@@ -34,6 +34,8 @@ test('create activity requests use edit_requests request_type and requested_payl
   assert.match(apiSource, /normalizeEditRequestType/);
   assert.match(apiSource, /requestType === 'create_activity'/);
   assert.match(apiSource, /await upsertActivityToSupabase\(\{ activity: requestedPayload \}\)/);
-  assert.match(editRequestsSource, /סוג בקשה/);
+  assert.match(editRequestsSource, /ds-er-card-kicker/);
+  assert.match(editRequestsSource, /מה מבוקש לשנות\?/);
   assert.match(editRequestsSource, /פרטי הפעילות המבוקשת/);
+  assert.match(editRequestsSource, /TECHNICAL_DISPLAY_FIELDS/);
 });

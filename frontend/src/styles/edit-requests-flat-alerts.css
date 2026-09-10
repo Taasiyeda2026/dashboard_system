@@ -17,6 +17,14 @@
   font-weight: 600;
 }
 
+.ds-er-fields-wrap {
+  padding-block-end: var(--ds-space-2);
+}
+
+.ds-er-fields-table--create .ds-er-new {
+  font-weight: 600;
+}
+
 /* Keep decision-relevant scheduling metadata on one line when desktop space allows it. */
 @media (min-width: 900px) {
   .ds-er-group[data-request-type="course_assignment_exception"] .ds-er-meta-grid {
