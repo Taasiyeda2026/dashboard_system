@@ -663,7 +663,7 @@ const screenLoaders = {
   'admin-settings': () => import('./screens/admin-settings.js').then((m) => m.adminSettingsScreen),
   'admin-lists': () => import('./screens/admin-lists.js').then((m) => m.adminListsScreen),
   archive: () => import('./screens/archive.js').then((m) => m.archiveScreen),
-  'proposals-agreements': () => import('./screens/proposals-agreements.js?v=20260908-contact-form-integrity-v1').then((m) => m.proposalsAgreementsScreen),
+  'proposals-agreements': () => import('./screens/proposals-agreements.js?v=20260910-gefen-approval-opt-in-v1').then((m) => m.proposalsAgreementsScreen),
   finance: () => import('./screens/finance.js').then((m) => m.financeScreen),
   invitations: () => import('./screens/invitations.js').then((m) => m.invitationsScreen),
   orders: () => import('./screens/orders.js').then((m) => m.ordersScreen),

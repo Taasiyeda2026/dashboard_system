@@ -4146,7 +4146,14 @@ export function nextYearGefenApprovalItems(row = {}, items = [], currentCourses 
   });
 }
 
-function isGefenApprovalApplicable(row = {}, items = []) {
+export function shouldCombineGefenApproval(row = {}, items = []) {
+  const group = normalizeProposalGroup(row.activity_type_group);
+  return row.combine_gefen_approval === true
+    && (group === 'gefen' || isNextYearProposalGroup(group))
+    && gefenApprovalItems(row, items).length > 0;
+}
+
+export function isGefenApprovalApplicable(row = {}, items = []) {
   const group = normalizeProposalGroup(row.activity_type_group);
   if (group === 'gefen' || isNextYearProposalGroup(group)) return true;
   if (group === 'summer') return false;
@@ -4314,7 +4321,7 @@ function gefenProposalDocumentHtml(row, items = [], templateSections = [], rende
     signatureHtml: signatureSectionHtml(sectionBody('signature'), row, renderOptions),
     sectionLinesHtml,
   });
-  if (renderOptions.includeGefenApproval === false) return proposalHtml;
+  if (!shouldCombineGefenApproval(row, items)) return proposalHtml;
   return `<div class="pa-gefen-combined-document">${proposalHtml}${gefenApprovalDocumentHtml(row, items, { pageBreak: true })}</div>`;
 }
 
@@ -4430,7 +4437,7 @@ export function proposalPreviewBodyHtml(row, items = [], templateSections = [], 
     signatureHtml,
     sectionLinesHtml,
   });
-  if (row.combine_gefen_approval === true && isGefenApprovalApplicable(row, items)) {
+  if (shouldCombineGefenApproval(row, items)) {
     const approvalItems = Array.isArray(renderOptions.gefenApprovalItems) ? renderOptions.gefenApprovalItems : items;
     return `<div class="pa-gefen-combined-document">${proposalHtml}${gefenApprovalDocumentHtml(row, approvalItems, { pageBreak: true })}</div>`;
   }
@@ -4988,6 +4995,20 @@ function catalogAttachHtml(row = {}) {
   </div>`;
 }
 
+function gefenCombinationChoiceHtml(row = {}, items = []) {
+  const group = normalizeProposalGroup(row.activity_type_group);
+  const visible = group === 'gefen' || isNextYearProposalGroup(group);
+  const eligible = gefenApprovalItems(row, items).length > 0;
+  const checked = visible && eligible && row.combine_gefen_approval === true;
+  return `<div class="ds-pa-gefen-combination-choice" data-pa-gefen-combination-choice${visible ? '' : ' hidden'}>
+    <label class="ds-pa-gefen-combination-label">
+      <input type="checkbox" name="combine_gefen_approval" data-pa-combine-gefen-approval value="true"${checked ? ' checked' : ''}${eligible ? '' : ' disabled'}>
+      <span>לצרף אישור כוונות להזמנה במערכת גפ״ן</span>
+    </label>
+    <p data-pa-gefen-combination-help>${eligible ? 'האישור יצורף כעמוד נוסף ל־PDF הסופי.' : 'ניתן לצרף את האישור רק לאחר הוספת פריט גפ״ן זכאי.'}</p>
+  </div>`;
+}
+
 function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [], items = [], pricingOptions = [], state = null, contactOptionsError = '') {
   const title = mode === 'edit' ? 'עריכת הצעת מחיר' : 'יצירת הצעת מחיר';
   const normalizedActivityGroup = normalizeProposalGroup(row.activity_type_group);
@@ -5139,6 +5160,7 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
         </div>
       </section>
       <footer class="ds-pa-form-actions ds-pa-form-actions--workflow no-print" aria-label="פעולות סופיות להצעת המחיר">
+        ${gefenCombinationChoiceHtml(initialPreviewRow, items)}
         <div class="ds-pa-form-actions-main">
           <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-pa-back-to-editor>חזרה לעריכה</button>
           <button type="button" class="ds-btn ds-btn--sm" data-pa-save-draft>שמירת טיוטה</button>
@@ -5983,6 +6005,10 @@ function payloadFromForm(form) {
     : null;
   payload.custom_document_sections = tableNoteSection ? [tableNoteSection] : [];
   const items = filterItemsByProposalType(extractItemsFromForm(form), payload.activity_type_group);
+  const combineInput = form.querySelector('[data-pa-combine-gefen-approval]');
+  payload.combine_gefen_approval = Boolean(combineInput?.checked)
+    && (payload.activity_type_group === 'gefen' || isNextYearProposalGroup(payload.activity_type_group))
+    && gefenApprovalItems(payload, items).length > 0;
   const subtotal = items.reduce((s, i) => s + Math.max(Number(proposalField(i, 'total_price', 'totalPrice')) || ((Number(proposalField(i, 'quantity', 'quantity')) || 0) * (Number(proposalField(i, 'unit_price', 'unitPrice')) || 0)), 0), 0);
   const discountType = text(form.querySelector('[data-pa-discount-type]')?.value) || 'amount';
   const discountValue = Number(form.querySelector('[data-pa-discount-value]')?.value) || 0;
@@ -7162,6 +7188,7 @@ export const proposalsAgreementsScreen = {
         if (isProposalPricingSelectionChange(event.target)) return;
         setTimeout(() => { updateProposalStepper(form); calcGrandTotal(form); }, 0);
       }, { signal });
+      syncGefenCombinationChoice(form);
       updateProposalStepper(form);
       setupCatalogAttach(form);
     };
@@ -7976,6 +8003,23 @@ export const proposalsAgreementsScreen = {
     };
 
 
+    const syncGefenCombinationChoice = (form) => {
+      const wrap = form?.querySelector?.('[data-pa-gefen-combination-choice]');
+      const checkbox = wrap?.querySelector?.('[data-pa-combine-gefen-approval]');
+      if (!wrap || !checkbox) return;
+      const group = normalizeProposalGroup(form.querySelector('[name="activity_type_group"]')?.value);
+      const visible = group === 'gefen' || isNextYearProposalGroup(group);
+      const items = filterItemsByProposalType(extractItemsFromForm(form), group);
+      const eligible = visible && gefenApprovalItems({ activity_type_group: group }, items).length > 0;
+      wrap.hidden = !visible;
+      checkbox.disabled = !eligible;
+      if (!eligible) checkbox.checked = false;
+      const help = wrap.querySelector('[data-pa-gefen-combination-help]');
+      if (help) help.textContent = eligible
+        ? 'האישור יצורף כעמוד נוסף ל־PDF הסופי.'
+        : 'ניתן לצרף את האישור רק לאחר הוספת פריט גפ״ן זכאי.';
+    };
+
     const previewControllers = new WeakMap();
     const getPreviewController = (form) => {
       let controller = previewControllers.get(form);
@@ -7991,6 +8035,7 @@ export const proposalsAgreementsScreen = {
     const updateLivePreview = (container, delay = 0) => {
       const form = container?.closest?.('[data-pa-form]') || (container?.matches?.('[data-pa-form]') ? container : null);
       if (!form) return;
+      syncGefenCombinationChoice(form);
       getPreviewController(form).change({ delay, recalculate: false });
     };
 
@@ -8672,11 +8717,7 @@ export const proposalsAgreementsScreen = {
           combinedApprovalItems = nextYearGefenApprovalItems(freshRow, mergedItems, currentCourses);
         }
         if (
-          isGefenApprovalApplicable(freshRow, mergedItems)
-          && (
-            normalizeProposalGroup(freshRow.activity_type_group) === 'gefen'
-            || freshRow.combine_gefen_approval === true
-          )
+          shouldCombineGefenApproval(freshRow, mergedItems)
         ) {
           const validationMessage = gefenApprovalValidationMessage(freshRow, mergedItems);
           if (validationMessage) {
@@ -8711,11 +8752,7 @@ export const proposalsAgreementsScreen = {
         setPdfStage('call-upload-api');
         const result = await api.uploadProposalFinalPdf(proposalId, { pdfFile, documentSnapshot, documentHtmlSnapshot });
         const savedRow = result?.row || freshRow;
-        const generatedCombinedGefen = isGefenApprovalApplicable(freshRow, mergedItems)
-          && (
-            normalizeProposalGroup(freshRow.activity_type_group) === 'gefen'
-            || freshRow.combine_gefen_approval === true
-          );
+        const generatedCombinedGefen = shouldCombineGefenApproval(freshRow, mergedItems);
         replaceLocalRow(data, generatedCombinedGefen
           ? {
             ...savedRow,

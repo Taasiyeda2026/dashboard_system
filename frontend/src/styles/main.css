@@ -12547,12 +12547,25 @@ select.ds-input {
   font-weight: 700;
 }
 
+.ds-pa-gefen-combination-choice {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+.ds-pa-gefen-combination-label { display: flex; align-items: center; gap: 9px; font-weight: 700; color: #0f172a; cursor: pointer; }
+.ds-pa-gefen-combination-label input { width: 17px; height: 17px; accent-color: #2563eb; }
+.ds-pa-gefen-combination-label:has(input:disabled) { color: #64748b; cursor: not-allowed; }
+.ds-pa-gefen-combination-choice p { margin: 5px 26px 0 0; font-size: 0.78rem; color: #64748b; }
+
 /* Workflow action buttons */
 .ds-pa-form-actions--workflow {
   display: flex;
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
+  flex-direction: column;
   flex-wrap: wrap;
   padding-top: 12px;
   border-top: 1px solid #c7d2de;

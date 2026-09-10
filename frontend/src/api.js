@@ -3345,7 +3345,7 @@ const PROPOSALS_AGREEMENTS_WRITABLE_COLUMNS = new Set([
   'client_type', 'client_name', 'authority_code', 'semel_mosad',
   'document_type', 'activity_type_group', 'proposal_date', 'activity_names', 'contact_name',
   'contact_role', 'phone', 'email', 'contact_phone', 'contact_email', 'notes', 'status', 'approval_note', 'total_amount',
-  'custom_document_sections', 'include_catalog', 'proposal_domain', 'supersedes_proposal_id'
+  'custom_document_sections', 'include_catalog', 'combine_gefen_approval', 'proposal_domain', 'supersedes_proposal_id'
 ]);
 const PROPOSALS_AGREEMENTS_APPROVAL_COLUMNS = new Set(['approved_by', 'approved_at', 'signature_position', 'signature_meta']);
 const PA_ACTIVITY_NAMES_MARKER = '\u001ePA_ACTIVITY_NAMES:';
@@ -3953,7 +3953,8 @@ function sanitizeProposalAgreementPayload(payload = {}, groupLookup = proposalGr
     approval_note:       cleanProposalAgreementText(payload.approval_note),
     total_amount:        payload.total_amount != null ? Number(payload.total_amount) || null : null,
     custom_document_sections: Array.isArray(payload.custom_document_sections) ? payload.custom_document_sections : [],
-    include_catalog:     payload.include_catalog === true || payload.include_catalog === 'yes'
+    include_catalog:     payload.include_catalog === true || payload.include_catalog === 'yes',
+    combine_gefen_approval: payload.combine_gefen_approval === true
   };
   if (Object.prototype.hasOwnProperty.call(payload, 'supersedes_proposal_id')) {
     row.supersedes_proposal_id = cleanProposalAgreementText(payload.supersedes_proposal_id) || null;

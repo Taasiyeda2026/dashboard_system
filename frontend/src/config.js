@@ -172,3 +172,5 @@ config.HOTFIX_VERSION = `pr1776-review-fixes-20260910-v1-${config.HOTFIX_VERSION
 
 config.HOTFIX_VERSION = `pr1776-final-conflict-fixes-20260910-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `manager-board-direct-interactions-20260910-v1-${config.HOTFIX_VERSION}`;
+
+config.HOTFIX_VERSION = `proposal-gefen-approval-opt-in-20260910-v1-${config.HOTFIX_VERSION}`;

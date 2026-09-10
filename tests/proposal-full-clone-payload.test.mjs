@@ -54,7 +54,7 @@ test('full proposal clone keeps all editable business fields and resets workflow
   assert.equal(clone.proposal_domain, 'Y');
   assert.equal(clone.total_amount, 18600);
   assert.equal(clone.include_catalog, true);
-  assert.equal(clone.combine_gefen_approval, true);
+  assert.equal(clone.combine_gefen_approval, false);
   assert.deepEqual(clone.activity_names, source.activity_names);
   assert.deepEqual(clone.custom_document_sections, source.custom_document_sections);
 

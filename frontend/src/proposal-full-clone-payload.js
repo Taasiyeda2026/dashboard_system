@@ -19,8 +19,7 @@ const EDITABLE_PROPOSAL_FIELDS = Object.freeze([
   'notes',
   'total_amount',
   'custom_document_sections',
-  'include_catalog',
-  'combine_gefen_approval'
+  'include_catalog'
 ]);
 
 function text(value) {
@@ -73,6 +72,8 @@ export function buildEditableProposalClonePayload(source = {}, requested = {}) {
   // as supersedes_proposal_id because duplication must create a new independent
   // proposal rather than another version in the source series.
   payload.status = 'draft';
+  // A clone is a new proposal: attaching the optional GEFEN approval requires a fresh user choice.
+  payload.combine_gefen_approval = false;
   payload.approval_note = '';
   payload.activity_type_group = normalizeProposalGroup(payload.activity_type_group);
 
