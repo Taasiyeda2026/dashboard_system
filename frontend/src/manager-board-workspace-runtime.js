@@ -25,6 +25,14 @@ const FOLLOWUP_FIELDS = [
   ['observation2_completed', 'תצפית 2']
 ];
 
+/** Real ±1 month nav buttons only — never the board-root month state attribute. */
+export const MANAGER_BOARD_MONTH_NAV_SELECTOR =
+  '.manager-board-month-nav [data-manager-board-month="-1"], .manager-board-month-nav [data-manager-board-month="1"]';
+
+export function resolveManagerBoardMonthNavButton(target) {
+  return target instanceof Element ? target.closest(MANAGER_BOARD_MONTH_NAV_SELECTOR) : null;
+}
+
 let activeTab = restoreTab();
 let observer = null;
 let observerTimer = null;
@@ -148,7 +156,7 @@ function currentMonth(boardRoot, period = periodKey()) {
 function contextFromBoard(boardRoot) {
   const period = normalizeGlobalActivityPeriod(boardRoot?.dataset?.managerBoardPeriod || periodKey());
   const manager = currentManagerName(boardRoot);
-  const ym = activeTab === 'attendance' ? (attendanceYm || currentMonthKey()) : text(boardRoot?.dataset?.managerBoardMonth) || currentMonth(boardRoot, period);
+  const ym = activeTab === 'attendance' ? (attendanceYm || currentMonthKey()) : text(boardRoot?.dataset?.managerBoardYm) || currentMonth(boardRoot, period);
   const schoolYear = text(boardRoot?.dataset?.managerBoardSchoolYear) || schoolYearForPeriod(period);
   return { period, manager, ym, schoolYear };
 }
@@ -352,7 +360,8 @@ function handleWorkspaceClick(event) {
   if (!target) return;
 
   if (activeTab === 'attendance') {
-    const monthButton = target.closest('[data-manager-board-month]');
+    // Only real ±1 nav buttons — never the board-root month state attribute.
+    const monthButton = resolveManagerBoardMonthNavButton(target);
     const monthBoardRoot = monthButton?.closest('[data-manager-board-root]');
     if (monthButton && monthBoardRoot) {
       event.preventDefault();

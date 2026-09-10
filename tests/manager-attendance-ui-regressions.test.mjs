@@ -20,9 +20,12 @@ test('manager board publishes canonical period month and school year context', (
   const workspace = read('frontend/src/manager-board-workspace-runtime.js');
   const tracking = read('frontend/src/manager-board-employee-file-tracking-runtime.js');
   assert.match(board, /data-manager-board-period/);
-  assert.match(board, /data-manager-board-month/);
+  assert.match(board, /data-manager-board-ym/);
   assert.match(board, /data-manager-board-school-year/);
+  assert.match(board, /data-manager-board-month="-1"/);
+  assert.match(board, /data-manager-board-month="1"/);
   assert.match(workspace, /dataset\?\.managerBoardPeriod/);
+  assert.match(workspace, /dataset\?\.managerBoardYm/);
   assert.match(tracking, /dataset\?\.managerBoardSchoolYear/);
 });
 
