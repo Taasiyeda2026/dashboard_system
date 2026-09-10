@@ -4,6 +4,20 @@ export const AVIGDOR_SHARON_EMP_ID = 1519;
 export const VETERAN_INTRO_DUE_DATE_2027 = '2026-10-20';
 export const NOT_FOR_UPDATE_LABEL = 'לא לעדכון';
 export const MISSING_SENIORITY_LABEL = 'לבדיקה';
+export const LATE_LABEL = 'באיחור';
+export const ISRAEL_TIME_ZONE = 'Asia/Jerusalem';
+
+/** Fixed 2027 mid-year feedback window (Israel calendar dates). */
+export const MIDYEAR_FEEDBACK_WINDOW_2027 = {
+  start: '2027-01-15',
+  due: '2027-02-04'
+};
+
+/** Fixed 2027 year-end feedback window (Israel calendar dates). */
+export const YEAR_END_FEEDBACK_WINDOW_2027 = {
+  start: '2027-05-01',
+  due: '2027-05-30'
+};
 
 export const COMPONENT_COLUMNS = [
   { field: 'signed_agreement_completed', label: 'הסכם חתום' },
@@ -19,8 +33,26 @@ export const COMPONENT_COLUMNS = [
       anchorLabel: 'הקמת העובד'
     }
   },
-  { field: 'midyear_feedback_completed', label: 'משוב אמצע שנה' },
-  { field: 'year_end_feedback_completed', label: 'משוב סוף שנה' },
+  {
+    field: 'midyear_feedback_completed',
+    label: 'משוב אמצע שנה',
+    feedbackWindow: {
+      start: 'midyear_feedback_window_start',
+      due: 'midyear_feedback_due_date',
+      completedAt: 'midyear_feedback_completed_at',
+      defaults2027: MIDYEAR_FEEDBACK_WINDOW_2027
+    }
+  },
+  {
+    field: 'year_end_feedback_completed',
+    label: 'משוב סוף שנה',
+    feedbackWindow: {
+      start: 'year_end_feedback_window_start',
+      due: 'year_end_feedback_due_date',
+      completedAt: 'year_end_feedback_completed_at',
+      defaults2027: YEAR_END_FEEDBACK_WINDOW_2027
+    }
+  },
   {
     field: 'observation_1_completed',
     label: 'תצפית 1',
@@ -97,6 +129,40 @@ export function formatDate(value) {
   return match ? `${match[3]}.${match[2]}.${match[1].slice(2)}` : '';
 }
 
+/** Compact Israel-facing date without leading zeros (e.g. 15.1.27). */
+export function formatFeedbackWindowDate(value) {
+  const iso = dateOnly(value);
+  const match = iso.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return '';
+  return `${Number(match[3])}.${Number(match[2])}.${match[1].slice(2)}`;
+}
+
+/** Current calendar date (YYYY-MM-DD) in Asia/Jerusalem. */
+export function israelTodayIso(now = new Date()) {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: ISRAEL_TIME_ZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).format(now instanceof Date ? now : new Date(now));
+}
+
+/**
+ * Calendar date in Asia/Jerusalem for a timestamptz / ISO value.
+ * Plain YYYY-MM-DD values are treated as already date-only (no TZ shift).
+ */
+export function israelDateOnly(value) {
+  const raw = text(value);
+  if (!raw) return null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) {
+    const fallback = dateOnly(raw);
+    return /^\d{4}-\d{2}-\d{2}$/.test(fallback) ? fallback : null;
+  }
+  return israelTodayIso(parsed);
+}
+
 function addOneCalendarMonth(isoDate) {
   const match = dateOnly(isoDate).match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (!match) return null;
@@ -132,6 +198,72 @@ export function introCallAriaLabel(row) {
   return 'משוב היכרות';
 }
 
+export function resolveFeedbackWindow(row, column, schoolYear = '2027') {
+  const window = column?.feedbackWindow;
+  if (!window) return { start: null, due: null };
+
+  const year = text(schoolYear) || '2027';
+  const start = dateOnly(row?.[window.start])
+    || (year === '2027' ? dateOnly(window.defaults2027?.start) : '');
+  const due = dateOnly(row?.[window.due])
+    || (year === '2027' ? dateOnly(window.defaults2027?.due) : '');
+
+  return {
+    start: /^\d{4}-\d{2}-\d{2}$/.test(start) ? start : null,
+    due: /^\d{4}-\d{2}-\d{2}$/.test(due) ? due : null
+  };
+}
+
+/**
+ * Valid feedback completion requires a reliable completed_at on/after window open.
+ * Early documents (before window start) never count as a valid ✓.
+ * Missing completed_at never invents a timestamp and never counts as valid.
+ */
+export function isValidFeedbackCompletion(row, column, schoolYear = '2027') {
+  const window = column?.feedbackWindow;
+  if (!window) return row?.[column?.field] === true;
+
+  const { start } = resolveFeedbackWindow(row, column, schoolYear);
+  if (!start) return false;
+
+  const present = row?.[column.field] === true;
+  if (!present) return false;
+
+  const completedOn = israelDateOnly(row?.[window.completedAt]);
+  if (!completedOn) return false;
+  return completedOn >= start;
+}
+
+/**
+ * Periodic feedback cell state for mid-year / year-end windows.
+ * Returns { kind: 'done'|'before'|'open'|'late'|'empty', label, aria }.
+ */
+export function resolvePeriodicFeedbackState(row, column, options = {}) {
+  const schoolYear = text(options.schoolYear) || '2027';
+  const todayIso = dateOnly(options.todayIso) || israelTodayIso(options.now || new Date());
+  const { start, due } = resolveFeedbackWindow(row, column, schoolYear);
+
+  if (isValidFeedbackCompletion(row, column, schoolYear)) {
+    return { kind: 'done', label: '✓', aria: 'בוצע' };
+  }
+
+  if (!start || !due) {
+    return { kind: 'empty', label: '—', aria: 'אין חלון ביצוע' };
+  }
+
+  if (todayIso < start) {
+    const label = `מ־${formatFeedbackWindowDate(start)}`;
+    return { kind: 'before', label, aria: `טרם נפתח ${label}` };
+  }
+
+  if (todayIso <= due) {
+    const label = `עד ${formatFeedbackWindowDate(due)}`;
+    return { kind: 'open', label, aria: `לביצוע ${label}` };
+  }
+
+  return { kind: 'late', label: LATE_LABEL, aria: LATE_LABEL };
+}
+
 function notForUpdateCell(label) {
   return `<td class="manager-workspace-followup-cell manager-workspace-followup-cell--not-for-update" data-label="${escapeHtml(label)}" aria-label="${escapeHtml(label)}: ${escapeHtml(NOT_FOR_UPDATE_LABEL)}"><span class="manager-workspace-followup-cell__content manager-workspace-followup-cell__content--muted">${escapeHtml(NOT_FOR_UPDATE_LABEL)}</span></td>`;
 }
@@ -165,8 +297,21 @@ function deadlineDisplayHtml(row, column) {
     : '<span class="manager-workspace-deadline-empty" aria-label="אין תאריך יעד">—</span>';
 }
 
-export function completionCell(row, column) {
-  const { field, label, deadline } = column;
+function feedbackWindowDisplayHtml(state) {
+  if (state.kind === 'done') {
+    return '<span aria-hidden="true">✓</span>';
+  }
+  if (state.kind === 'empty') {
+    return '<span class="manager-workspace-deadline-empty" aria-label="אין חלון ביצוע">—</span>';
+  }
+  if (state.kind === 'late') {
+    return `<span class="manager-workspace-deadline-date manager-workspace-deadline-date--late">${escapeHtml(state.label)}</span>`;
+  }
+  return `<span class="manager-workspace-deadline-date">${escapeHtml(state.label)}</span>`;
+}
+
+export function completionCell(row, column, options = {}) {
+  const { field, label, deadline, feedbackWindow } = column;
 
   if (isAvigdorSharon(row) && AVIGDOR_EXEMPT_FIELDS.has(field)) {
     return notForUpdateCell(label);
@@ -174,6 +319,12 @@ export function completionCell(row, column) {
 
   if (field === 'police_clearance_completed' && isFemale(row)) {
     return `<td class="manager-workspace-followup-cell manager-workspace-followup-cell--blocked" data-label="${escapeHtml(label)}" aria-label="${escapeHtml(label)}: לא רלוונטי"></td>`;
+  }
+
+  if (feedbackWindow) {
+    const state = resolvePeriodicFeedbackState(row, column, options);
+    const done = state.kind === 'done';
+    return `<td class="manager-workspace-followup-cell${done ? ' is-done' : ''}" data-label="${escapeHtml(label)}" aria-label="${escapeHtml(label)}: ${escapeHtml(state.aria)}"><span class="manager-workspace-followup-cell__content">${feedbackWindowDisplayHtml(state)}</span></td>`;
   }
 
   const completed = row?.[field] === true;
@@ -201,7 +352,7 @@ export function completionCell(row, column) {
   return `<td class="manager-workspace-followup-cell${completed ? ' is-done' : ''}" data-label="${escapeHtml(label)}" aria-label="${escapeHtml(callLabel)}: ${escapeHtml(stateLabel)}"><span class="manager-workspace-followup-cell__content">${display}</span></td>`;
 }
 
-export function tableHtml(rows) {
+export function tableHtml(rows, options = {}) {
   if (!rows.length) {
     return '<div class="manager-workspace-empty">אין מדריכים פעילים המשויכים למנהל.</div>';
   }
@@ -209,7 +360,7 @@ export function tableHtml(rows) {
   const body = rows.map((row) => {
     const empId = text(row.emp_id);
     const folder = text(row.folder_web_url);
-    const cells = COMPONENT_COLUMNS.map((column) => completionCell(row, column)).join('');
+    const cells = COMPONENT_COLUMNS.map((column) => completionCell(row, column, options)).join('');
 
     return `<tr data-manager-tracking-emp-id="${escapeHtml(empId)}">
       <td class="manager-workspace-person"><strong>${escapeHtml(text(row.full_name) || empId)}</strong><small>${escapeHtml(text(row.employment_type))}</small></td>

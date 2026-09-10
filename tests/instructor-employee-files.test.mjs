@@ -171,6 +171,8 @@ test('live SharePoint reader refreshes only when requested and supports canonica
   assert.match(edgeSource, /MS_CLIENT_ID/);
   assert.match(edgeSource, /MS_CLIENT_SECRET/);
   assert.match(edgeSource, /https:\/\/graph\.microsoft\.com\/\.default/);
-  assert.match(edgeSource, /\/children\?\$select=id,name,file,folder/);
+  assert.match(edgeSource, /\/children\?\$select=id,name,file,folder,createdDateTime/);
+  assert.match(edgeSource, /first_completed_at/);
+  assert.match(edgeSource, /earliestCreatedAt/);
   assert.doesNotMatch(edgeSource, /webhook|delta|subscription|polling/i);
 });
