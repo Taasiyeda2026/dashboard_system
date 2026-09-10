@@ -1154,9 +1154,9 @@ function shell(content) {
               <button type="button" class="ds-accent-swatch" data-accent-swatch data-accent="blue" style="background:#1a3358" title="כחול"></button>
               <button type="button" class="ds-accent-swatch" data-accent-swatch data-accent="green" style="background:#166534" title="ירוק"></button>
               <button type="button" class="ds-accent-swatch" data-accent-swatch data-accent="purple" style="background:#5b21b6" title="סגול"></button>
-              <button type="button" class="ds-accent-swatch" data-accent-swatch data-accent="orange" style="background:#c2410c" title="כתום"></button>
+              <button type="button" class="ds-accent-swatch" data-accent-swatch data-accent="red" style="background:#c62828" title="אדום"></button>
               <button type="button" class="ds-accent-swatch" data-accent-swatch data-accent="gray" style="background:#334155" title="אפור"></button>
-              <button type="button" class="ds-accent-swatch" data-accent-swatch data-accent="pink" style="background:#ed608a" title="ורוד"></button>
+              <button type="button" class="ds-accent-swatch" data-accent-swatch data-accent="pink" style="background:#d94f70" title="ורוד"></button>
               <button type="button" class="ds-accent-swatch" data-accent-swatch data-accent="cyan" style="background:#0292b7" title="תכלת"></button>
             </div>
           </div>
@@ -2140,9 +2140,9 @@ function bindShell() {
   if (shellEventsBound) return;
   shellEventsBound = true;
 
-  const navigateToRoute = (route) => {
+  const navigateToRoute = (route, { force = false } = {}) => {
     if (!isAllowedRoute(route)) return;
-    if (route === state.route) return;
+    if (route === state.route && !force) return;
     closeMobileNav();
     if (route === 'activities') {
       state.activityQuickFamily = '';
@@ -2160,7 +2160,7 @@ function bindShell() {
 
   /* Allow any screen to navigate programmatically via custom event */
   document.addEventListener('app:navigate', (e) => {
-    navigateToRoute(e?.detail?.route);
+    navigateToRoute(e?.detail?.route, { force: e?.detail?.force === true });
   });
 
   document.addEventListener('app:edit-requests-updated', () => {

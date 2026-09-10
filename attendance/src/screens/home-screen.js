@@ -7,7 +7,7 @@ import { createIcon } from '../components/icon.js';
 import { getMonthRecords, calcMonthSummary, getMonthApproval, submitMonth, sourceAttendanceRecords, reconcileTravelCompensation } from '../services/attendance.service.js';
 import { canEditMonth, editBlockReason, getMonthKey, formatMonthLabel, shouldShowSubmitReminder } from '../services/month-gate.service.js';
 import { exportMonthToExcel } from '../services/excel.service.js';
-import { createReportSummaryRow } from '../components/report-summary-row.js';
+import { createReportSummaryRow, distinctAttendanceWorkDays } from '../components/report-summary-row.js';
 import { openSubmitConfirmationDialog } from '../submit-confirmation-dialog.js';
 
 const STATUS_MAP = {
@@ -24,6 +24,7 @@ export function renderHomeScreen(container, {
   month,
   onNewReport,
   onMyReports,
+  onEditReport,
   onPrevMonth,
   onNextMonth,
   onLogout
@@ -103,10 +104,10 @@ export function renderHomeScreen(container, {
   wrap.append(inner);
   container.append(wrap);
 
-  loadAndRender({ instructor, year, month, statsEl, actionStripEl, newReportBtn, onMyReports });
+  loadAndRender({ instructor, year, month, statsEl, actionStripEl, newReportBtn, onMyReports, onEditReport });
 }
 
-async function loadAndRender({ instructor, year, month, statsEl, actionStripEl, newReportBtn, onMyReports }) {
+async function loadAndRender({ instructor, year, month, statsEl, actionStripEl, newReportBtn, onMyReports, onEditReport }) {
   const monthKey = getMonthKey(year, month);
   try {
     const [records, approval] = await Promise.all([
@@ -121,7 +122,7 @@ async function loadAndRender({ instructor, year, month, statsEl, actionStripEl, 
     // KPI cards
     statsEl.innerHTML = '';
     statsEl.append(
-      buildStat(sourceRecords.length,                     'דיווחים',  'list'),
+      buildStat(distinctAttendanceWorkDays(records),      'ימי עבודה', 'calendar'),
       buildStat(summary.totalHours.toFixed(2),            'שעות',     'clock'),
       buildStat(summary.totalKm.toFixed(0) + '\u00a0ק"מ','נסיעות',   'map-pin'),
       buildStat('₪' + summary.totalExpenses.toFixed(0),  'הוצאות',   'shekel-sign')
@@ -140,7 +141,7 @@ async function loadAndRender({ instructor, year, month, statsEl, actionStripEl, 
       actionStripEl.append(buildSubmitReminderBanner({ year, month }));
     }
     actionStripEl.append(
-      buildActionStrip({ approval, year, month, instructor, records, sourceRecords, summary, editable, onMyReports })
+      buildActionStrip({ approval, year, month, instructor, records, sourceRecords, summary, editable, onMyReports, onEditReport })
     );
 
   } catch (err) {
@@ -151,7 +152,7 @@ async function loadAndRender({ instructor, year, month, statsEl, actionStripEl, 
 
 // ── Compact action strip (no duplicated stats) ────────────────────────────────
 
-function buildActionStrip({ approval, year, month, instructor, records, sourceRecords, summary, editable, onMyReports }) {
+function buildActionStrip({ approval, year, month, instructor, records, sourceRecords, summary, editable, onMyReports, onEditReport }) {
   const strip = document.createElement('div');
   strip.className = 'av2-home__action-strip';
 
@@ -238,7 +239,7 @@ function buildActionStrip({ approval, year, month, instructor, records, sourceRe
     const empty = document.createElement('p'); empty.className = 'av2-home__empty'; empty.textContent = 'אין כרגע דיווחים בחודש זה'; list.append(empty);
   } else {
     sourceRecords.slice().sort((a,b) => String(b.report_date).localeCompare(String(a.report_date))).slice(0, 6)
-      .forEach((record) => list.append(createReportSummaryRow(record, { onOpen: () => onMyReports?.() })));
+      .forEach((record) => list.append(createReportSummaryRow(record, { editable, onEdit: () => onEditReport?.(record) })));
   }
   strip.append(list);
   return strip;

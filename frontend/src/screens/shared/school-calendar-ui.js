@@ -1,5 +1,5 @@
 import { formatDateHe } from './format-date.js';
-import { calendarSectorLabel, compactSchoolCalendarLabel, schoolCalendarEventsForDate } from './school-calendar-logic.js';
+import { compactSchoolCalendarLabel, schoolCalendarEventsForDate } from './school-calendar-logic.js';
 import { loadSchoolCalendarRows } from './school-calendar-data.js';
 
 const HEBREW_MONTH_INDEX = new Map([
@@ -116,8 +116,7 @@ function displayedMonthSpec() {
 }
 
 function eventTitleWithSector(event = {}) {
-  const sector = calendarSectorLabel(event.calendar_sector);
-  return sector ? `${event.title} · ${sector}` : event.title;
+  return event.title;
 }
 
 function labeledEvents(events = []) {

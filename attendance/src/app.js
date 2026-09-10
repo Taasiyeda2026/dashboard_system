@@ -34,6 +34,11 @@ function navigate(screen) {
   renderScreen();
 }
 
+function editReportFromHome(record) {
+  try { sessionStorage.setItem('av2_open_record_id', String(record?.id || '')); } catch {}
+  navigate('my-reports');
+}
+
 function prevMonth() {
   if (state.currentMonth === 1) {
     state.currentMonth = 12;
@@ -259,7 +264,7 @@ function renderScreen() {
       defaultDate: `${state.currentYear}-${String(state.currentMonth).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`,
       prefillRecord: prefill,
       onBack: () => navigate('home'),
-      onSaved: () => navigate('my-reports'),
+      onSaved: () => {},
     });
 
   } else if (state.screen === 'my-reports') {
@@ -284,6 +289,7 @@ function renderScreen() {
       month:       state.currentMonth,
       onNewReport: () => navigate('new-report'),
       onMyReports: () => navigate('my-reports'),
+      onEditReport: editReportFromHome,
       onPrevMonth: prevMonth,
       onNextMonth: nextMonth,
       onLogout:    handleLogout

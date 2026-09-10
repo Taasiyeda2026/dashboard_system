@@ -1295,11 +1295,16 @@ function instructorLimitedForm(row, { currentInstructorIds = [], currentInstruct
   const contactPhone = viewVal(row.resolved_contact_phone || row.school_contact_phone || row.contact_phone);
   const fields = [
     ['פעילות', fallback(row.activity_name)],
+    ['סוג פעילות', activityTypeDisplayLabel(row.activity_type || row.item_type) || fallback(row.activity_type)],
     ['תאריך', formatDateHe(row.start_date || row.activity_date) || '—'],
     ['שעות', formatTimeRangeShort(row.start_time, row.end_time) || '—'],
+    ['מנהל פעילות', fallback(row.activity_manager)],
     ['רשות', fallback(row.authority)],
     ['בית ספר', fallback(row.school)],
     ['שכבה / קבוצה', viewVal(row.grade || row.class_group) || '—'],
+    ...(presentValueText(row.sessions) ? [['מספר מפגשים', presentValueText(row.sessions)]] : []),
+    ...(presentValueText(row.price) ? [['מחיר', presentValueText(row.price)]] : []),
+    ...(presentValueText(row.funding) ? [['גורם מימון', presentValueText(row.funding)]] : []),
     ['מדריך/ה', instructors.join(' · ') || 'לא הוגדר'],
     contactName || contactRole || contactPhone
       ? ['איש קשר', [contactName, contactRole, contactPhone].filter(Boolean).join(' · ')]

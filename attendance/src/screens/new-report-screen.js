@@ -103,10 +103,14 @@ export function renderNewReportScreen(container, {
   lockBanner.className = 'av2-report__lock-banner';
   lockBanner.hidden = true;
 
+  const successBanner = document.createElement('div');
+  successBanner.className = 'av2-report__success';
+  successBanner.hidden = true;
+
   const formArea = document.createElement('div');
   formArea.className = 'av2-report__form-area';
 
-  inner.append(header, lockBanner, formArea);
+  inner.append(header, lockBanner, successBanner, formArea);
   wrap.append(inner);
   container.append(wrap);
 
@@ -629,6 +633,16 @@ export function renderNewReportScreen(container, {
   async function onReportDateChange() {
     const dateStr = getReportDate();
     if (!dateStr) return;
+    const today = new Date().toISOString().slice(0, 10);
+    if (dateStr > today) {
+      lockBanner.innerHTML = '<p>לא ניתן לדווח נוכחות עבור תאריך עתידי.</p>';
+      lockBanner.hidden = false;
+      formArea.querySelector('form')?.querySelectorAll('input,select,button,.av2-ssel__trigger,.av2-csel__trigger')
+        .forEach((el) => { if (el !== dateField.input) el.disabled = true; });
+      dateField.input.disabled = false;
+      formLocked = true;
+      return;
+    }
 
     const [y, m] = dateStr.split('-').map(Number);
     const monthKey = getMonthKey(y, m);
@@ -638,7 +652,8 @@ export function renderNewReportScreen(container, {
         lockBanner.innerHTML = `<p>${editBlockReason(y, m, approval)}</p>`;
         lockBanner.hidden = false;
         formArea.querySelector('form')?.querySelectorAll('input,select,button,.av2-ssel__trigger,.av2-csel__trigger')
-          .forEach((el) => { el.disabled = true; });
+          .forEach((el) => { if (el !== dateField.input) el.disabled = true; });
+        dateField.input.disabled = false;
         formLocked = true;
         return;
       }
@@ -675,7 +690,7 @@ export function renderNewReportScreen(container, {
     hoursVal.textContent = h > 0 ? h.toFixed(2) : '—';
   }
 
-  function buildForm(prefill = null) {
+  function buildForm(prefill = null, preservedDate = '') {
     formArea.innerHTML = '';
     selectedActivity = null;
     pendingFiles.length = 0;
@@ -698,7 +713,8 @@ export function renderNewReportScreen(container, {
       id: 'av2-report-date',
       label: 'תאריך *',
       type: 'date',
-      value: prefill?.report_date || defaultDate,
+      value: prefill?.report_date || preservedDate || defaultDate,
+      attrs: { max: new Date().toISOString().slice(0, 10) },
     });
 
     const typeOptions = [
@@ -1046,10 +1062,15 @@ export function renderNewReportScreen(container, {
 
     let savedRecordForAttachmentRetry = null;
 
-    function finishSuccessfulSave(record) {
+    function finishSuccessfulSave(record, reportDate) {
       saveBtn.disabled = true;
       saveBtn.querySelector('span').textContent = 'הדיווח נשמר בהצלחה';
-      window.setTimeout(() => onSaved?.(record), 700);
+      window.setTimeout(() => {
+        onSaved?.(record);
+        buildForm(null, reportDate);
+        successBanner.textContent = 'הדיווח נשמר בהצלחה. אפשר להזין דיווח נוסף.';
+        successBanner.hidden = false;
+      }, 500);
     }
 
     async function uploadPendingFiles(recordId) {
@@ -1091,7 +1112,7 @@ export function renderNewReportScreen(container, {
           saveBtn.querySelector('span').textContent = 'נסה שוב העלאת קבצים';
           return;
         }
-        finishSuccessfulSave(savedRecordForAttachmentRetry);
+        finishSuccessfulSave(savedRecordForAttachmentRetry, savedRecordForAttachmentRetry.report_date || getReportDate());
         return;
       }
 
@@ -1115,6 +1136,13 @@ export function renderNewReportScreen(container, {
         wrap?.classList.add('av2-field--invalid');
         missing.push(msg);
         if (!firstInvalid) firstInvalid = wrap;
+      }
+
+      if (dateStr && dateStr > new Date().toISOString().slice(0, 10)) {
+        errorEl.textContent = 'לא ניתן לדווח נוכחות עבור תאריך עתידי.';
+        errorEl.hidden = false;
+        dateField.input.focus();
+        return;
       }
 
       if (!reportType) markInvalid(typeField.wrap, 'סוג פעילות');
@@ -1153,7 +1181,7 @@ export function renderNewReportScreen(container, {
       if (isOpen) {
         activityNameSnapshot = operationSnapshot();
       } else if (requiresActivityName(reportType)) {
-        activityNameSnapshot = activityNameSel.getLabel().trim() || (activity?.activity_name ?? null);
+        activityNameSnapshot = String(activity?.activity_name || activity?.program_name || '').trim() || null;
       } else if (isNoActivity) {
         activityNameSnapshot = reportType;
       }
@@ -1215,7 +1243,7 @@ export function renderNewReportScreen(container, {
           return;
         }
 
-        finishSuccessfulSave(record);
+        finishSuccessfulSave(record, dateStr);
       } catch (err) {
         errorEl.textContent = err.message;
         errorEl.hidden = false;

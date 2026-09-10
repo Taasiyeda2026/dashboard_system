@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { instructorActivities, monthlyInstructorSummary, instructorScheduleRows } from '../frontend/src/screens/instructor-portal/portal-data.js';
-import { INSTRUCTOR_CALENDAR_ACTIVE_PERIOD, clampInstructorCalendarMonth, moveInstructorCalendarMonth, organizationalEventsForDate, organizationalCalendarDayLabel } from '../frontend/src/screens/instructor-portal/calendar-events.js';
+import { INSTRUCTOR_CALENDAR_ACTIVE_PERIOD, clampInstructorCalendarMonth, instructorActivityEventsForDate, moveInstructorCalendarMonth, organizationalEventsForDate, organizationalCalendarDayLabel } from '../frontend/src/screens/instructor-portal/calendar-events.js';
 import { courseScheduleTableHtml } from '../frontend/src/screens/shared/instructor-course-schedule-view.js';
 import { activityWorkDrawerHtml } from '../frontend/src/screens/shared/activity-detail-html.js';
 
@@ -73,6 +73,9 @@ test('portal calendar stays a seven-column grid with compact mobile day details'
   assert.match(source, /ui\?\.openDrawer/);
   assert.doesNotMatch(source, /חגים, חופשות, מועדים וימי הולדת מכל המגזרים/);
   assert.match(source, /events\.length > 1/);
+  assert.match(source, /loadInstructorActivities\(api\)/);
+  assert.match(source, /instructorActivities\(data\?\.rows, state\)/);
+  assert.equal(instructorActivityEventsForDate([{ row_id: 'mine', activity_name: 'פעילות שלי', date_1: '2026-09-08' }], '2026-09-08').length, 1);
 });
 
 test('instructor calendar navigation follows the active school season across calendar years', () => {
@@ -138,7 +141,9 @@ test('instructor activity drawer is shared, read-only, includes contact, and omi
   const html = activityWorkDrawerHtml({ RowID: '1', activity_name: 'סדנה', activity_type: 'סדנה', school: 'בית ספר', authority: 'רשות', emp_id_2: 'A-1', resolved_contact_name: 'נועה', resolved_contact_phone: '0501234567', price: '900', funding: 'פנימי' }, { instructorLimited: true, currentInstructorIds: ['A-1'], currentInstructorName: 'רות', canEdit: false, canDirectEdit: false, canRequestEdit: false, canDeleteActivity: false, exportAction: false });
   assert.match(html, /נועה/);
   assert.match(html, /רות/);
-  assert.doesNotMatch(html, /מדריך לא תקף|מדריך לא קיים|מחיר|מימון|900|פנימי/);
+  assert.doesNotMatch(html, /מדריך לא תקף|מדריך לא קיים/);
+  assert.match(html, /מחיר|900/);
+  assert.match(html, /גורם מימון|פנימי/);
   assert.doesNotMatch(html, /data-action="edit"|data-action="delete"|data-action="save"/);
 });
 

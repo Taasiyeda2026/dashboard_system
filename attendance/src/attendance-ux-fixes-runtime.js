@@ -31,47 +31,24 @@ function ensureSidebarDashboardButton() {
   footer.prepend(button);
 }
 
-function findNavButton(label) {
-  return [...document.querySelectorAll('.av2-bottom-nav__item')]
-    .find((button) => text(button.textContent) === label) || null;
-}
-
-function openSpecificReportWhenReady() {
+function openExplicitlyRequestedReportEditor() {
   let recordId = '';
   try { recordId = text(sessionStorage.getItem(OPEN_RECORD_KEY)); } catch {}
   if (!recordId) return;
-
   const row = document.querySelector(`.av2-report-row[data-record-id="${CSS.escape(recordId)}"]`);
   if (!row) return;
-
+  const editButton = row.querySelector('button[aria-label="עריכה"]');
+  if (!editButton || editButton.disabled) return;
   try { sessionStorage.removeItem(OPEN_RECORD_KEY); } catch {}
   row.classList.add('is-targeted-from-home');
   row.scrollIntoView({ block: 'center', behavior: 'smooth' });
-
-  const editButton = row.querySelector('button[aria-label="עריכה"]');
-  if (editButton && !editButton.disabled) {
-    window.setTimeout(() => editButton.click(), 80);
-  }
-}
-
-function handleHomeReportClick(event) {
-  const row = event.target instanceof Element
-    ? event.target.closest('.av2-home .av2-report-summary-row[data-record-id]')
-    : null;
-  if (!row) return;
-  const recordId = text(row.dataset.recordId);
-  if (!recordId) return;
-
-  event.preventDefault();
-  event.stopImmediatePropagation();
-  try { sessionStorage.setItem(OPEN_RECORD_KEY, recordId); } catch {}
-  findNavButton('הדיווחים שלי')?.click();
+  window.setTimeout(() => editButton.click(), 80);
 }
 
 function sync() {
   syncOperationOtherField();
   ensureSidebarDashboardButton();
-  openSpecificReportWhenReady();
+  openExplicitRequestedReportEditor();
 }
 
 if (typeof document !== 'undefined') {
@@ -80,8 +57,6 @@ if (typeof document !== 'undefined') {
       syncOperationOtherField();
     }
   });
-  document.addEventListener('click', handleHomeReportClick, true);
-
   const observer = new MutationObserver(() => sync());
   observer.observe(document.documentElement, { childList: true, subtree: true });
   sync();

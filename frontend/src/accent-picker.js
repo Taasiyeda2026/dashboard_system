@@ -2,9 +2,9 @@ export const ACCENT_COLORS = {
   blue:   { accent: '#1a3358', hover: '#142a49', soft: '#e8eef6', stripe: '#eef3fb', stripeHover: '#e8f0fd' },
   green:  { accent: '#166534', hover: '#14532d', soft: '#eaf5ec', stripe: '#eaf5ec', stripeHover: '#dcf0e0' },
   purple: { accent: '#5b21b6', hover: '#4c1d95', soft: '#f3eefa', stripe: '#f3eefa', stripeHover: '#ece0f8' },
-  orange: { accent: '#c2410c', hover: '#9a3412', soft: '#fdf3ea', stripe: '#fdf3ea', stripeHover: '#fce9d8' },
+  red:    { accent: '#c62828', hover: '#a61f1f', soft: '#fbeaea', stripe: '#fbeaea', stripeHover: '#f7dada' },
   gray:   { accent: '#334155', hover: '#1e293b', soft: '#f1f3f6', stripe: '#f1f3f6', stripeHover: '#e8eaee' },
-  pink:   { accent: '#ed608a', hover: '#d94f79', soft: '#fdebf1', stripe: '#fdebf1', stripeHover: '#fbdde7' },
+  pink:   { accent: '#d94f70', hover: '#bd3d5d', soft: '#fbeaf0', stripe: '#fbeaf0', stripeHover: '#f6dce5' },
   cyan:   { accent: '#0292b7', hover: '#027b9b', soft: '#e6f7fb', stripe: '#e6f7fb', stripeHover: '#d8f1f7' }
 };
 

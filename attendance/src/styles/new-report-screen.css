@@ -11,6 +11,7 @@
   border-radius: var(--av2-radius-md);
 }
 .av2-report__lock-banner p { margin: 0; font-size: 0.75rem; color: var(--av2-color-warning-text); }
+.av2-report__success{padding:10px 12px;border:1px solid #86efac;border-radius:var(--av2-radius-md);background:#f0fdf4;color:#166534;font-size:.78rem;font-weight:700}
 
 .av2-report__dup-note,
 .av2-report__planned-note {
@@ -139,6 +140,7 @@
 .av2-report__time-cancellation { grid-column: 1 / -1; display: grid; grid-template-columns: auto auto 1fr; gap: 8px; align-items: center; padding: 7px 9px; border-radius: 8px; background: #eff6ff; font-size: .76rem; }.av2-report__time-cancellation small{color:var(--av2-color-text-muted)}
 .av2-rr__travel-compensation { grid-column: 1 / -1; display: flex; align-items: center; flex-wrap: wrap; gap: 7px; padding: 6px 10px; background: #eff6ff; border-radius: 7px; font-size: .75rem; }
 .av2-rr__travel-compensation--pending { background: #fff7ed; color: #9a3412; }.av2-rr__travel-audit{color:#7c3aed}.av2-rr__travel-minutes{width:74px;padding:4px}
+.av2-rr__metric-divider{display:inline-block;width:1px;height:16px;background:var(--av2-color-border);margin-inline:8px;vertical-align:middle}.av2-rr__travel-compensation>span:first-child{display:inline-flex;align-items:center;color:var(--av2-color-accent);font-variant-numeric:tabular-nums}.av2-rr__travel-compensation small{color:var(--av2-color-text-muted)}
 .av2-ssel__options { overflow-y: auto; max-height: 180px; overscroll-behavior: contain; }
 .av2-ssel__option { display: block; width: 100%; padding: 5px 8px; text-align: start; font-family: inherit; font-size: 0.75rem; color: var(--av2-color-text); background: none; border: none; cursor: pointer; line-height: 1.3; }
 .av2-ssel__option:hover, .av2-ssel__option:focus { background: var(--av2-color-bg); outline: none; }
