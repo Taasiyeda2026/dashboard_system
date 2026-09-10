@@ -824,7 +824,7 @@ function renderBoardMarkup(data, manager, ym) {
   const activeTeam = activeTeamForManager(data, manager);
 
   return `
-    <section class="manager-board-screen" data-manager-board-root data-manager-board-period="${escapeAttr(period)}" data-manager-board-month="${escapeAttr(ym)}" data-manager-board-school-year="${escapeAttr(instructorSchoolYear(period))}" dir="rtl">
+    <section class="manager-board-screen" data-manager-board-root data-manager-board-period="${escapeAttr(period)}" data-manager-board-ym="${escapeAttr(ym)}" data-manager-board-school-year="${escapeAttr(instructorSchoolYear(period))}" dir="rtl">
       <div class="manager-board-hero">
         <div class="manager-board-hero__title">
           <h1>לוח מנהל פעילות</h1>
@@ -1062,7 +1062,7 @@ function bindBoardControls(root, data) {
     void renderManagerBoard(false);
   });
 
-  root.querySelectorAll('[data-manager-board-month]').forEach((button) => {
+  root.querySelectorAll('.manager-board-month-nav [data-manager-board-month="-1"], .manager-board-month-nav [data-manager-board-month="1"]').forEach((button) => {
     button.addEventListener('click', () => {
       const delta = Number(button.dataset.managerBoardMonth || 0);
       if (!delta) return;
