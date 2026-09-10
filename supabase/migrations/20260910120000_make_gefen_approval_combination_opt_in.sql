@@ -25,6 +25,10 @@ begin
   set combine_gefen_approval = false
   where p.id in (v_new_proposal_id, v_old_proposal_id)
     and lower(btrim(coalesce(p.status, ''))) <> 'sent'
+    and lower(btrim(coalesce(p.activity_type_group, ''))) in (
+      'next_year', 'שנה הבאה', 'שנת הלימודים תשפ״ז', 'תוכניות תשפ״ז', 'תשפ״ז',
+      'gefen', 'גפן', 'גפ״ן'
+    )
     and p.combine_gefen_approval = true
     and not public.proposal_has_eligible_gefen_items(p.id);
 

@@ -42,7 +42,7 @@ test('API sanitizer preserves explicit true and false booleans', () => {
 test('migration changes only the default and turns item sync into a false-only safety guard', async () => {
   const sql = await readFile(new URL('../supabase/migrations/20260910120000_make_gefen_approval_combination_opt_in.sql', import.meta.url), 'utf8');
   assert.match(sql, /alter column combine_gefen_approval set default false/i);
-  assert.match(sql, /p\.combine_gefen_approval = true[\s\S]*not public\.proposal_has_eligible_gefen_items/i);
+  assert.match(sql, /activity_type_group[\s\S]*'next_year'[\s\S]*'gefen'[\s\S]*p\.combine_gefen_approval = true[\s\S]*not public\.proposal_has_eligible_gefen_items/i);
   assert.doesNotMatch(sql, /set combine_gefen_approval = public\.proposal_has_eligible_gefen_items/i);
   assert.doesNotMatch(sql, /update[\s\S]*document_(?:html_)?snapshot|delete[\s\S]*proposal_linked_documents/i);
 });

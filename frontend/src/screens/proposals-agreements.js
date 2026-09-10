@@ -7189,6 +7189,7 @@ export const proposalsAgreementsScreen = {
         setTimeout(() => { updateProposalStepper(form); calcGrandTotal(form); }, 0);
       }, { signal });
       syncGefenCombinationChoice(form);
+      form.querySelector('[data-pa-combine-gefen-approval]')?.addEventListener('change', () => updateLivePreview(form), { signal });
       updateProposalStepper(form);
       setupCatalogAttach(form);
     };
@@ -8009,7 +8010,7 @@ export const proposalsAgreementsScreen = {
       if (!wrap || !checkbox) return;
       const group = normalizeProposalGroup(form.querySelector('[name="activity_type_group"]')?.value);
       const visible = group === 'gefen' || isNextYearProposalGroup(group);
-      const items = filterItemsByProposalType(extractItemsFromForm(form), group);
+      const items = extractItemsFromForm(form);
       const eligible = visible && gefenApprovalItems({ activity_type_group: group }, items).length > 0;
       wrap.hidden = !visible;
       checkbox.disabled = !eligible;
@@ -8171,6 +8172,7 @@ export const proposalsAgreementsScreen = {
     const calcGrandTotal = (container, options = {}) => {
       const form = container?.closest?.('[data-pa-form]') || (container?.matches?.('[data-pa-form]') ? container : null);
       if (!form) return calculateGrandTotalDom(container, options);
+      syncGefenCombinationChoice(form);
       return getPreviewController(form).change({
         delay: options.previewDelay || 0,
         calculateOptions: options
