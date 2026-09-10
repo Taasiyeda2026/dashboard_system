@@ -6655,3 +6655,102 @@ test('proposal 10220 signed approval can be marked sent without an existing fina
   assert.equal(sentPayload?.payload?.pdfFile?.name, '10220.pdf');
   assert.equal(data.rows[0].status, 'sent');
 });
+
+test('GEFEN combination checkbox drives live preview and disables after the last eligible item is removed', async () => {
+  const pricing = [
+    { activity_no: '6089', activity_name: 'ביומימיקרי', item_type: 'קורס', proposal_group: 'gefen', unit_price: 9900, gefen_number: '6089' },
+    { activity_no: '6089', activity_name: 'ביומימיקרי', item_type: 'קורס', proposal_group: 'next_year_courses', unit_price: 9900, gefen_number: '6089' }
+  ];
+  const proposalActivityGroups = [
+    { group_key: 'next_year', display_name: 'תשפ״ז', template_key: 'next_year', included_group_keys: ['next_year_courses', 'next_year_workshops'], is_active: true },
+    { group_key: 'gefen', display_name: 'גפן', template_key: 'gefen', is_active: true },
+    { group_key: 'summer', display_name: 'קיץ', template_key: 'summer', is_active: true },
+    { group_key: 'tour', display_name: 'סיור', template_key: 'tour', is_active: true }
+  ];
+
+  const runProposalType = async (group) => withJSDOM(
+    proposalsAgreementsScreen.render({ rows: [], contactOptions: [], proposalActivityGroups }, { state: stateFor('admin') }),
+    async (root, dom) => {
+      proposalsAgreementsScreen.bind({
+        root,
+        data: { rows: [], contactOptions: [], proposalActivityGroups },
+        state: stateFor('admin'),
+        api: {
+          proposalsAgreementsEditorDeps: async () => ({
+            activityNameOptions: [], contactOptions: [], proposalActivityPricing: pricing, proposalActivityGroups
+          })
+        }
+      });
+      root.querySelector('[data-pa-tab="new"]')?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+      await delay(20);
+      const form = root.querySelector('[data-pa-form]');
+      assert.ok(form, `${group} editor should open`);
+      const typeButton = form.querySelector(`[data-pa-type-btn="${group}"]`);
+      assert.ok(typeButton, `${group} type button should exist: ${Array.from(form.querySelectorAll('[data-pa-type-btn]')).map((button) => button.dataset.paTypeBtn).join(',')}`);
+      typeButton.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+      await delay(20);
+
+      const choice = form.querySelector('[data-pa-gefen-combination-choice]');
+      assert.ok(choice, `${group} choice should exist`);
+      assert.equal(choice.hidden, false, `${group} choice should be visible`);
+
+      if (!form.querySelector('[data-pa-item-row]')) {
+        form.querySelector('[data-pa-add-item]')?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+      }
+      const itemRow = form.querySelector('[data-pa-item-row]');
+      assert.ok(itemRow, `${group} should provide an editable item row`);
+      const pricingSelect = itemRow.querySelector('[data-pa-pricing-select]');
+      const pricingOption = Array.from(pricingSelect.options).find((option) => option.value.startsWith('6089||'));
+      assert.ok(pricingOption, `${group} should expose the eligible GEFEN course`);
+      pricingSelect.value = pricingOption.value;
+      pricingSelect.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+      form.querySelector('[name="notes"]').dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+      await delay(100);
+
+      assert.equal(gefenApprovalItems({ activity_type_group: group }, extractItemsFromForm(form)).length, 1);
+      const checkbox = choice.querySelector('[data-pa-combine-gefen-approval]');
+      assert.equal(checkbox.disabled, false, `${group} eligible choice should be enabled`);
+      checkbox.click();
+      assert.equal(checkbox.checked, true, `${group} click should check the control`);
+      await delay(100);
+      assert.ok(form.querySelector('[data-pa-live-preview] .pa-gefen-combined-document'), `${group} opt-in should append the approval`);
+
+      checkbox.click();
+      await delay(100);
+      assert.equal(form.querySelector('[data-pa-live-preview] .pa-gefen-combined-document'), null, `${group} opt-out should remove the approval`);
+
+      checkbox.checked = true;
+      dom.window.confirm = () => true;
+      itemRow.querySelector('[data-pa-remove-item]').dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+      await delay(100);
+      assert.equal(checkbox.disabled, true, `${group} choice should disable without an eligible item`);
+      assert.equal(checkbox.checked, false, `${group} invalid choice should be cleared`);
+      assert.equal(form.querySelector('[data-pa-live-preview] .pa-gefen-combined-document'), null);
+    }
+  );
+
+  await runProposalType('next_year');
+  await runProposalType('gefen');
+
+  for (const group of ['summer', 'tour']) {
+    await withJSDOM(
+      proposalsAgreementsScreen.render({ rows: [], contactOptions: [], proposalActivityGroups }, { state: stateFor('admin') }),
+      async (root, dom) => {
+        proposalsAgreementsScreen.bind({
+          root,
+          data: { rows: [], contactOptions: [], proposalActivityGroups },
+          state: stateFor('admin'),
+          api: { proposalsAgreementsEditorDeps: async () => ({ activityNameOptions: [], contactOptions: [], proposalActivityPricing: pricing, proposalActivityGroups }) }
+        });
+        root.querySelector('[data-pa-tab="new"]')?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+        await delay(20);
+        const form = root.querySelector('[data-pa-form]');
+        assert.ok(form, `${group} editor should open`);
+        form.querySelector(`[data-pa-type-btn="${group}"]`)?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+        await delay(20);
+        assert.equal(form.querySelector('[data-pa-gefen-combination-choice]').hidden, true, `${group} must not show the choice`);
+        assert.equal(form.querySelector('[data-pa-live-preview] .pa-gefen-combined-document'), null);
+      }
+    );
+  }
+});
