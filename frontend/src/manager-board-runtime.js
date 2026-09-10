@@ -540,7 +540,7 @@ function renderInstructorCards(stats) {
         : 'שעות לא הוגדרו בפעילויות';
 
     return `
-      <article class="manager-board-instructor-card">
+      <article class="manager-board-instructor-card" data-manager-instructor-emp-id="${escapeAttr(item.empId)}">
         <div class="manager-board-ring" style="--manager-ring-pct:${pct}" aria-label="${escapeAttr(`${pct}% מהיעד החודשי`)}">
           <div class="manager-board-ring__inner">
             <strong>${escapeHtml(hours)}</strong>
@@ -548,7 +548,7 @@ function renderInstructorCards(stats) {
           </div>
         </div>
         <div class="manager-board-instructor-card__text">
-          <strong>${escapeHtml(item.name)}</strong>
+          <button type="button" class="manager-board-instructor-card__name" data-instructor-id="${escapeAttr(item.empId)}" data-manager-instructor-center-open="true">${escapeHtml(item.name)}</button>
           <span>${item.courses} פעילויות · ${item.meetings} מפגשים</span>
           <small>${escapeHtml(targetLine)}</small>
         </div>
@@ -1076,6 +1076,27 @@ function bindBoardControls(root, data) {
       void renderManagerBoard(false);
     });
   });
+
+  bindInstructorCenterButtons(root, data);
+}
+
+/** Directly bind every currently rendered team/name control; rerenders receive fresh bindings. */
+export function bindInstructorCenterButtons(root, data, openCenter = openInstructorCenter) {
+  if (!root || !data) return;
+  const renderedManager = normalizedText(root.querySelector('[data-manager-board-manager]')?.value);
+  const instructorsById = new Map(activeTeamForManager(data, selectedManager || renderedManager).map((item) => [item.empId, item]));
+  root.querySelectorAll('button[data-instructor-id]').forEach((button) => {
+    if (button.dataset.managerInstructorCenterBound === 'yes') return;
+    const instructor = instructorsById.get(normalizedText(button.dataset.instructorId));
+    if (!instructor) return;
+    button.dataset.managerInstructorCenterBound = 'yes';
+    button.dataset.managerInstructorCenterOpen = 'true';
+    button.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      void openCenter(root, data, instructor);
+    });
+  });
 }
 
 function restoreSelections(data) {
@@ -1221,7 +1242,7 @@ function handleDocumentClick(event) {
   if (!target) return;
 
   const instructorButton = target.closest('button[data-instructor-id]');
-  if (instructorButton && managerBoardOpen) {
+  if (instructorButton && managerBoardOpen && instructorButton.dataset.managerInstructorCenterBound !== 'yes') {
     const period = normalizeGlobalActivityPeriod(state?.activityPeriodTab);
     const data = dataCache.get(period)?.data;
     const empId = normalizedText(instructorButton.dataset.instructorId);

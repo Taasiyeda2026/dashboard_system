@@ -12,6 +12,7 @@ const CALENDAR_ACTIVITY_CACHE_TTL_MS = 90 * 1000;
 const DATE_FIELDS = Array.from({ length: 35 }, (_, index) => `date_${index + 1}`);
 const ui = createSharedInteractionLayer();
 const activityCache = new Map();
+const boundDayCells = new WeakSet();
 
 let observer = null;
 let observerTimer = null;
@@ -220,13 +221,33 @@ function cleanupBoardPresentation(boardRoot) {
   instructorsPanel?.querySelector('.manager-board-panel__head p')?.remove();
 
   boardRoot.querySelectorAll('[data-manager-board-day]').forEach((dayCell) => {
-    if (dayCell.dataset.managerBoardDayBound === 'yes') return;
-    dayCell.dataset.managerBoardDayBound = 'yes';
     dayCell.setAttribute('role', 'button');
     dayCell.setAttribute('tabindex', '0');
     const dayNumber = text(dayCell.querySelector('.manager-board-calendar-day__number')?.textContent);
     const count = text(dayCell.querySelector('.manager-board-calendar-day__count')?.textContent);
     dayCell.setAttribute('aria-label', `יום ${dayNumber}${count ? ` — ${count}` : ''} — לחיצה לפתיחת רשימת הפעילויות`);
+  });
+
+  bindManagerBoardDayCells(boardRoot);
+}
+
+/** Bind the live calendar nodes themselves. WeakSet tracks actual nodes, so restored innerHTML is rebound correctly. */
+export function bindManagerBoardDayCells(boardRoot, openDay = openDayActivities) {
+  if (!boardRoot) return;
+  boardRoot.querySelectorAll('[data-manager-board-day]').forEach((dayCell) => {
+    if (boundDayCells.has(dayCell)) return;
+    boundDayCells.add(dayCell);
+    dayCell.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      void openDay(dayCell);
+    });
+    dayCell.addEventListener('keydown', (event) => {
+      if (event.key !== 'Enter' && event.key !== ' ') return;
+      event.preventDefault();
+      event.stopPropagation();
+      void openDay(dayCell);
+    });
   });
 }
 
@@ -234,7 +255,7 @@ function handleClick(event) {
   const target = event.target instanceof Element ? event.target : null;
   if (!target) return;
   const dayCell = target.closest('[data-manager-board-day]');
-  if (!dayCell) return;
+  if (!dayCell || boundDayCells.has(dayCell)) return;
   event.preventDefault();
   event.stopPropagation();
   void openDayActivities(dayCell);
@@ -244,7 +265,7 @@ function handleKeydown(event) {
   if (event.key !== 'Enter' && event.key !== ' ') return;
   const target = event.target instanceof Element ? event.target : null;
   const dayCell = target?.closest('[data-manager-board-day]');
-  if (!dayCell) return;
+  if (!dayCell || boundDayCells.has(dayCell)) return;
   event.preventDefault();
   void openDayActivities(dayCell);
 }
