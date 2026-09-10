@@ -10,12 +10,14 @@ const activitiesService = await readFile(new URL('../attendance/src/services/act
 const storageService = await readFile(new URL('../attendance/src/services/storage.service.js', import.meta.url), 'utf8');
 const previewMode = await readFile(new URL('../attendance/src/preview/preview-mode.js', import.meta.url), 'utf8');
 
-test('admin management opens employee preview while non-admin attendance stays unchanged', () => {
+test('admin management hides attendance preview card while non-admin attendance entry stays unchanged', () => {
+  assert.doesNotMatch(adminHome, /תצוגת בדיקה לאדמין בלבד/);
+  assert.doesNotMatch(adminHome, /adminPreview=1/);
+  assert.match(adminHome, /!isAdmin\s*&&\s*tileButton\(/);
   assert.match(adminHome, /title:\s*'מערכת נוכחות'/);
-  assert.match(adminHome, /description:\s*'תצוגת בדיקה לאדמין בלבד'/);
-  assert.match(adminHome, /attendance\/\?adminPreview=1/);
   assert.match(adminHome, /description:\s*'כניסה למערכת דיווח הנוכחות'/);
   assert.match(adminHome, /url:\s*'\/dashboard_system\/attendance\/'/);
+  assert.match(adminHome, /title:\s*'בקרת נוכחות אדמין'/);
 });
 
 test('employee preview is restricted to active admins and uses a synthetic employee identity', () => {
