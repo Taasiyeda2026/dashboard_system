@@ -241,24 +241,38 @@ test('N: PR #1785 seniority / opening-year intro rules remain intact', () => {
   assert.match(migration, /seniority_years smallint/);
 });
 
-test('O: observation 1/2 due-date display rules are unchanged', () => {
+test('O: observation columns keep titles; due dates now follow seniority observation rules', () => {
+  assert.equal(observation1Column.label, 'תצפית 1');
+  assert.equal(observation2Column.label, 'תצפית 2');
+
   const obs1 = completionCell(
-    row({ observation_1_completed: false, observation_1_due_date: '2026-11-01' }),
-    observation1Column
+    row({
+      seniority_years: 1,
+      first_activity_date: '2026-09-10',
+      observation_1_completed: false,
+      observation_1_due_date: '2026-10-17'
+    }),
+    observation1Column,
+    { todayIso: '2026-10-01' }
   );
-  assert.match(obs1, /עד 01\.11\.26/);
+  assert.match(obs1, /17\.10\.26/);
   assert.doesNotMatch(obs1, /באיחור|מ־/);
 
   const obs2 = completionCell(
     row({
-      observation_2_completed: false,
-      observation_1_completed_at: '2026-11-01T10:00:00+02:00',
-      observation_2_due_date: '2026-12-01'
+      seniority_years: 1,
+      observation_1_completed: true,
+      observation_1_completed_at: '2026-10-10T10:00:00+03:00',
+      observation_2_window_start: '2026-11-17',
+      observation_2_due_date: '2026-11-30',
+      observation_2_completed: false
     }),
-    observation2Column
+    observation2Column,
+    { todayIso: '2026-11-17' }
   );
-  assert.match(obs2, /עד 01\.12\.26/);
+  assert.match(obs2, /עד 30\.11\.26/);
 
+  // Historical feedback migration still had the older one-month observation anchors.
   assert.match(migration, /first_activity_date \+ interval '1 month'/);
   assert.match(migration, /observation_1_completed_at::date \+ interval '1 month'/);
 });
