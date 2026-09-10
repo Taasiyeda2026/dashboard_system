@@ -17,8 +17,18 @@ function normalizedLabel(value) {
   return String(value || '').trim().replace(/\s+/g, ' ').toLocaleLowerCase('he-IL');
 }
 
+export function canonicalSnapshotActivityName(record = {}) {
+  let value = String(record.activity_name_snapshot || record.program_name_snapshot || record.activity_type || 'פעילות').trim();
+  const metadata = [record.school_name_snapshot, record.authority_name_snapshot]
+    .map((item) => String(item || '').trim()).filter(Boolean);
+  const parts = value.split(/\s+[—–]\s+/u).map((part) => part.trim()).filter(Boolean);
+  while (parts.length > 1 && metadata.some((item) => normalizedLabel(item) === normalizedLabel(parts.at(-1)))) parts.pop();
+  value = parts.join(' — ');
+  return value || 'פעילות';
+}
+
 export function reportPresentation(record = {}) {
-  const activity = String(record.activity_name_snapshot || record.program_name_snapshot || record.activity_type || 'פעילות').trim();
+  const activity = canonicalSnapshotActivityName(record);
   const activityKey = normalizedLabel(activity);
   const secondary = [];
   [record.program_name_snapshot, record.school_name_snapshot, record.authority_name_snapshot]
@@ -117,7 +127,7 @@ export function createReportSummaryRow(record, options = {}) {
         : '—'
   );
   addDetail(details, 'סוג פעילות', record.activity_type || '—');
-  addDetail(details, 'שם פעילות', record.activity_name_snapshot || '—', { wide: true });
+  addDetail(details, 'שם פעילות', presentation.activity, { wide: true });
   addDetail(details, 'בית ספר', record.school_name_snapshot || '—');
   addDetail(details, 'רשות', record.authority_name_snapshot || '—');
   if (record.meeting_no != null) addDetail(details, 'מפגש', record.meeting_no);

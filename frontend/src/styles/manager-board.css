@@ -477,6 +477,15 @@
   color: #64748b;
 }
 
+.manager-board-milestone__distinction {
+  overflow: hidden;
+  color: #64748b;
+  font-size: 10px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .manager-board-milestone__badge {
   padding: 4px 7px;
   border-radius: 999px;

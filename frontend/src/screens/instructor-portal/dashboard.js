@@ -4,7 +4,8 @@ import { dsPageHeader, dsScreenStack, dsKpiGrid, dsInteractiveCard } from '../sh
 import { loadInstructorActivities, monthlyInstructorSummary } from './portal-data.js';
 import { formatDateHe } from '../shared/format-date.js';
 
-let selectedMonth = new Date().toISOString().slice(0, 7);
+const localMonthKey = (date = new Date()) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+let selectedMonth = localMonthKey();
 export const PORTAL_SHORTCUTS = Object.freeze([
   { title: 'לוח שנה', action: 'route:instructor-calendar' },
   { title: 'מערכת נוכחות', action: 'external:attendance' },

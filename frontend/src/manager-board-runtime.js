@@ -301,7 +301,7 @@ async function loadBoardData(period) {
 
   const calendarQuery = supabase
     .from('school_calendar')
-    .select('id,title,category,start_date,end_date,resume_date,day_status,blocks_scheduling,show_on_main_calendar,is_active')
+    .select('id,title,category,calendar_sector,start_date,end_date,resume_date,day_status,school_day_end_time,blocks_scheduling,enforce_end_time,show_on_main_calendar,is_active')
     .eq('is_active', true)
     .eq('show_on_main_calendar', true);
 
@@ -444,8 +444,13 @@ function schoolCalendarEventsForMonth(events, ym) {
         iso,
         title: normalizedText(event?.title),
         category: normalizedText(event?.category),
-        dayStatus: normalizedText(event?.day_status),
-        blocksScheduling: !!event?.blocks_scheduling
+        start_date: normalizedText(event?.start_date),
+        end_date: normalizedText(event?.end_date) || normalizedText(event?.start_date),
+        day_status: normalizedText(event?.day_status),
+        blocks_scheduling: !!event?.blocks_scheduling,
+        enforce_end_time: !!event?.enforce_end_time,
+        school_day_end_time: normalizedText(event?.school_day_end_time),
+        calendar_sector: normalizedText(event?.calendar_sector)
       });
       cursor.setDate(cursor.getDate() + 1);
     }
@@ -567,7 +572,9 @@ export function managerMilestoneRows(meetings = []) {
     .filter((meeting) => meeting.meetingNo === 1 || meeting.isMidpoint || meeting.isEnd)
     .filter((meeting) => {
       const activity = meeting.activity || {};
-      const key = [activity.row_id || activity.id, meeting.iso, managerMilestoneLabel(meeting)].join('|');
+      const activityKey = activity.RowID || activity.row_id || activity.id || activity.activity_no
+        || [activity.activity_name || activity.program_name, activity.school, activity.class_group || activity.group_name].map(normalizedText).join('|');
+      const key = [activityKey, meeting.iso, managerMilestoneLabel(meeting)].join('|');
       if (seen.has(key)) return false;
       seen.add(key);
       return true;
@@ -581,15 +588,26 @@ function renderMilestones(meetings) {
     return '<div class="manager-board-empty manager-board-empty--compact">אין נקודות בקרה בחודש זה.</div>';
   }
 
+  const visibleCounts = new Map();
+  milestoneRows.forEach((meeting) => {
+    const activity = meeting.activity || {};
+    const visibleKey = [meeting.iso, normalizedText(activity.activity_name || activity.program_name), normalizedText(activity.school), managerMilestoneLabel(meeting)].join('|');
+    visibleCounts.set(visibleKey, (visibleCounts.get(visibleKey) || 0) + 1);
+  });
+
   return milestoneRows.map((meeting) => {
     const activity = meeting.activity || {};
     const label = managerMilestoneLabel(meeting);
+    const visibleKey = [meeting.iso, normalizedText(activity.activity_name || activity.program_name), normalizedText(activity.school), label].join('|');
+    const needsDistinction = visibleCounts.get(visibleKey) > 1;
+    const distinction = normalizedText(activity.class_group || activity.group_name || activity.activity_no || activity.RowID || activity.row_id || activity.id);
     return `
       <div class="manager-board-milestone">
         <time datetime="${escapeAttr(meeting.iso)}">${escapeHtml(formatShortDate(meeting.iso))}</time>
         <div class="manager-board-milestone__body">
           <strong>${escapeHtml(normalizedText(activity.activity_name || activity.program_name) || 'פעילות')}</strong>
           <span>${escapeHtml(normalizedText(activity.school) || 'ללא בית ספר')}</span>
+          ${needsDistinction && distinction ? `<small class="manager-board-milestone__distinction">קבוצה / פעילות: ${escapeHtml(distinction)}</small>` : ''}
         </div>
         <span class="manager-board-milestone__badge">${escapeHtml(label)}</span>
       </div>`;
@@ -620,19 +638,14 @@ export function birthdaysForMonth(rows, ym) {
 
 /** "תאריכים חשובים": the main calendar's non-activity layer (holidays/events) plus everyone's birthdays, month-only. */
 export function importantDateEntries(schoolEvents, birthdayRows, ym) {
-  const entries = [];
-  const seen = new Set();
-  dedupeSchoolCalendarOccurrences(schoolEvents).forEach((event) => {
+  const entries = dedupeSchoolCalendarOccurrences(schoolEvents).map((event) => {
     const title = calendarPresentationTitle(event.title);
-    const key = `${event.iso}|${title}`;
-    if (seen.has(key)) return;
-    seen.add(key);
-    entries.push({
+    return {
       iso: event.iso,
-      title: title || calendarPresentationTitle(event.dayStatus) || 'אירוע לוח',
+      title: title || calendarPresentationTitle(event.day_status) || 'אירוע לוח',
       isBirthday: false,
-      blocksScheduling: event.blocksScheduling
-    });
+      blocksScheduling: event.blocks_scheduling
+    };
   });
   entries.push(...birthdaysForMonth(birthdayRows, ym));
   return entries.sort((a, b) => a.iso.localeCompare(b.iso));
@@ -703,7 +716,7 @@ function renderCalendar(ym, meetings, schoolEvents) {
     const daySchoolEvents = schoolByDate.get(iso) || [];
     const visibleMeetings = dayMeetings.slice(0, CALENDAR_DAY_PREVIEW_LIMIT);
     const extra = dayMeetings.length - visibleMeetings.length;
-    const blocking = daySchoolEvents.some((event) => event.blocksScheduling);
+    const blocking = daySchoolEvents.some((event) => event.blocks_scheduling);
     const schoolLabel = daySchoolEvents[0]?.title || '';
     const isToday = iso === new Date().toLocaleDateString('en-CA');
     const hasMeetings = dayMeetings.length > 0;

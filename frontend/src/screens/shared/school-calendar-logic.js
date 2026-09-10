@@ -61,7 +61,17 @@ export function calendarPresentationTitle(value) {
 export function dedupeSchoolCalendarOccurrences(rows = []) {
   const seen = new Set();
   return (Array.isArray(rows) ? rows : []).filter((row) => {
-    const key = [calendarPresentationTitle(row?.title), row?.start_date || row?.iso, row?.end_date || row?.iso, row?.day_status].join('|');
+    const key = [
+      calendarPresentationTitle(row?.title),
+      row?.iso,
+      row?.start_date || row?.iso,
+      row?.end_date || row?.iso,
+      row?.day_status,
+      row?.category,
+      row?.blocks_scheduling,
+      row?.enforce_end_time,
+      row?.school_day_end_time
+    ].map((value) => String(value ?? '').trim().toLocaleLowerCase('he-IL')).join('|');
     if (seen.has(key)) return false;
     seen.add(key);
     return true;

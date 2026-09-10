@@ -7,7 +7,7 @@ import {
   getPreviewApprovalStatus,
   setPreviewApprovalStatus,
 } from '../attendance/src/preview/preview-mode.js';
-import { canEditMonth } from '../attendance/src/services/month-gate.service.js';
+import { canEditMonth, editBlockReason } from '../attendance/src/services/month-gate.service.js';
 
 const appSource = await readFile(new URL('../attendance/src/app.js', import.meta.url), 'utf8');
 
@@ -78,4 +78,7 @@ test('attendance edit window distinguishes normal grace and reopened correction 
   assert.equal(canEditMonth(...current, { status: 'submitted' }, at(15)), false, 'submitted blocked');
   assert.equal(canEditMonth(...current, { status: 'locked' }, at(15)), false, 'locked blocked');
   assert.equal(canEditMonth(...current, { status: 'approved_for_payroll' }, at(15)), false, 'payroll-approved blocked');
+  assert.match(editBlockReason(2026, 10, null, at(15)), /תאריך עתידי/);
+  assert.match(editBlockReason(...previous, null, at(15)), /החודש הקודם/);
+  assert.equal(editBlockReason(...older, null, at(15)), 'חודש יולי 2026 סגור לדיווח.');
 });

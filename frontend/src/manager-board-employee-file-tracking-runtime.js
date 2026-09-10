@@ -114,7 +114,7 @@ async function replaceTrackingProjection(panel) {
   const contextKey = `${manager}|${schoolYear}`;
   const sameContext = panel.dataset.employeeFileTrackingContext === contextKey;
   const state = panel.dataset.employeeFileTrackingReady;
-  if (sameContext && state === 'loading') return;
+  if (sameContext && (state === 'loading' || state === 'true')) return;
 
   panel.dataset.employeeFileTrackingContext = contextKey;
   panel.dataset.employeeFileTrackingReady = 'loading';

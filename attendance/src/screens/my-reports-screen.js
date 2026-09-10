@@ -293,7 +293,7 @@ function buildRecordRow({ record, generated, editable, instructor, activityTypes
   // ── 7. School ────────────────────────────────────────────────────────────
   const schoolCell = document.createElement('div');
   schoolCell.className = 'av2-rr__school';
-  schoolCell.textContent = presentation.secondary || '—';
+  schoolCell.textContent = record.school_name_snapshot || '—';
 
   // ── 8. Authority ─────────────────────────────────────────────────────────
   const authCell = document.createElement('div');

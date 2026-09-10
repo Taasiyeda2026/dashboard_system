@@ -31,7 +31,7 @@ test('tracking re-entry invalidates ready snapshot and roster cache', () => {
   const tracking = read('frontend/src/manager-board-employee-file-tracking-runtime.js');
   assert.match(workspace, /rosterCache\.delete/);
   assert.match(workspace, /manager-board:tracking-invalidate/);
-  assert.doesNotMatch(tracking, /state === 'loading' \|\| state === 'true'/);
+  assert.match(tracking, /state === 'loading' \|\| state === 'true'/);
   assert.match(tracking, /employeeFileTrackingReady = ''/);
 });
 
@@ -43,22 +43,29 @@ test('workshop milestone is rendered by domain logic without copy-fix runtime', 
 });
 
 test('calendar sector stays in data but is removed and equivalent occurrences are deduplicated', () => {
+  const board = read('frontend/src/manager-board-runtime.js');
   const rows = [
     { title: 'ראש השנה · יהודי', calendar_sector: 'jewish', start_date: '2026-09-12', end_date: '2026-09-13' },
-    { title: 'ראש השנה · ערבי', calendar_sector: 'arab', start_date: '2026-09-12', end_date: '2026-09-13' }
+    { title: 'ראש השנה · ערבי', calendar_sector: 'arab', start_date: '2026-09-12', end_date: '2026-09-13' },
+    { title: 'ראש השנה · דרוזי', calendar_sector: 'druze', start_date: '2026-09-12', end_date: '2026-09-13', blocks_scheduling: true }
   ];
   assert.equal(calendarPresentationTitle(rows[0].title), 'ראש השנה');
-  assert.equal(dedupeSchoolCalendarOccurrences(rows).length, 1);
+  assert.equal(dedupeSchoolCalendarOccurrences(rows).length, 2);
   assert.equal(rows[0].calendar_sector, 'jewish');
+  assert.match(board, /calendar_sector,start_date,end_date,resume_date,day_status,school_day_end_time,blocks_scheduling,enforce_end_time/);
+  assert.doesNotMatch(board.slice(board.indexOf('export function importantDateEntries'), board.indexOf('function renderImportantDates')), /const seen = new Set/);
 });
 
 test('accent palette uses semantic clean red and balanced pink independently of danger', () => {
   const palette = read('frontend/src/accent-picker.js');
   const main = read('frontend/src/main.js');
+  const css = read('frontend/src/styles/main.css');
   assert.match(palette, /red:\s+\{ accent: '#c62828'/);
   assert.match(palette, /pink:\s+\{ accent: '#d94f70'/);
   assert.match(main, /data-accent="red"[^>]+title="אדום"/);
   assert.match(main, /data-accent="pink"[^>]+title="ורוד"/);
+  assert.match(css, /instr-guidelines__card-num[^}]+color:var\(--ds-accent\)/);
+  assert.match(css, /instr-guidelines__pdf-download[^}]+color:var\(--ds-accent-hover\)[^}]+border:2px solid var\(--ds-accent\)/);
 });
 
 test('attendance work-day KPI counts distinct source dates and ignores generated rows', () => {
@@ -72,9 +79,15 @@ test('attendance work-day KPI counts distinct source dates and ignores generated
 });
 
 test('attendance presentation removes repeated school and keeps distinct hierarchy', () => {
+  const summaryRow = read('attendance/src/components/report-summary-row.js');
+  const reports = read('attendance/src/screens/my-reports-screen.js');
   assert.deepEqual(reportPresentation({ activity_name_snapshot: 'מקיף א', school_name_snapshot: 'מקיף א', authority_name_snapshot: 'חיפה' }), {
     activity: 'מקיף א', secondary: 'חיפה'
   });
+  assert.equal(reportPresentation({ activity_name_snapshot: 'ביומימיקרי — מקיף אבו גוש — אבו גוש', school_name_snapshot: 'מקיף אבו גוש', authority_name_snapshot: 'אבו גוש' }).activity, 'ביומימיקרי');
+  assert.match(summaryRow, /addDetail\(details, 'שם פעילות', presentation\.activity/);
+  assert.match(reports, /schoolCell\.textContent = record\.school_name_snapshot/);
+  assert.match(reports, /authCell\.textContent = record\.authority_name_snapshot/);
 });
 
 test('home attendance click expands details and edit remains an explicit permitted action', () => {

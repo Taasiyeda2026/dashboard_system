@@ -58,13 +58,20 @@ export function canEditMonth(year, month, approval, now = new Date()) {
 }
 
 /** Short human-readable reason why a month is locked (for UI messages). */
-export function editBlockReason(year, month, approval) {
+export function editBlockReason(year, month, approval, now = new Date()) {
   const status = approval?.status ?? 'open';
   if (status === 'locked') return 'החודש אושר על ידי המנהל ונעול לעריכה';
   if (status === 'approved_for_payroll') return 'החודש אושר סופית לשכר';
   if (status === 'submitted') return 'העובד אישר את החודש — לא ניתן לערוך עד שחרור מנהל/אדמין';
   if (status === 'reopened') return 'חלון התיקונים לחודש זה הסתיים (עד ה-7 בחודש העוקב)';
-  return 'לא ניתן לערוך חודש קודם לאחר תקופת הארכה (עד ה-2 בחודש)';
+  const key = getMonthKey(year, month);
+  const currentKey = getMonthKey(now.getFullYear(), now.getMonth() + 1);
+  if (key > currentKey) return 'לא ניתן לדווח עבור תאריך עתידי.';
+  const previous = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  if (key === getMonthKey(previous.getFullYear(), previous.getMonth() + 1)) {
+    return 'חלון ההארכה של החודש הקודם הסתיים (עד ה-2 בחודש העוקב).';
+  }
+  return `חודש ${formatMonthLabel(year, month)} סגור לדיווח.`;
 }
 
 /**

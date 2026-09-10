@@ -11,6 +11,7 @@
   border-radius: var(--av2-radius-md);
 }
 .av2-report__lock-banner p { margin: 0; font-size: 0.75rem; color: var(--av2-color-warning-text); }
+.av2-report__success{padding:10px 12px;border:1px solid #86efac;border-radius:var(--av2-radius-md);background:#f0fdf4;color:#166534;font-size:.78rem;font-weight:700}
 
 .av2-report__dup-note,
 .av2-report__planned-note {

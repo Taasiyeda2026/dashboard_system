@@ -690,7 +690,7 @@ function blockExtraEditInfo(row, { settings = {} } = {}) {
   `;
 }
 
-function blockContact2027(row) {
+function blockContact2027(row, { viewOnly = false } = {}) {
   const resolvedContact = row.resolved_school_2027_contact || resolveSchool2027Contact(row, []);
   const contactName  = String(resolvedContact.name || row.contact_name || '').trim();
   const contactPhone = String(resolvedContact.phone || row.contact_phone || '').trim();
@@ -730,7 +730,7 @@ function blockContact2027(row) {
         </div>
       </div>
 
-      <!-- Edit mode UI (no named inputs here — updates hidden inputs above) -->
+      ${viewOnly ? '' : `<!-- Edit mode UI (no named inputs here — updates hidden inputs above) -->
       <div class="activity-drawer__details-edit-grid" data-mode="edit" hidden>
         <div style="padding:2px 0 8px">
           <label style="display:block;font-size:0.82em;font-weight:600;margin-bottom:4px;color:var(--color-text-muted,#64748b)">איש קשר</label>
@@ -766,7 +766,7 @@ function blockContact2027(row) {
           <button type="button" class="ds-btn ds-btn--ghost ds-btn--sm" data-contact-2027-add-btn
             style="margin-top:8px;font-size:0.82em;padding:4px 8px">+ הוסף איש קשר חדש</button>
         </div>
-      </div>
+      </div>`}
     </section>
   `;
 }
@@ -973,7 +973,7 @@ function buildOneDayViewHtml(schedule, row, datesLoading) {
   </div>`;
 }
 
-function blockDates(row, { canEdit = false, canDirectEdit = false, datesLoading = false, is2027 = false } = {}) {
+function blockDates(row, { canEdit = false, canDirectEdit = false, datesLoading = false, is2027 = false, viewOnly = false } = {}) {
   const loadedSchedule = Array.isArray(row?.meeting_schedule) ? row.meeting_schedule : [];
   const activityType = normalizeActivityTypeKey(row.activity_type || row.item_type);
   const isOnce = ONCE_TYPES.includes(activityType);
@@ -1011,13 +1011,13 @@ function blockDates(row, { canEdit = false, canDirectEdit = false, datesLoading 
     `;
     return `
       <section class="activity-drawer__section activity-drawer__section--once-dates" data-dates-section${loadingAttr}>
-        <div class="activity-drawer__section-head" data-mode="edit" hidden>
+        ${viewOnly ? '' : `<div class="activity-drawer__section-head" data-mode="edit" hidden>
           <h3 class="activity-drawer__section-title">מועד הפעילות</h3>
-        </div>
+        </div>`}
         ${buildOneDayViewHtml(schedule, row, datesLoading)}
-        <div class="activity-drawer__dates activity-drawer__dates--edit" data-mode="edit" data-meeting-dates-edit hidden>
+        ${viewOnly ? '' : `<div class="activity-drawer__dates activity-drawer__dates--edit" data-mode="edit" data-meeting-dates-edit hidden>
           ${oneDayEditCard}
-        </div>
+        </div>`}
       </section>
     `;
   }
@@ -1096,14 +1096,14 @@ function blockDates(row, { canEdit = false, canDirectEdit = false, datesLoading 
         <h3 class="activity-drawer__section-title">${escapeHtml(progressTitle)}</h3>
       </div>
       ${progressHtml}
-      <div class="activity-drawer__dates activity-drawer__dates--edit" data-mode="edit" data-meeting-dates-edit hidden>
+      ${viewOnly ? '' : `<div class="activity-drawer__dates activity-drawer__dates--edit" data-mode="edit" data-meeting-dates-edit hidden>
         ${datePickers}
       </div>
       <div class="activity-drawer__date-mode" data-mode="edit" data-chain-toggle hidden>
         <button type="button" class="activity-drawer__toggle is-active" data-date-mode="single">תיקון נקודתי — רק המפגש הזה</button>
         <button type="button" class="activity-drawer__toggle" data-date-mode="chain">תיקון שרשרת — המפגש הזה וכל הבאים אחריו</button>
       </div>
-      <button type="button" class="activity-drawer__action activity-drawer__action--ghost" data-action="add-meeting" data-mode="edit" hidden>➕ הוסף מפגש</button>
+      <button type="button" class="activity-drawer__action activity-drawer__action--ghost" data-action="add-meeting" data-mode="edit" hidden>➕ הוסף מפגש</button>`}
     </section>
   `;
 }
@@ -1277,39 +1277,18 @@ function jsonAttr(value) {
   }
 }
 
-function instructorLimitedForm(row, { currentInstructorIds = [], currentInstructorName = '' } = {}) {
-  const ids = new Set((Array.isArray(currentInstructorIds) ? currentInstructorIds : [currentInstructorIds]).map((value) => String(value || '').trim()).filter(Boolean));
-  const instructorValue = (name, empId) => {
-    const cleanName = humanDisplayText(name);
-    const cleanId = String(empId || '').trim();
-    if (cleanName) return cleanName;
-    if (cleanId && ids.has(cleanId) && currentInstructorName) return currentInstructorName;
-    return cleanId || '';
-  };
-  const instructors = [
-    instructorValue(row.instructor_name || row.instructor, row.emp_id),
-    instructorValue(row.instructor_name_2 || row.instructor_2, row.emp_id_2)
-  ].filter((value, index, values) => value && values.indexOf(value) === index);
-  const contactName = viewVal(row.resolved_contact_name || row.school_contact_name || row.contact_name);
-  const contactRole = viewVal(row.resolved_contact_role || row.school_contact_role || row.contact_role);
-  const contactPhone = viewVal(row.resolved_contact_phone || row.school_contact_phone || row.contact_phone);
-  const fields = [
-    ['פעילות', fallback(row.activity_name)],
-    ['תאריך', formatDateHe(row.start_date || row.activity_date) || '—'],
-    ['שעות', formatTimeRangeShort(row.start_time, row.end_time) || '—'],
-    ['רשות', fallback(row.authority)],
-    ['בית ספר', fallback(row.school)],
-    ['שכבה / קבוצה', viewVal(row.grade || row.class_group) || '—'],
-    ['מדריך/ה', instructors.join(' · ') || 'לא הוגדר'],
-    contactName || contactRole || contactPhone
-      ? ['איש קשר', [contactName, contactRole, contactPhone].filter(Boolean).join(' · ')]
-      : ['איש קשר', 'לא הוגדר']
-  ];
-  return `<div class="activity-drawer__form activity-drawer__form--instructor-limited" dir="rtl"><div class="activity-drawer__instructor-grid">${fields.map(([label, value]) => fieldViewCard(label, value)).join('')}</div><div class="activity-drawer__instructor-actions"><button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-ui-close-drawer>סגור</button></div></div>`;
-}
-
 function singleForm(row, { settings = {}, privateNote = null, canEdit = false, canDirectEdit = false, canRequestEdit = false, canDeleteActivity = false, canSchedule = false, showPrivateNote = false, idx = 0, datesLoading = false, instructorLimited = false, currentInstructorIds = [], currentInstructorName = '' } = {}) {
-  if (instructorLimited) return instructorLimitedForm(row, { currentInstructorIds, currentInstructorName });
+  if (instructorLimited && currentInstructorName) {
+    const ids = new Set((Array.isArray(currentInstructorIds) ? currentInstructorIds : [currentInstructorIds])
+      .map((value) => String(value || '').trim()).filter(Boolean));
+    row = { ...row };
+    if (!humanDisplayText(row.instructor_name || row.instructor) && ids.has(String(row.emp_id || '').trim())) {
+      row.instructor_name = currentInstructorName;
+    }
+    if (!humanDisplayText(row.instructor_name_2 || row.instructor_2) && ids.has(String(row.emp_id_2 || '').trim())) {
+      row.instructor_name_2 = currentInstructorName;
+    }
+  }
   const computedEnd = autoEndDate(row);
   const activityType = normalizeActivityTypeKey(row.activity_type || row.item_type);
   const is2027 = normalizeActivitySeason(row.activity_season) === ACTIVITY_SEASON_SCHOOL_2027;
@@ -1354,21 +1333,21 @@ function singleForm(row, { settings = {}, privateNote = null, canEdit = false, c
         : blockViewCourse(row, { settings })}
       ${blockViewRecordDetails(row, { instructorLimited, showFunding: false, showParticipants: !isCourse })}
       ${isOnce && showDates
-        ? `<div class="activity-drawer__once-dates-row" data-once-dates-row>${blockDates(row, { canEdit, canDirectEdit, datesLoading, is2027 })}</div>`
-        : (showDates ? blockDates(row, { canEdit, canDirectEdit, datesLoading, is2027 }) : '')}
-      ${is2027 ? `<div class="activity-drawer__actions-row" data-activity-actions data-view-only>
+        ? `<div class="activity-drawer__once-dates-row" data-once-dates-row>${blockDates(row, { canEdit, canDirectEdit, datesLoading, is2027, viewOnly: instructorLimited })}</div>`
+        : (showDates ? blockDates(row, { canEdit, canDirectEdit, datesLoading, is2027, viewOnly: instructorLimited }) : '')}
+      ${is2027 && !instructorLimited ? `<div class="activity-drawer__actions-row" data-activity-actions data-view-only>
         <button type="button" class="ds-btn ds-btn--sm" data-coordination-approval>אישור תיאום</button>
       </div>` : ''}
-      ${schedulingEligible ? `<div class="activity-scheduling-fields" data-mode="edit" hidden data-scheduling-fields>
+      ${schedulingEligible && !instructorLimited ? `<div class="activity-scheduling-fields" data-mode="edit" hidden data-scheduling-fields>
         <div class="activity-scheduling-summary__fields"><label>מגדר<select class="ds-input" name="required_instructor_gender"><option value="any">ללא דרישה</option><option value="female"${(row.required_instructor_gender || 'any') === 'female' ? ' selected' : ''}>מדריכה</option><option value="male"${(row.required_instructor_gender || 'any') === 'male' ? ' selected' : ''}>מדריך</option></select></label><label>שפת הדרכה<select class="ds-input" name="instruction_language"><option value="he"${(row.instruction_language || 'he') === 'he' ? ' selected' : ''}>עברית</option><option value="ar"${row.instruction_language === 'ar' ? ' selected' : ''}>ערבית</option></select></label></div>
       </div>` : ''}
       ${blockNotes(row, { hidden: instructorLimited })}
       ${blockPrivateNote(row, { privateNote, showPrivateNote })}
-      ${blockActivityDetails(row, { settings })}
-      ${blockAssignment(row, { settings })}
-      ${blockTeamTimes(row, { settings, schedulingManaged: is2027 })}
+      ${instructorLimited ? '' : blockActivityDetails(row, { settings })}
+      ${instructorLimited ? '' : blockAssignment(row, { settings })}
+      ${instructorLimited ? '' : blockTeamTimes(row, { settings, schedulingManaged: is2027 })}
       ${instructorLimited ? '' : blockExtraEditInfo(row, { settings })}
-      ${is2027 ? blockContact2027(row) : ''}
+      ${is2027 ? blockContact2027(row, { viewOnly: instructorLimited }) : ''}
       ${blockEditActions({ canEdit, canDirectEdit, canDeleteActivity })}
       ${blockViewFooter({ canEdit, canDirectEdit })}
     </form>
