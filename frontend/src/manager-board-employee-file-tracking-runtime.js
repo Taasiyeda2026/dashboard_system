@@ -32,6 +32,7 @@ function installStyles() {
     .manager-workspace-tracking-table--employee-file td:not(:first-child){text-align:center}
     .manager-workspace-followup-cell__content{display:inline-flex;align-items:center;justify-content:center;min-height:28px}
     .manager-workspace-deadline-date{color:#475569;font-size:12px;font-weight:700;white-space:nowrap}
+    .manager-workspace-deadline-date--late{color:#b45309}
     .manager-workspace-deadline-empty{color:#94a3b8;font-size:13px}
     .manager-workspace-deadline-review{color:#64748b;font-size:12px;font-weight:600;white-space:nowrap}
     .manager-workspace-followup-cell--not-for-update{color:#94a3b8}

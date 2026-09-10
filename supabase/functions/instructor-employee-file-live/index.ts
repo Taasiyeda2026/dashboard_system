@@ -107,14 +107,26 @@ async function persistComponents(empId: number, schoolYear: string, components: 
   const mappingId = clean((await mappingResponse.json())?.[0]?.id);
   if (!mappingId) throw new Error("employee_file_mapping_not_found");
 
-  const rows = components.map((component) => ({
-    folder_mapping_id: mappingId,
-    component_key: clean(component.component_key),
-    completed: component.completed === true,
-    item_count: Math.max(0, Number(component.item_count) || 0),
-    updated_at: new Date().toISOString(),
-    updated_by: null,
-  }));
+  // updated_at is always refresh-time. first_completed_at is only written when SharePoint
+  // provides a file createdDateTime (or cleared when empty). Never invent it from refresh now().
+  const rows = components.map((component) => {
+    const completed = component.completed === true;
+    const firstCompletedAt = clean(component.first_completed_at) || null;
+    const row: Record<string, unknown> = {
+      folder_mapping_id: mappingId,
+      component_key: clean(component.component_key),
+      completed,
+      item_count: Math.max(0, Number(component.item_count) || 0),
+      updated_at: new Date().toISOString(),
+      updated_by: null,
+    };
+    if (!completed) {
+      row.first_completed_at = null;
+    } else if (firstCompletedAt) {
+      row.first_completed_at = firstCompletedAt;
+    }
+    return row;
+  });
   const saveResponse = await fetch(
     `${supabaseUrl}/rest/v1/instructor_employee_document_status?on_conflict=folder_mapping_id,component_key`,
     {
@@ -172,34 +184,51 @@ async function graphGet(token: string, urlOrPath: string, allow404 = false) {
   return await response.json();
 }
 
-async function listFolderFiles(token: string, driveId: string, relativePath: string) {
-  const encoded = encodeGraphPath(relativePath);
-  let next: string | null = `/drives/${encodeURIComponent(driveId)}/root:/${encoded}:/children?$select=id,name,file,folder&$top=200`;
-  let count = 0;
-  while (next) {
-    const payload = await graphGet(token, next, true);
-    if (!payload) return 0;
-    for (const item of Array.isArray(payload.value) ? payload.value : []) {
-      if (item?.file) count += 1;
-    }
-    next = clean(payload?.["@odata.nextLink"]) || null;
-  }
-  return count;
+type FolderFileScan = { count: number; earliestCreatedAt: string | null };
+
+function considerFileCreatedAt(current: string | null, candidate: unknown) {
+  const value = clean(candidate);
+  if (!value) return current;
+  if (!current) return value;
+  return Date.parse(value) < Date.parse(current) ? value : current;
 }
 
-async function listFolderFilesFromItem(token: string, driveId: string, rootItemId: string, relativePath: string) {
+async function listFolderFiles(token: string, driveId: string, relativePath: string): Promise<FolderFileScan> {
   const encoded = encodeGraphPath(relativePath);
-  let next: string | null = `/drives/${encodeURIComponent(driveId)}/items/${encodeURIComponent(rootItemId)}:/${encoded}:/children?$select=id,name,file,folder&$top=200`;
+  let next: string | null = `/drives/${encodeURIComponent(driveId)}/root:/${encoded}:/children?$select=id,name,file,folder,createdDateTime&$top=200`;
   let count = 0;
+  let earliestCreatedAt: string | null = null;
   while (next) {
     const payload = await graphGet(token, next, true);
-    if (!payload) return 0;
+    if (!payload) return { count: 0, earliestCreatedAt: null };
     for (const item of Array.isArray(payload.value) ? payload.value : []) {
-      if (item?.file) count += 1;
+      if (item?.file) {
+        count += 1;
+        earliestCreatedAt = considerFileCreatedAt(earliestCreatedAt, item?.createdDateTime);
+      }
     }
     next = clean(payload?.["@odata.nextLink"]) || null;
   }
-  return count;
+  return { count, earliestCreatedAt };
+}
+
+async function listFolderFilesFromItem(token: string, driveId: string, rootItemId: string, relativePath: string): Promise<FolderFileScan> {
+  const encoded = encodeGraphPath(relativePath);
+  let next: string | null = `/drives/${encodeURIComponent(driveId)}/items/${encodeURIComponent(rootItemId)}:/${encoded}:/children?$select=id,name,file,folder,createdDateTime&$top=200`;
+  let count = 0;
+  let earliestCreatedAt: string | null = null;
+  while (next) {
+    const payload = await graphGet(token, next, true);
+    if (!payload) return { count: 0, earliestCreatedAt: null };
+    for (const item of Array.isArray(payload.value) ? payload.value : []) {
+      if (item?.file) {
+        count += 1;
+        earliestCreatedAt = considerFileCreatedAt(earliestCreatedAt, item?.createdDateTime);
+      }
+    }
+    next = clean(payload?.["@odata.nextLink"]) || null;
+  }
+  return { count, earliestCreatedAt };
 }
 
 async function sharedFolderRoot(token: string, folderWebUrl: string) {
@@ -225,11 +254,12 @@ async function liveComponents(token: string, folderWebUrl: string) {
   });
   if (sharedRoot) {
     return await Promise.all(COMPONENT_PATHS.map(async ([componentKey, suffix]) => {
-      const itemCount = await listFolderFilesFromItem(token, sharedRoot.driveId, sharedRoot.itemId, suffix);
+      const scan = await listFolderFilesFromItem(token, sharedRoot.driveId, sharedRoot.itemId, suffix);
       return {
         component_key: componentKey,
-        completed: itemCount > 0,
-        item_count: componentKey === "payroll_reports" ? itemCount : 0,
+        completed: scan.count > 0,
+        item_count: componentKey === "payroll_reports" ? scan.count : 0,
+        first_completed_at: scan.count > 0 ? scan.earliestCreatedAt : null,
       };
     }));
   }
@@ -265,11 +295,12 @@ async function liveComponents(token: string, folderWebUrl: string) {
   if (!employeeRoot) throw new Error("employee_folder_path_missing");
 
   return await Promise.all(COMPONENT_PATHS.map(async ([componentKey, suffix]) => {
-    const itemCount = await listFolderFiles(token, clean(drive.id), `${employeeRoot}/${suffix}`);
+    const scan = await listFolderFiles(token, clean(drive.id), `${employeeRoot}/${suffix}`);
     return {
       component_key: componentKey,
-      completed: itemCount > 0,
-      item_count: componentKey === "payroll_reports" ? itemCount : 0,
+      completed: scan.count > 0,
+      item_count: componentKey === "payroll_reports" ? scan.count : 0,
+      first_completed_at: scan.count > 0 ? scan.earliestCreatedAt : null,
     };
   }));
 }

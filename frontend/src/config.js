@@ -179,3 +179,4 @@ config.HOTFIX_VERSION = `edit-requests-card-ux-20260910-v1-${config.HOTFIX_VERSI
 config.HOTFIX_VERSION = `admin-home-hide-attendance-preview-card-20260910-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `manager-board-month-attr-collision-20260910-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `manager-team-tracking-seniority-20260910-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `manager-team-feedback-windows-20260910-v1-${config.HOTFIX_VERSION}`;
