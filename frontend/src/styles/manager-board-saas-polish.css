@@ -1,39 +1,71 @@
 /* Scoped visual polish for the activity-manager board. No shared shell styles are changed here. */
 .manager-board-screen[data-manager-board-root] {
-  --manager-board-border: #e4eaf0;
-  --manager-board-soft: color-mix(in srgb, var(--ds-accent, #168c9d) 6%, #f8fafc);
+  --manager-board-accent: var(--ds-accent, #1a3358);
+  --manager-board-border: color-mix(in srgb, var(--manager-board-accent) 10%, #e4eaf0);
+  --manager-board-soft: color-mix(in srgb, var(--ds-accent-soft, #e8eef6) 70%, #f8fafc);
+  --manager-board-shadow-xs: var(--ds-shadow-xs, 0 1px 2px rgba(15, 23, 42, 0.05));
+  --manager-board-shadow-sm: var(--ds-shadow-sm, 0 1px 4px rgba(15, 23, 42, 0.08), 0 1px 2px rgba(15, 23, 42, 0.04));
+  --manager-board-shadow-card: var(--ds-shadow-card, 0 2px 6px rgba(26, 51, 88, 0.07), 0 8px 24px rgba(26, 51, 88, 0.08));
+  --manager-board-radius: var(--ds-radius-md, 14px);
+  --manager-board-radius-sm: var(--ds-radius-sm, 9px);
   width: min(1540px, 100%);
   padding: 12px 20px 24px;
   color: #17233b;
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--ds-accent-soft, #e8eef6) 28%, #f7f9fb) 0%,
+      #f4f6f8 120px,
+      #f4f6f8 100%
+    );
 }
 
+/* ——— Level 1: Hero ——— */
 .manager-board-screen[data-manager-board-root] .manager-board-hero {
   align-items: center;
   gap: 16px 24px;
-  margin-bottom: 8px;
+  margin-bottom: 14px;
+  padding: 16px 18px;
+  border: 1px solid color-mix(in srgb, var(--manager-board-accent) 12%, var(--manager-board-border));
+  border-radius: var(--manager-board-radius);
+  background:
+    linear-gradient(
+      145deg,
+      #ffffff 0%,
+      color-mix(in srgb, var(--ds-accent-soft, #e8eef6) 42%, #ffffff) 100%
+    );
+  box-shadow: var(--manager-board-shadow-xs);
 }
 
 .manager-board-screen[data-manager-board-root] .manager-board-hero__title {
   display: grid;
-  gap: 4px;
+  gap: 6px;
 }
 
 .manager-board-screen[data-manager-board-root] .manager-board-hero h1 {
   margin: 0;
-  font-size: clamp(28px, 2.2vw, 32px);
-  line-height: 1.2;
-  color: #13213a;
+  font-size: clamp(28px, 2.3vw, 34px);
+  line-height: 1.15;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: #112038;
 }
 
 .manager-board-screen[data-manager-board-root] .manager-board-hero p {
   font-size: 13px;
-  font-weight: 650;
+  font-weight: 600;
   color: #68768a;
 }
 
+/* Filter controls as one grouped cluster */
 .manager-board-screen[data-manager-board-root] .manager-board-hero__controls {
   align-items: end;
-  gap: 8px;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--manager-board-accent) 8%, #e4eaf0);
+  border-radius: var(--manager-board-radius-sm);
+  background: color-mix(in srgb, #ffffff 88%, var(--ds-accent-soft, #e8eef6));
+  box-shadow: var(--manager-board-shadow-xs);
 }
 
 .manager-board-screen[data-manager-board-root] .manager-board-manager-select,
@@ -46,14 +78,21 @@
 .manager-board-screen[data-manager-board-root] .manager-board-manager-fixed strong,
 .manager-board-screen[data-manager-board-root] .manager-board-month-nav {
   min-height: 38px;
-  border-color: #dfe6ed;
+  border-color: color-mix(in srgb, var(--manager-board-accent) 14%, #dfe6ed);
   border-radius: 10px;
+  background: #fff;
   box-shadow: none;
 }
 
+.manager-board-screen[data-manager-board-root] .manager-board-month-nav button:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--manager-board-accent) 7%, #fff);
+  color: var(--manager-board-accent);
+}
+
+/* ——— Level 2: Tabs ——— */
 .manager-board-screen[data-manager-board-root] .manager-workspace-tabs {
   width: 100%;
-  margin: 4px 0 12px;
+  margin: 4px 0 14px;
   padding: 0;
   gap: 4px;
   border: 0;
@@ -65,13 +104,14 @@
 
 .manager-board-screen[data-manager-board-root] .manager-workspace-tab {
   min-width: 104px;
-  min-height: 36px;
-  padding: 7px 14px;
+  min-height: 38px;
+  padding: 8px 14px;
   border: 1px solid transparent;
   border-radius: 9px 9px 0 0;
   color: #526174;
+  font-weight: 650;
   box-shadow: none;
-  transition: background-color .15s ease, color .15s ease, border-color .15s ease;
+  transition: background-color .15s ease, color .15s ease, border-color .15s ease, box-shadow .15s ease;
 }
 
 .manager-board-screen[data-manager-board-root] .manager-workspace-tab:hover {
@@ -80,60 +120,89 @@
 }
 
 .manager-board-screen[data-manager-board-root] .manager-workspace-tab.is-active {
-  border-color: color-mix(in srgb, var(--manager-board-accent) 20%, #e4eaf0);
+  border-color: color-mix(in srgb, var(--manager-board-accent) 22%, #e4eaf0);
   border-bottom-color: #fff;
-  background: color-mix(in srgb, var(--manager-board-accent) 8%, #fff);
+  background: color-mix(in srgb, var(--ds-accent-soft, #e8eef6) 55%, #fff);
   color: var(--manager-board-accent);
-  box-shadow: none;
+  font-weight: 800;
+  box-shadow:
+    inset 0 -2px 0 var(--manager-board-accent),
+    var(--manager-board-shadow-xs);
 }
 
 .manager-board-screen[data-manager-board-root] :is(button, select):focus-visible {
-  outline: 2px solid color-mix(in srgb, var(--manager-board-accent) 60%, #fff);
+  outline: 2px solid color-mix(in srgb, var(--manager-board-accent) 55%, #fff);
   outline-offset: 2px;
+  box-shadow: var(--ds-focus-ring, 0 0 0 2px color-mix(in srgb, var(--manager-board-accent) 24%, transparent));
 }
 
+/* ——— Level 2: Team strip ——— */
 .manager-board-screen[data-manager-board-root] .manager-board-team-strip {
-  margin-bottom: 12px;
-  padding: 12px 14px;
-  border-color: #e4eaf0;
-  border-radius: 12px;
-  box-shadow: none;
+  margin-bottom: 14px;
+  padding: 14px 16px;
+  border: 1px solid color-mix(in srgb, var(--manager-board-accent) 10%, #e4eaf0);
+  border-radius: var(--manager-board-radius);
+  background:
+    linear-gradient(
+      180deg,
+      #ffffff 0%,
+      color-mix(in srgb, var(--ds-accent-soft, #e8eef6) 35%, #ffffff) 100%
+    );
+  box-shadow: var(--manager-board-shadow-xs);
 }
 
 .manager-board-screen[data-manager-board-root] .manager-board-team-strip__title {
-  margin-bottom: 8px;
+  margin-bottom: 10px;
   font-size: 16px;
-  color: #24344e;
+  font-weight: 800;
+  color: #1f3048;
 }
 
 .manager-board-screen[data-manager-board-root] .manager-board-team-strip__grid {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 8px;
 }
 
 .manager-board-screen[data-manager-board-root] .manager-board-team-strip__chip {
   width: auto;
-  height: 32px;
-  min-height: 32px;
-  padding: 5px 11px;
-  border-color: #e4eaf0;
-  border-radius: 9px;
-  background: #fafbfd;
+  height: 34px;
+  min-height: 34px;
+  padding: 6px 12px;
+  border: 1px solid color-mix(in srgb, var(--manager-board-accent) 8%, #e4eaf0);
+  border-radius: 10px;
+  background: #f8fafc;
   color: #334155;
   font-size: 12.5px;
+  font-weight: 700;
+  transition: background-color .15s ease, border-color .15s ease, color .15s ease, box-shadow .15s ease;
+}
+
+.manager-board-screen[data-manager-board-root] button.manager-board-team-strip__chip:hover {
+  background: color-mix(in srgb, var(--ds-accent-soft, #e8eef6) 55%, #fff);
+  border-color: color-mix(in srgb, var(--manager-board-accent) 28%, #dbe3ed);
+  color: #1e293b;
+}
+
+.manager-board-screen[data-manager-board-root] button.manager-board-team-strip__chip.selected {
+  color: var(--manager-board-accent);
+  border-color: color-mix(in srgb, var(--manager-board-accent) 48%, #dbe3ed);
+  background: var(--ds-interactive-selected, color-mix(in srgb, var(--ds-accent-soft, #e8eef6) 70%, #fff));
+  font-weight: 800;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--manager-board-accent) 18%, transparent);
 }
 
 .manager-board-screen[data-manager-board-root] .manager-board-team-strip__chip--kpi {
   order: -1;
-  width: 150px;
-  height: 48px;
-  min-height: 48px;
+  width: 156px;
+  height: 52px;
+  min-height: 52px;
   align-self: center;
-  padding: 6px 14px;
-  border-color: #dce6eb;
+  padding: 7px 14px;
+  border-color: color-mix(in srgb, var(--manager-board-accent) 22%, #dce6eb);
+  border-inline-start: 3px solid var(--manager-board-accent);
   background: #fff;
-  box-shadow: none;
+  box-shadow: var(--manager-board-shadow-xs);
 }
 
 .manager-board-screen[data-manager-board-root] .manager-board-team-strip__chip--kpi strong {
@@ -141,6 +210,7 @@
   color: #13213a;
 }
 
+/* ——— Level 2 / 3: Panels (calendar shell + side) ——— */
 .manager-board-screen[data-manager-board-root] .manager-board-layout {
   grid-template-columns: minmax(0, 2.65fr) minmax(280px, 1fr);
   gap: 16px;
@@ -151,20 +221,27 @@
 }
 
 .manager-board-screen[data-manager-board-root] .manager-board-panel {
-  border-color: #e4eaf0;
-  border-radius: 12px;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, .025);
+  border: 1px solid color-mix(in srgb, var(--manager-board-accent) 9%, #e4eaf0);
+  border-radius: var(--manager-board-radius);
+  background: #fff;
+  box-shadow: var(--manager-board-shadow-xs);
 }
 
 .manager-board-screen[data-manager-board-root] .manager-board-panel__head {
-  padding: 13px 16px 11px;
-  border-bottom-color: #edf1f5;
+  padding: 14px 16px 12px;
+  border-bottom: 1px solid #edf1f5;
   border-inline-start: 0;
+  background: color-mix(in srgb, var(--ds-accent-soft, #e8eef6) 28%, #fff);
 }
 
 .manager-board-screen[data-manager-board-root] .manager-board-panel__head h2 {
   font-size: 17px;
+  font-weight: 800;
   color: #17233b;
+}
+
+.manager-board-screen[data-manager-board-root] .manager-board-panel--calendar {
+  box-shadow: var(--manager-board-shadow-sm);
 }
 
 .manager-board-screen[data-manager-board-root] .manager-board-calendar {
@@ -186,6 +263,7 @@
   border-inline-start-color: #edf1f5;
 }
 
+/* Calendar day cells: keep structure; only light today tint via accent token */
 .manager-board-screen[data-manager-board-root] .manager-board-calendar-day {
   min-height: 100px;
   padding: 9px;
@@ -235,31 +313,54 @@
   background: currentColor;
 }
 
+/* ——— Level 3: Control points / milestones ——— */
 .manager-board-screen[data-manager-board-root] .manager-board-milestones,
 .manager-board-screen[data-manager-board-root] .manager-board-school-events {
-  padding: 4px 14px 10px;
+  padding: 4px 14px 12px;
 }
 
 .manager-board-screen[data-manager-board-root] .manager-board-milestones-group__label {
-  padding: 10px 14px 2px;
+  padding: 10px 14px 4px;
   color: #6b7789;
   font-size: 11.5px;
+  font-weight: 750;
+  letter-spacing: 0.01em;
 }
 
 .manager-board-screen[data-manager-board-root] .manager-board-milestone {
   display: grid;
-  grid-template-columns: 48px minmax(0, 1fr);
+  grid-template-columns: 52px minmax(0, 1fr);
   align-items: start;
-  gap: 2px 10px;
-  padding: 10px 0;
-  border-bottom-color: #edf1f5;
+  gap: 2px 12px;
+  margin-block: 2px;
+  padding: 11px 8px 11px 0;
+  border-bottom: 1px solid #edf1f5;
+  border-radius: 8px;
+  transition: background-color .15s ease;
+}
+
+.manager-board-screen[data-manager-board-root] .manager-board-milestone:hover {
+  background: color-mix(in srgb, var(--ds-accent-soft, #e8eef6) 40%, #fff);
 }
 
 .manager-board-screen[data-manager-board-root] .manager-board-milestone time {
   grid-row: 1 / span 2;
+  position: relative;
+  padding-inline-start: 10px;
   color: #506078;
   font-size: 12px;
   font-weight: 800;
+}
+
+.manager-board-screen[data-manager-board-root] .manager-board-milestone time::before {
+  content: '';
+  position: absolute;
+  inset-inline-start: 0;
+  top: 0.15em;
+  width: 3px;
+  height: 1.35em;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--manager-board-accent) 70%, #94a3b8);
 }
 
 .manager-board-screen[data-manager-board-root] .manager-board-milestone__body {
@@ -277,8 +378,9 @@
 }
 
 .manager-board-screen[data-manager-board-root] .manager-board-milestone__body strong {
-  font-size: 13px;
-  color: #26364e;
+  font-size: 13.5px;
+  font-weight: 800;
+  color: #1e2f46;
 }
 
 .manager-board-screen[data-manager-board-root] .manager-board-milestone__body strong::after,
@@ -295,6 +397,198 @@
 .manager-board-screen[data-manager-board-root] .manager-board-milestone__badge {
   grid-column: 2;
   white-space: normal;
+}
+
+/* ——— Level 3: Instructor center ——— */
+.manager-board-screen[data-manager-board-root] .manager-instructor-center {
+  gap: 16px;
+  padding: 18px;
+  border: 1px solid color-mix(in srgb, var(--manager-board-accent) 10%, #e4eaf0);
+  border-radius: var(--manager-board-radius);
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--ds-accent-soft, #e8eef6) 32%, #ffffff) 0%,
+      #ffffff 72px
+    );
+  box-shadow: var(--manager-board-shadow-sm);
+}
+
+.manager-board-screen[data-manager-board-root] .manager-instructor-center__header {
+  gap: 14px;
+  padding: 4px 2px 16px;
+  border-bottom: 1px solid color-mix(in srgb, var(--manager-board-accent) 10%, #e6ebf1);
+}
+
+.manager-board-screen[data-manager-board-root] .manager-instructor-center__header h2 {
+  margin: 0 0 6px;
+  font-size: clamp(22px, 2.1vw, 30px);
+  font-weight: 800;
+  color: #111f36;
+}
+
+.manager-board-screen[data-manager-board-root] .manager-instructor-center__header h2 span {
+  color: #64748b;
+  font-weight: 600;
+  font-size: 0.72em;
+}
+
+.manager-board-screen[data-manager-board-root] .manager-instructor-center__header p {
+  margin: 0;
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.manager-board-screen[data-manager-board-root] .manager-instructor-center__back,
+.manager-board-screen[data-manager-board-root] .manager-instructor-center__profile {
+  border: 1px solid color-mix(in srgb, var(--manager-board-accent) 22%, #dbe3ed);
+  border-radius: 10px;
+  padding: 8px 12px;
+  background: #fff;
+  color: var(--manager-board-accent);
+  font-weight: 750;
+  box-shadow: var(--manager-board-shadow-xs);
+  transition: background-color .15s ease, border-color .15s ease, box-shadow .15s ease;
+}
+
+.manager-board-screen[data-manager-board-root] .manager-instructor-center__profile {
+  background: color-mix(in srgb, var(--ds-accent-soft, #e8eef6) 75%, #fff);
+  border-color: color-mix(in srgb, var(--manager-board-accent) 30%, #dbe3ed);
+}
+
+.manager-board-screen[data-manager-board-root] .manager-instructor-center__back:hover,
+.manager-board-screen[data-manager-board-root] .manager-instructor-center__profile:hover {
+  background: color-mix(in srgb, var(--ds-accent-soft, #e8eef6) 55%, #fff);
+  box-shadow: var(--manager-board-shadow-sm);
+}
+
+/* KPI cards */
+.manager-board-screen[data-manager-board-root] .manager-instructor-center__kpis {
+  gap: 12px;
+}
+
+.manager-board-screen[data-manager-board-root] .manager-instructor-center__kpis article {
+  position: relative;
+  min-height: 100px;
+  padding: 14px 15px 14px 16px;
+  border: 1px solid color-mix(in srgb, var(--manager-board-accent) 10%, #e1e7ee);
+  border-radius: 12px;
+  background: #fbfcfd;
+  box-shadow: var(--manager-board-shadow-xs);
+  overflow: hidden;
+  transition: box-shadow .15s ease, border-color .15s ease, transform .15s ease;
+}
+
+.manager-board-screen[data-manager-board-root] .manager-instructor-center__kpis article::before {
+  content: '';
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  width: 3px;
+  background: var(--manager-board-accent);
+  border-radius: 0 2px 2px 0;
+  opacity: 0.85;
+}
+
+.manager-board-screen[data-manager-board-root] .manager-instructor-center__kpis article:hover {
+  border-color: color-mix(in srgb, var(--manager-board-accent) 22%, #e1e7ee);
+  box-shadow: var(--manager-board-shadow-sm);
+}
+
+.manager-board-screen[data-manager-board-root] .manager-instructor-center__kpis span {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.manager-board-screen[data-manager-board-root] .manager-instructor-center__kpis strong {
+  align-self: end;
+  font-size: clamp(28px, 2.4vw, 34px);
+  line-height: 1.05;
+  font-weight: 800;
+  color: #13213a;
+}
+
+.manager-board-screen[data-manager-board-root] .manager-instructor-center__kpis .is-share {
+  background: color-mix(in srgb, var(--ds-accent-soft, #e8eef6) 45%, #fff);
+}
+
+.manager-board-screen[data-manager-board-root] .manager-instructor-center__kpis .is-share i {
+  opacity: 0.5;
+}
+
+/* Sections: milestones + attention */
+.manager-board-screen[data-manager-board-root] .manager-instructor-center__section {
+  padding: 16px 16px 14px;
+  border: 1px solid color-mix(in srgb, var(--manager-board-accent) 9%, #e1e7ee);
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: var(--manager-board-shadow-xs);
+}
+
+.manager-board-screen[data-manager-board-root] .manager-instructor-center__section h3 {
+  margin: 0 0 14px;
+  font-size: 16px;
+  font-weight: 800;
+  color: #1a2b42;
+}
+
+.manager-board-screen[data-manager-board-root] .manager-instructor-center__milestones {
+  gap: 12px;
+}
+
+.manager-board-screen[data-manager-board-root] .manager-instructor-center__milestones article {
+  padding: 13px 14px;
+  border: 1px solid #e8edf2;
+  border-radius: 10px;
+  border-inline-start: 3px solid color-mix(in srgb, var(--manager-board-accent) 55%, #cbd5e1);
+  background: #fafbfd;
+}
+
+.manager-board-screen[data-manager-board-root] .manager-instructor-center__milestones article > strong {
+  font-size: 14px;
+  color: #1e2f46;
+}
+
+.manager-board-screen[data-manager-board-root] .manager-instructor-center__attention {
+  background: color-mix(in srgb, #fcfcfb 92%, var(--ds-accent-soft, #e8eef6));
+}
+
+/* ——— Empty states (CSS-only) ——— */
+.manager-board-screen[data-manager-board-root] .manager-board-empty,
+.manager-board-screen[data-manager-board-root] .manager-board-empty--compact,
+.manager-board-screen[data-manager-board-root] .manager-instructor-center__milestones > .manager-board-empty,
+.manager-board-screen[data-manager-board-root] .manager-instructor-center__milestones > p.manager-board-empty {
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 8px;
+  min-height: 88px;
+  margin: 4px 0;
+  padding: 18px 14px;
+  border: 1px dashed color-mix(in srgb, var(--manager-board-accent) 16%, #dbe3ed);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--ds-accent-soft, #e8eef6) 28%, #f8fafc);
+  color: #7b8798;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 600;
+  box-shadow: none;
+}
+
+.manager-board-screen[data-manager-board-root] .manager-board-empty::before,
+.manager-board-screen[data-manager-board-root] .manager-instructor-center__milestones > p.manager-board-empty::before {
+  content: '';
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2px solid color-mix(in srgb, var(--manager-board-accent) 28%, #cbd5e1);
+  background:
+    linear-gradient(var(--manager-board-accent), var(--manager-board-accent)) center / 10px 2px no-repeat,
+    color-mix(in srgb, var(--ds-accent-soft, #e8eef6) 50%, #fff);
+  opacity: 0.85;
 }
 
 @media (max-width: 1180px) {
@@ -316,11 +610,16 @@
   .manager-board-screen[data-manager-board-root] .manager-board-side {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .manager-board-screen[data-manager-board-root] .manager-instructor-center__kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 700px) {
   .manager-board-screen[data-manager-board-root] .manager-board-hero {
     align-items: stretch;
+    padding: 14px;
   }
 
   .manager-board-screen[data-manager-board-root] .manager-board-hero__controls {
@@ -373,5 +672,14 @@
 
   .manager-board-screen[data-manager-board-root] .manager-board-calendar-day__count::before {
     display: none;
+  }
+
+  .manager-board-screen[data-manager-board-root] .manager-instructor-center {
+    padding: 12px;
+  }
+
+  .manager-board-screen[data-manager-board-root] .manager-instructor-center__kpis,
+  .manager-board-screen[data-manager-board-root] .manager-instructor-center__milestones {
+    grid-template-columns: 1fr;
   }
 }
