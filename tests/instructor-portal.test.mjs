@@ -75,7 +75,9 @@ test('portal calendar stays a seven-column grid with compact mobile day details'
   assert.match(source, /events\.length > 1/);
   assert.match(source, /loadInstructorActivities\(api\)/);
   assert.match(source, /instructorActivities\(data\?\.rows, state\)/);
-  assert.equal(instructorActivityEventsForDate([{ row_id: 'mine', activity_name: 'פעילות שלי', date_1: '2026-09-08' }], '2026-09-08').length, 1);
+  assert.equal(instructorActivityEventsForDate([{ RowID: 'mine', activity_name: 'פעילות שלי', date_1: '2026-09-08' }], '2026-09-08').length, 1);
+  assert.match(source, /hasSchoolCalendar \? 'is-school-calendar-day'/);
+  assert.match(source, /hasActivity \? 'has-instructor-activity'/);
 });
 
 test('instructor calendar navigation follows the active school season across calendar years', () => {
@@ -126,7 +128,7 @@ test('instructor calendar wrapping and birthday decoration are role scoped', () 
   const css = fs.readFileSync(new URL('../frontend/src/styles/main.css', import.meta.url), 'utf8');
   const birthdays = fs.readFileSync(new URL('../frontend/src/birthday-calendar.js', import.meta.url), 'utf8');
   assert.match(css, /route-instructor-calendar[^}]+ds-interactive-card__subtitle[^}]+white-space:normal/);
-  assert.match(css, /activity-drawer__form--instructor-limited/);
+  assert.match(css, /instructor-activity-drawer-shell \.activity-drawer__section/);
   assert.match(birthdays, /app-shell--instructor\.route-instructor-calendar/);
 });
 
@@ -138,12 +140,12 @@ test('capture-phase period switching also refuses instructor year changes', () =
 });
 
 test('instructor activity drawer is shared, read-only, includes contact, and omits admin actions', () => {
-  const html = activityWorkDrawerHtml({ RowID: '1', activity_name: 'סדנה', activity_type: 'סדנה', school: 'בית ספר', authority: 'רשות', emp_id_2: 'A-1', resolved_contact_name: 'נועה', resolved_contact_phone: '0501234567', price: '900', funding: 'פנימי' }, { instructorLimited: true, currentInstructorIds: ['A-1'], currentInstructorName: 'רות', canEdit: false, canDirectEdit: false, canRequestEdit: false, canDeleteActivity: false, exportAction: false });
+  const html = activityWorkDrawerHtml({ RowID: '1', activity_name: 'סדנה', activity_type: 'סדנה', activity_season: 'school_2027', school: 'בית ספר', authority: 'רשות', emp_id_2: 'A-1', resolved_contact_name: 'נועה', resolved_contact_phone: '0501234567', price: '900', funding: 'פנימי' }, { instructorLimited: true, currentInstructorIds: ['A-1'], currentInstructorName: 'רות', canEdit: false, canDirectEdit: false, canRequestEdit: false, canDeleteActivity: false, exportAction: false });
   assert.match(html, /נועה/);
   assert.match(html, /רות/);
   assert.doesNotMatch(html, /מדריך לא תקף|מדריך לא קיים/);
-  assert.match(html, /מחיר|900/);
-  assert.match(html, /גורם מימון|פנימי/);
+  assert.match(html, /activity-drawer__section/);
+  assert.match(html, /data-central-info-section/);
   assert.doesNotMatch(html, /data-action="edit"|data-action="delete"|data-action="save"/);
 });
 

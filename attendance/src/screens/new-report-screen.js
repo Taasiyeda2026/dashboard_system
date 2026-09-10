@@ -44,8 +44,16 @@ const TIME_MINUTE_STEP = 5;
 const COURSE_REPORT_TYPE = 'קורס';
 const ALL_CANONICAL_REPORT_TYPES = new Set(['ביטול זמן', TRAINING_REPORT_TYPE, ONLINE_REPORT_TYPE]);
 
+function localIsoDate(date = new Date()) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
 function activityRowId(activity) {
-  return String(activity?.row_id || activity?.id || '').trim();
+  return String(activity?.RowID || activity?.row_id || activity?.id || '').trim();
+}
+
+function selectedActivityName(activity, fallback = '') {
+  return String(activity?.activity_name || activity?.program_name || fallback || '').trim();
 }
 
 function nextMinuteStepTime(startTime) {
@@ -73,7 +81,7 @@ function makeFormSection(title, variant, bodyClass, fields) {
 
 export function renderNewReportScreen(container, {
   instructor = {},
-  defaultDate = new Date().toISOString().slice(0, 10),
+  defaultDate = localIsoDate(),
   prefillRecord = null,
   onBack,
   onSaved,
@@ -478,8 +486,8 @@ export function renderNewReportScreen(container, {
 
     if (current && options.some((opt) => opt.value === current)) {
       const match = options.find((opt) => opt.value === current);
-      activityNameSel.setValue(current, match?.label || '');
       selectedActivity = findActivityByRowId(current);
+      activityNameSel.setValue(current, selectedActivityName(selectedActivity, match?.label));
     } else if (preserveSelection && current) {
       clearLinkedActivity();
     }
@@ -502,7 +510,7 @@ export function renderNewReportScreen(container, {
       activityNameSel.setOptions(options);
       if (current && options.some((opt) => opt.value === current)) {
         const match = options.find((opt) => opt.value === current);
-        activityNameSel.setValue(current, match?.label || '');
+        activityNameSel.setValue(current, selectedActivityName(findActivityByRowId(current), match?.label));
       }
     } catch {
       // Extended search remains available if the initial canonical preload fails.
@@ -562,7 +570,7 @@ export function renderNewReportScreen(container, {
         ...options.filter((opt) => opt.value !== rowId),
         match,
       ].sort((a, b) => a.label.localeCompare(b.label, 'he')));
-      activityNameSel.setValue(rowId, match.label);
+      activityNameSel.setValue(rowId, selectedActivityName(activity, match.label));
     }
 
     syncAuthoritySchoolFromActivity(activity);
@@ -633,7 +641,7 @@ export function renderNewReportScreen(container, {
   async function onReportDateChange() {
     const dateStr = getReportDate();
     if (!dateStr) return;
-    const today = new Date().toISOString().slice(0, 10);
+    const today = localIsoDate();
     if (dateStr > today) {
       lockBanner.innerHTML = '<p>לא ניתן לדווח נוכחות עבור תאריך עתידי.</p>';
       lockBanner.hidden = false;
@@ -714,7 +722,7 @@ export function renderNewReportScreen(container, {
       label: 'תאריך *',
       type: 'date',
       value: prefill?.report_date || preservedDate || defaultDate,
-      attrs: { max: new Date().toISOString().slice(0, 10) },
+      attrs: { max: localIsoDate() },
     });
 
     const typeOptions = [
@@ -1138,7 +1146,7 @@ export function renderNewReportScreen(container, {
         if (!firstInvalid) firstInvalid = wrap;
       }
 
-      if (dateStr && dateStr > new Date().toISOString().slice(0, 10)) {
+      if (dateStr && dateStr > localIsoDate()) {
         errorEl.textContent = 'לא ניתן לדווח נוכחות עבור תאריך עתידי.';
         errorEl.hidden = false;
         dateField.input.focus();
@@ -1207,7 +1215,7 @@ export function renderNewReportScreen(container, {
           total_hours: totalHours,
           activity_type: reportType,
           activity_id: isOpen ? null : (activity?.id ?? null),
-          activity_row_id: isOpen ? null : (activity?.row_id ?? null),
+          activity_row_id: isOpen ? null : (activityRowId(activity) || null),
           activity_no: isOpen ? null : (activity?.activity_no ?? null),
           activity_season: isOpen ? null : (activity?.activity_season ?? null),
           activity_name_snapshot: activityNameSnapshot,

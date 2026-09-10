@@ -48,7 +48,7 @@ function openExplicitlyRequestedReportEditor() {
 function sync() {
   syncOperationOtherField();
   ensureSidebarDashboardButton();
-  openExplicitRequestedReportEditor();
+  openExplicitlyRequestedReportEditor();
 }
 
 if (typeof document !== 'undefined') {

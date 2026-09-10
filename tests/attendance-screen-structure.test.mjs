@@ -101,8 +101,8 @@ test('Attendance New Report uses two compact desktop cards and instructor activi
   assert.match(activitiesServiceSource, /instructorActivitySelectOptions/);
   assert.match(newReportSource, /תחבורה ציבורית/);
   assert.match(newReportSource, /public_transport_cost/);
-  assert.match(attendanceSwSource, /const CACHE_VERSION = 63;/);
-  assert.match(attendanceIndexSource, /\?v=63/);
+  assert.match(attendanceSwSource, /const CACHE_VERSION = 64;/);
+  assert.match(attendanceIndexSource, /\?v=64/);
 });
 
 test('Attendance New Report keeps mobile fields inside padded page gutters', () => {
@@ -118,7 +118,7 @@ test('Attendance monthly summary counts source reports and report rows use date-
   assert.doesNotMatch(reportsSource, /DAY_NAMES_SHORT|dateDay|dayName/);
   assert.match(newReportSource, /activity\?\.activity_name \|\| activity\?\.program_name/);
   assert.doesNotMatch(newReportSource, /activityNameSnapshot = activityNameSel\.getLabel/);
-  assert.match(newReportSource, /attrs: \{ max: new Date\(\)\.toISOString\(\)\.slice\(0, 10\) \}/);
+  assert.match(newReportSource, /attrs: \{ max: localIsoDate\(\) \}/);
   assert.match(newReportSource, /buildForm\(null, reportDate\)/);
 });
 

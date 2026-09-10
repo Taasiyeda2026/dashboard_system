@@ -60,7 +60,7 @@ export function instructorActivityEventsForDate(activities = [], isoDate) {
     for (let index = 1; index <= 35; index += 1) {
       const date = String(activity?.[`date_${index}`] || (index === 1 ? activity?.start_date || activity?.activity_date : '') || '').slice(0, 10);
       if (date !== target) continue;
-      const activityId = String(activity?.row_id || activity?.id || activity?.activity_name || '');
+      const activityId = String(activity?.RowID || activity?.row_id || activity?.id || activity?.activity_name || '');
       const key = `${activityId}|${target}|${index}`;
       if (seen.has(key)) continue;
       seen.add(key);

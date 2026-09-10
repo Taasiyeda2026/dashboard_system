@@ -567,7 +567,9 @@ export function managerMilestoneRows(meetings = []) {
     .filter((meeting) => meeting.meetingNo === 1 || meeting.isMidpoint || meeting.isEnd)
     .filter((meeting) => {
       const activity = meeting.activity || {};
-      const key = [activity.row_id || activity.id, meeting.iso, managerMilestoneLabel(meeting)].join('|');
+      const activityKey = activity.RowID || activity.row_id || activity.id || activity.activity_no
+        || [activity.activity_name || activity.program_name, activity.school, activity.class_group || activity.group_name].map(normalizedText).join('|');
+      const key = [activityKey, meeting.iso, managerMilestoneLabel(meeting)].join('|');
       if (seen.has(key)) return false;
       seen.add(key);
       return true;
@@ -581,15 +583,26 @@ function renderMilestones(meetings) {
     return '<div class="manager-board-empty manager-board-empty--compact">אין נקודות בקרה בחודש זה.</div>';
   }
 
+  const visibleCounts = new Map();
+  milestoneRows.forEach((meeting) => {
+    const activity = meeting.activity || {};
+    const visibleKey = [meeting.iso, normalizedText(activity.activity_name || activity.program_name), normalizedText(activity.school), managerMilestoneLabel(meeting)].join('|');
+    visibleCounts.set(visibleKey, (visibleCounts.get(visibleKey) || 0) + 1);
+  });
+
   return milestoneRows.map((meeting) => {
     const activity = meeting.activity || {};
     const label = managerMilestoneLabel(meeting);
+    const visibleKey = [meeting.iso, normalizedText(activity.activity_name || activity.program_name), normalizedText(activity.school), label].join('|');
+    const needsDistinction = visibleCounts.get(visibleKey) > 1;
+    const distinction = normalizedText(activity.class_group || activity.group_name || activity.activity_no || activity.RowID || activity.row_id || activity.id);
     return `
       <div class="manager-board-milestone">
         <time datetime="${escapeAttr(meeting.iso)}">${escapeHtml(formatShortDate(meeting.iso))}</time>
         <div class="manager-board-milestone__body">
           <strong>${escapeHtml(normalizedText(activity.activity_name || activity.program_name) || 'פעילות')}</strong>
           <span>${escapeHtml(normalizedText(activity.school) || 'ללא בית ספר')}</span>
+          ${needsDistinction && distinction ? `<small class="manager-board-milestone__distinction">קבוצה / פעילות: ${escapeHtml(distinction)}</small>` : ''}
         </div>
         <span class="manager-board-milestone__badge">${escapeHtml(label)}</span>
       </div>`;

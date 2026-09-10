@@ -167,3 +167,5 @@ config.HOTFIX_VERSION = `scheduling-approvals-admin-only-compact-card-20260908-v
 config.HOTFIX_VERSION = `approval-alerts-text-only-cache-refresh-20260908-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `proposal-contact-payload-filter-20260908-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `proposal-existing-contact-source-id-20260908-v1-${config.HOTFIX_VERSION}`;
+
+config.HOTFIX_VERSION = `pr1776-review-fixes-20260910-v1-${config.HOTFIX_VERSION}`;

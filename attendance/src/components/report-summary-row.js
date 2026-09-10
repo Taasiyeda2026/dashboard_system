@@ -127,7 +127,7 @@ export function createReportSummaryRow(record, options = {}) {
         : '—'
   );
   addDetail(details, 'סוג פעילות', record.activity_type || '—');
-  addDetail(details, 'שם פעילות', record.activity_name_snapshot || '—', { wide: true });
+  addDetail(details, 'שם פעילות', presentation.activity, { wide: true });
   addDetail(details, 'בית ספר', record.school_name_snapshot || '—');
   addDetail(details, 'רשות', record.authority_name_snapshot || '—');
   if (record.meeting_no != null) addDetail(details, 'מפגש', record.meeting_no);

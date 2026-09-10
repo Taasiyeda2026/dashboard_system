@@ -25,7 +25,7 @@ test('attendance desktop navigation removes duplicate actions and adds dashboard
   assert.match(attendanceCss, /\.av2-report__header > \.av2-btn--icon\s*\{\s*display:\s*none\s*!important/);
   assert.match(attendanceRuntime, /dataset\.av2Dashboard/);
   assert.match(attendanceRuntime, /window\.location\.assign\('\/dashboard_system\/'\)/);
-  assert.match(attendanceIndex, /attendance-ux-fixes-runtime\.js\?v=63/);
+  assert.match(attendanceIndex, /attendance-ux-fixes-runtime\.js\?v=64/);
 });
 
 test('attendance desktop controls stay compact and travel status is not a full-width banner', () => {
@@ -38,6 +38,8 @@ test('attendance desktop controls stay compact and travel status is not a full-w
 
 test('only the explicit home edit action targets the report editor', () => {
   assert.match(attendanceRuntime, /openExplicitlyRequestedReportEditor/);
+  assert.match(attendanceRuntime, /openExplicitlyRequestedReportEditor\(\);/);
+  assert.doesNotMatch(attendanceRuntime, /openExplicitRequestedReportEditor/);
   assert.match(attendanceRuntime, /\.av2-report-row\[data-record-id=/);
   assert.match(attendanceRuntime, /button\[aria-label="עריכה"\]/);
   assert.doesNotMatch(attendanceRuntime, /handleHomeReportClick|\.av2-home \.av2-report-summary-row/);
@@ -76,5 +78,5 @@ test('dashboard loads internal system dialogs for native confirm and alert calls
   assert.match(dialogRuntime, /window\.confirm = function systemConfirm/);
   assert.match(dialogRuntime, /window\.alert = function systemAlert/);
   assert.match(dialogRuntime, /role', kind === 'confirm' \? 'alertdialog' : 'dialog'/);
-  assert.match(rootIndex, /system-dialog-runtime\.js\?v=20260910-batch2-manager-attendance-v1/);
+  assert.match(rootIndex, /system-dialog-runtime\.js\?v=20260910-pr1776-review-fixes-v1/);
 });

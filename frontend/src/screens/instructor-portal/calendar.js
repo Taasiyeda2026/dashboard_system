@@ -8,7 +8,8 @@ import { instructorActivities, loadInstructorActivities } from './portal-data.js
 
 const MONTHS = ['ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
 const WEEKDAYS = ['א׳','ב׳','ג׳','ד׳','ה׳','ו׳','ש׳'];
-let selectedMonth = clampInstructorCalendarMonth(new Date().toISOString().slice(0, 7));
+const localMonthKey = (date = new Date()) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+let selectedMonth = clampInstructorCalendarMonth(localMonthKey());
 const isoDay = (year, month, day) => `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 
 export function organizationalCalendarGridHtml(data, month = selectedMonth) {
@@ -21,7 +22,9 @@ export function organizationalCalendarGridHtml(data, month = selectedMonth) {
     const date = isoDay(year, monthNumber, day);
     const events = [...instructorActivityEventsForDate(data?.activities, date), ...organizationalEventsForDate(data?.calendarRows, data?.birthdays, date)];
     const hasActivity = events.some((event) => event.kind === 'instructor-activity');
-    return `<div class="ds-cal-slot-hit" data-calendar-date="${date}">${dsInteractiveCard({ action: `organization-day|${date}`, title: String(day), subtitle: organizationalCalendarDayLabel(events), meta: events.length > 1 ? `${events.length} אירועים` : '', variant: 'day-cell', extraClass: `${events.length ? 'is-school-calendar-day' : ''}${hasActivity ? ' has-instructor-activity' : ''}`.trim() })}</div>`;
+    const hasSchoolCalendar = events.some((event) => event.kind === 'school-calendar');
+    const eventClasses = [hasSchoolCalendar ? 'is-school-calendar-day' : '', hasActivity ? 'has-instructor-activity' : ''].filter(Boolean).join(' ');
+    return `<div class="ds-cal-slot-hit" data-calendar-date="${date}">${dsInteractiveCard({ action: `organization-day|${date}`, title: String(day), subtitle: organizationalCalendarDayLabel(events), meta: events.length > 1 ? `${events.length} אירועים` : '', variant: 'day-cell', extraClass: eventClasses })}</div>`;
   }).join('');
   return `<div class="ds-cal-wrap" dir="rtl"><div class="ds-cal-weekdays" role="row">${WEEKDAYS.map((day) => `<div class="ds-cal-wd" role="columnheader">${day}</div>`).join('')}</div><div class="ds-cal-grid" role="grid" aria-label="לוח חודש">${slots}</div></div>`;
 }
@@ -42,7 +45,7 @@ export const instructorPortalCalendarScreen = {
     const move = (offset) => { const nextMonth = moveInstructorCalendarMonth(selectedMonth, offset); if (nextMonth === selectedMonth) return; selectedMonth = nextMonth; rerender?.(); };
     root.querySelector('[data-calendar-prev]')?.addEventListener('click', () => move(-1));
     root.querySelector('[data-calendar-next]')?.addEventListener('click', () => move(1));
-    root.querySelector('[data-calendar-today]')?.addEventListener('click', () => { selectedMonth = clampInstructorCalendarMonth(new Date().toISOString().slice(0, 7)); rerender?.(); });
+    root.querySelector('[data-calendar-today]')?.addEventListener('click', () => { selectedMonth = clampInstructorCalendarMonth(localMonthKey()); rerender?.(); });
     root.querySelectorAll('[data-calendar-date]').forEach((node) => node.addEventListener('click', () => { const date = node.dataset.calendarDate; const events = [...instructorActivityEventsForDate(data?.activities, date), ...organizationalEventsForDate(data?.calendarRows, data?.birthdays, date)]; ui?.openDrawer({ title: 'אירועים בלוח השנה', content: dayDrawerHtml(events, date) }); }));
   }
 };
