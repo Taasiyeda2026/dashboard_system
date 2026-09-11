@@ -66,11 +66,10 @@ export const COMPONENT_COLUMNS = [
   {
     field: 'observation_2_completed',
     label: 'תצפית 2',
-    deadline: {
-      anchor: 'observation_1_completed_at',
+    feedbackWindow: {
+      start: 'observation_2_window_start',
       due: 'observation_2_due_date',
-      completedAt: 'observation_2_completed_at',
-      anchorLabel: 'ביצוע תצפית 1'
+      completedAt: 'observation_2_completed_at'
     }
   }
 ];
@@ -109,6 +108,7 @@ export function normalizeSeniorityYears(value) {
   return numeric;
 }
 
+/** Intro / opening-year classification (legacy): new includes seniority_years <= 1. */
 export function isVeteranEmployee(seniorityYears) {
   const years = normalizeSeniorityYears(seniorityYears);
   return years != null && years > 1;
@@ -117,6 +117,20 @@ export function isVeteranEmployee(seniorityYears) {
 export function isNewEmployee(seniorityYears) {
   const years = normalizeSeniorityYears(seniorityYears);
   return years != null && years <= 1;
+}
+
+/** Observation rules: new is exactly seniority_years = 1 (not <= 1). */
+export function isObservationNewInstructor(seniorityYears) {
+  return normalizeSeniorityYears(seniorityYears) === 1;
+}
+
+export function isObservationVeteranInstructor(seniorityYears) {
+  const years = normalizeSeniorityYears(seniorityYears);
+  return years != null && years > 1;
+}
+
+export function hasValidObservationSeniority(seniorityYears) {
+  return isObservationNewInstructor(seniorityYears) || isObservationVeteranInstructor(seniorityYears);
 }
 
 export function dateOnly(value) {
@@ -175,6 +189,23 @@ function addOneCalendarMonth(isoDate) {
   return new Date(Date.UTC(year, targetMonthIndex, clippedDay)).toISOString().slice(0, 10);
 }
 
+/** Add whole calendar days to a YYYY-MM-DD date (UTC date arithmetic, no TZ drift). */
+export function addCalendarDays(isoDate, days) {
+  const match = dateOnly(isoDate).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match || !Number.isFinite(days)) return null;
+  const year = Number(match[1]);
+  const monthIndex = Number(match[2]) - 1;
+  const day = Number(match[3]);
+  return new Date(Date.UTC(year, monthIndex, day + Number(days))).toISOString().slice(0, 10);
+}
+
+/** Calendar month + N calendar days (never a fixed day-count substitute for the month). */
+export function addOneCalendarMonthPlusDays(isoDate, days) {
+  const monthLater = addOneCalendarMonth(isoDate);
+  if (!monthLater) return null;
+  return addCalendarDays(monthLater, days);
+}
+
 /**
  * Mirrors get_manager_team_roster intro_feedback_due_date rules for school_year=2027.
  * Source of truth for new/veteran classification is contacts_instructors.seniority_years.
@@ -192,6 +223,47 @@ export function resolveIntroFeedbackDueDate(row, schoolYear = '2027') {
   return addOneCalendarMonth(row?.employee_created_at);
 }
 
+/**
+ * Observation 1 due date by seniority.
+ * new (=1): first_activity + 1 month + 7 days
+ * veteran (>1): first_activity + 1 month + 15 days
+ */
+export function resolveObservation1DueDate(row) {
+  if (!hasValidObservationSeniority(row?.seniority_years)) return null;
+  const firstActivity = dateOnly(row?.first_activity_date);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(firstActivity)) return null;
+
+  if (isObservationNewInstructor(row?.seniority_years)) {
+    return addOneCalendarMonthPlusDays(firstActivity, 7);
+  }
+  return addOneCalendarMonthPlusDays(firstActivity, 15);
+}
+
+/**
+ * Observation 2 window for new instructors only.
+ * window_start = observation_1_completed_at + 1 month + 7 days
+ * window_end   = window_start + 13 days (14 inclusive days)
+ */
+export function resolveObservation2Window(row) {
+  if (!isObservationNewInstructor(row?.seniority_years)) {
+    return { start: null, due: null };
+  }
+
+  const rpcStart = dateOnly(row?.observation_2_window_start);
+  const rpcDue = dateOnly(row?.observation_2_due_date);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(rpcStart) && /^\d{4}-\d{2}-\d{2}$/.test(rpcDue)) {
+    return { start: rpcStart, due: rpcDue };
+  }
+
+  const completedOn = israelDateOnly(row?.observation_1_completed_at);
+  if (!completedOn) return { start: null, due: null };
+
+  const start = addOneCalendarMonthPlusDays(completedOn, 7);
+  if (!start) return { start: null, due: null };
+  const due = addCalendarDays(start, 13);
+  return { start, due: due || null };
+}
+
 export function introCallAriaLabel(row) {
   if (isVeteranEmployee(row?.seniority_years)) return 'שיחת פתיחת שנה';
   if (isNewEmployee(row?.seniority_years)) return 'שיחת היכרות';
@@ -199,6 +271,10 @@ export function introCallAriaLabel(row) {
 }
 
 export function resolveFeedbackWindow(row, column, schoolYear = '2027') {
+  if (column?.field === 'observation_2_completed') {
+    return resolveObservation2Window(row);
+  }
+
   const window = column?.feedbackWindow;
   if (!window) return { start: null, due: null };
 
@@ -215,9 +291,10 @@ export function resolveFeedbackWindow(row, column, schoolYear = '2027') {
 }
 
 /**
- * Valid feedback completion requires a reliable completed_at on/after window open.
+ * Valid feedback / observation_2 completion requires a reliable completed_at on/after window open.
  * Early documents (before window start) never count as a valid ✓.
  * Missing completed_at never invents a timestamp and never counts as valid.
+ * For observation_2, completed_at is latest_file_created_at so a later valid upload can qualify.
  */
 export function isValidFeedbackCompletion(row, column, schoolYear = '2027') {
   const window = column?.feedbackWindow;
@@ -235,8 +312,8 @@ export function isValidFeedbackCompletion(row, column, schoolYear = '2027') {
 }
 
 /**
- * Periodic feedback cell state for mid-year / year-end windows.
- * Returns { kind: 'done'|'before'|'open'|'late'|'empty', label, aria }.
+ * Periodic feedback cell state for mid-year / year-end / observation_2 windows.
+ * Returns { kind: 'done'|'before'|'open'|'late'|'empty'|'review', label, aria }.
  */
 export function resolvePeriodicFeedbackState(row, column, options = {}) {
   const schoolYear = text(options.schoolYear) || '2027';
@@ -245,6 +322,14 @@ export function resolvePeriodicFeedbackState(row, column, options = {}) {
 
   if (isValidFeedbackCompletion(row, column, schoolYear)) {
     return { kind: 'done', label: '✓', aria: 'בוצע' };
+  }
+
+  if (column?.field === 'observation_2_completed') {
+    const obs1Completed = row?.observation_1_completed === true;
+    const obs1At = israelDateOnly(row?.observation_1_completed_at);
+    if (obs1Completed && !obs1At) {
+      return { kind: 'review', label: MISSING_SENIORITY_LABEL, aria: 'אין חותמת השלמה אמינה לתצפית 1' };
+    }
   }
 
   if (!start || !due) {
@@ -268,6 +353,10 @@ function notForUpdateCell(label) {
   return `<td class="manager-workspace-followup-cell manager-workspace-followup-cell--not-for-update" data-label="${escapeHtml(label)}" aria-label="${escapeHtml(label)}: ${escapeHtml(NOT_FOR_UPDATE_LABEL)}"><span class="manager-workspace-followup-cell__content manager-workspace-followup-cell__content--muted">${escapeHtml(NOT_FOR_UPDATE_LABEL)}</span></td>`;
 }
 
+function reviewCell(label, aria = 'אין נתון ותק') {
+  return `<td class="manager-workspace-followup-cell" data-label="${escapeHtml(label)}" aria-label="${escapeHtml(label)}: ${escapeHtml(aria)}"><span class="manager-workspace-followup-cell__content"><span class="manager-workspace-deadline-review">${escapeHtml(MISSING_SENIORITY_LABEL)}</span></span></td>`;
+}
+
 function introDueDateForDisplay(row) {
   // After the roster RPC exposes seniority_years, never invent a due date without it.
   // Before that migration, fall back to the RPC-provided due date.
@@ -277,7 +366,14 @@ function introDueDateForDisplay(row) {
   return dateOnly(row?.intro_feedback_due_date) || null;
 }
 
-function deadlineDisplayHtml(row, column) {
+function observation1DueDateForDisplay(row) {
+  if (hasSeniorityYearsField(row)) {
+    return resolveObservation1DueDate(row) || dateOnly(row?.observation_1_due_date) || null;
+  }
+  return dateOnly(row?.observation_1_due_date) || null;
+}
+
+function deadlineDisplayHtml(row, column, options = {}) {
   const deadline = column?.deadline;
   if (!deadline) return '';
 
@@ -288,6 +384,21 @@ function deadlineDisplayHtml(row, column) {
     const due = formatDate(introDueDateForDisplay(row));
     return due
       ? `<span class="manager-workspace-deadline-date">עד ${escapeHtml(due)}</span>`
+      : '<span class="manager-workspace-deadline-empty" aria-label="אין תאריך יעד">—</span>';
+  }
+
+  if (column.field === 'observation_1_completed') {
+    const dueIso = observation1DueDateForDisplay(row);
+    if (!dueIso) {
+      return '<span class="manager-workspace-deadline-empty" aria-label="אין תאריך יעד">—</span>';
+    }
+    const todayIso = dateOnly(options.todayIso) || israelTodayIso(options.now || new Date());
+    if (todayIso > dueIso) {
+      return `<span class="manager-workspace-deadline-date manager-workspace-deadline-date--late">${escapeHtml(LATE_LABEL)}</span>`;
+    }
+    const due = formatDate(dueIso);
+    return due
+      ? `<span class="manager-workspace-deadline-date">${escapeHtml(due)}</span>`
       : '<span class="manager-workspace-deadline-empty" aria-label="אין תאריך יעד">—</span>';
   }
 
@@ -303,6 +414,9 @@ function feedbackWindowDisplayHtml(state) {
   }
   if (state.kind === 'empty') {
     return '<span class="manager-workspace-deadline-empty" aria-label="אין חלון ביצוע">—</span>';
+  }
+  if (state.kind === 'review') {
+    return `<span class="manager-workspace-deadline-review">${escapeHtml(state.label)}</span>`;
   }
   if (state.kind === 'late') {
     return `<span class="manager-workspace-deadline-date manager-workspace-deadline-date--late">${escapeHtml(state.label)}</span>`;
@@ -321,6 +435,18 @@ export function completionCell(row, column, options = {}) {
     return `<td class="manager-workspace-followup-cell manager-workspace-followup-cell--blocked" data-label="${escapeHtml(label)}" aria-label="${escapeHtml(label)}: לא רלוונטי"></td>`;
   }
 
+  if (
+    (field === 'observation_1_completed' || field === 'observation_2_completed')
+    && hasSeniorityYearsField(row)
+    && !hasValidObservationSeniority(row.seniority_years)
+  ) {
+    return reviewCell(label);
+  }
+
+  if (field === 'observation_2_completed' && isObservationVeteranInstructor(row?.seniority_years)) {
+    return notForUpdateCell(label);
+  }
+
   if (feedbackWindow) {
     const state = resolvePeriodicFeedbackState(row, column, options);
     const done = state.kind === 'done';
@@ -330,9 +456,11 @@ export function completionCell(row, column, options = {}) {
   const completed = row?.[field] === true;
   const dueIso = field === 'intro_feedback_completed'
     ? introDueDateForDisplay(row)
-    : (deadline ? dateOnly(row?.[deadline.due]) : '');
+    : field === 'observation_1_completed'
+      ? observation1DueDateForDisplay(row)
+      : (deadline ? dateOnly(row?.[deadline.due]) : '');
   const due = formatDate(dueIso);
-  const display = completed ? '<span aria-hidden="true">✓</span>' : deadlineDisplayHtml(row, column);
+  const display = completed ? '<span aria-hidden="true">✓</span>' : deadlineDisplayHtml(row, column, options);
   const callLabel = field === 'intro_feedback_completed' ? introCallAriaLabel(row) : label;
   let stateLabel = 'חסר';
   if (completed) {
@@ -343,8 +471,14 @@ export function completionCell(row, column, options = {}) {
     && normalizeSeniorityYears(row.seniority_years) == null
   ) {
     stateLabel = 'אין נתון ותק';
+  } else if (
+    field === 'observation_1_completed'
+    && dueIso
+    && (dateOnly(options.todayIso) || israelTodayIso(options.now || new Date())) > dueIso
+  ) {
+    stateLabel = LATE_LABEL;
   } else if (due) {
-    stateLabel = `לביצוע עד ${due}`;
+    stateLabel = field === 'observation_1_completed' ? `יעד ${due}` : `לביצוע עד ${due}`;
   } else if (deadline) {
     stateLabel = 'אין תאריך יעד';
   }
