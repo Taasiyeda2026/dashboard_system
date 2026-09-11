@@ -10,23 +10,29 @@
 --   new:     first_activity_date + 1 calendar month + 7 days
 --
 -- Observation 2 (new only):
---   window_start = observation_1_completed_at::date + 1 calendar month + 7 days
+--   window_start = (observation_1_completed_at AT TIME ZONE 'Asia/Jerusalem')::date
+--                  + 1 calendar month + 7 days
 --   window_end   = window_start + 13 days  (14 inclusive calendar days)
 --   Veterans: no observation_2 requirement (null window fields)
 --
 -- Completion timestamps:
 --   observation_1_completed_at ← first_completed_at (SharePoint createdDateTime / earliest)
---   observation_2_completed_at ← latest_file_created_at (latest SharePoint createdDateTime)
---   so an early observation_2 file cannot permanently block a later valid ✓.
+--   observation_2_completed_at ← latest_file_created_at (current SharePoint scan latest)
+--   so an early observation_2 file cannot permanently block a later valid ✓,
+--   and deleting the later file can revoke ✓ when only an early file remains.
 -- updated_at remains refresh-time only and is never used as completion moment.
+--
+-- Document status continues to come from SharePoint live sync, not manual dashboard edits.
+-- Do not redefine update_instructor_employee_file_component here; keep EXECUTE revoked.
 
 alter table public.instructor_employee_document_status
   add column if not exists latest_file_created_at timestamptz;
 
 comment on column public.instructor_employee_document_status.latest_file_created_at is
-  'Latest reliable SharePoint file createdDateTime for the component. Not refresh time; used so a later valid upload can qualify after an early invalid file.';
+  'Latest SharePoint file createdDateTime from the current folder scan (not a historical max). Replaced on each live sync; cleared when no files remain. Not refresh time.';
 
--- Preserve earliest first_completed_at and latest latest_file_created_at.
+-- Preserve earliest first_completed_at (history).
+-- latest_file_created_at is current-scan state: accept NEW as provided; never greatest() with history.
 -- Never invent timestamps from refresh updated_at.
 create or replace function public.instructor_employee_document_status_first_completed_at_trg()
 returns trigger
@@ -48,102 +54,20 @@ begin
         new.first_completed_at := least(old.first_completed_at, new.first_completed_at);
       end if;
     end if;
-
-    if old.latest_file_created_at is not null then
-      if new.latest_file_created_at is null then
-        new.latest_file_created_at := old.latest_file_created_at;
-      else
-        new.latest_file_created_at := greatest(old.latest_file_created_at, new.latest_file_created_at);
-      end if;
-    end if;
+    -- latest_file_created_at: leave NEW unchanged when live sync supplies a non-null
+    -- current-scan value (may be earlier than OLD after a later file was deleted).
   end if;
 
   return new;
 end;
 $$;
 
-create or replace function public.update_instructor_employee_file_component(
-  p_emp_id bigint,
-  p_school_year text,
-  p_component_key text,
-  p_completed boolean,
-  p_item_count integer default 0
-) returns jsonb
-language plpgsql
-security definer
-set search_path = public
-as $$
-declare
-  mapping_id uuid;
-  saved public.instructor_employee_document_status;
-  v_completed boolean := coalesce(p_completed, false);
-  v_item_count integer := case
-    when p_component_key = 'payroll_reports' then greatest(coalesce(p_item_count, 0), 0)
-    else 0
-  end;
-begin
-  if p_component_key not in (
-    'signed_agreement', 'supporting_documents', 'intro_feedback', 'midyear_feedback',
-    'year_end_feedback', 'observation_1', 'observation_2', 'payroll_reports', 'police_clearance'
-  ) then
-    raise exception 'employee_files_invalid_component' using errcode = '22023';
-  end if;
-  if p_item_count < 0 then
-    raise exception 'employee_files_negative_item_count' using errcode = '22023';
-  end if;
-
-  mapping_id := public.employee_file_active_mapping(p_emp_id, p_school_year);
-
-  insert into public.instructor_employee_document_status (
-    folder_mapping_id, component_key, completed, item_count,
-    first_completed_at, latest_file_created_at, updated_at, updated_by
-  )
-  values (
-    mapping_id,
-    p_component_key,
-    v_completed,
-    v_item_count,
-    case when v_completed or v_item_count > 0 then now() else null end,
-    case when v_completed or v_item_count > 0 then now() else null end,
-    now(),
-    auth.uid()
-  )
-  on conflict (folder_mapping_id, component_key) do update set
-    completed = excluded.completed,
-    item_count = excluded.item_count,
-    first_completed_at = case
-      when excluded.completed or coalesce(excluded.item_count, 0) > 0 then
-        coalesce(
-          public.instructor_employee_document_status.first_completed_at,
-          excluded.first_completed_at
-        )
-      else null
-    end,
-    latest_file_created_at = case
-      when excluded.completed or coalesce(excluded.item_count, 0) > 0 then
-        greatest(
-          public.instructor_employee_document_status.latest_file_created_at,
-          excluded.latest_file_created_at
-        )
-      else null
-    end,
-    updated_at = now(),
-    updated_by = auth.uid()
-  returning * into saved;
-
-  return jsonb_build_object(
-    'component_key', saved.component_key,
-    'completed', saved.completed,
-    'item_count', saved.item_count,
-    'updated_at', saved.updated_at,
-    'first_completed_at', saved.first_completed_at,
-    'latest_file_created_at', saved.latest_file_created_at
-  );
-end
-$$;
-
-revoke all on function public.update_instructor_employee_file_component(bigint, text, text, boolean, integer) from public;
-grant execute on function public.update_instructor_employee_file_component(bigint, text, text, boolean, integer) to authenticated;
+-- Status is intended to come from SharePoint live reads, not manual dashboard edits.
+-- Ensure the previous feedback-windows migration's authenticated GRANT is not left in place.
+revoke execute on function public.update_instructor_employee_file_component(bigint, text, text, boolean, integer)
+  from authenticated;
+revoke all on function public.update_instructor_employee_file_component(bigint, text, text, boolean, integer)
+  from public, anon;
 
 drop function if exists public.get_manager_team_roster(text, text);
 
@@ -286,13 +210,21 @@ begin
     case
       when ci.seniority_years is distinct from 1 then null
       when ds.observation_1_completed_at is null then null
-      else (ds.observation_1_completed_at::date + interval '1 month' + interval '7 days')::date
+      else (
+        (ds.observation_1_completed_at at time zone 'Asia/Jerusalem')::date
+        + interval '1 month'
+        + interval '7 days'
+      )::date
     end as observation_2_window_start,
     case
       when ci.seniority_years is distinct from 1 then null
       when ds.observation_1_completed_at is null then null
       else (
-        (ds.observation_1_completed_at::date + interval '1 month' + interval '7 days')::date
+        (
+          (ds.observation_1_completed_at at time zone 'Asia/Jerusalem')::date
+          + interval '1 month'
+          + interval '7 days'
+        )::date
         + interval '13 days'
       )::date
     end as observation_2_due_date,

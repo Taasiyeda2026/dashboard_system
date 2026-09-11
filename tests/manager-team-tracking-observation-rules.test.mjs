@@ -253,24 +253,91 @@ test('13: early-only completion on 10.11 is not ✓', () => {
   assert.match(obs2Html(early, '2026-12-01'), new RegExp(LATE_LABEL));
 });
 
-test('14: early 10.11 then later valid 20.11 (latest_file_created_at) → ✓', () => {
-  const lateValid = row({
+test('14A: files 10.11 + 20.11 → latest=20.11 → ✓ when window_start=17.11', () => {
+  const withLater = row({
     seniority_years: 1,
     observation_1_completed: true,
     observation_1_completed_at: '2026-10-10T09:00:00+03:00',
     observation_2_window_start: '2026-11-17',
     observation_2_due_date: '2026-11-30',
     observation_2_completed: true,
-    // RPC exposes latest_file_created_at as observation_2_completed_at
+    // current SharePoint scan latest among 10.11 + 20.11
     observation_2_completed_at: '2026-11-20T11:00:00+02:00'
   });
-  assert.equal(isValidFeedbackCompletion(lateValid, observation2Column), true);
-  assert.match(obs2Html(lateValid, '2026-11-20'), /✓/);
+  assert.equal(isValidFeedbackCompletion(withLater, observation2Column), true);
+  assert.match(obs2Html(withLater, '2026-11-20'), /✓/);
   assert.match(migration, /latest_file_created_at/);
   assert.match(migration, /max\(s\.latest_file_created_at\) filter \(where s\.component_key = 'observation_2'/);
   assert.match(edgeSource, /latest_file_created_at/);
   assert.match(edgeSource, /latestCreatedAt/);
   assert.match(edgeSource, /considerLatestCreatedAt/);
+});
+
+test('14B: later 20.11 deleted, only early 10.11 remains → latest must fall back → no ✓', () => {
+  const onlyEarly = row({
+    seniority_years: 1,
+    observation_1_completed: true,
+    observation_1_completed_at: '2026-10-10T09:00:00+03:00',
+    observation_2_window_start: '2026-11-17',
+    observation_2_due_date: '2026-11-30',
+    observation_2_completed: true,
+    // current SharePoint scan after deleting 20.11 — must not keep historical max
+    observation_2_completed_at: '2026-11-10T11:00:00+02:00'
+  });
+  assert.equal(isValidFeedbackCompletion(onlyEarly, observation2Column), false);
+  assert.doesNotMatch(obs2Html(onlyEarly, '2026-11-20'), /✓/);
+  assert.match(obs2Html(onlyEarly, '2026-11-20'), /עד 30\.11\.26/);
+  // Trigger must accept current-scan latest as-is; never historically greatest().
+  assert.doesNotMatch(migration, /greatest\(\s*old\.latest_file_created_at/);
+  assert.doesNotMatch(migration, /greatest\(\s*public\.instructor_employee_document_status\.latest_file_created_at/);
+  assert.match(migration, /current-scan|current SharePoint scan|leave NEW unchanged/i);
+});
+
+test('14C: UTC timestamp crossing midnight into Israel date for observation 2 window', () => {
+  // 2026-10-10T22:30:00Z == 2026-10-11 01:30 Asia/Jerusalem
+  assert.equal(israelDateOnly('2026-10-10T22:30:00Z'), '2026-10-11');
+  const afterMidnightIsrael = resolveObservation2Window({
+    seniority_years: 1,
+    observation_1_completed_at: '2026-10-10T22:30:00Z'
+  });
+  assert.deepEqual(afterMidnightIsrael, { start: '2026-11-18', due: '2026-12-01' });
+
+  // Other side of the boundary: still 10.10 in Israel (UTC+3 in October).
+  assert.equal(israelDateOnly('2026-10-10T20:30:00Z'), '2026-10-10');
+  const beforeMidnightIsrael = resolveObservation2Window({
+    seniority_years: 1,
+    observation_1_completed_at: '2026-10-10T20:30:00Z'
+  });
+  assert.deepEqual(beforeMidnightIsrael, { start: '2026-11-17', due: '2026-11-30' });
+
+  assert.match(
+    migration,
+    /observation_1_completed_at at time zone 'Asia\/Jerusalem'\)::date/
+  );
+  assert.doesNotMatch(
+    migration,
+    /observation_2_window_start[\s\S]*observation_1_completed_at::date \+ interval '1 month'/
+  );
+});
+
+test('14D: migration does not restore authenticated EXECUTE on manual component update', () => {
+  assert.doesNotMatch(
+    migration,
+    /create or replace function public\.update_instructor_employee_file_component/
+  );
+  assert.doesNotMatch(
+    migration,
+    /grant execute on function public\.update_instructor_employee_file_component\([\s\S]*?\) to authenticated/i
+  );
+  assert.match(
+    migration,
+    /revoke execute on function public\.update_instructor_employee_file_component\(bigint,\s*text,\s*text,\s*boolean,\s*integer\)\s+from authenticated/i
+  );
+  assert.match(
+    migration,
+    /revoke all on function public\.update_instructor_employee_file_component\(bigint,\s*text,\s*text,\s*boolean,\s*integer\)\s+from public,\s*anon/i
+  );
+  assert.doesNotMatch(migration, /first_completed_at[\s\S]{0,80}now\(\)/);
 });
 
 test('15: observation_1 completed without reliable completed_at → no invented observation 2 window', () => {
