@@ -17,7 +17,7 @@ const migration = fs.readFileSync(
   'utf8'
 );
 const runtime = fs.readFileSync(
-  new URL('../frontend/src/manager-board-employee-file-tracking-runtime.js', import.meta.url),
+  new URL('../frontend/src/manager-board-workspace-runtime.js', import.meta.url),
   'utf8'
 );
 

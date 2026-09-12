@@ -2,11 +2,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
-const runtime = fs.readFileSync(new URL('../frontend/src/manager-board-employee-file-tracking-runtime.js', import.meta.url), 'utf8');
+const workspace = fs.readFileSync(new URL('../frontend/src/manager-board-workspace-runtime.js', import.meta.url), 'utf8');
 const trackingLogic = fs.readFileSync(new URL('../frontend/src/manager-board-employee-file-tracking.js', import.meta.url), 'utf8');
 const migration = fs.readFileSync(new URL('../supabase/migrations/20260819112000_manager_tracking_employee_file_source.sql', import.meta.url), 'utf8');
 const indexHtml = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
-const sources = `${runtime}\n${trackingLogic}`;
+const sources = `${workspace}\n${trackingLogic}`;
 
 const expectedComponents = [
   ['signed_agreement_completed', 'הסכם חתום'],
@@ -46,13 +46,12 @@ test('manager roster derives tracking completion only from employee document sta
   }
 });
 
-test('manager tracking projection is read-only and loaded after manager workspace', () => {
+test('manager tracking projection is read-only and rendered by the single roster owner', () => {
   assert.doesNotMatch(sources, /update_manager_instructor_followup/);
-  assert.doesNotMatch(runtime, /\.update\s*\(/);
-  const workspaceIndex = indexHtml.indexOf('manager-board-workspace-runtime.js');
-  const trackingIndex = indexHtml.indexOf('manager-board-employee-file-tracking-runtime.js');
-  assert.ok(workspaceIndex >= 0);
-  assert.ok(trackingIndex > workspaceIndex);
+  assert.doesNotMatch(workspace, /\.update\s*\(/);
+  assert.match(workspace, /tableHtml as trackingTableHtml/);
+  assert.equal((workspace.match(/supabase\.rpc\('get_manager_team_roster'/g) || []).length, 1);
+  assert.doesNotMatch(indexHtml, /manager-board-employee-file-tracking-runtime\.js/);
 });
 
 test('manager tracking shows existing deadlines inline without info popovers', () => {
@@ -63,4 +62,10 @@ test('manager tracking shows existing deadlines inline without info popovers', (
   assert.doesNotMatch(sources, /manager-workspace-deadline-info/);
   assert.doesNotMatch(sources, /manager-workspace-deadline-popover/);
   assert.doesNotMatch(sources, /נותרו \$\{days\} ימים/);
+});
+
+test('manager tracking keeps the SharePoint target while using the requested label', () => {
+  assert.match(workspace, /SHAREPOINT_EMPLOYEE_FILES_ROOT_2027/);
+  assert.match(workspace, /פתיחת כל תיקי המדריכים/);
+  assert.doesNotMatch(workspace, /פתיחת תיקי עובדים ב־SharePoint/);
 });

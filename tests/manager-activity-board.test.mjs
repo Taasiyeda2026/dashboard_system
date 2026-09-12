@@ -11,6 +11,7 @@ const runtimeSrc = fs.readFileSync(new URL('../frontend/src/manager-board-runtim
 const workspaceSrc = fs.readFileSync(new URL('../frontend/src/manager-board-workspace-runtime.js', import.meta.url), 'utf8');
 const interactionsSrc = fs.readFileSync(new URL('../frontend/src/manager-board-interactions-runtime.js', import.meta.url), 'utf8');
 const monthSrc = fs.readFileSync(new URL('../frontend/src/screens/month.js', import.meta.url), 'utf8');
+const boardPolishCss = fs.readFileSync(new URL('../frontend/src/styles/manager-board-saas-polish.css', import.meta.url), 'utf8');
 
 // Police-clearance SharePoint component + required onboarding gender.
 const employeeFileLiveSrc = fs.readFileSync(new URL('../supabase/functions/instructor-employee-file-live/index.ts', import.meta.url), 'utf8');
@@ -20,6 +21,17 @@ const employeeFileDataSrc = fs.readFileSync(new URL('../frontend/src/screens/ins
 const onboardingSrc = fs.readFileSync(new URL('../frontend/src/screens/instructor-onboarding.js', import.meta.url), 'utf8');
 const policeClearanceMigrationSrc = fs.readFileSync(new URL('../supabase/migrations/20260819180000_police_clearance_component.sql', import.meta.url), 'utf8');
 const onboardingGenderMigrationSrc = fs.readFileSync(new URL('../supabase/migrations/20260819190000_instructor_onboarding_gender.sql', import.meta.url), 'utf8');
+
+test('manager team summary precedes a symmetric instructor grid', () => {
+  const summaryIndex = runtimeSrc.indexOf('manager-board-team-strip__summary');
+  const gridIndex = runtimeSrc.indexOf('manager-board-team-strip__grid', summaryIndex);
+  assert.ok(summaryIndex >= 0 && gridIndex > summaryIndex);
+  assert.match(runtimeSrc, /סה&quot;כ פעילויות/);
+  assert.match(boardPolishCss, /manager-board-team-strip__grid[\s\S]*display:\s*grid/);
+  assert.match(boardPolishCss, /grid-template-columns:\s*repeat\(auto-fill, minmax\(150px, 1fr\)\)/);
+  assert.match(boardPolishCss, /grid-auto-rows:\s*44px/);
+  assert.match(boardPolishCss, /manager-board-team-strip__chip[\s\S]*height:\s*44px/);
+});
 
 test('monthDayCardsHtml default behaviour matches the original month.js day drawer (no subtitle, instructor meta)', () => {
   const html = monthDayCardsHtml(

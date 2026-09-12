@@ -160,8 +160,18 @@
 .manager-workspace-tracking-table th:not(:first-child):not(:last-child),.manager-workspace-tracking-table td:not(:first-child):not(:last-child){width:calc(66% / 7)}
 .manager-workspace-table-wrap:has(.manager-workspace-tracking-table){overflow-x:auto}
 .manager-workspace-tracking-table{min-width:780px}
+.manager-workspace-tracking-table--employee-file{min-width:1180px}
+.manager-workspace-tracking-table--employee-file th:not(:first-child),
+.manager-workspace-tracking-table--employee-file td:not(:first-child){text-align:center}
 .manager-workspace-followup-cell.is-done{color:#166534;font-size:1rem;font-weight:900}
 .manager-workspace-followup-cell--blocked{background:#f1f5f9}
+.manager-workspace-followup-cell__content{display:inline-flex;align-items:center;justify-content:center;min-height:28px}
+.manager-workspace-deadline-date{color:#475569;font-size:12px;font-weight:700;white-space:nowrap}
+.manager-workspace-deadline-date--late{color:#b45309}
+.manager-workspace-deadline-empty{color:#94a3b8;font-size:13px}
+.manager-workspace-deadline-review{color:#64748b;font-size:12px;font-weight:600;white-space:nowrap}
+.manager-workspace-followup-cell--not-for-update{color:#94a3b8}
+.manager-workspace-followup-cell__content--muted{color:#94a3b8;font-size:12px;font-weight:600;white-space:nowrap}
 .manager-workspace-source-note{margin:0;padding:12px 16px;border-top:1px solid #e2e8f0;background:#f8fafc;color:#64748b;font-size:.8rem}
 .manager-workspace-empty,.manager-workspace-loading,.manager-workspace-error{margin:0;padding:28px;text-align:center;color:#64748b;background:#fff;border:1px solid #e2e8f0;border-radius:14px}
 .manager-workspace-loading{border-style:dashed}
