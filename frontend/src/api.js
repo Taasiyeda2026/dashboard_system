@@ -147,7 +147,7 @@ const ACTIVITY_TABLE_COLUMNS = [
   'id', 'row_id', 'activity_family', 'activity_manager', 'authority', 'school', 'school_id',
   'grade', 'class_group', 'activity_type', 'item_type', 'activity_season', 'activity_no', 'activity_name',
   'sessions', 'funding', 'start_time', 'end_time', 'emp_id', 'instructor_name', 'emp_id_2', 'instructor_name_2',
-  'start_date', 'end_date', 'status',
+  'start_date', 'end_date', 'status', 'notes',
   ...ACTIVITY_MEETING_DATE_COLUMNS
 ].join(',');
 const ACTIVITY_CALENDAR_COLUMNS = [
@@ -176,7 +176,7 @@ const ACTIVITY_OPERATIONS_COLUMNS = [
   'start_time', 'end_time', 'start_date', 'end_date', 'status', 'participants_count', 'sessions',
   ...ACTIVITY_MEETING_DATE_COLUMNS
 ].join(',');
-const INSTRUCTOR_PORTAL_ACTIVITY_COLUMNS = `${ACTIVITY_OPERATIONS_COLUMNS},activity_manager,school_contact_id`;
+const INSTRUCTOR_PORTAL_ACTIVITY_COLUMNS = `${ACTIVITY_OPERATIONS_COLUMNS},activity_manager,school_contact_id,contact_name,contact_phone,contact_email`;
 // Work-schedule filter controls need only descriptive fields. Keep this projection
 // separate from the substantially wider results payload (notably meeting dates).
 const ACTIVITY_SCHEDULE_FILTER_OPTION_COLUMNS = [

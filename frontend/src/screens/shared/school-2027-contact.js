@@ -75,7 +75,19 @@ export function resolveSchool2027Contact(activity = {}, contacts = []) {
 /** Resolve only the contact explicitly persisted on the activity. */
 export function resolveExactActivityContact(activity = {}, contacts = []) {
   const savedId = text(activity.school_contact_id);
-  if (!savedId) return { name: '', phone: '', email: '', role: '', id: '', source: 'unassigned' };
+  if (!savedId) {
+    const stored = {
+      name: text(activity.contact_name),
+      phone: text(activity.contact_phone),
+      email: text(activity.contact_email),
+      role: text(activity.contact_role),
+      id: '',
+      source: 'activity'
+    };
+    return stored.name || stored.phone || stored.email || stored.role
+      ? stored
+      : { ...stored, source: 'unassigned' };
+  }
   const selected = (Array.isArray(contacts) ? contacts : []).find((contact) => text(contact.id) === savedId);
   if (!selected) return { name: '', phone: '', email: '', role: '', id: savedId, source: 'missing' };
   return {

@@ -7,6 +7,7 @@ import { loadSchoolCalendarRows } from '../shared/school-calendar-data.js';
 import { clampInstructorCalendarMonth, instructorActivityEventsForDate, moveInstructorCalendarMonth, organizationalCalendarDayLabel, organizationalEventsForDate } from './calendar-events.js';
 import { instructorActivities, loadInstructorActivities } from './portal-data.js';
 import { currentInstructorIds, currentInstructorName } from '../instructor-utils.js';
+import { applyActivityDrawerLayoutPipeline } from '../../activity-drawer-layout-pipeline.js';
 
 const MONTHS = ['ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
 const WEEKDAYS = ['א׳','ב׳','ג׳','ד׳','ה׳','ו׳','ש׳'];
@@ -84,6 +85,7 @@ export const instructorPortalCalendarScreen = {
               const response = await api.activityDetail(row.RowID || row.row_id || row.id, row.source_sheet || 'activities');
               const fullRow = instructorDetailRow(response?.row || row, row);
               target.innerHTML = activityWorkDrawerHtml(fullRow, { settings: state?.clientSettings || {}, instructorLimited: true, currentInstructorIds: currentInstructorIds(state), currentInstructorName: currentInstructorName(state), canEdit: false, canDirectEdit: false, canRequestEdit: false, canDeleteActivity: false, canSchedule: false, exportAction: false });
+              applyActivityDrawerLayoutPipeline(target, state?.clientSettings || {});
               accordion.dataset.loaded = 'yes';
             } catch {
               target.innerHTML = dsEmptyState('טעינת פרטי הפעילות נכשלה');

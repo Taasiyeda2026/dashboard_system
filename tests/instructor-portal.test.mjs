@@ -172,6 +172,7 @@ test('exact activity contact resolution uses only school_contact_id and never sc
     { id: '11', school_id: '7', contact_name: 'נבחרה', phone: '0500000002' }
   ];
   assert.deepEqual(resolveExactActivityContact({ school_contact_id: '11', school_id: '7' }, contacts), { name: 'נבחרה', phone: '0500000002', email: '', role: '', id: '11', source: 'school_contact_id' });
+  assert.deepEqual(resolveExactActivityContact({ school_contact_id: '', school_id: '7', school: 'בית ספר', contact_name: 'שמורה בפעילות', contact_phone: '0509999999', contact_email: 'saved@example.com' }, contacts), { name: 'שמורה בפעילות', phone: '0509999999', email: 'saved@example.com', role: '', id: '', source: 'activity' });
   assert.equal(resolveExactActivityContact({ school_contact_id: '', school_id: '7', school: 'בית ספר' }, contacts).name, '');
   assert.equal(resolveExactActivityContact({ school_contact_id: 'missing', school_id: '7', school: 'בית ספר' }, contacts).name, '');
   assert.equal(instructorActivityContact({ school_contact_name: 'חלופה אסורה', contact_name: 'חלופה נוספת' }), '');
@@ -179,9 +180,15 @@ test('exact activity contact resolution uses only school_contact_id and never sc
 
 test('my-data projection carries the persisted manager and exact contact id', () => {
   const source = fs.readFileSync(new URL('../frontend/src/api.js', import.meta.url), 'utf8');
-  assert.match(source, /INSTRUCTOR_PORTAL_ACTIVITY_COLUMNS[^;]+activity_manager,school_contact_id/);
+  assert.match(source, /INSTRUCTOR_PORTAL_ACTIVITY_COLUMNS[^;]+activity_manager,school_contact_id,contact_name,contact_phone,contact_email/);
   assert.match(source, /readAllActivitiesRowsSupabase\(\{ select: INSTRUCTOR_PORTAL_ACTIVITY_COLUMNS \}\)/);
   assert.match(source, /withExactActivityContact\(row, contactsSchoolsRows\)/);
+});
+
+test('calendar lazy-loaded activity details rerun the shared layout pipeline', () => {
+  const source = fs.readFileSync(new URL('../frontend/src/screens/instructor-portal/calendar.js', import.meta.url), 'utf8');
+  assert.match(source, /target\.innerHTML = activityWorkDrawerHtml\([\s\S]+instructorLimited: true/);
+  assert.match(source, /target\.innerHTML = activityWorkDrawerHtml\([\s\S]+applyActivityDrawerLayoutPipeline\(target, state\?\.clientSettings \|\| \{\}\)/);
 });
 
 test('reports is a placeholder and does not load completion approvals', () => {
