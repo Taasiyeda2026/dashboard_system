@@ -71,9 +71,7 @@ export function instructorActivityEventsForDate(activities = [], isoDate) {
 }
 
 export function organizationalCalendarDayLabel(events = []) {
-  const activities = events.filter((event) => event.kind === 'instructor-activity');
   const birthdays = events.filter((event) => event.kind === 'birthday').map((event) => event.displayTitle);
   const schoolEvents = events.filter((event) => event.kind === 'school-calendar').map((event) => ({ ...event, title: event.displayTitle }));
-  const activityLabel = activities.length ? `${activities[0].displayTitle}${activities.length > 1 ? ` +${activities.length - 1}` : ''}` : '';
-  return [activityLabel, ...birthdays, compactSchoolCalendarLabel(schoolEvents, { maxTitles: 1 })].filter(Boolean).join(' · ');
+  return [...birthdays, compactSchoolCalendarLabel(schoolEvents, { maxTitles: 1 })].filter(Boolean).join(' · ');
 }

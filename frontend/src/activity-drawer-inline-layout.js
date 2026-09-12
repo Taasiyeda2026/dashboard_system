@@ -266,6 +266,7 @@ function coreDetails(form, body, row, existingValues) {
   const doc = form.ownerDocument;
   const activityType = normalizeType(row.activity_type || row.item_type);
   const twoInstructors = activityType === 'workshop' || activityType === 'escape_room';
+  const instructorLimited = form.dataset.instructorLimited === 'yes';
 
   const managerControls = extractFieldControls(form, ['activity_manager']);
   const instructorControls = extractFieldControls(form, ['emp_id']);
@@ -305,12 +306,12 @@ function coreDetails(form, body, row, existingValues) {
     makeField(doc, { label: twoInstructors ? 'מדריכים' : 'מדריך/ה', viewValue: instructorView, editControls: instructorControls }),
     makeField(doc, { label: 'כיתה / קבוצה', viewValue: classView, editControls: classControls, className: 'activity-drawer-inline__field--mixed-bidi' }),
     makeField(doc, { label: 'שעות', viewValue: timeView, editControls: timeControls, className: 'activity-drawer-inline__field--time-bidi' }),
-    makeField(doc, {
+    instructorLimited ? null : makeField(doc, {
       label: 'גורם מימון',
       viewValue: (row.funding_sources || []).map((source) => source?.name).filter(clean).join(' + ') || row.funding,
       editControls: fundingControls
     }),
-    makeField(doc, { label: 'מחיר', viewValue: formatMoney(row.price), editControls: priceControls }),
+    instructorLimited ? null : makeField(doc, { label: 'מחיר', viewValue: formatMoney(row.price), editControls: priceControls }),
     makeEditOnlyActivityField(doc, { label: 'מגדר', editControls: genderControls, className: 'activity-drawer-inline__field--gender' }),
     makeEditOnlyActivityField(doc, { label: 'שפת הדרכה', editControls: languageControls, className: 'activity-drawer-inline__field--language' }),
     hasOwnParticipantsSection ? null : makeField(doc, {
