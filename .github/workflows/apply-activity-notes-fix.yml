@@ -17,7 +17,8 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: fix/activity-table-notes-20260913
-      - name: Add notes to activities table projection
+          fetch-depth: 0
+      - name: Apply targeted fix and clean temporary files
         run: |
           python - <<'PY'
           from pathlib import Path
@@ -34,12 +35,13 @@ jobs:
               s = s[:start] + block + s[end:]
               p.write_text(s, encoding='utf-8')
           PY
+          rm -f .tmp-verify-placeholder noop.txt noop2.txt noop3.txt noop4.txt noop5.txt noop6.txt
+          rm -f .github/workflows/apply-activity-notes-fix.yml
           git diff --check
-      - name: Commit
+      - name: Commit and push
         run: |
-          rm .github/workflows/apply-activity-notes-fix.yml
-          git add frontend/src/api.js .github/workflows/apply-activity-notes-fix.yml
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
           git commit -m 'fix: include activity notes in table projection'
           git push origin HEAD:fix/activity-table-notes-20260913
