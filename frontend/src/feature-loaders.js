@@ -96,7 +96,7 @@ export function ensureFeature(name) {
         import('./proposal-workflow-completion.js?v=20260902-controller-v1'),
         import('./proposal-summer-list-runtime.js?v=20260802-v1'),
         import('./proposal-client-home-load-more-fix.js?v=20260803-v1'),
-        import('./proposal-gefen-approval-list-status.js?v=20260804-v1'),
+        import('./proposal-gefen-approval-list-status.js?v=20260913-side-drawer-table-v2'),
         import('./proposal-approval-runtime.js'),
         import('./client-contact-persistence-hotfix.js?v=20260908-contact-form-integrity-v1'),
         import('./proposal-new-contact-link-runtime.js?v=20260909-v1'),
