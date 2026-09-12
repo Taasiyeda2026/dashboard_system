@@ -264,16 +264,12 @@ test('cancelled meetings are omitted from payroll routes', () => {
   assert.equal(result.pairs.length, 0);
 });
 
-test('maintenance UI can choose payroll month without replacing scheduling coverage', async () => {
+test('maintenance UI no longer exposes payroll-month scope while backend support remains', async () => {
   const source = await readFile(schedulingScreenUrl, 'utf8');
   const maintenanceCard = source.split('function maintenanceTabHtml')[1].split('function calendarTabHtml')[0];
-  assert.match(maintenanceCard, /עדכון מרחקים עבור/);
-  assert.match(maintenanceCard, /שיבוצים/);
-  assert.match(maintenanceCard, /בקרת שכר לפי חודש/);
-  assert.match(maintenanceCard, /data-distance-month/);
-  assert.match(source, /scope: distanceTarget/);
-  assert.match(source, /payroll_month/);
-  assert.doesNotMatch(maintenanceCard, /2026-05/);
+  assert.doesNotMatch(maintenanceCard, /data-distance-target|data-distance-month|payroll_month/);
+  assert.doesNotMatch(maintenanceCard, /עדכון מרחקים עבור|בקרת שכר לפי חודש/);
+  assert.match(source, /scope: 'all'/);
 });
 
 test('edge function adds payroll_month without changing existing scopes', async () => {

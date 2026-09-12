@@ -136,26 +136,30 @@
 .course-scheduling-maintenance-card p { color: var(--cs-text-muted); font-size: .88rem; line-height: 1.5; }
 .course-scheduling-maintenance-card .course-scheduling-btn { flex: 0 0 auto; }
 
-.course-scheduling-distance-target {
+.course-scheduling-distance-coverage {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px 14px;
+  gap: 4px 14px;
   margin-top: 8px;
 }
 
-.course-scheduling-distance-target span,
-.course-scheduling-distance-target label {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  margin: 0;
-  color: var(--cs-text);
-  font-size: .88rem;
-  font-weight: 700;
+.course-scheduling-distance-refresh {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--cs-border);
+  border-radius: 50%;
+  background: var(--cs-surface);
+  color: var(--cs-accent);
+  font: inherit;
+  font-size: 1.05rem;
+  cursor: pointer;
 }
 
-.course-scheduling-distance-month { width: 160px; }
+.course-scheduling-distance-refresh:disabled { cursor: wait; opacity: .55; }
 
 @media (max-width: 760px) {
   .course-scheduling-maintenance-tab { grid-template-columns: 1fr; }
