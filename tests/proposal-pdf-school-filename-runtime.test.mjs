@@ -60,7 +60,7 @@ test('preview-only context still derives the school filename without an editor f
   assert.equal(dom.window.document.title, 'הצעת מחיר כרמים');
 });
 
-test('database migration applies the same filename contract to every saved school proposal', async () => {
+test('database migration applies the same filename contract to newly saved school PDFs', async () => {
   const sql = await readFile(
     new URL('../supabase/migrations/20260913020000_proposal_pdf_filename_school_name_all_types.sql', import.meta.url),
     'utf8'
@@ -69,6 +69,6 @@ test('database migration applies the same filename contract to every saved schoo
   assert.match(sql, /school_filename_name/);
   assert.match(sql, /school_name/);
   assert.match(sql, /new\.final_pdf_file_name := 'הצעת מחיר ' \|\| recipient_label \|\| '\.pdf'/);
-  assert.match(sql, /update public\.proposals_agreements/);
-  assert.match(sql, /coalesce\(btrim\(final_pdf_path\), ''\) <> ''/);
+  assert.match(sql, /school_filename_name <> '' or semel_mosad <> ''/);
+  assert.doesNotMatch(sql, /update public\.proposals_agreements/);
 });
