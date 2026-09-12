@@ -23063,15 +23063,26 @@ select.ds-input {
 }
 
 /* Instructor Portal: composes the existing card, KPI, table and shell primitives. */
-.instructor-portal-dashboard{max-width:1080px;width:100%;margin-inline:auto}
-.instructor-portal-dashboard__toolbar{display:grid;grid-template-columns:minmax(190px,.35fr) minmax(0,1fr);gap:14px;align-items:stretch}.instructor-portal-focus{display:grid;gap:4px;padding:14px 18px;border:1px solid color-mix(in srgb,var(--ds-accent) 22%,var(--ds-border));border-radius:var(--ds-radius-md);background:linear-gradient(135deg,var(--ds-accent-soft),var(--ds-surface));box-shadow:var(--ds-shadow-sm)}.instructor-portal-focus span{font-size:.75rem;font-weight:800;color:var(--ds-accent)}.instructor-portal-focus strong{font-size:1.05rem}.instructor-portal-focus small{color:var(--ds-text-secondary)}.instructor-portal-shortcut{border-color:color-mix(in srgb,var(--ds-accent) 18%,var(--ds-border));background:linear-gradient(145deg,var(--ds-surface),color-mix(in srgb,var(--ds-accent-soft) 45%,white));box-shadow:var(--ds-shadow-sm)}
-.instructor-portal-month{display:flex;align-items:center;gap:10px;font-weight:800;color:#102a43;width:max-content}
-.instructor-portal-month .ds-input{min-width:170px}
-.instructor-portal-shortcuts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
-.instructor-portal-shortcut{min-height:130px;text-align:right;align-content:center}
+.instructor-portal-dashboard{max-width:920px;width:100%;margin-inline:auto;gap:10px}
+.instructor-portal-dashboard>.ds-page-header{margin:0;padding:8px 12px;background:var(--ds-surface);border-color:var(--ds-border);box-shadow:var(--ds-shadow-xs)}
+.instructor-portal-dashboard__toolbar{display:grid;grid-template-columns:1fr;gap:8px;align-items:start}
+.instructor-portal-focus{display:grid;gap:2px;padding:9px 12px;border:1px solid var(--ds-border);border-inline-start:3px solid var(--ds-accent);border-radius:var(--ds-radius-md);background:var(--ds-surface);box-shadow:var(--ds-shadow-xs)}
+.instructor-portal-focus span{font-size:.72rem;font-weight:700;color:var(--ds-accent)}
+.instructor-portal-focus strong{font-size:1rem;line-height:1.3;color:var(--ds-text)}
+.instructor-portal-focus small{font-size:.76rem;color:var(--ds-text-secondary)}
+.instructor-portal-month{display:flex;align-items:center;gap:8px;width:max-content;padding:0;font-size:.78rem;font-weight:700;color:var(--ds-text-secondary)}
+.instructor-portal-month .ds-input{min-width:158px;min-height:34px;height:34px;padding-block:3px;background:var(--ds-surface)}
+.instructor-portal-dashboard .ds-kpi-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.instructor-portal-dashboard .ds-kpi{min-height:66px;padding:9px 11px;display:flex;flex-direction:column;justify-content:center}
+.instructor-portal-dashboard .ds-kpi__label{order:2;margin:3px 0 0;font-size:.72rem;color:var(--ds-text-secondary)}
+.instructor-portal-dashboard .ds-kpi__value{order:1;font-size:1.28rem;color:var(--ds-text)}
+.instructor-portal-shortcuts{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}
+.instructor-portal-shortcut{min-height:52px;padding:7px 10px;text-align:center;align-content:center;border-color:var(--ds-border);background:var(--ds-surface);box-shadow:var(--ds-shadow-xs)}
+.instructor-portal-shortcut:hover{border-color:color-mix(in srgb,var(--ds-accent) 35%,var(--ds-border));background:var(--ds-accent-soft)}
+.instructor-portal-shortcut .ds-interactive-card__title{font-size:.82rem;font-weight:700}
 .course-schedule-mobile,.portal-activities-mobile{display:none}
 @media(max-width:900px){
-  .instructor-portal-shortcuts{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .instructor-portal-shortcuts{grid-template-columns:repeat(3,minmax(0,1fr))}
   .instructor-portal-dashboard .ds-kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
 @media(max-width:768px){
@@ -23100,7 +23111,7 @@ select.ds-input {
 }
 @media(max-width:600px){
   .instructor-portal-shortcuts{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
-  .instructor-portal-shortcut{min-height:108px;padding:12px}
+  .instructor-portal-shortcut{min-height:52px;padding:7px 10px}
   .instructor-portal-month{width:100%;justify-content:space-between}
   .instructor-portal-month .ds-input{min-width:0;max-width:190px;min-height:44px}
 }
@@ -23110,6 +23121,8 @@ select.ds-input {
   .instructor-portal-dashboard .ds-kpi-grid{grid-template-columns:1fr}
 }
 
-/* Canonical accent bridge for instructor calendar events. */
-.route-instructor-calendar .ds-interactive-card--day-cell.has-instructor-activity{border-color:color-mix(in srgb,var(--ds-accent) 42%,var(--ds-border));background:linear-gradient(180deg,var(--ds-surface),var(--ds-accent-soft));box-shadow:inset 0 3px 0 var(--ds-accent)}
+/* Canonical accent dot for instructor calendar events. */
+.route-instructor-calendar .ds-interactive-card--day-cell.has-instructor-activity{position:relative}
+.route-instructor-calendar .ds-interactive-card--day-cell.has-instructor-activity::after{content:"";position:absolute;inset-inline-start:8px;inset-block-end:8px;width:9px;height:9px;border-radius:50%;background:var(--ds-accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--ds-accent) 18%,transparent)}
 .instr-day-drawer .instr-activity-card.is-instructor-activity{border-inline-start:4px solid var(--ds-accent);background:color-mix(in srgb,var(--ds-accent-soft) 55%,white)}
+.instr-calendar-activity-accordion{border:1px solid var(--ds-border);border-radius:var(--ds-radius-md);background:var(--ds-surface);overflow:clip}.instr-calendar-activity-accordion+*{margin-top:8px}.instr-calendar-activity-accordion summary{display:grid;gap:3px;padding:10px 12px;cursor:pointer}.instr-calendar-activity-accordion summary::marker{color:var(--ds-accent)}.instr-calendar-activity-accordion summary small{color:var(--ds-text-secondary)}.instr-calendar-activity-accordion__content{padding:0 10px 10px}

@@ -8,7 +8,7 @@ import { currentInstructorIds, currentInstructorName } from '../instructor-utils
 function rowId(row) { return String(row?.RowID || row?.row_id || row?.id || ''); }
 function activityName(row) { return String(row?.activity_name || row?.activity || 'פעילות').trim(); }
 export function instructorActivityContact(row) {
-  return String(row?.resolved_contact_name || row?.school_contact_name || row?.contact_name || '').trim();
+  return String(row?.resolved_contact_name || '').trim();
 }
 function chronological(rows) {
   return [...rows].sort((a, b) => String(a?.start_date || a?.activity_date || '').localeCompare(String(b?.start_date || b?.activity_date || '')));
@@ -33,7 +33,7 @@ export const instructorMyActivitiesScreen = {
     const open = (node) => {
       const row = byId.get(String(node?.dataset?.portalActivity || ''));
       if (!row) return;
-      ui?.openDrawer({ title: activityName(row), content: `<div class="instructor-activity-drawer-shell"><p class="instructor-activity-drawer-shell__eyebrow">פרטי הפעילות שלי</p>${activityWorkDrawerHtml(row, { instructorLimited: true, currentInstructorIds: currentInstructorIds(state), currentInstructorName: currentInstructorName(state), canEdit: false, canDirectEdit: false, canRequestEdit: false, canDeleteActivity: false, canSchedule: false, exportAction: false })}</div>` });
+      ui?.openDrawer({ title: activityName(row), content: `<div class="instructor-activity-drawer-shell"><p class="instructor-activity-drawer-shell__eyebrow">פרטי הפעילות שלי</p>${activityWorkDrawerHtml(row, { settings: state?.clientSettings || {}, instructorLimited: true, currentInstructorIds: currentInstructorIds(state), currentInstructorName: currentInstructorName(state), canEdit: false, canDirectEdit: false, canRequestEdit: false, canDeleteActivity: false, canSchedule: false, exportAction: false })}</div>` });
     };
     root.querySelectorAll('[data-portal-activity]').forEach((node) => {
       node.addEventListener('click', () => open(node));

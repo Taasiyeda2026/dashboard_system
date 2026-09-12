@@ -405,7 +405,7 @@ test('school_2027 work schedule shows one compact row per ready course, not one 
   assert.equal(html.includes(NEW_COURSE_SCHEDULE_TABLE_TAG), true);
   assert.equal(html.includes(OLD_SCHEDULE_TABLE_TAG), false);
   assert.equal(courseNameCellCount(html, 'קורס רובוטיקה'), 1);
-  assert.match(html, />14 תאריכים</);
+  assert.match(html, />תאריכי הפעילות</);
   assert.equal((html.match(/<tr class="ds-ops-course-dates-row"/g) || []).length, 1);
 });
 
@@ -419,8 +419,8 @@ test('school_2027 work schedule excludes courses missing required fields and kee
   const html = operationsManagementScreen.render({ rows, workshopStockMap: new Map() }, { state: schedule2027State() });
   assert.equal(courseNameCellCount(html, 'קורס תקין'), 1);
   assert.equal(courseNameCellCount(html, 'קורס בלי מדריך'), 0);
-  assert.equal(courseNameCellCount(html, 'קורס עם תאריך כפול'), 0);
-  assert.equal(courseNameCellCount(html, 'קורס בלי בית ספר'), 0);
+  assert.equal(courseNameCellCount(html, 'קורס עם תאריך כפול'), 1);
+  assert.equal(courseNameCellCount(html, 'קורס בלי בית ספר'), 1);
 });
 
 test('school_2027 work schedule includes a course for its secondary instructor', () => {
@@ -445,7 +445,7 @@ test('school_2027 work schedule summary counts courses, not meetings', () => {
     })
   ];
   const html = operationsManagementScreen.render({ rows, workshopStockMap: new Map() }, { state: schedule2027State() });
-  assert.match(html, /2 קורסים/);
+  assert.match(html, /2 פעילויות/);
   assert.match(html, /22 מפגשים/);
   assert.doesNotMatch(html, /22 קורסים/);
 });

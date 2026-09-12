@@ -20,6 +20,18 @@
   overflow: hidden !important;
 }
 
+.ds-drawer.ds-drawer--activity-inline > .ds-drawer__content > .instructor-activity-drawer-shell {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  block-size: 100%;
+  min-block-size: 0;
+  overflow: hidden;
+}
+
+.instructor-activity-drawer-shell > .activity-drawer-inline-layout {
+  min-block-size: 0;
+}
+
 .activity-drawer-inline-layout {
   display: flex;
   flex-direction: column;

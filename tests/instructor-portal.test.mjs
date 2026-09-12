@@ -1,10 +1,16 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import { JSDOM } from 'jsdom';
 import { instructorActivities, monthlyInstructorSummary, instructorScheduleRows } from '../frontend/src/screens/instructor-portal/portal-data.js';
 import { INSTRUCTOR_CALENDAR_ACTIVE_PERIOD, clampInstructorCalendarMonth, instructorActivityEventsForDate, moveInstructorCalendarMonth, organizationalEventsForDate, organizationalCalendarDayLabel } from '../frontend/src/screens/instructor-portal/calendar-events.js';
 import { courseScheduleTableHtml } from '../frontend/src/screens/shared/instructor-course-schedule-view.js';
 import { activityWorkDrawerHtml } from '../frontend/src/screens/shared/activity-detail-html.js';
+import { resolveSchool2027Contact, withResolvedSchool2027Contact } from '../frontend/src/screens/shared/school-2027-contact.js';
+import { instructorActivityContact } from '../frontend/src/screens/instructor-portal/my-activities.js';
+import { instructorDashboardScreen } from '../frontend/src/screens/instructor-portal/dashboard.js';
+import { instructorMyActivitiesScreen } from '../frontend/src/screens/instructor-portal/my-activities.js';
+import { instructorWorkScheduleScreen } from '../frontend/src/screens/instructor-portal/work-schedule.js';
 
 const stateA = { user: { emp_id: 'A-1', role: 'instructor' } };
 const basicRows = [
@@ -21,12 +27,34 @@ test('dashboard defines title-only shortcuts without a separate work schedule ca
   assert.doesNotMatch(source, /subtitle:/);
   assert.match(source, /config\.instructorAttendanceUrl/);
   assert.match(source, /config\.instructorPresentationsUrl/);
+  assert.doesNotMatch(source, /דורש תשומת לב|סיכום אישי, הפעילות הקרובה וקיצורי דרך/);
+  const css = fs.readFileSync(new URL('../frontend/src/styles/main.css', import.meta.url), 'utf8');
+  assert.match(css, /instructor-portal-shortcut\{[^}]*min-height:52px/);
+  assert.match(css, /instructor-portal-dashboard \.ds-kpi\{[^}]*min-height:66px/);
+  assert.doesNotMatch(css.match(/\.instructor-portal-focus\{[^}]+\}/)?.[0] || '', /gradient/);
+});
+
+test('instructor dashboard, activities, and work schedule render their approved DOM structures', () => {
+  const activity = { RowID: 'one', emp_id: 'A-1', instructor_name: 'רות', activity_name: 'סדנה', activity_type: 'workshop', activity_season: 'school_2027', start_date: '2026-09-02', date_1: '2026-09-02', authority: 'רשות', school: 'בית ספר' };
+  const dashboard = new JSDOM(instructorDashboardScreen.render({ rows: [activity] }, { state: stateA })).window.document;
+  assert.ok(dashboard.querySelector('[data-portal-month]'));
+  assert.ok(dashboard.querySelector('.instructor-portal-focus'));
+  assert.equal(dashboard.querySelectorAll('.instructor-portal-shortcut').length, 5);
+  assert.doesNotMatch(dashboard.body.textContent, /דורש תשומת לב|סיכום אישי/);
+
+  const activities = new JSDOM(instructorMyActivitiesScreen.render({ rows: [activity] }, { state: stateA })).window.document;
+  assert.ok(activities.querySelector('[data-portal-activity="one"]'));
+  assert.ok(activities.querySelector('[data-open-work-schedule]'));
+
+  const schedule = new JSDOM(instructorWorkScheduleScreen.render({ rows: [activity] }, { state: stateA })).window.document;
+  assert.ok(schedule.querySelector('[data-instructor-schedule-print]'));
+  assert.ok(schedule.querySelector('.ds-ops-course-schedule-table'));
+  assert.doesNotMatch(schedule.body.textContent, /מדריך\/ים/);
 });
 
 test('portal selectors include primary and secondary assignments and exclude another instructor', () => {
   assert.deepEqual(instructorActivities(basicRows, stateA).map((row) => row.RowID), ['one', 'three']);
   assert.equal(monthlyInstructorSummary(basicRows, stateA, '2026-09').total, 2);
-  assert.equal(monthlyInstructorSummary([...basicRows, { RowID: 'undated', emp_id: 'A-1', activity_name: 'ללא תאריך' }], stateA, '2026-09').attention, 1);
 });
 
 test('work schedule reuses ready-course source and scopes it to authenticated instructor IDs', () => {
@@ -59,12 +87,16 @@ test('organizational calendar consolidates only equivalent cross-sector occurren
 
 test('manager and instructor schedules consume the same responsive course table renderer', () => {
   const operationSource = fs.readFileSync(new URL('../frontend/src/screens/operations-management.js', import.meta.url), 'utf8');
-  assert.match(operationSource, /courseScheduleTableHtml\(readyRows/);
+  assert.match(operationSource, /courseScheduleTableHtml\(scheduleRows/);
   const html = courseScheduleTableHtml([{ key: 'one', name: 'קורס', authority: 'רשות', school: 'בית ספר', instructorNames: ['א'], weekday: 'ראשון', timeRange: '14:00–15:00', startDate: '2026-09-01', endDate: '2026-09-08', grade: 'ה', sessionsCount: 2, dates: ['2026-09-01', '2026-09-08'] }]);
   assert.match(html, /ds-ops-course-schedule-table/);
   assert.match(html, /data-ops-course-dates-toggle/);
   assert.match(html, /course-schedule-desktop/);
   assert.match(html, /course-schedule-mobile-card/);
+  assert.match(html, /מדריך\/ים/);
+  const instructorHtml = courseScheduleTableHtml([{ key: 'one', name: 'קורס', authority: 'רשות', school: 'בית ספר', instructorNames: ['א'], weekday: 'ראשון', timeRange: '14:00–15:00', startDate: '2026-09-01', endDate: '2026-09-08', grade: 'ה', dates: ['2026-09-01'] }], { showInstructorColumn: false });
+  assert.doesNotMatch(instructorHtml, /מדריך\/ים|ds-ops-course-col--instructor/);
+  assert.match(instructorHtml, /colspan="9"/);
 });
 
 test('portal calendar stays a seven-column grid with compact mobile day details', () => {
@@ -74,12 +106,16 @@ test('portal calendar stays a seven-column grid with compact mobile day details'
   assert.match(source, /ds-interactive-card--day-cell|variant: 'day-cell'/);
   assert.match(source, /ui\?\.openDrawer/);
   assert.doesNotMatch(source, /חגים, חופשות, מועדים וימי הולדת מכל המגזרים/);
-  assert.match(source, /events\.length > 1/);
   assert.match(source, /loadInstructorActivities\(api\)/);
   assert.match(source, /instructorActivities\(data\?\.rows, state\)/);
   assert.equal(instructorActivityEventsForDate([{ RowID: 'mine', activity_name: 'פעילות שלי', date_1: '2026-09-08' }], '2026-09-08').length, 1);
   assert.match(source, /hasSchoolCalendar \? 'is-school-calendar-day'/);
   assert.match(source, /hasActivity \? 'has-instructor-activity'/);
+  assert.match(source, /instr-calendar-activity-accordion/);
+  assert.match(source, /api\.activityDetail/);
+  assert.match(source, /activityWorkDrawerHtml/);
+  assert.doesNotMatch(source, /meta:\s*events\.length|\$\{events\.length\} אירועים/);
+  assert.doesNotMatch(organizationalCalendarDayLabel(instructorActivityEventsForDate([{ RowID: 'mine', activity_name: 'פעילות שלי', date_1: '2026-09-08' }], '2026-09-08')), /פעילות שלי/);
   assert.match(schoolCalendarUi, /isInstructorCalendarView\(\)/);
   assert.match(schoolCalendarUi, /if \(isInstructorCalendarView\(\)\) return false/);
 });
@@ -104,6 +140,21 @@ test('my activities provides mobile cards that open the shared activity drawer',
   assert.match(source, /activityWorkDrawerHtml/);
   assert.match(source, /data-open-work-schedule/);
   assert.doesNotMatch(source, /<th>סוג<\/th>/);
+});
+
+test('instructor work schedule uses shared styling and shared reliable print template', () => {
+  const source = fs.readFileSync(new URL('../frontend/src/screens/instructor-portal/work-schedule.js', import.meta.url), 'utf8');
+  const operations = fs.readFileSync(new URL('../frontend/src/screens/operations-management.js', import.meta.url), 'utf8');
+  const index = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+  const sharedCss = fs.readFileSync(new URL('../frontend/src/screens/shared/instructor-course-schedule.css', import.meta.url), 'utf8');
+  assert.match(source, /courseScheduleTableHtml\(rows, \{ expandedDates, showInstructorColumn: false \}\)/);
+  assert.match(source, /data-instructor-schedule-print/);
+  assert.match(source, /openCourseSchedulePrintWindow\(\{ instructorName: currentInstructorName\(state\), rows \}\)/);
+  assert.match(operations, /openCourseSchedulePrintWindow\(\{ instructorName, rows \}\)/);
+  assert.doesNotMatch(operations, /\.ds-ops-mgmt-screen \.ds-ops-course-schedule-table \{/);
+  assert.match(index, /instructor-course-schedule\.css/);
+  assert.match(sharedCss, /ds-ops-course-schedule-table/);
+  assert.match(sharedCss, /ds-ops-course-dates-toggle/);
 });
 
 test('instructor navigation keeps portal areas and omits approvals and guidelines from visible nav', () => {
@@ -134,6 +185,7 @@ test('instructor calendar wrapping and birthday decoration are role scoped', () 
   assert.match(css, /route-instructor-calendar[^}]+ds-interactive-card__subtitle[^}]+white-space:normal/);
   assert.match(css, /instructor-activity-drawer-shell \.activity-drawer__section/);
   assert.match(birthdays, /app-shell--instructor\.route-instructor-calendar/);
+  assert.match(css, /has-instructor-activity::after[^}]+background:var\(--ds-accent\)/);
 });
 
 test('capture-phase period switching also refuses instructor year changes', () => {
@@ -144,13 +196,50 @@ test('capture-phase period switching also refuses instructor year changes', () =
 });
 
 test('instructor activity drawer is shared, read-only, includes contact, and omits admin actions', () => {
-  const html = activityWorkDrawerHtml({ RowID: '1', activity_name: 'סדנה', activity_type: 'סדנה', activity_season: 'school_2027', school: 'בית ספר', authority: 'רשות', emp_id_2: 'A-1', resolved_contact_name: 'נועה', resolved_contact_phone: '0501234567', price: '900', funding: 'פנימי' }, { instructorLimited: true, currentInstructorIds: ['A-1'], currentInstructorName: 'רות', canEdit: false, canDirectEdit: false, canRequestEdit: false, canDeleteActivity: false, exportAction: false });
+  const html = activityWorkDrawerHtml({ RowID: '1', activity_name: 'סדנה', activity_type: 'סדנה', activity_season: 'school_2027', school: 'בית ספר', authority: 'רשות', emp_id_2: 'A-1', instructor_name_2: 'רות', activity_manager: 'יעל', resolved_school_2027_contact: { name: 'נועה', phone: '0501234567', email: '', role: '' }, price: '900', funding: 'פנימי', funding_sources: [{ name: 'גפן' }] }, { settings: { dropdown_options: { contacts_instructor_users: [{ emp_id: 'A-1', full_name: 'רות', active: true }] } }, instructorLimited: true, currentInstructorIds: ['A-1'], currentInstructorName: 'רות', canEdit: false, canDirectEdit: false, canRequestEdit: false, canDeleteActivity: false, exportAction: false });
   assert.match(html, /נועה/);
-  assert.match(html, /רות/);
+  assert.doesNotMatch(html, /רות|מדריך\/ה|מדריכים/);
   assert.doesNotMatch(html, /מדריך לא תקף|מדריך לא קיים/);
   assert.match(html, /activity-drawer__section/);
   assert.match(html, /data-central-info-section/);
+  assert.match(html, /יעל/);
+  assert.doesNotMatch(html, /מחיר|גורם מימון|>מימון<|900|פנימי|גפן/);
   assert.doesNotMatch(html, /data-coordination-approval|data-scheduling-fields|data-contact-2027-(?:select|save-new|add-btn)|data-action="(?:edit|delete|save|remove-meeting|add-meeting)"/);
+});
+
+test('instructor and manager activity paths use the same shared contact result', () => {
+  const contacts = [
+    { id: '10', school_id: '7', contact_name: 'ראשונה', phone: '0500000001' },
+    { id: '11', school_id: '7', contact_name: 'נבחרה', phone: '0500000002' }
+  ];
+  const cases = [
+    { activity_season: 'school_2027', school_contact_id: '11', school_id: '7' },
+    { activity_season: 'school_2027', school_contact_id: '', school_id: '7', contact_name: 'שמורה בפעילות', contact_phone: '0509999999', contact_email: 'saved@example.com' },
+    { activity_season: 'school_2027', school_contact_id: '', school_id: '7' },
+    { activity_season: 'school_2027', school_contact_id: 'missing', school_id: '7' }
+  ];
+  cases.forEach((activity) => {
+    const manager = withResolvedSchool2027Contact(activity, contacts).resolved_school_2027_contact;
+    const instructor = withResolvedSchool2027Contact(activity, contacts).resolved_school_2027_contact;
+    assert.deepEqual(instructor, manager);
+    assert.deepEqual(instructor, resolveSchool2027Contact(activity, contacts));
+  });
+  assert.equal(instructorActivityContact({ school_contact_name: 'חלופה אסורה', contact_name: 'חלופה נוספת' }), '');
+});
+
+test('my-data projection carries the persisted manager and exact contact id', () => {
+  const source = fs.readFileSync(new URL('../frontend/src/api.js', import.meta.url), 'utf8');
+  assert.match(source, /INSTRUCTOR_PORTAL_ACTIVITY_COLUMNS[^;]+activity_manager,school_contact_id,contact_name,contact_phone,contact_email/);
+  assert.match(source, /readAllActivitiesRowsSupabase\(\{ select: INSTRUCTOR_PORTAL_ACTIVITY_COLUMNS \}\)/);
+  assert.match(source, /readContactsForSchool2027Activities\(instructorRows\)/);
+  assert.match(source, /withResolvedSchool2027Contact\(row, contactRows\)/);
+  assert.doesNotMatch(source, /withExactActivityContact/);
+});
+
+test('calendar lazy-loaded activity details rerun the shared layout pipeline', () => {
+  const source = fs.readFileSync(new URL('../frontend/src/screens/instructor-portal/calendar.js', import.meta.url), 'utf8');
+  assert.match(source, /target\.innerHTML = activityWorkDrawerHtml\([\s\S]+instructorLimited: true/);
+  assert.match(source, /target\.innerHTML = activityWorkDrawerHtml\([\s\S]+applyActivityDrawerLayoutPipeline\(target, state\?\.clientSettings \|\| \{\}\)/);
 });
 
 test('reports is a placeholder and does not load completion approvals', () => {

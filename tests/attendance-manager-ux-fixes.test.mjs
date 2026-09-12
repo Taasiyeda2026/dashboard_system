@@ -28,7 +28,7 @@ test('attendance desktop navigation removes duplicate actions and adds dashboard
   assert.match(attendanceCss, /\.av2-report__header > \.av2-btn--icon\s*\{\s*display:\s*none\s*!important/);
   assert.match(attendanceRuntime, /dataset\.av2Dashboard/);
   assert.match(attendanceRuntime, /window\.location\.assign\('\/dashboard_system\/'\)/);
-  assert.match(attendanceIndex, /attendance-ux-fixes-runtime\.js\?v=64/);
+  assert.match(attendanceIndex, /attendance-ux-fixes-runtime\.js\?v=65/);
 });
 
 test('attendance desktop controls stay compact and travel status is not a full-width banner', () => {

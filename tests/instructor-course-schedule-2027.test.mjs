@@ -15,7 +15,8 @@ import {
   sanitizePrintFileName,
   buildCourseSchedulePrintDocumentTitle,
   buildCourseSchedulePrintHtml,
-  courseSchedulePrintCss
+  courseSchedulePrintCss,
+  openCourseSchedulePrintWindow
 } from '../frontend/src/screens/shared/instructor-course-schedule-print.js';
 
 function setupDom() {
@@ -277,6 +278,27 @@ test('buildCourseSchedulePrintHtml with no activities renders an empty card list
   const html = buildCourseSchedulePrintHtml({ instructorName: 'דני כהן', rows: [] });
   assert.match(html, /<strong>סיכום:<\/strong> <span>מספר פעילויות: 0 \| מספר תאריכים כולל: 0<\/span>/);
   assert.doesNotMatch(html, /<article class="cs-card">/);
+});
+
+test('shared course schedule print window uses the canonical template, CSS, and font-ready reliability', async () => {
+  const rows = buildInstructorWorkScheduleRows([readyCourseFixture()]);
+  let written = '';
+  let prints = 0;
+  const popup = {
+    closed: false,
+    document: { readyState: 'complete', fonts: { ready: Promise.resolve() }, open() {}, write(value) { written = value; }, close() {} },
+    focus() {},
+    print() { prints += 1; },
+    requestAnimationFrame(callback) { callback(); }
+  };
+  const opened = openCourseSchedulePrintWindow({ instructorName: 'דני כהן', rows, win: { open: () => popup } });
+  await Promise.resolve();
+  await Promise.resolve();
+  assert.equal(opened, popup);
+  assert.match(written, new RegExp(buildCourseSchedulePrintDocumentTitle('דני כהן')));
+  assert.ok(written.includes(buildCourseSchedulePrintHtml({ instructorName: 'דני כהן', rows })));
+  assert.ok(written.includes(courseSchedulePrintCss()));
+  assert.equal(prints, 1);
 });
 
 // --- data-ops-print click behavior end-to-end through operationsManagementScreen ---

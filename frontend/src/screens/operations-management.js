@@ -89,11 +89,7 @@ import {
   sortInstructorWorkScheduleRows
 } from './shared/instructor-course-schedule-2027.js';
 import { courseScheduleSummaryHtml, courseScheduleTableHtml } from './shared/instructor-course-schedule-view.js';
-import {
-  buildCourseSchedulePrintHtml,
-  courseSchedulePrintCss,
-  buildCourseSchedulePrintDocumentTitle
-} from './shared/instructor-course-schedule-print.js';
+import { openCourseSchedulePrintWindow } from './shared/instructor-course-schedule-print.js';
 import {
   attendanceControlHtml,
   attendanceControlStylesHtml,
@@ -1737,31 +1733,6 @@ function opsManagementStylesHtml() {
     .ds-ops-mgmt-screen .ds-ops-col--activity { max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     .ds-ops-mgmt-screen .ds-ops-col--grade { width:70px; max-width:70px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
     .ds-ops-mgmt-screen .ds-ops-col--student-count { width:68px; max-width:80px; white-space:nowrap; }
-    .ds-ops-mgmt-screen .ds-ops-schedule-wrap,
-    .ds-ops-mgmt-screen .ds-ops-schedule-wrap .ds-table-wrap,
-    .ds-ops-mgmt-screen .ds-ops-mgmt-schedule { width:100%; }
-    .ds-ops-mgmt-screen .ds-ops-mgmt-summary-line { display:block; margin:0 0 10px; padding:7px 10px; border:1px solid #d8e5ee; border-radius:10px; background:#f8fbfd; color:#334155; font-weight:700; font-size:13px; }
-    .ds-ops-mgmt-screen .ds-ops-schedule-prompt { margin:0; padding:24px; text-align:center; font-weight:700; color:#475569; }
-    /* school_2027 course-level work schedule table — compact, one row per course */
-    .ds-ops-mgmt-screen .ds-ops-course-schedule-table { table-layout:auto; }
-    .ds-ops-mgmt-screen .ds-ops-course-schedule-table th,
-    .ds-ops-mgmt-screen .ds-ops-course-schedule-table td { padding:4px 7px; font-size:12px; line-height:1.3; vertical-align:middle; }
-    .ds-ops-mgmt-screen .ds-ops-course-col--name { max-width:190px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-align:right; }
-    .ds-ops-mgmt-screen .ds-ops-course-col--authority { max-width:100px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-align:right; }
-    .ds-ops-mgmt-screen .ds-ops-course-col--school { max-width:140px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-align:right; }
-    .ds-ops-mgmt-screen .ds-ops-course-col--instructor { max-width:140px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-align:right; }
-    .ds-ops-mgmt-screen .ds-ops-course-col--weekday,
-    .ds-ops-mgmt-screen .ds-ops-course-col--time,
-    .ds-ops-mgmt-screen .ds-ops-course-col--period,
-    .ds-ops-mgmt-screen .ds-ops-course-col--grade,
-    .ds-ops-mgmt-screen .ds-ops-course-col--sessions { white-space:nowrap; text-align:center; }
-    .ds-ops-mgmt-screen .ds-ops-course-col--dates { white-space:nowrap; text-align:center; }
-    .ds-ops-mgmt-screen .ds-ops-course-dates-toggle { border:1px solid #cfe1ec; background:#f8fbfd; color:#0f8fa8; border-radius:999px; padding:3px 10px; font-size:11.5px; font-weight:700; cursor:pointer; white-space:nowrap; }
-    .ds-ops-mgmt-screen .ds-ops-course-dates-toggle:hover { background:#eefaff; border-color:#9db9d8; }
-    .ds-ops-mgmt-screen .ds-ops-course-dates-toggle[aria-expanded="true"] { background:#0f8fa8; border-color:#0f8fa8; color:#fff; }
-    .ds-ops-mgmt-screen .ds-ops-course-dates-row td { background:#f8fbfd !important; padding:8px 12px; }
-    .ds-ops-mgmt-screen .ds-ops-course-dates-list { display:flex; flex-wrap:wrap; gap:5px 16px; margin:0; padding:0; list-style:none; font-size:12px; color:#334155; }
-    .ds-ops-mgmt-screen .ds-ops-course-dates-list li { white-space:nowrap; }
     .ds-ops-mgmt-screen .ds-ops-mgmt-filters { padding:8px 10px; border-radius:12px; }
     .ds-ops-mgmt-screen .ds-ops-mgmt-filters .ds-filter-panel__title { margin:0 0 4px; font-size:13px; line-height:1.2; }
     .ds-ops-mgmt-screen .ds-ops-mgmt-filters__grid { gap:6px; grid-template-columns:repeat(auto-fit,minmax(126px,1fr)); align-items:end; }
@@ -2280,17 +2251,8 @@ function printCourseSchedule2027() {
     alert('לא נמצאו פעילויות להדפסה עבור המדריך שנבחר.');
     return;
   }
-  const title = buildCourseSchedulePrintDocumentTitle(instructorName);
-  const bodyHtml = buildCourseSchedulePrintHtml({ instructorName, rows });
-  const css = courseSchedulePrintCss();
-  const printWindow = window.open('', '_blank');
+  const printWindow = openCourseSchedulePrintWindow({ instructorName, rows });
   if (!printWindow) { alert('הדפדפן חסם פתיחת חלון הדפסה. יש לאפשר חלונות קופצים לאתר.'); return; }
-  const html = `<!doctype html><html lang="he" dir="rtl"><head><meta charset="utf-8"><title>${escapeHtml(title)}</title><style>${css}</style></head><body>${bodyHtml}</body></html>`;
-  printWindow.document.open();
-  printWindow.document.write(html);
-  printWindow.document.close();
-  printWindow.focus();
-  setTimeout(() => printWindow.print(), 250);
 }
 
 function printWorkshopsFromDom(root) {

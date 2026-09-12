@@ -4,6 +4,7 @@
 // card row layout, nothing summer_2026-specific lives in this file.
 import { escapeHtml } from './html.js';
 import { formatDateHe } from './format-date.js';
+import { instrumentWorkSchedulePrintWindow } from '../work-schedule-print-reliability.js';
 
 const FILE_NAME_FORBIDDEN_CHARS = /[\\/:*?"<>|]/g;
 
@@ -103,4 +104,20 @@ export function courseSchedulePrintCss() {
     @page{size:A4 portrait;margin:10mm}
     @media print{body{margin:0}.cs-card{break-inside:avoid;page-break-inside:avoid}.cs-print-header{break-after:avoid;page-break-after:avoid}}
   `;
+}
+
+export function openCourseSchedulePrintWindow({ instructorName = '', rows = [], win = globalThis.window } = {}) {
+  const title = buildCourseSchedulePrintDocumentTitle(instructorName);
+  const bodyHtml = buildCourseSchedulePrintHtml({ instructorName, rows });
+  const css = courseSchedulePrintCss();
+  const printWindow = win?.open?.('', '_blank');
+  if (!printWindow) return null;
+  instrumentWorkSchedulePrintWindow(printWindow);
+  const html = `<!doctype html><html lang="he" dir="rtl"><head><meta charset="utf-8"><title>${escapeHtml(title)}</title><style>${css}</style></head><body>${bodyHtml}</body></html>`;
+  printWindow.document.open();
+  printWindow.document.write(html);
+  printWindow.document.close();
+  printWindow.focus?.();
+  printWindow.print();
+  return printWindow;
 }
