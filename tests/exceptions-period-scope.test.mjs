@@ -7,7 +7,7 @@ const storage = () => ({ getItem: () => null, setItem: () => {}, removeItem: () 
 globalThis.sessionStorage ||= storage();
 globalThis.localStorage ||= storage();
 
-const { getActivityExceptions, isActivityInPreparation } = await import('../frontend/src/api.js');
+const { getActivityExceptions } = await import('../frontend/src/api.js');
 
 const incompleteActivity = {
   RowID: 'school-2027-1',
@@ -16,15 +16,8 @@ const incompleteActivity = {
   status: 'היערכות'
 };
 
-test('preparation activities never produce exception rows or instances', () => {
-  assert.equal(isActivityInPreparation(incompleteActivity), true);
+test('preparation status has no special exemption from exceptions', () => {
   const result = getActivityExceptions([incompleteActivity], '2027-01');
-  assert.equal(result.rows.length, 0);
-  assert.equal(result.instances.length, 0);
-});
-
-test('an activity returns to normal exception calculation after preparation', () => {
-  const result = getActivityExceptions([{ ...incompleteActivity, status: 'פתוח' }], '2027-01');
   assert.equal(result.rows.length, 1);
   assert.ok(result.rows[0].exception_types.includes('missing_instructor'));
   assert.ok(result.rows[0].exception_types.includes('missing_start_date'));

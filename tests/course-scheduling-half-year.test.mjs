@@ -10,6 +10,7 @@ const course = (id, extra = {}) => ({
   activity_season: 'school_2027',
   status: 'פתוח',
   school: 'בית ספר א',
+  school_id: 100,
   school_address: 'כתובת בית ספר א',
   authority: 'רשות א',
   instruction_language: 'he',
@@ -63,13 +64,14 @@ test('authority filter limits engine courses and half A load does not affect hal
   assert.equal((results[0].recommended||results[0].bestAvailable).load.hours,2);
 });
 
-test('stage 3 workload uses actual half hours within the 20-point component', () => {
+test('transparent scheduling ranking exposes actual projected half-year workload', () => {
   const target = course('c', { meetings: [{ date: '2027-02-02', start_time: '10:00', end_time: '12:00' }] });
   const results = calculateCourseSchedule({ activities: [target], instructors, profiles, rules, exceptions: {}, periodKey: 'second', authority: 'רשות א', travel, routeMatrix: {} });
   const selected=results[0].recommended||results[0].bestAvailable;
   assert.ok(selected,'an eligible low-score candidate remains selectable rather than becoming recruitment');
-  assert.ok(selected.scoreBreakdown.actualWorkload);
-  assert.ok(selected.scoreBreakdown.actualWorkload.points <= 20);
   assert.equal(selected.projectedHalfHours, 2);
-  assert.equal(selected.scoreBreakdown.workload, undefined);
+  assert.equal(selected.projectedWeeklyHours, 2);
+  assert.equal(selected.utilizationRatio, 0.25);
+  assert.equal(selected.score, null);
+  assert.equal(selected.scoreBreakdown, null);
 });

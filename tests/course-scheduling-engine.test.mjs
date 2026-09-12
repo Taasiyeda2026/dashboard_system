@@ -39,7 +39,7 @@ const rules = {
 
 const baseInput = (activities) => ({ activities, instructors, profiles, rules, exceptions: {} });
 
-test('filters only open, fully unassigned 2027 courses', () => {
+test('filters open, fully unassigned supported 2027 scheduling activities', () => {
   assert.deepEqual(schedulingCourses([
     course('ok'),
     { ...course('assigned'), emp_id: '1' },
@@ -48,7 +48,7 @@ test('filters only open, fully unassigned 2027 courses', () => {
     { ...course('workshop'), activity_type: 'סדנה' },
     { ...course('closed'), status: 'סגור' },
     { ...course('old'), activity_season: 'regular' }
-  ]).map((row) => row.row_id), ['ok']);
+  ]).map((row) => row.row_id), ['ok', 'workshop']);
 });
 
 test('filters inactive instructors before matching and route calculation', () => {

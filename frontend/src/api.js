@@ -27,6 +27,8 @@ import { config } from './config.js';
 import { catalogActivityChangesFromRows, catalogText } from './activity-catalog-identity.js';
 import { enforceManagedRoutes, hasPermission } from './permission-policy.js';
 import { ALL_PERMISSION_KEYS, ROLE_PERMISSION_TEMPLATES } from './capability-registry.js';
+import { endDateExceptionThresholdForPeriod } from './exception-end-date-threshold-by-period.js';
+import { activityBelongsToCourseSchedulingPeriod, resolveCourseSchedulingPeriod } from './screens/course-scheduling-periods.js';
 
 /**
  * Actions that modify server-side data.
@@ -681,6 +683,12 @@ function normalizeActivityTypeValue(value) {
 
 function rowActivityType(row = {}) {
   return normalizeActivityTypeValue(row?.activity_type || row?.type || row?.kind);
+}
+
+export function isDashboardEndingActivity(row = {}, month = '') {
+  const type = rowActivityType(row);
+  return (type === 'course' || type === 'after_school')
+    && normalizeSupabaseDate(row?.end_date || row?.date_end).startsWith(String(month || '').slice(0, 7));
 }
 
 function isActivityClosed(row) {
@@ -2547,25 +2555,29 @@ async function dashboardReadModelFromSupabase(month) {
   try {
     const monthPrefix = String(month || '').slice(0, 7);
     if (!/^\d{4}-\d{2}$/.test(monthPrefix)) return null;
-    const range = monthDateRange(monthPrefix);
-    // Fetch all rows for the date range (open + closed) — no status filter here
-    const allRangeRows = await selectActivitiesByDateRangeFromSupabase({
-      startDate: range.startDate,
-      endDate: range.endDate,
-      includeEndDate: true,
-      select: DASHBOARD_ACTIVITY_COLUMNS,
-      overlapByStartEnd: true,
-      fallbackSelect: DASHBOARD_ACTIVITY_MIN_COLUMNS
-    });
+    // One central activity read supplies monthly, semester and exception metrics.
+    const allRangeRows = await selectActivitiesFromSupabase(DASHBOARD_ACTIVITY_COLUMNS);
     // Open-only rows (not closed) — used for summary, instructor/manager stats, exceptions
     const scopedRangeRows = filterRowsByGlobalActivityPeriod(allRangeRows);
-    const openRows = scopedRangeRows.filter((row) => !isActivityInactive(row));
+    const reportableRows = scopedRangeRows.filter((row) => !isActivityDeleted(row) && !isActivityCancelled(row));
+    const openRows = reportableRows.filter((row) => !isActivityInactive(row));
     // Open-only rows that have a specific date (start/end/meeting) in this month — matches activities screen
     const monthRows = openRows.filter((row) => activityHasDatePointInMonth(row, monthPrefix));
     // All rows (open + closed) with a specific date in this month — for KPI base counts
-    const allMonthRows = scopedRangeRows.filter((row) => activityHasDatePointInMonth(row, monthPrefix));
+    const allMonthRows = reportableRows.filter((row) => activityHasDatePointInMonth(row, monthPrefix));
     // Course/afterschool endings: open activities of that type whose end_date falls in this month
-    const endingRows = openRows.filter((row) => (rowActivityType(row) === 'course' || rowActivityType(row) === 'after_school') && String(row?.end_date || '').slice(0, 7) === monthPrefix);
+    const endingRows = reportableRows.filter((row) => isDashboardEndingActivity(row, monthPrefix));
+    const startingRows = reportableRows.filter((row) => String(row?.start_date || '').slice(0, 7) === monthPrefix);
+    const semesterTotals = Object.fromEntries(['first', 'second'].map((key) => [
+      key,
+      reportableRows.filter((row) => activityBelongsToCourseSchedulingPeriod(row, key)).length
+    ]));
+    const secondSemesterStart = resolveCourseSchedulingPeriod('second').start;
+    const semester1Unfinished = openRows.filter((row) => {
+      if (!activityBelongsToCourseSchedulingPeriod(row, 'first')) return false;
+      const end = normalizeSupabaseDate(row?.end_date);
+      return !end || end >= secondSemesterStart;
+    }).length;
 
     // KPI type counts — includes all activities (open + closed) for the full monthly picture
     const totalTypeCounts = {};
@@ -2614,7 +2626,7 @@ async function dashboardReadModelFromSupabase(month) {
       return byManagerMap.get(key);
     }
 
-    for (const row of monthRows) {
+    for (const row of allMonthRows) {
       const activityType = rowActivityType(row);
       if (activityType) activeTypeCounts[activityType] = (activeTypeCounts[activityType] || 0) + 1;
       if (isSummerActivity(row)) activeTypeCounts.summer = (activeTypeCounts.summer || 0) + 1;
@@ -2666,6 +2678,9 @@ async function dashboardReadModelFromSupabase(month) {
       active_instructors: [...instructorNames].sort((a, b) => a.localeCompare(b, 'he')),
       active_instructors_count: instructorIds.size,
       ending_courses_current_month: endingRows.length,
+      starting_activities_current_month: startingRows.length,
+      semester_totals: semesterTotals,
+      semester_1_unfinished_count: semester1Unfinished,
       missing_instructor_count: Number(exceptionCounts.missing_instructor || 0),
       missing_district_count: Number(exceptionCounts.missing_district || 0),
       missing_start_date_count: Number(exceptionCounts.missing_start_date || 0),
@@ -2972,16 +2987,11 @@ function summerCompletionExceptionTypes(row = {}, opts = {}) {
   return types;
 }
 
-function isActivityInPreparation(row = {}) {
-  return String(row?.status || '').trim() === 'היערכות';
-}
-
 function getActivityExceptions(activityRows = [], month = '', opts = {}) {
   const knownInstructorIds = opts.knownInstructorIds; // Set<string> | undefined
   const rows = [];
   const instances = [];
   for (const row of activityRows) {
-    if (isActivityInPreparation(row)) continue;
     if (isActivityDeleted(row) || isActivityCancelled(row)) continue;
     if (isActivityInactive(row) && !isSummerCompletionTrackedActivity(row)) continue;
     if (!activityOverlapsMonthForExceptions(row, month)) continue;
@@ -3112,7 +3122,10 @@ async function readExceptionsFromSupabase(params = {}) {
       })
     ]);
     if (activitiesResult.error) throw new Error(activitiesResult.error.message || 'activities_read_failed');
-    const lateEndDateThreshold = firstNormalizedDate(settingValueFromRows(settingsRows, 'late_end_date_threshold'));
+    const configuredThreshold = firstNormalizedDate(settingValueFromRows(settingsRows, 'late_end_date_threshold'));
+    const lateEndDateThreshold = activityPeriod === ACTIVITY_SEASON_SCHOOL_2027
+      ? endDateExceptionThresholdForPeriod(activityPeriod)
+      : configuredThreshold;
     if (!lateEndDateThreshold) {
       warnLateEndDateThreshold('missing or empty settings value');
     }
@@ -3131,7 +3144,6 @@ async function readExceptionsFromSupabase(params = {}) {
       completionApprovalUploads: Array.isArray(approvalsResult.data) ? approvalsResult.data : []
     });
     const undatedRows = periodRows
-      .filter((row) => !isActivityInPreparation(row))
       .filter((row) => !isActivityInactive(row))
       .filter((row) => !hasAnyActivityDate(row));
     return {
@@ -8916,7 +8928,6 @@ export {
   rowMatchesActivitiesFilters,
   rowExceptionTypesFromActivity,
   getActivityExceptions,
-  isActivityInPreparation,
   buildExceptionsModelFromRows,
   normalizeActivityRow,
   sanitizeActivityPayload,

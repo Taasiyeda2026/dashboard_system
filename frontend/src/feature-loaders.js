@@ -71,8 +71,8 @@ export function ensureFeature(name) {
   switch (name) {
     case 'dashboard':
       return loadOnce('dashboard', () => Promise.all([
-        import('./dashboard-kpi-corrections.js?v=20260801-perf-startup-v1'),
-        import('./dashboard-exception-count-hotfix.js?v=20260728-unique-exception-activities-v2'),
+        import('./summer-feedback-admin-integration.js'),
+        import('./summer-feedback-instructor-card.js'),
         import('./dashboard-month-navigation-runtime.js'),
         import('./birthday-popup.js'),
         import('./birthday-popup-session-guard.js'),

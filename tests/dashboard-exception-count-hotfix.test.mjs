@@ -3,8 +3,9 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
 const hotfixUrl = new URL('../frontend/src/dashboard-exception-count-hotfix.js', import.meta.url);
-const entryUrl = new URL('../frontend/src/main-with-proposal-pdf-hotfix.js', import.meta.url);
-
+const storage = () => ({ getItem: () => null, setItem: () => {}, removeItem: () => {}, clear: () => {} });
+globalThis.sessionStorage ||= storage();
+globalThis.localStorage ||= storage();
 const { applyDashboardExceptionSummary } = await import(`${hotfixUrl.href}?test=${Date.now()}`);
 
 test('dashboard exception card uses the exact unique activity count from the exceptions model', () => {
@@ -63,21 +64,7 @@ test('dashboard exception card uses the exact unique activity count from the exc
   assert.equal(payload.kpi_cards.find((card) => card.id === 'exceptions').value, 0);
 });
 
-test('the dashboard exceptions path is always scoped to the selected global activity period', async () => {
-  const [entrySource, hotfixSource] = await Promise.all([
-    readFile(entryUrl, 'utf8'),
-    readFile(hotfixUrl, 'utf8')
-  ]);
-
-  const hotfixImport = entrySource.indexOf("import './dashboard-exception-count-hotfix.js");
-  const mainImport = entrySource.indexOf("import './main.js';");
-
-  assert.ok(hotfixImport >= 0);
-  assert.ok(mainImport > hotfixImport);
-  assert.match(hotfixSource, /installExceptionPeriodGuard\(\)/);
-  assert.match(hotfixSource, /activity_period:\s*input\.activity_period\s*\|\|\s*selectedActivityPeriod\(\)/);
-  assert.match(hotfixSource, /installDashboardReconciler\('dashboardSnapshot'\)/);
-  assert.match(hotfixSource, /installDashboardReconciler\('dashboardReadModel'\)/);
-  assert.match(hotfixSource, /api\.exceptions\(\{/);
-  assert.match(hotfixSource, /activity_period:\s*selectedActivityPeriod\(\)/);
+test('legacy dashboard exception reconciliation is no longer loaded', async () => {
+  const loaderSource = await readFile(new URL('../frontend/src/feature-loaders.js', import.meta.url), 'utf8');
+  assert.doesNotMatch(loaderSource, /dashboard-exception-count-hotfix/);
 });
