@@ -1,5 +1,5 @@
 import { assignedToCurrentInstructor, currentInstructorIds, isoDate } from '../instructor-utils.js';
-import { buildReadyCourseScheduleRows, sortReadyCourseScheduleRows } from '../shared/instructor-course-schedule-2027.js';
+import { buildInstructorWorkScheduleRows, sortInstructorWorkScheduleRows } from '../shared/instructor-course-schedule-2027.js';
 import { activityTypeDisplayLabel, normalizeActivityTypeKey } from '../shared/activity-options.js';
 
 export function instructorActivities(rows, state) {
@@ -9,7 +9,7 @@ export function instructorActivities(rows, state) {
 
 export function instructorScheduleRows(rows, state) {
   const assigned = instructorActivities(rows, state);
-  return sortReadyCourseScheduleRows(buildReadyCourseScheduleRows(assigned), { instructorSelected: true });
+  return sortInstructorWorkScheduleRows(buildInstructorWorkScheduleRows(assigned), { instructorSelected: true });
 }
 
 export function activityMonth(row) {

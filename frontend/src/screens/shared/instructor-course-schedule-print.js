@@ -1,6 +1,6 @@
 // Print template for the school_2027 work schedule ("סידור עבודה"), rendered
-// per instructor from the exact same ready-course rows the on-screen table
-// uses (see instructor-course-schedule-2027.js) — one card per course, one
+// per instructor from the exact same activity rows the on-screen table
+// uses (see instructor-course-schedule-2027.js) — one card per activity, one
 // card row layout, nothing summer_2026-specific lives in this file.
 import { escapeHtml } from './html.js';
 import { formatDateHe } from './format-date.js';
@@ -21,14 +21,15 @@ function fieldRowHtml(label, value) {
   return `<div class="cs-field"><span class="cs-field__label">${escapeHtml(label)}:</span><span class="cs-field__value">${escapeHtml(text || '—')}</span></div>`;
 }
 
-function courseCardHtml(row) {
+function activityCardHtml(row) {
   const dates = Array.isArray(row?.dates) ? row.dates : [];
   const datesHtml = dates.map((date) => `<span class="cs-date">${escapeHtml(formatDateHe(date))}</span>`).join('');
   return `<article class="cs-card">
     <div class="cs-card__details">
       <section class="cs-card__section">
-        <h2 class="cs-card__section-title">פרטי הקורס</h2>
-        ${fieldRowHtml('שם הקורס', row.name)}
+        <h2 class="cs-card__section-title">פרטי הפעילות</h2>
+        ${fieldRowHtml('שם הפעילות', row.name)}
+        ${fieldRowHtml('סוג פעילות', row.activityType)}
         ${fieldRowHtml('רשות', row.authority)}
         ${fieldRowHtml('בית ספר', row.school)}
         ${fieldRowHtml('כיתה', row.grade)}
@@ -60,14 +61,14 @@ export function buildCourseSchedulePrintHtml({ instructorName = '', rows = [] } 
   const periodFrom = allDates.length ? formatDateHe(allDates[0]) : '—';
   const periodTo = allDates.length ? formatDateHe(allDates[allDates.length - 1]) : '—';
   const totalMeetings = safeRows.reduce((sum, row) => sum + (Array.isArray(row.dates) ? row.dates.length : 0), 0);
-  const cardsHtml = safeRows.map(courseCardHtml).join('');
+  const cardsHtml = safeRows.map(activityCardHtml).join('');
   return `<div class="cs-print-page">
     <header class="cs-print-header">
       <h1 class="cs-print-title">סידור עבודה - תשפ"ז</h1>
       <div class="cs-print-meta">
         <p><strong>שם המדריך:</strong> <span>${escapeHtml(instructorName || '—')}</span></p>
         <p><strong>תקופת הפעילות:</strong> <span>${escapeHtml(periodFrom)}–${escapeHtml(periodTo)}</span></p>
-        <p><strong>סיכום:</strong> <span>מספר קורסים: ${safeRows.length} | מספר מפגשים כולל: ${totalMeetings}</span></p>
+        <p><strong>סיכום:</strong> <span>מספר פעילויות: ${safeRows.length} | מספר תאריכים כולל: ${totalMeetings}</span></p>
       </div>
     </header>
     <div class="cs-print-cards">${cardsHtml}</div>
