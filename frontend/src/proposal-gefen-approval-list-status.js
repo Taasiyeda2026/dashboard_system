@@ -83,7 +83,7 @@ function ensureClientFileLayoutStyles(scope = globalThis) {
       max-width: 720px !important;
       height: 100dvh !important;
       max-height: 100dvh !important;
-      margin: 0 !important;
+      margin: 0 0 0 auto !important;
       padding: 0 !important;
       background: #fff !important;
       border: 0 !important;
