@@ -84,36 +84,40 @@ export function ensureFeature(name) {
       return loadOnce('instructorBirthdays', () => import('./instructor-birthday-profile.js?v=20260812-v1'));
 
     case 'proposals':
-      return loadOnce('proposals', () => Promise.all([
-        import('./styles/proposal-editor-compact-fixes.css'),
-        import('./proposal-pdf-svg-origin-clean.js'),
-        import('./proposal-pdf-storage-key-hotfix.js'),
-        import('./proposal-pdf-download-filename-hotfix.js'),
-        import('./proposal-pdf-single-generation-hotfix.js'),
-        import('./proposal-pdf-school-filename-runtime.js?v=20260803-school-name-only-v2'),
-        import('./proposal-incomplete-print-runtime.js?v=20260729-preview-freeze-v2'),
-        import('./proposal-next-year-space-workshop-pricing.js?v=20260801-space-workshop-editor-deps-v1'),
-        import('./proposal-workflow-completion.js?v=20260902-controller-v1'),
-        import('./proposal-summer-list-runtime.js?v=20260802-v1'),
-        import('./proposal-client-home-load-more-fix.js?v=20260803-v1'),
-        import('./proposal-gefen-approval-list-status.js?v=20260913-side-drawer-table-v2'),
-        import('./proposal-drawer-activity-style.js?v=20260913-v1'),
-        import('./proposal-approval-runtime.js'),
-        import('./client-contact-persistence-hotfix.js?v=20260908-contact-form-integrity-v1'),
-        import('./proposal-new-contact-link-runtime.js?v=20260909-v1'),
-        import('./school-catalog-bootstrap-hotfix.js?v=20260730-full-school-catalog-v1'),
-        import('./school-calendar-runtime.js'),
-        import('./gefen-proposal-layout-update.js'),
-        import('./gefen-proposal-pdf-header-alignment.js'),
-        import('./proposal-full-clone-runtime.js?v=20260729-independent-clone-v2'),
-        import('./proposal-summer-creation-retired.js?v=20260731-retire-summer-v1'),
-        import('./proposal-activity-linking.js'),
-        import('./proposal-operational-name-runtime.js'),
-        import('./proposal-domain-routing.js'),
-        import('./proposal-filtered-tab-count-runtime.js?v=20260828-v1'),
-        import('./screens/client-file-layout-polish.js?v=20260721-client-file-layout-v2'),
-        import('./proposal-details-public-cleanup.js?v=20260801-perf-startup-v1')
-      ]));
+      return loadOnce('proposals', async () => {
+        await Promise.all([
+          import('./styles/proposal-editor-compact-fixes.css'),
+          import('./proposal-pdf-svg-origin-clean.js'),
+          import('./proposal-pdf-storage-key-hotfix.js'),
+          import('./proposal-pdf-download-filename-hotfix.js'),
+          import('./proposal-pdf-single-generation-hotfix.js'),
+          import('./proposal-pdf-school-filename-runtime.js?v=20260803-school-name-only-v2'),
+          import('./proposal-incomplete-print-runtime.js?v=20260729-preview-freeze-v2'),
+          import('./proposal-next-year-space-workshop-pricing.js?v=20260801-space-workshop-editor-deps-v1'),
+          import('./proposal-workflow-completion.js?v=20260902-controller-v1'),
+          import('./proposal-summer-list-runtime.js?v=20260802-v1'),
+          import('./proposal-client-home-load-more-fix.js?v=20260803-v1'),
+          import('./proposal-gefen-approval-list-status.js?v=20260913-side-drawer-table-v2'),
+          import('./proposal-approval-runtime.js'),
+          import('./client-contact-persistence-hotfix.js?v=20260908-contact-form-integrity-v1'),
+          import('./proposal-new-contact-link-runtime.js?v=20260909-v1'),
+          import('./school-catalog-bootstrap-hotfix.js?v=20260730-full-school-catalog-v1'),
+          import('./school-calendar-runtime.js'),
+          import('./gefen-proposal-layout-update.js'),
+          import('./gefen-proposal-pdf-header-alignment.js'),
+          import('./proposal-full-clone-runtime.js?v=20260729-independent-clone-v2'),
+          import('./proposal-summer-creation-retired.js?v=20260731-retire-summer-v1'),
+          import('./proposal-activity-linking.js'),
+          import('./proposal-operational-name-runtime.js'),
+          import('./proposal-domain-routing.js'),
+          import('./proposal-filtered-tab-count-runtime.js?v=20260828-v1'),
+          import('./screens/client-file-layout-polish.js?v=20260721-client-file-layout-v2'),
+          import('./proposal-details-public-cleanup.js?v=20260801-perf-startup-v1')
+        ]);
+        // This module owns the proposal drawer shell. Load it after every legacy
+        // proposal enhancer so its drawer layout rules win deterministically.
+        return import('./proposal-drawer-activity-style.js?v=20260913-v2');
+      });
 
     case 'annualReviews':
       return loadOnce('annualReviews', () => Promise.all([
