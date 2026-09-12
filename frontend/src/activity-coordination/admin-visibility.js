@@ -1,11 +1,10 @@
-import { supabase, waitForSupabaseAuthSession } from '../supabase-client.js';
+import { state } from '../state.js';
+import { hasPermission } from '../permission-policy.js';
 
 const ACCESS_CLASS = 'activity-coordination-send-allowed';
 const STYLE_ID = 'activity-coordination-permission-style';
-let accessResolved = false;
 let canSend = false;
 let redirectInFlight = false;
-let accessPromise = null;
 
 function installPermissionStyles() {
   if (document.getElementById(STYLE_ID)) return;
@@ -22,7 +21,7 @@ function installPermissionStyles() {
 }
 
 function redirectAwayFromCoordinationWorkspace() {
-  if (!accessResolved || canSend || redirectInFlight) return;
+  if (canSend || redirectInFlight) return;
   if (!document.querySelector('.coordination-workspace')) return;
   const allActivitiesTab = document.querySelector('[data-activity-period-tab="year_all"]');
   if (!(allActivitiesTab instanceof HTMLElement)) return;
@@ -33,53 +32,20 @@ function redirectAwayFromCoordinationWorkspace() {
 
 function applyAccessState(allowed) {
   canSend = allowed === true;
-  accessResolved = true;
   document.documentElement.classList.toggle(ACCESS_CLASS, canSend);
   redirectAwayFromCoordinationWorkspace();
 }
 
-async function resolveAccess() {
-  if (accessPromise) return accessPromise;
-  accessPromise = (async () => {
-    try {
-      const session = await waitForSupabaseAuthSession({ timeoutMs: 8000 });
-      if (!session?.user?.id) {
-        applyAccessState(false);
-        return false;
-      }
-      const { data, error } = await supabase.rpc('activity_coordination_is_admin');
-      if (error) throw error;
-      applyAccessState(data === true);
-      return data === true;
-    } catch (error) {
-      console.warn('[activity-coordination] admin access check failed; hiding feature', error);
-      applyAccessState(false);
-      return false;
-    }
-  })();
-
-  try {
-    return await accessPromise;
-  } finally {
-    accessPromise = null;
-  }
+function syncAccess() {
+  applyAccessState(hasPermission(state?.user, 'send_activity_coordination_approvals'));
 }
 
 installPermissionStyles();
 
 const observer = new MutationObserver(() => {
+  syncAccess();
   redirectAwayFromCoordinationWorkspace();
 });
 observer.observe(document.documentElement, { childList: true, subtree: true });
 
-supabase?.auth?.onAuthStateChange((event, session) => {
-  if (event === 'SIGNED_OUT') {
-    applyAccessState(false);
-    return;
-  }
-  if (session?.user?.id && ['INITIAL_SESSION', 'SIGNED_IN', 'TOKEN_REFRESHED'].includes(event)) {
-    resolveAccess();
-  }
-});
-
-resolveAccess();
+syncAccess();
