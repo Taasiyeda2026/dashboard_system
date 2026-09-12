@@ -19,7 +19,7 @@ import {
 import { resolveActiveUserRowAfterAuth } from './auth-user-resolve.js';
 import { supabase, supabaseConfig, waitForSupabaseAuthSession, resetSupabaseAuthSessionWait } from './supabase-client.js';
 import { isEmptyValue, nonEmptyString } from './utils/empty-value.js';
-import { withResolvedSchool2027Contact } from './screens/shared/school-2027-contact.js';
+import { withExactActivityContact, withResolvedSchool2027Contact } from './screens/shared/school-2027-contact.js';
 import { normalizeOperationalDistrict } from './screens/shared/district-normalization.js';
 import { permissionFlagYes, canEditDirect, canAddActivityDirect, canRequestEdit, canRequestCreateActivity, canReviewRequests } from './permissions.js';
 import { mapWithConcurrency } from './bounded-concurrency.js';
@@ -176,6 +176,7 @@ const ACTIVITY_OPERATIONS_COLUMNS = [
   'start_time', 'end_time', 'start_date', 'end_date', 'status', 'participants_count', 'sessions',
   ...ACTIVITY_MEETING_DATE_COLUMNS
 ].join(',');
+const INSTRUCTOR_PORTAL_ACTIVITY_COLUMNS = `${ACTIVITY_OPERATIONS_COLUMNS},activity_manager,school_contact_id,contact_name,contact_phone,contact_email`;
 // Work-schedule filter controls need only descriptive fields. Keep this projection
 // separate from the substantially wider results payload (notably meeting dates).
 const ACTIVITY_SCHEDULE_FILTER_OPTION_COLUMNS = [
@@ -1583,7 +1584,7 @@ async function readMyDataContactsSchoolsRows() {
   try {
     const { data, error } = await supabase
       .from('contacts_schools')
-      .select('authority, school, school_id, contact_name, contact_role, phone')
+      .select('id, authority, school, school_id, contact_name, contact_role, phone, mobile, email, active')
       .limit(10000);
     if (error) throw error;
     return Array.isArray(data) ? data : [];
@@ -7168,12 +7169,11 @@ export const api = {
   endDates: () => readEndDatesFromSupabase(),
   getCatalogPrograms: () => readCatalogProgramsFromSupabase(),
   myData: async (params = {}) => {
-    const [allRows, contactResponsibles, summerPrintContactRows, contactsSchoolsRows, schoolsRows] = await Promise.all([
-      readAllActivitiesRowsSupabase(),
+    const [allRows, contactResponsibles, summerPrintContactRows, contactsSchoolsRows] = await Promise.all([
+      readAllActivitiesRowsSupabase({ select: INSTRUCTOR_PORTAL_ACTIVITY_COLUMNS }),
       readSchoolContactResponsiblesRows(),
       readMyDataSummerPrintContactRows(),
-      readMyDataContactsSchoolsRows(),
-      readSchoolsCatalogFromSupabase()
+      readMyDataContactsSchoolsRows()
     ]);
     const idsSet = getInstructorIdentitySet();
     const includeClosedForApprovals = Boolean(params?.includeClosedForApprovals);
@@ -7181,10 +7181,9 @@ export const api = {
     const openRows = includeClosedForApprovals
       ? periodRows.filter((row) => !isActivityDeleted(row) && !isActivityCancelled(row))
       : periodRows.filter((row) => !isActivityClosed(row));
-    const summerPrintContactsIndex = buildSummerContactIndex(summerPrintContactRows);
-    const contactsIndex = buildContactsSchoolsIndex(contactsSchoolsRows);
-    const schoolsIndex = buildSchoolsCatalogContactIndex(schoolsRows);
-    const rows = enrichRowsWithSchoolContact(openRows.filter((row) => isInstructorAssignedRow(row, idsSet)), contactsIndex, schoolsIndex, summerPrintContactsIndex);
+    const rows = openRows
+      .filter((row) => isInstructorAssignedRow(row, idsSet))
+      .map((row) => withExactActivityContact(row, contactsSchoolsRows));
     return { rows, teamGroups: buildInstructorTeamGroups(openRows, rows, contactResponsibles), summerContacts: summerPrintContactRows, contactRows: summerPrintContactRows, _source: 'supabase' };
   },
 

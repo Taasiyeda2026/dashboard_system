@@ -1310,9 +1310,13 @@ function singleForm(row, { settings = {}, privateNote = null, canEdit = false, c
   const editReqBadge = editReqLabel
     ? `<div class="ds-chip ds-chip--status ds-chip--warn" data-edit-request-status="${escapeHtml(editReqStatus)}">בקשת עריכה: ${escapeHtml(editReqLabel)}</div>`
     : '';
+  const exportRow = instructorLimited
+    ? Object.fromEntries(Object.entries(row).filter(([key]) => !['price', 'funding', 'funding_sources'].includes(key)))
+    : row;
   return `
     <form class="activity-drawer__form" data-drawer-form data-editing="no"
-      data-export-row="${jsonAttr(row)}"
+      data-export-row="${jsonAttr(exportRow)}"
+      data-instructor-limited="${instructorLimited ? 'yes' : 'no'}"
       data-authority-records="${escapeHtml(encodeURIComponent(JSON.stringify(settings?.dropdown_options?.authority_records || [])))}"
       data-school-records="${escapeHtml(encodeURIComponent(JSON.stringify(settings?.dropdown_options?.school_records || [])))}"
       data-source-sheet="${escapeHtml(String(row.source_sheet || ''))}"

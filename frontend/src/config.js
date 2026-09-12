@@ -187,3 +187,5 @@ config.HOTFIX_VERSION = `manager-board-tracking-single-load-20260912-v1-${config
 config.HOTFIX_VERSION = `dashboard-semester-summary-20260912-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `proposal-client-drawer-cleanup-20260912-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `course-scheduling-distance-maintenance-simplification-20260912-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `instructor-portal-interface-fixes-20260912-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `instructor-portal-contact-pipeline-review-20260912-v2-${config.HOTFIX_VERSION}`;

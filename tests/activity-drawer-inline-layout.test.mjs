@@ -194,6 +194,18 @@ test('activity drawer becomes one inline view/edit template without duplicate he
   dom.window.close();
 });
 
+test('instructor-limited inline layout never recreates price or funding fields and remains scrollable', async () => {
+  const row = { RowID: 'limited', activity_name: 'פעילות', activity_type: 'workshop', price: 9900, funding: 'גפן', funding_sources: [{ name: 'גפן' }] };
+  const dom = installDom(`<div class="ds-ui-layer"><aside class="ds-drawer"><div class="ds-drawer__content"><div class="instructor-activity-drawer-shell">${activityWorkDrawerHtml(row, { instructorLimited: true })}</div></div></aside></div>`);
+  const form = dom.window.document.querySelector('[data-drawer-form]');
+  enhanceActivityDrawerForm(form);
+  assert.doesNotMatch(dom.window.document.querySelector('.ds-drawer__content').textContent, /מחיר|גורם מימון|גפן|9,900/);
+  assert.equal(form.dataset.instructorLimited, 'yes');
+  const css = await readFile(new URL('../frontend/src/styles/activity-drawer-inline-layout.css', import.meta.url), 'utf8');
+  assert.match(css, /instructor-activity-drawer-shell[\s\S]*?block-size:\s*100%[\s\S]*?min-block-size:\s*0[\s\S]*?overflow:\s*hidden/);
+  assert.match(css, /activity-drawer-inline__body[\s\S]*?overflow-y:\s*auto/);
+});
+
 test('inline layout keeps canonical authority and school IDs inside the activity form', () => {
   const row = {
     row_id: 'LOCATION-1', activity_type: 'course', activity_name: 'בדיקה', activity_season: 'school_2027',
