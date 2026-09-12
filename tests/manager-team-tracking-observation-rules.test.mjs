@@ -115,7 +115,7 @@ test('2: veteran seniority_years>1 → observation 2 is לא לעדכון', () =
     observation_2_due_date: '2026-11-30'
   }, '2026-11-20');
   assert.match(html, new RegExp(NOT_FOR_UPDATE_LABEL));
-  assert.doesNotMatch(html, /✓|באיחור|מ־|עד /);
+  assert.doesNotMatch(html, /✓|באיחור|מ-|עד /);
 });
 
 test('3: veteran with accidental observation_2 document still לא לעדכון (no ✓)', () => {
@@ -151,7 +151,7 @@ test('5-6: observation 1 completed 10.10.2026 → observation 2 opens 17.11.2026
   assert.equal(addCalendarDays('2026-11-17', 13), '2026-11-30');
 });
 
-test('7: before window 16.11 → מ־17.11.26', () => {
+test('7: before window 16.11 → מ-17.11.26', () => {
   const html = obs2Html({
     seniority_years: 1,
     observation_1_completed: true,
@@ -159,7 +159,7 @@ test('7: before window 16.11 → מ־17.11.26', () => {
     observation_2_window_start: '2026-11-17',
     observation_2_due_date: '2026-11-30'
   }, '2026-11-16');
-  assert.match(html, /מ־17\.11\.26/);
+  assert.match(html, /מ-17\.11\.26/);
   assert.doesNotMatch(html, /✓/);
 });
 
@@ -172,7 +172,7 @@ test('8: window opens 17.11 → עד 30.11.26', () => {
     observation_2_due_date: '2026-11-30'
   }, '2026-11-17');
   assert.match(html, /עד 30\.11\.26/);
-  assert.doesNotMatch(html, /באיחור|מ־|✓/);
+  assert.doesNotMatch(html, /באיחור|מ-|✓/);
 });
 
 test('9: last window day 30.11 still open', () => {
@@ -203,7 +203,7 @@ test('10: 01.12 without completion → באיחור', () => {
     observation_2_completed: false
   }, '2026-12-01');
   assert.match(html, new RegExp(LATE_LABEL));
-  assert.doesNotMatch(html, /✓|עד 30\.11\.26|מ־/);
+  assert.doesNotMatch(html, /✓|עד 30\.11\.26|מ-/);
 });
 
 test('11: completion on 20.11 inside window → ✓', () => {
@@ -247,7 +247,7 @@ test('13: early-only completion on 10.11 is not ✓', () => {
   });
   assert.equal(isValidFeedbackCompletion(early, observation2Column), false);
   assert.equal(israelDateOnly(early.observation_2_completed_at), '2026-11-10');
-  assert.match(obs2Html(early, '2026-11-16'), /מ־17\.11\.26/);
+  assert.match(obs2Html(early, '2026-11-16'), /מ-17\.11\.26/);
   assert.doesNotMatch(obs2Html(early, '2026-11-20'), /✓/);
   assert.match(obs2Html(early, '2026-11-20'), /עד 30\.11\.26/);
   assert.match(obs2Html(early, '2026-12-01'), new RegExp(LATE_LABEL));
@@ -354,7 +354,7 @@ test('15: observation_1 completed without reliable completed_at → no invented 
     'review'
   );
   assert.match(obs2Html(sample, '2026-11-20'), new RegExp(MISSING_SENIORITY_LABEL));
-  assert.doesNotMatch(obs2Html(sample, '2026-11-20'), /מ־|עד |✓|באיחור/);
+  assert.doesNotMatch(obs2Html(sample, '2026-11-20'), /מ-|עד |✓|באיחור/);
 });
 
 test('16-18: invalid seniority_years → לבדיקה for both observations', () => {
@@ -469,7 +469,7 @@ test('edge live sync stores earliest + latest SharePoint createdDateTime and nev
 });
 
 test('cache bump and hotfix marker for deployable frontend change', () => {
-  assert.match(swSource, /const CACHE_VERSION = 1689/);
-  assert.match(configSource, /manager-team-observation-rules-20260910-v1/);
-  assert.match(indexHtml, /manager-board-employee-file-tracking-runtime\.js\?v=20260910-team-observation-rules-v1/);
+  assert.match(swSource, /const CACHE_VERSION = 1690/);
+  assert.match(configSource, /manager-board-tracking-single-load-20260912-v1/);
+  assert.doesNotMatch(indexHtml, /manager-board-employee-file-tracking-runtime\.js/);
 });

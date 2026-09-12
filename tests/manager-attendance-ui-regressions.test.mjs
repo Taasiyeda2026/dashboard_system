@@ -18,7 +18,6 @@ test('manager navigation force-renders dashboard and clears pending workspace st
 test('manager board publishes canonical period month and school year context', () => {
   const board = read('frontend/src/manager-board-runtime.js');
   const workspace = read('frontend/src/manager-board-workspace-runtime.js');
-  const tracking = read('frontend/src/manager-board-employee-file-tracking-runtime.js');
   assert.match(board, /data-manager-board-period/);
   assert.match(board, /data-manager-board-ym/);
   assert.match(board, /data-manager-board-school-year/);
@@ -26,16 +25,14 @@ test('manager board publishes canonical period month and school year context', (
   assert.match(board, /data-manager-board-month="1"/);
   assert.match(workspace, /dataset\?\.managerBoardPeriod/);
   assert.match(workspace, /dataset\?\.managerBoardYm/);
-  assert.match(tracking, /dataset\?\.managerBoardSchoolYear/);
+  assert.match(workspace, /dataset\?\.managerBoardSchoolYear/);
 });
 
-test('tracking re-entry invalidates ready snapshot and roster cache', () => {
+test('tracking re-entry invalidates the roster cache before one workspace render', () => {
   const workspace = read('frontend/src/manager-board-workspace-runtime.js');
-  const tracking = read('frontend/src/manager-board-employee-file-tracking-runtime.js');
   assert.match(workspace, /rosterCache\.delete/);
-  assert.match(workspace, /manager-board:tracking-invalidate/);
-  assert.match(tracking, /state === 'loading' \|\| state === 'true'/);
-  assert.match(tracking, /employeeFileTrackingReady = ''/);
+  assert.match(workspace, /renderWorkspace\(true\)/);
+  assert.doesNotMatch(workspace, /manager-board:tracking-invalidate/);
 });
 
 test('workshop milestone is rendered by domain logic without copy-fix runtime', () => {

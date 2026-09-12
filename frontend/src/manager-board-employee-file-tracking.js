@@ -337,7 +337,7 @@ export function resolvePeriodicFeedbackState(row, column, options = {}) {
   }
 
   if (todayIso < start) {
-    const label = `מ־${formatFeedbackWindowDate(start)}`;
+    const label = `מ-${formatFeedbackWindowDate(start)}`;
     return { kind: 'before', label, aria: `טרם נפתח ${label}` };
   }
 

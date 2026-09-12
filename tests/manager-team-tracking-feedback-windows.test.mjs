@@ -75,9 +75,9 @@ function yearEndHtml(overrides = {}, todayIso) {
   return completionCell(row(overrides), yearEndColumn, { todayIso, schoolYear: '2027' });
 }
 
-test('A: midyear before window shows מ־15.1.27 and never ✓', () => {
+test('A: midyear before window shows מ-15.1.27 and never ✓', () => {
   const html = midyearHtml({ midyear_feedback_completed: true, midyear_feedback_completed_at: '2027-01-10T12:00:00+02:00' }, '2027-01-14');
-  assert.match(html, /מ־15\.1\.27/);
+  assert.match(html, /מ-15\.1\.27/);
   assert.doesNotMatch(html, /✓/);
   assert.equal(
     resolvePeriodicFeedbackState(row({ midyear_feedback_completed: false }), midyearColumn, { todayIso: '2027-01-14' }).kind,
@@ -88,7 +88,7 @@ test('A: midyear before window shows מ־15.1.27 and never ✓', () => {
 test('B: midyear window opens on 2027-01-15 and shows עד 4.2.27 when incomplete', () => {
   const html = midyearHtml({}, '2027-01-15');
   assert.match(html, /עד 4\.2\.27/);
-  assert.doesNotMatch(html, /✓|באיחור|מ־/);
+  assert.doesNotMatch(html, /✓|באיחור|מ-/);
   assert.equal(
     resolvePeriodicFeedbackState(row(), midyearColumn, { todayIso: '2027-01-15' }).kind,
     'open'
@@ -108,7 +108,7 @@ test('C: midyear still inside window on due date 2027-02-04', () => {
 test('D: midyear after window shows באיחור when incomplete', () => {
   const html = midyearHtml({}, '2027-02-05');
   assert.match(html, new RegExp(LATE_LABEL));
-  assert.doesNotMatch(html, /✓|עד 4\.2\.27|מ־/);
+  assert.doesNotMatch(html, /✓|עד 4\.2\.27|מ-/);
   assert.equal(
     resolvePeriodicFeedbackState(row(), midyearColumn, { todayIso: '2027-02-05' }).kind,
     'late'
@@ -121,7 +121,7 @@ test('E: midyear valid completion in window shows ✓', () => {
     midyear_feedback_completed_at: '2027-01-20T09:30:00+02:00'
   }, '2027-01-20');
   assert.match(html, /✓/);
-  assert.doesNotMatch(html, /עד 4\.2\.27|מ־|באיחור/);
+  assert.doesNotMatch(html, /עד 4\.2\.27|מ-|באיחור/);
   assert.equal(
     isValidFeedbackCompletion(row({
       midyear_feedback_completed: true,
@@ -140,7 +140,7 @@ test('F: midyear completion before 15.1.27 is not a valid ✓', () => {
   assert.equal(israelDateOnly(early.midyear_feedback_completed_at), '2027-01-14');
 
   const beforeHtml = midyearHtml(early, '2027-01-14');
-  assert.match(beforeHtml, /מ־15\.1\.27/);
+  assert.match(beforeHtml, /מ-15\.1\.27/);
   assert.doesNotMatch(beforeHtml, /✓/);
 
   const openHtml = midyearHtml(early, '2027-01-20');
@@ -152,19 +152,19 @@ test('F: midyear completion before 15.1.27 is not a valid ✓', () => {
   assert.doesNotMatch(lateHtml, /✓/);
 });
 
-test('G: year-end before window shows מ־1.5.27', () => {
+test('G: year-end before window shows מ-1.5.27', () => {
   const html = yearEndHtml({
     year_end_feedback_completed: true,
     year_end_feedback_completed_at: '2027-04-01T12:00:00+03:00'
   }, '2027-04-30');
-  assert.match(html, /מ־1\.5\.27/);
+  assert.match(html, /מ-1\.5\.27/);
   assert.doesNotMatch(html, /✓/);
 });
 
 test('H: year-end window opens on 2027-05-01 and shows עד 30.5.27 when incomplete', () => {
   const html = yearEndHtml({}, '2027-05-01');
   assert.match(html, /עד 30\.5\.27/);
-  assert.doesNotMatch(html, /✓|באיחור|מ־/);
+  assert.doesNotMatch(html, /✓|באיחור|מ-/);
 });
 
 test('I: year-end still inside window on due date 2027-05-30', () => {
@@ -185,7 +185,7 @@ test('K: year-end valid completion in window shows ✓', () => {
     year_end_feedback_completed_at: '2027-05-15T11:00:00+03:00'
   }, '2027-05-15');
   assert.match(html, /✓/);
-  assert.doesNotMatch(html, /עד 30\.5\.27|מ־|באיחור/);
+  assert.doesNotMatch(html, /עד 30\.5\.27|מ-|באיחור/);
 });
 
 test('L: year-end completion before 1.5.27 is not a valid ✓', () => {
@@ -196,7 +196,7 @@ test('L: year-end completion before 1.5.27 is not a valid ✓', () => {
   assert.equal(isValidFeedbackCompletion(early, yearEndColumn), false);
   assert.equal(israelDateOnly(early.year_end_feedback_completed_at), '2027-04-30');
 
-  assert.match(yearEndHtml(early, '2027-04-30'), /מ־1\.5\.27/);
+  assert.match(yearEndHtml(early, '2027-04-30'), /מ-1\.5\.27/);
   assert.doesNotMatch(yearEndHtml(early, '2027-05-10'), /✓/);
   assert.match(yearEndHtml(early, '2027-05-10'), /עד 30\.5\.27/);
   assert.match(yearEndHtml(early, '2027-05-31'), new RegExp(LATE_LABEL));
@@ -217,9 +217,9 @@ test('M: Avigdor emp_id 1519 keeps both feedbacks as לא לעדכון without w
 
   assert.match(html, /משוב אמצע שנה: לא לעדכון/);
   assert.match(html, /משוב סוף שנה: לא לעדכון/);
-  assert.doesNotMatch(html, /משוב אמצע שנה[\s\S]*מ־15\.1\.27/);
+  assert.doesNotMatch(html, /משוב אמצע שנה[\s\S]*מ-15\.1\.27/);
   assert.doesNotMatch(html, /משוב אמצע שנה[\s\S]*באיחור/);
-  assert.doesNotMatch(html, /משוב סוף שנה[\s\S]*מ־1\.5\.27/);
+  assert.doesNotMatch(html, /משוב סוף שנה[\s\S]*מ-1\.5\.27/);
   assert.doesNotMatch(html, /משוב סוף שנה[\s\S]*באיחור/);
   assert.equal((html.match(new RegExp(NOT_FOR_UPDATE_LABEL, 'g')) || []).length >= 2, true);
 });
@@ -256,7 +256,7 @@ test('O: observation columns keep titles; due dates now follow seniority observa
     { todayIso: '2026-10-01' }
   );
   assert.match(obs1, /17\.10\.26/);
-  assert.doesNotMatch(obs1, /באיחור|מ־/);
+  assert.doesNotMatch(obs1, /באיחור|מ-/);
 
   const obs2 = completionCell(
     row({

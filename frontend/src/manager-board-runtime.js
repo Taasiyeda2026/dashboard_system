@@ -781,10 +781,10 @@ function monthNavigationHtml(ym, period) {
 }
 
 function activeTeamStripHtml(team, activityCount) {
-  const activityChip = `<span class="manager-board-team-strip__chip manager-board-team-strip__chip--kpi"><span>פעילויות פעילות</span><strong>${activityCount}</strong></span>`;
+  const activityChip = `<span class="manager-board-team-strip__chip manager-board-team-strip__chip--kpi"><span>סה&quot;כ פעילויות</span><strong>${activityCount}</strong></span>`;
   const body = team.length
-    ? `<div class="manager-board-team-strip__grid">${activityChip}${team.map((item) => `<button type="button" class="manager-board-team-strip__chip" data-instructor-id="${escapeAttr(item.empId)}" aria-pressed="false">${escapeHtml(item.name)}</button>`).join('')}</div>`
-    : `<div class="manager-board-team-strip__grid">${activityChip}</div>`;
+    ? `<div class="manager-board-team-strip__summary">${activityChip}</div><div class="manager-board-team-strip__grid">${team.map((item) => `<button type="button" class="manager-board-team-strip__chip" data-instructor-id="${escapeAttr(item.empId)}" aria-pressed="false">${escapeHtml(item.name)}</button>`).join('')}</div>`
+    : `<div class="manager-board-team-strip__summary">${activityChip}</div>`;
   return `
     <section class="manager-board-team-strip" data-manager-board-team-strip>
       <h2 class="manager-board-team-strip__title">צוות המדריכים הפעיל</h2>

@@ -4,6 +4,7 @@ import { supabase, waitForSupabaseAuthSession } from './supabase-client.js';
 import { normalizeGlobalActivityPeriod } from './screens/shared/summer-activity.js';
 import { escapeHtml } from './screens/shared/html.js';
 import { attendanceMonthDateRange } from './screens/attendance-control.js';
+import { tableHtml as trackingTableHtml } from './manager-board-employee-file-tracking.js';
 
 const MANAGER_WORKSPACE_TAB_KEY = 'manager_board_workspace_tab';
 const TEAM_ROSTER_TTL_MS = 90 * 1000;
@@ -15,15 +16,6 @@ const HEBREW_MONTHS = new Map([
   ['ינואר', '01'], ['פברואר', '02'], ['מרץ', '03'], ['אפריל', '04'], ['מאי', '05'], ['יוני', '06'],
   ['יולי', '07'], ['אוגוסט', '08'], ['ספטמבר', '09'], ['אוקטובר', '10'], ['נובמבר', '11'], ['דצמבר', '12']
 ]);
-const FOLLOWUP_FIELDS = [
-  ['contract_confirmed', 'הסכם חתום'],
-  ['police_clearance_file_completed', 'אישור משטרה'],
-  ['intro_feedback_completed', 'משוב היכרות'],
-  ['mid_feedback_completed', 'משוב אמצע'],
-  ['end_feedback_completed', 'משוב סוף'],
-  ['observation1_completed', 'תצפית 1'],
-  ['observation2_completed', 'תצפית 2']
-];
 
 /** Real ±1 month nav buttons only — never the board-root month state attribute. */
 export const MANAGER_BOARD_MONTH_NAV_SELECTOR =
@@ -397,7 +389,6 @@ function handleWorkspaceClick(event) {
   if (next === 'tracking') {
     const context = contextFromBoard(boardRoot);
     rosterCache.delete(`${context.manager}|${context.schoolYear}`);
-    document.dispatchEvent(new CustomEvent('manager-board:tracking-invalidate', { detail: context }));
   }
   if (next === 'attendance') {
     attendanceYm = currentMonthKey();
@@ -454,40 +445,9 @@ function attendanceSummaryTableHtml(roster, summary, ym) {
   </table></div>`;
 }
 
-/** Gender is canonical in instructor_scheduling_profiles.gender ('female'/'male'), passed through get_manager_team_roster. */
-function isFemaleInstructor(row) {
-  return text(row?.gender).toLowerCase() === 'female';
-}
-
-/** Read-only followup cell: ✓ when done, otherwise empty — police clearance is blocked (no mark, no text) for FEMALE. */
-function followupCellHtml(row, field) {
-  if (field === 'police_clearance_file_completed' && isFemaleInstructor(row)) {
-    return '<td class="manager-workspace-followup-cell manager-workspace-followup-cell--blocked" aria-label="לא רלוונטי"></td>';
-  }
-  return `<td class="manager-workspace-followup-cell${row[field] ? ' is-done' : ''}">${row[field] ? '<span aria-hidden="true">✓</span>' : ''}</td>`;
-}
-
-function trackingTableHtml(roster, schoolYear) {
-  if (!roster.length) return '<div class="manager-workspace-empty">אין מדריכים פעילים המשויכים למנהל.</div>';
-  const rows = roster.map((row) => {
-    const empId = text(row.emp_id);
-    const cells = FOLLOWUP_FIELDS.map(([field]) => followupCellHtml(row, field)).join('');
-    const folder = text(row.folder_web_url);
-    return `<tr>
-      <td class="manager-workspace-person"><strong>${escapeHtml(text(row.full_name) || empId)}</strong><small>${escapeHtml(text(row.employment_type))}</small></td>
-      ${cells}
-      <td data-label="תיק עובד">${folder ? `<a class="manager-workspace-folder-link" href="${escapeHtml(folder)}" target="_blank" rel="noopener">פתח תיק</a>` : '<span class="manager-workspace-status is-muted">טרם קושר</span>'}</td>
-    </tr>`;
-  }).join('');
-  return `<div class="manager-workspace-table-wrap"><table class="manager-workspace-table manager-workspace-tracking-table">
-    <thead><tr><th>מדריך</th>${FOLLOWUP_FIELDS.map(([, label]) => `<th>${escapeHtml(label)}</th>`).join('')}<th>תיק עובד</th></tr></thead>
-    <tbody>${rows}</tbody>
-  </table></div><p class="manager-workspace-source-note">תצוגה לקריאה בלבד ממאגר המדריכים המרכזי לשנת ${escapeHtml(schoolYear)}. עדכון הנתונים מתבצע בלשונית מדריכים.</p>`;
-}
-
 function sharePointRootButton(schoolYear) {
   if (schoolYear !== '2027') return '';
-  return `<a class="manager-workspace-sharepoint-root" href="${SHAREPOINT_EMPLOYEE_FILES_ROOT_2027}" target="_blank" rel="noopener">פתיחת תיקי עובדים ב־SharePoint</a>`;
+  return `<a class="manager-workspace-sharepoint-root" href="${SHAREPOINT_EMPLOYEE_FILES_ROOT_2027}" target="_blank" rel="noopener">פתיחת כל תיקי המדריכים</a>`;
 }
 
 function buildScopedAttendanceApi(roster) {
@@ -666,7 +626,7 @@ function renderTracking(boardRoot, context, roster) {
   if (!view) return;
   view.innerHTML = `<section class="manager-workspace-panel manager-workspace-tracking" dir="rtl">
     <header class="manager-workspace-panel__head"><div><h2>מעקב צוות</h2><p>${escapeHtml(context.manager)} · שנת ${escapeHtml(context.schoolYear)}</p></div>${sharePointRootButton(context.schoolYear)}</header>
-    ${trackingTableHtml(roster, context.schoolYear)}
+    ${trackingTableHtml(roster, { schoolYear: context.schoolYear })}
   </section>`;
 }
 

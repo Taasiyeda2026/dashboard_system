@@ -159,15 +159,20 @@
 }
 
 .manager-board-screen[data-manager-board-root] .manager-board-team-strip__grid {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  grid-auto-rows: 44px;
   gap: 8px;
 }
 
+.manager-board-screen[data-manager-board-root] .manager-board-team-strip__summary {
+  margin-bottom: 10px;
+}
+
 .manager-board-screen[data-manager-board-root] .manager-board-team-strip__chip {
-  width: auto;
-  height: 34px;
-  min-height: 34px;
+  width: 100%;
+  height: 44px;
+  min-height: 44px;
   padding: 6px 12px;
   border: 1px solid color-mix(in srgb, var(--manager-board-accent) 8%, #e4eaf0);
   border-radius: 10px;
@@ -193,10 +198,9 @@
 }
 
 .manager-board-screen[data-manager-board-root] .manager-board-team-strip__chip--kpi {
-  order: -1;
-  width: 156px;
-  height: 52px;
-  min-height: 52px;
+  width: min(100%, 220px);
+  height: 72px;
+  min-height: 72px;
   align-self: center;
   padding: 7px 14px;
   border-color: color-mix(in srgb, var(--manager-board-accent) 22%, #dce6eb);
@@ -206,7 +210,7 @@
 }
 
 .manager-board-screen[data-manager-board-root] .manager-board-team-strip__chip--kpi strong {
-  font-size: 26px;
+  font-size: 32px;
   color: #13213a;
 }
 
