@@ -3,6 +3,7 @@ import { api } from './api.js';
 const PATCH_KEY = Symbol.for('taasiyeda.proposalGefenApprovalListStatus');
 const UI_GUARD_KEY = Symbol.for('taasiyeda.proposalGefenApprovalUiGuard');
 const STYLE_ID = 'ds-pa-client-file-gefen-layout-v1';
+const CLIENT_FILE_TABLE_WIDTHS = Object.freeze([55, 55, 145, 160, 120, 110, 110, 120, 170]);
 const ineligibleProposalIds = new Set();
 let uiRefreshPending = false;
 
@@ -46,8 +47,8 @@ function ensureClientFileLayoutStyles(scope = globalThis) {
   style.textContent = `
     #app .ds-pa-table th.ds-pa-actions-col,
     #app .ds-pa-table td.ds-pa-actions-cell {
-      width: 220px !important;
-      min-width: 220px !important;
+      width: 170px !important;
+      min-width: 170px !important;
     }
     #app .ds-pa-table .ds-pa-actions-inner {
       justify-content: center;
@@ -93,8 +94,10 @@ function removeGefenListColumns(root) {
         cols[8]?.remove();
       }
       const remaining = Array.from(colgroup.children);
-      const actionsCol = remaining.at(-1);
-      if (actionsCol) actionsCol.style.width = '220px';
+      remaining.forEach((col, index) => {
+        const width = CLIENT_FILE_TABLE_WIDTHS[index];
+        if (width) col.style.width = `${width}px`;
+      });
     }
 
     Array.from(table.tBodies || []).forEach((tbody) => {
