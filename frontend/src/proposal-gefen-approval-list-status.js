@@ -2,6 +2,7 @@ import { api } from './api.js';
 
 const PATCH_KEY = Symbol.for('taasiyeda.proposalGefenApprovalListStatus');
 const UI_GUARD_KEY = Symbol.for('taasiyeda.proposalGefenApprovalUiGuard');
+const STYLE_ID = 'ds-pa-client-file-gefen-layout-v1';
 const ineligibleProposalIds = new Set();
 let uiRefreshPending = false;
 
@@ -37,8 +38,119 @@ function unavailableMarkup() {
   return '<span class="ds-pa-unavailable" aria-label="לא זמין">—</span>';
 }
 
+function ensureClientFileLayoutStyles(scope = globalThis) {
+  const documentRef = scope?.document;
+  if (!documentRef?.head || documentRef.getElementById(STYLE_ID)) return;
+  const style = documentRef.createElement('style');
+  style.id = STYLE_ID;
+  style.textContent = `
+    #app .ds-pa-table th.ds-pa-actions-col,
+    #app .ds-pa-table td.ds-pa-actions-cell {
+      width: 220px !important;
+      min-width: 220px !important;
+    }
+    #app .ds-pa-table .ds-pa-actions-inner {
+      justify-content: center;
+    }
+    #app .ds-pa-info-value.ds-pa-info-value--with-action {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    #app .ds-pa-gefen-inline-view {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 28px;
+      min-width: 28px;
+      height: 28px;
+      padding: 0;
+      margin: 0;
+      border-radius: 8px;
+    }
+  `;
+  documentRef.head.appendChild(style);
+}
+
+function removeGefenListColumns(root) {
+  root.querySelectorAll?.('table[data-pa-table]').forEach((table) => {
+    const headerRow = table.tHead?.rows?.[0];
+    if (headerRow) {
+      const cells = Array.from(headerRow.cells);
+      const targetIndexes = cells
+        .map((cell, index) => ({ index, label: text(cell.textContent) }))
+        .filter(({ label }) => label === 'אישור גפ״ן' || label === 'חתום / הוזמן')
+        .map(({ index }) => index)
+        .sort((a, b) => b - a);
+      targetIndexes.forEach((index) => headerRow.cells[index]?.remove());
+    }
+
+    const colgroup = table.querySelector('colgroup');
+    if (colgroup) {
+      const cols = Array.from(colgroup.children);
+      if (cols.length >= 11) {
+        cols[9]?.remove();
+        cols[8]?.remove();
+      }
+      const remaining = Array.from(colgroup.children);
+      const actionsCol = remaining.at(-1);
+      if (actionsCol) actionsCol.style.width = '220px';
+    }
+
+    Array.from(table.tBodies || []).forEach((tbody) => {
+      Array.from(tbody.rows || []).forEach((row) => {
+        if (row.cells.length >= 11) {
+          row.cells[9]?.remove();
+          row.cells[8]?.remove();
+          return;
+        }
+        row.querySelector('.ds-pa-gfen-signed-col')?.remove();
+        row.querySelector('.ds-pa-gefen-status-text')?.closest('td')?.remove();
+      });
+    });
+  });
+}
+
+function dedupeProposalViewActions(root) {
+  root.querySelectorAll?.('.ds-pa-drawer-icon-btns').forEach((actions) => {
+    const finalPdf = actions.querySelector('[data-pa-view-final-pdf]');
+    const preview = actions.querySelector('[data-pa-preview]');
+    if (finalPdf && preview) preview.remove();
+  });
+}
+
+function moveGefenApprovalViewIntoInfo(root) {
+  root.querySelectorAll?.('[data-pa-proposal-detail], .ds-pa-drawer-panel').forEach((container) => {
+    const viewButton = container.querySelector('.ds-pa-drawer-icon-btns [data-pa-view-gefen-approval]');
+    if (!viewButton) return;
+
+    const infoCell = Array.from(container.querySelectorAll('.ds-pa-info-cell')).find((cell) =>
+      text(cell.querySelector('.ds-pa-info-label')?.textContent) === 'אישור גפ״ן'
+    );
+    const value = infoCell?.querySelector('.ds-pa-info-value');
+    if (!value) return;
+
+    value.classList.add('ds-pa-info-value--with-action');
+    viewButton.classList.add('ds-pa-gefen-inline-view');
+    viewButton.title = viewButton.title || 'צפייה באישור גפ״ן';
+    viewButton.setAttribute('aria-label', viewButton.getAttribute('aria-label') || 'צפייה באישור גפ״ן');
+    value.appendChild(viewButton);
+  });
+}
+
+export function applyClientFileProposalDisplayPolish(root = globalThis.document, scope = globalThis) {
+  if (!root?.querySelectorAll) return root;
+  ensureClientFileLayoutStyles(scope);
+  removeGefenListColumns(root);
+  dedupeProposalViewActions(root);
+  moveGefenApprovalViewIntoInfo(root);
+  return root;
+}
+
 export function applyGefenEligibilityUi(root = globalThis.document, scope = globalThis) {
-  if (!root?.querySelectorAll || !ineligibleProposalIds.size) return root;
+  if (!root?.querySelectorAll) return root;
+
+  applyClientFileProposalDisplayPolish(root, scope);
 
   ineligibleProposalIds.forEach((id) => {
     const escaped = selectorValue(id, scope);

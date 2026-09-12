@@ -1,7 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+import { JSDOM } from 'jsdom';
 import {
+  applyClientFileProposalDisplayPolish,
   gefenApprovalListOptions,
   installGefenApprovalListStatus
 } from '../frontend/src/proposal-gefen-approval-list-status.js';
@@ -10,7 +12,6 @@ import { proposalsAgreementsScreen, proposalsAgreementsTableRowsHtml } from '../
 const FEATURE_LOADERS_FILE = new URL('../frontend/src/feature-loaders.js', import.meta.url);
 const SERVICE_WORKER_FILE = new URL('../frontend/sw.js', import.meta.url);
 const SCREEN_FILE = new URL('../frontend/src/screens/proposals-agreements.js', import.meta.url);
-const CONFIG_FILE = new URL('../frontend/src/config.js', import.meta.url);
 
 function adminState() {
   return {
@@ -93,13 +94,63 @@ test('proposalsAgreementsScreen.load requests linked documents from the screen i
   assert.doesNotMatch(screenSource, /includeLinkedDocuments:\s*false/);
 });
 
-test('proposal feature loads the status fix and cache version is refreshed', async () => {
-  const [featureLoaders, serviceWorker, config] = await Promise.all([
+test('client-file proposal table hides GEFEN columns and expands actions', () => {
+  const headers = [
+    'תחום', 'מס׳', 'רשות', 'בית הספר', 'סוג הצעה', 'תאריך', 'סטטוס', 'סה״כ',
+    'אישור גפ״ן', 'חתום / הוזמן', 'פעולות'
+  ];
+  const dom = new JSDOM(`<!doctype html><html><head></head><body><div id="app">
+    <table class="ds-pa-table" data-pa-table>
+      <colgroup>${headers.map(() => '<col style="width:95px">').join('')}</colgroup>
+      <thead><tr>${headers.map((label, index) => `<th class="${index === 10 ? 'ds-pa-actions-col' : ''}">${label}</th>`).join('')}</tr></thead>
+      <tbody><tr>${headers.map((label, index) => `<td class="${index === 9 ? 'ds-pa-gfen-signed-col' : index === 10 ? 'ds-pa-actions-cell' : ''}">${index === 8 ? '<span class="ds-pa-gefen-status-text">הופק</span>' : label}</td>`).join('')}</tr></tbody>
+    </table>
+  </div></body></html>`);
+
+  applyClientFileProposalDisplayPolish(dom.window.document, dom.window);
+
+  const table = dom.window.document.querySelector('[data-pa-table]');
+  const visibleHeaders = Array.from(table.querySelectorAll('thead th')).map((cell) => cell.textContent.trim());
+  assert.deepEqual(visibleHeaders, ['תחום', 'מס׳', 'רשות', 'בית הספר', 'סוג הצעה', 'תאריך', 'סטטוס', 'סה״כ', 'פעולות']);
+  assert.equal(table.querySelectorAll('tbody td').length, 9);
+  assert.equal(table.querySelectorAll('colgroup col').length, 9);
+  assert.equal(table.querySelector('colgroup col:last-child').style.width, '220px');
+  assert.ok(dom.window.document.getElementById('ds-pa-client-file-gefen-layout-v1'));
+});
+
+test('drawer keeps one proposal view action and moves GEFEN eye beside approval status', () => {
+  const dom = new JSDOM(`<!doctype html><html><head></head><body><div id="app">
+    <section class="ds-pa-drawer-panel">
+      <div class="ds-pa-drawer-icon-btns">
+        <button data-pa-preview="p1" aria-label="צפייה במסמך שנשלח"></button>
+        <button data-pa-view-final-pdf="p1" aria-label="צפייה ב-PDF שנשלח"></button>
+        <button data-pa-view-gefen-approval="p1" aria-label="צפייה באישור גפ״ן"></button>
+      </div>
+      <div class="ds-pa-info-cell">
+        <span class="ds-pa-info-label">אישור גפ״ן</span>
+        <span class="ds-pa-info-value">הופק</span>
+      </div>
+    </section>
+  </div></body></html>`);
+
+  applyClientFileProposalDisplayPolish(dom.window.document, dom.window);
+
+  const panel = dom.window.document.querySelector('.ds-pa-drawer-panel');
+  const actions = panel.querySelector('.ds-pa-drawer-icon-btns');
+  assert.equal(actions.querySelector('[data-pa-preview]'), null);
+  assert.ok(actions.querySelector('[data-pa-view-final-pdf]'));
+  assert.equal(actions.querySelector('[data-pa-view-gefen-approval]'), null);
+
+  const approvalValue = panel.querySelector('.ds-pa-info-value');
+  assert.match(approvalValue.textContent, /הופק/);
+  assert.ok(approvalValue.querySelector('[data-pa-view-gefen-approval].ds-pa-gefen-inline-view'));
+});
+
+test('proposal feature still loads the GEFEN runtime and frontend cache is refreshed', async () => {
+  const [featureLoaders, serviceWorker] = await Promise.all([
     readFile(FEATURE_LOADERS_FILE, 'utf8'),
-    readFile(SERVICE_WORKER_FILE, 'utf8'),
-    readFile(CONFIG_FILE, 'utf8')
+    readFile(SERVICE_WORKER_FILE, 'utf8')
   ]);
-  assert.match(featureLoaders, /proposal-gefen-approval-list-status\.js\?v=20260804-v1/);
-  assert.match(serviceWorker, /const CACHE_VERSION = 1455;/);
-  assert.match(config, /gefen-approval-list-status-load-20260807-v1/);
+  assert.match(featureLoaders, /proposal-gefen-approval-list-status\.js\?v=/);
+  assert.match(serviceWorker, /const CACHE_VERSION = 1692;/);
 });
