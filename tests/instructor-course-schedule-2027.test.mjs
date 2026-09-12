@@ -3,13 +3,13 @@ import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
 
 import {
-  isCourseReadyForWorkSchedule,
-  buildReadyCourseScheduleRows,
-  getCourseMeetingDates,
-  getCourseFixedWeekday,
-  getCourseReadyInstructorNames,
-  sortReadyCourseScheduleRows,
-  formatCourseScheduleRangeShort
+  isActivityAssignedForWorkSchedule,
+  buildInstructorWorkScheduleRows,
+  getWorkScheduleDates,
+  getWorkScheduleFixedWeekday,
+  getWorkScheduleInstructorNames,
+  sortInstructorWorkScheduleRows,
+  formatWorkScheduleRangeShort
 } from '../frontend/src/screens/shared/instructor-course-schedule-2027.js';
 import {
   sanitizePrintFileName,
@@ -55,7 +55,7 @@ function dateColumns(dates) {
 }
 
 function readyCourseFixture(overrides = {}) {
-  const dates = overrides.__dates || READY_DATES_14;
+  const dates = Object.prototype.hasOwnProperty.call(overrides, '__dates') ? overrides.__dates : READY_DATES_14;
   return {
     RowID: 'C2027-READY',
     activity_season: 'school_2027',
@@ -78,138 +78,149 @@ function readyCourseFixture(overrides = {}) {
   };
 }
 
-test('a ready 2027 course with 14 sessions passes readiness and exposes exactly those 14 dates', () => {
+test('a school_2027 activity with an instructor and dates is included', () => {
   const activity = readyCourseFixture();
-  assert.equal(isCourseReadyForWorkSchedule(activity), true);
-  const dates = getCourseMeetingDates(activity);
+  assert.equal(isActivityAssignedForWorkSchedule(activity), true);
+  const dates = getWorkScheduleDates(activity);
   assert.equal(dates.length, 14);
   assert.deepEqual(dates, READY_DATES_14.slice().sort());
 });
 
-test('buildReadyCourseScheduleRows maps a ready course into one row with all 14 dates', () => {
-  const rows = buildReadyCourseScheduleRows([readyCourseFixture()]);
+test('buildInstructorWorkScheduleRows maps a ready course into one row with all 14 dates', () => {
+  const rows = buildInstructorWorkScheduleRows([readyCourseFixture()]);
   assert.equal(rows.length, 1);
   assert.equal(rows[0].name, 'קורס רובוטיקה');
+  assert.equal(rows[0].activityType, 'קורס');
   assert.equal(rows[0].sessionsCount, 14);
   assert.equal(rows[0].contactName, 'נועה לוי');
   assert.equal(rows[0].contactPhone, '050-1234567');
   assert.deepEqual(rows[0].dates, READY_DATES_14.slice().sort());
 });
 
-test('a course without any instructor is not ready and is excluded from the row list', () => {
+test('an activity without a real instructor is excluded from the work schedule', () => {
   const activity = readyCourseFixture({ instructor_name: '', instructor_name_2: '' });
-  assert.equal(isCourseReadyForWorkSchedule(activity), false);
-  assert.equal(buildReadyCourseScheduleRows([activity]).length, 0);
+  assert.equal(isActivityAssignedForWorkSchedule(activity), false);
+  assert.equal(buildInstructorWorkScheduleRows([activity]).length, 0);
 });
 
 test('placeholder instructor text values do not count as a real instructor', () => {
-  assert.equal(isCourseReadyForWorkSchedule(readyCourseFixture({ instructor_name: 'טרם שובץ' })), false);
-  assert.equal(isCourseReadyForWorkSchedule(readyCourseFixture({ instructor_name: 'ללא מדריך' })), false);
-  assert.equal(isCourseReadyForWorkSchedule(readyCourseFixture({ instructor_name: 'לא משויך' })), false);
+  assert.equal(isActivityAssignedForWorkSchedule(readyCourseFixture({ instructor_name: 'טרם שובץ' })), false);
+  assert.equal(isActivityAssignedForWorkSchedule(readyCourseFixture({ instructor_name: 'ללא מדריך' })), false);
+  assert.equal(isActivityAssignedForWorkSchedule(readyCourseFixture({ instructor_name: 'לא משויך' })), false);
 });
 
-test('a course with only a secondary instructor is ready and included for that instructor', () => {
+test('an activity assigned only through instructor_name_2 is included for that instructor', () => {
   const activity = readyCourseFixture({ instructor_name: '', instructor_name_2: 'אפרת אוחיון' });
-  assert.equal(isCourseReadyForWorkSchedule(activity), true);
-  assert.deepEqual(getCourseReadyInstructorNames(activity), ['אפרת אוחיון']);
-  const rows = buildReadyCourseScheduleRows([activity]);
+  assert.equal(isActivityAssignedForWorkSchedule(activity), true);
+  assert.deepEqual(getWorkScheduleInstructorNames(activity), ['אפרת אוחיון']);
+  const rows = buildInstructorWorkScheduleRows([activity]);
   assert.equal(rows.length, 1);
   assert.deepEqual(rows[0].instructorNames, ['אפרת אוחיון']);
 });
 
 test('primary and secondary instructors are both kept when both are valid', () => {
   const activity = readyCourseFixture({ instructor_name: 'דני כהן', instructor_name_2: 'אפרת אוחיון' });
-  assert.deepEqual(getCourseReadyInstructorNames(activity), ['דני כהן', 'אפרת אוחיון']);
+  assert.deepEqual(getWorkScheduleInstructorNames(activity), ['דני כהן', 'אפרת אוחיון']);
 });
 
-test('13 actual dates with sessions declared as 14 is not ready', () => {
+test('a sessions mismatch does not exclude an assigned dated activity', () => {
   const dates13 = READY_DATES_14.slice(0, 13);
   const activity = readyCourseFixture({ __dates: dates13, sessions: '14', end_date: dates13[dates13.length - 1] });
-  assert.equal(isCourseReadyForWorkSchedule(activity), false);
+  assert.equal(isActivityAssignedForWorkSchedule(activity), true);
 });
 
-test('a duplicated meeting date makes the course not ready', () => {
+test('duplicate activity dates do not exclude an otherwise eligible activity', () => {
   const activity = readyCourseFixture();
   activity.date_2 = activity.date_1; // duplicate an existing date onto another meeting slot
-  assert.equal(isCourseReadyForWorkSchedule(activity), false);
+  assert.equal(isActivityAssignedForWorkSchedule(activity), true);
 });
 
-test('a course without start/end time is not ready', () => {
-  assert.equal(isCourseReadyForWorkSchedule(readyCourseFixture({ start_time: '', end_time: '' })), false);
-  assert.equal(isCourseReadyForWorkSchedule(readyCourseFixture({ start_time: '14:00', end_time: '' })), false);
-  assert.equal(isCourseReadyForWorkSchedule(readyCourseFixture({ start_time: '', end_time: '15:30' })), false);
+test('an activity without hours is included and renders an empty time value', () => {
+  const rows = buildInstructorWorkScheduleRows([readyCourseFixture({ start_time: '', end_time: '' })]);
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].timeRange, '');
 });
 
-test('end time earlier than or equal to start time is not ready', () => {
-  assert.equal(isCourseReadyForWorkSchedule(readyCourseFixture({ start_time: '15:30', end_time: '14:00' })), false);
-  assert.equal(isCourseReadyForWorkSchedule(readyCourseFixture({ start_time: '14:00', end_time: '14:00' })), false);
-});
-
-test('a course without a school is not ready', () => {
+test('an activity without a school or authority is included with fallback display values', () => {
   const activity = readyCourseFixture({ school: '', single_school_name: '', legacy_school: '', school_id: '', single_school_id: '', linked_schools_count: 0, linked_school_names: '' });
-  assert.equal(isCourseReadyForWorkSchedule(activity), false);
+  activity.authority = '';
+  const rows = buildInstructorWorkScheduleRows([activity]);
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].school, '');
+  assert.equal(rows[0].authority, '');
 });
 
-test('a course without a course name or authority is not ready', () => {
-  assert.equal(isCourseReadyForWorkSchedule(readyCourseFixture({ activity_name: '', name: '', title: '', program_name: '' })), false);
-  assert.equal(isCourseReadyForWorkSchedule(readyCourseFixture({ authority: '', authority_name: '', legacy_authority: '' })), false);
-});
-
-test('start_date/end_date must match the actual first/last meeting date', () => {
-  assert.equal(isCourseReadyForWorkSchedule(readyCourseFixture({ start_date: '2026-09-01' })), false);
-  assert.equal(isCourseReadyForWorkSchedule(readyCourseFixture({ end_date: '2026-12-31' })), false);
+test('missing or mismatched start_date/end_date does not exclude activity dates', () => {
+  assert.equal(isActivityAssignedForWorkSchedule(readyCourseFixture({ start_date: '', end_date: '' })), true);
+  assert.equal(isActivityAssignedForWorkSchedule(readyCourseFixture({ start_date: '2026-09-01', end_date: '2026-12-31' })), true);
 });
 
 test('a course from a different period (regular/summer_2026) is never considered ready', () => {
   const regular = readyCourseFixture({ activity_season: 'regular' });
   const summer = readyCourseFixture({ activity_season: 'summer_2026' });
-  assert.equal(isCourseReadyForWorkSchedule(regular), false);
-  assert.equal(isCourseReadyForWorkSchedule(summer), false);
-  assert.equal(buildReadyCourseScheduleRows([regular, summer]).length, 0);
+  assert.equal(isActivityAssignedForWorkSchedule(regular), false);
+  assert.equal(isActivityAssignedForWorkSchedule(summer), false);
+  assert.equal(buildInstructorWorkScheduleRows([regular, summer]).length, 0);
 });
 
-test('cancelled or deleted 2027 courses are excluded even if otherwise complete', () => {
-  assert.equal(isCourseReadyForWorkSchedule(readyCourseFixture({ status: 'נמחק' })), false);
-  assert.equal(isCourseReadyForWorkSchedule(readyCourseFixture({ status: 'בוטל' })), false);
+test('status does not add an eligibility rule to the work schedule', () => {
+  assert.equal(isActivityAssignedForWorkSchedule(readyCourseFixture({ status: 'נמחק' })), true);
+  assert.equal(isActivityAssignedForWorkSchedule(readyCourseFixture({ status: 'בוטל' })), true);
 });
 
-test('non-course activity types (workshop) in school_2027 do not appear in the course schedule', () => {
-  assert.equal(isCourseReadyForWorkSchedule(readyCourseFixture({ activity_type: 'workshop' })), false);
-  assert.equal(isCourseReadyForWorkSchedule(readyCourseFixture({ activity_type: 'סדנה' })), false);
+test('workshop, tour, after_school and escape_room activities are all included', () => {
+  const types = ['workshop', 'tour', 'after_school', 'escape_room'];
+  const rows = buildInstructorWorkScheduleRows(types.map((activityType, index) => readyCourseFixture({
+    RowID: `TYPE-${index}`,
+    activity_type: activityType,
+    activity_name: activityType
+  })));
+  assert.deepEqual(rows.map((row) => row.activity.activity_type), types);
+  assert.deepEqual(rows.map((row) => row.activityType), ['סדנה', 'סיור', 'חוג אפטרסקול', 'חדר בריחה']);
 });
 
-test('getCourseFixedWeekday returns the weekday only when every meeting shares it', () => {
-  const weekly = getCourseMeetingDates(readyCourseFixture());
-  const weekday = getCourseFixedWeekday(weekly);
+test('a course with sessions null is included when it has an instructor and date', () => {
+  assert.equal(isActivityAssignedForWorkSchedule(readyCourseFixture({ sessions: null })), true);
+});
+
+test('an activity without a valid date is excluded', () => {
+  const activity = readyCourseFixture({ __dates: [], start_date: '', end_date: '' });
+  assert.equal(isActivityAssignedForWorkSchedule(activity), false);
+  assert.equal(buildInstructorWorkScheduleRows([activity]).length, 0);
+});
+
+test('getWorkScheduleFixedWeekday returns the weekday only when every meeting shares it', () => {
+  const weekly = getWorkScheduleDates(readyCourseFixture());
+  const weekday = getWorkScheduleFixedWeekday(weekly);
   assert.notEqual(weekday, '');
 
   const mixed = [READY_DATES_14[0], '2026-09-08', '2026-09-21'];
-  assert.equal(getCourseFixedWeekday(mixed), '');
-  assert.equal(getCourseFixedWeekday([]), '');
+  assert.equal(getWorkScheduleFixedWeekday(mixed), '');
+  assert.equal(getWorkScheduleFixedWeekday([]), '');
 });
 
-test('sortReadyCourseScheduleRows orders by instructor then start date when no instructor is selected', () => {
-  const rows = buildReadyCourseScheduleRows([
+test('sortInstructorWorkScheduleRows orders by instructor then start date when no instructor is selected', () => {
+  const rows = buildInstructorWorkScheduleRows([
     readyCourseFixture({ RowID: 'B', instructor_name: 'רון', __dates: buildWeeklyDates('2026-10-04', 14), start_date: '2026-10-04', end_date: buildWeeklyDates('2026-10-04', 14).slice(-1)[0], sessions: '14' }),
     readyCourseFixture({ RowID: 'A1', instructor_name: 'דני', __dates: buildWeeklyDates('2026-11-01', 14), start_date: '2026-11-01', end_date: buildWeeklyDates('2026-11-01', 14).slice(-1)[0], sessions: '14' }),
     readyCourseFixture({ RowID: 'A2', instructor_name: 'דני', __dates: buildWeeklyDates('2026-09-06', 14), start_date: '2026-09-06', end_date: buildWeeklyDates('2026-09-06', 14).slice(-1)[0], sessions: '14' })
   ]);
-  const sorted = sortReadyCourseScheduleRows(rows, { instructorSelected: false });
+  const sorted = sortInstructorWorkScheduleRows(rows, { instructorSelected: false });
   assert.deepEqual(sorted.map((row) => row.activity.RowID), ['A2', 'A1', 'B']);
 });
 
-test('sortReadyCourseScheduleRows orders by start date only when an instructor is selected', () => {
-  const rows = buildReadyCourseScheduleRows([
+test('sortInstructorWorkScheduleRows orders by start date only when an instructor is selected', () => {
+  const rows = buildInstructorWorkScheduleRows([
     readyCourseFixture({ RowID: 'LATE', instructor_name: 'דני', __dates: buildWeeklyDates('2026-11-01', 14), start_date: '2026-11-01', end_date: buildWeeklyDates('2026-11-01', 14).slice(-1)[0], sessions: '14' }),
     readyCourseFixture({ RowID: 'EARLY', instructor_name: 'דני', __dates: buildWeeklyDates('2026-09-06', 14), start_date: '2026-09-06', end_date: buildWeeklyDates('2026-09-06', 14).slice(-1)[0], sessions: '14' })
   ]);
-  const sorted = sortReadyCourseScheduleRows(rows, { instructorSelected: true });
+  const sorted = sortInstructorWorkScheduleRows(rows, { instructorSelected: true });
   assert.deepEqual(sorted.map((row) => row.activity.RowID), ['EARLY', 'LATE']);
 });
 
-test('formatCourseScheduleRangeShort formats a DD.MM.YY-DD.MM.YY range', () => {
-  assert.equal(formatCourseScheduleRangeShort('2026-09-06', '2026-12-20'), '06.09.26-20.12.26');
-  assert.equal(formatCourseScheduleRangeShort('', ''), '');
+test('formatWorkScheduleRangeShort formats a DD.MM.YY-DD.MM.YY range', () => {
+  assert.equal(formatWorkScheduleRangeShort('2026-09-06', '2026-12-20'), '06.09.26-20.12.26');
+  assert.equal(formatWorkScheduleRangeShort('', ''), '');
 });
 
 test('sanitizePrintFileName strips filesystem-unsafe characters', () => {
@@ -236,14 +247,15 @@ test('courseSchedulePrintCss declares A4 portrait, a compact three-column course
 });
 
 test('buildCourseSchedulePrintHtml renders the document header, separate course cards and unnumbered dates exactly once', () => {
-  const rows = buildReadyCourseScheduleRows([readyCourseFixture()]);
+  const rows = buildInstructorWorkScheduleRows([readyCourseFixture()]);
   const html = buildCourseSchedulePrintHtml({ instructorName: 'דני כהן', rows });
   assert.match(html, /שם המדריך:<\/strong> <span>דני כהן<\/span>/);
   assert.equal((html.match(/סידור עבודה - תשפ"ז/g) || []).length, 1);
   assert.match(html, /<h1 class="cs-print-title">סידור עבודה - תשפ"ז<\/h1>/);
-  assert.match(html, /<strong>סיכום:<\/strong> <span>מספר קורסים: 1 \| מספר מפגשים כולל: 14<\/span>/);
+  assert.match(html, /<strong>סיכום:<\/strong> <span>מספר פעילויות: 1 \| מספר תאריכים כולל: 14<\/span>/);
   assert.equal((html.match(/<article class="cs-card">/g) || []).length, 1);
-  assert.match(html, /<span class="cs-field__label">שם הקורס:<\/span><span class="cs-field__value">קורס רובוטיקה<\/span>/);
+  assert.match(html, /<span class="cs-field__label">שם הפעילות:<\/span><span class="cs-field__value">קורס רובוטיקה<\/span>/);
+  assert.match(html, /<span class="cs-field__label">סוג פעילות:<\/span><span class="cs-field__value">קורס<\/span>/);
   assert.match(html, /פרטי איש קשר/);
   assert.match(html, /שם איש הקשר:<\/span><span class="cs-field__value">נועה לוי/);
   assert.match(html, /טלפון איש הקשר:<\/span><span class="cs-field__value">050-1234567/);
@@ -261,9 +273,9 @@ test('buildCourseSchedulePrintHtml renders the document header, separate course 
   assert.deepEqual(listedDates, expectedFormatted, 'dates list should be in chronological order');
 });
 
-test('buildCourseSchedulePrintHtml with no ready courses renders an empty card list without throwing', () => {
+test('buildCourseSchedulePrintHtml with no activities renders an empty card list without throwing', () => {
   const html = buildCourseSchedulePrintHtml({ instructorName: 'דני כהן', rows: [] });
-  assert.match(html, /<strong>סיכום:<\/strong> <span>מספר קורסים: 0 \| מספר מפגשים כולל: 0<\/span>/);
+  assert.match(html, /<strong>סיכום:<\/strong> <span>מספר פעילויות: 0 \| מספר תאריכים כולל: 0<\/span>/);
   assert.doesNotMatch(html, /<article class="cs-card">/);
 });
 
@@ -278,6 +290,7 @@ function domTestState({ instructor = '' } = {}) {
       period: 'school_2027',
       dateFrom: '2026-09-01',
       dateTo: '2027-08-31',
+      scheduleHasLoaded: true,
       instructor: '__all__',
       expandedWorkshop: '',
       expandedSchool: '',
@@ -303,6 +316,15 @@ function captureAlerts() {
   return messages;
 }
 
+test('manager instructor filter includes an activity assigned only in instructor_name_2', () => {
+  const state = domTestState({ instructor: 'אפרת אוחיון' });
+  const secondary = readyCourseFixture({ RowID: 'SECONDARY', activity_name: 'פעילות משנית', instructor_name: '', instructor_name_2: 'אפרת אוחיון' });
+  const another = readyCourseFixture({ RowID: 'OTHER', activity_name: 'פעילות אחרת', instructor_name: 'דני כהן', instructor_name_2: '' });
+  const html = operationsManagementScreen.render({ rows: [secondary, another], workshopStockMap: new Map() }, { state });
+  assert.match(html, /פעילות משנית/);
+  assert.doesNotMatch(html, /פעילות אחרת/);
+});
+
 test('printing is blocked with a guidance message when "all instructors" is selected', () => {
   const alerts = captureAlerts();
   const opened = [];
@@ -317,22 +339,21 @@ test('printing is blocked with a guidance message when "all instructors" is sele
   assert.equal(opened.length, 0, 'window.open should not be called when no instructor is selected');
 });
 
-test('printing shows a not-found message when the selected instructor has no ready courses', () => {
+test('printing shows a not-found message when the selected instructor has no eligible activities', () => {
   const alerts = captureAlerts();
   const opened = [];
   window.open = (...args) => { opened.push(args); return undefined; };
 
   // The instructor filter dropdown resets a selection that isn't among the raw
   // rows' instructor values back to "" (topFiltersHtml), so this must select a
-  // real instructor whose only course fails readiness (here: a duplicate date) -
+  // real instructor whose only activity has no date -
   // not a name that never appears in the data at all.
-  const notReadyCourse = readyCourseFixture();
-  notReadyCourse.date_2 = notReadyCourse.date_1;
+  const notReadyCourse = readyCourseFixture({ __dates: [], start_date: '', end_date: '' });
   const state = domTestState({ instructor: 'דני כהן' });
   const printBtn = renderAndBindPrintButton([notReadyCourse], state);
   printBtn.click();
 
-  assert.deepEqual(alerts, ['לא נמצאו קורסים מוכנים להדפסה עבור המדריך שנבחר.']);
+  assert.deepEqual(alerts, ['לא נמצאו פעילויות להדפסה עבור המדריך שנבחר.']);
   assert.equal(opened.length, 0);
 });
 

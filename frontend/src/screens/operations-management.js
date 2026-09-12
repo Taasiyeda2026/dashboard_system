@@ -85,8 +85,8 @@ import {
   instructorsWorkspaceNavStylesHtml
 } from './shared/instructors-workspace-nav.js';
 import {
-  buildReadyCourseScheduleRows,
-  sortReadyCourseScheduleRows
+  buildInstructorWorkScheduleRows,
+  sortInstructorWorkScheduleRows
 } from './shared/instructor-course-schedule-2027.js';
 import { courseScheduleSummaryHtml, courseScheduleTableHtml } from './shared/instructor-course-schedule-view.js';
 import {
@@ -2277,7 +2277,7 @@ function printCourseSchedule2027() {
   }
   const rows = ctx?.rows || [];
   if (!rows.length) {
-    alert('לא נמצאו קורסים מוכנים להדפסה עבור המדריך שנבחר.');
+    alert('לא נמצאו פעילויות להדפסה עבור המדריך שנבחר.');
     return;
   }
   const title = buildCourseSchedulePrintDocumentTitle(instructorName);
@@ -2416,15 +2416,15 @@ function courseScheduleTabHtml2027(rows, state) {
   const ops = ensureOpsState(state);
   const filters = ensureActivityListFilters(state, SCOPE);
   const selectedInstructorFilter = String(filters.instructor || '').trim();
-  const readyRows = sortReadyCourseScheduleRows(buildReadyCourseScheduleRows(rows), { instructorSelected: Boolean(selectedInstructorFilter) });
-  _courseSchedulePrintContext2027 = { rows: readyRows, instructorName: selectedInstructorFilter };
+  const scheduleRows = sortInstructorWorkScheduleRows(buildInstructorWorkScheduleRows(rows), { instructorSelected: Boolean(selectedInstructorFilter) });
+  _courseSchedulePrintContext2027 = { rows: scheduleRows, instructorName: selectedInstructorFilter };
   const printHeaderTitle = selectedInstructorFilter ? `סידור עבודה — ${selectedInstructorFilter}` : 'סידור עבודה — כל המדריכים';
   return `<section class="ds-ops-mgmt-panel" dir="rtl">
     ${attendanceControlHtml()}
-    ${courseScheduleSummaryHtml(readyRows)}
+    ${courseScheduleSummaryHtml(scheduleRows)}
     <div class="ds-ops-mgmt-panel__toolbar no-print"><button type="button" class="ds-btn ds-btn--sm ds-btn--primary" data-ops-print>הדפס סידור עבודה</button><button type="button" class="ds-btn ds-btn--sm" data-attendance-open>בקרת נוכחות</button></div>
     <div class="ds-ops-mgmt-print-header only-print"><h2>${escapeHtml(printHeaderTitle)}</h2></div>
-    <div class="ds-ops-schedule-wrap"><section class="ds-card"><div class="ds-card__body">${courseScheduleTableHtml(readyRows, { expandedDates: ops.expandedCourseDates })}</div></section></div>
+    <div class="ds-ops-schedule-wrap"><section class="ds-card"><div class="ds-card__body">${courseScheduleTableHtml(scheduleRows, { expandedDates: ops.expandedCourseDates })}</div></section></div>
   </section>`;
 }
 
