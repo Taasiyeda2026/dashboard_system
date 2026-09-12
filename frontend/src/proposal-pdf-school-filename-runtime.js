@@ -9,7 +9,13 @@ const TARGET_PROPOSAL_TYPES = new Set([
   'תשפז',
   'שנה הבאה',
   'שנת הלימודים תשפ״ז',
-  'תוכניות תשפ״ז'
+  'תוכניות תשפ״ז',
+  'summer',
+  'קיץ',
+  'tour',
+  'סיור',
+  'combined',
+  'הצעה משולבת'
 ]);
 
 function cleanFilenamePart(value = '') {
@@ -25,10 +31,9 @@ export function isSchoolProposalPdfFilenameType(value = '') {
   return TARGET_PROPOSAL_TYPES.has(String(value || '').replace(/\s+/g, ' ').trim());
 }
 
-export function proposalSchoolPdfTitle({ typeKey = '', semelMosad = '', schoolName = '' } = {}) {
-  if (!isSchoolProposalPdfFilenameType(typeKey)) return '';
+export function proposalSchoolPdfTitle({ semelMosad = '', schoolName = '' } = {}) {
   const recipient = cleanFilenamePart(schoolName) || cleanFilenamePart(semelMosad);
-  return recipient ? `הצעת מחיר ${recipient}` : 'הצעת מחיר';
+  return recipient ? `הצעת מחיר ${recipient}` : '';
 }
 
 function visibleProposalForms(root = document) {
@@ -72,9 +77,7 @@ function proposalPreviewContext(root = document) {
 export function resolveProposalSchoolPdfTitle(root = document) {
   const formContext = proposalFormContext(root);
   const previewContext = proposalPreviewContext(root);
-  const typeKey = formContext?.typeKey || previewContext?.typeKey || '';
   return proposalSchoolPdfTitle({
-    typeKey,
     semelMosad: formContext?.semelMosad || previewContext?.semelMosad || '',
     schoolName: formContext?.schoolName || previewContext?.schoolName || ''
   });
