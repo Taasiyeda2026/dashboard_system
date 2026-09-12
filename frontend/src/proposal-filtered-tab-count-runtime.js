@@ -1,3 +1,4 @@
+import './proposal-client-back-button-layout.js';
 import { supabase, waitForSupabaseAuthSession } from './supabase-client.js';
 
 /**
