@@ -5,6 +5,7 @@ import { syncActivitiesGapQuery } from './shared/route-query.js';
 import { ACTIVE_ACTIVITY_SEASON, defaultMonthForGlobalActivityPeriod, ACTIVITY_SEASON_REGULAR } from './shared/summer-activity.js';
 import { activityTypeIconSvg } from './shared/activity-type-icons.js';
 import { normalizeOperationalDistrict } from './shared/district-normalization.js';
+import { dashboardSummarySchemaForMonth } from '../dashboard-summary-schema.js';
 
 const HEBREW_MONTHS = [
   'ינואר',
@@ -103,8 +104,9 @@ const ACTIVITY_TYPE_ORDER = [
   { key: 'after_school', label: 'אפטרסקול' }
 ];
 
-function renderStructuredSummary(summary, ym, byManager) {
+export function renderStructuredSummary(summary, ym, byManager) {
   const monthTitle     = hebrewMonthTitle(ym);
+  const schema = dashboardSummarySchemaForMonth(ym);
 
   const endingCurrentField = getStrictNumericField(summary, 'ending_courses_current_month');
   const counts = summary?.counts && typeof summary.counts === 'object' ? summary.counts : {};
@@ -112,23 +114,11 @@ function renderStructuredSummary(summary, ym, byManager) {
   const missingStartDateCount = pickNumericFallback(counts, 'missing_start_date', summary?.missing_start_date_count ?? summary?.missing_date_count);
   const endDateAfterCutoffCount = pickNumericFallback(counts, 'end_date_after_cutoff', summary?.end_date_after_cutoff_count);
   const endDatePassedCount = pickNumericFallback(counts, 'end_date_passed', summary?.end_date_passed_count);
-  const exceptionsTotalField = getStrictNumericField(summary, 'totalExceptionInstances');
-  const exceptionsTotalFallback = getStrictNumericField(summary, 'exceptions_count');
   const exceptionsUnavailable = summary?.exceptions_unavailable === true;
-  const exceptionsTotalResolved = exceptionsUnavailable
-    ? 'לא זמין'
-    : (exceptionsTotalField.ok
-      ? exceptionsTotalField.value
-      : (exceptionsTotalFallback.ok ? exceptionsTotalFallback.value : 0));
 
   const endingCurrent = escapeHtml(String(endingCurrentField.ok ? endingCurrentField.value : 0));
-  const operationalUniqueField = getStrictNumericField(summary, 'operational_gaps_unique_count');
-  const operationalUniqueCount = exceptionsUnavailable ? 'לא זמין' : (operationalUniqueField.ok ? operationalUniqueField.value : 0);
   const missingInstructor = missingInstructorCount;
   const missingStartDate  = missingStartDateCount;
-  const endDateAfterCutoff = escapeHtml(String(endDateAfterCutoffCount));
-  const endDatePassed = escapeHtml(String(endDatePassedCount));
-
   const typeCounts = summary?.active_type_counts || {};
   const typeRows = ACTIVITY_TYPE_ORDER
     .map(({ key, label }) => {
@@ -157,27 +147,42 @@ function renderStructuredSummary(summary, ym, byManager) {
   const southActive = escapeHtml(String(southRow.total_activities ?? southRow.total_long ?? 0));
 
   const allInstructors = normalizeNames(Array.isArray(summary?.active_instructors) ? summary.active_instructors : []);
+  const instructorCount = pickNumericFallback(summary, 'active_instructors_count', 0);
+  const semesterTotal = Number(summary?.semester_totals?.[schema.semesterKey] || 0);
+  const monthlyTotal = ACTIVITY_TYPE_ORDER.reduce((sum, { key }) => sum + (Number(typeCounts[key]) || 0), 0);
+  const activityMetric = schema.activityMetric === 'starting_current_month'
+    ? `פעילויות שמתחילות החודש: <strong>${pickNumericFallback(summary, 'starting_activities_current_month', 0)}</strong>`
+    : `פעילויות בחודש: <strong>${monthlyTotal}</strong>`;
+  const exceptionValues = {
+    missing_instructor: ['ללא מדריך', missingInstructor],
+    missing_start_date: ['ללא תאריך התחלה', missingStartDate],
+    end_date_passed: ['הסתיימה ולא נסגרה', endDatePassedCount],
+    end_date_after_cutoff: ['תוכניות עם תאריך סיום בסיכון', endDateAfterCutoffCount],
+    semester_1_unfinished: ["פעילויות של מחצית א' שטרם הסתיימו", pickNumericFallback(summary, 'semester_1_unfinished_count', 0)]
+  };
+  const exceptionRows = exceptionsUnavailable
+    ? '<p class="ds-summary-panel__text">נתוני החריגות אינם זמינים</p>'
+    : schema.exceptions.map((key) => {
+      const [label, value] = exceptionValues[key];
+      return `<p class="ds-summary-panel__text">${escapeHtml(label)}: <strong>${escapeHtml(String(value))}</strong></p>`;
+    }).join('');
 
   return `<div class="ds-summary-panel__structured">
     <h3 class="ds-summary-panel__title">סיכום חודשי – <strong>${escapeHtml(monthTitle)}</strong></h3>
+    <p class="ds-summary-panel__text ds-summary-panel__semester-total"><strong>${escapeHtml(schema.semester.label)} – סה"כ פעילויות: ${semesterTotal}</strong></p>
 
-    <h4 class="ds-summary-panel__inner-title"><strong>פעילויות פעילות החודש:</strong></h4>
-    ${typeRows || '<p class="ds-summary-panel__text ds-muted">אין פעילויות פעילות</p>'}
+    <h4 class="ds-summary-panel__inner-title"><strong>היקף הפעילות בחודש</strong></h4>
+    <p class="ds-summary-panel__text">${activityMetric}</p>
+    ${schema.showEndings ? `<p class="ds-summary-panel__text">פעילויות שמסתיימות החודש: <strong>${endingCurrent}</strong></p>` : ''}
+    ${typeRows || '<p class="ds-summary-panel__text ds-muted">אין פעילויות בחודש</p>'}
     <p class="ds-summary-panel__text">צפון: <strong>${northActive}</strong> פעילויות · מרכז: <strong>${centerActive}</strong> פעילויות · דרום: <strong>${southActive}</strong> פעילויות</p>
-    <p class="ds-summary-panel__text">סיומי קורסים החודש: <strong>${endingCurrent}</strong></p>
 
-    <h4 class="ds-summary-panel__inner-title"><strong>המדריכים הפעילים החודש:</strong></h4>
-    <p class="ds-summary-panel__text">${escapeHtml(allInstructors || '—')}</p>
+    <h4 class="ds-summary-panel__inner-title"><strong>מדריכים</strong></h4>
+    <p class="ds-summary-panel__text">מדריכים משובצים/פעילים: <strong>${instructorCount}</strong>${allInstructors ? ` · ${escapeHtml(allInstructors)}` : ''}</p>
 
     <div class="ds-summary-panel__block ds-summary-panel__block--exceptions">
-      <h4 class="ds-summary-panel__inner-title"><strong>חריגות החודש:</strong></h4>
-      <p class="ds-summary-panel__text"><strong>סה״כ חריגות: ${escapeHtml(String(exceptionsTotalResolved))}</strong></p>
-      <p class="ds-summary-panel__text">
-        חריגות תפעוליות: <strong>${escapeHtml(String(operationalUniqueCount))}</strong>
-        <span class="ds-muted"> (ללא מדריך: ${escapeHtml(String(missingInstructor))} · ללא תאריך התחלה: ${escapeHtml(String(missingStartDate))})</span>
-      </p>
-      <p class="ds-summary-panel__text">תאריך סיום מאוחר: <strong>${endDateAfterCutoff}</strong></p>
-      <p class="ds-summary-panel__text">הסתיימה ולא נסגרה: <strong>${endDatePassed}</strong></p>
+      <h4 class="ds-summary-panel__inner-title"><strong>חריגות</strong></h4>
+      ${exceptionRows}
     </div>
   </div>`;
 }

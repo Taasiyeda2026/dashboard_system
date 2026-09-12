@@ -17,7 +17,7 @@ import './admin-data-admin-guard.js?v=20260823-v1';
 import './admin-permissions-management-v2.js?v=20260823-v9';
 import './operations-home-navigation-hotfix.js?v=20260823-v1';
 import './israa-management-activities-ux-fix.js?v=20260824-v1';
-import './exception-end-date-threshold-by-period.js?v=20260825-school-year-cutoff-v1';
+import './exception-end-date-threshold-runtime.js?v=20260912-dashboard-summary-v1';
 import './gefen-proposal-warning-scope.js?v=20260825-v1';
 import './gefen-proposal-document-positioning.js?v=20260826-v1';
 import './progressive-route-warmup.js';

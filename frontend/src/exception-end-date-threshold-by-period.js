@@ -1,5 +1,3 @@
-import { api } from './api.js';
-import { state } from './state.js';
 import {
   ACTIVITY_SEASON_SCHOOL_2027,
   normalizeGlobalActivityPeriod
@@ -129,20 +127,3 @@ export function applyEndDateExceptionThresholdByPeriod(data = {}, period = '') {
     lateEndDateThreshold: threshold
   };
 }
-
-function installExceptionThresholdReconciler() {
-  const flag = '__dsExceptionThresholdByPeriodInstalled';
-  if (globalThis[flag]) return;
-  const originalExceptions = api?.exceptions?.bind(api);
-  if (typeof originalExceptions !== 'function') return;
-  globalThis[flag] = true;
-
-  api.exceptions = async (...args) => {
-    const payload = await originalExceptions(...args);
-    const filters = args?.[0] && typeof args[0] === 'object' ? args[0] : {};
-    const activityPeriod = filters?.activity_period || state?.activityPeriodTab;
-    return applyEndDateExceptionThresholdByPeriod(payload, activityPeriod);
-  };
-}
-
-installExceptionThresholdReconciler();

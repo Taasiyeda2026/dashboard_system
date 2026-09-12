@@ -22,6 +22,14 @@ export function filterMeetingsByCourseSchedulingPeriod(meetings = [], periodKey 
   return (meetings || []).filter((meeting) => isDateInCourseSchedulingPeriod(meeting?.date || meeting, periodKey));
 }
 
+/** Keep activity-to-semester assignment identical to the scheduling board: meeting dates decide. */
+export function activityBelongsToCourseSchedulingPeriod(activity = {}, periodKey = DEFAULT_COURSE_SCHEDULING_PERIOD_KEY) {
+  const meetings = Array.isArray(activity?.meeting_dates)
+    ? activity.meeting_dates
+    : Array.from({ length: 35 }, (_, index) => activity?.[`date_${index + 1}`]);
+  return filterMeetingsByCourseSchedulingPeriod(meetings, periodKey).length > 0;
+}
+
 export function periodOptions() {
   return Object.values(COURSE_SCHEDULING_PERIODS);
 }
