@@ -7068,7 +7068,7 @@ export const proposalsAgreementsScreen = {
 
       const renderLocalResults = () => {
         if (requestId !== clientSearchRequestId || text(input.value) !== query || !results.isConnected) return;
-        results.innerHTML = clientSearchResultsHtml(filterClientFilesLocally(clientFilesForSearch(), query), query);
+        results.innerHTML = clientSearchResultsHtml(clientFilesForSearch(), query);
       };
       renderLocalResults();
 

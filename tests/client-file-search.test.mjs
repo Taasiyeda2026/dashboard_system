@@ -172,7 +172,8 @@ test('חיפוש תיק לקוח מסנן מקומית לפני השלמת חי�
   const handler = source.slice(handlerStart, handlerEnd);
 
   assert.match(handler, /renderLocalResults\(\);/);
-  assert.match(handler, /filterClientFilesLocally/);
+  assert.match(handler, /clientSearchResultsHtml\(clientFilesForSearch\(\), query\)/);
+  assert.doesNotMatch(handler, /clientSearchResultsHtml\(filterClientFilesLocally/);
   assert.match(handler, /ensureContacts\('client-file-search'\)/);
   assert.match(handler, /CLIENT_FILE_SERVER_SEARCH_DEBOUNCE_MS/);
   assert.doesNotMatch(handler, /reloadProposalList\(\{ search: query/);
