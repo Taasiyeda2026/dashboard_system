@@ -1,0 +1,54 @@
+/* Keep the manager KPI beside the instructor grid, matching the compact board layout. */
+.manager-board-screen[data-manager-board-root] .manager-board-team-strip {
+  display: grid;
+  grid-template-columns: 170px minmax(0, 1fr);
+  column-gap: 10px;
+  align-items: start;
+}
+
+.manager-board-screen[data-manager-board-root] .manager-board-team-strip__title {
+  grid-column: 1 / -1;
+}
+
+.manager-board-screen[data-manager-board-root] .manager-board-team-strip__summary {
+  margin-bottom: 0;
+  align-self: start;
+}
+
+.manager-board-screen[data-manager-board-root] .manager-board-team-strip__grid {
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  grid-auto-rows: 34px;
+  align-self: start;
+}
+
+.manager-board-screen[data-manager-board-root] button.manager-board-team-strip__chip {
+  height: 34px;
+  min-height: 34px;
+}
+
+.manager-board-screen[data-manager-board-root] .manager-board-team-strip__chip--kpi {
+  width: 100%;
+  height: 76px;
+  min-height: 76px;
+  margin: 0;
+}
+
+@media (max-width: 760px) {
+  .manager-board-screen[data-manager-board-root] .manager-board-team-strip {
+    grid-template-columns: 1fr;
+  }
+
+  .manager-board-screen[data-manager-board-root] .manager-board-team-strip__summary,
+  .manager-board-screen[data-manager-board-root] .manager-board-team-strip__grid {
+    grid-column: 1;
+  }
+
+  .manager-board-screen[data-manager-board-root] .manager-board-team-strip__summary {
+    margin-bottom: 8px;
+  }
+
+  .manager-board-screen[data-manager-board-root] .manager-board-team-strip__chip--kpi {
+    height: 58px;
+    min-height: 58px;
+  }
+}
