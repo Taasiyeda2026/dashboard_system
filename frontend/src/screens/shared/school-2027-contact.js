@@ -72,53 +72,6 @@ export function resolveSchool2027Contact(activity = {}, contacts = []) {
   };
 }
 
-/** Resolve only the contact explicitly persisted on the activity. */
-export function resolveExactActivityContact(activity = {}, contacts = []) {
-  const savedId = text(activity.school_contact_id);
-  if (!savedId) {
-    const stored = {
-      name: text(activity.contact_name),
-      phone: text(activity.contact_phone),
-      email: text(activity.contact_email),
-      role: text(activity.contact_role),
-      id: '',
-      source: 'activity'
-    };
-    return stored.name || stored.phone || stored.email || stored.role
-      ? stored
-      : { ...stored, source: 'unassigned' };
-  }
-  const selected = (Array.isArray(contacts) ? contacts : []).find((contact) => text(contact.id) === savedId);
-  if (!selected) return { name: '', phone: '', email: '', role: '', id: savedId, source: 'missing' };
-  return {
-    name: text(selected.contact_name),
-    phone: contactPhone(selected),
-    email: text(selected.email),
-    role: text(selected.contact_role),
-    id: savedId,
-    source: 'school_contact_id'
-  };
-}
-
-export function withExactActivityContact(activity = {}, contacts = []) {
-  const resolved = resolveExactActivityContact(activity, contacts);
-  return {
-    ...activity,
-    resolved_school_2027_contact: resolved,
-    resolved_contact_name: resolved.name,
-    resolved_contact_phone: resolved.phone,
-    resolved_contact_email: resolved.email,
-    resolved_contact_role: resolved.role,
-    school_contact_name: resolved.name,
-    school_contact_phone: resolved.phone,
-    school_contact_role: resolved.role,
-    contact_name: resolved.name,
-    contact_phone: resolved.phone,
-    contact_email: resolved.email,
-    contact_role: resolved.role
-  };
-}
-
 export function withResolvedSchool2027Contact(activity = {}, contacts = []) {
   if (!isSchool2027Activity(activity)) return { ...activity };
   const resolved = resolveSchool2027Contact(activity, contacts);

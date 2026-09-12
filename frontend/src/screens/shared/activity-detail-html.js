@@ -771,7 +771,7 @@ function blockContact2027(row, { viewOnly = false } = {}) {
   `;
 }
 
-function blockViewOnce(row, { settings = {}, hideFunding = false } = {}) {
+function blockViewOnce(row, { settings = {}, hideFunding = false, hideInstructors = false } = {}) {
   const instructorLookup = buildInstructorLookup(settings);
   const contactsUsers = getValidInstructorUsers(settings || {});
   const instr1 = instructorViewDisplay(
@@ -795,8 +795,8 @@ function blockViewOnce(row, { settings = {}, hideFunding = false } = {}) {
     <section class="activity-view-card activity-view-card--once" data-mode="view" data-central-info-section>
       <div class="activity-view-card__grid">
         ${viewField('מנהל פעילות', viewMgr(row.activity_manager))}
-        ${viewField(twoInstructors ? 'מדריך/ה 1' : 'מדריך/ה', viewVal(instr1))}
-        ${twoInstructors ? viewField('מדריך/ה 2', viewVal(instr2)) : ''}
+        ${hideInstructors ? '' : viewField(twoInstructors ? 'מדריך/ה 1' : 'מדריך/ה', viewVal(instr1))}
+        ${hideInstructors || !twoInstructors ? '' : viewField('מדריך/ה 2', viewVal(instr2))}
         ${viewField('כיתה / קבוצה', classLabel)}
         ${viewField('שעות', hoursLabel)}
         ${hideFunding ? '' : viewField('מימון', fundingDisplay)}
@@ -805,7 +805,7 @@ function blockViewOnce(row, { settings = {}, hideFunding = false } = {}) {
   `;
 }
 
-function blockViewCourse(row, { settings = {} } = {}) {
+function blockViewCourse(row, { settings = {}, hideInstructors = false } = {}) {
   const instructorLookup = buildInstructorLookup(settings);
   const contactsUsers = getValidInstructorUsers(settings || {});
   const instr1 = instructorViewDisplay(
@@ -823,7 +823,7 @@ function blockViewCourse(row, { settings = {} } = {}) {
     <section class="activity-view-card activity-view-card--course" data-mode="view" data-central-info-section>
       <div class="activity-view-card__grid">
         ${viewField('מנהל פעילות', viewMgr(row.activity_manager))}
-        ${viewField('מדריך/ה', viewVal(instr1))}
+        ${hideInstructors ? '' : viewField('מדריך/ה', viewVal(instr1))}
         ${viewField('כיתה / קבוצה', classLabel)}
         ${viewField('שעות', hoursLabel)}
       </div>
@@ -1311,7 +1311,7 @@ function singleForm(row, { settings = {}, privateNote = null, canEdit = false, c
     ? `<div class="ds-chip ds-chip--status ds-chip--warn" data-edit-request-status="${escapeHtml(editReqStatus)}">בקשת עריכה: ${escapeHtml(editReqLabel)}</div>`
     : '';
   const exportRow = instructorLimited
-    ? Object.fromEntries(Object.entries(row).filter(([key]) => !['price', 'funding', 'funding_sources'].includes(key)))
+    ? Object.fromEntries(Object.entries(row).filter(([key]) => !['price', 'funding', 'funding_sources', 'instructor_name', 'instructor_name_2', 'instructor', 'instructor_2'].includes(key)))
     : row;
   return `
     <form class="activity-drawer__form" data-drawer-form data-editing="no"
@@ -1333,8 +1333,8 @@ function singleForm(row, { settings = {}, privateNote = null, canEdit = false, c
       <input type="hidden" name="gefen_number" value="${escapeHtml(String(row.gefen_number || ''))}" data-gefen-number>
       <input type="hidden" name="_activity_idx" value="${idx}">
       ${isOnce
-        ? blockViewOnce(row, { settings, hideFunding: hideFundingInView || instructorLimited })
-        : blockViewCourse(row, { settings })}
+        ? blockViewOnce(row, { settings, hideFunding: hideFundingInView || instructorLimited, hideInstructors: instructorLimited })
+        : blockViewCourse(row, { settings, hideInstructors: instructorLimited })}
       ${blockViewRecordDetails(row, { instructorLimited, showFunding: false, showParticipants: !isCourse })}
       ${isOnce && showDates
         ? `<div class="activity-drawer__once-dates-row" data-once-dates-row>${blockDates(row, { canEdit, canDirectEdit, datesLoading, is2027, viewOnly: instructorLimited })}</div>`

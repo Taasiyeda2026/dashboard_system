@@ -303,7 +303,7 @@ function coreDetails(form, body, row, existingValues) {
 
   [
     makeField(doc, { label: 'מנהל פעילות', viewValue: managerView, editControls: managerControls }),
-    makeField(doc, { label: twoInstructors ? 'מדריכים' : 'מדריך/ה', viewValue: instructorView, editControls: instructorControls }),
+    instructorLimited ? null : makeField(doc, { label: twoInstructors ? 'מדריכים' : 'מדריך/ה', viewValue: instructorView, editControls: instructorControls }),
     makeField(doc, { label: 'כיתה / קבוצה', viewValue: classView, editControls: classControls, className: 'activity-drawer-inline__field--mixed-bidi' }),
     makeField(doc, { label: 'שעות', viewValue: timeView, editControls: timeControls, className: 'activity-drawer-inline__field--time-bidi' }),
     instructorLimited ? null : makeField(doc, {

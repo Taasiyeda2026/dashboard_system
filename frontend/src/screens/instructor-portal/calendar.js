@@ -27,7 +27,7 @@ export function organizationalCalendarGridHtml(data, month = selectedMonth) {
     const hasActivity = events.some((event) => event.kind === 'instructor-activity');
     const hasSchoolCalendar = events.some((event) => event.kind === 'school-calendar');
     const eventClasses = [hasSchoolCalendar ? 'is-school-calendar-day' : '', hasActivity ? 'has-instructor-activity' : ''].filter(Boolean).join(' ');
-    return `<div class="ds-cal-slot-hit" data-calendar-date="${date}">${dsInteractiveCard({ action: `organization-day|${date}`, title: String(day), subtitle: organizationalCalendarDayLabel(events), meta: events.length > 1 ? `${events.length} אירועים` : '', variant: 'day-cell', extraClass: eventClasses })}</div>`;
+    return `<div class="ds-cal-slot-hit" data-calendar-date="${date}">${dsInteractiveCard({ action: `organization-day|${date}`, title: String(day), subtitle: organizationalCalendarDayLabel(events), variant: 'day-cell', extraClass: eventClasses })}</div>`;
   }).join('');
   return `<div class="ds-cal-wrap" dir="rtl"><div class="ds-cal-weekdays" role="row">${WEEKDAYS.map((day) => `<div class="ds-cal-wd" role="columnheader">${day}</div>`).join('')}</div><div class="ds-cal-grid" role="grid" aria-label="לוח חודש">${slots}</div></div>`;
 }

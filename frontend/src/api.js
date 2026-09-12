@@ -19,7 +19,7 @@ import {
 import { resolveActiveUserRowAfterAuth } from './auth-user-resolve.js';
 import { supabase, supabaseConfig, waitForSupabaseAuthSession, resetSupabaseAuthSessionWait } from './supabase-client.js';
 import { isEmptyValue, nonEmptyString } from './utils/empty-value.js';
-import { withExactActivityContact, withResolvedSchool2027Contact } from './screens/shared/school-2027-contact.js';
+import { withResolvedSchool2027Contact } from './screens/shared/school-2027-contact.js';
 import { normalizeOperationalDistrict } from './screens/shared/district-normalization.js';
 import { permissionFlagYes, canEditDirect, canAddActivityDirect, canRequestEdit, canRequestCreateActivity, canReviewRequests } from './permissions.js';
 import { mapWithConcurrency } from './bounded-concurrency.js';
@@ -1578,22 +1578,6 @@ async function readMyDataSummerPrintContactRows() {
     return [];
   }
 }
-
-async function readMyDataContactsSchoolsRows() {
-  if (!supabase) return [];
-  try {
-    const { data, error } = await supabase
-      .from('contacts_schools')
-      .select('id, authority, school, school_id, contact_name, contact_role, phone, mobile, email, active')
-      .limit(10000);
-    if (error) throw error;
-    return Array.isArray(data) ? data : [];
-  } catch (err) {
-    console.warn('[my-data] contacts_schools read failed', err?.message || err);
-    return [];
-  }
-}
-
 
 // Index builders now live in screens/shared/contact-responsible.js (buildSummerContactIndex,
 // buildContactsSchoolsIndex, buildSchoolsCatalogContactIndex) so the instructor data path and
@@ -7169,11 +7153,10 @@ export const api = {
   endDates: () => readEndDatesFromSupabase(),
   getCatalogPrograms: () => readCatalogProgramsFromSupabase(),
   myData: async (params = {}) => {
-    const [allRows, contactResponsibles, summerPrintContactRows, contactsSchoolsRows] = await Promise.all([
+    const [allRows, contactResponsibles, summerPrintContactRows] = await Promise.all([
       readAllActivitiesRowsSupabase({ select: INSTRUCTOR_PORTAL_ACTIVITY_COLUMNS }),
       readSchoolContactResponsiblesRows(),
-      readMyDataSummerPrintContactRows(),
-      readMyDataContactsSchoolsRows()
+      readMyDataSummerPrintContactRows()
     ]);
     const idsSet = getInstructorIdentitySet();
     const includeClosedForApprovals = Boolean(params?.includeClosedForApprovals);
@@ -7181,9 +7164,9 @@ export const api = {
     const openRows = includeClosedForApprovals
       ? periodRows.filter((row) => !isActivityDeleted(row) && !isActivityCancelled(row))
       : periodRows.filter((row) => !isActivityClosed(row));
-    const rows = openRows
-      .filter((row) => isInstructorAssignedRow(row, idsSet))
-      .map((row) => withExactActivityContact(row, contactsSchoolsRows));
+    const instructorRows = openRows.filter((row) => isInstructorAssignedRow(row, idsSet));
+    const contactRows = await readContactsForSchool2027Activities(instructorRows);
+    const rows = instructorRows.map((row) => withResolvedSchool2027Contact(row, contactRows));
     return { rows, teamGroups: buildInstructorTeamGroups(openRows, rows, contactResponsibles), summerContacts: summerPrintContactRows, contactRows: summerPrintContactRows, _source: 'supabase' };
   },
 
