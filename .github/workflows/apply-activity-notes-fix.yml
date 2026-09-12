@@ -1,0 +1,72 @@
+name: Apply activity notes projection fix
+
+on:
+  push:
+    branches:
+      - fix/activity-table-notes-20260913
+    paths:
+      - .github/workflows/apply-activity-notes-fix.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply-fix:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: fix/activity-table-notes-20260913
+          fetch-depth: 0
+
+      - name: Add notes to activities table projection
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('frontend/src/api.js')
+          text = path.read_text(encoding='utf-8')
+          marker = 'const ACTIVITY_TABLE_COLUMNS = ['
+          start = text.index(marker)
+          end_marker = "].join(',');"
+          end = text.index(end_marker, start) + len(end_marker)
+          block = text[start:end]
+
+          if "'notes'" in block:
+              print('notes already present in ACTIVITY_TABLE_COLUMNS')
+          else:
+              needle = "  'start_date', 'end_date', 'status',\n"
+              if block.count(needle) != 1:
+                  raise SystemExit('Expected status line not found exactly once in ACTIVITY_TABLE_COLUMNS')
+              block = block.replace(needle, "  'start_date', 'end_date', 'status', 'notes',\n", 1)
+              path.write_text(text[:start] + block + text[end:], encoding='utf-8')
+          PY
+
+      - name: Verify targeted change
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          text = Path('frontend/src/api.js').read_text(encoding='utf-8')
+          start = text.index('const ACTIVITY_TABLE_COLUMNS = [')
+          end = text.index("].join(',');", start)
+          block = text[start:end]
+          if "'notes'" not in block:
+              raise SystemExit('notes missing from ACTIVITY_TABLE_COLUMNS')
+          print('ACTIVITY_TABLE_COLUMNS includes notes')
+          PY
+          git diff --check
+          node --test tests/performance-list-projections.test.mjs tests/activities-page-filters.test.mjs
+
+      - name: Commit fix and remove temporary workflow
+        run: |
+          rm .github/workflows/apply-activity-notes-fix.yml
+          git add frontend/src/api.js .github/workflows/apply-activity-notes-fix.yml
+          if git diff --cached --quiet; then
+            echo 'No changes to commit.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'fix: include activity notes in table projection'
+          git push origin HEAD:fix/activity-table-notes-20260913
