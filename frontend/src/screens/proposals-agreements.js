@@ -5312,7 +5312,13 @@ function drawerHtml(row, activityNameOptions = [], state = null) {
     <div class="ds-pa-total-amount">${row.total_amount != null ? `₪ ${escapeHtml(formatCurrency(row.total_amount))}` : 'לא הוזן'}</div>
   </div>`;
 
-  const notesCard = `<section class="ds-pa-info-card ds-pa-notes-card"><h4 class="ds-pa-card-title">הערות</h4><p class="ds-pa-info-value">${escapeHtml(text(row.notes) || 'לא הוזנו הערות')}</p></section>`;
+  const notesFields = [
+    infoCell('הערת אישור', text(row.approval_note), true),
+    infoCell('הערות', text(row.notes), true)
+  ].filter(Boolean).join('');
+  const notesCard = notesFields
+    ? `<section class="ds-pa-info-card ds-pa-notes-card" data-pa-notes-card><h4 class="ds-pa-card-title">הערות</h4><div class="ds-pa-info-grid">${notesFields}</div></section>`
+    : '';
 
   return `<aside class="ds-pa-drawer" data-pa-drawer data-pa-drawer-id="${escapeHtml(row.id)}" aria-live="polite" dir="rtl">
     <div class="ds-pa-drawer-panel">

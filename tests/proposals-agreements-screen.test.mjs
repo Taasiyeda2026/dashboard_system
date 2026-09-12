@@ -4699,6 +4699,7 @@ test('client-file proposal drawer keeps only the requested clean information gro
     contact_role: 'מנהלת',
     phone: '050-1234567',
     email: 'noa@example.com',
+    approval_note: 'אושר בכפוף לעדכון תאריך',
     notes: 'לתאם מועד לאחר החגים',
     total_amount: 12500
   };
@@ -4714,8 +4715,14 @@ test('client-file proposal drawer keeps only the requested clean information gro
       ['סוג הצעה', 'מספר הצעה', 'נשלח על ידי', 'תאריך שליחה', 'אישור גפ״ן']
     );
     assert.doesNotMatch(drawer.textContent, /תוקף|2026-10-10|valid_until/);
-    assert.equal((drawer.textContent.match(/הערות/g) || []).length, 1, 'notes have one dedicated section');
-    assert.match(drawer.textContent, /לתאם מועד לאחר החגים/);
+    const notesCards = drawer.querySelectorAll('[data-pa-notes-card]');
+    assert.equal(notesCards.length, 1, 'notes have one dedicated section');
+    assert.match(notesCards[0].textContent, /הערת אישור/);
+    assert.match(notesCards[0].textContent, /אושר בכפוף לעדכון תאריך/);
+    assert.match(notesCards[0].textContent, /לתאם מועד לאחר החגים/);
+    const drawerWithoutNotes = drawer.cloneNode(true);
+    drawerWithoutNotes.querySelector('[data-pa-notes-card]').remove();
+    assert.doesNotMatch(drawerWithoutNotes.textContent, /אושר בכפוף לעדכון תאריך|לתאם מועד לאחר החגים/);
     assert.doesNotMatch(drawer.textContent, /לא נמצא מזהה איש קשר קיים לעדכון/);
 
     const contactCard = drawer.querySelector('[data-pa-drawer-contact-form]');
@@ -4726,6 +4733,11 @@ test('client-file proposal drawer keeps only the requested clean information gro
     assert.ok(drawer.querySelector('[data-pa-drawer-items]'), 'proposal line-items host remains available');
     assert.match(drawer.textContent, /סה״כ לתשלום/);
     assert.match(drawer.textContent, /12,500/);
+  });
+
+  await withJSDOM(drawerHtml({ ...row, notes: '', approval_note: '' }, [], stateFor('admin')), async (root) => {
+    assert.equal(root.querySelector('[data-pa-notes-card]'), null, 'empty notes section is not rendered');
+    assert.doesNotMatch(root.textContent, /לא הוזנו הערות/);
   });
 });
 
