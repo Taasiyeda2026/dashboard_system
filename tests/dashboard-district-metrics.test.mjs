@@ -57,7 +57,7 @@ test('dashboard district cards display total active activities including summer/
   assert.match(html, /<span class="ds-manager-stat__value">2<\/span>/);
 });
 
-test('dashboard summer KPI drill opens activities on July 2026 with summer filter', () => {
+test('legacy summer KPI drill opens the unified 2026 activities view', () => {
   const appState = {
     dashboardMonthYm: '2026-05',
     activitiesMonthYm: '2026-05',
@@ -93,8 +93,9 @@ test('dashboard summer KPI drill opens activities on July 2026 with summer filte
   cardHandler('kpi|summer');
 
   assert.equal(appState.route, 'activities');
-  assert.equal(appState.activityQuickFamily, 'summer');
-  assert.equal(appState.activitiesMonthYm, '2026-07');
+  assert.equal(appState.activityQuickFamily, '');
+  assert.equal(appState.activityPeriodTab, 'regular');
+  assert.equal(appState.activitiesMonthYm, '2026-05');
   assert.equal(appState.activityQuickManager, '');
   assert.equal(appState.activitiesGapFilter, '');
   assert.deepEqual(appState.listFilters.activities, { q: '', appliedQ: '', visibleCount: 150 });
