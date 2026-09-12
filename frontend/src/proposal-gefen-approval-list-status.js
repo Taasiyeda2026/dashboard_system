@@ -238,6 +238,39 @@ function removeGefenListColumns(root) {
   });
 }
 
+function proposalDisplayDateTimestamp(value) {
+  const raw = text(value);
+  if (!raw) return Number.NEGATIVE_INFINITY;
+  const dmy = raw.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{4})$/);
+  if (dmy) {
+    const [, day, month, year] = dmy;
+    return Date.UTC(Number(year), Number(month) - 1, Number(day));
+  }
+  const parsed = Date.parse(raw);
+  return Number.isFinite(parsed) ? parsed : Number.NEGATIVE_INFINITY;
+}
+
+export function sortProposalTablesByProposalDate(root) {
+  root.querySelectorAll?.('table[data-pa-table]').forEach((table) => {
+    const headerRow = table.tHead?.rows?.[0];
+    const dateIndex = headerRow
+      ? Array.from(headerRow.cells).findIndex((cell) => text(cell.textContent) === 'תאריך')
+      : -1;
+    if (dateIndex < 0) return;
+
+    Array.from(table.tBodies || []).forEach((tbody) => {
+      const rows = Array.from(tbody.rows || []).filter((row) => row.hasAttribute('data-pa-row-id'));
+      if (rows.length < 2) return;
+      const sorted = rows
+        .map((row, index) => ({ row, index, time: proposalDisplayDateTimestamp(row.cells[dateIndex]?.textContent) }))
+        .sort((a, b) => (b.time - a.time) || (a.index - b.index))
+        .map(({ row }) => row);
+      if (sorted.every((row, index) => row === rows[index])) return;
+      sorted.forEach((row) => tbody.appendChild(row));
+    });
+  });
+}
+
 function proposalActionKey(button) {
   if (!button?.getAttribute) return '';
   const attrs = [
@@ -321,6 +354,7 @@ export function applyClientFileProposalDisplayPolish(root = globalThis.document,
   if (!root?.querySelectorAll) return root;
   ensureClientFileLayoutStyles(scope);
   removeGefenListColumns(root);
+  sortProposalTablesByProposalDate(root);
   compactProposalRowActions(root);
   prepareProposalDetailDrawer(root);
   dedupeProposalViewActions(root);
