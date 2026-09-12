@@ -36,11 +36,12 @@ function ensureProposalBackButtonStyle() {
   document.head.appendChild(style);
 }
 
-export function syncProposalBackButtonLayout(root = document) {
+export function syncProposalBackButtonLayout(root = null) {
   if (typeof document === 'undefined') return false;
   ensureProposalBackButtonStyle();
 
-  const screen = root.querySelector?.(SCREEN_SELECTOR) || document.querySelector(SCREEN_SELECTOR);
+  const queryRoot = root?.querySelector ? root : document;
+  const screen = queryRoot.querySelector(SCREEN_SELECTOR) || document.querySelector(SCREEN_SELECTOR);
   if (!screen) return false;
 
   const stack = screen.closest?.('.ds-screen-stack');
