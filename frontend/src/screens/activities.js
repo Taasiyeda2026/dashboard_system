@@ -244,14 +244,18 @@ function summer2026Rows(rows) {
   return activeActivitiesYearRows(rows, ACTIVITY_SEASON_REGULAR).filter((row) => getActivityPeriodKey(row) === ACTIVITY_SEASON_SUMMER_2026);
 }
 
-function activityInnerTabsForYear(yearKey) {
+function canAccessActivityCoordination(state = {}) {
+  return hasPermission(state?.user, 'send_activity_coordination_approvals');
+}
+
+function activityInnerTabsForYear(yearKey, state = {}) {
   if (yearKey === ACTIVITY_SEASON_SCHOOL_2027) {
     return [
       { key: ACTIVITIES_INNER_TAB_ALL, label: 'כל פעילויות תשפ״ז' },
       { key: ACTIVITIES_INNER_TAB_2027, label: 'פעילויות תשפ״ז' },
       { key: ACTIVITIES_INNER_TAB_COORDINATION, label: 'אישורי תיאום' },
       { key: ACTIVITIES_INNER_TAB_ARCHIVE, label: 'ארכיון תשפ״ז' }
-    ];
+    ].filter((tab) => tab.key !== ACTIVITIES_INNER_TAB_COORDINATION || canAccessActivityCoordination(state));
   }
   return [
     { key: ACTIVITIES_INNER_TAB_ALL, label: 'כל פעילויות 2026' },
@@ -261,9 +265,9 @@ function activityInnerTabsForYear(yearKey) {
   ];
 }
 
-function normalizeActivitiesInnerTab(value, yearKey) {
+function normalizeActivitiesInnerTab(value, yearKey, state = {}) {
   const key = String(value || '').trim();
-  const tabs = activityInnerTabsForYear(yearKey);
+  const tabs = activityInnerTabsForYear(yearKey, state);
   return tabs.some((tab) => tab.key === key) ? key : ACTIVITIES_INNER_TAB_ALL;
 }
 
@@ -284,7 +288,7 @@ function cachedRowsValue(cache, rows, key, create) {
 
 function activityRowsForInnerTab(rows, state = {}) {
   const yearKey = normalizeActivityPeriodTab(state.activityPeriodTab);
-  const tabKey = normalizeActivitiesInnerTab(state.activitiesInnerTab, yearKey);
+  const tabKey = normalizeActivitiesInnerTab(state.activitiesInnerTab, yearKey, state);
   return cachedRowsValue(activityPeriodRowsCache, rows, `${yearKey}:${tabKey}`, () => {
     if (tabKey === ACTIVITIES_INNER_TAB_ARCHIVE) return archivedActivitiesYearRows(rows, yearKey);
     if (tabKey === ACTIVITIES_INNER_TAB_ALL) return allYearActivitiesRows(rows, yearKey);
@@ -313,7 +317,7 @@ function shouldApplyActivitiesMonthFilter(state = {}) {
 export function activityRowsForPeriodAndMonth(rows, state = {}) {
   const periodRows = activityRowsForInnerTab(rows, state);
   if (!shouldApplyActivitiesMonthFilter(state)) return periodRows;
-  const key = `${normalizeActivityPeriodTab(state.activityPeriodTab)}:${normalizeActivitiesInnerTab(state.activitiesInnerTab, state.activityPeriodTab)}:${state.activitiesMonthYm || ''}`;
+  const key = `${normalizeActivityPeriodTab(state.activityPeriodTab)}:${normalizeActivitiesInnerTab(state.activitiesInnerTab, state.activityPeriodTab, state)}:${state.activitiesMonthYm || ''}`;
   return cachedRowsValue(activityMonthRowsCache, rows, key, () =>
     periodRows.filter((row) => activityOccursInSelectedMonth(row, state.activitiesMonthYm))
   );
@@ -392,7 +396,7 @@ function activityPeriodUsesMonthNavigation(state = {}) {
 
 function activityPeriodTabsHtml(rows, activeYearKey, state = {}) {
   const yearKey = normalizeActivityPeriodTab(activeYearKey);
-  const activeTab = normalizeActivitiesInnerTab(state.activitiesInnerTab, yearKey);
+  const activeTab = normalizeActivitiesInnerTab(state.activitiesInnerTab, yearKey, state);
   const countFor = (tabKey) => {
     if (yearKey === ACTIVITY_SEASON_SCHOOL_2027 && tabKey === ACTIVITIES_INNER_TAB_COORDINATION) {
       const coordinationItems = Array.isArray(state?.activityCoordination?.items) ? state.activityCoordination.items : [];
@@ -401,7 +405,7 @@ function activityPeriodTabsHtml(rows, activeYearKey, state = {}) {
     return activityRowsForInnerTab(rows, { ...state, activityPeriodTab: yearKey, activitiesInnerTab: tabKey }).length;
   };
   return `<div class="ds-activities-period-tabs" role="tablist" aria-label="חלוקה פנימית לפעילויות ${escapeHtml(globalActivityPeriodLabel(yearKey))}" dir="rtl">
-    ${activityInnerTabsForYear(yearKey).map((tab) => `<button type="button" class="ds-chip ds-chip--tab ds-activities-period-tab${tab.key === activeTab ? ' is-active' : ''}" role="tab" aria-selected="${tab.key === activeTab ? 'true' : 'false'}" data-activity-period-tab="${escapeHtml(tab.key)}">
+    ${activityInnerTabsForYear(yearKey, state).map((tab) => `<button type="button" class="ds-chip ds-chip--tab ds-activities-period-tab${tab.key === activeTab ? ' is-active' : ''}" role="tab" aria-selected="${tab.key === activeTab ? 'true' : 'false'}" data-activity-period-tab="${escapeHtml(tab.key)}">
       <span>${escapeHtml(tab.label)}</span><strong>${escapeHtml(String(countFor(tab.key)))}</strong>
     </button>`).join('')}
   </div>`;
@@ -1752,7 +1756,10 @@ function activityLayoutListHtml(groups = []) {
 export const activitiesScreen = {
   async load({ api, state }) {
     state.activityPeriodTab = normalizeActivityPeriodTab(state.activityPeriodTab);
-    state.activitiesInnerTab = normalizeActivitiesInnerTab(state.activitiesInnerTab, state.activityPeriodTab);
+    state.activitiesInnerTab = normalizeActivitiesInnerTab(state.activitiesInnerTab, state.activityPeriodTab, state);
+    if (state.activitiesInnerTab === ACTIVITIES_INNER_TAB_COORDINATION && !state.activityCoordinationLoaded && !state.activityCoordinationLoading) {
+      state.activitiesInnerTab = ACTIVITIES_INNER_TAB_ALL;
+    }
     const [result, fundingCatalog] = await Promise.all([
       api.activities({ activity_type: 'all', include_inactive: true }),
       api.fundingSources({ includeInactive: false }).catch(() => ({ rows: [] }))
@@ -1768,13 +1775,6 @@ export const activitiesScreen = {
       }
     };
     const loadedRows = Array.isArray(result?.rows) ? result.rows : [];
-    try {
-      state.activityCoordination = await loadActivityCoordinationContext(loadedRows, state.clientSettings || {});
-      state.activityCoordinationError = '';
-    } catch (error) {
-      state.activityCoordination = { items: [], byActivityId: new Map() };
-      state.activityCoordinationError = String(error?.message || error);
-    }
     ensureActivityPeriodMonth(state, loadedRows);
     return result;
   },
@@ -1787,12 +1787,15 @@ export const activitiesScreen = {
 
     const allRows       = Array.isArray(data?.rows) ? data.rows : [];
     state.activityPeriodTab = normalizeActivityPeriodTab(state.activityPeriodTab);
-    state.activitiesInnerTab = normalizeActivitiesInnerTab(state.activitiesInnerTab, state.activityPeriodTab);
+    state.activitiesInnerTab = normalizeActivitiesInnerTab(state.activitiesInnerTab, state.activityPeriodTab, state);
     ensureActivityPeriodMonth(state, allRows);
     if (state.activityPeriodTab === ACTIVITY_SEASON_SCHOOL_2027 && state.activitiesInnerTab === ACTIVITIES_INNER_TAB_COORDINATION) {
       const periodTabs = activityPeriodTabsHtml(allRows, state.activityPeriodTab, state);
       const error = state.activityCoordinationError ? `<p class="ds-error-text" role="alert">לא ניתן לטעון את נתוני אישורי התיאום: ${escapeHtml(state.activityCoordinationError)}</p>` : '';
-      return dsScreenStack(`<section class="ds-activities-screen"><h2 class="ds-activities-page-title">אישורי תיאום · תשפ״ז</h2>${periodTabs}${error}${renderCoordinationWorkspace(state.activityCoordination, { canManage: canDirectManageActivities(state) })}</section>`);
+      const content = state.activityCoordinationLoading
+        ? '<div class="ds-loading-card" data-activity-coordination-loading role="status"><div class="ds-spinner" aria-hidden="true"></div><p>טוען נתוני אישורי תיאום...</p></div>'
+        : renderCoordinationWorkspace(state.activityCoordination, { canManage: canDirectManageActivities(state) });
+      return dsScreenStack(`<section class="ds-activities-screen"><h2 class="ds-activities-page-title">אישורי תיאום · תשפ״ז</h2>${periodTabs}${error}${content}</section>`);
     }
     state.allActivitiesStatusFilter = normalizeAllActivitiesStatusFilter(state.allActivitiesStatusFilter);
     const isAllMode = isAllActivitiesMode(state);
@@ -2063,12 +2066,12 @@ export const activitiesScreen = {
     return html;
   },
 
-  bind({ root, data, state, rerender, rerenderActivitiesView, ui, api, clearScreenDataCache }) {
+  bind({ root, data, state, rerender, rerenderActivitiesView, ui, api, clearScreenDataCache, loadActivityCoordination = loadActivityCoordinationContext }) {
 
     const coordinationRoot = root.querySelector('.coordination-workspace');
     if (coordinationRoot) {
       root.querySelectorAll('[data-activity-period-tab]').forEach((button) => button.addEventListener('click', () => {
-        state.activitiesInnerTab = normalizeActivitiesInnerTab(button.getAttribute('data-activity-period-tab'), state.activityPeriodTab);
+        state.activitiesInnerTab = normalizeActivitiesInnerTab(button.getAttribute('data-activity-period-tab'), state.activityPeriodTab, state);
         rerender();
       }));
       const refresh = async () => {
@@ -2801,8 +2804,8 @@ export const activitiesScreen = {
         const res = await loadAllActivitiesForAdmin();
         const sourceRows = Array.isArray(res?.rows) ? res.rows : [];
         const rows = activityRowsForInnerTab(sourceRows, state);
-        const activeInnerTab = normalizeActivitiesInnerTab(state.activitiesInnerTab, state.activityPeriodTab);
-        const exportLabel = activityInnerTabsForYear(state.activityPeriodTab).find((tab) => tab.key === activeInnerTab)?.label || globalActivityPeriodLabel(state.activityPeriodTab);
+        const activeInnerTab = normalizeActivitiesInnerTab(state.activitiesInnerTab, state.activityPeriodTab, state);
+        const exportLabel = activityInnerTabsForYear(state.activityPeriodTab, state).find((tab) => tab.key === activeInnerTab)?.label || globalActivityPeriodLabel(state.activityPeriodTab);
         exportActivitiesToExcel(rows, `פעילויות_${exportLabel}`);
       } catch (err) {
         console.error('Failed to export all activities to Excel', err);
@@ -2844,8 +2847,10 @@ export const activitiesScreen = {
     }, { signal: root._activityLayoutDocAbort.signal });
 
     root.querySelectorAll('[data-activity-period-tab]').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        state.activitiesInnerTab = normalizeActivitiesInnerTab(btn.getAttribute('data-activity-period-tab'), state.activityPeriodTab);
+      btn.addEventListener('click', async () => {
+        const requestedTab = normalizeActivitiesInnerTab(btn.getAttribute('data-activity-period-tab'), state.activityPeriodTab, state);
+        if (requestedTab === ACTIVITIES_INNER_TAB_COORDINATION && !canAccessActivityCoordination(state)) return;
+        state.activitiesInnerTab = requestedTab;
         // Do NOT call clearScreenDataCache / invalidateActivityDataCaches here.
         // Switching inner tabs is a UI-only action (same data, different view).
         // Invalidating the cache here caused a full network re-fetch on every
@@ -2858,6 +2863,30 @@ export const activitiesScreen = {
           state.activitiesMonthYm = '';
         }
         ensureActivityListFilters(state, ACTIVITIES_SCOPE).visibleCount = 200;
+        if (requestedTab !== ACTIVITIES_INNER_TAB_COORDINATION || state.activityCoordinationLoaded) {
+          rerenderLocal();
+          return;
+        }
+        if (!state.activityCoordinationPromise) {
+          state.activityCoordinationLoading = true;
+          state.activityCoordinationError = '';
+          rerenderLocal();
+          state.activityCoordinationPromise = Promise.resolve()
+            .then(() => loadActivityCoordination(activitiesRows, state.clientSettings || {}))
+            .then((coordination) => {
+              state.activityCoordination = coordination;
+              state.activityCoordinationLoaded = true;
+            })
+            .catch((error) => {
+              state.activityCoordination = { items: [], byActivityId: new Map() };
+              state.activityCoordinationError = String(error?.message || error);
+            })
+            .finally(() => {
+              state.activityCoordinationLoading = false;
+              state.activityCoordinationPromise = null;
+            });
+        }
+        await state.activityCoordinationPromise;
         rerenderLocal();
       });
     });

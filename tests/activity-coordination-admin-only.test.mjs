@@ -18,15 +18,12 @@ test('coordination data waits for auth, fails closed without the dedicated permi
   assert.doesNotMatch(data, /from\('contact_emails'\)/);
 });
 
-test('admin visibility waits for auth restore and rechecks on auth lifecycle events', () => {
-  assert.match(index, /activity-coordination\/admin-visibility\.js\?v=20260823-permission-v1/);
-  assert.match(visibility, /waitForSupabaseAuthSession/);
-  assert.match(visibility, /await waitForSupabaseAuthSession\(\{ timeoutMs: 8000 \}\)/);
-  assert.match(visibility, /onAuthStateChange/);
-  assert.match(visibility, /INITIAL_SESSION/);
-  assert.match(visibility, /SIGNED_IN/);
-  assert.match(visibility, /TOKEN_REFRESHED/);
-  assert.match(visibility, /SIGNED_OUT/);
+test('coordination visibility uses the bootstrapped client permission without an eager RPC', () => {
+  assert.match(index, /activity-coordination\/admin-visibility\.js\?v=/);
+  assert.match(visibility, /hasPermission\(state\?\.user, 'send_activity_coordination_approvals'\)/);
+  assert.doesNotMatch(visibility, /activity_coordination_is_admin/);
+  assert.doesNotMatch(visibility, /waitForSupabaseAuthSession/);
+  assert.doesNotMatch(visibility, /onAuthStateChange/);
 });
 
 test('non-admin UI hides the coordination tab and drawer action', () => {

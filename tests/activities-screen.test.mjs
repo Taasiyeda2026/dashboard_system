@@ -87,6 +87,136 @@ test('activities render: truly missing instructor shows "ללא מדריך"', ()
   assert.match(html, /ללא מדריך/);
 });
 
+test('activities initial load does not load coordination data', async () => {
+  const state = baseState();
+  state.activityPeriodTab = 'school_2027';
+  state.activitiesInnerTab = 'coordination_approvals';
+  let activitiesCalls = 0;
+  let fundingCalls = 0;
+  const result = await activitiesScreen.load({
+    state,
+    api: {
+      activities: async () => { activitiesCalls += 1; return { rows: [] }; },
+      fundingSources: async () => { fundingCalls += 1; return { rows: [] }; }
+    }
+  });
+
+  assert.deepEqual(result, { rows: [] });
+  assert.equal(activitiesCalls, 1);
+  assert.equal(fundingCalls, 1);
+  assert.equal(state.activityCoordination, undefined);
+  assert.equal(state.activityCoordinationPromise, undefined);
+  assert.equal(state.activitiesInnerTab, 'year_all');
+});
+
+test('coordination tab loads once, shows local loading, and reuses successful data', async () => {
+  const previousWindow = globalThis.window;
+  const previousDocument = globalThis.document;
+  const previousAbortController = globalThis.AbortController;
+  const dom = new JSDOM('<main id="root"></main>', { url: 'https://example.test/dashboard?route=activities' });
+  globalThis.window = dom.window;
+  globalThis.document = dom.window.document;
+  globalThis.AbortController = dom.window.AbortController;
+  try {
+    const state = baseState();
+    state.activityPeriodTab = 'school_2027';
+    state.activitiesInnerTab = 'year_all';
+    const data = { rows: [{ RowID: 'A-2027', activity_season: 'school_2027', activity_name: 'בדיקה', status: 'פעיל' }] };
+    const root = dom.window.document.querySelector('#root');
+    let resolveLoad;
+    let loadCalls = 0;
+    const coordination = { items: [], byActivityId: new Map(), access: 'allowed' };
+    const loadActivityCoordination = () => {
+      loadCalls += 1;
+      return new Promise((resolve) => { resolveLoad = resolve; });
+    };
+    const rerender = () => {
+      root.innerHTML = activitiesScreen.render(data, { state });
+      activitiesScreen.bind({
+        root, data, state, rerender, rerenderActivitiesView: rerender,
+        api: {}, ui: { bindInteractiveCards() {} }, loadActivityCoordination
+      });
+    };
+
+    rerender();
+    root.querySelector('[data-activity-period-tab="coordination_approvals"]').click();
+    await Promise.resolve();
+    assert.equal(loadCalls, 1);
+    assert.ok(root.querySelector('[data-activity-coordination-loading]'));
+
+    root.querySelector('[data-activity-period-tab="coordination_approvals"]').click();
+    await Promise.resolve();
+    assert.equal(loadCalls, 1);
+
+    resolveLoad(coordination);
+    await state.activityCoordinationPromise;
+    await Promise.resolve();
+    assert.equal(state.activityCoordination, coordination);
+    assert.equal(state.activityCoordinationLoaded, true);
+
+    root.querySelector('[data-activity-period-tab="year_all"]').click();
+    root.querySelector('[data-activity-period-tab="coordination_approvals"]').click();
+    await Promise.resolve();
+    assert.equal(loadCalls, 1);
+    root.querySelector('[data-activity-period-tab="year_all"]').click();
+  } finally {
+    if (previousWindow === undefined) delete globalThis.window;
+    else globalThis.window = previousWindow;
+    if (previousDocument === undefined) delete globalThis.document;
+    else globalThis.document = previousDocument;
+    if (previousAbortController === undefined) delete globalThis.AbortController;
+    else globalThis.AbortController = previousAbortController;
+  }
+});
+
+test('coordination failure stays inside its tab and unauthorized users cannot trigger loading', async () => {
+  const previousWindow = globalThis.window;
+  const previousDocument = globalThis.document;
+  const previousAbortController = globalThis.AbortController;
+  const dom = new JSDOM('<main id="root"></main>', { url: 'https://example.test/dashboard?route=activities' });
+  globalThis.window = dom.window;
+  globalThis.document = dom.window.document;
+  globalThis.AbortController = dom.window.AbortController;
+  try {
+    const allowedState = baseState();
+    allowedState.activityPeriodTab = 'school_2027';
+    allowedState.activitiesInnerTab = 'year_all';
+    const data = { rows: [] };
+    const root = dom.window.document.querySelector('#root');
+    const rerender = () => {
+      root.innerHTML = activitiesScreen.render(data, { state: allowedState });
+      activitiesScreen.bind({
+        root, data, state: allowedState, rerender, rerenderActivitiesView: rerender,
+        api: {}, ui: { bindInteractiveCards() {} },
+        loadActivityCoordination: async () => { throw new Error('coordination failed'); }
+      });
+    };
+    rerender();
+    root.querySelector('[data-activity-period-tab="coordination_approvals"]').click();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.match(root.textContent, /coordination failed/);
+    assert.equal(allowedState.activityCoordinationLoaded, undefined);
+
+    root.querySelector('[data-activity-period-tab="year_all"]').click();
+    assert.doesNotMatch(root.textContent, /coordination failed/);
+  } finally {
+    if (previousWindow === undefined) delete globalThis.window;
+    else globalThis.window = previousWindow;
+    if (previousDocument === undefined) delete globalThis.document;
+    else globalThis.document = previousDocument;
+    if (previousAbortController === undefined) delete globalThis.AbortController;
+    else globalThis.AbortController = previousAbortController;
+  }
+
+  const deniedState = baseState();
+  deniedState.role = 'coordinator';
+  deniedState.user = { role: 'coordinator', permissions: { view_activities: 'yes', send_activity_coordination_approvals: 'no' } };
+  deniedState.activityPeriodTab = 'school_2027';
+  deniedState.activitiesInnerTab = 'year_all';
+  const deniedHtml = activitiesScreen.render({ rows: [] }, { state: deniedState });
+  assert.doesNotMatch(deniedHtml, /data-activity-period-tab="coordination_approvals"/);
+});
+
 test('activities table keeps expected columns structure', () => {
   const data = {
     rows: [{
@@ -797,8 +927,11 @@ test('all-activities Excel filename keeps Hebrew base and date stamp', async () 
 
   try {
     exportActivitiesToExcel([{ RowID: 'A1', activity_name: 'בדיקה' }], 'כל_הפעילויות');
+    for (let attempt = 0; attempt < 50 && appended.length === 0; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
     assert.equal(appended.length, 1);
-    assert.match(downloaded, /^כל_הפעילויות_\d{4}-\d{2}-\d{2}\.xls$/);
+    assert.match(downloaded, /^כל_הפעילויות_\d{4}-\d{2}-\d{2}\.xlsx$/);
   } finally {
     globalThis.document = originalDocument;
     globalThis.URL = originalUrl;
