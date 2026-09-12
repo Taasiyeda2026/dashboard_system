@@ -94,7 +94,7 @@ test('proposalsAgreementsScreen.load requests linked documents from the screen i
   assert.doesNotMatch(screenSource, /includeLinkedDocuments:\s*false/);
 });
 
-test('client-file proposal table hides GEFEN columns and expands actions', () => {
+test('client-file proposal table hides GEFEN columns and uses balanced agreed widths', () => {
   const headers = [
     'תחום', 'מס׳', 'רשות', 'בית הספר', 'סוג הצעה', 'תאריך', 'סטטוס', 'סה״כ',
     'אישור גפ״ן', 'חתום / הוזמן', 'פעולות'
@@ -114,8 +114,13 @@ test('client-file proposal table hides GEFEN columns and expands actions', () =>
   assert.deepEqual(visibleHeaders, ['תחום', 'מס׳', 'רשות', 'בית הספר', 'סוג הצעה', 'תאריך', 'סטטוס', 'סה״כ', 'פעולות']);
   assert.equal(table.querySelectorAll('tbody td').length, 9);
   assert.equal(table.querySelectorAll('colgroup col').length, 9);
-  assert.equal(table.querySelector('colgroup col:last-child').style.width, '220px');
-  assert.ok(dom.window.document.getElementById('ds-pa-client-file-gefen-layout-v1'));
+  const widths = Array.from(table.querySelectorAll('colgroup col')).map((col) => col.style.width);
+  assert.deepEqual(widths, ['55px', '55px', '145px', '160px', '120px', '110px', '110px', '120px', '170px']);
+  assert.equal(widths.reduce((sum, width) => sum + Number.parseInt(width, 10), 0), 1045);
+  const injectedStyle = dom.window.document.getElementById('ds-pa-client-file-gefen-layout-v1');
+  assert.ok(injectedStyle);
+  assert.match(injectedStyle.textContent, /width:\s*170px !important/);
+  assert.doesNotMatch(injectedStyle.textContent, /width:\s*220px !important/);
 });
 
 test('drawer keeps one proposal view action and moves GEFEN eye beside approval status', () => {
@@ -152,5 +157,5 @@ test('proposal feature still loads the GEFEN runtime and frontend cache is refre
     readFile(SERVICE_WORKER_FILE, 'utf8')
   ]);
   assert.match(featureLoaders, /proposal-gefen-approval-list-status\.js\?v=/);
-  assert.match(serviceWorker, /const CACHE_VERSION = 1692;/);
+  assert.match(serviceWorker, /const CACHE_VERSION = 1693;/);
 });
