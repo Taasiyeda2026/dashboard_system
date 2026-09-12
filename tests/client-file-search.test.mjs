@@ -165,16 +165,77 @@ test('פתיחת תיק בית ספר מציגה סמל מוסד בלבד', asyn
   });
 });
 
-test('חיפוש תיק לקוח טוען את קטלוג אנשי הקשר ומשלב אותו עם חיפוש שרת', async () => {
+test('חיפוש תיק לקוח מסנן מקומית לפני השלמת חיפוש שרת', async () => {
   const source = await readFile(new URL('../frontend/src/screens/proposals-agreements.js', import.meta.url), 'utf8');
   const handlerStart = source.indexOf("const input = event.target.closest?.('[data-pa-client-search]')");
   const handlerEnd = source.indexOf("root.addEventListener('click'", handlerStart);
   const handler = source.slice(handlerStart, handlerEnd);
 
-  assert.match(handler, /await ensureContacts\('client-file-search'\)/);
-  assert.match(handler, /reloadProposalList\(\{ search: query \}/);
-  assert.match(handler, /buildClientFiles\(\{ \.\.\.data, contactOptions \}\)/);
-  assert.doesNotMatch(handler, /contactOptions:\s*\[\]/);
+  assert.match(handler, /renderLocalResults\(\);/);
+  assert.match(handler, /clientSearchResultsHtml\(clientFilesForSearch\(\), query\)/);
+  assert.doesNotMatch(handler, /clientSearchResultsHtml\(filterClientFilesLocally/);
+  assert.match(handler, /ensureContacts\('client-file-search'\)/);
+  assert.match(handler, /CLIENT_FILE_SERVER_SEARCH_DEBOUNCE_MS/);
+  assert.doesNotMatch(handler, /reloadProposalList\(\{ search: query/);
+});
+
+test('הקלדה מסננת מיד, אינה קוראת לשרת בכל תו וניקוי מחזיר את מסך הבית', async () => {
+  const data = { rows: [{ id: 'p1', client_authority: 'נתניה', school_framework: 'ריגלר', school_id: '30', status: 'draft' }], contactOptions: [], _contactsLoaded: true, _hasMore: true };
+  const calls = [];
+  await withJSDOM(proposalsAgreementsScreen.render(data, { state }), async (root, dom) => {
+    proposalsAgreementsScreen.bind({ root, data, state, api: { proposalsAgreements: async (params) => { calls.push(params); return { rows: [] }; } } });
+    const search = root.querySelector('[data-pa-client-search]');
+    for (const query of ['ר', 'רי', 'ריג']) {
+      search.value = query;
+      search.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+      assert.match(root.querySelector('[data-pa-client-search-results]').textContent, /ריגלר/);
+    }
+    assert.equal(calls.length, 0, 'server search is not called synchronously per character');
+    search.value = '';
+    search.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+    assert.equal(root.querySelector('[data-pa-client-queues]').hidden, false);
+    assert.equal(root.querySelector('[data-pa-client-search-results]').hidden, true);
+    await new Promise((resolve) => setTimeout(resolve, 430));
+    assert.equal(calls.length, 0, 'clearing cancels pending server enrichment');
+  });
+});
+
+test('קטלוג אנשי קשר נטען פעם אחת בלבד גם בהקלדה רציפה', async () => {
+  const data = { rows: [], contactOptions: [], _hasMore: false };
+  let contactCalls = 0;
+  let resolveContacts;
+  const contactsResponse = new Promise((resolve) => { resolveContacts = resolve; });
+  await withJSDOM(proposalsAgreementsScreen.render(data, { state }), async (root, dom) => {
+    proposalsAgreementsScreen.bind({ root, data, state, api: { proposalsAgreementsContacts: async () => { contactCalls += 1; return contactsResponse; } } });
+    const search = root.querySelector('[data-pa-client-search]');
+    for (const query of ['ד', 'דנ', 'דנה']) {
+      search.value = query;
+      search.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+    }
+    assert.equal(contactCalls, 1);
+    resolveContacts({ contactOptions });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.match(root.querySelector('[data-pa-client-search-results]').textContent, /בית–ספר גבעות/);
+  });
+});
+
+test('תגובת חיפוש שרת ישנה אינה דורסת query חדש', async () => {
+  const data = { rows: [{ id: 'local', client_authority: 'נתניה', school_framework: 'ריגלר', school_id: '30' }], contactOptions: [], _contactsLoaded: true, _hasMore: true };
+  let resolveOld;
+  await withJSDOM(proposalsAgreementsScreen.render(data, { state }), async (root, dom) => {
+    proposalsAgreementsScreen.bind({ root, data, state, api: { proposalsAgreements: () => new Promise((resolve) => { resolveOld = resolve; }) } });
+    const search = root.querySelector('[data-pa-client-search]');
+    search.value = 'ישן';
+    search.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+    await new Promise((resolve) => setTimeout(resolve, 410));
+    search.value = 'ריגלר';
+    search.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+    assert.match(root.querySelector('[data-pa-client-search-results]').textContent, /ריגלר/);
+    resolveOld({ rows: [{ id: 'old', client_authority: 'תוצאה ישנה', client_type: 'authority' }] });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.match(root.querySelector('[data-pa-client-search-results]').textContent, /ריגלר/);
+    assert.doesNotMatch(root.querySelector('[data-pa-client-search-results]').textContent, /תוצאה ישנה/);
+  });
 });
 
 const openCases = [
