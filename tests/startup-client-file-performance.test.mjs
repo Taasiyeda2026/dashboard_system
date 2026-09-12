@@ -27,7 +27,9 @@ test('proposals list query supports server-side search and filters', () => {
   assert.match(apiSource, /clientType/);
   assert.match(apiSource, /contact_client_type/);
   assert.match(apiSource, /authority_name\.ilike\.\$\{term\}/);
-  assert.match(proposalsSource, /reloadProposalList\(\{\s*search:\s*query\s*\}/);
+  assert.match(proposalsSource, /CLIENT_FILE_SERVER_SEARCH_DEBOUNCE_MS = 400/);
+  assert.match(proposalsSource, /api\.proposalsAgreements\(\{ \.\.\.currentListQuery\(\), search: query, offset: 0 \}\)/);
+  assert.doesNotMatch(proposalsSource, /reloadProposalList\(\{\s*search:\s*query\s*\}/);
 
   const filterStart = apiSource.indexOf('function applyProposalsAgreementsListFilters');
   const filterEnd = apiSource.indexOf('function applyProposalsAgreementsListSort', filterStart);

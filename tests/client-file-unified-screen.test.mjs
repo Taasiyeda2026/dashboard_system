@@ -855,7 +855,7 @@ test('all-proposals filters by authority, school and date range combine, and cle
   });
 });
 
-test('client-file search debounces and keeps focus on the same input while typing', async () => {
+test('client-file search filters immediately and keeps focus on the same input while typing', async () => {
   const manageState = stateFor({ manage: true, role: 'admin' });
   const data = {
     rows: [
@@ -869,19 +869,14 @@ test('client-file search debounces and keeps focus on the same input while typin
     proposalsAgreementsScreen.bind({ root, data: structuredClone(data), state: manageState, api });
     const search = root.querySelector('[data-pa-client-search]');
     const results = root.querySelector('[data-pa-client-search-results]');
-    const beforeResultsHtml = results.innerHTML;
     search.focus();
     ['ר', 'רי', 'ריג'].forEach((partial) => {
       search.value = partial;
       search.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
     });
-    await new Promise((r) => setTimeout(r, 120));
     assert.equal(root.querySelector('[data-pa-client-search]'), search, 'the same input node stays in the DOM (no full re-render)');
     assert.equal(dom.window.document.activeElement, search, 'focus must stay on the search input while typing');
-    assert.equal(results.innerHTML, beforeResultsHtml, 'results must not update before the debounce delay elapses');
-    await new Promise((r) => setTimeout(r, 220));
-    assert.match(results.textContent, /ריגלר/, 'results update once the debounce delay has elapsed');
-    assert.equal(dom.window.document.activeElement, search, 'focus must remain after the debounced update');
+    assert.match(results.textContent, /ריגלר/, 'local results update synchronously');
   });
 });
 

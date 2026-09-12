@@ -64,5 +64,6 @@ test('final recipient asset and cache versions are bumped together', async () =>
   ]);
   assert.match(config, /proposal-recipient-search-row-fix\.js\?v=20260801-v10/);
   assert.match(config, /recipient-date-domain-130-20260801-v1/);
-  assert.match(sw, /const CACHE_VERSION = 1351;/);
+  assert.match(config, /client-file-local-first-search-20260912-v1/);
+  assert.match(sw, /const CACHE_VERSION = 1699;/);
 });

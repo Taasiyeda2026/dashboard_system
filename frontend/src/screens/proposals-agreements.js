@@ -20,6 +20,7 @@ export function runProposalScreenLifecycleEnhancer(root) {
 export const PROPOSALS_AGREEMENTS_ALLOWED_ROLES = new Set(['domain_manager', 'operation_manager', 'admin', 'business_development_manager']);
 export const PROPOSALS_AGREEMENTS_MANAGE_ROLES = new Set(['domain_manager', 'operation_manager', 'admin']);
 const SEARCH_DEBOUNCE_MS = 280;
+const CLIENT_FILE_SERVER_SEARCH_DEBOUNCE_MS = 400;
 
 // Business data for proposal groups, templates and aliases must come from Supabase/API data.
 // This frontend keeps only UI logic and derives options from the loader payload.
@@ -5789,6 +5790,12 @@ function clientSearchResultsHtml(files, query) {
   }).join('');
 }
 
+function filterClientFilesLocally(files, query) {
+  const needle = normalizedClientPart(query);
+  if (!needle) return Array.isArray(files) ? files : [];
+  return (Array.isArray(files) ? files : []).filter((file) => clientFileSearchText(file).includes(needle));
+}
+
 function clientContactsHtml(file = {}, canManage = false) {
   if (!file.contacts.length) return '<p class="ds-client-empty">לא הוגדרו אנשי קשר לתיק זה.</p>';
   return file.contacts.map((contact, index) => {
@@ -6386,6 +6393,7 @@ export {
   proposalCompactCardHtml,
   normalizedClientPart,
   buildClientFiles,
+  filterClientFilesLocally,
   clientSearchResultsHtml
 };
 
@@ -6671,6 +6679,9 @@ export const proposalsAgreementsScreen = {
     };
     let debounceTimer = null;
     let clientSearchDebounceTimer = null;
+    let contactsPromise = null;
+    let clientSearchRequestId = 0;
+    let clientSearchServerRows = [];
     let activeListView = 'records';
     let selectedClientKey = '';
     let viewingAllProposals = false;
@@ -6692,6 +6703,7 @@ export const proposalsAgreementsScreen = {
     const clearPendingTimers = () => {
       clearTimeout(debounceTimer);
       clearTimeout(clientSearchDebounceTimer);
+      clientSearchRequestId += 1;
     };
     signal.addEventListener('abort', clearPendingTimers, { once: true });
     const screenTabs = root.querySelector('[data-pa-screen-tabs]');
@@ -6743,7 +6755,16 @@ export const proposalsAgreementsScreen = {
       if (viewingAllProposals) setViewMode('all-proposals');
     };
 
-    const currentClientFile = () => buildClientFiles({ ...data, contactOptions }).find((file) => file.key === selectedClientKey) || null;
+    const clientFilesForSearch = () => buildClientFiles({
+      ...data,
+      rows: [...clientHomeSnapshot.rows, ...clientSearchServerRows],
+      contactOptions
+    });
+    const currentClientFile = () => buildClientFiles({
+      ...data,
+      rows: [...(Array.isArray(data.rows) ? data.rows : []), ...clientSearchServerRows],
+      contactOptions
+    }).find((file) => file.key === selectedClientKey) || null;
     const fillProposalDetailItems = async (row) => {
       const id = text(row?.id);
       const itemsHost = clientWorkspace?.querySelector('[data-pa-drawer-items]');
@@ -7031,48 +7052,48 @@ export const proposalsAgreementsScreen = {
       const input = event.target.closest?.('[data-pa-client-search]');
       if (!input) return;
       clearTimeout(clientSearchDebounceTimer);
+      clientSearchRequestId += 1;
+      const requestId = clientSearchRequestId;
       const query = text(input.value);
-      // Toggle the queues visibility immediately (cheap, no re-render), only the
-      // results list itself — which never touches the input — is debounced.
       const queues = root.querySelector('[data-pa-client-queues]');
       if (queues) queues.hidden = Boolean(query);
+      const results = root.querySelector('[data-pa-client-search-results]');
+      if (!results?.isConnected) return;
+      results.hidden = !query;
+      clientSearchServerRows = [];
+      if (!query) {
+        results.innerHTML = '';
+        return;
+      }
+
+      const renderLocalResults = () => {
+        if (requestId !== clientSearchRequestId || text(input.value) !== query || !results.isConnected) return;
+        results.innerHTML = clientSearchResultsHtml(filterClientFilesLocally(clientFilesForSearch(), query), query);
+      };
+      renderLocalResults();
+
+      // Load the existing contacts state at most once. Typing never waits for it;
+      // when the single shared request finishes, the same query is enriched locally.
+      if (!data?._contactsLoaded && !contactsPromise) {
+        contactsPromise = ensureContacts('client-file-search')
+          .finally(() => { contactsPromise = null; });
+      }
+      contactsPromise?.then(renderLocalResults).catch(() => {});
+
+      // A paginated first page is the only signal that local proposal data may be
+      // incomplete. Server search enriches local results, without replacing screen state.
+      if (!data?._hasMore || typeof api.proposalsAgreements !== 'function') return;
       clientSearchDebounceTimer = setTimeout(async () => {
-        if (signal.aborted || !root.isConnected || !input.isConnected || text(input.value) !== query) return;
-        const results = root.querySelector('[data-pa-client-search-results]');
-        if (!results?.isConnected) return;
-        results.hidden = !query;
-        if (!query) {
-          results.innerHTML = '';
-          if (typeof api.proposalsAgreements === 'function') {
-            await applyServerListQuery({ search: '' }, { append: false });
-          }
-          return;
-        }
-        // The client catalog is the source for authorities/schools without proposals and
-        // for central contact details. Server search complements it with proposals that
-        // are outside the currently loaded page.
+        if (requestId !== clientSearchRequestId || signal.aborted || text(input.value) !== query) return;
         try {
-          await ensureContacts('client-file-search');
+          const page = await api.proposalsAgreements({ ...currentListQuery(), search: query, offset: 0 });
+          if (requestId !== clientSearchRequestId || signal.aborted || text(input.value) !== query) return;
+          clientSearchServerRows = (Array.isArray(page?.rows) ? page.rows : []).map(normalizeProposalAgreementRow);
+          renderLocalResults();
         } catch {
-          // Keep proposal search available if the contacts catalog cannot be loaded.
+          // Local results remain usable when optional server enrichment fails.
         }
-        if (signal.aborted || !root.isConnected || !input.isConnected || text(input.value) !== query) return;
-        // Prefer server search when the list API exists; keep local fallback for tests/offline.
-        if (typeof api.proposalsAgreements === 'function') {
-          results.innerHTML = '<p class="ds-client-search-empty">מחפש…</p>';
-          const ok = await reloadProposalList({ search: query }, { append: false });
-          if (signal.aborted || !root.isConnected || !input.isConnected || text(input.value) !== query) return;
-          if (!ok) {
-            results.innerHTML = '<p class="ds-client-search-empty">החיפוש נכשל. נסו שוב.</p>';
-            return;
-          }
-          results.innerHTML = clientSearchResultsHtml(buildClientFiles({ ...data, contactOptions }), query)
-            || '<p class="ds-client-search-empty">לא נמצא תיק לקוח מתאים</p>';
-          return;
-        }
-        results.innerHTML = clientSearchResultsHtml(buildClientFiles({ ...data, contactOptions }), query)
-          || '<p class="ds-client-search-empty">לא נמצא תיק לקוח מתאים</p>';
-      }, SEARCH_DEBOUNCE_MS);
+      }, CLIENT_FILE_SERVER_SEARCH_DEBOUNCE_MS);
     }, { signal });
     root.addEventListener('click', async (ev) => {
       const loadMoreBtn = ev.target?.closest?.('[data-pa-load-more-proposals]');
