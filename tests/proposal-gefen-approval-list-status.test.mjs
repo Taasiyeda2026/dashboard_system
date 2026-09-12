@@ -4,8 +4,10 @@ import { readFile } from 'node:fs/promises';
 import { JSDOM } from 'jsdom';
 import {
   applyClientFileProposalDisplayPolish,
+  compactProposalRowActions,
   gefenApprovalListOptions,
-  installGefenApprovalListStatus
+  installGefenApprovalListStatus,
+  prepareProposalDetailDrawer
 } from '../frontend/src/proposal-gefen-approval-list-status.js';
 import { proposalsAgreementsScreen, proposalsAgreementsTableRowsHtml } from '../frontend/src/screens/proposals-agreements.js';
 
@@ -94,7 +96,7 @@ test('proposalsAgreementsScreen.load requests linked documents from the screen i
   assert.doesNotMatch(screenSource, /includeLinkedDocuments:\s*false/);
 });
 
-test('client-file proposal table hides GEFEN columns and uses balanced agreed widths', () => {
+test('client-file proposal table hides GEFEN columns and gives 20px from actions to domain and quote number', () => {
   const headers = [
     'תחום', 'מס׳', 'רשות', 'בית הספר', 'סוג הצעה', 'תאריך', 'סטטוס', 'סה״כ',
     'אישור גפ״ן', 'חתום / הוזמן', 'פעולות'
@@ -115,12 +117,66 @@ test('client-file proposal table hides GEFEN columns and uses balanced agreed wi
   assert.equal(table.querySelectorAll('tbody td').length, 9);
   assert.equal(table.querySelectorAll('colgroup col').length, 9);
   const widths = Array.from(table.querySelectorAll('colgroup col')).map((col) => col.style.width);
-  assert.deepEqual(widths, ['55px', '55px', '145px', '160px', '120px', '110px', '110px', '120px', '170px']);
+  assert.deepEqual(widths, ['65px', '65px', '145px', '160px', '120px', '110px', '110px', '120px', '150px']);
   assert.equal(widths.reduce((sum, width) => sum + Number.parseInt(width, 10), 0), 1045);
-  const injectedStyle = dom.window.document.getElementById('ds-pa-client-file-gefen-layout-v1');
+  const injectedStyle = dom.window.document.getElementById('ds-pa-client-file-gefen-layout-v2');
   assert.ok(injectedStyle);
-  assert.match(injectedStyle.textContent, /width:\s*170px !important/);
-  assert.doesNotMatch(injectedStyle.textContent, /width:\s*220px !important/);
+  assert.match(injectedStyle.textContent, /width:\s*150px !important/);
+  assert.match(injectedStyle.textContent, /text-align:\s*center !important/);
+  assert.doesNotMatch(injectedStyle.textContent, /width:\s*170px !important/);
+});
+
+test('proposal row actions remove duplicated overflow actions and remove ellipsis when nothing remains', () => {
+  const dom = new JSDOM(`<!doctype html><html><body><table><tbody><tr>
+    <td class="ds-pa-actions-cell">
+      <div class="ds-pa-actions-inner">
+        <button data-pa-generate-gefen-approval="p1">quick</button>
+        <details class="ds-pa-row-more">
+          <summary>⋯</summary>
+          <div class="ds-pa-row-more-menu">
+            <button data-pa-generate-gefen-approval="p1">duplicate</button>
+          </div>
+        </details>
+      </div>
+    </td>
+  </tr></tbody></table></body></html>`);
+
+  compactProposalRowActions(dom.window.document);
+
+  assert.equal(dom.window.document.querySelector('.ds-pa-row-more'), null);
+  assert.ok(dom.window.document.querySelector('[data-pa-generate-gefen-approval="p1"]'));
+});
+
+test('proposal details are prepared as an accessible side drawer and keep existing content/actions', () => {
+  const dom = new JSDOM(`<!doctype html><html><head></head><body><div id="app">
+    <div data-pa-proposal-detail>
+      <div class="ds-pa-proposal-detail-toolbar"><button>חזרה</button></div>
+      <aside class="ds-pa-drawer">
+        <div class="ds-pa-drawer-panel">
+          <header class="ds-pa-drawer-head"><button data-pa-close-drawer>✕</button></header>
+          <div class="ds-pa-drawer-body">
+            <div class="ds-pa-proposal-info-grid"><section class="ds-pa-info-card">פרטי ההצעה</section><section class="ds-pa-info-card">איש קשר</section></div>
+            <section class="ds-pa-activities-wide">פעילויות ומחירים</section>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </div></body></html>`);
+
+  prepareProposalDetailDrawer(dom.window.document);
+  applyClientFileProposalDisplayPolish(dom.window.document, dom.window);
+
+  const detail = dom.window.document.querySelector('[data-pa-proposal-detail]');
+  assert.equal(detail.getAttribute('role'), 'dialog');
+  assert.equal(detail.getAttribute('aria-modal'), 'true');
+  assert.equal(detail.getAttribute('aria-label'), 'פרטי הצעה');
+  assert.ok(detail.querySelector('[data-pa-close-drawer]'));
+  assert.ok(detail.querySelector('.ds-pa-activities-wide'));
+  const style = dom.window.document.getElementById('ds-pa-client-file-gefen-layout-v2').textContent;
+  assert.match(style, /position:\s*fixed !important/);
+  assert.match(style, /width:\s*min\(720px, calc\(100vw - 32px\)\) !important/);
+  assert.match(style, /grid-template-columns:\s*minmax\(0, 1fr\) minmax\(0, 1fr\) !important/);
+  assert.match(style, /ds-pa-proposal-detail-toolbar[\s\S]*display:\s*none !important/);
 });
 
 test('drawer keeps one proposal view action and moves GEFEN eye beside approval status', () => {
@@ -151,11 +207,11 @@ test('drawer keeps one proposal view action and moves GEFEN eye beside approval 
   assert.ok(approvalValue.querySelector('[data-pa-view-gefen-approval].ds-pa-gefen-inline-view'));
 });
 
-test('proposal feature still loads the GEFEN runtime and frontend cache is refreshed', async () => {
+test('proposal feature loads the refreshed layout runtime and current frontend cache version', async () => {
   const [featureLoaders, serviceWorker] = await Promise.all([
     readFile(FEATURE_LOADERS_FILE, 'utf8'),
     readFile(SERVICE_WORKER_FILE, 'utf8')
   ]);
-  assert.match(featureLoaders, /proposal-gefen-approval-list-status\.js\?v=/);
-  assert.match(serviceWorker, /const CACHE_VERSION = 1693;/);
+  assert.match(featureLoaders, /proposal-gefen-approval-list-status\.js\?v=20260913-side-drawer-table-v2/);
+  assert.match(serviceWorker, /const CACHE_VERSION = 1695;/);
 });
