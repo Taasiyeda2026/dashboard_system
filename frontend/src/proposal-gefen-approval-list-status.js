@@ -2,8 +2,8 @@ import { api } from './api.js';
 
 const PATCH_KEY = Symbol.for('taasiyeda.proposalGefenApprovalListStatus');
 const UI_GUARD_KEY = Symbol.for('taasiyeda.proposalGefenApprovalUiGuard');
-const STYLE_ID = 'ds-pa-client-file-gefen-layout-v1';
-const CLIENT_FILE_TABLE_WIDTHS = Object.freeze([55, 55, 145, 160, 120, 110, 110, 120, 170]);
+const STYLE_ID = 'ds-pa-client-file-gefen-layout-v2';
+const CLIENT_FILE_TABLE_WIDTHS = Object.freeze([65, 65, 145, 160, 120, 110, 110, 120, 150]);
 const ineligibleProposalIds = new Set();
 let uiRefreshPending = false;
 
@@ -47,11 +47,127 @@ function ensureClientFileLayoutStyles(scope = globalThis) {
   style.textContent = `
     #app .ds-pa-table th.ds-pa-actions-col,
     #app .ds-pa-table td.ds-pa-actions-cell {
-      width: 170px !important;
-      min-width: 170px !important;
+      width: 150px !important;
+      min-width: 150px !important;
+      text-align: center !important;
+    }
+    #app .ds-pa-table th.ds-pa-actions-col {
+      vertical-align: middle !important;
     }
     #app .ds-pa-table .ds-pa-actions-inner {
-      justify-content: center;
+      width: 100%;
+      justify-content: center !important;
+      align-items: center !important;
+      margin-inline: auto;
+    }
+    #app [data-pa-proposal-detail] {
+      position: fixed !important;
+      inset: 0 !important;
+      z-index: 1450 !important;
+      display: flex !important;
+      align-items: stretch !important;
+      justify-content: flex-end !important;
+      padding: 0 !important;
+      margin: 0 !important;
+      background: rgba(15, 23, 42, 0.34) !important;
+      overflow: hidden !important;
+    }
+    #app [data-pa-proposal-detail] > .ds-pa-proposal-detail-toolbar {
+      display: none !important;
+    }
+    #app [data-pa-proposal-detail] > .ds-pa-drawer {
+      position: relative !important;
+      inset: auto !important;
+      width: min(720px, calc(100vw - 32px)) !important;
+      min-width: 0 !important;
+      max-width: 720px !important;
+      height: 100dvh !important;
+      max-height: 100dvh !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      background: #fff !important;
+      border: 0 !important;
+      border-radius: 0 !important;
+      box-shadow: -18px 0 48px rgba(15, 23, 42, 0.22) !important;
+      overflow: hidden !important;
+    }
+    #app [data-pa-proposal-detail] .ds-pa-drawer-panel {
+      width: 100% !important;
+      max-width: none !important;
+      height: 100% !important;
+      max-height: 100% !important;
+      margin: 0 !important;
+      border: 0 !important;
+      border-radius: 0 !important;
+      display: flex !important;
+      flex-direction: column !important;
+      overflow: hidden !important;
+      background: #f8fafc !important;
+    }
+    #app [data-pa-proposal-detail] .ds-pa-drawer-head {
+      flex: 0 0 auto;
+      padding: 18px 22px 14px !important;
+      background: #fff !important;
+      border-bottom: 1px solid #e2e8f0 !important;
+    }
+    #app [data-pa-proposal-detail] .ds-pa-drawer-name--hero {
+      margin: 0 !important;
+      font-size: 1.18rem !important;
+      line-height: 1.35 !important;
+    }
+    #app [data-pa-proposal-detail] .ds-pa-drawer-meta-line {
+      margin: 5px 0 0 !important;
+    }
+    #app [data-pa-proposal-detail] .ds-pa-drawer-action-bar {
+      flex: 0 0 auto;
+      min-height: 44px;
+      padding: 7px 18px !important;
+      display: flex !important;
+      align-items: center !important;
+      justify-content: space-between !important;
+      gap: 10px !important;
+      background: #fff !important;
+      border-bottom: 1px solid #edf2f7 !important;
+    }
+    #app [data-pa-proposal-detail] .ds-pa-drawer-icon-btns {
+      display: inline-flex !important;
+      align-items: center !important;
+      gap: 5px !important;
+    }
+    #app [data-pa-proposal-detail] .ds-pa-drawer-body {
+      flex: 1 1 auto !important;
+      min-height: 0 !important;
+      overflow-y: auto !important;
+      padding: 16px 18px 24px !important;
+      scrollbar-gutter: stable;
+    }
+    #app [data-pa-proposal-detail] .ds-pa-proposal-info-grid {
+      display: grid !important;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
+      gap: 12px !important;
+      align-items: start !important;
+      margin: 0 0 12px !important;
+    }
+    #app [data-pa-proposal-detail] .ds-pa-info-card,
+    #app [data-pa-proposal-detail] .ds-pa-activities-wide {
+      width: 100% !important;
+      min-width: 0 !important;
+      margin: 0 !important;
+      box-sizing: border-box !important;
+      border-radius: 12px !important;
+      background: #fff !important;
+      border: 1px solid #dbe4ee !important;
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04) !important;
+    }
+    #app [data-pa-proposal-detail] .ds-pa-activities-wide,
+    #app [data-pa-proposal-detail] .ds-pa-notes-card {
+      margin-top: 12px !important;
+    }
+    #app [data-pa-proposal-detail] .ds-pa-info-grid {
+      gap: 10px 14px !important;
+    }
+    #app [data-pa-proposal-detail] .ds-pa-info-card--financial-summary {
+      margin-top: 10px !important;
     }
     #app .ds-pa-info-value.ds-pa-info-value--with-action {
       display: inline-flex;
@@ -68,6 +184,14 @@ function ensureClientFileLayoutStyles(scope = globalThis) {
       padding: 0;
       margin: 0;
       border-radius: 8px;
+    }
+    @media (max-width: 760px) {
+      #app [data-pa-proposal-detail] > .ds-pa-drawer {
+        width: min(94vw, 720px) !important;
+      }
+      #app [data-pa-proposal-detail] .ds-pa-proposal-info-grid {
+        grid-template-columns: 1fr !important;
+      }
     }
   `;
   documentRef.head.appendChild(style);
@@ -114,6 +238,58 @@ function removeGefenListColumns(root) {
   });
 }
 
+function proposalActionKey(button) {
+  if (!button?.getAttribute) return '';
+  const attrs = [
+    'data-pa-preview',
+    'data-pa-view-final-pdf',
+    'data-pa-view-gefen-approval',
+    'data-pa-generate-gefen-approval',
+    'data-pa-edit-row',
+    'data-pa-print',
+    'data-pa-delete-row',
+    'data-pa-clone-row'
+  ];
+  for (const attr of attrs) {
+    if (button.hasAttribute(attr)) return `${attr}:${text(button.getAttribute(attr))}`;
+  }
+  if (button.hasAttribute('data-pa-status-action')) {
+    return `data-pa-status-action:${text(button.getAttribute('data-pa-status-action'))}:${text(button.getAttribute('data-pa-action-id'))}`;
+  }
+  return '';
+}
+
+export function compactProposalRowActions(root) {
+  root.querySelectorAll?.('.ds-pa-actions-cell').forEach((cell) => {
+    const more = cell.querySelector('.ds-pa-row-more');
+    const menu = more?.querySelector('.ds-pa-row-more-menu');
+    if (!more || !menu) return;
+
+    const directKeys = new Set(
+      Array.from(cell.querySelectorAll('button'))
+        .filter((button) => !button.closest('.ds-pa-row-more'))
+        .map(proposalActionKey)
+        .filter(Boolean)
+    );
+
+    menu.querySelectorAll('button').forEach((button) => {
+      const key = proposalActionKey(button);
+      if (key && directKeys.has(key)) button.remove();
+    });
+
+    if (!menu.querySelector('button')) more.remove();
+  });
+}
+
+export function prepareProposalDetailDrawer(root) {
+  root.querySelectorAll?.('[data-pa-proposal-detail]').forEach((detail) => {
+    detail.setAttribute('role', 'dialog');
+    detail.setAttribute('aria-modal', 'true');
+    detail.setAttribute('aria-label', 'פרטי הצעה');
+    detail.querySelector('.ds-pa-drawer')?.removeAttribute('hidden');
+  });
+}
+
 function dedupeProposalViewActions(root) {
   root.querySelectorAll?.('.ds-pa-drawer-icon-btns').forEach((actions) => {
     const finalPdf = actions.querySelector('[data-pa-view-final-pdf]');
@@ -145,6 +321,8 @@ export function applyClientFileProposalDisplayPolish(root = globalThis.document,
   if (!root?.querySelectorAll) return root;
   ensureClientFileLayoutStyles(scope);
   removeGefenListColumns(root);
+  compactProposalRowActions(root);
+  prepareProposalDetailDrawer(root);
   dedupeProposalViewActions(root);
   moveGefenApprovalViewIntoInfo(root);
   return root;
@@ -189,9 +367,15 @@ function installEligibilityUiGuard(scope = globalThis) {
   if (!documentRef || documentRef[UI_GUARD_KEY]) return false;
   Object.defineProperty(documentRef, UI_GUARD_KEY, { value: true, configurable: false });
 
-  // Block stale controls as well as removing them visually. This closes the small
-  // interval between a list render and the DOM cleanup below.
   documentRef.addEventListener('click', (event) => {
+    const proposalDetail = event.target?.closest?.('[data-pa-proposal-detail]');
+    if (proposalDetail && event.target === proposalDetail) {
+      proposalDetail.querySelector('[data-pa-close-drawer]')?.click();
+      return;
+    }
+
+    // Block stale controls as well as removing them visually. This closes the small
+    // interval between a list render and the DOM cleanup below.
     const button = event.target?.closest?.('[data-pa-generate-gefen-approval], [data-pa-view-gefen-approval]');
     if (!button) return;
     const id = text(button.dataset.paGenerateGefenApproval || button.dataset.paViewGefenApproval);
