@@ -26,18 +26,26 @@ const edgeFunctionUrl = new URL('../supabase/functions/scheduling-route/index.ts
 const durableRouteMigrationUrl = new URL('../supabase/migrations/20260809170000_keep_usable_scheduling_routes.sql', import.meta.url);
 const schedulingScreenUrl = new URL('../frontend/src/screens/course-scheduling.js', import.meta.url);
 
-test('maintenance card loads and displays route coverage without opening another window', async () => {
+test('maintenance card exposes scheduling coverage, refresh, and one build action', async () => {
   const source = await readFile(schedulingScreenUrl, 'utf8');
   const maintenanceCard = source.split('function maintenanceTabHtml')[1].split('function calendarTabHtml')[0];
-  assert.match(maintenanceCard, /מרחקים קיימים:.*existing_count.*מתוך.*required_count/s);
+  assert.match(maintenanceCard, /נדרשים:.*required_count/s);
+  assert.match(maintenanceCard, /קיימים:.*existing_count/s);
   assert.match(maintenanceCard, /חסרים:.*missing_count/s);
   assert.match(maintenanceCard, /דורשים רענון:.*refresh_required_count/s);
-  assert.match(maintenanceCard, /data-update-distances/);
+  assert.equal((maintenanceCard.match(/data-update-distances/g) || []).length, 1);
+  assert.match(maintenanceCard, /data-refresh-distance-coverage[^>]*aria-label="רענון נתוני מצב"/);
+  assert.doesNotMatch(maintenanceCard, /data-distance-target|data-distance-month|payroll_month|עדכון מרחקים עבור|בקרת שכר לפי חודש/);
   assert.doesNotMatch(maintenanceCard, /cache|TTL|batch|expiration|מטמון|מנות/i);
 
   const automaticLoad = source.split("if (activeTab(state) === 'maintenance'")[1].split('const openMissingCourse')[0];
   assert.match(automaticLoad, /loadDistanceCoverage/);
-  assert.match(automaticLoad, /courseSchedulingDistanceStats = coverage/);
+  const refreshHandler = source.split("root.querySelector('[data-refresh-distance-coverage]')")[1].split("root.querySelector('[data-update-distances]')")[0];
+  assert.match(refreshHandler, /reloadDistanceCoverage/);
+  assert.doesNotMatch(refreshHandler, /runDistanceBuildLoop|build_cache/);
+  const updateHandler = source.split("root.querySelector('[data-update-distances]')")[1].split('\n  }\n};')[0];
+  assert.match(updateHandler, /runDistanceBuildLoop[\s\S]*scope: 'all'/);
+  assert.match(updateHandler, /finally[\s\S]*reloadDistanceCoverage/);
   assert.doesNotMatch(source, /distanceMaintenanceDialogHtml/);
 });
 
@@ -511,7 +519,8 @@ test('distance build progress texts cover success, failures, and stopped states'
 test('course scheduling distance UI exposes only simple coverage and progress copy', async () => {
   const source = await readFile(new URL('../frontend/src/screens/course-scheduling.js', import.meta.url), 'utf8');
   assert.match(source, /function distanceDoneMessage/);
-  assert.match(source, /מרחקים קיימים:/);
+  assert.match(source, /נדרשים:/);
+  assert.match(source, /קיימים:/);
   assert.match(source, /חסרים:/);
   assert.match(source, /דורשים רענון:/);
   assert.match(source, /מעדכן \$\{processed\} מתוך \$\{total\}/);

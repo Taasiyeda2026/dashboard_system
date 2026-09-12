@@ -387,11 +387,13 @@ test('maintenance is a main tab with inline actions and no legacy dropdown', asy
   assert.match(html, /data-cs-tab="maintenance"/);
   assert.match(html, /data-instructors-workspace-tab="maintenance"[^>]*aria-selected="true"/);
   assert.match(html, /course-scheduling-maintenance-tab/);
-  assert.match(html, /מרחקים קיימים: 0 מתוך 0/);
+  assert.match(html, /נדרשים: 0/);
+  assert.match(html, /קיימים: 0/);
   assert.match(html, /חסרים: 0/);
   assert.match(html, /דורשים רענון: 0/);
-  assert.match(html, /data-update-distances[^>]*>עדכן מרחקים/);
-  assert.match(html, /data-maintenance-action="readiness">פתח בדיקת נתונים/);
+  assert.match(html, /data-refresh-distance-coverage[^>]*aria-label="רענון נתוני מצב"/);
+  assert.match(html, /data-update-distances[^>]*>עדכון מרחקים/);
+  assert.doesNotMatch(html, /data-distance-target|data-distance-month|payroll_month/);
   assert.doesNotMatch(html, /data-maintenance-action="distances"/);
   assert.doesNotMatch(html, /data-toggle-maintenance|course-scheduling-maintenance-menu|⚙/);
   assert.doesNotMatch(html, /data-district-filter|data-authority-filter/);
@@ -399,7 +401,6 @@ test('maintenance is a main tab with inline actions and no legacy dropdown', asy
   const source = await readFile(new URL('../frontend/src/screens/course-scheduling.js', import.meta.url), 'utf8');
   assert.match(source, /instructorsWorkspaceHeaderHtml\(\{ activeTab: tab === 'maintenance' \? 'maintenance' : 'scheduling'/);
   assert.match(source, /loadDistanceCoverage/);
-  assert.match(source, /courseSchedulingShowDataReadiness = true/);
   assert.doesNotMatch(source, /distanceMaintenanceDialogHtml|courseSchedulingShowDistanceConfirm = true/);
   assert.doesNotMatch(source, /courseSchedulingMaintenanceOpen|maintenanceMenuHtml|data-toggle-maintenance/);
 });

@@ -185,3 +185,4 @@ config.HOTFIX_VERSION = `manager-board-no-warm-colors-20260910-v1-${config.HOTFI
 config.HOTFIX_VERSION = `manager-team-observation-rules-20260910-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `manager-board-tracking-single-load-20260912-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `dashboard-semester-summary-20260912-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `course-scheduling-distance-maintenance-simplification-20260912-v1-${config.HOTFIX_VERSION}`;
