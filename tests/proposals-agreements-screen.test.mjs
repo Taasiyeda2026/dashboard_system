@@ -75,7 +75,7 @@ const GEFEN_MIGRATION_FILE = new URL('../supabase/migrations/20260726223144_add_
 const GEFEN_DOCUMENT_REFINEMENT_MIGRATION_FILE = new URL('../supabase/migrations/20260726230813_refine_gefen_proposal_document.sql', import.meta.url);
 const CLIENT_IDENTITY_SNAPSHOT_MIGRATION_FILE = new URL('../supabase/migrations/20260825143000_proposal_client_identity_snapshot.sql', import.meta.url);
 
-const { proposalsAgreementsScreen, proposalsAgreementsTableRowsHtml, canAccessProposalsAgreements, canManageProposalsAgreements, STATUS_LABELS, STATUS_OPTIONS, buildProposalCatalogPdfEntries, proposalPreviewBodyHtml, normalizeProposalAgreementRow, countPendingApprovedProposals, isProposalApprovedPendingSend, extractItemsFromForm, sortRows, calculateTourTotal, validatePayload, resetRecipientDependentFields, stepComplete, buildProposalDocumentSnapshot, proposalLockedPreviewHtml, proposalHasFinalPdf, isProposalLegacySentWithoutPdf, upsertProposalContactOption, calculateProposalValidityDate, gefenEligibleItems, gefenApprovalItems, gefenApprovalValidationMessage, gefenApprovalDocumentHtml, proposalClientIdentifier, clientLockedBannerHtml, mergeProposalAgreementRow } = await import('../frontend/src/screens/proposals-agreements.js');
+const { proposalsAgreementsScreen, proposalsAgreementsTableRowsHtml, canAccessProposalsAgreements, canManageProposalsAgreements, STATUS_LABELS, STATUS_OPTIONS, buildProposalCatalogPdfEntries, proposalPreviewBodyHtml, normalizeProposalAgreementRow, countPendingApprovedProposals, isProposalApprovedPendingSend, extractItemsFromForm, sortRows, calculateTourTotal, validatePayload, resetRecipientDependentFields, stepComplete, buildProposalDocumentSnapshot, proposalLockedPreviewHtml, proposalHasFinalPdf, isProposalLegacySentWithoutPdf, upsertProposalContactOption, calculateProposalValidityDate, gefenEligibleItems, gefenApprovalItems, gefenApprovalValidationMessage, gefenApprovalDocumentHtml, proposalClientIdentifier, clientLockedBannerHtml, mergeProposalAgreementRow, drawerHtml } = await import('../frontend/src/screens/proposals-agreements.js');
 const { normalizeProposalAgreementRow: normalizeProposalAgreementReadRow } = await import('../frontend/src/api.js');
 
 function stateFor(role) {
@@ -4680,6 +4680,52 @@ test('saved proposal does not fill missing mobile/email from a later contact cha
     assert.doesNotMatch(drawer.innerHTML, /קשר אחר לגמרי|תפקיד אחר/);
     // Missing saved channels stay missing; later contact values are irrelevant to the document.
     assert.doesNotMatch(drawer.innerHTML, /052-7654321|new@example\.com|03-1234567/);
+  });
+});
+
+test('client-file proposal drawer keeps only the requested clean information groups', async () => {
+  const row = {
+    ...sampleRows[0],
+    id: 'clean-drawer-1',
+    school_framework: 'הגורן',
+    semel_mosad: '312397',
+    client_authority: 'מועצה אזורית לדוגמה',
+    quote_number: '10421',
+    sent_by: 'דנה כהן',
+    sent_at: '2026-09-09T10:30:00.000Z',
+    valid_until: '2026-10-10',
+    contact_school_id: '',
+    contact_name: 'נועה ישראלי',
+    contact_role: 'מנהלת',
+    phone: '050-1234567',
+    email: 'noa@example.com',
+    notes: 'לתאם מועד לאחר החגים',
+    total_amount: 12500
+  };
+
+  await withJSDOM(drawerHtml(row, [], stateFor('admin')), async (root) => {
+    const drawer = root.querySelector('[data-pa-drawer]');
+    assert.equal(drawer.querySelector('.ds-pa-drawer-name').textContent.trim(), 'הגורן · 312397');
+    assert.equal((drawer.textContent.match(/מועצה אזורית לדוגמה/g) || []).length, 1, 'authority appears only in the header metadata');
+
+    const proposalCard = drawer.querySelector('[data-pa-proposal-info-card]');
+    assert.deepEqual(
+      [...proposalCard.querySelectorAll('.ds-pa-info-label')].map((node) => node.textContent.trim()),
+      ['סוג הצעה', 'מספר הצעה', 'נשלח על ידי', 'תאריך שליחה', 'אישור גפ״ן']
+    );
+    assert.doesNotMatch(drawer.textContent, /תוקף|2026-10-10|valid_until/);
+    assert.equal((drawer.textContent.match(/הערות/g) || []).length, 1, 'notes have one dedicated section');
+    assert.match(drawer.textContent, /לתאם מועד לאחר החגים/);
+    assert.doesNotMatch(drawer.textContent, /לא נמצא מזהה איש קשר קיים לעדכון/);
+
+    const contactCard = drawer.querySelector('[data-pa-drawer-contact-form]');
+    for (const value of ['איש קשר', 'שם', 'תפקיד', 'נייד', 'מייל', 'נועה ישראלי', 'מנהלת', '050-1234567', 'noa@example.com']) {
+      assert.match(contactCard.textContent, new RegExp(value));
+    }
+    assert.match(drawer.textContent, /פעילויות ומחירים/);
+    assert.ok(drawer.querySelector('[data-pa-drawer-items]'), 'proposal line-items host remains available');
+    assert.match(drawer.textContent, /סה״כ לתשלום/);
+    assert.match(drawer.textContent, /12,500/);
   });
 });
 

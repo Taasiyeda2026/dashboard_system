@@ -5262,13 +5262,12 @@ function drawerHtml(row, activityNameOptions = [], state = null) {
     : '';
 
   const drawerClientType = inferProposalClientType(row);
-  const drawerIdentifier = proposalClientIdentifier(row);
   const schoolName = drawerClientType === 'other'
     ? (text(row.school_framework) || text(row.client_name) || '—')
     : (text(row.school_framework) || text(row.client_name) || '—');
   const authorityName = text(row.client_authority) || '—';
-  const proposalDate = formatDateDisplay(row.proposal_date) || '—';
-  const proposalDomain = normalizeProposalDomain(row.proposal_domain) || '—';
+  const semelMosad = text(row.semel_mosad);
+  const drawerTitle = semelMosad ? `${schoolName} · ${semelMosad}` : schoolName;
   const statusText = drawerRowStatus === 'sent'
     ? `✓ ${STATUS_LABELS.sent}`
     : (STATUS_LABELS[drawerRowStatus] || STATUS_LABELS[row.status] || text(row.status) || '—');
@@ -5281,36 +5280,17 @@ function drawerHtml(row, activityNameOptions = [], state = null) {
   const metaSep = '<span class="ds-pa-drawer-meta-sep" aria-hidden="true">|</span>';
   const drawerMetaLine = [
     `<span class="ds-pa-drawer-meta-item">${escapeHtml(authorityName)}</span>`,
-    `<span class="ds-pa-drawer-meta-item">${escapeHtml(proposalDate)}</span>`,
-    `<span class="ds-pa-drawer-meta-item">${escapeHtml(proposalDomain)}</span>`,
     `<span class="ds-pa-drawer-meta-item ds-pa-drawer-meta-item--status"><span class="ds-pa-drawer-status-text">${escapeHtml(statusText)}</span></span>`
   ].join(metaSep);
-
-  const hasSendingInfo = Boolean(text(row.sent_by) || text(row.sent_at) || text(row.approved_by) || text(row.approved_at) || proposalHasFinalPdf(row));
-  const missingHistoricalPdf = isProposalLegacySentWithoutPdf(row) && !canGenerateProposalPdf(row, state)
-    ? '<p class="ds-muted">לא קיים PDF שמור להצעה זו</p>' : '';
-  const sendingCard = hasSendingInfo || missingHistoricalPdf
-    ? `<div class="ds-pa-info-card ds-pa-info-card--sending ds-pa-info-card--flat">
-    <h4 class="ds-pa-card-title">פרטי שליחה</h4>${missingHistoricalPdf}
-    <div class="ds-pa-info-grid">
-      ${infoCell('נשלח על ידי', text(row.sent_by), false, { showEmpty: true })}
-      ${infoCell('תאריך שליחה', text(row.sent_at) ? formatDateDisplay(row.sent_at) : '', false, { showEmpty: true })}
-      ${infoCell('אושר על ידי', text(row.approved_by), false, { showEmpty: true })}
-      ${infoCell('תאריך אישור', text(row.approved_at) ? formatDateDisplay(row.approved_at) : '', false, { showEmpty: true })}
-      ${infoCell('נעול בתאריך', text(row.locked_at) ? formatDateDisplay(row.locked_at) : '', false, { showEmpty: true })}
-      ${infoCell('סטטוס PDF', proposalHasFinalPdf(row) ? 'נשמר' : 'לא נשמר', false, { showEmpty: true })}
-      ${infoCell('שם קובץ PDF', text(row.final_pdf_file_name), false, { showEmpty: true })}
-    </div>
-  </div>`
-    : '';
 
   const sourceId = text(row.contact_school_id || row.contact_source_id);
   const contactCanUpdate = Boolean(sourceId) && canManageProposalsAgreements(state);
   const contactCard = `<form class="ds-pa-info-card ds-pa-contact-update-card" data-pa-drawer-contact-form data-pa-contact-source-id="${escapeHtml(sourceId)}" data-pa-contact-source-table="contacts_schools">
+    <h4 class="ds-pa-card-title">איש קשר</h4>
     <div class="ds-pa-info-grid ds-pa-contact-view-grid">
-      ${infoCell('איש קשר', text(row.contact_name), false, { showEmpty: true })}
+      ${infoCell('שם', text(row.contact_name), false, { showEmpty: true })}
       ${infoCell('תפקיד', text(row.contact_role), false, { showEmpty: true })}
-      <div class="ds-pa-info-cell"><span class="ds-pa-info-label">דוא״ל</span><span class="ds-pa-info-value">${text(row.email) ? `<a href="mailto:${escapeHtml(text(row.email))}">${escapeHtml(text(row.email))}</a>` : 'לא הוזן'}</span></div>
+      <div class="ds-pa-info-cell"><span class="ds-pa-info-label">מייל</span><span class="ds-pa-info-value">${text(row.email) ? `<a href="mailto:${escapeHtml(text(row.email))}">${escapeHtml(text(row.email))}</a>` : 'לא הוזן'}</span></div>
       <div class="ds-pa-info-cell"><span class="ds-pa-info-label">${isMobilePhoneNumber(row.phone) ? 'נייד' : 'טלפון'}</span><span class="ds-pa-info-value">${text(row.phone) ? `<a href="tel:${escapeHtml(text(row.phone))}">${escapeHtml(text(row.phone))}</a>` : 'לא הוזן'}</span></div>
     </div>
     ${contactCanUpdate ? `<details class="ds-pa-contact-edit-details"><summary>עדכון פרטי איש קשר</summary>
@@ -5322,7 +5302,7 @@ function drawerHtml(row, activityNameOptions = [], state = null) {
       </div>
       <button type="submit" class="ds-btn ds-btn--sm ds-btn--primary">שמור פרטי קשר</button>
       <p class="ds-pa-contact-update-msg" data-pa-contact-update-msg></p>
-    </details>` : `<p class="ds-muted" style="font-size:.78rem;margin:8px 0 0">לא נמצא מזהה איש קשר קיים לעדכון.</p>`}
+    </details>` : ''}
   </form>`;
 
   const itemsHost = `<div class="ds-pa-drawer-items-host" data-pa-drawer-items><span class="ds-muted" style="font-size:0.8rem">טוען שורות הצעה...</span></div>`;
@@ -5332,19 +5312,13 @@ function drawerHtml(row, activityNameOptions = [], state = null) {
     <div class="ds-pa-total-amount">${row.total_amount != null ? `₪ ${escapeHtml(formatCurrency(row.total_amount))}` : 'לא הוזן'}</div>
   </div>`;
 
-  const notesFields = [
-    infoCell('הערת אישור', text(row.approval_note), true),
-    infoCell('הערות', text(row.notes), true)
-  ].filter(Boolean).join('');
-  const notesCard = notesFields
-    ? `<div class="ds-pa-info-card"><div class="ds-pa-info-grid">${notesFields}</div></div>`
-    : '';
+  const notesCard = `<section class="ds-pa-info-card ds-pa-notes-card"><h4 class="ds-pa-card-title">הערות</h4><p class="ds-pa-info-value">${escapeHtml(text(row.notes) || 'לא הוזנו הערות')}</p></section>`;
 
   return `<aside class="ds-pa-drawer" data-pa-drawer data-pa-drawer-id="${escapeHtml(row.id)}" aria-live="polite" dir="rtl">
     <div class="ds-pa-drawer-panel">
       <header class="ds-pa-drawer-head ds-pa-drawer-head--hero">
         <div class="ds-pa-drawer-head-info">
-          <h3 class="ds-pa-drawer-name ds-pa-drawer-name--hero">${escapeHtml(schoolName)}</h3>
+          <h3 class="ds-pa-drawer-name ds-pa-drawer-name--hero">${escapeHtml(drawerTitle)}</h3>
           <p class="ds-pa-drawer-meta-line">${drawerMetaLine}</p>
         </div>
         <button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-pa-close-drawer aria-label="סגירת פרטי רשומה" style="flex-shrink:0;font-size:1rem;padding:2px 8px">✕</button>
@@ -5355,9 +5329,8 @@ function drawerHtml(row, activityNameOptions = [], state = null) {
       </div>
       <div class="ds-pa-drawer-body">
         <div class="ds-pa-proposal-info-grid">
-          <section class="ds-pa-info-card"><h4 class="ds-pa-card-title">פרטי ההצעה</h4><div class="ds-pa-info-grid">${infoCell('רשות', authorityName, false, { showEmpty: true })}${infoCell('בית ספר / גוף', schoolName, false, { showEmpty: true })}${infoCell('סוג הצעה', clientFacingProposalTypeLabel(row), false, { showEmpty: true })}${infoCell('תאריך הצעה', proposalDate, false, { showEmpty: true })}${infoCell('תוקף עד', formatDateDisplay(row.valid_until), false, { showEmpty: true })}${infoCell('סטטוס', statusText, false, { showEmpty: true })}${infoCell('תחום', proposalDomain, false, { showEmpty: true })}${drawerIdentifier ? infoCell(drawerIdentifier.label, drawerIdentifier.value, false, { showEmpty: true }) : ''}${infoCell('מספר הצעה', text(row.quote_number), false, { showEmpty: true })}${infoCell('אישור גפ״ן', isGefenApprovalApplicable(row) ? gefenApprovalStatusDisplay(row) : '—', false, { showEmpty: true })}${infoCell('הערות', text(row.notes), true)}</div></section>
+          <section class="ds-pa-info-card" data-pa-proposal-info-card><h4 class="ds-pa-card-title">פרטי ההצעה</h4><div class="ds-pa-info-grid">${infoCell('סוג הצעה', clientFacingProposalTypeLabel(row), false, { showEmpty: true })}${infoCell('מספר הצעה', text(row.quote_number), false, { showEmpty: true })}${infoCell('נשלח על ידי', text(row.sent_by), false, { showEmpty: true })}${infoCell('תאריך שליחה', text(row.sent_at) ? formatDateDisplay(row.sent_at) : '', false, { showEmpty: true })}${infoCell('אישור גפ״ן', isGefenApprovalApplicable(row) ? gefenApprovalStatusDisplay(row) : '—', false, { showEmpty: true })}</div></section>
           ${contactCard}
-          ${sendingCard || '<section class="ds-pa-info-card"><h4 class="ds-pa-card-title">פרטי שליחה</h4><p class="ds-muted">טרם נשלחה</p></section>'}
         </div>
         <section class="ds-pa-activities-wide"><h4 class="ds-pa-card-title">פעילויות ומחירים</h4>${itemsHost}${financialCard}</section>
         ${notesCard}
