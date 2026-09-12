@@ -9,7 +9,13 @@ const TARGET_PROPOSAL_TYPES = new Set([
   'תשפז',
   'שנה הבאה',
   'שנת הלימודים תשפ״ז',
-  'תוכניות תשפ״ז'
+  'תוכניות תשפ״ז',
+  'summer',
+  'קיץ',
+  'tour',
+  'סיור',
+  'combined',
+  'הצעה משולבת'
 ]);
 
 function cleanFilenamePart(value = '') {
@@ -28,7 +34,7 @@ export function isSchoolProposalPdfFilenameType(value = '') {
 export function proposalSchoolPdfTitle({ typeKey = '', semelMosad = '', schoolName = '' } = {}) {
   if (!isSchoolProposalPdfFilenameType(typeKey)) return '';
   const recipient = cleanFilenamePart(schoolName) || cleanFilenamePart(semelMosad);
-  return recipient ? `הצעת מחיר ${recipient}` : 'הצעת מחיר';
+  return recipient ? `הצעת מחיר ${recipient}` : '';
 }
 
 function visibleProposalForms(root = document) {
