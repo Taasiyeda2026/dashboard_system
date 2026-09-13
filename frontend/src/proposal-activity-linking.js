@@ -11,6 +11,7 @@ const CREATOR_ATTR = 'data-proposal-activity-creator';
 const ENHANCEMENT_DEBOUNCE_MS = 120;
 
 let enhancementTimer = null;
+const pendingCreationsByRoot = new WeakMap();
 
 function clean(value) {
   return String(value == null ? '' : value).replace(/\s+/g, ' ').trim();
@@ -241,13 +242,74 @@ function creationButtonText(requiredCount, createdCount) {
   return remaining === 1 ? 'יצירת פעילות' : `יצירת ${remaining} פעילויות`;
 }
 
-function renderProposalCreator(root, proposal, data) {
-  root.querySelector(`[${CREATOR_ATTR}]`)?.remove();
+function pendingCreations(root) {
+  let pending = pendingCreationsByRoot.get(root);
+  if (!pending) {
+    pending = new Set();
+    pendingCreationsByRoot.set(root, pending);
+  }
+  return pending;
+}
 
+function proposalCreationButton(root, proposalItemId) {
+  return [...root.querySelectorAll('[data-create-activity-from-proposal-item]')]
+    .find((button) => clean(button.getAttribute('data-create-activity-from-proposal-item')) === proposalItemId);
+}
+
+function bindProposalCreatorHost(root, host) {
+  if (host.hasAttribute('data-proposal-activity-creator-bound')) return;
+  host.setAttribute('data-proposal-activity-creator-bound', 'true');
+  host.addEventListener('click', async (event) => {
+    const button = event.target.closest('[data-create-activity-from-proposal-item]');
+    if (!button || button.disabled || !host.contains(button)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const proposalItemId = clean(button.getAttribute('data-create-activity-from-proposal-item'));
+    if (!UUID_RE.test(proposalItemId)) return;
+
+    const pending = pendingCreations(root);
+    if (pending.has(proposalItemId)) return;
+    pending.add(proposalItemId);
+    button.disabled = true;
+    button.textContent = 'יוצר פעילויות…';
+    const { data: result, error } = await supabase.rpc('create_activity_from_proposal_item', {
+      p_proposal_item_id: proposalItemId
+    });
+    pending.delete(proposalItemId);
+    if (error) {
+      console.error('[proposal-activity-create]', error);
+      const currentButton = proposalCreationButton(root, proposalItemId);
+      if (currentButton) {
+        currentButton.disabled = false;
+        currentButton.textContent = 'יצירת פעילות';
+      }
+      toast(error.message || 'יצירת הפעילויות נכשלה.', 'error');
+      return;
+    }
+
+    clearScreenDataCache();
+    const createdCount = Number(result?.created_count || 0);
+    if (createdCount <= 0) toast('כל שורות הפעילות כבר קיימות.');
+    else if (createdCount === 1) toast('שורת הפעילות נוצרה בהצלחה.');
+    else toast(`${createdCount} שורות פעילות נוצרו בהצלחה.`);
+
+    root.removeAttribute('data-proposal-activity-loaded');
+    scheduleEnhancements();
+  });
+}
+
+function renderProposalCreator(root, proposal, data) {
   const eligibleItems = data.items.filter((item) => isEligibleProposalItem(item, proposal));
-  if (!eligibleItems.length) return;
+  const host = proposalCreatorHost(root);
+  if (!host) return;
+  bindProposalCreatorHost(root, host);
+  if (!eligibleItems.length) {
+    host.replaceChildren();
+    return;
+  }
 
   const byItemId = activitiesByProposalItem(data.activities);
+  const pending = pendingCreations(root);
   const card = document.createElement('section');
   card.className = 'proposal-activity-creator';
   card.setAttribute(CREATOR_ATTR, proposal.id);
@@ -277,47 +339,14 @@ function renderProposalCreator(root, proposal, data) {
           <button type="button"
             class="proposal-activity-creator__button"
             data-create-activity-from-proposal-item="${clean(item.id)}"
-            ${complete || !canCreateActivitiesFromProposal() ? 'disabled' : ''}>
-            ${creationButtonText(requiredCount, createdCount)}
+            ${complete || pending.has(clean(item.id)) || !canCreateActivitiesFromProposal() ? 'disabled' : ''}>
+            ${pending.has(clean(item.id)) ? 'יוצר פעילויות…' : creationButtonText(requiredCount, createdCount)}
           </button>
         </div>
       `;
     }).join('')}
   `;
 
-  card.addEventListener('click', async (event) => {
-    const button = event.target.closest('[data-create-activity-from-proposal-item]');
-    if (!button || button.disabled) return;
-    event.preventDefault();
-    event.stopPropagation();
-    const proposalItemId = clean(button.getAttribute('data-create-activity-from-proposal-item'));
-    if (!UUID_RE.test(proposalItemId)) return;
-
-    button.disabled = true;
-    button.textContent = 'יוצר פעילויות…';
-    const { data: result, error } = await supabase.rpc('create_activity_from_proposal_item', {
-      p_proposal_item_id: proposalItemId
-    });
-    if (error) {
-      console.error('[proposal-activity-create]', error);
-      button.disabled = false;
-      button.textContent = 'יצירת פעילות';
-      toast(error.message || 'יצירת הפעילויות נכשלה.', 'error');
-      return;
-    }
-
-    clearScreenDataCache();
-    const createdCount = Number(result?.created_count || 0);
-    if (createdCount <= 0) toast('כל שורות הפעילות כבר קיימות.');
-    else if (createdCount === 1) toast('שורת הפעילות נוצרה בהצלחה.');
-    else toast(`${createdCount} שורות פעילות נוצרו בהצלחה.`);
-
-    root.removeAttribute('data-proposal-activity-loaded');
-    scheduleEnhancements();
-  });
-
-  const host = proposalCreatorHost(root);
-  if (!host) return;
   host.replaceChildren(card);
   root.setAttribute('data-proposal-activity-loaded', proposal.id);
 }

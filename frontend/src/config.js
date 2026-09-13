@@ -196,3 +196,4 @@ config.HOTFIX_VERSION = `proposal-drawer-shell-owner-20260913-v2-${config.HOTFIX
 config.HOTFIX_VERSION = `proposal-drawer-activity-hosts-20260913-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `proposal-drawer-remove-rows-title-20260913-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `proposal-drawer-height-percent-20260913-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `proposal-activity-creator-lifecycle-20260913-v1-${config.HOTFIX_VERSION}`;
