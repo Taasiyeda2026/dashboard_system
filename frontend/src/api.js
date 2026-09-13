@@ -6610,6 +6610,18 @@ async function readCatalogProgramsFromSupabase() {
   };
 }
 export const api = {
+  instructorAttendanceDates: async ({ empId = '', fromDate = '', toDate = '' } = {}) => {
+    const employeeId = String(empId || '').trim();
+    if (!employeeId || !fromDate || !toDate) return [];
+    const { data, error } = await supabase
+      .from('attendance_records')
+      .select('id,emp_id,report_date,activity_type,activity_name_snapshot,program_name_snapshot,start_time,end_time,total_hours,school_name_snapshot,authority_name_snapshot,roundtrip_km,public_transport,public_transport_cost,expenses,expense_details,notes')
+      .eq('emp_id', employeeId)
+      .gte('report_date', fromDate)
+      .lte('report_date', toDate);
+    if (error) throw new Error(error.message || 'instructor_attendance_dates_read_failed');
+    return Array.isArray(data) ? data : [];
+  },
   attendanceControlRequest: async (action, payload = {}) => {
     assertPermission('view_attendance_control', 'attendance_control_forbidden');
     const response = await fetch(config.attendanceApiUrl, {

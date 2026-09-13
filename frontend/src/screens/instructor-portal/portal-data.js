@@ -38,3 +38,11 @@ export async function loadInstructorActivities(api) {
   const result = await api.myData({ includeClosedForApprovals: true });
   return { rows: result?.rows || [], teamGroups: result?.teamGroups || [] };
 }
+
+export async function loadInstructorAttendanceDates(api, query) {
+  try {
+    return await api.instructorAttendanceDates(query);
+  } catch {
+    return [];
+  }
+}

@@ -143,22 +143,16 @@
   min-height: 40px;
 }
 
-.app-shell--instructor .portal-activities-desktop .portal-activity-status {
-  display: inline-flex;
-  align-items: center;
-  min-height: 22px;
-  padding: 2px 7px;
-  border-radius: 999px;
-  background: #edf4fb;
-  color: #43617f;
-  font-size: 10.5px;
-  font-weight: 750;
-  white-space: nowrap;
-}
-
-.app-shell--instructor .portal-activities-desktop .portal-activity-open {
-  min-width: 58px;
-}
+.app-shell--instructor .portal-activities-desktop th:nth-child(1),
+.app-shell--instructor .portal-activities-desktop td:nth-child(1) { width: 14%; }
+.app-shell--instructor .portal-activities-desktop th:nth-child(2),
+.app-shell--instructor .portal-activities-desktop td:nth-child(2) { width: 14%; }
+.app-shell--instructor .portal-activities-desktop th:nth-child(3),
+.app-shell--instructor .portal-activities-desktop td:nth-child(3) { width: 24%; }
+.app-shell--instructor .portal-activities-desktop th:nth-child(4),
+.app-shell--instructor .portal-activities-desktop td:nth-child(4) { width: 22%; }
+.app-shell--instructor .portal-activities-desktop th:nth-child(5),
+.app-shell--instructor .portal-activities-desktop td:nth-child(5) { width: 26%; }
 
 .app-shell--instructor .portal-activities-mobile {
   display: none;
@@ -261,6 +255,70 @@
   font-weight: 850;
 }
 
+.app-shell--instructor .route-instructor-calendar .ds-interactive-card--day-cell.has-instructor-attendance::after {
+  content: '';
+  position: absolute;
+  inset-inline-start: 8px;
+  inset-block-end: 8px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #e07a2f;
+  box-shadow: 0 0 0 3px rgba(224, 122, 47, .18);
+}
+
+.app-shell--instructor .route-instructor-calendar .ds-interactive-card--day-cell.has-instructor-activity.has-instructor-attendance::after {
+  width: 25px;
+  border-radius: 0;
+  background:
+    radial-gradient(circle at 4.5px 4.5px, var(--ds-accent) 0 4.5px, transparent 5px),
+    radial-gradient(circle at 20.5px 4.5px, #e07a2f 0 4.5px, transparent 5px);
+  box-shadow: none;
+}
+
+.app-shell--instructor .instr-calendar-attendance-card {
+  margin-block-start: 8px;
+  padding: 9px 11px;
+  border: 1px solid color-mix(in srgb, #e07a2f 42%, var(--ds-border));
+  border-inline-start: 3px solid #e07a2f;
+  border-radius: 10px;
+  background: var(--ds-surface);
+}
+
+.app-shell--instructor .instr-calendar-attendance-card h4 {
+  margin: 0 0 7px;
+  color: var(--ds-text);
+  font-size: .86rem;
+}
+
+.app-shell--instructor .instr-calendar-attendance-card dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px 12px;
+  margin: 0;
+}
+
+.app-shell--instructor .instr-calendar-attendance-card dl > div {
+  min-width: 0;
+}
+
+.app-shell--instructor .instr-calendar-attendance-card dl > .is-wide {
+  grid-column: 1 / -1;
+}
+
+.app-shell--instructor .instr-calendar-attendance-card dt {
+  color: var(--ds-text-secondary);
+  font-size: .68rem;
+}
+
+.app-shell--instructor .instr-calendar-attendance-card dd {
+  margin: 1px 0 0;
+  color: var(--ds-text);
+  font-size: .78rem;
+  font-weight: 750;
+  overflow-wrap: anywhere;
+}
+
 /* Completion approvals — a checklist, not a second activity table. */
 .app-shell--instructor .instructor-area--approvals .instr-summary-grid {
   display: none !important;
@@ -311,10 +369,12 @@
 /* Shared activity detail drawer becomes compact only for instructor shell. */
 .app-shell--instructor .instructor-activity-drawer-shell {
   font-size: 13px;
+  gap: 5px;
 }
 
 .app-shell--instructor .instructor-activity-drawer-shell__eyebrow {
-  margin: 0 0 8px;
+  margin: 0 0 3px;
+  padding: 5px 8px;
   color: #66809a;
   font-size: 11px;
   font-weight: 800;
@@ -322,8 +382,41 @@
 
 .app-shell--instructor .instructor-activity-drawer-shell .activity-drawer__section,
 .app-shell--instructor .instructor-activity-drawer-shell .activity-detail-section {
-  padding: 10px 12px;
-  border-radius: 13px;
+  padding: 7px 9px;
+  border-radius: 10px;
+}
+
+.app-shell--instructor .instructor-activity-drawer-shell .activity-drawer__header {
+  padding-block: 5px;
+}
+
+.app-shell--instructor .instructor-activity-drawer-shell .activity-drawer__body,
+.app-shell--instructor .instructor-activity-drawer-shell .activity-drawer__form {
+  gap: 6px;
+}
+
+.app-shell--instructor .instructor-activity-drawer-shell .activity-drawer__section-title {
+  margin-block: 0 5px;
+  font-size: 13px;
+}
+
+.app-shell--instructor .instructor-activity-drawer-shell .activity-drawer__grid,
+.app-shell--instructor .instructor-activity-drawer-shell .activity-drawer__view-grid,
+.app-shell--instructor .instructor-activity-drawer-shell .activity-drawer__dates {
+  gap: 5px 9px;
+}
+
+.app-shell--instructor .instructor-activity-drawer-shell .activity-drawer__field {
+  gap: 1px;
+}
+
+.app-shell--instructor .instructor-activity-drawer-shell .activity-drawer__date-card {
+  padding: 5px 7px;
+}
+
+.app-shell--instructor .instructor-activity-drawer-shell .activity-drawer__section-head,
+.app-shell--instructor .instructor-activity-drawer-shell .activity-drawer__date-card-top {
+  margin-block-end: 4px;
 }
 
 .app-shell--instructor .instructor-activity-drawer-shell dt,
@@ -336,6 +429,62 @@
 .app-shell--instructor .instructor-activity-drawer-shell .activity-drawer__value {
   color: #17324f;
   font-size: 13px;
+}
+
+/* Override the shared inline drawer spacing only in the instructor shell. */
+.app-shell--instructor .instructor-activity-drawer-shell .activity-drawer-inline-layout > .activity-drawer__header {
+  padding: 10px 12px 8px !important;
+}
+
+.app-shell--instructor .instructor-activity-drawer-shell .activity-drawer-inline__body {
+  padding: 8px 10px !important;
+}
+
+.app-shell--instructor .instructor-activity-drawer-shell .activity-drawer-inline__core,
+.app-shell--instructor .instructor-activity-drawer-shell .activity-drawer-inline__support,
+.app-shell--instructor .instructor-activity-drawer-shell .activity-drawer-inline-layout [data-dates-section],
+.app-shell--instructor .instructor-activity-drawer-shell .activity-drawer-type-fix__top-summary {
+  margin: 0 0 6px !important;
+}
+
+.app-shell--instructor .instructor-activity-drawer-shell .activity-drawer-inline__field {
+  min-block-size: 52px;
+  padding: 7px 9px;
+}
+
+.app-shell--instructor .instructor-activity-drawer-shell .activity-drawer-inline-layout [data-dates-section] {
+  padding: 8px !important;
+}
+
+.app-shell--instructor .instructor-activity-drawer-shell .activity-drawer-type-fix__top-summary {
+  min-block-size: 42px;
+  padding: 6px 9px;
+}
+
+.app-shell--instructor .instructor-activity-drawer-shell .activity-drawer-inline-layout [data-dates-section] .activity-drawer__section-head,
+.app-shell--instructor .instructor-activity-drawer-shell .activity-drawer-inline-layout .activity-drawer__progress-row {
+  margin-block-end: 5px;
+}
+
+.app-shell--instructor .instructor-activity-drawer-shell .activity-drawer-inline__grid[data-activity-layout="workshop"] [data-field-key="manager"],
+.app-shell--instructor .instructor-activity-drawer-shell .activity-drawer-inline__grid[data-activity-layout="workshop"] [data-field-key="participants"] {
+  grid-column: auto !important;
+}
+
+.app-shell--instructor .instructor-activity-drawer-shell .activity-drawer-inline__support > :only-child {
+  grid-column: 1 / -1;
+}
+
+.app-shell--instructor .instructor-portal-monthly-summary {
+  margin: 0;
+  color: var(--ds-text);
+  font-size: .88rem;
+}
+
+.app-shell--instructor .instructor-portal-summary-divider {
+  height: 1px;
+  background: var(--ds-accent);
+  opacity: .35;
 }
 
 /* Mobile instructor shell */
@@ -478,6 +627,13 @@
     width: 21px;
     height: 21px;
     stroke: currentColor;
+  }
+}
+
+@media (max-width: 640px) {
+  .app-shell--instructor .instr-calendar-attendance-card dl,
+  .app-shell--instructor .instructor-activity-drawer-shell .activity-drawer-inline__grid[data-activity-layout="workshop"] {
+    grid-template-columns: 1fr;
   }
 }
 
