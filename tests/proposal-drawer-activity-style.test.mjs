@@ -25,7 +25,12 @@ test('proposal drawer uses the same left-side shell proportions and internal scr
   assert.match(style.textContent, /width:\s*min\(820px, 55vw\) !important/);
   assert.match(style.textContent, /max-width:\s*calc\(100vw - 32px\) !important/);
   assert.match(style.textContent, /linear-gradient\(135deg, #1a2740 0%, #243b60 100%\)/);
+  assert.match(style.textContent, /\.ds-pa-drawer-body[\s\S]*display:\s*flex !important/);
+  assert.match(style.textContent, /\.ds-pa-drawer-body[\s\S]*flex-direction:\s*column !important/);
+  assert.match(style.textContent, /\.ds-pa-drawer-body[\s\S]*gap:\s*10px !important/);
   assert.match(style.textContent, /\.ds-pa-drawer-body[\s\S]*overflow-y:\s*auto !important/);
+  assert.match(style.textContent, /\[data-proposal-activity-creator-host\]:empty/);
+  assert.match(style.textContent, /\[data-proposal-domain-routing-host\]:empty/);
   assert.match(style.textContent, /@media \(max-width: 1180px\)[\s\S]*min\(760px, 64vw\)/);
   assert.match(style.textContent, /@media \(max-width: 900px\)[\s\S]*width:\s*100vw !important/);
 });
@@ -88,5 +93,5 @@ test('proposal drawer polish applies to rendered proposal details and feature lo
   assert.ok(dom.window.document.getElementById('ds-pa-proposal-activity-drawer-style-v1'));
 
   const featureLoaders = await readFile(FEATURE_LOADERS_FILE, 'utf8');
-  assert.match(featureLoaders, /proposal-drawer-activity-style\.js\?v=20260913-v3/);
+  assert.match(featureLoaders, /proposal-drawer-activity-style\.js\?v=20260913-v4/);
 });

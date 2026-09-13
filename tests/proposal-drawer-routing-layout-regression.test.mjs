@@ -24,13 +24,41 @@ test('domain E routing owns separate DOM and state markers from activity creatio
   assert.match(activityLinking, /data-proposal-activity-loaded/);
 });
 
-test('Israa routing card participates in normal proposal drawer flow', async () => {
+test('Israa routing card participates in normal proposal drawer flow via dedicated host', async () => {
   const domainRouting = await readFile(DOMAIN_ROUTING_FILE, 'utf8');
 
   assert.match(domainRouting, /\.proposal-israa-routing\s*\{[\s\S]*position:\s*static\s*!important;/);
   assert.match(domainRouting, /\.proposal-israa-routing\s*\{[\s\S]*width:\s*100%;/);
   assert.match(domainRouting, /\.proposal-israa-routing\s*\{[\s\S]*box-sizing:\s*border-box;/);
-  assert.match(domainRouting, /root\.querySelector\('\.ds-pa-activities-wide'\)/);
+  assert.match(domainRouting, /querySelector\('\[data-proposal-domain-routing-host\]'\)/);
+  assert.match(domainRouting, /replaceChildren\(card\)/);
+  assert.doesNotMatch(domainRouting, /insertAdjacentElement\(/);
+  assert.doesNotMatch(domainRouting, /afterend/);
+  assert.doesNotMatch(domainRouting, /data-proposal-activity-creator-host/);
+});
+
+test('activity creator mounts into its own host without afterend or domain-host reuse', async () => {
+  const [activityLinking, domainRouting, proposalsScreen] = await Promise.all([
+    readFile(ACTIVITY_LINKING_FILE, 'utf8'),
+    readFile(DOMAIN_ROUTING_FILE, 'utf8'),
+    readFile(PROPOSALS_SCREEN_FILE, 'utf8')
+  ]);
+
+  assert.match(activityLinking, /querySelector\('\[data-proposal-activity-creator-host\]'\)/);
+  assert.match(activityLinking, /replaceChildren\(card\)/);
+  assert.doesNotMatch(activityLinking, /insertAdjacentElement\(/);
+  assert.doesNotMatch(activityLinking, /afterend/);
+  assert.doesNotMatch(activityLinking, /data-proposal-domain-routing-host/);
+  assert.match(domainRouting, /replaceChildren\(card\)/);
+
+  assert.match(
+    proposalsScreen,
+    /ds-pa-activities-wide[\s\S]*\$\{itemsHost\}<div data-proposal-activity-creator-host><\/div>\$\{financialCard\}/
+  );
+  assert.match(
+    proposalsScreen,
+    /<\/section>\s*<div data-proposal-domain-routing-host><\/div>/
+  );
 });
 
 test('only proposal-drawer-activity-style owns proposal detail shell geometry', async () => {
@@ -44,7 +72,14 @@ test('only proposal-drawer-activity-style owns proposal detail shell geometry', 
   assert.match(drawerStyle, /\[data-pa-proposal-detail\]\.ds-pa-proposal-detail[\s\S]*?width:\s*100%\s*!important/);
   assert.match(drawerStyle, /\[data-pa-proposal-detail\]\.ds-pa-proposal-detail[\s\S]*?max-width:\s*none\s*!important/);
   assert.match(drawerStyle, /\[data-pa-proposal-detail\][\s\S]*width:\s*min\(820px, 55vw\)\s*!important/);
+  assert.match(drawerStyle, /\.ds-pa-drawer-body[\s\S]*display:\s*flex\s*!important/);
+  assert.match(drawerStyle, /\.ds-pa-drawer-body[\s\S]*flex-direction:\s*column\s*!important/);
+  assert.match(drawerStyle, /\.ds-pa-drawer-body[\s\S]*gap:\s*10px\s*!important/);
   assert.match(drawerStyle, /\.ds-pa-drawer-body[\s\S]*overflow-y:\s*auto\s*!important/);
+  assert.match(
+    drawerStyle,
+    /\[data-proposal-activity-creator-host\]:empty[\s\S]*\[data-proposal-domain-routing-host\]:empty[\s\S]*display:\s*none\s*!important/
+  );
 
   assert.doesNotMatch(
     gefenStatus,
@@ -77,7 +112,7 @@ test('drawer owner is available before proposal detail opens without loading the
   assert.match(featureLoaders, /case 'proposalDrawerShell':/);
   assert.match(
     featureLoaders,
-    /case 'proposalDrawerShell':[\s\S]*?import\('\.\/proposal-drawer-activity-style\.js\?v=20260913-v3'\)/
+    /case 'proposalDrawerShell':[\s\S]*?import\('\.\/proposal-drawer-activity-style\.js\?v=20260913-v4'\)/
   );
 
   const proposalsStart = featureLoaders.indexOf("case 'proposals':");
@@ -109,5 +144,5 @@ test('drawer owner is available before proposal detail opens without loading the
   );
 
   assert.match(proposalsScreen, /await ensureFeature\('proposalDrawerShell'\)/);
-  assert.match(proposalsScreen, /const renderProposalDetailWorkspace = async \(row\) =>/);
+  assert.match(proposalsScreen, /const renderProposalDetailWorkspace = async \(row\) => \{/);
 });

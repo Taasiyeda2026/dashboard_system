@@ -203,6 +203,9 @@ export function ensureProposalActivityDrawerStyles(scope = globalThis) {
       color: #b42318 !important;
     }
     html body #app [data-pa-proposal-detail] .ds-pa-drawer-body {
+      display: flex !important;
+      flex-direction: column !important;
+      gap: 10px !important;
       flex: 1 1 auto !important;
       min-height: 0 !important;
       overflow-y: auto !important;
@@ -210,6 +213,10 @@ export function ensureProposalActivityDrawerStyles(scope = globalThis) {
       padding: 16px 18px 24px !important;
       background: #f4f6f9 !important;
       scrollbar-gutter: stable;
+    }
+    html body #app [data-pa-proposal-detail] [data-proposal-activity-creator-host]:empty,
+    html body #app [data-pa-proposal-detail] [data-proposal-domain-routing-host]:empty {
+      display: none !important;
     }
     html body #app [data-pa-proposal-detail] .ds-pa-proposal-info-grid {
       display: grid !important;

@@ -187,11 +187,7 @@ async function readProposal(root) {
 }
 
 function proposalCreatorHost(root) {
-  const activities = root.querySelector('.ds-pa-activities-wide');
-  if (activities) return activities;
-  const items = root.querySelector('[data-pa-drawer-items]');
-  if (items) return items.parentElement || root;
-  return root;
+  return root.querySelector('[data-proposal-domain-routing-host]') || null;
 }
 
 function isEligible2027Proposal(proposal) {
@@ -278,7 +274,9 @@ function renderIsraaRouting(root, proposal) {
     }
   });
 
-  proposalCreatorHost(root).insertAdjacentElement('afterend', card);
+  const host = proposalCreatorHost(root);
+  if (!host) return;
+  host.replaceChildren(card);
   root.setAttribute('data-proposal-domain-routing-loaded', signature);
 }
 
