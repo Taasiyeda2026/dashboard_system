@@ -4,12 +4,16 @@ import { readFile } from 'node:fs/promises';
 
 const DOMAIN_ROUTING_FILE = new URL('../frontend/src/proposal-domain-routing.js', import.meta.url);
 
-test('domain E routing host cannot shrink inside the drawer flex column', async () => {
+test('proposal drawer content blocks cannot shrink and overlap while the body scrolls', async () => {
   const source = await readFile(DOMAIN_ROUTING_FILE, 'utf8');
 
   assert.match(
     source,
-    /\[data-proposal-domain-routing-host\]\s*\{[\s\S]*?flex:\s*0\s+0\s+auto\s*!important;[\s\S]*?width:\s*100%\s*!important;/
+    /\.ds-pa-drawer-body\s*>\s*\*\s*\{[\s\S]*?flex:\s*0\s+0\s+auto\s*!important;[\s\S]*?min-width:\s*0\s*!important;/
+  );
+  assert.match(
+    source,
+    /\[data-proposal-domain-routing-host\]\s*\{[\s\S]*?width:\s*100%\s*!important;/
   );
   assert.match(source, /\.proposal-israa-routing\s*\{[\s\S]*?position:\s*static\s*!important;/);
   assert.match(source, /querySelector\('\[data-proposal-domain-routing-host\]'\)/);
