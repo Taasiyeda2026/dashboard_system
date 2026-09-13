@@ -195,3 +195,4 @@ config.HOTFIX_VERSION = `finance-collection-money-zero-20260913-v1-${config.HOTF
 config.HOTFIX_VERSION = `proposal-drawer-shell-owner-20260913-v2-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `proposal-drawer-activity-hosts-20260913-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `proposal-drawer-remove-rows-title-20260913-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `proposal-drawer-height-percent-20260913-v1-${config.HOTFIX_VERSION}`;

@@ -47,9 +47,10 @@ export function ensureProposalActivityDrawerStyles(scope = globalThis) {
       width: min(820px, 55vw) !important;
       max-inline-size: calc(100vw - 32px) !important;
       max-width: calc(100vw - 32px) !important;
-      block-size: 100dvh !important;
-      height: 100dvh !important;
-      max-height: 100dvh !important;
+      block-size: 100% !important;
+      height: 100% !important;
+      max-block-size: 100% !important;
+      max-height: 100% !important;
       margin: 0 auto 0 0 !important;
       padding: 0 !important;
       border: 0 !important;
