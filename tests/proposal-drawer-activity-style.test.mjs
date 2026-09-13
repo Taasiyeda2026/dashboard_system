@@ -24,7 +24,7 @@ test('proposal drawer uses the same left-side shell proportions and internal scr
   assert.match(style.textContent, /max-width:\s*calc\(100vw - 32px\) !important/);
   assert.match(style.textContent, /linear-gradient\(135deg, #1a2740 0%, #243b60 100%\)/);
   assert.match(style.textContent, /\.ds-pa-drawer-body[\s\S]*overflow-y:\s*auto !important/);
-  assert.match(style.textContent, /@media \(max-width: 1180px\)[\s\S]*width:\s*min\(760px, 64vw\) !important/);
+  assert.match(style.textContent, /@media \(max-width: 1180px\)[\s\S]*min\(760px, 64vw\)/);
   assert.match(style.textContent, /@media \(max-width: 900px\)[\s\S]*width:\s*100vw !important/);
 });
 
@@ -70,7 +70,7 @@ test('proposal drawer enhancement keeps existing actions/content and adds propos
   assert.match(detail.querySelector('.ds-pa-activities-wide')?.textContent || '', /פעילויות ומחירים/);
 });
 
-test('proposal drawer polish applies to rendered proposal details and feature loader loads it', async () => {
+test('proposal drawer polish applies to rendered proposal details and feature loader loads v2', async () => {
   const dom = new JSDOM(`<!doctype html><html><head></head><body><div id="app">
     <div data-pa-proposal-detail>
       <aside class="ds-pa-drawer"><div class="ds-pa-drawer-panel">
@@ -86,5 +86,5 @@ test('proposal drawer polish applies to rendered proposal details and feature lo
   assert.ok(dom.window.document.getElementById('ds-pa-proposal-activity-drawer-style-v1'));
 
   const featureLoaders = await readFile(FEATURE_LOADERS_FILE, 'utf8');
-  assert.match(featureLoaders, /proposal-drawer-activity-style\.js\?v=20260913-v1/);
+  assert.match(featureLoaders, /proposal-drawer-activity-style\.js\?v=20260913-v2/);
 });

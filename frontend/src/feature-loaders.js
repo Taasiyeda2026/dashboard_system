@@ -83,6 +83,13 @@ export function ensureFeature(name) {
     case 'instructorBirthdays':
       return loadOnce('instructorBirthdays', () => import('./instructor-birthday-profile.js?v=20260812-v1'));
 
+    case 'proposalDrawerShell':
+      // Lightweight owner for proposal detail drawer geometry. Safe to warm early
+      // without pulling PDF/editor enhancers required by the full proposals bundle.
+      return loadOnce('proposalDrawerShell', () => (
+        import('./proposal-drawer-activity-style.js?v=20260913-v2')
+      ));
+
     case 'proposals':
       return loadOnce('proposals', async () => {
         await Promise.all([
@@ -97,7 +104,7 @@ export function ensureFeature(name) {
           import('./proposal-workflow-completion.js?v=20260902-controller-v1'),
           import('./proposal-summer-list-runtime.js?v=20260802-v1'),
           import('./proposal-client-home-load-more-fix.js?v=20260803-v1'),
-          import('./proposal-gefen-approval-list-status.js?v=20260913-side-drawer-table-v2'),
+          import('./proposal-gefen-approval-list-status.js?v=20260913-shell-owner-v3'),
           import('./proposal-approval-runtime.js'),
           import('./client-contact-persistence-hotfix.js?v=20260908-contact-form-integrity-v1'),
           import('./proposal-new-contact-link-runtime.js?v=20260909-v1'),
@@ -114,9 +121,9 @@ export function ensureFeature(name) {
           import('./screens/client-file-layout-polish.js?v=20260721-client-file-layout-v2'),
           import('./proposal-details-public-cleanup.js?v=20260801-perf-startup-v1')
         ]);
-        // This module owns the proposal drawer shell. Load it after every legacy
-        // proposal enhancer so its drawer layout rules win deterministically.
-        return import('./proposal-drawer-activity-style.js?v=20260913-v2');
+        // Keep shell ownership last relative to legacy enhancers. Reuses the
+        // early proposalDrawerShell loadOnce when it was already warmed.
+        return ensureFeature('proposalDrawerShell');
       });
 
     case 'annualReviews':
