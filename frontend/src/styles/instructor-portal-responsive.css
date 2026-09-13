@@ -1,0 +1,501 @@
+/* Instructor portal responsive UI — scoped to instructor shell only.
+ * Applies the approved app-like language on both desktop and mobile without
+ * changing shared management screens.
+ */
+
+.app-shell--instructor {
+  --instr-blue: #2474f5;
+  --instr-cyan: #16b8d4;
+  --instr-ink: #133153;
+  --instr-muted: #66768d;
+  --instr-border: #d8e6f2;
+  --instr-card: rgba(255, 255, 255, .96);
+  --instr-shadow: 0 10px 28px rgba(40, 91, 141, .09), 0 2px 7px rgba(40, 91, 141, .05);
+  --instr-shadow-soft: 0 4px 16px rgba(40, 91, 141, .07);
+}
+
+.app-shell--instructor .shell-main,
+.app-shell--instructor .shell-content {
+  background:
+    radial-gradient(circle at 8% 5%, rgba(52, 211, 153, .10), transparent 24%),
+    radial-gradient(circle at 94% 4%, rgba(34, 211, 238, .13), transparent 28%),
+    linear-gradient(180deg, #f8fcff 0%, #f2f8fd 42%, #f6f8fb 100%);
+}
+
+.app-shell--instructor .instructor-area {
+  width: min(100%, 1180px);
+  margin-inline: auto;
+  color: var(--instr-ink);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.app-shell--instructor .instructor-area .ds-page-header {
+  margin-bottom: 12px;
+}
+
+.app-shell--instructor .instructor-area .ds-page-header h1,
+.app-shell--instructor .instructor-area .ds-page-header__title {
+  color: #102d50;
+  font-size: clamp(1.28rem, 2vw, 1.7rem);
+  font-weight: 850;
+  letter-spacing: -.02em;
+}
+
+.app-shell--instructor .instructor-area .ds-page-header p,
+.app-shell--instructor .instructor-area .ds-page-header__subtitle {
+  color: var(--instr-muted);
+  font-size: .78rem;
+}
+
+.app-shell--instructor .instructor-area .ds-card {
+  border: 1px solid rgba(147, 178, 207, .34);
+  border-radius: 16px;
+  background: var(--instr-card);
+  box-shadow: var(--instr-shadow-soft);
+}
+
+.app-shell--instructor .instructor-area .ds-card__header {
+  min-height: 42px;
+  padding: 8px 12px;
+  border-bottom-color: #e4edf6;
+  background: linear-gradient(90deg, rgba(235, 246, 255, .86), rgba(250, 253, 255, .82));
+}
+
+.app-shell--instructor .instructor-area .ds-card__title {
+  color: #173a60;
+  font-size: .82rem;
+  font-weight: 800;
+}
+
+.app-shell--instructor .instructor-area .ds-btn {
+  border-radius: 10px;
+  font-size: 12px;
+}
+
+.app-shell--instructor .instructor-area .ds-btn--sm {
+  min-height: 32px;
+  padding: 5px 10px;
+}
+
+.app-shell--instructor .instructor-area .ds-btn--xs {
+  min-height: 27px;
+  padding: 3px 8px;
+  font-size: 11px;
+}
+
+/* Desktop instructor sidebar: compact and intentionally limited to core routes. */
+@media (min-width: 960px) {
+  .app-shell--instructor .shell-sidebar--instructor {
+    width: 154px;
+    padding: 18px 10px 14px;
+  }
+
+  .app-shell--instructor .shell-sidebar__user-name {
+    font-size: 13px;
+  }
+
+  .app-shell--instructor .shell-sidebar__user-role {
+    font-size: 11px;
+  }
+
+  .app-shell--instructor .shell-nav__btn {
+    min-height: 36px;
+    padding: 6px 10px;
+    border-radius: 10px;
+    font-size: 12px;
+  }
+}
+
+/* Activities — summary outside, full detail remains in shared activity drawer. */
+.app-shell--instructor .instructor-my-activities-actions {
+  display: flex;
+  justify-content: flex-start;
+  margin: 0 auto 10px;
+  width: min(100%, 980px);
+}
+
+.app-shell--instructor .portal-activities-desktop {
+  width: min(100%, 980px);
+  margin-inline: auto;
+  overflow: hidden;
+}
+
+.app-shell--instructor .portal-activities-desktop .ds-table-wrap {
+  overflow-x: hidden;
+}
+
+.app-shell--instructor .portal-activities-desktop .ds-table {
+  width: 100%;
+  table-layout: fixed;
+  font-size: 11.5px;
+}
+
+.app-shell--instructor .portal-activities-desktop th,
+.app-shell--instructor .portal-activities-desktop td {
+  padding: 7px 8px;
+  vertical-align: middle;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.app-shell--instructor .portal-activities-desktop tbody tr {
+  min-height: 40px;
+}
+
+.app-shell--instructor .portal-activities-desktop .portal-activity-status {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: #edf4fb;
+  color: #43617f;
+  font-size: 10.5px;
+  font-weight: 750;
+  white-space: nowrap;
+}
+
+.app-shell--instructor .portal-activities-desktop .portal-activity-open {
+  min-width: 58px;
+}
+
+.app-shell--instructor .portal-activities-mobile {
+  display: none;
+}
+
+/* Calendar — fixed seven-column grid, compact cells, clear today state. */
+.app-shell--instructor.route-instructor-calendar .ds-screen-stack,
+.app-shell--instructor .route-instructor-calendar {
+  min-width: 0;
+}
+
+.app-shell--instructor .route-instructor-calendar .ds-cal-nav {
+  width: min(100%, 980px);
+  margin: 0 auto 10px;
+  padding: 7px 9px;
+  border: 1px solid rgba(145, 180, 211, .35);
+  border-radius: 14px;
+  background: rgba(255,255,255,.90);
+  box-shadow: var(--instr-shadow-soft);
+}
+
+.app-shell--instructor .route-instructor-calendar .ds-cal-nav__label {
+  color: #173a60;
+  font-size: .92rem;
+  font-weight: 850;
+}
+
+.app-shell--instructor .route-instructor-calendar > .ds-card,
+.app-shell--instructor .route-instructor-calendar .ds-card {
+  width: min(100%, 980px);
+  margin-inline: auto;
+  overflow: hidden;
+  box-shadow: var(--instr-shadow);
+}
+
+.app-shell--instructor .route-instructor-calendar .ds-cal-wrap {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+.app-shell--instructor .route-instructor-calendar .ds-cal-weekdays,
+.app-shell--instructor .route-instructor-calendar .ds-cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  width: 100%;
+  max-width: 100%;
+}
+
+.app-shell--instructor .route-instructor-calendar .ds-cal-slot-hit {
+  min-width: 0;
+}
+
+.app-shell--instructor .route-instructor-calendar .ds-interactive-card--day-cell {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+  min-height: 86px;
+  padding: 8px 7px;
+  border-radius: 0;
+  border-color: #e1eaf3;
+  background: rgba(255,255,255,.92);
+  overflow: hidden;
+}
+
+.app-shell--instructor .route-instructor-calendar .ds-interactive-card__title {
+  color: #183654;
+  font-size: .78rem;
+  font-weight: 800;
+}
+
+.app-shell--instructor .route-instructor-calendar .ds-interactive-card__subtitle {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  max-width: 100%;
+  overflow: hidden;
+  white-space: normal;
+  color: #63768b;
+  font-size: .63rem;
+  line-height: 1.28;
+}
+
+.app-shell--instructor .route-instructor-calendar .ds-interactive-card--day-cell.is-instructor-today {
+  z-index: 1;
+  background: #eef7ff;
+  box-shadow: inset 0 0 0 2px rgba(36, 116, 245, .62);
+}
+
+.app-shell--instructor .route-instructor-calendar .ds-interactive-card--day-cell.is-instructor-today::before {
+  content: 'היום';
+  position: absolute;
+  inset-block-start: 5px;
+  inset-inline-start: 5px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: #dcecff;
+  color: #246fe9;
+  font-size: 9px;
+  font-weight: 850;
+}
+
+/* Completion approvals — a checklist, not a second activity table. */
+.app-shell--instructor .instructor-area--approvals .instr-summary-grid {
+  display: none !important;
+}
+
+.app-shell--instructor .instructor-area--approvals > .ds-card,
+.app-shell--instructor .instructor-area--approvals .ds-card {
+  width: min(100%, 840px);
+  margin-inline: auto;
+}
+
+.app-shell--instructor .instr-approvals-desktop {
+  width: 100%;
+  overflow: hidden;
+}
+
+.app-shell--instructor .ds-table--instr-approvals2 {
+  width: 100%;
+  table-layout: fixed;
+  font-size: 11.5px;
+}
+
+.app-shell--instructor .ds-table--instr-approvals2 th,
+.app-shell--instructor .ds-table--instr-approvals2 td {
+  padding: 6px 7px;
+  vertical-align: middle;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.app-shell--instructor .instr-status {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.app-shell--instructor .instr-file-row,
+.app-shell--instructor .instr-upload-controls {
+  gap: 5px;
+  flex-wrap: wrap;
+}
+
+/* Shared activity detail drawer becomes compact only for instructor shell. */
+.app-shell--instructor .instructor-activity-drawer-shell {
+  font-size: 13px;
+}
+
+.app-shell--instructor .instructor-activity-drawer-shell__eyebrow {
+  margin: 0 0 8px;
+  color: #66809a;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.app-shell--instructor .instructor-activity-drawer-shell .activity-drawer__section,
+.app-shell--instructor .instructor-activity-drawer-shell .activity-detail-section {
+  padding: 10px 12px;
+  border-radius: 13px;
+}
+
+.app-shell--instructor .instructor-activity-drawer-shell dt,
+.app-shell--instructor .instructor-activity-drawer-shell .activity-drawer__label {
+  color: #6a7b8f;
+  font-size: 11px;
+}
+
+.app-shell--instructor .instructor-activity-drawer-shell dd,
+.app-shell--instructor .instructor-activity-drawer-shell .activity-drawer__value {
+  color: #17324f;
+  font-size: 13px;
+}
+
+/* Mobile instructor shell */
+@media (max-width: 959px) {
+  .app-shell--instructor .shell-main,
+  .app-shell--instructor .shell-content {
+    background:
+      radial-gradient(circle at 10% 4%, rgba(52, 211, 153, .16), transparent 22%),
+      radial-gradient(circle at 94% 2%, rgba(34, 211, 238, .22), transparent 27%),
+      linear-gradient(180deg, #f8fcff 0%, #edf7ff 26%, #f5f8fc 100%);
+  }
+
+  .app-shell--instructor .instructor-area {
+    width: 100%;
+    padding-inline: 12px;
+  }
+
+  .app-shell--instructor .portal-activities-desktop,
+  .app-shell--instructor .instr-approvals-desktop {
+    display: none !important;
+  }
+
+  .app-shell--instructor .portal-activities-mobile,
+  .app-shell--instructor .instr-approvals-mobile {
+    display: grid;
+    gap: 10px;
+  }
+
+  .app-shell--instructor .portal-activity-card,
+  .app-shell--instructor .instr-approval-card {
+    position: relative;
+    border: 1px solid rgba(151, 183, 213, .34);
+    border-radius: 17px;
+    background: rgba(255,255,255,.95);
+    box-shadow: var(--instr-shadow-soft);
+  }
+
+  .app-shell--instructor .portal-activity-card {
+    padding: 13px 14px;
+  }
+
+  .app-shell--instructor .portal-activity-card h3 {
+    margin: 0 0 8px;
+    color: #143456;
+    font-size: .92rem;
+  }
+
+  .app-shell--instructor .portal-activity-card__summary {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0,1fr));
+    gap: 8px 12px;
+  }
+
+  .app-shell--instructor .portal-activity-card__summary span {
+    min-width: 0;
+    color: #65768a;
+    font-size: .68rem;
+  }
+
+  .app-shell--instructor .portal-activity-card__summary strong {
+    display: block;
+    margin-top: 2px;
+    color: #173754;
+    font-size: .76rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .app-shell--instructor .route-instructor-calendar .ds-cal-nav {
+    margin-bottom: 8px;
+    min-height: 52px;
+  }
+
+  .app-shell--instructor .route-instructor-calendar .ds-interactive-card--day-cell {
+    min-height: 58px;
+    padding: 6px 4px;
+  }
+
+  .app-shell--instructor .route-instructor-calendar .ds-interactive-card__subtitle {
+    -webkit-line-clamp: 1;
+    font-size: .55rem;
+  }
+
+  .app-shell--instructor .route-instructor-calendar .ds-interactive-card--day-cell.is-instructor-today::before {
+    content: '';
+    width: 6px;
+    height: 6px;
+    inset-block-start: 5px;
+    inset-inline-start: 5px;
+    padding: 0;
+    background: #2474f5;
+  }
+
+  .app-shell--instructor .instructor-my-activities-actions {
+    width: 100%;
+  }
+
+  .app-shell--instructor .instructor-bottom-nav {
+    left: 8px;
+    right: 8px;
+    bottom: 0;
+    width: auto;
+    min-height: 68px;
+    padding: 5px 7px env(safe-area-inset-bottom, 0px);
+    border: 1px solid rgba(157, 186, 214, .34);
+    border-bottom: 0;
+    border-radius: 22px 22px 0 0;
+    background: rgba(255,255,255,.95);
+    box-shadow: 0 -8px 26px rgba(52, 92, 130, .10);
+    backdrop-filter: blur(18px);
+  }
+
+  .app-shell--instructor .instructor-bottom-nav__btn {
+    min-width: 0;
+    min-height: 56px;
+    margin: 1px;
+    border-radius: 17px;
+    color: #61758d;
+    font-size: .63rem;
+    font-weight: 750;
+  }
+
+  .app-shell--instructor .instructor-bottom-nav__btn.is-active {
+    background: linear-gradient(180deg, #e6f2ff, #eef6ff);
+    color: #246fe9;
+    box-shadow: inset 0 0 0 1px rgba(82, 145, 231, .08);
+  }
+
+  .app-shell--instructor .instructor-bottom-nav__icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    font-size: 0;
+  }
+
+  .app-shell--instructor .instructor-bottom-nav__icon svg {
+    width: 21px;
+    height: 21px;
+    stroke: currentColor;
+  }
+}
+
+@media (max-width: 420px) {
+  .app-shell--instructor .instructor-area {
+    padding-inline: 9px;
+  }
+
+  .app-shell--instructor .route-instructor-calendar .ds-cal-wd {
+    font-size: 10px;
+  }
+
+  .app-shell--instructor .route-instructor-calendar .ds-interactive-card--day-cell {
+    min-height: 54px;
+  }
+
+  .app-shell--instructor .portal-activity-card__summary {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+}
