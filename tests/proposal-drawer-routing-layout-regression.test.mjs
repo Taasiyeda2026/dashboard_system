@@ -112,7 +112,7 @@ test('drawer owner is available before proposal detail opens without loading the
   assert.match(featureLoaders, /case 'proposalDrawerShell':/);
   assert.match(
     featureLoaders,
-    /case 'proposalDrawerShell':[\s\S]*?import\('\.\/proposal-drawer-activity-style\.js\?v=20260913-v4'\)/
+    /case 'proposalDrawerShell':[\s\S]*?import\('\.\/proposal-drawer-activity-style\.js\?v=20260913-v5'\)/
   );
 
   const proposalsStart = featureLoaders.indexOf("case 'proposals':");

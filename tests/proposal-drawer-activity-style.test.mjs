@@ -24,6 +24,11 @@ test('proposal drawer uses the same left-side shell proportions and internal scr
   assert.match(style.textContent, /\[data-pa-proposal-detail\]\.ds-pa-proposal-detail[\s\S]*?max-width:\s*none !important/);
   assert.match(style.textContent, /width:\s*min\(820px, 55vw\) !important/);
   assert.match(style.textContent, /max-width:\s*calc\(100vw - 32px\) !important/);
+  assert.match(style.textContent, /\[data-pa-proposal-detail\] > \.ds-pa-drawer[\s\S]*?block-size:\s*100% !important/);
+  assert.match(style.textContent, /\[data-pa-proposal-detail\] > \.ds-pa-drawer[\s\S]*?height:\s*100% !important/);
+  assert.match(style.textContent, /\[data-pa-proposal-detail\] > \.ds-pa-drawer[\s\S]*?max-block-size:\s*100% !important/);
+  assert.match(style.textContent, /\[data-pa-proposal-detail\] > \.ds-pa-drawer[\s\S]*?max-height:\s*100% !important/);
+  assert.doesNotMatch(style.textContent, /\[data-pa-proposal-detail\] > \.ds-pa-drawer[\s\S]*?100dvh/);
   assert.match(style.textContent, /linear-gradient\(135deg, #1a2740 0%, #243b60 100%\)/);
   assert.match(style.textContent, /\.ds-pa-drawer-body[\s\S]*display:\s*flex !important/);
   assert.match(style.textContent, /\.ds-pa-drawer-body[\s\S]*flex-direction:\s*column !important/);
