@@ -6,6 +6,7 @@ import { countPendingApprovedProposals, isProposalApprovedPendingSend } from './
 import { handleSupabaseSessionFailure } from '../session-security-runtime.js';
 import { hasPermission } from '../permission-policy.js';
 import { ProposalEditorController } from '../proposal-editor-controller.js';
+import { ensureFeature } from '../feature-loaders.js';
 
 export { countPendingApprovedProposals, isProposalApprovedPendingSend };
 
@@ -6785,8 +6786,10 @@ export const proposalsAgreementsScreen = {
         itemsHost.innerHTML = '';
       }
     };
-    const renderProposalDetailWorkspace = (row) => {
+    const renderProposalDetailWorkspace = async (row) => {
       if (!clientWorkspace || !row) return;
+      // Drawer shell owner must be present before detail HTML mounts.
+      await ensureFeature('proposalDrawerShell');
       const returnTo = proposalDetailContext?.returnTo || 'home';
       setScreenTitle('תיק לקוח');
       setViewMode('proposal-details');
@@ -6878,8 +6881,7 @@ export const proposalsAgreementsScreen = {
       if (proposalDetailContext?.proposalId) {
         const detailRow = rowWithCentralContact(data.rows.find((item) => text(item.id) === text(proposalDetailContext.proposalId)));
         if (detailRow) {
-          renderProposalDetailWorkspace(detailRow);
-          fillProposalDetailItems(detailRow);
+          void renderProposalDetailWorkspace(detailRow).then(() => fillProposalDetailItems(detailRow));
           return;
         }
         proposalDetailContext = null;
@@ -6928,7 +6930,7 @@ export const proposalsAgreementsScreen = {
       }
       else setAllProposalsMode(false);
       if (resolvedReturnTo === 'client') selectedClientKey = nextClientKey;
-      renderProposalDetailWorkspace(row);
+      await renderProposalDetailWorkspace(row);
       await fillProposalDetailItems(row);
     };
     const loadSelectedClientProposals = async (file) => {
@@ -7003,8 +7005,7 @@ export const proposalsAgreementsScreen = {
       if (proposalDetailContext?.proposalId) {
         const detailRow = rowWithCentralContact(data.rows.find((item) => text(item.id) === text(proposalDetailContext.proposalId)));
         if (detailRow) {
-          renderProposalDetailWorkspace(detailRow);
-          fillProposalDetailItems(detailRow);
+          void renderProposalDetailWorkspace(detailRow).then(() => fillProposalDetailItems(detailRow));
           return;
         }
       }
@@ -8449,8 +8450,7 @@ export const proposalsAgreementsScreen = {
           root.querySelectorAll('[data-pa-tab-panel]').forEach((panel) => {
             panel.hidden = panel.dataset.paTabPanel === 'new';
           });
-          renderProposalDetailWorkspace(detailRow);
-          fillProposalDetailItems(detailRow);
+          void renderProposalDetailWorkspace(detailRow).then(() => fillProposalDetailItems(detailRow));
           return;
         }
       }

@@ -192,3 +192,4 @@ config.HOTFIX_VERSION = `instructor-portal-contact-pipeline-review-20260912-v2-$
 config.HOTFIX_VERSION = `instructor-portal-final-completion-20260913-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `finance-collection-table-layout-20260913-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `finance-collection-money-zero-20260913-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `proposal-drawer-shell-owner-20260913-v2-${config.HOTFIX_VERSION}`;

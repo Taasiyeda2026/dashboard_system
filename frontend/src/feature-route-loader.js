@@ -1,4 +1,4 @@
-import { ensureFeaturesForRoute, preloadScreenModule } from './feature-loaders.js';
+import { ensureFeature, ensureFeaturesForRoute, preloadScreenModule } from './feature-loaders.js';
 import { state } from './state.js';
 
 /**
@@ -45,6 +45,10 @@ import { state } from './state.js';
       loadRouteFeatures(key);
       return;
     }
+
+    // Warm only the drawer shell owner immediately. Keep the heavy PDF/editor
+    // proposals bundle deferred until after first list paint + idle.
+    ensureFeature('proposalDrawerShell').catch(() => {});
 
     const generation = ++deferredGeneration;
     const startedAt = Date.now();
