@@ -1,29 +1,198 @@
-export const config = window.__CONFIG__ || {};
+import './proposal-recipient-search-row-fix.js?v=20260801-v10';
+import './instructors-header-cleanup.js?v=20260807-guides-search-fix-v1';
 
-config.API_BASE_URL = config.API_BASE_URL || '';
-config.DEFAULT_TIMEZONE = config.DEFAULT_TIMEZONE || 'Asia/Jerusalem';
-config.APP_VERSION = config.APP_VERSION || '2026.09.13';
-config.HOTFIX_VERSION = config.HOTFIX_VERSION || 'base';
-config.HOTFIX_VERSION = `proposal-session-expiry-20260720-v1-${config.HOTFIX_VERSION}`;
-config.HOTFIX_VERSION = `client-file-render-lifecycle-hotfix-20260720-v1-${config.HOTFIX_VERSION}`;
-config.HOTFIX_VERSION = `proposal-drawer-fix-20260720-v1-${config.HOTFIX_VERSION}`;
-config.HOTFIX_VERSION = `proposal-approval-flow-20260720-v1-${config.HOTFIX_VERSION}`;
-config.HOTFIX_VERSION = `annual-review-20260719-v1-${config.HOTFIX_VERSION}`;
-config.HOTFIX_VERSION = `personal-reports-auth-20260719-v1-${config.HOTFIX_VERSION}`;
-config.HOTFIX_VERSION = `global-activity-period-20260720-v1-${config.HOTFIX_VERSION}`;
-config.HOTFIX_VERSION = `operations-2027-tabs-20260722-v1-${config.HOTFIX_VERSION}`;
-config.HOTFIX_VERSION = `proposal-pdf-hardening-20260722-v1-${config.HOTFIX_VERSION}`;
-config.HOTFIX_VERSION = `proposal-editor-controller-20260724-v1-${config.HOTFIX_VERSION}`;
-config.HOTFIX_VERSION = `proposal-activity-linking-20260727-v1-${config.HOTFIX_VERSION}`;
-config.HOTFIX_VERSION = `proposal-activity-quantity-20260727-v1-${config.HOTFIX_VERSION}`;
-config.HOTFIX_VERSION = `proposal-domain-routing-20260729-v1-${config.HOTFIX_VERSION}`;
-config.HOTFIX_VERSION = `proposal-full-clone-runtime-20260729-v2-${config.HOTFIX_VERSION}`;
-config.HOTFIX_VERSION = `proposal-summer-creation-retired-20260731-v1-${config.HOTFIX_VERSION}`;
-config.HOTFIX_VERSION = `proposal-operational-name-runtime-20260801-v1-${config.HOTFIX_VERSION}`;
-config.HOTFIX_VERSION = `proposal-filtered-tab-count-20260828-v1-${config.HOTFIX_VERSION}`;
-config.HOTFIX_VERSION = `proposal-drawer-routing-layout-20260913-v1-${config.HOTFIX_VERSION}`;
+/**
+ * frontend/src/config.js — המקור היחיד לכתובת ה-API בכל הפרויקט.
+ *
+ * אין לשים URL של Google Apps Script בשום קובץ אחר בפרויקט.
+ * כל שינוי ב-API URL חייב להיעשות כאן בלבד.
+ *
+ * סדר עדיפויות לקביעת ה-URL:
+ *  1. window.__DASHBOARD_CONFIG__.apiUrl  — מוגדר ב-index.html לפני טעינת האפליקציה (מומלץ לייצור)
+ *  2. ?apiUrl=...                         — פרמטר query בכתובת הדפדפן (לבדיקות/dev)
+ *  3. DEFAULT_API_URL                     — כתובת פריסה ברירת מחדל (production)
+ *
+ * כדי להחליף סביבה (dev/staging/prod), שנו את DEFAULT_API_URL כאן או השתמשו
+ * ב-window.__DASHBOARD_CONFIG__ מחוץ לבאנדל.
+ */
+const runtimeConfig = (typeof globalThis !== 'undefined' && globalThis.__DASHBOARD_CONFIG__) || {};
+
+/**
+ * כתובת פריסת Web App הנוכחית.
+ * ניתן לדרוס ב-`window.__DASHBOARD_CONFIG__.apiUrl` או ב-`?apiUrl=` בלא שינוי קוד.
+ */
+const DEFAULT_API_URL =
+  'https://script.google.com/macros/s/AKfycbwOE07-PLbJiWAK-Rf58ymMvgu0b0WSaIn040nOKjKyQSecju3Bsdcl6oLgZnlvtc0_/exec';
+
+function resolveApiUrl() {
+  if (runtimeConfig.apiUrl) return String(runtimeConfig.apiUrl).trim();
+
+  try {
+    const fromQuery = new URLSearchParams(
+      typeof window !== 'undefined' ? window.location.search : ''
+    ).get('apiUrl');
+    if (fromQuery) return fromQuery.trim();
+  } catch {}
+
+  return DEFAULT_API_URL;
+}
+
+const resolvedUrl = resolveApiUrl();
+
+if (!resolvedUrl) {
+  console.warn(
+    '[Dashboard] API URL לא הוגדר. הגדירו window.__DASHBOARD_CONFIG__.apiUrl לפני טעינת האפליקציה, '
+    + 'או העבירו ?apiUrl= בכתובת, או עדכנו DEFAULT_API_URL ב-frontend/src/config.js.'
+  );
+}
+
+export const config = {
+  apiUrl: resolvedUrl,
+  instructorAttendanceUrl: String(runtimeConfig.instructorAttendanceUrl || 'https://taasiyeda2026.github.io/dashboard_system/attendance/').trim(),
+  instructorPresentationsUrl: String(runtimeConfig.instructorPresentationsUrl || 'https://drive.google.com/drive/folders/1qINdcwLXTSmQND6pE_ojjJ18TUuY8UB1?usp=drive_link').trim(),
+  attendanceApiUrl: String(runtimeConfig.attendanceApiUrl || 'https://prod-01.israelcentral.logic.azure.com:443/workflows/04031e5e47bd4f6e90abfd3e95b1768b/triggers/manual/paths/invoke?api-version=2016-10-01&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=HrWXi-vhW2ni_HyFDpZWof0aFU3dGwTrZ-CHiKuwe5Q').trim(),
+  DIAGNOSTICS_UI_ENABLED: false,
+  HOTFIX_VERSION: 'client-file-local-first-search-20260912-v1-batch2-manager-attendance-completion-20260910-v1-manager-board-attendance-ui-20260909-v1-manual-selection-modal-approval-details-distance-threshold-20260907-v1-activity-scheduling-types-20260907-v1-activity-coordination-silent-reconciliation-20260817-v1-attendance-control-payroll-time-route-completeness-20260816-v1-attendance-control-daily-workflow-20260816-v1-proposal-sent-signature-indicator-20260816-v1-next-year-gefen-current-pricing-20260816-v1-attendance-control-bundle-membership-20260815-v1-attendance-control-bundle-matching-20260815-v1-attendance-control-activity-types-and-report-hours-20260815-v1-attendance-control-intentional-double-meetings-20260815-v1-attendance-control-reliable-matching-20260815-v1-attendance-control-row-status-20260815-v1-activity-documents-and-operations-navigation-20260815-v1-instructor-schedule-print-typography-20260815-v1-work-schedule-sessions-projection-20260815-v1-work-schedule-all-status-20260815-v1-instructor-work-schedule-review-fixes-20260815-v1-instructor-work-schedule-explicit-filter-20260815-v1-attendance-control-explicit-month-20260815-v1-activity-coordination-compact-modal-20260815-v1-activity-drawer-coordination-times-20260815-v1-attendance-control-dashboard-only-20260815-v3-attendance-control-direct-dashboard-20260815-v2-attendance-control-20260815-v1-activity-gefen-save-contract-20260815-v1-activity-gefen-funding-20260815-v1-activity-drawer-top-summary-notes-20260815-v1-activity-drawer-name-rls-dates-viewonly-20260815-v1-activity-drawer-followup-20260815-v1-course-drawer-date-grouping-20260815-v1-course-drawer-ui-polish-20260815-v1-course-drawer-responsive-followup-20260814-v1-course-drawer-four-column-followup-20260814-v1-course-activity-drawer-20260814-v1-activity-coordination-review-fixes-20260814-v1-activity-coordination-20260814-v1-instructor-onboarding-retry-permission-20260814-v3-instructor-onboarding-create-draft-20260814-v2-instructor-onboarding-20260814-v1-client-file-home-restore-20260813-v1-client-file-open-load-proposals-20260813-v1-client-file-search-catalog-20260813-v1-proposal-next-year-table-note-preserve-20260811-v1-proposal-next-year-table-note-20260811-v1-client-contact-duplicate-idempotency-20260811-v1-central-funding-sources-20260811-v1-client-contact-persistence-israa-access-20260811-v1-employee-file-reference-density-20260811-v2-employee-file-compact-dashboard-20260811-v1-employee-files-manual-checklist-20260810-v2-employee-files-sharepoint-metadata-20260810-v1-proposal-gefen-preview-normalizer-20260810-v1-proposal-pricing-lazy-index-refresh-20260810-v1-proposal-gefen-added-row-selection-20260810-v1-proposal-gefen-selection-owner-20260810-v1-proposal-gefen-item-name-sync-20260810-v1-proposal-item-name-own-profile-rpc-20260810-v1-client-contact-secure-rpc-auth-session-security-timeouts-20260726-v2-activity-drawer-cache-20260727-v1-edit-dedup-v1-performance-cache-20260727-v1-dashboard-exceptions-unique-20260728-v2-completion-approval-performance-20260728-v1-always-fresh-data-20260728-v1-nonblocking-fetch-20260728-v1-month-navigation-20260728-v1-dashboard-august-navigation-20260728-v1-progressive-route-warmup-20260728-v1-next-year-pricing-20260729-v1-next-year-workshops-20260729-v1-login-sw-refresh-20260729-v1-restore-2026-summer-20260730-v1-sw-cache-refresh-20260730-v1-proposal-pdf-school-filename-20260730-v1-instructor-matching-modal-20260730-v1-israa-excel-drawer-20260730-v1-israa-approved-fields-20260730-v2-israa-toolbar-filters-20260730-v1-israa-compact-drawer-multiselect-20260730-v1-israa-program-multiselect-click-fix-20260730-v1-israa-program-menu-visible-20260730-v1-annual-review-print-shell-20260730-v1-annual-review-isolated-print-20260730-v2-proposal-editor-compact-cache-20260801-v1-proposal-editor-flat-layout-20260801-v1-proposal-template-switch-stability-20260801-v1-proposal-contact-save-button-20260801-v1-proposal-contact-edit-source-recovery-20260801-v1-nextyear-workshop-row-20260801-v1-recipient-meta-single-row-20260801-v1-proposal-recipient-meta-alignment-20260801-v2-proposal-recipient-search-same-row-20260801-v1-school-2027-default-cutover-20260801-v1-stage2-local-baseline-monitor-20260801-v1-performance-continuation-20260801-v1-proposal-recipient-final-ui-20260801-v1-proposal-recipient-single-source-20260801-v2-perf-projections-lazy-20260801-v1-proposal-recipient-workshops-final-20260801-v1-recipient-single-row-grid-20260801-v1-recipient-date-domain-130-20260801-v1-perf-startup-client-file-20260801-v1-e2e-gate-fixes-20260802-v1-proposal-editor-reference-ui-20260802-v1-proposal-editor-cascade-20260802-v1-ui-regressions-proposal-activities-scheduling-20260802-v1-proposal-error-return-20260802-v1-2026-readonly-complete-history-20260802-v1-proposal-type-tashpaz-totals-20260802-v1-district-assignment-exceptions-unique-20260802-v1-proposal-pdf-full-document-20260802-v1-simplify-activity-scheduling-requirements-20260802-v1-next-year-editor-stability-20260802-v1-final-calendar-proposals-regressions-20260802-v1-instructors-header-cleanup-20260802-v1-proposal-summer-list-complete-20260802-v1-approved-ui-regressions-20260802-v1-activities-loop-proposal-tables-20260802-v1-proposal-pdf-school-name-only-20260803-v1-next-year-workshop-live-refresh-20260803-v1-next-year-mixed-workshop-selection-20260803-v1-course-scheduling-travel-cache-readiness-20260803-v2-course-scheduling-cache-key-alignment-20260803-v3-single-route-expiry-ui-20260803-v4-course-scheduling-isolated-design-20260803-v1-course-scheduling-ux-redesign-20260804-v1-course-scheduling-ux-polish-20260804-v1-course-scheduling-ux-polish-20260804-v2-course-scheduling-ux-polish-20260804-v3-course-scheduling-empty-action-btn-20260804-v4-instruction-language-default-he-20260804-v1-tashpaz-unified-activities-20260804-v1-course-scheduling-results-travel-checks-20260804-v1-activities-funding-filters-20260804-v1-tashpaz-dual-tables-shared-picker-20260804-v1-gefen-approval-list-status-20260804-v1-pr1333-ops2027-fixes-20260805-v1-scheduling-permission-removal-20260804-v1-scheduling-age-layer-removal-20260804-v1-half-year-authority-scheduling-20260804-v1-school-2027-district-normalization-20260804-v1-course-scheduling-compact-layout-20260804-v1-course-scheduling-hierarchy-polish-20260805-v1-course-scheduling-density-redesign-20260805-v1-course-scheduling-structural-layout-20260805-v1-proposals-table-widths-20260805-v1-proposals-signed-column-final-align-20260805-v1-course-scheduling-compact-symmetric-20260805-v1-operations-2027-loading-cache-cleanup-20260805-v1-course-scheduling-row-structure-final-20260805-v1-course-scheduling-ui-actions-constraints-20260805-v1-activity-requirements-matching-20260805-v1-scheduling-candidate-classification-20260805-v1-ops-2027-workshop-inventory-table-20260805-v1-activity-meetings-autofill-20260805-v1-activity-sessions-and-signed-marker-20260806-v1-existing-activity-edit-session-rows-20260806-v1-session-holiday-generation-20260806-v1-school-2027-monthly-activities-20260806-v1-course-scheduling-authority-maintenance-tab-20260806-v1-scheduling-quality-tiers-20260806-v1-course-scheduling-distance-nonblocking-20260806-v1-scheduling-proposed-dates-20260807-v1-proposed-dates-review-fixes-20260807-v2-pr1389-review-20260807-v3-scheduling-stage3-global-optimization-20260807-v1-pr1391-review-fixes-20260807-v2-pr1391-review2-20260807-v3-pr1391-stage3-scoring-priority-20260807-v4-pr1391-prelim-empid-fix-20260807-v5-scheduling-stage-4-ui-20260806-v1-scheduling-stage-4-ui-nav-perm-20260807-v2-scheduling-logic-ui-corrections-20260807-v1-scheduling-hidden-planning-state-20260807-v1-district-scheduling-simulation-20260807-v1-district-sim-review-fixes-20260807-v2-route-reliability-selected-candidate-20260807-v3-unresolved-transition-route-20260807-v4-ops-2027-workshop-inventory-lists-auth-hotfix-20260807-v1-district-sim-save-drafts-20260807-v1-workshop-inventory-2027-opening-balances-20260807-v1-course-scheduling-e2e-alignment-20260807-v1-cache-1455-20260807-v2-workshop-stock-location-holder-status-20260807-v1-guides-page-redesign-cache-1458-20260807-v1-guides-page-search-removal-depth-cache-1459-20260807-v1-guides-card-shadow-fix-cache-1460-20260807-v1-session-expiry-proposal-recovery-20260809-v1-course-scheduling-production-stability-20260809-v1-course-scheduling-draft-ownership-20260809-v1-route-record-refresh-separation-20260809-v1-course-scheduling-contract-sync-20260809-v1-distance-coverage-card-20260809-v1-course-scheduling-legacy-cleanup-20260809-v1-instructor-assignment-sync-20260809-v1-course-scheduling-operational-split-view-20260809-v1-instructors-heading-cleanup-20260809-v1-course-scheduling-collapsed-rows-20260809-v2-proposal-approval-idempotent-timeout-20260809-v2-proposal-approval-single-flight-20260809-v1-guides-list-alert-filters-cleanup-20260809-v1-guides-list-assignment-filter-fix-20260809-v1-course-list-ui-polish-20260809-v1-role-permission-contracts-20260809-v1-proposal-template-demand-load-20260810-v1-course-scheduling-stage2-sync-20260810-v1-course-scheduling-stage3-save-validation-20260810-v1-scheduling-effective-end-optional-gender-20260811-v1-operations-tab-prompt-20260811-v1-employee-file-missing-dot-20260811-v1-activity-coordination-workflow-20260815-v2-instructor-schedule-print-redesign-20260815-v1'
+};
+config.HOTFIX_VERSION = `client-contact-form-integrity-20260908-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `proposal-new-contact-link-20260909-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `attendance-travel-compensation-20260908-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `proposals-performance-instrumentation-20260909-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `proposal-server-chromium-pdf-20260902-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `activity-assignment-attendance-guards-20260904-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `activity-edit-location-ids-20260904-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `activity-edit-missing-authority-id-20260904-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `activity-school-picker-calendar-guards-20260904-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `activity-location-inline-gefen-add-20260904-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `activity-historical-calendar-validation-20260905-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `proposal-sent-silent-pdf-upload-20260817-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `course-scheduling-transparent-ranking-20260817-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `course-scheduling-incremental-travel-ranking-20260817-v2-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `course-scheduling-baseline-route-build-20260817-v3-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `course-scheduling-recalculation-and-unknowns-20260817-v4-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `course-scheduling-manual-candidate-20260817-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `attendance-picker-reports-polish-20260828-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `attendance-control-compact-results-20260816-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `payroll-control-direct-data-20260816-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `payroll-control-tab-20260817-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `instructor-onboarding-sharepoint-folder-20260817-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `course-scheduling-recommendation-card-ui-20260817-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `course-scheduling-top-three-ui-20260817-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `course-scheduling-concise-rejections-20260817-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `instructor-portal-20260906-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `instructor-portal-production-fixes-20260907-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `instructor-portal-season-boundary-20260908-v2-${config.HOTFIX_VERSION}`;
+
+config.HOTFIX_VERSION = `payroll-control-review-states-20260817-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `payroll-control-zero-kilometers-20260817-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `payroll-control-post-1541-display-20260817-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `payroll-control-unmatched-km-priority-20260817-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `employee-file-snapshot-open-20260817-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `employee-file-mutation-snapshot-sync-20260817-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `payroll-control-explicit-dashboard-period-20260817-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `employee-file-sharepoint-return-sync-20260817-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `payroll-month-distance-maintenance-20260817-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `attendance-control-complete-fix-20260817-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `payroll-control-finish-approval-20260817-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `payroll-control-full-updaterecord-payload-20260817-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `payroll-control-manager-decisions-20260817-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `course-scheduling-transition-and-full-course-ranking-20260817-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `payroll-control-merge-main-20260817-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `attendance-v2-infra-sw-scope-boundary-20260817-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `attendance-v2-desktop-shell-sw-cache-1536-20260817-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `manager-workspace-tabs-sw-cache-1537-20260817-v2-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `manager-workspace-built-in-tabs-sidebar-access-start-checkpoint-sw-cache-1538-20260818-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `manager-workspace-current-month-clickable-tabs-sw-cache-1539-20260818-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `manager-workspace-zoom-context-cleanup-sw-cache-1541-20260818-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `management-password-recovery-20260818-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `attendance-month-workflow-gates-20260818-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `attendance-round2-reporting-flow-20260819-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `attendance-manager-admin-approval-sharepoint-20260819-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `attendance-control-unified-naming-sw-cache-1554-20260819-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `finance-hub-lazy-collection-sw-cache-1558-20260819-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `finance-collection-school-2027-sw-cache-1559-20260819-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `finance-attendance-excel-employment-sheets-sw-cache-1560-20260819-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `finance-maof-daily-excel-sw-cache-1561-20260819-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `finance-collection-end-month-ui-sw-cache-1563-20260819-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `finance-collection-search-grouping-width-sw-cache-1564-20260819-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `finance-attendance-compact-export-ui-sw-cache-1565-20260819-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `finance-post-merge-refresh-sw-cache-1566-20260819-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `manager-board-polish-sw-cache-1567-20260819-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `manager-tracking-employee-file-source-sw-cache-1568-20260819-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `tracking-table-columns-symmetric-sw-cache-1570-20260819-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `attendance-control-live-records-sw-cache-1572-20260819-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `operations-home-canonical-sw-cache-1573-20260819-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `activities-filter-row-layout-sw-cache-1574-20260819-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `activity-type-tochenit-fix-sw-cache-1575-20260819-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `course-scheduling-calendar-shift-sw-cache-1576-20260820-v1-${config.HOTFIX_VERSION}`;
+
+config.HOTFIX_VERSION = `course-scheduling-assigned-management-20260821-v1-${config.HOTFIX_VERSION}`;
+
+config.HOTFIX_VERSION = `course-scheduling-assigned-management-review-fixes-20260821-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `finance-transaction-accounts-20260821-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `finance-transaction-issuance-20260821-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `finance-transaction-summary-layout-20260821-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `finance-transaction-page-data-20260821-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `gefen-start-reminder-20260823-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `admin-permissions-hierarchy-20260823-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `permission-enforcement-source-of-truth-20260823-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `capability-registry-complete-20260823-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `permission-login-proposal-security-20260823-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `proposal-approval-admin-only-20260823-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `canonical-proposal-permissions-migration-20260823-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `permissions-main-sync-20260823-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `permissions-hidden-preserve-20260823-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `permissions-canonical-hierarchy-20260823-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `approved-seven-user-permission-matrix-20260823-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `instructor-drawer-variant-reset-20260824-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `instructor-drawer-title-cleanup-20260824-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `proposal-gefen-authority-client-20260825-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `manager-board-instructor-center-20260825-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `proposal-client-identity-snapshot-20260825-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `proposal-client-snapshot-atomic-rollout-20260825-v2-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `israa-tour-pricing-launcher-20260827-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `israa-tour-pricing-tabbar-20260827-v2-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `course-scheduling-single-target-20260826-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `israa-canonical-add-form-20260827-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `activity-session-count-source-of-truth-20260827-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `attendance-direct-report-save-20260828-v1-${config.HOTFIX_VERSION}`;
+
+config.HOTFIX_VERSION = `attendance-public-transport-compact-form-20260831-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `attendance-dependent-fields-reopen-window-20260831-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `admin-keyboard-converter-20260831-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `admin-keyboard-converter-compact-20260831-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `proposal-tour-input-performance-20260901-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `proposal-editor-controller-architecture-20260902-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `scheduling-approvals-admin-only-compact-card-20260908-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `approval-alerts-text-only-cache-refresh-20260908-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `proposal-contact-payload-filter-20260908-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `proposal-existing-contact-source-id-20260908-v1-${config.HOTFIX_VERSION}`;
+
+config.HOTFIX_VERSION = `pr1776-review-fixes-20260910-v1-${config.HOTFIX_VERSION}`;
+
+config.HOTFIX_VERSION = `pr1776-final-conflict-fixes-20260910-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `manager-board-direct-interactions-20260910-v1-${config.HOTFIX_VERSION}`;
+
+config.HOTFIX_VERSION = `proposal-gefen-approval-opt-in-20260910-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `proposal-gefen-approval-opt-in-review-20260910-v2-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `edit-requests-card-ux-20260910-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `admin-home-hide-attendance-preview-card-20260910-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `manager-board-month-attr-collision-20260910-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `manager-team-tracking-seniority-20260910-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `manager-team-feedback-windows-20260910-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `manager-board-ui-polish-20260910-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `manager-board-no-warm-colors-20260910-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `manager-team-observation-rules-20260910-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `manager-board-tracking-single-load-20260912-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `dashboard-semester-summary-20260912-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `proposal-client-drawer-cleanup-20260912-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `course-scheduling-distance-maintenance-simplification-20260912-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `instructor-portal-interface-fixes-20260912-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `instructor-portal-contact-pipeline-review-20260912-v2-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `instructor-portal-final-completion-20260913-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `finance-collection-table-layout-20260913-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `finance-collection-money-zero-20260913-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `proposal-drawer-shell-owner-20260913-v2-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `proposal-drawer-activity-hosts-20260913-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `proposal-drawer-remove-rows-title-20260913-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `proposal-drawer-height-percent-20260913-v1-${config.HOTFIX_VERSION}`;
-config.HOTFIX_VERSION = `proposal-activity-creator-lifecycle-routing-20260913-v2-${config.HOTFIX_VERSION}`;
