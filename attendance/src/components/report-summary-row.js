@@ -17,6 +17,15 @@ function normalizedLabel(value) {
   return String(value || '').trim().replace(/\s+/g, ' ').toLocaleLowerCase('he-IL');
 }
 
+function mobileToneForActivityType(value) {
+  const type = normalizedLabel(value);
+  if (type.includes('קורס')) return 'course';
+  if (type.includes('סדנה')) return 'workshop';
+  if (type.includes('זום') || type.includes('מקוון')) return 'online';
+  if (type.includes('תפעול') || type.includes('אירוע') || type.includes('כנס') || type.includes('מטה')) return 'operations';
+  return 'default';
+}
+
 export function canonicalSnapshotActivityName(record = {}) {
   let value = String(record.activity_name_snapshot || record.program_name_snapshot || record.activity_type || 'פעילות').trim();
   const metadata = [record.school_name_snapshot, record.authority_name_snapshot]
@@ -65,6 +74,7 @@ function addDetail(container, label, value, { wide = false } = {}) {
 export function createReportSummaryRow(record, options = {}) {
   const wrapper = document.createElement('div');
   wrapper.className = 'av2-report-summary-row';
+  wrapper.dataset.tone = mobileToneForActivityType(record?.activity_type);
   if (record?.id != null) wrapper.dataset.recordId = String(record.id);
 
   const toggle = document.createElement('button');

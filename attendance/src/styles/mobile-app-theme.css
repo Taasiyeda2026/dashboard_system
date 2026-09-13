@@ -1,0 +1,705 @@
+/* Mobile app theme — approved 2026-09-13
+ * Visual-only mobile layer for Attendance V2. Desktop stays untouched.
+ * The goal is an app-like surface: soft colour, depth, compact cards and a
+ * persistent bottom navigation without changing attendance business logic.
+ */
+
+@media (max-width: 767px) {
+  :root {
+    --av2-mobile-blue: #2474f5;
+    --av2-mobile-blue-2: #0ea5e9;
+    --av2-mobile-ink: #102a4a;
+    --av2-mobile-muted: #66758b;
+    --av2-mobile-card: rgba(255, 255, 255, .94);
+    --av2-mobile-card-border: rgba(148, 180, 211, .34);
+    --av2-mobile-shadow: 0 10px 30px rgba(40, 91, 141, .10), 0 2px 8px rgba(40, 91, 141, .05);
+    --av2-mobile-shadow-soft: 0 5px 18px rgba(50, 96, 140, .08);
+
+    --av2-color-bg: #eef7ff;
+    --av2-color-text: var(--av2-mobile-ink);
+    --av2-color-text-muted: var(--av2-mobile-muted);
+    --av2-color-accent: var(--av2-mobile-blue);
+    --av2-color-accent-hover: #1765dc;
+    --av2-color-accent-subtle: #eaf3ff;
+    --av2-color-border: #d9e7f4;
+    --av2-radius-sm: 10px;
+    --av2-radius-md: 14px;
+    --av2-radius-lg: 20px;
+  }
+
+  html {
+    background: #edf7ff;
+  }
+
+  body {
+    min-height: 100dvh;
+    background:
+      radial-gradient(circle at 8% 8%, rgba(52, 211, 153, .20), transparent 24%),
+      radial-gradient(circle at 94% 5%, rgba(34, 211, 238, .27), transparent 29%),
+      radial-gradient(circle at 50% 18%, rgba(96, 165, 250, .16), transparent 30%),
+      linear-gradient(180deg, #f8fcff 0%, #edf7ff 24%, #f5f8fc 68%, #f8fafc 100%);
+    background-attachment: fixed;
+    color: var(--av2-mobile-ink);
+  }
+
+  #app-frame {
+    min-height: 100dvh;
+    isolation: isolate;
+  }
+
+  .app-shell--with-nav {
+    padding-bottom: calc(78px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .av2-container {
+    max-width: 520px;
+    padding-inline: 16px;
+  }
+
+  .av2-home,
+  .av2-reports,
+  .av2-report {
+    padding-top: max(12px, env(safe-area-inset-top, 0px));
+    padding-bottom: 24px;
+  }
+
+  .av2-home__inner,
+  .av2-reports__inner,
+  .av2-report__inner {
+    gap: 14px;
+  }
+
+  /* ── App headers ───────────────────────────────────────────────────── */
+  .av2-home__header,
+  .av2-reports__header,
+  .av2-report__header {
+    min-height: 46px;
+    padding: 2px 2px;
+    color: var(--av2-mobile-ink);
+  }
+
+  .av2-home__identity {
+    gap: 9px;
+  }
+
+  .av2-home__identity > .av2-icon {
+    width: 38px;
+    height: 38px;
+    padding: 9px;
+    border-radius: 999px;
+    background: rgba(255,255,255,.70);
+    color: #1d4f91;
+    box-shadow: 0 3px 14px rgba(45, 91, 137, .08);
+  }
+
+  .av2-home__name {
+    font-size: .93rem;
+    color: var(--av2-mobile-ink);
+  }
+
+  .av2-home__emp {
+    margin-top: 1px;
+    font-size: .66rem;
+  }
+
+  .av2-home__header .av2-btn--icon,
+  .av2-reports__header .av2-btn--icon,
+  .av2-report__header .av2-btn--icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 13px;
+    background: rgba(255,255,255,.66);
+    color: #496781;
+  }
+
+  .av2-home__title-band {
+    position: relative;
+    min-height: 64px;
+    align-items: flex-end;
+    padding: 0 2px 3px;
+  }
+
+  .av2-home__title-band::before {
+    content: '';
+    position: absolute;
+    inset-inline-end: -6px;
+    inset-block-start: -8px;
+    width: 56px;
+    height: 56px;
+    border-radius: 18px;
+    background:
+      linear-gradient(145deg, rgba(255,255,255,.85), rgba(219,244,255,.7));
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,.7), 0 8px 24px rgba(14,165,233,.08);
+    opacity: .72;
+    pointer-events: none;
+  }
+
+  .av2-home__page-title,
+  .av2-reports__title,
+  .av2-report__title {
+    color: #102b53;
+    font-size: 1.65rem;
+    font-weight: 850;
+    letter-spacing: -.02em;
+    line-height: 1.05;
+  }
+
+  .av2-reports__header,
+  .av2-report__header {
+    padding-block: 6px 2px;
+  }
+
+  /* ── Buttons + month navigator ─────────────────────────────────────── */
+  .av2-btn--primary {
+    min-height: 44px;
+    border-radius: 14px;
+    background: linear-gradient(135deg, #2f7cf6 0%, #2169eb 58%, #159fe8 100%);
+    box-shadow: 0 8px 18px rgba(37, 99, 235, .20);
+    font-weight: 800;
+  }
+
+  .av2-btn--primary:hover {
+    background: linear-gradient(135deg, #2b73e9, #1f60d6 58%, #0d8fd4);
+  }
+
+  .av2-btn--secondary {
+    min-height: 42px;
+    border-radius: 14px;
+    border-color: #3b82f6;
+    background: rgba(255,255,255,.88);
+    box-shadow: 0 3px 10px rgba(37, 99, 235, .06);
+    font-weight: 750;
+  }
+
+  .av2-home__action-row {
+    gap: 10px;
+  }
+
+  .av2-month-nav {
+    min-height: 48px;
+    height: 48px;
+    padding-inline: 5px;
+    border: 1px solid rgba(151, 180, 211, .36);
+    border-radius: 16px;
+    background: rgba(255,255,255,.92);
+    box-shadow: var(--av2-mobile-shadow-soft);
+    backdrop-filter: blur(12px);
+  }
+
+  .av2-month-nav__label {
+    font-size: .92rem;
+    font-weight: 800;
+    color: #17345a;
+  }
+
+  .av2-month-nav__btn {
+    width: 36px;
+    height: 36px;
+    color: #225b9b;
+  }
+
+  .av2-home__primary {
+    min-height: 48px;
+    padding-inline: 15px;
+    font-size: .82rem;
+  }
+
+  /* ── KPI cards ─────────────────────────────────────────────────────── */
+  .av2-stats-grid {
+    gap: 10px;
+  }
+
+  .av2-stat-card {
+    position: relative;
+    min-height: 100px;
+    padding: 15px 10px 12px;
+    border: 1px solid var(--av2-mobile-card-border);
+    border-radius: 18px;
+    background: var(--av2-mobile-card);
+    box-shadow: var(--av2-mobile-shadow-soft);
+    overflow: hidden;
+  }
+
+  .av2-stat-card::after {
+    content: '';
+    position: absolute;
+    inset: auto -24px -30px auto;
+    width: 86px;
+    height: 86px;
+    border-radius: 999px;
+    opacity: .42;
+    pointer-events: none;
+  }
+
+  .av2-stat-card:nth-child(1)::after { background: #c7f9df; }
+  .av2-stat-card:nth-child(2)::after { background: #d9e9ff; }
+  .av2-stat-card:nth-child(3)::after { background: #d4f3ff; }
+  .av2-stat-card:nth-child(4)::after { background: #eee2ff; }
+
+  .av2-stat-card .av2-icon {
+    position: relative;
+    z-index: 1;
+    width: 24px;
+    height: 24px;
+    margin-bottom: 4px;
+    color: #70a8ff;
+    opacity: .92;
+  }
+
+  .av2-stat-card__value {
+    position: relative;
+    z-index: 1;
+    font-size: 1.45rem;
+    color: #152a45;
+  }
+
+  .av2-stat-card__label {
+    position: relative;
+    z-index: 1;
+    font-size: .62rem;
+    letter-spacing: .04em;
+    color: #708198;
+  }
+
+  /* ── Home reports card ─────────────────────────────────────────────── */
+  .av2-home__status-area {
+    gap: 9px;
+  }
+
+  .av2-home__action-strip {
+    gap: 9px;
+    padding: 14px;
+    border: 1px solid var(--av2-mobile-card-border);
+    border-radius: 20px;
+    background: rgba(255,255,255,.94);
+    box-shadow: var(--av2-mobile-shadow);
+  }
+
+  .av2-home__reports-heading {
+    font-size: 1rem;
+    font-weight: 850;
+    color: #17345a;
+  }
+
+  .av2-badge {
+    min-height: 26px;
+    padding-inline: 10px;
+    border-radius: 999px;
+    font-size: .64rem;
+    font-weight: 800;
+  }
+
+  .av2-home__view-all {
+    margin-inline-start: auto;
+    font-size: .72rem;
+    font-weight: 750;
+    text-underline-offset: 4px;
+  }
+
+  .av2-home__strip-actions {
+    width: 100%;
+    gap: 8px;
+    justify-content: flex-start;
+  }
+
+  .av2-home__excel-btn,
+  .av2-home__month-submit {
+    min-height: 40px;
+  }
+
+  .av2-home__report-list {
+    gap: 9px;
+    padding-top: 10px;
+    border-top-color: #e4eef8;
+  }
+
+  .av2-report-summary-row {
+    --av2-row-tone: #5b93e8;
+    --av2-row-tint: #f5f9ff;
+    border: 1px solid rgba(163, 190, 217, .31) !important;
+    border-inline-start: 4px solid var(--av2-row-tone) !important;
+    border-radius: 16px !important;
+    background: linear-gradient(90deg, var(--av2-row-tint), #fff 48%) !important;
+    box-shadow: 0 5px 16px rgba(57, 97, 135, .07);
+  }
+
+  .av2-report-summary-row[data-tone='course'] {
+    --av2-row-tone: #34c98b;
+    --av2-row-tint: #effcf7;
+  }
+  .av2-report-summary-row[data-tone='workshop'] {
+    --av2-row-tone: #8b5cf6;
+    --av2-row-tint: #f7f3ff;
+  }
+  .av2-report-summary-row[data-tone='operations'] {
+    --av2-row-tone: #f4a62a;
+    --av2-row-tint: #fff8eb;
+  }
+  .av2-report-summary-row[data-tone='online'] {
+    --av2-row-tone: #19b7cf;
+    --av2-row-tint: #effbfe;
+  }
+
+  .av2-report-summary-row__toggle {
+    min-height: 68px;
+    grid-template-columns: 68px minmax(0,1fr) 50px auto 16px;
+    gap: 7px;
+    padding: 10px 11px;
+    border-radius: 15px;
+  }
+
+  .av2-report-summary-row__main strong {
+    font-size: .8rem;
+    color: #153456;
+  }
+
+  .av2-report-summary-row__main small {
+    margin-top: 3px;
+    font-size: .65rem;
+  }
+
+  .av2-report-summary-row__date,
+  .av2-report-summary-row__hours {
+    font-size: .74rem;
+    font-weight: 800;
+  }
+
+  .av2-report-summary-row__details {
+    margin: 0 8px 8px;
+    padding: 10px;
+    border: 1px solid #e4edf6;
+    border-radius: 13px;
+    background: rgba(255,255,255,.82);
+  }
+
+  /* ── Reports calendar screen ───────────────────────────────────────── */
+  .av2-reports__controls {
+    gap: 9px;
+  }
+
+  .av2-reports__toolbar {
+    gap: 8px;
+  }
+
+  .av2-reports__toolbar .av2-btn--primary,
+  .av2-reports__toolbar .av2-btn--secondary {
+    min-height: 42px;
+    padding-inline: 14px;
+    font-size: .78rem;
+  }
+
+  .av2-reports__content {
+    gap: 12px;
+  }
+
+  .av2-reports__calendar-wrap {
+    width: 100%;
+  }
+
+  .av2-cal {
+    padding: 11px;
+    border: 1px solid rgba(146, 181, 212, .34);
+    border-radius: 20px;
+    background: rgba(255,255,255,.94);
+    box-shadow: var(--av2-mobile-shadow);
+    backdrop-filter: blur(12px);
+  }
+
+  .av2-cal__header {
+    border-color: #dae8f5;
+    background: linear-gradient(180deg, #f8fbff, #edf5fd);
+  }
+
+  .av2-cal__day-name {
+    min-height: 34px;
+    color: #52677f;
+    font-size: .66rem;
+  }
+
+  .av2-cal__grid {
+    border-color: #dae8f5;
+  }
+
+  .av2-cal__cell {
+    min-height: 48px;
+    border-color: #e2ecf5;
+  }
+
+  .av2-cal__day-num {
+    width: 28px;
+    height: 28px;
+    font-size: .77rem;
+    font-weight: 700;
+  }
+
+  .av2-cal__presence-dot {
+    width: 7px;
+    height: 7px;
+    flex-basis: 7px;
+    background: #2f7cf6;
+    box-shadow: 0 0 0 4px rgba(47,124,246,.10);
+  }
+
+  .av2-cal__cell--today .av2-cal__day-num,
+  .av2-cal__cell--selected .av2-cal__day-num {
+    background: linear-gradient(135deg, #3b82f6, #2563eb);
+    color: #fff;
+    box-shadow: 0 5px 12px rgba(37,99,235,.30);
+  }
+
+  .av2-reports__day-filter {
+    min-height: 46px;
+    padding: 8px 12px;
+    border: 1px solid rgba(101, 159, 226, .16);
+    border-radius: 15px;
+    background: linear-gradient(90deg, rgba(221,239,255,.88), rgba(238,247,255,.75));
+    font-size: .78rem;
+  }
+
+  .av2-reports__table-title {
+    margin: 6px 2px 0;
+    font-size: 1.05rem;
+    font-weight: 850;
+    color: #17345a;
+  }
+
+  .av2-report-list {
+    gap: 10px;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    overflow: visible !important;
+  }
+
+  .av2-report-row {
+    --av2-row-tone: #5b93e8;
+    --av2-row-tint: #f6faff;
+    border: 1px solid rgba(159, 188, 215, .31) !important;
+    border-inline-start: 4px solid var(--av2-row-tone) !important;
+    border-radius: 17px !important;
+    background: linear-gradient(90deg, var(--av2-row-tint), #fff 50%) !important;
+    box-shadow: 0 6px 18px rgba(54, 96, 138, .08);
+  }
+
+  .av2-report-row[data-tone='course'] {
+    --av2-row-tone: #35c98d;
+    --av2-row-tint: #effcf7;
+  }
+  .av2-report-row[data-tone='workshop'] {
+    --av2-row-tone: #8b5cf6;
+    --av2-row-tint: #f7f3ff;
+  }
+  .av2-report-row[data-tone='operations'] {
+    --av2-row-tone: #f3a62f;
+    --av2-row-tint: #fff8ed;
+  }
+  .av2-report-row[data-tone='online'] {
+    --av2-row-tone: #18b5ce;
+    --av2-row-tint: #effbfe;
+  }
+
+  .av2-rr-mobile__summary {
+    min-height: 78px;
+    grid-template-columns: 72px minmax(0,1fr) 50px 16px;
+    gap: 8px;
+    padding: 12px 13px;
+    border-radius: 16px;
+  }
+
+  .av2-rr-mobile__date strong,
+  .av2-rr-mobile__activity strong,
+  .av2-rr-mobile__hours strong {
+    color: #153456;
+  }
+
+  .av2-rr-mobile__activity small {
+    align-self: flex-start;
+    margin: 0 0 5px;
+    padding: 3px 8px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--av2-row-tone) 13%, white);
+    color: color-mix(in srgb, var(--av2-row-tone) 78%, #18324d);
+    font-size: .59rem;
+    font-weight: 800;
+  }
+
+  .av2-report-row.is-mobile-expanded > .av2-rr__start,
+  .av2-report-row.is-mobile-expanded > .av2-rr__end,
+  .av2-report-row.is-mobile-expanded > .av2-rr__time-cancel,
+  .av2-report-row.is-mobile-expanded > .av2-rr__name,
+  .av2-report-row.is-mobile-expanded > .av2-rr__school,
+  .av2-report-row.is-mobile-expanded > .av2-rr__authority,
+  .av2-report-row.is-mobile-expanded > .av2-rr__km,
+  .av2-report-row.is-mobile-expanded > .av2-rr__expenses,
+  .av2-report-row.is-mobile-expanded > .av2-rr__notes-row {
+    margin-inline: 10px;
+    padding: 9px 5px !important;
+    border-top-color: #e6eef7 !important;
+  }
+
+  .av2-report-row.is-mobile-expanded > .av2-rr__actions {
+    margin: 0 10px 9px;
+    padding: 10px 4px 3px !important;
+    border-top-color: #e6eef7 !important;
+  }
+
+  .av2-report-list__totals {
+    min-height: 70px;
+    margin-top: 2px;
+    padding: 12px 14px;
+    gap: 8px 16px;
+    border: 1px solid rgba(108, 164, 220, .22);
+    border-radius: 18px;
+    background:
+      linear-gradient(145deg, rgba(224,241,255,.94), rgba(255,255,255,.96));
+    box-shadow: var(--av2-mobile-shadow-soft);
+  }
+
+  /* ── New report / edit form ─────────────────────────────────────────── */
+  .av2-report__form {
+    gap: 12px;
+  }
+
+  .av2-form-section {
+    border: 1px solid rgba(151, 182, 211, .34);
+    border-radius: 19px;
+    background: rgba(255,255,255,.95);
+    box-shadow: var(--av2-mobile-shadow-soft);
+    overflow: visible;
+  }
+
+  .av2-form-section__title {
+    padding: 11px 13px;
+    border-bottom-color: #e4edf6;
+    border-radius: 18px 18px 0 0;
+    background: linear-gradient(90deg, #edf6ff, #f8fbff);
+    color: #3c5875;
+    font-size: .76rem;
+    font-weight: 850;
+  }
+
+  .av2-form-section:nth-child(1) .av2-form-section__title {
+    background: linear-gradient(90deg, #ecfbf5, #f8fffc);
+  }
+
+  .av2-form-section:nth-child(2) .av2-form-section__title {
+    background: linear-gradient(90deg, #edf6ff, #f9fcff);
+  }
+
+  .av2-form-section:nth-child(3) .av2-form-section__title {
+    background: linear-gradient(90deg, #faf3ff, #fffaff);
+  }
+
+  .av2-form-section__body {
+    padding: 12px 13px 14px;
+    gap: 10px;
+  }
+
+  .av2-field__label {
+    font-size: .69rem;
+    font-weight: 750;
+    color: #62758b;
+  }
+
+  .av2-field__input,
+  .av2-field__select,
+  .av2-ssel__trigger,
+  .av2-csel__trigger,
+  .av2-time-picker,
+  .av2-report__hours-value {
+    min-height: 43px;
+    border-color: #d7e5f2;
+    border-radius: 13px;
+    background: rgba(250,253,255,.98);
+  }
+
+  .av2-field__input:focus,
+  .av2-field__select:focus,
+  .av2-ssel__trigger:focus,
+  .av2-csel__trigger:focus,
+  .av2-time-picker:focus-within {
+    border-color: #4b8df8;
+    box-shadow: 0 0 0 3px rgba(59,130,246,.11);
+  }
+
+  .av2-report__actions {
+    padding: 4px 0 2px;
+  }
+
+  .av2-report__save {
+    width: 100%;
+    min-height: 48px;
+    border-radius: 15px;
+  }
+
+  /* ── Bottom navigation ──────────────────────────────────────────────── */
+  .av2-bottom-nav {
+    left: 8px;
+    right: 8px;
+    bottom: 0;
+    width: auto;
+    max-width: 520px;
+    min-height: 68px;
+    padding: 5px 7px env(safe-area-inset-bottom, 0px);
+    border: 1px solid rgba(166, 190, 214, .32);
+    border-bottom: 0;
+    border-radius: 22px 22px 0 0;
+    background: rgba(255,255,255,.94);
+    box-shadow: 0 -8px 26px rgba(52, 92, 130, .10);
+    backdrop-filter: blur(18px);
+  }
+
+  .av2-bottom-nav__menu {
+    gap: 4px;
+    justify-content: space-evenly;
+  }
+
+  .av2-bottom-nav__item,
+  .av2-bottom-nav__item--desktop-only {
+    display: flex;
+    flex: 1 1 0;
+    min-width: 0;
+    min-height: 56px;
+    margin: 1px;
+    border-radius: 17px;
+    color: #5f748d;
+    font-size: .64rem;
+    font-weight: 750;
+    transition: color .15s ease, background .15s ease, transform .15s ease;
+  }
+
+  .av2-bottom-nav__item .av2-icon {
+    width: 21px;
+    height: 21px;
+  }
+
+  .av2-bottom-nav__item.is-mobile-active {
+    background: linear-gradient(180deg, #e8f3ff, #edf6ff);
+    color: #246fe9;
+    box-shadow: inset 0 0 0 1px rgba(82, 145, 231, .08);
+  }
+
+  .av2-bottom-nav__item:active {
+    transform: scale(.97);
+  }
+
+  /* Keep controls tappable and content clear of iOS safe areas. */
+  button,
+  [role='button'] {
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
+@media (max-width: 380px) {
+  .av2-container { padding-inline: 12px; }
+  .av2-home__page-title,
+  .av2-reports__title,
+  .av2-report__title { font-size: 1.48rem; }
+  .av2-home__action-row { flex-wrap: wrap; }
+  .av2-home__primary { width: 100%; }
+  .av2-report-summary-row__toggle { grid-template-columns: 62px minmax(0,1fr) 45px 15px; }
+  .av2-report-summary-row__travel { display: none; }
+  .av2-bottom-nav { left: 4px; right: 4px; }
+  .av2-bottom-nav__item { font-size: .59rem; }
+}

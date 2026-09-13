@@ -9,6 +9,15 @@ function setMobileLabel(element, label) {
   if (element) element.dataset.mobileLabel = label;
 }
 
+function mobileToneForActivityType(value) {
+  const type = String(value || '').trim().replace(/\s+/g, ' ').toLocaleLowerCase('he-IL');
+  if (type.includes('קורס')) return 'course';
+  if (type.includes('סדנה')) return 'workshop';
+  if (type.includes('זום') || type.includes('מקוון')) return 'online';
+  if (type.includes('תפעול') || type.includes('אירוע') || type.includes('כנס') || type.includes('מטה')) return 'operations';
+  return 'default';
+}
+
 function createSummary(row) {
   const dateCell = row.querySelector('.av2-rr__date');
   const typeCell = row.querySelector('.av2-rr__type');
@@ -16,6 +25,7 @@ function createSummary(row) {
   const hoursCell = row.querySelector('.av2-rr__hours');
 
   if (!dateCell || !typeCell || !nameCell || !hoursCell) return null;
+  row.dataset.tone = mobileToneForActivityType(valueText(typeCell, ''));
 
   const summary = document.createElement('button');
   summary.type = 'button';
