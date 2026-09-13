@@ -4,6 +4,8 @@ import { ACTIVE_ACTIVITY_SEASON, SCHOOL_2027_START_DATE, SCHOOL_2027_END_DATE } 
 const ACTIVE_CALENDAR_START_MONTH = SCHOOL_2027_START_DATE.slice(0, 7);
 const ACTIVE_CALENDAR_END_MONTH = SCHOOL_2027_END_DATE.slice(0, 7);
 export const INSTRUCTOR_CALENDAR_ACTIVE_PERIOD = ACTIVE_ACTIVITY_SEASON;
+export const INSTRUCTOR_CALENDAR_START_DATE = SCHOOL_2027_START_DATE;
+export const INSTRUCTOR_CALENDAR_END_DATE = SCHOOL_2027_END_DATE;
 
 export function clampInstructorCalendarMonth(month) {
   const candidate = /^\d{4}-\d{2}$/.test(String(month || '')) ? String(month) : ACTIVE_CALENDAR_START_MONTH;
@@ -68,6 +70,21 @@ export function instructorActivityEventsForDate(activities = [], isoDate) {
     }
   }
   return events;
+}
+
+export function instructorAttendanceDateSet(rows = []) {
+  return new Set((Array.isArray(rows) ? rows : []).map((row) => String(row?.report_date || '').slice(0, 10)).filter(Boolean));
+}
+
+export function instructorCalendarDayClasses(events = [], attendanceDates = new Set(), isoDate = '') {
+  const hasActivity = events.some((event) => event.kind === 'instructor-activity');
+  const hasSchoolCalendar = events.some((event) => event.kind === 'school-calendar');
+  const hasAttendance = attendanceDates.has(String(isoDate || '').slice(0, 10));
+  return [
+    hasSchoolCalendar ? 'is-school-calendar-day' : '',
+    hasActivity ? 'has-instructor-activity' : '',
+    hasAttendance ? 'has-instructor-attendance' : ''
+  ].filter(Boolean).join(' ');
 }
 
 export function organizationalCalendarDayLabel(events = []) {

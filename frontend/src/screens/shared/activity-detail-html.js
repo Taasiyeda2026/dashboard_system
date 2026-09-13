@@ -454,7 +454,7 @@ function headerActionsHtml(exportAction) {
   `;
 }
 
-function headerHtml(row, { mode = 'single', summaryDate = '', exportAction = true } = {}) {
+function headerHtml(row, { mode = 'single', summaryDate = '', exportAction = true, instructorLimited = false } = {}) {
   if (mode === 'summary') {
     const rows = Array.isArray(row) ? row : [];
     const main = rows[0] || {};
@@ -490,7 +490,7 @@ function headerHtml(row, { mode = 'single', summaryDate = '', exportAction = tru
     const isOpen = normStatus(row?.status) !== 'closed';
     const metaTags = [
       typeTag ? `<span class="activity-drawer__meta-tag">${escapeHtml(typeTag)}</span>` : '',
-      statusVal ? `<span class="activity-drawer__meta-tag activity-drawer__meta-tag--status${isOpen ? ' activity-drawer__meta-tag--open' : ' activity-drawer__meta-tag--closed'}">${escapeHtml(statusVal)}</span>` : '',
+      statusVal && !instructorLimited ? `<span class="activity-drawer__meta-tag activity-drawer__meta-tag--status${isOpen ? ' activity-drawer__meta-tag--open' : ' activity-drawer__meta-tag--closed'}">${escapeHtml(statusVal)}</span>` : '',
       authorityVal ? `<span class="activity-drawer__meta-tag">${escapeHtml(authorityVal)}</span>` : '',
       schoolVal ? `<span class="activity-drawer__meta-tag">${escapeHtml(schoolVal)}</span>` : '',
     ].filter(Boolean).join('');
@@ -1416,7 +1416,7 @@ export function activityWorkDrawerHtml(row, opts = {}) {
       `)
       .join('');
     return `
-      ${headerHtml(rows, { mode: 'summary', summaryDate, exportAction })}
+      ${headerHtml(rows, { mode: 'summary', summaryDate, exportAction, instructorLimited })}
       <div class="activity-drawer__body">
         ${body || '<div class="activity-drawer__empty">אין נתונים</div>'}
       </div>
@@ -1424,7 +1424,7 @@ export function activityWorkDrawerHtml(row, opts = {}) {
   }
   const one = row || {};
   return `
-    ${headerHtml(one, { exportAction })}
+    ${headerHtml(one, { exportAction, instructorLimited })}
     <div class="activity-drawer__body">
       ${singleForm(one, {
         settings,
