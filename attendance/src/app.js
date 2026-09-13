@@ -247,7 +247,7 @@ function renderScreen() {
 
   navRoot.hidden   = false;
   navRoot.innerHTML = '';
-  const navActive = state.screen === 'new-report' ? 'home' : state.screen;
+  const navActive = state.screen;
   navRoot.append(createBottomNav({
     active: navActive,
     desktopActive: state.screen,
