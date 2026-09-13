@@ -948,6 +948,43 @@ test('collection pay table stacks related fields without dropping original info 
 });
 
 
+test('collection money shows ₪0 for numeric zero and em dash for missing price', () => {
+  const zeroHtml = financeScreen.render({
+    ...createFinanceVisitState(),
+    view: 'collection',
+    collectionActivities: [
+      activity({
+        row_id: 'ZERO-1',
+        activity_name: 'פעילות אפס',
+        price: 0,
+        end_date: '2027-07-01'
+      })
+    ],
+    collectionTracking: [],
+    collectionTab: 'open',
+    collectionSearch: ''
+  }, { state: { user: financeUser } });
+  assert.match(zeroHtml, /<td class="ds-fin-num">₪0<\/td>/);
+
+  const missingHtml = financeScreen.render({
+    ...createFinanceVisitState(),
+    view: 'collection',
+    collectionActivities: [
+      activity({
+        row_id: 'MISS-1',
+        activity_name: 'פעילות חסרה',
+        price: null,
+        end_date: '2027-07-01'
+      })
+    ],
+    collectionTracking: [],
+    collectionTab: 'open',
+    collectionSearch: ''
+  }, { state: { user: financeUser } });
+  assert.match(missingHtml, /<td class="ds-fin-num">—<\/td>/);
+  assert.doesNotMatch(missingHtml, /<td class="ds-fin-num">₪0<\/td>/);
+});
+
 test('collection keeps payer grouping inside each end month section', () => {
   const rows = attachCollectionTracking([
     activity({ row_id: 'G1', end_date: '2027-04-10', school: 'הרצל', school_id: '77', funding: 'גפן' }),

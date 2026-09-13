@@ -288,12 +288,22 @@ function saveStatusHtml(rowId, saveState = {}) {
   return '<span class="ds-fin-save"></span>';
 }
 
-/** Collection-screen money display only: show ₪0 for zero (do not change shared money()). */
+/** Collection-screen money display only: numeric 0 → ₪0; missing/invalid → — (do not change shared money()). */
 function collectionMoney(value) {
-  const amount = Number(value);
-  const safe = Number.isFinite(amount) ? amount : 0;
-  if (!safe) return '₪0';
-  return money(safe);
+  if (value == null || typeof value === 'boolean') return '—';
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value)) return '—';
+    if (value === 0) return '₪0';
+    return money(value);
+  }
+  const raw = String(value).trim();
+  if (!raw) return '—';
+  const cleaned = raw.replace(/[₪,\s]/g, '');
+  if (!cleaned) return '—';
+  const amount = Number(cleaned);
+  if (!Number.isFinite(amount)) return '—';
+  if (amount === 0) return '₪0';
+  return money(value);
 }
 
 function collectionStackHtml(primary, metas = []) {
@@ -338,7 +348,7 @@ function collectionActivityRowHtml(activity, saveState = {}) {
     <td class="ds-fin-pay-table__meetings">${escapeHtml(`מתוכנן ${planned} · בוצע ${completed} · חויב ${billed}`)}</td>
     <td class="ds-fin-pay-table__unbilled">${collectionStackHtml(
       escapeHtml(`${unbilledCount} מפגשים`),
-      [escapeHtml(`${unbilledHours} שעות`), escapeHtml(collectionMoney(tx.amount || 0))]
+      [escapeHtml(`${unbilledHours} שעות`), escapeHtml(collectionMoney(tx.amount))]
     )}</td>
     <td class="ds-fin-pay-table__account">${lastAccountHtml}</td>
     <td>${escapeHtml(activityStatusLabel(activity))}</td>
