@@ -5340,7 +5340,8 @@ function drawerHtml(row, activityNameOptions = [], state = null) {
           <section class="ds-pa-info-card" data-pa-proposal-info-card><h4 class="ds-pa-card-title">פרטי ההצעה</h4><div class="ds-pa-info-grid">${infoCell('סוג הצעה', clientFacingProposalTypeLabel(row), false, { showEmpty: true })}${infoCell('מספר הצעה', text(row.quote_number), false, { showEmpty: true })}${infoCell('נשלח על ידי', text(row.sent_by), false, { showEmpty: true })}${infoCell('תאריך שליחה', text(row.sent_at) ? formatDateDisplay(row.sent_at) : '', false, { showEmpty: true })}${infoCell('אישור גפ״ן', isGefenApprovalApplicable(row) ? gefenApprovalStatusDisplay(row) : '—', false, { showEmpty: true })}</div></section>
           ${contactCard}
         </div>
-        <section class="ds-pa-activities-wide"><h4 class="ds-pa-card-title">פעילויות ומחירים</h4>${itemsHost}${financialCard}</section>
+        <section class="ds-pa-activities-wide"><h4 class="ds-pa-card-title">פעילויות ומחירים</h4>${itemsHost}<div data-proposal-activity-creator-host></div>${financialCard}</section>
+        <div data-proposal-domain-routing-host></div>
         ${notesCard}
       </div>
       <p class="ds-pa-form-error" data-pa-drawer-error role="alert" style="color:#dc2626;font-size:0.8rem;padding:4px 16px 0"></p>

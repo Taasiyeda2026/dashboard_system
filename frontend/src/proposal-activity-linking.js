@@ -208,9 +208,7 @@ async function readProposalActivityData(proposalId) {
 }
 
 function proposalCreatorHost(root) {
-  const items = root.querySelector('[data-pa-drawer-items]');
-  if (items) return items.closest('.ds-pa-info-card') || items.parentElement || root;
-  return root.querySelector('.ds-pa-activities-wide') || root;
+  return root.querySelector('[data-proposal-activity-creator-host]') || null;
 }
 
 function proposalItemMeta(item) {
@@ -319,7 +317,8 @@ function renderProposalCreator(root, proposal, data) {
   });
 
   const host = proposalCreatorHost(root);
-  host.insertAdjacentElement('afterend', card);
+  if (!host) return;
+  host.replaceChildren(card);
   root.setAttribute('data-proposal-activity-loaded', proposal.id);
 }
 

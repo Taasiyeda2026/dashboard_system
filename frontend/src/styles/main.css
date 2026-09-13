@@ -21962,7 +21962,7 @@ select.ds-input {
 .ds-pa-state-note { color: #64748b; font-size: .78rem; font-weight: 700; }
 .ds-pa-state-note--ok { color: #0f766e; }
 .ds-pa-state-note--warn { color: #b45309; }
-.ds-pa-drawer-body { display: grid; gap: 10px; }
+/* .ds-pa-drawer-body display is owned by proposal-drawer-activity-style.js (flex column). */
 .ds-pa-info-card { background: #fff; border: 1px solid #dbe7f3; border-radius: 14px; padding: 10px 12px; box-shadow: 0 1px 2px rgba(15,23,42,.03); }
 .ds-pa-card-title { margin: 0 0 8px; font-size: .9rem; color: #0f172a; }
 .ds-pa-info-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 10px; }
