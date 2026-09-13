@@ -201,3 +201,4 @@ config.HOTFIX_VERSION = `instructor-dashboard-fixes-review-20260913-v2-${config.
 config.HOTFIX_VERSION = `instructor-calendar-combined-indicator-20260913-v3-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `instructor-dashboard-followups-20260913-v4-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `instructor-ui-hotfix-20260913-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `instructor-final-ui-polish-20260913-v2-${config.HOTFIX_VERSION}`;
