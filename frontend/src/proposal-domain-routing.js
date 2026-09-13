@@ -7,7 +7,7 @@ import { hasPermission } from './permission-policy.js';
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const ELIGIBLE_STATUSES = new Set(['approved', 'sent', 'מאושר', 'מאושר וחתום', 'נשלח']);
 const ROUTING_ATTR = 'data-proposal-domain-routing';
-const CREATOR_ATTR = 'data-proposal-activity-creator';
+const ROUTING_CARD_ATTR = 'data-proposal-domain-routing-card';
 const DEBOUNCE_MS = 90;
 
 let timer = null;
@@ -58,7 +58,11 @@ function injectStyles() {
   style.id = 'proposal-domain-routing-styles';
   style.textContent = `
     .proposal-israa-routing {
-      margin-top: 12px;
+      position: static !important;
+      width: 100%;
+      box-sizing: border-box;
+      flex: 0 0 auto;
+      margin: 12px 0 0;
       padding: 12px;
       border: 1px solid var(--ds-border, #d7dde5);
       border-radius: 12px;
@@ -183,9 +187,11 @@ async function readProposal(root) {
 }
 
 function proposalCreatorHost(root) {
+  const activities = root.querySelector('.ds-pa-activities-wide');
+  if (activities) return activities;
   const items = root.querySelector('[data-pa-drawer-items]');
-  if (items) return items.closest('.ds-pa-info-card') || items.parentElement || root;
-  return root.querySelector('.ds-pa-activities-wide') || root;
+  if (items) return items.parentElement || root;
+  return root;
 }
 
 function isEligible2027Proposal(proposal) {
@@ -195,23 +201,20 @@ function isEligible2027Proposal(proposal) {
 }
 
 function clearOurRouting(root) {
-  root.querySelector(`[${CREATOR_ATTR}][${ROUTING_ATTR}]`)?.remove();
+  root.querySelector(`[${ROUTING_CARD_ATTR}]`)?.remove();
   root.removeAttribute('data-proposal-domain-routing-loaded');
 }
 
 function renderIsraaRouting(root, proposal) {
   const signature = `${proposal.id}:E:${normalizedStatus(proposal.status)}`;
-  const existing = root.querySelector(`[${CREATOR_ATTR}][${ROUTING_ATTR}="E"]`);
-  if (existing && root.getAttribute('data-proposal-domain-routing-loaded') === signature) {
-    root.setAttribute('data-proposal-activity-loaded', proposal.id);
-    return;
-  }
+  const existing = root.querySelector(`[${ROUTING_CARD_ATTR}][${ROUTING_ATTR}="E"]`);
+  if (existing && root.getAttribute('data-proposal-domain-routing-loaded') === signature) return;
 
-  root.querySelector(`[${CREATOR_ATTR}]`)?.remove();
+  root.querySelector(`[${ROUTING_CARD_ATTR}]`)?.remove();
 
   const card = document.createElement('section');
   card.className = 'proposal-israa-routing';
-  card.setAttribute(CREATOR_ATTR, proposal.id);
+  card.setAttribute(ROUTING_CARD_ATTR, proposal.id);
   card.setAttribute(ROUTING_ATTR, 'E');
 
   const quote = clean(proposal.quote_number);
@@ -277,7 +280,6 @@ function renderIsraaRouting(root, proposal) {
 
   proposalCreatorHost(root).insertAdjacentElement('afterend', card);
   root.setAttribute('data-proposal-domain-routing-loaded', signature);
-  root.setAttribute('data-proposal-activity-loaded', proposal.id);
 }
 
 async function enhanceProposalDetail(root) {
@@ -294,8 +296,6 @@ async function enhanceProposalDetail(root) {
     }
 
     if (domain !== 'E' || !isEligible2027Proposal(proposal)) {
-      root.querySelector(`[${CREATOR_ATTR}]`)?.remove();
-      root.removeAttribute('data-proposal-activity-loaded');
       clearOurRouting(root);
       return;
     }
