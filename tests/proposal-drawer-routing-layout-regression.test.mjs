@@ -10,18 +10,24 @@ const GEFEN_STATUS_FILE = new URL('../frontend/src/proposal-gefen-approval-list-
 const DRAWER_STYLE_FILE = new URL('../frontend/src/proposal-drawer-activity-style.js', import.meta.url);
 const PROPOSALS_SCREEN_FILE = new URL('../frontend/src/screens/proposals-agreements.js', import.meta.url);
 
-test('domain E routing owns separate DOM and state markers from activity creation', async () => {
+test('domain E routing owns separate DOM and state markers from Y activity creation', async () => {
   const [domainRouting, activityLinking] = await Promise.all([
     readFile(DOMAIN_ROUTING_FILE, 'utf8'),
     readFile(ACTIVITY_LINKING_FILE, 'utf8')
   ]);
 
   assert.match(domainRouting, /data-proposal-domain-routing-card/);
+  assert.match(domainRouting, /create_israa_tracking_from_proposal/);
+  assert.match(domainRouting, /if \(domain === 'Y'\) \{[\s\S]*clearOurRouting\(root\)/);
+  assert.match(domainRouting, /if \(domain !== 'E' \|\| !isEligible2027Proposal\(proposal\)\)/);
   assert.doesNotMatch(domainRouting, /data-proposal-activity-creator/);
   assert.doesNotMatch(domainRouting, /data-proposal-activity-loaded/);
 
   assert.match(activityLinking, /data-proposal-activity-creator/);
   assert.match(activityLinking, /data-proposal-activity-loaded/);
+  assert.match(activityLinking, /proposal_domain/);
+  assert.match(activityLinking, /proposal\.proposal_domain\)\.toUpperCase\(\) !== 'Y'/);
+  assert.doesNotMatch(activityLinking, /create_israa_tracking_from_proposal/);
 });
 
 test('Israa routing card participates in normal proposal drawer flow via dedicated host', async () => {
@@ -97,7 +103,6 @@ test('only proposal-drawer-activity-style owns proposal detail shell geometry', 
     gefenStatus,
     /#app\s+\[data-pa-proposal-detail\][^{]*\{[^}]*\boverflow(?:-y)?\s*:/
   );
-  // Gefen keeps table + inline eye helpers, not drawer shell ownership.
   assert.match(gefenStatus, /\.ds-pa-gefen-inline-view/);
   assert.match(gefenStatus, /\.ds-pa-table th\.ds-pa-actions-col/);
 });
