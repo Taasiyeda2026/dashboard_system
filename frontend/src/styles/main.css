@@ -14531,6 +14531,72 @@ select.ds-input {
 .ds-fin-collect-shell .ds-table-wrap {
   overflow-x: auto;
 }
+
+/* Collection tracking table: stacked cells, readable editors (presentation only) */
+.ds-fin-collect-shell .ds-fin-pay-table {
+  width: 100%;
+}
+.ds-fin-collect-shell .ds-fin-pay-table th,
+.ds-fin-collect-shell .ds-fin-pay-table td {
+  padding: 6px 8px;
+  vertical-align: top;
+  overflow-wrap: break-word;
+  word-break: normal;
+}
+.ds-fin-collect-shell .ds-fin-pay-table th {
+  white-space: nowrap;
+}
+.ds-fin-collect-shell .ds-fin-pay-table__activity {
+  min-width: 9.5rem;
+  width: 16%;
+}
+.ds-fin-collect-shell .ds-fin-pay-table__client {
+  min-width: 8.5rem;
+  width: 14%;
+}
+.ds-fin-collect-shell .ds-fin-pay-table__meetings,
+.ds-fin-collect-shell .ds-fin-pay-table__unbilled,
+.ds-fin-collect-shell .ds-fin-pay-table__account {
+  min-width: 6.5rem;
+  white-space: normal;
+}
+.ds-fin-collect-shell .ds-fin-pay-table__edit,
+.ds-fin-collect-shell .ds-fin-pay-table__note {
+  min-width: 8.5rem;
+  width: 10%;
+}
+.ds-fin-collect-shell .ds-fin-pay-table .ds-fin-inline {
+  max-width: none;
+  width: 100%;
+  min-width: 7.5rem;
+  box-sizing: border-box;
+}
+.ds-fin-collect-shell .ds-fin-pay-table input[type="date"].ds-fin-inline {
+  min-width: 9.5rem;
+}
+.ds-fin-collect-shell .ds-fin-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.ds-fin-collect-shell .ds-fin-stack__primary {
+  font-weight: 650;
+  line-height: 1.3;
+}
+.ds-fin-collect-shell .ds-fin-stack__meta {
+  font-size: 0.72rem;
+  line-height: 1.35;
+  color: var(--ds-text-muted);
+}
+@media (max-width: 900px) {
+  .ds-fin-collect-shell .ds-fin-pay-table__activity,
+  .ds-fin-collect-shell .ds-fin-pay-table__client,
+  .ds-fin-collect-shell .ds-fin-pay-table__edit,
+  .ds-fin-collect-shell .ds-fin-pay-table__note {
+    min-width: 7.5rem;
+  }
+}
 .ds-fin-att-shell {
   width: min(100%, 1100px);
   margin: 0 auto;

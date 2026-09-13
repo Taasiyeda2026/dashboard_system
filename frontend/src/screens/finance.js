@@ -288,36 +288,70 @@ function saveStatusHtml(rowId, saveState = {}) {
   return '<span class="ds-fin-save"></span>';
 }
 
+/** Collection-screen money display only: show ₪0 for zero (do not change shared money()). */
+function collectionMoney(value) {
+  const amount = Number(value);
+  const safe = Number.isFinite(amount) ? amount : 0;
+  if (!safe) return '₪0';
+  return money(safe);
+}
+
+function collectionStackHtml(primary, metas = []) {
+  const metaHtml = (Array.isArray(metas) ? metas : [metas])
+    .filter((item) => item != null && String(item).trim() !== '')
+    .map((item) => `<div class="ds-fin-stack__meta">${item}</div>`)
+    .join('');
+  return `<div class="ds-fin-stack"><div class="ds-fin-stack__primary">${primary}</div>${metaHtml}</div>`;
+}
+
 function collectionActivityRowHtml(activity, saveState = {}) {
   const id = escapeHtml(activityRowId(activity));
   const status = normalizeCollectionStatus(activity.collection_status);
   const expected = String(activity.expected_collection_date || '').slice(0, 10);
   const tx = activity.transaction_summary || {};
   const last = activity.last_transaction_account;
+  const planned = tx.plannedCount ?? 0;
+  const completed = tx.completedCount ?? 0;
+  const billed = tx.billedCount ?? 0;
+  const unbilledCount = tx.unbilledCount || 0;
+  const unbilledHours = tx.unbilledHours || 0;
+  const semel = activity.semel_mosad
+    ? escapeHtml(activity.semel_mosad)
+    : escapeHtml('חסר — חסום להפקה');
+  const lastAccountHtml = last
+    ? collectionStackHtml(
+      escapeHtml(String(last.transaction_account_number || '—')),
+      escapeHtml(String(last.issue_date || '').slice(0, 10) || '—')
+    )
+    : '—';
   return `<tr data-fin-activity-id="${id}">
-    <td>${escapeHtml(activity.activity_name || '—')}</td>
-    <td>${escapeHtml(activity.authority || '—')}</td>
-    <td>${escapeHtml(activity.school || '—')}</td>
+    <td class="ds-fin-pay-table__activity">${collectionStackHtml(
+      escapeHtml(activity.activity_name || '—'),
+      `מס׳ גפ״ן: ${escapeHtml(activity.activity_no || '—')}`
+    )}</td>
+    <td class="ds-fin-pay-table__client">${collectionStackHtml(
+      escapeHtml(activity.school || '—'),
+      [escapeHtml(activity.authority || '—'), `סמל מוסד: ${semel}`]
+    )}</td>
     <td>${escapeHtml(activity.funding || '—')}</td>
-    <td>${escapeHtml(activity.semel_mosad || 'חסר — חסום להפקה')}</td>
-    <td>${escapeHtml(activity.activity_no || '—')}</td>
-    <td class="ds-fin-num">${escapeHtml(money(activity.price))}</td>
-    <td class="ds-fin-num">${escapeHtml(String(tx.plannedCount ?? 0))}</td>
-    <td class="ds-fin-num">${escapeHtml(String(tx.completedCount ?? 0))}</td>
-    <td class="ds-fin-num">${escapeHtml(String(tx.billedCount ?? 0))}</td>
-    <td><strong>בוצע וטרם חויב: ${escapeHtml(`${tx.unbilledCount || 0} מפגשים | ${tx.unbilledHours || 0} שעות | ${money(tx.amount || 0)}`)}</strong></td>
-    <td>${last ? escapeHtml(`${last.transaction_account_number} · ${String(last.issue_date || '').slice(0,10)}`) : '—'}</td>
+    <td class="ds-fin-num">${escapeHtml(collectionMoney(activity.price))}</td>
+    <td class="ds-fin-pay-table__meetings">${escapeHtml(`מתוכנן ${planned} · בוצע ${completed} · חויב ${billed}`)}</td>
+    <td class="ds-fin-pay-table__unbilled">${collectionStackHtml(
+      escapeHtml(`${unbilledCount} מפגשים`),
+      [escapeHtml(`${unbilledHours} שעות`), escapeHtml(collectionMoney(tx.amount || 0))]
+    )}</td>
+    <td class="ds-fin-pay-table__account">${lastAccountHtml}</td>
     <td>${escapeHtml(activityStatusLabel(activity))}</td>
-    <td>
+    <td class="ds-fin-pay-table__edit">
       <select class="ds-input ds-fin-inline" data-fin-collect-field="collection_status" data-fin-activity-id="${id}">
         <option value="${FINANCE_COLLECTION_OPEN}"${status === FINANCE_COLLECTION_OPEN ? ' selected' : ''}>פתוח</option>
         <option value="${FINANCE_COLLECTION_CLOSED}"${status === FINANCE_COLLECTION_CLOSED ? ' selected' : ''}>סגור</option>
       </select>
     </td>
-    <td>
+    <td class="ds-fin-pay-table__edit">
       <input class="ds-input ds-fin-inline" type="date" data-fin-collect-field="expected_collection_date" data-fin-activity-id="${id}" value="${escapeHtml(expected)}">
     </td>
-    <td>
+    <td class="ds-fin-pay-table__note">
       <input class="ds-input ds-fin-inline" type="text" data-fin-collect-field="finance_note" data-fin-activity-id="${id}" value="${escapeHtml(activity.finance_note || '')}" placeholder="הערה">
       ${saveStatusHtml(activityRowId(activity), saveState)}
     </td>
@@ -326,8 +360,8 @@ function collectionActivityRowHtml(activity, saveState = {}) {
 
 function payerCardHtml(group, tab, saveState = {}) {
   const openMeta = tab === 'all'
-    ? `${group.activityCount} פעילויות · ${money(group.totalAmount)} · ${group.openCount} פתוחות`
-    : `${group.activityCount} פעילויות · ${money(group.totalAmount)}`;
+    ? `${group.activityCount} פעילויות · ${collectionMoney(group.totalAmount)} · ${group.openCount} פתוחות`
+    : `${group.activityCount} פעילויות · ${collectionMoney(group.totalAmount)}`;
   const rows = group.activities.map((activity) => collectionActivityRowHtml(activity, saveState)).join('');
   return `<details class="ds-fin-payer">
     <summary>
@@ -337,16 +371,11 @@ function payerCardHtml(group, tab, saveState = {}) {
     ${dsTableWrap(`<table class="ds-table ds-fin-pay-table" dir="rtl">
       <thead><tr>
         <th>פעילות</th>
-        <th>רשות</th>
-        <th>בית ספר</th>
+        <th>לקוח</th>
         <th>גורם מימון</th>
-        <th>סמל מוסד</th>
-        <th>מס׳ גפ״ן</th>
         <th class="ds-fin-num">מחיר</th>
-        <th>מפגשים מתוכננים</th>
-        <th>מפגשים שבוצעו</th>
-        <th>מפגשים שחויבו</th>
-        <th>בוצע וטרם חויב</th>
+        <th>מפגשים</th>
+        <th>טרם חויב</th>
         <th>חשבון אחרון</th>
         <th>סטטוס פעילות</th>
         <th>סטטוס גבייה</th>
@@ -365,9 +394,9 @@ function collectionMonthLabel(monthKey) {
 
 function collectionSummaryCardsHtml(totals = {}) {
   const cards = [
-    { label: 'סכום כל הפעילויות', value: money(totals.totalAmount) },
-    { label: 'סה״כ לגבייה', value: money(totals.openAmount) },
-    { label: 'סה״כ גבייה שבוצעה', value: money(totals.closedAmount) }
+    { label: 'סכום כל הפעילויות', value: collectionMoney(totals.totalAmount) },
+    { label: 'סה״כ לגבייה', value: collectionMoney(totals.openAmount) },
+    { label: 'סה״כ גבייה שבוצעה', value: collectionMoney(totals.closedAmount) }
   ];
   return `<div class="ds-fin-collect-summary" dir="rtl">
     ${cards.map((card) => `
@@ -386,7 +415,7 @@ function collectionMonthSectionHtml(month, tab, saveState = {}) {
   return `<section class="ds-fin-collect-month">
     <header class="ds-fin-collect-month__head">
       <h3 class="ds-fin-collect-month__title">${escapeHtml(collectionMonthLabel(month.monthKey))}</h3>
-      <span class="ds-fin-collect-month__meta">${escapeHtml(`${month.activityCount} פעילויות · ${money(month.totalAmount)}`)}</span>
+      <span class="ds-fin-collect-month__meta">${escapeHtml(`${month.activityCount} פעילויות · ${collectionMoney(month.totalAmount)}`)}</span>
     </header>
     <div class="ds-fin-payers">${body}</div>
   </section>`;
