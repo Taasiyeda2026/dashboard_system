@@ -1,11 +1,10 @@
 import { loadActiveBirthdays } from '../../birthday-calendar.js';
-import { escapeHtml } from '../shared/html.js';
-import { formatDateHe } from '../shared/format-date.js';
 import { dsPageHeader, dsScreenStack, dsCard, dsInteractiveCard, dsEmptyState } from '../shared/layout.js';
 import { loadSchoolCalendarRows } from '../shared/school-calendar-data.js';
 import { clampInstructorCalendarMonth, instructorActivityEventsForDate, instructorAttendanceDateSet, instructorCalendarDayClasses, INSTRUCTOR_CALENDAR_END_DATE, INSTRUCTOR_CALENDAR_START_DATE, moveInstructorCalendarMonth, organizationalCalendarDayLabel, organizationalEventsForDate } from './calendar-events.js';
 import { instructorActivities, loadInstructorActivities, loadInstructorAttendanceDates } from './portal-data.js';
 import { instructorActivityId, openInstructorActivityDrawer } from './activity-drawer.js';
+import { instructorCalendarDayDrawerHtml } from './calendar-day-drawer.js';
 
 const MONTHS = ['ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
 const WEEKDAYS = ['א׳','ב׳','ג׳','ד׳','ה׳','ו׳','ש׳'];
@@ -27,13 +26,6 @@ export function organizationalCalendarGridHtml(data, month = selectedMonth) {
     return `<div class="ds-cal-slot-hit" data-calendar-date="${date}">${dsInteractiveCard({ action: `organization-day|${date}`, title: String(day), subtitle: organizationalCalendarDayLabel(events), variant: 'day-cell', extraClass: eventClasses })}</div>`;
   }).join('');
   return `<div class="ds-cal-wrap" dir="rtl"><div class="ds-cal-weekdays" role="row">${WEEKDAYS.map((day) => `<div class="ds-cal-wd" role="columnheader">${day}</div>`).join('')}</div><div class="ds-cal-grid" role="grid" aria-label="לוח חודש">${slots}</div></div>`;
-}
-
-function dayDrawerHtml(events, date) {
-  if (!events.length) return dsEmptyState('אין אירועים בתאריך זה');
-  return `<div class="instr-day-drawer"><h3>${escapeHtml(formatDateHe(date) || date)}</h3>${events.map((event) => event.kind === 'instructor-activity'
-    ? `<button type="button" class="instr-activity-card instr-calendar-activity-open" data-calendar-activity="${escapeHtml(instructorActivityId(event))}"><strong>${escapeHtml(event.displayTitle)}</strong><small>מפגש ${event.meetingNo}${event.school ? ` · ${escapeHtml(event.school)}` : ''}</small></button>`
-    : `<article class="instr-activity-card"><div><strong>${escapeHtml(event.displayTitle)}</strong></div></article>`).join('')}</div>`;
 }
 
 function instructorDetailRow(detail, summary) {
@@ -78,7 +70,7 @@ export const instructorPortalCalendarScreen = {
       const events = [...instructorActivityEventsForDate(data?.activities, date), ...organizationalEventsForDate(data?.calendarRows, data?.birthdays, date)];
       ui?.openDrawer({
         title: 'אירועים בלוח השנה',
-        content: dayDrawerHtml(events, date),
+        content: instructorCalendarDayDrawerHtml(events, data?.attendanceRows, date),
         onOpen(contentRoot) {
           contentRoot.querySelectorAll('[data-calendar-activity]').forEach((button) => button.addEventListener('click', async () => {
             if (button.dataset.loading === 'yes') return;

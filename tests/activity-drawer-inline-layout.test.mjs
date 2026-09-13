@@ -208,6 +208,41 @@ test('instructor-limited inline layout never recreates price or funding fields a
   assert.match(css, /activity-drawer-inline__body[\s\S]*?overflow-y:\s*auto/);
 });
 
+test('instructor workshop uses a compact four-field grid and a lone full-width contact without breaking course layout', async () => {
+  const { applyActivityDrawerLayoutPipeline } = await import(`${pipelineModuleUrl.href}?instructor-compact=${Date.now()}`);
+  const makeDom = (activityType, id) => installDom(`<div class="app-shell--instructor"><div class="ds-ui-layer"><aside class="ds-drawer"><div class="ds-drawer__content"><div class="instructor-activity-drawer-shell">${activityWorkDrawerHtml({
+    RowID: id,
+    activity_name: activityType === 'workshop' ? 'סדנה' : 'קורס',
+    activity_type: activityType,
+    activity_season: 'school_2027',
+    activity_manager: 'מנהלת',
+    grade: 'ה׳',
+    class_group: '1',
+    start_time: '09:00',
+    end_time: '11:00',
+    participants_count: 18,
+    resolved_school_2027_contact: { name: 'אשת קשר', phone: '0500000000', email: '', role: '' }
+  }, { instructorLimited: true, exportAction: false })}</div></div></aside></div></div>`);
+
+  const workshop = makeDom('workshop', 'WORKSHOP-COMPACT');
+  assert.equal(applyActivityDrawerLayoutPipeline(workshop.window.document, {}), true);
+  const workshopGrid = workshop.window.document.querySelector('.activity-drawer-inline__grid[data-activity-layout="workshop"]');
+  assert.deepEqual([...workshopGrid.querySelectorAll(':scope > .activity-drawer-inline__field:not([hidden]) .activity-drawer-inline__label')].map((node) => node.textContent.trim()), ['מנהל פעילות', 'כיתה / קבוצה', 'שעות', 'מספר משתתפים']);
+  const support = workshop.window.document.querySelector('.activity-drawer-inline__support');
+  assert.equal(support.children.length, 1);
+  assert.match(support.textContent, /איש קשר|אשת קשר/);
+  workshop.window.close();
+
+  const course = makeDom('course', 'COURSE-COMPACT');
+  assert.equal(applyActivityDrawerLayoutPipeline(course.window.document, {}), true);
+  assert.ok(course.window.document.querySelector('.activity-drawer-inline__grid[data-activity-layout="course"]'));
+  assert.match(course.window.document.querySelector('.activity-drawer-inline__core').textContent, /מנהל פעילות|כיתה \/ קבוצה|שעות/);
+  course.window.close();
+
+  const css = await readFile(new URL('../frontend/src/styles/instructor-portal-responsive.css', import.meta.url), 'utf8');
+  assert.match(css, /\.app-shell--instructor \.instructor-activity-drawer-shell \.activity-drawer-inline__support > :only-child\s*\{[^}]*grid-column:\s*1 \/ -1/);
+});
+
 test('manager inline layout keeps the instructor field', () => {
   const row = { RowID: 'manager', activity_name: 'פעילות', activity_type: 'course', emp_id: 'A-1', instructor_name: 'מדריכה משובצת' };
   const settings = { dropdown_options: { contacts_instructor_users: [{ emp_id: 'A-1', full_name: 'מדריכה משובצת', active: true }] } };

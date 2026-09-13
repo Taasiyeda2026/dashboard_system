@@ -8,9 +8,10 @@ import { courseScheduleTableHtml } from '../frontend/src/screens/shared/instruct
 import { activityWorkDrawerHtml } from '../frontend/src/screens/shared/activity-detail-html.js';
 import { resolveSchool2027Contact, withResolvedSchool2027Contact } from '../frontend/src/screens/shared/school-2027-contact.js';
 import { instructorActivityContact } from '../frontend/src/screens/instructor-portal/my-activities.js';
-import { instructorDashboardScreen } from '../frontend/src/screens/instructor-portal/dashboard.js';
+import { instructorDashboardScreen, instructorMonthlySummaryHtml } from '../frontend/src/screens/instructor-portal/dashboard.js';
 import { instructorMyActivitiesScreen } from '../frontend/src/screens/instructor-portal/my-activities.js';
 import { instructorWorkScheduleScreen } from '../frontend/src/screens/instructor-portal/work-schedule.js';
+import { instructorCalendarDayDrawerHtml } from '../frontend/src/screens/instructor-portal/calendar-day-drawer.js';
 
 const stateA = { user: { emp_id: 'A-1', role: 'instructor' } };
 const basicRows = [
@@ -48,11 +49,31 @@ test('instructor dashboard, activities, and work schedule render their approved 
   assert.match(activities.querySelector('.portal-activities-desktop').textContent, /רשות בדיקה/);
   assert.match(activities.querySelector('.portal-activities-mobile').textContent, /רשות בדיקה/);
   assert.doesNotMatch(activities.body.textContent, /שכבה סודית|פתוח|סטטוס/);
+  assert.equal(activities.querySelectorAll('th').length, 5);
+  assert.doesNotMatch(activities.body.textContent, /פעולה|פרטים/);
+
+  let openedDrawer = '';
+  instructorMyActivitiesScreen.bind({ root: activities, data: { rows: [activity] }, state: stateA, ui: { openDrawer: ({ content }) => { openedDrawer = content; } } });
+  activities.querySelector('[data-portal-activity="one"]').click();
+  assert.match(openedDrawer, /instructor-activity-drawer-shell/);
 
   const schedule = new JSDOM(instructorWorkScheduleScreen.render({ rows: [activity] }, { state: stateA })).window.document;
   assert.ok(schedule.querySelector('[data-instructor-schedule-print]'));
   assert.ok(schedule.querySelector('.ds-ops-course-schedule-table'));
   assert.doesNotMatch(schedule.body.textContent, /מדריך\/ים/);
+});
+
+test('dashboard renders a dynamic plain-text monthly summary in the approved order', () => {
+  const summaryHtml = instructorMonthlySummaryHtml({ total: 6, types: [{ label: 'סדנה', value: 3 }, { label: 'קורס', value: 2 }, { label: 'סיור', value: 1 }] });
+  assert.match(new JSDOM(summaryHtml).window.document.body.textContent, /6 פעילויות: 3 סדנה \| 2 קורס \| 1 סיור/);
+  const source = fs.readFileSync(new URL('../frontend/src/screens/instructor-portal/dashboard.js', import.meta.url), 'utf8');
+  assert.doesNotMatch(source, /dsKpiGrid|const kpis/);
+  const monthIndex = source.indexOf('instructor-portal-dashboard__toolbar');
+  const summaryIndex = source.indexOf('instructorMonthlySummaryHtml(summary)', monthIndex);
+  const dividerIndex = source.indexOf('instructor-portal-summary-divider', summaryIndex);
+  const nextIndex = source.indexOf('${nextCard}', dividerIndex);
+  const shortcutsIndex = source.indexOf('instructor-portal-shortcuts', nextIndex);
+  assert.ok(monthIndex < summaryIndex && summaryIndex < dividerIndex && dividerIndex < nextIndex && nextIndex < shortcutsIndex);
 });
 
 test('portal selectors include primary and secondary assignments and exclude another instructor', () => {
@@ -155,6 +176,8 @@ test('my activities provides mobile cards that open the shared activity drawer',
   assert.match(source, /openInstructorActivityDrawer/);
   assert.match(source, /data-open-work-schedule/);
   assert.doesNotMatch(source, /<th>סוג<\/th>/);
+  assert.doesNotMatch(source, /data-portal-open|portal-activity-open|>פרטים</);
+  assert.match(source, /node\.addEventListener\('click', \(\) => openById\(node\.dataset\.portalActivity\)\)/);
 });
 
 test('instructor work schedule uses shared styling and shared reliable print template', () => {
@@ -272,7 +295,23 @@ test('calendar and my activities open the same instructor drawer helper', () => 
 
 test('instructor attendance dates use the existing secured table and employee/date filters', () => {
   const source = fs.readFileSync(new URL('../frontend/src/api.js', import.meta.url), 'utf8');
-  assert.match(source, /instructorAttendanceDates[\s\S]+\.from\('attendance_records'\)[\s\S]+\.select\('emp_id,report_date'\)[\s\S]+\.eq\('emp_id', employeeId\)[\s\S]+\.gte\('report_date', fromDate\)[\s\S]+\.lte\('report_date', toDate\)/);
+  assert.match(source, /instructorAttendanceDates[\s\S]+\.from\('attendance_records'\)[\s\S]+activity_name_snapshot[\s\S]+public_transport_cost[\s\S]+expense_details[\s\S]+\.eq\('emp_id', employeeId\)[\s\S]+\.gte\('report_date', fromDate\)[\s\S]+\.lte\('report_date', toDate\)/);
+});
+
+test('calendar day drawer renders attendance-only, combined, and multiple snapshot records', () => {
+  const attendanceRows = [
+    { id: 'a1', report_date: '2026-09-08', activity_type: 'סדנה', activity_name_snapshot: 'צילום סדנה', start_time: '09:00:00', end_time: '11:00:00', total_hours: 2, school_name_snapshot: 'בית ספר א', authority_name_snapshot: 'רשות א', roundtrip_km: 12, expenses: 20, expense_details: 'חניה', notes: 'הערה' },
+    { id: 'a2', report_date: '2026-09-08', activity_type: 'קורס', activity_name_snapshot: 'צילום קורס', public_transport: true, public_transport_cost: 8 },
+    { id: 'other', report_date: '2026-09-09', activity_name_snapshot: 'יום אחר' }
+  ];
+  const attendanceOnly = new JSDOM(instructorCalendarDayDrawerHtml([], attendanceRows, '2026-09-08')).window.document;
+  assert.equal(attendanceOnly.querySelectorAll('.instr-calendar-attendance-card').length, 2);
+  assert.match(attendanceOnly.body.textContent, /צילום סדנה|צילום קורס|12|חניה|תחבורה ציבורית/);
+  assert.doesNotMatch(attendanceOnly.body.textContent, /יום אחר/);
+  const combined = new JSDOM(instructorCalendarDayDrawerHtml([{ kind: 'instructor-activity', RowID: 'activity', displayTitle: 'פעילות בלוח', meetingNo: 1 }], attendanceRows, '2026-09-08')).window.document;
+  assert.equal(combined.querySelectorAll('[data-calendar-activity]').length, 1);
+  assert.equal(combined.querySelectorAll('.instr-calendar-attendance-card').length, 2);
+  assert.match(combined.body.textContent, /פעילות בלוח|צילום סדנה|צילום קורס/);
 });
 
 test('attendance read failure does not reject the instructor calendar data load', async () => {

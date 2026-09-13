@@ -199,3 +199,4 @@ config.HOTFIX_VERSION = `proposal-drawer-height-percent-20260913-v1-${config.HOT
 config.HOTFIX_VERSION = `instructor-dashboard-fixes-20260913-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `instructor-dashboard-fixes-review-20260913-v2-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `instructor-calendar-combined-indicator-20260913-v3-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `instructor-dashboard-followups-20260913-v4-${config.HOTFIX_VERSION}`;
