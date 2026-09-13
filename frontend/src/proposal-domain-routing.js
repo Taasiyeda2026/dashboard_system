@@ -57,6 +57,12 @@ function injectStyles() {
   const style = document.createElement('style');
   style.id = 'proposal-domain-routing-styles';
   style.textContent = `
+    #app [data-pa-proposal-detail] [data-proposal-domain-routing-host] {
+      flex: 0 0 auto !important;
+      width: 100% !important;
+      min-width: 0 !important;
+      box-sizing: border-box !important;
+    }
     .proposal-israa-routing {
       position: static !important;
       width: 100%;
