@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { JSDOM } from 'jsdom';
-import { instructorActivities, monthlyInstructorSummary, instructorScheduleRows } from '../frontend/src/screens/instructor-portal/portal-data.js';
+import { instructorActivities, loadInstructorAttendanceDates, monthlyInstructorSummary, instructorScheduleRows } from '../frontend/src/screens/instructor-portal/portal-data.js';
 import { INSTRUCTOR_CALENDAR_ACTIVE_PERIOD, clampInstructorCalendarMonth, instructorActivityEventsForDate, instructorAttendanceDateSet, instructorCalendarDayClasses, moveInstructorCalendarMonth, organizationalEventsForDate, organizationalCalendarDayLabel } from '../frontend/src/screens/instructor-portal/calendar-events.js';
 import { courseScheduleTableHtml } from '../frontend/src/screens/shared/instructor-course-schedule-view.js';
 import { activityWorkDrawerHtml } from '../frontend/src/screens/shared/activity-detail-html.js';
@@ -273,6 +273,15 @@ test('calendar and my activities open the same instructor drawer helper', () => 
 test('instructor attendance dates use the existing secured table and employee/date filters', () => {
   const source = fs.readFileSync(new URL('../frontend/src/api.js', import.meta.url), 'utf8');
   assert.match(source, /instructorAttendanceDates[\s\S]+\.from\('attendance_records'\)[\s\S]+\.select\('emp_id,report_date'\)[\s\S]+\.eq\('emp_id', employeeId\)[\s\S]+\.gte\('report_date', fromDate\)[\s\S]+\.lte\('report_date', toDate\)/);
+});
+
+test('attendance read failure does not reject the instructor calendar data load', async () => {
+  const rows = await loadInstructorAttendanceDates({
+    instructorAttendanceDates: async () => { throw new Error('RLS denied'); }
+  }, { empId: 'A-1', fromDate: '2026-09-01', toDate: '2027-08-31' });
+  assert.deepEqual(rows, []);
+  const calendarSource = fs.readFileSync(new URL('../frontend/src/screens/instructor-portal/calendar.js', import.meta.url), 'utf8');
+  assert.match(calendarSource, /Promise\.all\([\s\S]+loadInstructorActivities\(api\)[\s\S]+loadInstructorAttendanceDates\(api,/);
 });
 
 test('reports is a placeholder and does not load completion approvals', () => {

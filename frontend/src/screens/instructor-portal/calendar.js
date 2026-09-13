@@ -4,7 +4,7 @@ import { formatDateHe } from '../shared/format-date.js';
 import { dsPageHeader, dsScreenStack, dsCard, dsInteractiveCard, dsEmptyState } from '../shared/layout.js';
 import { loadSchoolCalendarRows } from '../shared/school-calendar-data.js';
 import { clampInstructorCalendarMonth, instructorActivityEventsForDate, instructorAttendanceDateSet, instructorCalendarDayClasses, INSTRUCTOR_CALENDAR_END_DATE, INSTRUCTOR_CALENDAR_START_DATE, moveInstructorCalendarMonth, organizationalCalendarDayLabel, organizationalEventsForDate } from './calendar-events.js';
-import { instructorActivities, loadInstructorActivities } from './portal-data.js';
+import { instructorActivities, loadInstructorActivities, loadInstructorAttendanceDates } from './portal-data.js';
 import { instructorActivityId, openInstructorActivityDrawer } from './activity-drawer.js';
 
 const MONTHS = ['ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
@@ -59,7 +59,7 @@ export const instructorPortalCalendarScreen = {
       loadSchoolCalendarRows(),
       loadActiveBirthdays(),
       loadInstructorActivities(api),
-      api.instructorAttendanceDates({ empId, fromDate: INSTRUCTOR_CALENDAR_START_DATE, toDate: INSTRUCTOR_CALENDAR_END_DATE })
+      loadInstructorAttendanceDates(api, { empId, fromDate: INSTRUCTOR_CALENDAR_START_DATE, toDate: INSTRUCTOR_CALENDAR_END_DATE })
     ]);
     return { calendarRows, birthdays, rows: activityData.rows, attendanceRows };
   },

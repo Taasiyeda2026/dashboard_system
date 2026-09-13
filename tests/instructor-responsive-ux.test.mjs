@@ -14,7 +14,7 @@ test('instructor responsive layer is scoped and loaded after shared dashboard st
   assert.match(css, /\.instructor-area/);
   assert.doesNotMatch(css, /^\s*\.ds-table\s*\{/m);
   const sharedIndex = index.indexOf('manager-board-team-strip-inline-fix.css');
-  const instructorIndex = index.indexOf('instructor-portal-responsive.css?v=20260913-instructor-dashboard-fixes-v1');
+  const instructorIndex = index.indexOf('instructor-portal-responsive.css?v=20260913-instructor-dashboard-fixes-v2');
   assert.notEqual(instructorIndex, -1);
   assert.ok(instructorIndex > sharedIndex);
   assert.match(index, /instructor-portal-ux-runtime\.js\?v=20260913-instructor-responsive-v1/);
@@ -40,6 +40,9 @@ test('instructor calendar remains seven columns and reuses the shared instructor
   assert.match(calendar, /openInstructorActivityDrawer/);
   assert.match(css, /has-instructor-attendance::after/);
   assert.match(css, /has-instructor-activity\.has-instructor-attendance::after/);
+  assert.match(css, /has-instructor-activity\.has-instructor-attendance::after[\s\S]*width:\s*25px[\s\S]*radial-gradient\(circle at 4\.5px 4\.5px[\s\S]*radial-gradient\(circle at 20\.5px 4\.5px[\s\S]*box-shadow:\s*none/);
+  assert.match(css, /has-instructor-attendance::after[\s\S]*inset-inline-start:\s*8px[\s\S]*inset-block-end:\s*8px/);
+  assert.doesNotMatch(css.match(/has-instructor-activity\.has-instructor-attendance::after\s*\{[^}]+\}/)?.[0] || '', /16px 0/);
 });
 
 test('instructor course and workshop drawers share compact role-scoped spacing', () => {
