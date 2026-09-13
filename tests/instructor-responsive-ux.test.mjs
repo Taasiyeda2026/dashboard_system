@@ -14,20 +14,20 @@ test('instructor responsive layer is scoped and loaded after shared dashboard st
   assert.match(css, /\.instructor-area/);
   assert.doesNotMatch(css, /^\s*\.ds-table\s*\{/m);
   const sharedIndex = index.indexOf('manager-board-team-strip-inline-fix.css');
-  const instructorIndex = index.indexOf('instructor-portal-responsive.css?v=20260913-instructor-dashboard-fixes-v3');
+  const instructorIndex = index.indexOf('instructor-portal-responsive.css?v=20260913-instructor-dashboard-followups-v4');
   assert.notEqual(instructorIndex, -1);
   assert.ok(instructorIndex > sharedIndex);
   assert.match(index, /instructor-portal-ux-runtime\.js\?v=20260913-instructor-responsive-v1/);
 });
 
 test('instructor activities are a compact summary and keep full details in the shared drawer', () => {
-  const headings = ['תאריך', 'שעות', 'בית ספר', 'רשות', 'פעילות', 'פעולה'];
+  const headings = ['תאריך', 'שעות', 'בית ספר', 'רשות', 'פעילות'];
   headings.forEach((heading) => assert.match(activities, new RegExp(`<th>${heading}<\\/th>`)));
-  assert.doesNotMatch(activities, /<th>שכבה<\/th>|<th>סטטוס<\/th>|<th>איש קשר<\/th>/);
+  assert.doesNotMatch(activities, /<th>שכבה<\/th>|<th>סטטוס<\/th>|<th>איש קשר<\/th>|<th>פעולה<\/th>|data-portal-open|portal-activity-open/);
   assert.doesNotMatch(activities, /פתיחת פרטים/);
   assert.match(activities, /portal-activity-card__summary/);
   assert.match(activities, /openInstructorActivityDrawer/);
-  assert.match(activities, /data-portal-open/);
+  assert.match(css, /portal-activities-desktop th:nth-child\(5\)[\s\S]*width:\s*26%/);
 });
 
 test('instructor calendar remains seven columns and reuses the shared instructor activity drawer', () => {
@@ -51,6 +51,20 @@ test('instructor course and workshop drawers share compact role-scoped spacing',
   assert.match(css, /\.app-shell--instructor \.instructor-activity-drawer-shell[\s\S]+gap:\s*5px/);
   assert.match(css, /\.app-shell--instructor \.instructor-activity-drawer-shell \.activity-drawer__section[\s\S]+padding:\s*7px 9px/);
   assert.doesNotMatch(css, /^\s*\.instructor-activity-drawer-shell \.activity-drawer__(?:section|body|form|field)\s*\{/m);
+  assert.match(css, /\.app-shell--instructor \.instructor-activity-drawer-shell \.activity-drawer-inline__body[\s\S]*padding:\s*8px 10px\s*!important/);
+  assert.match(css, /\.app-shell--instructor \.instructor-activity-drawer-shell \.activity-drawer-inline__core,[\s\S]*margin:\s*0 0 6px\s*!important/);
+  assert.match(css, /data-activity-layout="workshop"\] \[data-field-key="participants"\][\s\S]*grid-column:\s*auto\s*!important/);
+  assert.match(css, /activity-drawer-inline__support > :only-child[\s\S]*grid-column:\s*1 \/ -1/);
+  assert.match(css, /@media \(max-width: 640px\)[\s\S]*data-activity-layout="workshop"\][\s\S]*grid-template-columns:\s*1fr/);
+});
+
+test('dashboard monthly summary is unboxed and uses the current accent divider', async () => {
+  const dashboard = await readFile(new URL('../frontend/src/screens/instructor-portal/dashboard.js', import.meta.url), 'utf8');
+  assert.match(dashboard, /summary\.total/);
+  assert.match(dashboard, /summary\.types/);
+  assert.doesNotMatch(dashboard, /dsKpiGrid/);
+  assert.match(css, /instructor-portal-monthly-summary[\s\S]*margin:\s*0/);
+  assert.match(css, /instructor-portal-summary-divider[\s\S]*background:\s*var\(--ds-accent\)/);
 });
 
 test('persistent instructor navigation is reduced to four core destinations with vector icons', () => {

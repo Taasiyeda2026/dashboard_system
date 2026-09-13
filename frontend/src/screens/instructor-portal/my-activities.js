@@ -36,10 +36,9 @@ export const instructorMyActivitiesScreen = {
         <td>${escapeHtml(row.school || '—')}</td>
         <td>${escapeHtml(row.authority || '—')}</td>
         <td>${escapeHtml(instructorActivityName(row))}</td>
-        <td><button type="button" class="ds-btn ds-btn--xs ds-btn--secondary portal-activity-open" data-portal-open="${id}">פרטים</button></td>
       </tr>`;
     }).join('');
-    const desktop = `<div class="portal-activities-desktop">${dsTableWrap(`<table class="ds-table ds-table--interactive"><thead><tr><th>תאריך</th><th>שעות</th><th>בית ספר</th><th>רשות</th><th>פעילות</th><th>פעולה</th></tr></thead><tbody>${body}</tbody></table>`)}</div>`;
+    const desktop = `<div class="portal-activities-desktop">${dsTableWrap(`<table class="ds-table ds-table--interactive"><thead><tr><th>תאריך</th><th>שעות</th><th>בית ספר</th><th>רשות</th><th>פעילות</th></tr></thead><tbody>${body}</tbody></table>`)}</div>`;
     const mobile = `<div class="portal-activities-mobile">${rows.map(mobileActivityCard).join('')}</div>`;
     const presentation = rows.length ? desktop + mobile : dsEmptyState('אין פעילויות להצגה');
     return dsScreenStack(`<section class="instructor-area instructor-area--table">${dsPageHeader('הפעילויות שלי', 'כל הפעילויות שמשויכות אליך')}<div class="instructor-my-activities-actions"><button type="button" class="ds-btn ds-btn--primary" data-open-work-schedule>סידור עבודה</button></div>${dsCard({ title: 'הפעילויות שלי', badge: String(rows.length), body: presentation, padded: !rows.length })}</section>`);
@@ -56,17 +55,8 @@ export const instructorMyActivitiesScreen = {
       openInstructorActivityDrawer({ row, state, ui });
     };
     root.querySelectorAll('[data-portal-activity]').forEach((node) => {
-      node.addEventListener('click', (event) => {
-        if (event.target.closest('[data-portal-open]')) return;
-        openById(node.dataset.portalActivity);
-      });
+      node.addEventListener('click', () => openById(node.dataset.portalActivity));
       node.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openById(node.dataset.portalActivity); } });
-    });
-    root.querySelectorAll('[data-portal-open]').forEach((button) => {
-      button.addEventListener('click', (event) => {
-        event.stopPropagation();
-        openById(button.dataset.portalOpen);
-      });
     });
   }
 };
