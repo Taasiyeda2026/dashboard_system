@@ -1,0 +1,215 @@
+/* Attendance desktop theme — companion to the approved mobile app theme.
+ * Desktop keeps its sidebar/table ergonomics while sharing the same visual
+ * hierarchy, colour language, compact cards and calendar treatment.
+ */
+
+@media (min-width: 768px) {
+  :root {
+    --av2-desktop-blue: #2474f5;
+    --av2-desktop-cyan: #18b8d3;
+    --av2-desktop-ink: #123153;
+    --av2-desktop-muted: #65778d;
+    --av2-desktop-border: #d9e7f3;
+    --av2-desktop-shadow: 0 10px 28px rgba(41, 90, 137, .08), 0 2px 7px rgba(41, 90, 137, .04);
+
+    --av2-color-bg: #f3f8fc;
+    --av2-color-text: var(--av2-desktop-ink);
+    --av2-color-text-muted: var(--av2-desktop-muted);
+    --av2-color-accent: var(--av2-desktop-blue);
+    --av2-color-accent-hover: #1f65d8;
+    --av2-color-accent-subtle: #eaf3ff;
+    --av2-color-border: var(--av2-desktop-border);
+    --av2-radius-sm: 9px;
+    --av2-radius-md: 13px;
+    --av2-radius-lg: 18px;
+  }
+
+  body,
+  .app-shell {
+    background:
+      radial-gradient(circle at 10% 4%, rgba(52, 211, 153, .08), transparent 24%),
+      radial-gradient(circle at 92% 3%, rgba(34, 211, 238, .11), transparent 27%),
+      linear-gradient(180deg, #f9fcff 0%, #f3f8fc 45%, #f6f8fb 100%);
+  }
+
+  .av2-home__inner,
+  .av2-reports__inner,
+  .av2-report__inner {
+    max-width: 1180px;
+    margin-inline: auto;
+    gap: 14px;
+  }
+
+  .av2-home__page-title,
+  .av2-reports__title,
+  .av2-report__title {
+    color: #102d50;
+    font-weight: 850;
+  }
+
+  .av2-month-nav {
+    height: 42px;
+    border-color: rgba(151, 181, 210, .38);
+    border-radius: 13px;
+    background: rgba(255,255,255,.94);
+    box-shadow: 0 4px 15px rgba(45, 91, 135, .05);
+  }
+
+  .av2-month-nav__label {
+    color: #173a60;
+    font-size: .8rem;
+    font-weight: 800;
+  }
+
+  .av2-btn--primary {
+    border-radius: 11px;
+    background: linear-gradient(135deg, #2f7cf6, #2468e8);
+    box-shadow: 0 5px 13px rgba(36,104,232,.16);
+  }
+
+  .av2-btn--secondary {
+    border-radius: 11px;
+    background: rgba(255,255,255,.96);
+  }
+
+  .av2-stat-card {
+    min-height: 96px;
+    border: 1px solid rgba(153, 182, 210, .32);
+    border-radius: 17px;
+    background: rgba(255,255,255,.95);
+    box-shadow: var(--av2-desktop-shadow);
+  }
+
+  .av2-stat-card__value {
+    color: #143456;
+  }
+
+  .av2-home__action-strip {
+    padding: 12px 14px;
+    border: 1px solid rgba(151, 181, 210, .32);
+    border-radius: 17px;
+    background: rgba(255,255,255,.95);
+    box-shadow: var(--av2-desktop-shadow);
+  }
+
+  .av2-home__report-list {
+    gap: 8px;
+    padding-top: 10px;
+  }
+
+  .av2-report-summary-row {
+    border: 1px solid rgba(160, 188, 214, .28) !important;
+    border-radius: 13px !important;
+    background: linear-gradient(90deg, #f6faff, #fff 48%) !important;
+    box-shadow: 0 3px 12px rgba(53, 94, 134, .05);
+  }
+
+  .av2-report-summary-row__toggle {
+    min-height: 52px;
+    padding: 9px 11px;
+  }
+
+  .av2-report-summary-row__details {
+    margin: 0 9px 9px;
+    padding: 10px;
+    border: 1px solid #e2ebf4;
+    border-radius: 12px;
+    background: #fbfdff;
+  }
+
+  .av2-reports__calendar-wrap {
+    width: min(100%, 820px);
+  }
+
+  .av2-cal {
+    padding: 13px;
+    border: 1px solid rgba(149, 180, 210, .34);
+    border-radius: 19px;
+    background: rgba(255,255,255,.96);
+    box-shadow: var(--av2-desktop-shadow);
+  }
+
+  .av2-cal__header {
+    background: linear-gradient(180deg, #f9fcff, #eef5fc);
+  }
+
+  .av2-cal__cell {
+    min-height: 58px;
+    border-color: #e2ebf4;
+  }
+
+  .av2-cal__cell--today {
+    background: #eef6ff !important;
+    box-shadow: inset 0 0 0 2px rgba(36,116,245,.55), 0 4px 12px rgba(36,116,245,.10);
+  }
+
+  .av2-cal__cell--today .av2-cal__day-num {
+    background: linear-gradient(135deg, #3b82f6, #2563eb);
+    box-shadow: 0 4px 10px rgba(37,99,235,.25);
+  }
+
+  .av2-reports__day-filter {
+    min-height: 42px;
+    padding: 7px 11px;
+    border: 1px solid rgba(98, 157, 224, .18);
+    border-radius: 13px;
+    background: linear-gradient(90deg, #e8f3ff, #f4f9ff);
+  }
+
+  .av2-report-list {
+    border: 1px solid rgba(151, 181, 210, .30);
+    border-radius: 16px;
+    background: rgba(255,255,255,.96);
+    box-shadow: var(--av2-desktop-shadow);
+  }
+
+  .av2-report-list__head {
+    background: linear-gradient(180deg, #f8fbff, #eef5fc);
+    color: #5f7186;
+  }
+
+  .av2-report-row {
+    min-height: 50px;
+  }
+
+  .av2-report-list__totals {
+    min-height: 56px;
+    padding: 10px 13px;
+    background: linear-gradient(90deg, #eaf4ff, #f8fbff);
+  }
+
+  .av2-form-section {
+    border: 1px solid rgba(151, 181, 210, .32);
+    border-radius: 17px;
+    background: rgba(255,255,255,.96);
+    box-shadow: 0 5px 18px rgba(45, 91, 135, .06);
+  }
+
+  .av2-form-section__title {
+    border-radius: 16px 16px 0 0;
+    background: linear-gradient(90deg, #edf6ff, #f9fcff);
+    color: #415d79;
+    font-weight: 800;
+  }
+
+  .av2-bottom-nav {
+    background: rgba(255,255,255,.97);
+    border-inline-start: 1px solid #dbe7f2;
+    box-shadow: -6px 0 24px rgba(41, 80, 120, .07);
+  }
+
+  .av2-bottom-nav__brand {
+    color: #173a60;
+  }
+
+  .av2-bottom-nav__item {
+    min-height: 40px;
+    border-radius: 10px;
+  }
+
+  .av2-bottom-nav__item.is-active {
+    color: #246fe9;
+    background: linear-gradient(90deg, #e8f3ff, #f3f8ff);
+    box-shadow: inset -3px 0 0 #2474f5;
+  }
+}
