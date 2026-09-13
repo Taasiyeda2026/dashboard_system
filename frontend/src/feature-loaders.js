@@ -87,7 +87,7 @@ export function ensureFeature(name) {
       // Lightweight owner for proposal detail drawer geometry. Safe to warm early
       // without pulling PDF/editor enhancers required by the full proposals bundle.
       return loadOnce('proposalDrawerShell', () => (
-        import('./proposal-drawer-activity-style.js?v=20260913-v2')
+        import('./proposal-drawer-activity-style.js?v=20260913-v3')
       ));
 
     case 'proposals':

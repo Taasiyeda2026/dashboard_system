@@ -22,6 +22,12 @@ export function ensureProposalActivityDrawerStyles(scope = globalThis) {
     html body #app [data-pa-proposal-detail].ds-pa-proposal-detail {
       position: fixed !important;
       inset: 0 !important;
+      top: 0 !important;
+      right: 0 !important;
+      bottom: 0 !important;
+      left: 0 !important;
+      width: 100% !important;
+      max-width: none !important;
       z-index: 1450 !important;
       display: flex !important;
       align-items: stretch !important;

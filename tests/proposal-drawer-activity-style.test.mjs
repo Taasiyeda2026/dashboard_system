@@ -20,6 +20,8 @@ test('proposal drawer uses the same left-side shell proportions and internal scr
   const style = dom.window.document.getElementById('ds-pa-proposal-activity-drawer-style-v1');
   assert.ok(style);
   assert.match(style.textContent, /justify-content:\s*flex-start !important/);
+  assert.match(style.textContent, /\[data-pa-proposal-detail\]\.ds-pa-proposal-detail[\s\S]*?width:\s*100% !important/);
+  assert.match(style.textContent, /\[data-pa-proposal-detail\]\.ds-pa-proposal-detail[\s\S]*?max-width:\s*none !important/);
   assert.match(style.textContent, /width:\s*min\(820px, 55vw\) !important/);
   assert.match(style.textContent, /max-width:\s*calc\(100vw - 32px\) !important/);
   assert.match(style.textContent, /linear-gradient\(135deg, #1a2740 0%, #243b60 100%\)/);
@@ -86,5 +88,5 @@ test('proposal drawer polish applies to rendered proposal details and feature lo
   assert.ok(dom.window.document.getElementById('ds-pa-proposal-activity-drawer-style-v1'));
 
   const featureLoaders = await readFile(FEATURE_LOADERS_FILE, 'utf8');
-  assert.match(featureLoaders, /proposal-drawer-activity-style\.js\?v=20260913-v2/);
+  assert.match(featureLoaders, /proposal-drawer-activity-style\.js\?v=20260913-v3/);
 });

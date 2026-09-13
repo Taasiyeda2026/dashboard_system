@@ -41,6 +41,8 @@ test('only proposal-drawer-activity-style owns proposal detail shell geometry', 
 
   assert.match(drawerStyle, /\[data-pa-proposal-detail\][\s\S]*position:\s*fixed\s*!important/);
   assert.match(drawerStyle, /\[data-pa-proposal-detail\][\s\S]*justify-content:\s*flex-start\s*!important/);
+  assert.match(drawerStyle, /\[data-pa-proposal-detail\]\.ds-pa-proposal-detail[\s\S]*?width:\s*100%\s*!important/);
+  assert.match(drawerStyle, /\[data-pa-proposal-detail\]\.ds-pa-proposal-detail[\s\S]*?max-width:\s*none\s*!important/);
   assert.match(drawerStyle, /\[data-pa-proposal-detail\][\s\S]*width:\s*min\(820px, 55vw\)\s*!important/);
   assert.match(drawerStyle, /\.ds-pa-drawer-body[\s\S]*overflow-y:\s*auto\s*!important/);
 
@@ -75,7 +77,7 @@ test('drawer owner is available before proposal detail opens without loading the
   assert.match(featureLoaders, /case 'proposalDrawerShell':/);
   assert.match(
     featureLoaders,
-    /case 'proposalDrawerShell':[\s\S]*?import\('\.\/proposal-drawer-activity-style\.js\?v=20260913-v2'\)/
+    /case 'proposalDrawerShell':[\s\S]*?import\('\.\/proposal-drawer-activity-style\.js\?v=20260913-v3'\)/
   );
 
   const proposalsStart = featureLoaders.indexOf("case 'proposals':");
