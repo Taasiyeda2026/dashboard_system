@@ -19,6 +19,11 @@ test('proposal quantity creates one linked 2027 activity per group using catalog
   assert.match(runtime, /quotedActivityCount/);
   assert.match(runtime, /created_count/);
   assert.match(runtime, /מתוך \$\{requiredCount\} פעילויות נוצרו/);
+  assert.match(runtime, /proposal_domain/);
+  assert.match(runtime, /proposal\.proposal_domain\)\.toUpperCase\(\) !== 'Y'/);
+  assert.match(runtime, /pendingProposalItemIds/);
+  assert.doesNotMatch(runtime, /pendingCreationsByRoot/);
+  assert.match(runtime, /finally\s*\{[\s\S]*pendingProposalItemIds\.delete\(proposalItemId\)[\s\S]*refreshProposalCreators\(\)/);
   assert.doesNotMatch(runtime, /data-activity-gefen-column/);
   assert.doesNotMatch(runtime, /מימון גפ״ן/);
   assert.doesNotMatch(runtime, /קיים בגפ״ן/);
