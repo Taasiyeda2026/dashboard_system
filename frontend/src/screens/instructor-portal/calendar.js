@@ -1,5 +1,5 @@
 import { loadActiveBirthdays } from '../../birthday-calendar.js';
-import { dsPageHeader, dsScreenStack, dsCard, dsInteractiveCard, dsEmptyState } from '../shared/layout.js';
+import { dsScreenStack, dsCard, dsInteractiveCard, dsEmptyState } from '../shared/layout.js';
 import { loadSchoolCalendarRows } from '../shared/school-calendar-data.js';
 import { clampInstructorCalendarMonth, instructorActivityEventsForDate, instructorAttendanceDateSet, instructorCalendarDayClasses, INSTRUCTOR_CALENDAR_END_DATE, INSTRUCTOR_CALENDAR_START_DATE, moveInstructorCalendarMonth, organizationalCalendarDayLabel, organizationalEventsForDate } from './calendar-events.js';
 import { instructorActivities, loadInstructorActivities, loadInstructorAttendanceDates } from './portal-data.js';
@@ -58,7 +58,7 @@ export const instructorPortalCalendarScreen = {
   render(data, { state } = {}) {
     data.activities = instructorActivities(data?.rows, state);
     const [year, month] = selectedMonth.split('-').map(Number);
-    return dsScreenStack(`<section class="instructor-area route-instructor-calendar">${dsPageHeader('לוח שנה')}<nav class="ds-cal-nav" role="navigation" aria-label="ניווט חודשי" dir="rtl"><button type="button" class="ds-btn ds-btn--sm ds-btn--nav-arrow" data-calendar-prev aria-label="חודש קודם">▶</button><span class="ds-cal-nav__label">${MONTHS[month - 1]} ${year}</span><button type="button" class="ds-btn ds-btn--sm ds-btn--today" data-calendar-today>היום</button><button type="button" class="ds-btn ds-btn--sm ds-btn--nav-arrow" data-calendar-next aria-label="חודש הבא">◀</button></nav>${dsCard({ body: organizationalCalendarGridHtml(data), padded: false })}</section>`);
+    return dsScreenStack(`<section class="instructor-area route-instructor-calendar"><nav class="ds-cal-nav instr-calendar-toolbar" role="navigation" aria-label="ניווט לוח שנה" dir="rtl"><span class="instr-calendar-toolbar__title">לוח שנה</span><div class="instr-calendar-toolbar__controls"><button type="button" class="ds-btn ds-btn--sm ds-btn--nav-arrow" data-calendar-prev aria-label="חודש קודם">▶</button><span class="ds-cal-nav__label">${MONTHS[month - 1]} ${year}</span><button type="button" class="ds-btn ds-btn--sm ds-btn--today" data-calendar-today>היום</button><button type="button" class="ds-btn ds-btn--sm ds-btn--nav-arrow" data-calendar-next aria-label="חודש הבא">◀</button></div></nav>${dsCard({ body: organizationalCalendarGridHtml(data), padded: false })}</section>`);
   },
   bind({ root, data, state, api, rerender, ui }) {
     const move = (offset) => { const nextMonth = moveInstructorCalendarMonth(selectedMonth, offset); if (nextMonth === selectedMonth) return; selectedMonth = nextMonth; rerender?.(); };
