@@ -882,6 +882,109 @@ test('collection UI keeps a compact centered shell with summary cards search and
   assert.equal([...html.matchAll(/מעקב גבייה/g)].length, 1);
 });
 
+test('collection pay table stacks related fields without dropping original info or editable save attrs', () => {
+  const html = financeScreen.render({
+    ...createFinanceVisitState(),
+    view: 'collection',
+    collectionActivities: [
+      activity({
+        row_id: 'LAYOUT-1',
+        activity_name: 'סדנת חלל',
+        activity_no: 'G-778',
+        authority: 'עיריית רחובות',
+        school: 'בית ספר הרצל',
+        funding: 'גפ״ן',
+        price: 0,
+        status: 'פתוח',
+        end_date: '2027-07-01'
+      })
+    ],
+    collectionTracking: [{
+      activity_row_id: 'LAYOUT-1',
+      collection_status: 'open',
+      expected_collection_date: '2026-09-20',
+      finance_note: 'לתזכורת'
+    }],
+    collectionTab: 'open',
+    collectionSearch: ''
+  }, { state: { user: financeUser } });
+
+  assert.match(html, /ds-fin-pay-table/);
+  assert.match(html, /<th>פעילות<\/th>/);
+  assert.match(html, /<th>לקוח<\/th>/);
+  assert.match(html, /<th>גורם מימון<\/th>/);
+  assert.match(html, /<th[^>]*>מחיר<\/th>/);
+  assert.match(html, /<th>מפגשים<\/th>/);
+  assert.match(html, /<th>טרם חויב<\/th>/);
+  assert.match(html, /<th>חשבון אחרון<\/th>/);
+  assert.match(html, /<th>סטטוס פעילות<\/th>/);
+  assert.match(html, /<th>סטטוס גבייה<\/th>/);
+  assert.match(html, /<th>צפי לגבייה<\/th>/);
+  assert.match(html, /<th>הערה<\/th>/);
+  assert.doesNotMatch(html, /<th>רשות<\/th>/);
+  assert.doesNotMatch(html, /<th>בית ספר<\/th>/);
+  assert.doesNotMatch(html, /<th>סמל מוסד<\/th>/);
+  assert.doesNotMatch(html, /<th>מס׳ גפ״ן<\/th>/);
+  assert.doesNotMatch(html, /<th>מפגשים מתוכננים<\/th>/);
+
+  assert.match(html, /סדנת חלל/);
+  assert.match(html, /מס׳ גפ״ן:\s*G-778/);
+  assert.match(html, /בית ספר הרצל/);
+  assert.match(html, /עיריית רחובות/);
+  assert.match(html, /סמל מוסד:\s*חסר — חסום להפקה/);
+  assert.match(html, /גפ״ן/);
+  assert.match(html, /₪0/);
+  assert.match(html, /מתוכנן 0 · בוצע 0 · חויב 0/);
+  assert.match(html, /0 מפגשים/);
+  assert.match(html, /0 שעות/);
+  assert.match(html, /data-fin-collect-field="collection_status"/);
+  assert.match(html, /data-fin-activity-id="LAYOUT-1"/);
+  assert.match(html, /value="2026-09-20"/);
+  assert.match(html, /value="לתזכורת"/);
+  assert.match(html, /ds-fin-stack/);
+  assert.match(html, /<select[^>]*data-fin-collect-field="collection_status"/);
+  assert.match(html, /<input[^>]*type="date"[^>]*data-fin-collect-field="expected_collection_date"/);
+  assert.match(html, /<input[^>]*type="text"[^>]*data-fin-collect-field="finance_note"/);
+});
+
+
+test('collection money shows ₪0 for numeric zero and em dash for missing price', () => {
+  const zeroHtml = financeScreen.render({
+    ...createFinanceVisitState(),
+    view: 'collection',
+    collectionActivities: [
+      activity({
+        row_id: 'ZERO-1',
+        activity_name: 'פעילות אפס',
+        price: 0,
+        end_date: '2027-07-01'
+      })
+    ],
+    collectionTracking: [],
+    collectionTab: 'open',
+    collectionSearch: ''
+  }, { state: { user: financeUser } });
+  assert.match(zeroHtml, /<td class="ds-fin-num">₪0<\/td>/);
+
+  const missingHtml = financeScreen.render({
+    ...createFinanceVisitState(),
+    view: 'collection',
+    collectionActivities: [
+      activity({
+        row_id: 'MISS-1',
+        activity_name: 'פעילות חסרה',
+        price: null,
+        end_date: '2027-07-01'
+      })
+    ],
+    collectionTracking: [],
+    collectionTab: 'open',
+    collectionSearch: ''
+  }, { state: { user: financeUser } });
+  assert.match(missingHtml, /<td class="ds-fin-num">—<\/td>/);
+  assert.doesNotMatch(missingHtml, /<td class="ds-fin-num">₪0<\/td>/);
+});
+
 test('collection keeps payer grouping inside each end month section', () => {
   const rows = attachCollectionTracking([
     activity({ row_id: 'G1', end_date: '2027-04-10', school: 'הרצל', school_id: '77', funding: 'גפן' }),
