@@ -14,30 +14,38 @@ test('instructor responsive layer is scoped and loaded after shared dashboard st
   assert.match(css, /\.instructor-area/);
   assert.doesNotMatch(css, /^\s*\.ds-table\s*\{/m);
   const sharedIndex = index.indexOf('manager-board-team-strip-inline-fix.css');
-  const instructorIndex = index.indexOf('instructor-portal-responsive.css?v=20260913-instructor-responsive-v1');
+  const instructorIndex = index.indexOf('instructor-portal-responsive.css?v=20260913-instructor-dashboard-fixes-v1');
   assert.notEqual(instructorIndex, -1);
   assert.ok(instructorIndex > sharedIndex);
   assert.match(index, /instructor-portal-ux-runtime\.js\?v=20260913-instructor-responsive-v1/);
 });
 
 test('instructor activities are a compact summary and keep full details in the shared drawer', () => {
-  const headings = ['תאריך', 'שעות', 'בית ספר', 'שכבה', 'פעילות', 'סטטוס', 'פעולה'];
+  const headings = ['תאריך', 'שעות', 'בית ספר', 'רשות', 'פעילות', 'פעולה'];
   headings.forEach((heading) => assert.match(activities, new RegExp(`<th>${heading}<\\/th>`)));
-  assert.doesNotMatch(activities, /<th>רשות<\/th>|<th>איש קשר<\/th>/);
+  assert.doesNotMatch(activities, /<th>שכבה<\/th>|<th>סטטוס<\/th>|<th>איש קשר<\/th>/);
   assert.doesNotMatch(activities, /פתיחת פרטים/);
   assert.match(activities, /portal-activity-card__summary/);
-  assert.match(activities, /activityWorkDrawerHtml/);
+  assert.match(activities, /openInstructorActivityDrawer/);
   assert.match(activities, /data-portal-open/);
 });
 
-test('instructor calendar remains seven columns, no horizontal overflow, and reuses activity accordion detail', () => {
+test('instructor calendar remains seven columns and reuses the shared instructor activity drawer', () => {
   assert.match(css, /grid-template-columns:\s*repeat\(7,\s*minmax\(0,\s*1fr\)\)/);
   assert.match(css, /route-instructor-calendar \.ds-cal-wrap[\s\S]*overflow-x:\s*hidden/);
   assert.match(runtime, /is-instructor-today/);
   assert.match(runtime, /aria-current', 'date'/);
-  assert.match(calendar, /instr-calendar-activity-accordion/);
+  assert.doesNotMatch(calendar, /instr-calendar-activity-accordion/);
   assert.match(calendar, /api\.activityDetail/);
-  assert.match(calendar, /activityWorkDrawerHtml/);
+  assert.match(calendar, /openInstructorActivityDrawer/);
+  assert.match(css, /has-instructor-attendance::after/);
+  assert.match(css, /has-instructor-activity\.has-instructor-attendance::after/);
+});
+
+test('instructor course and workshop drawers share compact role-scoped spacing', () => {
+  assert.match(css, /\.app-shell--instructor \.instructor-activity-drawer-shell[\s\S]+gap:\s*5px/);
+  assert.match(css, /\.app-shell--instructor \.instructor-activity-drawer-shell \.activity-drawer__section[\s\S]+padding:\s*7px 9px/);
+  assert.doesNotMatch(css, /^\s*\.instructor-activity-drawer-shell \.activity-drawer__(?:section|body|form|field)\s*\{/m);
 });
 
 test('persistent instructor navigation is reduced to four core destinations with vector icons', () => {
