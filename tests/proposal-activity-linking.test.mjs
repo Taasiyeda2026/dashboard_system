@@ -5,20 +5,28 @@ import { readFile } from 'node:fs/promises';
 const ROOT = new URL('../', import.meta.url);
 
 test('proposal quantity creates one linked 2027 activity per group using catalog fields', async () => {
-  const [runtime, featureLoaders, initialMigration, fixMigration] = await Promise.all([
+  const [runtime, domainRouting, featureLoaders, initialMigration, fixMigration, domainMigration] = await Promise.all([
     readFile(new URL('frontend/src/proposal-activity-linking.js', ROOT), 'utf8'),
+    readFile(new URL('frontend/src/proposal-domain-routing.js', ROOT), 'utf8'),
     readFile(new URL('frontend/src/feature-loaders.js', ROOT), 'utf8'),
     readFile(new URL('supabase/migrations/20260727190000_create_activities_from_proposal_items.sql', ROOT), 'utf8'),
-    readFile(new URL('supabase/migrations/20260727203000_fix_proposal_activity_quantity_and_catalog.sql', ROOT), 'utf8')
+    readFile(new URL('supabase/migrations/20260727203000_fix_proposal_activity_quantity_and_catalog.sql', ROOT), 'utf8'),
+    readFile(new URL('supabase/migrations/20260729163000_route_domain_e_to_israa_tracking.sql', ROOT), 'utf8')
   ]);
 
   assert.match(featureLoaders, /import\('\.\/proposal-activity-linking\.js'\)/);
+  assert.match(featureLoaders, /import\('\.\/proposal-domain-routing\.js'\)/);
 
   assert.match(runtime, /create_activity_from_proposal_item/);
   assert.match(runtime, /data-create-activity-from-proposal-item/);
   assert.match(runtime, /quotedActivityCount/);
   assert.match(runtime, /created_count/);
   assert.match(runtime, /מתוך \$\{requiredCount\} פעילויות נוצרו/);
+  assert.match(runtime, /proposal_domain/);
+  assert.match(runtime, /proposal\.proposal_domain\)\.toUpperCase\(\) !== 'Y'/);
+  assert.match(runtime, /pendingProposalItemIds/);
+  assert.doesNotMatch(runtime, /pendingCreationsByRoot/);
+  assert.match(runtime, /finally\s*\{[\s\S]*pendingProposalItemIds\.delete\(proposalItemId\)[\s\S]*refreshProposalCreators\(\)/);
   assert.doesNotMatch(runtime, /data-activity-gefen-column/);
   assert.doesNotMatch(runtime, /מימון גפ״ן/);
   assert.doesNotMatch(runtime, /קיים בגפ״ן/);
@@ -29,6 +37,11 @@ test('proposal quantity creates one linked 2027 activity per group using catalog
   assert.doesNotMatch(runtime, /proposal_linked_documents/);
   assert.doesNotMatch(runtime, /אישור גפ״ן קיים/);
   assert.doesNotMatch(runtime, /activity_gefen_links/);
+
+  assert.match(domainRouting, /create_israa_tracking_from_proposal/);
+  assert.match(domainRouting, /const domain = clean\(proposal\.proposal_domain\)\.toUpperCase\(\)/);
+  assert.match(domainRouting, /if \(domain === 'Y'\) \{[\s\S]*clearOurRouting\(root\)/);
+  assert.match(domainRouting, /if \(domain !== 'E' \|\| !isEligible2027Proposal\(proposal\)\)/);
 
   assert.match(initialMigration, /add column if not exists proposal_agreement_id uuid/);
   assert.match(initialMigration, /add column if not exists proposal_item_id uuid/);
@@ -50,4 +63,9 @@ test('proposal quantity creates one linked 2027 activity per group using catalog
   assert.match(fixMigration, /security invoker/i);
   assert.match(fixMigration, /grant execute on function public\.create_activity_from_proposal_item\(uuid\) to authenticated/);
   assert.doesNotMatch(fixMigration, /create table\s+public\.activity_gefen_links/i);
+
+  assert.match(domainMigration, /Proposal-domain Y continues to create rows in public\.activities exactly as before/);
+  assert.match(domainMigration, /upper\(btrim\(coalesce\(v_proposal\.proposal_domain, ''\)\)\) <> 'E'/);
+  assert.match(domainMigration, /proposal_domain_not_routed_to_activities/);
+  assert.match(domainMigration, /coalesce\(v_domain, ''\) <> 'Y'/);
 });

@@ -11,6 +11,7 @@ const CREATOR_ATTR = 'data-proposal-activity-creator';
 const ENHANCEMENT_DEBOUNCE_MS = 120;
 
 let enhancementTimer = null;
+const pendingProposalItemIds = new Set();
 
 function clean(value) {
   return String(value == null ? '' : value).replace(/\s+/g, ' ').trim();
@@ -48,6 +49,7 @@ function normalizedStatus(value) {
 function isEligibleProposal(proposal) {
   if (!proposal || proposal.archived_at) return false;
   if (!ELIGIBLE_STATUSES.has(normalizedStatus(proposal.status))) return false;
+  if (clean(proposal.proposal_domain).toUpperCase() !== 'Y') return false;
   return ['next_year', 'gefen', 'combined'].includes(normalizedProposalGroup(proposal.activity_type_group));
 }
 
@@ -162,7 +164,7 @@ function proposalIdFromElement(root) {
 
 async function readProposalForDetail(root) {
   const proposalId = proposalIdFromElement(root);
-  const columns = 'id,quote_number,status,activity_type_group,archived_at,version_number';
+  const columns = 'id,quote_number,status,activity_type_group,proposal_domain,archived_at,version_number';
   if (proposalId) {
     const { data, error } = await supabase
       .from('proposals_agreements')
@@ -241,11 +243,57 @@ function creationButtonText(requiredCount, createdCount) {
   return remaining === 1 ? 'יצירת פעילות' : `יצירת ${remaining} פעילויות`;
 }
 
-function renderProposalCreator(root, proposal, data) {
-  root.querySelector(`[${CREATOR_ATTR}]`)?.remove();
+function refreshProposalCreators() {
+  const roots = document.querySelectorAll('#app [data-pa-proposal-detail]');
+  for (const currentRoot of roots) currentRoot.removeAttribute('data-proposal-activity-loaded');
+  scheduleEnhancements();
+}
 
+function bindProposalCreatorHost(root, host) {
+  if (host.hasAttribute('data-proposal-activity-creator-bound')) return;
+  host.setAttribute('data-proposal-activity-creator-bound', 'true');
+  host.addEventListener('click', async (event) => {
+    const button = event.target.closest('[data-create-activity-from-proposal-item]');
+    if (!button || button.disabled || !host.contains(button)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const proposalItemId = clean(button.getAttribute('data-create-activity-from-proposal-item'));
+    if (!UUID_RE.test(proposalItemId) || pendingProposalItemIds.has(proposalItemId)) return;
+
+    pendingProposalItemIds.add(proposalItemId);
+    button.disabled = true;
+    button.textContent = 'יוצר פעילויות…';
+
+    try {
+      const { data: result, error } = await supabase.rpc('create_activity_from_proposal_item', {
+        p_proposal_item_id: proposalItemId
+      });
+      if (error) throw error;
+
+      clearScreenDataCache();
+      const createdCount = Number(result?.created_count || 0);
+      if (createdCount <= 0) toast('כל שורות הפעילות כבר קיימות.');
+      else if (createdCount === 1) toast('שורת הפעילות נוצרה בהצלחה.');
+      else toast(`${createdCount} שורות פעילות נוצרו בהצלחה.`);
+    } catch (error) {
+      console.error('[proposal-activity-create]', error);
+      toast(error?.message || 'יצירת הפעילויות נכשלה.', 'error');
+    } finally {
+      pendingProposalItemIds.delete(proposalItemId);
+      refreshProposalCreators();
+    }
+  });
+}
+
+function renderProposalCreator(root, proposal, data) {
   const eligibleItems = data.items.filter((item) => isEligibleProposalItem(item, proposal));
-  if (!eligibleItems.length) return;
+  const host = proposalCreatorHost(root);
+  if (!host) return;
+  bindProposalCreatorHost(root, host);
+  if (!eligibleItems.length) {
+    host.replaceChildren();
+    return;
+  }
 
   const byItemId = activitiesByProposalItem(data.activities);
   const card = document.createElement('section');
@@ -257,10 +305,12 @@ function renderProposalCreator(root, proposal, data) {
       <h3 class="proposal-activity-creator__title">פעילויות 2027</h3>
     </div>
     ${eligibleItems.map((item) => {
+      const proposalItemId = clean(item.id);
       const requiredCount = quotedActivityCount(item.quantity);
-      const activities = byItemId.get(clean(item.id)) || [];
+      const activities = byItemId.get(proposalItemId) || [];
       const createdCount = activities.length;
       const complete = createdCount >= requiredCount;
+      const pending = pendingProposalItemIds.has(proposalItemId);
       const existsCount = activities.filter((activity) => activity.exists_in_gefen === true).length;
       const createdMeta = createdCount
         ? [
@@ -269,55 +319,22 @@ function renderProposalCreator(root, proposal, data) {
           ].filter(Boolean).join(' · ')
         : proposalItemMeta(item);
       return `
-        <div class="proposal-activity-creator__item" data-proposal-item-id="${clean(item.id)}">
+        <div class="proposal-activity-creator__item" data-proposal-item-id="${proposalItemId}">
           <div class="proposal-activity-creator__name">
             ${escapeHtml(clean(item.item_name))}
             ${createdMeta ? `<span class="proposal-activity-creator__meta">${escapeHtml(createdMeta)}</span>` : ''}
           </div>
           <button type="button"
             class="proposal-activity-creator__button"
-            data-create-activity-from-proposal-item="${clean(item.id)}"
-            ${complete || !canCreateActivitiesFromProposal() ? 'disabled' : ''}>
-            ${creationButtonText(requiredCount, createdCount)}
+            data-create-activity-from-proposal-item="${proposalItemId}"
+            ${complete || pending || !canCreateActivitiesFromProposal() ? 'disabled' : ''}>
+            ${pending ? 'יוצר פעילויות…' : creationButtonText(requiredCount, createdCount)}
           </button>
         </div>
       `;
     }).join('')}
   `;
 
-  card.addEventListener('click', async (event) => {
-    const button = event.target.closest('[data-create-activity-from-proposal-item]');
-    if (!button || button.disabled) return;
-    event.preventDefault();
-    event.stopPropagation();
-    const proposalItemId = clean(button.getAttribute('data-create-activity-from-proposal-item'));
-    if (!UUID_RE.test(proposalItemId)) return;
-
-    button.disabled = true;
-    button.textContent = 'יוצר פעילויות…';
-    const { data: result, error } = await supabase.rpc('create_activity_from_proposal_item', {
-      p_proposal_item_id: proposalItemId
-    });
-    if (error) {
-      console.error('[proposal-activity-create]', error);
-      button.disabled = false;
-      button.textContent = 'יצירת פעילות';
-      toast(error.message || 'יצירת הפעילויות נכשלה.', 'error');
-      return;
-    }
-
-    clearScreenDataCache();
-    const createdCount = Number(result?.created_count || 0);
-    if (createdCount <= 0) toast('כל שורות הפעילות כבר קיימות.');
-    else if (createdCount === 1) toast('שורת הפעילות נוצרה בהצלחה.');
-    else toast(`${createdCount} שורות פעילות נוצרו בהצלחה.`);
-
-    root.removeAttribute('data-proposal-activity-loaded');
-    scheduleEnhancements();
-  });
-
-  const host = proposalCreatorHost(root);
-  if (!host) return;
   host.replaceChildren(card);
   root.setAttribute('data-proposal-activity-loaded', proposal.id);
 }
