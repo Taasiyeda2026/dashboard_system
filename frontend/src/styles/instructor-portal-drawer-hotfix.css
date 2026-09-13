@@ -1,0 +1,142 @@
+/* Instructor portal drawer hotfix — unique instructor classes only. */
+
+/* My activities: slightly taller rows and more balanced column widths. */
+.app-shell--instructor .portal-activities-desktop th,
+.app-shell--instructor .portal-activities-desktop td {
+  padding: 10px 12px;
+}
+
+.app-shell--instructor .portal-activities-desktop tbody tr {
+  min-height: 46px;
+}
+
+.app-shell--instructor .portal-activities-desktop th:nth-child(1),
+.app-shell--instructor .portal-activities-desktop td:nth-child(1) { width: 16%; }
+.app-shell--instructor .portal-activities-desktop th:nth-child(2),
+.app-shell--instructor .portal-activities-desktop td:nth-child(2) { width: 17%; }
+.app-shell--instructor .portal-activities-desktop th:nth-child(3),
+.app-shell--instructor .portal-activities-desktop td:nth-child(3) { width: 23%; }
+.app-shell--instructor .portal-activities-desktop th:nth-child(4),
+.app-shell--instructor .portal-activities-desktop td:nth-child(4) { width: 20%; }
+.app-shell--instructor .portal-activities-desktop th:nth-child(5),
+.app-shell--instructor .portal-activities-desktop td:nth-child(5) { width: 24%; }
+
+/* Activity drawer is portaled outside .app-shell--instructor, so scope to its unique wrapper. */
+.instructor-activity-drawer-shell .activity-drawer-inline__body {
+  padding: 6px 8px !important;
+}
+
+.instructor-activity-drawer-shell .activity-drawer-inline__core,
+.instructor-activity-drawer-shell .activity-drawer-inline__support,
+.instructor-activity-drawer-shell .activity-drawer-inline-layout [data-dates-section],
+.instructor-activity-drawer-shell .activity-drawer-type-fix__top-summary {
+  margin: 0 0 4px !important;
+}
+
+.instructor-activity-drawer-shell .activity-drawer-inline__field {
+  min-block-size: 48px !important;
+  padding: 6px 8px !important;
+}
+
+.instructor-activity-drawer-shell .activity-drawer-inline-layout [data-dates-section] {
+  padding: 6px 8px !important;
+}
+
+.instructor-activity-drawer-shell .activity-drawer-type-fix__top-summary {
+  min-block-size: 38px !important;
+  padding: 5px 8px !important;
+}
+
+.instructor-activity-drawer-shell .activity-drawer-inline-layout [data-dates-section] .activity-drawer__section-head,
+.instructor-activity-drawer-shell .activity-drawer-inline-layout .activity-drawer__progress-row {
+  margin-block-end: 4px !important;
+}
+
+.instructor-activity-drawer-shell .activity-drawer-inline__grid[data-activity-layout="workshop"] [data-field-key="manager"],
+.instructor-activity-drawer-shell .activity-drawer-inline__grid[data-activity-layout="workshop"] [data-field-key="participants"] {
+  grid-column: auto !important;
+}
+
+.instructor-activity-drawer-shell .activity-drawer-inline__support > :only-child {
+  grid-column: 1 / -1 !important;
+}
+
+/* Calendar day drawer is also portaled outside the instructor shell. */
+.instr-day-drawer {
+  display: grid;
+  gap: 8px;
+  padding: 2px 2px 8px;
+  direction: rtl;
+}
+
+.instr-day-drawer > h3 {
+  margin: 0 0 2px;
+  padding: 0 2px 7px;
+  border-bottom: 1px solid #e4ebf3;
+  color: #17324f;
+  font-size: .9rem;
+  font-weight: 850;
+}
+
+.instr-calendar-attendance-card {
+  margin: 0;
+  padding: 10px;
+  border: 1px solid #dbe4ee;
+  border-inline-start: 4px solid #e07a2f;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, .06);
+}
+
+.instr-calendar-attendance-card h4 {
+  margin: 0 0 8px;
+  padding: 0 0 7px;
+  border-bottom: 1px solid #edf1f5;
+  color: #17324f;
+  font-size: .86rem;
+  font-weight: 850;
+}
+
+.instr-calendar-attendance-card dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  margin: 0;
+}
+
+.instr-calendar-attendance-card dl > div {
+  min-width: 0;
+  padding: 7px 8px;
+  border-radius: 8px;
+  background: #f6f8fb;
+}
+
+.instr-calendar-attendance-card dl > .is-wide {
+  grid-column: 1 / -1;
+}
+
+.instr-calendar-attendance-card dt {
+  margin: 0 0 2px;
+  color: #6b7b8e;
+  font-size: .68rem;
+  font-weight: 650;
+}
+
+.instr-calendar-attendance-card dd {
+  margin: 0;
+  color: #172f4a;
+  font-size: .79rem;
+  font-weight: 800;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 420px) {
+  .instr-calendar-attendance-card dl {
+    grid-template-columns: 1fr;
+  }
+
+  .instr-calendar-attendance-card dl > .is-wide {
+    grid-column: auto;
+  }
+}
