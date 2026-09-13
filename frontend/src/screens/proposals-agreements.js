@@ -2648,8 +2648,8 @@ function itemsSummaryHtml(items = []) {
       ${meta ? `<div class="ds-pa-item-card-meta">${meta}</div>` : ''}
     </div>`;
   }).join('');
+  // Section title "פעילויות ומחירים" already lives on the drawer host; do not nest "שורות הצעה".
   return `<div class="ds-pa-items-summary">
-    <h4 class="ds-pa-card-title" style="margin-bottom:8px">שורות הצעה</h4>
     <div class="ds-pa-item-cards">${cards}</div>
   </div>`;
 }
