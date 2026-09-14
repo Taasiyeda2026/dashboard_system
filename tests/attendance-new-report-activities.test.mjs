@@ -10,6 +10,7 @@ import {
   activityMatchesReportType,
   instructorActivitySelectOptions,
   instructorActivityOptionLabel,
+  instructorActivityOptionMeta,
   deriveAuthoritySchoolListFromActivities,
   normalizeDbActivityType,
   getDbTypesForReportType,
@@ -60,11 +61,15 @@ test('course extended filter excludes workshops', () => {
   assert.ok(courseOptions.every((o) => normalizeDbActivityType(o.activity.activity_type) === 'course'));
 });
 
-test('activity option label distinguishes same name by school and authority', () => {
-  const label = instructorActivityOptionLabel(sampleActivities[0]);
-  assert.match(label, /רובוטיקה/);
-  assert.match(label, /שמש גבולות/);
-  assert.match(label, /אשכול/);
+test('activity option shows only the course name while keeping location as metadata', () => {
+  const activity = sampleActivities[0];
+  assert.equal(instructorActivityOptionLabel(activity), 'רובוטיקה');
+  assert.equal(instructorActivityOptionMeta(activity), 'שמש גבולות · אשכול');
+  const option = instructorActivitySelectOptions([activity], { reportType: 'קורס' })[0];
+  assert.equal(option.label, 'רובוטיקה');
+  assert.equal(option.meta, 'שמש גבולות · אשכול');
+  assert.match(option.searchText, /שמש גבולות/);
+  assert.match(option.searchText, /אשכול/);
 });
 
 test('activityMatchesReportType respects type transitions for online and course', () => {
