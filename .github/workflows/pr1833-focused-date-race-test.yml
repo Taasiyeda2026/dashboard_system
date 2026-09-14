@@ -21,19 +21,42 @@ jobs:
         run: npm ci --ignore-scripts
       - name: Run new race regression tests
         run: node --test --test-force-exit tests/activity-edit-date-race-guard.test.mjs
-      - name: Run existing date/session regressions independently
+      - name: Compare existing date/session regressions with main
         shell: bash
         run: |
-          set -euo pipefail
-          for file in \
-            tests/activity-edit-session-generation.test.mjs \
-            tests/activity-edit-dependent-name.test.mjs \
-            tests/edit-requests-flow.test.mjs \
-            tests/activity-school-calendar-historical-edit.test.mjs \
-            tests/activity-routine-stability-runtime.test.mjs \
-            tests/activity-local-session-count.test.mjs \
+          set -u
+          files=(
+            tests/activity-edit-session-generation.test.mjs
+            tests/activity-edit-dependent-name.test.mjs
+            tests/edit-requests-flow.test.mjs
+            tests/activity-school-calendar-historical-edit.test.mjs
+            tests/activity-routine-stability-runtime.test.mjs
+            tests/activity-local-session-count.test.mjs
             tests/activity-detail-sessions-progress.test.mjs
-          do
-            echo "=== $file ==="
+          )
+
+          declare -A pr_status
+          echo '=== PR results ==='
+          for file in "${files[@]}"; do
             node --test --test-force-exit "$file"
+            pr_status["$file"]=$?
           done
+
+          git fetch origin main:refs/remotes/origin/main --depth=1
+          git worktree add --detach "$RUNNER_TEMP/pr1833-main" origin/main
+          ln -s "$GITHUB_WORKSPACE/node_modules" "$RUNNER_TEMP/pr1833-main/node_modules"
+
+          new_failure=0
+          echo '=== main baseline comparison ==='
+          cd "$RUNNER_TEMP/pr1833-main"
+          for file in "${files[@]}"; do
+            node --test --test-force-exit "$file"
+            base_status=$?
+            echo "$file : PR=${pr_status[$file]} MAIN=$base_status"
+            if [[ ${pr_status[$file]} -ne 0 && $base_status -eq 0 ]]; then
+              echo "NEW REGRESSION: $file"
+              new_failure=1
+            fi
+          done
+
+          exit "$new_failure"
