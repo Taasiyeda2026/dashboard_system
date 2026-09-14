@@ -76,3 +76,60 @@ test('legacy name and activity_no are cleared when both drawer type-change liste
     dom.window.close();
   }
 });
+
+test('type change keeps the replacement catalog stable IDs and meeting count on the rebuilt option', async () => {
+  installStorageMocks();
+  globalThis.__ACTIVITY_DRAWER_EDIT_DEDUP_TEST__ = true;
+  const { polishActivityDrawerEditOptions } = await import('../frontend/src/activity-drawer-edit-dedup.js');
+  const { bindActivityEditForm } = await import('../frontend/src/screens/shared/bind-activity-edit-form.js');
+
+  const settings = {
+    dropdown_options: {
+      activity_names: [
+        { label: 'פורצות דרך', activity_no: '3604', gefen_number: '3604', meetings_count: 14, activity_type: 'course' },
+        { label: 'סיור תעשייה', activity_no: 'T-17', gefen_number: 'G-T-17', meetings_count: 1, activity_type: 'tour' }
+      ]
+    }
+  };
+  const html = activityWorkDrawerHtml({
+    RowID: 'TYPE-METADATA-1',
+    source_sheet: 'activities',
+    activity_type: 'course',
+    item_type: 'course',
+    activity_name: 'פורצות דרך',
+    activity_no: '3604',
+    gefen_number: '3604',
+    sessions: 14,
+    status: 'פתוח'
+  }, { canEdit: true, canDirectEdit: true, settings });
+
+  const dom = new JSDOM(`<main>${html}</main>`);
+  const previousAbortController = globalThis.AbortController;
+  globalThis.AbortController = dom.window.AbortController;
+  try {
+    const root = dom.window.document.querySelector('main');
+    const form = root.querySelector('[data-drawer-form]');
+    form.setAttribute('data-activity-drawer-inline-layout', 'true');
+    assert.equal(polishActivityDrawerEditOptions(form, settings), true);
+    bindActivityEditForm(root, { api: {}, ui: {}, appState: { clientSettings: settings } });
+
+    root.querySelector('[data-action="start-edit"]').click();
+    const typeSelect = form.querySelector('[name="activity_type"]');
+    const nameSelect = form.querySelector('[data-role="activity-name-select"]');
+
+    typeSelect.value = 'tour';
+    typeSelect.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+
+    const replacement = [...nameSelect.options].find((option) => option.value === 'סיור תעשייה');
+    assert.ok(replacement);
+    assert.equal(replacement.dataset.activityNo, 'T-17');
+    assert.equal(replacement.dataset.gefenNumber, 'G-T-17');
+    assert.equal(replacement.dataset.meetingsCount, '1');
+    assert.equal(replacement.dataset.activityType, 'tour');
+    assert.equal(form.querySelector('[data-activity-no]').value, '');
+    assert.equal(form.querySelector('[data-gefen-number]').value, '');
+  } finally {
+    globalThis.AbortController = previousAbortController;
+    dom.window.close();
+  }
+});
