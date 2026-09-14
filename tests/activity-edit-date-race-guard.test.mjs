@@ -4,6 +4,7 @@ import fs from 'node:fs/promises';
 import { JSDOM } from 'jsdom';
 
 const {
+  primeScheduleBaseline,
   rememberEditedMeetingDate,
   rememberScheduleStructureChange,
   restoreEditedMeetingDates,
@@ -13,13 +14,13 @@ const {
   stopActivityEditDateRaceGuardForTests
 } = await import('../frontend/src/activity-edit-date-race-guard.js');
 
-function buildForm({ editing = 'yes', loading = true } = {}) {
+function buildForm({ editing = 'yes', loading = true, first = '', second = '' } = {}) {
   const dom = new JSDOM(`
     <form data-drawer-form data-editing="${editing}">
       <section data-dates-section${loading ? ' data-dates-loading="true"' : ''}>
         <div data-meeting-dates-edit>
-          <div class="activity-drawer__date-card"><input type="date" name="meeting_date_0" data-meeting-idx="0" value=""></div>
-          <div class="activity-drawer__date-card"><input type="date" name="meeting_date_1" data-meeting-idx="1" value=""></div>
+          <div class="activity-drawer__date-card"><input type="date" name="meeting_date_0" data-meeting-idx="0" value="${first}"></div>
+          <div class="activity-drawer__date-card"><input type="date" name="meeting_date_1" data-meeting-idx="1" value="${second}"></div>
         </div>
       </section>
     </form>
@@ -38,6 +39,7 @@ function loadingFinishedMutation(section) {
 test('undated activity keeps the date selected by the user when background activityDates finishes', () => {
   const { form, section } = buildForm();
   const first = form.querySelector('[data-meeting-idx="0"]');
+  primeScheduleBaseline(form);
 
   first.value = '2026-10-13';
   assert.equal(rememberEditedMeetingDate(first), true);
@@ -85,6 +87,7 @@ test('complete visible chain is restored if stale background data overwrites all
   const { form, section } = buildForm();
   const first = form.querySelector('[data-meeting-idx="0"]');
   const second = form.querySelector('[data-meeting-idx="1"]');
+  primeScheduleBaseline(form);
 
   // The drawer's synchronous chain handler runs before the document-level guard.
   first.value = '2026-10-13';
@@ -101,9 +104,29 @@ test('complete visible chain is restored if stale background data overwrites all
   assert.equal(second.value, '2026-10-20');
 });
 
+test('authoritative untouched dates from hydration are retained', () => {
+  const { form, section } = buildForm();
+  const first = form.querySelector('[data-meeting-idx="0"]');
+  const second = form.querySelector('[data-meeting-idx="1"]');
+  primeScheduleBaseline(form);
+
+  first.value = '2026-10-13';
+  rememberEditedMeetingDate(first);
+
+  // The late response has an authoritative second date that the user never touched.
+  first.value = '';
+  second.value = '2026-10-20';
+  section.removeAttribute('data-dates-loading');
+  handleDateSectionMutation(loadingFinishedMutation(section));
+
+  assert.equal(first.value, '2026-10-13');
+  assert.equal(second.value, '2026-10-20');
+});
+
 test('remove-meeting draft keeps the user-visible card count after stale hydration', () => {
   const { form, section } = buildForm();
   const grid = form.querySelector('[data-meeting-dates-edit]');
+  primeScheduleBaseline(form);
   grid.lastElementChild.remove();
   assert.equal(rememberScheduleStructureChange(form), true);
   assert.equal(grid.children.length, 1);
@@ -122,6 +145,7 @@ test('remove-meeting draft keeps the user-visible card count after stale hydrati
 test('guard is inactive outside edit mode', () => {
   const { form, section } = buildForm();
   const first = form.querySelector('[data-meeting-idx="0"]');
+  primeScheduleBaseline(form);
   first.value = '2026-10-13';
   rememberEditedMeetingDate(first);
 
@@ -136,6 +160,7 @@ test('guard is inactive outside edit mode', () => {
 test('cleared drafts are never restored after edit completes', () => {
   const { form, section } = buildForm();
   const first = form.querySelector('[data-meeting-idx="0"]');
+  primeScheduleBaseline(form);
   first.value = '2026-10-13';
   rememberEditedMeetingDate(first);
   clearEditedMeetingDateDrafts(form);
