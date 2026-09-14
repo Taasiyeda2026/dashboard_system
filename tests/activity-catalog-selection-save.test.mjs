@@ -139,6 +139,31 @@ test('a duplicate display label resolves from the selected option stable ID, not
   assert.equal(form.querySelector('[data-gefen-number]').value, '6089');
 });
 
+test('a replacement keeps the new catalog meeting count even after hidden identity fields synchronize', () => {
+  const original = {
+    activity_name: 'פורצות דרך',
+    activity_no: '3604',
+    gefen_number: '3604',
+    sessions: 14,
+    activity_type: 'course'
+  };
+  const dom = new JSDOM(`
+    <form data-export-row='${JSON.stringify(original)}'>
+      <select data-role="activity-name-select">
+        <option value="ביומימיקרי" data-activity-no="6089" data-gefen-number="6089" data-meetings-count="10" data-activity-type="course" selected>ביומימיקרי</option>
+      </select>
+      <input data-activity-no name="activity_no" value="6089">
+      <input data-gefen-number name="gefen_number" value="6089">
+      <input name="sessions" value="14">
+    </form>
+  `);
+  const form = dom.window.document.querySelector('form');
+  const selected = selectedActivityCatalogIdentity(form);
+  assert.equal(selected.activity_no, '6089');
+  assert.equal(selected.gefen_number, '6089');
+  assert.equal(selected.meetings_count, 10);
+});
+
 test('a regular catalog selection clears the manual activity-name override', () => {
   assert.equal(replacementChanges().activity_name_override, false);
 });

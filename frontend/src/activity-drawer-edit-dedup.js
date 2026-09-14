@@ -59,23 +59,32 @@ function rebuildSeasonSelect(form, row) {
   return true;
 }
 
-function dedupeCatalogItems(items, currentActivityNo) {
-  const byLabel = new Map();
+function catalogIdentityKey(item) {
+  const type = normalizeActivityTypeKey(item?.activity_type || item?.parent_value || item?.type);
+  const activityNo = String(item?.activity_no || '').trim();
+  const gefenNumber = String(item?.gefen_number || '').trim();
+  const stableId = activityNo || gefenNumber;
+  return stableId
+    ? `${type}|${stableId}`
+    : `${type}|label:${labelKey(item?.label || item?.activity_name || item?.value)}`;
+}
+
+function dedupeCatalogItems(items) {
+  const byIdentity = new Map();
   (Array.isArray(items) ? items : []).forEach((item) => {
     const label = clean(item?.label || item?.activity_name || item?.value);
     if (!label) return;
-    const key = labelKey(label);
     const candidate = {
       label,
       activity_no: String(item?.activity_no || '').trim(),
+      gefen_number: String(item?.gefen_number || '').trim(),
+      meetings_count: item?.meetings_count ?? '',
       activity_type: normalizeActivityTypeKey(item?.activity_type || item?.parent_value || item?.type)
     };
-    const existing = byLabel.get(key);
-    if (!existing || (currentActivityNo && candidate.activity_no === currentActivityNo)) {
-      byLabel.set(key, candidate);
-    }
+    const key = catalogIdentityKey(candidate);
+    if (!byIdentity.has(key)) byIdentity.set(key, candidate);
   });
-  return [...byLabel.values()];
+  return [...byIdentity.values()];
 }
 
 function rebuildActivityNameSelect(form, settings, row) {
@@ -84,34 +93,48 @@ function rebuildActivityNameSelect(form, settings, row) {
   if (!select || !typeSelect) return false;
 
   const currentName = clean(select.value || row.activity_name || row.program_name || row.title || row.name);
-  const currentActivityNo = String(form.querySelector('[name="activity_no"]')?.value || row.activity_no || '').trim();
+  const currentActivityNo = String(form.querySelector('[name="activity_no"], [data-activity-no]')?.value || row.activity_no || '').trim();
+  const currentGefenNumber = String(form.querySelector('[name="gefen_number"], [data-gefen-number]')?.value || row.gefen_number || '').trim();
   const activityType = normalizeActivityTypeKey(typeSelect.value || row.activity_type || row.item_type);
-  const catalogItems = dedupeCatalogItems(getActivityNamesForType(settings || {}, activityType), currentActivityNo);
+  const catalogItems = dedupeCatalogItems(getActivityNamesForType(settings || {}, activityType));
 
-  if (currentName && !catalogItems.some((item) => labelKey(item.label) === labelKey(currentName))) {
-    catalogItems.unshift({
+  const matchesCurrentIdentity = (item) => (
+    (currentActivityNo && item.activity_no === currentActivityNo)
+    || (currentGefenNumber && item.gefen_number === currentGefenNumber)
+  );
+  let selectedItem = catalogItems.find(matchesCurrentIdentity)
+    || catalogItems.find((item) => labelKey(item.label) === labelKey(currentName))
+    || null;
+
+  if (currentName && !selectedItem) {
+    selectedItem = {
       label: currentName,
       activity_no: currentActivityNo,
+      gefen_number: currentGefenNumber,
+      meetings_count: row.meetings_count ?? row.sessions ?? '',
       activity_type: activityType
-    });
+    };
+    catalogItems.unshift(selectedItem);
   }
 
   const placeholder = form.ownerDocument.createElement('option');
   placeholder.value = '';
   placeholder.textContent = '—';
+  placeholder.selected = !selectedItem;
 
   const options = catalogItems.map((item) => {
     const option = form.ownerDocument.createElement('option');
     option.value = item.label;
     option.textContent = item.label;
     option.dataset.activityNo = item.activity_no;
+    option.dataset.gefenNumber = item.gefen_number;
+    option.dataset.meetingsCount = String(item.meetings_count ?? '');
     option.dataset.activityType = item.activity_type || activityType;
-    option.selected = labelKey(item.label) === labelKey(currentName);
+    option.selected = item === selectedItem;
     return option;
   });
 
   select.replaceChildren(placeholder, ...options);
-  select.value = currentName;
   select.disabled = !activityType;
   return true;
 }
@@ -165,14 +188,15 @@ export function polishActivityDrawerEditOptions(form, settings = {}) {
     const previousType = normalizeActivityTypeKey(form.dataset.activityNameType);
     if (nextType === previousType) return;
 
-    // A genuine type change must not carry a legacy name/activity_no into the
-    // new type. Clear both the live controls and every row fallback before the
-    // polished catalog is rebuilt. The shared type marker is advanced only
-    // after this reset, so the second form-level listener safely no-ops.
+    // A genuine type change must not carry any stable catalog identity from the
+    // previous type. The rebuilt options keep the complete identity metadata so
+    // selecting the replacement can save name, IDs and meeting count together.
     const nameSelect = form.querySelector('[data-role="activity-name-select"], [name="activity_name"]');
     if (nameSelect) nameSelect.value = '';
     const activityNoInput = form.querySelector('[name="activity_no"], [data-activity-no]');
+    const gefenNumberInput = form.querySelector('[name="gefen_number"], [data-gefen-number]');
     if (activityNoInput) activityNoInput.value = '';
+    if (gefenNumberInput) gefenNumberInput.value = '';
     rebuildActivityNameSelect(form, settings, {
       ...row,
       activity_type: nextType,
@@ -181,7 +205,9 @@ export function polishActivityDrawerEditOptions(form, settings = {}) {
       program_name: '',
       title: '',
       name: '',
-      activity_no: ''
+      activity_no: '',
+      gefen_number: '',
+      meetings_count: ''
     });
     form.dataset.activityNameType = nextType;
   });
