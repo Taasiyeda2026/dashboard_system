@@ -23,6 +23,21 @@ function editableMeetingCardCount(form) {
   return Number.isInteger(count) && count >= 1 && count <= 35 ? count : null;
 }
 
+function exportedCatalogIdentity(form) {
+  try {
+    const row = JSON.parse(form?.dataset?.exportRow || '{}') || {};
+    const activityNo = catalogText(row.activity_no || row.gefen_number);
+    const gefenNumber = catalogText(row.gefen_number);
+    return {
+      hasIdentity: Boolean(activityNo || gefenNumber),
+      activityNo,
+      gefenNumber
+    };
+  } catch {
+    return { hasIdentity: false, activityNo: '', gefenNumber: '' };
+  }
+}
+
 /**
  * The activity-level session count is operational data, not catalog metadata.
  * Keep a lightweight hidden form field synchronized with the number of meeting
@@ -110,9 +125,12 @@ export function selectedActivityCatalogIdentity(form) {
   const gefenNumber = catalogText(option.dataset.gefenNumber);
   const currentActivityNo = catalogText(form?.querySelector?.('[data-activity-no], [name="activity_no"]')?.value);
   const currentGefenNumber = catalogText(form?.querySelector?.('[data-gefen-number], [name="gefen_number"]')?.value);
+  const originalIdentity = exportedCatalogIdentity(form);
+  const referenceActivityNo = originalIdentity.hasIdentity ? originalIdentity.activityNo : currentActivityNo;
+  const referenceGefenNumber = originalIdentity.hasIdentity ? originalIdentity.gefenNumber : currentGefenNumber;
   const sameCatalogIdentity = Boolean(activityNo || gefenNumber) && (
-    (activityNo && currentActivityNo === activityNo)
-    || (gefenNumber && currentGefenNumber === gefenNumber)
+    (activityNo && referenceActivityNo === activityNo)
+    || (gefenNumber && referenceGefenNumber === gefenNumber)
   );
   const localMeetingCount = firstCatalogNumber(sessionInput?.value, editableMeetingCardCount(form));
   return {
@@ -121,8 +139,9 @@ export function selectedActivityCatalogIdentity(form) {
     activity_no: activityNo,
     gefen_number: gefenNumber,
     // The catalog count is only a default when the user actually switches to
-    // another catalog item. Once the selected item is the activity's current
-    // identity, the locally edited meeting count is authoritative.
+    // another catalog item. Compare against the original persisted identity,
+    // not the hidden live inputs: the name-change handler synchronizes those
+    // inputs before save and must not make a replacement look unchanged.
     meetings_count: sameCatalogIdentity && localMeetingCount !== null
       ? localMeetingCount
       : firstCatalogNumber(option.dataset.meetingsCount),
