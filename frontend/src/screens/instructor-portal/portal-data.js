@@ -16,6 +16,74 @@ export function activityMonth(row) {
   return isoDate(row?.start_date || row?.activity_date || row?.date_1).slice(0, 7);
 }
 
+function localTodayIso(date = new Date()) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
+function addIsoDays(value, days) {
+  const iso = isoDate(value);
+  if (!iso) return '';
+  const date = new Date(`${iso}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + Number(days || 0));
+  return date.toISOString().slice(0, 10);
+}
+
+function activityCanAppearUpcoming(row) {
+  const status = String(row?.status || '').trim().toLowerCase();
+  return !new Set(['סגור', 'נמחק', 'בוטל', 'מבוטל', 'closed', 'deleted', 'cancelled', 'canceled']).has(status);
+}
+
+export function instructorActivityMeetingDates(row) {
+  const dates = [];
+  for (let index = 1; index <= 35; index += 1) {
+    dates.push(row?.[`date_${index}`], row?.[`Date${index}`]);
+  }
+  if (Array.isArray(row?.meeting_dates)) dates.push(...row.meeting_dates);
+  const normalized = [...new Set(dates.map((value) => isoDate(value)).filter(Boolean))].sort();
+  if (normalized.length) return normalized;
+  const fallback = isoDate(row?.activity_date || row?.start_date);
+  return fallback ? [fallback] : [];
+}
+
+function instructorMeetingOccurrences(rows, state, fromDate, toDate = '') {
+  const from = isoDate(fromDate) || localTodayIso();
+  const to = isoDate(toDate);
+  const occurrences = [];
+  instructorActivities(rows, state)
+    .filter(activityCanAppearUpcoming)
+    .forEach((row) => {
+      instructorActivityMeetingDates(row).forEach((date) => {
+        if (date < from || (to && date > to)) return;
+        occurrences.push({
+          row,
+          date,
+          activity_name: row?.activity_name || row?.activity || '',
+          school: row?.school || '',
+          authority: row?.authority || '',
+          start_time: row?.start_time || '',
+          end_time: row?.end_time || ''
+        });
+      });
+    });
+  return occurrences.sort((a, b) => {
+    const dateCompare = a.date.localeCompare(b.date);
+    if (dateCompare) return dateCompare;
+    const timeCompare = String(a.start_time || '').localeCompare(String(b.start_time || ''));
+    if (timeCompare) return timeCompare;
+    return String(a.activity_name || '').localeCompare(String(b.activity_name || ''), 'he');
+  });
+}
+
+export function instructorUpcomingMeetings(rows, state, { today = '', days = 7 } = {}) {
+  const from = isoDate(today) || localTodayIso();
+  return instructorMeetingOccurrences(rows, state, from, addIsoDays(from, days));
+}
+
+export function nextInstructorMeeting(rows, state, { today = '' } = {}) {
+  const from = isoDate(today) || localTodayIso();
+  return instructorMeetingOccurrences(rows, state, from)[0] || null;
+}
+
 export function monthlyInstructorSummary(rows, state, month) {
   const assigned = instructorActivities(rows, state);
   const selected = assigned.filter((row) => activityMonth(row) === month);
