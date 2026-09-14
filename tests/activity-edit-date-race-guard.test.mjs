@@ -5,6 +5,7 @@ import { JSDOM } from 'jsdom';
 
 const {
   rememberEditedMeetingDate,
+  rememberScheduleStructureChange,
   restoreEditedMeetingDates,
   clearEditedMeetingDateDrafts,
   handleDateSectionMutation,
@@ -17,8 +18,8 @@ function buildForm({ editing = 'yes', loading = true } = {}) {
     <form data-drawer-form data-editing="${editing}">
       <section data-dates-section${loading ? ' data-dates-loading="true"' : ''}>
         <div data-meeting-dates-edit>
-          <input type="date" name="meeting_date_0" data-meeting-idx="0" value="">
-          <input type="date" name="meeting_date_1" data-meeting-idx="1" value="">
+          <div class="activity-drawer__date-card"><input type="date" name="meeting_date_0" data-meeting-idx="0" value=""></div>
+          <div class="activity-drawer__date-card"><input type="date" name="meeting_date_1" data-meeting-idx="1" value=""></div>
         </div>
       </section>
     </form>
@@ -80,22 +81,42 @@ test('live observer restores a user-selected date after the loading flag is remo
   }
 });
 
-test('background date completion does not overwrite unrelated programmatic meeting changes', () => {
+test('complete visible chain is restored if stale background data overwrites all dates', () => {
   const { form, section } = buildForm();
   const first = form.querySelector('[data-meeting-idx="0"]');
   const second = form.querySelector('[data-meeting-idx="1"]');
 
+  // The drawer's synchronous chain handler runs before the document-level guard.
   first.value = '2026-10-13';
+  second.value = '2026-10-20';
   rememberEditedMeetingDate(first);
 
-  // A chain/holiday calculation is allowed to update another meeting.
-  second.value = '2026-10-27';
+  // Late activityDates returns the old undated schedule and overwrites both fields.
   first.value = '';
+  second.value = '';
   section.removeAttribute('data-dates-loading');
   handleDateSectionMutation(loadingFinishedMutation(section));
 
   assert.equal(first.value, '2026-10-13');
-  assert.equal(second.value, '2026-10-27');
+  assert.equal(second.value, '2026-10-20');
+});
+
+test('remove-meeting draft keeps the user-visible card count after stale hydration', () => {
+  const { form, section } = buildForm();
+  const grid = form.querySelector('[data-meeting-dates-edit]');
+  grid.lastElementChild.remove();
+  assert.equal(rememberScheduleStructureChange(form), true);
+  assert.equal(grid.children.length, 1);
+
+  // Stale server hydration re-adds the removed second card.
+  const card = form.ownerDocument.createElement('div');
+  card.className = 'activity-drawer__date-card';
+  card.innerHTML = '<input type="date" name="meeting_date_1" data-meeting-idx="1" value="">';
+  grid.append(card);
+  section.removeAttribute('data-dates-loading');
+
+  assert.ok(handleDateSectionMutation(loadingFinishedMutation(section)) >= 1);
+  assert.equal(grid.children.length, 1);
 });
 
 test('guard is inactive outside edit mode', () => {
