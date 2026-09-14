@@ -203,3 +203,4 @@ config.HOTFIX_VERSION = `instructor-dashboard-followups-20260913-v4-${config.HOT
 config.HOTFIX_VERSION = `instructor-ui-hotfix-20260913-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `instructor-final-ui-polish-20260913-v2-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `activity-edit-catalog-identity-20260914-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `activity-routine-stability-20260914-v1-${config.HOTFIX_VERSION}`;
