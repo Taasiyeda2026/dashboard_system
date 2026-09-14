@@ -24,6 +24,7 @@ jobs:
       - name: Compare existing date/session regressions with main
         shell: bash
         run: |
+          set +e
           set -u
           files=(
             tests/activity-edit-session-generation.test.mjs
@@ -42,13 +43,13 @@ jobs:
             pr_status["$file"]=$?
           done
 
-          git fetch origin main:refs/remotes/origin/main --depth=1
-          git worktree add --detach "$RUNNER_TEMP/pr1833-main" origin/main
-          ln -s "$GITHUB_WORKSPACE/node_modules" "$RUNNER_TEMP/pr1833-main/node_modules"
+          git fetch origin main:refs/remotes/origin/main --depth=1 || exit 2
+          git worktree add --detach "$RUNNER_TEMP/pr1833-main" origin/main || exit 2
+          ln -s "$GITHUB_WORKSPACE/node_modules" "$RUNNER_TEMP/pr1833-main/node_modules" || exit 2
 
           new_failure=0
           echo '=== main baseline comparison ==='
-          cd "$RUNNER_TEMP/pr1833-main"
+          cd "$RUNNER_TEMP/pr1833-main" || exit 2
           for file in "${files[@]}"; do
             node --test --test-force-exit "$file"
             base_status=$?
