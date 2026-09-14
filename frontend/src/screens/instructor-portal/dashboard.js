@@ -1,7 +1,7 @@
 import { config } from '../../config.js';
 import { escapeHtml } from '../shared/html.js';
 import { dsPageHeader, dsScreenStack, dsInteractiveCard } from '../shared/layout.js';
-import { loadInstructorActivities, monthlyInstructorSummary } from './portal-data.js';
+import { instructorUpcomingMeetings, loadInstructorActivities, monthlyInstructorSummary, nextInstructorMeeting } from './portal-data.js';
 import { formatDateHe } from '../shared/format-date.js';
 
 const localMonthKey = (date = new Date()) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
@@ -22,18 +22,49 @@ export function instructorMonthlySummaryHtml(summary = {}) {
   return `<p class="instructor-portal-monthly-summary"><strong>${escapeHtml(summary.total || 0)} פעילויות</strong>${types ? `: ${types}` : ''}</p>`;
 }
 
+function shortTime(value) {
+  const match = String(value || '').match(/^(\d{2}:\d{2})/);
+  return match?.[1] || '';
+}
+
+function meetingMetaHtml(meeting) {
+  const timeStart = shortTime(meeting?.start_time);
+  const timeEnd = shortTime(meeting?.end_time);
+  const time = timeStart && timeEnd ? `${timeStart}–${timeEnd}` : timeStart || timeEnd;
+  const locations = [meeting?.school, meeting?.authority]
+    .map((value) => String(value || '').trim())
+    .filter((value, index, values) => value && values.indexOf(value) === index);
+  return [time, ...locations].filter(Boolean).map(escapeHtml).join(' · ');
+}
+
+function upcomingMeetingCardHtml(meeting, label = '') {
+  if (!meeting) return '';
+  const date = formatDateHe(meeting.date);
+  const meta = meetingMetaHtml(meeting);
+  return `<section class="instructor-portal-focus" data-upcoming-activity="${escapeHtml(meeting?.row?.RowID || meeting?.row?.row_id || '')}">
+    <span>${label ? `${escapeHtml(label)} · ` : ''}${escapeHtml(date)}</span>
+    <strong>${escapeHtml(meeting.activity_name || 'פעילות')}</strong>
+    ${meta ? `<small>${meta}</small>` : ''}
+  </section>`;
+}
+
 export const instructorDashboardScreen = {
   load: ({ api }) => loadInstructorActivities(api),
   render(data, { state } = {}) {
     const summary = monthlyInstructorSummary(data?.rows, state, selectedMonth);
-    const next = summary.next;
-    const nextCard = `<section class="instructor-portal-focus${next ? '' : ' is-empty'}"><span>הפעילות הקרובה</span><strong>${escapeHtml(next?.activity_name || next?.activity || 'אין פעילות קרובה בחודש זה')}</strong>${next ? `<small>${escapeHtml(formatDateHe(next.start_date || next.activity_date || next.date_1))} · ${escapeHtml(next.school || next.authority || '')}</small>` : ''}</section>`;
+    const upcoming = instructorUpcomingMeetings(data?.rows, state, { days: 7 });
+    const nextBeyondWeek = upcoming.length ? null : nextInstructorMeeting(data?.rows, state);
+    const upcomingSection = upcoming.length
+      ? `<p class="instructor-portal-monthly-summary"><strong>הפעילויות הקרובות · 7 ימים</strong></p>${upcoming.map((meeting) => upcomingMeetingCardHtml(meeting)).join('')}`
+      : nextBeyondWeek
+        ? upcomingMeetingCardHtml(nextBeyondWeek, 'הפעילות הבאה שלך')
+        : '<section class="instructor-portal-focus is-empty"><span>הפעילויות הקרובות</span><strong>אין פעילות קרובה</strong></section>';
     return dsScreenStack(`<section class="instructor-area instructor-portal-dashboard">
       ${dsPageHeader('לוח בקרה')}
       <div class="instructor-portal-dashboard__toolbar"><label class="instructor-portal-month">חודש <input class="ds-input" type="month" value="${escapeHtml(selectedMonth)}" data-portal-month></label></div>
       ${instructorMonthlySummaryHtml(summary)}
       <div class="instructor-portal-summary-divider" aria-hidden="true"></div>
-      ${nextCard}
+      ${upcomingSection}
       <div class="instructor-portal-shortcuts">${PORTAL_SHORTCUTS.map((item) => dsInteractiveCard({ action: item.action, title: item.title, variant: 'mini', extraClass: 'instructor-portal-shortcut' })).join('')}</div>
     </section>`);
   },
