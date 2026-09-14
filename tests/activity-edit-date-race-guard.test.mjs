@@ -7,7 +7,9 @@ const {
   rememberEditedMeetingDate,
   restoreEditedMeetingDates,
   clearEditedMeetingDateDrafts,
-  handleDateSectionMutation
+  handleDateSectionMutation,
+  startActivityEditDateRaceGuard,
+  stopActivityEditDateRaceGuardForTests
 } = await import('../frontend/src/activity-edit-date-race-guard.js');
 
 function buildForm({ editing = 'yes', loading = true } = {}) {
@@ -46,6 +48,36 @@ test('undated activity keeps the date selected by the user when background activ
   assert.equal(handleDateSectionMutation(loadingFinishedMutation(section)), 1);
   assert.equal(first.value, '2026-10-13');
   assert.equal(first.dataset.prevValue, '2026-10-13');
+});
+
+test('live observer restores a user-selected date after the loading flag is removed', async () => {
+  const { dom, form, section } = buildForm();
+  const first = form.querySelector('[data-meeting-idx="0"]');
+  const previousDocument = globalThis.document;
+  const previousMutationObserver = globalThis.MutationObserver;
+
+  globalThis.document = dom.window.document;
+  globalThis.MutationObserver = dom.window.MutationObserver;
+  try {
+    stopActivityEditDateRaceGuardForTests();
+    startActivityEditDateRaceGuard();
+
+    first.value = '2026-10-13';
+    first.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+
+    // Equivalent to the late activityDates patch: stale DB value, then loading completes.
+    first.value = '';
+    section.removeAttribute('data-dates-loading');
+    await new Promise((resolve) => dom.window.queueMicrotask(resolve));
+
+    assert.equal(first.value, '2026-10-13');
+  } finally {
+    stopActivityEditDateRaceGuardForTests();
+    if (previousDocument === undefined) delete globalThis.document;
+    else globalThis.document = previousDocument;
+    if (previousMutationObserver === undefined) delete globalThis.MutationObserver;
+    else globalThis.MutationObserver = previousMutationObserver;
+  }
 });
 
 test('background date completion does not overwrite unrelated programmatic meeting changes', () => {
