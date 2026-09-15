@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { proposalPdfFileFromBase64 } from '../frontend/src/proposal-browser-pdf-extension.js';
+import { ensureProposalPdfPrintParityStyles, proposalPdfFileFromBase64 } from '../frontend/src/proposal-browser-pdf-extension.js';
 
 const manifest = JSON.parse(await readFile(new URL('../browser-extension/proposal-pdf/manifest.json', import.meta.url), 'utf8'));
 const background = await readFile(new URL('../browser-extension/proposal-pdf/background.js', import.meta.url), 'utf8');
@@ -45,6 +45,22 @@ test('extension restores the media override and detaches the debugger in cleanup
   assert.match(background, /Emulation\.setEmulatedMedia', \{ media: '' \}/);
   assert.match(background, /detachDebugger\(target\)/);
   assert.match(background, /finally \{/);
+});
+
+test('PDF parity style keeps GEFEN school, symbol and authority metadata on one print line', () => {
+  const appended = [];
+  const fakeDocument = {
+    getElementById() { return null; },
+    createElement() { return { id: '', textContent: '' }; },
+    head: { appendChild(node) { appended.push(node); } }
+  };
+
+  ensureProposalPdfPrintParityStyles(fakeDocument);
+
+  assert.equal(appended.length, 1);
+  assert.equal(appended[0].id, 'taasiyeda-proposal-pdf-print-parity');
+  assert.match(appended[0].textContent, /\.pa-gefen-school-meta/);
+  assert.match(appended[0].textContent, /white-space:\s*nowrap\s*!important/);
 });
 
 test('content bridge exposes no Supabase key or storage credentials', () => {
