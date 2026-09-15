@@ -3,7 +3,8 @@ import { config } from './config.js';
 const MARKERS = [
   'attendance-manager-ux-system-dialog-20260908-v4-manager-team-strip-stable',
   'instructor-presentations-link-20260915-v1',
-  'ui-drawer-close-20260915-v1'
+  'ui-drawer-close-20260915-v1',
+  'proposal-client-vector-pdf-storage-20260915-v1'
 ];
 
 for (const marker of MARKERS) {
