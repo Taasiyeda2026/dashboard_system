@@ -1,5 +1,6 @@
 import { ensureFeature, ensureFeaturesForRoute, preloadScreenModule } from './feature-loaders.js';
 import { state } from './state.js';
+import './proposal-vector-pdf-bridge.js';
 
 /**
  * Loads feature bundles when the active route changes.
