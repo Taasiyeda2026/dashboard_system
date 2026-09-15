@@ -116,13 +116,16 @@ export function currentAttendanceActivitySeasons(referenceDateStr) {
 }
 
 export function instructorActivityOptionLabel(activity) {
-  const name = activity?.activity_name || toHebrewType(activity?.activity_type) || 'פעילות';
+  return activity?.activity_name || toHebrewType(activity?.activity_type) || 'פעילות';
+}
+
+export function instructorActivityOptionMeta(activity) {
   const school = activity?.single_school_name
     || (activity?.school_link_status === 'multiple_schools' ? 'מספר בתי ספר' : '')
     || activity?.school
     || '';
   const authority = activity?.authority_name || activity?.authority || '';
-  return [name, school, authority].filter(Boolean).join(' — ');
+  return [school, authority].filter(Boolean).join(' · ');
 }
 
 export function activitySearchHaystack(activity) {
@@ -155,6 +158,7 @@ export function instructorActivitySelectOptions(activities = [], { reportType = 
       return {
         value,
         label: instructorActivityOptionLabel(activity),
+        meta: instructorActivityOptionMeta(activity),
         activity,
         searchText: activitySearchHaystack(activity),
       };

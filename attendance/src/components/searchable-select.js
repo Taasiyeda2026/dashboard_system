@@ -99,8 +99,10 @@ export function createSearchableSelect({
     btn.addEventListener('click', () => {
       extendedMode = true;
       searchWrap.hidden = false;
+      // Move focus inside the stable search field before replacing option nodes.
+      // Otherwise removing the previously focused option can fire focusout and close the panel.
+      searchInput.focus();
       void loadExtendedOptions(searchInput.value);
-      requestAnimationFrame(() => searchInput.focus());
     });
     optList.append(btn);
   }
@@ -167,7 +169,19 @@ export function createSearchableSelect({
       btn.className = 'av2-ssel__option';
       btn.setAttribute('role', 'option');
       if (opt.value === selectedValue) btn.classList.add('is-selected');
-      btn.textContent = opt.label;
+
+      const optionLabel = document.createElement('span');
+      optionLabel.className = 'av2-ssel__option-label';
+      optionLabel.textContent = opt.label;
+      btn.append(optionLabel);
+
+      if (opt.meta) {
+        const optionMeta = document.createElement('small');
+        optionMeta.className = 'av2-ssel__option-meta';
+        optionMeta.textContent = opt.meta;
+        btn.append(document.createElement('br'), optionMeta);
+      }
+
       btn.addEventListener('mousedown', (e) => e.preventDefault());
       btn.addEventListener('click', () => selectOption(opt));
       optList.append(btn);

@@ -18,8 +18,8 @@ test('Attendance mobile app theme is loaded after legacy overrides and scoped to
   assert.match(theme, /\.av2-report-row\[data-tone='course'\]/);
   assert.match(theme, /\.av2-report-summary-row\[data-tone='workshop'\]/);
 
-  const followupIndex = index.indexOf('attendance-followup.css?v=67');
-  const themeIndex = index.indexOf('mobile-app-theme.css?v=67');
+  const followupIndex = index.indexOf('attendance-followup.css?v=68');
+  const themeIndex = index.indexOf('mobile-app-theme.css?v=68');
   assert.notEqual(themeIndex, -1, 'mobile theme stylesheet is missing from attendance/index.html');
   assert.ok(themeIndex > followupIndex, 'mobile app theme must load after legacy attendance overrides');
 });
@@ -31,8 +31,8 @@ test('Attendance desktop uses the same approved app language without leaking int
   assert.match(desktopTheme, /\.av2-cal/);
   assert.match(desktopTheme, /\.av2-report-list/);
   assert.match(desktopTheme, /\.av2-form-section/);
-  const mobileIndex = index.indexOf('mobile-app-theme.css?v=67');
-  const desktopIndex = index.indexOf('desktop-app-theme.css?v=67');
+  const mobileIndex = index.indexOf('mobile-app-theme.css?v=68');
+  const desktopIndex = index.indexOf('desktop-app-theme.css?v=68');
   assert.notEqual(desktopIndex, -1, 'desktop app theme stylesheet is missing from attendance/index.html');
   assert.ok(desktopIndex > mobileIndex, 'desktop companion theme should load after the mobile theme');
 });
