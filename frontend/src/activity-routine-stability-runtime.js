@@ -72,8 +72,8 @@ export function applySchool2027DateBounds(root = document) {
       if (active) {
         rememberExistingBound(input, 'min', 'activityDateOriginalMin');
         rememberExistingBound(input, 'max', 'activityDateOriginalMax');
-        input.min = SCHOOL_2027_DATE_MIN;
-        input.max = SCHOOL_2027_DATE_MAX;
+        if (input.min !== SCHOOL_2027_DATE_MIN) input.min = SCHOOL_2027_DATE_MIN;
+        if (input.max !== SCHOOL_2027_DATE_MAX) input.max = SCHOOL_2027_DATE_MAX;
         input.dataset.activityDateRangeBound = 'school_2027';
       } else if (input.dataset.activityDateRangeBound === 'school_2027') {
         delete input.dataset.activityDateRangeBound;
@@ -148,16 +148,24 @@ export function startActivityRoutineStabilityRuntime() {
   document.addEventListener('input', (event) => {
     const form = event.target?.closest?.('[data-add-activity-form], [data-drawer-form]');
     if (!form) return;
-    if (event.target?.matches?.('[name="activity_season"], input[type="date"]')) {
+    if (event.target?.matches?.('[name="activity_season"]')) {
       applySchool2027DateBounds(form);
+      return;
+    }
+    if (event.target?.matches?.('input[type="date"]')) {
+      setRangeValidity(event.target, isSchool2027Form(form));
     }
   }, true);
 
   document.addEventListener('change', (event) => {
     const form = event.target?.closest?.('[data-add-activity-form], [data-drawer-form]');
     if (!form) return;
-    if (event.target?.matches?.('[name="activity_season"], input[type="date"]')) {
+    if (event.target?.matches?.('[name="activity_season"]')) {
       applySchool2027DateBounds(form);
+      return;
+    }
+    if (event.target?.matches?.('input[type="date"]')) {
+      setRangeValidity(event.target, isSchool2027Form(form));
     }
   }, true);
 
