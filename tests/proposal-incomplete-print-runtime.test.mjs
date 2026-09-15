@@ -6,30 +6,33 @@ import { configureProposalPreviewPrintButton } from '../frontend/src/proposal-in
 const entrySource = await readFile(new URL('../frontend/src/main-with-proposal-pdf-hotfix.js', import.meta.url), 'utf8');
 const runtimeSource = await readFile(new URL('../frontend/src/proposal-incomplete-print-runtime.js', import.meta.url), 'utf8');
 
-test('proposal browser-print runtime loads before the application', () => {
+ test('proposal browser-print runtime loads before the application', () => {
   const runtimeIndex = entrySource.indexOf("import './proposal-incomplete-print-runtime.js");
   const mainIndex = entrySource.indexOf("import './main.js';");
   assert.ok(runtimeIndex >= 0, 'proposal browser-print runtime must be imported');
   assert.ok(mainIndex > runtimeIndex, 'print runtime must load before main.js');
 });
 
-test('preview PDF action bypasses the legacy generator and uses browser print', () => {
+test('preview PDF action uses browser extension storage when available and keeps native print fallback', () => {
   assert.match(runtimeSource, /#pa-preview-overlay/);
   assert.match(runtimeSource, /#pa-print-btn/);
-  assert.match(runtimeSource, /event\.stopImmediatePropagation\(\)/);
+  assert.match(runtimeSource, /proposalPdfExtensionAvailable/);
+  assert.match(runtimeSource, /requestProposalPdfFromExtension/);
+  assert.match(runtimeSource, /api\.uploadProposalFinalPdf/);
+  assert.match(runtimeSource, /openPdfFile\(pdfFile, reserved\)/);
   assert.match(runtimeSource, /window\.print\(\)/);
   assert.match(runtimeSource, /הדפסה \/ PDF/);
-  assert.doesNotMatch(runtimeSource, /uploadProposalFinalPdf/);
   assert.doesNotMatch(runtimeSource, /image\/jpeg/);
   assert.doesNotMatch(runtimeSource, /createElement\(['"]canvas['"]\)/);
 });
 
-test('proposal browser print isolates the preview from dashboard layout', () => {
+test('proposal browser print isolates the preview from dashboard layout for both native and extension printing', () => {
   assert.match(runtimeSource, /enterProposalPrintMode/);
   assert.match(runtimeSource, /classList\.add\('is-print-preview'\)/);
   assert.match(runtimeSource, /classList\.remove\('is-print-preview'\)/);
   assert.match(runtimeSource, /addEventListener\('beforeprint', enterProposalPrintMode\)/);
   assert.match(runtimeSource, /addEventListener\('afterprint', exitProposalPrintMode\)/);
+  assert.match(runtimeSource, /createPdfWithBrowserExtension/);
   assert.match(runtimeSource, /invokeProposalBrowserPrint\(\)/);
 });
 
@@ -37,10 +40,17 @@ test('direct proposal PDF actions are intercepted before the legacy raster path'
   assert.match(runtimeSource, /DIRECT_PRINT_SELECTOR = '\[data-pa-print\]'/);
   assert.match(runtimeSource, /directPrintButton/);
   assert.match(runtimeSource, /printProposalById/);
+  assert.match(runtimeSource, /generateProposalPdfById/);
   assert.match(runtimeSource, /data-pa-open-proposal-id/);
   assert.match(runtimeSource, /data-pa-preview/);
   assert.match(runtimeSource, /stopImmediatePropagation\(\)/);
-  assert.match(runtimeSource, /window\.print\(\)/);
+});
+
+test('extension path uploads before opening the generated PDF', () => {
+  const uploadIndex = runtimeSource.indexOf('await api.uploadProposalFinalPdf');
+  const openIndex = runtimeSource.indexOf('openPdfFile(pdfFile, reserved)');
+  assert.ok(uploadIndex >= 0, 'extension PDF must be uploaded');
+  assert.ok(openIndex > uploadIndex, 'the user-visible PDF must open only after storage succeeds');
 });
 
 test('preview button configuration is idempotent and does not create an observer mutation loop', () => {
