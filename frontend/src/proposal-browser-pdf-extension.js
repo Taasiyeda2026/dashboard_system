@@ -2,6 +2,7 @@ const READY_ATTR = 'data-taasiyeda-proposal-pdf-extension';
 const PAGE_SOURCE = 'taasiyeda-proposal-pdf-page';
 const EXTENSION_SOURCE = 'taasiyeda-proposal-pdf-extension';
 const DEFAULT_TIMEOUT_MS = 30000;
+const PRINT_PARITY_STYLE_ID = 'taasiyeda-proposal-pdf-print-parity';
 
 function safeFileName(value = '') {
   const clean = String(value || '')
@@ -9,6 +10,20 @@ function safeFileName(value = '') {
     .replace(/\s+/g, ' ')
     .trim();
   return clean || 'proposal';
+}
+
+export function ensureProposalPdfPrintParityStyles(documentRef = globalThis.document) {
+  if (!documentRef?.createElement || documentRef.getElementById?.(PRINT_PARITY_STYLE_ID)) return;
+  const style = documentRef.createElement('style');
+  style.id = PRINT_PARITY_STYLE_ID;
+  style.textContent = `
+    @media print {
+      .proposal-document.pa-proposal-doc--gefen:not(.pa-gefen-approval-document) .pa-gefen-school-meta {
+        white-space: nowrap !important;
+      }
+    }
+  `;
+  documentRef.head?.appendChild?.(style);
 }
 
 export function proposalPdfExtensionAvailable(documentRef = globalThis.document) {
@@ -47,6 +62,8 @@ export function requestProposalPdfFromExtension({ fileName = 'proposal.pdf', tim
   if (typeof windowRef?.postMessage !== 'function' || typeof windowRef?.addEventListener !== 'function') {
     return Promise.reject(new Error('proposal_pdf_extension_bridge_unavailable'));
   }
+
+  ensureProposalPdfPrintParityStyles(documentRef);
 
   const requestId = `proposal-pdf-${Date.now()}-${Math.random().toString(36).slice(2)}`;
   const targetOrigin = windowRef.location?.origin || '*';
