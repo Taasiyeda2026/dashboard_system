@@ -14,8 +14,9 @@ const runtimeSource = await readFile(new URL('../frontend/src/proposal-incomplet
 });
 
 test('preview PDF action uses browser extension storage when available and keeps native print fallback', () => {
-  assert.match(runtimeSource, /#pa-preview-overlay/);
-  assert.match(runtimeSource, /#pa-print-btn/);
+  assert.match(runtimeSource, /PREVIEW_AREA_SELECTOR = '\.proposal-preview-area'/);
+  assert.match(runtimeSource, /PREVIEW_DOCUMENT_SELECTOR/);
+  assert.match(runtimeSource, /PREVIEW_PRINT_SELECTOR = '#pa-print-btn'/);
   assert.match(runtimeSource, /proposalPdfExtensionAvailable/);
   assert.match(runtimeSource, /requestProposalPdfFromExtension/);
   assert.match(runtimeSource, /api\.uploadProposalFinalPdf/);
@@ -26,6 +27,14 @@ test('preview PDF action uses browser extension storage when available and keeps
   assert.doesNotMatch(runtimeSource, /createElement\(['"]canvas['"]\)/);
 });
 
+test('proposal PDF generation is driven by the visible document rather than requiring a specific overlay', () => {
+  assert.match(runtimeSource, /currentPreviewArea/);
+  assert.match(runtimeSource, /document\.querySelector\(PREVIEW_DOCUMENT_SELECTOR\)/);
+  assert.match(runtimeSource, /if \(currentPreviewArea\(document\)\) return waitForPrintablePreview\(\)/);
+  assert.match(runtimeSource, /waitForPrintablePreview/);
+  assert.doesNotMatch(runtimeSource, /const PREVIEW_PRINT_SELECTOR = `\$\{PREVIEW_SELECTOR\} #pa-print-btn`/);
+});
+
 test('proposal browser print isolates the preview from dashboard layout for both native and extension printing', () => {
   assert.match(runtimeSource, /enterProposalPrintMode/);
   assert.match(runtimeSource, /classList\.add\('is-print-preview'\)/);
@@ -34,6 +43,7 @@ test('proposal browser print isolates the preview from dashboard layout for both
   assert.match(runtimeSource, /addEventListener\('afterprint', exitProposalPrintMode\)/);
   assert.match(runtimeSource, /createPdfWithBrowserExtension/);
   assert.match(runtimeSource, /invokeProposalBrowserPrint\(\)/);
+  assert.match(runtimeSource, /requestAnimationFrame\(\(\) => requestAnimationFrame\(resolve\)\)/);
 });
 
 test('direct proposal PDF actions are intercepted before the legacy raster path', () => {
@@ -51,6 +61,12 @@ test('extension path uploads before opening the generated PDF', () => {
   const openIndex = runtimeSource.indexOf('openPdfFile(pdfFile, reserved)');
   assert.ok(uploadIndex >= 0, 'extension PDF must be uploaded');
   assert.ok(openIndex > uploadIndex, 'the user-visible PDF must open only after storage succeeds');
+});
+
+test('preview proposal id can be recovered from the form that opened the current preview', () => {
+  assert.match(runtimeSource, /resolveActiveProposalId/);
+  assert.match(runtimeSource, /data-pa-preview-seen="yes"/);
+  assert.match(runtimeSource, /activeProposalId = seenFormId/);
 });
 
 test('preview button configuration is idempotent and does not create an observer mutation loop', () => {
