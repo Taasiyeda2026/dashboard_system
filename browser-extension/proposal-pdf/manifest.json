@@ -1,0 +1,29 @@
+{
+  "manifest_version": 3,
+  "name": "Taasiyeda Proposal PDF",
+  "version": "1.0.0",
+  "description": "Creates the proposal PDF with the browser print engine and returns it to the Taasiyeda dashboard for secure storage.",
+  "permissions": [
+    "debugger"
+  ],
+  "host_permissions": [
+    "https://taasiyeda2026.github.io/dashboard_system/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://taasiyeda2026.github.io/dashboard_system/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_start"
+    }
+  ],
+  "action": {
+    "default_title": "Taasiyeda Proposal PDF"
+  }
+}
