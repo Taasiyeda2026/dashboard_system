@@ -44,3 +44,9 @@ test('generated PDF blob path triggers a named browser download and still return
   assert.match(source, /anchor\.download = fileName/);
   assert.match(source, /return objectUrl/);
 });
+
+test('viewing an already-saved proposal PDF clears download mode for every saved-PDF button shape', () => {
+  assert.match(source, /closest\('#pa-view-final-pdf-btn'\)/);
+  assert.match(source, /closest\('\[data-pa-view-final-pdf\]'\)/);
+  assert.match(source, /clearDownloadRequest\(\)/);
+});
