@@ -159,12 +159,13 @@ export function generateSessionDatesFromFirstMeeting(form, blockedDatesContext =
       result.exhausted = true;
       break;
     }
-    pickers[index].value = candidate;
-    pickers[index].dataset.prevValue = candidate;
+    const picker = pickers[index];
+    if (String(picker.value || '') !== candidate) picker.value = candidate;
+    picker.dataset.prevValue = candidate;
     result.dates.push(candidate);
     if (skippedWeeks) {
       result.deferred.push({ meeting: index + 1, skippedWeeks });
-      setDeferralNote(pickers[index], skippedWeeks);
+      setDeferralNote(picker, skippedWeeks);
     }
   }
   pickers.slice(total).forEach((picker) => {
@@ -190,8 +191,11 @@ async function skipHolidaysInChain(form, changedIndex) {
   for (let position = startPosition; position < pickers.length; position += 1) {
     if (position > startPosition) candidate = addCalendarDays(candidate, 7);
     const allowedDate = nextAllowedWeeklyDateForForm(form, rows, candidate);
-    if (allowedDate !== String(pickers[position].value || '')) changed = true;
-    pickers[position].value = allowedDate;
+    const currentValue = String(pickers[position].value || '');
+    if (allowedDate !== currentValue) {
+      changed = true;
+      pickers[position].value = allowedDate;
+    }
     pickers[position].dataset.prevValue = allowedDate;
     candidate = allowedDate;
   }
