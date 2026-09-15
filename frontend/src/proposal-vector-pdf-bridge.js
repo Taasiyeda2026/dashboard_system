@@ -7,6 +7,20 @@ function clean(value) {
   return String(value == null ? '' : value).trim();
 }
 
+function normalizeCombinedProposalHtml(html, scope = globalThis) {
+  const source = String(html || '');
+  const documentRef = scope?.document;
+  if (!source.includes('pa-gefen-combined-document') || !documentRef?.createElement) return source;
+  const host = documentRef.createElement('div');
+  host.innerHTML = source;
+  if (!host.querySelector('.pa-gefen-combined-document')) return source;
+  host.querySelectorAll('.proposal-document').forEach((documentPart) => {
+    documentPart.classList.remove('proposal-document');
+    documentPart.classList.add('proposal-document-part');
+  });
+  return host.innerHTML;
+}
+
 function loadVectorModule() {
   if (!vectorModulePromise) {
     vectorModulePromise = import('./proposal-vector-pdf-runtime.js').catch((error) => {
@@ -26,7 +40,7 @@ export function installProposalVectorPdfBridge(targetApi = api, scope = globalTh
     const quote = clean(row?.quote_number);
     return module.createProposalVectorPdfFile({
       proposalId: id,
-      html: previewHtml,
+      html: normalizeCombinedProposalHtml(previewHtml, scope),
       title: quote ? `הצעת מחיר ${quote}` : 'הצעת מחיר',
       fileName: quote ? `הצעת_מחיר_${quote}.pdf` : `proposal-${id || 'document'}.pdf`
     }, scope);
@@ -34,7 +48,10 @@ export function installProposalVectorPdfBridge(targetApi = api, scope = globalTh
 
   targetApi.requestProposalFinalPdf = async (id, payload = {}) => {
     const proposalId = clean(id);
-    const html = String(payload?.documentHtmlSnapshot || payload?.document_html_snapshot || '');
+    const html = normalizeCombinedProposalHtml(
+      payload?.documentHtmlSnapshot || payload?.document_html_snapshot || '',
+      scope
+    );
     if (!proposalId || !html.trim()) {
       return { ok: false, skipped: true, reason: proposalId ? 'missing_html_snapshot' : 'missing_proposal_id' };
     }
