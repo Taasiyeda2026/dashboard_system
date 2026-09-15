@@ -7,7 +7,7 @@ const manifest = JSON.parse(await readFile(new URL('../browser-extension/proposa
 const background = await readFile(new URL('../browser-extension/proposal-pdf/background.js', import.meta.url), 'utf8');
 const content = await readFile(new URL('../browser-extension/proposal-pdf/content.js', import.meta.url), 'utf8');
 
- test('extension is Manifest V3 and restricted to the Taasiyeda dashboard', () => {
+test('extension is Manifest V3 and restricted to the Taasiyeda dashboard', () => {
   assert.equal(manifest.manifest_version, 3);
   assert.deepEqual(manifest.permissions, ['debugger']);
   assert.deepEqual(manifest.host_permissions, ['https://taasiyeda2026.github.io/dashboard_system/*']);
@@ -22,6 +22,29 @@ test('extension delegates PDF creation to Chromium printToPDF with proposal prin
   assert.match(background, /paperHeight:\s*11\.69/);
   assert.match(background, /ALLOWED_ORIGIN = 'https:\/\/taasiyeda2026\.github\.io'/);
   assert.match(background, /ALLOWED_PATH_PREFIX = '\/dashboard_system\/'/);
+});
+
+test('extension switches Chromium to print media and waits for the rendered proposal before printToPDF', () => {
+  assert.match(background, /Runtime\.evaluate/);
+  assert.match(background, /\.proposal-preview-area \.proposal-document/);
+  assert.match(background, /document\.fonts\?\.ready/);
+  assert.match(background, /requestAnimationFrame\(\(\) => requestAnimationFrame\(resolve\)\)/);
+  assert.match(background, /Emulation\.setEmulatedMedia', \{ media: 'print' \}/);
+  assert.match(background, /proposal_pdf_diagnostic_empty_text/);
+  assert.match(background, /proposal_pdf_diagnostic_zero_size/);
+  assert.match(background, /proposal_pdf_diagnostic_missing_after_print_media/);
+
+  const printMediaIndex = background.indexOf("'Emulation.setEmulatedMedia', { media: 'print' }");
+  const printToPdfIndex = background.indexOf("'Page.printToPDF'");
+  assert.ok(printMediaIndex >= 0, 'print media emulation must be present');
+  assert.ok(printToPdfIndex > printMediaIndex, 'print media must be enabled before Page.printToPDF');
+});
+
+test('extension restores the media override and detaches the debugger in cleanup', () => {
+  assert.match(background, /mediaOverridden/);
+  assert.match(background, /Emulation\.setEmulatedMedia', \{ media: '' \}/);
+  assert.match(background, /detachDebugger\(target\)/);
+  assert.match(background, /finally \{/);
 });
 
 test('content bridge exposes no Supabase key or storage credentials', () => {
