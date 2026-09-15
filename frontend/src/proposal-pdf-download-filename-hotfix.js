@@ -101,7 +101,9 @@ export function installProposalPdfDownloadFilenameHotfix(targetApi = api, scope 
         requestDownload();
         return;
       }
-      if (closest('#pa-view-final-pdf-btn')) clearDownloadRequest();
+      if (closest('#pa-view-final-pdf-btn') || closest('[data-pa-view-final-pdf]')) {
+        clearDownloadRequest();
+      }
     }, true);
   }
 
