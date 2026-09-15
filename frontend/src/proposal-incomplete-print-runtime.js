@@ -13,8 +13,9 @@ import {
   requestProposalPdfFromExtension
 } from './proposal-browser-pdf-extension.js';
 
-const PREVIEW_SELECTOR = '#pa-preview-overlay';
-const PREVIEW_PRINT_SELECTOR = `${PREVIEW_SELECTOR} #pa-print-btn`;
+const PREVIEW_AREA_SELECTOR = '.proposal-preview-area';
+const PREVIEW_DOCUMENT_SELECTOR = `${PREVIEW_AREA_SELECTOR} .proposal-document`;
+const PREVIEW_PRINT_SELECTOR = '#pa-print-btn';
 const DIRECT_PRINT_SELECTOR = '[data-pa-print]';
 const PREVIEW_ACTION_SELECTOR = '[data-pa-preview]';
 const PREVIEW_FORM_SELECTOR = '[data-pa-preview-form]';
@@ -44,6 +45,27 @@ function matchingControl(selector, datasetKey, proposalId, root = document) {
   return matches.find(isVisible) || matches[0] || null;
 }
 
+function currentPreviewArea(root = document) {
+  if (root?.matches?.(PREVIEW_AREA_SELECTOR)) return root;
+  return root?.querySelector?.(PREVIEW_AREA_SELECTOR) || null;
+}
+
+function resolveActiveProposalId(root = document) {
+  const remembered = cleanText(activeProposalId);
+  if (remembered) return remembered;
+
+  const previewSeenForms = Array.from(
+    root?.querySelectorAll?.('[data-pa-form][data-pa-id][data-pa-preview-seen="yes"]') || []
+  );
+  const seenFormId = cleanText(previewSeenForms.at(-1)?.dataset?.paId);
+  if (seenFormId) {
+    activeProposalId = seenFormId;
+    return seenFormId;
+  }
+
+  return '';
+}
+
 function waitForValue(resolver, timeoutMs = PRINT_READY_TIMEOUT_MS) {
   const startedAt = Date.now();
   return new Promise((resolve, reject) => {
@@ -66,7 +88,7 @@ function waitForValue(resolver, timeoutMs = PRINT_READY_TIMEOUT_MS) {
 
 function enterProposalPrintMode() {
   if (typeof document === 'undefined') return false;
-  if (!document.querySelector(PREVIEW_SELECTOR)) return false;
+  if (!document.querySelector(PREVIEW_DOCUMENT_SELECTOR)) return false;
   if (document.body.classList.contains('is-print-preview')) return true;
   document.body.classList.add('is-print-preview');
   printModeAddedByRuntime = true;
@@ -91,17 +113,18 @@ function invokeProposalBrowserPrint() {
 }
 
 async function waitForPrintablePreview() {
-  const overlay = await waitForValue(() => document.querySelector(PREVIEW_SELECTOR));
+  const previewArea = await waitForValue(() => currentPreviewArea(document));
   await waitForValue(() => {
-    const proposal = overlay.querySelector('.proposal-preview-area .proposal-document');
+    const proposal = previewArea.querySelector('.proposal-document');
     if (!proposal) return null;
     const rect = proposal.getBoundingClientRect?.();
     if (rect && rect.width <= 0 && rect.height <= 0) return null;
+    if (!cleanText(proposal.innerText || proposal.textContent)) return null;
     return proposal;
   });
   try { await document.fonts?.ready; } catch { /* browser fallback */ }
-  await new Promise((resolve) => requestAnimationFrame(() => resolve()));
-  return overlay;
+  await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+  return previewArea;
 }
 
 function reservePdfWindow() {
@@ -150,8 +173,9 @@ async function openStoredPdf(proposalId, reserved) {
   }
 }
 
-function currentPreviewHtml(overlay) {
-  return String(overlay?.querySelector?.('.proposal-preview-area')?.innerHTML || '').trim();
+function currentPreviewHtml(previewArea) {
+  const area = currentPreviewArea(previewArea) || currentPreviewArea(document);
+  return String(area?.innerHTML || '').trim();
 }
 
 function currentPdfFileName() {
@@ -183,19 +207,19 @@ async function createPdfWithBrowserExtension() {
   enterProposalPrintMode();
   try {
     try { await document.fonts?.ready; } catch { /* browser fallback */ }
-    await new Promise((resolve) => requestAnimationFrame(() => resolve()));
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
     return await requestProposalPdfFromExtension({ fileName: currentPdfFileName() });
   } finally {
     exitProposalPrintMode();
   }
 }
 
-async function generateStoreAndOpenExtensionPdf(proposalId, overlay, reserved) {
+async function generateStoreAndOpenExtensionPdf(proposalId, previewArea, reserved) {
   const id = cleanText(proposalId);
   if (!id) throw new Error('proposal_pdf_missing_id');
   if (typeof api.uploadProposalFinalPdf !== 'function') throw new Error('proposal_pdf_upload_unavailable');
 
-  const html = currentPreviewHtml(overlay);
+  const html = currentPreviewHtml(previewArea);
   if (!html) throw new Error('proposal_pdf_missing_html');
 
   const detail = typeof api.proposalAgreementDetail === 'function'
@@ -226,8 +250,7 @@ async function generateStoreAndOpenExtensionPdf(proposalId, overlay, reserved) {
 
 async function openProposalPreview(proposalId) {
   activeProposalId = cleanText(proposalId) || activeProposalId;
-  const existingOverlay = document.querySelector(PREVIEW_SELECTOR);
-  if (existingOverlay) return waitForPrintablePreview();
+  if (currentPreviewArea(document)) return waitForPrintablePreview();
 
   let previewButton = matchingControl(PREVIEW_ACTION_SELECTOR, 'paPreview', proposalId);
   if (previewButton) {
@@ -272,8 +295,8 @@ async function printProposalById(proposalId) {
 
 async function generateProposalPdfById(proposalId, reserved) {
   if (!proposalId) throw new Error('proposal_pdf_missing_id');
-  const overlay = await openProposalPreview(proposalId);
-  return generateStoreAndOpenExtensionPdf(proposalId, overlay, reserved);
+  const previewArea = await openProposalPreview(proposalId);
+  return generateStoreAndOpenExtensionPdf(proposalId, previewArea, reserved);
 }
 
 function rememberProposalIdFromEvent(event) {
@@ -365,7 +388,7 @@ export function installProposalIncompletePrintRuntime() {
         return;
       }
 
-      const proposalId = activeProposalId;
+      const proposalId = resolveActiveProposalId(document);
       if (!proposalId) {
         showToast('לא זוהתה ההצעה לשמירת PDF. יש לסגור את התצוגה ולפתוח אותה מחדש.', 'error');
         return;
@@ -374,7 +397,7 @@ export function installProposalIncompletePrintRuntime() {
       const reserved = reservePdfWindow();
       previewPrintButton.disabled = true;
       void waitForPrintablePreview()
-        .then((overlay) => generateStoreAndOpenExtensionPdf(proposalId, overlay, reserved))
+        .then((previewArea) => generateStoreAndOpenExtensionPdf(proposalId, previewArea, reserved))
         .catch((error) => {
           closeReservedPdfWindow(reserved);
           showToast('לא ניתן היה להפיק ולשמור את ה־PDF במערכת. ניתן לנסות שוב.', 'error');
