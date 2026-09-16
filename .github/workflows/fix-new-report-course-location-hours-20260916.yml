@@ -1,0 +1,94 @@
+name: Fix new report course location and hours 20260916
+
+on:
+  push:
+    branches:
+      - codex/fix-new-report-course-location-hours-20260916
+
+permissions:
+  contents: write
+
+jobs:
+  patch-test:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/fix-new-report-course-location-hours-20260916
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Apply approved attendance form fixes
+        shell: python
+        run: |
+          from pathlib import Path
+
+          path = Path('attendance/src/screens/new-report-screen.js')
+          text = path.read_text(encoding='utf-8')
+
+          old = """  function syncLocationDependencies() {
+            const hasType = !!getReportType();
+            const showsLocation = !isOpenFieldType();
+            authSel?.setDisabled(!hasType || !showsLocation || !!selectedActivity);
+            setSchoolEnabled(hasType && showsLocation && hasSelectedAuthority());
+            syncMeetingFieldState();
+          }
+          """
+          new = """  function syncLocationDependencies() {
+            const hasType = !!getReportType();
+            const showsLocation = !isOpenFieldType();
+            const courseAwaitingActivity = isCourseReportType() && !selectedActivity;
+            authSel?.setDisabled(!hasType || !showsLocation || courseAwaitingActivity || !!selectedActivity);
+            setSchoolEnabled(hasType && showsLocation && !courseAwaitingActivity && hasSelectedAuthority());
+            syncMeetingFieldState();
+          }
+          """
+          if text.count(old) != 1:
+            raise SystemExit(f'location dependency anchor count={text.count(old)}')
+          text = text.replace(old, new)
+
+          old_hours = """  function updateHoursDisplay() {
+            const h = calcHours(startPicker.getValue(), endPicker.getValue());
+            hoursVal.textContent = h > 0 ? h.toFixed(2) : '—';
+          }
+          """
+          new_hours = """  function updateHoursDisplay() {
+            const h = calcHours(startPicker.getValue(), endPicker.getValue());
+            hoursVal.textContent = h > 0 ? formatTravelMinutes(Math.round(h * 60)) : '—';
+          }
+          """
+          if text.count(old_hours) != 1:
+            raise SystemExit(f'hours display anchor count={text.count(old_hours)}')
+          text = text.replace(old_hours, new_hours)
+          path.write_text(text, encoding='utf-8')
+
+          test_path = Path('tests/attendance-screen-structure.test.mjs')
+          test = test_path.read_text(encoding='utf-8')
+          old_test = """  assert.match(newReportSource, /authSel\\?\\.setDisabled\\(!hasType/);
+            assert.match(newReportSource, /setSchoolEnabled\\(hasType && showsLocation && hasSelectedAuthority\\(\\)\\)/);
+          """
+          new_test = """  assert.match(newReportSource, /const courseAwaitingActivity = isCourseReportType\\(\\) && !selectedActivity/);
+            assert.match(newReportSource, /authSel\\?\\.setDisabled\\(!hasType \\|\\| !showsLocation \\|\\| courseAwaitingActivity \\|\\| !!selectedActivity\\)/);
+            assert.match(newReportSource, /setSchoolEnabled\\(hasType && showsLocation && !courseAwaitingActivity && hasSelectedAuthority\\(\\)\\)/);
+            assert.match(newReportSource, /formatTravelMinutes\\(Math\\.round\\(h \\* 60\\)\\)/);
+          """
+          if test.count(old_test) != 1:
+            raise SystemExit(f'test anchor count={test.count(old_test)}')
+          test = test.replace(old_test, new_test)
+          test_path.write_text(test, encoding='utf-8')
+      - name: Install dependencies
+        run: npm ci
+      - name: Run focused tests
+        run: node --test tests/attendance-screen-structure.test.mjs tests/attendance-activity-type-behavior.test.mjs
+      - name: Build
+        run: npm run build
+      - name: Commit implementation
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/fix-new-report-course-location-hours-20260916.yml
+          git add attendance/src/screens/new-report-screen.js tests/attendance-screen-structure.test.mjs
+          git commit -m "Fix course location dependencies and duration display"
+          git push origin HEAD:codex/fix-new-report-course-location-hours-20260916
