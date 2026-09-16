@@ -29,7 +29,6 @@ jobs:
           path = Path('frontend/src/screens/attendance-control.js')
           text = path.read_text(encoding='utf-8')
 
-          # Present duration fields as H:MM in the manager review UI.
           old = """function displayWorkHours(row) {
             const hours = rowWorkHours(row);
             if (hours == null) return '—';
@@ -64,10 +63,9 @@ jobs:
           }
           """
           if text.count(old) != 1:
-            raise SystemExit(f'duration display anchor count={text.count(old)}')
+              raise SystemExit(f'duration display anchor count={text.count(old)}')
           text = text.replace(old, new)
 
-          # Replace the manager review visual system while keeping the current behavior/data hooks.
           style_pattern = re.compile(r"export function attendanceControlStylesHtml\(\) \{.*?\n\}\n\nexport function resultsHtml", re.S)
           style_replacement = r'''export function attendanceControlStylesHtml() {
             return `<style id="attendance-control-styles">
@@ -90,9 +88,8 @@ jobs:
           export function resultsHtml'''
           text, count = style_pattern.subn(style_replacement, text, count=1)
           if count != 1:
-            raise SystemExit(f'style replacement count={count}')
+              raise SystemExit(f'style replacement count={count}')
 
-          # Replace manual/comparison/report rendering with the approved card + comparison-table hierarchy.
           render_pattern = re.compile(r"  const manualReportTable = \(row, \{ cancellation = false, entry = null \} = \{\}\) => \{.*?\n  const employeeHtml =", re.S)
           render_replacement = r'''  const reportSummaryCard = (row, entry, { cancellation = false } = {}) => {
             const current = entry?.final || row || {};
@@ -138,7 +135,7 @@ jobs:
                 ['מקור הפעילות', sourceLabel, sourceLabel, false],
                 ['זמן ביטול', calculated, finalValue, !entryResolvedLabel(entry || {})]
               ].map(([label, left, right, issue]) => `<tr class="${issue ? 'attendance-control__comparison-row--issue' : ''}"><th>${escapeHtml(label)}</th><td>${shown(left)}</td><td>${shown(right)}</td><td><span class="attendance-control__status-pill ${issue ? 'attendance-control__status-pill--issue' : 'attendance-control__status-pill--ok'}">${issue ? '⚠ לאישור' : '✓ תקין'}</span></td></tr>`).join('');
-              const override = source.manuallyOverridden ? `<p class="attendance-control__manual-note">נערך ידנית${source.overrideByName ? ` על ידי ${escapeHtml(source.overrideByName)}` : ''}</p>` : '<p class="attendance-control__manual-note">מחושב אוטומטית לפי זמן הנסיעה</p>';
+              const override = source.manuallyOverridden ? `<p class="attendance-control__manual-note"><strong>ביטול זמן: ${escapeHtml(finalValue)}</strong><br>נערך ידנית${source.overrideByName ? ` על ידי ${escapeHtml(source.overrideByName)}` : ''}</p>` : `<p class="attendance-control__manual-note"><strong>ביטול זמן: ${escapeHtml(finalValue)}</strong><br>מחושב אוטומטית לפי זמן הנסיעה</p>`;
               return `<div class="attendance-control__comparison-wrap"><p class="attendance-control__comparison-title">בדיקת ביטול זמן</p><table class="attendance-control__comparison-table attendance-control__manual-table"><thead><tr><th>פרמטר</th><th>חישוב</th><th>נתון לאישור</th><th>סטטוס</th></tr></thead><tbody>${rows}</tbody></table>${override}</div>${attachmentsHtml(display)}`;
             }
             const fields = [
@@ -224,15 +221,13 @@ jobs:
           const employeeHtml ='''
           text, count = render_pattern.subn(render_replacement, text, count=1)
           if count != 1:
-            raise SystemExit(f'render replacement count={count}')
+              raise SystemExit(f'render replacement count={count}')
 
-          # Day totals should also be clock durations, not decimal hours.
           old_day = "${hours.toFixed(2)} שעות"
           if old_day not in text:
-            raise SystemExit('day hours display anchor missing')
+              raise SystemExit('day hours display anchor missing')
           text = text.replace(old_day, "${formatDurationHours(hours)} שעות", 1)
 
-          # Replace the plain summary bar with the approved high-level KPI cards.
           summary_pattern = re.compile(r"  const summaryBar = `<div class=\"attendance-control__summary-bar\">.*?;\n  return `\$\{summaryBar\}\$\{metricsHtml\}\$\{employeeHtml\}<button", re.S)
           summary_replacement = r'''  const overviewRows = [...(result.comparisons || []), ...(result.notCompared || [])].map((entry) => entry.final || entry.attendance || {}).filter(Boolean);
             const overviewHours = new Map();
@@ -255,11 +250,10 @@ jobs:
             return `${overviewHtml}${summaryBar}${metricsHtml}${employeeHtml}<button'''
           text, count = summary_pattern.subn(summary_replacement, text, count=1)
           if count != 1:
-            raise SystemExit(f'summary replacement count={count}')
+              raise SystemExit(f'summary replacement count={count}')
 
           path.write_text(text, encoding='utf-8')
 
-          # Add focused regression checks for the visual hierarchy and approved labels.
           test = Path('tests/attendance-control-review-ui.test.mjs')
           test.write_text(r'''import test from 'node:test';
           import assert from 'node:assert/strict';
@@ -291,6 +285,14 @@ jobs:
             assert.match(source, /\$\{formatDurationHours\(hours\)\} שעות/);
           });
           ''', encoding='utf-8')
+
+          legacy_path = Path('tests/attendance-validation-record-km.test.mjs')
+          legacy = legacy_path.read_text(encoding='utf-8')
+          old_legacy = "assert.match(html, /ביטול זמן: 1:45/);"
+          new_legacy = "assert.match(html, /בדיקת ביטול זמן/);\n  assert.match(html, /<th>זמן ביטול<\\/th>/);"
+          if old_legacy not in legacy:
+              raise SystemExit('legacy cancellation assertion anchor missing')
+          legacy_path.write_text(legacy.replace(old_legacy, new_legacy, 1), encoding='utf-8')
       - run: npm ci
       - name: Run focused attendance review tests
         run: node --test tests/attendance-control-review-ui.test.mjs tests/attendance-validation-record-km.test.mjs
@@ -300,6 +302,6 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add frontend/src/screens/attendance-control.js tests/attendance-control-review-ui.test.mjs
+          git add frontend/src/screens/attendance-control.js tests/attendance-control-review-ui.test.mjs tests/attendance-validation-record-km.test.mjs
           git commit -m "Redesign attendance review comparison UI"
           git push origin HEAD:codex/redesign-attendance-control-review-20260916
