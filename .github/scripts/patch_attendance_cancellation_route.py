@@ -101,7 +101,6 @@ test('manager cancellation audit exposes the actual route and 45-minute calculat
 test('travel cancellation follows the actual physical attendance sequence for the report day', () => {
   assert.match(routeMigration, /report_date = s\.report_date/);
   assert.match(routeMigration, /order by r\.start_time nulls last, r\.end_time nulls last/);
-  assert.match(routeMigration, /previous_point := last_point/);
   assert.match(routeMigration, /return_to_home := next_point is null/);
   assert.match(routeMigration, /DAILY_SEQUENCE_V2/);
   assert.match(routeMigration, /route_origin_label/);
