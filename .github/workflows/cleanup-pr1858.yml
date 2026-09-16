@@ -30,12 +30,12 @@ jobs:
             attendance/src/styles/my-reports-screen.css \
             attendance/src/styles/reports-table-polish.css \
             tests/attendance-monthly-report-summary.test.mjs
+      - name: Install dependencies
+        run: npm ci
       - name: Verify focused tests
         run: node --test --test-name-pattern="daily total column|expanded mobile row" tests/attendance-monthly-report-summary.test.mjs tests/attendance-mobile-expandable-rows.test.mjs
       - name: Build
-        run: |
-          npm ci
-          npm run build
+        run: npm run build
       - name: Diff check
         run: git diff --check
       - name: Commit clean branch and remove temporary workflow
