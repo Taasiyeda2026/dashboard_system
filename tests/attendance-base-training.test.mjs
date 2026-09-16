@@ -30,7 +30,6 @@ test('edit and duplicate restore base training from the saved snapshot', () => {
   assert.match(source, /applySelectedActivity\(BASE_TRAINING_ACTIVITY\)/);
 });
 
-
 test('base training hides fixed location fields from creation and editing UI', () => {
   assert.match(source, /setLocationFieldsVisible\(!isBaseTrainingActivity\(activity\)\)/);
   assert.match(reportsSource, /isBaseTraining = reportType === 'הכשרה'[\s\S]*actNameField\.input\.value\.trim\(\) === 'הכשרת בסיס'/);
@@ -40,12 +39,19 @@ test('base training hides fixed location fields from creation and editing UI', (
   assert.match(reportsSource, /school_name_snapshot:\s+isOperations \? null : \(isBaseTraining \? 'Greenwork'/);
 });
 
-test('base training summary omits technical school, authority and empty reimbursement details', () => {
-  assert.match(summarySource, /export function isBaseTrainingRecord/);
-  assert.match(summarySource, /if \(!baseTraining\) \{[\s\S]*'בית ספר'[\s\S]*'רשות'/);
-  assert.match(summarySource, /if \(!baseTraining \|\| \(!record\.public_transport && km > 0\)\)/);
-  assert.match(summarySource, /if \(!baseTraining \|\| expenses > 0\)/);
-  assert.match(summarySource, /if \(!baseTraining\) addDetail\(details, 'סטטוס'/);
+test('attendance summary shows only supplemental meaningful details without repeating the collapsed row', () => {
+  assert.match(summarySource, /Expanded details therefore contain only additional, meaningful information/);
+  assert.doesNotMatch(summarySource, /addDetail\(details, 'תאריך'/);
+  assert.doesNotMatch(summarySource, /addDetail\(details, 'סה״כ שעות'/);
+  assert.doesNotMatch(summarySource, /addDetail\(details, 'שם פעילות'/);
+  assert.doesNotMatch(summarySource, /addDetail\(details, 'בית ספר'/);
+  assert.doesNotMatch(summarySource, /addDetail\(details, 'רשות'/);
+  assert.doesNotMatch(summarySource, /addDetail\(details, 'סטטוס'/);
+  assert.doesNotMatch(summarySource, /addDetail\([\s\S]*'ביטול זמן'/);
+  assert.match(summarySource, /if \(record\.meeting_no != null\) addDetail\(details, 'מפגש'/);
+  assert.match(summarySource, /if \(km > 0\) addDetail\(details, 'ק״מ'/);
+  assert.match(summarySource, /if \(usesPublicTransport\) addDetail\(details, 'תחבורה ציבורית', 'כן'\)/);
+  assert.match(summarySource, /if \(expenses > 0\) addDetail\(details, 'הוצאות'/);
   assert.match(reportsSource, /schoolCell\.textContent = baseTraining \? '—'/);
   assert.match(reportsSource, /authCell\.textContent = baseTraining \? '—'/);
 });
