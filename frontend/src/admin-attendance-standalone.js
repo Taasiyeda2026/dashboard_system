@@ -233,7 +233,7 @@ function groupsHtml(employees, workflowByEmployee, finalByEmployee, recordCounts
       const reportCount = recordCounts.get(id) || 0;
       return `<tr data-admin-attendance-row="${escapeHtml(id)}">
         <td class="admin-attendance-person"><strong>${escapeHtml(text(employee.full_name) || id)}</strong><small>${escapeHtml(id)}${text(employee.employment_type) ? ` · ${escapeHtml(text(employee.employment_type))}` : ''}</small></td>
-        <td>${reportCount ? `<span class="admin-attendance-status is-ok">קיים · ${reportCount}</span>` : '<span class="admin-attendance-status">אין דיווח</span>'}</td>
+        <td>${reportCount ? `<span class="admin-attendance-status is-ok">קיים · ${reportCount} דיווחים</span>` : '<span class="admin-attendance-status">אין דיווח</span>'}</td>
         <td>${approvalCell(workflow.submitted_by_name, workflow.submitted_at, 'טרם אושר עובד')}</td>
         <td>${approvalCell(workflow.manager_approved_by_name, workflow.manager_approved_at, 'טרם אושר מנהל')}</td>
         <td>${approvalCell(finalApproval?.approved_by_name, finalApproval?.approved_at, 'טרם אושר סופית')}</td>
@@ -280,6 +280,8 @@ async function renderData(root, monthKey, message = '') {
     for (const row of Array.isArray(attendanceRows) ? attendanceRows : []) {
       const id = employeeId(row);
       if (!recordCounts.has(id) || recordMonthKey(row) !== monthKey) continue;
+      const generationKind = text(row?.generationKind || row?.generation_kind);
+      if (generationKind === 'travel_time_cancellation') continue;
       recordCounts.set(id, (recordCounts.get(id) || 0) + 1);
     }
     root.__adminAttendanceContext = { employees, workflowByEmployee, finalByEmployee, recordCounts, monthKey };
