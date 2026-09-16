@@ -41,7 +41,23 @@ jobs:
         run: node --test tests/api-undated-activities.test.mjs
 
       - name: Test attendance control regression suite
-        run: node --test --test-name-pattern='^(?!SharePoint payroll PDF uses the mapped personal folder, payroll subfolder, and reporting month$)(?!employee month submit action stores the employee name and uses the final submit label$).*' tests/attendance-control.test.mjs
+        id: attendance-regression
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          node --test --test-name-pattern='^(?!SharePoint payroll PDF uses the mapped personal folder, payroll subfolder, and reporting month$)(?!employee month submit action stores the employee name and uses the final submit label$).*' tests/attendance-control.test.mjs 2>&1 | tee attendance-control-test-output.txt
+
+      - name: Upload attendance regression diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: attendance-control-test-output
+          path: attendance-control-test-output.txt
+
+      - name: Fail on attendance regression
+        if: steps.attendance-regression.outcome == 'failure'
+        run: exit 1
 
       - name: Build dashboard
         run: npm run build
