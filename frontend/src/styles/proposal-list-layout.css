@@ -1,0 +1,10 @@
+/* Proposal list layout: keep the primary tabs visually separate from list controls. */
+#app .ds-pa-screen[data-pa-view-mode="all-proposals"] [data-pa-screen-tabs]:not([hidden]) {
+  margin-block-end: 14px;
+}
+
+@media (max-width: 640px) {
+  #app .ds-pa-screen[data-pa-view-mode="all-proposals"] [data-pa-screen-tabs]:not([hidden]) {
+    margin-block-end: 10px;
+  }
+}

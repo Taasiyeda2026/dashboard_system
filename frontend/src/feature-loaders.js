@@ -93,6 +93,7 @@ export function ensureFeature(name) {
     case 'proposals':
       return loadOnce('proposals', async () => {
         await Promise.all([
+          import('./styles/proposal-list-layout.css'),
           import('./styles/proposal-editor-compact-fixes.css'),
           import('./proposal-pdf-svg-origin-clean.js'),
           import('./proposal-pdf-storage-key-hotfix.js'),
