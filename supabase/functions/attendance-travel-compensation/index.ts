@@ -54,6 +54,18 @@ async function route(db: any, origin: string, destination: string, key: string) 
   return calculated;
 }
 
+function routeAudit(context: Record<string, unknown>) {
+  return {
+    route_origin_label: context.origin_label,
+    route_origin_address: context.origin_address,
+    route_destination_label: context.destination_label,
+    route_destination_address: context.destination_address,
+    return_to_home: context.return_to_home === true,
+    return_destination_label: context.return_destination_label,
+    return_destination_address: context.return_destination_address
+  };
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   if (req.method !== 'POST') return response({ error: 'method_not_allowed' }, 405);
@@ -79,7 +91,8 @@ Deno.serve(async (req) => {
   if (contextError) return response({ error: text(contextError.message).includes('locked') ? 'attendance_month_locked' : 'attendance_context_invalid' }, 403);
   if (!context?.eligible) return response({ eligible: false, status: 'not_applicable' });
   if (context.context_changed === false && context.calculation_status === 'resolved') {
-    return response({ eligible: true, status: 'resolved', outbound_travel_minutes: context.outbound_travel_minutes,
+    return response({ eligible: true, status: 'resolved', ...routeAudit(context),
+      outbound_travel_minutes: context.outbound_travel_minutes,
       return_travel_minutes: context.return_travel_minutes,
       calculated_cancellation_minutes: context.calculated_cancellation_minutes,
       final_cancellation_minutes: context.final_cancellation_minutes,
@@ -88,24 +101,27 @@ Deno.serve(async (req) => {
   if (context.context_error) {
     await db.rpc('av2_reconcile_attendance_travel', { p_source_id: sourceId, p_fingerprint: context.fingerprint,
       p_outbound: null, p_return: null, p_failure_code: context.context_error });
-    return response({ eligible: true, status: 'unavailable', failure_code: context.context_error }, 422);
+    return response({ eligible: true, status: 'unavailable', ...routeAudit(context), failure_code: context.context_error }, 422);
   }
   if (!googleKey) {
     await db.rpc('av2_reconcile_attendance_travel', { p_source_id: sourceId, p_fingerprint: context.fingerprint,
       p_outbound: null, p_return: null, p_failure_code: 'google_key_not_configured' });
-    return response({ eligible: true, status: 'unavailable', failure_code: 'google_key_not_configured' }, 503);
+    return response({ eligible: true, status: 'unavailable', ...routeAudit(context), failure_code: 'google_key_not_configured' }, 503);
   }
   try {
-    const [outbound, returning] = await Promise.all([
-      route(db, context.origin_address, context.destination_address, googleKey),
-      route(db, context.destination_address, context.origin_address, googleKey)
-    ]);
+    const outboundPromise = route(db, text(context.origin_address), text(context.destination_address), googleKey);
+    const returnToHome = context.return_to_home === true;
+    const returnPromise = returnToHome
+      ? route(db, text(context.destination_address), text(context.return_destination_address), googleKey)
+      : Promise.resolve({ distance_km: 0, duration_minutes: 0 });
+    const [outbound, returning] = await Promise.all([outboundPromise, returnPromise]);
     const { data, error } = await db.rpc('av2_reconcile_attendance_travel', {
       p_source_id: sourceId, p_fingerprint: context.fingerprint,
       p_outbound: outbound.duration_minutes, p_return: returning.duration_minutes, p_failure_code: null
     });
     if (error) throw new Error('reconcile_failed');
-    return response({ eligible: true, status: 'resolved', outbound_travel_minutes: outbound.duration_minutes,
+    return response({ eligible: true, status: 'resolved', ...routeAudit(context),
+      outbound_travel_minutes: outbound.duration_minutes,
       return_travel_minutes: returning.duration_minutes,
       calculated_cancellation_minutes: cancellationMinutes(outbound.duration_minutes, returning.duration_minutes),
       final_cancellation_minutes: data?.final_cancellation_minutes,
@@ -115,6 +131,6 @@ Deno.serve(async (req) => {
       ? text((error as Error).message) : 'route_service_unavailable';
     await db.rpc('av2_reconcile_attendance_travel', { p_source_id: sourceId, p_fingerprint: context.fingerprint,
       p_outbound: null, p_return: null, p_failure_code: reason });
-    return response({ eligible: true, status: 'unavailable', failure_code: reason }, 503);
+    return response({ eligible: true, status: 'unavailable', ...routeAudit(context), failure_code: reason }, 503);
   }
 });
