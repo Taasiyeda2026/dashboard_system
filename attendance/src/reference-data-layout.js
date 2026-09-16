@@ -130,7 +130,7 @@ function installStyles() {
       .av2-reference-reports-table__row,
       .av2-reference-reports-table__total {
         display: grid;
-        grid-template-columns: repeat(9, minmax(0, 1fr));
+        grid-template-columns: .8fr .7fr .7fr .7fr .78fr 1.35fr 1.05fr .95fr .55fr .9fr;
         align-items: center;
       }
       .av2-reference-reports-table__head {
@@ -301,10 +301,11 @@ function extractReportRow(row) {
   const date = String(row.dataset.reportDate || text(row.querySelector('.av2-rr__date strong')) || '—');
   const dayTotal = text(row.querySelector('.av2-rr__day-total'));
   return {
-    date: dayTotal ? `${date} · ${dayTotal}` : date,
+    date,
     start: text(row.querySelector('.av2-rr__start')) || '—',
     end: text(row.querySelector('.av2-rr__end')) || '—',
     hours: durationHoursFrom(text(row.querySelector('.av2-rr__hours'))),
+    dayTotal,
     activity: text(row.querySelector('.av2-rr__name')) || '—',
     school: text(row.querySelector('.av2-rr__school')) || '—',
     authority: text(row.querySelector('.av2-rr__authority')) || '—',
@@ -313,10 +314,11 @@ function extractReportRow(row) {
   };
 }
 
-function buildCell(value, className = '') {
+function buildCell(value, className = '', title = '') {
   const cell = document.createElement('span');
   if (className) cell.className = className;
   cell.textContent = value;
+  if (title) cell.title = title;
   return cell;
 }
 
@@ -354,7 +356,7 @@ function enhanceReportsTable() {
 
   const head = document.createElement('div');
   head.className = 'av2-reference-reports-table__head';
-  ['תאריך', 'שעת התחלה', 'שעת סיום', 'סה״כ שעות', 'פעילות', 'בית ספר', 'רשות', 'ק״מ', 'פעולות'].forEach((label) => head.append(buildCell(label)));
+  ['תאריך', 'שעת התחלה', 'שעת סיום', 'סה״כ שעות', 'סה״כ יומי', 'פעילות', 'בית ספר', 'רשות', 'ק״מ', 'פעולות'].forEach((label) => head.append(buildCell(label)));
   table.append(head);
 
   let totalHours = 0;
@@ -369,7 +371,8 @@ function enhanceReportsTable() {
       buildCell(item.start),
       buildCell(item.end),
       buildCell(formatDurationHours(item.hours), 'av2-reference-reports-table__hours'),
-      buildCell(item.activity),
+      buildCell(item.dayTotal, 'av2-reference-reports-table__daily-total'),
+      buildCell(item.activity, '', item.activity),
       buildCell(item.school),
       buildCell(item.authority),
       buildCell(item.km.toFixed(1)),
@@ -385,6 +388,7 @@ function enhanceReportsTable() {
     buildCell(''),
     buildCell(''),
     buildCell(formatDurationHours(totalHours), 'is-total'),
+    buildCell(''),
     buildCell(''),
     buildCell(''),
     buildCell(''),

@@ -153,8 +153,8 @@
 .av2-report-list__head,
 .av2-report-row {
   display: grid;
-  grid-template-columns: 72px 60px 60px 68px 82px minmax(170px, 1.55fr) minmax(145px, 1.25fr) minmax(135px, 1.15fr) 46px 48px 100px;
-  min-width: 1040px;
+  grid-template-columns: 72px 56px 56px 64px 72px 76px minmax(145px, 1.35fr) minmax(135px, 1.2fr) minmax(125px, 1.1fr) 44px 46px 100px;
+  min-width: 1080px;
   align-items: center;
   gap: 0 8px;
 }
@@ -179,13 +179,14 @@
 .av2-report-list__head span:nth-child(2)::after { content: 'שעת התחלה'; }
 .av2-report-list__head span:nth-child(3)::after { content: 'שעת סיום'; }
 .av2-report-list__head span:nth-child(4)::after { content: 'סה״כ שעות'; }
-.av2-report-list__head span:nth-child(5)::after { content: 'פעילות'; }
-.av2-report-list__head span:nth-child(6)::after { content: 'שם הפעילות'; }
-.av2-report-list__head span:nth-child(7)::after { content: 'בית ספר'; }
-.av2-report-list__head span:nth-child(8)::after { content: 'רשות'; }
-.av2-report-list__head span:nth-child(9)::after { content: 'ק״מ'; }
-.av2-report-list__head span:nth-child(10)::after { content: 'הוצאות'; }
-.av2-report-list__head span:nth-child(11)::after { content: 'פעולות'; }
+.av2-report-list__head span:nth-child(5)::after { content: 'סה״כ יומי'; }
+.av2-report-list__head span:nth-child(6)::after { content: 'פעילות'; }
+.av2-report-list__head span:nth-child(7)::after { content: 'שם הפעילות'; }
+.av2-report-list__head span:nth-child(8)::after { content: 'בית ספר'; }
+.av2-report-list__head span:nth-child(9)::after { content: 'רשות'; }
+.av2-report-list__head span:nth-child(10)::after { content: 'ק״מ'; }
+.av2-report-list__head span:nth-child(11)::after { content: 'הוצאות'; }
+.av2-report-list__head span:nth-child(12)::after { content: 'פעולות'; }
 
 .av2-report-row {
   padding: 10px 12px;
@@ -202,9 +203,11 @@
 .av2-rr__start,
 .av2-rr__end,
 .av2-rr__hours,
+.av2-rr__day-total,
 .av2-rr__km,
 .av2-rr__expenses { font-size: 0.72rem; color: var(--av2-color-text); }
 .av2-rr__hours,
+.av2-rr__day-total,
 .av2-rr__km,
 .av2-rr__expenses { font-variant-numeric: tabular-nums; }
 .av2-rr__expense-indicator { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: #9a6700; cursor: pointer; }
@@ -295,7 +298,7 @@
   .av2-cal__day-num { min-width: 22px; height: 22px; font-size: 0.68rem; }
   .av2-cal__presence-dot { width: 5px; height: 5px; flex-basis: 5px; }
   .av2-report-list__head,
-  .av2-report-row { min-width: 1040px; }
+  .av2-report-row { min-width: 1080px; }
 }
 
 /* Monthly summary cards: only rendered for metrics that actually exist. */
@@ -335,13 +338,7 @@
 .av2-reports__summary-card--hours { background: linear-gradient(180deg, #fff 0%, #fbfcff 100%); }
 .av2-reports__summary-card--kilometers { background: linear-gradient(180deg, #fff 0%, #f8fdfb 100%); }
 .av2-reports__summary-card--expenses { background: linear-gradient(180deg, #fff 0%, #fffdf8 100%); }
-.av2-rr__day-total {
-  margin-top: 3px;
-  color: var(--av2-color-accent) !important;
-  font-size: .58rem !important;
-  font-weight: 750;
-  white-space: nowrap;
-}
+.av2-rr__day-total { color: var(--av2-color-accent) !important; font-weight: 750; white-space: nowrap; }
 @media (max-width: 767px) {
   .av2-reports__summary-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
