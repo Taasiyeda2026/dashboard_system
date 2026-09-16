@@ -114,4 +114,3 @@ test('generated cancellation review is compact and does not show irrelevant zero
   assert.doesNotMatch(html, /<th>הוצאות<\/th>/);
   assert.doesNotMatch(html, /מקיף אבו גוש \| אבו גוש/);
 });
-
