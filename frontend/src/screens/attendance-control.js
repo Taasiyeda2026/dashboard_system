@@ -744,6 +744,84 @@ export function applyAttendanceManualCorrection(entry, changes = {}) {
   return entry;
 }
 
+export function isAttendanceTravelTimeCancellation(entryOrRow = {}) {
+  const row = entryOrRow?.attendance || entryOrRow?.final || entryOrRow;
+  const source = row?._source || entryOrRow?._source || {};
+  return txt(source.generationKind || row?.generationKind) === 'travel_time_cancellation';
+}
+
+function entryHasOpenNonTravelGaps(entry) {
+  if (!entry) return false;
+  if (entry.unmatched || entry.source === 'attendance_not_compared') return true;
+  if (entry.dashboard?.payrollHoursRequireReview) return true;
+  if ((entry.differences || []).some((diff) => !diff.decided)) return true;
+  if (hasReviewExpense(entry.attendance) && entry.managerResolved !== 'approved_as_reported' && entry.managerResolved !== 'corrected') {
+    return true;
+  }
+  return false;
+}
+
+function travelFieldsEqual(left = {}, right = {}) {
+  return asBoolean(left.publicTransport) === asBoolean(right.publicTransport)
+    && (optionalNumber(left.publicTransportCost) ?? 0) === (optionalNumber(right.publicTransportCost) ?? 0)
+    && (optionalNumber(left.kilometers) ?? 0) === (optionalNumber(right.kilometers) ?? 0);
+}
+
+/**
+ * Travel-only correction: updates final PT/km without auto-resolving other open gaps.
+ * No-op when values are unchanged or the row is a generated travel_time_cancellation.
+ */
+export function applyAttendanceTravelCorrection(entry, changes = {}) {
+  if (!entry?.attendance) return { entry, changed: false };
+  if (isAttendanceTravelTimeCancellation(entry)) return { entry, changed: false };
+
+  const base = { ...(entry.final || entry.attendance) };
+  const nextTravel = enforceAttendanceTravelMode({
+    ...base,
+    publicTransport: changes.publicTransport,
+    publicTransportCost: changes.publicTransportCost,
+    kilometers: changes.kilometers
+  });
+  if (travelFieldsEqual(base, nextTravel)) return { entry, changed: false };
+
+  entry.final = {
+    ...base,
+    publicTransport: nextTravel.publicTransport,
+    publicTransportCost: nextTravel.publicTransportCost,
+    kilometers: nextTravel.kilometers
+  };
+
+  if (entryHasOpenNonTravelGaps(entry)) {
+    if (entry.managerResolved === 'auto_ok' || entry.managerResolved === 'approved_as_reported' || entry.managerResolved === 'corrected') {
+      entry.managerResolved = null;
+    }
+  } else {
+    entry.managerResolved = 'corrected';
+  }
+  return { entry, changed: true };
+}
+
+/** Recompute daily reported km from entry finals after a travel edit; clear stale day decisions. */
+export function refreshDailyKilometersAfterTravelChange(result, employeeId, date) {
+  const id = txt(employeeId);
+  const day = (result?.dailyKilometers || []).find((item) => txt(item.employeeId) === id && item.date === date);
+  if (!day) return day;
+  const entries = [...(result?.comparisons || []), ...(result?.notCompared || [])]
+    .filter((entry) => txt(entry.attendance?.employeeId) === id && entry.attendance?.date === date);
+  const reported = Math.round(entries.reduce((sum, entry) => {
+    const row = entry.final || entry.attendance || {};
+    return sum + (optionalNumber(row.kilometers) || 0);
+  }, 0) * 100) / 100;
+  const hasReportedKm = entries.some((entry) => optionalNumber((entry.final || entry.attendance || {}).kilometers) != null);
+  day.reported = reported;
+  day.hasReportedKm = hasReportedKm;
+  day.matches = day.calculated != null && (!hasReportedKm || Math.abs(reported - day.calculated) <= DAILY_KM_TOLERANCE);
+  const kmIssue = day.calculated == null ? Boolean(hasReportedKm) : (hasReportedKm !== false && !day.matches);
+  day.managerResolved = kmIssue ? null : 'auto_ok';
+  if (Object.prototype.hasOwnProperty.call(day, 'correctedKm')) delete day.correctedKm;
+  return day;
+}
+
 function dashboardBundle(rows) {
   const ordered = [...rows].sort((a, b) => timeText(a.startTime).localeCompare(timeText(b.startTime)));
   const unique = (key) => [...new Set(ordered.map((row) => txt(row[key])).filter(Boolean))];
@@ -1184,8 +1262,18 @@ export function attendanceAuditSummary(result) {
   };
 }
 
+export function filterAttendanceControlScopeRows(rows = [], { selectedTeam = '', selectedInstructor = '' } = {}) {
+  const instructorId = txt(selectedInstructor);
+  return (rows || [])
+    .filter((row) => {
+      if (selectedTeam === '__all__') return true;
+      return txt(row.team) === txt(selectedTeam);
+    })
+    .filter((row) => !instructorId || txt(row.employeeId) === instructorId);
+}
+
 export function attendanceControlHtml() {
-  return `<section class="attendance-control no-print" data-attendance-control hidden dir="rtl"><div class="attendance-control__head"><div><h2 data-attendance-title>בקרת נוכחות</h2></div><button type="button" class="ds-btn ds-btn--sm" data-attendance-close>סגירה</button></div><div class="attendance-control__uploads"><label><strong>חודש בקרה</strong><span>בחר חודש</span><input class="ds-input" type="month" data-attendance-month></label><label><strong>צוות</strong><select class="ds-input" data-attendance-team disabled><option value="">טוען צוותים…</option></select></label><button type="button" class="ds-btn ds-btn--primary" data-attendance-run disabled>אישור בקרת נוכחות</button></div><p class="attendance-control__status" data-attendance-status aria-live="polite"></p><div data-attendance-results></div></section>`;
+  return `<section class="attendance-control no-print" data-attendance-control hidden dir="rtl"><div class="attendance-control__head"><div><h2 data-attendance-title>בקרת נוכחות</h2></div><button type="button" class="ds-btn ds-btn--sm" data-attendance-close>סגירה</button></div><div class="attendance-control__uploads"><label><strong>חודש בקרה</strong><span>בחר חודש</span><input class="ds-input" type="month" data-attendance-month></label><label><strong>צוות</strong><select class="ds-input" data-attendance-team disabled><option value="">טוען צוותים…</option></select></label><label data-attendance-instructor-wrap hidden><strong>מדריך</strong><select class="ds-input" data-attendance-instructor disabled><option value="">כל המדריכים</option></select></label><button type="button" class="ds-btn ds-btn--primary" data-attendance-run disabled>אישור בקרת נוכחות</button></div><p class="attendance-control__status" data-attendance-status aria-live="polite"></p><div data-attendance-results></div></section>`;
 }
 
 export function attendanceControlStylesHtml() {
@@ -1254,20 +1342,21 @@ export function resultsHtml(result, month = '', options = {}) {
   };
   const managerActionsHtml = (entry) => {
     const resolvedLabel = entryResolvedLabel(entry);
-    if (resolvedLabel) return `<p class="attendance-control__resolved-note">${escapeHtml(resolvedLabel)}</p>`;
-    const needsHoursFix = entry.unmatched || entry.source === 'attendance_not_compared' || entry.dashboard?.payrollHoursRequireReview;
+    const cancellation = isAttendanceTravelTimeCancellation(entry);
+    const needsHoursFix = !resolvedLabel && (entry.unmatched || entry.source === 'attendance_not_compared' || entry.dashboard?.payrollHoursRequireReview);
     const current = entry.final || entry.attendance || {};
     const usesPublicTransport = asBoolean(current.publicTransport);
-    return `<div class="attendance-control__manager-actions">
-      <button type="button" class="ds-btn ds-btn--sm" data-attendance-approve-reported="${escapeHtml(entry.id)}">אשר כפי שדווח</button>
-      ${needsHoursFix ? `<input class="ds-input ds-input--sm" data-attendance-correct-hours="${escapeHtml(entry.id)}" placeholder="שעות שכר מתוקנות" aria-label="שעות שכר מתוקנות"><button type="button" class="ds-btn ds-btn--sm" data-attendance-save-correction="${escapeHtml(entry.id)}">שמור תיקון</button>` : ''}
-      <div class="attendance-control__travel-edit" data-attendance-travel-edit="${escapeHtml(entry.id)}">
+    const resolveBlock = resolvedLabel
+      ? `<p class="attendance-control__resolved-note">${escapeHtml(resolvedLabel)}</p>`
+      : `<button type="button" class="ds-btn ds-btn--sm" data-attendance-approve-reported="${escapeHtml(entry.id)}">אשר כפי שדווח</button>
+      ${needsHoursFix ? `<input class="ds-input ds-input--sm" data-attendance-correct-hours="${escapeHtml(entry.id)}" placeholder="שעות שכר מתוקנות" aria-label="שעות שכר מתוקנות"><button type="button" class="ds-btn ds-btn--sm" data-attendance-save-correction="${escapeHtml(entry.id)}">שמור תיקון</button>` : ''}`;
+    const travelEditor = cancellation ? '' : `<div class="attendance-control__travel-edit" data-attendance-travel-edit="${escapeHtml(entry.id)}">
         <label><input type="checkbox" data-attendance-correct-pt="${escapeHtml(entry.id)}"${usesPublicTransport ? ' checked' : ''}> תחבורה ציבורית</label>
         <input class="ds-input ds-input--sm" data-attendance-correct-pt-cost="${escapeHtml(entry.id)}" type="number" min="0" step="0.01" placeholder="עלות תחבורה" aria-label="עלות תחבורה ציבורית" value="${usesPublicTransport && optionalNumber(current.publicTransportCost) != null ? escapeHtml(String(current.publicTransportCost)) : ''}"${usesPublicTransport ? '' : ' disabled'}>
         <input class="ds-input ds-input--sm" data-attendance-correct-km="${escapeHtml(entry.id)}" type="number" min="0" step="1" placeholder="ק״מ" aria-label="קילומטרים" value="${!usesPublicTransport && optionalNumber(current.kilometers) != null ? escapeHtml(String(current.kilometers)) : ''}"${usesPublicTransport ? ' disabled' : ''}>
         <button type="button" class="ds-btn ds-btn--sm" data-attendance-save-travel="${escapeHtml(entry.id)}">שמור תיקון נסיעה</button>
-      </div>
-    </div>`;
+      </div>`;
+    return `<div class="attendance-control__manager-actions">${resolveBlock}${travelEditor}</div>`;
   };
   const attachmentsHtml = (row) => {
     const attachments = normalizeAttendanceAttachments(row?.attachments || row?._source?.attachments, row?.attachmentsNames || row?._source?.attachmentsNames);
@@ -1283,24 +1372,27 @@ export function resultsHtml(result, month = '', options = {}) {
     const fields = [activityTypeDisplayLabel(row.activityType), row.program, row.school, row.authority, hasValue(row.meetingNo) ? `מפגש ${row.meetingNo}` : ''].filter(hasValue);
     return fields.length ? `<div class="attendance-control__identity">${fields.map(shown).join(' | ')}</div>` : '';
   };
-  const manualReportTable = (row, { cancellation = false } = {}) => {
-    const source = row?._source || {};
-    const autoCancellation = source.generationKind === 'travel_time_cancellation';
+  const manualReportTable = (row, { cancellation = false, entry = null } = {}) => {
+    const display = entry?.final || row;
+    const source = row?._source || display?._source || {};
+    const autoCancellation = source.generationKind === 'travel_time_cancellation'
+      || isAttendanceTravelTimeCancellation(entry || row);
     const minutesLabel = (value) => `${Math.floor((Number(value) || 0) / 60)}:${String((Number(value) || 0) % 60).padStart(2, '0')}`;
     const fields = [
-      ['שעות שכר', displayWorkHours(row)],
-      ['ק״מ', asBoolean(row.publicTransport) ? '0 (תחבורה ציבורית)' : row.kilometers],
-      ['תחבורה ציבורית', asBoolean(row.publicTransport) ? 'כן' : (hasValue(row.publicTransportCost) || hasValue(row.kilometers) ? 'לא' : '')],
-      ['עלות תחבורה ציבורית', asBoolean(row.publicTransport) ? row.publicTransportCost : ''],
-      ['הוצאות', row.expenses],
-      ['פירוט הוצאה', row.expenseDetails], ['הערות', row.notes]
+      ['שעות שכר', displayWorkHours(display)],
+      ['ק״מ', asBoolean(display.publicTransport) ? '0 (תחבורה ציבורית)' : display.kilometers],
+      ['תחבורה ציבורית', asBoolean(display.publicTransport) ? 'כן' : (hasValue(display.publicTransportCost) || hasValue(display.kilometers) ? 'לא' : '')],
+      ['עלות תחבורה ציבורית', asBoolean(display.publicTransport) ? display.publicTransportCost : ''],
+      ['הוצאות', display.expenses],
+      ['פירוט הוצאה', display.expenseDetails], ['הערות', display.notes]
     ].filter(([, value]) => hasValue(value));
     const autoAudit = autoCancellation ? `<div class="attendance-control__manual-note" title="${escapeHtml(source.overrideByName ? `נערך על ידי ${source.overrideByName}${source.overrideAt ? ` · ${source.overrideAt}` : ''}` : '')}"><strong>ביטול זמן: ${escapeHtml(minutesLabel(source.finalCancellationMinutes))}</strong>${source.manuallyOverridden ? `<br>נערך ידנית<br>מחושב במקור: ${escapeHtml(minutesLabel(source.calculatedCancellationMinutes))}` : '<br>מחושב אוטומטית לפי זמן הנסיעה'}</div>` : '';
     const note = cancellation && !autoCancellation ? '<p class="attendance-control__manual-note">נשמר ברצף יום העבודה</p>' : autoAudit;
-    return `${note}<table class="attendance-control__comparison-table attendance-control__manual-table"><tbody>${fields.map(([label, value]) => `<tr><th>${label}</th><td>${shown(value)}</td></tr>`).join('')}</tbody></table>${attachmentsHtml(row)}`;
+    return `${note}<table class="attendance-control__comparison-table attendance-control__manual-table"><tbody>${fields.map(([label, value]) => `<tr><th>${label}</th><td>${shown(value)}</td></tr>`).join('')}</tbody></table>${attachmentsHtml(display)}`;
   };
   const comparisonTable = (comparison) => {
     const attendance = comparison.attendance || {};
+    const current = comparison.final || attendance;
     const dashboard = comparison.dashboard || null;
     const diffByKey = new Map((comparison.differences || []).map((diff) => [diff.key, diff]));
     const payrollReview = dashboard?.payrollHoursRequireReview;
@@ -1314,18 +1406,19 @@ export function resultsHtml(result, month = '', options = {}) {
       ['school', 'בית ספר', attendance.school, dashboard?.school],
       ['program', 'שם תכנית', attendance.program, dashboard?.program],
       ['expenses', 'הוצאות', attendance.expenses, dashboard?.expenses], ['meetingNo', 'מספר מפגש', attendance.meetingNo, dashboard?.meetingNo],
-      ['publicTransport', 'תחבורה ציבורית', asBoolean(attendance.publicTransport) ? 'כן' : (hasValue(attendance.publicTransportCost) || hasValue(attendance.kilometers) ? 'לא' : ''), null],
-      ['publicTransportCost', 'עלות תחבורה ציבורית', asBoolean(attendance.publicTransport) ? attendance.publicTransportCost : '', null]
+      ['publicTransport', 'תחבורה ציבורית', asBoolean(current.publicTransport) ? 'כן' : (hasValue(current.publicTransportCost) || hasValue(current.kilometers) ? 'לא' : ''), null],
+      ['publicTransportCost', 'עלות תחבורה ציבורית', asBoolean(current.publicTransport) ? current.publicTransportCost : '', null],
+      ['kilometers', 'קילומטרים', asBoolean(current.publicTransport) ? '0 (תחבורה ציבורית)' : current.kilometers, null]
     ];
-    const rows = definitions.filter(([key, , left, right]) => ['workHours', 'activityType', 'activityHours', 'publicTransport', 'publicTransportCost'].includes(key) || hasValue(left) || hasValue(right)).map(([key, label, left, right]) => {
+    const rows = definitions.filter(([key, , left, right]) => ['workHours', 'activityType', 'activityHours', 'publicTransport', 'publicTransportCost', 'kilometers'].includes(key) || hasValue(left) || hasValue(right)).map(([key, label, left, right]) => {
       const related = key === 'activityHours' ? ['startTime', 'endTime'].map((field) => diffByKey.get(field)).find(Boolean) : diffByKey.get(key);
       const issue = Boolean(related) || (key === 'workHours' && payrollReview) || (key === 'expenses' && hasReviewExpense(attendance));
-      const unavailable = !dashboard && !['publicTransport', 'publicTransportCost'].includes(key);
+      const unavailable = !dashboard && !['publicTransport', 'publicTransportCost', 'kilometers'].includes(key);
       const controls = related && !unavailable ? `<select class="ds-input ds-input--sm" data-attendance-choice aria-label="החלטה עבור ${escapeHtml(label)}"><option value="attendance">נתון הנוכחות</option><option value="dashboard">נתון הדשבורד</option><option value="custom">ערך אחר</option></select><input class="ds-input ds-input--sm" data-attendance-custom hidden aria-label="ערך אחר">` : '';
       const status = unavailable ? '⚠ לא נמצאה פעילות תואמת' : issue ? '⚠ לבדיקה' : 'תקין';
-      return `<tr${related ? ` data-comparison="${comparison.id}" data-field="${related.key}"` : ''}><th>${escapeHtml(label)}</th><td>${shown(left)}</td><td class="${issue || unavailable ? 'attendance-control__field-value--issue' : ''}">${unavailable ? 'לא נמצאה התאמה' : (right == null && ['publicTransport', 'publicTransportCost'].includes(key) ? '—' : shown(right))}${key === 'workHours' ? dashboardWorkHoursHelp : ''}</td><td class="attendance-control__row-status ${issue || unavailable ? 'attendance-control__row-status--issue' : ''}">${status}${controls}</td></tr>`;
+      return `<tr${related ? ` data-comparison="${comparison.id}" data-field="${related.key}"` : ''}><th>${escapeHtml(label)}</th><td>${shown(left)}</td><td class="${issue || unavailable ? 'attendance-control__field-value--issue' : ''}">${unavailable ? 'לא נמצאה התאמה' : (right == null && ['publicTransport', 'publicTransportCost', 'kilometers'].includes(key) ? '—' : shown(right))}${key === 'workHours' ? dashboardWorkHoursHelp : ''}</td><td class="attendance-control__row-status ${issue || unavailable ? 'attendance-control__row-status--issue' : ''}">${status}${controls}</td></tr>`;
     }).join('');
-    return `${managerActionsHtml(comparison)}<table class="attendance-control__comparison-table"><thead><tr><th>נתון</th><th>נוכחות</th><th>דשבורד / בקרה</th><th>סטטוס</th></tr></thead><tbody>${rows}</tbody></table>${attachmentsHtml(attendance)}`;
+    return `${managerActionsHtml(comparison)}<table class="attendance-control__comparison-table"><thead><tr><th>נתון</th><th>נוכחות</th><th>דשבורד / בקרה</th><th>סטטוס</th></tr></thead><tbody>${rows}</tbody></table>${attachmentsHtml(current)}`;
   };
   const reportHtml = ({ kind, item, employeeId, date }) => {
     const row = kind === 'dashboard' ? item.dashboard : item.attendance;
@@ -1333,8 +1426,8 @@ export function resultsHtml(result, month = '', options = {}) {
     const ok = !issue;
     const timelineStatus = ok ? '<span class="attendance-control__row-status">✓ תקין</span>' : (kind === 'comparison' && item.unmatched ? '<span class="attendance-control__row-status attendance-control__row-status--issue">⚠ לא נמצאה פעילות תואמת</span>' : '');
     const table = kind === 'comparison'
-      ? (item.unmatched ? `${managerActionsHtml(item)}${manualReportTable(row)}` : comparisonTable(item))
-      : `${managerActionsHtml(item)}${manualReportTable(row, { cancellation: isAttendanceOnlyActivityType(row.activityType) })}`;
+      ? (item.unmatched ? `${managerActionsHtml(item)}${manualReportTable(row, { entry: item })}` : comparisonTable(item))
+      : `${managerActionsHtml(item)}${manualReportTable(row, { cancellation: isAttendanceOnlyActivityType(row.activityType), entry: item })}`;
     const missingMatch = kind === 'comparison' && item.unmatched ? '<p class="attendance-control__missing-match">לא נמצאה פעילות תואמת בדשבורד</p>' : '';
     const manualStatus = kind === 'attendance' && issue ? '<span class="attendance-control__row-status attendance-control__row-status--issue">⚠ לבדיקה</span>' : '';
     return `<section class="attendance-control__report"><div class="attendance-control__report-line"><strong>${shown(`${row.startTime || '—'}–${row.endTime || '—'} | ${activityTypeDisplayLabel(row.activityType) || 'דיווח'}`)}</strong>${timelineStatus}${manualStatus}</div>${identityHtml(row)}${dayKmLineForReport(employeeId, date)}${missingMatch}${table}</section>`;
@@ -1410,12 +1503,35 @@ function openAttendanceControlWindow(api, state) {
 export function bindAttendanceControl(root, { api, state = {}, standalone = false } = {}) {
   const panel = root?.querySelector('[data-attendance-control]'); if (!panel) return;
   const monthInput = panel.querySelector('[data-attendance-month]');
-  const teamInput = panel.querySelector('[data-attendance-team]'); const title = panel.querySelector('[data-attendance-title]');
+  const teamInput = panel.querySelector('[data-attendance-team]');
+  const instructorWrap = panel.querySelector('[data-attendance-instructor-wrap]');
+  const instructorInput = panel.querySelector('[data-attendance-instructor]');
+  const title = panel.querySelector('[data-attendance-title]');
   const run = panel.querySelector('[data-attendance-run]'); const status = panel.querySelector('[data-attendance-status]'); const results = panel.querySelector('[data-attendance-results]');
   let result = null; let employees = null; let teamIds = []; let approvalsByEmployee = {}; let workflowByEmployee = {};
   const role = txt(state?.user?.role || state?.user?.display_role).toLowerCase();
   const isManager = ['manager', 'instructor_manager', 'activities_manager'].includes(role);
   const canChooseTeam = ['operations_controller', 'system_admin', 'operation_manager', 'admin'].includes(role);
+  const fillInstructorOptions = (selectedTeam) => {
+    if (!instructorInput) return;
+    const rows = (employees || []).filter((employee) => {
+      const team = lookupText(employee.team || employee.Team);
+      if (!selectedTeam || selectedTeam === '__all__') return Boolean(team);
+      return team === selectedTeam;
+    });
+    const seen = new Set();
+    const options = [];
+    for (const employee of rows) {
+      const id = txt(employee.employeeId || employee.EmployeeId || employee.ID);
+      const name = txt(employee.employeeName || employee.EmployeeName || employee.Title || employee.empName) || id;
+      if (!id || seen.has(id)) continue;
+      seen.add(id);
+      options.push({ id, name });
+    }
+    options.sort((a, b) => a.name.localeCompare(b.name, 'he'));
+    instructorInput.innerHTML = `<option value="">כל המדריכים</option>${options.map((item) => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.name)}</option>`).join('')}`;
+    instructorInput.value = '';
+  };
   const paintResults = () => {
     // Save open state of employees, days and metrics before replacing innerHTML
     const openEmployees = new Set();
@@ -1488,7 +1604,12 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
     else done(window.confirm(`${finishMod.PAYROLL_APPROVAL_TEXT}\n\nמאשר/ת וחותם/ת?`));
   });
   const update = () => { run.disabled = !employees || !attendanceMonthLabel(monthInput.value) || !teamInput.value; };
-  monthInput.addEventListener('change', update); teamInput.addEventListener('change', update);
+  monthInput.addEventListener('change', update);
+  teamInput.addEventListener('change', () => {
+    if (canChooseTeam) fillInstructorOptions(teamInput.value);
+    update();
+  });
+  instructorInput?.addEventListener('change', update);
   root.querySelector('[data-attendance-open]')?.addEventListener('click', () => {
     try { openAttendanceControlWindow(api, state); } catch (error) { window.alert(error.message); }
   });
@@ -1502,7 +1623,7 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
       // Manager roster RPCs are already server-scoped by direct_manager and do not
       // include the manager as an employee row. Use returned teams as-is.
       const options = canChooseTeam
-        ? [{ id: '__all__', managerName: 'כל הצוותים' }, ...teams]
+        ? [{ id: '__all__', managerName: 'כל המערכת' }, ...teams]
         : teams;
       teamInput.innerHTML = `<option value="">בחר צוות</option>${options.map((team) => `<option value="${escapeHtml(team.id)}">${escapeHtml(team.managerName)}</option>`).join('')}`;
       if (isManager) {
@@ -1515,6 +1636,11 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
       } else {
         teamInput.disabled = !canChooseTeam;
       }
+      if (instructorWrap && instructorInput) {
+        instructorWrap.hidden = !canChooseTeam;
+        instructorInput.disabled = !canChooseTeam;
+        if (canChooseTeam) fillInstructorOptions(teamInput.value);
+      }
       status.textContent = options.length ? '' : 'לא נמצא צוות המשויך למשתמש המחובר.';
       update();
     }).catch(() => { status.textContent = 'טעינת נתוני מערכת הנוכחות נכשלה.'; });
@@ -1525,10 +1651,13 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
       const month = monthInput.value; const monthLabel = attendanceMonthLabel(month);
       if (!monthLabel) throw new Error('יש לבחור חודש לבדיקה לפני ביצוע הבדיקה.');
       const selectedTeam = teamInput.value;
+      const selectedInstructor = txt(instructorInput?.value);
       const { fromDate, toDate } = attendanceMonthDateRange(month);
       const records = await api.attendanceControlRecords({ fromDate, toDate });
-      const attendanceRows = filterAttendanceRowsByMonth(normalizeAttendanceApiRows(records), month)
-        .filter((row) => selectedTeam === '__all__' ? teamIds.includes(row.team) : row.team === selectedTeam);
+      const attendanceRows = filterAttendanceControlScopeRows(
+        filterAttendanceRowsByMonth(normalizeAttendanceApiRows(records), month),
+        { selectedTeam, selectedInstructor }
+      );
       if (!attendanceRows.length) throw new Error(`לא נמצאו דיווחי נוכחות עבור ${monthLabel}`);
       const dashboardRows = await loadAttendanceDashboardDataset(attendanceRows, api, month);
       result = compareAttendanceRows(attendanceRows, dashboardRows); result.month = month;
@@ -1596,19 +1725,28 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
     if (saveTravelBtn && result) {
       const entryId = saveTravelBtn.dataset.attendanceSaveTravel;
       const entry = findEntry(entryId);
+      if (!entry) return;
+      if (isAttendanceTravelTimeCancellation(entry)) {
+        status.textContent = 'לא ניתן לערוך נסיעה עבור רשומת ביטול זמן נסיעה.';
+        return;
+      }
       const usesPublicTransport = Boolean(results.querySelector(`[data-attendance-correct-pt="${CSS.escape(entryId)}"]`)?.checked);
       const cost = optionalNumber(results.querySelector(`[data-attendance-correct-pt-cost="${CSS.escape(entryId)}"]`)?.value);
       const km = optionalNumber(results.querySelector(`[data-attendance-correct-km="${CSS.escape(entryId)}"]`)?.value);
-      if (!entry) return;
       if (usesPublicTransport && km != null && km > 0) {
         status.textContent = 'לא ניתן לשמור גם קילומטרים וגם תחבורה ציבורית.';
         return;
       }
-      applyAttendanceManualCorrection(entry, {
+      const { changed } = applyAttendanceTravelCorrection(entry, {
         publicTransport: usesPublicTransport,
         publicTransportCost: usesPublicTransport ? (cost ?? 0) : 0,
         kilometers: usesPublicTransport ? 0 : (km ?? 0)
       });
+      if (!changed) {
+        status.textContent = 'לא בוצע שינוי בנתוני הנסיעה.';
+        return;
+      }
+      refreshDailyKilometersAfterTravelChange(result, entry.attendance?.employeeId, entry.attendance?.date);
       paintResults();
       status.textContent = '';
       return;

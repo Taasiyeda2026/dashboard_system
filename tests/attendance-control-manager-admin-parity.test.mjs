@@ -18,15 +18,27 @@ const { hasPermission } = await import('../frontend/src/permission-policy.js');
 const { ROLE_PERMISSION_TEMPLATES } = await import('../frontend/src/capability-registry.js');
 const {
   applyAttendanceManualCorrection,
+  applyAttendanceTravelCorrection,
   attendanceControlHtml,
+  attendanceEntryIsResolved,
   bindAttendanceControl,
   DETAIL_HEADERS,
   detailRowValues,
   enforceAttendanceTravelMode,
+  filterAttendanceControlScopeRows,
+  isAttendanceTravelTimeCancellation,
   normalizeAttendanceApiRows,
-  normalizeAttendanceAttachments
+  normalizeAttendanceAttachments,
+  refreshDailyKilometersAfterTravelChange,
+  resultsHtml
 } = await import('../frontend/src/screens/attendance-control.js');
-const { buildAttendanceUpdatePayload } = await import('../frontend/src/screens/payroll-control-finish.js');
+const {
+  buildAttendanceUpdatePayload,
+  buildPayrollApprovalPrintHtml,
+  buildPayrollApprovedSnapshot,
+  snapshotAttendanceRow
+} = await import('../frontend/src/screens/payroll-control-finish.js');
+const pdfHandlerSource = await readFile(new URL('../supabase/functions/payroll-attendance-pdf-dispatch/handler.ts', import.meta.url), 'utf8');
 
 const workspace = await readFile(new URL('../frontend/src/manager-board-workspace-runtime.js', import.meta.url), 'utf8');
 const adminStandalone = await readFile(new URL('../frontend/src/admin-attendance-standalone.js', import.meta.url), 'utf8');
@@ -363,4 +375,287 @@ test('payroll-control-launcher path auto-selects server-scoped team when manager
   monthInput.value = '2026-09';
   monthInput.dispatchEvent(new dom.window.Event('change'));
   assert.equal(run.disabled, false);
+});
+
+function baseTravelEntry(overrides = {}) {
+  const attendance = {
+    ID: 'rec-1',
+    employeeId: '1501',
+    employeeName: 'מדריך',
+    date: '2026-09-02',
+    startTime: '09:00',
+    endTime: '11:00',
+    workHours: 2,
+    activityType: 'קורס',
+    school: 'בי"ס א',
+    program: 'תכנית',
+    meetingNo: '1',
+    kilometers: 12,
+    publicTransport: false,
+    publicTransportCost: 0,
+    expenses: 0,
+    ...overrides.attendance
+  };
+  return {
+    id: 'row-1',
+    attendance,
+    final: { ...attendance },
+    dashboard: { school: 'בי"ס ב', program: 'תכנית', activityType: 'קורס', startTime: '09:00', endTime: '11:00', workHours: 2 },
+    differences: overrides.differences || [],
+    unmatched: false,
+    managerResolved: overrides.managerResolved ?? null,
+    ...overrides
+  };
+}
+
+test('travel correction leaves other open gaps unresolved', () => {
+  const entry = baseTravelEntry({
+    differences: [
+      { key: 'school', label: 'בית ספר', type: 'text', attendance: 'בי"ס א', dashboard: 'בי"ס ב', choice: 'attendance', decided: false }
+    ],
+    managerResolved: null
+  });
+  const { changed } = applyAttendanceTravelCorrection(entry, {
+    publicTransport: true,
+    publicTransportCost: 14.5,
+    kilometers: 0
+  });
+  assert.equal(changed, true);
+  assert.equal(entry.final.publicTransport, true);
+  assert.equal(entry.final.publicTransportCost, 14.5);
+  assert.equal(entry.final.kilometers, 0);
+  assert.equal(entry.managerResolved, null);
+  assert.equal(attendanceEntryIsResolved(entry), false);
+  assert.equal(entry.differences[0].decided, false);
+});
+
+test('travel correction no-op does not mark corrected', () => {
+  const entry = baseTravelEntry({ managerResolved: 'auto_ok' });
+  entry.final = { ...entry.attendance, publicTransport: true, publicTransportCost: 9, kilometers: 0 };
+  entry.attendance = { ...entry.final };
+  entry.managerResolved = 'auto_ok';
+  entry.differences = [];
+  const { changed } = applyAttendanceTravelCorrection(entry, {
+    publicTransport: true,
+    publicTransportCost: 9,
+    kilometers: 0
+  });
+  assert.equal(changed, false);
+  assert.equal(entry.managerResolved, 'auto_ok');
+});
+
+test('travel-only correction on clean entry marks corrected and stays editable in UI', () => {
+  const entry = baseTravelEntry({ differences: [], managerResolved: 'auto_ok' });
+  const { changed } = applyAttendanceTravelCorrection(entry, {
+    publicTransport: true,
+    publicTransportCost: 11,
+    kilometers: 0
+  });
+  assert.equal(changed, true);
+  assert.equal(entry.managerResolved, 'corrected');
+  const html = resultsHtml({
+    comparisons: [entry],
+    notCompared: [],
+    dailyKilometers: []
+  }, '2026-09');
+  assert.match(html, /data-attendance-save-travel="row-1"/);
+  assert.match(html, /checked/);
+  assert.match(html, /value="11"/);
+});
+
+test('KM to PT, PT to KM, and PT cost change refresh final and daily km state', () => {
+  const entry = baseTravelEntry({ differences: [], managerResolved: 'auto_ok' });
+  const result = {
+    comparisons: [entry],
+    notCompared: [],
+    dailyKilometers: [{
+      employeeId: '1501',
+      date: '2026-09-02',
+      reported: 12,
+      calculated: 10,
+      matches: false,
+      hasReportedKm: true,
+      managerResolved: 'approved_as_reported'
+    }]
+  };
+
+  applyAttendanceTravelCorrection(entry, { publicTransport: true, publicTransportCost: 18, kilometers: 0 });
+  refreshDailyKilometersAfterTravelChange(result, '1501', '2026-09-02');
+  assert.equal(entry.final.publicTransport, true);
+  assert.equal(entry.final.publicTransportCost, 18);
+  assert.equal(entry.final.kilometers, 0);
+  assert.equal(result.dailyKilometers[0].reported, 0);
+  assert.notEqual(result.dailyKilometers[0].managerResolved, 'approved_as_reported');
+  assert.equal(result.dailyKilometers[0].managerResolved, null);
+
+  applyAttendanceTravelCorrection(entry, { publicTransport: false, publicTransportCost: 0, kilometers: 22 });
+  refreshDailyKilometersAfterTravelChange(result, '1501', '2026-09-02');
+  assert.equal(entry.final.publicTransport, false);
+  assert.equal(entry.final.kilometers, 22);
+  assert.equal(result.dailyKilometers[0].reported, 22);
+  assert.equal(result.dailyKilometers[0].managerResolved, null);
+
+  applyAttendanceTravelCorrection(entry, { publicTransport: true, publicTransportCost: 7.5, kilometers: 0 });
+  refreshDailyKilometersAfterTravelChange(result, '1501', '2026-09-02');
+  assert.equal(entry.final.publicTransportCost, 7.5);
+  assert.equal(result.dailyKilometers[0].reported, 0);
+});
+
+test('generated travel_time_cancellation has no travel editor and cannot create illegal travel payload', () => {
+  const source = {
+    ID: 'cancel-1',
+    employeeName: 'מדריך',
+    employeeId: '1501',
+    attendanceDate: '2026-09-02',
+    startTime: null,
+    endTime: null,
+    workHours: 0.5,
+    activityType: 'ביטול זמן',
+    schoolName: '',
+    municipality: '',
+    programName: '',
+    sessionNumber: '',
+    totalExpenses: 0,
+    kilometers: 0,
+    publicTransport: false,
+    publicTransportCost: 0,
+    expensesDetails: '',
+    notes: '',
+    team: 'הילה רוזן',
+    employmentType: 'שכיר',
+    attachmentsNames: '',
+    status: '',
+    approvedBy: '',
+    approvedDate: '',
+    generationKind: 'travel_time_cancellation',
+    finalCancellationMinutes: 30
+  };
+  const attendance = {
+    ID: 'cancel-1',
+    employeeId: '1501',
+    employeeName: 'מדריך',
+    date: '2026-09-02',
+    startTime: null,
+    endTime: null,
+    workHours: 0.5,
+    activityType: 'ביטול זמן',
+    kilometers: 0,
+    publicTransport: false,
+    publicTransportCost: 0,
+    expenses: 0,
+    _source: source
+  };
+  const entry = {
+    id: 'attendance-only-0',
+    source: 'attendance_not_compared',
+    attendance,
+    final: { ...attendance },
+    differences: [],
+    managerResolved: null
+  };
+  assert.equal(isAttendanceTravelTimeCancellation(entry), true);
+  const { changed } = applyAttendanceTravelCorrection(entry, {
+    publicTransport: true,
+    publicTransportCost: 20,
+    kilometers: 5
+  });
+  assert.equal(changed, false);
+  assert.equal(entry.final.publicTransport, false);
+  assert.equal(entry.final.kilometers, 0);
+
+  const html = resultsHtml({
+    comparisons: [],
+    notCompared: [entry],
+    dailyKilometers: []
+  }, '2026-09');
+  assert.doesNotMatch(html, /data-attendance-save-travel="attendance-only-0"/);
+  assert.doesNotMatch(html, /data-attendance-travel-edit="attendance-only-0"/);
+
+  entry.final = { ...attendance, publicTransport: true, publicTransportCost: 20, kilometers: 5, startTime: '', endTime: '' };
+  const payload = buildAttendanceUpdatePayload(entry);
+  assert.equal(payload.changed, true);
+  assert.equal(payload.fields.publicTransport, false);
+  assert.equal(payload.fields.publicTransportCost, 0);
+  assert.equal(payload.fields.kilometers, 0);
+  assert.equal(payload.fields.startTime, null);
+  assert.equal(payload.fields.endTime, null);
+  assert.equal(payload.fields.totalExpenses, 0);
+});
+
+test('admin and manager attendance scope filters cover all / team / instructor modes', () => {
+  const rows = [
+    { employeeId: '1', team: 'הילה רוזן' },
+    { employeeId: '2', team: 'הילה רוזן' },
+    { employeeId: '3', team: 'גיל נאמן' }
+  ];
+  assert.deepEqual(
+    filterAttendanceControlScopeRows(rows, { selectedTeam: '__all__' }).map((row) => row.employeeId),
+    ['1', '2', '3']
+  );
+  assert.deepEqual(
+    filterAttendanceControlScopeRows(rows, { selectedTeam: 'הילה רוזן' }).map((row) => row.employeeId),
+    ['1', '2']
+  );
+  assert.deepEqual(
+    filterAttendanceControlScopeRows(rows, { selectedTeam: 'הילה רוזן', selectedInstructor: '2' }).map((row) => row.employeeId),
+    ['2']
+  );
+  assert.deepEqual(
+    filterAttendanceControlScopeRows(rows, { selectedTeam: 'גיל נאמן' }).map((row) => row.employeeId),
+    ['3']
+  );
+  assert.match(attendanceControl, /managerName: 'כל המערכת'/);
+  assert.match(attendanceControl, /data-attendance-instructor/);
+  assert.match(attendanceControl, /selectedTeam === '__all__'\) return true/);
+  assert.doesNotMatch(attendanceControl, /selectedTeam === '__all__' \? teamIds\.includes/);
+});
+
+test('approved PDF fallback and edge handler include public transport details', () => {
+  const entry = baseTravelEntry({
+    differences: [],
+    managerResolved: 'corrected',
+    attendance: {
+      ID: 'rec-pt',
+      employeeId: '1501',
+      employeeName: 'מדריך',
+      date: '2026-09-02',
+      startTime: '09:00',
+      endTime: '11:00',
+      workHours: 2,
+      activityType: 'קורס',
+      school: 'בי"ס',
+      authority: 'רשות',
+      program: 'תכנית',
+      meetingNo: '1',
+      kilometers: 0,
+      publicTransport: true,
+      publicTransportCost: 14.5,
+      expenses: 0,
+      notes: ''
+    }
+  });
+  entry.final = { ...entry.attendance };
+  const snapshot = buildPayrollApprovedSnapshot({
+    employeeId: '1501',
+    employeeName: 'מדריך',
+    monthKey: '2026-09',
+    entries: [entry]
+  });
+  assert.equal(snapshot.rows[0].publicTransport, true);
+  assert.equal(snapshot.rows[0].publicTransportCost, 14.5);
+  const html = buildPayrollApprovalPrintHtml({
+    employee_id: '1501',
+    employee_name: 'מדריך',
+    month_key: '2026-09',
+    approved_snapshot: snapshot
+  });
+  assert.match(html, /תחבורה ציבורית/);
+  assert.match(html, /14\.5/);
+  assert.match(html, /סה״כ עלות תחבורה ציבורית/);
+  assert.doesNotMatch(html, />0<\/td>\s*<td>—<\/td>/);
+  assert.match(pdfHandlerSource, /תחבורה ציבורית/);
+  assert.match(pdfHandlerSource, /publicTransportCost/);
+  assert.match(pdfHandlerSource, /totalPublicTransportCost/);
+  assert.match(finish, /סה״כ עלות תחבורה ציבורית/);
+  assert.equal(snapshotAttendanceRow(entry).publicTransport, true);
 });

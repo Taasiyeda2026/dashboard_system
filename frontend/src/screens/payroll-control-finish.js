@@ -6,7 +6,8 @@ import {
   buildCorrectedAttendanceWorkbook,
   rowWorkHours,
   attendanceEntryIsResolved,
-  kmDayNeedsDecision
+  kmDayNeedsDecision,
+  isAttendanceTravelTimeCancellation
 } from './attendance-control.js';
 
 export const PAYROLL_APPROVAL_STATUS = 'approved_for_payroll';
@@ -156,21 +157,31 @@ export function buildAttendanceUpdatePayload(entry) {
     changed = true;
   }
   if (changed) {
-    const usesPublicTransport = fields.publicTransport === true || fields.publicTransport === 'true' || fields.publicTransport === 1
-      || (fields.publicTransport == null && (final.publicTransport === true || attendance.publicTransport === true));
-    const kilometers = optionalNumber(fields.kilometers ?? final.kilometers ?? attendance.kilometers) ?? 0;
-    if (usesPublicTransport) {
-      fields.publicTransport = true;
+    if (isAttendanceTravelTimeCancellation(entry)) {
+      // Generated travel_time_cancellation rows must keep null clocks and zero travel/expense fields.
+      fields.startTime = null;
+      fields.endTime = null;
       fields.kilometers = 0;
-      fields.publicTransportCost = optionalNumber(fields.publicTransportCost ?? final.publicTransportCost ?? attendance.publicTransportCost) ?? 0;
-    } else if (kilometers > 0) {
       fields.publicTransport = false;
       fields.publicTransportCost = 0;
-      fields.kilometers = kilometers;
-    } else if (Object.prototype.hasOwnProperty.call(fields, 'publicTransport') || Object.prototype.hasOwnProperty.call(fields, 'publicTransportCost') || Object.prototype.hasOwnProperty.call(fields, 'kilometers')) {
-      fields.publicTransport = false;
-      fields.publicTransportCost = 0;
-      if (!Object.prototype.hasOwnProperty.call(fields, 'kilometers')) fields.kilometers = kilometers;
+      fields.totalExpenses = 0;
+    } else {
+      const usesPublicTransport = fields.publicTransport === true || fields.publicTransport === 'true' || fields.publicTransport === 1
+        || (fields.publicTransport == null && (final.publicTransport === true || attendance.publicTransport === true));
+      const kilometers = optionalNumber(fields.kilometers ?? final.kilometers ?? attendance.kilometers) ?? 0;
+      if (usesPublicTransport) {
+        fields.publicTransport = true;
+        fields.kilometers = 0;
+        fields.publicTransportCost = optionalNumber(fields.publicTransportCost ?? final.publicTransportCost ?? attendance.publicTransportCost) ?? 0;
+      } else if (kilometers > 0) {
+        fields.publicTransport = false;
+        fields.publicTransportCost = 0;
+        fields.kilometers = kilometers;
+      } else if (Object.prototype.hasOwnProperty.call(fields, 'publicTransport') || Object.prototype.hasOwnProperty.call(fields, 'publicTransportCost') || Object.prototype.hasOwnProperty.call(fields, 'kilometers')) {
+        fields.publicTransport = false;
+        fields.publicTransportCost = 0;
+        if (!Object.prototype.hasOwnProperty.call(fields, 'kilometers')) fields.kilometers = kilometers;
+      }
     }
     const missingFields = LOGIC_APP_FIELDS.filter((field) => !Object.prototype.hasOwnProperty.call(fields, field));
     if (missingFields.length) throw new Error('חסר נתון מקור הנדרש לעדכון בטוח של רשומת הנוכחות');
@@ -480,19 +491,26 @@ function snapshotSummary(rows = []) {
   let hours = 0;
   let km = 0;
   let expenses = 0;
+  let publicTransportCost = 0;
   for (const row of rows) {
     const type = activityTypeDisplayLabel(row.activityType) || txt(row.activityType) || 'אחר';
     const value = optionalNumber(row.workHours) || 0;
     byType.set(type, Math.round(((byType.get(type) || 0) + value) * 100) / 100);
     hours += value;
-    km += optionalNumber(row.kilometers) || 0;
+    const usesPublicTransport = row.publicTransport === true || row.publicTransport === 'true' || row.publicTransport === 1;
+    if (usesPublicTransport) {
+      publicTransportCost += optionalNumber(row.publicTransportCost) || 0;
+    } else {
+      km += optionalNumber(row.kilometers) || 0;
+    }
     expenses += optionalNumber(row.expenses) || 0;
   }
   return {
     byType: [...byType.entries()],
     hours: Math.round(hours * 100) / 100,
     km: Math.round(km * 100) / 100,
-    expenses: Math.round(expenses * 100) / 100
+    expenses: Math.round(expenses * 100) / 100,
+    publicTransportCost: Math.round(publicTransportCost * 100) / 100
   };
 }
 
@@ -507,6 +525,16 @@ export function buildPayrollApprovalPrintHtml(approval = {}) {
   const employeeApprovedAt = formatApprovalWhen(snapshot.employeeApprovalAt || approval.submitted_at);
   const managerApprovedBy = txt(snapshot.managerApprovalName || approval.manager_approved_by_name || approval.approved_by_name);
   const managerApprovedAt = formatApprovalWhen(snapshot.managerApprovalAt || approval.manager_approved_at || approval.approved_at);
+  const travelCell = (row) => {
+    const usesPublicTransport = row.publicTransport === true || row.publicTransport === 'true' || row.publicTransport === 1;
+    if (usesPublicTransport) return 'תחבורה ציבורית';
+    return row.kilometers == null ? '—' : String(row.kilometers);
+  };
+  const ptCostCell = (row) => {
+    const usesPublicTransport = row.publicTransport === true || row.publicTransport === 'true' || row.publicTransport === 1;
+    if (!usesPublicTransport) return '';
+    return row.publicTransportCost == null ? '0' : String(row.publicTransportCost);
+  };
   const table = rows.map((row) => `<tr>
     <td>${escapeHtml(row.date || '')}</td>
     <td>${escapeHtml(activityTypeDisplayLabel(row.activityType) || row.activityType || '')}</td>
@@ -516,7 +544,8 @@ export function buildPayrollApprovalPrintHtml(approval = {}) {
     <td>${escapeHtml(row.meetingNo || '')}</td>
     <td>${escapeHtml(`${row.startTime || '—'}–${row.endTime || '—'}`)}</td>
     <td>${escapeHtml(row.workHours == null ? '—' : String(row.workHours))}</td>
-    <td>${escapeHtml(row.kilometers == null ? '—' : String(row.kilometers))}</td>
+    <td>${escapeHtml(travelCell(row))}</td>
+    <td>${escapeHtml(ptCostCell(row))}</td>
     <td>${escapeHtml(row.expenses == null ? '—' : String(row.expenses))}</td>
     <td>${escapeHtml(row.expenseDetails || '')}</td>
     <td>${escapeHtml(row.notes || '')}</td>
@@ -525,6 +554,9 @@ export function buildPayrollApprovalPrintHtml(approval = {}) {
   const expenseLine = summary.expenses
     ? `<p>סה״כ הוצאות: ${escapeHtml(String(summary.expenses))}</p>`
     : '';
+  const ptCostLine = summary.publicTransportCost
+    ? `<p>סה״כ עלות תחבורה ציבורית: ${escapeHtml(String(summary.publicTransportCost))}</p>`
+    : '';
   return `<!doctype html><html lang="he" dir="rtl"><head><meta charset="utf-8"><title>${escapeHtml(payrollApprovalPdfFileName(employeeName, approval.month_key || snapshot.monthKey))}</title>
     <style>body{font-family:Arial,sans-serif;padding:24px;color:#1f2a37}table{width:100%;border-collapse:collapse;margin:16px 0}th,td{border-bottom:1px solid #d7e0ea;padding:8px;text-align:right}h1{margin:0 0 8px}.sign{margin-top:32px;border-top:1px solid #cbd5e1;padding-top:16px}</style>
     </head><body>
@@ -532,12 +564,13 @@ export function buildPayrollApprovalPrintHtml(approval = {}) {
     <p>שם עובד: ${escapeHtml(employeeName || '—')}</p>
     <p>מספר עובד: ${escapeHtml(employeeId || '—')}</p>
     <p>חודש: ${escapeHtml(monthLabel || '—')}</p>
-    <table><thead><tr><th>תאריך</th><th>סוג פעילות</th><th>רשות</th><th>בית ספר</th><th>תכנית</th><th>מפגש</th><th>שעות התחלה/סיום</th><th>סה״כ שעות</th><th>ק״מ</th><th>הוצאות</th><th>פירוט הוצאה</th><th>הערות</th></tr></thead>
-    <tbody>${table || '<tr><td colspan="12">אין רשומות מאושרות</td></tr>'}</tbody></table>
+    <table><thead><tr><th>תאריך</th><th>סוג פעילות</th><th>רשות</th><th>בית ספר</th><th>תכנית</th><th>מפגש</th><th>שעות התחלה/סיום</th><th>סה״כ שעות</th><th>ק״מ / נסיעה</th><th>עלות תחבורה ציבורית</th><th>הוצאות</th><th>פירוט הוצאה</th><th>הערות</th></tr></thead>
+    <tbody>${table || '<tr><td colspan="13">אין רשומות מאושרות</td></tr>'}</tbody></table>
     <p>סיכום לפי סוג פעילות</p>
     <ul>${typeRows || '<li>אין נתונים</li>'}</ul>
     <p>סה״כ שעות: ${escapeHtml(String(summary.hours))}</p>
     <p>סה״כ ק״מ: ${escapeHtml(String(summary.km))}</p>
+    ${ptCostLine}
     ${expenseLine}
     <div class="sign">
       <p>אישור עובד: ${escapeHtml(employeeApprovedBy || '—')} · ${escapeHtml(employeeApprovedAt)}</p>

@@ -206,3 +206,4 @@ config.HOTFIX_VERSION = `activity-edit-catalog-identity-20260914-v1-${config.HOT
 config.HOTFIX_VERSION = `activity-routine-stability-20260914-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `attendance-control-manager-admin-parity-sw-cache-1720-20260916-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `attendance-control-manager-launcher-team-scope-sw-cache-1721-20260916-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `attendance-control-travel-admin-pdf-sw-cache-1722-20260916-v1-${config.HOTFIX_VERSION}`;
