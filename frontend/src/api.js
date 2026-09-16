@@ -7008,6 +7008,45 @@ export const api = {
     assertPermission('view_attendance_control', 'attendance_control_forbidden');
     const ids = [...new Set((employeeIds || []).map((value) => String(value || '').trim()).filter(Boolean))];
     if (!ids.length || !fromDate || !toDate) return { activities: [], contacts: [], travelCache: [], expenses: [] };
+    const routeMonth = /^\d{4}-\d{2}-\d{2}$/.test(fromDate)
+      && /^\d{4}-\d{2}-\d{2}$/.test(toDate)
+      && fromDate.slice(0, 7) === toDate.slice(0, 7)
+      ? fromDate.slice(0, 7)
+      : '';
+    const routeEmployeeIds = ids.map(Number).filter((value) => Number.isInteger(value) && value > 0);
+    if (routeMonth && routeEmployeeIds.length && supabase?.functions?.invoke) {
+      try {
+        const invokeRouteBuild = async (body) => {
+          const { data, error } = await supabase.functions.invoke('scheduling-route', { body });
+          if (error) throw error;
+          if (data?.error) throw new Error(String(data.error));
+          return data || {};
+        };
+        const routeScope = {
+          scope: 'payroll_month',
+          month: routeMonth,
+          employee_ids: routeEmployeeIds
+        };
+        const coverage = await invokeRouteBuild({ mode: 'coverage', ...routeScope });
+        if ((Number(coverage?.missing_count) || 0) > 0) {
+          let cursor = null;
+          for (let batchNo = 0; batchNo < 50; batchNo += 1) {
+            const batch = await invokeRouteBuild({
+              mode: 'build_cache',
+              ...routeScope,
+              cursor,
+              limit: 40
+            });
+            cursor = batch?.next_cursor || null;
+            if (batch?.done || !cursor) break;
+          }
+        }
+      } catch (error) {
+        // Route completion is best-effort: existing cache remains usable and unresolved
+        // segments stay visible for manager review instead of blocking attendance control.
+        console.warn('[attendance-control] automatic route completion failed:', error);
+      }
+    }
     const activitySelect = `${ACTIVITY_OPERATIONS_COLUMNS},authority_id,activity_no`;
     const [regular, summer, school2027, contactsResult, usersResult, catalog, proposalGroupAliases] = await Promise.all([
       readAllActivitiesRowsSupabase({ activityPeriod: ACTIVITY_SEASON_REGULAR, select: activitySelect, startDate: fromDate, endDate: toDate }),
@@ -7022,7 +7061,19 @@ export const api = {
     const activities = [...new Map([...(regular || []), ...(summer || []), ...(school2027 || [])]
       .map((row) => [String(row.row_id || row.id || ''), row])).values()]
       .filter((row) => ids.includes(String(row.emp_id || '').trim()) || ids.includes(String(row.emp_id_2 || '').trim()));
-    const schoolIds = [...new Set(activities.map((row) => Number(row.school_id)).filter(Number.isFinite))];
+    const attendanceSchoolsResult = await supabase
+      .from('attendance_records')
+      .select('school_id')
+      .in('emp_id', ids)
+      .gte('report_date', fromDate)
+      .lte('report_date', toDate);
+    const attendanceSchoolIds = attendanceSchoolsResult.error
+      ? []
+      : (attendanceSchoolsResult.data || []).map((row) => Number(row.school_id)).filter(Number.isFinite);
+    const schoolIds = [...new Set([
+      ...activities.map((row) => Number(row.school_id)).filter(Number.isFinite),
+      ...attendanceSchoolIds
+    ])];
     const routeReads = [];
     const numericEmpIds = ids.map(Number).filter(Number.isFinite);
     if (numericEmpIds.length) routeReads.push(supabase.from('scheduling_travel_cache').select('*').in('origin_instructor_emp_id', numericEmpIds));

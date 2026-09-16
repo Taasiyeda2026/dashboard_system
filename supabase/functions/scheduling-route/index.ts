@@ -774,12 +774,23 @@ async function loadAllRows(db: DbClient, table: string, columns: string) {
   }
 }
 
-async function loadPayrollMonthPairs(db: DbClient, month: string) {
+async function loadPayrollMonthPairs(db: DbClient, month: string, employeeIds: number[] = []) {
   const range = payrollMonthRange(month);
   if (!range) return { error: 'invalid_payroll_month' as const };
+  const employeeFilter = new Set(employeeIds.filter((id) => Number.isInteger(id) && id > 0));
+  const employeeAllowed = (empId: number) => employeeFilter.size === 0 || employeeFilter.has(empId);
 
   const dateColumns = Array.from({ length: 35 }, (_, index) => `date_${index + 1}`).join(',');
-  const [activitiesResult, cancellationsResult, schoolsResult, contactsResult] = await Promise.all([
+  const attendanceBaseQuery = db
+    .from('attendance_records')
+    .select('id,emp_id,activity_row_id,report_date,start_time,activity_type,activity_name_snapshot,authority_id,authority_name_snapshot,school_id,school_name_snapshot,program_name,generation_kind')
+    .gte('report_date', range.fromDate)
+    .lte('report_date', range.toDate);
+  const attendancePromise = employeeFilter.size
+    ? attendanceBaseQuery.in('emp_id', [...employeeFilter])
+    : attendanceBaseQuery;
+
+  const [activitiesResult, cancellationsResult, schoolsResult, contactsResult, attendanceResult] = await Promise.all([
     loadAllRows(
       db,
       'activities',
@@ -787,13 +798,15 @@ async function loadPayrollMonthPairs(db: DbClient, month: string) {
     ),
     db.from('course_meeting_cancellations').select('activity_id,meeting_date').gte('meeting_date', range.fromDate).lte('meeting_date', range.toDate),
     loadAllRows(db, 'schools', 'id,school_name,authority,authority_id,institution_address,mailing_address'),
-    loadAllRows(db, 'contacts_schools', 'school_id,address')
+    loadAllRows(db, 'contacts_schools', 'school_id,address'),
+    attendancePromise
   ]);
 
   if (activitiesResult.error) return { error: 'payroll_activity_lookup_failed' as const };
   if (cancellationsResult.error) return { error: 'payroll_activity_lookup_failed' as const };
   if (schoolsResult.error) return { error: 'payroll_school_catalog_lookup_failed' as const };
   if (contactsResult.error) return { error: 'payroll_school_catalog_lookup_failed' as const };
+  if (attendanceResult.error) return { error: 'payroll_activity_lookup_failed' as const };
 
   const cancelledByActivity = new Map<string, Set<string>>();
   for (const row of cancellationsResult.data || []) {
@@ -807,7 +820,7 @@ async function loadPayrollMonthPairs(db: DbClient, month: string) {
   const assignedIds = new Set<number>();
   for (const activity of activitiesResult.rows) {
     if (isSkippedPayrollActivityStatus(activity)) continue;
-    const empIds = assignedPayrollEmpIds(activity);
+    const empIds = assignedPayrollEmpIds(activity).filter(employeeAllowed);
     if (!empIds.length) continue;
     const activityId = text(activity.row_id || activity.id);
     const cancelled = cancelledByActivity.get(activityId) || new Set<string>();
@@ -815,6 +828,18 @@ async function loadPayrollMonthPairs(db: DbClient, month: string) {
       .some((meeting) => meeting.date >= range.fromDate && meeting.date <= range.toDate);
     if (!inMonth) continue;
     for (const empId of empIds) assignedIds.add(empId);
+  }
+
+  const attendanceRows = ((attendanceResult.data || []) as Record<string, unknown>[]).filter((row) => {
+    const empId = numericEmpId(row.emp_id);
+    if (!empId || !employeeAllowed(empId)) return false;
+    if (text(row.generation_kind) === 'travel_time_cancellation') return false;
+    if (/ביטול\s*זמן/u.test(text(row.activity_type))) return false;
+    return true;
+  });
+  for (const row of attendanceRows) {
+    const empId = numericEmpId(row.emp_id);
+    if (empId) assignedIds.add(empId);
   }
 
   const instructorByEmpId = new Map<number, InstructorRow>();
@@ -832,6 +857,9 @@ async function loadPayrollMonthPairs(db: DbClient, month: string) {
   }
 
   const catalog = buildPayrollSchoolCatalog(schoolsResult.rows, contactsResult.rows);
+  const activityByRowId = new Map(activitiesResult.rows
+    .map((row) => [text(row.row_id || row.id), row] as const)
+    .filter(([id]) => Boolean(id)));
   const exceptions: Array<{ activity_id: string; date: string; authority: string; school: string; reason: string }> = [];
   const missingInstructorIds = new Set<number>();
   const unresolvedActivities = new Set<string>();
@@ -843,7 +871,7 @@ async function loadPayrollMonthPairs(db: DbClient, month: string) {
 
   for (const activity of activitiesResult.rows) {
     if (isSkippedPayrollActivityStatus(activity)) continue;
-    const empIds = assignedPayrollEmpIds(activity);
+    const empIds = assignedPayrollEmpIds(activity).filter(employeeAllowed);
     if (!empIds.length) continue;
     const activityId = text(activity.row_id || activity.id);
     const cancelled = cancelledByActivity.get(activityId) || new Set<string>();
@@ -901,6 +929,90 @@ async function loadPayrollMonthPairs(db: DbClient, month: string) {
   };
 
   for (const stops of dayStops.values()) {
+    stops.sort((a, b) => a.start_time.localeCompare(b.start_time));
+    const sequence: typeof stops = [];
+    for (const stop of stops) {
+      const last = sequence[sequence.length - 1];
+      const key = stop.school.entity_key || schoolEntityKey(stop.school);
+      if (last && (last.school.entity_key || schoolEntityKey(last.school)) === key) continue;
+      sequence.push(stop);
+    }
+    if (!sequence.length) continue;
+    const instructor = sequence[0].instructor;
+    if (instructor) addPair(payrollInstructorSchoolPair(instructor, sequence[0].school));
+    for (let index = 1; index < sequence.length; index += 1) {
+      addPair(payrollSchoolSchoolPair(sequence[index - 1].school, sequence[index].school));
+    }
+    if (instructor) addPair(payrollInstructorSchoolPair(instructor, sequence[sequence.length - 1].school));
+  }
+
+
+  // Add the routes implied by the ACTUAL attendance day. This complements the
+  // scheduled-month plan above and is the source of truth for attendance validation:
+  // home -> first reported physical activity -> next activity -> ... -> home.
+  const attendanceDayStops = new Map<string, Array<{
+    empId: number;
+    date: string;
+    start_time: string;
+    school: PayrollSchool;
+    instructor?: InstructorRow;
+  }>>();
+
+  for (const row of attendanceRows) {
+    const empId = numericEmpId(row.emp_id);
+    const date = isoDate(row.report_date);
+    if (!empId || !date) continue;
+    instructorIds.add(empId);
+
+    const linkedActivity = activityByRowId.get(text(row.activity_row_id)) || {};
+    const schoolSource: Record<string, unknown> = {
+      school_id: row.school_id ?? linkedActivity.school_id ?? null,
+      authority_id: row.authority_id ?? linkedActivity.authority_id ?? null,
+      authority: text(row.authority_name_snapshot || linkedActivity.authority),
+      school: text(row.school_name_snapshot || linkedActivity.school)
+    };
+    const remoteProbe: Record<string, unknown> = {
+      school: schoolSource.school,
+      activity_name: text(row.activity_name_snapshot || row.program_name)
+    };
+    if (isRemotePayrollActivity(remoteProbe)) continue;
+
+    const attendanceId = `attendance:${text(row.id) || `${empId}:${date}:${text(row.start_time)}`}`;
+    const resolved = resolvePayrollActivitySchool(schoolSource, catalog);
+    if (resolved.status !== 'resolved' || !resolved.school) {
+      if (resolved.status === 'ambiguous') ambiguousActivities.add(attendanceId);
+      else unresolvedActivities.add(attendanceId);
+      exceptions.push({
+        activity_id: attendanceId,
+        date,
+        authority: text(schoolSource.authority),
+        school: text(schoolSource.school),
+        reason: resolved.reason
+      });
+      continue;
+    }
+
+    const school = resolved.school;
+    locations.set(school.entity_key || schoolEntityKey(school), school);
+    const instructor = instructorByEmpId.get(empId);
+    if (!text(instructor?.address)) {
+      missingInstructorIds.add(empId);
+      exceptions.push({
+        activity_id: attendanceId,
+        date,
+        authority: text(schoolSource.authority),
+        school: text(schoolSource.school),
+        reason: 'missing_instructor_address'
+      });
+    }
+
+    const key = `${empId}|${date}`;
+    const stops = attendanceDayStops.get(key) || [];
+    stops.push({ empId, date, start_time: text(row.start_time), school, instructor });
+    attendanceDayStops.set(key, stops);
+  }
+
+  for (const stops of attendanceDayStops.values()) {
     stops.sort((a, b) => a.start_time.localeCompare(b.start_time));
     const sequence: typeof stops = [];
     for (const stop of stops) {
@@ -1088,7 +1200,12 @@ async function runBuildCache(db: DbClient, key: string, payload: Record<string, 
   if (scopeRaw === 'payroll_month') {
     const month = parsePayrollMonth(payload.month);
     if (!month) return jsonResponse({ error: 'invalid_payroll_month' }, 400);
-    const loaded = await loadPayrollMonthPairs(db, month);
+    const employeeIds = Array.isArray(payload.employee_ids)
+      ? [...new Set((payload.employee_ids as unknown[])
+        .map(numericEmpId)
+        .filter((id): id is number => id != null))]
+      : [];
+    const loaded = await loadPayrollMonthPairs(db, month, employeeIds);
     if (loaded.error) return jsonResponse({ error: loaded.error }, 500);
     scope = 'payroll_month';
     instructorPairs = loaded.pairs;
@@ -1294,20 +1411,31 @@ Deno.serve(async (req) => {
 
   const { data: appUser, error: appUserError } = await db
     .from('users')
-    .select('role,is_active')
+    .select('role,is_active,permissions')
     .eq('auth_user_id', userId)
     .eq('is_active', true)
     .maybeSingle();
   if (appUserError) return jsonResponse({ error: 'authorization_check_failed' }, 500);
-  if (!['admin', 'operation_manager'].includes(String(appUser?.role || ''))) {
-    return jsonResponse({ error: 'scheduling_permission_denied' }, 403);
-  }
-
   let payload: Record<string, unknown> = {};
   try {
     payload = await req.json();
   } catch {
     return jsonResponse({ error: 'invalid_json' }, 400);
+  }
+
+  const appRole = String(appUser?.role || '');
+  const hasSchedulingRole = ['admin', 'operation_manager'].includes(appRole);
+  const permissions = appUser?.permissions && typeof appUser.permissions === 'object'
+    ? appUser.permissions as Record<string, unknown>
+    : {};
+  const permissionValue = text(permissions.view_attendance_control).toLowerCase();
+  const attendanceEmployeeIds = Array.isArray(payload.employee_ids) ? payload.employee_ids : [];
+  const isAttendanceRouteRequest = text(payload.scope).toLowerCase() === 'payroll_month'
+    && attendanceEmployeeIds.length > 0
+    && attendanceEmployeeIds.length <= 500
+    && ['yes', 'true', '1'].includes(permissionValue);
+  if (!hasSchedulingRole && !isAttendanceRouteRequest) {
+    return jsonResponse({ error: 'scheduling_permission_denied' }, 403);
   }
 
   const mode = text(payload.mode).toLowerCase();
