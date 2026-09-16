@@ -28,7 +28,8 @@ jobs:
           index_path = Path('attendance/index.html')
           index = index_path.read_text()
           assert '?v=71' in index
-          index_path.write_text(index.replace('?v=71', '?v=72'))
+          index = index.replace('?v=71', '?v=72').replace('v=71 busts', 'v=72 busts')
+          index_path.write_text(index)
 
           # Avoid a false-positive legacy source-text assertion while preserving
           # the exact rendered Hebrew labels at runtime.
@@ -44,10 +45,12 @@ jobs:
           # Existing cache/version tests must track the new attendance bundle.
           replacements = {
             'tests/attendance-activity-type-behavior.test.mjs': [
-              ('CACHE_VERSION = 71', 'CACHE_VERSION = 72')
+              ('CACHE_VERSION = 71', 'CACHE_VERSION = 72'),
+              ('v=71', 'v=72')
             ],
             'tests/attendance-screen-structure.test.mjs': [
-              ('CACHE_VERSION = 71', 'CACHE_VERSION = 72')
+              ('CACHE_VERSION = 71', 'CACHE_VERSION = 72'),
+              ('v=71', 'v=72')
             ],
             'tests/attendance-mobile-expandable-rows.test.mjs': [
               ('v=42', 'v=72')
