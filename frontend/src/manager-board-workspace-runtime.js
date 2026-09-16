@@ -277,6 +277,8 @@ async function loadAttendanceSummary(roster, ym, force = false) {
     for (const row of Array.isArray(records) ? records : []) {
       const empId = rawEmployeeId(row);
       if (!recordCounts.has(empId) || rawRecordMonth(row) !== ym) continue;
+      const generationKind = text(row?.generationKind || row?.generation_kind);
+      if (generationKind === 'travel_time_cancellation') continue;
       recordCounts.set(empId, (recordCounts.get(empId) || 0) + 1);
     }
   } catch (error) {
@@ -437,7 +439,7 @@ function attendanceSummaryTableHtml(roster, summary, ym) {
     const approvedAt = approval?.approved_at ? new Date(approval.approved_at).toLocaleDateString('he-IL') : '';
     return `<tr>
       <td><strong>${escapeHtml(text(row.full_name) || empId)}</strong><small>${escapeHtml(empId)}</small></td>
-      <td>${count ? `<span class="manager-workspace-report-count">קיים · ${count} רשומות</span>` : '<span class="manager-workspace-report-count is-missing">לא נמצא דיווח</span>'}</td>
+      <td>${count ? `<span class="manager-workspace-report-count">קיים · ${count} דיווחים</span>` : '<span class="manager-workspace-report-count is-missing">לא נמצא דיווח</span>'}</td>
       <td>${attendanceStatusBadge(count, approval, ym)}${approvedAt ? `<small>${escapeHtml(approvedAt)}</small>` : ''}</td>
       <td><button type="button" class="manager-workspace-link-button" data-manager-attendance-open-employee="${escapeHtml(empId)}"${count ? '' : ' disabled'}>צפייה ובקרת דוח</button></td>
     </tr>`;
