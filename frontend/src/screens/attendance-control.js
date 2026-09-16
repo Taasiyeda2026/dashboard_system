@@ -1061,7 +1061,19 @@ function sourceDetailSheet(mergedRows) {
   return styledSheet(headers, data);
 }
 
-function detailRowValues(row) {
+export function detailRowValues(row) {
+  const publicTransport = row?.publicTransport === true
+    || row?.PublicTransport === true
+    || row?.public_transport === true
+    || row?.publicTransport === 'true'
+    || row?.public_transport === 'true';
+  const attachmentsNames = txt(
+    row?.attachmentsNames
+    || row?.AttachmentsNames
+    || (Array.isArray(row?.attachments)
+      ? row.attachments.map((item) => txt(item?.fileName || item?.file_name || item?.name)).filter(Boolean).join(', ')
+      : '')
+  );
   return [
     txt(row.employeeId || row.EmployeeId || row.empNum), txt(row.employeeName || row.EmployeeName || row.empName),
     excelDate(row.date || row.attendanceDate || row.AttendanceDate), timeText(row.startTime || row.StartTime),
@@ -1069,8 +1081,11 @@ function detailRowValues(row) {
     lookupText(row.activityType || row.ActivityType), txt(row.school || row.schoolName || row.SchoolName),
     txt(row.authority || row.municipality || row.Municipality), txt(row.program || row.programName || row.ProgramName),
     txt(row.meetingNo || row.sessionNumber || row.SessionNumber), optionalNumber(row.kilometers ?? row.Kilometers) ?? '',
+    publicTransport ? 'כן' : 'לא',
+    optionalNumber(row.publicTransportCost ?? row.PublicTransportCost ?? row.public_transport_cost) ?? '',
     optionalNumber(row.expenses ?? row.totalExpenses ?? row.TotalExpenses) ?? '',
-    txt(row.expenseDetails || row.expensesDetails || row.ExpensesDetails), txt(row.notes || row.Notes)
+    txt(row.expenseDetails || row.expensesDetails || row.ExpensesDetails), txt(row.notes || row.Notes),
+    attachmentsNames
   ];
 }
 

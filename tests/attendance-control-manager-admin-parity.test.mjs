@@ -17,6 +17,8 @@ const { hasPermission } = await import('../frontend/src/permission-policy.js');
 const { ROLE_PERMISSION_TEMPLATES } = await import('../frontend/src/capability-registry.js');
 const {
   applyAttendanceManualCorrection,
+  DETAIL_HEADERS,
+  detailRowValues,
   enforceAttendanceTravelMode,
   normalizeAttendanceApiRows,
   normalizeAttendanceAttachments
@@ -106,6 +108,56 @@ test('migration drops get_payroll_attendance_records before recreating changed R
     migration.slice(0, createIdx),
     /drop function[\s\S]*update_payroll_attendance_record/i
   );
+});
+
+test('storage select policy qualifies storage.objects.name for attachment path matching', () => {
+  const policyBlock = migration.match(/create policy attendance_attachments_storage_select_control[\s\S]*?;/)?.[0] || '';
+  assert.match(policyBlock, /attendance-attachments/);
+  assert.match(policyBlock, /\(storage\.foldername\(storage\.objects\.name\)\)\[1\]/);
+  assert.doesNotMatch(policyBlock, /split_part\(\s*name\s*,/);
+  assert.doesNotMatch(policyBlock, /foldername\(\s*name\s*\)/);
+  assert.match(policyBlock, /direct_manager/);
+  assert.doesNotMatch(policyBlock, /for (insert|update|delete)/i);
+});
+
+test('detailRowValues matches DETAIL_HEADERS order including PT and attachments', () => {
+  const row = detailRowValues({
+    employeeId: '1501',
+    employeeName: 'מדריך',
+    date: '2026-09-02',
+    startTime: '09:00',
+    endTime: '11:00',
+    workHours: 2,
+    activityType: 'קורס',
+    school: 'בי"ס',
+    authority: 'רשות',
+    program: 'תכנית',
+    meetingNo: '3',
+    kilometers: 0,
+    publicTransport: true,
+    publicTransportCost: 14.5,
+    expenses: 20,
+    expenseDetails: 'חניה',
+    notes: 'הערה',
+    attachmentsNames: 'קבלה.pdf'
+  });
+  assert.equal(row.length, DETAIL_HEADERS.length);
+  assert.deepEqual(DETAIL_HEADERS.slice(-7), [
+    'קילומטרים',
+    'תחבורה ציבורית',
+    'עלות תחבורה ציבורית',
+    'הוצאות',
+    'פירוט הוצאות',
+    'הערות',
+    'אסמכתאות'
+  ]);
+  assert.equal(row[DETAIL_HEADERS.indexOf('קילומטרים')], 0);
+  assert.equal(row[DETAIL_HEADERS.indexOf('תחבורה ציבורית')], 'כן');
+  assert.equal(row[DETAIL_HEADERS.indexOf('עלות תחבורה ציבורית')], 14.5);
+  assert.equal(row[DETAIL_HEADERS.indexOf('הוצאות')], 20);
+  assert.equal(row[DETAIL_HEADERS.indexOf('פירוט הוצאות')], 'חניה');
+  assert.equal(row[DETAIL_HEADERS.indexOf('הערות')], 'הערה');
+  assert.equal(row[DETAIL_HEADERS.indexOf('אסמכתאות')], 'קבלה.pdf');
 });
 
 test('manager roles stay scoped by direct_manager in payroll records RPC', () => {

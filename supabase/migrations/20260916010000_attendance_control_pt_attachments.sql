@@ -306,7 +306,7 @@ using (
           and exists (
             select 1
             from public.contacts_instructors ci
-            where ci.emp_id::text = split_part(name, '/', 1)
+            where ci.emp_id::text = (storage.foldername(storage.objects.name))[1]
               and lower(trim(coalesce(ci.active::text, ''))) not in ('no', 'false', '0', 'לא')
               and lower(trim(coalesce(ci.direct_manager, ''))) = lower(trim(coalesce(
                 nullif(trim(coalesce(u.full_name, '')), ''),
