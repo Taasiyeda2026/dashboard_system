@@ -1,5 +1,6 @@
 import { resolveInstructorIdentity } from './auth/identity.service.js';
 import { getMonthRecords } from './services/attendance.service.js';
+import { formatDurationHours } from './components/monthly-report-summary.js';
 
 const DESKTOP_QUERY = '(min-width: 768px)';
 const monthFormatter = new Intl.DateTimeFormat('he-IL', { month: 'long' });
@@ -22,11 +23,10 @@ function numberFrom(value) {
   return Number.isFinite(number) ? number : 0;
 }
 
-function formatHours(value) {
-  const totalMinutes = Math.max(0, Math.round(Number(value || 0) * 60));
-  const hours = Math.floor(totalMinutes / 60);
-  const minutes = totalMinutes % 60;
-  return `${hours}:${String(minutes).padStart(2, '0')}`;
+function durationHoursFrom(value) {
+  const match = String(value ?? '').trim().match(/^(\d+):(\d{2})$/);
+  if (!match) return numberFrom(value);
+  return Number(match[1]) + (Number(match[2]) / 60);
 }
 
 function monthFromLabel(label) {
@@ -192,7 +192,7 @@ function updateHomeHoursKpi(records) {
   for (const card of document.querySelectorAll('.av2-home .av2-stat-card')) {
     if (text(card.querySelector('.av2-stat-card__label')) !== 'שעות') continue;
     const value = card.querySelector('.av2-stat-card__value');
-    if (value) value.textContent = formatHours(totalHours);
+    if (value) value.textContent = formatDurationHours(totalHours);
   }
 }
 
@@ -240,7 +240,7 @@ function renderHomeSummary(root, records, key) {
       const activity = document.createElement('span');
       activity.textContent = item.activityType;
       const hours = document.createElement('span');
-      hours.textContent = formatHours(item.hours);
+      hours.textContent = formatDurationHours(item.hours);
       const km = document.createElement('span');
       km.textContent = item.km.toFixed(1);
       row.append(activity, hours, km);
@@ -252,7 +252,7 @@ function renderHomeSummary(root, records, key) {
     const label = document.createElement('span');
     label.textContent = 'סה״כ כולל';
     const hours = document.createElement('span');
-    hours.textContent = formatHours(rows.reduce((sum, item) => sum + item.hours, 0));
+    hours.textContent = formatDurationHours(rows.reduce((sum, item) => sum + item.hours, 0));
     const km = document.createElement('span');
     km.textContent = rows.reduce((sum, item) => sum + item.km, 0).toFixed(1);
     total.append(label, hours, km);
@@ -304,7 +304,7 @@ function extractReportRow(row) {
     date: dayTotal ? `${date} · ${dayTotal}` : date,
     start: text(row.querySelector('.av2-rr__start')) || '—',
     end: text(row.querySelector('.av2-rr__end')) || '—',
-    hours: numberFrom(text(row.querySelector('.av2-rr__hours'))),
+    hours: durationHoursFrom(text(row.querySelector('.av2-rr__hours'))),
     activity: text(row.querySelector('.av2-rr__name')) || '—',
     school: text(row.querySelector('.av2-rr__school')) || '—',
     authority: text(row.querySelector('.av2-rr__authority')) || '—',
@@ -368,7 +368,7 @@ function enhanceReportsTable() {
       buildCell(item.date),
       buildCell(item.start),
       buildCell(item.end),
-      buildCell(formatHours(item.hours), 'av2-reference-reports-table__hours'),
+      buildCell(formatDurationHours(item.hours), 'av2-reference-reports-table__hours'),
       buildCell(item.activity),
       buildCell(item.school),
       buildCell(item.authority),
@@ -384,7 +384,7 @@ function enhanceReportsTable() {
     buildCell('סה״כ:'),
     buildCell(''),
     buildCell(''),
-    buildCell(formatHours(totalHours), 'is-total'),
+    buildCell(formatDurationHours(totalHours), 'is-total'),
     buildCell(''),
     buildCell(''),
     buildCell(''),

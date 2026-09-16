@@ -4,6 +4,7 @@ import { activityTypeDisplayLabel } from './shared/activity-options.js';
 import {
   attendanceMonthLabel,
   buildCorrectedAttendanceWorkbook,
+  formatDurationHours,
   rowWorkHours,
   attendanceEntryIsResolved,
   kmDayNeedsDecision,
@@ -539,14 +540,14 @@ export function buildPayrollApprovalPrintHtml(approval = {}) {
     <td>${escapeHtml(row.program || '')}</td>
     <td>${escapeHtml(row.meetingNo || '')}</td>
     <td>${escapeHtml(`${row.startTime || '—'}–${row.endTime || '—'}`)}</td>
-    <td>${escapeHtml(row.workHours == null ? '—' : String(row.workHours))}</td>
+    <td>${escapeHtml(formatDurationHours(row.workHours))}</td>
     <td>${escapeHtml(travelCell(row))}</td>
     <td>${escapeHtml(ptCostCell(row))}</td>
     <td>${escapeHtml(row.expenses == null ? '—' : String(row.expenses))}</td>
     <td>${escapeHtml(row.expenseDetails || '')}</td>
     <td>${escapeHtml(row.notes || '')}</td>
   </tr>`).join('');
-  const typeRows = summary.byType.map(([type, hours]) => `<li>${escapeHtml(type)}: ${hours}</li>`).join('');
+  const typeRows = summary.byType.map(([type, hours]) => `<li>${escapeHtml(type)}: ${formatDurationHours(hours)}</li>`).join('');
   const hasPublicTransport = rows.some((row) => row.publicTransport === true || row.publicTransport === 'true' || row.publicTransport === 1);
   const expenseLine = summary.expenses
     ? `<p>סה״כ הוצאות: ${escapeHtml(String(summary.expenses))}</p>`
@@ -565,7 +566,7 @@ export function buildPayrollApprovalPrintHtml(approval = {}) {
     <tbody>${table || '<tr><td colspan="13">אין רשומות מאושרות</td></tr>'}</tbody></table>
     <p>סיכום לפי סוג פעילות</p>
     <ul>${typeRows || '<li>אין נתונים</li>'}</ul>
-    <p>סה״כ שעות: ${escapeHtml(String(summary.hours))}</p>
+    <p>סה״כ שעות: ${escapeHtml(formatDurationHours(summary.hours))}</p>
     <p>סה״כ ק״מ: ${escapeHtml(String(summary.km))}</p>
     ${ptCostLine}
     ${expenseLine}

@@ -1,4 +1,5 @@
 import { escapeHtml } from '../shared/html.js';
+import { formatDurationHours } from '../attendance-control.js';
 
 function text(value) {
   return String(value ?? '').trim();
@@ -45,7 +46,7 @@ export function instructorAttendanceCardHtml(row = {}) {
   const start = time(row.start_time);
   const end = time(row.end_time);
   const hours = row.total_hours !== null && row.total_hours !== undefined && text(row.total_hours)
-    ? compactNumber(row.total_hours)
+    ? formatDurationHours(row.total_hours)
     : '';
   const timeParts = [];
   if (start || end) timeParts.push(`${start || '—'}–${end || '—'}`);

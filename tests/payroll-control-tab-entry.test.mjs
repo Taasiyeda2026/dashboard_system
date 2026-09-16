@@ -39,5 +39,5 @@ test('config keeps one HOTFIX_VERSION property and both merge-side markers', () 
 });
 
 test('service worker cache version is bumped for the payroll control deploy', () => {
-  assert.match(swSource, /const CACHE_VERSION = 1724;/);
+  assert.match(swSource, /const CACHE_VERSION = 1725;/);
 });

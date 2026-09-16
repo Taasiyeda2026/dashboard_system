@@ -8,7 +8,7 @@ import { getMonthRecords, calcMonthSummary, getMonthApproval, submitMonth, sourc
 import { canEditMonth, editBlockReason, getMonthKey, formatMonthLabel, shouldShowSubmitReminder } from '../services/month-gate.service.js';
 import { exportMonthToExcel } from '../services/excel.service.js';
 import { createReportDaySummaryRow, distinctAttendanceWorkDays } from '../components/report-summary-row.js';
-import { groupReportRecordsByDate } from '../components/monthly-report-summary.js';
+import { formatDurationHours, groupReportRecordsByDate } from '../components/monthly-report-summary.js';
 import { openSubmitConfirmationDialog } from '../submit-confirmation-dialog.js';
 
 const STATUS_MAP = {
@@ -124,7 +124,7 @@ async function loadAndRender({ instructor, year, month, statsEl, actionStripEl, 
     statsEl.innerHTML = '';
     statsEl.append(
       buildStat(distinctAttendanceWorkDays(records),      'ימי עבודה', 'calendar'),
-      buildStat(summary.totalHours.toFixed(2),            'שעות',     'clock'),
+      buildStat(formatDurationHours(summary.totalHours),  'שעות',     'clock'),
       buildStat(summary.totalKm.toFixed(0) + '\u00a0ק"מ','נסיעות',   'map-pin'),
       buildStat('₪' + summary.totalExpenses.toFixed(0),  'הוצאות',   'shekel-sign')
     );
