@@ -19,7 +19,7 @@ import { canEditMonth, editBlockReason, getMonthKey, formatMonthLabel } from '..
 import { calcHours, ONLINE_REPORT_TYPE, OPERATIONS_REPORT_TYPE } from '../services/activities.service.js';
 import { deleteAttachment, getSignedUrl } from '../services/storage.service.js';
 import { exportMonthToExcel } from '../services/excel.service.js';
-import { reportPresentation } from '../components/report-summary-row.js';
+import { isBaseTrainingRecord, reportPresentation } from '../components/report-summary-row.js';
 
 const COURSE_REPORT_TYPE = 'קורס';
 
@@ -256,6 +256,7 @@ function buildRecordRow({ record, generated, editable, instructor, activityTypes
   const row = document.createElement('div');
   row.className = 'av2-report-row';
   row.dataset.recordId = record.id;
+  const baseTraining = isBaseTrainingRecord(record);
 
   // ── 1. Date ─────────────────────────────────────────────────────────────
   const dateCell = document.createElement('div');
@@ -293,12 +294,12 @@ function buildRecordRow({ record, generated, editable, instructor, activityTypes
   // ── 7. School ────────────────────────────────────────────────────────────
   const schoolCell = document.createElement('div');
   schoolCell.className = 'av2-rr__school';
-  schoolCell.textContent = record.school_name_snapshot || '—';
+  schoolCell.textContent = baseTraining ? '—' : (record.school_name_snapshot || '—');
 
   // ── 8. Authority ─────────────────────────────────────────────────────────
   const authCell = document.createElement('div');
   authCell.className = 'av2-rr__authority';
-  authCell.textContent = record.authority_name_snapshot || '—';
+  authCell.textContent = baseTraining ? '—' : (record.authority_name_snapshot || '—');
 
   // ── 9. KM ────────────────────────────────────────────────────────────────
   const kmCell = document.createElement('div');
@@ -601,6 +602,7 @@ function showEditModal({ record, instructor, activityTypes, onRefresh }) {
     const isOperations = reportType === OPERATIONS_REPORT_TYPE;
     const isZoom = reportType === ONLINE_REPORT_TYPE;
     const isCourse = reportType === COURSE_REPORT_TYPE;
+    const isBaseTraining = reportType === 'הכשרה' && actNameField.input.value.trim() === 'הכשרת בסיס';
 
     const activityLabel = actNameField.wrap.querySelector('.av2-field__label');
     if (activityLabel) activityLabel.textContent = isOperations ? 'פרטי תפעול *' : 'שם פעילות';
@@ -610,8 +612,8 @@ function showEditModal({ record, instructor, activityTypes, onRefresh }) {
 
     meetField.wrap.hidden = !isCourse;
     if (!isCourse) meetField.input.value = '';
-    authField.wrap.hidden = isOperations;
-    schoolField.wrap.hidden = isOperations;
+    authField.wrap.hidden = isOperations || isBaseTraining;
+    schoolField.wrap.hidden = isOperations || isBaseTraining;
 
     if (isZoom) {
       if (!kmField.input.disabled) kmBeforeZoom = kmField.input.value;
@@ -626,6 +628,7 @@ function showEditModal({ record, instructor, activityTypes, onRefresh }) {
     }
   }
   typeField.input.addEventListener('change', syncEditTypeUi);
+  actNameField.input.addEventListener('input', syncEditTypeUi);
   syncEditTypeUi();
 
   form.append(sectionTitle('מידע נוסף'));
@@ -659,13 +662,14 @@ function showEditModal({ record, instructor, activityTypes, onRefresh }) {
     const isOperations = reportType === OPERATIONS_REPORT_TYPE;
     const isZoom = reportType === ONLINE_REPORT_TYPE;
     const isCourse = reportType === COURSE_REPORT_TYPE;
+    const isBaseTraining = reportType === 'הכשרה' && actNameField.input.value.trim() === 'הכשרת בסיס';
 
     const missing = [];
     if (!startTime || !endTime) missing.push('שעות');
     if (startTime && endTime && totalHours <= 0) missing.push('שעת סיום חייבת להיות מאוחרת מהתחלה');
     if (!reportType) missing.push('סוג פעילות');
     if (!actNameField.input.value.trim()) missing.push(isOperations ? 'פרטי תפעול' : 'שם פעילות');
-    if (!isOperations && !authField.input.value.trim()) missing.push('רשות');
+    if (!isOperations && !isBaseTraining && !authField.input.value.trim()) missing.push('רשות');
     if (missing.length) {
       errorEl.textContent = `שדות חובה: ${missing.join(' · ')}`;
       errorEl.hidden = false;
@@ -681,18 +685,18 @@ function showEditModal({ record, instructor, activityTypes, onRefresh }) {
         end_time:                endTime,
         total_hours:             totalHours,
         activity_type:           reportType,
-        activity_id:             isOperations ? null : (record.activity_id ?? null),
-        activity_row_id:         isOperations ? null : (record.activity_row_id ?? null),
-        activity_no:             isOperations ? null : (record.activity_no ?? null),
-        activity_season:         isOperations ? null : (record.activity_season ?? null),
+        activity_id:             isOperations || isBaseTraining ? null : (record.activity_id ?? null),
+        activity_row_id:         isOperations || isBaseTraining ? null : (record.activity_row_id ?? null),
+        activity_no:             isOperations || isBaseTraining ? null : (record.activity_no ?? null),
+        activity_season:         isOperations || isBaseTraining ? null : (record.activity_season ?? null),
         activity_name_snapshot:  actNameField.input.value.trim() || null,
-        authority_id:            isOperations ? null : (record.authority_id ?? null),
-        authority_name_snapshot: isOperations ? null : (authField.input.value.trim() || null),
-        school_id:               isOperations ? null : (record.school_id ?? null),
-        school_name_snapshot:    isOperations ? null : (schoolField.input.value.trim() || null),
-        semel_mosad:             isOperations ? null : (record.semel_mosad ?? null),
+        authority_id:            isOperations || isBaseTraining ? null : (record.authority_id ?? null),
+        authority_name_snapshot: isOperations ? null : (isBaseTraining ? 'יקום' : (authField.input.value.trim() || null)),
+        school_id:               isOperations || isBaseTraining ? null : (record.school_id ?? null),
+        school_name_snapshot:    isOperations ? null : (isBaseTraining ? 'Greenwork' : (schoolField.input.value.trim() || null)),
+        semel_mosad:             isOperations || isBaseTraining ? null : (record.semel_mosad ?? null),
         meeting_no:              isCourse && meetField.input.value ? Number(meetField.input.value) : null,
-        program_name:            isOperations ? null : (record.program_name ?? null),
+        program_name:            isOperations || isBaseTraining ? null : (record.program_name ?? null),
         roundtrip_km:            isZoom ? 0 : (kmField.input.value ? Number(kmField.input.value) : 0),
         expenses:                expField.input.value ? Number(expField.input.value) : 0,
         expense_details:         expDField.input.value.trim() || null,
