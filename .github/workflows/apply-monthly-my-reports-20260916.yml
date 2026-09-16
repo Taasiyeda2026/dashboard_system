@@ -1,0 +1,60 @@
+name: Apply monthly my reports 20260916
+
+on:
+  push:
+    branches:
+      - codex/monthly-my-reports-summary-20260916
+
+permissions:
+  contents: write
+
+jobs:
+  apply-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/monthly-my-reports-summary-20260916
+          fetch-depth: 0
+
+      - name: Apply scoped UI patch
+        run: python scripts/apply_monthly_my_reports_20260916.py
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Verify monthly reports behavior
+        run: |
+          node --test \
+            tests/attendance-monthly-report-summary.test.mjs \
+            tests/attendance-mobile-expandable-rows.test.mjs \
+            tests/attendance-screen-structure.test.mjs \
+            tests/attendance-activity-type-behavior.test.mjs \
+            tests/attendance-base-training.test.mjs
+
+      - name: Build attendance app
+        run: npm run build
+
+      - name: Commit verified implementation
+        shell: bash
+        run: |
+          rm scripts/apply_monthly_my_reports_20260916.py
+          rm .github/workflows/apply-monthly-my-reports-20260916.yml
+          git config user.name "Taasiyeda2026"
+          git config user.email "idanahum1122@gmail.com"
+          git add \
+            attendance/src/components/monthly-report-summary.js \
+            attendance/src/components/report-summary-row.js \
+            attendance/src/screens/home-screen.js \
+            attendance/src/screens/my-reports-screen.js \
+            attendance/src/mobile-reports-enhancer.js \
+            attendance/src/reference-data-layout.js \
+            attendance/src/styles/my-reports-screen.css \
+            attendance/src/styles/attendance-followup.css \
+            attendance/src/styles/mobile-reports.css \
+            attendance/sw.js \
+            tests/attendance-monthly-report-summary.test.mjs \
+            scripts/apply_monthly_my_reports_20260916.py \
+            .github/workflows/apply-monthly-my-reports-20260916.yml
+          git commit -m "Improve monthly attendance reports summary"
+          git push origin HEAD:codex/monthly-my-reports-summary-20260916
