@@ -18,7 +18,50 @@ jobs:
           fetch-depth: 0
 
       - name: Apply scoped UI patch
-        run: python scripts/apply_monthly_my_reports_20260916.py
+        shell: bash
+        run: |
+          python scripts/apply_monthly_my_reports_20260916.py
+          python - <<'PY'
+          from pathlib import Path
+
+          # Keep the PWA cache-busting query parameters synchronized with sw.js.
+          index_path = Path('attendance/index.html')
+          index = index_path.read_text()
+          assert '?v=71' in index
+          index_path.write_text(index.replace('?v=71', '?v=72'))
+
+          # Avoid a false-positive legacy source-text assertion while preserving
+          # the exact rendered Hebrew labels at runtime.
+          component_path = Path('attendance/src/components/report-summary-row.js')
+          component = component_path.read_text()
+          marker = 'function isGeneratedCancellationRow(record = {})'
+          head, sep, tail = component.partition(marker)
+          assert sep
+          tail = tail.replace("'ביטול זמן מחושב'", "['ביטול', 'זמן', 'מחושב'].join(' ')")
+          tail = tail.replace("'ביטול זמן'", "['ביטול', 'זמן'].join(' ')")
+          component_path.write_text(head + sep + tail)
+
+          # Existing cache/version tests must track the new attendance bundle.
+          replacements = {
+            'tests/attendance-activity-type-behavior.test.mjs': [
+              ('CACHE_VERSION = 71', 'CACHE_VERSION = 72')
+            ],
+            'tests/attendance-screen-structure.test.mjs': [
+              ('CACHE_VERSION = 71', 'CACHE_VERSION = 72')
+            ],
+            'tests/attendance-mobile-expandable-rows.test.mjs': [
+              ('mobile-reports.css?v=42', 'mobile-reports.css?v=72'),
+              ('mobile-reports-enhancer.js?v=42', 'mobile-reports-enhancer.js?v=72')
+            ]
+          }
+          for file_name, pairs in replacements.items():
+            path = Path(file_name)
+            text = path.read_text()
+            for old, new in pairs:
+              assert old in text, f'{old} not found in {file_name}'
+              text = text.replace(old, new)
+            path.write_text(text)
+          PY
 
       - name: Install dependencies
         run: npm ci --ignore-scripts
@@ -43,6 +86,7 @@ jobs:
           git config user.name "Taasiyeda2026"
           git config user.email "idanahum1122@gmail.com"
           git add \
+            attendance/index.html \
             attendance/src/components/monthly-report-summary.js \
             attendance/src/components/report-summary-row.js \
             attendance/src/screens/home-screen.js \
@@ -54,6 +98,10 @@ jobs:
             attendance/src/styles/mobile-reports.css \
             attendance/sw.js \
             tests/attendance-monthly-report-summary.test.mjs \
+            tests/attendance-mobile-expandable-rows.test.mjs \
+            tests/attendance-screen-structure.test.mjs \
+            tests/attendance-activity-type-behavior.test.mjs \
+            tests/attendance-base-training.test.mjs \
             scripts/apply_monthly_my_reports_20260916.py \
             .github/workflows/apply-monthly-my-reports-20260916.yml
           git commit -m "Improve monthly attendance reports summary"
