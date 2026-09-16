@@ -48,8 +48,8 @@ permission_block = """  const appRole = String(appUser?.role || '');
 
 edge = replace_once(
     edge,
-    "  const mode = String(payload.mode || 'route').toLowerCase();\n",
-    permission_block + "  const mode = String(payload.mode || 'route').toLowerCase();\n",
+    "  const mode = text(payload.mode).toLowerCase();\n",
+    permission_block + "  const mode = text(payload.mode).toLowerCase();\n",
     'insert scoped attendance-control permission gate'
 )
 
