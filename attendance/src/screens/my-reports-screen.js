@@ -336,7 +336,7 @@ function buildRecordRow({ record, generated, editable, instructor, activityTypes
   // ── 4. Total hours ────────────────────────────────────────────────────────
   const hoursCell = document.createElement('div');
   hoursCell.className = 'av2-rr__hours';
-  hoursCell.textContent = Number(record.total_hours || 0).toFixed(2);
+  hoursCell.textContent = formatDurationHours(record.total_hours);
 
   // ── 5. Activity type ─────────────────────────────────────────────────────
   const typeCell = document.createElement('div');
@@ -530,7 +530,7 @@ async function handleCopy(record, btn) {
   const parts = [
     formatDateHeb(record.report_date),
     `${formatTime(record.start_time)}–${formatTime(record.end_time)}`,
-    Number(record.total_hours || 0).toFixed(2) + ' שעות',
+    formatDurationHours(record.total_hours) + ' שעות',
     record.activity_name_snapshot || record.activity_type || '',
     record.school_name_snapshot || '',
     record.authority_name_snapshot || '',

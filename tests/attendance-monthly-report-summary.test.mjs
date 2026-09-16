@@ -56,3 +56,28 @@ test('mobile expanded report explicitly exposes activity type', async () => {
   assert.match(enhancer, /setMobileLabel\(typeCell, 'סוג פעילות'\)/);
   assert.match(css, /is-mobile-expanded > \.av2-rr__type/);
 });
+
+test('decimal attendance hours are presented as clock durations', () => {
+  assert.equal(formatDurationHours(1.83), '1:50');
+  assert.equal(formatDurationHours(1.75), '1:45');
+  assert.equal(formatDurationHours(1.5), '1:30');
+  assert.equal(formatDurationHours(3), '3:00');
+});
+
+test('attendance UI uses H:MM formatting instead of decimal hours', async () => {
+  const [reports, home, newReport, summaryRow, referenceLayout] = await Promise.all([
+    readFile(new URL('../attendance/src/screens/my-reports-screen.js', import.meta.url), 'utf8'),
+    readFile(new URL('../attendance/src/screens/home-screen.js', import.meta.url), 'utf8'),
+    readFile(new URL('../attendance/src/screens/new-report-screen.js', import.meta.url), 'utf8'),
+    readFile(new URL('../attendance/src/components/report-summary-row.js', import.meta.url), 'utf8'),
+    readFile(new URL('../attendance/src/reference-data-layout.js', import.meta.url), 'utf8'),
+  ]);
+  assert.match(reports, /hoursCell\.textContent = formatDurationHours\(record\.total_hours\)/);
+  assert.match(home, /buildStat\(formatDurationHours\(summary\.totalHours\)/);
+  assert.match(newReport, /h > 0 \? formatDurationHours\(h\) : '—'/);
+  assert.match(summaryRow, /hours\.textContent = formatDurationHours\(record\.total_hours\)/);
+  assert.match(referenceLayout, /durationNumberFrom\(text\(row\.querySelector\('\.av2-rr__hours'\)\)\)/);
+  assert.doesNotMatch(reports, /record\.total_hours[^\n]*toFixed\(2\)/);
+  assert.doesNotMatch(summaryRow, /record\.total_hours[^\n]*toFixed\(2\)/);
+});
+

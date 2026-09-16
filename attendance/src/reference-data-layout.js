@@ -22,6 +22,19 @@ function numberFrom(value) {
   return Number.isFinite(number) ? number : 0;
 }
 
+function durationNumberFrom(value) {
+  const raw = String(value ?? '').trim();
+  const clock = raw.match(/^(\d+):(\d{1,2})$/);
+  if (clock) {
+    const hours = Number(clock[1]);
+    const minutes = Number(clock[2]);
+    if (Number.isFinite(hours) && Number.isFinite(minutes) && minutes >= 0 && minutes < 60) {
+      return hours + (minutes / 60);
+    }
+  }
+  return numberFrom(raw);
+}
+
 function formatHours(value) {
   const totalMinutes = Math.max(0, Math.round(Number(value || 0) * 60));
   const hours = Math.floor(totalMinutes / 60);
@@ -304,7 +317,7 @@ function extractReportRow(row) {
     date: dayTotal ? `${date} · ${dayTotal}` : date,
     start: text(row.querySelector('.av2-rr__start')) || '—',
     end: text(row.querySelector('.av2-rr__end')) || '—',
-    hours: numberFrom(text(row.querySelector('.av2-rr__hours'))),
+    hours: durationNumberFrom(text(row.querySelector('.av2-rr__hours'))),
     activity: text(row.querySelector('.av2-rr__name')) || '—',
     school: text(row.querySelector('.av2-rr__school')) || '—',
     authority: text(row.querySelector('.av2-rr__authority')) || '—',
