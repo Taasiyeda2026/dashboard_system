@@ -298,20 +298,18 @@ function detailValue(row, label) {
 }
 
 function extractReportRow(row) {
-  const timeText = text(row.querySelector('.av2-report-row__time strong'));
-  const [start = '—', end = '—'] = timeText.split(/[–—-]/).map((value) => value.trim());
-  const hours = numberFrom(text(row.querySelector('.av2-report-row__time span')));
-  const km = numberFrom(detailValue(row, 'ק"מ'));
+  const date = String(row.dataset.reportDate || text(row.querySelector('.av2-rr__date strong')) || '—');
+  const dayTotal = text(row.querySelector('.av2-rr__day-total'));
   return {
-    date: String(row.dataset.reportDate || text(row.querySelector('.av2-report-row__date strong')) || '—'),
-    start,
-    end,
-    hours,
-    activity: text(row.querySelector('.av2-report-row__main strong')) || '—',
-    school: text(row.querySelector('.av2-report-row__school strong')) || text(row.querySelector('.av2-report-row__main span')) || '—',
-    authority: detailValue(row, 'רשות') || '—',
-    km,
-    actions: [...row.querySelectorAll('.av2-report-row__actions button')]
+    date: dayTotal ? `${date} · ${dayTotal}` : date,
+    start: text(row.querySelector('.av2-rr__start')) || '—',
+    end: text(row.querySelector('.av2-rr__end')) || '—',
+    hours: numberFrom(text(row.querySelector('.av2-rr__hours'))),
+    activity: text(row.querySelector('.av2-rr__name')) || '—',
+    school: text(row.querySelector('.av2-rr__school')) || '—',
+    authority: text(row.querySelector('.av2-rr__authority')) || '—',
+    km: numberFrom(text(row.querySelector('.av2-rr__km'))),
+    actions: [...row.querySelectorAll('.av2-rr__actions button')]
   };
 }
 

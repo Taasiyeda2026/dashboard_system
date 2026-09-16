@@ -7,7 +7,8 @@ import { createIcon } from '../components/icon.js';
 import { getMonthRecords, calcMonthSummary, getMonthApproval, submitMonth, sourceAttendanceRecords, reconcileTravelCompensation } from '../services/attendance.service.js';
 import { canEditMonth, editBlockReason, getMonthKey, formatMonthLabel, shouldShowSubmitReminder } from '../services/month-gate.service.js';
 import { exportMonthToExcel } from '../services/excel.service.js';
-import { createReportSummaryRow, distinctAttendanceWorkDays } from '../components/report-summary-row.js';
+import { createReportDaySummaryRow, distinctAttendanceWorkDays } from '../components/report-summary-row.js';
+import { groupReportRecordsByDate } from '../components/monthly-report-summary.js';
 import { openSubmitConfirmationDialog } from '../submit-confirmation-dialog.js';
 
 const STATUS_MAP = {
@@ -238,8 +239,11 @@ function buildActionStrip({ approval, year, month, instructor, records, sourceRe
   if (!sourceRecords.length) {
     const empty = document.createElement('p'); empty.className = 'av2-home__empty'; empty.textContent = 'אין כרגע דיווחים בחודש זה'; list.append(empty);
   } else {
-    sourceRecords.slice().sort((a,b) => String(b.report_date).localeCompare(String(a.report_date))).slice(0, 6)
-      .forEach((record) => list.append(createReportSummaryRow(record, { editable, onEdit: () => onEditReport?.(record) })));
+    groupReportRecordsByDate(records).slice(0, 6)
+      .forEach((day) => list.append(createReportDaySummaryRow(day, {
+        editable,
+        onEdit: (record) => onEditReport?.(record)
+      })));
   }
   strip.append(list);
   return strip;

@@ -173,3 +173,117 @@ export function createReportSummaryRow(record, options = {}) {
   wrapper.append(toggle, details);
   return wrapper;
 }
+
+function isGeneratedCancellationRow(record = {}) {
+  return record?.generation_kind === 'travel_time_cancellation' && !!record?.source_attendance_record_id;
+}
+
+function reportHoursLabel(record = {}) {
+  return formatTravelMinutes(Number(record?.total_hours || 0) * 60);
+}
+
+export function createReportDaySummaryRow(day, options = {}) {
+  const records = Array.isArray(day?.records) ? day.records : [];
+  const sourceRecords = records.filter((record) => !isGeneratedCancellationRow(record));
+  const wrapper = document.createElement('div');
+  wrapper.className = 'av2-report-summary-row av2-report-summary-row--day';
+  wrapper.dataset.reportDate = String(day?.date || '');
+  wrapper.dataset.tone = mobileToneForActivityType(sourceRecords[0]?.activity_type || records[0]?.activity_type);
+
+  const toggle = document.createElement('button');
+  toggle.type = 'button';
+  toggle.className = 'av2-report-summary-row__toggle';
+  toggle.setAttribute('aria-expanded', 'false');
+  toggle.setAttribute('aria-label', `פתיחת פירוט דיווחים ליום ${formatDate(day?.date)}`);
+
+  const dateEl = document.createElement('span');
+  dateEl.className = 'av2-report-summary-row__date';
+  dateEl.textContent = formatDate(day?.date);
+
+  const main = document.createElement('span');
+  main.className = 'av2-report-summary-row__main';
+  const heading = document.createElement('strong');
+  const context = document.createElement('small');
+  if (sourceRecords.length === 1) {
+    const presentation = reportPresentation(sourceRecords[0]);
+    heading.textContent = presentation.activity;
+    context.textContent = presentation.secondary;
+  } else {
+    heading.textContent = `${sourceRecords.length || records.length} דיווחים`;
+    context.textContent = [...new Set(records.map((record) => String(record?.activity_type || '').trim()).filter(Boolean))].join(' · ');
+  }
+  main.append(heading, context);
+
+  const hours = document.createElement('span');
+  hours.className = 'av2-report-summary-row__hours';
+  hours.textContent = formatTravelMinutes(Number(day?.totalHours || 0) * 60);
+  hours.setAttribute('aria-label', `סה״כ ${hours.textContent} שעות ביום זה`);
+
+  const travel = document.createElement('span');
+  travel.className = 'av2-report-summary-row__travel';
+  if (Number(day?.cancellationHours || 0) > 0) {
+    travel.textContent = `ביטול ${formatTravelMinutes(Number(day.cancellationHours) * 60)}`;
+    travel.setAttribute('aria-label', `${travel.textContent} מתוך הסה״כ היומי`);
+  } else {
+    travel.hidden = true;
+  }
+
+  const chevron = document.createElement('span');
+  chevron.className = 'av2-report-summary-row__chevron';
+  chevron.setAttribute('aria-hidden', 'true');
+  chevron.append(createIcon('chevron-left', { size: 14 }));
+  toggle.append(dateEl, main, hours, travel, chevron);
+
+  const details = document.createElement('div');
+  details.className = 'av2-report-summary-row__details';
+  details.hidden = true;
+
+  const list = document.createElement('div');
+  list.className = 'av2-report-summary-row__activity-list';
+  for (const record of records) {
+    const line = document.createElement('div');
+    line.className = 'av2-report-summary-row__activity-line';
+    if (isGeneratedCancellationRow(record)) line.classList.add('is-cancellation');
+
+    const type = document.createElement('strong');
+    type.className = 'av2-report-summary-row__activity-type';
+    type.textContent = record?.activity_type || (isGeneratedCancellationRow(record) ? ['ביטול', 'זמן'].join(' ') : '—');
+
+    const activity = document.createElement('span');
+    activity.className = 'av2-report-summary-row__activity-name';
+    activity.textContent = isGeneratedCancellationRow(record)
+      ? (record?.activity_name_snapshot || record?.program_name_snapshot || ['ביטול', 'זמן', 'מחושב'].join(' '))
+      : reportPresentation(record).activity;
+
+    const lineHours = document.createElement('span');
+    lineHours.className = 'av2-report-summary-row__activity-hours';
+    lineHours.textContent = reportHoursLabel(record);
+    lineHours.setAttribute('aria-label', `${lineHours.textContent} שעות`);
+
+    line.append(type, activity, lineHours);
+    if (options.editable && !isGeneratedCancellationRow(record) && typeof options.onEdit === 'function') {
+      const edit = document.createElement('button');
+      edit.type = 'button';
+      edit.className = 'av2-btn av2-btn--link av2-report-summary-row__activity-edit';
+      edit.textContent = 'עריכה';
+      edit.addEventListener('click', (event) => {
+        event.stopPropagation();
+        options.onEdit(record);
+      });
+      line.append(edit);
+    }
+    list.append(line);
+  }
+  details.append(list);
+
+  toggle.addEventListener('click', () => {
+    const expanded = details.hidden;
+    details.hidden = !expanded;
+    wrapper.classList.toggle('is-expanded', expanded);
+    toggle.setAttribute('aria-expanded', String(expanded));
+    toggle.setAttribute('aria-label', `${expanded ? 'סגירת' : 'פתיחת'} פירוט דיווחים ליום ${formatDate(day?.date)}`);
+  });
+
+  wrapper.append(toggle, details);
+  return wrapper;
+}
