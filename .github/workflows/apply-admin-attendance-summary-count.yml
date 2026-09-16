@@ -1,0 +1,85 @@
+name: Apply admin attendance summary count fix
+
+on:
+  push:
+    branches:
+      - codex/fix-admin-attendance-summary-count-20260916
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/fix-admin-attendance-summary-count-20260916
+          fetch-depth: 0
+
+      - name: Apply focused fix
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          admin = Path('frontend/src/admin-attendance-standalone.js')
+          s = admin.read_text()
+          old = """    for (const row of Array.isArray(attendanceRows) ? attendanceRows : []) {\n      const id = employeeId(row);\n      if (!recordCounts.has(id) || recordMonthKey(row) !== monthKey) continue;\n      recordCounts.set(id, (recordCounts.get(id) || 0) + 1);\n    }"""
+          new = """    for (const row of Array.isArray(attendanceRows) ? attendanceRows : []) {\n      const id = employeeId(row);\n      if (!recordCounts.has(id) || recordMonthKey(row) !== monthKey) continue;\n      const generationKind = text(row?.generationKind || row?.generation_kind);\n      if (generationKind === 'travel_time_cancellation') continue;\n      recordCounts.set(id, (recordCounts.get(id) || 0) + 1);\n    }"""
+          if old not in s:
+            raise SystemExit('admin record count block not found')
+          s = s.replace(old, new, 1)
+          s = s.replace('קיים · ${reportCount}</span>', 'קיים · ${reportCount} דיווחים</span>', 1)
+          admin.write_text(s)
+
+          sw = Path('frontend/sw.js')
+          s = sw.read_text()
+          if 'const CACHE_VERSION = 1723;' not in s:
+            raise SystemExit('expected sw cache 1723 not found')
+          sw.write_text(s.replace('const CACHE_VERSION = 1723;', 'const CACHE_VERSION = 1724;', 1))
+
+          config = Path('frontend/src/config.js')
+          s = config.read_text()
+          marker = "config.HOTFIX_VERSION = `admin-attendance-summary-count-sw-cache-1724-20260916-v1-${config.HOTFIX_VERSION}`;"
+          if marker not in s:
+            s = s.rstrip() + '\n' + marker + '\n'
+          config.write_text(s)
+
+          index = Path('index.html')
+          s = index.read_text()
+          old_q = 'admin-attendance-standalone.js?v=20260916-attendance-control-parity-v1'
+          new_q = 'admin-attendance-standalone.js?v=20260916-admin-attendance-summary-count-v2'
+          if old_q not in s:
+            raise SystemExit('admin standalone asset marker not found')
+          index.write_text(s.replace(old_q, new_q, 1))
+
+          # Keep existing exact cache-version regression contracts aligned with the deploy bump.
+          for p in Path('tests').glob('*.test.mjs'):
+            t = p.read_text()
+            t2 = t.replace('const CACHE_VERSION = 1723;', 'const CACHE_VERSION = 1724;')
+            if t2 != t:
+              p.write_text(t2)
+
+          test = Path('tests/admin-attendance-summary-count.test.mjs')
+          test.write_text("""import test from 'node:test';\nimport assert from 'node:assert/strict';\nimport { readFile } from 'node:fs/promises';\n\nconst adminSource = await readFile(new URL('../frontend/src/admin-attendance-standalone.js', import.meta.url), 'utf8');\n\ntest('admin overview excludes generated travel-time cancellation rows from report counts', () => {\n  assert.match(adminSource, /const generationKind = text\\(row\\?\\.generationKind \\|\\| row\\?\\.generation_kind\\);/);\n  assert.match(adminSource, /if \\(generationKind === 'travel_time_cancellation'\\) continue;/);\n  assert.match(adminSource, /קיים · \\${reportCount} דיווחים/);\n});\n\ntest('admin overview still counts ordinary attendance rows', () => {\n  assert.match(adminSource, /recordCounts\\.set\\(id, \\(recordCounts\\.get\\(id\\) \\|\\| 0\\) \\+ 1\\);/);\n});\n\ntest('admin attendance asset and cache markers are bumped', async () => {\n  const index = await readFile(new URL('../index.html', import.meta.url), 'utf8');\n  const sw = await readFile(new URL('../frontend/sw.js', import.meta.url), 'utf8');\n  const config = await readFile(new URL('../frontend/src/config.js', import.meta.url), 'utf8');\n  assert.match(index, /admin-attendance-standalone\\.js\\?v=20260916-admin-attendance-summary-count-v2/);\n  assert.match(sw, /const CACHE_VERSION = 1724;/);\n  assert.match(config, /admin-attendance-summary-count-sw-cache-1724-20260916-v1/);\n});\n""")
+          PY
+
+      - name: Run focused tests
+        run: |
+          node --test \
+            tests/admin-attendance-summary-count.test.mjs \
+            tests/manager-attendance-summary-count.test.mjs \
+            tests/attendance-control-entry-structure.test.mjs \
+            tests/manager-workspace-contract.test.mjs \
+            tests/payroll-control-tab-entry.test.mjs
+
+      - name: Commit focused fix and remove temporary workflow
+        shell: bash
+        run: |
+          rm .github/workflows/apply-admin-attendance-summary-count.yml
+          git config user.name "Idan Nahum"
+          git config user.email "idanahum1122@gmail.com"
+          git add -A
+          git commit -m "Fix admin attendance report count"
+          git push origin HEAD:codex/fix-admin-attendance-summary-count-20260916
