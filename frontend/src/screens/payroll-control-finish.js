@@ -108,11 +108,7 @@ export function payrollEmployeeEntries(result, employeeId) {
 }
 
 export function payrollEmployeeHasUnresolvedEntries(result, employeeId) {
-  if (payrollEmployeeEntries(result, employeeId).some((entry) => !attendanceEntryIsResolved(entry))) return true;
-  const id = txt(employeeId);
-  return (result?.dailyKilometers || [])
-    .filter((day) => txt(day.employeeId) === id)
-    .some((day) => kmDayNeedsDecision(day));
+  return payrollEmployeeEntries(result, employeeId).some((entry) => !attendanceEntryIsResolved(entry));
 }
 
 function originalAttendanceRecord(entry) {

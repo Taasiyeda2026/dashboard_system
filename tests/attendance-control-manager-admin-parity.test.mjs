@@ -486,14 +486,14 @@ test('KM to PT, PT to KM, and PT cost change refresh final and daily km state', 
   assert.equal(entry.final.kilometers, 0);
   assert.equal(result.dailyKilometers[0].reported, 0);
   assert.notEqual(result.dailyKilometers[0].managerResolved, 'approved_as_reported');
-  assert.equal(result.dailyKilometers[0].managerResolved, null);
+  assert.equal(result.dailyKilometers[0].managerResolved, 'auto_ok');
 
   applyAttendanceTravelCorrection(entry, { publicTransport: false, publicTransportCost: 0, kilometers: 22 });
   refreshDailyKilometersAfterTravelChange(result, '1501', '2026-09-02');
   assert.equal(entry.final.publicTransport, false);
   assert.equal(entry.final.kilometers, 22);
   assert.equal(result.dailyKilometers[0].reported, 22);
-  assert.equal(result.dailyKilometers[0].managerResolved, null);
+  assert.equal(result.dailyKilometers[0].managerResolved, 'auto_ok');
 
   applyAttendanceTravelCorrection(entry, { publicTransport: true, publicTransportCost: 7.5, kilometers: 0 });
   refreshDailyKilometersAfterTravelChange(result, '1501', '2026-09-02');
