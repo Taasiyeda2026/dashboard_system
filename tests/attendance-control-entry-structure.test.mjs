@@ -73,11 +73,11 @@ test('admin attendance control loads every manager team from the existing roster
 });
 
 test('deploy cache markers were bumped for the unified attendance-control labels', () => {
-  assert.match(swSource, /const CACHE_VERSION = 1722;/);
+  assert.match(swSource, /const CACHE_VERSION = 1723;/);
   assert.match(configSource, /attendance-control-manager-admin-parity-sw-cache-1720-20260916-v1/);
   assert.match(configSource, /attendance-control-manager-launcher-team-scope-sw-cache-1721-20260916-v1/);
   assert.match(configSource, /attendance-control-travel-admin-pdf-sw-cache-1722-20260916-v1/);
-  assert.match(indexSource, /manager-board-workspace-runtime\.js\?v=20260916-attendance-control-parity-v1/);
+  assert.match(indexSource, /manager-board-workspace-runtime\.js\?v=20260916-attendance-summary-count-v2/);
 });
 
 test('instructors payroll-control launcher keeps unscoped bindAttendanceControl path', () => {
