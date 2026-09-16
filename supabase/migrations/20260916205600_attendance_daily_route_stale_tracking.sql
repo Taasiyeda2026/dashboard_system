@@ -59,8 +59,15 @@ end $$;
 revoke all on function public.av2_mark_day_travel_context_stale_trigger() from public, anon, authenticated;
 
 drop trigger if exists av2_mark_day_travel_context_stale on public.attendance_records;
-create trigger av2_mark_day_travel_context_stale
-after insert or update of report_date, start_time, end_time, activity_type, activity_name_snapshot, activity_row_id, school_id, destination_address_snapshot or delete
+drop trigger if exists av2_mark_day_travel_context_stale_insert_delete on public.attendance_records;
+drop trigger if exists av2_mark_day_travel_context_stale_update on public.attendance_records;
+
+create trigger av2_mark_day_travel_context_stale_insert_delete
+after insert or delete on public.attendance_records
+for each row execute function public.av2_mark_day_travel_context_stale_trigger();
+
+create trigger av2_mark_day_travel_context_stale_update
+after update of report_date, start_time, end_time, activity_type, activity_name_snapshot, activity_row_id, school_id, destination_address_snapshot
 on public.attendance_records
 for each row execute function public.av2_mark_day_travel_context_stale_trigger();
 
@@ -73,6 +80,7 @@ set search_path = public
 as $$
 declare
   actor_emp bigint;
+  needs_prepare boolean := false;
 begin
   if new.generation_kind is not null then return new; end if;
 
@@ -81,17 +89,22 @@ begin
   where auth_user_id = auth.uid() and is_active = true
   limit 1;
 
-  if actor_emp = new.emp_id and (
-    tg_op = 'INSERT'
-    or old.report_date is distinct from new.report_date
-    or old.start_time is distinct from new.start_time
-    or old.end_time is distinct from new.end_time
-    or old.activity_row_id is distinct from new.activity_row_id
-    or old.school_id is distinct from new.school_id
-    or old.activity_type is distinct from new.activity_type
-    or old.activity_name_snapshot is distinct from new.activity_name_snapshot
-    or old.destination_address_snapshot is distinct from new.destination_address_snapshot
-  ) then
+  if actor_emp <> new.emp_id then return new; end if;
+
+  if tg_op = 'INSERT' then
+    needs_prepare := true;
+  else
+    needs_prepare := old.report_date is distinct from new.report_date
+      or old.start_time is distinct from new.start_time
+      or old.end_time is distinct from new.end_time
+      or old.activity_row_id is distinct from new.activity_row_id
+      or old.school_id is distinct from new.school_id
+      or old.activity_type is distinct from new.activity_type
+      or old.activity_name_snapshot is distinct from new.activity_name_snapshot
+      or old.destination_address_snapshot is distinct from new.destination_address_snapshot;
+  end if;
+
+  if needs_prepare then
     perform public.av2_prepare_attendance_travel(new.id, auth.uid());
   end if;
 
