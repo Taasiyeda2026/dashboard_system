@@ -502,6 +502,7 @@ export function renderNewReportScreen(container, {
     }
     activityNameSel?.reset();
     clearMeetingSelection();
+    setLocationFieldsVisible(!isOpenFieldType());
     syncLocationDependencies();
     syncDateWarning();
   }
@@ -605,6 +606,7 @@ export function renderNewReportScreen(container, {
     }
 
     syncAuthoritySchoolFromActivity(activity);
+    setLocationFieldsVisible(!isBaseTrainingActivity(activity));
     syncLocationDependencies();
     await syncMeetingForSelectedDate();
     syncDateWarning();

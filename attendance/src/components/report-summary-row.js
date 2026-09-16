@@ -17,6 +17,11 @@ function normalizedLabel(value) {
   return String(value || '').trim().replace(/\s+/g, ' ').toLocaleLowerCase('he-IL');
 }
 
+export function isBaseTrainingRecord(record = {}) {
+  return normalizedLabel(record.activity_type) === normalizedLabel('הכשרה')
+    && normalizedLabel(record.activity_name_snapshot || record.program_name_snapshot) === normalizedLabel('הכשרת בסיס');
+}
+
 function mobileToneForActivityType(value) {
   const type = normalizedLabel(value);
   if (type.includes('קורס')) return 'course';
@@ -40,7 +45,10 @@ export function reportPresentation(record = {}) {
   const activity = canonicalSnapshotActivityName(record);
   const activityKey = normalizedLabel(activity);
   const secondary = [];
-  [record.program_name_snapshot, record.school_name_snapshot, record.authority_name_snapshot]
+  const contextValues = isBaseTrainingRecord(record)
+    ? [record.program_name_snapshot]
+    : [record.program_name_snapshot, record.school_name_snapshot, record.authority_name_snapshot];
+  contextValues
     .map((value) => String(value || '').trim()).filter(Boolean).forEach((value) => {
       const key = normalizedLabel(value);
       if (!key || activityKey.includes(key) || key.includes(activityKey)) return;
@@ -90,6 +98,7 @@ export function createReportSummaryRow(record, options = {}) {
   main.className = 'av2-report-summary-row__main';
   const activity = document.createElement('strong');
   const presentation = reportPresentation(record);
+  const baseTraining = isBaseTrainingRecord(record);
   activity.textContent = presentation.activity;
   const school = document.createElement('small');
   school.textContent = presentation.secondary;
@@ -127,30 +136,39 @@ export function createReportSummaryRow(record, options = {}) {
   addDetail(details, 'תאריך', formatDate(record.report_date));
   addDetail(details, 'שעות', `${formatTime(record.start_time)}–${formatTime(record.end_time)}`);
   addDetail(details, 'סה״כ שעות', Number(record.total_hours || 0).toFixed(2));
-  addDetail(
-    details,
-    'ביטול זמן',
-    compensation?.calculation_status === 'resolved'
-      ? formatTravelMinutes(compensation.final_cancellation_minutes)
-      : compensation
-        ? 'ממתין לחישוב'
-        : '—'
-  );
+  if (!baseTraining || compensation?.calculation_status !== 'resolved' || Number(compensation?.final_cancellation_minutes || 0) > 0) {
+    if (!baseTraining || compensation) {
+      addDetail(
+        details,
+        'ביטול זמן',
+        compensation?.calculation_status === 'resolved'
+          ? formatTravelMinutes(compensation.final_cancellation_minutes)
+          : compensation
+            ? 'ממתין לחישוב'
+            : '—'
+      );
+    }
+  }
   addDetail(details, 'סוג פעילות', record.activity_type || '—');
   addDetail(details, 'שם פעילות', presentation.activity, { wide: true });
-  addDetail(details, 'בית ספר', record.school_name_snapshot || '—');
-  addDetail(details, 'רשות', record.authority_name_snapshot || '—');
-  if (record.meeting_no != null) addDetail(details, 'מפגש', record.meeting_no);
-  addDetail(details, 'ק״מ', Number(record.roundtrip_km || 0).toFixed(0));
-  addDetail(details, 'תחבורה ציבורית', record.public_transport ? 'כן' : 'לא');
-  if (Number(record.public_transport_cost || 0) > 0) {
-    addDetail(details, 'עלות תחבורה ציבורית', `₪${Number(record.public_transport_cost || 0).toFixed(2)}`);
+  if (!baseTraining) {
+    addDetail(details, 'בית ספר', record.school_name_snapshot || '—');
+    addDetail(details, 'רשות', record.authority_name_snapshot || '—');
+    if (record.meeting_no != null) addDetail(details, 'מפגש', record.meeting_no);
   }
-  addDetail(details, 'הוצאות', `₪${Number(record.expenses || 0).toFixed(2)}`);
+  const km = Number(record.roundtrip_km || 0);
+  const publicTransportCost = Number(record.public_transport_cost || 0);
+  const expenses = Number(record.expenses || 0);
+  if (!baseTraining || (!record.public_transport && km > 0)) addDetail(details, 'ק״מ', km.toFixed(0));
+  if (!baseTraining || record.public_transport) addDetail(details, 'תחבורה ציבורית', record.public_transport ? 'כן' : 'לא');
+  if (publicTransportCost > 0) {
+    addDetail(details, 'עלות תחבורה ציבורית', `₪${publicTransportCost.toFixed(2)}`);
+  }
+  if (!baseTraining || expenses > 0) addDetail(details, 'הוצאות', `₪${expenses.toFixed(2)}`);
   if (record.expense_details) addDetail(details, 'פירוט הוצאות', record.expense_details, { wide: true });
   if (record.notes) addDetail(details, 'הערות', record.notes, { wide: true });
   if (record.attachments?.length || record.attachment_names) addDetail(details, 'קבצים', record.attachment_names || `${record.attachments.length} קבצים`, { wide: true });
-  addDetail(details, 'סטטוס', record.status || 'פתוח', { wide: true });
+  if (!baseTraining) addDetail(details, 'סטטוס', record.status || 'פתוח', { wide: true });
   if (options.editable && typeof options.onEdit === 'function') {
     const actions = document.createElement('div');
     actions.className = 'av2-report-summary-row__actions';
