@@ -14,7 +14,7 @@ tests = test_path.read_text()
 def replace_test(name: str, replacement: str) -> None:
     global tests
     pattern = rf"test\('{re.escape(name)}', \(\) => \{{.*?\n\}}\);"
-    tests, count = re.subn(pattern, replacement, tests, count=1, flags=re.S)
+    tests, count = re.subn(pattern, lambda _match: replacement, tests, count=1, flags=re.S)
     assert count == 1, f'{name}: expected 1 test block, found {count}'
 
 replace_test(
