@@ -716,7 +716,7 @@ export function rowWorkHours(row) {
   return calculated > 0 ? calculated : null;
 }
 
-function formatDurationHours(value) {
+export function formatDurationHours(value) {
   const hours = optionalNumber(value);
   if (hours == null) return '—';
   const totalMinutes = Math.max(0, Math.round(hours * 60));

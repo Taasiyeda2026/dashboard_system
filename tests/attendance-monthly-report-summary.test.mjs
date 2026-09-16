@@ -9,6 +9,24 @@ import {
 } from '../attendance/src/components/monthly-report-summary.js';
 import { createReportDaySummaryRow } from '../attendance/src/components/report-summary-row.js';
 import { readFile } from 'node:fs/promises';
+import { calculateWorkHours, formatDurationHours as formatManagerDurationHours } from '../frontend/src/screens/attendance-control.js';
+
+test('duration formatter rounds decimal hours to the nearest minute', () => {
+  const cases = [
+    [1.83, '1:50'],
+    [1.75, '1:45'],
+    [1.5, '1:30'],
+    [3, '3:00'],
+    [0.5, '0:30'],
+    [3.58, '3:35'],
+    [4.57, '4:34']
+  ];
+  for (const [value, expected] of cases) {
+    assert.equal(formatDurationHours(value), expected);
+    assert.equal(formatManagerDurationHours(value), expected);
+  }
+  assert.equal(formatDurationHours(calculateWorkHours('08:20', '10:10')), '1:50');
+});
 
 test('daily hours include generated travel cancellation', () => {
   const records = [
