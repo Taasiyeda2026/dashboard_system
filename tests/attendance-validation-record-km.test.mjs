@@ -67,3 +67,51 @@ test('generated travel-time cancellation still requires manager approval', () =>
   assert.equal(attendanceEntryIsResolved(result.notCompared[0]), false);
   assert.match(resultsHtml(result), /ביטול זמן[\s\S]*⚠ לבדיקה/);
 });
+
+test('decorated attendance program label is not a mismatch when stable activity id matches', () => {
+  const attendance = [{
+    employeeId: '1503', date: '2026-09-02', startTime: '08:20', endTime: '10:10',
+    workHours: 1.83, activityType: 'קורס', school: 'מקיף אבו גוש', authority: 'אבו גוש',
+    program: 'ביומימיקרי — מקיף אבו גוש — אבו גוש', meetingNo: '1', kilometers: 95, activityId: 'ACT-1'
+  }];
+  const dashboard = [{
+    employeeId: '1503', date: '2026-09-01', startTime: '08:20', endTime: '10:10',
+    workHours: 1.83, activityType: 'קורס', school: 'מקיף אבו גוש', authority: 'אבו גוש',
+    program: 'ביומימיקרי', meetingNo: '1', kilometers: 95, activityId: 'ACT-1'
+  }];
+  const entry = compareAttendanceRows(attendance, dashboard).comparisons[0];
+  assert.equal(entry.differences.some((difference) => difference.key === 'program'), false);
+});
+
+test('comparison UI hides empty zero-value rows but keeps real kilometer differences', () => {
+  const base = {
+    employeeId: '10', employeeName: 'מדריך', date: '2026-09-02', startTime: '08:00', endTime: '09:00',
+    workHours: 1, activityType: 'קורס', school: 'בית ספר', authority: 'רשות', program: 'תכנית',
+    meetingNo: '1', activityId: 'ACT-10', publicTransport: false, publicTransportCost: 0, expenses: 0
+  };
+  const result = compareAttendanceRows([{ ...base, kilometers: 95 }], [{ ...base, kilometers: 120 }]);
+  const html = resultsHtml(result);
+  assert.doesNotMatch(html, /<th>הוצאות<\/th>/);
+  assert.doesNotMatch(html, /<th>תחבורה ציבורית<\/th>/);
+  assert.doesNotMatch(html, /<th>עלות תחבורה ציבורית<\/th>/);
+  assert.match(html, /<th>קילומטרים<\/th>[\s\S]*95[\s\S]*120/);
+});
+
+test('generated cancellation review is compact and does not show irrelevant zero travel or expense fields', () => {
+  const result = compareAttendanceRows([{
+    employeeId: '1503', employeeName: 'הנאא אבו אמנה', date: '2026-09-02',
+    startTime: '06:30', endTime: '08:15', workHours: 1.75,
+    activityType: 'ביטול זמן', school: 'מקיף אבו גוש', authority: 'אבו גוש',
+    program: 'ביטול זמן מחושב', kilometers: 0, publicTransport: false, publicTransportCost: 0,
+    expenses: 0,
+    _source: { generationKind: 'travel_time_cancellation', finalCancellationMinutes: 105 }
+  }], []);
+  const html = resultsHtml(result);
+  assert.match(html, /ביטול זמן: 1:45/);
+  assert.match(html, /אשר כפי שדווח/);
+  assert.doesNotMatch(html, /<th>ק״מ<\/th>/);
+  assert.doesNotMatch(html, /<th>תחבורה ציבורית<\/th>/);
+  assert.doesNotMatch(html, /<th>הוצאות<\/th>/);
+  assert.doesNotMatch(html, /מקיף אבו גוש \| אבו גוש/);
+});
+

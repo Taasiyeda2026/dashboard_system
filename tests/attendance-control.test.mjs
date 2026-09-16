@@ -237,8 +237,8 @@ test('May non-activity reports stay in export but not in activity exceptions or 
   assert.equal((html.match(/class="attendance-control__employee"/g) || []).length, 1, 'one instructor accordion is rendered');
   assert.equal((html.match(/class="attendance-control__day"/g) || []).length, 28, 'one day row groups all reports from the same date');
   assert.match(html, /class="attendance-control__reports"/, 'attendance-only reports stay in the chronological day sequence');
-  assert.equal((html.match(/attendance-control__manual-table/g) || []).length, 261, 'every manual and unmatched report renders compact data');
-  assert.match(html, /attendance-control__manual-table[\s\S]*<th>שעות שכר<\/th>/, 'manual reports use the compact reported-data table');
+  assert.equal((html.match(/attendance-control__manual-table/g) || []).length, 4, 'only reports with meaningful reported values render a compact data table');
+  assert.match(html, /attendance-control__manual-table[\s\S]*<th>שעות שכר<\/th>/, 'manual reports with meaningful values use the compact reported-data table');
   assert.match(html, /\| הכשרה<\/strong>/, 'manual activity types are displayed without approval wording');
   assert.doesNotMatch(html, /נוכחות בלבד|נדרש טיפול לפני תשלום|נדרש אישור ידני/, 'the view does not add technical payment or attendance-only copy');
   assert.doesNotMatch(html, /<span>ימים <b>/, 'the top summary does not include a days metric');
