@@ -245,7 +245,7 @@ test('May non-activity reports stay in export but not in activity exceptions or 
 });
 
 
-test('payroll view groups reports by work day and compares daily kilometers', () => {
+test('payroll view groups reports by work day and compares kilometers per record', () => {
   const base = { employeeId: '77', employeeName: 'ברקת קטעי', date: '2027-01-03', activityType: 'קורס', school: 'בית ספר X', authority: 'רחובות' };
   const result = compareAttendanceRows([
     { ...base, startTime: '09:00', endTime: '10:00', workHours: 1, kilometers: 30, program: 'תוכנית א' },
@@ -254,7 +254,7 @@ test('payroll view groups reports by work day and compares daily kilometers', ()
   const html = resultsHtml(result);
   assert.equal((html.match(/class="attendance-control__employee"/g) || []).length, 1);
   assert.equal((html.match(/class="attendance-control__day"/g) || []).length, 1, 'same-date reports share one day row');
-  assert.match(html, /ק״מ מדווח: 30[\s\S]*ק״מ מחושב: 24/, 'daily kilometers are compared at day level');
+  assert.doesNotMatch(html, /ק״מ מדווח:|ק״מ ליום/, 'kilometers are validated on each record, not on the day');
   assert.match(html, /09:00–10:00[\s\S]*10:00–11:00/, 'reports are ordered by start time');
   assert.doesNotMatch(html, /נוכחות בלבד|נדרש אישור ידני/);
 });
@@ -264,7 +264,8 @@ test('unmatched attendance explicitly marks the missing dashboard source without
   const result = compareAttendanceRows([attendance], []);
   const html = resultsHtml(result);
   assert.match(html, /attendance-control__missing-match">לא נמצאה פעילות תואמת בדשבורד<\/p>/);
-  assert.match(html, /ק״מ מדווח: 58[\s\S]*לא ניתן לחשב/);
+  assert.match(html, /<th>ק״מ<\/th><td>58<\/td>/);
+  assert.doesNotMatch(html, /ק״מ ליום|ק״מ מדווח:/);
   assert.doesNotMatch(html, /לא נמצאה התאמה<\/td><td class="attendance-control__row-status ">תקין/);
   assert.match(html, /10:00–12:00 \| קורס/);
   assert.match(html, /ביומימיקרי \| אילנות \| אשקלון \| מפגש 7/);
@@ -272,22 +273,31 @@ test('unmatched attendance explicitly marks the missing dashboard source without
 
 
 
-test('payroll view treats zero reported kilometers at day level', () => {
-  const attendance = { employeeId: 'zero-km', employeeName: 'מדריך אפס ק״מ', date: '2027-01-04', startTime: '08:00', endTime: '09:00', workHours: 1, kilometers: 0, activityType: 'קורס' };
+test('payroll view treats zero reported kilometers as a record-level value', () => {
+  const attendance = { employeeId: 'zero-km', employeeName: 'מדריך אפס ק״מ', date: '2027-01-04', startTime: '08:00', endTime: '09:00', workHours: 1, kilometers: 0, activityType: 'קורס', school: 'א', program: 'א', activityId: 'ACT-ZERO' };
   const dashboard = { ...attendance, kilometers: 24 };
-  const html = resultsHtml({ comparisons: [{ id: 'zero-km', attendance, dashboard, final: { ...attendance }, differences: [], unmatched: false }], notCompared: [], dashboardOnly: [], dashboardPopulation: [dashboard], dailyKilometers: [{ employeeId: 'zero-km', date: '2027-01-04', reported: 0, calculated: 24, matches: false, hasReportedKm: true }] });
-  assert.match(html, /ק״מ מדווח: 0[\s\S]*ק״מ מחושב: 24/);
-  assert.match(html, /⚠ לבדיקה/);
+  const result = compareAttendanceRows([attendance], [dashboard]);
+  const entry = result.comparisons[0];
+  assert.ok(entry.differences.some((diff) => diff.key === 'kilometers'));
+  assert.equal(attendanceEntryIsResolved(entry), false);
+  const html = resultsHtml(result);
+  assert.match(html, /קילומטרים[\s\S]*0[\s\S]*24[\s\S]*לבדיקה/);
+  assert.doesNotMatch(html, /ק״מ ליום|ק״מ מדווח:/);
 
-  const matchingHtml = resultsHtml({ comparisons: [{ id: 'zero-km-match', attendance, dashboard: { ...dashboard, kilometers: 0 }, final: { ...attendance }, differences: [], unmatched: false }], notCompared: [], dashboardOnly: [], dashboardPopulation: [], dailyKilometers: [{ employeeId: 'zero-km', date: '2027-01-04', reported: 0, calculated: 0, matches: true }] });
-  assert.match(matchingHtml, /attendance-control__day--ok/);
+  const matching = compareAttendanceRows([attendance], [{ ...dashboard, kilometers: 0 }]);
+  assert.equal(matching.comparisons[0].differences.some((diff) => diff.key === 'kilometers'), false);
 });
 
-test('payroll view marks unavailable daily kilometers for review', () => {
-  const attendance = { employeeId: '78', employeeName: 'מדריך ק״מ', date: '2027-01-04', startTime: '09:00', endTime: '10:00', workHours: 1, kilometers: 30, activityType: 'קורס' };
+test('payroll view marks unavailable record kilometers for review', () => {
+  const attendance = { employeeId: '78', employeeName: 'מדריך ק״מ', date: '2027-01-04', startTime: '09:00', endTime: '10:00', workHours: 1, kilometers: 30, activityType: 'קורס', school: 'א', program: 'א', activityId: 'ACT-MISSING-KM' };
   const dashboard = { ...attendance, kilometers: null };
-  const html = resultsHtml({ comparisons: [{ id: 'km-missing', attendance, dashboard, final: { ...attendance }, differences: [], unmatched: false }], notCompared: [], dashboardOnly: [], dashboardPopulation: [dashboard], dailyKilometers: [{ employeeId: '78', date: '2027-01-04', reported: 30, calculated: null, matches: false }] });
-  assert.match(html, /ק״מ מדווח: 30[\s\S]*לא ניתן לחשב/);
+  const result = compareAttendanceRows([attendance], [dashboard]);
+  const entry = result.comparisons[0];
+  assert.ok(entry.differences.some((diff) => diff.key === 'kilometers'));
+  assert.equal(attendanceEntryIsResolved(entry), false);
+  const html = resultsHtml(result);
+  assert.match(html, /קילומטרים[\s\S]*30[\s\S]*לא ניתן לחשב ק״מ[\s\S]*לבדיקה/);
+  assert.doesNotMatch(html, /ק״מ ליום|ק״מ מדווח:/);
 });
 
 test('manual report days and expense days remain under review without technical labels', () => {
@@ -453,7 +463,7 @@ test('population, multiple same-day matching and all compared fields are preserv
   const result = compareAttendanceRows(attendance, dashboard);
   assert.equal(result.dashboardPopulation.some((row) => row.employeeId === '99'), false);
   assert.equal(result.comparisons[0].dashboard.program, 'אלפא אחר');
-  assert.deepEqual(result.comparisons[0].differences.map((item) => item.key), ['startTime', 'endTime', 'workHours', 'program', 'meetingNo', 'expenses']);
+  assert.deepEqual(result.comparisons[0].differences.map((item) => item.key), ['startTime', 'endTime', 'workHours', 'program', 'meetingNo', 'kilometers', 'expenses']);
 });
 
 test('results classify matching rows as normal and count only actual row exceptions', () => {
@@ -709,7 +719,7 @@ test('mixed activity day preserves distinct chronological blocks and cancellatio
   assert.equal((html.match(/<details class="attendance-control__employee[^"]*"/g) || []).length, 1);
 });
 
-test('daily route ignores Zoom and repeated locations and compares only the day total', () => {
+test('daily route diagnostic stays available while km validation is per record', () => {
   const rows = [
     { employeeId: '10', date: '2026-05-12', startTime: '08:00', schoolId: 1, school: 'א' },
     { employeeId: '10', date: '2026-05-12', startTime: '09:00', schoolId: 1, school: 'א' },
@@ -720,7 +730,7 @@ test('daily route ignores Zoom and repeated locations and compares only the day 
   const attendance = [{ employeeId: '10', date: '2026-05-12', activityType: 'קורס', school: 'א', kilometers: 24 }];
   const result = compareAttendanceRows(attendance, rows);
   assert.deepEqual(result.dailyKilometers[0], { employeeId: '10', date: '2026-05-12', reported: 24, calculated: 24, matches: true, hasReportedKm: true, managerResolved: 'auto_ok' });
-  assert.equal(result.comparisons[0].differences.some((difference) => difference.key === 'kilometers'), false);
+  assert.equal(result.comparisons[0].differences.some((difference) => difference.key === 'kilometers'), true);
 });
 
 test('daily route stays unknown when a physical destination or route segment is missing', () => {
@@ -822,25 +832,26 @@ test('matched dashboard meeting number is a single relevant meeting', () => {
   assert.doesNotMatch(String(result.comparisons[0].dashboard.meetingNo), /,/);
 });
 
-test('daily kilometers allow a 5 km tolerance', () => {
+test('record kilometers allow a 5 km tolerance', () => {
   const dashboard = [{ employeeId: '10', date: '2026-05-10', startTime: '08:00', endTime: '09:00', activityType: 'course', school: 'א', program: 'א', kilometers: 40 }];
   const within = compareAttendanceRows([{ employeeId: '10', date: '2026-05-10', startTime: '08:00', endTime: '09:00', activityType: 'קורס', school: 'א', program: 'א', kilometers: 45 }], dashboard);
-  assert.equal(within.dailyKilometers[0].matches, true);
-  assert.match(resultsHtml(within), /ק״מ מדווח: 45[\s\S]*ק״מ מחושב: 40[\s\S]*תקין/);
+  assert.equal(within.comparisons[0].differences.some((diff) => diff.key === 'kilometers'), false);
   const outside = compareAttendanceRows([{ employeeId: '10', date: '2026-05-10', startTime: '08:00', endTime: '09:00', activityType: 'קורס', school: 'א', program: 'א', kilometers: 46 }], dashboard);
-  assert.equal(outside.dailyKilometers[0].matches, false);
-  assert.match(resultsHtml(outside), /ק״מ מדווח: 46[\s\S]*ק״מ מחושב: 40[\s\S]*לבדיקה/);
+  assert.equal(outside.comparisons[0].differences.some((diff) => diff.key === 'kilometers'), true);
+  assert.match(resultsHtml(outside), /קילומטרים[\s\S]*46[\s\S]*40[\s\S]*לבדיקה/);
 });
 
-test('unavailable daily kilometers stay visible and are not shown as zero', () => {
+test('unavailable record kilometers stay visible and are not shown as zero', () => {
   const result = compareAttendanceRows(
     [{ employeeId: '10', date: '2026-05-10', startTime: '08:00', endTime: '09:00', activityType: 'קורס', school: 'א', program: 'א', kilometers: 50 }],
     [{ employeeId: '10', date: '2026-05-10', startTime: '08:00', endTime: '09:00', activityType: 'course', school: 'א', program: 'א', kilometers: null }]
   );
-  assert.equal(result.dailyKilometers[0].calculated, null);
+  const entry = result.comparisons[0];
+  assert.ok(entry.differences.some((diff) => diff.key === 'kilometers'));
+  assert.equal(attendanceEntryIsResolved(entry), false);
   const html = resultsHtml(result);
-  assert.match(html, /ק״מ מדווח: 50[\s\S]*ק״מ מחושב: לא ניתן לחשב[\s\S]*לא ניתן לחשב ק״מ/);
-  assert.doesNotMatch(html, /ק״מ מחושב: 0/);
+  assert.match(html, /קילומטרים[\s\S]*50[\s\S]*לא ניתן לחשב ק״מ[\s\S]*לבדיקה/);
+  assert.doesNotMatch(html, /ק״מ מחושב:\s*0|ק״מ ליום|ק״מ מדווח:/);
 });
 
 const changedComparison = {
@@ -1422,24 +1433,13 @@ test('entry with multiple differences resolves only when all differences are dec
 });
 
 // ── תקלה 6: ק"מ יומי — approval gate ────────────────────────────────────
-test('daily km issue without decision blocks approval', async () => {
-  const api = {
-    attendanceControlUpdateRecord: async () => ({ success: true }),
-    attendanceManagerApprovalArtifacts: async (p) => p,
-    managerFinalizeAttendanceMonthReview: async (p) => p
-  };
+test('legacy daily km issue does not block approval; record decisions are authoritative', () => {
   const result = {
     month: '2026-05',
-    comparisons: [{ ...changedComparison }],
+    comparisons: [],
     dailyKilometers: [{ employeeId: '10', date: '2026-05-10', reported: 30, calculated: 20, matches: false, hasReportedKm: true, managerResolved: null }]
   };
-  await assert.rejects(
-    () => approvePayrollControlEmployee({
-      api, user: { full_name: 'מנהל' }, result, employeeId: '10', employeeName: 'דנה', confirmed: true,
-      monthWorkflow: { workflowStatus: 'submitted', attendanceSubmissionStatus: 'submitted' }
-    }),
-    /רשומות נוכחות שלא קיבלו/
-  );
+  assert.equal(payrollEmployeeHasUnresolvedEntries(result, '10'), false);
 });
 
 test('daily km within tolerance is auto_ok and does not block approval', async () => {
