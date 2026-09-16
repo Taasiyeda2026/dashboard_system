@@ -1,0 +1,44 @@
+name: Apply attendance actual-day route 20260916
+
+on:
+  push:
+    branches:
+      - codex/attendance-route-by-actual-day-20260916
+
+permissions:
+  contents: write
+
+jobs:
+  apply-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/attendance-route-by-actual-day-20260916
+          fetch-depth: 0
+
+      - name: Apply scoped route patch
+        run: python scripts/apply_attendance_actual_day_route_20260916.py
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Run focused attendance tests
+        run: |
+          node --test tests/attendance-route-actual-day.test.mjs
+          node --test tests/attendance-validation-record-km.test.mjs
+          node --test --test-name-pattern="payroll view marks unavailable record kilometers for review|payroll view groups reports by work day and compares kilometers per record" tests/attendance-control.test.mjs
+
+      - name: Build dashboard
+        run: npm run build
+
+      - name: Commit verified route behavior
+        shell: bash
+        run: |
+          rm scripts/apply_attendance_actual_day_route_20260916.py
+          rm .github/workflows/apply-attendance-actual-day-route-20260916.yml
+          git config user.name "Taasiyeda2026"
+          git config user.email "idanahum1122@gmail.com"
+          git add frontend/src/screens/attendance-control.js tests/attendance-route-actual-day.test.mjs scripts/apply_attendance_actual_day_route_20260916.py .github/workflows/apply-attendance-actual-day-route-20260916.yml
+          git commit -m "Calculate attendance kilometers by actual daily route"
+          git push origin HEAD:codex/attendance-route-by-actual-day-20260916
