@@ -19,6 +19,10 @@ set
 where lower(trim(coalesce(role, ''))) = 'activities_manager'
   and lower(trim(coalesce(permissions->>'view_attendance_control', 'no'))) not in ('yes', 'true', '1');
 
+-- PostgreSQL cannot change RETURNS TABLE / OUT columns via CREATE OR REPLACE.
+-- Drop the exact existing signature first (no CASCADE; no registered dependents).
+drop function if exists public.get_payroll_attendance_records(bigint[], date, date);
+
 create or replace function public.get_payroll_attendance_records(
   p_employee_ids bigint[] default null,
   p_from_date date default null,

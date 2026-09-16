@@ -94,6 +94,20 @@ test('migration grants activities_manager attendance control via permissions jso
   assert.match(grantBlock, /jsonb_set\(/);
 });
 
+test('migration drops get_payroll_attendance_records before recreating changed RETURNS TABLE', () => {
+  const dropIdx = migration.search(/drop function if exists public\.get_payroll_attendance_records\(bigint\[\], date, date\);/i);
+  const createIdx = migration.search(/create or replace function public\.get_payroll_attendance_records\(/i);
+  assert.ok(dropIdx >= 0, 'exact signature drop is required before recreate');
+  assert.ok(createIdx > dropIdx, 'DROP must appear before CREATE of get_payroll_attendance_records');
+  assert.doesNotMatch(migration, /drop function[\s\S]*get_payroll_attendance_records[\s\S]*cascade/i);
+  assert.match(migration, /revoke all on function public\.get_payroll_attendance_records\(bigint\[\], date, date\)/);
+  assert.match(migration, /grant execute on function public\.get_payroll_attendance_records\(bigint\[\], date, date\) to authenticated/);
+  assert.doesNotMatch(
+    migration.slice(0, createIdx),
+    /drop function[\s\S]*update_payroll_attendance_record/i
+  );
+});
+
 test('manager roles stay scoped by direct_manager in payroll records RPC', () => {
   assert.match(migration, /v_role in \('activities_manager', 'manager', 'instructor_manager'\)/);
   assert.match(migration, /ci\.direct_manager/);
