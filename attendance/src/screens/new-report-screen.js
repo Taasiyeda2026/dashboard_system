@@ -330,12 +330,13 @@ export function renderNewReportScreen(container, {
   }
 
   function syncLocationDependencies() {
-    const hasType = !!getReportType();
-    const showsLocation = !isOpenFieldType();
-    authSel?.setDisabled(!hasType || !showsLocation || !!selectedActivity);
-    setSchoolEnabled(hasType && showsLocation && hasSelectedAuthority());
-    syncMeetingFieldState();
-  }
+  const hasType = !!getReportType();
+  const showsLocation = !isOpenFieldType();
+  const courseAwaitingActivity = isCourseReportType() && !selectedActivity;
+  authSel?.setDisabled(!hasType || !showsLocation || courseAwaitingActivity || !!selectedActivity);
+  setSchoolEnabled(hasType && showsLocation && !courseAwaitingActivity && hasSelectedAuthority());
+  syncMeetingFieldState();
+}
 
   function syncTravelMode() {
     if (!kmField?.input || !publicTransportInput || !publicTransportCostWrap) return;
@@ -727,9 +728,9 @@ export function renderNewReportScreen(container, {
   }
 
   function updateHoursDisplay() {
-    const h = calcHours(startPicker.getValue(), endPicker.getValue());
-    hoursVal.textContent = h > 0 ? h.toFixed(2) : '—';
-  }
+  const h = calcHours(startPicker.getValue(), endPicker.getValue());
+  hoursVal.textContent = h > 0 ? formatTravelMinutes(Math.round(h * 60)) : '—';
+}
 
   function buildForm(prefill = null, preservedDate = '') {
     formArea.innerHTML = '';
