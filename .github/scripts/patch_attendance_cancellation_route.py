@@ -110,7 +110,8 @@ test('travel cancellation follows the actual physical attendance sequence for th
   assert.match(routeStaleMigration, /av2_mark_day_travel_context_stale/);
   assert.match(routeStaleMigration, /old\.start_time is distinct from new\.start_time/);
   assert.match(edge, /const returnToHome = context\.return_to_home === true/);
-  assert.match(edge, /returnToHome[\s\S]*Promise\.resolve\(\{ distance_km: 0, duration_minutes: 0 \}\)/);
+  assert.match(edge, /const returnPromise = returnToHome/);
+  assert.match(edge, /Promise\.resolve\(\{ distance_km: 0, duration_minutes: 0 \}\)/);
 });
 '''
 test_path.write_text(test, encoding='utf-8')
