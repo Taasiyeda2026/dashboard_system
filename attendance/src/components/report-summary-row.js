@@ -1,4 +1,5 @@
 import { createIcon } from './icon.js';
+import { formatDurationHours } from './monthly-report-summary.js';
 
 export function formatTravelMinutes(value) {
   const minutes = Math.max(0, Math.round(Number(value) || 0));
@@ -105,7 +106,7 @@ export function createReportSummaryRow(record, options = {}) {
 
   const hours = document.createElement('span');
   hours.className = 'av2-report-summary-row__hours';
-  hours.textContent = Number(record.total_hours || 0).toFixed(2);
+  hours.textContent = formatDurationHours(record.total_hours);
   hours.setAttribute('aria-label', `${hours.textContent} שעות עבודה`);
 
   const compensation = record.travel_compensation;
@@ -179,7 +180,7 @@ function isGeneratedCancellationRow(record = {}) {
 }
 
 function reportHoursLabel(record = {}) {
-  return formatTravelMinutes(Number(record?.total_hours || 0) * 60);
+  return formatDurationHours(record?.total_hours);
 }
 
 export function createReportDaySummaryRow(day, options = {}) {

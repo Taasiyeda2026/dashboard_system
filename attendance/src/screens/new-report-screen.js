@@ -39,6 +39,7 @@ import { canEditMonth, editBlockReason, getMonthKey } from '../services/month-ga
 import { uploadAttachment } from '../services/storage.service.js';
 import { attendanceDateWarning } from '../services/activity-date-warning.js';
 import { formatTravelMinutes } from '../components/report-summary-row.js';
+import { formatDurationHours } from '../components/monthly-report-summary.js';
 
 const TIME_MINUTE_STEP = 5;
 const COURSE_REPORT_TYPE = 'קורס';
@@ -728,7 +729,7 @@ export function renderNewReportScreen(container, {
 
   function updateHoursDisplay() {
     const h = calcHours(startPicker.getValue(), endPicker.getValue());
-    hoursVal.textContent = h > 0 ? h.toFixed(2) : '—';
+    hoursVal.textContent = h > 0 ? formatDurationHours(h) : '—';
   }
 
   function buildForm(prefill = null, preservedDate = '') {
