@@ -551,10 +551,11 @@ export function buildPayrollApprovalPrintHtml(approval = {}) {
     <td>${escapeHtml(row.notes || '')}</td>
   </tr>`).join('');
   const typeRows = summary.byType.map(([type, hours]) => `<li>${escapeHtml(type)}: ${hours}</li>`).join('');
+  const hasPublicTransport = rows.some((row) => row.publicTransport === true || row.publicTransport === 'true' || row.publicTransport === 1);
   const expenseLine = summary.expenses
     ? `<p>סה״כ הוצאות: ${escapeHtml(String(summary.expenses))}</p>`
     : '';
-  const ptCostLine = summary.publicTransportCost
+  const ptCostLine = hasPublicTransport
     ? `<p>סה״כ עלות תחבורה ציבורית: ${escapeHtml(String(summary.publicTransportCost))}</p>`
     : '';
   return `<!doctype html><html lang="he" dir="rtl"><head><meta charset="utf-8"><title>${escapeHtml(payrollApprovalPdfFileName(employeeName, approval.month_key || snapshot.monthKey))}</title>

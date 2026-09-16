@@ -502,8 +502,9 @@ async function buildPdfBytes(payload: {
   drawRtl(`${totalHours.toFixed(2)} שעות`, RIGHT - 150, y - 22, 10, bold);
   drawRtl(`${totalKm.toFixed(0)} ק״מ`, RIGHT - 290, y - 22, 10, bold);
   drawRtl(`₪${totalExpenses.toFixed(2)} הוצאות`, RIGHT - 405, y - 22, 10, bold);
+  const hasPublicTransport = rows.some((row) => row.publicTransport === true || row.publicTransport === "true" || row.publicTransport === 1);
   drawRtl(`מספר עובד: ${payload.employeeId}`, RIGHT - 22, y - 43, 8.5, regular, rgb(0.42, 0.46, 0.54));
-  if (totalPublicTransportCost > 0) {
+  if (hasPublicTransport) {
     drawRtl(`₪${totalPublicTransportCost.toFixed(2)} תחבורה ציבורית`, RIGHT - 250, y - 43, 8.5, regular, rgb(0.42, 0.46, 0.54));
   }
   y -= 90;
