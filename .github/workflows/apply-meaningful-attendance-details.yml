@@ -1,0 +1,109 @@
+name: Apply meaningful attendance record details
+
+on:
+  push:
+    branches:
+      - codex/clean-attendance-record-details-20260916
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/clean-attendance-record-details-20260916
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Apply focused cleanup
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          p = Path('attendance/src/components/report-summary-row.js')
+          s = p.read_text()
+          start = "  addDetail(details, 'תאריך', formatDate(record.report_date));\n"
+          end = "  if (options.editable && typeof options.onEdit === 'function') {"
+          if start not in s or end not in s:
+              raise SystemExit('summary detail markers not found')
+          a, rest = s.split(start, 1)
+          _, b = rest.split(end, 1)
+          replacement = """  // The collapsed row already shows date, activity, location context and total hours.
+  // Expanded details therefore contain only additional, meaningful information.
+  addDetail(details, 'שעות', `${formatTime(record.start_time)}–${formatTime(record.end_time)}`);
+  addDetail(details, 'סוג פעילות', record.activity_type || '—');
+  if (record.meeting_no != null) addDetail(details, 'מפגש', record.meeting_no);
+
+  const km = Number(record.roundtrip_km || 0);
+  const publicTransportCost = Number(record.public_transport_cost || 0);
+  const usesPublicTransport = record.public_transport === true || publicTransportCost > 0;
+  const expenses = Number(record.expenses || 0);
+
+  if (km > 0) addDetail(details, 'ק״מ', km.toFixed(0));
+  if (usesPublicTransport) addDetail(details, 'תחבורה ציבורית', 'כן');
+  if (publicTransportCost > 0) addDetail(details, 'עלות תחבורה ציבורית', `₪${publicTransportCost.toFixed(2)}`);
+  if (expenses > 0) addDetail(details, 'הוצאות', `₪${expenses.toFixed(2)}`);
+  if (record.expense_details) addDetail(details, 'פירוט הוצאות', record.expense_details, { wide: true });
+  if (record.notes) addDetail(details, 'הערות', record.notes, { wide: true });
+  if (record.attachments?.length || record.attachment_names) addDetail(details, 'קבצים', record.attachment_names || `${record.attachments.length} קבצים`, { wide: true });
+"""
+          s = a + replacement + end + b
+          s = s.replace("  const baseTraining = isBaseTrainingRecord(record);\n", "")
+          p.write_text(s)
+
+          p = Path('tests/attendance-base-training.test.mjs')
+          s = p.read_text()
+          marker = "test('base training summary omits technical school, authority and empty reimbursement details', () => {"
+          if marker not in s:
+              raise SystemExit('base training summary test marker not found')
+          head = s.split(marker, 1)[0]
+          new_test = r"""test('attendance summary shows only supplemental meaningful details without repeating the collapsed row', () => {
+  assert.match(summarySource, /Expanded details therefore contain only additional, meaningful information/);
+  assert.doesNotMatch(summarySource, /addDetail\(details, 'תאריך'/);
+  assert.doesNotMatch(summarySource, /addDetail\(details, 'סה״כ שעות'/);
+  assert.doesNotMatch(summarySource, /addDetail\(details, 'שם פעילות'/);
+  assert.doesNotMatch(summarySource, /addDetail\(details, 'בית ספר'/);
+  assert.doesNotMatch(summarySource, /addDetail\(details, 'רשות'/);
+  assert.doesNotMatch(summarySource, /addDetail\(details, 'סטטוס'/);
+  assert.doesNotMatch(summarySource, /addDetail\([\s\S]*'ביטול זמן'/);
+  assert.match(summarySource, /if \(record\.meeting_no != null\) addDetail\(details, 'מפגש'/);
+  assert.match(summarySource, /if \(km > 0\) addDetail\(details, 'ק״מ'/);
+  assert.match(summarySource, /if \(usesPublicTransport\) addDetail\(details, 'תחבורה ציבורית', 'כן'\)/);
+  assert.match(summarySource, /if \(expenses > 0\) addDetail\(details, 'הוצאות'/);
+  assert.match(reportsSource, /schoolCell\.textContent = baseTraining \? '—'/);
+  assert.match(reportsSource, /authCell\.textContent = baseTraining \? '—'/);
+});
+"""
+          p.write_text(head + new_test)
+
+          p = Path('attendance/sw.js')
+          s = p.read_text().replace('const CACHE_VERSION = 70;', 'const CACHE_VERSION = 71;')
+          p.write_text(s)
+
+          p = Path('attendance/index.html')
+          s = p.read_text().replace('?v=70', '?v=71').replace('<!-- v=69 busts', '<!-- v=71 busts')
+          p.write_text(s)
+
+          for name in ['tests/attendance-screen-structure.test.mjs', 'tests/attendance-activity-type-behavior.test.mjs']:
+              p = Path(name)
+              s = p.read_text().replace('CACHE_VERSION = 70', 'CACHE_VERSION = 71').replace(r'\?v=70', r'\?v=71')
+              if name.endswith('attendance-activity-type-behavior.test.mjs'):
+                  s = s.replace(r'\?v=69', r'\?v=70')
+              p.write_text(s)
+          PY
+      - name: Verify focused tests
+        run: |
+          node --test tests/attendance-base-training.test.mjs tests/attendance-screen-structure.test.mjs tests/attendance-activity-type-behavior.test.mjs
+      - name: Verify quick CI
+        run: npm run ci:quick
+      - name: Commit patch and remove temporary workflow
+        run: |
+          git config user.name "Taasiyeda2026"
+          git config user.email "idanahum1122@gmail.com"
+          git rm .github/workflows/apply-meaningful-attendance-details.yml
+          git add attendance/src/components/report-summary-row.js attendance/sw.js attendance/index.html tests/attendance-base-training.test.mjs tests/attendance-screen-structure.test.mjs tests/attendance-activity-type-behavior.test.mjs
+          git commit -m "Reduce attendance record detail noise and duplication"
+          git push origin HEAD:codex/clean-attendance-record-details-20260916
