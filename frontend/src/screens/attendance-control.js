@@ -1029,6 +1029,10 @@ export function compareAttendanceRows(attendanceRows, dashboardRows, options = {
       // there is no actual discrepancy, just a missing dashboard value.
       if (key === 'expenses' && (optionalNumber(attendanceValue) ?? 0) === 0 && optionalNumber(dashboardValue) == null) return [];
       if (key === 'meetingNo' && meetingNumberListsEqual(parseMeetingNumberList(attendance.meetingNo), dashboardMeetingNumbers(dashboard))) return [];
+      // Attendance may carry a decorated display label (program + school + authority), while
+      // the dashboard keeps the canonical program name. A stable activity id proves these
+      // values belong to the same activity, so the display decoration is not a real mismatch.
+      if (key === 'program' && hasActivityIdMatch(attendance, dashboard)) return [];
       if (['school', 'authority', 'program'].includes(key) && payrollEntityFieldsEquivalent(
         key,
         attendance,
@@ -1338,6 +1342,14 @@ export function resultsHtml(result, month = '', options = {}) {
   };
   const shown = (value, fallback = '—') => escapeHtml(txt(value) || fallback);
   const hasValue = (value) => value != null && txt(value) !== '';
+  const hasMeaningfulValue = (value) => {
+    if (!hasValue(value)) return false;
+    if (typeof value === 'boolean') return value;
+    const raw = txt(value);
+    const numeric = Number(raw.replace(/[₪,\s]/g, ''));
+    if (Number.isFinite(numeric)) return numeric !== 0;
+    return !['לא', 'false'].includes(raw.toLowerCase());
+  };
   const dayKmMap = new Map((result.dailyKilometers || []).map((day) => [`${txt(day.employeeId)}|${day.date}`, day]));
   const dayKmInfo = (employeeId, date) => dayKmMap.get(`${txt(employeeId)}|${date}`) || null;
   const dayKmIssue = (employeeId, date) => {
@@ -1382,9 +1394,12 @@ export function resultsHtml(result, month = '', options = {}) {
     }).join(' ');
     return `<div class="attendance-control__attachments"><strong>אסמכתאות:</strong> ${links}</div>`;
   };
-  const identityHtml = (row) => {
-    const fields = [activityTypeDisplayLabel(row.activityType), row.program, row.school, row.authority, hasValue(row.meetingNo) ? `מפגש ${row.meetingNo}` : ''].filter(hasValue);
-    return fields.length ? `<div class="attendance-control__identity">${fields.map(shown).join(' | ')}</div>` : '';
+  const identityHtml = (row, { compactCancellation = false } = {}) => {
+    const fields = compactCancellation
+      ? [activityTypeDisplayLabel(row.activityType), row.program]
+      : [activityTypeDisplayLabel(row.activityType), row.program, row.school, row.authority, hasValue(row.meetingNo) ? `מפגש ${row.meetingNo}` : ''];
+    const visible = fields.filter(hasValue);
+    return visible.length ? `<div class="attendance-control__identity">${visible.map(shown).join(' | ')}</div>` : '';
   };
   const manualReportTable = (row, { cancellation = false, entry = null } = {}) => {
     const display = entry?.final || row;
@@ -1392,17 +1407,24 @@ export function resultsHtml(result, month = '', options = {}) {
     const autoCancellation = source.generationKind === 'travel_time_cancellation'
       || isAttendanceTravelTimeCancellation(entry || row);
     const minutesLabel = (value) => `${Math.floor((Number(value) || 0) / 60)}:${String((Number(value) || 0) % 60).padStart(2, '0')}`;
-    const fields = [
+    const fields = autoCancellation ? [] : [
       ['שעות שכר', displayWorkHours(display)],
       ['ק״מ', asBoolean(display.publicTransport) ? '0 (תחבורה ציבורית)' : display.kilometers],
       ['תחבורה ציבורית', asBoolean(display.publicTransport) ? 'כן' : (hasValue(display.publicTransportCost) || hasValue(display.kilometers) ? 'לא' : '')],
       ['עלות תחבורה ציבורית', asBoolean(display.publicTransport) ? display.publicTransportCost : ''],
       ['הוצאות', display.expenses],
       ['פירוט הוצאה', display.expenseDetails], ['הערות', display.notes]
-    ].filter(([, value]) => hasValue(value));
+    ].filter(([label, value]) => {
+      if (label === 'תחבורה ציבורית') return value === 'כן';
+      if (['שעות שכר', 'ק״מ', 'עלות תחבורה ציבורית', 'הוצאות'].includes(label)) return hasMeaningfulValue(value);
+      return hasValue(value);
+    });
     const autoAudit = autoCancellation ? `<div class="attendance-control__manual-note" title="${escapeHtml(source.overrideByName ? `נערך על ידי ${source.overrideByName}${source.overrideAt ? ` · ${source.overrideAt}` : ''}` : '')}"><strong>ביטול זמן: ${escapeHtml(minutesLabel(source.finalCancellationMinutes))}</strong>${source.manuallyOverridden ? `<br>נערך ידנית<br>מחושב במקור: ${escapeHtml(minutesLabel(source.calculatedCancellationMinutes))}` : '<br>מחושב אוטומטית לפי זמן הנסיעה'}</div>` : '';
     const note = cancellation && !autoCancellation ? '<p class="attendance-control__manual-note">נשמר ברצף יום העבודה</p>' : autoAudit;
-    return `${note}<table class="attendance-control__comparison-table attendance-control__manual-table"><tbody>${fields.map(([label, value]) => `<tr><th>${label}</th><td>${shown(value)}</td></tr>`).join('')}</tbody></table>${attachmentsHtml(display)}`;
+    const table = fields.length
+      ? `<table class="attendance-control__comparison-table attendance-control__manual-table"><tbody>${fields.map(([label, value]) => `<tr><th>${label}</th><td>${shown(value)}</td></tr>`).join('')}</tbody></table>`
+      : '';
+    return `${note}${table}${attachmentsHtml(display)}`;
   };
   const comparisonTable = (comparison) => {
     const attendance = comparison.attendance || {};
@@ -1424,7 +1446,16 @@ export function resultsHtml(result, month = '', options = {}) {
       ['publicTransportCost', 'עלות תחבורה ציבורית', asBoolean(current.publicTransport) ? current.publicTransportCost : '', null],
       ['kilometers', 'קילומטרים', asBoolean(current.publicTransport) ? '0 (תחבורה ציבורית)' : current.kilometers, dashboard?.kilometers]
     ];
-    const rows = definitions.filter(([key, , left, right]) => ['workHours', 'activityType', 'activityHours', 'publicTransport', 'publicTransportCost', 'kilometers'].includes(key) || hasValue(left) || hasValue(right)).map(([key, label, left, right]) => {
+    const rows = definitions.filter(([key, , left, right]) => {
+      const related = key === 'activityHours'
+        ? ['startTime', 'endTime'].map((field) => diffByKey.get(field)).find(Boolean)
+        : diffByKey.get(key);
+      if (related || (key === 'workHours' && payrollReview) || (key === 'expenses' && hasReviewExpense(attendance))) return true;
+      if (['workHours', 'activityType', 'activityHours'].includes(key)) return true;
+      if (key === 'publicTransport') return asBoolean(current.publicTransport);
+      if (key === 'publicTransportCost') return asBoolean(current.publicTransport) && hasMeaningfulValue(current.publicTransportCost);
+      return hasMeaningfulValue(left) || hasMeaningfulValue(right);
+    }).map(([key, label, left, right]) => {
       const related = key === 'activityHours' ? ['startTime', 'endTime'].map((field) => diffByKey.get(field)).find(Boolean) : diffByKey.get(key);
       const issue = Boolean(related) || (key === 'workHours' && payrollReview) || (key === 'expenses' && hasReviewExpense(attendance));
       const unavailable = !dashboard && !['publicTransport', 'publicTransportCost', 'kilometers'].includes(key);
@@ -1439,12 +1470,14 @@ export function resultsHtml(result, month = '', options = {}) {
     const issue = kind === 'comparison' ? comparisonHasIssue(item) : !attendanceEntryIsResolved(item);
     const ok = !issue;
     const timelineStatus = ok ? '<span class="attendance-control__row-status">✓ תקין</span>' : (kind === 'comparison' && item.unmatched ? '<span class="attendance-control__row-status attendance-control__row-status--issue">⚠ לא נמצאה פעילות תואמת</span>' : '');
+    const cancellationEntry = isAttendanceTravelTimeCancellation(item)
+      || normalizeAttendanceName(row.activityType).includes('ביטולזמן');
     const table = kind === 'comparison'
       ? (item.unmatched ? `${managerActionsHtml(item)}${manualReportTable(row, { entry: item })}` : comparisonTable(item))
       : `${managerActionsHtml(item)}${manualReportTable(row, { cancellation: isAttendanceOnlyActivityType(row.activityType), entry: item })}`;
     const missingMatch = kind === 'comparison' && item.unmatched ? '<p class="attendance-control__missing-match">לא נמצאה פעילות תואמת בדשבורד</p>' : '';
     const manualStatus = kind === 'attendance' && issue ? '<span class="attendance-control__row-status attendance-control__row-status--issue">⚠ לבדיקה</span>' : '';
-    return `<section class="attendance-control__report"><div class="attendance-control__report-line"><strong>${shown(`${row.startTime || '—'}–${row.endTime || '—'} | ${activityTypeDisplayLabel(row.activityType) || 'דיווח'}`)}</strong>${timelineStatus}${manualStatus}</div>${identityHtml(row)}${dayKmLineForReport(employeeId, date)}${missingMatch}${table}</section>`;
+    return `<section class="attendance-control__report"><div class="attendance-control__report-line"><strong>${shown(`${row.startTime || '—'}–${row.endTime || '—'} | ${activityTypeDisplayLabel(row.activityType) || 'דיווח'}`)}</strong>${timelineStatus}${manualStatus}</div>${identityHtml(row, { compactCancellation: cancellationEntry })}${dayKmLineForReport(employeeId, date)}${missingMatch}${table}</section>`;
   };
   const employeeHtml = [...employees.values()].sort((a, b) => a.name.localeCompare(b.name, 'he')).map((employee) => {
     const days = [...employee.days.entries()].sort(([left], [right]) => left.localeCompare(right)).map(([date, rows]) => {
