@@ -130,8 +130,10 @@ test('Attendance travel modes clear the inactive reimbursement value', () => {
 });
 
 test('Attendance New Report enforces dependent location choices and course-only meeting numbers', () => {
-  assert.match(newReportSource, /authSel\?\.setDisabled\(!hasType/);
-  assert.match(newReportSource, /setSchoolEnabled\(hasType && showsLocation && hasSelectedAuthority\(\)\)/);
+  assert.match(newReportSource, /const courseAwaitingActivity = isCourseReportType\(\) && !selectedActivity/);
+  assert.match(newReportSource, /authSel\?\.setDisabled\(!hasType \|\| !showsLocation \|\| courseAwaitingActivity \|\| !!selectedActivity\)/);
+  assert.match(newReportSource, /setSchoolEnabled\(hasType && showsLocation && !courseAwaitingActivity && hasSelectedAuthority\(\)\)/);
+  assert.match(newReportSource, /formatTravelMinutes\(Math\.round\(h \* 60\)\)/);
   assert.match(newReportSource, /meetingWrap\.hidden = !course/);
   assert.match(newReportSource, /meetingField\.select\.disabled = !course \|\| !hasSelectedAuthority\(\) \|\| !hasSelectedSchool\(\)/);
   assert.match(newReportSource, /manualSchoolId = null;[\s\S]*clearMeetingSelection\(\)/);
