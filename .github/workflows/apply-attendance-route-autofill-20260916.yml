@@ -1,0 +1,52 @@
+name: Apply attendance route autofill 20260916
+
+on:
+  push:
+    branches:
+      - codex/attendance-route-autofill-20260916
+
+permissions:
+  contents: write
+
+jobs:
+  apply-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/attendance-route-autofill-20260916
+          fetch-depth: 0
+
+      - name: Apply scoped attendance route autofill patch
+        run: python scripts/apply_attendance_route_autofill_20260916.py
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Run focused attendance and route tests
+        run: |
+          node --test tests/attendance-route-autofill.test.mjs
+          node --test tests/attendance-route-actual-day.test.mjs
+          node --test tests/attendance-validation-record-km.test.mjs
+          node --test tests/course-scheduling-payroll-month-distances.test.mjs
+          node --test tests/api-undated-activities.test.mjs
+          node --test tests/attendance-control.test.mjs
+
+      - name: Build dashboard
+        run: npm run build
+
+      - name: Commit verified implementation
+        shell: bash
+        run: |
+          rm scripts/apply_attendance_route_autofill_20260916.py
+          rm .github/workflows/apply-attendance-route-autofill-20260916.yml
+          git config user.name "Taasiyeda2026"
+          git config user.email "idanahum1122@gmail.com"
+          git add \
+            frontend/src/api.js \
+            supabase/functions/scheduling-route/index.ts \
+            tests/attendance-route-autofill.test.mjs \
+            scripts/apply_attendance_route_autofill_20260916.py \
+            .github/workflows/apply-attendance-route-autofill-20260916.yml
+          git commit -m "Auto-fill attendance route cache from actual workdays"
+          git push origin HEAD:codex/attendance-route-autofill-20260916
