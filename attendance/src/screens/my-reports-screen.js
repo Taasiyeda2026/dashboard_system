@@ -20,6 +20,7 @@ import { calcHours, ONLINE_REPORT_TYPE, OPERATIONS_REPORT_TYPE } from '../servic
 import { deleteAttachment, getSignedUrl } from '../services/storage.service.js';
 import { exportMonthToExcel } from '../services/excel.service.js';
 import { isBaseTrainingRecord, reportPresentation } from '../components/report-summary-row.js';
+import { buildMonthlySummaryItems, buildDailyHoursByDate, formatDurationHours } from '../components/monthly-report-summary.js';
 
 const COURSE_REPORT_TYPE = 'קורס';
 
@@ -181,6 +182,9 @@ async function loadAndRender({ instructor, year, month, contentArea, toolbar, on
     calContainer.append(calWrap);
     contentArea.append(calContainer, filterBar);
 
+    const monthlySummary = buildMonthlySummaryGrid(records);
+    if (monthlySummary) contentArea.append(monthlySummary);
+
     // ── Empty state ───────────────────────────────────────────────────────
     if (!sourceRecords.length) {
       const empty = document.createElement('p');
@@ -197,6 +201,8 @@ async function loadAndRender({ instructor, year, month, contentArea, toolbar, on
     contentArea.append(tableTitle);
 
     // ── Sort: date DESC, then start_time ASC within same date ────────────
+    const dailyHoursByDate = buildDailyHoursByDate(records);
+    const datesWithShownTotal = new Set();
     const sorted = [...sourceRecords].sort((a, b) => {
       const dc = String(b.report_date).localeCompare(String(a.report_date));
       if (dc !== 0) return dc;
@@ -219,7 +225,19 @@ async function loadAndRender({ instructor, year, month, contentArea, toolbar, on
     listWrap.append(listHead);
 
     for (const record of sorted) {
-      const row = buildRecordRow({ record, generated: generatedCancellationFor(records, record.id), editable, instructor, activityTypes, onDuplicate, onRefresh });
+      const reportDate = String(record.report_date || '').slice(0, 10);
+      const showDayTotal = reportDate && !datesWithShownTotal.has(reportDate);
+      if (showDayTotal) datesWithShownTotal.add(reportDate);
+      const row = buildRecordRow({
+        record,
+        generated: generatedCancellationFor(records, record.id),
+        editable,
+        instructor,
+        activityTypes,
+        onDuplicate,
+        onRefresh,
+        dayTotalHours: showDayTotal ? dailyHoursByDate.get(reportDate) : null
+      });
       row.dataset.reportDate = record.report_date;
       rowEntries.push({ row, reportDate: record.report_date });
       listWrap.append(row);
@@ -230,15 +248,28 @@ async function loadAndRender({ instructor, year, month, contentArea, toolbar, on
     totals.className = 'av2-report-list__totals';
     const totalsLabel = document.createElement('span');
     totalsLabel.textContent = 'סה״כ החודש';
-    const totalsHours = document.createElement('strong');
-    totalsHours.textContent = `${summary.totalHours.toFixed(2)} שעות`;
-    const totalsKm = document.createElement('strong');
-    totalsKm.textContent = `${summary.totalKm.toFixed(0)} ק"מ`;
-    const totalsExp = document.createElement('strong');
-    totalsExp.textContent = `₪${summary.totalExpenses.toFixed(2)}`;
-    totals.append(totalsLabel, totalsHours, totalsKm, totalsExp);
-
-    contentArea.append(listWrap, totals);
+    const totalMetrics = [];
+    if (Number(summary.totalHours || 0) > 0) {
+      const totalsHours = document.createElement('strong');
+      totalsHours.textContent = `${formatDurationHours(summary.totalHours)} שעות`;
+      totalMetrics.push(totalsHours);
+    }
+    if (Number(summary.totalKm || 0) > 0) {
+      const totalsKm = document.createElement('strong');
+      totalsKm.textContent = `${summary.totalKm.toFixed(0)} ק"מ`;
+      totalMetrics.push(totalsKm);
+    }
+    if (Number(summary.totalExpenses || 0) > 0) {
+      const totalsExp = document.createElement('strong');
+      totalsExp.textContent = `₪${summary.totalExpenses.toFixed(2)}`;
+      totalMetrics.push(totalsExp);
+    }
+    if (totalMetrics.length) {
+      totals.append(totalsLabel, ...totalMetrics);
+      contentArea.append(listWrap, totals);
+    } else {
+      contentArea.append(listWrap);
+    }
 
   } catch (err) {
     contentArea.innerHTML = `<p class="av2-error">שגיאה בטעינת נתונים: ${err.message}</p>`;
@@ -252,7 +283,28 @@ export function formatCancellationMinutes(value) {
   return `${Math.floor(minutes / 60)}:${String(minutes % 60).padStart(2, '0')}`;
 }
 
-function buildRecordRow({ record, generated, editable, instructor, activityTypes, onDuplicate, onRefresh }) {
+function buildMonthlySummaryGrid(records) {
+  const items = buildMonthlySummaryItems(records);
+  if (!items.length) return null;
+  const grid = document.createElement('div');
+  grid.className = 'av2-reports__summary-grid';
+  grid.setAttribute('aria-label', 'סיכום חודשי');
+  for (const item of items) {
+    const card = document.createElement('div');
+    card.className = `av2-reports__summary-card av2-reports__summary-card--${item.kind}`;
+    const value = document.createElement('strong');
+    value.className = 'av2-reports__summary-value';
+    value.textContent = item.value;
+    const label = document.createElement('span');
+    label.className = 'av2-reports__summary-label';
+    label.textContent = item.label;
+    card.append(value, label);
+    grid.append(card);
+  }
+  return grid;
+}
+
+function buildRecordRow({ record, generated, editable, instructor, activityTypes, onDuplicate, onRefresh, dayTotalHours = null }) {
   const row = document.createElement('div');
   row.className = 'av2-report-row';
   row.dataset.recordId = record.id;
@@ -264,6 +316,12 @@ function buildRecordRow({ record, generated, editable, instructor, activityTypes
   const dateStrong = document.createElement('strong');
   dateStrong.textContent = formatDateHeb(record.report_date);
   dateCell.append(dateStrong);
+  if (dayTotalHours != null) {
+    const dayTotal = document.createElement('span');
+    dayTotal.className = 'av2-rr__day-total';
+    dayTotal.textContent = `סה״כ יום ${formatDurationHours(dayTotalHours)}`;
+    dateCell.append(dayTotal);
+  }
 
   // ── 2. Start time ────────────────────────────────────────────────────────
   const startCell = document.createElement('div');

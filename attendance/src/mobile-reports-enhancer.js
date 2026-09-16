@@ -81,6 +81,7 @@ function enhanceRow(row) {
 
   const startCell = row.querySelector('.av2-rr__start');
   const endCell = row.querySelector('.av2-rr__end');
+  const typeCell = row.querySelector('.av2-rr__type');
   const nameCell = row.querySelector('.av2-rr__name');
   const schoolCell = row.querySelector('.av2-rr__school');
   const authorityCell = row.querySelector('.av2-rr__authority');
@@ -91,6 +92,7 @@ function enhanceRow(row) {
 
   setMobileLabel(startCell, 'שעת התחלה');
   setMobileLabel(endCell, 'שעת סיום');
+  setMobileLabel(typeCell, 'סוג פעילות');
   setMobileLabel(nameCell, 'שם הפעילות');
   setMobileLabel(schoolCell, 'בית ספר');
   setMobileLabel(authorityCell, 'רשות');
