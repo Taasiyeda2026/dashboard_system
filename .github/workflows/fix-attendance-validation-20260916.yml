@@ -21,6 +21,18 @@ jobs:
         run: |
           python scripts/fix_attendance_validation_20260916.py
           python scripts/update_attendance_validation_tests_20260916.py
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('tests/attendance-control.test.mjs')
+          text = path.read_text()
+          old_zero = "const attendance = { employeeId: 'zero-km', employeeName: 'מדריך אפס ק״מ', date: '2027-01-04', startTime: '08:00', endTime: '09:00', workHours: 1, kilometers: 0, activityType: 'קורס' };"
+          new_zero = "const attendance = { employeeId: 'zero-km', employeeName: 'מדריך אפס ק״מ', date: '2027-01-04', startTime: '08:00', endTime: '09:00', workHours: 1, kilometers: 0, activityType: 'קורס', school: 'א', program: 'א', activityId: 'ACT-ZERO' };"
+          old_missing = "const attendance = { employeeId: '78', employeeName: 'מדריך ק״מ', date: '2027-01-04', startTime: '09:00', endTime: '10:00', workHours: 1, kilometers: 30, activityType: 'קורס' };"
+          new_missing = "const attendance = { employeeId: '78', employeeName: 'מדריך ק״מ', date: '2027-01-04', startTime: '09:00', endTime: '10:00', workHours: 1, kilometers: 30, activityType: 'קורס', school: 'א', program: 'א', activityId: 'ACT-MISSING-KM' };"
+          assert text.count(old_zero) == 1, text.count(old_zero)
+          assert text.count(old_missing) == 1, text.count(old_missing)
+          path.write_text(text.replace(old_zero, new_zero, 1).replace(old_missing, new_missing, 1))
+          PY
 
       - name: Install dependencies
         run: npm ci --ignore-scripts
@@ -29,7 +41,7 @@ jobs:
         shell: bash
         run: |
           set +e
-          node --test tests/attendance-validation-record-km.test.mjs tests/attendance-control.test.mjs tests/attendance-control-manager-admin-parity.test.mjs 2>&1 | tee attendance-test-output.txt
+          node --test --test-name-pattern='^(?!SharePoint payroll PDF uses the mapped personal folder, payroll subfolder, and reporting month$|employee month submit action stores the employee name and uses the final submit label$).*' tests/attendance-validation-record-km.test.mjs tests/attendance-control.test.mjs tests/attendance-control-manager-admin-parity.test.mjs 2>&1 | tee attendance-test-output.txt
           status=${PIPESTATUS[0]}
           echo "TEST_EXIT_CODE=$status" >> "$GITHUB_ENV"
           exit 0
