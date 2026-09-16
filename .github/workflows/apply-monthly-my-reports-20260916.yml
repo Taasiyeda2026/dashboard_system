@@ -50,8 +50,7 @@ jobs:
               ('CACHE_VERSION = 71', 'CACHE_VERSION = 72')
             ],
             'tests/attendance-mobile-expandable-rows.test.mjs': [
-              ('mobile-reports.css?v=42', 'mobile-reports.css?v=72'),
-              ('mobile-reports-enhancer.js?v=42', 'mobile-reports-enhancer.js?v=72')
+              ('v=42', 'v=72')
             ]
           }
           for file_name, pairs in replacements.items():
