@@ -3,7 +3,7 @@
  * Registered with an explicit scope of "attendance/" (see src/services/sw-registration.service.js),
  * so it never controls pages outside this app. Independent cache namespace from the dashboard's sw.js.
  */
-const CACHE_VERSION = 70;
+const CACHE_VERSION = 71;
 const CACHE_PREFIX = 'attendance-static-v';
 const CACHE_NAME = `${CACHE_PREFIX}${CACHE_VERSION}`;
 
@@ -38,24 +38,20 @@ self.addEventListener('install', (event) => {
         try {
           const response = await fetch(new Request(resolveUrl(path), { cache: 'reload' }));
           if (response.ok) await cache.put(resolveUrl(path), response.clone());
-        } catch (error) {
-          console.warn('[Attendance SW] precache skip', path, error);
+        } catch (err) {
+          console.warn('[attendance-sw] precache failed:', path, err);
         }
       }
-      self.skipWaiting();
-    })
+    }).then(() => self.skipWaiting())
   );
 });
 
 self.addEventListener('activate', (event) => {
-  event.waitUntil((async () => {
-    await deleteOutdatedCaches();
-    await self.clients.claim();
-  })());
+  event.waitUntil(deleteOutdatedCaches().then(() => self.clients.claim()));
 });
 
 self.addEventListener('message', (event) => {
-  if (event.data && event.data.type === 'SKIP_WAITING') self.skipWaiting();
+  if (event.data?.type === 'SKIP_WAITING') self.skipWaiting();
 });
 
 self.addEventListener('fetch', (event) => {
@@ -64,21 +60,33 @@ self.addEventListener('fetch', (event) => {
 
   const url = new URL(request.url);
   if (!sameOrigin(url)) return;
-  if (!isNavigationRequest(request) && !isCacheableAssetUrl(url)) return;
 
-  event.respondWith(
-    caches.open(CACHE_NAME).then(async (cache) => {
+  if (isNavigationRequest(request)) {
+    event.respondWith((async () => {
       try {
-        const response = await fetch(new Request(request, { cache: 'no-store' }));
-        if (response && response.ok && response.type === 'basic') {
-          cache.put(request, response.clone()).catch(() => {});
+        const response = await fetch(request, { cache: 'no-store' });
+        if (response.ok) {
+          const cache = await caches.open(CACHE_NAME);
+          await cache.put(resolveUrl('./index.html'), response.clone());
         }
         return response;
-      } catch (error) {
-        const cached = (await cache.match(request)) || (isNavigationRequest(request) ? await cache.match(resolveUrl('./index.html')) : undefined);
-        if (cached) return cached;
-        throw error;
+      } catch {
+        const cached = await caches.match(resolveUrl('./index.html'));
+        return cached || Response.error();
       }
-    })
-  );
+    })());
+    return;
+  }
+
+  if (!isCacheableAssetUrl(url)) return;
+
+  event.respondWith((async () => {
+    const cache = await caches.open(CACHE_NAME);
+    const cached = await cache.match(request);
+    if (cached) return cached;
+
+    const response = await fetch(request);
+    if (response.ok) await cache.put(request, response.clone());
+    return response;
+  })());
 });
