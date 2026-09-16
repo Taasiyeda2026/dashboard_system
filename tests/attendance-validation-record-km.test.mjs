@@ -107,7 +107,8 @@ test('generated cancellation review is compact and does not show irrelevant zero
     _source: { generationKind: 'travel_time_cancellation', finalCancellationMinutes: 105 }
   }], []);
   const html = resultsHtml(result);
-  assert.match(html, /ביטול זמן: 1:45/);
+  assert.match(html, /בדיקת ביטול זמן/);
+  assert.match(html, /<th>זמן ביטול<\/th>/);
   assert.match(html, /אשר כפי שדווח/);
   assert.doesNotMatch(html, /<th>ק״מ<\/th>/);
   assert.doesNotMatch(html, /<th>תחבורה ציבורית<\/th>/);
