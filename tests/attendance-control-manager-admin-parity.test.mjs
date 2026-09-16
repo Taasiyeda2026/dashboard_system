@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+import { JSDOM } from 'jsdom';
 
 globalThis.sessionStorage = {
   getItem() { return null; },
@@ -17,6 +18,8 @@ const { hasPermission } = await import('../frontend/src/permission-policy.js');
 const { ROLE_PERMISSION_TEMPLATES } = await import('../frontend/src/capability-registry.js');
 const {
   applyAttendanceManualCorrection,
+  attendanceControlHtml,
+  bindAttendanceControl,
   DETAIL_HEADERS,
   detailRowValues,
   enforceAttendanceTravelMode,
@@ -34,6 +37,7 @@ const reopened = await readFile(new URL('../supabase/migrations/20260831143000_a
 const retention = await readFile(new URL('../supabase/migrations/20260828223936_attendance_retention_foundation.sql', import.meta.url), 'utf8');
 const finish = await readFile(new URL('../frontend/src/screens/payroll-control-finish.js', import.meta.url), 'utf8');
 const attendanceControl = await readFile(new URL('../frontend/src/screens/attendance-control.js', import.meta.url), 'utf8');
+const launcherSource = await readFile(new URL('../frontend/src/screens/shared/payroll-control-launcher.js', import.meta.url), 'utf8');
 
 function legacyRecordFromBridgeSource(row = {}) {
   // Mirror bridge mapping without importing the bridge module (which boots api/state).
@@ -302,4 +306,61 @@ test('lifecycle lock and reopen window remain in place', () => {
 test('manager role in attendance-control includes activities_manager and keeps team chooser admin-scoped', () => {
   assert.match(attendanceControl, /\['manager', 'instructor_manager', 'activities_manager'\]/);
   assert.match(attendanceControl, /\['operations_controller', 'system_admin', 'operation_manager', 'admin'\]/);
+  assert.match(attendanceControl, /canChooseTeam\s*\?\s*\[\s*\{\s*id:\s*'__all__'/);
+  assert.match(attendanceControl, /if \(isManager\) \{\s*if \(teams\.length === 1\)/);
+  assert.doesNotMatch(attendanceControl, /teams\.filter\(\(team\) => team\.id === ownTeam\)/);
+  assert.doesNotMatch(attendanceControl, /currentEmployee = employees\.find/);
+});
+
+test('payroll-control-launcher path auto-selects server-scoped team when manager is absent from roster', async () => {
+  // Mirrors payroll-control-launcher.js: bindAttendanceControl(popupRoot, { api, state, standalone: true })
+  assert.match(launcherSource, /bindAttendanceControl\(popupRoot, \{ api, state, standalone: true \}\)/);
+  assert.doesNotMatch(launcherSource, /buildScopedAttendanceApi|scopedAttendanceState/);
+
+  const managerEmpId = '9001';
+  const teamName = 'הילה רוזן';
+  const roster = [
+    { employeeId: '1501', employeeName: 'מדריך א', team: teamName, role: 'instructor' },
+    { employeeId: '1502', employeeName: 'מדריך ב', team: teamName, role: 'instructor' },
+    { employeeId: '1503', employeeName: 'מדריך ג', team: teamName, role: 'instructor' }
+  ];
+  assert.equal(roster.some((row) => String(row.employeeId) === managerEmpId), false);
+
+  const dom = new JSDOM(`<!doctype html><html><body><main data-payroll-window>${attendanceControlHtml()}</main></body></html>`, {
+    url: 'https://example.test/payroll-control'
+  });
+  const root = dom.window.document.querySelector('[data-payroll-window]');
+  root.querySelector('[data-attendance-control]').hidden = false;
+
+  const api = {
+    attendanceControlTeams: async () => roster
+  };
+  const state = {
+    user: {
+      role: 'activities_manager',
+      emp_id: managerEmpId,
+      full_name: teamName,
+      permissions: ROLE_PERMISSION_TEMPLATES.activities_manager
+    }
+  };
+
+  bindAttendanceControl(root, { api, state, standalone: true });
+  await Promise.resolve();
+  await Promise.resolve();
+
+  const teamInput = root.querySelector('[data-attendance-team]');
+  const monthInput = root.querySelector('[data-attendance-month]');
+  const run = root.querySelector('[data-attendance-run]');
+  const status = root.querySelector('[data-attendance-status]');
+
+  assert.equal(teamInput.value, teamName);
+  assert.equal(teamInput.disabled, true);
+  assert.equal(teamInput.querySelectorAll('option[value]:not([value=""])').length, 1);
+  assert.equal([...teamInput.options].some((option) => option.value === '__all__'), false);
+  assert.notEqual(status.textContent, 'לא נמצא צוות המשויך למשתמש המחובר.');
+  assert.equal(status.textContent, '');
+
+  monthInput.value = '2026-09';
+  monthInput.dispatchEvent(new dom.window.Event('change'));
+  assert.equal(run.disabled, false);
 });

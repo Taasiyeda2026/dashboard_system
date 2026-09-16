@@ -24,8 +24,9 @@ test('legacy work-schedule toolbar launcher is removed after render', () => {
 test('payroll tab reuses the existing attendance control interface and binder', () => {
   assert.match(launcherSource, /attendanceControlHtml/);
   assert.match(launcherSource, /attendanceControlStylesHtml/);
-  assert.match(launcherSource, /bindAttendanceControl/);
+  assert.match(launcherSource, /bindAttendanceControl\(popupRoot, \{ api, state, standalone: true \}\)/);
   assert.match(launcherSource, /standalone: true/);
+  assert.doesNotMatch(launcherSource, /buildScopedAttendanceApi|scopedAttendanceState/);
 });
 
 test('config keeps one HOTFIX_VERSION property and both merge-side markers', () => {
@@ -38,5 +39,5 @@ test('config keeps one HOTFIX_VERSION property and both merge-side markers', () 
 });
 
 test('service worker cache version is bumped for the payroll control deploy', () => {
-  assert.match(swSource, /const CACHE_VERSION = 1508;/);
+  assert.match(swSource, /const CACHE_VERSION = 1721;/);
 });

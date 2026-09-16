@@ -1499,13 +1499,22 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
       employees = loaded;
       const teams = attendanceTeams(employees);
       teamIds = teams.map((team) => team.id);
-      const currentEmpId = txt(state?.user?.emp_id || state?.user?.employee_id || state?.user?.user_id);
-      const currentEmployee = employees.find((employee) => txt(employee.employeeId || employee.EmployeeId || employee.ID) === currentEmpId);
-      const ownTeam = lookupText(currentEmployee?.team || currentEmployee?.Team);
-      const options = canChooseTeam ? [{ id: '__all__', managerName: 'כל הצוותים' }, ...teams] : teams.filter((team) => team.id === ownTeam);
+      // Manager roster RPCs are already server-scoped by direct_manager and do not
+      // include the manager as an employee row. Use returned teams as-is.
+      const options = canChooseTeam
+        ? [{ id: '__all__', managerName: 'כל הצוותים' }, ...teams]
+        : teams;
       teamInput.innerHTML = `<option value="">בחר צוות</option>${options.map((team) => `<option value="${escapeHtml(team.id)}">${escapeHtml(team.managerName)}</option>`).join('')}`;
-      if (isManager && ownTeam) { teamInput.value = ownTeam; teamInput.disabled = true; }
-      else teamInput.disabled = !canChooseTeam;
+      if (isManager) {
+        if (teams.length === 1) {
+          teamInput.value = teams[0].id;
+          teamInput.disabled = true;
+        } else {
+          teamInput.disabled = teams.length === 0;
+        }
+      } else {
+        teamInput.disabled = !canChooseTeam;
+      }
       status.textContent = options.length ? '' : 'לא נמצא צוות המשויך למשתמש המחובר.';
       update();
     }).catch(() => { status.textContent = 'טעינת נתוני מערכת הנוכחות נכשלה.'; });
