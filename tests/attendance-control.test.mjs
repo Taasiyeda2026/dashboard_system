@@ -52,7 +52,9 @@ test('attendance API records are normalized into the existing comparison shape',
   }])[0], {
     employeeId: '1501', employeeName: 'מדריכה', employmentType: '', team: 'צוות א', date: '2026-07-03',
     startTime: '08:00', endTime: '09:00', workHours: 1, activityType: 'סדנה', school: '', authority: '',
-    program: '', meetingNo: '', kilometers: null, expenses: null, expenseDetails: '', notes: '', activityId: '',
+    program: '', meetingNo: '', kilometers: null, publicTransport: false, publicTransportCost: 0,
+    expenses: null, expenseDetails: '', notes: '', activityId: '',
+    attachments: [], attachmentsNames: '',
     _source: {
       ID: 7, employeeId: '1501', employeeName: 'מדריכה', attendanceDate: '2026-07-03',
       startTime: '08:00', endTime: '09:00', workHours: 1, activityType: 'סדנה', Team: { Value: 'צוות א' }

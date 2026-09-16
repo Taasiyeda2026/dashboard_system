@@ -25,7 +25,8 @@ const optionalNumber = (value) => {
 const LOGIC_APP_FIELDS = [
   'employeeName', 'employeeId', 'attendanceDate', 'startTime', 'endTime',
   'workHours', 'activityType', 'schoolName', 'municipality', 'programName',
-  'sessionNumber', 'totalExpenses', 'kilometers', 'expensesDetails', 'notes',
+  'sessionNumber', 'totalExpenses', 'kilometers', 'publicTransport', 'publicTransportCost',
+  'expensesDetails', 'notes',
   'team', 'employmentType', 'attachmentsNames', 'status', 'approvedBy', 'approvedDate'
 ];
 
@@ -43,6 +44,8 @@ const SOURCE_KEYS = {
   sessionNumber: ['sessionNumber', 'SessionNumber', 'session', 'meetingNo'],
   totalExpenses: ['totalExpenses', 'TotalExpenses', 'expenses'],
   kilometers: ['kilometers', 'Kilometers', 'km'],
+  publicTransport: ['publicTransport', 'PublicTransport', 'public_transport'],
+  publicTransportCost: ['publicTransportCost', 'PublicTransportCost', 'public_transport_cost'],
   expensesDetails: ['expensesDetails', 'ExpensesDetails', 'expenseDetails'],
   notes: ['notes', 'Notes'],
   team: ['team', 'Team'],
@@ -64,11 +67,16 @@ const CORRECTION_FIELDS = [
   ['sessionNumber', 'meetingNo', false],
   ['totalExpenses', 'expenses', true],
   ['kilometers', 'kilometers', true],
+  ['publicTransport', 'publicTransport', false],
+  ['publicTransportCost', 'publicTransportCost', true],
   ['expensesDetails', 'expenseDetails', false],
   ['notes', 'notes', false]
 ];
 
 function sameValue(left, right, numeric) {
+  if (typeof left === 'boolean' || typeof right === 'boolean') {
+    return Boolean(left) === Boolean(right);
+  }
   if (numeric) {
     const a = optionalNumber(left);
     const b = optionalNumber(right);
@@ -81,6 +89,8 @@ function sameValue(left, right, numeric) {
 
 function finalFieldValue(row, key, numeric) {
   if (key === 'workHours') return rowWorkHours(row) ?? optionalNumber(row?.workHours);
+  if (key === 'publicTransport') return row?.publicTransport === true || row?.publicTransport === 'true' || row?.publicTransport === 1;
+  if (key === 'publicTransportCost') return optionalNumber(row?.[key]) ?? 0;
   if (numeric) return optionalNumber(row?.[key]);
   return txt(row?.[key]);
 }
@@ -146,6 +156,22 @@ export function buildAttendanceUpdatePayload(entry) {
     changed = true;
   }
   if (changed) {
+    const usesPublicTransport = fields.publicTransport === true || fields.publicTransport === 'true' || fields.publicTransport === 1
+      || (fields.publicTransport == null && (final.publicTransport === true || attendance.publicTransport === true));
+    const kilometers = optionalNumber(fields.kilometers ?? final.kilometers ?? attendance.kilometers) ?? 0;
+    if (usesPublicTransport) {
+      fields.publicTransport = true;
+      fields.kilometers = 0;
+      fields.publicTransportCost = optionalNumber(fields.publicTransportCost ?? final.publicTransportCost ?? attendance.publicTransportCost) ?? 0;
+    } else if (kilometers > 0) {
+      fields.publicTransport = false;
+      fields.publicTransportCost = 0;
+      fields.kilometers = kilometers;
+    } else if (Object.prototype.hasOwnProperty.call(fields, 'publicTransport') || Object.prototype.hasOwnProperty.call(fields, 'publicTransportCost') || Object.prototype.hasOwnProperty.call(fields, 'kilometers')) {
+      fields.publicTransport = false;
+      fields.publicTransportCost = 0;
+      if (!Object.prototype.hasOwnProperty.call(fields, 'kilometers')) fields.kilometers = kilometers;
+    }
     const missingFields = LOGIC_APP_FIELDS.filter((field) => !Object.prototype.hasOwnProperty.call(fields, field));
     if (missingFields.length) throw new Error('חסר נתון מקור הנדרש לעדכון בטוח של רשומת הנוכחות');
   }
@@ -209,9 +235,12 @@ export function snapshotAttendanceRow(entry) {
     program: txt(final.program),
     meetingNo: txt(final.meetingNo),
     kilometers: optionalNumber(final.kilometers),
+    publicTransport: final.publicTransport === true,
+    publicTransportCost: optionalNumber(final.publicTransportCost),
     expenses: optionalNumber(final.expenses),
     expenseDetails: txt(final.expenseDetails),
-    notes: txt(final.notes)
+    notes: txt(final.notes),
+    attachmentsNames: txt(final.attachmentsNames || attendance.attachmentsNames)
   };
 }
 

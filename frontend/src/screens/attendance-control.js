@@ -8,7 +8,7 @@ import {
   payrollEntityFieldsEquivalent
 } from './payroll-control-identity.js';
 
-export const DETAIL_HEADERS = ['מספר עובד', 'שם עובד', 'תאריך', 'שעת התחלה', 'שעת סיום', 'שעות עבודה', 'סוג פעילות', 'שם בית ספר', 'רשות', 'שם תכנית', 'מספר מפגש', 'קילומטרים', 'הוצאות', 'פירוט הוצאות', 'הערות'];
+export const DETAIL_HEADERS = ['מספר עובד', 'שם עובד', 'תאריך', 'שעת התחלה', 'שעת סיום', 'שעות עבודה', 'סוג פעילות', 'שם בית ספר', 'רשות', 'שם תכנית', 'מספר מפגש', 'קילומטרים', 'תחבורה ציבורית', 'עלות תחבורה ציבורית', 'הוצאות', 'פירוט הוצאות', 'הערות', 'אסמכתאות'];
 export const MONTHLY_HEADERS = ['שם מדריך', 'מספר עובד', 'שעות ביטול זמן', 'שעות הכשרה', 'שעות חדר בריחה', 'שעות סדנה', 'שעות סדנאות קיץ', 'שעות סיור', 'שעות קורס', 'שעות תפעול', 'סה"כ קילומטרים', 'הוצאות', 'פירוט הוצאות'];
 export const DAILY_HEADERS = ['תאריך', 'שם מדריך', 'מספר עובד', 'סוג פעילות', 'רשות', 'שעת התחלה', 'שעת סיום', 'שעות עבודה', 'קילומטרים', 'הוצאות', 'פירוט הוצאות'];
 
@@ -27,7 +27,10 @@ const HEADER_ALIASES = {
   workHours: ['שעות עבודה', 'סהכ שעות', 'סה"כ שעות', 'שעות'], activityType: ['סוג פעילות', 'פעילות', 'activity type'],
   school: ['שם בית ספר', 'בית ספר', 'מסגרת'], authority: ['רשות', 'עיר', 'מועצה'], program: ['שם תכנית', 'שם תוכנית', 'תכנית', 'תוכנית'],
   meetingNo: ['מספר מפגש', 'מס מפגש', 'מפגש'], kilometers: ['קילומטרים', 'ק"מ', 'קמ', 'נסיעות'], expenses: ['הוצאות', 'סכום הוצאות'],
-  expenseDetails: ['פירוט הוצאות', 'תיאור הוצאות'], notes: ['הערות', 'הערה'], activityId: ['מזהה פעילות', 'מזהה פעילות פנימי', 'rowid']
+  expenseDetails: ['פירוט הוצאות', 'תיאור הוצאות'], notes: ['הערות', 'הערה'], activityId: ['מזהה פעילות', 'מזהה פעילות פנימי', 'rowid'],
+  publicTransport: ['תחבורה ציבורית', 'public transport', 'public_transport'],
+  publicTransportCost: ['עלות תחבורה ציבורית', 'public transport cost', 'public_transport_cost'],
+  attachmentsNames: ['אסמכתאות', 'קבצים', 'attachments']
 };
 
 const txt = (value) => String(value ?? '').trim();
@@ -38,7 +41,52 @@ const number = (value) => {
   return Number.isFinite(parsed) ? parsed : 0;
 };
 const optionalNumber = (value) => txt(value) === '' || value == null ? null : number(value);
+const asBoolean = (value) => value === true || value === 'true' || value === 1 || value === '1' || value === 'yes';
 const ATTENDANCE_ONLY_ACTIVITY_TYPES = new Set(['ביטולזמן', 'הכשרה', 'תפעול']);
+
+export function normalizeAttendanceAttachments(raw = [], names = '') {
+  const list = Array.isArray(raw) ? raw : [];
+  const normalized = list.map((item) => ({
+    id: txt(item?.id || item?.attachmentId),
+    fileName: txt(item?.fileName || item?.file_name || item?.name),
+    storagePath: txt(item?.storagePath || item?.storage_path || item?.path),
+    fileType: txt(item?.fileType || item?.file_type || item?.type),
+    fileSize: item?.fileSize ?? item?.file_size ?? null
+  })).filter((item) => item.fileName || item.storagePath);
+  if (normalized.length) return normalized;
+  return txt(names).split(',').map((name) => txt(name)).filter(Boolean).map((fileName) => ({
+    id: '', fileName, storagePath: '', fileType: '', fileSize: null
+  }));
+}
+
+export function enforceAttendanceTravelMode(row = {}) {
+  const next = { ...row };
+  const hadPublicTransportKey = Object.prototype.hasOwnProperty.call(row, 'publicTransport');
+  const hadPublicTransportCostKey = Object.prototype.hasOwnProperty.call(row, 'publicTransportCost');
+  let publicTransport = asBoolean(next.publicTransport);
+  let kilometers = optionalNumber(next.kilometers);
+  let publicTransportCost = optionalNumber(next.publicTransportCost);
+  if (publicTransport) {
+    kilometers = 0;
+    publicTransportCost = publicTransportCost == null ? 0 : Math.max(0, publicTransportCost);
+  } else if ((kilometers || 0) > 0) {
+    publicTransport = false;
+    publicTransportCost = 0;
+  } else if (hadPublicTransportKey || hadPublicTransportCostKey) {
+    publicTransport = false;
+    publicTransportCost = 0;
+  } else {
+    // Preserve "unset" travel mode for approve-as-reported / unchanged rows.
+    publicTransport = false;
+    publicTransportCost = publicTransportCost == null ? null : 0;
+  }
+  next.publicTransport = publicTransport;
+  if (publicTransportCost != null || hadPublicTransportCostKey || publicTransport || (kilometers || 0) > 0) {
+    next.publicTransportCost = publicTransportCost ?? 0;
+  }
+  next.kilometers = kilometers;
+  return next;
+}
 
 export function isAttendanceOnlyActivityType(value) {
   return ATTENDANCE_ONLY_ACTIVITY_TYPES.has(normalizeAttendanceName(value));
@@ -292,19 +340,30 @@ function lookupText(value) {
 }
 
 export function normalizeAttendanceApiRows(records = []) {
-  return records.map((row) => ({
-    employeeId: txt(row.employeeId || row.EmployeeId || row.empNum),
-    employeeName: txt(row.employeeName || row.EmployeeName || row.empName),
-    employmentType: lookupText(row.employmentType || row.EmploymentType),
-    team: lookupText(row.team || row.Team), date: excelDate(row.attendanceDate || row.AttendanceDate || row.date),
-    startTime: timeText(row.startTime || row.StartTime || row.start), endTime: timeText(row.endTime || row.EndTime || row.end),
-    workHours: optionalNumber(row.workHours ?? row.WorkHours ?? row.hours), activityType: lookupText(row.activityType || row.ActivityType || row.activity),
-    school: txt(row.schoolName || row.SchoolName || row.school), authority: txt(row.municipality || row.Municipality || row.authority),
-    program: txt(row.programName || row.ProgramName || row.program), meetingNo: txt(row.sessionNumber || row.SessionNumber || row.session),
-    kilometers: optionalNumber(row.kilometers ?? row.Kilometers ?? row.km), expenses: optionalNumber(row.totalExpenses ?? row.TotalExpenses),
-    expenseDetails: txt(row.expensesDetails || row.ExpensesDetails), notes: txt(row.notes || row.Notes), activityId: '',
-    _source: row
-  })).filter((row) => row.employeeId && row.date);
+  return records.map((row) => {
+    const attachments = normalizeAttendanceAttachments(
+      row.attachments || row.Attachments || row._attachments,
+      row.attachmentsNames || row.AttachmentsNames
+    );
+    return enforceAttendanceTravelMode({
+      employeeId: txt(row.employeeId || row.EmployeeId || row.empNum),
+      employeeName: txt(row.employeeName || row.EmployeeName || row.empName),
+      employmentType: lookupText(row.employmentType || row.EmploymentType),
+      team: lookupText(row.team || row.Team), date: excelDate(row.attendanceDate || row.AttendanceDate || row.date),
+      startTime: timeText(row.startTime || row.StartTime || row.start), endTime: timeText(row.endTime || row.EndTime || row.end),
+      workHours: optionalNumber(row.workHours ?? row.WorkHours ?? row.hours), activityType: lookupText(row.activityType || row.ActivityType || row.activity),
+      school: txt(row.schoolName || row.SchoolName || row.school), authority: txt(row.municipality || row.Municipality || row.authority),
+      program: txt(row.programName || row.ProgramName || row.program), meetingNo: txt(row.sessionNumber || row.SessionNumber || row.session),
+      kilometers: optionalNumber(row.kilometers ?? row.Kilometers ?? row.km),
+      publicTransport: asBoolean(row.publicTransport ?? row.PublicTransport ?? row.public_transport),
+      publicTransportCost: optionalNumber(row.publicTransportCost ?? row.PublicTransportCost ?? row.public_transport_cost),
+      expenses: optionalNumber(row.totalExpenses ?? row.TotalExpenses),
+      expenseDetails: txt(row.expensesDetails || row.ExpensesDetails), notes: txt(row.notes || row.Notes), activityId: '',
+      attachments,
+      attachmentsNames: attachments.map((item) => item.fileName).filter(Boolean).join(', '),
+      _source: row
+    });
+  }).filter((row) => row.employeeId && row.date);
 }
 
 export function attendanceTeams(employees = []) {
@@ -666,21 +725,21 @@ export function resolveKilometersDay(result, employeeId, date, resolution, corre
 
 export function approveAttendanceEntryAsReported(entry) {
   if (!entry?.attendance) return entry;
-  entry.final = {
+  entry.final = enforceAttendanceTravelMode({
     ...entry.attendance,
     workHours: rowWorkHours(entry.attendance) ?? optionalNumber(entry.attendance.workHours)
-  };
+  });
   entry.managerResolved = 'approved_as_reported';
   return entry;
 }
 
 export function applyAttendanceManualCorrection(entry, changes = {}) {
   if (!entry?.attendance) return entry;
-  entry.final = {
+  entry.final = enforceAttendanceTravelMode({
     ...entry.attendance,
     ...changes,
     workHours: changes.workHours ?? rowWorkHours({ ...entry.attendance, ...changes }) ?? optionalNumber(entry.attendance.workHours)
-  };
+  });
   entry.managerResolved = 'corrected';
   return entry;
 }
@@ -961,9 +1020,12 @@ function mergeFinalIntoSource(final, source) {
   assign(['programName', 'ProgramName', 'program'], final.program);
   assign(['sessionNumber', 'SessionNumber', 'session'], final.meetingNo);
   assign(['kilometers', 'Kilometers', 'km'], final.kilometers);
+  assign(['publicTransport', 'PublicTransport', 'public_transport'], final.publicTransport);
+  assign(['publicTransportCost', 'PublicTransportCost', 'public_transport_cost'], final.publicTransportCost);
   assign(['totalExpenses', 'TotalExpenses', 'expenses'], final.expenses);
   assign(['expensesDetails', 'ExpensesDetails', 'expenseDetails'], final.expenseDetails);
   assign(['notes', 'Notes'], final.notes);
+  assign(['attachmentsNames', 'AttachmentsNames'], final.attachmentsNames);
   assign(['ID', 'Id', 'id', 'activityId'], final.activityId);
   if (final.employmentType) assign(['employmentType', 'EmploymentType'], final.employmentType);
   return merged;
@@ -1117,7 +1179,7 @@ export function attendanceControlStylesHtml() {
 .attendance-control__head,.attendance-control__uploads,.attendance-control__metrics,.attendance-control__employee-summary{display:flex;align-items:center;gap:12px;flex-wrap:wrap}.attendance-control__head{justify-content:space-between}.attendance-control__head h2{margin:0}.attendance-control__head p{margin:4px 0;color:#64748b}
 .attendance-control__uploads{margin:16px 0;padding:14px;background:#f8fafc;border-radius:10px}.attendance-control__uploads label{display:grid;gap:6px;min-width:220px;flex:1}.attendance-control__status{color:#b91c1c;font-weight:700}
 .attendance-control__summary-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:12px 0;padding:12px 14px;border-radius:10px;background:#f4f7fb;color:#1f2a37;font-weight:600}.attendance-control__summary-bar span{padding:7px 12px;border:1px solid #d7e0ea;border-radius:8px;background:#ffffff;font-weight:600}.attendance-control__metrics-details{margin:6px 0 12px}.attendance-control__metrics-details>summary{cursor:pointer;color:#64748b;font-size:.92em;padding:4px 2px}.attendance-control__metrics{margin:6px 0;display:flex;flex-wrap:wrap;gap:8px}.attendance-control__metrics>span,.attendance-control__employee-summary>span{padding:9px 12px;border:1px solid #e2e8f0;border-radius:8px;background:#f8fafc}
-.attendance-control__employee{margin:10px 0;border-bottom:1px solid #d7e0ea}.attendance-control__employee>summary{padding:12px 4px;cursor:pointer;font-size:1.05em}.attendance-control__employee-days{padding:0 4px 10px}.attendance-control__employee-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:4px 4px 8px}.attendance-control__approved{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 4px 8px;padding:8px 10px;border:1px solid #bbf7d0;background:#f0fdf4;border-radius:8px;color:#166534;font-weight:700}.attendance-control__approve-dialog{border:0;border-radius:12px;padding:20px;max-width:480px;color:#1f2a37}.attendance-control__approve-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}.attendance-control__manager-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:8px 0}.attendance-control__resolved-note{margin:8px 0;color:#166534;font-weight:700}.attendance-control__report-km{margin:4px 0 8px;color:#475569;font-size:.92em}
+.attendance-control__employee{margin:10px 0;border-bottom:1px solid #d7e0ea}.attendance-control__employee>summary{padding:12px 4px;cursor:pointer;font-size:1.05em}.attendance-control__employee-days{padding:0 4px 10px}.attendance-control__employee-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:4px 4px 8px}.attendance-control__approved{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 4px 8px;padding:8px 10px;border:1px solid #bbf7d0;background:#f0fdf4;border-radius:8px;color:#166534;font-weight:700}.attendance-control__approve-dialog{border:0;border-radius:12px;padding:20px;max-width:480px;color:#1f2a37}.attendance-control__approve-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}.attendance-control__manager-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:8px 0}.attendance-control__travel-edit{display:flex;align-items:center;gap:8px;flex-wrap:wrap;width:100%;margin-top:4px}.attendance-control__attachments{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:6px 0 8px;color:#334155;font-size:.92em}.attendance-control__resolved-note{margin:8px 0;color:#166534;font-weight:700}.attendance-control__report-km{margin:4px 0 8px;color:#475569;font-size:.92em}
 .attendance-control__day{border-top:1px solid #e2e8f0}.attendance-control__day>summary{display:grid;grid-template-columns:110px 110px 80px;gap:12px;align-items:center;padding:10px 2px;cursor:pointer}.attendance-control__reports{padding:0 10px 8px}.attendance-control__report{padding:12px 8px;border-top:1px solid rgba(37,99,235,.16);background:rgba(37,99,235,.025)}.attendance-control__report:first-child{border-top:0}.attendance-control__report-line{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.attendance-control__report-line strong{font-size:1em}.attendance-control__row-status{font-weight:800;white-space:nowrap;color:#24824d}.attendance-control__row-status--issue,.attendance-control__field-value--issue{color:#c62828!important}.attendance-control__identity{padding:5px 0 8px;color:#475569;font-size:.92em}.attendance-control__comparison-table{width:100%;border-collapse:collapse;margin:3px 0 8px}.attendance-control__comparison-table th,.attendance-control__comparison-table td{padding:7px 9px;text-align:right;border-bottom:1px solid #e2e8f0}.attendance-control__comparison-table th{color:#5f6f82;font-size:.86em}.attendance-control__comparison-table select,.attendance-control__comparison-table input{max-width:145px}.attendance-control__manual-table{width:auto;min-width:min(100%,520px)}.attendance-control__missing-match{margin:5px 0;color:#c62828;font-weight:800}.attendance-control__day-km{padding:0 10px 6px;color:#475569;font-size:.92em}.attendance-control__manual-note{margin:0 0 6px;color:#475569;font-size:.92em}.attendance-control__export{margin-top:14px}@media(max-width:800px){.attendance-control__comparison-table{font-size:.9em}}
 @media(max-width:850px){.attendance-control__diff{grid-template-columns:1fr 1fr}.attendance-control__diff strong{grid-column:1/-1}.attendance-control__diff--header{display:none}[data-src-label]::before{content:attr(data-src-label)": ";font-weight:700;font-size:.8em;display:block;color:#5f6f82;margin-bottom:2px}}
 </style>`;
@@ -1179,10 +1241,28 @@ export function resultsHtml(result, month = '', options = {}) {
     const resolvedLabel = entryResolvedLabel(entry);
     if (resolvedLabel) return `<p class="attendance-control__resolved-note">${escapeHtml(resolvedLabel)}</p>`;
     const needsHoursFix = entry.unmatched || entry.source === 'attendance_not_compared' || entry.dashboard?.payrollHoursRequireReview;
+    const current = entry.final || entry.attendance || {};
+    const usesPublicTransport = asBoolean(current.publicTransport);
     return `<div class="attendance-control__manager-actions">
       <button type="button" class="ds-btn ds-btn--sm" data-attendance-approve-reported="${escapeHtml(entry.id)}">אשר כפי שדווח</button>
       ${needsHoursFix ? `<input class="ds-input ds-input--sm" data-attendance-correct-hours="${escapeHtml(entry.id)}" placeholder="שעות שכר מתוקנות" aria-label="שעות שכר מתוקנות"><button type="button" class="ds-btn ds-btn--sm" data-attendance-save-correction="${escapeHtml(entry.id)}">שמור תיקון</button>` : ''}
+      <div class="attendance-control__travel-edit" data-attendance-travel-edit="${escapeHtml(entry.id)}">
+        <label><input type="checkbox" data-attendance-correct-pt="${escapeHtml(entry.id)}"${usesPublicTransport ? ' checked' : ''}> תחבורה ציבורית</label>
+        <input class="ds-input ds-input--sm" data-attendance-correct-pt-cost="${escapeHtml(entry.id)}" type="number" min="0" step="0.01" placeholder="עלות תחבורה" aria-label="עלות תחבורה ציבורית" value="${usesPublicTransport && optionalNumber(current.publicTransportCost) != null ? escapeHtml(String(current.publicTransportCost)) : ''}"${usesPublicTransport ? '' : ' disabled'}>
+        <input class="ds-input ds-input--sm" data-attendance-correct-km="${escapeHtml(entry.id)}" type="number" min="0" step="1" placeholder="ק״מ" aria-label="קילומטרים" value="${!usesPublicTransport && optionalNumber(current.kilometers) != null ? escapeHtml(String(current.kilometers)) : ''}"${usesPublicTransport ? ' disabled' : ''}>
+        <button type="button" class="ds-btn ds-btn--sm" data-attendance-save-travel="${escapeHtml(entry.id)}">שמור תיקון נסיעה</button>
+      </div>
     </div>`;
+  };
+  const attachmentsHtml = (row) => {
+    const attachments = normalizeAttendanceAttachments(row?.attachments || row?._source?.attachments, row?.attachmentsNames || row?._source?.attachmentsNames);
+    if (!attachments.length) return '';
+    const links = attachments.map((item, index) => {
+      const label = escapeHtml(item.fileName || `קובץ ${index + 1}`);
+      if (!item.storagePath) return `<span>${label}</span>`;
+      return `<button type="button" class="ds-btn ds-btn--sm" data-attendance-open-attachment="${escapeHtml(item.storagePath)}">${label}</button>`;
+    }).join(' ');
+    return `<div class="attendance-control__attachments"><strong>אסמכתאות:</strong> ${links}</div>`;
   };
   const identityHtml = (row) => {
     const fields = [activityTypeDisplayLabel(row.activityType), row.program, row.school, row.authority, hasValue(row.meetingNo) ? `מפגש ${row.meetingNo}` : ''].filter(hasValue);
@@ -1193,12 +1273,16 @@ export function resultsHtml(result, month = '', options = {}) {
     const autoCancellation = source.generationKind === 'travel_time_cancellation';
     const minutesLabel = (value) => `${Math.floor((Number(value) || 0) / 60)}:${String((Number(value) || 0) % 60).padStart(2, '0')}`;
     const fields = [
-      ['שעות שכר', displayWorkHours(row)], ['ק״מ', row.kilometers], ['הוצאות', row.expenses],
+      ['שעות שכר', displayWorkHours(row)],
+      ['ק״מ', asBoolean(row.publicTransport) ? '0 (תחבורה ציבורית)' : row.kilometers],
+      ['תחבורה ציבורית', asBoolean(row.publicTransport) ? 'כן' : (hasValue(row.publicTransportCost) || hasValue(row.kilometers) ? 'לא' : '')],
+      ['עלות תחבורה ציבורית', asBoolean(row.publicTransport) ? row.publicTransportCost : ''],
+      ['הוצאות', row.expenses],
       ['פירוט הוצאה', row.expenseDetails], ['הערות', row.notes]
     ].filter(([, value]) => hasValue(value));
     const autoAudit = autoCancellation ? `<div class="attendance-control__manual-note" title="${escapeHtml(source.overrideByName ? `נערך על ידי ${source.overrideByName}${source.overrideAt ? ` · ${source.overrideAt}` : ''}` : '')}"><strong>ביטול זמן: ${escapeHtml(minutesLabel(source.finalCancellationMinutes))}</strong>${source.manuallyOverridden ? `<br>נערך ידנית<br>מחושב במקור: ${escapeHtml(minutesLabel(source.calculatedCancellationMinutes))}` : '<br>מחושב אוטומטית לפי זמן הנסיעה'}</div>` : '';
     const note = cancellation && !autoCancellation ? '<p class="attendance-control__manual-note">נשמר ברצף יום העבודה</p>' : autoAudit;
-    return `${note}<table class="attendance-control__comparison-table attendance-control__manual-table"><tbody>${fields.map(([label, value]) => `<tr><th>${label}</th><td>${shown(value)}</td></tr>`).join('')}</tbody></table>`;
+    return `${note}<table class="attendance-control__comparison-table attendance-control__manual-table"><tbody>${fields.map(([label, value]) => `<tr><th>${label}</th><td>${shown(value)}</td></tr>`).join('')}</tbody></table>${attachmentsHtml(row)}`;
   };
   const comparisonTable = (comparison) => {
     const attendance = comparison.attendance || {};
@@ -1214,17 +1298,19 @@ export function resultsHtml(result, month = '', options = {}) {
       ['activityHours', 'שעות פעילות', `${attendance.startTime || '—'}–${attendance.endTime || '—'}`, dashboard ? `${dashboard.startTime || '—'}–${dashboard.endTime || '—'}` : null],
       ['school', 'בית ספר', attendance.school, dashboard?.school],
       ['program', 'שם תכנית', attendance.program, dashboard?.program],
-      ['expenses', 'הוצאות', attendance.expenses, dashboard?.expenses], ['meetingNo', 'מספר מפגש', attendance.meetingNo, dashboard?.meetingNo]
+      ['expenses', 'הוצאות', attendance.expenses, dashboard?.expenses], ['meetingNo', 'מספר מפגש', attendance.meetingNo, dashboard?.meetingNo],
+      ['publicTransport', 'תחבורה ציבורית', asBoolean(attendance.publicTransport) ? 'כן' : (hasValue(attendance.publicTransportCost) || hasValue(attendance.kilometers) ? 'לא' : ''), null],
+      ['publicTransportCost', 'עלות תחבורה ציבורית', asBoolean(attendance.publicTransport) ? attendance.publicTransportCost : '', null]
     ];
-    const rows = definitions.filter(([key, , left, right]) => ['workHours', 'activityType', 'activityHours'].includes(key) || hasValue(left) || hasValue(right)).map(([key, label, left, right]) => {
+    const rows = definitions.filter(([key, , left, right]) => ['workHours', 'activityType', 'activityHours', 'publicTransport', 'publicTransportCost'].includes(key) || hasValue(left) || hasValue(right)).map(([key, label, left, right]) => {
       const related = key === 'activityHours' ? ['startTime', 'endTime'].map((field) => diffByKey.get(field)).find(Boolean) : diffByKey.get(key);
       const issue = Boolean(related) || (key === 'workHours' && payrollReview) || (key === 'expenses' && hasReviewExpense(attendance));
-      const unavailable = !dashboard;
+      const unavailable = !dashboard && !['publicTransport', 'publicTransportCost'].includes(key);
       const controls = related && !unavailable ? `<select class="ds-input ds-input--sm" data-attendance-choice aria-label="החלטה עבור ${escapeHtml(label)}"><option value="attendance">נתון הנוכחות</option><option value="dashboard">נתון הדשבורד</option><option value="custom">ערך אחר</option></select><input class="ds-input ds-input--sm" data-attendance-custom hidden aria-label="ערך אחר">` : '';
       const status = unavailable ? '⚠ לא נמצאה פעילות תואמת' : issue ? '⚠ לבדיקה' : 'תקין';
-      return `<tr${related ? ` data-comparison="${comparison.id}" data-field="${related.key}"` : ''}><th>${escapeHtml(label)}</th><td>${shown(left)}</td><td class="${issue || unavailable ? 'attendance-control__field-value--issue' : ''}">${unavailable ? 'לא נמצאה התאמה' : shown(right)}${key === 'workHours' ? dashboardWorkHoursHelp : ''}</td><td class="attendance-control__row-status ${issue || unavailable ? 'attendance-control__row-status--issue' : ''}">${status}${controls}</td></tr>`;
+      return `<tr${related ? ` data-comparison="${comparison.id}" data-field="${related.key}"` : ''}><th>${escapeHtml(label)}</th><td>${shown(left)}</td><td class="${issue || unavailable ? 'attendance-control__field-value--issue' : ''}">${unavailable ? 'לא נמצאה התאמה' : (right == null && ['publicTransport', 'publicTransportCost'].includes(key) ? '—' : shown(right))}${key === 'workHours' ? dashboardWorkHoursHelp : ''}</td><td class="attendance-control__row-status ${issue || unavailable ? 'attendance-control__row-status--issue' : ''}">${status}${controls}</td></tr>`;
     }).join('');
-    return `${managerActionsHtml(comparison)}<table class="attendance-control__comparison-table"><thead><tr><th>נתון</th><th>נוכחות</th><th>דשבורד / בקרה</th><th>סטטוס</th></tr></thead><tbody>${rows}</tbody></table>`;
+    return `${managerActionsHtml(comparison)}<table class="attendance-control__comparison-table"><thead><tr><th>נתון</th><th>נוכחות</th><th>דשבורד / בקרה</th><th>סטטוס</th></tr></thead><tbody>${rows}</tbody></table>${attachmentsHtml(attendance)}`;
   };
   const reportHtml = ({ kind, item, employeeId, date }) => {
     const row = kind === 'dashboard' ? item.dashboard : item.attendance;
@@ -1313,7 +1399,7 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
   const run = panel.querySelector('[data-attendance-run]'); const status = panel.querySelector('[data-attendance-status]'); const results = panel.querySelector('[data-attendance-results]');
   let result = null; let employees = null; let teamIds = []; let approvalsByEmployee = {}; let workflowByEmployee = {};
   const role = txt(state?.user?.role || state?.user?.display_role).toLowerCase();
-  const isManager = role === 'manager' || role === 'instructor_manager';
+  const isManager = ['manager', 'instructor_manager', 'activities_manager'].includes(role);
   const canChooseTeam = ['operations_controller', 'system_admin', 'operation_manager', 'admin'].includes(role);
   const paintResults = () => {
     // Save open state of employees, days and metrics before replacing innerHTML
@@ -1434,6 +1520,19 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
     finally { update(); }
   });
   results.addEventListener('change', (event) => {
+    const travelToggle = event.target.closest('[data-attendance-correct-pt]');
+    if (travelToggle) {
+      const entryId = travelToggle.dataset.attendanceCorrectPt;
+      const costInput = results.querySelector(`[data-attendance-correct-pt-cost="${CSS.escape(entryId)}"]`);
+      const kmInput = results.querySelector(`[data-attendance-correct-km="${CSS.escape(entryId)}"]`);
+      if (costInput) costInput.disabled = !travelToggle.checked;
+      if (kmInput) {
+        kmInput.disabled = travelToggle.checked;
+        if (travelToggle.checked) kmInput.value = '';
+      }
+      if (travelToggle.checked && costInput && !costInput.value) costInput.value = '0';
+      return;
+    }
     const dashboardOnlyElement = event.target.closest('[data-dashboard-only]');
     if (dashboardOnlyElement && event.target.matches('[data-dashboard-only-choice]') && result) {
       const entry = result.dashboardOnly.find((item) => item.id === dashboardOnlyElement.dataset.dashboardOnly);
@@ -1466,6 +1565,43 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
         status.textContent = '';
       } else if (entry) {
         status.textContent = 'יש להזין שעות שכר מתוקנות.';
+      }
+      return;
+    }
+    const saveTravelBtn = event.target.closest('[data-attendance-save-travel]');
+    if (saveTravelBtn && result) {
+      const entryId = saveTravelBtn.dataset.attendanceSaveTravel;
+      const entry = findEntry(entryId);
+      const usesPublicTransport = Boolean(results.querySelector(`[data-attendance-correct-pt="${CSS.escape(entryId)}"]`)?.checked);
+      const cost = optionalNumber(results.querySelector(`[data-attendance-correct-pt-cost="${CSS.escape(entryId)}"]`)?.value);
+      const km = optionalNumber(results.querySelector(`[data-attendance-correct-km="${CSS.escape(entryId)}"]`)?.value);
+      if (!entry) return;
+      if (usesPublicTransport && km != null && km > 0) {
+        status.textContent = 'לא ניתן לשמור גם קילומטרים וגם תחבורה ציבורית.';
+        return;
+      }
+      applyAttendanceManualCorrection(entry, {
+        publicTransport: usesPublicTransport,
+        publicTransportCost: usesPublicTransport ? (cost ?? 0) : 0,
+        kilometers: usesPublicTransport ? 0 : (km ?? 0)
+      });
+      paintResults();
+      status.textContent = '';
+      return;
+    }
+    const openAttachmentBtn = event.target.closest('[data-attendance-open-attachment]');
+    if (openAttachmentBtn) {
+      const path = txt(openAttachmentBtn.dataset.attendanceOpenAttachment);
+      if (!path) return;
+      try {
+        status.textContent = 'פותח אסמכתא…';
+        const signed = await api?.attendanceControlAttachmentSignedUrl?.(path);
+        const url = txt(signed?.signedUrl);
+        if (!url) throw new Error('לא התקבל קישור לצפייה באסמכתא.');
+        window.open(url, '_blank', 'noopener');
+        status.textContent = '';
+      } catch (error) {
+        status.textContent = error?.message || 'פתיחת האסמכתא נכשלה.';
       }
       return;
     }

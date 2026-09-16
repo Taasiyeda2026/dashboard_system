@@ -1,6 +1,7 @@
 import { state } from './state.js';
 import { api } from './api.js';
 import { supabase, waitForSupabaseAuthSession } from './supabase-client.js';
+import { hasPermission } from './permission-policy.js';
 import { normalizeGlobalActivityPeriod } from './screens/shared/summer-activity.js';
 import { escapeHtml } from './screens/shared/html.js';
 import { attendanceMonthDateRange } from './screens/attendance-control.js';
@@ -76,7 +77,9 @@ function role() {
 }
 
 function canUseWorkspace() {
-  return role() === 'admin';
+  // Attendance control (and related manager-board workspace tabs) require the
+  // business capability — not an admin-only role check.
+  return hasPermission(state?.user, 'view_attendance_control');
 }
 
 function canUsePayrollAttendanceAdminTab() {
