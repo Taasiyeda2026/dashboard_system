@@ -80,6 +80,20 @@ test('activities_manager template includes view_attendance_control', () => {
   }, 'view_attendance_control'), true);
 });
 
+test('migration grants activities_manager attendance control via permissions jsonb only', () => {
+  assert.match(migration, /jsonb_set\(/);
+  assert.match(migration, /\{view_attendance_control\}/);
+  assert.match(migration, /permissions->>'view_attendance_control'/);
+  assert.match(migration, /updated_at = now\(\)/);
+  assert.match(migration, /coalesce\(role, ''\)\)\) = 'activities_manager'/);
+  assert.doesNotMatch(migration, /set\s+view_attendance_control\s*=/);
+  assert.doesNotMatch(migration, /add column(?:\s+if not exists)?\s+view_attendance_control/i);
+  const grantBlock = migration.match(/Role template alignment[\s\S]*?;\n/)?.[0] || '';
+  assert.match(grantBlock, /activities_manager/);
+  assert.doesNotMatch(grantBlock, /instructor_manager/);
+  assert.match(grantBlock, /jsonb_set\(/);
+});
+
 test('manager roles stay scoped by direct_manager in payroll records RPC', () => {
   assert.match(migration, /v_role in \('activities_manager', 'manager', 'instructor_manager'\)/);
   assert.match(migration, /ci\.direct_manager/);

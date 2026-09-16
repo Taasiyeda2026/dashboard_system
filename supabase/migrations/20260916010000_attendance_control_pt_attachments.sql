@@ -5,11 +5,19 @@
 -- Does not change reopen-reason persistence, lifecycle locks, or broaden RLS
 -- write access beyond the existing security-definer payroll update path.
 
--- 1) Role template alignment for existing activities_manager users
+-- 1) Role template alignment for existing activities_manager users.
+-- Permissions live in users.permissions jsonb (no view_attendance_control column).
 update public.users
-set view_attendance_control = 'yes'
+set
+  permissions = jsonb_set(
+    coalesce(permissions, '{}'::jsonb),
+    '{view_attendance_control}',
+    '"yes"'::jsonb,
+    true
+  ),
+  updated_at = now()
 where lower(trim(coalesce(role, ''))) = 'activities_manager'
-  and lower(trim(coalesce(view_attendance_control::text, 'no'))) not in ('yes', 'true', '1');
+  and lower(trim(coalesce(permissions->>'view_attendance_control', 'no'))) not in ('yes', 'true', '1');
 
 create or replace function public.get_payroll_attendance_records(
   p_employee_ids bigint[] default null,
