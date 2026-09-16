@@ -208,3 +208,4 @@ config.HOTFIX_VERSION = `attendance-control-manager-admin-parity-sw-cache-1720-2
 config.HOTFIX_VERSION = `attendance-control-manager-launcher-team-scope-sw-cache-1721-20260916-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `attendance-control-travel-admin-pdf-sw-cache-1722-20260916-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `manager-attendance-summary-count-sw-cache-1723-20260916-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `admin-attendance-summary-count-sw-cache-1724-20260916-v1-${config.HOTFIX_VERSION}`;
