@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
 import {
   buildDailyHoursByDate,
+  buildDailyTotalHoursByRecord,
   buildMonthlySummaryItems,
   formatDurationHours,
   groupReportRecordsByDate
@@ -39,6 +40,20 @@ test('daily hours include generated travel cancellation', () => {
   assert.equal(Math.round(day.totalHours * 100), 358);
   assert.equal(day.cancellationHours, 1.75);
   assert.equal(formatDurationHours(day.totalHours), '3:35');
+});
+
+test('daily total column includes every duration and is populated once per date', () => {
+  const course = { id: 'course', report_date: '2026-09-02', total_hours: 1.5, activity_type: 'קורס' };
+  const operations = { id: 'operations', report_date: '2026-09-02', total_hours: 0.5, activity_type: 'תפעול' };
+  const cancellation = { id: 'cancel', report_date: '2026-09-02', total_hours: 1.75, activity_type: 'ביטול זמן' };
+  const single = { id: 'single', report_date: '2026-09-03', total_hours: 3, activity_type: 'תפעול' };
+  const displayed = [course, operations, single];
+  const totals = buildDailyTotalHoursByRecord([course, operations, cancellation, single], displayed);
+
+  assert.equal(formatDurationHours(totals.get(course)), '3:45');
+  assert.equal(totals.get(operations), null);
+  assert.equal(formatDurationHours(totals.get(single)), '3:00');
+  assert.equal([...totals.values()].filter((value) => value != null).length, 2);
 });
 
 test('monthly cards omit empty metrics and include only existing attendance data', () => {

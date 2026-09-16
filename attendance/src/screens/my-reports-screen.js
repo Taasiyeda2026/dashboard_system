@@ -20,7 +20,7 @@ import { calcHours, ONLINE_REPORT_TYPE, OPERATIONS_REPORT_TYPE } from '../servic
 import { deleteAttachment, getSignedUrl } from '../services/storage.service.js';
 import { exportMonthToExcel } from '../services/excel.service.js';
 import { isBaseTrainingRecord, reportPresentation } from '../components/report-summary-row.js';
-import { buildMonthlySummaryItems, buildDailyHoursByDate, formatDurationHours } from '../components/monthly-report-summary.js';
+import { buildMonthlySummaryItems, buildDailyTotalHoursByRecord, formatDurationHours } from '../components/monthly-report-summary.js';
 
 const COURSE_REPORT_TYPE = 'קורס';
 
@@ -201,13 +201,12 @@ async function loadAndRender({ instructor, year, month, contentArea, toolbar, on
     contentArea.append(tableTitle);
 
     // ── Sort: date DESC, then start_time ASC within same date ────────────
-    const dailyHoursByDate = buildDailyHoursByDate(records);
-    const datesWithShownTotal = new Set();
     const sorted = [...sourceRecords].sort((a, b) => {
       const dc = String(b.report_date).localeCompare(String(a.report_date));
       if (dc !== 0) return dc;
       return String(a.start_time || '').localeCompare(String(b.start_time || ''));
     });
+    const dailyTotalHoursByRecord = buildDailyTotalHoursByRecord(records, sorted);
 
     // ── Table ─────────────────────────────────────────────────────────────
     const listWrap = document.createElement('div');
@@ -216,7 +215,7 @@ async function loadAndRender({ instructor, year, month, contentArea, toolbar, on
     // Table header
     const listHead = document.createElement('div');
     listHead.className = 'av2-report-list__head';
-    const colLabels = ['תאריך', 'התחלה', 'סיום', 'שעות', 'סוג', 'שם פעילות', 'בית ספר', 'רשות', 'ק״מ', 'הוצאות', 'פעולות'];
+    const colLabels = ['תאריך', 'התחלה', 'סיום', 'שעות', 'סה״כ יומי', 'סוג', 'שם פעילות', 'בית ספר', 'רשות', 'ק״מ', 'הוצאות', 'פעולות'];
     for (const label of colLabels) {
       const cell = document.createElement('span');
       cell.textContent = label;
@@ -226,8 +225,6 @@ async function loadAndRender({ instructor, year, month, contentArea, toolbar, on
 
     for (const record of sorted) {
       const reportDate = String(record.report_date || '').slice(0, 10);
-      const showDayTotal = reportDate && !datesWithShownTotal.has(reportDate);
-      if (showDayTotal) datesWithShownTotal.add(reportDate);
       const row = buildRecordRow({
         record,
         generated: generatedCancellationFor(records, record.id),
@@ -236,7 +233,7 @@ async function loadAndRender({ instructor, year, month, contentArea, toolbar, on
         activityTypes,
         onDuplicate,
         onRefresh,
-        dayTotalHours: showDayTotal ? dailyHoursByDate.get(reportDate) : null
+        dayTotalHours: dailyTotalHoursByRecord.get(record)
       });
       row.dataset.reportDate = record.report_date;
       rowEntries.push({ row, reportDate: record.report_date });
@@ -276,7 +273,7 @@ async function loadAndRender({ instructor, year, month, contentArea, toolbar, on
   }
 }
 
-// ── Record row (11 columns on desktop) ────────────────────────────────────────
+// ── Record row (12 columns on desktop) ────────────────────────────────────────
 
 export function formatCancellationMinutes(value) {
   const minutes = Math.max(0, Math.round(Number(value) || 0));
@@ -316,12 +313,6 @@ function buildRecordRow({ record, generated, editable, instructor, activityTypes
   const dateStrong = document.createElement('strong');
   dateStrong.textContent = formatDateHeb(record.report_date);
   dateCell.append(dateStrong);
-  if (dayTotalHours != null) {
-    const dayTotal = document.createElement('span');
-    dayTotal.className = 'av2-rr__day-total';
-    dayTotal.textContent = `סה״כ יום ${formatDurationHours(dayTotalHours)}`;
-    dateCell.append(dayTotal);
-  }
 
   // ── 2. Start time ────────────────────────────────────────────────────────
   const startCell = document.createElement('div');
@@ -338,6 +329,11 @@ function buildRecordRow({ record, generated, editable, instructor, activityTypes
   hoursCell.className = 'av2-rr__hours';
   hoursCell.textContent = formatDurationHours(record.total_hours);
 
+  // ── 5. Daily total (first row for each date only) ───────────────────────
+  const dayTotalCell = document.createElement('div');
+  dayTotalCell.className = 'av2-rr__day-total';
+  dayTotalCell.textContent = dayTotalHours == null ? '' : formatDurationHours(dayTotalHours);
+
   // ── 5. Activity type ─────────────────────────────────────────────────────
   const typeCell = document.createElement('div');
   typeCell.className = 'av2-rr__type';
@@ -348,6 +344,7 @@ function buildRecordRow({ record, generated, editable, instructor, activityTypes
   nameCell.className = 'av2-rr__name';
   const presentation = reportPresentation(record);
   nameCell.textContent = presentation.activity || '—';
+  nameCell.title = presentation.activity || '';
 
   // ── 7. School ────────────────────────────────────────────────────────────
   const schoolCell = document.createElement('div');
@@ -444,7 +441,7 @@ function buildRecordRow({ record, generated, editable, instructor, activityTypes
     actionsCell.append(attachBtn);
   }
 
-  row.append(dateCell, startCell, endCell, hoursCell, typeCell, nameCell, schoolCell, authCell, kmCell, expCell, actionsCell);
+  row.append(dateCell, startCell, endCell, hoursCell, dayTotalCell, typeCell, nameCell, schoolCell, authCell, kmCell, expCell, actionsCell);
 
   const compensation = record.travel_compensation;
   if (compensation?.calculation_status === 'resolved' && Number(compensation.final_cancellation_minutes) > 0) {

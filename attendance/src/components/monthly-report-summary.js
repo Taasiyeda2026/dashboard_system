@@ -29,6 +29,19 @@ export function buildDailyHoursByDate(records = []) {
   return totals;
 }
 
+export function buildDailyTotalHoursByRecord(records = [], displayedRecords = records) {
+  const totals = buildDailyHoursByDate(records);
+  const shownDates = new Set();
+  const displays = new Map();
+  for (const record of Array.isArray(displayedRecords) ? displayedRecords : []) {
+    const date = String(record?.report_date || '').slice(0, 10);
+    const showTotal = date && !shownDates.has(date);
+    if (showTotal) shownDates.add(date);
+    displays.set(record, showTotal ? totals.get(date) : null);
+  }
+  return displays;
+}
+
 export function groupReportRecordsByDate(records = []) {
   const groups = new Map();
   for (const record of Array.isArray(records) ? records : []) {

@@ -110,6 +110,7 @@
   .av2-report-row > .av2-rr__start,
   .av2-report-row > .av2-rr__end,
   .av2-report-row > .av2-rr__hours,
+  .av2-report-row > .av2-rr__day-total,
   .av2-report-row > .av2-rr__type,
   .av2-report-row > .av2-rr__name,
   .av2-report-row > .av2-rr__school,
@@ -123,6 +124,7 @@
 
   .av2-report-row.is-mobile-expanded > .av2-rr__start,
   .av2-report-row.is-mobile-expanded > .av2-rr__end,
+  .av2-report-row.is-mobile-expanded > .av2-rr__day-total,
   .av2-report-row.is-mobile-expanded > .av2-rr__type,
   .av2-report-row.is-mobile-expanded > .av2-rr__name,
   .av2-report-row.is-mobile-expanded > .av2-rr__school,

@@ -16,8 +16,9 @@
       minmax(54px, .44fr)  /* start */
       minmax(54px, .44fr)  /* end */
       minmax(58px, .48fr)  /* hours */
-      minmax(0, .72fr)     /* activity type */
-      minmax(0, 1.65fr)    /* activity name */
+      minmax(64px, .52fr)  /* daily total */
+      minmax(0, .66fr)     /* activity type */
+      minmax(0, 1.35fr)    /* activity name */
       minmax(0, 1.18fr)    /* school — slightly narrower */
       minmax(0, .92fr)     /* authority — narrower */
       minmax(42px, .34fr)  /* km */
@@ -63,8 +64,9 @@
   .av2-report-list__head > :nth-child(2),
   .av2-report-list__head > :nth-child(3),
   .av2-report-list__head > :nth-child(4),
-  .av2-report-list__head > :nth-child(9),
-  .av2-report-list__head > :nth-child(10) {
+  .av2-report-list__head > :nth-child(5),
+  .av2-report-list__head > :nth-child(10),
+  .av2-report-list__head > :nth-child(11) {
     text-align: center !important;
     justify-content: center !important;
   }
@@ -79,6 +81,7 @@
   .av2-rr__start,
   .av2-rr__end,
   .av2-rr__hours,
+  .av2-rr__day-total,
   .av2-rr__km,
   .av2-rr__expenses {
     justify-content: center !important;
@@ -86,10 +89,10 @@
   }
 
   /* Right aligned — header and values: activity, activity name, school, authority. */
-  .av2-report-list__head > :nth-child(5),
   .av2-report-list__head > :nth-child(6),
   .av2-report-list__head > :nth-child(7),
   .av2-report-list__head > :nth-child(8),
+  .av2-report-list__head > :nth-child(9),
   .av2-rr__type,
   .av2-rr__name,
   .av2-rr__school,
@@ -100,7 +103,7 @@
   }
 
   /* Actions: visible and centered in their own symmetric column. */
-  .av2-report-list__head > :nth-child(11) {
+  .av2-report-list__head > :nth-child(12) {
     justify-content: center !important;
     text-align: center !important;
   }
