@@ -26,7 +26,24 @@ jobs:
         run: npm ci --ignore-scripts
 
       - name: Verify attendance validation
-        run: node --test tests/attendance-validation-record-km.test.mjs tests/attendance-control.test.mjs tests/attendance-control-manager-admin-parity.test.mjs
+        shell: bash
+        run: |
+          set +e
+          node --test tests/attendance-validation-record-km.test.mjs tests/attendance-control.test.mjs tests/attendance-control-manager-admin-parity.test.mjs 2>&1 | tee attendance-test-output.txt
+          status=${PIPESTATUS[0]}
+          echo "TEST_EXIT_CODE=$status" >> "$GITHUB_ENV"
+          exit 0
+
+      - name: Upload test output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: attendance-test-output
+          path: attendance-test-output.txt
+
+      - name: Fail on test errors
+        if: env.TEST_EXIT_CODE != '0'
+        run: exit 1
 
       - name: Commit verified fix
         shell: bash
