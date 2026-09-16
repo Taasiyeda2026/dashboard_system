@@ -18,7 +18,9 @@ jobs:
           fetch-depth: 0
 
       - name: Apply scoped patch
-        run: python scripts/fix_attendance_validation_20260916.py
+        run: |
+          python scripts/fix_attendance_validation_20260916.py
+          python scripts/update_attendance_validation_tests_20260916.py
 
       - name: Install dependencies
         run: npm ci --ignore-scripts
@@ -30,9 +32,10 @@ jobs:
         shell: bash
         run: |
           rm scripts/fix_attendance_validation_20260916.py
+          rm scripts/update_attendance_validation_tests_20260916.py
           rm .github/workflows/fix-attendance-validation-20260916.yml
           git config user.name "Taasiyeda2026"
           git config user.email "idanahum1122@gmail.com"
-          git add frontend/src/screens/attendance-control.js tests/attendance-control.test.mjs tests/attendance-validation-record-km.test.mjs scripts/fix_attendance_validation_20260916.py .github/workflows/fix-attendance-validation-20260916.yml
+          git add frontend/src/screens/attendance-control.js tests/attendance-control.test.mjs tests/attendance-validation-record-km.test.mjs scripts/fix_attendance_validation_20260916.py scripts/update_attendance_validation_tests_20260916.py .github/workflows/fix-attendance-validation-20260916.yml
           git commit -m "Fix attendance activity and per-record km validation"
           git push origin HEAD:codex/fix-attendance-validation-20260916
