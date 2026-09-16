@@ -6,9 +6,38 @@ import { supabase, waitForSupabaseAuthSession } from './supabase-client.js';
 
 const text = (value) => String(value ?? '').trim();
 
+function attachmentList(value) {
+  if (Array.isArray(value)) return value;
+  if (typeof value === 'string' && value) {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
+function normalizeAttachments(raw = []) {
+  return attachmentList(raw)
+    .map((item) => ({
+      id: text(item.id || item.attachmentId),
+      fileName: text(item.fileName || item.file_name || item.name),
+      storagePath: text(item.storagePath || item.storage_path || item.path),
+      fileType: text(item.fileType || item.file_type || item.type),
+      fileSize: item.fileSize ?? item.file_size ?? null
+    }))
+    .filter((item) => item.fileName || item.storagePath);
+}
+
 function legacyRecord(row = {}, travel = null) {
   const employeeId = text(row.employee_id);
   const team = text(row.team);
+  const attachments = normalizeAttachments(row.attachments);
+  const attachmentsNames = attachments.map((item) => item.fileName).filter(Boolean).join(', ');
+  const publicTransport = row.public_transport === true || row.public_transport === 'true' || row.public_transport === 1;
+  const publicTransportCost = row.public_transport_cost ?? 0;
   return {
     ID: text(row.record_id),
     Id: text(row.record_id),
@@ -46,6 +75,12 @@ function legacyRecord(row = {}, travel = null) {
     TotalExpenses: row.total_expenses,
     kilometers: row.kilometers,
     Kilometers: row.kilometers,
+    publicTransport,
+    PublicTransport: publicTransport,
+    public_transport: publicTransport,
+    publicTransportCost,
+    PublicTransportCost: publicTransportCost,
+    public_transport_cost: publicTransportCost,
     expensesDetails: text(row.expenses_details),
     ExpensesDetails: text(row.expenses_details),
     notes: text(row.notes),
@@ -67,7 +102,9 @@ function legacyRecord(row = {}, travel = null) {
     manuallyOverridden: travel?.manually_overridden === true,
     overrideByName: text(travel?.override_by_name),
     overrideAt: text(travel?.override_at),
-    attachmentsNames: '',
+    attachments,
+    attachmentsNames,
+    AttachmentsNames: attachmentsNames,
     status: '',
     approvedBy: '',
     approvedDate: ''
@@ -160,3 +197,16 @@ api.attendanceControlUpdateRecord = async function (recordId, fields = {}) {
   if (data?.success === false) throw new Error(text(data.message || data.error) || 'עדכון רשומת נוכחות נכשל.');
   return data || { success: true, recordId: id };
 };
+
+api.attendanceControlAttachmentSignedUrl = async function (storagePath = '') {
+  const path = text(storagePath);
+  if (!path) throw new Error('חסר נתיב אסמכתא.');
+  await waitForSupabaseAuthSession({ timeoutMs: 7000 }).catch(() => null);
+  const { data, error } = await supabase.storage
+    .from('attendance-attachments')
+    .createSignedUrl(path, 60 * 10);
+  if (error) throw new Error(error.message || 'attendance_attachment_signed_url_failed');
+  return { signedUrl: text(data?.signedUrl) };
+};
+
+export { legacyRecord, normalizeAttachments };

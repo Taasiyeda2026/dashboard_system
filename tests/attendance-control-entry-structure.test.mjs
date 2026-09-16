@@ -73,7 +73,18 @@ test('admin attendance control loads every manager team from the existing roster
 });
 
 test('deploy cache markers were bumped for the unified attendance-control labels', () => {
-  assert.match(swSource, /const CACHE_VERSION = 1572;/);
-  assert.match(configSource, /attendance-control-live-records-sw-cache-1572-20260819-v1/);
-  assert.match(indexSource, /manager-board-workspace-runtime\.js\?v=20260819-attendance-control-live-records-v1/);
+  assert.match(swSource, /const CACHE_VERSION = 1722;/);
+  assert.match(configSource, /attendance-control-manager-admin-parity-sw-cache-1720-20260916-v1/);
+  assert.match(configSource, /attendance-control-manager-launcher-team-scope-sw-cache-1721-20260916-v1/);
+  assert.match(configSource, /attendance-control-travel-admin-pdf-sw-cache-1722-20260916-v1/);
+  assert.match(indexSource, /manager-board-workspace-runtime\.js\?v=20260916-attendance-control-parity-v1/);
+});
+
+test('instructors payroll-control launcher keeps unscoped bindAttendanceControl path', () => {
+  assert.match(launcherSource, /bindAttendanceControl\(popupRoot, \{ api, state, standalone: true \}\)/);
+  assert.doesNotMatch(launcherSource, /buildScopedAttendanceApi/);
+  assert.doesNotMatch(launcherSource, /scopedAttendanceState/);
+  assert.match(attendanceSource, /Manager roster RPCs are already server-scoped/);
+  assert.match(attendanceSource, /if \(teams\.length === 1\)/);
+  assert.doesNotMatch(attendanceSource, /currentEmployee = employees\.find/);
 });

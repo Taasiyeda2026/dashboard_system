@@ -72,6 +72,12 @@ function ensureStyles() {
     .admin-attendance-standalone__month { display:grid; gap:4px; font-size:12px; color:var(--color-text-secondary,#64748b); }
     .admin-attendance-standalone__month input { min-height:38px; border:1px solid var(--color-border,#dbe3ec); border-radius:10px; padding:6px 10px; background:var(--color-surface,#fff); color:var(--color-text,#172033); font:inherit; }
     .admin-attendance-standalone__refresh { min-height:38px; border:1px solid var(--color-border,#dbe3ec); border-radius:10px; padding:7px 13px; background:var(--color-surface,#fff); color:var(--color-text,#172033); cursor:pointer; font:inherit; }
+    .admin-attendance-standalone__control { min-height:38px; border:1px solid var(--color-primary,#2563eb); border-radius:10px; padding:7px 13px; background:var(--color-primary,#2563eb); color:#fff; cursor:pointer; font:inherit; font-weight:700; }
+    .admin-attendance-standalone__overview-tools { display:contents; }
+    .admin-attendance-standalone.is-control-mode .admin-attendance-standalone__overview-tools { display:none; }
+    .admin-attendance-standalone.is-control-mode [data-admin-attendance-body] { display:none; }
+    .admin-attendance-standalone__control-host { margin-top:8px; }
+    .admin-attendance-standalone:not(.is-control-mode) .admin-attendance-standalone__control-host { display:none; }
     .admin-attendance-standalone__summary { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; margin-bottom:18px; }
     .admin-attendance-standalone__summary article { border:1px solid var(--color-border,#dbe3ec); border-radius:14px; padding:14px 16px; background:var(--color-surface,#fff); }
     .admin-attendance-standalone__summary span { display:block; color:var(--color-text-secondary,#64748b); font-size:12px; margin-bottom:5px; }
@@ -354,12 +360,17 @@ function standaloneHtml() {
         <div><h1>בקרת נוכחות אדמין</h1><span class="admin-attendance-standalone__mode" data-admin-attendance-mode>בקרה שוטפת</span></div>
       </div>
       <div class="admin-attendance-standalone__tools">
-        <label class="admin-attendance-standalone__month"><span>חודש</span><input type="month" value="${monthKey}" max="${monthKey}" data-admin-attendance-month></label>
-        <button type="button" class="admin-attendance-standalone__refresh" data-admin-attendance-refresh>רענון</button>
+        <span class="admin-attendance-standalone__overview-tools">
+          <label class="admin-attendance-standalone__month"><span>חודש</span><input type="month" value="${monthKey}" max="${monthKey}" data-admin-attendance-month></label>
+          <button type="button" class="admin-attendance-standalone__refresh" data-admin-attendance-refresh>רענון</button>
+          <button type="button" class="admin-attendance-standalone__control" data-admin-attendance-control-open>בקרה ועריכה</button>
+        </span>
+        <button type="button" class="admin-attendance-standalone__refresh" data-admin-attendance-control-back hidden>חזרה לסקירה</button>
       </div>
     </div>
     <p class="admin-attendance-message" data-admin-attendance-message hidden></p>
     <div data-admin-attendance-body></div>
+    <div class="admin-attendance-standalone__control-host" data-admin-attendance-control-host hidden></div>
   </section>`;
 }
 
@@ -385,6 +396,51 @@ function closeStandalone(root) {
   screenRoot?.querySelector('.admin-management-home')?.classList.remove(HIDDEN_CLASS);
 }
 
+async function openControlMode(root) {
+  if (!root || !isAdmin()) return;
+  const host = root.querySelector('[data-admin-attendance-control-host]');
+  const backToOverview = root.querySelector('[data-admin-attendance-control-back]');
+  const modeEl = root.querySelector('[data-admin-attendance-mode]');
+  if (!host) return;
+  root.classList.add('is-control-mode');
+  host.hidden = false;
+  if (backToOverview) backToOverview.hidden = false;
+  if (modeEl) modeEl.textContent = 'בקרה ועריכה';
+  setMessage(root, '', false);
+  host.innerHTML = '<div class="admin-attendance-loading">טוען את ממשק הבקרה הקיים…</div>';
+  try {
+    const attendance = await import('./screens/attendance-control.js');
+    host.innerHTML = `${attendance.attendanceControlStylesHtml()}${attendance.attendanceControlHtml()}`;
+    const panel = host.querySelector('[data-attendance-control]');
+    if (panel) panel.hidden = false;
+    host.querySelector('[data-attendance-close]')?.remove();
+    attendance.bindAttendanceControl(host, {
+      api,
+      state,
+      standalone: true
+    });
+  } catch (error) {
+    host.innerHTML = '<div class="admin-attendance-empty">לא ניתן לפתוח את מצב בקרה ועריכה כרגע.</div>';
+    setMessage(root, error?.message || 'פתיחת בקרה ועריכה נכשלה.', true);
+  }
+}
+
+function closeControlMode(root) {
+  if (!root) return;
+  const host = root.querySelector('[data-admin-attendance-control-host]');
+  const backToOverview = root.querySelector('[data-admin-attendance-control-back]');
+  const modeEl = root.querySelector('[data-admin-attendance-mode]');
+  const month = text(root.querySelector('[data-admin-attendance-month]')?.value) || currentMonthKey();
+  root.classList.remove('is-control-mode');
+  if (host) {
+    host.hidden = true;
+    host.innerHTML = '';
+  }
+  if (backToOverview) backToOverview.hidden = true;
+  if (modeEl) modeEl.textContent = monthMode(month).label;
+  void renderData(root, month);
+}
+
 function sync() {
   ensureStyles();
   patchAdminHubTile();
@@ -403,8 +459,22 @@ function handleClick(event) {
   }
   const root = target.closest(`[${STANDALONE_ATTRIBUTE}]`);
   if (!root) return;
+  if (target.closest('[data-admin-attendance-control-open]')) {
+    event.preventDefault();
+    void openControlMode(root);
+    return;
+  }
+  if (target.closest('[data-admin-attendance-control-back]')) {
+    event.preventDefault();
+    closeControlMode(root);
+    return;
+  }
   if (target.closest('[data-admin-attendance-back]')) {
     event.preventDefault();
+    if (root.classList.contains('is-control-mode')) {
+      closeControlMode(root);
+      return;
+    }
     closeStandalone(root);
     return;
   }

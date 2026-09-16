@@ -487,16 +487,27 @@ async function buildPdfBytes(payload: {
     ? payload.approvedSnapshot.rows as Record<string, unknown>[]
     : [];
   const totalHours = rows.reduce((sum, row) => sum + toNumber(row.workHours), 0);
-  const totalKm = rows.reduce((sum, row) => sum + toNumber(row.kilometers), 0);
+  const totalKm = rows.reduce((sum, row) => {
+    const usesPt = row.publicTransport === true || row.publicTransport === "true" || row.publicTransport === 1;
+    return usesPt ? sum : sum + toNumber(row.kilometers);
+  }, 0);
   const totalExpenses = rows.reduce((sum, row) => sum + toNumber(row.expenses), 0);
+  const totalPublicTransportCost = rows.reduce((sum, row) => {
+    const usesPt = row.publicTransport === true || row.publicTransport === "true" || row.publicTransport === 1;
+    return usesPt ? sum + toNumber(row.publicTransportCost) : sum;
+  }, 0);
 
-  page.drawRectangle({ x: LEFT, y: y - 56, width: CONTENT_W, height: 56, borderColor: rgb(0.88, 0.9, 0.94), borderWidth: 0.7, color: rgb(0.99, 0.995, 1) });
+  page.drawRectangle({ x: LEFT, y: y - 68, width: CONTENT_W, height: 68, borderColor: rgb(0.88, 0.9, 0.94), borderWidth: 0.7, color: rgb(0.99, 0.995, 1) });
   drawRtl(`${rows.length} דיווחים`, RIGHT - 22, y - 22, 10, bold);
   drawRtl(`${totalHours.toFixed(2)} שעות`, RIGHT - 150, y - 22, 10, bold);
   drawRtl(`${totalKm.toFixed(0)} ק״מ`, RIGHT - 290, y - 22, 10, bold);
   drawRtl(`₪${totalExpenses.toFixed(2)} הוצאות`, RIGHT - 405, y - 22, 10, bold);
+  const hasPublicTransport = rows.some((row) => row.publicTransport === true || row.publicTransport === "true" || row.publicTransport === 1);
   drawRtl(`מספר עובד: ${payload.employeeId}`, RIGHT - 22, y - 43, 8.5, regular, rgb(0.42, 0.46, 0.54));
-  y -= 78;
+  if (hasPublicTransport) {
+    drawRtl(`₪${totalPublicTransportCost.toFixed(2)} תחבורה ציבורית`, RIGHT - 250, y - 43, 8.5, regular, rgb(0.42, 0.46, 0.54));
+  }
+  y -= 90;
 
   drawRtl("פירוט דיווחי הנוכחות", RIGHT, y, 12, bold, rgb(0.10, 0.27, 0.52));
   y -= 20;
@@ -511,9 +522,13 @@ async function buildPdfBytes(payload: {
       const time = `${clean(row.startTime) || "—"}–${clean(row.endTime) || "—"}`;
       const hours = toNumber(row.workHours).toFixed(2);
       const place = [clean(row.program), clean(row.school), clean(row.authority)].filter(Boolean).join(" | ");
+      const usesPublicTransport = row.publicTransport === true || row.publicTransport === "true" || row.publicTransport === 1;
+      const travelLabel = usesPublicTransport
+        ? `תחבורה ציבורית${toNumber(row.publicTransportCost) ? ` ₪${toNumber(row.publicTransportCost).toFixed(2)}` : ""}`
+        : (toNumber(row.kilometers) ? `${toNumber(row.kilometers).toFixed(0)} ק״מ` : "");
       const secondary = [
         clean(row.meetingNo) ? `מפגש ${clean(row.meetingNo)}` : "",
-        toNumber(row.kilometers) ? `${toNumber(row.kilometers).toFixed(0)} ק״מ` : "",
+        travelLabel,
         toNumber(row.expenses) ? `₪${toNumber(row.expenses).toFixed(2)} הוצאות` : "",
       ].filter(Boolean).join(" | ");
       const notes = clean(row.notes);
