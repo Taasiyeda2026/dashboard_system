@@ -40,7 +40,7 @@ test('New report supports all-activity choices, operations details and zero-trav
   assert.match(newReportSource, /searchCanonicalActivities\(\{[\s\S]*reportType/);
   assert.match(newReportSource, /label:\s*'פרטי תפעול \*'/);
   assert.match(newReportSource, /setLocationFieldsVisible\(false\)/);
-  assert.match(newReportSource, /activity_id:\s*isOpen \? null/);
+  assert.match(newReportSource, /activity_id:\s*isOpen \|\| isBaseTraining \? null/);
   assert.match(newReportSource, /newType === ONLINE_REPORT_TYPE[\s\S]*value = '0'/);
   assert.match(newReportSource, /const kmValue = \(!isOnline && !usesPublicTransport/);
 });
@@ -62,7 +62,7 @@ test('Attendance service and edit flow enforce the same Zoom and operations rule
 });
 
 test('Attendance cache is synchronized for the report type behavior release', () => {
-  assert.match(swSource, /const CACHE_VERSION = 53;/);
-  assert.match(indexSource, /\?v=53/);
-  assert.doesNotMatch(indexSource, /\?v=52/);
+  assert.match(swSource, /const CACHE_VERSION = 69;/);
+  assert.match(indexSource, /\?v=69/);
+  assert.doesNotMatch(indexSource, /\?v=68/);
 });

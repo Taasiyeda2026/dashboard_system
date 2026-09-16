@@ -42,6 +42,20 @@ import { formatTravelMinutes } from '../components/report-summary-row.js';
 
 const TIME_MINUTE_STEP = 5;
 const COURSE_REPORT_TYPE = 'קורס';
+const BASE_TRAINING_OPTION_VALUE = '__attendance_base_training__';
+const BASE_TRAINING_ACTIVITY = Object.freeze({
+  row_id: BASE_TRAINING_OPTION_VALUE,
+  activity_name: 'הכשרת בסיס',
+  program_name: null,
+  authority_id: null,
+  authority_name: 'יקום',
+  single_school_id: null,
+  single_school_name: 'Greenwork',
+  single_semel_mosad: null,
+  school_link_status: 'single_school',
+  linked_schools_json: [],
+  __attendanceSynthetic: 'base_training',
+});
 const ALL_CANONICAL_REPORT_TYPES = new Set(['ביטול זמן', TRAINING_REPORT_TYPE, ONLINE_REPORT_TYPE]);
 
 function localIsoDate(date = new Date()) {
@@ -205,6 +219,7 @@ export function renderNewReportScreen(container, {
   function findActivityByRowId(rowId) {
     const id = String(rowId || '').trim();
     if (!id) return null;
+    if (id === BASE_TRAINING_OPTION_VALUE) return BASE_TRAINING_ACTIVITY;
     return instructorActivities.find((item) => activityRowId(item) === id)
       || extendedActivityByRowId.get(id)
       || null;
@@ -212,7 +227,23 @@ export function renderNewReportScreen(container, {
 
   function rememberExtendedActivity(activity) {
     const id = activityRowId(activity);
-    if (id) extendedActivityByRowId.set(id, activity);
+    if (id && id !== BASE_TRAINING_OPTION_VALUE) extendedActivityByRowId.set(id, activity);
+  }
+
+  function isBaseTrainingActivity(activity) {
+    return activity?.__attendanceSynthetic === 'base_training'
+      || activityRowId(activity) === BASE_TRAINING_OPTION_VALUE;
+  }
+
+  function activityOptionsForReportType(activities = [], reportType = getReportType(), query = '') {
+    const source = Array.isArray(activities) ? [...activities] : [];
+    if (reportType === TRAINING_REPORT_TYPE) {
+      const q = String(query || '').trim().toLowerCase();
+      if (!q || activitySearchHaystack(BASE_TRAINING_ACTIVITY).includes(q)) {
+        source.unshift(BASE_TRAINING_ACTIVITY);
+      }
+    }
+    return instructorActivitySelectOptions(source, { reportType });
   }
 
   function flatSchoolOptions(sourceData, authorityId = null) {
@@ -480,7 +511,7 @@ export function renderNewReportScreen(container, {
     const reportType = getReportType();
     if (!requiresActivityName(reportType)) return;
 
-    const options = instructorActivitySelectOptions(instructorActivities, { reportType });
+    const options = activityOptionsForReportType(instructorActivities, reportType);
     const current = preserveSelection ? activityNameSel.getValue() : '';
     activityNameSel.setOptions(options);
 
@@ -505,7 +536,7 @@ export function renderNewReportScreen(container, {
       });
       if (token !== canonicalLoadToken || getReportType() !== reportType) return;
       for (const row of rows) rememberExtendedActivity(row);
-      const options = instructorActivitySelectOptions([...instructorActivities, ...rows], { reportType });
+      const options = activityOptionsForReportType([...instructorActivities, ...rows], reportType);
       const current = activityNameSel.getValue();
       activityNameSel.setOptions(options);
       if (current && options.some((opt) => opt.value === current)) {
@@ -562,9 +593,9 @@ export function renderNewReportScreen(container, {
 
     const rowId = activityRowId(activity);
     const reportType = getReportType();
-    const options = instructorActivitySelectOptions(instructorActivities, { reportType });
+    const options = activityOptionsForReportType(instructorActivities, reportType);
     const match = options.find((opt) => opt.value === rowId)
-      || instructorActivitySelectOptions([activity], { reportType })[0];
+      || activityOptionsForReportType([activity], reportType)[0];
     if (match) {
       activityNameSel.setOptions([
         ...options.filter((opt) => opt.value !== rowId),
@@ -743,7 +774,7 @@ export function renderNewReportScreen(container, {
     activityNameSel = createSearchableSelect({
       id: 'av2-activity-name',
       label: 'שם פעילות *',
-      options: instructorActivitySelectOptions(instructorActivities, { reportType: initialReportType }),
+      options: activityOptionsForReportType(instructorActivities, initialReportType),
       placeholder: 'בחר פעילות',
       searchPlaceholder: 'חיפוש פעילות…',
       emptyText: 'לא נמצאו פעילויות',
@@ -758,7 +789,7 @@ export function renderNewReportScreen(container, {
             referenceDateStr: getReportDate(),
           });
           for (const row of rows) rememberExtendedActivity(row);
-          return instructorActivitySelectOptions(rows, { reportType: getReportType() });
+          return activityOptionsForReportType(rows, getReportType(), query);
         },
       },
       onChange(value) {
@@ -1046,7 +1077,12 @@ export function renderNewReportScreen(container, {
           manualSchoolName = prefSchoolName;
         }
       }
-      if (prefill.activity_row_id) {
+      if (
+      initialReportType === TRAINING_REPORT_TYPE
+      && String(prefill.activity_name_snapshot || '').trim() === BASE_TRAINING_ACTIVITY.activity_name
+    ) {
+      void applySelectedActivity(BASE_TRAINING_ACTIVITY);
+    } else if (prefill.activity_row_id) {
         const match = findActivityByRowId(prefill.activity_row_id);
         if (match) {
           void (async () => {
@@ -1133,6 +1169,7 @@ export function renderNewReportScreen(container, {
       const isNoActivity = isNoActivityNameType(reportType);
       const isOpen = isOpenFieldType(reportType);
       const isOnline = isOnlineReportType(reportType);
+      const isBaseTraining = isBaseTrainingActivity(activity);
 
       errorEl.hidden = true;
       [activityNameSel?.wrap, trainingDescField?.wrap, typeField.wrap, startPicker.wrap, endPicker.wrap, authSel.wrap]
@@ -1214,10 +1251,10 @@ export function renderNewReportScreen(container, {
           end_time: endTime,
           total_hours: totalHours,
           activity_type: reportType,
-          activity_id: isOpen ? null : (activity?.id ?? null),
-          activity_row_id: isOpen ? null : (activityRowId(activity) || null),
-          activity_no: isOpen ? null : (activity?.activity_no ?? null),
-          activity_season: isOpen ? null : (activity?.activity_season ?? null),
+          activity_id: isOpen || isBaseTraining ? null : (activity?.id ?? null),
+          activity_row_id: isOpen || isBaseTraining ? null : (activityRowId(activity) || null),
+          activity_no: isOpen || isBaseTraining ? null : (activity?.activity_no ?? null),
+          activity_season: isOpen || isBaseTraining ? null : (activity?.activity_season ?? null),
           activity_name_snapshot: activityNameSnapshot,
           meeting_no: isCourseReportType(reportType) && meetingField.getValue() ? Number(meetingField.getValue()) : null,
           authority_id: finalAuthorityId,
@@ -1225,7 +1262,7 @@ export function renderNewReportScreen(container, {
           school_id: finalSchoolId,
           school_name_snapshot: finalSchoolName,
           semel_mosad: isOpen ? null : (semelMosad || null),
-          program_name: isOpen ? null : (activity?.program_name ?? null),
+          program_name: isOpen || isBaseTraining ? null : (activity?.program_name ?? null),
           program_name_snapshot: programName,
           roundtrip_km: kmValue,
           public_transport: usesPublicTransport,
