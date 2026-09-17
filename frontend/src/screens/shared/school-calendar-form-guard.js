@@ -69,6 +69,19 @@ function schoolSector(form, schoolId) {
   return String(school?.sector || school?.calendar_sector || '').trim();
 }
 
+function calendarRowsForCurrentSchool(form, rows) {
+  const source = Array.isArray(rows) ? rows : [];
+  const original = parseOriginalActivity(form);
+  const schoolId = String(
+    form?.querySelector?.('[name="school_id"]')?.value
+    || form?.querySelector?.('[data-role="activity-school-id"]')?.value
+    || original.school_id
+    || ''
+  ).trim();
+  const sector = schoolSector(form, schoolId);
+  return sector ? filterSchoolCalendarRowsBySector(source, sector) : source;
+}
+
 function originalMeetingDate(row, index) {
   return String(
     row?.[`meeting_date_${index}`]
@@ -128,6 +141,7 @@ function setDeferralNote(picker, skippedWeeks) {
 
 export function generateSessionDatesFromFirstMeeting(form, blockedDatesContext = []) {
   const pickers = meetingPickers(form);
+  const scopedBlockedDates = calendarRowsForCurrentSchool(form, blockedDatesContext);
   const isOneDay = form?.dataset?.isOnce === 'yes';
   const configuredTotal = Number(form.querySelector('[name="sessions"]')?.value
     || form.querySelector('[data-session-total]')?.dataset?.sessionTotal
@@ -151,11 +165,11 @@ export function generateSessionDatesFromFirstMeeting(form, blockedDatesContext =
   for (let index = 0; index < total; index += 1) {
     if (index > 0) candidate = addCalendarDays(candidate, 7);
     let skippedWeeks = 0;
-    while (blockingEventForFormDate(form, blockedDatesContext, candidate) && skippedWeeks < 52) {
+    while (blockingEventForFormDate(form, scopedBlockedDates, candidate) && skippedWeeks < 52) {
       candidate = addCalendarDays(candidate, 7);
       skippedWeeks += 1;
     }
-    if (!candidate || blockingEventForFormDate(form, blockedDatesContext, candidate)) {
+    if (!candidate || blockingEventForFormDate(form, scopedBlockedDates, candidate)) {
       result.exhausted = true;
       break;
     }
@@ -178,7 +192,7 @@ export function generateSessionDatesFromFirstMeeting(form, blockedDatesContext =
 
 async function skipHolidaysInChain(form, changedIndex) {
   if (isSummerActivitySeason(activitySeason(form))) return false;
-  const rows = await loadSchoolCalendarRows();
+  const rows = calendarRowsForCurrentSchool(form, await loadSchoolCalendarRows());
   const pickers = meetingPickers(form);
   const startPosition = pickers.findIndex((picker) => Number(picker.dataset.meetingIdx) === Number(changedIndex));
   if (startPosition < 0) return false;
