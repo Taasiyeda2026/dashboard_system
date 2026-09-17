@@ -25,12 +25,54 @@ const supabaseAnonKey = readEnvValue(
   'SUPABASE_PUBLISHABLE_KEY'
 ) || FALLBACK_SUPABASE_PUBLISHABLE_KEY;
 
+const SCHEDULING_DRAFT_RPC_NAMES = new Set([
+  'save_course_assignment_draft',
+  'save_course_assignment_draft_with_dates'
+]);
+
+const SCHEDULING_DRAFT_RPC_ERROR_MESSAGES = Object.freeze({
+  scheduling_conflict_detected: 'קיימת חפיפה עם שיבוץ אחר של המדריך',
+  scheduling_transition_insufficient: 'אין מספיק זמן מעבר בין הפעילויות'
+});
+
+export function translateSchedulingDraftRpcErrorMessage(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return raw;
+  for (const [code, message] of Object.entries(SCHEDULING_DRAFT_RPC_ERROR_MESSAGES)) {
+    if (raw === code || raw.includes(code)) return message;
+  }
+  return raw;
+}
+
+function installSchedulingDraftRpcErrorTranslation(client) {
+  if (!client || typeof client.rpc !== 'function') return;
+  const originalRpc = client.rpc.bind(client);
+  client.rpc = (functionName, args, options) => {
+    const request = originalRpc(functionName, args, options);
+    if (!SCHEDULING_DRAFT_RPC_NAMES.has(String(functionName || ''))) return request;
+    return Promise.resolve(request).then((result) => {
+      const rawMessage = String(result?.error?.message || '').trim();
+      const translated = translateSchedulingDraftRpcErrorMessage(rawMessage);
+      if (!result?.error || !translated || translated === rawMessage) return result;
+      return {
+        ...result,
+        error: {
+          ...result.error,
+          message: translated,
+          details: result.error.details || rawMessage
+        }
+      };
+    });
+  };
+}
+
 let supabase = null;
 let authSessionWaitPromise = null;
 
 if (supabaseUrl && supabaseAnonKey) {
   try {
     supabase = createClient(supabaseUrl, supabaseAnonKey);
+    installSchedulingDraftRpcErrorTranslation(supabase);
   } catch {
     /* realtime transport unavailable in this environment (e.g. Node 20 without WebSocket) */
   }
