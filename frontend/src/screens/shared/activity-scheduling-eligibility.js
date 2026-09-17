@@ -84,7 +84,10 @@ function hasValidSchoolId(value) {
   return Number.isInteger(schoolId) && schoolId > 0;
 }
 
-/** Single source of truth for data allowed into the scheduling UI and engine. */
+/**
+ * Full completeness diagnostics for a safe automatic recommendation.
+ * These fields do not control whether the activity is visible in the scheduling workspace.
+ */
 export function activitySchedulingReadinessMissingFields(activity = {}) {
   const missing = [];
   if (!text(activity.activity_name || activity.program_name || activity.name || activity.title)) missing.push('שם פעילות');
@@ -99,8 +102,16 @@ export function activitySchedulingReadinessMissingFields(activity = {}) {
   return [...new Set(missing)];
 }
 
+/**
+ * Rolling-scheduling entry gate: a course enters the workspace as soon as it has
+ * a start date (explicit or first meeting) and a start time. Missing details are
+ * shown as "חסר מידע" instead of hiding the activity from the user.
+ */
 export function isSchedulingReadyActivity(activity = {}) {
-  return isActivitySchedulingEligible(activity) && activitySchedulingReadinessMissingFields(activity).length === 0;
+  if (!isActivitySchedulingEligible(activity)) return false;
+  const firstMeetingDate = text(schedulingMeetings(activity)[0]?.date);
+  const startDate = text(activity.start_date) || firstMeetingDate;
+  return !!startDate && !!text(activity.start_time);
 }
 
 export function isValidSchedulingAvailabilityRule(rule = {}) {
@@ -116,22 +127,28 @@ export function instructorSchedulingReadinessMissingFields(instructor = {}, prof
   const active = ['yes', 'true', '1'].includes(text(instructor.active).toLowerCase());
   if (!active) missing.push('מדריך פעיל');
   if (!text(instructor.address)) missing.push('כתובת');
+  if (!text(profile?.gender)) missing.push('מגדר');
   if (!Array.isArray(profile?.instruction_languages) || !profile.instruction_languages.some(text)) missing.push('שפות הדרכה');
   if (!Array.isArray(rules) || !rules.some(isValidSchedulingAvailabilityRule)) missing.push('זמינות שבועית תקינה');
   return missing;
 }
 
-export function isSchedulingReadyInstructor(instructor = {}, profile = null, rules = []) {
-  return instructorSchedulingReadinessMissingFields(instructor, profile, rules).length === 0;
+/**
+ * Instructor entry gate intentionally filters only inactive people. Completeness
+ * is evaluated by the matching engine so missing profiles appear as "נדרש טיפול"
+ * rather than disappearing from the candidate population.
+ */
+export function isSchedulingReadyInstructor(instructor = {}) {
+  return ['yes', 'true', '1'].includes(text(instructor.active).toLowerCase());
 }
 
-// The interface and engine intentionally share the same readiness gate.
+// The interface and engine intentionally share the rolling entry gate.
 export function isCourseSchedulingInterfaceEligible(activity) {
   return isSchedulingReadyActivity(activity);
 }
 
-// A draft holds an instructor's calendar slot (spec section 21) without finalizing the
-// assignment, so it must block overlapping suggestions the same way a real assignment does.
+// A draft holds an instructor's calendar slot without finalizing the assignment,
+// so it must block overlapping suggestions the same way a real assignment does.
 export function hasDraftInstructor(activity = {}) {
   return !!String(activity.draft_emp_id ?? '').trim();
 }
