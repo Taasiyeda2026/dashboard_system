@@ -1,8 +1,13 @@
 import { normalizeOperationalDistrict } from './shared/district-normalization.js';
+import { activityMeetings } from './instructor-scheduling-load.js';
+import { schedulingQualityBand } from './instructor-matching-engine.js';
 import {
-  calculateCourseSchedule as calculateCourseScheduleCore,
-  preliminaryCourseCandidates as preliminaryCourseCandidatesCore
+  calculateCourseSchedule as calculateCourseScheduleCore
 } from './course-scheduling-engine-core.js';
+import {
+  compareCandidatesStable,
+  computeSchedulingScore
+} from './course-scheduling-score.js';
 
 export * from './course-scheduling-engine-core.js';
 
@@ -27,13 +32,15 @@ function withLegacyCalendarSectorDefaults(input = {}) {
  * transition and continuity checks still see assignments outside the selected
  * district. Only the set of courses being planned is narrowed by `district`.
  *
- * Production course rows are enriched with a canonical `calendar_sector` from
- * their school. The fallback to `general` is only for legacy callers/fixtures
- * that do not provide the field at all; an explicit empty value remains empty
- * and is treated as missing school-sector data.
+ * Missing activity details must remain visible as "חסר מידע". Therefore the
+ * rolling workspace includes courses with start date + start time even when no
+ * period meetings were generated yet.
  */
 export function resolveSchedulingInputScope(input = {}) {
-  const sectorReadyInput = withLegacyCalendarSectorDefaults(input);
+  const sectorReadyInput = withLegacyCalendarSectorDefaults({
+    ...input,
+    includeIncompleteWithoutPeriodMeetings: input.includeIncompleteWithoutPeriodMeetings ?? true
+  });
   const explicitDistrict = normalizeOperationalDistrict(sectorReadyInput.district || '');
   if (explicitDistrict) return { ...sectorReadyInput, district: explicitDistrict };
   if (text(sectorReadyInput.authority)) return sectorReadyInput;
@@ -45,6 +52,89 @@ export function resolveSchedulingInputScope(input = {}) {
   return selectedDistrict ? { ...sectorReadyInput, district: selectedDistrict } : sectorReadyInput;
 }
 
+function scoreCandidate(candidate, peerProjectedHours = []) {
+  if (!candidate?.eligible) return candidate;
+  const activity = candidate.periodCourse || candidate.course || {};
+  const scored = computeSchedulingScore({
+    eligible: true,
+    activity,
+    meetings: activityMeetings(activity),
+    existingActivities: candidate.plannerMeetings || candidate.existingMeetings || [],
+    travel: candidate.travel,
+    workDates: candidate.baselineWorkDates || new Set(),
+    dateAdjustment: candidate.dateAdjustment,
+    currentHalfHours: candidate.currentHalfHours,
+    projectedHalfHours: candidate.projectedHalfHours,
+    peerProjectedHours,
+    activeWorkDays: candidate.activeWorkDays
+  });
+  return {
+    ...candidate,
+    ...scored,
+    ...schedulingQualityBand(scored.score, true)
+  };
+}
+
+/**
+ * The core engine owns hard gates and planning context. This adapter owns the
+ * approved 100-point business rubric and quality bands, so every UI/simulation
+ * caller sees the same score after all hard eligibility checks have passed.
+ */
+function applySchedulingScoreContract(result = {}) {
+  if (!result?.course || result.status === 'חסר מידע') return result;
+  const checkedRaw = Array.isArray(result.checked) ? result.checked : [];
+  const peerProjectedHours = checkedRaw
+    .filter((candidate) => candidate?.eligible)
+    .map((candidate) => Number(candidate.projectedHalfHours))
+    .filter(Number.isFinite);
+  const checked = checkedRaw.map((candidate) => scoreCandidate(candidate, peerProjectedHours));
+  const eligibleSorted = checked
+    .filter((candidate) => candidate.eligible)
+    .sort((first, second) => (Number(second.score) - Number(first.score)) || compareCandidatesStable(first, second));
+
+  const primary = eligibleSorted[0] || null;
+  const recommended = primary && Number(primary.score) >= 60
+    ? { ...primary, recommended: true, bestAvailable: false }
+    : null;
+  const bestAvailable = primary && !recommended
+    ? { ...primary, recommended: false, bestAvailable: true }
+    : null;
+  const selectedId = text((recommended || bestAvailable)?.instructor?.emp_id);
+  const alternatives = eligibleSorted
+    .filter((candidate) => text(candidate.instructor?.emp_id) !== selectedId)
+    .slice(0, 3)
+    .map((candidate) => ({ ...candidate, recommended: false, bestAvailable: false }));
+  const incompleteProfiles = checked.filter((candidate) =>
+    !(candidate.failures || []).length && (candidate.missingProfileData || []).length);
+
+  const selected = recommended || bestAvailable;
+  const status = recommended
+    ? ((recommended.warnings || []).length ? 'נדרש טיפול' : 'הצעה מוכנה')
+    : bestAvailable || incompleteProfiles.length ? 'נדרש טיפול' : 'נדרש גיוס';
+  const treatmentReason = bestAvailable
+    ? 'נמצאו מדריכים שעומדים בתנאי הסף, אך הציון שלהם נמוך מסף ההמלצה.'
+    : !recommended && incompleteProfiles.length
+      ? 'לא ניתן להשלים את בדיקת השיבוץ משום שחסרים נתונים בפרופילי מדריכים.'
+      : result.treatmentReason || '';
+
+  return {
+    ...result,
+    status,
+    recommended,
+    bestAvailable,
+    alternatives,
+    checked,
+    incompleteProfiles,
+    eligibleCandidateCount: eligibleSorted.length,
+    treatmentReason,
+    selectedQualityBand: selected?.qualityBand || null
+  };
+}
+
+function applySchedulingScoreContractToResults(results = []) {
+  return results.map(applySchedulingScoreContract);
+}
+
 function proposedMeetingsForDraft(candidate = {}) {
   const proposed = Array.isArray(candidate?.proposedMeetings) ? candidate.proposedMeetings : [];
   return proposed.length ? proposed.map((meeting) => ({ ...meeting })) : null;
@@ -53,10 +143,6 @@ function proposedMeetingsForDraft(candidate = {}) {
 /**
  * Mirror a proposal as an in-memory draft so the next course is evaluated
  * against the plan already produced in this same district simulation.
- *
- * When no date adjustment was proposed we intentionally keep
- * draft_proposed_meetings=null. That matches save_course_assignment_draft and
- * makes the core engine use the course's official meetings as blockers.
  */
 function planningDraftActivity(result = {}) {
   const candidate = result?.recommended || result?.bestAvailable || null;
@@ -72,11 +158,9 @@ function planningDraftActivity(result = {}) {
 }
 
 /**
- * A district simulation is a plan, not a collection of independent suggestions.
- * Re-evaluate each course in the deterministic order chosen by the core engine,
- * adding each accepted proposal as an in-memory draft before evaluating the next
- * course. This prevents the simulation from proposing two drafts that overlap or
- * do not have enough transition time and then discovering that only during save.
+ * A district simulation is one coherent plan, not independent suggestions.
+ * Each accepted proposal becomes an in-memory draft before the next course is
+ * evaluated, so overlap/transition/sequence gates see the plan built so far.
  */
 function makeDistrictPlanConsistent(scopedInput, initialResults) {
   const district = normalizeOperationalDistrict(scopedInput?.district || '');
@@ -96,13 +180,14 @@ function makeDistrictPlanConsistent(scopedInput, initialResults) {
       continue;
     }
 
-    const recalculated = calculateCourseScheduleCore({
+    const recalculatedRaw = calculateCourseScheduleCore({
       ...scopedInput,
       activities: [...baseActivities, ...planningDrafts],
       targetCourseId: courseId,
       targetActivityId: ''
     });
-    const result = (recalculated || []).find((item) => idOf(item?.course) === courseId) || initialResult;
+    const recalculated = applySchedulingScoreContractToResults(recalculatedRaw || []);
+    const result = recalculated.find((item) => idOf(item?.course) === courseId) || initialResult;
     results.push(result);
 
     const draft = planningDraftActivity(result);
@@ -113,11 +198,20 @@ function makeDistrictPlanConsistent(scopedInput, initialResults) {
 }
 
 export function preliminaryCourseCandidates(input = {}) {
-  return preliminaryCourseCandidatesCore(resolveSchedulingInputScope(input));
+  const scopedInput = resolveSchedulingInputScope({
+    ...input,
+    preliminary: true,
+    travel: {},
+    routeMatrix: {}
+  });
+  const results = applySchedulingScoreContractToResults(calculateCourseScheduleCore(scopedInput));
+  return results.flatMap((result) => (result.checked || [])
+    .filter((candidate) => candidate.eligible)
+    .map((candidate) => ({ course: result.course, candidate })));
 }
 
 export function calculateCourseSchedule(input = {}) {
   const scopedInput = resolveSchedulingInputScope(input);
-  const initialResults = calculateCourseScheduleCore(scopedInput);
+  const initialResults = applySchedulingScoreContractToResults(calculateCourseScheduleCore(scopedInput));
   return makeDistrictPlanConsistent(scopedInput, initialResults);
 }
