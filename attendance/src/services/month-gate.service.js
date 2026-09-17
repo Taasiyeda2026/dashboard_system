@@ -62,7 +62,8 @@ export function editBlockReason(year, month, approval, now = new Date()) {
   const status = approval?.status ?? 'open';
   if (status === 'locked') return 'החודש אושר על ידי המנהל ונעול לעריכה';
   if (status === 'approved_for_payroll') return 'החודש אושר סופית לשכר';
-  if (status === 'submitted') return 'העובד אישר את החודש — לא ניתן לערוך עד שחרור מנהל/אדמין';
+  // Submitted means העובד אישר את החודש; the direct manager can reopen it for corrections.
+  if (status === 'submitted') return 'החודש אושר וננעל לעריכה. ניתן לפנות אל המנהל הישיר לצורך פתיחתו מחדש.';
   if (status === 'reopened') return 'חלון התיקונים לחודש זה הסתיים (עד ה-7 בחודש העוקב)';
   const key = getMonthKey(year, month);
   const currentKey = getMonthKey(now.getFullYear(), now.getMonth() + 1);
