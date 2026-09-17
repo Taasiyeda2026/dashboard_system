@@ -1,0 +1,76 @@
+/* Desktop reports table fit fix.
+ * Keep all 13 report columns, including actions, inside the visible table width.
+ */
+@media (min-width: 1024px) {
+  .av2-report-list {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+
+  .av2-report-list__head,
+  .av2-report-row {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0 !important;
+    grid-template-columns:
+      58px                         /* date */
+      48px                         /* start */
+      48px                         /* end */
+      52px                         /* total hours */
+      58px                         /* time cancellation */
+      58px                         /* daily total */
+      46px                         /* activity type */
+      minmax(82px, 1.16fr)         /* activity name */
+      minmax(88px, 1.18fr)         /* school */
+      minmax(72px, .90fr)          /* authority */
+      32px                         /* km */
+      36px                         /* expenses */
+      70px                         /* actions */ !important;
+    gap: 0 !important;
+    box-sizing: border-box;
+  }
+
+  .av2-report-list__head > *,
+  .av2-report-row > * {
+    min-width: 0;
+    padding-inline: 4px !important;
+    box-sizing: border-box;
+  }
+
+  .av2-report-list__head span {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .av2-rr__type,
+  .av2-rr__name,
+  .av2-rr__school,
+  .av2-rr__authority {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .av2-rr__actions {
+    min-width: 0;
+    gap: 2px !important;
+    justify-content: center !important;
+    overflow: hidden !important;
+    white-space: nowrap;
+  }
+
+  .av2-rr__actions .av2-btn--icon {
+    width: 22px !important;
+    height: 22px !important;
+    min-width: 22px !important;
+    padding: 0 !important;
+  }
+
+  .av2-rr__actions .av2-icon {
+    width: 12px !important;
+    height: 12px !important;
+  }
+}
