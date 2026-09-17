@@ -157,7 +157,7 @@ export function ensureFeature(name) {
         import('./birthday-calendar.js'),
         import('./school-calendar-runtime.js'),
         import('./team-calendar-runtime.js'),
-        import('./activities-approved-ui-fix.js?v=20260802-v1'),
+        import('./activities-approved-ui-fix.js?v=20260917-draft-instructor-v1'),
         import('./activity-2026-season-query-hotfix.js?v=20260730-restore-2026-summer-v1'),
         import('./month-navigation-runtime.js'),
         import('./activities-tabs-corrections.js'),

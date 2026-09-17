@@ -1,3 +1,5 @@
+import { supabase, waitForSupabaseAuthSession } from './supabase-client.js';
+
 function installStyles() {
   if (document.getElementById('activities-approved-ui-fix-styles')) return;
   const style = document.createElement('style');
@@ -26,6 +28,37 @@ function installStyles() {
       color: #475569 !important;
       font-weight: 700 !important;
       white-space: nowrap !important;
+    }
+    #app .ds-table--activities-list .ds-activities-instructor-draft {
+      display: inline-flex !important;
+      align-items: center !important;
+      gap: 6px !important;
+      width: 100% !important;
+      min-width: 0 !important;
+      max-width: 100% !important;
+      white-space: nowrap !important;
+    }
+    #app .ds-table--activities-list .ds-activities-instructor-draft__name {
+      min-width: 0 !important;
+      overflow: hidden !important;
+      text-overflow: ellipsis !important;
+      white-space: nowrap !important;
+      color: #334155 !important;
+      font-weight: 700 !important;
+      line-height: 1.35 !important;
+    }
+    #app .ds-table--activities-list .ds-activities-instructor-draft__badge {
+      display: inline-flex !important;
+      flex: 0 0 auto !important;
+      align-items: center !important;
+      padding: 2px 6px !important;
+      border: 1px solid #cbd5e1 !important;
+      border-radius: 999px !important;
+      background: #f8fafc !important;
+      color: #64748b !important;
+      font-size: 11px !important;
+      font-weight: 800 !important;
+      line-height: 1.2 !important;
     }
     #app .ds-table--activities-list .ds-contact-popover-btn {
       display: block !important;
@@ -86,11 +119,87 @@ function installStyles() {
   document.head.appendChild(style);
 }
 
+export function draftInstructorDisplayValue(row = {}) {
+  const assignedId = String(row?.emp_id || '').trim();
+  const assignedName = String(row?.instructor_name || '').trim();
+  if (assignedId || assignedName) return '';
+  return String(row?.draft_instructor_name || row?.draft_emp_id || '').trim();
+}
+
+function renderDraftInstructor(chip, name) {
+  if (!chip || !name) return;
+  const doc = chip.ownerDocument || document;
+  const wrapper = doc.createElement('span');
+  wrapper.className = 'ds-activities-instructor-draft';
+  wrapper.title = `${name} · טיוטה`;
+
+  const nameEl = doc.createElement('span');
+  nameEl.className = 'ds-activities-instructor-draft__name';
+  nameEl.textContent = name;
+
+  const badge = doc.createElement('span');
+  badge.className = 'ds-activities-instructor-draft__badge';
+  badge.textContent = 'טיוטה';
+
+  wrapper.append(nameEl, badge);
+  chip.replaceWith(wrapper);
+}
+
+let draftLookupInFlight = null;
+let draftLookupWarned = false;
+
+async function patchDraftInstructorCells(root = document) {
+  if (!supabase || !root?.querySelectorAll) return;
+  const rows = Array.from(root.querySelectorAll('.ds-table--activities-list .ds-activities-row[data-row-id]'))
+    .filter((row) => row.querySelector('.ds-chip--instructor-empty'));
+  if (!rows.length) return;
+
+  const rowIds = [...new Set(rows.map((row) => String(row.dataset.rowId || '').trim()).filter(Boolean))];
+  if (!rowIds.length) return;
+
+  try {
+    if (!draftLookupInFlight) {
+      draftLookupInFlight = (async () => {
+        await waitForSupabaseAuthSession({ timeoutMs: 2500 });
+        const { data, error } = await supabase
+          .from('activities')
+          .select('row_id,emp_id,instructor_name,draft_emp_id,draft_instructor_name')
+          .in('row_id', rowIds);
+        if (error) throw error;
+        return Array.isArray(data) ? data : [];
+      })().finally(() => {
+        draftLookupInFlight = null;
+      });
+    }
+
+    const activityRows = await draftLookupInFlight;
+    const draftByRowId = new Map(
+      activityRows
+        .map((row) => [String(row?.row_id || '').trim(), draftInstructorDisplayValue(row)])
+        .filter(([rowId, name]) => rowId && name)
+    );
+
+    rows.forEach((row) => {
+      const rowId = String(row.dataset.rowId || '').trim();
+      const name = draftByRowId.get(rowId);
+      if (!name) return;
+      const chip = row.querySelector('.ds-chip--instructor-empty');
+      if (chip) renderDraftInstructor(chip, name);
+    });
+  } catch (error) {
+    if (!draftLookupWarned) {
+      draftLookupWarned = true;
+      console.warn('[activities] draft instructor display lookup failed', error);
+    }
+  }
+}
+
 function normalizeInstructorCells(root = document) {
   root.querySelectorAll?.('.ds-chip--instructor-empty').forEach((chip) => {
     if (chip.textContent !== 'ללא מדריך') chip.textContent = 'ללא מדריך';
     if (chip.hasAttribute('title')) chip.removeAttribute('title');
   });
+  void patchDraftInstructorCells(root);
 }
 
 function run() {
