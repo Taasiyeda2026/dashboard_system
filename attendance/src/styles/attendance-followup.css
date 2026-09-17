@@ -1,5 +1,5 @@
 /* Structural attendance follow-up fixes.
- * Keep the reports table as one explicit 12-column grid and keep home report
+ * Keep the reports table as one explicit 13-column grid and keep home report
  * expansion inside the home page instead of navigating to edit/reports screens.
  */
 
@@ -43,10 +43,11 @@
       56px                         /* end */
       62px                         /* total hours */
       66px                         /* time cancellation */
+      64px                         /* daily total */
       58px                         /* activity type */
-      minmax(175px, 1.65fr)        /* activity name */
-      minmax(130px, 1.10fr)        /* school */
-      minmax(100px, .85fr)         /* authority */
+      minmax(118px, 132px)         /* activity name */
+      minmax(125px, 1.10fr)        /* school */
+      minmax(90px, .85fr)          /* authority */
       36px                         /* km */
       38px                         /* expenses */
       94px                         /* actions */ !important;
@@ -68,14 +69,16 @@
   .av2-report-list__head > :nth-child(3),
   .av2-report-list__head > :nth-child(4),
   .av2-report-list__head > :nth-child(5),
-  .av2-report-list__head > :nth-child(10),
+  .av2-report-list__head > :nth-child(6),
   .av2-report-list__head > :nth-child(11),
   .av2-report-list__head > :nth-child(12),
+  .av2-report-list__head > :nth-child(13),
   .av2-rr__date,
   .av2-rr__start,
   .av2-rr__end,
   .av2-rr__hours,
   .av2-rr__time-cancel,
+  .av2-rr__day-total,
   .av2-rr__km,
   .av2-rr__expenses,
   .av2-rr__actions {
@@ -84,10 +87,10 @@
   }
 
   /* Text columns keep useful room, with school before authority in the grid. */
-  .av2-report-list__head > :nth-child(6),
   .av2-report-list__head > :nth-child(7),
   .av2-report-list__head > :nth-child(8),
   .av2-report-list__head > :nth-child(9),
+  .av2-report-list__head > :nth-child(10),
   .av2-rr__type,
   .av2-rr__name,
   .av2-rr__school,
@@ -95,6 +98,12 @@
     justify-content: flex-start !important;
     text-align: right !important;
     direction: rtl;
+  }
+
+  .av2-rr__name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .av2-rr__time-cancel-head,
