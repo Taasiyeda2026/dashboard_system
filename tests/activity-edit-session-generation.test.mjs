@@ -16,14 +16,22 @@ const holiday = [{
   blocks_scheduling: true, show_on_main_calendar: true, is_active: true
 }];
 
-function makeForm({ count = 10, first = '2026-11-11', once = false } = {}) {
+const jewishSukkot = [{
+  title: 'סוכות', start_date: '2026-09-25', end_date: '2026-10-03',
+  calendar_sector: 'jewish', blocks_scheduling: true, show_on_main_calendar: true, is_active: true
+}];
+
+function makeForm({ count = 10, first = '2026-11-11', once = false, schoolId = '', schoolRecords = [] } = {}) {
   const dom = new JSDOM(`<form data-is-once="${once ? 'yes' : 'no'}">
+    <input type="hidden" name="school_id" value="${schoolId}">
     <section data-session-total="${count}"><div data-meeting-dates-edit>${Array.from({ length: count }, (_, i) =>
       `<div class="activity-drawer__date-card"><span class="activity-drawer__weekday"></span><input data-meeting-idx="${i}" value="${i ? '' : first}"></div>`).join('')}</div></section>
     <strong data-computed-end-display></strong>
   </form>`);
   globalThis.document = dom.window.document;
-  return dom.window.document.querySelector('form');
+  const form = dom.window.document.querySelector('form');
+  form.dataset.schoolRecords = encodeURIComponent(JSON.stringify(schoolRecords));
+  return form;
 }
 
 const values = (form) => Array.from(form.querySelectorAll('[data-meeting-idx]'), (input) => input.value);
@@ -50,6 +58,30 @@ test('blocked holiday is skipped, weekday and full meeting count are preserved',
   assert.ok(result.dates.every((date) => new Date(`${date}T12:00:00`).getDay() === 3));
   assert.deepEqual(result.deferred, [{ meeting: 5, skippedWeeks: 1 }]);
   assert.match(form.querySelector('[data-session-deferral-note]').textContent, /נדחה בשבוע/);
+});
+
+test('druze school keeps a date that is blocked only for jewish schools', () => {
+  const form = makeForm({
+    count: 3,
+    first: '2026-09-23',
+    schoolId: '417',
+    schoolRecords: [{ school_id: 417, sector: 'דרוזי' }]
+  });
+  const result = generateSessionDatesFromFirstMeeting(form, jewishSukkot);
+  assert.deepEqual(result.dates, ['2026-09-23', '2026-09-30', '2026-10-07']);
+  assert.deepEqual(result.deferred, []);
+});
+
+test('jewish school still skips a jewish-only holiday', () => {
+  const form = makeForm({
+    count: 3,
+    first: '2026-09-23',
+    schoolId: '2364',
+    schoolRecords: [{ school_id: 2364, sector: 'יהודי' }]
+  });
+  const result = generateSessionDatesFromFirstMeeting(form, jewishSukkot);
+  assert.deepEqual(result.dates, ['2026-09-23', '2026-10-07', '2026-10-14']);
+  assert.deepEqual(result.deferred, [{ meeting: 2, skippedWeeks: 1 }]);
 });
 
 test('changing meeting 1 rebuilds later dates but a later manual edit otherwise remains', () => {
