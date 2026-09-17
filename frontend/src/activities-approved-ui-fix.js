@@ -1,4 +1,6 @@
 import { supabase, waitForSupabaseAuthSession } from './supabase-client.js';
+import { state } from './state.js';
+import { getValidInstructorUsers, humanDisplayText } from './screens/shared/activity-options.js';
 
 function installStyles() {
   if (document.getElementById('activities-approved-ui-fix-styles')) return;
@@ -86,6 +88,10 @@ function installStyles() {
     }
     #app .ds-table--activities-list .ds-activities-contact-phone {
       display: none !important;
+    }
+    html.israa-main-activities-active .activity-drawer__form [data-israa-instructor-picker] {
+      width: 100% !important;
+      min-width: 0 !important;
     }
     .ds-modal.ds-modal--scheduling {
       width: min(430px, calc(100vw - 32px)) !important;
@@ -194,17 +200,87 @@ async function patchDraftInstructorCells(root = document) {
   }
 }
 
+function isIsraaActivitiesContext() {
+  return Boolean(document.documentElement?.classList?.contains('israa-main-activities-active'));
+}
+
+export function israaInstructorPickerOptions(settings = state?.clientSettings || {}) {
+  const roster = getValidInstructorUsers(settings || {});
+  const seen = new Set();
+  return roster
+    .map((user) => ({
+      emp_id: String(user?.emp_id || '').trim(),
+      name: humanDisplayText(user?.name || user?.full_name)
+    }))
+    .filter((user) => user.emp_id && user.name)
+    .filter((user) => {
+      if (seen.has(user.emp_id)) return false;
+      seen.add(user.emp_id);
+      return true;
+    });
+}
+
+function patchIsraaInstructorPicker(root = document) {
+  if (!isIsraaActivitiesContext() || !root?.querySelectorAll) return;
+  const roster = israaInstructorPickerOptions();
+  if (!roster.length) return;
+
+  root.querySelectorAll('.activity-drawer__form[data-row-id]').forEach((form) => {
+    if (form.querySelector('[data-israa-instructor-picker]')) return;
+    if (form.querySelector('select[name="emp_id"]')) return;
+
+    const teamSection = Array.from(form.querySelectorAll('.activity-drawer__section--edit-group')).find((section) => {
+      const title = humanDisplayText(section.querySelector('.activity-drawer__section-title')?.textContent);
+      return title === 'צוות וזמנים';
+    });
+    if (!teamSection) return;
+
+    const instructorField = Array.from(teamSection.querySelectorAll('.activity-drawer__field')).find((field) => {
+      const label = humanDisplayText(field.querySelector('.activity-drawer__label')?.textContent);
+      return label.startsWith('מדריך/ה');
+    });
+    const currentView = instructorField?.querySelector('.activity-drawer__view');
+    if (!instructorField || !currentView) return;
+
+    const currentName = humanDisplayText(currentView.textContent);
+    const selected = roster.find((user) => user.name === currentName) || null;
+    const select = form.ownerDocument.createElement('select');
+    select.className = 'ds-input';
+    select.name = 'emp_id';
+    select.dataset.israaInstructorPicker = 'yes';
+    select.setAttribute('aria-label', 'בחירת מדריך/ה');
+
+    const blank = form.ownerDocument.createElement('option');
+    blank.value = '';
+    blank.textContent = '— ללא מדריך —';
+    select.appendChild(blank);
+
+    roster.forEach((user) => {
+      const option = form.ownerDocument.createElement('option');
+      option.value = user.emp_id;
+      option.textContent = user.name;
+      if (selected?.emp_id === user.emp_id) option.selected = true;
+      select.appendChild(option);
+    });
+
+    currentView.replaceWith(select);
+    instructorField.dataset.israaInstructorPickerField = 'yes';
+  });
+}
+
 function normalizeInstructorCells(root = document) {
   root.querySelectorAll?.('.ds-chip--instructor-empty').forEach((chip) => {
     if (chip.textContent !== 'ללא מדריך') chip.textContent = 'ללא מדריך';
     if (chip.hasAttribute('title')) chip.removeAttribute('title');
   });
   void patchDraftInstructorCells(root);
+  patchIsraaInstructorPicker(document);
 }
 
 function run() {
   installStyles();
   normalizeInstructorCells(document.getElementById('app') || document);
+  patchIsraaInstructorPicker(document);
 }
 
 if (typeof document !== 'undefined') {
@@ -222,5 +298,19 @@ if (typeof document !== 'undefined') {
       });
       if (hasRelevantChange) normalizeInstructorCells(app);
     }).observe(app, { childList: true, subtree: true });
+  }
+  if (typeof MutationObserver === 'function') {
+    new MutationObserver((mutations) => {
+      if (!isIsraaActivitiesContext()) return;
+      const hasDrawerChange = mutations.some((mutation) => {
+        if (mutation.type !== 'childList') return false;
+        return Array.from(mutation.addedNodes).some((node) => {
+          if (node.nodeType !== 1) return false;
+          return node.matches?.('.activity-drawer__form')
+            || Boolean(node.querySelector?.('.activity-drawer__form'));
+        });
+      });
+      if (hasDrawerChange) patchIsraaInstructorPicker(document);
+    }).observe(document.documentElement, { childList: true, subtree: true });
   }
 }
