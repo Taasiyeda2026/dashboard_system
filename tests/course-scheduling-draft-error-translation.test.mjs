@@ -5,7 +5,7 @@ import { translateSchedulingDraftRpcErrorMessage } from '../frontend/src/supabas
 test('draft overlap error is translated to Hebrew', () => {
   assert.equal(
     translateSchedulingDraftRpcErrorMessage('scheduling_conflict_detected'),
-    'קיימת חפיפה עם שיבוץ אחר של המדריך'
+    'קיימת חפיפה עם שיבוץ אחר'
   );
 });
 
