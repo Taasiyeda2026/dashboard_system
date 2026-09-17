@@ -31,7 +31,7 @@ const SCHEDULING_DRAFT_RPC_NAMES = new Set([
 ]);
 
 const SCHEDULING_DRAFT_RPC_ERROR_MESSAGES = Object.freeze({
-  scheduling_conflict_detected: 'קיימת חפיפה עם שיבוץ אחר של המדריך',
+  scheduling_conflict_detected: 'קיימת חפיפה עם שיבוץ אחר',
   scheduling_transition_insufficient: 'אין מספיק זמן מעבר בין הפעילויות'
 });
 
