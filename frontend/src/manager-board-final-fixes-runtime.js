@@ -1,6 +1,10 @@
+import { api } from './api.js';
+
 const BOARD_SELECTOR = '.manager-board-screen[data-manager-board-root]';
+const ATTENDANCE_WORKFLOW_TTL_MS = 60 * 1000;
 let scheduled = false;
 let monthDefaultsReset = false;
+const attendanceWorkflowCache = new Map();
 
 function clearPersistedManagerMonthDefaults() {
   if (monthDefaultsReset) return;
@@ -90,6 +94,120 @@ function syncManagementMonthNavigation(boardRoot) {
   }
 }
 
+function attendanceMonthFromTable(table) {
+  for (const header of table?.querySelectorAll('thead th') || []) {
+    const match = String(header.textContent || '').trim().match(/דיווח\s+(20\d{2}-\d{2})/);
+    if (match) return match[1];
+  }
+  return '';
+}
+
+function attendanceWorkflowStatus(workflow = {}) {
+  const explicit = String(workflow.workflow_status || workflow.workflowStatus || '').trim().toLowerCase();
+  const submission = String(workflow.attendance_submission_status || workflow.attendanceSubmissionStatus || '').trim().toLowerCase();
+  if (explicit === 'approved') return 'approved';
+  if (explicit === 'manager_approved') return 'manager_approved';
+  if (explicit === 'submitted' || submission === 'submitted') return 'submitted';
+  if (submission === 'reopened') return 'reopened';
+  return 'not_submitted';
+}
+
+function setAttendanceWorkflowBadge(row, workflow) {
+  const statusCell = row?.querySelectorAll('td')?.[2];
+  const badge = statusCell?.querySelector('.manager-workspace-status');
+  if (!badge) return;
+
+  const status = attendanceWorkflowStatus(workflow);
+  if (status === 'submitted') {
+    badge.textContent = '✓ אושר על ידי העובד · ממתין לבקרת מנהל';
+    badge.classList.remove('is-muted', 'is-ok');
+    badge.classList.add('is-pending');
+  } else if (status === 'manager_approved') {
+    badge.textContent = '✓ אושר על ידי המנהל';
+    badge.classList.remove('is-muted', 'is-pending');
+    badge.classList.add('is-ok');
+  } else if (status === 'approved') {
+    badge.textContent = '✓ אושר סופית';
+    badge.classList.remove('is-muted', 'is-pending');
+    badge.classList.add('is-ok');
+  } else if (status === 'reopened') {
+    badge.textContent = 'פתוח לתיקון';
+    badge.classList.remove('is-muted', 'is-ok');
+    badge.classList.add('is-pending');
+  }
+}
+
+function syncAttendanceAlertCounts(boardRoot, table, workflowByEmployee) {
+  let employeeApprovedCount = 0;
+  let awaitingEmployeeApprovalCount = 0;
+
+  table.querySelectorAll('tbody tr').forEach((row) => {
+    const button = row.querySelector('[data-manager-attendance-open-employee]');
+    if (!button || button.disabled) return;
+    const employeeId = String(button.dataset.managerAttendanceOpenEmployee || '').trim();
+    const status = attendanceWorkflowStatus(workflowByEmployee.get(employeeId) || {});
+    if (['submitted', 'manager_approved', 'approved'].includes(status)) employeeApprovedCount += 1;
+    else awaitingEmployeeApprovalCount += 1;
+  });
+
+  const strip = boardRoot.querySelector('.manager-workspace-alert-strip');
+  strip?.querySelectorAll('article').forEach((article) => {
+    const label = article.querySelector('span')?.textContent?.trim();
+    const value = article.querySelector('strong');
+    if (!value) return;
+    if (label === 'טרם אושר') value.textContent = String(awaitingEmployeeApprovalCount);
+    if (label === 'אושרו') value.textContent = String(employeeApprovedCount);
+  });
+}
+
+async function syncAttendanceApprovalStatuses(boardRoot) {
+  if (activeWorkspaceTab(boardRoot) !== 'attendance') return;
+  if (typeof api?.attendanceControlMonthWorkflowStatuses !== 'function') return;
+
+  const table = boardRoot.querySelector('.manager-workspace-attendance-table');
+  if (!table) return;
+  const monthKey = attendanceMonthFromTable(table);
+  const employeeIds = [...table.querySelectorAll('[data-manager-attendance-open-employee]')]
+    .map((button) => String(button.dataset.managerAttendanceOpenEmployee || '').trim())
+    .filter(Boolean);
+  if (!monthKey || !employeeIds.length) return;
+
+  const signature = `${monthKey}|${employeeIds.join(',')}`;
+  if (table.dataset.attendanceWorkflowSignature === signature) return;
+  table.dataset.attendanceWorkflowSignature = signature;
+
+  let workflowRows;
+  const cached = attendanceWorkflowCache.get(signature);
+  if (cached && Date.now() - cached.loadedAt < ATTENDANCE_WORKFLOW_TTL_MS) {
+    workflowRows = cached.rows;
+  } else {
+    try {
+      workflowRows = await api.attendanceControlMonthWorkflowStatuses({ monthKey, employeeIds });
+      attendanceWorkflowCache.set(signature, {
+        rows: Array.isArray(workflowRows) ? workflowRows : [],
+        loadedAt: Date.now()
+      });
+    } catch {
+      delete table.dataset.attendanceWorkflowSignature;
+      return;
+    }
+  }
+
+  if (!table.isConnected || activeWorkspaceTab(boardRoot) !== 'attendance') return;
+  const workflowByEmployee = new Map((workflowRows || []).map((row) => [
+    String(row.employee_id || row.employeeId || '').trim(),
+    row
+  ]));
+
+  table.querySelectorAll('tbody tr').forEach((row) => {
+    const button = row.querySelector('[data-manager-attendance-open-employee]');
+    const employeeId = String(button?.dataset?.managerAttendanceOpenEmployee || '').trim();
+    if (!employeeId) return;
+    setAttendanceWorkflowBadge(row, workflowByEmployee.get(employeeId) || {});
+  });
+  syncAttendanceAlertCounts(boardRoot, table, workflowByEmployee);
+}
+
 function syncBoard() {
   scheduled = false;
   const boards = document.querySelectorAll(BOARD_SELECTOR);
@@ -99,6 +217,7 @@ function syncBoard() {
   boards.forEach((boardRoot) => {
     removeMonthlyInstructorPanel(boardRoot);
     syncManagementMonthNavigation(boardRoot);
+    void syncAttendanceApprovalStatuses(boardRoot);
   });
 }
 
