@@ -6,7 +6,7 @@ export const MAX_HOME_DISTANCE_KM = 40;
 /** A manual home-distance exception needs manager approval only from this threshold (km). */
 export const MANAGER_APPROVAL_DISTANCE_KM = 60;
 /** Required gap between consecutive meetings = raw travel minutes + this buffer. Applied once only. */
-export const TRANSITION_BUFFER_MINUTES = 10;
+export const TRANSITION_BUFFER_MINUTES = 15;
 /** Maximum driving distance allowed between two consecutive activities. */
 export const MAX_TRANSITION_DISTANCE_KM = 20;
 
@@ -49,7 +49,6 @@ export function normalizeGender(value) {
   if (lower === 'male' || lower === 'm' || raw === 'זכר' || raw === 'מדריך' || raw === 'גבר') return 'male';
   return null;
 }
-
 
 export function normalizeSchedulingProfile(profile = {}) {
   const gender = normalizeGender(profile?.gender);
@@ -204,9 +203,9 @@ export function evaluateInstructor({
   }
 
   let genderCheck = checkResult(null, 'מגדר', 'לא נבדק');
-  if (requiredGender !== 'any' && !profileGender) {
+  if (!profileGender) {
     missingProfileData.push('מגדר');
-    genderCheck = checkResult(false, 'חסר מגדר בפרופיל', 'חסר מגדר בפרופיל');
+    genderCheck = checkResult(false, 'חסר מגדר בפרופיל', 'מגדר הוא שדה חובה בפרופיל המדריך');
   } else if (requiredGender !== 'any' && profileGender !== requiredGender) {
     const reason = requiredGender === 'female' ? 'הקורס דורש מדריכה' : 'הקורס דורש מדריך';
     failures.push(reason);
@@ -300,7 +299,6 @@ export function evaluateInstructor({
           meeting.date
         );
       } else if (!sameLocation && gap < Number(required) + TRANSITION_BUFFER_MINUTES) {
-        // Same-school neighbors do not require the travel buffer; it applies only to real moves.
         const needed = Number(required) + TRANSITION_BUFFER_MINUTES;
         const message = neighborRef
           ? (direction === 'previous'
@@ -309,8 +307,6 @@ export function evaluateInstructor({
           : `אין זמן מעבר מספיק ${label} (${gap} דקות זמינות, ${needed} דקות נדרשות כולל מרווח בטיחות)`;
         addIssue('insufficient_transition', `${direction}-${required}-${gap}`, message, meeting.date);
       }
-      // A given neighbor relationship counts once: same-school continuity takes priority
-      // over same-authority continuity so the two point buckets never double-score it.
       if (sameSchoolLocation(neighbor, activity)) {
         sameSchool += 1;
         schoolContinuityPoints += gap <= 30 ? 10 : gap <= 90 ? 7 : 4;
@@ -326,6 +322,18 @@ export function evaluateInstructor({
     if (validateTravel) {
       inspect(previous, transition.previous, 'previous');
       inspect(next, transition.next, 'next');
+    }
+
+    const orderedDay = [...day, meeting].sort((a, b) => minutes(a.start_time) - minutes(b.start_time));
+    let continuous = 1;
+    let maxContinuous = 1;
+    for (let index = 1; index < orderedDay.length; index += 1) {
+      continuous = minutes(orderedDay[index].start_time) - minutes(orderedDay[index - 1].end_time) <= 30 ? continuous + 1 : 1;
+      maxContinuous = Math.max(maxContinuous, continuous);
+    }
+    const duration = minutes(meeting.end_time) - minutes(meeting.start_time);
+    if ((duration >= 80 && maxContinuous > 3) || (duration < 80 && maxContinuous > 5)) {
+      failures.push(`הרצף היומי חורג מהמותר בתאריך ${meeting.date}`);
     }
 
     schedule.push({
@@ -367,7 +375,6 @@ export function evaluateInstructor({
   } else if (travelIssues.length) {
     travelCheck = checkResult(false, 'מרחק', travelIssues[0].message);
   } else if (homeKm != null && Number.isFinite(Number(homeKm)) && homeMinutes != null && Number.isFinite(Number(homeMinutes))) {
-    // Hard gate: one-way home→school driving distance must be ≤ 40 km (evaluated before scoring).
     if (exceedsHomeDistanceLimit(homeKm)) {
       const reason = homeDistanceLimitFailureMessage(homeKm);
       failures.push(reason);
@@ -405,8 +412,6 @@ export function evaluateInstructor({
     notes: checkResult(true, 'הערות', [activity.scheduling_note, profile.matching_note].filter(Boolean).join(' · '))
   };
 
-  // 100-point rubric: distance/travel 40, continuity 30, load/fairness 20,
-  // seniority 10. Availability, language and gender are gating checks only.
   let score = failures.length || missingProfileData.length ? null : 0;
   let scoreBreakdown = null;
   if (score !== null) {
@@ -455,7 +460,7 @@ export function evaluateInstructor({
         continuity: { points: roundedContinuity, label: continuityLabel },
         workload: { points: roundedWorkload, label: 'עומס וחלוקה שוויונית', totalHoursPoints: workloadBreakdown.totalHoursPoints, courseWeeksPoints: workloadBreakdown.courseWeeksPoints, totalHours: workloadBreakdown.totalHours, courseWeeksHours: workloadBreakdown.courseWeeksHours },
         seniority: { points: roundedSeniority, label: 'ותק' },
-        gateNote: 'פעילות, כתובת, זמינות, שפה ומגדר כאשר נדרש הם תנאי סף ואינם מוסיפים נקודות.'
+        gateNote: 'פעילות, כתובת, זמינות, שפה ומגדר הם תנאי סף ואינם מוסיפים נקודות.'
       };
     }
   }
