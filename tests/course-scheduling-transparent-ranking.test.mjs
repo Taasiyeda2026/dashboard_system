@@ -15,7 +15,7 @@ const profile = { gender: 'female', instruction_languages: ['he'] };
 const travelFor = (courseId, id, km = 10, minutes = 15) => ({ [courseId]: { [id]: { home: { distance_km: km, duration_minutes: minutes } } } });
 
 test('daily efficiency is aggregated across every course meeting', () => {
-  const existingActivities = meetings.slice(0, 10).map((meeting) => ({ ...meeting, start_time: '08:00', end_time: '09:00', school: 'יעד', school_id: 100 }));
+  const existingActivities = meetings.slice(0, 10).map((meeting) => ({ ...meeting, start_time: '09:00', end_time: '10:00', school: 'יעד', school_id: 100 }));
   const placement = analyzeDayPlacement({ activity: course('c'), meetings, existingActivities, travel: { home: { distance_km: 10, duration_minutes: 15 }, transitions: {} } });
   assert.equal(placement.continuityMeetingCount, 12);
   assert.equal(placement.sameSchoolMeetingCount, 10);
@@ -31,6 +31,21 @@ test('same-school ranking requires matching school_id and never falls back to th
   assert.equal(placement.existingWorkDayMeetingCount, 1);
 });
 
+test('same school only gets top continuity when the hours are actually consecutive', () => {
+  const oneMeeting = [{ ...meetings[0], start_time: '14:00', end_time: '15:00' }];
+  const target = course('same-school-long-gap', { meetings: oneMeeting, start_time: '14:00', end_time: '15:00', school_id: 100 });
+  const existingActivities = [{ ...meetings[0], start_time: '08:00', end_time: '10:00', school: 'יעד', school_id: 100 }];
+  const placement = analyzeDayPlacement({
+    activity: target,
+    meetings: oneMeeting,
+    existingActivities,
+    travel: { transitions: {} }
+  });
+  assert.equal(placement.sameSchoolMeetingCount, 0, 'a four-hour gap is not an hourly sequence');
+  assert.equal(placement.existingWorkDayMeetingCount, 1, 'the day is still recognized as an existing work day');
+  assert.ok(placement.continuityPoints < 35);
+});
+
 test('candidate ranking includes real course meetings that cross the displayed half-year boundary', () => {
   const crossHalfMeetings = [
     { date: '2027-01-25', start_time: '10:00', end_time: '11:00' },
@@ -39,7 +54,7 @@ test('candidate ranking includes real course meetings that cross the displayed h
   const target = course('cross-half', { meetings: crossHalfMeetings });
   const saved = course('saved-next-half', {
     emp_id: 'i', instructor_assignment_locked: true, school_id: 100,
-    meetings: [{ ...crossHalfMeetings[1], start_time: '08:00', end_time: '09:00' }]
+    meetings: [{ ...crossHalfMeetings[1], start_time: '09:00', end_time: '10:00' }]
   });
   const result = calculateCourseSchedule({
     activities: [target, saved], instructors: [instructor('i')], profiles: { i: profile },
