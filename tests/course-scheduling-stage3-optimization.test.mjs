@@ -251,6 +251,26 @@ test('workload uses actual hours including approved, draft, planning state and c
   const high = scoreActualWorkload({ projectedHalfHours: 10, peerProjectedHours: [2, 10], currentHalfHours: 9, activeWorkDays: 3 });
   assert.equal(low.points, 20);
   assert.equal(high.points, 0);
+  const capacityBalanced = scoreActualWorkload({
+    projectedHalfHours: 12,
+    peerProjectedHours: [8, 12],
+    projectedUtilizationRatio: 0.25,
+    peerProjectedUtilizationRatios: [0.25, 0.75],
+    currentHalfHours: 4,
+    currentCourseCount: 1,
+    availabilityHours: 40
+  });
+  const capacityBusy = scoreActualWorkload({
+    projectedHalfHours: 8,
+    peerProjectedHours: [8, 12],
+    projectedUtilizationRatio: 0.75,
+    peerProjectedUtilizationRatios: [0.25, 0.75],
+    currentHalfHours: 4,
+    currentCourseCount: 1,
+    availabilityHours: 16
+  });
+  assert.equal(capacityBalanced.points, 20, 'lower utilization wins even with more raw hours');
+  assert.equal(capacityBusy.points, 0, 'higher utilization loses even with fewer raw hours');
   // Internal planner hours can drive soft fairness without changing user-facing projected hours.
   const plannerBalanced = scoreActualWorkload({
     projectedHalfHours: 2,
@@ -311,6 +331,74 @@ test('workload uses actual hours including approved, draft, planning state and c
   if (primaryA && primaryB && primaryA.instructor.emp_id === primaryB.instructor.emp_id) {
     assert.ok(Number(primaryB.plannerProjectedHalfHours) >= Number(primaryB.projectedHalfHours));
   }
+});
+
+test('coverage-first ranking prefers an eligible instructor with no work before a busier high-score peer', () => {
+  const noWork = {
+    instructor: instructors[1],
+    currentCourseCount: 0,
+    projectedUtilizationRatio: 0.2,
+    projectedHalfHours: 3,
+    score: 55,
+    scoreBreakdown: {
+      continuityEfficiency: { points: 18 },
+      travelDistance: { points: 15 }
+    }
+  };
+  const busy = {
+    instructor: instructors[0],
+    currentCourseCount: 4,
+    projectedUtilizationRatio: 0.1,
+    projectedHalfHours: 20,
+    score: 95,
+    scoreBreakdown: {
+      continuityEfficiency: { points: 35 },
+      travelDistance: { points: 25 }
+    }
+  };
+  assert.ok(compareCandidatesStable(noWork, busy) < 0);
+});
+
+test('single and batch use the same ranking; batch only repeats it and spreads work coverage', () => {
+  const first = course('spread-a', '2026-09-06');
+  const second = course('spread-b', '2026-09-13');
+  const people = instructors.slice(0, 2);
+  const peopleProfiles = { 1: profiles[1], 2: profiles[2] };
+  const peopleRules = { 1: sundayRules[1], 2: sundayRules[2] };
+  const travel = mergeTravel(
+    travelHome('spread-a', '1'), travelHome('spread-a', '2'),
+    travelHome('spread-b', '1'), travelHome('spread-b', '2')
+  );
+  const common = {
+    instructors: people,
+    profiles: peopleProfiles,
+    rules: peopleRules,
+    exceptions: {},
+    referenceDate: '2026-09-01',
+    travel,
+    routeMatrix: {}
+  };
+
+  const single = calculateCourseSchedule({
+    ...common,
+    activities: [first, second],
+    targetCourseId: 'spread-a'
+  })[0];
+  const batch = calculateCourseSchedule({
+    ...common,
+    activities: [first, second]
+  });
+  const singlePrimary = single.recommended || single.bestAvailable;
+  const firstBatchPrimary = batch.find((row) => row.course.row_id === 'spread-a')?.recommended
+    || batch.find((row) => row.course.row_id === 'spread-a')?.bestAvailable;
+  const secondBatchPrimary = batch.find((row) => row.course.row_id === 'spread-b')?.recommended
+    || batch.find((row) => row.course.row_id === 'spread-b')?.bestAvailable;
+
+  assert.equal(firstBatchPrimary?.instructor?.emp_id, singlePrimary?.instructor?.emp_id);
+  assert.ok(firstBatchPrimary);
+  assert.ok(secondBatchPrimary);
+  assert.notEqual(secondBatchPrimary.instructor.emp_id, firstBatchPrimary.instructor.emp_id);
+  assert.equal(Number(secondBatchPrimary.currentCourseCount), 0);
 });
 
 test('original schedule preservation penalties and eligible date-adjusted candidates', () => {
