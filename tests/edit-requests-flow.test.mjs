@@ -112,6 +112,58 @@ test('user with can_edit_direct calls saveActivity and not submitEditRequest', a
   });
 });
 
+test('post-save refresh failure does not turn a successful direct save into a server error', async () => {
+  const { bindActivityEditForm } = await import(`${BIND_MODULE}?bust=${Date.now()}-${Math.random()}`);
+  const root = buildEditRoot({ canDirectEdit: true });
+  const form = root.querySelector('[data-drawer-form]');
+
+  bindActivityEditForm(root, {
+    api: {
+      saveActivity: async () => ({
+        ok: true,
+        row: { row_id: 'ACT-1', activity_name: 'שם חדש', date_1: '2026-05-01' }
+      })
+    },
+    onSaveSuccess: async () => {
+      throw new Error('refresh_failed_after_persist');
+    }
+  });
+
+  form.querySelector('[name="activity_name"]').value = 'שם חדש';
+  form.querySelector('[data-action="save-edit"]').click();
+  await wait(30);
+
+  const statusText = form.querySelector('.ds-activity-edit-status').textContent || '';
+  assert.match(statusText, /הפעילות נשמרה בהצלחה/);
+  assert.doesNotMatch(statusText, /שגיאת שרת|⚠️/);
+});
+
+test('post-save local patch failure also preserves successful save state', async () => {
+  const { bindActivityEditForm } = await import(`${BIND_MODULE}?bust=${Date.now()}-${Math.random()}`);
+  const root = buildEditRoot({ canDirectEdit: true });
+  const form = root.querySelector('[data-drawer-form]');
+
+  bindActivityEditForm(root, {
+    api: {
+      saveActivity: async () => ({
+        ok: true,
+        row: { row_id: 'ACT-1', activity_name: 'שם חדש', date_1: '2026-05-01' }
+      })
+    },
+    onRowSaved: () => {
+      throw new Error('local_patch_failed_after_persist');
+    }
+  });
+
+  form.querySelector('[name="activity_name"]').value = 'שם חדש';
+  form.querySelector('[data-action="save-edit"]').click();
+  await wait(30);
+
+  const statusText = form.querySelector('.ds-activity-edit-status').textContent || '';
+  assert.match(statusText, /הפעילות נשמרה בהצלחה/);
+  assert.doesNotMatch(statusText, /שגיאת שרת|⚠️/);
+});
+
 test('activity edit form blocks duplicate save clicks while first save is in flight', async () => {
   const { bindActivityEditForm } = await import(`${BIND_MODULE}?bust=${Date.now()}-${Math.random()}`);
   let resolveSave;
