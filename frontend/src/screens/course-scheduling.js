@@ -1156,7 +1156,8 @@ function maintenanceTabHtml(state) {
     <h2 id="course-scheduling-maintenance-heading" class="course-scheduling-visually-hidden">פעולות תחזוקה</h2>
     <article class="course-scheduling-maintenance-card">
       <div>
-        <h3>עדכון מרחקים</h3>
+        <h3>עדכון מסלולי בסיס</h3>
+        <p class="course-scheduling-maintenance-note">הספירה מתייחסת למסלולי הבסיס שנבנו מראש. מסלולי מעבר נוספים בין פעילויות נבדקים לפי הצורך בזמן השיבוץ.</p>
         <div class="course-scheduling-distance-coverage">
           <p>נדרשים: ${count('required_count')}</p>
           <p>קיימים: ${count('existing_count')}</p>
@@ -1166,7 +1167,7 @@ function maintenanceTabHtml(state) {
         </div>
         ${doneMessage ? `<p class="${doneError ? 'course-scheduling-alert' : 'course-scheduling-success'}">${escapeHtml(doneMessage)}</p>` : ''}
       </div>
-      <button type="button" class="course-scheduling-btn course-scheduling-btn--primary" data-update-distances ${updateDisabled ? 'disabled' : ''}>${distanceBusy ? 'מעדכן מרחקים...' : 'עדכון מרחקים'}</button>
+      <button type="button" class="course-scheduling-btn course-scheduling-btn--primary" data-update-distances ${updateDisabled ? 'disabled' : ''}>${distanceBusy ? 'מעדכן מסלולי בסיס...' : 'עדכון מסלולי בסיס'}</button>
     </article>
   </section>`;
 }
@@ -1240,7 +1241,7 @@ function distanceDoneMessage(stats = {}, { done = false, stopped = false, errorM
   const remaining = (Number(stats.missing_count) || 0) + (Number(stats.refresh_required_count) || 0);
   if (stopped) return { message: 'עדכון המרחקים הופסק', details: '', error: false };
   if (done && remaining > 0) return { message: `נותרו ${remaining} מסלולים לעדכון`, details: '', error: true };
-  if (done) return { message: 'כל המרחקים מעודכנים', details: '', error: false };
+  if (done) return { message: 'כל מסלולי הבסיס מעודכנים', details: '', error: false };
   const processed = (Number(stats.inserted_count) || 0) + (Number(stats.renewed_count) || 0) + (Number(stats.failed_count) || 0);
   const total = Number(stats.action_required_count) || processed + remaining;
   return { message: `מעדכן ${processed} מתוך ${total}...`, details: '', error: false };
@@ -1838,7 +1839,9 @@ export const courseSchedulingScreen = {
           state.courseSchedulingSimulationCounts = simulation.counts;
           state.courseSchedulingSimulationResults = simulation.results;
           state.courseSchedulingSimulationSelectedIds = defaultSelectedSimulationCourseIds(simulation.rows);
-          if (routed.unavailableReason || simulation.hasRouteMissing) {
+          // A helper route may fail without blocking a course (for example an unused
+          // return leg). Warn only when a simulation row is actually blocked.
+          if (simulation.hasRouteMissing) {
             state.courseSchedulingSimulationError = DISTRICT_SIMULATION_ROUTE_MISSING_MESSAGE;
           }
         }
