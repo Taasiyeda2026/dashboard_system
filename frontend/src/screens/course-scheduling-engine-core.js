@@ -34,11 +34,17 @@ export function schedulingCourses(rows = [], options = {}) {
   const periodKey = options.periodKey || DEFAULT_COURSE_SCHEDULING_PERIOD_KEY;
   const authority = text(options.authority);
   const district = text(options.district);
+  const allDistricts = options.allDistricts === true;
   const includeIncompleteWithoutPeriodMeetings = !!options.includeIncompleteWithoutPeriodMeetings;
   return rows.filter(isSchedulingReadyActivity)
     .filter((row) => !hasDraftInstructor(row))
     .filter((row) => !authority || text(row.authority) === authority)
-    .filter((row) => !district || districtOf(row) === district)
+    .filter((row) => {
+      const rowDistrict = districtOf(row);
+      if (district) return rowDistrict === district;
+      if (allDistricts) return !!rowDistrict;
+      return true;
+    })
     .filter((row) => {
       const meetings = activityMeetings(row);
       if (meetings.some((meeting) => isDateInCourseSchedulingPeriod(meeting.date, periodKey))) return true;
