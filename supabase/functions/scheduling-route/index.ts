@@ -1460,10 +1460,10 @@ Deno.serve(async (req) => {
   // Dynamic scheduling routes keep the raw canonical address as the cache
   // identity, but use school/authority context for the Google query. This is
   // important for partial catalog addresses such as "הרצל" or "מרחבים".
-  const originSchoolName = text(payload.origin_school_name);
-  const originAuthorityName = text(payload.origin_authority_name);
-  const destinationSchoolName = text(payload.destination_school_name);
-  const destinationAuthorityName = text(payload.destination_authority_name);
+  const originSchoolName = text(payload.origin_school_name).slice(0, 200);
+  const originAuthorityName = text(payload.origin_authority_name).slice(0, 200);
+  const destinationSchoolName = text(payload.destination_school_name).slice(0, 200);
+  const destinationAuthorityName = text(payload.destination_authority_name).slice(0, 200);
   const queryOrigin = originSchoolName || originAuthorityName
     ? buildGoogleAddressQuery({
       schoolName: originSchoolName,
