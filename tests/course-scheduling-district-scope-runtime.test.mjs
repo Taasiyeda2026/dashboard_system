@@ -48,6 +48,26 @@ test('ordinary district-only UI scope is carried into the planning engine', () =
   }
 });
 
+test('explicit national scope ignores a stale district selected in the DOM', () => {
+  const previousDocument = globalThis.document;
+  globalThis.document = { querySelector: () => ({ value: 'דרום' }) };
+  try {
+    const input = resolveSchedulingInputScope({ allDistricts: true, district: '', authority: 'באר שבע' });
+    assert.equal(input.allDistricts, true);
+    assert.equal(input.district, '');
+    assert.equal(input.authority, '');
+
+    const courses = schedulingCourses([
+      readyCourse({ id: 'south', district: 'דרום', authority: 'אופקים' }),
+      readyCourse({ id: 'north', district: 'צפון', authority: 'חיפה' })
+    ], input);
+    assert.deepEqual(courses.map((course) => course.row_id).sort(), ['north', 'south']);
+  } finally {
+    if (previousDocument === undefined) delete globalThis.document;
+    else globalThis.document = previousDocument;
+  }
+});
+
 test('explicit district used by district simulation is preserved', () => {
   const input = resolveSchedulingInputScope({ district: 'צפון', authority: '' });
   assert.equal(input.district, 'צפון');
