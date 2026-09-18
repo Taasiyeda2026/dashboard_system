@@ -252,11 +252,12 @@ export function isDistrictSimulationRowSelectable(row = {}, course = null) {
 }
 
 export function defaultSelectedSimulationCourseIds(rows = []) {
+  // District and national planning are operational batch workflows: select every
+  // proposal that is safe to persist as a draft. This includes "נדרשת בדיקה"
+  // rows when the engine still has a valid proposed instructor; recruitment and
+  // missing-data rows remain excluded.
   return (rows || [])
-    .filter((row) => (
-      text(row?.status) === DISTRICT_SIMULATION_STATUSES.ready
-      && isDistrictSimulationRowSelectable(row)
-    ))
+    .filter((row) => isDistrictSimulationRowSelectable(row))
     .map((row) => text(row.courseId))
     .filter(Boolean);
 }
@@ -273,13 +274,13 @@ export function normalizeSelectedSimulationCourseIds(rows = [], selectedIds = []
 
 export function districtSimulationSaveButtonLabel(selectedCount = 0) {
   const count = Number(selectedCount) || 0;
-  if (count <= 0) return 'שמור נבחרים כטיוטות';
-  return `שמור ${count} הצעות כטיוטות`;
+  if (count <= 0) return 'אין הצעות שניתן לשמור';
+  return `שמור את כל ${count} ההצעות כטיוטות`;
 }
 
 export function districtSimulationConfirmMessage(selectedCount = 0) {
   const count = Number(selectedCount) || 0;
-  return `עומדים לשמור ${count} הצעות כטיוטות. השיבוצים עדיין לא יאושרו סופית.`;
+  return `עומדים לשמור את כל ${count} ההצעות שנבחרו כטיוטות. השיבוצים עדיין לא יאושרו סופית.`;
 }
 
 export function districtSimulationSaveResultMessage({ saved = 0, failed = 0 } = {}) {
@@ -376,24 +377,17 @@ export function applyDistrictSimulationSaveOutcome({
  */
 export function runDistrictSchedulingSimulation(input = {}) {
   const district = normalizeOperationalDistrict(input.district);
+  const allDistricts = input.allDistricts === true || !district;
   const periodKey = text(input.periodKey) || DEFAULT_COURSE_SCHEDULING_PERIOD_KEY;
-  if (!district) {
-    return {
-      ok: false,
-      error: 'יש לבחור מחוז לפני הפעלת תכנון מחוזי',
-      rows: [],
-      counts: summarizeDistrictSimulation([]),
-      results: []
-    };
-  }
   const results = calculateCourseSchedule({
     ...input,
     periodKey,
-    district,
-    // District simulation always plans every eligible course in its district.
+    district: allDistricts ? '' : district,
+    allDistricts,
+    // The same batch engine is used for one district or the whole country.
     targetCourseId: '',
     targetActivityId: '',
-    // District simulation must not inherit the ordinary authority list filter.
+    // Planning scope intentionally ignores the ordinary authority list filter.
     authority: '',
     // Include open unassigned courses that lack dates/hours so they appear as חסרים נתונים.
     includeIncompleteWithoutPeriodMeetings: true,
@@ -405,7 +399,9 @@ export function runDistrictSchedulingSimulation(input = {}) {
   return {
     ok: true,
     error: '',
-    district,
+    district: allDistricts ? '' : district,
+    allDistricts,
+    scopeLabel: allDistricts ? 'כל המחוזות' : district,
     periodKey,
     rows,
     counts: summarizeDistrictSimulation(rows),
@@ -437,7 +433,7 @@ export function districtSimulationTableHtml(rows = [], {
 } = {}) {
   const filtered = filterDistrictSimulationRows(rows, statusFilter);
   if (!filtered.length) {
-    return `<div class="course-scheduling-empty"><strong>אין תוצאות להצגה</strong><p>שנו את סינון הסטטוס או הפעילו מחדש את התכנון המחוזי.</p></div>`;
+    return `<div class="course-scheduling-empty"><strong>אין תוצאות להצגה</strong><p>שנו את סינון הסטטוס או הפעילו מחדש את התכנון.</p></div>`;
   }
   const selectedSet = new Set((selectedCourseIds || []).map((id) => text(id)));
   const body = filtered.map((row) => {
@@ -539,16 +535,18 @@ export function districtSimulationPanelHtml({
   selectedId = '',
   selectedCourseIds = null,
   district = '',
+  allDistricts = false,
   loading = false,
   error = '',
   saving = false,
   confirmSave = false,
   saveResult = null
 } = {}) {
+  const national = allDistricts || !normalizeOperationalDistrict(district);
   if (loading) {
     return `<section class="course-scheduling-simulation" data-district-simulation-panel>
       <p class="course-scheduling-sim-banner">${escapeHtml(DISTRICT_SIMULATION_LABEL)}</p>
-      <div class="course-scheduling-loading" aria-live="polite"><strong>מחשב תכנון מחוזי...</strong></div>
+      <div class="course-scheduling-loading" aria-live="polite"><strong>${national ? 'מחשב תכנון ארצי...' : 'מחשב תכנון מחוזי...'}</strong></div>
     </section>`;
   }
   const selectedIds = selectedCourseIds == null
@@ -562,7 +560,7 @@ export function districtSimulationPanelHtml({
     ${error ? `<p class="course-scheduling-alert">${escapeHtml(error)}</p>` : ''}
     ${districtSimulationSaveResultHtml(saveResult)}
     <div class="course-scheduling-sim-toolbar">
-      <p class="course-scheduling-muted">מחוז ${escapeHtml(district || '—')} · ${rows.length} פעילויות בסימולציה</p>
+      <p class="course-scheduling-muted">${national ? 'תכנון ארצי · כל המחוזות' : `מחוז ${escapeHtml(district || '—')}`} · ${rows.length} פעילויות בסימולציה</p>
       ${districtSimulationStatusFilterHtml(statusFilter)}
       <button type="button" class="course-scheduling-btn course-scheduling-btn--primary" data-save-simulation-drafts ${saveDisabled ? 'disabled' : ''}>${escapeHtml(saveLabel)}</button>
       <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary" data-close-district-simulation>חזרה לרשימת הפעילויות</button>
