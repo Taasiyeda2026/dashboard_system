@@ -22,7 +22,7 @@ export async function delegatedMailToken(loginHint = '', { interactive = true } 
     await msalClient.initialize();
     await msalClient.handleRedirectPromise();
   }
-  const request = { scopes: ['Mail.ReadWrite', 'Mail.Send'], loginHint: loginHint || undefined };
+  const request = { scopes: ['Mail.ReadWrite'], loginHint: loginHint || undefined };
   const account = msalClient.getAllAccounts()[0];
   if (account) {
     try { return (await msalClient.acquireTokenSilent({ ...request, account })).accessToken; }
