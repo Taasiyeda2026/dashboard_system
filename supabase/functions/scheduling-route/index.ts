@@ -1457,6 +1457,28 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: 'missing_or_invalid_locations' }, 400);
   }
 
+  // Dynamic scheduling routes keep the raw canonical address as the cache
+  // identity, but use school/authority context for the Google query. This is
+  // important for partial catalog addresses such as "הרצל" or "מרחבים".
+  const originSchoolName = text(payload.origin_school_name).slice(0, 200);
+  const originAuthorityName = text(payload.origin_authority_name).slice(0, 200);
+  const destinationSchoolName = text(payload.destination_school_name).slice(0, 200);
+  const destinationAuthorityName = text(payload.destination_authority_name).slice(0, 200);
+  const queryOrigin = originSchoolName || originAuthorityName
+    ? buildGoogleAddressQuery({
+      schoolName: originSchoolName,
+      address: origin,
+      authorityName: originAuthorityName
+    })
+    : origin;
+  const queryDestination = destinationSchoolName || destinationAuthorityName
+    ? buildGoogleAddressQuery({
+      schoolName: destinationSchoolName,
+      address: destination,
+      authorityName: destinationAuthorityName
+    })
+    : destination;
+
   const originKey = cacheKey(origin);
   const destinationKey = cacheKey(destination);
   const { data: cached, error: cacheReadError } = await db
@@ -1492,8 +1514,8 @@ Deno.serve(async (req) => {
       expires_at: PERMANENT_CACHE_EXPIRES_AT,
       origin_address: origin,
       destination_address: destination,
-      query_origin_address: origin,
-      query_destination_address: destination
+      query_origin_address: queryOrigin,
+      query_destination_address: queryDestination
     });
     if (cacheWriteError) {
       return jsonResponse({ calculated: false, reason: 'cache_write_failed', error: 'cache_write_failed' }, 500);
@@ -1507,7 +1529,7 @@ Deno.serve(async (req) => {
     });
   }
 
-  const route = await computeRoute(origin, destination, key);
+  const route = await computeRoute(queryOrigin, queryDestination, key);
   if (!route.ok) {
     return jsonResponse(
       { calculated: false, reason: route.reason, error: route.reason },
@@ -1525,8 +1547,8 @@ Deno.serve(async (req) => {
     expires_at: PERMANENT_CACHE_EXPIRES_AT,
     origin_address: origin,
     destination_address: destination,
-    query_origin_address: origin,
-    query_destination_address: destination
+    query_origin_address: queryOrigin,
+    query_destination_address: queryDestination
   });
   if (cacheWriteError) {
     return jsonResponse({ calculated: false, reason: 'cache_write_failed', error: 'cache_write_failed' }, 500);

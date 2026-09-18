@@ -12,6 +12,34 @@ const activityId = (activity) => text(activity?.row_id || activity?.RowID || act
 const instructorId = (candidate) => text(candidate?.instructor?.emp_id);
 // Canonical resolved address only — never fall back to the school display name.
 export const activityPlace = (activity = {}) => text(activity.school_address);
+
+function schoolRouteContext(activity = {}) {
+  return {
+    schoolName: text(activity?.school),
+    authorityName: text(activity?.authority)
+  };
+}
+
+function normalizedRouteContext(context = {}) {
+  return {
+    originSchoolName: text(context.originSchoolName),
+    originAuthorityName: text(context.originAuthorityName),
+    destinationSchoolName: text(context.destinationSchoolName),
+    destinationAuthorityName: text(context.destinationAuthorityName)
+  };
+}
+
+function routeRequestKey(origin, destination, context = {}) {
+  const normalized = normalizedRouteContext(context);
+  return [
+    routeMatrixKey(origin, destination),
+    normalized.originSchoolName,
+    normalized.originAuthorityName,
+    normalized.destinationSchoolName,
+    normalized.destinationAuthorityName
+  ].join('|');
+}
+
 const minutes = (value) => {
   const [hours, mins] = text(value).split(':').map(Number);
   return hours * 60 + mins;
@@ -51,17 +79,26 @@ export function createRouteClient({ invoke = (body) => supabase.functions.invoke
     }
   };
 
-  const request = (origin, destination) => {
+  const request = (origin, destination, context = {}) => {
     if (!text(origin) || !text(destination)) return Promise.resolve(null);
-    const cacheKey = routeMatrixKey(origin, destination);
+    const normalizedContext = normalizedRouteContext(context);
+    const cacheKey = routeRequestKey(origin, destination, normalizedContext);
     if (cache.has(cacheKey)) return cache.get(cacheKey);
+    const payload = {
+      origin: text(origin),
+      destination: text(destination),
+      origin_school_name: normalizedContext.originSchoolName,
+      origin_authority_name: normalizedContext.originAuthorityName,
+      destination_school_name: normalizedContext.destinationSchoolName,
+      destination_authority_name: normalizedContext.destinationAuthorityName
+    };
     const promise = new Promise((resolve, reject) => {
       queue.push({
         resolve,
         reject,
         run: async () => {
-          requests.push({ origin: text(origin), destination: text(destination) });
-          const { data, error } = await invoke({ origin, destination });
+          requests.push({ ...payload });
+          const { data, error } = await invoke(payload);
           if (error || !data?.calculated) {
             unavailableReason ||= data?.reason || error?.message || 'route_service_unavailable';
             return null;
@@ -99,6 +136,7 @@ function assignedMeetings(activities = []) {
         ...meeting,
         activity_id: activityId(activity),
         school: activity.school,
+        school_id: activity.school_id,
         school_address: activity.school_address,
         authority: activity.authority,
         activity_name: activity.activity_name
@@ -123,14 +161,34 @@ function sharedMeetingTransitions(firstCourse, secondCourse) {
   const origin = activityPlace(firstCourse);
   const destination = activityPlace(secondCourse);
   if (!origin || !destination) return transitions;
+  const firstContext = schoolRouteContext(firstCourse);
+  const secondContext = schoolRouteContext(secondCourse);
   const secondByDate = new Map(activityMeetings(secondCourse).map((meeting) => [text(meeting.date), meeting]));
   for (const first of activityMeetings(firstCourse)) {
     const second = secondByDate.get(text(first.date));
     if (!second) continue;
     if (minutes(first.end_time || firstCourse.end_time) <= minutes(second.start_time || secondCourse.start_time)) {
-      transitions.push({ origin, destination });
+      transitions.push({
+        origin,
+        destination,
+        context: {
+          originSchoolName: firstContext.schoolName,
+          originAuthorityName: firstContext.authorityName,
+          destinationSchoolName: secondContext.schoolName,
+          destinationAuthorityName: secondContext.authorityName
+        }
+      });
     } else if (minutes(second.end_time || secondCourse.end_time) <= minutes(first.start_time || firstCourse.start_time)) {
-      transitions.push({ origin: destination, destination: origin });
+      transitions.push({
+        origin: destination,
+        destination: origin,
+        context: {
+          originSchoolName: secondContext.schoolName,
+          originAuthorityName: secondContext.authorityName,
+          destinationSchoolName: firstContext.schoolName,
+          destinationAuthorityName: firstContext.authorityName
+        }
+      });
     }
   }
   return transitions;
@@ -142,17 +200,18 @@ export async function calculateCandidateTravel(preliminary, activities, routeCli
   const routeMatrix = {};
   const requested = new Map();
 
-  const route = async (origin, destination) => {
+  const route = async (origin, destination, context = {}) => {
     if (!text(origin) || !text(destination)) return null;
+    const matrixKey = routeMatrixKey(origin, destination);
     if (normalizePlace(origin) === normalizePlace(destination)) {
       const zero = { distance_km: 0, duration_minutes: 0 };
-      routeMatrix[routeMatrixKey(origin, destination)] = zero;
+      routeMatrix[matrixKey] = zero;
       return zero;
     }
-    const key = routeMatrixKey(origin, destination);
-    if (!requested.has(key)) requested.set(key, routeClient.request(origin, destination));
-    const leg = await requested.get(key);
-    routeMatrix[key] = leg;
+    const requestKey = routeRequestKey(origin, destination, context);
+    if (!requested.has(requestKey)) requested.set(requestKey, routeClient.request(origin, destination, context));
+    const leg = await requested.get(requestKey);
+    routeMatrix[matrixKey] = leg;
     return leg;
   };
 
@@ -162,24 +221,54 @@ export async function calculateCandidateTravel(preliminary, activities, routeCli
     const empId = instructorId(candidate);
     const destination = activityPlace(course);
     const homeOrigin = text(candidate.instructor.address);
+    const courseContext = schoolRouteContext(course);
     const result = {
-      home: homeOrigin && destination ? await route(homeOrigin, destination) : null,
-      homeReturn: destination && homeOrigin ? await route(destination, homeOrigin) : null,
+      home: homeOrigin && destination ? await route(homeOrigin, destination, {
+        destinationSchoolName: courseContext.schoolName,
+        destinationAuthorityName: courseContext.authorityName
+      }) : null,
+      homeReturn: destination && homeOrigin ? await route(destination, homeOrigin, {
+        originSchoolName: courseContext.schoolName,
+        originAuthorityName: courseContext.authorityName
+      }) : null,
       transitions: {}
     };
     for (const meeting of activityMeetings(course)) {
       const { previous, next } = adjacentActivities(assigned[empId] || [], meeting);
       const previousPlace = previous ? activityPlace(previous) : '';
       const nextPlace = next ? activityPlace(next) : '';
+      const previousContext = schoolRouteContext(previous || {});
+      const nextContext = schoolRouteContext(next || {});
       result.transitions[meeting.date] = {
-        previous: previousPlace && destination ? await route(previousPlace, destination) : null,
-        next: destination && nextPlace ? await route(destination, nextPlace) : null,
+        previous: previousPlace && destination ? await route(previousPlace, destination, {
+          originSchoolName: previousContext.schoolName,
+          originAuthorityName: previousContext.authorityName,
+          destinationSchoolName: courseContext.schoolName,
+          destinationAuthorityName: courseContext.authorityName
+        }) : null,
+        next: destination && nextPlace ? await route(destination, nextPlace, {
+          originSchoolName: courseContext.schoolName,
+          originAuthorityName: courseContext.authorityName,
+          destinationSchoolName: nextContext.schoolName,
+          destinationAuthorityName: nextContext.authorityName
+        }) : null,
         baseline: previousPlace && nextPlace
-          ? await route(previousPlace, nextPlace)
+          ? await route(previousPlace, nextPlace, {
+            originSchoolName: previousContext.schoolName,
+            originAuthorityName: previousContext.authorityName,
+            destinationSchoolName: nextContext.schoolName,
+            destinationAuthorityName: nextContext.authorityName
+          })
           : previousPlace && homeOrigin
-            ? await route(previousPlace, homeOrigin)
+            ? await route(previousPlace, homeOrigin, {
+              originSchoolName: previousContext.schoolName,
+              originAuthorityName: previousContext.authorityName
+            })
             : homeOrigin && nextPlace
-              ? await route(homeOrigin, nextPlace)
+              ? await route(homeOrigin, nextPlace, {
+                destinationSchoolName: nextContext.schoolName,
+                destinationAuthorityName: nextContext.authorityName
+              })
               : null
       };
     }
@@ -199,7 +288,7 @@ export async function calculateCandidateTravel(preliminary, activities, routeCli
     for (let firstIndex = 0; firstIndex < uniqueCourses.length; firstIndex += 1) {
       for (let secondIndex = firstIndex + 1; secondIndex < uniqueCourses.length; secondIndex += 1) {
         for (const transition of sharedMeetingTransitions(uniqueCourses[firstIndex], uniqueCourses[secondIndex])) {
-          draftRouteJobs.push(route(transition.origin, transition.destination));
+          draftRouteJobs.push(route(transition.origin, transition.destination, transition.context));
         }
       }
     }
