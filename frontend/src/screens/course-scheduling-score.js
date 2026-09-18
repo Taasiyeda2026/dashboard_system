@@ -330,20 +330,26 @@ export function scoreActualWorkload({
 } = {}) {
   const max = SCORE_WEIGHTS.actualWorkload;
   const projected = Number(projectedHalfHours);
-  const plannerProjected = Number(plannerProjectedHalfHours);
-  const effectiveProjectedHours = Number.isFinite(plannerProjected)
-    ? plannerProjected
+  const hasPlannerProjected = plannerProjectedHalfHours !== null
+    && plannerProjectedHalfHours !== ''
+    && Number.isFinite(Number(plannerProjectedHalfHours));
+  const effectiveProjectedHours = hasPlannerProjected
+    ? Number(plannerProjectedHalfHours)
     : projected;
   const plannerPeers = (peerPlannerProjectedHours || []).map(Number).filter(Number.isFinite);
   const regularPeers = (peerProjectedHours || []).map(Number).filter(Number.isFinite);
   const effectiveHourPeers = plannerPeers.length ? plannerPeers : regularPeers;
-  const projectedRatio = Number(projectedUtilizationRatio);
+  const hasProjectedRatio = projectedUtilizationRatio !== null
+    && projectedUtilizationRatio !== ''
+    && Number.isFinite(Number(projectedUtilizationRatio))
+    && Number(projectedUtilizationRatio) >= 0;
+  const projectedRatio = hasProjectedRatio ? Number(projectedUtilizationRatio) : null;
   const utilizationPeers = (peerProjectedUtilizationRatios || [])
     .map(Number)
     .filter((value) => Number.isFinite(value) && value >= 0);
 
   let points = max;
-  if (Number.isFinite(projectedRatio) && projectedRatio >= 0 && utilizationPeers.length) {
+  if (projectedRatio != null && utilizationPeers.length) {
     const minRatio = Math.min(...utilizationPeers);
     const maxRatio = Math.max(...utilizationPeers);
     points = minRatio === maxRatio
@@ -359,7 +365,7 @@ export function scoreActualWorkload({
 
   const projectedRounded = Number.isFinite(projected) ? Math.round(projected * 100) / 100 : 0;
   const currentRatio = Number(currentUtilizationRatio);
-  const utilizationPercent = Number.isFinite(projectedRatio) && projectedRatio >= 0
+  const utilizationPercent = projectedRatio != null
     ? Math.round(projectedRatio * 100)
     : null;
 
@@ -372,7 +378,7 @@ export function scoreActualWorkload({
     currentCourseCount: Math.max(0, Number(currentCourseCount) || 0),
     availabilityHours: Math.max(0, Number(availabilityHours) || 0),
     currentUtilizationRatio: Number.isFinite(currentRatio) && currentRatio >= 0 ? currentRatio : 0,
-    projectedUtilizationRatio: Number.isFinite(projectedRatio) && projectedRatio >= 0 ? projectedRatio : null,
+    projectedUtilizationRatio: projectedRatio,
     note: utilizationPercent == null
       ? `${formatWorkloadHours(projectedRounded)} לאחר השיבוץ`
       : `ניצול חזוי ${utilizationPercent}% · ${formatWorkloadHours(projectedRounded)} במחצית`
