@@ -174,7 +174,7 @@ test('latest scheduling authorization uses explicit scheduling capability instea
 test('manager review stays admin-only after scheduling capability migration', async () => {
   const sql = await readFile(schedulingCapabilityMigrationUrl, 'utf8');
   assert.match(sql, /Manager review remains admin-only by design/);
-  assert.match(sql, /course_assignment_manager_approval_requests/);
-  assert.match(sql, /review_course_assignment_manager_approval/);
-  assert.doesNotMatch(sql, /p\.proname = any\([\s\S]*course_assignment_manager_approval_requests/);
+  const targetList = sql.split("p.proname = any(array[")[1].split("])")[0];
+  assert.doesNotMatch(targetList, /course_assignment_manager_approval_requests/);
+  assert.doesNotMatch(targetList, /review_course_assignment_manager_approval/);
 });
