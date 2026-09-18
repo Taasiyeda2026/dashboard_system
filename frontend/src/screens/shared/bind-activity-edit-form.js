@@ -797,6 +797,7 @@ export function bindActivityEditForm(contentRoot, {
       return;
     }
 
+    let persistenceSucceeded = false;
     try {
       if (!Object.keys(changes).length) {
         setStatus(statusEl, 'is-error', 'לא זוהו שינויים לשמירה');
@@ -845,6 +846,10 @@ export function bindActivityEditForm(contentRoot, {
       } else {
         throw new Error('insufficient_permissions_for_edit');
       }
+      // From this point onward the server mutation has completed and (for a
+      // direct save) the returned row has passed the persistence verification.
+      // Any later failure is a UI refresh failure, not a server/save failure.
+      persistenceSucceeded = true;
       const requestId = String(requestResult?.request_id || '').trim();
       const requestStatusText = requestId
         ? `✅ הבקשה נשלחה לאישור. סטטוס: ממתין לאישור · מזהה בקשה: ${requestId}`
@@ -900,19 +905,39 @@ export function bindActivityEditForm(contentRoot, {
       }
     } catch (err) {
       const errMsg = err?.message || err?.status || err?.code || '';
-      // eslint-disable-next-line no-console
-      console.error('[activity-save-error]', {
-        rowId: sourceRowId,
-        source_sheet: sourceSheet,
-        changed_fields: Object.keys(changes),
-        supabase_error_code: err?.code || err?.status || '',
-        supabase_error_message: err?.message || '',
-        supabase_error_details: err?.details || '',
-        supabase_error_hint: err?.hint || '',
-        error: err
-      });
-      const isTimeout = errMsg === 'save_timeout' || errMsg === 'request_timeout' || String(errMsg).toLowerCase().includes('timeout');
-      setStatus(statusEl, isTimeout ? 'is-warning' : 'is-error', `⚠️ ${translateApiErrorForUser(errMsg)}`);
+      if (persistenceSucceeded) {
+        // The activity/request was already persisted. Do not overwrite a
+        // successful save with the generic "server error" just because a local
+        // patch, drawer refresh or rerender failed afterwards.
+        // eslint-disable-next-line no-console
+        console.warn('[activity-post-save-ui-error]', {
+          rowId: sourceRowId,
+          source_sheet: sourceSheet,
+          changed_fields: Object.keys(changes),
+          error: errMsg || String(err)
+        });
+        setStatus(
+          statusEl,
+          'is-success',
+          canDirectEdit
+            ? '✅ הפעילות נשמרה בהצלחה. רענון התצוגה לא הושלם — ניתן לרענן את המסך.'
+            : '✅ הבקשה נשלחה בהצלחה. רענון התצוגה לא הושלם — ניתן לרענן את המסך.'
+        );
+      } else {
+        // eslint-disable-next-line no-console
+        console.error('[activity-save-error]', {
+          rowId: sourceRowId,
+          source_sheet: sourceSheet,
+          changed_fields: Object.keys(changes),
+          supabase_error_code: err?.code || err?.status || '',
+          supabase_error_message: err?.message || '',
+          supabase_error_details: err?.details || '',
+          supabase_error_hint: err?.hint || '',
+          error: err
+        });
+        const isTimeout = errMsg === 'save_timeout' || errMsg === 'request_timeout' || String(errMsg).toLowerCase().includes('timeout');
+        setStatus(statusEl, isTimeout ? 'is-warning' : 'is-error', `⚠️ ${translateApiErrorForUser(errMsg)}`);
+      }
     } finally {
       form.dataset.saveInFlight = 'no';
       if (submitBtn) {
