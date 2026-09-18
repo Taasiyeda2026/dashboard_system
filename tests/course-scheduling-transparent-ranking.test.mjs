@@ -116,15 +116,30 @@ test('distance over 40 km is rejected and unavailable or overlapping instructors
   for (const id of ['far', 'unavailable', 'overlap']) assert.equal(result.checked.find((item) => item.instructor.emp_id === id).eligible, false);
 });
 
-test('unsaved recommendations do not affect another course, while a saved draft does immediately', () => {
+test('single scheduling and batch scheduling use the same engine; batch only rolls prior proposals forward', () => {
   const person = instructor('i');
   const first = course('first', { meetings: [meetings[0]], school: 'יעד', school_id: 100 });
   const second = course('second', { meetings: [{ ...meetings[0], start_time: '12:00', end_time: '13:00' }], start_time: '12:00', end_time: '13:00', school: 'יעד', school_id: 100 });
   const input = { instructors: [person], profiles: { i: profile }, rules: { i: rules('i') }, exceptions: {}, travel: { ...travelFor('first', 'i'), ...travelFor('second', 'i') }, routeMatrix: {}, referenceDate: '2026-09-01' };
-  const unsaved = calculateCourseSchedule({ ...input, activities: [first, second] }).find((row) => row.course.row_id === 'second').recommended;
-  assert.equal(unsaved.existingMeetings.length, 0);
+
+  const single = calculateCourseSchedule({
+    ...input,
+    activities: [first, second],
+    targetCourseId: 'second'
+  })[0].recommended;
+  assert.equal(single.existingMeetings.length, 0, 'a single calculation sees only persisted state');
+
+  const batch = calculateCourseSchedule({ ...input, activities: [first, second] })
+    .find((row) => row.course.row_id === 'second').recommended;
+  assert.equal(batch.existingMeetings.length, 1, 'batch repeats the same engine with the previous proposal as an in-memory draft');
+  assert.equal(batch.sameSchoolMeetingCount, 1);
+
   const saved = { ...first, draft_emp_id: 'i', draft_instructor_name: 'i', draft_proposed_meetings: first.meetings };
-  const afterSave = calculateCourseSchedule({ ...input, activities: [saved, second] })[0].recommended;
+  const afterSave = calculateCourseSchedule({
+    ...input,
+    activities: [saved, second],
+    targetCourseId: 'second'
+  })[0].recommended;
   assert.equal(afterSave.existingMeetings.length, 1);
   assert.equal(afterSave.sameSchoolMeetingCount, 1);
 });

@@ -332,13 +332,11 @@ function evaluateCandidate({
     dateAdjustment: adjustment?.valid ? adjustment : null,
     currentHalfHours: persistedBaselineLoad.hours,
     projectedHalfHours: persistedProjectedLoad.hours,
+    currentCourseCount: persistedBaselineLoad.courseCount,
     availabilityHours: persistedProjectedLoad.availabilityHours,
-    projectedWeeklyHours: Math.max(0, ...Object.values(persistedProjectedLoad.weekHours)),
-    utilizationRatio: persistedProjectedLoad.maxRatio,
-    seniorityYears: instructor.seniority_years ?? profiles[empId]?.seniority_years,
-    activeWorkDays: persistedProjectedLoad.workDays,
-    existingWorkDays: persistedBaselineLoad.workDays,
-    projectedWorkDays: persistedProjectedLoad.workDays
+    currentUtilizationRatio: persistedBaselineLoad.maxRatio,
+    projectedUtilizationRatio: persistedProjectedLoad.maxRatio,
+    activeWorkDays: persistedProjectedLoad.workDays
   });
 
   return {
@@ -367,13 +365,15 @@ function evaluateCandidate({
     projectedHalfHours: scored.projectedHalfHours,
     plannerCurrentHalfHours: persistedBaselineLoad.hours,
     plannerProjectedHalfHours: persistedProjectedLoad.hours,
+    currentCourseCount: scored.currentCourseCount,
     availabilityHours: scored.availabilityHours,
-    projectedWeeklyHours: scored.projectedWeeklyHours,
-    utilizationRatio: scored.utilizationRatio,
-    seniorityYears: scored.seniorityYears,
+    projectedWeeklyHours: Math.max(0, ...Object.values(persistedProjectedLoad.weekHours)),
+    currentUtilizationRatio: scored.currentUtilizationRatio,
+    projectedUtilizationRatio: scored.projectedUtilizationRatio,
+    utilizationRatio: scored.projectedUtilizationRatio,
     activeWorkDays: scored.activeWorkDays,
-    existingWorkDays: scored.existingWorkDays,
-    projectedWorkDays: scored.projectedWorkDays,
+    existingWorkDays: persistedBaselineLoad.workDays,
+    projectedWorkDays: persistedProjectedLoad.workDays,
     relevantTravelMinutes: scored.relevantTravelMinutes,
     relevantTravelDistance: scored.relevantTravelDistance,
     incrementalTravelKnown: scored.incrementalTravelKnown,

@@ -319,35 +319,69 @@ export function scoreActualWorkload({
   projectedHalfHours = 0,
   peerProjectedHours = [],
   currentHalfHours = 0,
-  activeWorkDays = 0
+  activeWorkDays = 0,
+  plannerProjectedHalfHours = null,
+  peerPlannerProjectedHours = [],
+  projectedUtilizationRatio = null,
+  peerProjectedUtilizationRatios = [],
+  currentUtilizationRatio = 0,
+  currentCourseCount = 0,
+  availabilityHours = 0
 } = {}) {
   const max = SCORE_WEIGHTS.actualWorkload;
-  const peers = (peerProjectedHours || []).map(Number).filter(Number.isFinite);
   const projected = Number(projectedHalfHours);
-  if (!peers.length || !Number.isFinite(projected)) {
-    const projectedRounded = Number.isFinite(projected) ? Math.round(projected * 100) / 100 : 0;
-    return {
-      points: max,
-      label: SCORE_COMPONENT_LABELS.actualWorkload,
-      currentHalfHours: Number(currentHalfHours) || 0,
-      projectedHalfHours: projectedRounded,
-      activeWorkDays: Number(activeWorkDays) || 0,
-      note: Number.isFinite(projected) ? `${formatWorkloadHours(projectedRounded)} לאחר השיבוץ` : ''
-    };
+  const hasPlannerProjected = plannerProjectedHalfHours !== null
+    && plannerProjectedHalfHours !== ''
+    && Number.isFinite(Number(plannerProjectedHalfHours));
+  const effectiveProjectedHours = hasPlannerProjected
+    ? Number(plannerProjectedHalfHours)
+    : projected;
+  const plannerPeers = (peerPlannerProjectedHours || []).map(Number).filter(Number.isFinite);
+  const regularPeers = (peerProjectedHours || []).map(Number).filter(Number.isFinite);
+  const effectiveHourPeers = plannerPeers.length ? plannerPeers : regularPeers;
+  const hasProjectedRatio = projectedUtilizationRatio !== null
+    && projectedUtilizationRatio !== ''
+    && Number.isFinite(Number(projectedUtilizationRatio))
+    && Number(projectedUtilizationRatio) >= 0;
+  const projectedRatio = hasProjectedRatio ? Number(projectedUtilizationRatio) : null;
+  const utilizationPeers = (peerProjectedUtilizationRatios || [])
+    .map(Number)
+    .filter((value) => Number.isFinite(value) && value >= 0);
+
+  let points = max;
+  if (projectedRatio != null && utilizationPeers.length) {
+    const minRatio = Math.min(...utilizationPeers);
+    const maxRatio = Math.max(...utilizationPeers);
+    points = minRatio === maxRatio
+      ? max
+      : roundPoints(max * ((maxRatio - projectedRatio) / (maxRatio - minRatio)), max);
+  } else if (effectiveHourPeers.length && Number.isFinite(effectiveProjectedHours)) {
+    const minHours = Math.min(...effectiveHourPeers);
+    const maxHours = Math.max(...effectiveHourPeers);
+    points = minHours === maxHours
+      ? max
+      : roundPoints(max * ((maxHours - effectiveProjectedHours) / (maxHours - minHours)), max);
   }
-  const min = Math.min(...peers);
-  const maxPeer = Math.max(...peers);
-  const points = min === maxPeer
-    ? max
-    : roundPoints(max * ((maxPeer - projected) / (maxPeer - min)), max);
-  const projectedRounded = Math.round(projected * 100) / 100;
+
+  const projectedRounded = Number.isFinite(projected) ? Math.round(projected * 100) / 100 : 0;
+  const currentRatio = Number(currentUtilizationRatio);
+  const utilizationPercent = projectedRatio != null
+    ? Math.round(projectedRatio * 100)
+    : null;
+
   return {
     points,
     label: SCORE_COMPONENT_LABELS.actualWorkload,
-    currentHalfHours: Math.round(Number(currentHalfHours) * 100) / 100,
+    currentHalfHours: Math.round((Number(currentHalfHours) || 0) * 100) / 100,
     projectedHalfHours: projectedRounded,
     activeWorkDays: Number(activeWorkDays) || 0,
-    note: `${formatWorkloadHours(projectedRounded)} לאחר השיבוץ`
+    currentCourseCount: Math.max(0, Number(currentCourseCount) || 0),
+    availabilityHours: Math.max(0, Number(availabilityHours) || 0),
+    currentUtilizationRatio: Number.isFinite(currentRatio) && currentRatio >= 0 ? currentRatio : 0,
+    projectedUtilizationRatio: projectedRatio,
+    note: utilizationPercent == null
+      ? `${formatWorkloadHours(projectedRounded)} לאחר השיבוץ`
+      : `ניצול חזוי ${utilizationPercent}% · ${formatWorkloadHours(projectedRounded)} במחצית`
   };
 }
 
@@ -438,6 +472,13 @@ export function computeSchedulingScore({
   currentHalfHours = 0,
   projectedHalfHours = 0,
   peerProjectedHours = [],
+  plannerProjectedHalfHours = null,
+  peerPlannerProjectedHours = [],
+  currentUtilizationRatio = 0,
+  projectedUtilizationRatio = null,
+  peerProjectedUtilizationRatios = [],
+  currentCourseCount = 0,
+  availabilityHours = 0,
   activeWorkDays = 0
 } = {}) {
   if (!eligible) {
@@ -513,6 +554,13 @@ export function computeSchedulingScore({
     currentHalfHours,
     projectedHalfHours,
     peerProjectedHours,
+    plannerProjectedHalfHours,
+    peerPlannerProjectedHours,
+    currentUtilizationRatio,
+    projectedUtilizationRatio,
+    peerProjectedUtilizationRatios,
+    currentCourseCount,
+    availabilityHours,
     activeWorkDays
   });
   const originalSchedulePreservation = scoreOriginalSchedulePreservation(dateAdjustment);
@@ -559,6 +607,11 @@ export function computeSchedulingScore({
     currentHalfHours: actualWorkload.currentHalfHours,
     projectedHalfHours: actualWorkload.projectedHalfHours,
     activeWorkDays: actualWorkload.activeWorkDays,
+    currentCourseCount: actualWorkload.currentCourseCount,
+    availabilityHours: actualWorkload.availabilityHours,
+    currentUtilizationRatio: actualWorkload.currentUtilizationRatio,
+    projectedUtilizationRatio: actualWorkload.projectedUtilizationRatio,
+    utilizationRatio: actualWorkload.projectedUtilizationRatio,
     relevantTravelMinutes: travelDistance.relevantTravelMinutes,
     relevantTravelDistance: travelDistance.relevantTravelDistance,
     movedMeetingsCount: originalSchedulePreservation.movedMeetingsCount,
@@ -599,7 +652,30 @@ function compareEmpIdsStable(firstId, secondId) {
   return first.localeCompare(second, 'en');
 }
 
+function candidateCoverageBucket(candidate = {}) {
+  return (Number(candidate.currentCourseCount) || 0) > 0 ? 1 : 0;
+}
+
+function candidateProjectedUtilization(candidate = {}) {
+  const value = Number(candidate.projectedUtilizationRatio ?? candidate.utilizationRatio);
+  return Number.isFinite(value) && value >= 0 ? value : null;
+}
+
 export function compareCandidatesStable(first, second) {
+  // Business priority: among instructors who passed every hard gate, first
+  // expand work coverage to instructors with no current approved/draft work.
+  const firstCoverage = candidateCoverageBucket(first);
+  const secondCoverage = candidateCoverageBucket(second);
+  if (firstCoverage !== secondCoverage) return firstCoverage - secondCoverage;
+
+  // Once both candidates are in the same coverage group, balance by projected
+  // utilization of their declared weekly availability rather than raw hours.
+  const firstUtilization = candidateProjectedUtilization(first);
+  const secondUtilization = candidateProjectedUtilization(second);
+  if (firstUtilization != null && secondUtilization != null && firstUtilization !== secondUtilization) {
+    return firstUtilization - secondUtilization;
+  }
+
   const a = [
     -(Number(first.score) || 0),
     -(Number(first.scoreBreakdown?.continuityEfficiency?.points) || 0),

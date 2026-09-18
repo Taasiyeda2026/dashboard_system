@@ -52,7 +52,7 @@ export function resolveSchedulingInputScope(input = {}) {
   return selectedDistrict ? { ...sectorReadyInput, district: selectedDistrict } : sectorReadyInput;
 }
 
-function scoreCandidate(candidate, peerProjectedHours = []) {
+function scoreCandidate(candidate, peerProjectedHours = [], peerProjectedUtilizationRatios = []) {
   if (!candidate?.eligible) return candidate;
   const activity = candidate.periodCourse || candidate.course || {};
   const scored = computeSchedulingScore({
@@ -66,6 +66,11 @@ function scoreCandidate(candidate, peerProjectedHours = []) {
     currentHalfHours: candidate.currentHalfHours,
     projectedHalfHours: candidate.projectedHalfHours,
     peerProjectedHours,
+    currentCourseCount: candidate.currentCourseCount,
+    availabilityHours: candidate.availabilityHours,
+    currentUtilizationRatio: candidate.currentUtilizationRatio,
+    projectedUtilizationRatio: candidate.projectedUtilizationRatio ?? candidate.utilizationRatio,
+    peerProjectedUtilizationRatios,
     activeWorkDays: candidate.activeWorkDays
   });
   return {
@@ -83,14 +88,21 @@ function scoreCandidate(candidate, peerProjectedHours = []) {
 function applySchedulingScoreContract(result = {}) {
   if (!result?.course || result.status === 'חסר מידע') return result;
   const checkedRaw = Array.isArray(result.checked) ? result.checked : [];
-  const peerProjectedHours = checkedRaw
-    .filter((candidate) => candidate?.eligible)
+  const eligiblePeers = checkedRaw.filter((candidate) => candidate?.eligible);
+  const peerProjectedHours = eligiblePeers
     .map((candidate) => Number(candidate.projectedHalfHours))
     .filter(Number.isFinite);
-  const checked = checkedRaw.map((candidate) => scoreCandidate(candidate, peerProjectedHours));
+  const peerProjectedUtilizationRatios = eligiblePeers
+    .map((candidate) => Number(candidate.projectedUtilizationRatio ?? candidate.utilizationRatio))
+    .filter((value) => Number.isFinite(value) && value >= 0);
+  const checked = checkedRaw.map((candidate) => scoreCandidate(
+    candidate,
+    peerProjectedHours,
+    peerProjectedUtilizationRatios
+  ));
   const eligibleSorted = checked
     .filter((candidate) => candidate.eligible)
-    .sort((first, second) => (Number(second.score) - Number(first.score)) || compareCandidatesStable(first, second));
+    .sort((first, second) => compareCandidatesStable(first, second));
 
   const primary = eligibleSorted[0] || null;
   const recommended = primary && Number(primary.score) >= 60
@@ -158,14 +170,14 @@ function planningDraftActivity(result = {}) {
 }
 
 /**
- * A district simulation is one coherent plan, not independent suggestions.
- * Each accepted proposal becomes an in-memory draft before the next course is
- * evaluated, so overlap/transition/sequence gates see the plan built so far.
+ * Any multi-course calculation is just repeated single-course scheduling with
+ * one shared ranking policy. Each accepted proposal becomes an in-memory draft
+ * before the next course is evaluated, so batch, district and authority runs
+ * use exactly the same decision logic as a single scheduling calculation.
  */
-function makeDistrictPlanConsistent(scopedInput, initialResults) {
-  const district = normalizeOperationalDistrict(scopedInput?.district || '');
+function makeBatchPlanConsistent(scopedInput, initialResults) {
   const targetCourseId = text(scopedInput?.targetCourseId || scopedInput?.targetActivityId);
-  if (!district || targetCourseId || !Array.isArray(initialResults) || initialResults.length < 2) {
+  if (targetCourseId || !Array.isArray(initialResults) || initialResults.length < 2) {
     return initialResults;
   }
 
@@ -213,5 +225,5 @@ export function preliminaryCourseCandidates(input = {}) {
 export function calculateCourseSchedule(input = {}) {
   const scopedInput = resolveSchedulingInputScope(input);
   const initialResults = applySchedulingScoreContractToResults(calculateCourseScheduleCore(scopedInput));
-  return makeDistrictPlanConsistent(scopedInput, initialResults);
+  return makeBatchPlanConsistent(scopedInput, initialResults);
 }
