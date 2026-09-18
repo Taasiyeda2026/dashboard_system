@@ -4,7 +4,7 @@ import { escapeHtml } from './shared/html.js';
 import { dsEmptyState, dsScreenStack, dsTableWrap } from './shared/layout.js';
 import { showToast } from './shared/toast.js';
 import { loadInstructorSchedulingData } from './instructor-scheduling-data.js';
-import { activityMeetings } from './instructor-scheduling-load.js';
+import { activityMeetings, schedulingCalendarMeetings } from './instructor-scheduling-load.js';
 import { calculateCourseSchedule, preliminaryCourseCandidates } from './course-scheduling-engine.js';
 import { calculateCandidateTravel } from './course-scheduling-travel.js';
 import {
@@ -300,6 +300,28 @@ function districtValue(row = {}) {
   return normalizeOperationalDistrict(row.district || row.school_district || row.authority_district);
 }
 
+export function schedulingDraftIdsForScope(activities = [], {
+  periodKey = DEFAULT_COURSE_SCHEDULING_PERIOD_KEY,
+  district = ''
+} = {}) {
+  const normalizedDistrict = normalizeOperationalDistrict(district);
+  return [...new Set((activities || [])
+    .filter((activity) => text(activity?.activity_season) === 'school_2027')
+    .filter((activity) => isSchedulingActivityActive(activity))
+    .filter((activity) => !!text(activity?.draft_emp_id))
+    .filter((activity) => ![activity?.emp_id, activity?.emp_id_2, activity?.instructor_name, activity?.instructor_name_2].some(text))
+    .filter((activity) => {
+      const rowDistrict = districtValue(activity);
+      return normalizedDistrict ? rowDistrict === normalizedDistrict : OPERATIONAL_DISTRICTS.includes(rowDistrict);
+    })
+    .filter((activity) => filterMeetingsByCourseSchedulingPeriod(
+      schedulingCalendarMeetings(activity),
+      periodKey
+    ).length > 0)
+    .map((activity) => idOf(activity))
+    .filter(Boolean))];
+}
+
 function filteredInterfaceCourses(courses = [], state = {}) {
   const periodKey = selectedPeriodKey(state);
   const district = text(state.courseSchedulingDistrict || '');
@@ -327,7 +349,7 @@ function schedulingWorkspaceCourses(activities = []) {
   return activities.filter((activity) => isCourseSchedulingInterfaceEligible(activity) || isAssignedCourseSchedulingManageable(activity));
 }
 
-function schedulingScopeHtml(allCourses = [], state = {}) {
+function schedulingScopeHtml(allCourses = [], state = {}, allActivities = allCourses) {
   const periodKey = selectedPeriodKey(state);
   const period = resolveCourseSchedulingPeriod(periodKey);
   const periodButtons = periodOptions().map((option) => `<button type="button" class="course-scheduling-tab${option.key === periodKey ? ' is-active' : ''}" data-period-key="${escapeHtml(option.key)}">${escapeHtml(option.label)}</button>`).join('');
@@ -338,7 +360,12 @@ function schedulingScopeHtml(allCourses = [], state = {}) {
   const authorityList = authorityOptions(scopedForAuthority);
   const authoritySelectHtml = `<option value="">כל הרשויות</option>${authorityList.map((item) => `<option value="${escapeHtml(item)}"${item === selectedAuthority ? ' selected' : ''}>${escapeHtml(item)}</option>`).join('')}`;
   const periodRange = `${formatDateHeDots(period.start)} – ${formatDateHeDots(period.end)}`;
-  const districtPlanDisabled = !!state.courseSchedulingSimulationLoading;
+  const draftResetIds = schedulingDraftIdsForScope(allActivities, { periodKey, district });
+  const draftResetCount = draftResetIds.length;
+  const actionBusy = !!state.courseSchedulingSimulationLoading
+    || !!state.courseSchedulingSimulationSaving
+    || !!state.courseSchedulingDraftResetting;
+  const districtPlanDisabled = actionBusy;
   const planningButtonLabel = district ? 'הפעל תכנון מחוזי' : 'הפעל תכנון ארצי';
   const planningButtonTitle = district
     ? 'הפעלת סימולציית תכנון למחוז הנבחר'
@@ -352,6 +379,7 @@ function schedulingScopeHtml(allCourses = [], state = {}) {
     <label class="course-scheduling-filter-label">רשות<select class="course-scheduling-input" data-authority-filter>${authoritySelectHtml}</select></label>
     <label class="course-scheduling-filter-label">סוג פעילות<select class="course-scheduling-input" data-activity-type-filter>${activityTypeOptions}</select></label>
     <button type="button" class="course-scheduling-btn course-scheduling-btn--primary" data-run-district-simulation ${districtPlanDisabled ? 'disabled' : ''} title="${escapeHtml(planningButtonTitle)}">${escapeHtml(planningButtonLabel)}</button>
+    <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary" data-reset-scheduling-drafts ${draftResetCount === 0 || actionBusy ? 'disabled' : ''} title="איפוס טיוטות בהיקף הנוכחי והרצת תכנון מחדש">${state.courseSchedulingDraftResetting ? 'מאפס טיוטות...' : (draftResetCount ? `איפוס ${draftResetCount} טיוטות וחישוב מחדש` : 'אין טיוטות לאיפוס')}</button>
     <p class="course-scheduling-period-range course-scheduling-period-range--push">${escapeHtml(periodRange)}</p>
   </div></section>`;
 }
@@ -1317,7 +1345,7 @@ export const courseSchedulingScreen = {
 
       ${tab === 'maintenance'
         ? maintenanceTabHtml(state)
-        : `${schedulingScopeHtml(allInterfaceCourses, state)}
+        : `${schedulingScopeHtml(allInterfaceCourses, state, data.activities || [])}
       ${state.courseSchedulingSimulationView
         ? districtSimulationPanelHtml({
           rows: state.courseSchedulingSimulationRows || [],
@@ -1863,6 +1891,59 @@ export const courseSchedulingScreen = {
         rerender();
       }
     };
+
+    root.querySelector('[data-reset-scheduling-drafts]')?.addEventListener('click', async () => {
+      if (!canEdit || state.courseSchedulingDraftResetting || state.courseSchedulingSimulationLoading || state.courseSchedulingSimulationSaving) return;
+      const periodKey = selectedPeriodKey(state);
+      const district = normalizeOperationalDistrict(state.courseSchedulingDistrict || '');
+      const draftIds = schedulingDraftIdsForScope(data.activities || [], { periodKey, district });
+      if (!draftIds.length) {
+        showToast('אין טיוטות לאיפוס בהיקף הנוכחי', 'success');
+        return;
+      }
+      const periodLabel = resolveCourseSchedulingPeriod(periodKey)?.label || '';
+      const scopeLabel = district ? `מחוז ${district}` : 'כל המחוזות';
+      const confirmed = window.confirm(
+        `פעולה זו תבטל ${draftIds.length} טיוטות ב${scopeLabel}, ${periodLabel}.\n\nשיבוצים מאושרים לא ייפגעו. לאחר האיפוס יבוצע חישוב חדש ונקי.\n\nלהמשיך?`
+      );
+      if (!confirmed) return;
+
+      clearDistrictSimulation();
+      state.courseSchedulingDraftResetting = true;
+      state.courseSchedulingResults = [];
+      state.courseSchedulingCalculatedAt = '';
+      try { localStorage.removeItem(SCHEDULING_SNAPSHOT_KEY); } catch { /* storage may be unavailable */ }
+      rerender();
+
+      const failures = [];
+      let cleared = 0;
+      const batchSize = 5;
+      for (let offset = 0; offset < draftIds.length; offset += batchSize) {
+        const batch = draftIds.slice(offset, offset + batchSize);
+        const outcomes = await Promise.all(batch.map(async (courseId) => {
+          const { data: updatedActivity, error } = await supabase.rpc('cancel_course_assignment_draft', { p_activity_id: courseId });
+          if (error) return { ok: false, courseId, reason: text(error.message) || 'ביטול הטיוטה נכשל' };
+          applyReturnedSchedulingActivity(data.activities || [], updatedActivity);
+          return { ok: true, courseId };
+        }));
+        outcomes.forEach((outcome) => {
+          if (outcome.ok) cleared += 1;
+          else failures.push(outcome);
+        });
+      }
+
+      clearScreenDataCache?.();
+      state.courseSchedulingDraftResetting = false;
+      if (failures.length) {
+        showToast(`אופסו ${cleared} מתוך ${draftIds.length} טיוטות. ${failures.length} טיוטות לא אופסו ולכן לא בוצע חישוב חדש.`, 'error');
+        rerender();
+        return;
+      }
+
+      showToast(`אופסו ${cleared} טיוטות. מריץ חישוב נקי מחדש...`, 'success');
+      rerender();
+      await runDistrictSimulation();
+    });
 
     root.querySelector('[data-run-district-simulation]')?.addEventListener('click', runDistrictSimulation);
     root.querySelector('[data-close-district-simulation]')?.addEventListener('click', () => {
