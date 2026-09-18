@@ -333,30 +333,98 @@ test('workload uses actual hours including approved, draft, planning state and c
   }
 });
 
-test('coverage-first ranking prefers an eligible instructor with no work before a busier high-score peer', () => {
+test('hourly efficiency outranks work spreading; spreading only breaks operational ties', () => {
   const noWork = {
     instructor: instructors[1],
     currentCourseCount: 0,
     projectedUtilizationRatio: 0.2,
     projectedHalfHours: 3,
-    score: 55,
+    relevantTravelMinutes: 20,
+    relevantTravelDistance: 10,
+    score: 75,
     scoreBreakdown: {
       continuityEfficiency: { points: 18 },
       travelDistance: { points: 15 }
     }
   };
-  const busy = {
+  const efficientBusy = {
     instructor: instructors[0],
     currentCourseCount: 4,
-    projectedUtilizationRatio: 0.1,
+    projectedUtilizationRatio: 0.7,
     projectedHalfHours: 20,
-    score: 95,
+    relevantTravelMinutes: 0,
+    relevantTravelDistance: 0,
+    score: 90,
     scoreBreakdown: {
       continuityEfficiency: { points: 35 },
       travelDistance: { points: 25 }
     }
   };
-  assert.ok(compareCandidatesStable(noWork, busy) < 0);
+  assert.ok(compareCandidatesStable(efficientBusy, noWork) < 0, 'back-to-back efficient work must not be split just to expand coverage');
+
+  const equivalentBusy = {
+    ...efficientBusy,
+    relevantTravelMinutes: 20,
+    relevantTravelDistance: 10,
+    score: 75,
+    scoreBreakdown: {
+      continuityEfficiency: { points: 18 },
+      travelDistance: { points: 15 }
+    }
+  };
+  assert.ok(compareCandidatesStable(noWork, equivalentBusy) < 0, 'with equal efficiency and travel, give work to the uncovered instructor');
+});
+
+test('three back-to-back courses at the same school stay with one instructor when eligible', () => {
+  const first = course('block-a', '2026-09-06', {
+    school: 'בית ספר רצף',
+    school_id: 'school-block',
+    school_address: 'כתובת רצף',
+    start_time: '08:00',
+    end_time: '10:00',
+    meetings: [{ date: '2026-09-06', start_time: '08:00', end_time: '10:00' }]
+  });
+  const second = course('block-b', '2026-09-06', {
+    school: 'בית ספר רצף',
+    school_id: 'school-block',
+    school_address: 'כתובת רצף',
+    start_time: '10:00',
+    end_time: '12:00',
+    meetings: [{ date: '2026-09-06', start_time: '10:00', end_time: '12:00' }]
+  });
+  const third = course('block-c', '2026-09-06', {
+    school: 'בית ספר רצף',
+    school_id: 'school-block',
+    school_address: 'כתובת רצף',
+    start_time: '12:00',
+    end_time: '14:00',
+    meetings: [{ date: '2026-09-06', start_time: '12:00', end_time: '14:00' }]
+  });
+  const people = instructors.slice(0, 3);
+  const travel = mergeTravel(
+    ...[first, second, third].flatMap((row) => people.map((person) => travelHome(row.row_id, person.emp_id)))
+  );
+  const results = calculateCourseSchedule({
+    activities: [first, second, third],
+    instructors: people,
+    profiles: Object.fromEntries(people.map((person) => [person.emp_id, profiles[person.emp_id]])),
+    rules: Object.fromEntries(people.map((person) => [person.emp_id, sundayRules[person.emp_id]])),
+    exceptions: {},
+    referenceDate: '2026-09-01',
+    travel,
+    routeMatrix: {}
+  });
+
+  const selected = results.map((row) => (row.recommended || row.bestAvailable)?.instructor?.emp_id);
+  assert.ok(selected.every(Boolean));
+  assert.equal(new Set(selected).size, 1, 'the efficient 08:00–14:00 block should stay with one instructor');
+
+  const secondPick = results.find((row) => row.course.row_id === 'block-b')?.recommended
+    || results.find((row) => row.course.row_id === 'block-b')?.bestAvailable;
+  const thirdPick = results.find((row) => row.course.row_id === 'block-c')?.recommended
+    || results.find((row) => row.course.row_id === 'block-c')?.bestAvailable;
+  assert.equal(secondPick.sameSchoolMeetingCount, 1);
+  assert.equal(thirdPick.sameSchoolMeetingCount, 1);
 });
 
 test('single and batch use the same ranking; batch only repeats it and spreads work coverage', () => {
