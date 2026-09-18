@@ -1803,8 +1803,8 @@ export const courseSchedulingScreen = {
         };
         const scheduling = data.scheduling || {};
         const profiles = Object.fromEntries((scheduling.profiles || []).map((row) => [text(row.emp_id), row]));
-        // District simulation scope is half-year + district only. The ordinary authority filter
-        // continues to affect the single-course list, but must not narrow this calculation.
+        // Batch planning scope is half-year + one district, or all operational districts nationally.
+        // The ordinary authority filter affects the single-course list only and must not narrow this calculation.
         const input = {
           activities: activitiesWithCancellations,
           periodKey: selectedPeriodKey(state),
@@ -1851,7 +1851,7 @@ export const courseSchedulingScreen = {
         state.courseSchedulingSimulationSaveResult = null;
         // Read-only: never save drafts/assignments and never call assignment RPCs from this path.
       } catch (error) {
-        state.courseSchedulingSimulationError = `תכנון מחוזי נכשל: ${translateSchedulingRouteError(error.message, error.message)}`;
+        state.courseSchedulingSimulationError = `תכנון ${allDistricts ? 'ארצי' : 'מחוזי'} נכשל: ${translateSchedulingRouteError(error.message, error.message)}`;
         state.courseSchedulingSimulationRows = [];
         state.courseSchedulingSimulationCounts = summarizeDistrictSimulation([]);
         state.courseSchedulingSimulationResults = [];
