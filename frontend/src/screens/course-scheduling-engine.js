@@ -41,6 +41,9 @@ export function resolveSchedulingInputScope(input = {}) {
     ...input,
     includeIncompleteWithoutPeriodMeetings: input.includeIncompleteWithoutPeriodMeetings ?? true
   });
+  if (sectorReadyInput.allDistricts === true) {
+    return { ...sectorReadyInput, district: '', authority: '' };
+  }
   const explicitDistrict = normalizeOperationalDistrict(sectorReadyInput.district || '');
   if (explicitDistrict) return { ...sectorReadyInput, district: explicitDistrict };
   if (text(sectorReadyInput.authority)) return sectorReadyInput;

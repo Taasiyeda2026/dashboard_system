@@ -172,22 +172,19 @@ function mixedSimulationRows() {
   ];
 }
 
-test('1. ready rows are selected by default', () => {
+test('1. every draftable proposal is selected by default', () => {
   const rows = mixedSimulationRows();
   const selected = defaultSelectedSimulationCourseIds(rows);
-  assert.deepEqual(selected, ['ready-1']);
+  assert.deepEqual(selected, ['ready-1', 'review-1']);
   assert.equal(isDistrictSimulationRowSelectable(rows[0]), true);
+  assert.equal(isDistrictSimulationRowSelectable(rows[1]), true);
 });
 
-test('2. review rows are not selected by default but can be selected', () => {
+test('2. review rows are selected by default and can still be manually excluded', () => {
   const rows = mixedSimulationRows();
   const selected = defaultSelectedSimulationCourseIds(rows);
-  assert.ok(!selected.includes('review-1'));
-  assert.equal(isDistrictSimulationRowSelectable(rows[1]), true);
-  assert.deepEqual(
-    normalizeSelectedSimulationCourseIds(rows, ['ready-1', 'review-1']),
-    ['ready-1', 'review-1']
-  );
+  assert.ok(selected.includes('review-1'));
+  assert.deepEqual(normalizeSelectedSimulationCourseIds(rows, ['ready-1']), ['ready-1']);
 });
 
 test('3. recruitment rows cannot be selected', () => {
@@ -229,8 +226,19 @@ test('6. save button is disabled when nothing is selected', () => {
     selectedCourseIds: ['ready-1'],
     district: 'מרכז'
   });
-  assert.match(withSelection, /שמור 1 הצעות כטיוטות/);
+  assert.match(withSelection, /שמור את כל 1 ההצעות כטיוטות/);
   assert.doesNotMatch(withSelection, /data-save-simulation-drafts[^>]*disabled/);
+});
+
+test('6b. default panel offers one bulk-save action for all draftable proposals', () => {
+  const rows = mixedSimulationRows();
+  const html = districtSimulationPanelHtml({
+    rows,
+    counts: {},
+    district: 'דרום'
+  });
+  assert.match(html, /שמור את כל 2 ההצעות כטיוטות/);
+  assert.doesNotMatch(html, /data-save-simulation-drafts[^>]*disabled/);
 });
 
 test('7. simulation calculation remains read-only', async () => {

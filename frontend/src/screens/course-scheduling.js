@@ -338,7 +338,11 @@ function schedulingScopeHtml(allCourses = [], state = {}) {
   const authorityList = authorityOptions(scopedForAuthority);
   const authoritySelectHtml = `<option value="">כל הרשויות</option>${authorityList.map((item) => `<option value="${escapeHtml(item)}"${item === selectedAuthority ? ' selected' : ''}>${escapeHtml(item)}</option>`).join('')}`;
   const periodRange = `${formatDateHeDots(period.start)} – ${formatDateHeDots(period.end)}`;
-  const districtPlanDisabled = !district || !!state.courseSchedulingSimulationLoading;
+  const districtPlanDisabled = !!state.courseSchedulingSimulationLoading;
+  const planningButtonLabel = district ? 'הפעל תכנון מחוזי' : 'הפעל תכנון ארצי';
+  const planningButtonTitle = district
+    ? 'הפעלת סימולציית תכנון למחוז הנבחר'
+    : 'הפעלת סימולציית תכנון ארצית לכל המחוזות';
   const selectedActivityType = text(state.activitySchedulingType || 'all');
   const activityTypeOptions = [['all', 'הכול'], ['course', 'קורסים'], ['workshop', 'סדנאות'], ['tour', 'סיורים']]
     .map(([value, label]) => `<option value="${value}"${value === selectedActivityType ? ' selected' : ''}>${label}</option>`).join('');
@@ -347,7 +351,7 @@ function schedulingScopeHtml(allCourses = [], state = {}) {
     <label class="course-scheduling-filter-label">מחוז<select class="course-scheduling-input" data-district-filter>${districtSelectHtml}</select></label>
     <label class="course-scheduling-filter-label">רשות<select class="course-scheduling-input" data-authority-filter>${authoritySelectHtml}</select></label>
     <label class="course-scheduling-filter-label">סוג פעילות<select class="course-scheduling-input" data-activity-type-filter>${activityTypeOptions}</select></label>
-    <button type="button" class="course-scheduling-btn course-scheduling-btn--primary" data-run-district-simulation ${districtPlanDisabled ? 'disabled' : ''} title="${district ? 'הפעלת סימולציית תכנון למחוז הנבחר' : 'יש לבחור מחוז'}">הפעל תכנון מחוזי</button>
+    <button type="button" class="course-scheduling-btn course-scheduling-btn--primary" data-run-district-simulation ${districtPlanDisabled ? 'disabled' : ''} title="${escapeHtml(planningButtonTitle)}">${escapeHtml(planningButtonLabel)}</button>
     <p class="course-scheduling-period-range course-scheduling-period-range--push">${escapeHtml(periodRange)}</p>
   </div></section>`;
 }
@@ -1322,6 +1326,7 @@ export const courseSchedulingScreen = {
           selectedId,
           selectedCourseIds: state.courseSchedulingSimulationSelectedIds,
           district: normalizeOperationalDistrict(state.courseSchedulingDistrict || ''),
+          allDistricts: !normalizeOperationalDistrict(state.courseSchedulingDistrict || ''),
           loading: !!state.courseSchedulingSimulationLoading,
           error: state.courseSchedulingSimulationError || '',
           saving: !!state.courseSchedulingSimulationSaving,
@@ -1670,7 +1675,8 @@ export const courseSchedulingScreen = {
           }).format(new Date()),
           travel: routed.travel,
           routeMatrix: routed.routeMatrix,
-          travelUnavailableReason: routed.unavailableReason || ''
+          travelUnavailableReason: routed.unavailableReason || '',
+          allDistricts
         });
         const activeInstructors = (data.instructors || []).filter((instructor) =>
           ['yes', 'true', '1'].includes(text(instructor?.active).toLowerCase())
@@ -1778,12 +1784,7 @@ export const courseSchedulingScreen = {
     const runDistrictSimulation = async () => {
       if (state.courseSchedulingSimulationLoading || state.courseSchedulingLoading) return;
       const district = normalizeOperationalDistrict(state.courseSchedulingDistrict || '');
-      if (!district) {
-        state.courseSchedulingSimulationError = 'יש לבחור מחוז לפני הפעלת תכנון מחוזי';
-        state.courseSchedulingSimulationView = true;
-        rerender();
-        return;
-      }
+      const allDistricts = !district;
       state.courseSchedulingSimulationLoading = true;
       state.courseSchedulingSimulationView = true;
       state.courseSchedulingSimulationError = '';
@@ -1802,12 +1803,13 @@ export const courseSchedulingScreen = {
         };
         const scheduling = data.scheduling || {};
         const profiles = Object.fromEntries((scheduling.profiles || []).map((row) => [text(row.emp_id), row]));
-        // District simulation scope is half-year + district only. The ordinary authority filter
-        // continues to affect the single-course list, but must not narrow this calculation.
+        // Batch planning scope is half-year + one district, or all operational districts nationally.
+        // The ordinary authority filter affects the single-course list only and must not narrow this calculation.
         const input = {
           activities: activitiesWithCancellations,
           periodKey: selectedPeriodKey(state),
           district,
+          allDistricts,
           instructors: data.instructors,
           profiles,
           rules: group(scheduling.rules || [], 'emp_id'),
@@ -1849,7 +1851,7 @@ export const courseSchedulingScreen = {
         state.courseSchedulingSimulationSaveResult = null;
         // Read-only: never save drafts/assignments and never call assignment RPCs from this path.
       } catch (error) {
-        state.courseSchedulingSimulationError = `תכנון מחוזי נכשל: ${translateSchedulingRouteError(error.message, error.message)}`;
+        state.courseSchedulingSimulationError = `תכנון ${allDistricts ? 'ארצי' : 'מחוזי'} נכשל: ${translateSchedulingRouteError(error.message, error.message)}`;
         state.courseSchedulingSimulationRows = [];
         state.courseSchedulingSimulationCounts = summarizeDistrictSimulation([]);
         state.courseSchedulingSimulationResults = [];
