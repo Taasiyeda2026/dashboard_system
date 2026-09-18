@@ -11,7 +11,7 @@ export const SCHEDULING_ROUTE_ERROR_HE = {
   route_service_unavailable: 'שירות חישוב המסלולים אינו זמין כרגע. נסו שוב מאוחר יותר.',
   route_not_found: 'לא נמצא מסלול עבור אחת הכתובות. בדקו את הכתובת במקור הנתונים.',
   google_key_not_configured: 'מפתח Google Maps אינו מוגדר בשרת. לא ניתן לבנות את מאגר המרחקים עד להגדרתו.',
-  scheduling_permission_denied: 'אין הרשאה לבניית מאגר המרחקים. נדרשת הרשאת מנהל או מנהל תפעול.',
+  scheduling_permission_denied: 'אין הרשאה לחישוב מסלולי שיבוץ. נדרשת הרשאת שיבוצים.',
   scheduling_school_sector_missing: 'לא ניתן לבצע שיבוץ לפני שיוגדר בית ספר עם מגזר תקין.',
   authentication_required: 'יש להתחבר מחדש כדי לבנות את מאגר המרחקים.',
   authorization_check_failed: 'בדיקת ההרשאות נכשלה. נסו להתחבר מחדש ואז להריץ שוב.',
