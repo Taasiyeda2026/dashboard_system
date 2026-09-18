@@ -55,10 +55,6 @@ Deno.serve(async (req) => {
     if (configuredDriveId) {
       candidateUrls.push(`https://graph.microsoft.com/v1.0/drives/${encodeURIComponent(configuredDriveId)}/root:/${encodedPath}:/content`);
     }
-    if (!candidateUrls.length) {
-      return json({ error: "photo_approval_not_configured", message: "מיקום אישור הצילום טרם הוגדר." }, 503);
-    }
-
     let response: Response | null = null;
     let lastStatus = 0;
     for (const url of candidateUrls) {
@@ -69,6 +65,30 @@ Deno.serve(async (req) => {
       }
       lastStatus = attempt.status;
     }
+
+    // Final self-healing fallback: resolve the current site/default document
+    // library and fetch the fixed file path. This survives stale drive/item IDs.
+    if (!response) {
+      const host = clean(Deno.env.get("ACTIVITY_COORDINATION_SHAREPOINT_HOST")) || "think365orgil.sharepoint.com";
+      const sitePath = clean(Deno.env.get("ACTIVITY_COORDINATION_SHAREPOINT_SITE_PATH")) || "/sites/taasiyeda2027";
+      const siteUrl = `https://graph.microsoft.com/v1.0/sites/${encodeURIComponent(host)}:${sitePath}`;
+      const siteAttempt = await fetch(siteUrl, { headers });
+      if (siteAttempt.ok) {
+        const site = await siteAttempt.json();
+        const siteId = clean(site?.id);
+        if (siteId) {
+          const pathAttempt = await fetch(
+            `https://graph.microsoft.com/v1.0/sites/${encodeURIComponent(siteId)}/drive/root:/${encodedPath}:/content`,
+            { headers }
+          );
+          if (pathAttempt.ok) response = pathAttempt;
+          else lastStatus = pathAttempt.status;
+        }
+      } else {
+        lastStatus = siteAttempt.status;
+      }
+    }
+
     if (!response) throw new Error(`graph_file_failed:${lastStatus || 500}`);
 
     const bytes = new Uint8Array(await response.arrayBuffer());
