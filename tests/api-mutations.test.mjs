@@ -70,6 +70,39 @@ test('sanitizeActivityPayloadForSupabase normalizes bigint/time empty values to 
   assert.match(source, /sanitized\[key\] = nextValue === undefined \? null : nextValue;/);
 });
 
+test('activity sanitizer preserves and validates scheduling language and gender', async () => {
+  const { sanitizeActivityPayloadForSupabase } = await import('../frontend/src/api.js');
+
+  assert.deepEqual(
+    sanitizeActivityPayloadForSupabase({
+      instruction_language: 'ar',
+      required_instructor_gender: 'female'
+    }, { includeRowId: false }),
+    {
+      instruction_language: 'ar',
+      required_instructor_gender: 'female'
+    }
+  );
+  assert.deepEqual(
+    sanitizeActivityPayloadForSupabase({
+      instruction_language: 'HE',
+      required_instructor_gender: ''
+    }, { includeRowId: false }),
+    {
+      instruction_language: 'he',
+      required_instructor_gender: 'any'
+    }
+  );
+  assert.throws(
+    () => sanitizeActivityPayloadForSupabase({ instruction_language: 'en' }, { includeRowId: false }),
+    /invalid_instruction_language/
+  );
+  assert.throws(
+    () => sanitizeActivityPayloadForSupabase({ required_instructor_gender: 'other' }, { includeRowId: false }),
+    /invalid_instructor_gender/
+  );
+});
+
 test('real activity save sanitizer preserves independent exists_in_gefen booleans for direct and requested edits', async () => {
   const [{ sanitizeActivityPayloadForSupabase }, source] = await Promise.all([
     import('../frontend/src/api.js'),
