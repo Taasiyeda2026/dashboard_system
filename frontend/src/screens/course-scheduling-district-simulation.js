@@ -282,7 +282,7 @@ export function districtSimulationSaveButtonLabel(selectedCount = 0, selectableC
 
 export function districtSimulationConfirmMessage(selectedCount = 0) {
   const count = Number(selectedCount) || 0;
-  return `עומדים לשמור את כל ${count} ההצעות שנבחרו כטיוטות. השיבוצים עדיין לא יאושרו סופית.`;
+  return `עומדים לשמור ${count} הצעות כטיוטות. השיבוצים עדיין לא יאושרו סופית.`;
 }
 
 export function districtSimulationSaveResultMessage({ saved = 0, failed = 0 } = {}) {
