@@ -1703,8 +1703,7 @@ export const courseSchedulingScreen = {
           }).format(new Date()),
           travel: routed.travel,
           routeMatrix: routed.routeMatrix,
-          travelUnavailableReason: routed.unavailableReason || '',
-          allDistricts
+          travelUnavailableReason: routed.unavailableReason || ''
         });
         const activeInstructors = (data.instructors || []).filter((instructor) =>
           ['yes', 'true', '1'].includes(text(instructor?.active).toLowerCase())
