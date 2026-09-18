@@ -43,3 +43,14 @@ test('service worker cache is advanced', async () => {
   const sw = await readFile(new URL('../frontend/sw.js', import.meta.url), 'utf8');
   assert.match(sw, /const CACHE_VERSION = 1425;/);
 });
+
+
+test('single-course instructor lookup never references district-wide scope state', async () => {
+  const screen = await readFile(new URL('../frontend/src/screens/course-scheduling.js', import.meta.url), 'utf8');
+  const start = screen.indexOf('const runFindInstructors = async');
+  const end = screen.indexOf('const runDistrictSimulation = async', start);
+  assert.ok(start > 0 && end > start, 'expected single-course lookup handler');
+  const handler = screen.slice(start, end);
+  assert.doesNotMatch(handler, /\ballDistricts\b/);
+  assert.match(handler, /targetCourseId:\s*selectedCourseId/);
+});
