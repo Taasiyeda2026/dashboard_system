@@ -16,7 +16,7 @@ export const DISTRICT_SIMULATION_STATUSES = Object.freeze({
 });
 
 export const DISTRICT_SIMULATION_LABEL = 'סימולציה בלבד - השיבוצים טרם נשמרו';
-export const DISTRICT_SIMULATION_ROUTE_MISSING_MESSAGE = 'לא ניתן להשלים פעילויות שחסר עבורן מסלול נסיעה אמין. הן סומנו כחסרות נתונים.';
+export const DISTRICT_SIMULATION_ROUTE_MISSING_MESSAGE = 'חלק מהפעילויות חסומות משום שלא ניתן לאמת מסלול נסיעה נדרש. הן סומנו כחסרות נתונים.';
 
 const text = (value) => String(value ?? '').trim();
 const idOf = (row) => text(row?.row_id || row?.RowID || row?.id);
