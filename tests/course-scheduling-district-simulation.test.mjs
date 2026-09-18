@@ -131,9 +131,10 @@ test('1b. national planning includes all operational districts in one run', () =
   const north = course('north-all', { district: 'מחוז צפון', authority: 'חיפה', school: 'ספר צפון' });
   const center = course('center-all', { district: 'ירושלים', authority: 'ירושלים', school: 'ספר מרכז' });
   const south = course('south-all', { district: 'דרום', authority: 'באר שבע', school: 'ספר דרום' });
-  const travel = mergeTravel(travelFor('north-all'), travelFor('center-all'), travelFor('south-all'));
+  const unknown = course('unknown-all', { district: 'מחוז לא תקין', authority: 'לא משויך', school: 'ספר לא משויך' });
+  const travel = mergeTravel(travelFor('north-all'), travelFor('center-all'), travelFor('south-all'), travelFor('unknown-all'));
   const simulation = runDistrictSchedulingSimulation(simulationInput({
-    activities: [north, center, south],
+    activities: [north, center, south, unknown],
     travel,
     district: '',
   }));
@@ -142,6 +143,7 @@ test('1b. national planning includes all operational districts in one run', () =
   assert.equal(simulation.allDistricts, true);
   assert.equal(simulation.scopeLabel, 'כל המחוזות');
   assert.deepEqual(simulation.rows.map((row) => row.courseId).sort(), ['center-all', 'north-all', 'south-all']);
+  assert.ok(!simulation.rows.some((row) => row.courseId === 'unknown-all'));
 });
 
 test('2. half-year filtering keeps only selected half-year meetings', () => {
