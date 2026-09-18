@@ -72,13 +72,13 @@ test('only explicit name edits request an activity-name override and saves verif
   assert.match(migration, /new\.activity_name_override := false/);
 });
 
-test('coordination approvals send only after preparation and persist sent only after Graph accepts', () => {
-  assert.match(graphMail, /scopes: \['Mail\.ReadWrite', 'Mail\.Send'\]/);
-  assert.match(graphMail, /export function sendGraphMessage\(token, messageId\)/);
-  assert.match(graphMail, /response\.status === 204 \|\| response\.status === 202/);
-  assert.match(outlook, /export async function sendCoordinationDispatchGroup/);
-  assert.match(outlook, /await sendGraphMessage\(token, messageId\);[\s\S]*await finishDispatch\(dispatch\.id, 'sent', sentAt\);/);
-  assert.match(outlook, /await recordReconciliationException\(/);
-  assert.match(coordinationView, /sendCoordinationDispatches/);
-  assert.doesNotMatch(coordinationView, /טיוטת אישור התיאום מוכנה ב-Outlook/);
+test('coordination approvals prepare Outlook drafts with attachments and never auto-send from the workspace', () => {
+  assert.match(graphMail, /scopes: \['Mail\.ReadWrite'\]/);
+  assert.doesNotMatch(graphMail, /scopes: \[[^\]]*Mail\.Send/);
+  assert.match(outlook, /export async function prepareCoordinationDraftGroup/);
+  assert.match(outlook, /createGraphDraft/);
+  assert.match(outlook, /addGraphFileAttachment/);
+  assert.match(coordinationView, /prepareCoordinationDrafts/);
+  assert.match(coordinationView, /טיוטת אישור התיאום מוכנה ב-Outlook/);
+  assert.doesNotMatch(coordinationView, /sendCoordinationDispatches/);
 });
