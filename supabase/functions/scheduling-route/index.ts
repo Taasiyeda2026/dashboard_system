@@ -1424,17 +1424,18 @@ Deno.serve(async (req) => {
   }
 
   const appRole = String(appUser?.role || '');
-  const hasSchedulingRole = ['admin', 'operation_manager'].includes(appRole);
   const permissions = appUser?.permissions && typeof appUser.permissions === 'object'
     ? appUser.permissions as Record<string, unknown>
     : {};
-  const permissionValue = text(permissions.view_attendance_control).toLowerCase();
+  const isEnabledPermission = (value: unknown) => ['yes', 'true', '1'].includes(text(value).toLowerCase());
+  const hasSchedulingAccess = appRole === 'admin'
+    || isEnabledPermission(permissions.view_operations_scheduling);
   const attendanceEmployeeIds = Array.isArray(payload.employee_ids) ? payload.employee_ids : [];
   const isAttendanceRouteRequest = text(payload.scope).toLowerCase() === 'payroll_month'
     && attendanceEmployeeIds.length > 0
     && attendanceEmployeeIds.length <= 500
-    && ['yes', 'true', '1'].includes(permissionValue);
-  if (!hasSchedulingRole && !isAttendanceRouteRequest) {
+    && isEnabledPermission(permissions.view_attendance_control);
+  if (!hasSchedulingAccess && !isAttendanceRouteRequest) {
     return jsonResponse({ error: 'scheduling_permission_denied' }, 403);
   }
 
