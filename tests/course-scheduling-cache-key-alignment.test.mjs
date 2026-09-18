@@ -298,6 +298,10 @@ test('school→school cache hit uses canonical addresses after enrichment', asyn
     row.origin === 'רחוב הנביאים 12, חיפה' && row.destination === 'שדרות הציונות 5, חיפה'
   ));
   assert.ok(schoolSchoolRequest, 'expected a school→school request with canonical addresses');
+  assert.equal(schoolSchoolRequest.origin_school_name, 'בית ספר א');
+  assert.equal(schoolSchoolRequest.origin_authority_name, 'חיפה');
+  assert.equal(schoolSchoolRequest.destination_school_name, 'בית ספר ב');
+  assert.equal(schoolSchoolRequest.destination_authority_name, 'חיפה');
   assert.ok(!client.requests.some((row) => row.origin === 'בית ספר א' || row.destination === 'בית ספר ב'));
   assert.ok(routed.cacheHits >= 1);
   assert.equal(resolveSinglePairFromTravelCache(cacheRows, pair.origin_address, pair.destination_address).cached, true);
