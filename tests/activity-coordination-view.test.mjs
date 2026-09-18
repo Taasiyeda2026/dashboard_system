@@ -33,19 +33,22 @@ test('coordination action changes only after a successful sent fingerprint or re
   assert.doesNotMatch(coordinationStatusHtml(changed, { action: true }), /שליחה מחדש/);
 });
 
-test('prepared coordination draft opens the exact Outlook draft in the user-triggered window', () => {
+test('prepared coordination draft exposes an Outlook action without a blocking placeholder popup', () => {
   const exactLink = 'https://outlook.office.com/mail/deeplink/compose/id/test';
   assert.equal(preparedCoordinationDraftLink({ value: { draft: { webLink: exactLink } } }), exactLink);
   assert.equal(preparedCoordinationDraftLink({ value: { dispatch: { graph_web_link: exactLink } } }), exactLink);
+  assert.equal(openCoordinationDraftPlaceholder(), null);
 
-  const body = { style: {}, textContent: '', setAttribute() {} };
-  const popup = { closed: false, opener: {}, document: { title: '', body }, location: { href: '' } };
-  const fakeWindow = { open: () => popup };
-  const opened = openCoordinationDraftPlaceholder(fakeWindow);
-  assert.equal(opened, popup);
-  assert.equal(body.textContent, 'מכין את טיוטת אישור התיאום ב-Outlook…');
-  revealCoordinationDraft({ value: { draft: { webLink: exactLink } } }, popup, fakeWindow);
-  assert.equal(popup.location.href, exactLink);
+  const dom = new JSDOM('<div><span data-progress></span></div>');
+  const progress = dom.window.document.querySelector('[data-progress]');
+  const opened = [];
+  const fakeWindow = { open: (url) => opened.push(url) };
+  revealCoordinationDraft({ value: { draft: { webLink: exactLink } } }, null, fakeWindow, progress);
+  const button = dom.window.document.querySelector('[data-coordination-outlook]');
+  assert.ok(button);
+  assert.equal(button.textContent, 'OUTLOOK');
+  button.click();
+  assert.deepEqual(opened, [exactLink]);
 });
 
 test('workspace exposes only the three requested UI states and lists concrete missing details', () => {
@@ -91,8 +94,8 @@ test('workspace keeps missing on one side and ready plus sent together on the ot
   assert.equal((html.match(/data-coordination-item/g) || []).length, 1);
   assert.match(columns.children[1].innerHTML, /data-coordination-select-ready[\s\S]*data-coordination-prepare/);
   assert.match(html, />סמן מוכנים<\/button>/);
-  assert.match(html, />שליחת מוכנים<\/button>/);
-  assert.doesNotMatch(html, /בחר את כל המוכנים לשליחה|הכנת מיילים נבחרים/);
+  assert.match(html, />הכנת מיילים<\/button>/);
+  assert.doesNotMatch(html, /שליחת מוכנים|בחר את כל המוכנים לשליחה/);
 
   bindCoordinationWorkspace(root, context);
   root.querySelector('[data-coordination-select-ready]').click();
@@ -114,7 +117,7 @@ test('changed activity remains sent and single-activity modal contains no worksp
   const html = renderCoordinationActivityModal(changed);
   assert.match(html, /נשלח/);
   assert.match(html, /הפרטים השתנו מאז השליחה/);
-  assert.match(html, /שליחת אישור מעודכן/);
+  assert.match(html, /הכנת מייל מעודכן ב-Outlook/);
   assert.match(html, /data-activity-id="7"/);
   assert.doesNotMatch(html, /coordination-workspace|coordination-kpi|data-coordination-filter|data-coordination-school-select/);
 });
