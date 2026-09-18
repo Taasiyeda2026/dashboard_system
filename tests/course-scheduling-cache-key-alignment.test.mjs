@@ -127,6 +127,108 @@ test('instructor→school cache hit uses canonical address and avoids a Google c
   assert.equal(routed.travel['course-1']['100'].home.distance_km, 4.2);
 });
 
+test('dynamic route requests keep raw cache addresses but include school and authority context', async () => {
+  const target = {
+    row_id: 'partial-school',
+    activity_season: 'school_2027',
+    activity_type: 'קורס',
+    status: 'פתוח',
+    school_id: 1895,
+    school: 'אחווה',
+    authority: 'דימונה',
+    school_address: 'הרצל',
+    start_date: '2026-10-14',
+    start_time: '08:30',
+    end_time: '10:00',
+    instruction_language: 'he',
+    meetings: [{ date: '2026-10-14', start_time: '08:30', end_time: '10:00' }]
+  };
+  const candidate = {
+    instructor: { emp_id: '100', full_name: 'מדריכה', active: 'yes', address: 'זית 6, מיתר' },
+    eligible: true,
+    failures: [],
+    missingProfileData: []
+  };
+  const payloads = [];
+  const client = createRouteClient({
+    invoke: async (payload) => {
+      payloads.push(payload);
+      return { data: { calculated: true, cached: false, distance_km: 20, duration_minutes: 25 }, error: null };
+    }
+  });
+
+  await calculateCandidateTravel([{ course: target, candidate }], [target], client);
+
+  const outbound = payloads.find((row) => row.origin === 'זית 6, מיתר' && row.destination === 'הרצל');
+  assert.ok(outbound);
+  assert.equal(outbound.destination_school_name, 'אחווה');
+  assert.equal(outbound.destination_authority_name, 'דימונה');
+  assert.equal(outbound.origin_school_name, '');
+
+  const returnLeg = payloads.find((row) => row.origin === 'הרצל' && row.destination === 'זית 6, מיתר');
+  assert.ok(returnLeg);
+  assert.equal(returnLeg.origin_school_name, 'אחווה');
+  assert.equal(returnLeg.origin_authority_name, 'דימונה');
+  assert.equal(returnLeg.destination_school_name, '');
+});
+
+test('dynamic transition requests include context for both schools', async () => {
+  const previous = {
+    row_id: 'previous',
+    activity_season: 'school_2027',
+    activity_type: 'קורס',
+    status: 'פתוח',
+    emp_id: '100',
+    instructor_name: 'מדריכה',
+    school_id: 244,
+    school: "עירוני ג' מקיף",
+    authority: 'באר שבע',
+    school_address: 'דרך שמשון 1, באר שבע, 84100',
+    start_time: '06:30',
+    end_time: '08:00',
+    meetings: [{ date: '2026-10-14', start_time: '06:30', end_time: '08:00' }]
+  };
+  const target = {
+    row_id: 'target',
+    activity_season: 'school_2027',
+    activity_type: 'קורס',
+    status: 'פתוח',
+    school_id: 1895,
+    school: 'אחווה',
+    authority: 'דימונה',
+    school_address: 'הרצל',
+    start_date: '2026-10-14',
+    start_time: '08:30',
+    end_time: '10:00',
+    instruction_language: 'he',
+    meetings: [{ date: '2026-10-14', start_time: '08:30', end_time: '10:00' }]
+  };
+  const candidate = {
+    instructor: { emp_id: '100', full_name: 'מדריכה', active: 'yes', address: 'זית 6, מיתר' },
+    eligible: true,
+    failures: [],
+    missingProfileData: []
+  };
+  const payloads = [];
+  const client = createRouteClient({
+    invoke: async (payload) => {
+      payloads.push(payload);
+      return { data: { calculated: true, cached: false, distance_km: 8, duration_minutes: 12 }, error: null };
+    }
+  });
+
+  await calculateCandidateTravel([{ course: target, candidate }], [target, previous], client);
+
+  const transition = payloads.find((row) =>
+    row.origin === 'דרך שמשון 1, באר שבע, 84100' && row.destination === 'הרצל'
+  );
+  assert.ok(transition);
+  assert.equal(transition.origin_school_name, "עירוני ג' מקיף");
+  assert.equal(transition.origin_authority_name, 'באר שבע');
+  assert.equal(transition.destination_school_name, 'אחווה');
+  assert.equal(transition.destination_authority_name, 'דימונה');
+});
+
 test('school→school cache hit uses canonical addresses after enrichment', async () => {
   const schools = [
     { school_id: 10, school_name: 'בית ספר א', authority_id: 1, authority_name: 'חיפה', address: 'רחוב הנביאים 12, חיפה' },
@@ -389,6 +491,23 @@ test('same-address pair never calls Google and is cached on the second lookup af
   assert.equal(second.distance_km, 0);
 });
 
+test('edge function enriches dynamic Google queries while preserving raw cache identity', async () => {
+  const ts = await readFile(edgeFunctionUrl, 'utf8');
+  const serveTail = ts.split("const origin = text(payload.origin);")[1] || '';
+  assert.match(serveTail, /origin_school_name/);
+  assert.match(serveTail, /origin_authority_name/);
+  assert.match(serveTail, /destination_school_name/);
+  assert.match(serveTail, /destination_authority_name/);
+  assert.match(serveTail, /buildGoogleAddressQuery/);
+  assert.match(serveTail, /const originKey = cacheKey\(origin\)/);
+  assert.match(serveTail, /const destinationKey = cacheKey\(destination\)/);
+  assert.match(serveTail, /computeRoute\(queryOrigin, queryDestination, key\)/);
+  assert.match(serveTail, /origin_address: origin/);
+  assert.match(serveTail, /destination_address: destination/);
+  assert.match(serveTail, /query_origin_address: queryOrigin/);
+  assert.match(serveTail, /query_destination_address: queryDestination/);
+});
+
 test('edge function single-pair path returns usable expired data without Google', async () => {
   const ts = await readFile(edgeFunctionUrl, 'utf8');
   assert.match(ts, /function isLookupCacheValid/);
@@ -398,7 +517,7 @@ test('edge function single-pair path returns usable expired data without Google'
   const serveTail = ts.split("const origin = text(payload.origin);")[1] || '';
   assert.doesNotMatch(serveTail, /if \(cached\) return jsonResponse\(\{ calculated: true, cached: true, \.\.\.cached \}\)/);
   const validReturn = serveTail.indexOf('cached && hasUsableMetrics(cached)');
-  const googleCall = serveTail.indexOf('computeRoute(origin, destination, key)');
+  const googleCall = serveTail.indexOf('computeRoute(queryOrigin, queryDestination, key)');
   const sameSchool = serveTail.indexOf("provider: 'same_school'");
   assert.ok(validReturn > -1 && sameSchool > validReturn && googleCall > sameSchool);
 });
