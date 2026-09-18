@@ -33,6 +33,7 @@ export const NEUTRAL_GAPS_POINTS = 5;
 export const NEUTRAL_CONTINUITY_NOTE = 'טרם קיים סידור עבודה להשוואת רציפות';
 
 const GEOGRAPHIC_NEARBY_MINUTES = 25;
+const SAME_SCHOOL_CONTINUITY_MAX_GAP_MINUTES = 30;
 const TRAVEL_SCORE_CEILING = Object.freeze({ minutes: 90, km: 60 });
 
 const text = (value) => String(value ?? '').trim();
@@ -70,8 +71,10 @@ function roundPoints(value, max) {
 function sameSchool(first = {}, second = {}) {
   const firstId = text(first.school_id);
   const secondId = text(second.school_id);
-  if (firstId && secondId) return firstId === secondId;
-  return text(first.school).toLocaleLowerCase('he-IL') === text(second.school).toLocaleLowerCase('he-IL');
+  // Keep scoring aligned with the hard travel gate: a school match is trusted
+  // only when both rows carry the same non-empty school_id. Display names are
+  // not stable enough to waive travel or award same-school continuity.
+  return !!(firstId && secondId && firstId === secondId);
 }
 
 function sameAuthority(first = {}, second = {}) {
@@ -176,16 +179,26 @@ export function analyzeDayPlacement({
     let meetingTier = CONTINUITY_TIERS.noOtherActivity;
     let tierKind = 'none';
 
-    const consider = (neighbor, travelMin) => {
+    const consider = (neighbor, travelMin, gapMinutes) => {
       if (!neighbor) return;
-      if (sameSchool(neighbor, activity)) {
+      const sameSchoolNeighbor = sameSchool(neighbor, activity);
+      const efficientSameSchoolSequence = sameSchoolNeighbor
+        && Number.isFinite(Number(gapMinutes))
+        && Number(gapMinutes) >= 0
+        && Number(gapMinutes) <= SAME_SCHOOL_CONTINUITY_MAX_GAP_MINUTES;
+
+      // "Same school" is valuable here only when it creates a real hourly
+      // sequence. A several-hour gap at the same school is merely an existing
+      // work day, not the operational saving of back-to-back courses.
+      if (efficientSameSchoolSequence) {
         meetingTier = CONTINUITY_TIERS.sameSchool;
         tierKind = 'sameSchool';
-      } else if (tierKind !== 'sameSchool' && sameAuthority(neighbor, activity)) {
+      } else if (!sameSchoolNeighbor && tierKind !== 'sameSchool' && sameAuthority(neighbor, activity)) {
         meetingTier = CONTINUITY_TIERS.sameAuthority;
         tierKind = 'sameAuthority';
       } else if (
-        tierKind !== 'sameSchool'
+        !sameSchoolNeighbor
+        && tierKind !== 'sameSchool'
         && tierKind !== 'sameAuthority'
         && travelMin != null
         && Number(travelMin) <= GEOGRAPHIC_NEARBY_MINUTES
@@ -211,7 +224,7 @@ export function analyzeDayPlacement({
         dayTravelDistance += Number(travelKm) || 0;
         nonTravelWaitingMinutes += Math.max(0, gap - (Number(travelMin) || 0));
       }
-      consider(previous, travelMin);
+      consider(previous, travelMin, gap);
     } else if (travel?.home && Number.isFinite(Number(travel.home.duration_minutes))) {
       dayTravelMinutes += Number(travel.home.duration_minutes) || 0;
       dayTravelDistance += Number(travel.home.distance_km) || 0;
@@ -227,7 +240,7 @@ export function analyzeDayPlacement({
         dayTravelDistance += Number(travelKm) || 0;
         nonTravelWaitingMinutes += Math.max(0, gap - (Number(travelMin) || 0));
       }
-      consider(next, travelMin);
+      consider(next, travelMin, gap);
     } else if (
       travel?.homeReturn
       && Number.isFinite(Number(travel.homeReturn.duration_minutes))
@@ -661,39 +674,107 @@ function candidateProjectedUtilization(candidate = {}) {
   return Number.isFinite(value) && value >= 0 ? value : null;
 }
 
+function candidateOperationalEfficiency(candidate = {}) {
+  const breakdownPoints = Number(candidate.scoreBreakdown?.continuityEfficiency?.points);
+  if (Number.isFinite(breakdownPoints)) return breakdownPoints;
+
+  const sameSchoolCount = Math.max(0, Number(candidate.sameSchoolMeetingCount) || 0);
+  const sameAuthorityCount = Math.max(0, Number(candidate.sameAuthorityMeetingCount) || 0);
+  const nearbyCount = Math.max(0, Number(candidate.nearbyMeetingCount) || 0);
+  const existingDayCount = Math.max(0, Number(candidate.existingWorkDayMeetingCount) || 0);
+  const newDayCount = Math.max(0, Number(candidate.newWorkDayMeetingCount) || 0);
+  const explicitCount = Number(candidate.continuityMeetingCount);
+  const meetingCount = Number.isFinite(explicitCount) && explicitCount > 0
+    ? explicitCount
+    : sameSchoolCount + sameAuthorityCount + nearbyCount + existingDayCount + newDayCount;
+  if (!meetingCount) return 0;
+
+  return (
+    (sameSchoolCount * CONTINUITY_TIERS.sameSchool)
+    + (sameAuthorityCount * CONTINUITY_TIERS.sameAuthority)
+    + (nearbyCount * CONTINUITY_TIERS.geographicNearby)
+    + (existingDayCount * CONTINUITY_TIERS.existingWorkDay)
+  ) / meetingCount;
+}
+
+function candidateTravelKnown(candidate = {}) {
+  if (typeof candidate.incrementalTravelKnown === 'boolean') return candidate.incrementalTravelKnown;
+  return candidate.relevantTravelMinutes !== null
+    && candidate.relevantTravelMinutes !== undefined
+    && Number.isFinite(Number(candidate.relevantTravelMinutes))
+    && candidate.relevantTravelDistance !== null
+    && candidate.relevantTravelDistance !== undefined
+    && Number.isFinite(Number(candidate.relevantTravelDistance));
+}
+
+function compareFiniteAscending(firstValue, secondValue) {
+  const first = Number(firstValue);
+  const second = Number(secondValue);
+  const firstKnown = Number.isFinite(first);
+  const secondKnown = Number.isFinite(second);
+  if (firstKnown && secondKnown && first !== second) return first - second;
+  return 0;
+}
+
 export function compareCandidatesStable(first, second) {
-  // Business priority: among instructors who passed every hard gate, first
-  // expand work coverage to instructors with no current approved/draft work.
+  // 1) Operational efficiency comes first. Back-to-back work, especially at
+  // the same school, saves travel, kilometres and dead time. Fair distribution
+  // must never split an efficient hourly block merely to give work to someone
+  // who currently has no courses.
+  const firstEfficiency = candidateOperationalEfficiency(first);
+  const secondEfficiency = candidateOperationalEfficiency(second);
+  if (firstEfficiency !== secondEfficiency) return secondEfficiency - firstEfficiency;
+
+  // 2) With equal daily efficiency, prefer the option that adds less travel.
+  // A known route is safer than an unknown one; then compare minutes and km.
+  const firstTravelKnown = candidateTravelKnown(first);
+  const secondTravelKnown = candidateTravelKnown(second);
+  if (firstTravelKnown !== secondTravelKnown) return firstTravelKnown ? -1 : 1;
+  if (firstTravelKnown && secondTravelKnown) {
+    const minutesComparison = compareFiniteAscending(first.relevantTravelMinutes, second.relevantTravelMinutes);
+    if (minutesComparison) return minutesComparison;
+    const distanceComparison = compareFiniteAscending(first.relevantTravelDistance, second.relevantTravelDistance);
+    if (distanceComparison) return distanceComparison;
+  }
+
+  // 3) Only after efficiency and travel are equivalent do we broaden work
+  // coverage and balance utilization across eligible instructors.
   const firstCoverage = candidateCoverageBucket(first);
   const secondCoverage = candidateCoverageBucket(second);
   if (firstCoverage !== secondCoverage) return firstCoverage - secondCoverage;
 
-  // Once both candidates are in the same coverage group, balance by projected
-  // utilization of their declared weekly availability rather than raw hours.
   const firstUtilization = candidateProjectedUtilization(first);
   const secondUtilization = candidateProjectedUtilization(second);
   if (firstUtilization != null && secondUtilization != null && firstUtilization !== secondUtilization) {
     return firstUtilization - secondUtilization;
   }
 
-  const a = [
-    -(Number(first.score) || 0),
-    -(Number(first.scoreBreakdown?.continuityEfficiency?.points) || 0),
-    -(Number(first.scoreBreakdown?.travelDistance?.points) || 0),
-    Number(first.projectedHalfHours) || 0,
-    Number(first.movedMeetingsCount) || 0
-  ];
-  const b = [
-    -(Number(second.score) || 0),
-    -(Number(second.scoreBreakdown?.continuityEfficiency?.points) || 0),
-    -(Number(second.scoreBreakdown?.travelDistance?.points) || 0),
-    Number(second.projectedHalfHours) || 0,
-    Number(second.movedMeetingsCount) || 0
-  ];
-  for (let index = 0; index < a.length; index += 1) {
-    if (a[index] < b[index]) return -1;
-    if (a[index] > b[index]) return 1;
+  // 4) Preserve the rest of the transparent rubric as deterministic
+  // tie-breakers once the operational choices are effectively equivalent.
+  const firstScore = Number(first.score);
+  const secondScore = Number(second.score);
+  if (Number.isFinite(firstScore) && Number.isFinite(secondScore) && firstScore !== secondScore) {
+    return secondScore - firstScore;
   }
+
+  const firstPreservation = Number(first.scoreBreakdown?.originalSchedulePreservation?.points);
+  const secondPreservation = Number(second.scoreBreakdown?.originalSchedulePreservation?.points);
+  if (Number.isFinite(firstPreservation) && Number.isFinite(secondPreservation) && firstPreservation !== secondPreservation) {
+    return secondPreservation - firstPreservation;
+  }
+
+  const projectedComparison = compareFiniteAscending(first.projectedHalfHours, second.projectedHalfHours);
+  if (projectedComparison) return projectedComparison;
+
+  const movedComparison = compareFiniteAscending(first.movedMeetingsCount, second.movedMeetingsCount);
+  if (movedComparison) return movedComparison;
+
+  const firstSeniority = first.seniorityYears == null ? null : Number(first.seniorityYears);
+  const secondSeniority = second.seniorityYears == null ? null : Number(second.seniorityYears);
+  if (Number.isFinite(firstSeniority) && Number.isFinite(secondSeniority) && firstSeniority !== secondSeniority) {
+    return secondSeniority - firstSeniority;
+  }
+
   return compareEmpIdsStable(
     first.instructor?.emp_id || first.empId,
     second.instructor?.emp_id || second.empId
