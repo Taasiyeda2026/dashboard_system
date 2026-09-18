@@ -524,9 +524,11 @@ test('course scheduling distance UI exposes only simple coverage and progress co
   assert.match(source, /חסרים:/);
   assert.match(source, /דורשים רענון:/);
   assert.match(source, /מעדכן \$\{processed\} מתוך \$\{total\}/);
-  assert.match(source, /כל המרחקים מעודכנים/);
+  assert.match(source, /כל מסלולי הבסיס מעודכנים/);
   assert.match(source, /נותרו \$\{remaining\} מסלולים לעדכון/);
   const card = source.split('function maintenanceTabHtml')[1].split('function calendarTabHtml')[0];
+  assert.match(card, /עדכון מסלולי בסיס/);
+  assert.match(card, /מסלולי מעבר נוספים בין פעילויות נבדקים לפי הצורך בזמן השיבוץ/);
   assert.doesNotMatch(card, /cache|TTL|batch|expiration|מטמון|מנות|פרטים/i);
   assert.match(source, /state\.courseSchedulingDistanceError = info\.error/);
 });
