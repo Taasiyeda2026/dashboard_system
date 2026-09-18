@@ -6,6 +6,7 @@ const permissionMigrationUrl = new URL('../supabase/migrations/20260730120000_co
 const executionMigrationUrl = new URL('../supabase/migrations/20260730160000_course_scheduling_execution_hardening.sql', import.meta.url);
 const revalidationMigrationUrl = new URL('../supabase/migrations/20260730170000_course_scheduling_post_edit_revalidation.sql', import.meta.url);
 const travelCacheReadinessMigrationUrl = new URL('../supabase/migrations/20260803193000_course_scheduling_travel_cache_production_readiness.sql', import.meta.url);
+const schedulingCapabilityMigrationUrl = new URL('../supabase/migrations/20260918183000_scheduling_capability_authorization.sql', import.meta.url);
 
 test('RPC rejects NULL and unauthorized roles while retaining authorized roles and safety checks', async () => {
   const sql = await readFile(permissionMigrationUrl, 'utf8');
@@ -149,4 +150,31 @@ test('travel-cache readiness migration exposes a narrow instructor-location RPC 
   // Active instructors without an address are returned with null so skips can be counted.
   assert.match(sql, /nullif\(btrim\(coalesce\(ci\.address, ''\)\), ''\) as address/i);
   assert.doesNotMatch(sql, /and nullif\(btrim\(coalesce\(ci\.address, ''\)\), ''\) is not null/);
+});
+
+test('latest scheduling authorization uses explicit scheduling capability instead of operation-manager role', async () => {
+  const sql = await readFile(schedulingCapabilityMigrationUrl, 'utf8');
+  assert.match(sql, /app_has_permission\('view_operations_scheduling'\)/);
+  assert.match(sql, /scheduling_travel_cache_authorized_read/);
+  assert.match(sql, /instructor_assignment_audit_authorized_read/);
+  for (const rpc of [
+    'assign_activity_instructor',
+    'assign_activity_instructor_with_dates',
+    'cancel_course_assignment_draft',
+    'save_activity_scheduling_requirements',
+    'save_course_assignment_draft',
+    'save_course_assignment_draft_with_dates',
+    'save_course_assignment_manual_draft',
+    'reassign_locked_course_instructor',
+    'replace_locked_course_instructor',
+    'submit_course_assignment_manager_approval'
+  ]) assert.match(sql, new RegExp(rpc));
+});
+
+test('manager review stays admin-only after scheduling capability migration', async () => {
+  const sql = await readFile(schedulingCapabilityMigrationUrl, 'utf8');
+  assert.match(sql, /Manager review remains admin-only by design/);
+  assert.match(sql, /course_assignment_manager_approval_requests/);
+  assert.match(sql, /review_course_assignment_manager_approval/);
+  assert.doesNotMatch(sql, /p\.proname = any\([\s\S]*course_assignment_manager_approval_requests/);
 });
