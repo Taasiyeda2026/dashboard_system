@@ -19,6 +19,7 @@ import {
 } from '../frontend/src/screens/course-scheduling-district-simulation.js';
 import { courseSchedulingScreen } from '../frontend/src/screens/course-scheduling.js';
 import { calculateCourseSchedule } from '../frontend/src/screens/course-scheduling-engine.js';
+import { missingCourseInformation } from '../frontend/src/screens/course-scheduling-engine-core.js';
 import { routeMatrixKey } from '../frontend/src/screens/course-scheduling-travel.js';
 
 const weekdayRules = [
@@ -250,6 +251,26 @@ test('7. missing-data rows are not counted as recruitment', () => {
   assert.notEqual(simulation.rows[0].status, DISTRICT_SIMULATION_STATUSES.recruit);
 });
 
+test('missing school linkage is reported as school data, not as a route failure', () => {
+  const target = course('school-link-missing', {
+    school_id: '',
+    school_address: ''
+  });
+  const missing = missingCourseInformation(target, { periodKey: 'first' });
+  assert.ok(missing.includes('שיוך בית ספר'));
+  assert.ok(missing.includes('כתובת בית הספר'));
+
+  const simulation = runDistrictSchedulingSimulation(simulationInput({
+    activities: [target],
+    travel: {}
+  }));
+  assert.equal(simulation.rows.length, 1);
+  assert.equal(simulation.rows[0].status, DISTRICT_SIMULATION_STATUSES.missing);
+  assert.match(simulation.rows[0].reason, /שיוך בית ספר/);
+  assert.equal(simulation.rows[0].missingReliableRoute, false);
+  assert.equal(simulation.hasRouteMissing, false);
+});
+
 test('8. district simulation path does not call write API or assignment RPCs', async () => {
   const source = await readFile(new URL('../frontend/src/screens/course-scheduling.js', import.meta.url), 'utf8');
   const start = source.indexOf('const runDistrictSimulation = async');
@@ -265,6 +286,8 @@ test('8. district simulation path does not call write API or assignment RPCs', a
   assert.doesNotMatch(handler, /authority:\s*text\(state\.courseSchedulingAuthority/);
   assert.doesNotMatch(handler, /ניתן להמשיך לפי זמינות והתאמה בלבד/);
   assert.match(handler, /DISTRICT_SIMULATION_ROUTE_MISSING_MESSAGE/);
+  assert.match(handler, /if \(simulation\.hasRouteMissing\)/);
+  assert.doesNotMatch(handler, /routed\.unavailableReason\s*\|\|\s*simulation\.hasRouteMissing/);
 
   const moduleSource = await readFile(new URL('../frontend/src/screens/course-scheduling-district-simulation.js', import.meta.url), 'utf8');
   assert.doesNotMatch(moduleSource, /supabase/);

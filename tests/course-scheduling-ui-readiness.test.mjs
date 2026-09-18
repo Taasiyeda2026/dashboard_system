@@ -392,7 +392,7 @@ test('maintenance is a main tab with inline actions and no legacy dropdown', asy
   assert.match(html, /חסרים: 0/);
   assert.match(html, /דורשים רענון: 0/);
   assert.match(html, /data-refresh-distance-coverage[^>]*aria-label="רענון נתוני מצב"/);
-  assert.match(html, /data-update-distances[^>]*>עדכון מרחקים/);
+  assert.match(html, /data-update-distances[^>]*>עדכון מסלולי בסיס/);
   assert.doesNotMatch(html, /data-distance-target|data-distance-month|payroll_month/);
   assert.doesNotMatch(html, /data-maintenance-action="distances"/);
   assert.doesNotMatch(html, /data-toggle-maintenance|course-scheduling-maintenance-menu|⚙/);
