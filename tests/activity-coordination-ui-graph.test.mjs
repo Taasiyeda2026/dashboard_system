@@ -66,8 +66,13 @@ test('coordination PDF, photo approval and attachments use parallel work with se
   assert.match(outlook, /Promise\.all\(\[\s*delegatedMailToken\(loginHint\),\s*photographyApprovalAttachment\(\)\s*\]\)/);
 });
 
-test('photo approval SharePoint identifiers are configurable secrets', () => {
+test('photo approval uses stable SharePoint path fallback when stored IDs are stale', () => {
   assert.match(photo, /ACTIVITY_COORDINATION_PHOTO_DRIVE_ID/);
   assert.match(photo, /ACTIVITY_COORDINATION_PHOTO_ITEM_ID/);
-  assert.doesNotMatch(photo, /think365orgil|b![A-Za-z0-9_-]{10}/);
+  assert.match(photo, /ACTIVITY_COORDINATION_PHOTO_PATH/);
+  assert.match(photo, /ניהול\/אישור צילום\/אישור צילום\.pdf/);
+  assert.match(photo, /root:\/\$\{encodedPath\}:\/content/);
+  assert.match(photo, /ACTIVITY_COORDINATION_SHAREPOINT_HOST/);
+  assert.match(photo, /ACTIVITY_COORDINATION_SHAREPOINT_SITE_PATH/);
+  assert.match(photo, /sites\/\$\{encodeURIComponent\(siteId\)\}\/drive\/root:/);
 });
