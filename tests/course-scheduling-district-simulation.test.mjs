@@ -127,6 +127,23 @@ test('1. district filtering keeps only selected district courses', () => {
   assert.equal(simulation.rows[0].authority, 'ירושלים');
 });
 
+test('1b. national planning includes all operational districts in one run', () => {
+  const north = course('north-all', { district: 'מחוז צפון', authority: 'חיפה', school: 'ספר צפון' });
+  const center = course('center-all', { district: 'ירושלים', authority: 'ירושלים', school: 'ספר מרכז' });
+  const south = course('south-all', { district: 'דרום', authority: 'באר שבע', school: 'ספר דרום' });
+  const travel = mergeTravel(travelFor('north-all'), travelFor('center-all'), travelFor('south-all'));
+  const simulation = runDistrictSchedulingSimulation(simulationInput({
+    activities: [north, center, south],
+    travel,
+    district: '',
+  }));
+
+  assert.equal(simulation.ok, true);
+  assert.equal(simulation.allDistricts, true);
+  assert.equal(simulation.scopeLabel, 'כל המחוזות');
+  assert.deepEqual(simulation.rows.map((row) => row.courseId).sort(), ['center-all', 'north-all', 'south-all']);
+});
+
 test('2. half-year filtering keeps only selected half-year meetings', () => {
   const firstOnly = course('a', {
     meetings: [{ date: '2026-09-06', start_time: '10:00', end_time: '11:00' }]
@@ -375,6 +392,33 @@ test('10. existing single-course scheduling controls remain unchanged', () => {
   assert.match(html, /הפעל תכנון מחוזי/);
   assert.doesNotMatch(html, /data-district-simulation-panel/);
   assert.match(html, /data-course-detail/);
+});
+
+test('10b. all-districts scope renders a national planning button and national panel label', () => {
+  const open = course('national-ui');
+  const html = courseSchedulingScreen.render({
+    activities: [open],
+    instructors: [instructor],
+    scheduling: {},
+    meetingState: { loaded: true, approvedDates: new Map(), cancelledDates: new Map(), error: '' }
+  }, {
+    state: {
+      user: { role: 'admin' },
+      courseSchedulingTab: 'courses',
+      courseSchedulingDistrict: '',
+      courseSchedulingSimulationView: false
+    }
+  });
+  assert.match(html, /הפעל תכנון ארצי/);
+  assert.doesNotMatch(html, /data-run-district-simulation[^>]*disabled/);
+
+  const panel = districtSimulationPanelHtml({
+    rows: [],
+    counts: {},
+    district: '',
+    allDistricts: true
+  });
+  assert.match(panel, /תכנון ארצי · כל המחוזות/);
 });
 
 test('simulation summary cards and status filter cover all four statuses', () => {
