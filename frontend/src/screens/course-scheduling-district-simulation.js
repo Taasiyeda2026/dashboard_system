@@ -272,10 +272,12 @@ export function normalizeSelectedSimulationCourseIds(rows = [], selectedIds = []
   return [...new Set((selectedIds || []).map((id) => text(id)).filter((id) => selectable.has(id)))];
 }
 
-export function districtSimulationSaveButtonLabel(selectedCount = 0) {
+export function districtSimulationSaveButtonLabel(selectedCount = 0, selectableCount = selectedCount) {
   const count = Number(selectedCount) || 0;
+  const total = Number(selectableCount) || 0;
   if (count <= 0) return 'אין הצעות שניתן לשמור';
-  return `שמור את כל ${count} ההצעות כטיוטות`;
+  if (total > 0 && count === total) return `שמור את כל ${count} ההצעות כטיוטות`;
+  return `שמור ${count} הצעות כטיוטות`;
 }
 
 export function districtSimulationConfirmMessage(selectedCount = 0) {
@@ -369,8 +371,8 @@ export function applyDistrictSimulationSaveOutcome({
 }
 
 /**
- * Read-only district simulation. Does not write drafts, assignments, or call RPCs.
- * Scope is selected half-year + district only — authority filter is intentionally ignored.
+ * Read-only district/national simulation. Does not write drafts, assignments, or call RPCs.
+ * Scope is selected half-year + one district, or all districts in national mode. Authority filter is intentionally ignored.
  * Approved and saved-draft courses remain blockers via full activities input, but are
  * excluded from recommendation targets by the engine (district + eligibility filters).
  * Writes occur only through an explicit confirmed "שמור כטיוטות" action in the screen binder.
@@ -553,8 +555,9 @@ export function districtSimulationPanelHtml({
     ? defaultSelectedSimulationCourseIds(rows)
     : normalizeSelectedSimulationCourseIds(rows, selectedCourseIds);
   const selectedCount = selectedIds.length;
+  const selectableCount = defaultSelectedSimulationCourseIds(rows).length;
   const saveDisabled = selectedCount === 0 || saving;
-  const saveLabel = saving ? 'שומר טיוטות...' : districtSimulationSaveButtonLabel(selectedCount);
+  const saveLabel = saving ? 'שומר טיוטות...' : districtSimulationSaveButtonLabel(selectedCount, selectableCount);
   return `<section class="course-scheduling-simulation" data-district-simulation-panel>
     <p class="course-scheduling-sim-banner" role="status">${escapeHtml(DISTRICT_SIMULATION_LABEL)}</p>
     ${error ? `<p class="course-scheduling-alert">${escapeHtml(error)}</p>` : ''}
