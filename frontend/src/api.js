@@ -5332,7 +5332,9 @@ const ALLOWED_ACTIVITY_COLUMNS = new Set([
   'school_contact_id',
   'contact_name',
   'contact_phone',
-  'contact_email'
+  'contact_email',
+  'instruction_language',
+  'required_instructor_gender'
 ]);
 for (let i = 1; i <= 35; i++) ALLOWED_ACTIVITY_COLUMNS.add(`date_${i}`);
 
@@ -5458,6 +5460,14 @@ function sanitizeActivityPayloadForSupabase(payload = {}, { includeRowId = true 
       nextValue = domain || null;
     } else if (key === 'activity_type' || key === 'item_type') {
       nextValue = normalizeActivityTypeValue(rawValue) || null;
+    } else if (key === 'instruction_language') {
+      const language = String(rawValue ?? '').trim().toLowerCase();
+      if (language && !['he', 'ar'].includes(language)) throw new Error('invalid_instruction_language');
+      nextValue = language || null;
+    } else if (key === 'required_instructor_gender') {
+      const gender = String(rawValue ?? '').trim().toLowerCase();
+      if (gender && !['any', 'female', 'male'].includes(gender)) throw new Error('invalid_instructor_gender');
+      nextValue = gender || 'any';
     } else if (key === 'exists_in_gefen' || key === 'activity_name_override') {
       nextValue = normalizeBooleanFieldForSupabase(rawValue);
     } else if (key === 'participants_count') {
@@ -5671,7 +5681,13 @@ function activityDateSelectColumns() {
 }
 
 function pickActivityDateProofRow(row = {}) {
-  const out = { row_id: row?.row_id || '', start_date: row?.start_date || '', end_date: row?.end_date || '' };
+  const out = {
+    row_id: row?.row_id || '',
+    start_date: row?.start_date || '',
+    end_date: row?.end_date || '',
+    instruction_language: row?.instruction_language || '',
+    required_instructor_gender: row?.required_instructor_gender || ''
+  };
   for (let i = 1; i <= 35; i++) out[`date_${i}`] = row?.[`date_${i}`] || '';
   return out;
 }
@@ -5685,13 +5701,14 @@ function assertSupabaseActivityUpdateApplied(operation, requestedChanges = {}, r
   for (const [key, expectedRaw] of Object.entries(requestedChanges || {})) {
     const isDate = key === 'start_date' || key === 'end_date' || /^date_\d+$/.test(key);
     const isCatalogIdentity = ['activity_name', 'activity_no', 'gefen_number', 'sessions'].includes(key);
-    if (!isDate && !isCatalogIdentity) continue;
-    const expected = key === 'activity_name' || isCatalogIdentity
-      ? String(expectedRaw ?? '').trim()
-      : (normalizeDateFieldForSupabase(expectedRaw) || '');
-    const actual = key === 'activity_name' || isCatalogIdentity
-      ? String(returnedRow[key] ?? '').trim()
-      : (normalizeDateFieldForSupabase(returnedRow[key]) || '');
+    const isSchedulingRequirement = ['instruction_language', 'required_instructor_gender'].includes(key);
+    if (!isDate && !isCatalogIdentity && !isSchedulingRequirement) continue;
+    const expected = isDate
+      ? (normalizeDateFieldForSupabase(expectedRaw) || '')
+      : String(expectedRaw ?? '').trim();
+    const actual = isDate
+      ? (normalizeDateFieldForSupabase(returnedRow[key]) || '')
+      : String(returnedRow[key] ?? '').trim();
     if (expected !== actual) {
       const err = new Error(`activity_update_not_applied:${key}`);
       err.operation = operation;
@@ -6015,7 +6032,7 @@ async function updateActivityInSupabase(payload = {}) {
   }
   const { data: freshDbRow, error: freshDbError } = await supabase
     .from('activities')
-    .select(`${activityDateSelectColumns()},activity_name,activity_no,gefen_number,sessions,price`)
+    .select(`${activityDateSelectColumns()},activity_name,activity_no,gefen_number,sessions,price,instruction_language,required_instructor_gender`)
     .eq('row_id', rowId)
     .maybeSingle();
   if (freshDbError) throw buildSupabaseMutationError('saveActivity', freshDbError, 'save_failed');

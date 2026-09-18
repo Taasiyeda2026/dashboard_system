@@ -34,6 +34,8 @@ function buildEditRoot({ canDirectEdit = false, canRequestEdit = !canDirectEdit 
       <div data-edit-actions hidden></div>
       <button type="button" data-action="start-edit">עריכה</button>
       <input name="activity_name" value="שם ישן">
+      <select name="instruction_language"><option value="he" selected>עברית</option><option value="ar">ערבית</option></select>
+      <select name="required_instructor_gender"><option value="any" selected>ללא דרישה</option><option value="female">מדריכה</option><option value="male">מדריך</option></select>
       <input name="date_1" data-meeting-idx="0" value="2026-05-01">
       <div data-meeting-dates-edit><div class="activity-drawer__date-card"><input name="meeting_date_0" data-meeting-idx="0" value="2026-05-01"></div></div>
       <button type="button" data-action="save-edit">שמור</button>
@@ -110,6 +112,72 @@ test('user with can_edit_direct calls saveActivity and not submitEditRequest', a
     source_row_id: 'ACT-1',
     changes: { activity_name: 'שם חדש' }
   });
+});
+
+test('direct course edit sends Hebrew to Arabic scheduling-language change', async () => {
+  const { bindActivityEditForm } = await import(`${BIND_MODULE}?bust=${Date.now()}-${Math.random()}`);
+  const calls = [];
+  const root = buildEditRoot({ canDirectEdit: true });
+  const form = root.querySelector('[data-drawer-form]');
+
+  bindActivityEditForm(root, {
+    api: {
+      saveActivity: async (payload) => {
+        calls.push(payload);
+        return {
+          ok: true,
+          row: {
+            row_id: 'ACT-1',
+            activity_name: 'שם ישן',
+            date_1: '2026-05-01',
+            instruction_language: 'ar',
+            required_instructor_gender: 'any'
+          }
+        };
+      }
+    }
+  });
+
+  form.querySelector('[name="instruction_language"]').value = 'ar';
+  form.querySelector('[data-action="save-edit"]').click();
+  await wait(20);
+
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].changes.instruction_language, 'ar');
+  assert.ok(!Object.prototype.hasOwnProperty.call(calls[0].changes, 'required_instructor_gender'));
+});
+
+test('direct course edit sends instructor-gender requirement change', async () => {
+  const { bindActivityEditForm } = await import(`${BIND_MODULE}?bust=${Date.now()}-${Math.random()}`);
+  const calls = [];
+  const root = buildEditRoot({ canDirectEdit: true });
+  const form = root.querySelector('[data-drawer-form]');
+
+  bindActivityEditForm(root, {
+    api: {
+      saveActivity: async (payload) => {
+        calls.push(payload);
+        return {
+          ok: true,
+          row: {
+            row_id: 'ACT-1',
+            activity_name: 'שם ישן',
+            date_1: '2026-05-01',
+            instruction_language: 'he',
+            required_instructor_gender: 'female'
+          }
+        };
+      }
+    }
+  });
+
+  form.querySelector('[name="required_instructor_gender"]').value = 'female';
+  form.querySelector('[data-action="save-edit"]').click();
+  await wait(20);
+
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].changes.required_instructor_gender, 'female');
+  assert.ok(!Object.prototype.hasOwnProperty.call(calls[0].changes, 'instruction_language'));
 });
 
 test('post-save refresh failure does not turn a successful direct save into a server error', async () => {

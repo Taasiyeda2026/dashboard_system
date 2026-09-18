@@ -29,6 +29,15 @@ test('updateActivityInSupabase (saveActivity) updates by row_id and merges meeti
   mustMatch(api, /const mergedDates = \{ \.\.\.\(existingRow \|\| \{\}\), \.\.\.changes \};/);
 });
 
+test('activity save allowlist persists scheduling language and gender', () => {
+  mustMatch(api, /'instruction_language'/);
+  mustMatch(api, /'required_instructor_gender'/);
+  mustMatch(api, /invalid_instruction_language/);
+  mustMatch(api, /invalid_instructor_gender/);
+  mustMatch(api, /price,instruction_language,required_instructor_gender/);
+  mustMatch(api, /isSchedulingRequirement = \['instruction_language', 'required_instructor_gender'\]\.includes\(key\)/);
+});
+
 test('saveActivity re-reads the row after write and guards that requested date changes were actually applied', () => {
   mustMatch(api, /function assertSupabaseActivityUpdateApplied\(operation, requestedChanges = \{\}, returnedRow = \{\}\) \{/);
   mustMatch(api, /activity_update_not_applied:\$\{key\}/);
