@@ -423,7 +423,7 @@ test('18. existing district simulation filtering and route classifications remai
 test('confirm dialog copy and save-result message match the product wording', () => {
   assert.equal(
     districtSimulationConfirmMessage(12),
-    'עומדים לשמור 12 הצעות כטיוטות. השיבוצים עדיין לא יאושרו סופית.'
+    'עומדים לשמור את כל 12 ההצעות שנבחרו כטיוטות. השיבוצים עדיין לא יאושרו סופית.'
   );
   assert.equal(
     districtSimulationSaveResultMessage({ saved: 10, failed: 2 }),
