@@ -1917,23 +1917,30 @@ export const courseSchedulingScreen = {
 
       const failures = [];
       let cleared = 0;
-      const batchSize = 5;
-      for (let offset = 0; offset < draftIds.length; offset += batchSize) {
-        const batch = draftIds.slice(offset, offset + batchSize);
-        const outcomes = await Promise.all(batch.map(async (courseId) => {
-          const { data: updatedActivity, error } = await supabase.rpc('cancel_course_assignment_draft', { p_activity_id: courseId });
-          if (error) return { ok: false, courseId, reason: text(error.message) || 'ביטול הטיוטה נכשל' };
-          applyReturnedSchedulingActivity(data.activities || [], updatedActivity);
-          return { ok: true, courseId };
-        }));
-        outcomes.forEach((outcome) => {
-          if (outcome.ok) cleared += 1;
-          else failures.push(outcome);
-        });
+      try {
+        const batchSize = 5;
+        for (let offset = 0; offset < draftIds.length; offset += batchSize) {
+          const batch = draftIds.slice(offset, offset + batchSize);
+          const outcomes = await Promise.all(batch.map(async (courseId) => {
+            try {
+              const { data: updatedActivity, error } = await supabase.rpc('cancel_course_assignment_draft', { p_activity_id: courseId });
+              if (error) return { ok: false, courseId, reason: text(error.message) || 'ביטול הטיוטה נכשל' };
+              applyReturnedSchedulingActivity(data.activities || [], updatedActivity);
+              return { ok: true, courseId };
+            } catch (error) {
+              return { ok: false, courseId, reason: text(error?.message) || 'ביטול הטיוטה נכשל' };
+            }
+          }));
+          outcomes.forEach((outcome) => {
+            if (outcome.ok) cleared += 1;
+            else failures.push(outcome);
+          });
+        }
+      } finally {
+        clearScreenDataCache?.();
+        state.courseSchedulingDraftResetting = false;
       }
 
-      clearScreenDataCache?.();
-      state.courseSchedulingDraftResetting = false;
       if (failures.length) {
         showToast(`אופסו ${cleared} מתוך ${draftIds.length} טיוטות. ${failures.length} טיוטות לא אופסו ולכן לא בוצע חישוב חדש.`, 'error');
         rerender();
