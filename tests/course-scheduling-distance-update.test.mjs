@@ -114,12 +114,14 @@ test('the authority-school-locations helper only looks at school_2027 courses an
   assert.match(sql, /public\.scheduling_school_location\(a\.school_id, a\.school, a\.authority_id, a\.authority\)/);
 });
 
-test('build_cache mode is explicit and keeps the single-pair candidate lookup', async () => {
+test('build_cache mode is explicit and scheduling-route authorizes by scheduling capability', async () => {
   const ts = await readFile(edgeFunctionUrl, 'utf8');
   assert.match(ts, /mode === 'build_cache'/);
   assert.match(ts, /async function runBuildCache/);
   assert.match(ts, /const origin = text\(payload\.origin\);/);
-  assert.match(ts, /\['admin', 'operation_manager'\]\.includes/);
+  assert.match(ts, /permissions\.view_operations_scheduling/);
+  assert.match(ts, /hasSchedulingAccess/);
+  assert.doesNotMatch(ts, /const hasSchedulingRole = \['admin', 'operation_manager'\]\.includes/);
 });
 
 test('school dedup collapses duplicate school_id rows and prefers authority_id plus fuller address', () => {
