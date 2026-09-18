@@ -57,6 +57,8 @@ export function schedulingInstructors(rows = [], profiles = {}, rules = {}) {
 
 export function missingCourseInformation(activity, options = {}) {
   const missing = [];
+  const schoolId = Number(text(activity?.school_id));
+  if (!Number.isInteger(schoolId) || schoolId <= 0) missing.push('שיוך בית ספר');
   if (!text(activity?.school)) missing.push('בית ספר');
   if (!text(activity?.school_address)) missing.push('כתובת בית הספר');
   if (!text(activity?.calendar_sector)) missing.push('מגזר בית הספר');
