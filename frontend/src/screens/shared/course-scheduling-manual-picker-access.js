@@ -4,14 +4,14 @@ const text = (value) => String(value ?? '').trim();
 const emp = (candidate) => text(candidate?.instructor?.emp_id);
 const idOf = (row = {}) => text(row.row_id || row.RowID || row.id);
 
-function manualCandidateWarnings(candidate = {}) {
+export function manualCandidateWarnings(candidate = {}) {
   return [...new Set([
     ...(candidate.failures || []),
     ...(candidate.missingProfileData || [])
   ].map(text).filter(Boolean))];
 }
 
-const MANUAL_NON_OVERRIDABLE_REASON = /(?:חפיפה|המדריך אינו פעיל|שפת ההדרכה אינה תואמת|לא ניתן לאמת שפת הדרכה|נדרשת (?:עברית|ערבית)|מגדר|הקורס דורש מדריכה|הקורס דורש מדריך|שבת|יום שישי אינו מאושר|הזמינות המוגדרת אינה מכסה|היום הקבוע חסום|לא ניתן לאמת זמן מעבר|מרחק בין הפעילויות|אין זמן מעבר מספיק|מסלול נסיעה אמין|חסרה כתובת(?: מדריך)?|כתובת בית הספר|הרצף היומי חורג)/;
+const MANUAL_NON_OVERRIDABLE_REASON = /(?:חסרים נתוני התאמה מלאים|חפיפה|המדריך אינו פעיל|שפת ההדרכה אינה תואמת|לא ניתן לאמת שפת הדרכה|נדרשת (?:עברית|ערבית)|מגדר|הקורס דורש מדריכה|הקורס דורש מדריך|שבת|יום שישי אינו מאושר|הזמינות המוגדרת אינה מכסה|היום הקבוע חסום|לא ניתן לאמת זמן מעבר|מרחק בין הפעילויות|אין זמן מעבר מספיק|מסלול נסיעה אמין|חסרה כתובת(?: מדריך)?|כתובת בית הספר|הרצף היומי חורג)/;
 
 export function manualCandidateBlocked(candidate = {}) {
   // Manual choice may override recommendation-quality signals (for example a
