@@ -80,7 +80,7 @@ test('bug1: a sixth consecutive short activity is blocked by the daily sequence 
 
 test('bug1: a fourth consecutive 80-minute activity is blocked by the daily sequence safety limit', () => {
   const target = activity({
-    meetings: [{ date: '2026-09-06', start_time: '13:20', end_time: '14:40' }]
+    meetings: [{ date: '2026-09-06', start_time: '12:00', end_time: '13:20' }]
   });
   const threeExisting = [
     existing('2026-09-06', '08:00', '09:20', { row_id: 'e1' }),
