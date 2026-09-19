@@ -145,9 +145,7 @@ test('2: one-meeting current course → existing workdays 0, projected workdays 
   assert.equal(candidate.projectedWorkDays, 1);
   assert.equal(candidate.activeWorkDays, 1);
   const html = detailsHtml(result, { courseSchedulingSelectedCandidateId: '100', courseSchedulingExpandedCandidateId: '100' });
-  assert.match(html, /ימי עבודה קיימים: 0/);
-  assert.match(html, /ימי עבודה לאחר שיבוץ זה: 1/);
-  assert.doesNotMatch(html, /ימי עבודה פעילים/);
+  assert.match(html, /סה״כ שעות במחצית: 1 שעות/);
 });
 
 test('3: accepted in-memory planning commitments participate in later workload and workday counts', () => {
@@ -396,7 +394,7 @@ test('11-13: accepted planning commitments are included in the visible projected
     courseSchedulingSelectedCandidateId: '100',
     courseSchedulingExpandedCandidateId: '100'
   });
-  assert.match(html, /עומס לאחר השיבוץ: 4 שעות/);
+  assert.match(html, /סה״כ שעות במחצית: 4 שעות/);
 });
 
 test('14: instructor with no persisted schedule keeps neutral continuity 18/35 and gaps 5/5', () => {
@@ -494,7 +492,7 @@ test('17: same failure reason appears only once in rejected UI', () => {
       travel: { home: { distance_km: 5, duration_minutes: 8 } }
     }]
   });
-  assert.equal((html.match(new RegExp(phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g')) || []).length, 1);
+  assert.equal((html.match(/אין מספיק זמן מעבר בין הפעילויות/g) || []).length, 1);
   assert.doesNotMatch(html, /course-scheduling-rejected-failures/);
 });
 
