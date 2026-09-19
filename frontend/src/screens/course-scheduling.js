@@ -1042,6 +1042,7 @@ export function instructorsResultsHtml(result, state = {}) {
         <p>שפת הדרכה: ${escapeHtml(instructionLanguageLabel(result.course))} · מגדר: ${escapeHtml(result.course.required_instructor_gender || 'ללא')}</p>
         ${rejectedCandidatesHtml(result)}
       </details>
+      ${manualCandidatePickerHtml(result, state)}
     </div>`;
   }
   if (!result?.recommended && result?.status === 'נדרש טיפול') {
