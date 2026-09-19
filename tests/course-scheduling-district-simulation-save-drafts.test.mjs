@@ -535,8 +535,7 @@ test('checkbox defaults: ready and review checked; recruit/missing disabled', ()
     district: 'מרכז'
   });
   assert.match(html, /data-simulation-select-course="ready-1"[^>]*checked/);
-  assert.match(html, /data-simulation-select-course="review-1"/);
-  assert.doesNotMatch(html, /data-simulation-select-course="review-1"[^>]*checked/);
+  assert.match(html, /data-simulation-select-course="review-1"[^>]*checked/);
   assert.doesNotMatch(html, /data-simulation-select-course="recruit-1"/);
   assert.doesNotMatch(html, /data-simulation-select-course="missing-1"/);
   assert.doesNotMatch(html, /data-simulation-select-course="no-instructor"/);
