@@ -11,7 +11,7 @@ const manualDraftUrl = new URL(
   import.meta.url
 );
 const hardGateUrl = new URL(
-  '../supabase/migrations/20260919195500_unify_manual_scheduling_hard_gates.sql',
+  '../supabase/migrations/20260919182003_unify_manual_scheduling_hard_gates.sql',
   import.meta.url
 );
 const contractUrl = new URL(
