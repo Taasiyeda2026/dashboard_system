@@ -66,6 +66,7 @@ jobs:
           set -euo pipefail
           BASE_SHA="$(git rev-parse "origin/${BASE_REF}")"
           if git diff --name-only "$BASE_SHA" "$HEAD_SHA" | grep -Eq '^(frontend/src/screens/(course-scheduling|instructor-matching-engine)|frontend/src/screens/shared/(activity-scheduling-eligibility|course-scheduling-manual-picker-access)|supabase/migrations/.*schedul|tests/course-scheduling)'; then
+            npm ci --ignore-scripts --no-audit --no-fund
             node --test \
               tests/course-scheduling-stage3-optimization.test.mjs \
               tests/course-scheduling-contract-restoration.test.mjs \
