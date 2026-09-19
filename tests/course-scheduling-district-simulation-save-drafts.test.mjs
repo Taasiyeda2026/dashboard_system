@@ -226,7 +226,7 @@ test('6. save button is disabled when nothing is selected', () => {
     selectedCourseIds: ['ready-1'],
     district: 'מרכז'
   });
-  assert.match(withSelection, /שמור את כל 1 ההצעות כטיוטות/);
+  assert.match(withSelection, /שמור 1 הצעות כטיוטות/);
   assert.doesNotMatch(withSelection, /data-save-simulation-drafts[^>]*disabled/);
 });
 
@@ -244,7 +244,7 @@ test('6b. default panel offers one bulk-save action for all draftable proposals'
 test('7. simulation calculation remains read-only', async () => {
   const source = await readFile(new URL('../frontend/src/screens/course-scheduling.js', import.meta.url), 'utf8');
   const start = source.indexOf('const runDistrictSimulation = async');
-  const end = source.indexOf('root.querySelector(\'[data-run-district-simulation]\')');
+  const end = source.indexOf('\n    };', start) + '\n    };'.length;
   assert.ok(start > 0 && end > start);
   const handler = source.slice(start, end);
   assert.match(handler, /Read-only: never save drafts/);
