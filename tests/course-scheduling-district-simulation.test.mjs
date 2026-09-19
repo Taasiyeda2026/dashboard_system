@@ -311,7 +311,7 @@ test('8. district simulation path does not call write API or assignment RPCs', a
   const moduleSource = await readFile(new URL('../frontend/src/screens/course-scheduling-district-simulation.js', import.meta.url), 'utf8');
   assert.doesNotMatch(moduleSource, /supabase/);
   assert.doesNotMatch(moduleSource, /\.rpc\(/);
-  assert.match(moduleSource, /Read-only district simulation/);
+  assert.match(moduleSource, /Read-only district\/national simulation/);
   assert.match(moduleSource, /authority:\s*''/);
 });
 
@@ -585,7 +585,7 @@ test('review fix 2: unknown routes become חסרים נתונים; known >40km s
   assert.equal(near.counts[DISTRICT_SIMULATION_STATUSES.recruit], 0);
   assert.equal(near.counts[DISTRICT_SIMULATION_STATUSES.missing], 0);
 
-  assert.match(DISTRICT_SIMULATION_ROUTE_MISSING_MESSAGE, /חסרים נתונים/);
+  assert.match(DISTRICT_SIMULATION_ROUTE_MISSING_MESSAGE, /חסר(?:ים|ות) נתונים/);
   assert.doesNotMatch(DISTRICT_SIMULATION_ROUTE_MISSING_MESSAGE, /ניתן להמשיך לפי זמינות/);
 });
 
