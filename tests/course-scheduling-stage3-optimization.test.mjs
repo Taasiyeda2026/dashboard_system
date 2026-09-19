@@ -186,7 +186,7 @@ test('continuity: same school > same authority > work day; one of ten does not y
   ].map((date) => ({ date, start_time: '10:00', end_time: '11:00' }));
   const activity = course('cont', '2026-09-06', { meetings: tenMeetings, school: 'א', school_id: 's-a', authority: 'חיפה' });
   const sameSchoolNeighbor = {
-    date: '2026-09-06', start_time: '08:00', end_time: '09:00',
+    date: '2026-09-06', start_time: '08:00', end_time: '09:45',
     school: 'א', school_id: 's-a', authority: 'חיפה'
   };
   const sameAuthorityNeighbor = {
