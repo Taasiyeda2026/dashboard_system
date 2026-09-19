@@ -71,7 +71,15 @@ jobs:
               tests/course-scheduling-stage3-optimization.test.mjs \
               tests/course-scheduling-contract-restoration.test.mjs \
               tests/course-scheduling-date-adjustments.test.mjs \
-              tests/course-scheduling-stage2-matching.test.mjs
+              tests/course-scheduling-stage2-matching.test.mjs \
+              tests/course-scheduling-engine.test.mjs \
+              tests/course-scheduling-hidden-planning-state.test.mjs \
+              tests/course-scheduling-e2e-alignment.test.mjs \
+              tests/course-scheduling-district-plan-consistency.test.mjs \
+              tests/course-scheduling-district-simulation.test.mjs \
+              tests/course-scheduling-district-simulation-save-drafts.test.mjs \
+              tests/course-scheduling-logic-ui-corrections.test.mjs \
+              tests/course-scheduling-manual-finalize-soft-warnings.test.mjs
           else
             echo "No scheduling contract files changed; focused scheduling tests skipped."
           fi
