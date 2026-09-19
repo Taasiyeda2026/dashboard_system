@@ -3,11 +3,15 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
 const fixUrl = new URL(
-  '../supabase/migrations/20260817213000_course_scheduling_manual_finalize_soft_warnings.sql',
+  '../supabase/migrations/20260817002643_course_scheduling_manual_finalize_soft_warnings.sql',
   import.meta.url
 );
 const manualDraftUrl = new URL(
-  '../supabase/migrations/20260817193000_course_scheduling_manual_draft.sql',
+  '../supabase/migrations/20260816235618_course_scheduling_manual_draft.sql',
+  import.meta.url
+);
+const hardGateUrl = new URL(
+  '../supabase/migrations/20260919195500_unify_manual_scheduling_hard_gates.sql',
   import.meta.url
 );
 const contractUrl = new URL(
@@ -42,22 +46,34 @@ test('manual draft RPC records an explicit manual reason for server verification
   const fn = sliceFunction(sql, 'save_course_assignment_manual_draft');
 
   assert.match(fn, /decision_type, reason/);
-  assert.match(fn, /'draft', nullif\(btrim\(p_reason\), ''\)/);
+  assert.match(fn, /'draft',[\s\S]*nullif\(btrim\(coalesce\(p_reason, ''\)\), ''\)/);
 });
 
-test('manual finalization bypasses home-distance and other soft recommendation gates only on verified manual path', async () => {
-  const sql = await readFile(fixUrl, 'utf8');
-  const helper = sliceFunction(sql, 'scheduling_manual_assignment_hard_violations');
-  const assign = sliceFunction(sql, 'assign_activity_instructor');
+test('manual finalization keeps only explicit manual-fit exceptions soft and aligns all safety gates', async () => {
+  const [hardSql, assignSql] = await Promise.all([readFile(hardGateUrl, 'utf8'), readFile(fixUrl, 'utf8')]);
+  const helper = sliceFunction(hardSql, 'scheduling_manual_assignment_hard_violations');
+  const assign = sliceFunction(assignSql, 'assign_activity_instructor');
 
+  // Known home distance above 40 km remains the deliberate manual-distance
+  // exception; the existing >=60 km manager-approval policy still applies.
   assert.doesNotMatch(helper, /scheduling_home_distance_exceeded/);
   assert.doesNotMatch(helper, /home_km\s*>\s*40/);
-  assert.doesNotMatch(helper, /scheduling_home_route_unverified/);
-  assert.doesNotMatch(helper, /scheduling_instructor_profile_incomplete/);
-  assert.doesNotMatch(helper, /scheduling_language_mismatch/);
-  assert.doesNotMatch(helper, /scheduling_gender_mismatch/);
+  // Missing weekly availability rows remain a manual warning, not a hard fact.
   assert.doesNotMatch(helper, /scheduling_availability_missing/);
-  assert.doesNotMatch(helper, /scheduling_transition_unverified/);
+
+  // Identity and physical feasibility cannot be bypassed manually.
+  for (const gate of [
+    'scheduling_home_route_unverified',
+    'scheduling_instructor_profile_incomplete',
+    'scheduling_language_mismatch',
+    'scheduling_gender_mismatch',
+    'scheduling_transition_unverified',
+    'scheduling_transition_distance_exceeded',
+    'scheduling_transition_insufficient',
+    'scheduling_daily_sequence_exceeded'
+  ]) assert.match(helper, new RegExp(gate));
+  assert.match(helper, /required_km > 20/);
+  assert.match(helper, /required_minutes \+ 15/);
 
   assert.match(assign, /if is_verified_manual_draft then[\s\S]*scheduling_manual_assignment_hard_violations/);
   assert.match(assign, /else[\s\S]*scheduling_course_instructor_violations\(p_activity_id, p_emp_id, true\)/,
@@ -74,9 +90,9 @@ test('40 km remains part of the ordinary recommendation validation', async () =>
 });
 
 test('manual finalization still blocks inactive instructors, real overlaps and explicit unavailability', async () => {
-  const sql = await readFile(fixUrl, 'utf8');
+  const [sql, assignSql] = await Promise.all([readFile(hardGateUrl, 'utf8'), readFile(fixUrl, 'utf8')]);
   const helper = sliceFunction(sql, 'scheduling_manual_assignment_hard_violations');
-  const assign = sliceFunction(sql, 'assign_activity_instructor');
+  const assign = sliceFunction(assignSql, 'assign_activity_instructor');
 
   assert.match(assign, /instructor_inactive/);
   assert.match(helper, /instructor_inactive/);

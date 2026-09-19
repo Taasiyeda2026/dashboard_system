@@ -293,7 +293,7 @@ test('missing school linkage is reported as school data, not as a route failure'
 test('8. district simulation path does not call write API or assignment RPCs', async () => {
   const source = await readFile(new URL('../frontend/src/screens/course-scheduling.js', import.meta.url), 'utf8');
   const start = source.indexOf('const runDistrictSimulation = async');
-  const end = source.indexOf('root.querySelector(\'[data-run-district-simulation]\')');
+  const end = source.indexOf('\n    };', start) + '\n    };'.length;
   assert.ok(start > 0 && end > start, 'expected district simulation handler');
   const handler = source.slice(start, end);
   assert.match(handler, /runDistrictSchedulingSimulation/);
@@ -311,7 +311,7 @@ test('8. district simulation path does not call write API or assignment RPCs', a
   const moduleSource = await readFile(new URL('../frontend/src/screens/course-scheduling-district-simulation.js', import.meta.url), 'utf8');
   assert.doesNotMatch(moduleSource, /supabase/);
   assert.doesNotMatch(moduleSource, /\.rpc\(/);
-  assert.match(moduleSource, /Read-only district simulation/);
+  assert.match(moduleSource, /Read-only district\/national simulation/);
   assert.match(moduleSource, /authority:\s*''/);
 });
 
@@ -557,7 +557,7 @@ test('review fix 2: unknown routes become חסרים נתונים; known >40km s
   assert.equal(unknown.rows.length, 1);
   assert.equal(unknown.rows[0].status, DISTRICT_SIMULATION_STATUSES.missing);
   assert.equal(unknown.counts[DISTRICT_SIMULATION_STATUSES.recruit], 0);
-  assert.match(unknown.rows[0].reason, /מסלול נסיעה אמין/);
+  assert.match(unknown.rows[0].reason, /מסלול נסיעה/);
   assert.equal(unknown.hasRouteMissing, true);
   assert.equal(
     resolveDistrictSimulationStatus(unknown.results[0]),
@@ -585,7 +585,7 @@ test('review fix 2: unknown routes become חסרים נתונים; known >40km s
   assert.equal(near.counts[DISTRICT_SIMULATION_STATUSES.recruit], 0);
   assert.equal(near.counts[DISTRICT_SIMULATION_STATUSES.missing], 0);
 
-  assert.match(DISTRICT_SIMULATION_ROUTE_MISSING_MESSAGE, /חסרים נתונים/);
+  assert.match(DISTRICT_SIMULATION_ROUTE_MISSING_MESSAGE, /חסר(?:ים|ות) נתונים/);
   assert.doesNotMatch(DISTRICT_SIMULATION_ROUTE_MISSING_MESSAGE, /ניתן להמשיך לפי זמינות/);
 });
 

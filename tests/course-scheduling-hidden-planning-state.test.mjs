@@ -145,12 +145,10 @@ test('2: one-meeting current course → existing workdays 0, projected workdays 
   assert.equal(candidate.projectedWorkDays, 1);
   assert.equal(candidate.activeWorkDays, 1);
   const html = detailsHtml(result, { courseSchedulingSelectedCandidateId: '100', courseSchedulingExpandedCandidateId: '100' });
-  assert.match(html, /ימי עבודה קיימים: 0/);
-  assert.match(html, /ימי עבודה לאחר שיבוץ זה: 1/);
-  assert.doesNotMatch(html, /ימי עבודה פעילים/);
+  assert.match(html, /סה״כ שעות במחצית: 1 שעות/);
 });
 
-test('3: ten hidden planningDraft recommendations do not inflate user-facing workdays', () => {
+test('3: accepted in-memory planning commitments participate in later workload and workday counts', () => {
   const planned = mondaySeries(10).map((meeting, index) => course(`plan-${index}`, {
     meetings: [meeting],
     school: `בית ספר ${index}`,
@@ -173,14 +171,14 @@ test('3: ten hidden planningDraft recommendations do not inflate user-facing wor
   }));
   const currentResult = results.find((row) => row.course.row_id === 'current');
   const candidate = primaryOf(currentResult);
-  assert.ok(candidate?.eligible, 'current course must stay eligible despite earlier hidden recommendations');
-  assert.equal(candidate.existingWorkDays, 0);
-  assert.equal(candidate.projectedWorkDays, 1);
-  assert.ok(candidate.existingWorkDays !== 10);
-  assert.ok(candidate.projectedWorkDays <= 1);
+  assert.ok(candidate?.eligible);
+  assert.equal(candidate.existingWorkDays, 10);
+  assert.equal(candidate.projectedWorkDays, 11);
+  assert.equal(candidate.currentHalfHours, 10);
+  assert.equal(candidate.projectedHalfHours, 11);
 });
 
-test('4-6: hidden planningDraft must not create overlap/transition hard failures or previous/next activity refs', () => {
+test('4-6: accepted in-memory planning commitments enforce transition feasibility and expose the blocking activity', () => {
   const first = course('hidden-a', {
     meetings: [{ date: '2026-09-07', start_time: '10:00', end_time: '11:00' }],
     school: 'ביומימיקרי',
@@ -211,15 +209,11 @@ test('4-6: hidden planningDraft must not create overlap/transition hard failures
   const secondResult = results.find((row) => row.course.row_id === 'hidden-b');
   const candidate = checked(secondResult);
   assert.ok(candidate);
-  assert.equal(candidate.eligible, true, 'hidden planningDraft must not make candidate ineligible');
+  assert.equal(candidate.eligible, false);
   const failureText = (candidate.failures || []).join(' ');
-  assert.doesNotMatch(failureText, /אין זמן מעבר מספיק/);
-  assert.doesNotMatch(failureText, /חפיפה/);
-  assert.doesNotMatch(failureText, /הפעילות הקודמת/);
-  assert.doesNotMatch(failureText, /הפעילות הבאה/);
-  assert.doesNotMatch(failureText, /ביומימיקרי/);
-  assert.equal((candidate.existingMeetings || []).length, 0);
-  assert.ok((candidate.planningMeetings || []).length >= 1, 'planning meetings retained for soft use');
+  assert.match(failureText, /אין זמן מעבר מספיק|מעבר/);
+  assert.match(failureText, /ביומימיקרי|hidden-a/);
+  assert.equal((candidate.existingMeetings || []).length, 1);
 });
 
 test('7-8: real approved assignment still creates overlap and transition failures', () => {
@@ -341,7 +335,7 @@ test('9+18: saved draft still creates overlap and transition validation', () => 
   );
 });
 
-test('10: hidden planningDraft may affect soft continuity without flipping eligible', () => {
+test('10: accepted planning commitment on the same workday affects continuity without forcing a long-gap block', () => {
   const first = course('soft-a', {
     meetings: [{ date: '2026-09-07', start_time: '08:00', end_time: '09:00' }],
     school: 'אותו בית ספר',
@@ -368,10 +362,11 @@ test('10: hidden planningDraft may affect soft continuity without flipping eligi
   assert.equal(secondPick.eligible, true);
   assert.equal(firstPick.scoreBreakdown.continuityEfficiency.neutralBaseline, true);
   assert.notEqual(secondPick.scoreBreakdown.continuityEfficiency.neutralBaseline, true);
-  assert.ok(secondPick.sameSchoolMeetingCount >= 1 || secondPick.scoreBreakdown.continuityEfficiency.sameSchoolMeetingCount >= 1);
+  assert.equal(secondPick.sameSchoolMeetingCount, 0);
+  assert.ok(secondPick.existingWorkDayMeetingCount >= 1 || secondPick.scoreBreakdown.continuityEfficiency.existingWorkDayMeetingCount >= 1);
 });
 
-test('11-13: user-facing workload excludes planningDraft; planner workload may include it', () => {
+test('11-13: accepted planning commitments are included in the visible projected workload', () => {
   const planned = mondaySeries(3).map((meeting, index) => course(`load-plan-${index}`, {
     meetings: [meeting],
     school: `עומס ${index}`,
@@ -389,17 +384,17 @@ test('11-13: user-facing workload excludes planningDraft; planner workload may i
     activities: [...planned, current],
     travel
   }));
-  const candidate = primaryOf(results.find((row) => row.course.row_id === 'load-current'));
-  assert.equal(candidate.currentHalfHours, 0);
-  assert.equal(candidate.projectedHalfHours, 1);
-  assert.ok(Number(candidate.plannerProjectedHalfHours) > Number(candidate.projectedHalfHours));
-  assert.ok(Number(candidate.plannerCurrentHalfHours) >= 3);
-  const html = detailsHtml(results.find((row) => row.course.row_id === 'load-current'), {
+  const currentResult = results.find((row) => row.course.row_id === 'load-current');
+  const candidate = primaryOf(currentResult);
+  assert.equal(candidate.currentHalfHours, 3);
+  assert.equal(candidate.projectedHalfHours, 4);
+  assert.equal(candidate.plannerCurrentHalfHours, 3);
+  assert.equal(candidate.plannerProjectedHalfHours, 4);
+  const html = detailsHtml(currentResult, {
     courseSchedulingSelectedCandidateId: '100',
     courseSchedulingExpandedCandidateId: '100'
   });
-  assert.match(html, /עומס לאחר השיבוץ: 1 שעות/);
-  assert.doesNotMatch(html, /עומס לאחר השיבוץ: 4 שעות/);
+  assert.match(html, /סה״כ שעות במחצית: 4 שעות/);
 });
 
 test('14: instructor with no persisted schedule keeps neutral continuity 18/35 and gaps 5/5', () => {
@@ -497,7 +492,7 @@ test('17: same failure reason appears only once in rejected UI', () => {
       travel: { home: { distance_km: 5, duration_minutes: 8 } }
     }]
   });
-  assert.equal((html.match(new RegExp(phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g')) || []).length, 1);
+  assert.equal((html.match(/אין מספיק זמן מעבר בין הפעילויות/g) || []).length, 1);
   assert.doesNotMatch(html, /course-scheduling-rejected-failures/);
 });
 

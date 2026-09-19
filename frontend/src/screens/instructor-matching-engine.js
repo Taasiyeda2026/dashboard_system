@@ -172,7 +172,8 @@ export function evaluateInstructor({
   averageWorkloadRatio = null,
   fixedCourseCount = null,
   weeklyWorkDayCount = null,
-  workloadPoints = null
+  workloadPoints = null,
+  includeLegacyScore = true
 }) {
   const profile = normalizeSchedulingProfile(rawProfile);
   const failures = [];
@@ -412,7 +413,11 @@ export function evaluateInstructor({
     notes: checkResult(true, 'הערות', [activity.scheduling_note, profile.matching_note].filter(Boolean).join(' · '))
   };
 
-  let score = failures.length || missingProfileData.length ? null : 0;
+  // The course-scheduling engine passes includeLegacyScore=false and owns the
+  // single approved 100-point scoring contract in course-scheduling-score.js.
+  // Legacy callers can still request the historical local score while they are
+  // migrated independently.
+  let score = includeLegacyScore && !failures.length && !missingProfileData.length ? 0 : null;
   let scoreBreakdown = null;
   if (score !== null) {
     if (language) scoreReasons.push(`מתאים לשפה ${LANGUAGE_LABELS[language]}`);

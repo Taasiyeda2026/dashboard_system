@@ -40,6 +40,10 @@ import {
   instructorsWorkspaceNavStylesHtml
 } from './shared/instructors-workspace-nav.js';
 import {
+  manualCandidateBlocked,
+  manualCandidateWarnings
+} from './shared/course-scheduling-manual-picker-access.js';
+import {
   DISTRICT_SIMULATION_ROUTE_MISSING_MESSAGE,
   applyDistrictSimulationSaveOutcome,
   courseLabelForSimulationRow,
@@ -853,14 +857,6 @@ function rejectedCandidatesHtml(result) {
   </details>`;
 }
 
-function manualCandidateWarnings(candidate = {}) {
-  return [...new Set([...(candidate.failures || []), ...(candidate.missingProfileData || [])].map(text).filter(Boolean))];
-}
-
-function manualCandidateBlocked(candidate = {}) {
-  return manualCandidateWarnings(candidate).some((reason) => /חפיפה/.test(reason));
-}
-
 export function manualCandidateConfirmationHtml(confirmation = null) {
   if (!confirmation) return '';
   const reasons = Array.isArray(confirmation.reasons) ? confirmation.reasons.filter(text) : [];
@@ -1046,6 +1042,7 @@ export function instructorsResultsHtml(result, state = {}) {
         <p>שפת הדרכה: ${escapeHtml(instructionLanguageLabel(result.course))} · מגדר: ${escapeHtml(result.course.required_instructor_gender || 'ללא')}</p>
         ${rejectedCandidatesHtml(result)}
       </details>
+      ${manualCandidatePickerHtml(result, state)}
     </div>`;
   }
   if (!result?.recommended && result?.status === 'נדרש טיפול') {

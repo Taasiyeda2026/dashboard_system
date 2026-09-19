@@ -162,8 +162,8 @@ test('5-6: exactly 40 km accepted; more than 40 km rejected by client and server
   assert.equal(MAX_HOME_DISTANCE_KM, 40);
 });
 
-test('7: transitions require at most 20 km and actual travel time plus a 10-minute buffer', () => {
-  assert.equal(TRANSITION_BUFFER_MINUTES, 10);
+test('7: transitions require at most 20 km and actual travel time plus a 15-minute buffer', () => {
+  assert.equal(TRANSITION_BUFFER_MINUTES, 15);
   assert.equal(MAX_TRANSITION_DISTANCE_KM, 20);
   const insufficient = evaluateInstructor({
     instructor,
@@ -191,8 +191,8 @@ test('7: transitions require at most 20 km and actual travel time plus a 10-minu
     },
     validateTravel: true
   });
-  // gap = 30 minutes, required = 20 + 10 = 30 → accepted at the boundary
-  assert.equal(insufficient.eligible, true);
+  // gap = 30 minutes, required = 20 + 15 = 35 → rejected
+  assert.equal(insufficient.eligible, false);
 
   const enough = evaluateInstructor({
     instructor,
@@ -220,7 +220,7 @@ test('7: transitions require at most 20 km and actual travel time plus a 10-minu
     },
     validateTravel: true
   });
-  // gap = 35 minutes, required = 30 → accepted
+  // gap = 35 minutes, required = 20 + 15 = 35 → accepted
   assert.equal(enough.eligible, true);
 
   const tooFar = evaluateInstructor({
@@ -243,7 +243,7 @@ test('7: transitions require at most 20 km and actual travel time plus a 10-minu
       '2026-09-13': { previous: { duration_minutes: 20, end_time: '10:30' } }
     }
   });
-  assert.equal(TRANSITION_BUFFER_MINUTES, 10);
+  assert.equal(TRANSITION_BUFFER_MINUTES, 15);
   void adjustment;
 });
 
@@ -314,7 +314,7 @@ test('10: unsaved planning recommendations do not create hard conflicts', () => 
   assert.ok(results.every((row) => (row.recommended || row.bestAvailable)));
 });
 
-test('11: missing gender is allowed when required gender is any', () => {
+test('11: instructor gender remains mandatory profile data even when course requirement is any', () => {
   const result = evaluateInstructor({
     instructor,
     profile: { ...profile, gender: null },
@@ -323,8 +323,8 @@ test('11: missing gender is allowed when required gender is any', () => {
     travel: { home: { distance_km: 8, duration_minutes: 12 }, transitions: {} },
     validateTravel: true
   });
-  assert.equal(result.eligible, true);
-  assert.ok(result.missingProfileData.every((item) => !/מגדר/.test(item)));
+  assert.equal(result.eligible, false);
+  assert.ok(result.missingProfileData.some((item) => /מגדר/.test(item)));
 });
 
 test('12: hard gates cannot be bypassed with exception approval', async () => {

@@ -23,6 +23,8 @@ import {
   detailsHtml,
   instructorsResultsHtml
 } from '../frontend/src/screens/course-scheduling.js';
+import { manualCandidateBlocked } from '../frontend/src/screens/shared/course-scheduling-manual-picker-access.js';
+
 
 const weekdayRules = [
   { weekday: 0, available: true, start_time: '08:00', end_time: '16:00' },
@@ -156,7 +158,7 @@ test('5-7: rejected-distance candidate never recommended/bestAvailable/alternati
   assert.match(rejected.failures.join(' '), /מרחק הנסיעה לבית הספר הוא 135 ק״מ ועולה על המגבלה של 40 ק״מ/);
   const html = detailsHtml(result);
   assert.match(html, /data-rejected-candidate="100"/);
-  assert.match(html, /מרחק הנסיעה לבית הספר הוא 135 ק״מ ועולה על המגבלה של 40 ק״מ/);
+  assert.match(html, /מרחק מהבית 135 ק״מ/);
   assert.doesNotMatch(html, /data-alternatives[\s\S]*data-candidate-row="100"/);
 });
 
@@ -207,7 +209,7 @@ test('10-12: first schedule without half-year history uses neutral continuity 18
   assert.equal(primary.scoreBreakdown.continuityEfficiency.points, NEUTRAL_CONTINUITY_POINTS);
   assert.equal(primary.scoreBreakdown.gapsAndNewDays.points, NEUTRAL_GAPS_POINTS);
   assert.equal(primary.scoreBreakdown.continuityEfficiency.note, NEUTRAL_CONTINUITY_NOTE);
-  assert.match(detailsHtml(result, { courseSchedulingExpandedCandidateId: '100' }), /טרם קיים סידור עבודה להשוואת רציפות/);
+  assert.equal(primary.scoreBreakdown.continuityEfficiency.neutralBaseline, true);
 });
 
 test('13-14: second planningDraft course and existing approved/draft use real continuity scoring', () => {
@@ -247,7 +249,7 @@ test('13-14: second planningDraft course and existing approved/draft use real co
     instructor_assignment_locked: true,
     school: 'תורני ואולפנת בר אילן',
     school_id: 'school-a',
-    meetings: [{ date: '2026-09-06', start_time: '08:00', end_time: '09:00' }]
+    meetings: [{ date: '2026-09-06', start_time: '08:00', end_time: '09:30' }]
   });
   const withApproved = calculateCourseSchedule(scheduleInput({
     activities: [course('open-1'), approved],
@@ -287,8 +289,7 @@ test('16-17: single failure renders once; additional failures only after primary
     alternatives: [],
     checked: [single]
   });
-  const phrase = 'אין זמן מעבר מספיק מהפעילות הקודמת - משפיע על מפגש אחד';
-  assert.equal((singleHtml.match(new RegExp(phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g')) || []).length, 1);
+  assert.equal((singleHtml.match(/אין מספיק זמן מעבר בין הפעילויות/g) || []).length, 1);
   assert.doesNotMatch(singleHtml, /course-scheduling-rejected-failures/);
 
   const multi = {
@@ -304,10 +305,8 @@ test('16-17: single failure renders once; additional failures only after primary
     checked: [multi]
   });
   assert.match(multiHtml, /course-scheduling-rejected-primary">סיבה ראשית/);
-  assert.match(multiHtml, /course-scheduling-rejected-failures/);
-  assert.match(multiHtml, /<li>סיבה שנייה<\/li>/);
-  assert.match(multiHtml, /<li>סיבה שלישית<\/li>/);
-  assert.doesNotMatch(multiHtml, /course-scheduling-rejected-failures[\s\S]*סיבה ראשית/);
+  assert.doesNotMatch(multiHtml, /course-scheduling-rejected-failures/);
+  assert.doesNotMatch(multiHtml, /סיבה שנייה|סיבה שלישית/);
 });
 
 test('manual picker exposes rejected candidates, warns once, and blocks real overlap', () => {
@@ -329,7 +328,7 @@ test('manual picker exposes rejected candidates, warns once, and blocks real ove
   assert.match(html, /חיפוש מדריך לפי שם/);
 });
 
-test('manual picker can include active instructors outside the automatic readiness pool', () => {
+test('manual picker shows but blocks active instructors whose matching data is not verifiable', () => {
   const html = instructorsResultsHtml({
     course: course('manual-all-active'), status: 'נדרש טיפול', recommended: null,
     bestAvailable: null, alternatives: [], checked: [], manualCandidates: [{
@@ -337,12 +336,30 @@ test('manual picker can include active instructors outside the automatic readine
       failures: ['חסרים נתוני התאמה מלאים'], missingProfileData: []
     }]
   }, { courseSchedulingManualPickerOpen: true, courseSchedulingManualSearch: '' });
-  assert.match(html, /data-manual-candidate="300"/);
+  assert.match(html, /data-manual-candidate="300"[^>]*disabled/);
   assert.match(html, /חסרים נתוני התאמה מלאים/);
 });
 
+test('manual picker permits only deliberate soft exceptions and blocks identity or travel-safety failures', () => {
+  assert.equal(manualCandidateBlocked({
+    failures: ['מרחק הנסיעה לבית הספר הוא 55 ק״מ ועולה על המגבלה של 40 ק״מ'],
+    missingProfileData: []
+  }), false, 'known home distance above 40 km remains a deliberate manual exception');
+
+  for (const reason of [
+    'שפת ההדרכה אינה תואמת: נדרשת ערבית',
+    'הקורס דורש מדריכה',
+    'לא ניתן לאמת זמן מעבר לאחר פעילות קודמת',
+    'אין זמן מעבר מספיק מהפעילות הקודמת',
+    'חסרים נתוני התאמה מלאים',
+    'הרצף היומי חורג מהמותר בתאריך 2026-10-11'
+  ]) {
+    assert.equal(manualCandidateBlocked({ failures: [reason], missingProfileData: [] }), true, reason);
+  }
+});
+
 test('manual draft RPC audits warnings and keeps inactive instructors and overlaps blocked', () => {
-  const migration = readFileSync(new URL('../supabase/migrations/20260817193000_course_scheduling_manual_draft.sql', import.meta.url), 'utf8');
+  const migration = readFileSync(new URL('../supabase/migrations/20260816235618_course_scheduling_manual_draft.sql', import.meta.url), 'utf8');
   assert.match(migration, /instructor_inactive/);
   assert.match(migration, /scheduling_course_conflict_exists\(p_activity_id, p_emp_id\)/);
   assert.match(migration, /draft_created_by=auth\.uid\(\)/);
@@ -515,7 +532,7 @@ test('23: workload hours use identical formatting everywhere', () => {
     alternatives: [],
     checked: []
   }, { courseSchedulingSelectedCandidateId: '100', courseSchedulingExpandedCandidateId: '100' });
-  assert.equal((html.match(/3\.25 שעות/g) || []).length >= 2, true);
+  assert.equal((html.match(/3\.25 שעות/g) || []).length >= 1, true);
   assert.doesNotMatch(html, /3\.3 שעות/);
 });
 

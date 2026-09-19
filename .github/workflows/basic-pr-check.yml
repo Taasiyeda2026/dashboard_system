@@ -55,3 +55,31 @@ jobs:
           done < <(git diff --name-only --diff-filter=ACMR -z "$BASE_SHA" "$HEAD_SHA")
 
           echo "Checked ${js_count} changed JavaScript files and ${json_count} changed JSON files."
+
+
+      - name: Run focused scheduling contract tests
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE_SHA="$(git rev-parse "origin/${BASE_REF}")"
+          if git diff --name-only "$BASE_SHA" "$HEAD_SHA" | grep -Eq '^(frontend/src/screens/(course-scheduling|instructor-matching-engine)|frontend/src/screens/shared/(activity-scheduling-eligibility|course-scheduling-manual-picker-access)|supabase/migrations/.*schedul|tests/course-scheduling)'; then
+            npm ci --ignore-scripts --no-audit --no-fund
+            node --test \
+              tests/course-scheduling-stage3-optimization.test.mjs \
+              tests/course-scheduling-contract-restoration.test.mjs \
+              tests/course-scheduling-date-adjustments.test.mjs \
+              tests/course-scheduling-stage2-matching.test.mjs \
+              tests/course-scheduling-engine.test.mjs \
+              tests/course-scheduling-hidden-planning-state.test.mjs \
+              tests/course-scheduling-e2e-alignment.test.mjs \
+              tests/course-scheduling-district-plan-consistency.test.mjs \
+              tests/course-scheduling-district-simulation.test.mjs \
+              tests/course-scheduling-district-simulation-save-drafts.test.mjs \
+              tests/course-scheduling-logic-ui-corrections.test.mjs \
+              tests/course-scheduling-manual-finalize-soft-warnings.test.mjs
+          else
+            echo "No scheduling contract files changed; focused scheduling tests skipped."
+          fi

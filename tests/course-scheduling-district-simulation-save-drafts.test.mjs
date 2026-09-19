@@ -226,7 +226,7 @@ test('6. save button is disabled when nothing is selected', () => {
     selectedCourseIds: ['ready-1'],
     district: 'מרכז'
   });
-  assert.match(withSelection, /שמור את כל 1 ההצעות כטיוטות/);
+  assert.match(withSelection, /שמור 1 הצעות כטיוטות/);
   assert.doesNotMatch(withSelection, /data-save-simulation-drafts[^>]*disabled/);
 });
 
@@ -244,7 +244,7 @@ test('6b. default panel offers one bulk-save action for all draftable proposals'
 test('7. simulation calculation remains read-only', async () => {
   const source = await readFile(new URL('../frontend/src/screens/course-scheduling.js', import.meta.url), 'utf8');
   const start = source.indexOf('const runDistrictSimulation = async');
-  const end = source.indexOf('root.querySelector(\'[data-run-district-simulation]\')');
+  const end = source.indexOf('\n    };', start) + '\n    };'.length;
   assert.ok(start > 0 && end > start);
   const handler = source.slice(start, end);
   assert.match(handler, /Read-only: never save drafts/);
@@ -255,7 +255,7 @@ test('7. simulation calculation remains read-only', async () => {
   const moduleSource = await readFile(new URL('../frontend/src/screens/course-scheduling-district-simulation.js', import.meta.url), 'utf8');
   assert.doesNotMatch(moduleSource, /supabase/);
   assert.doesNotMatch(moduleSource, /\.rpc\(/);
-  assert.match(moduleSource, /Read-only district simulation/);
+  assert.match(moduleSource, /Read-only district\/national simulation/);
 });
 
 test('8. saving uses the existing draft-save path and payload', () => {
@@ -526,7 +526,7 @@ test('bind: only selected valid proposals are saved through the existing draft R
   delete globalThis.document;
 });
 
-test('checkbox defaults: ready checked, review unchecked, recruit/missing disabled', () => {
+test('checkbox defaults: ready and review checked; recruit/missing disabled', () => {
   const rows = mixedSimulationRows();
   const html = districtSimulationPanelHtml({
     rows,
@@ -535,8 +535,7 @@ test('checkbox defaults: ready checked, review unchecked, recruit/missing disabl
     district: 'מרכז'
   });
   assert.match(html, /data-simulation-select-course="ready-1"[^>]*checked/);
-  assert.match(html, /data-simulation-select-course="review-1"/);
-  assert.doesNotMatch(html, /data-simulation-select-course="review-1"[^>]*checked/);
+  assert.match(html, /data-simulation-select-course="review-1"[^>]*checked/);
   assert.doesNotMatch(html, /data-simulation-select-course="recruit-1"/);
   assert.doesNotMatch(html, /data-simulation-select-course="missing-1"/);
   assert.doesNotMatch(html, /data-simulation-select-course="no-instructor"/);

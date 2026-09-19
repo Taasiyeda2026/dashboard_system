@@ -59,13 +59,13 @@ test('filters inactive instructors before matching and route calculation', () =>
   assert.deepEqual(result.checked.map((candidate) => candidate.instructor.emp_id), ['1']);
 });
 
-test('date adjustment keeps the full course and enforces raw travel plus one 10 minute buffer', () => {
+test('date adjustment keeps the full course and enforces raw travel plus one 15 minute buffer', () => {
   const target = course('adjusted-full', '2027-01-24', { school: 'יעד', school_address: 'יעד 1', meetings: [
     { date: '2027-01-24', start_time: '10:00', end_time: '11:00' },
     { date: '2027-01-31', start_time: '10:00', end_time: '11:00' },
     { date: '2027-02-07', start_time: '10:00', end_time: '11:00' }
   ] });
-  const previous = course('previous', '2027-01-31', { emp_id: '1', instructor_assignment_locked: true, school_id: 101, school: 'מוצא', school_address: 'מוצא 1', start_time: '09:00', end_time: '09:40', meetings: [{ date: '2027-01-31', start_time: '09:00', end_time: '09:40' }] });
+  const previous = course('previous', '2027-01-31', { emp_id: '1', instructor_assignment_locked: true, school_id: 101, school: 'מוצא', school_address: 'מוצא 1', start_time: '09:00', end_time: '09:35', meetings: [{ date: '2027-01-31', start_time: '09:00', end_time: '09:35' }] });
   const input = {
     activities: [target, previous], instructors: [instructors[0]], profiles: { 1: profiles[1] },
     rules: { 1: [{ weekday: 0, available: true, start_time: '08:00', end_time: '16:00' }] },
@@ -77,7 +77,7 @@ test('date adjustment keeps the full course and enforces raw travel plus one 10 
   assert.equal(exact.eligible, true);
   assert.equal(exact.dateAdjustment.exceedsHalf, true);
   assert.deepEqual(exact.dateAdjustment.meetings.map((meeting) => meeting.date), ['2027-01-31', '2027-02-07', '2027-02-14']);
-  const oneMinuteShort = { ...previous, end_time: '09:41', meetings: [{ date: '2027-01-31', start_time: '09:00', end_time: '09:41' }] };
+  const oneMinuteShort = { ...previous, end_time: '09:36', meetings: [{ date: '2027-01-31', start_time: '09:00', end_time: '09:36' }] };
   const short = calculateCourseSchedule({ ...input, activities: [target, oneMinuteShort], assignments: { 1: [oneMinuteShort] }, routeMatrix: { [routeMatrixKey('מוצא 1', 'יעד 1')]: { distance_km: 1, duration_minutes: 10 } } })[0].checked[0];
   assert.equal(short.eligible, false);
   assert.ok(short.failures.includes('transition_insufficient'));
@@ -86,7 +86,7 @@ test('date adjustment keeps the full course and enforces raw travel plus one 10 
   assert.ok(unknown.failures.includes('transition_unverified'));
 });
 
-test('deprecated restrictions do not apply and unsaved picks do not alter later rankings', () => {
+test('deprecated restrictions do not apply and accepted planning drafts can balance later independent courses', () => {
   const deprecatedProfiles = {
     1: { ...profiles[1], course_restriction_mode: 'allow_only', course_ids: ['only'] },
     2: { ...profiles[2], course_restriction_mode: 'block_selected', course_ids: ['blocked-other'] }
@@ -94,7 +94,7 @@ test('deprecated restrictions do not apply and unsaved picks do not alter later 
   const results = calculateCourseSchedule({ ...baseInput([course('flex'), course('only', '2026-09-07')]), profiles: deprecatedProfiles });
   const selected=results.map((result)=>result.recommended||result.bestAvailable);
   assert.equal(selected.filter(Boolean).length,2);
-  assert.deepEqual(selected.map((candidate)=>candidate.instructor.emp_id),['1','1']);
+  assert.deepEqual(new Set(selected.map((candidate)=>candidate.instructor.emp_id)).size, 2);
 });
 
 test('checks every meeting and keeps missing weekday availability out of recruitment', () => {
@@ -106,9 +106,12 @@ test('checks every meeting and keeps missing weekday availability out of recruit
   assert.ok(result.checked.every((candidate) => candidate.missingProfileData.some((reason) => /זמינות/.test(reason))));
 });
 
-test('missing essential activity data stays outside the scheduling engine', () => {
+test('missing essential activity data stays visible as a missing-information result', () => {
   const results = calculateCourseSchedule(baseInput([{ ...course('missing'), school_address: '', instruction_language: '' }]));
-  assert.deepEqual(results, []);
+  assert.equal(results.length, 1);
+  assert.equal(results[0].status, 'חסר מידע');
+  assert.ok(results[0].missing.includes('כתובת בית הספר'));
+  assert.ok(results[0].missing.includes('שפת הדרכה'));
 });
 
 test('weekly workload compares each ISO week with one declared weekly capacity', () => {
@@ -122,14 +125,14 @@ test('weekly workload compares each ISO week with one declared weekly capacity',
   assert.equal(load.ratio, 1 / 16);
 });
 
-test('unsaved automatic recommendations do not dynamically balance later courses', () => {
+test('accepted in-memory recommendations participate in later-course workload balancing', () => {
   const results = calculateCourseSchedule(baseInput([
     course('first', '2026-09-06'),
     course('second', '2026-09-07')
   ]));
   const selected=results.map((result)=>result.recommended||result.bestAvailable);
   assert.equal(selected.filter(Boolean).length,2);
-  assert.deepEqual(selected.map((candidate)=>candidate.instructor.emp_id), ['1', '1']);
+  assert.notEqual(selected[0].instructor.emp_id, selected[1].instructor.emp_id);
 });
 
 test('closed, cancelled and other-season assignments do not block or inflate workload', () => {
@@ -251,10 +254,12 @@ test('real classification rejects explicit gender mismatch but ignores deprecate
   assert.doesNotMatch(html, /חסר להשלמה:[^<]*זמינות שבועית/);
 });
 
-test('incomplete instructors are excluded while fully ready mismatches remain rejected candidates', () => {
+test('incomplete instructors stay visible for treatment while fully ready mismatches remain rejected candidates', () => {
   const incomplete = calculateCourseSchedule({ activities: [course('incomplete')], instructors, profiles: {}, rules: {}, exceptions: {} })[0];
-  assert.equal(incomplete.status, 'נדרש גיוס');
-  assert.deepEqual(incomplete.checked, []);
+  assert.equal(incomplete.status, 'נדרש טיפול');
+  assert.equal(incomplete.checked.length, instructors.length);
+  assert.equal(incomplete.incompleteProfiles.length, instructors.length);
+  assert.ok(incomplete.incompleteProfiles.every((candidate) => (candidate.missingProfileData || []).length > 0));
   const rejectedProfiles = { 1: { ...profiles[1], instruction_languages: ['ar'] }, 2: { ...profiles[2], instruction_languages: ['ar'] } };
   const rejected = calculateCourseSchedule({ ...baseInput([course('rejected')]), profiles: rejectedProfiles })[0];
   assert.equal(rejected.status, 'נדרש גיוס');
@@ -296,9 +301,9 @@ test('travel is precomputed between two draft courses proposed for the same inst
   assert.equal(routed.routeMatrix['כתובת א→כתובת ב']?.duration_minutes, 12);
 });
 
-test('a missing route between two planning recommendations does not hard-block the second course', () => {
-  const first = course('a', '2026-09-06', { school: 'א', school_address: 'כתובת א', start_time: '08:00', end_time: '09:00', meetings: [{ date: '2026-09-06', start_time: '08:00', end_time: '09:00' }] });
-  const second = course('b', '2026-09-06', { school: 'ב', school_address: 'כתובת ב', start_time: '10:00', end_time: '11:00', meetings: [{ date: '2026-09-06', start_time: '10:00', end_time: '11:00' }] });
+test('a missing route between accepted planning recommendations hard-blocks the later transition', () => {
+  const first = course('a', '2026-09-06', { school: 'א', school_id: 'school-a', school_address: 'כתובת א', start_time: '08:00', end_time: '09:00', meetings: [{ date: '2026-09-06', start_time: '08:00', end_time: '09:00' }] });
+  const second = course('b', '2026-09-06', { school: 'ב', school_id: 'school-b', school_address: 'כתובת ב', start_time: '10:00', end_time: '11:00', meetings: [{ date: '2026-09-06', start_time: '10:00', end_time: '11:00' }] });
   const home = { distance_km: 6, duration_minutes: 10 };
   const results = calculateCourseSchedule({
     activities: [first, second],
@@ -306,18 +311,16 @@ test('a missing route between two planning recommendations does not hard-block t
     profiles: { 1: profiles[1] },
     rules: { 1: rules[1] },
     exceptions: {},
-    // Reliable home routes are present; only the inter-recommendation transition is absent.
     travel: {
       a: { 1: { home, homeReturn: home, transitions: {} } },
       b: { 1: { home, homeReturn: home, transitions: {} } }
     },
     routeMatrix: {}
   });
-  // Hidden planningDraft recommendations must not create unverified-transition hard failures.
-  assert.equal(results.filter((result) => result.recommended || result.bestAvailable).length, 2);
+  assert.equal(results.filter((result) => result.recommended || result.bestAvailable).length, 1);
   const secondChecked = results.find((row) => row.course.row_id === 'b')?.checked?.[0];
-  assert.equal(secondChecked?.eligible, true);
-  assert.doesNotMatch((secondChecked?.failures || []).join(' '), /לא ניתן לאמת זמן מעבר|מעבר/);
+  assert.equal(secondChecked?.eligible, false);
+  assert.match((secondChecked?.failures || []).join(' '), /לא ניתן לאמת זמן מעבר|מעבר/);
 });
 
 test('unverified transition between existing schools fails safely', () => {
@@ -354,7 +357,7 @@ test('scheduling route reuses cached address pairs without an expiry check', asy
   assert.doesNotMatch(source, /\.gt\('expires_at'/);
 });
 
-test('acceptance: incomplete Hila Rosen 1500 stays outside the candidate list', () => {
+test('acceptance: incomplete Hila Rosen 1500 is visible as a treatment case, not a recommendation', () => {
   const dates = Array.from({ length: 8 }, (_, index) => {
     const date = new Date('2026-09-07T12:00:00Z');
     date.setUTCDate(date.getUTCDate() + index * 7);
@@ -363,10 +366,12 @@ test('acceptance: incomplete Hila Rosen 1500 stays outside the candidate list', 
   const hila = { emp_id: '1500', full_name: 'הילה רוזן', active: 'yes', address: 'צה״ל 68, גן יבנה' };
   const activity = course('hila', dates[0].date, { meetings: dates, start_time: '10:00', end_time: '11:30' });
   const result = calculateCourseSchedule({ activities: [activity], instructors: [hila], profiles: {}, rules: {}, exceptions: {} })[0];
-  assert.equal(result.status, 'נדרש גיוס');
+  assert.equal(result.status, 'נדרש טיפול');
   assert.equal(result.recommended, null);
-  assert.deepEqual(result.checked, []);
-  assert.deepEqual(result.incompleteProfiles, []);
+  assert.equal(result.checked.length, 1);
+  assert.equal(result.incompleteProfiles.length, 1);
+  assert.ok((result.incompleteProfiles[0].missingProfileData || []).length > 0);
   const html = detailsHtml(result);
-  assert.doesNotMatch(html, /הילה רוזן|1500|חסר להשלמה/);
+  assert.match(html, /הילה רוזן/);
+  assert.match(html, /חסר להשלמה/);
 });

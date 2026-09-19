@@ -2,7 +2,7 @@
  * Stage 2 matching-engine regression tests.
  *
  * Covers the four confirmed bugs fixed in this stage:
- *  Bug 1 – Hard daily-activity-count block removed (>3 / >5 consecutive limit).
+ *  Bug 1 – Daily safety is sequence-based, not a raw activity-count limit.
  *  Bug 2 – Same-school detected by school_id, not display name.
  *  Bug 3 – Cancelled meeting dates are filtered before overlap checks.
  *  Bug 4 – District simulation uses planningDraft meetings in the hard-gate.
@@ -53,11 +53,9 @@ const existing = (date, startTime, endTime, overrides = {}) => ({
   ...overrides
 });
 
-// ─── Bug 1: Daily count hard block removed ───────────────────────────────────
+// ─── Bug 1: Daily sequence safety ────────────────────────────────────────────
 
-test('bug1: 6 non-overlapping same-day activities do not block instructor via count limit', () => {
-  // Before the fix, >5 consecutive activities in a day (< 80 min each) would hard-block.
-  // Now only availability window and actual time overlap matter.
+test('bug1: a sixth consecutive short activity is blocked by the daily sequence safety limit', () => {
   const target = activity({
     meetings: [{ date: '2026-09-06', start_time: '15:00', end_time: '16:00' }]
   });
@@ -76,17 +74,13 @@ test('bug1: 6 non-overlapping same-day activities do not block instructor via co
     existingActivities: sixActivities,
     validateTravel: false
   });
-  assert.equal(result.eligible, true, 'should not be blocked by daily count alone');
-  assert.ok(
-    !result.failures.some((f) => f.includes('רצף')),
-    'no "רצף" failure should appear'
-  );
+  assert.equal(result.eligible, false);
+  assert.ok(result.failures.some((f) => f.includes('רצף')));
 });
 
-test('bug1: instructor with 4 consecutive 80-min activities is still eligible after count removal', () => {
-  // 4 × 80-min activities used to block because max consecutive ≥ 80-min > 3.
+test('bug1: a fourth consecutive 80-minute activity is blocked by the daily sequence safety limit', () => {
   const target = activity({
-    meetings: [{ date: '2026-09-06', start_time: '13:20', end_time: '14:40' }]
+    meetings: [{ date: '2026-09-06', start_time: '12:00', end_time: '13:20' }]
   });
   const threeExisting = [
     existing('2026-09-06', '08:00', '09:20', { row_id: 'e1' }),
@@ -100,11 +94,12 @@ test('bug1: instructor with 4 consecutive 80-min activities is still eligible af
     existingActivities: threeExisting,
     validateTravel: false
   });
-  assert.equal(result.eligible, true, '4 consecutive 80-min activities must not be hard-blocked');
+  assert.equal(result.eligible, false);
+  assert.ok(result.failures.some((f) => f.includes('רצף')));
 });
 
 test('bug1: exceeding availability window still blocks (existing guard untouched)', () => {
-  // The daily count limit is gone but the availability gate is not.
+  // Availability remains an independent hard gate.
   const target = activity({
     meetings: [{ date: '2026-09-06', start_time: '16:00', end_time: '17:00' }]
   });
