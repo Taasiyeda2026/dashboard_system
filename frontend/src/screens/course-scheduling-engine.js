@@ -98,16 +98,29 @@ function applySchedulingScoreContract(result = {}) {
   const peerProjectedUtilizationRatios = eligiblePeers
     .map((candidate) => Number(candidate.projectedUtilizationRatio ?? candidate.utilizationRatio))
     .filter((value) => Number.isFinite(value) && value >= 0);
-  const checked = checkedRaw.map((candidate) => scoreCandidate(
+  const scoredChecked = checkedRaw.map((candidate) => scoreCandidate(
     candidate,
     peerProjectedHours,
     peerProjectedUtilizationRatios
   ));
-  const eligibleSorted = checked
+  const eligibleSorted = scoredChecked
     .filter((candidate) => candidate.eligible)
     .sort((first, second) => compareCandidatesStable(first, second));
+  const rankByEmpId = new Map(
+    eligibleSorted.map((candidate, index) => [text(candidate.instructor?.emp_id), index + 1])
+  );
+  const checked = scoredChecked.map((candidate) => ({
+    ...candidate,
+    rank: candidate.eligible ? (rankByEmpId.get(text(candidate.instructor?.emp_id)) || null) : null,
+    recommended: false,
+    bestAvailable: false
+  }));
+  const rankedEligible = eligibleSorted.map((candidate, index) => ({
+    ...candidate,
+    rank: index + 1
+  }));
 
-  const primary = eligibleSorted[0] || null;
+  const primary = rankedEligible[0] || null;
   const recommended = primary && Number(primary.score) >= 60
     ? { ...primary, recommended: true, bestAvailable: false }
     : null;
@@ -115,7 +128,7 @@ function applySchedulingScoreContract(result = {}) {
     ? { ...primary, recommended: false, bestAvailable: true }
     : null;
   const selectedId = text((recommended || bestAvailable)?.instructor?.emp_id);
-  const alternatives = eligibleSorted
+  const alternatives = rankedEligible
     .filter((candidate) => text(candidate.instructor?.emp_id) !== selectedId)
     .slice(0, 3)
     .map((candidate) => ({ ...candidate, recommended: false, bestAvailable: false }));
@@ -140,7 +153,7 @@ function applySchedulingScoreContract(result = {}) {
     alternatives,
     checked,
     incompleteProfiles,
-    eligibleCandidateCount: eligibleSorted.length,
+    eligibleCandidateCount: rankedEligible.length,
     treatmentReason,
     selectedQualityBand: selected?.qualityBand || null
   };
