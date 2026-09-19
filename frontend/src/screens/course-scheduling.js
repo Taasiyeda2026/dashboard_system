@@ -40,6 +40,10 @@ import {
   instructorsWorkspaceNavStylesHtml
 } from './shared/instructors-workspace-nav.js';
 import {
+  manualCandidateBlocked,
+  manualCandidateWarnings
+} from './shared/course-scheduling-manual-picker-access.js';
+import {
   DISTRICT_SIMULATION_ROUTE_MISSING_MESSAGE,
   applyDistrictSimulationSaveOutcome,
   courseLabelForSimulationRow,
@@ -851,14 +855,6 @@ function rejectedCandidatesHtml(result) {
       }).join('')}
     </div>
   </details>`;
-}
-
-function manualCandidateWarnings(candidate = {}) {
-  return [...new Set([...(candidate.failures || []), ...(candidate.missingProfileData || [])].map(text).filter(Boolean))];
-}
-
-function manualCandidateBlocked(candidate = {}) {
-  return manualCandidateWarnings(candidate).some((reason) => /חפיפה/.test(reason));
 }
 
 export function manualCandidateConfirmationHtml(confirmation = null) {
