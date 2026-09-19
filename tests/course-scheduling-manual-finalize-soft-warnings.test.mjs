@@ -46,7 +46,7 @@ test('manual draft RPC records an explicit manual reason for server verification
   const fn = sliceFunction(sql, 'save_course_assignment_manual_draft');
 
   assert.match(fn, /decision_type, reason/);
-  assert.match(fn, /'draft', nullif\(btrim\(p_reason\), ''\)/);
+  assert.match(fn, /'draft',[\s\S]*nullif\(btrim\(coalesce\(p_reason, ''\)\), ''\)/);
 });
 
 test('manual finalization keeps only explicit manual-fit exceptions soft and aligns all safety gates', async () => {
