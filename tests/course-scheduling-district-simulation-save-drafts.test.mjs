@@ -255,7 +255,7 @@ test('7. simulation calculation remains read-only', async () => {
   const moduleSource = await readFile(new URL('../frontend/src/screens/course-scheduling-district-simulation.js', import.meta.url), 'utf8');
   assert.doesNotMatch(moduleSource, /supabase/);
   assert.doesNotMatch(moduleSource, /\.rpc\(/);
-  assert.match(moduleSource, /Read-only district simulation/);
+  assert.match(moduleSource, /Read-only district\/national simulation/);
 });
 
 test('8. saving uses the existing draft-save path and payload', () => {
