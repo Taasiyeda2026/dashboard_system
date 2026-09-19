@@ -4,7 +4,8 @@ import { readFile } from 'node:fs/promises';
 import {
   calculateCourseSchedule,
   preliminaryCourseCandidates,
-  schedulingCourses
+  schedulingCourses,
+  buildOperationalBlocks
 } from '../frontend/src/screens/course-scheduling-engine.js';
 import {
   SCORE_WEIGHTS,
@@ -375,6 +376,104 @@ test('hourly efficiency outranks work spreading; spreading only breaks operation
   assert.ok(compareCandidatesStable(noWork, equivalentBusy) < 0, 'with equal efficiency and travel, give work to the uncovered instructor');
 });
 
+test('operational block builder creates lanes for parallel courses and splits long gaps', () => {
+  const shared = {
+    school: 'בית ספר רצף',
+    school_id: 'school-block',
+    school_address: 'כתובת רצף',
+    meetings: [{ date: '2026-09-06', start_time: '08:00', end_time: '10:00' }]
+  };
+  const a = course('lane-a', '2026-09-06', { ...shared, start_time: '08:00', end_time: '10:00' });
+  const b = course('lane-b', '2026-09-06', { ...shared, start_time: '08:00', end_time: '10:00' });
+  const c1 = course('lane-c', '2026-09-06', {
+    ...shared, start_time: '10:00', end_time: '12:00',
+    meetings: [{ date: '2026-09-06', start_time: '10:00', end_time: '12:00' }]
+  });
+  const d = course('lane-d', '2026-09-06', {
+    ...shared, start_time: '14:00', end_time: '16:00',
+    meetings: [{ date: '2026-09-06', start_time: '14:00', end_time: '16:00' }]
+  });
+  const e = course('lane-e', '2026-09-06', {
+    ...shared, start_time: '16:00', end_time: '18:00',
+    meetings: [{ date: '2026-09-06', start_time: '16:00', end_time: '18:00' }]
+  });
+  const blocks = buildOperationalBlocks([a, b, c1, d, e].map((row) => ({ course: row, status: 'הצעה מוכנה' })));
+  const ids = blocks.map((block) => block.courseIds);
+  assert.ok(ids.some((block) => block.length === 2 && block.includes('lane-c') && (block.includes('lane-a') || block.includes('lane-b'))));
+  assert.ok(ids.some((block) => block.length === 1 && (block.includes('lane-a') || block.includes('lane-b'))));
+  assert.ok(ids.some((block) => block.length === 2 && block.includes('lane-d') && block.includes('lane-e')));
+});
+
+test('parallel 08-10 courses need two instructors and one continues into the 10-12 same-school block', () => {
+  const make = (id, start, end) => course(id, '2026-09-06', {
+    school: 'בית ספר מקביל',
+    school_id: 'parallel-school',
+    school_address: 'כתובת מקביל',
+    start_time: start,
+    end_time: end,
+    meetings: [{ date: '2026-09-06', start_time: start, end_time: end }]
+  });
+  const first = make('parallel-a', '08:00', '10:00');
+  const second = make('parallel-b', '08:00', '10:00');
+  const follow = make('parallel-c', '10:00', '12:00');
+  const people = instructors.slice(0, 2);
+  const travel = mergeTravel(...[first, second, follow].flatMap((row) =>
+    people.map((person) => travelHome(row.row_id, person.emp_id))));
+  const results = calculateCourseSchedule({
+    activities: [first, second, follow],
+    instructors: people,
+    profiles: { 1: profiles[1], 2: profiles[2] },
+    rules: { 1: sundayRules[1], 2: sundayRules[2] },
+    exceptions: {},
+    referenceDate: '2026-09-01',
+    travel,
+    routeMatrix: {}
+  });
+  const pick = (id) => {
+    const row = results.find((result) => result.course.row_id === id);
+    return (row.recommended || row.bestAvailable)?.instructor?.emp_id;
+  };
+  assert.notEqual(pick('parallel-a'), pick('parallel-b'));
+  assert.ok([pick('parallel-a'), pick('parallel-b')].includes(pick('parallel-c')));
+});
+
+test('a four-hour gap does not bind the morning course, while 14-16 and 16-18 stay together', () => {
+  const make = (id, start, end) => course(id, '2026-09-06', {
+    school: 'בית ספר פער',
+    school_id: 'gap-school',
+    school_address: 'כתובת פער',
+    start_time: start,
+    end_time: end,
+    meetings: [{ date: '2026-09-06', start_time: start, end_time: end }]
+  });
+  const morning = make('gap-morning', '08:00', '10:00');
+  const afternoon = make('gap-afternoon', '14:00', '16:00');
+  const evening = make('gap-evening', '16:00', '18:00');
+  const people = instructors.slice(0, 2);
+  const extendedRules = {
+    1: [{ weekday: 0, available: true, start_time: '08:00', end_time: '18:00' }],
+    2: [{ weekday: 0, available: true, start_time: '08:00', end_time: '18:00' }]
+  };
+  const travel = mergeTravel(...[morning, afternoon, evening].flatMap((row) =>
+    people.map((person) => travelHome(row.row_id, person.emp_id))));
+  const results = calculateCourseSchedule({
+    activities: [morning, afternoon, evening],
+    instructors: people,
+    profiles: { 1: profiles[1], 2: profiles[2] },
+    rules: extendedRules,
+    exceptions: {},
+    referenceDate: '2026-09-01',
+    travel,
+    routeMatrix: {}
+  });
+  const pick = (id) => {
+    const row = results.find((result) => result.course.row_id === id);
+    return (row.recommended || row.bestAvailable)?.instructor?.emp_id;
+  };
+  assert.equal(pick('gap-afternoon'), pick('gap-evening'));
+  assert.ok(pick('gap-morning'));
+});
+
 test('three back-to-back courses at the same school stay with one instructor when eligible', () => {
   const first = course('block-a', '2026-09-06', {
     school: 'בית ספר רצף',
@@ -486,7 +585,7 @@ test('original schedule preservation penalties and eligible date-adjusted candid
   assert.equal(adjusted.halfOverflow, true);
 });
 
-test('sequential planning: primary proposal soft-influences later course without hard-blocking; no DB writes', () => {
+test('batch planning reserves accepted in-memory drafts so parallel courses cannot double-book one instructor', () => {
   const first = course('first', '2026-09-06', {
     school: 'משותף',
     school_id: 'shared',
@@ -522,18 +621,13 @@ test('sequential planning: primary proposal soft-influences later course without
   assert.deepEqual(activities, snapshot);
   const firstResult = results.find((row) => row.course.row_id === 'first');
   const secondResult = results.find((row) => row.course.row_id === 'second');
-  const firstPrimary = firstResult.recommended || firstResult.bestAvailable;
-  const secondPrimary = secondResult.recommended || secondResult.bestAvailable;
-  assert.ok(firstPrimary);
-  // Overlapping hidden planningDraft must not create hard ineligibility.
-  assert.ok(secondPrimary);
-  assert.equal(secondPrimary.eligible, true);
-  assert.doesNotMatch((secondResult.checked?.[0]?.failures || []).join(' '), /חפיפה/);
-  assert.ok(Number(secondPrimary.plannerProjectedHalfHours) >= Number(secondPrimary.projectedHalfHours));
-  assert.equal(secondPrimary.existingWorkDays, 0);
+  assert.ok(firstResult.recommended || firstResult.bestAvailable);
+  assert.equal(secondResult.recommended, null);
+  assert.equal(secondResult.bestAvailable, null);
+  assert.match((secondResult.checked?.[0]?.failures || []).join(' '), /חפיפה/);
 });
 
-test('proposedMeetings from primary soft-influence next course; persisted rows still gate hard conflicts', () => {
+test('proposedMeetings from an accepted plan reserve their effective dates for later courses', () => {
   const first = course('shift-first', '2026-09-06', {
     meetings: [
       { date: '2026-09-06', start_time: '10:00', end_time: '11:00' },
@@ -558,12 +652,11 @@ test('proposedMeetings from primary soft-influence next course; persisted rows s
   const firstResult = results.find((row) => row.course.row_id === 'shift-first');
   const primary = firstResult.recommended || firstResult.bestAvailable;
   assert.ok(primary?.dateAdjustment?.valid);
-  assert.ok(primary.proposedMeetings?.some((meeting) => meeting.date !== '2026-09-06'));
+  assert.ok(primary.proposedMeetings?.some((meeting) => meeting.date === '2026-09-20'));
   const secondResult = results.find((row) => row.course.row_id === 'shift-second');
-  const secondPrimary = secondResult.recommended || secondResult.bestAvailable;
-  // Even if proposedMeetings land on the same date, hidden planning must not hard-block.
-  assert.ok(secondPrimary?.eligible);
-  assert.equal(secondPrimary.existingWorkDays, 0);
+  assert.equal(secondResult.recommended, null);
+  assert.equal(secondResult.bestAvailable, null);
+  assert.match((secondResult.checked?.[0]?.failures || []).join(' '), /חפיפה/);
 });
 
 test('recommendation threshold, alternatives cap, and no ineligible in selectable slots', () => {
