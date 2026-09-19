@@ -3,6 +3,7 @@ import { activityMeetings, isoWeekKey } from './instructor-scheduling-load.js';
 import { routeMatrixKey } from './course-scheduling-travel.js';
 import {
   hasDraftInstructor,
+  isActivitySchedulingEligible,
   isSchedulingReadyActivity,
   isSchedulingReadyInstructor,
   isSchedulingBlockingAssignment,
@@ -35,7 +36,11 @@ export function schedulingCourses(rows = [], options = {}) {
   const district = text(options.district);
   const allDistricts = options.allDistricts === true;
   const includeIncompleteWithoutPeriodMeetings = !!options.includeIncompleteWithoutPeriodMeetings;
-  return rows.filter(isSchedulingReadyActivity)
+  return rows.filter((row) => (
+    includeIncompleteWithoutPeriodMeetings
+      ? isActivitySchedulingEligible(row)
+      : isSchedulingReadyActivity(row)
+  ))
     .filter((row) => !hasDraftInstructor(row))
     .filter((row) => !authority || text(row.authority) === authority)
     .filter((row) => {
@@ -422,6 +427,7 @@ export function calculateCourseSchedule(input = {}) {
     periodKey,
     authority: input.authority,
     district: input.district,
+    allDistricts: input.allDistricts === true,
     includeIncompleteWithoutPeriodMeetings: !!input.includeIncompleteWithoutPeriodMeetings
   });
   const targetCourseId = text(input.targetCourseId || input.targetActivityId);
