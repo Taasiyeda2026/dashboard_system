@@ -526,7 +526,7 @@ test('bind: only selected valid proposals are saved through the existing draft R
   delete globalThis.document;
 });
 
-test('checkbox defaults: ready checked, review unchecked, recruit/missing disabled', () => {
+test('checkbox defaults: ready and review checked; recruit/missing disabled', () => {
   const rows = mixedSimulationRows();
   const html = districtSimulationPanelHtml({
     rows,
