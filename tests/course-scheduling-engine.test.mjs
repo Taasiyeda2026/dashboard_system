@@ -86,7 +86,7 @@ test('date adjustment keeps the full course and enforces raw travel plus one 15 
   assert.ok(unknown.failures.includes('transition_unverified'));
 });
 
-test('deprecated restrictions do not apply and unsaved picks do not alter later rankings', () => {
+test('deprecated restrictions do not apply and accepted planning drafts can balance later independent courses', () => {
   const deprecatedProfiles = {
     1: { ...profiles[1], course_restriction_mode: 'allow_only', course_ids: ['only'] },
     2: { ...profiles[2], course_restriction_mode: 'block_selected', course_ids: ['blocked-other'] }
@@ -94,7 +94,7 @@ test('deprecated restrictions do not apply and unsaved picks do not alter later 
   const results = calculateCourseSchedule({ ...baseInput([course('flex'), course('only', '2026-09-07')]), profiles: deprecatedProfiles });
   const selected=results.map((result)=>result.recommended||result.bestAvailable);
   assert.equal(selected.filter(Boolean).length,2);
-  assert.deepEqual(selected.map((candidate)=>candidate.instructor.emp_id),['1','1']);
+  assert.deepEqual(new Set(selected.map((candidate)=>candidate.instructor.emp_id)).size, 2);
 });
 
 test('checks every meeting and keeps missing weekday availability out of recruitment', () => {
@@ -122,14 +122,14 @@ test('weekly workload compares each ISO week with one declared weekly capacity',
   assert.equal(load.ratio, 1 / 16);
 });
 
-test('unsaved automatic recommendations do not dynamically balance later courses', () => {
+test('accepted in-memory recommendations participate in later-course workload balancing', () => {
   const results = calculateCourseSchedule(baseInput([
     course('first', '2026-09-06'),
     course('second', '2026-09-07')
   ]));
   const selected=results.map((result)=>result.recommended||result.bestAvailable);
   assert.equal(selected.filter(Boolean).length,2);
-  assert.deepEqual(selected.map((candidate)=>candidate.instructor.emp_id), ['1', '1']);
+  assert.notEqual(selected[0].instructor.emp_id, selected[1].instructor.emp_id);
 });
 
 test('closed, cancelled and other-season assignments do not block or inflate workload', () => {
@@ -296,9 +296,9 @@ test('travel is precomputed between two draft courses proposed for the same inst
   assert.equal(routed.routeMatrix['כתובת א→כתובת ב']?.duration_minutes, 12);
 });
 
-test('a missing route between two planning recommendations does not hard-block the second course', () => {
-  const first = course('a', '2026-09-06', { school: 'א', school_address: 'כתובת א', start_time: '08:00', end_time: '09:00', meetings: [{ date: '2026-09-06', start_time: '08:00', end_time: '09:00' }] });
-  const second = course('b', '2026-09-06', { school: 'ב', school_address: 'כתובת ב', start_time: '10:00', end_time: '11:00', meetings: [{ date: '2026-09-06', start_time: '10:00', end_time: '11:00' }] });
+test('a missing route between accepted planning recommendations hard-blocks the later transition', () => {
+  const first = course('a', '2026-09-06', { school: 'א', school_id: 'school-a', school_address: 'כתובת א', start_time: '08:00', end_time: '09:00', meetings: [{ date: '2026-09-06', start_time: '08:00', end_time: '09:00' }] });
+  const second = course('b', '2026-09-06', { school: 'ב', school_id: 'school-b', school_address: 'כתובת ב', start_time: '10:00', end_time: '11:00', meetings: [{ date: '2026-09-06', start_time: '10:00', end_time: '11:00' }] });
   const home = { distance_km: 6, duration_minutes: 10 };
   const results = calculateCourseSchedule({
     activities: [first, second],
@@ -306,18 +306,16 @@ test('a missing route between two planning recommendations does not hard-block t
     profiles: { 1: profiles[1] },
     rules: { 1: rules[1] },
     exceptions: {},
-    // Reliable home routes are present; only the inter-recommendation transition is absent.
     travel: {
       a: { 1: { home, homeReturn: home, transitions: {} } },
       b: { 1: { home, homeReturn: home, transitions: {} } }
     },
     routeMatrix: {}
   });
-  // Hidden planningDraft recommendations must not create unverified-transition hard failures.
-  assert.equal(results.filter((result) => result.recommended || result.bestAvailable).length, 2);
+  assert.equal(results.filter((result) => result.recommended || result.bestAvailable).length, 1);
   const secondChecked = results.find((row) => row.course.row_id === 'b')?.checked?.[0];
-  assert.equal(secondChecked?.eligible, true);
-  assert.doesNotMatch((secondChecked?.failures || []).join(' '), /לא ניתן לאמת זמן מעבר|מעבר/);
+  assert.equal(secondChecked?.eligible, false);
+  assert.match((secondChecked?.failures || []).join(' '), /לא ניתן לאמת זמן מעבר|מעבר/);
 });
 
 test('unverified transition between existing schools fails safely', () => {
