@@ -138,8 +138,11 @@ test('final half overflow confirmation happens before RPC and draft payloads con
   assert.match(screen,/שמירת טיוטה אינה מאשרת את החריגה/);
   assert.match(screen,/מסתיימים בתאריך/);
   assert.match(screen,/meetings\?\.map\(\(\{ date \}\) => \(\{ date \}\)\)/);
-  const approval=screen.slice(screen.lastIndexOf("detailRoot.querySelector('[data-assign-course]')"),screen.lastIndexOf("detailRoot.querySelector('[data-save-draft]')"));
-  assert.ok(approval.indexOf('window.confirm(approvalMessage)') < approval.indexOf('supabase.rpc('));
+  const assignHandler=screen.slice(screen.lastIndexOf("detailRoot.querySelector('[data-assign-course]')"),screen.lastIndexOf("detailRoot.querySelector('[data-save-draft]')"));
+  const normalApproval=assignHandler.slice(assignHandler.indexOf('const adjustment = selected.dateAdjustment'));
+  assert.ok(normalApproval.indexOf('window.confirm(approvalMessage)') >= 0);
+  assert.ok(normalApproval.indexOf('window.confirm(approvalMessage)') < normalApproval.indexOf("supabase.rpc(proposedMeetings ? 'assign_activity_instructor_with_dates' : 'assign_activity_instructor'"));
   const draftApproval=screen.slice(screen.lastIndexOf("detailRoot.querySelector('[data-confirm-draft]')"),screen.lastIndexOf("detailRoot.querySelector('[data-cancel-draft]')"));
-  assert.ok(draftApproval.indexOf('window.confirm(approvalMessage)') < draftApproval.indexOf('supabase.rpc('));
+  assert.ok(draftApproval.indexOf('window.confirm(approvalMessage)') >= 0);
+  assert.ok(draftApproval.indexOf('window.confirm(approvalMessage)') < draftApproval.indexOf("supabase.rpc(proposedMeetings ? 'assign_activity_instructor_with_dates' : 'assign_activity_instructor'"));
 });
