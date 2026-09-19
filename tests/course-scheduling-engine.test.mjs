@@ -59,7 +59,7 @@ test('filters inactive instructors before matching and route calculation', () =>
   assert.deepEqual(result.checked.map((candidate) => candidate.instructor.emp_id), ['1']);
 });
 
-test('date adjustment keeps the full course and enforces raw travel plus one 10 minute buffer', () => {
+test('date adjustment keeps the full course and enforces raw travel plus one 15 minute buffer', () => {
   const target = course('adjusted-full', '2027-01-24', { school: 'יעד', school_address: 'יעד 1', meetings: [
     { date: '2027-01-24', start_time: '10:00', end_time: '11:00' },
     { date: '2027-01-31', start_time: '10:00', end_time: '11:00' },
