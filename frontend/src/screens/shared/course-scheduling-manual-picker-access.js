@@ -11,8 +11,15 @@ function manualCandidateWarnings(candidate = {}) {
   ].map(text).filter(Boolean))];
 }
 
-function manualCandidateBlocked(candidate = {}) {
-  return manualCandidateWarnings(candidate).some((reason) => /חפיפה/.test(reason));
+const MANUAL_NON_OVERRIDABLE_REASON = /(?:חפיפה|המדריך אינו פעיל|שפת ההדרכה אינה תואמת|לא ניתן לאמת שפת הדרכה|נדרשת (?:עברית|ערבית)|מגדר|הקורס דורש מדריכה|הקורס דורש מדריך|שבת|יום שישי אינו מאושר|הזמינות המוגדרת אינה מכסה|היום הקבוע חסום|לא ניתן לאמת זמן מעבר|מרחק בין הפעילויות|אין זמן מעבר מספיק|מסלול נסיעה אמין|חסרה כתובת(?: מדריך)?|כתובת בית הספר|הרצף היומי חורג)/;
+
+export function manualCandidateBlocked(candidate = {}) {
+  // Manual choice may override recommendation-quality signals (for example a
+  // known home distance above the automatic 40 km preference, subject to the
+  // existing manager-approval policy), but it may not bypass feasibility:
+  // language/gender identity, real overlap, explicit unavailability, unknown
+  // routes, impossible transitions, Friday/Saturday policy or daily sequence.
+  return manualCandidateWarnings(candidate).some((reason) => MANUAL_NON_OVERRIDABLE_REASON.test(reason));
 }
 
 export function manualCandidatePickerAccessHtml(result, state = {}) {
