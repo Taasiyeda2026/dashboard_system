@@ -3,11 +3,11 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
 const fixUrl = new URL(
-  '../supabase/migrations/20260817213000_course_scheduling_manual_finalize_soft_warnings.sql',
+  '../supabase/migrations/20260817002643_course_scheduling_manual_finalize_soft_warnings.sql',
   import.meta.url
 );
 const manualDraftUrl = new URL(
-  '../supabase/migrations/20260817193000_course_scheduling_manual_draft.sql',
+  '../supabase/migrations/20260816235618_course_scheduling_manual_draft.sql',
   import.meta.url
 );
 const hardGateUrl = new URL(
