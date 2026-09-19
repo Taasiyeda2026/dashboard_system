@@ -11,7 +11,6 @@ import {
 import { DEFAULT_COURSE_SCHEDULING_PERIOD_KEY, isDateInCourseSchedulingPeriod, resolveCourseSchedulingPeriod } from './course-scheduling-periods.js';
 import { effectiveEndTime, proposeDateAdjustments } from './course-scheduling-date-adjustments.js';
 import {
-  computeSchedulingScore,
   courseUrgency,
   compareCandidatesStable
 } from './course-scheduling-score.js';
@@ -233,40 +232,10 @@ function dynamicTravel(course, instructor, existingMeetings, input = {}) {
   };
 }
 
-function draftActivityFromCandidate(course, candidate) {
-  if (!course) return null;
-  const meetings = (candidate?.proposedMeetings && candidate.proposedMeetings.length)
-    ? candidate.proposedMeetings
-    : (candidate?.periodCourse?.meetings && candidate.periodCourse.meetings.length)
-      ? candidate.periodCourse.meetings
-      : activityMeetings(course);
-  return {
-    ...course,
-    meetings,
-    start_time: course.start_time || meetings[0]?.start_time || '',
-    end_time: course.end_time || meetings[0]?.end_time || '',
-    school: course.school,
-    school_id: course.school_id,
-    authority: course.authority,
-    school_address: course.school_address
-  };
-}
-
-function planningRowsForInstructor(planningDraft, empId, ordered, excludeCourseId = '') {
-  return [...planningDraft.entries()]
-    .filter(([courseId, candidate]) => courseId !== excludeCourseId && text(candidate.instructor?.emp_id) === empId)
-    .map(([courseId, candidate]) => {
-      const course = ordered.find((row) => idOf(row) === courseId);
-      return draftActivityFromCandidate(course, candidate);
-    })
-    .filter(Boolean);
-}
-
 function evaluateCandidate({
   course,
   instructor,
   assignedRows,
-  planningRows,
   profiles,
   rules,
   exceptions,
@@ -274,7 +243,6 @@ function evaluateCandidate({
 }) {
   const empId = text(instructor.emp_id);
   const persistedRows = [...(assignedRows[empId] || [])];
-  void planningRows;
   const periodKey = input.periodKey || DEFAULT_COURSE_SCHEDULING_PERIOD_KEY;
   const allMeetings = activityMeetings(course);
   const periodMeetings = allMeetings.filter((meeting) => isDateInCourseSchedulingPeriod(meeting.date, periodKey));
@@ -319,7 +287,8 @@ function evaluateCandidate({
     activity: allMeetingsCourse,
     existingActivities: plannerAllMeetings,
     travel: gateTravel,
-    validateTravel: !input.preliminary && (input.travel !== undefined || input.routeMatrix !== undefined)
+    validateTravel: !input.preliminary && (input.travel !== undefined || input.routeMatrix !== undefined),
+    includeLegacyScore: false
   });
   if (adjustment && !adjustment.valid) {
     gate.failures = [...new Set([...(gate.failures || []), adjustment.reason])];
@@ -329,32 +298,18 @@ function evaluateCandidate({
   }
 
   const eligible = !!gate.eligible;
-  const scored = computeSchedulingScore({
-    eligible,
-    activity: allMeetingsCourse,
-    meetings: activityMeetings(allMeetingsCourse),
-    existingActivities: plannerAllMeetings,
-    travel: gateTravel,
-    workDates: new Set(plannerAllMeetings.map((meeting) => text(meeting.date).slice(0, 10))),
-    dateAdjustment: adjustment?.valid ? adjustment : null,
-    currentHalfHours: persistedBaselineLoad.hours,
-    projectedHalfHours: persistedProjectedLoad.hours,
-    currentCourseCount: persistedBaselineLoad.courseCount,
-    availabilityHours: persistedProjectedLoad.availabilityHours,
-    currentUtilizationRatio: persistedBaselineLoad.maxRatio,
-    projectedUtilizationRatio: persistedProjectedLoad.maxRatio,
-    activeWorkDays: persistedProjectedLoad.workDays
-  });
-
   return {
     ...gate,
     eligible,
-    score: scored.score,
-    totalScore: scored.totalScore,
+    // The adapter in course-scheduling-engine.js is the sole owner of the
+    // approved five-component / 100-point score. Core matching returns only
+    // hard-gate facts and raw planning inputs.
+    score: null,
+    totalScore: null,
     qualityBand: eligible ? 'eligible' : null,
     qualityLabel: eligible ? 'מתאים' : null,
-    scoreBreakdown: scored.scoreBreakdown,
-    recommendationReason: scored.recommendationReason,
+    scoreBreakdown: null,
+    recommendationReason: '',
     instructor,
     load: persistedProjectedLoad,
     baselineWorkDates: persistedBaselineLoad.workDates || new Set(),
@@ -363,38 +318,36 @@ function evaluateCandidate({
     originalPeriodCourse,
     existingMeetings: persistedPeriodMeetings,
     plannerMeetings: persistedPeriodMeetings,
-    planningMeetings: [],
     persistedRows,
-    planningRows: [],
     dateAdjustment: adjustment?.valid ? adjustment : null,
     proposedMeetings: adjustment?.valid ? adjustment.meetings : null,
-    currentHalfHours: scored.currentHalfHours,
-    projectedHalfHours: scored.projectedHalfHours,
+    currentHalfHours: persistedBaselineLoad.hours,
+    projectedHalfHours: persistedProjectedLoad.hours,
     plannerCurrentHalfHours: persistedBaselineLoad.hours,
     plannerProjectedHalfHours: persistedProjectedLoad.hours,
-    currentCourseCount: scored.currentCourseCount,
-    availabilityHours: scored.availabilityHours,
+    currentCourseCount: persistedBaselineLoad.courseCount,
+    availabilityHours: persistedProjectedLoad.availabilityHours,
     projectedWeeklyHours: Math.max(0, ...Object.values(persistedProjectedLoad.weekHours)),
-    currentUtilizationRatio: scored.currentUtilizationRatio,
-    projectedUtilizationRatio: scored.projectedUtilizationRatio,
-    utilizationRatio: scored.projectedUtilizationRatio,
-    activeWorkDays: scored.activeWorkDays,
+    currentUtilizationRatio: persistedBaselineLoad.maxRatio,
+    projectedUtilizationRatio: persistedProjectedLoad.maxRatio,
+    utilizationRatio: persistedProjectedLoad.maxRatio,
+    activeWorkDays: persistedProjectedLoad.workDays,
     existingWorkDays: persistedBaselineLoad.workDays,
     projectedWorkDays: persistedProjectedLoad.workDays,
-    relevantTravelMinutes: scored.relevantTravelMinutes,
-    relevantTravelDistance: scored.relevantTravelDistance,
-    incrementalTravelKnown: scored.incrementalTravelKnown,
-    movedMeetingsCount: scored.movedMeetingsCount,
-    totalShiftDays: scored.totalShiftDays,
-    halfOverflow: scored.halfOverflow,
-    sameSchoolMeetingCount: scored.sameSchoolMeetingCount,
-    sameAuthorityMeetingCount: scored.sameAuthorityMeetingCount,
-    nearbyMeetingCount: scored.nearbyMeetingCount,
-    existingWorkDayMeetingCount: scored.existingWorkDayMeetingCount,
-    newWorkDayMeetingCount: scored.newWorkDayMeetingCount,
-    continuityMeetingCount: scored.continuityMeetingCount,
-    opensNewWorkDay: scored.opensNewWorkDay,
-    nonTravelWaitingMinutes: scored.nonTravelWaitingMinutes
+    relevantTravelMinutes: null,
+    relevantTravelDistance: null,
+    incrementalTravelKnown: false,
+    movedMeetingsCount: adjustment?.valid ? Number(adjustment.movedCount) || 0 : 0,
+    totalShiftDays: 0,
+    halfOverflow: !!adjustment?.exceedsHalf,
+    sameSchoolMeetingCount: 0,
+    sameAuthorityMeetingCount: 0,
+    nearbyMeetingCount: 0,
+    existingWorkDayMeetingCount: 0,
+    newWorkDayMeetingCount: 0,
+    continuityMeetingCount: 0,
+    opensNewWorkDay: false,
+    nonTravelWaitingMinutes: 0
   };
 }
 
@@ -445,8 +398,6 @@ function evaluateCourseCandidates({
   course,
   instructors,
   assignedRows,
-  planningDraft,
-  ordered,
   profiles,
   rules,
   exceptions,
@@ -456,7 +407,6 @@ function evaluateCourseCandidates({
     course,
     instructor,
     assignedRows,
-    planningRows: planningRowsForInstructor(planningDraft, text(instructor.emp_id), ordered),
     profiles,
     rules,
     exceptions,
@@ -494,8 +444,6 @@ export function calculateCourseSchedule(input = {}) {
       course,
       instructors,
       assignedRows,
-      planningDraft: new Map(),
-      ordered: ready,
       profiles,
       rules,
       exceptions,
@@ -517,19 +465,15 @@ export function calculateCourseSchedule(input = {}) {
     return idOf(first).localeCompare(idOf(second));
   });
 
-  const planningDraft = new Map();
   const resultsById = new Map();
 
   for (const course of ordered) {
     const courseId = idOf(course);
     const urgency = urgencyByCourse.get(courseId);
-    const stateBeforeCourse = new Map(planningDraft);
     const evaluated = evaluateCourseCandidates({
       course,
       instructors,
       assignedRows,
-      planningDraft: stateBeforeCourse,
-      ordered,
       profiles,
       rules,
       exceptions,
