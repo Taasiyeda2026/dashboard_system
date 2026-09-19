@@ -23,6 +23,8 @@ import {
   detailsHtml,
   instructorsResultsHtml
 } from '../frontend/src/screens/course-scheduling.js';
+import { manualCandidateBlocked } from '../frontend/src/screens/shared/course-scheduling-manual-picker-access.js';
+
 
 const weekdayRules = [
   { weekday: 0, available: true, start_time: '08:00', end_time: '16:00' },
@@ -329,7 +331,7 @@ test('manual picker exposes rejected candidates, warns once, and blocks real ove
   assert.match(html, /חיפוש מדריך לפי שם/);
 });
 
-test('manual picker can include active instructors outside the automatic readiness pool', () => {
+test('manual picker shows but blocks active instructors whose matching data is not verifiable', () => {
   const html = instructorsResultsHtml({
     course: course('manual-all-active'), status: 'נדרש טיפול', recommended: null,
     bestAvailable: null, alternatives: [], checked: [], manualCandidates: [{
@@ -337,8 +339,26 @@ test('manual picker can include active instructors outside the automatic readine
       failures: ['חסרים נתוני התאמה מלאים'], missingProfileData: []
     }]
   }, { courseSchedulingManualPickerOpen: true, courseSchedulingManualSearch: '' });
-  assert.match(html, /data-manual-candidate="300"/);
+  assert.match(html, /data-manual-candidate="300"[^>]*disabled/);
   assert.match(html, /חסרים נתוני התאמה מלאים/);
+});
+
+test('manual picker permits only deliberate soft exceptions and blocks identity or travel-safety failures', () => {
+  assert.equal(manualCandidateBlocked({
+    failures: ['מרחק הנסיעה לבית הספר הוא 55 ק״מ ועולה על המגבלה של 40 ק״מ'],
+    missingProfileData: []
+  }), false, 'known home distance above 40 km remains a deliberate manual exception');
+
+  for (const reason of [
+    'שפת ההדרכה אינה תואמת: נדרשת ערבית',
+    'הקורס דורש מדריכה',
+    'לא ניתן לאמת זמן מעבר לאחר פעילות קודמת',
+    'אין זמן מעבר מספיק מהפעילות הקודמת',
+    'חסרים נתוני התאמה מלאים',
+    'הרצף היומי חורג מהמותר בתאריך 2026-10-11'
+  ]) {
+    assert.equal(manualCandidateBlocked({ failures: [reason], missingProfileData: [] }), true, reason);
+  }
 });
 
 test('manual draft RPC audits warnings and keeps inactive instructors and overlaps blocked', () => {
