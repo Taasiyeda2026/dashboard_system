@@ -153,8 +153,8 @@
 .av2-report-list__head,
 .av2-report-row {
   display: grid;
-  grid-template-columns: 72px 56px 56px 64px 72px 76px minmax(145px, 1.35fr) minmax(135px, 1.2fr) minmax(125px, 1.1fr) 44px 46px 100px;
-  min-width: 1080px;
+  grid-template-columns: 68px 62px 62px 64px 62px 64px 62px 120px 105px 100px 55px 55px 120px;
+  min-width: 999px;
   align-items: center;
   gap: 0 8px;
 }
@@ -284,7 +284,7 @@
   .av2-cal__cell { min-height: 44px; }
   .av2-cal__day-num { min-width: 25px; height: 25px; font-size: 0.78rem; }
 
-  .av2-report-list { width: min(100%, 1340px); margin-inline: auto; }
+  .av2-report-list { width: min(100%, 999px); margin-inline: auto; }
   .av2-reports__table-title { font-size: 1rem; margin-top: 8px; margin-bottom: -2px; }
   .av2-modal--form { max-width: 660px; }
 }
@@ -298,7 +298,7 @@
   .av2-cal__day-num { min-width: 22px; height: 22px; font-size: 0.68rem; }
   .av2-cal__presence-dot { width: 5px; height: 5px; flex-basis: 5px; }
   .av2-report-list__head,
-  .av2-report-row { min-width: 1080px; }
+  .av2-report-row { min-width: 999px; }
 }
 
 /* Monthly summary cards: only rendered for metrics that actually exist. */
