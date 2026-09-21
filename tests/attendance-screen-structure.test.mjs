@@ -271,13 +271,14 @@ test('New Report accessibility covers fields, placeholders, disabled, focus and 
 });
 
 
-test('Attendance Home clearly separates status from uniform actions', () => {
+test('Attendance Home clearly separates status from compact uniform actions', () => {
   assert.match(homeSource, /av2-home__report-status/);
   assert.match(homeSource, /badge\.setAttribute\('role', 'status'\)/);
   assert.match(homeSource, /av2-home__action-btn av2-home__view-all/);
   assert.match(homeSource, /av2-home__action-btn av2-home__excel-btn/);
   assert.match(homeSource, /av2-home__action-btn av2-home__month-submit/);
-  assert.match(desktopAppThemeStyles, /\.av2-home \.av2-home__action-btn\s*\{[\s\S]*width:\s*138px[\s\S]*height:\s*40px/);
+  assert.match(desktopAppThemeStyles, /\.av2-home \.av2-home__status-area\s*\{[\s\S]*max-width:\s*500px/);
+  assert.match(desktopAppThemeStyles, /\.av2-home \.av2-home__action-btn\s*\{[\s\S]*width:\s*118px[\s\S]*height:\s*36px/);
   assert.match(desktopAppThemeStyles, /\.av2-home \.av2-home__report-status\s*\{[\s\S]*pointer-events:\s*none/);
 });
 
