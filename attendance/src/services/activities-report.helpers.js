@@ -253,3 +253,40 @@ export function calcHours(startTime, endTime) {
   if (minutes <= 0) return 0;
   return Math.round((minutes / 60) * 100) / 100;
 }
+
+
+function parseClockMinutes(value) {
+  const match = String(value || '').trim().match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
+  if (!match) return null;
+  const hour = Number(match[1]);
+  const minute = Number(match[2]);
+  if (!Number.isInteger(hour) || !Number.isInteger(minute) || hour < 0 || hour > 23 || minute < 0 || minute > 59) {
+    return null;
+  }
+  return hour * 60 + minute;
+}
+
+function formatClockMinutes(totalMinutes) {
+  const safe = Math.max(0, Math.min(23 * 60 + 59, Number(totalMinutes) || 0));
+  const hour = Math.floor(safe / 60);
+  const minute = safe % 60;
+  return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+}
+
+/**
+ * Attendance work window for an assigned activity.
+ * The workday starts 15 minutes before the dashboard meeting start.
+ */
+export function attendanceTimesFromActivity(activity, leadMinutes = 15) {
+  const startMinutes = parseClockMinutes(activity?.start_time);
+  const endMinutes = parseClockMinutes(activity?.end_time);
+  if (startMinutes == null || endMinutes == null || endMinutes <= startMinutes) {
+    return { startTime: '', endTime: '' };
+  }
+
+  const lead = Number.isFinite(Number(leadMinutes)) ? Math.max(0, Number(leadMinutes)) : 15;
+  return {
+    startTime: formatClockMinutes(startMinutes - lead),
+    endTime: formatClockMinutes(endMinutes),
+  };
+}
