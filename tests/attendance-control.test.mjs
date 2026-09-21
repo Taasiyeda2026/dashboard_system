@@ -809,8 +809,8 @@ test('export preserves source attendance fields while applying corrections', () 
   assert.equal(comparison.attendance._source.status, 'approved');
 });
 
-test('course 90-minute school block 10:30-12:00 matches attendance 10:00-12:00', () => {
-  const attendance = [{ employeeId: '10', date: '2026-05-10', startTime: '10:00', endTime: '12:00', workHours: 2, activityType: 'קורס', school: 'א', program: 'קורס א' }];
+test('course 90-minute school block 10:30-12:00 matches attendance 10:15-12:15', () => {
+  const attendance = [{ employeeId: '10', date: '2026-05-10', startTime: '10:15', endTime: '12:15', workHours: 2, activityType: 'קורס', school: 'א', program: 'קורס א' }];
   const dashboard = [{ employeeId: '10', date: '2026-05-10', startTime: '10:30', endTime: '12:00', workHours: 2, activityType: 'course', school: 'א', program: 'קורס א' }];
   const result = compareAttendanceRows(attendance, dashboard);
   assert.equal(result.comparisons[0].unmatched, false);
