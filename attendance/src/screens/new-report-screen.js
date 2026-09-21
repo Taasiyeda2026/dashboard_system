@@ -324,7 +324,7 @@ export function renderNewReportScreen(container, {
   function syncActivityTimes(activity) {
     if (!shouldAutoFillActivityTimes() || !startPicker || !endPicker) return;
 
-    const { startTime, endTime } = attendanceTimesFromActivity(activity, 15);
+    const { startTime, endTime } = attendanceTimesFromActivity(activity, getReportType());
     if (!startTime || !endTime) {
       clearAutoFilledActivityTimes();
       return;
