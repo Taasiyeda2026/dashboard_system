@@ -16,7 +16,8 @@ import { openAttendanceCalendarDay } from '../components/calendar-day-drawer.js'
 import { loadAttendanceCalendarContext } from '../services/calendar.service.js';
 import { getMonthRecords, calcMonthSummary, updateRecord, deleteRecord,
          getMonthApproval, getActivityTypes, deleteAttachmentRecord, sourceAttendanceRecords,
-         generatedCancellationFor, reconcileTravelCompensation, overrideTravelCompensation } from '../services/attendance.service.js';
+         generatedCancellationFor, reconcileTravelCompensation, overrideTravelCompensation,
+         getMonthDashboardValidation } from '../services/attendance.service.js';
 import { canEditMonth, editBlockReason, getMonthKey, formatMonthLabel } from '../services/month-gate.service.js';
 import { calcHours, ONLINE_REPORT_TYPE, OPERATIONS_REPORT_TYPE } from '../services/activities.service.js';
 import { deleteAttachment, getSignedUrl } from '../services/storage.service.js';
@@ -84,14 +85,18 @@ async function loadAndRender({ instructor, year, month, contentArea, toolbar, on
   const monthKey = getMonthKey(year, month);
 
   try {
-    const [records, approval, activityTypes, calendarContext] = await Promise.all([
+    const [records, approval, activityTypes, calendarContext, dashboardValidation] = await Promise.all([
       getMonthRecords(instructor.empId, year, month),
       getMonthApproval(instructor.empId, monthKey),
       getActivityTypes(),
       loadAttendanceCalendarContext(year, month),
+      getMonthDashboardValidation(instructor.empId, year, month),
     ]);
 
     const sourceRecords = sourceAttendanceRecords(records);
+    const dashboardValidationByRecord = new Map(
+      (dashboardValidation || []).map((item) => [String(item?.record_id || ''), item]),
+    );
     const editable = canEditMonth(year, month, approval);
     const summary  = calcMonthSummary(records);
 
@@ -221,7 +226,8 @@ async function loadAndRender({ instructor, year, month, contentArea, toolbar, on
         activityTypes,
         onDuplicate,
         onRefresh,
-        dayTotalHours: dailyTotalHoursByRecord.get(record)
+        dayTotalHours: dailyTotalHoursByRecord.get(record),
+        dashboardValidation: dashboardValidationByRecord.get(String(record.id)) || null,
       });
       row.dataset.reportDate = record.report_date;
       listWrap.append(row);
@@ -288,7 +294,7 @@ function buildMonthlySummaryGrid(records) {
   return grid;
 }
 
-function buildRecordRow({ record, generated, editable, instructor, activityTypes, onDuplicate, onRefresh, dayTotalHours = null }) {
+function buildRecordRow({ record, generated, editable, instructor, activityTypes, onDuplicate, onRefresh, dayTotalHours = null, dashboardValidation = null }) {
   const row = document.createElement('div');
   row.className = 'av2-report-row';
   row.dataset.recordId = record.id;
@@ -429,6 +435,16 @@ function buildRecordRow({ record, generated, editable, instructor, activityTypes
   }
 
   row.append(dateCell, startCell, endCell, hoursCell, dayTotalCell, typeCell, nameCell, schoolCell, authCell, kmCell, expCell, actionsCell);
+
+  if (dashboardValidation?.mismatch) {
+    row.classList.add('has-dashboard-mismatch');
+    const warning = document.createElement('div');
+    warning.className = 'av2-rr__dashboard-warning';
+    const reasons = Array.isArray(dashboardValidation.reasons) ? dashboardValidation.reasons.filter(Boolean) : [];
+    warning.textContent = `אי התאמה לנתוני הדשבורד – נדרשת בדיקה${reasons.length ? `: ${reasons.join(' · ')}` : ''}`;
+    warning.setAttribute('role', 'status');
+    row.append(warning);
+  }
 
   const compensation = record.travel_compensation;
   if (compensation?.calculation_status === 'resolved' && Number(compensation.final_cancellation_minutes) > 0) {
