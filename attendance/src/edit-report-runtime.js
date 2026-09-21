@@ -73,11 +73,11 @@ function decorateEditForm() {
   }
 
   const saveLabel = form.querySelector('button[type="submit"] span');
-  if (saveLabel) saveLabel.textContent = 'שמירת שינויים';
+  if (saveLabel) saveLabel.textContent = 'שמור';
 
   form.addEventListener('submit', () => {
     const label = form.querySelector('button[type="submit"] span');
-    if (label && label.textContent === 'שמירת דיווח') label.textContent = 'שמירת שינויים';
+    if (label) label.textContent = 'שמור';
   }, true);
 }
 
