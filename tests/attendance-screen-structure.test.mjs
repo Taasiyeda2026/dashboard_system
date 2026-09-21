@@ -52,10 +52,11 @@ test('Attendance My Reports table has all required columns', () => {
   assert.match(reportsSource, /av2-rr__action-delete/);
 });
 
-test('Attendance report-day filtering uses report_date and hides non-matching grid rows', () => {
-  assert.match(reportsSource, /rowEntries\.push\(\{ row, reportDate: record\.report_date \}\)/);
-  assert.match(reportsSource, /row\.hidden = selectedDate \? reportDate !== selectedDate : false/);
-  assert.match(reportsStyles, /\.av2-report-row\[hidden\]\s*\{\s*display:\s*none\s*!important/);
+test('Attendance calendar day click opens the unified day drawer instead of filtering report rows', () => {
+  assert.match(reportsSource, /openAttendanceCalendarDay/);
+  assert.match(reportsSource, /loadAttendanceCalendarContext/);
+  assert.match(reportsSource, /onDayClick:\s*\(dateStr, dayEvents\)/);
+  assert.doesNotMatch(reportsSource, /rowEntries\.push|row\.hidden = selectedDate/);
 });
 
 test('Attendance report actions and expenses use distinct accessible indicators', () => {
@@ -75,11 +76,12 @@ test('shared Attendance time picker uses compact numeric placeholders', () => {
   assert.match(newReportStyles, /\.av2-time-picker__sep\s*\{[^}]*justify-content:\s*center/);
 });
 
-test('Attendance calendar shows TODAY highlight and activity content in cells', () => {
+test('Attendance calendar shows TODAY highlight plus separate activity and attendance indicators', () => {
   assert.match(calSource, /av2-cal__cell--today/);
-  assert.match(calSource, /av2-cal__presence-dot/);
+  assert.match(calSource, /av2-cal__activity-dot/);
+  assert.match(calSource, /av2-cal__attendance-dot/);
   assert.match(calSource, /aria-current', 'date'/);
-  assert.match(calSource, /onEmptyDayClick/);
+  assert.match(calSource, /attendanceCalendarEventsForDate/);
 });
 
 test('Attendance New Report uses two compact desktop cards and instructor activity IDs', () => {
@@ -101,8 +103,8 @@ test('Attendance New Report uses two compact desktop cards and instructor activi
   assert.match(activitiesServiceSource, /instructorActivitySelectOptions/);
   assert.match(newReportSource, /תחבורה ציבורית/);
   assert.match(newReportSource, /public_transport_cost/);
-  assert.match(attendanceSwSource, /const CACHE_VERSION = 76;/);
-  assert.match(attendanceIndexSource, /\?v=76/);
+  assert.match(attendanceSwSource, /const CACHE_VERSION = 77;/);
+  assert.match(attendanceIndexSource, /\?v=77/);
 });
 
 test('Attendance New Report keeps mobile fields inside padded page gutters', () => {
@@ -111,6 +113,16 @@ test('Attendance New Report keeps mobile fields inside padded page gutters', () 
   assert.match(newReportLayoutFix, /\.av2-field__input,[\s\S]*width:\s*100%/);
   assert.match(newReportLayoutFix, /min-width:\s*0/);
   assert.match(newReportLayoutFix, /max-width:\s*100%/);
+});
+
+test('Attendance New Report cancel resets the form in place instead of navigating away', () => {
+  const cancelStart = newReportSource.indexOf("cancelBtn.addEventListener('click'");
+  assert.notEqual(cancelStart, -1, 'cancel handler missing');
+  const cancelBlock = newReportSource.slice(cancelStart, cancelStart + 420);
+  assert.match(cancelBlock, /buildForm\(null, defaultDate\)/);
+  assert.match(cancelBlock, /successBanner\.hidden = true/);
+  assert.match(cancelBlock, /lockBanner\.hidden = true/);
+  assert.doesNotMatch(cancelBlock, /onBack/);
 });
 
 test('Attendance monthly summary counts source reports and report rows use date-only display', () => {
