@@ -89,6 +89,8 @@ async function loadCourseSchedule(record) {
     .map((item) => ({
       meeting_no: Number(item?.meeting_no),
       date: clean(item?.date),
+      start_time: clean(item?.start_time),
+      end_time: clean(item?.end_time),
     }))
     .filter((item) => Number.isInteger(item.meeting_no) && item.meeting_no > 0 && /^\d{4}-\d{2}-\d{2}$/.test(item.date))
     .sort((a, b) => a.meeting_no - b.meeting_no);
@@ -114,10 +116,8 @@ async function loadExistingCourseReports(record, schedule) {
   return Array.isArray(data) ? data : [];
 }
 
-function chooseInitialMeeting(available, sourceRecord) {
-  const sourceMeeting = Number(sourceRecord?.meeting_no) || 0;
-  const afterSource = available.find((item) => item.meeting_no > sourceMeeting);
-  return afterSource || available[0] || null;
+function chooseInitialMeeting(available) {
+  return available[0] || null;
 }
 
 function setMeetingNumberThroughUi(meetingNo) {
@@ -141,21 +141,16 @@ function ensureStyles() {
   const style = document.createElement('style');
   style.id = 'av2-duplicate-course-runtime-style';
   style.textContent = `
-    .av2-report__form--duplicate-course .av2-form-section input:not(#av2-report-date),
-    .av2-report__form--duplicate-course .av2-form-section textarea,
-    .av2-report__form--duplicate-course .av2-form-section select:not(.av2-duplicate-course-date),
-    .av2-report__form--duplicate-course .av2-form-section .av2-ssel__trigger,
-    .av2-report__form--duplicate-course .av2-form-section .av2-csel__trigger,
-    .av2-report__form--duplicate-course .av2-form-section .av2-attach-upload-btn {
+    .av2-report__form--duplicate-course #av2-activity-type,
+    .av2-report__form--duplicate-course #av2-activity-name-trigger,
+    .av2-report__form--duplicate-course #av2-authority-trigger,
+    .av2-report__form--duplicate-course #av2-school-trigger,
+    .av2-report__form--duplicate-course #av2-school-select,
+    .av2-report__form--duplicate-course #av2-meeting-no-trigger,
+    .av2-report__form--duplicate-course .av2-time-picker .av2-csel__trigger {
       pointer-events: none !important;
       cursor: default !important;
-    }
-    .av2-report__form--duplicate-course .av2-form-section input:not(#av2-report-date),
-    .av2-report__form--duplicate-course .av2-form-section textarea,
-    .av2-report__form--duplicate-course .av2-form-section select:not(.av2-duplicate-course-date),
-    .av2-report__form--duplicate-course .av2-form-section .av2-ssel__trigger,
-    .av2-report__form--duplicate-course .av2-form-section .av2-csel__trigger {
-      opacity: .72;
+      opacity: .78;
     }
     .av2-report__form--duplicate-course #av2-report-date {
       display: none !important;
@@ -183,13 +178,18 @@ function ensureStyles() {
   document.head.append(style);
 }
 
-function lockAllButDate(form, dateSelect) {
+function lockDashboardFields(form) {
   form.classList.add('av2-report__form--duplicate-course');
-  form.querySelectorAll('input,textarea,select,button,.av2-ssel__trigger,.av2-csel__trigger').forEach((el) => {
-    const isSave = el.matches?.('button[type="submit"]');
-    const isDateSelect = el === dateSelect;
-    if (!isSave && !isDateSelect) el.tabIndex = -1;
-  });
+  const selectors = [
+    '#av2-activity-type',
+    '#av2-activity-name-trigger',
+    '#av2-authority-trigger',
+    '#av2-school-trigger',
+    '#av2-school-select',
+    '#av2-meeting-no-trigger',
+    '.av2-time-picker .av2-csel__trigger',
+  ];
+  form.querySelectorAll(selectors.join(',')).forEach((el) => { el.tabIndex = -1; });
 }
 
 async function enhanceDuplicateCourseForm() {
@@ -219,7 +219,9 @@ async function enhanceDuplicateCourseForm() {
     const schedule = await loadCourseSchedule(sourceRecord);
     if (!schedule.length) {
       form.setAttribute(ENHANCED_ATTR, 'no-schedule');
-      duplicateNote.textContent = 'שכפול הדיווח נטען, אך לא נמצאו תאריכי מפגשים לקורס.';
+      duplicateNote.textContent = 'לא נמצא מפגש הבא בדשבורד. לא ניתן ליצור שכפול.';
+      const save = form.querySelector('button[type="submit"]');
+      if (save) save.disabled = true;
       try { sessionStorage.removeItem(DUPLICATE_RECORD_KEY); } catch {}
       return;
     }
@@ -229,8 +231,9 @@ async function enhanceDuplicateCourseForm() {
     const usedMeetingNos = new Set(existingReports.map((row) => Number(row.meeting_no)).filter((value) => Number.isInteger(value) && value > 0));
     const usedDates = new Set(existingReports.map((row) => clean(row.report_date)).filter(Boolean));
 
+    const sourceMeetingNo = Number(sourceRecord.meeting_no) || 0;
     const available = schedule.filter((item) => {
-      if (clean(item.date) === clean(sourceRecord.report_date) && item.meeting_no === Number(sourceRecord.meeting_no)) return false;
+      if (item.meeting_no <= sourceMeetingNo) return false;
       if (usedKeys.has(`${item.meeting_no}|${item.date}`)) return false;
       if (usedMeetingNos.has(item.meeting_no)) return false;
       if (usedDates.has(item.date)) return false;
@@ -238,7 +241,7 @@ async function enhanceDuplicateCourseForm() {
     });
 
     ensureStyles();
-    duplicateNote.textContent = 'שכפול דיווח — כל פרטי הדיווח הועתקו.';
+    duplicateNote.textContent = 'שכפול חכם — נתוני המפגש הבא נלקחים מהדשבורד; נסיעות והוצאות הועתקו מהדיווח הקודם.';
 
     const fieldWrap = dateInput.closest('.av2-field');
     const label = fieldWrap?.querySelector('.av2-field__label');
@@ -260,7 +263,7 @@ async function enhanceDuplicateCourseForm() {
       fieldWrap?.append(dateSelect, empty);
       const save = form.querySelector('button[type="submit"]');
       if (save) save.disabled = true;
-      lockAllButDate(form, dateSelect);
+      lockDashboardFields(form);
       form.setAttribute(ENHANCED_ATTR, 'yes');
       try { sessionStorage.removeItem(DUPLICATE_RECORD_KEY); } catch {}
       return;
@@ -278,26 +281,36 @@ async function enhanceDuplicateCourseForm() {
 
     const applySelection = () => {
       const option = dateSelect.selectedOptions[0];
-      const meetingNo = Number(option?.dataset?.meetingNo) || null;
+      const selected = available.find((item) => item.date === dateSelect.value) || null;
+      const meetingNo = Number(option?.dataset?.meetingNo) || selected?.meeting_no || null;
       dateInput.value = dateSelect.value;
       dateInput.dispatchEvent(new Event('change', { bubbles: true }));
+      form.dispatchEvent(new CustomEvent('av2:dashboard-duplicate-meeting', {
+        bubbles: true,
+        detail: {
+          date: dateSelect.value,
+          meeting_no: meetingNo,
+          start_time: selected?.start_time || '',
+          end_time: selected?.end_time || '',
+        },
+      }));
       window.setTimeout(() => {
         dateSelect.disabled = false;
         setMeetingNumberThroughUi(meetingNo);
-        lockAllButDate(form, dateSelect);
+        lockDashboardFields(form);
       }, 250);
       window.setTimeout(() => {
         dateSelect.disabled = false;
         setMeetingNumberThroughUi(meetingNo);
-        lockAllButDate(form, dateSelect);
+        lockDashboardFields(form);
       }, 900);
     };
 
     dateSelect.addEventListener('change', applySelection);
 
-    const initial = chooseInitialMeeting(available, sourceRecord);
+    const initial = chooseInitialMeeting(available);
     if (initial) dateSelect.value = initial.date;
-    lockAllButDate(form, dateSelect);
+    lockDashboardFields(form);
     applySelection();
 
     form.setAttribute(ENHANCED_ATTR, 'yes');
