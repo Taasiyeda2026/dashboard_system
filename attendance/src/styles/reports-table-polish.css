@@ -12,19 +12,18 @@
     width: 100%;
     min-width: 0 !important;
     grid-template-columns:
-      minmax(64px, .52fr)  /* date */
-      minmax(54px, .44fr)  /* start */
-      minmax(54px, .44fr)  /* end */
-      minmax(58px, .48fr)  /* hours */
-      minmax(64px, .52fr)  /* daily total */
-      minmax(0, .66fr)     /* activity type */
-      minmax(0, 1.35fr)    /* activity name */
-      minmax(0, 1.18fr)    /* school — slightly narrower */
-      minmax(0, .92fr)     /* authority — narrower */
-      minmax(42px, .34fr)  /* km */
-      minmax(42px, .34fr)  /* expenses */
-      minmax(118px, 1.12fr) !important; /* actions — wider for icon spacing */
-    gap: 0 !important;
+      70px   /* date */
+      65px   /* start */
+      65px   /* end */
+      65px   /* hours */
+      65px   /* daily total */
+      65px   /* activity type */
+      250px  /* activity name */
+      235px  /* school */
+      215px  /* authority */
+      60px   /* km */
+      60px   /* expenses */
+      125px  /* actions */ !important;
     padding-inline: 0 !important;
     align-items: stretch !important;
   }
