@@ -1,14 +1,14 @@
 /**
  * home-screen.js  —  Dashboard (summary only, no report list)
- * Shows month navigator, 4 compact KPI cards, and a compact action strip.
+ * Shows month navigator, instructor-only monthly totals, and a compact action strip.
  */
 
 import { createIcon } from '../components/icon.js';
 import { getMonthRecords, calcMonthSummary, getMonthApproval, submitMonth, sourceAttendanceRecords, reconcileTravelCompensation } from '../services/attendance.service.js';
-import { canEditMonth, editBlockReason, getMonthKey, formatMonthLabel, shouldShowSubmitReminder } from '../services/month-gate.service.js';
+import { canEditMonth, editBlockReason, getMonthKey, formatMonthLabel } from '../services/month-gate.service.js';
 import { exportMonthToExcel } from '../services/excel.service.js';
-import { createReportDaySummaryRow, distinctAttendanceWorkDays } from '../components/report-summary-row.js';
-import { formatDurationHours, groupReportRecordsByDate } from '../components/monthly-report-summary.js';
+import { distinctAttendanceWorkDays } from '../components/report-summary-row.js';
+import { formatDurationHours, isCancellationRecord } from '../components/monthly-report-summary.js';
 import { openSubmitConfirmationDialog } from '../submit-confirmation-dialog.js';
 
 const STATUS_MAP = {
@@ -90,7 +90,7 @@ export function renderHomeScreen(container, {
   // ── KPI skeleton ──────────────────────────────────────────────────────────
   const statsEl = document.createElement('div');
   statsEl.className = 'av2-stats-grid';
-  statsEl.innerHTML = buildStatSkeletons();
+  statsEl.innerHTML = buildStatSkeletons(9);
 
   // ── Status area (approval card + action strip) ────────────────────────────
   const statusArea = document.createElement('div');
@@ -120,14 +120,11 @@ async function loadAndRender({ instructor, year, month, statsEl, actionStripEl, 
     const summary  = calcMonthSummary(records);
     const editable = canEditMonth(year, month, approval);
 
-    // KPI cards
+    // Instructor-only monthly totals. No individual records are shown on Home.
     statsEl.innerHTML = '';
-    statsEl.append(
-      buildStat(distinctAttendanceWorkDays(records),      'ימי עבודה', 'calendar-days'),
-      buildStat(formatDurationHours(summary.totalHours),  'שעות',     'clock-3'),
-      buildStat(summary.totalKm.toFixed(0) + '\u00a0ק"מ','נסיעות',   'map-pin'),
-      buildStat('₪' + summary.totalExpenses.toFixed(0),  'הוצאות',   'wallet-cards')
-    );
+    buildHomeSummaryStats(records).forEach((item) => {
+      statsEl.append(buildStat(item.value, item.label, item.icon));
+    });
 
     // Disable add-report when month is locked
     newReportBtn.disabled = !editable;
@@ -138,11 +135,8 @@ async function loadAndRender({ instructor, year, month, statsEl, actionStripEl, 
 
     // Action strip
     actionStripEl.innerHTML = '';
-    if (shouldShowSubmitReminder(year, month, approval)) {
-      actionStripEl.append(buildSubmitReminderBanner({ year, month }));
-    }
     actionStripEl.append(
-      buildActionStrip({ approval, year, month, instructor, records, sourceRecords, summary, editable, onMyReports, onEditReport })
+      buildActionStrip({ approval, year, month, instructor, records, sourceRecords, editable, onMyReports })
     );
 
   } catch (err) {
@@ -153,7 +147,7 @@ async function loadAndRender({ instructor, year, month, statsEl, actionStripEl, 
 
 // ── Compact action strip (no duplicated stats) ────────────────────────────────
 
-function buildActionStrip({ approval, year, month, instructor, records, sourceRecords, summary, editable, onMyReports, onEditReport }) {
+function buildActionStrip({ approval, year, month, instructor, records, sourceRecords, editable, onMyReports }) {
   const strip = document.createElement('div');
   strip.className = 'av2-home__action-strip';
 
@@ -206,46 +200,7 @@ function buildActionStrip({ approval, year, month, instructor, records, sourceRe
     actions.append(submitBtn);
   }
 
-  // Status messages for non-editable states
-  if (status === 'submitted' && approval?.submitted_at) {
-    const meta = document.createElement('span');
-    meta.className = 'av2-home__strip-meta';
-    const byName = String(approval?.submitted_by_name || instructor?.name || '').trim();
-    meta.textContent = `✓ הוגש${byName ? ` על ידי ${byName}` : ''} ב-${new Date(approval.submitted_at).toLocaleDateString('he-IL')}`;
-    actions.append(meta);
-  } else if (status === 'locked') {
-    const meta = document.createElement('span');
-    meta.className = 'av2-home__strip-meta';
-    const when = approval?.manager_approved_at
-      ? ` ב-${new Date(approval.manager_approved_at).toLocaleDateString('he-IL')}`
-      : '';
-    const who = String(approval?.manager_approved_by_name || '').trim();
-    meta.textContent = `✓ אושר על ידי המנהל${who ? ` (${who})` : ''}${when}`;
-    actions.append(meta);
-  } else if (status === 'approved_for_payroll') {
-    const meta = document.createElement('span');
-    meta.className = 'av2-home__strip-meta';
-    meta.textContent = `✓ אושר סופית לשכר`;
-    actions.append(meta);
-  } else if (!editable && (status === 'open' || status === 'reopened')) {
-    const meta = document.createElement('span');
-    meta.className = 'av2-home__strip-meta av2-home__strip-meta--muted';
-    meta.textContent = editBlockReason(year, month, approval);
-    actions.append(meta);
-  }
-
   strip.append(actions);
-  const list = document.createElement('div'); list.className = 'av2-home__report-list';
-  if (!sourceRecords.length) {
-    const empty = document.createElement('p'); empty.className = 'av2-home__empty'; empty.textContent = 'אין כרגע דיווחים בחודש זה'; list.append(empty);
-  } else {
-    groupReportRecordsByDate(records).slice(0, 6)
-      .forEach((day) => list.append(createReportDaySummaryRow(day, {
-        editable,
-        onEdit: (record) => onEditReport?.(record)
-      })));
-  }
-  strip.append(list);
   return strip;
 }
 
@@ -272,31 +227,6 @@ async function handleSubmit({ submitBtn, instructor, year, month, sourceRecords,
       if (actions) actions.append(meta);
     }
   });
-}
-
-function buildSubmitReminderBanner({ year, month }) {
-  const banner = document.createElement('div');
-  banner.className = 'av2-submit-reminder';
-
-  const icon = document.createElement('span');
-  icon.className = 'av2-submit-reminder__icon';
-  icon.setAttribute('aria-hidden', 'true');
-  icon.textContent = '⏰';
-
-  const body = document.createElement('div');
-  body.className = 'av2-submit-reminder__body';
-
-  const title = document.createElement('p');
-  title.className = 'av2-submit-reminder__title';
-  title.textContent = 'תזכורת: הגש את הדיווח החודשי';
-
-  const text = document.createElement('p');
-  text.className = 'av2-submit-reminder__text';
-  text.textContent = `נותרו ימים ספורים לסיום ${formatMonthLabel(year, month)}. יש לסיים ולהגיש.`;
-
-  body.append(title, text);
-  banner.append(icon, body);
-  return banner;
 }
 
 // ── Builders ──────────────────────────────────────────────────────────────────
@@ -332,10 +262,46 @@ function buildMonthNav(year, month, onPrev, onNext) {
   return nav;
 }
 
-function buildStatSkeletons() {
-  return Array(4).fill(0).map(() =>
+function buildStatSkeletons(count = 9) {
+  return Array(count).fill(0).map(() =>
     `<div class="av2-stat-card av2-stat-card--skeleton"></div>`
   ).join('');
+}
+
+function normalizedActivityType(value) {
+  return String(value || '').trim().replace(/\s+/g, ' ').toLocaleLowerCase('he-IL');
+}
+
+function hoursForType(records, label) {
+  const target = normalizedActivityType(label);
+  return (Array.isArray(records) ? records : [])
+    .filter((record) => !isCancellationRecord(record))
+    .filter((record) => normalizedActivityType(record?.activity_type) === target)
+    .reduce((sum, record) => sum + Number(record?.total_hours || 0), 0);
+}
+
+function cancellationHours(records) {
+  return (Array.isArray(records) ? records : [])
+    .filter(isCancellationRecord)
+    .reduce((sum, record) => sum + Number(record?.total_hours || 0), 0);
+}
+
+export function buildHomeSummaryStats(records = []) {
+  const rows = Array.isArray(records) ? records : [];
+  const km = rows.reduce((sum, record) => sum + Number(record?.roundtrip_km || 0), 0);
+  const expenses = rows.reduce((sum, record) => sum + Number(record?.expenses || 0), 0);
+
+  return [
+    { key: 'course',       label: 'סה״כ קורס',       value: formatDurationHours(hoursForType(rows, 'קורס')),   icon: 'clock-3' },
+    { key: 'workshop',     label: 'סה״כ סדנה',       value: formatDurationHours(hoursForType(rows, 'סדנה')),   icon: 'clock-3' },
+    { key: 'training',     label: 'סה״כ הכשרות',     value: formatDurationHours(hoursForType(rows, 'הכשרה')), icon: 'clock-3' },
+    { key: 'operations',   label: 'סה״כ תפעול',      value: formatDurationHours(hoursForType(rows, 'תפעול')), icon: 'clock-3' },
+    { key: 'cancellation', label: 'סה״כ ביטול זמן',  value: formatDurationHours(cancellationHours(rows)),     icon: 'clock-3' },
+    { key: 'kilometers',   label: 'סה״כ קילומטר',    value: `${Math.round(km).toLocaleString('he-IL')} ק״מ`, icon: 'map-pin' },
+    { key: 'expenses',     label: 'סה״כ הוצאות',     value: `₪${expenses.toLocaleString('he-IL', { maximumFractionDigits: 2 })}`, icon: 'wallet-cards' },
+    { key: 'tour',         label: 'סה״כ סיור',       value: formatDurationHours(hoursForType(rows, 'סיור')),   icon: 'clock-3' },
+    { key: 'workdays',     label: 'סה״כ ימי עבודה',  value: String(distinctAttendanceWorkDays(rows)),          icon: 'calendar-days' },
+  ];
 }
 
 function buildStat(value, label, iconName) {
