@@ -75,3 +75,38 @@
     height: 12px !important;
   }
 }
+
+
+/* Attendance row typography: every data value uses the activity-name size. */
+@media (min-width: 768px) {
+  .av2-report-row .av2-rr__date strong,
+  .av2-report-row .av2-rr__start,
+  .av2-report-row .av2-rr__end,
+  .av2-report-row .av2-rr__hours,
+  .av2-report-row .av2-rr__time-cancel,
+  .av2-report-row .av2-rr__day-total,
+  .av2-report-row .av2-rr__type,
+  .av2-report-row .av2-rr__name,
+  .av2-report-row .av2-rr__school,
+  .av2-report-row .av2-rr__authority,
+  .av2-report-row .av2-rr__km,
+  .av2-report-row .av2-rr__expenses {
+    font-size: 0.75rem !important;
+  }
+
+  .av2-report-row .av2-rr__time-cancel.is-pending {
+    font-size: 0.75rem !important;
+  }
+
+  .av2-rr__dashboard-warning {
+    grid-column: 1 / -1;
+    padding: 6px 9px !important;
+    border-top: 1px solid #f5c97a;
+    background: #fff8e8;
+    color: #8a4b08;
+    font-size: .7rem;
+    font-weight: 700;
+    line-height: 1.35;
+    text-align: right;
+  }
+}
