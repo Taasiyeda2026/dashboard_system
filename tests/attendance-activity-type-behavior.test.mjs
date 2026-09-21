@@ -62,7 +62,7 @@ test('Attendance service and edit flow enforce the same Zoom and operations rule
 });
 
 test('Attendance cache is synchronized for the report type behavior release', () => {
-  assert.match(swSource, /const CACHE_VERSION = 73;/);
-  assert.match(indexSource, /\?v=73/);
+  assert.match(swSource, /const CACHE_VERSION = 74;/);
+  assert.match(indexSource, /\?v=74/);
   assert.doesNotMatch(indexSource, /\?v=70/);
 });
