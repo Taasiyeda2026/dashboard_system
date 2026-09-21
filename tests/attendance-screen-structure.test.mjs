@@ -69,9 +69,11 @@ test('Attendance report actions and expenses use distinct accessible indicators'
   assert.match(reportsSource, /classList\.toggle\('is-revealed'\)/);
 });
 
-test('shared Attendance time picker uses compact numeric placeholders', () => {
+test('shared Attendance time picker uses compact numeric placeholders and supports automatic values', () => {
   assert.doesNotMatch(timePickerSource, /placeholder: 'שע׳'|placeholder: 'דק׳'/);
   assert.match(timePickerSource, /placeholder: '--'/);
+  assert.match(timePickerSource, /function setValue\(value = ''\)/);
+  assert.match(timePickerSource, /setValue,\s*\n\s*clearValue/);
   assert.match(newReportStyles, /\.av2-time-picker__part\s*\{[^}]*width:\s*64px/);
   assert.match(newReportStyles, /\.av2-time-picker__sep\s*\{[^}]*justify-content:\s*center/);
 });
@@ -103,8 +105,8 @@ test('Attendance New Report uses two compact desktop cards and instructor activi
   assert.match(activitiesServiceSource, /instructorActivitySelectOptions/);
   assert.match(newReportSource, /תחבורה ציבורית/);
   assert.match(newReportSource, /public_transport_cost/);
-  assert.match(attendanceSwSource, /const CACHE_VERSION = 77;/);
-  assert.match(attendanceIndexSource, /\?v=77/);
+  assert.match(attendanceSwSource, /const CACHE_VERSION = 78;/);
+  assert.match(attendanceIndexSource, /\?v=78/);
 });
 
 test('Attendance New Report keeps mobile fields inside padded page gutters', () => {
