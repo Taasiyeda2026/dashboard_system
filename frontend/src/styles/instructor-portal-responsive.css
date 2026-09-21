@@ -813,3 +813,80 @@
 #app .app-shell--instructor .route-instructor-calendar .ds-cal-slot-hit:nth-child(7n) .ds-interactive-card__title {
   background: linear-gradient(180deg, rgba(234,243,252,.98), rgba(246,249,253,.98)) !important;
 }
+
+
+/* Final calendar geometry: highlighted weekday strip, plain date numbers, softly rounded cells. */
+#app .app-shell--instructor .route-instructor-calendar .ds-cal-weekdays {
+  min-height: 36px !important;
+  padding: 0 4px !important;
+  gap: 4px !important;
+  background: linear-gradient(180deg, #dcecf8 0%, #eaf4fb 100%) !important;
+  border-top: 1px solid #c8ddeb !important;
+  border-bottom: 1px solid #bfd6e7 !important;
+  border-radius: 0 !important;
+}
+
+#app .app-shell--instructor .route-instructor-calendar .ds-cal-wd {
+  min-height: 36px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: #245b83 !important;
+  font-size: .72rem !important;
+  font-weight: 900 !important;
+  letter-spacing: .01em !important;
+}
+
+#app .app-shell--instructor .route-instructor-calendar .ds-cal-grid {
+  gap: 4px !important;
+  padding: 4px !important;
+  background: #f2f7fb !important;
+}
+
+#app .app-shell--instructor .route-instructor-calendar .ds-cal-slot-hit {
+  border-radius: 8px !important;
+  overflow: hidden !important;
+}
+
+#app .app-shell--instructor .route-instructor-calendar .ds-interactive-card--day-cell {
+  border-radius: 8px !important;
+  border: 1px solid #dfe8f0 !important;
+}
+
+#app .app-shell--instructor .route-instructor-calendar .ds-interactive-card__title {
+  display: block !important;
+  width: auto !important;
+  min-width: 0 !important;
+  height: auto !important;
+  margin: 0 0 5px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: #174a73 !important;
+  font-size: .8rem !important;
+  font-weight: 900 !important;
+  line-height: 1.15 !important;
+}
+
+#app .app-shell--instructor .route-instructor-calendar .ds-interactive-card--day-cell.is-instructor-today .ds-interactive-card__title {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: #1263d6 !important;
+}
+
+#app .app-shell--instructor .route-instructor-calendar .ds-cal-slot-hit:nth-child(7n) .ds-interactive-card__title {
+  background: transparent !important;
+}
+
+#app .app-shell--instructor .route-instructor-calendar .ds-interactive-card--day-cell.is-other-month {
+  border-radius: 8px !important;
+}
