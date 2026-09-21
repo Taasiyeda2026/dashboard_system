@@ -36,21 +36,25 @@ test('Attendance report type list uses Zoom and keeps canonical activity filteri
   assert.ok(OPEN_FIELD_REPORT_TYPES.includes('תפעול'));
 });
 
-test('Course and workshop attendance times come from the dashboard with a 15-minute lead', () => {
+test('Workshop uses dashboard hours while course adds 15 minutes per full 45-minute block', () => {
   assert.deepEqual(
-    attendanceTimesFromActivity({ start_time: '13:30', end_time: '15:00' }),
-    { startTime: '13:15', endTime: '15:00' },
+    attendanceTimesFromActivity({ start_time: '08:30', end_time: '10:00' }, 'סדנה'),
+    { startTime: '08:30', endTime: '10:00' },
   );
   assert.deepEqual(
-    attendanceTimesFromActivity({ start_time: '12:00:00', end_time: '13:00:00' }),
+    attendanceTimesFromActivity({ start_time: '08:30', end_time: '10:00' }, 'קורס'),
+    { startTime: '08:00', endTime: '10:00' },
+  );
+  assert.deepEqual(
+    attendanceTimesFromActivity({ start_time: '12:00:00', end_time: '13:00:00' }, 'קורס'),
     { startTime: '11:45', endTime: '13:00' },
   );
   assert.deepEqual(
-    attendanceTimesFromActivity({ start_time: '', end_time: '13:00' }),
+    attendanceTimesFromActivity({ start_time: '', end_time: '13:00' }, 'קורס'),
     { startTime: '', endTime: '' },
   );
   assert.match(newReportSource, /AUTO_TIME_REPORT_TYPES = new Set\(\[COURSE_REPORT_TYPE, WORKSHOP_REPORT_TYPE\]\)/);
-  assert.match(newReportSource, /attendanceTimesFromActivity\(activity, 15\)/);
+  assert.match(newReportSource, /attendanceTimesFromActivity\(activity, getReportType\(\)\)/);
   assert.match(newReportSource, /startPicker\.setValue\(startTime\)/);
   assert.match(newReportSource, /endPicker\.setValue\(endTime\)/);
 });
@@ -82,7 +86,7 @@ test('Attendance service and edit flow enforce the same Zoom and operations rule
 });
 
 test('Attendance cache is synchronized for the report type behavior release', () => {
-  assert.match(swSource, /const CACHE_VERSION = 79;/);
-  assert.match(indexSource, /\?v=79/);
+  assert.match(swSource, /const CACHE_VERSION = 80;/);
+  assert.match(indexSource, /\?v=80/);
   assert.doesNotMatch(indexSource, /\?v=70/);
 });
