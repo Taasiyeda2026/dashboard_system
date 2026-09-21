@@ -1,3 +1,6 @@
+const calendarContextCache = new Map();
+const CALENDAR_CACHE_TTL_MS = 60_000;
+
 import { supabase } from '../api/client.js';
 
 function pad(value) {
@@ -11,7 +14,11 @@ export function attendanceCalendarMonthRange(year, month) {
   return { fromDate, toDate };
 }
 
-export async function loadAttendanceCalendarContext(year, month) {
+export async function loadAttendanceCalendarContext(year, month, { force = false } = {}) {
+  const cacheKey = `${year}-${String(month).padStart(2, '0')}`;
+  const cached = calendarContextCache.get(cacheKey);
+  if (!force && cached && Date.now() - cached.at <= CALENDAR_CACHE_TTL_MS) return cached.value;
+
   const { fromDate, toDate } = attendanceCalendarMonthRange(year, month);
 
   const [activityResult, schoolResult, birthdayResult] = await Promise.all([
@@ -55,13 +62,15 @@ export async function loadAttendanceCalendarContext(year, month) {
     console.warn('[attendance-calendar] birthday read failed', birthdayResult.error);
   }
 
-  return {
+  const value = {
     activities: Array.isArray(activityResult.data) ? activityResult.data : [],
     schoolEvents: schoolRows,
     birthdays: Array.isArray(birthdayResult.data) ? birthdayResult.data : [],
     fromDate,
     toDate,
   };
+  calendarContextCache.set(cacheKey, { at: Date.now(), value });
+  return value;
 }
 
 export function attendanceCalendarEventsForDate(context = {}, dateStr = '') {
