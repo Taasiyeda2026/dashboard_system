@@ -16,6 +16,9 @@ const reportTableFitStyles = await readFile(new URL('../attendance/src/styles/re
 const attendanceFollowupRuntime = await readFile(new URL('../attendance/src/attendance-followup-runtime-v2.js', import.meta.url), 'utf8');
 const timePickerSource = await readFile(new URL('../attendance/src/components/time-picker.js', import.meta.url), 'utf8');
 const activitiesServiceSource = await readFile(new URL('../attendance/src/services/activities.service.js', import.meta.url), 'utf8');
+const attendanceServiceSource = await readFile(new URL('../attendance/src/services/attendance.service.js', import.meta.url), 'utf8');
+const duplicateCourseSource = await readFile(new URL('../attendance/src/duplicate-course-runtime.js', import.meta.url), 'utf8');
+const dashboardAlignmentMigration = await readFile(new URL('../supabase/migrations/20260921232000_attendance_dashboard_alignment_validation.sql', import.meta.url), 'utf8');
 const attendanceSwSource = await readFile(new URL('../attendance/sw.js', import.meta.url), 'utf8');
 const attendanceIndexSource = await readFile(new URL('../attendance/index.html', import.meta.url), 'utf8');
 const calSource     = await readFile(new URL('../attendance/src/components/mini-calendar.js', import.meta.url), 'utf8');
@@ -31,7 +34,7 @@ test('Attendance Home is summary-only with instructor monthly totals and no repo
     assert.match(homeSource, new RegExp(label));
   }
   assert.match(homeSource, /heading\.textContent = 'הדיווחים שלי'/);
-  assert.match(homeSource, /viewLink\.textContent = 'לכל הדיווחים ←'/);
+  assert.match(homeSource, /viewLabel\.textContent = 'לכל הדיווחים'/);
   assert.match(homeSource, /xlLabel\.textContent = 'Excel'/);
   assert.match(homeSource, /'סיום ואישור'/);
   assert.doesNotMatch(homeSource, /newReportLabel\.textContent = 'הוספת דיווח'/);
@@ -265,4 +268,63 @@ test('New Report accessibility covers fields, placeholders, disabled, focus and 
   assert.match(newReportAccessibilityStyles, /\.av2-time-picker:focus-within[\s\S]*border-color:\s*var\(--av2-new-report-primary\)/);
   assert.match(newReportAccessibilityStyles, /\.av2-report__save[\s\S]*background:\s*var\(--av2-new-report-primary\)/);
   assert.match(newReportAccessibilityStyles, /\.av2-report__cancel[\s\S]*background:\s*#FFFFFF[\s\S]*var\(--av2-new-report-cancel-text\)[\s\S]*var\(--av2-new-report-cancel-border\)/);
+});
+
+
+test('Attendance Home clearly separates status from uniform actions', () => {
+  assert.match(homeSource, /av2-home__report-status/);
+  assert.match(homeSource, /badge\.setAttribute\('role', 'status'\)/);
+  assert.match(homeSource, /av2-home__action-btn av2-home__view-all/);
+  assert.match(homeSource, /av2-home__action-btn av2-home__excel-btn/);
+  assert.match(homeSource, /av2-home__action-btn av2-home__month-submit/);
+  assert.match(desktopAppThemeStyles, /\.av2-home \.av2-home__action-btn\s*\{[\s\S]*width:\s*138px[\s\S]*height:\s*40px/);
+  assert.match(desktopAppThemeStyles, /\.av2-home \.av2-home__report-status\s*\{[\s\S]*pointer-events:\s*none/);
+});
+
+test('Attendance desktop row data uses the activity-name font size everywhere', () => {
+  const dataClasses = [
+    'av2-rr__date strong','av2-rr__start','av2-rr__end','av2-rr__hours',
+    'av2-rr__time-cancel','av2-rr__day-total','av2-rr__type','av2-rr__name',
+    'av2-rr__school','av2-rr__authority','av2-rr__km','av2-rr__expenses'
+  ];
+  for (const cls of dataClasses) assert.match(reportTableFitStyles, new RegExp(cls.replace(/[.*+?^$(){}|[\]\\]/g, '\\$&')));
+  assert.match(reportTableFitStyles, /font-size:\s*0\.75rem\s*!important/);
+});
+
+test('Course reports are dashboard-driven and expose mismatch notices', () => {
+  assert.match(newReportSource, /getInstructorActivitiesForDate/);
+  assert.match(newReportSource, /function validateCourseAgainstDashboard/);
+  assert.match(newReportSource, /אי התאמה לנתוני הדשבורד – נדרשת בדיקה/);
+  assert.match(newReportSource, /function syncCourseDashboardLocks/);
+  assert.match(newReportSource, /picker\.hourSel\.disabled = locked/);
+  assert.match(newReportSource, /av2:dashboard-duplicate-meeting/);
+  assert.match(reportsSource, /getMonthDashboardValidation/);
+  assert.match(reportsSource, /av2-rr__dashboard-warning/);
+  assert.match(reportsSource, /אי התאמה לנתוני הדשבורד – נדרשת בדיקה/);
+  assert.match(dashboardAlignmentMigration, /av2_validate_attendance_month_dashboard/);
+  assert.match(dashboardAlignmentMigration, /שעות הדיווח אינן תואמות לשעות המחושבות מהדשבורד/);
+});
+
+test('Course duplication advances only to the next dashboard meeting and preserves manual fields', () => {
+  assert.match(duplicateCourseSource, /item\.meeting_no <= sourceMeetingNo/);
+  assert.match(duplicateCourseSource, /start_time:\s*clean\(item\?\.start_time\)/);
+  assert.match(duplicateCourseSource, /end_time:\s*clean\(item\?\.end_time\)/);
+  assert.match(duplicateCourseSource, /av2:dashboard-duplicate-meeting/);
+  assert.match(duplicateCourseSource, /לא נמצא מפגש הבא בדשבורד/);
+  assert.match(duplicateCourseSource, /#av2-activity-type[\s\S]*#av2-meeting-no-trigger[\s\S]*\.av2-time-picker/);
+  assert.doesNotMatch(duplicateCourseSource, /\.av2-form-section input:not\(#av2-report-date\)/);
+  assert.match(dashboardAlignmentMigration, /scheduling_effective_meetings/);
+});
+
+test('Attendance navigation reads use short caches and do not recalculate every route on load', () => {
+  assert.match(attendanceServiceSource, /ATTENDANCE_READ_CACHE_TTL_MS = 60_000/);
+  assert.match(attendanceServiceSource, /monthRecordsCache/);
+  assert.match(attendanceServiceSource, /dashboardValidationCache/);
+  assert.match(attendanceServiceSource, /Route reconciliation is intentionally not run during screen reads/);
+  const getMonthBlock = attendanceServiceSource.slice(
+    attendanceServiceSource.indexOf('export async function getMonthRecords'),
+    attendanceServiceSource.indexOf('/**\n * Aggregate monthly summary')
+  );
+  assert.doesNotMatch(getMonthBlock, /Promise\.allSettled\(sourceIds\.map\(\(id\) => reconcileTravelCompensation/);
+  assert.match(activitiesServiceSource, /ACTIVITY_CACHE_TTL_MS = 60_000/);
 });
