@@ -9,6 +9,9 @@ const newReportSource = await readFile(new URL('../attendance/src/screens/new-re
 const newReportStyles = await readFile(new URL('../attendance/src/styles/new-report-screen.css', import.meta.url), 'utf8');
 const newReportLayoutFix = await readFile(new URL('../attendance/src/styles/new-report-layout-fix.css', import.meta.url), 'utf8');
 const reportsStyles = await readFile(new URL('../attendance/src/styles/my-reports-screen.css', import.meta.url), 'utf8');
+const attendanceFollowupStyles = await readFile(new URL('../attendance/src/styles/attendance-followup.css', import.meta.url), 'utf8');
+const reportTableFitStyles = await readFile(new URL('../attendance/src/styles/report-table-fit-fix.css', import.meta.url), 'utf8');
+const attendanceFollowupRuntime = await readFile(new URL('../attendance/src/attendance-followup-runtime-v2.js', import.meta.url), 'utf8');
 const timePickerSource = await readFile(new URL('../attendance/src/components/time-picker.js', import.meta.url), 'utf8');
 const activitiesServiceSource = await readFile(new URL('../attendance/src/services/activities.service.js', import.meta.url), 'utf8');
 const attendanceSwSource = await readFile(new URL('../attendance/sw.js', import.meta.url), 'utf8');
@@ -105,8 +108,8 @@ test('Attendance New Report uses two compact desktop cards and instructor activi
   assert.match(activitiesServiceSource, /instructorActivitySelectOptions/);
   assert.match(newReportSource, /תחבורה ציבורית/);
   assert.match(newReportSource, /public_transport_cost/);
-  assert.match(attendanceSwSource, /const CACHE_VERSION = 82;/);
-  assert.match(attendanceIndexSource, /\?v=82/);
+  assert.match(attendanceSwSource, /const CACHE_VERSION = 83;/);
+  assert.match(attendanceIndexSource, /\?v=83/);
 });
 
 test('Attendance New Report keeps mobile fields inside padded page gutters', () => {
@@ -153,4 +156,16 @@ test('Attendance New Report enforces dependent location choices and course-only 
   assert.match(newReportSource, /manualSchoolId = null;[\s\S]*clearMeetingSelection\(\)/);
   assert.match(newReportSource, /meeting_no: isCourseReportType\(reportType\)/);
   assert.match(reportsSource, /meeting_no:\s+isCourse && meetField\.input\.value/);
+});
+
+test('Attendance reports table keeps the required 13-column grid including time cancellation', () => {
+  const widths = ['70px','63px','63px','65px','63px','65px','63px','245px','210px','198px','55px','55px','125px'];
+  for (const width of widths) {
+    assert.match(attendanceFollowupStyles, new RegExp(width.replace('.', '\\.')));
+    assert.match(reportTableFitStyles, new RegExp(width.replace('.', '\\.')));
+  }
+  assert.match(attendanceFollowupRuntime, /cancel\.textContent = 'ביטול זמן'/);
+  assert.match(attendanceFollowupRuntime, /hours\.insertAdjacentElement\('afterend', cancel\)/);
+  assert.match(attendanceFollowupRuntime, /cell\.className = 'av2-rr__time-cancel'/);
+  assert.match(attendanceFollowupRuntime, /hours\.insertAdjacentElement\('afterend', cell\)/);
 });
