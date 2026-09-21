@@ -277,7 +277,7 @@ function formatClockMinutes(totalMinutes) {
  * Attendance work window for dashboard-linked course/workshop activities.
  * Workshop: exact dashboard hours.
  * Course: add 15 minutes of paid work for every full 45 dashboard minutes.
- * The extra course time is placed before the dashboard start time.
+ * Course extensions are balanced around the dashboard meeting in 15-minute blocks.
  */
 export function attendanceTimesFromActivity(activity, reportType = '') {
   const startMinutes = parseClockMinutes(activity?.start_time);
@@ -289,14 +289,18 @@ export function attendanceTimesFromActivity(activity, reportType = '') {
   const normalizedType = normalizeAttendanceReportType(reportType);
   let extraMinutes = 0;
 
+  let beforeMinutes = 0;
+  let afterMinutes = 0;
+
   if (normalizedType === 'קורס') {
     const dashboardMinutes = endMinutes - startMinutes;
     const fortyFiveMinuteBlocks = Math.floor(dashboardMinutes / 45);
-    extraMinutes = fortyFiveMinuteBlocks * 15;
+    beforeMinutes = Math.ceil(fortyFiveMinuteBlocks / 2) * 15;
+    afterMinutes = Math.floor(fortyFiveMinuteBlocks / 2) * 15;
   }
 
   return {
-    startTime: formatClockMinutes(startMinutes - extraMinutes),
-    endTime: formatClockMinutes(endMinutes),
+    startTime: formatClockMinutes(startMinutes - beforeMinutes),
+    endTime: formatClockMinutes(endMinutes + afterMinutes),
   };
 }
