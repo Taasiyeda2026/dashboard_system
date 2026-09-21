@@ -15,6 +15,7 @@ import {
   getMeetingNoForActivityOnDate,
   getSchoolOptions,
   calcHours,
+  attendanceTimesFromActivity,
   getAllAuthoritySchoolList,
   deriveAuthoritySchoolListFromActivities,
   instructorActivitySelectOptions,
@@ -42,6 +43,8 @@ import { formatTravelMinutes } from '../components/report-summary-row.js';
 
 const TIME_MINUTE_STEP = 5;
 const COURSE_REPORT_TYPE = 'קורס';
+const WORKSHOP_REPORT_TYPE = 'סדנה';
+const AUTO_TIME_REPORT_TYPES = new Set([COURSE_REPORT_TYPE, WORKSHOP_REPORT_TYPE]);
 const BASE_TRAINING_OPTION_VALUE = '__attendance_base_training__';
 const BASE_TRAINING_ACTIVITY = Object.freeze({
   row_id: BASE_TRAINING_OPTION_VALUE,
@@ -146,6 +149,7 @@ export function renderNewReportScreen(container, {
   let formLocked = false;
   let previousReportType = '';
   let canonicalLoadToken = 0;
+  let activityTimesAutoFilled = false;
 
   let schoolId = null;
   let schoolName = '';
@@ -302,6 +306,35 @@ export function renderNewReportScreen(container, {
 
   function isCourseReportType(reportType = getReportType()) {
     return reportType === COURSE_REPORT_TYPE;
+  }
+
+  function shouldAutoFillActivityTimes(reportType = getReportType()) {
+    return AUTO_TIME_REPORT_TYPES.has(reportType);
+  }
+
+  function clearAutoFilledActivityTimes() {
+    if (!activityTimesAutoFilled || !startPicker || !endPicker) return;
+    startPicker.clearValue();
+    endPicker.setMinTime('');
+    endPicker.clearValue();
+    activityTimesAutoFilled = false;
+    updateHoursDisplay();
+  }
+
+  function syncActivityTimes(activity) {
+    if (!shouldAutoFillActivityTimes() || !startPicker || !endPicker) return;
+
+    const { startTime, endTime } = attendanceTimesFromActivity(activity, 15);
+    if (!startTime || !endTime) {
+      clearAutoFilledActivityTimes();
+      return;
+    }
+
+    startPicker.setValue(startTime);
+    syncEndTimeConstraints();
+    endPicker.setValue(endTime);
+    activityTimesAutoFilled = true;
+    updateHoursDisplay();
   }
 
   function hasSelectedAuthority() {
@@ -488,6 +521,7 @@ export function renderNewReportScreen(container, {
 
   function clearLinkedActivity({ keepManualLocation = false } = {}) {
     selectedActivity = null;
+    clearAutoFilledActivityTimes();
     schoolId = null;
     schoolName = '';
     if (!keepManualLocation) {
@@ -584,7 +618,7 @@ export function renderNewReportScreen(container, {
     }
   }
 
-  async function applySelectedActivity(activity) {
+  async function applySelectedActivity(activity, { autoFillTimes = true } = {}) {
     if (!activity) {
       clearLinkedActivity();
       return;
@@ -607,6 +641,7 @@ export function renderNewReportScreen(container, {
     }
 
     syncAuthoritySchoolFromActivity(activity);
+    if (autoFillTimes) syncActivityTimes(activity);
     setLocationFieldsVisible(!isBaseTrainingActivity(activity));
     syncLocationDependencies();
     await syncMeetingForSelectedDate();
@@ -1098,12 +1133,12 @@ export function renderNewReportScreen(container, {
       initialReportType === TRAINING_REPORT_TYPE
       && String(prefill.activity_name_snapshot || '').trim() === BASE_TRAINING_ACTIVITY.activity_name
     ) {
-      void applySelectedActivity(BASE_TRAINING_ACTIVITY);
+      void applySelectedActivity(BASE_TRAINING_ACTIVITY, { autoFillTimes: false });
     } else if (prefill.activity_row_id) {
         const match = findActivityByRowId(prefill.activity_row_id);
         if (match) {
           void (async () => {
-            await applySelectedActivity(match);
+            await applySelectedActivity(match, { autoFillTimes: false });
             if (prefSchoolName && schoolControl instanceof HTMLSelectElement) {
               const option = [...schoolControl.options].find((item) => item.dataset.name === prefSchoolName);
               if (option) {
