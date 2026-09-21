@@ -260,3 +260,16 @@
   .av2-report__times-grid,
   .av2-report__expense-fields { grid-template-columns: 1fr; }
 }
+
+
+.av2-report__dashboard-mismatch {
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid #e8b55d;
+  border-radius: 8px;
+  background: #fff8e8;
+  color: #854d0e;
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1.4;
+}
