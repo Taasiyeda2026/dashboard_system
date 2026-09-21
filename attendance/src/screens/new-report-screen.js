@@ -12,6 +12,7 @@ import { createCompactSelect } from '../components/compact-select.js';
 import { createTimePicker } from '../components/time-picker.js';
 import {
   getInstructorActivities,
+  getInstructorActivitiesForDate,
   getMeetingNoForActivityOnDate,
   getSchoolOptions,
   calcHours,
@@ -176,6 +177,7 @@ export function renderNewReportScreen(container, {
   let saveBtn = null;
   let errorEl = null;
   let dateWarningEl = null;
+  let dashboardMismatchEl = null;
   let hoursVal = null;
   let kmField = null;
   let publicTransportInput = null;
@@ -584,6 +586,80 @@ export function renderNewReportScreen(container, {
     }
   }
 
+  function syncCourseDashboardLocks() {
+    const locked = isCourseReportType() && !!selectedActivity;
+    for (const picker of [startPicker, endPicker]) {
+      if (!picker) continue;
+      picker.hourSel.disabled = locked;
+      picker.minSel.disabled = locked;
+    }
+  }
+
+  function setDashboardMismatchWarning(reasons = []) {
+    if (!dashboardMismatchEl) return;
+    const list = Array.isArray(reasons) ? reasons.filter(Boolean) : [];
+    dashboardMismatchEl.hidden = list.length === 0;
+    dashboardMismatchEl.textContent = list.length
+      ? `אי התאמה לנתוני הדשבורד – נדרשת בדיקה. ${list.join(' · ')}`
+      : '';
+  }
+
+  async function validateCourseAgainstDashboard() {
+    if (!isCourseReportType() || !selectedActivity || !getReportDate()) {
+      setDashboardMismatchWarning([]);
+      return { mismatch: false, reasons: [] };
+    }
+
+    const reasons = [];
+    try {
+      const rows = await getInstructorActivitiesForDate(instructor.empId, getReportDate());
+      const expected = rows.find(
+        (row) => activityRowId(row) === activityRowId(selectedActivity),
+      );
+
+      if (!expected) {
+        reasons.push('התאריך או הפעילות אינם מופיעים כמפגש משובץ בדשבורד');
+      } else {
+        const expectedTimes = attendanceTimesFromActivity(expected, COURSE_REPORT_TYPE);
+        if (
+          expectedTimes.startTime
+          && expectedTimes.endTime
+          && (startPicker.getValue() !== expectedTimes.startTime || endPicker.getValue() !== expectedTimes.endTime)
+        ) {
+          reasons.push('השעות אינן תואמות לדשבורד');
+        }
+
+        const expectedMeeting = Number(expected.meeting_no || 0);
+        const actualMeeting = Number(meetingField?.getValue?.() || 0);
+        if (expectedMeeting && actualMeeting !== expectedMeeting) {
+          reasons.push('מספר המפגש אינו תואם לדשבורד');
+        }
+
+        if (expected.authority_id && Number(authSel?.getValue?.() || manualAuthId || 0) !== Number(expected.authority_id)) {
+          reasons.push('הרשות אינה תואמת לדשבורד');
+        }
+
+        const actualSchoolId = Number(schoolSel?.getValue?.() || schoolId || manualSchoolId || 0);
+        const singleSchoolId = Number(expected.single_school_id || 0);
+        const linkedSchoolIds = (expected.linked_schools_json || [])
+          .map((school) => Number(school?.id || 0))
+          .filter(Boolean);
+        if (
+          singleSchoolId && actualSchoolId !== singleSchoolId
+          || (!singleSchoolId && linkedSchoolIds.length && !linkedSchoolIds.includes(actualSchoolId))
+        ) {
+          reasons.push('בית הספר אינו תואם לדשבורד');
+        }
+      }
+    } catch {
+      // A temporary validation failure must not block reporting.
+      return { mismatch: false, reasons: [] };
+    }
+
+    setDashboardMismatchWarning(reasons);
+    return { mismatch: reasons.length > 0, reasons };
+  }
+
   async function syncMeetingForSelectedDate() {
     syncMeetingFieldState();
     if (!isCourseReportType() || !selectedActivity || !hasSelectedAuthority() || !hasSelectedSchool()) return;
@@ -645,7 +721,9 @@ export function renderNewReportScreen(container, {
     setLocationFieldsVisible(!isBaseTrainingActivity(activity));
     syncLocationDependencies();
     await syncMeetingForSelectedDate();
+    syncCourseDashboardLocks();
     syncDateWarning();
+    void validateCourseAgainstDashboard();
   }
 
   function onActivityTypeChange() {
@@ -705,6 +783,8 @@ export function renderNewReportScreen(container, {
       mountManualSchoolSelect();
     }
     syncLocationDependencies();
+    syncCourseDashboardLocks();
+    void validateCourseAgainstDashboard();
   }
 
   async function onReportDateChange() {
@@ -750,7 +830,9 @@ export function renderNewReportScreen(container, {
     syncLocationDependencies();
 
     await syncMeetingForSelectedDate();
+    syncCourseDashboardLocks();
     syncDateWarning();
+    void validateCourseAgainstDashboard();
   }
 
   function syncEndTimeConstraints() {
@@ -962,6 +1044,7 @@ export function renderNewReportScreen(container, {
     const publicTransportToggle = document.createElement('label');
     publicTransportToggle.className = 'av2-report__transport-toggle';
     publicTransportInput = document.createElement('input');
+    publicTransportInput.id = 'av2-public-transport';
     publicTransportInput.type = 'checkbox';
     publicTransportInput.checked = prefill?.public_transport === true;
     const publicTransportLabel = document.createElement('span');
@@ -1064,10 +1147,38 @@ export function renderNewReportScreen(container, {
     dateWarningEl.className = 'av2-report__date-warning';
     dateWarningEl.setAttribute('role', 'status');
     dateWarningEl.hidden = true;
-    actionsRow.before(dateWarningEl);
+    dashboardMismatchEl = document.createElement('p');
+    dashboardMismatchEl.className = 'av2-report__dashboard-mismatch';
+    dashboardMismatchEl.setAttribute('role', 'status');
+    dashboardMismatchEl.hidden = true;
+    actionsRow.before(dateWarningEl, dashboardMismatchEl);
 
     typeField.input.addEventListener('change', () => { onActivityTypeChange(); });
     dateField.input.addEventListener('change', () => { void onReportDateChange(); });
+    form.addEventListener('av2:dashboard-duplicate-meeting', (event) => {
+      const detail = event.detail || {};
+      if (detail.date) dateField.input.value = String(detail.date);
+      if (detail.meeting_no) meetingField.setValue(String(detail.meeting_no));
+      if (detail.start_time && detail.end_time) {
+        const expectedTimes = attendanceTimesFromActivity({
+          start_time: detail.start_time,
+          end_time: detail.end_time,
+        }, COURSE_REPORT_TYPE);
+        if (expectedTimes.startTime && expectedTimes.endTime) {
+          startPicker.hourSel.disabled = false;
+          startPicker.minSel.disabled = false;
+          endPicker.hourSel.disabled = false;
+          endPicker.minSel.disabled = false;
+          startPicker.setValue(expectedTimes.startTime);
+          syncEndTimeConstraints();
+          endPicker.setValue(expectedTimes.endTime);
+          activityTimesAutoFilled = true;
+          updateHoursDisplay();
+        }
+      }
+      syncCourseDashboardLocks();
+      void validateCourseAgainstDashboard();
+    });
 
     startPicker.hourSel.addEventListener('change', () => {
       syncEndTimeConstraints();
@@ -1139,7 +1250,7 @@ export function renderNewReportScreen(container, {
         const match = findActivityByRowId(prefill.activity_row_id);
         if (match) {
           void (async () => {
-            await applySelectedActivity(match, { autoFillTimes: false });
+            await applySelectedActivity(match, { autoFillTimes: isCourseReportType() });
             if (prefSchoolName && schoolControl instanceof HTMLSelectElement) {
               const option = [...schoolControl.options].find((item) => item.dataset.name === prefSchoolName);
               if (option) {
@@ -1214,6 +1325,7 @@ export function renderNewReportScreen(container, {
       }
 
       const dateStr = getReportDate();
+      await validateCourseAgainstDashboard();
       const startTime = startPicker.getValue();
       const endTime = endPicker.getValue();
       const totalHours = calcHours(startTime, endTime);
