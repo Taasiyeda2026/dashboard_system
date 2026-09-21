@@ -4,8 +4,8 @@
  */
 
 import { createIcon } from '../components/icon.js';
-import { getMonthRecords, calcMonthSummary, getMonthApproval, submitMonth, sourceAttendanceRecords, reconcileTravelCompensation } from '../services/attendance.service.js';
-import { canEditMonth, editBlockReason, getMonthKey, formatMonthLabel } from '../services/month-gate.service.js';
+import { getMonthRecords, getMonthApproval, submitMonth, sourceAttendanceRecords, reconcileTravelCompensation } from '../services/attendance.service.js';
+import { canEditMonth, getMonthKey, formatMonthLabel } from '../services/month-gate.service.js';
 import { exportMonthToExcel } from '../services/excel.service.js';
 import { distinctAttendanceWorkDays } from '../components/report-summary-row.js';
 import { formatDurationHours, isCancellationRecord } from '../components/monthly-report-summary.js';
@@ -75,17 +75,9 @@ export function renderHomeScreen(container, {
   // ── Month navigator + primary action ──────────────────────────────────────
   const monthNav = buildMonthNav(year, month, onPrevMonth, onNextMonth);
 
-  const newReportBtn = document.createElement('button');
-  newReportBtn.type = 'button';
-  newReportBtn.className = 'av2-btn av2-btn--primary av2-home__primary';
-  const newReportLabel = document.createElement('span');
-  newReportLabel.textContent = 'הוספת דיווח';
-  newReportBtn.append(createIcon('file-plus-2'), newReportLabel);
-  newReportBtn.addEventListener('click', () => onNewReport?.());
-
   const actionRow = document.createElement('div');
   actionRow.className = 'av2-home__action-row';
-  actionRow.append(monthNav, newReportBtn);
+  actionRow.append(monthNav);
 
   // ── KPI skeleton ──────────────────────────────────────────────────────────
   const statsEl = document.createElement('div');
@@ -105,10 +97,10 @@ export function renderHomeScreen(container, {
   wrap.append(inner);
   container.append(wrap);
 
-  loadAndRender({ instructor, year, month, statsEl, actionStripEl, newReportBtn, onMyReports, onEditReport });
+  loadAndRender({ instructor, year, month, statsEl, actionStripEl, onMyReports });
 }
 
-async function loadAndRender({ instructor, year, month, statsEl, actionStripEl, newReportBtn, onMyReports, onEditReport }) {
+async function loadAndRender({ instructor, year, month, statsEl, actionStripEl, onMyReports }) {
   const monthKey = getMonthKey(year, month);
   try {
     const [records, approval] = await Promise.all([
@@ -117,7 +109,6 @@ async function loadAndRender({ instructor, year, month, statsEl, actionStripEl, 
     ]);
 
     const sourceRecords = sourceAttendanceRecords(records);
-    const summary  = calcMonthSummary(records);
     const editable = canEditMonth(year, month, approval);
 
     // Instructor-only monthly totals. No individual records are shown on Home.
@@ -125,13 +116,6 @@ async function loadAndRender({ instructor, year, month, statsEl, actionStripEl, 
     buildHomeSummaryStats(records).forEach((item) => {
       statsEl.append(buildStat(item.value, item.label, item.icon));
     });
-
-    // Disable add-report when month is locked
-    newReportBtn.disabled = !editable;
-    if (!editable) {
-      newReportBtn.title   = editBlockReason(year, month, approval);
-      newReportBtn.style.opacity = '0.5';
-    }
 
     // Action strip
     actionStripEl.innerHTML = '';
@@ -220,11 +204,6 @@ async function handleSubmit({ submitBtn, instructor, year, month, sourceRecords,
       badge.textContent = 'אושר על ידי העובד / בבקרת מנהל';
     }
       submitBtn.remove();
-    const meta = document.createElement('span');
-    meta.className = 'av2-home__strip-meta';
-    meta.textContent = `✓ הוגש בהצלחה ב-${new Date().toLocaleString('he-IL', { dateStyle: 'short', timeStyle: 'short' })}`;
-    const actions = strip.querySelector('.av2-home__strip-actions');
-      if (actions) actions.append(meta);
     }
   });
 }
@@ -281,9 +260,27 @@ function hoursForType(records, label) {
 }
 
 function cancellationHours(records) {
-  return (Array.isArray(records) ? records : [])
+  const rows = Array.isArray(records) ? records : [];
+  const explicit = rows
     .filter(isCancellationRecord)
     .reduce((sum, record) => sum + Number(record?.total_hours || 0), 0);
+
+  const generatedSourceIds = new Set(
+    rows
+      .filter((record) => isCancellationRecord(record) && record?.source_attendance_record_id)
+      .map((record) => String(record.source_attendance_record_id))
+  );
+
+  const linkedMinutes = rows
+    .filter((record) => !isCancellationRecord(record))
+    .filter((record) => !generatedSourceIds.has(String(record?.id || '')))
+    .reduce((sum, record) => {
+      const compensation = record?.travel_compensation;
+      if (compensation?.calculation_status !== 'resolved') return sum;
+      return sum + Math.max(0, Number(compensation?.final_cancellation_minutes || 0));
+    }, 0);
+
+  return explicit + linkedMinutes / 60;
 }
 
 export function buildHomeSummaryStats(records = []) {
