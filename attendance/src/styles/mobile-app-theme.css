@@ -734,3 +734,40 @@
     display: none !important;
   }
 }
+
+
+@media (max-width: 767px) {
+  .av2-home__report-status {
+    align-self: center;
+    width: auto;
+    cursor: default;
+    pointer-events: none;
+  }
+
+  .av2-home__strip-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .av2-home__action-btn {
+    flex: 1 1 128px;
+    min-width: 128px;
+    max-width: 160px;
+    min-height: 40px;
+    padding: 0 10px;
+    border-radius: 11px;
+    font-size: .72rem;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+  }
+
+  .av2-home__view-all {
+    margin: 0;
+    text-decoration: none;
+    opacity: 1;
+  }
+}
