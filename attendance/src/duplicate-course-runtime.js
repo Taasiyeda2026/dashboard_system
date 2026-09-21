@@ -232,18 +232,16 @@ async function enhanceDuplicateCourseForm() {
     const usedDates = new Set(existingReports.map((row) => clean(row.report_date)).filter(Boolean));
 
     const sourceMeetingNo = Number(sourceRecord.meeting_no) || 0;
-    const sourceMonthKey = clean(sourceRecord.report_date).slice(0, 7);
-    const available = schedule.filter((item) => {
-      if (!sourceMonthKey || item.date.slice(0, 7) !== sourceMonthKey) return false;
-      if (item.meeting_no <= sourceMeetingNo) return false;
-      if (usedKeys.has(`${item.meeting_no}|${item.date}`)) return false;
-      if (usedMeetingNos.has(item.meeting_no)) return false;
-      if (usedDates.has(item.date)) return false;
-      return true;
-    });
+    const nextMeeting = schedule.find((item) => item.meeting_no > sourceMeetingNo) || null;
+    const nextMeetingAlreadyReported = !!nextMeeting && (
+      usedKeys.has(`${nextMeeting.meeting_no}|${nextMeeting.date}`)
+      || usedMeetingNos.has(nextMeeting.meeting_no)
+      || usedDates.has(nextMeeting.date)
+    );
+    const available = nextMeeting && !nextMeetingAlreadyReported ? [nextMeeting] : [];
 
     ensureStyles();
-    duplicateNote.textContent = 'שכפול חכם — רק מפגשים בחודש הנוכחות הנוכחי מוצגים; נתוני המפגש נלקחים מהדשבורד ונסיעות והוצאות הועתקו מהדיווח הקודם.';
+    duplicateNote.textContent = 'שכפול חכם — הדיווח נפתח רק עבור המפגש הבא בדשבורד, גם אם הוא בחודש הבא; נסיעות והוצאות הועתקו מהדיווח הקודם.';
 
     const fieldWrap = dateInput.closest('.av2-field');
     const label = fieldWrap?.querySelector('.av2-field__label');
@@ -256,12 +254,12 @@ async function enhanceDuplicateCourseForm() {
     if (!available.length) {
       const option = document.createElement('option');
       option.value = '';
-      option.textContent = 'אין מפגשים נוספים בחודש הנוכחות';
+      option.textContent = nextMeetingAlreadyReported ? 'המפגש הבא כבר דווח' : 'אין מפגש הבא בדשבורד';
       dateSelect.append(option);
       dateSelect.disabled = true;
       const empty = document.createElement('p');
       empty.className = 'av2-duplicate-course-empty';
-      empty.textContent = 'אין מפגש נוסף בקורס בתוך חודש הנוכחות הזה. לא ניתן לשכפל דיווח לחודש הבא.';
+      empty.textContent = nextMeetingAlreadyReported ? 'המפגש הבא בדשבורד כבר דווח ולכן לא ניתן לדלג למפגש מאוחר יותר.' : 'לא נמצא מפגש הבא בדשבורד. לא ניתן ליצור שכפול נוסף.';
       fieldWrap?.append(dateSelect, empty);
       const save = form.querySelector('button[type="submit"]');
       if (save) save.disabled = true;
