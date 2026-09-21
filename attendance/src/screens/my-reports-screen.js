@@ -12,6 +12,8 @@ import { createIcon } from '../components/icon.js';
 import { createInputField, createSelectField } from '../components/field.js';
 import { createTimePicker } from '../components/time-picker.js';
 import { createMiniCalendar } from '../components/mini-calendar.js';
+import { openAttendanceCalendarDay } from '../components/calendar-day-drawer.js';
+import { loadAttendanceCalendarContext } from '../services/calendar.service.js';
 import { getMonthRecords, calcMonthSummary, updateRecord, deleteRecord,
          getMonthApproval, getActivityTypes, deleteAttachmentRecord, sourceAttendanceRecords,
          generatedCancellationFor, reconcileTravelCompensation, overrideTravelCompensation } from '../services/attendance.service.js';
@@ -82,10 +84,11 @@ async function loadAndRender({ instructor, year, month, contentArea, toolbar, on
   const monthKey = getMonthKey(year, month);
 
   try {
-    const [records, approval, activityTypes] = await Promise.all([
+    const [records, approval, activityTypes, calendarContext] = await Promise.all([
       getMonthRecords(instructor.empId, year, month),
       getMonthApproval(instructor.empId, monthKey),
-      getActivityTypes()
+      getActivityTypes(),
+      loadAttendanceCalendarContext(year, month),
     ]);
 
     const sourceRecords = sourceAttendanceRecords(records);
@@ -144,43 +147,28 @@ async function loadAndRender({ instructor, year, month, contentArea, toolbar, on
     }
 
     // ── Calendar ─────────────────────────────────────────────────────────
-    let selectedDate = null;
-    const rowEntries = [];
-
-    const filterBar = document.createElement('div');
-    filterBar.className = 'av2-reports__day-filter';
-    filterBar.hidden = true;
-    const filterText = document.createElement('span');
-    const filterClearBtn = document.createElement('button');
-    filterClearBtn.type = 'button';
-    filterClearBtn.className = 'av2-btn av2-btn--link';
-    filterClearBtn.textContent = 'כל החודש';
-    filterBar.append(filterText, filterClearBtn);
-
-    function applyFilter() {
-      for (const { row, reportDate } of rowEntries) {
-        row.hidden = selectedDate ? reportDate !== selectedDate : false;
-      }
-      filterBar.hidden = !selectedDate;
-      filterText.textContent = selectedDate ? `דיווחים ליום ${formatDateHeb(selectedDate)}` : '';
-    }
-
-    const { wrap: calWrap, clearSelection } = createMiniCalendar({
-      year, month, records: sourceRecords,
-      onDayClick: (dateStr) => { selectedDate = dateStr; applyFilter(); },
-      onEmptyDayClick: editable ? () => onNewReport?.() : undefined
-    });
-
-    filterClearBtn.addEventListener('click', () => {
-      selectedDate = null;
-      clearSelection();
-      applyFilter();
+    const { wrap: calWrap } = createMiniCalendar({
+      year,
+      month,
+      records: sourceRecords,
+      calendarContext,
+      onDayClick: (dateStr, dayEvents) => {
+        openAttendanceCalendarDay({
+          dateStr,
+          activities: dayEvents.activities,
+          schoolEvents: dayEvents.schoolEvents,
+          birthdays: dayEvents.birthdays,
+          records: dayEvents.records,
+          canAddReport: editable,
+          onNewReport,
+        });
+      },
     });
 
     const calContainer = document.createElement('div');
     calContainer.className = 'av2-reports__calendar-wrap';
     calContainer.append(calWrap);
-    contentArea.append(calContainer, filterBar);
+    contentArea.append(calContainer);
 
     const monthlySummary = buildMonthlySummaryGrid(records);
     if (monthlySummary) contentArea.append(monthlySummary);
@@ -236,7 +224,6 @@ async function loadAndRender({ instructor, year, month, contentArea, toolbar, on
         dayTotalHours: dailyTotalHoursByRecord.get(record)
       });
       row.dataset.reportDate = record.report_date;
-      rowEntries.push({ row, reportDate: record.report_date });
       listWrap.append(row);
     }
 
