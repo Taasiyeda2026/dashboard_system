@@ -29,6 +29,7 @@ const ZOOM_LABEL = 'זום';
 const EDIT_RECORD_KEY = 'av2_edit_record_id';
 
 const ATTENDANCE_READ_CACHE_TTL_MS = 60_000;
+const CACHE_MISS = Symbol('attendance-cache-miss');
 const monthRecordsCache = new Map();
 const monthApprovalCache = new Map();
 const dashboardValidationCache = new Map();
@@ -40,10 +41,10 @@ function cacheKey(empId, suffix) {
 
 function cachedValue(map, key) {
   const entry = map.get(key);
-  if (!entry) return null;
+  if (!entry) return CACHE_MISS;
   if (Date.now() - entry.at > ATTENDANCE_READ_CACHE_TTL_MS) {
     map.delete(key);
-    return null;
+    return CACHE_MISS;
   }
   return entry.value;
 }
@@ -137,7 +138,7 @@ export async function getMonthRecords(empId, year, month, { force = false } = {}
   const key = cacheKey(empId, `${year}-${String(month).padStart(2, '0')}`);
   if (!force) {
     const cached = cachedValue(monthRecordsCache, key);
-    if (cached) return cached;
+    if (cached !== CACHE_MISS) return cached;
   }
 
   const pad = (n) => String(n).padStart(2, '0');
@@ -180,7 +181,7 @@ export async function getMonthDashboardValidation(empId, year, month, { force = 
   const key = cacheKey(empId, monthKey);
   if (!force) {
     const cached = cachedValue(dashboardValidationCache, key);
-    if (cached) return cached;
+    if (cached !== CACHE_MISS) return cached;
   }
 
   const { data, error } = await supabase.rpc('av2_validate_attendance_month_dashboard', {
@@ -332,7 +333,7 @@ export async function getMonthApproval(empId, monthKey, { force = false } = {}) 
   const key = cacheKey(empId, monthKey);
   if (!force) {
     const cached = cachedValue(monthApprovalCache, key);
-    if (cached !== null) return cached;
+    if (cached !== CACHE_MISS) return cached;
   }
 
   const [monthApprovalRes, payrollApprovalRes] = await Promise.all([
