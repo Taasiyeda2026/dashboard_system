@@ -18,17 +18,24 @@ const attendanceSwSource = await readFile(new URL('../attendance/sw.js', import.
 const attendanceIndexSource = await readFile(new URL('../attendance/index.html', import.meta.url), 'utf8');
 const calSource     = await readFile(new URL('../attendance/src/components/mini-calendar.js', import.meta.url), 'utf8');
 
-test('Attendance Home is a compact dashboard with source report rows and no calendar', () => {
-  // No calendar whatsoever on Home
+test('Attendance Home is summary-only with instructor monthly totals and no report rows', () => {
   assert.doesNotMatch(homeSource, /createMiniCalendar|av2-home__calendar|renderCalendarSection/);
-  assert.match(homeSource, /av2-home__report-list/);
-  assert.match(homeSource, /אין כרגע דיווחים בחודש זה/);
-  // Has the status area and compact action strip
+  assert.doesNotMatch(homeSource, /createReportDaySummaryRow|groupReportRecordsByDate|av2-home__report-list|אין כרגע דיווחים בחודש זה/);
+  assert.match(homeSource, /buildHomeSummaryStats\(records\)/);
+  for (const label of [
+    'סה״כ קורס','סה״כ סדנה','סה״כ הכשרות','סה״כ תפעול','סה״כ ביטול זמן',
+    'סה״כ קילומטר','סה״כ הוצאות','סה״כ סיור','סה״כ ימי עבודה'
+  ]) {
+    assert.match(homeSource, new RegExp(label));
+  }
+  assert.match(homeSource, /heading\.textContent = 'הדיווחים שלי'/);
+  assert.match(homeSource, /viewLink\.textContent = 'לכל הדיווחים ←'/);
+  assert.match(homeSource, /xlLabel\.textContent = 'Excel'/);
+  assert.match(homeSource, /'סיום ואישור'/);
+  assert.doesNotMatch(homeSource, /newReportLabel\.textContent = 'הוספת דיווח'/);
   assert.match(homeSource, /av2-home__status-area/);
   assert.match(homeSource, /av2-home__action-strip/);
-  // No calendar CSS on Home
   assert.doesNotMatch(homeStyles, /av2-home__calendar|av2-cal--home/);
-  // Has compact KPI grid
   assert.match(homeStyles, /av2-stats-grid/);
 });
 
@@ -108,8 +115,8 @@ test('Attendance New Report uses two compact desktop cards and instructor activi
   assert.match(activitiesServiceSource, /instructorActivitySelectOptions/);
   assert.match(newReportSource, /תחבורה ציבורית/);
   assert.match(newReportSource, /public_transport_cost/);
-  assert.match(attendanceSwSource, /const CACHE_VERSION = 83;/);
-  assert.match(attendanceIndexSource, /\?v=83/);
+  assert.match(attendanceSwSource, /const CACHE_VERSION = 84;/);
+  assert.match(attendanceIndexSource, /\?v=84/);
 });
 
 test('Attendance New Report keeps mobile fields inside padded page gutters', () => {
@@ -130,8 +137,11 @@ test('Attendance New Report cancel resets the form in place instead of navigatin
   assert.doesNotMatch(cancelBlock, /onBack/);
 });
 
-test('Attendance monthly summary counts source reports and report rows use date-only display', () => {
-  assert.match(homeSource, /buildStat\(distinctAttendanceWorkDays\(records\),\s*'ימי עבודה'/);
+test('Attendance monthly summary uses instructor records and report rows use date-only display', () => {
+  assert.match(homeSource, /value: String\(distinctAttendanceWorkDays\(rows\)\)/);
+  assert.match(homeSource, /hoursForType\(rows, 'קורס'\)/);
+  assert.match(homeSource, /hoursForType\(rows, 'סדנה'\)/);
+  assert.match(homeSource, /cancellationHours\(rows\)/);
   assert.doesNotMatch(reportsSource, /DAY_NAMES_SHORT|dateDay|dayName/);
   assert.match(newReportSource, /activity\?\.activity_name \|\| activity\?\.program_name/);
   assert.doesNotMatch(newReportSource, /activityNameSnapshot = activityNameSel\.getLabel/);
