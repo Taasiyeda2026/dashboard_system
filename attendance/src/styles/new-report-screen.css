@@ -38,12 +38,12 @@
 }
 .av2-form-section__title {
   margin: 0;
-  padding: 8px 12px;
-  font-size: 0.75rem;
-  font-weight: 700;
-  color: var(--av2-color-text-muted);
-  background: var(--av2-color-surface-sunken);
-  border-bottom: 1px solid var(--av2-color-border);
+  padding: 9px 12px;
+  font-size: 0.82rem;
+  font-weight: 800;
+  color: #24486f;
+  background: linear-gradient(90deg, rgba(47,111,237,.12) 0%, rgba(47,111,237,.055) 48%, rgba(255,255,255,.35) 100%);
+  border-bottom: 1px solid rgba(47,111,237,.15);
   border-radius: var(--av2-radius-md) var(--av2-radius-md) 0 0;
 }
 .av2-form-section__subtitle {
@@ -74,7 +74,15 @@
 .av2-report__times-grid,
 .av2-report__expense-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; align-items: end; }
 .av2-report__expenses { display: flex; flex-direction: column; gap: 14px; padding-top: 18px; border-top: 1px solid var(--av2-color-border); }
-.av2-report__expenses .av2-form-section__subtitle { margin: 0; font-size: 0.875rem; color: var(--av2-color-text); }
+.av2-report__expenses .av2-form-section__subtitle {
+  margin: 0;
+  padding: 7px 9px;
+  border-radius: 8px;
+  font-size: 0.82rem;
+  font-weight: 800;
+  color: #28506f;
+  background: linear-gradient(90deg, rgba(33,190,174,.10) 0%, rgba(47,111,237,.055) 56%, rgba(255,255,255,0) 100%);
+}
 .av2-report__expenses .av2-attach-upload-btn { width: 100%; max-width: none; min-height: 42px; justify-content: center; }
 .av2-report__expenses .av2-field__input { width: 100%; }
 
@@ -112,11 +120,23 @@
 
 .av2-report__actions {
   display: flex;
-  justify-content: flex-end;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
   padding-top: 4px;
   margin-top: 2px;
 }
-.av2-report__save { min-height: 36px; min-width: 140px; }
+.av2-report__save,
+.av2-report__cancel {
+  min-height: 34px;
+  min-width: 92px;
+  padding-inline: 14px;
+}
+.av2-report__cancel {
+  border-color: #cbd7e5;
+  background: #fff;
+  color: #53667d;
+}
 .av2-report__error { margin: 0; font-size: 0.75rem; color: #dc2626; padding: 4px 8px; background: #fef2f2; border-radius: var(--av2-radius-sm); border: 1px solid #fecaca; }
 
 /* Searchable / compact select — unchanged */
