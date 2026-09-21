@@ -1011,7 +1011,11 @@ export function renderNewReportScreen(container, {
     const cancelLbl = document.createElement('span');
     cancelLbl.textContent = 'ביטול';
     cancelBtn.append(createIcon('x'), cancelLbl);
-    cancelBtn.addEventListener('click', () => onBack?.());
+    cancelBtn.addEventListener('click', () => {
+      successBanner.hidden = true;
+      lockBanner.hidden = true;
+      buildForm(null, defaultDate);
+    });
 
     actionsRow.append(saveBtn, cancelBtn);
     form.append(actionsRow);
@@ -1306,7 +1310,7 @@ export function renderNewReportScreen(container, {
         errorEl.textContent = err.message;
         errorEl.hidden = false;
         saveBtn.disabled = false;
-        saveBtn.querySelector('span').textContent = 'שמירת דיווח';
+        saveBtn.querySelector('span').textContent = 'שמור';
       }
     });
 
