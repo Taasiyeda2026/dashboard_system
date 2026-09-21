@@ -3,16 +3,17 @@
  */
 @media (min-width: 1024px) {
   .av2-report-list {
-    width: 100%;
-    max-width: 100%;
-    overflow-x: hidden;
+    width: min(100%, 1340px);
+    max-width: 1340px;
+    margin-inline: auto;
+    overflow-x: auto;
   }
 
   .av2-report-list__head,
   .av2-report-row {
-    width: 100%;
-    max-width: 100%;
-    min-width: 0 !important;
+    width: 1340px;
+    max-width: none;
+    min-width: 1340px !important;
     grid-template-columns:
       70px   /* date */
       65px   /* start */
