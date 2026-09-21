@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 
 const homeSource    = await readFile(new URL('../attendance/src/screens/home-screen.js',    import.meta.url), 'utf8');
 const homeStyles    = await readFile(new URL('../attendance/src/styles/home-screen.css',    import.meta.url), 'utf8');
+const desktopAppThemeStyles = await readFile(new URL('../attendance/src/styles/desktop-app-theme.css', import.meta.url), 'utf8');
 const reportsSource = await readFile(new URL('../attendance/src/screens/my-reports-screen.js', import.meta.url), 'utf8');
 const newReportSource = await readFile(new URL('../attendance/src/screens/new-report-screen.js', import.meta.url), 'utf8');
 const newReportStyles = await readFile(new URL('../attendance/src/styles/new-report-screen.css', import.meta.url), 'utf8');
@@ -115,8 +116,8 @@ test('Attendance New Report uses two compact desktop cards and instructor activi
   assert.match(activitiesServiceSource, /instructorActivitySelectOptions/);
   assert.match(newReportSource, /תחבורה ציבורית/);
   assert.match(newReportSource, /public_transport_cost/);
-  assert.match(attendanceSwSource, /const CACHE_VERSION = 84;/);
-  assert.match(attendanceIndexSource, /\?v=84/);
+  assert.match(attendanceSwSource, /const CACHE_VERSION = 85;/);
+  assert.match(attendanceIndexSource, /\?v=85/);
 });
 
 test('Attendance New Report keeps mobile fields inside padded page gutters', () => {
@@ -137,11 +138,14 @@ test('Attendance New Report cancel resets the form in place instead of navigatin
   assert.doesNotMatch(cancelBlock, /onBack/);
 });
 
-test('Attendance monthly summary uses instructor records and report rows use date-only display', () => {
-  assert.match(homeSource, /value: String\(distinctAttendanceWorkDays\(rows\)\)/);
-  assert.match(homeSource, /hoursForType\(rows, 'קורס'\)/);
-  assert.match(homeSource, /hoursForType\(rows, 'סדנה'\)/);
+test('Attendance monthly summary uses current instructor month records and hides zero totals', () => {
+  assert.match(homeSource, /const sourceRows = sourceAttendanceRecords\(rows\)/);
+  assert.match(homeSource, /hoursForType\(sourceRows, 'קורס'\)/);
+  assert.match(homeSource, /hoursForType\(sourceRows, 'סדנה'\)/);
   assert.match(homeSource, /cancellationHours\(rows\)/);
+  assert.match(homeSource, /distinctAttendanceWorkDays\(sourceRows\)/);
+  assert.match(homeSource, /\.filter\(\(item\) => Number\(item\.numericValue\) > 0\)/);
+  assert.match(homeSource, /statsEl\.hidden = homeStats\.length === 0/);
   assert.doesNotMatch(reportsSource, /DAY_NAMES_SHORT|dateDay|dayName/);
   assert.match(newReportSource, /activity\?\.activity_name \|\| activity\?\.program_name/);
   assert.doesNotMatch(newReportSource, /activityNameSnapshot = activityNameSel\.getLabel/);
@@ -178,4 +182,15 @@ test('Attendance reports table keeps the required 13-column grid including time 
   assert.match(attendanceFollowupRuntime, /hours\.insertAdjacentElement\('afterend', cancel\)/);
   assert.match(attendanceFollowupRuntime, /cell\.className = 'av2-rr__time-cancel'/);
   assert.match(attendanceFollowupRuntime, /hours\.insertAdjacentElement\('afterend', cell\)/);
+});
+
+
+test('Attendance Home desktop summary cards are exactly half width and centered', () => {
+  assert.match(desktopAppThemeStyles, /display:\s*flex\s*!important/);
+  assert.match(desktopAppThemeStyles, /justify-content:\s*center\s*!important/);
+  assert.match(desktopAppThemeStyles, /max-width:\s*440px\s*!important/);
+  assert.match(desktopAppThemeStyles, /flex:\s*0 0 133\.333px\s*!important/);
+  assert.match(desktopAppThemeStyles, /width:\s*133\.333px\s*!important/);
+  assert.match(desktopAppThemeStyles, /min-width:\s*133\.333px\s*!important/);
+  assert.match(desktopAppThemeStyles, /max-width:\s*133\.333px\s*!important/);
 });
