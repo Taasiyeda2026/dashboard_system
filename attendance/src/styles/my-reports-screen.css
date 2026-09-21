@@ -350,7 +350,7 @@
 
 /* ── Unified instructor-style calendar events — compact attendance density ── */
 .av2-cal__cell {
-  height: 50px;
+  height: auto;
   min-height: 50px;
   justify-content: flex-start;
   gap: 2px;
@@ -374,9 +374,11 @@
   font-weight: 700;
   line-height: 1.25;
   text-align: center;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  overflow-wrap: anywhere;
+  word-break: normal;
 }
 .av2-cal__event-label--holiday,
 .av2-cal__event-label--event {
