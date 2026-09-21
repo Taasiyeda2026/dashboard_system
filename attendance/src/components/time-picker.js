@@ -175,6 +175,26 @@ export function createTimePicker(id, label, defaultValue = '', minuteStep = 5) {
     return String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0');
   }
 
+  function setValue(value = '') {
+    const parsed = parseTimeValue(value);
+    if (parsed == null) {
+      clearValue();
+      return;
+    }
+
+    const hour = Math.floor(parsed / 60);
+    const minute = parsed % 60;
+    if (minTimeMinutes != null && parsed < minTimeMinutes) {
+      clearValue();
+      return;
+    }
+
+    buildHourOptions(minTimeMinutes == null ? 0 : Math.floor(minTimeMinutes / 60));
+    hourControl.setValue(String(hour));
+    buildMinuteOptionsForHour(String(hour));
+    minControl.setValue(String(minute));
+  }
+
   row.append(hourControl.wrap, sep, minControl.wrap);
   wrap.append(labelEl, row);
 
@@ -183,6 +203,7 @@ export function createTimePicker(id, label, defaultValue = '', minuteStep = 5) {
     hourSel: hourControl.select,
     minSel: minControl.select,
     getValue,
+    setValue,
     clearValue,
     setMinTime,
     setMinHour,
