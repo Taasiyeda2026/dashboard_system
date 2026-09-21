@@ -116,8 +116,8 @@ test('Attendance New Report uses two compact desktop cards and instructor activi
   assert.match(activitiesServiceSource, /instructorActivitySelectOptions/);
   assert.match(newReportSource, /תחבורה ציבורית/);
   assert.match(newReportSource, /public_transport_cost/);
-  assert.match(attendanceSwSource, /const CACHE_VERSION = 85;/);
-  assert.match(attendanceIndexSource, /\?v=85/);
+  assert.match(attendanceSwSource, /const CACHE_VERSION = 86;/);
+  assert.match(attendanceIndexSource, /\?v=86/);
 });
 
 test('Attendance New Report keeps mobile fields inside padded page gutters', () => {
@@ -193,4 +193,15 @@ test('Attendance Home desktop summary cards are exactly half width and centered'
   assert.match(desktopAppThemeStyles, /width:\s*133\.333px\s*!important/);
   assert.match(desktopAppThemeStyles, /min-width:\s*133\.333px\s*!important/);
   assert.match(desktopAppThemeStyles, /max-width:\s*133\.333px\s*!important/);
+});
+
+
+test('Attendance My Reports monthly summary cards are compact and centered', () => {
+  assert.match(reportsStyles, /\.av2-reports__summary-grid\s*\{[\s\S]*max-width:\s*620px/);
+  assert.match(reportsStyles, /justify-content:\s*center/);
+  assert.match(reportsStyles, /gap:\s*16px/);
+  assert.match(reportsStyles, /\.av2-reports__summary-card\s*\{[\s\S]*flex:\s*0 0 300px/);
+  assert.match(reportsStyles, /width:\s*300px/);
+  assert.match(reportsStyles, /min-width:\s*300px/);
+  assert.match(reportsStyles, /max-width:\s*300px/);
 });
