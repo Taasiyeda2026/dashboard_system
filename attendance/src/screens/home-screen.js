@@ -206,7 +206,7 @@ async function handleSubmit({ submitBtn, instructor, year, month, sourceRecords,
       await submitMonth(instructor.empId, getMonthKey(year, month), instructor?.name || '');
     const badge = strip.querySelector('.av2-badge');
     if (badge) {
-      badge.className = 'av2-badge av2-badge--warning';
+      badge.className = 'av2-badge av2-badge--warning av2-home__report-status';
       badge.textContent = 'אושר על ידי העובד / בבקרת מנהל';
     }
       submitBtn.remove();
