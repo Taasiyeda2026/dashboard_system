@@ -997,13 +997,23 @@ export function renderNewReportScreen(container, {
 
     const actionsRow = document.createElement('div');
     actionsRow.className = 'av2-report__actions';
+
     saveBtn = document.createElement('button');
     saveBtn.type = 'submit';
     saveBtn.className = 'av2-btn av2-btn--primary av2-report__save';
     const saveLbl = document.createElement('span');
-    saveLbl.textContent = 'שמירת דיווח';
+    saveLbl.textContent = 'שמור';
     saveBtn.append(createIcon('check'), saveLbl);
-    actionsRow.append(saveBtn);
+
+    const cancelBtn = document.createElement('button');
+    cancelBtn.type = 'button';
+    cancelBtn.className = 'av2-btn av2-btn--secondary av2-report__cancel';
+    const cancelLbl = document.createElement('span');
+    cancelLbl.textContent = 'ביטול';
+    cancelBtn.append(createIcon('x'), cancelLbl);
+    cancelBtn.addEventListener('click', () => onBack?.());
+
+    actionsRow.append(saveBtn, cancelBtn);
     form.append(actionsRow);
 
     errorEl = document.createElement('p');
