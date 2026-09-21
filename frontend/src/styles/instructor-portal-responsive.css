@@ -655,3 +655,83 @@
     gap: 6px;
   }
 }
+
+
+/* 2026-09 calendar visual polish: same design system, calmer compact cells. */
+@media (min-width: 960px) {
+  .app-shell--instructor .route-instructor-calendar .ds-cal-weekdays {
+    min-height: 32px;
+    background: linear-gradient(180deg, rgba(239,247,253,.86), rgba(248,251,254,.92));
+    border-bottom: 1px solid #dde8f1;
+  }
+
+  .app-shell--instructor .route-instructor-calendar .ds-cal-wd {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 32px;
+    color: #63778e;
+    font-size: 10.5px;
+    font-weight: 800;
+  }
+
+  .app-shell--instructor .route-instructor-calendar .ds-interactive-card--day-cell {
+    height: 74px;
+    min-height: 74px;
+    padding: 6px 6px 5px;
+    border-color: #e5edf4;
+    background: rgba(255,255,255,.94);
+    transition: background .14s ease, box-shadow .14s ease, transform .14s ease;
+  }
+
+  .app-shell--instructor .route-instructor-calendar .ds-cal-slot-hit:hover .ds-interactive-card--day-cell {
+    z-index: 1;
+    background: #fbfdff;
+    box-shadow: inset 0 0 0 1px rgba(36,116,245,.14);
+  }
+
+  .app-shell--instructor .route-instructor-calendar .ds-interactive-card__title {
+    font-size: .76rem;
+    line-height: 1.1;
+  }
+
+  .app-shell--instructor .route-instructor-calendar .ds-interactive-card__subtitle {
+    width: calc(100% - 6px);
+    margin: 3px auto 0;
+    padding: 2px 5px;
+    border-radius: 7px;
+    background: linear-gradient(90deg, rgba(99,102,241,.07), rgba(59,130,246,.035));
+    color: #64758a;
+    font-size: .57rem;
+    line-height: 1.18;
+    -webkit-line-clamp: 1;
+  }
+
+  .app-shell--instructor .route-instructor-calendar .birthday-calendar-label {
+    margin-top: 3px;
+    padding: 2px 4px;
+    border-radius: 7px;
+    font-size: .54rem;
+    line-height: 1.15;
+    -webkit-line-clamp: 1;
+  }
+
+  .app-shell--instructor .route-instructor-calendar .ds-interactive-card--day-cell.is-instructor-today {
+    background: #f1f8ff;
+    box-shadow: inset 0 0 0 1.5px rgba(36,116,245,.58);
+  }
+
+  .app-shell--instructor .route-instructor-calendar .ds-interactive-card--day-cell.is-instructor-today::before {
+    inset-block-start: 4px;
+    inset-inline-start: 4px;
+    padding: 1px 5px;
+    background: #e4f0ff;
+    font-size: 8.5px;
+  }
+
+  .app-shell--instructor .route-instructor-calendar .ds-interactive-card--day-cell.has-instructor-activity::after,
+  .app-shell--instructor .route-instructor-calendar .ds-interactive-card--day-cell.has-instructor-attendance::after {
+    inset-inline-start: 7px;
+    inset-block-end: 6px;
+  }
+}
