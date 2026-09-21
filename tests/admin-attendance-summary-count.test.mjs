@@ -19,6 +19,6 @@ test('admin attendance asset and cache markers are bumped', async () => {
   const sw = await readFile(new URL('../frontend/sw.js', import.meta.url), 'utf8');
   const config = await readFile(new URL('../frontend/src/config.js', import.meta.url), 'utf8');
   assert.match(index, /admin-attendance-standalone\.js\?v=20260916-admin-attendance-summary-count-v2/);
-  assert.match(sw, /const CACHE_VERSION = 1731;/);
+  assert.match(sw, /const CACHE_VERSION = 1732;/);
   assert.match(config, /admin-attendance-summary-count-sw-cache-1724-20260916-v1/);
 });
