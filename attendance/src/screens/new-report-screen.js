@@ -541,6 +541,8 @@ export function renderNewReportScreen(container, {
     clearMeetingSelection();
     setLocationFieldsVisible(!isOpenFieldType());
     syncLocationDependencies();
+    syncCourseDashboardLocks();
+    setDashboardMismatchWarning([]);
     syncDateWarning();
   }
 
