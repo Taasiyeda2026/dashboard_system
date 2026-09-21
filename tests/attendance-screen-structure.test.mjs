@@ -9,6 +9,7 @@ const reportsSource = await readFile(new URL('../attendance/src/screens/my-repor
 const newReportSource = await readFile(new URL('../attendance/src/screens/new-report-screen.js', import.meta.url), 'utf8');
 const newReportStyles = await readFile(new URL('../attendance/src/styles/new-report-screen.css', import.meta.url), 'utf8');
 const newReportLayoutFix = await readFile(new URL('../attendance/src/styles/new-report-layout-fix.css', import.meta.url), 'utf8');
+const newReportAccessibilityStyles = await readFile(new URL('../attendance/src/styles/new-report-accessibility.css', import.meta.url), 'utf8');
 const reportsStyles = await readFile(new URL('../attendance/src/styles/my-reports-screen.css', import.meta.url), 'utf8');
 const attendanceFollowupStyles = await readFile(new URL('../attendance/src/styles/attendance-followup.css', import.meta.url), 'utf8');
 const reportTableFitStyles = await readFile(new URL('../attendance/src/styles/report-table-fit-fix.css', import.meta.url), 'utf8');
@@ -116,8 +117,8 @@ test('Attendance New Report uses two compact desktop cards and instructor activi
   assert.match(activitiesServiceSource, /instructorActivitySelectOptions/);
   assert.match(newReportSource, /תחבורה ציבורית/);
   assert.match(newReportSource, /public_transport_cost/);
-  assert.match(attendanceSwSource, /const CACHE_VERSION = 89;/);
-  assert.match(attendanceIndexSource, /\?v=89/);
+  assert.match(attendanceSwSource, /const CACHE_VERSION = 90;/);
+  assert.match(attendanceIndexSource, /\?v=90/);
 });
 
 test('Attendance New Report keeps mobile fields inside padded page gutters', () => {
@@ -214,4 +215,54 @@ test('Attendance calendar desktop rows have a fixed compact height', () => {
   assert.match(reportsStyles, /\.av2-cal__grid\s*\{[\s\S]*grid-auto-rows:\s*54px/);
   assert.match(reportsStyles, /\.av2-cal__cell\s*\{[\s\S]*height:\s*54px[\s\S]*min-height:\s*54px[\s\S]*max-height:\s*54px/);
   assert.match(reportsStyles, /@media \(max-width: 767px\)[\s\S]*\.av2-cal__cell\s*\{[\s\S]*height:\s*44px/);
+});
+
+
+function relativeLuminance(hex) {
+  const channels = hex.replace('#', '').match(/.{2}/g).map((part) => parseInt(part, 16) / 255);
+  const linear = channels.map((value) => value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4);
+  return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2];
+}
+
+function contrastRatio(a, b) {
+  const l1 = relativeLuminance(a);
+  const l2 = relativeLuminance(b);
+  return (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05);
+}
+
+test('New Report accessibility layer is scoped, color-only and loaded last', () => {
+  assert.doesNotMatch(newReportAccessibilityStyles, /:root\s*\{/);
+  assert.match(newReportAccessibilityStyles, /\.av2-report\s*\{/);
+  assert.match(newReportAccessibilityStyles, /#374151/i);
+  assert.match(newReportAccessibilityStyles, /#5F6B7A/i);
+  assert.match(newReportAccessibilityStyles, /#667085/i);
+  assert.match(newReportAccessibilityStyles, /#C5D2E1/i);
+  assert.match(newReportAccessibilityStyles, /#F4F7FA/i);
+  assert.match(newReportAccessibilityStyles, /#7A8797/i);
+  assert.match(newReportAccessibilityStyles, /#2563EB/i);
+  assert.doesNotMatch(newReportAccessibilityStyles, /(?:^|[;{]\s*)(?:width|height|min-width|max-width|min-height|max-height|padding|margin|gap|border-radius|font-size|font-family|grid-template-columns|display|position)\s*:/m);
+
+  const fitIndex = attendanceIndexSource.indexOf('report-table-fit-fix.css?v=90');
+  const accessibilityIndex = attendanceIndexSource.indexOf('new-report-accessibility.css?v=90');
+  assert.notEqual(fitIndex, -1);
+  assert.notEqual(accessibilityIndex, -1);
+  assert.ok(accessibilityIndex > fitIndex, 'New Report accessibility CSS must load last');
+});
+
+test('New Report required text colors meet WCAG AA contrast on white', () => {
+  assert.ok(contrastRatio('#374151', '#FFFFFF') >= 4.5);
+  assert.ok(contrastRatio('#5F6B7A', '#FFFFFF') >= 4.5);
+  assert.ok(contrastRatio('#667085', '#FFFFFF') >= 4.5);
+  assert.ok(contrastRatio('#FFFFFF', '#2563EB') >= 4.5);
+  assert.ok(contrastRatio('#475569', '#FFFFFF') >= 4.5);
+});
+
+test('New Report accessibility covers fields, placeholders, disabled, focus and actions', () => {
+  assert.match(newReportAccessibilityStyles, /::placeholder[\s\S]*var\(--av2-new-report-placeholder\)/);
+  assert.match(newReportAccessibilityStyles, /\.av2-field__input:disabled[\s\S]*var\(--av2-new-report-disabled-bg\)/);
+  assert.match(newReportAccessibilityStyles, /\.av2-ssel__trigger:disabled[\s\S]*opacity:\s*1/);
+  assert.match(newReportAccessibilityStyles, /\.av2-ssel__chevron[\s\S]*border-top-color:\s*var\(--av2-new-report-secondary\)/);
+  assert.match(newReportAccessibilityStyles, /\.av2-time-picker:focus-within[\s\S]*border-color:\s*var\(--av2-new-report-primary\)/);
+  assert.match(newReportAccessibilityStyles, /\.av2-report__save[\s\S]*background:\s*var\(--av2-new-report-primary\)/);
+  assert.match(newReportAccessibilityStyles, /\.av2-report__cancel[\s\S]*background:\s*#FFFFFF[\s\S]*var\(--av2-new-report-cancel-text\)[\s\S]*var\(--av2-new-report-cancel-border\)/);
 });
