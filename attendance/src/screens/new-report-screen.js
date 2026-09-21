@@ -771,6 +771,7 @@ export function renderNewReportScreen(container, {
     formArea.innerHTML = '';
     selectedActivity = null;
     pendingFiles.length = 0;
+    activityTimesAutoFilled = false;
     previousReportType = prefill?.activity_type || '';
 
     if (prefill) {
