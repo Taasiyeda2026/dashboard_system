@@ -1,0 +1,202 @@
+/* Accessibility color refinement for New Report only.
+ * Color/contrast changes only: no layout, spacing, sizing, typography or radius changes.
+ */
+
+.av2-report {
+  --av2-new-report-text: #374151;
+  --av2-new-report-secondary: #5F6B7A;
+  --av2-new-report-placeholder: #667085;
+  --av2-new-report-border: #C5D2E1;
+  --av2-new-report-disabled-bg: #F4F7FA;
+  --av2-new-report-disabled-text: #7A8797;
+  --av2-new-report-primary: #2563EB;
+  --av2-new-report-primary-hover: #1D4ED8;
+  --av2-new-report-cancel-text: #475569;
+  --av2-new-report-cancel-border: #94A3B8;
+}
+
+/* Primary readable text and field headings. */
+.av2-report,
+.av2-report .av2-report__title,
+.av2-report .av2-form-section__title,
+.av2-report .av2-field__label,
+.av2-report .av2-report__transport-toggle,
+.av2-report .av2-time-picker__sep,
+.av2-report .av2-field__input,
+.av2-report .av2-field__select,
+.av2-report .av2-ssel__trigger,
+.av2-report .av2-csel__trigger,
+.av2-report .av2-ssel__option,
+.av2-report .av2-csel__option,
+.av2-report .av2-ssel__search {
+  color: var(--av2-new-report-text);
+}
+
+/* Secondary/help text. */
+.av2-report .av2-form-section__subtitle,
+.av2-report .av2-report__dup-note,
+.av2-report .av2-report__planned-note,
+.av2-report .av2-report__hours-label,
+.av2-report .av2-report__time-cancellation small,
+.av2-report .av2-ssel__empty,
+.av2-report .av2-ssel__option-meta,
+.av2-report .av2-summary__row span {
+  color: var(--av2-new-report-secondary);
+}
+
+/* Placeholders: readable but still visually distinct from entered values. */
+.av2-report .av2-field__input::placeholder,
+.av2-report textarea::placeholder,
+.av2-report .av2-ssel__search::placeholder {
+  color: var(--av2-new-report-placeholder);
+  opacity: 1;
+}
+.av2-report .av2-ssel__trigger-text[data-empty='true'],
+.av2-report .av2-csel__trigger-text[data-empty='true'],
+.av2-report .av2-field__select:has(option:checked[value='']) {
+  color: var(--av2-new-report-placeholder);
+}
+.av2-report .av2-field__select option[value=''] {
+  color: var(--av2-new-report-placeholder);
+}
+
+/* Field/control boundaries: preserve existing thickness/radius and only strengthen color. */
+.av2-report .av2-field__input,
+.av2-report .av2-field__select,
+.av2-report textarea,
+.av2-report .av2-ssel__trigger,
+.av2-report .av2-csel__trigger,
+.av2-report .av2-time-picker,
+.av2-report .av2-ssel__search,
+.av2-report .av2-ssel__panel,
+.av2-report .av2-csel__panel {
+  border-color: var(--av2-new-report-border);
+}
+
+/* Select arrows/icons. */
+.av2-report .av2-ssel__chevron,
+.av2-report .av2-csel__chevron {
+  border-top-color: var(--av2-new-report-secondary);
+}
+
+/* Disabled states: no opacity wash-out; retain the current geometry. */
+.av2-report .av2-field__input:disabled,
+.av2-report .av2-field__select:disabled,
+.av2-report textarea:disabled,
+.av2-report .av2-ssel__trigger:disabled,
+.av2-report .av2-csel__trigger:disabled {
+  opacity: 1;
+  background: var(--av2-new-report-disabled-bg);
+  color: var(--av2-new-report-disabled-text);
+  border-color: var(--av2-new-report-border);
+}
+.av2-report .av2-ssel__trigger:disabled .av2-ssel__trigger-text,
+.av2-report .av2-csel__trigger:disabled .av2-csel__trigger-text {
+  color: var(--av2-new-report-disabled-text);
+}
+.av2-report .av2-ssel__trigger:disabled .av2-ssel__chevron,
+.av2-report .av2-csel__trigger:disabled .av2-csel__chevron {
+  border-top-color: var(--av2-new-report-disabled-text);
+}
+
+/* Hover/focus states: color only; keep existing dimensions and radii. */
+.av2-report .av2-field__input:not(:disabled):hover,
+.av2-report .av2-field__select:not(:disabled):hover,
+.av2-report textarea:not(:disabled):hover,
+.av2-report .av2-ssel__trigger:not(:disabled):hover,
+.av2-report .av2-csel__trigger:not(:disabled):hover {
+  border-color: #7A8797;
+}
+.av2-report .av2-field__input:focus,
+.av2-report .av2-field__select:focus,
+.av2-report textarea:focus,
+.av2-report .av2-ssel__trigger:focus,
+.av2-report .av2-ssel__trigger.is-open,
+.av2-report .av2-csel__trigger:focus,
+.av2-report .av2-csel__trigger.is-open,
+.av2-report .av2-time-picker:focus-within,
+.av2-report .av2-ssel__search:focus {
+  border-color: var(--av2-new-report-primary);
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, .14);
+}
+@media (max-width: 767px) {
+  .av2-report .av2-field__input:focus,
+  .av2-report .av2-field__select:focus,
+  .av2-report textarea:focus,
+  .av2-report .av2-ssel__trigger:focus,
+  .av2-report .av2-ssel__trigger.is-open,
+  .av2-report .av2-csel__trigger:focus,
+  .av2-report .av2-csel__trigger.is-open,
+  .av2-report .av2-time-picker:focus-within,
+  .av2-report .av2-ssel__search:focus {
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, .14);
+  }
+}
+
+/* Preserve validation hierarchy when invalid fields are focused. */
+.av2-report .av2-field--invalid > .av2-field__label {
+  color: #B91C1C;
+}
+.av2-report .av2-field--invalid .av2-field__input,
+.av2-report .av2-field--invalid .av2-field__select,
+.av2-report .av2-field--invalid .av2-time-picker,
+.av2-report .av2-field--invalid .av2-ssel__trigger,
+.av2-report .av2-field--invalid .av2-csel__trigger {
+  border-color: #DC2626;
+}
+
+/* Primary action and active states. */
+.av2-report .av2-report__save,
+.av2-report .av2-btn--primary {
+  background: var(--av2-new-report-primary);
+  color: #FFFFFF;
+}
+.av2-report .av2-report__save .av2-icon,
+.av2-report .av2-btn--primary .av2-icon {
+  color: #FFFFFF;
+}
+.av2-report .av2-report__save:hover,
+.av2-report .av2-btn--primary:hover {
+  background: var(--av2-new-report-primary-hover);
+  color: #FFFFFF;
+}
+.av2-report .av2-ssel__option.is-selected,
+.av2-report .av2-csel__option.is-selected,
+.av2-report .av2-ssel__extended,
+.av2-report .av2-attach-upload-btn,
+.av2-report .av2-report__hours-value,
+.av2-report a,
+.av2-report .av2-btn--link {
+  color: var(--av2-new-report-primary);
+}
+.av2-report .av2-report__transport-toggle input {
+  accent-color: var(--av2-new-report-primary);
+}
+
+/* Cancel remains the existing white secondary action, only with stronger contrast. */
+.av2-report .av2-report__cancel {
+  background: #FFFFFF;
+  color: var(--av2-new-report-cancel-text);
+  border-color: var(--av2-new-report-cancel-border);
+}
+.av2-report .av2-report__cancel .av2-icon {
+  color: var(--av2-new-report-cancel-text);
+}
+.av2-report .av2-report__cancel:hover {
+  background: #F8FAFC;
+  color: #334155;
+  border-color: #7A8797;
+}
+.av2-report .av2-report__cancel:focus-visible {
+  border-color: var(--av2-new-report-primary);
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, .14);
+}
+
+/* Active New Report navigation state while this screen is mounted. */
+body:has(.av2-report) .av2-bottom-nav__item.is-active,
+body:has(.av2-report) .av2-bottom-nav__item.is-mobile-active {
+  color: #2563EB;
+}
+body:has(.av2-report) .av2-bottom-nav__item.is-active {
+  box-shadow: inset -3px 0 0 #2563EB;
+}
