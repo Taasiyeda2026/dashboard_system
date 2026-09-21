@@ -8,6 +8,7 @@ import {
   OPEN_FIELD_REPORT_TYPES,
   getDbTypesForReportType,
   normalizeAttendanceReportType,
+  attendanceTimesFromActivity,
 } from '../attendance/src/services/activities-report.helpers.js';
 
 const newReportSource = await readFile(new URL('../attendance/src/screens/new-report-screen.js', import.meta.url), 'utf8');
@@ -33,6 +34,25 @@ test('Attendance report type list uses Zoom and keeps canonical activity filteri
   assert.deepEqual(getDbTypesForReportType('קורס'), ['course']);
   assert.deepEqual(getDbTypesForReportType('תפעול'), []);
   assert.ok(OPEN_FIELD_REPORT_TYPES.includes('תפעול'));
+});
+
+test('Course and workshop attendance times come from the dashboard with a 15-minute lead', () => {
+  assert.deepEqual(
+    attendanceTimesFromActivity({ start_time: '13:30', end_time: '15:00' }),
+    { startTime: '13:15', endTime: '15:00' },
+  );
+  assert.deepEqual(
+    attendanceTimesFromActivity({ start_time: '12:00:00', end_time: '13:00:00' }),
+    { startTime: '11:45', endTime: '13:00' },
+  );
+  assert.deepEqual(
+    attendanceTimesFromActivity({ start_time: '', end_time: '13:00' }),
+    { startTime: '', endTime: '' },
+  );
+  assert.match(newReportSource, /AUTO_TIME_REPORT_TYPES = new Set\(\[COURSE_REPORT_TYPE, WORKSHOP_REPORT_TYPE\]\)/);
+  assert.match(newReportSource, /attendanceTimesFromActivity\(activity, 15\)/);
+  assert.match(newReportSource, /startPicker\.setValue\(startTime\)/);
+  assert.match(newReportSource, /endPicker\.setValue\(endTime\)/);
 });
 
 test('New report supports all-activity choices, operations details and zero-travel Zoom', () => {
@@ -62,7 +82,7 @@ test('Attendance service and edit flow enforce the same Zoom and operations rule
 });
 
 test('Attendance cache is synchronized for the report type behavior release', () => {
-  assert.match(swSource, /const CACHE_VERSION = 77;/);
-  assert.match(indexSource, /\?v=77/);
+  assert.match(swSource, /const CACHE_VERSION = 78;/);
+  assert.match(indexSource, /\?v=78/);
   assert.doesNotMatch(indexSource, /\?v=70/);
 });
