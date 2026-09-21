@@ -735,3 +735,24 @@
     inset-block-end: 6px;
   }
 }
+
+
+/* Calendar labels keep their full meaning: fixed width, natural line wrapping, no ellipsis. */
+.app-shell--instructor .route-instructor-calendar .ds-interactive-card--day-cell {
+  height: auto !important;
+}
+
+.app-shell--instructor .route-instructor-calendar .ds-interactive-card__subtitle,
+.app-shell--instructor .route-instructor-calendar .birthday-calendar-label {
+  display: block !important;
+  width: calc(100% - 6px) !important;
+  max-width: calc(100% - 6px) !important;
+  margin-inline: auto !important;
+  white-space: normal !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+  overflow-wrap: anywhere !important;
+  word-break: normal !important;
+  -webkit-line-clamp: unset !important;
+  -webkit-box-orient: unset !important;
+}
