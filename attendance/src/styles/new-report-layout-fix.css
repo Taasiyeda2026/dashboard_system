@@ -90,7 +90,8 @@
   .av2-report__times-grid,
   .av2-report__expense-fields { grid-template-columns: minmax(0, 1fr); gap: 9px; }
   .av2-report__actions { justify-content: center !important; }
-  .av2-report__save { min-width: 132px; min-height: 36px; }
+  .av2-report__save,
+  .av2-report__cancel { min-width: 96px; min-height: 34px; }
   .av2-report__expenses .av2-attach-upload-btn {
     align-self: center;
     width: auto;
