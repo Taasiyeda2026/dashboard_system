@@ -3,31 +3,31 @@
  */
 @media (min-width: 1024px) {
   .av2-report-list {
-    width: min(100%, 999px);
-    max-width: 999px;
+    width: min(100%, 976px);
+    max-width: 976px;
     margin-inline: auto;
-    overflow-x: auto;
+    overflow-x: hidden;
   }
 
   .av2-report-list__head,
   .av2-report-row {
-    width: 999px;
+    width: 976px;
     max-width: none;
-    min-width: 999px !important;
+    min-width: 976px !important;
     grid-template-columns:
-      68px   /* date */
+      65px   /* date */
       62px   /* start */
       62px   /* end */
       64px   /* hours */
       62px   /* time cancellation */
       64px   /* daily total */
       62px   /* activity type */
-      120px  /* activity name */
+      110px  /* activity name */
       105px  /* school */
       100px  /* authority */
       55px   /* km */
       55px   /* expenses */
-      120px  /* actions */ !important;
+      110px  /* actions */ !important;
     gap: 0 !important;
     box-sizing: border-box;
   }
