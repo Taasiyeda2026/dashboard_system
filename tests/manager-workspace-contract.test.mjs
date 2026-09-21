@@ -61,7 +61,7 @@ test('checkpoints include course start and no old subtitle', () => {
 
 test('direct assets and dashboard cache are versioned for the fix', () => {
   assert.match(index, /manager-board-workspace-runtime\.js\?v=20260916-attendance-summary-count-v2/);
-  assert.match(sw, /const CACHE_VERSION = 1727;/);
+  assert.match(sw, /const CACHE_VERSION = 1728;/);
   assert.match(config, /attendance-control-manager-admin-parity-sw-cache-1720-20260916-v1/);
   assert.match(config, /attendance-control-travel-admin-pdf-sw-cache-1722-20260916-v1/);
 });
