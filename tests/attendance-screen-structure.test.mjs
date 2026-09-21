@@ -117,8 +117,8 @@ test('Attendance New Report uses two compact desktop cards and instructor activi
   assert.match(activitiesServiceSource, /instructorActivitySelectOptions/);
   assert.match(newReportSource, /תחבורה ציבורית/);
   assert.match(newReportSource, /public_transport_cost/);
-  assert.match(attendanceSwSource, /const CACHE_VERSION = 90;/);
-  assert.match(attendanceIndexSource, /\?v=90/);
+  assert.match(attendanceSwSource, /const CACHE_VERSION = 91;/);
+  assert.match(attendanceIndexSource, /\?v=91/);
 });
 
 test('Attendance New Report keeps mobile fields inside padded page gutters', () => {
@@ -242,8 +242,8 @@ test('New Report accessibility layer is scoped, color-only and loaded last', () 
   assert.match(newReportAccessibilityStyles, /#2563EB/i);
   assert.doesNotMatch(newReportAccessibilityStyles, /(?:^|[;{]\s*)(?:width|height|min-width|max-width|min-height|max-height|padding|margin|gap|border-radius|font-size|font-family|grid-template-columns|display|position)\s*:/m);
 
-  const fitIndex = attendanceIndexSource.indexOf('report-table-fit-fix.css?v=90');
-  const accessibilityIndex = attendanceIndexSource.indexOf('new-report-accessibility.css?v=90');
+  const fitIndex = attendanceIndexSource.indexOf('report-table-fit-fix.css?v=91');
+  const accessibilityIndex = attendanceIndexSource.indexOf('new-report-accessibility.css?v=91');
   assert.notEqual(fitIndex, -1);
   assert.notEqual(accessibilityIndex, -1);
   assert.ok(accessibilityIndex > fitIndex, 'New Report accessibility CSS must load last');
