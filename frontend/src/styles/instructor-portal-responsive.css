@@ -896,3 +896,49 @@
 #app .app-shell--instructor .route-instructor-calendar > .ds-card > .ds-card__head {
   display: none !important;
 }
+
+
+/* Final weekday-strip refinement: stronger labels, softer corners, cleaner frame. */
+#app .app-shell--instructor .route-instructor-calendar .ds-cal-wrap {
+  border: 1px solid #cdddea !important;
+  border-radius: 14px !important;
+  overflow: hidden !important;
+  background: #f7fbfe !important;
+}
+
+#app .app-shell--instructor .route-instructor-calendar .ds-cal-weekdays {
+  min-height: 40px !important;
+  padding: 0 5px !important;
+  gap: 5px !important;
+  background: linear-gradient(180deg, #d8eaf7 0%, #eaf4fb 100%) !important;
+  border: 0 !important;
+  border-bottom: 1px solid #bfd3e3 !important;
+  border-radius: 12px 12px 0 0 !important;
+}
+
+#app .app-shell--instructor .route-instructor-calendar .ds-cal-wd {
+  min-height: 40px !important;
+  color: #1f557f !important;
+  font-size: .88rem !important;
+  font-weight: 900 !important;
+  letter-spacing: .015em !important;
+}
+
+#app .app-shell--instructor .route-instructor-calendar .ds-cal-grid {
+  gap: 5px !important;
+  padding: 5px !important;
+}
+
+#app .app-shell--instructor .route-instructor-calendar .ds-cal-slot-hit {
+  border-radius: 11px !important;
+}
+
+#app .app-shell--instructor .route-instructor-calendar .ds-interactive-card--day-cell {
+  border-radius: 11px !important;
+  border-color: #dce6ef !important;
+}
+
+#app .app-shell--instructor .route-instructor-calendar .ds-cal-slot-hit:first-child .ds-interactive-card--day-cell,
+#app .app-shell--instructor .route-instructor-calendar .ds-cal-slot-hit:nth-child(7) .ds-interactive-card--day-cell {
+  border-radius: 11px !important;
+}
