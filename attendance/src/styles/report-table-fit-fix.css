@@ -1,5 +1,5 @@
 /* Desktop reports table fit fix.
- * Keep all 12 report columns, including actions, at the approved fixed desktop widths.
+ * Keep all 13 report columns, including time cancellation and actions, at the approved fixed desktop widths.
  */
 @media (min-width: 1024px) {
   .av2-report-list {
@@ -16,16 +16,17 @@
     min-width: 1340px !important;
     grid-template-columns:
       70px   /* date */
-      65px   /* start */
-      65px   /* end */
+      63px   /* start */
+      63px   /* end */
       65px   /* hours */
+      63px   /* time cancellation */
       65px   /* daily total */
-      65px   /* activity type */
-      250px  /* activity name */
-      235px  /* school */
-      215px  /* authority */
-      60px   /* km */
-      60px   /* expenses */
+      63px   /* activity type */
+      245px  /* activity name */
+      210px  /* school */
+      198px  /* authority */
+      55px   /* km */
+      55px   /* expenses */
       125px  /* actions */ !important;
     gap: 0 !important;
     box-sizing: border-box;
