@@ -32,7 +32,7 @@
   }
   .av2-bottom-nav__brand {
     display: flex; align-items: center; gap: 9px; padding: 0 8px 20px;
-    color: #24354b; font-size: 0.82rem; font-weight: 800;
+    color: #24354b; font-size: 0.94rem; font-weight: 800;
     border-bottom: 1px solid #eef2f6;
   }
   .av2-bottom-nav__brand img { width: 34px; height: 34px; object-fit: contain; }
@@ -41,8 +41,8 @@
     color: var(--av2-color-accent); border-bottom: 1px solid #eef2f6;
   }
   .av2-bottom-nav__user > div { min-width: 0; display: flex; flex-direction: column; gap: 1px; color: var(--av2-color-text); }
-  .av2-bottom-nav__user strong { font-size: 0.78rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .av2-bottom-nav__user span { font-size: 0.64rem; color: var(--av2-color-text-muted); }
+  .av2-bottom-nav__user strong { font-size: 0.9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .av2-bottom-nav__user span { font-size: 0.76rem; color: var(--av2-color-text-muted); }
   .av2-bottom-nav__menu {
     width: auto; flex: 0 0 auto; flex-direction: column; align-items: stretch;
     justify-content: flex-start; gap: 4px; padding-top: 16px;
@@ -50,20 +50,22 @@
   .av2-bottom-nav__item {
     flex: 0 0 42px; flex-direction: row; justify-content: flex-start; gap: 10px;
     min-height: 42px; padding: 0 12px; border-radius: 7px; text-align: right;
-    font-size: 0.78rem; color: #6b7a90;
+    font-size: 0.9rem; font-weight: 650; color: #5d6f85;
   }
-  .av2-bottom-nav__item .av2-icon { width: 17px; height: 17px; }
+  .av2-bottom-nav__item .av2-icon { width: 20px; height: 20px; }
   .av2-bottom-nav__item--desktop-only { display: flex; }
   .av2-bottom-nav__item.is-mobile-active { color: #6b7a90; }
   .av2-bottom-nav__item.is-active {
     color: var(--av2-color-accent); background: var(--av2-color-accent-subtle);
     box-shadow: inset -3px 0 0 var(--av2-color-accent);
   }
-  .av2-bottom-nav__footer { display: block; margin-top: auto; padding-top: 14px; border-top: 1px solid #eef2f6; }
+  .av2-bottom-nav__footer { display: flex; margin-top: auto; padding-top: 14px; border-top: 1px solid #eef2f6; }
   .av2-bottom-nav__logout {
-    display: flex; align-items: center; gap: 10px; width: 100%; min-height: 40px; padding: 0 12px;
-    border: 0; border-radius: 7px; background: transparent; color: #7c899b;
-    font: inherit; font-size: 0.76rem; font-weight: 600; cursor: pointer; text-align: right;
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 42px; height: 42px; min-height: 42px; padding: 0;
+    border: 1.5px solid #fca5a5; border-radius: 50%; background: #fff;
+    color: #ef4444; cursor: pointer;
   }
-  .av2-bottom-nav__logout:hover { background: #f8fafc; color: #475569; }
+  .av2-bottom-nav__logout .av2-icon { width: 20px; height: 20px; }
+  .av2-bottom-nav__logout:hover { background: #fff5f5; border-color: #ef4444; color: #dc2626; }
 }
