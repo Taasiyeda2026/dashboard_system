@@ -274,19 +274,29 @@ function formatClockMinutes(totalMinutes) {
 }
 
 /**
- * Attendance work window for an assigned activity.
- * The workday starts 15 minutes before the dashboard meeting start.
+ * Attendance work window for dashboard-linked course/workshop activities.
+ * Workshop: exact dashboard hours.
+ * Course: add 15 minutes of paid work for every full 45 dashboard minutes.
+ * The extra course time is placed before the dashboard start time.
  */
-export function attendanceTimesFromActivity(activity, leadMinutes = 15) {
+export function attendanceTimesFromActivity(activity, reportType = '') {
   const startMinutes = parseClockMinutes(activity?.start_time);
   const endMinutes = parseClockMinutes(activity?.end_time);
   if (startMinutes == null || endMinutes == null || endMinutes <= startMinutes) {
     return { startTime: '', endTime: '' };
   }
 
-  const lead = Number.isFinite(Number(leadMinutes)) ? Math.max(0, Number(leadMinutes)) : 15;
+  const normalizedType = normalizeAttendanceReportType(reportType);
+  let extraMinutes = 0;
+
+  if (normalizedType === 'קורס') {
+    const dashboardMinutes = endMinutes - startMinutes;
+    const fortyFiveMinuteBlocks = Math.floor(dashboardMinutes / 45);
+    extraMinutes = fortyFiveMinuteBlocks * 15;
+  }
+
   return {
-    startTime: formatClockMinutes(startMinutes - lead),
+    startTime: formatClockMinutes(startMinutes - extraMinutes),
     endTime: formatClockMinutes(endMinutes),
   };
 }
