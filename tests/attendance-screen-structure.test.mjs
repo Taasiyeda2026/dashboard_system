@@ -305,12 +305,14 @@ test('Course reports are dashboard-driven and expose mismatch notices', () => {
   assert.match(dashboardAlignmentMigration, /שעות הדיווח אינן תואמות לשעות המחושבות מהדשבורד/);
 });
 
-test('Course duplication advances only to the next dashboard meeting and preserves manual fields', () => {
+test('Course duplication stays inside the source attendance month and preserves manual fields', () => {
+  assert.match(duplicateCourseSource, /const sourceMonthKey = clean\(sourceRecord\.report_date\)\.slice\(0, 7\)/);
+  assert.match(duplicateCourseSource, /item\.date\.slice\(0, 7\) !== sourceMonthKey/);
   assert.match(duplicateCourseSource, /item\.meeting_no <= sourceMeetingNo/);
   assert.match(duplicateCourseSource, /start_time:\s*clean\(item\?\.start_time\)/);
   assert.match(duplicateCourseSource, /end_time:\s*clean\(item\?\.end_time\)/);
   assert.match(duplicateCourseSource, /av2:dashboard-duplicate-meeting/);
-  assert.match(duplicateCourseSource, /לא נמצא מפגש הבא בדשבורד/);
+  assert.match(duplicateCourseSource, /לא ניתן לשכפל דיווח לחודש הבא/);
   assert.match(duplicateCourseSource, /#av2-activity-type[\s\S]*#av2-meeting-no-trigger[\s\S]*\.av2-time-picker/);
   assert.doesNotMatch(duplicateCourseSource, /\.av2-form-section input:not\(#av2-report-date\)/);
   assert.match(dashboardAlignmentMigration, /scheduling_effective_meetings/);
