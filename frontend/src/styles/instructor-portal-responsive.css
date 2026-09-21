@@ -756,3 +756,60 @@
   -webkit-line-clamp: unset !important;
   -webkit-box-orient: unset !important;
 }
+
+
+/* Final calendar readability override: wrap all day labels and emphasize day numbers. */
+#app .app-shell--instructor .route-instructor-calendar .ds-interactive-card--day-cell {
+  height: auto !important;
+  min-height: 76px !important;
+  overflow: hidden !important;
+}
+
+#app .app-shell--instructor .route-instructor-calendar .ds-interactive-card__title {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  align-self: center !important;
+  width: 27px !important;
+  min-width: 27px !important;
+  height: 27px !important;
+  margin: 0 auto 4px !important;
+  border: 1px solid rgba(49, 116, 191, .14) !important;
+  border-radius: 999px !important;
+  background: linear-gradient(180deg, rgba(227,240,252,.94), rgba(241,247,253,.98)) !important;
+  color: #173f68 !important;
+  font-size: .79rem !important;
+  font-weight: 900 !important;
+  line-height: 1 !important;
+  box-shadow: 0 2px 6px rgba(31, 78, 121, .07) !important;
+}
+
+#app .app-shell--instructor .route-instructor-calendar .ds-interactive-card__subtitle,
+#app .app-shell--instructor .route-instructor-calendar .birthday-calendar-label {
+  display: block !important;
+  width: calc(100% - 10px) !important;
+  max-width: calc(100% - 10px) !important;
+  height: auto !important;
+  max-height: none !important;
+  margin: 2px auto 0 !important;
+  padding: 3px 5px !important;
+  white-space: normal !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+  overflow-wrap: normal !important;
+  word-break: normal !important;
+  line-break: auto !important;
+  -webkit-line-clamp: unset !important;
+  -webkit-box-orient: unset !important;
+}
+
+#app .app-shell--instructor .route-instructor-calendar .ds-interactive-card--day-cell.is-instructor-today .ds-interactive-card__title {
+  background: #2474f5 !important;
+  border-color: #2474f5 !important;
+  color: #fff !important;
+  box-shadow: 0 3px 8px rgba(36,116,245,.22) !important;
+}
+
+#app .app-shell--instructor .route-instructor-calendar .ds-cal-slot-hit:nth-child(7n) .ds-interactive-card__title {
+  background: linear-gradient(180deg, rgba(234,243,252,.98), rgba(246,249,253,.98)) !important;
+}
