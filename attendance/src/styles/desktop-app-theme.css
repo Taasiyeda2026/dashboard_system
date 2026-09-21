@@ -213,3 +213,57 @@
     box-shadow: inset -3px 0 0 #2474f5;
   }
 }
+
+
+/* Home summary-only dashboard: 9 instructor totals, no report rows. */
+@media (min-width: 768px) {
+  .av2-home .av2-stats-grid {
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    width: 100% !important;
+    max-width: 820px !important;
+    gap: 10px !important;
+    margin-inline: auto !important;
+  }
+
+  .av2-home .av2-stat-card {
+    width: auto !important;
+    min-width: 0 !important;
+    min-height: 82px !important;
+    max-height: none !important;
+    padding: 11px 10px 10px !important;
+    border-radius: 12px !important;
+  }
+
+  .av2-home .av2-stat-card__value {
+    font-size: 1.28rem !important;
+  }
+
+  .av2-home .av2-stat-card__label {
+    font-size: .62rem !important;
+    letter-spacing: .02em !important;
+    text-transform: none !important;
+  }
+
+  .av2-home .av2-home__status-area {
+    width: 100% !important;
+    max-width: 620px !important;
+    margin-inline: auto !important;
+  }
+
+  .av2-home .av2-home__action-strip {
+    display: grid !important;
+    grid-template-columns: repeat(4, 128px) !important;
+    justify-content: center !important;
+    align-items: center !important;
+    gap: 7px !important;
+  }
+
+  .av2-home .av2-home__reports-heading {
+    grid-column: 1 / -1 !important;
+  }
+
+  .av2-home .av2-home__strip-actions {
+    display: contents !important;
+  }
+}
