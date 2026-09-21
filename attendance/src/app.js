@@ -22,6 +22,7 @@ const state = {
   currentYear:  today.getFullYear(),
   currentMonth: today.getMonth() + 1,  // 1-based
   prefillRecord: null,           // attendance record to duplicate (cleared after use)
+  newReportDate: '',             // optional date chosen from the calendar
 };
 
 let appRoot = null;
@@ -51,11 +52,15 @@ function prevMonth() {
 
 function nextMonth() {
   const now = new Date();
-  // Don't navigate past the current month
+  const currentMonth = now.getMonth() + 1;
+  const academicEndYear = currentMonth >= 9 ? now.getFullYear() + 1 : now.getFullYear();
+  const academicEndMonth = 8;
+
   if (
-    state.currentYear > now.getFullYear() ||
-    (state.currentYear === now.getFullYear() && state.currentMonth >= now.getMonth() + 1)
+    state.currentYear > academicEndYear ||
+    (state.currentYear === academicEndYear && state.currentMonth >= academicEndMonth)
   ) return;
+
   if (state.currentMonth === 12) {
     state.currentMonth = 1;
     state.currentYear += 1;
@@ -63,6 +68,11 @@ function nextMonth() {
     state.currentMonth += 1;
   }
   renderScreen();
+}
+
+function openNewReport(dateStr = '') {
+  state.newReportDate = String(dateStr || '').slice(0, 10);
+  navigate('new-report');
 }
 
 // ── Auth handlers ────────────────────────────────────────────────────────────
@@ -258,10 +268,17 @@ function renderScreen() {
 
   if (state.screen === 'new-report') {
     const prefill = state.prefillRecord;
+    const requestedDate = state.newReportDate;
     state.prefillRecord = null;
+    state.newReportDate = '';
+    const now = new Date();
+    const sameMonth = state.currentYear === now.getFullYear() && state.currentMonth === now.getMonth() + 1;
+    const fallbackDate = sameMonth
+      ? `${state.currentYear}-${String(state.currentMonth).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`
+      : `${state.currentYear}-${String(state.currentMonth).padStart(2,'0')}-01`;
     renderNewReportScreen(appRoot, {
       instructor: state.instructor,
-      defaultDate: `${state.currentYear}-${String(state.currentMonth).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`,
+      defaultDate: requestedDate || fallbackDate,
       prefillRecord: prefill,
       onBack: () => navigate('home'),
       onSaved: () => {},
@@ -275,7 +292,7 @@ function renderScreen() {
       onBack:      () => navigate('home'),
       onPrevMonth: prevMonth,
       onNextMonth: nextMonth,
-      onNewReport: () => navigate('new-report'),
+      onNewReport: openNewReport,
       onDuplicate: (record) => {
         state.prefillRecord = record;
         navigate('new-report');
@@ -287,7 +304,7 @@ function renderScreen() {
       instructor:  state.instructor,
       year:        state.currentYear,
       month:       state.currentMonth,
-      onNewReport: () => navigate('new-report'),
+      onNewReport: openNewReport,
       onMyReports: () => navigate('my-reports'),
       onEditReport: editReportFromHome,
       onPrevMonth: prevMonth,
