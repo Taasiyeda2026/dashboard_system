@@ -2,31 +2,31 @@
 @media (min-width: 1024px) {
   /* Use the available width instead of forcing a minimum that creates a scrollbar. */
   .av2-report-list {
-    width: min(100%, 999px);
-    max-width: 999px;
+    width: min(100%, 976px);
+    max-width: 976px;
     margin-inline: auto;
-    overflow-x: auto;
+    overflow-x: hidden;
   }
 
   /* Header and every data row use exactly the same grid so all column edges line up. */
   .av2-report-list__head,
   .av2-report-row {
-    width: 999px;
-    min-width: 999px !important;
+    width: 976px;
+    min-width: 976px !important;
     grid-template-columns:
-      68px   /* date */
+      65px   /* date */
       62px   /* start */
       62px   /* end */
       64px   /* hours */
       62px   /* time cancellation */
       64px   /* daily total */
       62px   /* activity type */
-      120px  /* activity name */
+      110px  /* activity name */
       105px  /* school */
       100px  /* authority */
       55px   /* km */
       55px   /* expenses */
-      120px  /* actions */ !important;
+      110px  /* actions */ !important;
     padding-inline: 0 !important;
     align-items: stretch !important;
   }
