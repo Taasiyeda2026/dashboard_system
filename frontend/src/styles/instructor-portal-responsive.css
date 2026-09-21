@@ -890,3 +890,9 @@
 #app .app-shell--instructor .route-instructor-calendar .ds-interactive-card--day-cell.is-other-month {
   border-radius: 8px !important;
 }
+
+
+/* Instructor calendar has its own toolbar; remove the empty shared-card header row. */
+#app .app-shell--instructor .route-instructor-calendar > .ds-card > .ds-card__head {
+  display: none !important;
+}
