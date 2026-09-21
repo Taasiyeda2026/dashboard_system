@@ -38,6 +38,7 @@ export {
   deriveAuthoritySchoolListFromActivities,
   getSchoolOptions,
   calcHours,
+  attendanceTimesFromActivity,
 } from './activities-report.helpers.js';
 
 async function aggregateActivitiesFromDateRpc(empId, seasons) {
