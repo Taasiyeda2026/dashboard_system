@@ -194,9 +194,16 @@ function formatMinutesAsTime(minutes) {
 function courseExpectedAttendanceTimes(dashboard) {
   if (attendanceActivityTypeKey(dashboard?.activityType) !== 'course') return null;
   const payrollHours = dashboardPayrollHours(dashboard.startTime, dashboard.endTime);
+  const start = timeMinutesValue(dashboard.startTime);
   const end = timeMinutesValue(dashboard.endTime);
-  if (payrollHours == null || end == null) return null;
-  return { startTime: formatMinutesAsTime(end - payrollHours * 60), endTime: timeText(dashboard.endTime) };
+  if (payrollHours == null || start == null || end == null) return null;
+
+  const beforeMinutes = Math.ceil(payrollHours / 2) * 15;
+  const afterMinutes = Math.floor(payrollHours / 2) * 15;
+  return {
+    startTime: formatMinutesAsTime(start - beforeMinutes),
+    endTime: formatMinutesAsTime(end + afterMinutes),
+  };
 }
 
 export function buildDashboardAttendanceRows(activities = [], contacts = []) {
