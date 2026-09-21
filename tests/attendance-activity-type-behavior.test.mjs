@@ -43,7 +43,7 @@ test('Workshop uses dashboard hours while course adds 15 minutes per full 45-min
   );
   assert.deepEqual(
     attendanceTimesFromActivity({ start_time: '08:30', end_time: '10:00' }, 'קורס'),
-    { startTime: '08:00', endTime: '10:00' },
+    { startTime: '08:15', endTime: '10:15' },
   );
   assert.deepEqual(
     attendanceTimesFromActivity({ start_time: '12:00:00', end_time: '13:00:00' }, 'קורס'),
@@ -86,7 +86,7 @@ test('Attendance service and edit flow enforce the same Zoom and operations rule
 });
 
 test('Attendance cache is synchronized for the report type behavior release', () => {
-  assert.match(swSource, /const CACHE_VERSION = 80;/);
-  assert.match(indexSource, /\?v=80/);
+  assert.match(swSource, /const CACHE_VERSION = 81;/);
+  assert.match(indexSource, /\?v=81/);
   assert.doesNotMatch(indexSource, /\?v=70/);
 });
