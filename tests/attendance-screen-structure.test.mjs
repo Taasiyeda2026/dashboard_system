@@ -116,8 +116,8 @@ test('Attendance New Report uses two compact desktop cards and instructor activi
   assert.match(activitiesServiceSource, /instructorActivitySelectOptions/);
   assert.match(newReportSource, /תחבורה ציבורית/);
   assert.match(newReportSource, /public_transport_cost/);
-  assert.match(attendanceSwSource, /const CACHE_VERSION = 86;/);
-  assert.match(attendanceIndexSource, /\?v=86/);
+  assert.match(attendanceSwSource, /const CACHE_VERSION = 87;/);
+  assert.match(attendanceIndexSource, /\?v=87/);
 });
 
 test('Attendance New Report keeps mobile fields inside padded page gutters', () => {
@@ -172,12 +172,14 @@ test('Attendance New Report enforces dependent location choices and course-only 
   assert.match(reportsSource, /meeting_no:\s+isCourse && meetField\.input\.value/);
 });
 
-test('Attendance reports table keeps the required 13-column grid including time cancellation', () => {
-  const widths = ['70px','63px','63px','65px','63px','65px','63px','245px','210px','198px','55px','55px','125px'];
+test('Attendance reports table keeps the required compact 13-column grid including time cancellation', () => {
+  const widths = ['68px','62px','62px','64px','62px','64px','62px','120px','105px','100px','55px','55px','120px'];
   for (const width of widths) {
     assert.match(attendanceFollowupStyles, new RegExp(width.replace('.', '\\.')));
     assert.match(reportTableFitStyles, new RegExp(width.replace('.', '\\.')));
   }
+  assert.match(attendanceFollowupStyles, /999px/);
+  assert.match(reportTableFitStyles, /999px/);
   assert.match(attendanceFollowupRuntime, /cancel\.textContent = 'ביטול זמן'/);
   assert.match(attendanceFollowupRuntime, /hours\.insertAdjacentElement\('afterend', cancel\)/);
   assert.match(attendanceFollowupRuntime, /cell\.className = 'av2-rr__time-cancel'/);
