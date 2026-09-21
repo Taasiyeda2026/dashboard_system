@@ -14,8 +14,8 @@ export function attendanceCalendarMonthRange(year, month) {
   return { fromDate, toDate };
 }
 
-export async function loadAttendanceCalendarContext(year, month, { force = false } = {}) {
-  const cacheKey = `${year}-${String(month).padStart(2, '0')}`;
+export async function loadAttendanceCalendarContext(year, month, { force = false, scope = '' } = {}) {
+  const cacheKey = `${String(scope)}|${year}-${String(month).padStart(2, '0')}`;
   const cached = calendarContextCache.get(cacheKey);
   if (!force && cached && Date.now() - cached.at <= CALENDAR_CACHE_TTL_MS) return cached.value;
 
