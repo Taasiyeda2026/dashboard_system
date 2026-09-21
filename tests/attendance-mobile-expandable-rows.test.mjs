@@ -32,6 +32,6 @@ test('expanded mobile row exposes the secondary details and actions', () => {
 });
 
 test('mobile report assets are loaded with the current cache version', () => {
-  assert.match(index, /mobile-reports\.css\?v=87/);
-  assert.match(index, /mobile-reports-enhancer\.js\?v=87/);
+  assert.match(index, /mobile-reports\.css\?v=88/);
+  assert.match(index, /mobile-reports-enhancer\.js\?v=88/);
 });
