@@ -89,7 +89,7 @@ async function loadAndRender({ instructor, year, month, contentArea, toolbar, on
       getMonthRecords(instructor.empId, year, month),
       getMonthApproval(instructor.empId, monthKey),
       getActivityTypes(),
-      loadAttendanceCalendarContext(year, month),
+      loadAttendanceCalendarContext(year, month, { scope: instructor.empId }),
       getMonthDashboardValidation(instructor.empId, year, month),
     ]);
 
