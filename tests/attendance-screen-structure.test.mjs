@@ -105,8 +105,8 @@ test('Attendance New Report uses two compact desktop cards and instructor activi
   assert.match(activitiesServiceSource, /instructorActivitySelectOptions/);
   assert.match(newReportSource, /תחבורה ציבורית/);
   assert.match(newReportSource, /public_transport_cost/);
-  assert.match(attendanceSwSource, /const CACHE_VERSION = 80;/);
-  assert.match(attendanceIndexSource, /\?v=80/);
+  assert.match(attendanceSwSource, /const CACHE_VERSION = 81;/);
+  assert.match(attendanceIndexSource, /\?v=81/);
 });
 
 test('Attendance New Report keeps mobile fields inside padded page gutters', () => {
