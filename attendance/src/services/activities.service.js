@@ -18,6 +18,24 @@ import {
   activityMatchesReportType,
   activitySearchHaystack,
 } from './activities-report.helpers.js';
+const ACTIVITY_CACHE_TTL_MS = 60_000;
+const DIRECTORY_CACHE_TTL_MS = 5 * 60_000;
+const activityCache = new Map();
+
+function readActivityCache(key, ttl = ACTIVITY_CACHE_TTL_MS) {
+  const entry = activityCache.get(key);
+  if (!entry || Date.now() - entry.at > ttl) {
+    if (entry) activityCache.delete(key);
+    return null;
+  }
+  return entry.value;
+}
+
+function writeActivityCache(key, value) {
+  activityCache.set(key, { at: Date.now(), value });
+  return value;
+}
+
 export {
   ONLINE_REPORT_TYPE,
   TRAINING_REPORT_TYPE,
@@ -67,16 +85,20 @@ export async function getInstructorActivities(empId, referenceDateStr) {
   if (isAdminPreviewRequested()) return getPreviewActivities();
 
   const seasons = currentAttendanceActivitySeasons(referenceDateStr);
+  const key = `instructor|${empId}|${seasons.join(',')}`;
+  const cached = readActivityCache(key);
+  if (cached) return cached;
+
   try {
     const { data, error } = await supabase.rpc('av2_get_instructor_activities', {
       p_emp_id: empId,
       p_activity_seasons: seasons,
     });
-    if (!error && Array.isArray(data)) return data;
+    if (!error && Array.isArray(data)) return writeActivityCache(key, data);
   } catch {
     // RPC not deployed yet
   }
-  return aggregateActivitiesFromDateRpc(empId, seasons);
+  return writeActivityCache(key, await aggregateActivitiesFromDateRpc(empId, seasons));
 }
 
 export async function searchCanonicalActivities({
@@ -112,12 +134,16 @@ export async function searchCanonicalActivities({
 export async function getInstructorActivitiesForDate(empId, dateStr) {
   if (isAdminPreviewRequested()) return getPreviewActivities();
 
+  const key = `date|${empId}|${dateStr}`;
+  const cached = readActivityCache(key);
+  if (cached) return cached;
+
   const { data, error } = await supabase.rpc('av2_get_instructor_activities_for_date', {
     p_emp_id: empId,
     p_date:   dateStr,
   });
   if (error) throw new Error(`שגיאה בטעינת פעילויות: ${error.message}`);
-  return Array.isArray(data) ? data : [];
+  return writeActivityCache(key, Array.isArray(data) ? data : []);
 }
 
 export async function getMeetingNoForActivityOnDate(empId, activityRowId, dateStr) {
@@ -150,11 +176,15 @@ export async function getAuthoritySchoolList(empId) {
 export async function getAllAuthoritySchoolList(empId) {
   if (isAdminPreviewRequested()) return getPreviewAuthorities();
 
+  const key = `authorities|${empId}`;
+  const cached = readActivityCache(key, DIRECTORY_CACHE_TTL_MS);
+  if (cached) return cached;
+
   try {
     const { data, error } = await supabase.rpc('av2_get_all_authority_school_list');
-    if (!error && Array.isArray(data) && data.length > 0) return data;
+    if (!error && Array.isArray(data) && data.length > 0) return writeActivityCache(key, data);
   } catch {}
-  return getAuthoritySchoolList(empId);
+  return writeActivityCache(key, await getAuthoritySchoolList(empId));
 }
 
 export async function getActivityNamesByType(hebrewType) {
