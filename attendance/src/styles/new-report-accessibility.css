@@ -200,3 +200,13 @@ body:has(.av2-report) .av2-bottom-nav__item.is-mobile-active {
 body:has(.av2-report) .av2-bottom-nav__item.is-active {
   box-shadow: inset -3px 0 0 #2563EB;
 }
+
+
+/* Icon-only actions keep their current shape; only active color is strengthened. */
+.av2-report .av2-btn--icon {
+  color: var(--av2-new-report-secondary);
+}
+.av2-report .av2-btn--icon:hover,
+.av2-report .av2-btn--icon:focus-visible {
+  color: var(--av2-new-report-primary);
+}
