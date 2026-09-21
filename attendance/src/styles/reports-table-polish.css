@@ -15,16 +15,17 @@
     min-width: 1340px !important;
     grid-template-columns:
       70px   /* date */
-      65px   /* start */
-      65px   /* end */
+      63px   /* start */
+      63px   /* end */
       65px   /* hours */
+      63px   /* time cancellation */
       65px   /* daily total */
-      65px   /* activity type */
-      250px  /* activity name */
-      235px  /* school */
-      215px  /* authority */
-      60px   /* km */
-      60px   /* expenses */
+      63px   /* activity type */
+      245px  /* activity name */
+      210px  /* school */
+      198px  /* authority */
+      55px   /* km */
+      55px   /* expenses */
       125px  /* actions */ !important;
     padding-inline: 0 !important;
     align-items: stretch !important;
@@ -66,8 +67,9 @@
   .av2-report-list__head > :nth-child(3),
   .av2-report-list__head > :nth-child(4),
   .av2-report-list__head > :nth-child(5),
-  .av2-report-list__head > :nth-child(10),
-  .av2-report-list__head > :nth-child(11) {
+  .av2-report-list__head > :nth-child(6),
+  .av2-report-list__head > :nth-child(11),
+  .av2-report-list__head > :nth-child(13) {
     text-align: center !important;
     justify-content: center !important;
   }
@@ -90,10 +92,10 @@
   }
 
   /* Right aligned — header and values: activity, activity name, school, authority. */
-  .av2-report-list__head > :nth-child(6),
   .av2-report-list__head > :nth-child(7),
   .av2-report-list__head > :nth-child(8),
   .av2-report-list__head > :nth-child(9),
+  .av2-report-list__head > :nth-child(10),
   .av2-rr__type,
   .av2-rr__name,
   .av2-rr__school,
