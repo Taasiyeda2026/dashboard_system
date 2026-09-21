@@ -153,8 +153,8 @@
 .av2-report-list__head,
 .av2-report-row {
   display: grid;
-  grid-template-columns: 65px 62px 62px 64px 62px 64px 62px 110px 105px 100px 55px 55px 110px;
-  min-width: 976px;
+  grid-template-columns: 61px 60px 60px 60px 61px 61px 60px 100px 95px 90px 55px 55px 100px;
+  min-width: 918px;
   align-items: center;
   gap: 0 8px;
 }
@@ -284,7 +284,7 @@
   .av2-cal__cell { min-height: 44px; }
   .av2-cal__day-num { min-width: 25px; height: 25px; font-size: 0.78rem; }
 
-  .av2-report-list { width: min(100%, 976px); margin-inline: auto; }
+  .av2-report-list { width: min(100%, 918px); margin-inline: auto; }
   .av2-reports__table-title { font-size: 1rem; margin-top: 8px; margin-bottom: -2px; }
   .av2-modal--form { max-width: 660px; }
 }
@@ -298,7 +298,7 @@
   .av2-cal__day-num { min-width: 22px; height: 22px; font-size: 0.68rem; }
   .av2-cal__presence-dot { width: 5px; height: 5px; flex-basis: 5px; }
   .av2-report-list__head,
-  .av2-report-row { min-width: 976px; }
+  .av2-report-row { min-width: 918px; }
 }
 
 /* Monthly summary cards: only rendered for metrics that actually exist. */
@@ -365,9 +365,14 @@
 
 
 /* ── Unified instructor-style calendar events — compact attendance density ── */
+.av2-cal__grid {
+  grid-auto-rows: 54px;
+}
+
 .av2-cal__cell {
-  height: auto;
-  min-height: 50px;
+  height: 54px;
+  min-height: 54px;
+  max-height: 54px;
   justify-content: flex-start;
   gap: 2px;
   padding: 4px 3px 3px;
