@@ -19,6 +19,6 @@ test('cache markers are bumped for the manager summary fix', async () => {
   const sw = await readFile(new URL('../frontend/sw.js', import.meta.url), 'utf8');
   const config = await readFile(new URL('../frontend/src/config.js', import.meta.url), 'utf8');
   assert.match(index, /manager-board-workspace-runtime\.js\?v=20260916-attendance-summary-count-v2/);
-  assert.match(sw, /const CACHE_VERSION = 1728;/);
+  assert.match(sw, /const CACHE_VERSION = 1729;/);
   assert.match(config, /manager-attendance-summary-count-sw-cache-1723-20260916-v1/);
 });
