@@ -53,7 +53,7 @@ export function renderHomeScreen(container, {
   empEl.className = 'av2-home__emp';
   empEl.textContent = instructor.empId ? `מס' עובד ${instructor.empId}` : '';
   identityText.append(nameEl, empEl);
-  identity.append(createIcon('user', { size: 16 }), identityText);
+  identity.append(createIcon('user-round', { size: 16 }), identityText);
 
   const logoutBtn = document.createElement('button');
   logoutBtn.type = 'button';
@@ -80,7 +80,7 @@ export function renderHomeScreen(container, {
   newReportBtn.className = 'av2-btn av2-btn--primary av2-home__primary';
   const newReportLabel = document.createElement('span');
   newReportLabel.textContent = 'הוספת דיווח';
-  newReportBtn.append(createIcon('plus'), newReportLabel);
+  newReportBtn.append(createIcon('file-plus-2'), newReportLabel);
   newReportBtn.addEventListener('click', () => onNewReport?.());
 
   const actionRow = document.createElement('div');
@@ -123,10 +123,10 @@ async function loadAndRender({ instructor, year, month, statsEl, actionStripEl, 
     // KPI cards
     statsEl.innerHTML = '';
     statsEl.append(
-      buildStat(distinctAttendanceWorkDays(records),      'ימי עבודה', 'calendar'),
-      buildStat(formatDurationHours(summary.totalHours),  'שעות',     'clock'),
+      buildStat(distinctAttendanceWorkDays(records),      'ימי עבודה', 'calendar-days'),
+      buildStat(formatDurationHours(summary.totalHours),  'שעות',     'clock-3'),
       buildStat(summary.totalKm.toFixed(0) + '\u00a0ק"מ','נסיעות',   'map-pin'),
-      buildStat('₪' + summary.totalExpenses.toFixed(0),  'הוצאות',   'shekel-sign')
+      buildStat('₪' + summary.totalExpenses.toFixed(0),  'הוצאות',   'wallet-cards')
     );
 
     // Disable add-report when month is locked
