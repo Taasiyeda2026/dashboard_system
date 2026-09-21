@@ -1,9 +1,9 @@
 import { createIcon } from './icon.js';
 
 const ITEMS = [
-  { key: 'home',       label: 'בית',          icon: 'home' },
-  { key: 'new-report', label: 'דיווח חדש',    icon: 'plus', desktopOnly: true },
-  { key: 'my-reports', label: 'הדיווחים שלי', icon: 'list' },
+  { key: 'home',       label: 'בית',          icon: 'house' },
+  { key: 'new-report', label: 'דיווח חדש',    icon: 'file-plus-2', desktopOnly: true },
+  { key: 'my-reports', label: 'הדיווחים שלי', icon: 'clipboard-list' },
 ];
 
 export function createBottomNav({ active, desktopActive = active, instructor = {}, onNavigate, onLogout } = {}) {
@@ -23,7 +23,7 @@ export function createBottomNav({ active, desktopActive = active, instructor = {
 
   const user = document.createElement('div');
   user.className = 'av2-bottom-nav__user';
-  user.append(createIcon('user', { size: 18 }));
+  user.append(createIcon('user-round', { size: 20 }));
   const userText = document.createElement('div');
   const name = document.createElement('strong');
   name.textContent = instructor.name || 'מדריך';
@@ -54,10 +54,9 @@ export function createBottomNav({ active, desktopActive = active, instructor = {
   const logout = document.createElement('button');
   logout.type = 'button';
   logout.className = 'av2-bottom-nav__logout';
-  logout.append(createIcon('log-out', { size: 18 }));
-  const logoutLabel = document.createElement('span');
-  logoutLabel.textContent = 'התנתקות';
-  logout.append(logoutLabel);
+  logout.setAttribute('aria-label', 'התנתקות');
+  logout.title = 'התנתקות';
+  logout.append(createIcon('log-out', { size: 20 }));
   logout.addEventListener('click', () => onLogout?.());
   footer.append(logout);
 
