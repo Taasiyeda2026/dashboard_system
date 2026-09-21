@@ -113,7 +113,9 @@ async function loadAndRender({ instructor, year, month, statsEl, actionStripEl, 
 
     // Instructor-only monthly totals. No individual records are shown on Home.
     statsEl.innerHTML = '';
-    buildHomeSummaryStats(records).forEach((item) => {
+    const homeStats = buildHomeSummaryStats(records);
+    statsEl.hidden = homeStats.length === 0;
+    homeStats.forEach((item) => {
       statsEl.append(buildStat(item.value, item.label, item.icon));
     });
 
@@ -285,20 +287,31 @@ function cancellationHours(records) {
 
 export function buildHomeSummaryStats(records = []) {
   const rows = Array.isArray(records) ? records : [];
-  const km = rows.reduce((sum, record) => sum + Number(record?.roundtrip_km || 0), 0);
-  const expenses = rows.reduce((sum, record) => sum + Number(record?.expenses || 0), 0);
+  const sourceRows = sourceAttendanceRecords(rows);
+  const km = sourceRows.reduce((sum, record) => sum + Number(record?.roundtrip_km || 0), 0);
+  const expenses = sourceRows.reduce((sum, record) => sum + Number(record?.expenses || 0), 0);
 
-  return [
-    { key: 'course',       label: 'סה״כ קורס',       value: formatDurationHours(hoursForType(rows, 'קורס')),   icon: 'clock-3' },
-    { key: 'workshop',     label: 'סה״כ סדנה',       value: formatDurationHours(hoursForType(rows, 'סדנה')),   icon: 'clock-3' },
-    { key: 'training',     label: 'סה״כ הכשרות',     value: formatDurationHours(hoursForType(rows, 'הכשרה')), icon: 'clock-3' },
-    { key: 'operations',   label: 'סה״כ תפעול',      value: formatDurationHours(hoursForType(rows, 'תפעול')), icon: 'clock-3' },
-    { key: 'cancellation', label: 'סה״כ ביטול זמן',  value: formatDurationHours(cancellationHours(rows)),     icon: 'clock-3' },
-    { key: 'kilometers',   label: 'סה״כ קילומטר',    value: `${Math.round(km).toLocaleString('he-IL')} ק״מ`, icon: 'map-pin' },
-    { key: 'expenses',     label: 'סה״כ הוצאות',     value: `₪${expenses.toLocaleString('he-IL', { maximumFractionDigits: 2 })}`, icon: 'wallet-cards' },
-    { key: 'tour',         label: 'סה״כ סיור',       value: formatDurationHours(hoursForType(rows, 'סיור')),   icon: 'clock-3' },
-    { key: 'workdays',     label: 'סה״כ ימי עבודה',  value: String(distinctAttendanceWorkDays(rows)),          icon: 'calendar-days' },
+  const items = [
+    { key: 'course',       label: 'סה״כ קורס',       numericValue: hoursForType(sourceRows, 'קורס'),   icon: 'clock-3', valueType: 'hours' },
+    { key: 'workshop',     label: 'סה״כ סדנה',       numericValue: hoursForType(sourceRows, 'סדנה'),   icon: 'clock-3', valueType: 'hours' },
+    { key: 'training',     label: 'סה״כ הכשרות',     numericValue: hoursForType(sourceRows, 'הכשרה'), icon: 'clock-3', valueType: 'hours' },
+    { key: 'operations',   label: 'סה״כ תפעול',      numericValue: hoursForType(sourceRows, 'תפעול'), icon: 'clock-3', valueType: 'hours' },
+    { key: 'cancellation', label: 'סה״כ ביטול זמן',  numericValue: cancellationHours(rows),          icon: 'clock-3', valueType: 'hours' },
+    { key: 'kilometers',   label: 'סה״כ קילומטר',    numericValue: km,                               icon: 'map-pin', valueType: 'kilometers' },
+    { key: 'expenses',     label: 'סה״כ הוצאות',     numericValue: expenses,                         icon: 'wallet-cards', valueType: 'expenses' },
+    { key: 'tour',         label: 'סה״כ סיור',       numericValue: hoursForType(sourceRows, 'סיור'), icon: 'clock-3', valueType: 'hours' },
+    { key: 'workdays',     label: 'סה״כ ימי עבודה',  numericValue: distinctAttendanceWorkDays(sourceRows), icon: 'calendar-days', valueType: 'days' },
   ];
+
+  return items
+    .filter((item) => Number(item.numericValue) > 0)
+    .map((item) => {
+      let value = String(item.numericValue);
+      if (item.valueType === 'hours') value = formatDurationHours(item.numericValue);
+      if (item.valueType === 'kilometers') value = `${Math.round(item.numericValue).toLocaleString('he-IL')} ק״מ`;
+      if (item.valueType === 'expenses') value = `₪${Number(item.numericValue).toLocaleString('he-IL', { maximumFractionDigits: 2 })}`;
+      return { ...item, value };
+    });
 }
 
 function buildStat(value, label, iconName) {
