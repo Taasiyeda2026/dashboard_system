@@ -703,3 +703,34 @@
   .av2-bottom-nav { left: 4px; right: 4px; }
   .av2-bottom-nav__item { font-size: .59rem; }
 }
+
+
+/* Home summary-only dashboard: keep 9 totals compact on mobile. */
+@media (max-width: 767px) {
+  .av2-home .av2-stats-grid {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+  }
+
+  .av2-home .av2-stat-card {
+    min-height: 82px !important;
+    padding: 11px 8px 9px !important;
+    border-radius: 15px !important;
+  }
+
+  .av2-home .av2-stat-card__value {
+    font-size: 1.25rem !important;
+  }
+
+  .av2-home .av2-stat-card__label {
+    font-size: .6rem !important;
+    text-transform: none !important;
+    letter-spacing: .02em !important;
+  }
+
+  .av2-home .av2-home__report-list,
+  .av2-home .av2-home__strip-meta {
+    display: none !important;
+  }
+}
