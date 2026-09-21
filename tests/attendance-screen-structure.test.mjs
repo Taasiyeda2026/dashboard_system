@@ -116,8 +116,8 @@ test('Attendance New Report uses two compact desktop cards and instructor activi
   assert.match(activitiesServiceSource, /instructorActivitySelectOptions/);
   assert.match(newReportSource, /תחבורה ציבורית/);
   assert.match(newReportSource, /public_transport_cost/);
-  assert.match(attendanceSwSource, /const CACHE_VERSION = 88;/);
-  assert.match(attendanceIndexSource, /\?v=88/);
+  assert.match(attendanceSwSource, /const CACHE_VERSION = 89;/);
+  assert.match(attendanceIndexSource, /\?v=89/);
 });
 
 test('Attendance New Report keeps mobile fields inside padded page gutters', () => {
@@ -173,12 +173,12 @@ test('Attendance New Report enforces dependent location choices and course-only 
 });
 
 test('Attendance reports table keeps the required no-scroll 13-column grid including time cancellation', () => {
-  const widths = ['65px','62px','62px','64px','62px','64px','62px','110px','105px','100px','55px','55px','110px'];
+  const widths = ['61px','60px','60px','60px','61px','61px','60px','100px','95px','90px','55px','55px','100px'];
   for (const width of widths) {
     assert.match(attendanceFollowupStyles, new RegExp(width.replace('.', '\\.')));
     assert.match(reportTableFitStyles, new RegExp(width.replace('.', '\\.')));
   }
-  assert.match(reportTableFitStyles, /976px/);
+  assert.match(reportTableFitStyles, /918px/);
   assert.match(reportTableFitStyles, /overflow-x:\s*hidden/);
   assert.doesNotMatch(reportTableFitStyles, /overflow-x:\s*auto/);
   assert.match(attendanceFollowupRuntime, /cancel\.textContent = 'ביטול זמן'/);
@@ -207,4 +207,11 @@ test('Attendance My Reports monthly summary cards are compact and centered', () 
   assert.match(reportsStyles, /width:\s*300px/);
   assert.match(reportsStyles, /min-width:\s*300px/);
   assert.match(reportsStyles, /max-width:\s*300px/);
+});
+
+
+test('Attendance calendar desktop rows have a fixed compact height', () => {
+  assert.match(reportsStyles, /\.av2-cal__grid\s*\{[\s\S]*grid-auto-rows:\s*54px/);
+  assert.match(reportsStyles, /\.av2-cal__cell\s*\{[\s\S]*height:\s*54px[\s\S]*min-height:\s*54px[\s\S]*max-height:\s*54px/);
+  assert.match(reportsStyles, /@media \(max-width: 767px\)[\s\S]*\.av2-cal__cell\s*\{[\s\S]*height:\s*44px/);
 });
