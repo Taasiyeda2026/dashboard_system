@@ -38,19 +38,19 @@
   .av2-report-list__head,
   .av2-report-row {
     grid-template-columns:
-      70px   /* date */
-      63px   /* start */
-      63px   /* end */
-      65px   /* hours */
-      63px   /* time cancellation */
-      65px   /* daily total */
-      63px   /* activity type */
-      245px  /* activity name */
-      210px  /* school */
-      198px  /* authority */
+      68px   /* date */
+      62px   /* start */
+      62px   /* end */
+      64px   /* hours */
+      62px   /* time cancellation */
+      64px   /* daily total */
+      62px   /* activity type */
+      120px  /* activity name */
+      105px  /* school */
+      100px  /* authority */
       55px   /* km */
       55px   /* expenses */
-      125px  /* actions */ !important;
+      120px  /* actions */ !important;
     gap: 0 !important;
     align-items: stretch !important;
     box-sizing: border-box;
