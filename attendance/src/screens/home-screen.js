@@ -146,26 +146,30 @@ function buildActionStrip({ approval, year, month, instructor, records, sourceRe
   strip.append(heading);
 
   const badge = document.createElement('span');
-  badge.className = `av2-badge av2-badge--${tone}`;
+  badge.className = `av2-badge av2-badge--${tone} av2-home__report-status`;
+  badge.setAttribute('role', 'status');
   badge.textContent = statusLabel;
   strip.append(badge);
 
-  // "View all" link
-  const viewLink = document.createElement('button');
-  viewLink.type = 'button';
-  viewLink.className = 'av2-btn av2-btn--link av2-home__view-all';
-  viewLink.textContent = 'לכל הדיווחים ←';
-  viewLink.addEventListener('click', () => onMyReports?.());
-  strip.append(viewLink);
-
   const actions = document.createElement('div');
   actions.className = 'av2-home__strip-actions';
+
+  // View all reports — secondary action, same geometry as the other action buttons.
+  const viewLink = document.createElement('button');
+  viewLink.type = 'button';
+  viewLink.className = 'av2-btn av2-btn--secondary av2-home__action-btn av2-home__view-all';
+  viewLink.append(createIcon('clipboard-list', { size: 14 }));
+  const viewLabel = document.createElement('span');
+  viewLabel.textContent = 'לכל הדיווחים';
+  viewLink.append(viewLabel);
+  viewLink.addEventListener('click', () => onMyReports?.());
+  actions.append(viewLink);
 
   // Excel button
   if (sourceRecords.length > 0) {
     const xlBtn = document.createElement('button');
     xlBtn.type = 'button';
-    xlBtn.className = 'av2-btn av2-btn--secondary av2-home__excel-btn';
+    xlBtn.className = 'av2-btn av2-btn--secondary av2-home__action-btn av2-home__excel-btn';
     xlBtn.append(createIcon('download', { size: 14 }));
     const xlLabel = document.createElement('span');
     xlLabel.textContent = 'Excel';
@@ -178,7 +182,7 @@ function buildActionStrip({ approval, year, month, instructor, records, sourceRe
   if ((status === 'open' || status === 'reopened') && editable && sourceRecords.length > 0) {
     const submitBtn = document.createElement('button');
     submitBtn.type = 'button';
-    submitBtn.className = 'av2-btn av2-btn--primary av2-home__month-submit';
+    submitBtn.className = 'av2-btn av2-btn--primary av2-home__action-btn av2-home__month-submit';
     const submitLabel = document.createElement('span');
     submitLabel.textContent = status === 'reopened' ? 'הגשה מחדש' : 'סיום ואישור';
     submitBtn.append(createIcon('check-circle', { size: 14 }), submitLabel);
