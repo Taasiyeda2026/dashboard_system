@@ -26,7 +26,7 @@ export const loginScreen = {
             <input
               id="userId"
               required
-              placeholder="שם משתמש"
+              placeholder="מספר עובד / שם משתמש"
               autocomplete="username"
             />
 
@@ -73,7 +73,7 @@ export const loginScreen = {
       const code = codeInput?.value.trim() ?? '';
 
       if (!userId || !code) {
-        if (errorNode) errorNode.textContent = 'נא למלא שם משתמש / מייל וקוד כניסה';
+        if (errorNode) errorNode.textContent = 'נא למלא מספר עובד / שם משתמש וקוד כניסה';
         return;
       }
 
