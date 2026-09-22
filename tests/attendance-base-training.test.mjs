@@ -5,6 +5,8 @@ import { readFile } from 'node:fs/promises';
 const source = await readFile(new URL('../attendance/src/screens/new-report-screen.js', import.meta.url), 'utf8');
 const reportsSource = await readFile(new URL('../attendance/src/screens/my-reports-screen.js', import.meta.url), 'utf8');
 const summarySource = await readFile(new URL('../attendance/src/components/report-summary-row.js', import.meta.url), 'utf8');
+const serviceSource = await readFile(new URL('../attendance/src/services/attendance.service.js', import.meta.url), 'utf8');
+const routeFunctionSource = await readFile(new URL('../supabase/functions/attendance-base-training-routes/index.ts', import.meta.url), 'utf8');
 
 test('training includes base training and fills Yakum / Greenwork automatically', () => {
   assert.match(source, /activity_name: 'הכשרת בסיס'/);
@@ -54,4 +56,26 @@ test('attendance summary shows only supplemental meaningful details without repe
   assert.match(summarySource, /if \(expenses > 0\) addDetail\(details, 'הוצאות'/);
   assert.match(reportsSource, /schoolCell\.textContent = baseTraining \? '—'/);
   assert.match(reportsSource, /authCell\.textContent = baseTraining \? '—'/);
+});
+
+
+test('base training shows a pre-save home-to-Greenwork route preview', () => {
+  assert.match(serviceSource, /functions\.invoke\('attendance-base-training-routes'/);
+  assert.match(serviceSource, /body: \{ mode: 'preview' \}/);
+  assert.match(source, /getBaseTrainingRoutePreview/);
+  assert.match(source, /הבית שלך → Greenwork, יקום/);
+  assert.match(source, /הלוך \$\{formatTravelMinutes\(outbound\)\}/);
+  assert.match(source, /חזור \$\{formatTravelMinutes\(returning\)\}/);
+  assert.match(source, /ביטול זמן צפוי \$\{formatTravelMinutes\(cancellation\)\}/);
+  assert.match(source, /אין צורך לדווח ביטול זמן בנפרד/);
+});
+
+test('base training route service derives instructor home server-side and warms all active instructors', () => {
+  assert.match(routeFunctionSource, /GREENWORK_ADDRESS = '6RVR\+XM, יקום'/);
+  assert.match(routeFunctionSource, /mode === 'build_all'/);
+  assert.match(routeFunctionSource, /from\('contacts_instructors'\)/);
+  assert.match(routeFunctionSource, /select\('emp_id,address,active'\)/);
+  assert.match(routeFunctionSource, /Math\.max\(0, outbound - 45\) \+ Math\.max\(0, returning - 45\)/);
+  assert.match(routeFunctionSource, /mode !== 'preview'/);
+  assert.match(routeFunctionSource, /Number\(appUser\.emp_id\)/);
 });
