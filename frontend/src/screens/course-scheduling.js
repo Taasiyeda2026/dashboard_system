@@ -1138,7 +1138,7 @@ export function assignedDetailHtml(row, state = {}) {
     <p><b>${escapeHtml(c.activity_name || '—')}</b> · ${escapeHtml(c.school || '—')} · ${escapeHtml(c.authority || '—')}</p>
     <p>${courseDayTimeHtml(c)} · ${compactMeetingsHtml(c)}</p>
     ${completed == null ? '' : `<p>מפגשים שהתקיימו: <b>${completed}</b></p>`}
-    ${meetingInstructorHistoryHtml(history, state.courseSchedulingReplacements?.[row.id] || [])}
+    ${meetingInstructorHistoryHtml(history, state.courseSchedulingReplacements?.[row.id] || [], state.courseSchedulingSingleSubstitutions?.[row.id] || [])}
     <div class="course-scheduling-detail-actions">
       <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary" data-open-single-substitute>החלפה חד־פעמית</button>
       <button type="button" class="course-scheduling-btn course-scheduling-btn--primary" data-change-assignment>שינוי / החלפת מדריך</button>
@@ -1293,12 +1293,16 @@ function calendarTabHtml({ interfaceCourses, selectedId, state }) {
   </section>`;
 }
 
-export function meetingInstructorHistoryHtml(meetingRows, replacements) {
+export function meetingInstructorHistoryHtml(meetingRows, replacements, singleSubstitutions = []) {
   if (!meetingRows?.length) return '';
   const effectiveDates = new Set((replacements || []).map((row) => text(row.effective_from)));
+  const singleDates = new Set((singleSubstitutions || []).map((row) => text(row.meeting_date)));
   const rows = meetingRows.map((row) => {
     const isEffectiveFrom = effectiveDates.has(text(row.meeting_date));
-    const marker = isEffectiveFrom ? ' <span class="course-scheduling-status-chip">מכאן ואילך</span>' : '';
+    const isSingleSubstitution = singleDates.has(text(row.meeting_date));
+    const marker = isSingleSubstitution
+      ? ' <span class="course-scheduling-status-chip">החלפה חד־פעמית</span>'
+      : (isEffectiveFrom ? ' <span class="course-scheduling-status-chip">מכאן ואילך</span>' : '');
     return `<tr><td><bdi dir="ltr">${escapeHtml(formatDateHe(row.meeting_date))}</bdi></td><td>${escapeHtml(row.instructor_name || row.emp_id || '—')}${marker}</td></tr>`;
   }).join('');
   return `<details class="course-scheduling-details"><summary>הצגת פרטים — מדריך לפי מפגש</summary>${dsTableWrap(`<table class="ds-table"><thead><tr><th>תאריך</th><th>מדריך</th></tr></thead><tbody>${rows}</tbody></table>`)}</details>`;
