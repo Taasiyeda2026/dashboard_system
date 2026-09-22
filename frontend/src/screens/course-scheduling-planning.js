@@ -130,8 +130,17 @@ export function isPlanningCourse(activity = {}) {
 
 export function planningWorkspaceCourses(activities = [], district = '') {
   const normalizedDistrict = normalizeOperationalDistrict(district);
+  const period = resolveCourseSchedulingPeriod(FIRST_PERIOD_KEY);
   return (activities || [])
     .filter(isPlanningCourse)
+    .filter((activity) => {
+      const meetings = schedulingCalendarMeetings(activity);
+      if (!meetings.length) return true;
+      return meetings.some((meeting) => {
+        const date = text(meeting?.date).slice(0, 10);
+        return date >= period.start && date <= period.end;
+      });
+    })
     .filter((activity) => !normalizedDistrict || normalizeOperationalDistrict(activity.district || activity.school_district || activity.authority_district) === normalizedDistrict);
 }
 
@@ -721,7 +730,11 @@ export function planningDataFingerprint(activities = []) {
       draft: text(activity.draft_emp_id),
       start: text(activity.start_time),
       end: text(activity.end_time),
-      dates: activityMeetings(activity).map((meeting) => text(meeting.date).slice(0, 10))
+      dates: schedulingCalendarMeetings(activity).map((meeting) => [
+        text(meeting.date).slice(0, 10),
+        text(meeting.start_time || activity.start_time).slice(0, 5),
+        text(meeting.end_time || activity.end_time).slice(0, 5)
+      ])
     }))
     .sort((a, b) => a.id.localeCompare(b.id));
   let hash = 2166136261;
