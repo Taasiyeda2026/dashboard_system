@@ -92,6 +92,9 @@ const SCHEDULING_ASSIGNMENT_ERROR_HE = {
   scheduling_no_existing_assignment:  'לפעילות אין מדריך משובץ',
   scheduling_reason_required:          'יש להזין סיבה',
   scheduling_effective_date_required:  'יש לבחור תאריך כניסה לתוקף',
+  scheduling_meeting_date_required:     'יש לבחור מפגש',
+  scheduling_meeting_not_found:         'המפגש שנבחר אינו קיים בלוח הפעילות',
+  scheduling_substitute_already_assigned: 'המדריך שנבחר כבר משויך למפגש הזה',
   scheduling_course_locked_for_reassignment: 'לאחר שני מפגשים נדרשת החלפה תפעולית',
 };
 
@@ -1135,13 +1138,62 @@ export function assignedDetailHtml(row, state = {}) {
     <p><b>${escapeHtml(c.activity_name || '—')}</b> · ${escapeHtml(c.school || '—')} · ${escapeHtml(c.authority || '—')}</p>
     <p>${courseDayTimeHtml(c)} · ${compactMeetingsHtml(c)}</p>
     ${completed == null ? '' : `<p>מפגשים שהתקיימו: <b>${completed}</b></p>`}
-    ${meetingInstructorHistoryHtml(history, state.courseSchedulingReplacements?.[row.id] || [])}
+    ${meetingInstructorHistoryHtml(history, state.courseSchedulingReplacements?.[row.id] || [], state.courseSchedulingSingleSubstitutions?.[row.id] || [])}
     <div class="course-scheduling-detail-actions">
+      <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary" data-open-single-substitute>החלפה חד־פעמית</button>
       <button type="button" class="course-scheduling-btn course-scheduling-btn--primary" data-change-assignment>שינוי / החלפת מדריך</button>
       <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary" data-open-cancel-assignment>ביטול שיבוץ</button>
     </div>`;
 }
 
+function singleMeetingSubstitutionModalHtml(data = {}, state = {}) {
+  const courseId = text(state.courseSchedulingSingleSubstitutionCourseId);
+  if (!courseId) return '';
+  const course = (data.activities || []).find((item) => idOf(item) === courseId) || {};
+  const meetings = activityMeetings(course);
+  const selectedDate = text(state.courseSchedulingSingleSubstitutionDate);
+  const substitutions = state.courseSchedulingSingleSubstitutions?.[courseId] || [];
+  const currentSubstitution = substitutions.find((row) => text(row.meeting_date) === selectedDate) || null;
+  const currentPrimaryIds = new Set([text(course.emp_id), text(course.emp_id_2)].filter(Boolean));
+  const activeInstructors = (data.instructors || [])
+    .filter((instructor) => ['yes', 'true', '1'].includes(text(instructor?.active).toLowerCase()))
+    .filter((instructor) => !currentPrimaryIds.has(text(instructor.emp_id)))
+    .sort((a, b) => text(a.full_name).localeCompare(text(b.full_name), 'he'));
+  const meetingOptions = meetings.map((meeting, index) => {
+    const meetingNo = Number(meeting.meeting_no) || index + 1;
+    const date = text(meeting.date);
+    const timeLabel = formatTimeRangeShort(meeting.start_time || course.start_time, meeting.end_time || course.end_time);
+    const label = `מפגש ${meetingNo} · ${formatDateHeDots(date)} · ${timeLabel}`;
+    return `<option value="${escapeHtml(date)}"${date === selectedDate ? ' selected' : ''}>${escapeHtml(label)}</option>`;
+  }).join('');
+  const instructorOptions = activeInstructors.map((instructor) => {
+    const instructorId = text(instructor.emp_id);
+    return `<option value="${escapeHtml(instructorId)}"${instructorId === text(state.courseSchedulingSingleSubstitutionEmpId) ? ' selected' : ''}>${escapeHtml(instructor.full_name || instructorId)}</option>`;
+  }).join('');
+  return `<div class="course-scheduling-overlay" data-single-substitute-overlay>
+    <div class="course-scheduling-modal" role="dialog" aria-modal="true" aria-labelledby="single-substitute-title">
+      <h2 id="single-substitute-title">החלפה חד־פעמית</h2>
+      <p><b>${escapeHtml(course.activity_name || '—')}</b> · ${escapeHtml(course.school || '—')}</p>
+      <p class="course-scheduling-muted">המדריך הקבוע נשאר ${escapeHtml(course.instructor_name || course.emp_id || '—')}. ההחלפה תחול רק על המפגש שתבחרו.</p>
+      <label>מפגש *
+        <select class="course-scheduling-input" data-single-substitute-date>
+          <option value="">בחרו מפגש</option>${meetingOptions}
+        </select>
+      </label>
+      ${currentSubstitution ? `<p class="course-scheduling-success">במפגש זה מוגדרת כרגע החלפה: <b>${escapeHtml(currentSubstitution.instructor_name || currentSubstitution.emp_id)}</b></p>` : ''}
+      <label>מדריך מחליף *
+        <select class="course-scheduling-input" data-single-substitute-emp>
+          <option value="">בחרו מדריך</option>${instructorOptions}
+        </select>
+      </label>
+      <div class="course-scheduling-detail-actions">
+        <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary" data-close-single-substitute>חזרה</button>
+        ${currentSubstitution ? '<button type="button" class="course-scheduling-btn course-scheduling-btn--secondary" data-clear-single-substitute>בטל החלפה</button>' : ''}
+        <button type="button" class="course-scheduling-btn course-scheduling-btn--primary" data-save-single-substitute>שמור החלפה</button>
+      </div>
+    </div>
+  </div>`;
+}
 function selectedCoursePanelHtml(row, state) {
   if (!row) {
     return `<div class="course-scheduling-empty course-scheduling-empty--center">
@@ -1241,12 +1293,16 @@ function calendarTabHtml({ interfaceCourses, selectedId, state }) {
   </section>`;
 }
 
-export function meetingInstructorHistoryHtml(meetingRows, replacements) {
+export function meetingInstructorHistoryHtml(meetingRows, replacements, singleSubstitutions = []) {
   if (!meetingRows?.length) return '';
   const effectiveDates = new Set((replacements || []).map((row) => text(row.effective_from)));
+  const singleDates = new Set((singleSubstitutions || []).map((row) => text(row.meeting_date)));
   const rows = meetingRows.map((row) => {
     const isEffectiveFrom = effectiveDates.has(text(row.meeting_date));
-    const marker = isEffectiveFrom ? ' <span class="course-scheduling-status-chip">מכאן ואילך</span>' : '';
+    const isSingleSubstitution = singleDates.has(text(row.meeting_date));
+    const marker = isSingleSubstitution
+      ? ' <span class="course-scheduling-status-chip">החלפה חד־פעמית</span>'
+      : (isEffectiveFrom ? ' <span class="course-scheduling-status-chip">מכאן ואילך</span>' : '');
     return `<tr><td><bdi dir="ltr">${escapeHtml(formatDateHe(row.meeting_date))}</bdi></td><td>${escapeHtml(row.instructor_name || row.emp_id || '—')}${marker}</td></tr>`;
   }).join('');
   return `<details class="course-scheduling-details"><summary>הצגת פרטים — מדריך לפי מפגש</summary>${dsTableWrap(`<table class="ds-table"><thead><tr><th>תאריך</th><th>מדריך</th></tr></thead><tbody>${rows}</tbody></table>`)}</details>`;
@@ -1373,6 +1429,7 @@ export const courseSchedulingScreen = {
         }</section>
       </div>
     `}`}
+    ${singleMeetingSubstitutionModalHtml(data, state)}
     ${state.courseSchedulingCancelCourseId ? (() => {
       const course = (data.activities || []).find((item) => idOf(item) === state.courseSchedulingCancelCourseId) || {};
       const completed = meetingsCompletedForCourse(course, data.meetingState) || 0;
@@ -1554,6 +1611,110 @@ export const courseSchedulingScreen = {
     const selectedCourseId = state.courseSchedulingSelectedId;
     const selectedCourse = courseById.get(selectedCourseId);
 
+    detailRoot.querySelector('[data-open-single-substitute]')?.addEventListener('click', async () => {
+      if (!canEdit || !selectedCourseId) return;
+      const [substitutionResult, historyResult] = await Promise.all([
+        supabase.rpc('scheduling_course_meeting_substitutions', { p_activity_id: selectedCourseId }),
+        supabase.rpc('scheduling_course_meeting_instructors', { p_activity_id: selectedCourseId })
+      ]);
+      const error = substitutionResult.error || historyResult.error;
+      if (error) {
+        showToast(translateSchedulingAssignmentError(error.message, 'טעינת ההחלפות נכשלה'), 'error');
+        return;
+      }
+      state.courseSchedulingSingleSubstitutions ||= {};
+      state.courseSchedulingSingleSubstitutions[selectedCourseId] = substitutionResult.data || [];
+      state.courseSchedulingMeetingHistory ||= {};
+      state.courseSchedulingMeetingHistory[selectedCourseId] = historyResult.data || [];
+      state.courseSchedulingSingleSubstitutionCourseId = selectedCourseId;
+      state.courseSchedulingSingleSubstitutionDate = '';
+      state.courseSchedulingSingleSubstitutionEmpId = '';
+      rerender();
+    });
+
+    root.querySelector('[data-close-single-substitute]')?.addEventListener('click', () => {
+      state.courseSchedulingSingleSubstitutionCourseId = '';
+      state.courseSchedulingSingleSubstitutionDate = '';
+      state.courseSchedulingSingleSubstitutionEmpId = '';
+      rerender();
+    });
+    root.querySelector('[data-single-substitute-overlay]')?.addEventListener('click', (event) => {
+      if (event.target !== event.currentTarget) return;
+      state.courseSchedulingSingleSubstitutionCourseId = '';
+      state.courseSchedulingSingleSubstitutionDate = '';
+      state.courseSchedulingSingleSubstitutionEmpId = '';
+      rerender();
+    });
+    root.querySelector('[data-single-substitute-date]')?.addEventListener('change', (event) => {
+      state.courseSchedulingSingleSubstitutionDate = event.target.value;
+      state.courseSchedulingSingleSubstitutionEmpId = '';
+      rerender();
+    });
+    root.querySelector('[data-single-substitute-emp]')?.addEventListener('change', (event) => {
+      state.courseSchedulingSingleSubstitutionEmpId = event.target.value;
+    });
+
+    const refreshSingleSubstitutionState = async (courseId) => {
+      const [substitutionResult, historyResult] = await Promise.all([
+        supabase.rpc('scheduling_course_meeting_substitutions', { p_activity_id: courseId }),
+        supabase.rpc('scheduling_course_meeting_instructors', { p_activity_id: courseId })
+      ]);
+      if (substitutionResult.error) throw substitutionResult.error;
+      if (historyResult.error) throw historyResult.error;
+      state.courseSchedulingSingleSubstitutions ||= {};
+      state.courseSchedulingSingleSubstitutions[courseId] = substitutionResult.data || [];
+      state.courseSchedulingMeetingHistory ||= {};
+      state.courseSchedulingMeetingHistory[courseId] = historyResult.data || [];
+    };
+
+    root.querySelector('[data-save-single-substitute]')?.addEventListener('click', async (event) => {
+      const courseId = text(state.courseSchedulingSingleSubstitutionCourseId);
+      const meetingDate = text(state.courseSchedulingSingleSubstitutionDate);
+      const substituteEmpId = Number(state.courseSchedulingSingleSubstitutionEmpId);
+      if (!courseId || !meetingDate) { showToast('יש לבחור מפגש', 'error'); return; }
+      if (!Number.isInteger(substituteEmpId) || substituteEmpId <= 0) { showToast('יש לבחור מדריך מחליף', 'error'); return; }
+      event.currentTarget.disabled = true;
+      const { error } = await supabase.rpc('set_course_meeting_substitute', {
+        p_activity_id: courseId,
+        p_meeting_date: meetingDate,
+        p_substitute_emp_id: substituteEmpId
+      });
+      if (error) {
+        showToast(translateSchedulingAssignmentError(error.message, 'שמירת ההחלפה נכשלה'), 'error');
+        event.currentTarget.disabled = false;
+        return;
+      }
+      try { await refreshSingleSubstitutionState(courseId); } catch {}
+      state.courseSchedulingSingleSubstitutionCourseId = '';
+      state.courseSchedulingSingleSubstitutionDate = '';
+      state.courseSchedulingSingleSubstitutionEmpId = '';
+      clearScreenDataCache?.();
+      showToast('ההחלפה החד־פעמית נשמרה', 'success');
+      rerender();
+    });
+
+    root.querySelector('[data-clear-single-substitute]')?.addEventListener('click', async (event) => {
+      const courseId = text(state.courseSchedulingSingleSubstitutionCourseId);
+      const meetingDate = text(state.courseSchedulingSingleSubstitutionDate);
+      if (!courseId || !meetingDate) return;
+      event.currentTarget.disabled = true;
+      const { error } = await supabase.rpc('clear_course_meeting_substitute', {
+        p_activity_id: courseId,
+        p_meeting_date: meetingDate
+      });
+      if (error) {
+        showToast(translateSchedulingAssignmentError(error.message, 'ביטול ההחלפה נכשל'), 'error');
+        event.currentTarget.disabled = false;
+        return;
+      }
+      try { await refreshSingleSubstitutionState(courseId); } catch {}
+      state.courseSchedulingSingleSubstitutionCourseId = '';
+      state.courseSchedulingSingleSubstitutionDate = '';
+      state.courseSchedulingSingleSubstitutionEmpId = '';
+      clearScreenDataCache?.();
+      showToast('ההחלפה החד־פעמית בוטלה', 'success');
+      rerender();
+    });
     detailRoot.querySelector('[data-change-assignment]')?.addEventListener('click', async () => {
       if (!canEdit || !selectedCourseId) return;
       const [{ data: completed, error }, historyResult] = await Promise.all([
