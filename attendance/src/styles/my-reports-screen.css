@@ -445,8 +445,8 @@
   box-shadow: 0 0 0 2px rgba(47,111,237,.10);
 }
 .av2-cal__attendance-dot {
-  background: #e07a2f;
-  box-shadow: 0 0 0 2px rgba(224,122,47,.12);
+  background: #0f9f96;
+  box-shadow: 0 0 0 2px rgba(15,159,150,.14);
 }
 .av2-cal__cell--clickable:hover {
   transform: translateY(-1px);
@@ -517,7 +517,7 @@
 .av2-calendar-day__section.is-school > h3 { color: #5c5bb0; }
 .av2-calendar-day__section.is-birthday > h3 { color: #874d74; }
 .av2-calendar-day__section.is-activity > h3 { color: #246fe9; }
-.av2-calendar-day__section.is-attendance > h3 { color: #b86428; }
+.av2-calendar-day__section.is-attendance > h3 { color: #1f6fa8; }
 
 .av2-calendar-day__event {
   display: flex;
@@ -584,93 +584,99 @@
   overflow-wrap: anywhere;
 }
 .av2-calendar-day__attendance {
-  padding: 9px;
-  border: 1px solid rgba(224,122,47,.22);
-  border-inline-start: 3px solid #e07a2f;
-  border-radius: 9px;
-  background: #fffdfa;
+  padding: 10px 11px;
+  border: 1px solid #d9e7f2;
+  border-inline-start: 3px solid #0f9f96;
+  border-radius: 10px;
+  background: #ffffff;
+  box-shadow: 0 2px 8px rgba(15,23,42,.035);
 }
-.av2-calendar-day__attendance + .av2-calendar-day__attendance { margin-top: 6px; }
+.av2-calendar-day__attendance + .av2-calendar-day__attendance { margin-top: 7px; }
 .av2-calendar-day__attendance h4 {
-  margin: 0 0 7px;
-  color: #4b382d;
-  font-size: .74rem;
+  margin: 0 0 6px;
+  color: #173a60;
+  font-size: .76rem;
+  font-weight: 850;
 }
-
-.av2-calendar-day__attendance-grid--core {
-  margin-top: 2px;
-}
-.av2-calendar-day__attendance-grid--core > div,
-.av2-calendar-day__attendance-extras > div {
+.av2-calendar-day__attendance-meta,
+.av2-calendar-day__attendance-location,
+.av2-calendar-day__attendance-extras {
   display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  min-width: 0;
+}
+.av2-calendar-day__attendance-location {
+  margin-top: 3px;
+}
+.av2-calendar-day__fact {
+  display: inline-flex;
   align-items: baseline;
-  gap: 5px;
+  gap: 4px;
   min-width: 0;
-  padding: 5px 7px;
-  border: 1px solid rgba(224,122,47,.12);
-  border-radius: 7px;
-  background: rgba(255,255,255,.72);
+  color: #29445f;
+  font-size: .65rem;
 }
-.av2-calendar-day__attendance-grid--core .av2-calendar-day__meta-label,
-.av2-calendar-day__attendance-extras .av2-calendar-day__meta-label {
-  flex: 0 0 auto;
-  margin: 0;
+.av2-calendar-day__fact-label {
+  color: #7b8da2;
+  font-size: .58rem;
+  font-weight: 650;
 }
-.av2-calendar-day__attendance-grid--core strong,
-.av2-calendar-day__attendance-extras strong {
-  margin: 0;
-  min-width: 0;
+.av2-calendar-day__fact strong {
+  color: #29445f;
+  font-size: .67rem;
+  font-weight: 750;
+  overflow-wrap: anywhere;
 }
 .av2-calendar-day__time-strip {
   display: grid;
   grid-template-columns: repeat(3, minmax(0,1fr));
   gap: 0;
-  margin-top: 8px;
+  margin-top: 9px;
   overflow: hidden;
-  border: 1px solid #eadfd7;
+  border: 1px solid #dce7f2;
   border-radius: 8px;
-  background: #fff;
+  background: #f9fbfd;
 }
 .av2-calendar-day__time-item {
   min-width: 0;
-  padding: 6px 8px;
+  padding: 7px 6px;
   text-align: center;
 }
 .av2-calendar-day__time-item + .av2-calendar-day__time-item {
-  border-inline-start: 1px solid #eee5dd;
+  border-inline-start: 1px solid #dfe8f1;
 }
 .av2-calendar-day__time-item .av2-calendar-day__meta-label {
   margin-bottom: 2px;
-  font-size: .56rem;
+  color: #7b8da2;
+  font-size: .55rem;
 }
 .av2-calendar-day__time-item strong {
   margin: 0;
-  color: #243f5a;
+  color: #173a60;
   font-size: .72rem;
+  font-weight: 800;
   font-variant-numeric: tabular-nums;
   text-align: center;
 }
 .av2-calendar-day__time-item.is-total {
-  background: #fff8f2;
+  background: #eef6ff;
 }
 .av2-calendar-day__time-item.is-total strong {
-  color: #9a4f18;
-  font-weight: 850;
+  color: #1d5fa7;
+  font-weight: 900;
 }
 .av2-calendar-day__attendance-extras {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0,1fr));
-  gap: 6px;
-  margin-top: 7px;
-}
-.av2-calendar-day__attendance-extras > .is-wide {
-  grid-column: 1 / -1;
+  margin-top: 8px;
+  padding-top: 7px;
+  border-top: 1px solid #e4edf5;
 }
 .av2-calendar-day__notes {
-  margin: 7px 0 0;
-  padding-top: 6px;
-  border-top: 1px solid #eee5dd;
-  color: #6e625b;
+  margin: 8px 0 0;
+  padding-top: 7px;
+  border-top: 1px solid #e4edf5;
+  color: #5f7184;
   font-size: .65rem;
 }
 .av2-calendar-day__empty {
