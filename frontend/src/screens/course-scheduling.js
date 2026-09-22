@@ -1505,7 +1505,8 @@ export const courseSchedulingScreen = {
             : selectedCoursePanelHtml(selectedRow?.course ? selectedRow : null, state)
         }</section>
       </div>
-    `})}
+    `}
+    `)}
     ${singleMeetingSubstitutionModalHtml(data, state)}
     ${state.courseSchedulingCancelCourseId ? (() => {
       const course = (data.activities || []).find((item) => idOf(item) === state.courseSchedulingCancelCourseId) || {};
