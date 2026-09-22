@@ -56,6 +56,19 @@ function makeMeta(label, value, { direction = '', className = '' } = {}) {
   return row;
 }
 
+function makeInlineFact(label, value, { direction = '' } = {}) {
+  const fact = document.createElement('span');
+  fact.className = 'av2-calendar-day__fact';
+  const factLabel = document.createElement('span');
+  factLabel.className = 'av2-calendar-day__fact-label';
+  factLabel.textContent = `${label}:`;
+  const factValue = document.createElement('strong');
+  factValue.textContent = text(value) || '—';
+  if (direction) factValue.dir = direction;
+  fact.append(factLabel, factValue);
+  return fact;
+}
+
 function activitySchool(activity = {}) {
   return text(activity.single_school_name)
     || (Array.isArray(activity.linked_schools_json) && activity.linked_schools_json.length === 1
@@ -114,14 +127,15 @@ function renderAttendance(record) {
   const expenses = Number(record.expenses || 0);
   const expenseDetails = text(record.expense_details);
 
-  const activityGrid = document.createElement('div');
-  activityGrid.className = 'av2-calendar-day__attendance-grid av2-calendar-day__attendance-grid--core';
-  const activityItems = [];
-  if (activityType) activityItems.push(makeMeta('סוג פעילות', activityType));
-  if (record.meeting_no != null && text(record.meeting_no)) activityItems.push(makeMeta('מפגש', record.meeting_no));
-  if (school) activityItems.push(makeMeta('בית ספר', school));
-  if (authority) activityItems.push(makeMeta('רשות', authority));
-  activityGrid.append(...activityItems);
+  const metaLine = document.createElement('div');
+  metaLine.className = 'av2-calendar-day__attendance-meta';
+  if (activityType) metaLine.append(makeInlineFact('סוג', activityType));
+  if (record.meeting_no != null && text(record.meeting_no)) metaLine.append(makeInlineFact('מפגש', record.meeting_no));
+
+  const locationLine = document.createElement('div');
+  locationLine.className = 'av2-calendar-day__attendance-location';
+  if (school) locationLine.append(makeInlineFact('בית ספר', school));
+  if (authority) locationLine.append(makeInlineFact('רשות', authority));
 
   const timeStrip = document.createElement('div');
   timeStrip.className = 'av2-calendar-day__time-strip';
@@ -133,15 +147,16 @@ function renderAttendance(record) {
 
   const extras = document.createElement('div');
   extras.className = 'av2-calendar-day__attendance-extras';
-  if (km > 0) extras.append(makeMeta('ק״מ', Math.round(km).toLocaleString('he-IL')));
+  if (km > 0) extras.append(makeInlineFact('ק״מ', Math.round(km).toLocaleString('he-IL')));
   if (usesPublicTransport) {
-    extras.append(makeMeta('תחבורה ציבורית', publicTransportCost > 0 ? `כן · ${money(publicTransportCost)}` : 'כן'));
+    extras.append(makeInlineFact('תחבורה ציבורית', publicTransportCost > 0 ? `כן · ${money(publicTransportCost)}` : 'כן'));
   }
-  if (expenses > 0) extras.append(makeMeta('הוצאות', money(expenses)));
-  if (expenseDetails) extras.append(makeMeta('פירוט הוצאות', expenseDetails, { className: 'is-wide' }));
+  if (expenses > 0) extras.append(makeInlineFact('הוצאות', money(expenses)));
+  if (expenseDetails) extras.append(makeInlineFact('פירוט הוצאות', expenseDetails));
 
   card.append(title);
-  if (activityItems.length) card.append(activityGrid);
+  if (metaLine.children.length) card.append(metaLine);
+  if (locationLine.children.length) card.append(locationLine);
   if (timeStrip.children.length) card.append(timeStrip);
   if (extras.children.length) card.append(extras);
 
