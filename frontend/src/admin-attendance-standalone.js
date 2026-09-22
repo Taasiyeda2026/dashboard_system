@@ -103,7 +103,7 @@ function ensureStyles() {
     .admin-attendance-team__head h2 { margin:0; font-size:16px; }
     .admin-attendance-team__head span { color:var(--color-text-secondary,#64748b); font-size:12px; }
     .admin-attendance-table-wrap { overflow:auto; }
-    .admin-attendance-table { width:100%; border-collapse:collapse; min-width:980px; }
+    .admin-attendance-table { width:100%; border-collapse:collapse; min-width:1080px; }
     .admin-attendance-table th,.admin-attendance-table td { text-align:right; padding:11px 13px; border-bottom:1px solid var(--color-border,#edf1f5); vertical-align:middle; font-size:13px; }
     .admin-attendance-table th { color:var(--color-text-secondary,#64748b); font-size:12px; font-weight:700; background:rgba(248,250,252,.65); }
     .admin-attendance-table tr:last-child td { border-bottom:0; }
