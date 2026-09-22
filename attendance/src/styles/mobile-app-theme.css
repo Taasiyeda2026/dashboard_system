@@ -332,8 +332,8 @@
     --av2-row-tint: #f7f3ff;
   }
   .av2-report-summary-row[data-tone='operations'] {
-    --av2-row-tone: #f4a62a;
-    --av2-row-tint: #fff8eb;
+    --av2-row-tone: #0f9f96;
+    --av2-row-tint: #effaf9;
   }
   .av2-report-summary-row[data-tone='online'] {
     --av2-row-tone: #19b7cf;
@@ -491,8 +491,8 @@
     --av2-row-tint: #f7f3ff;
   }
   .av2-report-row[data-tone='operations'] {
-    --av2-row-tone: #f3a62f;
-    --av2-row-tint: #fff8ed;
+    --av2-row-tone: #0f9f96;
+    --av2-row-tint: #effaf9;
   }
   .av2-report-row[data-tone='online'] {
     --av2-row-tone: #18b5ce;
