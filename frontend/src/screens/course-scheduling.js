@@ -44,6 +44,10 @@ import {
   manualCandidateWarnings
 } from './shared/course-scheduling-manual-picker-access.js';
 import {
+  submitCourseMeetingSubstituteRequest,
+  substituteRequestErrorMessage
+} from './shared/course-meeting-substitute-requests.js';
+import {
   DISTRICT_SIMULATION_ROUTE_MISSING_MESSAGE,
   applyDistrictSimulationSaveOutcome,
   courseLabelForSimulationRow,
@@ -59,6 +63,23 @@ import {
 } from './course-scheduling-district-simulation.js';
 
 export { formatWorkloadHours, MAX_HOME_DISTANCE_KM, formatAffectedMeetingsPhrase };
+
+const DIRECT_SINGLE_SUBSTITUTE_ROLES = new Set(['admin', 'operation_manager']);
+const REQUEST_SINGLE_SUBSTITUTE_ROLES = new Set([
+  'activities_manager',
+  'instructor_manager',
+  'domain_manager',
+  'business_development_manager'
+]);
+
+export function singleMeetingSubstitutionAccess(user = {}) {
+  const role = text(user?.role).toLowerCase();
+  const canDirect = DIRECT_SINGLE_SUBSTITUTE_ROLES.has(role);
+  const canRequest = !canDirect
+    && REQUEST_SINGLE_SUBSTITUTE_ROLES.has(role)
+    && hasPermission(user, 'view_operations_scheduling');
+  return { canDirect, canRequest, allowed: canDirect || canRequest };
+}
 
 /**
  * Maps server-side scheduling RPC error codes to clear Hebrew messages.
@@ -95,6 +116,8 @@ const SCHEDULING_ASSIGNMENT_ERROR_HE = {
   scheduling_meeting_date_required:     'יש לבחור מפגש',
   scheduling_meeting_not_found:         'המפגש שנבחר אינו קיים בלוח הפעילות',
   scheduling_substitute_already_assigned: 'המדריך שנבחר כבר משויך למפגש הזה',
+  scheduling_single_substitution_missing: 'לא קיימת החלפה חד־פעמית במפגש זה',
+  scheduling_request_permission_denied: 'אין הרשאה לשינוי ישיר. יש להגיש בקשה לעדכון',
   scheduling_course_locked_for_reassignment: 'לאחר שני מפגשים נדרשת החלפה תפעולית',
 };
 
@@ -1133,6 +1156,10 @@ export function assignedDetailHtml(row, state = {}) {
   const c = row.course;
   const completed = meetingsCompletedForCourse(c, state.meetingState);
   const history = state.courseSchedulingMeetingHistory?.[row.id] || [];
+  const substituteAccess = singleMeetingSubstitutionAccess(state?.user || {});
+  const substituteAction = substituteAccess.allowed
+    ? `<button type="button" class="course-scheduling-btn course-scheduling-btn--secondary" data-open-single-substitute>${substituteAccess.canDirect ? 'החלפה חד־פעמית' : 'בקשת החלפה חד־פעמית'}</button>`
+    : '';
   return `<p class="course-scheduling-status-chip is-ready">${STATUS.assigned}</p>
     <p>מדריך משובץ: <b>${escapeHtml(c.instructor_name || c.emp_id)}</b></p>
     <p><b>${escapeHtml(c.activity_name || '—')}</b> · ${escapeHtml(c.school || '—')} · ${escapeHtml(c.authority || '—')}</p>
@@ -1140,7 +1167,7 @@ export function assignedDetailHtml(row, state = {}) {
     ${completed == null ? '' : `<p>מפגשים שהתקיימו: <b>${completed}</b></p>`}
     ${meetingInstructorHistoryHtml(history, state.courseSchedulingReplacements?.[row.id] || [], state.courseSchedulingSingleSubstitutions?.[row.id] || [])}
     <div class="course-scheduling-detail-actions">
-      <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary" data-open-single-substitute>החלפה חד־פעמית</button>
+      ${substituteAction}
       <button type="button" class="course-scheduling-btn course-scheduling-btn--primary" data-change-assignment>שינוי / החלפת מדריך</button>
       <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary" data-open-cancel-assignment>ביטול שיבוץ</button>
     </div>`;
@@ -1149,6 +1176,8 @@ export function assignedDetailHtml(row, state = {}) {
 function singleMeetingSubstitutionModalHtml(data = {}, state = {}) {
   const courseId = text(state.courseSchedulingSingleSubstitutionCourseId);
   if (!courseId) return '';
+  const substituteAccess = singleMeetingSubstitutionAccess(state?.user || {});
+  if (!substituteAccess.allowed) return '';
   const course = (data.activities || []).find((item) => idOf(item) === courseId) || {};
   const meetings = activityMeetings(course);
   const selectedDate = text(state.courseSchedulingSingleSubstitutionDate);
@@ -1170,11 +1199,17 @@ function singleMeetingSubstitutionModalHtml(data = {}, state = {}) {
     const instructorId = text(instructor.emp_id);
     return `<option value="${escapeHtml(instructorId)}"${instructorId === text(state.courseSchedulingSingleSubstitutionEmpId) ? ' selected' : ''}>${escapeHtml(instructor.full_name || instructorId)}</option>`;
   }).join('');
+  const approvalNote = substituteAccess.canRequest
+    ? '<p class="course-scheduling-alert" role="note"><b>נדרש אישור אדמין או תפעול.</b> השינוי יבוצע רק לאחר אישור הבקשה.</p>'
+    : '';
+  const clearLabel = substituteAccess.canDirect ? 'בטל החלפה' : 'בקש ביטול החלפה';
+  const saveLabel = substituteAccess.canDirect ? 'שמור החלפה' : 'שלח בקשה לעדכון';
   return `<div class="course-scheduling-overlay" data-single-substitute-overlay>
     <div class="course-scheduling-modal" role="dialog" aria-modal="true" aria-labelledby="single-substitute-title">
-      <h2 id="single-substitute-title">החלפה חד־פעמית</h2>
+      <h2 id="single-substitute-title">${substituteAccess.canDirect ? 'החלפה חד־פעמית' : 'בקשת החלפה חד־פעמית'}</h2>
       <p><b>${escapeHtml(course.activity_name || '—')}</b> · ${escapeHtml(course.school || '—')}</p>
       <p class="course-scheduling-muted">המדריך הקבוע נשאר ${escapeHtml(course.instructor_name || course.emp_id || '—')}. ההחלפה תחול רק על המפגש שתבחרו.</p>
+      ${approvalNote}
       <label>מפגש *
         <select class="course-scheduling-input" data-single-substitute-date>
           <option value="">בחרו מפגש</option>${meetingOptions}
@@ -1188,8 +1223,8 @@ function singleMeetingSubstitutionModalHtml(data = {}, state = {}) {
       </label>
       <div class="course-scheduling-detail-actions">
         <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary" data-close-single-substitute>חזרה</button>
-        ${currentSubstitution ? '<button type="button" class="course-scheduling-btn course-scheduling-btn--secondary" data-clear-single-substitute>בטל החלפה</button>' : ''}
-        <button type="button" class="course-scheduling-btn course-scheduling-btn--primary" data-save-single-substitute>שמור החלפה</button>
+        ${currentSubstitution ? `<button type="button" class="course-scheduling-btn course-scheduling-btn--secondary" data-clear-single-substitute>${clearLabel}</button>` : ''}
+        <button type="button" class="course-scheduling-btn course-scheduling-btn--primary" data-save-single-substitute>${saveLabel}</button>
       </div>
     </div>
   </div>`;
@@ -1441,6 +1476,7 @@ export const courseSchedulingScreen = {
 
   bind({ root, data, state, rerender, clearScreenDataCache }) {
     const canEdit = hasPermission(state?.user, activeTab(state) === 'maintenance' ? 'manage_instructor_maintenance' : 'view_operations_scheduling');
+    const substituteAccess = singleMeetingSubstitutionAccess(state?.user || {});
     const resultByCourseId = new Map((state.courseSchedulingResults || []).map((result) => [idOf(result.course), result]));
     const allInterfaceCourses = schedulingWorkspaceCourses(data.activities || []);
     const interfaceCourses = filteredInterfaceCourses(allInterfaceCourses, state);
@@ -1612,7 +1648,7 @@ export const courseSchedulingScreen = {
     const selectedCourse = courseById.get(selectedCourseId);
 
     detailRoot.querySelector('[data-open-single-substitute]')?.addEventListener('click', async () => {
-      if (!canEdit || !selectedCourseId) return;
+      if (!canEdit || !substituteAccess.allowed || !selectedCourseId) return;
       const [substitutionResult, historyResult] = await Promise.all([
         supabase.rpc('scheduling_course_meeting_substitutions', { p_activity_id: selectedCourseId }),
         supabase.rpc('scheduling_course_meeting_instructors', { p_activity_id: selectedCourseId })
@@ -1674,6 +1710,27 @@ export const courseSchedulingScreen = {
       if (!courseId || !meetingDate) { showToast('יש לבחור מפגש', 'error'); return; }
       if (!Number.isInteger(substituteEmpId) || substituteEmpId <= 0) { showToast('יש לבחור מדריך מחליף', 'error'); return; }
       event.currentTarget.disabled = true;
+      if (substituteAccess.canRequest) {
+        try {
+          await submitCourseMeetingSubstituteRequest({
+            activityId: courseId,
+            meetingDate,
+            substituteEmpId,
+            action: 'set'
+          });
+          state.courseSchedulingSingleSubstitutionCourseId = '';
+          state.courseSchedulingSingleSubstitutionDate = '';
+          state.courseSchedulingSingleSubstitutionEmpId = '';
+          clearScreenDataCache?.();
+          try { document.dispatchEvent(new CustomEvent('app:edit-requests-updated')); } catch {}
+          showToast('הבקשה לעדכון נשלחה לאישור אדמין או תפעול', 'success');
+          rerender();
+        } catch (error) {
+          showToast(substituteRequestErrorMessage(error), 'error');
+          event.currentTarget.disabled = false;
+        }
+        return;
+      }
       const { error } = await supabase.rpc('set_course_meeting_substitute', {
         p_activity_id: courseId,
         p_meeting_date: meetingDate,
@@ -1698,6 +1755,26 @@ export const courseSchedulingScreen = {
       const meetingDate = text(state.courseSchedulingSingleSubstitutionDate);
       if (!courseId || !meetingDate) return;
       event.currentTarget.disabled = true;
+      if (substituteAccess.canRequest) {
+        try {
+          await submitCourseMeetingSubstituteRequest({
+            activityId: courseId,
+            meetingDate,
+            action: 'clear'
+          });
+          state.courseSchedulingSingleSubstitutionCourseId = '';
+          state.courseSchedulingSingleSubstitutionDate = '';
+          state.courseSchedulingSingleSubstitutionEmpId = '';
+          clearScreenDataCache?.();
+          try { document.dispatchEvent(new CustomEvent('app:edit-requests-updated')); } catch {}
+          showToast('הבקשה לביטול ההחלפה נשלחה לאישור אדמין או תפעול', 'success');
+          rerender();
+        } catch (error) {
+          showToast(substituteRequestErrorMessage(error), 'error');
+          event.currentTarget.disabled = false;
+        }
+        return;
+      }
       const { error } = await supabase.rpc('clear_course_meeting_substitute', {
         p_activity_id: courseId,
         p_meeting_date: meetingDate
