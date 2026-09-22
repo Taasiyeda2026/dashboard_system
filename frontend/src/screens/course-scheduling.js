@@ -61,6 +61,12 @@ import {
   selectedSimulationCandidate,
   summarizeDistrictSimulation
 } from './course-scheduling-district-simulation.js';
+import {
+  buildDynamicCoursePlan,
+  buildPlanningOverviewRows,
+  planningDataFingerprint,
+  planningTabHtml
+} from './course-scheduling-planning.js';
 
 export { formatWorkloadHours, MAX_HOME_DISTANCE_KM, formatAffectedMeetingsPhrase };
 
@@ -415,7 +421,7 @@ function schedulingScopeHtml(allCourses = [], state = {}, allActivities = allCou
 }
 
 function activeTab(state) {
-  return ['courses', 'calendar', 'maintenance'].includes(state.courseSchedulingTab)
+  return ['courses', 'calendar', 'planning', 'maintenance'].includes(state.courseSchedulingTab)
     ? state.courseSchedulingTab
     : 'courses';
 }
@@ -1369,14 +1375,17 @@ function distanceDoneMessage(stats = {}, { done = false, stopped = false, errorM
 
 export const courseSchedulingScreen = {
   async load({ api }) {
-    const [activities, contacts, scheduling, meetingState, schoolLocations, schoolCalendar, authResult] = await Promise.all([
+    const [activities, contacts, scheduling, meetingState, schoolLocations, schoolCalendar, authResult, planningCatalogResult] = await Promise.all([
       api.activities({ activity_period: 'school_2027', activity_type: 'all', include_inactive: true, select: 'row_id,district,authority_id,authority,school,school_id,activity_name,catalog_slug,activity_no,proposal_item_id,activity_type,item_type,activity_season,grade,education_level,class_group,sessions,start_time,end_time,instruction_language,required_instructor_gender,scheduling_note,instructor_assignment_status,instructor_assignment_locked,draft_emp_id,draft_instructor_name,draft_created_at,draft_proposed_meetings,emp_id,instructor_name,emp_id_2,instructor_name_2,start_date,end_date,status,date_1,date_2,date_3,date_4,date_5,date_6,date_7,date_8,date_9,date_10,date_11,date_12,date_13,date_14,date_15,date_16,date_17,date_18,date_19,date_20,date_21,date_22,date_23,date_24,date_25,date_26,date_27,date_28,date_29,date_30,date_31,date_32,date_33,date_34,date_35' }),
       api.instructorContacts(),
       loadInstructorSchedulingData(),
       loadCourseMeetingState(),
       supabase.rpc('scheduling_authority_school_locations'),
       loadSchoolCalendarRows(),
-      supabase.auth.getSession()
+      supabase.auth.getSession(),
+      supabase
+        .from('proposal_activity_pricing')
+        .select('activity_name,activity_no,program_name,name,title,meetings_count,hours_count,unit_duration,is_active_for_proposals')
     ]);
     const schoolRows = schoolLocations?.data || [];
     const schoolAddressLookupError = schoolLocations?.error
@@ -1390,6 +1399,7 @@ export const courseSchedulingScreen = {
       meetingState,
       schoolLocations: schoolRows,
       schoolCalendar,
+      planningCatalog: planningCatalogResult?.error ? [] : (planningCatalogResult?.data || []),
       authSession: (() => {
         const session = authResult?.data?.session;
         if (!session?.user?.id) return null;
@@ -1425,15 +1435,47 @@ export const courseSchedulingScreen = {
     const rowModels = interfaceCourses.map((course) => courseRowModel(course, resultByCourseId));
     const tab = activeTab(state);
     const selectedId = state.courseSchedulingSelectedId || '';
+    const currentPlanningFingerprint = planningDataFingerprint(data.activities || []);
+    if (tab === 'planning'
+      && state.courseSchedulingPlanningFingerprint
+      && state.courseSchedulingPlanningFingerprint !== currentPlanningFingerprint
+    ) {
+      state.courseSchedulingPlanningRows = [];
+      state.courseSchedulingPlanningCalculatedAt = '';
+      state.courseSchedulingPlanningRouteStats = null;
+      state.courseSchedulingPlanningError = '';
+      state.courseSchedulingPlanningFingerprint = '';
+    }
+    const planningRows = state.courseSchedulingPlanningRows?.length
+      ? state.courseSchedulingPlanningRows
+      : buildPlanningOverviewRows({
+          activities: data.activities || [],
+          catalog: data.planningCatalog || [],
+          district: state.courseSchedulingPlanningDistrict || ''
+        });
     const selectedRow = rowModels.find((row) => row.id === selectedId)
       || (selectedId ? courseRowModel(interfaceCourses.find((course) => idOf(course) === selectedId) || { row_id: selectedId }, resultByCourseId) : null);
     return dsScreenStack(`${instructorsWorkspaceNavStylesHtml()}
     <div class="course-scheduling-screen" dir="rtl" data-cs-ui="ux-polish-20260805-v1" data-cs-tab="${escapeHtml(tab)}">
-      ${instructorsWorkspaceHeaderHtml({ activeTab: tab === 'maintenance' ? 'maintenance' : 'scheduling', state })}
+      ${instructorsWorkspaceHeaderHtml({
+        activeTab: tab === 'maintenance' ? 'maintenance' : (tab === 'planning' ? 'planning' : 'scheduling'),
+        state
+      })}
 
       ${tab === 'maintenance'
         ? maintenanceTabHtml(state)
-        : `${schedulingScopeHtml(allInterfaceCourses, state, data.activities || [])}
+        : (tab === 'planning'
+          ? planningTabHtml({
+              rows: planningRows,
+              loading: !!state.courseSchedulingPlanningLoading,
+              progress: state.courseSchedulingPlanningProgress || null,
+              error: state.courseSchedulingPlanningError || '',
+              district: state.courseSchedulingPlanningDistrict || '',
+              districts: OPERATIONAL_DISTRICTS,
+              calculatedAt: state.courseSchedulingPlanningCalculatedAt || '',
+              routeStats: state.courseSchedulingPlanningRouteStats || null
+            })
+          : `${schedulingScopeHtml(allInterfaceCourses, state, data.activities || [])}
       ${state.courseSchedulingSimulationView
         ? districtSimulationPanelHtml({
           rows: state.courseSchedulingSimulationRows || [],
@@ -1463,7 +1505,7 @@ export const courseSchedulingScreen = {
             : selectedCoursePanelHtml(selectedRow?.course ? selectedRow : null, state)
         }</section>
       </div>
-    `}`}
+    `})}
     ${singleMeetingSubstitutionModalHtml(data, state)}
     ${state.courseSchedulingCancelCourseId ? (() => {
       const course = (data.activities || []).find((item) => idOf(item) === state.courseSchedulingCancelCourseId) || {};
@@ -1527,6 +1569,77 @@ export const courseSchedulingScreen = {
       document.dispatchEvent(new CustomEvent('app:navigate', { detail: { route: 'activities' } }));
       clickActivityRowWhenReady(activityId);
     };
+    const clearCoursePlanning = () => {
+      state.courseSchedulingPlanningRows = [];
+      state.courseSchedulingPlanningLoading = false;
+      state.courseSchedulingPlanningProgress = null;
+      state.courseSchedulingPlanningError = '';
+      state.courseSchedulingPlanningCalculatedAt = '';
+      state.courseSchedulingPlanningRouteStats = null;
+      state.courseSchedulingPlanningFingerprint = '';
+    };
+
+    const runCoursePlanning = async () => {
+      if (state.courseSchedulingPlanningLoading) return;
+      state.courseSchedulingPlanningLoading = true;
+      state.courseSchedulingPlanningError = '';
+      state.courseSchedulingPlanningProgress = {
+        completed: 0,
+        total: buildPlanningOverviewRows({
+          activities: data.activities || [],
+          catalog: data.planningCatalog || [],
+          district: state.courseSchedulingPlanningDistrict || ''
+        }).filter((row) => !['live', 'draft'].includes(row.kind)).length
+      };
+      rerender();
+      try {
+        const profiles = Object.fromEntries((data.scheduling?.profiles || []).map((row) => [text(row.emp_id), row]));
+        const result = await buildDynamicCoursePlan({
+          activities: data.activities || [],
+          instructors: data.instructors || [],
+          profiles,
+          rules: group(data.scheduling?.rules || [], 'emp_id'),
+          exceptions: group(data.scheduling?.exceptions || [], 'emp_id'),
+          schoolCalendar: data.schoolCalendar || [],
+          catalog: data.planningCatalog || [],
+          district: state.courseSchedulingPlanningDistrict || '',
+          today: today(),
+          onProgress: (progress) => {
+            state.courseSchedulingPlanningProgress = {
+              completed: progress.completed,
+              total: progress.total
+            };
+          }
+        });
+        state.courseSchedulingPlanningRows = result.rows || [];
+        state.courseSchedulingPlanningRouteStats = result.routeStats || null;
+        state.courseSchedulingPlanningFingerprint = planningDataFingerprint(data.activities || []);
+        state.courseSchedulingPlanningCalculatedAt = new Intl.DateTimeFormat('he-IL', {
+          dateStyle: 'short',
+          timeStyle: 'short'
+        }).format(new Date());
+      } catch (error) {
+        state.courseSchedulingPlanningError = `חישוב התכנון נכשל: ${error?.message || error}`;
+      } finally {
+        state.courseSchedulingPlanningLoading = false;
+        state.courseSchedulingPlanningProgress = null;
+        rerender();
+      }
+    };
+
+    root.querySelector('[data-run-course-planning]')?.addEventListener('click', () => {
+      void runCoursePlanning();
+    });
+    root.querySelector('[data-clear-course-planning]')?.addEventListener('click', () => {
+      clearCoursePlanning();
+      rerender();
+    });
+    root.querySelector('[data-planning-district-filter]')?.addEventListener('change', (event) => {
+      state.courseSchedulingPlanningDistrict = event.target.value;
+      clearCoursePlanning();
+      rerender();
+    });
+
     const clearDistrictSimulation = () => {
       state.courseSchedulingSimulationView = false;
       state.courseSchedulingSimulationLoading = false;
@@ -1577,7 +1690,7 @@ export const courseSchedulingScreen = {
 
     root.querySelectorAll('[data-switch-tab]').forEach((button) => {
       button.addEventListener('click', () => {
-        state.courseSchedulingTab = ['courses', 'calendar', 'maintenance'].includes(button.dataset.switchTab)
+        state.courseSchedulingTab = ['courses', 'calendar', 'planning', 'maintenance'].includes(button.dataset.switchTab)
           ? button.dataset.switchTab
           : 'courses';
         state.courseSchedulingShowDistanceConfirm = false;
