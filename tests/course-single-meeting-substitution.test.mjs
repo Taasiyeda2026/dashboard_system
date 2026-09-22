@@ -70,3 +70,10 @@ test('course scheduling exposes a minimal meeting plus substitute flow', async (
   assert.match(source, /clear_course_meeting_substitute/);
   assert.match(source, /המדריך הקבוע נשאר/);
 });
+
+
+test('single-meeting substitution upsert targets the unique constraint explicitly', async () => {
+  const fix = await readFile(new URL('../supabase/migrations/20260922022500_fix_single_meeting_substitute_conflict.sql', import.meta.url), 'utf8');
+  assert.match(fix, /on conflict on constraint course_meeting_instructor_history_activity_id_meeting_date_key do update/);
+  assert.doesNotMatch(fix, /on conflict \(activity_id, meeting_date\) do update/);
+});
