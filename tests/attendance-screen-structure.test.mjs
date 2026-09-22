@@ -114,6 +114,7 @@ test('Attendance calendar drawer uses clean inline facts and blue-teal styling',
   assert.match(calendarDayDrawerSource, /makeMeta\('סה״כ', formatDurationHours\(totalHours\)/);
   assert.match(calendarDayDrawerSource, /av2-calendar-day__attendance-extras/);
   assert.doesNotMatch(calendarDayDrawerSource, /av2-calendar-day__attendance-grid--core/);
+  assert.match(reportsStyles, /\.av2-calendar-day__section\.is-attendance\s*\{[\s\S]*border:\s*0[\s\S]*background:\s*transparent/);
   assert.match(reportsStyles, /\.av2-calendar-day__attendance\s*\{[\s\S]*border-inline-start:\s*3px solid #0f9f96/);
   assert.match(reportsStyles, /\.av2-calendar-day__time-item\.is-total\s*\{[\s\S]*background:\s*#eef6ff/);
   assert.doesNotMatch(reportsStyles, /#e07a2f|#b86428|#9a4f18|rgba\(224,122,47/);
