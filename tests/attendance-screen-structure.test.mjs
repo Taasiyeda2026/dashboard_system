@@ -103,20 +103,21 @@ test('Attendance calendar shows TODAY highlight plus separate activity and atten
   assert.match(calSource, /attendanceCalendarEventsForDate/);
 });
 
-test('Attendance calendar drawer uses structured activity, time and optional detail sections', () => {
+test('Attendance calendar drawer uses clean inline facts and blue-teal styling', () => {
   assert.match(calendarDayDrawerSource, /function formatClock\(value\)/);
-  assert.match(calendarDayDrawerSource, /av2-calendar-day__attendance-grid--core/);
+  assert.match(calendarDayDrawerSource, /function makeInlineFact\(label, value/);
+  assert.match(calendarDayDrawerSource, /av2-calendar-day__attendance-meta/);
+  assert.match(calendarDayDrawerSource, /av2-calendar-day__attendance-location/);
   assert.match(calendarDayDrawerSource, /av2-calendar-day__time-strip/);
   assert.match(calendarDayDrawerSource, /makeMeta\('התחלה', startTime/);
   assert.match(calendarDayDrawerSource, /makeMeta\('סיום', endTime/);
   assert.match(calendarDayDrawerSource, /makeMeta\('סה״כ', formatDurationHours\(totalHours\)/);
   assert.match(calendarDayDrawerSource, /av2-calendar-day__attendance-extras/);
-  assert.match(calendarDayDrawerSource, /if \(km > 0\)/);
-  assert.match(calendarDayDrawerSource, /if \(usesPublicTransport\)/);
-  assert.match(calendarDayDrawerSource, /if \(expenses > 0\)/);
-  assert.doesNotMatch(calendarDayDrawerSource, /makeMeta\('שעות', time/);
-  assert.match(reportsStyles, /\.av2-calendar-day__time-strip\s*\{[\s\S]*grid-template-columns:\s*repeat\(3/);
-  assert.match(reportsStyles, /\.av2-calendar-day__time-item\.is-total/);
+  assert.doesNotMatch(calendarDayDrawerSource, /av2-calendar-day__attendance-grid--core/);
+  assert.match(reportsStyles, /\.av2-calendar-day__section\.is-attendance\s*\{[\s\S]*border:\s*0[\s\S]*background:\s*transparent/);
+  assert.match(reportsStyles, /\.av2-calendar-day__attendance\s*\{[\s\S]*border-inline-start:\s*3px solid #0f9f96/);
+  assert.match(reportsStyles, /\.av2-calendar-day__time-item\.is-total\s*\{[\s\S]*background:\s*#eef6ff/);
+  assert.doesNotMatch(reportsStyles, /#e07a2f|#b86428|#9a4f18|rgba\(224,122,47/);
 });
 
 test('Attendance Excel export uses real time values and a correctly structured total row', () => {
