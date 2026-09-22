@@ -1146,6 +1146,54 @@ export function assignedDetailHtml(row, state = {}) {
     </div>`;
 }
 
+function singleMeetingSubstitutionModalHtml(data = {}, state = {}) {
+  const courseId = text(state.courseSchedulingSingleSubstitutionCourseId);
+  if (!courseId) return '';
+  const course = (data.activities || []).find((item) => idOf(item) === courseId) || {};
+  const meetings = activityMeetings(course);
+  const selectedDate = text(state.courseSchedulingSingleSubstitutionDate);
+  const substitutions = state.courseSchedulingSingleSubstitutions?.[courseId] || [];
+  const currentSubstitution = substitutions.find((row) => text(row.meeting_date) === selectedDate) || null;
+  const currentPrimaryIds = new Set([text(course.emp_id), text(course.emp_id_2)].filter(Boolean));
+  const activeInstructors = (data.instructors || [])
+    .filter((instructor) => ['yes', 'true', '1'].includes(text(instructor?.active).toLowerCase()))
+    .filter((instructor) => !currentPrimaryIds.has(text(instructor.emp_id)))
+    .sort((a, b) => text(a.full_name).localeCompare(text(b.full_name), 'he'));
+  const meetingOptions = meetings.map((meeting, index) => {
+    const meetingNo = Number(meeting.meeting_no) || index + 1;
+    const date = text(meeting.date);
+    const timeLabel = formatTimeRangeShort(meeting.start_time || course.start_time, meeting.end_time || course.end_time);
+    const label = `מפגש ${meetingNo} · ${formatDateHeDots(date)} · ${timeLabel}`;
+    return `<option value="${escapeHtml(date)}"${date === selectedDate ? ' selected' : ''}>${escapeHtml(label)}</option>`;
+  }).join('');
+  const instructorOptions = activeInstructors.map((instructor) => {
+    const instructorId = text(instructor.emp_id);
+    return `<option value="${escapeHtml(instructorId)}"${instructorId === text(state.courseSchedulingSingleSubstitutionEmpId) ? ' selected' : ''}>${escapeHtml(instructor.full_name || instructorId)}</option>`;
+  }).join('');
+  return `<div class="course-scheduling-overlay" data-single-substitute-overlay>
+    <div class="course-scheduling-modal" role="dialog" aria-modal="true" aria-labelledby="single-substitute-title">
+      <h2 id="single-substitute-title">החלפה חד־פעמית</h2>
+      <p><b>${escapeHtml(course.activity_name || '—')}</b> · ${escapeHtml(course.school || '—')}</p>
+      <p class="course-scheduling-muted">המדריך הקבוע נשאר ${escapeHtml(course.instructor_name || course.emp_id || '—')}. ההחלפה תחול רק על המפגש שתבחרו.</p>
+      <label>מפגש *
+        <select class="course-scheduling-input" data-single-substitute-date>
+          <option value="">בחרו מפגש</option>${meetingOptions}
+        </select>
+      </label>
+      ${currentSubstitution ? `<p class="course-scheduling-success">במפגש זה מוגדרת כרגע החלפה: <b>${escapeHtml(currentSubstitution.instructor_name || currentSubstitution.emp_id)}</b></p>` : ''}
+      <label>מדריך מחליף *
+        <select class="course-scheduling-input" data-single-substitute-emp>
+          <option value="">בחרו מדריך</option>${instructorOptions}
+        </select>
+      </label>
+      <div class="course-scheduling-detail-actions">
+        <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary" data-close-single-substitute>חזרה</button>
+        ${currentSubstitution ? '<button type="button" class="course-scheduling-btn course-scheduling-btn--secondary" data-clear-single-substitute>בטל החלפה</button>' : ''}
+        <button type="button" class="course-scheduling-btn course-scheduling-btn--primary" data-save-single-substitute>שמור החלפה</button>
+      </div>
+    </div>
+  </div>`;
+}
 function selectedCoursePanelHtml(row, state) {
   if (!row) {
     return `<div class="course-scheduling-empty course-scheduling-empty--center">
@@ -1377,6 +1425,7 @@ export const courseSchedulingScreen = {
         }</section>
       </div>
     `}`}
+    ${singleMeetingSubstitutionModalHtml(data, state)}
     ${state.courseSchedulingCancelCourseId ? (() => {
       const course = (data.activities || []).find((item) => idOf(item) === state.courseSchedulingCancelCourseId) || {};
       const completed = meetingsCompletedForCourse(course, data.meetingState) || 0;
