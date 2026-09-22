@@ -550,4 +550,3 @@ $$;
 
 revoke all on function public.review_course_meeting_substitute_request(text,text) from public, anon;
 grant execute on function public.review_course_meeting_substitute_request(text,text) to authenticated;
-
