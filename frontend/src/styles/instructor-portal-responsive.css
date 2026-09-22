@@ -263,8 +263,8 @@
   width: 9px;
   height: 9px;
   border-radius: 50%;
-  background: #e07a2f;
-  box-shadow: 0 0 0 3px rgba(224, 122, 47, .18);
+  background: #0f9f96;
+  box-shadow: 0 0 0 3px rgba(15, 159, 150, .18);
 }
 
 .app-shell--instructor .route-instructor-calendar .ds-interactive-card--day-cell.has-instructor-activity.has-instructor-attendance::after {
@@ -272,15 +272,15 @@
   border-radius: 0;
   background:
     radial-gradient(circle at 4.5px 4.5px, var(--ds-accent) 0 4.5px, transparent 5px),
-    radial-gradient(circle at 20.5px 4.5px, #e07a2f 0 4.5px, transparent 5px);
+    radial-gradient(circle at 20.5px 4.5px, #0f9f96 0 4.5px, transparent 5px);
   box-shadow: none;
 }
 
 .app-shell--instructor .instr-calendar-attendance-card {
   margin-block-start: 8px;
   padding: 9px 11px;
-  border: 1px solid color-mix(in srgb, #e07a2f 42%, var(--ds-border));
-  border-inline-start: 3px solid #e07a2f;
+  border: 1px solid color-mix(in srgb, #0f9f96 42%, var(--ds-border));
+  border-inline-start: 3px solid #0f9f96;
   border-radius: 10px;
   background: var(--ds-surface);
 }
