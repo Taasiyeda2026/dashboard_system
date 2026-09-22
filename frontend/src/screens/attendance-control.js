@@ -1342,6 +1342,39 @@ function formatHourGap(decimalHours) {
   return m > 0 ? `${h} שעות ${m} דקות` : `${h} שעות`;
 }
 
+function formatTravelMinutesClock(value) {
+  const totalMinutes = Math.max(0, Math.round(Number(value) || 0));
+  return Math.floor(totalMinutes / 60) + ':' + String(totalMinutes % 60).padStart(2, '0');
+}
+
+function travelCompensationDisplay(source = {}) {
+  const status = txt(source.travelCalculationStatus);
+  if (!status) return [];
+  if (status === 'resolved') {
+    const rows = [
+      ['זמן נסיעה הלוך', formatTravelMinutesClock(source.outboundTravelMinutes)],
+      ['זמן נסיעה חזור', formatTravelMinutesClock(source.returnTravelMinutes)],
+      ['ביטול זמן', formatTravelMinutesClock(source.finalCancellationMinutes)],
+      ['מקור חישוב', 'מחושב אוטומטית לפי זמן הנסיעה']
+    ];
+    if (source.manuallyOverridden && source.calculatedCancellationMinutes != null) {
+      rows.push(['ביטול זמן מחושב במקור', formatTravelMinutesClock(source.calculatedCancellationMinutes)]);
+    }
+    return rows;
+  }
+  if (status === 'pending') return [['ביטול זמן', 'ממתין לחישוב זמן הנסיעה']];
+  if (status === 'unavailable') {
+    const reason = txt(source.travelFailureCode);
+    const label = reason === 'instructor_address_missing'
+      ? 'לא ניתן לחשב – חסרה כתובת מדריך'
+      : reason === 'destination_address_missing'
+        ? 'לא ניתן לחשב – חסרה כתובת יעד'
+        : 'חישוב זמן הנסיעה לא זמין';
+    return [['ביטול זמן', label]];
+  }
+  return [];
+}
+
 function diffText(diff) {
   if (diff.type === 'time' && (!timeText(diff.attendance) || !timeText(diff.dashboard))) return 'חסר נתון באחד המקורות';
   if (diff.type === 'time') return `פער ${minutesBetween(diff.attendance, diff.dashboard)} דקות`;
@@ -1508,6 +1541,7 @@ export function resultsHtml(result, month = '', options = {}) {
   };
   const reportSummaryCard = (row, entry, { cancellation = false } = {}) => {
   const current = entry?.final || row || {};
+  const source = row?._source || current?._source || {};
   const issue = entry ? !attendanceEntryIsResolved(entry) : false;
   const items = [];
   const push = (label, value, { always = false } = {}) => {
@@ -1527,6 +1561,7 @@ export function resultsHtml(result, month = '', options = {}) {
     else push('קילומטרים', current.kilometers);
     if (asBoolean(current.publicTransport)) push('עלות תחבורה', current.publicTransportCost);
     push('הוצאות', current.expenses);
+    travelCompensationDisplay(source).forEach(([label, value]) => push(label, value, { always: true }));
   } else {
     push('מקור הפעילות', row.program || row.school);
     push('ביטול זמן', displayWorkHours(current), { always: true });

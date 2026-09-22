@@ -31,7 +31,7 @@ function normalizeAttachments(raw = []) {
     .filter((item) => item.fileName || item.storagePath);
 }
 
-function legacyRecord(row = {}, travel = null) {
+function legacyRecord(row = {}, travel = null, { generated = false } = {}) {
   const employeeId = text(row.employee_id);
   const team = text(row.team);
   const attachments = normalizeAttachments(row.attachments);
@@ -94,7 +94,9 @@ function legacyRecord(row = {}, travel = null) {
     schoolId: row.school_id ?? null,
     semelMosad: row.semel_mosad ?? null,
     sourceAttendanceRecordId: text(travel?.source_record_id),
-    generationKind: travel ? 'travel_time_cancellation' : '',
+    generationKind: generated ? 'travel_time_cancellation' : '',
+    travelCalculationStatus: text(travel?.calculation_status),
+    travelFailureCode: text(travel?.failure_code),
     outboundTravelMinutes: travel?.outbound_travel_minutes ?? null,
     returnTravelMinutes: travel?.return_travel_minutes ?? null,
     calculatedCancellationMinutes: travel?.calculated_cancellation_minutes ?? null,
@@ -174,8 +176,20 @@ api.attendanceControlRecords = async function ({ employeeIds = [], fromDate = ''
   ]);
   if (error) throw new Error(error.message || 'attendance_records_supabase_load_failed');
   if (travelResult.error) throw new Error(travelResult.error.message || 'attendance_travel_compensations_load_failed');
-  const travelByGenerated = new Map((travelResult.data || []).map((item) => [text(item.generated_record_id), item]));
-  return (Array.isArray(data) ? data : []).map((row) => legacyRecord(row, travelByGenerated.get(text(row.record_id))));
+  const travelRows = Array.isArray(travelResult.data) ? travelResult.data : [];
+  const travelByGenerated = new Map(travelRows
+    .map((item) => [text(item.generated_record_id), item])
+    .filter(([recordId]) => recordId));
+  const travelBySource = new Map(travelRows
+    .map((item) => [text(item.source_record_id), item])
+    .filter(([recordId]) => recordId));
+
+  return (Array.isArray(data) ? data : []).map((row) => {
+    const recordId = text(row.record_id);
+    const generatedTravel = travelByGenerated.get(recordId) || null;
+    const sourceTravel = travelBySource.get(recordId) || null;
+    return legacyRecord(row, generatedTravel || sourceTravel, { generated: Boolean(generatedTravel) });
+  });
 };
 
 api.attendanceControlTeams = async function () {
