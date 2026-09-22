@@ -137,6 +137,42 @@ test('planning fingerprint changes when live scheduling data changes', () => {
   assert.notEqual(first, second);
 });
 
+test('first-half Planning excludes courses scheduled only in second half', () => {
+  const firstHalf = {
+    ...baseCourse,
+    row_id: 'first-half',
+    start_time: '08:00',
+    end_time: '09:30',
+    date_1: '2026-11-01'
+  };
+  const secondHalf = {
+    ...baseCourse,
+    row_id: 'second-half',
+    start_time: '08:00',
+    end_time: '09:30',
+    date_1: '2027-02-07'
+  };
+  const rows = buildPlanningOverviewRows({ activities: [firstHalf, secondHalf], catalog });
+  assert.deepEqual(rows.map((row) => row.courseId), ['first-half']);
+});
+
+test('planning fingerprint follows saved draft proposed dates and hours', () => {
+  const draft = {
+    ...baseCourse,
+    row_id: 'draft',
+    draft_emp_id: '10',
+    start_time: '08:00',
+    end_time: '09:30',
+    draft_proposed_meetings: [{ date: '2026-10-04', start_time: '08:00', end_time: '09:30' }]
+  };
+  const first = planningDataFingerprint([draft]);
+  const second = planningDataFingerprint([{
+    ...draft,
+    draft_proposed_meetings: [{ date: '2026-10-11', start_time: '08:00', end_time: '09:30' }]
+  }]);
+  assert.notEqual(first, second);
+});
+
 test('Planning is a separate non-destructive workspace tab using scheduling permission', async () => {
   const [nav, capabilities, screen, planning] = await Promise.all([
     readFile(new URL('../frontend/src/screens/shared/instructors-workspace-nav.js', import.meta.url), 'utf8'),
