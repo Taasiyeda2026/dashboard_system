@@ -5,6 +5,7 @@ import { readFile } from 'node:fs/promises';
 const css = await readFile(new URL('../attendance/src/styles/mobile-final-contract.css', import.meta.url), 'utf8');
 const index = await readFile(new URL('../attendance/index.html', import.meta.url), 'utf8');
 const sw = await readFile(new URL('../attendance/sw.js', import.meta.url), 'utf8');
+const mobileTheme = await readFile(new URL('../attendance/src/styles/mobile-app-theme.css', import.meta.url), 'utf8');
 
 test('Attendance final mobile contract is loaded last and uses cache version 93', () => {
   assert.match(index, /mobile-final-contract\.css\?v=93/);
@@ -34,4 +35,5 @@ test('Attendance mobile contract is iPhone-safe and touch-first', () => {
 test('Attendance decorative operation tone uses teal instead of the retired orange palette', () => {
   assert.match(css, /data-tone="operations"[\s\S]*--av2-row-tone:\s*#0f9f96/);
   assert.doesNotMatch(css, /#e07a2f|#b86428|#9a4f18|#f4a62a|#f3a62f/);
+  assert.doesNotMatch(mobileTheme, /#f4a62a|#f3a62f/);
 });
