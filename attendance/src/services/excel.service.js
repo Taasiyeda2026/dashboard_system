@@ -14,8 +14,27 @@
  * @param {number}   year
  * @param {number}   month  1-based
  */
-/** Strip seconds from HH:MM:SS → HH:MM for display in Excel. */
-const fmtTime = t => (t ? String(t).slice(0, 5) : '');
+/** Convert HH:MM[:SS] into Excel's numeric time value. */
+const excelClock = (value) => {
+  const match = String(value || '').trim().match(/^(\d{1,2}):(\d{2})/);
+  if (!match) return '';
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  if (!Number.isInteger(hours) || !Number.isInteger(minutes) || hours < 0 || hours > 23 || minutes < 0 || minutes > 59) return '';
+  return (hours * 60 + minutes) / (24 * 60);
+};
+
+/** Convert decimal hours into an Excel duration value (fraction of a day). */
+const excelDuration = (value) => Math.max(0, Number(value) || 0) / 24;
+
+function applyNumberFormat(XLSX, worksheet, columnIndex, startRow, endRow, format) {
+  for (let row = startRow; row <= endRow; row += 1) {
+    const ref = XLSX.utils.encode_cell({ c: columnIndex, r: row - 1 });
+    if (worksheet[ref] && worksheet[ref].v !== '' && worksheet[ref].v != null) {
+      worksheet[ref].z = format;
+    }
+  }
+}
 
 export function exportMonthToExcel(records, instructor, year, month) {
   if (!window.XLSX) {
@@ -33,13 +52,12 @@ export function exportMonthToExcel(records, instructor, year, month) {
   const recordRows = records.map((r) => {
     const d = new Date(r.report_date);
     const dayName = DAY_NAMES[d.getDay()];
-    const hours = Number(r.total_hours || 0).toFixed(2);
     return {
       'תאריך':          r.report_date,
       'יום':            dayName,
-      'התחלה':          fmtTime(r.start_time),
-      'סיום':           fmtTime(r.end_time),
-      'שעות':           hours,
+      'התחלה':          excelClock(r.start_time),
+      'סיום':           excelClock(r.end_time),
+      'שעות':           excelDuration(r.total_hours),
       'סוג פעילות':     r.activity_type || '',
       'שם פעילות':      r.activity_name_snapshot || '',
       'תוכנית':         r.program_name_snapshot || r.program_name || '',
@@ -47,8 +65,8 @@ export function exportMonthToExcel(records, instructor, year, month) {
       'רשות':           r.authority_name_snapshot || '',
       'בית ספר':        r.school_name_snapshot || '',
       'מס\' מוסד':      r.semel_mosad || '',
-      'ק"מ':            Number(r.roundtrip_km || 0).toFixed(1),
-      'הוצאות (₪)':    Number(r.expenses || 0).toFixed(2),
+      'ק"מ':            Number(r.roundtrip_km || 0),
+      'הוצאות (₪)':    Number(r.expenses || 0),
       'פירוט הוצאות':   r.expense_details || '',
       'הערות':          r.notes || '',
       'מספר עובד':      r.emp_id,
@@ -57,6 +75,15 @@ export function exportMonthToExcel(records, instructor, year, month) {
   });
 
   const ws1 = XLSX.utils.json_to_sheet(recordRows, { origin: 'A3' });
+  const firstRecordRow = 4;
+  const lastRecordRow = firstRecordRow + recordRows.length - 1;
+  if (recordRows.length > 0) {
+    applyNumberFormat(XLSX, ws1, 2, firstRecordRow, lastRecordRow, 'hh:mm');
+    applyNumberFormat(XLSX, ws1, 3, firstRecordRow, lastRecordRow, 'hh:mm');
+    applyNumberFormat(XLSX, ws1, 4, firstRecordRow, lastRecordRow, '[h]:mm');
+    applyNumberFormat(XLSX, ws1, 12, firstRecordRow, lastRecordRow, '0.0');
+    applyNumberFormat(XLSX, ws1, 13, firstRecordRow, lastRecordRow, '#,##0.00');
+  }
 
   // Title rows
   XLSX.utils.sheet_add_aoa(ws1, [
@@ -92,30 +119,52 @@ export function exportMonthToExcel(records, instructor, year, month) {
 
   for (const r of records) {
     const t = r.activity_type || 'לא ידוע';
-    if (!byType[t]) byType[t] = { hours: 0, sessions: 0 };
-    byType[t].hours += Number(r.total_hours || 0);
+    if (!byType[t]) byType[t] = { hours: 0, sessions: 0, km: 0, expenses: 0 };
+    const hours = Number(r.total_hours || 0);
+    const km = Number(r.roundtrip_km || 0);
+    const expenses = Number(r.expenses || 0);
+    byType[t].hours += hours;
     byType[t].sessions += 1;
-    totalHours += Number(r.total_hours || 0);
-    totalKm += Number(r.roundtrip_km || 0);
-    totalExpenses += Number(r.expenses || 0);
+    byType[t].km += km;
+    byType[t].expenses += expenses;
+    totalHours += hours;
+    totalKm += km;
+    totalExpenses += expenses;
   }
 
   const summaryRows = Object.entries(byType).map(([type, agg]) => ({
     'סוג פעילות': type,
     'מפגשים':    agg.sessions,
-    'שעות':      Number(agg.hours.toFixed(2))
+    'שעות':      excelDuration(agg.hours),
+    'ק"מ':       agg.km,
+    'הוצאות (₪)': agg.expenses
   }));
   summaryRows.push({});
-  summaryRows.push({ 'סוג פעילות': 'סה"כ שעות', 'מפגשים': '', 'שעות': Number(totalHours.toFixed(2)) });
-  summaryRows.push({ 'סוג פעילות': 'סה"כ ק"מ',  'מפגשים': '', 'שעות': Number(totalKm.toFixed(1)) });
-  summaryRows.push({ 'סוג פעילות': 'סה"כ הוצאות (₪)', 'מפגשים': '', 'שעות': Number(totalExpenses.toFixed(2)) });
+  summaryRows.push({
+    'סוג פעילות': 'סה"כ',
+    'מפגשים': records.length,
+    'שעות': excelDuration(totalHours),
+    'ק"מ': totalKm,
+    'הוצאות (₪)': totalExpenses
+  });
 
-  const ws2 = XLSX.utils.json_to_sheet(summaryRows, { origin: 'A3' });
+  const ws2 = XLSX.utils.json_to_sheet(summaryRows, {
+    origin: 'A3',
+    header: ['סוג פעילות', 'מפגשים', 'שעות', 'ק"מ', 'הוצאות (₪)']
+  });
+  const firstSummaryRow = 4;
+  const lastSummaryRow = firstSummaryRow + summaryRows.length - 1;
+  if (summaryRows.length > 0) {
+    applyNumberFormat(XLSX, ws2, 2, firstSummaryRow, lastSummaryRow, '[h]:mm');
+    applyNumberFormat(XLSX, ws2, 3, firstSummaryRow, lastSummaryRow, '0.0');
+    applyNumberFormat(XLSX, ws2, 4, firstSummaryRow, lastSummaryRow, '#,##0.00');
+  }
+
   XLSX.utils.sheet_add_aoa(ws2, [
     [`סיכום חודשי — ${monthLabel}`],
     [`מדריך: ${instructor.name}  |  מ.ע: ${instructor.empId}`]
   ], { origin: 'A1' });
-  ws2['!cols'] = [{ wch: 20 }, { wch: 10 }, { wch: 10 }];
+  ws2['!cols'] = [{ wch: 20 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 14 }];
 
   // ── Build workbook & trigger download ────────────────────────────────────
   const wb = XLSX.utils.book_new();
