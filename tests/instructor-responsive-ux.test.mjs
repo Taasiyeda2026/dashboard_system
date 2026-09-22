@@ -8,6 +8,7 @@ const activities = await readFile(new URL('../frontend/src/screens/instructor-po
 const calendar = await readFile(new URL('../frontend/src/screens/instructor-portal/calendar.js', import.meta.url), 'utf8');
 const approvals = await readFile(new URL('../frontend/src/screens/instructor-completion-approvals.js', import.meta.url), 'utf8');
 const index = await readFile(new URL('../index.html', import.meta.url), 'utf8');
+const mobileContract = await readFile(new URL('../frontend/src/styles/instructor-mobile-contract.css', import.meta.url), 'utf8');
 
 test('instructor responsive layer is scoped and loaded after shared dashboard styles', () => {
   assert.match(css, /\.app-shell--instructor/);
@@ -82,4 +83,20 @@ test('completion approvals keep the shared print/status mechanism and render as 
   for (const heading of ['תאריך', 'בית ספר', 'כמות פעילויות', 'אישור ביצוע', 'סטטוס', 'פעולה']) assert.match(approvals, new RegExp(`<th>${heading}<\\/th>`));
   assert.match(css, /instructor-area--approvals \.instr-summary-grid[\s\S]*display:\s*none/);
   assert.match(css, /instructor-area--approvals[\s\S]*840px/);
+});
+
+
+test('final instructor mobile contract enforces touch-first full-width layouts', () => {
+  assert.match(index, /instructor-mobile-contract\.css\?v=20260922-mobile-contract-v1/);
+  assert.ok(index.indexOf('instructor-mobile-contract.css') > index.indexOf('instructor-portal-drawer-hotfix.css'));
+  assert.match(mobileContract, /@media \(max-width: 959px\)/);
+  assert.match(mobileContract, /overflow-x:\s*hidden/);
+  assert.match(mobileContract, /course-schedule-desktop[\s\S]*display:\s*none\s*!important/);
+  assert.match(mobileContract, /course-schedule-mobile[\s\S]*display:\s*grid\s*!important/);
+  assert.match(mobileContract, /instructor-portal-shortcuts[\s\S]*repeat\(2,\s*minmax\(0,\s*1fr\)\)/);
+  assert.match(mobileContract, /min-height:\s*44px/);
+  assert.match(mobileContract, /font-size:\s*16px\s*!important/);
+  assert.match(mobileContract, /ds-drawer:has\(\.instructor-activity-drawer-shell\)[\s\S]*width:\s*100vw\s*!important/);
+  assert.match(mobileContract, /has-instructor-attendance::after[\s\S]*#0f9f96/);
+  assert.doesNotMatch(mobileContract, /#e07a2f|#b86428|#9a4f18/);
 });
