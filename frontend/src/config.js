@@ -211,3 +211,4 @@ config.HOTFIX_VERSION = `attendance-duration-display-hhmm-sw-cache-1725-20260916
 config.HOTFIX_VERSION = `manager-attendance-summary-count-sw-cache-1723-20260916-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `admin-attendance-summary-count-sw-cache-1724-20260916-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `attendance-base-training-travel-details-20260922-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `attendance-cancellation-summary-parity-20260922-v1-${config.HOTFIX_VERSION}`;

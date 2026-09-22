@@ -55,6 +55,22 @@ function employeeId(row = {}) {
   return text(row.emp_id || row.employee_id || row.employeeId || row.EmployeeId || row.empNum || row.ID || row.id);
 }
 
+function attendanceHoursValue(row = {}) {
+  const value = Number(row.workHours ?? row.WorkHours ?? row.total_hours ?? row.totalHours ?? 0);
+  return Number.isFinite(value) ? Math.max(0, value) : 0;
+}
+
+function isCancellationAttendanceRow(row = {}) {
+  const generationKind = text(row.generationKind || row.generation_kind);
+  const activityType = text(row.activityType || row.ActivityType || row.activity_type).replace(/\s+/g, '');
+  return generationKind === 'travel_time_cancellation' || activityType === 'ביטולזמן';
+}
+
+function formatAttendanceHours(value) {
+  const totalMinutes = Math.max(0, Math.round((Number(value) || 0) * 60));
+  return Math.floor(totalMinutes / 60) + ':' + String(totalMinutes % 60).padStart(2, '0');
+}
+
 function ensureStyles() {
   if (document.getElementById(STYLE_ID)) return;
   const style = document.createElement('style');
@@ -87,7 +103,7 @@ function ensureStyles() {
     .admin-attendance-team__head h2 { margin:0; font-size:16px; }
     .admin-attendance-team__head span { color:var(--color-text-secondary,#64748b); font-size:12px; }
     .admin-attendance-table-wrap { overflow:auto; }
-    .admin-attendance-table { width:100%; border-collapse:collapse; min-width:980px; }
+    .admin-attendance-table { width:100%; border-collapse:collapse; min-width:1080px; }
     .admin-attendance-table th,.admin-attendance-table td { text-align:right; padding:11px 13px; border-bottom:1px solid var(--color-border,#edf1f5); vertical-align:middle; font-size:13px; }
     .admin-attendance-table th { color:var(--color-text-secondary,#64748b); font-size:12px; font-weight:700; background:rgba(248,250,252,.65); }
     .admin-attendance-table tr:last-child td { border-bottom:0; }
@@ -223,7 +239,7 @@ function summaryHtml(employees, workflowByEmployee, finalByEmployee, recordCount
   </div>`;
 }
 
-function groupsHtml(employees, workflowByEmployee, finalByEmployee, recordCounts, monthKey) {
+function groupsHtml(employees, workflowByEmployee, finalByEmployee, recordCounts, cancellationHours, monthKey) {
   return groupEmployees(employees).map(([manager, rows]) => {
     const body = rows.map((employee) => {
       const id = employeeId(employee);
@@ -231,9 +247,11 @@ function groupsHtml(employees, workflowByEmployee, finalByEmployee, recordCounts
       const finalApproval = finalByEmployee.get(id) || null;
       const status = workflowStatus(workflow, finalApproval);
       const reportCount = recordCounts.get(id) || 0;
+      const cancellation = cancellationHours.get(id) || 0;
       return `<tr data-admin-attendance-row="${escapeHtml(id)}">
         <td class="admin-attendance-person"><strong>${escapeHtml(text(employee.full_name) || id)}</strong><small>${escapeHtml(id)}${text(employee.employment_type) ? ` · ${escapeHtml(text(employee.employment_type))}` : ''}</small></td>
         <td>${reportCount ? `<span class="admin-attendance-status is-ok">קיים · ${reportCount} דיווחים</span>` : '<span class="admin-attendance-status">אין דיווח</span>'}</td>
+        <td><strong>${escapeHtml(formatAttendanceHours(cancellation))}</strong></td>
         <td>${approvalCell(workflow.submitted_by_name, workflow.submitted_at, 'טרם אושר עובד')}</td>
         <td>${approvalCell(workflow.manager_approved_by_name, workflow.manager_approved_at, 'טרם אושר מנהל')}</td>
         <td>${approvalCell(finalApproval?.approved_by_name, finalApproval?.approved_at, 'טרם אושר סופית')}</td>
@@ -244,7 +262,7 @@ function groupsHtml(employees, workflowByEmployee, finalByEmployee, recordCounts
     return `<section class="admin-attendance-team">
       <header class="admin-attendance-team__head"><h2>${escapeHtml(manager)}</h2><span>${rows.length} עובדים · ${escapeHtml(monthKey)}</span></header>
       <div class="admin-attendance-table-wrap"><table class="admin-attendance-table">
-        <thead><tr><th>עובד</th><th>דיווח</th><th>אישור עובד</th><th>אישור מנהל</th><th>אישור סופי</th><th>סטטוס</th><th>פעולות</th></tr></thead>
+        <thead><tr><th>עובד</th><th>דיווח</th><th>ביטול זמן</th><th>אישור עובד</th><th>אישור מנהל</th><th>אישור סופי</th><th>סטטוס</th><th>פעולות</th></tr></thead>
         <tbody>${body}</tbody>
       </table></div>
     </section>`;
@@ -277,18 +295,22 @@ async function renderData(root, monthKey, message = '') {
     const workflowByEmployee = new Map((workflowRows || []).map((row) => [text(row.employee_id || row.employeeId), row]));
     const finalByEmployee = new Map((finalRows || []).map((row) => [text(row.employee_id || row.employeeId), row]));
     const recordCounts = new Map(ids.map((id) => [id, 0]));
+    const cancellationHours = new Map(ids.map((id) => [id, 0]));
     for (const row of Array.isArray(attendanceRows) ? attendanceRows : []) {
       const id = employeeId(row);
       if (!recordCounts.has(id) || recordMonthKey(row) !== monthKey) continue;
       const generationKind = text(row?.generationKind || row?.generation_kind);
+      if (isCancellationAttendanceRow(row)) {
+        cancellationHours.set(id, (cancellationHours.get(id) || 0) + attendanceHoursValue(row));
+      }
       if (generationKind === 'travel_time_cancellation') continue;
       recordCounts.set(id, (recordCounts.get(id) || 0) + 1);
     }
-    root.__adminAttendanceContext = { employees, workflowByEmployee, finalByEmployee, recordCounts, monthKey };
+    root.__adminAttendanceContext = { employees, workflowByEmployee, finalByEmployee, recordCounts, cancellationHours, monthKey };
     const modeEl = root.querySelector('[data-admin-attendance-mode]');
     if (modeEl) modeEl.textContent = monthMode(monthKey).label;
     if (body) body.innerHTML = employees.length
-      ? `${summaryHtml(employees, workflowByEmployee, finalByEmployee, recordCounts, monthKey)}${groupsHtml(employees, workflowByEmployee, finalByEmployee, recordCounts, monthKey)}`
+      ? `${summaryHtml(employees, workflowByEmployee, finalByEmployee, recordCounts, monthKey)}${groupsHtml(employees, workflowByEmployee, finalByEmployee, recordCounts, cancellationHours, monthKey)}`
       : '<div class="admin-attendance-empty">לא נמצאו עובדים פעילים להצגה.</div>';
   } catch (error) {
     if (token !== renderToken || !root.isConnected) return;
