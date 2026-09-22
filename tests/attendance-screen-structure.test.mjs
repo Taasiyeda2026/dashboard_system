@@ -23,6 +23,7 @@ const attendanceSwSource = await readFile(new URL('../attendance/sw.js', import.
 const attendanceIndexSource = await readFile(new URL('../attendance/index.html', import.meta.url), 'utf8');
 const calSource     = await readFile(new URL('../attendance/src/components/mini-calendar.js', import.meta.url), 'utf8');
 const calendarDayDrawerSource = await readFile(new URL('../attendance/src/components/calendar-day-drawer.js', import.meta.url), 'utf8');
+const excelServiceSource = await readFile(new URL('../attendance/src/services/excel.service.js', import.meta.url), 'utf8');
 
 test('Attendance Home is summary-only with instructor monthly totals and no report rows', () => {
   assert.doesNotMatch(homeSource, /createMiniCalendar|av2-home__calendar|renderCalendarSection/);
@@ -112,6 +113,21 @@ test('Attendance calendar drawer shows only meaningful record details with reada
   assert.match(calendarDayDrawerSource, /if \(expenses > 0\)/);
   assert.doesNotMatch(calendarDayDrawerSource, /record\.public_transport \? money\(record\.public_transport_cost\) : 'לא'/);
   assert.doesNotMatch(calendarDayDrawerSource, /makeMeta\('הוצאות', money\(record\.expenses\)\)/);
+});
+
+test('Attendance Excel export uses real time values and a correctly structured total row', () => {
+  assert.match(excelServiceSource, /const excelClock = \(value\) =>/);
+  assert.match(excelServiceSource, /const excelDuration = \(value\) => Math\.max\(0, Number\(value\) \|\| 0\) \/ 24/);
+  assert.match(excelServiceSource, /'התחלה':\s+excelClock\(r\.start_time\)/);
+  assert.match(excelServiceSource, /'סיום':\s+excelClock\(r\.end_time\)/);
+  assert.match(excelServiceSource, /'שעות':\s+excelDuration\(r\.total_hours\)/);
+  assert.match(excelServiceSource, /applyNumberFormat\(XLSX, ws1, 4,[\s\S]*'\[h\]:mm'\)/);
+  assert.match(excelServiceSource, /'סוג פעילות': 'סה"כ'/);
+  assert.match(excelServiceSource, /'ק"מ': totalKm/);
+  assert.match(excelServiceSource, /'הוצאות \(₪\)': totalExpenses/);
+  assert.match(excelServiceSource, /header: \['סוג פעילות', 'מפגשים', 'שעות', 'ק"מ', 'הוצאות \(₪\)'\]/);
+  assert.doesNotMatch(excelServiceSource, /'סוג פעילות': 'סה"כ ק"מ'[\s\S]*'שעות':/);
+  assert.doesNotMatch(excelServiceSource, /Number\(totalHours\.toFixed\(2\)\)/);
 });
 
 test('Attendance New Report uses two compact desktop cards and instructor activity IDs', () => {
