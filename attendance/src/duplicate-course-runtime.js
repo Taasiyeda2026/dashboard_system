@@ -91,6 +91,8 @@ async function loadCourseSchedule(record) {
       date: clean(item?.date),
       start_time: clean(item?.start_time),
       end_time: clean(item?.end_time),
+      assigned_to_current: item?.assigned_to_current !== false,
+      assigned_instructor_name: clean(item?.assigned_instructor_name),
     }))
     .filter((item) => Number.isInteger(item.meeting_no) && item.meeting_no > 0 && /^\d{4}-\d{2}-\d{2}$/.test(item.date))
     .sort((a, b) => a.meeting_no - b.meeting_no);
@@ -233,12 +235,13 @@ async function enhanceDuplicateCourseForm() {
 
     const sourceMeetingNo = Number(sourceRecord.meeting_no) || 0;
     const nextMeeting = schedule.find((item) => item.meeting_no > sourceMeetingNo) || null;
+    const nextMeetingAssignedToCurrent = !!nextMeeting && nextMeeting.assigned_to_current !== false;
     const nextMeetingAlreadyReported = !!nextMeeting && (
       usedKeys.has(`${nextMeeting.meeting_no}|${nextMeeting.date}`)
       || usedMeetingNos.has(nextMeeting.meeting_no)
       || usedDates.has(nextMeeting.date)
     );
-    const available = nextMeeting && !nextMeetingAlreadyReported ? [nextMeeting] : [];
+    const available = nextMeeting && nextMeetingAssignedToCurrent && !nextMeetingAlreadyReported ? [nextMeeting] : [];
 
     ensureStyles();
     duplicateNote.textContent = 'שכפול חכם — הדיווח נפתח רק עבור המפגש הבא בדשבורד, גם אם הוא בחודש הבא; נסיעות והוצאות הועתקו מהדיווח הקודם.';
@@ -254,12 +257,18 @@ async function enhanceDuplicateCourseForm() {
     if (!available.length) {
       const option = document.createElement('option');
       option.value = '';
-      option.textContent = nextMeetingAlreadyReported ? 'המפגש הבא כבר דווח' : 'אין מפגש הבא בדשבורד';
+      option.textContent = !nextMeeting
+        ? 'אין מפגש הבא בדשבורד'
+        : (!nextMeetingAssignedToCurrent ? 'המפגש הבא משויך למדריך אחר' : 'המפגש הבא כבר דווח');
       dateSelect.append(option);
       dateSelect.disabled = true;
       const empty = document.createElement('p');
       empty.className = 'av2-duplicate-course-empty';
-      empty.textContent = nextMeetingAlreadyReported ? 'המפגש הבא בדשבורד כבר דווח ולכן לא ניתן לדלג למפגש מאוחר יותר.' : 'לא נמצא מפגש הבא בדשבורד. לא ניתן ליצור שכפול נוסף.';
+      empty.textContent = !nextMeeting
+        ? 'לא נמצא מפגש הבא בדשבורד. לא ניתן ליצור שכפול נוסף.'
+        : (!nextMeetingAssignedToCurrent
+          ? 'המפגש הבא בדשבורד משויך למדריך אחר ולכן לא ניתן לדלג למפגש מאוחר יותר.'
+          : 'המפגש הבא בדשבורד כבר דווח ולכן לא ניתן לדלג למפגש מאוחר יותר.');
       fieldWrap?.append(dateSelect, empty);
       const save = form.querySelector('button[type="submit"]');
       if (save) save.disabled = true;
