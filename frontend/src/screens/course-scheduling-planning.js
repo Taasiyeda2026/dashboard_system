@@ -1,0 +1,978 @@
+import { calculateCourseSchedule, preliminaryCourseCandidates } from './course-scheduling-engine.js';
+import { compareCandidatesStable } from './course-scheduling-score.js';
+import { calculateCandidateTravel, createRouteClient } from './course-scheduling-travel.js';
+import { activityMeetings, schedulingCalendarMeetings } from './instructor-scheduling-load.js';
+import { blockedSchoolDates, effectiveEndTime } from './course-scheduling-date-adjustments.js';
+import { resolveCourseSchedulingPeriod } from './course-scheduling-periods.js';
+import {
+  isSchedulingActivityActive,
+  isSchedulingBlockingAssignment,
+  isSchedulingDraftAssignment,
+  schedulingActivityTypeCategory
+} from './shared/activity-scheduling-eligibility.js';
+import { filterSchoolCalendarRowsBySector } from './shared/school-calendar-logic.js';
+import { normalizeOperationalDistrict } from './shared/district-normalization.js';
+import { escapeHtml } from './shared/html.js';
+import { formatDateHe, formatTimeRangeShort } from './shared/format-date.js';
+
+const text = (value) => String(value ?? '').trim();
+const idOf = (row) => text(row?.row_id || row?.RowID || row?.id);
+const empOf = (candidate) => text(candidate?.instructor?.emp_id);
+const norm = (value) => text(value).replace(/\s+/g, ' ').toLocaleLowerCase('he-IL');
+const FIRST_PERIOD_KEY = 'first';
+const DEFAULT_TIME_SLOTS = ['08:00', '09:30', '11:00', '12:30', '14:00'];
+const MAX_SCENARIOS_PER_COURSE = 12;
+const MAX_FINAL_OPTIONS = 3;
+
+function timeMinutes(value) {
+  const match = text(value).match(/^(\d{1,2}):(\d{2})/);
+  if (!match) return null;
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  if (!Number.isInteger(hours) || hours < 0 || hours > 23 || !Number.isInteger(minutes) || minutes < 0 || minutes > 59) return null;
+  return hours * 60 + minutes;
+}
+
+function formatMinutes(total) {
+  const value = Number(total);
+  if (!Number.isFinite(value) || value < 0 || value >= 24 * 60) return '';
+  return `${String(Math.floor(value / 60)).padStart(2, '0')}:${String(value % 60).padStart(2, '0')}`;
+}
+
+function addDays(value, days) {
+  const date = new Date(`${text(value).slice(0, 10)}T12:00:00Z`);
+  if (Number.isNaN(date.getTime())) return '';
+  date.setUTCDate(date.getUTCDate() + Number(days || 0));
+  return date.toISOString().slice(0, 10);
+}
+
+function weekday(value) {
+  const date = new Date(`${text(value).slice(0, 10)}T12:00:00Z`);
+  return Number.isNaN(date.getTime()) ? null : date.getUTCDay();
+}
+
+function validTimeRange(startTime, endTime) {
+  const start = timeMinutes(startTime);
+  const end = timeMinutes(endTime);
+  return start != null && end != null && end > start;
+}
+
+function meetingCount(activity = {}) {
+  const configured = Number(activity.sessions);
+  if (Number.isFinite(configured) && configured > 0) return Math.min(35, Math.floor(configured));
+  return activityMeetings(activity).length;
+}
+
+function parseUnitDurationMinutes(value) {
+  const raw = text(value);
+  if (!raw) return null;
+  const minutesMatch = raw.match(/(\d+(?:\.\d+)?)\s*(?:דק|דקות|minute|min)/i);
+  if (minutesMatch) return Number(minutesMatch[1]);
+  const hoursMatch = raw.match(/(\d+(?:\.\d+)?)\s*(?:שעה|שעות|hour|hr)/i);
+  if (hoursMatch) return Number(hoursMatch[1]) * 60;
+  return null;
+}
+
+function roundedDurationMinutes(value) {
+  const num = Number(value);
+  if (!Number.isFinite(num) || num <= 0) return null;
+  return Math.max(30, Math.round(num / 15) * 15);
+}
+
+export function planningCatalogIndex(rows = []) {
+  const byActivityNo = new Map();
+  const byName = new Map();
+  for (const row of rows || []) {
+    const activityNo = text(row?.activity_no);
+    if (activityNo && !byActivityNo.has(activityNo)) byActivityNo.set(activityNo, row);
+    for (const name of [row?.activity_name, row?.program_name, row?.name, row?.title]) {
+      const key = norm(name);
+      if (key && !byName.has(key)) byName.set(key, row);
+    }
+  }
+  return { byActivityNo, byName };
+}
+
+function catalogRowForActivity(activity = {}, catalogIndex = planningCatalogIndex()) {
+  const activityNo = text(activity.activity_no);
+  if (activityNo && catalogIndex.byActivityNo?.has(activityNo)) return catalogIndex.byActivityNo.get(activityNo);
+  return catalogIndex.byName?.get(norm(activity.activity_name || activity.program_name || activity.name)) || null;
+}
+
+export function inferPlanningCourseSpec(activity = {}, catalogRows = []) {
+  const catalogIndex = catalogRows?.byActivityNo instanceof Map ? catalogRows : planningCatalogIndex(catalogRows);
+  const catalog = catalogRowForActivity(activity, catalogIndex);
+  const sessions = meetingCount(activity)
+    || (Number(catalog?.meetings_count) > 0 ? Math.min(35, Math.floor(Number(catalog.meetings_count))) : 0);
+
+  let durationMinutes = null;
+  if (validTimeRange(activity.start_time, activity.end_time)) {
+    durationMinutes = timeMinutes(activity.end_time) - timeMinutes(activity.start_time);
+  } else if (Number(catalog?.hours_count) > 0 && Number(catalog?.meetings_count) > 0) {
+    durationMinutes = (Number(catalog.hours_count) * 60) / Number(catalog.meetings_count);
+  } else {
+    durationMinutes = parseUnitDurationMinutes(catalog?.unit_duration);
+  }
+
+  return {
+    sessions,
+    durationMinutes: roundedDurationMinutes(durationMinutes),
+    catalog,
+    complete: sessions > 0 && roundedDurationMinutes(durationMinutes) != null
+  };
+}
+
+export function isPlanningCourse(activity = {}) {
+  return String(activity.activity_season || '') === 'school_2027'
+    && isSchedulingActivityActive(activity)
+    && schedulingActivityTypeCategory(activity.activity_type || activity.type) === 'course';
+}
+
+export function planningWorkspaceCourses(activities = [], district = '') {
+  const normalizedDistrict = normalizeOperationalDistrict(district);
+  const period = resolveCourseSchedulingPeriod(FIRST_PERIOD_KEY);
+  return (activities || [])
+    .filter(isPlanningCourse)
+    .filter((activity) => {
+      const meetings = schedulingCalendarMeetings(activity);
+      if (!meetings.length) return true;
+      return meetings.some((meeting) => {
+        const date = text(meeting?.date).slice(0, 10);
+        return date >= period.start && date <= period.end;
+      });
+    })
+    .filter((activity) => !normalizedDistrict || normalizeOperationalDistrict(activity.district || activity.school_district || activity.authority_district) === normalizedDistrict);
+}
+
+export function hasOfficialPlanningSchedule(activity = {}) {
+  return activityMeetings(activity).length > 0 && validTimeRange(activity.start_time, activity.end_time);
+}
+
+function courseCalendarRows(activity = {}, schoolCalendar = []) {
+  return filterSchoolCalendarRowsBySector(schoolCalendar || [], activity.calendar_sector);
+}
+
+export function buildWeeklyPlanningMeetings({
+  activity = {},
+  startDate = '',
+  startTime = '',
+  durationMinutes = 90,
+  sessions = 0,
+  schoolCalendar = [],
+  periodKey = FIRST_PERIOD_KEY
+} = {}) {
+  const period = resolveCourseSchedulingPeriod(periodKey);
+  const count = Math.max(0, Math.min(35, Math.floor(Number(sessions) || 0)));
+  const duration = roundedDurationMinutes(durationMinutes);
+  const startMinutes = timeMinutes(startTime);
+  if (!count || !duration || startMinutes == null) return null;
+  const endTime = formatMinutes(startMinutes + duration);
+  if (!endTime) return null;
+
+  const calendarRows = courseCalendarRows(activity, schoolCalendar);
+  const blocked = blockedSchoolDates(calendarRows);
+  let candidate = text(startDate).slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(candidate) || candidate < period.start || candidate > period.end) return null;
+  if (weekday(candidate) === 6) return null;
+
+  const meetings = [];
+  for (let index = 0; index < count; index += 1) {
+    if (index > 0) candidate = addDays(candidate, 7);
+    let guard = 0;
+    while ((weekday(candidate) === 6 || blocked.has(candidate)) && guard++ < 30) {
+      candidate = addDays(candidate, 7);
+    }
+    if (!candidate || candidate > period.end || guard >= 30) return null;
+    const cappedEnd = effectiveEndTime(candidate, endTime, calendarRows);
+    if (text(cappedEnd).slice(0, 5) !== endTime) return null;
+    meetings.push({
+      date: candidate,
+      meeting_no: index + 1,
+      start_time: startTime,
+      end_time: endTime
+    });
+  }
+
+  return {
+    meetings,
+    startDate: meetings[0]?.date || '',
+    endDate: meetings.at(-1)?.date || '',
+    startTime,
+    endTime
+  };
+}
+
+function firstOnOrAfter(date, targetWeekday) {
+  let cursor = text(date).slice(0, 10);
+  for (let guard = 0; guard < 8; guard += 1) {
+    if (weekday(cursor) === targetWeekday) return cursor;
+    cursor = addDays(cursor, 1);
+  }
+  return '';
+}
+
+function lastOnOrBefore(date, targetWeekday) {
+  let cursor = text(date).slice(0, 10);
+  for (let guard = 0; guard < 8; guard += 1) {
+    if (weekday(cursor) === targetWeekday) return cursor;
+    cursor = addDays(cursor, -1);
+  }
+  return '';
+}
+
+function latestApproxStart(periodEnd, targetWeekday, sessions) {
+  const rough = addDays(periodEnd, -7 * Math.max(0, Number(sessions) - 1));
+  return lastOnOrBefore(rough, targetWeekday);
+}
+
+function blockingActivities(activities = []) {
+  return (activities || []).filter((activity) => isSchedulingBlockingAssignment(activity) || isSchedulingDraftAssignment(activity));
+}
+
+function blockingMeetings(activities = []) {
+  const rows = [];
+  for (const activity of blockingActivities(activities)) {
+    const source = isSchedulingDraftAssignment(activity)
+      ? schedulingCalendarMeetings(activity)
+      : activityMeetings(activity);
+    for (const meeting of source) {
+      rows.push({
+        ...meeting,
+        emp_id: isSchedulingDraftAssignment(activity) ? text(activity.draft_emp_id) : text(activity.emp_id),
+        activity_id: idOf(activity),
+        school_id: activity.school_id,
+        school: activity.school,
+        authority: activity.authority
+      });
+    }
+  }
+  return rows;
+}
+
+function activeInstructorIds(instructors = []) {
+  return new Set((instructors || [])
+    .filter((row) => !['no', 'false', '0', 'לא', 'inactive', 'לא פעיל'].includes(text(row?.active).toLocaleLowerCase('he-IL')))
+    .map((row) => text(row.emp_id))
+    .filter(Boolean));
+}
+
+function dynamicTimesForWeekday({
+  targetWeekday,
+  durationMinutes,
+  activity = {},
+  instructors = [],
+  rules = {},
+  activities = []
+} = {}) {
+  const counts = new Map(DEFAULT_TIME_SLOTS.map((slot) => [slot, 1]));
+  const activeIds = activeInstructorIds(instructors);
+  const requestedStart = validTimeRange(activity.start_time, activity.end_time) ? text(activity.start_time).slice(0, 5) : '';
+  if (requestedStart) counts.set(requestedStart, (counts.get(requestedStart) || 0) + 50);
+
+  for (const empId of activeIds) {
+    const weekdayRules = (rules[empId] || []).filter((rule) =>
+      Number(rule.weekday) === Number(targetWeekday) && rule.available === true
+    );
+    for (const rule of weekdayRules) {
+      const from = timeMinutes(rule.start_time);
+      const to = timeMinutes(rule.end_time);
+      if (from == null || to == null || to - from < durationMinutes) continue;
+      for (let minute = from; minute + durationMinutes <= to; minute += 30) {
+        const slot = formatMinutes(minute);
+        counts.set(slot, (counts.get(slot) || 0) + 2);
+      }
+    }
+  }
+
+  for (const meeting of blockingMeetings(activities)) {
+    if (weekday(meeting.date) !== Number(targetWeekday)) continue;
+    const after = text(meeting.end_time).slice(0, 5);
+    const beforeMinute = timeMinutes(meeting.start_time) - durationMinutes;
+    if (after) counts.set(after, (counts.get(after) || 0) + 6);
+    const before = formatMinutes(beforeMinute);
+    if (before) counts.set(before, (counts.get(before) || 0) + 6);
+  }
+
+  return [...counts.entries()]
+    .filter(([slot]) => {
+      const minute = timeMinutes(slot);
+      return minute != null && minute >= 7 * 60 && minute + durationMinutes <= 18 * 60;
+    })
+    .sort((a, b) => b[1] - a[1] || timeMinutes(a[0]) - timeMinutes(b[0]))
+    .slice(0, 5)
+    .map(([slot]) => slot);
+}
+
+function candidateStartDates({ targetWeekday, sessions, today, activities = [], periodKey = FIRST_PERIOD_KEY } = {}) {
+  const period = resolveCourseSchedulingPeriod(periodKey);
+  const floor = text(today) > period.start ? text(today).slice(0, 10) : period.start;
+  const earliest = firstOnOrAfter(floor, targetWeekday);
+  const latest = latestApproxStart(period.end, targetWeekday, sessions);
+  const values = new Set();
+  if (earliest && earliest <= period.end) values.add(earliest);
+
+  const releaseDates = blockingActivities(activities)
+    .flatMap((activity) => {
+      const meetings = schedulingCalendarMeetings(activity);
+      const last = meetings.map((meeting) => text(meeting.date).slice(0, 10)).filter(Boolean).sort().at(-1);
+      return last ? [last] : [];
+    })
+    .filter((date) => date >= floor && date <= period.end)
+    .sort();
+
+  for (const release of releaseDates) {
+    const next = firstOnOrAfter(addDays(release, 1), targetWeekday);
+    if (next && next >= floor && next <= period.end) values.add(next);
+    if (values.size >= 3) break;
+  }
+  if (latest && latest >= floor && latest <= period.end) values.add(latest);
+  return [...values].sort().slice(0, 4);
+}
+
+function ruleCovers(rule, startTime, endTime) {
+  if (!rule?.available) return false;
+  const start = timeMinutes(startTime);
+  const end = timeMinutes(endTime);
+  const ruleStart = timeMinutes(rule.start_time);
+  const ruleEnd = timeMinutes(rule.end_time);
+  return start != null && end != null && ruleStart != null && ruleEnd != null && start >= ruleStart && end <= ruleEnd;
+}
+
+function scenarioHeuristic({ scenario, instructors = [], rules = {}, activities = [] } = {}) {
+  const activeIds = activeInstructorIds(instructors);
+  const day = weekday(scenario.startDate);
+  let availabilityCoverage = 0;
+  for (const empId of activeIds) {
+    if ((rules[empId] || []).some((rule) => Number(rule.weekday) === day && ruleCovers(rule, scenario.startTime, scenario.endTime))) {
+      availabilityCoverage += 1;
+    }
+  }
+
+  let adjacency = 0;
+  for (const meeting of blockingMeetings(activities)) {
+    if (weekday(meeting.date) !== day) continue;
+    if (text(meeting.end_time).slice(0, 5) === scenario.startTime || text(meeting.start_time).slice(0, 5) === scenario.endTime) adjacency += 1;
+  }
+  return availabilityCoverage * 10 + adjacency * 4;
+}
+
+export function generatePlanningScenarios({
+  activity = {},
+  catalog = [],
+  instructors = [],
+  rules = {},
+  activities = [],
+  schoolCalendar = [],
+  today = '',
+  periodKey = FIRST_PERIOD_KEY,
+  maxScenarios = MAX_SCENARIOS_PER_COURSE
+} = {}) {
+  const spec = inferPlanningCourseSpec(activity, catalog);
+  if (!spec.complete) return { spec, scenarios: [], startRange: null };
+
+  const raw = [];
+  for (let day = 0; day <= 4; day += 1) {
+    const starts = candidateStartDates({ targetWeekday: day, sessions: spec.sessions, today, activities, periodKey });
+    const times = dynamicTimesForWeekday({
+      targetWeekday: day,
+      durationMinutes: spec.durationMinutes,
+      activity,
+      instructors,
+      rules,
+      activities
+    });
+    for (const startDate of starts) {
+      for (const startTime of times) {
+        const built = buildWeeklyPlanningMeetings({
+          activity,
+          startDate,
+          startTime,
+          durationMinutes: spec.durationMinutes,
+          sessions: spec.sessions,
+          schoolCalendar,
+          periodKey
+        });
+        if (!built) continue;
+        raw.push({
+          ...built,
+          heuristic: scenarioHeuristic({ scenario: built, instructors, rules, activities })
+        });
+      }
+    }
+  }
+
+  const unique = [...new Map(raw.map((scenario) => [`${scenario.startDate}|${scenario.startTime}|${scenario.endTime}`, scenario])).values()];
+  const sorted = unique.sort((a, b) =>
+    b.heuristic - a.heuristic
+    || a.startDate.localeCompare(b.startDate)
+    || a.startTime.localeCompare(b.startTime)
+  );
+  const startDates = unique.map((item) => item.startDate).sort();
+  return {
+    spec,
+    scenarios: sorted.slice(0, Math.max(1, Number(maxScenarios) || MAX_SCENARIOS_PER_COURSE)),
+    startRange: startDates.length ? { min: startDates[0], max: startDates.at(-1) } : null
+  };
+}
+
+function scenarioCourse(activity, scenario, index = 0) {
+  const sourceId = idOf(activity);
+  return {
+    ...activity,
+    row_id: `planning:${sourceId}:${index + 1}`,
+    __planning_source_id: sourceId,
+    meetings: scenario.meetings,
+    start_date: scenario.startDate,
+    end_date: scenario.endDate,
+    start_time: scenario.startTime,
+    end_time: scenario.endTime,
+    emp_id: null,
+    instructor_name: null,
+    emp_id_2: null,
+    instructor_name_2: null,
+    draft_emp_id: null,
+    draft_instructor_name: null,
+    draft_proposed_meetings: null,
+    instructor_assignment_locked: false,
+    instructor_assignment_status: null,
+    status: 'פתוח'
+  };
+}
+
+function selectedCandidate(result = {}) {
+  return result?.recommended || result?.bestAvailable || null;
+}
+
+function optionFromCandidate(course, candidate, { routeVerified = true, startRange = null } = {}) {
+  if (!candidate) return null;
+  const meetings = activityMeetings(course);
+  return {
+    instructorEmpId: empOf(candidate),
+    instructorName: text(candidate.instructor?.full_name) || empOf(candidate),
+    score: Number.isFinite(Number(candidate.score)) ? Number(candidate.score) : null,
+    startDate: meetings[0]?.date || course.start_date || '',
+    endDate: meetings.at(-1)?.date || course.end_date || '',
+    startTime: text(meetings[0]?.start_time || course.start_time).slice(0, 5),
+    endTime: text(meetings[0]?.end_time || course.end_time).slice(0, 5),
+    meetings: meetings.map((meeting, index) => ({
+      date: text(meeting.date).slice(0, 10),
+      meeting_no: Number(meeting.meeting_no) || index + 1,
+      start_time: text(meeting.start_time || course.start_time).slice(0, 5),
+      end_time: text(meeting.end_time || course.end_time).slice(0, 5)
+    })),
+    routeVerified,
+    startRange,
+    reason: text(candidate.recommendationReason)
+      || (routeVerified ? 'האפשרות משתלבת בלוח הקיים ועומדת בתנאי הסף' : 'האפשרות מתאימה לפי זמינות; נדרש אימות מרחקים')
+  };
+}
+
+function optionCompare(first, second) {
+  const candidateOrder = compareCandidatesStable(first._candidate || {}, second._candidate || {});
+  if (candidateOrder) return candidateOrder;
+  if (first.startDate !== second.startDate) return first.startDate.localeCompare(second.startDate);
+  return first.startTime.localeCompare(second.startTime);
+}
+
+async function evaluateScenarioOptions({
+  activity,
+  scenarios,
+  startRange,
+  contextActivities,
+  instructors,
+  profiles,
+  rules,
+  exceptions,
+  schoolCalendar,
+  today,
+  routeClient
+} = {}) {
+  const preliminaries = [];
+  for (let index = 0; index < scenarios.length; index += 1) {
+    const course = scenarioCourse(activity, scenarios[index], index);
+    const candidates = preliminaryCourseCandidates({
+      activities: [...contextActivities, course],
+      targetCourseId: course.row_id,
+      periodKey: FIRST_PERIOD_KEY,
+      instructors,
+      profiles,
+      rules,
+      exceptions,
+      schoolCalendar,
+      referenceDate: today
+    }).map((item) => item.candidate).filter(Boolean).sort(compareCandidatesStable);
+    const candidate = candidates[0] || null;
+    if (candidate) preliminaries.push({ course, candidate });
+  }
+  if (!preliminaries.length) return [];
+
+  preliminaries.sort((first, second) => {
+    const order = compareCandidatesStable(first.candidate, second.candidate);
+    if (order) return order;
+    return text(first.course.start_date).localeCompare(text(second.course.start_date));
+  });
+  const finalists = preliminaries.slice(0, MAX_FINAL_OPTIONS);
+
+  let routed = null;
+  try {
+    routed = await calculateCandidateTravel(
+      finalists.map((item) => ({ course: item.course, candidate: item.candidate })),
+      contextActivities,
+      routeClient
+    );
+  } catch {
+    routed = null;
+  }
+
+  const options = [];
+  for (const finalist of finalists) {
+    let finalCandidate = null;
+    if (routed) {
+      const finalResult = calculateCourseSchedule({
+        activities: [...contextActivities, finalist.course],
+        targetCourseId: finalist.course.row_id,
+        periodKey: FIRST_PERIOD_KEY,
+        instructors,
+        profiles,
+        rules,
+        exceptions,
+        schoolCalendar,
+        referenceDate: today,
+        travel: routed.travel,
+        routeMatrix: routed.routeMatrix,
+        travelUnavailableReason: routed.unavailableReason || ''
+      })[0];
+      finalCandidate = selectedCandidate(finalResult);
+    }
+    const candidate = finalCandidate || finalist.candidate;
+    const option = optionFromCandidate(finalist.course, candidate, {
+      routeVerified: !!finalCandidate,
+      startRange
+    });
+    if (option) options.push({ ...option, _candidate: candidate });
+  }
+  return options.sort(optionCompare).slice(0, MAX_FINAL_OPTIONS);
+}
+
+async function evaluateFixedCourse({
+  activity,
+  contextActivities,
+  instructors,
+  profiles,
+  rules,
+  exceptions,
+  schoolCalendar,
+  today,
+  routeClient
+} = {}) {
+  const candidates = preliminaryCourseCandidates({
+    activities: contextActivities,
+    targetCourseId: idOf(activity),
+    periodKey: FIRST_PERIOD_KEY,
+    instructors,
+    profiles,
+    rules,
+    exceptions,
+    schoolCalendar,
+    referenceDate: today
+  }).map((item) => item.candidate).filter(Boolean).sort(compareCandidatesStable);
+
+  const finalists = candidates.slice(0, MAX_FINAL_OPTIONS);
+  if (!finalists.length) return [];
+  let routed = null;
+  try {
+    routed = await calculateCandidateTravel(
+      finalists.map((candidate) => ({ course: activity, candidate })),
+      contextActivities,
+      routeClient
+    );
+  } catch {
+    routed = null;
+  }
+  const options = [];
+  for (const preliminary of finalists) {
+    let finalCandidate = null;
+    if (routed) {
+      const result = calculateCourseSchedule({
+        activities: contextActivities,
+        targetCourseId: idOf(activity),
+        periodKey: FIRST_PERIOD_KEY,
+        instructors,
+        profiles,
+        rules,
+        exceptions,
+        schoolCalendar,
+        referenceDate: today,
+        travel: routed.travel,
+        routeMatrix: routed.routeMatrix,
+        travelUnavailableReason: routed.unavailableReason || ''
+      })[0];
+      finalCandidate = selectedCandidate(result);
+      if (finalCandidate) {
+        const duplicate = options.some((option) => option.instructorEmpId === empOf(finalCandidate));
+        if (!duplicate) options.push({ ...optionFromCandidate(activity, finalCandidate, { routeVerified: true }), _candidate: finalCandidate });
+        break;
+      }
+    }
+    options.push({ ...optionFromCandidate(activity, preliminary, { routeVerified: false }), _candidate: preliminary });
+  }
+  return options.filter(Boolean).sort(optionCompare).slice(0, MAX_FINAL_OPTIONS);
+}
+
+function blockingVirtualActivity(activity = {}, option = null) {
+  if (!option?.instructorEmpId) return null;
+  return {
+    ...activity,
+    row_id: `planning-block:${idOf(activity)}`,
+    meetings: option.meetings,
+    start_date: option.startDate,
+    end_date: option.endDate,
+    start_time: option.startTime,
+    end_time: option.endTime,
+    emp_id: null,
+    instructor_name: null,
+    emp_id_2: null,
+    instructor_name_2: null,
+    draft_emp_id: option.instructorEmpId,
+    draft_instructor_name: option.instructorName,
+    draft_proposed_meetings: option.meetings.map((meeting) => ({
+      date: meeting.date,
+      start_time: meeting.start_time,
+      end_time: meeting.end_time
+    })),
+    instructor_assignment_locked: false,
+    status: 'פתוח'
+  };
+}
+
+function liveRow(activity = {}) {
+  const meetings = schedulingCalendarMeetings(activity);
+  const first = meetings[0] || {};
+  const last = meetings.at(-1) || {};
+  const draft = !text(activity.emp_id) && text(activity.draft_emp_id);
+  const assigned = !!text(activity.emp_id);
+  return {
+    courseId: idOf(activity),
+    authority: text(activity.authority),
+    school: text(activity.school),
+    courseName: text(activity.activity_name),
+    sessions: meetingCount(activity) || meetings.length,
+    kind: assigned ? 'live' : (draft ? 'draft' : 'fixed'),
+    status: assigned ? 'מעודכן בפועל' : (draft ? 'טיוטת שיבוץ קיימת' : 'מועד קבוע · ממתין למדריך'),
+    startDate: text(first.date || activity.start_date).slice(0, 10),
+    endDate: text(last.date || activity.end_date).slice(0, 10),
+    startTime: text(first.start_time || activity.start_time).slice(0, 5),
+    endTime: text(first.end_time || activity.end_time).slice(0, 5),
+    instructorName: text(activity.instructor_name || activity.draft_instructor_name),
+    instructorEmpId: text(activity.emp_id || activity.draft_emp_id),
+    options: [],
+    reason: assigned ? 'נלקח מהשיבוץ הפעיל' : (draft ? 'נלקח מטיוטת השיבוץ הקיימת' : 'התאריך והשעות נלקחו מהפעילות')
+  };
+}
+
+function missingOverviewRow(activity = {}, catalog = []) {
+  const spec = inferPlanningCourseSpec(activity, catalog);
+  return {
+    courseId: idOf(activity),
+    authority: text(activity.authority),
+    school: text(activity.school),
+    courseName: text(activity.activity_name),
+    sessions: spec.sessions || meetingCount(activity),
+    kind: 'missing',
+    status: spec.complete ? 'ממתין לתכנון' : 'חסרים נתוני משך/מפגשים',
+    startDate: '',
+    endDate: '',
+    startTime: '',
+    endTime: '',
+    instructorName: '',
+    instructorEmpId: '',
+    options: [],
+    reason: spec.complete
+      ? 'אין עדיין תאריך ושעה מבית הספר'
+      : 'לא ניתן לחשב הצעה עד שיוגדר מספר מפגשים ומשך מפגש'
+  };
+}
+
+export function buildPlanningOverviewRows({ activities = [], catalog = [], district = '' } = {}) {
+  return planningWorkspaceCourses(activities, district).map((activity) =>
+    hasOfficialPlanningSchedule(activity) || isSchedulingDraftAssignment(activity)
+      ? liveRow(activity)
+      : missingOverviewRow(activity, catalog)
+  );
+}
+
+function planRowFromOption(activity, option, options, startRange, spec) {
+  return {
+    courseId: idOf(activity),
+    authority: text(activity.authority),
+    school: text(activity.school),
+    courseName: text(activity.activity_name),
+    sessions: spec?.sessions || meetingCount(activity),
+    kind: 'proposal',
+    status: option ? 'הצעת תכנון' : 'לא נמצאה אפשרות',
+    startDate: option?.startDate || '',
+    endDate: option?.endDate || '',
+    startTime: option?.startTime || '',
+    endTime: option?.endTime || '',
+    instructorName: option?.instructorName || '',
+    instructorEmpId: option?.instructorEmpId || '',
+    options: (options || []).map(({ _candidate, ...item }) => item),
+    startRange,
+    reason: option?.reason || 'לא נמצאה התאמה שעומדת בתנאי הסף'
+  };
+}
+
+export function planningDataFingerprint(activities = []) {
+  const rows = planningWorkspaceCourses(activities)
+    .map((activity) => ({
+      id: idOf(activity),
+      emp: text(activity.emp_id),
+      draft: text(activity.draft_emp_id),
+      start: text(activity.start_time),
+      end: text(activity.end_time),
+      dates: schedulingCalendarMeetings(activity).map((meeting) => [
+        text(meeting.date).slice(0, 10),
+        text(meeting.start_time || activity.start_time).slice(0, 5),
+        text(meeting.end_time || activity.end_time).slice(0, 5)
+      ])
+    }))
+    .sort((a, b) => a.id.localeCompare(b.id));
+  let hash = 2166136261;
+  const value = JSON.stringify(rows);
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(36);
+}
+
+export async function buildDynamicCoursePlan({
+  activities = [],
+  instructors = [],
+  profiles = {},
+  rules = {},
+  exceptions = {},
+  schoolCalendar = [],
+  catalog = [],
+  district = '',
+  today = '',
+  routeClient = createRouteClient(),
+  onProgress = null
+} = {}) {
+  const targets = planningWorkspaceCourses(activities, district);
+  const contextActivities = [...activities];
+  const virtualPlans = [];
+  const rowsById = new Map();
+  const fixedUnassigned = [];
+  const missingSchedule = [];
+
+  for (const activity of targets) {
+    if (hasOfficialPlanningSchedule(activity) || isSchedulingDraftAssignment(activity)) {
+      if (text(activity.emp_id) || text(activity.draft_emp_id)) rowsById.set(idOf(activity), liveRow(activity));
+      else fixedUnassigned.push(activity);
+    } else {
+      missingSchedule.push(activity);
+    }
+  }
+
+  fixedUnassigned.sort((a, b) => {
+    const ad = text(activityMeetings(a)[0]?.date || a.start_date);
+    const bd = text(activityMeetings(b)[0]?.date || b.start_date);
+    return ad.localeCompare(bd) || idOf(a).localeCompare(idOf(b));
+  });
+
+  missingSchedule.sort((a, b) => {
+    const as = inferPlanningCourseSpec(a, catalog);
+    const bs = inferPlanningCourseSpec(b, catalog);
+    return (bs.sessions - as.sessions)
+      || ((bs.durationMinutes || 0) - (as.durationMinutes || 0))
+      || idOf(a).localeCompare(idOf(b));
+  });
+
+  const queue = [
+    ...fixedUnassigned.map((activity) => ({ activity, type: 'fixed' })),
+    ...missingSchedule.map((activity) => ({ activity, type: 'missing' }))
+  ];
+  let completed = 0;
+
+  for (const item of queue) {
+    const { activity, type } = item;
+    const currentContext = [...contextActivities, ...virtualPlans];
+    if (type === 'fixed') {
+      const options = await evaluateFixedCourse({
+        activity,
+        contextActivities: currentContext,
+        instructors,
+        profiles,
+        rules,
+        exceptions,
+        schoolCalendar,
+        today,
+        routeClient
+      });
+      const chosen = options[0] || null;
+      const row = {
+        ...liveRow(activity),
+        kind: 'fixed-proposal',
+        status: chosen ? 'מועד קבוע · מדריך מוצע' : 'מועד קבוע · אין מדריך מתאים',
+        instructorName: chosen?.instructorName || '',
+        instructorEmpId: chosen?.instructorEmpId || '',
+        options: options.map(({ _candidate, ...option }) => option),
+        reason: chosen?.reason || 'לא נמצא מדריך שעומד בתנאי הסף'
+      };
+      rowsById.set(idOf(activity), row);
+      const virtual = blockingVirtualActivity(activity, chosen);
+      if (virtual) virtualPlans.push(virtual);
+    } else {
+      const generated = generatePlanningScenarios({
+        activity,
+        catalog,
+        instructors,
+        rules,
+        activities: currentContext,
+        schoolCalendar,
+        today,
+        periodKey: FIRST_PERIOD_KEY
+      });
+      if (!generated.spec.complete) {
+        rowsById.set(idOf(activity), missingOverviewRow(activity, catalog));
+      } else {
+        const options = await evaluateScenarioOptions({
+          activity,
+          scenarios: generated.scenarios,
+          startRange: generated.startRange,
+          contextActivities: currentContext,
+          instructors,
+          profiles,
+          rules,
+          exceptions,
+          schoolCalendar,
+          today,
+          routeClient
+        });
+        const chosen = options[0] || null;
+        rowsById.set(idOf(activity), planRowFromOption(activity, chosen, options, generated.startRange, generated.spec));
+        const virtual = blockingVirtualActivity(activity, chosen);
+        if (virtual) virtualPlans.push(virtual);
+      }
+    }
+
+    completed += 1;
+    if (typeof onProgress === 'function') {
+      onProgress({ completed, total: queue.length, courseId: idOf(activity), rows: targets.map((target) => rowsById.get(idOf(target)) || missingOverviewRow(target, catalog)) });
+    }
+  }
+
+  const rows = targets.map((activity) => rowsById.get(idOf(activity)) || missingOverviewRow(activity, catalog));
+  return {
+    rows,
+    total: rows.length,
+    planned: rows.filter((row) => ['proposal', 'fixed-proposal'].includes(row.kind) && row.instructorEmpId).length,
+    live: rows.filter((row) => row.kind === 'live').length,
+    drafts: rows.filter((row) => row.kind === 'draft').length,
+    missing: rows.filter((row) => row.kind === 'missing').length,
+    routeStats: {
+      googleCalls: Number(routeClient.googleCalls) || 0,
+      cacheHits: Number(routeClient.cacheHits) || 0
+    }
+  };
+}
+
+function kindClass(kind) {
+  if (kind === 'live') return ' is-live';
+  if (kind === 'draft') return ' is-draft';
+  if (kind === 'proposal' || kind === 'fixed-proposal') return ' is-proposal';
+  return ' is-missing';
+}
+
+function optionHtml(option = {}, index = 0) {
+  const range = option.startRange?.min && option.startRange?.max
+    ? ` · טווח התחלה ${formatDateHe(option.startRange.min)}–${formatDateHe(option.startRange.max)}`
+    : '';
+  return `<div class="course-planning-option">
+    <strong>חלופה ${index + 1}: ${escapeHtml(option.instructorName || '—')}</strong>
+    <span><bdi dir="ltr">${escapeHtml(formatDateHe(option.startDate))}</bdi>–<bdi dir="ltr">${escapeHtml(formatDateHe(option.endDate))}</bdi> · <bdi dir="ltr">${escapeHtml(formatTimeRangeShort(option.startTime, option.endTime))}</bdi>${escapeHtml(range)}</span>
+    <small>${escapeHtml(option.reason || '')}${option.routeVerified === false ? ' · מרחק טרם אומת' : ''}</small>
+  </div>`;
+}
+
+export function planningRowsHtml(rows = []) {
+  if (!rows.length) {
+    return '<div class="course-scheduling-empty"><strong>אין קורסים פעילים לתכנון במחצית א׳</strong></div>';
+  }
+  return `<div class="course-planning-list">${rows.map((row) => {
+    const range = row.startRange?.min && row.startRange?.max
+      ? `<span class="course-planning-range">טווח התחלה אפשרי: <bdi dir="ltr">${escapeHtml(formatDateHe(row.startRange.min))}</bdi>–<bdi dir="ltr">${escapeHtml(formatDateHe(row.startRange.max))}</bdi></span>`
+      : '';
+    const dateRange = row.startDate
+      ? `<bdi dir="ltr">${escapeHtml(formatDateHe(row.startDate))}</bdi>–<bdi dir="ltr">${escapeHtml(formatDateHe(row.endDate))}</bdi>`
+      : '—';
+    const hours = row.startTime ? `<bdi dir="ltr">${escapeHtml(formatTimeRangeShort(row.startTime, row.endTime))}</bdi>` : '—';
+    const alternatives = (row.options || []).length > 1
+      ? `<details class="course-planning-alternatives"><summary>${row.options.length - 1} חלופות נוספות</summary>${row.options.slice(1).map((option, index) => optionHtml(option, index + 1)).join('')}</details>`
+      : '';
+    return `<article class="course-planning-row${kindClass(row.kind)}" data-planning-course="${escapeHtml(row.courseId)}">
+      <div class="course-planning-main">
+        <div class="course-planning-identity"><strong>${escapeHtml(row.courseName || '—')}</strong><span>${escapeHtml(row.school || '—')} · ${escapeHtml(row.authority || '—')}</span></div>
+        <div class="course-planning-field"><span>סטטוס</span><strong>${escapeHtml(row.status || '—')}</strong></div>
+        <div class="course-planning-field"><span>מפגשים</span><strong>${escapeHtml(String(row.sessions || '—'))}</strong></div>
+        <div class="course-planning-field"><span>תאריכים</span><strong>${dateRange}</strong></div>
+        <div class="course-planning-field"><span>שעות</span><strong>${hours}</strong></div>
+        <div class="course-planning-field"><span>מדריך</span><strong>${escapeHtml(row.instructorName || '—')}</strong></div>
+      </div>
+      ${range}
+      <p class="course-planning-reason">${escapeHtml(row.reason || '')}</p>
+      ${alternatives}
+    </article>`;
+  }).join('')}</div>`;
+}
+
+export function planningTabHtml({
+  rows = [],
+  loading = false,
+  progress = null,
+  error = '',
+  district = '',
+  districts = [],
+  calculatedAt = '',
+  routeStats = null
+} = {}) {
+  const period = resolveCourseSchedulingPeriod(FIRST_PERIOD_KEY);
+  const districtOptions = ['<option value="">כל המחוזות</option>', ...(districts || []).map((item) =>
+    `<option value="${escapeHtml(item)}"${normalizeOperationalDistrict(item) === normalizeOperationalDistrict(district) ? ' selected' : ''}>${escapeHtml(item)}</option>`
+  )].join('');
+  const live = rows.filter((row) => row.kind === 'live').length;
+  const drafts = rows.filter((row) => row.kind === 'draft').length;
+  const proposals = rows.filter((row) => ['proposal', 'fixed-proposal'].includes(row.kind) && row.instructorEmpId).length;
+  const waiting = rows.filter((row) => row.kind === 'missing' || (['proposal', 'fixed-proposal'].includes(row.kind) && !row.instructorEmpId)).length;
+  const progressText = loading
+    ? `מחשב תכנון דינמי… ${Number(progress?.completed) || 0} מתוך ${Number(progress?.total) || rows.length}`
+    : '';
+
+  return `<section class="course-planning-tab" data-course-planning-tab>
+    <div class="course-planning-banner">
+      <div>
+        <strong>תכנון בלבד — ללא שינוי בשיבוצים</strong>
+        <p>השיבוצים, הטיוטות והתאריכים שכבר קיימים נלקחים כבסיס. ההצעות כאן אינן משנות פעילות או מדריך במערכת.</p>
+      </div>
+      <div class="course-planning-period">מחצית א׳ · <bdi dir="ltr">${escapeHtml(formatDateHe(period.start))}</bdi>–<bdi dir="ltr">${escapeHtml(formatDateHe(period.end))}</bdi></div>
+    </div>
+    <div class="course-planning-toolbar">
+      <label>מחוז<select class="course-scheduling-input" data-planning-district-filter>${districtOptions}</select></label>
+      <button type="button" class="course-scheduling-btn course-scheduling-btn--primary" data-run-course-planning ${loading ? 'disabled' : ''}>${loading ? 'מחשב…' : 'חשב תכנון דינמי'}</button>
+      <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary" data-clear-course-planning ${loading ? 'disabled' : ''}>אפס הצעות</button>
+      ${calculatedAt ? `<span class="course-planning-updated">עודכן ${escapeHtml(calculatedAt)}</span>` : ''}
+    </div>
+    <p class="course-planning-note">לכל קורס ללא מועד נבדקים מספר המפגשים, משך המפגש, טווח ההתחלה האפשרי במחצית, חגים, זמינות מדריכים, חפיפות, מעברים והעומס שכבר קיים. קורס ארוך חייב להתחיל מוקדם מספיק כדי שכל המפגשים יסתיימו עד 29.01.2027.</p>
+    ${error ? `<p class="course-scheduling-alert">${escapeHtml(error)}</p>` : ''}
+    ${progressText ? `<p class="course-planning-progress" role="status">${escapeHtml(progressText)}</p>` : ''}
+    <div class="course-planning-summary">
+      <article><b>${live}</b><span>מעודכן בפועל</span></article>
+      <article><b>${drafts}</b><span>טיוטות קיימות</span></article>
+      <article><b>${proposals}</b><span>הצעות תכנון</span></article>
+      <article><b>${waiting}</b><span>טרם נמצא פתרון</span></article>
+    </div>
+    ${planningRowsHtml(rows)}
+    ${routeStats ? `<p class="course-planning-route-stats">בדיקות מרחק: ${Number(routeStats.cacheHits) || 0} מהמטמון · ${Number(routeStats.googleCalls) || 0} חישובים חדשים</p>` : ''}
+  </section>`;
+}
