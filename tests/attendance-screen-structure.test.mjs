@@ -103,16 +103,20 @@ test('Attendance calendar shows TODAY highlight plus separate activity and atten
   assert.match(calSource, /attendanceCalendarEventsForDate/);
 });
 
-test('Attendance calendar drawer shows only meaningful record details with readable times', () => {
+test('Attendance calendar drawer uses structured activity, time and optional detail sections', () => {
   assert.match(calendarDayDrawerSource, /function formatClock\(value\)/);
-  assert.match(calendarDayDrawerSource, /formatTimeRange\(record\.start_time, record\.end_time\)/);
-  assert.match(calendarDayDrawerSource, /makeMeta\('שעות', time, \{ direction: 'ltr' \}\)/);
-  assert.match(calendarDayDrawerSource, /makeMeta\('משך', formatDurationHours\(totalHours\), \{ direction: 'ltr' \}\)/);
+  assert.match(calendarDayDrawerSource, /av2-calendar-day__attendance-grid--core/);
+  assert.match(calendarDayDrawerSource, /av2-calendar-day__time-strip/);
+  assert.match(calendarDayDrawerSource, /makeMeta\('התחלה', startTime/);
+  assert.match(calendarDayDrawerSource, /makeMeta\('סיום', endTime/);
+  assert.match(calendarDayDrawerSource, /makeMeta\('סה״כ', formatDurationHours\(totalHours\)/);
+  assert.match(calendarDayDrawerSource, /av2-calendar-day__attendance-extras/);
   assert.match(calendarDayDrawerSource, /if \(km > 0\)/);
   assert.match(calendarDayDrawerSource, /if \(usesPublicTransport\)/);
   assert.match(calendarDayDrawerSource, /if \(expenses > 0\)/);
-  assert.doesNotMatch(calendarDayDrawerSource, /record\.public_transport \? money\(record\.public_transport_cost\) : 'לא'/);
-  assert.doesNotMatch(calendarDayDrawerSource, /makeMeta\('הוצאות', money\(record\.expenses\)\)/);
+  assert.doesNotMatch(calendarDayDrawerSource, /makeMeta\('שעות', time/);
+  assert.match(reportsStyles, /\.av2-calendar-day__time-strip\s*\{[\s\S]*grid-template-columns:\s*repeat\(3/);
+  assert.match(reportsStyles, /\.av2-calendar-day__time-item\.is-total/);
 });
 
 test('Attendance Excel export uses real time values and a correctly structured total row', () => {
