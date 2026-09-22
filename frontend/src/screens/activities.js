@@ -2079,19 +2079,45 @@ export const activitiesScreen = {
         rerender();
       };
       bindCoordinationWorkspace(coordinationRoot, state.activityCoordination, { loginHint: state?.user?.email || '', onChanged: refresh });
-      reconcileVisibleDrafts(state.activityCoordination, { loginHint: state?.user?.email || '' }).then((results) => {
-        if (results.some((item) => item.status === 'sent' || item.status === 'cancelled')) refresh();
-      }).catch(() => {});
+      const reconciliationOptions = {
+        loginHint: state?.user?.email || state?.user?.auth_email || '',
+        authUserId: state?.user?.auth_user_id || ''
+      };
+      const reconcileNow = async () => {
+        if (state.activityCoordinationReconciling) return;
+        state.activityCoordinationReconciling = true;
+        try {
+          const results = await reconcileVisibleDrafts(state.activityCoordination, reconciliationOptions);
+          if (results.some((item) => item.status === 'sent' || item.status === 'cancelled')) await refresh();
+        } catch {
+          // Reconciliation is opportunistic; the prepared Outlook draft remains intact.
+        } finally {
+          state.activityCoordinationReconciling = false;
+        }
+      };
+      reconcileNow();
       if (state.activityCoordinationTimer) clearInterval(state.activityCoordinationTimer);
-      state.activityCoordinationTimer = setInterval(() => {
-        if (document.visibilityState === 'hidden') return;
-        reconcileVisibleDrafts(state.activityCoordination, { loginHint: state?.user?.email || '' }).then((results) => {
-          if (results.some((item) => item.status === 'sent' || item.status === 'cancelled')) refresh();
-        }).catch(() => {});
-      }, 90000);
+      state.activityCoordinationTimer = setInterval(reconcileNow, 30000);
+
+      if (state.activityCoordinationFocusHandler) window.removeEventListener('focus', state.activityCoordinationFocusHandler);
+      if (state.activityCoordinationVisibilityHandler) document.removeEventListener('visibilitychange', state.activityCoordinationVisibilityHandler);
+      state.activityCoordinationFocusHandler = () => { reconcileNow(); };
+      state.activityCoordinationVisibilityHandler = () => {
+        if (document.visibilityState === 'visible') reconcileNow();
+      };
+      window.addEventListener('focus', state.activityCoordinationFocusHandler);
+      document.addEventListener('visibilitychange', state.activityCoordinationVisibilityHandler);
       return;
     }
     if (state.activityCoordinationTimer) { clearInterval(state.activityCoordinationTimer); state.activityCoordinationTimer = null; }
+    if (state.activityCoordinationFocusHandler) {
+      window.removeEventListener('focus', state.activityCoordinationFocusHandler);
+      state.activityCoordinationFocusHandler = null;
+    }
+    if (state.activityCoordinationVisibilityHandler) {
+      document.removeEventListener('visibilitychange', state.activityCoordinationVisibilityHandler);
+      state.activityCoordinationVisibilityHandler = null;
+    }
 
     // ── Row-height measurement ──────────────────────────────────────────────
     // Runs once per bind, after the first rAF so layout is complete.
