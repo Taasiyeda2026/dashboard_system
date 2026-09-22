@@ -92,6 +92,9 @@ const SCHEDULING_ASSIGNMENT_ERROR_HE = {
   scheduling_no_existing_assignment:  'לפעילות אין מדריך משובץ',
   scheduling_reason_required:          'יש להזין סיבה',
   scheduling_effective_date_required:  'יש לבחור תאריך כניסה לתוקף',
+  scheduling_meeting_date_required:     'יש לבחור מפגש',
+  scheduling_meeting_not_found:         'המפגש שנבחר אינו קיים בלוח הפעילות',
+  scheduling_substitute_already_assigned: 'המדריך שנבחר כבר משויך למפגש הזה',
   scheduling_course_locked_for_reassignment: 'לאחר שני מפגשים נדרשת החלפה תפעולית',
 };
 
@@ -1137,6 +1140,7 @@ export function assignedDetailHtml(row, state = {}) {
     ${completed == null ? '' : `<p>מפגשים שהתקיימו: <b>${completed}</b></p>`}
     ${meetingInstructorHistoryHtml(history, state.courseSchedulingReplacements?.[row.id] || [])}
     <div class="course-scheduling-detail-actions">
+      <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary" data-open-single-substitute>החלפה חד־פעמית</button>
       <button type="button" class="course-scheduling-btn course-scheduling-btn--primary" data-change-assignment>שינוי / החלפת מדריך</button>
       <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary" data-open-cancel-assignment>ביטול שיבוץ</button>
     </div>`;
