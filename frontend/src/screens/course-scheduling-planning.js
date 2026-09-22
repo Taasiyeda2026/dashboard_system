@@ -23,6 +23,12 @@ const FIRST_PERIOD_KEY = 'first';
 const DEFAULT_TIME_SLOTS = ['08:00', '09:30', '11:00', '12:30', '14:00'];
 const MAX_SCENARIOS_PER_COURSE = 12;
 const MAX_FINAL_OPTIONS = 3;
+export const PLANNING_ENGINE_VERSION = 'planning-v2-20260922';
+
+const yieldToBrowser = () => new Promise((resolve) => {
+  if (typeof requestAnimationFrame === 'function') requestAnimationFrame(() => resolve());
+  else setTimeout(resolve, 0);
+});
 
 function timeMinutes(value) {
   const match = text(value).match(/^(\d{1,2}):(\d{2})/);
@@ -220,9 +226,15 @@ function lastOnOrBefore(date, targetWeekday) {
   return '';
 }
 
-function latestApproxStart(periodEnd, targetWeekday, sessions) {
-  const rough = addDays(periodEnd, -7 * Math.max(0, Number(sessions) - 1));
-  return lastOnOrBefore(rough, targetWeekday);
+export function latestFeasiblePlanningStart({ activity = {}, targetWeekday, startTime, durationMinutes, sessions, schoolCalendar = [], periodKey = FIRST_PERIOD_KEY } = {}) {
+  const period = resolveCourseSchedulingPeriod(periodKey);
+  let candidate = lastOnOrBefore(period.end, targetWeekday);
+  while (candidate && candidate >= period.start) {
+    const built = buildWeeklyPlanningMeetings({ activity, startDate: candidate, startTime, durationMinutes, sessions, schoolCalendar, periodKey });
+    if (built) return candidate;
+    candidate = addDays(candidate, -7);
+  }
+  return '';
 }
 
 function blockingActivities(activities = []) {
@@ -303,11 +315,11 @@ function dynamicTimesForWeekday({
     .map(([slot]) => slot);
 }
 
-function candidateStartDates({ targetWeekday, sessions, today, activities = [], periodKey = FIRST_PERIOD_KEY } = {}) {
+function candidateStartDates({ activity, targetWeekday, sessions, startTime, durationMinutes, schoolCalendar = [], today, activities = [], periodKey = FIRST_PERIOD_KEY } = {}) {
   const period = resolveCourseSchedulingPeriod(periodKey);
   const floor = text(today) > period.start ? text(today).slice(0, 10) : period.start;
   const earliest = firstOnOrAfter(floor, targetWeekday);
-  const latest = latestApproxStart(period.end, targetWeekday, sessions);
+  const latest = latestFeasiblePlanningStart({ activity, targetWeekday, startTime, durationMinutes, sessions, schoolCalendar, periodKey });
   const values = new Set();
   if (earliest && earliest <= period.end) values.add(earliest);
 
@@ -360,6 +372,7 @@ export function generatePlanningScenarios({
   activity = {},
   catalog = [],
   instructors = [],
+  profiles = {},
   rules = {},
   activities = [],
   schoolCalendar = [],
@@ -371,8 +384,12 @@ export function generatePlanningScenarios({
   if (!spec.complete) return { spec, scenarios: [], startRange: null };
 
   const raw = [];
-  for (let day = 0; day <= 4; day += 1) {
-    const starts = candidateStartDates({ targetWeekday: day, sessions: spec.sessions, today, activities, periodKey });
+  const fridayPossible = activeInstructorIds(instructors).size > 0 && instructors.some((instructor) => {
+    const empId = text(instructor.emp_id);
+    return !!profiles[empId]?.friday_allowed
+      && (rules[empId] || []).some((rule) => Number(rule.weekday) === 5 && rule.available === true);
+  });
+  for (const day of fridayPossible ? [0, 1, 2, 3, 4, 5] : [0, 1, 2, 3, 4]) {
     const times = dynamicTimesForWeekday({
       targetWeekday: day,
       durationMinutes: spec.durationMinutes,
@@ -381,6 +398,10 @@ export function generatePlanningScenarios({
       rules,
       activities
     });
+    const starts = [...new Set(times.flatMap((startTime) => candidateStartDates({
+      activity, targetWeekday: day, sessions: spec.sessions, startTime,
+      durationMinutes: spec.durationMinutes, schoolCalendar, today, activities, periodKey
+    })))];
     for (const startDate of starts) {
       for (const startTime of times) {
         const built = buildWeeklyPlanningMeetings({
@@ -462,6 +483,13 @@ function optionFromCandidate(course, candidate, { routeVerified = true, startRan
     })),
     routeVerified,
     startRange,
+    explanation: {
+      continuity: text(candidate.scoreBreakdown?.continuityEfficiency?.note || candidate.scoreBreakdown?.continuityEfficiency?.label),
+      workload: text(candidate.scoreBreakdown?.actualWorkload?.note),
+      travel: text(candidate.scoreBreakdown?.travelDistance?.note),
+      scheduleSource: idOf(course).startsWith('planning:') ? 'מועד שנוצר בתכנון' : 'מועד קבוע מהפעילות',
+      hardGates: 'זמינות, שפה, מגדר, חפיפות ומעברים נבדקו'
+    },
     reason: text(candidate.recommendationReason)
       || (routeVerified ? 'האפשרות משתלבת בלוח הקיים ועומדת בתנאי הסף' : 'האפשרות מתאימה לפי זמינות; נדרש אימות מרחקים')
   };
@@ -544,12 +572,12 @@ async function evaluateScenarioOptions({
       })[0];
       finalCandidate = selectedCandidate(finalResult);
     }
-    const candidate = finalCandidate || finalist.candidate;
-    const option = optionFromCandidate(finalist.course, candidate, {
-      routeVerified: !!finalCandidate,
+    if (!finalCandidate) continue;
+    const option = optionFromCandidate(finalist.course, finalCandidate, {
+      routeVerified: true,
       startRange
     });
-    if (option) options.push({ ...option, _candidate: candidate });
+    if (option) options.push({ ...option, _candidate: finalCandidate });
   }
   return options.sort(optionCompare).slice(0, MAX_FINAL_OPTIONS);
 }
@@ -565,6 +593,14 @@ async function evaluateFixedCourse({
   today,
   routeClient
 } = {}) {
+  const calendarRows = courseCalendarRows(activity, schoolCalendar);
+  const blocked = blockedSchoolDates(calendarRows);
+  if (activityMeetings(activity).some((meeting) => {
+    const date = text(meeting.date).slice(0, 10);
+    return blocked.has(date)
+      || text(effectiveEndTime(date, meeting.end_time || activity.end_time, calendarRows)).slice(0, 5)
+        !== text(meeting.end_time || activity.end_time).slice(0, 5);
+  })) return [];
   const candidates = preliminaryCourseCandidates({
     activities: contextActivities,
     targetCourseId: idOf(activity),
@@ -574,7 +610,8 @@ async function evaluateFixedCourse({
     rules,
     exceptions,
     schoolCalendar,
-    referenceDate: today
+    referenceDate: today,
+    allowDateAdjustments: false
   }).map((item) => item.candidate).filter(Boolean).sort(compareCandidatesStable);
 
   const finalists = candidates.slice(0, MAX_FINAL_OPTIONS);
@@ -605,7 +642,8 @@ async function evaluateFixedCourse({
         referenceDate: today,
         travel: routed.travel,
         routeMatrix: routed.routeMatrix,
-        travelUnavailableReason: routed.unavailableReason || ''
+        travelUnavailableReason: routed.unavailableReason || '',
+        allowDateAdjustments: false
       })[0];
       finalCandidate = selectedCandidate(result);
       if (finalCandidate) {
@@ -614,7 +652,6 @@ async function evaluateFixedCourse({
         break;
       }
     }
-    options.push({ ...optionFromCandidate(activity, preliminary, { routeVerified: false }), _candidate: preliminary });
   }
   return options.filter(Boolean).sort(optionCompare).slice(0, MAX_FINAL_OPTIONS);
 }
@@ -658,7 +695,7 @@ function liveRow(activity = {}) {
     courseName: text(activity.activity_name),
     sessions: meetingCount(activity) || meetings.length,
     kind: assigned ? 'live' : (draft ? 'draft' : 'fixed'),
-    status: assigned ? 'מעודכן בפועל' : (draft ? 'טיוטת שיבוץ קיימת' : 'מועד קבוע · ממתין למדריך'),
+    status: assigned ? 'מעודכן בפועל' : (draft ? 'טיוטת שיבוץ קיימת' : 'נדרש טיפול'),
     startDate: text(first.date || activity.start_date).slice(0, 10),
     endDate: text(last.date || activity.end_date).slice(0, 10),
     startTime: text(first.start_time || activity.start_time).slice(0, 5),
@@ -679,7 +716,7 @@ function missingOverviewRow(activity = {}, catalog = []) {
     courseName: text(activity.activity_name),
     sessions: spec.sessions || meetingCount(activity),
     kind: 'missing',
-    status: spec.complete ? 'ממתין לתכנון' : 'חסרים נתוני משך/מפגשים',
+    status: 'נדרש טיפול',
     startDate: '',
     endDate: '',
     startTime: '',
@@ -709,7 +746,7 @@ function planRowFromOption(activity, option, options, startRange, spec) {
     courseName: text(activity.activity_name),
     sessions: spec?.sessions || meetingCount(activity),
     kind: 'proposal',
-    status: option ? 'הצעת תכנון' : 'לא נמצאה אפשרות',
+    status: option ? 'הצעת תכנון' : 'נדרש טיפול',
     startDate: option?.startDate || '',
     endDate: option?.endDate || '',
     startTime: option?.startTime || '',
@@ -722,14 +759,27 @@ function planRowFromOption(activity, option, options, startRange, spec) {
   };
 }
 
-export function planningDataFingerprint(activities = []) {
-  const rows = planningWorkspaceCourses(activities)
+function stableRows(rows = []) {
+  return [...(rows || [])].map((row) => Object.fromEntries(Object.entries(row || {}).sort(([a], [b]) => a.localeCompare(b))))
+    .sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)));
+}
+
+export function planningDataFingerprint(input = []) {
+  const snapshot = Array.isArray(input) ? { activities: input } : (input || {});
+  const rows = planningWorkspaceCourses(snapshot.activities || [])
     .map((activity) => ({
       id: idOf(activity),
+      status: text(activity.status),
       emp: text(activity.emp_id),
+      emp2: text(activity.emp_id_2),
       draft: text(activity.draft_emp_id),
       start: text(activity.start_time),
       end: text(activity.end_time),
+      sessions: Number(activity.sessions) || null,
+      schoolId: text(activity.school_id), school: text(activity.school), address: text(activity.school_address),
+      authority: text(activity.authority), district: text(activity.district), sector: text(activity.calendar_sector),
+      language: text(activity.instruction_language), gender: text(activity.required_instructor_gender),
+      cancellations: stableRows((activity.cancelled_meeting_dates || []).map((date) => ({ date: text(date).slice(0, 10) }))),
       dates: schedulingCalendarMeetings(activity).map((meeting) => [
         text(meeting.date).slice(0, 10),
         text(meeting.start_time || activity.start_time).slice(0, 5),
@@ -738,7 +788,17 @@ export function planningDataFingerprint(activities = []) {
     }))
     .sort((a, b) => a.id.localeCompare(b.id));
   let hash = 2166136261;
-  const value = JSON.stringify(rows);
+  const value = JSON.stringify({
+    engineVersion: PLANNING_ENGINE_VERSION,
+    period: resolveCourseSchedulingPeriod(FIRST_PERIOD_KEY),
+    activities: rows,
+    instructors: stableRows((snapshot.instructors || []).map((row) => ({ emp_id: row.emp_id, active: row.active, address: row.address }))),
+    profiles: stableRows(Array.isArray(snapshot.profiles) ? snapshot.profiles : Object.values(snapshot.profiles || {})),
+    rules: stableRows(Array.isArray(snapshot.rules) ? snapshot.rules : Object.values(snapshot.rules || {}).flat()),
+    exceptions: stableRows(Array.isArray(snapshot.exceptions) ? snapshot.exceptions : Object.values(snapshot.exceptions || {}).flat()),
+    schoolCalendar: stableRows(snapshot.schoolCalendar || []),
+    catalog: stableRows((snapshot.catalog || []).map((row) => ({ activity_no: row.activity_no, activity_name: row.activity_name, meetings_count: row.meetings_count, hours_count: row.hours_count, unit_duration: row.unit_duration })))
+  });
   for (let index = 0; index < value.length; index += 1) {
     hash ^= value.charCodeAt(index);
     hash = Math.imul(hash, 16777619);
@@ -759,6 +819,11 @@ export async function buildDynamicCoursePlan({
   routeClient = createRouteClient(),
   onProgress = null
 } = {}) {
+  const report = async (phase, completed = 0, total = 0, courseId = '') => {
+    if (typeof onProgress === 'function') onProgress({ phase, completed, total, courseId });
+    await yieldToBrowser();
+  };
+  await report('הכנת נתונים');
   const targets = planningWorkspaceCourses(activities, district);
   const contextActivities = [...activities];
   const virtualPlans = [];
@@ -794,10 +859,13 @@ export async function buildDynamicCoursePlan({
     ...missingSchedule.map((activity) => ({ activity, type: 'missing' }))
   ];
   let completed = 0;
+  await report('יצירת אפשרויות', 0, queue.length);
 
   for (const item of queue) {
     const { activity, type } = item;
     const currentContext = [...contextActivities, ...virtualPlans];
+    await report('בדיקת מדריכים', completed, queue.length, idOf(activity));
+    await report('בדיקת נסיעות', completed, queue.length, idOf(activity));
     if (type === 'fixed') {
       const options = await evaluateFixedCourse({
         activity,
@@ -814,7 +882,7 @@ export async function buildDynamicCoursePlan({
       const row = {
         ...liveRow(activity),
         kind: 'fixed-proposal',
-        status: chosen ? 'מועד קבוע · מדריך מוצע' : 'מועד קבוע · אין מדריך מתאים',
+        status: chosen ? 'הצעת תכנון' : 'נדרש טיפול',
         instructorName: chosen?.instructorName || '',
         instructorEmpId: chosen?.instructorEmpId || '',
         options: options.map(({ _candidate, ...option }) => option),
@@ -829,6 +897,7 @@ export async function buildDynamicCoursePlan({
         catalog,
         instructors,
         rules,
+        profiles,
         activities: currentContext,
         schoolCalendar,
         today,
@@ -858,9 +927,7 @@ export async function buildDynamicCoursePlan({
     }
 
     completed += 1;
-    if (typeof onProgress === 'function') {
-      onProgress({ completed, total: queue.length, courseId: idOf(activity), rows: targets.map((target) => rowsById.get(idOf(target)) || missingOverviewRow(target, catalog)) });
-    }
+    await report('בניית תוכנית', completed, queue.length, idOf(activity));
   }
 
   const rows = targets.map((activity) => rowsById.get(idOf(activity)) || missingOverviewRow(activity, catalog));
@@ -896,6 +963,12 @@ function optionHtml(option = {}, index = 0) {
   </div>`;
 }
 
+function explanationHtml(option = {}) {
+  const explanation = option.explanation || {};
+  const items = [explanation.continuity, explanation.workload, explanation.travel, explanation.scheduleSource, explanation.hardGates].filter(Boolean);
+  return items.length ? `<details class="course-planning-explanation"><summary>למה הוצע?</summary><ul>${items.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul></details>` : '';
+}
+
 export function planningRowsHtml(rows = []) {
   if (!rows.length) {
     return '<div class="course-scheduling-empty"><strong>אין קורסים פעילים לתכנון במחצית א׳</strong></div>';
@@ -922,6 +995,7 @@ export function planningRowsHtml(rows = []) {
       </div>
       ${range}
       <p class="course-planning-reason">${escapeHtml(row.reason || '')}</p>
+      ${explanationHtml(row.options?.[0])}
       ${alternatives}
     </article>`;
   }).join('')}</div>`;
@@ -946,7 +1020,7 @@ export function planningTabHtml({
   const proposals = rows.filter((row) => ['proposal', 'fixed-proposal'].includes(row.kind) && row.instructorEmpId).length;
   const waiting = rows.filter((row) => row.kind === 'missing' || (['proposal', 'fixed-proposal'].includes(row.kind) && !row.instructorEmpId)).length;
   const progressText = loading
-    ? `מחשב תכנון דינמי… ${Number(progress?.completed) || 0} מתוך ${Number(progress?.total) || rows.length}`
+    ? `${escapeHtml(progress?.phase || 'הכנת נתונים')} · ${Number(progress?.completed) || 0} מתוך ${Number(progress?.total) || rows.length} קורסים`
     : '';
 
   return `<section class="course-planning-tab" data-course-planning-tab>

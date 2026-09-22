@@ -2090,6 +2090,20 @@
   font-size: .84rem;
 }
 
+.course-planning-explanation {
+  margin-top: 8px;
+}
+.course-planning-explanation > summary {
+  cursor: pointer;
+  color: #17665f;
+  font-weight: 700;
+}
+.course-planning-explanation ul {
+  margin: 8px 0 0;
+  padding-inline-start: 20px;
+  color: var(--cs-text-muted);
+}
+
 .course-planning-option {
   display: grid;
   gap: 3px;

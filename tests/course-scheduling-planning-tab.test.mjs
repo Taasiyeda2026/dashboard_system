@@ -3,12 +3,19 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import {
   buildPlanningOverviewRows,
+  buildDynamicCoursePlan,
   buildWeeklyPlanningMeetings,
   generatePlanningScenarios,
   hasOfficialPlanningSchedule,
   inferPlanningCourseSpec,
+  latestFeasiblePlanningStart,
   planningDataFingerprint
 } from '../frontend/src/screens/course-scheduling-planning.js';
+
+const instructor = { emp_id: 1, full_name: 'מדריך', active: 'yes', address: 'כתובת מדריך' };
+const profileMap = { 1: { emp_id: 1, gender: 'male', instruction_languages: ['he'], friday_allowed: false } };
+const ruleMap = { 1: [0, 1, 2, 3, 4].map((weekday) => ({ emp_id: 1, weekday, available: true, start_time: '07:00', end_time: '18:00' })) };
+const routeClient = (leg) => ({ request: async () => leg, googleCalls: leg ? 1 : 0, cacheHits: 0, unavailableReason: leg ? '' : 'route_service_unavailable' });
 
 const catalog = [{
   activity_name: 'ביומימיקרי – המצאות בהשראה מן הטבע',
@@ -114,7 +121,63 @@ test('official schedules are synchronized into Planning as live data and missing
   assert.equal(rows.find((row) => row.courseId === 'live')?.kind, 'live');
   assert.equal(rows.find((row) => row.courseId === 'live')?.instructorName, 'מדריך קיים');
   assert.equal(rows.find((row) => row.courseId === 'missing')?.kind, 'missing');
-  assert.equal(rows.find((row) => row.courseId === 'missing')?.status, 'ממתין לתכנון');
+  assert.equal(rows.find((row) => row.courseId === 'missing')?.status, 'נדרש טיפול');
+});
+
+test('exact latest start searches backward around blocked school weeks', () => {
+  const latest = latestFeasiblePlanningStart({
+    activity: baseCourse,
+    targetWeekday: 0,
+    startTime: '08:00',
+    durationMinutes: 90,
+    sessions: 3,
+    schoolCalendar: [{ start_date: '2027-01-24', end_date: '2027-01-24', blocks_scheduling: true, is_active: true }]
+  });
+  const built = buildWeeklyPlanningMeetings({
+    activity: baseCourse, startDate: latest, startTime: '08:00', durationMinutes: 90, sessions: 3,
+    schoolCalendar: [{ start_date: '2027-01-24', end_date: '2027-01-24', blocks_scheduling: true, is_active: true }]
+  });
+  assert.ok(built);
+  assert.ok(built.endDate <= '2027-01-29');
+  assert.equal(latest, '2027-01-03');
+});
+
+test('planning fingerprint covers instructor, availability, calendar and catalog dependencies', () => {
+  const base = { activities: [baseCourse], instructors: [{ emp_id: 1, active: 'yes', address: 'א' }], profiles: [{ emp_id: 1, friday_allowed: false }], rules: [], exceptions: [], schoolCalendar: [], catalog };
+  const fingerprint = planningDataFingerprint(base);
+  for (const changed of [
+    { ...base, instructors: [{ emp_id: 1, active: 'yes', address: 'ב' }] },
+    { ...base, profiles: [{ emp_id: 1, friday_allowed: true }] },
+    { ...base, rules: [{ emp_id: 1, weekday: 0, available: true, start_time: '08:00', end_time: '10:00' }] },
+    { ...base, exceptions: [{ emp_id: 1, exception_date: '2026-10-04', available: false }] },
+    { ...base, schoolCalendar: [{ start_date: '2026-10-04', blocks_scheduling: true }] },
+    { ...base, catalog: [{ ...catalog[0], meetings_count: 12 }] }
+  ]) assert.notEqual(planningDataFingerprint(changed), fingerprint);
+});
+
+test('fixed schedules never move and a fixed holiday requires treatment', async () => {
+  const fixed = { ...baseCourse, row_id: 'fixed', school_id: 1, school_address: 'כתובת בית ספר', sessions: 2, start_time: '08:00', end_time: '09:30', date_1: '2026-10-04', date_2: '2026-10-11' };
+  const original = structuredClone(fixed);
+  const result = await buildDynamicCoursePlan({
+    activities: [fixed], instructors: [instructor], profiles: profileMap, rules: ruleMap,
+    schoolCalendar: [{ calendar_sector: 'general', start_date: '2026-10-04', end_date: '2026-10-04', blocks_scheduling: true, is_active: true }],
+    today: '2026-09-22', routeClient: routeClient({ distance_km: 5, duration_minutes: 10 })
+  });
+  assert.equal(result.rows[0].status, 'נדרש טיפול');
+  assert.equal(result.rows[0].startDate, '2026-10-04');
+  assert.equal(result.rows[0].startTime, '08:00');
+  assert.deepEqual(fixed, original);
+});
+
+test('route failure never produces a valid planning proposal', async () => {
+  const fixed = { ...baseCourse, row_id: 'fixed-route', school_id: 1, school_address: 'כתובת בית ספר', sessions: 1, start_time: '08:00', end_time: '09:30', date_1: '2026-10-04' };
+  const result = await buildDynamicCoursePlan({
+    activities: [fixed], instructors: [instructor], profiles: profileMap, rules: ruleMap,
+    today: '2026-09-22', routeClient: routeClient(null)
+  });
+  assert.equal(result.rows[0].status, 'נדרש טיפול');
+  assert.equal(result.rows[0].instructorEmpId, '');
+  assert.equal(result.rows[0].options.length, 0);
 });
 
 test('planning fingerprint changes when live scheduling data changes', () => {

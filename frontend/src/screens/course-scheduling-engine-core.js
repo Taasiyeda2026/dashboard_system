@@ -263,7 +263,7 @@ function evaluateCandidate({
     existingActivities: persistedMeetings,
     halfEnd: resolveCourseSchedulingPeriod(periodKey).end
   };
-  let adjustment = proposeDateAdjustments(adjustmentInput);
+  let adjustment = input.allowDateAdjustments === false ? null : proposeDateAdjustments(adjustmentInput);
   if (adjustment?.valid) {
     const destination = placeOf(course);
     const transitions = Object.fromEntries(adjustment.meetings.map((meeting) => {
