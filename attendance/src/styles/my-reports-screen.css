@@ -517,7 +517,15 @@
 .av2-calendar-day__section.is-school > h3 { color: #5c5bb0; }
 .av2-calendar-day__section.is-birthday > h3 { color: #874d74; }
 .av2-calendar-day__section.is-activity > h3 { color: #246fe9; }
-.av2-calendar-day__section.is-attendance > h3 { color: #1f6fa8; }
+.av2-calendar-day__section.is-attendance {
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+.av2-calendar-day__section.is-attendance > h3 {
+  margin: 0 2px 6px;
+  color: #1f6fa8;
+}
 
 .av2-calendar-day__event {
   display: flex;
