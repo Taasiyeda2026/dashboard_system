@@ -57,6 +57,22 @@ jobs:
           echo "Checked ${js_count} changed JavaScript files and ${json_count} changed JSON files."
 
 
+      - name: Run mobile interface contract tests
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE_SHA="$(git rev-parse "origin/${BASE_REF}")"
+          if git diff --name-only "$BASE_SHA" "$HEAD_SHA" | grep -Eq '^(frontend/src/styles/instructor-|frontend/src/screens/instructor-portal/|attendance/(index\.html|sw\.js|src/styles/)|tests/(instructor-responsive-ux|attendance-mobile-contract)\.test\.mjs)'; then
+            node --test \
+              tests/instructor-responsive-ux.test.mjs \
+              tests/attendance-mobile-contract.test.mjs
+          else
+            echo "No instructor/attendance mobile contract files changed; mobile tests skipped."
+          fi
+
       - name: Run focused scheduling contract tests
         env:
           BASE_REF: ${{ github.base_ref }}
