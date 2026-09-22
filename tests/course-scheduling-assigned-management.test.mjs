@@ -25,8 +25,21 @@ test('assignedDetailHtml shows instructor and management actions', () => {
   const html = assignedDetailHtml({ id: assigned.row_id, course: assigned, isAssigned: true }, {});
   assert.match(html, /שובץ/);
   assert.match(html, /מדריך משובץ: <b>דנה כהן<\/b>/);
+  assert.match(html, /החלפה חד־פעמית/);
+  assert.match(html, /data-open-single-substitute/);
   assert.match(html, /שינוי \/ החלפת מדריך/);
   assert.match(html, /ביטול שיבוץ/);
+});
+
+test('single-meeting substitution UI uses the dedicated per-meeting RPCs', async () => {
+  const source = await readFile(new URL('../frontend/src/screens/course-scheduling.js', import.meta.url), 'utf8');
+  assert.match(source, /data-open-single-substitute/);
+  assert.match(source, /data-single-substitute-date/);
+  assert.match(source, /data-single-substitute-emp/);
+  assert.match(source, /scheduling_course_meeting_substitutions/);
+  assert.match(source, /set_course_meeting_substitute/);
+  assert.match(source, /clear_course_meeting_substitute/);
+  assert.match(source, /ההחלפה תחול רק על המפגש שתבחרו/);
 });
 
 test('confirmed cancellation RPC requires reason, audits, preserves completed history, and clears assignment', async () => {
