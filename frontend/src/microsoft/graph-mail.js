@@ -23,7 +23,11 @@ export async function delegatedMailToken(loginHint = '', { interactive = true } 
     await msalClient.handleRedirectPromise();
   }
   const request = { scopes: ['Mail.ReadWrite'], loginHint: loginHint || undefined };
-  const account = msalClient.getAllAccounts()[0];
+  const accounts = msalClient.getAllAccounts();
+  const normalizedLoginHint = String(loginHint || '').trim().toLowerCase();
+  const account = normalizedLoginHint
+    ? accounts.find((candidate) => String(candidate?.username || '').trim().toLowerCase() === normalizedLoginHint)
+    : accounts[0];
   if (account) {
     try { return (await msalClient.acquireTokenSilent({ ...request, account })).accessToken; }
     catch (error) {
