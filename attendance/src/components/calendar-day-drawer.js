@@ -43,8 +43,9 @@ function makeSection(title, className = '') {
   return section;
 }
 
-function makeMeta(label, value, { direction = '' } = {}) {
+function makeMeta(label, value, { direction = '', className = '' } = {}) {
   const row = document.createElement('div');
+  if (className) row.className = className;
   const dt = document.createElement('span');
   dt.className = 'av2-calendar-day__meta-label';
   dt.textContent = label;
@@ -98,12 +99,9 @@ function renderAttendance(record) {
     || text(record.activity_type)
     || 'דיווח נוכחות';
 
-  const grid = document.createElement('div');
-  grid.className = 'av2-calendar-day__attendance-grid';
-  const items = [];
-
   const activityType = text(record.activity_type);
-  const time = formatTimeRange(record.start_time, record.end_time);
+  const startTime = formatClock(record.start_time);
+  const endTime = formatClock(record.end_time);
   const totalHours = Number(record.total_hours || 0);
   const school = text(record.school_name_snapshot);
   const authority = text(record.authority_name_snapshot);
@@ -116,29 +114,43 @@ function renderAttendance(record) {
   const expenses = Number(record.expenses || 0);
   const expenseDetails = text(record.expense_details);
 
-  if (activityType) items.push(makeMeta('סוג פעילות', activityType));
-  if (record.meeting_no != null && text(record.meeting_no)) items.push(makeMeta('מפגש', record.meeting_no));
-  if (time) items.push(makeMeta('שעות', time, { direction: 'ltr' }));
-  if (totalHours > 0) items.push(makeMeta('משך', formatDurationHours(totalHours), { direction: 'ltr' }));
-  if (school) items.push(makeMeta('בית ספר', school));
-  if (authority) items.push(makeMeta('רשות', authority));
-  if (km > 0) items.push(makeMeta('ק״מ', Math.round(km).toLocaleString('he-IL')));
-  if (usesPublicTransport) {
-    items.push(makeMeta('תחבורה ציבורית', publicTransportCost > 0 ? `כן · ${money(publicTransportCost)}` : 'כן'));
-  }
-  if (expenses > 0) items.push(makeMeta('הוצאות', money(expenses)));
-  if (expenseDetails) items.push(makeMeta('פירוט הוצאות', expenseDetails));
+  const activityGrid = document.createElement('div');
+  activityGrid.className = 'av2-calendar-day__attendance-grid av2-calendar-day__attendance-grid--core';
+  const activityItems = [];
+  if (activityType) activityItems.push(makeMeta('סוג פעילות', activityType));
+  if (record.meeting_no != null && text(record.meeting_no)) activityItems.push(makeMeta('מפגש', record.meeting_no));
+  if (school) activityItems.push(makeMeta('בית ספר', school));
+  if (authority) activityItems.push(makeMeta('רשות', authority));
+  activityGrid.append(...activityItems);
 
-  grid.append(...items);
+  const timeStrip = document.createElement('div');
+  timeStrip.className = 'av2-calendar-day__time-strip';
+  if (startTime) timeStrip.append(makeMeta('התחלה', startTime, { direction: 'ltr', className: 'av2-calendar-day__time-item' }));
+  if (endTime) timeStrip.append(makeMeta('סיום', endTime, { direction: 'ltr', className: 'av2-calendar-day__time-item' }));
+  if (totalHours > 0) {
+    timeStrip.append(makeMeta('סה״כ', formatDurationHours(totalHours), { direction: 'ltr', className: 'av2-calendar-day__time-item is-total' }));
+  }
+
+  const extras = document.createElement('div');
+  extras.className = 'av2-calendar-day__attendance-extras';
+  if (km > 0) extras.append(makeMeta('ק״מ', Math.round(km).toLocaleString('he-IL')));
+  if (usesPublicTransport) {
+    extras.append(makeMeta('תחבורה ציבורית', publicTransportCost > 0 ? `כן · ${money(publicTransportCost)}` : 'כן'));
+  }
+  if (expenses > 0) extras.append(makeMeta('הוצאות', money(expenses)));
+  if (expenseDetails) extras.append(makeMeta('פירוט הוצאות', expenseDetails, { className: 'is-wide' }));
+
+  card.append(title);
+  if (activityItems.length) card.append(activityGrid);
+  if (timeStrip.children.length) card.append(timeStrip);
+  if (extras.children.length) card.append(extras);
 
   const notes = text(record.notes);
   if (notes) {
     const note = document.createElement('p');
     note.className = 'av2-calendar-day__notes';
     note.textContent = notes;
-    card.append(title, grid, note);
-  } else {
-    card.append(title, grid);
+    card.append(note);
   }
   return card;
 }
