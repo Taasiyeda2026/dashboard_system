@@ -36,6 +36,7 @@ import {
   createAttachmentRecord,
   getOperationOptions,
   reconcileTravelCompensation,
+  getBaseTrainingRoutePreview,
 } from '../services/attendance.service.js';
 import { canEditMonth, editBlockReason, getMonthKey } from '../services/month-gate.service.js';
 import { uploadAttachment } from '../services/storage.service.js';
@@ -188,6 +189,8 @@ export function renderNewReportScreen(container, {
   let notesField = null;
   let attachmentUi = null;
   let operationOptions = [];
+  let baseTrainingRouteRow = null;
+  let baseTrainingRouteToken = 0;
   let operationChoiceField = null;
 
   function getReportDate() {
@@ -239,6 +242,36 @@ export function renderNewReportScreen(container, {
   function isBaseTrainingActivity(activity) {
     return activity?.__attendanceSynthetic === 'base_training'
       || activityRowId(activity) === BASE_TRAINING_OPTION_VALUE;
+  }
+
+  async function syncBaseTrainingRoutePreview(activity) {
+    if (!baseTrainingRouteRow) return;
+    const token = ++baseTrainingRouteToken;
+    if (!isBaseTrainingActivity(activity)) {
+      baseTrainingRouteRow.hidden = true;
+      baseTrainingRouteRow.replaceChildren();
+      return;
+    }
+
+    baseTrainingRouteRow.hidden = false;
+    baseTrainingRouteRow.innerHTML = '<strong>מסלול נסיעה</strong><span>הבית שלך → Greenwork, יקום</span><small>מחשב זמן נסיעה וביטול זמן צפוי…</small>';
+
+    const result = await getBaseTrainingRoutePreview().catch(() => ({
+      status: 'unavailable',
+      reason: 'route_service_unavailable'
+    }));
+    if (token !== baseTrainingRouteToken || !baseTrainingRouteRow?.isConnected) return;
+
+    if (result?.status === 'resolved') {
+      const outbound = Number(result.outbound_travel_minutes || 0);
+      const returning = Number(result.return_travel_minutes || 0);
+      const cancellation = Number(result.cancellation_minutes || 0);
+      baseTrainingRouteRow.innerHTML = `<strong>מסלול נסיעה</strong><span>הבית שלך → Greenwork, יקום</span><small>הלוך ${formatTravelMinutes(outbound)} · חזור ${formatTravelMinutes(returning)} · ביטול זמן צפוי ${formatTravelMinutes(cancellation)}. מחושב אוטומטית — אין צורך לדווח ביטול זמן בנפרד.</small>`;
+      return;
+    }
+
+    const missingAddress = result?.reason === 'instructor_address_missing';
+    baseTrainingRouteRow.innerHTML = `<strong>מסלול נסיעה</strong><span>הבית שלך → Greenwork, יקום</span><small>${missingAddress ? 'לא ניתן לחשב – כתובת הבית אינה מעודכנת במערכת.' : 'חישוב המסלול אינו זמין כרגע. המערכת תנסה שוב בעת שמירת הדיווח.'}</small>`;
   }
 
   function activityOptionsForReportType(activities = [], reportType = getReportType(), query = '') {
@@ -538,6 +571,11 @@ export function renderNewReportScreen(container, {
       schoolSel?.setOptions(schoolOptsFor(manualAuthId));
     }
     activityNameSel?.reset();
+    if (baseTrainingRouteRow) {
+      baseTrainingRouteToken += 1;
+      baseTrainingRouteRow.hidden = true;
+      baseTrainingRouteRow.replaceChildren();
+    }
     clearMeetingSelection();
     setLocationFieldsVisible(!isOpenFieldType());
     syncLocationDependencies();
@@ -721,6 +759,7 @@ export function renderNewReportScreen(container, {
     syncAuthoritySchoolFromActivity(activity);
     if (autoFillTimes) syncActivityTimes(activity);
     setLocationFieldsVisible(!isBaseTrainingActivity(activity));
+    void syncBaseTrainingRoutePreview(activity);
     syncLocationDependencies();
     await syncMeetingForSelectedDate();
     syncCourseDashboardLocks();
@@ -1066,6 +1105,10 @@ export function renderNewReportScreen(container, {
     const timesGrid = document.createElement('div');
     timesGrid.className = 'av2-report__times-grid';
     timesGrid.append(startPicker.wrap, endPicker.wrap, hoursDisplay, publicTransportToggle, kmField.wrap, publicTransportCostWrap);
+    baseTrainingRouteRow = document.createElement('div');
+    baseTrainingRouteRow.className = 'av2-report__time-cancellation av2-report__base-training-route';
+    baseTrainingRouteRow.hidden = true;
+    timesGrid.append(baseTrainingRouteRow);
     const existingCompensation = prefill?.travel_compensation;
     if (existingCompensation?.calculation_status === 'resolved' && Number(existingCompensation.final_cancellation_minutes) > 0) {
       const compensationRow = document.createElement('div');
