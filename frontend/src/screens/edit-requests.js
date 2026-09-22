@@ -13,6 +13,11 @@ import {
   loadCourseAssignmentManagerApprovalGroups,
   reviewCourseAssignmentManagerApproval
 } from './shared/course-scheduling-manager-approval.js';
+import {
+  COURSE_MEETING_SUBSTITUTE_REQUEST_TYPE,
+  loadCourseMeetingSubstituteRequestGroups,
+  reviewCourseMeetingSubstituteRequest
+} from './shared/course-meeting-substitute-requests.js';
 
 /** Fields that are system/debug identifiers — hide from manager-facing cards only. */
 const TECHNICAL_DISPLAY_FIELDS = new Set([
@@ -171,6 +176,7 @@ function requestTypeLabel(type) {
   const requestType = String(type || '');
   if (requestType === 'create_activity') return 'בקשה להוספת פעילות';
   if (requestType === COURSE_ASSIGNMENT_MANAGER_APPROVAL_REQUEST_TYPE) return 'אישור חריגה בשיבוץ';
+  if (requestType === COURSE_MEETING_SUBSTITUTE_REQUEST_TYPE) return 'בקשת החלפה חד־פעמית';
   return 'בקשת עריכה';
 }
 
@@ -217,6 +223,7 @@ export function renderGroup(group, canReview) {
   const requestType = String(group.request_type || '');
   const isCreateRequest = requestType === 'create_activity';
   const isSchedulingApproval = requestType === COURSE_ASSIGNMENT_MANAGER_APPROVAL_REQUEST_TYPE;
+  const isMeetingSubstituteRequest = requestType === COURSE_MEETING_SUBSTITUTE_REQUEST_TYPE;
   const hasActivity = Boolean(activity);
   const titleName = String((isSchedulingApproval ? activity?.activity_name : group.activity_name) || activity?.activity_name || '').trim() || 'פעילות ללא שם';
   const activityType = activityTypeDisplay(
@@ -233,7 +240,7 @@ export function renderGroup(group, canReview) {
   const endTime = formatTimeDisplay(isCreateRequest ? group?.requested_payload?.end_time : activity?.end_time);
   const activityTimes = [startTime, endTime].filter(Boolean).join('–');
 
-  const canApprove = isSchedulingApproval
+  const canApprove = (isSchedulingApproval || isMeetingSubstituteRequest)
     ? group.status === 'pending' && group.can_approve === true
     : canReview && group.status === 'pending' && group.can_approve !== false;
   const actionsHtml = canApprove ? `
@@ -246,6 +253,34 @@ export function renderGroup(group, canReview) {
   const reviewerNoteHtml = group.review_note ? `
     <p class="ds-er-reviewer-note"><span class="ds-muted">הערת סוקר:</span> ${escapeHtml(group.review_note)}</p>
   ` : '';
+
+  if (isMeetingSubstituteRequest) {
+    const payload = group?.requested_payload || {};
+    const action = String(payload.action || 'set');
+    const meetingDate = formatDateDisplay(payload.meeting_date) || String(payload.meeting_date || '—');
+    const currentInstructor = String(payload.expected_current_instructor_name || payload.expected_current_emp_id || '—');
+    const requestedInstructor = action === 'clear'
+      ? 'ביטול ההחלפה והחזרה למדריך הקבוע'
+      : String(payload.substitute_instructor_name || payload.substitute_emp_id || '—');
+    const schedulingSummary = [activityType, school, authority].filter(Boolean).join(' · ') || '—';
+
+    return `
+    <article class="ds-er-group" data-status="${escapeHtml(group.status || '')}" data-request-id="${escapeHtml(group.request_id)}" data-request-type="${escapeHtml(requestType)}">
+      <header class="ds-er-card-head">
+        <h3 class="ds-er-card-title">${escapeHtml(requestTypeLabel(requestType))}: ${escapeHtml(titleName)}</h3>
+        <div>${dsStatusChip(statusLabel(group.status), statusVariant(group.status))}</div>
+      </header>
+      <div class="ds-er-meta-grid" dir="rtl">
+        <p><span class="ds-muted">פעילות:</span> <strong>${escapeHtml(schedulingSummary)}</strong></p>
+        <p><span class="ds-muted">מפגש:</span> <strong>${escapeHtml(meetingDate)}</strong></p>
+        <p><span class="ds-muted">מדריך נוכחי:</span> <strong>${escapeHtml(currentInstructor)}</strong></p>
+        <p><span class="ds-muted">עדכון מבוקש:</span> <strong>${escapeHtml(requestedInstructor)}</strong></p>
+      </div>
+      ${requesterFooterHtml(group)}
+      ${actionsHtml}
+    </article>
+  `;
+  }
 
   if (isSchedulingApproval) {
     const requestedInstructor = instructorLine(activity, { includeEmpId: true }) || '—';
@@ -366,15 +401,22 @@ function isOpen(group) {
 }
 
 export const editRequestsScreen = {
-  async load({ api }) {
+  async load({ api, state }) {
     const base = await api.editRequests();
-    const baseGroups = (Array.isArray(base?.groups) ? base.groups : []).filter(
-      (group) => String(group?.request_type || '') !== COURSE_ASSIGNMENT_MANAGER_APPROVAL_REQUEST_TYPE
-    );
-    const schedulingGroups = await loadCourseAssignmentManagerApprovalGroups();
+    const baseGroups = (Array.isArray(base?.groups) ? base.groups : []).filter((group) => {
+      const type = String(group?.request_type || '');
+      return type !== COURSE_ASSIGNMENT_MANAGER_APPROVAL_REQUEST_TYPE
+        && type !== COURSE_MEETING_SUBSTITUTE_REQUEST_TYPE;
+    });
+    const role = String(state?.user?.role || '').trim();
+    const canApproveSubstitute = role === 'admin' || role === 'operation_manager';
+    const [schedulingGroups, substituteGroups] = await Promise.all([
+      loadCourseAssignmentManagerApprovalGroups(),
+      loadCourseMeetingSubstituteRequestGroups({ canApprove: canApproveSubstitute })
+    ]);
     return {
       ...base,
-      groups: [...baseGroups, ...schedulingGroups]
+      groups: [...baseGroups, ...schedulingGroups, ...substituteGroups]
     };
   },
   render(data) {
@@ -382,6 +424,7 @@ export const editRequestsScreen = {
     const validGroups = groups.filter((group) => (
       String(group?.request_type || '') === 'create_activity'
       || String(group?.request_type || '') === COURSE_ASSIGNMENT_MANAGER_APPROVAL_REQUEST_TYPE
+      || String(group?.request_type || '') === COURSE_MEETING_SUBSTITUTE_REQUEST_TYPE
       || (Array.isArray(group?.fields) && group.fields.length > 0)
     ));
     const canReview = !!data?.canReview;
@@ -416,12 +459,15 @@ export const editRequestsScreen = {
         const groupEl = btn.closest('.ds-er-group');
         const requestType = groupEl?.dataset.requestType || '';
         const isSchedulingApproval = requestType === COURSE_ASSIGNMENT_MANAGER_APPROVAL_REQUEST_TYPE;
+        const isMeetingSubstituteRequest = requestType === COURSE_MEETING_SUBSTITUTE_REQUEST_TYPE;
         btn.disabled = true;
 
         try {
           const reviewed = isSchedulingApproval
             ? await reviewCourseAssignmentManagerApproval(requestId, status)
-            : await api.reviewEditRequest(requestId, status);
+            : (isMeetingSubstituteRequest
+              ? await reviewCourseMeetingSubstituteRequest(requestId, status)
+              : await api.reviewEditRequest(requestId, status));
 
           if (reviewed?.status === 'conflict') {
             groupEl?.remove();
@@ -436,6 +482,8 @@ export const editRequestsScreen = {
           try { document.dispatchEvent(new CustomEvent('app:edit-requests-updated')); } catch (_) { /* ignore */ }
           if (isSchedulingApproval) {
             showToast(status === 'approved' ? 'הבקשה אושרה. ניתן להשלים את השיבוץ.' : 'הבקשה נדחתה', 'success');
+          } else if (isMeetingSubstituteRequest) {
+            showToast(status === 'approved' ? 'הבקשה אושרה וההחלפה עודכנה במפגש' : 'הבקשה נדחתה', 'success');
           } else {
             showToast(status === 'approved' ? 'הבקשה אושרה והשינוי נשמר בפעילויות' : 'הבקשה נדחתה', 'success');
           }
