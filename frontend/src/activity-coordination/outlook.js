@@ -187,10 +187,15 @@ export async function reconcileDispatch(dispatch, token) {
     message = result?.value?.[0] || null;
   }
   if (!message) {
-    const recorded = await recordReconciliationException(dispatch.id, 'הטיוטה לא נמצאה; מתבצע אימות חוזר', true);
-    if (Number(recorded?.reconciliation_miss_count || 0) < 2) return { status: 'draft_missing_once' };
-    await finishDispatch(dispatch.id, 'cancelled', null, 'הטיוטה הקודמת לא נמצאה');
-    return { status: 'cancelled' };
+    const recorded = await recordReconciliationException(
+      dispatch.id,
+      'הטיוטה לא נמצאה כרגע ב-Outlook; האימות יימשך אוטומטית',
+      true
+    );
+    return {
+      status: 'draft_missing',
+      reconciliationMissCount: Number(recorded?.reconciliation_miss_count || 0)
+    };
   }
   if (message.isDraft !== false) {
     await recordReconciliationException(dispatch.id, '', false);
