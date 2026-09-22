@@ -83,12 +83,18 @@ export function coordinationStatusHtml(item, { action = false } = {}) {
   if (uiStatus === COORDINATION_STATUS.MISSING_DETAILS) {
     return `<span class="coordination-missing-list" title="${escapeHtml(title)}"><span aria-hidden="true">⚠</span> חסרים: ${coordinationMissingDetails(item).map(escapeHtml).join(', ')}</span>`;
   }
+  if (item?.status === COORDINATION_STATUS.DRAFT) {
+    return `<span class="coordination-status is-draft" title="${escapeHtml(title)}"><span aria-hidden="true">✉</span> טיוטה ב-Outlook · ממתין לשליחה</span>`;
+  }
   return `<span class="coordination-status ${meta.className}" title="${escapeHtml(title)}"><span aria-hidden="true">${meta.icon}</span> ${meta.label}${sentDate ? ` · ${escapeHtml(sentDate)}` : ''}</span>${changed}${button}`;
 }
 
 export function coordinationDrawerActionHtml(item) {
   if (item?.status === COORDINATION_STATUS.SENT) {
     return '<span class="coordination-drawer-sent"><span class="coordination-drawer-sent__check" aria-hidden="true">✓</span> אישור תיאום נשלח</span>';
+  }
+  if (item?.status === COORDINATION_STATUS.DRAFT) {
+    return '<span class="coordination-drawer-draft"><span aria-hidden="true">✉</span> טיוטה ב-Outlook · ממתין לשליחה</span>';
   }
   const label = item?.status === COORDINATION_STATUS.CHANGED_SINCE_SENT ? 'שליחת אישור מעודכן' : 'אישור תיאום';
   return `<button type="button" class="ds-btn ds-btn--sm" data-coordination-approval>${label}</button>`;
@@ -122,8 +128,8 @@ export function renderCoordinationWorkspace(context = {}, { canManage = false } 
     return `<section class="coordination-section coordination-section--${status}" data-coordination-section="${status}">
       <header class="coordination-section__header"><h3>${escapeHtml(title)} <span>${sectionItems.length}</span></h3>${actions && canManage ? `<div class="coordination-toolbar"><button type="button" class="ds-btn ds-btn--sm" data-coordination-select-ready>סמן מוכנים</button><button type="button" class="ds-btn ds-btn--sm ds-btn--primary" data-coordination-prepare>הכנת מיילים</button><span data-coordination-progress role="status" aria-live="polite"></span></div>` : ''}</header>
       ${sectionItems.length ? `<div class="coordination-schools">${Array.from(groups.entries()).map(([key, group]) => `<section class="coordination-school" data-coordination-school data-school-key="${escapeHtml(key)}">
-        <header>${status === COORDINATION_STATUS.READY && canManage ? '<label><input type="checkbox" data-coordination-school-select> ' : ''}<strong>${escapeHtml(group[0].snapshot?.school?.name || 'בית ספר')}</strong>${status === COORDINATION_STATUS.READY && canManage ? '</label>' : ''}<span>${group.length} פעילויות</span></header>
-        <div class="coordination-rows">${group.map((item) => `<label class="coordination-row" data-coordination-row data-status="${status}">${status === COORDINATION_STATUS.READY && canManage ? `<input type="checkbox" data-coordination-item value="${escapeHtml(item.activity_row_id)}">` : ''}<span class="coordination-row__details"><strong>${escapeHtml(item.snapshot?.program?.name || '')}</strong>${detailsHtml(item)}</span><span class="coordination-row__state">${coordinationStatusHtml(item)}</span></label>`).join('')}</div>
+        <header>${status === COORDINATION_STATUS.READY && canManage && group.some((item) => item.status === COORDINATION_STATUS.READY) ? '<label><input type="checkbox" data-coordination-school-select> ' : ''}<strong>${escapeHtml(group[0].snapshot?.school?.name || 'בית ספר')}</strong>${status === COORDINATION_STATUS.READY && canManage && group.some((item) => item.status === COORDINATION_STATUS.READY) ? '</label>' : ''}<span>${group.length} פעילויות</span></header>
+        <div class="coordination-rows">${group.map((item) => `<label class="coordination-row" data-coordination-row data-status="${status}">${status === COORDINATION_STATUS.READY && canManage && item.status === COORDINATION_STATUS.READY ? `<input type="checkbox" data-coordination-item value="${escapeHtml(item.activity_row_id)}">` : ''}<span class="coordination-row__details"><strong>${escapeHtml(item.snapshot?.program?.name || '')}</strong>${detailsHtml(item)}</span><span class="coordination-row__state">${coordinationStatusHtml(item)}</span></label>`).join('')}</div>
       </section>`).join('')}</div>` : '<p class="coordination-section__empty">אין פעילויות במצב זה.</p>'}
     </section>`;
   };
@@ -183,7 +189,8 @@ export function renderCoordinationActivityModal(item) {
   const dates = meetings.map((meeting) => meeting.date).filter(Boolean).join(', ');
   const hours = meetings.find((meeting) => meeting.hours)?.hours || '';
   const grade = [item.activity?.grade, item.activity?.class_group].filter(Boolean).join(' / ');
-  const canPrepare = coordinationUiStatus(item) === COORDINATION_STATUS.READY || item.status === COORDINATION_STATUS.CHANGED_SINCE_SENT;
+  const canPrepare = item.status !== COORDINATION_STATUS.DRAFT
+    && (coordinationUiStatus(item) === COORDINATION_STATUS.READY || item.status === COORDINATION_STATUS.CHANGED_SINCE_SENT);
   const label = item.status === COORDINATION_STATUS.CHANGED_SINCE_SENT ? 'הכנת מייל מעודכן ב-Outlook' : 'הכנת מייל ב-Outlook';
   const field = (name, value) => value ? `<div><dt>${name}</dt><dd>${escapeHtml(value)}</dd></div>` : '';
   return `<section class="coordination-activity-modal" data-coordination-activity-modal data-activity-id="${escapeHtml(item.activity_row_id)}" dir="rtl">
@@ -220,12 +227,15 @@ export function bindCoordinationActivityModal(root, item, { loginHint = '', onCh
   });
 }
 
-export async function reconcileVisibleDrafts(context, { loginHint = '' } = {}) {
+export async function reconcileVisibleDrafts(context, { loginHint = '', authUserId = '' } = {}) {
   const [{ delegatedMailToken }, { reconcileDispatch }] = await Promise.all([import('../microsoft/graph-mail.js'), import('./outlook.js')]);
   const drafts = new Map();
+  const currentAuthUserId = String(authUserId || '').trim();
   for (const item of context.items || []) {
     const p = item.persisted || {};
+    const draftOwnerId = String(p.draft_created_by || '').trim();
     if (!p.active_draft_dispatch_id || !p.graph_message_id) continue;
+    if (!currentAuthUserId || !draftOwnerId || draftOwnerId !== currentAuthUserId) continue;
     drafts.set(p.active_draft_dispatch_id, {
       id: p.active_draft_dispatch_id, graph_message_id: p.graph_message_id,
       client_correlation_id: p.client_correlation_id, recipient_email: p.recipient_email,
