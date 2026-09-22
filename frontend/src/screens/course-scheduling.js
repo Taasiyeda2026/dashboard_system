@@ -1415,7 +1415,8 @@ export const courseSchedulingScreen = {
         duplicateSchoolCount: enriched.duplicateSchoolCount,
         missingCount: enriched.missingCount
       },
-      schoolAddressLookupError
+      schoolAddressLookupError,
+      reloadPlanningSnapshot: () => courseSchedulingScreen.load({ api })
     };
   },
 
@@ -1435,7 +1436,13 @@ export const courseSchedulingScreen = {
     const rowModels = interfaceCourses.map((course) => courseRowModel(course, resultByCourseId));
     const tab = activeTab(state);
     const selectedId = state.courseSchedulingSelectedId || '';
-    const currentPlanningFingerprint = planningDataFingerprint(data.activities || []);
+    const planningFingerprintInput = {
+      activities: data.activities || [], instructors: data.instructors || [],
+      profiles: data.scheduling?.profiles || [], rules: data.scheduling?.rules || [],
+      exceptions: data.scheduling?.exceptions || [], schoolCalendar: data.schoolCalendar || [],
+      catalog: data.planningCatalog || []
+    };
+    const currentPlanningFingerprint = planningDataFingerprint(planningFingerprintInput);
     if (tab === 'planning'
       && state.courseSchedulingPlanningFingerprint
       && state.courseSchedulingPlanningFingerprint !== currentPlanningFingerprint
@@ -1594,31 +1601,56 @@ export const courseSchedulingScreen = {
       };
       rerender();
       try {
-        const profiles = Object.fromEntries((data.scheduling?.profiles || []).map((row) => [text(row.emp_id), row]));
+        const freshStart = await data.reloadPlanningSnapshot();
+        const startFingerprintInput = {
+          activities: freshStart.activities || [], instructors: freshStart.instructors || [],
+          profiles: freshStart.scheduling?.profiles || [], rules: freshStart.scheduling?.rules || [],
+          exceptions: freshStart.scheduling?.exceptions || [], schoolCalendar: freshStart.schoolCalendar || [],
+          catalog: freshStart.planningCatalog || []
+        };
+        const startFingerprint = planningDataFingerprint(startFingerprintInput);
+        const profiles = Object.fromEntries((freshStart.scheduling?.profiles || []).map((row) => [text(row.emp_id), row]));
         const result = await buildDynamicCoursePlan({
-          activities: data.activities || [],
-          instructors: data.instructors || [],
+          activities: freshStart.activities || [],
+          instructors: freshStart.instructors || [],
           profiles,
-          rules: group(data.scheduling?.rules || [], 'emp_id'),
-          exceptions: group(data.scheduling?.exceptions || [], 'emp_id'),
-          schoolCalendar: data.schoolCalendar || [],
-          catalog: data.planningCatalog || [],
+          rules: group(freshStart.scheduling?.rules || [], 'emp_id'),
+          exceptions: group(freshStart.scheduling?.exceptions || [], 'emp_id'),
+          schoolCalendar: freshStart.schoolCalendar || [],
+          catalog: freshStart.planningCatalog || [],
           district: state.courseSchedulingPlanningDistrict || '',
           today: today(),
           onProgress: (progress) => {
             state.courseSchedulingPlanningProgress = {
+              phase: progress.phase,
               completed: progress.completed,
               total: progress.total
             };
+            rerender();
           }
         });
+        const freshEnd = await data.reloadPlanningSnapshot();
+        const endFingerprint = planningDataFingerprint({
+          activities: freshEnd.activities || [], instructors: freshEnd.instructors || [],
+          profiles: freshEnd.scheduling?.profiles || [], rules: freshEnd.scheduling?.rules || [],
+          exceptions: freshEnd.scheduling?.exceptions || [], schoolCalendar: freshEnd.schoolCalendar || [],
+          catalog: freshEnd.planningCatalog || []
+        });
+        if (startFingerprint !== endFingerprint) {
+          state.courseSchedulingPlanningRows = [];
+          state.courseSchedulingPlanningRouteStats = null;
+          state.courseSchedulingPlanningFingerprint = '';
+          state.courseSchedulingPlanningError = 'נתוני השיבוץ השתנו — יש לחשב מחדש.';
+          return;
+        }
         state.courseSchedulingPlanningRows = result.rows || [];
         state.courseSchedulingPlanningRouteStats = result.routeStats || null;
-        state.courseSchedulingPlanningFingerprint = planningDataFingerprint(data.activities || []);
+        state.courseSchedulingPlanningFingerprint = startFingerprint;
         state.courseSchedulingPlanningCalculatedAt = new Intl.DateTimeFormat('he-IL', {
           dateStyle: 'short',
           timeStyle: 'short'
         }).format(new Date());
+        clearScreenDataCache?.();
       } catch (error) {
         state.courseSchedulingPlanningError = `חישוב התכנון נכשל: ${error?.message || error}`;
       } finally {
