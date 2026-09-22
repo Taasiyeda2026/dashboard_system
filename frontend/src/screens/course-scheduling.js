@@ -1607,6 +1607,110 @@ export const courseSchedulingScreen = {
     const selectedCourseId = state.courseSchedulingSelectedId;
     const selectedCourse = courseById.get(selectedCourseId);
 
+    detailRoot.querySelector('[data-open-single-substitute]')?.addEventListener('click', async () => {
+      if (!canEdit || !selectedCourseId) return;
+      const [substitutionResult, historyResult] = await Promise.all([
+        supabase.rpc('scheduling_course_meeting_substitutions', { p_activity_id: selectedCourseId }),
+        supabase.rpc('scheduling_course_meeting_instructors', { p_activity_id: selectedCourseId })
+      ]);
+      const error = substitutionResult.error || historyResult.error;
+      if (error) {
+        showToast(translateSchedulingAssignmentError(error.message, 'טעינת ההחלפות נכשלה'), 'error');
+        return;
+      }
+      state.courseSchedulingSingleSubstitutions ||= {};
+      state.courseSchedulingSingleSubstitutions[selectedCourseId] = substitutionResult.data || [];
+      state.courseSchedulingMeetingHistory ||= {};
+      state.courseSchedulingMeetingHistory[selectedCourseId] = historyResult.data || [];
+      state.courseSchedulingSingleSubstitutionCourseId = selectedCourseId;
+      state.courseSchedulingSingleSubstitutionDate = '';
+      state.courseSchedulingSingleSubstitutionEmpId = '';
+      rerender();
+    });
+
+    root.querySelector('[data-close-single-substitute]')?.addEventListener('click', () => {
+      state.courseSchedulingSingleSubstitutionCourseId = '';
+      state.courseSchedulingSingleSubstitutionDate = '';
+      state.courseSchedulingSingleSubstitutionEmpId = '';
+      rerender();
+    });
+    root.querySelector('[data-single-substitute-overlay]')?.addEventListener('click', (event) => {
+      if (event.target !== event.currentTarget) return;
+      state.courseSchedulingSingleSubstitutionCourseId = '';
+      state.courseSchedulingSingleSubstitutionDate = '';
+      state.courseSchedulingSingleSubstitutionEmpId = '';
+      rerender();
+    });
+    root.querySelector('[data-single-substitute-date]')?.addEventListener('change', (event) => {
+      state.courseSchedulingSingleSubstitutionDate = event.target.value;
+      state.courseSchedulingSingleSubstitutionEmpId = '';
+      rerender();
+    });
+    root.querySelector('[data-single-substitute-emp]')?.addEventListener('change', (event) => {
+      state.courseSchedulingSingleSubstitutionEmpId = event.target.value;
+    });
+
+    const refreshSingleSubstitutionState = async (courseId) => {
+      const [substitutionResult, historyResult] = await Promise.all([
+        supabase.rpc('scheduling_course_meeting_substitutions', { p_activity_id: courseId }),
+        supabase.rpc('scheduling_course_meeting_instructors', { p_activity_id: courseId })
+      ]);
+      if (substitutionResult.error) throw substitutionResult.error;
+      if (historyResult.error) throw historyResult.error;
+      state.courseSchedulingSingleSubstitutions ||= {};
+      state.courseSchedulingSingleSubstitutions[courseId] = substitutionResult.data || [];
+      state.courseSchedulingMeetingHistory ||= {};
+      state.courseSchedulingMeetingHistory[courseId] = historyResult.data || [];
+    };
+
+    root.querySelector('[data-save-single-substitute]')?.addEventListener('click', async (event) => {
+      const courseId = text(state.courseSchedulingSingleSubstitutionCourseId);
+      const meetingDate = text(state.courseSchedulingSingleSubstitutionDate);
+      const substituteEmpId = Number(state.courseSchedulingSingleSubstitutionEmpId);
+      if (!courseId || !meetingDate) { showToast('יש לבחור מפגש', 'error'); return; }
+      if (!Number.isInteger(substituteEmpId) || substituteEmpId <= 0) { showToast('יש לבחור מדריך מחליף', 'error'); return; }
+      event.currentTarget.disabled = true;
+      const { error } = await supabase.rpc('set_course_meeting_substitute', {
+        p_activity_id: courseId,
+        p_meeting_date: meetingDate,
+        p_substitute_emp_id: substituteEmpId
+      });
+      if (error) {
+        showToast(translateSchedulingAssignmentError(error.message, 'שמירת ההחלפה נכשלה'), 'error');
+        event.currentTarget.disabled = false;
+        return;
+      }
+      try { await refreshSingleSubstitutionState(courseId); } catch {}
+      state.courseSchedulingSingleSubstitutionCourseId = '';
+      state.courseSchedulingSingleSubstitutionDate = '';
+      state.courseSchedulingSingleSubstitutionEmpId = '';
+      clearScreenDataCache?.();
+      showToast('ההחלפה החד־פעמית נשמרה', 'success');
+      rerender();
+    });
+
+    root.querySelector('[data-clear-single-substitute]')?.addEventListener('click', async (event) => {
+      const courseId = text(state.courseSchedulingSingleSubstitutionCourseId);
+      const meetingDate = text(state.courseSchedulingSingleSubstitutionDate);
+      if (!courseId || !meetingDate) return;
+      event.currentTarget.disabled = true;
+      const { error } = await supabase.rpc('clear_course_meeting_substitute', {
+        p_activity_id: courseId,
+        p_meeting_date: meetingDate
+      });
+      if (error) {
+        showToast(translateSchedulingAssignmentError(error.message, 'ביטול ההחלפה נכשל'), 'error');
+        event.currentTarget.disabled = false;
+        return;
+      }
+      try { await refreshSingleSubstitutionState(courseId); } catch {}
+      state.courseSchedulingSingleSubstitutionCourseId = '';
+      state.courseSchedulingSingleSubstitutionDate = '';
+      state.courseSchedulingSingleSubstitutionEmpId = '';
+      clearScreenDataCache?.();
+      showToast('ההחלפה החד־פעמית בוטלה', 'success');
+      rerender();
+    });
     detailRoot.querySelector('[data-change-assignment]')?.addEventListener('click', async () => {
       if (!canEdit || !selectedCourseId) return;
       const [{ data: completed, error }, historyResult] = await Promise.all([
