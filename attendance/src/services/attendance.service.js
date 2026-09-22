@@ -255,6 +255,21 @@ export async function reconcileTravelCompensation(sourceRecordId) {
   return data;
 }
 
+export async function getBaseTrainingRoutePreview() {
+  if (isAdminPreviewRequested()) return null;
+  const { data, error } = await supabase.functions.invoke('attendance-base-training-routes', {
+    body: { mode: 'preview' }
+  });
+  if (error) {
+    return {
+      ok: false,
+      status: 'unavailable',
+      reason: data?.reason || data?.error || 'route_service_unavailable'
+    };
+  }
+  return data;
+}
+
 export async function overrideTravelCompensation(sourceRecordId, finalMinutes) {
   const { data, error } = await supabase.rpc('av2_override_attendance_time_cancellation', {
     p_source_id: sourceRecordId,
