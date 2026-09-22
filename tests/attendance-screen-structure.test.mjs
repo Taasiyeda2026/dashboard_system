@@ -342,9 +342,11 @@ test('Course reports are dashboard-driven and expose mismatch notices', () => {
 
 test('Course duplication targets only the immediate next dashboard meeting, including across months', () => {
   assert.match(duplicateCourseSource, /const nextMeeting = schedule\.find\(\(item\) => item\.meeting_no > sourceMeetingNo\) \|\| null/);
-  assert.match(duplicateCourseSource, /const available = nextMeeting && !nextMeetingAlreadyReported \? \[nextMeeting\] : \[\]/);
+  assert.match(duplicateCourseSource, /const nextMeetingAssignedToCurrent = !!nextMeeting && nextMeeting\.assigned_to_current !== false/);
+  assert.match(duplicateCourseSource, /const available = nextMeeting && nextMeetingAssignedToCurrent && !nextMeetingAlreadyReported \? \[nextMeeting\] : \[\]/);
   assert.match(duplicateCourseSource, /גם אם הוא בחודש הבא/);
   assert.match(duplicateCourseSource, /המפגש הבא בדשבורד כבר דווח ולכן לא ניתן לדלג למפגש מאוחר יותר/);
+  assert.match(duplicateCourseSource, /המפגש הבא בדשבורד משויך למדריך אחר ולכן לא ניתן לדלג למפגש מאוחר יותר/);
   assert.match(duplicateCourseSource, /start_time:\s*clean\(item\?\.start_time\)/);
   assert.match(duplicateCourseSource, /end_time:\s*clean\(item\?\.end_time\)/);
   assert.match(duplicateCourseSource, /av2:dashboard-duplicate-meeting/);
