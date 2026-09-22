@@ -22,6 +22,7 @@ export const CAPABILITY_REGISTRY = Object.freeze([
   { id: 'instructors.list', parent: 'instructors', label: 'רשימת מדריכים', type: 'tab', permission: 'view_instructor_list', route: 'instructors', tab: 'list' },
   { id: 'instructors.contacts', parent: 'instructors', label: 'אנשי קשר מדריכים', type: 'tab', permission: 'view_instructor_contacts', route: 'instructor-contacts' },
   { id: 'instructors.scheduling', parent: 'instructors', label: 'שיבוצים', type: 'tab', permission: 'view_operations_scheduling', route: 'course-scheduling', tab: 'scheduling' },
+  { id: 'instructors.planning', parent: 'instructors', label: 'תכנון', type: 'tab', permission: 'view_operations_scheduling', route: 'course-scheduling', tab: 'planning' },
   { id: 'instructors.work_schedule', parent: 'instructors', label: 'סידור עבודה', type: 'tab', permission: 'view_instructor_work_schedule', route: 'operations-management', tab: 'work-schedule', context: 'instructors' },
   { id: 'instructors.attendance_control', parent: 'instructors', label: 'בקרת נוכחות', type: 'tab', permission: 'view_attendance_control', route: 'operations-management', tab: 'payroll-control', context: 'instructors' },
   { id: 'instructors.maintenance', parent: 'instructors', label: 'תחזוקה', type: 'tab', permission: 'manage_instructor_maintenance', route: 'course-scheduling', tab: 'maintenance' },
