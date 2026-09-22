@@ -96,7 +96,8 @@ jobs:
               tests/course-scheduling-district-simulation-save-drafts.test.mjs \
               tests/course-scheduling-logic-ui-corrections.test.mjs \
               tests/course-scheduling-manual-finalize-soft-warnings.test.mjs \
-              tests/course-meeting-substitute-permissions.test.mjs
+              tests/course-meeting-substitute-permissions.test.mjs \
+              tests/course-scheduling-planning-tab.test.mjs
           else
             echo "No scheduling contract files changed; focused scheduling tests skipped."
           fi
