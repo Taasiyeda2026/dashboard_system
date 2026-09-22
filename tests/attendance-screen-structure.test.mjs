@@ -22,6 +22,7 @@ const dashboardAlignmentMigration = await readFile(new URL('../supabase/migratio
 const attendanceSwSource = await readFile(new URL('../attendance/sw.js', import.meta.url), 'utf8');
 const attendanceIndexSource = await readFile(new URL('../attendance/index.html', import.meta.url), 'utf8');
 const calSource     = await readFile(new URL('../attendance/src/components/mini-calendar.js', import.meta.url), 'utf8');
+const calendarDayDrawerSource = await readFile(new URL('../attendance/src/components/calendar-day-drawer.js', import.meta.url), 'utf8');
 
 test('Attendance Home is summary-only with instructor monthly totals and no report rows', () => {
   assert.doesNotMatch(homeSource, /createMiniCalendar|av2-home__calendar|renderCalendarSection/);
@@ -99,6 +100,18 @@ test('Attendance calendar shows TODAY highlight plus separate activity and atten
   assert.match(calSource, /av2-cal__attendance-dot/);
   assert.match(calSource, /aria-current', 'date'/);
   assert.match(calSource, /attendanceCalendarEventsForDate/);
+});
+
+test('Attendance calendar drawer shows only meaningful record details with readable times', () => {
+  assert.match(calendarDayDrawerSource, /function formatClock\(value\)/);
+  assert.match(calendarDayDrawerSource, /formatTimeRange\(record\.start_time, record\.end_time\)/);
+  assert.match(calendarDayDrawerSource, /makeMeta\('שעות', time, \{ direction: 'ltr' \}\)/);
+  assert.match(calendarDayDrawerSource, /makeMeta\('משך', formatDurationHours\(totalHours\), \{ direction: 'ltr' \}\)/);
+  assert.match(calendarDayDrawerSource, /if \(km > 0\)/);
+  assert.match(calendarDayDrawerSource, /if \(usesPublicTransport\)/);
+  assert.match(calendarDayDrawerSource, /if \(expenses > 0\)/);
+  assert.doesNotMatch(calendarDayDrawerSource, /record\.public_transport \? money\(record\.public_transport_cost\) : 'לא'/);
+  assert.doesNotMatch(calendarDayDrawerSource, /makeMeta\('הוצאות', money\(record\.expenses\)\)/);
 });
 
 test('Attendance New Report uses two compact desktop cards and instructor activity IDs', () => {

@@ -1,4 +1,5 @@
 import { createIcon } from './icon.js';
+import { formatDurationHours } from './monthly-report-summary.js';
 
 function text(value) {
   return String(value ?? '').trim();
@@ -6,7 +7,20 @@ function text(value) {
 
 function money(value) {
   const amount = Number(value || 0);
-  return Number.isFinite(amount) ? `₪${amount.toFixed(2)}` : '₪0.00';
+  return Number.isFinite(amount) ? `₪${amount.toLocaleString('he-IL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '';
+}
+
+function formatClock(value) {
+  const raw = text(value);
+  const match = raw.match(/^(\d{1,2}):(\d{2})/);
+  if (!match) return raw;
+  return `${String(Number(match[1])).padStart(2, '0')}:${match[2]}`;
+}
+
+function formatTimeRange(start, end) {
+  const startText = formatClock(start);
+  const endText = formatClock(end);
+  return [startText, endText].filter(Boolean).join('–');
 }
 
 function formatDateHeb(dateStr) {
@@ -29,13 +43,14 @@ function makeSection(title, className = '') {
   return section;
 }
 
-function makeMeta(label, value) {
+function makeMeta(label, value, { direction = '' } = {}) {
   const row = document.createElement('div');
   const dt = document.createElement('span');
   dt.className = 'av2-calendar-day__meta-label';
   dt.textContent = label;
   const dd = document.createElement('strong');
   dd.textContent = text(value) || '—';
+  if (direction) dd.dir = direction;
   row.append(dt, dd);
   return row;
 }
@@ -55,7 +70,7 @@ function renderActivity(activity) {
   const title = document.createElement('strong');
   title.textContent = text(activity.activity_name) || text(activity.program_name) || 'פעילות';
   const meta = document.createElement('span');
-  const time = [text(activity.start_time), text(activity.end_time)].filter(Boolean).join('–');
+  const time = formatTimeRange(activity.start_time, activity.end_time);
   const meeting = activity.meeting_no ? `מפגש ${activity.meeting_no}` : '';
   meta.textContent = [time, meeting].filter(Boolean).join(' · ');
   summary.append(title, meta);
@@ -85,15 +100,36 @@ function renderAttendance(record) {
 
   const grid = document.createElement('div');
   grid.className = 'av2-calendar-day__attendance-grid';
-  const time = [text(record.start_time), text(record.end_time)].filter(Boolean).join('–');
-  grid.append(
-    makeMeta('שעות', time || record.total_hours),
-    makeMeta('בית ספר', record.school_name_snapshot),
-    makeMeta('רשות', record.authority_name_snapshot),
-    makeMeta('ק״מ', Number(record.roundtrip_km || 0).toFixed(0)),
-    makeMeta('תחבורה ציבורית', record.public_transport ? money(record.public_transport_cost) : 'לא'),
-    makeMeta('הוצאות', money(record.expenses)),
-  );
+  const items = [];
+
+  const activityType = text(record.activity_type);
+  const time = formatTimeRange(record.start_time, record.end_time);
+  const totalHours = Number(record.total_hours || 0);
+  const school = text(record.school_name_snapshot);
+  const authority = text(record.authority_name_snapshot);
+  const km = Number(record.roundtrip_km || 0);
+  const publicTransportCost = Number(record.public_transport_cost || 0);
+  const usesPublicTransport = record.public_transport === true
+    || record.public_transport === 'true'
+    || record.public_transport === 1
+    || publicTransportCost > 0;
+  const expenses = Number(record.expenses || 0);
+  const expenseDetails = text(record.expense_details);
+
+  if (activityType) items.push(makeMeta('סוג פעילות', activityType));
+  if (record.meeting_no != null && text(record.meeting_no)) items.push(makeMeta('מפגש', record.meeting_no));
+  if (time) items.push(makeMeta('שעות', time, { direction: 'ltr' }));
+  if (totalHours > 0) items.push(makeMeta('משך', formatDurationHours(totalHours), { direction: 'ltr' }));
+  if (school) items.push(makeMeta('בית ספר', school));
+  if (authority) items.push(makeMeta('רשות', authority));
+  if (km > 0) items.push(makeMeta('ק״מ', Math.round(km).toLocaleString('he-IL')));
+  if (usesPublicTransport) {
+    items.push(makeMeta('תחבורה ציבורית', publicTransportCost > 0 ? `כן · ${money(publicTransportCost)}` : 'כן'));
+  }
+  if (expenses > 0) items.push(makeMeta('הוצאות', money(expenses)));
+  if (expenseDetails) items.push(makeMeta('פירוט הוצאות', expenseDetails));
+
+  grid.append(...items);
 
   const notes = text(record.notes);
   if (notes) {
