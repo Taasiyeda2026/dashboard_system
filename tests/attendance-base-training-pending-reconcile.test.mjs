@@ -7,12 +7,11 @@ const source = await readFile(
   'utf8'
 );
 
-test('base-training route builder reconciles historical pending attendance rows', () => {
+test('base-training route builder reconciles historical pending attendance rows through protected RPC', () => {
   assert.match(source, /async function reconcilePendingBaseTraining/);
-  assert.match(source, /attendance_travel_compensations/);
-  assert.match(source, /calculation_status', 'pending'/);
-  assert.match(source, /av2_prepare_attendance_travel/);
-  assert.match(source, /av2_reconcile_attendance_travel/);
+  assert.match(source, /av2_reconcile_pending_base_training_routes/);
+  assert.match(source, /p_outbound: route\.outbound_travel_minutes/);
+  assert.match(source, /p_return: route\.return_travel_minutes/);
   assert.match(source, /reconciled_pending/);
 });
 
