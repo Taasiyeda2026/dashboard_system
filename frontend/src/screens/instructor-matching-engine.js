@@ -5,10 +5,20 @@ const LANGUAGE_LABELS = { he: 'עברית', ar: 'ערבית' };
 export const MAX_HOME_DISTANCE_KM = 40;
 /** A manual home-distance exception needs manager approval only from this threshold (km). */
 export const MANAGER_APPROVAL_DISTANCE_KM = 60;
-/** Required gap between consecutive meetings = raw travel minutes + this buffer. Applied once only. */
+/** Nearby-school transitions receive a smaller safety buffer when the verified route is at most 10 km. */
+export const NEARBY_TRANSITION_DISTANCE_KM = 10;
+export const NEARBY_TRANSITION_BUFFER_MINUTES = 10;
+/** Default safety buffer for transitions above the nearby threshold. Applied once only. */
 export const TRANSITION_BUFFER_MINUTES = 15;
 /** Maximum driving distance allowed between two consecutive activities. */
 export const MAX_TRANSITION_DISTANCE_KM = 20;
+
+export function transitionBufferMinutes(distanceKm) {
+  const km = Number(distanceKm);
+  return Number.isFinite(km) && km <= NEARBY_TRANSITION_DISTANCE_KM
+    ? NEARBY_TRANSITION_BUFFER_MINUTES
+    : TRANSITION_BUFFER_MINUTES;
+}
 
 export const DEFAULT_SCHEDULING_PROFILE = Object.freeze({
   gender: null,
@@ -299,8 +309,8 @@ export function evaluateInstructor({
           `מרחק בין הפעילויות ${Math.round(Number(distance))} ק״מ`,
           meeting.date
         );
-      } else if (!sameLocation && gap < Number(required) + TRANSITION_BUFFER_MINUTES) {
-        const needed = Number(required) + TRANSITION_BUFFER_MINUTES;
+      } else if (!sameLocation && gap < Number(required) + transitionBufferMinutes(distance)) {
+        const needed = Number(required) + transitionBufferMinutes(distance);
         const message = neighborRef
           ? (direction === 'previous'
             ? `אין זמן מעבר מספיק לאחר ${neighborRef}`
@@ -313,7 +323,7 @@ export function evaluateInstructor({
         schoolContinuityPoints += gap <= 30 ? 10 : gap <= 90 ? 7 : 4;
       } else if (same(neighbor.authority, activity.authority)) {
         sameAuthority += 1;
-        if (required != null && gap - required >= 15) authorityContinuityPoints += 8;
+        if (required != null && gap - required >= transitionBufferMinutes(distance)) authorityContinuityPoints += 8;
         else if (required != null) authorityContinuityPoints += 5;
         else authorityContinuityPoints += 3;
       }
