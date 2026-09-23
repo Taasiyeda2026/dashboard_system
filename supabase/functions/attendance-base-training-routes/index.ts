@@ -113,6 +113,71 @@ async function instructorRoute(db: any, address: string, key: string) {
   };
 }
 
+
+function normalizedKey(value: unknown) {
+  return text(value).toLowerCase().replace(/\s+/g, '');
+}
+
+async function reconcilePendingBaseTraining(db: any, empId: number, route: any, authUserId?: string) {
+  let actorId = text(authUserId);
+  if (!actorId) {
+    const { data: appUser, error: userError } = await db.from('users')
+      .select('auth_user_id')
+      .eq('emp_id', String(empId))
+      .eq('is_active', true)
+      .maybeSingle();
+    if (userError) throw new Error('pending_user_lookup_failed');
+    actorId = text(appUser?.auth_user_id);
+  }
+  if (!actorId) return { resolved: 0, failed: 0 };
+
+  const { data: pendingRows, error: pendingError } = await db.from('attendance_travel_compensations')
+    .select('source_attendance_record_id')
+    .eq('emp_id', empId)
+    .eq('calculation_status', 'pending');
+  if (pendingError) throw new Error('pending_compensation_lookup_failed');
+
+  const sourceIds = (pendingRows || []).map((row: any) => text(row.source_attendance_record_id)).filter(Boolean);
+  if (!sourceIds.length) return { resolved: 0, failed: 0 };
+
+  const { data: sources, error: sourceError } = await db.from('attendance_records')
+    .select('id,activity_type,activity_name_snapshot,generation_kind')
+    .in('id', sourceIds);
+  if (sourceError) throw new Error('pending_source_lookup_failed');
+
+  const baseTrainingRows = (sources || []).filter((row: any) =>
+    !row.generation_kind
+    && normalizedKey(row.activity_type) === normalizedKey('הכשרה')
+    && normalizedKey(row.activity_name_snapshot) === normalizedKey('הכשרת בסיס')
+  );
+
+  let resolved = 0;
+  let failed = 0;
+  for (const source of baseTrainingRows) {
+    const { data: prepared, error: prepareError } = await db.rpc('av2_prepare_attendance_travel', {
+      p_source_id: source.id,
+      p_actor_id: actorId
+    });
+    const fingerprint = text(prepared?.fingerprint);
+    if (prepareError || prepared?.eligible !== true || !fingerprint) {
+      failed += 1;
+      continue;
+    }
+
+    const { error: reconcileError } = await db.rpc('av2_reconcile_attendance_travel', {
+      p_source_id: source.id,
+      p_fingerprint: fingerprint,
+      p_outbound: route.outbound_travel_minutes,
+      p_return: route.return_travel_minutes,
+      p_failure_code: null
+    });
+    if (reconcileError) failed += 1;
+    else resolved += 1;
+  }
+
+  return { resolved, failed };
+}
+
 async function mapWithConcurrency(items: any[], limit: number, worker: (item: any) => Promise<any>) {
   const results: any[] = new Array(items.length);
   let cursor = 0;
@@ -182,10 +247,15 @@ Deno.serve(async (req) => {
 
     let failed = 0;
     let cached = 0;
+    let reconciledPending = 0;
+    let reconcileFailed = 0;
     const results = await mapWithConcurrency(active, CONCURRENCY, async (row: any) => {
       try {
         const route = await instructorRoute(db, text(row.address), googleKey);
         if (route.cached) cached += 1;
+        const reconciliation = await reconcilePendingBaseTraining(db, Number(row.emp_id), route);
+        reconciledPending += reconciliation.resolved;
+        reconcileFailed += reconciliation.failed;
         return { ok: true };
       } catch {
         failed += 1;
@@ -198,7 +268,9 @@ Deno.serve(async (req) => {
       active_with_address: active.length,
       completed: results.filter((item) => item?.ok).length,
       cached,
-      failed
+      failed,
+      reconciled_pending: reconciledPending,
+      reconcile_failed: reconcileFailed
     });
   }
 
@@ -218,10 +290,13 @@ Deno.serve(async (req) => {
 
   try {
     const route = await instructorRoute(db, address, googleKey);
+    const reconciliation = await reconcilePendingBaseTraining(db, empId, route);
     return response({
       ok: true,
       status: 'resolved',
       destination_label: 'Greenwork, יקום',
+      reconciled_pending: reconciliation.resolved,
+      reconcile_failed: reconciliation.failed,
       ...route
     });
   } catch (error) {
