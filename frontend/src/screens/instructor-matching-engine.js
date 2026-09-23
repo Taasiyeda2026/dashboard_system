@@ -10,8 +10,6 @@ export const NEARBY_TRANSITION_DISTANCE_KM = 10;
 export const NEARBY_TRANSITION_BUFFER_MINUTES = 10;
 /** Default safety buffer for transitions above the nearby threshold. Applied once only. */
 export const TRANSITION_BUFFER_MINUTES = 15;
-/** Maximum driving distance allowed between two consecutive activities. */
-export const MAX_TRANSITION_DISTANCE_KM = 20;
 
 export function transitionBufferMinutes(distanceKm) {
   const km = Number(distanceKm);
@@ -248,7 +246,7 @@ export function evaluateInstructor({
   let authorityContinuityPoints = 0;
   let availableMeetings = 0;
   const availabilityIssueKinds = new Set(['missing_availability', 'hours_unavailable', 'day_blocked', 'overlap']);
-  const travelIssueKinds = new Set(['unverified_transition', 'transition_distance_exceeded', 'insufficient_transition']);
+  const travelIssueKinds = new Set(['unverified_transition', 'insufficient_transition']);
 
   for (const meeting of meetings) {
     const weekday = new Date(`${meeting.date}T12:00:00`).getDay();
@@ -302,13 +300,6 @@ export function evaluateInstructor({
             : `לא ניתן לאמת זמן מעבר לפני ${neighborRef}`)
           : `לא ניתן לאמת זמן מעבר ${label}`;
         addIssue('unverified_transition', direction, message, meeting.date);
-      } else if (!sameLocation && Number(distance) > MAX_TRANSITION_DISTANCE_KM) {
-        addIssue(
-          'transition_distance_exceeded',
-          `${direction}-${distance}`,
-          `מרחק בין הפעילויות ${Math.round(Number(distance))} ק״מ`,
-          meeting.date
-        );
       } else if (!sameLocation && gap < Number(required) + transitionBufferMinutes(distance)) {
         const needed = Number(required) + transitionBufferMinutes(distance);
         const message = neighborRef

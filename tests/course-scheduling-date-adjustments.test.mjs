@@ -54,19 +54,20 @@ test('holidays and another instructor exception are skipped without an arbitrary
   assert.equal(result.valid,true); assert.equal(result.meetings[1].date,'2027-01-31'); assert.equal(result.meetings.length,35);
 });
 
-test('proposed overlaps fail and travel requires a known route plus 15 minute safety',()=>{
+test('proposed overlaps fail and verified travel is governed by travel time plus the distance-aware buffer',()=>{
   const overlap=proposeDateAdjustments({meetings,rules,exceptions:blocked,existingActivities:[{date:'2027-01-17',start_time:'10:30',end_time:'11:30'}]});
   assert.equal(overlap.reason,'proposed_overlap');
   const unknown=proposeDateAdjustments({meetings,rules,exceptions:blocked,transitions:{'2027-01-17':{previous:{end_time:'09:00',duration_minutes:null,distance_km:null}}}});
   assert.equal(unknown.reason,'transition_unverified');
-  const tooFar=proposeDateAdjustments({meetings,rules,exceptions:blocked,transitions:{'2027-01-17':{previous:{end_time:'09:00',duration_minutes:10,distance_km:21}}}});
-  assert.equal(tooFar.reason,'transition_distance_exceeded');
-  const short=proposeDateAdjustments({meetings,rules,exceptions:blocked,transitions:{'2027-01-17':{previous:{end_time:'09:36',duration_minutes:10,distance_km:20}}}});
-  assert.equal(short.reason,'transition_insufficient');
-  const exact=proposeDateAdjustments({meetings,rules,exceptions:blocked,transitions:{'2027-01-17':{previous:{end_time:'09:35',duration_minutes:10,distance_km:20}}}});
-  assert.equal(exact.valid,true,'a 25-minute gap covers 10 minutes travel plus one 15-minute buffer');
-  const missingMinute=proposeDateAdjustments({meetings,rules,exceptions:blocked,transitions:{'2027-01-17':{previous:{end_time:'09:36',duration_minutes:10,distance_km:20}}}});
-  assert.equal(missingMinute.reason,'transition_insufficient');
+
+  const nearbyExact=proposeDateAdjustments({meetings,rules,exceptions:blocked,transitions:{'2027-01-17':{previous:{end_time:'09:30',duration_minutes:20,distance_km:10}}}});
+  assert.equal(nearbyExact.valid,true,'a 30-minute gap covers 20 minutes travel plus the 10-minute nearby-school buffer');
+
+  const longExact=proposeDateAdjustments({meetings,rules,exceptions:blocked,transitions:{'2027-01-17':{previous:{end_time:'08:45',duration_minutes:60,distance_km:55}}}});
+  assert.equal(longExact.valid,true,'a 75-minute gap covers a one-hour trip plus the 15-minute buffer even above 20 km');
+
+  const longShort=proposeDateAdjustments({meetings,rules,exceptions:blocked,transitions:{'2027-01-17':{previous:{end_time:'08:46',duration_minutes:60,distance_km:55}}}});
+  assert.equal(longShort.reason,'transition_insufficient');
 });
 
 test('half overflow is an explicit warning state, not a separate approval field',()=>{

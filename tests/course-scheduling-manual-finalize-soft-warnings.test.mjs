@@ -11,7 +11,7 @@ const manualDraftUrl = new URL(
   import.meta.url
 );
 const hardGateUrl = new URL(
-  '../supabase/migrations/20260919182003_unify_manual_scheduling_hard_gates.sql',
+  '../supabase/migrations/20260923221000_remove_inter_school_distance_cap.sql',
   import.meta.url
 );
 const contractUrl = new URL(
@@ -20,9 +20,10 @@ const contractUrl = new URL(
 );
 
 function sliceFunction(sql, name, nextMarker = 'revoke all on function') {
-  const start = sql.indexOf(`create or replace function public.${name}(`);
+  const lower = sql.toLowerCase();
+  const start = lower.indexOf(`create or replace function public.${name}(`);
   assert.ok(start >= 0, `${name} not found`);
-  const end = sql.indexOf(`${nextMarker} public.${name}(`, start);
+  const end = lower.indexOf(`${nextMarker.toLowerCase()} public.${name}(`, start);
   assert.ok(end > start, `${name} end not found`);
   return sql.slice(start, end);
 }
@@ -49,7 +50,7 @@ test('manual draft RPC records an explicit manual reason for server verification
   assert.match(fn, /'draft',[\s\S]*nullif\(btrim\(coalesce\(p_reason, ''\)\), ''\)/);
 });
 
-test('manual finalization keeps only explicit manual-fit exceptions soft and aligns all safety gates', async () => {
+test('manual finalization keeps physical travel-time feasibility without an inter-school distance ceiling', async () => {
   const [hardSql, assignSql] = await Promise.all([readFile(hardGateUrl, 'utf8'), readFile(fixUrl, 'utf8')]);
   const helper = sliceFunction(hardSql, 'scheduling_manual_assignment_hard_violations');
   const assign = sliceFunction(assignSql, 'assign_activity_instructor');
@@ -68,12 +69,12 @@ test('manual finalization keeps only explicit manual-fit exceptions soft and ali
     'scheduling_language_mismatch',
     'scheduling_gender_mismatch',
     'scheduling_transition_unverified',
-    'scheduling_transition_distance_exceeded',
     'scheduling_transition_insufficient',
     'scheduling_daily_sequence_exceeded'
   ]) assert.match(helper, new RegExp(gate));
-  assert.match(helper, /required_km > 20/);
-  assert.match(helper, /required_minutes \+ 15/);
+  assert.match(helper, /scheduling_transition_buffer_minutes\(required_km\)/);
+  assert.doesNotMatch(helper, /required_km\s*>\s*20/);
+  assert.doesNotMatch(helper, /scheduling_transition_distance_exceeded/);
 
   assert.match(assign, /if is_verified_manual_draft then[\s\S]*scheduling_manual_assignment_hard_violations/);
   assert.match(assign, /else[\s\S]*scheduling_course_instructor_violations\(p_activity_id, p_emp_id, true\)/,
