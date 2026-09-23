@@ -215,3 +215,4 @@ config.HOTFIX_VERSION = `attendance-cancellation-summary-parity-20260922-v1-${co
 config.HOTFIX_VERSION = `course-planning-orchestrator-freshness-20260922-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `course-planning-catalog-progress-overflow-20260923-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `course-scheduling-nearby-transition-10km-10min-20260923-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `course-planning-full-year-all-activities-20260923-v1-${config.HOTFIX_VERSION}`;

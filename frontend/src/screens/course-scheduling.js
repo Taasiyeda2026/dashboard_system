@@ -62,6 +62,7 @@ import {
   summarizeDistrictSimulation
 } from './course-scheduling-district-simulation.js';
 import {
+  DEFAULT_PLANNING_PERIOD_KEY,
   buildDynamicCoursePlan,
   buildPlanningOverviewRows,
   planningDataFingerprint,
@@ -322,6 +323,10 @@ function saveCalculationSnapshot(state, courses, context = null, now = Date.now(
 
 function selectedPeriodKey(state = {}) {
   return state.courseSchedulingPeriodKey || DEFAULT_COURSE_SCHEDULING_PERIOD_KEY;
+}
+
+function planningPeriodKey(state = {}) {
+  return state.courseSchedulingPlanningPeriodKey || DEFAULT_PLANNING_PERIOD_KEY;
 }
 
 function withSelectedPeriod(course, state = {}) {
@@ -1436,11 +1441,13 @@ export const courseSchedulingScreen = {
     const rowModels = interfaceCourses.map((course) => courseRowModel(course, resultByCourseId));
     const tab = activeTab(state);
     const selectedId = state.courseSchedulingSelectedId || '';
+    const activePlanningPeriodKey = planningPeriodKey(state);
     const planningFingerprintInput = {
       activities: data.activities || [], instructors: data.instructors || [],
       profiles: data.scheduling?.profiles || [], rules: data.scheduling?.rules || [],
       exceptions: data.scheduling?.exceptions || [], schoolCalendar: data.schoolCalendar || [],
-      catalog: data.planningCatalog || []
+      catalog: data.planningCatalog || [],
+      periodKey: activePlanningPeriodKey
     };
     const currentPlanningFingerprint = planningDataFingerprint(planningFingerprintInput);
     if (tab === 'planning'
@@ -1453,12 +1460,18 @@ export const courseSchedulingScreen = {
       state.courseSchedulingPlanningError = '';
       state.courseSchedulingPlanningFingerprint = '';
     }
-    const planningRows = state.courseSchedulingPlanningRows?.length
+    const hasTrustedPlanningRows = !!state.courseSchedulingPlanningRows?.length
+      && (
+        state.courseSchedulingPlanningLoading
+        || state.courseSchedulingPlanningFingerprint === currentPlanningFingerprint
+      );
+    const planningRows = hasTrustedPlanningRows
       ? state.courseSchedulingPlanningRows
       : buildPlanningOverviewRows({
           activities: data.activities || [],
           catalog: data.planningCatalog || [],
-          district: state.courseSchedulingPlanningDistrict || ''
+          district: state.courseSchedulingPlanningDistrict || '',
+          periodKey: activePlanningPeriodKey
         });
     const selectedRow = rowModels.find((row) => row.id === selectedId)
       || (selectedId ? courseRowModel(interfaceCourses.find((course) => idOf(course) === selectedId) || { row_id: selectedId }, resultByCourseId) : null);
@@ -1479,6 +1492,7 @@ export const courseSchedulingScreen = {
               error: state.courseSchedulingPlanningError || '',
               district: state.courseSchedulingPlanningDistrict || '',
               districts: OPERATIONAL_DISTRICTS,
+              periodKey: activePlanningPeriodKey,
               calculatedAt: state.courseSchedulingPlanningCalculatedAt || '',
               routeStats: state.courseSchedulingPlanningRouteStats || null
             })
@@ -1538,6 +1552,35 @@ export const courseSchedulingScreen = {
     );
     bindInstructorsWorkspaceNav(root, { state, rerender });
     const invokeDistanceRoute = (body) => supabase.functions.invoke('scheduling-route', { body });
+
+    if (activeTab(state) === 'planning' && !data._planningFreshChecked && !state.courseSchedulingPlanningLoading) {
+      data._planningFreshChecked = true;
+      Promise.resolve(data.reloadPlanningSnapshot?.())
+        .then((fresh) => {
+          if (!fresh) return;
+          const activePeriodKey = planningPeriodKey(state);
+          const before = planningDataFingerprint({
+            activities: data.activities || [], instructors: data.instructors || [],
+            profiles: data.scheduling?.profiles || [], rules: data.scheduling?.rules || [],
+            exceptions: data.scheduling?.exceptions || [], schoolCalendar: data.schoolCalendar || [],
+            catalog: data.planningCatalog || [], periodKey: activePeriodKey
+          });
+          const after = planningDataFingerprint({
+            activities: fresh.activities || [], instructors: fresh.instructors || [],
+            profiles: fresh.scheduling?.profiles || [], rules: fresh.scheduling?.rules || [],
+            exceptions: fresh.scheduling?.exceptions || [], schoolCalendar: fresh.schoolCalendar || [],
+            catalog: fresh.planningCatalog || [], periodKey: activePeriodKey
+          });
+          Object.assign(data, fresh, { _planningFreshChecked: true });
+          if (before !== after) clearCoursePlanning();
+          rerender();
+        })
+        .catch((error) => {
+          state.courseSchedulingPlanningError = `רענון נתוני התכנון נכשל: ${error?.message || error}`;
+          rerender();
+        });
+    }
+
     const reloadDistanceCoverage = async () => {
       const coverage = await loadDistanceCoverage(invokeDistanceRoute, 'all');
       state.courseSchedulingDistanceStats = coverage;
@@ -1596,7 +1639,8 @@ export const courseSchedulingScreen = {
         total: buildPlanningOverviewRows({
           activities: data.activities || [],
           catalog: data.planningCatalog || [],
-          district: state.courseSchedulingPlanningDistrict || ''
+          district: state.courseSchedulingPlanningDistrict || '',
+          periodKey: planningPeriodKey(state)
         }).filter((row) => !['live', 'draft'].includes(row.kind)).length
       };
       rerender();
@@ -1606,7 +1650,8 @@ export const courseSchedulingScreen = {
           activities: freshStart.activities || [], instructors: freshStart.instructors || [],
           profiles: freshStart.scheduling?.profiles || [], rules: freshStart.scheduling?.rules || [],
           exceptions: freshStart.scheduling?.exceptions || [], schoolCalendar: freshStart.schoolCalendar || [],
-          catalog: freshStart.planningCatalog || []
+          catalog: freshStart.planningCatalog || [],
+          periodKey: planningPeriodKey(state)
         };
         const startFingerprint = planningDataFingerprint(startFingerprintInput);
         const profiles = Object.fromEntries((freshStart.scheduling?.profiles || []).map((row) => [text(row.emp_id), row]));
@@ -1619,6 +1664,7 @@ export const courseSchedulingScreen = {
           schoolCalendar: freshStart.schoolCalendar || [],
           catalog: freshStart.planningCatalog || [],
           district: state.courseSchedulingPlanningDistrict || '',
+          periodKey: planningPeriodKey(state),
           today: today(),
           onProgress: (progress) => {
             state.courseSchedulingPlanningProgress = {
@@ -1637,7 +1683,8 @@ export const courseSchedulingScreen = {
           activities: freshEnd.activities || [], instructors: freshEnd.instructors || [],
           profiles: freshEnd.scheduling?.profiles || [], rules: freshEnd.scheduling?.rules || [],
           exceptions: freshEnd.scheduling?.exceptions || [], schoolCalendar: freshEnd.schoolCalendar || [],
-          catalog: freshEnd.planningCatalog || []
+          catalog: freshEnd.planningCatalog || [],
+          periodKey: planningPeriodKey(state)
         });
         if (startFingerprint !== endFingerprint) {
           state.courseSchedulingPlanningRows = [];
@@ -1667,6 +1714,11 @@ export const courseSchedulingScreen = {
       void runCoursePlanning();
     });
     root.querySelector('[data-clear-course-planning]')?.addEventListener('click', () => {
+      clearCoursePlanning();
+      rerender();
+    });
+    root.querySelector('[data-planning-period-filter]')?.addEventListener('change', (event) => {
+      state.courseSchedulingPlanningPeriodKey = event.target.value || DEFAULT_PLANNING_PERIOD_KEY;
       clearCoursePlanning();
       rerender();
     });
@@ -1730,6 +1782,7 @@ export const courseSchedulingScreen = {
           ? button.dataset.switchTab
           : 'courses';
         state.courseSchedulingShowDistanceConfirm = false;
+        if (state.courseSchedulingTab === 'planning') data._planningFreshChecked = false;
         rerender();
       });
     });
