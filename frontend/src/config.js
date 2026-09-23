@@ -217,3 +217,4 @@ config.HOTFIX_VERSION = `course-planning-catalog-progress-overflow-20260923-v1-$
 config.HOTFIX_VERSION = `course-scheduling-nearby-transition-10km-10min-20260923-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `course-planning-full-year-all-activities-20260923-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `course-planning-start-20261006-fill-instructor-days-20260923-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `course-planning-operational-packing-recruitment-last-20260923-v1-${config.HOTFIX_VERSION}`;
