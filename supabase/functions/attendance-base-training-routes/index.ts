@@ -114,68 +114,17 @@ async function instructorRoute(db: any, address: string, key: string) {
 }
 
 
-function normalizedKey(value: unknown) {
-  return text(value).toLowerCase().replace(/\s+/g, '');
-}
-
-async function reconcilePendingBaseTraining(db: any, empId: number, route: any, authUserId?: string) {
-  let actorId = text(authUserId);
-  if (!actorId) {
-    const { data: appUser, error: userError } = await db.from('users')
-      .select('auth_user_id')
-      .eq('emp_id', String(empId))
-      .eq('is_active', true)
-      .maybeSingle();
-    if (userError) throw new Error('pending_user_lookup_failed');
-    actorId = text(appUser?.auth_user_id);
-  }
-  if (!actorId) return { resolved: 0, failed: 0 };
-
-  const { data: pendingRows, error: pendingError } = await db.from('attendance_travel_compensations')
-    .select('source_attendance_record_id')
-    .eq('emp_id', empId)
-    .eq('calculation_status', 'pending');
-  if (pendingError) throw new Error('pending_compensation_lookup_failed');
-
-  const sourceIds = (pendingRows || []).map((row: any) => text(row.source_attendance_record_id)).filter(Boolean);
-  if (!sourceIds.length) return { resolved: 0, failed: 0 };
-
-  const { data: sources, error: sourceError } = await db.from('attendance_records')
-    .select('id,activity_type,activity_name_snapshot,generation_kind')
-    .in('id', sourceIds);
-  if (sourceError) throw new Error('pending_source_lookup_failed');
-
-  const baseTrainingRows = (sources || []).filter((row: any) =>
-    !row.generation_kind
-    && normalizedKey(row.activity_type) === normalizedKey('הכשרה')
-    && normalizedKey(row.activity_name_snapshot) === normalizedKey('הכשרת בסיס')
-  );
-
-  let resolved = 0;
-  let failed = 0;
-  for (const source of baseTrainingRows) {
-    const { data: prepared, error: prepareError } = await db.rpc('av2_prepare_attendance_travel', {
-      p_source_id: source.id,
-      p_actor_id: actorId
-    });
-    const fingerprint = text(prepared?.fingerprint);
-    if (prepareError || prepared?.eligible !== true || !fingerprint) {
-      failed += 1;
-      continue;
-    }
-
-    const { error: reconcileError } = await db.rpc('av2_reconcile_attendance_travel', {
-      p_source_id: source.id,
-      p_fingerprint: fingerprint,
-      p_outbound: route.outbound_travel_minutes,
-      p_return: route.return_travel_minutes,
-      p_failure_code: null
-    });
-    if (reconcileError) failed += 1;
-    else resolved += 1;
-  }
-
-  return { resolved, failed };
+async function reconcilePendingBaseTraining(db: any, empId: number, route: any) {
+  const { data, error } = await db.rpc('av2_reconcile_pending_base_training_routes', {
+    p_emp_id: empId,
+    p_outbound: route.outbound_travel_minutes,
+    p_return: route.return_travel_minutes
+  });
+  if (error) throw new Error('pending_reconcile_failed');
+  return {
+    resolved: Number(data?.resolved || 0),
+    failed: Number(data?.failed || 0)
+  };
 }
 
 async function mapWithConcurrency(items: any[], limit: number, worker: (item: any) => Promise<any>) {
