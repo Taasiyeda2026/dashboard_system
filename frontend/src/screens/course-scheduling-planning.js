@@ -1579,6 +1579,7 @@ function kindClass(kind) {
   if (kind === 'live') return ' is-live';
   if (kind === 'draft') return ' is-draft';
   if (kind === 'proposal' || kind === 'fixed-proposal') return ' is-proposal';
+  if (kind === 'recruitment') return ' is-recruitment';
   return ' is-missing';
 }
 
@@ -1587,7 +1588,7 @@ function optionHtml(option = {}, index = 0) {
     ? ` · טווח התחלה ${formatDateHe(option.startRange.min)}–${formatDateHe(option.startRange.max)}`
     : '';
   return `<div class="course-planning-option">
-    <strong>חלופה ${index + 1}: ${escapeHtml(option.instructorName || '—')}</strong>
+    <strong>חלופה ${index}: ${escapeHtml(option.instructorName || '—')}</strong>
     <span><bdi dir="ltr">${escapeHtml(formatDateHe(option.startDate))}</bdi>–<bdi dir="ltr">${escapeHtml(formatDateHe(option.endDate))}</bdi> · <bdi dir="ltr">${escapeHtml(formatTimeRangeShort(option.startTime, option.endTime))}</bdi>${escapeHtml(range)}</span>
     <small>${escapeHtml(option.reason || '')}${option.routeVerified === false ? ' · מרחק טרם אומת' : ''}</small>
   </div>`;
@@ -1595,7 +1596,7 @@ function optionHtml(option = {}, index = 0) {
 
 function explanationHtml(option = {}) {
   const explanation = option.explanation || {};
-  const items = [explanation.continuity, explanation.workload, explanation.travel, explanation.scheduleSource, explanation.hardGates].filter(Boolean);
+  const items = [explanation.optimization, explanation.continuity, explanation.workload, explanation.travel, explanation.scheduleSource, explanation.hardGates].filter(Boolean);
   return items.length ? `<details class="course-planning-explanation"><summary>למה הוצע?</summary><ul>${items.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul></details>` : '';
 }
 
@@ -1612,7 +1613,10 @@ export function planningRowsHtml(rows = []) {
       : '—';
     const hours = row.startTime ? `<bdi dir="ltr">${escapeHtml(formatTimeRangeShort(row.startTime, row.endTime))}</bdi>` : '—';
     const alternatives = (row.options || []).length > 1
-      ? `<details class="course-planning-alternatives"><summary>${row.options.length - 1} חלופות נוספות</summary>${row.options.slice(1).map((option, index) => optionHtml(option, index + 1)).join('')}</details>`
+      ? `<details class="course-planning-alternatives"><summary>${row.options.length - 1} חלופות אם בית הספר לא יכול</summary>${row.options.slice(1).map((option, index) => optionHtml(option, index + 1)).join('')}</details>`
+      : '';
+    const recommendationBadge = ['proposal', 'fixed-proposal'].includes(row.kind) && row.instructorEmpId
+      ? '<span class="course-planning-recommended">זה המועד הראשון שמציעים לבית הספר</span>'
       : '';
     return `<article class="course-planning-row${kindClass(row.kind)}" data-planning-course="${escapeHtml(row.courseId)}">
       <div class="course-planning-main">
@@ -1624,6 +1628,7 @@ export function planningRowsHtml(rows = []) {
         <div class="course-planning-field"><span>מדריך</span><strong>${escapeHtml(row.instructorName || '—')}</strong></div>
       </div>
       ${range}
+      ${recommendationBadge}
       ${row.halfOverflow ? `<span class="course-planning-half-overflow">${escapeHtml(row.halfOverflowLabel || 'חורגת מתקופת התכנון')}</span>` : ''}
       <p class="course-planning-reason">${escapeHtml(row.reason || '')}</p>
       ${explanationHtml(row.options?.[0])}
@@ -1659,6 +1664,7 @@ export function planningTabHtml({
   const live = rows.filter((row) => row.kind === 'live').length;
   const drafts = rows.filter((row) => row.kind === 'draft').length;
   const proposals = rows.filter((row) => ['proposal', 'fixed-proposal'].includes(row.kind) && row.instructorEmpId).length;
+  const recruitment = rows.filter((row) => row.kind === 'recruitment').length;
   const waiting = rows.filter((row) => row.kind === 'missing' || (['proposal', 'fixed-proposal'].includes(row.kind) && !row.instructorEmpId)).length;
   const progressText = loading
     ? `${escapeHtml(progress?.phase || 'הכנת נתונים')} · ${Number(progress?.completed) || 0} מתוך ${Number(progress?.total) || rows.length} פעילויות`
@@ -1667,8 +1673,8 @@ export function planningTabHtml({
   return `<section class="course-planning-tab" data-course-planning-tab>
     <div class="course-planning-banner">
       <div>
-        <strong>תכנון מערכת הדרכות מלאה — ללא שינוי בשיבוצים</strong>
-        <p>כל הפעילויות הפתוחות נכנסות למערכת החל מ־06.10.2026. מועדים שכבר נקבעו בבית הספר נשארים קבועים; כשחסר תאריך או שעה, המערכת משלימה אותם לפי ימי ושעות הזמינות של צוות ההדרכה.</p>
+        <strong>תכנון תפעולי — אנחנו מציעים לבית הספר את המועד</strong>
+        <p>החל מ־06.10.2026 המערכת בונה קודם את לוח צוות ההדרכה. לבית ספר שלא מסר מועד מאושר נציג מועד ראשון שמתאים לנו, ועוד עד שתי חלופות רק אם הוא אינו יכול.</p>
       </div>
       <div class="course-planning-period">${escapeHtml(period.label)} · <bdi dir="ltr">${escapeHtml(formatDateHe(period.start))}</bdi>–<bdi dir="ltr">${escapeHtml(formatDateHe(period.end))}</bdi></div>
     </div>
@@ -1679,7 +1685,7 @@ export function planningTabHtml({
       <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary" data-clear-course-planning ${loading ? 'disabled' : ''}>אפס הצעות</button>
       ${calculatedAt ? `<span class="course-planning-updated">עודכן ${escapeHtml(calculatedAt)}</span>` : ''}
     </div>
-    <p class="course-planning-note">המערכת בונה מערכת מלאה לקורסים, סדנאות וסיורים החל מ־06.10.2026. לכל פעילות ללא מועד מלא נבדקים מספר המפגשים, משך המפגש, ימי ושעות הזמינות של כל מדריך, חגים, חפיפות, מעברים, מרחקים והעומס שכבר קיים. המטרה היא לנצל את ימי העבודה הזמינים של כל מדריך בלי לחרוג מהאילוצים שלו.</p>
+    <p class="course-planning-note">סדר העבודה הוא: קודם פעילויות שקשה לשבץ, אחר כך מילוי ימים שכבר פתוחים למדריכים, רציפות באותו בית ספר או רשות, נסיעות קצרות ואיזון עומס. תאריך או שעה שבית הספר כבר אישר נשמרים כאילוץ. גיוס מסומן רק לאחר שלא נמצאה התאמה לצוות הקיים בחלונות שנבדקו.</p>
     <p class="course-planning-scope-counts">היקף נוכחי: <strong>${rows.length}</strong> פעילויות · ${Object.entries(typeCounts).map(([type, count]) => `${escapeHtml(type)} ${count}`).join(' · ')}</p>
     ${error ? `<p class="course-scheduling-alert">${escapeHtml(error)}</p>` : ''}
     ${progressText ? `<p class="course-planning-progress" role="status">${escapeHtml(progressText)}</p>` : ''}
@@ -1687,8 +1693,9 @@ export function planningTabHtml({
       <article><b>${rows.length}</b><span>כל הפעילויות</span></article>
       <article><b>${live}</b><span>מעודכן בפועל</span></article>
       <article><b>${drafts}</b><span>טיוטות קיימות</span></article>
-      <article><b>${proposals}</b><span>הצעות תכנון</span></article>
-      <article><b>${waiting}</b><span>טרם נמצא פתרון</span></article>
+      <article><b>${proposals}</b><span>מועדים להצעה לבית הספר</span></article>
+      <article><b>${waiting}</b><span>נדרש בירור נוסף</span></article>
+      <article><b>${recruitment}</b><span>נדרש גיוס</span></article>
     </div>
     ${planningRowsHtml(rows)}
     ${planningInstructorScheduleHtml(rows)}
