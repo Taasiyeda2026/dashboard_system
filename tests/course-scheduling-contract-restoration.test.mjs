@@ -3,7 +3,10 @@ import assert from 'node:assert/strict';
 
 import {
   evaluateInstructor,
-  TRANSITION_BUFFER_MINUTES
+  NEARBY_TRANSITION_BUFFER_MINUTES,
+  NEARBY_TRANSITION_DISTANCE_KM,
+  TRANSITION_BUFFER_MINUTES,
+  transitionBufferMinutes
 } from '../frontend/src/screens/instructor-matching-engine.js';
 import {
   SCORE_WEIGHTS,
@@ -63,8 +66,13 @@ test('explicit gender requirement stays a hard gate', () => {
   assert.ok(result.failures.some((item) => /מדריכה/.test(item)));
 });
 
-test('transition contract is raw travel time plus exactly 15 safety minutes', () => {
+test('transition contract uses +10 minutes up to 10 km and +15 minutes above 10 km', () => {
+  assert.equal(NEARBY_TRANSITION_DISTANCE_KM, 10);
+  assert.equal(NEARBY_TRANSITION_BUFFER_MINUTES, 10);
   assert.equal(TRANSITION_BUFFER_MINUTES, 15);
+  assert.equal(transitionBufferMinutes(10), 10);
+  assert.equal(transitionBufferMinutes(10.01), 15);
+
   const previous = {
     date: '2026-09-20', start_time: '08:00', end_time: '09:30',
     school: 'בית ספר ב', school_id: '200', authority: 'נתניה', school_address: 'נתניה'
@@ -77,23 +85,33 @@ test('transition contract is raw travel time plus exactly 15 safety minutes', ()
     existingActivities: [previous],
     validateTravel: true
   };
-  const pass = evaluateInstructor({
+  const nearbyPass = evaluateInstructor({
     ...base,
     travel: {
       home: { distance_km: 5, duration_minutes: 10 },
-      transitions: { '2026-09-20': { previous: { distance_km: 5, duration_minutes: 15 } } }
+      transitions: { '2026-09-20': { previous: { distance_km: 10, duration_minutes: 20 } } }
     }
   });
-  assert.equal(pass.eligible, true);
-  const fail = evaluateInstructor({
+  assert.equal(nearbyPass.eligible, true);
+
+  const nearbyFail = evaluateInstructor({
     ...base,
     travel: {
       home: { distance_km: 5, duration_minutes: 10 },
-      transitions: { '2026-09-20': { previous: { distance_km: 5, duration_minutes: 16 } } }
+      transitions: { '2026-09-20': { previous: { distance_km: 10, duration_minutes: 21 } } }
     }
   });
-  assert.equal(fail.eligible, false);
-  assert.ok(fail.failures.some((item) => /זמן מעבר/.test(item)));
+  assert.equal(nearbyFail.eligible, false);
+  assert.ok(nearbyFail.failures.some((item) => /זמן מעבר/.test(item)));
+
+  const longerFail = evaluateInstructor({
+    ...base,
+    travel: {
+      home: { distance_km: 5, duration_minutes: 10 },
+      transitions: { '2026-09-20': { previous: { distance_km: 11, duration_minutes: 20 } } }
+    }
+  });
+  assert.equal(longerFail.eligible, false);
 });
 
 test('daily sequence blocks a fourth consecutive long activity', () => {
