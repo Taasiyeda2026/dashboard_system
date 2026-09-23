@@ -4,7 +4,7 @@
  */
 
 import { createIcon } from '../components/icon.js';
-import { getMonthRecords, getMonthApproval, submitMonth, sourceAttendanceRecords, reconcileTravelCompensation } from '../services/attendance.service.js';
+import { getMonthRecords, getMonthApproval, submitMonth, sourceAttendanceRecords } from '../services/attendance.service.js';
 import { canEditMonth, getMonthKey, formatMonthLabel } from '../services/month-gate.service.js';
 import { exportMonthToExcel } from '../services/excel.service.js';
 import { distinctAttendanceWorkDays } from '../components/report-summary-row.js';
@@ -198,10 +198,6 @@ async function handleSubmit({ submitBtn, instructor, year, month, sourceRecords,
   if (!sourceRecords.length) return;
   await openSubmitConfirmationDialog({
     monthLabel: formatMonthLabel(year, month), sourceCount: sourceRecords.length, trigger: submitBtn,
-    onRetry: async (issues) => {
-      const ids = issues.length ? issues.map((item) => item.source_id) : sourceRecords.map((record) => record.id);
-      await Promise.all(ids.map((id) => reconcileTravelCompensation(id)));
-    },
     onApprove: async () => {
       await submitMonth(instructor.empId, getMonthKey(year, month), instructor?.name || '');
     const badge = strip.querySelector('.av2-badge');
