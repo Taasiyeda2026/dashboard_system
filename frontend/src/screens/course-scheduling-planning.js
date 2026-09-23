@@ -1685,7 +1685,7 @@ export function planningTabHtml({
       <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary" data-clear-course-planning ${loading ? 'disabled' : ''}>אפס הצעות</button>
       ${calculatedAt ? `<span class="course-planning-updated">עודכן ${escapeHtml(calculatedAt)}</span>` : ''}
     </div>
-    <p class="course-planning-note">סדר העבודה הוא: קודם פעילויות שקשה לשבץ, אחר כך מילוי ימים שכבר פתוחים למדריכים, רציפות באותו בית ספר או רשות, נסיעות קצרות ואיזון עומס. תאריך או שעה שבית הספר כבר אישר נשמרים כאילוץ. גיוס מסומן רק לאחר שלא נמצאה התאמה לצוות הקיים בחלונות שנבדקו.</p>
+    <p class="course-planning-note">המערכת בונה לוח מלא לקורסים, סדנאות וסיורים. סדר העבודה הוא: קודם פעילויות שקשה לשבץ, אחר כך מילוי ימים שכבר פתוחים למדריכים, רציפות באותו בית ספר או רשות, נסיעות קצרות ואיזון עומס. תאריך או שעה שבית הספר כבר אישר נשמרים כאילוץ. גיוס מסומן רק לאחר שלא נמצאה התאמה לצוות הקיים בחלונות שנבדקו.</p>
     <p class="course-planning-scope-counts">היקף נוכחי: <strong>${rows.length}</strong> פעילויות · ${Object.entries(typeCounts).map(([type, count]) => `${escapeHtml(type)} ${count}`).join(' · ')}</p>
     ${error ? `<p class="course-scheduling-alert">${escapeHtml(error)}</p>` : ''}
     ${progressText ? `<p class="course-planning-progress" role="status">${escapeHtml(progressText)}</p>` : ''}
