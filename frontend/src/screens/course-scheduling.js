@@ -1385,7 +1385,7 @@ export const courseSchedulingScreen = {
       supabase.auth.getSession(),
       supabase
         .from('proposal_activity_pricing')
-        .select('activity_name,activity_no,program_name,name,title,meetings_count,hours_count,unit_duration,is_active_for_proposals')
+        .select('activity_name,activity_no,gefen_number,pricing_key,program_name,name,title,meetings_count,hours_count,unit_duration,is_active_for_proposals')
     ]);
     const schoolRows = schoolLocations?.data || [];
     const schoolAddressLookupError = schoolLocations?.error
@@ -1626,6 +1626,9 @@ export const courseSchedulingScreen = {
               completed: progress.completed,
               total: progress.total
             };
+            if (Array.isArray(progress.rows)) {
+              state.courseSchedulingPlanningRows = progress.rows;
+            }
             rerender();
           }
         });

@@ -2077,6 +2077,19 @@
   font-weight: 700;
 }
 
+.course-planning-half-overflow {
+  display: inline-block;
+  margin-top: 8px;
+  margin-inline-start: 6px;
+  padding: 4px 8px;
+  border: 1px solid #b8c6d6;
+  border-radius: 8px;
+  background: #f4f7fb;
+  color: #44556b;
+  font-size: .8rem;
+  font-weight: 800;
+}
+
 .course-planning-alternatives {
   margin-top: 8px;
   border-top: 1px solid var(--cs-border);

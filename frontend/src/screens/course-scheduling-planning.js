@@ -23,7 +23,16 @@ const FIRST_PERIOD_KEY = 'first';
 const DEFAULT_TIME_SLOTS = ['08:00', '09:30', '11:00', '12:30', '14:00'];
 const MAX_SCENARIOS_PER_COURSE = 12;
 const MAX_FINAL_OPTIONS = 3;
-export const PLANNING_ENGINE_VERSION = 'planning-v2-20260922';
+export const PLANNING_ENGINE_VERSION = 'planning-v3-20260923';
+export const PLANNING_ACTIVITY_NO_ALIASES = Object.freeze({
+  // Legacy Gefen identifier retained on existing activities; canonical catalog program is 53828.
+  '82835': '53828'
+});
+
+export function canonicalPlanningActivityNo(value) {
+  const raw = text(value);
+  return PLANNING_ACTIVITY_NO_ALIASES[raw] || raw;
+}
 
 const yieldToBrowser = () => new Promise((resolve) => {
   if (typeof requestAnimationFrame === 'function') requestAnimationFrame(() => resolve());
@@ -89,8 +98,12 @@ export function planningCatalogIndex(rows = []) {
   const byActivityNo = new Map();
   const byName = new Map();
   for (const row of rows || []) {
-    const activityNo = text(row?.activity_no);
-    if (activityNo && !byActivityNo.has(activityNo)) byActivityNo.set(activityNo, row);
+    for (const identifier of [row?.activity_no, row?.gefen_number, row?.pricing_key]) {
+      const raw = text(identifier);
+      const canonical = canonicalPlanningActivityNo(raw);
+      if (raw && !byActivityNo.has(raw)) byActivityNo.set(raw, row);
+      if (canonical && !byActivityNo.has(canonical)) byActivityNo.set(canonical, row);
+    }
     for (const name of [row?.activity_name, row?.program_name, row?.name, row?.title]) {
       const key = norm(name);
       if (key && !byName.has(key)) byName.set(key, row);
@@ -100,8 +113,12 @@ export function planningCatalogIndex(rows = []) {
 }
 
 function catalogRowForActivity(activity = {}, catalogIndex = planningCatalogIndex()) {
-  const activityNo = text(activity.activity_no);
-  if (activityNo && catalogIndex.byActivityNo?.has(activityNo)) return catalogIndex.byActivityNo.get(activityNo);
+  for (const identifier of [activity.activity_no, activity.gefen_number]) {
+    const raw = text(identifier);
+    const canonical = canonicalPlanningActivityNo(raw);
+    if (raw && catalogIndex.byActivityNo?.has(raw)) return catalogIndex.byActivityNo.get(raw);
+    if (canonical && catalogIndex.byActivityNo?.has(canonical)) return catalogIndex.byActivityNo.get(canonical);
+  }
   return catalogIndex.byName?.get(norm(activity.activity_name || activity.program_name || activity.name)) || null;
 }
 
@@ -688,6 +705,9 @@ function liveRow(activity = {}) {
   const last = meetings.at(-1) || {};
   const draft = !text(activity.emp_id) && text(activity.draft_emp_id);
   const assigned = !!text(activity.emp_id);
+  const period = resolveCourseSchedulingPeriod(FIRST_PERIOD_KEY);
+  const endDate = text(last.date || activity.end_date).slice(0, 10);
+  const halfOverflow = !!draft && !!endDate && endDate > period.end;
   return {
     courseId: idOf(activity),
     authority: text(activity.authority),
@@ -697,13 +717,21 @@ function liveRow(activity = {}) {
     kind: assigned ? 'live' : (draft ? 'draft' : 'fixed'),
     status: assigned ? 'מעודכן בפועל' : (draft ? 'טיוטת שיבוץ קיימת' : 'נדרש טיפול'),
     startDate: text(first.date || activity.start_date).slice(0, 10),
-    endDate: text(last.date || activity.end_date).slice(0, 10),
+    endDate,
     startTime: text(first.start_time || activity.start_time).slice(0, 5),
     endTime: text(first.end_time || activity.end_time).slice(0, 5),
     instructorName: text(activity.instructor_name || activity.draft_instructor_name),
     instructorEmpId: text(activity.emp_id || activity.draft_emp_id),
     options: [],
-    reason: assigned ? 'נלקח מהשיבוץ הפעיל' : (draft ? 'נלקח מטיוטת השיבוץ הקיימת' : 'התאריך והשעות נלקחו מהפעילות')
+    halfOverflow,
+    halfOverflowLabel: halfOverflow ? 'חורגת ממחצית א׳' : '',
+    reason: assigned
+      ? 'נלקח מהשיבוץ הפעיל'
+      : (draft
+          ? (halfOverflow
+              ? `נלקח מטיוטת השיבוץ הקיימת · סיום ${formatDateHe(endDate)} לאחר סוף מחצית א׳`
+              : 'נלקח מטיוטת השיבוץ הקיימת')
+          : 'התאריך והשעות נלקחו מהפעילות')
   };
 }
 
@@ -797,7 +825,15 @@ export function planningDataFingerprint(input = []) {
     rules: stableRows(Array.isArray(snapshot.rules) ? snapshot.rules : Object.values(snapshot.rules || {}).flat()),
     exceptions: stableRows(Array.isArray(snapshot.exceptions) ? snapshot.exceptions : Object.values(snapshot.exceptions || {}).flat()),
     schoolCalendar: stableRows(snapshot.schoolCalendar || []),
-    catalog: stableRows((snapshot.catalog || []).map((row) => ({ activity_no: row.activity_no, activity_name: row.activity_name, meetings_count: row.meetings_count, hours_count: row.hours_count, unit_duration: row.unit_duration })))
+    catalog: stableRows((snapshot.catalog || []).map((row) => ({
+      activity_no: row.activity_no,
+      gefen_number: row.gefen_number,
+      pricing_key: row.pricing_key,
+      activity_name: row.activity_name,
+      meetings_count: row.meetings_count,
+      hours_count: row.hours_count,
+      unit_duration: row.unit_duration
+    })))
   });
   for (let index = 0; index < value.length; index += 1) {
     hash ^= value.charCodeAt(index);
@@ -819,8 +855,8 @@ export async function buildDynamicCoursePlan({
   routeClient = createRouteClient(),
   onProgress = null
 } = {}) {
-  const report = async (phase, completed = 0, total = 0, courseId = '') => {
-    if (typeof onProgress === 'function') onProgress({ phase, completed, total, courseId });
+  const report = async (phase, completed = 0, total = 0, courseId = '', rows = null) => {
+    if (typeof onProgress === 'function') onProgress({ phase, completed, total, courseId, rows });
     await yieldToBrowser();
   };
   await report('הכנת נתונים');
@@ -927,7 +963,8 @@ export async function buildDynamicCoursePlan({
     }
 
     completed += 1;
-    await report('בניית תוכנית', completed, queue.length, idOf(activity));
+    const partialRows = targets.map((target) => rowsById.get(idOf(target)) || missingOverviewRow(target, catalog));
+    await report('בניית תוכנית', completed, queue.length, idOf(activity), partialRows);
   }
 
   const rows = targets.map((activity) => rowsById.get(idOf(activity)) || missingOverviewRow(activity, catalog));
@@ -994,6 +1031,7 @@ export function planningRowsHtml(rows = []) {
         <div class="course-planning-field"><span>מדריך</span><strong>${escapeHtml(row.instructorName || '—')}</strong></div>
       </div>
       ${range}
+      ${row.halfOverflow ? `<span class="course-planning-half-overflow">${escapeHtml(row.halfOverflowLabel || 'חורגת ממחצית א׳')}</span>` : ''}
       <p class="course-planning-reason">${escapeHtml(row.reason || '')}</p>
       ${explanationHtml(row.options?.[0])}
       ${alternatives}

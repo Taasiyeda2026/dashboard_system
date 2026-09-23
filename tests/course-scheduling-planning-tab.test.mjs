@@ -5,11 +5,13 @@ import {
   buildPlanningOverviewRows,
   buildDynamicCoursePlan,
   buildWeeklyPlanningMeetings,
+  canonicalPlanningActivityNo,
   generatePlanningScenarios,
   hasOfficialPlanningSchedule,
   inferPlanningCourseSpec,
   latestFeasiblePlanningStart,
-  planningDataFingerprint
+  planningDataFingerprint,
+  planningRowsHtml
 } from '../frontend/src/screens/course-scheduling-planning.js';
 
 const instructor = { emp_id: 1, full_name: 'מדריך', active: 'yes', address: 'כתובת מדריך' };
@@ -44,6 +46,46 @@ test('planning spec derives meeting count and duration from catalog without chan
   assert.equal(spec.durationMinutes, 90);
   assert.equal(spec.complete, true);
   assert.equal(baseCourse.start_time, undefined);
+});
+
+test('legacy 82835 biomimicry identifier resolves to canonical 53828 catalog duration', () => {
+  const canonicalCatalog = [{
+    activity_no: '53828',
+    gefen_number: '53828',
+    pricing_key: '53828',
+    activity_name: 'ביומימיקרי – חדשנות סביבתית-טכנולוגית בהשראה מן הטבע',
+    meetings_count: 10,
+    hours_count: 15,
+    unit_duration: ''
+  }];
+  const activity = {
+    ...baseCourse,
+    activity_name: 'ביומימיקרי',
+    activity_no: '82835',
+    sessions: 11
+  };
+  assert.equal(canonicalPlanningActivityNo('82835'), '53828');
+  const spec = inferPlanningCourseSpec(activity, canonicalCatalog);
+  assert.equal(spec.sessions, 11);
+  assert.equal(spec.durationMinutes, 90);
+  assert.equal(spec.complete, true);
+});
+
+test('Planning does not guess a catalog program when an activity has no reliable identifier or exact name', () => {
+  const spec = inferPlanningCourseSpec({
+    ...baseCourse,
+    activity_name: 'בינה מלאכותית-יזמות פרימיום',
+    activity_no: null,
+    sessions: 15
+  }, [{
+    activity_no: '52279',
+    activity_name: 'אופק יזמות פרימיום בתעשייה',
+    meetings_count: 14,
+    hours_count: 21
+  }]);
+  assert.equal(spec.sessions, 15);
+  assert.equal(spec.durationMinutes, null);
+  assert.equal(spec.complete, false);
 });
 
 test('weekly planning keeps every meeting inside first half and rejects a start that finishes too late', () => {
@@ -234,6 +276,54 @@ test('planning fingerprint follows saved draft proposed dates and hours', () => 
     draft_proposed_meetings: [{ date: '2026-10-11', start_time: '08:00', end_time: '09:30' }]
   }]);
   assert.notEqual(first, second);
+});
+
+test('drafts that extend beyond first half remain blockers and are clearly marked as overflow', () => {
+  const draft = {
+    ...baseCourse,
+    row_id: 'draft-overflow',
+    sessions: 14,
+    draft_emp_id: '10',
+    draft_instructor_name: 'מדריך טיוטה',
+    start_time: '13:30',
+    end_time: '15:00',
+    draft_proposed_meetings: [
+      { date: '2026-10-18', start_time: '13:30', end_time: '15:00' },
+      { date: '2027-02-07', start_time: '13:30', end_time: '15:00' }
+    ]
+  };
+  const row = buildPlanningOverviewRows({ activities: [draft], catalog })[0];
+  assert.equal(row.status, 'טיוטת שיבוץ קיימת');
+  assert.equal(row.halfOverflow, true);
+  assert.match(row.reason, /לאחר סוף מחצית א׳/);
+  assert.match(planningRowsHtml([row]), /חורגת ממחצית א׳/);
+});
+
+test('dynamic Planning exposes partial rows through progress while the run is still calculating', async () => {
+  const unresolved = {
+    ...baseCourse,
+    row_id: 'partial-progress',
+    activity_name: 'תוכנית ללא קטלוג',
+    sessions: 5
+  };
+  const snapshots = [];
+  await buildDynamicCoursePlan({
+    activities: [unresolved],
+    instructors: [],
+    profiles: {},
+    rules: {},
+    exceptions: {},
+    schoolCalendar: [],
+    catalog: [],
+    today: '2026-09-23',
+    routeClient: routeClient(null),
+    onProgress: (progress) => {
+      if (Array.isArray(progress.rows)) snapshots.push(progress.rows);
+    }
+  });
+  assert.ok(snapshots.length >= 1);
+  assert.equal(snapshots.at(-1)[0].courseId, 'partial-progress');
+  assert.equal(snapshots.at(-1)[0].status, 'נדרש טיפול');
 });
 
 test('Planning is a separate non-destructive workspace tab using scheduling permission', async () => {
