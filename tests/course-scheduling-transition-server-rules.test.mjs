@@ -8,10 +8,11 @@ const migrationUrl = new URL(
 );
 
 function functionSql(sql, name, nextName = null) {
-  const start = sql.indexOf(`create or replace function public.${name}(`);
+  const lower = sql.toLowerCase();
+  const start = lower.indexOf(`create or replace function public.${name}(`);
   assert.ok(start >= 0, `${name} not found`);
   const end = nextName
-    ? sql.indexOf(`create or replace function public.${nextName}(`, start + 1)
+    ? lower.indexOf(`create or replace function public.${nextName}(`, start + 1)
     : sql.length;
   assert.ok(end > start, `${name} end not found`);
   return sql.slice(start, end);
