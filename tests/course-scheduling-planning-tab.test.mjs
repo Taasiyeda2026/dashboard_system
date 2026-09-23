@@ -178,8 +178,8 @@ test('official schedules are synchronized into Planning as live data and missing
     instructor_name: 'מדריך קיים',
     start_time: '08:00',
     end_time: '09:30',
-    date_1: '2026-10-11',
-    date_2: '2026-10-18'
+    date_1: '2026-10-04',
+    date_2: '2026-10-11'
   };
   const missing = { ...baseCourse, row_id: 'missing' };
   assert.equal(hasOfficialPlanningSchedule(live), true);
@@ -285,13 +285,38 @@ test('Planning preserves school-provided date and start-time constraints while c
   assert.ok(generated.scenarios.every((scenario) => scenario.meetings[0].date === '2026-10-11'));
 });
 
+test('Planning keeps a school-provided hour and generates only dates on or after 6 October', () => {
+  const constrained = {
+    ...baseCourse,
+    row_id: 'time-only',
+    sessions: 3,
+    start_time: '11:00',
+    end_time: '12:30'
+  };
+  const generated = generatePlanningScenarios({
+    activity: constrained,
+    catalog,
+    instructors: [{ emp_id: 1, full_name: 'מדריכה', active: 'yes' }],
+    rules: ruleMap,
+    profiles: profileMap,
+    activities: [],
+    schoolCalendar: [],
+    today: '2026-09-23',
+    periodKey: 'first'
+  });
+  assert.ok(generated.scenarios.length > 0);
+  assert.ok(generated.scenarios.every((scenario) => scenario.startDate >= '2026-10-06'));
+  assert.ok(generated.scenarios.every((scenario) => scenario.startTime === '11:00'));
+});
+
+
 test('fixed-date Planning changes only the missing hour and keeps every school date intact', () => {
   const fixedDates = {
     ...baseCourse,
     row_id: 'fixed-dates',
     sessions: 2,
-    date_1: '2026-10-04',
-    date_2: '2026-10-11'
+    date_1: '2026-10-11',
+    date_2: '2026-10-18'
   };
   const built = buildFixedDatePlanningMeetings({
     activity: fixedDates,
@@ -396,7 +421,7 @@ test('assigned activities remain fixed even when school hours are incomplete', (
     row_id: 'assigned-incomplete',
     emp_id: 10,
     instructor_name: 'מדריך קיים',
-    date_1: '2026-10-04',
+    date_1: '2026-10-11',
     start_time: '08:00',
     end_time: null
   };
@@ -432,12 +457,12 @@ test('planning fingerprint follows saved draft proposed dates and hours', () => 
     draft_emp_id: '10',
     start_time: '08:00',
     end_time: '09:30',
-    draft_proposed_meetings: [{ date: '2026-10-04', start_time: '08:00', end_time: '09:30' }]
+    draft_proposed_meetings: [{ date: '2026-10-11', start_time: '08:00', end_time: '09:30' }]
   };
   const first = planningDataFingerprint([draft]);
   const second = planningDataFingerprint([{
     ...draft,
-    draft_proposed_meetings: [{ date: '2026-10-11', start_time: '08:00', end_time: '09:30' }]
+    draft_proposed_meetings: [{ date: '2026-10-18', start_time: '08:00', end_time: '09:30' }]
   }]);
   assert.notEqual(first, second);
 });
