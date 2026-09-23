@@ -34,7 +34,7 @@ export const PLANNING_OPTIMIZATION_WEIGHTS = Object.freeze({
   geography: 15,
   stability: 10
 });
-export const PLANNING_ENGINE_VERSION = 'planning-v6-20260923-operational-packing-recruitment-last';
+export const PLANNING_ENGINE_VERSION = 'planning-v7-20260923-dynamic-alternatives';
 export const PLANNING_ACTIVITY_NO_ALIASES = Object.freeze({
   // Legacy Gefen identifier retained on existing activities; canonical catalog program is 53828.
   '82835': '53828'
@@ -1196,6 +1196,53 @@ function planRowFromOption(activity, option, options, startRange, spec, diagnost
 }
 
 
+export function normalizePlanningLockedOption(option = {}, periodKey = DEFAULT_PLANNING_PERIOD_KEY) {
+  const period = planningEffectivePeriod(periodKey);
+  const instructorEmpId = text(option.instructorEmpId);
+  const instructorName = text(option.instructorName);
+  const meetings = (Array.isArray(option.meetings) ? option.meetings : [])
+    .map((meeting, index) => ({
+      date: text(meeting?.date).slice(0, 10),
+      meeting_no: Number(meeting?.meeting_no) || index + 1,
+      start_time: text(meeting?.start_time).slice(0, 5),
+      end_time: text(meeting?.end_time).slice(0, 5)
+    }))
+    .filter((meeting) =>
+      /^\d{4}-\d{2}-\d{2}$/.test(meeting.date)
+      && meeting.date >= period.start
+      && meeting.date <= period.end
+      && validTimeRange(meeting.start_time, meeting.end_time)
+    );
+  if (!instructorEmpId || !meetings.length) return null;
+  return {
+    ...option,
+    instructorEmpId,
+    instructorName: instructorName || instructorEmpId,
+    startDate: meetings[0].date,
+    endDate: meetings.at(-1).date,
+    startTime: meetings[0].start_time,
+    endTime: meetings[0].end_time,
+    meetings
+  };
+}
+
+function lockedPlanningRow(activity = {}, option = {}, catalog = [], periodKey = DEFAULT_PLANNING_PERIOD_KEY) {
+  const normalized = normalizePlanningLockedOption(option, periodKey);
+  if (!normalized) return null;
+  const spec = inferPlanningCourseSpec(activity, catalog);
+  return {
+    ...planRowFromOption(activity, normalized, [normalized], normalized.startRange || null, spec, {
+      preliminaryCount: 1,
+      routedAttemptCount: 1,
+      routeVerified: normalized.routeVerified !== false
+    }),
+    kind: 'planning-locked',
+    status: 'נקבע בתכנון',
+    planningLocked: true,
+    reason: 'בחירה שנקבעה בתכנון — שאר הפעילויות מחושבות מחדש סביבה'
+  };
+}
+
 function fixedPlanningWeekday(activity = {}) {
   const dates = activityMeetings(activity)
     .map((meeting) => text(meeting?.date).slice(0, 10))
@@ -1347,6 +1394,7 @@ export async function buildDynamicCoursePlan({
   periodKey = DEFAULT_PLANNING_PERIOD_KEY,
   today = '',
   routeClient = createRouteClient(),
+  lockedOptions = {},
   onProgress = null
 } = {}) {
   const report = async (phase, completed = 0, total = 0, courseId = '', rows = null) => {
@@ -1362,13 +1410,23 @@ export async function buildDynamicCoursePlan({
   const missingSchedule = [];
 
   for (const activity of targets) {
+    const activityId = idOf(activity);
     if (text(activity.emp_id) || text(activity.draft_emp_id)) {
-      rowsById.set(idOf(activity), liveRow(activity, periodKey));
-    } else if (hasOfficialPlanningSchedule(activity)) {
-      fixedUnassigned.push(activity);
-    } else {
-      missingSchedule.push(activity);
+      rowsById.set(activityId, liveRow(activity, periodKey));
+      continue;
     }
+
+    const locked = normalizePlanningLockedOption(lockedOptions?.[activityId], periodKey);
+    if (locked) {
+      const lockedRow = lockedPlanningRow(activity, locked, catalog, periodKey);
+      if (lockedRow) rowsById.set(activityId, lockedRow);
+      const virtual = blockingVirtualActivity(activity, locked);
+      if (virtual) virtualPlans.push(virtual);
+      continue;
+    }
+
+    if (hasOfficialPlanningSchedule(activity)) fixedUnassigned.push(activity);
+    else missingSchedule.push(activity);
   }
 
   fixedUnassigned.sort((a, b) => {
@@ -1486,7 +1544,8 @@ export async function buildDynamicCoursePlan({
   return {
     rows,
     total: rows.length,
-    planned: rows.filter((row) => ['proposal', 'fixed-proposal'].includes(row.kind) && row.instructorEmpId).length,
+    planned: rows.filter((row) => ['proposal', 'fixed-proposal', 'planning-locked'].includes(row.kind) && row.instructorEmpId).length,
+    locked: rows.filter((row) => row.kind === 'planning-locked').length,
     live: rows.filter((row) => row.kind === 'live').length,
     drafts: rows.filter((row) => row.kind === 'draft').length,
     missing: rows.filter((row) => row.kind === 'missing').length,
@@ -1502,6 +1561,7 @@ function rowMeetingSourceLabel(row = {}) {
   if (row.kind === 'live') return 'שיבוץ קיים';
   if (row.kind === 'draft') return 'טיוטה קיימת';
   if (row.kind === 'proposal' || row.kind === 'fixed-proposal') return 'הצעת מערכת';
+  if (row.kind === 'planning-locked') return 'בחירה בתכנון';
   return 'נדרש תכנון';
 }
 
@@ -1580,17 +1640,21 @@ export function planningInstructorScheduleHtml(rows = []) {
 function kindClass(kind) {
   if (kind === 'live') return ' is-live';
   if (kind === 'draft') return ' is-draft';
-  if (kind === 'proposal' || kind === 'fixed-proposal') return ' is-proposal';
+  if (kind === 'proposal' || kind === 'fixed-proposal' || kind === 'planning-locked') return ' is-proposal';
   if (kind === 'recruitment') return ' is-recruitment';
   return ' is-missing';
 }
 
-function optionHtml(option = {}, index = 0) {
+function optionHtml(option = {}, index = 1, courseId = '', optionIndex = 0, loading = false) {
   const range = option.startRange?.min && option.startRange?.max
     ? ` · טווח התחלה ${formatDateHe(option.startRange.min)}–${formatDateHe(option.startRange.max)}`
     : '';
   return `<div class="course-planning-option">
-    <strong>חלופה ${index}: ${escapeHtml(option.instructorName || '—')}</strong>
+    <div class="course-planning-option-head">
+      <strong>חלופה ${index}: ${escapeHtml(option.instructorName || '—')}</strong>
+      <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary course-planning-pick-btn"
+        data-planning-pick-option data-planning-course-id="${escapeHtml(courseId)}" data-planning-option-index="${optionIndex}" ${loading ? 'disabled' : ''}>בחר חלופה</button>
+    </div>
     <span><bdi dir="ltr">${escapeHtml(formatDateHe(option.startDate))}</bdi>–<bdi dir="ltr">${escapeHtml(formatDateHe(option.endDate))}</bdi> · <bdi dir="ltr">${escapeHtml(formatTimeRangeShort(option.startTime, option.endTime))}</bdi>${escapeHtml(range)}</span>
     <small>${escapeHtml(option.reason || '')}${option.routeVerified === false ? ' · מרחק טרם אומת' : ''}</small>
   </div>`;
@@ -1602,7 +1666,7 @@ function explanationHtml(option = {}) {
   return items.length ? `<details class="course-planning-explanation"><summary>למה הוצע?</summary><ul>${items.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul></details>` : '';
 }
 
-export function planningRowsHtml(rows = []) {
+export function planningRowsHtml(rows = [], { loading = false } = {}) {
   if (!rows.length) {
     return '<div class="course-scheduling-empty"><strong>אין פעילויות פתוחות לתכנון בתקופה שנבחרה</strong></div>';
   }
@@ -1614,12 +1678,19 @@ export function planningRowsHtml(rows = []) {
       ? `<bdi dir="ltr">${escapeHtml(formatDateHe(row.startDate))}</bdi>–<bdi dir="ltr">${escapeHtml(formatDateHe(row.endDate))}</bdi>`
       : '—';
     const hours = row.startTime ? `<bdi dir="ltr">${escapeHtml(formatTimeRangeShort(row.startTime, row.endTime))}</bdi>` : '—';
-    const alternatives = (row.options || []).length > 1
-      ? `<details class="course-planning-alternatives"><summary>${row.options.length - 1} חלופות אם בית הספר לא יכול</summary>${row.options.slice(1).map((option, index) => optionHtml(option, index + 1)).join('')}</details>`
+    const alternatives = !row.planningLocked && (row.options || []).length > 1
+      ? `<details class="course-planning-alternatives"><summary>${row.options.length - 1} חלופות אם בית הספר לא יכול</summary>${row.options.slice(1).map((option, index) => optionHtml(option, index + 1, row.courseId, index + 1, loading)).join('')}</details>`
       : '';
     const recommendationBadge = ['proposal', 'fixed-proposal'].includes(row.kind) && row.instructorEmpId
       ? '<span class="course-planning-recommended">זה המועד הראשון שמציעים לבית הספר</span>'
-      : '';
+      : (row.planningLocked ? '<span class="course-planning-recommended">נקבע בתכנון — המערכת מסדרת את השאר סביבו</span>' : '');
+    const planningAction = row.planningLocked
+      ? `<button type="button" class="course-scheduling-btn course-scheduling-btn--secondary course-planning-inline-action"
+          data-planning-unlock data-planning-course-id="${escapeHtml(row.courseId)}" ${loading ? 'disabled' : ''}>שחרר לתכנון מחדש</button>`
+      : (['proposal', 'fixed-proposal'].includes(row.kind) && row.instructorEmpId && row.options?.[0]
+          ? `<button type="button" class="course-scheduling-btn course-scheduling-btn--primary course-planning-inline-action"
+              data-planning-pick-option data-planning-course-id="${escapeHtml(row.courseId)}" data-planning-option-index="0" ${loading ? 'disabled' : ''}>קבע בתכנון</button>`
+          : '');
     return `<article class="course-planning-row${kindClass(row.kind)}" data-planning-course="${escapeHtml(row.courseId)}">
       <div class="course-planning-main">
         <div class="course-planning-identity"><strong>${escapeHtml(row.courseName || '—')}</strong><span>${escapeHtml(row.activityType || 'קורס')} · ${escapeHtml(row.school || '—')} · ${escapeHtml(row.authority || '—')}</span></div>
@@ -1630,7 +1701,7 @@ export function planningRowsHtml(rows = []) {
         <div class="course-planning-field"><span>מדריך</span><strong>${escapeHtml(row.instructorName || '—')}</strong></div>
       </div>
       ${range}
-      ${recommendationBadge}
+      <div class="course-planning-choice-actions">${recommendationBadge}${planningAction}</div>
       ${row.halfOverflow ? `<span class="course-planning-half-overflow">${escapeHtml(row.halfOverflowLabel || 'חורגת מתקופת התכנון')}</span>` : ''}
       <p class="course-planning-reason">${escapeHtml(row.reason || '')}</p>
       ${explanationHtml(row.options?.[0])}
@@ -1665,9 +1736,12 @@ export function planningTabHtml({
   }, {});
   const live = rows.filter((row) => row.kind === 'live').length;
   const drafts = rows.filter((row) => row.kind === 'draft').length;
-  const proposals = rows.filter((row) => ['proposal', 'fixed-proposal'].includes(row.kind) && row.instructorEmpId).length;
+  const proposals = rows.filter((row) => ['proposal', 'fixed-proposal', 'planning-locked'].includes(row.kind) && row.instructorEmpId).length;
   const recruitment = rows.filter((row) => row.kind === 'recruitment').length;
-  const waiting = rows.filter((row) => row.kind === 'missing' || (['proposal', 'fixed-proposal'].includes(row.kind) && !row.instructorEmpId)).length;
+  const waiting = rows.filter((row) =>
+    ['missing', 'fixed'].includes(row.kind)
+    || (['proposal', 'fixed-proposal'].includes(row.kind) && !row.instructorEmpId)
+  ).length;
   const progressText = loading
     ? `${escapeHtml(progress?.phase || 'הכנת נתונים')} · ${Number(progress?.completed) || 0} מתוך ${Number(progress?.total) || rows.length} פעילויות`
     : '';
@@ -1676,7 +1750,7 @@ export function planningTabHtml({
     <div class="course-planning-banner">
       <div>
         <strong>תכנון תפעולי — אנחנו מציעים לבית הספר את המועד</strong>
-        <p>החל מ־06.10.2026 המערכת בונה קודם את לוח צוות ההדרכה. לבית ספר שלא מסר מועד מאושר נציג מועד ראשון שמתאים לנו, ועוד עד שתי חלופות רק אם הוא אינו יכול.</p>
+        <p>החל מ־06.10.2026 המערכת מציעה מועד ראשון ועד שתי חלופות. בחירת מועד או חלופה נועלת אותו בתכנון ומסדרת מחדש אוטומטית את שאר הפעילויות סביב הבחירה.</p>
       </div>
       <div class="course-planning-period">${escapeHtml(period.label)} · <bdi dir="ltr">${escapeHtml(formatDateHe(period.start))}</bdi>–<bdi dir="ltr">${escapeHtml(formatDateHe(period.end))}</bdi></div>
     </div>
@@ -1699,8 +1773,7 @@ export function planningTabHtml({
       <article><b>${waiting}</b><span>נדרש בירור נוסף</span></article>
       <article><b>${recruitment}</b><span>נדרש גיוס</span></article>
     </div>
-    ${planningRowsHtml(rows)}
-    ${planningInstructorScheduleHtml(rows)}
+    ${planningRowsHtml(rows, { loading })}
     ${routeStats ? `<p class="course-planning-route-stats">בדיקות מרחק: ${Number(routeStats.cacheHits) || 0} מהמטמון · ${Number(routeStats.googleCalls) || 0} חישובים חדשים</p>` : ''}
   </section>`;
 }
