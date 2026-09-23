@@ -825,7 +825,15 @@ export function planningDataFingerprint(input = []) {
     rules: stableRows(Array.isArray(snapshot.rules) ? snapshot.rules : Object.values(snapshot.rules || {}).flat()),
     exceptions: stableRows(Array.isArray(snapshot.exceptions) ? snapshot.exceptions : Object.values(snapshot.exceptions || {}).flat()),
     schoolCalendar: stableRows(snapshot.schoolCalendar || []),
-    catalog: stableRows((snapshot.catalog || []).map((row) => ({ activity_no: row.activity_no, activity_name: row.activity_name, meetings_count: row.meetings_count, hours_count: row.hours_count, unit_duration: row.unit_duration })))
+    catalog: stableRows((snapshot.catalog || []).map((row) => ({
+      activity_no: row.activity_no,
+      gefen_number: row.gefen_number,
+      pricing_key: row.pricing_key,
+      activity_name: row.activity_name,
+      meetings_count: row.meetings_count,
+      hours_count: row.hours_count,
+      unit_duration: row.unit_duration
+    })))
   });
   for (let index = 0; index < value.length; index += 1) {
     hash ^= value.charCodeAt(index);
