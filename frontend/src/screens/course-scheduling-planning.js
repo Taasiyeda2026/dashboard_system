@@ -572,15 +572,58 @@ export function generatePlanningScenarios({
   const limit = Math.max(1, Number(maxScenarios) || MAX_SCENARIOS_PER_COURSE);
   const diversified = [];
   const selectedKeys = new Set();
+  const scenarioKey = (scenario) => `${scenario.startDate}|${scenario.startTime}|${scenario.endTime}`;
   const addScenario = (scenario) => {
-    const key = `${scenario.startDate}|${scenario.startTime}|${scenario.endTime}`;
+    const key = scenarioKey(scenario);
     if (selectedKeys.has(key) || diversified.length >= limit) return;
     selectedKeys.add(key);
     diversified.push(scenario);
   };
-  // Keep at least one strong option for every available weekday before filling
-  // the remaining slots. This prevents popular hours from crowding out a day
-  // that is important for a smaller subset of instructors.
+
+  // Cover the real weekly availability grid before using the remaining slots
+  // for generic high-score scenarios. A key is one instructor + one available
+  // weekday; greedy coverage prevents a common 08:00 window from hiding a
+  // narrower instructor/day window.
+  const activeIds = activeInstructorIds(instructors);
+  const uncoveredAvailability = new Set();
+  for (const empId of activeIds) {
+    for (const rule of rules[empId] || []) {
+      const day = Number(rule.weekday);
+      if (rule.available === true && day >= 0 && day <= 5) {
+        uncoveredAvailability.add(`${empId}|${day}`);
+      }
+    }
+  }
+  const coverageByScenario = new Map(sorted.map((scenario) => {
+    const day = weekday(scenario.startDate);
+    const covered = [];
+    for (const empId of activeIds) {
+      if ((rules[empId] || []).some((rule) =>
+        Number(rule.weekday) === day && ruleCovers(rule, scenario.startTime, scenario.endTime)
+      )) covered.push(`${empId}|${day}`);
+    }
+    return [scenarioKey(scenario), covered];
+  }));
+
+  while (uncoveredAvailability.size && diversified.length < limit) {
+    let best = null;
+    let bestCoverage = [];
+    for (const scenario of sorted) {
+      if (selectedKeys.has(scenarioKey(scenario))) continue;
+      const coverage = (coverageByScenario.get(scenarioKey(scenario)) || [])
+        .filter((key) => uncoveredAvailability.has(key));
+      if (coverage.length > bestCoverage.length) {
+        best = scenario;
+        bestCoverage = coverage;
+      }
+    }
+    if (!best || !bestCoverage.length) break;
+    addScenario(best);
+    bestCoverage.forEach((key) => uncoveredAvailability.delete(key));
+  }
+
+  // Also retain at least one option for every weekday even when no currently
+  // active instructor has a rule there, then fill the rest by the normal score.
   for (const day of [0, 1, 2, 3, 4, 5]) {
     const option = sorted.find((scenario) => weekday(scenario.startDate) === day);
     if (option) addScenario(option);
