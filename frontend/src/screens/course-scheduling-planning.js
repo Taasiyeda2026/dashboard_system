@@ -861,6 +861,7 @@ function activityMeetingsForPlanning(activity = {}, periodKey = DEFAULT_PLANNING
 }
 
 function liveRow(activity = {}, periodKey = DEFAULT_PLANNING_PERIOD_KEY) {
+  const calendarMeetings = schedulingCalendarMeetings(activity);
   const meetings = activityMeetingsForPlanning(activity, periodKey);
   const first = meetings[0] || {};
   const last = meetings.at(-1) || {};
@@ -868,7 +869,8 @@ function liveRow(activity = {}, periodKey = DEFAULT_PLANNING_PERIOD_KEY) {
   const assigned = !!text(activity.emp_id);
   const period = planningEffectivePeriod(periodKey);
   const endDate = text(last.date || activity.end_date).slice(0, 10);
-  const halfOverflow = !!draft && !!endDate && endDate > period.end;
+  const rawEndDate = calendarMeetings.map((meeting) => text(meeting?.date).slice(0, 10)).filter(Boolean).sort().at(-1) || endDate;
+  const halfOverflow = !!draft && !!rawEndDate && rawEndDate > period.end;
   return {
     courseId: idOf(activity),
     authority: text(activity.authority),
@@ -892,7 +894,7 @@ function liveRow(activity = {}, periodKey = DEFAULT_PLANNING_PERIOD_KEY) {
       ? 'נלקח מהשיבוץ הפעיל'
       : (draft
           ? (halfOverflow
-              ? `נלקח מטיוטת השיבוץ הקיימת · סיום ${formatDateHe(endDate)} לאחר סוף תקופת התכנון`
+              ? `נלקח מטיוטת השיבוץ הקיימת · סיום ${formatDateHe(rawEndDate)} לאחר סוף תקופת התכנון`
               : 'נלקח מטיוטת השיבוץ הקיימת')
           : 'התאריך והשעות נלקחו מהפעילות')
   };
