@@ -23,9 +23,18 @@ export const DEFAULT_PLANNING_PERIOD_KEY = 'year';
 export const PLANNING_OPERATIONAL_START_DATE = '2026-10-06';
 const DEFAULT_TIME_SLOTS = ['08:00', '09:30', '11:00', '12:30', '14:00'];
 const MAX_TIME_SLOTS_PER_WEEKDAY = 10;
-const MAX_SCENARIOS_PER_COURSE = 30;
+const MAX_SCENARIOS_PER_COURSE = 60;
+const MAX_CANDIDATES_PER_SCENARIO = 4;
+const MAX_ROUTED_PLANNING_PAIRS = 12;
 const MAX_FINAL_OPTIONS = 3;
-export const PLANNING_ENGINE_VERSION = 'planning-v5-20260923-start-20261006-fill-instructor-days';
+export const PLANNING_OPTIMIZATION_WEIGHTS = Object.freeze({
+  continuity: 30,
+  capacity: 25,
+  travel: 20,
+  geography: 15,
+  stability: 10
+});
+export const PLANNING_ENGINE_VERSION = 'planning-v6-20260923-operational-packing-recruitment-last';
 export const PLANNING_ACTIVITY_NO_ALIASES = Object.freeze({
   // Legacy Gefen identifier retained on existing activities; canonical catalog program is 53828.
   '82835': '53828'
@@ -666,9 +675,107 @@ function selectedCandidate(result = {}) {
   return result?.recommended || result?.bestAvailable || null;
 }
 
+function scaledPlanningComponent(points, sourceMax, targetMax) {
+  const value = Number(points);
+  if (!Number.isFinite(value) || !Number.isFinite(Number(sourceMax)) || Number(sourceMax) <= 0) return 0;
+  return Math.max(0, Math.min(Number(targetMax), (value / Number(sourceMax)) * Number(targetMax)));
+}
+
+function planningGeographyPoints(candidate = {}) {
+  const meetingCount = Math.max(1, Number(candidate.continuityMeetingCount) || 0);
+  const weighted = (
+    (Math.max(0, Number(candidate.sameSchoolMeetingCount) || 0) * 1)
+    + (Math.max(0, Number(candidate.sameAuthorityMeetingCount) || 0) * 0.8)
+    + (Math.max(0, Number(candidate.nearbyMeetingCount) || 0) * 0.6)
+    + (Math.max(0, Number(candidate.existingWorkDayMeetingCount) || 0) * 0.35)
+  ) / meetingCount;
+  return Math.max(0, Math.min(PLANNING_OPTIMIZATION_WEIGHTS.geography, weighted * PLANNING_OPTIMIZATION_WEIGHTS.geography));
+}
+
+export function planningOptimizationScore(candidate = {}) {
+  const breakdown = candidate.scoreBreakdown || {};
+  const continuity = (
+    scaledPlanningComponent(breakdown.continuityEfficiency?.points, 35, 24)
+    + scaledPlanningComponent(breakdown.gapsAndNewDays?.points, 5, 6)
+  );
+  const capacity = scaledPlanningComponent(
+    breakdown.actualWorkload?.points,
+    20,
+    PLANNING_OPTIMIZATION_WEIGHTS.capacity
+  );
+  const travel = scaledPlanningComponent(
+    breakdown.travelDistance?.points,
+    25,
+    PLANNING_OPTIMIZATION_WEIGHTS.travel
+  );
+  const geography = planningGeographyPoints(candidate);
+  const stability = scaledPlanningComponent(
+    breakdown.originalSchedulePreservation?.points,
+    15,
+    PLANNING_OPTIMIZATION_WEIGHTS.stability
+  );
+  const total = continuity + capacity + travel + geography + stability;
+  return {
+    total: Math.round(total * 10) / 10,
+    continuity: Math.round(continuity * 10) / 10,
+    capacity: Math.round(capacity * 10) / 10,
+    travel: Math.round(travel * 10) / 10,
+    geography: Math.round(geography * 10) / 10,
+    stability: Math.round(stability * 10) / 10
+  };
+}
+
+function recurringSeriesIsStable(meetings = []) {
+  if (!Array.isArray(meetings) || meetings.length <= 1) return true;
+  const weekdays = new Set(meetings.map((meeting) => weekday(meeting.date)));
+  const starts = new Set(meetings.map((meeting) => text(meeting.start_time).slice(0, 5)));
+  const ends = new Set(meetings.map((meeting) => text(meeting.end_time).slice(0, 5)));
+  return weekdays.size === 1 && starts.size === 1 && ends.size === 1;
+}
+
+function planningOperationalReason(course = {}, candidate = {}, optimization = planningOptimizationScore(candidate)) {
+  const meetings = activityMeetings(course);
+  const parts = [];
+  const sameSchool = Number(candidate.sameSchoolMeetingCount) || 0;
+  const sameAuthority = Number(candidate.sameAuthorityMeetingCount) || 0;
+  const nearby = Number(candidate.nearbyMeetingCount) || 0;
+  const existingDays = Number(candidate.existingWorkDayMeetingCount) || 0;
+  const newDays = Number(candidate.newWorkDayMeetingCount) || 0;
+  if (sameSchool) parts.push(`${sameSchool} מפגשים מתחברים לרצף באותו בית ספר`);
+  else if (sameAuthority) parts.push(`${sameAuthority} מפגשים משתלבים באותה רשות`);
+  else if (nearby) parts.push(`${nearby} מפגשים משתלבים באזור סמוך`);
+  else if (existingDays) parts.push(`${existingDays} מפגשים ממלאים יום עבודה שכבר פתוח`);
+  if (newDays > 0) parts.push(`${newDays} מפגשים פותחים יום עבודה חדש`);
+  if (Number.isFinite(Number(candidate.relevantTravelDistance)) && Number.isFinite(Number(candidate.relevantTravelMinutes))) {
+    parts.push(`${Math.round(Number(candidate.relevantTravelDistance))} ק״מ וכ-${Math.round(Number(candidate.relevantTravelMinutes))} דקות מעבר`);
+  }
+  if (Number.isFinite(Number(candidate.projectedUtilizationRatio))) {
+    parts.push(`ניצול חזוי ${Math.round(Number(candidate.projectedUtilizationRatio) * 100)}%`);
+  }
+  if (recurringSeriesIsStable(meetings)) parts.push(`סדרה יציבה של ${meetings.length} מפגשים באותו יום ושעה`);
+  parts.push(`ציון תפעולי ${optimization.total}/100`);
+  return parts.join(' · ');
+}
+
+function planningPairCompare(first = {}, second = {}) {
+  const firstScore = Number(first.planningOptimization?.total);
+  const secondScore = Number(second.planningOptimization?.total);
+  if (Number.isFinite(firstScore) && Number.isFinite(secondScore) && firstScore !== secondScore) {
+    return secondScore - firstScore;
+  }
+  const candidateOrder = compareCandidatesStable(first.candidate || first._candidate || {}, second.candidate || second._candidate || {});
+  if (candidateOrder) return candidateOrder;
+  const firstDate = text(first.course?.start_date || first.startDate);
+  const secondDate = text(second.course?.start_date || second.startDate);
+  if (firstDate !== secondDate) return firstDate.localeCompare(secondDate);
+  return text(first.course?.start_time || first.startTime).localeCompare(text(second.course?.start_time || second.startTime));
+}
+
+
 function optionFromCandidate(course, candidate, { routeVerified = true, startRange = null } = {}) {
   if (!candidate) return null;
   const meetings = activityMeetings(course);
+  const planningOptimization = planningOptimizationScore(candidate);
   return {
     instructorEmpId: empOf(candidate),
     instructorName: text(candidate.instructor?.full_name) || empOf(candidate),
@@ -685,19 +792,27 @@ function optionFromCandidate(course, candidate, { routeVerified = true, startRan
     })),
     routeVerified,
     startRange,
+    planningOptimization,
     explanation: {
+      optimization: planningOperationalReason(course, candidate, planningOptimization),
       continuity: text(candidate.scoreBreakdown?.continuityEfficiency?.note || candidate.scoreBreakdown?.continuityEfficiency?.label),
       workload: text(candidate.scoreBreakdown?.actualWorkload?.note),
       travel: text(candidate.scoreBreakdown?.travelDistance?.note),
-      scheduleSource: idOf(course).startsWith('planning:') ? 'מועד שנוצר בתכנון' : 'מועד קבוע מהפעילות',
-      hardGates: 'זמינות, שפה, מגדר, חפיפות ומעברים נבדקו'
+      scheduleSource: idOf(course).startsWith('planning:') ? 'מועד שנבנה לפי מערכת צוות ההדרכה' : 'מועד קבוע שהתקבל מבית הספר',
+      hardGates: 'זמינות, שפה, מגדר, חפיפות, חגים ומעברים נבדקו'
     },
-    reason: text(candidate.recommendationReason)
+    reason: planningOperationalReason(course, candidate, planningOptimization)
+      || text(candidate.recommendationReason)
       || (routeVerified ? 'האפשרות משתלבת בלוח הקיים ועומדת בתנאי הסף' : 'האפשרות מתאימה לפי זמינות; נדרש אימות מרחקים')
   };
 }
 
 function optionCompare(first, second) {
+  const firstScore = Number(first.planningOptimization?.total);
+  const secondScore = Number(second.planningOptimization?.total);
+  if (Number.isFinite(firstScore) && Number.isFinite(secondScore) && firstScore !== secondScore) {
+    return secondScore - firstScore;
+  }
   const candidateOrder = compareCandidatesStable(first._candidate || {}, second._candidate || {});
   if (candidateOrder) return candidateOrder;
   if (first.startDate !== second.startDate) return first.startDate.localeCompare(second.startDate);
@@ -731,18 +846,28 @@ async function evaluateScenarioOptions({
       exceptions,
       schoolCalendar,
       referenceDate: today
-    }).map((item) => item.candidate).filter(Boolean).sort(compareCandidatesStable);
-    const candidate = candidates[0] || null;
-    if (candidate) preliminaries.push({ course, candidate });
+    }).map((item) => item.candidate).filter(Boolean).sort(compareCandidatesStable)
+      .slice(0, MAX_CANDIDATES_PER_SCENARIO);
+    for (const candidate of candidates) {
+      preliminaries.push({
+        course,
+        candidate,
+        planningOptimization: planningOptimizationScore(candidate)
+      });
+    }
   }
-  if (!preliminaries.length) return [];
+  if (!preliminaries.length) {
+    return {
+      options: [],
+      preliminaryCount: 0,
+      routedAttemptCount: 0,
+      routeVerified: false,
+      recruitmentNeeded: true
+    };
+  }
 
-  preliminaries.sort((first, second) => {
-    const order = compareCandidatesStable(first.candidate, second.candidate);
-    if (order) return order;
-    return text(first.course.start_date).localeCompare(text(second.course.start_date));
-  });
-  const finalists = preliminaries.slice(0, MAX_FINAL_OPTIONS);
+  preliminaries.sort(planningPairCompare);
+  const finalists = preliminaries.slice(0, MAX_ROUTED_PLANNING_PAIRS);
 
   let routed = null;
   try {
@@ -756,9 +881,9 @@ async function evaluateScenarioOptions({
   }
 
   const options = [];
-  for (const finalist of finalists) {
-    let finalCandidate = null;
-    if (routed) {
+  const optionKeys = new Set();
+  if (routed) {
+    for (const finalist of finalists) {
       const finalResult = calculateCourseSchedule({
         activities: [...contextActivities, finalist.course],
         targetCourseId: finalist.course.row_id,
@@ -773,16 +898,35 @@ async function evaluateScenarioOptions({
         routeMatrix: routed.routeMatrix,
         travelUnavailableReason: routed.unavailableReason || ''
       })[0];
-      finalCandidate = selectedCandidate(finalResult);
+      const expectedEmpId = empOf(finalist.candidate);
+      const finalCandidate = (finalResult?.checked || []).find((candidate) =>
+        candidate?.eligible && empOf(candidate) === expectedEmpId
+      ) || null;
+      if (!finalCandidate) continue;
+      const option = optionFromCandidate(finalist.course, finalCandidate, {
+        routeVerified: true,
+        startRange
+      });
+      if (!option) continue;
+      const key = `${option.instructorEmpId}|${option.startDate}|${option.startTime}`;
+      if (optionKeys.has(key)) continue;
+      optionKeys.add(key);
+      options.push({ ...option, _candidate: finalCandidate });
     }
-    if (!finalCandidate) continue;
-    const option = optionFromCandidate(finalist.course, finalCandidate, {
-      routeVerified: true,
-      startRange
-    });
-    if (option) options.push({ ...option, _candidate: finalCandidate });
   }
-  return options.sort(optionCompare).slice(0, MAX_FINAL_OPTIONS);
+
+  const sortedOptions = options.sort(optionCompare).slice(0, MAX_FINAL_OPTIONS);
+  const exhaustive = finalists.length >= preliminaries.length;
+  return {
+    options: sortedOptions,
+    preliminaryCount: preliminaries.length,
+    routedAttemptCount: finalists.length,
+    routeVerified: !!routed,
+    recruitmentNeeded: sortedOptions.length === 0 && (
+      preliminaries.length === 0
+      || (!!routed && exhaustive)
+    )
+  };
 }
 
 async function evaluateFixedCourse({
@@ -804,7 +948,17 @@ async function evaluateFixedCourse({
     return blocked.has(date)
       || text(effectiveEndTime(date, meeting.end_time || activity.end_time, calendarRows)).slice(0, 5)
         !== text(meeting.end_time || activity.end_time).slice(0, 5);
-  })) return [];
+  })) {
+    return {
+      options: [],
+      preliminaryCount: 0,
+      routedAttemptCount: 0,
+      routeVerified: true,
+      recruitmentNeeded: false,
+      fixedScheduleInvalid: true
+    };
+  }
+
   const candidates = preliminaryCourseCandidates({
     activities: contextActivities,
     targetCourseId: idOf(activity),
@@ -818,46 +972,79 @@ async function evaluateFixedCourse({
     allowDateAdjustments: false
   }).map((item) => item.candidate).filter(Boolean).sort(compareCandidatesStable);
 
-  const finalists = candidates.slice(0, MAX_FINAL_OPTIONS);
-  if (!finalists.length) return [];
+  if (!candidates.length) {
+    return {
+      options: [],
+      preliminaryCount: 0,
+      routedAttemptCount: 0,
+      routeVerified: false,
+      recruitmentNeeded: true
+    };
+  }
+
+  const finalists = candidates
+    .map((candidate) => ({ course: activity, candidate, planningOptimization: planningOptimizationScore(candidate) }))
+    .sort(planningPairCompare)
+    .slice(0, MAX_ROUTED_PLANNING_PAIRS);
+
   let routed = null;
   try {
     routed = await calculateCandidateTravel(
-      finalists.map((candidate) => ({ course: activity, candidate })),
+      finalists.map((item) => ({ course: activity, candidate: item.candidate })),
       contextActivities,
       routeClient
     );
   } catch {
     routed = null;
   }
+
   const options = [];
-  for (const preliminary of finalists) {
-    let finalCandidate = null;
-    if (routed) {
-      const result = calculateCourseSchedule({
-        activities: contextActivities,
-        targetCourseId: idOf(activity),
-        periodKey,
-        instructors,
-        profiles,
-        rules,
-        exceptions,
-        schoolCalendar,
-        referenceDate: today,
-        travel: routed.travel,
-        routeMatrix: routed.routeMatrix,
-        travelUnavailableReason: routed.unavailableReason || '',
-        allowDateAdjustments: false
-      })[0];
-      finalCandidate = selectedCandidate(result);
-      if (finalCandidate) {
-        const duplicate = options.some((option) => option.instructorEmpId === empOf(finalCandidate));
-        if (!duplicate) options.push({ ...optionFromCandidate(activity, finalCandidate, { routeVerified: true }), _candidate: finalCandidate });
-        break;
-      }
+  if (routed) {
+    const result = calculateCourseSchedule({
+      activities: contextActivities,
+      targetCourseId: idOf(activity),
+      periodKey,
+      instructors,
+      profiles,
+      rules,
+      exceptions,
+      schoolCalendar,
+      referenceDate: today,
+      travel: routed.travel,
+      routeMatrix: routed.routeMatrix,
+      travelUnavailableReason: routed.unavailableReason || '',
+      allowDateAdjustments: false
+    })[0];
+
+    for (const finalist of finalists) {
+      const expectedEmpId = empOf(finalist.candidate);
+      const finalCandidate = (result?.checked || []).find((candidate) =>
+        candidate?.eligible && empOf(candidate) === expectedEmpId
+      ) || null;
+      if (!finalCandidate) continue;
+      const option = optionFromCandidate(activity, finalCandidate, { routeVerified: true });
+      if (option) options.push({ ...option, _candidate: finalCandidate });
     }
   }
-  return options.filter(Boolean).sort(optionCompare).slice(0, MAX_FINAL_OPTIONS);
+
+  const sortedOptions = options
+    .filter(Boolean)
+    .sort(optionCompare)
+    .filter((option, index, all) =>
+      all.findIndex((item) => item.instructorEmpId === option.instructorEmpId) === index
+    )
+    .slice(0, MAX_FINAL_OPTIONS);
+  const exhaustive = finalists.length >= candidates.length;
+  return {
+    options: sortedOptions,
+    preliminaryCount: candidates.length,
+    routedAttemptCount: finalists.length,
+    routeVerified: !!routed,
+    recruitmentNeeded: sortedOptions.length === 0 && (
+      candidates.length === 0
+      || (!!routed && exhaustive)
+    )
+  };
 }
 
 function blockingVirtualActivity(activity = {}, option = null) {
