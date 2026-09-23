@@ -169,6 +169,36 @@ test('planning scenarios offer dynamic dates and hours while respecting first-ha
   );
 });
 
+test('Planning keeps scenario coverage for narrow instructor-day availability windows', () => {
+  const instructors = [
+    { emp_id: 1, full_name: 'בוקר', active: 'yes' },
+    { emp_id: 2, full_name: 'צהריים', active: 'yes' }
+  ];
+  const rules = {
+    1: [{ emp_id: 1, weekday: 2, available: true, start_time: '08:00', end_time: '10:00' }],
+    2: [{ emp_id: 2, weekday: 2, available: true, start_time: '14:00', end_time: '16:00' }]
+  };
+  const generated = generatePlanningScenarios({
+    activity: { ...baseCourse, sessions: 2 },
+    catalog,
+    instructors,
+    rules,
+    profiles: {
+      1: { emp_id: 1, friday_allowed: false },
+      2: { emp_id: 2, friday_allowed: false }
+    },
+    activities: [],
+    schoolCalendar: [],
+    today: '2026-09-23',
+    periodKey: 'first'
+  });
+  const tuesdayTimes = generated.scenarios
+    .filter((scenario) => new Date(`${scenario.startDate}T12:00:00Z`).getUTCDay() === 2)
+    .map((scenario) => scenario.startTime);
+  assert.ok(tuesdayTimes.some((time) => time >= '08:00' && time <= '08:30'));
+  assert.ok(tuesdayTimes.some((time) => time >= '14:00' && time <= '14:30'));
+});
+
 test('official schedules are synchronized into Planning as live data and missing schedules remain proposals only', () => {
   const live = {
     ...baseCourse,
