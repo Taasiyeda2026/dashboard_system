@@ -20,10 +20,12 @@ const idOf = (row) => text(row?.row_id || row?.RowID || row?.id);
 const empOf = (candidate) => text(candidate?.instructor?.emp_id);
 const norm = (value) => text(value).replace(/\s+/g, ' ').toLocaleLowerCase('he-IL');
 export const DEFAULT_PLANNING_PERIOD_KEY = 'year';
+export const PLANNING_OPERATIONAL_START_DATE = '2026-10-06';
 const DEFAULT_TIME_SLOTS = ['08:00', '09:30', '11:00', '12:30', '14:00'];
-const MAX_SCENARIOS_PER_COURSE = 12;
+const MAX_TIME_SLOTS_PER_WEEKDAY = 10;
+const MAX_SCENARIOS_PER_COURSE = 30;
 const MAX_FINAL_OPTIONS = 3;
-export const PLANNING_ENGINE_VERSION = 'planning-v4-20260923-full-year-all-activities';
+export const PLANNING_ENGINE_VERSION = 'planning-v5-20260923-start-20261006-fill-instructor-days';
 export const PLANNING_ACTIVITY_NO_ALIASES = Object.freeze({
   // Legacy Gefen identifier retained on existing activities; canonical catalog program is 53828.
   '82835': '53828'
@@ -70,6 +72,16 @@ function validTimeRange(startTime, endTime) {
   const start = timeMinutes(startTime);
   const end = timeMinutes(endTime);
   return start != null && end != null && end > start;
+}
+
+export function planningEffectivePeriod(periodKey = DEFAULT_PLANNING_PERIOD_KEY) {
+  const period = resolveCourseSchedulingPeriod(periodKey);
+  return {
+    ...period,
+    start: period.start < PLANNING_OPERATIONAL_START_DATE
+      ? PLANNING_OPERATIONAL_START_DATE
+      : period.start
+  };
 }
 
 function meetingCount(activity = {}) {
@@ -164,7 +176,7 @@ export const isPlanningCourse = isPlanningActivity;
 
 export function planningWorkspaceCourses(activities = [], district = '', periodKey = DEFAULT_PLANNING_PERIOD_KEY) {
   const normalizedDistrict = normalizeOperationalDistrict(district);
-  const period = resolveCourseSchedulingPeriod(periodKey);
+  const period = planningEffectivePeriod(periodKey);
   return (activities || [])
     .filter(isPlanningActivity)
     .filter((activity) => {
@@ -198,7 +210,7 @@ export function buildWeeklyPlanningMeetings({
   schoolCalendar = [],
   periodKey = DEFAULT_PLANNING_PERIOD_KEY
 } = {}) {
-  const period = resolveCourseSchedulingPeriod(periodKey);
+  const period = planningEffectivePeriod(periodKey);
   const count = Math.max(0, Math.min(35, Math.floor(Number(sessions) || 0)));
   const duration = roundedDurationMinutes(durationMinutes);
   const startMinutes = timeMinutes(startTime);
@@ -246,7 +258,7 @@ export function buildFixedDatePlanningMeetings({
   schoolCalendar = [],
   periodKey = DEFAULT_PLANNING_PERIOD_KEY
 } = {}) {
-  const period = resolveCourseSchedulingPeriod(periodKey);
+  const period = planningEffectivePeriod(periodKey);
   const duration = roundedDurationMinutes(durationMinutes);
   const startMinutes = timeMinutes(startTime);
   const sourceMeetings = activityMeetings(activity);
@@ -299,7 +311,7 @@ function lastOnOrBefore(date, targetWeekday) {
 }
 
 export function latestFeasiblePlanningStart({ activity = {}, targetWeekday, startTime, durationMinutes, sessions, schoolCalendar = [], periodKey = DEFAULT_PLANNING_PERIOD_KEY } = {}) {
-  const period = resolveCourseSchedulingPeriod(periodKey);
+  const period = planningEffectivePeriod(periodKey);
   let candidate = lastOnOrBefore(period.end, targetWeekday);
   while (candidate && candidate >= period.start) {
     const built = buildWeeklyPlanningMeetings({ activity, startDate: candidate, startTime, durationMinutes, sessions, schoolCalendar, periodKey });
@@ -383,13 +395,16 @@ function dynamicTimesForWeekday({
       return minute != null && minute >= 7 * 60 && minute + durationMinutes <= 18 * 60;
     })
     .sort((a, b) => b[1] - a[1] || timeMinutes(a[0]) - timeMinutes(b[0]))
-    .slice(0, 5)
+    .slice(0, MAX_TIME_SLOTS_PER_WEEKDAY)
     .map(([slot]) => slot);
 }
 
 function candidateStartDates({ activity, targetWeekday, sessions, startTime, durationMinutes, schoolCalendar = [], today, activities = [], periodKey = DEFAULT_PLANNING_PERIOD_KEY } = {}) {
-  const period = resolveCourseSchedulingPeriod(periodKey);
-  const fixedStart = text(activityMeetings(activity)[0]?.date || activity.start_date).slice(0, 10);
+  const period = planningEffectivePeriod(periodKey);
+  const fixedStart = text(activityMeetings(activity)
+    .map((meeting) => text(meeting?.date).slice(0, 10))
+    .filter((date) => date >= period.start && date <= period.end)
+    .sort()[0] || activity.start_date).slice(0, 10);
   if (/^\d{4}-\d{2}-\d{2}$/.test(fixedStart)) {
     if (fixedStart < period.start || fixedStart > period.end || weekday(fixedStart) !== Number(targetWeekday)) return [];
     const built = buildWeeklyPlanningMeetings({
@@ -404,7 +419,8 @@ function candidateStartDates({ activity, targetWeekday, sessions, startTime, dur
     return respectsKnownDates ? [fixedStart] : [];
   }
 
-  const floor = text(today) > period.start ? text(today).slice(0, 10) : period.start;
+  const todayDate = text(today).slice(0, 10);
+  const floor = todayDate > period.start ? todayDate : period.start;
   const earliest = firstOnOrAfter(floor, targetWeekday);
   const latest = latestFeasiblePlanningStart({ activity, targetWeekday, startTime, durationMinutes, sessions, schoolCalendar, periodKey });
   const values = new Set();
@@ -553,10 +569,28 @@ export function generatePlanningScenarios({
     || a.startDate.localeCompare(b.startDate)
     || a.startTime.localeCompare(b.startTime)
   );
+  const limit = Math.max(1, Number(maxScenarios) || MAX_SCENARIOS_PER_COURSE);
+  const diversified = [];
+  const selectedKeys = new Set();
+  const addScenario = (scenario) => {
+    const key = `${scenario.startDate}|${scenario.startTime}|${scenario.endTime}`;
+    if (selectedKeys.has(key) || diversified.length >= limit) return;
+    selectedKeys.add(key);
+    diversified.push(scenario);
+  };
+  // Keep at least one strong option for every available weekday before filling
+  // the remaining slots. This prevents popular hours from crowding out a day
+  // that is important for a smaller subset of instructors.
+  for (const day of [0, 1, 2, 3, 4, 5]) {
+    const option = sorted.find((scenario) => weekday(scenario.startDate) === day);
+    if (option) addScenario(option);
+  }
+  for (const scenario of sorted) addScenario(scenario);
+
   const startDates = unique.map((item) => item.startDate).sort();
   return {
     spec,
-    scenarios: sorted.slice(0, Math.max(1, Number(maxScenarios) || MAX_SCENARIOS_PER_COURSE)),
+    scenarios: diversified,
     startRange: startDates.length ? { min: startDates[0], max: startDates.at(-1) } : null
   };
 }
@@ -816,31 +850,34 @@ function activityTypeLabel(activity = {}) {
   return 'קורס';
 }
 
-function activityMeetingsForPlanning(activity = {}) {
+function activityMeetingsForPlanning(activity = {}, periodKey = DEFAULT_PLANNING_PERIOD_KEY) {
+  const period = planningEffectivePeriod(periodKey);
   return schedulingCalendarMeetings(activity).map((meeting, index) => ({
     date: text(meeting?.date).slice(0, 10),
     meeting_no: Number(meeting?.meeting_no) || index + 1,
     start_time: text(meeting?.start_time || activity.start_time).slice(0, 5),
     end_time: text(meeting?.end_time || activity.end_time).slice(0, 5)
-  })).filter((meeting) => meeting.date);
+  })).filter((meeting) => meeting.date >= period.start && meeting.date <= period.end);
 }
 
 function liveRow(activity = {}, periodKey = DEFAULT_PLANNING_PERIOD_KEY) {
-  const meetings = schedulingCalendarMeetings(activity);
+  const calendarMeetings = schedulingCalendarMeetings(activity);
+  const meetings = activityMeetingsForPlanning(activity, periodKey);
   const first = meetings[0] || {};
   const last = meetings.at(-1) || {};
   const draft = !text(activity.emp_id) && text(activity.draft_emp_id);
   const assigned = !!text(activity.emp_id);
-  const period = resolveCourseSchedulingPeriod(periodKey);
+  const period = planningEffectivePeriod(periodKey);
   const endDate = text(last.date || activity.end_date).slice(0, 10);
-  const halfOverflow = !!draft && !!endDate && endDate > period.end;
+  const rawEndDate = calendarMeetings.map((meeting) => text(meeting?.date).slice(0, 10)).filter(Boolean).sort().at(-1) || endDate;
+  const halfOverflow = !!draft && !!rawEndDate && rawEndDate > period.end;
   return {
     courseId: idOf(activity),
     authority: text(activity.authority),
     school: text(activity.school),
     courseName: text(activity.activity_name),
     activityType: activityTypeLabel(activity),
-    sessions: meetingCount(activity) || meetings.length,
+    sessions: meetings.length || meetingCount(activity),
     kind: assigned ? 'live' : (draft ? 'draft' : 'fixed'),
     status: assigned ? 'מעודכן בפועל' : (draft ? 'טיוטת שיבוץ קיימת' : 'נדרש טיפול'),
     startDate: text(first.date || activity.start_date).slice(0, 10),
@@ -849,7 +886,7 @@ function liveRow(activity = {}, periodKey = DEFAULT_PLANNING_PERIOD_KEY) {
     endTime: text(first.end_time || activity.end_time).slice(0, 5),
     instructorName: text(activity.instructor_name || activity.draft_instructor_name),
     instructorEmpId: text(activity.emp_id || activity.draft_emp_id),
-    meetings: activityMeetingsForPlanning(activity),
+    meetings,
     options: [],
     halfOverflow,
     halfOverflowLabel: halfOverflow ? 'חורגת מתקופת התכנון' : '',
@@ -857,7 +894,7 @@ function liveRow(activity = {}, periodKey = DEFAULT_PLANNING_PERIOD_KEY) {
       ? 'נלקח מהשיבוץ הפעיל'
       : (draft
           ? (halfOverflow
-              ? `נלקח מטיוטת השיבוץ הקיימת · סיום ${formatDateHe(endDate)} לאחר סוף תקופת התכנון`
+              ? `נלקח מטיוטת השיבוץ הקיימת · סיום ${formatDateHe(rawEndDate)} לאחר סוף תקופת התכנון`
               : 'נלקח מטיוטת השיבוץ הקיימת')
           : 'התאריך והשעות נלקחו מהפעילות')
   };
@@ -951,7 +988,7 @@ export function planningDataFingerprint(input = []) {
   let hash = 2166136261;
   const value = JSON.stringify({
     engineVersion: PLANNING_ENGINE_VERSION,
-    period: resolveCourseSchedulingPeriod(periodKey),
+    period: planningEffectivePeriod(periodKey),
     activities: rows,
     instructors: stableRows((snapshot.instructors || []).map((row) => ({ emp_id: row.emp_id, active: row.active, address: row.address }))),
     profiles: stableRows(Array.isArray(snapshot.profiles) ? snapshot.profiles : Object.values(snapshot.profiles || {})),
@@ -1266,7 +1303,7 @@ export function planningTabHtml({
   calculatedAt = '',
   routeStats = null
 } = {}) {
-  const period = resolveCourseSchedulingPeriod(periodKey);
+  const period = planningEffectivePeriod(periodKey);
   const planningPeriods = planningPeriodOptions();
   const districtOptions = ['<option value="">כל המחוזות</option>', ...(districts || []).map((item) =>
     `<option value="${escapeHtml(item)}"${normalizeOperationalDistrict(item) === normalizeOperationalDistrict(district) ? ' selected' : ''}>${escapeHtml(item)}</option>`
@@ -1291,7 +1328,7 @@ export function planningTabHtml({
     <div class="course-planning-banner">
       <div>
         <strong>תכנון מערכת הדרכות מלאה — ללא שינוי בשיבוצים</strong>
-        <p>כל הפעילויות הפתוחות בתקופה שנבחרה נכנסות לתכנון. מועדים שכבר נקבעו נשארים קבועים; כשאין מועד קבוע, המערכת מציעה תאריך, שעה ומדריך.</p>
+        <p>כל הפעילויות הפתוחות נכנסות למערכת החל מ־06.10.2026. מועדים שכבר נקבעו בבית הספר נשארים קבועים; כשחסר תאריך או שעה, המערכת משלימה אותם לפי ימי ושעות הזמינות של צוות ההדרכה.</p>
       </div>
       <div class="course-planning-period">${escapeHtml(period.label)} · <bdi dir="ltr">${escapeHtml(formatDateHe(period.start))}</bdi>–<bdi dir="ltr">${escapeHtml(formatDateHe(period.end))}</bdi></div>
     </div>
@@ -1302,7 +1339,7 @@ export function planningTabHtml({
       <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary" data-clear-course-planning ${loading ? 'disabled' : ''}>אפס הצעות</button>
       ${calculatedAt ? `<span class="course-planning-updated">עודכן ${escapeHtml(calculatedAt)}</span>` : ''}
     </div>
-    <p class="course-planning-note">המערכת מתייחסת לקורסים, סדנאות וסיורים פתוחים. לכל פעילות ללא מועד קבוע נבדקים מספר המפגשים, משך המפגש, טווח ההתחלה בתקופה, חגים, זמינות מדריכים, חפיפות, מעברים, מרחקים והעומס שכבר קיים. כל הצעה חייבת להסתיים בתוך תקופת התכנון שנבחרה.</p>
+    <p class="course-planning-note">המערכת בונה מערכת מלאה לקורסים, סדנאות וסיורים החל מ־06.10.2026. לכל פעילות ללא מועד מלא נבדקים מספר המפגשים, משך המפגש, ימי ושעות הזמינות של כל מדריך, חגים, חפיפות, מעברים, מרחקים והעומס שכבר קיים. המטרה היא לנצל את ימי העבודה הזמינים של כל מדריך בלי לחרוג מהאילוצים שלו.</p>
     <p class="course-planning-scope-counts">היקף נוכחי: <strong>${rows.length}</strong> פעילויות · ${Object.entries(typeCounts).map(([type, count]) => `${escapeHtml(type)} ${count}`).join(' · ')}</p>
     ${error ? `<p class="course-scheduling-alert">${escapeHtml(error)}</p>` : ''}
     ${progressText ? `<p class="course-planning-progress" role="status">${escapeHtml(progressText)}</p>` : ''}
