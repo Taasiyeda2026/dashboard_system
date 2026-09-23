@@ -1,4 +1,4 @@
-import { MAX_TRANSITION_DISTANCE_KM, TRANSITION_BUFFER_MINUTES } from './instructor-matching-engine.js';
+import { MAX_TRANSITION_DISTANCE_KM, transitionBufferMinutes } from './instructor-matching-engine.js';
 
 const text = (value) => String(value ?? '').slice(0, 10);
 const minutes = (value) => { const [h, m] = String(value || '').split(':').map(Number); return h * 60 + m; };
@@ -84,8 +84,8 @@ export function proposeDateAdjustments({ meetings = [], rules = [], exceptions =
           return { valid: false, reason: 'transition_distance_exceeded', meetings: proposed };
         }
         const gap = direction === 'previous' ? minutes(meeting.start_time) - minutes(neighbor.end_time) : minutes(neighbor.start_time) - minutes(meeting.end_time);
-        // Route durations are raw travel times. TRANSITION_BUFFER_MINUTES is the sole safety-buffer source.
-        if (gap < Number(neighbor.duration_minutes) + TRANSITION_BUFFER_MINUTES) return { valid: false, reason: 'transition_insufficient', meetings: proposed };
+        // Route durations are raw travel times. Nearby schools (<=10 km) use a 10-minute buffer; longer allowed transitions use 15.
+        if (gap < Number(neighbor.duration_minutes) + transitionBufferMinutes(neighbor.distance_km)) return { valid: false, reason: 'transition_insufficient', meetings: proposed };
       }
     }
     return null;

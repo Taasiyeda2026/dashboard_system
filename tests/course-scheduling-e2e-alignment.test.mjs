@@ -6,7 +6,10 @@ import {
   evaluateInstructor,
   MAX_HOME_DISTANCE_KM,
   MAX_TRANSITION_DISTANCE_KM,
+  NEARBY_TRANSITION_BUFFER_MINUTES,
+  NEARBY_TRANSITION_DISTANCE_KM,
   TRANSITION_BUFFER_MINUTES,
+  transitionBufferMinutes,
   exceedsHomeDistanceLimit
 } from '../frontend/src/screens/instructor-matching-engine.js';
 import { proposeDateAdjustments } from '../frontend/src/screens/course-scheduling-date-adjustments.js';
@@ -162,10 +165,15 @@ test('5-6: exactly 40 km accepted; more than 40 km rejected by client and server
   assert.equal(MAX_HOME_DISTANCE_KM, 40);
 });
 
-test('7: transitions require at most 20 km and actual travel time plus a 15-minute buffer', () => {
+test('7: transitions use +10 minutes up to 10 km, +15 above 10 km, and remain capped at 20 km', () => {
+  assert.equal(NEARBY_TRANSITION_DISTANCE_KM, 10);
+  assert.equal(NEARBY_TRANSITION_BUFFER_MINUTES, 10);
   assert.equal(TRANSITION_BUFFER_MINUTES, 15);
   assert.equal(MAX_TRANSITION_DISTANCE_KM, 20);
-  const insufficient = evaluateInstructor({
+  assert.equal(transitionBufferMinutes(10), 10);
+  assert.equal(transitionBufferMinutes(10.1), 15);
+
+  const nearbyEnough = evaluateInstructor({
     instructor,
     profile,
     rules: weekdayRules,
@@ -177,6 +185,7 @@ test('7: transitions require at most 20 km and actual travel time plus a 15-minu
       start_time: '09:00',
       end_time: '10:30',
       school: 'אחר',
+      school_id: 'other-school',
       school_address: 'רחוב אחר',
       authority: 'נתניה',
       activity_name: 'קודם'
@@ -185,27 +194,28 @@ test('7: transitions require at most 20 km and actual travel time plus a 15-minu
       home: { distance_km: 8, duration_minutes: 12 },
       transitions: {
         '2026-09-06': {
-          previous: { distance_km: 5, duration_minutes: 20 }
+          previous: { distance_km: 10, duration_minutes: 20 }
         }
       }
     },
     validateTravel: true
   });
-  // gap = 30 minutes, required = 20 + 15 = 35 → rejected
-  assert.equal(insufficient.eligible, false);
+  // gap = 30, nearby required = 20 + 10 = 30
+  assert.equal(nearbyEnough.eligible, true);
 
-  const enough = evaluateInstructor({
+  const nearbyInsufficient = evaluateInstructor({
     instructor,
     profile,
     rules: weekdayRules,
     activity: course('c1', {
-      meetings: [{ date: '2026-09-06', start_time: '11:05', end_time: '12:05' }]
+      meetings: [{ date: '2026-09-06', start_time: '10:59', end_time: '11:59' }]
     }),
     existingActivities: [{
       date: '2026-09-06',
       start_time: '09:00',
       end_time: '10:30',
       school: 'אחר',
+      school_id: 'other-school',
       school_address: 'רחוב אחר',
       authority: 'נתניה',
       activity_name: 'קודם'
@@ -214,14 +224,43 @@ test('7: transitions require at most 20 km and actual travel time plus a 15-minu
       home: { distance_km: 8, duration_minutes: 12 },
       transitions: {
         '2026-09-06': {
-          previous: { distance_km: 5, duration_minutes: 20 }
+          previous: { distance_km: 10, duration_minutes: 20 }
         }
       }
     },
     validateTravel: true
   });
-  // gap = 35 minutes, required = 20 + 15 = 35 → accepted
-  assert.equal(enough.eligible, true);
+  assert.equal(nearbyInsufficient.eligible, false);
+
+  const overNearbyThreshold = evaluateInstructor({
+    instructor,
+    profile,
+    rules: weekdayRules,
+    activity: course('c1', {
+      meetings: [{ date: '2026-09-06', start_time: '11:00', end_time: '12:00' }]
+    }),
+    existingActivities: [{
+      date: '2026-09-06',
+      start_time: '09:00',
+      end_time: '10:30',
+      school: 'אחר',
+      school_id: 'other-school',
+      school_address: 'רחוב אחר',
+      authority: 'נתניה',
+      activity_name: 'קודם'
+    }],
+    travel: {
+      home: { distance_km: 8, duration_minutes: 12 },
+      transitions: {
+        '2026-09-06': {
+          previous: { distance_km: 10.1, duration_minutes: 20 }
+        }
+      }
+    },
+    validateTravel: true
+  });
+  // gap = 30, longer transition required = 20 + 15 = 35
+  assert.equal(overNearbyThreshold.eligible, false);
 
   const tooFar = evaluateInstructor({
     instructor,
@@ -240,11 +279,24 @@ test('7: transitions require at most 20 km and actual travel time plus a 15-minu
     rules: weekdayRules,
     exceptions: [{ exception_date: '2026-09-06', available: false }],
     transitions: {
-      '2026-09-13': { previous: { duration_minutes: 20, end_time: '10:30' } }
+      '2026-09-13': { previous: { distance_km: 10, duration_minutes: 20, end_time: '10:30' } }
     }
   });
-  assert.equal(TRANSITION_BUFFER_MINUTES, 15);
   void adjustment;
+});
+
+
+test('7b: Supabase transition guards use the same 10 km / 10 minute nearby-school rule', async () => {
+  const sql = await readFile(new URL('../supabase/migrations/20260923090000_nearby_school_transition_10km_10min.sql', import.meta.url), 'utf8');
+  assert.match(sql, /scheduling_transition_buffer_minutes\(p_distance_km numeric\)/);
+  assert.match(sql, /p_distance_km is not null and p_distance_km <= 10 then 10/);
+  assert.match(sql, /else 15/);
+  assert.match(sql, /scheduling_assert_assignment_calendar/);
+  assert.match(sql, /scheduling_course_instructor_violations/);
+  assert.match(sql, /scheduling_manual_assignment_hard_violations/);
+  assert.ok((sql.match(/scheduling_transition_buffer_minutes\(required_km\)/g) || []).length >= 6);
+  assert.match(sql, /required_km > 20 then raise exception 'scheduling_transition_distance_exceeded'/);
+  assert.doesNotMatch(sql, /gap_minutes < required_minutes \+ 15/);
 });
 
 test('8: existing draft cannot be overwritten (server + client wording)', async () => {
