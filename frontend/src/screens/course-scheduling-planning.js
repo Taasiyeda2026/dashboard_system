@@ -237,6 +237,47 @@ export function buildWeeklyPlanningMeetings({
   };
 }
 
+export function buildFixedDatePlanningMeetings({
+  activity = {},
+  startTime = '',
+  durationMinutes = 90,
+  schoolCalendar = [],
+  periodKey = DEFAULT_PLANNING_PERIOD_KEY
+} = {}) {
+  const period = resolveCourseSchedulingPeriod(periodKey);
+  const duration = roundedDurationMinutes(durationMinutes);
+  const startMinutes = timeMinutes(startTime);
+  const sourceMeetings = activityMeetings(activity);
+  if (!sourceMeetings.length || !duration || startMinutes == null) return null;
+  const endTime = formatMinutes(startMinutes + duration);
+  if (!endTime) return null;
+
+  const calendarRows = courseCalendarRows(activity, schoolCalendar);
+  const blocked = blockedSchoolDates(calendarRows);
+  const meetings = [];
+  for (let index = 0; index < sourceMeetings.length; index += 1) {
+    const date = text(sourceMeetings[index]?.date).slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || date < period.start || date > period.end) return null;
+    if (weekday(date) === 6 || blocked.has(date)) return null;
+    const cappedEnd = effectiveEndTime(date, endTime, calendarRows);
+    if (text(cappedEnd).slice(0, 5) !== endTime) return null;
+    meetings.push({
+      date,
+      meeting_no: Number(sourceMeetings[index]?.meeting_no) || index + 1,
+      start_time: startTime,
+      end_time: endTime
+    });
+  }
+
+  return {
+    meetings,
+    startDate: meetings[0]?.date || '',
+    endDate: meetings.at(-1)?.date || '',
+    startTime,
+    endTime
+  };
+}
+
 function firstOnOrAfter(date, targetWeekday) {
   let cursor = text(date).slice(0, 10);
   for (let guard = 0; guard < 8; guard += 1) {
@@ -344,8 +385,23 @@ function dynamicTimesForWeekday({
     .map(([slot]) => slot);
 }
 
-function candidateStartDates({ activity, targetWeekday, sessions, startTime, durationMinutes, schoolCalendar = [], today, activities = [], periodKey = FIRST_PERIOD_KEY } = {}) {
+function candidateStartDates({ activity, targetWeekday, sessions, startTime, durationMinutes, schoolCalendar = [], today, activities = [], periodKey = DEFAULT_PLANNING_PERIOD_KEY } = {}) {
   const period = resolveCourseSchedulingPeriod(periodKey);
+  const fixedStart = text(activityMeetings(activity)[0]?.date || activity.start_date).slice(0, 10);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(fixedStart)) {
+    if (fixedStart < period.start || fixedStart > period.end || weekday(fixedStart) !== Number(targetWeekday)) return [];
+    const built = buildWeeklyPlanningMeetings({
+      activity, startDate: fixedStart, startTime, durationMinutes, sessions, schoolCalendar, periodKey
+    });
+    if (!built) return [];
+    const knownMeetings = activityMeetings(activity);
+    const respectsKnownDates = knownMeetings.every((meeting, index) => {
+      const meetingNo = Math.max(1, Number(meeting?.meeting_no) || index + 1);
+      return text(built.meetings[meetingNo - 1]?.date).slice(0, 10) === text(meeting?.date).slice(0, 10);
+    });
+    return respectsKnownDates ? [fixedStart] : [];
+  }
+
   const floor = text(today) > period.start ? text(today).slice(0, 10) : period.start;
   const earliest = firstOnOrAfter(floor, targetWeekday);
   const latest = latestFeasiblePlanningStart({ activity, targetWeekday, startTime, durationMinutes, sessions, schoolCalendar, periodKey });
@@ -418,35 +474,73 @@ export function generatePlanningScenarios({
     return !!profiles[empId]?.friday_allowed
       && (rules[empId] || []).some((rule) => Number(rule.weekday) === 5 && rule.available === true);
   });
-  for (const day of fridayPossible ? [0, 1, 2, 3, 4, 5] : [0, 1, 2, 3, 4]) {
-    const times = dynamicTimesForWeekday({
-      targetWeekday: day,
-      durationMinutes: spec.durationMinutes,
-      activity,
-      instructors,
-      rules,
-      activities
-    });
-    const starts = [...new Set(times.flatMap((startTime) => candidateStartDates({
-      activity, targetWeekday: day, sessions: spec.sessions, startTime,
-      durationMinutes: spec.durationMinutes, schoolCalendar, today, activities, periodKey
-    })))];
-    for (const startDate of starts) {
-      for (const startTime of times) {
-        const built = buildWeeklyPlanningMeetings({
-          activity,
-          startDate,
-          startTime,
+  const fixedStartMinute = timeMinutes(activity.start_time);
+  const fixedEndMinute = timeMinutes(activity.end_time);
+  const fixedStartTime = fixedStartMinute != null
+    ? formatMinutes(fixedStartMinute)
+    : (fixedEndMinute != null ? formatMinutes(fixedEndMinute - spec.durationMinutes) : '');
+  const knownMeetings = activityMeetings(activity);
+  const hasCompleteFixedDates = knownMeetings.length >= spec.sessions && spec.sessions > 0;
+
+  if (hasCompleteFixedDates) {
+    const day = weekday(knownMeetings[0]?.date);
+    const times = fixedStartTime
+      ? [fixedStartTime]
+      : dynamicTimesForWeekday({
+          targetWeekday: day,
           durationMinutes: spec.durationMinutes,
-          sessions: spec.sessions,
-          schoolCalendar,
-          periodKey
+          activity,
+          instructors,
+          rules,
+          activities
         });
-        if (!built) continue;
-        raw.push({
-          ...built,
-          heuristic: scenarioHeuristic({ scenario: built, instructors, rules, activities })
-        });
+    for (const startTime of times) {
+      const built = buildFixedDatePlanningMeetings({
+        activity,
+        startTime,
+        durationMinutes: spec.durationMinutes,
+        schoolCalendar,
+        periodKey
+      });
+      if (!built) continue;
+      raw.push({
+        ...built,
+        heuristic: scenarioHeuristic({ scenario: built, instructors, rules, activities })
+      });
+    }
+  } else {
+    for (const day of fridayPossible ? [0, 1, 2, 3, 4, 5] : [0, 1, 2, 3, 4]) {
+      const times = fixedStartTime
+        ? [fixedStartTime]
+        : dynamicTimesForWeekday({
+            targetWeekday: day,
+            durationMinutes: spec.durationMinutes,
+            activity,
+            instructors,
+            rules,
+            activities
+          });
+      const starts = [...new Set(times.flatMap((startTime) => candidateStartDates({
+        activity, targetWeekday: day, sessions: spec.sessions, startTime,
+        durationMinutes: spec.durationMinutes, schoolCalendar, today, activities, periodKey
+      })))];
+      for (const startDate of starts) {
+        for (const startTime of times) {
+          const built = buildWeeklyPlanningMeetings({
+            activity,
+            startDate,
+            startTime,
+            durationMinutes: spec.durationMinutes,
+            sessions: spec.sessions,
+            schoolCalendar,
+            periodKey
+          });
+          if (!built) continue;
+          raw.push({
+            ...built,
+            heuristic: scenarioHeuristic({ scenario: built, instructors, rules, activities })
+          });
+        }
       }
     }
   }
