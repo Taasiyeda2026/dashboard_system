@@ -285,6 +285,20 @@ test('7: transitions use +10 minutes up to 10 km, +15 above 10 km, and remain ca
   void adjustment;
 });
 
+
+test('7b: Supabase transition guards use the same 10 km / 10 minute nearby-school rule', async () => {
+  const sql = await readFile(new URL('../supabase/migrations/20260923090000_nearby_school_transition_10km_10min.sql', import.meta.url), 'utf8');
+  assert.match(sql, /scheduling_transition_buffer_minutes\(p_distance_km numeric\)/);
+  assert.match(sql, /p_distance_km is not null and p_distance_km <= 10 then 10/);
+  assert.match(sql, /else 15/);
+  assert.match(sql, /scheduling_assert_assignment_calendar/);
+  assert.match(sql, /scheduling_course_instructor_violations/);
+  assert.match(sql, /scheduling_manual_assignment_hard_violations/);
+  assert.ok((sql.match(/scheduling_transition_buffer_minutes\(required_km\)/g) || []).length >= 6);
+  assert.match(sql, /required_km > 20 then raise exception 'scheduling_transition_distance_exceeded'/);
+  assert.doesNotMatch(sql, /gap_minutes < required_minutes \+ 15/);
+});
+
 test('8: existing draft cannot be overwritten (server + client wording)', async () => {
   const sql = await readFile(new URL('../supabase/migrations/20260807203000_course_scheduling_e2e_alignment.sql', import.meta.url), 'utf8');
   assert.match(sql, /הקורס כבר נשמר כטיוטה/);
