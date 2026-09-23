@@ -913,14 +913,15 @@ async function evaluateScenarioOptions({
 
   const sortedOptions = options.sort(optionCompare).slice(0, MAX_FINAL_OPTIONS);
   const exhaustive = finalists.length >= preliminaries.length;
+  const routeVerified = !!routed && !text(routed.unavailableReason);
   return {
     options: sortedOptions,
     preliminaryCount: preliminaries.length,
     routedAttemptCount: finalists.length,
-    routeVerified: !!routed,
+    routeVerified,
     recruitmentNeeded: sortedOptions.length === 0 && (
       preliminaries.length === 0
-      || (!!routed && exhaustive)
+      || (routeVerified && exhaustive)
     )
   };
 }
@@ -1031,14 +1032,15 @@ async function evaluateFixedCourse({
     )
     .slice(0, MAX_FINAL_OPTIONS);
   const exhaustive = finalists.length >= candidates.length;
+  const routeVerified = !!routed && !text(routed.unavailableReason);
   return {
     options: sortedOptions,
     preliminaryCount: candidates.length,
     routedAttemptCount: finalists.length,
-    routeVerified: !!routed,
+    routeVerified,
     recruitmentNeeded: sortedOptions.length === 0 && (
       candidates.length === 0
-      || (!!routed && exhaustive)
+      || (routeVerified && exhaustive)
     )
   };
 }
