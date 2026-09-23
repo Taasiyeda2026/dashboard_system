@@ -359,6 +359,22 @@ test('planning fingerprint changes when live scheduling data changes', () => {
   assert.notEqual(first, second);
 });
 
+test('assigned activities remain fixed even when school hours are incomplete', () => {
+  const assignedIncomplete = {
+    ...baseCourse,
+    row_id: 'assigned-incomplete',
+    emp_id: 10,
+    instructor_name: 'מדריך קיים',
+    date_1: '2026-10-04',
+    start_time: '08:00',
+    end_time: null
+  };
+  const row = buildPlanningOverviewRows({ activities: [assignedIncomplete], catalog })[0];
+  assert.equal(row.kind, 'live');
+  assert.equal(row.instructorName, 'מדריך קיים');
+  assert.equal(row.status, 'מעודכן בפועל');
+});
+
 test('first-half Planning excludes courses scheduled only in second half', () => {
   const firstHalf = {
     ...baseCourse,
@@ -413,7 +429,7 @@ test('drafts that extend beyond first half remain blockers and are clearly marke
   assert.equal(row.status, 'טיוטת שיבוץ קיימת');
   assert.equal(row.halfOverflow, true);
   assert.match(row.reason, /לאחר סוף תקופת התכנון/);
-  assert.match(planningRowsHtml([row]), /חורגת ממחצית א׳/);
+  assert.match(planningRowsHtml([row]), /חורגת מתקופת התכנון/);
 });
 
 test('dynamic Planning exposes partial rows through progress while the run is still calculating', async () => {
