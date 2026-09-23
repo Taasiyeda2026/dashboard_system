@@ -14,6 +14,8 @@ const home = await readFile(new URL('../attendance/src/screens/home-screen.js', 
 const dialog = await readFile(new URL('../attendance/src/submit-confirmation-dialog.js', import.meta.url), 'utf8');
 const manager = await readFile(new URL('../frontend/src/screens/attendance-control.js', import.meta.url), 'utf8');
 const bridge = await readFile(new URL('../frontend/src/payroll-attendance-v2-bridge.js', import.meta.url), 'utf8');
+const myReports = await readFile(new URL('../attendance/src/screens/my-reports-screen.js', import.meta.url), 'utf8');
+const nonblockingMigration = await readFile(new URL('../supabase/migrations/20260923161300_attendance_instructor_nonblocking_travel.sql', import.meta.url), 'utf8');
 
 test('activity order and canonical operations value remain exact', () => {
   assert.deepEqual(HEBREW_ACTIVITY_TYPES, ['קורס','סדנה','סיור','זום','חדר בריחה','הכשרה','ביטול זמן','תפעול']);
@@ -87,13 +89,19 @@ test('generated cancellation is the only finance contribution and manager receiv
   assert.match(migration, /attendance_generated_record_protected/);
 });
 
-test('monthly submission is guarded server-side and uses internal single-flight modal', () => {
-  assert.match(migration, /av2_submit_attendance_month/);
-  assert.match(migration, /attendance_travel_compensation_unresolved/);
-  assert.match(migration, /before insert or update on public\.attendance_month_approvals/);
+test('instructor save and month submission do not expose or block on travel processing', () => {
   assert.match(migration, /route_context_fingerprint is distinct from/);
+  assert.match(nonblockingMigration, /drop trigger if exists av2_guard_attendance_submission_travel/);
+  const submitFunction = nonblockingMigration.match(/create or replace function public\.av2_submit_attendance_month[\s\S]*?end \$\$;/)?.[0] || '';
+  assert.doesNotMatch(submitFunction, /attendance_travel_compensation_unresolved|av2_attendance_month_travel_issues/);
+  assert.doesNotMatch(home, /reconcileTravelCompensation|onRetry/);
+  assert.doesNotMatch(dialog, /נסה לחשב שוב|attendance_travel_compensation_unresolved|השלמת חישובי זמן הנסיעה/);
+  assert.doesNotMatch(myReports, /חישוב ביטול הזמן לפי נסיעה טרם הושלם|נסה לחשב שוב/);
+  assert.doesNotMatch(report, /חישוב המסלול אינו זמין כרגע|כתובת הבית אינה מעודכנת במערכת|חישוב זמן הנסיעה טרם הושלם/);
+  assert.match(report, /void reconcileTravelCompensation\(record\.id\)\.catch\(\(\) => null\)/);
+  assert.match(manager, /ממתין לחישוב זמן הנסיעה/);
+  assert.match(manager, /חישוב זמן הנסיעה לא זמין/);
   assert.doesNotMatch(home, /\bconfirm\s*\(|\balert\s*\(/);
   assert.match(dialog, /role', 'dialog'/);
   assert.match(dialog, /if \(busy\) return/);
-  assert.match(dialog, /נסה לחשב שוב/);
 });
