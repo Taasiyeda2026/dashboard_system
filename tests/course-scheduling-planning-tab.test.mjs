@@ -17,6 +17,7 @@ import {
   planningActivityDifficulty,
   planningDataFingerprint,
   planningEffectivePeriod,
+  normalizePlanningLockedOption,
   planningInstructorSchedules,
   planningOptimizationScore,
   planningRowsHtml,
@@ -457,6 +458,98 @@ test('Planning builds a complete meeting-level work schedule for each instructor
   assert.deepEqual(schedules[0].meetings.map((meeting) => meeting.source), ['שיבוץ קיים', 'הצעת מערכת']);
 });
 
+test('Planning locks a selected option without writing to the activity and exposes it as a blocker', async () => {
+  const activity = { ...baseCourse, row_id: 'locked-course', sessions: 2 };
+  const locked = {
+    instructorEmpId: '1',
+    instructorName: 'מדריך',
+    startDate: '2026-10-13',
+    endDate: '2026-10-20',
+    startTime: '08:00',
+    endTime: '09:30',
+    routeVerified: true,
+    meetings: [
+      { date: '2026-10-13', meeting_no: 1, start_time: '08:00', end_time: '09:30' },
+      { date: '2026-10-20', meeting_no: 2, start_time: '08:00', end_time: '09:30' }
+    ]
+  };
+  const original = structuredClone(activity);
+  const result = await buildDynamicCoursePlan({
+    activities: [activity],
+    instructors: [instructor],
+    profiles: profileMap,
+    rules: ruleMap,
+    exceptions: {},
+    schoolCalendar: [],
+    catalog,
+    today: '2026-09-23',
+    lockedOptions: { 'locked-course': locked },
+    routeClient: routeClient({ distance_km: 5, duration_minutes: 10 })
+  });
+  assert.equal(result.rows[0].kind, 'planning-locked');
+  assert.equal(result.rows[0].status, 'נקבע בתכנון');
+  assert.equal(result.rows[0].planningLocked, true);
+  assert.equal(result.rows[0].instructorEmpId, '1');
+  assert.deepEqual(result.rows[0].meetings.map((meeting) => meeting.date), ['2026-10-13', '2026-10-20']);
+  assert.equal(result.locked, 1);
+  assert.deepEqual(activity, original);
+});
+
+test('Planning validates a locked option against the active planning period', () => {
+  assert.equal(normalizePlanningLockedOption({
+    instructorEmpId: '1',
+    meetings: [{ date: '2026-10-13', start_time: '08:00', end_time: '09:30' }]
+  }, 'first')?.startDate, '2026-10-13');
+  assert.equal(normalizePlanningLockedOption({
+    instructorEmpId: '1',
+    meetings: [{ date: '2026-09-30', start_time: '08:00', end_time: '09:30' }]
+  }, 'first'), null);
+});
+
+test('Planning rows expose one-click primary choice, alternatives and unlock state', () => {
+  const row = {
+    courseId: 'dynamic-course',
+    courseName: 'ביומימיקרי',
+    activityType: 'קורס',
+    school: 'בית ספר',
+    authority: 'רשות',
+    sessions: 2,
+    kind: 'proposal',
+    status: 'מועד מומלץ לבית הספר',
+    startDate: '2026-10-13',
+    endDate: '2026-10-20',
+    startTime: '08:00',
+    endTime: '09:30',
+    instructorName: 'מדריך',
+    instructorEmpId: '1',
+    reason: 'רצף יעיל',
+    options: [
+      {
+        instructorEmpId: '1', instructorName: 'מדריך',
+        startDate: '2026-10-13', endDate: '2026-10-20',
+        startTime: '08:00', endTime: '09:30',
+        meetings: [{ date: '2026-10-13', start_time: '08:00', end_time: '09:30' }]
+      },
+      {
+        instructorEmpId: '2', instructorName: 'מדריכה',
+        startDate: '2026-10-14', endDate: '2026-10-21',
+        startTime: '10:00', endTime: '11:30',
+        meetings: [{ date: '2026-10-14', start_time: '10:00', end_time: '11:30' }]
+      }
+    ]
+  };
+  const html = planningRowsHtml([row]);
+  assert.match(html, /data-planning-pick-option/);
+  assert.match(html, /data-planning-option-index="0"/);
+  assert.match(html, /data-planning-option-index="1"/);
+  assert.match(html, /בחר חלופה/);
+
+  const lockedHtml = planningRowsHtml([{ ...row, kind: 'planning-locked', planningLocked: true, status: 'נקבע בתכנון', options: [row.options[1]] }]);
+  assert.match(lockedHtml, /data-planning-unlock/);
+  assert.match(lockedHtml, /שחרר לתכנון מחדש/);
+  assert.doesNotMatch(lockedHtml, /בחר חלופה/);
+});
+
 test('Planning UI defaults to the full school year and exposes period selection', () => {
   const html = planningTabHtml({ rows: [], periodKey: 'year' });
   assert.match(html, /data-planning-period-filter/);
@@ -465,7 +558,9 @@ test('Planning UI defaults to the full school year and exposes period selection'
   assert.match(html, /בנה מערכת הדרכות מלאה/);
   assert.match(html, /קורסים, סדנאות וסיורים/);
   assert.match(html, /נדרש גיוס/);
-  assert.match(html, /אנחנו מציעים לבית הספר את המועד/);
+  assert.match(html, /תכנון תפעולי/);
+  assert.match(html, /בחירת מועד או חלופה נועלת אותו בתכנון/);
+  assert.doesNotMatch(html, /מערכת ההדרכות לפי מדריך/);
 });
 
 test('planning fingerprint covers instructor, availability, calendar and catalog dependencies', () => {
@@ -659,6 +754,8 @@ test('Planning is a separate non-destructive workspace tab using scheduling perm
   assert.match(nav, /courseSchedulingTab = 'planning'/);
   assert.match(capabilities, /id: 'instructors\.planning'[\s\S]*permission: 'view_operations_scheduling'/);
   assert.match(screen, /planningTabHtml/);
+  assert.match(screen, /data-planning-pick-option/);
+  assert.match(screen, /courseSchedulingPlanningLocks/);
   assert.match(screen, /proposal_activity_pricing/);
   assert.doesNotMatch(planning, /supabase\.rpc|save_course_assignment|assign_activity_instructor|update\s+public\.activities/i);
 });
