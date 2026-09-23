@@ -103,6 +103,8 @@ end
 $function$
 ;
 
+revoke all on function public.scheduling_assert_assignment_calendar(text,bigint,jsonb) from public;
+
 CREATE OR REPLACE FUNCTION public.scheduling_course_instructor_violations(p_activity_id text, p_emp_id bigint, p_expect_unassigned boolean DEFAULT true)
  RETURNS text[]
  LANGUAGE plpgsql
@@ -339,6 +341,8 @@ begin
 end
 $function$
 ;
+
+revoke all on function public.scheduling_course_instructor_violations(text,bigint,boolean) from public;
 
 CREATE OR REPLACE FUNCTION public.scheduling_manual_assignment_hard_violations(p_activity_id text, p_emp_id bigint)
  RETURNS text[]
@@ -633,6 +637,8 @@ begin
 end
 $function$
 ;
+
+revoke all on function public.scheduling_manual_assignment_hard_violations(text,bigint) from public;
 
 comment on function public.scheduling_assert_assignment_calendar(text,bigint,jsonb) is
 'Validates consecutive-school transitions by verified travel time plus the distance-aware 10/15 minute buffer; no hard inter-school distance cap.';
