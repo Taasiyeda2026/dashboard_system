@@ -1247,7 +1247,7 @@ export function planningRowsHtml(rows = []) {
         <div class="course-planning-field"><span>מדריך</span><strong>${escapeHtml(row.instructorName || '—')}</strong></div>
       </div>
       ${range}
-      ${row.halfOverflow ? `<span class="course-planning-half-overflow">${escapeHtml(row.halfOverflowLabel || 'חורגת ממחצית א׳')}</span>` : ''}
+      ${row.halfOverflow ? `<span class="course-planning-half-overflow">${escapeHtml(row.halfOverflowLabel || 'חורגת מתקופת התכנון')}</span>` : ''}
       <p class="course-planning-reason">${escapeHtml(row.reason || '')}</p>
       ${explanationHtml(row.options?.[0])}
       ${alternatives}
