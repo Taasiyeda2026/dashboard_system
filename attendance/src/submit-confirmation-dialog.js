@@ -248,7 +248,7 @@ function escapeHtml(value) {
     .replaceAll("'", '&#039;');
 }
 
-export function openSubmitConfirmationDialog({ monthLabel, sourceCount, trigger, onApprove, onRetry } = {}) {
+export function openSubmitConfirmationDialog({ monthLabel, sourceCount, trigger, onApprove } = {}) {
   ensureStyles();
   return new Promise((resolve) => {
     const safeMonth = escapeHtml(monthLabel || 'החודש');
@@ -329,27 +329,8 @@ export function openSubmitConfirmationDialog({ monthLabel, sourceCount, trigger,
       }
     };
 
-    const showError = (error) => {
-      const message = String(error?.message || error || 'ההגשה נכשלה');
-      const raw = message.includes('attendance_travel_compensation_unresolved:')
-        ? message.split('attendance_travel_compensation_unresolved:')[1]
-        : '';
-      let issues = [];
-      try { issues = JSON.parse(raw); } catch {}
-
-      problem.innerHTML = `<p class="av2-submit-dialog__error">לא ניתן להגיש עד להשלמת חישובי זמן הנסיעה.</p>${issues.length ? `<ul class="av2-submit-dialog__issues">${issues.map((item) => `<li>${escapeHtml(item.date || '')} · ${escapeHtml(item.activity || 'פעילות')}</li>`).join('')}</ul>` : ''}`;
-
-      if (onRetry) {
-        const retry = document.createElement('button');
-        retry.type = 'button';
-        retry.className = 'av2-btn av2-btn--secondary';
-        retry.textContent = 'נסה לחשב שוב';
-        retry.addEventListener('click', async () => {
-          retry.disabled = true;
-          try { await onRetry(issues); } finally { retry.disabled = false; }
-        });
-        problem.append(retry);
-      }
+    const showError = () => {
+      problem.innerHTML = '<p class="av2-submit-dialog__error">לא ניתן להשלים את ההגשה כרגע. אפשר לנסות שוב.</p>';
     };
 
     approve.addEventListener('click', async () => {

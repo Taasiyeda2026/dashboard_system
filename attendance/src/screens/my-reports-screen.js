@@ -16,7 +16,7 @@ import { openAttendanceCalendarDay } from '../components/calendar-day-drawer.js'
 import { loadAttendanceCalendarContext } from '../services/calendar.service.js';
 import { getMonthRecords, calcMonthSummary, updateRecord, deleteRecord,
          getMonthApproval, getActivityTypes, deleteAttachmentRecord, sourceAttendanceRecords,
-         generatedCancellationFor, reconcileTravelCompensation, overrideTravelCompensation,
+         generatedCancellationFor, overrideTravelCompensation,
          getMonthDashboardValidation } from '../services/attendance.service.js';
 import { canEditMonth, editBlockReason, getMonthKey, formatMonthLabel } from '../services/month-gate.service.js';
 import { calcHours, ONLINE_REPORT_TYPE, OPERATIONS_REPORT_TYPE } from '../services/activities.service.js';
@@ -479,16 +479,6 @@ function buildRecordRow({ record, generated, editable, instructor, activityTypes
       detail.append(edit);
     }
     row.append(detail);
-  } else if (compensation && compensation.calculation_status !== 'resolved') {
-    const pending = document.createElement('div');
-    pending.className = 'av2-rr__travel-compensation av2-rr__travel-compensation--pending';
-    pending.textContent = 'חישוב ביטול הזמן לפי נסיעה טרם הושלם.';
-    if (editable) {
-      const retry = document.createElement('button'); retry.type = 'button'; retry.className = 'av2-btn av2-btn--link'; retry.textContent = 'נסה לחשב שוב';
-      retry.addEventListener('click', async () => { retry.disabled = true; await reconcileTravelCompensation(record.id); onRefresh(); });
-      pending.append(retry);
-    }
-    row.append(pending);
   } else if (generated) {
     row.dataset.generatedCompensation = generated.id;
   }

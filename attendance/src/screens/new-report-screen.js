@@ -253,25 +253,19 @@ export function renderNewReportScreen(container, {
       return;
     }
 
-    baseTrainingRouteRow.hidden = false;
-    baseTrainingRouteRow.innerHTML = '<strong>מסלול נסיעה</strong><span>הבית שלך → Greenwork, יקום</span><small>מחשב זמן נסיעה וביטול זמן צפוי…</small>';
+    baseTrainingRouteRow.hidden = true;
+    baseTrainingRouteRow.replaceChildren();
 
-    const result = await getBaseTrainingRoutePreview().catch(() => ({
-      status: 'unavailable',
-      reason: 'route_service_unavailable'
-    }));
+    const result = await getBaseTrainingRoutePreview().catch(() => null);
     if (token !== baseTrainingRouteToken || !baseTrainingRouteRow?.isConnected) return;
 
     if (result?.status === 'resolved') {
       const outbound = Number(result.outbound_travel_minutes || 0);
       const returning = Number(result.return_travel_minutes || 0);
       const cancellation = Number(result.cancellation_minutes || 0);
+      baseTrainingRouteRow.hidden = false;
       baseTrainingRouteRow.innerHTML = `<strong>מסלול נסיעה</strong><span>הבית שלך → Greenwork, יקום</span><small>הלוך ${formatTravelMinutes(outbound)} · חזור ${formatTravelMinutes(returning)} · ביטול זמן צפוי ${formatTravelMinutes(cancellation)}. מחושב אוטומטית — אין צורך לדווח ביטול זמן בנפרד.</small>`;
-      return;
     }
-
-    const missingAddress = result?.reason === 'instructor_address_missing';
-    baseTrainingRouteRow.innerHTML = `<strong>מסלול נסיעה</strong><span>הבית שלך → Greenwork, יקום</span><small>${missingAddress ? 'לא ניתן לחשב – כתובת הבית אינה מעודכנת במערכת.' : 'חישוב המסלול אינו זמין כרגע. המערכת תנסה שוב בעת שמירת הדיווח.'}</small>`;
   }
 
   function activityOptionsForReportType(activities = [], reportType = getReportType(), query = '') {
@@ -1483,11 +1477,9 @@ export function renderNewReportScreen(container, {
         };
 
         const record = await createRecord(instructor.empId, payload);
-        const travelResult = await reconcileTravelCompensation(record.id);
-        if (travelResult?.status === 'unavailable') {
-          errorEl.textContent = 'הדיווח נשמר. חישוב זמן הנסיעה טרם הושלם וניתן לנסות שוב מהדיווחים שלי.';
-          errorEl.hidden = false;
-        }
+        // Travel compensation is back-office processing. Never block or warn the
+        // instructor: unresolved calculations remain visible to the team manager/admin.
+        void reconcileTravelCompensation(record.id).catch(() => null);
         const failedFiles = await uploadPendingFiles(record.id);
         if (failedFiles.length) {
           savedRecordForAttachmentRetry = record;
