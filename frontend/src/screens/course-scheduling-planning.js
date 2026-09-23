@@ -671,10 +671,6 @@ function scenarioCourse(activity, scenario, index = 0) {
   };
 }
 
-function selectedCandidate(result = {}) {
-  return result?.recommended || result?.bestAvailable || null;
-}
-
 function scaledPlanningComponent(points, sourceMax, targetMax) {
   const value = Number(points);
   if (!Number.isFinite(value) || !Number.isFinite(Number(sourceMax)) || Number(sourceMax) <= 0) return 0;
@@ -1163,7 +1159,8 @@ export function buildPlanningOverviewRows({ activities = [], catalog = [], distr
   );
 }
 
-function planRowFromOption(activity, option, options, startRange, spec) {
+function planRowFromOption(activity, option, options, startRange, spec, diagnostics = {}) {
+  const recruitmentNeeded = !option && diagnostics.recruitmentNeeded === true;
   return {
     courseId: idOf(activity),
     authority: text(activity.authority),
@@ -1171,8 +1168,8 @@ function planRowFromOption(activity, option, options, startRange, spec) {
     courseName: text(activity.activity_name),
     activityType: activityTypeLabel(activity),
     sessions: spec?.sessions || meetingCount(activity),
-    kind: 'proposal',
-    status: option ? 'הצעת תכנון' : 'נדרש טיפול',
+    kind: option ? 'proposal' : (recruitmentNeeded ? 'recruitment' : 'missing'),
+    status: option ? 'מועד מומלץ לבית הספר' : (recruitmentNeeded ? 'נדרש גיוס' : 'נדרש טיפול'),
     startDate: option?.startDate || '',
     endDate: option?.endDate || '',
     startTime: option?.startTime || '',
@@ -1182,8 +1179,102 @@ function planRowFromOption(activity, option, options, startRange, spec) {
     meetings: option?.meetings || [],
     options: (options || []).map(({ _candidate, ...item }) => item),
     startRange,
-    reason: option?.reason || 'לא נמצאה התאמה שעומדת בתנאי הסף'
+    diagnostics: {
+      preliminaryCount: Number(diagnostics.preliminaryCount) || 0,
+      routedAttemptCount: Number(diagnostics.routedAttemptCount) || 0,
+      routeVerified: diagnostics.routeVerified === true
+    },
+    reason: option?.reason
+      || (recruitmentNeeded
+        ? 'לא נמצא אף מדריך פעיל שעומד בתנאי הסף בכל חלונות התכנון שנבדקו — רק בשלב זה נדרש גיוס'
+        : diagnostics.routeVerified === false && Number(diagnostics.preliminaryCount) > 0
+          ? 'נמצאו מדריכים אפשריים לפי הזמינות, אך לא ניתן עדיין לאמת את הנסיעות — לא מסומן לגיוס'
+          : 'לא נמצאה עדיין התאמה מאומתת; נדרשת בדיקה נוספת לפני החלטה על גיוס')
   };
+}
+
+
+function fixedPlanningWeekday(activity = {}) {
+  const dates = activityMeetings(activity)
+    .map((meeting) => text(meeting?.date).slice(0, 10))
+    .filter((date) => /^\d{4}-\d{2}-\d{2}$/.test(date))
+    .sort();
+  return dates.length ? weekday(dates[0]) : null;
+}
+
+export function estimatedPlanningInstructorCount({
+  activity = {},
+  spec = null,
+  instructors = [],
+  profiles = {},
+  rules = {}
+} = {}) {
+  const resolvedSpec = spec || inferPlanningCourseSpec(activity, []);
+  const duration = Number(resolvedSpec?.durationMinutes) || 0;
+  if (!duration) return 0;
+  const fixedDay = fixedPlanningWeekday(activity);
+  const fixedStartMinute = timeMinutes(activity.start_time);
+  const fixedEndMinute = timeMinutes(activity.end_time);
+  const fixedStart = fixedStartMinute != null
+    ? formatMinutes(fixedStartMinute)
+    : (fixedEndMinute != null ? formatMinutes(fixedEndMinute - duration) : '');
+  const fixedEnd = fixedStart ? formatMinutes(timeMinutes(fixedStart) + duration) : '';
+
+  let count = 0;
+  const activeIds = activeInstructorIds(instructors);
+  for (const empId of activeIds) {
+    const eligibleRule = (rules[empId] || []).some((rule) => {
+      if (rule.available !== true) return false;
+      const day = Number(rule.weekday);
+      if (fixedDay != null && day !== fixedDay) return false;
+      if (day === 5 && !profiles[empId]?.friday_allowed) return false;
+      if (fixedStart && fixedEnd) return ruleCovers(rule, fixedStart, fixedEnd);
+      const from = timeMinutes(rule.start_time);
+      const to = timeMinutes(rule.end_time);
+      return from != null && to != null && to - from >= duration;
+    });
+    if (eligibleRule) count += 1;
+  }
+  return count;
+}
+
+export function planningActivityDifficulty({
+  activity = {},
+  catalog = [],
+  instructors = [],
+  profiles = {},
+  rules = {}
+} = {}) {
+  const spec = inferPlanningCourseSpec(activity, catalog);
+  const estimatedInstructorCount = estimatedPlanningInstructorCount({
+    activity,
+    spec,
+    instructors,
+    profiles,
+    rules
+  });
+  const knownDates = activityMeetings(activity).length;
+  const hasTimeConstraint = timeMinutes(activity.start_time) != null || timeMinutes(activity.end_time) != null;
+  return {
+    estimatedInstructorCount,
+    knownDates,
+    hasTimeConstraint,
+    sessions: Number(spec.sessions) || 0,
+    durationMinutes: Number(spec.durationMinutes) || 0
+  };
+}
+
+function comparePlanningDifficulty(first = {}, second = {}, context = {}) {
+  const a = planningActivityDifficulty({ activity: first, ...context });
+  const b = planningActivityDifficulty({ activity: second, ...context });
+  if (a.estimatedInstructorCount !== b.estimatedInstructorCount) {
+    return a.estimatedInstructorCount - b.estimatedInstructorCount;
+  }
+  if (a.knownDates !== b.knownDates) return b.knownDates - a.knownDates;
+  if (a.hasTimeConstraint !== b.hasTimeConstraint) return a.hasTimeConstraint ? -1 : 1;
+  if (a.sessions !== b.sessions) return b.sessions - a.sessions;
+  if (a.durationMinutes !== b.durationMinutes) return b.durationMinutes - a.durationMinutes;
+  return idOf(first).localeCompare(idOf(second));
 }
 
 function stableRows(rows = []) {
@@ -1284,13 +1375,8 @@ export async function buildDynamicCoursePlan({
     return ad.localeCompare(bd) || idOf(a).localeCompare(idOf(b));
   });
 
-  missingSchedule.sort((a, b) => {
-    const as = inferPlanningCourseSpec(a, catalog);
-    const bs = inferPlanningCourseSpec(b, catalog);
-    return (bs.sessions - as.sessions)
-      || ((bs.durationMinutes || 0) - (as.durationMinutes || 0))
-      || idOf(a).localeCompare(idOf(b));
-  });
+  const difficultyContext = { catalog, instructors, profiles, rules };
+  missingSchedule.sort((a, b) => comparePlanningDifficulty(a, b, difficultyContext));
 
   const queue = [
     ...fixedUnassigned.map((activity) => ({ activity, type: 'fixed' })),
@@ -1305,7 +1391,7 @@ export async function buildDynamicCoursePlan({
     await report('בדיקת מדריכים', completed, queue.length, idOf(activity));
     await report('בדיקת נסיעות', completed, queue.length, idOf(activity));
     if (type === 'fixed') {
-      const options = await evaluateFixedCourse({
+      const evaluation = await evaluateFixedCourse({
         activity,
         contextActivities: currentContext,
         instructors,
@@ -1317,15 +1403,30 @@ export async function buildDynamicCoursePlan({
         routeClient,
         periodKey
       });
+      const options = evaluation.options || [];
       const chosen = options[0] || null;
+      const recruitmentNeeded = !chosen && evaluation.recruitmentNeeded === true;
       const row = {
         ...liveRow(activity, periodKey),
-        kind: 'fixed-proposal',
-        status: chosen ? 'הצעת תכנון' : 'נדרש טיפול',
+        kind: chosen ? 'fixed-proposal' : (recruitmentNeeded ? 'recruitment' : 'missing'),
+        status: chosen ? 'מדריך מומלץ למועד הקבוע' : (recruitmentNeeded ? 'נדרש גיוס' : 'נדרש טיפול'),
         instructorName: chosen?.instructorName || '',
         instructorEmpId: chosen?.instructorEmpId || '',
+        meetings: chosen?.meetings || liveRow(activity, periodKey).meetings,
         options: options.map(({ _candidate, ...option }) => option),
-        reason: chosen?.reason || 'לא נמצא מדריך שעומד בתנאי הסף'
+        diagnostics: {
+          preliminaryCount: Number(evaluation.preliminaryCount) || 0,
+          routedAttemptCount: Number(evaluation.routedAttemptCount) || 0,
+          routeVerified: evaluation.routeVerified === true
+        },
+        reason: chosen?.reason
+          || (evaluation.fixedScheduleInvalid
+            ? 'המועד שקבע בית הספר מתנגש בחופשה או בשעת סיום מותרת — נדרש טיפול במועד לפני גיוס'
+            : recruitmentNeeded
+              ? 'אין מדריך פעיל שעומד בתנאי הסף למועד הקבוע — נדרש גיוס'
+              : Number(evaluation.preliminaryCount) > 0 && evaluation.routeVerified === false
+                ? 'יש מדריכים אפשריים לפי הזמינות אך לא ניתן לאמת נסיעות — לא מסומן לגיוס'
+                : 'נדרשת בדיקה נוספת לפני החלטה על גיוס')
       };
       rowsById.set(idOf(activity), row);
       const virtual = blockingVirtualActivity(activity, chosen);
@@ -1345,7 +1446,7 @@ export async function buildDynamicCoursePlan({
       if (!generated.spec.complete) {
         rowsById.set(idOf(activity), missingOverviewRow(activity, catalog));
       } else {
-        const options = await evaluateScenarioOptions({
+        const evaluation = await evaluateScenarioOptions({
           activity,
           scenarios: generated.scenarios,
           startRange: generated.startRange,
@@ -1359,8 +1460,16 @@ export async function buildDynamicCoursePlan({
           routeClient,
           periodKey
         });
+        const options = evaluation.options || [];
         const chosen = options[0] || null;
-        rowsById.set(idOf(activity), planRowFromOption(activity, chosen, options, generated.startRange, generated.spec));
+        rowsById.set(idOf(activity), planRowFromOption(
+          activity,
+          chosen,
+          options,
+          generated.startRange,
+          generated.spec,
+          evaluation
+        ));
         const virtual = blockingVirtualActivity(activity, chosen);
         if (virtual) virtualPlans.push(virtual);
       }
@@ -1379,6 +1488,7 @@ export async function buildDynamicCoursePlan({
     live: rows.filter((row) => row.kind === 'live').length,
     drafts: rows.filter((row) => row.kind === 'draft').length,
     missing: rows.filter((row) => row.kind === 'missing').length,
+    recruitment: rows.filter((row) => row.kind === 'recruitment').length,
     routeStats: {
       googleCalls: Number(routeClient.googleCalls) || 0,
       cacheHits: Number(routeClient.cacheHits) || 0
