@@ -3,18 +3,22 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import {
   PLANNING_OPERATIONAL_START_DATE,
+  PLANNING_OPTIMIZATION_WEIGHTS,
   buildPlanningOverviewRows,
   buildDynamicCoursePlan,
   buildFixedDatePlanningMeetings,
   buildWeeklyPlanningMeetings,
   canonicalPlanningActivityNo,
+  estimatedPlanningInstructorCount,
   generatePlanningScenarios,
   hasOfficialPlanningSchedule,
   inferPlanningCourseSpec,
   latestFeasiblePlanningStart,
+  planningActivityDifficulty,
   planningDataFingerprint,
   planningEffectivePeriod,
   planningInstructorSchedules,
+  planningOptimizationScore,
   planningRowsHtml,
   planningTabHtml,
   planningWorkspaceCourses
@@ -166,6 +170,81 @@ test('planning scenarios offer dynamic dates and hours while respecting first-ha
   assert.deepEqual(
     [...new Set(generated.scenarios.map((scenario) => new Date(`${scenario.startDate}T12:00:00Z`).getUTCDay()))].sort(),
     [0, 1, 2, 3, 4]
+  );
+});
+
+test('Planning operational weights total 100 and prefer packed geography/continuity', () => {
+  assert.equal(Object.values(PLANNING_OPTIMIZATION_WEIGHTS).reduce((sum, value) => sum + value, 0), 100);
+  const packed = planningOptimizationScore({
+    continuityMeetingCount: 10,
+    sameSchoolMeetingCount: 8,
+    sameAuthorityMeetingCount: 2,
+    nearbyMeetingCount: 0,
+    existingWorkDayMeetingCount: 0,
+    scoreBreakdown: {
+      continuityEfficiency: { points: 35 },
+      gapsAndNewDays: { points: 5 },
+      actualWorkload: { points: 15 },
+      travelDistance: { points: 20 },
+      originalSchedulePreservation: { points: 15 }
+    }
+  });
+  const scattered = planningOptimizationScore({
+    continuityMeetingCount: 10,
+    sameSchoolMeetingCount: 0,
+    sameAuthorityMeetingCount: 0,
+    nearbyMeetingCount: 0,
+    existingWorkDayMeetingCount: 0,
+    scoreBreakdown: {
+      continuityEfficiency: { points: 12 },
+      gapsAndNewDays: { points: 0 },
+      actualWorkload: { points: 20 },
+      travelDistance: { points: 25 },
+      originalSchedulePreservation: { points: 15 }
+    }
+  });
+  assert.ok(packed.total > scattered.total);
+});
+
+test('Planning difficulty recognizes narrow instructor availability before flexible work', () => {
+  const instructors = [
+    { emp_id: 1, full_name: 'א', active: 'yes' },
+    { emp_id: 2, full_name: 'ב', active: 'yes' }
+  ];
+  const rules = {
+    1: [{ emp_id: 1, weekday: 1, available: true, start_time: '08:00', end_time: '16:00' }],
+    2: [
+      { emp_id: 2, weekday: 1, available: true, start_time: '08:00', end_time: '16:00' },
+      { emp_id: 2, weekday: 2, available: true, start_time: '14:00', end_time: '16:00' }
+    ]
+  };
+  const profiles = { 1: { friday_allowed: false }, 2: { friday_allowed: false } };
+  const flexible = { ...baseCourse, row_id: 'flex', sessions: 2 };
+  const narrow = {
+    ...baseCourse,
+    row_id: 'narrow',
+    sessions: 2,
+    date_1: '2026-10-13',
+    start_time: '14:00',
+    end_time: '15:30'
+  };
+  assert.equal(estimatedPlanningInstructorCount({
+    activity: flexible,
+    spec: inferPlanningCourseSpec(flexible, catalog),
+    instructors,
+    profiles,
+    rules
+  }), 2);
+  assert.equal(estimatedPlanningInstructorCount({
+    activity: narrow,
+    spec: inferPlanningCourseSpec(narrow, catalog),
+    instructors,
+    profiles,
+    rules
+  }), 1);
+  assert.ok(
+    planningActivityDifficulty({ activity: narrow, catalog, instructors, profiles, rules }).estimatedInstructorCount
+    < planningActivityDifficulty({ activity: flexible, catalog, instructors, profiles, rules }).estimatedInstructorCount
   );
 });
 
@@ -385,6 +464,8 @@ test('Planning UI defaults to the full school year and exposes period selection'
   assert.match(html, /06\.10\.2026/);
   assert.match(html, /בנה מערכת הדרכות מלאה/);
   assert.match(html, /קורסים, סדנאות וסיורים/);
+  assert.match(html, /נדרש גיוס/);
+  assert.match(html, /אנחנו מציעים לבית הספר את המועד/);
 });
 
 test('planning fingerprint covers instructor, availability, calendar and catalog dependencies', () => {
@@ -421,9 +502,31 @@ test('route failure never produces a valid planning proposal', async () => {
     today: '2026-09-22', routeClient: routeClient(null)
   });
   assert.equal(result.rows[0].status, 'נדרש טיפול');
+  assert.equal(result.rows[0].kind, 'missing');
   assert.equal(result.rows[0].instructorEmpId, '');
   assert.equal(result.rows[0].options.length, 0);
+  assert.match(result.rows[0].reason, /לא מסומן לגיוס|בדיקה נוספת/);
 });
+
+test('Planning marks recruitment only when no active instructor can satisfy the hard gates', async () => {
+  const activity = { ...baseCourse, row_id: 'needs-recruitment', sessions: 2 };
+  const result = await buildDynamicCoursePlan({
+    activities: [activity],
+    instructors: [],
+    profiles: {},
+    rules: {},
+    exceptions: {},
+    schoolCalendar: [],
+    catalog,
+    today: '2026-09-23',
+    routeClient: routeClient(null)
+  });
+  assert.equal(result.rows[0].kind, 'recruitment');
+  assert.equal(result.rows[0].status, 'נדרש גיוס');
+  assert.match(result.rows[0].reason, /לא נמצא אף מדריך פעיל|נדרש גיוס/);
+  assert.equal(result.recruitment, 1);
+});
+
 
 test('planning fingerprint changes when live scheduling data changes', () => {
   const first = planningDataFingerprint([{

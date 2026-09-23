@@ -23,9 +23,18 @@ export const DEFAULT_PLANNING_PERIOD_KEY = 'year';
 export const PLANNING_OPERATIONAL_START_DATE = '2026-10-06';
 const DEFAULT_TIME_SLOTS = ['08:00', '09:30', '11:00', '12:30', '14:00'];
 const MAX_TIME_SLOTS_PER_WEEKDAY = 10;
-const MAX_SCENARIOS_PER_COURSE = 30;
+const MAX_SCENARIOS_PER_COURSE = 60;
+const MAX_CANDIDATES_PER_SCENARIO = 4;
+const MAX_ROUTED_PLANNING_PAIRS = 12;
 const MAX_FINAL_OPTIONS = 3;
-export const PLANNING_ENGINE_VERSION = 'planning-v5-20260923-start-20261006-fill-instructor-days';
+export const PLANNING_OPTIMIZATION_WEIGHTS = Object.freeze({
+  continuity: 30,
+  capacity: 25,
+  travel: 20,
+  geography: 15,
+  stability: 10
+});
+export const PLANNING_ENGINE_VERSION = 'planning-v6-20260923-operational-packing-recruitment-last';
 export const PLANNING_ACTIVITY_NO_ALIASES = Object.freeze({
   // Legacy Gefen identifier retained on existing activities; canonical catalog program is 53828.
   '82835': '53828'
@@ -662,13 +671,107 @@ function scenarioCourse(activity, scenario, index = 0) {
   };
 }
 
-function selectedCandidate(result = {}) {
-  return result?.recommended || result?.bestAvailable || null;
+function scaledPlanningComponent(points, sourceMax, targetMax) {
+  const value = Number(points);
+  if (!Number.isFinite(value) || !Number.isFinite(Number(sourceMax)) || Number(sourceMax) <= 0) return 0;
+  return Math.max(0, Math.min(Number(targetMax), (value / Number(sourceMax)) * Number(targetMax)));
 }
+
+function planningGeographyPoints(candidate = {}) {
+  const meetingCount = Math.max(1, Number(candidate.continuityMeetingCount) || 0);
+  const weighted = (
+    (Math.max(0, Number(candidate.sameSchoolMeetingCount) || 0) * 1)
+    + (Math.max(0, Number(candidate.sameAuthorityMeetingCount) || 0) * 0.8)
+    + (Math.max(0, Number(candidate.nearbyMeetingCount) || 0) * 0.6)
+    + (Math.max(0, Number(candidate.existingWorkDayMeetingCount) || 0) * 0.35)
+  ) / meetingCount;
+  return Math.max(0, Math.min(PLANNING_OPTIMIZATION_WEIGHTS.geography, weighted * PLANNING_OPTIMIZATION_WEIGHTS.geography));
+}
+
+export function planningOptimizationScore(candidate = {}) {
+  const breakdown = candidate.scoreBreakdown || {};
+  const continuity = (
+    scaledPlanningComponent(breakdown.continuityEfficiency?.points, 35, 24)
+    + scaledPlanningComponent(breakdown.gapsAndNewDays?.points, 5, 6)
+  );
+  const capacity = scaledPlanningComponent(
+    breakdown.actualWorkload?.points,
+    20,
+    PLANNING_OPTIMIZATION_WEIGHTS.capacity
+  );
+  const travel = scaledPlanningComponent(
+    breakdown.travelDistance?.points,
+    25,
+    PLANNING_OPTIMIZATION_WEIGHTS.travel
+  );
+  const geography = planningGeographyPoints(candidate);
+  const stability = scaledPlanningComponent(
+    breakdown.originalSchedulePreservation?.points,
+    15,
+    PLANNING_OPTIMIZATION_WEIGHTS.stability
+  );
+  const total = continuity + capacity + travel + geography + stability;
+  return {
+    total: Math.round(total * 10) / 10,
+    continuity: Math.round(continuity * 10) / 10,
+    capacity: Math.round(capacity * 10) / 10,
+    travel: Math.round(travel * 10) / 10,
+    geography: Math.round(geography * 10) / 10,
+    stability: Math.round(stability * 10) / 10
+  };
+}
+
+function recurringSeriesIsStable(meetings = []) {
+  if (!Array.isArray(meetings) || meetings.length <= 1) return true;
+  const weekdays = new Set(meetings.map((meeting) => weekday(meeting.date)));
+  const starts = new Set(meetings.map((meeting) => text(meeting.start_time).slice(0, 5)));
+  const ends = new Set(meetings.map((meeting) => text(meeting.end_time).slice(0, 5)));
+  return weekdays.size === 1 && starts.size === 1 && ends.size === 1;
+}
+
+function planningOperationalReason(course = {}, candidate = {}, optimization = planningOptimizationScore(candidate)) {
+  const meetings = activityMeetings(course);
+  const parts = [];
+  const sameSchool = Number(candidate.sameSchoolMeetingCount) || 0;
+  const sameAuthority = Number(candidate.sameAuthorityMeetingCount) || 0;
+  const nearby = Number(candidate.nearbyMeetingCount) || 0;
+  const existingDays = Number(candidate.existingWorkDayMeetingCount) || 0;
+  const newDays = Number(candidate.newWorkDayMeetingCount) || 0;
+  if (sameSchool) parts.push(`${sameSchool} מפגשים מתחברים לרצף באותו בית ספר`);
+  else if (sameAuthority) parts.push(`${sameAuthority} מפגשים משתלבים באותה רשות`);
+  else if (nearby) parts.push(`${nearby} מפגשים משתלבים באזור סמוך`);
+  else if (existingDays) parts.push(`${existingDays} מפגשים ממלאים יום עבודה שכבר פתוח`);
+  if (newDays > 0) parts.push(`${newDays} מפגשים פותחים יום עבודה חדש`);
+  if (Number.isFinite(Number(candidate.relevantTravelDistance)) && Number.isFinite(Number(candidate.relevantTravelMinutes))) {
+    parts.push(`${Math.round(Number(candidate.relevantTravelDistance))} ק״מ וכ-${Math.round(Number(candidate.relevantTravelMinutes))} דקות מעבר`);
+  }
+  if (Number.isFinite(Number(candidate.projectedUtilizationRatio))) {
+    parts.push(`ניצול חזוי ${Math.round(Number(candidate.projectedUtilizationRatio) * 100)}%`);
+  }
+  if (recurringSeriesIsStable(meetings)) parts.push(`סדרה יציבה של ${meetings.length} מפגשים באותו יום ושעה`);
+  parts.push(`ציון תפעולי ${optimization.total}/100`);
+  return parts.join(' · ');
+}
+
+function planningPairCompare(first = {}, second = {}) {
+  const firstScore = Number(first.planningOptimization?.total);
+  const secondScore = Number(second.planningOptimization?.total);
+  if (Number.isFinite(firstScore) && Number.isFinite(secondScore) && firstScore !== secondScore) {
+    return secondScore - firstScore;
+  }
+  const candidateOrder = compareCandidatesStable(first.candidate || first._candidate || {}, second.candidate || second._candidate || {});
+  if (candidateOrder) return candidateOrder;
+  const firstDate = text(first.course?.start_date || first.startDate);
+  const secondDate = text(second.course?.start_date || second.startDate);
+  if (firstDate !== secondDate) return firstDate.localeCompare(secondDate);
+  return text(first.course?.start_time || first.startTime).localeCompare(text(second.course?.start_time || second.startTime));
+}
+
 
 function optionFromCandidate(course, candidate, { routeVerified = true, startRange = null } = {}) {
   if (!candidate) return null;
   const meetings = activityMeetings(course);
+  const planningOptimization = planningOptimizationScore(candidate);
   return {
     instructorEmpId: empOf(candidate),
     instructorName: text(candidate.instructor?.full_name) || empOf(candidate),
@@ -685,19 +788,27 @@ function optionFromCandidate(course, candidate, { routeVerified = true, startRan
     })),
     routeVerified,
     startRange,
+    planningOptimization,
     explanation: {
+      optimization: planningOperationalReason(course, candidate, planningOptimization),
       continuity: text(candidate.scoreBreakdown?.continuityEfficiency?.note || candidate.scoreBreakdown?.continuityEfficiency?.label),
       workload: text(candidate.scoreBreakdown?.actualWorkload?.note),
       travel: text(candidate.scoreBreakdown?.travelDistance?.note),
-      scheduleSource: idOf(course).startsWith('planning:') ? 'מועד שנוצר בתכנון' : 'מועד קבוע מהפעילות',
-      hardGates: 'זמינות, שפה, מגדר, חפיפות ומעברים נבדקו'
+      scheduleSource: idOf(course).startsWith('planning:') ? 'מועד שנבנה לפי מערכת צוות ההדרכה' : 'מועד קבוע שהתקבל מבית הספר',
+      hardGates: 'זמינות, שפה, מגדר, חפיפות, חגים ומעברים נבדקו'
     },
-    reason: text(candidate.recommendationReason)
+    reason: planningOperationalReason(course, candidate, planningOptimization)
+      || text(candidate.recommendationReason)
       || (routeVerified ? 'האפשרות משתלבת בלוח הקיים ועומדת בתנאי הסף' : 'האפשרות מתאימה לפי זמינות; נדרש אימות מרחקים')
   };
 }
 
 function optionCompare(first, second) {
+  const firstScore = Number(first.planningOptimization?.total);
+  const secondScore = Number(second.planningOptimization?.total);
+  if (Number.isFinite(firstScore) && Number.isFinite(secondScore) && firstScore !== secondScore) {
+    return secondScore - firstScore;
+  }
   const candidateOrder = compareCandidatesStable(first._candidate || {}, second._candidate || {});
   if (candidateOrder) return candidateOrder;
   if (first.startDate !== second.startDate) return first.startDate.localeCompare(second.startDate);
@@ -731,18 +842,28 @@ async function evaluateScenarioOptions({
       exceptions,
       schoolCalendar,
       referenceDate: today
-    }).map((item) => item.candidate).filter(Boolean).sort(compareCandidatesStable);
-    const candidate = candidates[0] || null;
-    if (candidate) preliminaries.push({ course, candidate });
+    }).map((item) => item.candidate).filter(Boolean).sort(compareCandidatesStable)
+      .slice(0, MAX_CANDIDATES_PER_SCENARIO);
+    for (const candidate of candidates) {
+      preliminaries.push({
+        course,
+        candidate,
+        planningOptimization: planningOptimizationScore(candidate)
+      });
+    }
   }
-  if (!preliminaries.length) return [];
+  if (!preliminaries.length) {
+    return {
+      options: [],
+      preliminaryCount: 0,
+      routedAttemptCount: 0,
+      routeVerified: false,
+      recruitmentNeeded: true
+    };
+  }
 
-  preliminaries.sort((first, second) => {
-    const order = compareCandidatesStable(first.candidate, second.candidate);
-    if (order) return order;
-    return text(first.course.start_date).localeCompare(text(second.course.start_date));
-  });
-  const finalists = preliminaries.slice(0, MAX_FINAL_OPTIONS);
+  preliminaries.sort(planningPairCompare);
+  const finalists = preliminaries.slice(0, MAX_ROUTED_PLANNING_PAIRS);
 
   let routed = null;
   try {
@@ -756,9 +877,9 @@ async function evaluateScenarioOptions({
   }
 
   const options = [];
-  for (const finalist of finalists) {
-    let finalCandidate = null;
-    if (routed) {
+  const optionKeys = new Set();
+  if (routed) {
+    for (const finalist of finalists) {
       const finalResult = calculateCourseSchedule({
         activities: [...contextActivities, finalist.course],
         targetCourseId: finalist.course.row_id,
@@ -773,16 +894,36 @@ async function evaluateScenarioOptions({
         routeMatrix: routed.routeMatrix,
         travelUnavailableReason: routed.unavailableReason || ''
       })[0];
-      finalCandidate = selectedCandidate(finalResult);
+      const expectedEmpId = empOf(finalist.candidate);
+      const finalCandidate = (finalResult?.checked || []).find((candidate) =>
+        candidate?.eligible && empOf(candidate) === expectedEmpId
+      ) || null;
+      if (!finalCandidate) continue;
+      const option = optionFromCandidate(finalist.course, finalCandidate, {
+        routeVerified: true,
+        startRange
+      });
+      if (!option) continue;
+      const key = `${option.instructorEmpId}|${option.startDate}|${option.startTime}`;
+      if (optionKeys.has(key)) continue;
+      optionKeys.add(key);
+      options.push({ ...option, _candidate: finalCandidate });
     }
-    if (!finalCandidate) continue;
-    const option = optionFromCandidate(finalist.course, finalCandidate, {
-      routeVerified: true,
-      startRange
-    });
-    if (option) options.push({ ...option, _candidate: finalCandidate });
   }
-  return options.sort(optionCompare).slice(0, MAX_FINAL_OPTIONS);
+
+  const sortedOptions = options.sort(optionCompare).slice(0, MAX_FINAL_OPTIONS);
+  const exhaustive = finalists.length >= preliminaries.length;
+  const routeVerified = !!routed && !text(routed.unavailableReason);
+  return {
+    options: sortedOptions,
+    preliminaryCount: preliminaries.length,
+    routedAttemptCount: finalists.length,
+    routeVerified,
+    recruitmentNeeded: sortedOptions.length === 0 && (
+      preliminaries.length === 0
+      || (routeVerified && exhaustive)
+    )
+  };
 }
 
 async function evaluateFixedCourse({
@@ -804,7 +945,17 @@ async function evaluateFixedCourse({
     return blocked.has(date)
       || text(effectiveEndTime(date, meeting.end_time || activity.end_time, calendarRows)).slice(0, 5)
         !== text(meeting.end_time || activity.end_time).slice(0, 5);
-  })) return [];
+  })) {
+    return {
+      options: [],
+      preliminaryCount: 0,
+      routedAttemptCount: 0,
+      routeVerified: true,
+      recruitmentNeeded: false,
+      fixedScheduleInvalid: true
+    };
+  }
+
   const candidates = preliminaryCourseCandidates({
     activities: contextActivities,
     targetCourseId: idOf(activity),
@@ -818,46 +969,80 @@ async function evaluateFixedCourse({
     allowDateAdjustments: false
   }).map((item) => item.candidate).filter(Boolean).sort(compareCandidatesStable);
 
-  const finalists = candidates.slice(0, MAX_FINAL_OPTIONS);
-  if (!finalists.length) return [];
+  if (!candidates.length) {
+    return {
+      options: [],
+      preliminaryCount: 0,
+      routedAttemptCount: 0,
+      routeVerified: false,
+      recruitmentNeeded: true
+    };
+  }
+
+  const finalists = candidates
+    .map((candidate) => ({ course: activity, candidate, planningOptimization: planningOptimizationScore(candidate) }))
+    .sort(planningPairCompare)
+    .slice(0, MAX_ROUTED_PLANNING_PAIRS);
+
   let routed = null;
   try {
     routed = await calculateCandidateTravel(
-      finalists.map((candidate) => ({ course: activity, candidate })),
+      finalists.map((item) => ({ course: activity, candidate: item.candidate })),
       contextActivities,
       routeClient
     );
   } catch {
     routed = null;
   }
+
   const options = [];
-  for (const preliminary of finalists) {
-    let finalCandidate = null;
-    if (routed) {
-      const result = calculateCourseSchedule({
-        activities: contextActivities,
-        targetCourseId: idOf(activity),
-        periodKey,
-        instructors,
-        profiles,
-        rules,
-        exceptions,
-        schoolCalendar,
-        referenceDate: today,
-        travel: routed.travel,
-        routeMatrix: routed.routeMatrix,
-        travelUnavailableReason: routed.unavailableReason || '',
-        allowDateAdjustments: false
-      })[0];
-      finalCandidate = selectedCandidate(result);
-      if (finalCandidate) {
-        const duplicate = options.some((option) => option.instructorEmpId === empOf(finalCandidate));
-        if (!duplicate) options.push({ ...optionFromCandidate(activity, finalCandidate, { routeVerified: true }), _candidate: finalCandidate });
-        break;
-      }
+  if (routed) {
+    const result = calculateCourseSchedule({
+      activities: contextActivities,
+      targetCourseId: idOf(activity),
+      periodKey,
+      instructors,
+      profiles,
+      rules,
+      exceptions,
+      schoolCalendar,
+      referenceDate: today,
+      travel: routed.travel,
+      routeMatrix: routed.routeMatrix,
+      travelUnavailableReason: routed.unavailableReason || '',
+      allowDateAdjustments: false
+    })[0];
+
+    for (const finalist of finalists) {
+      const expectedEmpId = empOf(finalist.candidate);
+      const finalCandidate = (result?.checked || []).find((candidate) =>
+        candidate?.eligible && empOf(candidate) === expectedEmpId
+      ) || null;
+      if (!finalCandidate) continue;
+      const option = optionFromCandidate(activity, finalCandidate, { routeVerified: true });
+      if (option) options.push({ ...option, _candidate: finalCandidate });
     }
   }
-  return options.filter(Boolean).sort(optionCompare).slice(0, MAX_FINAL_OPTIONS);
+
+  const sortedOptions = options
+    .filter(Boolean)
+    .sort(optionCompare)
+    .filter((option, index, all) =>
+      all.findIndex((item) => item.instructorEmpId === option.instructorEmpId) === index
+    )
+    .slice(0, MAX_FINAL_OPTIONS);
+  const exhaustive = finalists.length >= candidates.length;
+  const routeVerified = !!routed && !text(routed.unavailableReason);
+  return {
+    options: sortedOptions,
+    preliminaryCount: candidates.length,
+    routedAttemptCount: finalists.length,
+    routeVerified,
+    recruitmentNeeded: sortedOptions.length === 0 && (
+      candidates.length === 0
+      || (routeVerified && exhaustive)
+    )
+  };
 }
 
 function blockingVirtualActivity(activity = {}, option = null) {
@@ -976,7 +1161,8 @@ export function buildPlanningOverviewRows({ activities = [], catalog = [], distr
   );
 }
 
-function planRowFromOption(activity, option, options, startRange, spec) {
+function planRowFromOption(activity, option, options, startRange, spec, diagnostics = {}) {
+  const recruitmentNeeded = !option && diagnostics.recruitmentNeeded === true;
   return {
     courseId: idOf(activity),
     authority: text(activity.authority),
@@ -984,8 +1170,8 @@ function planRowFromOption(activity, option, options, startRange, spec) {
     courseName: text(activity.activity_name),
     activityType: activityTypeLabel(activity),
     sessions: spec?.sessions || meetingCount(activity),
-    kind: 'proposal',
-    status: option ? 'הצעת תכנון' : 'נדרש טיפול',
+    kind: option ? 'proposal' : (recruitmentNeeded ? 'recruitment' : 'missing'),
+    status: option ? 'מועד מומלץ לבית הספר' : (recruitmentNeeded ? 'נדרש גיוס' : 'נדרש טיפול'),
     startDate: option?.startDate || '',
     endDate: option?.endDate || '',
     startTime: option?.startTime || '',
@@ -995,8 +1181,102 @@ function planRowFromOption(activity, option, options, startRange, spec) {
     meetings: option?.meetings || [],
     options: (options || []).map(({ _candidate, ...item }) => item),
     startRange,
-    reason: option?.reason || 'לא נמצאה התאמה שעומדת בתנאי הסף'
+    diagnostics: {
+      preliminaryCount: Number(diagnostics.preliminaryCount) || 0,
+      routedAttemptCount: Number(diagnostics.routedAttemptCount) || 0,
+      routeVerified: diagnostics.routeVerified === true
+    },
+    reason: option?.reason
+      || (recruitmentNeeded
+        ? 'לא נמצא אף מדריך פעיל שעומד בתנאי הסף בכל חלונות התכנון שנבדקו — רק בשלב זה נדרש גיוס'
+        : diagnostics.routeVerified === false && Number(diagnostics.preliminaryCount) > 0
+          ? 'נמצאו מדריכים אפשריים לפי הזמינות, אך לא ניתן עדיין לאמת את הנסיעות — לא מסומן לגיוס'
+          : 'לא נמצאה עדיין התאמה מאומתת; נדרשת בדיקה נוספת לפני החלטה על גיוס')
   };
+}
+
+
+function fixedPlanningWeekday(activity = {}) {
+  const dates = activityMeetings(activity)
+    .map((meeting) => text(meeting?.date).slice(0, 10))
+    .filter((date) => /^\d{4}-\d{2}-\d{2}$/.test(date))
+    .sort();
+  return dates.length ? weekday(dates[0]) : null;
+}
+
+export function estimatedPlanningInstructorCount({
+  activity = {},
+  spec = null,
+  instructors = [],
+  profiles = {},
+  rules = {}
+} = {}) {
+  const resolvedSpec = spec || inferPlanningCourseSpec(activity, []);
+  const duration = Number(resolvedSpec?.durationMinutes) || 0;
+  if (!duration) return 0;
+  const fixedDay = fixedPlanningWeekday(activity);
+  const fixedStartMinute = timeMinutes(activity.start_time);
+  const fixedEndMinute = timeMinutes(activity.end_time);
+  const fixedStart = fixedStartMinute != null
+    ? formatMinutes(fixedStartMinute)
+    : (fixedEndMinute != null ? formatMinutes(fixedEndMinute - duration) : '');
+  const fixedEnd = fixedStart ? formatMinutes(timeMinutes(fixedStart) + duration) : '';
+
+  let count = 0;
+  const activeIds = activeInstructorIds(instructors);
+  for (const empId of activeIds) {
+    const eligibleRule = (rules[empId] || []).some((rule) => {
+      if (rule.available !== true) return false;
+      const day = Number(rule.weekday);
+      if (fixedDay != null && day !== fixedDay) return false;
+      if (day === 5 && !profiles[empId]?.friday_allowed) return false;
+      if (fixedStart && fixedEnd) return ruleCovers(rule, fixedStart, fixedEnd);
+      const from = timeMinutes(rule.start_time);
+      const to = timeMinutes(rule.end_time);
+      return from != null && to != null && to - from >= duration;
+    });
+    if (eligibleRule) count += 1;
+  }
+  return count;
+}
+
+export function planningActivityDifficulty({
+  activity = {},
+  catalog = [],
+  instructors = [],
+  profiles = {},
+  rules = {}
+} = {}) {
+  const spec = inferPlanningCourseSpec(activity, catalog);
+  const estimatedInstructorCount = estimatedPlanningInstructorCount({
+    activity,
+    spec,
+    instructors,
+    profiles,
+    rules
+  });
+  const knownDates = activityMeetings(activity).length;
+  const hasTimeConstraint = timeMinutes(activity.start_time) != null || timeMinutes(activity.end_time) != null;
+  return {
+    estimatedInstructorCount,
+    knownDates,
+    hasTimeConstraint,
+    sessions: Number(spec.sessions) || 0,
+    durationMinutes: Number(spec.durationMinutes) || 0
+  };
+}
+
+function comparePlanningDifficulty(first = {}, second = {}, context = {}) {
+  const a = planningActivityDifficulty({ activity: first, ...context });
+  const b = planningActivityDifficulty({ activity: second, ...context });
+  if (a.estimatedInstructorCount !== b.estimatedInstructorCount) {
+    return a.estimatedInstructorCount - b.estimatedInstructorCount;
+  }
+  if (a.knownDates !== b.knownDates) return b.knownDates - a.knownDates;
+  if (a.hasTimeConstraint !== b.hasTimeConstraint) return a.hasTimeConstraint ? -1 : 1;
+  if (a.sessions !== b.sessions) return b.sessions - a.sessions;
+  if (a.durationMinutes !== b.durationMinutes) return b.durationMinutes - a.durationMinutes;
+  return idOf(first).localeCompare(idOf(second));
 }
 
 function stableRows(rows = []) {
@@ -1097,13 +1377,8 @@ export async function buildDynamicCoursePlan({
     return ad.localeCompare(bd) || idOf(a).localeCompare(idOf(b));
   });
 
-  missingSchedule.sort((a, b) => {
-    const as = inferPlanningCourseSpec(a, catalog);
-    const bs = inferPlanningCourseSpec(b, catalog);
-    return (bs.sessions - as.sessions)
-      || ((bs.durationMinutes || 0) - (as.durationMinutes || 0))
-      || idOf(a).localeCompare(idOf(b));
-  });
+  const difficultyContext = { catalog, instructors, profiles, rules };
+  missingSchedule.sort((a, b) => comparePlanningDifficulty(a, b, difficultyContext));
 
   const queue = [
     ...fixedUnassigned.map((activity) => ({ activity, type: 'fixed' })),
@@ -1118,7 +1393,7 @@ export async function buildDynamicCoursePlan({
     await report('בדיקת מדריכים', completed, queue.length, idOf(activity));
     await report('בדיקת נסיעות', completed, queue.length, idOf(activity));
     if (type === 'fixed') {
-      const options = await evaluateFixedCourse({
+      const evaluation = await evaluateFixedCourse({
         activity,
         contextActivities: currentContext,
         instructors,
@@ -1130,15 +1405,30 @@ export async function buildDynamicCoursePlan({
         routeClient,
         periodKey
       });
+      const options = evaluation.options || [];
       const chosen = options[0] || null;
+      const recruitmentNeeded = !chosen && evaluation.recruitmentNeeded === true;
       const row = {
         ...liveRow(activity, periodKey),
-        kind: 'fixed-proposal',
-        status: chosen ? 'הצעת תכנון' : 'נדרש טיפול',
+        kind: chosen ? 'fixed-proposal' : (recruitmentNeeded ? 'recruitment' : 'missing'),
+        status: chosen ? 'מדריך מומלץ למועד הקבוע' : (recruitmentNeeded ? 'נדרש גיוס' : 'נדרש טיפול'),
         instructorName: chosen?.instructorName || '',
         instructorEmpId: chosen?.instructorEmpId || '',
+        meetings: chosen?.meetings || liveRow(activity, periodKey).meetings,
         options: options.map(({ _candidate, ...option }) => option),
-        reason: chosen?.reason || 'לא נמצא מדריך שעומד בתנאי הסף'
+        diagnostics: {
+          preliminaryCount: Number(evaluation.preliminaryCount) || 0,
+          routedAttemptCount: Number(evaluation.routedAttemptCount) || 0,
+          routeVerified: evaluation.routeVerified === true
+        },
+        reason: chosen?.reason
+          || (evaluation.fixedScheduleInvalid
+            ? 'המועד שקבע בית הספר מתנגש בחופשה או בשעת סיום מותרת — נדרש טיפול במועד לפני גיוס'
+            : recruitmentNeeded
+              ? 'אין מדריך פעיל שעומד בתנאי הסף למועד הקבוע — נדרש גיוס'
+              : Number(evaluation.preliminaryCount) > 0 && evaluation.routeVerified === false
+                ? 'יש מדריכים אפשריים לפי הזמינות אך לא ניתן לאמת נסיעות — לא מסומן לגיוס'
+                : 'נדרשת בדיקה נוספת לפני החלטה על גיוס')
       };
       rowsById.set(idOf(activity), row);
       const virtual = blockingVirtualActivity(activity, chosen);
@@ -1158,7 +1448,7 @@ export async function buildDynamicCoursePlan({
       if (!generated.spec.complete) {
         rowsById.set(idOf(activity), missingOverviewRow(activity, catalog));
       } else {
-        const options = await evaluateScenarioOptions({
+        const evaluation = await evaluateScenarioOptions({
           activity,
           scenarios: generated.scenarios,
           startRange: generated.startRange,
@@ -1172,8 +1462,16 @@ export async function buildDynamicCoursePlan({
           routeClient,
           periodKey
         });
+        const options = evaluation.options || [];
         const chosen = options[0] || null;
-        rowsById.set(idOf(activity), planRowFromOption(activity, chosen, options, generated.startRange, generated.spec));
+        rowsById.set(idOf(activity), planRowFromOption(
+          activity,
+          chosen,
+          options,
+          generated.startRange,
+          generated.spec,
+          evaluation
+        ));
         const virtual = blockingVirtualActivity(activity, chosen);
         if (virtual) virtualPlans.push(virtual);
       }
@@ -1192,6 +1490,7 @@ export async function buildDynamicCoursePlan({
     live: rows.filter((row) => row.kind === 'live').length,
     drafts: rows.filter((row) => row.kind === 'draft').length,
     missing: rows.filter((row) => row.kind === 'missing').length,
+    recruitment: rows.filter((row) => row.kind === 'recruitment').length,
     routeStats: {
       googleCalls: Number(routeClient.googleCalls) || 0,
       cacheHits: Number(routeClient.cacheHits) || 0
@@ -1282,6 +1581,7 @@ function kindClass(kind) {
   if (kind === 'live') return ' is-live';
   if (kind === 'draft') return ' is-draft';
   if (kind === 'proposal' || kind === 'fixed-proposal') return ' is-proposal';
+  if (kind === 'recruitment') return ' is-recruitment';
   return ' is-missing';
 }
 
@@ -1290,7 +1590,7 @@ function optionHtml(option = {}, index = 0) {
     ? ` · טווח התחלה ${formatDateHe(option.startRange.min)}–${formatDateHe(option.startRange.max)}`
     : '';
   return `<div class="course-planning-option">
-    <strong>חלופה ${index + 1}: ${escapeHtml(option.instructorName || '—')}</strong>
+    <strong>חלופה ${index}: ${escapeHtml(option.instructorName || '—')}</strong>
     <span><bdi dir="ltr">${escapeHtml(formatDateHe(option.startDate))}</bdi>–<bdi dir="ltr">${escapeHtml(formatDateHe(option.endDate))}</bdi> · <bdi dir="ltr">${escapeHtml(formatTimeRangeShort(option.startTime, option.endTime))}</bdi>${escapeHtml(range)}</span>
     <small>${escapeHtml(option.reason || '')}${option.routeVerified === false ? ' · מרחק טרם אומת' : ''}</small>
   </div>`;
@@ -1298,7 +1598,7 @@ function optionHtml(option = {}, index = 0) {
 
 function explanationHtml(option = {}) {
   const explanation = option.explanation || {};
-  const items = [explanation.continuity, explanation.workload, explanation.travel, explanation.scheduleSource, explanation.hardGates].filter(Boolean);
+  const items = [explanation.optimization, explanation.continuity, explanation.workload, explanation.travel, explanation.scheduleSource, explanation.hardGates].filter(Boolean);
   return items.length ? `<details class="course-planning-explanation"><summary>למה הוצע?</summary><ul>${items.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul></details>` : '';
 }
 
@@ -1315,7 +1615,10 @@ export function planningRowsHtml(rows = []) {
       : '—';
     const hours = row.startTime ? `<bdi dir="ltr">${escapeHtml(formatTimeRangeShort(row.startTime, row.endTime))}</bdi>` : '—';
     const alternatives = (row.options || []).length > 1
-      ? `<details class="course-planning-alternatives"><summary>${row.options.length - 1} חלופות נוספות</summary>${row.options.slice(1).map((option, index) => optionHtml(option, index + 1)).join('')}</details>`
+      ? `<details class="course-planning-alternatives"><summary>${row.options.length - 1} חלופות אם בית הספר לא יכול</summary>${row.options.slice(1).map((option, index) => optionHtml(option, index + 1)).join('')}</details>`
+      : '';
+    const recommendationBadge = ['proposal', 'fixed-proposal'].includes(row.kind) && row.instructorEmpId
+      ? '<span class="course-planning-recommended">זה המועד הראשון שמציעים לבית הספר</span>'
       : '';
     return `<article class="course-planning-row${kindClass(row.kind)}" data-planning-course="${escapeHtml(row.courseId)}">
       <div class="course-planning-main">
@@ -1327,6 +1630,7 @@ export function planningRowsHtml(rows = []) {
         <div class="course-planning-field"><span>מדריך</span><strong>${escapeHtml(row.instructorName || '—')}</strong></div>
       </div>
       ${range}
+      ${recommendationBadge}
       ${row.halfOverflow ? `<span class="course-planning-half-overflow">${escapeHtml(row.halfOverflowLabel || 'חורגת מתקופת התכנון')}</span>` : ''}
       <p class="course-planning-reason">${escapeHtml(row.reason || '')}</p>
       ${explanationHtml(row.options?.[0])}
@@ -1362,6 +1666,7 @@ export function planningTabHtml({
   const live = rows.filter((row) => row.kind === 'live').length;
   const drafts = rows.filter((row) => row.kind === 'draft').length;
   const proposals = rows.filter((row) => ['proposal', 'fixed-proposal'].includes(row.kind) && row.instructorEmpId).length;
+  const recruitment = rows.filter((row) => row.kind === 'recruitment').length;
   const waiting = rows.filter((row) => row.kind === 'missing' || (['proposal', 'fixed-proposal'].includes(row.kind) && !row.instructorEmpId)).length;
   const progressText = loading
     ? `${escapeHtml(progress?.phase || 'הכנת נתונים')} · ${Number(progress?.completed) || 0} מתוך ${Number(progress?.total) || rows.length} פעילויות`
@@ -1370,8 +1675,8 @@ export function planningTabHtml({
   return `<section class="course-planning-tab" data-course-planning-tab>
     <div class="course-planning-banner">
       <div>
-        <strong>תכנון מערכת הדרכות מלאה — ללא שינוי בשיבוצים</strong>
-        <p>כל הפעילויות הפתוחות נכנסות למערכת החל מ־06.10.2026. מועדים שכבר נקבעו בבית הספר נשארים קבועים; כשחסר תאריך או שעה, המערכת משלימה אותם לפי ימי ושעות הזמינות של צוות ההדרכה.</p>
+        <strong>תכנון תפעולי — אנחנו מציעים לבית הספר את המועד</strong>
+        <p>החל מ־06.10.2026 המערכת בונה קודם את לוח צוות ההדרכה. לבית ספר שלא מסר מועד מאושר נציג מועד ראשון שמתאים לנו, ועוד עד שתי חלופות רק אם הוא אינו יכול.</p>
       </div>
       <div class="course-planning-period">${escapeHtml(period.label)} · <bdi dir="ltr">${escapeHtml(formatDateHe(period.start))}</bdi>–<bdi dir="ltr">${escapeHtml(formatDateHe(period.end))}</bdi></div>
     </div>
@@ -1382,7 +1687,7 @@ export function planningTabHtml({
       <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary" data-clear-course-planning ${loading ? 'disabled' : ''}>אפס הצעות</button>
       ${calculatedAt ? `<span class="course-planning-updated">עודכן ${escapeHtml(calculatedAt)}</span>` : ''}
     </div>
-    <p class="course-planning-note">המערכת בונה מערכת מלאה לקורסים, סדנאות וסיורים החל מ־06.10.2026. לכל פעילות ללא מועד מלא נבדקים מספר המפגשים, משך המפגש, ימי ושעות הזמינות של כל מדריך, חגים, חפיפות, מעברים, מרחקים והעומס שכבר קיים. המטרה היא לנצל את ימי העבודה הזמינים של כל מדריך בלי לחרוג מהאילוצים שלו.</p>
+    <p class="course-planning-note">המערכת בונה לוח מלא לקורסים, סדנאות וסיורים. סדר העבודה הוא: קודם פעילויות שקשה לשבץ, אחר כך מילוי ימים שכבר פתוחים למדריכים, רציפות באותו בית ספר או רשות, נסיעות קצרות ואיזון עומס. תאריך או שעה שבית הספר כבר אישר נשמרים כאילוץ. גיוס מסומן רק לאחר שלא נמצאה התאמה לצוות הקיים בחלונות שנבדקו.</p>
     <p class="course-planning-scope-counts">היקף נוכחי: <strong>${rows.length}</strong> פעילויות · ${Object.entries(typeCounts).map(([type, count]) => `${escapeHtml(type)} ${count}`).join(' · ')}</p>
     ${error ? `<p class="course-scheduling-alert">${escapeHtml(error)}</p>` : ''}
     ${progressText ? `<p class="course-planning-progress" role="status">${escapeHtml(progressText)}</p>` : ''}
@@ -1390,8 +1695,9 @@ export function planningTabHtml({
       <article><b>${rows.length}</b><span>כל הפעילויות</span></article>
       <article><b>${live}</b><span>מעודכן בפועל</span></article>
       <article><b>${drafts}</b><span>טיוטות קיימות</span></article>
-      <article><b>${proposals}</b><span>הצעות תכנון</span></article>
-      <article><b>${waiting}</b><span>טרם נמצא פתרון</span></article>
+      <article><b>${proposals}</b><span>מועדים להצעה לבית הספר</span></article>
+      <article><b>${waiting}</b><span>נדרש בירור נוסף</span></article>
+      <article><b>${recruitment}</b><span>נדרש גיוס</span></article>
     </div>
     ${planningRowsHtml(rows)}
     ${planningInstructorScheduleHtml(rows)}

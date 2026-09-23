@@ -1983,7 +1983,7 @@
 
 .course-planning-summary {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 10px;
 }
 
@@ -2024,6 +2024,10 @@
 .course-planning-row.is-live { border-inline-start-color: #1f7a5a; }
 .course-planning-row.is-draft { border-inline-start-color: #5566a8; }
 .course-planning-row.is-proposal { border-inline-start-color: #0f9f96; }
+.course-planning-row.is-recruitment {
+  border-inline-start-color: #b42318;
+  background: #fff8f7;
+}
 .course-planning-row.is-missing { border-inline-start-color: #94a3b8; }
 
 .course-planning-main {
@@ -2086,6 +2090,19 @@
   border-radius: 8px;
   background: #f4f7fb;
   color: #44556b;
+  font-size: .8rem;
+  font-weight: 800;
+}
+
+.course-planning-recommended {
+  display: inline-block;
+  margin-top: 8px;
+  margin-inline-start: 6px;
+  padding: 4px 8px;
+  border: 1px solid #9fd7d2;
+  border-radius: 8px;
+  background: #effaf9;
+  color: #17665f;
   font-size: .8rem;
   font-weight: 800;
 }
