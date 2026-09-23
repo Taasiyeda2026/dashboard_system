@@ -20,9 +20,10 @@ const contractUrl = new URL(
 );
 
 function sliceFunction(sql, name, nextMarker = 'revoke all on function') {
-  const start = sql.indexOf(`create or replace function public.${name}(`);
+  const lower = sql.toLowerCase();
+  const start = lower.indexOf(`create or replace function public.${name}(`);
   assert.ok(start >= 0, `${name} not found`);
-  const end = sql.indexOf(`${nextMarker} public.${name}(`, start);
+  const end = lower.indexOf(`${nextMarker.toLowerCase()} public.${name}(`, start);
   assert.ok(end > start, `${name} end not found`);
   return sql.slice(start, end);
 }
