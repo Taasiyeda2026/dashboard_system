@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import {
+  PLANNING_OPERATIONAL_START_DATE,
   buildPlanningOverviewRows,
   buildDynamicCoursePlan,
   buildFixedDatePlanningMeetings,
@@ -12,6 +13,7 @@ import {
   inferPlanningCourseSpec,
   latestFeasiblePlanningStart,
   planningDataFingerprint,
+  planningEffectivePeriod,
   planningInstructorSchedules,
   planningRowsHtml,
   planningTabHtml,
@@ -92,8 +94,10 @@ test('Planning does not guess a catalog program when an activity has no reliable
   assert.equal(spec.complete, false);
 });
 
-test('weekly planning keeps every meeting inside first half and rejects a start that finishes too late', () => {
-  const valid = buildWeeklyPlanningMeetings({
+test('weekly planning starts on or after 6 October, stays inside first half and rejects late starts', () => {
+  assert.equal(PLANNING_OPERATIONAL_START_DATE, '2026-10-06');
+  assert.equal(planningEffectivePeriod('first').start, '2026-10-06');
+  assert.equal(buildWeeklyPlanningMeetings({
     activity: baseCourse,
     startDate: '2026-10-04',
     startTime: '08:00',
@@ -101,9 +105,19 @@ test('weekly planning keeps every meeting inside first half and rejects a start 
     sessions: 11,
     schoolCalendar: [],
     periodKey: 'first'
+  }), null);
+
+  const valid = buildWeeklyPlanningMeetings({
+    activity: baseCourse,
+    startDate: '2026-10-11',
+    startTime: '08:00',
+    durationMinutes: 90,
+    sessions: 11,
+    schoolCalendar: [],
+    periodKey: 'first'
   });
   assert.equal(valid.meetings.length, 11);
-  assert.equal(valid.startDate, '2026-10-04');
+  assert.equal(valid.startDate, '2026-10-11');
   assert.ok(valid.endDate <= '2027-01-29');
 
   const tooLate = buildWeeklyPlanningMeetings({
@@ -140,14 +154,19 @@ test('planning scenarios offer dynamic dates and hours while respecting first-ha
     periodKey: 'first'
   });
   assert.ok(generated.scenarios.length > 0);
-  assert.ok(generated.startRange?.min >= '2026-09-22');
+  assert.ok(generated.startRange?.min >= '2026-10-06');
   assert.ok(generated.startRange?.max <= '2027-01-29');
   for (const scenario of generated.scenarios) {
     assert.equal(scenario.meetings.length, 11);
+    assert.ok(scenario.startDate >= '2026-10-06');
     assert.ok(scenario.endDate <= '2027-01-29');
     assert.ok(scenario.startTime);
     assert.ok(scenario.endTime);
   }
+  assert.deepEqual(
+    [...new Set(generated.scenarios.map((scenario) => new Date(`${scenario.startDate}T12:00:00Z`).getUTCDay()))].sort(),
+    [0, 1, 2, 3, 4]
+  );
 });
 
 test('official schedules are synchronized into Planning as live data and missing schedules remain proposals only', () => {
@@ -169,6 +188,8 @@ test('official schedules are synchronized into Planning as live data and missing
   const rows = buildPlanningOverviewRows({ activities: [live, missing], catalog });
   assert.equal(rows.find((row) => row.courseId === 'live')?.kind, 'live');
   assert.equal(rows.find((row) => row.courseId === 'live')?.instructorName, 'מדריך קיים');
+  assert.equal(rows.find((row) => row.courseId === 'live')?.startDate, '2026-10-11');
+  assert.equal(rows.find((row) => row.courseId === 'live')?.sessions, 1);
   assert.equal(rows.find((row) => row.courseId === 'missing')?.kind, 'missing');
   assert.equal(rows.find((row) => row.courseId === 'missing')?.status, 'נדרש טיפול');
 });
@@ -203,6 +224,15 @@ test('full-year Planning includes every supported open activity type, including 
   assert.deepEqual(rows.map((row) => row.row_id), ['course-a', 'course-b', 'workshop-a', 'tour-a']);
 });
 
+test('Planning excludes activities completed before 6 October but keeps undated and future activities', () => {
+  const rows = planningWorkspaceCourses([
+    { ...baseCourse, row_id: 'past-workshop', activity_type: 'workshop', date_1: '2026-09-30' },
+    { ...baseCourse, row_id: 'undated' },
+    { ...baseCourse, row_id: 'future', date_1: '2026-10-06' }
+  ]);
+  assert.deepEqual(rows.map((row) => row.row_id), ['undated', 'future']);
+});
+
 test('one-day workshops and tours derive a plannable single meeting from catalog duration', () => {
   const workshop = inferPlanningCourseSpec({
     ...baseCourse,
@@ -233,8 +263,8 @@ test('Planning preserves school-provided date and start-time constraints while c
     ...baseCourse,
     row_id: 'constrained',
     sessions: 2,
-    start_date: '2026-10-04',
-    date_1: '2026-10-04',
+    start_date: '2026-10-11',
+    date_1: '2026-10-11',
     start_time: '10:00',
     end_time: null
   };
@@ -250,18 +280,43 @@ test('Planning preserves school-provided date and start-time constraints while c
     periodKey: 'first'
   });
   assert.ok(generated.scenarios.length > 0);
-  assert.ok(generated.scenarios.every((scenario) => scenario.startDate === '2026-10-04'));
+  assert.ok(generated.scenarios.every((scenario) => scenario.startDate === '2026-10-11'));
   assert.ok(generated.scenarios.every((scenario) => scenario.startTime === '10:00'));
-  assert.ok(generated.scenarios.every((scenario) => scenario.meetings[0].date === '2026-10-04'));
+  assert.ok(generated.scenarios.every((scenario) => scenario.meetings[0].date === '2026-10-11'));
 });
+
+test('Planning keeps a school-provided hour and generates only dates on or after 6 October', () => {
+  const constrained = {
+    ...baseCourse,
+    row_id: 'time-only',
+    sessions: 3,
+    start_time: '11:00',
+    end_time: '12:30'
+  };
+  const generated = generatePlanningScenarios({
+    activity: constrained,
+    catalog,
+    instructors: [{ emp_id: 1, full_name: 'מדריכה', active: 'yes' }],
+    rules: ruleMap,
+    profiles: profileMap,
+    activities: [],
+    schoolCalendar: [],
+    today: '2026-09-23',
+    periodKey: 'first'
+  });
+  assert.ok(generated.scenarios.length > 0);
+  assert.ok(generated.scenarios.every((scenario) => scenario.startDate >= '2026-10-06'));
+  assert.ok(generated.scenarios.every((scenario) => scenario.startTime === '11:00'));
+});
+
 
 test('fixed-date Planning changes only the missing hour and keeps every school date intact', () => {
   const fixedDates = {
     ...baseCourse,
     row_id: 'fixed-dates',
     sessions: 2,
-    date_1: '2026-10-04',
-    date_2: '2026-10-11'
+    date_1: '2026-10-11',
+    date_2: '2026-10-18'
   };
   const built = buildFixedDatePlanningMeetings({
     activity: fixedDates,
@@ -270,7 +325,7 @@ test('fixed-date Planning changes only the missing hour and keeps every school d
     schoolCalendar: [],
     periodKey: 'first'
   });
-  assert.deepEqual(built.meetings.map((meeting) => meeting.date), ['2026-10-04', '2026-10-11']);
+  assert.deepEqual(built.meetings.map((meeting) => meeting.date), ['2026-10-11', '2026-10-18']);
   assert.ok(built.meetings.every((meeting) => meeting.start_time === '09:30' && meeting.end_time === '11:00'));
 });
 
@@ -284,12 +339,12 @@ test('Planning builds a complete meeting-level work schedule for each instructor
     {
       courseId: 'b', courseName: 'סדנה ב', activityType: 'סדנה', school: 'ב', authority: 'רשות',
       kind: 'live', instructorEmpId: '1', instructorName: 'מדריך',
-      meetings: [{ date: '2026-10-04', start_time: '08:00', end_time: '08:45' }]
+      meetings: [{ date: '2026-10-07', start_time: '08:00', end_time: '08:45' }]
     }
   ]);
   assert.equal(schedules.length, 1);
   assert.equal(schedules[0].activityCount, 2);
-  assert.deepEqual(schedules[0].meetings.map((meeting) => meeting.date), ['2026-10-04', '2026-10-11']);
+  assert.deepEqual(schedules[0].meetings.map((meeting) => meeting.date), ['2026-10-07', '2026-10-11']);
   assert.deepEqual(schedules[0].meetings.map((meeting) => meeting.source), ['שיבוץ קיים', 'הצעת מערכת']);
 });
 
@@ -297,6 +352,7 @@ test('Planning UI defaults to the full school year and exposes period selection'
   const html = planningTabHtml({ rows: [], periodKey: 'year' });
   assert.match(html, /data-planning-period-filter/);
   assert.match(html, /שנת הלימודים/);
+  assert.match(html, /06\.10\.2026/);
   assert.match(html, /בנה מערכת הדרכות מלאה/);
   assert.match(html, /קורסים, סדנאות וסיורים/);
 });
@@ -308,28 +364,28 @@ test('planning fingerprint covers instructor, availability, calendar and catalog
     { ...base, instructors: [{ emp_id: 1, active: 'yes', address: 'ב' }] },
     { ...base, profiles: [{ emp_id: 1, friday_allowed: true }] },
     { ...base, rules: [{ emp_id: 1, weekday: 0, available: true, start_time: '08:00', end_time: '10:00' }] },
-    { ...base, exceptions: [{ emp_id: 1, exception_date: '2026-10-04', available: false }] },
-    { ...base, schoolCalendar: [{ start_date: '2026-10-04', blocks_scheduling: true }] },
+    { ...base, exceptions: [{ emp_id: 1, exception_date: '2026-10-11', available: false }] },
+    { ...base, schoolCalendar: [{ start_date: '2026-10-11', blocks_scheduling: true }] },
     { ...base, catalog: [{ ...catalog[0], meetings_count: 12 }] }
   ]) assert.notEqual(planningDataFingerprint(changed), fingerprint);
 });
 
 test('fixed schedules never move and a fixed holiday requires treatment', async () => {
-  const fixed = { ...baseCourse, row_id: 'fixed', school_id: 1, school_address: 'כתובת בית ספר', sessions: 2, start_time: '08:00', end_time: '09:30', date_1: '2026-10-04', date_2: '2026-10-11' };
+  const fixed = { ...baseCourse, row_id: 'fixed', school_id: 1, school_address: 'כתובת בית ספר', sessions: 2, start_time: '08:00', end_time: '09:30', date_1: '2026-10-11', date_2: '2026-10-18' };
   const original = structuredClone(fixed);
   const result = await buildDynamicCoursePlan({
     activities: [fixed], instructors: [instructor], profiles: profileMap, rules: ruleMap,
-    schoolCalendar: [{ calendar_sector: 'general', start_date: '2026-10-04', end_date: '2026-10-04', blocks_scheduling: true, is_active: true }],
+    schoolCalendar: [{ calendar_sector: 'general', start_date: '2026-10-11', end_date: '2026-10-11', blocks_scheduling: true, is_active: true }],
     today: '2026-09-22', routeClient: routeClient({ distance_km: 5, duration_minutes: 10 })
   });
   assert.equal(result.rows[0].status, 'נדרש טיפול');
-  assert.equal(result.rows[0].startDate, '2026-10-04');
+  assert.equal(result.rows[0].startDate, '2026-10-11');
   assert.equal(result.rows[0].startTime, '08:00');
   assert.deepEqual(fixed, original);
 });
 
 test('route failure never produces a valid planning proposal', async () => {
-  const fixed = { ...baseCourse, row_id: 'fixed-route', school_id: 1, school_address: 'כתובת בית ספר', sessions: 1, start_time: '08:00', end_time: '09:30', date_1: '2026-10-04' };
+  const fixed = { ...baseCourse, row_id: 'fixed-route', school_id: 1, school_address: 'כתובת בית ספר', sessions: 1, start_time: '08:00', end_time: '09:30', date_1: '2026-10-11' };
   const result = await buildDynamicCoursePlan({
     activities: [fixed], instructors: [instructor], profiles: profileMap, rules: ruleMap,
     today: '2026-09-22', routeClient: routeClient(null)
@@ -346,7 +402,7 @@ test('planning fingerprint changes when live scheduling data changes', () => {
     emp_id: 10,
     start_time: '08:00',
     end_time: '09:30',
-    date_1: '2026-10-04'
+    date_1: '2026-10-11'
   }]);
   const second = planningDataFingerprint([{
     ...baseCourse,
@@ -354,7 +410,7 @@ test('planning fingerprint changes when live scheduling data changes', () => {
     emp_id: 10,
     start_time: '09:30',
     end_time: '11:00',
-    date_1: '2026-10-04'
+    date_1: '2026-10-11'
   }]);
   assert.notEqual(first, second);
 });
@@ -365,7 +421,7 @@ test('assigned activities remain fixed even when school hours are incomplete', (
     row_id: 'assigned-incomplete',
     emp_id: 10,
     instructor_name: 'מדריך קיים',
-    date_1: '2026-10-04',
+    date_1: '2026-10-11',
     start_time: '08:00',
     end_time: null
   };
@@ -401,12 +457,12 @@ test('planning fingerprint follows saved draft proposed dates and hours', () => 
     draft_emp_id: '10',
     start_time: '08:00',
     end_time: '09:30',
-    draft_proposed_meetings: [{ date: '2026-10-04', start_time: '08:00', end_time: '09:30' }]
+    draft_proposed_meetings: [{ date: '2026-10-11', start_time: '08:00', end_time: '09:30' }]
   };
   const first = planningDataFingerprint([draft]);
   const second = planningDataFingerprint([{
     ...draft,
-    draft_proposed_meetings: [{ date: '2026-10-11', start_time: '08:00', end_time: '09:30' }]
+    draft_proposed_meetings: [{ date: '2026-10-18', start_time: '08:00', end_time: '09:30' }]
   }]);
   assert.notEqual(first, second);
 });
