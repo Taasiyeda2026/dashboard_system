@@ -2149,6 +2149,30 @@
   color: var(--cs-text-muted);
 }
 
+.course-planning-choice-actions,
+.course-planning-option-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.course-planning-choice-actions {
+  margin-top: 8px;
+}
+
+.course-planning-inline-action,
+.course-planning-pick-btn {
+  min-height: 32px;
+  padding: 5px 10px;
+  font-size: .78rem;
+}
+
+.course-planning-option-head {
+  justify-content: space-between;
+}
+
+
 .course-planning-route-stats {
   font-size: .78rem;
 }
