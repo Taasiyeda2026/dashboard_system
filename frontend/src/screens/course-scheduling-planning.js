@@ -19,7 +19,6 @@ const text = (value) => String(value ?? '').trim();
 const idOf = (row) => text(row?.row_id || row?.RowID || row?.id);
 const empOf = (candidate) => text(candidate?.instructor?.emp_id);
 const norm = (value) => text(value).replace(/\s+/g, ' ').toLocaleLowerCase('he-IL');
-const FIRST_PERIOD_KEY = 'first';
 export const DEFAULT_PLANNING_PERIOD_KEY = 'year';
 const DEFAULT_TIME_SLOTS = ['08:00', '09:30', '11:00', '12:30', '14:00'];
 const MAX_SCENARIOS_PER_COURSE = 12;
@@ -180,7 +179,10 @@ export function planningWorkspaceCourses(activities = [], district = '', periodK
 }
 
 export function hasOfficialPlanningSchedule(activity = {}) {
-  return activityMeetings(activity).length > 0 && validTimeRange(activity.start_time, activity.end_time);
+  const meetings = activityMeetings(activity);
+  return meetings.length > 0 && meetings.every((meeting) =>
+    validTimeRange(meeting?.start_time || activity.start_time, meeting?.end_time || activity.end_time)
+  );
 }
 
 function courseCalendarRows(activity = {}, schoolCalendar = []) {
@@ -888,7 +890,7 @@ function missingOverviewRow(activity = {}, catalog = []) {
 
 export function buildPlanningOverviewRows({ activities = [], catalog = [], district = '', periodKey = DEFAULT_PLANNING_PERIOD_KEY } = {}) {
   return planningWorkspaceCourses(activities, district, periodKey).map((activity) =>
-    hasOfficialPlanningSchedule(activity) || isSchedulingDraftAssignment(activity)
+    text(activity.emp_id) || text(activity.draft_emp_id) || hasOfficialPlanningSchedule(activity)
       ? liveRow(activity, periodKey)
       : missingOverviewRow(activity, catalog)
   );
@@ -1000,9 +1002,10 @@ export async function buildDynamicCoursePlan({
   const missingSchedule = [];
 
   for (const activity of targets) {
-    if (hasOfficialPlanningSchedule(activity) || isSchedulingDraftAssignment(activity)) {
-      if (text(activity.emp_id) || text(activity.draft_emp_id)) rowsById.set(idOf(activity), liveRow(activity, periodKey));
-      else fixedUnassigned.push(activity);
+    if (text(activity.emp_id) || text(activity.draft_emp_id)) {
+      rowsById.set(idOf(activity), liveRow(activity, periodKey));
+    } else if (hasOfficialPlanningSchedule(activity)) {
+      fixedUnassigned.push(activity);
     } else {
       missingSchedule.push(activity);
     }
