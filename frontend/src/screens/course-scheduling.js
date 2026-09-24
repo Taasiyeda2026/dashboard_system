@@ -605,11 +605,12 @@ function summaryCardsHtml(rowModels = []) {
 function planningAlternativeButtonsHtml(row = {}, expanded = false) {
   const planning = row.planningRow || {};
   const options = Array.isArray(planning.options) ? planning.options : [];
-  if (!expanded || options.length < 2 || row.hasActualDraft || row.isAssigned) return '';
+  const alternatives = options.slice(1);
+  if (!expanded || !alternatives.length || row.hasActualDraft || row.isAssigned) return '';
   return `<div class="course-scheduling-workboard-alternatives">
     <strong>חלופות</strong>
-    ${options.map((option, index) => `<button type="button" class="course-scheduling-workboard-alt"
-      data-course-row-action data-planning-pick-option data-planning-course-id="${escapeHtml(row.id)}" data-planning-option-index="${index}">
+    ${alternatives.map((option, index) => `<button type="button" class="course-scheduling-workboard-alt"
+      data-course-row-action data-planning-pick-option data-planning-course-id="${escapeHtml(row.id)}" data-planning-option-index="${index + 1}">
       <span>${escapeHtml(option.instructorName || '—')}</span>
       <small><bdi dir="ltr">${escapeHtml(formatDateHe(option.startDate))}</bdi> · <bdi dir="ltr">${escapeHtml(formatTimeRangeShort(option.startTime, option.endTime))}</bdi></small>
     </button>`).join('')}
@@ -625,8 +626,9 @@ function workboardActionsHtml(row = {}, { planningLoading = false, alternativesE
       <button type="button" class="course-scheduling-workboard-secondary" data-course-row-action data-open-course-detail>שינוי</button>`;
   }
   if (row.hasPlanningDraft) {
+    const hasAlternatives = (row.planningRow?.options || []).length > 1;
     return `<button type="button" class="course-scheduling-workboard-primary" data-course-row-action data-confirm-planning-draft data-course-id="${escapeHtml(row.id)}">אשר שיבוץ</button>
-      <button type="button" class="course-scheduling-workboard-secondary" data-course-row-action data-workboard-alternatives data-course-id="${escapeHtml(row.id)}">${alternativesExpanded ? 'סגור חלופות' : 'שנה'}</button>
+      ${hasAlternatives ? `<button type="button" class="course-scheduling-workboard-secondary" data-course-row-action data-workboard-alternatives data-course-id="${escapeHtml(row.id)}">${alternativesExpanded ? 'סגור חלופות' : 'חלופות'}</button>` : ''}
       <button type="button" class="course-scheduling-workboard-link" data-course-row-action data-planning-unlock data-planning-course-id="${escapeHtml(row.id)}">בטל טיוטה</button>`;
   }
   const planning = row.planningRow || {};
