@@ -7,7 +7,6 @@ import { canOpenCapability, hasPermission } from '../../permission-policy.js';
 export const INSTRUCTORS_WORKSPACE_TABS = Object.freeze([
   { id: 'list', label: 'רשימת מדריכים', route: 'instructors' },
   { id: 'scheduling', label: 'שיבוצים', route: 'course-scheduling' },
-  { id: 'planning', label: 'תכנון', route: 'course-scheduling' },
   { id: 'work-schedule', label: 'סידור עבודה', route: 'operations-management', opsContext: 'instructors' },
   // id `payroll-control` is kept for backward compatibility; the UI label is Attendance Control.
   { id: 'payroll-control', label: 'בקרת נוכחות', route: 'operations-management', opsContext: 'instructors', action: 'payroll-control' },
@@ -62,7 +61,7 @@ function availableRoutes(state) {
 
 function canOpenTab(tab, routes, state = {}) {
   const capabilityByTab = {
-    list: 'instructors.list', scheduling: 'instructors.scheduling', planning: 'instructors.planning',
+    list: 'instructors.list', scheduling: 'instructors.scheduling',
     'work-schedule': 'instructors.work_schedule', 'payroll-control': 'instructors.attendance_control',
     maintenance: 'instructors.maintenance'
   };
@@ -86,7 +85,6 @@ export function resolveInstructorsWorkspaceActiveTab(state = {}) {
   const route = String(state?.route || '').trim();
   if (route === 'course-scheduling') {
     if (state?.courseSchedulingTab === 'maintenance') return 'maintenance';
-    if (state?.courseSchedulingTab === 'planning') return 'planning';
     return 'scheduling';
   }
   if (route === 'operations-management' && state?.operationsManagement?.context === 'instructors') return 'work-schedule';
@@ -151,11 +149,6 @@ function prepareTabContext(tab, state) {
   if (tab.id === 'scheduling') {
     if (state.operationsManagement) state.operationsManagement.context = 'operations';
     state.courseSchedulingTab = '';
-    return { route: tab.route };
-  }
-  if (tab.id === 'planning') {
-    if (state.operationsManagement) state.operationsManagement.context = 'operations';
-    state.courseSchedulingTab = 'planning';
     return { route: tab.route };
   }
   if (tab.id === 'list') {
