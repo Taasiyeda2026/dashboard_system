@@ -2038,7 +2038,11 @@ export const courseSchedulingScreen = {
           ? button.dataset.switchTab
           : 'courses';
         state.courseSchedulingShowDistanceConfirm = false;
-        if (state.courseSchedulingTab === 'planning') data._planningFreshChecked = false;
+        if (state.courseSchedulingTab === 'planning') {
+          data._planningFreshChecked = false;
+          data._planningSharedLoadedKey = '';
+          state.courseSchedulingPlanningSharedLoaded = false;
+        }
         rerender();
       });
     });
