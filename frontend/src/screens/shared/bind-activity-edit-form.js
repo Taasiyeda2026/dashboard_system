@@ -1003,7 +1003,7 @@ export function bindActivityEditForm(contentRoot, {
             }
           })
           .catch((err) => {
-            showToast('הפעילות לא נמחקה. ייתכן שאין הרשאה או שהפעילות לא נמצאה.', 'error', 3000);
+            showToast(translateApiErrorForUser(err?.message || 'delete_activity_not_confirmed'), 'error', 4200);
           });
         return;
       }
