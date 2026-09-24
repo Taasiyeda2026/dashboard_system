@@ -51,6 +51,29 @@ test('filters open, fully unassigned supported 2027 scheduling activities', () =
   ]).map((row) => row.row_id), ['ok', 'workshop']);
 });
 
+test('preloaded travel cache avoids Edge Function calls during planning', async () => {
+  let calls = 0;
+  const client = createRouteClient({
+    preloadedRows: [{
+      origin_key: 'חיפה',
+      destination_key: 'רחוב יעד, חיפה',
+      origin_address: 'חיפה',
+      destination_address: 'רחוב יעד, חיפה',
+      distance_km: 6.5,
+      duration_minutes: 12
+    }],
+    invoke: async () => {
+      calls += 1;
+      throw new Error('preloaded route should not invoke scheduling-route');
+    }
+  });
+  const leg = await client.request('חיפה', 'רחוב יעד, חיפה');
+  assert.equal(calls, 0);
+  assert.equal(client.cacheHits, 1);
+  assert.equal(leg.distance_km, 6.5);
+  assert.equal(leg.duration_minutes, 12);
+});
+
 test('filters inactive instructors before matching and route calculation', () => {
   const activeInstructor = instructors[0];
   const inactiveInstructor = { ...instructors[1], active: 'no' };
