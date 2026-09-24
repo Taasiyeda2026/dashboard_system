@@ -1470,7 +1470,9 @@ export async function buildDynamicCoursePlan({
   const contextActivities = [...activities];
   const virtualPlans = [];
   const rowsById = new Map();
-  const existingById = new Map((existingRows || []).map((row) => [idOf(row), row]));
+  const existingById = new Map((existingRows || [])
+    .map((row) => [text(row?.courseId) || idOf(row), row])
+    .filter(([courseId]) => !!courseId));
   const incrementalIds = Array.isArray(targetCourseIds)
     ? new Set(targetCourseIds.map((value) => text(value)).filter(Boolean))
     : null;
