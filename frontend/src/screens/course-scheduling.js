@@ -1460,33 +1460,7 @@ export const courseSchedulingScreen = {
     const tab = activeTab(state);
     const selectedId = state.courseSchedulingSelectedId || '';
     const activePlanningPeriodKey = planningPeriodKey(state);
-    const planningFingerprintInput = {
-      activities: data.activities || [], instructors: data.instructors || [],
-      profiles: data.scheduling?.profiles || [], rules: data.scheduling?.rules || [],
-      exceptions: data.scheduling?.exceptions || [], schoolCalendar: data.schoolCalendar || [],
-      catalog: data.planningCatalog || [],
-      periodKey: activePlanningPeriodKey
-    };
-    const currentPlanningFingerprint = planningDataFingerprint(planningFingerprintInput);
-    if (tab === 'planning'
-      && state.courseSchedulingPlanningFingerprint
-      && state.courseSchedulingPlanningFingerprint !== currentPlanningFingerprint
-    ) {
-      state.courseSchedulingPlanningRows = [];
-      state.courseSchedulingPlanningCalculatedAt = '';
-      state.courseSchedulingPlanningRouteStats = null;
-      state.courseSchedulingPlanningError = '';
-      state.courseSchedulingPlanningFingerprint = '';
-      state.courseSchedulingPlanningLocks = {};
-      state.courseSchedulingPlanningDirtyLockIds = [];
-      state.courseSchedulingPlanningBeforeLock = {};
-    }
-    const hasTrustedPlanningRows = !!state.courseSchedulingPlanningRows?.length
-      && (
-        state.courseSchedulingPlanningLoading
-        || state.courseSchedulingPlanningFingerprint === currentPlanningFingerprint
-      );
-    const planningRows = hasTrustedPlanningRows
+    const planningRows = state.courseSchedulingPlanningRows?.length
       ? state.courseSchedulingPlanningRows
       : buildPlanningOverviewRows({
           activities: data.activities || [],
@@ -1516,7 +1490,11 @@ export const courseSchedulingScreen = {
               periodKey: activePlanningPeriodKey,
               calculatedAt: state.courseSchedulingPlanningCalculatedAt || '',
               routeStats: state.courseSchedulingPlanningRouteStats || null,
-              pendingChanges: (state.courseSchedulingPlanningDirtyLockIds || []).length
+              pendingChanges: (state.courseSchedulingPlanningAffectedIds || []).length,
+              sharedLoaded: !!state.courseSchedulingPlanningSharedLoaded,
+              sharedUpdatedAt: state.courseSchedulingPlanningSharedUpdatedAt || '',
+              sharedUpdatedBy: state.courseSchedulingPlanningSharedUpdatedBy || '',
+              sharedRevision: Number(state.courseSchedulingPlanningSharedRevision) || 0
             })
           : `${schedulingScopeHtml(allInterfaceCourses, state, data.activities || [])}
       ${state.courseSchedulingSimulationView
