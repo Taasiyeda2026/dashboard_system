@@ -2024,6 +2024,195 @@
   font-size: .76rem;
 }
 
+.course-planning-quality {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid #b8d8d4;
+  border-radius: 12px;
+  background: #f8fcfb;
+}
+
+.course-planning-quality-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.course-planning-quality-head > div {
+  display: grid;
+  gap: 3px;
+}
+
+.course-planning-quality-head > div > strong {
+  color: #17665f;
+  font-size: .96rem;
+}
+
+.course-planning-quality-head > div > span {
+  color: var(--cs-text-muted);
+  font-size: .78rem;
+}
+
+.course-planning-quality-status {
+  flex: 0 0 auto;
+  padding: 5px 9px;
+  border: 1px solid var(--cs-border);
+  border-radius: 999px;
+  font-size: .78rem;
+  font-weight: 800;
+}
+
+.course-planning-quality-status.is-ready {
+  border-color: #9fd7d2;
+  background: #effaf9;
+  color: #17665f;
+}
+
+.course-planning-quality-status.is-pending,
+.course-planning-quality-status.is-attention {
+  border-color: #d9c589;
+  background: #fffaf0;
+  color: #6f5512;
+}
+
+.course-planning-quality-status.is-warning {
+  border-color: #efb0aa;
+  background: #fff4f2;
+  color: #9f2d24;
+}
+
+.course-planning-quality-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(135px, 1fr));
+  gap: 8px;
+}
+
+.course-planning-quality-grid article {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  padding: 9px 10px;
+  border: 1px solid var(--cs-border);
+  border-radius: 9px;
+  background: var(--cs-surface);
+}
+
+.course-planning-quality-grid article.is-ok {
+  border-color: #b8d8d4;
+}
+
+.course-planning-quality-grid article.is-alert {
+  border-color: #efb0aa;
+  background: #fff8f7;
+}
+
+.course-planning-quality-grid b {
+  color: #1f4b7a;
+  font-size: 1.08rem;
+}
+
+.course-planning-quality-grid article.is-alert b {
+  color: #9f2d24;
+}
+
+.course-planning-quality-grid span {
+  color: var(--cs-text);
+  font-size: .78rem;
+  font-weight: 700;
+}
+
+.course-planning-quality-grid small {
+  color: var(--cs-text-muted);
+  font-size: .72rem;
+}
+
+.course-planning-quality-efficiency {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  padding: 8px 10px;
+  border-radius: 9px;
+  background: var(--cs-surface);
+  color: var(--cs-text-muted);
+  font-size: .76rem;
+}
+
+.course-planning-quality-efficiency strong {
+  color: var(--cs-text);
+}
+
+.course-planning-quality-details {
+  border: 1px solid var(--cs-border);
+  border-radius: 9px;
+  background: var(--cs-surface);
+  overflow: hidden;
+}
+
+.course-planning-quality-details > summary {
+  padding: 8px 10px;
+  cursor: pointer;
+  color: #1f4b7a;
+  font-size: .8rem;
+  font-weight: 800;
+}
+
+.course-planning-quality-issues {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0 28px 10px 10px;
+  color: var(--cs-text-muted);
+  font-size: .78rem;
+}
+
+.course-planning-quality-issues strong {
+  color: var(--cs-text);
+}
+
+.course-planning-quality-clear {
+  margin: 0;
+  padding: 0 10px 10px;
+  color: #17665f;
+  font-size: .78rem;
+  font-weight: 700;
+}
+
+.course-planning-quality-table-wrap {
+  overflow: auto;
+  max-height: 360px;
+  border-top: 1px solid var(--cs-border);
+}
+
+.course-planning-quality-table {
+  width: 100%;
+  min-width: 720px;
+  border-collapse: collapse;
+}
+
+.course-planning-quality-table th,
+.course-planning-quality-table td {
+  padding: 7px 9px;
+  border-bottom: 1px solid var(--cs-border);
+  text-align: right;
+  white-space: nowrap;
+  font-size: .76rem;
+}
+
+.course-planning-quality-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--cs-surface-soft);
+  color: var(--cs-text-muted);
+  font-weight: 800;
+}
+
+.course-planning-quality-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
 .course-planning-list {
   display: grid;
   gap: 9px;
@@ -2348,6 +2537,13 @@
   .course-planning-summary {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+  .course-planning-quality-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .course-planning-quality-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
   .course-planning-row {
     padding: 12px;
   }
@@ -2371,6 +2567,9 @@
 @media (max-width: 430px) {
   .course-planning-summary {
     grid-template-columns: 1fr 1fr;
+  }
+  .course-planning-quality-grid {
+    grid-template-columns: 1fr;
   }
   .course-planning-main {
     grid-template-columns: 1fr;
