@@ -125,7 +125,9 @@ export async function saveSharedPlanningSnapshot({
     p_data_fingerprint: text(dataFingerprint),
     p_context_fingerprint: text(contextFingerprint),
     p_rows: payloadRows,
-    p_expected_revision: Number.isFinite(Number(expectedRevision)) ? Number(expectedRevision) : null
+    p_expected_revision: expectedRevision == null
+      ? null
+      : (Number.isFinite(Number(expectedRevision)) ? Number(expectedRevision) : null)
   });
   if (error) throw error;
   return data || null;
