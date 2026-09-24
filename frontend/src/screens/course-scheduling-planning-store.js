@@ -114,9 +114,9 @@ export async function saveSharedPlanningSnapshot({
     return {
       activityId,
       row,
-      activityUpdatedAt: activityVersion(activity)
+      activityUpdatedAt: activityVersion(activity) || null
     };
-  }).filter((item) => item.activityId && item.activityUpdatedAt);
+  }).filter((item) => item.activityId);
 
   const { data, error } = await supabase.rpc('save_scheduling_planning_snapshot', {
     p_period_key: text(periodKey) || 'year',
