@@ -152,6 +152,7 @@ const ACTIVITY_TABLE_COLUMNS = [
 ].join(',');
 const ACTIVITY_CALENDAR_COLUMNS = [
   'row_id', 'activity_name', 'activity_type', 'activity_family', 'activity_season',
+  'activity_manager', 'funding',
   'authority', 'school', 'school_id', 'grade', 'class_group',
   'instructor_name', 'instructor_name_2', 'emp_id', 'emp_id_2',
   'start_time', 'end_time', 'start_date', 'end_date', 'status',
