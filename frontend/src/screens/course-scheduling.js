@@ -682,6 +682,35 @@ function courseListHtml(rowModels, selectedId, state = {}) {
 }
 
 
+function schedulingPlanningStatusHtml(state = {}) {
+  const loading = !!state.courseSchedulingPlanningLoading;
+  const pending = Math.max(0, Number((state.courseSchedulingPlanningAffectedIds || []).length) || 0);
+  const progress = state.courseSchedulingPlanningProgress || {};
+  const error = text(state.courseSchedulingPlanningError);
+  if (error) {
+    return `<div class="course-scheduling-auto-plan is-error" role="status">
+      <span><strong>ההצעות לא עודכנו.</strong> ${escapeHtml(error)}</span>
+      <button type="button" class="course-scheduling-workboard-secondary" data-retry-auto-planning>נסה שוב</button>
+    </div>`;
+  }
+  if (loading) {
+    const total = Number(progress.total) || 0;
+    const completed = Number(progress.completed) || 0;
+    const suffix = total ? ` · ${completed} מתוך ${total}` : '';
+    return `<div class="course-scheduling-auto-plan is-working" role="status"><span><strong>המערכת מעדכנת את סידור העבודה</strong>${escapeHtml(suffix)}. אפשר להמשיך לעבוד במסך.</span></div>`;
+  }
+  if (!state.courseSchedulingPlanningSharedLoaded) {
+    return '<div class="course-scheduling-auto-plan is-working" role="status"><span><strong>טוען הצעות שיבוץ…</strong></span></div>';
+  }
+  if (!state.courseSchedulingPlanningCalculatedAt) {
+    return '<div class="course-scheduling-auto-plan is-working" role="status"><span><strong>מכין את סידור העבודה הראשוני…</strong> ההצעות יופיעו אוטומטית.</span></div>';
+  }
+  if (pending) {
+    return `<div class="course-scheduling-auto-plan is-working" role="status"><span><strong>מעדכן ${pending} פעילויות שהושפעו מהשינוי האחרון…</strong></span></div>`;
+  }
+  return '<div class="course-scheduling-auto-plan is-ready" role="status"><span><strong>סידור העבודה מעודכן.</strong> טיוטות ושיבוצים נלקחים בחשבון אוטומטית.</span></div>';
+}
+
 function genderRequirementLabel(course = {}) {
   const value = text(course.required_instructor_gender).toLocaleLowerCase('he-IL');
   if (!value || value === 'any' || value === 'ללא' || value === 'ללא דרישה') return 'ללא דרישה';
@@ -1529,6 +1558,9 @@ export const courseSchedulingScreen = {
 
   render(data, { state }) {
     ensureCourseSchedulingStyles();
+    if (state.courseSchedulingTab === 'planning' || state.courseSchedulingTab === 'calendar') {
+      state.courseSchedulingTab = 'courses';
+    }
     const requiredPermission = activeTab(state) === 'maintenance' ? 'manage_instructor_maintenance' : 'view_operations_scheduling';
     if (!hasPermission(state?.user, requiredPermission)) {
       return dsScreenStack(dsEmptyState('אין הרשאה לצפייה בשיבוץ פעילויות.'));
@@ -1540,7 +1572,6 @@ export const courseSchedulingScreen = {
     restoreCalculationSnapshot(state, interfaceCourses, schedulingSnapshotContext(data));
     const results = state.courseSchedulingResults || [];
     const resultByCourseId = new Map(results.map((result) => [idOf(result.course), result]));
-    const rowModels = interfaceCourses.map((course) => courseRowModel(course, resultByCourseId));
     const tab = activeTab(state);
     const selectedId = state.courseSchedulingSelectedId || '';
     const activePlanningPeriodKey = planningPeriodKey(state);
@@ -1552,66 +1583,38 @@ export const courseSchedulingScreen = {
           district: state.courseSchedulingPlanningDistrict || '',
           periodKey: activePlanningPeriodKey
         });
+    const planningByCourseId = new Map(planningRows.map((row) => [text(row?.courseId), row]));
+    const rowModels = interfaceCourses.map((course) => courseRowModel(course, resultByCourseId, planningByCourseId));
     const selectedRow = rowModels.find((row) => row.id === selectedId)
-      || (selectedId ? courseRowModel(interfaceCourses.find((course) => idOf(course) === selectedId) || { row_id: selectedId }, resultByCourseId) : null);
+      || (selectedId
+        ? courseRowModel(
+            interfaceCourses.find((course) => idOf(course) === selectedId) || { row_id: selectedId },
+            resultByCourseId,
+            planningByCourseId
+          )
+        : null);
+
     return dsScreenStack(`${instructorsWorkspaceNavStylesHtml()}
-    <div class="course-scheduling-screen" dir="rtl" data-cs-ui="ux-polish-20260805-v1" data-cs-tab="${escapeHtml(tab)}">
+    <div class="course-scheduling-screen is-simple-workboard" dir="rtl" data-cs-ui="simple-workboard-20260924-v1" data-cs-tab="${escapeHtml(tab)}">
       ${instructorsWorkspaceHeaderHtml({
-        activeTab: tab === 'maintenance' ? 'maintenance' : (tab === 'planning' ? 'planning' : 'scheduling'),
+        activeTab: tab === 'maintenance' ? 'maintenance' : 'scheduling',
         state
       })}
 
       ${tab === 'maintenance'
         ? maintenanceTabHtml(state)
-        : (tab === 'planning'
-          ? planningTabHtml({
-              rows: planningRows,
-              loading: !!state.courseSchedulingPlanningLoading,
-              progress: state.courseSchedulingPlanningProgress || null,
-              error: state.courseSchedulingPlanningError || '',
-              district: state.courseSchedulingPlanningDistrict || '',
-              districts: OPERATIONAL_DISTRICTS,
-              periodKey: activePlanningPeriodKey,
-              calculatedAt: state.courseSchedulingPlanningCalculatedAt || '',
-              routeStats: state.courseSchedulingPlanningRouteStats || null,
-              pendingChanges: (state.courseSchedulingPlanningAffectedIds || []).length,
-              sharedLoaded: !!state.courseSchedulingPlanningSharedLoaded,
-              sharedUpdatedAt: state.courseSchedulingPlanningSharedUpdatedAt || '',
-              sharedUpdatedBy: state.courseSchedulingPlanningSharedUpdatedBy || '',
-              sharedRevision: Number(state.courseSchedulingPlanningSharedRevision) || 0
-            })
-          : `${schedulingScopeHtml(allInterfaceCourses, state, data.activities || [])}
-      ${state.courseSchedulingSimulationView
-        ? districtSimulationPanelHtml({
-          rows: state.courseSchedulingSimulationRows || [],
-          counts: state.courseSchedulingSimulationCounts || summarizeDistrictSimulation([]),
-          statusFilter: state.courseSchedulingSimulationStatusFilter || '',
-          selectedId,
-          selectedCourseIds: state.courseSchedulingSimulationSelectedIds,
-          district: normalizeOperationalDistrict(state.courseSchedulingDistrict || ''),
-          allDistricts: !normalizeOperationalDistrict(state.courseSchedulingDistrict || ''),
-          loading: !!state.courseSchedulingSimulationLoading,
-          error: state.courseSchedulingSimulationError || '',
-          saving: !!state.courseSchedulingSimulationSaving,
-          confirmSave: !!state.courseSchedulingSimulationConfirmSave,
-          saveResult: state.courseSchedulingSimulationSaveResult || null
-        })
-        : `
-      <section class="course-scheduling-summary">${summaryCardsHtml(interfaceCourses, results)}</section>
+        : `${schedulingScopeHtml(allInterfaceCourses, state, data.activities || [])}
+      ${schedulingPlanningStatusHtml(state)}
+      <section class="course-scheduling-summary">${summaryCardsHtml(rowModels)}</section>
       <p data-course-scheduling-error class="course-scheduling-alert"${state.courseSchedulingError ? '' : ' hidden'}>${escapeHtml(state.courseSchedulingError || '')}</p>
       <div class="course-scheduling-layout course-scheduling-layout--courses">
-        <aside class="course-scheduling-courses">${courseListHtml(rowModels, selectedId)}</aside>
-        <section class="course-scheduling-detail" data-course-detail>${
-          !interfaceCourses.length
-            ? `<div class="course-scheduling-empty course-scheduling-empty--center">
-                <strong>אין פעילויות לשיבוץ כרגע</strong>
-                <p>כשיופיעו פעילויות ממתינות, תוכלו לבחור פעילות ולהתחיל שיבוץ.</p>
-              </div>`
-            : selectedCoursePanelHtml(selectedRow?.course ? selectedRow : null, state)
+        <aside class="course-scheduling-courses">${courseListHtml(rowModels, selectedId, state)}</aside>
+        <section class="course-scheduling-detail${selectedId ? ' is-open' : ''}" data-course-detail>${
+          selectedId && selectedRow?.course
+            ? selectedCoursePanelHtml(selectedRow, state)
+            : ''
         }</section>
-      </div>
-    `}
-    `)}
+      </div>`}
     ${singleMeetingSubstitutionModalHtml(data, state)}
     ${state.courseSchedulingCancelCourseId ? (() => {
       const course = (data.activities || []).find((item) => idOf(item) === state.courseSchedulingCancelCourseId) || {};
