@@ -1809,7 +1809,11 @@ export function planningTabHtml({
   periodKey = DEFAULT_PLANNING_PERIOD_KEY,
   calculatedAt = '',
   routeStats = null,
-  pendingChanges = 0
+  pendingChanges = 0,
+  sharedLoaded = false,
+  sharedUpdatedAt = '',
+  sharedUpdatedBy = '',
+  sharedRevision = 0
 } = {}) {
   const period = planningEffectivePeriod(periodKey);
   const planningPeriods = planningPeriodOptions();
@@ -1841,7 +1845,12 @@ export function planningTabHtml({
     ? 'בונה מערכת…'
     : (!calculatedAt
       ? 'בנה מערכת הדרכות מלאה'
-      : (pendingCount ? `עדכן את שאר המערכת (${pendingCount})` : 'חשב מחדש'));
+      : (pendingCount ? `עדכן רק ${pendingCount} פעילויות שהשתנו` : 'חשב הכל מחדש'));
+  const sharedStatus = sharedLoaded
+    ? (calculatedAt
+      ? `תכנון משותף לצוות · גרסה ${Number(sharedRevision) || 0}${sharedUpdatedAt ? ` · נשמר ${sharedUpdatedAt}` : ''}${sharedUpdatedBy ? ` על ידי ${sharedUpdatedBy}` : ''}`
+      : 'תכנון משותף לצוות · עדיין לא נשמר חישוב לתחום הזה')
+    : 'טוען את התכנון המשותף…';
 
   return `<section class="course-planning-tab" data-course-planning-tab>
     <div class="course-planning-banner">
@@ -1855,12 +1864,13 @@ export function planningTabHtml({
       <label>תקופת תכנון<select class="course-scheduling-input" data-planning-period-filter>${periodOptionsHtml}</select></label>
       <label>מחוז<select class="course-scheduling-input" data-planning-district-filter>${districtOptions}</select></label>
       <button type="button" class="course-scheduling-btn course-scheduling-btn--primary" data-run-course-planning ${loading ? 'disabled' : ''}>${escapeHtml(runLabel)}</button>
+      <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary" data-refresh-shared-planning ${loading ? 'disabled' : ''}>רענן תכנון משותף</button>
       <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary" data-export-course-planning ${exportReady ? '' : 'disabled'}>ייצוא Excel</button>
       <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary" data-clear-course-planning ${loading ? 'disabled' : ''}>אפס הצעות</button>
       ${calculatedAt ? `<span class="course-planning-updated">עודכן ${escapeHtml(calculatedAt)}</span>` : ''}
     </div>
-    <p class="course-planning-note">התוצאה מיועדת לסידור העבודה: המועד והמדריך המומלצים מוצגים בשורה הראשית, והחלופות נשארות פתוחות רק כשצריך. בחירה ננעלת מיד בלי לחשב את כל המערכת מחדש; לאחר כמה בחירות מעדכנים את שאר התכנון פעם אחת.</p>
-    ${pendingCount ? `<p class="course-planning-pending" role="status">נשמרו ${pendingCount} שינויים בתכנון. אין חישוב מלא בכל בחירה — לחצו "עדכן את שאר המערכת" כשתסיימו את סבב הבחירות.</p>` : ''}
+    <p class="course-planning-note">${escapeHtml(sharedStatus)}. כל בחירה ב"קבע בתכנון" נשמרת מיד ב-Supabase ומשותפת לכל הצוות. שיבוץ או טיוטה אמיתיים נשארים בעוגנים של המערכת, ובהרצה הבאה מחושבות מחדש רק הפעילויות שהושפעו.</p>
+    ${pendingCount ? `<p class="course-planning-pending" role="status">יש ${pendingCount} פעילויות שהושפעו משיבוצים, שינויי נתונים או בחירות בתכנון. לחצו על "${escapeHtml(runLabel)}" — אין צורך לבנות את כל המערכת מחדש.</p>` : ''}
     <p class="course-planning-scope-counts">היקף נוכחי: <strong>${rows.length}</strong> פעילויות · ${Object.entries(typeCounts).map(([type, count]) => `${escapeHtml(type)} ${count}`).join(' · ')}</p>
     ${error ? `<p class="course-scheduling-alert">${escapeHtml(error)}</p>` : ''}
     ${progressText ? `<p class="course-planning-progress" role="status">${escapeHtml(progressText)}</p>` : ''}
