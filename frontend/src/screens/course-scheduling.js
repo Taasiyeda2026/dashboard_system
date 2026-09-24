@@ -1651,7 +1651,19 @@ export const courseSchedulingScreen = {
     ) {
       data._planningSharedLoadedKey = currentPlanningScope.key;
       reloadSharedPlanningState()
-        .then(() => rerender())
+        .then(() => {
+          rerender();
+          // A real assignment/draft made since the last shared plan is already an
+          // operational anchor. Refresh only the rows that depend on that change;
+          // never force the user to rebuild the whole year after ordinary work.
+          if (
+            state.courseSchedulingPlanningCalculatedAt
+            && (state.courseSchedulingPlanningAffectedIds || []).length > 0
+            && !state.courseSchedulingPlanningLoading
+          ) {
+            void runCoursePlanning({ forceFull: false });
+          }
+        })
         .catch((error) => {
           data._planningSharedLoadedKey = '';
           state.courseSchedulingPlanningError = planningStoreErrorMessage(error, 'רענון התכנון המשותף נכשל');
@@ -1931,6 +1943,13 @@ export const courseSchedulingScreen = {
       try {
         await reloadSharedPlanningState();
         state.courseSchedulingPlanningError = '';
+        if (
+          state.courseSchedulingPlanningCalculatedAt
+          && (state.courseSchedulingPlanningAffectedIds || []).length > 0
+          && !state.courseSchedulingPlanningLoading
+        ) {
+          void runCoursePlanning({ forceFull: false });
+        }
       } catch (error) {
         state.courseSchedulingPlanningError = planningStoreErrorMessage(error, 'רענון התכנון המשותף נכשל');
       } finally {

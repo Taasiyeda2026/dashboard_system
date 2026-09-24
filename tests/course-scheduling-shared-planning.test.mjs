@@ -48,6 +48,12 @@ test('course planning screen loads and saves the shared workspace and only recal
   assert.match(travel, /persistentCache/);
 });
 
+test('existing shared plans automatically recalculate affected rows after live assignment changes', async () => {
+  const screen = await readFile(screenUrl, 'utf8');
+  assert.match(screen, /courseSchedulingPlanningCalculatedAt[\s\S]*courseSchedulingPlanningAffectedIds[\s\S]*runCoursePlanning\(\{ forceFull: false \}\)/);
+  assert.match(screen, /A real assignment\/draft made since the last shared plan/);
+});
+
 test('shared planning UI explicitly communicates team visibility and targeted refresh', async () => {
   const planning = await readFile(new URL('../frontend/src/screens/course-scheduling-planning.js', import.meta.url), 'utf8');
   assert.match(planning, /תכנון משותף לצוות/);
