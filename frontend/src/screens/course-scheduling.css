@@ -1985,6 +1985,17 @@
   font-weight: 700;
 }
 
+.course-planning-pending {
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid #d9c589;
+  border-radius: 9px;
+  background: #fffaf0;
+  color: #6f5512;
+  font-size: .8rem;
+  font-weight: 700;
+}
+
 .course-planning-summary {
   display: flex;
   flex-wrap: wrap;
