@@ -1553,30 +1553,98 @@ export const courseSchedulingScreen = {
     bindInstructorsWorkspaceNav(root, { state, rerender });
     const invokeDistanceRoute = (body) => supabase.functions.invoke('scheduling-route', { body });
 
-    if (activeTab(state) === 'planning' && !data._planningFreshChecked && !state.courseSchedulingPlanningLoading) {
-      data._planningFreshChecked = true;
-      Promise.resolve(data.reloadPlanningSnapshot?.())
-        .then((fresh) => {
-          if (!fresh) return;
-          const activePeriodKey = planningPeriodKey(state);
-          const before = planningDataFingerprint({
-            activities: data.activities || [], instructors: data.instructors || [],
-            profiles: data.scheduling?.profiles || [], rules: data.scheduling?.rules || [],
-            exceptions: data.scheduling?.exceptions || [], schoolCalendar: data.schoolCalendar || [],
-            catalog: data.planningCatalog || [], periodKey: activePeriodKey
-          });
-          const after = planningDataFingerprint({
-            activities: fresh.activities || [], instructors: fresh.instructors || [],
-            profiles: fresh.scheduling?.profiles || [], rules: fresh.scheduling?.rules || [],
-            exceptions: fresh.scheduling?.exceptions || [], schoolCalendar: fresh.schoolCalendar || [],
-            catalog: fresh.planningCatalog || [], periodKey: activePeriodKey
-          });
-          Object.assign(data, fresh, { _planningFreshChecked: true });
-          if (before !== after) clearCoursePlanning();
-          rerender();
-        })
+    const planningScope = () => {
+      const periodKey = planningPeriodKey(state);
+      const district = normalizeOperationalDistrict(state.courseSchedulingPlanningDistrict || '');
+      return { periodKey, district, key: `${periodKey}|${district}` };
+    };
+
+    const planningInputFromSnapshot = (snapshot, periodKey = planningPeriodKey(state)) => ({
+      activities: snapshot?.activities || [],
+      instructors: snapshot?.instructors || [],
+      profiles: snapshot?.scheduling?.profiles || [],
+      rules: snapshot?.scheduling?.rules || [],
+      exceptions: snapshot?.scheduling?.exceptions || [],
+      schoolCalendar: snapshot?.schoolCalendar || [],
+      catalog: snapshot?.planningCatalog || [],
+      periodKey
+    });
+
+    const formatPlanningSavedAt = (value) => {
+      if (!value) return '';
+      try {
+        return new Intl.DateTimeFormat('he-IL', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(value));
+      } catch {
+        return text(value);
+      }
+    };
+
+    const applySharedPlanningState = (shared, snapshot = data) => {
+      const scope = planningScope();
+      const currentCourses = planningWorkspaceCourses(
+        snapshot?.activities || [],
+        scope.district,
+        scope.periodKey
+      );
+      const currentCourseIds = currentCourses.map((course) => idOf(course));
+      const contextFingerprint = planningContextFingerprint(planningInputFromSnapshot(snapshot, scope.periodKey));
+      const workspace = shared?.workspace || null;
+      const contextChanged = !!workspace && (
+        text(workspace.engineVersion) !== PLANNING_ENGINE_VERSION
+        || text(workspace.contextFingerprint) !== contextFingerprint
+      );
+      const affectedIds = workspace
+        ? sharedPlanningAffectedCourseIds({
+            shared,
+            activities: snapshot?.activities || [],
+            currentCourseIds,
+            contextChanged
+          })
+        : currentCourseIds;
+
+      state.courseSchedulingPlanningRows = (shared?.rows || [])
+        .filter((entry) => currentCourseIds.includes(text(entry.activityId)))
+        .map((entry) => entry.lockedOption
+          ? applyPlanningLockToRow(entry.row, entry.lockedOption, scope.periodKey)
+          : entry.row);
+      state.courseSchedulingPlanningLocks = sharedPlanningLocks(shared);
+      state.courseSchedulingPlanningAffectedIds = [...new Set(affectedIds.map(text).filter(Boolean))];
+      state.courseSchedulingPlanningFingerprint = text(workspace?.dataFingerprint);
+      state.courseSchedulingPlanningContextFingerprint = contextFingerprint;
+      state.courseSchedulingPlanningCalculatedAt = formatPlanningSavedAt(workspace?.calculatedAt);
+      state.courseSchedulingPlanningSharedRevision = Number(workspace?.revision) || 0;
+      state.courseSchedulingPlanningSharedUpdatedAt = formatPlanningSavedAt(workspace?.updatedAt);
+      state.courseSchedulingPlanningSharedUpdatedBy = text(workspace?.updatedByName);
+      state.courseSchedulingPlanningSharedLoaded = true;
+      state.courseSchedulingPlanningShared = shared || { workspace: null, rows: [] };
+      state.courseSchedulingPlanningDirtyLockIds = [];
+      state.courseSchedulingPlanningBeforeLock = {};
+      data._planningSharedLoadedKey = scope.key;
+    };
+
+    const reloadSharedPlanningState = async ({ refreshData = true } = {}) => {
+      const scope = planningScope();
+      const [fresh, shared] = await Promise.all([
+        refreshData ? data.reloadPlanningSnapshot?.() : Promise.resolve(data),
+        loadSharedPlanningWorkspace({ periodKey: scope.periodKey, district: scope.district })
+      ]);
+      if (fresh && fresh !== data) Object.assign(data, fresh);
+      applySharedPlanningState(shared, fresh || data);
+      return { fresh: fresh || data, shared };
+    };
+
+    const currentPlanningScope = planningScope();
+    if (
+      activeTab(state) === 'planning'
+      && data._planningSharedLoadedKey !== currentPlanningScope.key
+      && !state.courseSchedulingPlanningLoading
+    ) {
+      data._planningSharedLoadedKey = currentPlanningScope.key;
+      reloadSharedPlanningState()
+        .then(() => rerender())
         .catch((error) => {
-          state.courseSchedulingPlanningError = `רענון נתוני התכנון נכשל: ${error?.message || error}`;
+          data._planningSharedLoadedKey = '';
+          state.courseSchedulingPlanningError = planningStoreErrorMessage(error, 'רענון התכנון המשותף נכשל');
           rerender();
         });
     }
