@@ -1688,7 +1688,7 @@ export const courseSchedulingScreen = {
       document.dispatchEvent(new CustomEvent('app:navigate', { detail: { route: 'activities' } }));
       clickActivityRowWhenReady(activityId);
     };
-    const clearCoursePlanning = ({ clearLocks = true } = {}) => {
+    const clearCoursePlanning = ({ clearLocks = true, clearSharedMeta = false } = {}) => {
       state.courseSchedulingPlanningRows = [];
       state.courseSchedulingPlanningLoading = false;
       state.courseSchedulingPlanningProgress = null;
@@ -1696,36 +1696,80 @@ export const courseSchedulingScreen = {
       state.courseSchedulingPlanningCalculatedAt = '';
       state.courseSchedulingPlanningRouteStats = null;
       state.courseSchedulingPlanningFingerprint = '';
+      state.courseSchedulingPlanningContextFingerprint = '';
+      state.courseSchedulingPlanningAffectedIds = [];
       state.courseSchedulingPlanningDirtyLockIds = [];
       state.courseSchedulingPlanningBeforeLock = {};
       if (clearLocks) state.courseSchedulingPlanningLocks = {};
+      if (clearSharedMeta) {
+        state.courseSchedulingPlanningShared = null;
+        state.courseSchedulingPlanningSharedLoaded = false;
+        state.courseSchedulingPlanningSharedRevision = 0;
+        state.courseSchedulingPlanningSharedUpdatedAt = '';
+        state.courseSchedulingPlanningSharedUpdatedBy = '';
+      }
     };
 
-    const runCoursePlanning = async () => {
+    const runCoursePlanning = async ({ forceFull = false } = {}) => {
       if (state.courseSchedulingPlanningLoading) return;
+      const scope = planningScope();
       state.courseSchedulingPlanningLoading = true;
       state.courseSchedulingPlanningError = '';
-      state.courseSchedulingPlanningProgress = {
-        completed: 0,
-        total: buildPlanningOverviewRows({
-          activities: data.activities || [],
-          catalog: data.planningCatalog || [],
-          district: state.courseSchedulingPlanningDistrict || '',
-          periodKey: planningPeriodKey(state)
-        }).filter((row) => !['live', 'draft'].includes(row.kind)).length
-      };
+      state.courseSchedulingPlanningProgress = { phase: 'רענון נתונים', completed: 0, total: 0 };
       rerender();
+
       try {
-        const freshStart = await data.reloadPlanningSnapshot();
-        const startFingerprintInput = {
-          activities: freshStart.activities || [], instructors: freshStart.instructors || [],
-          profiles: freshStart.scheduling?.profiles || [], rules: freshStart.scheduling?.rules || [],
-          exceptions: freshStart.scheduling?.exceptions || [], schoolCalendar: freshStart.schoolCalendar || [],
-          catalog: freshStart.planningCatalog || [],
-          periodKey: planningPeriodKey(state)
-        };
+        const routeCachePromise = loadSchedulingTravelCacheRows().catch(() => []);
+        const [freshStart, shared, routeCacheRows] = await Promise.all([
+          data.reloadPlanningSnapshot(),
+          loadSharedPlanningWorkspace({ periodKey: scope.periodKey, district: scope.district }),
+          routeCachePromise
+        ]);
+        Object.assign(data, freshStart);
+
+        const startFingerprintInput = planningInputFromSnapshot(freshStart, scope.periodKey);
         const startFingerprint = planningDataFingerprint(startFingerprintInput);
+        const startContextFingerprint = planningContextFingerprint(startFingerprintInput);
+        const currentCourseIds = planningWorkspaceCourses(
+          freshStart.activities || [],
+          scope.district,
+          scope.periodKey
+        ).map((course) => idOf(course));
+
+        const contextChanged = !!shared?.workspace && (
+          text(shared.workspace.engineVersion) !== PLANNING_ENGINE_VERSION
+          || text(shared.workspace.contextFingerprint) !== startContextFingerprint
+        );
+        const existingRows = (shared?.rows || [])
+          .filter((entry) => currentCourseIds.includes(text(entry.activityId)))
+          .map((entry) => entry.lockedOption
+            ? applyPlanningLockToRow(entry.row, entry.lockedOption, scope.periodKey)
+            : entry.row);
+        const affectedIds = shared?.workspace
+          ? sharedPlanningAffectedCourseIds({
+              shared,
+              activities: freshStart.activities || [],
+              currentCourseIds,
+              contextChanged
+            })
+          : currentCourseIds;
+
+        const fullRun = forceFull || !shared?.workspace || !existingRows.length || contextChanged || affectedIds.length === 0;
+        const targetCourseIds = fullRun ? null : affectedIds;
+        state.courseSchedulingPlanningProgress = {
+          phase: fullRun ? 'בניית תכנון מלא' : 'עדכון שינויים בלבד',
+          completed: 0,
+          total: fullRun ? currentCourseIds.length : affectedIds.length
+        };
+        rerender();
+
         const profiles = Object.fromEntries((freshStart.scheduling?.profiles || []).map((row) => [text(row.emp_id), row]));
+        const routeClient = createRouteClient({
+          preloadedRows: routeCacheRows,
+          concurrency: 6
+        });
+        const lockedOptions = sharedPlanningLocks(shared);
+
         const result = await buildDynamicCoursePlan({
           activities: freshStart.activities || [],
           instructors: freshStart.instructors || [],
@@ -1734,52 +1778,71 @@ export const courseSchedulingScreen = {
           exceptions: group(freshStart.scheduling?.exceptions || [], 'emp_id'),
           schoolCalendar: freshStart.schoolCalendar || [],
           catalog: freshStart.planningCatalog || [],
-          district: state.courseSchedulingPlanningDistrict || '',
-          periodKey: planningPeriodKey(state),
+          district: scope.district,
+          periodKey: scope.periodKey,
           today: today(),
-          lockedOptions: state.courseSchedulingPlanningLocks || {},
+          routeClient,
+          lockedOptions,
+          existingRows,
+          targetCourseIds,
           onProgress: (progress) => {
             state.courseSchedulingPlanningProgress = {
               phase: progress.phase,
               completed: progress.completed,
               total: progress.total
             };
-            if (Array.isArray(progress.rows)) {
-              state.courseSchedulingPlanningRows = progress.rows;
-            }
+            if (Array.isArray(progress.rows)) state.courseSchedulingPlanningRows = progress.rows;
             rerender();
           }
         });
+
         const freshEnd = await data.reloadPlanningSnapshot();
-        const endFingerprint = planningDataFingerprint({
-          activities: freshEnd.activities || [], instructors: freshEnd.instructors || [],
-          profiles: freshEnd.scheduling?.profiles || [], rules: freshEnd.scheduling?.rules || [],
-          exceptions: freshEnd.scheduling?.exceptions || [], schoolCalendar: freshEnd.schoolCalendar || [],
-          catalog: freshEnd.planningCatalog || [],
-          periodKey: planningPeriodKey(state)
-        });
+        const endFingerprintInput = planningInputFromSnapshot(freshEnd, scope.periodKey);
+        const endFingerprint = planningDataFingerprint(endFingerprintInput);
+        const endContextFingerprint = planningContextFingerprint(endFingerprintInput);
         if (startFingerprint !== endFingerprint) {
-          state.courseSchedulingPlanningRows = [];
-          state.courseSchedulingPlanningRouteStats = null;
-          state.courseSchedulingPlanningFingerprint = '';
-          state.courseSchedulingPlanningLocks = {};
-          state.courseSchedulingPlanningDirtyLockIds = [];
-          state.courseSchedulingPlanningBeforeLock = {};
-          state.courseSchedulingPlanningError = 'נתוני השיבוץ השתנו — יש לחשב מחדש.';
+          Object.assign(data, freshEnd);
+          applySharedPlanningState(shared, freshEnd);
+          state.courseSchedulingPlanningError = 'נתוני השיבוץ השתנו בזמן החישוב. התוצאה לא נשמרה; יש לעדכן רק את השינויים.';
           return;
         }
-        state.courseSchedulingPlanningRows = result.rows || [];
+
+        const saved = await saveSharedPlanningSnapshot({
+          periodKey: scope.periodKey,
+          district: scope.district,
+          engineVersion: PLANNING_ENGINE_VERSION,
+          dataFingerprint: endFingerprint,
+          contextFingerprint: endContextFingerprint,
+          rows: result.rows || [],
+          activities: freshEnd.activities || [],
+          expectedRevision: Number(shared?.workspace?.revision) || 0
+        });
+
+        const canonical = await loadSharedPlanningWorkspace({
+          periodKey: scope.periodKey,
+          district: scope.district
+        });
+        Object.assign(data, freshEnd);
+        applySharedPlanningState(canonical, freshEnd);
         state.courseSchedulingPlanningRouteStats = result.routeStats || null;
-        state.courseSchedulingPlanningFingerprint = startFingerprint;
-        state.courseSchedulingPlanningCalculatedAt = new Intl.DateTimeFormat('he-IL', {
-          dateStyle: 'short',
-          timeStyle: 'short'
-        }).format(new Date());
-        state.courseSchedulingPlanningDirtyLockIds = [];
-        state.courseSchedulingPlanningBeforeLock = {};
+        state.courseSchedulingPlanningSharedRevision = Number(saved?.revision || canonical?.workspace?.revision) || 0;
+        state.courseSchedulingPlanningAffectedIds = [];
         clearScreenDataCache?.();
+
+        const updatedCount = fullRun ? currentCourseIds.length : affectedIds.length;
+        showToast(
+          fullRun
+            ? `התכנון המשותף נשמר: ${currentCourseIds.length} פעילויות נבדקו.`
+            : `התכנון המשותף עודכן: חושבו מחדש רק ${updatedCount} פעילויות שהושפעו.`,
+          'success'
+        );
       } catch (error) {
-        state.courseSchedulingPlanningError = `חישוב התכנון נכשל: ${error?.message || error}`;
+        state.courseSchedulingPlanningError = planningStoreErrorMessage(error, 'חישוב התכנון נכשל');
+        try {
+          await reloadSharedPlanningState();
+        } catch {
+          data._planningSharedLoadedKey = '';
+        }
       } finally {
         state.courseSchedulingPlanningLoading = false;
         state.courseSchedulingPlanningProgress = null;
