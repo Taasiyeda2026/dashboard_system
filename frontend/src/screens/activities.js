@@ -69,6 +69,14 @@ import { bindCoordinationActivityModal, bindCoordinationWorkspace, coordinationD
 const taasiyedaLogoSrc = new URL('../../assets/logo1.png', import.meta.url).href;
 
 const inflightActivityDetailRequests = new Map();
+let activitiesLoadGeneration = 0;
+const RESOLVED_CONTACT_FIELDS = [
+  'resolved_school_2027_contact',
+  'resolved_contact_name',
+  'resolved_contact_phone',
+  'resolved_contact_email',
+  'resolved_contact_role'
+];
 const ADD_ACTIVITY_TYPE_ORDER = ['course', 'workshop', 'escape_room', 'tour', 'after_school'];
 
 const ALL_ACTIVITIES_TAB_KEY = 'all_activities';
@@ -101,6 +109,35 @@ function todayYmdForActivityDefaults() {
   }).formatToParts(now);
   const byType = Object.fromEntries(parts.map(p => [p.type, p.value]));
   return `${byType.year}-${byType.month}-${byType.day}`;
+}
+
+function school2027ContactCellHtml(row = {}) {
+  const resolvedContact = row.resolved_school_2027_contact || resolveSchool2027Contact(row, []);
+  const rawContactName = String(resolvedContact.name || '').trim();
+  const rawContactPhone = String(resolvedContact.phone || '').trim();
+  const contactName = escapeHtml(rawContactName || '—');
+  const contactPhone = escapeHtml(rawContactPhone);
+  const contactEmail = escapeHtml(String(resolvedContact.email || '').trim());
+  const phoneLine = rawContactPhone ? `<span class="ds-activities-contact-phone">${contactPhone}</span>` : '';
+  return rawContactName
+    ? `<button class="ds-contact-popover-btn" type="button" data-contact-popover data-cname="${contactName}" data-cphone="${contactPhone}" data-cemail="${contactEmail}"><span>${contactName}</span>${phoneLine}</button>`
+    : '<span>—</span>';
+}
+
+export function applyResolvedContactEnrichment(data, enriched) {
+  if (!Array.isArray(data?.rows) || !Array.isArray(enriched?.rows)) return new Map();
+  const currentRowsById = new Map(data.rows
+    .map((row) => [String(row?.RowID || row?.row_id || ''), row])
+    .filter(([rowId]) => rowId));
+  for (const enrichedRow of enriched.rows) {
+    const rowId = String(enrichedRow?.RowID || enrichedRow?.row_id || '');
+    const currentRow = currentRowsById.get(rowId);
+    if (!currentRow) continue;
+    for (const field of RESOLVED_CONTACT_FIELDS) {
+      if (Object.prototype.hasOwnProperty.call(enrichedRow, field)) currentRow[field] = enrichedRow[field];
+    }
+  }
+  return currentRowsById;
 }
 
 function defaultActivityPeriodTab() {
@@ -1764,6 +1801,7 @@ function activityLayoutListHtml(groups = []) {
 
 export const activitiesScreen = {
   async load({ api, state }) {
+    const loadGeneration = ++activitiesLoadGeneration;
     state.activityPeriodTab = normalizeActivityPeriodTab(state.activityPeriodTab);
     state.activitiesInnerTab = normalizeActivitiesInnerTab(state.activitiesInnerTab, state.activityPeriodTab, state);
     if (state.activitiesInnerTab === ACTIVITIES_INNER_TAB_COORDINATION && !state.activityCoordinationLoaded && !state.activityCoordinationLoading) {
@@ -1785,6 +1823,18 @@ export const activitiesScreen = {
     };
     const loadedRows = Array.isArray(result?.rows) ? result.rows : [];
     ensureActivityPeriodMonth(state, loadedRows);
+    const contactEnrichment = Promise.resolve()
+      .then(() => api.enrichActivitiesContacts?.(result))
+      .then((enriched) => (enriched && Array.isArray(enriched.rows) ? enriched : result))
+      .catch((error) => {
+        console.warn('[activities] background contact enrichment failed', error?.message || error);
+        return result;
+      });
+    Object.defineProperties(result, {
+      _activitiesLoadGeneration: { value: loadGeneration, enumerable: false },
+      _contactEnrichmentPromise: { value: contactEnrichment, enumerable: false },
+      _contactEnrichmentApplied: { value: false, writable: true, enumerable: false }
+    });
     return result;
   },
 
@@ -1890,16 +1940,7 @@ export const activitiesScreen = {
           const startHe2027 = formatDateHe(row.start_date) || '—';
           const endRaw2027 = String(row?.end_date || row?.date_end || '').trim() || String(row?.start_date || '').trim();
           const endHe2027 = endRaw2027 ? formatDateHe(endRaw2027) || '—' : '—';
-          const resolvedContact = row.resolved_school_2027_contact || resolveSchool2027Contact(row, []);
-          const rawContactName = String(resolvedContact.name || '').trim();
-          const rawContactPhone = String(resolvedContact.phone || '').trim();
-          const contactName2027 = escapeHtml(rawContactName || '—');
-          const contactPhone2027 = escapeHtml(rawContactPhone);
-          const contactEmail2027 = escapeHtml(String(resolvedContact.email || '').trim());
-          const phoneLine2027 = rawContactPhone ? `<span class="ds-activities-contact-phone">${contactPhone2027}</span>` : '';
-          const contactCell2027 = rawContactName
-            ? `<button class="ds-contact-popover-btn" type="button" data-contact-popover data-cname="${contactName2027}" data-cphone="${contactPhone2027}" data-cemail="${contactEmail2027}"><span>${contactName2027}</span>${phoneLine2027}</button>`
-            : '<span>—</span>';
+          const contactCell2027 = school2027ContactCellHtml(row);
           const notes2027 = escapeHtml(String(row.notes || '—'));
           return `
       <tr class="ds-data-row ds-activities-row" data-list-item data-search="${escapeHtml(rowSearch)}" data-filter="" data-row-id="${escapeHtml(row.RowID)}">
@@ -2076,6 +2117,23 @@ export const activitiesScreen = {
   },
 
   bind({ root, data, state, rerender, rerenderActivitiesView, ui, api, clearScreenDataCache, loadActivityCoordination = loadActivityCoordinationContext }) {
+    const contactPromise = data?._contactEnrichmentPromise;
+    const contactGeneration = data?._activitiesLoadGeneration;
+    if (contactPromise && !data._contactEnrichmentApplied) {
+      contactPromise.then((enriched) => {
+        if (data._contactEnrichmentApplied) return;
+        if (contactGeneration !== activitiesLoadGeneration) return;
+        if (state.route !== 'activities' || !root.isConnected) return;
+        if (!enriched || !Array.isArray(enriched.rows)) return;
+        data._contactEnrichmentApplied = true;
+        const rowsById = applyResolvedContactEnrichment(data, enriched);
+        root.querySelectorAll('.ds-activities-row[data-row-id]').forEach((rowNode) => {
+          const row = rowsById.get(String(rowNode.dataset.rowId || ''));
+          const cell = rowNode.querySelector('.ds-activities-col--contact-name');
+          if (row && cell) cell.innerHTML = school2027ContactCellHtml(row);
+        });
+      });
+    }
 
     const coordinationRoot = root.querySelector('.coordination-workspace');
     if (coordinationRoot) {

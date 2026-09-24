@@ -20,6 +20,12 @@ export function isSchool2027Activity(activity = {}) {
   return normalizeActivitySeason(activity.activity_season ?? activity.activitySeason) === ACTIVITY_SEASON_SCHOOL_2027;
 }
 
+export function isPrivateIsraaActivity(activity = {}) {
+  if (text(activity.activity_domain ?? activity.activityDomain) !== 'E') return false;
+  const value = activity.israa_shared;
+  return value === false || ['false', '0', 'no'].includes(text(value).toLowerCase());
+}
+
 export function resolveSchool2027Contact(activity = {}, contacts = []) {
   if (!isSchool2027Activity(activity)) {
     return {
