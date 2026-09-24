@@ -556,11 +556,41 @@ test('Planning UI defaults to the full school year and exposes period selection'
   assert.match(html, /שנת הלימודים/);
   assert.match(html, /06\.10\.2026/);
   assert.match(html, /בנה מערכת הדרכות מלאה/);
-  assert.match(html, /קורסים, סדנאות וסיורים/);
   assert.match(html, /נדרש גיוס/);
-  assert.match(html, /תכנון תפעולי/);
-  assert.match(html, /בחירת מועד או חלופה נועלת אותו בתכנון/);
-  assert.doesNotMatch(html, /מערכת ההדרכות לפי מדריך/);
+  assert.match(html, /תכנון עבודה מלא/);
+  assert.match(html, /בחירה ננעלת מיד בלי לחשב את כל המערכת מחדש/);
+  assert.match(html, /data-export-course-planning disabled/);
+  assert.doesNotMatch(html, /מערכת מלאה לפי מדריך/);
+});
+
+test('Planning batches selected options before expensive recalculation and blocks stale Excel export', () => {
+  const row = {
+    courseId: 'c1',
+    courseName: 'ביומימיקרי',
+    activityType: 'קורס',
+    school: 'בית ספר',
+    authority: 'רשות',
+    sessions: 2,
+    kind: 'planning-locked',
+    status: 'נקבע בתכנון',
+    instructorEmpId: '1',
+    instructorName: 'מדריך',
+    startDate: '2026-10-13',
+    endDate: '2026-10-20',
+    startTime: '08:00',
+    endTime: '09:30',
+    meetings: [{ date: '2026-10-13', start_time: '08:00', end_time: '09:30' }],
+    options: []
+  };
+  const html = planningTabHtml({
+    rows: [row],
+    periodKey: 'year',
+    calculatedAt: '24.9.2026, 10:00',
+    pendingChanges: 2
+  });
+  assert.match(html, /עדכן את שאר המערכת \(2\)/);
+  assert.match(html, /נשמרו 2 שינויים בתכנון/);
+  assert.match(html, /data-export-course-planning disabled/);
 });
 
 test('planning fingerprint covers instructor, availability, calendar and catalog dependencies', () => {
