@@ -79,6 +79,7 @@ import {
 } from './course-scheduling-planning.js';
 import {
   clearSharedPlanningWorkspace,
+  confirmSharedPlanningDraft,
   loadSharedPlanningWorkspace,
   planningStoreErrorMessage,
   saveSharedPlanningLock,
@@ -415,39 +416,34 @@ function schedulingScopeHtml(allCourses = [], state = {}, allActivities = allCou
   const periodButtons = periodOptions().map((option) => `<button type="button" class="course-scheduling-tab${option.key === periodKey ? ' is-active' : ''}" data-period-key="${escapeHtml(option.key)}">${escapeHtml(option.label)}</button>`).join('');
   const district = normalizeOperationalDistrict(state.courseSchedulingDistrict || '');
   const districtSelectHtml = `<option value="">כל המחוזות</option>${OPERATIONAL_DISTRICTS.map((item) => `<option value="${escapeHtml(item)}"${item === district ? ' selected' : ''}>${escapeHtml(item)}</option>`).join('')}`;
-  const scopedForAuthority = allCourses.filter((course) => filterMeetingsByCourseSchedulingPeriod(activityMeetings(course), periodKey).length).filter((course) => !district || districtValue(course) === district);
+  const scopedForAuthority = allCourses
+    .filter((course) => {
+      const meetings = schedulingCalendarMeetings(course);
+      return meetings.length === 0 || filterMeetingsByCourseSchedulingPeriod(meetings, periodKey).length;
+    })
+    .filter((course) => !district || districtValue(course) === district);
   const selectedAuthority = text(state.courseSchedulingAuthority || '');
   const authorityList = authorityOptions(scopedForAuthority);
   const authoritySelectHtml = `<option value="">כל הרשויות</option>${authorityList.map((item) => `<option value="${escapeHtml(item)}"${item === selectedAuthority ? ' selected' : ''}>${escapeHtml(item)}</option>`).join('')}`;
   const periodRange = `${formatDateHeDots(period.start)} – ${formatDateHeDots(period.end)}`;
-  const draftResetIds = schedulingDraftIdsForScope(allActivities, { periodKey, district });
-  const draftResetCount = draftResetIds.length;
-  const actionBusy = !!state.courseSchedulingSimulationLoading
-    || !!state.courseSchedulingSimulationSaving
-    || !!state.courseSchedulingDraftResetting;
-  const districtPlanDisabled = actionBusy;
-  const planningButtonLabel = district ? 'הפעל תכנון מחוזי' : 'הפעל תכנון ארצי';
-  const planningButtonTitle = district
-    ? 'הפעלת סימולציית תכנון למחוז הנבחר'
-    : 'הפעלת סימולציית תכנון ארצית לכל המחוזות';
   const selectedActivityType = text(state.activitySchedulingType || 'all');
   const activityTypeOptions = [['all', 'הכול'], ['course', 'קורסים'], ['workshop', 'סדנאות'], ['tour', 'סיורים']]
     .map(([value, label]) => `<option value="${value}"${value === selectedActivityType ? ' selected' : ''}>${label}</option>`).join('');
+  const selectedBusinessStatus = text(state.courseSchedulingBusinessStatus || 'all');
+  const businessStatusOptions = [['all', 'הכול'], ['open', 'פתוח'], ['draft', 'טיוטה'], ['assigned', 'משובץ']]
+    .map(([value, label]) => `<option value="${value}"${value === selectedBusinessStatus ? ' selected' : ''}>${label}</option>`).join('');
   return `<section class="course-scheduling-scope"><div class="course-scheduling-scope-inner">
     <div class="course-scheduling-tabs course-scheduling-tabs--inner">${periodButtons}</div>
     <label class="course-scheduling-filter-label">מחוז<select class="course-scheduling-input" data-district-filter>${districtSelectHtml}</select></label>
     <label class="course-scheduling-filter-label">רשות<select class="course-scheduling-input" data-authority-filter>${authoritySelectHtml}</select></label>
-    <label class="course-scheduling-filter-label">סוג פעילות<select class="course-scheduling-input" data-activity-type-filter>${activityTypeOptions}</select></label>
-    <button type="button" class="course-scheduling-btn course-scheduling-btn--primary" data-run-district-simulation ${districtPlanDisabled ? 'disabled' : ''} title="${escapeHtml(planningButtonTitle)}">${escapeHtml(planningButtonLabel)}</button>
-    <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary" data-reset-scheduling-drafts ${draftResetCount === 0 || actionBusy ? 'disabled' : ''} title="איפוס טיוטות בהיקף הנוכחי והרצת תכנון מחדש">${state.courseSchedulingDraftResetting ? 'מאפס טיוטות...' : (draftResetCount ? `איפוס ${draftResetCount} טיוטות וחישוב מחדש` : 'אין טיוטות לאיפוס')}</button>
+    <label class="course-scheduling-filter-label">פעילות<select class="course-scheduling-input" data-activity-type-filter>${activityTypeOptions}</select></label>
+    <label class="course-scheduling-filter-label">מצב<select class="course-scheduling-input" data-business-status-filter>${businessStatusOptions}</select></label>
     <p class="course-scheduling-period-range course-scheduling-period-range--push">${escapeHtml(periodRange)}</p>
   </div></section>`;
 }
-
 function activeTab(state) {
-  return ['courses', 'calendar', 'planning', 'maintenance'].includes(state.courseSchedulingTab)
-    ? state.courseSchedulingTab
-    : 'courses';
+  if (state.courseSchedulingTab === 'maintenance') return 'maintenance';
+  return 'courses';
 }
 
 function cardStatusClass(statusLabel) {
@@ -504,97 +500,185 @@ export function compactMeetingsHtml(activity) {
   return `${meetings.length} מפגשים · ${dateRange} · ${escapeHtml(weekdays.join(', '))} · ${timeRange}`;
 }
 
-function courseRowModel(course, resultByCourseId) {
+const BUSINESS_STATUS = Object.freeze({
+  open: 'פתוח',
+  draft: 'טיוטה',
+  assigned: 'משובץ'
+});
+
+function planningPrimaryOption(planningRow = {}) {
+  const options = Array.isArray(planningRow?.options) ? planningRow.options : [];
+  const selected = options.find((option) =>
+    text(option?.instructorEmpId) === text(planningRow?.instructorEmpId)
+    && text(option?.startDate) === text(planningRow?.startDate)
+    && text(option?.startTime) === text(planningRow?.startTime)
+  );
+  return selected || options[0] || null;
+}
+
+function workboardAlert(row = {}) {
+  const planning = row.planningRow || {};
+  const result = row.result || {};
+  if (planning.kind === 'recruitment' || result.status === 'נדרש גיוס') return 'אין מדריך מתאים כרגע';
+  if (planning.kind === 'missing' || planning.kind === 'fixed' || result.status === 'חסר מידע') return 'חסר מידע לתכנון';
+  if (result.status === 'נדרש טיפול') return text(result.treatmentReason) || 'נדרשת בדיקה';
+  const option = planningPrimaryOption(planning);
+  if (option?.routeVerified === false || planning?.diagnostics?.routeVerified === false) return 'הנסיעה טרם אומתה';
+  if (planning.halfOverflow) return text(planning.halfOverflowLabel) || 'חורג מתקופת התכנון';
+  return '';
+}
+
+function workboardMeetings(row = {}) {
+  if (row.isAssigned) return activityMeetings(row.course);
+  if (row.hasActualDraft) return schedulingCalendarMeetings(row.course);
+  if (Array.isArray(row.planningRow?.meetings) && row.planningRow.meetings.length) return row.planningRow.meetings;
+  return [];
+}
+
+function workboardScheduleLabel(row = {}) {
+  const meetings = workboardMeetings(row);
+  const first = meetings[0] || {};
+  const startDate = text(first.date || row.planningRow?.startDate || row.course?.start_date);
+  const startTime = text(first.start_time || row.planningRow?.startTime || row.course?.start_time);
+  const endTime = text(first.end_time || row.planningRow?.endTime || row.course?.end_time);
+  if (!startDate && !startTime) return 'טרם נקבע';
+  const parts = [];
+  if (startDate) parts.push(formatDateHe(startDate));
+  if (startTime && endTime) parts.push(formatTimeRangeShort(startTime, endTime));
+  return parts.join(' · ') || 'טרם נקבע';
+}
+
+function workboardInstructorLabel(row = {}) {
+  const course = row.course || {};
+  if (row.isAssigned) return text(course.instructor_name || course.emp_id) || '—';
+  if (row.hasActualDraft) return text(course.draft_instructor_name || course.draft_emp_id) || '—';
+  return text(row.planningRow?.instructorName || row.planningRow?.instructorEmpId) || 'טרם נקבע';
+}
+
+function courseRowModel(course, resultByCourseId, planningByCourseId = new Map()) {
   const id = idOf(course);
   const isAssigned = !!text(course.emp_id);
-  const hasDraft = !isAssigned && !!text(course.draft_emp_id);
+  const hasActualDraft = !isAssigned && !!text(course.draft_emp_id);
+  const planningRow = planningByCourseId.get(id) || null;
+  const hasPlanningDraft = !isAssigned && !hasActualDraft
+    && planningRow?.planningLocked === true
+    && !!text(planningRow?.instructorEmpId);
+  const hasDraft = hasActualDraft || hasPlanningDraft;
   const result = resultByCourseId.get(id) || null;
-  let bucket = null;
-  let statusLabel = STATUS.waiting;
-
-  if (isAssigned) {
-    bucket = 'assigned';
-    statusLabel = STATUS.assigned;
-  } else if (hasDraft) {
-    bucket = 'draft';
-    statusLabel = STATUS.draft;
-  } else if (!result) {
-    bucket = daysUntil(course.start_date) <= 7 ? 'soon' : daysUntil(course.start_date) <= 14 ? 'upcoming' : 'later';
-    statusLabel = STATUS.waiting;
-  } else if (result.status === 'חסר מידע') { bucket = 'missing'; statusLabel = STATUS.missing; }
-  else if (result.status === 'נדרש גיוס') { bucket = 'recruit'; statusLabel = STATUS.recruit; }
-  else if (result.status === 'נדרש טיפול') { bucket = 'treatment'; statusLabel = STATUS.problem; }
-  else {
-    const days = daysUntil(course.start_date);
-    bucket = days <= 7 ? 'soon' : days <= 14 ? 'upcoming' : 'later';
-    statusLabel = STATUS.ready;
-  }
-
-  return { course, id, result, isAssigned, hasDraft, bucket, statusLabel };
+  const bucket = isAssigned ? 'assigned' : (hasDraft ? 'draft' : 'open');
+  const statusLabel = BUSINESS_STATUS[bucket];
+  const row = {
+    course,
+    id,
+    result,
+    planningRow,
+    isAssigned,
+    hasActualDraft,
+    hasPlanningDraft,
+    hasDraft,
+    bucket,
+    statusLabel
+  };
+  row.alert = workboardAlert(row);
+  row.scheduleLabel = workboardScheduleLabel(row);
+  row.instructorLabel = workboardInstructorLabel(row);
+  return row;
 }
 
 const LIST_GROUPS = [
-  { key: 'soon', label: 'מתחילים בתוך 7 ימים' },
-  { key: 'upcoming', label: 'מתחילים בתוך 8–14 ימים' },
-  { key: 'later', label: 'מתחילים בהמשך' },
-  { key: 'draft', label: 'שמורים כטיוטה' },
-  { key: 'missing', label: 'חסרים פרטים' },
-  { key: 'recruit', label: 'נדרש גיוס' },
-  { key: 'treatment', label: 'נדרשת בדיקה' },
-  { key: 'assigned', label: 'שובצו' }
+  { key: 'open', label: 'פתוח' },
+  { key: 'draft', label: 'טיוטה' },
+  { key: 'assigned', label: 'משובץ' }
 ];
 
-function summaryCardsHtml(interfaceCourses, results) {
-  const waiting = interfaceCourses.filter((course) => !text(course.emp_id) && !text(course.draft_emp_id)).length;
-  const drafts = interfaceCourses.filter((course) => !text(course.emp_id) && text(course.draft_emp_id)).length;
-  const ready = results.filter((result) => result.status === 'הצעה מוכנה').length;
-  return `<article class="course-scheduling-summary-card course-scheduling-summary-card--waiting"><b>${waiting}</b><span>ממתינים לשיבוץ</span></article>
-    <article class="course-scheduling-summary-card course-scheduling-summary-card--ready"><b>${ready}</b><span>הצעות מוכנות</span></article>
-    <article class="course-scheduling-summary-card course-scheduling-summary-card--draft"><b>${drafts}</b><span>טיוטות</span></article>
-    <article class="course-scheduling-summary-card course-scheduling-summary-card--ready"><b>${interfaceCourses.filter((course) => text(course.emp_id)).length}</b><span>שובצו</span></article>`;
+function summaryCardsHtml(rowModels = []) {
+  const total = rowModels.length;
+  const open = rowModels.filter((row) => row.bucket === 'open').length;
+  const drafts = rowModels.filter((row) => row.bucket === 'draft').length;
+  const assigned = rowModels.filter((row) => row.bucket === 'assigned').length;
+  return `<article class="course-scheduling-summary-card"><b>${total}</b><span>סה״כ</span></article>
+    <article class="course-scheduling-summary-card course-scheduling-summary-card--waiting"><b>${open}</b><span>פתוח</span></article>
+    <article class="course-scheduling-summary-card course-scheduling-summary-card--draft"><b>${drafts}</b><span>טיוטה</span></article>
+    <article class="course-scheduling-summary-card course-scheduling-summary-card--ready"><b>${assigned}</b><span>משובץ</span></article>`;
 }
 
-function instructorCellLabel(row) {
-  const course = row?.course || {};
-  const assignedName = text(course.instructor_name || course.instructor_full_name || course.emp_name || course.employee_name);
-  if (assignedName) return assignedName;
-  if (row?.statusLabel === STATUS.assigned) return STATUS.assigned;
-  if (row?.statusLabel === STATUS.draft) return 'טיוטת מדריך';
-  return 'טרם שובץ';
+function planningAlternativeButtonsHtml(row = {}, expanded = false) {
+  const planning = row.planningRow || {};
+  const options = Array.isArray(planning.options) ? planning.options : [];
+  if (!expanded || options.length < 2 || row.hasActualDraft || row.isAssigned) return '';
+  return `<div class="course-scheduling-workboard-alternatives">
+    <strong>חלופות</strong>
+    ${options.map((option, index) => `<button type="button" class="course-scheduling-workboard-alt"
+      data-course-row-action data-planning-pick-option data-planning-course-id="${escapeHtml(row.id)}" data-planning-option-index="${index}">
+      <span>${escapeHtml(option.instructorName || '—')}</span>
+      <small><bdi dir="ltr">${escapeHtml(formatDateHe(option.startDate))}</bdi> · <bdi dir="ltr">${escapeHtml(formatTimeRangeShort(option.startTime, option.endTime))}</bdi></small>
+    </button>`).join('')}
+  </div>`;
 }
 
-function actionLabelForRow(row) {
-  if (row?.statusLabel === STATUS.assigned) return 'החלף מדריך';
-  if (row?.statusLabel === STATUS.draft) return 'פתח טיוטה';
-  if (row?.statusLabel === STATUS.ready) return 'בדוק מדריכים';
-  return 'מצא מדריך';
+function workboardActionsHtml(row = {}, { planningLoading = false, alternativesExpanded = false } = {}) {
+  if (row.isAssigned) {
+    return '<button type="button" class="course-scheduling-workboard-secondary" data-course-row-action data-open-course-detail>פתח</button>';
+  }
+  if (row.hasActualDraft) {
+    return `<button type="button" class="course-scheduling-workboard-primary" data-course-row-action data-confirm-actual-draft data-course-id="${escapeHtml(row.id)}">אשר שיבוץ</button>
+      <button type="button" class="course-scheduling-workboard-secondary" data-course-row-action data-open-course-detail>שינוי</button>`;
+  }
+  if (row.hasPlanningDraft) {
+    return `<button type="button" class="course-scheduling-workboard-primary" data-course-row-action data-confirm-planning-draft data-course-id="${escapeHtml(row.id)}">אשר שיבוץ</button>
+      <button type="button" class="course-scheduling-workboard-secondary" data-course-row-action data-workboard-alternatives data-course-id="${escapeHtml(row.id)}">${alternativesExpanded ? 'סגור חלופות' : 'שנה'}</button>
+      <button type="button" class="course-scheduling-workboard-link" data-course-row-action data-planning-unlock data-planning-course-id="${escapeHtml(row.id)}">בטל טיוטה</button>`;
+  }
+  const planning = row.planningRow || {};
+  const primary = planningPrimaryOption(planning);
+  if (primary?.instructorEmpId && Array.isArray(primary.meetings) && primary.meetings.length) {
+    return `<button type="button" class="course-scheduling-workboard-primary" data-course-row-action data-planning-pick-option data-planning-course-id="${escapeHtml(row.id)}" data-planning-option-index="0">שמור כטיוטה</button>
+      ${(planning.options || []).length > 1 ? `<button type="button" class="course-scheduling-workboard-secondary" data-course-row-action data-workboard-alternatives data-course-id="${escapeHtml(row.id)}">${alternativesExpanded ? 'סגור חלופות' : 'חלופות'}</button>` : ''}`;
+  }
+  if (planningLoading) return '<span class="course-scheduling-workboard-working">מכין הצעה…</span>';
+  return '<button type="button" class="course-scheduling-workboard-secondary" data-course-row-action data-open-course-detail>בדיקה ידנית</button>';
 }
 
-function courseListCardHtml(row, selectedId) {
+function courseListCardHtml(row, selectedId, state = {}) {
   const c = row.course;
   const selectedClass = row.id === selectedId ? ' is-selected' : '';
   const school = text(c.school) || '—';
   const authority = text(c.authority) || '—';
   const courseName = text(c.activity_name) || '—';
-  return `<div class="course-scheduling-compact-row course-scheduling-course-card${selectedClass}" data-course-card="${escapeHtml(row.id)}" role="button" tabindex="0" aria-label="${escapeHtml(`${school}, ${authority}, ${courseName}`)}">
-    <span class="course-scheduling-compact-cell course-scheduling-compact-school" title="${escapeHtml(school)}">${escapeHtml(school)}</span>
-    <span class="course-scheduling-compact-cell course-scheduling-compact-authority" title="${escapeHtml(authority)}">${escapeHtml(authority)}</span>
+  const expanded = text(state.courseSchedulingAlternativesCourseId) === row.id;
+  const alert = row.alert
+    ? `<small class="course-scheduling-workboard-alert">⚠ ${escapeHtml(row.alert)}</small>`
+    : '';
+  return `<div class="course-scheduling-compact-row course-scheduling-course-card${selectedClass}" data-course-card="${escapeHtml(row.id)}" role="button" tabindex="0" aria-label="${escapeHtml(`${school}, ${authority}, ${courseName}, ${row.statusLabel}`)}">
+    <span class="course-scheduling-compact-cell course-scheduling-compact-school" title="${escapeHtml(school)}"><strong>${escapeHtml(school)}</strong><small>${escapeHtml(authority)}</small></span>
     <strong class="course-scheduling-compact-cell course-scheduling-compact-course" title="${escapeHtml(courseName)}">${escapeHtml(courseName)}</strong>
-    <span class="course-scheduling-compact-cell course-scheduling-compact-status"><span class="course-scheduling-status-chip${cardStatusClass(row.statusLabel)}">${escapeHtml(row.statusLabel)}</span>${row.isAssigned ? `<small>מדריך: ${escapeHtml(instructorCellLabel(row))}</small>` : ''}</span>
-    ${row.id === selectedId ? `<div class="course-scheduling-inline-details" data-expanded-course-details>${selectedCourseMetaHtml(c)}</div>` : ''}
+    <span class="course-scheduling-compact-cell course-scheduling-workboard-schedule"><bdi dir="ltr">${escapeHtml(row.scheduleLabel)}</bdi></span>
+    <span class="course-scheduling-compact-cell course-scheduling-compact-instructor" title="${escapeHtml(row.instructorLabel)}">${escapeHtml(row.instructorLabel)}</span>
+    <span class="course-scheduling-compact-cell course-scheduling-compact-status"><span class="course-scheduling-status-chip${row.bucket === 'draft' ? ' is-status-draft' : (row.bucket === 'assigned' ? ' is-status-ready' : ' is-status-warning')}">${escapeHtml(row.statusLabel)}</span>${alert}</span>
+    <span class="course-scheduling-compact-cell course-scheduling-workboard-actions">${workboardActionsHtml(row, {
+      planningLoading: !!state.courseSchedulingPlanningLoading,
+      alternativesExpanded: expanded
+    })}</span>
+    ${planningAlternativeButtonsHtml(row, expanded)}
   </div>`;
 }
 
-function courseListHtml(rowModels, selectedId) {
-  const groups = LIST_GROUPS.map((group) => ({ ...group, rows: rowModels.filter((row) => row.bucket === group.key) })).filter((group) => group.rows.length);
+function courseListHtml(rowModels, selectedId, state = {}) {
+  const statusFilter = text(state.courseSchedulingBusinessStatus || 'all');
+  const filteredRows = statusFilter === 'all'
+    ? rowModels
+    : rowModels.filter((row) => row.bucket === statusFilter);
+  const groups = LIST_GROUPS
+    .map((group) => ({ ...group, rows: filteredRows.filter((row) => row.bucket === group.key) }))
+    .filter((group) => group.rows.length);
   if (!groups.length) {
     return `<div class="course-scheduling-empty">
-      <strong>אין פעילויות הממתינות לשיבוץ</strong>
-      <p>שיבוצים שבוצעו יופיעו בלשונית המערכת השבועית.</p>
+      <strong>אין פעילויות במצב שנבחר</strong>
+      <p>אפשר לשנות את מסנן המצב כדי לראות את שאר הפעילויות.</p>
     </div>`;
   }
-  const header = '<div class="course-scheduling-compact-table-head" aria-hidden="true"><span>בית ספר</span><span>רשות</span><span>פעילות</span><span>סטטוס</span></div>';
-  return header + groups.map((group) => `<section class="course-scheduling-course-group"><h3>${escapeHtml(group.label)} <span class="course-scheduling-badge">${group.rows.length}</span></h3>${group.rows.map((row) => courseListCardHtml(row, selectedId)).join('')}</section>`).join('');
+  const header = '<div class="course-scheduling-compact-table-head" aria-hidden="true"><span>בית ספר</span><span>פעילות</span><span>מועד</span><span>מדריך</span><span>מצב</span><span>פעולה</span></div>';
+  return header + groups.map((group) => `<section class="course-scheduling-course-group"><h3>${escapeHtml(group.label)} <span class="course-scheduling-badge">${group.rows.length}</span></h3>${group.rows.map((row) => courseListCardHtml(row, selectedId, state)).join('')}</section>`).join('');
 }
 
 
