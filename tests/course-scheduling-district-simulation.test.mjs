@@ -372,7 +372,7 @@ test('9. clicking a simulation row opens the existing course detail', () => {
   delete globalThis.document;
 });
 
-test('10. existing single-course scheduling controls remain unchanged', () => {
+test('10. single-course manual controls remain available while district simulation controls stay out of the main workboard', () => {
   const open = course('single');
   const html = courseSchedulingScreen.render({
     activities: [open],
@@ -390,13 +390,13 @@ test('10. existing single-course scheduling controls remain unchanged', () => {
   });
   assert.match(html, /data-find-instructors/);
   assert.match(html, /מצא מדריכים מתאימים|בדיקה מחדש של מדריכים/);
-  assert.match(html, /data-run-district-simulation/);
-  assert.match(html, /הפעל תכנון מחוזי/);
+  assert.doesNotMatch(html, /data-run-district-simulation/);
+  assert.doesNotMatch(html, /הפעל תכנון מחוזי/);
   assert.doesNotMatch(html, /data-district-simulation-panel/);
   assert.match(html, /data-course-detail/);
 });
 
-test('10b. all-districts scope renders a national planning button and national panel label', () => {
+test('10b. all-districts workboard keeps national simulation machinery hidden from the normal scheduling flow', () => {
   const open = course('national-ui');
   const html = courseSchedulingScreen.render({
     activities: [open],
@@ -411,8 +411,8 @@ test('10b. all-districts scope renders a national planning button and national p
       courseSchedulingSimulationView: false
     }
   });
-  assert.match(html, /הפעל תכנון ארצי/);
-  assert.doesNotMatch(html, /data-run-district-simulation[^>]*disabled/);
+  assert.doesNotMatch(html, /הפעל תכנון ארצי/);
+  assert.doesNotMatch(html, /data-run-district-simulation/);
 
   const panel = districtSimulationPanelHtml({
     rows: [],
