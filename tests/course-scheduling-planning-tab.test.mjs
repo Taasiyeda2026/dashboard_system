@@ -24,6 +24,7 @@ import {
   planningTabHtml,
   planningWorkspaceCourses
 } from '../frontend/src/screens/course-scheduling-planning.js';
+import { buildPlanningWorkbook, planningExportFilename, planningWorkbookRows } from '../frontend/src/screens/course-scheduling-planning-export.js';
 
 const instructor = { emp_id: 1, full_name: 'מדריך', active: 'yes', address: 'כתובת מדריך' };
 const profileMap = { 1: { emp_id: 1, gender: 'male', instruction_languages: ['he'], friday_allowed: false } };
@@ -554,7 +555,7 @@ test('Planning UI defaults to the full school year and exposes period selection'
   const html = planningTabHtml({ rows: [], periodKey: 'year' });
   assert.match(html, /data-planning-period-filter/);
   assert.match(html, /שנת הלימודים/);
-  assert.match(html, /06\.10\.2026/);
+  assert.match(html, /06\/10\/2026/);
   assert.match(html, /בנה מערכת הדרכות מלאה/);
   assert.match(html, /נדרש גיוס/);
   assert.match(html, /תכנון עבודה מלא/);
@@ -591,6 +592,52 @@ test('Planning batches selected options before expensive recalculation and block
   assert.match(html, /עדכן את שאר המערכת \(2\)/);
   assert.match(html, /נשמרו 2 שינויים בתכנון/);
   assert.match(html, /data-export-course-planning disabled/);
+});
+
+test('Planning Excel includes recommended dates, possible instructors and instructor schedule', () => {
+  const row = {
+    courseId: 'export-course',
+    courseName: 'ביומימיקרי',
+    activityType: 'קורס',
+    authority: 'רשות',
+    school: 'בית ספר',
+    status: 'מועד מומלץ לבית הספר',
+    sessions: 2,
+    kind: 'proposal',
+    instructorEmpId: '10',
+    instructorName: 'מדריכה א',
+    startDate: '2026-10-11',
+    endDate: '2026-10-18',
+    startTime: '08:00',
+    endTime: '09:30',
+    meetings: [
+      { date: '2026-10-11', start_time: '08:00', end_time: '09:30' },
+      { date: '2026-10-18', start_time: '08:00', end_time: '09:30' }
+    ],
+    options: [
+      {
+        instructorEmpId: '10', instructorName: 'מדריכה א',
+        startDate: '2026-10-11', endDate: '2026-10-18',
+        startTime: '08:00', endTime: '09:30',
+        meetings: [{ date: '2026-10-11', start_time: '08:00', end_time: '09:30' }]
+      },
+      {
+        instructorEmpId: '11', instructorName: 'מדריך ב',
+        startDate: '2026-10-12', endDate: '2026-10-19',
+        startTime: '10:00', endTime: '11:30',
+        meetings: [{ date: '2026-10-12', start_time: '10:00', end_time: '11:30' }]
+      }
+    ]
+  };
+  const exportRows = planningWorkbookRows([row]);
+  assert.equal(exportRows.activities[0]['תאריך התחלה מוצע'], '11/10/2026');
+  assert.equal(exportRows.activities[0]['מדריכים אפשריים'], 'מדריכה א | מדריך ב');
+  assert.match(exportRows.activities[0]['חלופות נוספות'], /12\/10\/2026 10:00–11:30 — מדריך ב/);
+  assert.deepEqual(buildPlanningWorkbook([row]).SheetNames, ['סידור עבודה', 'אפשרויות תכנון', 'מערכת לפי מדריך']);
+  assert.equal(
+    planningExportFilename(new Date('2026-09-24T07:00:00.000Z')),
+    'סידור_עבודה_תכנון_2026-09-24.xlsx'
+  );
 });
 
 test('planning fingerprint covers instructor, availability, calendar and catalog dependencies', () => {
