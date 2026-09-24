@@ -151,6 +151,22 @@ export async function saveSharedPlanningLock({
   return data || null;
 }
 
+export async function confirmSharedPlanningDraft({
+  periodKey = 'year',
+  district = '',
+  activityId = '',
+  expectedRevision = null
+} = {}) {
+  const { data, error } = await supabase.rpc('confirm_scheduling_planning_draft', {
+    p_period_key: text(periodKey) || 'year',
+    p_district: text(district),
+    p_activity_id: text(activityId),
+    p_expected_revision: Number.isFinite(Number(expectedRevision)) ? Number(expectedRevision) : null
+  });
+  if (error) throw error;
+  return data || null;
+}
+
 export async function clearSharedPlanningWorkspace({
   periodKey = 'year',
   district = '',
@@ -169,6 +185,9 @@ export function planningStoreErrorMessage(error, fallback = 'שמירת התכנ
   const raw = text(error?.message || error);
   if (raw.includes('planning_revision_conflict')) return 'התכנון עודכן במקביל על ידי משתמש אחר. רעננו את התכנון המשותף ונסו שוב.';
   if (raw.includes('planning_activity_changed')) return 'נתוני הפעילויות השתנו בזמן החישוב. המערכת לא דרסה את השינויים — יש לעדכן רק את הפעילויות שהשתנו.';
+  if (raw.includes('planning_draft_missing')) return 'הטיוטה כבר השתנתה או בוטלה. המערכת תרענן את ההצעות.';
+  if (raw.includes('scheduling_draft_exists')) return 'כבר קיימת טיוטת שיבוץ לפעילות. יש לפתוח אותה לפני אישור תכנון אחר.';
+  if (raw.includes('planning_draft_variable_hours_unsupported')) return 'בטיוטה שנבחרה יש שעות שונות בין המפגשים ולכן נדרשת בדיקה ידנית.';
   if (raw.includes('scheduling_permission_denied')) return 'אין הרשאה לעדכן את התכנון המשותף.';
   return raw ? `${fallback}: ${raw}` : fallback;
 }
