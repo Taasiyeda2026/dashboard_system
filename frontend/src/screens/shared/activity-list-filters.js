@@ -301,22 +301,28 @@ export function filtersToolbarHtml(scope, rows, state, config = {}) {
   const showSearch = config.search !== false;
   const showClear = config.clear !== false;
   const searchPlaceholder = config.searchPlaceholder || 'חיפוש…';
+  const visibleFilterFields = filterFields.filter((field) => {
+    if (!field?.hideWhenEmpty) return true;
+    const hasOptions = Array.isArray(optionsMap?.[field.key]) && optionsMap[field.key].length > 0;
+    const hasSelection = Boolean(String(filters?.[field.key] || '').trim());
+    return hasOptions || hasSelection;
+  });
 
   if (config.layout === 'panel') {
     return `<section class="ds-filter-panel ds-filter-panel--grid-only" dir="rtl" data-local-filters="${escapeHtml(scope)}">
       <div class="ds-filter-panel__grid">
-        ${filterFields.map((field) => selectInlineHtml(scope, field, filters, optionsMap)).join('')}
+        ${visibleFilterFields.map((field) => selectInlineHtml(scope, field, filters, optionsMap)).join('')}
       </div>
     </section>`;
   }
 
   if (config.bare) {
-    return filterFields.map((field) => selectInlineHtml(scope, field, filters, optionsMap)).join('');
+    return visibleFilterFields.map((field) => selectInlineHtml(scope, field, filters, optionsMap)).join('');
   }
 
   return `<div class="ds-toolbar ds-toolbar--filters-inline" dir="rtl" data-local-filters="${escapeHtml(scope)}">
     ${showSearch ? `<input type="search" class="ds-input ds-input--sm ds-filter-search-sm" data-filter-search="${escapeHtml(scope)}" value="${escapeHtml(filters.q || '')}" placeholder="${escapeHtml(searchPlaceholder)}" />` : ''}
-    ${filterFields.map((field) => selectInlineHtml(scope, field, filters, optionsMap)).join('')}
+    ${visibleFilterFields.map((field) => selectInlineHtml(scope, field, filters, optionsMap)).join('')}
     ${showClear ? `<button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-filter-clear="${escapeHtml(scope)}">ניקוי</button>` : ''}
   </div>`;
 }

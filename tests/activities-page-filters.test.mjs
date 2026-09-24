@@ -187,6 +187,7 @@ function fixtureRows() {
       activity_name: 'תוכנית תשפז גפן',
       activity_type: 'course',
       activity_season: 'school_2027',
+      activity_domain: 'Y',
       activity_manager: 'ליאור 2027',
       authority: 'ירושלים',
       school: 'בית ספר הראל',
@@ -202,6 +203,7 @@ function fixtureRows() {
       activity_name: 'תוכנית תשפז רמי',
       activity_type: 'workshop',
       activity_season: 'school_2027',
+      activity_domain: 'E',
       activity_manager: 'ליאור 2027',
       authority: 'ירושלים',
       school: 'בית ספר הראל',
@@ -217,6 +219,7 @@ function fixtureRows() {
       activity_name: 'תוכנית תשפז ללא',
       activity_type: 'tour',
       activity_season: 'school_2027',
+      activity_domain: 'Y',
       activity_manager: 'ליאור 2027',
       authority: 'באר שבע',
       school: 'בית ספר נגב',
@@ -248,7 +251,7 @@ function selectOptionValues(html, field) {
 function applyActivityFilters(rows, filters = {}) {
   const prepared = prepareRowsForSearch(rows.slice(), [
     'activity_name', 'activity_manager', 'instructor_name', 'instructor_name_2',
-    'authority', 'school', 'funding', 'status', 'activity_type'
+    'authority', 'school', 'funding', 'status', 'activity_type', 'activity_domain'
   ]);
   return applyLocalFilters(prepared, filters, { filterFields: ACTIVITY_FILTER_FIELDS }).map((row) => row.RowID);
 }
@@ -258,6 +261,8 @@ test('ACTIVITY_LIST_COLUMNS and ACTIVITY_TABLE_COLUMNS include funding', () => {
   const tableBlock = apiSource.match(/const ACTIVITY_TABLE_COLUMNS = \[([\s\S]*?)\]\.join/)?.[1] || '';
   assert.match(listBlock, /'funding'/);
   assert.match(tableBlock, /'funding'/);
+  assert.match(listBlock, /'activity_domain'/);
+  assert.match(tableBlock, /'activity_domain'/);
   const opsBlock = apiSource.match(/const ACTIVITY_OPERATIONS_COLUMNS = \[([\s\S]*?)\]\.join/)?.[1] || '';
   // Operations projection intentionally untouched by this activities-page fix.
   assert.equal(opsBlock.includes("'funding'"), false);
@@ -439,6 +444,22 @@ test('activities render: assignment state + free search + manager/program filter
   const searchState = withFilters(baseState(), { q: 'דפנה', appliedQ: 'דפנה' });
   const searchHtml = activitiesScreen.render({ rows }, { state: searchState });
   assert.deepEqual(renderedRowIds(searchHtml), ['F-NULL-1']);
+});
+
+test('activities render: domain filter shows only E/Y for 2027 and filters rows', () => {
+  const rows = fixtureRows();
+  const state = withFilters(baseState({
+    activityPeriodTab: 'school_2027',
+    activitiesInnerTab: 'year_all'
+  }), { activity_domain: 'E' });
+  const html = activitiesScreen.render({ rows }, { state });
+  assert.deepEqual(renderedRowIds(html), ['F-2027-RAMI']);
+  assert.deepEqual(selectOptionValues(html, 'activity_domain'), ['', 'E', 'Y']);
+  assert.match(html, /data-filter-field="activity_domain"[\s\S]*selected/);
+
+  const state2026 = withFilters(baseState(), {});
+  const html2026 = activitiesScreen.render({ rows }, { state: state2026 });
+  assert.doesNotMatch(html2026, /data-filter-field="activity_domain"/);
 });
 
 test('activities render: activity_type option values stay canonical while labels are Hebrew', () => {
