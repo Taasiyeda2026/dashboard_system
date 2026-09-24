@@ -28,6 +28,9 @@ import {
   planningWorkspaceCourses
 } from '../frontend/src/screens/course-scheduling-planning.js';
 import { buildPlanningWorkbook, planningExportFilename, planningWorkbookRows } from '../frontend/src/screens/course-scheduling-planning-export.js';
+import { courseSchedulingScreen } from '../frontend/src/screens/course-scheduling.js';
+
+const planningDraftConfirmMigrationUrl = new URL('../supabase/migrations/20260924205500_confirm_shared_planning_draft.sql', import.meta.url);
 
 const instructor = { emp_id: 1, full_name: 'מדריך', active: 'yes', address: 'כתובת מדריך' };
 const profileMap = { 1: { emp_id: 1, gender: 'male', instruction_languages: ['he'], friday_allowed: false } };
@@ -54,6 +57,120 @@ const baseCourse = {
   instruction_language: 'he',
   required_instructor_gender: 'any'
 };
+
+test('main scheduling workboard exposes only open, draft and assigned business states', () => {
+  const activities = [
+    {
+      ...baseCourse,
+      row_id: 'open-plan',
+      start_date: '2026-10-11',
+      date_1: '2026-10-11',
+      start_time: '08:00',
+      end_time: '09:30'
+    },
+    {
+      ...baseCourse,
+      row_id: 'draft-plan',
+      start_date: '2026-10-12',
+      date_1: '2026-10-12',
+      start_time: '10:00',
+      end_time: '11:30'
+    },
+    {
+      ...baseCourse,
+      row_id: 'assigned-plan',
+      start_date: '2026-10-13',
+      date_1: '2026-10-13',
+      start_time: '12:00',
+      end_time: '13:30',
+      emp_id: '3',
+      instructor_name: 'מדריך משובץ',
+      instructor_assignment_locked: true
+    }
+  ];
+  const state = {
+    user: { role: 'admin' },
+    courseSchedulingPlanningSharedLoaded: true,
+    courseSchedulingPlanningCalculatedAt: '24.9.2026, 20:00',
+    courseSchedulingPlanningRows: [
+      {
+        courseId: 'open-plan',
+        kind: 'proposal',
+        instructorEmpId: '1',
+        instructorName: 'מדריך מוצע',
+        startDate: '2026-10-11',
+        startTime: '08:00',
+        endTime: '09:30',
+        meetings: [{ date: '2026-10-11', start_time: '08:00', end_time: '09:30' }],
+        options: [{
+          instructorEmpId: '1',
+          instructorName: 'מדריך מוצע',
+          startDate: '2026-10-11',
+          startTime: '08:00',
+          endTime: '09:30',
+          meetings: [{ date: '2026-10-11', start_time: '08:00', end_time: '09:30' }],
+          routeVerified: true
+        }]
+      },
+      {
+        courseId: 'draft-plan',
+        kind: 'planning-locked',
+        planningLocked: true,
+        instructorEmpId: '2',
+        instructorName: 'מדריכה בטיוטה',
+        startDate: '2026-10-12',
+        startTime: '10:00',
+        endTime: '11:30',
+        meetings: [{ date: '2026-10-12', start_time: '10:00', end_time: '11:30' }],
+        options: [{
+          instructorEmpId: '2',
+          instructorName: 'מדריכה בטיוטה',
+          startDate: '2026-10-12',
+          startTime: '10:00',
+          endTime: '11:30',
+          meetings: [{ date: '2026-10-12', start_time: '10:00', end_time: '11:30' }],
+          routeVerified: true
+        }]
+      }
+    ]
+  };
+  const html = courseSchedulingScreen.render({
+    activities,
+    instructors: [],
+    scheduling: {},
+    planningCatalog: [],
+    schoolCalendar: [],
+    meetingState: { loaded: true, approvedDates: new Map(), cancelledDates: new Map(), error: '' }
+  }, { state });
+
+  assert.match(html, /data-cs-ui="simple-workboard-20260924-v1"/);
+  assert.match(html, /<span>פתוח<\/span>/);
+  assert.match(html, /<span>טיוטה<\/span>/);
+  assert.match(html, /<span>משובץ<\/span>/);
+  assert.doesNotMatch(html, /הצעות מוכנות/);
+  assert.doesNotMatch(html, /data-instructors-workspace-tab="planning"/);
+  assert.match(html, /שמור כטיוטה/);
+  assert.match(html, /data-confirm-planning-draft/);
+  assert.match(html, /אשר שיבוץ/);
+  assert.match(html, /סידור העבודה מעודכן/);
+});
+
+test('planning draft confirmation is an atomic server-side promotion to final assignment', async () => {
+  const sql = await readFile(planningDraftConfirmMigrationUrl, 'utf8');
+  assert.match(sql, /create or replace function public\.confirm_scheduling_planning_draft/);
+  assert.match(sql, /planning_revision_conflict/);
+  assert.match(sql, /planning_row\.locked_option is null/);
+  assert.match(sql, /target\.updated_at is distinct from planning_row\.activity_updated_at/);
+  assert.match(sql, /scheduling_course_instructor_violations\(activity_id, emp_id, true\)/);
+  assert.match(sql, /scheduling_assert_assignment_calendar\(activity_id, emp_id, canonical\)/);
+  assert.match(sql, /public\.assign_activity_instructor\(/);
+  assert.match(sql, /public\.set_scheduling_planning_lock\([\s\S]*?activity_id,[\s\S]*?null,/);
+  assert.match(sql, /grant execute on function public\.confirm_scheduling_planning_draft/);
+  assert.doesNotMatch(
+    sql.split(') returns public.activities')[0],
+    /p_emp_id|p_meetings/
+  );
+});
 
 test('planning spec derives meeting count and duration from catalog without changing the activity', () => {
   const spec = inferPlanningCourseSpec(baseCourse, catalog);
