@@ -2487,7 +2487,8 @@ export const courseSchedulingScreen = {
       state.courseSchedulingCancelReason = '';
       state.courseSchedulingResults = (state.courseSchedulingResults || []).filter((result) => idOf(result.course) !== selectedCourseId);
       clearScreenDataCache?.();
-      showToast('השיבוץ בוטל והפעילות חזרה להמתנה לשיבוץ', 'success');
+      invalidatePlanningWorkboard();
+      showToast('השיבוץ בוטל והפעילות חזרה לפתוח. המערכת מעדכנת את סידור העבודה.', 'success');
       rerender();
     });
 
@@ -3117,7 +3118,8 @@ export const courseSchedulingScreen = {
         state.courseSchedulingReplacementCourseId = '';
         state.courseSchedulingResults = (state.courseSchedulingResults || []).filter((item) => idOf(item.course) !== selectedCourseId);
         clearScreenDataCache?.();
-        showToast('המדריך הוחלף בהצלחה', 'success');
+        invalidatePlanningWorkboard();
+        showToast('המדריך הוחלף. המערכת מעדכנת את סידור העבודה.', 'success');
         rerender();
         return;
       }
@@ -3143,8 +3145,10 @@ export const courseSchedulingScreen = {
       applyReturnedSchedulingActivity(data.activities, updatedActivity);
       state.courseSchedulingSelectedCandidateId = '';
       clearScreenDataCache?.();
-      showToast('המדריך שובץ בהצלחה. ההמלצות מתעדכנות.', 'success');
-      await runFindInstructors();
+      invalidatePlanningWorkboard();
+      state.courseSchedulingSelectedId = '';
+      showToast('השיבוץ נשמר. המערכת מעדכנת את שאר סידור העבודה.', 'success');
+      rerender();
     });
 
     detailRoot.querySelector('[data-save-draft]')?.addEventListener('click', async (event) => {
@@ -3177,8 +3181,10 @@ export const courseSchedulingScreen = {
         if (payload.p_proposed_meetings) liveCourse.draft_proposed_meetings = payload.p_proposed_meetings;
       }
       clearScreenDataCache?.();
-      showToast('נשמר כטיוטה. ההמלצות מתעדכנות.', 'success');
-      await runFindInstructors();
+      invalidatePlanningWorkboard();
+      state.courseSchedulingSelectedId = '';
+      showToast('הטיוטה נשמרה. המערכת מתכננת את שאר הפעילויות סביבה.', 'success');
+      rerender();
     });
 
     detailRoot.querySelector('[data-confirm-draft]')?.addEventListener('click', (event) => {
@@ -3193,8 +3199,10 @@ export const courseSchedulingScreen = {
       if (error) { showToast(`ביטול הטיוטה נכשל: ${error.message}`, 'error'); event.target.disabled = false; return; }
       applyReturnedSchedulingActivity(data.activities, updatedActivity);
       clearScreenDataCache?.();
-      showToast('הטיוטה בוטלה. ההמלצות מתעדכנות.', 'success');
-      await runFindInstructors();
+      invalidatePlanningWorkboard();
+      state.courseSchedulingSelectedId = '';
+      showToast('הטיוטה בוטלה. המערכת מעדכנת את סידור העבודה.', 'success');
+      rerender();
     });
 
     root.querySelector('[data-refresh-distance-coverage]')?.addEventListener('click', async () => {
