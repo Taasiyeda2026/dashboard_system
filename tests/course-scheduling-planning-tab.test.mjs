@@ -21,6 +21,8 @@ import {
   normalizePlanningLockedOption,
   planningInstructorSchedules,
   planningOptimizationScore,
+  planningQualityAudit,
+  planningQualityAuditHtml,
   planningRowsHtml,
   planningTabHtml,
   planningWorkspaceCourses
@@ -594,6 +596,166 @@ test('Planning batches selected options before expensive recalculation and block
   assert.match(html, /עדכן רק 2 פעילויות שהשתנו/);
   assert.match(html, /יש 2 פעילויות שהושפעו/);
   assert.match(html, /data-export-course-planning disabled/);
+});
+
+test('Planning quality audit detects conflicts, unresolved rows and inefficient singleton days', () => {
+  const rows = [
+    {
+      courseId: 'q1',
+      courseName: 'קורס א',
+      school: 'בית ספר א',
+      authority: 'רשות',
+      kind: 'proposal',
+      instructorEmpId: '10',
+      instructorName: 'מדריכה א',
+      startDate: '2026-10-11',
+      endDate: '2026-10-11',
+      startTime: '08:00',
+      endTime: '10:00',
+      meetings: [{ date: '2026-10-11', start_time: '08:00', end_time: '10:00' }],
+      diagnostics: { routeVerified: true },
+      options: [{
+        instructorEmpId: '10',
+        instructorName: 'מדריכה א',
+        startDate: '2026-10-11',
+        startTime: '08:00',
+        routeVerified: true,
+        planningOptimization: { total: 88 },
+        operationalMetrics: {
+          sameSchoolMeetingCount: 1,
+          sameAuthorityMeetingCount: 0,
+          nearbyMeetingCount: 0,
+          newWorkDayMeetingCount: 0
+        }
+      }]
+    },
+    {
+      courseId: 'q2',
+      courseName: 'קורס ב',
+      school: 'בית ספר ב',
+      authority: 'רשות',
+      kind: 'planning-locked',
+      instructorEmpId: '10',
+      instructorName: 'מדריכה א',
+      startDate: '2026-10-11',
+      endDate: '2026-10-11',
+      startTime: '09:30',
+      endTime: '11:00',
+      meetings: [{ date: '2026-10-11', start_time: '09:30', end_time: '11:00' }],
+      diagnostics: { routeVerified: true },
+      options: [{
+        instructorEmpId: '10',
+        instructorName: 'מדריכה א',
+        startDate: '2026-10-11',
+        startTime: '09:30',
+        routeVerified: true,
+        planningOptimization: { total: 82 },
+        operationalMetrics: {
+          sameSchoolMeetingCount: 0,
+          sameAuthorityMeetingCount: 1,
+          nearbyMeetingCount: 0,
+          newWorkDayMeetingCount: 0
+        }
+      }]
+    },
+    {
+      courseId: 'q3',
+      courseName: 'קורס ג',
+      school: 'בית ספר ג',
+      authority: 'רשות',
+      kind: 'proposal',
+      instructorEmpId: '11',
+      instructorName: 'מדריך ב',
+      startDate: '2026-10-12',
+      endDate: '2026-10-12',
+      startTime: '12:00',
+      endTime: '13:30',
+      meetings: [{ date: '2026-10-12', start_time: '12:00', end_time: '13:30' }],
+      diagnostics: { routeVerified: false },
+      options: [{
+        instructorEmpId: '11',
+        instructorName: 'מדריך ב',
+        startDate: '2026-10-12',
+        startTime: '12:00',
+        routeVerified: false,
+        planningOptimization: { total: 70 },
+        operationalMetrics: { newWorkDayMeetingCount: 1 }
+      }]
+    },
+    {
+      courseId: 'q4',
+      courseName: 'קורס ד',
+      school: 'בית ספר ד',
+      authority: 'רשות',
+      kind: 'missing',
+      instructorEmpId: '',
+      instructorName: '',
+      meetings: [],
+      options: []
+    }
+  ];
+  const audit = planningQualityAudit(rows);
+  assert.equal(audit.conflicts.length, 1);
+  assert.equal(audit.unverifiedRows.length, 1);
+  assert.equal(audit.unresolvedRows.length, 1);
+  assert.equal(audit.coveragePercent, 75);
+  assert.equal(audit.packedDays, 1);
+  assert.equal(audit.singletonDays, 1);
+  assert.equal(audit.averageOperationalScore, 80);
+  assert.equal(audit.status, 'נדרשת בדיקה');
+});
+
+test('Planning quality audit shows operational readiness and instructor workload in the completed plan', () => {
+  const rows = [{
+    courseId: 'quality-course',
+    courseName: 'ביומימיקרי',
+    activityType: 'קורס',
+    authority: 'רשות',
+    school: 'בית ספר',
+    status: 'מועד מומלץ לבית הספר',
+    sessions: 2,
+    kind: 'proposal',
+    instructorEmpId: '10',
+    instructorName: 'מדריכה א',
+    startDate: '2026-10-11',
+    endDate: '2026-10-18',
+    startTime: '08:00',
+    endTime: '09:30',
+    meetings: [
+      { date: '2026-10-11', start_time: '08:00', end_time: '09:30' },
+      { date: '2026-10-18', start_time: '08:00', end_time: '09:30' }
+    ],
+    diagnostics: { routeVerified: true },
+    options: [{
+      instructorEmpId: '10',
+      instructorName: 'מדריכה א',
+      startDate: '2026-10-11',
+      startTime: '08:00',
+      routeVerified: true,
+      planningOptimization: { total: 91 },
+      operationalMetrics: {
+        sameSchoolMeetingCount: 2,
+        sameAuthorityMeetingCount: 0,
+        nearbyMeetingCount: 0,
+        newWorkDayMeetingCount: 0
+      }
+    }]
+  }];
+  const auditHtml = planningQualityAuditHtml(rows);
+  assert.match(auditHtml, /בדיקת איכות התכנון/);
+  assert.match(auditHtml, /מוכן לעבודה/);
+  assert.match(auditHtml, /עומס ורציפות לפי מדריך/);
+  assert.match(auditHtml, /91\/100/);
+
+  const tabHtml = planningTabHtml({
+    rows,
+    calculatedAt: '24.9.2026, 18:30',
+    pendingChanges: 0,
+    sharedLoaded: true
+  });
+  assert.match(tabHtml, /data-planning-quality-audit/);
+  assert.match(tabHtml, /פעילויות עם מדריך/);
+  assert.match(tabHtml, /נסיעות לא מאומתות/);
 });
 
 test('Planning Excel includes recommended dates, possible instructors and instructor schedule', () => {
