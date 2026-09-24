@@ -1,8 +1,16 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { installActivity2027ContactListRuntime, isPrivateIsraaActivity } from '../frontend/src/activity-2027-contact-list-runtime.js';
+import { JSDOM } from 'jsdom';
 
-test('contact runtime wraps both activities and allActivities so work schedule rows are enriched', async () => {
+const dom = new JSDOM('', { url: 'http://localhost/' });
+globalThis.window = dom.window;
+globalThis.document = dom.window.document;
+globalThis.localStorage = dom.window.localStorage;
+globalThis.sessionStorage = dom.window.sessionStorage;
+
+const { installActivity2027ContactListRuntime, isPrivateIsraaActivity } = await import('../frontend/src/activity-2027-contact-list-runtime.js');
+
+test('contact runtime wraps only allActivities because Activities owns progressive enrichment', async () => {
   const activitiesResult = { rows: [{ activity_season: 'regular', row_id: 'A-1' }] };
   const allActivitiesResult = { rows: [{ activity_season: 'regular', row_id: 'A-2' }] };
   const targetApi = {
@@ -13,7 +21,7 @@ test('contact runtime wraps both activities and allActivities so work schedule r
   const originalAllActivities = targetApi.allActivities;
 
   assert.equal(installActivity2027ContactListRuntime(targetApi), true);
-  assert.notEqual(targetApi.activities, originalActivities);
+  assert.equal(targetApi.activities, originalActivities);
   assert.notEqual(targetApi.allActivities, originalAllActivities);
   assert.deepEqual(await targetApi.activities(), activitiesResult);
   assert.deepEqual(await targetApi.allActivities(), allActivitiesResult);

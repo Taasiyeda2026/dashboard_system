@@ -116,7 +116,8 @@ export async function loadSchedulingTravelCacheRows({
 export function createRouteClient({
   invoke = (body) => supabase.functions.invoke('scheduling-route', { body }),
   concurrency = 4,
-  preloadedRows = []
+  preloadedRows = [],
+  signal = null
 } = {}) {
   const cache = new Map();
   const persistentCache = new Map();
@@ -138,8 +139,21 @@ export function createRouteClient({
   let googleCalls = 0;
   let cacheHits = 0;
   const requests = [];
+  const cancelledError = () => Object.assign(new Error('planning_cancelled'), {
+    name: 'AbortError',
+    code: 'planning_cancelled',
+    silent: true
+  });
+  const rejectQueued = () => {
+    while (queue.length) queue.shift().reject(cancelledError());
+  };
+  signal?.addEventListener?.('abort', rejectQueued, { once: true });
 
   const pump = () => {
+    if (signal?.aborted) {
+      rejectQueued();
+      return;
+    }
     while (active < concurrency && queue.length) {
       const job = queue.shift();
       active += 1;
@@ -154,6 +168,7 @@ export function createRouteClient({
   };
 
   const request = (origin, destination, context = {}) => {
+    if (signal?.aborted) return Promise.reject(cancelledError());
     if (!text(origin) || !text(destination)) return Promise.resolve(null);
     const normalizedContext = normalizedRouteContext(context);
     const cacheKey = routeRequestKey(origin, destination, normalizedContext);
@@ -277,7 +292,7 @@ function sharedMeetingTransitions(firstCourse, secondCourse) {
   return transitions;
 }
 
-export async function calculateCandidateTravel(preliminary, activities, routeClient = createRouteClient()) {
+export async function calculateCandidateTravel(preliminary, activities, routeClient = createRouteClient(), { checkpoint = async () => {}, signal = null } = {}) {
   const assigned = assignedMeetings(activities);
   const travel = {};
   const routeMatrix = {};
@@ -301,6 +316,7 @@ export async function calculateCandidateTravel(preliminary, activities, routeCli
   const uniquePairs = [...new Map((preliminary || []).map((item) => [`${activityId(item.course)}|${instructorId(item.candidate)}`, item])).values()];
 
   await Promise.all(uniquePairs.map(async ({ course, candidate }) => {
+    await checkpoint();
     const empId = instructorId(candidate);
     const destination = activityPlace(course);
     const homeOrigin = text(candidate.instructor.address);
@@ -317,6 +333,7 @@ export async function calculateCandidateTravel(preliminary, activities, routeCli
       transitions: {}
     };
     for (const meeting of activityMeetings(course)) {
+      await checkpoint();
       const { previous, next } = adjacentActivities(assigned[empId] || [], meeting);
       const previousPlace = previous ? activityPlace(previous) : '';
       const nextPlace = next ? activityPlace(next) : '';
@@ -370,7 +387,9 @@ export async function calculateCandidateTravel(preliminary, activities, routeCli
     const uniqueCourses = [...new Map(courses.map((course) => [activityId(course), course])).values()];
     for (let firstIndex = 0; firstIndex < uniqueCourses.length; firstIndex += 1) {
       for (let secondIndex = firstIndex + 1; secondIndex < uniqueCourses.length; secondIndex += 1) {
+        await checkpoint();
         for (const transition of sharedMeetingTransitions(uniqueCourses[firstIndex], uniqueCourses[secondIndex])) {
+          if (signal?.aborted) throw Object.assign(new Error('planning_cancelled'), { name: 'AbortError', code: 'planning_cancelled', silent: true });
           draftRouteJobs.push(route(transition.origin, transition.destination, transition.context));
         }
       }

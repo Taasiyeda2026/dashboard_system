@@ -39,6 +39,24 @@ test('school_2027 contact resolver does not auto-pick among multiple contacts wi
   assert.equal(resolved.source, 'activity');
 });
 
+test('school_2027 contact resolver ignores inactive contacts and retains stored activity fields', () => {
+  const resolved = resolveSchool2027Contact(
+    {
+      activity_season: 'school_2027',
+      school_id: '35',
+      school_contact_id: '',
+      contact_name: 'איש קשר שמור',
+      contact_phone: '03-stored',
+      contact_email: 'stored@example.com'
+    },
+    [{ id: 'inactive', school_id: '35', contact_name: 'לא פעיל', mobile: '050-inactive', active: 'לא פעיל' }]
+  );
+  assert.equal(resolved.name, 'איש קשר שמור');
+  assert.equal(resolved.phone, '03-stored');
+  assert.equal(resolved.email, 'stored@example.com');
+  assert.equal(resolved.source, 'activity');
+});
+
 test('school_2027 contact resolver prefers mobile over phone and exact authority plus school fallback', () => {
   const resolved = resolveSchool2027Contact(
     { activity_season: 'school_2027', school_id: '', authority: 'רשות א', school: 'בית ספר א', school_contact_id: '', contact_phone: '03-activity' },

@@ -20,9 +20,11 @@ const LINES = SRC.split('\n');
 
 /** Extract the source lines of the [data-activity-period-tab] forEach block. */
 function extractTabHandlerBlock() {
-  const startIdx = LINES.findIndex(
-    (l) => l.includes('[data-activity-period-tab]') && l.includes('.forEach')
-  );
+  const startIdx = LINES.findIndex((line, index) => (
+    line.includes('[data-activity-period-tab]')
+    && line.includes('.forEach')
+    && LINES.slice(index, index + 12).some((candidate) => candidate.includes('requestedTab'))
+  ));
   if (startIdx === -1) return null;
 
   let depth = 0;

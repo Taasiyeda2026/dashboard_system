@@ -19,7 +19,7 @@ import {
 import { resolveActiveUserRowAfterAuth } from './auth-user-resolve.js';
 import { supabase, supabaseConfig, waitForSupabaseAuthSession, resetSupabaseAuthSessionWait } from './supabase-client.js';
 import { isEmptyValue, nonEmptyString } from './utils/empty-value.js';
-import { withResolvedSchool2027Contact } from './screens/shared/school-2027-contact.js';
+import { isPrivateIsraaActivity, withResolvedSchool2027Contact } from './screens/shared/school-2027-contact.js';
 import { normalizeOperationalDistrict } from './screens/shared/district-normalization.js';
 import { permissionFlagYes, canEditDirect, canAddActivityDirect, canRequestEdit, canRequestCreateActivity, canReviewRequests } from './permissions.js';
 import { mapWithConcurrency } from './bounded-concurrency.js';
@@ -147,7 +147,8 @@ const ACTIVITY_TABLE_COLUMNS = [
   'id', 'row_id', 'activity_family', 'activity_manager', 'authority', 'school', 'school_id',
   'grade', 'class_group', 'activity_type', 'item_type', 'activity_season', 'activity_domain', 'activity_no', 'activity_name',
   'sessions', 'funding', 'start_time', 'end_time', 'emp_id', 'instructor_name', 'emp_id_2', 'instructor_name_2',
-  'start_date', 'end_date', 'status', 'notes',
+  'start_date', 'end_date', 'status', 'notes', 'israa_shared',
+  'school_contact_id', 'contact_name', 'contact_phone', 'contact_email',
   ...ACTIVITY_MEETING_DATE_COLUMNS
 ].join(',');
 const ACTIVITY_CALENDAR_COLUMNS = [
@@ -555,18 +556,21 @@ async function readActivitiesFromSupabase(filters = {}) {
     if (error) throw new Error(error.message || 'activities_read_failed');
     const rawRows = Array.isArray(data) ? data : [];
     const normalizedRows = await enrichActivitiesWithFundingSources(rawRows.map(normalizeActivityRow));
-    const contactRows = await readContactsForSchool2027Activities(normalizedRows);
-    const rows = normalizedRows
-      .map((row) => withResolvedSchool2027Contact(row, contactRows))
-      .filter((row) => filters?.include_all_periods ? true : activityMatchesPeriodKey(row, filters?.activity_period || currentGlobalActivityPeriod()))
-      .filter((row) => filters?.include_inactive ? true : !isActivityInactive(row))
-      .filter((row) => rowMatchesActivitiesFilters(row, filters));
+    const rows = filterCoreActivitiesRows(normalizedRows, filters);
     return { rows, _source: 'supabase', _debug: { activities_loaded_from_supabase: rawRows.length, source_table: 'public.activities', projection: 'ACTIVITY_TABLE_COLUMNS' } };
   } catch (error) {
     // eslint-disable-next-line no-console
     console.error('[supabase] Unexpected activities fetch error:', error);
     return null;
   }
+}
+
+export function filterCoreActivitiesRows(rows = [], filters = {}) {
+  return (Array.isArray(rows) ? rows : [])
+      .filter((row) => !isPrivateIsraaActivity(row))
+      .filter((row) => filters?.include_all_periods ? true : activityMatchesPeriodKey(row, filters?.activity_period || currentGlobalActivityPeriod()))
+      .filter((row) => filters?.include_inactive ? true : !isActivityInactive(row))
+      .filter((row) => rowMatchesActivitiesFilters(row, filters));
 }
 
 
@@ -5722,21 +5726,31 @@ function assertSupabaseActivityUpdateApplied(operation, requestedChanges = {}, r
 }
 
 
-async function readContactsForSchool2027Activities(rows = []) {
-  if (!supabase) return [];
+function normalizedContactPairPart(value) {
+  return String(value || '').normalize('NFKC').trim().replace(/\s+/g, ' ').toLocaleLowerCase('he');
+}
+
+export async function readContactsForSchool2027Activities(rows = [], { client = supabase } = {}) {
+  if (!client) return [];
   const school2027Rows = (Array.isArray(rows) ? rows : []).filter((row) => normalizeActivitySeason(row?.activity_season) === ACTIVITY_SEASON_SCHOOL_2027);
   if (!school2027Rows.length) return [];
   try {
     const schoolIds = [...new Set(school2027Rows.map((row) => String(row?.school_id || '').trim()).filter(Boolean))];
     const contactIds = [...new Set(school2027Rows.map((row) => String(row?.school_contact_id || '').trim()).filter(Boolean))];
-    const pairs = school2027Rows
+    const pairsByKey = new Map();
+    school2027Rows
       .filter((row) => !String(row?.school_id || '').trim())
       .map((row) => ({ authority: String(row?.authority || '').trim(), school: String(row?.school || '').trim() }))
-      .filter((pair) => pair.authority && pair.school);
+      .filter((pair) => pair.authority && pair.school)
+      .forEach((pair) => {
+        const key = `${normalizedContactPairPart(pair.authority)}|${normalizedContactPairPart(pair.school)}`;
+        if (key !== '|' && !pairsByKey.has(key)) pairsByKey.set(key, pair);
+      });
+    const pairs = [...pairsByKey.values()];
     const requests = [];
     if (contactIds.length) {
       requests.push(
-        supabase
+        client
           .from('contacts_schools')
           .select('id,school_id,authority,school,contact_name,contact_role,phone,mobile,email,active')
           .in('id', contactIds)
@@ -5746,7 +5760,7 @@ async function readContactsForSchool2027Activities(rows = []) {
     }
     if (schoolIds.length) {
       requests.push(
-        supabase
+        client
           .from('contacts_schools')
           .select('id,school_id,authority,school,contact_name,contact_role,phone,mobile,email,active')
           .in('school_id', schoolIds)
@@ -5756,7 +5770,7 @@ async function readContactsForSchool2027Activities(rows = []) {
     }
     for (const pair of pairs) {
       requests.push(
-        supabase
+        client
           .from('contacts_schools')
           .select('id,school_id,authority,school,contact_name,contact_role,phone,mobile,email,active')
           .eq('authority', pair.authority)
@@ -5766,10 +5780,18 @@ async function readContactsForSchool2027Activities(rows = []) {
       );
     }
     if (!requests.length) return [];
-    const results = await Promise.all(requests);
+    const results = await Promise.allSettled(requests);
     const byId = new Map();
-    for (const result of results) {
-      if (result?.error) throw result.error;
+    for (const settled of results) {
+      if (settled.status === 'rejected') {
+        console.warn('[contacts] partial school activity contact read failed', settled.reason?.message || settled.reason);
+        continue;
+      }
+      const result = settled.value;
+      if (result?.error) {
+        console.warn('[contacts] partial school activity contact read failed', result.error?.message || result.error);
+        continue;
+      }
       for (const contact of (Array.isArray(result?.data) ? result.data : [])) byId.set(String(contact.id), contact);
     }
     return [...byId.values()];
@@ -5777,6 +5799,15 @@ async function readContactsForSchool2027Activities(rows = []) {
     console.warn('[contacts] readContactsForSchool2027Activities failed', err?.message || err);
     return [];
   }
+}
+
+export async function enrichSchool2027ActivityContacts(payload = {}) {
+  if (!Array.isArray(payload?.rows)) return payload;
+  const contactRows = await readContactsForSchool2027Activities(payload.rows);
+  return {
+    ...payload,
+    rows: payload.rows.map((row) => withResolvedSchool2027Contact(row, contactRows))
+  };
 }
 
 async function readContactsForSchoolActivity(schoolId, school, authority) {
@@ -7130,6 +7161,7 @@ export const api = {
     if (supabaseData) return normalizeData(supabaseData);
     throw new Error('activities_supabase_failed');
   },
+  enrichActivitiesContacts: (payload) => enrichSchool2027ActivityContacts(payload),
   activityLayoutStatuses: async (payload = {}) => {
     const role = String(state?.user?.role || '').trim();
     assertPermission('can_edit_direct', 'activity_layout_forbidden');
