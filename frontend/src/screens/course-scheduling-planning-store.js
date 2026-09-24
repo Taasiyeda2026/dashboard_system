@@ -42,7 +42,8 @@ export async function loadSharedPlanningWorkspace({ periodKey = 'year', district
       activityUpdatedAt: text(item?.activityUpdatedAt),
       lockedOption: item?.lockedOption && typeof item.lockedOption === 'object' ? item.lockedOption : null,
       lockedAt: text(item?.lockedAt),
-      lockedBy: text(item?.lockedBy)
+      lockedBy: text(item?.lockedBy),
+      needsRecalc: item?.needsRecalc === true
     })).filter((item) => item.activityId)
   };
 }
@@ -66,7 +67,12 @@ export function sharedPlanningAffectedCourseIds({
 
   const activityById = new Map((activities || []).map((activity) => [idOf(activity), activity]));
   const sharedById = new Map((shared?.rows || []).map((entry) => [text(entry.activityId), entry]));
-  const changed = new Set();
+  const changed = new Set(
+    (shared?.rows || [])
+      .filter((entry) => entry?.needsRecalc === true)
+      .map((entry) => text(entry.activityId))
+      .filter((courseId) => currentIds.has(courseId))
+  );
   const affectedInstructorIds = new Set();
 
   for (const courseId of currentIds) {
