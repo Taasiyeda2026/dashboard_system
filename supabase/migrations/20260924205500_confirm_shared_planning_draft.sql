@@ -175,28 +175,49 @@ begin
     idx := idx + 1;
   end loop;
 
-  -- Write the schedule first inside the same transaction. Any subsequent validation
-  -- failure rolls the entire transaction back, so no partial official schedule survives.
+  -- Write the complete schedule in one statement so activity-date/calendar
+  -- triggers never observe a partially replaced meeting series. Any later
+  -- validation failure rolls the transaction back.
   update public.activities
   set start_time = first_start,
-      end_time = first_end
-  where row_id = activity_id;
-
-  idx := 1;
-  for item in select value from jsonb_array_elements(canonical) loop
-    execute format('update public.activities set date_%s = $1 where row_id = $2', idx)
-      using (item->>'date')::date, activity_id;
-    idx := idx + 1;
-  end loop;
-  while idx <= 35 loop
-    execute format('update public.activities set date_%s = null where row_id = $1', idx)
-      using activity_id;
-    idx := idx + 1;
-  end loop;
-
-  update public.activities
-  set start_date = first_date,
-      end_date = last_date
+      end_time = first_end,
+      start_date = first_date,
+      end_date = last_date,
+      date_1 = nullif(canonical->0->>'date', '')::date,
+      date_2 = nullif(canonical->1->>'date', '')::date,
+      date_3 = nullif(canonical->2->>'date', '')::date,
+      date_4 = nullif(canonical->3->>'date', '')::date,
+      date_5 = nullif(canonical->4->>'date', '')::date,
+      date_6 = nullif(canonical->5->>'date', '')::date,
+      date_7 = nullif(canonical->6->>'date', '')::date,
+      date_8 = nullif(canonical->7->>'date', '')::date,
+      date_9 = nullif(canonical->8->>'date', '')::date,
+      date_10 = nullif(canonical->9->>'date', '')::date,
+      date_11 = nullif(canonical->10->>'date', '')::date,
+      date_12 = nullif(canonical->11->>'date', '')::date,
+      date_13 = nullif(canonical->12->>'date', '')::date,
+      date_14 = nullif(canonical->13->>'date', '')::date,
+      date_15 = nullif(canonical->14->>'date', '')::date,
+      date_16 = nullif(canonical->15->>'date', '')::date,
+      date_17 = nullif(canonical->16->>'date', '')::date,
+      date_18 = nullif(canonical->17->>'date', '')::date,
+      date_19 = nullif(canonical->18->>'date', '')::date,
+      date_20 = nullif(canonical->19->>'date', '')::date,
+      date_21 = nullif(canonical->20->>'date', '')::date,
+      date_22 = nullif(canonical->21->>'date', '')::date,
+      date_23 = nullif(canonical->22->>'date', '')::date,
+      date_24 = nullif(canonical->23->>'date', '')::date,
+      date_25 = nullif(canonical->24->>'date', '')::date,
+      date_26 = nullif(canonical->25->>'date', '')::date,
+      date_27 = nullif(canonical->26->>'date', '')::date,
+      date_28 = nullif(canonical->27->>'date', '')::date,
+      date_29 = nullif(canonical->28->>'date', '')::date,
+      date_30 = nullif(canonical->29->>'date', '')::date,
+      date_31 = nullif(canonical->30->>'date', '')::date,
+      date_32 = nullif(canonical->31->>'date', '')::date,
+      date_33 = nullif(canonical->32->>'date', '')::date,
+      date_34 = nullif(canonical->33->>'date', '')::date,
+      date_35 = nullif(canonical->34->>'date', '')::date
   where row_id = activity_id;
 
   violations := public.scheduling_course_instructor_violations(activity_id, emp_id, true);
