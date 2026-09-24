@@ -1732,6 +1732,11 @@ export const courseSchedulingScreen = {
       return { fresh: fresh || data, shared };
     };
 
+    const invalidatePlanningWorkboard = () => {
+      data._planningSharedLoadedKey = '';
+      state.courseSchedulingPlanningSharedLoaded = false;
+    };
+
     const currentPlanningScope = planningScope();
     if (
       activeTab(state) !== 'maintenance'
@@ -2010,7 +2015,11 @@ export const courseSchedulingScreen = {
       state.courseSchedulingPlanningError = '';
       try {
         await persistPlanningLock(courseId, clonePlanningOption(option));
-        showToast('הבחירה נשמרה בתכנון המשותף. עדן וכל משתמש מורשה יראו אותה באותו מסך.', 'success');
+        state.courseSchedulingAlternativesCourseId = '';
+        showToast('הטיוטה נשמרה. המערכת מעדכנת את שאר סידור העבודה סביבה.', 'success');
+        if ((state.courseSchedulingPlanningAffectedIds || []).length > 0) {
+          void runCoursePlanning({ forceFull: false });
+        }
       } catch (error) {
         state.courseSchedulingPlanningError = planningStoreErrorMessage(error, 'שמירת הבחירה בתכנון נכשלה');
         try { await reloadSharedPlanningState({ refreshData: false }); } catch { /* keep actionable error */ }
@@ -2027,7 +2036,11 @@ export const courseSchedulingScreen = {
       state.courseSchedulingPlanningError = '';
       try {
         await persistPlanningLock(courseId, null);
-        showToast('הבחירה שוחררה בתכנון המשותף ותיכלל בעדכון המצומצם הבא.', 'success');
+        state.courseSchedulingAlternativesCourseId = '';
+        showToast('הטיוטה בוטלה. המערכת מעדכנת את סידור העבודה.', 'success');
+        if ((state.courseSchedulingPlanningAffectedIds || []).length > 0) {
+          void runCoursePlanning({ forceFull: false });
+        }
       } catch (error) {
         state.courseSchedulingPlanningError = planningStoreErrorMessage(error, 'שחרור הבחירה בתכנון נכשל');
         try { await reloadSharedPlanningState({ refreshData: false }); } catch { /* keep actionable error */ }
@@ -2035,6 +2048,45 @@ export const courseSchedulingScreen = {
         rerender();
       }
     }));
+    root.querySelectorAll('[data-confirm-planning-draft]').forEach((button) => button.addEventListener('click', async () => {
+      if (!canEdit || state.courseSchedulingPlanningLoading || button.disabled) return;
+      const courseId = text(button.dataset.courseId);
+      const row = (state.courseSchedulingPlanningRows || []).find((item) => text(item.courseId) === courseId);
+      if (!courseId || !row?.planningLocked || !row?.instructorEmpId) return;
+      if (!window.confirm(`לאשר את הטיוטה ולשבץ את ${row.instructorName || row.instructorEmpId} לפעילות?`)) return;
+
+      button.disabled = true;
+      state.courseSchedulingPlanningError = '';
+      try {
+        const scope = planningScope();
+        const updatedActivity = await confirmSharedPlanningDraft({
+          periodKey: scope.periodKey,
+          district: scope.district,
+          activityId: courseId,
+          expectedRevision: Number(state.courseSchedulingPlanningSharedRevision) || 0
+        });
+        applyReturnedSchedulingActivity(data.activities, updatedActivity);
+        state.courseSchedulingSelectedId = '';
+        state.courseSchedulingAlternativesCourseId = '';
+        clearScreenDataCache?.();
+        await reloadSharedPlanningState();
+        showToast('השיבוץ אושר. המערכת מעדכנת את הפעילויות שהושפעו.', 'success');
+        rerender();
+        if ((state.courseSchedulingPlanningAffectedIds || []).length > 0) {
+          void runCoursePlanning({ forceFull: false });
+        }
+      } catch (error) {
+        state.courseSchedulingPlanningError = planningStoreErrorMessage(
+          error,
+          translateSchedulingAssignmentError(error?.message, 'אישור השיבוץ נכשל')
+        );
+        try { await reloadSharedPlanningState(); } catch { /* keep actionable error */ }
+        rerender();
+      } finally {
+        button.disabled = false;
+      }
+    }));
+
 
     root.querySelector('[data-run-course-planning]')?.addEventListener('click', () => {
       const pending = (state.courseSchedulingPlanningAffectedIds || []).length;
@@ -2154,18 +2206,38 @@ export const courseSchedulingScreen = {
       clearDistrictSimulation();
       rerender();
     });
+    root.querySelector('[data-business-status-filter]')?.addEventListener('change', (event) => {
+      state.courseSchedulingBusinessStatus = event.target.value || 'all';
+      state.courseSchedulingSelectedId = '';
+      rerender();
+    });
+    root.querySelector('[data-retry-auto-planning]')?.addEventListener('click', () => {
+      state.courseSchedulingPlanningError = '';
+      data._planningAutoStartedKey = '';
+      invalidatePlanningWorkboard();
+      rerender();
+    });
+    root.querySelectorAll('[data-workboard-alternatives]').forEach((button) => button.addEventListener('click', () => {
+      const courseId = text(button.dataset.courseId);
+      state.courseSchedulingAlternativesCourseId =
+        text(state.courseSchedulingAlternativesCourseId) === courseId ? '' : courseId;
+      rerender();
+    }));
+    root.querySelectorAll('[data-open-course-detail]').forEach((button) => button.addEventListener('click', () => {
+      const row = button.closest?.('[data-course-card]');
+      const courseId = text(row?.dataset?.courseCard);
+      if (!courseId) return;
+      state.courseSchedulingSelectedId = courseId;
+      state.courseSchedulingSelectedCandidateId = '';
+      state.courseSchedulingExpandedCandidateId = '';
+      state.courseSchedulingShowAllCandidates = false;
+      rerender();
+    }));
 
     root.querySelectorAll('[data-switch-tab]').forEach((button) => {
       button.addEventListener('click', () => {
-        state.courseSchedulingTab = ['courses', 'calendar', 'planning', 'maintenance'].includes(button.dataset.switchTab)
-          ? button.dataset.switchTab
-          : 'courses';
+        state.courseSchedulingTab = button.dataset.switchTab === 'maintenance' ? 'maintenance' : 'courses';
         state.courseSchedulingShowDistanceConfirm = false;
-        if (state.courseSchedulingTab === 'planning') {
-          data._planningFreshChecked = false;
-          data._planningSharedLoadedKey = '';
-          state.courseSchedulingPlanningSharedLoaded = false;
-        }
         rerender();
       });
     });
