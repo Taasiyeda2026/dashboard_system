@@ -68,6 +68,7 @@ import {
   planningDataFingerprint,
   planningTabHtml
 } from './course-scheduling-planning.js';
+import { exportPlanningWorkbook } from './course-scheduling-planning-export.js';
 
 export { formatWorkloadHours, MAX_HOME_DISTANCE_KM, formatAffectedMeetingsPhrase };
 
@@ -1749,6 +1750,19 @@ export const courseSchedulingScreen = {
 
     root.querySelector('[data-run-course-planning]')?.addEventListener('click', () => {
       void runCoursePlanning();
+    });
+    root.querySelector('[data-export-course-planning]')?.addEventListener('click', () => {
+      const rows = state.courseSchedulingPlanningRows || [];
+      if (!state.courseSchedulingPlanningCalculatedAt || !rows.length) {
+        showToast('קודם יש לבנות את מערכת ההדרכות המלאה.', 'info');
+        return;
+      }
+      try {
+        const filename = exportPlanningWorkbook(rows);
+        showToast(`קובץ Excel נוצר: ${filename}`);
+      } catch (error) {
+        showToast(error?.message || 'ייצוא Excel נכשל.', 'error');
+      }
     });
     root.querySelector('[data-clear-course-planning]')?.addEventListener('click', () => {
       clearCoursePlanning();
