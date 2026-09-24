@@ -1604,9 +1604,19 @@ export const courseSchedulingScreen = {
 
       state.courseSchedulingPlanningRows = (shared?.rows || [])
         .filter((entry) => currentCourseIds.includes(text(entry.activityId)))
-        .map((entry) => entry.lockedOption
-          ? applyPlanningLockToRow(entry.row, entry.lockedOption, scope.periodKey)
-          : entry.row);
+        .map((entry) => {
+          if (entry.lockedOption) return applyPlanningLockToRow(entry.row, entry.lockedOption, scope.periodKey);
+          if (entry.needsRecalc === true && entry.row?.planningLocked) {
+            return {
+              ...entry.row,
+              planningLocked: false,
+              kind: 'proposal',
+              status: 'ממתין לעדכון תכנון',
+              reason: 'הבחירה שוחררה ונשמרה במערכת המשותפת. הפעילות תתעדכן בהרצה המצומצמת הבאה.'
+            };
+          }
+          return entry.row;
+        });
       state.courseSchedulingPlanningLocks = sharedPlanningLocks(shared);
       state.courseSchedulingPlanningAffectedIds = [...new Set(affectedIds.map(text).filter(Boolean))];
       state.courseSchedulingPlanningFingerprint = text(workspace?.dataFingerprint);
