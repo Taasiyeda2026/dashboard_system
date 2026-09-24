@@ -2630,6 +2630,64 @@ export const courseSchedulingScreen = {
         rerender();
       }
     };
+    const confirmActivityDraft = async (courseId, trigger = null) => {
+      if (!canEdit || !courseId) return false;
+      const course = courseById.get(courseId);
+      if (!course || !text(course.draft_emp_id)) return false;
+      const proposedMeetings = Array.isArray(course.draft_proposed_meetings) ? course.draft_proposed_meetings : null;
+      const proposedSummary = draftProposedMeetingsFromCourse({ ...course, periodKey: selectedPeriodKey(state) });
+      const proposedEnd = proposedSummary?.proposedEndDate || proposedMeetings?.at(-1)?.date || '';
+      const originalEnd = proposedSummary?.originalEndDate || '';
+      const halfEnd = resolveCourseSchedulingPeriod(selectedPeriodKey(state))?.end || '';
+      const exceedsHalf = !!proposedEnd && !!halfEnd && proposedEnd > halfEnd;
+      const movedCount = Number(proposedSummary?.movedMeetingsCount) || 0;
+      let approvalMessage = `לאשר את הטיוטה ולשבץ את ${course.draft_instructor_name || course.draft_emp_id}?`;
+      if (movedCount > 0) {
+        approvalMessage = `הטיוטה כוללת ${movedCount} מועדים מוצעים (סיום מקורי ${formatDateHe(originalEnd) || '—'}, סיום מוצע ${formatDateHe(proposedEnd) || '—'}). לאשר את הטיוטה כשיבוץ סופי?`;
+      }
+      if (exceedsHalf) {
+        approvalMessage = `המועדים בטיוטה מסתיימים בתאריך ${formatDateHe(proposedEnd)} וחורגים מהתקופה שנבחרה. לאשר כשיבוץ סופי?`;
+      }
+      if (!window.confirm(approvalMessage)) return false;
+      if (trigger) trigger.disabled = true;
+
+      const empId = Number(course.draft_emp_id);
+      const { data: updatedActivity, error } = await supabase.rpc(
+        proposedMeetings ? 'assign_activity_instructor_with_dates' : 'assign_activity_instructor',
+        {
+          p_activity_id: courseId,
+          p_emp_id: empId,
+          p_instructor_name: course.draft_instructor_name,
+          p_top_emp_id: empId,
+          p_selected_score: null,
+          p_top_score: null,
+          p_decision_type: 'approved',
+          p_reason: null,
+          ...(proposedMeetings ? { p_proposed_meetings: proposedMeetings } : {})
+        }
+      );
+      if (error) {
+        showToast(translateSchedulingAssignmentError(error.message, 'אישור הטיוטה נכשל'), 'error');
+        if (trigger) trigger.disabled = false;
+        return false;
+      }
+
+      applyReturnedSchedulingActivity(data.activities, updatedActivity);
+      state.courseSchedulingResults = (state.courseSchedulingResults || []).filter((result) => idOf(result.course) !== courseId);
+      state.courseSchedulingSelectedId = '';
+      clearScreenDataCache?.();
+      invalidatePlanningWorkboard();
+      showToast('השיבוץ אושר. המערכת מעדכנת את שאר סידור העבודה.', 'success');
+      rerender();
+      return true;
+    };
+
+    root.querySelectorAll('[data-confirm-actual-draft]').forEach((button) => {
+      button.addEventListener('click', () => {
+        void confirmActivityDraft(text(button.dataset.courseId), button);
+      });
+    });
+
     root.querySelectorAll('[data-find-instructors]').forEach((button) => {
       button.addEventListener('click', runFindInstructors);
     });
@@ -3123,41 +3181,8 @@ export const courseSchedulingScreen = {
       await runFindInstructors();
     });
 
-    detailRoot.querySelector('[data-confirm-draft]')?.addEventListener('click', async (event) => {
-      if (!canEdit || !selectedCourse) return;
-      const proposedMeetings = Array.isArray(selectedCourse.draft_proposed_meetings) ? selectedCourse.draft_proposed_meetings : null;
-      const proposedSummary = draftProposedMeetingsFromCourse({ ...selectedCourse, periodKey: selectedPeriodKey(state) });
-      const proposedEnd = proposedSummary?.proposedEndDate || proposedMeetings?.at(-1)?.date || '';
-      const originalEnd = proposedSummary?.originalEndDate || '';
-      const halfEnd = resolveCourseSchedulingPeriod(selectedPeriodKey(state))?.end || '';
-      const exceedsHalf = !!proposedEnd && !!halfEnd && proposedEnd > halfEnd;
-      const movedCount = Number(proposedSummary?.movedMeetingsCount) || 0;
-      let approvalMessage = `לאשר את שיבוץ ${selectedCourse.draft_instructor_name}?`;
-      if (movedCount > 0) {
-        approvalMessage = `הטיוטה כוללת ${movedCount} מועדים מוצעים (סיום מקורי ${formatDateHe(originalEnd) || '—'}, סיום מוצע ${formatDateHe(proposedEnd) || '—'}). לאשר סופית את שינוי המועדים ואת שיבוץ ${selectedCourse.draft_instructor_name}?`;
-      }
-      if (exceedsHalf) {
-        approvalMessage = `המועדים המוצעים חורגים מהמחצית ומסתיימים בתאריך ${formatDateHe(proposedEnd)}. לאשר סופית את שינוי המועדים ואת שיבוץ ${selectedCourse.draft_instructor_name}?`;
-      }
-      if (!window.confirm(approvalMessage)) return;
-      event.target.disabled = true;
-      const empId = Number(selectedCourse.draft_emp_id);
-      const { data: updatedActivity, error } = await supabase.rpc(proposedMeetings ? 'assign_activity_instructor_with_dates' : 'assign_activity_instructor', {
-        p_activity_id: selectedCourseId,
-        p_emp_id: empId,
-        p_instructor_name: selectedCourse.draft_instructor_name,
-        p_top_emp_id: empId,
-        p_selected_score: null,
-        p_top_score: null,
-        p_decision_type: 'approved',
-        p_reason: null,
-        ...(proposedMeetings ? { p_proposed_meetings: proposedMeetings } : {})
-      });
-      if (error) { showToast(translateSchedulingAssignmentError(error.message, 'אישור הטיוטה נכשל'), 'error'); event.target.disabled = false; return; }
-      applyReturnedSchedulingActivity(data.activities, updatedActivity);
-      clearScreenDataCache?.();
-      showToast('המדריך שובץ בהצלחה. ההמלצות מתעדכנות.', 'success');
-      await runFindInstructors();
+    detailRoot.querySelector('[data-confirm-draft]')?.addEventListener('click', (event) => {
+      void confirmActivityDraft(selectedCourseId, event.currentTarget);
     });
 
     detailRoot.querySelector('[data-cancel-draft]')?.addEventListener('click', async (event) => {
