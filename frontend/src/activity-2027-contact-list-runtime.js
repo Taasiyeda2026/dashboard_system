@@ -1,9 +1,12 @@
 import { api } from './api.js';
 import { supabase } from './supabase-client.js';
-import { withResolvedSchool2027Contact } from './screens/shared/school-2027-contact.js';
+import { isPrivateIsraaActivity, withResolvedSchool2027Contact } from './screens/shared/school-2027-contact.js';
 
 const PATCH_KEY = Symbol.for('taasiyeda.activity2027ContactList');
-const CONTACT_ENRICHMENT_METHODS = ['activities', 'allActivities'];
+// The Activities screen owns its progressive contact enrichment. This legacy
+// runtime remains only for allActivities consumers that still need the combined
+// list contract.
+const CONTACT_ENRICHMENT_METHODS = ['allActivities'];
 
 function text(value) {
   return String(value ?? '').trim();
@@ -13,12 +16,7 @@ function isSchool2027(row = {}) {
   return text(row.activity_season ?? row.activitySeason) === 'school_2027';
 }
 
-export function isPrivateIsraaActivity(row = {}) {
-  const domain = text(row.activity_domain ?? row.activityDomain);
-  if (domain !== 'E') return false;
-  const value = row.israa_shared;
-  return value === false || ['false', '0', 'no'].includes(text(value).toLowerCase());
-}
+export { isPrivateIsraaActivity };
 
 function mergeActivityContactMeta(row = {}, metaByRowId = new Map()) {
   const rowId = text(row.RowID || row.row_id);

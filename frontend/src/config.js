@@ -221,3 +221,4 @@ config.HOTFIX_VERSION = `course-planning-operational-packing-recruitment-last-20
 config.HOTFIX_VERSION = `course-scheduling-time-based-transitions-20260923-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `course-planning-dynamic-alternatives-20260923-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `course-planning-excel-batched-recalc-20260924-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `activities-progressive-contact-enrichment-20260924-v1-${config.HOTFIX_VERSION}`;
