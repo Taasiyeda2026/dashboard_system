@@ -1563,6 +1563,10 @@ export const courseSchedulingScreen = {
     if (state.courseSchedulingTab === 'planning' || state.courseSchedulingTab === 'calendar') {
       state.courseSchedulingTab = 'courses';
     }
+    if (state.courseSchedulingTab !== 'maintenance') {
+      state.courseSchedulingSimulationView = false;
+      state.courseSchedulingSimulationConfirmSave = false;
+    }
     const requiredPermission = activeTab(state) === 'maintenance' ? 'manage_instructor_maintenance' : 'view_operations_scheduling';
     if (!hasPermission(state?.user, requiredPermission)) {
       return dsScreenStack(dsEmptyState('אין הרשאה לצפייה בשיבוץ פעילויות.'));
