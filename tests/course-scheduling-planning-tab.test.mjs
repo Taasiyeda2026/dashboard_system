@@ -1186,18 +1186,20 @@ test('dynamic Planning exposes partial rows through progress while the run is st
   assert.equal(snapshots.at(-1)[0].status, 'נדרש טיפול');
 });
 
-test('Planning is a separate non-destructive workspace tab using scheduling permission', async () => {
+test('Planning runs behind the single scheduling workboard instead of a separate user tab', async () => {
   const [nav, capabilities, screen, planning] = await Promise.all([
     readFile(new URL('../frontend/src/screens/shared/instructors-workspace-nav.js', import.meta.url), 'utf8'),
     readFile(new URL('../frontend/src/capability-registry.js', import.meta.url), 'utf8'),
     readFile(new URL('../frontend/src/screens/course-scheduling.js', import.meta.url), 'utf8'),
     readFile(new URL('../frontend/src/screens/course-scheduling-planning.js', import.meta.url), 'utf8')
   ]);
-  assert.match(nav, /id: 'planning', label: 'תכנון', route: 'course-scheduling'/);
-  assert.match(nav, /courseSchedulingTab = 'planning'/);
+  assert.doesNotMatch(nav, /id: 'planning', label: 'תכנון'/);
+  assert.doesNotMatch(nav, /courseSchedulingTab = 'planning'/);
   assert.match(capabilities, /id: 'instructors\.planning'[\s\S]*permission: 'view_operations_scheduling'/);
-  assert.match(screen, /planningTabHtml/);
-  assert.match(screen, /data-planning-pick-option/);
+  assert.match(screen, /data-business-status-filter/);
+  assert.match(screen, /data-confirm-planning-draft/);
+  assert.match(screen, /activeTab\(state\) !== 'maintenance'/);
+  assert.match(screen, /runCoursePlanning\(\{ forceFull: false \}\)/);
   assert.match(screen, /courseSchedulingPlanningLocks/);
   assert.match(screen, /proposal_activity_pricing/);
   assert.doesNotMatch(planning, /supabase\.rpc|save_course_assignment|assign_activity_instructor|update\s+public\.activities/i);
