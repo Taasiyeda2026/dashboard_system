@@ -161,8 +161,8 @@ test('planning draft confirmation is an atomic server-side promotion to final as
   assert.match(sql, /planning_revision_conflict/);
   assert.match(sql, /planning_row\.locked_option is null/);
   assert.match(sql, /target\.updated_at is distinct from planning_row\.activity_updated_at/);
-  assert.match(sql, /scheduling_course_instructor_violations\(activity_id, emp_id, true\)/);
-  assert.match(sql, /scheduling_assert_assignment_calendar\(activity_id, emp_id, canonical\)/);
+  assert.match(sql, /scheduling_course_instructor_violations\(v_activity_id, v_emp_id, true\)/);
+  assert.match(sql, /scheduling_assert_assignment_calendar\(v_activity_id, v_emp_id, canonical\)/);
   assert.match(sql, /public\.assign_activity_instructor\(/);
   assert.match(sql, /public\.set_scheduling_planning_lock\([\s\S]*?activity_id,[\s\S]*?null,/);
   assert.match(sql, /grant execute on function public\.confirm_scheduling_planning_draft/);
