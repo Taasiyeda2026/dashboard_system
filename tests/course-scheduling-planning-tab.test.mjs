@@ -921,6 +921,30 @@ test('Planning Excel includes recommended dates, possible instructors and instru
   );
 });
 
+test('background planning keeps the workboard scroll stable instead of rerendering on every progress tick', async () => {
+  const screen = await readFile(new URL('../frontend/src/screens/course-scheduling.js', import.meta.url), 'utf8');
+  const planningRunStart = screen.indexOf('const result = await buildDynamicCoursePlan({');
+  const planningRunEnd = screen.indexOf('const freshEnd = await data.reloadPlanningSnapshot();', planningRunStart);
+  const planningRun = screen.slice(planningRunStart, planningRunEnd);
+
+  assert.match(screen, /const rerenderPreservingWorkboardScroll = \(\) =>/);
+  assert.match(screen, /listTop: Number\(list\?\.scrollTop\)/);
+  assert.match(screen, /window\.scrollTo\(\{ top: Number\(saved\.windowY\), behavior: 'auto' \}\)/);
+  assert.match(screen, /const updatePlanningStatusInPlace = \(\) =>/);
+  assert.match(screen, /requestIdleCallback\(run, \{ timeout: 600 \}\)/);
+  assert.match(planningRun, /onProgress: \(progress\) =>/);
+  assert.match(planningRun, /updatePlanningStatusInPlace\(\)/);
+  assert.doesNotMatch(planningRun, /rerender\(\)/);
+});
+
+test('travel-cache preload is memoized so repeated planning updates do not refetch thousands of rows', async () => {
+  const travel = await readFile(new URL('../frontend/src/screens/course-scheduling-travel.js', import.meta.url), 'utf8');
+  assert.match(travel, /TRAVEL_CACHE_ROWS_TTL_MS = 5 \* 60 \* 1000/);
+  assert.match(travel, /const travelCacheRowsMemo = new Map\(\)/);
+  assert.match(travel, /if \(!force && existing\?\.rows/);
+  assert.match(travel, /if \(!force && existing\?\.promise\) return existing\.promise/);
+});
+
 test('planning fingerprint covers instructor, availability, calendar and catalog dependencies', () => {
   const base = { activities: [baseCourse], instructors: [{ emp_id: 1, active: 'yes', address: 'א' }], profiles: [{ emp_id: 1, friday_allowed: false }], rules: [], exceptions: [], schoolCalendar: [], catalog };
   const fingerprint = planningDataFingerprint(base);

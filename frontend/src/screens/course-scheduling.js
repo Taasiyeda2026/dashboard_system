@@ -690,8 +690,8 @@ function schedulingPlanningStatusHtml(state = {}) {
   const progress = state.courseSchedulingPlanningProgress || {};
   const error = text(state.courseSchedulingPlanningError);
   if (error) {
-    return `<div class="course-scheduling-auto-plan is-error" role="status">
-      <span><strong>ההצעות לא עודכנו.</strong> ${escapeHtml(error)}</span>
+    return `<div class="course-scheduling-auto-plan is-error" role="status" data-planning-status aria-busy="false">
+      <span data-planning-status-message><strong>ההצעות לא עודכנו.</strong> ${escapeHtml(error)}</span>
       <button type="button" class="course-scheduling-workboard-secondary" data-retry-auto-planning>נסה שוב</button>
     </div>`;
   }
@@ -699,18 +699,18 @@ function schedulingPlanningStatusHtml(state = {}) {
     const total = Number(progress.total) || 0;
     const completed = Number(progress.completed) || 0;
     const suffix = total ? ` · ${completed} מתוך ${total}` : '';
-    return `<div class="course-scheduling-auto-plan is-working" role="status"><span><strong>המערכת מעדכנת את סידור העבודה</strong>${escapeHtml(suffix)}. אפשר להמשיך לעבוד במסך.</span></div>`;
+    return `<div class="course-scheduling-auto-plan is-working" role="status" data-planning-status aria-busy="true"><span data-planning-status-message><strong>המערכת מעדכנת את סידור העבודה</strong>${escapeHtml(suffix)}. אפשר להמשיך לעבוד במסך.</span></div>`;
   }
   if (!state.courseSchedulingPlanningSharedLoaded) {
-    return '<div class="course-scheduling-auto-plan is-working" role="status"><span><strong>טוען הצעות שיבוץ…</strong></span></div>';
+    return '<div class="course-scheduling-auto-plan is-working" role="status" data-planning-status aria-busy="true"><span data-planning-status-message><strong>טוען הצעות שיבוץ…</strong></span></div>';
   }
   if (!state.courseSchedulingPlanningCalculatedAt) {
-    return '<div class="course-scheduling-auto-plan is-working" role="status"><span><strong>מכין את סידור העבודה הראשוני…</strong> ההצעות יופיעו אוטומטית.</span></div>';
+    return '<div class="course-scheduling-auto-plan is-working" role="status" data-planning-status aria-busy="true"><span data-planning-status-message><strong>מכין את סידור העבודה הראשוני…</strong> ההצעות יופיעו אוטומטית.</span></div>';
   }
   if (pending) {
-    return `<div class="course-scheduling-auto-plan is-working" role="status"><span><strong>מעדכן ${pending} פעילויות שהושפעו מהשינוי האחרון…</strong></span></div>`;
+    return `<div class="course-scheduling-auto-plan is-working" role="status" data-planning-status aria-busy="true"><span data-planning-status-message><strong>מעדכן ${pending} פעילויות שהושפעו מהשינוי האחרון…</strong></span></div>`;
   }
-  return '<div class="course-scheduling-auto-plan is-ready" role="status"><span><strong>סידור העבודה מעודכן.</strong> טיוטות ושיבוצים נלקחים בחשבון אוטומטית.</span></div>';
+  return '<div class="course-scheduling-auto-plan is-ready" role="status" data-planning-status aria-busy="false"><span data-planning-status-message><strong>סידור העבודה מעודכן.</strong> טיוטות ושיבוצים נלקחים בחשבון אוטומטית.</span></div>';
 }
 
 function genderRequirementLabel(course = {}) {
@@ -1646,6 +1646,61 @@ export const courseSchedulingScreen = {
     bindInstructorsWorkspaceNav(root, { state, rerender });
     const invokeDistanceRoute = (body) => supabase.functions.invoke('scheduling-route', { body });
 
+    const restoreWorkboardScroll = () => {
+      const saved = state.courseSchedulingWorkboardScroll;
+      if (!saved) return;
+      state.courseSchedulingWorkboardScroll = null;
+      const list = root.querySelector('.course-scheduling-courses');
+      if (list && Number.isFinite(Number(saved.listTop))) list.scrollTop = Number(saved.listTop);
+      if (typeof window !== 'undefined' && Number.isFinite(Number(saved.windowY))) {
+        const restore = () => window.scrollTo({ top: Number(saved.windowY), behavior: 'auto' });
+        if (typeof requestAnimationFrame === 'function') requestAnimationFrame(restore);
+        else setTimeout(restore, 0);
+      }
+    };
+    restoreWorkboardScroll();
+
+    const rerenderPreservingWorkboardScroll = () => {
+      const list = root.querySelector('.course-scheduling-courses');
+      state.courseSchedulingWorkboardScroll = {
+        listTop: Number(list?.scrollTop) || 0,
+        windowY: typeof window !== 'undefined' ? Number(window.scrollY || window.pageYOffset) || 0 : 0
+      };
+      rerender();
+    };
+
+    const updatePlanningStatusInPlace = () => {
+      const status = root.querySelector('[data-planning-status]');
+      const message = status?.querySelector('[data-planning-status-message]');
+      if (!status || !message) return;
+      const progress = state.courseSchedulingPlanningProgress || {};
+      const total = Number(progress.total) || 0;
+      const completed = Number(progress.completed) || 0;
+      const phase = text(progress.phase);
+      status.classList.remove('is-ready', 'is-error');
+      status.classList.add('is-working');
+      status.setAttribute('aria-busy', 'true');
+      message.textContent = total
+        ? `${phase || 'המערכת מעדכנת את סידור העבודה'} · ${completed} מתוך ${total}. אפשר להמשיך לעבוד במסך.`
+        : `${phase || 'המערכת מעדכנת את סידור העבודה'}… אפשר להמשיך לעבוד במסך.`;
+    };
+
+    const scheduleBackgroundPlanning = ({ forceFull = false } = {}) => {
+      if (data._planningBackgroundScheduled || state.courseSchedulingPlanningLoading) return;
+      data._planningBackgroundScheduled = true;
+      const run = () => {
+        data._planningBackgroundScheduled = false;
+        void runCoursePlanning({ forceFull });
+      };
+      if (typeof window !== 'undefined' && typeof window.requestIdleCallback === 'function') {
+        window.requestIdleCallback(run, { timeout: 600 });
+      } else if (typeof requestAnimationFrame === 'function') {
+        requestAnimationFrame(() => setTimeout(run, 0));
+      } else {
+        setTimeout(run, 0);
+      }
+    };
+
     const planningScope = () => {
       const periodKey = DEFAULT_PLANNING_PERIOD_KEY;
       const district = '';
@@ -1752,14 +1807,14 @@ export const courseSchedulingScreen = {
       data._planningSharedLoadedKey = currentPlanningScope.key;
       reloadSharedPlanningState()
         .then(() => {
-          rerender();
+          rerenderPreservingWorkboardScroll();
           const affected = (state.courseSchedulingPlanningAffectedIds || []).length;
           if (
             state.courseSchedulingPlanningCalculatedAt
             && affected > 0
             && !state.courseSchedulingPlanningLoading
           ) {
-            void runCoursePlanning({ forceFull: false });
+            scheduleBackgroundPlanning({ forceFull: false });
             return;
           }
           if (
@@ -1768,7 +1823,7 @@ export const courseSchedulingScreen = {
             && data._planningAutoStartedKey !== currentPlanningScope.key
           ) {
             data._planningAutoStartedKey = currentPlanningScope.key;
-            void runCoursePlanning({ forceFull: true });
+            scheduleBackgroundPlanning({ forceFull: true });
           }
         })
         .catch((error) => {
@@ -1841,14 +1896,13 @@ export const courseSchedulingScreen = {
       }
     };
 
-    let planningProgressRenderedAt = 0;
     const runCoursePlanning = async ({ forceFull = false } = {}) => {
       if (state.courseSchedulingPlanningLoading) return;
       const scope = planningScope();
       state.courseSchedulingPlanningLoading = true;
       state.courseSchedulingPlanningError = '';
       state.courseSchedulingPlanningProgress = { phase: 'רענון נתונים', completed: 0, total: 0 };
-      rerender();
+      updatePlanningStatusInPlace();
 
       try {
         const routeCachePromise = loadSchedulingTravelCacheRows().catch(() => []);
@@ -1893,7 +1947,7 @@ export const courseSchedulingScreen = {
           completed: 0,
           total: fullRun ? currentCourseIds.length : affectedIds.length
         };
-        rerender();
+        updatePlanningStatusInPlace();
 
         const profiles = Object.fromEntries((freshStart.scheduling?.profiles || []).map((row) => [text(row.emp_id), row]));
         const routeClient = createRouteClient({
@@ -1924,12 +1978,7 @@ export const courseSchedulingScreen = {
               total: progress.total
             };
             if (Array.isArray(progress.rows)) state.courseSchedulingPlanningRows = progress.rows;
-            const now = Date.now();
-            const complete = Number(progress.total) > 0 && Number(progress.completed) >= Number(progress.total);
-            if (complete || now - planningProgressRenderedAt >= 250) {
-              planningProgressRenderedAt = now;
-              rerender();
-            }
+            updatePlanningStatusInPlace();
           }
         });
 
@@ -1983,7 +2032,7 @@ export const courseSchedulingScreen = {
       } finally {
         state.courseSchedulingPlanningLoading = false;
         state.courseSchedulingPlanningProgress = null;
-        rerender();
+        rerenderPreservingWorkboardScroll();
       }
     };
 

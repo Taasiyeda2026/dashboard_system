@@ -56,22 +56,61 @@ export function routeMatrixKey(origin, destination) {
   return `${normalizePlace(origin)}→${normalizePlace(destination)}`;
 }
 
-export async function loadSchedulingTravelCacheRows({ pageSize = 1000, maxRows = 20000 } = {}) {
-  const rows = [];
+const TRAVEL_CACHE_ROWS_TTL_MS = 5 * 60 * 1000;
+const travelCacheRowsMemo = new Map();
+
+export async function loadSchedulingTravelCacheRows({
+  pageSize = 1000,
+  maxRows = 20000,
+  force = false,
+  ttlMs = TRAVEL_CACHE_ROWS_TTL_MS
+} = {}) {
   const size = Math.max(100, Math.min(2000, Number(pageSize) || 1000));
-  for (let offset = 0; offset < maxRows; offset += size) {
-    const { data, error } = await supabase
-      .from('scheduling_travel_cache')
-      .select('origin_key,destination_key,origin_address,destination_address,distance_km,duration_minutes,expires_at')
-      .order('origin_key', { ascending: true })
-      .order('destination_key', { ascending: true })
-      .range(offset, offset + size - 1);
-    if (error) throw error;
-    const batch = Array.isArray(data) ? data : [];
-    rows.push(...batch);
-    if (batch.length < size) break;
+  const limit = Math.max(size, Number(maxRows) || 20000);
+  const key = `${size}|${limit}`;
+  const now = Date.now();
+  const existing = travelCacheRowsMemo.get(key);
+
+  if (!force && existing?.rows && now - existing.loadedAt < Math.max(0, Number(ttlMs) || 0)) {
+    return existing.rows;
   }
-  return rows;
+  if (!force && existing?.promise) return existing.promise;
+
+  const promise = (async () => {
+    const rows = [];
+    for (let offset = 0; offset < limit; offset += size) {
+      const { data, error } = await supabase
+        .from('scheduling_travel_cache')
+        .select('origin_key,destination_key,origin_address,destination_address,distance_km,duration_minutes,expires_at')
+        .order('origin_key', { ascending: true })
+        .order('destination_key', { ascending: true })
+        .range(offset, offset + size - 1);
+      if (error) throw error;
+      const batch = Array.isArray(data) ? data : [];
+      rows.push(...batch);
+      if (batch.length < size) break;
+    }
+    travelCacheRowsMemo.set(key, { rows, loadedAt: Date.now(), promise: null });
+    return rows;
+  })();
+
+  travelCacheRowsMemo.set(key, {
+    rows: existing?.rows || null,
+    loadedAt: existing?.loadedAt || 0,
+    promise
+  });
+
+  try {
+    return await promise;
+  } catch (error) {
+    const previous = travelCacheRowsMemo.get(key);
+    travelCacheRowsMemo.set(key, {
+      rows: previous?.rows || existing?.rows || null,
+      loadedAt: previous?.loadedAt || existing?.loadedAt || 0,
+      promise: null
+    });
+    throw error;
+  }
 }
 
 export function createRouteClient({
