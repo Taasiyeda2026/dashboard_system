@@ -657,6 +657,15 @@ export function activityFundingFilterValue(row = {}) {
 
 export const ACTIVITY_FILTER_FIELDS = [
   { key: 'activity_manager', label: 'מנהל פעילות', getValues: (row) => [activityManagerDisplayName(row?.activity_manager)] },
+  {
+    key: 'activity_domain',
+    label: 'תחום',
+    hideWhenEmpty: true,
+    getValues: (row) => {
+      const value = String(row?.activity_domain || '').trim().toUpperCase();
+      return ['E', 'Y'].includes(value) ? [value] : [];
+    }
+  },
   { key: 'instructor', label: 'מדריך', getValues: (row) => [humanDisplayText(row?.instructor_name), humanDisplayText(row?.instructor_name_2)] },
   { key: 'activity_name', label: 'תוכנית', getValues: (row) => [humanDisplayText(row?.activity_name)] },
   { key: 'authority', label: 'רשות', getValues: (row) => [humanDisplayText(row?.authority)] },
@@ -666,7 +675,7 @@ export const ACTIVITY_FILTER_FIELDS = [
 ];
 const ACTIVITY_SEARCH_FIELDS = [
   'id', 'RowID', 'row_id', 'source_row_id',
-  'activity_no', 'activity_number', 'activity_name', 'name', 'title', 'program_name', 'activity_type', 'activity_family',
+  'activity_no', 'activity_number', 'activity_name', 'name', 'title', 'program_name', 'activity_type', 'activity_family', 'activity_domain',
   'activity_manager', 'manager_name',
   'instructor_name', 'instructor_name_2', 'Instructor', 'Instructor2',
   'emp_id', 'emp_id_2', 'EmployeeID', 'EmployeeID2',
