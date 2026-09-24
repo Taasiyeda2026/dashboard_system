@@ -15,7 +15,7 @@ as $$
 declare
   scope_period text := nullif(btrim(coalesce(p_period_key, '')), '');
   scope_district text := btrim(coalesce(p_district, ''));
-  activity_id text := nullif(btrim(coalesce(p_activity_id, '')), '');
+  v_activity_id text := nullif(btrim(coalesce(p_activity_id, '')), '');
   workspace public.scheduling_planning_workspaces;
   planning_row public.scheduling_planning_rows;
   target public.activities;
@@ -35,8 +35,8 @@ declare
   expected_count integer := 0;
   official_count integer := 0;
   idx integer := 1;
-  emp_id bigint;
-  score integer;
+  v_emp_id bigint;
+  v_score integer;
   violations text[];
   result public.activities;
   caller_role text := public.app_current_role();
@@ -51,7 +51,7 @@ begin
     raise exception 'scheduling_permission_denied' using errcode = '42501';
   end if;
 
-  if scope_period is null or activity_id is null then
+  if scope_period is null or v_activity_id is null then
     raise exception 'planning_scope_invalid';
   end if;
 
@@ -67,7 +67,7 @@ begin
 
   select * into planning_row
   from public.scheduling_planning_rows
-  where workspace_id = workspace.id and activity_id = activity_id
+  where workspace_id = workspace.id and activity_id = v_activity_id
   for update;
   if not found or planning_row.locked_option is null then
     raise exception 'planning_draft_missing';
@@ -77,7 +77,7 @@ begin
   if coalesce(option->>'instructorEmpId', '') !~ '^[0-9]+$' then
     raise exception 'planning_draft_invalid';
   end if;
-  emp_id := (option->>'instructorEmpId')::bigint;
+  v_emp_id := (option->>'instructorEmpId')::bigint;
   meetings := option->'meetings';
 
   if jsonb_typeof(meetings) <> 'array'
@@ -87,11 +87,11 @@ begin
     raise exception 'planning_draft_invalid';
   end if;
 
-  perform public.scheduling_lock_instructor_for_write(emp_id);
+  perform public.scheduling_lock_instructor_for_write(v_emp_id);
 
   select * into selected_instructor
   from public.contacts_instructors
-  where emp_id = emp_id;
+  where emp_id = v_emp_id;
   if not found then raise exception 'instructor_not_found'; end if;
   if lower(coalesce(selected_instructor.active::text, 'yes')) in ('no','false','0','לא פעיל') then
     raise exception 'instructor_inactive';
@@ -99,7 +99,7 @@ begin
 
   select * into target
   from public.activities
-  where row_id = activity_id
+  where row_id = v_activity_id
   for update;
   if not found then raise exception 'activity_not_found'; end if;
 
@@ -218,27 +218,27 @@ begin
       date_33 = nullif(canonical->32->>'date', '')::date,
       date_34 = nullif(canonical->33->>'date', '')::date,
       date_35 = nullif(canonical->34->>'date', '')::date
-  where row_id = activity_id;
+  where row_id = v_activity_id;
 
-  violations := public.scheduling_course_instructor_violations(activity_id, emp_id, true);
+  violations := public.scheduling_course_instructor_violations(v_activity_id, v_emp_id, true);
   if coalesce(array_length(violations, 1), 0) > 0 then
     raise exception '%', violations[1];
   end if;
-  perform public.scheduling_assert_assignment_calendar(activity_id, emp_id, canonical);
+  perform public.scheduling_assert_assignment_calendar(v_activity_id, v_emp_id, canonical);
 
-  score := case
+  v_score := case
     when coalesce(option->>'score', '') ~ '^-?\\d+(?:\\.\\d+)?$'
       then round((option->>'score')::numeric)::integer
     else null
   end;
 
   result := public.assign_activity_instructor(
-    activity_id,
-    emp_id,
+    v_activity_id,
+    v_emp_id,
     selected_instructor.full_name,
-    emp_id,
-    score,
-    score,
+    v_emp_id,
+    v_score,
+    v_score,
     'approved',
     'אישור טיוטת תכנון'
   );
@@ -246,7 +246,7 @@ begin
   perform public.set_scheduling_planning_lock(
     scope_period,
     scope_district,
-    activity_id,
+    v_activity_id,
     null,
     workspace.revision
   );
