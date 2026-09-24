@@ -1784,7 +1784,7 @@ export function planningTabHtml({
       <article><b>${recruitment}</b><span>נדרש גיוס</span></article>
     </div>
     ${planningRowsHtml(rows, { loading })}
-    ${calculatedAt && rows.length ? `<details class="course-planning-instructor-overview"><summary>מערכת מלאה לפי מדריך</summary>${planningInstructorScheduleHtml(rows)}</details>` : ''}
+    ${calculatedAt && rows.length && pendingCount === 0 ? `<details class="course-planning-instructor-overview"><summary>מערכת מלאה לפי מדריך</summary>${planningInstructorScheduleHtml(rows)}</details>` : ''}
     ${routeStats ? `<p class="course-planning-route-stats">בדיקות מרחק: ${Number(routeStats.cacheHits) || 0} מהמטמון · ${Number(routeStats.googleCalls) || 0} חישובים חדשים</p>` : ''}
   </section>`;
 }
