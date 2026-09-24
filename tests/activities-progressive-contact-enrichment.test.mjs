@@ -13,7 +13,7 @@ globalThis.CustomEvent = dom.window.CustomEvent;
 
 globalThis.__DASHBOARD_SKIP_AUTO_RENDER__ = true;
 
-const { activitiesScreen } = await import('../frontend/src/screens/activities.js');
+const { activitiesScreen, applyResolvedContactEnrichment } = await import('../frontend/src/screens/activities.js');
 const {
   filterCoreActivitiesRows,
   readContactsForSchool2027Activities
@@ -68,6 +68,66 @@ test('Activities renders core rows before school contact enrichment resolves', a
   contacts.resolve({ rows: [{ ...core.rows[0], resolved_school_2027_contact: { name: 'איש קשר מועשר', phone: '050-1111111', email: '', role: '', id: 'contact-1', source: 'school_contact_id' } }] });
   const enriched = await core._contactEnrichmentPromise;
   assert.equal(enriched.rows[0].resolved_school_2027_contact.name, 'איש קשר מועשר');
+});
+
+test('background contact enrichment preserves array and row identity for existing references', () => {
+  const originalRow = school2027Row();
+  const existingReference = originalRow;
+  const originalRows = [originalRow];
+  const data = { rows: originalRows };
+  const enriched = {
+    rows: [{
+      ...originalRow,
+      resolved_school_2027_contact: { name: 'איש קשר מועשר', phone: '050-1111111', email: '', role: '', id: 'contact-1', source: 'school_contact_id' },
+      resolved_contact_name: 'איש קשר מועשר',
+      resolved_contact_phone: '050-1111111',
+      resolved_contact_email: '',
+      resolved_contact_role: ''
+    }]
+  };
+
+  applyResolvedContactEnrichment(data, enriched);
+
+  assert.strictEqual(data.rows, originalRows);
+  assert.strictEqual(data.rows[0], originalRow);
+  assert.strictEqual(existingReference, originalRow);
+  assert.equal(existingReference.resolved_contact_name, 'איש קשר מועשר');
+  assert.equal(existingReference.resolved_school_2027_contact.name, 'איש קשר מועשר');
+});
+
+test('background contact enrichment updates only resolved contact fields and cannot overwrite newer activity state', () => {
+  const originalRow = school2027Row({ notes: 'old', status: 'פתוח', instructor_name: 'מדריך ישן' });
+  const data = { rows: [originalRow] };
+  const staleEnrichedRow = {
+    ...originalRow,
+    notes: 'old',
+    status: 'פתוח',
+    instructor_name: 'מדריך ישן',
+    school: 'בית ספר ישן',
+    funding: 'מימון ישן',
+    resolved_school_2027_contact: { name: 'חדש', phone: '050-new', email: 'new@example.com', role: 'רכז', id: 'contact-new', source: 'school_contact_id' },
+    resolved_contact_name: 'חדש',
+    resolved_contact_phone: '050-new',
+    resolved_contact_email: 'new@example.com',
+    resolved_contact_role: 'רכז'
+  };
+
+  originalRow.notes = 'new';
+  originalRow.status = 'סגור';
+  originalRow.instructor_name = 'מדריך חדש';
+  originalRow.school = 'בית ספר מעודכן';
+  originalRow.funding = 'מימון מעודכן';
+  applyResolvedContactEnrichment(data, { rows: [staleEnrichedRow] });
+
+  assert.equal(originalRow.notes, 'new');
+  assert.equal(originalRow.status, 'סגור');
+  assert.equal(originalRow.instructor_name, 'מדריך חדש');
+  assert.equal(originalRow.school, 'בית ספר מעודכן');
+  assert.equal(originalRow.funding, 'מימון מעודכן');
+  assert.equal(originalRow.resolved_contact_name, 'חדש');
+  assert.equal(originalRow.resolved_contact_phone, '050-new');
+  assert.equal(originalRow.resolved_contact_email, 'new@example.com');
+  assert.equal(originalRow.resolved_contact_role, 'רכז');
 });
 
 test('slow contact lookup cannot block usable Activities core rows or route guard', async () => {

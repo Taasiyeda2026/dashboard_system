@@ -70,6 +70,13 @@ const taasiyedaLogoSrc = new URL('../../assets/logo1.png', import.meta.url).href
 
 const inflightActivityDetailRequests = new Map();
 let activitiesLoadGeneration = 0;
+const RESOLVED_CONTACT_FIELDS = [
+  'resolved_school_2027_contact',
+  'resolved_contact_name',
+  'resolved_contact_phone',
+  'resolved_contact_email',
+  'resolved_contact_role'
+];
 const ADD_ACTIVITY_TYPE_ORDER = ['course', 'workshop', 'escape_room', 'tour', 'after_school'];
 
 const ALL_ACTIVITIES_TAB_KEY = 'all_activities';
@@ -115,6 +122,22 @@ function school2027ContactCellHtml(row = {}) {
   return rawContactName
     ? `<button class="ds-contact-popover-btn" type="button" data-contact-popover data-cname="${contactName}" data-cphone="${contactPhone}" data-cemail="${contactEmail}"><span>${contactName}</span>${phoneLine}</button>`
     : '<span>—</span>';
+}
+
+export function applyResolvedContactEnrichment(data, enriched) {
+  if (!Array.isArray(data?.rows) || !Array.isArray(enriched?.rows)) return new Map();
+  const currentRowsById = new Map(data.rows
+    .map((row) => [String(row?.RowID || row?.row_id || ''), row])
+    .filter(([rowId]) => rowId));
+  for (const enrichedRow of enriched.rows) {
+    const rowId = String(enrichedRow?.RowID || enrichedRow?.row_id || '');
+    const currentRow = currentRowsById.get(rowId);
+    if (!currentRow) continue;
+    for (const field of RESOLVED_CONTACT_FIELDS) {
+      if (Object.prototype.hasOwnProperty.call(enrichedRow, field)) currentRow[field] = enrichedRow[field];
+    }
+  }
+  return currentRowsById;
 }
 
 function defaultActivityPeriodTab() {
@@ -2103,8 +2126,7 @@ export const activitiesScreen = {
         if (state.route !== 'activities' || !root.isConnected) return;
         if (!enriched || !Array.isArray(enriched.rows)) return;
         data._contactEnrichmentApplied = true;
-        data.rows = enriched.rows;
-        const rowsById = new Map(enriched.rows.map((row) => [String(row.RowID || row.row_id || ''), row]));
+        const rowsById = applyResolvedContactEnrichment(data, enriched);
         root.querySelectorAll('.ds-activities-row[data-row-id]').forEach((rowNode) => {
           const row = rowsById.get(String(rowNode.dataset.rowId || ''));
           const cell = rowNode.querySelector('.ds-activities-col--contact-name');
