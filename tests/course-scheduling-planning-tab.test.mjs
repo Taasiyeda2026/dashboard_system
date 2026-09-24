@@ -15,6 +15,7 @@ import {
   inferPlanningCourseSpec,
   latestFeasiblePlanningStart,
   planningActivityDifficulty,
+  planningContextFingerprint,
   planningDataFingerprint,
   planningEffectivePeriod,
   normalizePlanningLockedOption,
@@ -559,7 +560,8 @@ test('Planning UI defaults to the full school year and exposes period selection'
   assert.match(html, /בנה מערכת הדרכות מלאה/);
   assert.match(html, /נדרש גיוס/);
   assert.match(html, /תכנון עבודה מלא/);
-  assert.match(html, /בחירה ננעלת מיד בלי לחשב את כל המערכת מחדש/);
+  assert.match(html, /כל בחירה ב"קבע בתכנון" נשמרת מיד ב-Supabase/);
+  assert.match(html, /data-refresh-shared-planning/);
   assert.match(html, /data-export-course-planning disabled/);
   assert.doesNotMatch(html, /מערכת מלאה לפי מדריך/);
 });
@@ -589,8 +591,8 @@ test('Planning batches selected options before expensive recalculation and block
     calculatedAt: '24.9.2026, 10:00',
     pendingChanges: 2
   });
-  assert.match(html, /עדכן את שאר המערכת \(2\)/);
-  assert.match(html, /נשמרו 2 שינויים בתכנון/);
+  assert.match(html, /עדכן רק 2 פעילויות שהשתנו/);
+  assert.match(html, /יש 2 פעילויות שהושפעו/);
   assert.match(html, /data-export-course-planning disabled/);
 });
 
@@ -651,6 +653,91 @@ test('planning fingerprint covers instructor, availability, calendar and catalog
     { ...base, schoolCalendar: [{ start_date: '2026-10-11', blocks_scheduling: true }] },
     { ...base, catalog: [{ ...catalog[0], meetings_count: 12 }] }
   ]) assert.notEqual(planningDataFingerprint(changed), fingerprint);
+});
+
+test('planning context fingerprint ignores activity-only changes but tracks shared scheduling context', () => {
+  const base = {
+    activities: [{ ...baseCourse, row_id: 'a', status: 'פתוח' }],
+    instructors: [{ emp_id: 1, active: 'yes', address: 'א' }],
+    profiles: [{ emp_id: 1, friday_allowed: false }],
+    rules: [],
+    exceptions: [],
+    schoolCalendar: [],
+    catalog,
+    periodKey: 'year'
+  };
+  const fingerprint = planningContextFingerprint(base);
+  assert.equal(
+    planningContextFingerprint({
+      ...base,
+      activities: [{ ...base.activities[0], emp_id: 999, updated_at: '2026-09-24T12:00:00Z' }]
+    }),
+    fingerprint
+  );
+  assert.notEqual(
+    planningContextFingerprint({
+      ...base,
+      rules: [{ emp_id: 1, weekday: 0, available: true, start_time: '08:00', end_time: '10:00' }]
+    }),
+    fingerprint
+  );
+});
+
+test('incremental Planning reuses unaffected shared rows without rerouting them', async () => {
+  const activity = {
+    ...baseCourse,
+    row_id: 'reuse-course',
+    sessions: 2,
+    school_id: 1,
+    school_address: 'כתובת בית ספר'
+  };
+  const existing = {
+    courseId: 'reuse-course',
+    courseName: activity.activity_name,
+    activityType: 'קורס',
+    school: activity.school,
+    authority: activity.authority,
+    sessions: 2,
+    kind: 'proposal',
+    status: 'מועד מומלץ לבית הספר',
+    instructorEmpId: '1',
+    instructorName: 'מדריך',
+    startDate: '2026-10-13',
+    endDate: '2026-10-20',
+    startTime: '08:00',
+    endTime: '09:30',
+    meetings: [
+      { date: '2026-10-13', meeting_no: 1, start_time: '08:00', end_time: '09:30' },
+      { date: '2026-10-20', meeting_no: 2, start_time: '08:00', end_time: '09:30' }
+    ],
+    options: []
+  };
+  let routeCalls = 0;
+  const result = await buildDynamicCoursePlan({
+    activities: [activity],
+    instructors: [instructor],
+    profiles: profileMap,
+    rules: ruleMap,
+    exceptions: {},
+    schoolCalendar: [],
+    catalog,
+    today: '2026-09-23',
+    existingRows: [existing],
+    targetCourseIds: [],
+    routeClient: {
+      request: async () => {
+        routeCalls += 1;
+        throw new Error('unaffected row must not be rerouted');
+      },
+      googleCalls: 0,
+      cacheHits: 0,
+      unavailableReason: ''
+    }
+  });
+  assert.equal(routeCalls, 0);
+  assert.equal(result.rows[0].courseId, 'reuse-course');
+  assert.equal(result.rows[0].instructorEmpId, '1');
+  assert.equal(result.rows[0].startDate, '2026-10-13');
 });
 
 test('fixed schedules never move and a fixed holiday requires treatment', async () => {

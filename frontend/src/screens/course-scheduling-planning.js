@@ -1226,6 +1226,33 @@ export function normalizePlanningLockedOption(option = {}, periodKey = DEFAULT_P
   };
 }
 
+export function applyPlanningLockToRow(row = {}, option = {}, periodKey = DEFAULT_PLANNING_PERIOD_KEY) {
+  const normalized = normalizePlanningLockedOption(option, periodKey);
+  if (!normalized) return { ...row, planningLocked: false };
+  return {
+    ...row,
+    kind: 'planning-locked',
+    status: 'נקבע בתכנון',
+    planningLocked: true,
+    startDate: normalized.startDate,
+    endDate: normalized.endDate,
+    startTime: normalized.startTime,
+    endTime: normalized.endTime,
+    instructorName: normalized.instructorName,
+    instructorEmpId: normalized.instructorEmpId,
+    meetings: normalized.meetings.map((meeting) => ({ ...meeting })),
+    options: [
+      normalized,
+      ...(row?.options || []).filter((candidate) =>
+        !(text(candidate?.instructorEmpId) === text(normalized.instructorEmpId)
+          && text(candidate?.startDate) === text(normalized.startDate)
+          && text(candidate?.startTime) === text(normalized.startTime))
+      )
+    ],
+    reason: 'בחירה משותפת שנקבעה בתכנון — שאר הפעילויות מתעדכנות סביבה'
+  };
+}
+
 function lockedPlanningRow(activity = {}, option = {}, catalog = [], periodKey = DEFAULT_PLANNING_PERIOD_KEY) {
   const normalized = normalizePlanningLockedOption(option, periodKey);
   if (!normalized) return null;
@@ -1382,6 +1409,41 @@ export function planningDataFingerprint(input = []) {
   return (hash >>> 0).toString(36);
 }
 
+export function planningContextFingerprint(input = {}) {
+  const snapshot = input || {};
+  const periodKey = text(snapshot.periodKey) || DEFAULT_PLANNING_PERIOD_KEY;
+  let hash = 2166136261;
+  const value = JSON.stringify({
+    engineVersion: PLANNING_ENGINE_VERSION,
+    period: planningEffectivePeriod(periodKey),
+    instructors: stableRows((snapshot.instructors || []).map((row) => ({
+      emp_id: row.emp_id,
+      active: row.active,
+      address: row.address,
+      gender: row.gender,
+      languages: row.languages
+    }))),
+    profiles: stableRows(Array.isArray(snapshot.profiles) ? snapshot.profiles : Object.values(snapshot.profiles || {})),
+    rules: stableRows(Array.isArray(snapshot.rules) ? snapshot.rules : Object.values(snapshot.rules || {}).flat()),
+    exceptions: stableRows(Array.isArray(snapshot.exceptions) ? snapshot.exceptions : Object.values(snapshot.exceptions || {}).flat()),
+    schoolCalendar: stableRows(snapshot.schoolCalendar || []),
+    catalog: stableRows((snapshot.catalog || []).map((row) => ({
+      activity_no: row.activity_no,
+      gefen_number: row.gefen_number,
+      pricing_key: row.pricing_key,
+      activity_name: row.activity_name,
+      meetings_count: row.meetings_count,
+      hours_count: row.hours_count,
+      unit_duration: row.unit_duration
+    })))
+  });
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(36);
+}
+
 export async function buildDynamicCoursePlan({
   activities = [],
   instructors = [],
@@ -1395,6 +1457,8 @@ export async function buildDynamicCoursePlan({
   today = '',
   routeClient = createRouteClient(),
   lockedOptions = {},
+  existingRows = [],
+  targetCourseIds = null,
   onProgress = null
 } = {}) {
   const report = async (phase, completed = 0, total = 0, courseId = '', rows = null) => {
@@ -1406,6 +1470,12 @@ export async function buildDynamicCoursePlan({
   const contextActivities = [...activities];
   const virtualPlans = [];
   const rowsById = new Map();
+  const existingById = new Map((existingRows || [])
+    .map((row) => [text(row?.courseId) || idOf(row), row])
+    .filter(([courseId]) => !!courseId));
+  const incrementalIds = Array.isArray(targetCourseIds)
+    ? new Set(targetCourseIds.map((value) => text(value)).filter(Boolean))
+    : null;
   const fixedUnassigned = [];
   const missingSchedule = [];
 
@@ -1423,6 +1493,27 @@ export async function buildDynamicCoursePlan({
       const virtual = blockingVirtualActivity(activity, locked);
       if (virtual) virtualPlans.push(virtual);
       continue;
+    }
+
+    if (incrementalIds && !incrementalIds.has(activityId)) {
+      const existing = existingById.get(activityId);
+      if (existing) {
+        const reused = { ...existing, planningLocked: false };
+        rowsById.set(activityId, reused);
+        if (text(reused.instructorEmpId) && Array.isArray(reused.meetings) && reused.meetings.length) {
+          const virtual = blockingVirtualActivity(activity, {
+            instructorEmpId: reused.instructorEmpId,
+            instructorName: reused.instructorName,
+            startDate: reused.startDate,
+            endDate: reused.endDate,
+            startTime: reused.startTime,
+            endTime: reused.endTime,
+            meetings: reused.meetings
+          });
+          if (virtual) virtualPlans.push(virtual);
+        }
+        continue;
+      }
     }
 
     if (hasOfficialPlanningSchedule(activity)) fixedUnassigned.push(activity);
@@ -1720,7 +1811,11 @@ export function planningTabHtml({
   periodKey = DEFAULT_PLANNING_PERIOD_KEY,
   calculatedAt = '',
   routeStats = null,
-  pendingChanges = 0
+  pendingChanges = 0,
+  sharedLoaded = false,
+  sharedUpdatedAt = '',
+  sharedUpdatedBy = '',
+  sharedRevision = 0
 } = {}) {
   const period = planningEffectivePeriod(periodKey);
   const planningPeriods = planningPeriodOptions();
@@ -1752,7 +1847,12 @@ export function planningTabHtml({
     ? 'בונה מערכת…'
     : (!calculatedAt
       ? 'בנה מערכת הדרכות מלאה'
-      : (pendingCount ? `עדכן את שאר המערכת (${pendingCount})` : 'חשב מחדש'));
+      : (pendingCount ? `עדכן רק ${pendingCount} פעילויות שהשתנו` : 'חשב הכל מחדש'));
+  const sharedStatus = sharedLoaded
+    ? (calculatedAt
+      ? `תכנון משותף לצוות · גרסה ${Number(sharedRevision) || 0}${sharedUpdatedAt ? ` · נשמר ${sharedUpdatedAt}` : ''}${sharedUpdatedBy ? ` על ידי ${sharedUpdatedBy}` : ''}`
+      : 'תכנון משותף לצוות · עדיין לא נשמר חישוב לתחום הזה')
+    : 'טוען את התכנון המשותף…';
 
   return `<section class="course-planning-tab" data-course-planning-tab>
     <div class="course-planning-banner">
@@ -1766,12 +1866,13 @@ export function planningTabHtml({
       <label>תקופת תכנון<select class="course-scheduling-input" data-planning-period-filter>${periodOptionsHtml}</select></label>
       <label>מחוז<select class="course-scheduling-input" data-planning-district-filter>${districtOptions}</select></label>
       <button type="button" class="course-scheduling-btn course-scheduling-btn--primary" data-run-course-planning ${loading ? 'disabled' : ''}>${escapeHtml(runLabel)}</button>
+      <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary" data-refresh-shared-planning ${loading ? 'disabled' : ''}>רענן תכנון משותף</button>
       <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary" data-export-course-planning ${exportReady ? '' : 'disabled'}>ייצוא Excel</button>
       <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary" data-clear-course-planning ${loading ? 'disabled' : ''}>אפס הצעות</button>
       ${calculatedAt ? `<span class="course-planning-updated">עודכן ${escapeHtml(calculatedAt)}</span>` : ''}
     </div>
-    <p class="course-planning-note">התוצאה מיועדת לסידור העבודה: המועד והמדריך המומלצים מוצגים בשורה הראשית, והחלופות נשארות פתוחות רק כשצריך. בחירה ננעלת מיד בלי לחשב את כל המערכת מחדש; לאחר כמה בחירות מעדכנים את שאר התכנון פעם אחת.</p>
-    ${pendingCount ? `<p class="course-planning-pending" role="status">נשמרו ${pendingCount} שינויים בתכנון. אין חישוב מלא בכל בחירה — לחצו "עדכן את שאר המערכת" כשתסיימו את סבב הבחירות.</p>` : ''}
+    <p class="course-planning-note">${escapeHtml(sharedStatus)}. כל בחירה ב"קבע בתכנון" נשמרת מיד ב-Supabase ומשותפת לכל הצוות. שיבוץ או טיוטה אמיתיים נשארים בעוגנים של המערכת, ובהרצה הבאה מחושבות מחדש רק הפעילויות שהושפעו.</p>
+    ${pendingCount ? `<p class="course-planning-pending" role="status">יש ${pendingCount} פעילויות שהושפעו משיבוצים, שינויי נתונים או בחירות בתכנון. לחצו על "${escapeHtml(runLabel)}" — אין צורך לבנות את כל המערכת מחדש.</p>` : ''}
     <p class="course-planning-scope-counts">היקף נוכחי: <strong>${rows.length}</strong> פעילויות · ${Object.entries(typeCounts).map(([type, count]) => `${escapeHtml(type)} ${count}`).join(' · ')}</p>
     ${error ? `<p class="course-scheduling-alert">${escapeHtml(error)}</p>` : ''}
     ${progressText ? `<p class="course-planning-progress" role="status">${escapeHtml(progressText)}</p>` : ''}
