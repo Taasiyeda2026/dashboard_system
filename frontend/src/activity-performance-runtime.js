@@ -3,6 +3,7 @@ import { state } from './state.js';
 import { activitiesScreen } from './screens/activities.js';
 import { isActivityMutationBlocked } from './screens/shared/activity-readonly-period.js';
 import { showToast } from './screens/shared/toast.js';
+import { translateApiErrorForUser } from './screens/shared/ui-hebrew.js';
 
 /*
  * Performance guard for activity-backed screens.
@@ -199,7 +200,7 @@ import { showToast } from './screens/shared/toast.js';
           context.rerender?.();
         } catch (error) {
           console.error('[activity-permanent-delete-error]', { rowId, error });
-          showToast('הפעילות לא נמחקה. ייתכן שאין הרשאה או שהפעילות לא נמצאה.', 'error', 3000);
+          showToast(translateApiErrorForUser(error?.message || 'delete_activity_not_confirmed'), 'error', 4200);
           form.dataset.deleteInFlight = 'no';
           deleteButton.disabled = false;
         }
