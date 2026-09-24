@@ -56,8 +56,43 @@ export function routeMatrixKey(origin, destination) {
   return `${normalizePlace(origin)}→${normalizePlace(destination)}`;
 }
 
-export function createRouteClient({ invoke = (body) => supabase.functions.invoke('scheduling-route', { body }), concurrency = 4 } = {}) {
+export async function loadSchedulingTravelCacheRows({ pageSize = 1000, maxRows = 20000 } = {}) {
+  const rows = [];
+  const size = Math.max(100, Math.min(2000, Number(pageSize) || 1000));
+  for (let offset = 0; offset < maxRows; offset += size) {
+    const { data, error } = await supabase
+      .from('scheduling_travel_cache')
+      .select('origin_key,destination_key,origin_address,destination_address,distance_km,duration_minutes,expires_at')
+      .order('origin_key', { ascending: true })
+      .order('destination_key', { ascending: true })
+      .range(offset, offset + size - 1);
+    if (error) throw error;
+    const batch = Array.isArray(data) ? data : [];
+    rows.push(...batch);
+    if (batch.length < size) break;
+  }
+  return rows;
+}
+
+export function createRouteClient({
+  invoke = (body) => supabase.functions.invoke('scheduling-route', { body }),
+  concurrency = 4,
+  preloadedRows = []
+} = {}) {
   const cache = new Map();
+  const persistentCache = new Map();
+  for (const row of preloadedRows || []) {
+    const originKey = text(row?.origin_key) || normalizePlace(row?.origin_address);
+    const destinationKey = text(row?.destination_key) || normalizePlace(row?.destination_address);
+    const distance = Number(row?.distance_km);
+    const duration = Number(row?.duration_minutes);
+    if (!originKey || !destinationKey || !Number.isFinite(distance) || !Number.isFinite(duration)) continue;
+    persistentCache.set(`${originKey}→${destinationKey}`, {
+      distance_km: distance,
+      duration_minutes: duration,
+      cached: true
+    });
+  }
   let active = 0;
   const queue = [];
   let unavailableReason = '';
@@ -84,6 +119,15 @@ export function createRouteClient({ invoke = (body) => supabase.functions.invoke
     const normalizedContext = normalizedRouteContext(context);
     const cacheKey = routeRequestKey(origin, destination, normalizedContext);
     if (cache.has(cacheKey)) return cache.get(cacheKey);
+
+    const persistent = persistentCache.get(routeMatrixKey(origin, destination));
+    if (persistent) {
+      cacheHits += 1;
+      const hit = Promise.resolve({ ...persistent });
+      cache.set(cacheKey, hit);
+      return hit;
+    }
+
     const payload = {
       origin: text(origin),
       destination: text(destination),
