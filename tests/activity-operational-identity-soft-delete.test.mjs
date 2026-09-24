@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises';
 
 const ROOT = new URL('../', import.meta.url);
 const provenanceMigrationUrl = new URL('supabase/migrations/20260914105000_activity_operational_identity_and_soft_delete.sql', ROOT);
-const permanentDeleteMigrationUrl = new URL('supabase/migrations/20260914111000_restore_safe_permanent_activity_delete.sql', ROOT);
+const permanentDeleteMigrationUrl = new URL('supabase/migrations/20260924101500_activity_delete_planning_meetings.sql', ROOT);
 const apiUrl = new URL('frontend/src/api.js', ROOT);
 
 test('proposal linkage remains provenance after creation so operational catalog edits are not reverted', async () => {
@@ -32,6 +32,7 @@ test('authorized activity deletion is permanent but blocked when operational rec
   assert.match(migration, /finance_transaction_account_lines/i);
   assert.match(migration, /finance_transaction_account_meetings/i);
   assert.match(migration, /activity_meetings/i);
+  assert.match(migration, /delete from public\.activity_meetings[\s\S]*where source_row_id = new\.row_id/i, 'planning meeting rows must be removed with the activity');
   assert.match(migration, /course_meeting_cancellations/i);
   assert.match(migration, /course_meeting_instructor_history/i);
   assert.match(migration, /delete from public\.activities[\s\S]*where id = new\.id[\s\S]*row_id = new\.row_id/i);
@@ -39,6 +40,9 @@ test('authorized activity deletion is permanent but blocked when operational rec
   assert.match(migration, /revoke delete on table public\.activities from authenticated/i, 'direct client DELETE must stay closed');
   assert.doesNotMatch(migration, /delete from public\.attendance_records/i, 'operational evidence must never be silently deleted');
   assert.doesNotMatch(migration, /delete from public\.finance_transaction_account_/i, 'finance evidence must never be silently deleted');
+  const planningDeleteAt = migration.indexOf('delete from public.activity_meetings');
+  const activityDeleteAt = migration.indexOf('delete from public.activities');
+  assert.ok(planningDeleteAt > -1 && activityDeleteAt > planningDeleteAt, 'planning rows must be deleted before the activity row');
 
   // The client keeps using the existing authorized delete signal. The database
   // trigger converts only an eligible draft/unfinalized activity into a hard delete.
