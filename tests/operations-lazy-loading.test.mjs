@@ -85,6 +85,59 @@ test('schedule entry loads lightweight filter metadata but not activity results 
   assert.deepEqual(data._loadedOperationsTabs, []);
 });
 
+test('work schedule keeps applied rows across metadata/cache refreshes', async () => {
+  const calls = [];
+  const row = {
+    row_id: 'A-PERSIST',
+    activity_season: 'school_2027',
+    status: 'פתוח',
+    authority: 'רחובות',
+    school: 'בית ספר',
+    activity_name: 'ביומימיקרי',
+    instructor_name: 'דנה',
+    date_1: '2026-10-06',
+    start_date: '2026-10-06'
+  };
+  const state = {
+    activityPeriodTab: 'school_2027',
+    operationsManagement: {
+      tab: 'instructors',
+      context: 'instructors',
+      period: 'school_2027',
+      dateFrom: '2026-09-01',
+      dateTo: '2027-08-31',
+      scheduleHasLoaded: true,
+      scheduleRows: [row],
+      appliedScheduleFilters: {
+        period: 'school_2027',
+        dateFrom: '2026-09-01',
+        dateTo: '2027-08-31',
+        filters: { q: '', appliedQ: '', status: 'פתוח', authority: 'רחובות', visibleCount: 200 }
+      }
+    },
+    listFilters: {
+      'operations-management': { q: '', appliedQ: '', status: 'פתוח', authority: 'רחובות', visibleCount: 200 }
+    }
+  };
+  const api = trackedApi(calls);
+  api.scheduleFilterOptions = async () => {
+    calls.push('scheduleFilterOptions');
+    return { rows: [row] };
+  };
+
+  const refreshedData = await operationsManagementScreen.load({ api, state });
+  assert.deepEqual(calls, ['scheduleFilterOptions']);
+  assert.equal(state.operationsManagement.scheduleHasLoaded, true);
+  assert.equal(refreshedData.rows[0].row_id, 'A-PERSIST');
+
+  // Simulate a stale/background screen-cache refresh returning metadata only.
+  // The rendered work schedule must still use the applied rows held in UI state.
+  const root = document.createElement('div');
+  root.innerHTML = operationsManagementScreen.render({ ...refreshedData, rows: [] }, { state });
+  assert.match(root.textContent, /ביומימיקרי/);
+  assert.match(root.textContent, /רחובות/);
+});
+
 test('work schedule exposes metadata choices, loads only on apply, and clear hides results without another request', async () => {
   const calls = [];
   const state = {

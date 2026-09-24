@@ -148,6 +148,7 @@ function resetOperationsManagementEntry(state) {
     ops.tab = TAB_INSTRUCTORS;
     ops.scheduleHasLoaded = false;
     ops.appliedScheduleFilters = null;
+    ops.scheduleRows = [];
     ops.scheduleRequestVersion = (ops.scheduleRequestVersion || 0) + 1;
   } else {
     ops.tab = TAB_HOME;
@@ -288,6 +289,9 @@ function ensureOpsState(state = {}) {
     ops.period = globalPeriod;
     ops.dateFrom = '';
     ops.dateTo = '';
+    ops.scheduleHasLoaded = false;
+    ops.appliedScheduleFilters = null;
+    ops.scheduleRows = [];
   }
   if (!ops.dateFrom || !ops.dateTo) {
     const range = defaultDateRange(ops.period);
@@ -3396,14 +3400,14 @@ export const operationsManagementScreen = {
     // The instructors work schedule is explicitly requested from its filter bar.
     // Never fetch or restore the full activity set merely by entering the screen.
     if (ops.context === OPS_CONTEXT_INSTRUCTORS) {
-      ops.scheduleHasLoaded = false;
-      ops.appliedScheduleFilters = null;
-      ops.scheduleRequestVersion = (ops.scheduleRequestVersion || 0) + 1;
       const filterOptions = api.scheduleFilterOptions
         ? await api.scheduleFilterOptions({ activity_periods: PERIOD_OPTIONS.map((option) => option.value) })
         : { rows: [] };
       return {
-        rows: [],
+        // Applied work-schedule results are UI state, not screen-cache state.
+        // Keeping them here prevents a stale/background metadata refresh from
+        // replacing a just-filtered schedule with an empty rows payload.
+        rows: ops.scheduleHasLoaded && Array.isArray(ops.scheduleRows) ? ops.scheduleRows : [],
         filterOptionRows: Array.isArray(filterOptions?.rows) ? filterOptions.rows : [],
         _loadedOperationsTabs: [],
         _operationsTabLoadPromises: new Map()
@@ -3465,10 +3469,12 @@ export const operationsManagementScreen = {
   render(data, { state } = {}) {
     state = state || {};
     if (_opsNeedsEntryReset) resetOperationsManagementEntry(state);
-    const allRows = Array.isArray(data?.rows) ? data.rows : [];
-    const prepared = prepareRows(allRows);
     const ops = ensureOpsState(state);
     const instructorsContext = ops.context === OPS_CONTEXT_INSTRUCTORS;
+    const allRows = instructorsContext && ops.scheduleHasLoaded && Array.isArray(ops.scheduleRows)
+      ? ops.scheduleRows
+      : (Array.isArray(data?.rows) ? data.rows : []);
+    const prepared = prepareRows(allRows);
     const scheduleResultState = instructorsContext ? stateWithAppliedScheduleFilters(state) : state;
     const isCompletionApprovalTab = !instructorsContext && ops.tab === TAB_COMPLETION_APPROVAL;
     const baseRows = applyBaseFilters(prepared, scheduleResultState);
@@ -3619,6 +3625,10 @@ export const operationsManagementScreen = {
       const range = defaultDateRange(ops.period);
       ops.dateFrom = range.from;
       ops.dateTo = range.to;
+      ops.scheduleHasLoaded = false;
+      ops.appliedScheduleFilters = null;
+      ops.scheduleRows = [];
+      data.rows = [];
       state.dashboardMonthYm = defaultMonthForGlobalActivityPeriod(ops.period);
       rerender?.();
     });
@@ -3657,7 +3667,9 @@ export const operationsManagementScreen = {
           endDate: snapshot.dateTo
         });
         if (ops.scheduleRequestVersion !== requestVersion) return;
-        data.rows = Array.isArray(result?.rows) ? result.rows : [];
+        const scheduleRows = Array.isArray(result?.rows) ? result.rows : [];
+        data.rows = scheduleRows;
+        ops.scheduleRows = scheduleRows;
         ops.appliedScheduleFilters = snapshot;
         ops.scheduleHasLoaded = true;
         rerender?.();
@@ -3675,6 +3687,7 @@ export const operationsManagementScreen = {
       if (ops.context === OPS_CONTEXT_INSTRUCTORS) {
         ops.scheduleHasLoaded = false;
         ops.appliedScheduleFilters = null;
+        ops.scheduleRows = [];
         data.rows = [];
       }
       rerender?.();

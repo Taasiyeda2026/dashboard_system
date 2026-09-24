@@ -43,6 +43,7 @@ import {
   manualCandidateBlocked,
   manualCandidateWarnings
 } from './shared/course-scheduling-manual-picker-access.js';
+import { activeSchedulingInstructors } from './shared/course-scheduling-instructors.js';
 import {
   submitCourseMeetingSubstituteRequest,
   substituteRequestErrorMessage
@@ -1196,8 +1197,7 @@ function singleMeetingSubstitutionModalHtml(data = {}, state = {}) {
   const substitutions = state.courseSchedulingSingleSubstitutions?.[courseId] || [];
   const currentSubstitution = substitutions.find((row) => text(row.meeting_date) === selectedDate) || null;
   const currentPrimaryIds = new Set([text(course.emp_id), text(course.emp_id_2)].filter(Boolean));
-  const activeInstructors = (data.instructors || [])
-    .filter((instructor) => ['yes', 'true', '1'].includes(text(instructor?.active).toLowerCase()))
+  const activeInstructors = activeSchedulingInstructors(data.instructors || [])
     .filter((instructor) => !currentPrimaryIds.has(text(instructor.emp_id)))
     .sort((a, b) => text(a.full_name).localeCompare(text(b.full_name), 'he'));
   const meetingOptions = meetings.map((meeting, index) => {
@@ -1400,7 +1400,7 @@ export const courseSchedulingScreen = {
     const enriched = enrichActivitiesWithSchoolAddresses(activities?.rows || [], schoolRows);
     return {
       activities: attachCancelledMeetingsToActivities(enriched.activities, meetingState),
-      instructors: contacts?.rows || [],
+      instructors: activeSchedulingInstructors(contacts?.rows || []),
       scheduling,
       meetingState,
       schoolLocations: schoolRows,
@@ -2263,9 +2263,7 @@ export const courseSchedulingScreen = {
           routeMatrix: routed.routeMatrix,
           travelUnavailableReason: routed.unavailableReason || ''
         });
-        const activeInstructors = (data.instructors || []).filter((instructor) =>
-          ['yes', 'true', '1'].includes(text(instructor?.active).toLowerCase())
-        );
+        const activeInstructors = activeSchedulingInstructors(data.instructors || []);
         state.courseSchedulingResults = state.courseSchedulingResults.map((result) => {
           const checkedByEmpId = new Map((result.checked || []).map((candidate) => [emp(candidate), candidate]));
           return {

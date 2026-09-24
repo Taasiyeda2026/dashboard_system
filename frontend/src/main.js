@@ -1246,7 +1246,7 @@ function buildScreenDataCacheKey(route, cacheState = state) {
   // Projection/version stamp so 2026/2027 and list-shape changes never share one cache entry.
   // Bump when activities list projection columns change (e.g. funding) so stale
   // cached rows without the new fields are not reused.
-  const projection = 'p3';
+  const projection = 'p4';
   // p4: stores all rows without row-count truncation (compact per-row shape).
   // Old p3 entries (slice(0,60/80) rows) are intentionally excluded.
   const activitiesProjection = 'p4';
