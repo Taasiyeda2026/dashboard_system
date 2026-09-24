@@ -1912,7 +1912,7 @@
 /* ——— Dynamic planning tab ——— */
 .course-planning-tab {
   display: grid;
-  gap: 14px;
+  gap: 10px;
   min-width: 0;
 }
 
@@ -1920,16 +1920,20 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 18px;
-  padding: 14px 16px;
+  gap: 14px;
+  padding: 10px 14px;
   border: 1px solid #bcdedb;
-  border-radius: 14px;
+  border-radius: 12px;
   background: #effaf9;
 }
 
 .course-planning-banner strong {
   color: #17665f;
-  font-size: 1rem;
+  font-size: .96rem;
+}
+
+.course-planning-banner p {
+  font-size: .82rem;
 }
 
 .course-planning-banner p,
@@ -1951,15 +1955,15 @@
 .course-planning-toolbar {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: 8px;
   align-items: end;
 }
 
 .course-planning-toolbar label {
   display: grid;
   gap: 4px;
-  min-width: 180px;
-  font-size: .84rem;
+  min-width: 155px;
+  font-size: .8rem;
   font-weight: 700;
   color: var(--cs-text-muted);
 }
@@ -1982,28 +1986,31 @@
 }
 
 .course-planning-summary {
-  display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
 }
 
 .course-planning-summary article {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
   min-width: 0;
-  padding: 12px 14px;
+  padding: 7px 10px;
   border: 1px solid var(--cs-border);
-  border-radius: 12px;
+  border-radius: 9px;
   background: var(--cs-surface);
 }
 
 .course-planning-summary b {
-  display: block;
-  font-size: 1.25rem;
+  display: inline;
+  font-size: 1.05rem;
   color: #1f4b7a;
 }
 
 .course-planning-summary span {
   color: var(--cs-text-muted);
-  font-size: .82rem;
+  font-size: .76rem;
 }
 
 .course-planning-list {
@@ -2018,7 +2025,7 @@
   border-inline-start: 4px solid #94a3b8;
   border-radius: 12px;
   background: var(--cs-surface);
-  padding: 12px 14px;
+  padding: 9px 11px;
 }
 
 .course-planning-row.is-live { border-inline-start-color: #1f7a5a; }
@@ -2193,6 +2200,30 @@
   margin-top: 4px;
   padding-top: 14px;
   border-top: 1px solid var(--cs-border);
+}
+
+.course-planning-instructor-overview {
+  border: 1px solid var(--cs-border);
+  border-radius: 10px;
+  background: var(--cs-surface);
+}
+
+.course-planning-instructor-overview > summary {
+  padding: 9px 11px;
+  cursor: pointer;
+  color: #1f4b7a;
+  font-size: .84rem;
+  font-weight: 800;
+}
+
+.course-planning-instructor-overview .course-planning-instructor-schedules {
+  margin: 0;
+  padding: 0 10px 10px;
+  border-top: 0;
+}
+
+.course-planning-instructor-overview .course-planning-section-heading {
+  display: none;
 }
 
 .course-planning-section-heading {
