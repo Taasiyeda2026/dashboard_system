@@ -137,7 +137,7 @@ const DASHBOARD_ACTIVITY_MIN_COLUMNS = 'row_id,activity_season,activity_family,a
 const ACTIVITY_LIST_COLUMNS = [
   'id', 'row_id', 'activity_family', 'activity_manager', 'district', 'authority_id', 'school_id',
   'authority', 'school', 'grade', 'class_group', 'activity_type', 'item_type',
-  'activity_season', 'activity_no', 'activity_name', 'sessions', 'funding',
+  'activity_season', 'activity_domain', 'activity_no', 'activity_name', 'sessions', 'funding',
   'start_time', 'end_time', 'emp_id', 'instructor_name', 'emp_id_2', 'instructor_name_2',
   'start_date', 'end_date', 'status', 'participants_count', 'school_contact_id',
   ...ACTIVITY_MEETING_DATE_COLUMNS
@@ -145,7 +145,7 @@ const ACTIVITY_LIST_COLUMNS = [
 // Activities table / list: fields shown or used for month/status filters (no finance/contact blobs).
 const ACTIVITY_TABLE_COLUMNS = [
   'id', 'row_id', 'activity_family', 'activity_manager', 'authority', 'school', 'school_id',
-  'grade', 'class_group', 'activity_type', 'item_type', 'activity_season', 'activity_no', 'activity_name',
+  'grade', 'class_group', 'activity_type', 'item_type', 'activity_season', 'activity_domain', 'activity_no', 'activity_name',
   'sessions', 'funding', 'start_time', 'end_time', 'emp_id', 'instructor_name', 'emp_id_2', 'instructor_name_2',
   'start_date', 'end_date', 'status', 'notes',
   ...ACTIVITY_MEETING_DATE_COLUMNS
