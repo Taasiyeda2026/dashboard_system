@@ -1718,12 +1718,6 @@ function planningRowPrimaryOption(row = {}) {
   return selected || options[0] || null;
 }
 
-function planningMeetingDurationMinutes(meeting = {}, row = {}) {
-  const start = timeMinutes(meeting?.start_time || row?.startTime);
-  const end = timeMinutes(meeting?.end_time || row?.endTime);
-  return start != null && end != null && end > start ? end - start : 0;
-}
-
 function planningQualityIssueRow(row = {}, type = '', label = '') {
   return {
     type,
@@ -1768,6 +1762,8 @@ export function planningQualityAudit(rows = [], { pendingChanges = 0 } = {}) {
   let workDays = 0;
   let packedDays = 0;
   let singletonDays = 0;
+  let sameSchoolClusteredMeetings = 0;
+  let sameAuthorityClusteredMeetings = 0;
   let totalMeetingMinutes = 0;
 
   for (const schedule of schedules) {
@@ -1792,6 +1788,27 @@ export function planningQualityAudit(rows = [], { pendingChanges = 0 } = {}) {
       } else {
         singletonDays += 1;
         instructorSingletonDays += 1;
+      }
+
+      const schoolGroups = new Map();
+      const authorityGroups = new Map();
+      for (const meeting of sorted) {
+        const schoolKey = norm(meeting.school);
+        const authorityKey = norm(meeting.authority);
+        if (schoolKey) {
+          if (!schoolGroups.has(schoolKey)) schoolGroups.set(schoolKey, []);
+          schoolGroups.get(schoolKey).push(meeting);
+        }
+        if (authorityKey) {
+          if (!authorityGroups.has(authorityKey)) authorityGroups.set(authorityKey, []);
+          authorityGroups.get(authorityKey).push(meeting);
+        }
+      }
+      for (const group of schoolGroups.values()) {
+        if (new Set(group.map((meeting) => text(meeting.courseId))).size >= 2) sameSchoolClusteredMeetings += group.length;
+      }
+      for (const group of authorityGroups.values()) {
+        if (new Set(group.map((meeting) => text(meeting.courseId))).size >= 2) sameAuthorityClusteredMeetings += group.length;
       }
       workDays += 1;
 
@@ -1887,7 +1904,9 @@ export function planningQualityAudit(rows = [], { pendingChanges = 0 } = {}) {
     newWorkDayMeetings,
     sameSchoolMeetings,
     sameAuthorityMeetings,
-    nearbyMeetings
+    nearbyMeetings,
+    sameSchoolClusteredMeetings,
+    sameAuthorityClusteredMeetings
   };
 }
 
@@ -1951,10 +1970,10 @@ export function planningQualityAuditHtml(rows = [], { pendingChanges = 0 } = {})
       <article><b>${audit.totalHours}</b><span>שעות הדרכה מתוכננות</span><small>${audit.instructorCount} מדריכים</small></article>
     </div>
     <div class="course-planning-quality-efficiency">
-      <span><strong>${audit.sameSchoolMeetings}</strong> מפגשים מתחברים לאותו בית ספר</span>
-      <span><strong>${audit.sameAuthorityMeetings}</strong> משתלבים באותה רשות</span>
-      <span><strong>${audit.nearbyMeetings}</strong> משתלבים באזור סמוך</span>
-      <span><strong>${audit.newWorkDayMeetings}</strong> מפגשים פותחים יום עבודה חדש</span>
+      <span><strong>${audit.sameSchoolClusteredMeetings}</strong> מפגשים מרוכזים באותו בית ספר ובאותו יום</span>
+      <span><strong>${audit.sameAuthorityClusteredMeetings}</strong> מפגשים מרוכזים באותה רשות ובאותו יום</span>
+      <span><strong>${audit.packedDays}</strong> ימי מדריך עם 2 פעילויות ומעלה</span>
+      <span><strong>${audit.singletonDays}</strong> ימי מדריך עם פעילות אחת</span>
     </div>
     <details class="course-planning-quality-details"${issueCount ? ' open' : ''}>
       <summary>חריגים לטיפול (${issueCount})</summary>
