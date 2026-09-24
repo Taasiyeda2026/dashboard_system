@@ -7,6 +7,32 @@ function installStyles() {
   const style = document.createElement('style');
   style.id = 'activities-approved-ui-fix-styles';
   style.textContent = `
+    #app .ds-activities-main-toolbar {
+      gap: 6px !important;
+      align-items: center !important;
+    }
+    #app .ds-activities-main-toolbar .ds-activities-search-sm {
+      flex: 1 1 118px !important;
+      width: 128px !important;
+      min-width: 96px !important;
+      max-width: 145px !important;
+    }
+    #app .ds-activities-main-toolbar .ds-filter-select-inline {
+      flex: 1 1 88px !important;
+      width: 98px !important;
+      min-width: 72px !important;
+      max-width: 112px !important;
+      padding-inline: 7px !important;
+    }
+    #app .ds-activities-main-toolbar .ds-filter-select-inline[data-filter-field="activity_domain"] {
+      flex: 0 0 66px !important;
+      width: 66px !important;
+      min-width: 66px !important;
+      max-width: 66px !important;
+    }
+    #app .ds-activities-main-toolbar__actions {
+      flex: 0 0 auto !important;
+    }
     #app .ds-table--activities-list th.ds-activities-col--instructor,
     #app .ds-table--activities-list td.ds-activities-col--instructor {
       min-width: 190px !important;
