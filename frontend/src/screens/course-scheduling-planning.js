@@ -1226,6 +1226,33 @@ export function normalizePlanningLockedOption(option = {}, periodKey = DEFAULT_P
   };
 }
 
+export function applyPlanningLockToRow(row = {}, option = {}, periodKey = DEFAULT_PLANNING_PERIOD_KEY) {
+  const normalized = normalizePlanningLockedOption(option, periodKey);
+  if (!normalized) return { ...row, planningLocked: false };
+  return {
+    ...row,
+    kind: 'planning-locked',
+    status: 'נקבע בתכנון',
+    planningLocked: true,
+    startDate: normalized.startDate,
+    endDate: normalized.endDate,
+    startTime: normalized.startTime,
+    endTime: normalized.endTime,
+    instructorName: normalized.instructorName,
+    instructorEmpId: normalized.instructorEmpId,
+    meetings: normalized.meetings.map((meeting) => ({ ...meeting })),
+    options: [
+      normalized,
+      ...(row?.options || []).filter((candidate) =>
+        !(text(candidate?.instructorEmpId) === text(normalized.instructorEmpId)
+          && text(candidate?.startDate) === text(normalized.startDate)
+          && text(candidate?.startTime) === text(normalized.startTime))
+      )
+    ],
+    reason: 'בחירה משותפת שנקבעה בתכנון — שאר הפעילויות מתעדכנות סביבה'
+  };
+}
+
 function lockedPlanningRow(activity = {}, option = {}, catalog = [], periodKey = DEFAULT_PLANNING_PERIOD_KEY) {
   const normalized = normalizePlanningLockedOption(option, periodKey);
   if (!normalized) return null;
@@ -1382,6 +1409,41 @@ export function planningDataFingerprint(input = []) {
   return (hash >>> 0).toString(36);
 }
 
+export function planningContextFingerprint(input = {}) {
+  const snapshot = input || {};
+  const periodKey = text(snapshot.periodKey) || DEFAULT_PLANNING_PERIOD_KEY;
+  let hash = 2166136261;
+  const value = JSON.stringify({
+    engineVersion: PLANNING_ENGINE_VERSION,
+    period: planningEffectivePeriod(periodKey),
+    instructors: stableRows((snapshot.instructors || []).map((row) => ({
+      emp_id: row.emp_id,
+      active: row.active,
+      address: row.address,
+      gender: row.gender,
+      languages: row.languages
+    }))),
+    profiles: stableRows(Array.isArray(snapshot.profiles) ? snapshot.profiles : Object.values(snapshot.profiles || {})),
+    rules: stableRows(Array.isArray(snapshot.rules) ? snapshot.rules : Object.values(snapshot.rules || {}).flat()),
+    exceptions: stableRows(Array.isArray(snapshot.exceptions) ? snapshot.exceptions : Object.values(snapshot.exceptions || {}).flat()),
+    schoolCalendar: stableRows(snapshot.schoolCalendar || []),
+    catalog: stableRows((snapshot.catalog || []).map((row) => ({
+      activity_no: row.activity_no,
+      gefen_number: row.gefen_number,
+      pricing_key: row.pricing_key,
+      activity_name: row.activity_name,
+      meetings_count: row.meetings_count,
+      hours_count: row.hours_count,
+      unit_duration: row.unit_duration
+    })))
+  });
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(36);
+}
+
 export async function buildDynamicCoursePlan({
   activities = [],
   instructors = [],
@@ -1395,6 +1457,8 @@ export async function buildDynamicCoursePlan({
   today = '',
   routeClient = createRouteClient(),
   lockedOptions = {},
+  existingRows = [],
+  targetCourseIds = null,
   onProgress = null
 } = {}) {
   const report = async (phase, completed = 0, total = 0, courseId = '', rows = null) => {
@@ -1406,6 +1470,10 @@ export async function buildDynamicCoursePlan({
   const contextActivities = [...activities];
   const virtualPlans = [];
   const rowsById = new Map();
+  const existingById = new Map((existingRows || []).map((row) => [idOf(row), row]));
+  const incrementalIds = Array.isArray(targetCourseIds)
+    ? new Set(targetCourseIds.map((value) => text(value)).filter(Boolean))
+    : null;
   const fixedUnassigned = [];
   const missingSchedule = [];
 
@@ -1423,6 +1491,27 @@ export async function buildDynamicCoursePlan({
       const virtual = blockingVirtualActivity(activity, locked);
       if (virtual) virtualPlans.push(virtual);
       continue;
+    }
+
+    if (incrementalIds && !incrementalIds.has(activityId)) {
+      const existing = existingById.get(activityId);
+      if (existing) {
+        const reused = { ...existing, planningLocked: false };
+        rowsById.set(activityId, reused);
+        if (text(reused.instructorEmpId) && Array.isArray(reused.meetings) && reused.meetings.length) {
+          const virtual = blockingVirtualActivity(activity, {
+            instructorEmpId: reused.instructorEmpId,
+            instructorName: reused.instructorName,
+            startDate: reused.startDate,
+            endDate: reused.endDate,
+            startTime: reused.startTime,
+            endTime: reused.endTime,
+            meetings: reused.meetings
+          });
+          if (virtual) virtualPlans.push(virtual);
+        }
+        continue;
+      }
     }
 
     if (hasOfficialPlanningSchedule(activity)) fixedUnassigned.push(activity);
