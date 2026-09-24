@@ -1719,7 +1719,8 @@ export function planningTabHtml({
   districts = [],
   periodKey = DEFAULT_PLANNING_PERIOD_KEY,
   calculatedAt = '',
-  routeStats = null
+  routeStats = null,
+  pendingChanges = 0
 } = {}) {
   const period = planningEffectivePeriod(periodKey);
   const planningPeriods = planningPeriodOptions();
@@ -1745,7 +1746,13 @@ export function planningTabHtml({
   const progressText = loading
     ? `${escapeHtml(progress?.phase || 'הכנת נתונים')} · ${Number(progress?.completed) || 0} מתוך ${Number(progress?.total) || rows.length} פעילויות`
     : '';
-  const exportReady = !!calculatedAt && rows.length > 0 && !loading;
+  const pendingCount = Math.max(0, Number(pendingChanges) || 0);
+  const exportReady = !!calculatedAt && rows.length > 0 && !loading && pendingCount === 0;
+  const runLabel = loading
+    ? 'בונה מערכת…'
+    : (!calculatedAt
+      ? 'בנה מערכת הדרכות מלאה'
+      : (pendingCount ? `עדכן את שאר המערכת (${pendingCount})` : 'חשב מחדש'));
 
   return `<section class="course-planning-tab" data-course-planning-tab>
     <div class="course-planning-banner">
@@ -1758,12 +1765,13 @@ export function planningTabHtml({
     <div class="course-planning-toolbar">
       <label>תקופת תכנון<select class="course-scheduling-input" data-planning-period-filter>${periodOptionsHtml}</select></label>
       <label>מחוז<select class="course-scheduling-input" data-planning-district-filter>${districtOptions}</select></label>
-      <button type="button" class="course-scheduling-btn course-scheduling-btn--primary" data-run-course-planning ${loading ? 'disabled' : ''}>${loading ? 'בונה מערכת…' : 'בנה מערכת הדרכות מלאה'}</button>
+      <button type="button" class="course-scheduling-btn course-scheduling-btn--primary" data-run-course-planning ${loading ? 'disabled' : ''}>${escapeHtml(runLabel)}</button>
       <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary" data-export-course-planning ${exportReady ? '' : 'disabled'}>ייצוא Excel</button>
       <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary" data-clear-course-planning ${loading ? 'disabled' : ''}>אפס הצעות</button>
       ${calculatedAt ? `<span class="course-planning-updated">עודכן ${escapeHtml(calculatedAt)}</span>` : ''}
     </div>
-    <p class="course-planning-note">התוצאה מיועדת לסידור העבודה: המועד והמדריך המומלצים מוצגים בשורה הראשית, והחלופות נשארות פתוחות רק כשצריך. ה־Excel כולל גם אפשרויות תכנון וגם מערכת מלאה לפי מדריך.</p>
+    <p class="course-planning-note">התוצאה מיועדת לסידור העבודה: המועד והמדריך המומלצים מוצגים בשורה הראשית, והחלופות נשארות פתוחות רק כשצריך. בחירה ננעלת מיד בלי לחשב את כל המערכת מחדש; לאחר כמה בחירות מעדכנים את שאר התכנון פעם אחת.</p>
+    ${pendingCount ? `<p class="course-planning-pending" role="status">נשמרו ${pendingCount} שינויים בתכנון. אין חישוב מלא בכל בחירה — לחצו "עדכן את שאר המערכת" כשתסיימו את סבב הבחירות.</p>` : ''}
     <p class="course-planning-scope-counts">היקף נוכחי: <strong>${rows.length}</strong> פעילויות · ${Object.entries(typeCounts).map(([type, count]) => `${escapeHtml(type)} ${count}`).join(' · ')}</p>
     ${error ? `<p class="course-scheduling-alert">${escapeHtml(error)}</p>` : ''}
     ${progressText ? `<p class="course-planning-progress" role="status">${escapeHtml(progressText)}</p>` : ''}
