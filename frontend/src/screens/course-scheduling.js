@@ -6,7 +6,11 @@ import { showToast } from './shared/toast.js';
 import { loadInstructorSchedulingData } from './instructor-scheduling-data.js';
 import { activityMeetings, schedulingCalendarMeetings } from './instructor-scheduling-load.js';
 import { calculateCourseSchedule, preliminaryCourseCandidates } from './course-scheduling-engine.js';
-import { calculateCandidateTravel } from './course-scheduling-travel.js';
+import {
+  calculateCandidateTravel,
+  createRouteClient,
+  loadSchedulingTravelCacheRows
+} from './course-scheduling-travel.js';
 import {
   attachCancelledMeetingsToActivities,
   loadCourseMeetingState,
@@ -64,11 +68,24 @@ import {
 } from './course-scheduling-district-simulation.js';
 import {
   DEFAULT_PLANNING_PERIOD_KEY,
+  PLANNING_ENGINE_VERSION,
+  applyPlanningLockToRow,
   buildDynamicCoursePlan,
   buildPlanningOverviewRows,
+  planningContextFingerprint,
   planningDataFingerprint,
-  planningTabHtml
+  planningTabHtml,
+  planningWorkspaceCourses
 } from './course-scheduling-planning.js';
+import {
+  clearSharedPlanningWorkspace,
+  loadSharedPlanningWorkspace,
+  planningStoreErrorMessage,
+  saveSharedPlanningLock,
+  saveSharedPlanningSnapshot,
+  sharedPlanningAffectedCourseIds,
+  sharedPlanningLocks
+} from './course-scheduling-planning-store.js';
 import { exportPlanningWorkbook } from './course-scheduling-planning-export.js';
 
 export { formatWorkloadHours, MAX_HOME_DISTANCE_KM, formatAffectedMeetingsPhrase };
@@ -1382,7 +1399,7 @@ function distanceDoneMessage(stats = {}, { done = false, stopped = false, errorM
 export const courseSchedulingScreen = {
   async load({ api }) {
     const [activities, contacts, scheduling, meetingState, schoolLocations, schoolCalendar, authResult, planningCatalogResult] = await Promise.all([
-      api.activities({ activity_period: 'school_2027', activity_type: 'all', include_inactive: true, select: 'row_id,district,authority_id,authority,school,school_id,activity_name,catalog_slug,activity_no,proposal_item_id,activity_type,item_type,activity_season,grade,education_level,class_group,sessions,start_time,end_time,instruction_language,required_instructor_gender,scheduling_note,instructor_assignment_status,instructor_assignment_locked,draft_emp_id,draft_instructor_name,draft_created_at,draft_proposed_meetings,emp_id,instructor_name,emp_id_2,instructor_name_2,start_date,end_date,status,date_1,date_2,date_3,date_4,date_5,date_6,date_7,date_8,date_9,date_10,date_11,date_12,date_13,date_14,date_15,date_16,date_17,date_18,date_19,date_20,date_21,date_22,date_23,date_24,date_25,date_26,date_27,date_28,date_29,date_30,date_31,date_32,date_33,date_34,date_35' }),
+      api.activities({ activity_period: 'school_2027', activity_type: 'all', include_inactive: true, select: 'row_id,district,authority_id,authority,school,school_id,activity_name,catalog_slug,activity_no,proposal_item_id,activity_type,item_type,activity_season,grade,education_level,class_group,sessions,start_time,end_time,instruction_language,required_instructor_gender,scheduling_note,instructor_assignment_status,instructor_assignment_locked,draft_emp_id,draft_instructor_name,draft_created_at,draft_proposed_meetings,emp_id,instructor_name,emp_id_2,instructor_name_2,start_date,end_date,status,date_1,date_2,date_3,date_4,date_5,date_6,date_7,date_8,date_9,date_10,date_11,date_12,date_13,date_14,date_15,date_16,date_17,date_18,date_19,date_20,date_21,date_22,date_23,date_24,date_25,date_26,date_27,date_28,date_29,date_30,date_31,date_32,date_33,date_34,date_35,updated_at' }),
       api.instructorContacts(),
       loadInstructorSchedulingData(),
       loadCourseMeetingState(),
