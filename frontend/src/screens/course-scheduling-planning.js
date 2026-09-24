@@ -1703,7 +1703,7 @@ export function planningRowsHtml(rows = [], { loading = false } = {}) {
       ${range}
       <div class="course-planning-choice-actions">${recommendationBadge}${planningAction}</div>
       ${row.halfOverflow ? `<span class="course-planning-half-overflow">${escapeHtml(row.halfOverflowLabel || 'חורגת מתקופת התכנון')}</span>` : ''}
-      <p class="course-planning-reason">${escapeHtml(row.reason || '')}</p>
+      ${row.reason ? `<p class="course-planning-reason">${escapeHtml(row.reason)}</p>` : ''}
       ${explanationHtml(row.options?.[0])}
       ${alternatives}
     </article>`;
@@ -1745,12 +1745,13 @@ export function planningTabHtml({
   const progressText = loading
     ? `${escapeHtml(progress?.phase || 'הכנת נתונים')} · ${Number(progress?.completed) || 0} מתוך ${Number(progress?.total) || rows.length} פעילויות`
     : '';
+  const exportReady = !!calculatedAt && rows.length > 0 && !loading;
 
   return `<section class="course-planning-tab" data-course-planning-tab>
     <div class="course-planning-banner">
       <div>
-        <strong>תכנון תפעולי — אנחנו מציעים לבית הספר את המועד</strong>
-        <p>החל מ־06.10.2026 המערכת מציעה מועד ראשון ועד שתי חלופות. בחירת מועד או חלופה נועלת אותו בתכנון ומסדרת מחדש אוטומטית את שאר הפעילויות סביב הבחירה.</p>
+        <strong>תכנון עבודה מלא</strong>
+        <p>המערכת בונה מועד ומדריך מומלצים לכל פעילות, עם עד שתי חלופות כשצריך.</p>
       </div>
       <div class="course-planning-period">${escapeHtml(period.label)} · <bdi dir="ltr">${escapeHtml(formatDateHe(period.start))}</bdi>–<bdi dir="ltr">${escapeHtml(formatDateHe(period.end))}</bdi></div>
     </div>
@@ -1758,10 +1759,11 @@ export function planningTabHtml({
       <label>תקופת תכנון<select class="course-scheduling-input" data-planning-period-filter>${periodOptionsHtml}</select></label>
       <label>מחוז<select class="course-scheduling-input" data-planning-district-filter>${districtOptions}</select></label>
       <button type="button" class="course-scheduling-btn course-scheduling-btn--primary" data-run-course-planning ${loading ? 'disabled' : ''}>${loading ? 'בונה מערכת…' : 'בנה מערכת הדרכות מלאה'}</button>
+      <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary" data-export-course-planning ${exportReady ? '' : 'disabled'}>ייצוא Excel</button>
       <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary" data-clear-course-planning ${loading ? 'disabled' : ''}>אפס הצעות</button>
       ${calculatedAt ? `<span class="course-planning-updated">עודכן ${escapeHtml(calculatedAt)}</span>` : ''}
     </div>
-    <p class="course-planning-note">המערכת בונה לוח מלא לקורסים, סדנאות וסיורים. סדר העבודה הוא: קודם פעילויות שקשה לשבץ, אחר כך מילוי ימים שכבר פתוחים למדריכים, רציפות באותו בית ספר או רשות, נסיעות קצרות ואיזון עומס. תאריך או שעה שבית הספר כבר אישר נשמרים כאילוץ. גיוס מסומן רק לאחר שלא נמצאה התאמה לצוות הקיים בחלונות שנבדקו.</p>
+    <p class="course-planning-note">התוצאה מיועדת לסידור העבודה: המועד והמדריך המומלצים מוצגים בשורה הראשית, והחלופות נשארות פתוחות רק כשצריך. ה־Excel כולל גם אפשרויות תכנון וגם מערכת מלאה לפי מדריך.</p>
     <p class="course-planning-scope-counts">היקף נוכחי: <strong>${rows.length}</strong> פעילויות · ${Object.entries(typeCounts).map(([type, count]) => `${escapeHtml(type)} ${count}`).join(' · ')}</p>
     ${error ? `<p class="course-scheduling-alert">${escapeHtml(error)}</p>` : ''}
     ${progressText ? `<p class="course-planning-progress" role="status">${escapeHtml(progressText)}</p>` : ''}
@@ -1774,6 +1776,7 @@ export function planningTabHtml({
       <article><b>${recruitment}</b><span>נדרש גיוס</span></article>
     </div>
     ${planningRowsHtml(rows, { loading })}
+    ${calculatedAt && rows.length ? `<details class="course-planning-instructor-overview"><summary>מערכת מלאה לפי מדריך</summary>${planningInstructorScheduleHtml(rows)}</details>` : ''}
     ${routeStats ? `<p class="course-planning-route-stats">בדיקות מרחק: ${Number(routeStats.cacheHits) || 0} מהמטמון · ${Number(routeStats.googleCalls) || 0} חישובים חדשים</p>` : ''}
   </section>`;
 }
