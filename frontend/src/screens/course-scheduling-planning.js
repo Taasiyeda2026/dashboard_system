@@ -789,6 +789,17 @@ function optionFromCandidate(course, candidate, { routeVerified = true, startRan
     routeVerified,
     startRange,
     planningOptimization,
+    operationalMetrics: {
+      relevantTravelDistance: Number.isFinite(Number(candidate.relevantTravelDistance)) ? Number(candidate.relevantTravelDistance) : null,
+      relevantTravelMinutes: Number.isFinite(Number(candidate.relevantTravelMinutes)) ? Number(candidate.relevantTravelMinutes) : null,
+      projectedUtilizationRatio: Number.isFinite(Number(candidate.projectedUtilizationRatio)) ? Number(candidate.projectedUtilizationRatio) : null,
+      continuityMeetingCount: Math.max(0, Number(candidate.continuityMeetingCount) || 0),
+      sameSchoolMeetingCount: Math.max(0, Number(candidate.sameSchoolMeetingCount) || 0),
+      sameAuthorityMeetingCount: Math.max(0, Number(candidate.sameAuthorityMeetingCount) || 0),
+      nearbyMeetingCount: Math.max(0, Number(candidate.nearbyMeetingCount) || 0),
+      existingWorkDayMeetingCount: Math.max(0, Number(candidate.existingWorkDayMeetingCount) || 0),
+      newWorkDayMeetingCount: Math.max(0, Number(candidate.newWorkDayMeetingCount) || 0)
+    },
     explanation: {
       optimization: planningOperationalReason(course, candidate, planningOptimization),
       continuity: text(candidate.scoreBreakdown?.continuityEfficiency?.note || candidate.scoreBreakdown?.continuityEfficiency?.label),
@@ -1697,6 +1708,265 @@ export function planningInstructorSchedules(rows = []) {
     .sort((a, b) => a.name.localeCompare(b.name, 'he'));
 }
 
+function planningRowPrimaryOption(row = {}) {
+  const options = Array.isArray(row?.options) ? row.options : [];
+  const selected = options.find((option) =>
+    text(option?.instructorEmpId) === text(row?.instructorEmpId)
+    && text(option?.startDate) === text(row?.startDate)
+    && text(option?.startTime) === text(row?.startTime)
+  );
+  return selected || options[0] || null;
+}
+
+function planningMeetingDurationMinutes(meeting = {}, row = {}) {
+  const start = timeMinutes(meeting?.start_time || row?.startTime);
+  const end = timeMinutes(meeting?.end_time || row?.endTime);
+  return start != null && end != null && end > start ? end - start : 0;
+}
+
+function planningQualityIssueRow(row = {}, type = '', label = '') {
+  return {
+    type,
+    label,
+    courseId: text(row.courseId),
+    courseName: text(row.courseName) || text(row.courseId) || 'פעילות',
+    school: text(row.school),
+    authority: text(row.authority),
+    instructorName: text(row.instructorName)
+  };
+}
+
+export function planningQualityAudit(rows = [], { pendingChanges = 0 } = {}) {
+  const sourceRows = Array.isArray(rows) ? rows : [];
+  const schedules = planningInstructorSchedules(sourceRows);
+  const plannedKinds = new Set(['proposal', 'fixed-proposal', 'planning-locked']);
+  const unresolvedRows = sourceRows.filter((row) =>
+    ['missing', 'fixed'].includes(row.kind)
+    || (plannedKinds.has(row.kind) && !text(row.instructorEmpId))
+  );
+  const recruitmentRows = sourceRows.filter((row) => row.kind === 'recruitment');
+  const overflowRows = sourceRows.filter((row) => row.halfOverflow === true);
+  const unverifiedRows = sourceRows.filter((row) => {
+    if (!plannedKinds.has(row.kind) || !text(row.instructorEmpId)) return false;
+    const primary = planningRowPrimaryOption(row);
+    return primary?.routeVerified === false || row?.diagnostics?.routeVerified === false;
+  });
+  const plannedRows = sourceRows.filter((row) => plannedKinds.has(row.kind) && text(row.instructorEmpId));
+  const coveredRows = sourceRows.filter((row) => text(row.instructorEmpId));
+  const operationalOptions = plannedRows.map(planningRowPrimaryOption).filter(Boolean);
+  const scoreValues = operationalOptions
+    .map((option) => Number(option?.planningOptimization?.total))
+    .filter(Number.isFinite);
+  const metrics = operationalOptions.map((option) => option.operationalMetrics || {});
+  const newWorkDayMeetings = metrics.reduce((sum, item) => sum + (Number(item.newWorkDayMeetingCount) || 0), 0);
+  const sameSchoolMeetings = metrics.reduce((sum, item) => sum + (Number(item.sameSchoolMeetingCount) || 0), 0);
+  const sameAuthorityMeetings = metrics.reduce((sum, item) => sum + (Number(item.sameAuthorityMeetingCount) || 0), 0);
+  const nearbyMeetings = metrics.reduce((sum, item) => sum + (Number(item.nearbyMeetingCount) || 0), 0);
+
+  const conflicts = [];
+  const instructorLoads = [];
+  let workDays = 0;
+  let packedDays = 0;
+  let singletonDays = 0;
+  let totalMeetingMinutes = 0;
+
+  for (const schedule of schedules) {
+    const days = new Map();
+    for (const meeting of schedule.meetings || []) {
+      if (!days.has(meeting.date)) days.set(meeting.date, []);
+      days.get(meeting.date).push(meeting);
+    }
+
+    let instructorMinutes = 0;
+    let instructorPackedDays = 0;
+    let instructorSingletonDays = 0;
+    for (const [date, dayMeetings] of days.entries()) {
+      const sorted = [...dayMeetings].sort((a, b) =>
+        (timeMinutes(a.startTime) ?? 9999) - (timeMinutes(b.startTime) ?? 9999)
+        || (timeMinutes(a.endTime) ?? 9999) - (timeMinutes(b.endTime) ?? 9999)
+      );
+      const courseIds = new Set(sorted.map((meeting) => text(meeting.courseId)).filter(Boolean));
+      if (courseIds.size >= 2) {
+        packedDays += 1;
+        instructorPackedDays += 1;
+      } else {
+        singletonDays += 1;
+        instructorSingletonDays += 1;
+      }
+      workDays += 1;
+
+      for (let index = 0; index < sorted.length; index += 1) {
+        const current = sorted[index];
+        const currentStart = timeMinutes(current.startTime);
+        const currentEnd = timeMinutes(current.endTime);
+        if (currentStart != null && currentEnd != null && currentEnd > currentStart) {
+          const duration = currentEnd - currentStart;
+          instructorMinutes += duration;
+          totalMeetingMinutes += duration;
+        }
+        for (let previousIndex = 0; previousIndex < index; previousIndex += 1) {
+          const previous = sorted[previousIndex];
+          const previousStart = timeMinutes(previous.startTime);
+          const previousEnd = timeMinutes(previous.endTime);
+          if (currentStart == null || currentEnd == null || previousStart == null || previousEnd == null) continue;
+          if (currentStart < previousEnd && previousStart < currentEnd) {
+            conflicts.push({
+              instructorEmpId: schedule.empId,
+              instructorName: schedule.name,
+              date,
+              first: previous,
+              second: current
+            });
+          }
+        }
+      }
+    }
+
+    instructorLoads.push({
+      empId: schedule.empId,
+      name: schedule.name,
+      activityCount: schedule.activityCount,
+      meetingCount: schedule.meetings.length,
+      workDays: days.size,
+      packedDays: instructorPackedDays,
+      singletonDays: instructorSingletonDays,
+      hours: Math.round((instructorMinutes / 60) * 10) / 10
+    });
+  }
+
+  const pendingCount = Math.max(0, Number(pendingChanges) || 0);
+  const hardIssueCount = conflicts.length + unverifiedRows.length;
+  const attentionCount = unresolvedRows.length + recruitmentRows.length + overflowRows.length;
+  let status = 'מוכן לעבודה';
+  let tone = 'ready';
+  if (pendingCount > 0) {
+    status = 'ממתין לעדכון';
+    tone = 'pending';
+  } else if (hardIssueCount > 0) {
+    status = 'נדרשת בדיקה';
+    tone = 'warning';
+  } else if (attentionCount > 0) {
+    status = 'יש חריגים לטיפול';
+    tone = 'attention';
+  }
+
+  const issues = [
+    ...unverifiedRows.map((row) => planningQualityIssueRow(row, 'route', 'נסיעה לא אומתה')),
+    ...unresolvedRows.map((row) => planningQualityIssueRow(row, 'unresolved', 'טרם נמצא שיבוץ מלא')),
+    ...recruitmentRows.map((row) => planningQualityIssueRow(row, 'recruitment', 'נדרש גיוס')),
+    ...overflowRows.map((row) => planningQualityIssueRow(row, 'overflow', 'חורגת מתקופת התכנון'))
+  ];
+
+  return {
+    status,
+    tone,
+    pendingCount,
+    totalActivities: sourceRows.length,
+    coveredActivities: coveredRows.length,
+    coveragePercent: sourceRows.length ? Math.round((coveredRows.length / sourceRows.length) * 100) : 0,
+    unresolvedRows,
+    recruitmentRows,
+    overflowRows,
+    unverifiedRows,
+    conflicts,
+    hardIssueCount,
+    attentionCount,
+    issues,
+    instructorLoads: instructorLoads.sort((a, b) =>
+      b.hours - a.hours || b.activityCount - a.activityCount || a.name.localeCompare(b.name, 'he')
+    ),
+    instructorCount: schedules.length,
+    workDays,
+    packedDays,
+    singletonDays,
+    packedDayPercent: workDays ? Math.round((packedDays / workDays) * 100) : 0,
+    totalHours: Math.round((totalMeetingMinutes / 60) * 10) / 10,
+    averageOperationalScore: scoreValues.length
+      ? Math.round((scoreValues.reduce((sum, value) => sum + value, 0) / scoreValues.length) * 10) / 10
+      : null,
+    newWorkDayMeetings,
+    sameSchoolMeetings,
+    sameAuthorityMeetings,
+    nearbyMeetings
+  };
+}
+
+function planningQualityIssuesHtml(audit = {}) {
+  const rows = [];
+  for (const conflict of audit.conflicts || []) {
+    rows.push(`<li><strong>חפיפה · ${escapeHtml(conflict.instructorName || 'מדריך')}</strong> · <bdi dir="ltr">${escapeHtml(formatDateHe(conflict.date))}</bdi> · ${escapeHtml(conflict.first?.courseName || conflict.first?.courseId || 'פעילות')} <bdi dir="ltr">${escapeHtml(formatTimeRangeShort(conflict.first?.startTime, conflict.first?.endTime))}</bdi> מול ${escapeHtml(conflict.second?.courseName || conflict.second?.courseId || 'פעילות')} <bdi dir="ltr">${escapeHtml(formatTimeRangeShort(conflict.second?.startTime, conflict.second?.endTime))}</bdi></li>`);
+  }
+  for (const issue of audit.issues || []) {
+    const location = [issue.school, issue.authority].filter(Boolean).join(' · ');
+    rows.push(`<li><strong>${escapeHtml(issue.label)}</strong> · ${escapeHtml(issue.courseName)}${location ? ` · ${escapeHtml(location)}` : ''}${issue.instructorName ? ` · ${escapeHtml(issue.instructorName)}` : ''}</li>`);
+  }
+  if (audit.pendingCount > 0) {
+    rows.unshift(`<li><strong>התכנון טרם מעודכן</strong> · ${audit.pendingCount} פעילויות מסומנות לחישוב מצומצם</li>`);
+  }
+  return rows.length
+    ? `<ul class="course-planning-quality-issues">${rows.join('')}</ul>`
+    : '<p class="course-planning-quality-clear">לא נמצאו חפיפות, נסיעות לא מאומתות או פעילויות פתוחות לטיפול.</p>';
+}
+
+function planningQualityInstructorTableHtml(audit = {}) {
+  if (!(audit.instructorLoads || []).length) return '<p class="course-planning-quality-clear">אין עדיין עומס מדריכים לחישוב.</p>';
+  return `<div class="course-planning-quality-table-wrap">
+    <table class="course-planning-quality-table">
+      <thead><tr><th>מדריך</th><th>פעילויות</th><th>מפגשים</th><th>ימי עבודה</th><th>ימים מרוכזים</th><th>ימים עם פעילות אחת</th><th>שעות</th></tr></thead>
+      <tbody>${audit.instructorLoads.map((item) => `<tr>
+        <td><strong>${escapeHtml(item.name || item.empId || '—')}</strong></td>
+        <td>${item.activityCount}</td>
+        <td>${item.meetingCount}</td>
+        <td>${item.workDays}</td>
+        <td>${item.packedDays}</td>
+        <td>${item.singletonDays}</td>
+        <td>${item.hours}</td>
+      </tr>`).join('')}</tbody>
+    </table>
+  </div>`;
+}
+
+export function planningQualityAuditHtml(rows = [], { pendingChanges = 0 } = {}) {
+  const audit = planningQualityAudit(rows, { pendingChanges });
+  const scoreText = Number.isFinite(audit.averageOperationalScore)
+    ? `${audit.averageOperationalScore}/100`
+    : '—';
+  const issueCount = (audit.conflicts?.length || 0) + (audit.issues?.length || 0) + (audit.pendingCount > 0 ? 1 : 0);
+  return `<section class="course-planning-quality" data-planning-quality-audit>
+    <div class="course-planning-quality-head">
+      <div>
+        <strong>בדיקת איכות התכנון</strong>
+        <span>ביקורת מערכתית על תקינות, כיסוי, רציפות ועומס מדריכים</span>
+      </div>
+      <span class="course-planning-quality-status is-${escapeHtml(audit.tone)}">${escapeHtml(audit.status)}</span>
+    </div>
+    <div class="course-planning-quality-grid">
+      <article><b>${audit.coveragePercent}%</b><span>פעילויות עם מדריך</span><small>${audit.coveredActivities} מתוך ${audit.totalActivities}</small></article>
+      <article class="${audit.conflicts.length ? 'is-alert' : 'is-ok'}"><b>${audit.conflicts.length}</b><span>חפיפות מדריך</span><small>${audit.conflicts.length ? 'דורש טיפול' : 'ללא התנגשויות'}</small></article>
+      <article class="${audit.unverifiedRows.length ? 'is-alert' : 'is-ok'}"><b>${audit.unverifiedRows.length}</b><span>נסיעות לא מאומתות</span><small>${audit.unverifiedRows.length ? 'אין לאשר לפני אימות' : 'הצעות התכנון מאומתות'}</small></article>
+      <article><b>${audit.recruitmentRows.length}</b><span>נדרש גיוס</span><small>${audit.unresolvedRows.length} נוספות לבירור</small></article>
+      <article><b>${audit.packedDayPercent}%</b><span>ימי עבודה מרוכזים</span><small>${audit.packedDays} מתוך ${audit.workDays} ימי מדריך</small></article>
+      <article><b>${audit.singletonDays}</b><span>ימים עם פעילות אחת</span><small>יעד לשיפור רציפות</small></article>
+      <article><b>${scoreText}</b><span>ציון תפעולי ממוצע</span><small>להצעות שחושבו</small></article>
+      <article><b>${audit.totalHours}</b><span>שעות הדרכה מתוכננות</span><small>${audit.instructorCount} מדריכים</small></article>
+    </div>
+    <div class="course-planning-quality-efficiency">
+      <span><strong>${audit.sameSchoolMeetings}</strong> מפגשים מתחברים לאותו בית ספר</span>
+      <span><strong>${audit.sameAuthorityMeetings}</strong> משתלבים באותה רשות</span>
+      <span><strong>${audit.nearbyMeetings}</strong> משתלבים באזור סמוך</span>
+      <span><strong>${audit.newWorkDayMeetings}</strong> מפגשים פותחים יום עבודה חדש</span>
+    </div>
+    <details class="course-planning-quality-details"${issueCount ? ' open' : ''}>
+      <summary>חריגים לטיפול (${issueCount})</summary>
+      ${planningQualityIssuesHtml(audit)}
+    </details>
+    <details class="course-planning-quality-details">
+      <summary>עומס ורציפות לפי מדריך (${audit.instructorCount})</summary>
+      ${planningQualityInstructorTableHtml(audit)}
+    </details>
+  </section>`;
+}
+
 export function planningInstructorScheduleHtml(rows = []) {
   const schedules = planningInstructorSchedules(rows);
   if (!schedules.length) return '';
@@ -1884,6 +2154,7 @@ export function planningTabHtml({
       <article><b>${waiting}</b><span>נדרש בירור נוסף</span></article>
       <article><b>${recruitment}</b><span>נדרש גיוס</span></article>
     </div>
+    ${calculatedAt && rows.length && !loading ? planningQualityAuditHtml(rows, { pendingChanges: pendingCount }) : ''}
     ${planningRowsHtml(rows, { loading })}
     ${calculatedAt && rows.length && pendingCount === 0 ? `<details class="course-planning-instructor-overview"><summary>מערכת מלאה לפי מדריך</summary>${planningInstructorScheduleHtml(rows)}</details>` : ''}
     ${routeStats ? `<p class="course-planning-route-stats">בדיקות מרחק: ${Number(routeStats.cacheHits) || 0} מהמטמון · ${Number(routeStats.googleCalls) || 0} חישובים חדשים</p>` : ''}
