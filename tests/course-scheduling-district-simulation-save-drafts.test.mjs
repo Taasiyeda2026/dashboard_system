@@ -443,16 +443,13 @@ test('confirm dialog copy and save-result message match the product wording', ()
   assert.match(panel, /ביטול/);
 });
 
-test('bind: only selected valid proposals are saved through the existing draft RPC', async () => {
+test('main workboard does not expose legacy bulk simulation draft actions', () => {
   const openReady = course('save-ready');
   const openReview = course('save-review');
   const simulation = runDistrictSchedulingSimulation(simulationInput({
     activities: [openReady, openReview],
     travel: mergeTravel(travelFor('save-ready'), travelFor('save-review'))
   }));
-  assert.ok(simulation.rows.length >= 1);
-  const readyRow = simulation.rows.find((row) => row.status === DISTRICT_SIMULATION_STATUSES.ready)
-    || simulation.rows[0];
   const state = {
     user: { role: 'admin' },
     courseSchedulingTab: 'courses',
@@ -462,7 +459,7 @@ test('bind: only selected valid proposals are saved through the existing draft R
     courseSchedulingSimulationRows: simulation.rows,
     courseSchedulingSimulationCounts: simulation.counts,
     courseSchedulingSimulationResults: simulation.results,
-    courseSchedulingSimulationSelectedIds: [readyRow.courseId],
+    courseSchedulingSimulationSelectedIds: simulation.rows.map((row) => row.courseId),
     courseSchedulingSimulationConfirmSave: true,
     courseSchedulingResults: [],
     courseSchedulingSelectedId: ''
@@ -473,57 +470,13 @@ test('bind: only selected valid proposals are saved through the existing draft R
     scheduling: { profiles: [{ emp_id: '100', ...profile }], rules: weekdayRules.map((rule) => ({ ...rule, emp_id: '100' })), exceptions: [] },
     meetingState: { loaded: true, approvedDates: new Map(), cancelledDates: new Map(), error: '' }
   }, { state });
-  assert.match(html, /data-save-simulation-drafts/);
-  assert.match(html, /data-confirm-simulation-draft-save/);
 
-  const rpcCalls = [];
-  const originalRpc = supabase.rpc;
-  supabase.rpc = async (name, payload) => {
-    rpcCalls.push({ name, payload });
-    return { data: null, error: null };
-  };
-
-  const dom = new JSDOM(`<!doctype html><html><body><div id="root">${html}</div></body></html>`, { url: 'https://example.test' });
-  globalThis.window = dom.window;
-  globalThis.document = dom.window.document;
-  const root = document.getElementById('root');
-  let renders = 0;
-  courseSchedulingScreen.bind({
-    root,
-    data: {
-      activities: [openReady, openReview],
-      instructors: [instructor],
-      scheduling: { profiles: [{ emp_id: '100', ...profile }], rules: weekdayRules.map((rule) => ({ ...rule, emp_id: '100' })), exceptions: [] },
-      meetingState: { loaded: true, approvedDates: new Map(), cancelledDates: new Map(), error: '' },
-      schoolLocations: [],
-      schoolCalendar: []
-    },
-    state,
-    clearScreenDataCache: () => {},
-    rerender: () => { renders += 1; }
-  });
-
-  root.querySelector('[data-confirm-simulation-draft-save]').click();
-  await new Promise((resolve) => setTimeout(resolve, 0));
-  await new Promise((resolve) => setTimeout(resolve, 0));
-
-  assert.ok(rpcCalls.length >= 1);
-  for (const call of rpcCalls) {
-    assert.ok(
-      call.name === 'save_course_assignment_draft' || call.name === 'save_course_assignment_draft_with_dates',
-      `unexpected rpc ${call.name}`
-    );
-    assert.equal(call.payload.p_activity_id, readyRow.courseId);
-    assert.equal(Number(call.payload.p_emp_id), 100);
-  }
-  assert.ok(!rpcCalls.some((call) => String(call.name).includes('assign_activity_instructor')));
-  assert.ok(renders >= 1);
-  assert.ok(state.courseSchedulingSimulationSaveResult?.saved >= 1);
-  assert.ok(!state.courseSchedulingSimulationRows.some((row) => row.courseId === readyRow.courseId));
-
-  supabase.rpc = originalRpc;
-  delete globalThis.window;
-  delete globalThis.document;
+  assert.match(html, /data-cs-ui="simple-workboard-20260924-v1"/);
+  assert.doesNotMatch(html, /data-save-simulation-drafts/);
+  assert.doesNotMatch(html, /data-confirm-simulation-draft-save/);
+  assert.doesNotMatch(html, /data-district-simulation-panel/);
+  assert.equal(state.courseSchedulingSimulationView, false);
+  assert.equal(state.courseSchedulingSimulationConfirmSave, false);
 });
 
 test('checkbox defaults: ready and review checked; recruit/missing disabled', () => {
