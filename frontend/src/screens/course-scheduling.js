@@ -391,7 +391,7 @@ function filteredInterfaceCourses(courses = [], state = {}) {
   return courses
     .filter((activity) => activityType === 'all' || schedulingActivityTypeCategory(activity.activity_type || activity.type) === activityType)
     .filter((course) => {
-      const meetings = activityMeetings(course);
+      const meetings = schedulingCalendarMeetings(course);
       return meetings.length === 0 || filterMeetingsByCourseSchedulingPeriod(meetings, periodKey).length;
     })
     .filter((course) => !district || districtValue(course) === district)
@@ -1641,8 +1641,10 @@ export const courseSchedulingScreen = {
     const invokeDistanceRoute = (body) => supabase.functions.invoke('scheduling-route', { body });
 
     const planningScope = () => {
-      const periodKey = planningPeriodKey(state);
-      const district = normalizeOperationalDistrict(state.courseSchedulingPlanningDistrict || '');
+      const periodKey = DEFAULT_PLANNING_PERIOD_KEY;
+      const district = '';
+      state.courseSchedulingPlanningPeriodKey = periodKey;
+      state.courseSchedulingPlanningDistrict = district;
       return { periodKey, district, key: `${periodKey}|${district}` };
     };
 
@@ -1732,7 +1734,7 @@ export const courseSchedulingScreen = {
 
     const currentPlanningScope = planningScope();
     if (
-      activeTab(state) === 'planning'
+      activeTab(state) !== 'maintenance'
       && data._planningSharedLoadedKey !== currentPlanningScope.key
       && !state.courseSchedulingPlanningLoading
     ) {
@@ -1740,20 +1742,29 @@ export const courseSchedulingScreen = {
       reloadSharedPlanningState()
         .then(() => {
           rerender();
-          // A real assignment/draft made since the last shared plan is already an
-          // operational anchor. Refresh only the rows that depend on that change;
-          // never force the user to rebuild the whole year after ordinary work.
+          const affected = (state.courseSchedulingPlanningAffectedIds || []).length;
           if (
             state.courseSchedulingPlanningCalculatedAt
-            && (state.courseSchedulingPlanningAffectedIds || []).length > 0
+            && affected > 0
             && !state.courseSchedulingPlanningLoading
           ) {
             void runCoursePlanning({ forceFull: false });
+            return;
+          }
+          if (
+            !state.courseSchedulingPlanningCalculatedAt
+            && !state.courseSchedulingPlanningLoading
+            && data._planningAutoStartedKey !== currentPlanningScope.key
+          ) {
+            data._planningAutoStartedKey = currentPlanningScope.key;
+            void runCoursePlanning({ forceFull: true });
           }
         })
         .catch((error) => {
           data._planningSharedLoadedKey = '';
-          state.courseSchedulingPlanningError = planningStoreErrorMessage(error, 'רענון התכנון המשותף נכשל');
+          data._planningAutoStartedKey = currentPlanningScope.key;
+          state.courseSchedulingPlanningSharedLoaded = true;
+          state.courseSchedulingPlanningError = planningStoreErrorMessage(error, 'טעינת הצעות השיבוץ נכשלה');
           rerender();
         });
     }
@@ -1819,6 +1830,7 @@ export const courseSchedulingScreen = {
       }
     };
 
+    let planningProgressRenderedAt = 0;
     const runCoursePlanning = async ({ forceFull = false } = {}) => {
       if (state.courseSchedulingPlanningLoading) return;
       const scope = planningScope();
@@ -1901,7 +1913,12 @@ export const courseSchedulingScreen = {
               total: progress.total
             };
             if (Array.isArray(progress.rows)) state.courseSchedulingPlanningRows = progress.rows;
-            rerender();
+            const now = Date.now();
+            const complete = Number(progress.total) > 0 && Number(progress.completed) >= Number(progress.total);
+            if (complete || now - planningProgressRenderedAt >= 250) {
+              planningProgressRenderedAt = now;
+              rerender();
+            }
           }
         });
 
