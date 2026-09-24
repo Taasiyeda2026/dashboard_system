@@ -68,6 +68,7 @@ import {
   planningDataFingerprint,
   planningTabHtml
 } from './course-scheduling-planning.js';
+import { exportPlanningWorkbook } from './course-scheduling-planning-export.js';
 
 export { formatWorkloadHours, MAX_HOME_DISTANCE_KM, formatAffectedMeetingsPhrase };
 
@@ -1460,6 +1461,8 @@ export const courseSchedulingScreen = {
       state.courseSchedulingPlanningError = '';
       state.courseSchedulingPlanningFingerprint = '';
       state.courseSchedulingPlanningLocks = {};
+      state.courseSchedulingPlanningDirtyLockIds = [];
+      state.courseSchedulingPlanningBeforeLock = {};
     }
     const hasTrustedPlanningRows = !!state.courseSchedulingPlanningRows?.length
       && (
@@ -1495,7 +1498,8 @@ export const courseSchedulingScreen = {
               districts: OPERATIONAL_DISTRICTS,
               periodKey: activePlanningPeriodKey,
               calculatedAt: state.courseSchedulingPlanningCalculatedAt || '',
-              routeStats: state.courseSchedulingPlanningRouteStats || null
+              routeStats: state.courseSchedulingPlanningRouteStats || null,
+              pendingChanges: (state.courseSchedulingPlanningDirtyLockIds || []).length
             })
           : `${schedulingScopeHtml(allInterfaceCourses, state, data.activities || [])}
       ${state.courseSchedulingSimulationView
@@ -1629,6 +1633,8 @@ export const courseSchedulingScreen = {
       state.courseSchedulingPlanningCalculatedAt = '';
       state.courseSchedulingPlanningRouteStats = null;
       state.courseSchedulingPlanningFingerprint = '';
+      state.courseSchedulingPlanningDirtyLockIds = [];
+      state.courseSchedulingPlanningBeforeLock = {};
       if (clearLocks) state.courseSchedulingPlanningLocks = {};
     };
 
@@ -1694,6 +1700,8 @@ export const courseSchedulingScreen = {
           state.courseSchedulingPlanningRouteStats = null;
           state.courseSchedulingPlanningFingerprint = '';
           state.courseSchedulingPlanningLocks = {};
+          state.courseSchedulingPlanningDirtyLockIds = [];
+          state.courseSchedulingPlanningBeforeLock = {};
           state.courseSchedulingPlanningError = 'נתוני השיבוץ השתנו — יש לחשב מחדש.';
           return;
         }
@@ -1704,6 +1712,8 @@ export const courseSchedulingScreen = {
           dateStyle: 'short',
           timeStyle: 'short'
         }).format(new Date());
+        state.courseSchedulingPlanningDirtyLockIds = [];
+        state.courseSchedulingPlanningBeforeLock = {};
         clearScreenDataCache?.();
       } catch (error) {
         state.courseSchedulingPlanningError = `חישוב התכנון נכשל: ${error?.message || error}`;
@@ -1722,19 +1732,57 @@ export const courseSchedulingScreen = {
       startRange: option.startRange ? { ...option.startRange } : option.startRange
     });
 
+    const markPlanningDirty = (courseId) => {
+      const ids = new Set(state.courseSchedulingPlanningDirtyLockIds || []);
+      if (courseId) ids.add(courseId);
+      state.courseSchedulingPlanningDirtyLockIds = [...ids];
+    };
+
     root.querySelectorAll('[data-planning-pick-option]').forEach((button) => button.addEventListener('click', () => {
       if (state.courseSchedulingPlanningLoading) return;
       const courseId = text(button.dataset.planningCourseId);
       const optionIndex = Number(button.dataset.planningOptionIndex);
-      const row = (state.courseSchedulingPlanningRows || []).find((item) => text(item.courseId) === courseId);
+      const rowIndex = (state.courseSchedulingPlanningRows || []).findIndex((item) => text(item.courseId) === courseId);
+      const row = rowIndex >= 0 ? state.courseSchedulingPlanningRows[rowIndex] : null;
       const option = Number.isInteger(optionIndex) ? row?.options?.[optionIndex] : null;
       if (!courseId || !option?.instructorEmpId || !(option.meetings || []).length) return;
+
+      state.courseSchedulingPlanningBeforeLock ||= {};
+      if (!state.courseSchedulingPlanningBeforeLock[courseId]) {
+        state.courseSchedulingPlanningBeforeLock[courseId] = structuredClone(row);
+      }
 
       state.courseSchedulingPlanningLocks = {
         ...(state.courseSchedulingPlanningLocks || {}),
         [courseId]: clonePlanningOption(option)
       };
-      void runCoursePlanning();
+      markPlanningDirty(courseId);
+
+      const reorderedOptions = [
+        clonePlanningOption(option),
+        ...(row.options || [])
+          .filter((_, index) => index !== optionIndex)
+          .map((item) => clonePlanningOption(item))
+      ];
+      const nextRow = {
+        ...row,
+        kind: 'planning-locked',
+        status: 'נקבע בתכנון',
+        planningLocked: true,
+        startDate: option.startDate || '',
+        endDate: option.endDate || '',
+        startTime: option.startTime || '',
+        endTime: option.endTime || '',
+        instructorName: option.instructorName || '',
+        instructorEmpId: option.instructorEmpId || '',
+        meetings: (option.meetings || []).map((meeting) => ({ ...meeting })),
+        options: reorderedOptions,
+        reason: 'הבחירה נשמרה. שאר המערכת תעודכן יחד בסיום סבב הבחירות.'
+      };
+      state.courseSchedulingPlanningRows = state.courseSchedulingPlanningRows.map((item, index) =>
+        index === rowIndex ? nextRow : item
+      );
+      rerender();
     }));
 
     root.querySelectorAll('[data-planning-unlock]').forEach((button) => button.addEventListener('click', () => {
@@ -1744,11 +1792,47 @@ export const courseSchedulingScreen = {
       const nextLocks = { ...(state.courseSchedulingPlanningLocks || {}) };
       delete nextLocks[courseId];
       state.courseSchedulingPlanningLocks = nextLocks;
-      void runCoursePlanning();
+      markPlanningDirty(courseId);
+
+      const before = state.courseSchedulingPlanningBeforeLock?.[courseId];
+      if (before) {
+        state.courseSchedulingPlanningRows = (state.courseSchedulingPlanningRows || []).map((row) =>
+          text(row.courseId) === courseId ? structuredClone(before) : row
+        );
+        const nextBefore = { ...(state.courseSchedulingPlanningBeforeLock || {}) };
+        delete nextBefore[courseId];
+        state.courseSchedulingPlanningBeforeLock = nextBefore;
+      } else {
+        state.courseSchedulingPlanningRows = (state.courseSchedulingPlanningRows || []).map((row) =>
+          text(row.courseId) === courseId
+            ? {
+                ...row,
+                kind: 'proposal',
+                status: 'ממתין לעדכון תכנון',
+                planningLocked: false,
+                reason: 'השחרור נשמר. לחצו "עדכן את שאר המערכת" כדי לחשב מחדש.'
+              }
+            : row
+        );
+      }
+      rerender();
     }));
 
     root.querySelector('[data-run-course-planning]')?.addEventListener('click', () => {
       void runCoursePlanning();
+    });
+    root.querySelector('[data-export-course-planning]')?.addEventListener('click', () => {
+      const rows = state.courseSchedulingPlanningRows || [];
+      if (!state.courseSchedulingPlanningCalculatedAt || !rows.length) {
+        showToast('קודם יש לבנות את מערכת ההדרכות המלאה.', 'info');
+        return;
+      }
+      try {
+        const filename = exportPlanningWorkbook(rows);
+        showToast(`קובץ Excel נוצר: ${filename}`);
+      } catch (error) {
+        showToast(error?.message || 'ייצוא Excel נכשל.', 'error');
+      }
     });
     root.querySelector('[data-clear-course-planning]')?.addEventListener('click', () => {
       clearCoursePlanning();
