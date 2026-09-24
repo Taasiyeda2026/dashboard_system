@@ -315,7 +315,7 @@ test('8. district simulation path does not call write API or assignment RPCs', a
   assert.match(moduleSource, /authority:\s*''/);
 });
 
-test('9. clicking a simulation row opens the existing course detail', () => {
+test('9. legacy simulation state falls back to the main scheduling workboard', () => {
   const open = course('open-detail');
   const simulation = runDistrictSchedulingSimulation(simulationInput({
     activities: [open],
@@ -340,9 +340,13 @@ test('9. clicking a simulation row opens the existing course detail', () => {
     scheduling: { profiles: [{ emp_id: '100', ...profile }], rules: weekdayRules.map((rule) => ({ ...rule, emp_id: '100' })), exceptions: [] },
     meetingState: { loaded: true, approvedDates: new Map(), cancelledDates: new Map(), error: '' }
   }, { state });
-  assert.match(html, /data-district-simulation-panel/);
-  assert.match(html, new RegExp(DISTRICT_SIMULATION_LABEL.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
-  assert.match(html, /data-simulation-course-row="open-detail"/);
+
+  assert.match(html, /data-cs-ui="simple-workboard-20260924-v1"/);
+  assert.doesNotMatch(html, /data-district-simulation-panel/);
+  assert.doesNotMatch(html, /data-simulation-course-row="open-detail"/);
+  assert.match(html, /data-course-card="open-detail"/);
+  assert.equal(state.courseSchedulingSimulationView, false);
+  assert.equal(state.courseSchedulingSimulationConfirmSave, false);
 
   const dom = new JSDOM(`<!doctype html><html><body><div id="root">${html}</div></body></html>`, { url: 'https://example.test' });
   globalThis.window = dom.window;
@@ -362,11 +366,8 @@ test('9. clicking a simulation row opens the existing course detail', () => {
     state,
     rerender: () => { renders += 1; }
   });
-  root.querySelector('[data-simulation-course-row="open-detail"]').click();
+  root.querySelector('[data-course-card="open-detail"]').click();
   assert.equal(state.courseSchedulingSelectedId, 'open-detail');
-  assert.equal(state.courseSchedulingSimulationView, false);
-  assert.equal(state.courseSchedulingTab, 'courses');
-  assert.ok((state.courseSchedulingResults || []).some((result) => result.course?.row_id === 'open-detail'));
   assert.ok(renders >= 1);
   delete globalThis.window;
   delete globalThis.document;
