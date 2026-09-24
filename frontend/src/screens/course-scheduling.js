@@ -1595,7 +1595,7 @@ export const courseSchedulingScreen = {
         : null);
 
     return dsScreenStack(`${instructorsWorkspaceNavStylesHtml()}
-    <div class="course-scheduling-screen is-simple-workboard" dir="rtl" data-cs-ui="simple-workboard-20260924-v1" data-cs-tab="${escapeHtml(tab)}">
+    <div class="course-scheduling-screen is-compact-symmetric-layout is-simple-workboard" dir="rtl" data-cs-ui="simple-workboard-20260924-v1" data-cs-tab="${escapeHtml(tab)}">
       ${instructorsWorkspaceHeaderHtml({
         activeTab: tab === 'maintenance' ? 'maintenance' : 'scheduling',
         state
