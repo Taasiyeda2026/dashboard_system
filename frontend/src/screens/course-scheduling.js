@@ -1461,6 +1461,8 @@ export const courseSchedulingScreen = {
       state.courseSchedulingPlanningError = '';
       state.courseSchedulingPlanningFingerprint = '';
       state.courseSchedulingPlanningLocks = {};
+      state.courseSchedulingPlanningDirtyLockIds = [];
+      state.courseSchedulingPlanningBeforeLock = {};
     }
     const hasTrustedPlanningRows = !!state.courseSchedulingPlanningRows?.length
       && (
@@ -1698,6 +1700,8 @@ export const courseSchedulingScreen = {
           state.courseSchedulingPlanningRouteStats = null;
           state.courseSchedulingPlanningFingerprint = '';
           state.courseSchedulingPlanningLocks = {};
+          state.courseSchedulingPlanningDirtyLockIds = [];
+          state.courseSchedulingPlanningBeforeLock = {};
           state.courseSchedulingPlanningError = 'נתוני השיבוץ השתנו — יש לחשב מחדש.';
           return;
         }
