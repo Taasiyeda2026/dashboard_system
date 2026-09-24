@@ -50,6 +50,26 @@ const yieldToBrowser = () => new Promise((resolve) => {
   else setTimeout(resolve, 0);
 });
 
+const planningNow = () => (
+  typeof performance !== 'undefined' && typeof performance.now === 'function'
+    ? performance.now()
+    : Date.now()
+);
+
+function createPlanningCooperativeYielder({ budgetMs = 10 } = {}) {
+  let sliceStartedAt = planningNow();
+  return async ({ force = false } = {}) => {
+    const now = planningNow();
+    if (!force && now - sliceStartedAt < budgetMs) return;
+    if (globalThis.scheduler && typeof globalThis.scheduler.yield === 'function') {
+      await globalThis.scheduler.yield();
+    } else {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+    sliceStartedAt = planningNow();
+  };
+}
+
 function timeMinutes(value) {
   const match = text(value).match(/^(\d{1,2}):(\d{2})/);
   if (!match) return null;
@@ -367,14 +387,16 @@ function dynamicTimesForWeekday({
   activity = {},
   instructors = [],
   rules = {},
-  activities = []
+  activities = [],
+  activeIds = null,
+  blockingMeetingRows = null
 } = {}) {
   const counts = new Map(DEFAULT_TIME_SLOTS.map((slot) => [slot, 1]));
-  const activeIds = activeInstructorIds(instructors);
+  const resolvedActiveIds = activeIds instanceof Set ? activeIds : activeInstructorIds(instructors);
   const requestedStart = validTimeRange(activity.start_time, activity.end_time) ? text(activity.start_time).slice(0, 5) : '';
   if (requestedStart) counts.set(requestedStart, (counts.get(requestedStart) || 0) + 50);
 
-  for (const empId of activeIds) {
+  for (const empId of resolvedActiveIds) {
     const weekdayRules = (rules[empId] || []).filter((rule) =>
       Number(rule.weekday) === Number(targetWeekday) && rule.available === true
     );
@@ -389,7 +411,7 @@ function dynamicTimesForWeekday({
     }
   }
 
-  for (const meeting of blockingMeetings(activities)) {
+  for (const meeting of (Array.isArray(blockingMeetingRows) ? blockingMeetingRows : blockingMeetings(activities))) {
     if (weekday(meeting.date) !== Number(targetWeekday)) continue;
     const after = text(meeting.end_time).slice(0, 5);
     const beforeMinute = timeMinutes(meeting.start_time) - durationMinutes;
@@ -408,7 +430,18 @@ function dynamicTimesForWeekday({
     .map(([slot]) => slot);
 }
 
-function candidateStartDates({ activity, targetWeekday, sessions, startTime, durationMinutes, schoolCalendar = [], today, activities = [], periodKey = DEFAULT_PLANNING_PERIOD_KEY } = {}) {
+function candidateStartDates({
+  activity,
+  targetWeekday,
+  sessions,
+  startTime,
+  durationMinutes,
+  schoolCalendar = [],
+  today,
+  activities = [],
+  blockingActivityRows = null,
+  periodKey = DEFAULT_PLANNING_PERIOD_KEY
+} = {}) {
   const period = planningEffectivePeriod(periodKey);
   const fixedStart = text(activityMeetings(activity)
     .map((meeting) => text(meeting?.date).slice(0, 10))
@@ -435,7 +468,7 @@ function candidateStartDates({ activity, targetWeekday, sessions, startTime, dur
   const values = new Set();
   if (earliest && earliest <= period.end) values.add(earliest);
 
-  const releaseDates = blockingActivities(activities)
+  const releaseDates = (Array.isArray(blockingActivityRows) ? blockingActivityRows : blockingActivities(activities))
     .flatMap((activity) => {
       const meetings = schedulingCalendarMeetings(activity);
       const last = meetings.map((meeting) => text(meeting.date).slice(0, 10)).filter(Boolean).sort().at(-1);
@@ -462,18 +495,28 @@ function ruleCovers(rule, startTime, endTime) {
   return start != null && end != null && ruleStart != null && ruleEnd != null && start >= ruleStart && end <= ruleEnd;
 }
 
-function scenarioHeuristic({ scenario, instructors = [], rules = {}, activities = [] } = {}) {
-  const activeIds = activeInstructorIds(instructors);
+function scenarioHeuristic({
+  scenario,
+  instructors = [],
+  rules = {},
+  activities = [],
+  activeIds = null,
+  blockingMeetingRows = null
+} = {}) {
+  const resolvedActiveIds = activeIds instanceof Set ? activeIds : activeInstructorIds(instructors);
+  const resolvedBlockingMeetings = Array.isArray(blockingMeetingRows)
+    ? blockingMeetingRows
+    : blockingMeetings(activities);
   const day = weekday(scenario.startDate);
   let availabilityCoverage = 0;
-  for (const empId of activeIds) {
+  for (const empId of resolvedActiveIds) {
     if ((rules[empId] || []).some((rule) => Number(rule.weekday) === day && ruleCovers(rule, scenario.startTime, scenario.endTime))) {
       availabilityCoverage += 1;
     }
   }
 
   let adjacency = 0;
-  for (const meeting of blockingMeetings(activities)) {
+  for (const meeting of resolvedBlockingMeetings) {
     if (weekday(meeting.date) !== day) continue;
     if (text(meeting.end_time).slice(0, 5) === scenario.startTime || text(meeting.start_time).slice(0, 5) === scenario.endTime) adjacency += 1;
   }
@@ -496,7 +539,10 @@ export function generatePlanningScenarios({
   if (!spec.complete) return { spec, scenarios: [], startRange: null };
 
   const raw = [];
-  const fridayPossible = activeInstructorIds(instructors).size > 0 && instructors.some((instructor) => {
+  const scenarioActiveIds = activeInstructorIds(instructors);
+  const scenarioBlockingActivities = blockingActivities(activities);
+  const scenarioBlockingMeetings = blockingMeetings(scenarioBlockingActivities);
+  const fridayPossible = scenarioActiveIds.size > 0 && instructors.some((instructor) => {
     const empId = text(instructor.emp_id);
     return !!profiles[empId]?.friday_allowed
       && (rules[empId] || []).some((rule) => Number(rule.weekday) === 5 && rule.available === true);
@@ -519,7 +565,9 @@ export function generatePlanningScenarios({
           activity,
           instructors,
           rules,
-          activities
+          activities,
+          activeIds: scenarioActiveIds,
+          blockingMeetingRows: scenarioBlockingMeetings
         });
     for (const startTime of times) {
       const built = buildFixedDatePlanningMeetings({
@@ -532,7 +580,14 @@ export function generatePlanningScenarios({
       if (!built) continue;
       raw.push({
         ...built,
-        heuristic: scenarioHeuristic({ scenario: built, instructors, rules, activities })
+        heuristic: scenarioHeuristic({
+          scenario: built,
+          instructors,
+          rules,
+          activities,
+          activeIds: scenarioActiveIds,
+          blockingMeetingRows: scenarioBlockingMeetings
+        })
       });
     }
   } else {
@@ -549,7 +604,12 @@ export function generatePlanningScenarios({
           });
       const starts = [...new Set(times.flatMap((startTime) => candidateStartDates({
         activity, targetWeekday: day, sessions: spec.sessions, startTime,
-        durationMinutes: spec.durationMinutes, schoolCalendar, today, activities, periodKey
+        durationMinutes: spec.durationMinutes,
+        schoolCalendar,
+        today,
+        activities,
+        blockingActivityRows: scenarioBlockingActivities,
+        periodKey
       })))];
       for (const startDate of starts) {
         for (const startTime of times) {
@@ -565,7 +625,14 @@ export function generatePlanningScenarios({
           if (!built) continue;
           raw.push({
             ...built,
-            heuristic: scenarioHeuristic({ scenario: built, instructors, rules, activities })
+            heuristic: scenarioHeuristic({
+          scenario: built,
+          instructors,
+          rules,
+          activities,
+          activeIds: scenarioActiveIds,
+          blockingMeetingRows: scenarioBlockingMeetings
+        })
           });
         }
       }
@@ -593,7 +660,7 @@ export function generatePlanningScenarios({
   // for generic high-score scenarios. A key is one instructor + one available
   // weekday; greedy coverage prevents a common 08:00 window from hiding a
   // narrower instructor/day window.
-  const activeIds = activeInstructorIds(instructors);
+  const activeIds = scenarioActiveIds;
   const uncoveredAvailability = new Set();
   for (const empId of activeIds) {
     for (const rule of rules[empId] || []) {
@@ -840,6 +907,7 @@ async function evaluateScenarioOptions({
   routeClient,
   periodKey = DEFAULT_PLANNING_PERIOD_KEY
 } = {}) {
+  const yieldControl = createPlanningCooperativeYielder({ budgetMs: 10 });
   const preliminaries = [];
   for (let index = 0; index < scenarios.length; index += 1) {
     const course = scenarioCourse(activity, scenarios[index], index);
@@ -862,6 +930,7 @@ async function evaluateScenarioOptions({
         planningOptimization: planningOptimizationScore(candidate)
       });
     }
+    await yieldControl();
   }
   if (!preliminaries.length) {
     return {
@@ -919,6 +988,7 @@ async function evaluateScenarioOptions({
       if (optionKeys.has(key)) continue;
       optionKeys.add(key);
       options.push({ ...option, _candidate: finalCandidate });
+      await yieldControl();
     }
   }
 
