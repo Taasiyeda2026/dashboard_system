@@ -4,6 +4,8 @@ export const COURSE_SCHEDULING_PERIODS = Object.freeze({
   second: Object.freeze({ key: 'second', label: "מחצית ב'", start: '2027-01-31', end: '2027-06-30' })
 });
 
+export const FIRST_HALF_CONTINUATION_END_DATE = '2027-02-28';
+
 export const DEFAULT_COURSE_SCHEDULING_PERIOD_KEY = 'first';
 
 const text = (value) => String(value ?? '').trim();
