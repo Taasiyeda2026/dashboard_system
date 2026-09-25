@@ -1210,6 +1210,13 @@ test('background planning keeps the workboard scroll stable instead of rerenderi
   assert.match(screen, /const updatePlanningStatusInPlace = \(\) =>/);
   assert.match(screen, /scheduleCoursePlanningStart\(\{/);
   assert.match(screen, /pending\.idleId = requestIdle\(run, \{ timeout: 600 \}\)/);
+  const ownsRunStart = screen.indexOf('const ownsRun = () => (');
+  const ownsRunEnd = screen.indexOf(');', ownsRunStart);
+  const ownsRun = screen.slice(ownsRunStart, ownsRunEnd);
+  assert.match(ownsRun, /activePlanningRun === run/);
+  assert.match(ownsRun, /run\.generation === planningRunGeneration/);
+  assert.match(ownsRun, /state\.route === 'course-scheduling'/);
+  assert.doesNotMatch(ownsRun, /root\.isConnected/);
   assert.match(planningRun, /onProgress: \(progress\) =>/);
   assert.match(planningRun, /updatePlanningStatusInPlace\(\)/);
   assert.doesNotMatch(planningRun, /rerender\(\)/);
