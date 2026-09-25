@@ -98,3 +98,198 @@ grant execute on function public.get_payroll_attendance_location_contexts(bigint
 
 comment on function public.get_payroll_attendance_location_contexts(bigint[],date,date) is
   'Manager-scoped physical attendance destinations. Supports schools and non-school locations without treating missing school_id as a missing route.';
+
+-- Travel compensation must use a physical destination, not require a school.
+-- School-backed attendance keeps the existing validated school path; rows with a
+-- trusted destination snapshot can use a generic location identity.
+create or replace function public.av2_attendance_travel_context(
+  p_source_id uuid,
+  p_actor_id uuid default auth.uid()
+)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = public, extensions
+as $$
+declare
+  s public.attendance_records%rowtype;
+  a public.activities%rowtype;
+  v_emp bigint;
+  instructor_address text;
+  destination_address text;
+  school_name text;
+  valid_school boolean := false;
+  fingerprint text;
+  excluded_type text;
+  normalized_name text;
+  destination_key text;
+begin
+  select u.emp_id::bigint
+    into v_emp
+  from public.users u
+  where u.auth_user_id = p_actor_id
+    and u.is_active = true
+  limit 1;
+
+  if v_emp is null then
+    raise exception 'attendance_auth_required' using errcode = '42501';
+  end if;
+
+  select *
+    into s
+  from public.attendance_records
+  where id = p_source_id
+    and emp_id = v_emp
+    and generation_kind is null;
+
+  if not found then
+    raise exception 'attendance_source_not_found' using errcode = '22023';
+  end if;
+
+  excluded_type := regexp_replace(lower(btrim(coalesce(s.activity_type, ''))), '\s+', '', 'g');
+  normalized_name := regexp_replace(lower(btrim(coalesce(s.activity_name_snapshot, ''))), '\s+', '', 'g');
+
+  if excluded_type in ('זום', 'ביטולזמן') then
+    return jsonb_build_object('eligible', false, 'source_id', s.id);
+  end if;
+
+  select nullif(btrim(ci.address), '')
+    into instructor_address
+  from public.contacts_instructors ci
+  where ci.emp_id = v_emp
+  limit 1;
+
+  destination_address := nullif(btrim(s.destination_address_snapshot), '');
+
+  -- Any physical non-school destination with a trusted snapshot is a valid route target.
+  -- This covers training, operations, events, offices and future external locations.
+  if destination_address is not null
+     and (s.school_id is null or s.activity_row_id is null) then
+    destination_key := case
+      when excluded_type = 'הכשרה'
+       and normalized_name = regexp_replace(lower('הכשרת בסיס'), '\s+', '', 'g')
+        then 'training:base_training'
+      when excluded_type = 'תפעול'
+        then 'operation:' || lower(btrim(coalesce(s.activity_name_snapshot, s.program_name, 'תפעול')))
+      when excluded_type = 'הכשרה'
+        then 'location:training:' ||
+             lower(regexp_replace(btrim(coalesce(s.activity_name_snapshot, s.program_name, 'הכשרה')), '\s+', ' ', 'g')) ||
+             ':' || lower(regexp_replace(destination_address, '\s+', ' ', 'g'))
+      else
+        'location:external:' ||
+        lower(regexp_replace(btrim(coalesce(s.activity_name_snapshot, s.program_name, s.school_name_snapshot, 'יעד חיצוני')), '\s+', ' ', 'g')) ||
+        ':' || lower(regexp_replace(destination_address, '\s+', ' ', 'g'))
+    end;
+
+    fingerprint := encode(
+      digest(
+        concat_ws('|', v_emp,
+          lower(regexp_replace(coalesce(instructor_address, ''), '\s+', ' ', 'g')),
+          destination_key,
+          lower(regexp_replace(destination_address, '\s+', ' ', 'g')),
+          'DRIVE'),
+        'sha256'),
+      'hex');
+
+    return jsonb_build_object(
+      'eligible', true,
+      'source_id', s.id,
+      'emp_id', v_emp,
+      'activity_row_id', s.activity_row_id,
+      'school_id', s.school_id,
+      'school_name', coalesce(s.school_name_snapshot, ''),
+      'origin_address', instructor_address,
+      'destination_address', destination_address,
+      'origin_entity_key', 'instructor:' || v_emp,
+      'destination_entity_key', destination_key,
+      'destination_type', 'location',
+      'fingerprint', fingerprint,
+      'report_date', s.report_date,
+      'context_error', case when instructor_address is null then 'instructor_address_missing' else null end
+    );
+  end if;
+
+  -- A non-school training/operation row without a destination is not a route problem;
+  -- it is a missing destination-data problem and must not masquerade as a missing school.
+  if s.school_id is null and excluded_type in ('הכשרה', 'תפעול') then
+    return jsonb_build_object(
+      'eligible', false,
+      'source_id', s.id,
+      'reason', case
+        when excluded_type = 'הכשרה' then 'training_destination_missing'
+        else 'operation_destination_missing'
+      end
+    );
+  end if;
+
+  if s.activity_row_id is null or s.school_id is null then
+    return jsonb_build_object('eligible', false, 'source_id', s.id);
+  end if;
+
+  select *
+    into a
+  from public.activities
+  where row_id = s.activity_row_id
+  limit 1;
+
+  if not found or not (a.emp_id::text = v_emp::text or a.emp_id_2::text = v_emp::text) then
+    return jsonb_build_object('eligible', false, 'source_id', s.id);
+  end if;
+
+  valid_school := a.school_id = s.school_id or exists (
+    select 1
+    from public.activity_schools x
+    where x.activity_id::text = a.row_id::text
+      and x.school_id = s.school_id
+  );
+  if not valid_school then
+    raise exception 'attendance_destination_invalid' using errcode = '42501';
+  end if;
+
+  select coalesce(
+           nullif(btrim(cs.address), ''),
+           nullif(btrim(sc.institution_address), ''),
+           nullif(btrim(sc.mailing_address), '')
+         ),
+         sc.school_name
+    into destination_address, school_name
+  from public.schools sc
+  left join public.contacts_schools cs on cs.school_id = sc.id
+  where sc.id = s.school_id
+  limit 1;
+
+  fingerprint := encode(
+    digest(
+      concat_ws('|', v_emp,
+        lower(regexp_replace(coalesce(instructor_address, ''), '\s+', ' ', 'g')),
+        a.row_id,
+        s.school_id,
+        lower(regexp_replace(coalesce(destination_address, ''), '\s+', ' ', 'g')),
+        'DRIVE'),
+      'sha256'),
+    'hex');
+
+  return jsonb_build_object(
+    'eligible', true,
+    'source_id', s.id,
+    'emp_id', v_emp,
+    'activity_row_id', a.row_id,
+    'school_id', s.school_id,
+    'school_name', coalesce(school_name, s.school_name_snapshot, ''),
+    'origin_address', instructor_address,
+    'destination_address', destination_address,
+    'origin_entity_key', 'instructor:' || v_emp,
+    'destination_entity_key', 'school_id:' || s.school_id,
+    'destination_type', 'school',
+    'fingerprint', fingerprint,
+    'report_date', s.report_date,
+    'context_error', case
+      when instructor_address is null then 'instructor_address_missing'
+      when destination_address is null then 'destination_address_missing'
+      else null
+    end
+  );
+end
+$$;
+
