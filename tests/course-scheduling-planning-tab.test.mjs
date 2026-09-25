@@ -16,6 +16,7 @@ import {
   inferPlanningCourseSpec,
   latestFeasiblePlanningStart,
   planningActivityDifficulty,
+  planningActivityHasStarted,
   planningContextFingerprint,
   planningDataFingerprint,
   planningEffectivePeriod,
@@ -256,7 +257,7 @@ test('undated activities default to first half while explicit second-half dates 
   assert.deepEqual(secondHalfRows.map((row) => row.row_id), ['explicit-second']);
 });
 
-test('full-year planning still keeps an undated multi-session course entirely inside first half', () => {
+test('full-year planning keeps an undated first-half course starting in first half and allows continuation through February', () => {
   const generated = generatePlanningScenarios({
     activity: { ...baseCourse, row_id: 'undated-year', sessions: 10 },
     catalog,
@@ -272,7 +273,7 @@ test('full-year planning still keeps an undated multi-session course entirely in
   for (const scenario of generated.scenarios) {
     assert.equal(scenario.meetings.length, 10);
     assert.ok(scenario.startDate >= '2026-10-06');
-    assert.ok(scenario.endDate <= '2027-01-29');
+    assert.ok(scenario.endDate <= '2027-02-28');
   }
 
   assert.equal(buildWeeklyPlanningMeetings({
@@ -286,7 +287,7 @@ test('full-year planning still keeps an undated multi-session course entirely in
   }), null);
 });
 
-test('weekly planning starts on or after 6 October, stays inside first half and rejects late starts', () => {
+test('weekly planning starts on or after 6 October and may continue through February', () => {
   assert.equal(PLANNING_OPERATIONAL_START_DATE, '2026-10-06');
   assert.equal(planningEffectivePeriod('first').start, '2026-10-06');
   assert.equal(buildWeeklyPlanningMeetings({
@@ -312,9 +313,21 @@ test('weekly planning starts on or after 6 October, stays inside first half and 
   assert.equal(valid.startDate, '2026-10-11');
   assert.ok(valid.endDate <= '2027-01-29');
 
-  const tooLate = buildWeeklyPlanningMeetings({
+  const februaryContinuation = buildWeeklyPlanningMeetings({
     activity: baseCourse,
     startDate: '2026-12-06',
+    startTime: '08:00',
+    durationMinutes: 90,
+    sessions: 11,
+    schoolCalendar: [],
+    periodKey: 'first'
+  });
+  assert.ok(februaryContinuation);
+  assert.ok(februaryContinuation.endDate <= '2027-02-28');
+
+  const tooLate = buildWeeklyPlanningMeetings({
+    activity: baseCourse,
+    startDate: '2027-01-03',
     startTime: '08:00',
     durationMinutes: 90,
     sessions: 11,
@@ -351,7 +364,7 @@ test('planning scenarios offer dynamic dates and hours while respecting first-ha
   for (const scenario of generated.scenarios) {
     assert.equal(scenario.meetings.length, 11);
     assert.ok(scenario.startDate >= '2026-10-06');
-    assert.ok(scenario.endDate <= '2027-01-29');
+    assert.ok(scenario.endDate <= '2027-02-28');
     assert.ok(scenario.startTime);
     assert.ok(scenario.endTime);
   }
@@ -359,6 +372,65 @@ test('planning scenarios offer dynamic dates and hours while respecting first-ha
     [...new Set(generated.scenarios.map((scenario) => new Date(`${scenario.startDate}T12:00:00Z`).getUTCDay()))].sort(),
     [0, 1, 2, 3, 4]
   );
+});
+
+test('school-provided date and time stay fixed, including a course that already started', async () => {
+  const fixed = {
+    ...baseCourse,
+    row_id: 'started-fixed',
+    sessions: 2,
+    date_1: '2026-09-20',
+    date_2: '2026-09-27',
+    start_date: '2026-09-20',
+    end_date: '2026-09-27',
+    start_time: '10:00',
+    end_time: '11:30',
+    school_id: 'S1',
+    school_address: 'כתובת בית ספר'
+  };
+  assert.equal(planningActivityHasStarted(fixed, '2026-09-25'), true);
+  const result = await buildDynamicCoursePlan({
+    activities: [fixed],
+    instructors: [instructor],
+    profiles: profileMap,
+    rules: ruleMap,
+    exceptions: {},
+    schoolCalendar: [],
+    catalog,
+    today: '2026-09-25',
+    periodKey: 'year',
+    routeClient: routeClient({ distance_km: 5, duration_minutes: 10 })
+  });
+  const row = result.rows[0];
+  assert.deepEqual(row.meetings.map((meeting) => meeting.date), ['2026-09-20', '2026-09-27']);
+  assert.ok(row.meetings.every((meeting) => meeting.start_time === '10:00' && meeting.end_time === '11:30'));
+  assert.equal(row.startDate, '2026-09-20');
+});
+
+test('an already-started activity with incomplete timing is never moved to a synthetic future schedule', async () => {
+  const startedIncomplete = {
+    ...baseCourse,
+    row_id: 'started-incomplete',
+    sessions: 10,
+    date_1: '2026-09-20',
+    start_date: '2026-09-20'
+  };
+  const result = await buildDynamicCoursePlan({
+    activities: [startedIncomplete],
+    instructors: [instructor],
+    profiles: profileMap,
+    rules: ruleMap,
+    exceptions: {},
+    schoolCalendar: [],
+    catalog,
+    today: '2026-09-25',
+    periodKey: 'year',
+    routeClient: routeClient({ distance_km: 5, duration_minutes: 10 })
+  });
+  const row = result.rows[0];
+  assert.equal(row.kind, 'fixed');
+  assert.equal(row.startDate, '2026-09-20');
+  assert.match(row.reason, /כבר התחילה/);
 });
 
 test('Planning operational weights total 100 and prefer packed geography/continuity', () => {
@@ -485,8 +557,8 @@ test('official schedules are synchronized into Planning as live data and missing
   const rows = buildPlanningOverviewRows({ activities: [live, missing], catalog });
   assert.equal(rows.find((row) => row.courseId === 'live')?.kind, 'live');
   assert.equal(rows.find((row) => row.courseId === 'live')?.instructorName, 'מדריך קיים');
-  assert.equal(rows.find((row) => row.courseId === 'live')?.startDate, '2026-10-11');
-  assert.equal(rows.find((row) => row.courseId === 'live')?.sessions, 1);
+  assert.equal(rows.find((row) => row.courseId === 'live')?.startDate, '2026-10-04');
+  assert.equal(rows.find((row) => row.courseId === 'live')?.sessions, 2);
   assert.equal(rows.find((row) => row.courseId === 'missing')?.kind, 'missing');
   assert.equal(rows.find((row) => row.courseId === 'missing')?.status, 'נדרש טיפול');
 });
@@ -507,8 +579,9 @@ test('exact latest start searches backward around blocked school weeks', () => {
     periodKey: 'first'
   });
   assert.ok(built);
-  assert.ok(built.endDate <= '2027-01-29');
-  assert.equal(latest, '2027-01-03');
+  assert.ok(built.startDate <= '2027-01-29');
+  assert.ok(built.endDate <= '2027-02-28');
+  assert.equal(latest, '2027-01-17');
 });
 
 test('full-year Planning includes every supported open activity type, including second-half work', () => {
@@ -521,13 +594,13 @@ test('full-year Planning includes every supported open activity type, including 
   assert.deepEqual(rows.map((row) => row.row_id), ['course-a', 'course-b', 'workshop-a', 'tour-a']);
 });
 
-test('Planning excludes activities completed before 6 October but keeps undated and future activities', () => {
+test('Planning keeps school-fixed September activities visible while 6 October applies only to generated new dates', () => {
   const rows = planningWorkspaceCourses([
-    { ...baseCourse, row_id: 'past-workshop', activity_type: 'workshop', date_1: '2026-09-30' },
+    { ...baseCourse, row_id: 'september-fixed', activity_type: 'workshop', date_1: '2026-09-30' },
     { ...baseCourse, row_id: 'undated' },
     { ...baseCourse, row_id: 'future', date_1: '2026-10-06' }
   ]);
-  assert.deepEqual(rows.map((row) => row.row_id), ['undated', 'future']);
+  assert.deepEqual(rows.map((row) => row.row_id), ['september-fixed', 'undated', 'future']);
 });
 
 test('one-day workshops and tours derive a plannable single meeting from catalog duration', () => {
@@ -678,6 +751,10 @@ test('first-half completion overview includes live, drafts and proposals per ins
   assert.equal(overview[0].proposalCount, 0);
   assert.equal(overview[0].firstStart, '2026-10-07');
   assert.equal(overview[0].lastEnd, '2027-01-20');
+  assert.equal(overview[0].meetingCount, 2);
+  assert.equal(overview[0].teachingHours, 3);
+  assert.equal(overview[0].averageWorkDaysPerWeek, 1);
+  assert.equal(overview[0].peakWeekHours, 1.5);
   assert.deepEqual(overview[0].programs, ['ביומימיקרי', 'פורצות דרך']);
 
   const html = planningCompletionOverviewHtml(rows);
@@ -685,10 +762,12 @@ test('first-half completion overview includes live, drafts and proposals per ins
   assert.match(html, /מחצית א׳/);
   assert.match(html, /מדריך א/);
   assert.match(html, /מדריכה ב/);
-  assert.match(html, /טיוטות/);
+  assert.match(html, /ממתינים לאישור/);
   assert.match(html, /הצעות מערכת/);
   assert.match(html, /07\/10\/2026/);
   assert.match(html, /20\/01\/2027/);
+  assert.match(html, /2<\/b> מפגשים · 3 ש׳/);
+  assert.match(html, /ימי עבודה\/שבוע/);
   assert.doesNotMatch(html, /קורס מחצית ב/);
 });
 
@@ -1421,10 +1500,10 @@ test('planning fingerprint follows saved draft proposed dates and hours', () => 
   assert.notEqual(first, second);
 });
 
-test('drafts that extend beyond first half remain blockers and are clearly marked as overflow', () => {
+test('first-half drafts may continue through February without becoming an exception', () => {
   const draft = {
     ...baseCourse,
-    row_id: 'draft-overflow',
+    row_id: 'draft-february',
     sessions: 14,
     draft_emp_id: '10',
     draft_instructor_name: 'מדריך טיוטה',
@@ -1437,9 +1516,25 @@ test('drafts that extend beyond first half remain blockers and are clearly marke
   };
   const row = buildPlanningOverviewRows({ activities: [draft], catalog, periodKey: 'first' })[0];
   assert.equal(row.status, 'טיוטת שיבוץ קיימת');
-  assert.equal(row.halfOverflow, true);
-  assert.match(row.reason, /לאחר סוף תקופת התכנון/);
-  assert.match(planningRowsHtml([row]), /חורגת מתקופת התכנון/);
+  assert.equal(row.halfOverflow, false);
+  assert.equal(row.continuesIntoFebruary, true);
+  assert.match(row.reason, /נמשכת עד 07\/02\/2027 בפברואר/);
+  assert.doesNotMatch(planningRowsHtml([row]), /חורגת מתקופת התכנון/);
+
+  const tooLong = buildPlanningOverviewRows({
+    activities: [{
+      ...draft,
+      row_id: 'draft-after-february',
+      draft_proposed_meetings: [
+        { date: '2026-10-18', start_time: '13:30', end_time: '15:00' },
+        { date: '2027-03-07', start_time: '13:30', end_time: '15:00' }
+      ]
+    }],
+    catalog,
+    periodKey: 'first'
+  })[0];
+  assert.equal(tooLong.halfOverflow, true);
+  assert.match(tooLong.reason, /מעבר לסוף פברואר/);
 });
 
 test('dynamic Planning exposes partial rows through progress while the run is still calculating', async () => {

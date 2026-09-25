@@ -3,7 +3,7 @@ import { compareCandidatesStable } from './course-scheduling-score.js';
 import { calculateCandidateTravel, createRouteClient } from './course-scheduling-travel.js';
 import { activityMeetings, schedulingCalendarMeetings } from './instructor-scheduling-load.js';
 import { blockedSchoolDates, effectiveEndTime } from './course-scheduling-date-adjustments.js';
-import { planningPeriodOptions, resolveCourseSchedulingPeriod } from './course-scheduling-periods.js';
+import { FIRST_HALF_CONTINUATION_END_DATE, planningPeriodOptions, resolveCourseSchedulingPeriod } from './course-scheduling-periods.js';
 import {
   isSchedulingActivityActive,
   isSchedulingBlockingAssignment,
@@ -129,6 +129,12 @@ export function planningEffectivePeriod(periodKey = DEFAULT_PLANNING_PERIOD_KEY)
   };
 }
 
+function planningScheduleEnd(periodKey = DEFAULT_PLANNING_PERIOD_KEY) {
+  return text(periodKey) === 'first'
+    ? FIRST_HALF_CONTINUATION_END_DATE
+    : planningEffectivePeriod(periodKey).end;
+}
+
 function officialPlanningDates(activity = {}) {
   const meetingDates = activityMeetings(activity)
     .map((meeting) => text(meeting?.date).slice(0, 10))
@@ -137,6 +143,13 @@ function officialPlanningDates(activity = {}) {
   if (meetingDates.length) return meetingDates;
   const startDate = text(activity?.start_date).slice(0, 10);
   return /^\d{4}-\d{2}-\d{2}$/.test(startDate) ? [startDate] : [];
+}
+
+export function planningActivityHasStarted(activity = {}, today = '') {
+  const currentDate = text(today).slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(currentDate)) return false;
+  const firstDate = officialPlanningDates(activity)[0] || '';
+  return !!firstDate && firstDate <= currentDate;
 }
 
 /**
@@ -251,7 +264,9 @@ export const isPlanningCourse = isPlanningActivity;
 export function planningWorkspaceCourses(activities = [], district = '', periodKey = DEFAULT_PLANNING_PERIOD_KEY) {
   const normalizedDistrict = normalizeOperationalDistrict(district);
   const requested = text(periodKey) || DEFAULT_PLANNING_PERIOD_KEY;
-  const period = planningEffectivePeriod(requested);
+  const first = resolveCourseSchedulingPeriod('first');
+  const second = resolveCourseSchedulingPeriod('second');
+  const year = resolveCourseSchedulingPeriod('year');
   return (activities || [])
     .filter(isPlanningActivity)
     .filter((activity) => {
@@ -260,7 +275,10 @@ export function planningWorkspaceCourses(activities = [], district = '', periodK
         // Undated work is a first-half planning responsibility, not a second-half pool.
         return requested !== 'second';
       }
-      return officialDates.some((date) => date >= period.start && date <= period.end);
+      const firstDate = officialDates[0];
+      if (requested === 'first') return firstDate >= first.start && firstDate <= first.end;
+      if (requested === 'second') return firstDate >= second.start && firstDate <= second.end;
+      return firstDate >= year.start && firstDate <= year.end;
     })
     .filter((activity) => !normalizedDistrict || normalizeOperationalDistrict(activity.district || activity.school_district || activity.authority_district) === normalizedDistrict);
 }
@@ -287,6 +305,7 @@ export function buildWeeklyPlanningMeetings({
 } = {}) {
   const activityPeriodKey = planningPeriodKeyForActivity(activity, periodKey);
   const period = planningEffectivePeriod(activityPeriodKey);
+  const scheduleEnd = planningScheduleEnd(activityPeriodKey);
   const count = Math.max(0, Math.min(35, Math.floor(Number(sessions) || 0)));
   const duration = roundedDurationMinutes(durationMinutes);
   const startMinutes = timeMinutes(startTime);
@@ -307,7 +326,8 @@ export function buildWeeklyPlanningMeetings({
     while ((weekday(candidate) === 6 || blocked.has(candidate)) && guard++ < 30) {
       candidate = addDays(candidate, 7);
     }
-    if (!candidate || candidate > period.end || guard >= 30) return null;
+    if (!candidate || candidate > scheduleEnd || guard >= 30) return null;
+    if (index === 0 && candidate > period.end) return null;
     const cappedEnd = effectiveEndTime(candidate, endTime, calendarRows);
     if (text(cappedEnd).slice(0, 5) !== endTime) return null;
     meetings.push({
@@ -335,7 +355,10 @@ export function buildFixedDatePlanningMeetings({
   periodKey = DEFAULT_PLANNING_PERIOD_KEY
 } = {}) {
   const activityPeriodKey = planningPeriodKeyForActivity(activity, periodKey);
-  const period = planningEffectivePeriod(activityPeriodKey);
+  // A date/time already supplied by the school is an anchor, including fixed
+  // September dates before the planner's operational proposal window.
+  const period = resolveCourseSchedulingPeriod(activityPeriodKey);
+  const scheduleEnd = planningScheduleEnd(activityPeriodKey);
   const duration = roundedDurationMinutes(durationMinutes);
   const startMinutes = timeMinutes(startTime);
   const sourceMeetings = activityMeetings(activity);
@@ -348,7 +371,7 @@ export function buildFixedDatePlanningMeetings({
   const meetings = [];
   for (let index = 0; index < sourceMeetings.length; index += 1) {
     const date = text(sourceMeetings[index]?.date).slice(0, 10);
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || date < period.start || date > period.end) return null;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || date < period.start || date > scheduleEnd) return null;
     if (weekday(date) === 6 || blocked.has(date)) return null;
     const cappedEnd = effectiveEndTime(date, endTime, calendarRows);
     if (text(cappedEnd).slice(0, 5) !== endTime) return null;
@@ -1251,13 +1274,14 @@ function activityTypeLabel(activity = {}) {
 }
 
 function activityMeetingsForPlanning(activity = {}, periodKey = DEFAULT_PLANNING_PERIOD_KEY) {
-  const period = planningEffectivePeriod(periodKey);
+  const period = resolveCourseSchedulingPeriod(periodKey);
+  const scheduleEnd = planningScheduleEnd(periodKey);
   return schedulingCalendarMeetings(activity).map((meeting, index) => ({
     date: text(meeting?.date).slice(0, 10),
     meeting_no: Number(meeting?.meeting_no) || index + 1,
     start_time: text(meeting?.start_time || activity.start_time).slice(0, 5),
     end_time: text(meeting?.end_time || activity.end_time).slice(0, 5)
-  })).filter((meeting) => meeting.date >= period.start && meeting.date <= period.end);
+  })).filter((meeting) => meeting.date >= period.start && meeting.date <= scheduleEnd);
 }
 
 function liveRow(activity = {}, periodKey = DEFAULT_PLANNING_PERIOD_KEY) {
@@ -1268,9 +1292,11 @@ function liveRow(activity = {}, periodKey = DEFAULT_PLANNING_PERIOD_KEY) {
   const draft = !text(activity.emp_id) && text(activity.draft_emp_id);
   const assigned = !!text(activity.emp_id);
   const period = planningEffectivePeriod(periodKey);
+  const continuationEnd = planningScheduleEnd(periodKey);
   const endDate = text(last.date || activity.end_date).slice(0, 10);
   const rawEndDate = calendarMeetings.map((meeting) => text(meeting?.date).slice(0, 10)).filter(Boolean).sort().at(-1) || endDate;
-  const halfOverflow = !!draft && !!rawEndDate && rawEndDate > period.end;
+  const continuesIntoFebruary = periodKey === 'first' && !!rawEndDate && rawEndDate > period.end && rawEndDate <= continuationEnd;
+  const halfOverflow = !!rawEndDate && rawEndDate > continuationEnd;
   return {
     courseId: idOf(activity),
     authority: text(activity.authority),
@@ -1289,13 +1315,16 @@ function liveRow(activity = {}, periodKey = DEFAULT_PLANNING_PERIOD_KEY) {
     meetings,
     options: [],
     halfOverflow,
-    halfOverflowLabel: halfOverflow ? 'חורגת מתקופת התכנון' : '',
+    continuesIntoFebruary,
+    halfOverflowLabel: halfOverflow ? 'נמשכת מעבר לסוף פברואר' : '',
     reason: assigned
       ? 'נלקח מהשיבוץ הפעיל'
       : (draft
           ? (halfOverflow
-              ? `נלקח מטיוטת השיבוץ הקיימת · סיום ${formatDateHe(rawEndDate)} לאחר סוף תקופת התכנון`
-              : 'נלקח מטיוטת השיבוץ הקיימת')
+              ? `נלקח מטיוטת השיבוץ הקיימת · סיום ${formatDateHe(rawEndDate)} מעבר לסוף פברואר`
+              : (continuesIntoFebruary
+                  ? `נלקח מטיוטת השיבוץ הקיימת · מחצית א׳ נמשכת עד ${formatDateHe(rawEndDate)} בפברואר`
+                  : 'נלקח מטיוטת השיבוץ הקיימת'))
           : 'התאריך והשעות נלקחו מהפעילות')
   };
 }
@@ -1551,6 +1580,7 @@ function planRowFromOption(activity, option, options, startRange, spec, diagnost
 
 export function normalizePlanningLockedOption(option = {}, periodKey = DEFAULT_PLANNING_PERIOD_KEY) {
   const period = planningEffectivePeriod(periodKey);
+  const scheduleEnd = planningScheduleEnd(periodKey);
   const instructorEmpId = text(option.instructorEmpId);
   const instructorName = text(option.instructorName);
   const meetings = (Array.isArray(option.meetings) ? option.meetings : [])
@@ -1563,7 +1593,7 @@ export function normalizePlanningLockedOption(option = {}, periodKey = DEFAULT_P
     .filter((meeting) =>
       /^\d{4}-\d{2}-\d{2}$/.test(meeting.date)
       && meeting.date >= period.start
-      && meeting.date <= period.end
+      && meeting.date <= scheduleEnd
       && validTimeRange(meeting.start_time, meeting.end_time)
     );
   if (!instructorEmpId || !meetings.length) return null;
@@ -1875,8 +1905,23 @@ export async function buildDynamicCoursePlan({
       }
     }
 
-    if (hasOfficialPlanningSchedule(activity)) fixedUnassigned.push(activity);
-    else missingSchedule.push(activity);
+    if (hasOfficialPlanningSchedule(activity)) {
+      fixedUnassigned.push(activity);
+    } else if (planningActivityHasStarted(activity, today)) {
+      const dates = officialPlanningDates(activity);
+      rowsById.set(activityId, {
+        ...missingOverviewRow(activity, catalog),
+        kind: 'fixed',
+        status: 'מועד קיים — לא מזיזים',
+        startDate: dates[0] || text(activity.start_date).slice(0, 10),
+        endDate: dates.at(-1) || text(activity.end_date).slice(0, 10),
+        startTime: text(activity.start_time).slice(0, 5),
+        endTime: text(activity.end_time).slice(0, 5),
+        reason: 'הפעילות כבר התחילה ולכן המערכת אינה משנה את המועדים שלה אוטומטית; יש להשלים מידע חסר או לשבץ מדריך למועד הקיים.'
+      });
+    } else {
+      missingSchedule.push(activity);
+    }
   }
 
   fixedUnassigned.sort((a, b) => {
@@ -2176,7 +2221,11 @@ export function planningInstructorCompletionOverview(rows = []) {
         courseCount: 0,
         otherActivityCount: 0,
         undatedCount: 0,
-        overflowCount: 0
+        continuationCount: 0,
+        overflowCount: 0,
+        meetings: [],
+        travelWeightedKm: 0,
+        travelMeetingWeight: 0
       });
     }
 
@@ -2196,6 +2245,21 @@ export function planningInstructorCompletionOverview(rows = []) {
     };
     group.activities.push(activity);
 
+    for (const meeting of Array.isArray(row.meetings) ? row.meetings : []) {
+      const date = text(meeting?.date).slice(0, 10);
+      const startTime = text(meeting?.start_time || row.startTime).slice(0, 5);
+      const endTime = text(meeting?.end_time || row.endTime).slice(0, 5);
+      if (!date) continue;
+      group.meetings.push({ date, startTime, endTime });
+    }
+    const primaryOption = planningRowPrimaryOption(row);
+    const travelKm = Number(primaryOption?.operationalMetrics?.relevantTravelDistance);
+    const travelMeetingCount = Array.isArray(row.meetings) ? row.meetings.length : 0;
+    if (Number.isFinite(travelKm) && travelMeetingCount > 0) {
+      group.travelWeightedKm += travelKm * travelMeetingCount;
+      group.travelMeetingWeight += travelMeetingCount;
+    }
+
     if (row.kind === 'live') group.liveCount += 1;
     else if (row.kind === 'draft' || row.kind === 'planning-locked') group.draftCount += 1;
     else if (['proposal', 'fixed-proposal'].includes(row.kind)) group.proposalCount += 1;
@@ -2203,7 +2267,8 @@ export function planningInstructorCompletionOverview(rows = []) {
     if (activityType === 'קורס') group.courseCount += 1;
     else group.otherActivityCount += 1;
     if (!dates.startDate) group.undatedCount += 1;
-    if (row.halfOverflow === true || (dates.endDate && dates.endDate > firstHalf.end)) group.overflowCount += 1;
+    if (dates.endDate && dates.endDate > firstHalf.end && dates.endDate <= FIRST_HALF_CONTINUATION_END_DATE) group.continuationCount += 1;
+    if (row.halfOverflow === true || (dates.endDate && dates.endDate > FIRST_HALF_CONTINUATION_END_DATE)) group.overflowCount += 1;
   }
 
   return [...groups.values()].map((group) => {
@@ -2216,9 +2281,39 @@ export function planningInstructorCompletionOverview(rows = []) {
       || a.courseName.localeCompare(b.courseName, 'he')
       || a.school.localeCompare(b.school, 'he')
     );
+    const workDates = new Set();
+    const weeks = new Map();
+    let teachingMinutes = 0;
+    for (const meeting of group.meetings) {
+      workDates.add(meeting.date);
+      const start = timeMinutes(meeting.startTime);
+      const end = timeMinutes(meeting.endTime);
+      const minutes = start != null && end != null && end > start ? end - start : 0;
+      teachingMinutes += minutes;
+      const weekKey = planningStartWeekKey(meeting.date);
+      if (!weeks.has(weekKey)) weeks.set(weekKey, { days: new Set(), minutes: 0, meetings: 0 });
+      const week = weeks.get(weekKey);
+      week.days.add(meeting.date);
+      week.minutes += minutes;
+      week.meetings += 1;
+    }
+    const peakWeek = [...weeks.entries()].sort((a, b) =>
+      b[1].minutes - a[1].minutes
+      || b[1].meetings - a[1].meetings
+      || a[0].localeCompare(b[0])
+    )[0] || null;
     return {
       ...group,
       activityCount: activities.length,
+      meetingCount: group.meetings.length,
+      teachingHours: Math.round((teachingMinutes / 60) * 10) / 10,
+      averageWorkDaysPerWeek: weeks.size ? Math.round((workDates.size / weeks.size) * 10) / 10 : 0,
+      peakWeekStart: peakWeek?.[0] || '',
+      peakWeekHours: peakWeek ? Math.round((peakWeek[1].minutes / 60) * 10) / 10 : 0,
+      peakWeekDays: peakWeek?.[1]?.days?.size || 0,
+      expectedTravelKmPerMeeting: group.travelMeetingWeight
+        ? Math.round((group.travelWeightedKm / group.travelMeetingWeight) * 10) / 10
+        : null,
       firstStart: datedStarts[0] || '',
       lastEnd: datedEnds.at(-1) || '',
       programs,
@@ -2247,7 +2342,8 @@ export function planningCompletionOverviewHtml(rows = [], { pendingChanges = 0, 
     else if (row.kind === 'recruitment') acc.recruitment += 1;
     else acc.unresolved += 1;
     if (!dates.startDate) acc.undated += 1;
-    if (row.halfOverflow === true || (dates.endDate && dates.endDate > firstHalfCountingPeriod().end)) acc.overflow += 1;
+    if (dates.endDate && dates.endDate > firstHalfCountingPeriod().end && dates.endDate <= FIRST_HALF_CONTINUATION_END_DATE) acc.continuation += 1;
+    if (row.halfOverflow === true || (dates.endDate && dates.endDate > FIRST_HALF_CONTINUATION_END_DATE)) acc.overflow += 1;
     return acc;
   }, {
     activities: 0,
@@ -2259,6 +2355,7 @@ export function planningCompletionOverviewHtml(rows = [], { pendingChanges = 0, 
     recruitment: 0,
     unresolved: 0,
     undated: 0,
+    continuation: 0,
     overflow: 0
   });
   const recruitmentProfiles = new Map();
@@ -2298,7 +2395,7 @@ export function planningCompletionOverviewHtml(rows = [], { pendingChanges = 0, 
     <div class="course-planning-section-heading">
       <div>
         <strong>תמונת מצב לסיום התכנון — מחצית א׳</strong>
-        <span>מחצית א׳ נספרת מ־01.09.2026 עד 29.01.2027. כולל שיבוצים קיימים, טיוטות והצעות מערכת.</span>
+        <span>מחצית א׳ מתחילה ב־01.09.2026. פעילויות שהחלו במחצית א׳ יכולות להימשך בפברואר במקביל לפתיחת מחצית ב׳.</span>
       </div>
     </div>
     ${pendingCount ? `<p class="course-planning-completion-pending">התמונה מבוססת על התכנון השמור כרגע. יש ${pendingCount} פעילויות שממתינות לעדכון.</p>` : ''}
@@ -2315,7 +2412,8 @@ export function planningCompletionOverviewHtml(rows = [], { pendingChanges = 0, 
       ${totals.recruitment ? `<span class="is-warning"><b>${totals.recruitment}</b> פעילויות שדורשות גיוס</span>` : ''}
       ${recruitmentProfileRows.length ? `<span class="is-warning"><b>${recruitmentProfileRows.length}</b> מודלי גיוס צפויים</span>` : ''}
       ${totals.undated ? `<span class="is-warning"><b>${totals.undated}</b> עדיין ללא מועד</span>` : ''}
-      ${totals.overflow ? `<span class="is-warning"><b>${totals.overflow}</b> חורגים מסוף המחצית</span>` : ''}
+      ${totals.continuation ? `<span><b>${totals.continuation}</b> ממשיכות לפברואר</span>` : ''}
+      ${totals.overflow ? `<span class="is-warning"><b>${totals.overflow}</b> נמשכות מעבר לסוף פברואר</span>` : ''}
     </div>
     ${recruitmentProfileRows.length ? `<div class="course-planning-recruitment-models">
       <strong>מודלי גיוס לאחר מיצוי הצוות הקיים</strong>
@@ -2335,6 +2433,9 @@ export function planningCompletionOverviewHtml(rows = [], { pendingChanges = 0, 
           <th>משובץ</th>
           <th>ממתין לאישור</th>
           <th>הצעה</th>
+          <th>עומס</th>
+          <th>שבועי</th>
+          <th>נסיעות</th>
           <th>מתחיל</th>
           <th>מסתיים</th>
           <th>תוכניות ופירוט</th>
@@ -2345,6 +2446,9 @@ export function planningCompletionOverviewHtml(rows = [], { pendingChanges = 0, 
           <td>${item.liveCount}</td>
           <td>${item.draftCount}</td>
           <td>${item.proposalCount}</td>
+          <td><b>${item.meetingCount}</b> מפגשים · ${item.teachingHours} ש׳</td>
+          <td>${item.averageWorkDaysPerWeek} ימי עבודה/שבוע${item.peakWeekStart ? `<small>שיא: ${item.peakWeekDays} ימים · ${item.peakWeekHours} ש׳</small>` : ''}</td>
+          <td>${Number.isFinite(item.expectedTravelKmPerMeeting) ? `~${item.expectedTravelKmPerMeeting} ק״מ/מפגש<small>לפי הצעות עם מסלול מאומת</small>` : '—'}</td>
           <td>${item.firstStart ? `<bdi dir="ltr">${escapeHtml(formatDateHe(item.firstStart))}</bdi>` : '<span class="course-planning-completion-missing">חסר מועד</span>'}</td>
           <td class="${item.overflowCount ? 'is-warning' : ''}">${item.lastEnd ? `<bdi dir="ltr">${escapeHtml(formatDateHe(item.lastEnd))}</bdi>` : '<span class="course-planning-completion-missing">חסר מועד</span>'}</td>
           <td>
@@ -2397,7 +2501,11 @@ export function planningQualityAudit(rows = [], { pendingChanges = 0 } = {}) {
     || (plannedKinds.has(row.kind) && !text(row.instructorEmpId))
   );
   const recruitmentRows = sourceRows.filter((row) => row.kind === 'recruitment');
-  const overflowRows = sourceRows.filter((row) => row.halfOverflow === true);
+  const overflowRows = sourceRows.filter((row) => {
+    if (!planningRowIsFirstHalf(row)) return false;
+    const endDate = planningCompletionDateRange(row).endDate;
+    return row.halfOverflow === true || (!!endDate && endDate > FIRST_HALF_CONTINUATION_END_DATE);
+  });
   const unverifiedRows = sourceRows.filter((row) => {
     if (!plannedKinds.has(row.kind) || !text(row.instructorEmpId)) return false;
     const primary = planningRowPrimaryOption(row);
@@ -2529,7 +2637,7 @@ export function planningQualityAudit(rows = [], { pendingChanges = 0 } = {}) {
     ...unverifiedRows.map((row) => planningQualityIssueRow(row, 'route', 'נסיעה לא אומתה')),
     ...unresolvedRows.map((row) => planningQualityIssueRow(row, 'unresolved', 'טרם נמצא שיבוץ מלא')),
     ...recruitmentRows.map((row) => planningQualityIssueRow(row, 'recruitment', 'נדרש גיוס')),
-    ...overflowRows.map((row) => planningQualityIssueRow(row, 'overflow', 'חורגת מתקופת התכנון'))
+    ...overflowRows.map((row) => planningQualityIssueRow(row, 'overflow', 'נמשכת מעבר לסוף פברואר'))
   ];
 
   return {

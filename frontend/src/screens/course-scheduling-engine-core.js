@@ -9,7 +9,7 @@ import {
   isSchedulingBlockingAssignment,
   isSchedulingDraftAssignment
 } from './shared/activity-scheduling-eligibility.js';
-import { DEFAULT_COURSE_SCHEDULING_PERIOD_KEY, isDateInCourseSchedulingPeriod, resolveCourseSchedulingPeriod } from './course-scheduling-periods.js';
+import { DEFAULT_COURSE_SCHEDULING_PERIOD_KEY, FIRST_HALF_CONTINUATION_END_DATE, isDateInCourseSchedulingPeriod, resolveCourseSchedulingPeriod } from './course-scheduling-periods.js';
 import { effectiveEndTime, proposeDateAdjustments } from './course-scheduling-date-adjustments.js';
 import {
   courseUrgency,
@@ -261,7 +261,7 @@ function evaluateCandidate({
     exceptions: exceptions[empId] || [],
     schoolCalendar: courseSchoolCalendar,
     existingActivities: persistedMeetings,
-    halfEnd: resolveCourseSchedulingPeriod(periodKey).end
+    halfEnd: periodKey === 'first' ? FIRST_HALF_CONTINUATION_END_DATE : resolveCourseSchedulingPeriod(periodKey).end
   };
   let adjustment = input.allowDateAdjustments === false ? null : proposeDateAdjustments(adjustmentInput);
   if (adjustment?.valid) {
