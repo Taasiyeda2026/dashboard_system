@@ -1506,6 +1506,8 @@ function planRowFromOption(activity, option, options, startRange, spec, diagnost
     activityType: activityTypeLabel(activity),
     requiredLanguage: text(activity.instruction_language),
     requiredGender: text(activity.required_instructor_gender),
+    sourceHadDraft: !!text(activity.draft_emp_id),
+    previousDraftInstructorName: text(activity.draft_instructor_name || activity.draft_emp_id),
     sessions: spec?.sessions || meetingCount(activity),
     kind: option ? 'proposal' : (recruitmentNeeded ? 'recruitment' : 'missing'),
     status: option ? 'מועד מומלץ לבית הספר' : (recruitmentNeeded ? 'נדרש גיוס' : 'נדרש טיפול'),
@@ -1921,6 +1923,8 @@ export async function buildDynamicCoursePlan({
         }],
         requiredLanguage: text(activity.instruction_language),
         requiredGender: text(activity.required_instructor_gender),
+        sourceHadDraft: !!text(activity.draft_emp_id),
+        previousDraftInstructorName: text(activity.draft_instructor_name || activity.draft_emp_id),
         district: text(activity.district || activity.school_district || activity.authority_district),
         options: options.map(({ _candidate, ...option }) => option),
         diagnostics: {
@@ -2072,6 +2076,7 @@ function planningCompletionStatus(row = {}) {
   if (row.kind === 'live') return 'משובץ';
   if (row.kind === 'draft') return 'טיוטה';
   if (row.kind === 'planning-locked') return 'נקבע בתכנון';
+  if (row.sourceHadDraft && (row.kind === 'proposal' || row.kind === 'fixed-proposal')) return 'הצעת שינוי לטיוטה';
   if (row.kind === 'proposal' || row.kind === 'fixed-proposal') return 'הצעת מערכת';
   return text(row.status) || 'בתכנון';
 }
@@ -2111,7 +2116,7 @@ export function buildPlanningCompletionRows({ activities = [], planningRows = []
     const activityId = idOf(activity);
     const assigned = !!text(activity.emp_id);
     const draft = !assigned && !!text(activity.draft_emp_id);
-    if (assigned || draft) {
+    if (assigned) {
       rows.push(liveRow(activity, 'first'));
       continue;
     }
@@ -2119,6 +2124,10 @@ export function buildPlanningCompletionRows({ activities = [], planningRows = []
     const planningRow = byId.get(activityId);
     if (planningRow) {
       rows.push(planningRow);
+      continue;
+    }
+    if (draft) {
+      rows.push(liveRow(activity, 'first'));
       continue;
     }
 
