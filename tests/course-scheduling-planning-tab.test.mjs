@@ -27,6 +27,8 @@ import {
   assignRecruitmentProfiles,
   planningCompletionOverviewHtml,
   planningOptimizationScore,
+  planningPlanQuality,
+  comparePlanningPlanQuality,
   planningQualityAudit,
   planningQualityAuditHtml,
   planningRowsHtml,
@@ -1339,6 +1341,86 @@ test('route failure never produces a valid planning proposal', async () => {
   assert.equal(result.rows[0].instructorEmpId, '');
   assert.equal(result.rows[0].options.length, 0);
   assert.match(result.rows[0].reason, /לא מסומן לגיוס|בדיקה נוספת/);
+});
+
+test('national repair pass can swap a flexible fixed-slot assignment to avoid unnecessary recruitment', async () => {
+  const instructors = [
+    { emp_id: '1', full_name: 'מדריך א', active: 'yes', address: 'בית א' },
+    { emp_id: '2', full_name: 'מדריכה ב', active: 'yes', address: 'בית ב' }
+  ];
+  const profiles = {
+    1: { emp_id: '1', gender: 'male', instruction_languages: ['he'], friday_allowed: false },
+    2: { emp_id: '2', gender: 'female', instruction_languages: ['he'], friday_allowed: false }
+  };
+  const rules = {
+    1: [{ emp_id: '1', weekday: 0, available: true, start_time: '07:00', end_time: '14:00' }],
+    2: [{ emp_id: '2', weekday: 0, available: true, start_time: '07:00', end_time: '14:00' }]
+  };
+  const activities = [
+    {
+      ...baseCourse,
+      row_id: 'a-flexible',
+      sessions: 1,
+      school_id: 'S1',
+      school: 'בית ספר א',
+      school_address: 'כתובת א',
+      date_1: '2026-10-11',
+      start_date: '2026-10-11',
+      end_date: '2026-10-11',
+      start_time: '08:00',
+      end_time: '09:30',
+      required_instructor_gender: 'any'
+    },
+    {
+      ...baseCourse,
+      row_id: 'z-male-only',
+      sessions: 1,
+      school_id: 'S2',
+      school: 'בית ספר ב',
+      school_address: 'כתובת ב',
+      date_1: '2026-10-11',
+      start_date: '2026-10-11',
+      end_date: '2026-10-11',
+      start_time: '08:00',
+      end_time: '09:30',
+      required_instructor_gender: 'male'
+    }
+  ];
+  const result = await buildDynamicCoursePlan({
+    activities,
+    instructors,
+    profiles,
+    rules,
+    exceptions: {},
+    schoolCalendar: [],
+    catalog,
+    today: '2026-09-25',
+    periodKey: 'year',
+    routeClient: routeClient({ distance_km: 5, duration_minutes: 10 })
+  });
+  assert.equal(result.repairApplied, true);
+  assert.equal(result.recruitment, 0);
+  assert.equal(result.missing, 0);
+  const flex = result.rows.find((row) => row.courseId === 'a-flexible');
+  const constrained = result.rows.find((row) => row.courseId === 'z-male-only');
+  assert.equal(constrained.instructorEmpId, '1');
+  assert.equal(flex.instructorEmpId, '2');
+  assert.equal(result.repairImprovement.before.recruitment, 1);
+  assert.equal(result.repairImprovement.after.recruitment, 0);
+});
+
+test('plan-quality comparison prioritizes existing-team coverage and fewer hiring models', () => {
+  const weaker = [
+    { courseId: 'a', kind: 'proposal', instructorEmpId: '1', options: [] },
+    { courseId: 'b', kind: 'recruitment', recruitmentProfileId: 'recruitment-1', options: [] }
+  ];
+  const stronger = [
+    { courseId: 'a', kind: 'proposal', instructorEmpId: '1', options: [] },
+    { courseId: 'b', kind: 'proposal', instructorEmpId: '2', options: [] }
+  ];
+  assert.equal(planningPlanQuality(weaker).uncovered, 1);
+  assert.equal(planningPlanQuality(stronger).uncovered, 0);
+  assert.ok(comparePlanningPlanQuality(stronger, weaker) < 0);
 });
 
 test('national planning reoptimizes an existing draft before declaring recruitment', async () => {
