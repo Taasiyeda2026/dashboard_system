@@ -1952,8 +1952,8 @@ export function planningInstructorCompletionOverview(rows = []) {
     group.activities.push(activity);
 
     if (row.kind === 'live') group.liveCount += 1;
-    else if (row.kind === 'draft') group.draftCount += 1;
-    else if (['proposal', 'fixed-proposal', 'planning-locked'].includes(row.kind)) group.proposalCount += 1;
+    else if (row.kind === 'draft' || row.kind === 'planning-locked') group.draftCount += 1;
+    else if (['proposal', 'fixed-proposal'].includes(row.kind)) group.proposalCount += 1;
 
     if (activityType === 'קורס') group.courseCount += 1;
     else group.otherActivityCount += 1;
