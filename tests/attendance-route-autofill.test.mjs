@@ -14,8 +14,10 @@ test('payroll route build includes actual attendance-day stops with stable schoo
   assert.match(fn, /attendanceDayStops/);
   assert.match(fn, /row\.school_id \?\? linkedActivity\.school_id/);
   assert.match(fn, /resolvePayrollActivitySchool\(schoolSource, catalog\)/);
-  assert.match(fn, /payrollSchoolSchoolPair\(sequence\[index - 1\]\.school, sequence\[index\]\.school\)/);
-  assert.match(fn, /payrollInstructorSchoolPair\(instructor, sequence\[sequence\.length - 1\]\.school\)/);
+  assert.match(fn, /destination_address_snapshot/);
+  assert.match(fn, /genericAttendanceLocation\(row\)/);
+  assert.match(fn, /payrollLocationLocationPair\(sequence\[index - 1\]\.location, sequence\[index\]\.location\)/);
+  assert.match(fn, /payrollInstructorLocationPair\(instructor, sequence\[sequence\.length - 1\]\.location\)/);
 });
 
 test('route build can be scoped to only attendance-control employees', () => {
@@ -37,12 +39,15 @@ test('attendance control auto-fills only missing monthly routes before reading t
   assert.match(fn, /limit: 40/);
 });
 
-test('attendance school ids participate in cache reads so actual-day school-to-school legs are available', () => {
+test('attendance school ids and non-school destination addresses participate in route cache reads', () => {
   const fn = api.split('attendanceControlDashboardSources: async')[1].split('\n  },\n  activities: async')[0];
-  assert.match(fn, /from\('attendance_records'\)[\s\S]*select\('school_id'\)/);
+  assert.match(fn, /from\('attendance_records'\)[\s\S]*select\('school_id,destination_address_snapshot'\)/);
   assert.match(fn, /attendanceSchoolIds/);
+  assert.match(fn, /attendanceLocationAddresses/);
   assert.match(fn, /origin_school_id/);
   assert.match(fn, /destination_school_id/);
+  assert.match(fn, /origin_address/);
+  assert.match(fn, /destination_address/);
 });
 
 
