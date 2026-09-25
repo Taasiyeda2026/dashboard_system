@@ -2394,6 +2394,138 @@
   color: var(--cs-text);
 }
 
+
+.course-planning-completion-overview {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--cs-border);
+  border-radius: 12px;
+  background: var(--cs-surface);
+}
+
+.course-planning-completion-pending {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--cs-surface-soft);
+  color: var(--cs-text-muted);
+  font-size: .8rem;
+}
+
+.course-planning-completion-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.course-planning-completion-summary span {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  padding: 5px 8px;
+  border: 1px solid var(--cs-border);
+  border-radius: 999px;
+  background: var(--cs-surface-soft);
+  font-size: .78rem;
+  white-space: nowrap;
+}
+
+.course-planning-completion-summary span.is-warning {
+  font-weight: 700;
+}
+
+.course-planning-completion-table-wrap {
+  overflow: auto;
+  max-height: 520px;
+  border: 1px solid var(--cs-border);
+  border-radius: 10px;
+}
+
+.course-planning-completion-table {
+  width: 100%;
+  min-width: 1040px;
+  border-collapse: collapse;
+}
+
+.course-planning-completion-table th,
+.course-planning-completion-table td {
+  padding: 7px 9px;
+  border-bottom: 1px solid var(--cs-border);
+  text-align: right;
+  vertical-align: top;
+  font-size: .79rem;
+}
+
+.course-planning-completion-table th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--cs-surface-soft);
+  color: var(--cs-text-muted);
+  font-weight: 800;
+}
+
+.course-planning-completion-table td > strong {
+  display: block;
+}
+
+.course-planning-completion-table td > small {
+  display: block;
+  margin-top: 2px;
+  color: var(--cs-text-muted);
+}
+
+.course-planning-completion-table td.is-warning,
+.course-planning-completion-missing {
+  font-weight: 700;
+}
+
+.course-planning-completion-programs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  max-width: 390px;
+}
+
+.course-planning-completion-programs span {
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: var(--cs-surface-soft);
+  white-space: nowrap;
+}
+
+.course-planning-completion-details {
+  margin-top: 5px;
+}
+
+.course-planning-completion-details > summary {
+  cursor: pointer;
+  color: #1f4b7a;
+  font-weight: 700;
+}
+
+.course-planning-completion-courses {
+  display: grid;
+  gap: 5px;
+  margin-top: 6px;
+  min-width: 360px;
+}
+
+.course-planning-completion-course {
+  display: grid;
+  gap: 2px;
+  padding: 6px 8px;
+  border: 1px solid var(--cs-border);
+  border-radius: 7px;
+  background: var(--cs-surface-soft);
+}
+
+.course-planning-completion-course span {
+  color: var(--cs-text-muted);
+  font-size: .76rem;
+}
+
 .course-planning-instructor-schedules {
   display: grid;
   gap: 10px;
