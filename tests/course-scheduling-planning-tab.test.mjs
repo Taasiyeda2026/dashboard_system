@@ -21,6 +21,8 @@ import {
   planningPeriodKeyForActivity,
   normalizePlanningLockedOption,
   planningInstructorSchedules,
+  planningInstructorCompletionOverview,
+  planningCompletionOverviewHtml,
   planningOptimizationScore,
   planningQualityAudit,
   planningQualityAuditHtml,
@@ -603,6 +605,57 @@ test('fixed-date Planning changes only the missing hour and keeps every school d
   assert.ok(built.meetings.every((meeting) => meeting.start_time === '09:30' && meeting.end_time === '11:00'));
 });
 
+test('first-half completion overview includes live, drafts and proposals per instructor', () => {
+  const rows = [
+    {
+      courseId: 'live-a', courseName: 'ביומימיקרי', activityType: 'קורס', school: 'א', authority: 'רשות',
+      kind: 'live', instructorEmpId: '1', instructorName: 'מדריך א',
+      startDate: '2026-10-07', endDate: '2026-12-16',
+      meetings: [{ date: '2026-10-07', start_time: '08:00', end_time: '09:30' }]
+    },
+    {
+      courseId: 'draft-a', courseName: 'פורצות דרך', activityType: 'קורס', school: 'ב', authority: 'רשות',
+      kind: 'draft', instructorEmpId: '1', instructorName: 'מדריך א',
+      startDate: '2026-10-12', endDate: '2027-01-20',
+      meetings: [{ date: '2026-10-12', start_time: '10:00', end_time: '11:30' }]
+    },
+    {
+      courseId: 'proposal-a', courseName: 'רוקחים עולם', activityType: 'קורס', school: 'ג', authority: 'רשות אחרת',
+      kind: 'proposal', instructorEmpId: '2', instructorName: 'מדריכה ב',
+      startDate: '2026-10-06', endDate: '2027-01-19',
+      meetings: [{ date: '2026-10-06', start_time: '08:00', end_time: '09:30' }]
+    },
+    {
+      courseId: 'second-half', courseName: 'קורס מחצית ב', activityType: 'קורס', school: 'ד', authority: 'רשות',
+      kind: 'live', instructorEmpId: '1', instructorName: 'מדריך א',
+      startDate: '2027-02-07', endDate: '2027-04-18',
+      meetings: [{ date: '2027-02-07', start_time: '08:00', end_time: '09:30' }]
+    }
+  ];
+
+  const overview = planningInstructorCompletionOverview(rows);
+  assert.equal(overview.length, 2);
+  assert.equal(overview[0].name, 'מדריך א');
+  assert.equal(overview[0].courseCount, 2);
+  assert.equal(overview[0].liveCount, 1);
+  assert.equal(overview[0].draftCount, 1);
+  assert.equal(overview[0].proposalCount, 0);
+  assert.equal(overview[0].firstStart, '2026-10-07');
+  assert.equal(overview[0].lastEnd, '2027-01-20');
+  assert.deepEqual(overview[0].programs, ['ביומימיקרי', 'פורצות דרך']);
+
+  const html = planningCompletionOverviewHtml(rows);
+  assert.match(html, /תמונת מצב לסיום התכנון/);
+  assert.match(html, /מחצית א׳/);
+  assert.match(html, /מדריך א/);
+  assert.match(html, /מדריכה ב/);
+  assert.match(html, /טיוטות/);
+  assert.match(html, /הצעות מערכת/);
+  assert.match(html, /07\/10\/2026/);
+  assert.match(html, /20\/01\/2027/);
+  assert.doesNotMatch(html, /קורס מחצית ב/);
+});
+
 test('Planning builds a complete meeting-level work schedule for each instructor', () => {
   const schedules = planningInstructorSchedules([
     {
@@ -754,6 +807,37 @@ test('Planning UI defaults to the full school year and exposes period selection'
   assert.match(html, /data-refresh-shared-planning/);
   assert.match(html, /data-export-course-planning disabled/);
   assert.doesNotMatch(html, /מערכת מלאה לפי מדריך/);
+});
+
+test('Planning UI shows the first-half completion snapshot after calculation', () => {
+  const row = {
+    courseId: 'summary-course',
+    courseName: 'ביומימיקרי',
+    activityType: 'קורס',
+    school: 'בית ספר',
+    authority: 'רשות',
+    sessions: 10,
+    kind: 'draft',
+    status: 'טיוטת שיבוץ קיימת',
+    instructorEmpId: '1',
+    instructorName: 'מדריך',
+    startDate: '2026-10-11',
+    endDate: '2027-01-17',
+    startTime: '08:00',
+    endTime: '09:30',
+    meetings: [{ date: '2026-10-11', start_time: '08:00', end_time: '09:30' }],
+    options: []
+  };
+  const html = planningTabHtml({
+    rows: [row],
+    periodKey: 'year',
+    calculatedAt: '25.9.2026, 10:30',
+    pendingChanges: 0
+  });
+  assert.match(html, /data-planning-completion-overview/);
+  assert.match(html, /תמונת מצב לסיום התכנון — מחצית א׳/);
+  assert.match(html, /מערכת מלאה לפי מדריך ולפי מפגש/);
+  assert.ok(html.indexOf('data-planning-completion-overview') < html.indexOf('data-planning-course="summary-course"'));
 });
 
 test('Planning batches selected options before expensive recalculation and blocks stale Excel export', () => {
