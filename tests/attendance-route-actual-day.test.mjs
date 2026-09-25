@@ -84,3 +84,24 @@ test('non-school physical location with a trusted address participates in the da
   applyAttendanceDayRouteKilometers(rows, attendance, cache);
   assert.equal(rows[0].kilometers, 172, 'home -> external location -> home is a valid physical route without school_id');
 });
+
+test('legacy address-only cache route is valid for a non-school physical destination', () => {
+  const rows = [
+    { employeeId: '1530', date: '2026-09-15', startTime: '10:00', sourceRecordId: 'training-legacy', originAddress: 'בית צפפה 14, ירושלים', destinationAddress: '6RVR+XM, יקום', destinationEntityKey: 'training:base_training', destinationType: 'location', kilometers: null, __routeOnly: true }
+  ];
+  const attendance = [{
+    employeeId: '1530', date: '2026-09-15', startTime: '10:00', endTime: '15:00',
+    recordId: 'training-legacy', activityType: 'הכשרה', program: 'הכשרת בסיס',
+    originAddress: 'בית צפפה 14, ירושלים',
+    destinationAddress: '6RVR+XM, יקום', destinationEntityKey: 'training:base_training',
+    destinationType: 'location'
+  }];
+  const cache = [{
+    origin_address: 'בית צפפה 14, ירושלים',
+    destination_address: '6RVR+XM, יקום',
+    distance_km: 87.385
+  }];
+
+  applyAttendanceDayRouteKilometers(rows, attendance, cache);
+  assert.equal(rows[0].kilometers, 174.77);
+});
