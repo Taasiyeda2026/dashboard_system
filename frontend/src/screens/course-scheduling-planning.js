@@ -34,7 +34,7 @@ export const PLANNING_OPTIMIZATION_WEIGHTS = Object.freeze({
   geography: 15,
   stability: 10
 });
-export const PLANNING_ENGINE_VERSION = 'planning-v7-20260923-dynamic-alternatives';
+export const PLANNING_ENGINE_VERSION = 'planning-v8-20260925-first-half-undated';
 export const PLANNING_ACTIVITY_NO_ALIASES = Object.freeze({
   // Legacy Gefen identifier retained on existing activities; canonical catalog program is 53828.
   '82835': '53828'
@@ -126,6 +126,35 @@ export function planningEffectivePeriod(periodKey = DEFAULT_PLANNING_PERIOD_KEY)
       ? PLANNING_OPERATIONAL_START_DATE
       : period.start
   };
+}
+
+function officialPlanningDates(activity = {}) {
+  const meetingDates = activityMeetings(activity)
+    .map((meeting) => text(meeting?.date).slice(0, 10))
+    .filter((date) => /^\d{4}-\d{2}-\d{2}$/.test(date))
+    .sort();
+  if (meetingDates.length) return meetingDates;
+  const startDate = text(activity?.start_date).slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(startDate) ? [startDate] : [];
+}
+
+/**
+ * A school-provided date owns the semester. Activities without any official date
+ * belong to the first half by default, even when the national planner is run for
+ * the whole school year.
+ */
+export function planningPeriodKeyForActivity(activity = {}, requestedPeriodKey = DEFAULT_PLANNING_PERIOD_KEY) {
+  const requested = text(requestedPeriodKey) || DEFAULT_PLANNING_PERIOD_KEY;
+  const dates = officialPlanningDates(activity);
+  const firstDate = dates[0] || '';
+
+  if (requested === 'second') {
+    if (!firstDate) return 'first';
+    return firstDate >= resolveCourseSchedulingPeriod('second').start ? 'second' : 'first';
+  }
+  if (requested === 'first') return 'first';
+  if (!firstDate) return 'first';
+  return firstDate >= resolveCourseSchedulingPeriod('second').start ? 'second' : 'first';
 }
 
 function meetingCount(activity = {}) {
@@ -220,16 +249,17 @@ export const isPlanningCourse = isPlanningActivity;
 
 export function planningWorkspaceCourses(activities = [], district = '', periodKey = DEFAULT_PLANNING_PERIOD_KEY) {
   const normalizedDistrict = normalizeOperationalDistrict(district);
-  const period = planningEffectivePeriod(periodKey);
+  const requested = text(periodKey) || DEFAULT_PLANNING_PERIOD_KEY;
+  const period = planningEffectivePeriod(requested);
   return (activities || [])
     .filter(isPlanningActivity)
     .filter((activity) => {
-      const meetings = schedulingCalendarMeetings(activity);
-      if (!meetings.length) return true;
-      return meetings.some((meeting) => {
-        const date = text(meeting?.date).slice(0, 10);
-        return date >= period.start && date <= period.end;
-      });
+      const officialDates = officialPlanningDates(activity);
+      if (!officialDates.length) {
+        // Undated work is a first-half planning responsibility, not a second-half pool.
+        return requested !== 'second';
+      }
+      return officialDates.some((date) => date >= period.start && date <= period.end);
     })
     .filter((activity) => !normalizedDistrict || normalizeOperationalDistrict(activity.district || activity.school_district || activity.authority_district) === normalizedDistrict);
 }
@@ -254,7 +284,8 @@ export function buildWeeklyPlanningMeetings({
   schoolCalendar = [],
   periodKey = DEFAULT_PLANNING_PERIOD_KEY
 } = {}) {
-  const period = planningEffectivePeriod(periodKey);
+  const activityPeriodKey = planningPeriodKeyForActivity(activity, periodKey);
+  const period = planningEffectivePeriod(activityPeriodKey);
   const count = Math.max(0, Math.min(35, Math.floor(Number(sessions) || 0)));
   const duration = roundedDurationMinutes(durationMinutes);
   const startMinutes = timeMinutes(startTime);
@@ -302,7 +333,8 @@ export function buildFixedDatePlanningMeetings({
   schoolCalendar = [],
   periodKey = DEFAULT_PLANNING_PERIOD_KEY
 } = {}) {
-  const period = planningEffectivePeriod(periodKey);
+  const activityPeriodKey = planningPeriodKeyForActivity(activity, periodKey);
+  const period = planningEffectivePeriod(activityPeriodKey);
   const duration = roundedDurationMinutes(durationMinutes);
   const startMinutes = timeMinutes(startTime);
   const sourceMeetings = activityMeetings(activity);
@@ -355,10 +387,11 @@ function lastOnOrBefore(date, targetWeekday) {
 }
 
 export function latestFeasiblePlanningStart({ activity = {}, targetWeekday, startTime, durationMinutes, sessions, schoolCalendar = [], periodKey = DEFAULT_PLANNING_PERIOD_KEY } = {}) {
-  const period = planningEffectivePeriod(periodKey);
+  const activityPeriodKey = planningPeriodKeyForActivity(activity, periodKey);
+  const period = planningEffectivePeriod(activityPeriodKey);
   let candidate = lastOnOrBefore(period.end, targetWeekday);
   while (candidate && candidate >= period.start) {
-    const built = buildWeeklyPlanningMeetings({ activity, startDate: candidate, startTime, durationMinutes, sessions, schoolCalendar, periodKey });
+    const built = buildWeeklyPlanningMeetings({ activity, startDate: candidate, startTime, durationMinutes, sessions, schoolCalendar, periodKey: activityPeriodKey });
     if (built) return candidate;
     candidate = addDays(candidate, -7);
   }
@@ -446,7 +479,8 @@ function dynamicTimesForWeekday({
 }
 
 function candidateStartDates({ activity, targetWeekday, sessions, startTime, durationMinutes, schoolCalendar = [], today, activities = [], blockingActivityRows = null, periodKey = DEFAULT_PLANNING_PERIOD_KEY } = {}) {
-  const period = planningEffectivePeriod(periodKey);
+  const activityPeriodKey = planningPeriodKeyForActivity(activity, periodKey);
+  const period = planningEffectivePeriod(activityPeriodKey);
   const fixedStart = text(activityMeetings(activity)
     .map((meeting) => text(meeting?.date).slice(0, 10))
     .filter((date) => date >= period.start && date <= period.end)
@@ -454,7 +488,7 @@ function candidateStartDates({ activity, targetWeekday, sessions, startTime, dur
   if (/^\d{4}-\d{2}-\d{2}$/.test(fixedStart)) {
     if (fixedStart < period.start || fixedStart > period.end || weekday(fixedStart) !== Number(targetWeekday)) return [];
     const built = buildWeeklyPlanningMeetings({
-      activity, startDate: fixedStart, startTime, durationMinutes, sessions, schoolCalendar, periodKey
+      activity, startDate: fixedStart, startTime, durationMinutes, sessions, schoolCalendar, periodKey: activityPeriodKey
     });
     if (!built) return [];
     const knownMeetings = activityMeetings(activity);
@@ -468,7 +502,7 @@ function candidateStartDates({ activity, targetWeekday, sessions, startTime, dur
   const todayDate = text(today).slice(0, 10);
   const floor = todayDate > period.start ? todayDate : period.start;
   const earliest = firstOnOrAfter(floor, targetWeekday);
-  const latest = latestFeasiblePlanningStart({ activity, targetWeekday, startTime, durationMinutes, sessions, schoolCalendar, periodKey });
+  const latest = latestFeasiblePlanningStart({ activity, targetWeekday, startTime, durationMinutes, sessions, schoolCalendar, periodKey: activityPeriodKey });
   const values = new Set();
   if (earliest && earliest <= period.end) values.add(earliest);
 
@@ -820,7 +854,19 @@ function planningOperationalReason(course = {}, candidate = {}, optimization = p
   return parts.join(' · ');
 }
 
+function planningStartWeekKey(value) {
+  const raw = text(value).slice(0, 10);
+  const date = new Date(`${raw}T12:00:00Z`);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(raw) || Number.isNaN(date.getTime())) return '9999-99-99';
+  date.setUTCDate(date.getUTCDate() - date.getUTCDay());
+  return date.toISOString().slice(0, 10);
+}
+
 function planningPairCompare(first = {}, second = {}) {
+  const firstWeek = planningStartWeekKey(first.course?.start_date || first.startDate);
+  const secondWeek = planningStartWeekKey(second.course?.start_date || second.startDate);
+  if (firstWeek !== secondWeek) return firstWeek.localeCompare(secondWeek);
+
   const firstScore = Number(first.planningOptimization?.total);
   const secondScore = Number(second.planningOptimization?.total);
   if (Number.isFinite(firstScore) && Number.isFinite(secondScore) && firstScore !== secondScore) {
@@ -882,6 +928,10 @@ function optionFromCandidate(course, candidate, { routeVerified = true, startRan
 }
 
 function optionCompare(first, second) {
+  const firstWeek = planningStartWeekKey(first.startDate);
+  const secondWeek = planningStartWeekKey(second.startDate);
+  if (firstWeek !== secondWeek) return firstWeek.localeCompare(secondWeek);
+
   const firstScore = Number(first.planningOptimization?.total);
   const secondScore = Number(second.planningOptimization?.total);
   if (Number.isFinite(firstScore) && Number.isFinite(secondScore) && firstScore !== secondScore) {
@@ -1572,14 +1622,15 @@ export async function buildDynamicCoursePlan({
 
   for (const activity of targets) {
     const activityId = idOf(activity);
+    const activityPeriodKey = planningPeriodKeyForActivity(activity, periodKey);
     if (text(activity.emp_id) || text(activity.draft_emp_id)) {
-      rowsById.set(activityId, liveRow(activity, periodKey));
+      rowsById.set(activityId, liveRow(activity, activityPeriodKey));
       continue;
     }
 
-    const locked = normalizePlanningLockedOption(lockedOptions?.[activityId], periodKey);
+    const locked = normalizePlanningLockedOption(lockedOptions?.[activityId], activityPeriodKey);
     if (locked) {
-      const lockedRow = lockedPlanningRow(activity, locked, catalog, periodKey);
+      const lockedRow = lockedPlanningRow(activity, locked, catalog, activityPeriodKey);
       if (lockedRow) rowsById.set(activityId, lockedRow);
       const virtual = blockingVirtualActivity(activity, locked);
       if (virtual) virtualPlans.push(virtual);
@@ -1621,15 +1672,15 @@ export async function buildDynamicCoursePlan({
   missingSchedule.sort((a, b) => comparePlanningDifficulty(a, b, difficultyContext));
 
   const queue = [
-    ...fixedUnassigned.map((activity) => ({ activity, type: 'fixed' })),
-    ...missingSchedule.map((activity) => ({ activity, type: 'missing' }))
+    ...fixedUnassigned.map((activity) => ({ activity, type: 'fixed', activityPeriodKey: planningPeriodKeyForActivity(activity, periodKey) })),
+    ...missingSchedule.map((activity) => ({ activity, type: 'missing', activityPeriodKey: planningPeriodKeyForActivity(activity, periodKey) }))
   ];
   let completed = 0;
   await report('יצירת אפשרויות', 0, queue.length);
 
   for (const item of queue) {
     await checkpoint();
-    const { activity, type } = item;
+    const { activity, type, activityPeriodKey } = item;
     const currentContext = [...contextActivities, ...virtualPlans];
     await report('בדיקת מדריכים', completed, queue.length, idOf(activity));
     await report('בדיקת נסיעות', completed, queue.length, idOf(activity));
@@ -1646,18 +1697,18 @@ export async function buildDynamicCoursePlan({
         routeClient,
         checkpoint,
         signal,
-        periodKey
+        periodKey: activityPeriodKey
       });
       const options = evaluation.options || [];
       const chosen = options[0] || null;
       const recruitmentNeeded = !chosen && evaluation.recruitmentNeeded === true;
       const row = {
-        ...liveRow(activity, periodKey),
+        ...liveRow(activity, activityPeriodKey),
         kind: chosen ? 'fixed-proposal' : (recruitmentNeeded ? 'recruitment' : 'missing'),
         status: chosen ? 'מדריך מומלץ למועד הקבוע' : (recruitmentNeeded ? 'נדרש גיוס' : 'נדרש טיפול'),
         instructorName: chosen?.instructorName || '',
         instructorEmpId: chosen?.instructorEmpId || '',
-        meetings: chosen?.meetings || liveRow(activity, periodKey).meetings,
+        meetings: chosen?.meetings || liveRow(activity, activityPeriodKey).meetings,
         options: options.map(({ _candidate, ...option }) => option),
         diagnostics: {
           preliminaryCount: Number(evaluation.preliminaryCount) || 0,
@@ -1686,7 +1737,7 @@ export async function buildDynamicCoursePlan({
         activities: currentContext,
         schoolCalendar,
         today,
-        periodKey
+        periodKey: activityPeriodKey
       }, checkpoint);
       if (!generated.spec.complete) {
         rowsById.set(idOf(activity), missingOverviewRow(activity, catalog));
@@ -1705,7 +1756,7 @@ export async function buildDynamicCoursePlan({
           routeClient,
           checkpoint,
           signal,
-          periodKey
+          periodKey: activityPeriodKey
         });
         const options = evaluation.options || [];
         const chosen = options[0] || null;
