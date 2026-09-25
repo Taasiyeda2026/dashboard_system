@@ -149,7 +149,7 @@ test('main scheduling workboard exposes only open, draft and assigned business s
   assert.match(html, /<span>משובץ<\/span>/);
   assert.doesNotMatch(html, /הצעות מוכנות/);
   assert.doesNotMatch(html, /data-instructors-workspace-tab="planning"/);
-  assert.match(html, /שמור כטיוטה/);
+  assert.match(html, /בחר הצעה/);
   assert.match(html, /data-confirm-planning-draft/);
   assert.match(html, /אשר שיבוץ/);
   assert.match(html, /סידור העבודה מעודכן/);
