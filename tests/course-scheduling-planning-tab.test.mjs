@@ -179,7 +179,7 @@ test('main scheduling workboard exposes only open, draft and assigned business s
   assert.match(html, /data-planning-completion-overview/);
   assert.match(html, /<b>4<\/b> פעילויות במחצית א׳/);
   assert.match(html, /<b>5<\/b> פעילויות תשפ״ז/);
-  assert.match(html, /01\/09\/2026/);
+  assert.match(html, /01\.09\.2026/);
 });
 
 test('planning draft confirmation is an atomic server-side promotion to final assignment', async () => {
