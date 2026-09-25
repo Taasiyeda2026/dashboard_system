@@ -1035,11 +1035,11 @@ async function evaluateScenarioOptions({
     }
 
     routedAttemptCount += batch.length;
-    if (!routed) {
+    if (!routed || text(routed.unavailableReason)) {
       routeServiceFailed = true;
       break;
     }
-    if (!text(routed.unavailableReason)) routeVerified = true;
+    routeVerified = true;
 
     for (const finalist of batch) {
       await checkpoint();
@@ -1167,11 +1167,11 @@ async function evaluateFixedCourse({
       break;
     }
     routedAttemptCount += batch.length;
-    if (!routed) {
+    if (!routed || text(routed.unavailableReason)) {
       routeServiceFailed = true;
       break;
     }
-    if (!text(routed.unavailableReason)) routeVerified = true;
+    routeVerified = true;
 
     const result = calculateCourseSchedule({
       activities: contextActivities,
