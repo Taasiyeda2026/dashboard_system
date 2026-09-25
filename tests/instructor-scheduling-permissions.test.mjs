@@ -57,24 +57,27 @@ test('RPC validates active instructor and canonical name', () => {
   assert.match(assignmentSql, /instructor_name_mismatch/);
 });
 
-test('activities screen keeps assignment filter logic without exposing it in the toolbar', () => {
+test('activities screen exposes one compact assignment-state filter', () => {
   const source = fs.readFileSync(new URL('../frontend/src/screens/activities.js', import.meta.url), 'utf8');
+  assert.match(source, /data-activities-instructor-status-filter/);
   assert.match(source, /label: 'ללא מדריך'/);
-  assert.doesNotMatch(source, /function activityInstructorStatusFilterHtml/);
-  assert.doesNotMatch(source, /data-activities-instructor-status-filter/);
+  assert.match(source, /label: 'ממתין לאישור'/);
+  assert.match(source, /label: 'משובץ'/);
 });
 
-test('unassigned filter requires both primary id and name to be empty', async () => {
+test('assignment filter separates unassigned, pending draft, and approved assignment', async () => {
   const { activityMatchesInstructorStatusFilter } = await import('../frontend/src/screens/shared/activity-instructor-filter.js');
-  assert.equal(activityMatchesInstructorStatusFilter({ emp_id: '', instructor_name: '' }, 'unassigned'), true);
-  assert.equal(activityMatchesInstructorStatusFilter({ emp_id: '1500', instructor_name: '' }, 'unassigned'), false);
-  assert.equal(activityMatchesInstructorStatusFilter({ emp_id: '', instructor_name: 'נועה' }, 'unassigned'), false);
-  assert.equal(activityMatchesInstructorStatusFilter({ emp_id: '1500', instructor_name: 'נועה' }, 'all'), true);
+  assert.equal(activityMatchesInstructorStatusFilter({ emp_id: '', instructor_name: '', draft_emp_id: '', draft_instructor_name: '' }, 'unassigned'), true);
+  assert.equal(activityMatchesInstructorStatusFilter({ emp_id: '', instructor_name: '', draft_emp_id: '1500', draft_instructor_name: 'נועה' }, 'unassigned'), false);
+  assert.equal(activityMatchesInstructorStatusFilter({ emp_id: '', instructor_name: '', draft_emp_id: '1500', draft_instructor_name: 'נועה' }, 'draft'), true);
+  assert.equal(activityMatchesInstructorStatusFilter({ emp_id: '1500', instructor_name: 'נועה' }, 'assigned'), true);
+  assert.equal(activityMatchesInstructorStatusFilter({ emp_id_2: '1501', instructor_name_2: 'מדריך שני' }, 'assigned'), true);
+  assert.equal(activityMatchesInstructorStatusFilter({ emp_id: '1500', instructor_name: 'נועה', draft_emp_id: '1600' }, 'draft'), false);
 });
 
 test('clearing activity filters restores assignment filter to all', () => {
   const source = fs.readFileSync(new URL('../frontend/src/screens/activities.js', import.meta.url), 'utf8');
-  assert.match(source, /onClear: \(\) => \{[\s\S]*state\.allActivitiesStatusFilter = 'all'/);
+  assert.match(source, /onClear: \(\) => \{[\s\S]*state\.activitiesInstructorStatusFilter = 'all'/);
 });
 
 test('scheduling requirements remain ordinary edit fields without a separate drawer action', () => {
@@ -85,11 +88,26 @@ test('scheduling requirements remain ordinary edit fields without a separate dra
   assert.match(detailHtml, /name="required_instructor_gender"/);
   assert.match(detailHtml, /name="instruction_language"/);
   assert.doesNotMatch(detailHtml, /data-find-instructor/);
+  assert.match(detailHtml, /data-open-activity-scheduling/);
+  assert.match(detailHtml, /פתח בשיבוצים/);
   assert.doesNotMatch(detailHtml, /ניהול שיבוץ/);
   assert.doesNotMatch(workflow, /שמירה כטיוטה|data-save-assignment-draft/);
   assert.doesNotMatch(workflow, /מדריכים חסומים|מדריכים מותרים בלבד|הערת שיבוץ פנימית/);
   assert.doesNotMatch(workflow, /איתור מדריכים מתאימים|מומלצים|מתאימים עם חריגה|לא מתאימים|אישור ושיבוץ/);
   assert.doesNotMatch(workflow, /rankInstructors|scheduling-route|assign_activity_instructor|data-run-scheduling/);
+});
+
+test('activities scheduling handoff selects one activity and opens the scheduling workspace', () => {
+  const source = fs.readFileSync(new URL('../frontend/src/screens/activities.js', import.meta.url), 'utf8');
+  const start = source.indexOf("contentRoot.querySelector('[data-open-activity-scheduling]')");
+  assert.ok(start > 0);
+  const handler = source.slice(start, start + 2200);
+  assert.match(handler, /state\.courseSchedulingSelectedId = activityId/);
+  assert.match(handler, /state\.courseSchedulingDistrict = ''/);
+  assert.match(handler, /state\.courseSchedulingAuthority = ''/);
+  assert.match(handler, /state\.courseSchedulingBusinessStatus = 'all'/);
+  assert.match(handler, /route: 'course-scheduling'/);
+  assert.doesNotMatch(handler, /assign_activity_instructor|save_course_assignment_draft|cancel_course_assignment_draft/);
 });
 
 test('route function handles browser CORS and validates application role', () => {

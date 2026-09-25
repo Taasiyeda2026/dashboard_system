@@ -1344,6 +1344,7 @@ function singleForm(row, { settings = {}, privateNote = null, canEdit = false, c
         : (showDates ? blockDates(row, { canEdit, canDirectEdit, datesLoading, is2027, viewOnly: instructorLimited }) : '')}
       ${is2027 && !instructorLimited ? `<div class="activity-drawer__actions-row" data-activity-actions data-view-only>
         <button type="button" class="ds-btn ds-btn--sm" data-coordination-approval>אישור תיאום</button>
+        ${canSchedule && schedulingEligible ? '<button type="button" class="ds-btn ds-btn--sm ds-btn--primary" data-open-activity-scheduling>פתח בשיבוצים</button>' : ''}
       </div>` : ''}
       ${schedulingEligible && !instructorLimited ? `<div class="activity-scheduling-fields" data-mode="edit" hidden data-scheduling-fields>
         <div class="activity-scheduling-summary__fields"><label>מגדר<select class="ds-input" name="required_instructor_gender"><option value="any">ללא דרישה</option><option value="female"${(row.required_instructor_gender || 'any') === 'female' ? ' selected' : ''}>מדריכה</option><option value="male"${(row.required_instructor_gender || 'any') === 'male' ? ' selected' : ''}>מדריך</option></select></label><label>שפת הדרכה<select class="ds-input" name="instruction_language"><option value="he"${(row.instruction_language || 'he') === 'he' ? ' selected' : ''}>עברית</option><option value="ar"${row.instruction_language === 'ar' ? ' selected' : ''}>ערבית</option></select></label></div>

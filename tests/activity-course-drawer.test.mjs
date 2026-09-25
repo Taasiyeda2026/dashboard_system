@@ -67,6 +67,9 @@ test('course drawer keeps polished dates, meeting notes, edit-only scheduling fi
 
   assert.equal(rendered.querySelector('[data-scheduling-summary]'), null);
   assert.equal(rendered.querySelector('[data-find-instructor]'), null);
+  const schedulingHandoff = rendered.querySelector('[data-open-activity-scheduling]');
+  assert.ok(schedulingHandoff);
+  assert.equal(schedulingHandoff.textContent.trim(), 'פתח בשיבוצים');
   const schedulingFields = rendered.querySelector('[data-scheduling-fields]');
   assert.ok(schedulingFields);
   assert.equal(schedulingFields.getAttribute('data-mode'), 'edit');

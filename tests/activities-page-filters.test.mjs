@@ -263,6 +263,8 @@ test('ACTIVITY_LIST_COLUMNS and ACTIVITY_TABLE_COLUMNS include funding', () => {
   assert.match(tableBlock, /'funding'/);
   assert.match(listBlock, /'activity_domain'/);
   assert.match(tableBlock, /'activity_domain'/);
+  assert.match(tableBlock, /'draft_emp_id'/);
+  assert.match(tableBlock, /'draft_instructor_name'/);
   const opsBlock = apiSource.match(/const ACTIVITY_OPERATIONS_COLUMNS = \[([\s\S]*?)\]\.join/)?.[1] || '';
   // Operations projection intentionally untouched by this activities-page fix.
   assert.equal(opsBlock.includes("'funding'"), false);
@@ -444,6 +446,61 @@ test('activities render: assignment state + free search + manager/program filter
   const searchState = withFilters(baseState(), { q: 'דפנה', appliedQ: 'דפנה' });
   const searchHtml = activitiesScreen.render({ rows }, { state: searchState });
   assert.deepEqual(renderedRowIds(searchHtml), ['F-NULL-1']);
+});
+
+test('activities render: assignment status separates pending approval from truly unassigned', () => {
+  const rows = [
+    {
+      RowID: 'A-DRAFT', activity_name: 'טיוטת שיבוץ', activity_type: 'course', activity_season: 'school_2027',
+      authority: 'רחובות', school: 'בית ספר א', status: 'פתוח', start_date: '2026-10-01', end_date: '2026-12-01',
+      emp_id: '', instructor_name: '', draft_emp_id: '1530', draft_instructor_name: 'ורד עליאן'
+    },
+    {
+      RowID: 'A-EMPTY', activity_name: 'ללא מדריך', activity_type: 'course', activity_season: 'school_2027',
+      authority: 'רחובות', school: 'בית ספר ב', status: 'פתוח', start_date: '2026-10-02', end_date: '2026-12-02',
+      emp_id: '', instructor_name: '', draft_emp_id: '', draft_instructor_name: ''
+    },
+    {
+      RowID: 'A-ASSIGNED', activity_name: 'משובצת', activity_type: 'course', activity_season: 'school_2027',
+      authority: 'רחובות', school: 'בית ספר ג', status: 'פתוח', start_date: '2026-10-03', end_date: '2026-12-03',
+      emp_id: '1503', instructor_name: 'הנאא אבו אמנה'
+    }
+  ];
+
+  const draftState = withFilters(baseState({
+    activityPeriodTab: 'school_2027',
+    activitiesInnerTab: 'year_all',
+    activitiesInstructorStatusFilter: 'draft'
+  }), {});
+  const draftHtml = activitiesScreen.render({ rows }, { state: draftState });
+  assert.deepEqual(renderedRowIds(draftHtml), ['A-DRAFT']);
+  assert.match(draftHtml, /ורד עליאן/);
+  assert.match(draftHtml, /ממתין לאישור/);
+  assert.doesNotMatch(draftHtml, /data-row-id="A-DRAFT"[\s\S]{0,1000}ds-chip--instructor-empty/);
+
+  const emptyState = withFilters(baseState({
+    activityPeriodTab: 'school_2027',
+    activitiesInnerTab: 'year_all',
+    activitiesInstructorStatusFilter: 'unassigned'
+  }), {});
+  assert.deepEqual(renderedRowIds(activitiesScreen.render({ rows }, { state: emptyState })), ['A-EMPTY']);
+
+  const assignedState = withFilters(baseState({
+    activityPeriodTab: 'school_2027',
+    activitiesInnerTab: 'year_all',
+    activitiesInstructorStatusFilter: 'assigned'
+  }), {});
+  assert.deepEqual(renderedRowIds(activitiesScreen.render({ rows }, { state: assignedState })), ['A-ASSIGNED']);
+
+  const allHtml = activitiesScreen.render({ rows }, { state: withFilters(baseState({
+    activityPeriodTab: 'school_2027',
+    activitiesInnerTab: 'year_all'
+  }), {}) });
+  assert.match(allHtml, /data-activities-instructor-status-filter/);
+  assert.match(allHtml, /מצב שיבוץ: הכול/);
+  assert.match(allHtml, /מצב שיבוץ: ללא מדריך/);
+  assert.match(allHtml, /מצב שיבוץ: ממתין לאישור/);
+  assert.match(allHtml, /מצב שיבוץ: משובץ/);
 });
 
 test('activities render: domain filter shows only E/Y for 2027 and filters rows', () => {
