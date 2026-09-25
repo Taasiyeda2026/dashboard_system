@@ -760,7 +760,9 @@ test('first-half completion overview includes live, drafts and proposals per ins
   assert.deepEqual(overview[0].programs, ['ביומימיקרי', 'פורצות דרך']);
 
   const html = planningCompletionOverviewHtml(rows);
-  assert.match(html, /תמונת מצב לסיום התכנון/);
+  assert.match(html, /תמונת מצב — מחצית א׳/);
+  assert.doesNotMatch(html, /מחצית א׳ מתחילה ב־01\.09\.2026/);
+  assert.doesNotMatch(html, /התמונה מבוססת על התכנון השמור כרגע/);
   assert.match(html, /מחצית א׳/);
   assert.match(html, /מדריך א/);
   assert.match(html, /מדריכה ב/);
@@ -920,7 +922,9 @@ test('Planning UI defaults to the full school year and exposes period selection'
   assert.match(html, /בנה מערכת הדרכות מלאה/);
   assert.match(html, /נדרש גיוס/);
   assert.match(html, /תכנון עבודה מלא/);
-  assert.match(html, /כל בחירה ב"קבע בתכנון" נשמרת מיד ב-Supabase/);
+  assert.doesNotMatch(html, /Supabase/);
+  assert.doesNotMatch(html, /היקף נוכחי/);
+  assert.doesNotMatch(html, /בדיקות מרחק/);
   assert.match(html, /data-refresh-shared-planning/);
   assert.match(html, /data-export-course-planning disabled/);
   assert.doesNotMatch(html, /מערכת מלאה לפי מדריך/);
@@ -952,7 +956,8 @@ test('Planning UI shows the first-half completion snapshot after calculation', (
     pendingChanges: 0
   });
   assert.match(html, /data-planning-completion-overview/);
-  assert.match(html, /תמונת מצב לסיום התכנון — מחצית א׳/);
+  assert.match(html, /תמונת מצב — מחצית א׳/);
+  assert.doesNotMatch(html, /פעילויות שממתינות לעדכון/);
   assert.match(html, /מערכת מלאה לפי מדריך ולפי מפגש/);
   assert.ok(html.indexOf('data-planning-completion-overview') < html.indexOf('data-planning-course="summary-course"'));
 });
