@@ -22,6 +22,7 @@ const norm = (value) => text(value).replace(/\s+/g, ' ').toLocaleLowerCase('he-I
 export const DEFAULT_PLANNING_PERIOD_KEY = 'year';
 export const PLANNING_OPERATIONAL_START_DATE = '2026-10-06';
 export const FIRST_HALF_COUNT_START_DATE = '2026-09-01';
+export const FIRST_HALF_CONTINUATION_END_DATE = '2027-02-28';
 const DEFAULT_TIME_SLOTS = ['08:00', '09:30', '11:00', '12:30', '14:00'];
 const MAX_TIME_SLOTS_PER_WEEKDAY = 10;
 const MAX_SCENARIOS_PER_COURSE = 60;
@@ -129,6 +130,12 @@ export function planningEffectivePeriod(periodKey = DEFAULT_PLANNING_PERIOD_KEY)
   };
 }
 
+function planningScheduleEnd(periodKey = DEFAULT_PLANNING_PERIOD_KEY) {
+  return text(periodKey) === 'first'
+    ? FIRST_HALF_CONTINUATION_END_DATE
+    : planningEffectivePeriod(periodKey).end;
+}
+
 function officialPlanningDates(activity = {}) {
   const meetingDates = activityMeetings(activity)
     .map((meeting) => text(meeting?.date).slice(0, 10))
@@ -137,6 +144,13 @@ function officialPlanningDates(activity = {}) {
   if (meetingDates.length) return meetingDates;
   const startDate = text(activity?.start_date).slice(0, 10);
   return /^\d{4}-\d{2}-\d{2}$/.test(startDate) ? [startDate] : [];
+}
+
+export function planningActivityHasStarted(activity = {}, today = '') {
+  const currentDate = text(today).slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(currentDate)) return false;
+  const firstDate = officialPlanningDates(activity)[0] || '';
+  return !!firstDate && firstDate <= currentDate;
 }
 
 /**
@@ -287,6 +301,7 @@ export function buildWeeklyPlanningMeetings({
 } = {}) {
   const activityPeriodKey = planningPeriodKeyForActivity(activity, periodKey);
   const period = planningEffectivePeriod(activityPeriodKey);
+  const scheduleEnd = planningScheduleEnd(activityPeriodKey);
   const count = Math.max(0, Math.min(35, Math.floor(Number(sessions) || 0)));
   const duration = roundedDurationMinutes(durationMinutes);
   const startMinutes = timeMinutes(startTime);
@@ -307,7 +322,7 @@ export function buildWeeklyPlanningMeetings({
     while ((weekday(candidate) === 6 || blocked.has(candidate)) && guard++ < 30) {
       candidate = addDays(candidate, 7);
     }
-    if (!candidate || candidate > period.end || guard >= 30) return null;
+    if (!candidate || candidate > scheduleEnd || guard >= 30) return null;
     const cappedEnd = effectiveEndTime(candidate, endTime, calendarRows);
     if (text(cappedEnd).slice(0, 5) !== endTime) return null;
     meetings.push({
@@ -336,6 +351,7 @@ export function buildFixedDatePlanningMeetings({
 } = {}) {
   const activityPeriodKey = planningPeriodKeyForActivity(activity, periodKey);
   const period = planningEffectivePeriod(activityPeriodKey);
+  const scheduleEnd = planningScheduleEnd(activityPeriodKey);
   const duration = roundedDurationMinutes(durationMinutes);
   const startMinutes = timeMinutes(startTime);
   const sourceMeetings = activityMeetings(activity);
@@ -348,7 +364,7 @@ export function buildFixedDatePlanningMeetings({
   const meetings = [];
   for (let index = 0; index < sourceMeetings.length; index += 1) {
     const date = text(sourceMeetings[index]?.date).slice(0, 10);
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || date < period.start || date > period.end) return null;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || date < period.start || date > scheduleEnd) return null;
     if (weekday(date) === 6 || blocked.has(date)) return null;
     const cappedEnd = effectiveEndTime(date, endTime, calendarRows);
     if (text(cappedEnd).slice(0, 5) !== endTime) return null;
@@ -1252,12 +1268,13 @@ function activityTypeLabel(activity = {}) {
 
 function activityMeetingsForPlanning(activity = {}, periodKey = DEFAULT_PLANNING_PERIOD_KEY) {
   const period = planningEffectivePeriod(periodKey);
+  const scheduleEnd = planningScheduleEnd(periodKey);
   return schedulingCalendarMeetings(activity).map((meeting, index) => ({
     date: text(meeting?.date).slice(0, 10),
     meeting_no: Number(meeting?.meeting_no) || index + 1,
     start_time: text(meeting?.start_time || activity.start_time).slice(0, 5),
     end_time: text(meeting?.end_time || activity.end_time).slice(0, 5)
-  })).filter((meeting) => meeting.date >= period.start && meeting.date <= period.end);
+  })).filter((meeting) => meeting.date >= period.start && meeting.date <= scheduleEnd);
 }
 
 function liveRow(activity = {}, periodKey = DEFAULT_PLANNING_PERIOD_KEY) {
@@ -1268,9 +1285,11 @@ function liveRow(activity = {}, periodKey = DEFAULT_PLANNING_PERIOD_KEY) {
   const draft = !text(activity.emp_id) && text(activity.draft_emp_id);
   const assigned = !!text(activity.emp_id);
   const period = planningEffectivePeriod(periodKey);
+  const continuationEnd = planningScheduleEnd(periodKey);
   const endDate = text(last.date || activity.end_date).slice(0, 10);
   const rawEndDate = calendarMeetings.map((meeting) => text(meeting?.date).slice(0, 10)).filter(Boolean).sort().at(-1) || endDate;
-  const halfOverflow = !!draft && !!rawEndDate && rawEndDate > period.end;
+  const continuesIntoFebruary = periodKey === 'first' && !!rawEndDate && rawEndDate > period.end && rawEndDate <= continuationEnd;
+  const halfOverflow = !!rawEndDate && rawEndDate > continuationEnd;
   return {
     courseId: idOf(activity),
     authority: text(activity.authority),
@@ -1289,13 +1308,16 @@ function liveRow(activity = {}, periodKey = DEFAULT_PLANNING_PERIOD_KEY) {
     meetings,
     options: [],
     halfOverflow,
-    halfOverflowLabel: halfOverflow ? 'חורגת מתקופת התכנון' : '',
+    continuesIntoFebruary,
+    halfOverflowLabel: halfOverflow ? 'נמשכת מעבר לסוף פברואר' : '',
     reason: assigned
       ? 'נלקח מהשיבוץ הפעיל'
       : (draft
           ? (halfOverflow
-              ? `נלקח מטיוטת השיבוץ הקיימת · סיום ${formatDateHe(rawEndDate)} לאחר סוף תקופת התכנון`
-              : 'נלקח מטיוטת השיבוץ הקיימת')
+              ? `נלקח מטיוטת השיבוץ הקיימת · סיום ${formatDateHe(rawEndDate)} מעבר לסוף פברואר`
+              : (continuesIntoFebruary
+                  ? `נלקח מטיוטת השיבוץ הקיימת · מחצית א׳ נמשכת עד ${formatDateHe(rawEndDate)} בפברואר`
+                  : 'נלקח מטיוטת השיבוץ הקיימת'))
           : 'התאריך והשעות נלקחו מהפעילות')
   };
 }
@@ -1875,8 +1897,23 @@ export async function buildDynamicCoursePlan({
       }
     }
 
-    if (hasOfficialPlanningSchedule(activity)) fixedUnassigned.push(activity);
-    else missingSchedule.push(activity);
+    if (hasOfficialPlanningSchedule(activity)) {
+      fixedUnassigned.push(activity);
+    } else if (planningActivityHasStarted(activity, today)) {
+      const dates = officialPlanningDates(activity);
+      rowsById.set(activityId, {
+        ...missingOverviewRow(activity, catalog),
+        kind: 'fixed',
+        status: 'מועד קיים — לא מזיזים',
+        startDate: dates[0] || text(activity.start_date).slice(0, 10),
+        endDate: dates.at(-1) || text(activity.end_date).slice(0, 10),
+        startTime: text(activity.start_time).slice(0, 5),
+        endTime: text(activity.end_time).slice(0, 5),
+        reason: 'הפעילות כבר התחילה ולכן המערכת אינה משנה את המועדים שלה אוטומטית; יש להשלים מידע חסר או לשבץ מדריך למועד הקיים.'
+      });
+    } else {
+      missingSchedule.push(activity);
+    }
   }
 
   fixedUnassigned.sort((a, b) => {
