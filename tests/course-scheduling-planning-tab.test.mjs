@@ -23,6 +23,7 @@ import {
   normalizePlanningLockedOption,
   planningInstructorSchedules,
   planningInstructorCompletionOverview,
+  assignRecruitmentProfiles,
   planningCompletionOverviewHtml,
   planningOptimizationScore,
   planningQualityAudit,
@@ -1261,6 +1262,69 @@ test('route failure never produces a valid planning proposal', async () => {
   assert.match(result.rows[0].reason, /לא מסומן לגיוס|בדיקה נוספת/);
 });
 
+test('national planning reoptimizes an existing draft before declaring recruitment', async () => {
+  const draft = {
+    ...baseCourse,
+    row_id: 'flex-draft',
+    sessions: 2,
+    draft_emp_id: '99',
+    draft_instructor_name: 'טיוטה ישנה',
+    draft_proposed_meetings: [
+      { date: '2026-11-01', start_time: '08:00', end_time: '09:30' },
+      { date: '2026-11-08', start_time: '08:00', end_time: '09:30' }
+    ]
+  };
+  const result = await buildDynamicCoursePlan({
+    activities: [draft],
+    instructors: [],
+    profiles: {},
+    rules: {},
+    exceptions: {},
+    schoolCalendar: [],
+    catalog,
+    today: '2026-09-23',
+    routeClient: routeClient(null)
+  });
+  const row = result.rows[0];
+  assert.notEqual(row.kind, 'draft');
+  assert.equal(row.sourceHadDraft, true);
+  assert.equal(row.previousDraftInstructorName, 'טיוטה ישנה');
+  assert.equal(row.kind, 'recruitment');
+  assert.ok(row.startDate);
+  assert.ok(row.startTime);
+  assert.ok(row.meetings.length > 0);
+  assert.match(row.reason, /מיצוי אפשרויות הצוות הקיים/);
+});
+
+test('recruitment packing reuses one hiring model for compatible activities instead of one hire per activity', () => {
+  const rows = assignRecruitmentProfiles([
+    {
+      courseId: 'r1', courseName: 'ביומימיקרי', school: 'בית ספר א', authority: 'רחובות',
+      kind: 'recruitment', status: 'נדרש גיוס', sessions: 2, requiredLanguage: 'he', requiredGender: 'any',
+      scheduleOptions: [
+        { startDate: '2026-10-11', endDate: '2026-10-18', startTime: '08:00', endTime: '09:30', meetings: [
+          { date: '2026-10-11', start_time: '08:00', end_time: '09:30' },
+          { date: '2026-10-18', start_time: '08:00', end_time: '09:30' }
+        ] }
+      ]
+    },
+    {
+      courseId: 'r2', courseName: 'יישומי AI', school: 'בית ספר ב', authority: 'רחובות',
+      kind: 'recruitment', status: 'נדרש גיוס', sessions: 2, requiredLanguage: 'he', requiredGender: 'any',
+      scheduleOptions: [
+        { startDate: '2026-10-12', endDate: '2026-10-19', startTime: '10:00', endTime: '11:30', meetings: [
+          { date: '2026-10-12', start_time: '10:00', end_time: '11:30' },
+          { date: '2026-10-19', start_time: '10:00', end_time: '11:30' }
+        ] }
+      ]
+    }
+  ]);
+  assert.equal(rows[0].recruitmentProfileId, rows[1].recruitmentProfileId);
+  assert.equal(rows[0].recruitmentProfileSize, 2);
+  assert.equal(rows[1].recruitmentProfileSize, 2);
+  assert.ok(rows.every((row) => row.startDate && row.startTime));
+});
+
 test('Planning marks recruitment only when no active instructor can satisfy the hard gates', async () => {
   const activity = { ...baseCourse, row_id: 'needs-recruitment', sessions: 2 };
   const result = await buildDynamicCoursePlan({
@@ -1276,7 +1340,11 @@ test('Planning marks recruitment only when no active instructor can satisfy the 
   });
   assert.equal(result.rows[0].kind, 'recruitment');
   assert.equal(result.rows[0].status, 'נדרש גיוס');
-  assert.match(result.rows[0].reason, /לא נמצא אף מדריך פעיל|נדרש גיוס/);
+  assert.ok(result.rows[0].startDate);
+  assert.ok(result.rows[0].startTime);
+  assert.ok(result.rows[0].meetings.length > 0);
+  assert.ok(result.rows[0].recruitmentProfileId);
+  assert.match(result.rows[0].reason, /נדרש גיוס/);
   assert.equal(result.recruitment, 1);
 });
 

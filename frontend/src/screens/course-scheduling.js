@@ -602,8 +602,16 @@ function planningPrimaryOption(planningRow = {}) {
 function workboardAlert(row = {}) {
   const planning = row.planningRow || {};
   const result = row.result || {};
-  if (planning.kind === 'recruitment' || result.status === 'נדרש גיוס') return 'אין מדריך מתאים כרגע';
-  if (planning.kind === 'missing' || planning.kind === 'fixed' || result.status === 'חסר מידע') return 'חסר מידע לתכנון';
+  if (row.hasReplannedDraft) {
+    if (planning.kind === 'recruitment') return 'הטיוטה הקיימת אינה מיטבית · מועד חלופי מוכן ונדרש גיוס';
+    if (planning.kind === 'proposal' || planning.kind === 'fixed-proposal') return 'מומלץ לשנות את הטיוטה הקיימת לפי התכנון הארצי';
+  }
+  if (planning.kind === 'recruitment' || result.status === 'נדרש גיוס') {
+    return planning.startDate ? 'מועד מוצע לבית הספר מוכן · נדרש גיוס' : 'אין מדריך מתאים כרגע';
+  }
+  if (planning.kind === 'missing' || planning.kind === 'fixed' || result.status === 'חסר מידע') {
+    return planning.startDate ? 'מועד מוצע מוכן · נדרשת בדיקה נוספת' : 'חסר מידע לתכנון';
+  }
   if (result.status === 'נדרש טיפול') return text(result.treatmentReason) || 'נדרשת בדיקה';
   const option = planningPrimaryOption(planning);
   if (option?.routeVerified === false || planning?.diagnostics?.routeVerified === false) return 'הנסיעה טרם אומתה';
@@ -613,6 +621,9 @@ function workboardAlert(row = {}) {
 
 function workboardMeetings(row = {}) {
   if (row.isAssigned) return activityMeetings(row.course);
+  if (row.hasReplannedDraft && Array.isArray(row.planningRow?.meetings) && row.planningRow.meetings.length) {
+    return row.planningRow.meetings;
+  }
   if (row.hasActualDraft) return schedulingCalendarMeetings(row.course);
   if (Array.isArray(row.planningRow?.meetings) && row.planningRow.meetings.length) return row.planningRow.meetings;
   return [];
@@ -633,9 +644,16 @@ function workboardScheduleLabel(row = {}) {
 
 function workboardInstructorLabel(row = {}) {
   const course = row.course || {};
+  const planning = row.planningRow || {};
   if (row.isAssigned) return text(course.instructor_name || course.emp_id) || '—';
+  if (planning.kind === 'recruitment') {
+    return text(planning.recruitmentProfileLabel) || 'נדרש גיוס';
+  }
+  if (row.hasReplannedDraft) {
+    return text(planning.instructorName || planning.instructorEmpId) || 'נדרש גיוס';
+  }
   if (row.hasActualDraft) return text(course.draft_instructor_name || course.draft_emp_id) || '—';
-  return text(row.planningRow?.instructorName || row.planningRow?.instructorEmpId) || 'טרם נקבע';
+  return text(planning.instructorName || planning.instructorEmpId) || 'טרם נקבע';
 }
 
 function courseRowModel(course, resultByCourseId, planningByCourseId = new Map()) {
@@ -646,6 +664,9 @@ function courseRowModel(course, resultByCourseId, planningByCourseId = new Map()
   const hasPlanningDraft = !isAssigned && !hasActualDraft
     && planningRow?.planningLocked === true
     && !!text(planningRow?.instructorEmpId);
+  const hasReplannedDraft = hasActualDraft
+    && planningRow?.sourceHadDraft === true
+    && ['proposal', 'fixed-proposal', 'recruitment', 'missing'].includes(text(planningRow?.kind));
   const hasDraft = hasActualDraft || hasPlanningDraft;
   const result = resultByCourseId.get(id) || null;
   const bucket = isAssigned ? 'assigned' : (hasDraft ? 'draft' : 'open');
@@ -658,6 +679,7 @@ function courseRowModel(course, resultByCourseId, planningByCourseId = new Map()
     isAssigned,
     hasActualDraft,
     hasPlanningDraft,
+    hasReplannedDraft,
     hasDraft,
     bucket,
     statusLabel
@@ -689,15 +711,35 @@ function planningAlternativeButtonsHtml(row = {}, expanded = false) {
   const planning = row.planningRow || {};
   const options = Array.isArray(planning.options) ? planning.options : [];
   const alternatives = options.slice(1);
-  if (!expanded || !alternatives.length || row.hasActualDraft || row.isAssigned) return '';
-  return `<div class="course-scheduling-workboard-alternatives">
-    <strong>חלופות</strong>
-    ${alternatives.map((option, index) => `<button type="button" class="course-scheduling-workboard-alt"
-      data-course-row-action data-planning-pick-option data-planning-course-id="${escapeHtml(row.id)}" data-planning-option-index="${index + 1}">
-      <span>${escapeHtml(option.instructorName || '—')}</span>
-      <small><bdi dir="ltr">${escapeHtml(formatDateHe(option.startDate))}</bdi> · <bdi dir="ltr">${escapeHtml(formatTimeRangeShort(option.startTime, option.endTime))}</bdi></small>
-    </button>`).join('')}
-  </div>`;
+  const scheduleAlternatives = Array.isArray(planning.scheduleOptions)
+    ? planning.scheduleOptions.filter((option) =>
+        text(option.startDate) !== text(planning.startDate)
+        || text(option.startTime) !== text(planning.startTime)
+      ).slice(0, 3)
+    : [];
+  if (!expanded || row.isAssigned) return '';
+
+  if (alternatives.length && !row.hasActualDraft) {
+    return `<div class="course-scheduling-workboard-alternatives">
+      <strong>חלופות</strong>
+      ${alternatives.map((option, index) => `<button type="button" class="course-scheduling-workboard-alt"
+        data-course-row-action data-planning-pick-option data-planning-course-id="${escapeHtml(row.id)}" data-planning-option-index="${index + 1}">
+        <span>${escapeHtml(option.instructorName || '—')}</span>
+        <small><bdi dir="ltr">${escapeHtml(formatDateHe(option.startDate))}</bdi> · <bdi dir="ltr">${escapeHtml(formatTimeRangeShort(option.startTime, option.endTime))}</bdi></small>
+      </button>`).join('')}
+    </div>`;
+  }
+
+  if (scheduleAlternatives.length) {
+    return `<div class="course-scheduling-workboard-alternatives">
+      <strong>חלופות למועד</strong>
+      ${scheduleAlternatives.map((option) => `<div class="course-scheduling-workboard-alt is-static">
+        <span>${planning.kind === 'recruitment' ? 'נדרש גיוס' : 'מועד חלופי'}</span>
+        <small><bdi dir="ltr">${escapeHtml(formatDateHe(option.startDate))}</bdi> · <bdi dir="ltr">${escapeHtml(formatTimeRangeShort(option.startTime, option.endTime))}</bdi></small>
+      </div>`).join('')}
+    </div>`;
+  }
+  return '';
 }
 
 function workboardActionsHtml(row = {}, { planningLoading = false, alternativesExpanded = false } = {}) {
@@ -705,6 +747,11 @@ function workboardActionsHtml(row = {}, { planningLoading = false, alternativesE
     return '<button type="button" class="course-scheduling-workboard-secondary" data-course-row-action data-open-course-detail>פתח</button>';
   }
   if (row.hasActualDraft) {
+    if (row.hasReplannedDraft) {
+      const hasScheduleAlternatives = (row.planningRow?.scheduleOptions || []).length > 1;
+      return `${hasScheduleAlternatives ? `<button type="button" class="course-scheduling-workboard-secondary" data-course-row-action data-workboard-alternatives data-course-id="${escapeHtml(row.id)}">${alternativesExpanded ? 'סגור חלופות' : 'חלופות למועד'}</button>` : ''}
+        <button type="button" class="course-scheduling-workboard-primary" data-course-row-action data-open-course-detail>שנה טיוטה</button>`;
+    }
     return `<button type="button" class="course-scheduling-workboard-primary" data-course-row-action data-confirm-actual-draft data-course-id="${escapeHtml(row.id)}">אשר שיבוץ</button>
       <button type="button" class="course-scheduling-workboard-secondary" data-course-row-action data-open-course-detail>שינוי</button>`;
   }
@@ -721,6 +768,10 @@ function workboardActionsHtml(row = {}, { planningLoading = false, alternativesE
       ${(planning.options || []).length > 1 ? `<button type="button" class="course-scheduling-workboard-secondary" data-course-row-action data-workboard-alternatives data-course-id="${escapeHtml(row.id)}">${alternativesExpanded ? 'סגור חלופות' : 'חלופות'}</button>` : ''}`;
   }
   if (planningLoading) return '<span class="course-scheduling-workboard-working">מכין הצעה…</span>';
+  if ((planning.scheduleOptions || []).length > 1) {
+    return `<button type="button" class="course-scheduling-workboard-secondary" data-course-row-action data-workboard-alternatives data-course-id="${escapeHtml(row.id)}">${alternativesExpanded ? 'סגור חלופות' : 'חלופות למועד'}</button>
+      <button type="button" class="course-scheduling-workboard-link" data-course-row-action data-open-course-detail>פתח</button>`;
+  }
   return '<button type="button" class="course-scheduling-workboard-secondary" data-course-row-action data-open-course-detail>בדיקה ידנית</button>';
 }
 

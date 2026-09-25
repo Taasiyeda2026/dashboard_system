@@ -646,7 +646,7 @@ const screenLoaders = {
   month: () => import('./screens/month.js').then((m) => m.monthScreen),
   exceptions: () => import('./screens/exceptions.js').then((m) => m.exceptionsScreen),
   instructors: () => import('./screens/instructors.js?v=20260814-instructor-onboarding-v3').then((m) => m.instructorsScreen),
-  'course-scheduling': () => import('./screens/course-scheduling.js?v=20260925-first-half-count-sep1-v1').then((m) => m.courseSchedulingScreen),
+  'course-scheduling': () => import('./screens/course-scheduling.js?v=20260925-existing-team-first-v1').then((m) => m.courseSchedulingScreen),
   'instructor-contacts': () => import('./screens/instructor-contacts.js').then((m) => m.instructorContactsScreen),
   contacts: () => import('./screens/contacts.js').then((m) => m.contactsScreen),
   'end-dates': () => import('./screens/end-dates.js').then((m) => m.endDatesScreen),

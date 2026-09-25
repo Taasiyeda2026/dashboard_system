@@ -35,7 +35,7 @@ export const PLANNING_OPTIMIZATION_WEIGHTS = Object.freeze({
   geography: 15,
   stability: 10
 });
-export const PLANNING_ENGINE_VERSION = 'planning-v8-20260925-first-half-undated';
+export const PLANNING_ENGINE_VERSION = 'planning-v9-20260925-existing-team-first';
 export const PLANNING_ACTIVITY_NO_ALIASES = Object.freeze({
   // Legacy Gefen identifier retained on existing activities; canonical catalog program is 53828.
   '82835': '53828'
@@ -401,6 +401,23 @@ export function latestFeasiblePlanningStart({ activity = {}, targetWeekday, star
 
 function blockingActivities(activities = []) {
   return (activities || []).filter((activity) => isSchedulingBlockingAssignment(activity) || isSchedulingDraftAssignment(activity));
+}
+
+function planningFlexibleActivity(activity = {}) {
+  if (!activity || text(activity.emp_id)) return activity;
+  if (!text(activity.draft_emp_id)) return activity;
+  return {
+    ...activity,
+    draft_emp_id: null,
+    draft_instructor_name: null,
+    draft_proposed_meetings: null,
+    draft_created_at: null,
+    draft_created_by: null
+  };
+}
+
+function planningContextActivities(activities = []) {
+  return (activities || []).map(planningFlexibleActivity);
 }
 
 function blockingMeetings(activities = []) {
@@ -989,31 +1006,42 @@ async function evaluateScenarioOptions({
       options: [],
       preliminaryCount: 0,
       routedAttemptCount: 0,
-      routeVerified: false,
+      routeVerified: true,
       recruitmentNeeded: true
     };
   }
 
   preliminaries.sort(planningPairCompare);
-  const finalists = preliminaries.slice(0, MAX_ROUTED_PLANNING_PAIRS);
-
-  let routed = null;
-  try {
-    routed = await calculateCandidateTravel(
-      finalists.map((item) => ({ course: item.course, candidate: item.candidate })),
-      contextActivities,
-      routeClient,
-      { checkpoint, signal }
-    );
-  } catch (error) {
-    if (isPlanningCancellationError(error)) throw error;
-    routed = null;
-  }
-
   const options = [];
   const optionKeys = new Set();
-  if (routed) {
-    for (const finalist of finalists) {
+  let routedAttemptCount = 0;
+  let routeVerified = false;
+  let routeServiceFailed = false;
+
+  for (let offset = 0; offset < preliminaries.length && options.length < MAX_FINAL_OPTIONS; offset += MAX_ROUTED_PLANNING_PAIRS) {
+    const batch = preliminaries.slice(offset, offset + MAX_ROUTED_PLANNING_PAIRS);
+    let routed = null;
+    try {
+      routed = await calculateCandidateTravel(
+        batch.map((item) => ({ course: item.course, candidate: item.candidate })),
+        contextActivities,
+        routeClient,
+        { checkpoint, signal }
+      );
+    } catch (error) {
+      if (isPlanningCancellationError(error)) throw error;
+      routeServiceFailed = true;
+      break;
+    }
+
+    routedAttemptCount += batch.length;
+    if (!routed || text(routed.unavailableReason)) {
+      routeServiceFailed = true;
+      break;
+    }
+    routeVerified = true;
+
+    for (const finalist of batch) {
       await checkpoint();
       const finalResult = calculateCourseSchedule({
         activities: [...contextActivities, finalist.course],
@@ -1035,7 +1063,7 @@ async function evaluateScenarioOptions({
       ) || null;
       if (!finalCandidate) continue;
       const option = optionFromCandidate(finalist.course, finalCandidate, {
-        routeVerified: true,
+        routeVerified: !text(routed.unavailableReason),
         startRange
       });
       if (!option) continue;
@@ -1043,21 +1071,18 @@ async function evaluateScenarioOptions({
       if (optionKeys.has(key)) continue;
       optionKeys.add(key);
       options.push({ ...option, _candidate: finalCandidate });
+      if (options.length >= MAX_FINAL_OPTIONS) break;
     }
   }
 
   const sortedOptions = options.sort(optionCompare).slice(0, MAX_FINAL_OPTIONS);
-  const exhaustive = finalists.length >= preliminaries.length;
-  const routeVerified = !!routed && !text(routed.unavailableReason);
+  const exhaustive = routedAttemptCount >= preliminaries.length;
   return {
     options: sortedOptions,
     preliminaryCount: preliminaries.length,
-    routedAttemptCount: finalists.length,
+    routedAttemptCount,
     routeVerified,
-    recruitmentNeeded: sortedOptions.length === 0 && (
-      preliminaries.length === 0
-      || (routeVerified && exhaustive)
-    )
+    recruitmentNeeded: sortedOptions.length === 0 && !routeServiceFailed && exhaustive
   };
 }
 
@@ -1116,26 +1141,38 @@ async function evaluateFixedCourse({
     };
   }
 
-  const finalists = candidates
+  const ranked = candidates
     .map((candidate) => ({ course: activity, candidate, planningOptimization: planningOptimizationScore(candidate) }))
-    .sort(planningPairCompare)
-    .slice(0, MAX_ROUTED_PLANNING_PAIRS);
-
-  let routed = null;
-  try {
-    routed = await calculateCandidateTravel(
-      finalists.map((item) => ({ course: activity, candidate: item.candidate })),
-      contextActivities,
-      routeClient,
-      { checkpoint, signal }
-    );
-  } catch (error) {
-    if (isPlanningCancellationError(error)) throw error;
-    routed = null;
-  }
+    .sort(planningPairCompare);
 
   const options = [];
-  if (routed) {
+  const optionKeys = new Set();
+  let routedAttemptCount = 0;
+  let routeVerified = false;
+  let routeServiceFailed = false;
+
+  for (let offset = 0; offset < ranked.length && options.length < MAX_FINAL_OPTIONS; offset += MAX_ROUTED_PLANNING_PAIRS) {
+    const batch = ranked.slice(offset, offset + MAX_ROUTED_PLANNING_PAIRS);
+    let routed = null;
+    try {
+      routed = await calculateCandidateTravel(
+        batch.map((item) => ({ course: activity, candidate: item.candidate })),
+        contextActivities,
+        routeClient,
+        { checkpoint, signal }
+      );
+    } catch (error) {
+      if (isPlanningCancellationError(error)) throw error;
+      routeServiceFailed = true;
+      break;
+    }
+    routedAttemptCount += batch.length;
+    if (!routed || text(routed.unavailableReason)) {
+      routeServiceFailed = true;
+      break;
+    }
+    routeVerified = true;
+
     const result = calculateCourseSchedule({
       activities: contextActivities,
       targetCourseId: idOf(activity),
@@ -1152,36 +1189,31 @@ async function evaluateFixedCourse({
       allowDateAdjustments: false
     })[0];
 
-    for (const finalist of finalists) {
+    for (const finalist of batch) {
       await checkpoint();
       const expectedEmpId = empOf(finalist.candidate);
       const finalCandidate = (result?.checked || []).find((candidate) =>
         candidate?.eligible && empOf(candidate) === expectedEmpId
       ) || null;
       if (!finalCandidate) continue;
-      const option = optionFromCandidate(activity, finalCandidate, { routeVerified: true });
-      if (option) options.push({ ...option, _candidate: finalCandidate });
+      const option = optionFromCandidate(activity, finalCandidate, { routeVerified: !text(routed.unavailableReason) });
+      if (!option) continue;
+      const key = text(option.instructorEmpId);
+      if (optionKeys.has(key)) continue;
+      optionKeys.add(key);
+      options.push({ ...option, _candidate: finalCandidate });
+      if (options.length >= MAX_FINAL_OPTIONS) break;
     }
   }
 
-  const sortedOptions = options
-    .filter(Boolean)
-    .sort(optionCompare)
-    .filter((option, index, all) =>
-      all.findIndex((item) => item.instructorEmpId === option.instructorEmpId) === index
-    )
-    .slice(0, MAX_FINAL_OPTIONS);
-  const exhaustive = finalists.length >= candidates.length;
-  const routeVerified = !!routed && !text(routed.unavailableReason);
+  const sortedOptions = options.filter(Boolean).sort(optionCompare).slice(0, MAX_FINAL_OPTIONS);
+  const exhaustive = routedAttemptCount >= ranked.length;
   return {
     options: sortedOptions,
     preliminaryCount: candidates.length,
-    routedAttemptCount: finalists.length,
+    routedAttemptCount,
     routeVerified,
-    recruitmentNeeded: sortedOptions.length === 0 && (
-      candidates.length === 0
-      || (routeVerified && exhaustive)
-    )
+    recruitmentNeeded: sortedOptions.length === 0 && !routeServiceFailed && exhaustive
   };
 }
 
@@ -1301,24 +1333,205 @@ export function buildPlanningOverviewRows({ activities = [], catalog = [], distr
   );
 }
 
+function scheduleOnlyOptions(scenarios = [], limit = 8) {
+  const seen = new Set();
+  return [...(scenarios || [])]
+    .filter((scenario) => Array.isArray(scenario?.meetings) && scenario.meetings.length)
+    .sort((a, b) =>
+      text(a.startDate).localeCompare(text(b.startDate))
+      || text(a.startTime).localeCompare(text(b.startTime))
+    )
+    .filter((scenario) => {
+      const key = `${text(scenario.startDate)}|${text(scenario.startTime)}|${text(scenario.endTime)}`;
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .slice(0, Math.max(1, Number(limit) || 8))
+    .map((scenario) => ({
+      startDate: text(scenario.startDate),
+      endDate: text(scenario.endDate),
+      startTime: text(scenario.startTime),
+      endTime: text(scenario.endTime),
+      meetings: (scenario.meetings || []).map((meeting) => ({ ...meeting }))
+    }));
+}
+
+function timeRangesOverlap(first = {}, second = {}) {
+  if (text(first.date) !== text(second.date)) return false;
+  const firstStart = timeMinutes(first.start_time);
+  const firstEnd = timeMinutes(first.end_time);
+  const secondStart = timeMinutes(second.start_time);
+  const secondEnd = timeMinutes(second.end_time);
+  if ([firstStart, firstEnd, secondStart, secondEnd].some((value) => value == null)) return true;
+  return firstStart < secondEnd && secondStart < firstEnd;
+}
+
+function normalizedGenderRequirement(value) {
+  const raw = norm(value);
+  if (['female', 'f', 'נקבה', 'מדריכה'].includes(raw)) return 'female';
+  if (['male', 'm', 'זכר', 'מדריך'].includes(raw)) return 'male';
+  return 'any';
+}
+
+function normalizedLanguageRequirement(value) {
+  const raw = norm(value);
+  if (!raw) return '';
+  if (raw.includes('ערב') || raw === 'ar' || raw === 'arabic') return 'ar';
+  if (raw.includes('עבר') || raw === 'he' || raw === 'hebrew') return 'he';
+  return raw;
+}
+
+function meetingGapMinutes(first = {}, second = {}) {
+  const firstStart = timeMinutes(first.start_time);
+  const firstEnd = timeMinutes(first.end_time);
+  const secondStart = timeMinutes(second.start_time);
+  const secondEnd = timeMinutes(second.end_time);
+  if ([firstStart, firstEnd, secondStart, secondEnd].some((value) => value == null)) return -1;
+  if (firstEnd <= secondStart) return secondStart - firstEnd;
+  if (secondEnd <= firstStart) return firstStart - secondEnd;
+  return -1;
+}
+
+function recruitmentProfileCanTake(profile, row, schedule) {
+  const gender = normalizedGenderRequirement(row.requiredGender);
+  if (profile.gender !== 'any' && gender !== 'any' && profile.gender !== gender) return false;
+
+  for (const existing of profile.meetings) {
+    for (const incoming of schedule.meetings || []) {
+      if (timeRangesOverlap(existing, incoming)) return false;
+      if (text(existing.date) === text(incoming.date)) {
+        const sameSchool = norm(existing.school) && norm(existing.school) === norm(row.school);
+        const sameAuthority = norm(existing.authority) && norm(existing.authority) === norm(row.authority);
+        if (!sameAuthority) return false;
+        if (!sameSchool && meetingGapMinutes(existing, incoming) < 30) return false;
+      }
+    }
+  }
+  return true;
+}
+
+function recruitmentPlacementScore(profile, row, schedule) {
+  const sameAuthority = profile.authorities.has(norm(row.authority)) ? 30 : 0;
+  const sameProgram = profile.programs.has(norm(row.courseName)) ? 12 : 0;
+  const weekdays = new Set((schedule.meetings || []).map((meeting) => weekday(meeting.date)));
+  const reusedDay = [...weekdays].some((day) => profile.weekdays.has(day)) ? 6 : 0;
+  return sameAuthority + sameProgram + reusedDay - profile.activities.length;
+}
+
+export function assignRecruitmentProfiles(rows = []) {
+  const result = (rows || []).map((row) => ({
+    ...row,
+    meetings: (row.meetings || []).map((meeting) => ({ ...meeting })),
+    scheduleOptions: (row.scheduleOptions || []).map((option) => ({
+      ...option,
+      meetings: (option.meetings || []).map((meeting) => ({ ...meeting }))
+    }))
+  }));
+  const candidates = result
+    .filter((row) => row.kind === 'recruitment')
+    .sort((a, b) =>
+      (a.scheduleOptions?.length || 1) - (b.scheduleOptions?.length || 1)
+      || Number(b.sessions || 0) - Number(a.sessions || 0)
+      || text(a.courseId).localeCompare(text(b.courseId))
+    );
+  const profiles = [];
+
+  for (const row of candidates) {
+    const choices = row.scheduleOptions?.length
+      ? row.scheduleOptions
+      : (row.meetings?.length ? [{
+          startDate: row.startDate,
+          endDate: row.endDate,
+          startTime: row.startTime,
+          endTime: row.endTime,
+          meetings: row.meetings
+        }] : []);
+    if (!choices.length) continue;
+
+    let best = null;
+    for (const profile of profiles) {
+      for (const schedule of choices) {
+        if (!recruitmentProfileCanTake(profile, row, schedule)) continue;
+        const score = recruitmentPlacementScore(profile, row, schedule);
+        if (!best || score > best.score) best = { profile, schedule, score };
+      }
+    }
+
+    if (!best) {
+      const profile = {
+        id: `recruitment-${profiles.length + 1}`,
+        label: `מודל גיוס ${profiles.length + 1}`,
+        gender: normalizedGenderRequirement(row.requiredGender),
+        languages: new Set(),
+        authorities: new Set(),
+        programs: new Set(),
+        weekdays: new Set(),
+        meetings: [],
+        activities: []
+      };
+      profiles.push(profile);
+      best = { profile, schedule: choices[0], score: 0 };
+    }
+
+    const { profile, schedule } = best;
+    const gender = normalizedGenderRequirement(row.requiredGender);
+    if (profile.gender === 'any' && gender !== 'any') profile.gender = gender;
+    const language = normalizedLanguageRequirement(row.requiredLanguage);
+    if (language) profile.languages.add(language);
+    if (norm(row.authority)) profile.authorities.add(norm(row.authority));
+    if (norm(row.courseName)) profile.programs.add(norm(row.courseName));
+    for (const meeting of schedule.meetings || []) {
+      profile.meetings.push({ ...meeting, authority: row.authority, school: row.school, courseId: row.courseId });
+      profile.weekdays.add(weekday(meeting.date));
+    }
+    profile.activities.push(row.courseId);
+
+    row.startDate = schedule.startDate;
+    row.endDate = schedule.endDate;
+    row.startTime = schedule.startTime;
+    row.endTime = schedule.endTime;
+    row.meetings = (schedule.meetings || []).map((meeting) => ({ ...meeting }));
+    row.recruitmentProfileId = profile.id;
+    row.recruitmentProfileLabel = profile.label;
+  }
+
+  const profileById = new Map(profiles.map((profile) => [profile.id, profile]));
+  for (const row of result) {
+    if (!row.recruitmentProfileId) continue;
+    const profile = profileById.get(row.recruitmentProfileId);
+    row.recruitmentProfileSize = profile?.activities?.length || 1;
+    row.reason = `לאחר מיצוי אפשרויות הצוות הקיים: נדרש גיוס. המועד נשמר כהצעה לבית הספר ומשויך ל${row.recruitmentProfileLabel}, שמרכז ${row.recruitmentProfileSize} פעילויות.`;
+  }
+  return result;
+}
+
 function planRowFromOption(activity, option, options, startRange, spec, diagnostics = {}) {
   const recruitmentNeeded = !option && diagnostics.recruitmentNeeded === true;
+  const scheduleOptions = diagnostics.scheduleOptions || [];
+  const scheduleOnly = scheduleOptions[0] || null;
   return {
     courseId: idOf(activity),
     authority: text(activity.authority),
+    district: text(activity.district || activity.school_district || activity.authority_district),
     school: text(activity.school),
     courseName: text(activity.activity_name),
     activityType: activityTypeLabel(activity),
+    requiredLanguage: text(activity.instruction_language),
+    requiredGender: text(activity.required_instructor_gender),
+    sourceHadDraft: !!text(activity.draft_emp_id),
+    previousDraftInstructorName: text(activity.draft_instructor_name || activity.draft_emp_id),
     sessions: spec?.sessions || meetingCount(activity),
     kind: option ? 'proposal' : (recruitmentNeeded ? 'recruitment' : 'missing'),
     status: option ? 'מועד מומלץ לבית הספר' : (recruitmentNeeded ? 'נדרש גיוס' : 'נדרש טיפול'),
-    startDate: option?.startDate || '',
-    endDate: option?.endDate || '',
-    startTime: option?.startTime || '',
-    endTime: option?.endTime || '',
+    startDate: option?.startDate || scheduleOnly?.startDate || '',
+    endDate: option?.endDate || scheduleOnly?.endDate || '',
+    startTime: option?.startTime || scheduleOnly?.startTime || '',
+    endTime: option?.endTime || scheduleOnly?.endTime || '',
     instructorName: option?.instructorName || '',
     instructorEmpId: option?.instructorEmpId || '',
-    meetings: option?.meetings || [],
+    meetings: option?.meetings || scheduleOnly?.meetings || [],
+    scheduleOptions,
     options: (options || []).map(({ _candidate, ...item }) => item),
     startRange,
     diagnostics: {
@@ -1609,7 +1822,10 @@ export async function buildDynamicCoursePlan({
   };
   await report('הכנת נתונים');
   const targets = planningWorkspaceCourses(activities, district, periodKey);
-  const contextActivities = [...activities];
+  // Approved assignments are hard constraints. Existing drafts are deliberately
+  // removed from the blocking calendar here: the national planner may move or
+  // replace them before it concludes that new staff are needed.
+  const contextActivities = planningContextActivities(activities);
   const virtualPlans = [];
   const rowsById = new Map();
   const existingById = new Map((existingRows || [])
@@ -1624,7 +1840,7 @@ export async function buildDynamicCoursePlan({
   for (const activity of targets) {
     const activityId = idOf(activity);
     const activityPeriodKey = planningPeriodKeyForActivity(activity, periodKey);
-    if (text(activity.emp_id) || text(activity.draft_emp_id)) {
+    if (text(activity.emp_id)) {
       rowsById.set(activityId, liveRow(activity, activityPeriodKey));
       continue;
     }
@@ -1703,13 +1919,26 @@ export async function buildDynamicCoursePlan({
       const options = evaluation.options || [];
       const chosen = options[0] || null;
       const recruitmentNeeded = !chosen && evaluation.recruitmentNeeded === true;
+      const fixedLive = liveRow(activity, activityPeriodKey);
       const row = {
-        ...liveRow(activity, activityPeriodKey),
+        ...fixedLive,
         kind: chosen ? 'fixed-proposal' : (recruitmentNeeded ? 'recruitment' : 'missing'),
         status: chosen ? 'מדריך מומלץ למועד הקבוע' : (recruitmentNeeded ? 'נדרש גיוס' : 'נדרש טיפול'),
         instructorName: chosen?.instructorName || '',
         instructorEmpId: chosen?.instructorEmpId || '',
-        meetings: chosen?.meetings || liveRow(activity, activityPeriodKey).meetings,
+        meetings: chosen?.meetings || fixedLive.meetings,
+        scheduleOptions: [{
+          startDate: fixedLive.startDate,
+          endDate: fixedLive.endDate,
+          startTime: fixedLive.startTime,
+          endTime: fixedLive.endTime,
+          meetings: fixedLive.meetings
+        }],
+        requiredLanguage: text(activity.instruction_language),
+        requiredGender: text(activity.required_instructor_gender),
+        sourceHadDraft: !!text(activity.draft_emp_id),
+        previousDraftInstructorName: text(activity.draft_instructor_name || activity.draft_emp_id),
+        district: text(activity.district || activity.school_district || activity.authority_district),
         options: options.map(({ _candidate, ...option }) => option),
         diagnostics: {
           preliminaryCount: Number(evaluation.preliminaryCount) || 0,
@@ -1767,7 +1996,10 @@ export async function buildDynamicCoursePlan({
           options,
           generated.startRange,
           generated.spec,
-          evaluation
+          {
+            ...evaluation,
+            scheduleOptions: scheduleOnlyOptions(generated.scenarios)
+          }
         ));
         const virtual = blockingVirtualActivity(activity, chosen);
         if (virtual) virtualPlans.push(virtual);
@@ -1779,7 +2011,9 @@ export async function buildDynamicCoursePlan({
     await report('בניית תוכנית', completed, queue.length, idOf(activity), partialRows);
   }
 
-  const rows = targets.map((activity) => rowsById.get(idOf(activity)) || missingOverviewRow(activity, catalog));
+  const rows = assignRecruitmentProfiles(
+    targets.map((activity) => rowsById.get(idOf(activity)) || missingOverviewRow(activity, catalog))
+  );
   return {
     rows,
     total: rows.length,
@@ -1855,6 +2089,7 @@ function planningCompletionStatus(row = {}) {
   if (row.kind === 'live') return 'משובץ';
   if (row.kind === 'draft') return 'טיוטה';
   if (row.kind === 'planning-locked') return 'נקבע בתכנון';
+  if (row.sourceHadDraft && (row.kind === 'proposal' || row.kind === 'fixed-proposal')) return 'הצעת שינוי לטיוטה';
   if (row.kind === 'proposal' || row.kind === 'fixed-proposal') return 'הצעת מערכת';
   return text(row.status) || 'בתכנון';
 }
@@ -1894,7 +2129,7 @@ export function buildPlanningCompletionRows({ activities = [], planningRows = []
     const activityId = idOf(activity);
     const assigned = !!text(activity.emp_id);
     const draft = !assigned && !!text(activity.draft_emp_id);
-    if (assigned || draft) {
+    if (assigned) {
       rows.push(liveRow(activity, 'first'));
       continue;
     }
@@ -1902,6 +2137,10 @@ export function buildPlanningCompletionRows({ activities = [], planningRows = []
     const planningRow = byId.get(activityId);
     if (planningRow) {
       rows.push(planningRow);
+      continue;
+    }
+    if (draft) {
+      rows.push(liveRow(activity, 'first'));
       continue;
     }
 
@@ -2022,6 +2261,36 @@ export function planningCompletionOverviewHtml(rows = [], { pendingChanges = 0, 
     undated: 0,
     overflow: 0
   });
+  const recruitmentProfiles = new Map();
+  for (const row of firstHalfRows.filter((item) => item.kind === 'recruitment' && item.recruitmentProfileId)) {
+    const key = text(row.recruitmentProfileId);
+    if (!recruitmentProfiles.has(key)) {
+      recruitmentProfiles.set(key, {
+        id: key,
+        label: text(row.recruitmentProfileLabel) || key,
+        activities: [],
+        authorities: new Set(),
+        programs: new Set(),
+        languages: new Set(),
+        gender: '',
+        firstStart: '',
+        lastEnd: ''
+      });
+    }
+    const profile = recruitmentProfiles.get(key);
+    profile.activities.push(row);
+    if (text(row.authority)) profile.authorities.add(text(row.authority));
+    if (text(row.courseName)) profile.programs.add(text(row.courseName));
+    if (text(row.requiredLanguage)) profile.languages.add(text(row.requiredLanguage));
+    const gender = normalizedGenderRequirement(row.requiredGender);
+    if (gender !== 'any') profile.gender = gender;
+    const dates = planningCompletionDateRange(row);
+    if (dates.startDate && (!profile.firstStart || dates.startDate < profile.firstStart)) profile.firstStart = dates.startDate;
+    if (dates.endDate && (!profile.lastEnd || dates.endDate > profile.lastEnd)) profile.lastEnd = dates.endDate;
+  }
+  const recruitmentProfileRows = [...recruitmentProfiles.values()]
+    .sort((a, b) => b.activities.length - a.activities.length || a.label.localeCompare(b.label, 'he'));
+
   const pendingCount = Math.max(0, Number(pendingChanges) || 0);
   const schoolYearCount = Number.isFinite(Number(schoolYearTotal)) ? Math.max(0, Number(schoolYearTotal)) : null;
 
@@ -2043,10 +2312,21 @@ export function planningCompletionOverviewHtml(rows = [], { pendingChanges = 0, 
       <span><b>${totals.drafts}</b> ממתינים לאישור</span>
       <span><b>${totals.proposals}</b> הצעות מערכת</span>
       ${totals.unresolved ? `<span class="is-warning"><b>${totals.unresolved}</b> נדרש טיפול</span>` : ''}
-      ${totals.recruitment ? `<span class="is-warning"><b>${totals.recruitment}</b> נדרש גיוס</span>` : ''}
+      ${totals.recruitment ? `<span class="is-warning"><b>${totals.recruitment}</b> פעילויות שדורשות גיוס</span>` : ''}
+      ${recruitmentProfileRows.length ? `<span class="is-warning"><b>${recruitmentProfileRows.length}</b> מודלי גיוס צפויים</span>` : ''}
       ${totals.undated ? `<span class="is-warning"><b>${totals.undated}</b> עדיין ללא מועד</span>` : ''}
       ${totals.overflow ? `<span class="is-warning"><b>${totals.overflow}</b> חורגים מסוף המחצית</span>` : ''}
     </div>
+    ${recruitmentProfileRows.length ? `<div class="course-planning-recruitment-models">
+      <strong>מודלי גיוס לאחר מיצוי הצוות הקיים</strong>
+      <div class="course-planning-recruitment-model-grid">
+        ${recruitmentProfileRows.map((profile) => `<article class="course-planning-recruitment-model">
+          <header><b>${escapeHtml(profile.label)}</b><span>${profile.activities.length} פעילויות</span></header>
+          <p>${escapeHtml([...profile.authorities].join(', ') || 'מספר אזורים')}</p>
+          <small>${profile.firstStart ? `<bdi dir="ltr">${escapeHtml(formatDateHe(profile.firstStart))}</bdi>` : 'ללא מועד'}${profile.lastEnd ? `–<bdi dir="ltr">${escapeHtml(formatDateHe(profile.lastEnd))}</bdi>` : ''} · ${escapeHtml([...profile.programs].join(', '))}</small>
+        </article>`).join('')}
+      </div>
+    </div>` : ''}
     ${overview.length ? `<div class="course-planning-completion-table-wrap">
       <table class="course-planning-completion-table">
         <thead><tr>

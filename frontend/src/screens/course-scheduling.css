@@ -2435,6 +2435,53 @@
   font-weight: 700;
 }
 
+
+.course-planning-recruitment-models {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--cs-border);
+  border-radius: 10px;
+  background: var(--cs-surface-soft);
+}
+
+.course-planning-recruitment-models > strong {
+  font-size: .84rem;
+}
+
+.course-planning-recruitment-model-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 8px;
+}
+
+.course-planning-recruitment-model {
+  display: grid;
+  gap: 4px;
+  padding: 8px 10px;
+  border: 1px solid var(--cs-border);
+  border-radius: 9px;
+  background: var(--cs-surface);
+}
+
+.course-planning-recruitment-model header {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: baseline;
+}
+
+.course-planning-recruitment-model p,
+.course-planning-recruitment-model small {
+  margin: 0;
+  color: var(--cs-text-muted);
+  font-size: .76rem;
+}
+
+.course-scheduling-workboard-alt.is-static {
+  cursor: default;
+}
+
 .course-planning-completion-table-wrap {
   overflow: auto;
   max-height: 520px;
