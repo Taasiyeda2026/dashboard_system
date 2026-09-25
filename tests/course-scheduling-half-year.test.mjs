@@ -40,11 +40,11 @@ const travel = {
   cross: { 1: { home: { distance_km: 5, duration_minutes: 10 } }, 2: { home: { distance_km: 5, duration_minutes: 10 } } }
 };
 
-test('filters meetings to first and second half-year without assigning 2027-01-30', () => {
+test('first-half counting starts on 15 September and leaves 30 January unassigned', () => {
   const meetings = [
-    { date: '2026-09-01' }, { date: '2027-01-29' }, { date: '2027-01-30' }, { date: '2027-01-31' }, { date: '2027-06-30' }
+    { date: '2026-09-14' }, { date: '2026-09-15' }, { date: '2027-01-29' }, { date: '2027-01-30' }, { date: '2027-01-31' }, { date: '2027-06-30' }
   ];
-  assert.deepEqual(filterMeetingsByCourseSchedulingPeriod(meetings, 'first').map((m) => m.date), ['2026-09-01', '2027-01-29']);
+  assert.deepEqual(filterMeetingsByCourseSchedulingPeriod(meetings, 'first').map((m) => m.date), ['2026-09-15', '2027-01-29']);
   assert.deepEqual(filterMeetingsByCourseSchedulingPeriod(meetings, 'second').map((m) => m.date), ['2027-01-31', '2027-06-30']);
 });
 
