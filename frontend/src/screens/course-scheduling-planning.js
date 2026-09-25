@@ -2248,6 +2248,36 @@ export function planningCompletionOverviewHtml(rows = [], { pendingChanges = 0, 
     undated: 0,
     overflow: 0
   });
+  const recruitmentProfiles = new Map();
+  for (const row of firstHalfRows.filter((item) => item.kind === 'recruitment' && item.recruitmentProfileId)) {
+    const key = text(row.recruitmentProfileId);
+    if (!recruitmentProfiles.has(key)) {
+      recruitmentProfiles.set(key, {
+        id: key,
+        label: text(row.recruitmentProfileLabel) || key,
+        activities: [],
+        authorities: new Set(),
+        programs: new Set(),
+        languages: new Set(),
+        gender: '',
+        firstStart: '',
+        lastEnd: ''
+      });
+    }
+    const profile = recruitmentProfiles.get(key);
+    profile.activities.push(row);
+    if (text(row.authority)) profile.authorities.add(text(row.authority));
+    if (text(row.courseName)) profile.programs.add(text(row.courseName));
+    if (text(row.requiredLanguage)) profile.languages.add(text(row.requiredLanguage));
+    const gender = normalizedGenderRequirement(row.requiredGender);
+    if (gender !== 'any') profile.gender = gender;
+    const dates = planningCompletionDateRange(row);
+    if (dates.startDate && (!profile.firstStart || dates.startDate < profile.firstStart)) profile.firstStart = dates.startDate;
+    if (dates.endDate && (!profile.lastEnd || dates.endDate > profile.lastEnd)) profile.lastEnd = dates.endDate;
+  }
+  const recruitmentProfileRows = [...recruitmentProfiles.values()]
+    .sort((a, b) => b.activities.length - a.activities.length || a.label.localeCompare(b.label, 'he'));
+
   const pendingCount = Math.max(0, Number(pendingChanges) || 0);
   const schoolYearCount = Number.isFinite(Number(schoolYearTotal)) ? Math.max(0, Number(schoolYearTotal)) : null;
 
@@ -2269,10 +2299,21 @@ export function planningCompletionOverviewHtml(rows = [], { pendingChanges = 0, 
       <span><b>${totals.drafts}</b> ממתינים לאישור</span>
       <span><b>${totals.proposals}</b> הצעות מערכת</span>
       ${totals.unresolved ? `<span class="is-warning"><b>${totals.unresolved}</b> נדרש טיפול</span>` : ''}
-      ${totals.recruitment ? `<span class="is-warning"><b>${totals.recruitment}</b> נדרש גיוס</span>` : ''}
+      ${totals.recruitment ? `<span class="is-warning"><b>${totals.recruitment}</b> פעילויות שדורשות גיוס</span>` : ''}
+      ${recruitmentProfileRows.length ? `<span class="is-warning"><b>${recruitmentProfileRows.length}</b> מודלי גיוס צפויים</span>` : ''}
       ${totals.undated ? `<span class="is-warning"><b>${totals.undated}</b> עדיין ללא מועד</span>` : ''}
       ${totals.overflow ? `<span class="is-warning"><b>${totals.overflow}</b> חורגים מסוף המחצית</span>` : ''}
     </div>
+    ${recruitmentProfileRows.length ? `<div class="course-planning-recruitment-models">
+      <strong>מודלי גיוס לאחר מיצוי הצוות הקיים</strong>
+      <div class="course-planning-recruitment-model-grid">
+        ${recruitmentProfileRows.map((profile) => `<article class="course-planning-recruitment-model">
+          <header><b>${escapeHtml(profile.label)}</b><span>${profile.activities.length} פעילויות</span></header>
+          <p>${escapeHtml([...profile.authorities].join(', ') || 'מספר אזורים')}</p>
+          <small>${profile.firstStart ? `<bdi dir="ltr">${escapeHtml(formatDateHe(profile.firstStart))}</bdi>` : 'ללא מועד'}${profile.lastEnd ? `–<bdi dir="ltr">${escapeHtml(formatDateHe(profile.lastEnd))}</bdi>` : ''} · ${escapeHtml([...profile.programs].join(', '))}</small>
+        </article>`).join('')}
+      </div>
+    </div>` : ''}
     ${overview.length ? `<div class="course-planning-completion-table-wrap">
       <table class="course-planning-completion-table">
         <thead><tr>
