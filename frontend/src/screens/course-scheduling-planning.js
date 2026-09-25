@@ -21,6 +21,7 @@ const empOf = (candidate) => text(candidate?.instructor?.emp_id);
 const norm = (value) => text(value).replace(/\s+/g, ' ').toLocaleLowerCase('he-IL');
 export const DEFAULT_PLANNING_PERIOD_KEY = 'year';
 export const PLANNING_OPERATIONAL_START_DATE = '2026-10-06';
+export const FIRST_HALF_COUNT_START_DATE = '2026-09-15';
 const DEFAULT_TIME_SLOTS = ['08:00', '09:30', '11:00', '12:30', '14:00'];
 const MAX_TIME_SLOTS_PER_WEEKDAY = 10;
 const MAX_SCENARIOS_PER_COURSE = 60;
@@ -1845,6 +1846,11 @@ export function planningInstructorSchedules(rows = []) {
 }
 
 
+function firstHalfCountingPeriod() {
+  const period = resolveCourseSchedulingPeriod('first');
+  return { ...period, start: FIRST_HALF_COUNT_START_DATE };
+}
+
 function planningCompletionStatus(row = {}) {
   if (row.kind === 'live') return 'משובץ';
   if (row.kind === 'draft') return 'טיוטה';
@@ -1866,7 +1872,7 @@ function planningCompletionDateRange(row = {}) {
 }
 
 function planningRowIsFirstHalf(row = {}) {
-  const period = resolveCourseSchedulingPeriod('first');
+  const period = firstHalfCountingPeriod();
   const dates = planningCompletionDateRange(row);
   if (!dates.startDate && !dates.endDate) return true;
   const startDate = dates.startDate || dates.endDate;
@@ -1875,7 +1881,7 @@ function planningRowIsFirstHalf(row = {}) {
 }
 
 export function buildPlanningCompletionRows({ activities = [], planningRows = [] } = {}) {
-  const firstHalf = resolveCourseSchedulingPeriod('first');
+  const firstHalf = firstHalfCountingPeriod();
   const byId = new Map((planningRows || []).map((row) => [text(row?.courseId), row]));
   const rows = [];
 
@@ -1911,7 +1917,7 @@ export function buildPlanningCompletionRows({ activities = [], planningRows = []
 }
 
 export function planningInstructorCompletionOverview(rows = []) {
-  const firstHalf = resolveCourseSchedulingPeriod('first');
+  const firstHalf = firstHalfCountingPeriod();
   const groups = new Map();
 
   for (const row of rows || []) {
@@ -2002,7 +2008,7 @@ export function planningCompletionOverviewHtml(rows = [], { pendingChanges = 0, 
     else if (row.kind === 'recruitment') acc.recruitment += 1;
     else acc.unresolved += 1;
     if (!dates.startDate) acc.undated += 1;
-    if (row.halfOverflow === true || (dates.endDate && dates.endDate > resolveCourseSchedulingPeriod('first').end)) acc.overflow += 1;
+    if (row.halfOverflow === true || (dates.endDate && dates.endDate > firstHalfCountingPeriod().end)) acc.overflow += 1;
     return acc;
   }, {
     activities: 0,
