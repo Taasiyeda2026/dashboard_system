@@ -68,6 +68,7 @@ import {
 } from './course-scheduling-district-simulation.js';
 import {
   DEFAULT_PLANNING_PERIOD_KEY,
+  FIRST_HALF_COUNT_START_DATE,
   PLANNING_ENGINE_VERSION,
   applyPlanningLockToRow,
   buildDynamicCoursePlan,
@@ -464,7 +465,15 @@ function courseMatchesSchedulingPeriod(course = {}, periodKey = DEFAULT_COURSE_S
   // Activities without a school-provided date belong to the first-half work queue.
   if (!hasOfficialCourseDate(course) && periodKey === 'second') return false;
   const meetings = schedulingCalendarMeetings(course);
-  return meetings.length === 0 || filterMeetingsByCourseSchedulingPeriod(meetings, periodKey).length > 0;
+  if (!meetings.length) return true;
+  if (periodKey === 'first') {
+    const period = resolveCourseSchedulingPeriod('first');
+    return meetings.some((meeting) => {
+      const date = text(meeting?.date).slice(0, 10);
+      return date >= FIRST_HALF_COUNT_START_DATE && date <= period.end;
+    });
+  }
+  return filterMeetingsByCourseSchedulingPeriod(meetings, periodKey).length > 0;
 }
 
 function filteredInterfaceCourses(courses = [], state = {}) {
@@ -506,7 +515,8 @@ function schedulingScopeHtml(allCourses = [], state = {}, allActivities = allCou
   const selectedAuthority = text(state.courseSchedulingAuthority || '');
   const authorityList = authorityOptions(scopedForAuthority);
   const authoritySelectHtml = `<option value="">כל הרשויות</option>${authorityList.map((item) => `<option value="${escapeHtml(item)}"${item === selectedAuthority ? ' selected' : ''}>${escapeHtml(item)}</option>`).join('')}`;
-  const periodRange = `${formatDateHeDots(period.start)} – ${formatDateHeDots(period.end)}`;
+  const displayStart = periodKey === 'first' ? FIRST_HALF_COUNT_START_DATE : period.start;
+  const periodRange = `${formatDateHeDots(displayStart)} – ${formatDateHeDots(period.end)}`;
   const selectedActivityType = text(state.activitySchedulingType || 'all');
   const activityTypeOptions = [['all', 'הכול'], ['course', 'קורסים'], ['workshop', 'סדנאות'], ['tour', 'סיורים']]
     .map(([value, label]) => `<option value="${value}"${value === selectedActivityType ? ' selected' : ''}>${label}</option>`).join('');
