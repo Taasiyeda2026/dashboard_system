@@ -1579,6 +1579,7 @@ function planRowFromOption(activity, option, options, startRange, spec, diagnost
 
 export function normalizePlanningLockedOption(option = {}, periodKey = DEFAULT_PLANNING_PERIOD_KEY) {
   const period = planningEffectivePeriod(periodKey);
+  const scheduleEnd = planningScheduleEnd(periodKey);
   const instructorEmpId = text(option.instructorEmpId);
   const instructorName = text(option.instructorName);
   const meetings = (Array.isArray(option.meetings) ? option.meetings : [])
@@ -1591,7 +1592,7 @@ export function normalizePlanningLockedOption(option = {}, periodKey = DEFAULT_P
     .filter((meeting) =>
       /^\d{4}-\d{2}-\d{2}$/.test(meeting.date)
       && meeting.date >= period.start
-      && meeting.date <= period.end
+      && meeting.date <= scheduleEnd
       && validTimeRange(meeting.start_time, meeting.end_time)
     );
   if (!instructorEmpId || !meetings.length) return null;
