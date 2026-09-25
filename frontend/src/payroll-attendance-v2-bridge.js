@@ -93,6 +93,7 @@ function legacyRecord(row = {}, travel = null, { generated = false, location = n
     authorityId: row.authority_id ?? null,
     schoolId: row.school_id ?? null,
     semelMosad: row.semel_mosad ?? null,
+    originAddress: text(location?.origin_address),
     destinationAddress: text(location?.destination_address),
     destinationEntityKey: text(location?.destination_entity_key),
     destinationType: text(location?.destination_type),
