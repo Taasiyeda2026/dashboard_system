@@ -572,7 +572,7 @@ export function compactMeetingsHtml(activity) {
 
 const BUSINESS_STATUS = Object.freeze({
   open: 'פתוח',
-  draft: 'טיוטה',
+  draft: 'ממתין לאישור',
   assigned: 'משובץ'
 });
 
@@ -657,7 +657,7 @@ function courseRowModel(course, resultByCourseId, planningByCourseId = new Map()
 
 const LIST_GROUPS = [
   { key: 'open', label: 'פתוח' },
-  { key: 'draft', label: 'טיוטה' },
+  { key: 'draft', label: 'ממתין לאישור' },
   { key: 'assigned', label: 'משובץ' }
 ];
 
@@ -668,7 +668,7 @@ function summaryCardsHtml(rowModels = []) {
   const assigned = rowModels.filter((row) => row.bucket === 'assigned').length;
   return `<article class="course-scheduling-summary-card"><b>${total}</b><span>סה״כ</span></article>
     <article class="course-scheduling-summary-card course-scheduling-summary-card--waiting"><b>${open}</b><span>פתוח</span></article>
-    <article class="course-scheduling-summary-card course-scheduling-summary-card--draft"><b>${drafts}</b><span>טיוטה</span></article>
+    <article class="course-scheduling-summary-card course-scheduling-summary-card--draft"><b>${drafts}</b><span>ממתין לאישור</span></article>
     <article class="course-scheduling-summary-card course-scheduling-summary-card--ready"><b>${assigned}</b><span>משובץ</span></article>`;
 }
 
@@ -699,12 +699,12 @@ function workboardActionsHtml(row = {}, { planningLoading = false, alternativesE
     const hasAlternatives = (row.planningRow?.options || []).length > 1;
     return `<button type="button" class="course-scheduling-workboard-primary" data-course-row-action data-confirm-planning-draft data-course-id="${escapeHtml(row.id)}">אשר שיבוץ</button>
       ${hasAlternatives ? `<button type="button" class="course-scheduling-workboard-secondary" data-course-row-action data-workboard-alternatives data-course-id="${escapeHtml(row.id)}">${alternativesExpanded ? 'סגור חלופות' : 'חלופות'}</button>` : ''}
-      <button type="button" class="course-scheduling-workboard-link" data-course-row-action data-planning-unlock data-planning-course-id="${escapeHtml(row.id)}">בטל טיוטה</button>`;
+      <button type="button" class="course-scheduling-workboard-link" data-course-row-action data-planning-unlock data-planning-course-id="${escapeHtml(row.id)}">בטל בחירה</button>`;
   }
   const planning = row.planningRow || {};
   const primary = planningPrimaryOption(planning);
   if (primary?.instructorEmpId && Array.isArray(primary.meetings) && primary.meetings.length) {
-    return `<button type="button" class="course-scheduling-workboard-primary" data-course-row-action data-planning-pick-option data-planning-course-id="${escapeHtml(row.id)}" data-planning-option-index="0">שמור כטיוטה</button>
+    return `<button type="button" class="course-scheduling-workboard-primary" data-course-row-action data-planning-pick-option data-planning-course-id="${escapeHtml(row.id)}" data-planning-option-index="0">בחר הצעה</button>
       ${(planning.options || []).length > 1 ? `<button type="button" class="course-scheduling-workboard-secondary" data-course-row-action data-workboard-alternatives data-course-id="${escapeHtml(row.id)}">${alternativesExpanded ? 'סגור חלופות' : 'חלופות'}</button>` : ''}`;
   }
   if (planningLoading) return '<span class="course-scheduling-workboard-working">מכין הצעה…</span>';
@@ -759,28 +759,38 @@ function schedulingPlanningStatusHtml(state = {}) {
   const pending = Math.max(0, Number((state.courseSchedulingPlanningAffectedIds || []).length) || 0);
   const progress = state.courseSchedulingPlanningProgress || {};
   const error = text(state.courseSchedulingPlanningError);
+  const calculatedAt = text(state.courseSchedulingPlanningCalculatedAt);
   if (error) {
     return `<div class="course-scheduling-auto-plan is-error" role="status" data-planning-status aria-busy="false">
       <span data-planning-status-message><strong>ההצעות לא עודכנו.</strong> ${escapeHtml(error)}</span>
-      <button type="button" class="course-scheduling-workboard-secondary" data-retry-auto-planning>נסה שוב</button>
+      <button type="button" class="course-scheduling-workboard-secondary" data-run-course-planning>נסה שוב</button>
     </div>`;
   }
   if (loading) {
     const total = Number(progress.total) || 0;
     const completed = Number(progress.completed) || 0;
     const suffix = total ? ` · ${completed} מתוך ${total}` : '';
-    return `<div class="course-scheduling-auto-plan is-working" role="status" data-planning-status aria-busy="true"><span data-planning-status-message><strong>המערכת מעדכנת את סידור העבודה</strong>${escapeHtml(suffix)}. אפשר להמשיך לעבוד במסך.</span></div>`;
+    return `<div class="course-scheduling-auto-plan is-working" role="status" data-planning-status aria-busy="true"><span data-planning-status-message><strong>מחשב הצעות שיבוץ</strong>${escapeHtml(suffix)}. אפשר להמשיך לעבוד במסך.</span></div>`;
   }
   if (!state.courseSchedulingPlanningSharedLoaded) {
-    return '<div class="course-scheduling-auto-plan is-working" role="status" data-planning-status aria-busy="true"><span data-planning-status-message><strong>טוען הצעות שיבוץ…</strong></span></div>';
+    return '<div class="course-scheduling-auto-plan is-working" role="status" data-planning-status aria-busy="true"><span data-planning-status-message><strong>טוען את התכנון השמור…</strong></span></div>';
   }
-  if (!state.courseSchedulingPlanningCalculatedAt) {
-    return '<div class="course-scheduling-auto-plan is-working" role="status" data-planning-status aria-busy="true"><span data-planning-status-message><strong>מכין את סידור העבודה הראשוני…</strong> ההצעות יופיעו אוטומטית.</span></div>';
+  if (!calculatedAt) {
+    return `<div class="course-scheduling-auto-plan is-ready" role="status" data-planning-status aria-busy="false">
+      <span data-planning-status-message><strong>אין עדיין תכנון שמור.</strong> החישוב יתחיל רק כשתבחר לבנות הצעות.</span>
+      <button type="button" class="course-scheduling-workboard-primary" data-run-course-planning>בנה הצעות</button>
+    </div>`;
   }
   if (pending) {
-    return `<div class="course-scheduling-auto-plan is-working" role="status" data-planning-status aria-busy="true"><span data-planning-status-message><strong>מעדכן ${pending} פעילויות שהושפעו מהשינוי האחרון…</strong></span></div>`;
+    return `<div class="course-scheduling-auto-plan is-ready" role="status" data-planning-status aria-busy="false">
+      <span data-planning-status-message><strong>התכנון האחרון נשאר מוצג.</strong> ${pending} פעילויות השתנו מאז החישוב האחרון.</span>
+      <button type="button" class="course-scheduling-workboard-primary" data-run-course-planning>עדכן רק את השינויים</button>
+    </div>`;
   }
-  return '<div class="course-scheduling-auto-plan is-ready" role="status" data-planning-status aria-busy="false"><span data-planning-status-message><strong>סידור העבודה מעודכן.</strong> טיוטות ושיבוצים נלקחים בחשבון אוטומטית.</span></div>';
+  return `<div class="course-scheduling-auto-plan is-ready" role="status" data-planning-status aria-busy="false">
+    <span data-planning-status-message><strong>התכנון שמור ומעודכן.</strong> עודכן ${escapeHtml(calculatedAt)}. מעבר בין מסכים לא מפעיל חישוב חדש.</span>
+    <button type="button" class="course-scheduling-workboard-secondary" data-run-course-planning>חשב מחדש</button>
+  </div>`;
 }
 
 function genderRequirementLabel(course = {}) {
@@ -1216,7 +1226,7 @@ function resultsActionsHtml(result, selectedId, state = {}) {
       <span class="course-scheduling-action-bar__sep" aria-hidden="true">|</span>
       <div class="course-scheduling-action-bar__buttons">
         <button type="button" class="course-scheduling-btn course-scheduling-btn--primary" data-assign-course disabled title="בחרו מדריך כשיר">${state.courseSchedulingReplacementCourseId ? 'אשר מדריך חדש' : 'שבץ מדריך'}</button>
-        ${state.courseSchedulingReplacementCourseId ? '' : `<button type="button" class="course-scheduling-btn course-scheduling-btn--secondary" data-save-draft disabled title="בחרו מדריך כשיר">שמור כטיוטה</button>`}
+        ${state.courseSchedulingReplacementCourseId ? '' : `<button type="button" class="course-scheduling-btn course-scheduling-btn--secondary" data-save-draft disabled title="בחרו מדריך כשיר">בחר הצעה</button>`}
         <button type="button" class="course-scheduling-text-btn" data-clear-candidate>ביטול</button>
       </div>
     </div>`;
@@ -1363,7 +1373,7 @@ function draftDetailHtml(course) {
     ${proposed ? halfOverflowWarningHtml(proposed) : ''}
     <div class="course-scheduling-detail-actions">
       <button type="button" class="course-scheduling-btn course-scheduling-btn--primary" data-confirm-draft>שבץ מדריך</button>
-      <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary" data-cancel-draft>בטל טיוטה</button>
+      <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary" data-cancel-draft>בטל בחירה</button>
     </div>`;
 }
 
@@ -1878,27 +1888,11 @@ export const courseSchedulingScreen = {
       && !state.courseSchedulingPlanningLoading
     ) {
       data._planningSharedLoadedKey = currentPlanningScope.key;
-      reloadSharedPlanningState()
+      reloadSharedPlanningState({ refreshData: false })
         .then(() => {
           if (!schedulingScreenActive || state.route !== 'course-scheduling' || !root.isConnected) return;
+          // Entering the screen only restores the shared plan. Recalculation is always explicit.
           rerenderPreservingWorkboardScroll();
-          const affected = (state.courseSchedulingPlanningAffectedIds || []).length;
-          if (
-            state.courseSchedulingPlanningCalculatedAt
-            && affected > 0
-            && !state.courseSchedulingPlanningLoading
-          ) {
-            scheduleBackgroundPlanning({ forceFull: false });
-            return;
-          }
-          if (
-            !state.courseSchedulingPlanningCalculatedAt
-            && !state.courseSchedulingPlanningLoading
-            && data._planningAutoStartedKey !== currentPlanningScope.key
-          ) {
-            data._planningAutoStartedKey = currentPlanningScope.key;
-            scheduleBackgroundPlanning({ forceFull: true });
-          }
         })
         .catch((error) => {
           if (!schedulingScreenActive || state.route !== 'course-scheduling' || !root.isConnected) return;
@@ -2120,7 +2114,6 @@ export const courseSchedulingScreen = {
         state.courseSchedulingPlanningRouteStats = result.routeStats || null;
         state.courseSchedulingPlanningSharedRevision = Number(saved?.revision || canonical?.workspace?.revision) || 0;
         state.courseSchedulingPlanningAffectedIds = [];
-        clearScreenDataCache?.();
 
         const updatedCount = fullRun ? currentCourseIds.length : affectedIds.length;
         showToast(
@@ -2181,10 +2174,13 @@ export const courseSchedulingScreen = {
       try {
         await persistPlanningLock(courseId, clonePlanningOption(option));
         state.courseSchedulingAlternativesCourseId = '';
-        showToast('הטיוטה נשמרה. המערכת מעדכנת את שאר סידור העבודה סביבה.', 'success');
-        if ((state.courseSchedulingPlanningAffectedIds || []).length > 0) {
-          void runCoursePlanning({ forceFull: false });
-        }
+        const pending = (state.courseSchedulingPlanningAffectedIds || []).length;
+        showToast(
+          pending
+            ? `ההצעה נבחרה. ${pending} פעילויות דורשות עדכון — לחץ "עדכן רק את השינויים".`
+            : 'ההצעה נבחרה.',
+          'success'
+        );
       } catch (error) {
         state.courseSchedulingPlanningError = planningStoreErrorMessage(error, 'שמירת הבחירה בתכנון נכשלה');
         try { await reloadSharedPlanningState({ refreshData: false }); } catch { /* keep actionable error */ }
@@ -2202,10 +2198,13 @@ export const courseSchedulingScreen = {
       try {
         await persistPlanningLock(courseId, null);
         state.courseSchedulingAlternativesCourseId = '';
-        showToast('הטיוטה בוטלה. המערכת מעדכנת את סידור העבודה.', 'success');
-        if ((state.courseSchedulingPlanningAffectedIds || []).length > 0) {
-          void runCoursePlanning({ forceFull: false });
-        }
+        const pending = (state.courseSchedulingPlanningAffectedIds || []).length;
+        showToast(
+          pending
+            ? `הבחירה בוטלה. ${pending} פעילויות דורשות עדכון — לחץ "עדכן רק את השינויים".`
+            : 'הבחירה בוטלה.',
+          'success'
+        );
       } catch (error) {
         state.courseSchedulingPlanningError = planningStoreErrorMessage(error, 'שחרור הבחירה בתכנון נכשל');
         try { await reloadSharedPlanningState({ refreshData: false }); } catch { /* keep actionable error */ }
@@ -2235,11 +2234,14 @@ export const courseSchedulingScreen = {
         state.courseSchedulingAlternativesCourseId = '';
         clearScreenDataCache?.();
         await reloadSharedPlanningState();
-        showToast('השיבוץ אושר. המערכת מעדכנת את הפעילויות שהושפעו.', 'success');
+        const pending = (state.courseSchedulingPlanningAffectedIds || []).length;
+        showToast(
+          pending
+            ? `השיבוץ אושר. ${pending} פעילויות דורשות עדכון — לחץ "עדכן רק את השינויים".`
+            : 'השיבוץ אושר.',
+          'success'
+        );
         rerender();
-        if ((state.courseSchedulingPlanningAffectedIds || []).length > 0) {
-          void runCoursePlanning({ forceFull: false });
-        }
       } catch (error) {
         state.courseSchedulingPlanningError = planningStoreErrorMessage(
           error,
@@ -2262,15 +2264,8 @@ export const courseSchedulingScreen = {
       if (state.courseSchedulingPlanningLoading) return;
       event.currentTarget.disabled = true;
       try {
-        await reloadSharedPlanningState();
+        await reloadSharedPlanningState({ refreshData: false });
         state.courseSchedulingPlanningError = '';
-        if (
-          state.courseSchedulingPlanningCalculatedAt
-          && (state.courseSchedulingPlanningAffectedIds || []).length > 0
-          && !state.courseSchedulingPlanningLoading
-        ) {
-          void runCoursePlanning({ forceFull: false });
-        }
       } catch (error) {
         state.courseSchedulingPlanningError = planningStoreErrorMessage(error, 'רענון התכנון המשותף נכשל');
       } finally {
@@ -2374,12 +2369,6 @@ export const courseSchedulingScreen = {
     root.querySelector('[data-business-status-filter]')?.addEventListener('change', (event) => {
       state.courseSchedulingBusinessStatus = event.target.value || 'all';
       state.courseSchedulingSelectedId = '';
-      rerender();
-    });
-    root.querySelector('[data-retry-auto-planning]')?.addEventListener('click', () => {
-      state.courseSchedulingPlanningError = '';
-      data._planningAutoStartedKey = '';
-      invalidatePlanningWorkboard();
       rerender();
     });
     root.querySelectorAll('[data-workboard-alternatives]').forEach((button) => button.addEventListener('click', () => {

@@ -145,14 +145,14 @@ test('main scheduling workboard exposes only open, draft and assigned business s
 
   assert.match(html, /data-cs-ui="simple-workboard-20260924-v1"/);
   assert.match(html, /<span>פתוח<\/span>/);
-  assert.match(html, /<span>טיוטה<\/span>/);
+  assert.match(html, /<span>ממתין לאישור<\/span>/);
   assert.match(html, /<span>משובץ<\/span>/);
   assert.doesNotMatch(html, /הצעות מוכנות/);
   assert.doesNotMatch(html, /data-instructors-workspace-tab="planning"/);
-  assert.match(html, /שמור כטיוטה/);
+  assert.match(html, /בחר הצעה/);
   assert.match(html, /data-confirm-planning-draft/);
   assert.match(html, /אשר שיבוץ/);
-  assert.match(html, /סידור העבודה מעודכן/);
+  assert.match(html, /התכנון שמור ומעודכן/);
 });
 
 test('planning draft confirmation is an atomic server-side promotion to final assignment', async () => {
@@ -1224,7 +1224,8 @@ test('Planning runs behind the single scheduling workboard instead of a separate
   assert.match(screen, /data-business-status-filter/);
   assert.match(screen, /data-confirm-planning-draft/);
   assert.match(screen, /activeTab\(state\) !== 'maintenance'/);
-  assert.match(screen, /runCoursePlanning\(\{ forceFull: false \}\)/);
+  assert.match(screen, /data-run-course-planning/);
+  assert.match(screen, /reloadSharedPlanningState\(\{ refreshData: false \}\)/);
   assert.match(screen, /courseSchedulingPlanningLocks/);
   assert.match(screen, /proposal_activity_pricing/);
   assert.doesNotMatch(planning, /supabase\.rpc|save_course_assignment|assign_activity_instructor|update\s+public\.activities/i);
