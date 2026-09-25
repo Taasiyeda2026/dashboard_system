@@ -2577,12 +2577,8 @@ export function planningCompletionOverviewHtml(rows = [], { pendingChanges = 0, 
 
   return `<section class="course-planning-completion-overview" data-planning-completion-overview>
     <div class="course-planning-section-heading">
-      <div>
-        <strong>תמונת מצב לסיום התכנון — מחצית א׳</strong>
-        <span>מחצית א׳ מתחילה ב־01.09.2026. פעילויות שהחלו במחצית א׳ יכולות להימשך בפברואר במקביל לפתיחת מחצית ב׳.</span>
-      </div>
+      <strong>תמונת מצב — מחצית א׳</strong>
     </div>
-    ${pendingCount ? `<p class="course-planning-completion-pending">התמונה מבוססת על התכנון השמור כרגע. יש ${pendingCount} פעילויות שממתינות לעדכון.</p>` : ''}
     <div class="course-planning-completion-summary">
       <span><b>${totals.activities}</b> פעילויות במחצית א׳</span>
       ${schoolYearCount != null ? `<span><b>${schoolYearCount}</b> פעילויות תשפ״ז</span>` : ''}
@@ -2632,7 +2628,7 @@ export function planningCompletionOverviewHtml(rows = [], { pendingChanges = 0, 
           <td>${item.proposalCount}</td>
           <td><b>${item.meetingCount}</b> מפגשים · ${item.teachingHours} ש׳</td>
           <td>${item.averageWorkDaysPerWeek} ימי עבודה/שבוע${item.peakWeekStart ? `<small>שיא: ${item.peakWeekDays} ימים · ${item.peakWeekHours} ש׳</small>` : ''}</td>
-          <td>${Number.isFinite(item.expectedTravelKmPerMeeting) ? `~${item.expectedTravelKmPerMeeting} ק״מ/מפגש<small>לפי הצעות עם מסלול מאומת</small>` : '—'}</td>
+          <td>${Number.isFinite(item.expectedTravelKmPerMeeting) ? `~${item.expectedTravelKmPerMeeting} ק״מ/מפגש` : '—'}</td>
           <td>${item.firstStart ? `<bdi dir="ltr">${escapeHtml(formatDateHe(item.firstStart))}</bdi>` : '<span class="course-planning-completion-missing">חסר מועד</span>'}</td>
           <td class="${item.overflowCount ? 'is-warning' : ''}">${item.lastEnd ? `<bdi dir="ltr">${escapeHtml(formatDateHe(item.lastEnd))}</bdi>` : '<span class="course-planning-completion-missing">חסר מועד</span>'}</td>
           <td>
@@ -2903,10 +2899,7 @@ export function planningQualityAuditHtml(rows = [], { pendingChanges = 0 } = {})
   const issueCount = (audit.conflicts?.length || 0) + (audit.issues?.length || 0) + (audit.pendingCount > 0 ? 1 : 0);
   return `<section class="course-planning-quality" data-planning-quality-audit>
     <div class="course-planning-quality-head">
-      <div>
-        <strong>בדיקת איכות התכנון</strong>
-        <span>ביקורת מערכתית על תקינות, כיסוי, רציפות ועומס מדריכים</span>
-      </div>
+      <strong>בדיקת איכות התכנון</strong>
       <span class="course-planning-quality-status is-${escapeHtml(audit.tone)}">${escapeHtml(audit.status)}</span>
     </div>
     <div class="course-planning-quality-grid">
@@ -3009,11 +3002,11 @@ export function planningRowsHtml(rows = [], { loading = false } = {}) {
       : '—';
     const hours = row.startTime ? `<bdi dir="ltr">${escapeHtml(formatTimeRangeShort(row.startTime, row.endTime))}</bdi>` : '—';
     const alternatives = !row.planningLocked && (row.options || []).length > 1
-      ? `<details class="course-planning-alternatives"><summary>${row.options.length - 1} חלופות אם בית הספר לא יכול</summary>${row.options.slice(1).map((option, index) => optionHtml(option, index + 1, row.courseId, index + 1, loading)).join('')}</details>`
+      ? `<details class="course-planning-alternatives"><summary>${row.options.length - 1} חלופות</summary>${row.options.slice(1).map((option, index) => optionHtml(option, index + 1, row.courseId, index + 1, loading)).join('')}</details>`
       : '';
     const recommendationBadge = ['proposal', 'fixed-proposal'].includes(row.kind) && row.instructorEmpId
-      ? '<span class="course-planning-recommended">זה המועד הראשון שמציעים לבית הספר</span>'
-      : (row.planningLocked ? '<span class="course-planning-recommended">נקבע בתכנון — המערכת מסדרת את השאר סביבו</span>' : '');
+      ? '<span class="course-planning-recommended">מומלץ</span>'
+      : (row.planningLocked ? '<span class="course-planning-recommended">נקבע בתכנון</span>' : '');
     const planningAction = row.planningLocked
       ? `<button type="button" class="course-scheduling-btn course-scheduling-btn--secondary course-planning-inline-action"
           data-planning-unlock data-planning-course-id="${escapeHtml(row.courseId)}" ${loading ? 'disabled' : ''}>שחרר לתכנון מחדש</button>`
@@ -3064,11 +3057,6 @@ export function planningTabHtml({
   const periodOptionsHtml = planningPeriods.map((item) =>
     `<option value="${escapeHtml(item.key)}"${item.key === periodKey ? ' selected' : ''}>${escapeHtml(item.label)}</option>`
   ).join('');
-  const typeCounts = rows.reduce((acc, row) => {
-    const key = row.activityType || 'קורס';
-    acc[key] = (acc[key] || 0) + 1;
-    return acc;
-  }, {});
   const live = rows.filter((row) => row.kind === 'live').length;
   const drafts = rows.filter((row) => row.kind === 'draft').length;
   const proposals = rows.filter((row) => ['proposal', 'fixed-proposal', 'planning-locked'].includes(row.kind) && row.instructorEmpId).length;
@@ -3087,18 +3075,9 @@ export function planningTabHtml({
     : (!calculatedAt
       ? 'בנה מערכת הדרכות מלאה'
       : (pendingCount ? `עדכן רק ${pendingCount} פעילויות שהשתנו` : 'חשב הכל מחדש'));
-  const sharedStatus = sharedLoaded
-    ? (calculatedAt
-      ? `תכנון משותף לצוות · גרסה ${Number(sharedRevision) || 0}${sharedUpdatedAt ? ` · נשמר ${sharedUpdatedAt}` : ''}${sharedUpdatedBy ? ` על ידי ${sharedUpdatedBy}` : ''}`
-      : 'תכנון משותף לצוות · עדיין לא נשמר חישוב לתחום הזה')
-    : 'טוען את התכנון המשותף…';
-
   return `<section class="course-planning-tab" data-course-planning-tab>
     <div class="course-planning-banner">
-      <div>
-        <strong>תכנון עבודה מלא</strong>
-        <p>המערכת בונה מועד ומדריך מומלצים לכל פעילות, עם עד שתי חלופות כשצריך.</p>
-      </div>
+      <strong>תכנון עבודה מלא</strong>
       <div class="course-planning-period">${escapeHtml(period.label)} · <bdi dir="ltr">${escapeHtml(formatDateHe(period.start))}</bdi>–<bdi dir="ltr">${escapeHtml(formatDateHe(period.end))}</bdi></div>
     </div>
     <div class="course-planning-toolbar">
@@ -3110,9 +3089,6 @@ export function planningTabHtml({
       <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary" data-clear-course-planning ${loading ? 'disabled' : ''}>אפס הצעות</button>
       ${calculatedAt ? `<span class="course-planning-updated">עודכן ${escapeHtml(calculatedAt)}</span>` : ''}
     </div>
-    <p class="course-planning-note">${escapeHtml(sharedStatus)}. כל בחירה ב"קבע בתכנון" נשמרת מיד ב-Supabase ומשותפת לכל הצוות. שיבוץ או טיוטה אמיתיים נשארים בעוגנים של המערכת, ובהרצה הבאה מחושבות מחדש רק הפעילויות שהושפעו.</p>
-    ${pendingCount ? `<p class="course-planning-pending" role="status">יש ${pendingCount} פעילויות שהושפעו משיבוצים, שינויי נתונים או בחירות בתכנון. לחצו על "${escapeHtml(runLabel)}" — אין צורך לבנות את כל המערכת מחדש.</p>` : ''}
-    <p class="course-planning-scope-counts">היקף נוכחי: <strong>${rows.length}</strong> פעילויות · ${Object.entries(typeCounts).map(([type, count]) => `${escapeHtml(type)} ${count}`).join(' · ')}</p>
     ${error ? `<p class="course-scheduling-alert">${escapeHtml(error)}</p>` : ''}
     ${progressText ? `<p class="course-planning-progress" role="status">${escapeHtml(progressText)}</p>` : ''}
     <div class="course-planning-summary">
@@ -3127,6 +3103,5 @@ export function planningTabHtml({
     ${calculatedAt && rows.length && !loading ? planningCompletionOverviewHtml(rows, { pendingChanges: pendingCount }) : ''}
     ${planningRowsHtml(rows, { loading })}
     ${calculatedAt && rows.length && pendingCount === 0 ? `<details class="course-planning-instructor-overview"><summary>מערכת מלאה לפי מדריך ולפי מפגש</summary>${planningInstructorScheduleHtml(rows)}</details>` : ''}
-    ${routeStats ? `<p class="course-planning-route-stats">בדיקות מרחק: ${Number(routeStats.cacheHits) || 0} מהמטמון · ${Number(routeStats.googleCalls) || 0} חישובים חדשים</p>` : ''}
   </section>`;
 }
