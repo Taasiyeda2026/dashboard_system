@@ -368,6 +368,7 @@ export function normalizeAttendanceApiRows(records = []) {
       expenseDetails: txt(row.expensesDetails || row.ExpensesDetails), notes: txt(row.notes || row.Notes),
       activityId: txt(row.activityRowId || row.activity_row_id || row.activityId || row.activityNumericId || row.activity_numeric_id),
       recordId: txt(row.recordId || row.ID || row.Id || row.id),
+      originAddress: txt(row.originAddress || row.origin_address),
       destinationAddress: txt(row.destinationAddress || row.destination_address),
       destinationEntityKey: txt(row.destinationEntityKey || row.destination_entity_key),
       destinationType: txt(row.destinationType || row.destination_type),
@@ -448,12 +449,16 @@ function routeLocationFromStop(stop = {}) {
   return null;
 }
 
-function instructorLocationDistance(cache, employeeId, location) {
+function instructorLocationDistance(cache, employeeId, location, originAddress = '') {
   if (!location) return null;
   if (location.schoolId != null && !location.address) return instructorSchoolDistance(cache, employeeId, location.schoolId);
   const address = normalizedRouteAddress(location.address);
+  const homeAddress = normalizedRouteAddress(originAddress);
   const hit = cache.find((row) => (
-    txt(row.origin_instructor_emp_id) === txt(employeeId)
+    (
+      txt(row.origin_instructor_emp_id) === txt(employeeId)
+      || (homeAddress && normalizedRouteAddress(row.origin_address) === homeAddress)
+    )
     && (
       (location.entityKey && txt(row.destination_entity_key) === location.entityKey)
       || (address && normalizedRouteAddress(row.destination_address) === address)
@@ -581,10 +586,10 @@ export function applyAttendanceDayRouteKilometers(rows = [], attendanceRows = []
     physicalStops.forEach((stop, index) => {
       const employeeId = txt(stop.attendance.employeeId);
       const incoming = index === 0
-        ? instructorLocationDistance(travelCache, employeeId, stop.location)
+        ? instructorLocationDistance(travelCache, employeeId, stop.location, stop.attendance.originAddress)
         : locationLocationDistance(travelCache, physicalStops[index - 1].location, stop.location);
       const returnHome = index === physicalStops.length - 1
-        ? instructorLocationDistance(travelCache, employeeId, stop.location)
+        ? instructorLocationDistance(travelCache, employeeId, stop.location, stop.attendance.originAddress)
         : 0;
       if (incoming == null || returnHome == null) {
         routeUnavailable = true;
@@ -639,6 +644,7 @@ export async function loadAttendanceDashboardDataset(attendanceRows, api, month 
       school: txt(attendance.school),
       program: txt(attendance.program),
       kilometers: null,
+      originAddress: txt(attendance.originAddress),
       destinationAddress: txt(attendance.destinationAddress),
       destinationEntityKey: txt(attendance.destinationEntityKey),
       destinationType: txt(attendance.destinationType) || 'location',
