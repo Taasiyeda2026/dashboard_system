@@ -259,7 +259,6 @@ export function planningWorkspaceCourses(activities = [], district = '', periodK
         // Undated work is a first-half planning responsibility, not a second-half pool.
         return requested !== 'second';
       }
-      if (requested === 'year') return true;
       return officialDates.some((date) => date >= period.start && date <= period.end);
     })
     .filter((activity) => !normalizedDistrict || normalizeOperationalDistrict(activity.district || activity.school_district || activity.authority_district) === normalizedDistrict);
