@@ -367,6 +367,11 @@ export function normalizeAttendanceApiRows(records = []) {
       expenses: optionalNumber(row.totalExpenses ?? row.TotalExpenses),
       expenseDetails: txt(row.expensesDetails || row.ExpensesDetails), notes: txt(row.notes || row.Notes),
       activityId: txt(row.activityRowId || row.activity_row_id || row.activityId || row.activityNumericId || row.activity_numeric_id),
+      recordId: txt(row.recordId || row.ID || row.Id || row.id),
+      destinationAddress: txt(row.destinationAddress || row.destination_address),
+      destinationEntityKey: txt(row.destinationEntityKey || row.destination_entity_key),
+      destinationType: txt(row.destinationType || row.destination_type),
+      isRemoteDestination: asBoolean(row.isRemoteDestination ?? row.is_remote),
       attachments,
       attachmentsNames: attachments.map((item) => item.fileName).filter(Boolean).join(', '),
       _source: row
@@ -418,6 +423,62 @@ function instructorSchoolDistance(cache, employeeId, schoolId) {
 function schoolSchoolDistance(cache, originSchoolId, destinationSchoolId) {
   if (Number(originSchoolId) === Number(destinationSchoolId)) return 0;
   const hit = cache.find((row) => Number(row.origin_school_id) === Number(originSchoolId) && Number(row.destination_school_id) === Number(destinationSchoolId));
+  return usableDistance(hit);
+}
+
+function normalizedRouteAddress(value) {
+  return txt(value).toLowerCase().replace(/\s+/g, ' ').trim();
+}
+
+function routeLocationFromStop(stop = {}) {
+  const attendance = stop.attendance || {};
+  const dashboard = stop.dashboard || {};
+  const address = txt(attendance.destinationAddress || dashboard.destinationAddress);
+  const entityKey = txt(attendance.destinationEntityKey || dashboard.destinationEntityKey);
+  const schoolId = dashboard.schoolId ?? attendance?._source?.schoolId ?? attendance?._source?.school_id ?? null;
+  if (address) {
+    return {
+      type: txt(attendance.destinationType || dashboard.destinationType) || (schoolId != null ? 'school' : 'location'),
+      address,
+      entityKey,
+      schoolId: schoolId == null ? null : Number(schoolId)
+    };
+  }
+  if (schoolId != null) return { type: 'school', address: '', entityKey: `school_id:${Number(schoolId)}`, schoolId: Number(schoolId) };
+  return null;
+}
+
+function instructorLocationDistance(cache, employeeId, location) {
+  if (!location) return null;
+  if (location.schoolId != null && !location.address) return instructorSchoolDistance(cache, employeeId, location.schoolId);
+  const address = normalizedRouteAddress(location.address);
+  const hit = cache.find((row) => (
+    txt(row.origin_instructor_emp_id) === txt(employeeId)
+    && (
+      (location.entityKey && txt(row.destination_entity_key) === location.entityKey)
+      || (address && normalizedRouteAddress(row.destination_address) === address)
+    )
+  ));
+  return usableDistance(hit);
+}
+
+function locationLocationDistance(cache, origin, destination) {
+  if (!origin || !destination) return null;
+  if (
+    (origin.entityKey && destination.entityKey && origin.entityKey === destination.entityKey)
+    || (origin.address && destination.address && normalizedRouteAddress(origin.address) === normalizedRouteAddress(destination.address))
+  ) return 0;
+  if (origin.schoolId != null && destination.schoolId != null && !origin.address && !destination.address) {
+    return schoolSchoolDistance(cache, origin.schoolId, destination.schoolId);
+  }
+  const originAddress = normalizedRouteAddress(origin.address);
+  const destinationAddress = normalizedRouteAddress(destination.address);
+  const hit = cache.find((row) => (
+    ((origin.entityKey && txt(row.origin_entity_key) === origin.entityKey)
+      || (originAddress && normalizedRouteAddress(row.origin_address) === originAddress))
+    && ((destination.entityKey && txt(row.destination_entity_key) === destination.entityKey)
+      || (destinationAddress && normalizedRouteAddress(row.destination_address) === destinationAddress))
+  ));
   return usableDistance(hit);
 }
 
@@ -492,8 +553,11 @@ export function applyAttendanceDayRouteKilometers(rows = [], attendanceRows = []
     if (isAttendanceTravelTimeCancellation(attendance)
       || normalizeAttendanceName(attendance?.activityType).includes('ביטולזמן')) continue;
 
-    const isZoom = /zoom|זום/u.test(normalizeAttendanceName(`${attendance?.school || ''} ${attendance?.program || ''} ${attendance?.activityType || ''}`));
-    const dashboard = nearestAttendanceRouteDashboardRow(attendance, rows);
+    const isZoom = attendance.isRemoteDestination === true
+      || /zoom|זום/u.test(normalizeAttendanceName(`${attendance?.school || ''} ${attendance?.program || ''} ${attendance?.activityType || ''}`));
+    const routeOnly = rows.find((row) => row?.__routeOnly
+      && txt(row.sourceRecordId) === txt(attendance.recordId));
+    const dashboard = routeOnly || nearestAttendanceRouteDashboardRow(attendance, rows);
     const key = `${txt(attendance.employeeId)}|${txt(attendance.date)}`;
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push({ attendance, dashboard, isZoom });
@@ -507,21 +571,20 @@ export function applyAttendanceDayRouteKilometers(rows = [], attendanceRows = []
     const linkedRows = [...new Set(physicalStops.map((stop) => stop.dashboard).filter(Boolean))];
     linkedRows.forEach((row) => { row.kilometers = null; });
 
-    // If the employee reported another physical stop that cannot be resolved to a
-    // dashboard destination, the complete route is unknown. Do not show a misleading
-    // partial distance for the rows that did resolve.
-    if (physicalStops.some((stop) => !stop.dashboard || stop.dashboard.schoolId == null)) continue;
+    physicalStops.forEach((stop) => { stop.location = routeLocationFromStop(stop); });
+    // A physical stop is unresolved only when it has neither a school identity nor
+    // a trusted destination address. A null school_id by itself is not a missing route.
+    if (physicalStops.some((stop) => !stop.dashboard || !stop.location)) continue;
 
     physicalStops.sort((left, right) => timeText(left.attendance?.startTime).localeCompare(timeText(right.attendance?.startTime)));
     let routeUnavailable = false;
     physicalStops.forEach((stop, index) => {
       const employeeId = txt(stop.attendance.employeeId);
-      const schoolId = stop.dashboard.schoolId;
       const incoming = index === 0
-        ? instructorSchoolDistance(travelCache, employeeId, schoolId)
-        : schoolSchoolDistance(travelCache, physicalStops[index - 1].dashboard.schoolId, schoolId);
+        ? instructorLocationDistance(travelCache, employeeId, stop.location)
+        : locationLocationDistance(travelCache, physicalStops[index - 1].location, stop.location);
       const returnHome = index === physicalStops.length - 1
-        ? instructorSchoolDistance(travelCache, employeeId, schoolId)
+        ? instructorLocationDistance(travelCache, employeeId, stop.location)
         : 0;
       if (incoming == null || returnHome == null) {
         routeUnavailable = true;
@@ -561,6 +624,28 @@ export async function loadAttendanceDashboardDataset(attendanceRows, api, month 
     .filter((row) => (month ? row.date.startsWith(`${month}-`) : scope.dates.has(row.date)) && scope.employeeIds.includes(row.employeeId));
   const rows = aggregateDashboardAttendanceRows(sourceRows);
   applyDashboardRouteKilometers(rows, sources.travelCache || []);
+
+  const routeOnlyRows = (attendanceRows || [])
+    .filter((attendance) => isAttendanceOnlyActivityType(attendance.activityType)
+      && attendance.isRemoteDestination !== true
+      && txt(attendance.destinationAddress))
+    .map((attendance) => ({
+      employeeId: txt(attendance.employeeId),
+      employeeName: txt(attendance.employeeName),
+      date: txt(attendance.date),
+      startTime: timeText(attendance.startTime),
+      endTime: timeText(attendance.endTime),
+      activityType: txt(attendance.activityType),
+      school: txt(attendance.school),
+      program: txt(attendance.program),
+      kilometers: null,
+      destinationAddress: txt(attendance.destinationAddress),
+      destinationEntityKey: txt(attendance.destinationEntityKey),
+      destinationType: txt(attendance.destinationType) || 'location',
+      sourceRecordId: txt(attendance.recordId),
+      __routeOnly: true
+    }));
+  rows.push(...routeOnlyRows);
   applyAttendanceDayRouteKilometers(rows, attendanceRows, sources.travelCache || []);
   applyDashboardExpenses(rows, sources.expenses || []);
   for (const contact of sources.contacts || []) {
@@ -1022,7 +1107,7 @@ export function compareAttendanceRows(attendanceRows, dashboardRows, options = {
   const dashboardPopulation = aggregateDashboardAttendanceRows(dashboardSourcePopulation);
   dashboardPopulation.sourceRowCount = dashboardRows?.sourceRowCount ?? dashboardSourcePopulation.filter((row) => !row.__profile).length;
   const buckets = new Map();
-  dashboardPopulation.forEach((row) => {
+  dashboardPopulation.filter((row) => !row.__routeOnly).forEach((row) => {
     const key = `${txt(row.employeeId)}|${row.date}`;
     if (!buckets.has(key)) buckets.set(key, []);
     buckets.get(key).push(row);
@@ -1034,7 +1119,7 @@ export function compareAttendanceRows(attendanceRows, dashboardRows, options = {
   comparableAttendance.forEach((attendance, attendanceIndex) => {
     const activityId = txt(attendance.activityId);
     if (!activityId) return;
-    const candidates = dashboardPopulation.filter((row) => !row.__profile
+    const candidates = dashboardPopulation.filter((row) => !row.__profile && !row.__routeOnly
       && !used.has(row)
       && txt(row.employeeId) === txt(attendance.employeeId)
       && txt(row.activityId) === activityId);
@@ -1152,7 +1237,7 @@ export function compareAttendanceRows(attendanceRows, dashboardRows, options = {
     };
   });
   const dashboardOnly = dashboardPopulation
-    .filter((row) => !row.__profile && row.date && !used.has(row))
+    .filter((row) => !row.__profile && !row.__routeOnly && row.date && !used.has(row))
     .map((dashboard, index) => ({
       id: `dashboard-only-${index}`,
       source: 'dashboard_only',
