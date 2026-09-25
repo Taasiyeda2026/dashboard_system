@@ -1382,6 +1382,17 @@ function normalizedLanguageRequirement(value) {
   return raw;
 }
 
+function meetingGapMinutes(first = {}, second = {}) {
+  const firstStart = timeMinutes(first.start_time);
+  const firstEnd = timeMinutes(first.end_time);
+  const secondStart = timeMinutes(second.start_time);
+  const secondEnd = timeMinutes(second.end_time);
+  if ([firstStart, firstEnd, secondStart, secondEnd].some((value) => value == null)) return -1;
+  if (firstEnd <= secondStart) return secondStart - firstEnd;
+  if (secondEnd <= firstStart) return firstStart - secondEnd;
+  return -1;
+}
+
 function recruitmentProfileCanTake(profile, row, schedule) {
   const gender = normalizedGenderRequirement(row.requiredGender);
   if (profile.gender !== 'any' && gender !== 'any' && profile.gender !== gender) return false;
@@ -1390,8 +1401,10 @@ function recruitmentProfileCanTake(profile, row, schedule) {
     for (const incoming of schedule.meetings || []) {
       if (timeRangesOverlap(existing, incoming)) return false;
       if (text(existing.date) === text(incoming.date)) {
+        const sameSchool = norm(existing.school) && norm(existing.school) === norm(row.school);
         const sameAuthority = norm(existing.authority) && norm(existing.authority) === norm(row.authority);
         if (!sameAuthority) return false;
+        if (!sameSchool && meetingGapMinutes(existing, incoming) < 30) return false;
       }
     }
   }
@@ -1469,7 +1482,7 @@ export function assignRecruitmentProfiles(rows = []) {
     if (norm(row.authority)) profile.authorities.add(norm(row.authority));
     if (norm(row.courseName)) profile.programs.add(norm(row.courseName));
     for (const meeting of schedule.meetings || []) {
-      profile.meetings.push({ ...meeting, authority: row.authority, courseId: row.courseId });
+      profile.meetings.push({ ...meeting, authority: row.authority, school: row.school, courseId: row.courseId });
       profile.weekdays.add(weekday(meeting.date));
     }
     profile.activities.push(row.courseId);
