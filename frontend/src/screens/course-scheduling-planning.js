@@ -1333,24 +1333,190 @@ export function buildPlanningOverviewRows({ activities = [], catalog = [], distr
   );
 }
 
+function scheduleOnlyOptions(scenarios = [], limit = 8) {
+  const seen = new Set();
+  return [...(scenarios || [])]
+    .filter((scenario) => Array.isArray(scenario?.meetings) && scenario.meetings.length)
+    .sort((a, b) =>
+      text(a.startDate).localeCompare(text(b.startDate))
+      || text(a.startTime).localeCompare(text(b.startTime))
+    )
+    .filter((scenario) => {
+      const key = `${text(scenario.startDate)}|${text(scenario.startTime)}|${text(scenario.endTime)}`;
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .slice(0, Math.max(1, Number(limit) || 8))
+    .map((scenario) => ({
+      startDate: text(scenario.startDate),
+      endDate: text(scenario.endDate),
+      startTime: text(scenario.startTime),
+      endTime: text(scenario.endTime),
+      meetings: (scenario.meetings || []).map((meeting) => ({ ...meeting }))
+    }));
+}
+
+function timeRangesOverlap(first = {}, second = {}) {
+  if (text(first.date) !== text(second.date)) return false;
+  const firstStart = timeMinutes(first.start_time);
+  const firstEnd = timeMinutes(first.end_time);
+  const secondStart = timeMinutes(second.start_time);
+  const secondEnd = timeMinutes(second.end_time);
+  if ([firstStart, firstEnd, secondStart, secondEnd].some((value) => value == null)) return true;
+  return firstStart < secondEnd && secondStart < firstEnd;
+}
+
+function normalizedGenderRequirement(value) {
+  const raw = norm(value);
+  if (['female', 'f', 'נקבה', 'מדריכה'].includes(raw)) return 'female';
+  if (['male', 'm', 'זכר', 'מדריך'].includes(raw)) return 'male';
+  return 'any';
+}
+
+function normalizedLanguageRequirement(value) {
+  const raw = norm(value);
+  if (!raw) return '';
+  if (raw.includes('ערב') || raw === 'ar' || raw === 'arabic') return 'ar';
+  if (raw.includes('עבר') || raw === 'he' || raw === 'hebrew') return 'he';
+  return raw;
+}
+
+function recruitmentProfileCanTake(profile, row, schedule) {
+  const gender = normalizedGenderRequirement(row.requiredGender);
+  if (profile.gender !== 'any' && gender !== 'any' && profile.gender !== gender) return false;
+
+  for (const existing of profile.meetings) {
+    for (const incoming of schedule.meetings || []) {
+      if (timeRangesOverlap(existing, incoming)) return false;
+      if (text(existing.date) === text(incoming.date)) {
+        const sameAuthority = norm(existing.authority) && norm(existing.authority) === norm(row.authority);
+        if (!sameAuthority) return false;
+      }
+    }
+  }
+  return true;
+}
+
+function recruitmentPlacementScore(profile, row, schedule) {
+  const sameAuthority = profile.authorities.has(norm(row.authority)) ? 30 : 0;
+  const sameProgram = profile.programs.has(norm(row.courseName)) ? 12 : 0;
+  const weekdays = new Set((schedule.meetings || []).map((meeting) => weekday(meeting.date)));
+  const reusedDay = [...weekdays].some((day) => profile.weekdays.has(day)) ? 6 : 0;
+  return sameAuthority + sameProgram + reusedDay - profile.activities.length;
+}
+
+export function assignRecruitmentProfiles(rows = []) {
+  const result = (rows || []).map((row) => ({
+    ...row,
+    meetings: (row.meetings || []).map((meeting) => ({ ...meeting })),
+    scheduleOptions: (row.scheduleOptions || []).map((option) => ({
+      ...option,
+      meetings: (option.meetings || []).map((meeting) => ({ ...meeting }))
+    }))
+  }));
+  const candidates = result
+    .filter((row) => row.kind === 'recruitment')
+    .sort((a, b) =>
+      (a.scheduleOptions?.length || 1) - (b.scheduleOptions?.length || 1)
+      || Number(b.sessions || 0) - Number(a.sessions || 0)
+      || text(a.courseId).localeCompare(text(b.courseId))
+    );
+  const profiles = [];
+
+  for (const row of candidates) {
+    const choices = row.scheduleOptions?.length
+      ? row.scheduleOptions
+      : (row.meetings?.length ? [{
+          startDate: row.startDate,
+          endDate: row.endDate,
+          startTime: row.startTime,
+          endTime: row.endTime,
+          meetings: row.meetings
+        }] : []);
+    if (!choices.length) continue;
+
+    let best = null;
+    for (const profile of profiles) {
+      for (const schedule of choices) {
+        if (!recruitmentProfileCanTake(profile, row, schedule)) continue;
+        const score = recruitmentPlacementScore(profile, row, schedule);
+        if (!best || score > best.score) best = { profile, schedule, score };
+      }
+    }
+
+    if (!best) {
+      const profile = {
+        id: `recruitment-${profiles.length + 1}`,
+        label: `מודל גיוס ${profiles.length + 1}`,
+        gender: normalizedGenderRequirement(row.requiredGender),
+        languages: new Set(),
+        authorities: new Set(),
+        programs: new Set(),
+        weekdays: new Set(),
+        meetings: [],
+        activities: []
+      };
+      profiles.push(profile);
+      best = { profile, schedule: choices[0], score: 0 };
+    }
+
+    const { profile, schedule } = best;
+    const gender = normalizedGenderRequirement(row.requiredGender);
+    if (profile.gender === 'any' && gender !== 'any') profile.gender = gender;
+    const language = normalizedLanguageRequirement(row.requiredLanguage);
+    if (language) profile.languages.add(language);
+    if (norm(row.authority)) profile.authorities.add(norm(row.authority));
+    if (norm(row.courseName)) profile.programs.add(norm(row.courseName));
+    for (const meeting of schedule.meetings || []) {
+      profile.meetings.push({ ...meeting, authority: row.authority, courseId: row.courseId });
+      profile.weekdays.add(weekday(meeting.date));
+    }
+    profile.activities.push(row.courseId);
+
+    row.startDate = schedule.startDate;
+    row.endDate = schedule.endDate;
+    row.startTime = schedule.startTime;
+    row.endTime = schedule.endTime;
+    row.meetings = (schedule.meetings || []).map((meeting) => ({ ...meeting }));
+    row.recruitmentProfileId = profile.id;
+    row.recruitmentProfileLabel = profile.label;
+  }
+
+  const profileById = new Map(profiles.map((profile) => [profile.id, profile]));
+  for (const row of result) {
+    if (!row.recruitmentProfileId) continue;
+    const profile = profileById.get(row.recruitmentProfileId);
+    row.recruitmentProfileSize = profile?.activities?.length || 1;
+    row.reason = `לאחר מיצוי אפשרויות הצוות הקיים: נדרש גיוס. המועד נשמר כהצעה לבית הספר ומשויך ל${row.recruitmentProfileLabel}, שמרכז ${row.recruitmentProfileSize} פעילויות.`;
+  }
+  return result;
+}
+
 function planRowFromOption(activity, option, options, startRange, spec, diagnostics = {}) {
   const recruitmentNeeded = !option && diagnostics.recruitmentNeeded === true;
+  const scheduleOptions = diagnostics.scheduleOptions || [];
+  const scheduleOnly = scheduleOptions[0] || null;
   return {
     courseId: idOf(activity),
     authority: text(activity.authority),
+    district: text(activity.district || activity.school_district || activity.authority_district),
     school: text(activity.school),
     courseName: text(activity.activity_name),
     activityType: activityTypeLabel(activity),
+    requiredLanguage: text(activity.instruction_language),
+    requiredGender: text(activity.required_instructor_gender),
     sessions: spec?.sessions || meetingCount(activity),
     kind: option ? 'proposal' : (recruitmentNeeded ? 'recruitment' : 'missing'),
     status: option ? 'מועד מומלץ לבית הספר' : (recruitmentNeeded ? 'נדרש גיוס' : 'נדרש טיפול'),
-    startDate: option?.startDate || '',
-    endDate: option?.endDate || '',
-    startTime: option?.startTime || '',
-    endTime: option?.endTime || '',
+    startDate: option?.startDate || scheduleOnly?.startDate || '',
+    endDate: option?.endDate || scheduleOnly?.endDate || '',
+    startTime: option?.startTime || scheduleOnly?.startTime || '',
+    endTime: option?.endTime || scheduleOnly?.endTime || '',
     instructorName: option?.instructorName || '',
     instructorEmpId: option?.instructorEmpId || '',
-    meetings: option?.meetings || [],
+    meetings: option?.meetings || scheduleOnly?.meetings || [],
+    scheduleOptions,
     options: (options || []).map(({ _candidate, ...item }) => item),
     startRange,
     diagnostics: {
@@ -1738,13 +1904,24 @@ export async function buildDynamicCoursePlan({
       const options = evaluation.options || [];
       const chosen = options[0] || null;
       const recruitmentNeeded = !chosen && evaluation.recruitmentNeeded === true;
+      const fixedLive = liveRow(activity, activityPeriodKey);
       const row = {
-        ...liveRow(activity, activityPeriodKey),
+        ...fixedLive,
         kind: chosen ? 'fixed-proposal' : (recruitmentNeeded ? 'recruitment' : 'missing'),
         status: chosen ? 'מדריך מומלץ למועד הקבוע' : (recruitmentNeeded ? 'נדרש גיוס' : 'נדרש טיפול'),
         instructorName: chosen?.instructorName || '',
         instructorEmpId: chosen?.instructorEmpId || '',
-        meetings: chosen?.meetings || liveRow(activity, activityPeriodKey).meetings,
+        meetings: chosen?.meetings || fixedLive.meetings,
+        scheduleOptions: [{
+          startDate: fixedLive.startDate,
+          endDate: fixedLive.endDate,
+          startTime: fixedLive.startTime,
+          endTime: fixedLive.endTime,
+          meetings: fixedLive.meetings
+        }],
+        requiredLanguage: text(activity.instruction_language),
+        requiredGender: text(activity.required_instructor_gender),
+        district: text(activity.district || activity.school_district || activity.authority_district),
         options: options.map(({ _candidate, ...option }) => option),
         diagnostics: {
           preliminaryCount: Number(evaluation.preliminaryCount) || 0,
@@ -1802,7 +1979,10 @@ export async function buildDynamicCoursePlan({
           options,
           generated.startRange,
           generated.spec,
-          evaluation
+          {
+            ...evaluation,
+            scheduleOptions: scheduleOnlyOptions(generated.scenarios)
+          }
         ));
         const virtual = blockingVirtualActivity(activity, chosen);
         if (virtual) virtualPlans.push(virtual);
@@ -1814,7 +1994,9 @@ export async function buildDynamicCoursePlan({
     await report('בניית תוכנית', completed, queue.length, idOf(activity), partialRows);
   }
 
-  const rows = targets.map((activity) => rowsById.get(idOf(activity)) || missingOverviewRow(activity, catalog));
+  const rows = assignRecruitmentProfiles(
+    targets.map((activity) => rowsById.get(idOf(activity)) || missingOverviewRow(activity, catalog))
+  );
   return {
     rows,
     total: rows.length,
