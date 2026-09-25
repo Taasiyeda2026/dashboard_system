@@ -2718,8 +2718,14 @@ export const activitiesScreen = {
       bindActivityEditForm(contentRoot);
       bindContact2027Section(contentRoot);
       bindInstructorScheduling(contentRoot, { ui, state, activitiesRows });
+      const form = contentRoot.querySelector('[data-drawer-form]');
+      const coordinationItem = state.activityCoordination?.byActivityId?.get?.(String(form?.dataset.rowId || ''));
+      const coordinationAction = contentRoot.querySelector('[data-activity-actions]');
+      if (coordinationAction && coordinationItem) {
+        const schedulingButtonHtml = coordinationAction.querySelector('[data-open-activity-scheduling]')?.outerHTML || '';
+        coordinationAction.innerHTML = `${coordinationDrawerActionHtml(coordinationItem)}${schedulingButtonHtml}`;
+      }
       contentRoot.querySelector('[data-open-activity-scheduling]')?.addEventListener('click', () => {
-        const form = contentRoot.querySelector('[data-drawer-form]');
         const activityId = String(form?.dataset.rowId || '').trim();
         if (!activityId) return;
         let activity = {};
@@ -2740,10 +2746,6 @@ export const activitiesScreen = {
         ui.closeDrawer?.();
         document.dispatchEvent(new CustomEvent('app:navigate', { detail: { route: 'course-scheduling' } }));
       });
-      const form = contentRoot.querySelector('[data-drawer-form]');
-      const coordinationItem = state.activityCoordination?.byActivityId?.get?.(String(form?.dataset.rowId || ''));
-      const coordinationAction = contentRoot.querySelector('[data-activity-actions]');
-      if (coordinationAction && coordinationItem) coordinationAction.innerHTML = coordinationDrawerActionHtml(coordinationItem);
       contentRoot.querySelector('[data-coordination-approval]')?.addEventListener('click', (event) => {
         const form = event.currentTarget.closest('[data-drawer-form]');
         const rowId = String(form?.dataset.rowId || '');
