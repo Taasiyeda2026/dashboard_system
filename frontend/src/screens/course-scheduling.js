@@ -465,15 +465,7 @@ function courseMatchesSchedulingPeriod(course = {}, periodKey = DEFAULT_COURSE_S
   // Activities without a school-provided date belong to the first-half work queue.
   if (!hasOfficialCourseDate(course) && periodKey === 'second') return false;
   const meetings = schedulingCalendarMeetings(course);
-  if (!meetings.length) return true;
-  if (periodKey === 'first') {
-    const period = resolveCourseSchedulingPeriod('first');
-    return meetings.some((meeting) => {
-      const date = text(meeting?.date).slice(0, 10);
-      return date >= FIRST_HALF_COUNT_START_DATE && date <= period.end;
-    });
-  }
-  return filterMeetingsByCourseSchedulingPeriod(meetings, periodKey).length > 0;
+  return meetings.length === 0 || filterMeetingsByCourseSchedulingPeriod(meetings, periodKey).length > 0;
 }
 
 function filteredInterfaceCourses(courses = [], state = {}) {
