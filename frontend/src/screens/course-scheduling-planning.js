@@ -35,7 +35,7 @@ export const PLANNING_OPTIMIZATION_WEIGHTS = Object.freeze({
   geography: 15,
   stability: 10
 });
-export const PLANNING_ENGINE_VERSION = 'planning-v8-20260925-first-half-undated';
+export const PLANNING_ENGINE_VERSION = 'planning-v9-20260925-existing-team-first';
 export const PLANNING_ACTIVITY_NO_ALIASES = Object.freeze({
   // Legacy Gefen identifier retained on existing activities; canonical catalog program is 53828.
   '82835': '53828'
@@ -401,6 +401,23 @@ export function latestFeasiblePlanningStart({ activity = {}, targetWeekday, star
 
 function blockingActivities(activities = []) {
   return (activities || []).filter((activity) => isSchedulingBlockingAssignment(activity) || isSchedulingDraftAssignment(activity));
+}
+
+function planningFlexibleActivity(activity = {}) {
+  if (!activity || text(activity.emp_id)) return activity;
+  if (!text(activity.draft_emp_id)) return activity;
+  return {
+    ...activity,
+    draft_emp_id: null,
+    draft_instructor_name: null,
+    draft_proposed_meetings: null,
+    draft_created_at: null,
+    draft_created_by: null
+  };
+}
+
+function planningContextActivities(activities = []) {
+  return (activities || []).map(planningFlexibleActivity);
 }
 
 function blockingMeetings(activities = []) {
@@ -989,31 +1006,42 @@ async function evaluateScenarioOptions({
       options: [],
       preliminaryCount: 0,
       routedAttemptCount: 0,
-      routeVerified: false,
+      routeVerified: true,
       recruitmentNeeded: true
     };
   }
 
   preliminaries.sort(planningPairCompare);
-  const finalists = preliminaries.slice(0, MAX_ROUTED_PLANNING_PAIRS);
-
-  let routed = null;
-  try {
-    routed = await calculateCandidateTravel(
-      finalists.map((item) => ({ course: item.course, candidate: item.candidate })),
-      contextActivities,
-      routeClient,
-      { checkpoint, signal }
-    );
-  } catch (error) {
-    if (isPlanningCancellationError(error)) throw error;
-    routed = null;
-  }
-
   const options = [];
   const optionKeys = new Set();
-  if (routed) {
-    for (const finalist of finalists) {
+  let routedAttemptCount = 0;
+  let routeVerified = false;
+  let routeServiceFailed = false;
+
+  for (let offset = 0; offset < preliminaries.length && options.length < MAX_FINAL_OPTIONS; offset += MAX_ROUTED_PLANNING_PAIRS) {
+    const batch = preliminaries.slice(offset, offset + MAX_ROUTED_PLANNING_PAIRS);
+    let routed = null;
+    try {
+      routed = await calculateCandidateTravel(
+        batch.map((item) => ({ course: item.course, candidate: item.candidate })),
+        contextActivities,
+        routeClient,
+        { checkpoint, signal }
+      );
+    } catch (error) {
+      if (isPlanningCancellationError(error)) throw error;
+      routeServiceFailed = true;
+      break;
+    }
+
+    routedAttemptCount += batch.length;
+    if (!routed) {
+      routeServiceFailed = true;
+      break;
+    }
+    if (!text(routed.unavailableReason)) routeVerified = true;
+
+    for (const finalist of batch) {
       await checkpoint();
       const finalResult = calculateCourseSchedule({
         activities: [...contextActivities, finalist.course],
@@ -1035,7 +1063,7 @@ async function evaluateScenarioOptions({
       ) || null;
       if (!finalCandidate) continue;
       const option = optionFromCandidate(finalist.course, finalCandidate, {
-        routeVerified: true,
+        routeVerified: !text(routed.unavailableReason),
         startRange
       });
       if (!option) continue;
@@ -1043,21 +1071,18 @@ async function evaluateScenarioOptions({
       if (optionKeys.has(key)) continue;
       optionKeys.add(key);
       options.push({ ...option, _candidate: finalCandidate });
+      if (options.length >= MAX_FINAL_OPTIONS) break;
     }
   }
 
   const sortedOptions = options.sort(optionCompare).slice(0, MAX_FINAL_OPTIONS);
-  const exhaustive = finalists.length >= preliminaries.length;
-  const routeVerified = !!routed && !text(routed.unavailableReason);
+  const exhaustive = routedAttemptCount >= preliminaries.length;
   return {
     options: sortedOptions,
     preliminaryCount: preliminaries.length,
-    routedAttemptCount: finalists.length,
+    routedAttemptCount,
     routeVerified,
-    recruitmentNeeded: sortedOptions.length === 0 && (
-      preliminaries.length === 0
-      || (routeVerified && exhaustive)
-    )
+    recruitmentNeeded: sortedOptions.length === 0 && !routeServiceFailed && exhaustive
   };
 }
 
@@ -1116,26 +1141,38 @@ async function evaluateFixedCourse({
     };
   }
 
-  const finalists = candidates
+  const ranked = candidates
     .map((candidate) => ({ course: activity, candidate, planningOptimization: planningOptimizationScore(candidate) }))
-    .sort(planningPairCompare)
-    .slice(0, MAX_ROUTED_PLANNING_PAIRS);
-
-  let routed = null;
-  try {
-    routed = await calculateCandidateTravel(
-      finalists.map((item) => ({ course: activity, candidate: item.candidate })),
-      contextActivities,
-      routeClient,
-      { checkpoint, signal }
-    );
-  } catch (error) {
-    if (isPlanningCancellationError(error)) throw error;
-    routed = null;
-  }
+    .sort(planningPairCompare);
 
   const options = [];
-  if (routed) {
+  const optionKeys = new Set();
+  let routedAttemptCount = 0;
+  let routeVerified = false;
+  let routeServiceFailed = false;
+
+  for (let offset = 0; offset < ranked.length && options.length < MAX_FINAL_OPTIONS; offset += MAX_ROUTED_PLANNING_PAIRS) {
+    const batch = ranked.slice(offset, offset + MAX_ROUTED_PLANNING_PAIRS);
+    let routed = null;
+    try {
+      routed = await calculateCandidateTravel(
+        batch.map((item) => ({ course: activity, candidate: item.candidate })),
+        contextActivities,
+        routeClient,
+        { checkpoint, signal }
+      );
+    } catch (error) {
+      if (isPlanningCancellationError(error)) throw error;
+      routeServiceFailed = true;
+      break;
+    }
+    routedAttemptCount += batch.length;
+    if (!routed) {
+      routeServiceFailed = true;
+      break;
+    }
+    if (!text(routed.unavailableReason)) routeVerified = true;
+
     const result = calculateCourseSchedule({
       activities: contextActivities,
       targetCourseId: idOf(activity),
@@ -1152,36 +1189,31 @@ async function evaluateFixedCourse({
       allowDateAdjustments: false
     })[0];
 
-    for (const finalist of finalists) {
+    for (const finalist of batch) {
       await checkpoint();
       const expectedEmpId = empOf(finalist.candidate);
       const finalCandidate = (result?.checked || []).find((candidate) =>
         candidate?.eligible && empOf(candidate) === expectedEmpId
       ) || null;
       if (!finalCandidate) continue;
-      const option = optionFromCandidate(activity, finalCandidate, { routeVerified: true });
-      if (option) options.push({ ...option, _candidate: finalCandidate });
+      const option = optionFromCandidate(activity, finalCandidate, { routeVerified: !text(routed.unavailableReason) });
+      if (!option) continue;
+      const key = text(option.instructorEmpId);
+      if (optionKeys.has(key)) continue;
+      optionKeys.add(key);
+      options.push({ ...option, _candidate: finalCandidate });
+      if (options.length >= MAX_FINAL_OPTIONS) break;
     }
   }
 
-  const sortedOptions = options
-    .filter(Boolean)
-    .sort(optionCompare)
-    .filter((option, index, all) =>
-      all.findIndex((item) => item.instructorEmpId === option.instructorEmpId) === index
-    )
-    .slice(0, MAX_FINAL_OPTIONS);
-  const exhaustive = finalists.length >= candidates.length;
-  const routeVerified = !!routed && !text(routed.unavailableReason);
+  const sortedOptions = options.filter(Boolean).sort(optionCompare).slice(0, MAX_FINAL_OPTIONS);
+  const exhaustive = routedAttemptCount >= ranked.length;
   return {
     options: sortedOptions,
     preliminaryCount: candidates.length,
-    routedAttemptCount: finalists.length,
+    routedAttemptCount,
     routeVerified,
-    recruitmentNeeded: sortedOptions.length === 0 && (
-      candidates.length === 0
-      || (routeVerified && exhaustive)
-    )
+    recruitmentNeeded: sortedOptions.length === 0 && !routeServiceFailed && exhaustive
   };
 }
 
@@ -1609,7 +1641,10 @@ export async function buildDynamicCoursePlan({
   };
   await report('הכנת נתונים');
   const targets = planningWorkspaceCourses(activities, district, periodKey);
-  const contextActivities = [...activities];
+  // Approved assignments are hard constraints. Existing drafts are deliberately
+  // removed from the blocking calendar here: the national planner may move or
+  // replace them before it concludes that new staff are needed.
+  const contextActivities = planningContextActivities(activities);
   const virtualPlans = [];
   const rowsById = new Map();
   const existingById = new Map((existingRows || [])
@@ -1624,7 +1659,7 @@ export async function buildDynamicCoursePlan({
   for (const activity of targets) {
     const activityId = idOf(activity);
     const activityPeriodKey = planningPeriodKeyForActivity(activity, periodKey);
-    if (text(activity.emp_id) || text(activity.draft_emp_id)) {
+    if (text(activity.emp_id)) {
       rowsById.set(activityId, liveRow(activity, activityPeriodKey));
       continue;
     }
