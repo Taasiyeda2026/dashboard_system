@@ -175,7 +175,7 @@ test('main scheduling workboard exposes only open, draft and assigned business s
   assert.match(html, /data-planning-completion-overview/);
   assert.match(html, /<b>4<\/b> פעילויות במחצית א׳/);
   assert.match(html, /<b>5<\/b> פעילויות תשפ״ז/);
-  assert.match(html, /15\.09\.2026/);
+  assert.match(html, /01\.09\.2026/);
 });
 
 test('planning draft confirmation is an atomic server-side promotion to final assignment', async () => {
@@ -625,19 +625,19 @@ test('fixed-date Planning changes only the missing hour and keeps every school d
   assert.ok(built.meetings.every((meeting) => meeting.start_time === '09:30' && meeting.end_time === '11:00'));
 });
 
-test('completion rows count undated work in first half from 15 September and exclude explicit second-half work', () => {
+test('completion rows count first half from 1 September and exclude explicit second-half work', () => {
   const activities = [
-    { ...baseCourse, row_id: 'sep15', activity_type: 'course', start_date: '2026-09-15', date_1: '2026-09-15', emp_id: '1', instructor_name: 'א' },
+    { ...baseCourse, row_id: 'sep1', activity_type: 'course', start_date: '2026-09-01', date_1: '2026-09-01', emp_id: '1', instructor_name: 'א' },
     { ...baseCourse, row_id: 'undated', activity_type: 'course', sessions: 10 },
     { ...baseCourse, row_id: 'sep14', activity_type: 'workshop', start_date: '2026-09-14', date_1: '2026-09-14', emp_id: '2', instructor_name: 'ב' },
     { ...baseCourse, row_id: 'second', activity_type: 'course', start_date: '2027-02-01', date_1: '2027-02-01' }
   ];
   const rows = buildPlanningCompletionRows({ activities, planningRows: [] });
-  assert.deepEqual(rows.map((row) => row.courseId).sort(), ['sep15', 'undated']);
+  assert.deepEqual(rows.map((row) => row.courseId).sort(), ['sep1', 'sep14', 'undated']);
   const html = planningCompletionOverviewHtml(rows, { schoolYearTotal: 4 });
-  assert.match(html, /<b>2<\/b> פעילויות במחצית א׳/);
+  assert.match(html, /<b>3<\/b> פעילויות במחצית א׳/);
   assert.match(html, /<b>4<\/b> פעילויות תשפ״ז/);
-  assert.match(html, /15\.09\.2026/);
+  assert.match(html, /01\.09\.2026/);
 });
 
 test('first-half completion overview includes live, drafts and proposals per instructor', () => {
