@@ -76,3 +76,52 @@
 .av2-login__form .av2-field__input::placeholder {
   text-align: center;
 }
+
+.av2-login__forgot {
+  align-self: center;
+  border: 0;
+  padding: 2px 4px;
+  background: transparent;
+  color: #475569;
+  font: inherit;
+  font-size: 0.78rem;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.av2-login__forgot:hover {
+  color: #0f172a;
+}
+
+.av2-login__forgot:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.av2-login__recovery-note {
+  margin: 0;
+  max-width: 250px;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: var(--av2-color-text-muted);
+}
+
+.av2-login__recovery-status {
+  margin: 0;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  text-align: center;
+  color: #475569;
+}
+
+.av2-login__recovery-status[data-kind="error"] {
+  color: #b91c1c;
+}
+
+.av2-login__recovery-status[data-kind="success"] {
+  color: #047857;
+}
+
+.av2-login__recovery-form .av2-field__input {
+  width: 82%;
+}
