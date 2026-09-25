@@ -208,7 +208,9 @@ export async function revealListRow(page, rowId, { maxClicks = 12 } = {}) {
 }
 
 export async function loginViaUi(page, { username, password }) {
-  await page.goto('/');
+  // Use a baseURL-relative path so GitHub Pages subpaths such as /dashboard_system/
+  // are preserved. page.goto('/') incorrectly navigates to the site origin root.
+  await page.goto('./');
   await page.locator('#loginForm').waitFor({ state: 'visible', timeout: SCREEN_TIMEOUT_MS });
   await page.fill('#userId', username);
   await page.fill('#entryCode', password);
