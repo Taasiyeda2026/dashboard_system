@@ -18,6 +18,7 @@ import {
   planningContextFingerprint,
   planningDataFingerprint,
   planningEffectivePeriod,
+  planningPeriodKeyForActivity,
   normalizePlanningLockedOption,
   planningInstructorSchedules,
   planningOptimizationScore,
@@ -218,6 +219,48 @@ test('Planning does not guess a catalog program when an activity has no reliable
   assert.equal(spec.sessions, 15);
   assert.equal(spec.durationMinutes, null);
   assert.equal(spec.complete, false);
+});
+
+test('undated activities default to first half while explicit second-half dates stay in second half', () => {
+  assert.equal(planningPeriodKeyForActivity(baseCourse, 'year'), 'first');
+  assert.equal(planningPeriodKeyForActivity({ ...baseCourse, start_date: '2027-02-07' }, 'year'), 'second');
+  assert.equal(planningPeriodKeyForActivity({ ...baseCourse, date_1: '2027-03-01' }, 'year'), 'second');
+
+  const secondHalfRows = planningWorkspaceCourses([
+    { ...baseCourse, row_id: 'undated' },
+    { ...baseCourse, row_id: 'explicit-second', date_1: '2027-03-01' }
+  ], '', 'second');
+  assert.deepEqual(secondHalfRows.map((row) => row.row_id), ['explicit-second']);
+});
+
+test('full-year planning still keeps an undated multi-session course entirely inside first half', () => {
+  const generated = generatePlanningScenarios({
+    activity: { ...baseCourse, row_id: 'undated-year', sessions: 10 },
+    catalog,
+    instructors: [{ emp_id: 1, full_name: 'מדריכה', active: 'yes' }],
+    rules: ruleMap,
+    profiles: profileMap,
+    activities: [],
+    schoolCalendar: [],
+    today: '2026-09-23',
+    periodKey: 'year'
+  });
+  assert.ok(generated.scenarios.length > 0);
+  for (const scenario of generated.scenarios) {
+    assert.equal(scenario.meetings.length, 10);
+    assert.ok(scenario.startDate >= '2026-10-06');
+    assert.ok(scenario.endDate <= '2027-01-29');
+  }
+
+  assert.equal(buildWeeklyPlanningMeetings({
+    activity: { ...baseCourse, sessions: 10 },
+    startDate: '2027-02-07',
+    startTime: '08:00',
+    durationMinutes: 90,
+    sessions: 10,
+    schoolCalendar: [],
+    periodKey: 'year'
+  }), null);
 });
 
 test('weekly planning starts on or after 6 October, stays inside first half and rejects late starts', () => {
@@ -577,6 +620,34 @@ test('Planning builds a complete meeting-level work schedule for each instructor
   assert.equal(schedules[0].activityCount, 2);
   assert.deepEqual(schedules[0].meetings.map((meeting) => meeting.date), ['2026-10-07', '2026-10-11']);
   assert.deepEqual(schedules[0].meetings.map((meeting) => meeting.source), ['שיבוץ קיים', 'הצעת מערכת']);
+});
+
+test('national planning prefers an early first-half start for an undated 10-meeting course', async () => {
+  const activity = {
+    ...baseCourse,
+    row_id: 'early-undated',
+    sessions: 10,
+    school_id: 1,
+    school_address: 'כתובת בית ספר'
+  };
+  const result = await buildDynamicCoursePlan({
+    activities: [activity],
+    instructors: [instructor],
+    profiles: profileMap,
+    rules: ruleMap,
+    exceptions: {},
+    schoolCalendar: [],
+    catalog,
+    today: '2026-09-23',
+    periodKey: 'year',
+    routeClient: routeClient({ distance_km: 5, duration_minutes: 10 })
+  });
+  const row = result.rows[0];
+  assert.equal(row.kind, 'proposal');
+  assert.ok(row.startDate >= '2026-10-06');
+  assert.ok(row.startDate < '2026-11-01');
+  assert.ok(row.endDate <= '2027-01-29');
+  assert.equal(row.meetings.length, 10);
 });
 
 test('Planning locks a selected option without writing to the activity and exposes it as a blocker', async () => {
