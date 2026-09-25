@@ -31,7 +31,7 @@ function normalizeAttachments(raw = []) {
     .filter((item) => item.fileName || item.storagePath);
 }
 
-function legacyRecord(row = {}, travel = null, { generated = false } = {}) {
+function legacyRecord(row = {}, travel = null, { generated = false, location = null } = {}) {
   const employeeId = text(row.employee_id);
   const team = text(row.team);
   const attachments = normalizeAttachments(row.attachments);
@@ -93,6 +93,10 @@ function legacyRecord(row = {}, travel = null, { generated = false } = {}) {
     authorityId: row.authority_id ?? null,
     schoolId: row.school_id ?? null,
     semelMosad: row.semel_mosad ?? null,
+    destinationAddress: text(location?.destination_address),
+    destinationEntityKey: text(location?.destination_entity_key),
+    destinationType: text(location?.destination_type),
+    isRemoteDestination: location?.is_remote === true,
     sourceAttendanceRecordId: text(travel?.source_record_id),
     generationKind: generated ? 'travel_time_cancellation' : '',
     travelCalculationStatus: text(travel?.calculation_status),
@@ -170,13 +174,18 @@ api.attendanceControlRecords = async function ({ employeeIds = [], fromDate = ''
     p_from_date: text(fromDate) || null,
     p_to_date: text(toDate) || null
   };
-  const [{ data, error }, travelResult] = await Promise.all([
+  const [{ data, error }, travelResult, locationResult] = await Promise.all([
     supabase.rpc('get_payroll_attendance_records', params),
-    supabase.rpc('get_payroll_attendance_travel_compensations', params)
+    supabase.rpc('get_payroll_attendance_travel_compensations', params),
+    supabase.rpc('get_payroll_attendance_location_contexts', params)
   ]);
   if (error) throw new Error(error.message || 'attendance_records_supabase_load_failed');
   if (travelResult.error) throw new Error(travelResult.error.message || 'attendance_travel_compensations_load_failed');
+  if (locationResult.error) throw new Error(locationResult.error.message || 'attendance_location_contexts_load_failed');
   const travelRows = Array.isArray(travelResult.data) ? travelResult.data : [];
+  const locationByRecord = new Map((Array.isArray(locationResult.data) ? locationResult.data : [])
+    .map((item) => [text(item.record_id), item])
+    .filter(([recordId]) => recordId));
   const travelByGenerated = new Map(travelRows
     .map((item) => [text(item.generated_record_id), item])
     .filter(([recordId]) => recordId));
@@ -188,7 +197,10 @@ api.attendanceControlRecords = async function ({ employeeIds = [], fromDate = ''
     const recordId = text(row.record_id);
     const generatedTravel = travelByGenerated.get(recordId) || null;
     const sourceTravel = travelBySource.get(recordId) || null;
-    return legacyRecord(row, generatedTravel || sourceTravel, { generated: Boolean(generatedTravel) });
+    return legacyRecord(row, generatedTravel || sourceTravel, {
+      generated: Boolean(generatedTravel),
+      location: locationByRecord.get(recordId) || null
+    });
   });
 };
 
