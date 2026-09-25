@@ -988,7 +988,7 @@ test('Planning batches selected options before expensive recalculation and block
     pendingChanges: 2
   });
   assert.match(html, /עדכן רק 2 פעילויות שהשתנו/);
-  assert.match(html, /יש 2 פעילויות שהושפעו/);
+  assert.doesNotMatch(html, /יש 2 פעילויות שהושפעו/);
   assert.match(html, /data-export-course-planning disabled/);
 });
 
