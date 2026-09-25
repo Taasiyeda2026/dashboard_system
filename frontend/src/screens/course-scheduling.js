@@ -17,7 +17,7 @@ import {
   israelTodayIso,
   meetingsCompletedForCourse
 } from './course-scheduling-meetings.js';
-import { isCourseSchedulingInterfaceEligible, isSchedulableActivityType, isSchedulingActivityActive, schedulingActivityTypeCategory } from './shared/activity-scheduling-eligibility.js';
+import { isSchedulableActivityType, isSchedulingActivityActive, schedulingActivityTypeCategory } from './shared/activity-scheduling-eligibility.js';
 import { formatDateHe, formatTimeRangeShort } from './shared/format-date.js';
 import { weekRange, shiftWeek, buildWeekRows, weekCalendarHtml, fixedScheduleHtml, weekNavLabel } from './course-scheduling-calendar.js';
 import {
