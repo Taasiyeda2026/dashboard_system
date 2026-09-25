@@ -2165,7 +2165,7 @@ export async function buildDynamicCoursePlan({
   if (_repairPass || incrementalIds) return initialResult;
 
   const repairPriorityIds = rows
-    .filter((row) => ['missing', 'recruitment'].includes(text(row.kind)))
+    .filter((row) => text(row.kind) === 'recruitment')
     .map((row) => text(row.courseId))
     .filter(Boolean);
   if (!repairPriorityIds.length) return initialResult;
