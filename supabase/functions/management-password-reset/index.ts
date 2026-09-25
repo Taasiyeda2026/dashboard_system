@@ -38,7 +38,10 @@ function json(origin: string, body: Record<string, unknown>, status = 200) {
 }
 
 function normalizeEmail(value: unknown) {
-  return String(value ?? '').trim().toLowerCase();
+  return String(value ?? '')
+    .replace(/[\u200B-\u200F\u202A-\u202E\u2066-\u2069\uFEFF]/g, '')
+    .trim()
+    .toLowerCase();
 }
 
 function isValidEmail(value: string) {
