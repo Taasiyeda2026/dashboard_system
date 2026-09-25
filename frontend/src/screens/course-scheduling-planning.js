@@ -3,7 +3,7 @@ import { compareCandidatesStable } from './course-scheduling-score.js';
 import { calculateCandidateTravel, createRouteClient } from './course-scheduling-travel.js';
 import { activityMeetings, schedulingCalendarMeetings } from './instructor-scheduling-load.js';
 import { blockedSchoolDates, effectiveEndTime } from './course-scheduling-date-adjustments.js';
-import { planningPeriodOptions, resolveCourseSchedulingPeriod } from './course-scheduling-periods.js';
+import { FIRST_HALF_CONTINUATION_END_DATE, planningPeriodOptions, resolveCourseSchedulingPeriod } from './course-scheduling-periods.js';
 import {
   isSchedulingActivityActive,
   isSchedulingBlockingAssignment,
@@ -22,7 +22,6 @@ const norm = (value) => text(value).replace(/\s+/g, ' ').toLocaleLowerCase('he-I
 export const DEFAULT_PLANNING_PERIOD_KEY = 'year';
 export const PLANNING_OPERATIONAL_START_DATE = '2026-10-06';
 export const FIRST_HALF_COUNT_START_DATE = '2026-09-01';
-export const FIRST_HALF_CONTINUATION_END_DATE = '2027-02-28';
 const DEFAULT_TIME_SLOTS = ['08:00', '09:30', '11:00', '12:30', '14:00'];
 const MAX_TIME_SLOTS_PER_WEEKDAY = 10;
 const MAX_SCENARIOS_PER_COURSE = 60;
