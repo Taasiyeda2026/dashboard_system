@@ -931,7 +931,8 @@ test('background planning keeps the workboard scroll stable instead of rerenderi
   assert.match(screen, /listTop: Number\(list\?\.scrollTop\)/);
   assert.match(screen, /window\.scrollTo\(\{ top: Number\(saved\.windowY\), behavior: 'auto' \}\)/);
   assert.match(screen, /const updatePlanningStatusInPlace = \(\) =>/);
-  assert.match(screen, /requestIdleCallback\(run, \{ timeout: 600 \}\)/);
+  assert.match(screen, /scheduleCoursePlanningStart\(\{/);
+  assert.match(screen, /pending\.idleId = requestIdle\(run, \{ timeout: 600 \}\)/);
   assert.match(planningRun, /onProgress: \(progress\) =>/);
   assert.match(planningRun, /updatePlanningStatusInPlace\(\)/);
   assert.doesNotMatch(planningRun, /rerender\(\)/);
