@@ -327,6 +327,7 @@ export function buildWeeklyPlanningMeetings({
       candidate = addDays(candidate, 7);
     }
     if (!candidate || candidate > scheduleEnd || guard >= 30) return null;
+    if (index === 0 && candidate > period.end) return null;
     const cappedEnd = effectiveEndTime(candidate, endTime, calendarRows);
     if (text(cappedEnd).slice(0, 5) !== endTime) return null;
     meetings.push({
