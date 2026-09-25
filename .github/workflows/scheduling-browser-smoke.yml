@@ -1,0 +1,60 @@
+name: Scheduling Browser Smoke
+
+on:
+  pull_request:
+    paths:
+      - 'frontend/src/screens/course-scheduling*'
+      - 'frontend/src/screens/shared/instructors-workspace-nav.js'
+      - 'e2e/smoke/scheduling-navigation.spec.mjs'
+      - '.github/workflows/scheduling-browser-smoke.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  scheduling-browser-smoke:
+    runs-on: ubuntu-latest
+    env:
+      E2E_USERNAME: ${{ secrets.E2E_USERNAME }}
+      E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
+      E2E_BASE_URL: https://taasiyeda2026.github.io/dashboard_system
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Check E2E test account
+        id: creds
+        shell: bash
+        run: |
+          if [ -n "$E2E_USERNAME" ] && [ -n "$E2E_PASSWORD" ]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::E2E_USERNAME/E2E_PASSWORD are not configured; browser smoke cannot run."
+          fi
+
+      - name: Setup Node.js
+        if: steps.creds.outputs.available == 'true'
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        if: steps.creds.outputs.available == 'true'
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Install Chromium
+        if: steps.creds.outputs.available == 'true'
+        run: npx playwright install --with-deps chromium
+
+      - name: Run scheduling browser smoke
+        if: steps.creds.outputs.available == 'true'
+        run: npx playwright test -c e2e/playwright.smoke.config.mjs e2e/smoke/scheduling-navigation.spec.mjs
+
+      - name: Require executed browser smoke
+        if: steps.creds.outputs.available != 'true'
+        run: |
+          echo "Scheduling browser smoke was not executed because the dedicated E2E account is missing."
+          exit 1
