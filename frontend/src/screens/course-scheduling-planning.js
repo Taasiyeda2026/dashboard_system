@@ -1844,6 +1844,185 @@ export function planningInstructorSchedules(rows = []) {
     .sort((a, b) => a.name.localeCompare(b.name, 'he'));
 }
 
+
+function planningCompletionStatus(row = {}) {
+  if (row.kind === 'live') return 'משובץ';
+  if (row.kind === 'draft') return 'טיוטה';
+  if (row.kind === 'planning-locked') return 'נקבע בתכנון';
+  if (row.kind === 'proposal' || row.kind === 'fixed-proposal') return 'הצעת מערכת';
+  return text(row.status) || 'בתכנון';
+}
+
+function planningCompletionDateRange(row = {}) {
+  const meetingDates = (Array.isArray(row?.meetings) ? row.meetings : [])
+    .map((meeting) => text(meeting?.date).slice(0, 10))
+    .filter((date) => /^\d{4}-\d{2}-\d{2}$/.test(date))
+    .sort();
+  const startDate = meetingDates[0] || text(row?.startDate).slice(0, 10);
+  const endDate = meetingDates.at(-1) || text(row?.endDate).slice(0, 10) || startDate;
+  return {
+    startDate: /^\d{4}-\d{2}-\d{2}$/.test(startDate) ? startDate : '',
+    endDate: /^\d{4}-\d{2}-\d{2}$/.test(endDate) ? endDate : ''
+  };
+}
+
+function planningRowIsFirstHalf(row = {}) {
+  const period = planningEffectivePeriod('first');
+  const dates = planningCompletionDateRange(row);
+  if (!dates.startDate && !dates.endDate) return true;
+  const startDate = dates.startDate || dates.endDate;
+  const endDate = dates.endDate || dates.startDate;
+  return startDate <= period.end && endDate >= period.start;
+}
+
+export function planningInstructorCompletionOverview(rows = []) {
+  const firstHalf = planningEffectivePeriod('first');
+  const groups = new Map();
+
+  for (const row of rows || []) {
+    const empId = text(row?.instructorEmpId);
+    const name = text(row?.instructorName);
+    if (!empId || !name || !planningRowIsFirstHalf(row)) continue;
+
+    const key = empId || name;
+    if (!groups.has(key)) {
+      groups.set(key, {
+        empId,
+        name,
+        activities: [],
+        liveCount: 0,
+        draftCount: 0,
+        proposalCount: 0,
+        courseCount: 0,
+        otherActivityCount: 0,
+        undatedCount: 0,
+        overflowCount: 0
+      });
+    }
+
+    const group = groups.get(key);
+    const dates = planningCompletionDateRange(row);
+    const activityType = text(row?.activityType) || 'קורס';
+    const activity = {
+      courseId: text(row?.courseId),
+      courseName: text(row?.courseName) || 'פעילות',
+      activityType,
+      school: text(row?.school),
+      authority: text(row?.authority),
+      status: planningCompletionStatus(row),
+      kind: text(row?.kind),
+      startDate: dates.startDate,
+      endDate: dates.endDate
+    };
+    group.activities.push(activity);
+
+    if (row.kind === 'live') group.liveCount += 1;
+    else if (row.kind === 'draft') group.draftCount += 1;
+    else if (['proposal', 'fixed-proposal', 'planning-locked'].includes(row.kind)) group.proposalCount += 1;
+
+    if (activityType === 'קורס') group.courseCount += 1;
+    else group.otherActivityCount += 1;
+    if (!dates.startDate) group.undatedCount += 1;
+    if (row.halfOverflow === true || (dates.endDate && dates.endDate > firstHalf.end)) group.overflowCount += 1;
+  }
+
+  return [...groups.values()].map((group) => {
+    const datedStarts = group.activities.map((item) => item.startDate).filter(Boolean).sort();
+    const datedEnds = group.activities.map((item) => item.endDate).filter(Boolean).sort();
+    const programs = [...new Set(group.activities.map((item) => item.courseName).filter(Boolean))]
+      .sort((a, b) => a.localeCompare(b, 'he'));
+    const activities = [...group.activities].sort((a, b) =>
+      (a.startDate || '9999-99-99').localeCompare(b.startDate || '9999-99-99')
+      || a.courseName.localeCompare(b.courseName, 'he')
+      || a.school.localeCompare(b.school, 'he')
+    );
+    return {
+      ...group,
+      activityCount: activities.length,
+      firstStart: datedStarts[0] || '',
+      lastEnd: datedEnds.at(-1) || '',
+      programs,
+      activities
+    };
+  }).sort((a, b) =>
+    b.activityCount - a.activityCount
+    || a.name.localeCompare(b.name, 'he')
+  );
+}
+
+export function planningCompletionOverviewHtml(rows = [], { pendingChanges = 0 } = {}) {
+  const overview = planningInstructorCompletionOverview(rows);
+  if (!overview.length) return '';
+
+  const totals = overview.reduce((acc, item) => {
+    acc.activities += item.activityCount;
+    acc.courses += item.courseCount;
+    acc.live += item.liveCount;
+    acc.drafts += item.draftCount;
+    acc.proposals += item.proposalCount;
+    acc.undated += item.undatedCount;
+    acc.overflow += item.overflowCount;
+    return acc;
+  }, { activities: 0, courses: 0, live: 0, drafts: 0, proposals: 0, undated: 0, overflow: 0 });
+  const pendingCount = Math.max(0, Number(pendingChanges) || 0);
+
+  return `<section class="course-planning-completion-overview" data-planning-completion-overview>
+    <div class="course-planning-section-heading">
+      <div>
+        <strong>תמונת מצב לסיום התכנון — מחצית א׳</strong>
+        <span>כולל שיבוצים קיימים, טיוטות והצעות מערכת. התאריכים מציגים את תחילת וסיום העבודה של כל מדריך במחצית.</span>
+      </div>
+    </div>
+    ${pendingCount ? `<p class="course-planning-completion-pending">התמונה מבוססת על התכנון השמור כרגע. יש ${pendingCount} פעילויות שממתינות לעדכון.</p>` : ''}
+    <div class="course-planning-completion-summary">
+      <span><b>${overview.length}</b> מדריכים</span>
+      <span><b>${totals.activities}</b> פעילויות עם מדריך</span>
+      <span><b>${totals.courses}</b> קורסים</span>
+      <span><b>${totals.live}</b> משובצים</span>
+      <span><b>${totals.drafts}</b> טיוטות</span>
+      <span><b>${totals.proposals}</b> הצעות מערכת</span>
+      ${totals.undated ? `<span class="is-warning"><b>${totals.undated}</b> ללא מועד</span>` : ''}
+      ${totals.overflow ? `<span class="is-warning"><b>${totals.overflow}</b> חורגים מהמחצית</span>` : ''}
+    </div>
+    <div class="course-planning-completion-table-wrap">
+      <table class="course-planning-completion-table">
+        <thead><tr>
+          <th>מדריך</th>
+          <th>קורסים</th>
+          <th>משובץ</th>
+          <th>טיוטה</th>
+          <th>הצעה</th>
+          <th>מתחיל</th>
+          <th>מסתיים</th>
+          <th>תוכניות ופירוט</th>
+        </tr></thead>
+        <tbody>${overview.map((item) => `<tr>
+          <td><strong>${escapeHtml(item.name)}</strong>${item.otherActivityCount ? `<small>+${item.otherActivityCount} פעילויות שאינן קורס</small>` : ''}</td>
+          <td><b>${item.courseCount}</b></td>
+          <td>${item.liveCount}</td>
+          <td>${item.draftCount}</td>
+          <td>${item.proposalCount}</td>
+          <td>${item.firstStart ? `<bdi dir="ltr">${escapeHtml(formatDateHe(item.firstStart))}</bdi>` : '<span class="course-planning-completion-missing">חסר מועד</span>'}</td>
+          <td class="${item.overflowCount ? 'is-warning' : ''}">${item.lastEnd ? `<bdi dir="ltr">${escapeHtml(formatDateHe(item.lastEnd))}</bdi>` : '<span class="course-planning-completion-missing">חסר מועד</span>'}</td>
+          <td>
+            <div class="course-planning-completion-programs">${item.programs.map((program) => `<span>${escapeHtml(program)}</span>`).join('')}</div>
+            <details class="course-planning-completion-details">
+              <summary>פירוט ${item.activityCount} הפעילויות</summary>
+              <div class="course-planning-completion-courses">
+                ${item.activities.map((activity) => `<div class="course-planning-completion-course">
+                  <strong>${escapeHtml(activity.courseName)}</strong>
+                  <span>${escapeHtml(activity.status)} · ${escapeHtml(activity.school || 'ללא בית ספר')}${activity.authority ? ` · ${escapeHtml(activity.authority)}` : ''}</span>
+                  <span>${activity.startDate ? `<bdi dir="ltr">${escapeHtml(formatDateHe(activity.startDate))}</bdi>` : 'חסר תאריך התחלה'}${activity.endDate ? `–<bdi dir="ltr">${escapeHtml(formatDateHe(activity.endDate))}</bdi>` : ''}</span>
+                </div>`).join('')}
+              </div>
+            </details>
+          </td>
+        </tr>`).join('')}</tbody>
+      </table>
+    </div>
+  </section>`;
+}
+
 function planningRowPrimaryOption(row = {}) {
   const options = Array.isArray(row?.options) ? row.options : [];
   const selected = options.find((option) =>
@@ -2310,8 +2489,9 @@ export function planningTabHtml({
       <article><b>${recruitment}</b><span>נדרש גיוס</span></article>
     </div>
     ${calculatedAt && rows.length && !loading ? planningQualityAuditHtml(rows, { pendingChanges: pendingCount }) : ''}
+    ${calculatedAt && rows.length && !loading ? planningCompletionOverviewHtml(rows, { pendingChanges: pendingCount }) : ''}
     ${planningRowsHtml(rows, { loading })}
-    ${calculatedAt && rows.length && pendingCount === 0 ? `<details class="course-planning-instructor-overview"><summary>מערכת מלאה לפי מדריך</summary>${planningInstructorScheduleHtml(rows)}</details>` : ''}
+    ${calculatedAt && rows.length && pendingCount === 0 ? `<details class="course-planning-instructor-overview"><summary>מערכת מלאה לפי מדריך ולפי מפגש</summary>${planningInstructorScheduleHtml(rows)}</details>` : ''}
     ${routeStats ? `<p class="course-planning-route-stats">בדיקות מרחק: ${Number(routeStats.cacheHits) || 0} מהמטמון · ${Number(routeStats.googleCalls) || 0} חישובים חדשים</p>` : ''}
   </section>`;
 }
