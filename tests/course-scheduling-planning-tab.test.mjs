@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 import {
   PLANNING_OPERATIONAL_START_DATE,
   PLANNING_OPTIMIZATION_WEIGHTS,
+  buildPlanningCompletionRows,
   buildPlanningOverviewRows,
   buildDynamicCoursePlan,
   buildFixedDatePlanningMeetings,
@@ -89,6 +90,19 @@ test('main scheduling workboard exposes only open, draft and assigned business s
       emp_id: '3',
       instructor_name: 'מדריך משובץ',
       instructor_assignment_locked: true
+    },
+    {
+      ...baseCourse,
+      row_id: 'undated-plan',
+      sessions: 10
+    },
+    {
+      ...baseCourse,
+      row_id: 'second-half-plan',
+      start_date: '2027-02-07',
+      date_1: '2027-02-07',
+      start_time: '08:00',
+      end_time: '09:30'
     }
   ];
   const state = {
@@ -156,6 +170,12 @@ test('main scheduling workboard exposes only open, draft and assigned business s
   assert.match(html, /data-confirm-planning-draft/);
   assert.match(html, /אשר שיבוץ/);
   assert.match(html, /התכנון שמור ומעודכן/);
+  assert.match(html, /data-course-card="undated-plan"/);
+  assert.doesNotMatch(html, /data-course-card="second-half-plan"/);
+  assert.match(html, /data-planning-completion-overview/);
+  assert.match(html, /<b>4<\/b> פעילויות במחצית א׳/);
+  assert.match(html, /<b>5<\/b> פעילויות תשפ״ז/);
+  assert.match(html, /15\.09\.2026/);
 });
 
 test('planning draft confirmation is an atomic server-side promotion to final assignment', async () => {
@@ -603,6 +623,21 @@ test('fixed-date Planning changes only the missing hour and keeps every school d
   });
   assert.deepEqual(built.meetings.map((meeting) => meeting.date), ['2026-10-11', '2026-10-18']);
   assert.ok(built.meetings.every((meeting) => meeting.start_time === '09:30' && meeting.end_time === '11:00'));
+});
+
+test('completion rows count undated work in first half from 15 September and exclude explicit second-half work', () => {
+  const activities = [
+    { ...baseCourse, row_id: 'sep15', activity_type: 'course', start_date: '2026-09-15', date_1: '2026-09-15', emp_id: '1', instructor_name: 'א' },
+    { ...baseCourse, row_id: 'undated', activity_type: 'course', sessions: 10 },
+    { ...baseCourse, row_id: 'sep14', activity_type: 'workshop', start_date: '2026-09-14', date_1: '2026-09-14', emp_id: '2', instructor_name: 'ב' },
+    { ...baseCourse, row_id: 'second', activity_type: 'course', start_date: '2027-02-01', date_1: '2027-02-01' }
+  ];
+  const rows = buildPlanningCompletionRows({ activities, planningRows: [] });
+  assert.deepEqual(rows.map((row) => row.courseId).sort(), ['sep15', 'undated']);
+  const html = planningCompletionOverviewHtml(rows, { schoolYearTotal: 4 });
+  assert.match(html, /<b>2<\/b> פעילויות במחצית א׳/);
+  assert.match(html, /<b>4<\/b> פעילויות תשפ״ז/);
+  assert.match(html, /15\.09\.2026/);
 });
 
 test('first-half completion overview includes live, drafts and proposals per instructor', () => {
