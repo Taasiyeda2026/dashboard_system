@@ -557,8 +557,8 @@ test('official schedules are synchronized into Planning as live data and missing
   const rows = buildPlanningOverviewRows({ activities: [live, missing], catalog });
   assert.equal(rows.find((row) => row.courseId === 'live')?.kind, 'live');
   assert.equal(rows.find((row) => row.courseId === 'live')?.instructorName, 'מדריך קיים');
-  assert.equal(rows.find((row) => row.courseId === 'live')?.startDate, '2026-10-11');
-  assert.equal(rows.find((row) => row.courseId === 'live')?.sessions, 1);
+  assert.equal(rows.find((row) => row.courseId === 'live')?.startDate, '2026-10-04');
+  assert.equal(rows.find((row) => row.courseId === 'live')?.sessions, 2);
   assert.equal(rows.find((row) => row.courseId === 'missing')?.kind, 'missing');
   assert.equal(rows.find((row) => row.courseId === 'missing')?.status, 'נדרש טיפול');
 });
@@ -579,8 +579,9 @@ test('exact latest start searches backward around blocked school weeks', () => {
     periodKey: 'first'
   });
   assert.ok(built);
-  assert.ok(built.endDate <= '2027-01-29');
-  assert.equal(latest, '2027-01-03');
+  assert.ok(built.startDate <= '2027-01-29');
+  assert.ok(built.endDate <= '2027-02-28');
+  assert.equal(latest, '2027-01-17');
 });
 
 test('full-year Planning includes every supported open activity type, including second-half work', () => {
@@ -593,13 +594,13 @@ test('full-year Planning includes every supported open activity type, including 
   assert.deepEqual(rows.map((row) => row.row_id), ['course-a', 'course-b', 'workshop-a', 'tour-a']);
 });
 
-test('Planning excludes activities completed before 6 October but keeps undated and future activities', () => {
+test('Planning keeps school-fixed September activities visible while 6 October applies only to generated new dates', () => {
   const rows = planningWorkspaceCourses([
-    { ...baseCourse, row_id: 'past-workshop', activity_type: 'workshop', date_1: '2026-09-30' },
+    { ...baseCourse, row_id: 'september-fixed', activity_type: 'workshop', date_1: '2026-09-30' },
     { ...baseCourse, row_id: 'undated' },
     { ...baseCourse, row_id: 'future', date_1: '2026-10-06' }
   ]);
-  assert.deepEqual(rows.map((row) => row.row_id), ['undated', 'future']);
+  assert.deepEqual(rows.map((row) => row.row_id), ['september-fixed', 'undated', 'future']);
 });
 
 test('one-day workshops and tours derive a plannable single meeting from catalog duration', () => {
@@ -761,7 +762,7 @@ test('first-half completion overview includes live, drafts and proposals per ins
   assert.match(html, /מחצית א׳/);
   assert.match(html, /מדריך א/);
   assert.match(html, /מדריכה ב/);
-  assert.match(html, /טיוטות/);
+  assert.match(html, /ממתינים לאישור/);
   assert.match(html, /הצעות מערכת/);
   assert.match(html, /07\/10\/2026/);
   assert.match(html, /20\/01\/2027/);
