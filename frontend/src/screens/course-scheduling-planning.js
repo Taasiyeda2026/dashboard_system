@@ -35,7 +35,7 @@ export const PLANNING_OPTIMIZATION_WEIGHTS = Object.freeze({
   geography: 15,
   stability: 10
 });
-export const PLANNING_ENGINE_VERSION = 'planning-v10-20260925-national-repair';
+export const PLANNING_ENGINE_VERSION = 'planning-v11-20260925-repair-priority-order';
 export const PLANNING_ACTIVITY_NO_ALIASES = Object.freeze({
   // Legacy Gefen identifier retained on existing activities; canonical catalog program is 53828.
   '82835': '53828'
@@ -1549,6 +1549,15 @@ function planRowFromOption(activity, option, options, startRange, spec, diagnost
     requiredLanguage: text(activity.instruction_language),
     requiredGender: text(activity.required_instructor_gender),
     sourceHadDraft: !!text(activity.draft_emp_id),
+    previousDraftInstructorEmpId: text(activity.draft_emp_id),
+    previousDraftMeetings: text(activity.draft_emp_id)
+      ? schedulingCalendarMeetings(activity).map((meeting, index) => ({
+          date: text(meeting?.date).slice(0, 10),
+          meeting_no: Number(meeting?.meeting_no) || index + 1,
+          start_time: text(meeting?.start_time || activity.start_time).slice(0, 5),
+          end_time: text(meeting?.end_time || activity.end_time).slice(0, 5)
+        }))
+      : [],
     previousDraftInstructorName: text(activity.draft_instructor_name || activity.draft_emp_id),
     sessions: spec?.sessions || meetingCount(activity),
     kind: option ? 'proposal' : (recruitmentNeeded ? 'recruitment' : 'missing'),
@@ -1736,6 +1745,33 @@ function comparePlanningDifficulty(first = {}, second = {}, context = {}) {
   return idOf(first).localeCompare(idOf(second));
 }
 
+function planningMeetingsSignature(meetings = []) {
+  return (Array.isArray(meetings) ? meetings : [])
+    .map((meeting) => [
+      text(meeting?.date).slice(0, 10),
+      text(meeting?.start_time).slice(0, 5),
+      text(meeting?.end_time).slice(0, 5)
+    ])
+    .filter(([date]) => /^\\d{4}-\\d{2}-\\d{2}$/.test(date))
+    .map((parts) => parts.join('|'))
+    .sort()
+    .join(';');
+}
+
+function planningDraftChanged(row = {}) {
+  if (row.sourceHadDraft !== true) return false;
+  const kind = text(row.kind);
+  if (!['proposal', 'fixed-proposal', 'planning-locked'].includes(kind)) return true;
+
+  const previousEmpId = text(row.previousDraftInstructorEmpId);
+  const currentEmpId = text(row.instructorEmpId);
+  if (!previousEmpId || previousEmpId !== currentEmpId) return true;
+
+  const previousMeetings = planningMeetingsSignature(row.previousDraftMeetings);
+  if (!previousMeetings) return false;
+  return previousMeetings !== planningMeetingsSignature(row.meetings);
+}
+
 export function planningPlanQuality(rows = []) {
   const source = Array.isArray(rows) ? rows : [];
   const missing = source.filter((row) => row.kind === 'missing' || row.kind === 'fixed').length;
@@ -1745,10 +1781,7 @@ export function planningPlanQuality(rows = []) {
     recruitmentRows.map((row) => text(row.recruitmentProfileId)).filter(Boolean)
   ).size || recruitment;
   const uncovered = missing + recruitment;
-  const changedDrafts = source.filter((row) =>
-    row.sourceHadDraft === true
-    && ['proposal', 'fixed-proposal', 'recruitment', 'missing'].includes(text(row.kind))
-  ).length;
+  const changedDrafts = source.filter((row) => planningDraftChanged(row)).length;
 
   let newWorkDayMeetings = 0;
   let travel = 0;
@@ -1778,6 +1811,7 @@ export function planningPlanQuality(rows = []) {
     recruitment,
     changedDrafts,
     newWorkDayMeetings,
+    totalTravelKm: Math.round(travel * 10) / 10,
     averageTravelKm: travelCount ? Math.round((travel / travelCount) * 10) / 10 : 0,
     averageOperationalScore: scoreCount ? Math.round((score / scoreCount) * 10) / 10 : 0
   };
@@ -1788,12 +1822,10 @@ export function comparePlanningPlanQuality(firstRows = [], secondRows = []) {
   const second = planningPlanQuality(secondRows);
   const ascending = [
     'uncovered',
-    'missing',
     'recruitmentProfiles',
-    'recruitment',
     'changedDrafts',
     'newWorkDayMeetings',
-    'averageTravelKm'
+    'totalTravelKm'
   ];
   for (const key of ascending) {
     if (first[key] !== second[key]) return first[key] - second[key];
@@ -1801,6 +1833,9 @@ export function comparePlanningPlanQuality(firstRows = [], secondRows = []) {
   if (first.averageOperationalScore !== second.averageOperationalScore) {
     return second.averageOperationalScore - first.averageOperationalScore;
   }
+  // Only after the approved optimization priorities are tied, prefer a
+  // concretely actionable recruitment row over an unresolved missing row.
+  if (first.missing !== second.missing) return first.missing - second.missing;
   return 0;
 }
 
@@ -2067,6 +2102,15 @@ export async function buildDynamicCoursePlan({
         requiredLanguage: text(activity.instruction_language),
         requiredGender: text(activity.required_instructor_gender),
         sourceHadDraft: !!text(activity.draft_emp_id),
+        previousDraftInstructorEmpId: text(activity.draft_emp_id),
+        previousDraftMeetings: text(activity.draft_emp_id)
+          ? schedulingCalendarMeetings(activity).map((meeting, index) => ({
+              date: text(meeting?.date).slice(0, 10),
+              meeting_no: Number(meeting?.meeting_no) || index + 1,
+              start_time: text(meeting?.start_time || activity.start_time).slice(0, 5),
+              end_time: text(meeting?.end_time || activity.end_time).slice(0, 5)
+            }))
+          : [],
         previousDraftInstructorName: text(activity.draft_instructor_name || activity.draft_emp_id),
         district: text(activity.district || activity.school_district || activity.authority_district),
         options: options.map(({ _candidate, ...option }) => option),

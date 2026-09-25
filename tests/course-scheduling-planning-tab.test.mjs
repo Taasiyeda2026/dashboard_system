@@ -1423,6 +1423,70 @@ test('plan-quality comparison prioritizes existing-team coverage and fewer hirin
   assert.ok(comparePlanningPlanQuality(stronger, weaker) < 0);
 });
 
+test('plan-quality comparison follows approved repair priorities after existing-team coverage ties', () => {
+  const fewerNewInstructors = [
+    { courseId: 'a', kind: 'missing', options: [] },
+    { courseId: 'b', kind: 'recruitment', recruitmentProfileId: 'recruitment-1', options: [] }
+  ];
+  const moreNewInstructors = [
+    { courseId: 'a', kind: 'recruitment', recruitmentProfileId: 'recruitment-1', options: [] },
+    { courseId: 'b', kind: 'recruitment', recruitmentProfileId: 'recruitment-2', options: [] }
+  ];
+  const firstQuality = planningPlanQuality(fewerNewInstructors);
+  const secondQuality = planningPlanQuality(moreNewInstructors);
+  assert.equal(firstQuality.uncovered, secondQuality.uncovered);
+  assert.equal(firstQuality.recruitmentProfiles, 1);
+  assert.equal(secondQuality.recruitmentProfiles, 2);
+  assert.ok(comparePlanningPlanQuality(fewerNewInstructors, moreNewInstructors) < 0);
+
+  const unchangedDraft = {
+    courseId: 'draft-same',
+    kind: 'proposal',
+    sourceHadDraft: true,
+    previousDraftInstructorEmpId: '10',
+    instructorEmpId: '10',
+    previousDraftMeetings: [
+      { date: '2026-10-11', start_time: '08:00', end_time: '09:30' }
+    ],
+    meetings: [
+      { date: '2026-10-11', start_time: '08:00', end_time: '09:30' }
+    ],
+    options: []
+  };
+  const changedDraft = {
+    ...unchangedDraft,
+    courseId: 'draft-changed',
+    instructorEmpId: '11'
+  };
+  assert.equal(planningPlanQuality([unchangedDraft]).changedDrafts, 0);
+  assert.equal(planningPlanQuality([changedDraft]).changedDrafts, 1);
+  assert.ok(comparePlanningPlanQuality([unchangedDraft], [changedDraft]) < 0);
+
+  const lessTravel = [{
+    courseId: 'travel-a',
+    kind: 'proposal',
+    instructorEmpId: '10',
+    options: [{
+      instructorEmpId: '10',
+      operationalMetrics: { newWorkDayMeetingCount: 0, relevantTravelDistance: 12 },
+      planningOptimization: { total: 80 }
+    }]
+  }];
+  const moreTravel = [{
+    courseId: 'travel-b',
+    kind: 'proposal',
+    instructorEmpId: '10',
+    options: [{
+      instructorEmpId: '10',
+      operationalMetrics: { newWorkDayMeetingCount: 0, relevantTravelDistance: 18 },
+      planningOptimization: { total: 95 }
+    }]
+  }];
+  assert.equal(planningPlanQuality(lessTravel).totalTravelKm, 12);
+  assert.equal(planningPlanQuality(moreTravel).totalTravelKm, 18);
+  assert.ok(comparePlanningPlanQuality(lessTravel, moreTravel) < 0);
+});
+
 test('national planning reoptimizes an existing draft before declaring recruitment', async () => {
   const draft = {
     ...baseCourse,
@@ -1449,6 +1513,8 @@ test('national planning reoptimizes an existing draft before declaring recruitme
   const row = result.rows[0];
   assert.notEqual(row.kind, 'draft');
   assert.equal(row.sourceHadDraft, true);
+  assert.equal(row.previousDraftInstructorEmpId, '99');
+  assert.deepEqual(row.previousDraftMeetings, draft.draft_proposed_meetings.map((meeting, index) => ({ ...meeting, meeting_no: index + 1 })));
   assert.equal(row.previousDraftInstructorName, 'טיוטה ישנה');
   assert.equal(row.kind, 'recruitment');
   assert.ok(row.startDate);
