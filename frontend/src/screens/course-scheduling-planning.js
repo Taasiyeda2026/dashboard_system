@@ -21,7 +21,7 @@ const empOf = (candidate) => text(candidate?.instructor?.emp_id);
 const norm = (value) => text(value).replace(/\s+/g, ' ').toLocaleLowerCase('he-IL');
 export const DEFAULT_PLANNING_PERIOD_KEY = 'year';
 export const PLANNING_OPERATIONAL_START_DATE = '2026-10-06';
-export const FIRST_HALF_COUNT_START_DATE = '2026-09-15';
+export const FIRST_HALF_COUNT_START_DATE = '2026-09-01';
 const DEFAULT_TIME_SLOTS = ['08:00', '09:30', '11:00', '12:30', '14:00'];
 const MAX_TIME_SLOTS_PER_WEEKDAY = 10;
 const MAX_SCENARIOS_PER_COURSE = 60;
@@ -2029,7 +2029,7 @@ export function planningCompletionOverviewHtml(rows = [], { pendingChanges = 0, 
     <div class="course-planning-section-heading">
       <div>
         <strong>תמונת מצב לסיום התכנון — מחצית א׳</strong>
-        <span>מחצית א׳ נספרת מ־15.09.2026 עד 29.01.2027. כולל שיבוצים קיימים, טיוטות והצעות מערכת.</span>
+        <span>מחצית א׳ נספרת מ־01.09.2026 עד 29.01.2027. כולל שיבוצים קיימים, טיוטות והצעות מערכת.</span>
       </div>
     </div>
     ${pendingCount ? `<p class="course-planning-completion-pending">התמונה מבוססת על התכנון השמור כרגע. יש ${pendingCount} פעילויות שממתינות לעדכון.</p>` : ''}
