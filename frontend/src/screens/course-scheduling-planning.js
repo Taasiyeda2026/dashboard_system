@@ -1854,15 +1854,14 @@ function planningCompletionStatus(row = {}) {
 }
 
 function planningCompletionDateRange(row = {}) {
-  const meetingDates = (Array.isArray(row?.meetings) ? row.meetings : [])
-    .map((meeting) => text(meeting?.date).slice(0, 10))
-    .filter((date) => /^\d{4}-\d{2}-\d{2}$/.test(date))
-    .sort();
-  const startDate = meetingDates[0] || text(row?.startDate).slice(0, 10);
-  const endDate = meetingDates.at(-1) || text(row?.endDate).slice(0, 10) || startDate;
+  const dates = [
+    ...(Array.isArray(row?.meetings) ? row.meetings : []).map((meeting) => text(meeting?.date).slice(0, 10)),
+    text(row?.startDate).slice(0, 10),
+    text(row?.endDate).slice(0, 10)
+  ].filter((date) => /^\d{4}-\d{2}-\d{2}$/.test(date)).sort();
   return {
-    startDate: /^\d{4}-\d{2}-\d{2}$/.test(startDate) ? startDate : '',
-    endDate: /^\d{4}-\d{2}-\d{2}$/.test(endDate) ? endDate : ''
+    startDate: dates[0] || '',
+    endDate: dates.at(-1) || ''
   };
 }
 
