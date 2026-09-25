@@ -2054,7 +2054,6 @@ export const courseSchedulingScreen = {
         && !run.controller.signal.aborted
         && schedulingScreenActive
         && state.route === 'course-scheduling'
-        && root.isConnected
       );
       const assertRunOwnership = () => {
         if (!ownsRun()) throw new PlanningCancelledError();
