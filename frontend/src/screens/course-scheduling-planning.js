@@ -35,7 +35,7 @@ export const PLANNING_OPTIMIZATION_WEIGHTS = Object.freeze({
   geography: 15,
   stability: 10
 });
-export const PLANNING_ENGINE_VERSION = 'planning-v9-20260925-existing-team-first';
+export const PLANNING_ENGINE_VERSION = 'planning-v10-20260925-national-repair';
 export const PLANNING_ACTIVITY_NO_ALIASES = Object.freeze({
   // Legacy Gefen identifier retained on existing activities; canonical catalog program is 53828.
   '82835': '53828'
@@ -1736,6 +1736,74 @@ function comparePlanningDifficulty(first = {}, second = {}, context = {}) {
   return idOf(first).localeCompare(idOf(second));
 }
 
+export function planningPlanQuality(rows = []) {
+  const source = Array.isArray(rows) ? rows : [];
+  const missing = source.filter((row) => row.kind === 'missing' || row.kind === 'fixed').length;
+  const recruitmentRows = source.filter((row) => row.kind === 'recruitment');
+  const recruitment = recruitmentRows.length;
+  const recruitmentProfiles = new Set(
+    recruitmentRows.map((row) => text(row.recruitmentProfileId)).filter(Boolean)
+  ).size || recruitment;
+  const uncovered = missing + recruitment;
+  const changedDrafts = source.filter((row) =>
+    row.sourceHadDraft === true
+    && ['proposal', 'fixed-proposal', 'recruitment', 'missing'].includes(text(row.kind))
+  ).length;
+
+  let newWorkDayMeetings = 0;
+  let travel = 0;
+  let travelCount = 0;
+  let score = 0;
+  let scoreCount = 0;
+  for (const row of source) {
+    const option = planningRowPrimaryOption(row);
+    if (!option) continue;
+    newWorkDayMeetings += Math.max(0, Number(option?.operationalMetrics?.newWorkDayMeetingCount) || 0);
+    const km = Number(option?.operationalMetrics?.relevantTravelDistance);
+    if (Number.isFinite(km)) {
+      travel += km;
+      travelCount += 1;
+    }
+    const points = Number(option?.planningOptimization?.total);
+    if (Number.isFinite(points)) {
+      score += points;
+      scoreCount += 1;
+    }
+  }
+
+  return {
+    uncovered,
+    missing,
+    recruitmentProfiles,
+    recruitment,
+    changedDrafts,
+    newWorkDayMeetings,
+    averageTravelKm: travelCount ? Math.round((travel / travelCount) * 10) / 10 : 0,
+    averageOperationalScore: scoreCount ? Math.round((score / scoreCount) * 10) / 10 : 0
+  };
+}
+
+export function comparePlanningPlanQuality(firstRows = [], secondRows = []) {
+  const first = planningPlanQuality(firstRows);
+  const second = planningPlanQuality(secondRows);
+  const ascending = [
+    'uncovered',
+    'missing',
+    'recruitmentProfiles',
+    'recruitment',
+    'changedDrafts',
+    'newWorkDayMeetings',
+    'averageTravelKm'
+  ];
+  for (const key of ascending) {
+    if (first[key] !== second[key]) return first[key] - second[key];
+  }
+  if (first.averageOperationalScore !== second.averageOperationalScore) {
+    return second.averageOperationalScore - first.averageOperationalScore;
+  }
+  return 0;
+}
+
 function stableRows(rows = []) {
   return [...(rows || [])].map((row) => Object.fromEntries(Object.entries(row || {}).sort(([a], [b]) => a.localeCompare(b))))
     .sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)));
@@ -1844,7 +1912,9 @@ export async function buildDynamicCoursePlan({
   targetCourseIds = null,
   onProgress = null,
   signal = null,
-  checkpoint = createPlanningCheckpoint({ signal })
+  checkpoint = createPlanningCheckpoint({ signal }),
+  _repairPass = false,
+  _repairPriorityIds = []
 } = {}) {
   const report = async (phase, completed = 0, total = 0, courseId = '', rows = null) => {
     if (typeof onProgress === 'function') onProgress({ phase, completed, total, courseId, rows });
@@ -1933,10 +2003,25 @@ export async function buildDynamicCoursePlan({
   const difficultyContext = { catalog, instructors, profiles, rules };
   missingSchedule.sort((a, b) => comparePlanningDifficulty(a, b, difficultyContext));
 
-  const queue = [
+  let queue = [
     ...fixedUnassigned.map((activity) => ({ activity, type: 'fixed', activityPeriodKey: planningPeriodKeyForActivity(activity, periodKey) })),
     ...missingSchedule.map((activity) => ({ activity, type: 'missing', activityPeriodKey: planningPeriodKeyForActivity(activity, periodKey) }))
   ];
+  if (_repairPass) {
+    const priorities = new Set((_repairPriorityIds || []).map((value) => text(value)).filter(Boolean));
+    queue = [...queue].sort((a, b) => {
+      const aPriority = priorities.has(idOf(a.activity)) ? 0 : 1;
+      const bPriority = priorities.has(idOf(b.activity)) ? 0 : 1;
+      if (aPriority !== bPriority) return aPriority - bPriority;
+      const difficulty = comparePlanningDifficulty(a.activity, b.activity, difficultyContext);
+      if (difficulty) return difficulty;
+      if (a.type !== b.type) return a.type === 'fixed' ? -1 : 1;
+      const aDate = text(officialPlanningDates(a.activity)[0]);
+      const bDate = text(officialPlanningDates(b.activity)[0]);
+      if (aDate !== bDate) return aDate.localeCompare(bDate);
+      return idOf(a.activity).localeCompare(idOf(b.activity));
+    });
+  }
   let completed = 0;
   await report('יצירת אפשרויות', 0, queue.length);
 
@@ -2059,18 +2144,73 @@ export async function buildDynamicCoursePlan({
   const rows = assignRecruitmentProfiles(
     targets.map((activity) => rowsById.get(idOf(activity)) || missingOverviewRow(activity, catalog))
   );
-  return {
-    rows,
-    total: rows.length,
-    planned: rows.filter((row) => ['proposal', 'fixed-proposal', 'planning-locked'].includes(row.kind) && row.instructorEmpId).length,
-    locked: rows.filter((row) => row.kind === 'planning-locked').length,
-    live: rows.filter((row) => row.kind === 'live').length,
-    drafts: rows.filter((row) => row.kind === 'draft').length,
-    missing: rows.filter((row) => row.kind === 'missing').length,
-    recruitment: rows.filter((row) => row.kind === 'recruitment').length,
+  const summarize = (selectedRows, extra = {}) => ({
+    rows: selectedRows,
+    total: selectedRows.length,
+    planned: selectedRows.filter((row) => ['proposal', 'fixed-proposal', 'planning-locked'].includes(row.kind) && row.instructorEmpId).length,
+    locked: selectedRows.filter((row) => row.kind === 'planning-locked').length,
+    live: selectedRows.filter((row) => row.kind === 'live').length,
+    drafts: selectedRows.filter((row) => row.kind === 'draft').length,
+    missing: selectedRows.filter((row) => row.kind === 'missing' || row.kind === 'fixed').length,
+    recruitment: selectedRows.filter((row) => row.kind === 'recruitment').length,
+    quality: planningPlanQuality(selectedRows),
     routeStats: {
       googleCalls: Number(routeClient.googleCalls) || 0,
       cacheHits: Number(routeClient.cacheHits) || 0
+    },
+    ...extra
+  });
+
+  const initialResult = summarize(rows, { repairApplied: _repairPass });
+  if (_repairPass || incrementalIds) return initialResult;
+
+  const repairPriorityIds = rows
+    .filter((row) => text(row.kind) === 'recruitment')
+    .map((row) => text(row.courseId))
+    .filter(Boolean);
+  if (!repairPriorityIds.length) return initialResult;
+
+  await report('שיפור התכנון הארצי', 0, repairPriorityIds.length);
+  const repaired = await buildDynamicCoursePlan({
+    activities,
+    instructors,
+    profiles,
+    rules,
+    exceptions,
+    schoolCalendar,
+    catalog,
+    district,
+    periodKey,
+    today,
+    routeClient,
+    lockedOptions,
+    existingRows: [],
+    targetCourseIds: null,
+    onProgress: typeof onProgress === 'function'
+      ? (progress) => onProgress({ ...progress, phase: `שיפור · ${progress.phase}` })
+      : null,
+    signal,
+    checkpoint,
+    _repairPass: true,
+    _repairPriorityIds: repairPriorityIds
+  });
+
+  if (comparePlanningPlanQuality(repaired.rows, rows) < 0) {
+    return {
+      ...repaired,
+      repairApplied: true,
+      repairImprovement: {
+        before: planningPlanQuality(rows),
+        after: planningPlanQuality(repaired.rows)
+      }
+    };
+  }
+  return {
+    ...initialResult,
+    repairApplied: false,
+    repairImprovement: {
+      before: planningPlanQuality(rows),
+      after: planningPlanQuality(repaired.rows)
     }
   };
 }
