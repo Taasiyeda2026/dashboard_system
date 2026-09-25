@@ -72,6 +72,9 @@ import {
   applyPlanningLockToRow,
   buildDynamicCoursePlan,
   buildPlanningOverviewRows,
+  createPlanningCheckpoint,
+  isPlanningCancellationError,
+  PlanningCancelledError,
   planningContextFingerprint,
   planningDataFingerprint,
   planningTabHtml,
@@ -98,6 +101,73 @@ const REQUEST_SINGLE_SUBSTITUTE_ROLES = new Set([
   'domain_manager',
   'business_development_manager'
 ]);
+
+let schedulingScreenActive = false;
+let planningRunGeneration = 0;
+let activePlanningRun = null;
+let pendingPlanningStart = null;
+
+function cancelPendingPlanningStart() {
+  const pending = pendingPlanningStart;
+  pendingPlanningStart = null;
+  if (!pending) return;
+  pending.cancelled = true;
+  pending.onCancel?.();
+  if (pending.idleId != null && typeof globalThis.cancelIdleCallback === 'function') {
+    globalThis.cancelIdleCallback(pending.idleId);
+  }
+  if (pending.frameId != null && typeof globalThis.cancelAnimationFrame === 'function') {
+    globalThis.cancelAnimationFrame(pending.frameId);
+  }
+  if (pending.timerId != null) clearTimeout(pending.timerId);
+}
+
+export function cancelCourseSchedulingPlanning(state = null) {
+  schedulingScreenActive = false;
+  planningRunGeneration += 1;
+  cancelPendingPlanningStart();
+  activePlanningRun?.controller?.abort();
+  activePlanningRun = null;
+  if (state) {
+    state.courseSchedulingPlanningLoading = false;
+    state.courseSchedulingPlanningProgress = null;
+  }
+}
+
+export function scheduleCoursePlanningStart({
+  start,
+  isActive = () => true,
+  onCancel = () => {},
+  requestIdle = typeof globalThis.requestIdleCallback === 'function' ? globalThis.requestIdleCallback.bind(globalThis) : null,
+  requestFrame = typeof globalThis.requestAnimationFrame === 'function' ? globalThis.requestAnimationFrame.bind(globalThis) : null,
+  scheduleTimer = (callback) => setTimeout(callback, 0)
+} = {}) {
+  cancelPendingPlanningStart();
+  const pending = { cancelled: false, idleId: null, frameId: null, timerId: null, onCancel };
+  pendingPlanningStart = pending;
+  const run = () => {
+    if (pending.cancelled || pendingPlanningStart !== pending) return;
+    if (!isActive()) {
+      pendingPlanningStart = null;
+      pending.cancelled = true;
+      pending.onCancel?.();
+      return;
+    }
+    pendingPlanningStart = null;
+    start?.();
+  };
+  if (requestIdle) {
+    pending.idleId = requestIdle(run, { timeout: 600 });
+  } else if (requestFrame) {
+    pending.frameId = requestFrame(() => {
+      pending.frameId = null;
+      if (!pending.cancelled) pending.timerId = scheduleTimer(run);
+    });
+  } else {
+    pending.timerId = scheduleTimer(run);
+  }
+  return pending;
+}
 
 export function singleMeetingSubstitutionAccess(user = {}) {
   const role = text(user?.role).toLowerCase();
@@ -1558,6 +1628,10 @@ export const courseSchedulingScreen = {
     };
   },
 
+  onLeave({ state } = {}) {
+    cancelCourseSchedulingPlanning(state);
+  },
+
   render(data, { state }) {
     ensureCourseSchedulingStyles();
     if (state.courseSchedulingTab === 'planning' || state.courseSchedulingTab === 'calendar') {
@@ -1632,6 +1706,7 @@ export const courseSchedulingScreen = {
   },
 
   bind({ root, data, state, rerender, clearScreenDataCache }) {
+    schedulingScreenActive = true;
     const canEdit = hasPermission(state?.user, activeTab(state) === 'maintenance' ? 'manage_instructor_maintenance' : 'view_operations_scheduling');
     const substituteAccess = singleMeetingSubstitutionAccess(state?.user || {});
     const resultByCourseId = new Map((state.courseSchedulingResults || []).map((result) => [idOf(result.course), result]));
@@ -1688,17 +1763,14 @@ export const courseSchedulingScreen = {
     const scheduleBackgroundPlanning = ({ forceFull = false } = {}) => {
       if (data._planningBackgroundScheduled || state.courseSchedulingPlanningLoading) return;
       data._planningBackgroundScheduled = true;
-      const run = () => {
-        data._planningBackgroundScheduled = false;
-        void runCoursePlanning({ forceFull });
-      };
-      if (typeof window !== 'undefined' && typeof window.requestIdleCallback === 'function') {
-        window.requestIdleCallback(run, { timeout: 600 });
-      } else if (typeof requestAnimationFrame === 'function') {
-        requestAnimationFrame(() => setTimeout(run, 0));
-      } else {
-        setTimeout(run, 0);
-      }
+      scheduleCoursePlanningStart({
+        start: () => {
+          data._planningBackgroundScheduled = false;
+          void runCoursePlanning({ forceFull });
+        },
+        isActive: () => schedulingScreenActive && state.route === 'course-scheduling' && root.isConnected,
+        onCancel: () => { data._planningBackgroundScheduled = false; }
+      });
     };
 
     const planningScope = () => {
@@ -1782,12 +1854,13 @@ export const courseSchedulingScreen = {
       data._planningSharedLoadedKey = scope.key;
     };
 
-    const reloadSharedPlanningState = async ({ refreshData = true } = {}) => {
+    const reloadSharedPlanningState = async ({ refreshData = true, isCurrent = () => true } = {}) => {
       const scope = planningScope();
       const [fresh, shared] = await Promise.all([
         refreshData ? data.reloadPlanningSnapshot?.() : Promise.resolve(data),
         loadSharedPlanningWorkspace({ periodKey: scope.periodKey, district: scope.district })
       ]);
+      if (!isCurrent()) throw new PlanningCancelledError();
       if (fresh && fresh !== data) Object.assign(data, fresh);
       applySharedPlanningState(shared, fresh || data);
       return { fresh: fresh || data, shared };
@@ -1807,6 +1880,7 @@ export const courseSchedulingScreen = {
       data._planningSharedLoadedKey = currentPlanningScope.key;
       reloadSharedPlanningState()
         .then(() => {
+          if (!schedulingScreenActive || state.route !== 'course-scheduling' || !root.isConnected) return;
           rerenderPreservingWorkboardScroll();
           const affected = (state.courseSchedulingPlanningAffectedIds || []).length;
           if (
@@ -1827,6 +1901,7 @@ export const courseSchedulingScreen = {
           }
         })
         .catch((error) => {
+          if (!schedulingScreenActive || state.route !== 'course-scheduling' || !root.isConnected) return;
           data._planningSharedLoadedKey = '';
           data._planningAutoStartedKey = currentPlanningScope.key;
           state.courseSchedulingPlanningSharedLoaded = true;
@@ -1897,7 +1972,29 @@ export const courseSchedulingScreen = {
     };
 
     const runCoursePlanning = async ({ forceFull = false } = {}) => {
-      if (state.courseSchedulingPlanningLoading) return;
+      cancelPendingPlanningStart();
+      activePlanningRun?.controller?.abort();
+      const run = {
+        generation: ++planningRunGeneration,
+        controller: new AbortController(),
+        root
+      };
+      activePlanningRun = run;
+      const ownsRun = () => (
+        activePlanningRun === run
+        && run.generation === planningRunGeneration
+        && !run.controller.signal.aborted
+        && schedulingScreenActive
+        && state.route === 'course-scheduling'
+        && root.isConnected
+      );
+      const assertRunOwnership = () => {
+        if (!ownsRun()) throw new PlanningCancelledError();
+      };
+      const checkpoint = createPlanningCheckpoint({
+        signal: run.controller.signal,
+        isOwner: ownsRun
+      });
       const scope = planningScope();
       state.courseSchedulingPlanningLoading = true;
       state.courseSchedulingPlanningError = '';
@@ -1911,6 +2008,7 @@ export const courseSchedulingScreen = {
           loadSharedPlanningWorkspace({ periodKey: scope.periodKey, district: scope.district }),
           routeCachePromise
         ]);
+        assertRunOwnership();
         Object.assign(data, freshStart);
 
         const startFingerprintInput = planningInputFromSnapshot(freshStart, scope.periodKey);
@@ -1952,7 +2050,8 @@ export const courseSchedulingScreen = {
         const profiles = Object.fromEntries((freshStart.scheduling?.profiles || []).map((row) => [text(row.emp_id), row]));
         const routeClient = createRouteClient({
           preloadedRows: routeCacheRows,
-          concurrency: 6
+          concurrency: 6,
+          signal: run.controller.signal
         });
         const lockedOptions = sharedPlanningLocks(shared);
 
@@ -1971,7 +2070,10 @@ export const courseSchedulingScreen = {
           lockedOptions,
           existingRows,
           targetCourseIds,
+          signal: run.controller.signal,
+          checkpoint,
           onProgress: (progress) => {
+            if (!ownsRun()) return;
             state.courseSchedulingPlanningProgress = {
               phase: progress.phase,
               completed: progress.completed,
@@ -1982,7 +2084,9 @@ export const courseSchedulingScreen = {
           }
         });
 
+        assertRunOwnership();
         const freshEnd = await data.reloadPlanningSnapshot();
+        assertRunOwnership();
         const endFingerprintInput = planningInputFromSnapshot(freshEnd, scope.periodKey);
         const endFingerprint = planningDataFingerprint(endFingerprintInput);
         const endContextFingerprint = planningContextFingerprint(endFingerprintInput);
@@ -1993,6 +2097,7 @@ export const courseSchedulingScreen = {
           return;
         }
 
+        assertRunOwnership();
         const saved = await saveSharedPlanningSnapshot({
           periodKey: scope.periodKey,
           district: scope.district,
@@ -2004,10 +2109,12 @@ export const courseSchedulingScreen = {
           expectedRevision: Number(shared?.workspace?.revision) || 0
         });
 
+        assertRunOwnership();
         const canonical = await loadSharedPlanningWorkspace({
           periodKey: scope.periodKey,
           district: scope.district
         });
+        assertRunOwnership();
         Object.assign(data, freshEnd);
         applySharedPlanningState(canonical, freshEnd);
         state.courseSchedulingPlanningRouteStats = result.routeStats || null;
@@ -2023,15 +2130,18 @@ export const courseSchedulingScreen = {
           'success'
         );
       } catch (error) {
+        if (isPlanningCancellationError(error) || !ownsRun()) return;
         state.courseSchedulingPlanningError = planningStoreErrorMessage(error, 'חישוב התכנון נכשל');
         try {
-          await reloadSharedPlanningState();
+          await reloadSharedPlanningState({ isCurrent: ownsRun });
         } catch {
-          data._planningSharedLoadedKey = '';
+          if (ownsRun()) data._planningSharedLoadedKey = '';
         }
       } finally {
+        if (!ownsRun()) return;
         state.courseSchedulingPlanningLoading = false;
         state.courseSchedulingPlanningProgress = null;
+        activePlanningRun = null;
         rerenderPreservingWorkboardScroll();
       }
     };

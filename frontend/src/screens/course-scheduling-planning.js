@@ -45,10 +45,45 @@ export function canonicalPlanningActivityNo(value) {
   return PLANNING_ACTIVITY_NO_ALIASES[raw] || raw;
 }
 
-const yieldToBrowser = () => new Promise((resolve) => {
-  if (typeof requestAnimationFrame === 'function') requestAnimationFrame(() => resolve());
-  else setTimeout(resolve, 0);
-});
+export const PLANNING_CPU_SLICE_MS = 8;
+
+export class PlanningCancelledError extends Error {
+  constructor() {
+    super('planning_cancelled');
+    this.name = 'PlanningCancelledError';
+    this.code = 'planning_cancelled';
+    this.silent = true;
+  }
+}
+
+export function isPlanningCancellationError(error) {
+  return error?.code === 'planning_cancelled' || error?.name === 'PlanningCancelledError' || error?.name === 'AbortError';
+}
+
+export function createPlanningCheckpoint({
+  budgetMs = PLANNING_CPU_SLICE_MS,
+  now = () => (typeof performance !== 'undefined' && typeof performance.now === 'function' ? performance.now() : Date.now()),
+  yieldControl = () => {
+    if (typeof globalThis.scheduler?.yield === 'function') return globalThis.scheduler.yield();
+    return new Promise((resolve) => setTimeout(resolve, 0));
+  },
+  signal = null,
+  isOwner = () => true
+} = {}) {
+  const budget = Math.max(0, Number(budgetMs) || 0);
+  let deadline = now() + budget;
+  const assertActive = () => {
+    if (signal?.aborted || !isOwner()) throw new PlanningCancelledError();
+  };
+  return async function checkpoint({ force = false } = {}) {
+    assertActive();
+    if (!force && now() < deadline) return false;
+    await yieldControl();
+    assertActive();
+    deadline = now() + budget;
+    return true;
+  };
+}
 
 function timeMinutes(value) {
   const match = text(value).match(/^(\d{1,2}):(\d{2})/);
@@ -367,14 +402,16 @@ function dynamicTimesForWeekday({
   activity = {},
   instructors = [],
   rules = {},
-  activities = []
+  activities = [],
+  activeIds = null,
+  blockingMeetingRows = null
 } = {}) {
   const counts = new Map(DEFAULT_TIME_SLOTS.map((slot) => [slot, 1]));
-  const activeIds = activeInstructorIds(instructors);
+  const resolvedActiveIds = activeIds || activeInstructorIds(instructors);
   const requestedStart = validTimeRange(activity.start_time, activity.end_time) ? text(activity.start_time).slice(0, 5) : '';
   if (requestedStart) counts.set(requestedStart, (counts.get(requestedStart) || 0) + 50);
 
-  for (const empId of activeIds) {
+  for (const empId of resolvedActiveIds) {
     const weekdayRules = (rules[empId] || []).filter((rule) =>
       Number(rule.weekday) === Number(targetWeekday) && rule.available === true
     );
@@ -389,7 +426,7 @@ function dynamicTimesForWeekday({
     }
   }
 
-  for (const meeting of blockingMeetings(activities)) {
+  for (const meeting of blockingMeetingRows || blockingMeetings(activities)) {
     if (weekday(meeting.date) !== Number(targetWeekday)) continue;
     const after = text(meeting.end_time).slice(0, 5);
     const beforeMinute = timeMinutes(meeting.start_time) - durationMinutes;
@@ -408,7 +445,7 @@ function dynamicTimesForWeekday({
     .map(([slot]) => slot);
 }
 
-function candidateStartDates({ activity, targetWeekday, sessions, startTime, durationMinutes, schoolCalendar = [], today, activities = [], periodKey = DEFAULT_PLANNING_PERIOD_KEY } = {}) {
+function candidateStartDates({ activity, targetWeekday, sessions, startTime, durationMinutes, schoolCalendar = [], today, activities = [], blockingActivityRows = null, periodKey = DEFAULT_PLANNING_PERIOD_KEY } = {}) {
   const period = planningEffectivePeriod(periodKey);
   const fixedStart = text(activityMeetings(activity)
     .map((meeting) => text(meeting?.date).slice(0, 10))
@@ -435,7 +472,7 @@ function candidateStartDates({ activity, targetWeekday, sessions, startTime, dur
   const values = new Set();
   if (earliest && earliest <= period.end) values.add(earliest);
 
-  const releaseDates = blockingActivities(activities)
+  const releaseDates = (blockingActivityRows || blockingActivities(activities))
     .flatMap((activity) => {
       const meetings = schedulingCalendarMeetings(activity);
       const last = meetings.map((meeting) => text(meeting.date).slice(0, 10)).filter(Boolean).sort().at(-1);
@@ -462,25 +499,25 @@ function ruleCovers(rule, startTime, endTime) {
   return start != null && end != null && ruleStart != null && ruleEnd != null && start >= ruleStart && end <= ruleEnd;
 }
 
-function scenarioHeuristic({ scenario, instructors = [], rules = {}, activities = [] } = {}) {
-  const activeIds = activeInstructorIds(instructors);
+function scenarioHeuristic({ scenario, instructors = [], rules = {}, activities = [], activeIds = null, blockingMeetingRows = null } = {}) {
+  const resolvedActiveIds = activeIds || activeInstructorIds(instructors);
   const day = weekday(scenario.startDate);
   let availabilityCoverage = 0;
-  for (const empId of activeIds) {
+  for (const empId of resolvedActiveIds) {
     if ((rules[empId] || []).some((rule) => Number(rule.weekday) === day && ruleCovers(rule, scenario.startTime, scenario.endTime))) {
       availabilityCoverage += 1;
     }
   }
 
   let adjacency = 0;
-  for (const meeting of blockingMeetings(activities)) {
+  for (const meeting of blockingMeetingRows || blockingMeetings(activities)) {
     if (weekday(meeting.date) !== day) continue;
     if (text(meeting.end_time).slice(0, 5) === scenario.startTime || text(meeting.start_time).slice(0, 5) === scenario.endTime) adjacency += 1;
   }
   return availabilityCoverage * 10 + adjacency * 4;
 }
 
-export function generatePlanningScenarios({
+function* generatePlanningScenarioSteps({
   activity = {},
   catalog = [],
   instructors = [],
@@ -496,7 +533,10 @@ export function generatePlanningScenarios({
   if (!spec.complete) return { spec, scenarios: [], startRange: null };
 
   const raw = [];
-  const fridayPossible = activeInstructorIds(instructors).size > 0 && instructors.some((instructor) => {
+  const scenarioActiveIds = activeInstructorIds(instructors);
+  const scenarioBlockingActivities = blockingActivities(activities);
+  const scenarioBlockingMeetings = blockingMeetings(scenarioBlockingActivities);
+  const fridayPossible = scenarioActiveIds.size > 0 && instructors.some((instructor) => {
     const empId = text(instructor.emp_id);
     return !!profiles[empId]?.friday_allowed
       && (rules[empId] || []).some((rule) => Number(rule.weekday) === 5 && rule.available === true);
@@ -519,7 +559,9 @@ export function generatePlanningScenarios({
           activity,
           instructors,
           rules,
-          activities
+          activities,
+          activeIds: scenarioActiveIds,
+          blockingMeetingRows: scenarioBlockingMeetings
         });
     for (const startTime of times) {
       const built = buildFixedDatePlanningMeetings({
@@ -532,8 +574,9 @@ export function generatePlanningScenarios({
       if (!built) continue;
       raw.push({
         ...built,
-        heuristic: scenarioHeuristic({ scenario: built, instructors, rules, activities })
+        heuristic: scenarioHeuristic({ scenario: built, instructors, rules, activities, activeIds: scenarioActiveIds, blockingMeetingRows: scenarioBlockingMeetings })
       });
+      yield;
     }
   } else {
     for (const day of fridayPossible ? [0, 1, 2, 3, 4, 5] : [0, 1, 2, 3, 4]) {
@@ -545,11 +588,14 @@ export function generatePlanningScenarios({
             activity,
             instructors,
             rules,
-            activities
+            activities,
+            activeIds: scenarioActiveIds,
+            blockingMeetingRows: scenarioBlockingMeetings
           });
       const starts = [...new Set(times.flatMap((startTime) => candidateStartDates({
         activity, targetWeekday: day, sessions: spec.sessions, startTime,
-        durationMinutes: spec.durationMinutes, schoolCalendar, today, activities, periodKey
+        durationMinutes: spec.durationMinutes, schoolCalendar, today, activities,
+        blockingActivityRows: scenarioBlockingActivities, periodKey
       })))];
       for (const startDate of starts) {
         for (const startTime of times) {
@@ -565,10 +611,13 @@ export function generatePlanningScenarios({
           if (!built) continue;
           raw.push({
             ...built,
-            heuristic: scenarioHeuristic({ scenario: built, instructors, rules, activities })
+            heuristic: scenarioHeuristic({ scenario: built, instructors, rules, activities, activeIds: scenarioActiveIds, blockingMeetingRows: scenarioBlockingMeetings })
           });
+          yield;
         }
+        yield;
       }
+      yield;
     }
   }
 
@@ -593,7 +642,7 @@ export function generatePlanningScenarios({
   // for generic high-score scenarios. A key is one instructor + one available
   // weekday; greedy coverage prevents a common 08:00 window from hiding a
   // narrower instructor/day window.
-  const activeIds = activeInstructorIds(instructors);
+  const activeIds = scenarioActiveIds;
   const uncoveredAvailability = new Set();
   for (const empId of activeIds) {
     for (const rule of rules[empId] || []) {
@@ -629,6 +678,7 @@ export function generatePlanningScenarios({
     if (!best || !bestCoverage.length) break;
     addScenario(best);
     bestCoverage.forEach((key) => uncoveredAvailability.delete(key));
+    yield;
   }
 
   // Also retain at least one option for every weekday even when no currently
@@ -645,6 +695,23 @@ export function generatePlanningScenarios({
     scenarios: diversified,
     startRange: startDates.length ? { min: startDates[0], max: startDates.at(-1) } : null
   };
+}
+
+export function generatePlanningScenarios(options = {}) {
+  const steps = generatePlanningScenarioSteps(options);
+  let next = steps.next();
+  while (!next.done) next = steps.next();
+  return next.value;
+}
+
+async function generatePlanningScenariosCooperatively(options = {}, checkpoint = async () => {}) {
+  const steps = generatePlanningScenarioSteps(options);
+  let next = steps.next();
+  while (!next.done) {
+    await checkpoint();
+    next = steps.next();
+  }
+  return next.value;
 }
 
 function scenarioCourse(activity, scenario, index = 0) {
@@ -838,6 +905,8 @@ async function evaluateScenarioOptions({
   schoolCalendar,
   today,
   routeClient,
+  checkpoint = async () => {},
+  signal = null,
   periodKey = DEFAULT_PLANNING_PERIOD_KEY
 } = {}) {
   const preliminaries = [];
@@ -862,6 +931,7 @@ async function evaluateScenarioOptions({
         planningOptimization: planningOptimizationScore(candidate)
       });
     }
+    await checkpoint();
   }
   if (!preliminaries.length) {
     return {
@@ -881,9 +951,11 @@ async function evaluateScenarioOptions({
     routed = await calculateCandidateTravel(
       finalists.map((item) => ({ course: item.course, candidate: item.candidate })),
       contextActivities,
-      routeClient
+      routeClient,
+      { checkpoint, signal }
     );
-  } catch {
+  } catch (error) {
+    if (isPlanningCancellationError(error)) throw error;
     routed = null;
   }
 
@@ -891,6 +963,7 @@ async function evaluateScenarioOptions({
   const optionKeys = new Set();
   if (routed) {
     for (const finalist of finalists) {
+      await checkpoint();
       const finalResult = calculateCourseSchedule({
         activities: [...contextActivities, finalist.course],
         targetCourseId: finalist.course.row_id,
@@ -947,6 +1020,8 @@ async function evaluateFixedCourse({
   schoolCalendar,
   today,
   routeClient,
+  checkpoint = async () => {},
+  signal = null,
   periodKey = DEFAULT_PLANNING_PERIOD_KEY
 } = {}) {
   const calendarRows = courseCalendarRows(activity, schoolCalendar);
@@ -1000,9 +1075,11 @@ async function evaluateFixedCourse({
     routed = await calculateCandidateTravel(
       finalists.map((item) => ({ course: activity, candidate: item.candidate })),
       contextActivities,
-      routeClient
+      routeClient,
+      { checkpoint, signal }
     );
-  } catch {
+  } catch (error) {
+    if (isPlanningCancellationError(error)) throw error;
     routed = null;
   }
 
@@ -1025,6 +1102,7 @@ async function evaluateFixedCourse({
     })[0];
 
     for (const finalist of finalists) {
+      await checkpoint();
       const expectedEmpId = empOf(finalist.candidate);
       const finalCandidate = (result?.checked || []).find((candidate) =>
         candidate?.eligible && empOf(candidate) === expectedEmpId
@@ -1470,11 +1548,13 @@ export async function buildDynamicCoursePlan({
   lockedOptions = {},
   existingRows = [],
   targetCourseIds = null,
-  onProgress = null
+  onProgress = null,
+  signal = null,
+  checkpoint = createPlanningCheckpoint({ signal })
 } = {}) {
   const report = async (phase, completed = 0, total = 0, courseId = '', rows = null) => {
     if (typeof onProgress === 'function') onProgress({ phase, completed, total, courseId, rows });
-    await yieldToBrowser();
+    await checkpoint();
   };
   await report('הכנת נתונים');
   const targets = planningWorkspaceCourses(activities, district, periodKey);
@@ -1548,6 +1628,7 @@ export async function buildDynamicCoursePlan({
   await report('יצירת אפשרויות', 0, queue.length);
 
   for (const item of queue) {
+    await checkpoint();
     const { activity, type } = item;
     const currentContext = [...contextActivities, ...virtualPlans];
     await report('בדיקת מדריכים', completed, queue.length, idOf(activity));
@@ -1563,6 +1644,8 @@ export async function buildDynamicCoursePlan({
         schoolCalendar,
         today,
         routeClient,
+        checkpoint,
+        signal,
         periodKey
       });
       const options = evaluation.options || [];
@@ -1594,7 +1677,7 @@ export async function buildDynamicCoursePlan({
       const virtual = blockingVirtualActivity(activity, chosen);
       if (virtual) virtualPlans.push(virtual);
     } else {
-      const generated = generatePlanningScenarios({
+      const generated = await generatePlanningScenariosCooperatively({
         activity,
         catalog,
         instructors,
@@ -1604,7 +1687,7 @@ export async function buildDynamicCoursePlan({
         schoolCalendar,
         today,
         periodKey
-      });
+      }, checkpoint);
       if (!generated.spec.complete) {
         rowsById.set(idOf(activity), missingOverviewRow(activity, catalog));
       } else {
@@ -1620,6 +1703,8 @@ export async function buildDynamicCoursePlan({
           schoolCalendar,
           today,
           routeClient,
+          checkpoint,
+          signal,
           periodKey
         });
         const options = evaluation.options || [];
