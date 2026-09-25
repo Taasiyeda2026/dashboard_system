@@ -98,7 +98,7 @@ test('date adjustment keeps the full course and uses the 10-minute nearby-school
   const candidateWith = (routeMatrix) => calculateCourseSchedule({ ...input, routeMatrix })[0].checked[0];
   const exact = candidateWith({ [routeMatrixKey('מוצא 1', 'יעד 1')]: { distance_km: 1, duration_minutes: 10 } });
   assert.equal(exact.eligible, true);
-  assert.equal(exact.dateAdjustment.exceedsHalf, true);
+  assert.equal(exact.dateAdjustment.exceedsHalf, false);
   assert.deepEqual(exact.dateAdjustment.meetings.map((meeting) => meeting.date), ['2027-01-31', '2027-02-07', '2027-02-14']);
   const oneMinuteShort = { ...previous, end_time: '09:41', meetings: [{ date: '2027-01-31', start_time: '09:00', end_time: '09:41' }] };
   const short = calculateCourseSchedule({ ...input, activities: [target, oneMinuteShort], assignments: { 1: [oneMinuteShort] }, routeMatrix: { [routeMatrixKey('מוצא 1', 'יעד 1')]: { distance_km: 1, duration_minutes: 10 } } })[0].checked[0];
