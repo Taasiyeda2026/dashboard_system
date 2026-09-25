@@ -61,3 +61,26 @@ test('an unresolved additional physical stop makes the linked day route unavaila
   ], routeCache());
   assert.equal(rows[0].kilometers, null);
 });
+
+test('non-school physical location with a trusted address participates in the day route', () => {
+  const rows = [
+    { employeeId: '1530', date: '2026-09-15', startTime: '10:00', sourceRecordId: 'training-1', destinationAddress: '6RVR+XM, יקום', destinationEntityKey: 'training:base_training', destinationType: 'location', kilometers: null, __routeOnly: true }
+  ];
+  const attendance = [{
+    employeeId: '1530', date: '2026-09-15', startTime: '10:00', endTime: '15:00',
+    recordId: 'training-1', activityType: 'הכשרה', program: 'הכשרת בסיס',
+    destinationAddress: '6RVR+XM, יקום', destinationEntityKey: 'training:base_training',
+    destinationType: 'location'
+  }];
+  const cache = [{
+    origin_instructor_emp_id: 1530,
+    origin_entity_key: 'instructor:1530',
+    destination_entity_key: 'training:base_training',
+    origin_address: 'בית צפפה 14, ירושלים',
+    destination_address: '6RVR+XM, יקום',
+    distance_km: 86
+  }];
+
+  applyAttendanceDayRouteKilometers(rows, attendance, cache);
+  assert.equal(rows[0].kilometers, 172, 'home -> external location -> home is a valid physical route without school_id');
+});

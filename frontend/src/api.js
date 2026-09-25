@@ -7113,13 +7113,18 @@ export const api = {
       .filter((row) => ids.includes(String(row.emp_id || '').trim()) || ids.includes(String(row.emp_id_2 || '').trim()));
     const attendanceSchoolsResult = await supabase
       .from('attendance_records')
-      .select('school_id')
+      .select('school_id,destination_address_snapshot')
       .in('emp_id', ids)
       .gte('report_date', fromDate)
       .lte('report_date', toDate);
     const attendanceSchoolIds = attendanceSchoolsResult.error
       ? []
       : (attendanceSchoolsResult.data || []).map((row) => Number(row.school_id)).filter(Number.isFinite);
+    const attendanceLocationAddresses = attendanceSchoolsResult.error
+      ? []
+      : [...new Set((attendanceSchoolsResult.data || [])
+        .map((row) => String(row.destination_address_snapshot || '').trim())
+        .filter(Boolean))];
     const schoolIds = [...new Set([
       ...activities.map((row) => Number(row.school_id)).filter(Number.isFinite),
       ...attendanceSchoolIds
@@ -7128,6 +7133,10 @@ export const api = {
     const numericEmpIds = ids.map(Number).filter(Number.isFinite);
     if (numericEmpIds.length) routeReads.push(supabase.from('scheduling_travel_cache').select('*').in('origin_instructor_emp_id', numericEmpIds));
     if (schoolIds.length) routeReads.push(supabase.from('scheduling_travel_cache').select('*').in('origin_school_id', schoolIds).in('destination_school_id', schoolIds));
+    if (attendanceLocationAddresses.length) {
+      routeReads.push(supabase.from('scheduling_travel_cache').select('*').in('origin_address', attendanceLocationAddresses));
+      routeReads.push(supabase.from('scheduling_travel_cache').select('*').in('destination_address', attendanceLocationAddresses));
+    }
     const routeResults = await Promise.all(routeReads);
     const travelCache = [...new Map(routeResults.flatMap((result) => result.error ? [] : (result.data || []))
       .map((row) => [`${row.origin_key}|${row.destination_key}`, row])).values()];
