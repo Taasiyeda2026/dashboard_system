@@ -771,8 +771,11 @@ function genericLocationEntityKey(row: Record<string, unknown>) {
     : activityType.includes('תפעול')
       ? 'operation'
       : 'external';
-  const label = cacheKey(text(row.activity_name_snapshot || row.program_name || row.school_name_snapshot || kind));
+  const rawLabel = text(row.activity_name_snapshot || row.program_name || row.school_name_snapshot || kind);
+  const label = cacheKey(rawLabel);
   const address = cacheKey(text(row.destination_address_snapshot));
+  if (kind === 'training' && label.replace(/\s+/g, '') === 'הכשרתבסיס') return 'training:base_training';
+  if (kind === 'operation') return `operation:${rawLabel.toLowerCase().trim()}`;
   return `location:${kind}:${label}:${address}`;
 }
 
