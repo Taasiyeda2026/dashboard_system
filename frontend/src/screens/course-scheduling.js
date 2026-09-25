@@ -71,10 +71,12 @@ import {
   PLANNING_ENGINE_VERSION,
   applyPlanningLockToRow,
   buildDynamicCoursePlan,
+  buildPlanningCompletionRows,
   buildPlanningOverviewRows,
   createPlanningCheckpoint,
   isPlanningCancellationError,
   PlanningCancelledError,
+  planningCompletionOverviewHtml,
   planningContextFingerprint,
   planningDataFingerprint,
   planningTabHtml,
@@ -486,7 +488,10 @@ export function isAssignedCourseSchedulingManageable(activity = {}) {
 }
 
 function schedulingWorkspaceCourses(activities = []) {
-  return activities.filter((activity) => isCourseSchedulingInterfaceEligible(activity) || isAssignedCourseSchedulingManageable(activity));
+  return activities.filter((activity) =>
+    isSchedulingActivityActive(activity)
+    && isSchedulableActivityType(activity.activity_type || activity.type)
+  );
 }
 
 function schedulingScopeHtml(allCourses = [], state = {}, allActivities = allCourses) {
@@ -1680,6 +1685,10 @@ export const courseSchedulingScreen = {
           periodKey: activePlanningPeriodKey
         });
     const planningByCourseId = new Map(planningRows.map((row) => [text(row?.courseId), row]));
+    const completionRows = buildPlanningCompletionRows({
+      activities: data.activities || [],
+      planningRows
+    });
     const rowModels = interfaceCourses.map((course) => courseRowModel(course, resultByCourseId, planningByCourseId));
     const selectedRow = rowModels.find((row) => row.id === selectedId)
       || (selectedId
@@ -1702,6 +1711,12 @@ export const courseSchedulingScreen = {
         : `${schedulingScopeHtml(allInterfaceCourses, state, data.activities || [])}
       ${schedulingPlanningStatusHtml(state)}
       <section class="course-scheduling-summary">${summaryCardsHtml(rowModels)}</section>
+      ${state.courseSchedulingPlanningSharedLoaded && !state.courseSchedulingPlanningLoading
+        ? planningCompletionOverviewHtml(completionRows, {
+            pendingChanges: (state.courseSchedulingPlanningAffectedIds || []).length,
+            schoolYearTotal: allInterfaceCourses.length
+          })
+        : ''}
       <p data-course-scheduling-error class="course-scheduling-alert"${state.courseSchedulingError ? '' : ' hidden'}>${escapeHtml(state.courseSchedulingError || '')}</p>
       <div class="course-scheduling-layout course-scheduling-layout--courses">
         <aside class="course-scheduling-courses">${courseListHtml(rowModels, selectedId, state)}</aside>
