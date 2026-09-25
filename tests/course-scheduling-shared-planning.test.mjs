@@ -48,10 +48,24 @@ test('course planning screen loads and saves the shared workspace and only recal
   assert.match(travel, /persistentCache/);
 });
 
-test('existing shared plans automatically recalculate affected rows after live assignment changes', async () => {
+test('entering shared planning never recalculates automatically and keeps updates explicit', async () => {
   const screen = await readFile(screenUrl, 'utf8');
-  assert.match(screen, /courseSchedulingPlanningCalculatedAt[\s\S]*courseSchedulingPlanningAffectedIds[\s\S]*runCoursePlanning\(\{ forceFull: false \}\)/);
-  assert.match(screen, /const affected = \(state\.courseSchedulingPlanningAffectedIds \|\| \[\]\)\.length/);
+  const start = screen.indexOf('const currentPlanningScope = planningScope();');
+  const end = screen.indexOf('const reloadDistanceCoverage = async', start);
+  const entryFlow = screen.slice(start, end);
+  assert.match(entryFlow, /reloadSharedPlanningState\(\{ refreshData: false \}\)/);
+  assert.doesNotMatch(entryFlow, /scheduleBackgroundPlanning|runCoursePlanning/);
+  assert.match(screen, /data-run-course-planning/);
+  assert.match(screen, /עדכן רק את השינויים/);
+  assert.match(screen, /מעבר בין מסכים לא מפעיל חישוב חדש/);
+});
+
+test('successful planning persistence does not invalidate the scheduling screen cache', async () => {
+  const screen = await readFile(screenUrl, 'utf8');
+  const saveStart = screen.indexOf('const saved = await saveSharedPlanningSnapshot({');
+  const saveEnd = screen.indexOf('const updatedCount =', saveStart);
+  const saveFlow = screen.slice(saveStart, saveEnd);
+  assert.doesNotMatch(saveFlow, /clearScreenDataCache/);
 });
 
 test('shared planning UI explicitly communicates team visibility and targeted refresh', async () => {
