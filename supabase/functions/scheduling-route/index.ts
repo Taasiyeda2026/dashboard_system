@@ -14,7 +14,7 @@ const BATCH_CONCURRENCY = 4;
 
 type DbClient = ReturnType<typeof createClient>;
 type BuildScope = 'instructor_school' | 'school_school' | 'all' | 'payroll_month';
-type OriginType = 'instructor' | 'school';
+type OriginType = 'instructor' | 'school' | 'location';
 
 type SchoolRow = {
   authority_id: number | null;
@@ -31,9 +31,9 @@ type InstructorRow = {
 };
 
 type TravelPair = {
-  pair_kind: 'instructor_school' | 'school_school';
+  pair_kind: 'instructor_school' | 'school_school' | 'instructor_location' | 'location_location';
   origin_type: OriginType;
-  destination_type: 'school';
+  destination_type: 'school' | 'location';
   origin_instructor_emp_id: number | null;
   origin_school_id: number | null;
   destination_school_id: number | null;
@@ -627,6 +627,7 @@ function payrollActivityMeetings(activity: Record<string, unknown>, cancelled: S
 }
 
 type PayrollSchool = SchoolRow;
+type PayrollLocation = PayrollSchool & { location_type: 'school' | 'location' };
 
 function buildPayrollSchoolCatalog(schools: Record<string, unknown>[], contactSchools: Record<string, unknown>[]) {
   const bySchoolId = new Map<number, PayrollSchool>();
@@ -763,6 +764,91 @@ function payrollSchoolSchoolPair(origin: PayrollSchool, destination: PayrollScho
   };
 }
 
+function genericLocationEntityKey(row: Record<string, unknown>) {
+  const activityType = cacheKey(text(row.activity_type));
+  const kind = activityType.includes('הכשרה')
+    ? 'training'
+    : activityType.includes('תפעול')
+      ? 'operation'
+      : 'external';
+  const label = cacheKey(text(row.activity_name_snapshot || row.program_name || row.school_name_snapshot || kind));
+  const address = cacheKey(text(row.destination_address_snapshot));
+  return `location:${kind}:${label}:${address}`;
+}
+
+function genericAttendanceLocation(row: Record<string, unknown>): PayrollLocation | null {
+  const address = text(row.destination_address_snapshot);
+  if (!address) return null;
+  return {
+    authority_id: row.authority_id == null ? null : Number(row.authority_id),
+    authority_name: text(row.authority_name_snapshot),
+    school_id: null,
+    school_name: text(row.activity_name_snapshot || row.program_name || row.school_name_snapshot || 'יעד חיצוני'),
+    address,
+    entity_key: genericLocationEntityKey(row),
+    location_type: 'location'
+  };
+}
+
+function schoolLocation(school: PayrollSchool): PayrollLocation {
+  return { ...school, location_type: 'school' };
+}
+
+function payrollInstructorLocationPair(instructor: InstructorRow, location: PayrollLocation): TravelPair | null {
+  if (location.location_type === 'school') return payrollInstructorSchoolPair(instructor, location);
+  const originAddress = text(instructor.address);
+  const destinationAddress = text(location.address);
+  if (!originAddress || !destinationAddress) return null;
+  return {
+    pair_kind: 'instructor_location',
+    origin_type: 'instructor',
+    destination_type: 'location',
+    origin_instructor_emp_id: instructor.emp_id,
+    origin_school_id: null,
+    destination_school_id: null,
+    authority_id: location.authority_id,
+    origin_address: originAddress,
+    destination_address: destinationAddress,
+    query_origin_address: originAddress,
+    query_destination_address: destinationAddress,
+    origin_key: cacheKey(originAddress),
+    destination_key: cacheKey(destinationAddress),
+    origin_entity_key: instructorEntityKey(instructor.emp_id),
+    destination_entity_key: location.entity_key
+  };
+}
+
+function payrollLocationLocationPair(origin: PayrollLocation, destination: PayrollLocation): TravelPair | null {
+  if (origin.location_type === 'school' && destination.location_type === 'school') {
+    return payrollSchoolSchoolPair(origin, destination);
+  }
+  const originAddress = text(origin.address);
+  const destinationAddress = text(destination.address);
+  if (!originAddress || !destinationAddress) return null;
+  if (origin.entity_key === destination.entity_key || cacheKey(originAddress) === cacheKey(destinationAddress)) return null;
+  return {
+    pair_kind: 'location_location',
+    origin_type: origin.location_type,
+    destination_type: destination.location_type,
+    origin_instructor_emp_id: null,
+    origin_school_id: origin.location_type === 'school' ? origin.school_id : null,
+    destination_school_id: destination.location_type === 'school' ? destination.school_id : null,
+    authority_id: origin.authority_id,
+    origin_address: originAddress,
+    destination_address: destinationAddress,
+    query_origin_address: origin.location_type === 'school'
+      ? buildGoogleAddressQuery({ schoolName: origin.school_name, address: originAddress, authorityName: origin.authority_name })
+      : originAddress,
+    query_destination_address: destination.location_type === 'school'
+      ? buildGoogleAddressQuery({ schoolName: destination.school_name, address: destinationAddress, authorityName: destination.authority_name })
+      : destinationAddress,
+    origin_key: cacheKey(originAddress),
+    destination_key: cacheKey(destinationAddress),
+    origin_entity_key: origin.entity_key,
+    destination_entity_key: destination.entity_key
+  };
+}
+
 async function loadAllRows(db: DbClient, table: string, columns: string) {
   const rows: Record<string, unknown>[] = [];
   const pageSize = 1000;
@@ -783,7 +869,7 @@ async function loadPayrollMonthPairs(db: DbClient, month: string, employeeIds: n
   const dateColumns = Array.from({ length: 35 }, (_, index) => `date_${index + 1}`).join(',');
   const attendanceBaseQuery = db
     .from('attendance_records')
-    .select('id,emp_id,activity_row_id,report_date,start_time,activity_type,activity_name_snapshot,authority_id,authority_name_snapshot,school_id,school_name_snapshot,program_name,generation_kind')
+    .select('id,emp_id,activity_row_id,report_date,start_time,activity_type,activity_name_snapshot,authority_id,authority_name_snapshot,school_id,school_name_snapshot,program_name,destination_address_snapshot,generation_kind')
     .gte('report_date', range.fromDate)
     .lte('report_date', range.toDate);
   const attendancePromise = employeeFilter.size
@@ -954,7 +1040,7 @@ async function loadPayrollMonthPairs(db: DbClient, month: string, employeeIds: n
     empId: number;
     date: string;
     start_time: string;
-    school: PayrollSchool;
+    location: PayrollLocation;
     instructor?: InstructorRow;
   }>>();
 
@@ -979,7 +1065,11 @@ async function loadPayrollMonthPairs(db: DbClient, month: string, employeeIds: n
 
     const attendanceId = `attendance:${text(row.id) || `${empId}:${date}:${text(row.start_time)}`}`;
     const resolved = resolvePayrollActivitySchool(schoolSource, catalog);
-    if (resolved.status !== 'resolved' || !resolved.school) {
+    let location: PayrollLocation | null = resolved.status === 'resolved' && resolved.school
+      ? schoolLocation(resolved.school)
+      : genericAttendanceLocation(row);
+
+    if (!location) {
       if (resolved.status === 'ambiguous') ambiguousActivities.add(attendanceId);
       else unresolvedActivities.add(attendanceId);
       exceptions.push({
@@ -987,13 +1077,12 @@ async function loadPayrollMonthPairs(db: DbClient, month: string, employeeIds: n
         date,
         authority: text(schoolSource.authority),
         school: text(schoolSource.school),
-        reason: resolved.reason
+        reason: resolved.reason === 'unresolved' ? 'missing_destination_address' : resolved.reason
       });
       continue;
     }
 
-    const school = resolved.school;
-    locations.set(school.entity_key || schoolEntityKey(school), school);
+    locations.set(location.entity_key, location);
     const instructor = instructorByEmpId.get(empId);
     if (!text(instructor?.address)) {
       missingInstructorIds.add(empId);
@@ -1001,14 +1090,14 @@ async function loadPayrollMonthPairs(db: DbClient, month: string, employeeIds: n
         activity_id: attendanceId,
         date,
         authority: text(schoolSource.authority),
-        school: text(schoolSource.school),
+        school: text(location.school_name),
         reason: 'missing_instructor_address'
       });
     }
 
     const key = `${empId}|${date}`;
     const stops = attendanceDayStops.get(key) || [];
-    stops.push({ empId, date, start_time: text(row.start_time), school, instructor });
+    stops.push({ empId, date, start_time: text(row.start_time), location, instructor });
     attendanceDayStops.set(key, stops);
   }
 
@@ -1017,17 +1106,17 @@ async function loadPayrollMonthPairs(db: DbClient, month: string, employeeIds: n
     const sequence: typeof stops = [];
     for (const stop of stops) {
       const last = sequence[sequence.length - 1];
-      const key = stop.school.entity_key || schoolEntityKey(stop.school);
-      if (last && (last.school.entity_key || schoolEntityKey(last.school)) === key) continue;
+      const key = stop.location.entity_key;
+      if (last && last.location.entity_key === key) continue;
       sequence.push(stop);
     }
     if (!sequence.length) continue;
     const instructor = sequence[0].instructor;
-    if (instructor) addPair(payrollInstructorSchoolPair(instructor, sequence[0].school));
+    if (instructor) addPair(payrollInstructorLocationPair(instructor, sequence[0].location));
     for (let index = 1; index < sequence.length; index += 1) {
-      addPair(payrollSchoolSchoolPair(sequence[index - 1].school, sequence[index].school));
+      addPair(payrollLocationLocationPair(sequence[index - 1].location, sequence[index].location));
     }
-    if (instructor) addPair(payrollInstructorSchoolPair(instructor, sequence[sequence.length - 1].school));
+    if (instructor) addPair(payrollInstructorLocationPair(instructor, sequence[sequence.length - 1].location));
   }
 
   const uniqueExceptions = [];
