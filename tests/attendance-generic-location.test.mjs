@@ -22,3 +22,13 @@ test('attendance bridge and control preserve physical location identity', () => 
   assert.match(control, /routeLocationFromStop/);
   assert.match(control, /A null school_id by itself is not a missing route/);
 });
+
+test('travel compensation context treats a trusted physical destination as a location, not a school requirement', () => {
+  assert.match(migration, /av2_attendance_travel_context/);
+  assert.match(migration, /destination_address_snapshot/);
+  assert.match(migration, /destination_type', 'location'/);
+  assert.match(migration, /s\.school_id is null[\s\S]*destination_address/);
+  assert.match(migration, /training:base_training/);
+  assert.match(migration, /location:training:/);
+  assert.match(migration, /location:external:/);
+});
