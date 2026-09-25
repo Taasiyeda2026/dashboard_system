@@ -1,6 +1,6 @@
 export const COURSE_SCHEDULING_PERIODS = Object.freeze({
   year: Object.freeze({ key: 'year', label: 'שנת הלימודים', start: '2026-09-01', end: '2027-06-30' }),
-  first: Object.freeze({ key: 'first', label: "מחצית א'", start: '2026-09-15', end: '2027-01-29' }),
+  first: Object.freeze({ key: 'first', label: "מחצית א'", start: '2026-09-01', end: '2027-01-29' }),
   second: Object.freeze({ key: 'second', label: "מחצית ב'", start: '2027-01-31', end: '2027-06-30' })
 });
 
