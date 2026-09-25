@@ -1514,7 +1514,7 @@ test('national planning reoptimizes an existing draft before declaring recruitme
   assert.notEqual(row.kind, 'draft');
   assert.equal(row.sourceHadDraft, true);
   assert.equal(row.previousDraftInstructorEmpId, '99');
-  assert.deepEqual(row.previousDraftMeetings, draft.draft_proposed_meetings);
+  assert.deepEqual(row.previousDraftMeetings, draft.draft_proposed_meetings.map((meeting, index) => ({ ...meeting, meeting_no: index + 1 })));
   assert.equal(row.previousDraftInstructorName, 'טיוטה ישנה');
   assert.equal(row.kind, 'recruitment');
   assert.ok(row.startDate);
