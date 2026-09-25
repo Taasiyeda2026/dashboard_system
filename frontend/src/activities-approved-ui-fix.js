@@ -163,7 +163,7 @@ function renderDraftInstructor(chip, name) {
   const doc = chip.ownerDocument || document;
   const wrapper = doc.createElement('span');
   wrapper.className = 'ds-activities-instructor-draft';
-  wrapper.title = `${name} · טיוטה`;
+  wrapper.title = `${name} · ממתין לאישור שיבוץ`;
 
   const nameEl = doc.createElement('span');
   nameEl.className = 'ds-activities-instructor-draft__name';
@@ -171,7 +171,7 @@ function renderDraftInstructor(chip, name) {
 
   const badge = doc.createElement('span');
   badge.className = 'ds-activities-instructor-draft__badge';
-  badge.textContent = 'טיוטה';
+  badge.textContent = 'ממתין לאישור';
 
   wrapper.append(nameEl, badge);
   chip.replaceWith(wrapper);
@@ -183,7 +183,10 @@ let draftLookupWarned = false;
 async function patchDraftInstructorCells(root = document) {
   if (!supabase || !root?.querySelectorAll) return;
   const rows = Array.from(root.querySelectorAll('.ds-table--activities-list .ds-activities-row[data-row-id]'))
-    .filter((row) => row.querySelector('.ds-chip--instructor-empty'));
+    .filter((row) => {
+      const chip = row.querySelector('.ds-chip--instructor-empty');
+      return chip && !chip.hasAttribute('data-assignment-state');
+    });
   if (!rows.length) return;
 
   const rowIds = [...new Set(rows.map((row) => String(row.dataset.rowId || '').trim()).filter(Boolean))];
