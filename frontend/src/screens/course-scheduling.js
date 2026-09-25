@@ -17,7 +17,7 @@ import {
   israelTodayIso,
   meetingsCompletedForCourse
 } from './course-scheduling-meetings.js';
-import { isCourseSchedulingInterfaceEligible, isSchedulableActivityType, isSchedulingActivityActive, schedulingActivityTypeCategory } from './shared/activity-scheduling-eligibility.js';
+import { isSchedulableActivityType, isSchedulingActivityActive, schedulingActivityTypeCategory } from './shared/activity-scheduling-eligibility.js';
 import { formatDateHe, formatTimeRangeShort } from './shared/format-date.js';
 import { weekRange, shiftWeek, buildWeekRows, weekCalendarHtml, fixedScheduleHtml, weekNavLabel } from './course-scheduling-calendar.js';
 import {
@@ -68,13 +68,16 @@ import {
 } from './course-scheduling-district-simulation.js';
 import {
   DEFAULT_PLANNING_PERIOD_KEY,
+  FIRST_HALF_COUNT_START_DATE,
   PLANNING_ENGINE_VERSION,
   applyPlanningLockToRow,
   buildDynamicCoursePlan,
+  buildPlanningCompletionRows,
   buildPlanningOverviewRows,
   createPlanningCheckpoint,
   isPlanningCancellationError,
   PlanningCancelledError,
+  planningCompletionOverviewHtml,
   planningContextFingerprint,
   planningDataFingerprint,
   planningTabHtml,
@@ -486,7 +489,10 @@ export function isAssignedCourseSchedulingManageable(activity = {}) {
 }
 
 function schedulingWorkspaceCourses(activities = []) {
-  return activities.filter((activity) => isCourseSchedulingInterfaceEligible(activity) || isAssignedCourseSchedulingManageable(activity));
+  return activities.filter((activity) =>
+    isSchedulingActivityActive(activity)
+    && isSchedulableActivityType(activity.activity_type || activity.type)
+  );
 }
 
 function schedulingScopeHtml(allCourses = [], state = {}, allActivities = allCourses) {
@@ -501,7 +507,8 @@ function schedulingScopeHtml(allCourses = [], state = {}, allActivities = allCou
   const selectedAuthority = text(state.courseSchedulingAuthority || '');
   const authorityList = authorityOptions(scopedForAuthority);
   const authoritySelectHtml = `<option value="">כל הרשויות</option>${authorityList.map((item) => `<option value="${escapeHtml(item)}"${item === selectedAuthority ? ' selected' : ''}>${escapeHtml(item)}</option>`).join('')}`;
-  const periodRange = `${formatDateHeDots(period.start)} – ${formatDateHeDots(period.end)}`;
+  const displayStart = periodKey === 'first' ? FIRST_HALF_COUNT_START_DATE : period.start;
+  const periodRange = `${formatDateHeDots(displayStart)} – ${formatDateHeDots(period.end)}`;
   const selectedActivityType = text(state.activitySchedulingType || 'all');
   const activityTypeOptions = [['all', 'הכול'], ['course', 'קורסים'], ['workshop', 'סדנאות'], ['tour', 'סיורים']]
     .map(([value, label]) => `<option value="${value}"${value === selectedActivityType ? ' selected' : ''}>${label}</option>`).join('');
@@ -1680,6 +1687,10 @@ export const courseSchedulingScreen = {
           periodKey: activePlanningPeriodKey
         });
     const planningByCourseId = new Map(planningRows.map((row) => [text(row?.courseId), row]));
+    const completionRows = buildPlanningCompletionRows({
+      activities: data.activities || [],
+      planningRows
+    });
     const rowModels = interfaceCourses.map((course) => courseRowModel(course, resultByCourseId, planningByCourseId));
     const selectedRow = rowModels.find((row) => row.id === selectedId)
       || (selectedId
@@ -1702,6 +1713,12 @@ export const courseSchedulingScreen = {
         : `${schedulingScopeHtml(allInterfaceCourses, state, data.activities || [])}
       ${schedulingPlanningStatusHtml(state)}
       <section class="course-scheduling-summary">${summaryCardsHtml(rowModels)}</section>
+      ${state.courseSchedulingPlanningSharedLoaded && !state.courseSchedulingPlanningLoading
+        ? planningCompletionOverviewHtml(completionRows, {
+            pendingChanges: (state.courseSchedulingPlanningAffectedIds || []).length,
+            schoolYearTotal: allInterfaceCourses.length
+          })
+        : ''}
       <p data-course-scheduling-error class="course-scheduling-alert"${state.courseSchedulingError ? '' : ' hidden'}>${escapeHtml(state.courseSchedulingError || '')}</p>
       <div class="course-scheduling-layout course-scheduling-layout--courses">
         <aside class="course-scheduling-courses">${courseListHtml(rowModels, selectedId, state)}</aside>
