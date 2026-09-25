@@ -32,3 +32,8 @@ test('travel compensation context treats a trusted physical destination as a loc
   assert.match(migration, /location:training:/);
   assert.match(migration, /location:external:/);
 });
+
+test('generic location SQL keeps canonical whitespace regex and matching training identities', () => {
+  assert.equal(migration.includes("'\\\\s+'"), false, 'SQL regex must contain one backslash, not a literal double-backslash');
+  assert.ok((migration.match(/location:training:/g) || []).length >= 2, 'location RPC and travel context must use the same training identity');
+});

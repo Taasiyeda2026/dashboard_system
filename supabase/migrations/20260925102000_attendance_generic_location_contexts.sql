@@ -67,15 +67,19 @@ as $$
         when b.school_id is not null then 'school_id:' || b.school_id::text
         when coalesce(b.snapshot_address, '') <> '' then
           case
-            when regexp_replace(lower(btrim(coalesce(b.activity_type,''))), '\\s+', '', 'g') = 'הכשרה'
-             and regexp_replace(lower(btrim(coalesce(b.activity_name_snapshot,''))), '\\s+', '', 'g') = 'הכשרתבסיס'
+            when regexp_replace(lower(btrim(coalesce(b.activity_type,''))), '\s+', '', 'g') = 'הכשרה'
+             and regexp_replace(lower(btrim(coalesce(b.activity_name_snapshot,''))), '\s+', '', 'g') = 'הכשרתבסיס'
               then 'training:base_training'
-            when regexp_replace(lower(btrim(coalesce(b.activity_type,''))), '\\s+', '', 'g') = 'תפעול'
+            when regexp_replace(lower(btrim(coalesce(b.activity_type,''))), '\s+', '', 'g') = 'תפעול'
               then 'operation:' || lower(btrim(coalesce(b.activity_name_snapshot,b.program_name,'תפעול')))
+            when regexp_replace(lower(btrim(coalesce(b.activity_type,''))), '\s+', '', 'g') = 'הכשרה'
+              then 'location:training:' ||
+                   lower(regexp_replace(btrim(coalesce(b.activity_name_snapshot,b.program_name,b.school_name_snapshot,'הכשרה')), '\s+', ' ', 'g')) ||
+                   ':' || lower(regexp_replace(b.snapshot_address, '\s+', ' ', 'g'))
             else
               'location:external:' ||
-              lower(regexp_replace(btrim(coalesce(b.activity_name_snapshot,b.program_name,b.school_name_snapshot,'יעד חיצוני')), '\\s+', ' ', 'g')) ||
-              ':' || lower(regexp_replace(b.snapshot_address, '\\s+', ' ', 'g'))
+              lower(regexp_replace(btrim(coalesce(b.activity_name_snapshot,b.program_name,b.school_name_snapshot,'יעד חיצוני')), '\s+', ' ', 'g')) ||
+              ':' || lower(regexp_replace(b.snapshot_address, '\s+', ' ', 'g'))
           end
         else null
       end
