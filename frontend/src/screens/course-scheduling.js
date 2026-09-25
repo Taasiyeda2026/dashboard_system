@@ -453,6 +453,18 @@ export function schedulingDraftIdsForScope(activities = [], {
     .filter(Boolean))];
 }
 
+function hasOfficialCourseDate(course = {}) {
+  if (activityMeetings(course).some((meeting) => /^\d{4}-\d{2}-\d{2}$/.test(text(meeting?.date).slice(0, 10)))) return true;
+  return /^\d{4}-\d{2}-\d{2}$/.test(text(course?.start_date).slice(0, 10));
+}
+
+function courseMatchesSchedulingPeriod(course = {}, periodKey = DEFAULT_COURSE_SCHEDULING_PERIOD_KEY) {
+  // Activities without a school-provided date belong to the first-half work queue.
+  if (!hasOfficialCourseDate(course) && periodKey === 'second') return false;
+  const meetings = schedulingCalendarMeetings(course);
+  return meetings.length === 0 || filterMeetingsByCourseSchedulingPeriod(meetings, periodKey).length > 0;
+}
+
 function filteredInterfaceCourses(courses = [], state = {}) {
   const periodKey = selectedPeriodKey(state);
   const district = text(state.courseSchedulingDistrict || '');
@@ -460,10 +472,7 @@ function filteredInterfaceCourses(courses = [], state = {}) {
   const activityType = text(state.activitySchedulingType || 'all');
   return courses
     .filter((activity) => activityType === 'all' || schedulingActivityTypeCategory(activity.activity_type || activity.type) === activityType)
-    .filter((course) => {
-      const meetings = schedulingCalendarMeetings(course);
-      return meetings.length === 0 || filterMeetingsByCourseSchedulingPeriod(meetings, periodKey).length;
-    })
+    .filter((course) => courseMatchesSchedulingPeriod(course, periodKey))
     .filter((course) => !district || districtValue(course) === district)
     .filter((course) => !authority || text(course.authority) === authority)
     .map((course) => withSelectedPeriod(course, state));
@@ -487,10 +496,7 @@ function schedulingScopeHtml(allCourses = [], state = {}, allActivities = allCou
   const district = normalizeOperationalDistrict(state.courseSchedulingDistrict || '');
   const districtSelectHtml = `<option value="">כל המחוזות</option>${OPERATIONAL_DISTRICTS.map((item) => `<option value="${escapeHtml(item)}"${item === district ? ' selected' : ''}>${escapeHtml(item)}</option>`).join('')}`;
   const scopedForAuthority = allCourses
-    .filter((course) => {
-      const meetings = schedulingCalendarMeetings(course);
-      return meetings.length === 0 || filterMeetingsByCourseSchedulingPeriod(meetings, periodKey).length;
-    })
+    .filter((course) => courseMatchesSchedulingPeriod(course, periodKey))
     .filter((course) => !district || districtValue(course) === district);
   const selectedAuthority = text(state.courseSchedulingAuthority || '');
   const authorityList = authorityOptions(scopedForAuthority);
