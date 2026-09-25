@@ -1866,7 +1866,7 @@ function planningCompletionDateRange(row = {}) {
 }
 
 function planningRowIsFirstHalf(row = {}) {
-  const period = planningEffectivePeriod('first');
+  const period = resolveCourseSchedulingPeriod('first');
   const dates = planningCompletionDateRange(row);
   if (!dates.startDate && !dates.endDate) return true;
   const startDate = dates.startDate || dates.endDate;
@@ -1874,8 +1874,44 @@ function planningRowIsFirstHalf(row = {}) {
   return startDate <= period.end && endDate >= period.start;
 }
 
+export function buildPlanningCompletionRows({ activities = [], planningRows = [] } = {}) {
+  const firstHalf = resolveCourseSchedulingPeriod('first');
+  const byId = new Map((planningRows || []).map((row) => [text(row?.courseId), row]));
+  const rows = [];
+
+  for (const activity of activities || []) {
+    if (!isPlanningActivity(activity)) continue;
+    const dates = officialPlanningDates(activity);
+    const firstOfficialDate = dates[0] || '';
+    if (firstOfficialDate && (firstOfficialDate < firstHalf.start || firstOfficialDate > firstHalf.end)) continue;
+
+    const activityId = idOf(activity);
+    const assigned = !!text(activity.emp_id);
+    const draft = !assigned && !!text(activity.draft_emp_id);
+    if (assigned || draft) {
+      rows.push(liveRow(activity, 'first'));
+      continue;
+    }
+
+    const planningRow = byId.get(activityId);
+    if (planningRow) {
+      rows.push(planningRow);
+      continue;
+    }
+
+    rows.push({
+      ...missingOverviewRow(activity, []),
+      reason: dates.length
+        ? 'הפעילות במחצית א׳ אך עדיין אין לה שיבוץ בתכנון'
+        : 'אין מועד קבוע — הפעילות שייכת למחצית א׳ ונדרשת לתכנון'
+    });
+  }
+
+  return rows;
+}
+
 export function planningInstructorCompletionOverview(rows = []) {
-  const firstHalf = planningEffectivePeriod('first');
+  const firstHalf = resolveCourseSchedulingPeriod('first');
   const groups = new Map();
 
   for (const row of rows || []) {
@@ -1949,47 +1985,69 @@ export function planningInstructorCompletionOverview(rows = []) {
   );
 }
 
-export function planningCompletionOverviewHtml(rows = [], { pendingChanges = 0 } = {}) {
-  const overview = planningInstructorCompletionOverview(rows);
-  if (!overview.length) return '';
+export function planningCompletionOverviewHtml(rows = [], { pendingChanges = 0, schoolYearTotal = null } = {}) {
+  const firstHalfRows = (rows || []).filter(planningRowIsFirstHalf);
+  const overview = planningInstructorCompletionOverview(firstHalfRows);
+  if (!firstHalfRows.length) return '';
 
-  const totals = overview.reduce((acc, item) => {
-    acc.activities += item.activityCount;
-    acc.courses += item.courseCount;
-    acc.live += item.liveCount;
-    acc.drafts += item.draftCount;
-    acc.proposals += item.proposalCount;
-    acc.undated += item.undatedCount;
-    acc.overflow += item.overflowCount;
+  const totals = firstHalfRows.reduce((acc, row) => {
+    const activityType = text(row?.activityType) || 'קורס';
+    const dates = planningCompletionDateRange(row);
+    acc.activities += 1;
+    if (activityType === 'קורס') acc.courses += 1;
+    else acc.otherActivities += 1;
+    if (row.kind === 'live') acc.live += 1;
+    else if (row.kind === 'draft' || row.kind === 'planning-locked') acc.drafts += 1;
+    else if (row.kind === 'proposal' || row.kind === 'fixed-proposal') acc.proposals += 1;
+    else if (row.kind === 'recruitment') acc.recruitment += 1;
+    else acc.unresolved += 1;
+    if (!dates.startDate) acc.undated += 1;
+    if (row.halfOverflow === true || (dates.endDate && dates.endDate > resolveCourseSchedulingPeriod('first').end)) acc.overflow += 1;
     return acc;
-  }, { activities: 0, courses: 0, live: 0, drafts: 0, proposals: 0, undated: 0, overflow: 0 });
+  }, {
+    activities: 0,
+    courses: 0,
+    otherActivities: 0,
+    live: 0,
+    drafts: 0,
+    proposals: 0,
+    recruitment: 0,
+    unresolved: 0,
+    undated: 0,
+    overflow: 0
+  });
   const pendingCount = Math.max(0, Number(pendingChanges) || 0);
+  const schoolYearCount = Number.isFinite(Number(schoolYearTotal)) ? Math.max(0, Number(schoolYearTotal)) : null;
 
   return `<section class="course-planning-completion-overview" data-planning-completion-overview>
     <div class="course-planning-section-heading">
       <div>
         <strong>תמונת מצב לסיום התכנון — מחצית א׳</strong>
-        <span>כולל שיבוצים קיימים, טיוטות והצעות מערכת. התאריכים מציגים את תחילת וסיום העבודה של כל מדריך במחצית.</span>
+        <span>מחצית א׳ נספרת מ־15.09.2026 עד 29.01.2027. כולל שיבוצים קיימים, טיוטות והצעות מערכת.</span>
       </div>
     </div>
     ${pendingCount ? `<p class="course-planning-completion-pending">התמונה מבוססת על התכנון השמור כרגע. יש ${pendingCount} פעילויות שממתינות לעדכון.</p>` : ''}
     <div class="course-planning-completion-summary">
-      <span><b>${overview.length}</b> מדריכים</span>
-      <span><b>${totals.activities}</b> פעילויות עם מדריך</span>
+      <span><b>${totals.activities}</b> פעילויות במחצית א׳</span>
+      ${schoolYearCount != null ? `<span><b>${schoolYearCount}</b> פעילויות תשפ״ז</span>` : ''}
+      <span><b>${overview.length}</b> מדריכים בתכנון</span>
       <span><b>${totals.courses}</b> קורסים</span>
+      ${totals.otherActivities ? `<span><b>${totals.otherActivities}</b> סדנאות/סיורים</span>` : ''}
       <span><b>${totals.live}</b> משובצים</span>
-      <span><b>${totals.drafts}</b> טיוטות</span>
+      <span><b>${totals.drafts}</b> ממתינים לאישור</span>
       <span><b>${totals.proposals}</b> הצעות מערכת</span>
-      ${totals.undated ? `<span class="is-warning"><b>${totals.undated}</b> ללא מועד</span>` : ''}
-      ${totals.overflow ? `<span class="is-warning"><b>${totals.overflow}</b> חורגים מהמחצית</span>` : ''}
+      ${totals.unresolved ? `<span class="is-warning"><b>${totals.unresolved}</b> נדרש טיפול</span>` : ''}
+      ${totals.recruitment ? `<span class="is-warning"><b>${totals.recruitment}</b> נדרש גיוס</span>` : ''}
+      ${totals.undated ? `<span class="is-warning"><b>${totals.undated}</b> עדיין ללא מועד</span>` : ''}
+      ${totals.overflow ? `<span class="is-warning"><b>${totals.overflow}</b> חורגים מסוף המחצית</span>` : ''}
     </div>
-    <div class="course-planning-completion-table-wrap">
+    ${overview.length ? `<div class="course-planning-completion-table-wrap">
       <table class="course-planning-completion-table">
         <thead><tr>
           <th>מדריך</th>
           <th>קורסים</th>
           <th>משובץ</th>
-          <th>טיוטה</th>
+          <th>ממתין לאישור</th>
           <th>הצעה</th>
           <th>מתחיל</th>
           <th>מסתיים</th>
@@ -2018,7 +2076,7 @@ export function planningCompletionOverviewHtml(rows = [], { pendingChanges = 0 }
           </td>
         </tr>`).join('')}</tbody>
       </table>
-    </div>
+    </div>` : ''}
   </section>`;
 }
 
