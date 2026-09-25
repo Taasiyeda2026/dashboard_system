@@ -500,7 +500,7 @@ function schedulingScopeHtml(allCourses = [], state = {}, allActivities = allCou
   const activityTypeOptions = [['all', 'הכול'], ['course', 'קורסים'], ['workshop', 'סדנאות'], ['tour', 'סיורים']]
     .map(([value, label]) => `<option value="${value}"${value === selectedActivityType ? ' selected' : ''}>${label}</option>`).join('');
   const selectedBusinessStatus = text(state.courseSchedulingBusinessStatus || 'all');
-  const businessStatusOptions = [['all', 'הכול'], ['open', 'פתוח'], ['draft', 'טיוטה'], ['assigned', 'משובץ']]
+  const businessStatusOptions = [['all', 'הכול'], ['open', 'פתוח'], ['draft', 'ממתין לאישור'], ['assigned', 'משובץ']]
     .map(([value, label]) => `<option value="${value}"${value === selectedBusinessStatus ? ' selected' : ''}>${label}</option>`).join('');
   return `<section class="course-scheduling-scope"><div class="course-scheduling-scope-inner">
     <div class="course-scheduling-tabs course-scheduling-tabs--inner">${periodButtons}</div>
