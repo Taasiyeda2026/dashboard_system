@@ -5,6 +5,7 @@ import { readFile } from 'node:fs/promises';
 const migration = await readFile(new URL('../supabase/migrations/20260925102000_attendance_generic_location_contexts.sql', import.meta.url), 'utf8');
 const bridge = await readFile(new URL('../frontend/src/payroll-attendance-v2-bridge.js', import.meta.url), 'utf8');
 const control = await readFile(new URL('../frontend/src/screens/attendance-control.js', import.meta.url), 'utf8');
+const originContextMigration = await readFile(new URL('../supabase/migrations/20260925111500_attendance_location_origin_context.sql', import.meta.url), 'utf8');
 
 test('generic attendance location context is manager-scoped and supports non-school destinations', () => {
   assert.match(migration, /get_payroll_attendance_records/);
@@ -36,4 +37,12 @@ test('travel compensation context treats a trusted physical destination as a loc
 test('generic location SQL keeps canonical whitespace regex and matching training identities', () => {
   assert.equal(migration.includes("'\\\\s+'"), false, 'SQL regex must contain one backslash, not a literal double-backslash');
   assert.ok((migration.match(/location:training:/g) || []).length >= 2, 'location RPC and travel context must use the same training identity');
+});
+
+test('location context exposes canonical instructor origin address for legacy route matching', () => {
+  assert.match(originContextMigration, /origin_address text/);
+  assert.match(originContextMigration, /contacts_instructors/);
+  assert.match(originContextMigration, /nullif\(btrim\(ci\.address\), ''\) as origin_address/);
+  assert.match(control, /originAddress/);
+  assert.match(control, /normalizedRouteAddress\(row\.origin_address\) === homeAddress/);
 });
