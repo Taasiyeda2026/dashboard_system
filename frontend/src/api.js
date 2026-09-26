@@ -81,6 +81,7 @@ const MUTATING_ACTIONS = {
   ,saveActivityLayoutStatus: true
   ,deleteActivity: true
   ,shareIsraaActivity: true
+  ,shareIsraaActivityGroup: true
 };
 
 const READ_ACTIONS = {
@@ -3219,6 +3220,7 @@ function invalidateScreenDataByAction(action) {
     addActivity: ['activities:', 'activityDetail:', 'activityDates:', 'week:', 'month:', 'dashboard:', 'exceptions:', 'end-dates'],
     deleteActivity: ['activities:', 'activityDetail:', 'activityDates:', 'week:', 'month:', 'dashboard:', 'archive', 'end-dates', 'exceptions:'],
     shareIsraaActivity: ['activities:', 'activityDetail:', 'activityDates:', 'week:', 'month:', 'dashboard:', 'exceptions:', 'end-dates', 'operations-management'],
+    shareIsraaActivityGroup: ['activities:', 'activityDetail:', 'activityDates:', 'week:', 'month:', 'dashboard:', 'exceptions:', 'end-dates', 'operations-management'],
     submitEditRequest: ['activities:', 'edit-requests'],
     submitCreateActivityRequest: ['activities:', 'edit-requests'],
     reviewEditRequest: ['edit-requests', 'activities:', 'activityDetail:', 'dashboard:', 'exceptions:', 'activityDates:', 'archive', 'archiveDetail:', 'archiveDates:', 'week:', 'month:'],
@@ -3255,7 +3257,7 @@ function invalidateScreenDataByAction(action) {
     // which was the only one cleared before (see saveSchoolContactResponsible below).
     saveSchoolContactResponsible: ['my-data', 'instructor-calendar', 'instructor-completion-approvals', 'operations-management']
   };
-  if (action === 'shareIsraaActivity') invalidateAllActivitiesRowsCache();
+  if (action === 'shareIsraaActivity' || action === 'shareIsraaActivityGroup') invalidateAllActivitiesRowsCache();
   const prefixes = targetedMutations[action];
   if (!prefixes || !prefixes.length) return;
   if (prefixes.includes('*')) {
@@ -8946,6 +8948,16 @@ export const api = {
     });
     if (error) throw new Error(error.message || 'israa_group_draft_save_failed');
     return { draft: data };
+  },
+  shareIsraaActivityGroup: async (trackingId, proposalItemId, groupNumber) => {
+    await waitForSupabaseAuthSession();
+    const { data, error } = await supabase.rpc('share_israa_activity_group', {
+      p_tracking_id: trackingId,
+      p_proposal_item_id: proposalItemId,
+      p_group_number: groupNumber
+    });
+    if (error) throw new Error(error.message || 'israa_activity_group_share_failed');
+    return data;
   },
   shareIsraaActivity: async (trackingId, proposalItemId) => {
     await waitForSupabaseAuthSession();
