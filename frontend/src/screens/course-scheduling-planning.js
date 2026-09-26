@@ -57,7 +57,7 @@ export const PLANNING_OPTIMIZATION_WEIGHTS = Object.freeze({
   geography: 15,
   stability: 10
 });
-export const PLANNING_ENGINE_VERSION = 'planning-v16-20260927-recruitment-capacity-weekends';
+export const PLANNING_ENGINE_VERSION = 'planning-v17-20260927-locality-first-routing';
 export const PLANNING_ACTIVITY_NO_ALIASES = Object.freeze({
   // Legacy Gefen identifier retained on existing activities; canonical catalog program is 53828.
   '82835': '53828'
@@ -966,10 +966,32 @@ function planningStartWeekKey(value) {
   return date.toISOString().slice(0, 10);
 }
 
+function planningHomeDistanceKm(item = {}) {
+  const candidate = item.candidate || item._candidate || item;
+  const km = Number(candidate?.travel?.home?.distance_km);
+  return Number.isFinite(km) && km >= 0 ? km : null;
+}
+
+function planningLocalityTier(item = {}) {
+  const km = planningHomeDistanceKm(item);
+  if (km == null) return 5;
+  if (km <= 5) return 0;
+  if (km <= 15) return 1;
+  if (km <= 25) return 2;
+  if (km <= 40) return 3;
+  return 4;
+}
+
 function planningPairCompare(first = {}, second = {}) {
   const firstWeek = planningStartWeekKey(first.course?.start_date || first.startDate);
   const secondWeek = planningStartWeekKey(second.course?.start_date || second.startDate);
   if (firstWeek !== secondWeek) return firstWeek.localeCompare(secondWeek);
+
+  // For flexible proposals in the same start week, prefer the genuinely local
+  // instructor before continuity bonuses created by earlier virtual proposals.
+  const firstLocality = planningLocalityTier(first);
+  const secondLocality = planningLocalityTier(second);
+  if (firstLocality !== secondLocality) return firstLocality - secondLocality;
 
   const firstScore = Number(first.planningOptimization?.total);
   const secondScore = Number(second.planningOptimization?.total);
