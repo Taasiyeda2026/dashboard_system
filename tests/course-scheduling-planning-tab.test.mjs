@@ -225,7 +225,7 @@ test('main scheduling workboard exposes only open, draft and assigned business s
   assert.match(html, /בחר הצעה/);
   assert.match(html, /data-confirm-planning-draft/);
   assert.match(html, /אשר שיבוץ/);
-  assert.match(html, /התכנון שמור ומעודכן/);
+  assert.match(html, /התכנון מעודכן/);
   assert.match(html, /data-course-card="undated-plan"/);
   assert.doesNotMatch(html, /data-course-card="second-half-plan"/);
   assert.match(html, /data-planning-completion-overview/);
