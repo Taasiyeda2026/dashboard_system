@@ -141,9 +141,9 @@ async function loadWorkspaceRows() {
   if (sharedResult?.error) throw new Error(sharedResult.error.message || 'israa_activities_read_failed');
   workspaceTracking = Array.isArray(trackingResult?.rows) ? trackingResult.rows : [];
   const allIsraaActivities = (Array.isArray(sharedResult?.data) ? sharedResult.data : []).map(normalizeSharedRow);
-  const sharedKeys = new Set(allIsraaActivities
-    .filter((row) => clean(row.israa_tracking_id) && clean(row.israa_source_item_id))
-    .map((row) => `${clean(row.israa_tracking_id)}|${clean(row.israa_source_item_id)}`));
+  const sharedGroupKeys = new Set(allIsraaActivities
+    .filter((row) => clean(row.israa_tracking_id) && clean(row.israa_source_item_id) && Number(row.israa_group_number) > 0)
+    .map((row) => `${clean(row.israa_tracking_id)}|${clean(row.israa_source_item_id)}|${Number(row.israa_group_number)}`));
   const privateRows = allIsraaActivities.filter((row) => {
     const value = row.israa_shared;
     return value === false || ['false', '0', 'no'].includes(clean(value).toLowerCase());
@@ -152,10 +152,11 @@ async function loadWorkspaceRows() {
   workspaceTracking.forEach((tracking) => {
     const selected = Array.isArray(tracking?.selected_activity_drafts) ? tracking.selected_activity_drafts : [];
     selected.forEach((draft) => {
-      const key = `${clean(tracking.id)}|${clean(draft?.proposal_item_id)}`;
-      if (!draft?.proposal_item_id || sharedKeys.has(key)) return;
+      if (!draft?.proposal_item_id) return;
       const quantity = Math.max(1, Number(draft.quantity) || 1);
       for (let groupNumber = 1; groupNumber <= quantity; groupNumber += 1) {
+        const groupKey = `${clean(tracking.id)}|${clean(draft.proposal_item_id)}|${groupNumber}`;
+        if (sharedGroupKeys.has(groupKey)) continue;
         drafts.push(normalizeDraftRow(tracking, draft, groupNumber));
       }
     });
@@ -301,7 +302,7 @@ function decorateDraftDrawer() {
     const button = event.currentTarget;
     button.disabled = true;
     try {
-      await api.shareIsraaActivity(ref.trackingId, ref.proposalItemId);
+      await api.shareIsraaActivityGroup(ref.trackingId, ref.proposalItemId, ref.groupNumber);
       closeActivityDrawer();
       await refreshWorkspace();
       window.dispatchEvent(new CustomEvent('israa-activities-changed'));
