@@ -23,7 +23,8 @@ function sliceFunction(sql, name, nextMarker = 'revoke all on function') {
   const lower = sql.toLowerCase();
   const start = lower.indexOf(`create or replace function public.${name}(`);
   assert.ok(start >= 0, `${name} not found`);
-  const end = lower.indexOf(`${nextMarker.toLowerCase()} public.${name}(`, start);
+  const marker = lower.indexOf(`${nextMarker.toLowerCase()} public.${name}(`, start);
+  const end = marker > start ? marker : sql.length;
   assert.ok(end > start, `${name} end not found`);
   return sql.slice(start, end);
 }
