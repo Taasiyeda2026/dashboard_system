@@ -2826,35 +2826,33 @@ export function planningCompletionOverviewHtml(rows = [], { pendingChanges = 0, 
     <div class="course-planning-section-heading course-planning-workplan-heading">
       <div>
         <strong>תוכנית עבודה מלאה — מחצית א׳</strong>
-        <span>${coverage.total} פעילויות = ${coverage.team} לצוות הקיים + ${coverage.recruitment} לגיוס + ${coverage.unresolved} חריגים</span>
+        <span class="course-planning-workplan-summary">${coverage.total} פעילויות · ${coverage.team} לצוות הקיים · ${coverage.recruitment} לגיוס${coverage.unresolved ? ` · ${coverage.unresolved} לטיפול` : ''}</span>
       </div>
     </div>
-    <div class="course-planning-workplan-balance" data-workplan-balance>
-      <article class="course-planning-workplan-card is-total"><b>${coverage.total}</b><span>כל הפעילויות</span></article>
-      <article class="course-planning-workplan-card is-team"><b>${coverage.team}</b><span>מתוכננות לצוות הקיים</span><small>${overview.length} מדריכים</small></article>
-      <article class="course-planning-workplan-card is-recruitment"><b>${coverage.recruitment}</b><span>נדרש גיוס</span><small>${recruitmentProfileRows.length} מודלי גיוס</small></article>
-      <article class="course-planning-workplan-card is-unresolved${coverage.unresolved ? ' has-attention' : ''}"><b>${coverage.unresolved}</b><span>חסר נתון / פתרון</span><small>${coverage.unresolved ? 'נדרש טיפול' : 'כל הפעילויות נכללות בתכנון'}</small></article>
-    </div>
-    ${recruitmentProfileRows.length ? `<section class="course-planning-recruitment-models">
-      <div class="course-planning-section-heading">
-        <div>
+    ${recruitmentProfileRows.length ? `<details class="course-planning-recruitment-models">
+      <summary class="course-planning-recruitment-summary">
+        <span>
           <strong>תכנון לגיוס ולהכשרה</strong>
-          <span>רק פעילויות שלא נמצא להן מדריך קיים שעובר את כל תנאי הסף</span>
+          <small>${coverage.recruitment} פעילויות · ${recruitmentProfileRows.length} מודלי גיוס</small>
+        </span>
+        <span class="course-planning-recruitment-summary-action">הצג פירוט</span>
+      </summary>
+      <div class="course-planning-recruitment-models-body">
+        <p class="course-planning-recruitment-note">רק פעילויות שלא נמצא להן מדריך קיים שעובר את כל תנאי הסף</p>
+        <div class="course-planning-recruitment-model-grid">
+          ${recruitmentProfileRows.map((profile) => `<article class="course-planning-recruitment-model">
+            <header><b>${escapeHtml(profile.label)}</b><span>${profile.activities.length} פעילויות</span></header>
+            <div class="course-planning-recruitment-model-load">
+              <strong>${profile.meetingCount} מפגשים · ${profile.teachingHours} ש׳</strong>
+              <span>${profile.weekdays.length ? escapeHtml(profile.weekdays.join(', ')) : 'ימים ייקבעו לפי התכנון'}</span>
+            </div>
+            <p>${escapeHtml([...profile.authorities].join(', ') || 'מספר אזורים')}</p>
+            <small>${profile.languages.size ? `שפה: ${escapeHtml([...profile.languages].join(', '))} · ` : ''}${profile.gender ? `${escapeHtml(profile.gender)} · ` : ''}${escapeHtml([...profile.programs].join(', '))}</small>
+            <small>${profile.firstStart ? `<bdi dir="ltr">${escapeHtml(formatDateHe(profile.firstStart))}</bdi>` : 'ללא מועד'}${profile.lastEnd ? `–<bdi dir="ltr">${escapeHtml(formatDateHe(profile.lastEnd))}</bdi>` : ''}</small>
+          </article>`).join('')}
         </div>
       </div>
-      <div class="course-planning-recruitment-model-grid">
-        ${recruitmentProfileRows.map((profile) => `<article class="course-planning-recruitment-model">
-          <header><b>${escapeHtml(profile.label)}</b><span>${profile.activities.length} פעילויות</span></header>
-          <div class="course-planning-recruitment-model-load">
-            <strong>${profile.meetingCount} מפגשים · ${profile.teachingHours} ש׳</strong>
-            <span>${profile.weekdays.length ? escapeHtml(profile.weekdays.join(', ')) : 'ימים ייקבעו לפי התכנון'}</span>
-          </div>
-          <p>${escapeHtml([...profile.authorities].join(', ') || 'מספר אזורים')}</p>
-          <small>${profile.languages.size ? `שפה: ${escapeHtml([...profile.languages].join(', '))} · ` : ''}${profile.gender ? `${escapeHtml(profile.gender)} · ` : ''}${escapeHtml([...profile.programs].join(', '))}</small>
-          <small>${profile.firstStart ? `<bdi dir="ltr">${escapeHtml(formatDateHe(profile.firstStart))}</bdi>` : 'ללא מועד'}${profile.lastEnd ? `–<bdi dir="ltr">${escapeHtml(formatDateHe(profile.lastEnd))}</bdi>` : ''}</small>
-        </article>`).join('')}
-      </div>
-    </section>` : ''}
+    </details>` : ''}
     ${overview.length ? `<section class="course-planning-team-plan">
       <div class="course-planning-section-heading">
         <div>
