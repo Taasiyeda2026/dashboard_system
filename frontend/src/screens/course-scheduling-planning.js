@@ -615,14 +615,8 @@ function* generatePlanningScenarioSteps({
   const scenarioActiveIds = activeInstructorIds(instructors);
   const scenarioBlockingActivities = blockingActivities(activities);
   const scenarioBlockingMeetings = blockingMeetings(scenarioBlockingActivities);
-  const candidateWeekdays = [0, 1, 2, 3, 4, 5, 6].filter((day) => {
-    if (day === 6 && !activityAllowsSaturday(activity)) return false;
-    return instructors.some((instructor) => {
-      const empId = text(instructor.emp_id);
-      return scenarioActiveIds.has(empId)
-        && (rules[empId] || []).some((rule) => Number(rule.weekday) === day && rule.available === true);
-    });
-  });
+  const candidateWeekdays = [0, 1, 2, 3, 4, 5, 6]
+    .filter((day) => day !== 6 || activityAllowsSaturday(activity));
   const fixedStartMinute = timeMinutes(activity.start_time);
   const fixedEndMinute = timeMinutes(activity.end_time);
   const fixedStartTime = fixedStartMinute != null
