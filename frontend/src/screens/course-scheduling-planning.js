@@ -2295,7 +2295,8 @@ export async function buildDynamicCoursePlan({
         activities: currentContext,
         schoolCalendar,
         today,
-        periodKey: activityPeriodKey
+        periodKey: activityPeriodKey,
+        maxScenarios: limits.maxScenarios
       }, checkpoint);
       if (!generated.spec.complete) {
         rowsById.set(idOf(activity), missingOverviewRow(activity, catalog));
