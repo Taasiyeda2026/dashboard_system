@@ -429,8 +429,8 @@ function managementAlertsHtml(roster, summary) {
     <div class="manager-workspace-alert-strip__title"><strong>דיווחים חשובים</strong><span>לפי צוות המנהל והחודש הנבחר</span></div>
     <article><span>צוות פעיל</span><strong>${roster.length}</strong></article>
     <article class="${reportMissing ? 'is-warning' : ''}"><span>ללא דיווח נוכחות</span><strong>${reportMissing}</strong></article>
-    <article class="${awaitingApproval ? 'is-warning' : ''}"><span>טרם אושר</span><strong>${awaitingApproval}</strong></article>
-    <article class="is-ok"><span>אושרו</span><strong>${approved}</strong></article>
+    <article class="${awaitingApproval ? 'is-warning' : ''}"><span>טרם אושר ע״י העובד</span><strong>${awaitingApproval}</strong></article>
+    <article class="is-ok"><span>אושר ע״י העובד</span><strong>${approved}</strong></article>
     ${error ? `<p class="manager-workspace-inline-error">${escapeHtml(error)}</p>` : ''}
   </div>`;
 }
@@ -455,7 +455,7 @@ function attendanceSummaryTableHtml(roster, summary, ym) {
       <td data-label="דיווח">${count ? `<span class="manager-workspace-report-count">קיים · ${count} דיווחים</span>` : '<span class="manager-workspace-report-count is-missing">לא נמצא דיווח</span>'}</td>
       <td data-label="סה״כ שעות"><strong>${escapeHtml(formatAttendanceHours(hours))}</strong></td>
       <td data-label="סטטוס אישור">${attendanceStatusBadge(count, approval, ym)}${approvedAt ? `<small>${escapeHtml(approvedAt)}</small>` : ''}</td>
-      <td class="manager-workspace-attendance-action" data-label="פעולה"><button type="button" class="manager-workspace-link-button" data-manager-attendance-open-employee="${escapeHtml(empId)}"${count ? '' : ' disabled'}>צפייה ובקרת דוח</button></td>
+      <td class="manager-workspace-attendance-action" data-label="פעולה"><button type="button" class="manager-workspace-link-button" data-manager-attendance-open-employee="${escapeHtml(empId)}"${count ? '' : ' disabled'}>פתח דוח לבדיקה</button></td>
     </tr>`;
   }).join('');
   return `<div class="manager-workspace-table-wrap"><table class="manager-workspace-table manager-workspace-attendance-table">
@@ -511,6 +511,17 @@ function buildScopedAttendanceApi(roster) {
             .map((row) => ({ ...row, team: SYNTHETIC_TEAM_ID, Team: SYNTHETIC_TEAM_ID }));
         };
       }
+      if (prop === 'attendanceControlDashboardSources') {
+        return async (opts = {}) => {
+          const employeeIds = [...rosterIds];
+          if (!employeeIds.length) return { activities: [], contacts: [], travelCache: [], expenses: [] };
+          return target.attendanceControlDashboardSources({
+            ...opts,
+            employeeIds,
+            skipRouteBuild: true
+          });
+        };
+      }
       const value = target[prop];
       return typeof value === 'function' ? value.bind(target) : value;
     }
@@ -538,17 +549,33 @@ async function waitForEnabledButton(button, timeoutMs = 10000) {
   return Boolean(button && !button.disabled);
 }
 
-async function openEmployeeAttendance(empId) {
+async function openEmployeeAttendance(empId, roster, context) {
   const host = document.querySelector('[data-manager-attendance-host]');
   if (!host) return;
+  const selectedRoster = (Array.isArray(roster) ? roster : [])
+    .filter((row) => text(row?.emp_id) === text(empId));
+  if (!selectedRoster.length) return;
+
+  host.hidden = false;
+  host.setAttribute('aria-busy', 'true');
+  if (!host.querySelector('[data-attendance-control]')) {
+    host.innerHTML = '<div class="manager-workspace-loading">טוען דוח מדריך…</div>';
+  }
+
+  await bindEmbeddedAttendance(host, selectedRoster, context);
+
   const panel = host.querySelector('[data-attendance-control]');
   const run = host.querySelector('[data-attendance-run]');
   const results = host.querySelector('[data-attendance-results]');
+  host.hidden = false;
+  if (panel) panel.hidden = false;
+
   if (!results?.querySelector('[data-payroll-employee]')) {
     if (await waitForEnabledButton(run)) run.click();
   }
+
   const started = Date.now();
-  while (Date.now() - started < 20000) {
+  while (Date.now() - started < 12000) {
     const detail = host.querySelector(`[data-payroll-employee="${CSS.escape(String(empId))}"]`);
     if (detail) {
       host.querySelectorAll('[data-payroll-employee]').forEach((item) => {
@@ -559,11 +586,13 @@ async function openEmployeeAttendance(empId) {
       if (panel) panel.hidden = false;
       detail.hidden = false;
       detail.open = true;
+      host.removeAttribute('aria-busy');
       detail.scrollIntoView({ behavior: 'smooth', block: 'start' });
       return;
     }
-    await new Promise((resolve) => setTimeout(resolve, 120));
+    await new Promise((resolve) => setTimeout(resolve, 80));
   }
+  host.removeAttribute('aria-busy');
 }
 
 async function bindEmbeddedAttendance(host, roster, context) {
@@ -579,6 +608,8 @@ async function bindEmbeddedAttendance(host, roster, context) {
   host.innerHTML = `<style>
     [data-manager-attendance-host][data-manager-attendance-month-mode="current"] .attendance-control__employee > .attendance-control__employee-actions,
     [data-manager-attendance-host][data-manager-attendance-month-mode="future"] .attendance-control__employee > .attendance-control__employee-actions { display:none !important; }
+    [data-manager-attendance-host] .attendance-control__summary-bar,
+    [data-manager-attendance-host] .attendance-control__metrics-details { display:none !important; }
   </style>${attendance.attendanceControlStylesHtml()}${attendance.attendanceControlHtml()}`;
   if (host.dataset.managerAttendanceApprovalGuard !== 'true') {
     host.dataset.managerAttendanceApprovalGuard = 'true';
@@ -631,12 +662,18 @@ async function renderAttendance(boardRoot, context, roster, renderToken) {
     <div class="manager-workspace-attendance-host" data-manager-attendance-host hidden></div>
   </section>`;
 
-  const host = view.querySelector('[data-manager-attendance-host]');
-  await bindEmbeddedAttendance(host, roster, context);
-  if (renderToken !== currentRenderToken || activeTab !== 'attendance') return;
-
   view.querySelectorAll('[data-manager-attendance-open-employee]').forEach((button) => {
-    button.addEventListener('click', () => void openEmployeeAttendance(button.dataset.managerAttendanceOpenEmployee));
+    button.addEventListener('click', async () => {
+      const previousText = button.textContent;
+      button.disabled = true;
+      button.textContent = 'טוען דוח…';
+      try {
+        await openEmployeeAttendance(button.dataset.managerAttendanceOpenEmployee, roster, context);
+      } finally {
+        button.disabled = false;
+        button.textContent = previousText;
+      }
+    });
   });
 }
 
