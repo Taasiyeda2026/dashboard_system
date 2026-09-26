@@ -820,7 +820,278 @@
     white-space: normal;
   }
 
-  /* Scheduling already owns compact source-backed cards; stack their summary. */
+  /* Scheduling: mobile follows the same work-first hierarchy as desktop.
+     Keep decision data in front; move operational detail behind per-instructor drill-down. */
+  .route-course-scheduling .course-scheduling-screen {
+    gap: 8px;
+  }
+
+  .route-course-scheduling .course-scheduling-filters {
+    gap: 6px;
+    padding: 9px 10px;
+  }
+
+  .route-course-scheduling .course-scheduling-filters label {
+    min-width: 0;
+  }
+
+  .route-course-scheduling .course-scheduling-filters select,
+  .route-course-scheduling .course-scheduling-filters input {
+    min-height: 38px;
+  }
+
+  .route-course-scheduling .course-scheduling-auto-plan {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 9px;
+    min-height: 0;
+  }
+
+  .route-course-scheduling .course-scheduling-auto-plan [data-planning-status-message] {
+    min-width: 0;
+    font-size: .76rem;
+    line-height: 1.35;
+  }
+
+  .route-course-scheduling .course-scheduling-auto-plan [data-run-course-planning] {
+    min-height: 36px;
+    padding: 6px 10px;
+    white-space: normal;
+    font-size: .72rem;
+    line-height: 1.15;
+  }
+
+  .route-course-scheduling .course-scheduling-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0;
+    overflow: hidden;
+    border: 1px solid #dbe3ec;
+    border-radius: 10px;
+    background: #fff;
+  }
+
+  .route-course-scheduling .course-scheduling-summary-card {
+    min-height: 48px;
+    padding: 7px 9px;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  .route-course-scheduling .course-scheduling-summary-card:nth-child(odd) {
+    border-inline-end: 1px solid #dbe3ec;
+  }
+
+  .route-course-scheduling .course-scheduling-summary-card:nth-child(n + 3) {
+    border-block-start: 1px solid #dbe3ec;
+  }
+
+  .route-course-scheduling .course-planning-completion-overview {
+    gap: 8px;
+    padding: 10px;
+  }
+
+  .route-course-scheduling .course-planning-section-heading strong {
+    font-size: .96rem;
+  }
+
+  /* The four primary KPIs above already show totals/assigned/waiting/open.
+     On mobile, do not repeat background and reporting-only chips. */
+  .route-course-scheduling .course-planning-completion-summary .course-planning-completion-chip.is-context {
+    display: none;
+  }
+
+  .route-course-scheduling .course-planning-completion-summary {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .route-course-scheduling .course-planning-completion-summary .course-planning-completion-chip.is-action {
+    display: flex;
+    justify-content: center;
+    min-width: 0;
+    padding: 7px 8px;
+    border-radius: 9px;
+    white-space: normal;
+    text-align: center;
+    line-height: 1.2;
+  }
+
+  .route-course-scheduling .course-planning-completion-summary .course-planning-completion-chip.is-action b {
+    font-size: .92rem;
+  }
+
+  .route-course-scheduling .course-planning-recruitment-models {
+    padding: 8px;
+  }
+
+  .route-course-scheduling .course-planning-recruitment-model-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  /* Instructor overview becomes compact work cards instead of a wide desktop matrix. */
+  .route-course-scheduling .course-planning-completion-table-wrap {
+    max-height: none;
+    overflow: visible;
+    border: 0;
+    border-radius: 0;
+  }
+
+  .route-course-scheduling .course-planning-completion-table {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    border: 0;
+  }
+
+  .route-course-scheduling .course-planning-completion-table thead {
+    display: none;
+  }
+
+  .route-course-scheduling .course-planning-completion-table tbody {
+    display: grid;
+    gap: 8px;
+  }
+
+  .route-course-scheduling .course-planning-completion-table tbody > tr {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0;
+    overflow: hidden;
+    border: 1px solid #dbe3ec;
+    border-radius: 11px;
+    background: #fff;
+  }
+
+  .route-course-scheduling .course-planning-completion-table td.course-planning-completion-cell {
+    display: grid;
+    align-content: center;
+    min-width: 0;
+    min-height: 48px;
+    padding: 7px 8px;
+    border: 0;
+    border-inline-end: 1px solid #edf1f5;
+    border-block-end: 1px solid #edf1f5;
+    text-align: center;
+    white-space: normal;
+    font-size: .78rem;
+    line-height: 1.25;
+  }
+
+  .route-course-scheduling .course-planning-completion-table td.course-planning-completion-cell::before {
+    display: block;
+    margin-bottom: 2px;
+    color: #6b7a8c;
+    font-size: .64rem;
+    font-weight: 700;
+    line-height: 1.15;
+  }
+
+  .route-course-scheduling .course-planning-completion-cell.is-instructor {
+    grid-column: 1 / -1;
+    min-height: 44px;
+    padding: 8px 10px;
+    border-inline-end: 0;
+    text-align: start;
+  }
+
+  .route-course-scheduling .course-planning-completion-cell.is-instructor::before {
+    content: none;
+  }
+
+  .route-course-scheduling .course-planning-completion-cell.is-instructor strong {
+    font-size: .94rem;
+  }
+
+  .route-course-scheduling .course-planning-completion-cell.is-courses::before { content: "קורסים"; }
+  .route-course-scheduling .course-planning-completion-cell.is-live::before { content: "משובץ"; }
+  .route-course-scheduling .course-planning-completion-cell.is-draft::before { content: "ממתין"; }
+  .route-course-scheduling .course-planning-completion-cell.is-proposal::before { content: "הצעה"; }
+
+  .route-course-scheduling .course-planning-completion-cell.is-load,
+  .route-course-scheduling .course-planning-completion-cell.is-weekly,
+  .route-course-scheduling .course-planning-completion-cell.is-travel {
+    display: none;
+  }
+
+  .route-course-scheduling .course-planning-completion-cell.is-start,
+  .route-course-scheduling .course-planning-completion-cell.is-end {
+    grid-column: span 2;
+    min-height: 44px;
+    border-block-end: 1px solid #edf1f5;
+  }
+
+  .route-course-scheduling .course-planning-completion-cell.is-start::before { content: "מתחיל"; }
+  .route-course-scheduling .course-planning-completion-cell.is-end::before { content: "מסתיים"; }
+
+  .route-course-scheduling .course-planning-completion-cell.is-details {
+    grid-column: 1 / -1;
+    min-height: 0;
+    padding: 0;
+    border: 0;
+    text-align: start;
+  }
+
+  .route-course-scheduling .course-planning-completion-programs {
+    display: none;
+  }
+
+  .route-course-scheduling .course-planning-completion-details {
+    width: 100%;
+    margin: 0;
+  }
+
+  .route-course-scheduling .course-planning-completion-details > summary {
+    padding: 8px 10px;
+    font-size: .76rem;
+  }
+
+  .route-course-scheduling .course-planning-completion-courses {
+    min-width: 0;
+    margin: 0;
+    padding: 0 8px 8px;
+  }
+
+  .route-course-scheduling .course-planning-completion-course {
+    padding: 7px 8px;
+  }
+
+  /* Quality panel keeps only a readable two-column mobile scan. */
+  .route-course-scheduling .course-planning-quality {
+    gap: 8px;
+    padding: 10px;
+  }
+
+  .route-course-scheduling .course-planning-quality-head {
+    flex-direction: row;
+    align-items: center;
+  }
+
+  .route-course-scheduling .course-planning-quality-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .route-course-scheduling .course-planning-quality-grid article {
+    min-width: 0;
+    padding: 7px 8px;
+  }
+
+  .route-course-scheduling .course-planning-quality-grid small {
+    display: none;
+  }
+
+  .route-course-scheduling .course-planning-quality-efficiency {
+    display: none;
+  }
+
+  .route-course-scheduling .course-planning-quality-table {
+    min-width: 620px;
+  }
+
   .route-course-scheduling .course-scheduling-compact-table-head {
     display: none;
   }
