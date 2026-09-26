@@ -376,7 +376,7 @@ test('full-year planning keeps an undated first-half course starting in first ha
   assert.ok(generated.scenarios.length > 0);
   for (const scenario of generated.scenarios) {
     assert.equal(scenario.meetings.length, 10);
-    assert.ok(scenario.startDate >= '2026-10-06');
+    assert.ok(scenario.startDate >= '2026-10-12');
     assert.ok(scenario.endDate <= '2027-02-28');
   }
 
@@ -395,7 +395,7 @@ test('full-year planning keeps an undated first-half course starting in first ha
 test('Saturday planning is allowed for Arab-sector activities and blocked elsewhere', () => {
   const arab = buildWeeklyPlanningMeetings({
     activity: { ...baseCourse, calendar_sector: 'arab' },
-    startDate: '2026-10-10',
+    startDate: '2026-10-17',
     startTime: '08:00',
     durationMinutes: 90,
     sessions: 3,
@@ -403,12 +403,12 @@ test('Saturday planning is allowed for Arab-sector activities and blocked elsewh
     periodKey: 'first'
   });
   assert.ok(arab);
-  assert.equal(arab.startDate, '2026-10-10');
+  assert.equal(arab.startDate, '2026-10-17');
   assert.equal(arab.meetings.length, 3);
 
   const jewish = buildWeeklyPlanningMeetings({
     activity: { ...baseCourse, calendar_sector: 'jewish' },
-    startDate: '2026-10-10',
+    startDate: '2026-10-17',
     startTime: '08:00',
     durationMinutes: 90,
     sessions: 3,
@@ -418,9 +418,9 @@ test('Saturday planning is allowed for Arab-sector activities and blocked elsewh
   assert.equal(jewish, null);
 });
 
-test('weekly planning starts on or after 6 October and may continue through February', () => {
-  assert.equal(PLANNING_OPERATIONAL_START_DATE, '2026-10-06');
-  assert.equal(planningEffectivePeriod('first').start, '2026-10-06');
+test('weekly planning starts on or after 12 October and may continue through February', () => {
+  assert.equal(PLANNING_OPERATIONAL_START_DATE, '2026-10-12');
+  assert.equal(planningEffectivePeriod('first').start, '2026-10-12');
   assert.equal(buildWeeklyPlanningMeetings({
     activity: baseCourse,
     startDate: '2026-10-04',
@@ -433,7 +433,7 @@ test('weekly planning starts on or after 6 October and may continue through Febr
 
   const valid = buildWeeklyPlanningMeetings({
     activity: baseCourse,
-    startDate: '2026-10-11',
+    startDate: '2026-10-12',
     startTime: '08:00',
     durationMinutes: 90,
     sessions: 11,
@@ -441,7 +441,7 @@ test('weekly planning starts on or after 6 October and may continue through Febr
     periodKey: 'first'
   });
   assert.equal(valid.meetings.length, 11);
-  assert.equal(valid.startDate, '2026-10-11');
+  assert.equal(valid.startDate, '2026-10-12');
   assert.ok(valid.endDate <= '2027-01-29');
 
   const februaryContinuation = buildWeeklyPlanningMeetings({
@@ -490,11 +490,11 @@ test('planning scenarios offer dynamic dates and hours while respecting first-ha
     periodKey: 'first'
   });
   assert.ok(generated.scenarios.length > 0);
-  assert.ok(generated.startRange?.min >= '2026-10-06');
+  assert.ok(generated.startRange?.min >= '2026-10-12');
   assert.ok(generated.startRange?.max <= '2027-01-29');
   for (const scenario of generated.scenarios) {
     assert.equal(scenario.meetings.length, 11);
-    assert.ok(scenario.startDate >= '2026-10-06');
+    assert.ok(scenario.startDate >= '2026-10-12');
     assert.ok(scenario.endDate <= '2027-02-28');
     assert.ok(scenario.startTime);
     assert.ok(scenario.endTime);
@@ -786,7 +786,7 @@ test('Planning preserves school-provided date and start-time constraints while c
   assert.ok(generated.scenarios.every((scenario) => scenario.meetings[0].date === '2026-10-11'));
 });
 
-test('Planning keeps a school-provided hour and generates only dates on or after 6 October', () => {
+test('Planning keeps a school-provided hour and generates only dates on or after 12 October', () => {
   const constrained = {
     ...baseCourse,
     row_id: 'time-only',
@@ -806,7 +806,7 @@ test('Planning keeps a school-provided hour and generates only dates on or after
     periodKey: 'first'
   });
   assert.ok(generated.scenarios.length > 0);
-  assert.ok(generated.scenarios.every((scenario) => scenario.startDate >= '2026-10-06'));
+  assert.ok(generated.scenarios.every((scenario) => scenario.startDate >= '2026-10-12'));
   assert.ok(generated.scenarios.every((scenario) => scenario.startTime === '11:00'));
 });
 
@@ -872,7 +872,7 @@ test('recruitment overview exposes workload language days and training need with
       kind: 'recruitment',
       requiredLanguage: 'ar',
       requiredGender: 'any',
-      startDate: '2026-10-10',
+      startDate: '2026-10-17',
       endDate: '2026-10-17',
       startTime: '08:00',
       endTime: '09:30',
@@ -881,7 +881,7 @@ test('recruitment overview exposes workload language days and training need with
         { date: '2026-10-17', start_time: '08:00', end_time: '09:30' }
       ],
       scheduleOptions: [{
-        startDate: '2026-10-10',
+        startDate: '2026-10-17',
         endDate: '2026-10-17',
         startTime: '08:00',
         endTime: '09:30',
@@ -1059,7 +1059,7 @@ test('national planning prefers an early first-half start for an undated 10-meet
   });
   const row = result.rows[0];
   assert.equal(row.kind, 'proposal');
-  assert.ok(row.startDate >= '2026-10-06');
+  assert.ok(row.startDate >= '2026-10-12');
   assert.ok(row.startDate < '2026-11-01');
   assert.ok(row.endDate <= '2027-01-29');
   assert.equal(row.meetings.length, 10);
@@ -1161,7 +1161,7 @@ test('Planning UI defaults to the full school year and exposes period selection'
   const html = planningTabHtml({ rows: [], periodKey: 'year' });
   assert.match(html, /data-planning-period-filter/);
   assert.match(html, /שנת הלימודים/);
-  assert.match(html, /06\/10\/2026/);
+  assert.match(html, /12\/10\/2026/);
   assert.match(html, /בנה מערכת הדרכות מלאה/);
   assert.match(html, /נדרש גיוס/);
   assert.match(html, /תכנון עבודה מלא/);
