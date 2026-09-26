@@ -905,7 +905,7 @@ test('first-half completion overview includes live, drafts and proposals per ins
   assert.match(html, /בתכנון/);
   assert.match(html, /07\/10\/2026/);
   assert.match(html, /20\/01\/2027/);
-  assert.match(html, /2<\/b> פעילויות · <b>2<\/b> מפגשים · שבוע שיא: <b>1<\/b> י״ע/);
+  assert.match(html, /2<\/b> פעילויות · <b>2<\/b> מפגשים · שבוע שיא: <b>1<\/b> י"ע/);
   assert.doesNotMatch(html, /ימי עבודה\/שבוע/);
   assert.doesNotMatch(html, /תוכניות ופירוט/);
   assert.doesNotMatch(html, /היקף העבודה הצפוי כולל/);
@@ -956,7 +956,7 @@ test('instructor overview keeps one compact planned-work column and removes inte
       { date: '2026-11-08', start_time: '08:00', end_time: '09:30' }
     ]
   }]);
-  assert.match(html, /1<\/b> פעילויות · <b>2<\/b> מפגשים · שבוע שיא: <b>1<\/b> י״ע \(<bdi dir="ltr">01\/11\/26<\/bdi>\)/);
+  assert.match(html, /1<\/b> פעילויות · <b>2<\/b> מפגשים · שבוע שיא: <b>1<\/b> י"ע \(<bdi dir="ltr">01\/11\/26<\/bdi>\)/);
   assert.doesNotMatch(html, /תוכניות ופירוט/);
   assert.doesNotMatch(html, /course-planning-completion-programs/);
   assert.doesNotMatch(html, /course-planning-completion-details/);
