@@ -10,7 +10,8 @@
  *   manager  — admin or personal_reports_manager=yes: sees all reports, can approve / return / transfer to payment
  */
 
-import { supabase, waitForSupabaseAuthSession, resetSupabaseAuthSessionWait } from '../supabase-client.js';
+import { createClient } from '@supabase/supabase-js';
+import { supabase, supabaseConfig, waitForSupabaseAuthSession } from '../supabase-client.js';
 import { resolveActiveUserRowAfterAuth } from '../auth-user-resolve.js';
 import { escapeHtml } from './shared/html.js';
 import { dsPageHeader, dsEmptyState, dsStatusChip, dsScreenStack } from './shared/layout.js';
@@ -954,6 +955,17 @@ function authUnavailableHtml(message = 'לא נמצא משתמש מחובר במ
 
 // ─── supabase API ─────────────────────────────────────────────────────────────
 
+function createPersonalReportsVerificationClient() {
+  if (!supabaseConfig?.isConfigured || !supabaseConfig?.url || !supabaseConfig?.publishableKey) return null;
+  return createClient(supabaseConfig.url, supabaseConfig.publishableKey, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+      detectSessionInUrl: false
+    }
+  });
+}
+
 async function authenticateInternalEmployee(dashboardUser, accessCode) {
   const user = dashboardUser || dashboardUserForAuth();
   const authIdentity = resolvePersonalReportsAuthIdentity(user);
@@ -965,15 +977,24 @@ async function authenticateInternalEmployee(dashboardUser, accessCode) {
     throw new Error('invalid_credentials');
   }
 
-  const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-    email: authIdentity.authEmail,
-    password
-  });
-  if (authError || !authData?.user?.id) {
-    throw new Error('invalid_credentials');
+  const verificationClient = createPersonalReportsVerificationClient();
+  if (!verificationClient) {
+    throw new Error('auth_unavailable');
   }
 
-  resetSupabaseAuthSessionWait();
+  let authData = null;
+  try {
+    const { data, error: authError } = await verificationClient.auth.signInWithPassword({
+      email: authIdentity.authEmail,
+      password
+    });
+    if (authError || !data?.user?.id) {
+      throw new Error('invalid_credentials');
+    }
+    authData = data;
+  } finally {
+    verificationClient.auth.signOut({ scope: 'local' }).catch(() => {});
+  }
 
   const authUserId = authData.user.id;
   const authenticatedAuthEmail = String(authData.user.email || '').trim().toLowerCase();
@@ -982,6 +1003,12 @@ async function authenticateInternalEmployee(dashboardUser, accessCode) {
     || (authenticatedAuthEmail && authenticatedAuthEmail !== authIdentity.authEmail)
   ) {
     throw new Error('invalid_credentials');
+  }
+
+  const { data: dashboardAuthData, error: dashboardAuthError } = await supabase.auth.getSession();
+  const dashboardAuthUserId = String(dashboardAuthData?.session?.user?.id || '').trim();
+  if (dashboardAuthError || dashboardAuthUserId !== authIdentity.authUserId) {
+    throw new Error('dashboard_auth_session_mismatch');
   }
 
   const { userRow } = await resolveActiveUserRowAfterAuth({
