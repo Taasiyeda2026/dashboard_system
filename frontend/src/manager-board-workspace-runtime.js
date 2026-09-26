@@ -266,12 +266,6 @@ function attendanceHoursValue(row = {}) {
   return Number.isFinite(value) ? Math.max(0, value) : 0;
 }
 
-function isCancellationAttendanceRow(row = {}) {
-  const generationKind = text(row.generationKind || row.generation_kind);
-  const activityType = text(row.activityType || row.ActivityType || row.activity_type).replace(/\s+/g, '');
-  return generationKind === 'travel_time_cancellation' || activityType === 'ביטולזמן';
-}
-
 function formatAttendanceHours(value) {
   const totalMinutes = Math.max(0, Math.round((Number(value) || 0) * 60));
   return Math.floor(totalMinutes / 60) + ':' + String(totalMinutes % 60).padStart(2, '0');
@@ -284,7 +278,7 @@ async function loadAttendanceSummary(roster, ym, force = false) {
   if (!force && cached && Date.now() - cached.loadedAt < ATTENDANCE_SUMMARY_TTL_MS) return cached.value;
 
   const recordCounts = new Map(ids.map((id) => [id, 0]));
-  const cancellationHours = new Map(ids.map((id) => [id, 0]));
+  const totalHours = new Map(ids.map((id) => [id, 0]));
   let recordsError = '';
   const { fromDate, toDate } = attendanceMonthDateRange(ym);
   try {
@@ -295,9 +289,7 @@ async function loadAttendanceSummary(roster, ym, force = false) {
       const empId = rawEmployeeId(row);
       if (!recordCounts.has(empId) || rawRecordMonth(row) !== ym) continue;
       const generationKind = text(row?.generationKind || row?.generation_kind);
-      if (isCancellationAttendanceRow(row)) {
-        cancellationHours.set(empId, (cancellationHours.get(empId) || 0) + attendanceHoursValue(row));
-      }
+      totalHours.set(empId, (totalHours.get(empId) || 0) + attendanceHoursValue(row));
       if (generationKind === 'travel_time_cancellation') continue;
       recordCounts.set(empId, (recordCounts.get(empId) || 0) + 1);
     }
@@ -319,7 +311,7 @@ async function loadAttendanceSummary(roster, ym, force = false) {
     approvalsError = error?.message || 'טעינת אישורי הבקרה נכשלה.';
   }
 
-  const value = { recordCounts, cancellationHours, approvals, recordsError, approvalsError };
+  const value = { recordCounts, totalHours, approvals, recordsError, approvalsError };
   attendanceSummaryCache.set(key, { value, loadedAt: Date.now() });
   return value;
 }
@@ -455,19 +447,19 @@ function attendanceSummaryTableHtml(roster, summary, ym) {
   const rows = roster.map((row) => {
     const empId = text(row.emp_id);
     const count = summary.recordCounts.get(empId) || 0;
-    const cancellation = summary.cancellationHours?.get(empId) || 0;
+    const hours = summary.totalHours?.get(empId) || 0;
     const approval = summary.approvals.get(empId);
     const approvedAt = approval?.approved_at ? new Date(approval.approved_at).toLocaleDateString('he-IL') : '';
     return `<tr>
-      <td><strong>${escapeHtml(text(row.full_name) || empId)}</strong><small>${escapeHtml(empId)}</small></td>
-      <td>${count ? `<span class="manager-workspace-report-count">קיים · ${count} דיווחים</span>` : '<span class="manager-workspace-report-count is-missing">לא נמצא דיווח</span>'}</td>
-      <td><strong>${escapeHtml(formatAttendanceHours(cancellation))}</strong></td>
-      <td>${attendanceStatusBadge(count, approval, ym)}${approvedAt ? `<small>${escapeHtml(approvedAt)}</small>` : ''}</td>
-      <td><button type="button" class="manager-workspace-link-button" data-manager-attendance-open-employee="${escapeHtml(empId)}"${count ? '' : ' disabled'}>צפייה ובקרת דוח</button></td>
+      <td class="manager-workspace-attendance-person" data-label="מדריך"><strong>${escapeHtml(text(row.full_name) || empId)}</strong><small>${escapeHtml(empId)}</small></td>
+      <td data-label="דיווח">${count ? `<span class="manager-workspace-report-count">קיים · ${count} דיווחים</span>` : '<span class="manager-workspace-report-count is-missing">לא נמצא דיווח</span>'}</td>
+      <td data-label="סה״כ שעות"><strong>${escapeHtml(formatAttendanceHours(hours))}</strong></td>
+      <td data-label="סטטוס אישור">${attendanceStatusBadge(count, approval, ym)}${approvedAt ? `<small>${escapeHtml(approvedAt)}</small>` : ''}</td>
+      <td class="manager-workspace-attendance-action" data-label="פעולה"><button type="button" class="manager-workspace-link-button" data-manager-attendance-open-employee="${escapeHtml(empId)}"${count ? '' : ' disabled'}>צפייה ובקרת דוח</button></td>
     </tr>`;
   }).join('');
   return `<div class="manager-workspace-table-wrap"><table class="manager-workspace-table manager-workspace-attendance-table">
-    <thead><tr><th>מדריך</th><th>דיווח ${escapeHtml(ym)}</th><th>ביטול זמן</th><th>סטטוס אישור</th><th></th></tr></thead>
+    <thead><tr><th>מדריך</th><th>דיווח ${escapeHtml(ym)}</th><th>סה״כ שעות</th><th>סטטוס אישור</th><th></th></tr></thead>
     <tbody>${rows}</tbody>
   </table></div>`;
 }
