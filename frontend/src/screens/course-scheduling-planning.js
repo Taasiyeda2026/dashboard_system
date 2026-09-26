@@ -2767,28 +2767,25 @@ export function planningCompletionOverviewHtml(rows = [], { pendingChanges = 0, 
     }))
     .sort((a, b) => b.activities.length - a.activities.length || a.label.localeCompare(b.label, 'he'));
 
+  const coverage = planningFullWorkPlanCoverage(firstHalfRows);
+  const unresolvedRows = firstHalfRows.filter((row) =>
+    !text(row?.instructorEmpId) && row.kind !== 'recruitment'
+  );
   const pendingCount = Math.max(0, Number(pendingChanges) || 0);
-  const schoolYearCount = Number.isFinite(Number(schoolYearTotal)) ? Math.max(0, Number(schoolYearTotal)) : null;
 
   return `<section class="course-planning-completion-overview" data-planning-completion-overview>
-    <div class="course-planning-section-heading">
-      <strong>תמונת מצב — מחצית א׳</strong>
+    <div class="course-planning-section-heading course-planning-workplan-heading">
+      <div>
+        <strong>תוכנית עבודה מלאה — מחצית א׳</strong>
+        <span>${coverage.total} פעילויות = ${coverage.team} לצוות הקיים + ${coverage.recruitment} לגיוס + ${coverage.unresolved} חריגים</span>
+      </div>
+      ${pendingCount ? `<span class="course-planning-workplan-pending">${pendingCount} פעילויות ממתינות לעדכון</span>` : ''}
     </div>
-    <div class="course-planning-completion-summary">
-      <span class="course-planning-completion-chip is-context"><b>${totals.activities}</b> פעילויות במחצית א׳</span>
-      ${schoolYearCount != null ? `<span class="course-planning-completion-chip is-context"><b>${schoolYearCount}</b> פעילויות תשפ״ז</span>` : ''}
-      <span class="course-planning-completion-chip is-context"><b>${overview.length}</b> מדריכים בתכנון</span>
-      <span class="course-planning-completion-chip is-context"><b>${totals.courses}</b> קורסים</span>
-      ${totals.otherActivities ? `<span class="course-planning-completion-chip is-context"><b>${totals.otherActivities}</b> סדנאות/סיורים</span>` : ''}
-      <span class="course-planning-completion-chip is-context"><b>${totals.live}</b> משובצים</span>
-      <span class="course-planning-completion-chip is-context"><b>${totals.drafts}</b> ממתינים לאישור</span>
-      <span class="course-planning-completion-chip is-action"><b>${totals.proposals}</b> הצעות מערכת</span>
-      ${totals.unresolved ? `<span class="course-planning-completion-chip is-warning is-action"><b>${totals.unresolved}</b> נדרש טיפול</span>` : ''}
-      ${totals.recruitment ? `<span class="course-planning-completion-chip is-warning is-action"><b>${totals.recruitment}</b> פעילויות שדורשות גיוס</span>` : ''}
-      ${recruitmentProfileRows.length ? `<span class="course-planning-completion-chip is-warning is-context"><b>${recruitmentProfileRows.length}</b> מודלי גיוס צפויים</span>` : ''}
-      ${totals.undated ? `<span class="course-planning-completion-chip is-warning is-action"><b>${totals.undated}</b> עדיין ללא מועד</span>` : ''}
-      ${totals.continuation ? `<span class="course-planning-completion-chip is-context"><b>${totals.continuation}</b> ממשיכות לפברואר</span>` : ''}
-      ${totals.overflow ? `<span class="course-planning-completion-chip is-warning is-context"><b>${totals.overflow}</b> נמשכות מעבר לסוף פברואר</span>` : ''}
+    <div class="course-planning-workplan-balance" data-workplan-balance>
+      <article class="course-planning-workplan-card is-total"><b>${coverage.total}</b><span>כל הפעילויות</span></article>
+      <article class="course-planning-workplan-card is-team"><b>${coverage.team}</b><span>מתוכננות לצוות הקיים</span><small>${overview.length} מדריכים</small></article>
+      <article class="course-planning-workplan-card is-recruitment"><b>${coverage.recruitment}</b><span>נדרש גיוס</span><small>${recruitmentProfileRows.length} מודלי גיוס</small></article>
+      <article class="course-planning-workplan-card is-unresolved${coverage.unresolved ? ' has-attention' : ''}"><b>${coverage.unresolved}</b><span>חסר נתון / פתרון</span><small>${coverage.unresolved ? 'נדרש טיפול' : 'כל הפעילויות נכללות בתכנון'}</small></article>
     </div>
     ${recruitmentProfileRows.length ? `<div class="course-planning-recruitment-models">
       <strong>מודלי גיוס לאחר מיצוי הצוות הקיים</strong>
