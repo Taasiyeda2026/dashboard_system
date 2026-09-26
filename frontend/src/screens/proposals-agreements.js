@@ -1346,6 +1346,7 @@ export function proposalsAgreementsTableRowsHtml(rows, state) {
   const quickAction = (attrs, title, icon) => `<button type="button" class="ds-btn ds-btn--xs ds-btn--ghost ds-pa-row-action ds-pa-row-action--icon" ${attrs} title="${escapeHtml(title)}" aria-label="${escapeHtml(title)}"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${icon}</svg></button>`;
   return rows.map((row) => {
     const status = normalizeProposalStatus(row.status || 'draft');
+    const authorityDisplay = proposalAuthorityDisplayName(row) || '—';
     const isSent = status === 'sent';
     const moreActions = [];
     const showQuickClone = canManage && (status === 'approved' || isSent);
@@ -1391,7 +1392,7 @@ export function proposalsAgreementsTableRowsHtml(rows, state) {
     <tr data-pa-row-id="${escapeHtml(row.id)}" tabindex="0">
       <td class="ds-pa-domain-col">${escapeHtml(row.proposal_domain || 'Y')}</td>
       <td class="ds-pa-col-center ds-pa-quote-number">${escapeHtml(row.quote_number || '—')}</td>
-      <td class="ds-pa-authority-col" title="${escapeHtml(row.client_name || row.client_authority || row.school_framework || '—')}">${escapeHtml(row.client_name || row.client_authority || row.school_framework || '—')}</td>
+      <td class="ds-pa-authority-col" title="${escapeHtml(authorityDisplay)}">${escapeHtml(authorityDisplay)}</td>
       <td class="ds-pa-school-col">${inferProposalClientType(row) === 'other' ? '' : escapeHtml(row.school_framework || '—')}</td>
       <td>${escapeHtml(proposalGroupDisplayName(row.activity_type_group) || '—')}</td>
       <td class="ds-pa-col-center">${escapeHtml(formatDateDisplay(row.proposal_date) || '')}</td>
@@ -1499,6 +1500,15 @@ function inferProposalClientType(row = {}) {
   if (text(row.client_name) && !text(row.authority_id) && !text(row.school_id) && !text(row.client_authority)) return 'other';
   if (!text(row.authority_id) && !text(row.school_id) && !text(row.client_authority) && text(row.school_framework)) return 'other';
   return 'school';
+}
+
+function proposalAuthorityDisplayName(row = {}) {
+  const clientType = inferProposalClientType(row);
+  return text(
+    row.authority_name
+    || row.client_authority
+    || (clientType === 'authority' ? row.client_name : '')
+  );
 }
 
 export function proposalClientIdentifier(row = {}) {
