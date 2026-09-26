@@ -26,7 +26,7 @@ function ensureMainActivitiesWorkspace() {
   if (!workspaceImportPromise) {
     workspaceImportPromise = Promise.all([
       import('./activities-approved-ui-fix.js?v=20260831-israa-v1'),
-      import('./israa-activities-main-workspace.js?v=20260827-v4')
+      import('./israa-activities-main-workspace.js?v=20260926-v5')
     ])
       .catch((error) => {
         workspaceImportPromise = null;

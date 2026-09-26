@@ -126,8 +126,14 @@ async function loadWorkspaceRows() {
   ]);
   if (sharedResult?.error) throw new Error(sharedResult.error.message || 'israa_activities_read_failed');
   workspaceTracking = Array.isArray(trackingResult?.rows) ? trackingResult.rows : [];
-  const shared = (Array.isArray(sharedResult?.data) ? sharedResult.data : []).map(normalizeSharedRow);
-  const sharedKeys = new Set(shared.map((row) => `${clean(row.israa_tracking_id)}|${clean(row.israa_source_item_id)}`));
+  const allIsraaActivities = (Array.isArray(sharedResult?.data) ? sharedResult.data : []).map(normalizeSharedRow);
+  const sharedKeys = new Set(allIsraaActivities
+    .filter((row) => clean(row.israa_tracking_id) && clean(row.israa_source_item_id))
+    .map((row) => `${clean(row.israa_tracking_id)}|${clean(row.israa_source_item_id)}`));
+  const privateRows = allIsraaActivities.filter((row) => {
+    const value = row.israa_shared;
+    return value === false || ['false', '0', 'no'].includes(clean(value).toLowerCase());
+  });
   const drafts = [];
   workspaceTracking.forEach((tracking) => {
     const selected = Array.isArray(tracking?.selected_activity_drafts) ? tracking.selected_activity_drafts : [];
@@ -137,7 +143,9 @@ async function loadWorkspaceRows() {
       drafts.push(normalizeDraftRow(tracking, draft));
     });
   });
-  workspaceRows = [...drafts, ...shared];
+  // Once a row is shared to the canonical activities table it leaves Israa's
+  // private activities workspace. Keep only unshared manual rows plus drafts.
+  workspaceRows = [...drafts, ...privateRows];
   return workspaceRows;
 }
 
