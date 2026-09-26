@@ -200,7 +200,7 @@ export function bindInstructorConstraintsModal(modalRoot, {
   };
   const syncWeekday = (line) => {
     const available = line.querySelector('[name="available"]');
-    const disabled = Number(line.dataset.weekdayRow) === 6 || !available?.checked;
+    const disabled = !available?.checked;
     line.querySelectorAll('[name="start_time"], [name="end_time"]').forEach((input) => { input.disabled = disabled; });
   };
   form.querySelectorAll('[data-weekday-row]').forEach((line) => {
@@ -239,7 +239,7 @@ export function bindInstructorConstraintsModal(modalRoot, {
     const input = (name) => form.querySelector(`[name="${name}"]`);
     const rules = [...form.querySelectorAll('[data-weekday-row]')].map((line) => ({
       weekday: Number(line.dataset.weekdayRow),
-      available: Number(line.dataset.weekdayRow) !== 6 && !!line.querySelector('[name="available"]')?.checked,
+      available: !!line.querySelector('[name="available"]')?.checked,
       start_time: line.querySelector('[name="start_time"]')?.value,
       end_time: line.querySelector('[name="end_time"]')?.value
     }));
