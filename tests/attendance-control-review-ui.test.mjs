@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { resultsHtml } from '../frontend/src/screens/attendance-control.js';
+import { compareAttendanceRows, resultsHtml } from '../frontend/src/screens/attendance-control.js';
 
 const source = await readFile(new URL('../frontend/src/screens/attendance-control.js', import.meta.url), 'utf8');
 
@@ -164,8 +164,100 @@ test('expenses, expense detail and notes appear only when there is actual conten
   assert.match(html, /אושר מראש/);
 });
 
-test('travel cancellation keeps a dedicated five-column calculation table', () => {
-  assert.match(source, /בדיקת ביטול זמן/);
-  assert.match(source, /<th>חישוב מערכת<\/th><th>סטטוס<\/th><th>פעולות<\/th>/);
-  assert.match(source, /מחושב אוטומטית לפי זמן הנסיעה/);
+test('generated long-travel cancellation is folded into its source attendance record', () => {
+  const sourceEntry = {
+    id: 'attendance-only-0',
+    source: 'attendance_not_compared',
+    attendance: {
+      employeeId: '1533', employeeName: 'שחר זוביב', date: '2026-09-06',
+      recordId: 'source-1', activityType: 'תפעול', program: 'הרמת כוסית',
+      startTime: '11:00', endTime: '11:05', workHours: 5 / 60,
+      kilometers: 80, publicTransport: false, expenses: 0,
+      _source: {
+        ID: 'source-1',
+        recordId: 'source-1',
+        travelCalculationStatus: 'resolved',
+        outboundTravelMinutes: 40,
+        returnTravelMinutes: 38,
+        calculatedCancellationMinutes: 11,
+        finalCancellationMinutes: 11,
+        sourceAttendanceRecordId: 'source-1'
+      }
+    },
+    final: {
+      employeeId: '1533', employeeName: 'שחר זוביב', date: '2026-09-06',
+      recordId: 'source-1', activityType: 'תפעול', program: 'הרמת כוסית',
+      startTime: '11:00', endTime: '11:05', workHours: 5 / 60,
+      kilometers: 80, publicTransport: false, expenses: 0
+    },
+    differences: [],
+    managerResolved: null
+  };
+  const cancellationEntry = {
+    id: 'attendance-only-1',
+    source: 'attendance_not_compared',
+    attendance: {
+      employeeId: '1533', employeeName: 'שחר זוביב', date: '2026-09-06',
+      recordId: 'cancel-1', activityType: 'ביטול זמן', program: 'ביטול זמן מחושב',
+      startTime: '', endTime: '', workHours: 11 / 60,
+      kilometers: 0, publicTransport: false, expenses: 0,
+      _source: {
+        ID: 'cancel-1',
+        recordId: 'cancel-1',
+        generationKind: 'travel_time_cancellation',
+        sourceAttendanceRecordId: 'source-1',
+        travelCalculationStatus: 'resolved',
+        calculatedCancellationMinutes: 11,
+        finalCancellationMinutes: 11,
+        manuallyOverridden: false
+      }
+    },
+    final: {
+      employeeId: '1533', employeeName: 'שחר זוביב', date: '2026-09-06',
+      recordId: 'cancel-1', activityType: 'ביטול זמן', workHours: 11 / 60
+    },
+    differences: [],
+    managerResolved: 'auto_ok'
+  };
+  const html = resultsHtml({
+    comparisons: [],
+    notCompared: [sourceEntry, cancellationEntry],
+    dailyKilometers: []
+  }, '2026-09');
+
+  assert.match(html, /ביטול זמן נסיעה/);
+  assert.match(html, />0:11</);
+  assert.match(html, /זמן נסיעה הלוך: 0:40/);
+  assert.match(html, /זמן נסיעה חזור: 0:38/);
+  assert.doesNotMatch(html, /—–— \| ביטול זמן/);
+  assert.equal((html.match(/class="attendance-control__report"/g) || []).length, 1);
+});
+
+test('system-generated travel cancellation is auto-resolved when calculation is unchanged', () => {
+  const sourceRow = {
+    employeeId: '1533', employeeName: 'שחר זוביב', date: '2026-09-06',
+    recordId: 'source-1', activityType: 'תפעול', program: 'הרמת כוסית',
+    startTime: '11:00', endTime: '11:05', workHours: 5 / 60,
+    kilometers: 80, publicTransport: false, expenses: 0,
+    _source: { ID: 'source-1', recordId: 'source-1' }
+  };
+  const cancellationRow = {
+    employeeId: '1533', employeeName: 'שחר זוביב', date: '2026-09-06',
+    recordId: 'cancel-1', activityType: 'ביטול זמן', program: 'ביטול זמן מחושב',
+    startTime: '', endTime: '', workHours: 11 / 60,
+    kilometers: 0, publicTransport: false, expenses: 0,
+    _source: {
+      ID: 'cancel-1',
+      recordId: 'cancel-1',
+      generationKind: 'travel_time_cancellation',
+      sourceAttendanceRecordId: 'source-1',
+      travelCalculationStatus: 'resolved',
+      calculatedCancellationMinutes: 11,
+      finalCancellationMinutes: 11,
+      manuallyOverridden: false
+    }
+  };
+  const result = compareAttendanceRows([sourceRow, cancellationRow], []);
+  const cancellation = result.notCompared.find((entry) => entry.attendance.recordId === 'cancel-1');
+  assert.equal(cancellation?.managerResolved, 'auto_ok');
 });
