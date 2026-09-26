@@ -74,6 +74,58 @@ test('preloaded travel cache avoids Edge Function calls during planning', async 
   assert.equal(leg.duration_minutes, 12);
 });
 
+test('route client reuses one matrix lookup across different school contexts', async () => {
+  let calls = 0;
+  const client = createRouteClient({
+    invoke: async () => {
+      calls += 1;
+      await new Promise((resolve) => setTimeout(resolve, 2));
+      return { data: { calculated: true, cached: true, distance_km: 7, duration_minutes: 14 } };
+    }
+  });
+
+  const [first, second] = await Promise.all([
+    client.request('כתובת מוצא', 'כתובת יעד', {
+      destinationSchoolName: 'בית ספר א',
+      destinationAuthorityName: 'רשות א'
+    }),
+    client.request('כתובת מוצא', 'כתובת יעד', {
+      destinationSchoolName: 'בית ספר ב',
+      destinationAuthorityName: 'רשות ב'
+    })
+  ]);
+  const third = await client.request('כתובת מוצא', 'כתובת יעד', {
+    destinationSchoolName: 'בית ספר ג',
+    destinationAuthorityName: 'רשות ג'
+  });
+
+  assert.equal(calls, 1);
+  assert.equal(first.distance_km, 7);
+  assert.equal(second.duration_minutes, 14);
+  assert.equal(third.distance_km, 7);
+});
+
+test('preloaded route keys are normalized before local planning lookup', async () => {
+  let calls = 0;
+  const client = createRouteClient({
+    preloadedRows: [{
+      origin_key: '  TEL   AVIV ',
+      destination_key: ' SCHOOL  A ',
+      distance_km: 3,
+      duration_minutes: 8
+    }],
+    invoke: async () => {
+      calls += 1;
+      return { data: { calculated: true, distance_km: 99, duration_minutes: 99 } };
+    }
+  });
+
+  const route = await client.request('tel aviv', 'school a');
+  assert.equal(calls, 0);
+  assert.equal(route.distance_km, 3);
+  assert.equal(route.duration_minutes, 8);
+});
+
 test('filters inactive instructors before matching and route calculation', () => {
   const activeInstructor = instructors[0];
   const inactiveInstructor = { ...instructors[1], active: 'no' };
