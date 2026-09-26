@@ -24,6 +24,15 @@ function rows() {
   ];
 }
 
+test('desktop instructor list uses compact density without changing tablet/mobile breakpoints', () => {
+  const source = readFileSync(new URL('../frontend/src/screens/instructors.js', import.meta.url), 'utf8');
+  assert.match(source, /@media\(min-width:901px\)\{/);
+  assert.match(source, /\.instructors-workspace-grid\{gap:10px\}/);
+  assert.match(source, /\.instructor-card-shell\{min-height:78px\}/);
+  assert.match(source, /\.instructor-card\{min-height:78px;gap:3px;padding:9px 9px\}/);
+  assert.match(source, /@media\(max-width:900px\)\{\.instructors-workspace-grid\{grid-template-columns:repeat\(3,minmax\(0,1fr\)\)\}\}/);
+});
+
 test('unified instructors screen includes active assigned and unassigned instructors', () => {
   const state = {};
   const html = instructorsScreen.render({ rows: rows(), scheduling: { loaded: true } }, { state });
