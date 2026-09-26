@@ -85,9 +85,12 @@ import {
 } from './course-scheduling-planning.js';
 import {
   clearSharedPlanningWorkspace,
+  clearSharedPlanningCheckpoint,
   confirmSharedPlanningDraft,
+  loadSharedPlanningCheckpoint,
   loadSharedPlanningWorkspace,
   planningStoreErrorMessage,
+  saveSharedPlanningCheckpoint,
   saveSharedPlanningLock,
   saveSharedPlanningSnapshot,
   sharedPlanningAffectedCourseIds,
@@ -2242,7 +2245,41 @@ export const courseSchedulingScreen = {
           : currentCourseIds;
 
         const fullRun = forceFull || !shared?.workspace || !existingRows.length || contextChanged || affectedIds.length === 0;
-        const targetCourseIds = fullRun ? null : affectedIds;
+
+        let silentCheckpoint = null;
+        if (fullRun) {
+          try {
+            silentCheckpoint = await loadSharedPlanningCheckpoint({
+              periodKey: scope.periodKey,
+              district: scope.district,
+              engineVersion: PLANNING_ENGINE_VERSION,
+              dataFingerprint: startFingerprint,
+              contextFingerprint: startContextFingerprint
+            });
+          } catch {
+            silentCheckpoint = null;
+          }
+        }
+        assertRunOwnership();
+
+        const checkpointCompletedIds = new Set(
+          (silentCheckpoint?.completedActivityIds || [])
+            .map((value) => text(value))
+            .filter((courseId) => currentCourseIds.includes(courseId))
+        );
+        const resumableRows = (silentCheckpoint?.rows || [])
+          .filter((row) => checkpointCompletedIds.has(text(row?.courseId)));
+        const resumeFromCheckpoint = fullRun
+          && checkpointCompletedIds.size > 0
+          && resumableRows.length > 0;
+        const targetCourseIds = fullRun
+          ? (resumeFromCheckpoint
+              ? currentCourseIds.filter((courseId) => !checkpointCompletedIds.has(courseId))
+              : null)
+          : affectedIds;
+        const planningExistingRows = resumeFromCheckpoint ? resumableRows : existingRows;
+        let lastSilentCheckpointCount = checkpointCompletedIds.size;
+
         state.courseSchedulingPlanningProgress = {
           phase: fullRun ? 'בניית תכנון מלא' : 'עדכון שינויים בלבד',
           completed: 0,
@@ -2271,11 +2308,12 @@ export const courseSchedulingScreen = {
           today: today(),
           routeClient,
           lockedOptions,
-          existingRows,
+          existingRows: planningExistingRows,
           targetCourseIds,
+          resumeFromCheckpoint,
           signal: run.controller.signal,
           checkpoint,
-          onProgress: (progress) => {
+          onProgress: async (progress) => {
             if (!ownsRun()) return;
             state.courseSchedulingPlanningProgress = {
               phase: progress.phase,
@@ -2284,6 +2322,39 @@ export const courseSchedulingScreen = {
             };
             if (Array.isArray(progress.rows)) state.courseSchedulingPlanningRows = progress.rows;
             updatePlanningStatusInPlace();
+
+            if (
+              !fullRun
+              || progress.phase !== 'בניית תוכנית'
+              || !text(progress.courseId)
+              || !Array.isArray(progress.rows)
+            ) return;
+
+            checkpointCompletedIds.add(text(progress.courseId));
+            const finishedThisPass = Number(progress.completed) >= Number(progress.total) && Number(progress.total) > 0;
+            const shouldSaveCheckpoint = checkpointCompletedIds.size - lastSilentCheckpointCount >= 50
+              || finishedThisPass;
+            if (!shouldSaveCheckpoint) return;
+
+            const checkpointRows = progress.rows.filter((row) =>
+              checkpointCompletedIds.has(text(row?.courseId))
+            );
+            try {
+              await saveSharedPlanningCheckpoint({
+                periodKey: scope.periodKey,
+                district: scope.district,
+                engineVersion: PLANNING_ENGINE_VERSION,
+                dataFingerprint: startFingerprint,
+                contextFingerprint: startContextFingerprint,
+                completedCount: checkpointCompletedIds.size,
+                totalCount: checkpointCompletedIds.size + Math.max(0, Number(progress.total) - Number(progress.completed)),
+                completedActivityIds: [...checkpointCompletedIds],
+                rows: checkpointRows
+              });
+              lastSilentCheckpointCount = checkpointCompletedIds.size;
+            } catch {
+              // Checkpointing is resilience-only and deliberately silent.
+            }
           }
         });
 
@@ -2323,6 +2394,16 @@ export const courseSchedulingScreen = {
         state.courseSchedulingPlanningRouteStats = result.routeStats || null;
         state.courseSchedulingPlanningSharedRevision = Number(saved?.revision || canonical?.workspace?.revision) || 0;
         state.courseSchedulingPlanningAffectedIds = [];
+        if (fullRun) {
+          try {
+            await clearSharedPlanningCheckpoint({
+              periodKey: scope.periodKey,
+              district: scope.district
+            });
+          } catch {
+            // Final canonical save succeeded; stale checkpoints are harmless and hidden.
+          }
+        }
 
         const updatedCount = fullRun ? currentCourseIds.length : affectedIds.length;
         showToast(
