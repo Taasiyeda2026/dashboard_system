@@ -74,7 +74,7 @@ const baseCourse = {
 
 test('joint planning chooser cascades date to time to instructor using only validated combinations', () => {
   const planning = {
-    startDate: '2026-10-12',
+    startDate: '2026-10-11',
     startTime: '08:00',
     endTime: '09:30',
     instructorEmpId: '1',
@@ -395,7 +395,7 @@ test('full-year planning keeps an undated first-half course starting in first ha
 test('Saturday planning is allowed for Arab-sector activities and blocked elsewhere', () => {
   const arab = buildWeeklyPlanningMeetings({
     activity: { ...baseCourse, calendar_sector: 'arab' },
-    startDate: '2026-10-10',
+    startDate: '2026-10-17',
     startTime: '08:00',
     durationMinutes: 90,
     sessions: 3,
@@ -403,12 +403,12 @@ test('Saturday planning is allowed for Arab-sector activities and blocked elsewh
     periodKey: 'first'
   });
   assert.ok(arab);
-  assert.equal(arab.startDate, '2026-10-10');
+  assert.equal(arab.startDate, '2026-10-17');
   assert.equal(arab.meetings.length, 3);
 
   const jewish = buildWeeklyPlanningMeetings({
     activity: { ...baseCourse, calendar_sector: 'jewish' },
-    startDate: '2026-10-10',
+    startDate: '2026-10-17',
     startTime: '08:00',
     durationMinutes: 90,
     sessions: 3,
@@ -786,7 +786,7 @@ test('Planning preserves school-provided date and start-time constraints while c
   assert.ok(generated.scenarios.every((scenario) => scenario.meetings[0].date === '2026-10-11'));
 });
 
-test('Planning keeps a school-provided hour and generates only dates on or after 6 October', () => {
+test('Planning keeps a school-provided hour and generates only dates on or after 12 October', () => {
   const constrained = {
     ...baseCourse,
     row_id: 'time-only',
@@ -872,7 +872,7 @@ test('recruitment overview exposes workload language days and training need with
       kind: 'recruitment',
       requiredLanguage: 'ar',
       requiredGender: 'any',
-      startDate: '2026-10-10',
+      startDate: '2026-10-17',
       endDate: '2026-10-17',
       startTime: '08:00',
       endTime: '09:30',
@@ -881,7 +881,7 @@ test('recruitment overview exposes workload language days and training need with
         { date: '2026-10-17', start_time: '08:00', end_time: '09:30' }
       ],
       scheduleOptions: [{
-        startDate: '2026-10-10',
+        startDate: '2026-10-17',
         endDate: '2026-10-17',
         startTime: '08:00',
         endTime: '09:30',
