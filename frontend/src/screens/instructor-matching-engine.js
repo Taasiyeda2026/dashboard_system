@@ -148,11 +148,8 @@ export function formatPersistedActivityReference(activity = {}, meetingDate = ''
   return parts.join(' ');
 }
 
-export function defaultAvailabilityForWeekday(weekday, profile = {}) {
-  const normalized = normalizeSchedulingProfile(profile);
-  return weekday === 6
-    ? { available: false, start_time: null, end_time: null }
-    : { available: weekday >= 0 && weekday <= 4, start_time: normalized.default_start_time, end_time: normalized.default_end_time };
+export function defaultAvailabilityForWeekday() {
+  return { available: false, start_time: null, end_time: null };
 }
 
 export function adjacentActivities(existingActivities, meeting) {
@@ -256,7 +253,6 @@ export function evaluateInstructor({
       failures.push(`שבת פתוחה לשיבוץ רק בבתי ספר בחברה הערבית (${meeting.date})`);
       continue;
     }
-    if (weekday === 5 && !profile.friday_allowed) failures.push(`יום שישי אינו מאושר (${meeting.date})`);
 
     const availability = exceptionMap.get(meeting.date) || ruleMap.get(weekday);
     if (!availability) {
