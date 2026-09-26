@@ -809,7 +809,7 @@ function summaryCardsHtml(rowModels = [], state = {}) {
   }).join('');
 }
 
-function planningAlternativeButtonsHtmlfunction planningAlternativeButtonsHtml(row = {}, expanded = false, state = {}) {
+function planningAlternativeButtonsHtml(row = {}, expanded = false, state = {}) {
   const planning = row.planningRow || {};
   const scheduleAlternatives = Array.isArray(planning.scheduleOptions)
     ? planning.scheduleOptions.filter((option) =>
