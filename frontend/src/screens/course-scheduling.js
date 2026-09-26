@@ -140,6 +140,19 @@ export function cancelCourseSchedulingPlanning(state = null) {
   }
 }
 
+export function detachCourseSchedulingPlanningView(state = null) {
+  schedulingScreenActive = false;
+  cancelPendingPlanningStart();
+  if (activePlanningRun && !activePlanningRun.controller?.signal?.aborted) {
+    activePlanningRun.ui = null;
+    return;
+  }
+  if (state) {
+    state.courseSchedulingPlanningLoading = false;
+    state.courseSchedulingPlanningProgress = null;
+  }
+}
+
 export function scheduleCoursePlanningStart({
   start,
   isActive = () => true,
@@ -971,7 +984,7 @@ function schedulingPlanningStatusHtml(state = {}) {
     const total = Number(progress.total) || 0;
     const completed = Number(progress.completed) || 0;
     const suffix = total ? ` · ${completed} מתוך ${total}` : '';
-    return `<div class="course-scheduling-auto-plan is-working" role="status" data-planning-status aria-busy="true"><span data-planning-status-message><strong>מחשב הצעות שיבוץ</strong>${escapeHtml(suffix)}. אפשר להמשיך לעבוד במסך.</span></div>`;
+    return `<div class="course-scheduling-auto-plan is-working" role="status" data-planning-status aria-busy="true"><span data-planning-status-message><strong>מחשב הצעות שיבוץ</strong>${escapeHtml(suffix)}. אפשר לעבור למסכים אחרים בדשבורד; החישוב ימשיך.</span></div>`;
   }
   if (!state.courseSchedulingPlanningSharedLoaded) {
     return '<div class="course-scheduling-auto-plan is-working" role="status" data-planning-status aria-busy="true"><span data-planning-status-message><strong>טוען את התכנון השמור…</strong></span></div>';
@@ -1847,7 +1860,7 @@ export const courseSchedulingScreen = {
   },
 
   onLeave({ state } = {}) {
-    cancelCourseSchedulingPlanning(state);
+    detachCourseSchedulingPlanningView(state);
   },
 
   render(data, { state }) {
@@ -1999,9 +2012,20 @@ export const courseSchedulingScreen = {
       status.classList.add('is-working');
       status.setAttribute('aria-busy', 'true');
       message.textContent = total
-        ? `${phase || 'המערכת מעדכנת את סידור העבודה'} · ${completed} מתוך ${total}. אפשר להמשיך לעבוד במסך.`
-        : `${phase || 'המערכת מעדכנת את סידור העבודה'}… אפשר להמשיך לעבוד במסך.`;
+        ? `${phase || 'המערכת מעדכנת את סידור העבודה'} · ${completed} מתוך ${total}. אפשר לעבור למסכים אחרים בדשבורד; החישוב ימשיך.`
+        : `${phase || 'המערכת מעדכנת את סידור העבודה'}… אפשר לעבור למסכים אחרים בדשבורד; החישוב ימשיך.`;
     };
+
+    const attachActivePlanningRunUi = () => {
+      if (!activePlanningRun || activePlanningRun.controller?.signal?.aborted) return;
+      activePlanningRun.ui = {
+        isVisible: () => schedulingScreenActive && state.route === 'course-scheduling' && root.isConnected,
+        update: updatePlanningStatusInPlace,
+        rerender: rerenderPreservingWorkboardScroll
+      };
+      updatePlanningStatusInPlace();
+    };
+    if (state.courseSchedulingPlanningLoading) attachActivePlanningRunUi();
 
     const scheduleBackgroundPlanning = ({ forceFull = false } = {}) => {
       if (data._planningBackgroundScheduled || state.courseSchedulingPlanningLoading) return;
@@ -2213,16 +2237,20 @@ export const courseSchedulingScreen = {
       const run = {
         generation: ++planningRunGeneration,
         controller: new AbortController(),
-        root
+        root,
+        ui: {
+          isVisible: () => schedulingScreenActive && state.route === 'course-scheduling' && root.isConnected,
+          update: updatePlanningStatusInPlace,
+          rerender: rerenderPreservingWorkboardScroll
+        }
       };
       activePlanningRun = run;
       const ownsRun = () => (
         activePlanningRun === run
         && run.generation === planningRunGeneration
         && !run.controller.signal.aborted
-        && schedulingScreenActive
-        && state.route === 'course-scheduling'
       );
+      const runUiVisible = () => run.ui?.isVisible?.() === true;
       const assertRunOwnership = () => {
         if (!ownsRun()) throw new PlanningCancelledError();
       };
@@ -2234,7 +2262,7 @@ export const courseSchedulingScreen = {
       state.courseSchedulingPlanningLoading = true;
       state.courseSchedulingPlanningError = '';
       state.courseSchedulingPlanningProgress = { phase: 'רענון נתונים', completed: 0, total: 0 };
-      updatePlanningStatusInPlace();
+      if (runUiVisible()) run.ui?.update?.();
 
       try {
         const routeCachePromise = loadSchedulingTravelCacheRows().catch(() => []);
@@ -2314,7 +2342,7 @@ export const courseSchedulingScreen = {
           completed: 0,
           total: fullRun ? currentCourseIds.length : affectedIds.length
         };
-        updatePlanningStatusInPlace();
+        if (runUiVisible()) run.ui?.update?.();
 
         const profiles = Object.fromEntries((freshStart.scheduling?.profiles || []).map((row) => [text(row.emp_id), row]));
         const routeClient = createRouteClient({
@@ -2351,7 +2379,7 @@ export const courseSchedulingScreen = {
               total: progress.total
             };
             if (Array.isArray(progress.rows)) state.courseSchedulingPlanningRows = progress.rows;
-            updatePlanningStatusInPlace();
+            if (runUiVisible()) run.ui?.update?.();
 
             if (
               !fullRun
@@ -2443,10 +2471,12 @@ export const courseSchedulingScreen = {
               const pendingCount = (state.courseSchedulingPlanningAffectedIds || []).length;
               rerunChangedAfterSave = pendingCount > 0;
               state.courseSchedulingPlanningError = '';
-              showToast(
-                `התכנון נשמר: ${stableRows.length} פעילויות נשמרו, ו-${pendingCount} פעילויות שהשתנו יעודכנו כעת.`,
-                'success'
-              );
+              if (runUiVisible()) {
+                showToast(
+                  `התכנון נשמר: ${stableRows.length} פעילויות נשמרו, ו-${pendingCount} פעילויות שהשתנו יעודכנו כעת.`,
+                  'success'
+                );
+              }
               return;
             }
           }
@@ -2491,12 +2521,14 @@ export const courseSchedulingScreen = {
         }
 
         const updatedCount = fullRun ? currentCourseIds.length : affectedIds.length;
-        showToast(
-          fullRun
-            ? `התכנון המשותף נשמר: ${currentCourseIds.length} פעילויות נבדקו.`
-            : `התכנון המשותף עודכן: חושבו מחדש רק ${updatedCount} פעילויות שהושפעו.`,
-          'success'
-        );
+        if (runUiVisible()) {
+          showToast(
+            fullRun
+              ? `התכנון המשותף נשמר: ${currentCourseIds.length} פעילויות נבדקו.`
+              : `התכנון המשותף עודכן: חושבו מחדש רק ${updatedCount} פעילויות שהושפעו.`,
+            'success'
+          );
+        }
       } catch (error) {
         if (isPlanningCancellationError(error) || !ownsRun()) return;
         state.courseSchedulingPlanningError = planningStoreErrorMessage(error, 'חישוב התכנון נכשל');
@@ -2509,9 +2541,13 @@ export const courseSchedulingScreen = {
         if (!ownsRun()) return;
         state.courseSchedulingPlanningLoading = false;
         state.courseSchedulingPlanningProgress = null;
+        const visibleUi = runUiVisible() ? run.ui : null;
         activePlanningRun = null;
-        rerenderPreservingWorkboardScroll();
-        if (rerunChangedAfterSave) scheduleBackgroundPlanning({ forceFull: false });
+        visibleUi?.rerender?.();
+        if (rerunChangedAfterSave) {
+          if (visibleUi) scheduleBackgroundPlanning({ forceFull: false });
+          else queueMicrotask(() => { void runCoursePlanning({ forceFull: false }); });
+        }
       }
     };
 
