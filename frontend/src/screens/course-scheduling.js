@@ -599,6 +599,95 @@ function planningPrimaryOption(planningRow = {}) {
   return selected || options[0] || null;
 }
 
+function uniquePlanningChoiceValues(items = [], keyOf = (item) => item) {
+  const seen = new Set();
+  const result = [];
+  for (const item of items || []) {
+    const key = text(keyOf(item));
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    result.push(item);
+  }
+  return result;
+}
+
+export function planningJointChoiceModel(planningRow = {}, draft = {}) {
+  const options = (Array.isArray(planningRow?.options) ? planningRow.options : [])
+    .filter((option) =>
+      text(option?.startDate)
+      && text(option?.startTime)
+      && text(option?.endTime)
+      && text(option?.instructorEmpId)
+      && Array.isArray(option?.meetings)
+      && option.meetings.length
+    );
+  if (!options.length) {
+    return {
+      options: [],
+      dates: [],
+      times: [],
+      instructors: [],
+      selectedDate: '',
+      selectedTimeKey: '',
+      selectedInstructorEmpId: '',
+      optionIndex: -1,
+      option: null
+    };
+  }
+
+  const dates = uniquePlanningChoiceValues(options, (option) => option.startDate)
+    .map((option) => text(option.startDate));
+  const preferredDate = text(draft?.date || planningRow?.startDate || options[0]?.startDate);
+  const selectedDate = dates.includes(preferredDate) ? preferredDate : dates[0];
+
+  const dateOptions = options.filter((option) => text(option.startDate) === selectedDate);
+  const timeOptions = uniquePlanningChoiceValues(dateOptions, (option) => `${text(option.startTime)}|${text(option.endTime)}`);
+  const times = timeOptions.map((option) => ({
+    key: `${text(option.startTime)}|${text(option.endTime)}`,
+    startTime: text(option.startTime),
+    endTime: text(option.endTime)
+  }));
+  const planningTimeKey = `${text(planningRow?.startTime)}|${text(planningRow?.endTime)}`;
+  const preferredTimeKey = text(draft?.timeKey) || planningTimeKey;
+  const selectedTimeKey = times.some((item) => item.key === preferredTimeKey)
+    ? preferredTimeKey
+    : (times[0]?.key || '');
+
+  const [selectedStartTime = '', selectedEndTime = ''] = selectedTimeKey.split('|');
+  const instructorOptions = dateOptions.filter((option) =>
+    text(option.startTime) === selectedStartTime
+    && text(option.endTime) === selectedEndTime
+  );
+  const instructors = uniquePlanningChoiceValues(instructorOptions, (option) => option.instructorEmpId)
+    .map((option) => ({
+      empId: text(option.instructorEmpId),
+      name: text(option.instructorName || option.instructorEmpId)
+    }));
+  const preferredInstructor = text(draft?.instructorEmpId || planningRow?.instructorEmpId || instructorOptions[0]?.instructorEmpId);
+  const selectedInstructorEmpId = instructors.some((item) => item.empId === preferredInstructor)
+    ? preferredInstructor
+    : (instructors[0]?.empId || '');
+
+  const optionIndex = options.findIndex((option) =>
+    text(option.startDate) === selectedDate
+    && text(option.startTime) === selectedStartTime
+    && text(option.endTime) === selectedEndTime
+    && text(option.instructorEmpId) === selectedInstructorEmpId
+  );
+
+  return {
+    options,
+    dates,
+    times,
+    instructors,
+    selectedDate,
+    selectedTimeKey,
+    selectedInstructorEmpId,
+    optionIndex,
+    option: optionIndex >= 0 ? options[optionIndex] : null
+  };
+}
+
 function workboardAlert(row = {}) {
   const planning = row.planningRow || {};
   const result = row.result || {};
@@ -610,7 +699,8 @@ function workboardAlert(row = {}) {
     return planning.startDate ? 'מועד מוצע לבית הספר מוכן · נדרש גיוס' : 'אין מדריך מתאים כרגע';
   }
   if (planning.kind === 'missing' || planning.kind === 'fixed' || result.status === 'חסר מידע') {
-    return planning.startDate ? 'מועד מוצע מוכן · נדרשת בדיקה נוספת' : 'חסר מידע לתכנון';
+    return text(planning.reason)
+      || (planning.startDate ? 'מועד מוצע מוכן · נדרשת בדיקה נוספת' : 'חסר מידע לתכנון');
   }
   if (result.status === 'נדרש טיפול') return text(result.treatmentReason) || 'נדרשת בדיקה';
   const option = planningPrimaryOption(planning);
@@ -707,36 +797,67 @@ function summaryCardsHtml(rowModels = []) {
     <article class="course-scheduling-summary-card course-scheduling-summary-card--ready"><b>${assigned}</b><span>משובץ</span></article>`;
 }
 
-function planningAlternativeButtonsHtml(row = {}, expanded = false) {
+function planningAlternativeButtonsHtml(row = {}, expanded = false, state = {}) {
   const planning = row.planningRow || {};
-  const options = Array.isArray(planning.options) ? planning.options : [];
-  const alternatives = options.slice(1);
   const scheduleAlternatives = Array.isArray(planning.scheduleOptions)
     ? planning.scheduleOptions.filter((option) =>
         text(option.startDate) !== text(planning.startDate)
         || text(option.startTime) !== text(planning.startTime)
-      ).slice(0, 3)
+      ).slice(0, 4)
     : [];
   if (!expanded || row.isAssigned) return '';
 
-  if (alternatives.length && !row.hasActualDraft) {
-    return `<div class="course-scheduling-workboard-alternatives">
-      <strong>חלופות</strong>
-      ${alternatives.map((option, index) => `<button type="button" class="course-scheduling-workboard-alt"
-        data-course-row-action data-planning-pick-option data-planning-course-id="${escapeHtml(row.id)}" data-planning-option-index="${index + 1}">
-        <span>${escapeHtml(option.instructorName || '—')}</span>
-        <small><bdi dir="ltr">${escapeHtml(formatDateHe(option.startDate))}</bdi> · <bdi dir="ltr">${escapeHtml(formatTimeRangeShort(option.startTime, option.endTime))}</bdi></small>
-      </button>`).join('')}
+  const draft = state?.courseSchedulingChoiceDrafts?.[row.id] || {};
+  const choice = planningJointChoiceModel(planning, draft);
+  if (choice.options.length && !row.hasActualDraft) {
+    return `<div class="course-scheduling-workboard-alternatives course-scheduling-workboard-choice-panel">
+      <strong>בחר תאריך, שעה ומדריך</strong>
+      <label class="course-scheduling-planning-choice">
+        <span>תאריך התחלה</span>
+        <select data-course-row-action data-planning-choice-date data-course-id="${escapeHtml(row.id)}">
+          ${choice.dates.map((date) => `<option value="${escapeHtml(date)}"${date === choice.selectedDate ? ' selected' : ''}>${escapeHtml(formatDateHe(date))}</option>`).join('')}
+        </select>
+      </label>
+      <label class="course-scheduling-planning-choice">
+        <span>שעות</span>
+        <select data-course-row-action data-planning-choice-time data-course-id="${escapeHtml(row.id)}">
+          ${choice.times.map((item) => `<option value="${escapeHtml(item.key)}"${item.key === choice.selectedTimeKey ? ' selected' : ''}>${escapeHtml(formatTimeRangeShort(item.startTime, item.endTime))}</option>`).join('')}
+        </select>
+      </label>
+      <label class="course-scheduling-planning-choice">
+        <span>מדריך</span>
+        <select data-course-row-action data-planning-choice-instructor data-course-id="${escapeHtml(row.id)}">
+          ${choice.instructors.map((item) => `<option value="${escapeHtml(item.empId)}"${item.empId === choice.selectedInstructorEmpId ? ' selected' : ''}>${escapeHtml(item.name)}</option>`).join('')}
+        </select>
+      </label>
+      <button type="button" class="course-scheduling-workboard-primary course-scheduling-planning-choice-apply"
+        data-course-row-action data-planning-pick-option data-planning-course-id="${escapeHtml(row.id)}"
+        data-planning-option-index="${choice.optionIndex}"${choice.optionIndex < 0 ? ' disabled' : ''}>
+        בחר שילוב
+      </button>
+      <small class="course-scheduling-planning-choice-note">מוצגים רק שילובים שעברו את תנאי הסף והבדיקות התפעוליות.</small>
     </div>`;
   }
 
-  if (scheduleAlternatives.length) {
+  if (scheduleAlternatives.length || planning.startDate) {
+    const schedules = [
+      ...(planning.startDate ? [{
+        startDate: planning.startDate,
+        endDate: planning.endDate,
+        startTime: planning.startTime,
+        endTime: planning.endTime
+      }] : []),
+      ...scheduleAlternatives
+    ].slice(0, 4);
     return `<div class="course-scheduling-workboard-alternatives">
-      <strong>חלופות למועד</strong>
-      ${scheduleAlternatives.map((option) => `<div class="course-scheduling-workboard-alt is-static">
-        <span>${planning.kind === 'recruitment' ? 'נדרש גיוס' : 'מועד חלופי'}</span>
-        <small><bdi dir="ltr">${escapeHtml(formatDateHe(option.startDate))}</bdi> · <bdi dir="ltr">${escapeHtml(formatTimeRangeShort(option.startTime, option.endTime))}</bdi></small>
+      <strong>${planning.kind === 'recruitment' ? 'מועדים אפשריים לגיוס' : 'מועדים אפשריים'}</strong>
+      ${schedules.map((option) => `<div class="course-scheduling-workboard-alt is-static">
+        <span><bdi dir="ltr">${escapeHtml(formatDateHe(option.startDate))}</bdi></span>
+        <small>שעות: <bdi dir="ltr">${escapeHtml(formatTimeRangeShort(option.startTime, option.endTime))}</bdi></small>
       </div>`).join('')}
+      <small class="course-scheduling-planning-choice-note">${planning.kind === 'recruitment'
+        ? 'למועדים האלה לא נמצא כרגע מדריך מהצוות שעובר את כל תנאי הסף.'
+        : escapeHtml(text(planning.reason) || 'נדרשת בדיקה נוספת לפני בחירת מדריך.')}</small>
     </div>`;
   }
   return '';
@@ -795,7 +916,7 @@ function courseListCardHtml(row, selectedId, state = {}) {
       planningLoading: !!state.courseSchedulingPlanningLoading,
       alternativesExpanded: expanded
     })}</span>
-    ${planningAlternativeButtonsHtml(row, expanded)}
+    ${planningAlternativeButtonsHtml(row, expanded, state)}
   </div>`;
 }
 
