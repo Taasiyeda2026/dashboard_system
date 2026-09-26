@@ -2732,6 +2732,9 @@ export function planningCompletionOverviewHtml(rows = [], { pendingChanges = 0, 
         programs: new Set(),
         languages: new Set(),
         gender: '',
+        weekdays: new Set(),
+        meetingCount: 0,
+        teachingMinutes: 0,
         firstStart: '',
         lastEnd: ''
       });
@@ -2740,14 +2743,28 @@ export function planningCompletionOverviewHtml(rows = [], { pendingChanges = 0, 
     profile.activities.push(row);
     if (text(row.authority)) profile.authorities.add(text(row.authority));
     if (text(row.courseName)) profile.programs.add(text(row.courseName));
-    if (text(row.requiredLanguage)) profile.languages.add(text(row.requiredLanguage));
-    const gender = normalizedGenderRequirement(row.requiredGender);
-    if (gender !== 'any') profile.gender = gender;
+    if (text(row.requiredLanguage)) profile.languages.add(planningRecruitmentLanguageLabel(row.requiredLanguage));
+    const gender = planningRecruitmentGenderLabel(row.requiredGender);
+    if (gender) profile.gender = gender;
+    for (const meeting of Array.isArray(row.meetings) ? row.meetings : []) {
+      const date = text(meeting?.date).slice(0, 10);
+      const start = timeMinutes(meeting?.start_time || row.startTime);
+      const end = timeMinutes(meeting?.end_time || row.endTime);
+      const day = weekday(date);
+      if (day != null && PLANNING_WEEKDAY_LABELS[day]) profile.weekdays.add(PLANNING_WEEKDAY_LABELS[day]);
+      profile.meetingCount += 1;
+      if (start != null && end != null && end > start) profile.teachingMinutes += end - start;
+    }
     const dates = planningCompletionDateRange(row);
     if (dates.startDate && (!profile.firstStart || dates.startDate < profile.firstStart)) profile.firstStart = dates.startDate;
     if (dates.endDate && (!profile.lastEnd || dates.endDate > profile.lastEnd)) profile.lastEnd = dates.endDate;
   }
   const recruitmentProfileRows = [...recruitmentProfiles.values()]
+    .map((profile) => ({
+      ...profile,
+      teachingHours: Math.round((profile.teachingMinutes / 60) * 10) / 10,
+      weekdays: [...profile.weekdays]
+    }))
     .sort((a, b) => b.activities.length - a.activities.length || a.label.localeCompare(b.label, 'he'));
 
   const pendingCount = Math.max(0, Number(pendingChanges) || 0);
