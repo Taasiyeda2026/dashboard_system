@@ -74,7 +74,7 @@ const baseCourse = {
 
 test('joint planning chooser cascades date to time to instructor using only validated combinations', () => {
   const planning = {
-    startDate: '2026-10-11',
+    startDate: '2026-10-12',
     startTime: '08:00',
     endTime: '09:30',
     instructorEmpId: '1',
@@ -376,7 +376,7 @@ test('full-year planning keeps an undated first-half course starting in first ha
   assert.ok(generated.scenarios.length > 0);
   for (const scenario of generated.scenarios) {
     assert.equal(scenario.meetings.length, 10);
-    assert.ok(scenario.startDate >= '2026-10-06');
+    assert.ok(scenario.startDate >= '2026-10-12');
     assert.ok(scenario.endDate <= '2027-02-28');
   }
 
@@ -418,9 +418,9 @@ test('Saturday planning is allowed for Arab-sector activities and blocked elsewh
   assert.equal(jewish, null);
 });
 
-test('weekly planning starts on or after 6 October and may continue through February', () => {
-  assert.equal(PLANNING_OPERATIONAL_START_DATE, '2026-10-06');
-  assert.equal(planningEffectivePeriod('first').start, '2026-10-06');
+test('weekly planning starts on or after 12 October and may continue through February', () => {
+  assert.equal(PLANNING_OPERATIONAL_START_DATE, '2026-10-12');
+  assert.equal(planningEffectivePeriod('first').start, '2026-10-12');
   assert.equal(buildWeeklyPlanningMeetings({
     activity: baseCourse,
     startDate: '2026-10-04',
@@ -441,7 +441,7 @@ test('weekly planning starts on or after 6 October and may continue through Febr
     periodKey: 'first'
   });
   assert.equal(valid.meetings.length, 11);
-  assert.equal(valid.startDate, '2026-10-11');
+  assert.equal(valid.startDate, '2026-10-12');
   assert.ok(valid.endDate <= '2027-01-29');
 
   const februaryContinuation = buildWeeklyPlanningMeetings({
@@ -490,11 +490,11 @@ test('planning scenarios offer dynamic dates and hours while respecting first-ha
     periodKey: 'first'
   });
   assert.ok(generated.scenarios.length > 0);
-  assert.ok(generated.startRange?.min >= '2026-10-06');
+  assert.ok(generated.startRange?.min >= '2026-10-12');
   assert.ok(generated.startRange?.max <= '2027-01-29');
   for (const scenario of generated.scenarios) {
     assert.equal(scenario.meetings.length, 11);
-    assert.ok(scenario.startDate >= '2026-10-06');
+    assert.ok(scenario.startDate >= '2026-10-12');
     assert.ok(scenario.endDate <= '2027-02-28');
     assert.ok(scenario.startTime);
     assert.ok(scenario.endTime);
@@ -806,7 +806,7 @@ test('Planning keeps a school-provided hour and generates only dates on or after
     periodKey: 'first'
   });
   assert.ok(generated.scenarios.length > 0);
-  assert.ok(generated.scenarios.every((scenario) => scenario.startDate >= '2026-10-06'));
+  assert.ok(generated.scenarios.every((scenario) => scenario.startDate >= '2026-10-12'));
   assert.ok(generated.scenarios.every((scenario) => scenario.startTime === '11:00'));
 });
 
@@ -1059,7 +1059,7 @@ test('national planning prefers an early first-half start for an undated 10-meet
   });
   const row = result.rows[0];
   assert.equal(row.kind, 'proposal');
-  assert.ok(row.startDate >= '2026-10-06');
+  assert.ok(row.startDate >= '2026-10-12');
   assert.ok(row.startDate < '2026-11-01');
   assert.ok(row.endDate <= '2027-01-29');
   assert.equal(row.meetings.length, 10);
