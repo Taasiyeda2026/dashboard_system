@@ -170,8 +170,8 @@ function constraintsModal(row) {
   return new JSDOM(`<section class="ds-modal ds-modal--instructor-constraints"><div class="ds-modal__content">${constraintsForm(row)}</div><footer class="ds-modal__footer"><button data-ui-close-modal>סגירה</button><button data-save-instructor-constraints>שמירת זמינות</button></footer></section>`);
 }
 
-test('constraints footer save binds once, locks during saving, and submits all weekdays', async () => {
-  const row = { emp_id: '1500', scheduling_profile: { friday_allowed: false, gender: 'female', instruction_languages: ['he'] }, availability_rules: [], availability_exceptions: [] };
+test('constraints footer saves only explicitly selected day/hour availability', async () => {
+  const row = { emp_id: '1500', scheduling_profile: { gender: 'female', instruction_languages: ['he'] }, availability_rules: [], availability_exceptions: [] };
   const dom = constraintsModal(row);
   let profileCalls = 0;
   let rulesCalls = 0;
@@ -186,10 +186,22 @@ test('constraints footer save binds once, locks during saving, and submits all w
     bindInstructorConstraintsModal(modal, options);
     bindInstructorConstraintsModal(modal, options);
     assert.ok(modal.querySelector('.ds-modal__footer [data-save-instructor-constraints]'));
-    const unavailable = modal.querySelector('[data-weekday-row="2"]');
-    unavailable.querySelector('[name="available"]').click();
-    assert.equal(unavailable.querySelector('[name="start_time"]').disabled, true);
-    modal.querySelector('[name="friday_allowed"]').checked = true;
+    assert.equal(modal.querySelector('[name="default_start_time"]'), null);
+    assert.equal(modal.querySelector('[name="default_end_time"]'), null);
+    assert.equal(modal.querySelector('[name="friday_allowed"]'), null);
+
+    const tuesday = modal.querySelector('[data-weekday-row="2"]');
+    assert.equal(tuesday.querySelector('[name="start_time"]').disabled, true);
+    tuesday.querySelector('[name="available"]').click();
+    assert.equal(tuesday.querySelector('[name="start_time"]').disabled, false);
+    tuesday.querySelector('[name="start_time"]').value = '09:00';
+    tuesday.querySelector('[name="end_time"]').value = '14:30';
+
+    const saturday = modal.querySelector('[data-weekday-row="6"]');
+    saturday.querySelector('[name="available"]').click();
+    saturday.querySelector('[name="start_time"]').value = '08:30';
+    saturday.querySelector('[name="end_time"]').value = '13:00';
+
     const save = modal.querySelector('[data-save-instructor-constraints]');
     save.click();
     save.click();
@@ -200,12 +212,14 @@ test('constraints footer save binds once, locks during saving, and submits all w
     assert.equal(save.getAttribute('aria-busy'), 'true');
     assert.equal(rulesPayload.length, 7);
     assert.deepEqual(rulesPayload.map((rule) => rule.weekday), [0, 1, 2, 3, 4, 5, 6]);
-    assert.equal(rulesPayload.find((rule) => rule.weekday === 2).available, false);
-    assert.equal(rulesPayload.find((rule) => rule.weekday === 6).available, false);
-    assert.equal(profilePayload.friday_allowed, true);
+    assert.equal(rulesPayload.find((rule) => rule.weekday === 2).available, true);
+    assert.equal(rulesPayload.find((rule) => rule.weekday === 2).start_time, '09:00');
+    assert.equal(rulesPayload.find((rule) => rule.weekday === 2).end_time, '14:30');
+    assert.equal(rulesPayload.find((rule) => rule.weekday === 6).available, true);
+    assert.equal(rulesPayload.find((rule) => rule.weekday === 6).start_time, '08:30');
+    assert.equal(rulesPayload.find((rule) => rule.weekday === 6).end_time, '13:00');
     assert.equal(profilePayload.gender, row.scheduling_profile.gender);
     assert.deepEqual(profilePayload.instruction_languages, row.scheduling_profile.instruction_languages);
-    assert.deepEqual(profilePayload.education_levels, row.scheduling_profile.education_levels);
     release();
     await pending;
     await new Promise((resolve) => setTimeout(resolve, 0));
