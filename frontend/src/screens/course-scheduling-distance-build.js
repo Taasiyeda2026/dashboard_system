@@ -719,7 +719,7 @@ export async function runDistanceBuildLoop({
   invoke,
   scope = 'all',
   month,
-  limit = 25,
+  limit = 50,
   shouldStop = () => false,
   onProgress = async () => {}
 } = {}) {
