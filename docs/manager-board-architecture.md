@@ -396,3 +396,40 @@ Click "לוח מנהל"
 ## מסקנה
 
 יש ראיות קוד ברורות ל־critical path רחב, payload עונתי, query/profile שאינו משפיע על DOM הסופי, היעדר in-flight dedupe ומרוץ ownership עם dashboard. אין עדיין ראיה שמספר הפעילויות כשלעצמו הוא הסיבה לאיטיות, ואין מספרי backend/frontend אמינים ללא session trace ולוגים. לכן הצעד הבא הנכון הוא baseline מדוד, ורק אחריו יישום רמה 1 באישור מפורש.
+
+---
+
+## 15. עדכון שלב 2 — Low Risk
+
+### מגבלת baseline בסביבת העבודה
+
+ניסיון המדידה המאומת נעצר לפני login: לא הוזרקו לסביבה `E2E_USERNAME`/`E2E_PASSWORD`, לא נמצא Playwright storage state, יציאה ל־production נחסמה ב־HTTP 403 על ידי ה־proxy, וגם התקנת Chromium נחסמה ב־403. לכן אין להציג מספרי production של click/auth/query/paint או השוואת milliseconds לפני/אחרי כאילו נמדדו. לא הושאר instrumentation ב־production.
+
+הוכחו ישירות מה־control flow של הקוד שלוש עובדות שאינן תלויות בזמן רשת:
+
+1. כל קריאה חופפת ל־`loadBoardData(period)` עברה את בדיקת ה־result cache ופתחה query set חדש; כעת promise פעיל נשמר לפי period ומשותף לכל caller.
+2. `loadActiveBirthdays()` היה איבר ב־`Promise.all` שהקדים את החלפת `#screenRoot`; כעת הוא מתחיל רק אחרי רינדור הלוח ומעדכן רק את `[data-manager-board-important-dates]`.
+3. ה־runtime הראשי טען את כל `instructor_scheduling_profiles`, חישב cards ובנה `.manager-board-panel--instructors`, בעוד `manager-board-final-fixes-runtime.js` הסיר את הפאנל בכל mount. ה־query, החישוב וה־markup הוסרו; team strip ופתיחת מדריך נשארו ללא שינוי.
+
+### השוואה מבנית לפני ואחרי
+
+| מדד | לפני | אחרי | הערת מדידה |
+|---|---:|---:|---|
+| queries חוסמים ב־`loadBoardData` | 6 | 4 | activities, contacts, calendar, users נשארו; profiles ו־birthdays אינם חוסמים |
+| birthday query ב־critical path | 1 | 0 | עדיין מתבצעת פעם אחת ברקע דרך ה־cache/single-flight הקיים של birthday loader |
+| query של scheduling profiles | 1 | 0 | הפאנל היחיד שצרך אותו לא שרד post-render |
+| query sets פעילים לאותו period | ללא הגבלה מקומית | לכל היותר 1 | Map של in-flight promises; completed-result TTL נשאר 90 שניות |
+| כשל birthdays | המתנה לסיום ואז לוח ללא birthdays | לוח נשאר מוצג; section מתעדכן לריק | אין חזרה ל־full-screen loading |
+| milliseconds / first paint / Auth | לא נמדד | לא נמדד | חסרים session, browser וגישת production; אין להמציא ערכים |
+| render כפול Dashboard→Board | חשד בלבד | לא שונה | לא היה trace שמוכיח את המרוץ, ולכן שינוי navigation נאסר בשלב זה |
+
+### מה לא שונה
+
+- Auth helper והשימוש בו נשארו ללא שינוי, משום שלא ניתן היה למדוד עיכוב עם session תקף.
+- query של activities, ‏35 עמודות התאריך, schema ו־RLS לא שונו.
+- navigation/dashboard ownership לא שונו ללא trace runtime.
+- workspace, Attendance, Personal Reports, Scheduling ו־Customer File לא שונו.
+
+### השלמת baseline הנדרשת לפני Medium Risk
+
+יש להריץ את תוכנית המדידה שבסעיף 10 בסביבה בעלת browser וחשבון בדיקה ייעודי, ולצרף HAR/trace עבור חמשת התרחישים שביקש בעל המערכת. במיוחד יש להשלים את count של renders ו־MutationObserver callbacks ואת trace המרוץ האפשרי מול dashboard. עד אז אין לעבור לסינון activities לפי manager, שינוי Auth או שינוי route ownership.

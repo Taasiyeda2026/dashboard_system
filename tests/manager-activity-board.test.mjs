@@ -105,6 +105,29 @@ test('birthdays reuse the existing employee_birthdays loader instead of a new so
   assert.ok(!runtimeSrc.includes('employee_birthdays'));
 });
 
+test('manager board core load is single-flight per activity period', () => {
+  assert.match(runtimeSrc, /const dataLoadPromises = new Map\(\)/);
+  assert.match(runtimeSrc, /if \(dataLoadPromises\.has\(normalizedPeriod\)\) return dataLoadPromises\.get\(normalizedPeriod\)/);
+  assert.match(runtimeSrc, /dataLoadPromises\.set\(normalizedPeriod, loadPromise\)/);
+  assert.match(runtimeSrc, /if \(dataLoadPromises\.get\(normalizedPeriod\) === loadPromise\) dataLoadPromises\.delete\(normalizedPeriod\)/);
+});
+
+test('birthdays hydrate only the important-dates region after the usable board renders', () => {
+  const renderAssignment = runtimeSrc.indexOf('root.innerHTML = renderBoardMarkup');
+  const birthdayHydration = runtimeSrc.indexOf('void hydrateBoardBirthdays(root, data, requestId)', renderAssignment);
+  assert.ok(renderAssignment >= 0 && birthdayHydration > renderAssignment);
+  assert.match(runtimeSrc, /data-manager-board-important-dates/);
+  assert.match(runtimeSrc, /region\.innerHTML = renderImportantDates/);
+  const coreLoad = runtimeSrc.slice(runtimeSrc.indexOf('async function loadBoardData'), runtimeSrc.indexOf('function buildMeetingRows'));
+  assert.doesNotMatch(coreLoad, /loadActiveBirthdays/);
+});
+
+test('the removed monthly instructor panel is neither queried nor built', () => {
+  assert.doesNotMatch(runtimeSrc, /\.from\(['"]instructor_scheduling_profiles['"]\)/);
+  assert.doesNotMatch(runtimeSrc, /manager-board-panel--instructors/);
+  assert.doesNotMatch(runtimeSrc, /renderInstructorCards|instructorMonthStats/);
+});
+
 test('calendar day cell exposes a whole-cell click target with a clear activity count, not per-event handlers', () => {
   assert.ok(runtimeSrc.includes('data-manager-board-day'));
   assert.ok(runtimeSrc.includes('manager-board-calendar-day__count'));

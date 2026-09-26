@@ -225,3 +225,4 @@ config.HOTFIX_VERSION = `course-planning-excel-batched-recalc-20260924-v1-${conf
 config.HOTFIX_VERSION = `activities-progressive-contact-enrichment-20260924-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `activities-contact-identity-preservation-20260924-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `scheduling-cooperative-cancellation-20260925-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `manager-board-low-risk-loading-20260926-v1-${config.HOTFIX_VERSION}`;
