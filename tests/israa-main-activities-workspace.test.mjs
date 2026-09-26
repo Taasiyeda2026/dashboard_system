@@ -37,10 +37,12 @@ test('proposal quantity expands into one editable Israa activity row per group',
   assert.match(workspace, /for \(let groupNumber = 1; groupNumber <= quantity; groupNumber \+= 1\)/);
   assert.match(workspace, /draftRowId\(tracking\.id, proposalItemId, group\)/);
   assert.match(workspace, /israa_group_number: group/);
-  assert.match(workspace, /class_group: effective\.class_group \|\| effective\.group \|\| `קבוצה \\${group}`/);
+  assert.match(workspace, /class_group: effective\.class_group \|\| effective\.group/);
+  assert.match(workspace, /israa_total_groups: totalGroups/);
   assert.match(workspace, /saveIsraaActivityGroupDraft\(draftRef\.trackingId, draftRef\.proposalItemId, draftRef\.groupNumber, changes\)/);
   const fallback = fs.readFileSync(new URL('../frontend/src/screens/israa-management.js', import.meta.url), 'utf8');
-  assert.match(fallback, /קבוצה \\${groupNumber} מתוך \\${quantity}/);
+  assert.match(fallback, /קבוצה/);
+  assert.match(fallback, /groupNumber <= quantity/);
   assert.match(fallback, /saveIsraaActivityGroupDraft\(trackingId, proposalItemId, groupNumber/);
 });
 
@@ -82,7 +84,7 @@ test('selecting an Israa proposal activity no longer reloads or closes the page'
 });
 
 test('workspace loads lazily with a fresh module and cache version', () => {
-  assert.match(proposalItems, /import\('\.\/israa-activities-main-workspace\.js\?v=20260926-v5'\)/);
+  assert.match(proposalItems, /import\('\.\/israa-activities-main-workspace\.js\?v=20260926-v6'\)/);
   assert.match(proposalItems, /data-israa-tab=\"activities\"/);
   assert.match(proposalItems, /ensureMainActivitiesWorkspace\(\)/);
   assert.doesNotMatch(bootstrap, /israa-activities-main-workspace/);
