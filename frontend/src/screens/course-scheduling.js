@@ -983,7 +983,7 @@ function schedulingPlanningStatusHtml(state = {}) {
     </div>`;
   }
   return `<div class="course-scheduling-auto-plan is-ready" role="status" data-planning-status aria-busy="false">
-    <span data-planning-status-message><strong>התכנון שמור ומעודכן.</strong> עודכן ${escapeHtml(calculatedAt)}. מעבר בין מסכים לא מפעיל חישוב חדש.</span>
+    <span data-planning-status-message><strong>התכנון מעודכן.</strong></span>
     <button type="button" class="course-scheduling-workboard-secondary" data-run-course-planning>חשב מחדש</button>
   </div>`;
 }
