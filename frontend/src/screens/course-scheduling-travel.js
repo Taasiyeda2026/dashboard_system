@@ -121,9 +121,10 @@ export function createRouteClient({
 } = {}) {
   const cache = new Map();
   const persistentCache = new Map();
+  const matrixPromises = new Map();
   for (const row of preloadedRows || []) {
-    const originKey = text(row?.origin_key) || normalizePlace(row?.origin_address);
-    const destinationKey = text(row?.destination_key) || normalizePlace(row?.destination_address);
+    const originKey = normalizePlace(text(row?.origin_key) || row?.origin_address);
+    const destinationKey = normalizePlace(text(row?.destination_key) || row?.destination_address);
     const distance = Number(row?.distance_km);
     const duration = Number(row?.duration_minutes);
     if (!originKey || !destinationKey || !Number.isFinite(distance) || !Number.isFinite(duration)) continue;
@@ -174,12 +175,20 @@ export function createRouteClient({
     const cacheKey = routeRequestKey(origin, destination, normalizedContext);
     if (cache.has(cacheKey)) return cache.get(cacheKey);
 
-    const persistent = persistentCache.get(routeMatrixKey(origin, destination));
+    const matrixKey = routeMatrixKey(origin, destination);
+    const persistent = persistentCache.get(matrixKey);
     if (persistent) {
       cacheHits += 1;
-      const hit = Promise.resolve({ ...persistent });
+      const hit = Promise.resolve({ ...persistent, cached: true });
       cache.set(cacheKey, hit);
       return hit;
+    }
+
+    if (matrixPromises.has(matrixKey)) {
+      cacheHits += 1;
+      const shared = matrixPromises.get(matrixKey);
+      cache.set(cacheKey, shared);
+      return shared;
     }
 
     const payload = {
@@ -203,17 +212,29 @@ export function createRouteClient({
           }
           if (data.cached) cacheHits += 1;
           else googleCalls += 1;
-          return {
+          const route = {
             distance_km: Number(data.distance_km),
             duration_minutes: Number(data.duration_minutes),
             cached: !!data.cached
           };
+          if (Number.isFinite(route.distance_km) && Number.isFinite(route.duration_minutes)) {
+            persistentCache.set(matrixKey, route);
+          }
+          return route;
         }
       });
       pump();
     });
-    cache.set(cacheKey, promise);
-    return promise;
+    const sharedPromise = promise.then((result) => {
+      if (!result) matrixPromises.delete(matrixKey);
+      return result;
+    }, (error) => {
+      matrixPromises.delete(matrixKey);
+      throw error;
+    });
+    matrixPromises.set(matrixKey, sharedPromise);
+    cache.set(cacheKey, sharedPromise);
+    return sharedPromise;
   };
 
   return {
