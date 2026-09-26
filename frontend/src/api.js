@@ -7059,7 +7059,7 @@ export const api = {
     const rows = [...new Map(periodRows.flat().map((row) => [String(row?.row_id || ''), row])).values()];
     return { rows, _source: 'supabase_metadata' };
   },
-  attendanceControlDashboardSources: async ({ employeeIds = [], fromDate = '', toDate = '' } = {}) => {
+  attendanceControlDashboardSources: async ({ employeeIds = [], fromDate = '', toDate = '', skipRouteBuild = false } = {}) => {
     assertPermission('view_attendance_control', 'attendance_control_forbidden');
     const ids = [...new Set((employeeIds || []).map((value) => String(value || '').trim()).filter(Boolean))];
     if (!ids.length || !fromDate || !toDate) return { activities: [], contacts: [], travelCache: [], expenses: [] };
@@ -7069,7 +7069,7 @@ export const api = {
       ? fromDate.slice(0, 7)
       : '';
     const routeEmployeeIds = ids.map(Number).filter((value) => Number.isInteger(value) && value > 0);
-    if (routeMonth && routeEmployeeIds.length && supabase?.functions?.invoke) {
+    if (!skipRouteBuild && routeMonth && routeEmployeeIds.length && supabase?.functions?.invoke) {
       try {
         const invokeRouteBuild = async (body) => {
           const { data, error } = await supabase.functions.invoke('scheduling-route', { body });
