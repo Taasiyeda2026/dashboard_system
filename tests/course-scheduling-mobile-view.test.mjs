@@ -33,6 +33,11 @@ test('scheduling instructor overview becomes mobile work cards with expandable a
   assert.match(mobileCss, /course-planning-completion-activity-row[\s\S]*grid-template-columns:\s*minmax\(0,\s*1fr\)/);
 });
 
-test('scheduling mobile cache version points at the instructor detail stylesheet', () => {
-  assert.match(indexHtml, /mobile-responsive\.css\?v=20260926-instructor-activity-details-v1/);
+test('scheduling mobile cache version points at the stale-plan clarity stylesheet', () => {
+  assert.match(indexHtml, /mobile-responsive\.css\?v=20260926-stale-plan-clarity-v1/);
+});
+
+test('unresolved planning details stay compact on mobile', () => {
+  assert.match(mobileCss, /course-planning-workplan-unresolved-table-wrap[\s\S]*max-height:\s*320px/);
+  assert.match(mobileCss, /course-planning-workplan-unresolved-table tr[\s\S]*grid-template-columns:\s*minmax\(0,\s*1fr\)/);
 });
