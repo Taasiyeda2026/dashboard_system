@@ -96,7 +96,7 @@ export async function saveInstructorWeeklyRules(empId, rules) {
   const safeEmpId = normalizeEmpId(empId);
   const rows = (Array.isArray(rules) ? rules : []).map((rule) => {
     const weekday = Number(rule?.weekday);
-    const available = weekday === 6 ? false : !!rule?.available;
+    const available = !!rule?.available;
     return {
       emp_id: safeEmpId,
       weekday,

@@ -5,7 +5,7 @@ import { formatDateHe, formatTimeRangeShort } from './shared/format-date.js';
 const text = (value) => String(value ?? '').trim();
 const idOf = (row) => text(row?.row_id || row?.RowID || row?.id);
 
-export const WEEKDAY_LABELS = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי'];
+export const WEEKDAY_LABELS = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
 
 function toIsoDate(date) {
   return date.toISOString().slice(0, 10);
@@ -17,12 +17,11 @@ export function startOfWeek(anchorDate) {
   return toIsoDate(date);
 }
 
-// Sunday..Friday only: Saturday is an absolute scheduling block (spec section 12), so the
-// grid never wastes a column on it.
+// Sunday..Saturday: Arab-sector activities may be scheduled on Saturday.
 export function weekRange(anchorDate) {
   const start = startOfWeek(anchorDate);
   const startDate = new Date(`${start}T12:00:00`);
-  const days = Array.from({ length: 6 }, (_, index) => {
+  const days = Array.from({ length: 7 }, (_, index) => {
     const day = new Date(startDate);
     day.setDate(day.getDate() + index);
     return toIsoDate(day);

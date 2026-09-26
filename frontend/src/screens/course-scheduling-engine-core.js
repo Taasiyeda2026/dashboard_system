@@ -16,7 +16,7 @@ import {
   compareCandidatesStable
 } from './course-scheduling-score.js';
 import { normalizeOperationalDistrict } from './shared/district-normalization.js';
-import { filterSchoolCalendarRowsBySector } from './shared/school-calendar-logic.js';
+import { filterSchoolCalendarRowsBySector, normalizeCalendarSector } from './shared/school-calendar-logic.js';
 
 export { courseUrgency };
 
@@ -87,7 +87,7 @@ function meetingHours(meeting, activity = {}) {
 
 export function availabilityHours(profile = {}, rules = []) {
   void profile;
-  const availableRules = rules.filter((rule) => rule.available && Number(rule.weekday) !== 6);
+  const availableRules = rules.filter((rule) => rule.available);
   if (!availableRules.length) return 0;
   return availableRules.reduce((sum, rule) => sum + Math.max(0, minutes(rule.end_time) - minutes(rule.start_time)) / 60, 0);
 }
@@ -261,7 +261,8 @@ function evaluateCandidate({
     exceptions: exceptions[empId] || [],
     schoolCalendar: courseSchoolCalendar,
     existingActivities: persistedMeetings,
-    halfEnd: periodKey === 'first' ? FIRST_HALF_CONTINUATION_END_DATE : resolveCourseSchedulingPeriod(periodKey).end
+    halfEnd: periodKey === 'first' ? FIRST_HALF_CONTINUATION_END_DATE : resolveCourseSchedulingPeriod(periodKey).end,
+    allowSaturday: normalizeCalendarSector(course?.calendar_sector) === 'arab'
   };
   let adjustment = input.allowDateAdjustments === false ? null : proposeDateAdjustments(adjustmentInput);
   if (adjustment?.valid) {

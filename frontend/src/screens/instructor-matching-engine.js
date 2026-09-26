@@ -1,4 +1,5 @@
 import { instructionLanguageLabel, profileSpeaksLanguage, resolveInstructionLanguage } from './shared/instruction-language.js';
+import { normalizeCalendarSector } from './shared/school-calendar-logic.js';
 
 const LANGUAGE_LABELS = { he: 'עברית', ar: 'ערבית' };
 /** One-way driving-route home→school hard eligibility limit (km). Inclusive at exactly this value. */
@@ -247,11 +248,12 @@ export function evaluateInstructor({
   let availableMeetings = 0;
   const availabilityIssueKinds = new Set(['missing_availability', 'hours_unavailable', 'day_blocked', 'overlap']);
   const travelIssueKinds = new Set(['unverified_transition', 'insufficient_transition']);
+  const saturdayAllowed = normalizeCalendarSector(activity?.calendar_sector) === 'arab';
 
   for (const meeting of meetings) {
     const weekday = new Date(`${meeting.date}T12:00:00`).getDay();
-    if (weekday === 6) {
-      failures.push(`הפעילות מתקיימת בשבת (${meeting.date})`);
+    if (weekday === 6 && !saturdayAllowed) {
+      failures.push(`שבת פתוחה לשיבוץ רק בבתי ספר בחברה הערבית (${meeting.date})`);
       continue;
     }
     if (weekday === 5 && !profile.friday_allowed) failures.push(`יום שישי אינו מאושר (${meeting.date})`);

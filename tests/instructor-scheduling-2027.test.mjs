@@ -68,3 +68,23 @@ test('requirements modal never triggers matching, routing or assignment', () => 
   assert.match(workflow, /דרישות השיבוץ נשמרו בהצלחה/);
   assert.doesNotMatch(workflow, /p_education_level/);
 });
+
+test('Saturday is eligible only for Arab-sector activities with explicit availability', () => {
+  const saturdayRules = [{ weekday: 6, available: true, start_time: '08:00', end_time: '16:00' }];
+  const saturdayActivity = {
+    ...base,
+    calendar_sector: 'arab',
+    meetings: [{ date: '2027-01-02', start_time: '10:00', end_time: '11:00' }]
+  };
+  const arab = evaluateInstructor({ instructor, profile, rules: saturdayRules, activity: saturdayActivity });
+  assert.equal(arab.eligible, true);
+
+  const jewish = evaluateInstructor({
+    instructor,
+    profile,
+    rules: saturdayRules,
+    activity: { ...saturdayActivity, calendar_sector: 'jewish' }
+  });
+  assert.equal(jewish.eligible, false);
+  assert.match(jewish.failures.join('|'), /שבת פתוחה לשיבוץ רק בבתי ספר בחברה הערבית/);
+});

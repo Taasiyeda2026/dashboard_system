@@ -2,12 +2,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { weekRange, shiftWeek, buildWeekRows } from '../frontend/src/screens/course-scheduling-calendar.js';
 
-test('a week runs Sunday through Friday and never includes Saturday', () => {
+test('a scheduling week runs Sunday through Saturday', () => {
   const { start, end, days } = weekRange('2027-09-02'); // a Thursday
   assert.equal(start, '2027-08-29'); // preceding Sunday
-  assert.equal(end, '2027-09-03'); // Friday
-  assert.equal(days.length, 6);
-  assert.ok(!days.includes('2027-09-04')); // the Saturday that would follow
+  assert.equal(end, '2027-09-04'); // Saturday
+  assert.equal(days.length, 7);
+  assert.ok(days.includes('2027-09-04'));
 });
 
 test('shifting a week by +/-1 moves a full seven days from the same anchor weekday', () => {

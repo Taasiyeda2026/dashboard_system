@@ -147,3 +147,30 @@ test('final half overflow confirmation happens before RPC and draft payloads con
   assert.ok(draftApproval.indexOf('window.confirm(approvalMessage)') >= 0);
   assert.ok(draftApproval.indexOf('window.confirm(approvalMessage)') < draftApproval.indexOf("supabase.rpc(\n        proposedMeetings ? 'assign_activity_instructor_with_dates' : 'assign_activity_instructor'"));
 });
+
+
+test('Saturday date adjustments are available only when explicitly enabled',()=>{
+  const saturdayMeetings=[
+    {date:'2027-01-02',start_time:'10:00',end_time:'11:00'},
+    {date:'2027-01-09',start_time:'10:00',end_time:'11:00'}
+  ];
+  const saturdayRules=[{weekday:6,available:true,start_time:'08:00',end_time:'15:00'}];
+  const saturdayBlocked=[{exception_date:'2027-01-02',available:false}];
+
+  const allowed=proposeDateAdjustments({
+    meetings:saturdayMeetings,
+    rules:saturdayRules,
+    exceptions:saturdayBlocked,
+    allowSaturday:true
+  });
+  assert.equal(allowed?.valid,true);
+  assert.deepEqual(allowed.meetings.map(x=>x.date),['2027-01-09','2027-01-16']);
+
+  const blockedResult=proposeDateAdjustments({
+    meetings:saturdayMeetings,
+    rules:saturdayRules,
+    exceptions:saturdayBlocked,
+    allowSaturday:false
+  });
+  assert.equal(blockedResult?.valid,false);
+});

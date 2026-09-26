@@ -289,6 +289,33 @@ test('full-year planning keeps an undated first-half course starting in first ha
   }), null);
 });
 
+
+test('Saturday planning is allowed for Arab-sector activities and blocked elsewhere', () => {
+  const arab = buildWeeklyPlanningMeetings({
+    activity: { ...baseCourse, calendar_sector: 'arab' },
+    startDate: '2026-10-10',
+    startTime: '08:00',
+    durationMinutes: 90,
+    sessions: 3,
+    schoolCalendar: [],
+    periodKey: 'first'
+  });
+  assert.ok(arab);
+  assert.equal(arab.startDate, '2026-10-10');
+  assert.equal(arab.meetings.length, 3);
+
+  const jewish = buildWeeklyPlanningMeetings({
+    activity: { ...baseCourse, calendar_sector: 'jewish' },
+    startDate: '2026-10-10',
+    startTime: '08:00',
+    durationMinutes: 90,
+    sessions: 3,
+    schoolCalendar: [],
+    periodKey: 'first'
+  });
+  assert.equal(jewish, null);
+});
+
 test('weekly planning starts on or after 6 October and may continue through February', () => {
   assert.equal(PLANNING_OPERATIONAL_START_DATE, '2026-10-06');
   assert.equal(planningEffectivePeriod('first').start, '2026-10-06');
