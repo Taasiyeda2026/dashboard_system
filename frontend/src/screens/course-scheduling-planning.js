@@ -2656,6 +2656,37 @@ export function planningInstructorCompletionOverview(rows = []) {
   );
 }
 
+
+export function planningFullWorkPlanCoverage(rows = []) {
+  const firstHalfRows = (rows || []).filter(planningRowIsFirstHalf);
+  const team = firstHalfRows.filter((row) => !!text(row?.instructorEmpId)).length;
+  const recruitment = firstHalfRows.filter((row) => row?.kind === 'recruitment').length;
+  const unresolved = firstHalfRows.length - team - recruitment;
+  return {
+    total: firstHalfRows.length,
+    team,
+    recruitment,
+    unresolved: Math.max(0, unresolved),
+    complete: firstHalfRows.length === team + recruitment + Math.max(0, unresolved)
+  };
+}
+
+function planningRecruitmentLanguageLabel(value) {
+  const normalized = normalizedLanguageRequirement(value);
+  if (normalized === 'ar') return 'ערבית';
+  if (normalized === 'he') return 'עברית';
+  return text(value);
+}
+
+function planningRecruitmentGenderLabel(value) {
+  const normalized = normalizedGenderRequirement(value);
+  if (normalized === 'female') return 'מדריכה';
+  if (normalized === 'male') return 'מדריך';
+  return '';
+}
+
+const PLANNING_WEEKDAY_LABELS = Object.freeze(['א׳', 'ב׳', 'ג׳', 'ד׳', 'ה׳', 'ו׳', 'שבת']);
+
 export function planningCompletionOverviewHtml(rows = [], { pendingChanges = 0, schoolYearTotal = null } = {}) {
   const firstHalfRows = (rows || []).filter(planningRowIsFirstHalf);
   const overview = planningInstructorCompletionOverview(firstHalfRows);
@@ -2701,6 +2732,9 @@ export function planningCompletionOverviewHtml(rows = [], { pendingChanges = 0, 
         programs: new Set(),
         languages: new Set(),
         gender: '',
+        weekdays: new Set(),
+        meetingCount: 0,
+        teachingMinutes: 0,
         firstStart: '',
         lastEnd: ''
       });
@@ -2709,73 +2743,99 @@ export function planningCompletionOverviewHtml(rows = [], { pendingChanges = 0, 
     profile.activities.push(row);
     if (text(row.authority)) profile.authorities.add(text(row.authority));
     if (text(row.courseName)) profile.programs.add(text(row.courseName));
-    if (text(row.requiredLanguage)) profile.languages.add(text(row.requiredLanguage));
-    const gender = normalizedGenderRequirement(row.requiredGender);
-    if (gender !== 'any') profile.gender = gender;
+    if (text(row.requiredLanguage)) profile.languages.add(planningRecruitmentLanguageLabel(row.requiredLanguage));
+    const gender = planningRecruitmentGenderLabel(row.requiredGender);
+    if (gender) profile.gender = gender;
+    for (const meeting of Array.isArray(row.meetings) ? row.meetings : []) {
+      const date = text(meeting?.date).slice(0, 10);
+      const start = timeMinutes(meeting?.start_time || row.startTime);
+      const end = timeMinutes(meeting?.end_time || row.endTime);
+      const day = weekday(date);
+      if (day != null && PLANNING_WEEKDAY_LABELS[day]) profile.weekdays.add(PLANNING_WEEKDAY_LABELS[day]);
+      profile.meetingCount += 1;
+      if (start != null && end != null && end > start) profile.teachingMinutes += end - start;
+    }
     const dates = planningCompletionDateRange(row);
     if (dates.startDate && (!profile.firstStart || dates.startDate < profile.firstStart)) profile.firstStart = dates.startDate;
     if (dates.endDate && (!profile.lastEnd || dates.endDate > profile.lastEnd)) profile.lastEnd = dates.endDate;
   }
   const recruitmentProfileRows = [...recruitmentProfiles.values()]
+    .map((profile) => ({
+      ...profile,
+      teachingHours: Math.round((profile.teachingMinutes / 60) * 10) / 10,
+      weekdays: [...profile.weekdays]
+    }))
     .sort((a, b) => b.activities.length - a.activities.length || a.label.localeCompare(b.label, 'he'));
 
+  const coverage = planningFullWorkPlanCoverage(firstHalfRows);
+  const unresolvedRows = firstHalfRows.filter((row) =>
+    !text(row?.instructorEmpId) && row.kind !== 'recruitment'
+  );
   const pendingCount = Math.max(0, Number(pendingChanges) || 0);
-  const schoolYearCount = Number.isFinite(Number(schoolYearTotal)) ? Math.max(0, Number(schoolYearTotal)) : null;
 
   return `<section class="course-planning-completion-overview" data-planning-completion-overview>
-    <div class="course-planning-section-heading">
-      <strong>תמונת מצב — מחצית א׳</strong>
+    <div class="course-planning-section-heading course-planning-workplan-heading">
+      <div>
+        <strong>תוכנית עבודה מלאה — מחצית א׳</strong>
+        <span>${coverage.total} פעילויות = ${coverage.team} לצוות הקיים + ${coverage.recruitment} לגיוס + ${coverage.unresolved} חריגים</span>
+      </div>
+      ${pendingCount ? `<span class="course-planning-workplan-pending">${pendingCount} פעילויות ממתינות לעדכון</span>` : ''}
     </div>
-    <div class="course-planning-completion-summary">
-      <span class="course-planning-completion-chip is-context"><b>${totals.activities}</b> פעילויות במחצית א׳</span>
-      ${schoolYearCount != null ? `<span class="course-planning-completion-chip is-context"><b>${schoolYearCount}</b> פעילויות תשפ״ז</span>` : ''}
-      <span class="course-planning-completion-chip is-context"><b>${overview.length}</b> מדריכים בתכנון</span>
-      <span class="course-planning-completion-chip is-context"><b>${totals.courses}</b> קורסים</span>
-      ${totals.otherActivities ? `<span class="course-planning-completion-chip is-context"><b>${totals.otherActivities}</b> סדנאות/סיורים</span>` : ''}
-      <span class="course-planning-completion-chip is-context"><b>${totals.live}</b> משובצים</span>
-      <span class="course-planning-completion-chip is-context"><b>${totals.drafts}</b> ממתינים לאישור</span>
-      <span class="course-planning-completion-chip is-action"><b>${totals.proposals}</b> הצעות מערכת</span>
-      ${totals.unresolved ? `<span class="course-planning-completion-chip is-warning is-action"><b>${totals.unresolved}</b> נדרש טיפול</span>` : ''}
-      ${totals.recruitment ? `<span class="course-planning-completion-chip is-warning is-action"><b>${totals.recruitment}</b> פעילויות שדורשות גיוס</span>` : ''}
-      ${recruitmentProfileRows.length ? `<span class="course-planning-completion-chip is-warning is-context"><b>${recruitmentProfileRows.length}</b> מודלי גיוס צפויים</span>` : ''}
-      ${totals.undated ? `<span class="course-planning-completion-chip is-warning is-action"><b>${totals.undated}</b> עדיין ללא מועד</span>` : ''}
-      ${totals.continuation ? `<span class="course-planning-completion-chip is-context"><b>${totals.continuation}</b> ממשיכות לפברואר</span>` : ''}
-      ${totals.overflow ? `<span class="course-planning-completion-chip is-warning is-context"><b>${totals.overflow}</b> נמשכות מעבר לסוף פברואר</span>` : ''}
+    <div class="course-planning-workplan-balance" data-workplan-balance>
+      <article class="course-planning-workplan-card is-total"><b>${coverage.total}</b><span>כל הפעילויות</span></article>
+      <article class="course-planning-workplan-card is-team"><b>${coverage.team}</b><span>מתוכננות לצוות הקיים</span><small>${overview.length} מדריכים</small></article>
+      <article class="course-planning-workplan-card is-recruitment"><b>${coverage.recruitment}</b><span>נדרש גיוס</span><small>${recruitmentProfileRows.length} מודלי גיוס</small></article>
+      <article class="course-planning-workplan-card is-unresolved${coverage.unresolved ? ' has-attention' : ''}"><b>${coverage.unresolved}</b><span>חסר נתון / פתרון</span><small>${coverage.unresolved ? 'נדרש טיפול' : 'כל הפעילויות נכללות בתכנון'}</small></article>
     </div>
-    ${recruitmentProfileRows.length ? `<div class="course-planning-recruitment-models">
-      <strong>מודלי גיוס לאחר מיצוי הצוות הקיים</strong>
+    ${recruitmentProfileRows.length ? `<section class="course-planning-recruitment-models">
+      <div class="course-planning-section-heading">
+        <div>
+          <strong>תכנון לגיוס ולהכשרה</strong>
+          <span>רק פעילויות שלא נמצא להן מדריך קיים שעובר את כל תנאי הסף</span>
+        </div>
+      </div>
       <div class="course-planning-recruitment-model-grid">
         ${recruitmentProfileRows.map((profile) => `<article class="course-planning-recruitment-model">
           <header><b>${escapeHtml(profile.label)}</b><span>${profile.activities.length} פעילויות</span></header>
+          <div class="course-planning-recruitment-model-load">
+            <strong>${profile.meetingCount} מפגשים · ${profile.teachingHours} ש׳</strong>
+            <span>${profile.weekdays.length ? escapeHtml(profile.weekdays.join(', ')) : 'ימים ייקבעו לפי התכנון'}</span>
+          </div>
           <p>${escapeHtml([...profile.authorities].join(', ') || 'מספר אזורים')}</p>
-          <small>${profile.firstStart ? `<bdi dir="ltr">${escapeHtml(formatDateHe(profile.firstStart))}</bdi>` : 'ללא מועד'}${profile.lastEnd ? `–<bdi dir="ltr">${escapeHtml(formatDateHe(profile.lastEnd))}</bdi>` : ''} · ${escapeHtml([...profile.programs].join(', '))}</small>
+          <small>${profile.languages.size ? `שפה: ${escapeHtml([...profile.languages].join(', '))} · ` : ''}${profile.gender ? `${escapeHtml(profile.gender)} · ` : ''}${escapeHtml([...profile.programs].join(', '))}</small>
+          <small>${profile.firstStart ? `<bdi dir="ltr">${escapeHtml(formatDateHe(profile.firstStart))}</bdi>` : 'ללא מועד'}${profile.lastEnd ? `–<bdi dir="ltr">${escapeHtml(formatDateHe(profile.lastEnd))}</bdi>` : ''}</small>
         </article>`).join('')}
       </div>
-    </div>` : ''}
-    ${overview.length ? `<div class="course-planning-completion-table-wrap">
+    </section>` : ''}
+    ${overview.length ? `<section class="course-planning-team-plan">
+      <div class="course-planning-section-heading">
+        <div>
+          <strong>תכנון לצוות הקיים</strong>
+          <span>היקף העבודה הצפוי כולל שיבוצים קיימים, טיוטות והצעות מערכת</span>
+        </div>
+      </div>
+      <div class="course-planning-completion-table-wrap">
       <table class="course-planning-completion-table">
         <thead><tr>
           <th>מדריך</th>
-          <th>קורסים</th>
+          <th>פעילויות</th>
           <th>משובץ</th>
           <th>ממתין לאישור</th>
-          <th>הצעה</th>
-          <th>עומס</th>
+          <th>בתכנון</th>
+          <th>היקף מתוכנן</th>
           <th>שבועי</th>
-          <th>נסיעות</th>
           <th>מתחיל</th>
           <th>מסתיים</th>
           <th>תוכניות ופירוט</th>
         </tr></thead>
         <tbody>${overview.map((item) => `<tr>
-          <td class="course-planning-completion-cell is-instructor"><strong>${escapeHtml(item.name)}</strong>${item.otherActivityCount ? `<small>+${item.otherActivityCount} פעילויות שאינן קורס</small>` : ''}</td>
-          <td class="course-planning-completion-cell is-courses"><b>${item.courseCount}</b></td>
+          <td class="course-planning-completion-cell is-instructor"><strong>${escapeHtml(item.name)}</strong></td>
+          <td class="course-planning-completion-cell is-courses"><b>${item.activityCount}</b></td>
           <td class="course-planning-completion-cell is-live">${item.liveCount}</td>
           <td class="course-planning-completion-cell is-draft">${item.draftCount}</td>
           <td class="course-planning-completion-cell is-proposal">${item.proposalCount}</td>
           <td class="course-planning-completion-cell is-load"><b>${item.meetingCount}</b> מפגשים · ${item.teachingHours} ש׳</td>
-          <td class="course-planning-completion-cell is-weekly">${item.averageWorkDaysPerWeek} ימי עבודה/שבוע${item.peakWeekStart ? `<small>שיא: ${item.peakWeekDays} ימים · ${item.peakWeekHours} ש׳</small>` : ''}</td>
-          <td class="course-planning-completion-cell is-travel">${Number.isFinite(item.expectedTravelKmPerMeeting) ? `~${item.expectedTravelKmPerMeeting} ק״מ/מפגש` : '—'}</td>
+          <td class="course-planning-completion-cell is-weekly">${item.averageWorkDaysPerWeek} ימי עבודה/שבוע${item.peakWeekStart ? `<small>שבוע שיא: ${item.peakWeekDays} ימים · ${item.peakWeekHours} ש׳</small>` : ''}</td>
           <td class="course-planning-completion-cell is-start">${item.firstStart ? `<bdi dir="ltr">${escapeHtml(formatDateHe(item.firstStart))}</bdi>` : '<span class="course-planning-completion-missing">חסר מועד</span>'}</td>
           <td class="course-planning-completion-cell is-end ${item.overflowCount ? 'is-warning' : ''}">${item.lastEnd ? `<bdi dir="ltr">${escapeHtml(formatDateHe(item.lastEnd))}</bdi>` : '<span class="course-planning-completion-missing">חסר מועד</span>'}</td>
           <td class="course-planning-completion-cell is-details">
@@ -2793,7 +2853,18 @@ export function planningCompletionOverviewHtml(rows = [], { pendingChanges = 0, 
           </td>
         </tr>`).join('')}</tbody>
       </table>
-    </div>` : ''}
+      </div>
+    </section>` : ''}
+    ${unresolvedRows.length ? `<details class="course-planning-workplan-unresolved">
+      <summary>${unresolvedRows.length} פעילויות שעדיין לא ניתן לכלול בתוכנית העבודה</summary>
+      <div>
+        ${unresolvedRows.map((row) => `<article>
+          <strong>${escapeHtml(row.courseName || 'פעילות')}</strong>
+          <span>${escapeHtml(row.school || 'ללא בית ספר')}${row.authority ? ` · ${escapeHtml(row.authority)}` : ''}</span>
+          <small>${escapeHtml(text(row.reason) || 'נדרש טיפול נוסף')}</small>
+        </article>`).join('')}
+      </div>
+    </details>` : ''}
   </section>`;
 }
 

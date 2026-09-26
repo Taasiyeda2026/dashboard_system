@@ -2413,6 +2413,109 @@
   font-size: .8rem;
 }
 
+.course-planning-workplan-heading {
+  align-items: center;
+}
+
+.course-planning-workplan-pending {
+  color: var(--cs-text-muted);
+  font-size: .76rem;
+  font-weight: 700;
+}
+
+.course-planning-workplan-balance {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.course-planning-workplan-card {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  padding: 9px 11px;
+  border: 1px solid var(--cs-border);
+  border-radius: 10px;
+  background: var(--cs-surface-soft);
+}
+
+.course-planning-workplan-card b {
+  font-size: 1.2rem;
+  line-height: 1;
+}
+
+.course-planning-workplan-card span {
+  font-size: .78rem;
+  font-weight: 750;
+}
+
+.course-planning-workplan-card small {
+  color: var(--cs-text-muted);
+  font-size: .7rem;
+}
+
+.course-planning-workplan-card.is-team {
+  border-color: #b8d8d4;
+  background: #f4fbfa;
+}
+
+.course-planning-workplan-card.is-recruitment,
+.course-planning-workplan-card.has-attention {
+  border-color: #ead8b2;
+  background: #fffaf0;
+}
+
+.course-planning-team-plan {
+  display: grid;
+  gap: 8px;
+}
+
+.course-planning-recruitment-model-load {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.course-planning-recruitment-model-load span {
+  color: var(--cs-text-muted);
+  font-size: .72rem;
+}
+
+.course-planning-workplan-unresolved {
+  border: 1px solid #ead8b2;
+  border-radius: 10px;
+  background: #fffaf0;
+}
+
+.course-planning-workplan-unresolved > summary {
+  padding: 9px 11px;
+  cursor: pointer;
+  font-size: .8rem;
+  font-weight: 800;
+}
+
+.course-planning-workplan-unresolved > div {
+  display: grid;
+  gap: 6px;
+  padding: 0 9px 9px;
+}
+
+.course-planning-workplan-unresolved article {
+  display: grid;
+  gap: 2px;
+  padding: 7px 9px;
+  border: 1px solid var(--cs-border);
+  border-radius: 8px;
+  background: var(--cs-surface);
+}
+
+.course-planning-workplan-unresolved article span,
+.course-planning-workplan-unresolved article small {
+  color: var(--cs-text-muted);
+  font-size: .74rem;
+}
+
 .course-planning-completion-summary {
   display: flex;
   flex-wrap: wrap;
@@ -2491,7 +2594,7 @@
 
 .course-planning-completion-table {
   width: 100%;
-  min-width: 1040px;
+  min-width: 960px;
   border-collapse: collapse;
 }
 
