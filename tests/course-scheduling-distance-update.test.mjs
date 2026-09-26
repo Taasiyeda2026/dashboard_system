@@ -18,7 +18,9 @@ import {
   runDistanceBuildLoop,
   emptyDistanceBuildStats,
   mergeDistanceBuildStats,
-  normalizePlaceKey
+  normalizePlaceKey,
+  localityCompareKey,
+  isSamePlace
 } from '../frontend/src/screens/course-scheduling-distance-build.js';
 
 const schemaUrl = new URL('../supabase/migrations/20260802220000_course_scheduling_interface_schema.sql', import.meta.url);
@@ -125,16 +127,18 @@ test('build_cache mode is explicit and scheduling-route authorizes by scheduling
   assert.doesNotMatch(ts, /const hasSchedulingRole = \['admin', 'operation_manager'\]\.includes/);
 });
 
-test('route keys normalize locality hyphen and Daliyat al-Karmel spelling variants', async () => {
-  assert.equal(normalizePlaceKey('דאלית אל-כרמל'), 'דאלית אל כרמל');
-  assert.equal(normalizePlaceKey('דלית אל כרמל'), 'דאלית אל כרמל');
-  assert.equal(normalizePlaceKey('  דאלית   אל־כרמל  '), 'דאלית אל כרמל');
+test('same-place detection handles locality hyphen and Daliyat al-Karmel spelling variants without changing cache keys', async () => {
+  assert.equal(normalizePlaceKey('קדימה-צורן'), 'קדימה-צורן');
+  assert.equal(localityCompareKey('דאלית אל-כרמל'), 'דאלית אל כרמל');
+  assert.equal(localityCompareKey('דלית אל כרמל'), 'דאלית אל כרמל');
+  assert.equal(isSamePlace('דלית אל כרמל', 'דאלית אל-כרמל'), true);
+  assert.equal(isSamePlace('דלית אל כרמל', 'חיפה'), false);
 
   const ts = await readFile(edgeFunctionUrl, 'utf8');
-  assert.match(ts, /normalizeLocalityAlias/);
-  assert.match(ts, /דלית אל כרמל/);
-  assert.match(ts, /דאלית אל כרמל/);
-  assert.match(ts, /\\u05be/);
+  assert.match(ts, /function localityCompareKey/);
+  assert.match(ts, /function isSamePlace/);
+  assert.match(ts, /if \(isSamePlace\(pair\.origin_address, pair\.destination_address\)\)/);
+  assert.match(ts, /if \(isSamePlace\(origin, destination\)\)/);
 });
 
 test('school dedup collapses duplicate school_id rows and prefers authority_id plus fuller address', () => {
