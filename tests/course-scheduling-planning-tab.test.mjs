@@ -41,7 +41,7 @@ import {
   planningWorkspaceCourses
 } from '../frontend/src/screens/course-scheduling-planning.js';
 import { buildPlanningWorkbook, planningExportFilename, planningWorkbookRows } from '../frontend/src/screens/course-scheduling-planning-export.js';
-import { courseSchedulingScreen } from '../frontend/src/screens/course-scheduling.js';
+import { courseSchedulingScreen, planningJointChoiceModel } from '../frontend/src/screens/course-scheduling.js';
 
 const planningDraftConfirmMigrationUrl = new URL('../supabase/migrations/20260924205500_confirm_shared_planning_draft.sql', import.meta.url);
 
@@ -70,6 +70,52 @@ const baseCourse = {
   instruction_language: 'he',
   required_instructor_gender: 'any'
 };
+
+test('joint planning chooser cascades date to time to instructor using only validated combinations', () => {
+  const planning = {
+    startDate: '2026-10-11',
+    startTime: '08:00',
+    endTime: '09:30',
+    instructorEmpId: '1',
+    options: [
+      {
+        startDate: '2026-10-11', startTime: '08:00', endTime: '09:30',
+        instructorEmpId: '1', instructorName: 'אחד',
+        meetings: [{ date: '2026-10-11', start_time: '08:00', end_time: '09:30' }]
+      },
+      {
+        startDate: '2026-10-11', startTime: '10:00', endTime: '11:30',
+        instructorEmpId: '2', instructorName: 'שתיים',
+        meetings: [{ date: '2026-10-11', start_time: '10:00', end_time: '11:30' }]
+      },
+      {
+        startDate: '2026-10-12', startTime: '09:00', endTime: '10:30',
+        instructorEmpId: '3', instructorName: 'שלוש',
+        meetings: [{ date: '2026-10-12', start_time: '09:00', end_time: '10:30' }]
+      }
+    ]
+  };
+
+  const defaultChoice = planningJointChoiceModel(planning);
+  assert.deepEqual(defaultChoice.dates, ['2026-10-11', '2026-10-12']);
+  assert.deepEqual(defaultChoice.times.map((item) => item.key), ['08:00|09:30', '10:00|11:30']);
+  assert.deepEqual(defaultChoice.instructors.map((item) => item.empId), ['1']);
+  assert.equal(defaultChoice.optionIndex, 0);
+
+  const changedDate = planningJointChoiceModel(planning, { date: '2026-10-12' });
+  assert.deepEqual(changedDate.times.map((item) => item.key), ['09:00|10:30']);
+  assert.deepEqual(changedDate.instructors.map((item) => item.empId), ['3']);
+  assert.equal(changedDate.optionIndex, 2);
+});
+
+test('workboard exposes separate date time and instructor controls for planning alternatives', async () => {
+  const source = await readFile(new URL('../frontend/src/screens/course-scheduling.js', import.meta.url), 'utf8');
+  assert.match(source, /data-planning-choice-date/);
+  assert.match(source, /data-planning-choice-time/);
+  assert.match(source, /data-planning-choice-instructor/);
+  assert.match(source, /בחר תאריך, שעה ומדריך/);
+  assert.match(source, /מוצגים רק שילובים שעברו את תנאי הסף/);
+});
 
 test('main scheduling workboard exposes only open, draft and assigned business states', () => {
   const activities = [
