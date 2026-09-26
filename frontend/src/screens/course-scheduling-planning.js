@@ -2341,7 +2341,14 @@ export async function buildDynamicCoursePlan({
   if (_repairPass || (incrementalIds && !resumeFromCheckpoint)) return initialResult;
 
   const repairPriorityIds = planningGlobalRepairPriorityIds(rows);
-  if (!repairPriorityIds.length) return {
+  const hasCriticalRepairNeed = rows.some((row) =>
+    ['recruitment', 'missing', 'fixed'].includes(text(row?.kind))
+  );
+  // A second full national pass is expensive. Run it automatically only when
+  // it can improve coverage or avoid unnecessary recruitment. Pure efficiency
+  // tuning (travel/day packing/score) stays in the first-pass result instead of
+  // making every full plan run almost twice.
+  if (!repairPriorityIds.length || !hasCriticalRepairNeed) return {
     ...initialResult,
     globalOptimization: {
       applied: false,

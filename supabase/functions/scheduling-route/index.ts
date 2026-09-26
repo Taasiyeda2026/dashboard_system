@@ -8,9 +8,9 @@ const corsHeaders = {
 };
 
 const PERMANENT_CACHE_EXPIRES_AT = '9999-12-31T23:59:59.999Z';
-const DEFAULT_BATCH_LIMIT = 25;
-const MAX_BATCH_LIMIT = 40;
-const BATCH_CONCURRENCY = 4;
+const DEFAULT_BATCH_LIMIT = 50;
+const MAX_BATCH_LIMIT = 50;
+const BATCH_CONCURRENCY = 8;
 
 type DbClient = ReturnType<typeof createClient>;
 type BuildScope = 'instructor_school' | 'school_school' | 'all' | 'payroll_month';
