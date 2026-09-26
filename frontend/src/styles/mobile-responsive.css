@@ -1017,6 +1017,132 @@
     line-height: 1;
   }
 
+  /* Attendance detail: comparisons also wrap into the viewport instead of forcing side-scroll. */
+  #app .attendance-control {
+    inline-size: 100%;
+    max-inline-size: 100%;
+    box-sizing: border-box;
+  }
+
+  #app .attendance-control__comparison-wrap {
+    max-inline-size: 100%;
+    margin-inline: 0 !important;
+    overflow: visible !important;
+  }
+
+  #app .attendance-control__comparison-table {
+    display: block;
+    inline-size: 100%;
+    width: 100%;
+    min-inline-size: 0 !important;
+    min-width: 0 !important;
+    border: 0;
+    overflow: visible;
+  }
+
+  #app .attendance-control__comparison-table thead {
+    display: none;
+  }
+
+  #app .attendance-control__comparison-table tbody {
+    display: grid;
+    gap: 7px;
+    inline-size: 100%;
+  }
+
+  #app .attendance-control__comparison-table tbody > tr {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    inline-size: 100%;
+    min-inline-size: 0;
+    overflow: hidden;
+    border: 1px solid #dde6ef;
+    border-radius: 10px;
+    background: #fff;
+  }
+
+  #app .attendance-control__comparison-table tbody > tr > th,
+  #app .attendance-control__comparison-table tbody > tr > td {
+    display: block;
+    inline-size: auto;
+    min-inline-size: 0;
+    width: auto !important;
+    min-width: 0 !important;
+    padding: 7px 8px;
+    border: 0;
+    overflow-wrap: anywhere;
+    white-space: normal;
+  }
+
+  #app .attendance-control__comparison-table tbody > tr > th {
+    grid-column: 1 / -1;
+    background: #f8fafc;
+    border-block-end: 1px solid #e8edf3;
+    font-size: .74rem;
+  }
+
+  #app .attendance-control__comparison-table:not(.attendance-control__manual-table) tbody > tr > td:nth-of-type(1)::before,
+  #app .attendance-control__comparison-table:not(.attendance-control__manual-table) tbody > tr > td:nth-of-type(2)::before,
+  #app .attendance-control__comparison-table:not(.attendance-control__manual-table) tbody > tr > td:nth-of-type(3)::before,
+  #app .attendance-control__manual-table tbody > tr > td:not([colspan]):nth-of-type(1)::before,
+  #app .attendance-control__manual-table tbody > tr > td:not([colspan]):nth-of-type(2)::before,
+  #app .attendance-control__manual-table tbody > tr > td:not([colspan]):nth-of-type(3)::before {
+    display: block;
+    margin-block-end: 3px;
+    color: #718096;
+    font-size: .58rem;
+    line-height: 1.1;
+    font-weight: 800;
+  }
+
+  #app .attendance-control__comparison-table:not(.attendance-control__manual-table) tbody > tr > td:nth-of-type(1)::before {
+    content: "דיווח מדריך";
+  }
+
+  #app .attendance-control__comparison-table:not(.attendance-control__manual-table) tbody > tr > td:nth-of-type(2)::before {
+    content: "נתוני המערכת";
+  }
+
+  #app .attendance-control__comparison-table:not(.attendance-control__manual-table) tbody > tr > td:nth-of-type(3)::before {
+    content: "סטטוס";
+  }
+
+  #app .attendance-control__manual-table tbody > tr > td:not([colspan]):nth-of-type(1)::before {
+    content: "חישוב";
+  }
+
+  #app .attendance-control__manual-table tbody > tr > td:not([colspan]):nth-of-type(2)::before {
+    content: "נתון לאישור";
+  }
+
+  #app .attendance-control__manual-table tbody > tr > td:not([colspan]):nth-of-type(3)::before {
+    content: "סטטוס";
+  }
+
+  #app .attendance-control__manual-table tbody > tr > td[colspan] {
+    grid-column: 1 / -1;
+  }
+
+  #app .attendance-control__manual-table tbody > tr > td[colspan]::before {
+    content: none !important;
+    display: none !important;
+  }
+
+  #app .attendance-control__comparison-table select,
+  #app .attendance-control__comparison-table input {
+    max-inline-size: 100%;
+    inline-size: 100%;
+    box-sizing: border-box;
+  }
+
+  #app .attendance-control__report-card,
+  #app .attendance-control__manager-actions,
+  #app .attendance-control__attachments {
+    max-inline-size: 100%;
+    margin-inline: 0 !important;
+    box-sizing: border-box;
+  }
+
   /* Manager attendance: readable cards on phones, never a horizontally clipped desktop table. */
   #app .manager-board-screen .manager-workspace-attendance .manager-workspace-table-wrap {
     inline-size: 100%;
