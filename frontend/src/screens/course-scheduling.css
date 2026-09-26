@@ -2417,12 +2417,6 @@
   align-items: center;
 }
 
-.course-planning-workplan-pending {
-  color: var(--cs-text-muted);
-  font-size: .76rem;
-  font-weight: 700;
-}
-
 .course-planning-workplan-balance {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -2594,17 +2588,61 @@
 
 .course-planning-completion-table {
   width: 100%;
-  min-width: 960px;
+  min-width: 820px;
+  table-layout: fixed;
   border-collapse: collapse;
 }
 
 .course-planning-completion-table th,
 .course-planning-completion-table td {
-  padding: 7px 9px;
+  padding: 8px 10px;
   border-bottom: 1px solid var(--cs-border);
   text-align: right;
-  vertical-align: top;
+  vertical-align: middle;
   font-size: .79rem;
+}
+
+.course-planning-completion-table th + th,
+.course-planning-completion-table td + td {
+  border-inline-start: 1px solid rgba(148, 163, 184, .22);
+}
+
+.course-planning-completion-table th:nth-child(1),
+.course-planning-completion-table td:nth-child(1) { width: 17%; }
+
+.course-planning-completion-table th:nth-child(2),
+.course-planning-completion-table td:nth-child(2) { width: 8%; }
+
+.course-planning-completion-table th:nth-child(3),
+.course-planning-completion-table td:nth-child(3) { width: 12%; }
+
+.course-planning-completion-table th:nth-child(4),
+.course-planning-completion-table td:nth-child(4) { width: 8%; }
+
+.course-planning-completion-table th:nth-child(5),
+.course-planning-completion-table td:nth-child(5) { width: 33%; }
+
+.course-planning-completion-table th:nth-child(6),
+.course-planning-completion-table td:nth-child(6),
+.course-planning-completion-table th:nth-child(7),
+.course-planning-completion-table td:nth-child(7) { width: 11%; }
+
+.course-planning-completion-table th:nth-child(2),
+.course-planning-completion-table td:nth-child(2),
+.course-planning-completion-table th:nth-child(3),
+.course-planning-completion-table td:nth-child(3),
+.course-planning-completion-table th:nth-child(4),
+.course-planning-completion-table td:nth-child(4),
+.course-planning-completion-table th:nth-child(6),
+.course-planning-completion-table td:nth-child(6),
+.course-planning-completion-table th:nth-child(7),
+.course-planning-completion-table td:nth-child(7) {
+  text-align: center;
+  white-space: nowrap;
+}
+
+.course-planning-completion-cell.is-load {
+  white-space: nowrap;
 }
 
 .course-planning-completion-table th {

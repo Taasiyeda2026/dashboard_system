@@ -905,10 +905,10 @@ test('first-half completion overview includes live, drafts and proposals per ins
   assert.match(html, /בתכנון/);
   assert.match(html, /07\/10\/2026/);
   assert.match(html, /20\/01\/2027/);
-  assert.match(html, /2<\/b> מפגשים · 3 ש׳/);
-  assert.match(html, /שבוע שיא/);
-  assert.match(html, /1<\/b> ימי עבודה · 1\.5 ש׳/);
+  assert.match(html, /2<\/b> פעילויות · <b>2<\/b> מפגשים · שבוע שיא: <b>1<\/b> י"ע/);
   assert.doesNotMatch(html, /ימי עבודה\/שבוע/);
+  assert.doesNotMatch(html, /תוכניות ופירוט/);
+  assert.doesNotMatch(html, /היקף העבודה הצפוי כולל/);
   assert.doesNotMatch(html, /קורס מחצית ב/);
 });
 
@@ -934,9 +934,33 @@ test('first-half planned workload includes meetings that continue beyond the hal
   assert.equal(overview[0].teachingHours, 3);
   assert.equal(overview[0].continuationCount, 1);
   const html = planningCompletionOverviewHtml(rows);
-  assert.match(html, /2<\/b> מפגשים · 3 ש׳/);
-  assert.match(html, /כולל המשך של פעילויות מעבר למחצית/);
+  assert.match(html, /1<\/b> פעילויות · <b>2<\/b> מפגשים/);
+  assert.doesNotMatch(html, /כולל המשך של פעילויות מעבר למחצית/);
   assert.match(html, /04\/02\/2027/);
+});
+
+test('instructor overview keeps one compact planned-work column and removes internal detail boxes', () => {
+  const html = planningCompletionOverviewHtml([{
+    courseId: 'compact',
+    courseName: 'קורס',
+    activityType: 'קורס',
+    school: 'א',
+    authority: 'רשות',
+    kind: 'proposal',
+    instructorEmpId: '1',
+    instructorName: 'מדריך',
+    startDate: '2026-11-01',
+    endDate: '2026-11-08',
+    meetings: [
+      { date: '2026-11-01', start_time: '08:00', end_time: '09:30' },
+      { date: '2026-11-08', start_time: '08:00', end_time: '09:30' }
+    ]
+  }]);
+  assert.match(html, /1<\/b> פעילויות · <b>2<\/b> מפגשים · שבוע שיא: <b>1<\/b> י"ע \(<bdi dir="ltr">01\/11\/26<\/bdi>\)/);
+  assert.doesNotMatch(html, /תוכניות ופירוט/);
+  assert.doesNotMatch(html, /course-planning-completion-programs/);
+  assert.doesNotMatch(html, /course-planning-completion-details/);
+  assert.doesNotMatch(html, /פעילויות ממתינות לעדכון/);
 });
 
 test('Planning builds a complete meeting-level work schedule for each instructor', () => {
