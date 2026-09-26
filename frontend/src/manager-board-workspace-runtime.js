@@ -266,12 +266,6 @@ function attendanceHoursValue(row = {}) {
   return Number.isFinite(value) ? Math.max(0, value) : 0;
 }
 
-function isCancellationAttendanceRow(row = {}) {
-  const generationKind = text(row.generationKind || row.generation_kind);
-  const activityType = text(row.activityType || row.ActivityType || row.activity_type).replace(/\s+/g, '');
-  return generationKind === 'travel_time_cancellation' || activityType === 'ביטולזמן';
-}
-
 function formatAttendanceHours(value) {
   const totalMinutes = Math.max(0, Math.round((Number(value) || 0) * 60));
   return Math.floor(totalMinutes / 60) + ':' + String(totalMinutes % 60).padStart(2, '0');
