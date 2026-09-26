@@ -1,0 +1,289 @@
+/*
+ * Mobile presentation layer.
+ *
+ * Keep every rule in the agreed mobile breakpoint: desktop remains the
+ * untouched baseline. Screen modules continue to own data and interactions;
+ * this file only changes their presentation on narrow viewports.
+ */
+@media (max-width: 820px) {
+  html,
+  body,
+  #app,
+  .app-shell,
+  .shell-main,
+  .shell-stage,
+  .screen-root {
+    max-inline-size: 100%;
+  }
+
+  body {
+    overflow-x: clip;
+  }
+
+  /* Compact global shell: the drawer remains the single mobile nav surface. */
+  .shell-top {
+    min-block-size: 52px;
+    padding: 6px 12px;
+    gap: 8px;
+  }
+
+  .shell-top__start {
+    min-inline-size: 0;
+    flex: 1;
+  }
+
+  .shell-top__mobile-brand {
+    display: block;
+    min-inline-size: 0;
+    margin: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .shell-menu-btn {
+    inline-size: 40px;
+    min-inline-size: 40px;
+    block-size: 40px;
+  }
+
+  .shell-top .act-nav-grid,
+  .shell-top .shell-header-nav,
+  .shell-top__end:empty {
+    display: none;
+  }
+
+  .shell-stage {
+    padding: 10px;
+  }
+
+  .screen-root,
+  .ds-screen-stack,
+  .ds-card,
+  .ds-card__body {
+    min-inline-size: 0;
+  }
+
+  /* Shared mobile filter shell: search stays first and controls wrap safely. */
+  .ds-filter-panel,
+  .ds-activities-main-toolbar,
+  .ds-pa-toolbar,
+  .course-scheduling-filters,
+  .ds-ops-mgmt-filters {
+    max-inline-size: 100%;
+  }
+
+  .ds-activities-main-toolbar,
+  .ds-pa-toolbar,
+  .course-scheduling-filters,
+  .ds-filter-panel__grid,
+  .ds-ops-mgmt-filters__grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+  }
+
+  .ds-activities-search-sm,
+  .ds-pa-search,
+  .ds-filter-field--search {
+    inline-size: 100%;
+    grid-column: 1 / -1;
+  }
+
+  .ds-activities-main-toolbar__actions,
+  .ds-filter-panel__actions,
+  .ds-ops-mgmt-filters__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  /* Activities: turn the existing source-of-truth rows into readable cards. */
+  .route-activities .ds-table-wrap:has(.ds-table--activities-list) {
+    overflow: visible;
+    border: 0;
+    background: transparent;
+  }
+
+  .route-activities .ds-table--activities-list,
+  .route-activities .ds-table--activities-list tbody,
+  .route-activities .ds-table--activities-list tr,
+  .route-activities .ds-table--activities-list td {
+    display: block;
+    inline-size: 100%;
+  }
+
+  .route-activities .ds-table--activities-list colgroup,
+  .route-activities .ds-table--activities-list thead {
+    display: none;
+  }
+
+  .route-activities .ds-table--activities-list tbody {
+    display: grid;
+    gap: 10px;
+  }
+
+  .route-activities .ds-table--activities-list .ds-activities-row {
+    position: relative;
+    overflow: hidden;
+    padding: 12px 12px 10px;
+    border: 1px solid #dbe7f3;
+    border-radius: 14px;
+    background: #fff;
+    box-shadow: 0 2px 8px rgba(15, 23, 42, .05);
+  }
+
+  .route-activities .ds-table--activities-list .ds-activities-col {
+    min-inline-size: 0;
+    padding: 3px 0;
+    border: 0;
+    white-space: normal;
+    text-align: start;
+  }
+
+  .route-activities .ds-activities-col--program {
+    padding-inline-end: 22px;
+  }
+
+  .route-activities .ds-activities-program-name {
+    font-size: .95rem;
+  }
+
+  .route-activities .ds-activities-col--authority,
+  .route-activities .ds-activities-col--school {
+    display: inline-block;
+    inline-size: auto;
+    max-inline-size: 48%;
+    color: #475569;
+    font-size: .8rem;
+  }
+
+  .route-activities .ds-activities-col--authority::after {
+    content: " · ";
+    color: #94a3b8;
+  }
+
+  .route-activities .ds-activities-cell-ellipsis {
+    display: inline;
+    overflow: visible;
+    white-space: normal;
+  }
+
+  .route-activities .ds-activities-col--instructor,
+  .route-activities .ds-activities-col--date,
+  .route-activities .ds-activities-col--hours,
+  .route-activities .ds-activities-col--meetings,
+  .route-activities .ds-activities-col--contact-name,
+  .route-activities .ds-activities-col--grade,
+  .route-activities .ds-activities-col--notes {
+    margin-block-start: 5px;
+    padding-block-start: 7px;
+    border-block-start: 1px solid #eef2f7;
+    font-size: .8rem;
+  }
+
+  /* Proposal/client-file records use the same compact card-row language. */
+  .route-proposals-agreements .ds-table-wrap:has(.ds-pa-table) {
+    overflow: visible;
+    border: 0;
+  }
+
+  .route-proposals-agreements .ds-pa-table,
+  .route-proposals-agreements .ds-pa-table tbody,
+  .route-proposals-agreements .ds-pa-table tr,
+  .route-proposals-agreements .ds-pa-table td {
+    display: block;
+    inline-size: 100%;
+  }
+
+  .route-proposals-agreements .ds-pa-table thead,
+  .route-proposals-agreements .ds-pa-table colgroup {
+    display: none;
+  }
+
+  .route-proposals-agreements .ds-pa-table tbody {
+    display: grid;
+    gap: 10px;
+  }
+
+  .route-proposals-agreements .ds-pa-table tbody tr {
+    padding: 10px 12px;
+    border: 1px solid #dbe7f3;
+    border-radius: 14px;
+    background: #fff;
+  }
+
+  .route-proposals-agreements .ds-pa-table td {
+    min-inline-size: 0;
+    block-size: auto;
+    padding: 4px 0;
+    border: 0;
+    overflow-wrap: anywhere;
+    white-space: normal;
+    text-align: start;
+  }
+
+  .route-proposals-agreements .ds-pa-actions-inner--clean {
+    justify-content: flex-start;
+  }
+
+  /* Weekly calendar: exactly one full-width day per row. */
+  .route-week .ds-week-board {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+    overflow: visible;
+  }
+
+  .route-week .ds-week-col {
+    min-inline-size: 0;
+    inline-size: 100%;
+  }
+
+  .route-week .ds-week-col__body:empty {
+    min-block-size: 0;
+    padding: 0;
+  }
+
+  .route-week .ds-week-col:has(.ds-week-col__body:empty) .ds-week-col__head {
+    min-block-size: 44px;
+  }
+
+  /* Drawers and long record forms stay inside the viewport and stack fields. */
+  .ds-drawer,
+  .ds-drawer__panel,
+  .ds-pa-drawer,
+  .activity-drawer,
+  [role="dialog"] {
+    max-inline-size: 100vw;
+  }
+
+  .ds-activity-add-grid,
+  .ds-pa-info-grid,
+  .ds-pa-contact-edit-grid,
+  .ds-pa-two-col-grid,
+  .activity-drawer__grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .ds-activity-add-field--span2,
+  .ds-pa-info-cell--wide {
+    grid-column: 1;
+  }
+
+  /* Existing dashboard/instructor cards only need tighter rhythm. */
+  .route-dashboard .ds-screen-stack,
+  .route-instructors .ds-screen-stack {
+    gap: 10px;
+  }
+
+  .route-dashboard .ds-card__body,
+  .route-instructors .ds-card__body {
+    padding: 12px;
+  }
+
+  img,
+  svg,
+  canvas {
+    max-inline-size: 100%;
+  }
+}
