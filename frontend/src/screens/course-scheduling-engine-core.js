@@ -261,7 +261,8 @@ function evaluateCandidate({
     exceptions: exceptions[empId] || [],
     schoolCalendar: courseSchoolCalendar,
     existingActivities: persistedMeetings,
-    halfEnd: periodKey === 'first' ? FIRST_HALF_CONTINUATION_END_DATE : resolveCourseSchedulingPeriod(periodKey).end
+    halfEnd: periodKey === 'first' ? FIRST_HALF_CONTINUATION_END_DATE : resolveCourseSchedulingPeriod(periodKey).end,
+    allowSaturday: normalizeCalendarSector(course?.calendar_sector) === 'arab'
   };
   let adjustment = input.allowDateAdjustments === false ? null : proposeDateAdjustments(adjustmentInput);
   if (adjustment?.valid) {
