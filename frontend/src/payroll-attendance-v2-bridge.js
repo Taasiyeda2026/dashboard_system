@@ -187,7 +187,7 @@ function legacyRecordsFromSnapshotParts(records = [], travelRows = [], locationR
   });
 }
 
-api.attendanceControlRecords = async function ({ employeeIds = [], fromDate = '', toDate = '' } = {}) => {
+api.attendanceControlRecords = async function ({ employeeIds = [], fromDate = '', toDate = '' } = {}) {
   await waitForSupabaseAuthSession({ timeoutMs: 7000 }).catch(() => null);
   const numericEmployeeIds = [...new Set((employeeIds || [])
     .map((value) => Number(text(value)))
