@@ -261,3 +261,40 @@ test('system-generated travel cancellation is auto-resolved when calculation is 
   const cancellation = result.notCompared.find((entry) => entry.attendance.recordId === 'cancel-1');
   assert.equal(cancellation?.managerResolved, 'auto_ok');
 });
+
+
+test('attendance-only rows expose inline correction instead of empty action cells', () => {
+  const html = resultsHtml({
+    comparisons: [],
+    notCompared: [{
+      id: 'attendance-only-edit',
+      source: 'attendance_not_compared',
+      attendance: {
+        employeeId: '1533', employeeName: 'שחר זוביב', date: '2026-09-06',
+        recordId: 'source-edit', activityType: 'תפעול', program: 'הרמת כוסית',
+        authority: 'יקום', school: 'Greenwork',
+        startTime: '11:00', endTime: '11:05', workHours: 5 / 60,
+        kilometers: 80, publicTransport: false, expenses: 0,
+        _source: { ID: 'source-edit', recordId: 'source-edit' }
+      },
+      final: {
+        employeeId: '1533', employeeName: 'שחר זוביב', date: '2026-09-06',
+        recordId: 'source-edit', activityType: 'תפעול', program: 'הרמת כוסית',
+        authority: 'יקום', school: 'Greenwork',
+        startTime: '11:00', endTime: '11:05', workHours: 5 / 60,
+        kilometers: 80, publicTransport: false, expenses: 0
+      },
+      differences: [],
+      managerResolved: null
+    }],
+    dailyKilometers: []
+  }, '2026-09');
+
+  assert.match(html, /data-attendance-manual-edit="attendance-only-edit" data-field-key="date"/);
+  assert.match(html, /data-attendance-manual-edit="attendance-only-edit" data-field-key="startTime"/);
+  assert.match(html, /data-attendance-manual-edit="attendance-only-edit" data-field-key="endTime"/);
+  assert.match(html, /data-attendance-manual-edit="attendance-only-edit" data-field-key="workHours"/);
+  assert.match(html, /data-attendance-manual-edit="attendance-only-edit" data-field-key="program"/);
+  assert.match(html, /data-attendance-focus-travel="attendance-only-edit"/);
+  assert.doesNotMatch(html, /שעות שכר מתוקנות/);
+});
