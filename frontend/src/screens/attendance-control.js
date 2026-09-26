@@ -2501,7 +2501,7 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
     if (viewBtn) {
       const approval = approvalFromButton(viewBtn);
       if (!approval) return;
-      const finishMod = await import('./payroll-control-finish.js');
+      const finishMod = await import('./payroll-control-finish.js?v=20260927-inline-correction-v1');
       if (txt(approval.pdf_path).startsWith('http://') || txt(approval.pdf_path).startsWith('https://')) {
         window.open(approval.pdf_path, '_blank', 'noopener');
         return;
@@ -2530,7 +2530,7 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
     }
     finishBtn.disabled = true;
     try {
-      const finishMod = await import('./payroll-control-finish.js');
+      const finishMod = await import('./payroll-control-finish.js?v=20260927-inline-correction-v1');
       if (finishMod.payrollEmployeeHasUnresolvedEntries(result, employeeId)) {
         status.textContent = 'לא ניתן לסיים את הבקרה: יש רשומות נוכחות שלא קיבלו החלטת מנהל.';
         return;
