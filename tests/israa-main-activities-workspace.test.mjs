@@ -71,7 +71,7 @@ test('selecting an Israa proposal activity no longer reloads or closes the page'
 });
 
 test('workspace loads lazily with a fresh module and cache version', () => {
-  assert.match(proposalItems, /import\('\.\/israa-activities-main-workspace\.js\?v=20260827-v4'\)/);
+  assert.match(proposalItems, /import\('\.\/israa-activities-main-workspace\.js\?v=20260926-v5'\)/);
   assert.match(proposalItems, /data-israa-tab=\"activities\"/);
   assert.match(proposalItems, /ensureMainActivitiesWorkspace\(\)/);
   assert.doesNotMatch(bootstrap, /israa-activities-main-workspace/);
