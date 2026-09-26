@@ -1002,10 +1002,11 @@ export function approveAttendanceEntryAsReported(entry) {
 
 export function applyAttendanceManualCorrection(entry, changes = {}) {
   if (!entry?.attendance) return entry;
+  const base = entry.final || entry.attendance;
   entry.final = enforceAttendanceTravelMode({
-    ...entry.attendance,
+    ...base,
     ...changes,
-    workHours: changes.workHours ?? rowWorkHours({ ...entry.attendance, ...changes }) ?? optionalNumber(entry.attendance.workHours)
+    workHours: changes.workHours ?? rowWorkHours({ ...base, ...changes }) ?? optionalNumber(base.workHours)
   });
   entry.managerResolved = 'corrected';
   return entry;
