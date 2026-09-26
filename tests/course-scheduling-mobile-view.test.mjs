@@ -19,16 +19,20 @@ test('mobile workload cards use one full-width total planned row', () => {
   assert.doesNotMatch(planning, /course-planning-completion-cell is-weekly/);
 });
 
-test('scheduling instructor overview becomes mobile work cards without desktop operational columns', () => {
+test('scheduling instructor overview becomes mobile work cards with expandable activity details', () => {
   assert.match(planning, /course-planning-completion-cell is-instructor/);
   assert.match(planning, /course-planning-completion-cell is-load/);
+  assert.match(planning, /course-planning-completion-detail-row/);
+  assert.match(planning, /פעילויות וקורסים/);
   assert.doesNotMatch(planning, /course-planning-completion-cell is-weekly/);
   assert.doesNotMatch(planning, /course-planning-completion-cell is-details/);
   assert.doesNotMatch(planning, /course-planning-completion-cell is-travel/);
   assert.match(mobileCss, /course-planning-completion-table thead\s*\{\s*display:\s*none/);
   assert.match(mobileCss, /course-planning-completion-table tbody > tr\s*\{[\s\S]*grid-template-columns:\s*repeat\(3,\s*minmax\(0,\s*1fr\)\)/);
+  assert.match(mobileCss, /course-planning-completion-detail-row\[hidden\][\s\S]*display:\s*none !important/);
+  assert.match(mobileCss, /course-planning-completion-activity-row[\s\S]*grid-template-columns:\s*minmax\(0,\s*1fr\)/);
 });
 
-test('scheduling mobile cache version points at the cleaned planning overview stylesheet', () => {
-  assert.match(indexHtml, /mobile-responsive\.css\?v=20260926-planning-overview-clean-v1/);
+test('scheduling mobile cache version points at the instructor detail stylesheet', () => {
+  assert.match(indexHtml, /mobile-responsive\.css\?v=20260926-instructor-activity-details-v1/);
 });

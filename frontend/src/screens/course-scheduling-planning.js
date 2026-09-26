@@ -2826,15 +2826,39 @@ export function planningCompletionOverviewHtml(rows = [], { pendingChanges = 0, 
           <th>מתחיל</th>
           <th>מסתיים</th>
         </tr></thead>
-        <tbody>${overview.map((item) => `<tr>
-          <td class="course-planning-completion-cell is-instructor"><strong>${escapeHtml(item.name)}</strong></td>
+        <tbody>${overview.map((item) => {
+          const detailKey = text(item.empId || item.name);
+          const courseNames = (item.programs || []).filter(Boolean);
+          return `<tr>
+          <td class="course-planning-completion-cell is-instructor">
+            <strong>${escapeHtml(item.name)}</strong>
+            <button type="button" class="course-planning-completion-detail-toggle"
+              data-planning-instructor-details-toggle="${escapeHtml(detailKey)}"
+              aria-expanded="false">פעילויות וקורסים</button>
+          </td>
           <td class="course-planning-completion-cell is-live">${item.liveCount}</td>
           <td class="course-planning-completion-cell is-draft">${item.draftCount}</td>
           <td class="course-planning-completion-cell is-proposal">${item.proposalCount}</td>
           <td class="course-planning-completion-cell is-load"><b>${item.activityCount}</b> פעילויות · <b>${item.meetingCount}</b> מפגשים · שבוע שיא: <b>${item.peakWeekDays}</b> י"ע${item.peakWeekStart ? ` (<bdi dir="ltr">${escapeHtml(formatPlanningShortDate(item.peakWeekStart))}</bdi>)` : ''}</td>
           <td class="course-planning-completion-cell is-start">${item.firstStart ? `<bdi dir="ltr">${escapeHtml(formatDateHe(item.firstStart))}</bdi>` : '<span class="course-planning-completion-missing">חסר מועד</span>'}</td>
           <td class="course-planning-completion-cell is-end ${item.overflowCount ? 'is-warning' : ''}">${item.lastEnd ? `<bdi dir="ltr">${escapeHtml(formatDateHe(item.lastEnd))}</bdi>` : '<span class="course-planning-completion-missing">חסר מועד</span>'}</td>
-        </tr>`).join('')}</tbody>
+        </tr>
+        <tr class="course-planning-completion-detail-row" data-planning-instructor-details="${escapeHtml(detailKey)}" hidden>
+          <td colspan="7">
+            <div class="course-planning-completion-detail-panel">
+              <p><strong>קורסים:</strong> ${escapeHtml(courseNames.join(' · ') || 'ללא תוכנית')}</p>
+              <div class="course-planning-completion-activity-list">
+                ${item.activities.map((activity) => `<div class="course-planning-completion-activity-row">
+                  <strong>${escapeHtml(activity.courseName || 'פעילות')}</strong>
+                  <span>${escapeHtml(activity.school || 'ללא בית ספר')}${activity.authority ? ` · ${escapeHtml(activity.authority)}` : ''}</span>
+                  <span>${escapeHtml(activity.status || '')}</span>
+                  <span>${activity.startDate ? `<bdi dir="ltr">${escapeHtml(formatDateHe(activity.startDate))}</bdi>` : 'ללא מועד'}${activity.endDate ? `–<bdi dir="ltr">${escapeHtml(formatDateHe(activity.endDate))}</bdi>` : ''}</span>
+                </div>`).join('')}
+              </div>
+            </div>
+          </td>
+        </tr>`;
+        }).join('')}</tbody>
       </table>
       </div>
     </section>` : ''}
