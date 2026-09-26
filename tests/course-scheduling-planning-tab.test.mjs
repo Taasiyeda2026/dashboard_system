@@ -1161,7 +1161,7 @@ test('Planning UI defaults to the full school year and exposes period selection'
   const html = planningTabHtml({ rows: [], periodKey: 'year' });
   assert.match(html, /data-planning-period-filter/);
   assert.match(html, /שנת הלימודים/);
-  assert.match(html, /06\/10\/2026/);
+  assert.match(html, /12\/10\/2026/);
   assert.match(html, /בנה מערכת הדרכות מלאה/);
   assert.match(html, /נדרש גיוס/);
   assert.match(html, /תכנון עבודה מלא/);
