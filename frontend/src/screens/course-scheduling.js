@@ -2367,6 +2367,7 @@ export const courseSchedulingScreen = {
       state.courseSchedulingPlanningError = '';
       try {
         await persistPlanningLock(courseId, clonePlanningOption(option));
+        if (state.courseSchedulingChoiceDrafts) delete state.courseSchedulingChoiceDrafts[courseId];
         state.courseSchedulingAlternativesCourseId = '';
         const pending = (state.courseSchedulingPlanningAffectedIds || []).length;
         showToast(
@@ -2391,6 +2392,7 @@ export const courseSchedulingScreen = {
       state.courseSchedulingPlanningError = '';
       try {
         await persistPlanningLock(courseId, null);
+        if (state.courseSchedulingChoiceDrafts) delete state.courseSchedulingChoiceDrafts[courseId];
         state.courseSchedulingAlternativesCourseId = '';
         const pending = (state.courseSchedulingPlanningAffectedIds || []).length;
         showToast(
@@ -2565,6 +2567,41 @@ export const courseSchedulingScreen = {
       state.courseSchedulingSelectedId = '';
       rerender();
     });
+    root.querySelectorAll('[data-planning-choice-date]').forEach((select) => select.addEventListener('change', (event) => {
+      const courseId = text(select.dataset.courseId);
+      if (!courseId) return;
+      state.courseSchedulingChoiceDrafts ||= {};
+      state.courseSchedulingChoiceDrafts[courseId] = {
+        date: text(event.target.value),
+        timeKey: '',
+        instructorEmpId: ''
+      };
+      rerenderPreservingWorkboardScroll();
+    }));
+    root.querySelectorAll('[data-planning-choice-time]').forEach((select) => select.addEventListener('change', (event) => {
+      const courseId = text(select.dataset.courseId);
+      if (!courseId) return;
+      state.courseSchedulingChoiceDrafts ||= {};
+      const current = state.courseSchedulingChoiceDrafts[courseId] || {};
+      state.courseSchedulingChoiceDrafts[courseId] = {
+        ...current,
+        timeKey: text(event.target.value),
+        instructorEmpId: ''
+      };
+      rerenderPreservingWorkboardScroll();
+    }));
+    root.querySelectorAll('[data-planning-choice-instructor]').forEach((select) => select.addEventListener('change', (event) => {
+      const courseId = text(select.dataset.courseId);
+      if (!courseId) return;
+      state.courseSchedulingChoiceDrafts ||= {};
+      const current = state.courseSchedulingChoiceDrafts[courseId] || {};
+      state.courseSchedulingChoiceDrafts[courseId] = {
+        ...current,
+        instructorEmpId: text(event.target.value)
+      };
+      rerenderPreservingWorkboardScroll();
+    }));
+
     root.querySelectorAll('[data-workboard-alternatives]').forEach((button) => button.addEventListener('click', () => {
       const courseId = text(button.dataset.courseId);
       state.courseSchedulingAlternativesCourseId =
