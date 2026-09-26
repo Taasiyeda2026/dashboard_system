@@ -248,8 +248,7 @@ begin
 
   return result;
 end
-$function$
-
+$function$;
 
 CREATE OR REPLACE FUNCTION public.scheduling_assert_proposed_eligibility(p_activity_id text, p_emp_id bigint, p_meetings jsonb)
  RETURNS void
@@ -316,8 +315,7 @@ begin
     then raise exception 'scheduling_instructor_unavailable'; end if;
   end loop;
 end
-$function$
-
+$function$;
 
 CREATE OR REPLACE FUNCTION public.scheduling_course_instructor_violations(p_activity_id text, p_emp_id bigint, p_expect_unassigned boolean DEFAULT true)
  RETURNS text[]
@@ -553,8 +551,7 @@ begin
 
   return violations;
 end
-$function$
-
+$function$;
 
 CREATE OR REPLACE FUNCTION public.scheduling_manual_assignment_hard_violations(p_activity_id text, p_emp_id bigint)
  RETURNS text[]
@@ -847,8 +844,7 @@ begin
 
   return violations;
 end
-$function$
-
+$function$;
 
 CREATE OR REPLACE FUNCTION public.scheduling_validate_proposed_meetings(p_activity_id text, p_meetings jsonb)
  RETURNS jsonb
@@ -917,5 +913,4 @@ begin
   end loop;
   return canonical;
 end
-$function$
-
+$function$;
