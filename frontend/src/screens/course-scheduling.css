@@ -2645,6 +2645,83 @@
   white-space: nowrap;
 }
 
+.course-planning-completion-detail-toggle {
+  display: inline-flex;
+  align-items: center;
+  margin-top: 3px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #1f4b7a;
+  cursor: pointer;
+  font: inherit;
+  font-size: .7rem;
+  font-weight: 800;
+}
+
+.course-planning-completion-detail-toggle::after {
+  content: " ▾";
+  font-size: .66rem;
+}
+
+.course-planning-completion-detail-toggle[aria-expanded="true"]::after {
+  content: " ▴";
+}
+
+.course-planning-completion-detail-row[hidden] {
+  display: none !important;
+}
+
+.course-planning-completion-detail-row > td {
+  padding: 0 !important;
+  border-inline-start: 0 !important;
+  background: #fbfdff;
+}
+
+.course-planning-completion-detail-panel {
+  display: grid;
+  gap: 7px;
+  padding: 9px 12px 11px;
+  border-top: 1px solid rgba(148, 163, 184, .18);
+}
+
+.course-planning-completion-detail-panel > p {
+  margin: 0;
+  color: var(--cs-text-muted);
+  font-size: .76rem;
+}
+
+.course-planning-completion-detail-panel > p strong {
+  color: var(--cs-text);
+}
+
+.course-planning-completion-activity-list {
+  display: grid;
+}
+
+.course-planning-completion-activity-row {
+  display: grid;
+  grid-template-columns: minmax(150px, 1.15fr) minmax(220px, 1.55fr) minmax(120px, .8fr) minmax(155px, .9fr);
+  gap: 10px;
+  align-items: center;
+  min-width: 0;
+  padding: 6px 0;
+  border-top: 1px solid rgba(148, 163, 184, .16);
+  font-size: .75rem;
+}
+
+.course-planning-completion-activity-row:first-child {
+  border-top: 0;
+}
+
+.course-planning-completion-activity-row > * {
+  min-width: 0;
+}
+
+.course-planning-completion-activity-row > span {
+  color: var(--cs-text-muted);
+}
+
 .course-planning-completion-table th {
   position: sticky;
   top: 0;
