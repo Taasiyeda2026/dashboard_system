@@ -2787,40 +2787,55 @@ export function planningCompletionOverviewHtml(rows = [], { pendingChanges = 0, 
       <article class="course-planning-workplan-card is-recruitment"><b>${coverage.recruitment}</b><span>נדרש גיוס</span><small>${recruitmentProfileRows.length} מודלי גיוס</small></article>
       <article class="course-planning-workplan-card is-unresolved${coverage.unresolved ? ' has-attention' : ''}"><b>${coverage.unresolved}</b><span>חסר נתון / פתרון</span><small>${coverage.unresolved ? 'נדרש טיפול' : 'כל הפעילויות נכללות בתכנון'}</small></article>
     </div>
-    ${recruitmentProfileRows.length ? `<div class="course-planning-recruitment-models">
-      <strong>מודלי גיוס לאחר מיצוי הצוות הקיים</strong>
+    ${recruitmentProfileRows.length ? `<section class="course-planning-recruitment-models">
+      <div class="course-planning-section-heading">
+        <div>
+          <strong>תכנון לגיוס ולהכשרה</strong>
+          <span>רק פעילויות שלא נמצא להן מדריך קיים שעובר את כל תנאי הסף</span>
+        </div>
+      </div>
       <div class="course-planning-recruitment-model-grid">
         ${recruitmentProfileRows.map((profile) => `<article class="course-planning-recruitment-model">
           <header><b>${escapeHtml(profile.label)}</b><span>${profile.activities.length} פעילויות</span></header>
+          <div class="course-planning-recruitment-model-load">
+            <strong>${profile.meetingCount} מפגשים · ${profile.teachingHours} ש׳</strong>
+            <span>${profile.weekdays.length ? escapeHtml(profile.weekdays.join(', ')) : 'ימים ייקבעו לפי התכנון'}</span>
+          </div>
           <p>${escapeHtml([...profile.authorities].join(', ') || 'מספר אזורים')}</p>
-          <small>${profile.firstStart ? `<bdi dir="ltr">${escapeHtml(formatDateHe(profile.firstStart))}</bdi>` : 'ללא מועד'}${profile.lastEnd ? `–<bdi dir="ltr">${escapeHtml(formatDateHe(profile.lastEnd))}</bdi>` : ''} · ${escapeHtml([...profile.programs].join(', '))}</small>
+          <small>${profile.languages.size ? `שפה: ${escapeHtml([...profile.languages].join(', '))} · ` : ''}${profile.gender ? `${escapeHtml(profile.gender)} · ` : ''}${escapeHtml([...profile.programs].join(', '))}</small>
+          <small>${profile.firstStart ? `<bdi dir="ltr">${escapeHtml(formatDateHe(profile.firstStart))}</bdi>` : 'ללא מועד'}${profile.lastEnd ? `–<bdi dir="ltr">${escapeHtml(formatDateHe(profile.lastEnd))}</bdi>` : ''}</small>
         </article>`).join('')}
       </div>
-    </div>` : ''}
-    ${overview.length ? `<div class="course-planning-completion-table-wrap">
+    </section>` : ''}
+    ${overview.length ? `<section class="course-planning-team-plan">
+      <div class="course-planning-section-heading">
+        <div>
+          <strong>תכנון לצוות הקיים</strong>
+          <span>היקף העבודה הצפוי כולל שיבוצים קיימים, טיוטות והצעות מערכת</span>
+        </div>
+      </div>
+      <div class="course-planning-completion-table-wrap">
       <table class="course-planning-completion-table">
         <thead><tr>
           <th>מדריך</th>
-          <th>קורסים</th>
+          <th>פעילויות</th>
           <th>משובץ</th>
           <th>ממתין לאישור</th>
-          <th>הצעה</th>
-          <th>עומס</th>
+          <th>בתכנון</th>
+          <th>היקף מתוכנן</th>
           <th>שבועי</th>
-          <th>נסיעות</th>
           <th>מתחיל</th>
           <th>מסתיים</th>
           <th>תוכניות ופירוט</th>
         </tr></thead>
         <tbody>${overview.map((item) => `<tr>
-          <td class="course-planning-completion-cell is-instructor"><strong>${escapeHtml(item.name)}</strong>${item.otherActivityCount ? `<small>+${item.otherActivityCount} פעילויות שאינן קורס</small>` : ''}</td>
-          <td class="course-planning-completion-cell is-courses"><b>${item.courseCount}</b></td>
+          <td class="course-planning-completion-cell is-instructor"><strong>${escapeHtml(item.name)}</strong></td>
+          <td class="course-planning-completion-cell is-courses"><b>${item.activityCount}</b></td>
           <td class="course-planning-completion-cell is-live">${item.liveCount}</td>
           <td class="course-planning-completion-cell is-draft">${item.draftCount}</td>
           <td class="course-planning-completion-cell is-proposal">${item.proposalCount}</td>
           <td class="course-planning-completion-cell is-load"><b>${item.meetingCount}</b> מפגשים · ${item.teachingHours} ש׳</td>
-          <td class="course-planning-completion-cell is-weekly">${item.averageWorkDaysPerWeek} ימי עבודה/שבוע${item.peakWeekStart ? `<small>שיא: ${item.peakWeekDays} ימים · ${item.peakWeekHours} ש׳</small>` : ''}</td>
-          <td class="course-planning-completion-cell is-travel">${Number.isFinite(item.expectedTravelKmPerMeeting) ? `~${item.expectedTravelKmPerMeeting} ק״מ/מפגש` : '—'}</td>
+          <td class="course-planning-completion-cell is-weekly">${item.averageWorkDaysPerWeek} ימי עבודה/שבוע${item.peakWeekStart ? `<small>שבוע שיא: ${item.peakWeekDays} ימים · ${item.peakWeekHours} ש׳</small>` : ''}</td>
           <td class="course-planning-completion-cell is-start">${item.firstStart ? `<bdi dir="ltr">${escapeHtml(formatDateHe(item.firstStart))}</bdi>` : '<span class="course-planning-completion-missing">חסר מועד</span>'}</td>
           <td class="course-planning-completion-cell is-end ${item.overflowCount ? 'is-warning' : ''}">${item.lastEnd ? `<bdi dir="ltr">${escapeHtml(formatDateHe(item.lastEnd))}</bdi>` : '<span class="course-planning-completion-missing">חסר מועד</span>'}</td>
           <td class="course-planning-completion-cell is-details">
@@ -2838,7 +2853,18 @@ export function planningCompletionOverviewHtml(rows = [], { pendingChanges = 0, 
           </td>
         </tr>`).join('')}</tbody>
       </table>
-    </div>` : ''}
+      </div>
+    </section>` : ''}
+    ${unresolvedRows.length ? `<details class="course-planning-workplan-unresolved">
+      <summary>${unresolvedRows.length} פעילויות שעדיין לא ניתן לכלול בתוכנית העבודה</summary>
+      <div>
+        ${unresolvedRows.map((row) => `<article>
+          <strong>${escapeHtml(row.courseName || 'פעילות')}</strong>
+          <span>${escapeHtml(row.school || 'ללא בית ספר')}${row.authority ? ` · ${escapeHtml(row.authority)}` : ''}</span>
+          <small>${escapeHtml(text(row.reason) || 'נדרש טיפול נוסף')}</small>
+        </article>`).join('')}
+      </div>
+    </details>` : ''}
   </section>`;
 }
 
