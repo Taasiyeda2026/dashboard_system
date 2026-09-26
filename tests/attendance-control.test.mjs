@@ -1240,6 +1240,27 @@ test('attendance-only row can be approved as reported', () => {
   assert.equal(collectChangedAttendanceUpdates([entry]).length, 0);
 });
 
+test('multiple manager inline corrections accumulate on the same attendance record', () => {
+  const entry = {
+    id: 'attendance-only-edit',
+    source: 'attendance_not_compared',
+    attendance: {
+      employeeId: '10', date: '2026-05-10', startTime: '08:00', endTime: '09:00',
+      workHours: 1, activityType: 'תפעול', program: 'א', _source: { ID: 'edit-1' }
+    },
+    final: {
+      employeeId: '10', date: '2026-05-10', startTime: '08:00', endTime: '09:00',
+      workHours: 1, activityType: 'תפעול', program: 'א'
+    },
+    differences: []
+  };
+  applyAttendanceManualCorrection(entry, { startTime: '08:15' });
+  applyAttendanceManualCorrection(entry, { program: 'ב' });
+  assert.equal(entry.final.startTime, '08:15');
+  assert.equal(entry.final.program, 'ב');
+  assert.equal(entry.managerResolved, 'corrected');
+});
+
 test('unmatched dashboard row can be approved as reported', () => {
   const entry = {
     id: 'row-1', attendance: { employeeId: '10', date: '2026-05-10', startTime: '08:00', endTime: '09:00', workHours: 1, activityType: 'קורס', _source: { ID: 89 } },
