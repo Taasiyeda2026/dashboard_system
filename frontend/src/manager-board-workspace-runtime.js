@@ -279,10 +279,11 @@ async function loadAttendanceSummary(roster, ym, force = false) {
 
   const recordCounts = new Map(ids.map((id) => [id, 0]));
   const totalHours = new Map(ids.map((id) => [id, 0]));
+  let records = [];
   let recordsError = '';
   const { fromDate, toDate } = attendanceMonthDateRange(ym);
   try {
-    const records = ids.length
+    records = ids.length
       ? await api.attendanceControlRecords({ employeeIds: ids, fromDate, toDate })
       : [];
     for (const row of Array.isArray(records) ? records : []) {
@@ -301,7 +302,7 @@ async function loadAttendanceSummary(roster, ym, force = false) {
   let approvalsError = '';
   try {
     if (typeof api.listPayrollControlApprovals === 'function') {
-      const rows = await api.listPayrollControlApprovals({ monthKey: ym });
+      const rows = await api.listPayrollControlApprovals({ monthKey: ym, employeeIds: ids });
       for (const row of Array.isArray(rows) ? rows : []) {
         const empId = text(row?.employee_id || row?.employeeId);
         if (recordCounts.has(empId)) approvals.set(empId, row);
@@ -311,7 +312,7 @@ async function loadAttendanceSummary(roster, ym, force = false) {
     approvalsError = error?.message || 'טעינת אישורי הבקרה נכשלה.';
   }
 
-  const value = { recordCounts, totalHours, approvals, recordsError, approvalsError };
+  const value = { recordCounts, totalHours, approvals, records, recordsError, approvalsError };
   attendanceSummaryCache.set(key, { value, loadedAt: Date.now() });
   return value;
 }
@@ -469,8 +470,11 @@ function sharePointRootButton(schoolYear) {
   return `<a class="manager-workspace-sharepoint-root" href="${SHAREPOINT_EMPLOYEE_FILES_ROOT_2027}" target="_blank" rel="noopener">פתיחת כל תיקי המדריכים</a>`;
 }
 
-function buildScopedAttendanceApi(roster) {
+function buildScopedAttendanceApi(roster, preloadedRecords = null) {
   const rosterIds = new Set(roster.map((row) => text(row.emp_id)).filter(Boolean));
+  const scopedPreloadedRecords = Array.isArray(preloadedRecords)
+    ? preloadedRecords.filter((row) => rosterIds.has(rawEmployeeId(row)))
+    : null;
   const syntheticEmployees = roster.map((row) => ({
     employeeId: text(row.emp_id),
     EmployeeId: text(row.emp_id),
@@ -502,7 +506,7 @@ function buildScopedAttendanceApi(roster) {
         return async (opts = {}) => {
           const employeeIds = [...rosterIds];
           if (!employeeIds.length) return [];
-          const records = await target.attendanceControlRecords({
+          const records = scopedPreloadedRecords ?? await target.attendanceControlRecords({
             ...opts,
             employeeIds
           });
@@ -518,7 +522,8 @@ function buildScopedAttendanceApi(roster) {
           return target.attendanceControlDashboardSources({
             ...opts,
             employeeIds,
-            skipRouteBuild: true
+            skipRouteBuild: true,
+            compactScope: true
           });
         };
       }
@@ -549,7 +554,7 @@ async function waitForEnabledButton(button, timeoutMs = 10000) {
   return Boolean(button && !button.disabled);
 }
 
-async function openEmployeeAttendance(empId, roster, context) {
+async function openEmployeeAttendance(empId, roster, context, summary) {
   const host = document.querySelector('[data-manager-attendance-host]');
   if (!host) return;
   const selectedRoster = (Array.isArray(roster) ? roster : [])
@@ -562,7 +567,7 @@ async function openEmployeeAttendance(empId, roster, context) {
     host.innerHTML = '<div class="manager-workspace-loading">טוען דוח מדריך…</div>';
   }
 
-  await bindEmbeddedAttendance(host, selectedRoster, context);
+  await bindEmbeddedAttendance(host, selectedRoster, context, summary?.records || []);
 
   const panel = host.querySelector('[data-attendance-control]');
   const run = host.querySelector('[data-attendance-run]');
@@ -595,7 +600,7 @@ async function openEmployeeAttendance(empId, roster, context) {
   host.removeAttribute('aria-busy');
 }
 
-async function bindEmbeddedAttendance(host, roster, context) {
+async function bindEmbeddedAttendance(host, roster, context, preloadedRecords = null) {
   if (!host) return;
   const signature = `${context.manager}|${context.ym}|${context.schoolYear}|${roster.map((row) => row.emp_id).join(',')}`;
   if (embeddedAttendanceSignature === signature && host.dataset.managerAttendanceBound === 'true') return;
@@ -624,7 +629,7 @@ async function bindEmbeddedAttendance(host, roster, context) {
   const panel = host.querySelector('[data-attendance-control]');
   if (panel) panel.hidden = false;
   attendance.bindAttendanceControl(host, {
-    api: buildScopedAttendanceApi(roster),
+    api: buildScopedAttendanceApi(roster, preloadedRecords),
     state: scopedAttendanceState(),
     standalone: true
   });
@@ -668,7 +673,7 @@ async function renderAttendance(boardRoot, context, roster, renderToken) {
       button.disabled = true;
       button.textContent = 'טוען דוח…';
       try {
-        await openEmployeeAttendance(button.dataset.managerAttendanceOpenEmployee, roster, context);
+        await openEmployeeAttendance(button.dataset.managerAttendanceOpenEmployee, roster, context, summary);
       } finally {
         button.disabled = false;
         button.textContent = previousText;
