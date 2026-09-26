@@ -864,7 +864,8 @@ async function selectActivitiesByDateRangeFromSupabase({
   includeEndDate = false,
   select = ACTIVITY_LIST_COLUMNS,
   overlapByStartEnd = false,
-  fallbackSelect = ''
+  fallbackSelect = '',
+  employeeIds = []
 } = {}) {
   if (!supabase) return [];
   if (!/^\d{4}-\d{2}-\d{2}$/.test(String(startDate || '')) || !/^\d{4}-\d{2}-\d{2}$/.test(String(endDate || ''))) {
@@ -874,6 +875,13 @@ async function selectActivitiesByDateRangeFromSupabase({
     .from('activities')
     .select(select)
     .in('activity_season', activitySeasonQueryValues(activityPeriod));
+  const employeeScope = [...new Set((employeeIds || [])
+    .map((value) => String(value || '').trim())
+    .filter((value) => /^\d+$/.test(value)))];
+  if (employeeScope.length) {
+    const values = employeeScope.join(',');
+    query = query.or(`emp_id.in.(${values}),emp_id_2.in.(${values})`);
+  }
   if (overlapByStartEnd) {
     query = query.lte('start_date', endDate).gte('end_date', startDate);
   } else {
@@ -899,7 +907,8 @@ async function selectActivitiesByDateRangeFromSupabase({
       activityType,
       includeEndDate,
       select: fallbackSelect,
-      overlapByStartEnd
+      overlapByStartEnd,
+      employeeIds
     });
   }
   if (result.error) {
@@ -6197,11 +6206,14 @@ async function readAllActivitiesRowsSupabase({
   activityPeriod = currentGlobalActivityPeriod(),
   select = ACTIVITY_OPERATIONS_COLUMNS,
   startDate = '',
-  endDate = ''
+  endDate = '',
+  employeeIds = []
 } = {}) {
   const selectedSeason = normalizeGlobalActivityPeriod(activityPeriod);
   const rangeKey = (startDate && endDate) ? `${startDate}:${endDate}` : 'season';
-  const cacheKey = `${selectedSeason}|${select}|${rangeKey}`;
+  const employeeScope = [...new Set((employeeIds || []).map((value) => String(value || '').trim()).filter(Boolean))].sort();
+  const employeeKey = employeeScope.length ? employeeScope.join(',') : 'all';
+  const cacheKey = `${selectedSeason}|${select}|${rangeKey}|emp:${employeeKey}`;
   const cached = _allActivitiesRowsCache.get(cacheKey);
   if (!forceRefresh && cached && (Date.now() - cached.at) < _ALL_ACTIVITIES_ROWS_CACHE_TTL_MS) return cached.rows;
   let rows;
@@ -6211,7 +6223,8 @@ async function readAllActivitiesRowsSupabase({
       endDate,
       activityPeriod: selectedSeason,
       select,
-      includeEndDate: true
+      includeEndDate: true,
+      employeeIds: employeeScope
     });
     rows = filterRowsByGlobalActivityPeriod(rows, selectedSeason);
   } else {
@@ -7059,7 +7072,7 @@ export const api = {
     const rows = [...new Map(periodRows.flat().map((row) => [String(row?.row_id || ''), row])).values()];
     return { rows, _source: 'supabase_metadata' };
   },
-  attendanceControlDashboardSources: async ({ employeeIds = [], fromDate = '', toDate = '', skipRouteBuild = false } = {}) => {
+  attendanceControlDashboardSources: async ({ employeeIds = [], fromDate = '', toDate = '', skipRouteBuild = false, compactScope = false } = {}) => {
     assertPermission('view_attendance_control', 'attendance_control_forbidden');
     const ids = [...new Set((employeeIds || []).map((value) => String(value || '').trim()).filter(Boolean))];
     if (!ids.length || !fromDate || !toDate) return { activities: [], contacts: [], travelCache: [], expenses: [] };
@@ -7104,12 +7117,12 @@ export const api = {
     }
     const activitySelect = `${ACTIVITY_OPERATIONS_COLUMNS},authority_id,activity_no`;
     const [regular, summer, school2027, contactsResult, usersResult, catalog, proposalGroupAliases] = await Promise.all([
-      readAllActivitiesRowsSupabase({ activityPeriod: ACTIVITY_SEASON_REGULAR, select: activitySelect, startDate: fromDate, endDate: toDate }),
-      readAllActivitiesRowsSupabase({ activityPeriod: ACTIVITY_SEASON_SUMMER_2026, select: activitySelect, startDate: fromDate, endDate: toDate }),
-      readAllActivitiesRowsSupabase({ activityPeriod: ACTIVITY_SEASON_SCHOOL_2027, select: activitySelect, startDate: fromDate, endDate: toDate }),
+      readAllActivitiesRowsSupabase({ activityPeriod: ACTIVITY_SEASON_REGULAR, select: activitySelect, startDate: fromDate, endDate: toDate, employeeIds: compactScope ? ids : [] }),
+      readAllActivitiesRowsSupabase({ activityPeriod: ACTIVITY_SEASON_SUMMER_2026, select: activitySelect, startDate: fromDate, endDate: toDate, employeeIds: compactScope ? ids : [] }),
+      readAllActivitiesRowsSupabase({ activityPeriod: ACTIVITY_SEASON_SCHOOL_2027, select: activitySelect, startDate: fromDate, endDate: toDate, employeeIds: compactScope ? ids : [] }),
       supabase.from('contacts_instructors').select('emp_id,full_name,address,employment_type,active').in('emp_id', ids),
       supabase.from('users').select('emp_id,auth_user_id').in('emp_id', ids),
-      readAuthoritySchoolCatalog(),
+      compactScope ? Promise.resolve(null) : readAuthoritySchoolCatalog(),
       readProposalGroupAliasesFromSupabase().catch(() => [])
     ]);
     if (contactsResult.error) throw new Error(contactsResult.error.message || 'attendance_contacts_load_failed');
@@ -7118,13 +7131,49 @@ export const api = {
       .filter((row) => ids.includes(String(row.emp_id || '').trim()) || ids.includes(String(row.emp_id_2 || '').trim()));
     const attendanceSchoolsResult = await supabase
       .from('attendance_records')
-      .select('school_id,destination_address_snapshot')
+      .select('school_id,authority_id,semel_mosad,school_name_snapshot,authority_name_snapshot,destination_address_snapshot')
       .in('emp_id', ids)
       .gte('report_date', fromDate)
       .lte('report_date', toDate);
-    const attendanceSchoolIds = attendanceSchoolsResult.error
-      ? []
-      : (attendanceSchoolsResult.data || []).map((row) => Number(row.school_id)).filter(Number.isFinite);
+    const attendanceIdentityRows = attendanceSchoolsResult.error ? [] : (attendanceSchoolsResult.data || []);
+    const attendanceSchoolIds = attendanceIdentityRows.map((row) => Number(row.school_id)).filter(Number.isFinite);
+    let effectiveCatalog = catalog;
+    if (compactScope) {
+      const compactSchools = [
+        ...activities.map((row) => ({
+          id: row.school_id ?? null,
+          semel_mosad: row.semel_mosad ?? null,
+          school_name: row.school || '',
+          authority: row.authority || '',
+          authority_id: row.authority_id ?? null,
+          active: 'yes'
+        })),
+        ...attendanceIdentityRows.map((row) => ({
+          id: row.school_id ?? null,
+          semel_mosad: row.semel_mosad ?? null,
+          school_name: row.school_name_snapshot || '',
+          authority: row.authority_name_snapshot || '',
+          authority_id: row.authority_id ?? null,
+          active: 'yes'
+        }))
+      ].filter((row) => row.id != null || row.school_name);
+      const compactAuthorities = [
+        ...activities.map((row) => ({
+          id: row.authority_id ?? null,
+          authority_name: row.authority || '',
+          active: 'yes'
+        })),
+        ...attendanceIdentityRows.map((row) => ({
+          id: row.authority_id ?? null,
+          authority_name: row.authority_name_snapshot || '',
+          active: 'yes'
+        }))
+      ].filter((row) => row.id != null || row.authority_name);
+      effectiveCatalog = {
+        schoolLookup: buildSchoolCatalogLookup(compactSchools),
+        authorityLookup: buildAuthorityCatalogLookup(compactAuthorities)
+      };
+    }
     const attendanceLocationAddresses = attendanceSchoolsResult.error
       ? []
       : [...new Set((attendanceSchoolsResult.data || [])
@@ -7163,8 +7212,8 @@ export const api = {
       contacts: contactsResult.data || [],
       travelCache,
       expenses,
-      schoolLookup: catalog?.schoolLookup || null,
-      authorityLookup: catalog?.authorityLookup || null,
+      schoolLookup: effectiveCatalog?.schoolLookup || null,
+      authorityLookup: effectiveCatalog?.authorityLookup || null,
       proposalGroupAliases: Array.isArray(proposalGroupAliases) ? proposalGroupAliases : [],
       expenseSourceAvailable: Boolean(authIds.length),
       travelSourceAvailable: routeResults.every((result) => !result.error)
