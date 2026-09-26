@@ -366,18 +366,33 @@
     line-height: 1.2;
   }
 
-  /* Proposal/client-file records use the same compact card-row language. */
+  /* Proposal/client-file records: compact cards instead of a blown-up desktop table. */
   .route-proposals-agreements .ds-table-wrap:has(.ds-pa-table) {
     overflow: visible;
+    inline-size: 100%;
+    min-inline-size: 0;
+    margin: 0;
+    padding: 0;
     border: 0;
+    background: transparent;
+    scrollbar-gutter: auto;
   }
 
-  .route-proposals-agreements .ds-pa-table,
-  .route-proposals-agreements .ds-pa-table tbody,
-  .route-proposals-agreements .ds-pa-table tr,
-  .route-proposals-agreements .ds-pa-table td {
+  .route-proposals-agreements .ds-pa-table {
     display: block;
     inline-size: 100%;
+    min-inline-size: 0;
+    margin: 0;
+    border: 0;
+    border-spacing: 0;
+    table-layout: auto;
+  }
+
+  .route-proposals-agreements .ds-pa-table tbody {
+    display: grid;
+    inline-size: 100%;
+    min-inline-size: 0;
+    gap: 8px;
   }
 
   .route-proposals-agreements .ds-pa-table thead,
@@ -385,33 +400,196 @@
     display: none;
   }
 
-  .route-proposals-agreements .ds-pa-table tbody {
+  .route-proposals-agreements .ds-pa-table tbody > tr {
+    position: relative;
     display: grid;
-    gap: 10px;
-  }
-
-  .route-proposals-agreements .ds-pa-table tbody tr {
+    grid-template-columns: minmax(0, 1fr) 108px;
+    grid-auto-rows: min-content;
+    align-items: start;
+    gap: 5px 12px;
+    inline-size: 100%;
+    min-inline-size: 0;
+    min-block-size: 0;
     padding: 10px 12px;
     border: 1px solid #dbe7f3;
     border-radius: 14px;
     background: #fff;
+    box-shadow: 0 1px 4px rgba(15, 23, 42, .05);
   }
 
-  .route-proposals-agreements .ds-pa-table td {
+  /* Neutralize desktop zebra/hover cell paint: one card = one background. */
+  .route-proposals-agreements .ds-pa-table tbody > tr > td,
+  .route-proposals-agreements .ds-pa-table tbody > tr:nth-child(even) > td,
+  .route-proposals-agreements .ds-pa-table tbody > tr:hover > td,
+  .route-proposals-agreements .ds-pa-table tbody > tr:active > td,
+  .route-proposals-agreements .ds-pa-table tbody > tr:focus-visible > td {
+    display: block;
+    inline-size: auto;
     min-inline-size: 0;
+    min-block-size: 0;
     block-size: auto;
-    padding: 4px 0;
+    margin: 0;
+    padding: 0;
     border: 0;
+    background: transparent;
+    box-shadow: none;
+    overflow: visible;
     overflow-wrap: anywhere;
     white-space: normal;
     text-align: start;
+    font-size: .8rem;
+    line-height: 1.25;
+  }
+
+  .route-proposals-agreements .ds-pa-table td::before {
+    content: attr(data-mobile-label);
+    display: block;
+    min-inline-size: 0;
+    margin: 0 0 1px;
+    color: #64748b;
+    font-size: .6rem;
+    line-height: 1.1;
+    font-weight: 700;
+  }
+
+  /* Main identity: client/school on the wide side, quote/domain on the compact side. */
+  .route-proposals-agreements .ds-pa-table td[data-mobile-label="רשות"] {
+    grid-column: 1;
+    grid-row: 1;
+    font-size: .9rem;
+    font-weight: 700;
+    color: #0f172a;
+  }
+
+  .route-proposals-agreements .ds-pa-table td[data-mobile-label="בית הספר"] {
+    grid-column: 1;
+    grid-row: 2;
+    font-size: .84rem;
+    color: #334155;
+  }
+
+  .route-proposals-agreements .ds-pa-table td[data-mobile-label="מס׳"] {
+    grid-column: 2;
+    grid-row: 1;
+    white-space: nowrap;
+    font-size: .98rem;
+    font-weight: 800;
+    color: #1e293b;
+  }
+
+  .route-proposals-agreements .ds-pa-table td[data-mobile-label="תחום"] {
+    grid-column: 2;
+    grid-row: 2;
+    white-space: nowrap;
+    font-size: .76rem;
+    font-weight: 800;
+    color: #334155;
+  }
+
+  .route-proposals-agreements .ds-pa-table td[data-mobile-label="תחום"]::before {
+    display: none;
+  }
+
+  .route-proposals-agreements .ds-pa-table td[data-mobile-label="בית הספר"]:empty {
+    display: none;
+  }
+
+  /* Secondary summary stays compact: two columns, no oversized table typography. */
+  .route-proposals-agreements .ds-pa-table td[data-mobile-label="סוג הצעה"] {
+    grid-column: 1;
+    grid-row: 3;
+  }
+
+  .route-proposals-agreements .ds-pa-table td[data-mobile-label="תאריך"] {
+    grid-column: 2;
+    grid-row: 3;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .route-proposals-agreements .ds-pa-table td[data-mobile-label="סטטוס"] {
+    grid-column: 1;
+    grid-row: 4;
+    align-self: center;
+  }
+
+  .route-proposals-agreements .ds-pa-table td[data-mobile-label="סה״כ"] {
+    grid-column: 2;
+    grid-row: 4;
+    white-space: nowrap;
+    font-size: .9rem;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .route-proposals-agreements .ds-pa-table td[data-mobile-label="סטטוס"] select,
+  .route-proposals-agreements .ds-pa-table td[data-mobile-label="סטטוס"] .ds-input {
+    inline-size: auto;
+    max-inline-size: 100%;
+    min-block-size: 30px;
+    padding-block: 3px;
+    font-size: .74rem;
+  }
+
+  .route-proposals-agreements .ds-pa-table td[data-mobile-label="פעולות"] {
+    grid-column: 1 / -1;
+    grid-row: 5;
+    margin-block-start: 2px;
+    padding-block-start: 7px;
+    border-block-start: 1px solid #eef2f7;
+  }
+
+  .route-proposals-agreements .ds-pa-table td[data-mobile-label="פעולות"]::before {
+    display: none;
   }
 
   .route-proposals-agreements .ds-pa-actions-inner--clean {
+    inline-size: 100%;
     justify-content: flex-start;
+    gap: 5px;
   }
 
-  .route-proposals-agreements .ds-pa-table td::before,
+  .route-proposals-agreements .ds-pa-actions-cell .ds-btn,
+  .route-proposals-agreements .ds-pa-actions-cell button {
+    min-inline-size: 32px;
+    min-block-size: 32px;
+  }
+
+  /* The existing disclosure lives in the domain cell; keep it small and obvious. */
+  .route-proposals-agreements .ds-pa-domain-col .mobile-row-toggle {
+    display: inline-flex;
+    min-block-size: 24px;
+    margin-inline-start: 6px;
+    padding: 2px 6px;
+    border: 1px solid #cbd5e1;
+    border-radius: 999px;
+    background: #f8fafc;
+    color: #475569;
+    font: inherit;
+    font-size: .62rem;
+    font-weight: 700;
+    line-height: 1.1;
+    vertical-align: middle;
+  }
+
+  .route-proposals-agreements .ds-pa-table tbody > tr.is-mobile-expanded > [data-mobile-field="detail"] {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: 86px minmax(0, 1fr);
+    align-items: center;
+    gap: 8px;
+    margin-block-start: 2px;
+    padding-block-start: 7px;
+    border-block-start: 1px solid #eef2f7;
+    font-size: .76rem;
+  }
+
+  .route-proposals-agreements .ds-pa-table tbody > tr.is-mobile-expanded > [data-mobile-field="detail"]::before {
+    display: block;
+    margin: 0;
+    font-size: .66rem;
+  }
+
   [data-ops-controller-tab="summer_training_matrix"] .ops2027-table td::before,
   [data-ops-controller-tab="course_training_matrix"] .ops2027-table td::before {
     content: attr(data-mobile-label);
