@@ -966,6 +966,13 @@ function schedulingPlanningStatusHtml(state = {}) {
       <button type="button" class="course-scheduling-workboard-primary" data-run-course-planning>בנה הצעות</button>
     </div>`;
   }
+  if (state.courseSchedulingPlanningStale) {
+    const reason = text(state.courseSchedulingPlanningStaleReason) || 'נתוני התכנון השתנו';
+    return `<div class="course-scheduling-auto-plan is-warning" role="status" data-planning-status aria-busy="false">
+      <span data-planning-status-message><strong>התכנון השמור אינו עדכני ולכן אינו מוצג כהמלצה.</strong> ${escapeHtml(reason)}.</span>
+      <button type="button" class="course-scheduling-workboard-primary" data-run-course-planning>חשב תכנון מחדש</button>
+    </div>`;
+  }
   if (pending) {
     return `<div class="course-scheduling-auto-plan is-ready" role="status" data-planning-status aria-busy="false">
       <span data-planning-status-message><strong>התכנון האחרון נשאר מוצג.</strong> ${pending} פעילויות השתנו מאז החישוב האחרון.</span>
@@ -1885,7 +1892,7 @@ export const courseSchedulingScreen = {
         : `${schedulingScopeHtml(allInterfaceCourses, state, data.activities || [])}
       ${schedulingPlanningStatusHtml(state)}
       <section class="course-scheduling-summary">${summaryCardsHtml(rowModels)}</section>
-      ${state.courseSchedulingPlanningSharedLoaded && !state.courseSchedulingPlanningLoading
+      ${state.courseSchedulingPlanningSharedLoaded && !state.courseSchedulingPlanningLoading && !state.courseSchedulingPlanningStale
         ? planningCompletionOverviewHtml(completionRows, {
             pendingChanges: (state.courseSchedulingPlanningAffectedIds || []).length,
             schoolYearTotal: allInterfaceCourses.length
@@ -1957,7 +1964,7 @@ export const courseSchedulingScreen = {
       const total = Number(progress.total) || 0;
       const completed = Number(progress.completed) || 0;
       const phase = text(progress.phase);
-      status.classList.remove('is-ready', 'is-error');
+      status.classList.remove('is-ready', 'is-warning', 'is-error');
       status.classList.add('is-working');
       status.setAttribute('aria-busy', 'true');
       message.textContent = total
@@ -2016,10 +2023,9 @@ export const courseSchedulingScreen = {
       const currentCourseIds = currentCourses.map((course) => idOf(course));
       const contextFingerprint = planningContextFingerprint(planningInputFromSnapshot(snapshot, scope.periodKey));
       const workspace = shared?.workspace || null;
-      const contextChanged = !!workspace && (
-        text(workspace.engineVersion) !== PLANNING_ENGINE_VERSION
-        || text(workspace.contextFingerprint) !== contextFingerprint
-      );
+      const engineChanged = !!workspace && text(workspace.engineVersion) !== PLANNING_ENGINE_VERSION;
+      const inputChanged = !!workspace && text(workspace.contextFingerprint) !== contextFingerprint;
+      const contextChanged = engineChanged || inputChanged;
       const affectedIds = workspace
         ? sharedPlanningAffectedCourseIds({
             shared,
@@ -2029,7 +2035,7 @@ export const courseSchedulingScreen = {
           })
         : currentCourseIds;
 
-      state.courseSchedulingPlanningRows = (shared?.rows || [])
+      const sharedRows = (shared?.rows || [])
         .filter((entry) => currentCourseIds.includes(text(entry.activityId)))
         .map((entry) => {
           if (entry.lockedOption) return applyPlanningLockToRow(entry.row, entry.lockedOption, scope.periodKey);
@@ -2044,6 +2050,12 @@ export const courseSchedulingScreen = {
           }
           return entry.row;
         });
+      state.courseSchedulingPlanningStale = contextChanged;
+      state.courseSchedulingPlanningStaleReason = engineChanged
+        ? 'גרסת מנוע התכנון השתנתה מאז החישוב האחרון'
+        : (inputChanged ? 'נתוני הפעילויות, הזמינות או כללי התכנון השתנו מאז החישוב האחרון' : '');
+      state.courseSchedulingPlanningStoredEngineVersion = text(workspace?.engineVersion);
+      state.courseSchedulingPlanningRows = contextChanged ? [] : sharedRows;
       state.courseSchedulingPlanningLocks = sharedPlanningLocks(shared);
       state.courseSchedulingPlanningAffectedIds = [...new Set(affectedIds.map(text).filter(Boolean))];
       state.courseSchedulingPlanningFingerprint = text(workspace?.dataFingerprint);
@@ -2150,6 +2162,9 @@ export const courseSchedulingScreen = {
       state.courseSchedulingPlanningAffectedIds = [];
       state.courseSchedulingPlanningDirtyLockIds = [];
       state.courseSchedulingPlanningBeforeLock = {};
+      state.courseSchedulingPlanningStale = false;
+      state.courseSchedulingPlanningStaleReason = '';
+      state.courseSchedulingPlanningStoredEngineVersion = '';
       if (clearLocks) state.courseSchedulingPlanningLocks = {};
       if (clearSharedMeta) {
         state.courseSchedulingPlanningShared = null;

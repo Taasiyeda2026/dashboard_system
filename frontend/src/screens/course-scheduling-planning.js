@@ -2863,13 +2863,18 @@ export function planningCompletionOverviewHtml(rows = [], { pendingChanges = 0, 
       </div>
     </section>` : ''}
     ${unresolvedRows.length ? `<details class="course-planning-workplan-unresolved">
-      <summary>${unresolvedRows.length} פעילויות שעדיין לא ניתן לכלול בתוכנית העבודה</summary>
-      <div>
-        ${unresolvedRows.map((row) => `<article>
-          <strong>${escapeHtml(row.courseName || 'פעילות')}</strong>
-          <span>${escapeHtml(row.school || 'ללא בית ספר')}${row.authority ? ` · ${escapeHtml(row.authority)}` : ''}</span>
-          <small>${escapeHtml(text(row.reason) || 'נדרש טיפול נוסף')}</small>
-        </article>`).join('')}
+      <summary>${unresolvedRows.length} פעילויות שדורשות טיפול נוסף</summary>
+      <div class="course-planning-workplan-unresolved-table-wrap">
+        <table class="course-planning-workplan-unresolved-table">
+          <thead><tr><th>בית ספר</th><th>פעילות</th><th>סיבה</th></tr></thead>
+          <tbody>
+            ${unresolvedRows.map((row) => `<tr>
+              <td><strong>${escapeHtml(row.school || 'ללא בית ספר')}</strong>${row.authority ? `<small>${escapeHtml(row.authority)}</small>` : ''}</td>
+              <td>${escapeHtml(row.courseName || 'פעילות')}</td>
+              <td>${escapeHtml(text(row.reason) || 'נדרש טיפול נוסף')}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
       </div>
     </details>` : ''}
   </section>`;

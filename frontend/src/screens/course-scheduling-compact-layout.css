@@ -541,6 +541,12 @@
   color: #1f4b7a;
 }
 
+.course-scheduling-auto-plan.is-warning {
+  border-color: #ead8b2;
+  background: #fffaf0;
+  color: #7a5a16;
+}
+
 .course-scheduling-auto-plan.is-error {
   border-color: #efb0aa;
   background: #fff8f7;
