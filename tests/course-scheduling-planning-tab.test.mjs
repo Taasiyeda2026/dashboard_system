@@ -939,7 +939,7 @@ test('first-half planned workload includes meetings that continue beyond the hal
   assert.match(html, /04\/02\/2027/);
 });
 
-test('instructor overview keeps one compact planned-work column and removes internal detail boxes', () => {
+test('instructor overview keeps one compact planned-work column with expandable activity details', () => {
   const html = planningCompletionOverviewHtml([{
     courseId: 'compact',
     courseName: 'קורס',
@@ -958,8 +958,12 @@ test('instructor overview keeps one compact planned-work column and removes inte
   }]);
   assert.match(html, /1<\/b> פעילויות · <b>2<\/b> מפגשים · שבוע שיא: <b>1<\/b> י"ע \(<bdi dir="ltr">01\/11\/26<\/bdi>\)/);
   assert.doesNotMatch(html, /תוכניות ופירוט/);
-  assert.doesNotMatch(html, /course-planning-completion-programs/);
-  assert.doesNotMatch(html, /course-planning-completion-details/);
+  assert.match(html, /data-planning-instructor-details-toggle="1"/);
+  assert.match(html, /פעילויות וקורסים/);
+  assert.match(html, /<strong>קורסים:<\/strong> קורס/);
+  assert.match(html, /course-planning-completion-activity-row/);
+  assert.match(html, /בית ספר|א/);
+  assert.doesNotMatch(html, /תוכניות ופירוט/);
   assert.doesNotMatch(html, /פעילויות ממתינות לעדכון/);
 });
 
