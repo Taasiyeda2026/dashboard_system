@@ -243,6 +243,7 @@ api.managerAttendanceReviewSnapshot = async function ({ employeeId = '', monthKe
       schoolLookup: { list: Array.isArray(payload.schools) ? payload.schools : [] },
       authorityLookup: { list: Array.isArray(payload.authorities) ? payload.authorities : [] },
       proposalGroupAliases: Array.isArray(payload.proposal_group_aliases) ? payload.proposal_group_aliases : [],
+      trainingSchedule: Array.isArray(payload.training_schedule) ? payload.training_schedule : [],
       expenseSourceAvailable: true,
       travelSourceAvailable: true
     },
