@@ -2290,7 +2290,7 @@ export const courseSchedulingScreen = {
         const profiles = Object.fromEntries((freshStart.scheduling?.profiles || []).map((row) => [text(row.emp_id), row]));
         const routeClient = createRouteClient({
           preloadedRows: routeCacheRows,
-          concurrency: 6,
+          concurrency: 10,
           signal: run.controller.signal
         });
         const lockedOptions = sharedPlanningLocks(shared);
@@ -3740,7 +3740,7 @@ export const courseSchedulingScreen = {
         buildResult = await runDistanceBuildLoop({
           invoke: invokeDistanceRoute,
           scope: 'all',
-          limit: 25,
+          limit: 50,
           shouldStop: () => !!state.courseSchedulingDistanceStopRequested,
           onProgress: async ({ stats, done, stopped }) => {
             const info = distanceDoneMessage(stats, { done, stopped });
