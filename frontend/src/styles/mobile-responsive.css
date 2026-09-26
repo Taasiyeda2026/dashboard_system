@@ -16,10 +16,6 @@
     max-inline-size: 100%;
   }
 
-  body {
-    overflow-x: clip;
-  }
-
   /* Compact global shell: the drawer remains the single mobile nav surface. */
   .shell-top {
     min-block-size: 52px;
@@ -95,6 +91,65 @@
     display: flex;
     flex-wrap: wrap;
     gap: 6px;
+  }
+
+  /* Compact inner navigation; original permitted buttons remain the controls. */
+  .mobile-section-nav-toggle {
+    display: flex;
+    inline-size: 100%;
+    min-block-size: 42px;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    border: 1px solid #d8dce2;
+    border-radius: 12px;
+    background: #fff;
+    color: #1f2a37;
+    font: inherit;
+    font-weight: 700;
+    text-align: start;
+  }
+
+  .instructors-workspace-tabs,
+  .ds-ops-mgmt-tabs {
+    display: none;
+    margin-block-start: 6px;
+    padding: 6px;
+    border: 1px solid #dbe7f3;
+    border-radius: 12px;
+    background: #fff;
+  }
+
+  .instructors-workspace-tabs.is-mobile-expanded,
+  .ds-ops-mgmt-tabs.is-mobile-expanded {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .instructors-workspace-tabs .instructors-workspace-tab,
+  .ds-ops-mgmt-tabs .ds-ops-mgmt-tab {
+    inline-size: 100%;
+    justify-content: flex-start;
+    border-radius: 9px;
+  }
+
+  /* Search remains visible; the original filter controls open in place. */
+  .mobile-filter-toggle {
+    inline-size: max-content;
+    min-inline-size: 92px;
+  }
+
+  .ds-activities-main-toolbar:not(.is-mobile-expanded) > .mobile-filter-detail,
+  .ds-pa-toolbar:not(.is-mobile-expanded) > .mobile-filter-detail {
+    display: none;
+  }
+
+  .ds-activities-main-toolbar.is-mobile-expanded,
+  .ds-pa-toolbar.is-mobile-expanded {
+    padding: 10px;
+    border: 1px solid #dbe7f3;
+    border-radius: 12px;
+    background: #f8fbff;
   }
 
   /* Activities: turn the existing source-of-truth rows into readable cards. */
@@ -181,6 +236,29 @@
     font-size: .8rem;
   }
 
+  .route-activities .ds-activities-row:not(.is-mobile-expanded) .ds-activities-col--hours,
+  .route-activities .ds-activities-row:not(.is-mobile-expanded) .ds-activities-col--meetings,
+  .route-activities .ds-activities-row:not(.is-mobile-expanded) .ds-activities-col--contact-name,
+  .route-activities .ds-activities-row:not(.is-mobile-expanded) .ds-activities-col--grade,
+  .route-activities .ds-activities-row:not(.is-mobile-expanded) .ds-activities-col--notes,
+  .route-activities .ds-activities-row:not(.is-mobile-expanded) .ds-activities-col--date + .ds-activities-col--date {
+    display: none;
+  }
+
+  .mobile-row-toggle {
+    float: inline-end;
+    min-block-size: 28px;
+    margin-inline-start: 8px;
+    padding: 3px 8px;
+    border: 1px solid #cbd5e1;
+    border-radius: 999px;
+    background: #f8fafc;
+    color: #334155;
+    font: inherit;
+    font-size: .74rem;
+    font-weight: 700;
+  }
+
   /* Proposal/client-file records use the same compact card-row language. */
   .route-proposals-agreements .ds-table-wrap:has(.ds-pa-table) {
     overflow: visible;
@@ -226,6 +304,124 @@
     justify-content: flex-start;
   }
 
+  .route-proposals-agreements .ds-pa-table td::before,
+  .ops2027-table td::before {
+    content: attr(data-mobile-label);
+    display: inline-block;
+    min-inline-size: 76px;
+    margin-inline-end: 6px;
+    color: #64748b;
+    font-size: .7rem;
+    font-weight: 700;
+  }
+
+  .route-proposals-agreements .ds-pa-table tr:not(.is-mobile-expanded) td:nth-child(n+9) {
+    display: none;
+  }
+
+  /* Proposal queues collapse empty columns and reveal populated groups on demand. */
+  .route-proposals-agreements .ds-client-queues {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+  }
+
+  .route-proposals-agreements .ds-client-queue {
+    min-block-size: 0;
+  }
+
+  .route-proposals-agreements .ds-client-queue > header {
+    cursor: pointer;
+  }
+
+  .route-proposals-agreements .ds-client-queue > header::after {
+    content: "▾";
+    margin-inline-start: auto;
+  }
+
+  .route-proposals-agreements .ds-client-queue.is-mobile-expanded > header::after {
+    content: "▴";
+  }
+
+  .route-proposals-agreements .ds-client-queue:not(.is-mobile-expanded) > div,
+  .route-proposals-agreements .ds-client-queue.is-mobile-empty > div {
+    display: none;
+  }
+
+  /* Qualification/training matrices become program/instructor accordions. */
+  .ops2027-table-shell:has(.ops2027-table) {
+    overflow: visible;
+  }
+
+  .ops2027-table,
+  .ops2027-table tbody,
+  .ops2027-table tr,
+  .ops2027-table td {
+    display: block;
+    inline-size: 100%;
+  }
+
+  .ops2027-table thead {
+    display: none;
+  }
+
+  .ops2027-table tbody {
+    display: grid;
+    gap: 8px;
+  }
+
+  .ops2027-table tbody > tr {
+    padding: 10px 12px;
+    border: 1px solid #dbe7f3;
+    border-radius: 12px;
+    background: #fff;
+  }
+
+  .ops2027-table tbody > tr:not(.is-mobile-expanded) > td:not(:first-child) {
+    display: none;
+  }
+
+  .ops2027-table td {
+    padding: 6px 0;
+    border: 0;
+    text-align: start;
+    white-space: normal;
+  }
+
+  /* Scheduling already owns compact source-backed cards; stack their summary. */
+  .route-course-scheduling .course-scheduling-compact-table-head {
+    display: none;
+  }
+
+  .route-course-scheduling .course-scheduling-compact-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 6px 10px;
+  }
+
+  .route-course-scheduling .course-scheduling-compact-cell {
+    min-inline-size: 0;
+  }
+
+  /* Attendance uses its existing native details elements—no duplicated state. */
+  .attendance-control__uploads,
+  .attendance-control__report-card-grid,
+  .attendance-control__overview {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .attendance-control__employee > summary,
+  .attendance-control__day > summary {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 6px 10px;
+    align-items: center;
+  }
+
+  .attendance-control__comparison-wrap {
+    max-inline-size: 100%;
+    overflow-x: auto;
+  }
+
   /* Weekly calendar: exactly one full-width day per row. */
   .route-week .ds-week-board {
     display: grid;
@@ -268,6 +464,29 @@
   .ds-activity-add-field--span2,
   .ds-pa-info-cell--wide {
     grid-column: 1;
+  }
+
+  .activity-drawer__section-title[data-mobile-drawer-section-toggle],
+  .ds-pa-card-title[data-mobile-drawer-section-toggle] {
+    cursor: pointer;
+  }
+
+  .activity-drawer__section-title[data-mobile-drawer-section-toggle]::after,
+  .ds-pa-card-title[data-mobile-drawer-section-toggle]::after {
+    content: "▴";
+    float: inline-end;
+    color: #64748b;
+  }
+
+  .is-mobile-collapsed > .activity-drawer__section-title::after,
+  .is-mobile-collapsed > .ds-pa-card-title::after,
+  .is-mobile-collapsed > .activity-drawer__section-head .activity-drawer__section-title::after {
+    content: "▾";
+  }
+
+  .activity-drawer__section.is-mobile-collapsed > :not(.activity-drawer__section-title):not(.activity-drawer__section-head),
+  .ds-pa-info-card.is-mobile-collapsed > :not(.ds-pa-card-title) {
+    display: none;
   }
 
   /* Existing dashboard/instructor cards only need tighter rhythm. */
