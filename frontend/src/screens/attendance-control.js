@@ -2190,6 +2190,46 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
     const findEntry = (entryId) => (
       [...(result?.comparisons || []), ...(result?.notCompared || [])].find((entry) => entry.id === entryId) || null
     );
+
+    const fieldChoiceBtn = event.target.closest('[data-attendance-field-choice]');
+    if (fieldChoiceBtn && result) {
+      const comparison = result.comparisons.find((row) => row.id === txt(fieldChoiceBtn.dataset.comparisonId));
+      const field = txt(fieldChoiceBtn.dataset.fieldKey);
+      const choice = txt(fieldChoiceBtn.dataset.attendanceFieldChoice);
+      if (!comparison || !field) return;
+      const rowElement = fieldChoiceBtn.closest('[data-comparison]');
+      if (choice === 'custom') {
+        const customWrap = rowElement?.querySelector('.attendance-control__row-custom');
+        const customInput = rowElement?.querySelector('[data-attendance-custom]');
+        if (customWrap) customWrap.hidden = false;
+        customInput?.focus();
+        return;
+      }
+      applyAttendanceChoice(comparison, field, choice);
+      paintResults();
+      status.textContent = '';
+      return;
+    }
+
+    const customSaveBtn = event.target.closest('[data-attendance-custom-save]');
+    if (customSaveBtn && result) {
+      const comparison = result.comparisons.find((row) => row.id === txt(customSaveBtn.dataset.comparisonId));
+      const field = txt(customSaveBtn.dataset.fieldKey);
+      const rowElement = customSaveBtn.closest('[data-comparison]');
+      const customInput = rowElement?.querySelector('[data-attendance-custom]');
+      if (!comparison || !field || !customInput) return;
+      const value = txt(customInput.value);
+      if (!value) {
+        status.textContent = 'יש להזין ערך מתוקן.';
+        customInput.focus();
+        return;
+      }
+      applyAttendanceChoice(comparison, field, 'custom', value);
+      paintResults();
+      status.textContent = '';
+      return;
+    }
+
     const approveBtn = event.target.closest('[data-attendance-approve-reported]');
     if (approveBtn && result) {
       const entry = findEntry(approveBtn.dataset.attendanceApproveReported);
