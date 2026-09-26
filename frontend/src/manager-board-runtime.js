@@ -271,34 +271,38 @@ function safeRows(result) {
   return result.data;
 }
 
-async function loadBoardData(period) {
-  if (!supabase) throw new Error('Supabase client is not configured.');
+export function loadBoardData(period, dependencies = {}) {
+  const client = dependencies.supabaseClient ?? supabase;
+  const waitForAuth = dependencies.waitForAuth ?? waitForSupabaseAuthSession;
+  const resultCache = dependencies.dataCache ?? dataCache;
+  const inFlightLoads = dependencies.dataLoadPromises ?? dataLoadPromises;
+  if (!client) return Promise.reject(new Error('Supabase client is not configured.'));
   const normalizedPeriod = normalizeGlobalActivityPeriod(period);
-  const cached = dataCache.get(normalizedPeriod);
-  if (cached && Date.now() - cached.loadedAt < BOARD_CACHE_TTL_MS) return cached.data;
-  if (dataLoadPromises.has(normalizedPeriod)) return dataLoadPromises.get(normalizedPeriod);
+  const cached = resultCache.get(normalizedPeriod);
+  if (cached && Date.now() - cached.loadedAt < BOARD_CACHE_TTL_MS) return Promise.resolve(cached.data);
+  if (inFlightLoads.has(normalizedPeriod)) return inFlightLoads.get(normalizedPeriod);
 
   const loadPromise = (async () => {
-    await waitForSupabaseAuthSession({ timeoutMs: 7000 }).catch(() => null);
+    await waitForAuth({ timeoutMs: 7000 }).catch(() => null);
 
     const seasons = activitySeasonQueryValues(normalizedPeriod);
-    const activityQuery = supabase
+    const activityQuery = client
       .from('activities')
       .select(ACTIVITY_SELECT)
       .in('activity_season', seasons)
       .order('activity_manager', { ascending: true, nullsFirst: false });
 
-    const instructorsQuery = supabase
+    const instructorsQuery = client
       .from('contacts_instructors')
       .select('emp_id,full_name,direct_manager,active');
 
-    const calendarQuery = supabase
+    const calendarQuery = client
       .from('school_calendar')
       .select('id,title,category,calendar_sector,start_date,end_date,resume_date,day_status,school_day_end_time,blocks_scheduling,enforce_end_time,show_on_main_calendar,is_active')
       .eq('is_active', true)
       .eq('show_on_main_calendar', true);
 
-    const managerUsersQuery = supabase
+    const managerUsersQuery = client
       .from('users')
       .select('user_id,name,full_name,role,is_active')
       .eq('role', 'activities_manager')
@@ -324,16 +328,15 @@ async function loadBoardData(period) {
       birthdays: []
     };
 
-    dataCache.set(normalizedPeriod, { data, loadedAt: Date.now() });
+    resultCache.set(normalizedPeriod, { data, loadedAt: Date.now() });
     return data;
   })();
 
-  dataLoadPromises.set(normalizedPeriod, loadPromise);
-  try {
-    return await loadPromise;
-  } finally {
-    if (dataLoadPromises.get(normalizedPeriod) === loadPromise) dataLoadPromises.delete(normalizedPeriod);
-  }
+  const trackedPromise = loadPromise.finally(() => {
+    if (inFlightLoads.get(normalizedPeriod) === trackedPromise) inFlightLoads.delete(normalizedPeriod);
+  });
+  inFlightLoads.set(normalizedPeriod, trackedPromise);
+  return trackedPromise;
 }
 
 function buildMeetingRows(activities, ym) {
@@ -782,9 +785,12 @@ function renderBoardMarkup(data, manager, ym) {
     </section>`;
 }
 
-async function hydrateBoardBirthdays(root, data, requestId) {
-  const rows = await loadActiveBirthdays().catch(() => []);
-  if (requestId !== boardRequestId || !managerBoardOpen || !root.isConnected) return;
+export async function hydrateBoardBirthdays(root, data, requestId, dependencies = {}) {
+  const loadBirthdays = dependencies.loadBirthdays ?? loadActiveBirthdays;
+  const isCurrentRequest = dependencies.isCurrentRequest
+    ?? (() => requestId === boardRequestId && managerBoardOpen);
+  const rows = await loadBirthdays().catch(() => []);
+  if (!isCurrentRequest() || !root.isConnected) return;
   const boardRoot = root.querySelector('[data-manager-board-root]');
   const region = boardRoot?.querySelector('[data-manager-board-important-dates]');
   if (!boardRoot || !region) return;

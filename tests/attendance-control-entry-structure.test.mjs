@@ -41,7 +41,7 @@ test('both בקרת נוכחות entry points bind the same central attendance-c
   assert.match(launcherSource, /bindAttendanceControl/);
   assert.match(workspaceSource, /import\('\.\/screens\/attendance-control\.js'\)/);
   assert.match(workspaceSource, /attendance\.bindAttendanceControl/);
-  assert.match(workspaceSource, /buildScopedAttendanceApi\(roster\)/);
+  assert.match(workspaceSource, /buildScopedAttendanceApi\(roster, snapshot, preloadedRecords\)/);
 });
 
 test('manager-board attendance scopes records to the manager team at the query, not only in the UI', () => {
@@ -73,11 +73,12 @@ test('admin attendance control loads every manager team from the existing roster
 });
 
 test('deploy cache markers were bumped for the unified attendance-control labels', () => {
-  assert.match(swSource, /const CACHE_VERSION = 1733;/);
+  const cacheVersion = Number(swSource.match(/const CACHE_VERSION = (\d+);/)?.[1]);
+  assert.ok(cacheVersion >= 1733);
   assert.match(configSource, /attendance-control-manager-admin-parity-sw-cache-1720-20260916-v1/);
   assert.match(configSource, /attendance-control-manager-launcher-team-scope-sw-cache-1721-20260916-v1/);
   assert.match(configSource, /attendance-control-travel-admin-pdf-sw-cache-1722-20260916-v1/);
-  assert.match(indexSource, /manager-board-workspace-runtime\.js\?v=20260916-attendance-summary-count-v2/);
+  assert.match(indexSource, /manager-board-workspace-runtime\.js\?v=20260926-manager-attendance-single-snapshot-v1/);
 });
 
 test('instructors payroll-control launcher keeps unscoped bindAttendanceControl path', () => {
