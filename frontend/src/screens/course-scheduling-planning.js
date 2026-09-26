@@ -2831,7 +2831,7 @@ export function planningCompletionOverviewHtml(rows = [], { pendingChanges = 0, 
           <td class="course-planning-completion-cell is-live">${item.liveCount}</td>
           <td class="course-planning-completion-cell is-draft">${item.draftCount}</td>
           <td class="course-planning-completion-cell is-proposal">${item.proposalCount}</td>
-          <td class="course-planning-completion-cell is-load"><b>${item.activityCount}</b> פעילויות · <b>${item.meetingCount}</b> מפגשים · שבוע שיא: <b>${item.peakWeekDays}</b> י״ע${item.peakWeekStart ? ` (<bdi dir="ltr">${escapeHtml(formatPlanningShortDate(item.peakWeekStart))}</bdi>)` : ''}</td>
+          <td class="course-planning-completion-cell is-load"><b>${item.activityCount}</b> פעילויות · <b>${item.meetingCount}</b> מפגשים · שבוע שיא: <b>${item.peakWeekDays}</b> י"ע${item.peakWeekStart ? ` (<bdi dir="ltr">${escapeHtml(formatPlanningShortDate(item.peakWeekStart))}</bdi>)` : ''}</td>
           <td class="course-planning-completion-cell is-start">${item.firstStart ? `<bdi dir="ltr">${escapeHtml(formatDateHe(item.firstStart))}</bdi>` : '<span class="course-planning-completion-missing">חסר מועד</span>'}</td>
           <td class="course-planning-completion-cell is-end ${item.overflowCount ? 'is-warning' : ''}">${item.lastEnd ? `<bdi dir="ltr">${escapeHtml(formatDateHe(item.lastEnd))}</bdi>` : '<span class="course-planning-completion-missing">חסר מועד</span>'}</td>
         </tr>`).join('')}</tbody>
