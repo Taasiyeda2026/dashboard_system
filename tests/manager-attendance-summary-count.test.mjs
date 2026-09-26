@@ -31,6 +31,8 @@ test('manager attendance table becomes mobile cards without horizontal table scr
   assert.match(mobileCss, /manager-workspace-attendance-table\s*\{[\s\S]*min-width:\s*0\s*!important/);
   assert.match(mobileCss, /manager-workspace-attendance \.manager-workspace-table-wrap\s*\{[\s\S]*overflow:\s*visible/);
   assert.match(mobileCss, /manager-workspace-attendance-action\s*\{[\s\S]*grid-column:\s*1\s*\/\s*-1/);
+  assert.match(mobileCss, /attendance-control__comparison-wrap\s*\{[\s\S]*overflow:\s*visible\s*!important/);
+  assert.match(mobileCss, /attendance-control__comparison-table\s*\{[\s\S]*min-width:\s*0\s*!important/);
 });
 
 test('cache markers are bumped for the manager attendance mobile fix', async () => {
