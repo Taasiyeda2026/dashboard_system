@@ -2489,25 +2489,48 @@
   font-weight: 800;
 }
 
-.course-planning-workplan-unresolved > div {
-  display: grid;
-  gap: 6px;
-  padding: 0 9px 9px;
-}
-
-.course-planning-workplan-unresolved article {
-  display: grid;
-  gap: 2px;
-  padding: 7px 9px;
+.course-planning-workplan-unresolved-table-wrap {
+  max-height: 360px;
+  overflow: auto;
+  margin: 0 9px 9px;
   border: 1px solid var(--cs-border);
   border-radius: 8px;
   background: var(--cs-surface);
 }
 
-.course-planning-workplan-unresolved article span,
-.course-planning-workplan-unresolved article small {
-  color: var(--cs-text-muted);
+.course-planning-workplan-unresolved-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.course-planning-workplan-unresolved-table th,
+.course-planning-workplan-unresolved-table td {
+  padding: 7px 9px;
+  border-bottom: 1px solid rgba(148, 163, 184, .18);
+  vertical-align: top;
+  text-align: right;
   font-size: .74rem;
+}
+
+.course-planning-workplan-unresolved-table th + th,
+.course-planning-workplan-unresolved-table td + td {
+  border-inline-start: 1px solid rgba(148, 163, 184, .16);
+}
+
+.course-planning-workplan-unresolved-table th:nth-child(1) { width: 28%; }
+.course-planning-workplan-unresolved-table th:nth-child(2) { width: 24%; }
+.course-planning-workplan-unresolved-table th:nth-child(3) { width: 48%; }
+
+.course-planning-workplan-unresolved-table td small {
+  display: block;
+  margin-top: 2px;
+  color: var(--cs-text-muted);
+  font-size: .68rem;
+}
+
+.course-planning-workplan-unresolved-table tbody tr:last-child td {
+  border-bottom: 0;
 }
 
 .course-planning-completion-summary {
