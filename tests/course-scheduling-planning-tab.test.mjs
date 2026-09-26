@@ -1459,10 +1459,11 @@ test('background planning keeps the workboard scroll stable instead of rerenderi
   const ownsRun = screen.slice(ownsRunStart, ownsRunEnd);
   assert.match(ownsRun, /activePlanningRun === run/);
   assert.match(ownsRun, /run\.generation === planningRunGeneration/);
-  assert.match(ownsRun, /state\.route === 'course-scheduling'/);
+  assert.doesNotMatch(ownsRun, /state\.route === 'course-scheduling'/);
+  assert.doesNotMatch(ownsRun, /schedulingScreenActive/);
   assert.doesNotMatch(ownsRun, /root\.isConnected/);
   assert.match(planningRun, /onProgress: (?:async )?\(progress\) =>/);
-  assert.match(planningRun, /updatePlanningStatusInPlace\(\)/);
+  assert.match(planningRun, /if \(runUiVisible\(\)\) run\.ui\?\.update\?\.\(\)/);
   assert.doesNotMatch(planningRun, /rerender\(\)/);
 });
 
