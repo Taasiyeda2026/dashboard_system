@@ -63,18 +63,20 @@ function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: corsHeaders });
 }
 
-function normalizeLocalityAlias(value: string) {
-  if (value === 'דלית אל כרמל') return 'דאלית אל כרמל';
-  return value;
-}
+const cacheKey = (value: string) => value.toLowerCase().replace(/\s+/g, ' ').trim();
 
-const cacheKey = (value: string) => normalizeLocalityAlias(
-  value
+function localityCompareKey(value: string) {
+  const normalized = value
     .toLowerCase()
     .replace(/[\u05be\u2010-\u2015\-]+/g, ' ')
     .replace(/\s+/g, ' ')
-    .trim()
-);
+    .trim();
+  return normalized === 'דלית אל כרמל' ? 'דאלית אל כרמל' : normalized;
+}
+
+function isSamePlace(origin: string, destination: string) {
+  return !!origin && !!destination && localityCompareKey(origin) === localityCompareKey(destination);
+}
 
 function text(value: unknown) {
   return String(value ?? '').trim();
@@ -383,8 +385,8 @@ function hasUsableMetrics(cached: Record<string, unknown> | null | undefined, pa
   const duration = Number(cached.duration_minutes);
   if (distance < 0 || duration < 0) return false;
   const sameLocation = pair
-    ? pair.origin_key === pair.destination_key
-    : text(cached.origin_key) === text(cached.destination_key);
+    ? isSamePlace(pair.origin_address, pair.destination_address)
+    : isSamePlace(text(cached.origin_address) || text(cached.origin_key), text(cached.destination_address) || text(cached.destination_key));
   if ((distance === 0 || duration === 0) && !sameLocation) return false;
   return true;
 }
@@ -1241,7 +1243,7 @@ async function processPair(db: DbClient, pair: TravelPair, key: string): Promise
 
   // Same normalized address stays local zero — no Maps API call. Still skip upsert
   // when a valid same-address row already exists (checked above).
-  if (pair.origin_key === pair.destination_key) {
+  if (isSamePlace(pair.origin_address, pair.destination_address)) {
     const write = await replaceCacheRow(db, pair, cacheRowPayload(pair, 0, 0, 'same_school'));
     if (write.error) return { dbError: write.error };
     return {
@@ -1607,7 +1609,7 @@ Deno.serve(async (req) => {
   }
 
   // Same normalized address: zero local route, never call Google Maps.
-  if (originKey === destinationKey) {
+  if (isSamePlace(origin, destination)) {
     const { error: cacheWriteError } = await db.from('scheduling_travel_cache').upsert({
       origin_key: originKey,
       destination_key: destinationKey,
