@@ -11,7 +11,7 @@ const manualDraftUrl = new URL(
   import.meta.url
 );
 const hardGateUrl = new URL(
-  '../supabase/migrations/20260923221000_remove_inter_school_distance_cap.sql',
+  '../supabase/migrations/20260926151000_manual_assignment_requires_explicit_availability.sql',
   import.meta.url
 );
 const contractUrl = new URL(
@@ -59,8 +59,8 @@ test('manual finalization keeps physical travel-time feasibility without an inte
   // exception; the existing >=60 km manager-approval policy still applies.
   assert.doesNotMatch(helper, /scheduling_home_distance_exceeded/);
   assert.doesNotMatch(helper, /home_km\s*>\s*40/);
-  // Missing weekly availability rows remain a manual warning, not a hard fact.
-  assert.doesNotMatch(helper, /scheduling_availability_missing/);
+  // Day/time selections are explicit hard constraints: an unselected day cannot be bypassed manually.
+  assert.match(helper, /scheduling_availability_missing/);
 
   // Identity and physical feasibility cannot be bypassed manually.
   for (const gate of [
@@ -90,7 +90,7 @@ test('40 km remains part of the ordinary recommendation validation', async () =>
   assert.match(fn, /scheduling_home_distance_exceeded/);
 });
 
-test('manual finalization still blocks inactive instructors, real overlaps and explicit unavailability', async () => {
+test('manual finalization still blocks inactive instructors, missing/explicit availability, real overlaps and unavailability', async () => {
   const [sql, assignSql] = await Promise.all([readFile(hardGateUrl, 'utf8'), readFile(fixUrl, 'utf8')]);
   const helper = sliceFunction(sql, 'scheduling_manual_assignment_hard_violations');
   const assign = sliceFunction(assignSql, 'assign_activity_instructor');
@@ -98,6 +98,7 @@ test('manual finalization still blocks inactive instructors, real overlaps and e
   assert.match(assign, /instructor_inactive/);
   assert.match(helper, /instructor_inactive/);
   assert.match(helper, /scheduling_conflict_detected/);
+  assert.match(helper, /scheduling_availability_missing/);
   assert.match(helper, /scheduling_instructor_unavailable/);
   assert.match(helper, /scheduling_transition_insufficient/);
   assert.match(helper, /scheduling_assignment_locked/);
