@@ -789,15 +789,24 @@ const LIST_GROUPS = [
   { key: 'assigned', label: 'משובץ' }
 ];
 
-function summaryCardsHtml(rowModels = []) {
-  const total = rowModels.length;
-  const open = rowModels.filter((row) => row.bucket === 'open').length;
-  const drafts = rowModels.filter((row) => row.bucket === 'draft').length;
-  const assigned = rowModels.filter((row) => row.bucket === 'assigned').length;
-  return `<article class="course-scheduling-summary-card"><b>${total}</b><span>סה״כ</span></article>
-    <article class="course-scheduling-summary-card course-scheduling-summary-card--waiting"><b>${open}</b><span>פתוח</span></article>
-    <article class="course-scheduling-summary-card course-scheduling-summary-card--draft"><b>${drafts}</b><span>ממתין לאישור</span></article>
-    <article class="course-scheduling-summary-card course-scheduling-summary-card--ready"><b>${assigned}</b><span>משובץ</span></article>`;
+function summaryCardsHtml(rowModels = [], state = {}) {
+  const selected = text(state.courseSchedulingBusinessStatus || 'all');
+  const cards = [
+    ['all', 'סה״כ', rowModels.length, ''],
+    ['open', 'פתוח', rowModels.filter((row) => row.bucket === 'open').length, ' course-scheduling-summary-card--waiting'],
+    ['draft', 'ממתין לאישור', rowModels.filter((row) => row.bucket === 'draft').length, ' course-scheduling-summary-card--draft'],
+    ['assigned', 'משובץ', rowModels.filter((row) => row.bucket === 'assigned').length, ' course-scheduling-summary-card--ready']
+  ];
+  return cards.map(([key, label, value, toneClass]) => {
+    const active = selected === key;
+    return `<button type="button"
+      class="course-scheduling-summary-card course-scheduling-summary-card--button${toneClass}${active ? ' is-active' : ''}"
+      data-business-summary-filter="${key}"
+      aria-pressed="${active ? 'true' : 'false'}"
+      aria-label="${escapeHtml(`${label}: ${value} פעילויות. לחץ לסינון הטבלה`)}">
+      <b>${value}</b><span>${label}</span>
+    </button>`;
+  }).join('');
 }
 
 function planningAlternativeButtonsHtml(row = {}, expanded = false, state = {}) {
@@ -868,7 +877,7 @@ function planningAlternativeButtonsHtml(row = {}, expanded = false, state = {}) 
 
 function workboardActionsHtml(row = {}, { planningLoading = false, alternativesExpanded = false } = {}) {
   if (row.isAssigned) {
-    return '<button type="button" class="course-scheduling-workboard-secondary" data-course-row-action data-open-course-detail>פתח</button>';
+    return '<button type="button" class="course-scheduling-workboard-secondary" data-course-row-action data-open-course-detail>פתח / שינוי שיבוץ</button>';
   }
   if (row.hasActualDraft) {
     if (row.hasReplannedDraft) {
@@ -894,9 +903,9 @@ function workboardActionsHtml(row = {}, { planningLoading = false, alternativesE
   if (planningLoading) return '<span class="course-scheduling-workboard-working">מכין הצעה…</span>';
   if ((planning.scheduleOptions || []).length > 1) {
     return `<button type="button" class="course-scheduling-workboard-secondary" data-course-row-action data-workboard-alternatives data-course-id="${escapeHtml(row.id)}">${alternativesExpanded ? 'סגור חלופות' : 'חלופות למועד'}</button>
-      <button type="button" class="course-scheduling-workboard-link" data-course-row-action data-open-course-detail>פתח</button>`;
+      <button type="button" class="course-scheduling-workboard-link" data-course-row-action data-open-course-detail>בדוק ושבץ</button>`;
   }
-  return '<button type="button" class="course-scheduling-workboard-secondary" data-course-row-action data-open-course-detail>בדיקה ידנית</button>';
+  return '<button type="button" class="course-scheduling-workboard-secondary" data-course-row-action data-open-course-detail>בדוק ושבץ</button>';
 }
 
 function courseListCardHtml(row, selectedId, state = {}) {
@@ -928,6 +937,10 @@ function courseListHtml(rowModels, selectedId, state = {}) {
   const filteredRows = statusFilter === 'all'
     ? rowModels
     : rowModels.filter((row) => row.bucket === statusFilter);
+  const selectedGroup = LIST_GROUPS.find((group) => group.key === statusFilter);
+  const filterContext = statusFilter === 'all'
+    ? ''
+    : `<div class="course-scheduling-list-context" data-course-list-context><strong>פעילויות ${escapeHtml(selectedGroup?.label || '')}</strong><span>${filteredRows.length}</span></div>`;
   const groups = LIST_GROUPS
     .map((group) => ({ ...group, rows: filteredRows.filter((row) => row.bucket === group.key) }))
     .filter((group) => group.rows.length);
@@ -938,7 +951,7 @@ function courseListHtml(rowModels, selectedId, state = {}) {
     </div>`;
   }
   const header = '<div class="course-scheduling-compact-table-head" aria-hidden="true"><span>בית ספר</span><span>פעילות</span><span>מועד</span><span>מדריך</span><span>מצב</span><span>פעולה</span></div>';
-  return header + groups.map((group) => `<section class="course-scheduling-course-group"><h3>${escapeHtml(group.label)} <span class="course-scheduling-badge">${group.rows.length}</span></h3>${group.rows.map((row) => courseListCardHtml(row, selectedId, state)).join('')}</section>`).join('');
+  return filterContext + header + groups.map((group) => `<section class="course-scheduling-course-group"><h3>${escapeHtml(group.label)} <span class="course-scheduling-badge">${group.rows.length}</span></h3>${group.rows.map((row) => courseListCardHtml(row, selectedId, state)).join('')}</section>`).join('');
 }
 
 
@@ -1894,16 +1907,18 @@ export const courseSchedulingScreen = {
         ? maintenanceTabHtml(state)
         : `${schedulingScopeHtml(allInterfaceCourses, state, data.activities || [])}
       ${schedulingPlanningStatusHtml(state)}
-      <section class="course-scheduling-summary">${summaryCardsHtml(rowModels)}</section>
+      <section class="course-scheduling-summary" aria-label="סיכום פעילויות לפי מצב">${summaryCardsHtml(rowModels, state)}</section>
       ${state.courseSchedulingPlanningSharedLoaded && !state.courseSchedulingPlanningLoading && !state.courseSchedulingPlanningStale
         ? planningCompletionOverviewHtml(completionRows, {
             pendingChanges: (state.courseSchedulingPlanningAffectedIds || []).length,
             schoolYearTotal: allInterfaceCourses.length
           })
-        : ''}
+        : (state.courseSchedulingPlanningSharedLoaded && state.courseSchedulingPlanningStale
+          ? '<section class="course-planning-overview-pending" data-planning-overview-pending><strong>טבלת תכנון המדריכים תוצג לאחר חישוב התכנון המעודכן.</strong><span>לאחר החישוב יוצגו שוב עומס, פעילויות, מפגשים, שבוע שיא ותאריכי עבודה לכל מדריך.</span></section>'
+          : '')}
       <p data-course-scheduling-error class="course-scheduling-alert"${state.courseSchedulingError ? '' : ' hidden'}>${escapeHtml(state.courseSchedulingError || '')}</p>
       <div class="course-scheduling-layout course-scheduling-layout--courses">
-        <aside class="course-scheduling-courses">${courseListHtml(rowModels, selectedId, state)}</aside>
+        <aside class="course-scheduling-courses" data-course-list tabindex="-1" aria-label="טבלת פעילויות">${courseListHtml(rowModels, selectedId, state)}</aside>
         <section class="course-scheduling-detail${selectedId ? ' is-open' : ''}" data-course-detail>${
           selectedId && selectedRow?.course
             ? selectedCoursePanelHtml(selectedRow, state)
@@ -1949,6 +1964,19 @@ export const courseSchedulingScreen = {
       }
     };
     restoreWorkboardScroll();
+
+    if (state.courseSchedulingScrollToFilteredList === true) {
+      state.courseSchedulingScrollToFilteredList = false;
+      const list = root.querySelector('[data-course-list]');
+      if (list) {
+        const focusList = () => {
+          list.scrollIntoView?.({ block: 'start', behavior: 'auto' });
+          list.focus?.({ preventScroll: true });
+        };
+        if (typeof requestAnimationFrame === 'function') requestAnimationFrame(focusList);
+        else setTimeout(focusList, 0);
+      }
+    }
 
     const rerenderPreservingWorkboardScroll = () => {
       const list = root.querySelector('.course-scheduling-courses');
@@ -2740,6 +2768,15 @@ export const courseSchedulingScreen = {
       state.courseSchedulingSelectedId = '';
       rerender();
     });
+    root.querySelectorAll('[data-business-summary-filter]').forEach((button) => button.addEventListener('click', () => {
+      const requested = text(button.dataset.businessSummaryFilter) || 'all';
+      const current = text(state.courseSchedulingBusinessStatus || 'all');
+      state.courseSchedulingBusinessStatus = requested !== 'all' && requested === current ? 'all' : requested;
+      state.courseSchedulingSelectedId = '';
+      state.courseSchedulingAlternativesCourseId = '';
+      state.courseSchedulingScrollToFilteredList = true;
+      rerender();
+    }));
     root.querySelectorAll('[data-planning-choice-date]').forEach((select) => select.addEventListener('change', (event) => {
       const courseId = text(select.dataset.courseId);
       if (!courseId) return;
