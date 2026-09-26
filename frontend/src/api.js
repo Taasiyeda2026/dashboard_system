@@ -80,6 +80,7 @@ const MUTATING_ACTIONS = {
   saveSchoolContactResponsible: true
   ,saveActivityLayoutStatus: true
   ,deleteActivity: true
+  ,shareIsraaActivity: true
 };
 
 const READ_ACTIONS = {
@@ -3217,6 +3218,7 @@ function invalidateScreenDataByAction(action) {
     saveActivity: ['activities:', 'activityDetail:', 'activityDates:', 'archive', 'archiveDetail:', 'archiveDates:', 'week:', 'month:', 'dashboard:', 'exceptions:', 'end-dates', 'operations-management'],
     addActivity: ['activities:', 'activityDetail:', 'activityDates:', 'week:', 'month:', 'dashboard:', 'exceptions:', 'end-dates'],
     deleteActivity: ['activities:', 'activityDetail:', 'activityDates:', 'week:', 'month:', 'dashboard:', 'archive', 'end-dates', 'exceptions:'],
+    shareIsraaActivity: ['activities:', 'activityDetail:', 'activityDates:', 'week:', 'month:', 'dashboard:', 'exceptions:', 'end-dates', 'operations-management'],
     submitEditRequest: ['activities:', 'edit-requests'],
     submitCreateActivityRequest: ['activities:', 'edit-requests'],
     reviewEditRequest: ['edit-requests', 'activities:', 'activityDetail:', 'dashboard:', 'exceptions:', 'activityDates:', 'archive', 'archiveDetail:', 'archiveDates:', 'week:', 'month:'],
@@ -3253,6 +3255,7 @@ function invalidateScreenDataByAction(action) {
     // which was the only one cleared before (see saveSchoolContactResponsible below).
     saveSchoolContactResponsible: ['my-data', 'instructor-calendar', 'instructor-completion-approvals', 'operations-management']
   };
+  if (action === 'shareIsraaActivity') invalidateAllActivitiesRowsCache();
   const prefixes = targetedMutations[action];
   if (!prefixes || !prefixes.length) return;
   if (prefixes.includes('*')) {
@@ -8931,6 +8934,17 @@ export const api = {
     await waitForSupabaseAuthSession();
     const { data, error } = await supabase.rpc('save_israa_activity_draft', { p_tracking_id: trackingId, p_proposal_item_id: proposalItemId, p_draft: draft });
     if (error) throw new Error(error.message || 'israa_draft_save_failed');
+    return { draft: data };
+  },
+  saveIsraaActivityGroupDraft: async (trackingId, proposalItemId, groupNumber, draft) => {
+    await waitForSupabaseAuthSession();
+    const { data, error } = await supabase.rpc('save_israa_activity_group_draft', {
+      p_tracking_id: trackingId,
+      p_proposal_item_id: proposalItemId,
+      p_group_number: groupNumber,
+      p_draft: draft
+    });
+    if (error) throw new Error(error.message || 'israa_group_draft_save_failed');
     return { draft: data };
   },
   shareIsraaActivity: async (trackingId, proposalItemId) => {

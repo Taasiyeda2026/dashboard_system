@@ -19,14 +19,22 @@ function clean(value) {
   return String(value == null ? '' : value).trim();
 }
 
-function draftRowId(trackingId, proposalItemId) {
-  return `israa-draft|${trackingId}|${proposalItemId}`;
+function draftRowId(trackingId, proposalItemId, groupNumber = 1) {
+  return `israa-draft|${trackingId}|${proposalItemId}|${groupNumber}`;
 }
 
 function parseDraftRowId(value) {
   const parts = clean(value).split('|');
-  if (parts.length !== 3 || parts[0] !== 'israa-draft') return null;
-  return { trackingId: parts[1], proposalItemId: parts[2] };
+  if ((parts.length !== 3 && parts.length !== 4) || parts[0] !== 'israa-draft') return null;
+  const groupNumber = Math.max(1, Number(parts[3] || 1) || 1);
+  return { trackingId: parts[1], proposalItemId: parts[2], groupNumber };
+}
+
+function draftGroupOverride(draft = {}, groupNumber = 1) {
+  const overrides = draft?.group_overrides;
+  if (!overrides || typeof overrides !== 'object' || Array.isArray(overrides)) return {};
+  const value = overrides[String(groupNumber)];
+  return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
 }
 
 function normalizeSharedRow(row = {}) {
@@ -42,47 +50,53 @@ function normalizeSharedRow(row = {}) {
   };
 }
 
-function normalizeDraftRow(tracking = {}, draft = {}) {
+function normalizeDraftRow(tracking = {}, draft = {}, groupNumber = 1) {
   const proposalItemId = clean(draft.proposal_item_id);
-  const id = draftRowId(tracking.id, proposalItemId);
+  const totalGroups = Math.max(1, Number(draft.quantity) || 1);
+  const group = Math.min(totalGroups, Math.max(1, Number(groupNumber) || 1));
+  const effective = { ...draft, ...draftGroupOverride(draft, group) };
+  delete effective.group_overrides;
+  const id = draftRowId(tracking.id, proposalItemId, group);
   const row = {
-    ...draft,
+    ...effective,
     RowID: id,
     row_id: id,
     source_row_id: id,
     source_sheet: 'activities',
-    activity_name: draft.activity_name || draft.program_name || 'פעילות',
-    activity_no: draft.activity_no || draft.gefen_number || '',
-    activity_type: draft.activity_type || draft.item_type || '',
-    item_type: draft.item_type || draft.activity_type || '',
-    authority: draft.authority || tracking.authority || '',
-    authority_id: draft.authority_id || tracking.authority_id || null,
-    school: draft.school || tracking.school_name || '',
-    school_id: draft.school_id || tracking.school_id || null,
-    grade: draft.grade || tracking.grade || '',
-    class_group: draft.class_group || draft.group || '',
-    sessions: draft.sessions ?? draft.meetings_count ?? '',
-    funding: draft.funding || tracking.funding || '',
-    start_date: draft.start_date || draft.activity_date || '',
-    end_date: draft.end_date || '',
-    start_time: draft.start_time || '',
-    end_time: draft.end_time || '',
-    emp_id: draft.emp_id || '',
-    instructor_name: draft.instructor_name || '',
-    emp_id_2: draft.emp_id_2 || '',
-    instructor_name_2: draft.instructor_name_2 || '',
-    activity_manager: draft.activity_manager || '',
-    status: draft.status || 'פתוח',
-    notes: draft.notes || '',
+    activity_name: effective.activity_name || effective.program_name || 'פעילות',
+    activity_no: effective.activity_no || effective.gefen_number || '',
+    activity_type: effective.activity_type || effective.item_type || '',
+    item_type: effective.item_type || effective.activity_type || '',
+    authority: effective.authority || tracking.authority || '',
+    authority_id: effective.authority_id || tracking.authority_id || null,
+    school: effective.school || tracking.school_name || '',
+    school_id: effective.school_id || tracking.school_id || null,
+    grade: effective.grade || tracking.grade || '',
+    class_group: effective.class_group || effective.group || `קבוצה ${group}`,
+    sessions: effective.sessions ?? effective.meetings_count ?? '',
+    funding: effective.funding || tracking.funding || '',
+    start_date: effective.start_date || effective.activity_date || '',
+    end_date: effective.end_date || '',
+    start_time: effective.start_time || '',
+    end_time: effective.end_time || '',
+    emp_id: effective.emp_id || '',
+    instructor_name: effective.instructor_name || '',
+    emp_id_2: effective.emp_id_2 || '',
+    instructor_name_2: effective.instructor_name_2 || '',
+    activity_manager: effective.activity_manager || '',
+    status: effective.status || 'פתוח',
+    notes: effective.notes || '',
     activity_season: 'school_2027',
     activity_domain: 'E',
     israa_private_draft: true,
     israa_tracking_id: tracking.id,
-    israa_source_item_id: proposalItemId
+    israa_source_item_id: proposalItemId,
+    israa_group_number: group,
+    israa_total_groups: totalGroups
   };
   for (let i = 1; i <= 35; i += 1) {
     const key = `date_${i}`;
-    if (draft[key]) row[key] = draft[key];
+    if (effective[key]) row[key] = effective[key];
   }
   return row;
 }
@@ -140,7 +154,10 @@ async function loadWorkspaceRows() {
     selected.forEach((draft) => {
       const key = `${clean(tracking.id)}|${clean(draft?.proposal_item_id)}`;
       if (!draft?.proposal_item_id || sharedKeys.has(key)) return;
-      drafts.push(normalizeDraftRow(tracking, draft));
+      const quantity = Math.max(1, Number(draft.quantity) || 1);
+      for (let groupNumber = 1; groupNumber <= quantity; groupNumber += 1) {
+        drafts.push(normalizeDraftRow(tracking, draft, groupNumber));
+      }
     });
   });
   // Once a row is shared to the canonical activities table it leaves Israa's
@@ -202,7 +219,7 @@ const workspaceApi = new Proxy(api, {
         const changes = payload.changes && typeof payload.changes === 'object' ? payload.changes : payload;
         const draftRef = parseDraftRowId(rowId);
         if (draftRef) {
-          const result = await api.saveIsraaActivityDraft(draftRef.trackingId, draftRef.proposalItemId, changes);
+          const result = await api.saveIsraaActivityGroupDraft(draftRef.trackingId, draftRef.proposalItemId, draftRef.groupNumber, changes);
           await refreshWorkspace({ rerender: false });
           return { row: currentDraftRow(rowId) || { ...(result?.draft || {}), RowID: rowId, row_id: rowId, source_sheet: 'activities', activity_season: 'school_2027', activity_domain: 'E' } };
         }

@@ -19,7 +19,7 @@ test('Israa activities tab reuses the canonical main activities screen', () => {
 
 test('Israa workspace stays E-scoped while allowing a manual add only through the dedicated RPC', () => {
   assert.match(workspace, /\.eq\('activity_domain', 'E'\)/);
-  assert.match(workspace, /api\.saveIsraaActivityDraft/);
+  assert.match(workspace, /api\.saveIsraaActivityGroupDraft/);
   assert.match(workspace, /api\.updateIsraaSharedActivity/);
   assert.match(workspace, /api\.shareIsraaActivity/);
   assert.match(workspace, /remove_israa_activity_draft/);
@@ -31,6 +31,19 @@ test('Israa workspace stays E-scoped while allowing a manual add only through th
   assert.match(workspace, /can_add_activity: true/);
   assert.match(workspace, /prop === 'deleteActivity' \|\| prop === 'submitCreateActivityRequest'/);
   assert.doesNotMatch(workspace, /prop === 'deleteActivity' \|\| prop === 'addActivity'/);
+});
+
+test('proposal quantity expands into one editable Israa activity row per group', () => {
+  assert.match(workspace, /for \(let groupNumber = 1; groupNumber <= quantity; groupNumber \+= 1\)/);
+  assert.match(workspace, /draftRowId\(tracking\.id, proposalItemId, group\)/);
+  assert.match(workspace, /israa_group_number: group/);
+  assert.match(workspace, /class_group: effective\.class_group \|\| effective\.group/);
+  assert.match(workspace, /israa_total_groups: totalGroups/);
+  assert.match(workspace, /saveIsraaActivityGroupDraft\(draftRef\.trackingId, draftRef\.proposalItemId, draftRef\.groupNumber, changes\)/);
+  const fallback = fs.readFileSync(new URL('../frontend/src/screens/israa-management.js', import.meta.url), 'utf8');
+  assert.match(fallback, /קבוצה/);
+  assert.match(fallback, /groupNumber <= quantity/);
+  assert.match(fallback, /saveIsraaActivityGroupDraft\(trackingId, proposalItemId, groupNumber/);
 });
 
 test('published activities leave the Israa activities table and remain only in the main activities table', () => {
@@ -71,9 +84,9 @@ test('selecting an Israa proposal activity no longer reloads or closes the page'
 });
 
 test('workspace loads lazily with a fresh module and cache version', () => {
-  assert.match(proposalItems, /import\('\.\/israa-activities-main-workspace\.js\?v=20260926-v5'\)/);
+  assert.match(proposalItems, /import\('\.\/israa-activities-main-workspace\.js\?v=20260926-v6'\)/);
   assert.match(proposalItems, /data-israa-tab=\"activities\"/);
   assert.match(proposalItems, /ensureMainActivitiesWorkspace\(\)/);
   assert.doesNotMatch(bootstrap, /israa-activities-main-workspace/);
-  assert.match(serviceWorker, /const CACHE_VERSION = 1778;/);
+  assert.match(serviceWorker, /const CACHE_VERSION = 1781;/);
 });

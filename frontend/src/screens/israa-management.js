@@ -456,14 +456,33 @@ function activitiesPanelHtml(settings = {}) {
       const shared = _sharedActivities.filter((a) => String(a.israa_tracking_id) === String(tracking.id)
         && String(a.israa_source_item_id) === String(draft.proposal_item_id));
       // Published rows belong to the main activities workspace only.
-      // Do not keep a second visible copy in Israa after sharing.
       if (shared.length) return;
-      const draftRow = { ...draft, row_id: `israa-draft|${tracking.id}|${draft.proposal_item_id}`, source_sheet: 'activities',
-        activity_name: draft.activity_name || draft.program_name, activity_no: draft.activity_no || draft.gefen_number,
-        school: tracking.school_name, authority: tracking.authority, activity_season: 'school_2027', activity_domain: 'E', status: 'פתוח' };
-      cards.push(`<section class="israa-activity-card" data-israa-editor-card data-israa-draft="${escapeHtml(draft.proposal_item_id)}" data-tracking-id="${escapeHtml(tracking.id)}">
-        <header><strong>${escapeHtml(draft.program_name || 'פעילות')}</strong><span>טיוטה פרטית · ${escapeHtml(draft.quantity || 1)} קבוצות</span></header>
-        <div class="israa-existing-card">${israaActivityEditor(draftRow, settings)}</div><div class="israa-activity-actions"><button class="israa-btn israa-btn--primary" type="button" data-israa-share>שתף לפעילויות</button></div></section>`);
+      const quantity = Math.max(1, Number(draft.quantity) || 1);
+      for (let groupNumber = 1; groupNumber <= quantity; groupNumber += 1) {
+        const overrides = draft?.group_overrides && typeof draft.group_overrides === 'object' && !Array.isArray(draft.group_overrides)
+          ? draft.group_overrides[String(groupNumber)]
+          : null;
+        const groupDraft = { ...draft, ...(overrides && typeof overrides === 'object' ? overrides : {}) };
+        delete groupDraft.group_overrides;
+        const draftRow = {
+          ...groupDraft,
+          row_id: `israa-draft|${tracking.id}|${draft.proposal_item_id}|${groupNumber}`,
+          source_sheet: 'activities',
+          activity_name: groupDraft.activity_name || groupDraft.program_name,
+          activity_no: groupDraft.activity_no || groupDraft.gefen_number,
+          school: tracking.school_name,
+          authority: tracking.authority,
+          class_group: groupDraft.class_group || `קבוצה ${groupNumber}`,
+          israa_group_number: groupNumber,
+          israa_total_groups: quantity,
+          activity_season: 'school_2027',
+          activity_domain: 'E',
+          status: 'פתוח'
+        };
+        cards.push(`<section class="israa-activity-card" data-israa-editor-card data-israa-draft="${escapeHtml(draft.proposal_item_id)}" data-tracking-id="${escapeHtml(tracking.id)}">
+          <header><strong>${escapeHtml(groupDraft.program_name || 'פעילות')}</strong><span>קבוצה ${groupNumber} מתוך ${quantity}</span></header>
+          <div class="israa-existing-card">${israaActivityEditor(draftRow, settings)}</div><div class="israa-activity-actions"><button class="israa-btn israa-btn--primary" type="button" data-israa-share>שתף לפעילויות</button></div></section>`);
+      }
     });
   });
   return `<div class="israa-activities-panel">${cards.join('') || '<div class="israa-empty">טרם נבחרו פעילויות. פתחי הצעה ובחרי „העבר לפעילויות”.</div>'}</div>`;
@@ -1237,8 +1256,9 @@ export const israaManagementScreen = {
         saveActivity: async (payload) => {
           const rowId = String(payload?.source_row_id || '');
           if (rowId.startsWith('israa-draft|')) {
-            const [, trackingId, proposalItemId] = rowId.split('|');
-            const result = await api.saveIsraaActivityDraft(trackingId, proposalItemId, payload.changes || {});
+            const [, trackingId, proposalItemId, rawGroupNumber] = rowId.split('|');
+            const groupNumber = Math.max(1, Number(rawGroupNumber || 1) || 1);
+            const result = await api.saveIsraaActivityGroupDraft(trackingId, proposalItemId, groupNumber, payload.changes || {});
             return { row: { ...(result?.draft || {}), row_id: rowId, source_sheet: 'activities', activity_season: 'school_2027', activity_domain: 'E' } };
           }
           return api.updateIsraaSharedActivity(rowId, payload?.changes || {});
