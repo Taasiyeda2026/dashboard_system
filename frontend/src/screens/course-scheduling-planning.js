@@ -2833,6 +2833,7 @@ export function planningCompletionOverviewHtml(rows = [], { pendingChanges = 0, 
       recruitmentProfiles.set(key, {
         id: key,
         label: text(row.recruitmentProfileLabel) || key,
+        district: normalizeOperationalDistrict(row.district) || text(row.district),
         activities: [],
         authorities: new Set(),
         programs: new Set(),
@@ -2871,7 +2872,20 @@ export function planningCompletionOverviewHtml(rows = [], { pendingChanges = 0, 
       teachingHours: Math.round((profile.teachingMinutes / 60) * 10) / 10,
       weekdays: [...profile.weekdays]
     }))
-    .sort((a, b) => b.activities.length - a.activities.length || a.label.localeCompare(b.label, 'he'));
+    .sort((a, b) =>
+      text(a.district).localeCompare(text(b.district), 'he')
+      || b.activities.length - a.activities.length
+      || a.label.localeCompare(b.label, 'he')
+    );
+  const recruitmentProfilesByDistrict = recruitmentProfileRows.reduce((acc, profile) => {
+    const district = text(profile.district) || 'ללא מחוז';
+    acc[district] = (acc[district] || 0) + 1;
+    return acc;
+  }, {});
+  const recruitmentDistrictSummary = ['צפון', 'מרכז', 'דרום']
+    .filter((district) => recruitmentProfilesByDistrict[district])
+    .map((district) => `${district} ${recruitmentProfilesByDistrict[district]}`)
+    .join(' · ');
 
   const coverage = planningFullWorkPlanCoverage(firstHalfRows);
   const unresolvedRows = firstHalfRows.filter((row) =>
@@ -2888,12 +2902,12 @@ export function planningCompletionOverviewHtml(rows = [], { pendingChanges = 0, 
       <summary class="course-planning-recruitment-summary">
         <span>
           <strong>תכנון לגיוס ולהכשרה</strong>
-          <small>${coverage.recruitment} פעילויות · ${recruitmentProfileRows.length} מודלי גיוס</small>
+          <small>${coverage.recruitment} פעילויות ללא כיסוי · ${recruitmentProfileRows.length} תקני גיוס מוצעים${recruitmentDistrictSummary ? ` · ${recruitmentDistrictSummary}` : ''}</small>
         </span>
         <span class="course-planning-recruitment-summary-action">הצג פירוט</span>
       </summary>
       <div class="course-planning-recruitment-models-body">
-        <p class="course-planning-recruitment-note">רק פעילויות שלא נמצא להן מדריך קיים שעובר את כל תנאי הסף</p>
+        <p class="course-planning-recruitment-note">התקנים מחושבים לאורך ציר הזמן ובחלוקה למחוזות. פעילות שמתחילה מאוחר יכולה להצטרף לתקן קיים אם אין חפיפה; שישי ושבת אינם ברירת מחדל.</p>
         <div class="course-planning-recruitment-model-grid">
           ${recruitmentProfileRows.map((profile) => `<article class="course-planning-recruitment-model">
             <header><b>${escapeHtml(profile.label)}</b><span>${profile.activities.length} פעילויות</span></header>
