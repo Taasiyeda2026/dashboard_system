@@ -2656,6 +2656,37 @@ export function planningInstructorCompletionOverview(rows = []) {
   );
 }
 
+
+export function planningFullWorkPlanCoverage(rows = []) {
+  const firstHalfRows = (rows || []).filter(planningRowIsFirstHalf);
+  const team = firstHalfRows.filter((row) => !!text(row?.instructorEmpId)).length;
+  const recruitment = firstHalfRows.filter((row) => row?.kind === 'recruitment').length;
+  const unresolved = firstHalfRows.length - team - recruitment;
+  return {
+    total: firstHalfRows.length,
+    team,
+    recruitment,
+    unresolved: Math.max(0, unresolved),
+    complete: firstHalfRows.length === team + recruitment + Math.max(0, unresolved)
+  };
+}
+
+function planningRecruitmentLanguageLabel(value) {
+  const normalized = normalizedLanguageRequirement(value);
+  if (normalized === 'ar') return 'ערבית';
+  if (normalized === 'he') return 'עברית';
+  return text(value);
+}
+
+function planningRecruitmentGenderLabel(value) {
+  const normalized = normalizedGenderRequirement(value);
+  if (normalized === 'female') return 'מדריכה';
+  if (normalized === 'male') return 'מדריך';
+  return '';
+}
+
+const PLANNING_WEEKDAY_LABELS = Object.freeze(['א׳', 'ב׳', 'ג׳', 'ד׳', 'ה׳', 'ו׳', 'שבת']);
+
 export function planningCompletionOverviewHtml(rows = [], { pendingChanges = 0, schoolYearTotal = null } = {}) {
   const firstHalfRows = (rows || []).filter(planningRowIsFirstHalf);
   const overview = planningInstructorCompletionOverview(firstHalfRows);
