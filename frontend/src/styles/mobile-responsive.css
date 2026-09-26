@@ -1492,7 +1492,7 @@
   }
 
   #app .attendance-control__comparison-table:not(.attendance-control__manual-table) tbody > tr > td:nth-of-type(2)::before {
-    content: "נתוני המערכת";
+    content: "נתוני דשבורד";
   }
 
   #app .attendance-control__comparison-table:not(.attendance-control__manual-table) tbody > tr > td:nth-of-type(3)::before {
