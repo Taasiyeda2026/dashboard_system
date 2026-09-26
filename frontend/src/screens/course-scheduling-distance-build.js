@@ -284,6 +284,20 @@ export function normalizePlaceKey(value) {
   return text(value).toLowerCase().replace(/\s+/g, ' ');
 }
 
+export function localityCompareKey(value) {
+  const normalized = text(value)
+    .toLowerCase()
+    .replace(/[\u05be\u2010-\u2015\-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return normalized === 'דלית אל כרמל' ? 'דאלית אל כרמל' : normalized;
+}
+
+export function isSamePlace(origin, destination) {
+  return !!text(origin) && !!text(destination)
+    && localityCompareKey(origin) === localityCompareKey(destination);
+}
+
 export function schoolEntityKey(school = {}) {
   if (school.school_id != null && Number.isFinite(Number(school.school_id))) {
     return `school_id:${Number(school.school_id)}`;
@@ -423,7 +437,7 @@ export function isUsableTravelCacheRow(cached, originAddress, destinationAddress
   const distance = Number(cached.distance_km);
   const duration = Number(cached.duration_minutes);
   if (distance < 0 || duration < 0) return false;
-  if ((distance === 0 || duration === 0) && originKey !== destinationKey) return false;
+  if ((distance === 0 || duration === 0) && !isSamePlace(originAddress, destinationAddress)) return false;
   return true;
 }
 
@@ -474,7 +488,7 @@ export function resolveSinglePairFromTravelCache(cacheRows = [], originAddress, 
     };
   }
 
-  if (originKey === destinationKey) {
+  if (isSamePlace(originAddress, destinationAddress)) {
     return {
       calculated: true,
       cached: false,

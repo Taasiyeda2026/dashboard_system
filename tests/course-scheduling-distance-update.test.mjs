@@ -17,7 +17,10 @@ import {
   translateSchedulingRouteError,
   runDistanceBuildLoop,
   emptyDistanceBuildStats,
-  mergeDistanceBuildStats
+  mergeDistanceBuildStats,
+  normalizePlaceKey,
+  localityCompareKey,
+  isSamePlace
 } from '../frontend/src/screens/course-scheduling-distance-build.js';
 
 const schemaUrl = new URL('../supabase/migrations/20260802220000_course_scheduling_interface_schema.sql', import.meta.url);
@@ -122,6 +125,20 @@ test('build_cache mode is explicit and scheduling-route authorizes by scheduling
   assert.match(ts, /permissions\.view_operations_scheduling/);
   assert.match(ts, /hasSchedulingAccess/);
   assert.doesNotMatch(ts, /const hasSchedulingRole = \['admin', 'operation_manager'\]\.includes/);
+});
+
+test('same-place detection handles locality hyphen and Daliyat al-Karmel spelling variants without changing cache keys', async () => {
+  assert.equal(normalizePlaceKey('קדימה-צורן'), 'קדימה-צורן');
+  assert.equal(localityCompareKey('דאלית אל-כרמל'), 'דאלית אל כרמל');
+  assert.equal(localityCompareKey('דלית אל כרמל'), 'דאלית אל כרמל');
+  assert.equal(isSamePlace('דלית אל כרמל', 'דאלית אל-כרמל'), true);
+  assert.equal(isSamePlace('דלית אל כרמל', 'חיפה'), false);
+
+  const ts = await readFile(edgeFunctionUrl, 'utf8');
+  assert.match(ts, /function localityCompareKey/);
+  assert.match(ts, /function isSamePlace/);
+  assert.match(ts, /if \(isSamePlace\(pair\.origin_address, pair\.destination_address\)\)/);
+  assert.match(ts, /if \(isSamePlace\(origin, destination\)\)/);
 });
 
 test('school dedup collapses duplicate school_id rows and prefers authority_id plus fuller address', () => {
@@ -272,6 +289,32 @@ test('coverage distinguishes missing routes from usable routes requiring refresh
     existing_count: 2,
     missing_count: 1,
     refresh_required_count: 1
+  });
+});
+
+test('same-locality spelling variants accept a zero-distance route', () => {
+  const pair = {
+    origin_address: 'דלית אל כרמל',
+    destination_address: 'דאלית אל-כרמל',
+    origin_entity_key: 'instructor:1540',
+    destination_entity_key: 'school_id:2346'
+  };
+  const cacheRows = [{
+    origin_key: 'דאלית אל כרמל',
+    destination_key: 'דאלית אל כרמל',
+    origin_address: 'דלית אל כרמל',
+    destination_address: 'דאלית אל-כרמל',
+    origin_entity_key: 'instructor:1540',
+    destination_entity_key: 'school_id:2346',
+    distance_km: 0,
+    duration_minutes: 0,
+    expires_at: '9999-12-31T23:59:59.999Z'
+  }];
+  assert.deepEqual(calculateTravelCoverage([pair], cacheRows), {
+    required_count: 1,
+    existing_count: 1,
+    missing_count: 0,
+    refresh_required_count: 0
   });
 });
 
