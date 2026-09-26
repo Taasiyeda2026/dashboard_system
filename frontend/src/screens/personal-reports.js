@@ -635,6 +635,12 @@ function internalLoginErrorMessage(error) {
   if (/missing_dashboard_auth_identity/i.test(raw)) {
     return 'לא נמצא חשבון התחברות מקושר. יש לצאת ולהיכנס מחדש לדשבורד, ואז לנסות שוב.';
   }
+  if (/dashboard_auth_session_mismatch/i.test(raw)) {
+    return 'החיבור לדשבורד השתנה. יש לצאת ולהיכנס מחדש למערכת עם המשתמש הנוכחי, ואז לנסות שוב.';
+  }
+  if (/auth_unavailable/i.test(raw)) {
+    return 'שירות האימות אינו זמין כרגע. יש לנסות שוב.';
+  }
   return friendlyPersonalReportsError(error, 'שם משתמש או סיסמה שגויים');
 }
 
