@@ -4,6 +4,8 @@ import { readFile } from 'node:fs/promises';
 import {
   PLANNING_OPERATIONAL_START_DATE,
   PLANNING_OPTIMIZATION_WEIGHTS,
+  GLOBAL_PLANNING_OBJECTIVE_WEIGHTS,
+  GLOBAL_OPTIMIZATION_MIN_GAIN,
   buildPlanningCompletionRows,
   buildPlanningOverviewRows,
   buildDynamicCoursePlan,
@@ -28,6 +30,9 @@ import {
   planningCompletionOverviewHtml,
   planningOptimizationScore,
   planningPlanQuality,
+  planningGlobalObjective,
+  planningGlobalRepairPriorityIds,
+  globalOptimizationImprovesPlan,
   comparePlanningPlanQuality,
   planningQualityAudit,
   planningQualityAuditHtml,
@@ -1524,6 +1529,133 @@ test('plan-quality comparison follows approved repair priorities after existing-
   assert.equal(planningPlanQuality(lessTravel).totalTravelKm, 12);
   assert.equal(planningPlanQuality(moreTravel).totalTravelKm, 18);
   assert.ok(comparePlanningPlanQuality(lessTravel, moreTravel) < 0);
+});
+
+test('global objective uses the approved 35/20/18/15/7/3/2 priorities', () => {
+  assert.deepEqual(GLOBAL_PLANNING_OBJECTIVE_WEIGHTS, {
+    recruitmentCoverage: 35,
+    newWorkDays: 20,
+    continuityGeography: 18,
+    travel: 15,
+    gaps: 7,
+    workloadBalance: 3,
+    stability: 2
+  });
+  assert.equal(Object.values(GLOBAL_PLANNING_OBJECTIVE_WEIGHTS).reduce((sum, value) => sum + value, 0), 100);
+  assert.equal(GLOBAL_OPTIMIZATION_MIN_GAIN, 5);
+});
+
+test('global objective rewards fewer new work days and more packed continuity', () => {
+  const compact = [
+    {
+      courseId: 'a',
+      kind: 'proposal',
+      instructorEmpId: '1',
+      instructorName: 'מדריך',
+      meetings: [{ date: '2026-10-11', start_time: '08:00', end_time: '09:30' }],
+      options: [{
+        instructorEmpId: '1',
+        startDate: '2026-10-11',
+        startTime: '08:00',
+        planningOptimization: { total: 82 },
+        operationalMetrics: {
+          continuityMeetingCount: 1,
+          sameSchoolMeetingCount: 1,
+          sameAuthorityMeetingCount: 1,
+          nearbyMeetingCount: 0,
+          existingWorkDayMeetingCount: 1,
+          newWorkDayMeetingCount: 0,
+          relevantTravelDistance: 8
+        }
+      }]
+    },
+    {
+      courseId: 'b',
+      kind: 'proposal',
+      instructorEmpId: '1',
+      instructorName: 'מדריך',
+      meetings: [{ date: '2026-10-11', start_time: '10:00', end_time: '11:30' }],
+      options: [{
+        instructorEmpId: '1',
+        startDate: '2026-10-11',
+        startTime: '10:00',
+        planningOptimization: { total: 82 },
+        operationalMetrics: {
+          continuityMeetingCount: 1,
+          sameSchoolMeetingCount: 1,
+          sameAuthorityMeetingCount: 1,
+          nearbyMeetingCount: 0,
+          existingWorkDayMeetingCount: 1,
+          newWorkDayMeetingCount: 0,
+          relevantTravelDistance: 8
+        }
+      }]
+    }
+  ];
+  const scattered = compact.map((row, index) => ({
+    ...row,
+    meetings: [{ date: index ? '2026-10-12' : '2026-10-11', start_time: row.meetings[0].start_time, end_time: row.meetings[0].end_time }],
+    options: [{
+      ...row.options[0],
+      operationalMetrics: {
+        ...row.options[0].operationalMetrics,
+        sameSchoolMeetingCount: 0,
+        sameAuthorityMeetingCount: 0,
+        existingWorkDayMeetingCount: 0,
+        newWorkDayMeetingCount: 1,
+        relevantTravelDistance: 6
+      }
+    }]
+  }));
+  assert.ok(planningGlobalObjective(compact).total > planningGlobalObjective(scattered).total);
+  assert.ok(comparePlanningPlanQuality(compact, scattered) < 0);
+});
+
+test('global repair priorities include inefficient planned rows even without recruitment', () => {
+  const rows = [
+    {
+      courseId: 'inefficient',
+      kind: 'proposal',
+      instructorEmpId: '1',
+      options: [{
+        instructorEmpId: '1',
+        planningOptimization: { total: 55 },
+        operationalMetrics: { newWorkDayMeetingCount: 3, relevantTravelDistance: 30 }
+      }]
+    },
+    {
+      courseId: 'efficient',
+      kind: 'proposal',
+      instructorEmpId: '2',
+      options: [{
+        instructorEmpId: '2',
+        planningOptimization: { total: 95 },
+        operationalMetrics: { newWorkDayMeetingCount: 0, relevantTravelDistance: 2 }
+      }]
+    }
+  ];
+  const ids = planningGlobalRepairPriorityIds(rows);
+  assert.equal(ids[0], 'inefficient');
+  assert.ok(ids.includes('efficient'));
+});
+
+test('global optimizer requires a meaningful gain unless it reduces uncovered work', () => {
+  const base = [{
+    courseId: 'a',
+    kind: 'proposal',
+    instructorEmpId: '1',
+    instructorName: 'מדריך',
+    meetings: [{ date: '2026-10-11', start_time: '08:00', end_time: '09:30' }],
+    options: [{
+      instructorEmpId: '1',
+      planningOptimization: { total: 80 },
+      operationalMetrics: { newWorkDayMeetingCount: 1, relevantTravelDistance: 10 }
+    }]
+  }];
+  assert.equal(globalOptimizationImprovesPlan(base, base), false);
+  const covered = [{ ...base[0], courseId: 'b' }];
+  const uncovered = [{ courseId: 'b', kind: 'recruitment', recruitmentProfileId: 'r1', options: [] }];
+  assert.equal(globalOptimizationImprovesPlan(uncovered, covered), true);
 });
 
 test('national planning reoptimizes an existing draft before declaring recruitment', async () => {

@@ -35,7 +35,7 @@ export const PLANNING_OPTIMIZATION_WEIGHTS = Object.freeze({
   geography: 15,
   stability: 10
 });
-export const PLANNING_ENGINE_VERSION = 'planning-v13-20260926-explicit-weekly-availability';
+export const PLANNING_ENGINE_VERSION = 'planning-v14-20260926-global-optimization';
 export const PLANNING_ACTIVITY_NO_ALIASES = Object.freeze({
   // Legacy Gefen identifier retained on existing activities; canonical catalog program is 53828.
   '82835': '53828'
@@ -1817,24 +1817,148 @@ export function planningPlanQuality(rows = []) {
   };
 }
 
+export const GLOBAL_PLANNING_OBJECTIVE_WEIGHTS = Object.freeze({
+  recruitmentCoverage: 35,
+  newWorkDays: 20,
+  continuityGeography: 18,
+  travel: 15,
+  gaps: 7,
+  workloadBalance: 3,
+  stability: 2
+});
+export const GLOBAL_OPTIMIZATION_MIN_GAIN = 5;
+export const GLOBAL_OPTIMIZATION_MAX_PRIORITY_ROWS = 30;
+
+function clamp01(value) {
+  return Math.max(0, Math.min(1, Number(value) || 0));
+}
+
+export function planningGlobalObjective(rows = []) {
+  const source = Array.isArray(rows) ? rows : [];
+  const quality = planningPlanQuality(source);
+  const audit = planningQualityAudit(source);
+  const totalActivities = Math.max(1, source.length);
+  const totalMeetings = Math.max(1, source.reduce((sum, row) => sum + Math.max(0, Number(row?.meetings?.length) || Number(row?.sessions) || 0), 0));
+
+  let continuityWeighted = 0;
+  let continuityTotal = 0;
+  for (const row of source) {
+    const metrics = planningRowPrimaryOption(row)?.operationalMetrics || {};
+    const total = Math.max(0, Number(metrics.continuityMeetingCount) || 0);
+    if (!total) continue;
+    continuityTotal += total;
+    continuityWeighted += (
+      Math.max(0, Number(metrics.sameSchoolMeetingCount) || 0)
+      + Math.max(0, Number(metrics.sameAuthorityMeetingCount) || 0) * 0.8
+      + Math.max(0, Number(metrics.nearbyMeetingCount) || 0) * 0.6
+      + Math.max(0, Number(metrics.existingWorkDayMeetingCount) || 0) * 0.35
+    );
+  }
+
+  const hours = (audit.instructorLoads || []).map((item) => Number(item.hours)).filter((value) => Number.isFinite(value) && value >= 0);
+  const meanHours = hours.length ? hours.reduce((sum, value) => sum + value, 0) / hours.length : 0;
+  const variance = meanHours > 0 && hours.length
+    ? hours.reduce((sum, value) => sum + ((value - meanHours) ** 2), 0) / hours.length
+    : 0;
+  const coefficientOfVariation = meanHours > 0 ? Math.sqrt(variance) / meanHours : 0;
+  const draftRows = source.filter((row) => row.sourceHadDraft === true).length;
+
+  const ratios = {
+    recruitmentCoverage: 1 - clamp01(quality.uncovered / totalActivities),
+    newWorkDays: 1 - clamp01(quality.newWorkDayMeetings / totalMeetings),
+    continuityGeography: continuityTotal ? clamp01(continuityWeighted / continuityTotal) : 1,
+    travel: 1 - clamp01(quality.averageTravelKm / 40),
+    gaps: audit.workDays ? clamp01(audit.packedDays / audit.workDays) : 1,
+    workloadBalance: 1 - clamp01(coefficientOfVariation),
+    stability: draftRows ? 1 - clamp01(quality.changedDrafts / draftRows) : 1
+  };
+
+  const components = Object.fromEntries(
+    Object.entries(GLOBAL_PLANNING_OBJECTIVE_WEIGHTS).map(([key, weight]) => [
+      key,
+      Math.round((ratios[key] * weight) * 10) / 10
+    ])
+  );
+  const total = Math.round(Object.values(components).reduce((sum, value) => sum + value, 0) * 10) / 10;
+
+  return {
+    total,
+    components,
+    ratios,
+    uncovered: quality.uncovered,
+    recruitment: quality.recruitment,
+    recruitmentProfiles: quality.recruitmentProfiles,
+    newWorkDayMeetings: quality.newWorkDayMeetings,
+    totalTravelKm: quality.totalTravelKm,
+    averageTravelKm: quality.averageTravelKm,
+    changedDrafts: quality.changedDrafts,
+    packedDays: audit.packedDays,
+    workDays: audit.workDays,
+    singletonDays: audit.singletonDays,
+    workloadCoefficientOfVariation: Math.round(coefficientOfVariation * 1000) / 1000
+  };
+}
+
+export function planningGlobalRepairPriorityIds(rows = [], limit = GLOBAL_OPTIMIZATION_MAX_PRIORITY_ROWS) {
+  const source = [...(rows || [])].filter((row) => !['live', 'planning-locked', 'draft'].includes(text(row?.kind)));
+  const maxRows = Math.max(1, Number(limit) || GLOBAL_OPTIMIZATION_MAX_PRIORITY_ROWS);
+  const critical = source
+    .filter((row) => ['recruitment', 'missing', 'fixed'].includes(text(row?.kind)))
+    .map((row) => ({
+      id: text(row?.courseId),
+      priority: text(row?.kind) === 'recruitment' ? 2 : 1
+    }))
+    .filter((item) => item.id)
+    .sort((a, b) => b.priority - a.priority || a.id.localeCompare(b.id));
+  // When coverage is incomplete, move only the uncovered activities to the
+  // front. Marking already-covered rows as "priority" as well would preserve
+  // the original order and defeat the repair swap that frees scarce staff.
+  if (critical.length) return critical.slice(0, maxRows).map((item) => item.id);
+
+  return source
+    .map((row) => {
+      const option = planningRowPrimaryOption(row);
+      const metrics = option?.operationalMetrics || {};
+      const optimization = Number(option?.planningOptimization?.total);
+      const priority = (
+        Math.max(0, Number(metrics.newWorkDayMeetingCount) || 0) * 120
+        + Math.max(0, Number(metrics.relevantTravelDistance) || 0) * 4
+        + (Number.isFinite(optimization) ? Math.max(0, 75 - optimization) * 3 : 100)
+        + (row.sourceHadDraft === true ? 15 : 0)
+      );
+      return { id: text(row?.courseId), priority };
+    })
+    .filter((item) => item.id && item.priority > 0)
+    .sort((a, b) => b.priority - a.priority || a.id.localeCompare(b.id))
+    .slice(0, maxRows)
+    .map((item) => item.id);
+}
+
+export function globalOptimizationImprovesPlan(beforeRows = [], afterRows = [], minGain = GLOBAL_OPTIMIZATION_MIN_GAIN) {
+  const before = planningGlobalObjective(beforeRows);
+  const after = planningGlobalObjective(afterRows);
+  if (after.uncovered < before.uncovered) return true;
+  if (after.uncovered > before.uncovered) return false;
+  if (after.recruitmentProfiles < before.recruitmentProfiles) return true;
+  if (after.recruitmentProfiles > before.recruitmentProfiles) return false;
+  const gain = Math.round((after.total - before.total) * 10) / 10;
+  return gain >= Math.max(0, Number(minGain) || 0);
+}
+
 export function comparePlanningPlanQuality(firstRows = [], secondRows = []) {
   const first = planningPlanQuality(firstRows);
   const second = planningPlanQuality(secondRows);
-  const ascending = [
-    'uncovered',
-    'recruitmentProfiles',
-    'changedDrafts',
-    'newWorkDayMeetings',
-    'totalTravelKm'
-  ];
-  for (const key of ascending) {
-    if (first[key] !== second[key]) return first[key] - second[key];
-  }
-  if (first.averageOperationalScore !== second.averageOperationalScore) {
-    return second.averageOperationalScore - first.averageOperationalScore;
-  }
-  // Only after the approved optimization priorities are tied, prefer a
-  // concretely actionable recruitment row over an unresolved missing row.
+  if (first.uncovered !== second.uncovered) return first.uncovered - second.uncovered;
+  if (first.recruitmentProfiles !== second.recruitmentProfiles) return first.recruitmentProfiles - second.recruitmentProfiles;
+
+  const firstObjective = planningGlobalObjective(firstRows);
+  const secondObjective = planningGlobalObjective(secondRows);
+  if (firstObjective.total !== secondObjective.total) return secondObjective.total - firstObjective.total;
+
+  if (first.changedDrafts !== second.changedDrafts) return first.changedDrafts - second.changedDrafts;
+  if (first.newWorkDayMeetings !== second.newWorkDayMeetings) return first.newWorkDayMeetings - second.newWorkDayMeetings;
+  if (first.totalTravelKm !== second.totalTravelKm) return first.totalTravelKm - second.totalTravelKm;
+  if (first.averageOperationalScore !== second.averageOperationalScore) return second.averageOperationalScore - first.averageOperationalScore;
   if (first.missing !== second.missing) return first.missing - second.missing;
   return 0;
 }
@@ -2208,13 +2332,18 @@ export async function buildDynamicCoursePlan({
   const initialResult = summarize(rows, { repairApplied: _repairPass });
   if (_repairPass || incrementalIds) return initialResult;
 
-  const repairPriorityIds = rows
-    .filter((row) => text(row.kind) === 'recruitment')
-    .map((row) => text(row.courseId))
-    .filter(Boolean);
-  if (!repairPriorityIds.length) return initialResult;
+  const repairPriorityIds = planningGlobalRepairPriorityIds(rows);
+  if (!repairPriorityIds.length) return {
+    ...initialResult,
+    globalOptimization: {
+      applied: false,
+      before: planningGlobalObjective(rows),
+      after: planningGlobalObjective(rows),
+      gain: 0
+    }
+  };
 
-  await report('שיפור התכנון הארצי', 0, repairPriorityIds.length);
+  await report('אופטימיזציה ארצית', 0, repairPriorityIds.length);
   const repaired = await buildDynamicCoursePlan({
     activities,
     instructors,
@@ -2239,13 +2368,25 @@ export async function buildDynamicCoursePlan({
     _repairPriorityIds: repairPriorityIds
   });
 
-  if (comparePlanningPlanQuality(repaired.rows, rows) < 0) {
+  const beforeObjective = planningGlobalObjective(rows);
+  const afterObjective = planningGlobalObjective(repaired.rows);
+  const gain = Math.round((afterObjective.total - beforeObjective.total) * 10) / 10;
+  const improved = comparePlanningPlanQuality(repaired.rows, rows) < 0
+    && globalOptimizationImprovesPlan(rows, repaired.rows);
+
+  if (improved) {
     return {
       ...repaired,
       repairApplied: true,
       repairImprovement: {
         before: planningPlanQuality(rows),
         after: planningPlanQuality(repaired.rows)
+      },
+      globalOptimization: {
+        applied: true,
+        before: beforeObjective,
+        after: afterObjective,
+        gain
       }
     };
   }
@@ -2255,6 +2396,12 @@ export async function buildDynamicCoursePlan({
     repairImprovement: {
       before: planningPlanQuality(rows),
       after: planningPlanQuality(repaired.rows)
+    },
+    globalOptimization: {
+      applied: false,
+      before: beforeObjective,
+      after: afterObjective,
+      gain
     }
   };
 }
