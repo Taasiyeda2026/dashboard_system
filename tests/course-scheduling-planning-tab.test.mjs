@@ -1459,7 +1459,7 @@ test('background planning keeps the workboard scroll stable instead of rerenderi
   assert.match(ownsRun, /run\.generation === planningRunGeneration/);
   assert.match(ownsRun, /state\.route === 'course-scheduling'/);
   assert.doesNotMatch(ownsRun, /root\.isConnected/);
-  assert.match(planningRun, /onProgress: \(progress\) =>/);
+  assert.match(planningRun, /onProgress: (?:async )?\(progress\) =>/);
   assert.match(planningRun, /updatePlanningStatusInPlace\(\)/);
   assert.doesNotMatch(planningRun, /rerender\(\)/);
 });

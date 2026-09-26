@@ -8,12 +8,14 @@ const travelUrl = new URL('../frontend/src/screens/course-scheduling-travel.js',
 const schemaUrl = new URL('../supabase/migrations/20260924145500_shared_incremental_course_planning.sql', import.meta.url);
 const dirtyUrl = new URL('../supabase/migrations/20260924151000_shared_planning_incremental_dirty_rows.sql', import.meta.url);
 const unlockUrl = new URL('../supabase/migrations/20260924152500_shared_planning_unlock_recalc.sql', import.meta.url);
+const checkpointUrl = new URL('../supabase/migrations/20260926195500_planning_silent_checkpoints.sql', import.meta.url);
 
 test('shared planning persists separately from live activities with scheduling RLS', async () => {
-  const [schema, dirty, unlock] = await Promise.all([
+  const [schema, dirty, unlock, checkpoints] = await Promise.all([
     readFile(schemaUrl, 'utf8'),
     readFile(dirtyUrl, 'utf8'),
-    readFile(unlockUrl, 'utf8')
+    readFile(unlockUrl, 'utf8'),
+    readFile(checkpointUrl, 'utf8')
   ]);
   assert.match(schema, /create table if not exists public\.scheduling_planning_workspaces/);
   assert.match(schema, /create table if not exists public\.scheduling_planning_rows/);
@@ -25,7 +27,11 @@ test('shared planning persists separately from live activities with scheduling R
   assert.match(dirty, /needs_recalc boolean not null default false/);
   assert.match(dirty, /needsRecalc/);
   assert.match(unlock, /\(p_option is null\)/);
-  assert.doesNotMatch(schema + dirty + unlock, /update\s+public\.activities\s+set\s+emp_id/i);
+  assert.match(checkpoints, /create table if not exists public\.scheduling_planning_checkpoints/);
+  assert.match(checkpoints, /get_scheduling_planning_checkpoint/);
+  assert.match(checkpoints, /save_scheduling_planning_checkpoint/);
+  assert.match(checkpoints, /clear_scheduling_planning_checkpoint/);
+  assert.doesNotMatch(schema + dirty + unlock + checkpoints, /update\s+public\.activities\s+set\s+emp_id/i);
 });
 
 test('course planning screen loads and saves the shared workspace and only recalculates affected rows', async () => {
@@ -35,6 +41,9 @@ test('course planning screen loads and saves the shared workspace and only recal
     readFile(travelUrl, 'utf8')
   ]);
   assert.match(screen, /loadSharedPlanningWorkspace/);
+  assert.match(screen, /loadSharedPlanningCheckpoint/);
+  assert.match(screen, /saveSharedPlanningCheckpoint/);
+  assert.match(screen, /clearSharedPlanningCheckpoint/);
   assert.match(screen, /saveSharedPlanningSnapshot/);
   assert.match(screen, /saveSharedPlanningLock/);
   assert.match(screen, /sharedPlanningAffectedCourseIds/);
@@ -46,6 +55,18 @@ test('course planning screen loads and saves the shared workspace and only recal
   assert.match(store, /needsRecalc/);
   assert.match(travel, /preloadedRows/);
   assert.match(travel, /persistentCache/);
+});
+
+test('full planning silently checkpoints every 50 completed activities and can resume', async () => {
+  const screen = await readFile(screenUrl, 'utf8');
+  const planner = await readFile(new URL('../frontend/src/screens/course-scheduling-planning.js', import.meta.url), 'utf8');
+  assert.match(screen, /checkpointCompletedIds\.size - lastSilentCheckpointCount >= 50/);
+  assert.match(screen, /progress\.phase !== 'בניית תוכנית'/);
+  assert.match(screen, /resumeFromCheckpoint/);
+  assert.match(screen, /currentCourseIds\.filter\(\(courseId\) => !checkpointCompletedIds\.has\(courseId\)\)/);
+  assert.match(screen, /Checkpointing is resilience-only and deliberately silent/);
+  assert.match(planner, /await onProgress\(/);
+  assert.match(planner, /incrementalIds && !resumeFromCheckpoint/);
 });
 
 test('entering shared planning never recalculates automatically and keeps updates explicit', async () => {

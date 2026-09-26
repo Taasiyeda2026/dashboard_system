@@ -2077,11 +2077,14 @@ export async function buildDynamicCoursePlan({
   onProgress = null,
   signal = null,
   checkpoint = createPlanningCheckpoint({ signal }),
+  resumeFromCheckpoint = false,
   _repairPass = false,
   _repairPriorityIds = []
 } = {}) {
   const report = async (phase, completed = 0, total = 0, courseId = '', rows = null) => {
-    if (typeof onProgress === 'function') onProgress({ phase, completed, total, courseId, rows });
+    if (typeof onProgress === 'function') {
+      await onProgress({ phase, completed, total, courseId, rows });
+    }
     await checkpoint();
   };
   await report('הכנת נתונים');
@@ -2335,7 +2338,7 @@ export async function buildDynamicCoursePlan({
   });
 
   const initialResult = summarize(rows, { repairApplied: _repairPass });
-  if (_repairPass || incrementalIds) return initialResult;
+  if (_repairPass || (incrementalIds && !resumeFromCheckpoint)) return initialResult;
 
   const repairPriorityIds = planningGlobalRepairPriorityIds(rows);
   if (!repairPriorityIds.length) return {
@@ -2369,6 +2372,7 @@ export async function buildDynamicCoursePlan({
       : null,
     signal,
     checkpoint,
+    resumeFromCheckpoint: false,
     _repairPass: true,
     _repairPriorityIds: repairPriorityIds
   });
