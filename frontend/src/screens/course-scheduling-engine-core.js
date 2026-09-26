@@ -87,7 +87,7 @@ function meetingHours(meeting, activity = {}) {
 
 export function availabilityHours(profile = {}, rules = []) {
   void profile;
-  const availableRules = rules.filter((rule) => rule.available && Number(rule.weekday) !== 6);
+  const availableRules = rules.filter((rule) => rule.available);
   if (!availableRules.length) return 0;
   return availableRules.reduce((sum, rule) => sum + Math.max(0, minutes(rule.end_time) - minutes(rule.start_time)) / 60, 0);
 }
