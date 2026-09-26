@@ -905,11 +905,6 @@
     line-height: 1.35;
   }
 
-  .route-course-scheduling .course-planning-workplan-pending {
-    display: block;
-    font-size: .7rem;
-  }
-
   .route-course-scheduling .course-planning-workplan-balance {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 6px;
@@ -1005,7 +1000,7 @@
 
   .route-course-scheduling .course-planning-completion-table tbody > tr {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 0;
     overflow: hidden;
     border: 1px solid #dbe3ec;
@@ -1053,19 +1048,18 @@
     font-size: .94rem;
   }
 
-  .route-course-scheduling .course-planning-completion-cell.is-courses::before { content: "פעילויות"; }
   .route-course-scheduling .course-planning-completion-cell.is-live::before { content: "משובץ"; }
   .route-course-scheduling .course-planning-completion-cell.is-draft::before { content: "ממתין"; }
   .route-course-scheduling .course-planning-completion-cell.is-proposal::before { content: "בתכנון"; }
 
-  .route-course-scheduling .course-planning-completion-cell.is-load,
-  .route-course-scheduling .course-planning-completion-cell.is-weekly {
-    grid-column: span 2;
-    min-height: 44px;
+  .route-course-scheduling .course-planning-completion-cell.is-load {
+    grid-column: 1 / -1;
+    min-height: 48px;
+    text-align: start;
+    white-space: normal;
   }
 
   .route-course-scheduling .course-planning-completion-cell.is-load::before { content: "סה״כ מתוכנן"; }
-  .route-course-scheduling .course-planning-completion-cell.is-weekly::before { content: "שבוע שיא"; }
 
   .route-course-scheduling .course-planning-completion-cell.is-start,
   .route-course-scheduling .course-planning-completion-cell.is-end {
@@ -1076,38 +1070,6 @@
 
   .route-course-scheduling .course-planning-completion-cell.is-start::before { content: "מתחיל"; }
   .route-course-scheduling .course-planning-completion-cell.is-end::before { content: "מסתיים"; }
-
-  .route-course-scheduling .course-planning-completion-cell.is-details {
-    grid-column: 1 / -1;
-    min-height: 0;
-    padding: 0;
-    border: 0;
-    text-align: start;
-  }
-
-  .route-course-scheduling .course-planning-completion-programs {
-    display: none;
-  }
-
-  .route-course-scheduling .course-planning-completion-details {
-    width: 100%;
-    margin: 0;
-  }
-
-  .route-course-scheduling .course-planning-completion-details > summary {
-    padding: 8px 10px;
-    font-size: .76rem;
-  }
-
-  .route-course-scheduling .course-planning-completion-courses {
-    min-width: 0;
-    margin: 0;
-    padding: 0 8px 8px;
-  }
-
-  .route-course-scheduling .course-planning-completion-course {
-    padding: 7px 8px;
-  }
 
   /* Quality panel keeps only a readable two-column mobile scan. */
   .route-course-scheduling .course-planning-quality {
