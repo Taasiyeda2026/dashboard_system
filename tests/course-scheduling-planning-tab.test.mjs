@@ -433,7 +433,7 @@ test('weekly planning starts on or after 12 October and may continue through Feb
 
   const valid = buildWeeklyPlanningMeetings({
     activity: baseCourse,
-    startDate: '2026-10-11',
+    startDate: '2026-10-12',
     startTime: '08:00',
     durationMinutes: 90,
     sessions: 11,
