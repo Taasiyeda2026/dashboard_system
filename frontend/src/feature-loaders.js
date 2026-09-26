@@ -147,7 +147,7 @@ export function ensureFeature(name) {
 
     case 'israa':
       return loadOnce('israa', () => Promise.all([
-        import('./israa-tracking-v2-runtime.js?v=20260730-israa-program-menu-visible-v1'),
+        import('./israa-tracking-v2-runtime.js?v=20260926-israa-transfer-v2'),
         import('./israa-tracking-filters-runtime.js?v=20260730-israa-toolbar-filters-v6'),
         import('./israa-tracking-hierarchy-runtime.js?v=20260730-israa-toolbar-filters-v6')
       ]));

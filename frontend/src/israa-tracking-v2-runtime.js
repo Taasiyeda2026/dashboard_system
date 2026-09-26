@@ -421,6 +421,50 @@ function bindDrawer(content) {
     multiSelectOutsideClickBound = true;
   }
   content.addEventListener('click', async (event) => {
+    const selectActivity = event.target.closest('[data-israa-select-activity]');
+    if (selectActivity) {
+      event.preventDefault();
+      event.stopPropagation();
+      if (selectActivity.disabled) return;
+      const trackingId = clean(selectActivity.dataset.israaTrackingId);
+      const proposalItemId = clean(selectActivity.dataset.israaSelectActivity);
+      if (!trackingId || !proposalItemId) return;
+
+      const originalText = selectActivity.textContent;
+      selectActivity.disabled = true;
+      selectActivity.textContent = 'מעביר…';
+      try {
+        const { data: draft, error } = await supabase.rpc('save_israa_activity_draft', {
+          p_tracking_id: trackingId,
+          p_proposal_item_id: proposalItemId,
+          p_draft: {}
+        });
+        if (error) throw error;
+
+        const current = rows.find((row) => String(row.id) === String(trackingId));
+        if (current) {
+          const selected = Array.isArray(current.selected_activity_drafts) ? current.selected_activity_drafts : [];
+          current.selected_activity_drafts = [
+            ...selected.filter((item) => clean(item?.proposal_item_id) !== proposalItemId),
+            draft
+          ];
+        }
+
+        window.dispatchEvent(new CustomEvent('israa-activities-changed', {
+          detail: { trackingId, proposalItemId }
+        }));
+        toast('הפעילות הועברה לפעילויות איסראא.');
+        const updated = rows.find((row) => String(row.id) === String(trackingId));
+        if (updated) openDrawer(updated, 'view');
+      } catch (error) {
+        console.error('[israa-v2-select-activity]', error);
+        selectActivity.disabled = false;
+        selectActivity.textContent = originalText;
+        toast(error?.message || 'לא ניתן להעביר את הפעילות לפעילויות איסראא.', 'error');
+      }
+      return;
+    }
+
     const toggle = event.target.closest('[data-v2-multi-toggle]');
     if (toggle) {
       event.preventDefault();
