@@ -112,6 +112,32 @@ test('cancelled planning stops at a cooperative boundary', async () => {
   assert.equal(checkpoints, 4);
 });
 
+test('leaving scheduling detaches the UI without cancelling an active planning run', () => {
+  const detachStart = screenSource.indexOf('export function detachCourseSchedulingPlanningView');
+  const detachEnd = screenSource.indexOf('export function scheduleCoursePlanningStart', detachStart);
+  const detach = screenSource.slice(detachStart, detachEnd);
+  assert.match(detach, /activePlanningRun\.ui = null/);
+  assert.doesNotMatch(detach, /controller\?\.abort|controller\.abort/);
+  assert.doesNotMatch(detach, /planningRunGeneration \+= 1/);
+
+  const onLeaveStart = screenSource.indexOf('onLeave({ state } = {})');
+  const onLeave = screenSource.slice(onLeaveStart, onLeaveStart + 140);
+  assert.match(onLeave, /detachCourseSchedulingPlanningView\(state\)/);
+  assert.doesNotMatch(onLeave, /cancelCourseSchedulingPlanning\(state\)/);
+
+  const runStart = screenSource.indexOf('const runCoursePlanning = async');
+  const runEnd = screenSource.indexOf('const clonePlanningOption', runStart);
+  const run = screenSource.slice(runStart, runEnd);
+  const ownershipStart = run.indexOf('const ownsRun = () =>');
+  const ownershipEnd = run.indexOf(');', ownershipStart);
+  const ownership = run.slice(ownershipStart, ownershipEnd + 2);
+  assert.match(ownership, /activePlanningRun === run/);
+  assert.match(ownership, /run\.generation === planningRunGeneration/);
+  assert.doesNotMatch(ownership, /schedulingScreenActive|state\.route/);
+  assert.match(run, /run\.ui\?\.isVisible\?\.\(\) === true/);
+  assert.match(run, /queueMicrotask\(\(\) => \{ void runCoursePlanning\(\{ forceFull: false \}\); \}\)/);
+});
+
 test('leaving scheduling cancels a pending automatic planning startup', async () => {
   globalThis.sessionStorage ||= { getItem: () => null, setItem: () => {}, removeItem: () => {} };
   globalThis.localStorage ||= { getItem: () => null, setItem: () => {}, removeItem: () => {} };
