@@ -281,7 +281,12 @@ export function pickNearestActionableCourse(rowModels = [], todayStr = new Date(
 }
 
 export function normalizePlaceKey(value) {
-  return text(value).toLowerCase().replace(/\s+/g, ' ');
+  const normalized = text(value)
+    .toLowerCase()
+    .replace(/[\u05be\u2010-\u2015\-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return normalized === 'דלית אל כרמל' ? 'דאלית אל כרמל' : normalized;
 }
 
 export function schoolEntityKey(school = {}) {
