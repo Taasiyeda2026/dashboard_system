@@ -893,6 +893,53 @@
     padding: 10px;
   }
 
+  .route-course-scheduling .course-planning-workplan-heading {
+    align-items: flex-start;
+  }
+
+  .route-course-scheduling .course-planning-workplan-heading > div {
+    min-width: 0;
+  }
+
+  .route-course-scheduling .course-planning-workplan-heading span {
+    line-height: 1.35;
+  }
+
+  .route-course-scheduling .course-planning-workplan-pending {
+    display: block;
+    font-size: .7rem;
+  }
+
+  .route-course-scheduling .course-planning-workplan-balance {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .route-course-scheduling .course-planning-workplan-card {
+    min-height: 62px;
+    padding: 8px 9px;
+  }
+
+  .route-course-scheduling .course-planning-workplan-card b {
+    font-size: 1.08rem;
+  }
+
+  .route-course-scheduling .course-planning-workplan-card span {
+    white-space: normal;
+    font-size: .72rem;
+  }
+
+  .route-course-scheduling .course-planning-recruitment-model-load {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .route-course-scheduling .course-planning-workplan-unresolved > summary {
+    padding: 8px 9px;
+    font-size: .76rem;
+  }
+
   .route-course-scheduling .course-planning-section-heading strong {
     font-size: .96rem;
   }
@@ -1006,16 +1053,19 @@
     font-size: .94rem;
   }
 
-  .route-course-scheduling .course-planning-completion-cell.is-courses::before { content: "קורסים"; }
+  .route-course-scheduling .course-planning-completion-cell.is-courses::before { content: "פעילויות"; }
   .route-course-scheduling .course-planning-completion-cell.is-live::before { content: "משובץ"; }
   .route-course-scheduling .course-planning-completion-cell.is-draft::before { content: "ממתין"; }
-  .route-course-scheduling .course-planning-completion-cell.is-proposal::before { content: "הצעה"; }
+  .route-course-scheduling .course-planning-completion-cell.is-proposal::before { content: "בתכנון"; }
 
   .route-course-scheduling .course-planning-completion-cell.is-load,
-  .route-course-scheduling .course-planning-completion-cell.is-weekly,
-  .route-course-scheduling .course-planning-completion-cell.is-travel {
-    display: none;
+  .route-course-scheduling .course-planning-completion-cell.is-weekly {
+    grid-column: span 2;
+    min-height: 44px;
   }
+
+  .route-course-scheduling .course-planning-completion-cell.is-load::before { content: "היקף מתוכנן"; }
+  .route-course-scheduling .course-planning-completion-cell.is-weekly::before { content: "שבועי"; }
 
   .route-course-scheduling .course-planning-completion-cell.is-start,
   .route-course-scheduling .course-planning-completion-cell.is-end {
