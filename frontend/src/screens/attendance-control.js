@@ -1698,49 +1698,73 @@ const manualReportTable = (row, { cancellation = false, entry = null } = {}) => 
     : note;
   return `${table}${attachmentsHtml(display)}`;
 };
-const comparisonTable = (comparison) => {
+const comparisonTable = (comparison, { attendanceOnly = false } = {}) => {
   const attendance = comparison.attendance || {};
   const current = comparison.final || attendance;
   const dashboard = comparison.dashboard || null;
   const diffByKey = new Map((comparison.differences || []).map((diff) => [diff.key, diff]));
   const payrollReview = dashboard?.payrollHoursRequireReview;
+  const reportOnlyKeys = new Set(['publicTransport', 'publicTransportCost', 'expenseDetails', 'notes']);
   const definitions = [
     ['activityType', 'סוג פעילות', activityTypeDisplayLabel(attendance.activityType), dashboard ? activityTypeDisplayLabel(dashboard.activityType) : null],
     ['date', 'תאריך', dateLabel(attendance.date), dashboard ? dateLabel(dashboard.date) : null],
     ['authority', 'רשות', attendance.authority, dashboard?.authority],
     ['school', 'בית ספר', attendance.school, dashboard?.school],
+    ['program', 'שם תכנית / פעילות', attendance.program, dashboard?.program],
+    ['meetingNo', 'מספר מפגש', attendance.meetingNo, dashboard?.meetingNo],
     ['startTime', 'שעת התחלה', attendance.startTime, dashboard?.startTime],
     ['endTime', 'שעת סיום', attendance.endTime, dashboard?.endTime],
     ['workHours', payrollReview ? 'סה״כ שעות לבדיקה' : 'סה״כ שעות', displayWorkHours(attendance), dashboard ? displayDashboardWorkHours(dashboard) : null],
-    ['publicTransport', 'תחבורה ציבורית', asBoolean(current.publicTransport) ? 'כן' : (hasValue(current.publicTransportCost) || hasValue(current.kilometers) ? 'לא' : ''), null],
-    ['publicTransportCost', 'עלות תחבורה ציבורית', asBoolean(current.publicTransport) ? current.publicTransportCost : '', null],
-    ['kilometers', 'קילומטרים', asBoolean(current.publicTransport) ? '0 (תחבורה ציבורית)' : current.kilometers, dashboard?.kilometers],
-    ['expenses', 'הוצאות', attendance.expenses, dashboard?.expenses],
-    ['program', 'שם תכנית', attendance.program, dashboard?.program],
-    ['meetingNo', 'מספר מפגש', attendance.meetingNo, dashboard?.meetingNo]
+    ['publicTransport', 'תחבורה ציבורית', asBoolean(current.publicTransport) ? 'כן' : 'לא', null],
+    ['publicTransportCost', 'עלות תחבורה ציבורית', asBoolean(current.publicTransport) ? current.publicTransportCost : 0, null],
+    ['kilometers', 'קילומטרים', asBoolean(current.publicTransport) ? 0 : (current.kilometers ?? 0), dashboard?.kilometers],
+    ['expenses', 'הוצאות', attendance.expenses ?? 0, dashboard?.expenses],
+    ['expenseDetails', 'פירוט הוצאה', attendance.expenseDetails, null],
+    ['notes', 'הערות', attendance.notes, null]
   ];
-  const rows = definitions.filter(([key, , left, right]) => {
-    if (['activityType', 'date', 'startTime', 'endTime', 'workHours'].includes(key)) return true;
-    if (diffByKey.get(key) || (key === 'workHours' && payrollReview) || (key === 'expenses' && hasReviewExpense(attendance))) return true;
-    if (key === 'publicTransport') return asBoolean(current.publicTransport);
-    if (key === 'publicTransportCost') return asBoolean(current.publicTransport) && hasMeaningfulValue(current.publicTransportCost);
-    return hasMeaningfulValue(left) || hasMeaningfulValue(right);
-  }).map(([key, label, left, right]) => {
+  const rows = definitions.map(([key, label, left, right]) => {
     const related = diffByKey.get(key);
+    const reportOnly = reportOnlyKeys.has(key);
     const dateInfo = key === 'date' && dashboard && txt(attendance.date) !== txt(dashboard.date);
-    const issue = Boolean(related) || (key === 'workHours' && payrollReview) || (key === 'expenses' && hasReviewExpense(attendance));
-    const unavailable = !dashboard && !['publicTransport', 'publicTransportCost', 'kilometers'].includes(key);
-    const controls = related && !unavailable ? `<div><select class="ds-input ds-input--sm" data-attendance-choice aria-label="החלטה עבור ${escapeHtml(label)}"><option value="attendance">דיווח מדריך</option><option value="dashboard">נתוני מערכת</option><option value="custom">ערך אחר</option></select><input class="ds-input ds-input--sm" data-attendance-custom hidden aria-label="ערך אחר"></div>` : '';
-    let systemValue = right;
-    if (key === 'kilometers' && right == null) systemValue = 'לא ניתן לחשב ק״מ';
-    else if (right == null && ['publicTransport', 'publicTransportCost'].includes(key)) systemValue = '—';
-    else if (unavailable) systemValue = 'לא נמצאה התאמה';
-    const statusClass = unavailable || issue ? 'attendance-control__status-pill--issue' : dateInfo ? 'attendance-control__status-pill--info' : 'attendance-control__status-pill--ok';
-    const status = unavailable ? '⚠ אין התאמה' : issue ? '⚠ לבדיקה' : dateInfo ? 'מידע' : '✓ תקין';
-    const rowClass = unavailable || issue ? 'attendance-control__comparison-row--issue' : dateInfo ? 'attendance-control__comparison-row--info' : '';
-    return `<tr class="${rowClass}"${related ? ` data-comparison="${comparison.id}" data-field="${related.key}"` : ''}><th>${escapeHtml(label)}</th><td>${shown(left)}</td><td class="${issue || unavailable ? 'attendance-control__field-value--issue' : ''}">${shown(systemValue)}</td><td><span class="attendance-control__status-pill ${statusClass}">${status}</span>${controls}</td></tr>`;
+    const issue = Boolean(related)
+      || (key === 'workHours' && payrollReview)
+      || (key === 'expenses' && hasReviewExpense(attendance));
+    const missingDashboard = !dashboard && !attendanceOnly && !reportOnly;
+    const controls = related && dashboard
+      ? `<div><select class="ds-input ds-input--sm" data-attendance-choice aria-label="החלטה עבור ${escapeHtml(label)}"><option value="attendance">דיווח מדריך</option><option value="dashboard">נתוני דשבורד</option><option value="custom">ערך אחר</option></select><input class="ds-input ds-input--sm" data-attendance-custom hidden aria-label="ערך אחר"></div>`
+      : '';
+
+    let dashboardValue = right;
+    if (attendanceOnly) dashboardValue = 'לא נדרש';
+    else if (reportOnly) dashboardValue = '—';
+    else if (!dashboard) dashboardValue = 'לא נמצאה התאמה';
+    else if (key === 'kilometers' && right == null) dashboardValue = 'לא ניתן לחשב ק״מ';
+    else if (right == null || txt(right) === '') dashboardValue = '—';
+
+    let statusClass = 'attendance-control__status-pill--ok';
+    let status = '✓ תקין';
+    let rowClass = '';
+    if (attendanceOnly || reportOnly) {
+      statusClass = 'attendance-control__status-pill--info';
+      status = 'דיווח בלבד';
+      rowClass = 'attendance-control__comparison-row--info';
+    } else if (missingDashboard) {
+      statusClass = 'attendance-control__status-pill--issue';
+      status = '⚠ אין התאמה';
+      rowClass = 'attendance-control__comparison-row--issue';
+    } else if (issue) {
+      statusClass = 'attendance-control__status-pill--issue';
+      status = '⚠ לבדיקה';
+      rowClass = 'attendance-control__comparison-row--issue';
+    } else if (dateInfo) {
+      statusClass = 'attendance-control__status-pill--info';
+      status = 'מידע';
+      rowClass = 'attendance-control__comparison-row--info';
+    }
+
+    return `<tr class="${rowClass}"${related ? ` data-comparison="${comparison.id}" data-field="${related.key}"` : ''}><th>${escapeHtml(label)}</th><td>${shown(left)}</td><td class="${issue || missingDashboard ? 'attendance-control__field-value--issue' : ''}">${shown(dashboardValue)}</td><td><span class="attendance-control__status-pill ${statusClass}">${status}</span>${controls}</td></tr>`;
   }).join('');
-  return `<div class="attendance-control__comparison-wrap"><p class="attendance-control__comparison-title">השוואת נתונים</p><table class="attendance-control__comparison-table"><thead><tr><th>פרמטר</th><th>דיווח מדריך</th><th>נתוני המערכת</th><th>סטטוס</th></tr></thead><tbody>${rows}</tbody></table></div>${attachmentsHtml(current)}${managerActionsHtml(comparison)}`;
+  return `<div class="attendance-control__comparison-wrap"><p class="attendance-control__comparison-title">השוואת נתוני הרשומה</p><table class="attendance-control__comparison-table"><thead><tr><th>פרמטר</th><th>דיווח מדריך</th><th>נתוני דשבורד</th><th>סטטוס</th></tr></thead><tbody>${rows}</tbody></table></div>${attachmentsHtml(current)}${managerActionsHtml(comparison)}`;
 };
 const reportHtml = ({ kind, item, employeeId, date }) => {
   const row = kind === 'dashboard' ? item.dashboard : item.attendance;
@@ -1751,11 +1775,13 @@ const reportHtml = ({ kind, item, employeeId, date }) => {
   const status = ok ? '<span class="attendance-control__status-pill attendance-control__status-pill--ok">✓ תקין</span>' : '<span class="attendance-control__status-pill attendance-control__status-pill--issue">⚠ לבדיקה</span>';
   const summary = reportSummaryCard(row, item, { cancellation: cancellationEntry });
   let body = '';
-  if (kind === 'comparison' && !item.unmatched) {
-    body = comparisonTable(item);
+  if (cancellationEntry && isAttendanceTravelTimeCancellation(item)) {
+    body = `${manualReportTable(row, { cancellation: true, entry: item })}${managerActionsHtml(item)}`;
+  } else if (kind === 'comparison') {
+    const missingMatch = item.unmatched ? '<p class="attendance-control__missing-match">לא נמצאה פעילות תואמת בדשבורד</p>' : '';
+    body = `${missingMatch}${comparisonTable(item)}`;
   } else {
-    const missingMatch = kind === 'comparison' && item.unmatched ? '<p class="attendance-control__missing-match">לא נמצאה פעילות תואמת בדשבורד</p>' : '';
-    body = `${missingMatch}${manualReportTable(row, { cancellation: isAttendanceOnlyActivityType(row.activityType), entry: item })}${managerActionsHtml(item)}`;
+    body = comparisonTable(item, { attendanceOnly: true });
   }
   return `<section class="attendance-control__report"><div class="attendance-control__report-line"><strong>${shown(`${row.startTime || '—'}–${row.endTime || '—'} | ${activityTypeDisplayLabel(row.activityType) || 'דיווח'}`)}</strong>${status}</div>${summary}${body}</section>`;
 };
