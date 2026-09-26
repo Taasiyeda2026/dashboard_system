@@ -1017,6 +1017,13 @@ export function isAttendanceTravelTimeCancellation(entryOrRow = {}) {
   return txt(source.generationKind || row?.generationKind) === 'travel_time_cancellation';
 }
 
+function generatedTravelCancellationIsSystemResolved(entryOrRow = {}) {
+  if (!isAttendanceTravelTimeCancellation(entryOrRow)) return false;
+  const row = entryOrRow?.attendance || entryOrRow?.final || entryOrRow;
+  const source = row?._source || entryOrRow?._source || {};
+  return txt(source.travelCalculationStatus) === 'resolved' && source.manuallyOverridden !== true;
+}
+
 function entryHasOpenNonTravelGaps(entry) {
   if (!entry) return false;
   if (entry.unmatched || entry.source === 'attendance_not_compared') return true;
@@ -1347,7 +1354,8 @@ export function compareAttendanceRows(attendanceRows, dashboardRows, options = {
     }));
   const notCompared = attendanceOnly.map((attendance, index) => ({
     id: `attendance-only-${index}`, source: 'attendance_not_compared', attendance,
-    final: { ...attendance }, differences: [], excludedFromActivityComparison: true
+    final: { ...attendance }, differences: [], excludedFromActivityComparison: true,
+    managerResolved: generatedTravelCancellationIsSystemResolved(attendance) ? 'auto_ok' : null
   }));
   const dailyKilometers = [];
   const dayKeys = new Set((attendanceRows || []).map((row) => `${txt(row.employeeId)}|${row.date}`));
@@ -1637,6 +1645,7 @@ export function attendanceControlStylesHtml() {
 .attendance-control__reported-details{display:grid;gap:6px;margin-top:8px}.attendance-control__reported-details>div{display:grid;grid-template-columns:120px minmax(0,1fr);gap:10px;padding:7px 9px;border:1px solid #e7edf3;border-radius:8px;background:#fafcff}.attendance-control__reported-details span{color:#64748b;font-size:.82rem}.attendance-control__reported-details strong{color:#334155;font-size:.9rem;overflow-wrap:anywhere}.attendance-control__comparison-wrap--compact{padding:10px 12px;border:1px solid #e4eaf1;border-radius:10px;background:#fbfdff}
 .attendance-control__comparison-wrap{margin:12px 14px}.attendance-control__comparison-title{display:flex;align-items:center;gap:7px;margin:0 0 8px;font-weight:800;color:#193b66}.attendance-control__comparison-table{width:100%;border-collapse:separate;border-spacing:0;border:1px solid #dde6ef;border-radius:12px;overflow:hidden;background:#fff}.attendance-control__comparison-table th,.attendance-control__comparison-table td{padding:9px 11px;text-align:right;border-bottom:1px solid #e8edf3;vertical-align:middle}.attendance-control__comparison-table thead th{background:#f5f8fc;color:#52657b;font-size:.83rem;font-weight:800}.attendance-control__comparison-table tbody th{color:#44566d;font-size:.86rem;width:20%}.attendance-control__comparison-table tr:last-child th,.attendance-control__comparison-table tr:last-child td{border-bottom:0}.attendance-control__comparison-row--issue th,.attendance-control__comparison-row--issue td{background:#fff8e7}.attendance-control__comparison-row--info th,.attendance-control__comparison-row--info td{background:#f7fbff}.attendance-control__comparison-table select,.attendance-control__comparison-table input{min-height:34px;max-width:150px}.attendance-control__manual-table{width:100%}.attendance-control__manual-table tbody th{width:34%}
 .attendance-control__parameter-table tbody th{width:16%}.attendance-control__parameter-table td:nth-child(2),.attendance-control__parameter-table td:nth-child(3){width:18%}.attendance-control__parameter-table td:nth-child(4){width:13%}.attendance-control__actions-cell{width:35%}.attendance-control__row-actions{display:grid;gap:6px}.attendance-control__row-action-buttons{display:flex;gap:5px;flex-wrap:wrap}.attendance-control__row-action-buttons .ds-btn{min-height:30px;padding:5px 8px;font-size:.78rem}.attendance-control__row-action-buttons .ds-btn.is-selected{border-color:#2d7ea3;background:#eaf7fb;color:#0b617d;font-weight:800}.attendance-control__row-custom{display:flex;align-items:center;gap:5px;flex-wrap:wrap}.attendance-control__row-custom[hidden]{display:none}.attendance-control__row-custom .ds-input{width:130px}.attendance-control__row-decision{color:#466174;font-weight:700}.attendance-control__no-action,.attendance-control__empty-source{color:#94a3b8}.attendance-control__comparison-row--resolved th,.attendance-control__comparison-row--resolved td{background:#f5fbf7}
+.attendance-control__travel-cancellation-row th,.attendance-control__travel-cancellation-row td{border-top:2px solid #dce7ef}.attendance-control__travel-cancellation-row th{color:#0f6078}.attendance-control__row-actions--compact .attendance-control__row-custom{margin-top:0}
 .attendance-control__status-pill{display:inline-flex;align-items:center;justify-content:center;min-width:72px;padding:4px 8px;border-radius:999px;font-size:.78rem;font-weight:800;white-space:nowrap}.attendance-control__status-pill--ok{color:#137a45;background:#eaf8f0}.attendance-control__status-pill--issue{color:#a85c00;background:#fff1cf}.attendance-control__status-pill--info{color:#316da8;background:#eaf4ff}.attendance-control__row-status{font-weight:800;white-space:nowrap;color:#24824d}.attendance-control__row-status--issue,.attendance-control__field-value--issue{color:#a85c00!important}.attendance-control__field-value--issue{font-weight:800}.attendance-control__missing-match{margin:8px 14px;color:#a85c00;font-weight:800}.attendance-control__manual-note{margin:4px 0;color:#64748b;font-size:.9em}
 .attendance-control__manager-actions{display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap;margin:12px 14px 14px;padding-top:12px;border-top:1px solid #edf1f5}.attendance-control__manager-actions>.ds-btn{min-height:36px}.attendance-control__manager-actions>.ds-input{width:160px;min-height:36px}.attendance-control__travel-edit{display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap;width:100%}.attendance-control__travel-edit label{min-height:36px;display:flex;align-items:center;gap:6px;padding:0 8px;border:1px solid #dbe4ee;border-radius:8px;background:#fff}.attendance-control__travel-edit .ds-input{width:150px;min-height:36px}.attendance-control__attachments{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:8px 14px 12px;color:#334155;font-size:.9em}.attendance-control__resolved-note{margin:0;color:#166534;font-weight:800}.attendance-control__report-km{margin:4px 0 8px;color:#475569;font-size:.92em}.attendance-control__day-km{padding:0 10px 6px;color:#475569;font-size:.92em}.attendance-control__export{margin-top:14px}
 @media(max-width:900px){.attendance-control{padding:12px}.attendance-control__day>summary{grid-template-columns:1fr 1fr auto}.attendance-control__reports{padding:8px}.attendance-control__comparison-wrap{overflow-x:auto;margin-inline:8px}.attendance-control__comparison-table{min-width:820px}.attendance-control__report-card{margin-inline:8px}.attendance-control__manager-actions{margin-inline:8px}.attendance-control__report-card-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
@@ -1659,8 +1668,32 @@ export function resultsHtml(result, month = '', options = {}) {
     if (!employee.days.has(date)) employee.days.set(date, []);
     employee.days.get(date).push({ kind, time: txt(time), item, employeeId: txt(id), date });
   };
+  const allAttendanceEntries = [...(result.comparisons || []), ...(result.notCompared || [])];
+  const entryRecordId = (entry) => {
+    const row = entry?.attendance || entry?.final || {};
+    const source = row?._source || {};
+    return txt(row.recordId || source.recordId || source.ID || source.Id || source.id);
+  };
+  const cancellationSourceRecordId = (entry) => {
+    const row = entry?.attendance || entry?.final || {};
+    const source = row?._source || {};
+    return txt(source.sourceAttendanceRecordId || source.source_attendance_record_id || row.sourceAttendanceRecordId);
+  };
+  const sourceEntryIds = new Set(allAttendanceEntries.filter((entry) => !isAttendanceTravelTimeCancellation(entry)).map(entryRecordId).filter(Boolean));
+  const generatedCancellationBySource = new Map();
+  const foldedCancellationEntryIds = new Set();
+  for (const entry of allAttendanceEntries) {
+    if (!isAttendanceTravelTimeCancellation(entry)) continue;
+    const sourceId = cancellationSourceRecordId(entry);
+    if (!sourceId || !sourceEntryIds.has(sourceId)) continue;
+    generatedCancellationBySource.set(sourceId, entry);
+    foldedCancellationEntryIds.add(entry.id);
+  }
   (result.comparisons || []).forEach((item) => addRow(item.attendance.employeeId, item.attendance.employeeName, item.attendance.date, item.attendance.startTime, 'comparison', item));
-  (result.notCompared || []).forEach((item) => addRow(item.attendance.employeeId, item.attendance.employeeName, item.attendance.date, item.attendance.startTime, 'attendance', item));
+  (result.notCompared || []).forEach((item) => {
+    if (foldedCancellationEntryIds.has(item.id)) return;
+    addRow(item.attendance.employeeId, item.attendance.employeeName, item.attendance.date, item.attendance.startTime, 'attendance', item);
+  });
 
   const dateLabel = (value) => {
     const match = txt(value).match(/^(\d{4})-(\d{2})-(\d{2})$/);
@@ -1727,7 +1760,7 @@ export function resultsHtml(result, month = '', options = {}) {
     const visible = fields.filter(hasValue);
     return visible.length ? `<div class="attendance-control__identity">${visible.map(shown).join(' | ')}</div>` : '';
   };
-  const travelSummaryHtml = (row, entry) => {
+  const travelSummaryHtml = (row, entry, { includeCancellation = true } = {}) => {
     const current = entry?.final || row || {};
     const source = row?._source || current?._source || {};
     const parts = [];
@@ -1739,6 +1772,7 @@ export function resultsHtml(result, month = '', options = {}) {
       if (km != null && km > 0) parts.push(`${km} ק״מ`);
     }
     travelCompensationDisplay(source).forEach(([label, value]) => {
+      if (!includeCancellation && label.startsWith('ביטול זמן')) return;
       if (hasValue(value)) parts.push(`${label}: ${value}`);
     });
     return parts.length
@@ -1771,7 +1805,44 @@ export function resultsHtml(result, month = '', options = {}) {
     </div>`;
   };
 
-  const parameterReviewTable = (entry, { attendanceOnly = false } = {}) => {
+  const foldedTravelCancellationRowHtml = (entry) => {
+    if (!entry) return '';
+    const row = entry.final || entry.attendance || {};
+    const source = row?._source || entry?.attendance?._source || {};
+    const calculatedMinutes = source.calculatedCancellationMinutes;
+    const finalMinutes = source.finalCancellationMinutes;
+    const finalHours = rowWorkHours(row);
+    const finalLabel = finalMinutes != null
+      ? formatTravelMinutesClock(finalMinutes)
+      : formatDurationHours(finalHours);
+    const calculatedLabel = calculatedMinutes != null
+      ? formatTravelMinutesClock(calculatedMinutes)
+      : finalLabel;
+    const unresolved = !attendanceEntryIsResolved(entry);
+    const overridden = source.manuallyOverridden === true;
+    const statusClass = unresolved ? 'attendance-control__status-pill--issue' : 'attendance-control__status-pill--ok';
+    const status = unresolved ? '⚠ לבדיקה' : (overridden ? '✓ אושר תיקון' : '✓ תקין');
+    const actions = unresolved
+      ? `<div class="attendance-control__row-actions attendance-control__row-actions--compact">
+          <div class="attendance-control__row-action-buttons">
+            <button type="button" class="ds-btn ds-btn--sm" data-attendance-approve-reported="${escapeHtml(entry.id)}">אישור נוכחות</button>
+          </div>
+          <div class="attendance-control__row-custom">
+            <input class="ds-input ds-input--sm" data-attendance-correct-hours="${escapeHtml(entry.id)}" type="number" min="0" step="0.01" placeholder="שעות מתוקנות" aria-label="ביטול זמן מתוקן">
+            <button type="button" class="ds-btn ds-btn--sm" data-attendance-save-correction="${escapeHtml(entry.id)}">שמור תיקון</button>
+          </div>
+        </div>`
+      : '<span class="attendance-control__no-action">—</span>';
+    return `<tr class="${unresolved ? 'attendance-control__comparison-row--issue' : 'attendance-control__comparison-row--resolved'} attendance-control__travel-cancellation-row">
+      <th>ביטול זמן נסיעה</th>
+      <td>${shown(finalLabel)}</td>
+      <td>${shown(calculatedLabel)}</td>
+      <td><span class="attendance-control__status-pill ${statusClass}">${status}</span></td>
+      <td class="attendance-control__actions-cell">${actions}</td>
+    </tr>`;
+  };
+
+  const parameterReviewTable = (entry, { attendanceOnly = false, attachedCancellation = null } = {}) => {
     const attendance = entry?.attendance || {};
     const current = entry?.final || attendance;
     const dashboard = attendanceOnly ? null : (entry?.dashboard || null);
@@ -1852,15 +1923,17 @@ export function resultsHtml(result, month = '', options = {}) {
     const title = attendanceOnly
       ? 'פרטי הדיווח לבקרה'
       : trainingPlan ? 'בדיקת ההכשרה מול התכנון' : 'בדיקת הרשומה מול הדשבורד';
+    const cancellationRow = foldedTravelCancellationRowHtml(attachedCancellation);
+    const sourceHeading = attachedCancellation && attendanceOnly ? 'חישוב מערכת' : dashboardLabel;
     return `<div class="attendance-control__comparison-wrap"><p class="attendance-control__comparison-title">${title}</p>
       <table class="attendance-control__comparison-table attendance-control__parameter-table">
-        <thead><tr><th>פרמטר</th><th>נוכחות</th><th>${escapeHtml(dashboardLabel)}</th><th>סטטוס</th><th>פעולות</th></tr></thead>
-        <tbody>${rows}</tbody>
+        <thead><tr><th>פרמטר</th><th>נוכחות</th><th>${escapeHtml(sourceHeading)}</th><th>סטטוס</th><th>פעולות</th></tr></thead>
+        <tbody>${rows}${cancellationRow}</tbody>
       </table>
     </div>`;
   };
 
-  const manualReportTable = (row, { cancellation = false, entry = null } = {}) => {
+  const manualReportTable = (row, { cancellation = false, entry = null, attachedCancellation = null } = {}) => {
     const display = entry?.final || row;
     const source = row?._source || display?._source || {};
     const autoCancellation = source.generationKind === 'travel_time_cancellation'
@@ -1884,12 +1957,14 @@ export function resultsHtml(result, month = '', options = {}) {
       return `<div class="attendance-control__comparison-wrap"><p class="attendance-control__comparison-title">בדיקת ביטול זמן</p><table class="attendance-control__comparison-table attendance-control__parameter-table"><thead><tr><th>פרמטר</th><th>נוכחות</th><th>חישוב מערכת</th><th>סטטוס</th><th>פעולות</th></tr></thead><tbody>${rows}</tbody></table>${override}</div>${attachmentsHtml(display)}`;
     }
 
-    return `${parameterReviewTable(entry || { attendance: row, final: display, differences: [] }, { attendanceOnly: true })}${attachmentsHtml(display)}`;
+    return `${parameterReviewTable(entry || { attendance: row, final: display, differences: [] }, { attendanceOnly: true, attachedCancellation })}${attachmentsHtml(display)}`;
   };
 
   const reportHtml = ({ kind, item, employeeId, date }) => {
     const row = kind === 'dashboard' ? item.dashboard : item.attendance;
-    const issue = kind === 'comparison' ? comparisonHasIssue(item) : !attendanceEntryIsResolved(item);
+    const attachedCancellation = generatedCancellationBySource.get(entryRecordId(item)) || null;
+    const issue = (kind === 'comparison' ? comparisonHasIssue(item) : !attendanceEntryIsResolved(item))
+      || (attachedCancellation ? !attendanceEntryIsResolved(attachedCancellation) : false);
     const cancellationEntry = isAttendanceTravelTimeCancellation(item)
       || normalizeAttendanceName(row.activityType).includes('ביטולזמן');
     const status = !issue
@@ -1901,9 +1976,9 @@ export function resultsHtml(result, month = '', options = {}) {
       body = `${manualReportTable(row, { cancellation: true, entry: item })}${managerActionsHtml(item)}`;
     } else if (kind === 'comparison') {
       const missingMatch = item.unmatched ? '<p class="attendance-control__missing-match">לא נמצאה פעילות תואמת בדשבורד</p>' : '';
-      body = `${missingMatch}${parameterReviewTable(item)}${travelSummaryHtml(row, item)}${attachmentsHtml(item.final || row)}${managerActionsHtml(item)}`;
+      body = `${missingMatch}${parameterReviewTable(item, { attachedCancellation })}${travelSummaryHtml(row, item, { includeCancellation: !attachedCancellation })}${attachmentsHtml(item.final || row)}${managerActionsHtml(item)}`;
     } else {
-      body = `${manualReportTable(row, { entry: item })}${travelSummaryHtml(row, item)}${managerActionsHtml(item)}`;
+      body = `${manualReportTable(row, { entry: item, attachedCancellation })}${travelSummaryHtml(row, item, { includeCancellation: !attachedCancellation })}${managerActionsHtml(item)}`;
     }
 
     return `<section class="attendance-control__report"><div class="attendance-control__report-line"><strong>${shown(`${row.startTime || '—'}–${row.endTime || '—'} | ${activityTypeDisplayLabel(row.activityType) || 'דיווח'}`)}</strong>${status}</div>${body}</section>`;
@@ -1912,10 +1987,15 @@ export function resultsHtml(result, month = '', options = {}) {
     const days = [...employee.days.entries()].sort(([left], [right]) => left.localeCompare(right)).map(([date, rows]) => {
       rows.sort((left, right) => left.time.localeCompare(right.time));
       const attendanceRows = rows.filter((row) => row.kind !== 'dashboard');
-      const hours = attendanceRows.reduce((sum, entry) => sum + (rowWorkHours(entry.kind === 'comparison' ? entry.item.attendance : entry.item.attendance) ?? 0), 0);
+      const attachedCancellations = rows
+        .map((entry) => generatedCancellationBySource.get(entryRecordId(entry.item)))
+        .filter(Boolean);
+      const hours = attendanceRows.reduce((sum, entry) => sum + (rowWorkHours(entry.item.attendance) ?? 0), 0)
+        + attachedCancellations.reduce((sum, entry) => sum + (rowWorkHours(entry.attendance) ?? 0), 0);
       const issue = rows.some((entry) => {
         const item = entry.item;
-        return !attendanceEntryIsResolved(item);
+        const attached = generatedCancellationBySource.get(entryRecordId(item));
+        return !attendanceEntryIsResolved(item) || (attached ? !attendanceEntryIsResolved(attached) : false);
       });
       return `<details class="attendance-control__day${issue ? '' : ' attendance-control__day--ok'}" data-payroll-date="${escapeHtml(date)}"><summary><span>${shown(dateLabel(date))}</span><span>${formatDurationHours(hours)} שעות</span><span class="attendance-control__row-status ${issue ? 'attendance-control__row-status--issue' : ''}">${issue ? '⚠ לבדיקה' : '✓ תקין'}</span></summary><div class="attendance-control__reports">${rows.map((row) => reportHtml({ ...row, employeeId: employee.id, date })).join('')}</div></details>`;
     }).join('');
