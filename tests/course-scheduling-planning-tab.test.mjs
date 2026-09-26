@@ -26,6 +26,7 @@ import {
   normalizePlanningLockedOption,
   planningInstructorSchedules,
   planningInstructorCompletionOverview,
+  planningFullWorkPlanCoverage,
   assignRecruitmentProfiles,
   planningCompletionOverviewHtml,
   planningOptimizationScore,
@@ -228,8 +229,8 @@ test('main scheduling workboard exposes only open, draft and assigned business s
   assert.match(html, /data-course-card="undated-plan"/);
   assert.doesNotMatch(html, /data-course-card="second-half-plan"/);
   assert.match(html, /data-planning-completion-overview/);
-  assert.match(html, /<b>4<\/b> פעילויות במחצית א׳/);
-  assert.match(html, /<b>5<\/b> פעילויות תשפ״ז/);
+  assert.match(html, /תוכנית עבודה מלאה — מחצית א׳/);
+  assert.match(html, /4 פעילויות =/);
   assert.match(html, /01\.09\.2026/);
 });
 
@@ -789,9 +790,65 @@ test('completion rows count first half from 1 September and exclude explicit sec
   const rows = buildPlanningCompletionRows({ activities, planningRows: [] });
   assert.deepEqual(rows.map((row) => row.courseId).sort(), ['sep1', 'sep14', 'undated']);
   const html = planningCompletionOverviewHtml(rows, { schoolYearTotal: 4 });
-  assert.match(html, /<b>3<\/b> פעילויות במחצית א׳/);
-  assert.match(html, /<b>4<\/b> פעילויות תשפ״ז/);
+  assert.match(html, /תוכנית עבודה מלאה — מחצית א׳/);
+  assert.match(html, /3 פעילויות = 2 לצוות הקיים \+ 0 לגיוס \+ 1 חריגים/);
+  assert.match(html, /2<\/b><span>מתוכננות לצוות הקיים/);
+  assert.match(html, /1<\/b><span>חסר נתון \/ פתרון/);
   assert.match(html, /01\/09\/2026/);
+});
+
+test('full work plan coverage accounts for team recruitment and unresolved activities', () => {
+  const rows = [
+    { courseId: 'team', kind: 'proposal', instructorEmpId: '1', instructorName: 'א', startDate: '2026-10-01' },
+    { courseId: 'recruit', kind: 'recruitment', startDate: '2026-10-02' },
+    { courseId: 'missing', kind: 'missing' }
+  ];
+  assert.deepEqual(planningFullWorkPlanCoverage(rows), {
+    total: 3,
+    team: 1,
+    recruitment: 1,
+    unresolved: 1,
+    complete: true
+  });
+});
+
+test('recruitment overview exposes workload language days and training need without assigning a real instructor', () => {
+  const rows = assignRecruitmentProfiles([
+    {
+      courseId: 'r1',
+      courseName: 'בינה מלאכותית',
+      activityType: 'קורס',
+      school: 'בית ספר',
+      authority: 'אום אל פחם',
+      kind: 'recruitment',
+      requiredLanguage: 'ar',
+      requiredGender: 'any',
+      startDate: '2026-10-10',
+      endDate: '2026-10-17',
+      startTime: '08:00',
+      endTime: '09:30',
+      meetings: [
+        { date: '2026-10-10', start_time: '08:00', end_time: '09:30' },
+        { date: '2026-10-17', start_time: '08:00', end_time: '09:30' }
+      ],
+      scheduleOptions: [{
+        startDate: '2026-10-10',
+        endDate: '2026-10-17',
+        startTime: '08:00',
+        endTime: '09:30',
+        meetings: [
+          { date: '2026-10-10', start_time: '08:00', end_time: '09:30' },
+          { date: '2026-10-17', start_time: '08:00', end_time: '09:30' }
+        ]
+      }]
+    }
+  ]);
+  const html = planningCompletionOverviewHtml(rows);
+  assert.match(html, /תכנון לגיוס ולהכשרה/);
+  assert.match(html, /2 מפגשים · 3 ש׳/);
+  assert.match(html, /שפה: ערבית/);
+  assert.match(html, /שבת/);
+  assert.doesNotMatch(html, /instructorEmpId/);
 });
 
 test('first-half completion overview includes live, drafts and proposals per instructor', () => {
@@ -838,14 +895,14 @@ test('first-half completion overview includes live, drafts and proposals per ins
   assert.deepEqual(overview[0].programs, ['ביומימיקרי', 'פורצות דרך']);
 
   const html = planningCompletionOverviewHtml(rows);
-  assert.match(html, /תמונת מצב — מחצית א׳/);
+  assert.match(html, /תוכנית עבודה מלאה — מחצית א׳/);
   assert.doesNotMatch(html, /מחצית א׳ מתחילה ב־01\.09\.2026/);
   assert.doesNotMatch(html, /התמונה מבוססת על התכנון השמור כרגע/);
-  assert.match(html, /מחצית א׳/);
+  assert.match(html, /תכנון לצוות הקיים/);
   assert.match(html, /מדריך א/);
   assert.match(html, /מדריכה ב/);
-  assert.match(html, /ממתינים לאישור/);
-  assert.match(html, /הצעות מערכת/);
+  assert.match(html, /ממתין לאישור/);
+  assert.match(html, /בתכנון/);
   assert.match(html, /07\/10\/2026/);
   assert.match(html, /20\/01\/2027/);
   assert.match(html, /2<\/b> מפגשים · 3 ש׳/);
