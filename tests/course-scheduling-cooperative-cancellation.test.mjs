@@ -233,6 +233,6 @@ test('run ownership guards stale snapshot save, state application, toast and fin
   assert.ok(saveIndex > 0);
   assert.ok(run.lastIndexOf('assertRunOwnership()', saveIndex) > 0, 'ownership must be asserted immediately before save');
   assert.match(run, /if \(isPlanningCancellationError\(error\) \|\| !ownsRun\(\)\) return;/);
-  assert.match(run, /if \(!ownsRun\(\)\) return;[\s\S]*?rerenderPreservingWorkboardScroll\(\)/);
+  assert.match(run, /if \(!ownsRun\(\)\) return;[\s\S]*?visibleUi\?\.rerender\?\.\(\)/);
   assert.ok(run.indexOf('assertRunOwnership()', saveIndex + 1) > saveIndex, 'save result must not apply after ownership is lost');
 });
