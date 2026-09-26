@@ -10,7 +10,7 @@ import {
   isSchedulingDraftAssignment,
   schedulingActivityTypeCategory
 } from './shared/activity-scheduling-eligibility.js';
-import { filterSchoolCalendarRowsBySector } from './shared/school-calendar-logic.js';
+import { filterSchoolCalendarRowsBySector, normalizeCalendarSector } from './shared/school-calendar-logic.js';
 import { normalizeOperationalDistrict } from './shared/district-normalization.js';
 import { escapeHtml } from './shared/html.js';
 import { formatDateHe, formatTimeRangeShort } from './shared/format-date.js';
@@ -35,7 +35,7 @@ export const PLANNING_OPTIMIZATION_WEIGHTS = Object.freeze({
   geography: 15,
   stability: 10
 });
-export const PLANNING_ENGINE_VERSION = 'planning-v11-20260925-repair-priority-order';
+export const PLANNING_ENGINE_VERSION = 'planning-v12-20260926-arab-saturday';
 export const PLANNING_ACTIVITY_NO_ALIASES = Object.freeze({
   // Legacy Gefen identifier retained on existing activities; canonical catalog program is 53828.
   '82835': '53828'
@@ -294,6 +294,10 @@ function courseCalendarRows(activity = {}, schoolCalendar = []) {
   return filterSchoolCalendarRowsBySector(schoolCalendar || [], activity.calendar_sector);
 }
 
+function activityAllowsSaturday(activity = {}) {
+  return normalizeCalendarSector(activity?.calendar_sector) === 'arab';
+}
+
 export function buildWeeklyPlanningMeetings({
   activity = {},
   startDate = '',
@@ -317,13 +321,13 @@ export function buildWeeklyPlanningMeetings({
   const blocked = blockedSchoolDates(calendarRows);
   let candidate = text(startDate).slice(0, 10);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(candidate) || candidate < period.start || candidate > period.end) return null;
-  if (weekday(candidate) === 6) return null;
+  if (weekday(candidate) === 6 && !activityAllowsSaturday(activity)) return null;
 
   const meetings = [];
   for (let index = 0; index < count; index += 1) {
     if (index > 0) candidate = addDays(candidate, 7);
     let guard = 0;
-    while ((weekday(candidate) === 6 || blocked.has(candidate)) && guard++ < 30) {
+    while (((weekday(candidate) === 6 && !activityAllowsSaturday(activity)) || blocked.has(candidate)) && guard++ < 30) {
       candidate = addDays(candidate, 7);
     }
     if (!candidate || candidate > scheduleEnd || guard >= 30) return null;
@@ -372,7 +376,7 @@ export function buildFixedDatePlanningMeetings({
   for (let index = 0; index < sourceMeetings.length; index += 1) {
     const date = text(sourceMeetings[index]?.date).slice(0, 10);
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || date < period.start || date > scheduleEnd) return null;
-    if (weekday(date) === 6 || blocked.has(date)) return null;
+    if ((weekday(date) === 6 && !activityAllowsSaturday(activity)) || blocked.has(date)) return null;
     const cappedEnd = effectiveEndTime(date, endTime, calendarRows);
     if (text(cappedEnd).slice(0, 5) !== endTime) return null;
     meetings.push({
