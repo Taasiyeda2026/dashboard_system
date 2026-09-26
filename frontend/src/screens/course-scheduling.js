@@ -2311,6 +2311,7 @@ export const courseSchedulingScreen = {
           existingRows: planningExistingRows,
           targetCourseIds,
           resumeFromCheckpoint,
+          planningProfile: 'fast',
           signal: run.controller.signal,
           checkpoint,
           onProgress: async (progress) => {
