@@ -1690,10 +1690,14 @@ export function resultsHtml(result, month = '', options = {}) {
     generatedCancellationBySource.set(sourceId, entry);
     foldedCancellationEntryIds.add(entry.id);
   }
-  (result.comparisons || []).forEach((item) => addRow(item.attendance.employeeId, item.attendance.employeeName, item.attendance.date, item.attendance.startTime, 'comparison', item));
+  (result.comparisons || []).forEach((item) => {
+    const row = item.final || item.attendance;
+    addRow(row.employeeId || item.attendance.employeeId, row.employeeName || item.attendance.employeeName, row.date || item.attendance.date, row.startTime || item.attendance.startTime, 'comparison', item);
+  });
   (result.notCompared || []).forEach((item) => {
     if (foldedCancellationEntryIds.has(item.id)) return;
-    addRow(item.attendance.employeeId, item.attendance.employeeName, item.attendance.date, item.attendance.startTime, 'attendance', item);
+    const row = item.final || item.attendance;
+    addRow(row.employeeId || item.attendance.employeeId, row.employeeName || item.attendance.employeeName, row.date || item.attendance.date, row.startTime || item.attendance.startTime, 'attendance', item);
   });
 
   const dateLabel = (value) => {
@@ -2005,7 +2009,7 @@ export function resultsHtml(result, month = '', options = {}) {
   };
 
   const reportHtml = ({ kind, item, employeeId, date }) => {
-    const row = kind === 'dashboard' ? item.dashboard : item.attendance;
+    const row = kind === 'dashboard' ? item.dashboard : (item.final || item.attendance);
     const attachedCancellation = generatedCancellationBySource.get(entryRecordId(item)) || null;
     const issue = (kind === 'comparison' ? comparisonHasIssue(item) : !attendanceEntryIsResolved(item))
       || (attachedCancellation ? !attendanceEntryIsResolved(attachedCancellation) : false);
@@ -2034,8 +2038,8 @@ export function resultsHtml(result, month = '', options = {}) {
       const attachedCancellations = rows
         .map((entry) => generatedCancellationBySource.get(entryRecordId(entry.item)))
         .filter(Boolean);
-      const hours = attendanceRows.reduce((sum, entry) => sum + (rowWorkHours(entry.item.attendance) ?? 0), 0)
-        + attachedCancellations.reduce((sum, entry) => sum + (rowWorkHours(entry.attendance) ?? 0), 0);
+      const hours = attendanceRows.reduce((sum, entry) => sum + (rowWorkHours(entry.item.final || entry.item.attendance) ?? 0), 0)
+        + attachedCancellations.reduce((sum, entry) => sum + (rowWorkHours(entry.final || entry.attendance) ?? 0), 0);
       const issue = rows.some((entry) => {
         const item = entry.item;
         const attached = generatedCancellationBySource.get(entryRecordId(item));
@@ -2367,6 +2371,20 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
         return;
       }
       applyAttendanceManualCorrection(entry, { [field]: parsed.value });
+      if (field === 'date') {
+        const sourceRow = entry.attendance || {};
+        const source = sourceRow._source || {};
+        const sourceId = txt(sourceRow.recordId || source.recordId || source.ID || source.Id || source.id);
+        const linkedCancellation = [...(result.notCompared || [])].find((candidate) => {
+          if (!isAttendanceTravelTimeCancellation(candidate)) return false;
+          const childSource = candidate.attendance?._source || {};
+          return txt(childSource.sourceAttendanceRecordId || childSource.source_attendance_record_id) === sourceId;
+        });
+        if (linkedCancellation?.attendance) {
+          linkedCancellation.attendance.date = parsed.value;
+          linkedCancellation.final = { ...(linkedCancellation.final || linkedCancellation.attendance), date: parsed.value };
+        }
+      }
       paintResults();
       status.textContent = 'התיקון נשמר בבקרה ויעודכן ברשומת הנוכחות בעת אישור המנהל.';
       return;
