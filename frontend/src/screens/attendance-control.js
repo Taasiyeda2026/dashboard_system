@@ -254,6 +254,80 @@ export function buildDashboardAttendanceRows(activities = [], contacts = []) {
   return output;
 }
 
+function isTrainingAttendanceType(value) {
+  return normalizeAttendanceName(value).includes('הכשרה');
+}
+
+export function buildTrainingScheduleDashboardRows(scheduleRows = [], attendanceRows = [], employeeIds = []) {
+  const scopedIds = new Set((employeeIds || []).map((value) => txt(value)).filter(Boolean));
+  const trainingAttendance = (attendanceRows || []).filter((row) =>
+    scopedIds.has(txt(row.employeeId)) && isTrainingAttendanceType(row.activityType)
+  );
+  const activeSchedules = (scheduleRows || []).filter((row) => row?.is_active !== false);
+  const openCountByDate = new Map();
+  for (const schedule of activeSchedules) {
+    if (txt(schedule.participant_scope) !== 'open' && schedule.emp_id != null) continue;
+    const date = excelDate(schedule.training_date);
+    if (date) openCountByDate.set(date, (openCountByDate.get(date) || 0) + 1);
+  }
+
+  const output = [];
+  const seen = new Set();
+  const pushRow = (schedule, employeeId) => {
+    const id = txt(employeeId);
+    const date = excelDate(schedule.training_date);
+    if (!id || !date || !scopedIds.has(id)) return;
+    const key = `${txt(schedule.id)}|${id}|${date}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    const startTime = timeText(schedule.start_time);
+    const endTime = timeText(schedule.end_time);
+    output.push({
+      employeeId: id,
+      employeeName: '',
+      date,
+      startTime,
+      endTime,
+      workHours: calculateWorkHours(startTime, endTime),
+      payrollHoursRequireReview: false,
+      meetingCount: 1,
+      activityType: txt(schedule.activity_type) || 'הכשרה',
+      school: '',
+      authority: '',
+      program: txt(schedule.course_name),
+      meetingNo: '',
+      kilometers: schedule.is_online === true ? 0 : null,
+      expenses: null,
+      activityNo: '',
+      activityId: `training:${txt(schedule.id)}`,
+      __trainingSchedule: true,
+      trainingScope: txt(schedule.participant_scope) || (schedule.emp_id == null ? 'open' : 'assigned'),
+      isOnline: schedule.is_online === true,
+      locationName: txt(schedule.location_name),
+      locationAddress: txt(schedule.location_address)
+    });
+  };
+
+  for (const schedule of activeSchedules) {
+    const date = excelDate(schedule.training_date);
+    if (!date) continue;
+    const scope = txt(schedule.participant_scope) || (schedule.emp_id == null ? 'open' : 'assigned');
+    if (scope === 'assigned' && schedule.emp_id != null) {
+      pushRow(schedule, schedule.emp_id);
+      continue;
+    }
+
+    const sameDate = trainingAttendance.filter((row) => txt(row.date) === date);
+    const courseKey = normalizeAttendanceName(schedule.course_name);
+    const exactCourse = sameDate.filter((row) => normalizeAttendanceName(row.program) === courseKey);
+    const candidates = exactCourse.length
+      ? exactCourse
+      : ((openCountByDate.get(date) || 0) === 1 ? sameDate : []);
+    for (const attendance of candidates) pushRow(schedule, attendance.employeeId);
+  }
+  return output;
+}
+
 // Repeated meeting dates can be intentional (for example two lessons on the
 // same day). Keep every source meeting, then aggregate only the comparison view
 // by activity/instructor/day and retain the original count and total duration.
@@ -625,8 +699,10 @@ export async function loadAttendanceDashboardDataset(attendanceRows, api, month 
   const scope = attendanceDateScope(attendanceRows, month);
   if (!scope.employeeIds.length || !scope.fromDate || !api?.attendanceControlDashboardSources) return [];
   const sources = await api.attendanceControlDashboardSources(scope);
-  const sourceRows = buildDashboardAttendanceRows(sources.activities, sources.contacts)
-    .filter((row) => (month ? row.date.startsWith(`${month}-`) : scope.dates.has(row.date)) && scope.employeeIds.includes(row.employeeId));
+  const sourceRows = [
+    ...buildDashboardAttendanceRows(sources.activities, sources.contacts),
+    ...buildTrainingScheduleDashboardRows(sources.trainingSchedule || [], attendanceRows, scope.employeeIds)
+  ].filter((row) => (month ? row.date.startsWith(`${month}-`) : scope.dates.has(row.date)) && scope.employeeIds.includes(row.employeeId));
   const rows = aggregateDashboardAttendanceRows(sourceRows);
   applyDashboardRouteKilometers(rows, sources.travelCache || []);
 
@@ -1102,12 +1178,28 @@ function assignDashboardBundles(attendanceEntries, dashboardRows, identityContex
   return search(0, 0).assignments;
 }
 
+function hasTrainingScheduleCandidate(attendance, dashboardRows = []) {
+  if (!isTrainingAttendanceType(attendance?.activityType)) return false;
+  const employeeId = txt(attendance.employeeId);
+  const program = normalizeAttendanceName(attendance.program);
+  return (dashboardRows || []).some((row) => row?.__trainingSchedule
+    && txt(row.employeeId) === employeeId
+    && (
+      txt(row.date) === txt(attendance.date)
+      || (program && normalizeAttendanceName(row.program) === program)
+    ));
+}
+
 export function compareAttendanceRows(attendanceRows, dashboardRows, options = {}) {
   const identityContext = options.identityContext
     || dashboardRows?.__payrollIdentityContext
     || buildPayrollIdentityContext({ dashboardRows: dashboardRows || [] });
-  const attendanceOnly = (attendanceRows || []).filter((row) => isAttendanceOnlyActivityType(row.activityType));
-  const comparableAttendance = (attendanceRows || []).filter((row) => !isAttendanceOnlyActivityType(row.activityType));
+  const attendanceOnly = (attendanceRows || []).filter((row) =>
+    isAttendanceOnlyActivityType(row.activityType)
+      && !(isTrainingAttendanceType(row.activityType) && hasTrainingScheduleCandidate(row, dashboardRows))
+  );
+  const attendanceOnlySet = new Set(attendanceOnly);
+  const comparableAttendance = (attendanceRows || []).filter((row) => !attendanceOnlySet.has(row));
   const attendanceIds = new Set((attendanceRows || []).map((row) => txt(row.employeeId)).filter(Boolean));
   const dashboardSourcePopulation = (dashboardRows || []).filter((row) => attendanceIds.has(txt(row.employeeId)));
   const dashboardPopulation = aggregateDashboardAttendanceRows(dashboardSourcePopulation);
@@ -1191,6 +1283,8 @@ export function compareAttendanceRows(attendanceRows, dashboardRows, options = {
       if (key === 'workHours' && dashboard.payrollHoursRequireReview) return [];
       const attendanceValue = key === 'workHours' ? rowWorkHours(attendance) : type === 'activityType' ? activityTypeDisplayLabel(attendance[key]) : attendance[key];
       const dashboardValue = key === 'workHours' ? rowWorkHours(dashboard) : type === 'activityType' ? activityTypeDisplayLabel(dashboard[key]) : dashboard[key];
+      if (dashboard?.__trainingSchedule && ['school', 'authority', 'meetingNo', 'expenses'].includes(key)) return [];
+      if (dashboard?.__trainingSchedule && key === 'kilometers' && dashboard.isOnline !== true) return [];
       if (key === 'kilometers') {
         const attendanceKm = optionalNumber(attendanceValue);
         const dashboardKm = optionalNumber(dashboardValue);
@@ -1724,7 +1818,8 @@ const comparisonTable = (comparison, { attendanceOnly = false } = {}) => {
   ];
   const rows = definitions.map(([key, label, left, right]) => {
     const related = diffByKey.get(key);
-    const reportOnly = reportOnlyKeys.has(key);
+    const trainingReportOnly = dashboard?.__trainingSchedule && ['authority', 'school', 'meetingNo'].includes(key);
+    const reportOnly = reportOnlyKeys.has(key) || trainingReportOnly;
     const dateInfo = key === 'date' && dashboard && txt(attendance.date) !== txt(dashboard.date);
     const issue = Boolean(related)
       || (key === 'workHours' && payrollReview)
