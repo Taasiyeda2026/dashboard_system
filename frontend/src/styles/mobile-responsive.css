@@ -1017,6 +1017,137 @@
     line-height: 1;
   }
 
+  /* Manager attendance: readable cards on phones, never a horizontally clipped desktop table. */
+  #app .manager-board-screen .manager-workspace-attendance .manager-workspace-table-wrap {
+    inline-size: 100%;
+    max-inline-size: 100%;
+    overflow: visible;
+    padding: 8px;
+    box-sizing: border-box;
+  }
+
+  #app .manager-board-screen .manager-workspace-attendance-table {
+    display: block;
+    inline-size: 100%;
+    width: 100%;
+    min-inline-size: 0 !important;
+    min-width: 0 !important;
+    border: 0;
+    table-layout: auto;
+  }
+
+  #app .manager-board-screen .manager-workspace-attendance-table thead {
+    display: none;
+  }
+
+  #app .manager-board-screen .manager-workspace-attendance-table tbody {
+    display: grid;
+    inline-size: 100%;
+    gap: 8px;
+  }
+
+  #app .manager-board-screen .manager-workspace-attendance-table tbody > tr {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    inline-size: 100%;
+    min-inline-size: 0;
+    overflow: hidden;
+    border: 1px solid #dbe3ee;
+    border-radius: 12px;
+    background: #fff;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, .04);
+  }
+
+  #app .manager-board-screen .manager-workspace-attendance-table tbody > tr:hover {
+    background: #fff;
+  }
+
+  #app .manager-board-screen .manager-workspace-attendance-table tbody > tr > td {
+    display: grid;
+    align-content: center;
+    justify-items: start;
+    gap: 3px;
+    inline-size: auto;
+    min-inline-size: 0;
+    width: auto !important;
+    min-width: 0 !important;
+    min-block-size: 54px;
+    padding: 8px 10px;
+    border: 0;
+    border-block-end: 1px solid #eef2f7;
+    overflow: visible;
+    white-space: normal;
+    text-align: start;
+  }
+
+  #app .manager-board-screen .manager-workspace-attendance-table tbody > tr > td:nth-child(odd):not(.manager-workspace-attendance-person):not(.manager-workspace-attendance-action) {
+    border-inline-start: 1px solid #eef2f7;
+  }
+
+  #app .manager-board-screen .manager-workspace-attendance-table tbody > tr > td[data-label]::before {
+    content: attr(data-label);
+    display: block;
+    color: #64748b;
+    font-size: .64rem;
+    line-height: 1.15;
+    font-weight: 800;
+  }
+
+  #app .manager-board-screen .manager-workspace-attendance-table .manager-workspace-attendance-person {
+    grid-column: 1 / -1;
+    display: block;
+    min-block-size: 0;
+    padding: 9px 11px;
+    border-block-end: 1px solid #dbe3ee;
+    background: #f8fafc;
+  }
+
+  #app .manager-board-screen .manager-workspace-attendance-table .manager-workspace-attendance-person::before {
+    display: none;
+  }
+
+  #app .manager-board-screen .manager-workspace-attendance-table .manager-workspace-attendance-person strong {
+    display: block;
+    font-size: .92rem;
+    line-height: 1.2;
+  }
+
+  #app .manager-board-screen .manager-workspace-attendance-table .manager-workspace-attendance-person small {
+    margin-block-start: 2px;
+    font-size: .68rem;
+  }
+
+  #app .manager-board-screen .manager-workspace-attendance-table .manager-workspace-report-count {
+    display: block;
+    max-inline-size: 100%;
+    font-size: .76rem;
+    line-height: 1.2;
+    white-space: normal;
+  }
+
+  #app .manager-board-screen .manager-workspace-attendance-table .manager-workspace-status {
+    min-inline-size: 0;
+    max-inline-size: 100%;
+    padding: 5px 7px;
+    font-size: .7rem;
+    white-space: normal;
+    text-align: center;
+  }
+
+  #app .manager-board-screen .manager-workspace-attendance-table .manager-workspace-attendance-action {
+    grid-column: 1 / -1;
+    min-block-size: 46px;
+    border-block-end: 0;
+    border-inline-start: 0;
+  }
+
+  #app .manager-board-screen .manager-workspace-attendance-table .manager-workspace-attendance-action .manager-workspace-link-button {
+    inline-size: 100%;
+    min-inline-size: 0;
+    min-block-size: 34px;
+    box-sizing: border-box;
+  }
+
   /* Manager team tracking: replace the 1180px desktop matrix with readable instructor cards. */
   #app .manager-board-screen .manager-workspace-tracking .manager-workspace-panel__head {
     gap: 9px;
