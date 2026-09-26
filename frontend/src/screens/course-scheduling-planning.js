@@ -19,6 +19,11 @@ const text = (value) => String(value ?? '').trim();
 const idOf = (row) => text(row?.row_id || row?.RowID || row?.id);
 const empOf = (candidate) => text(candidate?.instructor?.emp_id);
 const norm = (value) => text(value).replace(/\s+/g, ' ').toLocaleLowerCase('he-IL');
+const formatPlanningShortDate = (value) => {
+  const raw = text(value).slice(0, 10);
+  const match = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return match ? `${match[3]}/${match[2]}/${match[1].slice(2)}` : formatDateHe(value);
+};
 export const DEFAULT_PLANNING_PERIOD_KEY = 'year';
 export const PLANNING_OPERATIONAL_START_DATE = '2026-10-06';
 export const FIRST_HALF_COUNT_START_DATE = '2026-09-01';
@@ -2771,15 +2776,12 @@ export function planningCompletionOverviewHtml(rows = [], { pendingChanges = 0, 
   const unresolvedRows = firstHalfRows.filter((row) =>
     !text(row?.instructorEmpId) && row.kind !== 'recruitment'
   );
-  const pendingCount = Math.max(0, Number(pendingChanges) || 0);
-
   return `<section class="course-planning-completion-overview" data-planning-completion-overview>
     <div class="course-planning-section-heading course-planning-workplan-heading">
       <div>
         <strong>תוכנית עבודה מלאה — מחצית א׳</strong>
         <span>${coverage.total} פעילויות = ${coverage.team} לצוות הקיים + ${coverage.recruitment} לגיוס + ${coverage.unresolved} חריגים</span>
       </div>
-      ${pendingCount ? `<span class="course-planning-workplan-pending">${pendingCount} פעילויות ממתינות לעדכון</span>` : ''}
     </div>
     <div class="course-planning-workplan-balance" data-workplan-balance>
       <article class="course-planning-workplan-card is-total"><b>${coverage.total}</b><span>כל הפעילויות</span></article>
@@ -2811,46 +2813,27 @@ export function planningCompletionOverviewHtml(rows = [], { pendingChanges = 0, 
       <div class="course-planning-section-heading">
         <div>
           <strong>תכנון לצוות הקיים</strong>
-          <span>היקף העבודה הצפוי כולל שיבוצים קיימים, טיוטות והצעות מערכת</span>
         </div>
       </div>
       <div class="course-planning-completion-table-wrap">
       <table class="course-planning-completion-table">
         <thead><tr>
           <th>מדריך</th>
-          <th>פעילויות</th>
           <th>משובץ</th>
           <th>ממתין לאישור</th>
           <th>בתכנון</th>
           <th>סה״כ מתוכנן</th>
-          <th>שבוע שיא</th>
           <th>מתחיל</th>
           <th>מסתיים</th>
-          <th>תוכניות ופירוט</th>
         </tr></thead>
         <tbody>${overview.map((item) => `<tr>
           <td class="course-planning-completion-cell is-instructor"><strong>${escapeHtml(item.name)}</strong></td>
-          <td class="course-planning-completion-cell is-courses"><b>${item.activityCount}</b></td>
           <td class="course-planning-completion-cell is-live">${item.liveCount}</td>
           <td class="course-planning-completion-cell is-draft">${item.draftCount}</td>
           <td class="course-planning-completion-cell is-proposal">${item.proposalCount}</td>
-          <td class="course-planning-completion-cell is-load"><b>${item.meetingCount}</b> מפגשים · ${item.teachingHours} ש׳${(item.continuationCount || item.overflowCount) ? '<small>כולל המשך של פעילויות מעבר למחצית</small>' : ''}</td>
-          <td class="course-planning-completion-cell is-weekly">${item.peakWeekStart ? `<b>${item.peakWeekDays}</b> ימי עבודה · ${item.peakWeekHours} ש׳<small>שבוע שמתחיל ב־<bdi dir="ltr">${escapeHtml(formatDateHe(item.peakWeekStart))}</bdi></small>` : '—'}</td>
+          <td class="course-planning-completion-cell is-load"><b>${item.activityCount}</b> פעילויות · <b>${item.meetingCount}</b> מפגשים · שבוע שיא: <b>${item.peakWeekDays}</b> י״ע${item.peakWeekStart ? ` (<bdi dir="ltr">${escapeHtml(formatPlanningShortDate(item.peakWeekStart))}</bdi>)` : ''}</td>
           <td class="course-planning-completion-cell is-start">${item.firstStart ? `<bdi dir="ltr">${escapeHtml(formatDateHe(item.firstStart))}</bdi>` : '<span class="course-planning-completion-missing">חסר מועד</span>'}</td>
           <td class="course-planning-completion-cell is-end ${item.overflowCount ? 'is-warning' : ''}">${item.lastEnd ? `<bdi dir="ltr">${escapeHtml(formatDateHe(item.lastEnd))}</bdi>` : '<span class="course-planning-completion-missing">חסר מועד</span>'}</td>
-          <td class="course-planning-completion-cell is-details">
-            <div class="course-planning-completion-programs">${item.programs.map((program) => `<span>${escapeHtml(program)}</span>`).join('')}</div>
-            <details class="course-planning-completion-details">
-              <summary>פירוט ${item.activityCount} הפעילויות</summary>
-              <div class="course-planning-completion-courses">
-                ${item.activities.map((activity) => `<div class="course-planning-completion-course">
-                  <strong>${escapeHtml(activity.courseName)}</strong>
-                  <span>${escapeHtml(activity.status)} · ${escapeHtml(activity.school || 'ללא בית ספר')}${activity.authority ? ` · ${escapeHtml(activity.authority)}` : ''}</span>
-                  <span>${activity.startDate ? `<bdi dir="ltr">${escapeHtml(formatDateHe(activity.startDate))}</bdi>` : 'חסר תאריך התחלה'}${activity.endDate ? `–<bdi dir="ltr">${escapeHtml(formatDateHe(activity.endDate))}</bdi>` : ''}</span>
-                </div>`).join('')}
-              </div>
-            </details>
-          </td>
         </tr>`).join('')}</tbody>
       </table>
       </div>
