@@ -1644,7 +1644,7 @@ export function attendanceControlStylesHtml() {
 .attendance-control__report-meta{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-top:10px;padding-top:9px;border-top:1px solid #e3eaf2;color:#53657a;font-size:.84rem}.attendance-control__report-meta strong{color:#334155}.attendance-control__report-meta span{padding:4px 7px;border-radius:999px;background:#eef4fa}
 .attendance-control__reported-details{display:grid;gap:6px;margin-top:8px}.attendance-control__reported-details>div{display:grid;grid-template-columns:120px minmax(0,1fr);gap:10px;padding:7px 9px;border:1px solid #e7edf3;border-radius:8px;background:#fafcff}.attendance-control__reported-details span{color:#64748b;font-size:.82rem}.attendance-control__reported-details strong{color:#334155;font-size:.9rem;overflow-wrap:anywhere}.attendance-control__comparison-wrap--compact{padding:10px 12px;border:1px solid #e4eaf1;border-radius:10px;background:#fbfdff}
 .attendance-control__comparison-wrap{margin:12px 14px}.attendance-control__comparison-title{display:flex;align-items:center;gap:7px;margin:0 0 8px;font-weight:800;color:#193b66}.attendance-control__comparison-table{width:100%;border-collapse:separate;border-spacing:0;border:1px solid #dde6ef;border-radius:12px;overflow:hidden;background:#fff}.attendance-control__comparison-table th,.attendance-control__comparison-table td{padding:9px 11px;text-align:right;border-bottom:1px solid #e8edf3;vertical-align:middle}.attendance-control__comparison-table thead th{background:#f5f8fc;color:#52657b;font-size:.83rem;font-weight:800}.attendance-control__comparison-table tbody th{color:#44566d;font-size:.86rem;width:20%}.attendance-control__comparison-table tr:last-child th,.attendance-control__comparison-table tr:last-child td{border-bottom:0}.attendance-control__comparison-row--issue th,.attendance-control__comparison-row--issue td{background:#fff8e7}.attendance-control__comparison-row--info th,.attendance-control__comparison-row--info td{background:#f7fbff}.attendance-control__comparison-table select,.attendance-control__comparison-table input{min-height:34px;max-width:150px}.attendance-control__manual-table{width:100%}.attendance-control__manual-table tbody th{width:34%}
-.attendance-control__parameter-table tbody th{width:16%}.attendance-control__parameter-table td:nth-child(2),.attendance-control__parameter-table td:nth-child(3){width:18%}.attendance-control__parameter-table td:nth-child(4){width:13%}.attendance-control__actions-cell{width:35%}.attendance-control__row-actions{display:grid;gap:6px}.attendance-control__row-action-buttons{display:flex;gap:5px;flex-wrap:wrap}.attendance-control__row-action-buttons .ds-btn{min-height:30px;padding:5px 8px;font-size:.78rem}.attendance-control__row-action-buttons .ds-btn.is-selected{border-color:#2d7ea3;background:#eaf7fb;color:#0b617d;font-weight:800}.attendance-control__row-custom{display:flex;align-items:center;gap:5px;flex-wrap:wrap}.attendance-control__row-custom[hidden]{display:none}.attendance-control__row-custom .ds-input{width:130px}.attendance-control__row-decision{color:#466174;font-weight:700}.attendance-control__no-action,.attendance-control__empty-source{color:#94a3b8}.attendance-control__comparison-row--resolved th,.attendance-control__comparison-row--resolved td{background:#f5fbf7}
+.attendance-control__parameter-table tbody th{width:16%}.attendance-control__parameter-table td:nth-child(2),.attendance-control__parameter-table td:nth-child(3){width:18%}.attendance-control__parameter-table td:nth-child(4){width:13%}.attendance-control__actions-cell{width:35%}.attendance-control__row-actions{display:grid;gap:6px}.attendance-control__row-action-buttons{display:flex;gap:5px;flex-wrap:wrap}.attendance-control__row-action-buttons .ds-btn{min-height:30px;padding:5px 8px;font-size:.78rem}.attendance-control__row-action-buttons .ds-btn.is-selected{border-color:#2d7ea3;background:#eaf7fb;color:#0b617d;font-weight:800}.attendance-control__row-custom{display:flex;align-items:center;gap:5px;flex-wrap:wrap}.attendance-control__row-custom[hidden]{display:none}.attendance-control__row-custom:not([hidden]){margin-top:4px}.attendance-control__row-custom .ds-input{width:130px}.attendance-control__row-decision{color:#466174;font-weight:700}.attendance-control__no-action,.attendance-control__empty-source{color:#94a3b8}.attendance-control__comparison-row--resolved th,.attendance-control__comparison-row--resolved td{background:#f5fbf7}
 .attendance-control__travel-cancellation-row th,.attendance-control__travel-cancellation-row td{border-top:2px solid #dce7ef}.attendance-control__travel-cancellation-row th{color:#0f6078}.attendance-control__row-actions--compact .attendance-control__row-custom{margin-top:0}
 .attendance-control__status-pill{display:inline-flex;align-items:center;justify-content:center;min-width:72px;padding:4px 8px;border-radius:999px;font-size:.78rem;font-weight:800;white-space:nowrap}.attendance-control__status-pill--ok{color:#137a45;background:#eaf8f0}.attendance-control__status-pill--issue{color:#a85c00;background:#fff1cf}.attendance-control__status-pill--info{color:#316da8;background:#eaf4ff}.attendance-control__row-status{font-weight:800;white-space:nowrap;color:#24824d}.attendance-control__row-status--issue,.attendance-control__field-value--issue{color:#a85c00!important}.attendance-control__field-value--issue{font-weight:800}.attendance-control__missing-match{margin:8px 14px;color:#a85c00;font-weight:800}.attendance-control__manual-note{margin:4px 0;color:#64748b;font-size:.9em}
 .attendance-control__manager-actions{display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap;margin:12px 14px 14px;padding-top:12px;border-top:1px solid #edf1f5}.attendance-control__manager-actions>.ds-btn{min-height:36px}.attendance-control__manager-actions>.ds-input{width:160px;min-height:36px}.attendance-control__travel-edit{display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap;width:100%}.attendance-control__travel-edit label{min-height:36px;display:flex;align-items:center;gap:6px;padding:0 8px;border:1px solid #dbe4ee;border-radius:8px;background:#fff}.attendance-control__travel-edit .ds-input{width:150px;min-height:36px}.attendance-control__attachments{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:8px 14px 12px;color:#334155;font-size:.9em}.attendance-control__resolved-note{margin:0;color:#166534;font-weight:800}.attendance-control__report-km{margin:4px 0 8px;color:#475569;font-size:.92em}.attendance-control__day-km{padding:0 10px 6px;color:#475569;font-size:.92em}.attendance-control__export{margin-top:14px}
@@ -1728,7 +1728,7 @@ export function resultsHtml(result, month = '', options = {}) {
   const managerActionsHtml = (entry) => {
     const resolvedLabel = entryResolvedLabel(entry);
     const cancellation = isAttendanceTravelTimeCancellation(entry);
-    const needsHoursFix = !resolvedLabel && (entry.unmatched || entry.source === 'attendance_not_compared' || entry.dashboard?.payrollHoursRequireReview);
+    const needsHoursFix = !resolvedLabel && Boolean(entry.dashboard?.payrollHoursRequireReview);
     const current = entry.final || entry.attendance || {};
     const usesPublicTransport = asBoolean(current.publicTransport);
     const resolveBlock = resolvedLabel
@@ -1805,6 +1805,40 @@ export function resultsHtml(result, month = '', options = {}) {
     </div>`;
   };
 
+  const MANUAL_EDITABLE_FIELDS = new Set([
+    'date', 'activityType', 'authority', 'school', 'program', 'meetingNo',
+    'startTime', 'endTime', 'workHours', 'expenses', 'expenseDetails', 'notes'
+  ]);
+  const TRAVEL_EDITABLE_FIELDS = new Set(['publicTransport', 'publicTransportCost', 'kilometers']);
+
+  const manualFieldInputMeta = (key, value) => {
+    if (key === 'date') return { type: 'date', value: txt(value) };
+    if (key === 'startTime' || key === 'endTime') return { type: 'time', value: timeText(value) };
+    if (key === 'workHours') return { type: 'text', value: formatDurationHours(value), placeholder: 'למשל 1:30' };
+    if (key === 'expenses') return { type: 'number', value: optionalNumber(value) ?? '', step: '0.01', min: '0' };
+    if (key === 'meetingNo') return { type: 'number', value: txt(value), step: '1', min: '1' };
+    return { type: 'text', value: txt(value) };
+  };
+
+  const manualFieldActionsHtml = (entry, key, label, rawValue) => {
+    if (TRAVEL_EDITABLE_FIELDS.has(key)) {
+      return `<button type="button" class="ds-btn ds-btn--sm" data-attendance-focus-travel="${escapeHtml(entry.id)}">עריכת נסיעה</button>`;
+    }
+    if (!MANUAL_EDITABLE_FIELDS.has(key)) return '<span class="attendance-control__no-action">—</span>';
+    const meta = manualFieldInputMeta(key, rawValue);
+    return `<div class="attendance-control__row-actions">
+      <div class="attendance-control__row-action-buttons">
+        <button type="button" class="ds-btn ds-btn--sm" data-attendance-manual-edit="${escapeHtml(entry.id)}" data-field-key="${escapeHtml(key)}">עריכה</button>
+      </div>
+      <div class="attendance-control__row-custom" data-attendance-manual-edit-wrap hidden>
+        <input class="ds-input ds-input--sm" data-attendance-manual-input="${escapeHtml(entry.id)}" data-field-key="${escapeHtml(key)}"
+          type="${meta.type}" value="${escapeHtml(String(meta.value ?? ''))}"${meta.placeholder ? ` placeholder="${escapeHtml(meta.placeholder)}"` : ''}${meta.step ? ` step="${meta.step}"` : ''}${meta.min ? ` min="${meta.min}"` : ''}
+          aria-label="עריכת ${escapeHtml(label)}">
+        <button type="button" class="ds-btn ds-btn--sm" data-attendance-manual-save="${escapeHtml(entry.id)}" data-field-key="${escapeHtml(key)}">שמור</button>
+      </div>
+    </div>`;
+  };
+
   const foldedTravelCancellationRowHtml = (entry) => {
     if (!entry) return '';
     const row = entry.final || entry.attendance || {};
@@ -1857,22 +1891,23 @@ export function resultsHtml(result, month = '', options = {}) {
     const attendanceExpenses = optionalNumber(current.expenses);
     const dashboardExpenses = optionalNumber(dashboard?.expenses);
 
+    const displayRow = attendanceOnly ? current : attendance;
     const definitions = [
-      { key: 'date', label: 'תאריך', left: dateLabel(attendance.date), right: dashboard ? dateLabel(dashboard.date) : null, always: true },
-      { key: 'activityType', label: 'סוג פעילות', left: activityTypeDisplayLabel(attendance.activityType), right: dashboard ? activityTypeDisplayLabel(dashboard.activityType) : null, always: true },
-      { key: 'authority', label: 'רשות / יישוב', left: attendance.authority, right: dashboard?.authority },
-      { key: 'school', label: 'בית ספר / מיקום', left: attendance.school, right: dashboard?.school },
-      { key: 'program', label: 'תוכנית / קורס', left: attendance.program, right: dashboard?.program },
-      { key: 'meetingNo', label: 'מספר מפגש', left: attendance.meetingNo, right: dashboard?.meetingNo },
-      { key: 'startTime', label: 'שעת התחלה', left: attendance.startTime, right: dashboard?.startTime, always: true },
-      { key: 'endTime', label: 'שעת סיום', left: attendance.endTime, right: dashboard?.endTime, always: true },
-      { key: 'workHours', label: payrollReview ? 'סה״כ שעות לבדיקה' : 'סה״כ שעות', left: displayWorkHours(attendance), right: dashboard ? displayDashboardWorkHours(dashboard) : null, always: true },
-      { key: 'publicTransport', label: 'תחבורה ציבורית', left: publicTransport ? 'כן' : 'לא', right: null, visible: publicTransport || (publicTransportCost != null && publicTransportCost > 0) },
-      { key: 'publicTransportCost', label: 'עלות תחבורה ציבורית', left: publicTransportCost, right: null, visible: publicTransport && publicTransportCost != null && publicTransportCost > 0 },
-      { key: 'kilometers', label: 'ק״מ', left: attendanceKm, right: dashboardKm, visible: !publicTransport && (attendanceKm != null && attendanceKm > 0 || dashboardKm != null || diffByKey.has('kilometers')) },
-      { key: 'expenses', label: 'הוצאות', left: attendanceExpenses, right: dashboardExpenses, visible: (attendanceExpenses != null && attendanceExpenses > 0) || (dashboardExpenses != null && dashboardExpenses > 0) || diffByKey.has('expenses') },
-      { key: 'expenseDetails', label: 'פירוט הוצאה', left: current.expenseDetails, right: null, visible: (attendanceExpenses != null && attendanceExpenses > 0) && hasValue(current.expenseDetails) },
-      { key: 'notes', label: 'הערות', left: current.notes, right: null, visible: hasValue(current.notes) }
+      { key: 'date', label: 'תאריך', left: dateLabel(displayRow.date), editValue: current.date, right: dashboard ? dateLabel(dashboard.date) : null, always: true },
+      { key: 'activityType', label: 'סוג פעילות', left: activityTypeDisplayLabel(displayRow.activityType), editValue: current.activityType, right: dashboard ? activityTypeDisplayLabel(dashboard.activityType) : null, always: true },
+      { key: 'authority', label: 'רשות / יישוב', left: displayRow.authority, editValue: current.authority, right: dashboard?.authority },
+      { key: 'school', label: 'בית ספר / מיקום', left: displayRow.school, editValue: current.school, right: dashboard?.school },
+      { key: 'program', label: 'תוכנית / קורס', left: displayRow.program, editValue: current.program, right: dashboard?.program },
+      { key: 'meetingNo', label: 'מספר מפגש', left: displayRow.meetingNo, editValue: current.meetingNo, right: dashboard?.meetingNo },
+      { key: 'startTime', label: 'שעת התחלה', left: displayRow.startTime, editValue: current.startTime, right: dashboard?.startTime, always: true },
+      { key: 'endTime', label: 'שעת סיום', left: displayRow.endTime, editValue: current.endTime, right: dashboard?.endTime, always: true },
+      { key: 'workHours', label: payrollReview ? 'סה״כ שעות לבדיקה' : 'סה״כ שעות', left: displayWorkHours(displayRow), editValue: rowWorkHours(current), right: dashboard ? displayDashboardWorkHours(dashboard) : null, always: true },
+      { key: 'publicTransport', label: 'תחבורה ציבורית', left: publicTransport ? 'כן' : 'לא', editValue: publicTransport, right: null, visible: publicTransport || (publicTransportCost != null && publicTransportCost > 0) },
+      { key: 'publicTransportCost', label: 'עלות תחבורה ציבורית', left: publicTransportCost, editValue: publicTransportCost, right: null, visible: publicTransport && publicTransportCost != null && publicTransportCost > 0 },
+      { key: 'kilometers', label: 'ק״מ', left: attendanceKm, editValue: attendanceKm, right: dashboardKm, visible: !publicTransport && (attendanceKm != null && attendanceKm > 0 || dashboardKm != null || diffByKey.has('kilometers')) },
+      { key: 'expenses', label: 'הוצאות', left: attendanceExpenses, editValue: attendanceExpenses, right: dashboardExpenses, visible: (attendanceExpenses != null && attendanceExpenses > 0) || (dashboardExpenses != null && dashboardExpenses > 0) || diffByKey.has('expenses') },
+      { key: 'expenseDetails', label: 'פירוט הוצאה', left: current.expenseDetails, editValue: current.expenseDetails, right: null, visible: (attendanceExpenses != null && attendanceExpenses > 0) && hasValue(current.expenseDetails) },
+      { key: 'notes', label: 'הערות', left: current.notes, editValue: current.notes, right: null, visible: hasValue(current.notes) }
     ];
 
     const rows = definitions.filter((definition) => {
@@ -1882,7 +1917,7 @@ export function resultsHtml(result, month = '', options = {}) {
       if (diffByKey.has(definition.key)) return true;
       return hasValue(definition.left) || hasValue(definition.right);
     }).map((definition) => {
-      const { key, label, left, right } = definition;
+      const { key, label, left, right, editValue } = definition;
       const related = diffByKey.get(key);
       const hasSystemValue = dashboard != null && right != null && txt(right) !== '';
       const systemMissing = dashboard != null && !hasSystemValue;
@@ -1898,6 +1933,12 @@ export function resultsHtml(result, month = '', options = {}) {
       } else if (issue) {
         statusClass = 'attendance-control__status-pill--issue';
         status = '⚠ לבדיקה';
+      } else if (attendanceOnly && entry.managerResolved === 'corrected') {
+        statusClass = 'attendance-control__status-pill--ok';
+        status = '✓ תוקן';
+      } else if (attendanceOnly && entry.managerResolved === 'approved_as_reported') {
+        statusClass = 'attendance-control__status-pill--ok';
+        status = '✓ אושר';
       } else if (attendanceOnly || systemMissing || !dashboard) {
         statusClass = 'attendance-control__status-pill--info';
         status = 'מידע מהדיווח';
@@ -1908,7 +1949,9 @@ export function resultsHtml(result, month = '', options = {}) {
         : '<span class="attendance-control__empty-source">—</span>';
       const actions = related
         ? fieldActionsHtml(entry, key, related, { hasSystemValue, dashboardLabel })
-        : '<span class="attendance-control__no-action">—</span>';
+        : attendanceOnly
+          ? manualFieldActionsHtml(entry, key, label, editValue)
+          : '<span class="attendance-control__no-action">—</span>';
       const rowClass = issue ? 'attendance-control__comparison-row--issue' : related?.decided ? 'attendance-control__comparison-row--resolved' : '';
 
       return `<tr class="${rowClass}"${related ? ` data-comparison="${escapeHtml(entry.id)}" data-field="${escapeHtml(key)}"` : ''}>
@@ -2266,10 +2309,76 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
     if (event.target.matches('[data-attendance-choice]')) { const custom = diff.querySelector('[data-attendance-custom]'); custom.hidden = event.target.value !== 'custom'; applyAttendanceChoice(comparison, field, event.target.value, custom.value); }
     if (event.target.matches('[data-attendance-custom]')) applyAttendanceChoice(comparison, field, 'custom', event.target.value);
   });
+  const parseManualCorrectionValue = (field, rawValue) => {
+    const raw = txt(rawValue);
+    if (field === 'workHours') {
+      const clock = raw.match(/^(\d+):(\d{1,2})$/);
+      if (clock) {
+        const minutes = Number(clock[2]);
+        if (minutes >= 60) return { valid: false, value: null };
+        return { valid: true, value: Number(clock[1]) + minutes / 60 };
+      }
+      const numeric = optionalNumber(raw);
+      return { valid: numeric != null && numeric >= 0, value: numeric };
+    }
+    if (field === 'expenses') {
+      const numeric = optionalNumber(raw);
+      return { valid: numeric != null && numeric >= 0, value: numeric };
+    }
+    if (field === 'meetingNo') {
+      if (!raw) return { valid: true, value: '' };
+      return { valid: /^\d+$/.test(raw), value: raw };
+    }
+    if (field === 'date') return { valid: /^20\d{2}-(0[1-9]|1[0-2])-([012]\d|3[01])$/.test(raw), value: raw };
+    if (field === 'startTime' || field === 'endTime') return { valid: /^([01]\d|2[0-3]):[0-5]\d$/.test(raw), value: raw };
+    if (field === 'activityType') return { valid: Boolean(raw), value: raw };
+    return { valid: true, value: raw };
+  };
+
   results.addEventListener('click', async (event) => {
     const findEntry = (entryId) => (
       [...(result?.comparisons || []), ...(result?.notCompared || [])].find((entry) => entry.id === entryId) || null
     );
+
+    const manualEditBtn = event.target.closest('[data-attendance-manual-edit]');
+    if (manualEditBtn && result) {
+      const rowElement = manualEditBtn.closest('tr');
+      const wrap = rowElement?.querySelector('[data-attendance-manual-edit-wrap]');
+      const input = rowElement?.querySelector('[data-attendance-manual-input]');
+      if (wrap) wrap.hidden = !wrap.hidden;
+      if (wrap && !wrap.hidden) input?.focus();
+      return;
+    }
+
+    const manualSaveBtn = event.target.closest('[data-attendance-manual-save]');
+    if (manualSaveBtn && result) {
+      const entry = findEntry(txt(manualSaveBtn.dataset.attendanceManualSave));
+      const field = txt(manualSaveBtn.dataset.fieldKey);
+      const rowElement = manualSaveBtn.closest('tr');
+      const input = rowElement?.querySelector('[data-attendance-manual-input]');
+      if (!entry || !field || !input) return;
+      const parsed = parseManualCorrectionValue(field, input.value);
+      if (!parsed.valid) {
+        status.textContent = field === 'workHours'
+          ? 'יש להזין שעות בפורמט שעות:דקות, למשל 1:30.'
+          : 'הערך שהוזן אינו תקין.';
+        input.focus();
+        return;
+      }
+      applyAttendanceManualCorrection(entry, { [field]: parsed.value });
+      paintResults();
+      status.textContent = 'התיקון נשמר בבקרה ויעודכן ברשומת הנוכחות בעת אישור המנהל.';
+      return;
+    }
+
+    const focusTravelBtn = event.target.closest('[data-attendance-focus-travel]');
+    if (focusTravelBtn && result) {
+      const entryId = txt(focusTravelBtn.dataset.attendanceFocusTravel);
+      const editor = results.querySelector(`[data-attendance-travel-edit="${CSS.escape(entryId)}"]`);
+      editor?.scrollIntoView?.({ block: 'center', behavior: 'smooth' });
+      editor?.querySelector('input:not([disabled])')?.focus();
+      return;
+    }
 
     const fieldChoiceBtn = event.target.closest('[data-attendance-field-choice]');
     if (fieldChoiceBtn && result) {
