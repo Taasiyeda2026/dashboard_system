@@ -2417,6 +2417,14 @@
   align-items: center;
 }
 
+.course-planning-workplan-summary {
+  display: block;
+  margin-top: 2px;
+  color: var(--cs-text-muted);
+  font-size: .78rem;
+}
+
+
 .course-planning-workplan-balance {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -2557,21 +2565,75 @@
 
 
 .course-planning-recruitment-models {
-  display: grid;
-  gap: 8px;
-  padding: 10px;
   border: 1px solid var(--cs-border);
   border-radius: 10px;
   background: var(--cs-surface-soft);
+  overflow: hidden;
 }
 
-.course-planning-recruitment-models > strong {
+.course-planning-recruitment-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.course-planning-recruitment-summary::-webkit-details-marker {
+  display: none;
+}
+
+.course-planning-recruitment-summary > span:first-child {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+.course-planning-recruitment-summary strong {
   font-size: .84rem;
+}
+
+.course-planning-recruitment-summary small,
+.course-planning-recruitment-summary-action,
+.course-planning-recruitment-note {
+  color: var(--cs-text-muted);
+  font-size: .72rem;
+}
+
+.course-planning-recruitment-summary-action::after {
+  content: " ▾";
+}
+
+.course-planning-recruitment-models[open] .course-planning-recruitment-summary-action::after {
+  content: " ▴";
+}
+
+.course-planning-recruitment-models[open] .course-planning-recruitment-summary-action {
+  font-size: 0;
+}
+
+.course-planning-recruitment-models[open] .course-planning-recruitment-summary-action::before {
+  content: "הסתר פירוט";
+  font-size: .72rem;
+}
+
+.course-planning-recruitment-models-body {
+  display: grid;
+  gap: 8px;
+  padding: 0 10px 10px;
+  border-top: 1px solid rgba(148, 163, 184, .18);
+}
+
+.course-planning-recruitment-note {
+  margin: 8px 0 0;
 }
 
 .course-planning-recruitment-model-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   gap: 8px;
 }
 
