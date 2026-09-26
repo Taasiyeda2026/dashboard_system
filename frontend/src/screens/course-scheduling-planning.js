@@ -2727,20 +2727,20 @@ export function planningCompletionOverviewHtml(rows = [], { pendingChanges = 0, 
       <strong>תמונת מצב — מחצית א׳</strong>
     </div>
     <div class="course-planning-completion-summary">
-      <span><b>${totals.activities}</b> פעילויות במחצית א׳</span>
-      ${schoolYearCount != null ? `<span><b>${schoolYearCount}</b> פעילויות תשפ״ז</span>` : ''}
-      <span><b>${overview.length}</b> מדריכים בתכנון</span>
-      <span><b>${totals.courses}</b> קורסים</span>
-      ${totals.otherActivities ? `<span><b>${totals.otherActivities}</b> סדנאות/סיורים</span>` : ''}
-      <span><b>${totals.live}</b> משובצים</span>
-      <span><b>${totals.drafts}</b> ממתינים לאישור</span>
-      <span><b>${totals.proposals}</b> הצעות מערכת</span>
-      ${totals.unresolved ? `<span class="is-warning"><b>${totals.unresolved}</b> נדרש טיפול</span>` : ''}
-      ${totals.recruitment ? `<span class="is-warning"><b>${totals.recruitment}</b> פעילויות שדורשות גיוס</span>` : ''}
-      ${recruitmentProfileRows.length ? `<span class="is-warning"><b>${recruitmentProfileRows.length}</b> מודלי גיוס צפויים</span>` : ''}
-      ${totals.undated ? `<span class="is-warning"><b>${totals.undated}</b> עדיין ללא מועד</span>` : ''}
-      ${totals.continuation ? `<span><b>${totals.continuation}</b> ממשיכות לפברואר</span>` : ''}
-      ${totals.overflow ? `<span class="is-warning"><b>${totals.overflow}</b> נמשכות מעבר לסוף פברואר</span>` : ''}
+      <span class="course-planning-completion-chip is-context"><b>${totals.activities}</b> פעילויות במחצית א׳</span>
+      ${schoolYearCount != null ? `<span class="course-planning-completion-chip is-context"><b>${schoolYearCount}</b> פעילויות תשפ״ז</span>` : ''}
+      <span class="course-planning-completion-chip is-context"><b>${overview.length}</b> מדריכים בתכנון</span>
+      <span class="course-planning-completion-chip is-context"><b>${totals.courses}</b> קורסים</span>
+      ${totals.otherActivities ? `<span class="course-planning-completion-chip is-context"><b>${totals.otherActivities}</b> סדנאות/סיורים</span>` : ''}
+      <span class="course-planning-completion-chip is-context"><b>${totals.live}</b> משובצים</span>
+      <span class="course-planning-completion-chip is-context"><b>${totals.drafts}</b> ממתינים לאישור</span>
+      <span class="course-planning-completion-chip is-action"><b>${totals.proposals}</b> הצעות מערכת</span>
+      ${totals.unresolved ? `<span class="course-planning-completion-chip is-warning is-action"><b>${totals.unresolved}</b> נדרש טיפול</span>` : ''}
+      ${totals.recruitment ? `<span class="course-planning-completion-chip is-warning is-action"><b>${totals.recruitment}</b> פעילויות שדורשות גיוס</span>` : ''}
+      ${recruitmentProfileRows.length ? `<span class="course-planning-completion-chip is-warning is-context"><b>${recruitmentProfileRows.length}</b> מודלי גיוס צפויים</span>` : ''}
+      ${totals.undated ? `<span class="course-planning-completion-chip is-warning is-action"><b>${totals.undated}</b> עדיין ללא מועד</span>` : ''}
+      ${totals.continuation ? `<span class="course-planning-completion-chip is-context"><b>${totals.continuation}</b> ממשיכות לפברואר</span>` : ''}
+      ${totals.overflow ? `<span class="course-planning-completion-chip is-warning is-context"><b>${totals.overflow}</b> נמשכות מעבר לסוף פברואר</span>` : ''}
     </div>
     ${recruitmentProfileRows.length ? `<div class="course-planning-recruitment-models">
       <strong>מודלי גיוס לאחר מיצוי הצוות הקיים</strong>
@@ -2768,17 +2768,17 @@ export function planningCompletionOverviewHtml(rows = [], { pendingChanges = 0, 
           <th>תוכניות ופירוט</th>
         </tr></thead>
         <tbody>${overview.map((item) => `<tr>
-          <td><strong>${escapeHtml(item.name)}</strong>${item.otherActivityCount ? `<small>+${item.otherActivityCount} פעילויות שאינן קורס</small>` : ''}</td>
-          <td><b>${item.courseCount}</b></td>
-          <td>${item.liveCount}</td>
-          <td>${item.draftCount}</td>
-          <td>${item.proposalCount}</td>
-          <td><b>${item.meetingCount}</b> מפגשים · ${item.teachingHours} ש׳</td>
-          <td>${item.averageWorkDaysPerWeek} ימי עבודה/שבוע${item.peakWeekStart ? `<small>שיא: ${item.peakWeekDays} ימים · ${item.peakWeekHours} ש׳</small>` : ''}</td>
-          <td>${Number.isFinite(item.expectedTravelKmPerMeeting) ? `~${item.expectedTravelKmPerMeeting} ק״מ/מפגש` : '—'}</td>
-          <td>${item.firstStart ? `<bdi dir="ltr">${escapeHtml(formatDateHe(item.firstStart))}</bdi>` : '<span class="course-planning-completion-missing">חסר מועד</span>'}</td>
-          <td class="${item.overflowCount ? 'is-warning' : ''}">${item.lastEnd ? `<bdi dir="ltr">${escapeHtml(formatDateHe(item.lastEnd))}</bdi>` : '<span class="course-planning-completion-missing">חסר מועד</span>'}</td>
-          <td>
+          <td class="course-planning-completion-cell is-instructor"><strong>${escapeHtml(item.name)}</strong>${item.otherActivityCount ? `<small>+${item.otherActivityCount} פעילויות שאינן קורס</small>` : ''}</td>
+          <td class="course-planning-completion-cell is-courses"><b>${item.courseCount}</b></td>
+          <td class="course-planning-completion-cell is-live">${item.liveCount}</td>
+          <td class="course-planning-completion-cell is-draft">${item.draftCount}</td>
+          <td class="course-planning-completion-cell is-proposal">${item.proposalCount}</td>
+          <td class="course-planning-completion-cell is-load"><b>${item.meetingCount}</b> מפגשים · ${item.teachingHours} ש׳</td>
+          <td class="course-planning-completion-cell is-weekly">${item.averageWorkDaysPerWeek} ימי עבודה/שבוע${item.peakWeekStart ? `<small>שיא: ${item.peakWeekDays} ימים · ${item.peakWeekHours} ש׳</small>` : ''}</td>
+          <td class="course-planning-completion-cell is-travel">${Number.isFinite(item.expectedTravelKmPerMeeting) ? `~${item.expectedTravelKmPerMeeting} ק״מ/מפגש` : '—'}</td>
+          <td class="course-planning-completion-cell is-start">${item.firstStart ? `<bdi dir="ltr">${escapeHtml(formatDateHe(item.firstStart))}</bdi>` : '<span class="course-planning-completion-missing">חסר מועד</span>'}</td>
+          <td class="course-planning-completion-cell is-end ${item.overflowCount ? 'is-warning' : ''}">${item.lastEnd ? `<bdi dir="ltr">${escapeHtml(formatDateHe(item.lastEnd))}</bdi>` : '<span class="course-planning-completion-missing">חסר מועד</span>'}</td>
+          <td class="course-planning-completion-cell is-details">
             <div class="course-planning-completion-programs">${item.programs.map((program) => `<span>${escapeHtml(program)}</span>`).join('')}</div>
             <details class="course-planning-completion-details">
               <summary>פירוט ${item.activityCount} הפעילויות</summary>
