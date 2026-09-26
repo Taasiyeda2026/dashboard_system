@@ -330,7 +330,11 @@ export function buildWeeklyPlanningMeetings({
   periodKey = DEFAULT_PLANNING_PERIOD_KEY
 } = {}) {
   const activityPeriodKey = planningPeriodKeyForActivity(activity, periodKey);
-  const period = planningEffectivePeriod(activityPeriodKey);
+  const requestedStartDate = text(startDate).slice(0, 10);
+  const hasSchoolDateAnchor = officialPlanningDates(activity).includes(requestedStartDate);
+  const period = hasSchoolDateAnchor
+    ? resolveCourseSchedulingPeriod(activityPeriodKey)
+    : planningEffectivePeriod(activityPeriodKey);
   const scheduleEnd = planningScheduleEnd(activityPeriodKey);
   const count = Math.max(0, Math.min(35, Math.floor(Number(sessions) || 0)));
   const duration = roundedDurationMinutes(durationMinutes);
@@ -553,7 +557,8 @@ function candidateStartDates({ activity, targetWeekday, sessions, startTime, dur
     .filter((date) => date >= period.start && date <= period.end)
     .sort()[0] || activity.start_date).slice(0, 10);
   if (/^\d{4}-\d{2}-\d{2}$/.test(fixedStart)) {
-    if (fixedStart < period.start || fixedStart > period.end || weekday(fixedStart) !== Number(targetWeekday)) return [];
+    const fixedPeriod = resolveCourseSchedulingPeriod(activityPeriodKey);
+    if (fixedStart < fixedPeriod.start || fixedStart > fixedPeriod.end || weekday(fixedStart) !== Number(targetWeekday)) return [];
     const built = buildWeeklyPlanningMeetings({
       activity, startDate: fixedStart, startTime, durationMinutes, sessions, schoolCalendar, periodKey: activityPeriodKey
     });
