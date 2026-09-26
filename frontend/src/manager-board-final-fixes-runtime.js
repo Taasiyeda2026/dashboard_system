@@ -113,7 +113,7 @@ function attendanceWorkflowStatus(workflow = {}) {
 }
 
 function setAttendanceWorkflowBadge(row, workflow) {
-  const statusCell = row?.querySelectorAll('td')?.[2];
+  const statusCell = row?.querySelector('td[data-label="סטטוס אישור"]') || row?.querySelectorAll('td')?.[3];
   const badge = statusCell?.querySelector('.manager-workspace-status');
   if (!badge) return;
 
@@ -155,8 +155,8 @@ function syncAttendanceAlertCounts(boardRoot, table, workflowByEmployee) {
     const label = article.querySelector('span')?.textContent?.trim();
     const value = article.querySelector('strong');
     if (!value) return;
-    if (label === 'טרם אושר') value.textContent = String(awaitingEmployeeApprovalCount);
-    if (label === 'אושרו') value.textContent = String(employeeApprovedCount);
+    if (label === 'טרם אושר' || label === 'טרם אושר ע״י העובד') value.textContent = String(awaitingEmployeeApprovalCount);
+    if (label === 'אושרו' || label === 'אושר ע״י העובד') value.textContent = String(employeeApprovedCount);
   });
 }
 
