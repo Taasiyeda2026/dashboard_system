@@ -6,6 +6,7 @@ const workspace = fs.readFileSync(new URL('../frontend/src/manager-board-workspa
 const trackingLogic = fs.readFileSync(new URL('../frontend/src/manager-board-employee-file-tracking.js', import.meta.url), 'utf8');
 const migration = fs.readFileSync(new URL('../supabase/migrations/20260819112000_manager_tracking_employee_file_source.sql', import.meta.url), 'utf8');
 const indexHtml = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+const mobileCss = fs.readFileSync(new URL('../frontend/src/styles/mobile-responsive.css', import.meta.url), 'utf8');
 const sources = `${workspace}\n${trackingLogic}`;
 
 const expectedComponents = [
@@ -68,4 +69,13 @@ test('manager tracking keeps the SharePoint target while using the requested lab
   assert.match(workspace, /SHAREPOINT_EMPLOYEE_FILES_ROOT_2027/);
   assert.match(workspace, /פתיחת כל תיקי המדריכים/);
   assert.doesNotMatch(workspace, /פתיחת תיקי עובדים ב־SharePoint/);
+});
+
+
+test('manager tracking becomes readable cards on mobile instead of a wide scrolling matrix', () => {
+  assert.match(mobileCss, /manager-workspace-tracking-table--employee-file thead\s*\{\s*display:\s*none/);
+  assert.match(mobileCss, /manager-workspace-tracking-table--employee-file tbody > tr\s*\{[\s\S]*grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/);
+  assert.match(mobileCss, /td\[data-label\]::before\s*\{[\s\S]*content:\s*attr\(data-label\)/);
+  assert.match(mobileCss, /td\[data-label="תיק עובד"\]\s*\{[\s\S]*grid-column:\s*1\s*\/\s*-1/);
+  assert.doesNotMatch(mobileCss, /manager-workspace-tracking-table--employee-file\s*\{[^}]*min-width:\s*1180px/);
 });
