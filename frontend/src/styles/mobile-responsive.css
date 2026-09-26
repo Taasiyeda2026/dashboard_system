@@ -935,6 +935,44 @@
     font-size: .76rem;
   }
 
+  .route-course-scheduling .course-planning-workplan-unresolved-table-wrap {
+    max-height: 320px;
+    margin: 0 7px 7px;
+    overflow: auto;
+  }
+
+  .route-course-scheduling .course-planning-workplan-unresolved-table {
+    display: block;
+    min-width: 0;
+  }
+
+  .route-course-scheduling .course-planning-workplan-unresolved-table thead {
+    display: none;
+  }
+
+  .route-course-scheduling .course-planning-workplan-unresolved-table tbody {
+    display: grid;
+  }
+
+  .route-course-scheduling .course-planning-workplan-unresolved-table tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    padding: 7px 8px;
+    border-bottom: 1px solid rgba(148, 163, 184, .18);
+  }
+
+  .route-course-scheduling .course-planning-workplan-unresolved-table td {
+    display: block;
+    width: auto;
+    padding: 2px 0;
+    border: 0 !important;
+    font-size: .73rem;
+  }
+
+  .route-course-scheduling .course-planning-workplan-unresolved-table td:nth-child(3) {
+    color: #6b7a8c;
+  }
+
   .route-course-scheduling .course-planning-section-heading strong {
     font-size: .96rem;
   }
