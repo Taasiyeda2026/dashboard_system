@@ -395,7 +395,7 @@ test('full-year planning keeps an undated first-half course starting in first ha
 test('Saturday planning is allowed for Arab-sector activities and blocked elsewhere', () => {
   const arab = buildWeeklyPlanningMeetings({
     activity: { ...baseCourse, calendar_sector: 'arab' },
-    startDate: '2026-10-13',
+    startDate: '2026-10-17',
     startTime: '08:00',
     durationMinutes: 90,
     sessions: 3,
@@ -408,7 +408,7 @@ test('Saturday planning is allowed for Arab-sector activities and blocked elsewh
 
   const jewish = buildWeeklyPlanningMeetings({
     activity: { ...baseCourse, calendar_sector: 'jewish' },
-    startDate: '2026-10-13',
+    startDate: '2026-10-17',
     startTime: '08:00',
     durationMinutes: 90,
     sessions: 3,
