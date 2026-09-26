@@ -966,13 +966,13 @@ function planningStartWeekKey(value) {
   return date.toISOString().slice(0, 10);
 }
 
-function planningHomeDistanceKm(item = {}) {
+export function planningHomeDistanceKm(item = {}) {
   const candidate = item.candidate || item._candidate || item;
   const km = Number(candidate?.travel?.home?.distance_km);
   return Number.isFinite(km) && km >= 0 ? km : null;
 }
 
-function planningLocalityTier(item = {}) {
+export function planningLocalityTier(item = {}) {
   const km = planningHomeDistanceKm(item);
   if (km == null) return 5;
   if (km <= 5) return 0;
@@ -982,7 +982,7 @@ function planningLocalityTier(item = {}) {
   return 4;
 }
 
-function planningPairCompare(first = {}, second = {}) {
+export function planningPairCompare(first = {}, second = {}) {
   const firstWeek = planningStartWeekKey(first.course?.start_date || first.startDate);
   const secondWeek = planningStartWeekKey(second.course?.start_date || second.startDate);
   if (firstWeek !== secondWeek) return firstWeek.localeCompare(secondWeek);
