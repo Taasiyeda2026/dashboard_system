@@ -105,6 +105,41 @@ function moneyValues(text) {
   return [...String(text).matchAll(/₪\s*([\d,]+)/g)].map((match) => Number(match[1].replace(/,/g, '')));
 }
 
+
+test('proposal list shows the actual authority instead of repeating the school client name', () => {
+  const html = proposalsAgreementsTableRowsHtml([{
+    id: 'school-client-authority',
+    quote_number: '10335',
+    client_type: 'school',
+    client_name: 'המשיח האנגליקאני',
+    authority_name: 'נצרת',
+    client_authority: 'נצרת',
+    school_framework: 'המשיח האנגליקאני',
+    activity_type_group: 'gefen',
+    status: 'approved'
+  }], adminState());
+
+  const dom = new JSDOM(`<table><tbody>${html}</tbody></table>`);
+  const row = dom.window.document.querySelector('tr[data-pa-row-id="school-client-authority"]');
+  assert.equal(row?.cells[2]?.textContent.trim(), 'נצרת');
+  assert.equal(row?.cells[3]?.textContent.trim(), 'המשיח האנגליקאני');
+});
+
+test('authority clients may still fall back to client_name for legacy rows', () => {
+  const html = proposalsAgreementsTableRowsHtml([{
+    id: 'authority-client-legacy',
+    quote_number: '10336',
+    client_type: 'authority',
+    client_name: 'עיריית נהריה',
+    activity_type_group: 'gefen',
+    status: 'approved'
+  }], adminState());
+
+  const dom = new JSDOM(`<table><tbody>${html}</tbody></table>`);
+  const row = dom.window.document.querySelector('tr[data-pa-row-id="authority-client-legacy"]');
+  assert.equal(row?.cells[2]?.textContent.trim(), 'עיריית נהריה');
+});
+
 test('a תשפ״ז proposal with courses only is listed as תשפ״ז', () => {
   const html = proposalsAgreementsTableRowsHtml([{
     id: 'ny-courses',
