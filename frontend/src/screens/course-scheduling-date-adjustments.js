@@ -47,7 +47,7 @@ function weeklyAllows(meeting, rules) {
   return !!rule?.available && minutes(meeting.start_time) >= minutes(rule.start_time) && minutes(meeting.end_time) <= minutes(rule.end_time);
 }
 
-export function proposeDateAdjustments({ meetings = [], rules = [], exceptions = [], schoolCalendar = [], existingActivities = [], transitions = {}, halfEnd = '' } = {}) {
+export function proposeDateAdjustments({ meetings = [], rules = [], exceptions = [], schoolCalendar = [], existingActivities = [], transitions = {}, halfEnd = '', allowSaturday = false } = {}) {
   const exceptionMap = new Map(exceptions.map((row) => [text(row.exception_date), row]));
   const blockedDates = blockedSchoolDates(schoolCalendar);
   // Apply enforce_end_time caps from the school calendar to every meeting's end_time
@@ -121,7 +121,7 @@ export function proposeDateAdjustments({ meetings = [], rules = [], exceptions =
       const candidateEndTime = effectiveEndTime(candidate, nominalEndTime, schoolCalendar);
       const row = { ...original, date: candidate, end_time: candidateEndTime };
       const exception = exceptionMap.get(candidate);
-      if (weekday(candidate) !== 6 && !blockedDates.has(candidate) && weeklyAllows(row, rules)
+      if ((weekday(candidate) !== 6 || allowSaturday) && !blockedDates.has(candidate) && weeklyAllows(row, rules)
         && !(exception && (!exception.available || minutes(row.start_time) < minutes(exception.start_time) || minutes(row.end_time) > minutes(exception.end_time)))) break;
       candidate = addDays(candidate, 7);
     }
