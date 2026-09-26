@@ -13,6 +13,11 @@ test('scheduling mobile view shows the complete work plan balance without duplic
   assert.match(mobileCss, /course-planning-workplan-balance\s*\{[\s\S]*grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/);
 });
 
+test('mobile workload cards label total planned work and peak week', () => {
+  assert.match(mobileCss, /is-load::before \{ content: "סה״כ מתוכנן"; \}/);
+  assert.match(mobileCss, /is-weekly::before \{ content: "שבוע שיא"; \}/);
+});
+
 test('scheduling instructor overview becomes mobile work cards without desktop operational columns', () => {
   assert.match(planning, /course-planning-completion-cell is-instructor/);
   assert.match(planning, /course-planning-completion-cell is-load/);
