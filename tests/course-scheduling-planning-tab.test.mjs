@@ -234,6 +234,56 @@ test('main scheduling workboard exposes only open, draft and assigned business s
   assert.match(html, /01\.09\.2026/);
 });
 
+test('stale shared planning is not presented as a current recommendation', () => {
+  const activities = [{
+    ...baseCourse,
+    row_id: 'stale-undated',
+    sessions: 10
+  }];
+  const state = {
+    user: { role: 'admin' },
+    courseSchedulingPlanningSharedLoaded: true,
+    courseSchedulingPlanningCalculatedAt: '25.9.2026, 10:35',
+    courseSchedulingPlanningStale: true,
+    courseSchedulingPlanningStaleReason: 'גרסת מנוע התכנון השתנתה מאז החישוב האחרון',
+    courseSchedulingPlanningRows: []
+  };
+  const html = courseSchedulingScreen.render({
+    activities,
+    instructors: [],
+    scheduling: {},
+    planningCatalog: [{
+      activity_name: baseCourse.activity_name,
+      meetings_count: 10,
+      hours_count: 15
+    }],
+    schoolCalendar: [],
+    meetingState: { loaded: true, approvedDates: new Map(), cancelledDates: new Map(), error: '' }
+  }, { state });
+
+  assert.match(html, /התכנון השמור אינו עדכני ולכן אינו מוצג כהמלצה/);
+  assert.match(html, /גרסת מנוע התכנון השתנתה מאז החישוב האחרון/);
+  assert.match(html, /חשב תכנון מחדש/);
+  assert.doesNotMatch(html, /data-planning-completion-overview/);
+  assert.match(html, /אין מועד קבוע מבית הספר — המערכת תציע תאריך, שעה ומדריך/);
+});
+
+test('unresolved planning rows stay collapsed and compact with an explicit reason column', () => {
+  const html = planningCompletionOverviewHtml([{
+    courseId: 'missing-1',
+    kind: 'missing',
+    courseName: 'ביומימיקרי',
+    school: 'בית ספר',
+    authority: 'רשות',
+    reason: 'חסר מסלול נסיעה מאומת'
+  }]);
+  assert.match(html, /1 פעילויות שדורשות טיפול נוסף/);
+  assert.match(html, /course-planning-workplan-unresolved-table/);
+  assert.match(html, /<th>סיבה<\/th>/);
+  assert.match(html, /חסר מסלול נסיעה מאומת/);
+  assert.doesNotMatch(html, /פעילויות שעדיין לא ניתן לכלול בתוכנית העבודה/);
+});
+
 test('planning draft confirmation is an atomic server-side promotion to final assignment', async () => {
   const sql = await readFile(planningDraftConfirmMigrationUrl, 'utf8');
   assert.match(sql, /create or replace function public\.confirm_scheduling_planning_draft/);
