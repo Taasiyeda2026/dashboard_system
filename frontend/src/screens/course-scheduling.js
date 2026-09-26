@@ -2599,6 +2599,14 @@ export const courseSchedulingScreen = {
           district: scope.district,
           expectedRevision: Number(state.courseSchedulingPlanningSharedRevision) || 0
         });
+        try {
+          await clearSharedPlanningCheckpoint({
+            periodKey: scope.periodKey,
+            district: scope.district
+          });
+        } catch {
+          // Hidden recovery data must never block an explicit workspace reset.
+        }
         clearCoursePlanning({ clearSharedMeta: true });
         data._planningSharedLoadedKey = '';
         await reloadSharedPlanningState({ refreshData: false });
