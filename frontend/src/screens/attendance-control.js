@@ -1905,7 +1905,11 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
     approvalsByEmployee = {};
     if (!api?.listPayrollControlApprovals || !result?.month) return;
     try {
-      const rows = await api.listPayrollControlApprovals({ monthKey: result.month });
+      const employeeIds = [...new Set([
+        ...(result.comparisons || []),
+        ...(result.notCompared || [])
+      ].map((entry) => txt(entry?.attendance?.employeeId)).filter(Boolean))];
+      const rows = await api.listPayrollControlApprovals({ monthKey: result.month, employeeIds });
       approvalsByEmployee = Object.fromEntries((rows || []).map((row) => [txt(row.employee_id), row]));
     } catch { approvalsByEmployee = {}; }
   };
