@@ -43,10 +43,43 @@
     block-size: 40px;
   }
 
-  .shell-top .act-nav-grid,
-  .shell-top .shell-header-nav,
+  /* Keep the header navigation available on mobile. The drawer is an additional
+     route to navigation, not a replacement for the quick tabs in the header. */
   .shell-top__end:empty {
     display: none;
+  }
+
+  .shell-top {
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .shell-top .shell-header-nav.ds-act-nav-grid--header {
+    display: flex;
+    order: 3;
+    flex: 0 0 100%;
+    inline-size: 100%;
+    min-inline-size: 0;
+    gap: 4px;
+    padding-block-start: 4px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .shell-top .shell-header-nav.ds-act-nav-grid--header::-webkit-scrollbar {
+    display: none;
+  }
+
+  .shell-top .shell-header-nav .ds-act-nav-item--header {
+    flex: 0 0 auto;
+    min-inline-size: max-content;
+    min-block-size: 34px;
+    padding: 6px 10px;
+    font-size: .72rem;
+    line-height: 1.1;
+    white-space: nowrap;
   }
 
   .shell-stage {
