@@ -1964,7 +1964,7 @@ export const courseSchedulingScreen = {
       const total = Number(progress.total) || 0;
       const completed = Number(progress.completed) || 0;
       const phase = text(progress.phase);
-      status.classList.remove('is-ready', 'is-error');
+      status.classList.remove('is-ready', 'is-warning', 'is-error');
       status.classList.add('is-working');
       status.setAttribute('aria-busy', 'true');
       message.textContent = total
