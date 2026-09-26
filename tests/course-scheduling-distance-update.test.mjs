@@ -17,7 +17,8 @@ import {
   translateSchedulingRouteError,
   runDistanceBuildLoop,
   emptyDistanceBuildStats,
-  mergeDistanceBuildStats
+  mergeDistanceBuildStats,
+  normalizePlaceKey
 } from '../frontend/src/screens/course-scheduling-distance-build.js';
 
 const schemaUrl = new URL('../supabase/migrations/20260802220000_course_scheduling_interface_schema.sql', import.meta.url);
@@ -122,6 +123,18 @@ test('build_cache mode is explicit and scheduling-route authorizes by scheduling
   assert.match(ts, /permissions\.view_operations_scheduling/);
   assert.match(ts, /hasSchedulingAccess/);
   assert.doesNotMatch(ts, /const hasSchedulingRole = \['admin', 'operation_manager'\]\.includes/);
+});
+
+test('route keys normalize locality hyphen and Daliyat al-Karmel spelling variants', async () => {
+  assert.equal(normalizePlaceKey('דאלית אל-כרמל'), 'דאלית אל כרמל');
+  assert.equal(normalizePlaceKey('דלית אל כרמל'), 'דאלית אל כרמל');
+  assert.equal(normalizePlaceKey('  דאלית   אל־כרמל  '), 'דאלית אל כרמל');
+
+  const ts = await readFile(edgeFunctionUrl, 'utf8');
+  assert.match(ts, /normalizeLocalityAlias/);
+  assert.match(ts, /דלית אל כרמל/);
+  assert.match(ts, /דאלית אל כרמל/);
+  assert.match(ts, /\\u05be/);
 });
 
 test('school dedup collapses duplicate school_id rows and prefers authority_id plus fuller address', () => {
