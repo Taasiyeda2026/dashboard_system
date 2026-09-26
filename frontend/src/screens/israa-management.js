@@ -453,12 +453,13 @@ function activitiesPanelHtml(settings = {}) {
   const cards = [];
   _rows.forEach((tracking) => {
     (Array.isArray(tracking.selected_activity_drafts) ? tracking.selected_activity_drafts : []).forEach((draft) => {
-      const shared = _sharedActivities.filter((a) => String(a.israa_tracking_id) === String(tracking.id)
-        && String(a.israa_source_item_id) === String(draft.proposal_item_id));
-      // Published rows belong to the main activities workspace only.
-      if (shared.length) return;
+      const sharedGroups = new Set(_sharedActivities
+        .filter((a) => String(a.israa_tracking_id) === String(tracking.id)
+          && String(a.israa_source_item_id) === String(draft.proposal_item_id))
+        .map((a) => Number(a.israa_group_number)));
       const quantity = Math.max(1, Number(draft.quantity) || 1);
       for (let groupNumber = 1; groupNumber <= quantity; groupNumber += 1) {
+        if (sharedGroups.has(groupNumber)) continue;
         const overrides = draft?.group_overrides && typeof draft.group_overrides === 'object' && !Array.isArray(draft.group_overrides)
           ? draft.group_overrides[String(groupNumber)]
           : null;
@@ -479,7 +480,7 @@ function activitiesPanelHtml(settings = {}) {
           activity_domain: 'E',
           status: 'פתוח'
         };
-        cards.push(`<section class="israa-activity-card" data-israa-editor-card data-israa-draft="${escapeHtml(draft.proposal_item_id)}" data-tracking-id="${escapeHtml(tracking.id)}">
+        cards.push(`<section class="israa-activity-card" data-israa-editor-card data-israa-draft="${escapeHtml(draft.proposal_item_id)}" data-tracking-id="${escapeHtml(tracking.id)}" data-israa-group-number="${groupNumber}">
           <header><strong>${escapeHtml(groupDraft.program_name || 'פעילות')}</strong><span>קבוצה ${groupNumber} מתוך ${quantity}</span></header>
           <div class="israa-existing-card">${israaActivityEditor(draftRow, settings)}</div><div class="israa-activity-actions"><button class="israa-btn israa-btn--primary" type="button" data-israa-share>שתף לפעילויות</button></div></section>`);
       }
@@ -1312,7 +1313,7 @@ export const israaManagementScreen = {
         const form = shareBtn.closest('[data-israa-draft]');
         shareBtn.disabled = true;
         try {
-          await api.shareIsraaActivity(form.dataset.trackingId, form.dataset.israaDraft);
+          await api.shareIsraaActivityGroup(form.dataset.trackingId, form.dataset.israaDraft, Number(form.dataset.israaGroupNumber));
           await refreshActivities();
         } catch (err) {
           _error = err.message || 'שגיאה בשיתוף הפעילות'; shareBtn.disabled = false;
