@@ -1800,7 +1800,7 @@ export function resultsHtml(result, month = '', options = {}) {
       { key: 'publicTransportCost', label: 'עלות תחבורה ציבורית', left: publicTransportCost, right: null, visible: publicTransport && publicTransportCost != null && publicTransportCost > 0 },
       { key: 'kilometers', label: 'ק״מ', left: attendanceKm, right: dashboardKm, visible: !publicTransport && (attendanceKm != null && attendanceKm > 0 || dashboardKm != null || diffByKey.has('kilometers')) },
       { key: 'expenses', label: 'הוצאות', left: attendanceExpenses, right: dashboardExpenses, visible: (attendanceExpenses != null && attendanceExpenses > 0) || (dashboardExpenses != null && dashboardExpenses > 0) || diffByKey.has('expenses') },
-      { key: 'expenseDetails', label: 'פירוט הוצאה', left: current.expenseDetails, right: null, visible: hasValue(current.expenseDetails) },
+      { key: 'expenseDetails', label: 'פירוט הוצאה', left: current.expenseDetails, right: null, visible: (attendanceExpenses != null && attendanceExpenses > 0) && hasValue(current.expenseDetails) },
       { key: 'notes', label: 'הערות', left: current.notes, right: null, visible: hasValue(current.notes) }
     ];
 
