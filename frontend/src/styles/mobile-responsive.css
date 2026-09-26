@@ -152,19 +152,53 @@
     background: #f8fbff;
   }
 
-  /* Activities: turn the existing source-of-truth rows into readable cards. */
-  .route-activities .ds-table-wrap:has(.ds-table--activities-list) {
-    overflow: visible;
+  /* Activities: dense, source-backed mobile cards. */
+  .route-activities .ds-card:has(.ds-table--activities-list) {
     border: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .route-activities .ds-card:has(.ds-table--activities-list) > .ds-card__head:has(.ds-card__title:empty) {
+    display: none;
+  }
+
+  .route-activities .ds-card:has(.ds-table--activities-list) > .ds-card__body {
+    padding: 0;
+    min-block-size: 0;
     background: transparent;
   }
 
-  .route-activities .ds-table--activities-list,
-  .route-activities .ds-table--activities-list tbody,
-  .route-activities .ds-table--activities-list tr,
-  .route-activities .ds-table--activities-list td {
+  .route-activities .ds-table-wrap:has(.ds-table--activities-list) {
+    overflow: visible;
+    inline-size: 100%;
+    min-inline-size: 0;
+    min-block-size: 0;
+    block-size: auto;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    scrollbar-gutter: auto;
+  }
+
+  .route-activities .ds-table--activities-list {
     display: block;
     inline-size: 100%;
+    min-inline-size: 0;
+    margin: 0;
+    border: 0;
+    border-spacing: 0;
+    table-layout: auto;
+  }
+
+  .route-activities .ds-table--activities-list tbody {
+    display: grid;
+    inline-size: 100%;
+    min-inline-size: 0;
+    margin: 0;
+    padding: 0;
+    gap: 8px;
   }
 
   .route-activities .ds-table--activities-list colgroup,
@@ -172,86 +206,164 @@
     display: none;
   }
 
-  .route-activities .ds-table--activities-list tbody {
-    display: grid;
-    gap: 10px;
-  }
-
   .route-activities .ds-table--activities-list .ds-activities-row {
     position: relative;
-    overflow: hidden;
-    padding: 12px 12px 10px;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+    gap: 3px 10px;
+    inline-size: 100%;
+    min-inline-size: 0;
+    min-block-size: 0;
+    padding: 10px 12px 9px;
     border: 1px solid #dbe7f3;
     border-radius: 14px;
     background: #fff;
-    box-shadow: 0 2px 8px rgba(15, 23, 42, .05);
+    box-shadow: 0 1px 4px rgba(15, 23, 42, .05);
   }
 
-  .route-activities .ds-table--activities-list .ds-activities-col {
+  /* Desktop table striping/hover is cell-based; cards own one clean background on mobile. */
+  .route-activities .ds-activities-screen .ds-table--activities-list tbody > tr > td.ds-activities-col,
+  .route-activities .ds-activities-screen .ds-table--activities-list tbody > tr:nth-child(even) > td.ds-activities-col,
+  .route-activities .ds-activities-screen .ds-table--activities-list tbody > tr:hover > td.ds-activities-col,
+  .route-activities .ds-activities-screen .ds-table--activities-list tbody > tr:active > td.ds-activities-col,
+  .route-activities .ds-activities-screen .ds-table--activities-list tbody > tr:focus-visible > td.ds-activities-col {
+    display: block;
+    inline-size: auto;
     min-inline-size: 0;
-    padding: 3px 0;
+    min-block-size: 0;
+    block-size: auto;
+    margin: 0;
+    padding: 0;
     border: 0;
+    background: transparent;
+    box-shadow: none;
     white-space: normal;
     text-align: start;
+    overflow: visible;
   }
 
   .route-activities .ds-activities-col--program {
-    padding-inline-end: 22px;
+    grid-column: 1 / -1;
+    min-block-size: 30px;
+    padding-inline-end: 74px;
+  }
+
+  .route-activities .ds-activities-program-cell {
+    gap: 1px;
+    min-inline-size: 0;
   }
 
   .route-activities .ds-activities-program-name {
-    font-size: .95rem;
+    display: block;
+    overflow: visible;
+    text-overflow: clip;
+    white-space: normal;
+    font-size: 1rem;
+    line-height: 1.2;
+    font-weight: 800;
+  }
+
+  .route-activities .ds-activities-program-type {
+    display: block;
+    overflow: visible;
+    text-overflow: clip;
+    white-space: normal;
+    margin-block-start: 1px;
+    font-size: .7rem;
+    line-height: 1.2;
+    color: #64748b;
   }
 
   .route-activities .ds-activities-col--authority,
   .route-activities .ds-activities-col--school {
-    display: inline-block;
-    inline-size: auto;
-    max-inline-size: 48%;
-    color: #475569;
-    font-size: .8rem;
+    max-inline-size: none;
+    color: #64748b;
+    font-size: .78rem;
+    line-height: 1.25;
   }
 
   .route-activities .ds-activities-col--authority::after {
-    content: " · ";
-    color: #94a3b8;
+    content: none;
   }
 
-  .route-activities .ds-activities-cell-ellipsis {
+  .route-activities .ds-activities-cell-ellipsis,
+  .route-activities .ds-activities-instructor-name,
+  .route-activities .ds-activities-manager-line {
     display: inline;
+    max-inline-size: 100%;
     overflow: visible;
+    text-overflow: clip;
     white-space: normal;
   }
 
   .route-activities .ds-activities-col--instructor,
-  .route-activities .ds-activities-col--date,
-  .route-activities .ds-activities-col--hours,
-  .route-activities .ds-activities-col--meetings,
-  .route-activities .ds-activities-col--contact-name,
-  .route-activities .ds-activities-col--grade,
-  .route-activities .ds-activities-col--notes {
-    margin-block-start: 5px;
-    padding-block-start: 7px;
+  .route-activities .ds-activities-col--date {
+    margin-block-start: 4px;
+    padding-block-start: 6px;
     border-block-start: 1px solid #eef2f7;
-    font-size: .8rem;
+    font-size: .78rem;
+    line-height: 1.25;
+  }
+
+  .route-activities .ds-activities-col--instructor {
+    align-self: center;
+  }
+
+  .route-activities .ds-activities-date {
+    display: inline;
+    text-align: start;
+  }
+
+  .route-activities .ds-chip--instructor-empty {
+    min-block-size: 20px;
+    padding: 1px 7px;
+    font-size: .66rem;
+  }
+
+  .route-activities .ds-table--activities-list .ds-activities-row:not(.is-mobile-expanded) > .ds-activities-col--date:has(.ds-activities-date--none) {
+    display: none;
+  }
+
+  .route-activities .ds-table--activities-list .ds-activities-row.is-mobile-expanded > [data-mobile-field="detail"] {
+    grid-column: 1 / -1;
+    margin-block-start: 3px;
+    padding-block-start: 6px;
+    border-block-start: 1px solid #eef2f7;
+    font-size: .77rem;
+    line-height: 1.35;
+  }
+
+  .route-activities .ds-table--activities-list .ds-activities-row.is-mobile-expanded > [data-mobile-field="detail"]::before {
+    content: attr(data-mobile-label);
+    display: inline-block;
+    min-inline-size: 76px;
+    margin-inline-end: 6px;
+    color: #64748b;
+    font-size: .68rem;
+    font-weight: 700;
   }
 
   [data-mobile-expandable-row]:not(.is-mobile-expanded) > [data-mobile-field="detail"] {
     display: none;
   }
 
-  .mobile-row-toggle {
-    float: inline-end;
+  .route-activities .mobile-row-toggle {
+    position: absolute;
+    inset-block-start: 9px;
+    inset-inline-end: 10px;
+    float: none;
     min-block-size: 28px;
-    margin-inline-start: 8px;
+    margin: 0;
     padding: 3px 8px;
     border: 1px solid #cbd5e1;
     border-radius: 999px;
     background: #f8fafc;
     color: #334155;
     font: inherit;
-    font-size: .74rem;
+    font-size: .72rem;
     font-weight: 700;
+    line-height: 1.2;
   }
 
   /* Proposal/client-file records use the same compact card-row language. */
