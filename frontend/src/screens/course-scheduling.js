@@ -2355,6 +2355,17 @@ export const courseSchedulingScreen = {
       return result;
     };
 
+    root.querySelectorAll('[data-planning-instructor-details-toggle]').forEach((button) => button.addEventListener('click', () => {
+      const detailKey = text(button.dataset.planningInstructorDetailsToggle);
+      if (!detailKey) return;
+      const detailRow = [...root.querySelectorAll('[data-planning-instructor-details]')]
+        .find((row) => text(row.dataset.planningInstructorDetails) === detailKey);
+      if (!detailRow) return;
+      const opening = detailRow.hidden;
+      detailRow.hidden = !opening;
+      button.setAttribute('aria-expanded', opening ? 'true' : 'false');
+    }));
+
     root.querySelectorAll('[data-planning-pick-option]').forEach((button) => button.addEventListener('click', async () => {
       if (state.courseSchedulingPlanningLoading || button.disabled) return;
       const courseId = text(button.dataset.planningCourseId);
