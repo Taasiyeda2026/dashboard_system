@@ -16,7 +16,7 @@ import {
   compareCandidatesStable
 } from './course-scheduling-score.js';
 import { normalizeOperationalDistrict } from './shared/district-normalization.js';
-import { filterSchoolCalendarRowsBySector } from './shared/school-calendar-logic.js';
+import { filterSchoolCalendarRowsBySector, normalizeCalendarSector } from './shared/school-calendar-logic.js';
 
 export { courseUrgency };
 
