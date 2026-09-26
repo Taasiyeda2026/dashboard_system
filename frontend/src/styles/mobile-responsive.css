@@ -781,15 +781,133 @@
     display: none;
   }
 
-  /* Existing dashboard/instructor cards only need tighter rhythm. */
+  /* Dashboard: keep all metrics, but remove mobile-only vertical waste. */
   .route-dashboard .ds-screen-stack,
   .route-instructors .ds-screen-stack {
+    gap: 8px;
+  }
+
+  .route-instructors .ds-card__body {
+    padding: 12px;
+  }
+
+  #app .route-dashboard .ds-dashboard-wrap [data-dash-data-area] {
     gap: 10px;
   }
 
-  .route-dashboard .ds-card__body,
-  .route-instructors .ds-card__body {
-    padding: 12px;
+  #app .route-dashboard .ds-dashboard-wrap [data-dash-data-area] > div[style*="margin-top: var(--ds-space-3)"] {
+    display: none;
+  }
+
+  #app .route-dashboard .ds-dashboard-wrap .ds-dashboard-kpi-rows {
+    display: grid;
+    gap: 8px;
+  }
+
+  #app .route-dashboard .ds-dashboard-wrap .ds-dashboard-kpi-grid,
+  #app .route-dashboard .ds-dashboard-wrap .ds-dashboard-kpi-grid--row2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    inline-size: 100%;
+    gap: 8px;
+    margin: 0;
+  }
+
+  #app .route-dashboard .ds-dashboard-wrap .ds-dashboard-kpi-grid > :last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+  }
+
+  #app .route-dashboard .ds-dashboard-wrap .ds-dashboard-kpi-grid .ds-interactive-card--kpi {
+    min-block-size: 80px;
+    padding: 8px 8px 7px;
+    border-radius: 12px;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, .05);
+  }
+
+  #app .route-dashboard .ds-dashboard-wrap .ds-dashboard-kpi-grid .ds-kpi-icon {
+    inline-size: 18px;
+    block-size: 18px;
+    margin-block-end: 2px;
+  }
+
+  #app .route-dashboard .ds-dashboard-wrap .ds-dashboard-kpi-grid .ds-kpi-icon svg {
+    inline-size: 18px;
+    block-size: 18px;
+  }
+
+  #app .route-dashboard .ds-dashboard-wrap .ds-dashboard-kpi-grid .ds-interactive-card__label {
+    font-size: .72rem;
+    line-height: 1.15;
+  }
+
+  #app .route-dashboard .ds-dashboard-wrap .ds-dashboard-kpi-grid .ds-interactive-card__value {
+    margin-block-start: 1px;
+    font-size: 1.38rem;
+    line-height: 1;
+  }
+
+  #app .route-dashboard .ds-dashboard-wrap .ds-kpi-info-btn {
+    inset-inline-start: 6px;
+    top: 6px;
+  }
+
+  #app .route-dashboard .ds-dashboard-wrap [data-dash-data-area] > .ds-card {
+    border-radius: 14px;
+    box-shadow: 0 1px 4px rgba(15, 23, 42, .05);
+  }
+
+  #app .route-dashboard .ds-dashboard-wrap [data-dash-data-area] > .ds-card > .ds-card__head {
+    min-block-size: 38px;
+    padding: 7px 11px;
+  }
+
+  #app .route-dashboard .ds-dashboard-wrap [data-dash-data-area] > .ds-card > .ds-card__head .ds-card__title {
+    font-size: .88rem;
+  }
+
+  #app .route-dashboard .ds-dashboard-wrap [data-dash-data-area] > .ds-card > .ds-card__body--padded {
+    padding: 8px;
+  }
+
+  #app .route-dashboard .ds-dashboard-wrap .ds-manager-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+  }
+
+  #app .route-dashboard .ds-dashboard-wrap .ds-manager-card {
+    border-radius: 12px;
+    box-shadow: none;
+  }
+
+  #app .route-dashboard .ds-dashboard-wrap .ds-manager-card__head {
+    min-block-size: 34px;
+    padding: 6px 10px;
+  }
+
+  #app .route-dashboard .ds-dashboard-wrap .ds-manager-card__name {
+    font-size: .82rem;
+  }
+
+  #app .route-dashboard .ds-dashboard-wrap .ds-manager-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 5px;
+    padding: 6px;
+  }
+
+  #app .route-dashboard .ds-dashboard-wrap .ds-manager-stat {
+    min-block-size: 50px;
+    gap: 2px;
+    padding: 5px 4px;
+    border-radius: 8px;
+  }
+
+  #app .route-dashboard .ds-dashboard-wrap .ds-manager-stat__label {
+    font-size: .66rem;
+    line-height: 1.15;
+  }
+
+  #app .route-dashboard .ds-dashboard-wrap .ds-manager-stat__value {
+    font-size: 1.12rem;
+    line-height: 1;
   }
 
   img,
