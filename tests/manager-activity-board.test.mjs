@@ -9,6 +9,7 @@ import { monthDayCardsHtml } from '../frontend/src/screens/shared/day-session-ca
 // verified via source-shape assertions here instead of importing them into a DOM-less node:test run.
 const runtimeSrc = fs.readFileSync(new URL('../frontend/src/manager-board-runtime.js', import.meta.url), 'utf8');
 const workspaceSrc = fs.readFileSync(new URL('../frontend/src/manager-board-workspace-runtime.js', import.meta.url), 'utf8');
+const trackingSrc = fs.readFileSync(new URL('../frontend/src/manager-board-employee-file-tracking.js', import.meta.url), 'utf8');
 const interactionsSrc = fs.readFileSync(new URL('../frontend/src/manager-board-interactions-runtime.js', import.meta.url), 'utf8');
 const monthSrc = fs.readFileSync(new URL('../frontend/src/screens/month.js', import.meta.url), 'utf8');
 const boardPolishCss = fs.readFileSync(new URL('../frontend/src/styles/manager-board-saas-polish.css', import.meta.url), 'utf8');
@@ -83,7 +84,7 @@ test('manager board KPI cards drop meetings-count and planned-hours, keep a stab
 
 test('active team strip renders inside the workspace shell, filtered by manager and active flag', () => {
   assert.ok(runtimeSrc.includes('צוות המדריכים הפעיל'));
-  assert.ok(runtimeSrc.includes('workspaceShellHtml(activeTeamStripHtml(activeTeamNames))'));
+  assert.ok(runtimeSrc.includes('workspaceShellHtml(activeTeamStripHtml(activeTeam, uniqueActivityRows.size))'));
   assert.ok(runtimeSrc.includes('INACTIVE_INSTRUCTOR_VALUES'));
 });
 
@@ -103,6 +104,29 @@ test('"תאריכים חשובים" replaces the ministry-calendar card and is n
 test('birthdays reuse the existing employee_birthdays loader instead of a new source', () => {
   assert.ok(runtimeSrc.includes("from './birthday-calendar.js'"));
   assert.ok(!runtimeSrc.includes('employee_birthdays'));
+});
+
+test('manager board core load is single-flight per activity period', () => {
+  assert.match(runtimeSrc, /const dataLoadPromises = new Map\(\)/);
+  assert.match(runtimeSrc, /if \(inFlightLoads\.has\(normalizedPeriod\)\) return inFlightLoads\.get\(normalizedPeriod\)/);
+  assert.match(runtimeSrc, /inFlightLoads\.set\(normalizedPeriod, trackedPromise\)/);
+  assert.match(runtimeSrc, /if \(inFlightLoads\.get\(normalizedPeriod\) === trackedPromise\) inFlightLoads\.delete\(normalizedPeriod\)/);
+});
+
+test('birthdays hydrate only the important-dates region after the usable board renders', () => {
+  const renderAssignment = runtimeSrc.indexOf('root.innerHTML = renderBoardMarkup');
+  const birthdayHydration = runtimeSrc.indexOf('void hydrateBoardBirthdays(root, data, requestId)', renderAssignment);
+  assert.ok(renderAssignment >= 0 && birthdayHydration > renderAssignment);
+  assert.match(runtimeSrc, /data-manager-board-important-dates/);
+  assert.match(runtimeSrc, /region\.innerHTML = renderImportantDates/);
+  const coreLoad = runtimeSrc.slice(runtimeSrc.indexOf('export function loadBoardData'), runtimeSrc.indexOf('function buildMeetingRows'));
+  assert.doesNotMatch(coreLoad, /loadActiveBirthdays/);
+});
+
+test('the removed monthly instructor panel is neither queried nor built', () => {
+  assert.doesNotMatch(runtimeSrc, /\.from\(['"]instructor_scheduling_profiles['"]\)/);
+  assert.doesNotMatch(runtimeSrc, /manager-board-panel--instructors/);
+  assert.doesNotMatch(runtimeSrc, /renderInstructorCards|instructorMonthStats/);
 });
 
 test('calendar day cell exposes a whole-cell click target with a clear activity count, not per-event handlers', () => {
@@ -151,27 +175,24 @@ test('מעקב צוות no longer calls the update RPC or binds any change handl
 });
 
 test('followup cell renders ✓ for a done status and stays empty for a missing one, straight from the roster row', () => {
-  assert.ok(workspaceSrc.includes(
-    "return `<td class=\"manager-workspace-followup-cell${row[field] ? ' is-done' : ''}\">${row[field] ? '<span aria-hidden=\"true\">✓</span>' : ''}</td>`;"
-  ));
+  assert.ok(trackingSrc.includes("const completed = row?.[field] === true"));
+  assert.ok(trackingSrc.includes("const display = completed ? '<span aria-hidden=\"true\">✓</span>'"));
 });
 
 test('FEMALE + police clearance renders a blocked, content-free cell with no checkbox and no text', () => {
-  assert.ok(workspaceSrc.includes("field === 'police_clearance_file_completed' && isFemaleInstructor(row)"));
-  assert.ok(workspaceSrc.includes('manager-workspace-followup-cell--blocked'));
-  assert.ok(workspaceSrc.includes(
-    "return '<td class=\"manager-workspace-followup-cell manager-workspace-followup-cell--blocked\" aria-label=\"לא רלוונטי\"></td>';"
-  ));
+  assert.ok(trackingSrc.includes("field === 'police_clearance_completed' && isFemale(row)"));
+  assert.ok(trackingSrc.includes('manager-workspace-followup-cell--blocked'));
+  assert.match(trackingSrc, /manager-workspace-followup-cell--blocked[^>]*aria-label="\$\{escapeHtml\(label\)\}: לא רלוונטי"[^>]*><\/td>/);
 });
 
 test('manager tracking reads police clearance from the SharePoint-derived roster column, not the manual followup table', () => {
-  assert.ok(workspaceSrc.includes("['police_clearance_file_completed', 'אישור משטרה']"));
-  assert.ok(!workspaceSrc.includes("row['police_clearance_confirmed']"));
+  assert.ok(trackingSrc.includes("{ field: 'police_clearance_completed', label: 'אישור משטרה' }"));
+  assert.ok(!trackingSrc.includes("row['police_clearance_confirmed']"));
 });
 
 test('gender check reads the real canonical field (instructor_scheduling_profiles.gender via the roster), never the instructor name', () => {
-  assert.ok(workspaceSrc.includes("text(row?.gender).toLowerCase() === 'female'"));
-  assert.ok(!workspaceSrc.includes('full_name.toLowerCase()'));
+  assert.ok(trackingSrc.includes("text(row?.gender).toLowerCase() === 'female'"));
+  assert.ok(!trackingSrc.includes('full_name.toLowerCase()'));
 });
 
 test('roster still reads through get_manager_team_roster only — no parallel data source was created for tracking', () => {
@@ -200,7 +221,7 @@ test('police_clearance is a canonical component at 01 הסכם ומסמכים/א
 
 // 3-4) completion is generic itemCount>0 truth from SharePoint — police_clearance isn't special-cased away from it.
 test('police_clearance completion is derived the same way as every other component: file count > 0', () => {
-  assert.ok(employeeFileLiveSrc.includes('completed: itemCount > 0,'));
+  assert.ok(employeeFileLiveSrc.includes('completed: scan.count > 0,'));
   assert.ok(!/police_clearance[\s\S]{0,80}completed:\s*(true|false)[,\s]/i.test(employeeFileLiveSrc));
 });
 
