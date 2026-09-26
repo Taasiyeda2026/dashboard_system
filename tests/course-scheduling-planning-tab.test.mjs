@@ -399,7 +399,7 @@ test('planning scenarios offer dynamic dates and hours while respecting first-ha
   }
   assert.deepEqual(
     [...new Set(generated.scenarios.map((scenario) => new Date(`${scenario.startDate}T12:00:00Z`).getUTCDay()))].sort(),
-    [0, 1, 2, 3, 4]
+    [0, 1, 2, 3, 4, 5]
   );
 });
 
