@@ -145,9 +145,8 @@ export function constraintsForm(row) {
   const profile = row.scheduling_profile || {};
   const weekly = INSTRUCTOR_WEEKDAYS.map((day) => {
     const rule = defaultRule(row, day.value);
-    const saturday = day.value === 6;
-    const disabled = saturday || !rule.available;
-    return `<div class="instructor-constraints__day" data-weekday-row="${day.value}"><strong>${escapeHtml(day.label)}</strong><label class="instructor-constraints__available"><input type="checkbox" name="available"${rule.available && !saturday ? ' checked' : ''}${saturday ? ' disabled' : ''}> ${saturday ? 'חסום' : 'זמין'}</label><label><span>משעה</span><input class="ds-input ds-input--sm" type="time" name="start_time" value="${escapeHtml(String(rule.start_time || '08:00').slice(0,5))}"${disabled ? ' disabled' : ''}></label><label><span>עד שעה</span><input class="ds-input ds-input--sm" type="time" name="end_time" value="${escapeHtml(String(rule.end_time || '15:00').slice(0,5))}"${disabled ? ' disabled' : ''}></label></div>`;
+    const disabled = !rule.available;
+    return `<div class="instructor-constraints__day" data-weekday-row="${day.value}"><strong>${escapeHtml(day.label)}</strong><label class="instructor-constraints__available"><input type="checkbox" name="available"${rule.available ? ' checked' : ''}> זמין</label><label><span>משעה</span><input class="ds-input ds-input--sm" type="time" name="start_time" value="${escapeHtml(String(rule.start_time || '08:00').slice(0,5))}"${disabled ? ' disabled' : ''}></label><label><span>עד שעה</span><input class="ds-input ds-input--sm" type="time" name="end_time" value="${escapeHtml(String(rule.end_time || '15:00').slice(0,5))}"${disabled ? ' disabled' : ''}></label></div>`;
   }).join('');
   const exceptions = (row.availability_exceptions || []).map((item) => `<div class="instructor-constraints__exception"><span><strong>${escapeHtml(formatDateHe(item.exception_date))}</strong> — ${item.available ? `זמין ${timeRangeHtml(item.start_time, item.end_time)}` : 'חסום'}${item.notes ? ` · ${escapeHtml(item.notes)}` : ''}</span><button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-delete-availability-exception="${escapeHtml(item.id)}">מחיקה</button></div>`).join('');
   return `<form class="instructor-constraints" dir="rtl" data-instructor-constraints-form>
