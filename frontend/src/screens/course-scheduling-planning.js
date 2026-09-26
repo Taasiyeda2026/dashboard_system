@@ -27,7 +27,7 @@ const MAX_TIME_SLOTS_PER_WEEKDAY = 10;
 const MAX_SCENARIOS_PER_COURSE = 60;
 const MAX_CANDIDATES_PER_SCENARIO = 4;
 const MAX_ROUTED_PLANNING_PAIRS = 12;
-const MAX_FINAL_OPTIONS = 3;
+const MAX_FINAL_OPTIONS = 6;
 export const PLANNING_OPTIMIZATION_WEIGHTS = Object.freeze({
   continuity: 30,
   capacity: 25,
@@ -35,7 +35,7 @@ export const PLANNING_OPTIMIZATION_WEIGHTS = Object.freeze({
   geography: 15,
   stability: 10
 });
-export const PLANNING_ENGINE_VERSION = 'planning-v14-20260926-global-optimization';
+export const PLANNING_ENGINE_VERSION = 'planning-v15-20260926-date-time-instructor-options';
 export const PLANNING_ACTIVITY_NO_ALIASES = Object.freeze({
   // Legacy Gefen identifier retained on existing activities; canonical catalog program is 53828.
   '82835': '53828'
@@ -723,7 +723,7 @@ function* generatePlanningScenarioSteps({
   for (const empId of activeIds) {
     for (const rule of rules[empId] || []) {
       const day = Number(rule.weekday);
-      if (rule.available === true && day >= 0 && day <= 5) {
+      if (rule.available === true && day >= 0 && day <= 6 && (day !== 6 || activityAllowsSaturday(activity))) {
         uncoveredAvailability.add(`${empId}|${day}`);
       }
     }
@@ -759,7 +759,7 @@ function* generatePlanningScenarioSteps({
 
   // Also retain at least one option for every weekday even when no currently
   // active instructor has a rule there, then fill the rest by the normal score.
-  for (const day of [0, 1, 2, 3, 4, 5]) {
+  for (const day of candidateWeekdays) {
     const option = sorted.find((scenario) => weekday(scenario.startDate) === day);
     if (option) addScenario(option);
   }
