@@ -77,8 +77,7 @@ function weeklySummary(row) {
   const byDay = new Map((row.availability_rules || []).map((rule) => [Number(rule.weekday), rule]));
   return INSTRUCTOR_WEEKDAYS.map((day) => {
     const rule = byDay.get(day.value);
-    if (!rule) return `<div>${escapeHtml(day.label)}: טרם הוגדר</div>`;
-    if (!rule.available) return `<div>${escapeHtml(day.label)}: לא זמין</div>`;
+    if (!rule || !rule.available) return `<div>${escapeHtml(day.label)}: לא זמין</div>`;
     return `<div>${escapeHtml(day.label)}: ${timeRangeHtml(rule.start_time, rule.end_time)}</div>`;
   });
 }
@@ -89,7 +88,7 @@ export function schedulingProfileMissingFields(row = {}) {
   if (!text(row.address)) missing.push('כתובת');
   if (!profile?.gender) missing.push('מגדר');
   if (!profile?.instruction_languages?.length) missing.push('שפות הדרכה');
-  if (!row.availability_rules?.length) missing.push('זמינות שבועית');
+  if (!(row.availability_rules || []).some((rule) => rule?.available && rule?.start_time && rule?.end_time)) missing.push('זמינות שבועית');
   return missing;
 }
 
