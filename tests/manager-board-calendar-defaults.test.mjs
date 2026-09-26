@@ -95,3 +95,112 @@ test('rendered instructor controls carry emp_id and directly open the instructor
 
   assert.deepEqual(opened, ['731', '731']);
 });
+
+function createBoardDataClient({ gate = Promise.resolve(), failFirstActivities = false } = {}) {
+  const counts = new Map();
+  const client = {
+    from(table) {
+      counts.set(table, (counts.get(table) || 0) + 1);
+      const invocation = counts.get(table);
+      const result = table === 'activities' && failFirstActivities && invocation === 1
+        ? { data: null, error: { message: 'activities failed' } }
+        : { data: [], error: null };
+      const query = {
+        select() { return query; },
+        in() { return query; },
+        eq() { return query; },
+        order() { return query; },
+        then(resolve, reject) { return gate.then(() => result).then(resolve, reject); }
+      };
+      return query;
+    }
+  };
+  return { client, counts };
+}
+
+test('loadBoardData shares one query set and clears in-flight state after success and failure', async () => {
+  const [, { loadBoardData }] = await loadInteractiveRuntimes();
+  let release;
+  const gate = new Promise((resolve) => { release = resolve; });
+  const success = createBoardDataClient({ gate });
+  const successCache = new Map();
+  const successInFlight = new Map();
+  const dependencies = {
+    supabaseClient: success.client,
+    waitForAuth: async () => ({ user: { id: 'test-user' } }),
+    dataCache: successCache,
+    dataLoadPromises: successInFlight
+  };
+
+  const first = loadBoardData('school_2027', dependencies);
+  const second = loadBoardData('school_2027', dependencies);
+  assert.strictEqual(second, first);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(Object.fromEntries(success.counts), {
+    activities: 1,
+    contacts_instructors: 1,
+    school_calendar: 1,
+    users: 1
+  });
+  release();
+  const [firstResult, secondResult] = await Promise.all([first, second]);
+  assert.strictEqual(secondResult, firstResult);
+  assert.equal(successInFlight.size, 0);
+
+  const retry = createBoardDataClient({ failFirstActivities: true });
+  const retryDependencies = {
+    supabaseClient: retry.client,
+    waitForAuth: async () => ({ user: { id: 'test-user' } }),
+    dataCache: new Map(),
+    dataLoadPromises: new Map()
+  };
+  await assert.rejects(loadBoardData('school_2027', retryDependencies), /activities failed/);
+  assert.equal(retryDependencies.dataLoadPromises.size, 0);
+  await loadBoardData('school_2027', retryDependencies);
+  assert.equal(retryDependencies.dataLoadPromises.size, 0);
+  assert.deepEqual(Object.fromEntries(retry.counts), {
+    activities: 2,
+    contacts_instructors: 2,
+    school_calendar: 2,
+    users: 2
+  });
+});
+
+test('birthday hydration updates only the live board region and ignores stale results', async () => {
+  const [, { hydrateBoardBirthdays }] = await loadInteractiveRuntimes();
+  const root = document.getElementById('screenRoot');
+  const mount = () => {
+    root.innerHTML = '<section data-manager-board-root data-manager-board-ym="2026-09"><div data-manager-board-important-dates>initial</div></section>';
+    return root.querySelector('[data-manager-board-important-dates]');
+  };
+  const data = { schoolCalendar: [], birthdays: [] };
+
+  let region = mount();
+  await hydrateBoardBirthdays(root, data, 1, {
+    loadBirthdays: async () => [{ employee_name: 'רותי', birth_day: 10, birth_month: 9 }],
+    isCurrentRequest: () => true
+  });
+  assert.match(region.textContent, /רותי/);
+  assert.equal(root.querySelector('.manager-board-screen--loading'), null);
+
+  region = mount();
+  let release;
+  let current = true;
+  const delayedRows = new Promise((resolve) => { release = resolve; });
+  const staleHydration = hydrateBoardBirthdays(root, data, 2, {
+    loadBirthdays: () => delayedRows,
+    isCurrentRequest: () => current
+  });
+  current = false;
+  release([{ employee_name: 'תוצאה ישנה', birth_day: 11, birth_month: 9 }]);
+  await staleHydration;
+  assert.equal(region.textContent, 'initial');
+
+  region = mount();
+  await hydrateBoardBirthdays(root, data, 3, {
+    loadBirthdays: async () => { throw new Error('birthday read failed'); },
+    isCurrentRequest: () => true
+  });
+  assert.match(region.textContent, /אין תאריכים חשובים/);
+  assert.equal(root.querySelector('.manager-board-screen--loading'), null);
+});

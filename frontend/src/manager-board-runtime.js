@@ -60,6 +60,7 @@ let observer = null;
 let observerTimer = null;
 let lastRenderedSignature = '';
 const dataCache = new Map();
+const dataLoadPromises = new Map();
 const instructorCenterCache = new Map();
 let instructorCenterRenderToken = 0;
 
@@ -200,12 +201,6 @@ function escapeAttr(value) {
   return escapeHtml(normalizedText(value));
 }
 
-function instructorKey(empId, name) {
-  const id = normalizedText(empId);
-  if (id) return `id:${id}`;
-  return `name:${normalizedName(name)}`;
-}
-
 function pickManagerForSelf(managerNames) {
   const ownName = currentUserName();
   if (!ownName) return '';
@@ -276,66 +271,72 @@ function safeRows(result) {
   return result.data;
 }
 
-async function loadBoardData(period) {
-  if (!supabase) throw new Error('Supabase client is not configured.');
+export function loadBoardData(period, dependencies = {}) {
+  const client = dependencies.supabaseClient ?? supabase;
+  const waitForAuth = dependencies.waitForAuth ?? waitForSupabaseAuthSession;
+  const resultCache = dependencies.dataCache ?? dataCache;
+  const inFlightLoads = dependencies.dataLoadPromises ?? dataLoadPromises;
+  if (!client) return Promise.reject(new Error('Supabase client is not configured.'));
   const normalizedPeriod = normalizeGlobalActivityPeriod(period);
-  const cached = dataCache.get(normalizedPeriod);
-  if (cached && Date.now() - cached.loadedAt < BOARD_CACHE_TTL_MS) return cached.data;
+  const cached = resultCache.get(normalizedPeriod);
+  if (cached && Date.now() - cached.loadedAt < BOARD_CACHE_TTL_MS) return Promise.resolve(cached.data);
+  if (inFlightLoads.has(normalizedPeriod)) return inFlightLoads.get(normalizedPeriod);
 
-  await waitForSupabaseAuthSession({ timeoutMs: 7000 }).catch(() => null);
+  const loadPromise = (async () => {
+    await waitForAuth({ timeoutMs: 7000 }).catch(() => null);
 
-  const seasons = activitySeasonQueryValues(normalizedPeriod);
-  const activityQuery = supabase
-    .from('activities')
-    .select(ACTIVITY_SELECT)
-    .in('activity_season', seasons)
-    .order('activity_manager', { ascending: true, nullsFirst: false });
+    const seasons = activitySeasonQueryValues(normalizedPeriod);
+    const activityQuery = client
+      .from('activities')
+      .select(ACTIVITY_SELECT)
+      .in('activity_season', seasons)
+      .order('activity_manager', { ascending: true, nullsFirst: false });
 
-  const instructorsQuery = supabase
-    .from('contacts_instructors')
-    .select('emp_id,full_name,direct_manager,active');
+    const instructorsQuery = client
+      .from('contacts_instructors')
+      .select('emp_id,full_name,direct_manager,active');
 
-  const profileQuery = supabase
-    .from('instructor_scheduling_profiles')
-    .select('emp_id,weekly_target_hours,weekly_max_hours,preferred_work_days,max_fixed_courses');
+    const calendarQuery = client
+      .from('school_calendar')
+      .select('id,title,category,calendar_sector,start_date,end_date,resume_date,day_status,school_day_end_time,blocks_scheduling,enforce_end_time,show_on_main_calendar,is_active')
+      .eq('is_active', true)
+      .eq('show_on_main_calendar', true);
 
-  const calendarQuery = supabase
-    .from('school_calendar')
-    .select('id,title,category,calendar_sector,start_date,end_date,resume_date,day_status,school_day_end_time,blocks_scheduling,enforce_end_time,show_on_main_calendar,is_active')
-    .eq('is_active', true)
-    .eq('show_on_main_calendar', true);
+    const managerUsersQuery = client
+      .from('users')
+      .select('user_id,name,full_name,role,is_active')
+      .eq('role', 'activities_manager')
+      .eq('is_active', true);
 
-  const managerUsersQuery = supabase
-    .from('users')
-    .select('user_id,name,full_name,role,is_active')
-    .eq('role', 'activities_manager')
-    .eq('is_active', true);
+    const [activitiesResult, instructorsResult, calendarResult, managerUsersResult] = await Promise.all([
+      activityQuery,
+      instructorsQuery,
+      calendarQuery,
+      managerUsersQuery
+    ]);
 
-  const [activitiesResult, instructorsResult, profileResult, calendarResult, managerUsersResult, birthdayRows] = await Promise.all([
-    activityQuery,
-    instructorsQuery,
-    profileQuery,
-    calendarQuery,
-    managerUsersQuery,
-    loadActiveBirthdays().catch(() => [])
-  ]);
+    if (activitiesResult.error) {
+      throw new Error(activitiesResult.error.message || 'לא ניתן לטעון פעילויות');
+    }
 
-  if (activitiesResult.error) {
-    throw new Error(activitiesResult.error.message || 'לא ניתן לטעון פעילויות');
-  }
+    const data = {
+      period: normalizedPeriod,
+      activities: safeRows(activitiesResult).filter((activity) => !isClosedActivity(activity)),
+      instructors: safeRows(instructorsResult),
+      schoolCalendar: safeRows(calendarResult),
+      managerUsers: safeRows(managerUsersResult),
+      birthdays: []
+    };
 
-  const data = {
-    period: normalizedPeriod,
-    activities: safeRows(activitiesResult).filter((activity) => !isClosedActivity(activity)),
-    instructors: safeRows(instructorsResult),
-    profiles: safeRows(profileResult),
-    schoolCalendar: safeRows(calendarResult),
-    managerUsers: safeRows(managerUsersResult),
-    birthdays: Array.isArray(birthdayRows) ? birthdayRows : []
-  };
+    resultCache.set(normalizedPeriod, { data, loadedAt: Date.now() });
+    return data;
+  })();
 
-  dataCache.set(normalizedPeriod, { data, loadedAt: Date.now() });
-  return data;
+  const trackedPromise = loadPromise.finally(() => {
+    if (inFlightLoads.get(normalizedPeriod) === trackedPromise) inFlightLoads.delete(normalizedPeriod);
+  });
+  inFlightLoads.set(normalizedPeriod, trackedPromise);
+  return trackedPromise;
 }
 
 function buildMeetingRows(activities, ym) {
@@ -456,104 +457,6 @@ function schoolCalendarEventsForMonth(events, ym) {
     }
   });
   return rows;
-}
-
-function profileMap(data) {
-  return new Map((data?.profiles || []).map((profile) => [normalizedText(profile?.emp_id), profile]));
-}
-
-function instructorMonthStats(meetings, data) {
-  const stats = new Map();
-  const profiles = profileMap(data);
-
-  const addInstructor = (empId, name, meeting) => {
-    const cleanName = normalizedText(name);
-    if (!cleanName) return;
-    const key = instructorKey(empId, cleanName);
-    if (!stats.has(key)) {
-      const profile = profiles.get(normalizedText(empId));
-      stats.set(key, {
-        key,
-        empId: normalizedText(empId),
-        name: cleanName,
-        meetings: 0,
-        hours: 0,
-        knownHours: 0,
-        courseKeys: new Set(),
-        profile
-      });
-    }
-    const item = stats.get(key);
-    item.meetings += 1;
-    if (meeting.durationHours != null) {
-      item.hours += meeting.durationHours;
-      item.knownHours += 1;
-    }
-    item.courseKeys.add(normalizedText(meeting.activity?.row_id || meeting.activity?.id));
-  };
-
-  meetings.forEach((meeting) => {
-    addInstructor(meeting.activity?.emp_id, meeting.activity?.instructor_name, meeting);
-    addInstructor(meeting.activity?.emp_id_2, meeting.activity?.instructor_name_2, meeting);
-  });
-
-  return [...stats.values()]
-    .map((item) => ({
-      ...item,
-      courses: item.courseKeys.size,
-      monthlyTargetHours: Number(item.profile?.weekly_target_hours) > 0
-        ? Number(item.profile.weekly_target_hours) * 4.33
-        : null
-    }))
-    .sort((a, b) => {
-      if (b.meetings !== a.meetings) return b.meetings - a.meetings;
-      return a.name.localeCompare(b.name, 'he');
-    });
-}
-
-function ringPercent(item) {
-  if (!item.monthlyTargetHours || item.knownHours === 0) return 0;
-  return Math.max(0, Math.min(100, Math.round((item.hours / item.monthlyTargetHours) * 100)));
-}
-
-function plannedHoursText(hours, knownCount) {
-  if (!knownCount) return '—';
-  const rounded = Math.round(hours * 10) / 10;
-  return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
-}
-
-function renderInstructorCards(stats) {
-  if (!stats.length) {
-    return '<div class="manager-board-empty manager-board-empty--compact">אין מדריכים משובצים בחודש הנבחר.</div>';
-  }
-
-  return stats.map((item) => {
-    const pct = ringPercent(item);
-    const hours = plannedHoursText(item.hours, item.knownHours);
-    const target = item.monthlyTargetHours
-      ? Math.round(item.monthlyTargetHours * 10) / 10
-      : null;
-    const targetLine = target
-      ? `${hours} מתוך יעד ${target} ש׳`
-      : item.knownHours
-        ? `${hours} שעות מתוכננות`
-        : 'שעות לא הוגדרו בפעילויות';
-
-    return `
-      <article class="manager-board-instructor-card" data-manager-instructor-emp-id="${escapeAttr(item.empId)}">
-        <div class="manager-board-ring" style="--manager-ring-pct:${pct}" aria-label="${escapeAttr(`${pct}% מהיעד החודשי`)}">
-          <div class="manager-board-ring__inner">
-            <strong>${escapeHtml(hours)}</strong>
-            <span>שעות</span>
-          </div>
-        </div>
-        <div class="manager-board-instructor-card__text">
-          <button type="button" class="manager-board-instructor-card__name" data-instructor-id="${escapeAttr(item.empId)}" data-manager-instructor-center-open="true">${escapeHtml(item.name)}</button>
-          <span>${item.courses} פעילויות · ${item.meetings} מפגשים</span>
-          <small>${escapeHtml(targetLine)}</small>
-        </div>
-      </article>`;
-  }).join('');
 }
 
 export function managerMilestoneLabel(meeting) {
@@ -814,12 +717,8 @@ function renderBoardMarkup(data, manager, ym) {
   const meetings = buildMeetingRows(activities, ym);
   const nextYm = shiftMonth(ym, 1);
   const nextMonthMeetings = buildMeetingRows(activities, nextYm);
-  const instructorStats = instructorMonthStats(meetings, data);
   const schoolEvents = schoolCalendarEventsForMonth(data.schoolCalendar, ym);
   const managerNames = managerNamesFromData(data);
-  const configuredTeam = (data.instructors || []).filter((instructor) =>
-    normalizedName(instructor?.direct_manager) === normalizedName(manager)
-  );
   const uniqueActivityRows = new Set(activities.map((activity) => normalizedText(activity.row_id || activity.id)).filter(Boolean));
   const activeTeam = activeTeamForManager(data, manager);
 
@@ -879,21 +778,26 @@ function renderBoardMarkup(data, manager, ym) {
                 <h2>תאריכים חשובים</h2>
               </div>
             </div>
-            <div class="manager-board-school-events">${renderImportantDates(importantDateEntries(schoolEvents, data.birthdays, ym))}</div>
+            <div class="manager-board-school-events" data-manager-board-important-dates>${renderImportantDates(importantDateEntries(schoolEvents, data.birthdays, ym))}</div>
           </section>
         </aside>
       </div>
-
-      <section class="manager-board-panel manager-board-panel--instructors">
-        <div class="manager-board-panel__head">
-          <div>
-            <h2>מדריכים החודש</h2>
-            <p>מוצגים רק מדריכים שיש להם מפגש מתוכנן אצל המנהל בחודש הנבחר.</p>
-          </div>
-        </div>
-        <div class="manager-board-instructors">${renderInstructorCards(instructorStats)}</div>
-      </section>
     </section>`;
+}
+
+export async function hydrateBoardBirthdays(root, data, requestId, dependencies = {}) {
+  const loadBirthdays = dependencies.loadBirthdays ?? loadActiveBirthdays;
+  const isCurrentRequest = dependencies.isCurrentRequest
+    ?? (() => requestId === boardRequestId && managerBoardOpen);
+  const rows = await loadBirthdays().catch(() => []);
+  if (!isCurrentRequest() || !root.isConnected) return;
+  const boardRoot = root.querySelector('[data-manager-board-root]');
+  const region = boardRoot?.querySelector('[data-manager-board-important-dates]');
+  if (!boardRoot || !region) return;
+  data.birthdays = Array.isArray(rows) ? rows : [];
+  const ym = normalizedText(boardRoot.dataset.managerBoardYm) || selectedYm;
+  const schoolEvents = schoolCalendarEventsForMonth(data.schoolCalendar, ym);
+  region.innerHTML = renderImportantDates(importantDateEntries(schoolEvents, data.birthdays, ym));
 }
 
 function instructorSchoolYear(period) {
@@ -1033,6 +937,7 @@ function renderError(root, error) {
     </section>`;
   root.querySelector('[data-manager-board-retry]')?.addEventListener('click', () => {
     dataCache.clear();
+    dataLoadPromises.clear();
     void renderManagerBoard(true);
   });
 }
@@ -1163,6 +1068,7 @@ async function renderManagerBoard(force = false) {
     lastRenderedSignature = signature;
     bindBoardControls(root, data);
     setBoardActiveNav();
+    void hydrateBoardBirthdays(root, data, requestId);
   } catch (error) {
     if (requestId !== boardRequestId || !managerBoardOpen) return;
     renderError(root, error);
@@ -1284,6 +1190,7 @@ function handleDocumentClick(event) {
     selectedManager = '';
     selectedYm = '';
     dataCache.clear();
+    dataLoadPromises.clear();
     instructorCenterCache.clear();
     instructorCenterRenderToken += 1;
   }
