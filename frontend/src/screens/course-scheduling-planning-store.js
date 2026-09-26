@@ -97,6 +97,71 @@ export function sharedPlanningAffectedCourseIds({
   return [...changed];
 }
 
+export async function loadSharedPlanningCheckpoint({
+  periodKey = 'year',
+  district = '',
+  engineVersion = '',
+  dataFingerprint = '',
+  contextFingerprint = ''
+} = {}) {
+  const { data, error } = await supabase.rpc('get_scheduling_planning_checkpoint', {
+    p_period_key: text(periodKey) || 'year',
+    p_district: text(district),
+    p_engine_version: text(engineVersion),
+    p_data_fingerprint: text(dataFingerprint),
+    p_context_fingerprint: text(contextFingerprint)
+  });
+  if (error) throw error;
+  if (!data) return null;
+  return {
+    completedCount: Math.max(0, Number(data.completedCount) || 0),
+    totalCount: Math.max(0, Number(data.totalCount) || 0),
+    completedActivityIds: Array.isArray(data.completedActivityIds)
+      ? data.completedActivityIds.map(text).filter(Boolean)
+      : [],
+    rows: Array.isArray(data.rows) ? data.rows : [],
+    updatedAt: text(data.updatedAt)
+  };
+}
+
+export async function saveSharedPlanningCheckpoint({
+  periodKey = 'year',
+  district = '',
+  engineVersion = '',
+  dataFingerprint = '',
+  contextFingerprint = '',
+  completedCount = 0,
+  totalCount = 0,
+  completedActivityIds = [],
+  rows = []
+} = {}) {
+  const { data, error } = await supabase.rpc('save_scheduling_planning_checkpoint', {
+    p_period_key: text(periodKey) || 'year',
+    p_district: text(district),
+    p_engine_version: text(engineVersion),
+    p_data_fingerprint: text(dataFingerprint),
+    p_context_fingerprint: text(contextFingerprint),
+    p_completed_count: Math.max(0, Number(completedCount) || 0),
+    p_total_count: Math.max(0, Number(totalCount) || 0),
+    p_completed_activity_ids: (completedActivityIds || []).map(text).filter(Boolean),
+    p_rows: Array.isArray(rows) ? rows : []
+  });
+  if (error) throw error;
+  return data || null;
+}
+
+export async function clearSharedPlanningCheckpoint({
+  periodKey = 'year',
+  district = ''
+} = {}) {
+  const { data, error } = await supabase.rpc('clear_scheduling_planning_checkpoint', {
+    p_period_key: text(periodKey) || 'year',
+    p_district: text(district)
+  });
+  if (error) throw error;
+  return data === true;
+}
+
 export async function saveSharedPlanningSnapshot({
   periodKey = 'year',
   district = '',
