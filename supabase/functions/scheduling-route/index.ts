@@ -252,7 +252,7 @@ function buildInstructorSchoolPairs(instructors: InstructorRow[], schools: Schoo
         authority_id: school.authority_id,
         origin_address: originAddress,
         destination_address: destinationAddress,
-        query_origin_address: originAddress,
+        query_origin_address: buildGoogleAddressQuery({ address: originAddress }),
         query_destination_address: buildGoogleAddressQuery({
           schoolName: school.school_name,
           address: destinationAddress,
@@ -1576,14 +1576,14 @@ Deno.serve(async (req) => {
       address: origin,
       authorityName: originAuthorityName
     })
-    : origin;
+    : buildGoogleAddressQuery({ address: origin });
   const queryDestination = destinationSchoolName || destinationAuthorityName
     ? buildGoogleAddressQuery({
       schoolName: destinationSchoolName,
       address: destination,
       authorityName: destinationAuthorityName
     })
-    : destination;
+    : buildGoogleAddressQuery({ address: destination });
 
   const originKey = cacheKey(origin);
   const destinationKey = cacheKey(destination);
