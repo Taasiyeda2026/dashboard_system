@@ -13,6 +13,14 @@
   zoom: 0.75;
 }
 
+@media (min-width: 1051px) {
+  /* Desktop density: make browser 100% feel like the current preferred 80% view.
+     This stays scoped to dashboard content and does not scale the app shell/sidebar. */
+  #app .ds-dashboard-wrap {
+    zoom: 0.60;
+  }
+}
+
 #app .ds-dashboard-wrap > .ds-dash-header {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;

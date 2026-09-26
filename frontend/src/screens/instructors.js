@@ -53,6 +53,19 @@ const INSTRUCTORS_LIST_STYLES = `.instructors-list{display:flex;flex-direction:c
 .instructor-card__employee-file-action:focus-visible{outline:2px solid currentColor;outline-offset:1px}
 .instructor-card__employee-file-action--male{color:#278b9b}.instructor-card__employee-file-action--female{color:#c47f98}.instructor-card__employee-file-action--neutral{color:#7b8794}
 .employee-file{display:grid;gap:14px;min-width:min(360px,80vw)}.employee-file__list{display:grid;gap:0;margin:0;padding:0;list-style:none;border:1px solid #e1e6eb;border-radius:10px;overflow:hidden}.employee-file__row{display:flex;align-items:center;justify-content:space-between;gap:16px;min-height:42px;padding:7px 12px;border-bottom:1px solid #edf0f3}.employee-file__row:last-child{border-bottom:0}.employee-file__presence{display:grid;place-items:center;width:24px;height:24px;padding:0;border-radius:50%;cursor:pointer}.employee-file__presence--completed{border:0;background:#e7f4ef;color:#27735b;font-weight:800}.employee-file__presence--empty{box-sizing:border-box;border:1.5px solid #aeb7c1;background:#f7f8f9}.employee-file__payroll{display:inline-flex;align-items:center;gap:7px;color:#52606d}.employee-file__payroll button{width:25px;height:25px;padding:0;border:1px solid #d5dbe1;border-radius:6px;background:#fff;cursor:pointer}.employee-file__link-editor{display:flex;align-items:end;gap:7px}.employee-file__link-editor label{display:grid;flex:1;gap:4px;font-size:.78rem}.employee-file__open{justify-self:start}.employee-file__link-note{font-size:.78rem;color:#7b8794}.employee-file__status{min-height:18px;margin:0;font-size:.78rem;color:#596575}
+@media(min-width:901px){
+.instructors-list{gap:7px}
+.instructors-list__toolbar{gap:7px;padding-bottom:7px}
+.instructors-workspace-grid{gap:10px}
+.instructor-card-shell{min-height:78px}
+.instructor-card{min-height:78px;gap:3px;padding:9px 9px}
+.instructor-card__name{font-size:.94rem}
+.instructor-card__id{font-size:.69rem}
+.instructor-card__stats{gap:8px;margin-top:1px}
+.instructor-card__stat{font-size:.69rem}
+.instructor-card__stat strong{font-size:.71rem}
+.instructor-card__employee-file-action{top:6px;left:6px;width:28px;height:28px}
+}
 @media(max-width:900px){.instructors-workspace-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:600px){.instructors-workspace-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}`;
 
