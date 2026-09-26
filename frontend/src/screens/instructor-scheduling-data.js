@@ -97,12 +97,18 @@ export async function saveInstructorWeeklyRules(empId, rules) {
   const rows = (Array.isArray(rules) ? rules : []).map((rule) => {
     const weekday = Number(rule?.weekday);
     const available = !!rule?.available;
+    const startTime = available ? normalizeTime(rule?.start_time, null) : null;
+    const endTime = available ? normalizeTime(rule?.end_time, null) : null;
+    if (available && (!startTime || !endTime || endTime <= startTime)) {
+      const dayLabel = INSTRUCTOR_WEEKDAYS.find((day) => day.value === weekday)?.label || 'היום שנבחר';
+      throw new Error(`יש להגדיר שעת התחלה ושעת סיום תקינות עבור ${dayLabel}.`);
+    }
     return {
       emp_id: safeEmpId,
       weekday,
       available,
-      start_time: available ? normalizeTime(rule?.start_time, '08:00') : null,
-      end_time: available ? normalizeTime(rule?.end_time, '15:00') : null,
+      start_time: startTime,
+      end_time: endTime,
       notes: String(rule?.notes || '').trim() || null,
       updated_at: new Date().toISOString()
     };

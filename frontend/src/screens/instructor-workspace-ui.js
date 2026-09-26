@@ -77,8 +77,7 @@ function weeklySummary(row) {
   const byDay = new Map((row.availability_rules || []).map((rule) => [Number(rule.weekday), rule]));
   return INSTRUCTOR_WEEKDAYS.map((day) => {
     const rule = byDay.get(day.value);
-    if (!rule) return `<div>${escapeHtml(day.label)}: טרם הוגדר</div>`;
-    if (!rule.available) return `<div>${escapeHtml(day.label)}: לא זמין</div>`;
+    if (!rule || !rule.available) return `<div>${escapeHtml(day.label)}: לא זמין</div>`;
     return `<div>${escapeHtml(day.label)}: ${timeRangeHtml(rule.start_time, rule.end_time)}</div>`;
   });
 }
@@ -89,7 +88,7 @@ export function schedulingProfileMissingFields(row = {}) {
   if (!text(row.address)) missing.push('כתובת');
   if (!profile?.gender) missing.push('מגדר');
   if (!profile?.instruction_languages?.length) missing.push('שפות הדרכה');
-  if (!row.availability_rules?.length) missing.push('זמינות שבועית');
+  if (!(row.availability_rules || []).some((rule) => rule?.available && rule?.start_time && rule?.end_time)) missing.push('זמינות שבועית');
   return missing;
 }
 
@@ -110,7 +109,7 @@ export function profileHtml(row, activities, canEdit, schedulingLoaded) {
   return `<div dir="rtl" class="instructor-profile">
     ${profileMissing.length ? `<p class="scheduling-warning"><b>חסר להשלמה:</b> ${escapeHtml(profileMissing.join(', '))}.</p>` : ''}
     <section class="instructor-profile__section"><div class="instructor-profile__section-head"><h3>פרטי מדריך</h3>${canEdit ? '<button type="button" class="ds-btn ds-btn--sm instructor-profile__action" data-edit-instructor-contact>עריכת פרטים</button>' : ''}</div><div class="instructor-profile__fields">${field('נייד', row.mobile || row.phone, 'ltr')}${field('דוא״ל', row.email, 'ltr')}${field('כתובת', row.address)}${field('סוג העסקה', row.employment_type)}${field('ותק', formatInstructorSeniority(row.seniority_years))}${field('מנהל ישיר', row.direct_manager)}</div></section>
-    <section class="instructor-profile__section"><div class="instructor-profile__section-head"><h3>זמינות ואילוצים</h3>${canEdit ? '<button type="button" class="ds-btn ds-btn--sm ds-btn--primary instructor-profile__action" data-edit-instructor-constraints>עדכון אילוצים</button>' : ''}</div>${schedulingLoaded ? `<div class="instructor-profile__availability">${weeklySummary(row).join('')}</div><div class="ds-muted">ברירת מחדל: ${timeRangeHtml(profile.default_start_time || '08:00', profile.default_end_time || '15:00')} · יום שישי: ${profile.friday_allowed ? 'מאושר' : 'חריג בלבד'} · ${exceptions.length} חריגים</div>` : '<p class="ds-muted">אזור האילוצים אינו זמין לחשבון זה.</p>'}</section>
+    <section class="instructor-profile__section"><div class="instructor-profile__section-head"><h3>זמינות ואילוצים</h3>${canEdit ? '<button type="button" class="ds-btn ds-btn--sm ds-btn--primary instructor-profile__action" data-edit-instructor-constraints>עדכון אילוצים</button>' : ''}</div>${schedulingLoaded ? `<div class="instructor-profile__availability">${weeklySummary(row).join('')}</div>${exceptions.length ? `<div class="ds-muted">${exceptions.length} חריגים לפי תאריך</div>` : ''}` : '<p class="ds-muted">אזור האילוצים אינו זמין לחשבון זה.</p>'}</section>
     <section style="display:grid;gap:10px"><div style="display:flex;justify-content:space-between;align-items:center"><h3 style="margin:0">התאמה לשיבוץ</h3>${canEdit ? '<button type="button" class="ds-btn ds-btn--sm ds-btn--primary" data-edit-instructor-matching>עריכת התאמה</button>' : ''}</div><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:9px">${field('מגדר', profile.gender === 'female' ? 'מדריכה' : profile.gender === 'male' ? 'מדריך' : 'טרם הוגדר')}${field('שפות הדרכה', (profile.instruction_languages || []).map(v => v === 'he' ? 'עברית' : 'ערבית').join(', '))}</div>${profile.matching_note ? `<p class="ds-muted">הערה פנימית: ${escapeHtml(profile.matching_note)}</p>` : ''}</section>
     <section style="display:grid;gap:10px"><h3 style="margin:0">פעילויות פעילות ועתידיות <span class="ds-badge">${activities.length}</span></h3>${activitiesHtml(activities)}</section>
   </div>`;
@@ -137,8 +136,7 @@ export function contactForm(row) {
 function defaultRule(row, weekday) {
   const hit = (row.availability_rules || []).find((rule) => Number(rule.weekday) === weekday);
   if (hit) return hit;
-  const profile = row.scheduling_profile || {};
-  return { weekday, available: weekday <= 4, start_time: profile.default_start_time || '08:00', end_time: profile.default_end_time || '15:00' };
+  return { weekday, available: false, start_time: '', end_time: '' };
 }
 
 export function constraintsForm(row) {
@@ -146,12 +144,11 @@ export function constraintsForm(row) {
   const weekly = INSTRUCTOR_WEEKDAYS.map((day) => {
     const rule = defaultRule(row, day.value);
     const disabled = !rule.available;
-    return `<div class="instructor-constraints__day" data-weekday-row="${day.value}"><strong>${escapeHtml(day.label)}</strong><label class="instructor-constraints__available"><input type="checkbox" name="available"${rule.available ? ' checked' : ''}> זמין</label><label><span>משעה</span><input class="ds-input ds-input--sm" type="time" name="start_time" value="${escapeHtml(String(rule.start_time || '08:00').slice(0,5))}"${disabled ? ' disabled' : ''}></label><label><span>עד שעה</span><input class="ds-input ds-input--sm" type="time" name="end_time" value="${escapeHtml(String(rule.end_time || '15:00').slice(0,5))}"${disabled ? ' disabled' : ''}></label></div>`;
+    return `<div class="instructor-constraints__day" data-weekday-row="${day.value}"><strong>${escapeHtml(day.label)}</strong><label class="instructor-constraints__available"><input type="checkbox" name="available"${rule.available ? ' checked' : ''}> זמין</label><label><span>משעה</span><input class="ds-input ds-input--sm" type="time" name="start_time" value="${escapeHtml(String(rule.start_time || '').slice(0,5))}"${disabled ? ' disabled' : ''}></label><label><span>עד שעה</span><input class="ds-input ds-input--sm" type="time" name="end_time" value="${escapeHtml(String(rule.end_time || '').slice(0,5))}"${disabled ? ' disabled' : ''}></label></div>`;
   }).join('');
   const exceptions = (row.availability_exceptions || []).map((item) => `<div class="instructor-constraints__exception"><span><strong>${escapeHtml(formatDateHe(item.exception_date))}</strong> — ${item.available ? `זמין ${timeRangeHtml(item.start_time, item.end_time)}` : 'חסום'}${item.notes ? ` · ${escapeHtml(item.notes)}` : ''}</span><button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-delete-availability-exception="${escapeHtml(item.id)}">מחיקה</button></div>`).join('');
   return `<form class="instructor-constraints" dir="rtl" data-instructor-constraints-form>
-    <section class="instructor-constraints__card"><h3>שעות ברירת מחדל</h3><div class="instructor-constraints__defaults"><label><span>שעת התחלה</span><input class="ds-input" type="time" name="default_start_time" value="${escapeHtml(String(profile.default_start_time || '08:00').slice(0,5))}"></label><label><span>שעת סיום</span><input class="ds-input" type="time" name="default_end_time" value="${escapeHtml(String(profile.default_end_time || '15:00').slice(0,5))}"></label><label class="instructor-constraints__friday"><input type="checkbox" name="friday_allowed"${profile.friday_allowed ? ' checked' : ''}> אישור שיבוץ ביום שישי כחריג</label></div><label class="instructor-constraints__notes"><span>הערה פנימית</span><textarea class="ds-input" name="notes" rows="2">${escapeHtml(profile.notes || '')}</textarea></label></section>
-    <section class="instructor-constraints__card"><h3>זמינות שבועית</h3><div class="instructor-constraints__week">${weekly}</div></section>
+    <section class="instructor-constraints__card"><h3>זמינות שבועית</h3><p class="ds-muted" style="margin:0 0 8px">מסמנים רק את ימי העבודה הרלוונטיים ומגדירים לכל יום את שעות הזמינות.</p><div class="instructor-constraints__week">${weekly}</div><label class="instructor-constraints__notes"><span>הערה פנימית</span><textarea class="ds-input" name="notes" rows="2">${escapeHtml(profile.notes || '')}</textarea></label></section>
     <section class="instructor-constraints__card"><h3>חריגים לפי תאריך</h3><div class="instructor-constraints__exceptions">${exceptions || '<span class="ds-muted">לא הוגדרו חריגים.</span>'}</div><div class="instructor-constraints__exception-form"><label>תאריך<input class="ds-input ds-input--sm" type="date" name="exception_date"></label><label>סוג<select class="ds-input ds-input--sm" name="exception_available"><option value="no">חסום</option><option value="yes">זמין בשעות מיוחדות</option></select></label><label>משעה<input class="ds-input ds-input--sm" type="time" name="exception_start_time" value="08:00"></label><label>עד שעה<input class="ds-input ds-input--sm" type="time" name="exception_end_time" value="15:00"></label><label class="instructor-constraints__exception-note">הערה<input class="ds-input ds-input--sm" name="exception_notes"></label><button type="button" class="ds-btn ds-btn--sm" data-add-availability-exception>הוספת חריג</button></div></section>
     <p class="instructor-constraints__status" role="alert" data-constraints-status hidden></p>
   </form>`;

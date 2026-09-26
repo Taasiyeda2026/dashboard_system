@@ -35,7 +35,7 @@ export const PLANNING_OPTIMIZATION_WEIGHTS = Object.freeze({
   geography: 15,
   stability: 10
 });
-export const PLANNING_ENGINE_VERSION = 'planning-v12-20260926-arab-saturday';
+export const PLANNING_ENGINE_VERSION = 'planning-v13-20260926-explicit-weekly-availability';
 export const PLANNING_ACTIVITY_NO_ALIASES = Object.freeze({
   // Legacy Gefen identifier retained on existing activities; canonical catalog program is 53828.
   '82835': '53828'
@@ -615,11 +615,8 @@ function* generatePlanningScenarioSteps({
   const scenarioActiveIds = activeInstructorIds(instructors);
   const scenarioBlockingActivities = blockingActivities(activities);
   const scenarioBlockingMeetings = blockingMeetings(scenarioBlockingActivities);
-  const fridayPossible = scenarioActiveIds.size > 0 && instructors.some((instructor) => {
-    const empId = text(instructor.emp_id);
-    return !!profiles[empId]?.friday_allowed
-      && (rules[empId] || []).some((rule) => Number(rule.weekday) === 5 && rule.available === true);
-  });
+  const candidateWeekdays = [0, 1, 2, 3, 4, 5, 6]
+    .filter((day) => day !== 6 || activityAllowsSaturday(activity));
   const fixedStartMinute = timeMinutes(activity.start_time);
   const fixedEndMinute = timeMinutes(activity.end_time);
   const fixedStartTime = fixedStartMinute != null
@@ -658,7 +655,7 @@ function* generatePlanningScenarioSteps({
       yield;
     }
   } else {
-    for (const day of fridayPossible ? [0, 1, 2, 3, 4, 5] : [0, 1, 2, 3, 4]) {
+    for (const day of candidateWeekdays) {
       const times = fixedStartTime
         ? [fixedStartTime]
         : dynamicTimesForWeekday({
@@ -1699,7 +1696,6 @@ export function estimatedPlanningInstructorCount({
       if (rule.available !== true) return false;
       const day = Number(rule.weekday);
       if (fixedDay != null && day !== fixedDay) return false;
-      if (day === 5 && !profiles[empId]?.friday_allowed) return false;
       if (fixedStart && fixedEnd) return ruleCovers(rule, fixedStart, fixedEnd);
       const from = timeMinutes(rule.start_time);
       const to = timeMinutes(rule.end_time);
