@@ -33,6 +33,23 @@ const MAX_SCENARIOS_PER_COURSE = 60;
 const MAX_CANDIDATES_PER_SCENARIO = 4;
 const MAX_ROUTED_PLANNING_PAIRS = 6;
 const MAX_FINAL_OPTIONS = 6;
+const FAST_PLANNING_LIMITS = Object.freeze({
+  maxScenarios: 12,
+  maxCandidatesPerScenario: 3,
+  maxRoutedPlanningPairs: 4,
+  maxFinalOptions: 3,
+  runGlobalRepair: false
+});
+const DEEP_PLANNING_LIMITS = Object.freeze({
+  maxScenarios: MAX_SCENARIOS_PER_COURSE,
+  maxCandidatesPerScenario: MAX_CANDIDATES_PER_SCENARIO,
+  maxRoutedPlanningPairs: MAX_ROUTED_PLANNING_PAIRS,
+  maxFinalOptions: MAX_FINAL_OPTIONS,
+  runGlobalRepair: true
+});
+function planningLimits(profile = 'deep') {
+  return text(profile).toLowerCase() === 'fast' ? FAST_PLANNING_LIMITS : DEEP_PLANNING_LIMITS;
+}
 export const PLANNING_OPTIMIZATION_WEIGHTS = Object.freeze({
   continuity: 30,
   capacity: 25,
@@ -1004,7 +1021,8 @@ async function evaluateScenarioOptions({
   routeClient,
   checkpoint = async () => {},
   signal = null,
-  periodKey = DEFAULT_PLANNING_PERIOD_KEY
+  periodKey = DEFAULT_PLANNING_PERIOD_KEY,
+  limits = DEEP_PLANNING_LIMITS
 } = {}) {
   const preliminaries = [];
   for (let index = 0; index < scenarios.length; index += 1) {
@@ -1020,7 +1038,7 @@ async function evaluateScenarioOptions({
       schoolCalendar,
       referenceDate: today
     }).map((item) => item.candidate).filter(Boolean).sort(compareCandidatesStable)
-      .slice(0, MAX_CANDIDATES_PER_SCENARIO);
+      .slice(0, limits.maxCandidatesPerScenario);
     for (const candidate of candidates) {
       preliminaries.push({
         course,
@@ -1047,8 +1065,8 @@ async function evaluateScenarioOptions({
   let routeVerified = false;
   let routeServiceFailed = false;
 
-  for (let offset = 0; offset < preliminaries.length && options.length < MAX_FINAL_OPTIONS; offset += MAX_ROUTED_PLANNING_PAIRS) {
-    const batch = preliminaries.slice(offset, offset + MAX_ROUTED_PLANNING_PAIRS);
+  for (let offset = 0; offset < preliminaries.length && options.length < limits.maxFinalOptions; offset += limits.maxRoutedPlanningPairs) {
+    const batch = preliminaries.slice(offset, offset + limits.maxRoutedPlanningPairs);
     let routed = null;
     try {
       routed = await calculateCandidateTravel(
@@ -1100,11 +1118,11 @@ async function evaluateScenarioOptions({
       if (optionKeys.has(key)) continue;
       optionKeys.add(key);
       options.push({ ...option, _candidate: finalCandidate });
-      if (options.length >= MAX_FINAL_OPTIONS) break;
+      if (options.length >= limits.maxFinalOptions) break;
     }
   }
 
-  const sortedOptions = options.sort(optionCompare).slice(0, MAX_FINAL_OPTIONS);
+  const sortedOptions = options.sort(optionCompare).slice(0, limits.maxFinalOptions);
   const exhaustive = routedAttemptCount >= preliminaries.length;
   return {
     options: sortedOptions,
@@ -1127,7 +1145,8 @@ async function evaluateFixedCourse({
   routeClient,
   checkpoint = async () => {},
   signal = null,
-  periodKey = DEFAULT_PLANNING_PERIOD_KEY
+  periodKey = DEFAULT_PLANNING_PERIOD_KEY,
+  limits = DEEP_PLANNING_LIMITS
 } = {}) {
   const calendarRows = courseCalendarRows(activity, schoolCalendar);
   const blocked = blockedSchoolDates(calendarRows);
@@ -1180,8 +1199,8 @@ async function evaluateFixedCourse({
   let routeVerified = false;
   let routeServiceFailed = false;
 
-  for (let offset = 0; offset < ranked.length && options.length < MAX_FINAL_OPTIONS; offset += MAX_ROUTED_PLANNING_PAIRS) {
-    const batch = ranked.slice(offset, offset + MAX_ROUTED_PLANNING_PAIRS);
+  for (let offset = 0; offset < ranked.length && options.length < limits.maxFinalOptions; offset += limits.maxRoutedPlanningPairs) {
+    const batch = ranked.slice(offset, offset + limits.maxRoutedPlanningPairs);
     let routed = null;
     try {
       routed = await calculateCandidateTravel(
@@ -1231,11 +1250,11 @@ async function evaluateFixedCourse({
       if (optionKeys.has(key)) continue;
       optionKeys.add(key);
       options.push({ ...option, _candidate: finalCandidate });
-      if (options.length >= MAX_FINAL_OPTIONS) break;
+      if (options.length >= limits.maxFinalOptions) break;
     }
   }
 
-  const sortedOptions = options.filter(Boolean).sort(optionCompare).slice(0, MAX_FINAL_OPTIONS);
+  const sortedOptions = options.filter(Boolean).sort(optionCompare).slice(0, limits.maxFinalOptions);
   const exhaustive = routedAttemptCount >= ranked.length;
   return {
     options: sortedOptions,
@@ -2079,8 +2098,10 @@ export async function buildDynamicCoursePlan({
   checkpoint = createPlanningCheckpoint({ signal }),
   resumeFromCheckpoint = false,
   _repairPass = false,
-  _repairPriorityIds = []
+  _repairPriorityIds = [],
+  planningProfile = 'deep'
 } = {}) {
+  const limits = planningLimits(planningProfile);
   const report = async (phase, completed = 0, total = 0, courseId = '', rows = null) => {
     if (typeof onProgress === 'function') {
       await onProgress({ phase, completed, total, courseId, rows });
@@ -2211,7 +2232,8 @@ export async function buildDynamicCoursePlan({
         routeClient,
         checkpoint,
         signal,
-        periodKey: activityPeriodKey
+        periodKey: activityPeriodKey,
+        limits
       });
       const options = evaluation.options || [];
       const chosen = options[0] || null;
@@ -2292,7 +2314,8 @@ export async function buildDynamicCoursePlan({
           routeClient,
           checkpoint,
           signal,
-          periodKey: activityPeriodKey
+          periodKey: activityPeriodKey,
+          limits
         });
         const options = evaluation.options || [];
         const chosen = options[0] || null;
@@ -2340,6 +2363,16 @@ export async function buildDynamicCoursePlan({
   const initialResult = summarize(rows, { repairApplied: _repairPass });
   if (_repairPass || (incrementalIds && !resumeFromCheckpoint)) return initialResult;
 
+  if (!limits.runGlobalRepair) return {
+    ...initialResult,
+    globalOptimization: {
+      applied: false,
+      before: planningGlobalObjective(rows),
+      after: planningGlobalObjective(rows),
+      gain: 0
+    }
+  };
+
   const repairPriorityIds = planningGlobalRepairPriorityIds(rows);
   const hasCriticalRepairNeed = rows.some((row) =>
     ['recruitment', 'missing', 'fixed'].includes(text(row?.kind))
@@ -2381,7 +2414,8 @@ export async function buildDynamicCoursePlan({
     checkpoint,
     resumeFromCheckpoint: false,
     _repairPass: true,
-    _repairPriorityIds: repairPriorityIds
+    _repairPriorityIds: repairPriorityIds,
+    planningProfile
   });
 
   const beforeObjective = planningGlobalObjective(rows);
