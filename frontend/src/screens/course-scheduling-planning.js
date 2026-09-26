@@ -721,6 +721,7 @@ function* generatePlanningScenarioSteps({
             durationMinutes: spec.durationMinutes,
             activity,
             instructors,
+            profiles,
             rules,
             activities,
             activeIds: scenarioActiveIds,
