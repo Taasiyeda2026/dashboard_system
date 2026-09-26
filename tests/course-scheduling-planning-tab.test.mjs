@@ -501,7 +501,7 @@ test('planning scenarios offer dynamic dates and hours while respecting first-ha
   }
   assert.deepEqual(
     [...new Set(generated.scenarios.map((scenario) => new Date(`${scenario.startDate}T12:00:00Z`).getUTCDay()))].sort(),
-    [0, 1, 2, 3, 4, 5]
+    [0, 1, 2, 3, 4]
   );
 });
 
@@ -872,22 +872,22 @@ test('recruitment overview exposes workload language days and training need with
       kind: 'recruitment',
       requiredLanguage: 'ar',
       requiredGender: 'any',
-      startDate: '2026-10-17',
-      endDate: '2026-10-17',
+      startDate: '2026-10-13',
+      endDate: '2026-10-20',
       startTime: '08:00',
       endTime: '09:30',
       meetings: [
-        { date: '2026-10-10', start_time: '08:00', end_time: '09:30' },
-        { date: '2026-10-17', start_time: '08:00', end_time: '09:30' }
+        { date: '2026-10-13', start_time: '08:00', end_time: '09:30' },
+        { date: '2026-10-20', start_time: '08:00', end_time: '09:30' }
       ],
       scheduleOptions: [{
-        startDate: '2026-10-17',
-        endDate: '2026-10-17',
+        startDate: '2026-10-13',
+        endDate: '2026-10-20',
         startTime: '08:00',
         endTime: '09:30',
         meetings: [
-          { date: '2026-10-10', start_time: '08:00', end_time: '09:30' },
-          { date: '2026-10-17', start_time: '08:00', end_time: '09:30' }
+          { date: '2026-10-13', start_time: '08:00', end_time: '09:30' },
+          { date: '2026-10-20', start_time: '08:00', end_time: '09:30' }
         ]
       }]
     }
@@ -896,9 +896,10 @@ test('recruitment overview exposes workload language days and training need with
   assert.match(html, /<details class="course-planning-recruitment-models">/);
   assert.doesNotMatch(html, /<details class="course-planning-recruitment-models" open/);
   assert.match(html, /תכנון לגיוס ולהכשרה/);
+  assert.match(html, /תקני גיוס מוצעים/);
   assert.match(html, /2 מפגשים · 3 ש׳/);
   assert.match(html, /שפה: ערבית/);
-  assert.match(html, /שבת/);
+  assert.match(html, /ג׳/);
   assert.doesNotMatch(html, /instructorEmpId/);
 });
 
@@ -1932,6 +1933,122 @@ test('recruitment packing reuses one hiring model for compatible activities inst
   assert.equal(rows[0].recruitmentProfileSize, 2);
   assert.equal(rows[1].recruitmentProfileSize, 2);
   assert.ok(rows.every((row) => row.startDate && row.startTime));
+});
+
+
+test('recruitment capacity reuses a district slot for a later January activity and never mixes districts', () => {
+  const rows = assignRecruitmentProfiles([
+    {
+      courseId: 'south-oct', courseName: 'ביומימיקרי', school: 'א', authority: 'שדרות', district: 'דרום',
+      kind: 'recruitment', requiredLanguage: 'he', requiredGender: 'any',
+      scheduleOptions: [{ startDate: '2026-10-12', endDate: '2026-10-26', startTime: '08:00', endTime: '09:30', meetings: [
+        { date: '2026-10-12', start_time: '08:00', end_time: '09:30' },
+        { date: '2026-10-19', start_time: '08:00', end_time: '09:30' },
+        { date: '2026-10-26', start_time: '08:00', end_time: '09:30' }
+      ] }]
+    },
+    {
+      courseId: 'south-jan', courseName: 'טכנולוגיות החלל', school: 'ב', authority: 'קריית גת', district: 'דרום',
+      kind: 'recruitment', requiredLanguage: 'he', requiredGender: 'any',
+      schoolDateAnchored: true,
+      scheduleOptions: [{ startDate: '2027-01-11', endDate: '2027-01-25', startTime: '08:00', endTime: '09:30', meetings: [
+        { date: '2027-01-11', start_time: '08:00', end_time: '09:30' },
+        { date: '2027-01-18', start_time: '08:00', end_time: '09:30' },
+        { date: '2027-01-25', start_time: '08:00', end_time: '09:30' }
+      ] }]
+    },
+    {
+      courseId: 'north-oct', courseName: 'פורצות דרך', school: 'ג', authority: 'נהרייה', district: 'צפון',
+      kind: 'recruitment', requiredLanguage: 'he', requiredGender: 'any',
+      scheduleOptions: [{ startDate: '2026-10-13', endDate: '2026-10-27', startTime: '08:00', endTime: '09:30', meetings: [
+        { date: '2026-10-13', start_time: '08:00', end_time: '09:30' },
+        { date: '2026-10-20', start_time: '08:00', end_time: '09:30' },
+        { date: '2026-10-27', start_time: '08:00', end_time: '09:30' }
+      ] }]
+    }
+  ]);
+  assert.equal(rows[0].recruitmentProfileId, rows[1].recruitmentProfileId);
+  assert.notEqual(rows[0].recruitmentProfileId, rows[2].recruitmentProfileId);
+  assert.match(rows[0].recruitmentProfileLabel, /תקן גיוס דרום/);
+  assert.match(rows[2].recruitmentProfileLabel, /תקן גיוס צפון/);
+  assert.equal(rows[1].startDate, '2027-01-11');
+});
+
+test('flexible recruitment never uses Friday or Saturday as a default schedule choice', () => {
+  const rows = assignRecruitmentProfiles([{
+    courseId: 'weekend-flex', courseName: 'קורס', school: 'א', authority: 'רחובות', district: 'מרכז',
+    kind: 'recruitment', requiredLanguage: 'he', requiredGender: 'any',
+    scheduleOptions: [
+      { startDate: '2026-10-16', endDate: '2026-10-30', startTime: '08:00', endTime: '09:30', meetings: [
+        { date: '2026-10-16', start_time: '08:00', end_time: '09:30' },
+        { date: '2026-10-23', start_time: '08:00', end_time: '09:30' },
+        { date: '2026-10-30', start_time: '08:00', end_time: '09:30' }
+      ] },
+      { startDate: '2026-10-20', endDate: '2026-11-03', startTime: '08:00', endTime: '09:30', meetings: [
+        { date: '2026-10-20', start_time: '08:00', end_time: '09:30' },
+        { date: '2026-10-27', start_time: '08:00', end_time: '09:30' },
+        { date: '2026-11-03', start_time: '08:00', end_time: '09:30' }
+      ] }
+    ]
+  }]);
+  assert.equal(new Date(`${rows[0].startDate}T12:00:00Z`).getUTCDay(), 2);
+});
+
+test('planning offers Friday only for an instructor explicitly allowed and available on Friday', () => {
+  const noFriday = generatePlanningScenarios({
+    activity: { ...baseCourse, sessions: 2 },
+    catalog,
+    instructors: [instructor],
+    profiles: profileMap,
+    rules: { 1: [...ruleMap[1], { emp_id: 1, weekday: 5, available: true, start_time: '08:00', end_time: '14:00' }] },
+    activities: [],
+    schoolCalendar: [],
+    today: '2026-09-23',
+    periodKey: 'first'
+  });
+  assert.equal(noFriday.scenarios.some((scenario) => new Date(`${scenario.startDate}T12:00:00Z`).getUTCDay() === 5), false);
+
+  const yesFriday = generatePlanningScenarios({
+    activity: { ...baseCourse, sessions: 2 },
+    catalog,
+    instructors: [instructor],
+    profiles: { 1: { ...profileMap[1], friday_allowed: true } },
+    rules: { 1: [...ruleMap[1], { emp_id: 1, weekday: 5, available: true, start_time: '08:00', end_time: '14:00' }] },
+    activities: [],
+    schoolCalendar: [],
+    today: '2026-09-23',
+    periodKey: 'first'
+  });
+  assert.equal(yesFriday.scenarios.some((scenario) => new Date(`${scenario.startDate}T12:00:00Z`).getUTCDay() === 5), true);
+});
+
+test('planning offers Saturday only for Arab-sector activity with explicit Saturday availability', () => {
+  const saturdayRules = { 1: [...ruleMap[1], { emp_id: 1, weekday: 6, available: true, start_time: '08:00', end_time: '14:00' }] };
+  const arab = generatePlanningScenarios({
+    activity: { ...baseCourse, calendar_sector: 'arab', sessions: 2 },
+    catalog,
+    instructors: [instructor],
+    profiles: profileMap,
+    rules: saturdayRules,
+    activities: [],
+    schoolCalendar: [],
+    today: '2026-09-23',
+    periodKey: 'first'
+  });
+  assert.equal(arab.scenarios.some((scenario) => new Date(`${scenario.startDate}T12:00:00Z`).getUTCDay() === 6), true);
+
+  const general = generatePlanningScenarios({
+    activity: { ...baseCourse, calendar_sector: 'general', sessions: 2 },
+    catalog,
+    instructors: [instructor],
+    profiles: profileMap,
+    rules: saturdayRules,
+    activities: [],
+    schoolCalendar: [],
+    today: '2026-09-23',
+    periodKey: 'first'
+  });
+  assert.equal(general.scenarios.some((scenario) => new Date(`${scenario.startDate}T12:00:00Z`).getUTCDay() === 6), false);
 });
 
 test('Planning marks recruitment only when no active instructor can satisfy the hard gates', async () => {

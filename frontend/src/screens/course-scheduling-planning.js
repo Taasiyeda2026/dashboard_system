@@ -57,7 +57,7 @@ export const PLANNING_OPTIMIZATION_WEIGHTS = Object.freeze({
   geography: 15,
   stability: 10
 });
-export const PLANNING_ENGINE_VERSION = 'planning-v15-20260926-date-time-instructor-options';
+export const PLANNING_ENGINE_VERSION = 'planning-v16-20260927-recruitment-capacity-weekends';
 export const PLANNING_ACTIVITY_NO_ALIASES = Object.freeze({
   // Legacy Gefen identifier retained on existing activities; canonical catalog program is 53828.
   '82835': '53828'
@@ -320,6 +320,27 @@ function activityAllowsSaturday(activity = {}) {
   return normalizeCalendarSector(activity?.calendar_sector) === 'arab';
 }
 
+function instructorAllowsPlanningWeekday(empId, targetWeekday, { profiles = {}, rules = {}, activity = {} } = {}) {
+  const day = Number(targetWeekday);
+  const available = (rules[empId] || []).some((rule) =>
+    Number(rule.weekday) === day && rule.available === true
+  );
+  if (!available) return false;
+  if (day === 5 && profiles?.[empId]?.friday_allowed !== true) return false;
+  if (day === 6 && !activityAllowsSaturday(activity)) return false;
+  return day >= 0 && day <= 6;
+}
+
+function flexiblePlanningWeekdays({ activeIds = new Set(), profiles = {}, rules = {}, activity = {} } = {}) {
+  const weekdays = [0, 1, 2, 3, 4];
+  for (const day of [5, 6]) {
+    if ([...activeIds].some((empId) => instructorAllowsPlanningWeekday(empId, day, { profiles, rules, activity }))) {
+      weekdays.push(day);
+    }
+  }
+  return weekdays;
+}
+
 export function buildWeeklyPlanningMeetings({
   activity = {},
   startDate = '',
@@ -505,6 +526,7 @@ function dynamicTimesForWeekday({
   durationMinutes,
   activity = {},
   instructors = [],
+  profiles = {},
   rules = {},
   activities = [],
   activeIds = null,
@@ -516,6 +538,8 @@ function dynamicTimesForWeekday({
   if (requestedStart) counts.set(requestedStart, (counts.get(requestedStart) || 0) + 50);
 
   for (const empId of resolvedActiveIds) {
+    if ([5, 6].includes(Number(targetWeekday))
+      && !instructorAllowsPlanningWeekday(empId, targetWeekday, { profiles, rules, activity })) continue;
     const weekdayRules = (rules[empId] || []).filter((rule) =>
       Number(rule.weekday) === Number(targetWeekday) && rule.available === true
     );
@@ -605,11 +629,12 @@ function ruleCovers(rule, startTime, endTime) {
   return start != null && end != null && ruleStart != null && ruleEnd != null && start >= ruleStart && end <= ruleEnd;
 }
 
-function scenarioHeuristic({ scenario, instructors = [], rules = {}, activities = [], activeIds = null, blockingMeetingRows = null } = {}) {
+function scenarioHeuristic({ scenario, instructors = [], profiles = {}, rules = {}, activities = [], activeIds = null, blockingMeetingRows = null } = {}) {
   const resolvedActiveIds = activeIds || activeInstructorIds(instructors);
   const day = weekday(scenario.startDate);
   let availabilityCoverage = 0;
   for (const empId of resolvedActiveIds) {
+    if (!instructorAllowsPlanningWeekday(empId, day, { profiles, rules, activity: scenario.__activity || {} })) continue;
     if ((rules[empId] || []).some((rule) => Number(rule.weekday) === day && ruleCovers(rule, scenario.startTime, scenario.endTime))) {
       availabilityCoverage += 1;
     }
@@ -642,8 +667,13 @@ function* generatePlanningScenarioSteps({
   const scenarioActiveIds = activeInstructorIds(instructors);
   const scenarioBlockingActivities = blockingActivities(activities);
   const scenarioBlockingMeetings = blockingMeetings(scenarioBlockingActivities);
-  const candidateWeekdays = [0, 1, 2, 3, 4, 5, 6]
-    .filter((day) => day !== 6 || activityAllowsSaturday(activity));
+  const fixedWeekdays = officialPlanningDates(activity)
+    .map((date) => weekday(date))
+    .filter((day) => Number.isInteger(day));
+  const candidateWeekdays = [...new Set([
+    ...flexiblePlanningWeekdays({ activeIds: scenarioActiveIds, profiles, rules, activity }),
+    ...fixedWeekdays
+  ])].sort((a, b) => a - b);
   const fixedStartMinute = timeMinutes(activity.start_time);
   const fixedEndMinute = timeMinutes(activity.end_time);
   const fixedStartTime = fixedStartMinute != null
@@ -661,6 +691,7 @@ function* generatePlanningScenarioSteps({
           durationMinutes: spec.durationMinutes,
           activity,
           instructors,
+          profiles,
           rules,
           activities,
           activeIds: scenarioActiveIds,
@@ -677,7 +708,7 @@ function* generatePlanningScenarioSteps({
       if (!built) continue;
       raw.push({
         ...built,
-        heuristic: scenarioHeuristic({ scenario: built, instructors, rules, activities, activeIds: scenarioActiveIds, blockingMeetingRows: scenarioBlockingMeetings })
+        heuristic: scenarioHeuristic({ scenario: { ...built, __activity: activity }, instructors, profiles, rules, activities, activeIds: scenarioActiveIds, blockingMeetingRows: scenarioBlockingMeetings })
       });
       yield;
     }
@@ -690,6 +721,7 @@ function* generatePlanningScenarioSteps({
             durationMinutes: spec.durationMinutes,
             activity,
             instructors,
+            profiles,
             rules,
             activities,
             activeIds: scenarioActiveIds,
@@ -714,7 +746,7 @@ function* generatePlanningScenarioSteps({
           if (!built) continue;
           raw.push({
             ...built,
-            heuristic: scenarioHeuristic({ scenario: built, instructors, rules, activities, activeIds: scenarioActiveIds, blockingMeetingRows: scenarioBlockingMeetings })
+            heuristic: scenarioHeuristic({ scenario: { ...built, __activity: activity }, instructors, profiles, rules, activities, activeIds: scenarioActiveIds, blockingMeetingRows: scenarioBlockingMeetings })
           });
           yield;
         }
@@ -750,7 +782,9 @@ function* generatePlanningScenarioSteps({
   for (const empId of activeIds) {
     for (const rule of rules[empId] || []) {
       const day = Number(rule.weekday);
-      if (rule.available === true && day >= 0 && day <= 6 && (day !== 6 || activityAllowsSaturday(activity))) {
+      if (rule.available === true
+        && day >= 0 && day <= 6
+        && instructorAllowsPlanningWeekday(empId, day, { profiles, rules, activity })) {
         uncoveredAvailability.add(`${empId}|${day}`);
       }
     }
@@ -759,9 +793,10 @@ function* generatePlanningScenarioSteps({
     const day = weekday(scenario.startDate);
     const covered = [];
     for (const empId of activeIds) {
-      if ((rules[empId] || []).some((rule) =>
-        Number(rule.weekday) === day && ruleCovers(rule, scenario.startTime, scenario.endTime)
-      )) covered.push(`${empId}|${day}`);
+      if (instructorAllowsPlanningWeekday(empId, day, { profiles, rules, activity })
+        && (rules[empId] || []).some((rule) =>
+          Number(rule.weekday) === day && ruleCovers(rule, scenario.startTime, scenario.endTime)
+        )) covered.push(`${empId}|${day}`);
     }
     return [scenarioKey(scenario), covered];
   }));
@@ -784,8 +819,8 @@ function* generatePlanningScenarioSteps({
     yield;
   }
 
-  // Also retain at least one option for every weekday even when no currently
-  // active instructor has a rule there, then fill the rest by the normal score.
+  // Retain at least one option for every eligible candidate weekday, then fill
+  // the rest by the normal score. Friday/Saturday are never generic defaults.
   for (const day of candidateWeekdays) {
     const option = sorted.find((scenario) => weekday(scenario.startDate) === day);
     if (option) addScenario(option);
@@ -1453,6 +1488,8 @@ function meetingGapMinutes(first = {}, second = {}) {
 }
 
 function recruitmentProfileCanTake(profile, row, schedule) {
+  const district = normalizeOperationalDistrict(row.district) || text(row.district);
+  if (profile.district && district && profile.district !== district) return false;
   const gender = normalizedGenderRequirement(row.requiredGender);
   if (profile.gender !== 'any' && gender !== 'any' && profile.gender !== gender) return false;
 
@@ -1471,11 +1508,13 @@ function recruitmentProfileCanTake(profile, row, schedule) {
 }
 
 function recruitmentPlacementScore(profile, row, schedule) {
-  const sameAuthority = profile.authorities.has(norm(row.authority)) ? 30 : 0;
-  const sameProgram = profile.programs.has(norm(row.courseName)) ? 12 : 0;
+  const sameAuthority = profile.authorities.has(norm(row.authority)) ? 40 : 0;
+  const sameProgram = profile.programs.has(norm(row.courseName)) ? 8 : 0;
   const weekdays = new Set((schedule.meetings || []).map((meeting) => weekday(meeting.date)));
-  const reusedDay = [...weekdays].some((day) => profile.weekdays.has(day)) ? 6 : 0;
-  return sameAuthority + sameProgram + reusedDay - profile.activities.length;
+  const reusedDay = [...weekdays].some((day) => profile.weekdays.has(day)) ? 10 : 0;
+  const laterStart = text(schedule.startDate) >= '2027-01-01' ? 2 : 0;
+  // Reusing an existing feasible profile is always preferable to opening a new hire.
+  return 100 + sameAuthority + sameProgram + reusedDay + laterStart + Math.min(20, profile.activities.length);
 }
 
 export function assignRecruitmentProfiles(rows = []) {
@@ -1497,7 +1536,7 @@ export function assignRecruitmentProfiles(rows = []) {
   const profiles = [];
 
   for (const row of candidates) {
-    const choices = row.scheduleOptions?.length
+    const sourceChoices = row.scheduleOptions?.length
       ? row.scheduleOptions
       : (row.meetings?.length ? [{
           startDate: row.startDate,
@@ -1506,6 +1545,14 @@ export function assignRecruitmentProfiles(rows = []) {
           endTime: row.endTime,
           meetings: row.meetings
         }] : []);
+    const choices = row.schoolDateAnchored
+      ? sourceChoices
+      : sourceChoices.filter((schedule) =>
+          (schedule.meetings || []).every((meeting) => {
+            const day = weekday(meeting.date);
+            return day >= 0 && day <= 4;
+          })
+        );
     if (!choices.length) continue;
 
     let best = null;
@@ -1518,9 +1565,12 @@ export function assignRecruitmentProfiles(rows = []) {
     }
 
     if (!best) {
+      const district = normalizeOperationalDistrict(row.district) || text(row.district);
+      const districtIndex = profiles.filter((item) => item.district === district).length + 1;
       const profile = {
-        id: `recruitment-${profiles.length + 1}`,
-        label: `מודל גיוס ${profiles.length + 1}`,
+        id: `recruitment-${district || 'general'}-${districtIndex}`,
+        label: district ? `תקן גיוס ${district} ${districtIndex}` : `תקן גיוס ${profiles.length + 1}`,
+        district,
         gender: normalizedGenderRequirement(row.requiredGender),
         languages: new Set(),
         authorities: new Set(),
@@ -1560,7 +1610,7 @@ export function assignRecruitmentProfiles(rows = []) {
     if (!row.recruitmentProfileId) continue;
     const profile = profileById.get(row.recruitmentProfileId);
     row.recruitmentProfileSize = profile?.activities?.length || 1;
-    row.reason = `לאחר מיצוי אפשרויות הצוות הקיים: נדרש גיוס. המועד נשמר כהצעה לבית הספר ומשויך ל${row.recruitmentProfileLabel}, שמרכז ${row.recruitmentProfileSize} פעילויות.`;
+    row.reason = `לאחר מיצוי אפשרויות הצוות הקיים: נדרש גיוס. הפעילות משויכת ל${row.recruitmentProfileLabel}, שמרכז ${row.recruitmentProfileSize} פעילויות לאורך התקופה ללא חפיפה.`;
   }
   return result;
 }
@@ -1579,6 +1629,7 @@ function planRowFromOption(activity, option, options, startRange, spec, diagnost
     requiredLanguage: text(activity.instruction_language),
     requiredGender: text(activity.required_instructor_gender),
     sourceHadDraft: !!text(activity.draft_emp_id),
+    schoolDateAnchored: officialPlanningDates(activity).length > 0,
     previousDraftInstructorEmpId: text(activity.draft_emp_id),
     previousDraftMeetings: text(activity.draft_emp_id)
       ? schedulingCalendarMeetings(activity).map((meeting, index) => ({
@@ -2783,6 +2834,7 @@ export function planningCompletionOverviewHtml(rows = [], { pendingChanges = 0, 
       recruitmentProfiles.set(key, {
         id: key,
         label: text(row.recruitmentProfileLabel) || key,
+        district: normalizeOperationalDistrict(row.district) || text(row.district),
         activities: [],
         authorities: new Set(),
         programs: new Set(),
@@ -2821,7 +2873,20 @@ export function planningCompletionOverviewHtml(rows = [], { pendingChanges = 0, 
       teachingHours: Math.round((profile.teachingMinutes / 60) * 10) / 10,
       weekdays: [...profile.weekdays]
     }))
-    .sort((a, b) => b.activities.length - a.activities.length || a.label.localeCompare(b.label, 'he'));
+    .sort((a, b) =>
+      text(a.district).localeCompare(text(b.district), 'he')
+      || b.activities.length - a.activities.length
+      || a.label.localeCompare(b.label, 'he')
+    );
+  const recruitmentProfilesByDistrict = recruitmentProfileRows.reduce((acc, profile) => {
+    const district = text(profile.district) || 'ללא מחוז';
+    acc[district] = (acc[district] || 0) + 1;
+    return acc;
+  }, {});
+  const recruitmentDistrictSummary = ['צפון', 'מרכז', 'דרום']
+    .filter((district) => recruitmentProfilesByDistrict[district])
+    .map((district) => `${district} ${recruitmentProfilesByDistrict[district]}`)
+    .join(' · ');
 
   const coverage = planningFullWorkPlanCoverage(firstHalfRows);
   const unresolvedRows = firstHalfRows.filter((row) =>
@@ -2838,12 +2903,12 @@ export function planningCompletionOverviewHtml(rows = [], { pendingChanges = 0, 
       <summary class="course-planning-recruitment-summary">
         <span>
           <strong>תכנון לגיוס ולהכשרה</strong>
-          <small>${coverage.recruitment} פעילויות · ${recruitmentProfileRows.length} מודלי גיוס</small>
+          <small>${coverage.recruitment} פעילויות ללא כיסוי · ${recruitmentProfileRows.length} תקני גיוס מוצעים${recruitmentDistrictSummary ? ` · ${recruitmentDistrictSummary}` : ''}</small>
         </span>
         <span class="course-planning-recruitment-summary-action">הצג פירוט</span>
       </summary>
       <div class="course-planning-recruitment-models-body">
-        <p class="course-planning-recruitment-note">רק פעילויות שלא נמצא להן מדריך קיים שעובר את כל תנאי הסף</p>
+        <p class="course-planning-recruitment-note">התקנים מחושבים לאורך ציר הזמן ובחלוקה למחוזות. פעילות שמתחילה מאוחר יכולה להצטרף לתקן קיים אם אין חפיפה; שישי ושבת אינם ברירת מחדל.</p>
         <div class="course-planning-recruitment-model-grid">
           ${recruitmentProfileRows.map((profile) => `<article class="course-planning-recruitment-model">
             <header><b>${escapeHtml(profile.label)}</b><span>${profile.activities.length} פעילויות</span></header>
