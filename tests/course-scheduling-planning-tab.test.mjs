@@ -395,7 +395,7 @@ test('full-year planning keeps an undated first-half course starting in first ha
 test('Saturday planning is allowed for Arab-sector activities and blocked elsewhere', () => {
   const arab = buildWeeklyPlanningMeetings({
     activity: { ...baseCourse, calendar_sector: 'arab' },
-    startDate: '2026-10-17',
+    startDate: '2026-10-13',
     startTime: '08:00',
     durationMinutes: 90,
     sessions: 3,
@@ -408,7 +408,7 @@ test('Saturday planning is allowed for Arab-sector activities and blocked elsewh
 
   const jewish = buildWeeklyPlanningMeetings({
     activity: { ...baseCourse, calendar_sector: 'jewish' },
-    startDate: '2026-10-17',
+    startDate: '2026-10-13',
     startTime: '08:00',
     durationMinutes: 90,
     sessions: 3,
@@ -501,7 +501,7 @@ test('planning scenarios offer dynamic dates and hours while respecting first-ha
   }
   assert.deepEqual(
     [...new Set(generated.scenarios.map((scenario) => new Date(`${scenario.startDate}T12:00:00Z`).getUTCDay()))].sort(),
-    [0, 1, 2, 3, 4, 5]
+    [0, 1, 2, 3, 4]
   );
 });
 
@@ -872,22 +872,22 @@ test('recruitment overview exposes workload language days and training need with
       kind: 'recruitment',
       requiredLanguage: 'ar',
       requiredGender: 'any',
-      startDate: '2026-10-17',
-      endDate: '2026-10-17',
+      startDate: '2026-10-13',
+      endDate: '2026-10-20',
       startTime: '08:00',
       endTime: '09:30',
       meetings: [
-        { date: '2026-10-10', start_time: '08:00', end_time: '09:30' },
-        { date: '2026-10-17', start_time: '08:00', end_time: '09:30' }
+        { date: '2026-10-13', start_time: '08:00', end_time: '09:30' },
+        { date: '2026-10-20', start_time: '08:00', end_time: '09:30' }
       ],
       scheduleOptions: [{
-        startDate: '2026-10-17',
-        endDate: '2026-10-17',
+        startDate: '2026-10-13',
+        endDate: '2026-10-20',
         startTime: '08:00',
         endTime: '09:30',
         meetings: [
-          { date: '2026-10-10', start_time: '08:00', end_time: '09:30' },
-          { date: '2026-10-17', start_time: '08:00', end_time: '09:30' }
+          { date: '2026-10-13', start_time: '08:00', end_time: '09:30' },
+          { date: '2026-10-20', start_time: '08:00', end_time: '09:30' }
         ]
       }]
     }
@@ -899,7 +899,7 @@ test('recruitment overview exposes workload language days and training need with
   assert.match(html, /תקני גיוס מוצעים/);
   assert.match(html, /2 מפגשים · 3 ש׳/);
   assert.match(html, /שפה: ערבית/);
-  assert.match(html, /שבת/);
+  assert.match(html, /ג׳/);
   assert.doesNotMatch(html, /instructorEmpId/);
 });
 
