@@ -1091,7 +1091,7 @@ test('Planning UI shows the first-half completion snapshot after calculation', (
     pendingChanges: 0
   });
   assert.match(html, /data-planning-completion-overview/);
-  assert.match(html, /תמונת מצב — מחצית א׳/);
+  assert.match(html, /תוכנית עבודה מלאה — מחצית א׳/);
   assert.doesNotMatch(html, /פעילויות שממתינות לעדכון/);
   assert.match(html, /מערכת מלאה לפי מדריך ולפי מפגש/);
   assert.ok(html.indexOf('data-planning-completion-overview') < html.indexOf('data-planning-course="summary-course"'));
