@@ -894,6 +894,8 @@ test('recruitment overview exposes workload language days and training need with
     }
   ]);
   const html = planningCompletionOverviewHtml(rows);
+  assert.match(html, /<details class="course-planning-recruitment-models">/);
+  assert.doesNotMatch(html, /<details class="course-planning-recruitment-models" open/);
   assert.match(html, /תכנון לגיוס ולהכשרה/);
   assert.match(html, /2 מפגשים · 3 ש׳/);
   assert.match(html, /שפה: ערבית/);
