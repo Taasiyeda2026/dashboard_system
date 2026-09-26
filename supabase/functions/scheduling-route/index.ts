@@ -63,7 +63,18 @@ function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: corsHeaders });
 }
 
-const cacheKey = (value: string) => value.toLowerCase().replace(/\s+/g, ' ').trim();
+function normalizeLocalityAlias(value: string) {
+  if (value === 'דלית אל כרמל') return 'דאלית אל כרמל';
+  return value;
+}
+
+const cacheKey = (value: string) => normalizeLocalityAlias(
+  value
+    .toLowerCase()
+    .replace(/[\u05be\u2010-\u2015\-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+);
 
 function text(value: unknown) {
   return String(value ?? '').trim();
