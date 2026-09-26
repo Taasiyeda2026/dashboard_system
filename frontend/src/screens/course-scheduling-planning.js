@@ -2822,8 +2822,8 @@ export function planningCompletionOverviewHtml(rows = [], { pendingChanges = 0, 
           <th>משובץ</th>
           <th>ממתין לאישור</th>
           <th>בתכנון</th>
-          <th>היקף מתוכנן</th>
-          <th>שבועי</th>
+          <th>סה״כ מתוכנן</th>
+          <th>שבוע שיא</th>
           <th>מתחיל</th>
           <th>מסתיים</th>
           <th>תוכניות ופירוט</th>
@@ -2834,8 +2834,8 @@ export function planningCompletionOverviewHtml(rows = [], { pendingChanges = 0, 
           <td class="course-planning-completion-cell is-live">${item.liveCount}</td>
           <td class="course-planning-completion-cell is-draft">${item.draftCount}</td>
           <td class="course-planning-completion-cell is-proposal">${item.proposalCount}</td>
-          <td class="course-planning-completion-cell is-load"><b>${item.meetingCount}</b> מפגשים · ${item.teachingHours} ש׳</td>
-          <td class="course-planning-completion-cell is-weekly">${item.averageWorkDaysPerWeek} ימי עבודה/שבוע${item.peakWeekStart ? `<small>שבוע שיא: ${item.peakWeekDays} ימים · ${item.peakWeekHours} ש׳</small>` : ''}</td>
+          <td class="course-planning-completion-cell is-load"><b>${item.meetingCount}</b> מפגשים · ${item.teachingHours} ש׳${(item.continuationCount || item.overflowCount) ? '<small>כולל המשך של פעילויות מעבר למחצית</small>' : ''}</td>
+          <td class="course-planning-completion-cell is-weekly">${item.peakWeekStart ? `<b>${item.peakWeekDays}</b> ימי עבודה · ${item.peakWeekHours} ש׳<small>שבוע שמתחיל ב־<bdi dir="ltr">${escapeHtml(formatDateHe(item.peakWeekStart))}</bdi></small>` : '—'}</td>
           <td class="course-planning-completion-cell is-start">${item.firstStart ? `<bdi dir="ltr">${escapeHtml(formatDateHe(item.firstStart))}</bdi>` : '<span class="course-planning-completion-missing">חסר מועד</span>'}</td>
           <td class="course-planning-completion-cell is-end ${item.overflowCount ? 'is-warning' : ''}">${item.lastEnd ? `<bdi dir="ltr">${escapeHtml(formatDateHe(item.lastEnd))}</bdi>` : '<span class="course-planning-completion-missing">חסר מועד</span>'}</td>
           <td class="course-planning-completion-cell is-details">
