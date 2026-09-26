@@ -25,7 +25,7 @@ const formatPlanningShortDate = (value) => {
   return match ? `${match[3]}/${match[2]}/${match[1].slice(2)}` : formatDateHe(value);
 };
 export const DEFAULT_PLANNING_PERIOD_KEY = 'year';
-export const PLANNING_OPERATIONAL_START_DATE = '2026-10-06';
+export const PLANNING_OPERATIONAL_START_DATE = '2026-10-12';
 export const FIRST_HALF_COUNT_START_DATE = '2026-09-01';
 const DEFAULT_TIME_SLOTS = ['08:00', '09:30', '11:00', '12:30', '14:00'];
 const MAX_TIME_SLOTS_PER_WEEKDAY = 10;
