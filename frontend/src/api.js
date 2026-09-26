@@ -7116,14 +7116,19 @@ export const api = {
       }
     }
     const activitySelect = `${ACTIVITY_OPERATIONS_COLUMNS},authority_id,activity_no`;
-    const [regular, summer, school2027, contactsResult, usersResult, catalog, proposalGroupAliases] = await Promise.all([
+    const [regular, summer, school2027, contactsResult, usersResult, catalog, proposalGroupAliases, trainingScheduleResult] = await Promise.all([
       readAllActivitiesRowsSupabase({ activityPeriod: ACTIVITY_SEASON_REGULAR, select: activitySelect, startDate: fromDate, endDate: toDate, employeeIds: compactScope ? ids : [] }),
       readAllActivitiesRowsSupabase({ activityPeriod: ACTIVITY_SEASON_SUMMER_2026, select: activitySelect, startDate: fromDate, endDate: toDate, employeeIds: compactScope ? ids : [] }),
       readAllActivitiesRowsSupabase({ activityPeriod: ACTIVITY_SEASON_SCHOOL_2027, select: activitySelect, startDate: fromDate, endDate: toDate, employeeIds: compactScope ? ids : [] }),
       supabase.from('contacts_instructors').select('emp_id,full_name,address,employment_type,active').in('emp_id', ids),
       supabase.from('users').select('emp_id,auth_user_id').in('emp_id', ids),
       compactScope ? Promise.resolve(null) : readAuthoritySchoolCatalog(),
-      readProposalGroupAliasesFromSupabase().catch(() => [])
+      readProposalGroupAliasesFromSupabase().catch(() => []),
+      supabase.from('instructor_training_schedule')
+        .select('id,emp_id,participant_scope,training_date,activity_type,course_id,course_name,start_time,end_time,is_online,location_name,location_address,notes,is_active')
+        .eq('is_active', true)
+        .gte('training_date', fromDate)
+        .lte('training_date', toDate)
     ]);
     if (contactsResult.error) throw new Error(contactsResult.error.message || 'attendance_contacts_load_failed');
     const activities = [...new Map([...(regular || []), ...(summer || []), ...(school2027 || [])]
@@ -7215,6 +7220,7 @@ export const api = {
       schoolLookup: effectiveCatalog?.schoolLookup || null,
       authorityLookup: effectiveCatalog?.authorityLookup || null,
       proposalGroupAliases: Array.isArray(proposalGroupAliases) ? proposalGroupAliases : [],
+      trainingSchedule: trainingScheduleResult.error ? [] : (trainingScheduleResult.data || []),
       expenseSourceAvailable: Boolean(authIds.length),
       travelSourceAvailable: routeResults.every((result) => !result.error)
     };
