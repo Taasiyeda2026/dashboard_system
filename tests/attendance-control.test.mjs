@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import * as XLSX from 'xlsx';
 import {
   attendanceControlHtml, resultsHtml, normalizeAttendanceName, calculateWorkHours,
-  buildDashboardAttendanceRows, attendanceDateScope, loadAttendanceDashboardDataset,
+  buildDashboardAttendanceRows, buildTrainingScheduleDashboardRows, attendanceDateScope, loadAttendanceDashboardDataset,
   attendanceMonthLabel, filterAttendanceRowsByMonth, attendanceExportFilename,
   attendanceMonthDateRange,
   applyDashboardRouteKilometers, applyDashboardExpenses, compareAttendanceRows, applyAttendanceChoice,
@@ -1536,4 +1536,83 @@ test('employee month submit action stores the employee name and uses the final s
   assert.match(service, /submitted_by_name: String\(submittedByName \|\| ''\)\.trim\(\)/);
   assert.match(gate, /status === 'submitted'\) return false/);
   assert.match(gate, /העובד אישר את החודש/);
+});
+
+
+test('open training plans validate only instructors who actually report that training', () => {
+  const schedule = [{
+    id: 'training-1',
+    emp_id: null,
+    participant_scope: 'open',
+    training_date: '2026-10-05',
+    activity_type: 'הכשרה',
+    course_name: 'בינה מלאכותית',
+    start_time: '12:00:00',
+    end_time: '14:00:00',
+    is_online: true,
+    is_active: true
+  }];
+  const attendance = [{
+    employeeId: '1535',
+    date: '2026-10-05',
+    activityType: 'הכשרה',
+    program: 'בינה מלאכותית',
+    startTime: '12:00',
+    endTime: '14:00',
+    workHours: 2,
+    kilometers: 0,
+    expenses: 0
+  }];
+  const dashboard = buildTrainingScheduleDashboardRows(schedule, attendance, ['1535', '1503']);
+  assert.equal(dashboard.length, 1);
+  assert.equal(dashboard[0].employeeId, '1535');
+  assert.equal(dashboard[0].program, 'בינה מלאכותית');
+  assert.equal(dashboard[0].isOnline, true);
+});
+
+test('planned training is compared against the back-office plan instead of report-only mode', () => {
+  const attendance = [{
+    employeeId: '1535',
+    date: '2026-10-05',
+    activityType: 'הכשרה',
+    program: 'בינה מלאכותית',
+    startTime: '12:00',
+    endTime: '14:00',
+    workHours: 2,
+    kilometers: 0,
+    expenses: 0
+  }];
+  const schedule = [{
+    id: 'training-1',
+    emp_id: null,
+    participant_scope: 'open',
+    training_date: '2026-10-05',
+    activity_type: 'הכשרה',
+    course_name: 'בינה מלאכותית',
+    start_time: '12:00',
+    end_time: '14:00',
+    is_online: true,
+    is_active: true
+  }];
+  const dashboard = buildTrainingScheduleDashboardRows(schedule, attendance, ['1535']);
+  const result = compareAttendanceRows(attendance, dashboard);
+  assert.equal(result.notCompared.length, 0);
+  assert.equal(result.comparisons.length, 1);
+  assert.equal(result.comparisons[0].differences.length, 0);
+  assert.equal(result.comparisons[0].managerResolved, 'auto_ok');
+});
+
+test('training without a back-office plan remains report-only and does not invent an expected event', () => {
+  const attendance = [{
+    employeeId: '1535',
+    date: '2026-10-06',
+    activityType: 'הכשרה',
+    program: 'בינה מלאכותית',
+    startTime: '12:00',
+    endTime: '14:00',
+    workHours: 2
+  }];
+  const result = compareAttendanceRows(attendance, []);
+  assert.equal(result.comparisons.length, 0);
+  assert.equal(result.notCompared.length, 1);
 });
