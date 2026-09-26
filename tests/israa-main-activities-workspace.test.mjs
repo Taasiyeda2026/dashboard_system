@@ -33,6 +33,15 @@ test('Israa workspace stays E-scoped while allowing a manual add only through th
   assert.doesNotMatch(workspace, /prop === 'deleteActivity' \|\| prop === 'addActivity'/);
 });
 
+test('published activities leave the Israa activities table and remain only in the main activities table', () => {
+  assert.match(workspace, /const privateRows = allIsraaActivities\.filter/);
+  assert.match(workspace, /workspaceRows = \[\.\.\.drafts, \.\.\.privateRows\]/);
+  assert.match(workspace, /sharedKeys\.has\(key\)/);
+  const fallback = fs.readFileSync(new URL('../frontend/src/screens/israa-management.js', import.meta.url), 'utf8');
+  assert.match(fallback, /if \(shared\.length\) return;/);
+  assert.doesNotMatch(fallback, /israa-shared-badge">נמצא בפעילויות/);
+});
+
 test('Israa manual add uses the exact canonical activities form without hiding domain or funding fields', () => {
   assert.match(workspace, /button\.textContent !== '\+ הוספת פעילות'/);
   assert.match(workspace, /\[data-activities-add-btn\]/);
@@ -66,5 +75,5 @@ test('workspace loads lazily with a fresh module and cache version', () => {
   assert.match(proposalItems, /data-israa-tab=\"activities\"/);
   assert.match(proposalItems, /ensureMainActivitiesWorkspace\(\)/);
   assert.doesNotMatch(bootstrap, /israa-activities-main-workspace/);
-  assert.match(serviceWorker, /const CACHE_VERSION = 1632;/);
+  assert.match(serviceWorker, /const CACHE_VERSION = 1778;/);
 });
