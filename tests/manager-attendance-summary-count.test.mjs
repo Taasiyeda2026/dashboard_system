@@ -35,6 +35,12 @@ test('manager attendance table becomes mobile cards without horizontal table scr
   assert.match(mobileCss, /attendance-control__comparison-table\s*\{[\s\S]*min-width:\s*0\s*!important/);
 });
 
+
+test('mobile global header keeps its quick navigation tabs', () => {
+  assert.match(mobileCss, /shell-header-nav\.ds-act-nav-grid--header\s*\{[\s\S]*display:\s*flex/);
+  assert.doesNotMatch(mobileCss, /\.shell-top \.shell-header-nav,\s*\.shell-top__end:empty\s*\{\s*display:\s*none/);
+});
+
 test('cache markers are bumped for the manager attendance mobile fix', async () => {
   const index = await readFile(new URL('../index.html', import.meta.url), 'utf8');
   const sw = await readFile(new URL('../frontend/sw.js', import.meta.url), 'utf8');
