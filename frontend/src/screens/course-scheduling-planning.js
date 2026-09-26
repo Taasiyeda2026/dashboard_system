@@ -1900,17 +1900,28 @@ export function planningGlobalObjective(rows = []) {
 }
 
 export function planningGlobalRepairPriorityIds(rows = [], limit = GLOBAL_OPTIMIZATION_MAX_PRIORITY_ROWS) {
-  return [...(rows || [])]
-    .filter((row) => !['live', 'planning-locked', 'draft'].includes(text(row?.kind)))
+  const source = [...(rows || [])].filter((row) => !['live', 'planning-locked', 'draft'].includes(text(row?.kind)));
+  const maxRows = Math.max(1, Number(limit) || GLOBAL_OPTIMIZATION_MAX_PRIORITY_ROWS);
+  const critical = source
+    .filter((row) => ['recruitment', 'missing', 'fixed'].includes(text(row?.kind)))
+    .map((row) => ({
+      id: text(row?.courseId),
+      priority: text(row?.kind) === 'recruitment' ? 2 : 1
+    }))
+    .filter((item) => item.id)
+    .sort((a, b) => b.priority - a.priority || a.id.localeCompare(b.id));
+  // When coverage is incomplete, move only the uncovered activities to the
+  // front. Marking already-covered rows as "priority" as well would preserve
+  // the original order and defeat the repair swap that frees scarce staff.
+  if (critical.length) return critical.slice(0, maxRows).map((item) => item.id);
+
+  return source
     .map((row) => {
       const option = planningRowPrimaryOption(row);
       const metrics = option?.operationalMetrics || {};
       const optimization = Number(option?.planningOptimization?.total);
-      const kind = text(row?.kind);
       const priority = (
-        (kind === 'recruitment' ? 10000 : 0)
-        + (kind === 'missing' || kind === 'fixed' ? 8000 : 0)
-        + Math.max(0, Number(metrics.newWorkDayMeetingCount) || 0) * 120
+        Math.max(0, Number(metrics.newWorkDayMeetingCount) || 0) * 120
         + Math.max(0, Number(metrics.relevantTravelDistance) || 0) * 4
         + (Number.isFinite(optimization) ? Math.max(0, 75 - optimization) * 3 : 100)
         + (row.sourceHadDraft === true ? 15 : 0)
@@ -1919,7 +1930,7 @@ export function planningGlobalRepairPriorityIds(rows = [], limit = GLOBAL_OPTIMI
     })
     .filter((item) => item.id && item.priority > 0)
     .sort((a, b) => b.priority - a.priority || a.id.localeCompare(b.id))
-    .slice(0, Math.max(1, Number(limit) || GLOBAL_OPTIMIZATION_MAX_PRIORITY_ROWS))
+    .slice(0, maxRows)
     .map((item) => item.id);
 }
 
