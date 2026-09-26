@@ -1064,8 +1064,8 @@
     min-height: 44px;
   }
 
-  .route-course-scheduling .course-planning-completion-cell.is-load::before { content: "היקף מתוכנן"; }
-  .route-course-scheduling .course-planning-completion-cell.is-weekly::before { content: "שבועי"; }
+  .route-course-scheduling .course-planning-completion-cell.is-load::before { content: "סה״כ מתוכנן"; }
+  .route-course-scheduling .course-planning-completion-cell.is-weekly::before { content: "שבוע שיא"; }
 
   .route-course-scheduling .course-planning-completion-cell.is-start,
   .route-course-scheduling .course-planning-completion-cell.is-end {
