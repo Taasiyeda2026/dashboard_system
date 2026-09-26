@@ -59,6 +59,7 @@ const SOURCE_KEYS = {
 };
 
 const CORRECTION_FIELDS = [
+  ['attendanceDate', 'date', false],
   ['startTime', 'startTime', false],
   ['endTime', 'endTime', false],
   ['workHours', 'workHours', true],

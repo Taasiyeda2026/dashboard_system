@@ -235,3 +235,5 @@ config.HOTFIX_VERSION = `attendance-parameter-review-table-20260927-v1-${config.
 config.HOTFIX_VERSION = `attendance-control-cache-bust-20260927-v1-${config.HOTFIX_VERSION}`;
 
 config.HOTFIX_VERSION = `manager-attendance-fold-travel-cancellation-20260927-v1-${config.HOTFIX_VERSION}`;
+
+config.HOTFIX_VERSION = `manager-attendance-inline-correction-20260927-v1-${config.HOTFIX_VERSION}`;
