@@ -934,6 +934,49 @@ test('changed attendance row is sent to updaterecord by recordId', () => {
   assert.ok(Object.values(payload).every((value) => value !== undefined));
 });
 
+test('manager date correction is included in attendance write-back payload', () => {
+  const entry = {
+    attendance: {
+      employeeId: '10', employeeName: 'דנה', date: '2026-05-10',
+      startTime: '08:00', endTime: '09:00', workHours: 1, activityType: 'תפעול',
+      _source: {
+        ID: 'date-edit-1',
+        employeeName: 'דנה',
+        employeeId: '10',
+        attendanceDate: '2026-05-10',
+        startTime: '08:00',
+        endTime: '09:00',
+        workHours: 1,
+        activityType: 'תפעול',
+        schoolName: '',
+        municipality: '',
+        programName: '',
+        sessionNumber: '',
+        totalExpenses: 0,
+        kilometers: 0,
+        publicTransport: false,
+        publicTransportCost: 0,
+        expensesDetails: '',
+        notes: '',
+        team: '',
+        employmentType: '',
+        attachmentsNames: '',
+        status: 'submitted',
+        approvedBy: '',
+        approvedDate: ''
+      }
+    },
+    final: {
+      employeeId: '10', employeeName: 'דנה', date: '2026-05-11',
+      startTime: '08:00', endTime: '09:00', workHours: 1, activityType: 'תפעול',
+      kilometers: 0, publicTransport: false, publicTransportCost: 0, expenses: 0
+    }
+  };
+  const payload = buildAttendanceUpdatePayload(entry);
+  assert.equal(payload.changed, true);
+  assert.equal(payload.fields.attendanceDate, '2026-05-11');
+});
+
 test('failed updaterecord stops payroll approval save', async () => {
   const saved = [];
   const api = {
