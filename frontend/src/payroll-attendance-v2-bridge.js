@@ -165,6 +165,28 @@ function rosterRecord(row = {}) {
   };
 }
 
+function legacyRecordsFromSnapshotParts(records = [], travelRows = [], locationRows = []) {
+  const locationByRecord = new Map((Array.isArray(locationRows) ? locationRows : [])
+    .map((item) => [text(item.record_id), item])
+    .filter(([recordId]) => recordId));
+  const travelByGenerated = new Map((Array.isArray(travelRows) ? travelRows : [])
+    .map((item) => [text(item.generated_record_id), item])
+    .filter(([recordId]) => recordId));
+  const travelBySource = new Map((Array.isArray(travelRows) ? travelRows : [])
+    .map((item) => [text(item.source_record_id), item])
+    .filter(([recordId]) => recordId));
+
+  return (Array.isArray(records) ? records : []).map((row) => {
+    const recordId = text(row.record_id);
+    const generatedTravel = travelByGenerated.get(recordId) || null;
+    const sourceTravel = travelBySource.get(recordId) || null;
+    return legacyRecord(row, generatedTravel || sourceTravel, {
+      generated: Boolean(generatedTravel),
+      location: locationByRecord.get(recordId) || null
+    });
+  });
+}
+
 api.attendanceControlRecords = async function ({ employeeIds = [], fromDate = '', toDate = '' } = {}) {
   await waitForSupabaseAuthSession({ timeoutMs: 7000 }).catch(() => null);
   const numericEmployeeIds = [...new Set((employeeIds || [])
@@ -183,26 +205,50 @@ api.attendanceControlRecords = async function ({ employeeIds = [], fromDate = ''
   if (error) throw new Error(error.message || 'attendance_records_supabase_load_failed');
   if (travelResult.error) throw new Error(travelResult.error.message || 'attendance_travel_compensations_load_failed');
   if (locationResult.error) throw new Error(locationResult.error.message || 'attendance_location_contexts_load_failed');
-  const travelRows = Array.isArray(travelResult.data) ? travelResult.data : [];
-  const locationByRecord = new Map((Array.isArray(locationResult.data) ? locationResult.data : [])
-    .map((item) => [text(item.record_id), item])
-    .filter(([recordId]) => recordId));
-  const travelByGenerated = new Map(travelRows
-    .map((item) => [text(item.generated_record_id), item])
-    .filter(([recordId]) => recordId));
-  const travelBySource = new Map(travelRows
-    .map((item) => [text(item.source_record_id), item])
-    .filter(([recordId]) => recordId));
+  return legacyRecordsFromSnapshotParts(
+    Array.isArray(data) ? data : [],
+    Array.isArray(travelResult.data) ? travelResult.data : [],
+    Array.isArray(locationResult.data) ? locationResult.data : []
+  );
+};
 
-  return (Array.isArray(data) ? data : []).map((row) => {
-    const recordId = text(row.record_id);
-    const generatedTravel = travelByGenerated.get(recordId) || null;
-    const sourceTravel = travelBySource.get(recordId) || null;
-    return legacyRecord(row, generatedTravel || sourceTravel, {
-      generated: Boolean(generatedTravel),
-      location: locationByRecord.get(recordId) || null
-    });
+api.managerAttendanceReviewSnapshot = async function ({ employeeId = '', monthKey = '' } = {}) {
+  await waitForSupabaseAuthSession({ timeoutMs: 7000 }).catch(() => null);
+  const numericEmployeeId = Number(text(employeeId));
+  const month = text(monthKey);
+  if (!Number.isSafeInteger(numericEmployeeId) || numericEmployeeId <= 0) throw new Error('invalid_employee_id');
+  if (!/^20\d{2}-(0[1-9]|1[0-2])$/.test(month)) throw new Error('invalid_month_key');
+
+  const { data, error } = await supabase.rpc('get_manager_attendance_review_snapshot', {
+    p_employee_id: numericEmployeeId,
+    p_month_key: month
   });
+  if (error) throw new Error(error.message || 'manager_attendance_review_snapshot_failed');
+  const payload = data && typeof data === 'object' ? data : {};
+  const records = legacyRecordsFromSnapshotParts(
+    payload.records,
+    payload.travel_compensations,
+    payload.locations
+  );
+
+  return {
+    employeeId: text(payload.employee_id || numericEmployeeId),
+    monthKey: text(payload.month_key || month),
+    records,
+    sources: {
+      activities: Array.isArray(payload.activities) ? payload.activities : [],
+      contacts: Array.isArray(payload.contacts) ? payload.contacts : [],
+      travelCache: Array.isArray(payload.travel_cache) ? payload.travel_cache : [],
+      expenses: Array.isArray(payload.expenses) ? payload.expenses : [],
+      schoolLookup: { list: Array.isArray(payload.schools) ? payload.schools : [] },
+      authorityLookup: { list: Array.isArray(payload.authorities) ? payload.authorities : [] },
+      proposalGroupAliases: Array.isArray(payload.proposal_group_aliases) ? payload.proposal_group_aliases : [],
+      expenseSourceAvailable: true,
+      travelSourceAvailable: true
+    },
+    approvals: Array.isArray(payload.approvals) ? payload.approvals : [],
+    workflow: Array.isArray(payload.workflow) ? payload.workflow : []
+  };
 };
 
 api.attendanceControlTeams = async function () {

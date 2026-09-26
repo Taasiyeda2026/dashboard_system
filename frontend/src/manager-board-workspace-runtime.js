@@ -36,6 +36,8 @@ let resetMonthOnNextBoard = true;
 let attendanceYm = '';
 const rosterCache = new Map();
 const attendanceSummaryCache = new Map();
+const attendanceReviewSnapshotCache = new Map();
+const ATTENDANCE_REVIEW_SNAPSHOT_TTL_MS = 60 * 1000;
 
 function text(value) {
   return String(value ?? '').trim().replace(/\s+/g, ' ');
@@ -470,11 +472,11 @@ function sharePointRootButton(schoolYear) {
   return `<a class="manager-workspace-sharepoint-root" href="${SHAREPOINT_EMPLOYEE_FILES_ROOT_2027}" target="_blank" rel="noopener">פתיחת כל תיקי המדריכים</a>`;
 }
 
-function buildScopedAttendanceApi(roster, preloadedRecords = null) {
+function buildScopedAttendanceApi(roster, snapshot = null, preloadedRecords = null) {
   const rosterIds = new Set(roster.map((row) => text(row.emp_id)).filter(Boolean));
-  const scopedPreloadedRecords = Array.isArray(preloadedRecords)
-    ? preloadedRecords.filter((row) => rosterIds.has(rawEmployeeId(row)))
-    : null;
+  const snapshotRecords = Array.isArray(snapshot?.records) ? snapshot.records : null;
+  const scopedPreloadedRecords = (snapshotRecords || (Array.isArray(preloadedRecords) ? preloadedRecords : null))
+    ?.filter((row) => rosterIds.has(rawEmployeeId(row))) || null;
   const syntheticEmployees = roster.map((row) => ({
     employeeId: text(row.emp_id),
     EmployeeId: text(row.emp_id),
@@ -517,6 +519,7 @@ function buildScopedAttendanceApi(roster, preloadedRecords = null) {
       }
       if (prop === 'attendanceControlDashboardSources') {
         return async (opts = {}) => {
+          if (snapshot?.sources) return snapshot.sources;
           const employeeIds = [...rosterIds];
           if (!employeeIds.length) return { activities: [], contacts: [], travelCache: [], expenses: [] };
           return target.attendanceControlDashboardSources({
@@ -526,6 +529,12 @@ function buildScopedAttendanceApi(roster, preloadedRecords = null) {
             compactScope: true
           });
         };
+      }
+      if (prop === 'listPayrollControlApprovals' && snapshot) {
+        return async () => Array.isArray(snapshot.approvals) ? snapshot.approvals : [];
+      }
+      if (prop === 'attendanceControlMonthWorkflowStatuses' && snapshot) {
+        return async () => Array.isArray(snapshot.workflow) ? snapshot.workflow : [];
       }
       const value = target[prop];
       return typeof value === 'function' ? value.bind(target) : value;
@@ -554,6 +563,19 @@ async function waitForEnabledButton(button, timeoutMs = 10000) {
   return Boolean(button && !button.disabled);
 }
 
+async function loadAttendanceReviewSnapshot(empId, context) {
+  const key = `${text(empId)}|${text(context?.ym)}`;
+  const cached = attendanceReviewSnapshotCache.get(key);
+  if (cached && Date.now() - cached.loadedAt < ATTENDANCE_REVIEW_SNAPSHOT_TTL_MS) return cached.value;
+  if (typeof api.managerAttendanceReviewSnapshot !== 'function') return null;
+  const value = await api.managerAttendanceReviewSnapshot({
+    employeeId: empId,
+    monthKey: context?.ym
+  });
+  attendanceReviewSnapshotCache.set(key, { value, loadedAt: Date.now() });
+  return value;
+}
+
 async function openEmployeeAttendance(empId, roster, context, summary) {
   const host = document.querySelector('[data-manager-attendance-host]');
   if (!host) return;
@@ -567,7 +589,13 @@ async function openEmployeeAttendance(empId, roster, context, summary) {
     host.innerHTML = '<div class="manager-workspace-loading">טוען דוח מדריך…</div>';
   }
 
-  await bindEmbeddedAttendance(host, selectedRoster, context, summary?.records || []);
+  let snapshot = null;
+  try {
+    snapshot = await loadAttendanceReviewSnapshot(empId, context);
+  } catch (error) {
+    console.warn('[manager-attendance] snapshot load failed; falling back to scoped reads', error);
+  }
+  await bindEmbeddedAttendance(host, selectedRoster, context, snapshot, summary?.records || []);
 
   const panel = host.querySelector('[data-attendance-control]');
   const run = host.querySelector('[data-attendance-run]');
@@ -600,7 +628,7 @@ async function openEmployeeAttendance(empId, roster, context, summary) {
   host.removeAttribute('aria-busy');
 }
 
-async function bindEmbeddedAttendance(host, roster, context, preloadedRecords = null) {
+async function bindEmbeddedAttendance(host, roster, context, snapshot = null, preloadedRecords = null) {
   if (!host) return;
   const signature = `${context.manager}|${context.ym}|${context.schoolYear}|${roster.map((row) => row.emp_id).join(',')}`;
   if (embeddedAttendanceSignature === signature && host.dataset.managerAttendanceBound === 'true') return;
@@ -629,7 +657,7 @@ async function bindEmbeddedAttendance(host, roster, context, preloadedRecords = 
   const panel = host.querySelector('[data-attendance-control]');
   if (panel) panel.hidden = false;
   attendance.bindAttendanceControl(host, {
-    api: buildScopedAttendanceApi(roster, preloadedRecords),
+    api: buildScopedAttendanceApi(roster, snapshot, preloadedRecords),
     state: scopedAttendanceState(),
     standalone: true
   });
