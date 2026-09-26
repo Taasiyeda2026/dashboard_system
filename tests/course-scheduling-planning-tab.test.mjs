@@ -906,8 +906,37 @@ test('first-half completion overview includes live, drafts and proposals per ins
   assert.match(html, /07\/10\/2026/);
   assert.match(html, /20\/01\/2027/);
   assert.match(html, /2<\/b> מפגשים · 3 ש׳/);
-  assert.match(html, /ימי עבודה\/שבוע/);
+  assert.match(html, /שבוע שיא/);
+  assert.match(html, /1<\/b> ימי עבודה · 1\.5 ש׳/);
+  assert.doesNotMatch(html, /ימי עבודה\/שבוע/);
   assert.doesNotMatch(html, /קורס מחצית ב/);
+});
+
+test('first-half planned workload includes meetings that continue beyond the half', () => {
+  const rows = [{
+    courseId: 'continuation',
+    courseName: 'קורס ממשיך',
+    activityType: 'קורס',
+    school: 'א',
+    authority: 'רשות',
+    kind: 'proposal',
+    instructorEmpId: '1',
+    instructorName: 'מדריך',
+    startDate: '2027-01-28',
+    endDate: '2027-02-04',
+    meetings: [
+      { date: '2027-01-28', start_time: '08:00', end_time: '09:30' },
+      { date: '2027-02-04', start_time: '08:00', end_time: '09:30' }
+    ]
+  }];
+  const overview = planningInstructorCompletionOverview(rows);
+  assert.equal(overview[0].meetingCount, 2);
+  assert.equal(overview[0].teachingHours, 3);
+  assert.equal(overview[0].continuationCount, 1);
+  const html = planningCompletionOverviewHtml(rows);
+  assert.match(html, /2<\/b> מפגשים · 3 ש׳/);
+  assert.match(html, /כולל המשך של פעילויות מעבר למחצית/);
+  assert.match(html, /04\/02\/2027/);
 });
 
 test('Planning builds a complete meeting-level work schedule for each instructor', () => {
