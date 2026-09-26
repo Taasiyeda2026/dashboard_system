@@ -77,7 +77,6 @@ function weeklySummary(row) {
   const byDay = new Map((row.availability_rules || []).map((rule) => [Number(rule.weekday), rule]));
   return INSTRUCTOR_WEEKDAYS.map((day) => {
     const rule = byDay.get(day.value);
-    if (day.value === 6) return `<div>${escapeHtml(day.label)}: חסום</div>`;
     if (!rule) return `<div>${escapeHtml(day.label)}: טרם הוגדר</div>`;
     if (!rule.available) return `<div>${escapeHtml(day.label)}: לא זמין</div>`;
     return `<div>${escapeHtml(day.label)}: ${timeRangeHtml(rule.start_time, rule.end_time)}</div>`;
