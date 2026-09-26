@@ -2179,6 +2179,7 @@ export const courseSchedulingScreen = {
     };
 
     const runCoursePlanning = async ({ forceFull = false } = {}) => {
+      let rerunChangedAfterSave = false;
       cancelPendingPlanningStart();
       activePlanningRun?.controller?.abort();
       const run = {
@@ -2367,6 +2368,61 @@ export const courseSchedulingScreen = {
         const endContextFingerprint = planningContextFingerprint(endFingerprintInput);
         if (startFingerprint !== endFingerprint) {
           Object.assign(data, freshEnd);
+
+          if (startContextFingerprint === endContextFingerprint) {
+            const startVersionById = new Map(
+              (freshStart.activities || []).map((activity) => [idOf(activity), text(activity?.updated_at)])
+            );
+            const endCourseIds = new Set(
+              planningWorkspaceCourses(
+                freshEnd.activities || [],
+                scope.district,
+                scope.periodKey
+              ).map((activity) => idOf(activity))
+            );
+            const changedActivityIds = new Set(
+              (freshEnd.activities || [])
+                .filter((activity) => endCourseIds.has(idOf(activity)))
+                .filter((activity) => startVersionById.get(idOf(activity)) !== text(activity?.updated_at))
+                .map((activity) => idOf(activity))
+            );
+            const stableRows = (result.rows || []).filter((row) => {
+              const courseId = text(row?.courseId);
+              return endCourseIds.has(courseId) && !changedActivityIds.has(courseId);
+            });
+
+            if (changedActivityIds.size && stableRows.length) {
+              const savedPartial = await saveSharedPlanningSnapshot({
+                periodKey: scope.periodKey,
+                district: scope.district,
+                engineVersion: PLANNING_ENGINE_VERSION,
+                dataFingerprint: endFingerprint,
+                contextFingerprint: endContextFingerprint,
+                rows: stableRows,
+                activities: freshEnd.activities || [],
+                expectedRevision: Number(shared?.workspace?.revision) || 0
+              });
+
+              assertRunOwnership();
+              const canonical = await loadSharedPlanningWorkspace({
+                periodKey: scope.periodKey,
+                district: scope.district
+              });
+              assertRunOwnership();
+              applySharedPlanningState(canonical, freshEnd);
+              state.courseSchedulingPlanningRouteStats = result.routeStats || null;
+              state.courseSchedulingPlanningSharedRevision = Number(savedPartial?.revision || canonical?.workspace?.revision) || 0;
+              const pendingCount = (state.courseSchedulingPlanningAffectedIds || []).length;
+              rerunChangedAfterSave = pendingCount > 0;
+              state.courseSchedulingPlanningError = '';
+              showToast(
+                `התכנון נשמר: ${stableRows.length} פעילויות נשמרו, ו-${pendingCount} פעילויות שהשתנו יעודכנו כעת.`,
+                'success'
+              );
+              return;
+            }
+          }
+
           applySharedPlanningState(shared, freshEnd);
           state.courseSchedulingPlanningError = 'נתוני השיבוץ השתנו בזמן החישוב. התוצאה לא נשמרה; יש לעדכן רק את השינויים.';
           return;
@@ -2427,6 +2483,7 @@ export const courseSchedulingScreen = {
         state.courseSchedulingPlanningProgress = null;
         activePlanningRun = null;
         rerenderPreservingWorkboardScroll();
+        if (rerunChangedAfterSave) scheduleBackgroundPlanning({ forceFull: false });
       }
     };
 
