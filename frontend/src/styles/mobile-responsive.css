@@ -236,12 +236,7 @@
     font-size: .8rem;
   }
 
-  .route-activities .ds-activities-row:not(.is-mobile-expanded) .ds-activities-col--hours,
-  .route-activities .ds-activities-row:not(.is-mobile-expanded) .ds-activities-col--meetings,
-  .route-activities .ds-activities-row:not(.is-mobile-expanded) .ds-activities-col--contact-name,
-  .route-activities .ds-activities-row:not(.is-mobile-expanded) .ds-activities-col--grade,
-  .route-activities .ds-activities-row:not(.is-mobile-expanded) .ds-activities-col--notes,
-  .route-activities .ds-activities-row:not(.is-mobile-expanded) .ds-activities-col--date + .ds-activities-col--date {
+  [data-mobile-expandable-row]:not(.is-mobile-expanded) > [data-mobile-field="detail"] {
     display: none;
   }
 
@@ -305,7 +300,8 @@
   }
 
   .route-proposals-agreements .ds-pa-table td::before,
-  .ops2027-table td::before {
+  [data-ops-controller-tab="summer_training_matrix"] .ops2027-table td::before,
+  [data-ops-controller-tab="course_training_matrix"] .ops2027-table td::before {
     content: attr(data-mobile-label);
     display: inline-block;
     min-inline-size: 76px;
@@ -313,10 +309,6 @@
     color: #64748b;
     font-size: .7rem;
     font-weight: 700;
-  }
-
-  .route-proposals-agreements .ds-pa-table tr:not(.is-mobile-expanded) td:nth-child(n+9) {
-    display: none;
   }
 
   /* Proposal queues collapse empty columns and reveal populated groups on demand. */
@@ -349,39 +341,49 @@
   }
 
   /* Qualification/training matrices become program/instructor accordions. */
-  .ops2027-table-shell:has(.ops2027-table) {
+  [data-ops-controller-tab="summer_training_matrix"] .ops2027-table-shell,
+  [data-ops-controller-tab="course_training_matrix"] .ops2027-table-shell {
     overflow: visible;
   }
 
-  .ops2027-table,
-  .ops2027-table tbody,
-  .ops2027-table tr,
-  .ops2027-table td {
+  [data-ops-controller-tab="summer_training_matrix"] .ops2027-table,
+  [data-ops-controller-tab="summer_training_matrix"] .ops2027-table tbody,
+  [data-ops-controller-tab="summer_training_matrix"] .ops2027-table tr,
+  [data-ops-controller-tab="summer_training_matrix"] .ops2027-table td,
+  [data-ops-controller-tab="course_training_matrix"] .ops2027-table,
+  [data-ops-controller-tab="course_training_matrix"] .ops2027-table tbody,
+  [data-ops-controller-tab="course_training_matrix"] .ops2027-table tr,
+  [data-ops-controller-tab="course_training_matrix"] .ops2027-table td {
     display: block;
     inline-size: 100%;
   }
 
-  .ops2027-table thead {
+  [data-ops-controller-tab="summer_training_matrix"] .ops2027-table thead,
+  [data-ops-controller-tab="course_training_matrix"] .ops2027-table thead {
     display: none;
   }
 
-  .ops2027-table tbody {
+  [data-ops-controller-tab="summer_training_matrix"] .ops2027-table tbody,
+  [data-ops-controller-tab="course_training_matrix"] .ops2027-table tbody {
     display: grid;
     gap: 8px;
   }
 
-  .ops2027-table tbody > tr {
+  [data-ops-controller-tab="summer_training_matrix"] .ops2027-table tbody > tr,
+  [data-ops-controller-tab="course_training_matrix"] .ops2027-table tbody > tr {
     padding: 10px 12px;
     border: 1px solid #dbe7f3;
     border-radius: 12px;
     background: #fff;
   }
 
-  .ops2027-table tbody > tr:not(.is-mobile-expanded) > td:not(:first-child) {
+  [data-ops-controller-tab="summer_training_matrix"] .ops2027-table tbody > tr:not(.is-mobile-expanded) > td:not(:first-child),
+  [data-ops-controller-tab="course_training_matrix"] .ops2027-table tbody > tr:not(.is-mobile-expanded) > td:not(:first-child) {
     display: none;
   }
 
-  .ops2027-table td {
+  [data-ops-controller-tab="summer_training_matrix"] .ops2027-table td,
+  [data-ops-controller-tab="course_training_matrix"] .ops2027-table td {
     padding: 6px 0;
     border: 0;
     text-align: start;
