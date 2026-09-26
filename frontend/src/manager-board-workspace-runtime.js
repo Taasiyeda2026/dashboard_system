@@ -521,7 +521,7 @@ function buildScopedAttendanceApi(roster, snapshot = null, preloadedRecords = nu
         return async (opts = {}) => {
           if (snapshot?.sources) return snapshot.sources;
           const employeeIds = [...rosterIds];
-          if (!employeeIds.length) return { activities: [], contacts: [], travelCache: [], expenses: [] };
+          if (!employeeIds.length) return { activities: [], contacts: [], travelCache: [], expenses: [], trainingSchedule: [] };
           return target.attendanceControlDashboardSources({
             ...opts,
             employeeIds,
