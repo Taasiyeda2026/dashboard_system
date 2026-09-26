@@ -292,6 +292,32 @@ test('coverage distinguishes missing routes from usable routes requiring refresh
   });
 });
 
+test('same-locality spelling variants accept a zero-distance route', () => {
+  const pair = {
+    origin_address: 'דלית אל כרמל',
+    destination_address: 'דאלית אל-כרמל',
+    origin_entity_key: 'instructor:1540',
+    destination_entity_key: 'school_id:2346'
+  };
+  const cacheRows = [{
+    origin_key: 'דאלית אל כרמל',
+    destination_key: 'דאלית אל כרמל',
+    origin_address: 'דלית אל כרמל',
+    destination_address: 'דאלית אל-כרמל',
+    origin_entity_key: 'instructor:1540',
+    destination_entity_key: 'school_id:2346',
+    distance_km: 0,
+    duration_minutes: 0,
+    expires_at: '9999-12-31T23:59:59.999Z'
+  }];
+  assert.deepEqual(calculateTravelCoverage([pair], cacheRows), {
+    required_count: 1,
+    existing_count: 1,
+    missing_count: 0,
+    refresh_required_count: 0
+  });
+});
+
 test('coverage rejects null, negative, and improper zero metrics without counting historical rows', () => {
   const pairs = [{ origin_address: 'א', destination_address: 'ב' }];
   for (const row of [
