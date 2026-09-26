@@ -230,7 +230,7 @@ test('main scheduling workboard exposes only open, draft and assigned business s
   assert.doesNotMatch(html, /data-course-card="second-half-plan"/);
   assert.match(html, /data-planning-completion-overview/);
   assert.match(html, /תוכנית עבודה מלאה — מחצית א׳/);
-  assert.match(html, /4 פעילויות =/);
+  assert.match(html, /4 פעילויות ·/);
   assert.match(html, /01\.09\.2026/);
 });
 
@@ -841,9 +841,8 @@ test('completion rows count first half from 1 September and exclude explicit sec
   assert.deepEqual(rows.map((row) => row.courseId).sort(), ['sep1', 'sep14', 'undated']);
   const html = planningCompletionOverviewHtml(rows, { schoolYearTotal: 4 });
   assert.match(html, /תוכנית עבודה מלאה — מחצית א׳/);
-  assert.match(html, /3 פעילויות = 2 לצוות הקיים \+ 0 לגיוס \+ 1 חריגים/);
-  assert.match(html, /2<\/b><span>מתוכננות לצוות הקיים/);
-  assert.match(html, /1<\/b><span>חסר נתון \/ פתרון/);
+  assert.match(html, /3 פעילויות · 2 לצוות הקיים · 0 לגיוס · 1 לטיפול/);
+  assert.doesNotMatch(html, /course-planning-workplan-card/);
   assert.match(html, /01\/09\/2026/);
 });
 
