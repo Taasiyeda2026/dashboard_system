@@ -661,3 +661,83 @@
     grid-template-columns: 1fr;
   }
 }
+
+
+/* Joint planning chooser: date, time and instructor are selected as one validated combination. */
+.course-scheduling-workboard-choice-panel {
+  grid-template-columns: auto repeat(3, minmax(150px, 1fr)) auto;
+  align-items: end;
+}
+
+.course-scheduling-planning-choice {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.course-scheduling-planning-choice > span {
+  color: var(--cs-text-muted);
+  font-size: .69rem;
+  font-weight: 800;
+}
+
+.course-scheduling-planning-choice select {
+  width: 100%;
+  min-width: 0;
+  min-height: 36px;
+  padding: 6px 8px;
+  border: 1px solid var(--cs-border);
+  border-radius: 7px;
+  background: var(--cs-surface);
+  color: var(--cs-text);
+  font: inherit;
+  font-size: .78rem;
+}
+
+.course-scheduling-planning-choice-apply {
+  align-self: end;
+  min-height: 36px;
+  white-space: nowrap;
+}
+
+.course-scheduling-planning-choice-note {
+  grid-column: 2 / -1;
+  color: var(--cs-text-muted);
+  font-size: .68rem;
+  line-height: 1.35;
+}
+
+@media (max-width: 1050px) {
+  .course-scheduling-workboard-choice-panel {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .course-scheduling-workboard-choice-panel > strong,
+  .course-scheduling-workboard-choice-panel .course-scheduling-planning-choice-note {
+    grid-column: 1 / -1;
+  }
+
+  .course-scheduling-workboard-choice-panel .course-scheduling-planning-choice-apply {
+    width: 100%;
+  }
+}
+
+@media (max-width: 680px) {
+  .course-scheduling-workboard-choice-panel {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 9px;
+  }
+
+  .course-scheduling-workboard-choice-panel > strong,
+  .course-scheduling-workboard-choice-panel .course-scheduling-planning-choice,
+  .course-scheduling-workboard-choice-panel .course-scheduling-planning-choice-apply,
+  .course-scheduling-workboard-choice-panel .course-scheduling-planning-choice-note {
+    grid-column: 1;
+    width: 100%;
+  }
+
+  .course-scheduling-planning-choice select {
+    min-height: 42px;
+    font-size: .82rem;
+  }
+}
