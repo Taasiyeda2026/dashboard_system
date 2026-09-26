@@ -82,7 +82,14 @@ test('source keeps personal reports auth temporary and maps verified login to au
   assert.match(source, /resolvePersonalReportsAuthIdentity/);
   assert.match(source, /email: authIdentity\.authEmail/);
   assert.doesNotMatch(source, /buildInternalAuthEmail/);
-  assert.match(source, /auth\.signInWithPassword/);
+  assert.match(source, /createPersonalReportsVerificationClient/);
+  assert.match(source, /persistSession:\s*false/);
+  assert.match(source, /autoRefreshToken:\s*false/);
+  assert.match(source, /detectSessionInUrl:\s*false/);
+  assert.match(source, /verificationClient\.auth\.signInWithPassword/);
+  assert.doesNotMatch(source, /supabase\.auth\.signInWithPassword/);
+  assert.match(source, /supabase\.auth\.getSession/);
+  assert.match(source, /dashboard_auth_session_mismatch/);
   assert.match(source, /const authUserId = authData\.user\.id/);
   assert.match(source, /resolveActiveUserRowAfterAuth/);
   assert.match(source, /auth_ok_user_row_not_found/);
