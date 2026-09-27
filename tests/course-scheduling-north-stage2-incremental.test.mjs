@@ -764,19 +764,165 @@ test('E: 30 recruitment rows, 8 examined, 3 changed => persist only 3 profile ro
 
 test('F: resumeFromCheckpoint still reconciles recruitment profiles', async () => {
   const source = await readFile(new URL('../frontend/src/screens/course-scheduling-planning.js', import.meta.url), 'utf8');
-  assert.match(source, /if \(incrementalIds\) \{/);
+  assert.match(source, /if \(planningScopeIds\) \{/);
   assert.match(source, /resumeFromCheckpoint/);
   assert.match(source, /recruitmentProfileChangedIds/);
   assert.match(source, /mode:\s*'incremental'/);
-  // Profile reconciliation is outside the `!resumeFromCheckpoint` regional gate.
-  const regionalGate = source.indexOf('if (incrementalIds && !resumeFromCheckpoint)');
-  const profileReconcile = source.indexOf('if (incrementalIds) {', regionalGate + 1);
-  assert.ok(regionalGate >= 0);
-  assert.ok(profileReconcile > regionalGate);
+  assert.match(source, /applyIncrementalNorthRegionalOptimization/);
+  // Regional pass is no longer gated by !resumeFromCheckpoint.
+  assert.doesNotMatch(source, /if \(incrementalIds && !resumeFromCheckpoint\)/);
 });
 
 test('screen merges recruitmentProfileChangedIds into effectiveAffectedIds', async () => {
   const source = await readFile(new URL('../frontend/src/screens/course-scheduling.js', import.meta.url), 'utf8');
   assert.match(source, /recruitmentProfileChangedIds/);
+  assert.match(source, /incrementalScopeIds:\s*fullRun \? null : affectedIds/);
   assert.match(source, /mergeEffectiveIncrementalPersistIds\(\s*affectedIds,\s*regionalChangedIds,\s*recruitmentProfileChangedIds\s*\)/);
+});
+
+test('resumeFromCheckpoint still runs North regional optimization and can change C', async () => {
+  const {
+    applyIncrementalNorthRegionalOptimization,
+    mergeEffectiveIncrementalPersistIds,
+    collectNorthRegionalRecruitmentSeedIds
+  } = await import('../frontend/src/screens/course-scheduling-planning.js');
+  const {
+    assertIncrementalPlanningPersistRows
+  } = await import('../frontend/src/screens/course-scheduling-planning-store.js');
+
+  // A completed in checkpoint as recruitment; B finished on resume; C is a
+  // nearby unlocked North proposal that repair can move to free capacity for A.
+  const combinedAfterTargets = [
+    {
+      courseId: 'A', kind: 'recruitment', district: 'צפון', authority: 'נהריה', requiredLanguage: 'he',
+      instructorEmpId: '', meetings: [{ date: '2026-10-20', start_time: '09:00', end_time: '10:30' }]
+    },
+    {
+      courseId: 'B', kind: 'proposal', district: 'צפון', authority: 'נהריה', requiredLanguage: 'he',
+      instructorEmpId: 'Y', instructorName: 'מדריך Y',
+      startDate: '2026-10-21', startTime: '09:00', endTime: '10:30',
+      meetings: [{ date: '2026-10-21', start_time: '09:00', end_time: '10:30' }]
+    },
+    {
+      courseId: 'C', kind: 'proposal', district: 'צפון', authority: 'נהריה', requiredLanguage: 'he',
+      instructorEmpId: 'X', instructorName: 'מדריך X',
+      startDate: '2026-10-20', startTime: '09:00', endTime: '10:30',
+      meetings: [{ date: '2026-10-20', start_time: '09:00', end_time: '10:30' }]
+    }
+  ];
+
+  // Remaining resume target is only B; full incremental scope is still A+B.
+  const remainingTargets = new Set(['B']);
+  const fullScope = ['A', 'B'];
+  assert.deepEqual(
+    collectNorthRegionalRecruitmentSeedIds(combinedAfterTargets, remainingTargets),
+    []
+  );
+  assert.deepEqual(
+    collectNorthRegionalRecruitmentSeedIds(combinedAfterTargets, fullScope),
+    ['A']
+  );
+
+  let repairCalled = false;
+  const repairedRows = [
+    {
+      ...combinedAfterTargets[0],
+      kind: 'proposal',
+      instructorEmpId: 'X',
+      instructorName: 'מדריך X',
+      startDate: '2026-10-20',
+      startTime: '09:00',
+      endTime: '10:30'
+    },
+    { ...combinedAfterTargets[1] },
+    {
+      ...combinedAfterTargets[2],
+      instructorEmpId: 'Z',
+      instructorName: 'מדריך Z',
+      startDate: '2026-10-22',
+      startTime: '11:00',
+      endTime: '12:30',
+      meetings: [{ date: '2026-10-22', start_time: '11:00', end_time: '12:30' }]
+    }
+  ];
+
+  const pass = await applyIncrementalNorthRegionalOptimization({
+    rows: combinedAfterTargets,
+    scopeIds: fullScope,
+    resumeFromCheckpoint: true,
+    buildRepairPlan: async ({ regionalTargets, northRecruitmentIds }) => {
+      repairCalled = true;
+      assert.ok(northRecruitmentIds.includes('A'));
+      assert.ok(regionalTargets.includes('A'));
+      assert.ok(regionalTargets.includes('C'));
+      return { rows: repairedRows, recruitment: 0 };
+    }
+  });
+
+  assert.equal(repairCalled, true);
+  assert.equal(pass.northRegionalOptimization.applied, true);
+  assert.ok(pass.northRegionalOptimization.regionalChangedIds.includes('C'));
+  assert.ok(pass.northRegionalOptimization.regionalChangedIds.includes('A'));
+  assert.equal(pass.northRegionalOptimization.afterRecruitment, 0);
+  assert.equal(pass.rows.find((row) => row.courseId === 'A')?.kind, 'proposal');
+
+  const effectiveAffectedIds = mergeEffectiveIncrementalPersistIds(
+    fullScope,
+    pass.northRegionalOptimization.regionalChangedIds
+  );
+  assert.ok(effectiveAffectedIds.includes('A'));
+  assert.ok(effectiveAffectedIds.includes('C'));
+  assert.ok(effectiveAffectedIds.includes('B'));
+  const persistRows = pass.rows.filter((row) => effectiveAffectedIds.includes(row.courseId));
+  assert.equal(
+    assertIncrementalPlanningPersistRows(persistRows, effectiveAffectedIds, { replaceAll: false }).length,
+    persistRows.length
+  );
+  assert.ok(!effectiveAffectedIds.includes('D'));
+});
+
+test('resumeFromCheckpoint regional optimization with no improvement persists no extra rows', async () => {
+  const {
+    applyIncrementalNorthRegionalOptimization,
+    mergeEffectiveIncrementalPersistIds
+  } = await import('../frontend/src/screens/course-scheduling-planning.js');
+
+  const rows = [
+    {
+      courseId: 'A', kind: 'recruitment', district: 'צפון', authority: 'נהריה', requiredLanguage: 'he',
+      instructorEmpId: '', meetings: [{ date: '2026-10-20', start_time: '09:00', end_time: '10:30' }]
+    },
+    {
+      courseId: 'B', kind: 'proposal', district: 'צפון', authority: 'נהריה', requiredLanguage: 'he',
+      instructorEmpId: 'Y', instructorName: 'מדריך Y',
+      startDate: '2026-10-21', startTime: '09:00', endTime: '10:30',
+      meetings: [{ date: '2026-10-21', start_time: '09:00', end_time: '10:30' }]
+    },
+    {
+      courseId: 'C', kind: 'proposal', district: 'צפון', authority: 'נהריה', requiredLanguage: 'he',
+      instructorEmpId: 'X', instructorName: 'מדריך X',
+      startDate: '2026-10-20', startTime: '09:00', endTime: '10:30',
+      meetings: [{ date: '2026-10-20', start_time: '09:00', end_time: '10:30' }]
+    }
+  ];
+
+  let repairCalled = false;
+  const pass = await applyIncrementalNorthRegionalOptimization({
+    rows,
+    scopeIds: ['A', 'B'],
+    resumeFromCheckpoint: true,
+    buildRepairPlan: async ({ regionalTargets }) => {
+      repairCalled = true;
+      assert.ok(regionalTargets.includes('C'));
+      // Same rows / same recruitment => no improvement.
+      return { rows: rows.map((row) => ({ ...row })), recruitment: 1 };
+    }
+  });
+
+  assert.equal(repairCalled, true);
+  assert.equal(pass.northRegionalOptimization.applied, false);
+  assert.deepEqual(pass.northRegionalOptimization.regionalChangedIds, []);
+  const effectiveAffectedIds = mergeEffectiveIncrementalPersistIds(['A', 'B'], pass.northRegionalOptimization.regionalChangedIds);
+  assert.deepEqual([...effectiveAffectedIds].sort(), ['A', 'B']);
+  assert.equal(pass.rows.find((row) => row.courseId === 'A')?.kind, 'recruitment');
 });

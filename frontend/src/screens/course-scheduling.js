@@ -2595,6 +2595,9 @@ export const courseSchedulingScreen = {
           lockedOptions,
           existingRows: planningExistingRows,
           targetCourseIds,
+          // Keep the full affected scope for final North regional / profile
+          // post-passes even when resume narrows targetCourseIds to remaining ids.
+          incrementalScopeIds: fullRun ? null : affectedIds,
           resumeFromCheckpoint,
           planningProfile: 'fast',
           signal: run.controller.signal,

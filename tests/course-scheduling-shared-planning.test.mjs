@@ -68,10 +68,12 @@ test('full and incremental planning silently checkpoint and can resume', async (
   assert.match(screen, /checkpointCompletedIds\.size - lastSilentCheckpointCount >= checkpointBatchSize/);
   assert.match(screen, /progress\.phase !== 'בניית תוכנית'/);
   assert.match(screen, /resumeFromCheckpoint/);
+  assert.match(screen, /incrementalScopeIds/);
   assert.match(screen, /currentCourseIds\.filter\(\(courseId\) => !checkpointCompletedIds\.has\(courseId\)\)/);
   assert.match(screen, /Checkpointing is resilience-only and deliberately silent/);
   assert.match(planner, /await onProgress\(/);
-  assert.match(planner, /incrementalIds && !resumeFromCheckpoint/);
+  assert.match(planner, /applyIncrementalNorthRegionalOptimization/);
+  assert.doesNotMatch(planner, /incrementalIds && !resumeFromCheckpoint/);
 });
 
 test('entering shared planning never recalculates automatically and keeps updates explicit', async () => {

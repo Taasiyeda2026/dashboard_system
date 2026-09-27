@@ -325,6 +325,126 @@ export function expandNorthRegionalDependencyClosure({
   return [...closure];
 }
 
+/**
+ * North recruitment seeds for regional re-opt after an incremental pass.
+ * Uses the full incremental scope (original affected ids), not only remaining
+ * resume targets, so checkpoint-completed recruitment still triggers re-opt.
+ */
+export function collectNorthRegionalRecruitmentSeedIds(rows = [], scopeIds = null) {
+  const scope = scopeIds instanceof Set
+    ? scopeIds
+    : (Array.isArray(scopeIds)
+      ? new Set([...scopeIds].map(text).filter(Boolean))
+      : null);
+  return (rows || [])
+    .filter((row) => text(row?.kind) === 'recruitment')
+    .filter((row) => normalizeOperationalDistrict(row?.district) === 'צפון')
+    .map((row) => text(row?.courseId))
+    .filter((courseId) => courseId && (!scope || scope.has(courseId)));
+}
+
+/**
+ * Final North regional pass for incremental planning.
+ * Runs after target rows are complete — including when resumeFromCheckpoint
+ * skipped already-finished targets. Resume must not cancel this pass.
+ */
+export async function applyIncrementalNorthRegionalOptimization({
+  rows = [],
+  scopeIds = null,
+  resumeFromCheckpoint = false,
+  buildRepairPlan = null,
+  onProgress = null,
+  report = null
+} = {}) {
+  void resumeFromCheckpoint; // resume affects target calc only; final regional pass still runs
+  const northRecruitmentIds = collectNorthRegionalRecruitmentSeedIds(rows, scopeIds);
+  if (!northRecruitmentIds.length) {
+    return {
+      rows,
+      northRegionalOptimization: {
+        applied: false,
+        examinedIds: [],
+        regionalChangedIds: []
+      }
+    };
+  }
+
+  const regionalTargets = expandNorthRegionalDependencyClosure({
+    seedIds: northRecruitmentIds,
+    rows,
+    maxRows: NORTH_REGIONAL_CLOSURE_MAX
+  });
+  if (regionalTargets.length <= northRecruitmentIds.length) {
+    return {
+      rows,
+      northRegionalOptimization: {
+        applied: false,
+        examinedIds: regionalTargets,
+        regionalChangedIds: []
+      }
+    };
+  }
+
+  if (typeof report === 'function') {
+    await report('אופטימיזציה אזורית בצפון', 0, regionalTargets.length);
+  } else if (typeof onProgress === 'function') {
+    await onProgress({
+      phase: 'אופטימיזציה אזורית בצפון',
+      completed: 0,
+      total: regionalTargets.length
+    });
+  }
+
+  if (typeof buildRepairPlan !== 'function') {
+    return {
+      rows,
+      northRegionalOptimization: {
+        applied: false,
+        examinedIds: regionalTargets,
+        regionalChangedIds: []
+      }
+    };
+  }
+
+  const beforeRecruitment = (rows || []).filter((row) => text(row?.kind) === 'recruitment').length;
+  const repaired = await buildRepairPlan({
+    regionalTargets,
+    northRecruitmentIds,
+    rows
+  });
+  const repairedRows = Array.isArray(repaired?.rows) ? repaired.rows : rows;
+  const afterRecruitment = Number.isFinite(Number(repaired?.recruitment))
+    ? Number(repaired.recruitment)
+    : repairedRows.filter((row) => text(row?.kind) === 'recruitment').length;
+  const improved = comparePlanningPlanQuality(repairedRows, rows) < 0
+    || afterRecruitment < beforeRecruitment;
+
+  if (!improved) {
+    return {
+      rows,
+      northRegionalOptimization: {
+        applied: false,
+        examinedIds: regionalTargets,
+        regionalChangedIds: []
+      }
+    };
+  }
+
+  const regionalChangedIds = diffPlanningRowsChangedIds(rows, repairedRows, {
+    limitToIds: regionalTargets
+  });
+  return {
+    rows: repairedRows,
+    northRegionalOptimization: {
+      applied: true,
+      examinedIds: regionalTargets,
+      regionalChangedIds,
+      beforeRecruitment,
+      afterRecruitment
+    }
+  };
+}
+
 export function createPlanningCheckpoint({
   budgetMs = PLANNING_CPU_SLICE_MS,
   now = () => (typeof performance !== 'undefined' && typeof performance.now === 'function' ? performance.now() : Date.now()),
@@ -3607,6 +3727,10 @@ export async function buildDynamicCoursePlan({
   lockedOptions = {},
   existingRows = [],
   targetCourseIds = null,
+  // Full incremental affected set. On resume, targetCourseIds may be only the
+  // remaining incomplete ids; incrementalScopeIds keeps checkpoint-completed
+  // affected rows in regional/profile post-passes.
+  incrementalScopeIds = null,
   onProgress = null,
   signal = null,
   checkpoint = createPlanningCheckpoint({ signal }),
@@ -3636,6 +3760,14 @@ export async function buildDynamicCoursePlan({
   const recruitmentRescueById = new Map();
   const incrementalIds = Array.isArray(targetCourseIds)
     ? new Set(targetCourseIds.map((value) => text(value)).filter(Boolean))
+    : null;
+  const planningScopeIds = incrementalIds
+    ? new Set([
+        ...incrementalIds,
+        ...((Array.isArray(incrementalScopeIds) ? incrementalScopeIds : [])
+          .map((value) => text(value))
+          .filter(Boolean))
+      ])
     : null;
   const fixedUnassigned = [];
   const missingSchedule = [];
@@ -4072,9 +4204,9 @@ export async function buildDynamicCoursePlan({
         }
       : { courseId: idOf(activity) };
   });
-  const profileSeedIds = incrementalIds
+  const profileSeedIds = planningScopeIds
     ? [...new Set([
-        ...incrementalIds,
+        ...planningScopeIds,
         ...diffPlanningRowsChangedIds(
           baselineRows,
           targets.map((activity) => rowsById.get(idOf(activity)) || { courseId: idOf(activity) })
@@ -4084,7 +4216,7 @@ export async function buildDynamicCoursePlan({
   const profileMeta = {};
   let rows = assignRecruitmentProfiles(
     targets.map((activity) => rowsById.get(idOf(activity)) || missingOverviewRow(activity, catalog)),
-    incrementalIds
+    planningScopeIds
       ? {
           mode: 'incremental',
           seedCourseIds: profileSeedIds,
@@ -4127,89 +4259,66 @@ export async function buildDynamicCoursePlan({
   // regional re-optimization over a dependency closure of unlocked proposals
   // before accepting hires. CALCULATED may inspect the closure; PERSISTED is
   // only rows that actually changed (handled by the caller via regionalChangedIds).
-  // Profile reconciliation also runs for resumeFromCheckpoint so peers that only
+  // This final regional pass also runs when resumeFromCheckpoint=true: resume
+  // only skips already-completed target calculation, never the regional pass.
+  // Profile reconciliation likewise runs for resume so peers that only
   // changed profile size/label are still persisted.
-  if (incrementalIds && !resumeFromCheckpoint) {
-    const northRecruitmentIds = rows
-      .filter((row) => text(row?.kind) === 'recruitment')
-      .filter((row) => normalizeOperationalDistrict(row?.district) === 'צפון')
-      .map((row) => text(row?.courseId))
-      .filter((courseId) => courseId && incrementalIds.has(courseId));
-    if (northRecruitmentIds.length) {
-      const regionalTargets = expandNorthRegionalDependencyClosure({
-        seedIds: northRecruitmentIds,
-        rows,
-        maxRows: NORTH_REGIONAL_CLOSURE_MAX
-      });
-      if (regionalTargets.length > northRecruitmentIds.length) {
-        await report('אופטימיזציה אזורית בצפון', 0, regionalTargets.length);
-        const repaired = await buildDynamicCoursePlan({
-          activities,
-          instructors,
-          profiles,
-          rules,
-          exceptions,
-          schoolCalendar,
-          catalog,
-          district,
-          periodKey,
-          today,
-          routeClient,
-          lockedOptions,
-          existingRows: rows,
-          targetCourseIds: regionalTargets,
-          onProgress: typeof onProgress === 'function'
-            ? (progress) => onProgress({ ...progress, phase: `צפון · ${progress.phase}` })
-            : null,
-          signal,
-          checkpoint,
-          resumeFromCheckpoint: false,
-          _repairPass: true,
-          _repairPriorityIds: northRecruitmentIds,
-          planningProfile
-        });
-        const improved = comparePlanningPlanQuality(repaired.rows, rows) < 0
-          || (Number(repaired.recruitment) || 0) < (Number(initialResult.recruitment) || 0);
-        if (improved) {
-          const regionalChangedIds = diffPlanningRowsChangedIds(rows, repaired.rows, {
-            limitToIds: regionalTargets
-          });
-          rows = repaired.rows;
-          initialResult = {
-            ...repaired,
-            repairApplied: true,
-            northRegionalOptimization: {
-              applied: true,
-              examinedIds: regionalTargets,
-              regionalChangedIds,
-              beforeRecruitment: initialResult.recruitment,
-              afterRecruitment: repaired.recruitment
-            }
-          };
-        } else {
-          initialResult = {
-            ...initialResult,
-            northRegionalOptimization: {
-              applied: false,
-              examinedIds: regionalTargets,
-              regionalChangedIds: []
-            }
-          };
+  if (planningScopeIds) {
+    const regionalPass = await applyIncrementalNorthRegionalOptimization({
+      rows,
+      scopeIds: planningScopeIds,
+      resumeFromCheckpoint,
+      report,
+      buildRepairPlan: async ({ regionalTargets, northRecruitmentIds }) => buildDynamicCoursePlan({
+        activities,
+        instructors,
+        profiles,
+        rules,
+        exceptions,
+        schoolCalendar,
+        catalog,
+        district,
+        periodKey,
+        today,
+        routeClient,
+        lockedOptions,
+        existingRows: rows,
+        targetCourseIds: regionalTargets,
+        onProgress: typeof onProgress === 'function'
+          ? (progress) => onProgress({ ...progress, phase: `צפון · ${progress.phase}` })
+          : null,
+        signal,
+        checkpoint,
+        resumeFromCheckpoint: false,
+        _repairPass: true,
+        _repairPriorityIds: northRecruitmentIds,
+        planningProfile
+      })
+    });
+    rows = regionalPass.rows;
+    if (regionalPass.northRegionalOptimization?.applied) {
+      initialResult = {
+        ...summarize(rows, {
+          repairApplied: true,
+          recruitmentProfileChangedIds: profileMeta.changedIds || [],
+          recruitmentProfileExaminedIds: profileMeta.examinedIds || []
+        }),
+        repairApplied: true,
+        northRegionalOptimization: regionalPass.northRegionalOptimization
+      };
+    } else {
+      initialResult = {
+        ...initialResult,
+        northRegionalOptimization: regionalPass.northRegionalOptimization || {
+          applied: false,
+          examinedIds: [],
+          regionalChangedIds: []
         }
-      } else {
-        initialResult = {
-          ...initialResult,
-          northRegionalOptimization: {
-            applied: false,
-            examinedIds: regionalTargets,
-            regionalChangedIds: []
-          }
-        };
-      }
+      };
     }
   }
 
-  if (incrementalIds) {
+  if (planningScopeIds) {
     const regionalChangedIds = Array.isArray(initialResult?.northRegionalOptimization?.regionalChangedIds)
       ? initialResult.northRegionalOptimization.regionalChangedIds
       : [];
@@ -4217,7 +4326,7 @@ export async function buildDynamicCoursePlan({
     const reconciledRows = assignRecruitmentProfiles(rows, {
       mode: 'incremental',
       seedCourseIds: [...new Set([
-        ...incrementalIds,
+        ...planningScopeIds,
         ...regionalChangedIds,
         ...(profileSeedIds || [])
       ])],

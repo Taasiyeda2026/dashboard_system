@@ -275,3 +275,4 @@ config.HOTFIX_VERSION = `north-stage2-incremental-persist-20260927-v1-${config.H
 config.HOTFIX_VERSION = `incremental-stable-rows-guard-20260927-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `north-regional-changed-ids-persist-20260927-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `recruitment-profiles-incremental-safe-20260927-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `resume-north-regional-optimization-20260927-v1-${config.HOTFIX_VERSION}`;
