@@ -39,3 +39,17 @@ test('create activity requests use edit_requests request_type and requested_payl
   assert.match(editRequestsSource, /פרטי הפעילות המבוקשת/);
   assert.match(editRequestsSource, /TECHNICAL_DISPLAY_FIELDS/);
 });
+
+test('activity mutation diagnostics read canonical permissions JSON instead of removed user columns', async () => {
+  const apiSource = await fs.readFile(API_FILE, 'utf8');
+  const start = apiSource.indexOf('async function buildActivityMutationAuthContext()');
+  const end = apiSource.indexOf('\nfunction logActivityMutationDebug', start);
+  const authContextSource = apiSource.slice(start, end);
+
+  assert.match(authContextSource, /\.select\('user_id,role,permissions'\)/);
+  assert.match(authContextSource, /parsePermissions\(userRow\?\.permissions\)/);
+  assert.doesNotMatch(
+    authContextSource,
+    /\.select\([^\n]*(?:can_request_edit|can_request_edit_2|can_edit_direct|can_add_activity)/
+  );
+});
