@@ -20,6 +20,7 @@ import {
   planningActivityDifficulty,
   planningActivityHasStarted,
   planningContextFingerprint,
+  planningLegacyEngineContextFingerprint,
   planningDataFingerprint,
   planningHomeDistanceKm,
   planningLocalityTier,
@@ -1506,6 +1507,35 @@ test('planning fingerprint covers instructor, availability, calendar and catalog
     { ...base, schoolCalendar: [{ start_date: '2026-10-11', blocks_scheduling: true }] },
     { ...base, catalog: [{ ...catalog[0], meetings_count: 12 }] }
   ]) assert.notEqual(planningDataFingerprint(changed), fingerprint);
+});
+
+test('legacy engine context can be recognized without forcing a full rebuild', () => {
+  const base = {
+    activities: [{ ...baseCourse, row_id: 'legacy-a', status: 'פתוח' }],
+    instructors: [{ emp_id: 1, active: 'yes', address: 'א' }],
+    profiles: [{ emp_id: 1, friday_allowed: false }],
+    rules: [],
+    exceptions: [],
+    schoolCalendar: [],
+    catalog,
+    periodKey: 'year'
+  };
+  const legacy = planningLegacyEngineContextFingerprint(base, 'planning-v16-20260927-recruitment-capacity-weekends');
+  const current = planningContextFingerprint(base);
+  assert.notEqual(current, legacy);
+  assert.equal(
+    planningLegacyEngineContextFingerprint(base, 'planning-v16-20260927-recruitment-capacity-weekends'),
+    legacy
+  );
+});
+
+test('screen does not force full planning solely because engine version changed or nothing changed', async () => {
+  const source = await readFile(new URL('../frontend/src/screens/course-scheduling.js', import.meta.url), 'utf8');
+  assert.match(source, /legacyStartContextFingerprint = engineChanged/);
+  assert.match(source, /storedContextFingerprint !== startContextFingerprint/);
+  assert.doesNotMatch(source, /text\(shared\.workspace\.engineVersion\) !== PLANNING_ENGINE_VERSION\s*\|\|\s*text\(shared\.workspace\.contextFingerprint\)/);
+  assert.match(source, /const fullRun = forceFull \|\| !shared\?\.workspace \|\| !existingRows\.length \|\| contextChanged;/);
+  assert.doesNotMatch(source, /fullRun =[^\n]*affectedIds\.length === 0/);
 });
 
 test('planning context fingerprint ignores activity-only changes but tracks shared scheduling context', () => {
