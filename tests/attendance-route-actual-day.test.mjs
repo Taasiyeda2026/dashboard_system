@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   applyAttendanceDayRouteKilometers,
-  applyDashboardRouteKilometers
+  applyDashboardRouteKilometers,
+  compareAttendanceRows
 } from '../frontend/src/screens/attendance-control.js';
 
 function routeCache() {
@@ -104,4 +105,66 @@ test('legacy address-only cache route is valid for a non-school physical destina
 
   applyAttendanceDayRouteKilometers(rows, attendance, cache);
   assert.equal(rows[0].kilometers, 174.77);
+});
+
+
+test('planned base training uses directional Google route mileage and surfaces a reported-km discrepancy', () => {
+  const rows = [{
+    employeeId: '1538',
+    date: '2026-09-15',
+    startTime: '10:00',
+    endTime: '15:00',
+    activityType: 'הכשרה',
+    program: 'הכשרת בסיס',
+    kilometers: null,
+    __trainingSchedule: true
+  }, {
+    employeeId: '1538',
+    date: '2026-09-15',
+    startTime: '10:00',
+    sourceRecordId: 'training-mohammad',
+    destinationAddress: '6RVR+XM, יקום',
+    destinationEntityKey: 'training:base_training',
+    destinationType: 'location',
+    kilometers: null,
+    __routeOnly: true
+  }];
+  const attendance = [{
+    employeeId: '1538',
+    employeeName: 'מוחמד סוילם',
+    date: '2026-09-15',
+    recordId: 'training-mohammad',
+    activityType: 'הכשרה',
+    program: 'הכשרת בסיס',
+    startTime: '10:00',
+    endTime: '15:00',
+    workHours: 5,
+    kilometers: 285,
+    publicTransport: false,
+    originAddress: 'זית 6, מיתר',
+    destinationAddress: '6RVR+XM, יקום',
+    destinationEntityKey: 'training:base_training',
+    destinationType: 'location'
+  }];
+  const cache = [{
+    origin_address: 'זית 6, מיתר',
+    destination_address: '6RVR+XM, יקום',
+    distance_km: 132.462
+  }, {
+    origin_address: '6RVR+XM, יקום',
+    destination_address: 'זית 6, מיתר',
+    distance_km: 135.041
+  }];
+
+  applyAttendanceDayRouteKilometers(rows, attendance, cache);
+
+  assert.equal(rows[0].kilometers, 267.5, 'training plan receives the calculated round-trip mileage');
+  assert.equal(rows[1].kilometers, null, 'route-only helper is not the review source when a training plan exists');
+
+  const result = compareAttendanceRows(attendance, rows);
+  assert.equal(result.comparisons.length, 1);
+  const kmDiff = result.comparisons[0].differences.find((diff) => diff.key === 'kilometers');
+  assert.ok(kmDiff, '285 reported km must be compared to the route calculation');
+  assert.equal(kmDiff.attendance, 285);
+  assert.equal(kmDiff.dashboard, 267.5);
 });
