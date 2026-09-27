@@ -132,6 +132,8 @@ test('public transport replaces kilometers and only shows cost when relevant', (
   assert.match(html, /תחבורה ציבורית/);
   assert.match(html, /עלות תחבורה ציבורית/);
   assert.match(html, />32</);
+  assert.match(html, /data-attendance-manual-edit="pt-only" data-field-key="publicTransport"/);
+  assert.match(html, /data-attendance-manual-edit="pt-only" data-field-key="publicTransportCost"/);
   assert.doesNotMatch(html, /<th>ק״מ<\/th>/);
 });
 
@@ -297,7 +299,6 @@ test('attendance-only rows expose inline correction instead of empty action cell
   assert.doesNotMatch(html, /data-attendance-manual-edit="attendance-only-edit" data-field-key="workHours"/);
   assert.match(html, /מחושב אוטומטית/);
   assert.match(html, /data-attendance-manual-edit="attendance-only-edit" data-field-key="program"/);
-  assert.match(html, /data-attendance-manual-edit="attendance-only-edit" data-field-key="publicTransport"/);
   assert.match(html, /data-attendance-manual-edit="attendance-only-edit" data-field-key="kilometers"/);
   assert.doesNotMatch(html, /data-attendance-focus-travel="attendance-only-edit"/);
   assert.doesNotMatch(html, /אשר כפי שדווח/);
