@@ -352,7 +352,7 @@ export async function approvePayrollControlEmployee({
   const entries = payrollEmployeeEntries(result, employeeId);
   if (!entries.length) throw new Error('לא נמצאו רשומות נוכחות לעובד זה.');
   if (payrollEmployeeHasUnresolvedEntries(result, employeeId)) {
-    throw new Error('לא ניתן לסיים את הבקרה: יש רשומות נוכחות שלא קיבלו החלטת מנהל.');
+    throw new Error('לא ניתן לאשר את החודש: יש רשומות שעדיין לא אושרו על ידי מנהל הצוות.');
   }
   const updates = [
     ...collectChangedAttendanceUpdates(entries),
