@@ -1085,6 +1085,14 @@ export function attendanceEntryRecordId(entryOrRow = {}) {
   return txt(row.recordId || source.recordId || source.record_id || source.ID || source.Id || source.id);
 }
 
+/** Resolve the Element behind a DOM event (clicks on button text can target a Text node). */
+export function eventTargetElement(event) {
+  const target = event?.target;
+  if (target && typeof target.closest === 'function') return target;
+  const parent = target?.parentElement;
+  return parent && typeof parent.closest === 'function' ? parent : null;
+}
+
 function generatedTravelCancellationIsSystemResolved(entryOrRow = {}) {
   if (!isAttendanceTravelTimeCancellation(entryOrRow)) return false;
   const row = entryOrRow?.attendance || entryOrRow?.final || entryOrRow;
@@ -2379,7 +2387,7 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
       console.warn('[attendance-control] record reviews load failed', error);
     }
   };
-  const finishModuleImport = './payroll-control-finish.js?v=20260927-manager-record-approval-v2';
+  const finishModuleImport = './payroll-control-finish.js?v=20260927-training-km-field-choice-v1';
   const syncEntryAfterPersistentWrite = (entry) => {
     const source = entry.attendance?._source;
     entry.attendance = { ...(entry.attendance || {}), ...(entry.final || {}), _source: source };
@@ -2493,8 +2501,14 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
     }
     finally { update(); }
   });
+  const setStatusMessage = (message, { error = false } = {}) => {
+    status.textContent = message || '';
+    status.classList.toggle('is-error', Boolean(error && message));
+  };
   results.addEventListener('change', (event) => {
-    const travelToggle = event.target.closest('[data-attendance-correct-pt]');
+    const clickEl = eventTargetElement(event);
+    if (!clickEl) return;
+    const travelToggle = clickEl.closest('[data-attendance-correct-pt]');
     if (travelToggle) {
       const entryId = travelToggle.dataset.attendanceCorrectPt;
       const costInput = results.querySelector(`[data-attendance-correct-pt-cost="${CSS.escape(entryId)}"]`);
@@ -2507,16 +2521,16 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
       if (travelToggle.checked && costInput && !costInput.value) costInput.value = '0';
       return;
     }
-    const dashboardOnlyElement = event.target.closest('[data-dashboard-only]');
-    if (dashboardOnlyElement && event.target.matches('[data-dashboard-only-choice]') && result) {
+    const dashboardOnlyElement = clickEl.closest('[data-dashboard-only]');
+    if (dashboardOnlyElement && clickEl.matches('[data-dashboard-only-choice]') && result) {
       const entry = result.dashboardOnly.find((item) => item.id === dashboardOnlyElement.dataset.dashboardOnly);
       setDashboardOnlyChoice(entry, event.target.value === 'add');
       return;
     }
-    const diff = event.target.closest('[data-comparison]'); if (!diff || !result) return;
+    const diff = clickEl.closest('[data-comparison]'); if (!diff || !result) return;
     const comparison = result.comparisons.find((row) => row.id === diff.dataset.comparison); const field = diff.dataset.field;
-    if (event.target.matches('[data-attendance-choice]')) { const custom = diff.querySelector('[data-attendance-custom]'); custom.hidden = event.target.value !== 'custom'; applyAttendanceChoice(comparison, field, event.target.value, custom.value); }
-    if (event.target.matches('[data-attendance-custom]')) applyAttendanceChoice(comparison, field, 'custom', event.target.value);
+    if (clickEl.matches('[data-attendance-choice]')) { const custom = diff.querySelector('[data-attendance-custom]'); custom.hidden = event.target.value !== 'custom'; applyAttendanceChoice(comparison, field, event.target.value, custom.value); }
+    if (clickEl.matches('[data-attendance-custom]')) applyAttendanceChoice(comparison, field, 'custom', event.target.value);
   });
   const parseManualCorrectionValue = (field, rawValue) => {
     const raw = txt(rawValue);
@@ -2542,11 +2556,13 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
   };
 
   results.addEventListener('click', async (event) => {
+    const clickEl = eventTargetElement(event);
+    if (!clickEl) return;
     const findEntry = (entryId) => (
       [...(result?.comparisons || []), ...(result?.notCompared || [])].find((entry) => entry.id === entryId) || null
     );
 
-    const manualEditBtn = event.target.closest('[data-attendance-manual-edit]');
+    const manualEditBtn = clickEl.closest('[data-attendance-manual-edit]');
     if (manualEditBtn && result) {
       const rowElement = manualEditBtn.closest('tr');
       const wrap = rowElement?.querySelector('[data-attendance-manual-edit-wrap]');
@@ -2556,7 +2572,7 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
       return;
     }
 
-    const manualSaveBtn = event.target.closest('[data-attendance-manual-save]');
+    const manualSaveBtn = clickEl.closest('[data-attendance-manual-save]');
     if (manualSaveBtn && result) {
       const entry = findEntry(txt(manualSaveBtn.dataset.attendanceManualSave));
       const field = txt(manualSaveBtn.dataset.fieldKey);
@@ -2630,7 +2646,7 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
       return;
     }
 
-    const focusTravelBtn = event.target.closest('[data-attendance-focus-travel]');
+    const focusTravelBtn = clickEl.closest('[data-attendance-focus-travel]');
     if (focusTravelBtn && result) {
       const entryId = txt(focusTravelBtn.dataset.attendanceFocusTravel);
       const editor = results.querySelector(`[data-attendance-travel-edit="${CSS.escape(entryId)}"]`);
@@ -2639,12 +2655,22 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
       return;
     }
 
-    const fieldChoiceBtn = event.target.closest('[data-attendance-field-choice]');
+    const fieldChoiceBtn = clickEl.closest('[data-attendance-field-choice]');
     if (fieldChoiceBtn && result) {
-      const comparison = result.comparisons.find((row) => row.id === txt(fieldChoiceBtn.dataset.comparisonId));
-      const field = txt(fieldChoiceBtn.dataset.fieldKey);
-      const choice = txt(fieldChoiceBtn.dataset.attendanceFieldChoice);
-      if (!comparison || !field) return;
+      const entryId = txt(
+        fieldChoiceBtn.dataset.comparisonId
+        || fieldChoiceBtn.getAttribute('data-comparison-id')
+      );
+      const comparison = findEntry(entryId);
+      const field = txt(fieldChoiceBtn.dataset.fieldKey || fieldChoiceBtn.getAttribute('data-field-key'));
+      const choice = txt(
+        fieldChoiceBtn.dataset.attendanceFieldChoice
+        || fieldChoiceBtn.getAttribute('data-attendance-field-choice')
+      );
+      if (!comparison || !field) {
+        setStatusMessage('לא נמצאה רשומת הנוכחות לאישור השדה.', { error: true });
+        return;
+      }
       const rowElement = fieldChoiceBtn.closest('[data-comparison]');
       if (choice === 'custom') {
         const customWrap = rowElement?.querySelector('.attendance-control__row-custom');
@@ -2653,50 +2679,59 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
         customInput?.focus();
         return;
       }
-      applyAttendanceChoice(comparison, field, choice);
       fieldChoiceBtn.disabled = true;
       try {
+        applyAttendanceChoice(comparison, field, choice);
         const persisted = await persistEntryCorrection(comparison);
         paintResults();
-        status.textContent = persisted.wrote
+        setStatusMessage(persisted.wrote
           ? 'התיקון נשמר ברשומת הנוכחות. הרשומה ממתינה לאישור.'
-          : '';
+          : 'ההחלטה נשמרה בבקרה. יש לאשר את הרשומה.');
       } catch (error) {
-        status.textContent = error?.message || 'שמירת ההחלטה נכשלה.';
+        paintResults();
+        setStatusMessage(error?.message || 'שמירת ההחלטה נכשלה.', { error: true });
       } finally {
         fieldChoiceBtn.disabled = false;
       }
       return;
     }
 
-    const customSaveBtn = event.target.closest('[data-attendance-custom-save]');
+    const customSaveBtn = clickEl.closest('[data-attendance-custom-save]');
     if (customSaveBtn && result) {
-      const comparison = result.comparisons.find((row) => row.id === txt(customSaveBtn.dataset.comparisonId));
-      const field = txt(customSaveBtn.dataset.fieldKey);
+      const entryId = txt(
+        customSaveBtn.dataset.comparisonId
+        || customSaveBtn.getAttribute('data-comparison-id')
+      );
+      const comparison = findEntry(entryId);
+      const field = txt(customSaveBtn.dataset.fieldKey || customSaveBtn.getAttribute('data-field-key'));
       const rowElement = customSaveBtn.closest('[data-comparison]');
       const customInput = rowElement?.querySelector('[data-attendance-custom]');
-      if (!comparison || !field || !customInput) return;
+      if (!comparison || !field || !customInput) {
+        setStatusMessage('לא נמצאה רשומת הנוכחות לשמירת הערך המתוקן.', { error: true });
+        return;
+      }
       const value = txt(customInput.value);
       if (!value) {
-        status.textContent = 'יש להזין ערך מתוקן.';
+        setStatusMessage('יש להזין ערך מתוקן.', { error: true });
         customInput.focus();
         return;
       }
-      applyAttendanceChoice(comparison, field, 'custom', value);
       customSaveBtn.disabled = true;
       try {
+        applyAttendanceChoice(comparison, field, 'custom', value);
         await persistEntryCorrection(comparison);
         paintResults();
-        status.textContent = 'התיקון נשמר ברשומת הנוכחות. הרשומה ממתינה לאישור.';
+        setStatusMessage('התיקון נשמר ברשומת הנוכחות. הרשומה ממתינה לאישור.');
       } catch (error) {
-        status.textContent = error?.message || 'שמירת התיקון נכשלה.';
+        paintResults();
+        setStatusMessage(error?.message || 'שמירת התיקון נכשלה.', { error: true });
       } finally {
         customSaveBtn.disabled = false;
       }
       return;
     }
 
-    const editRecordBtn = event.target.closest('[data-attendance-edit-record]');
+    const editRecordBtn = clickEl.closest('[data-attendance-edit-record]');
     if (editRecordBtn && result) {
       const report = editRecordBtn.closest('.attendance-control__report');
       const editing = report?.dataset.recordEditing !== '1';
@@ -2711,10 +2746,13 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
       return;
     }
 
-    const approveBtn = event.target.closest('[data-attendance-approve-reported]');
+    const approveBtn = clickEl.closest('[data-attendance-approve-reported]');
     if (approveBtn && result) {
       const entry = findEntry(approveBtn.dataset.attendanceApproveReported);
-      if (!entry) return;
+      if (!entry) {
+        setStatusMessage('לא נמצאה רשומת הנוכחות לאישור.', { error: true });
+        return;
+      }
       approveBtn.disabled = true;
       let writeSucceeded = false;
       try {
@@ -2732,19 +2770,19 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
         await api.attendanceControlApproveRecord(update.recordId, true);
         entry.managerRecordApproved = true;
         paintResults();
-        status.textContent = 'הרשומה אושרה ונשמרה.';
+        setStatusMessage('הרשומה אושרה ונשמרה.');
       } catch (error) {
         entry.managerRecordApproved = false;
         paintResults();
-        status.textContent = error?.message || (writeSucceeded
+        setStatusMessage(error?.message || (writeSucceeded
           ? 'התיקון נשמר, אך אישור הרשומה לא נשמר. יש לנסות לאשר שוב.'
-          : 'אישור הרשומה נכשל.');
+          : 'אישור הרשומה נכשל.'), { error: true });
       } finally {
         approveBtn.disabled = false;
       }
       return;
     }
-    const saveCorrectionBtn = event.target.closest('[data-attendance-save-correction]');
+    const saveCorrectionBtn = clickEl.closest('[data-attendance-save-correction]');
     if (saveCorrectionBtn && result) {
       const entry = findEntry(saveCorrectionBtn.dataset.attendanceSaveCorrection);
       const hoursInput = results.querySelector(`[data-attendance-correct-hours="${saveCorrectionBtn.dataset.attendanceSaveCorrection}"]`);
@@ -2755,31 +2793,31 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
         try {
           await persistEntryCorrection(entry);
           paintResults();
-          status.textContent = 'התיקון נשמר ברשומת הנוכחות. הרשומה ממתינה לאישור.';
+          setStatusMessage('התיקון נשמר ברשומת הנוכחות. הרשומה ממתינה לאישור.');
         } catch (error) {
-          status.textContent = error?.message || 'שמירת התיקון נכשלה.';
+          setStatusMessage(error?.message || 'שמירת התיקון נכשלה.', { error: true });
         } finally {
           saveCorrectionBtn.disabled = false;
         }
       } else if (entry) {
-        status.textContent = 'יש להזין שעות שכר מתוקנות.';
+        setStatusMessage('יש להזין שעות שכר מתוקנות.', { error: true });
       }
       return;
     }
-    const saveTravelBtn = event.target.closest('[data-attendance-save-travel]');
+    const saveTravelBtn = clickEl.closest('[data-attendance-save-travel]');
     if (saveTravelBtn && result) {
       const entryId = saveTravelBtn.dataset.attendanceSaveTravel;
       const entry = findEntry(entryId);
       if (!entry) return;
       if (isAttendanceTravelTimeCancellation(entry)) {
-        status.textContent = 'לא ניתן לערוך נסיעה עבור רשומת ביטול זמן נסיעה.';
+        setStatusMessage('לא ניתן לערוך נסיעה עבור רשומת ביטול זמן נסיעה.', { error: true });
         return;
       }
       const usesPublicTransport = Boolean(results.querySelector(`[data-attendance-correct-pt="${CSS.escape(entryId)}"]`)?.checked);
       const cost = optionalNumber(results.querySelector(`[data-attendance-correct-pt-cost="${CSS.escape(entryId)}"]`)?.value);
       const km = optionalNumber(results.querySelector(`[data-attendance-correct-km="${CSS.escape(entryId)}"]`)?.value);
       if (usesPublicTransport && km != null && km > 0) {
-        status.textContent = 'לא ניתן לשמור גם קילומטרים וגם תחבורה ציבורית.';
+        setStatusMessage('לא ניתן לשמור גם קילומטרים וגם תחבורה ציבורית.', { error: true });
         return;
       }
       const { changed } = applyAttendanceTravelCorrection(entry, {
@@ -2788,7 +2826,7 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
         kilometers: usesPublicTransport ? 0 : (km ?? 0)
       });
       if (!changed) {
-        status.textContent = 'לא בוצע שינוי בנתוני הנסיעה.';
+        setStatusMessage('לא בוצע שינוי בנתוני הנסיעה.');
         return;
       }
       saveTravelBtn.disabled = true;
@@ -2796,43 +2834,43 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
         await persistEntryCorrection(entry);
         refreshDailyKilometersAfterTravelChange(result, entry.attendance?.employeeId, entry.attendance?.date);
         paintResults();
-        status.textContent = 'תיקון הנסיעה נשמר ברשומת הנוכחות. הרשומה ממתינה לאישור.';
+        setStatusMessage('תיקון הנסיעה נשמר ברשומת הנוכחות. הרשומה ממתינה לאישור.');
       } catch (error) {
-        status.textContent = error?.message || 'שמירת תיקון הנסיעה נכשלה.';
+        setStatusMessage(error?.message || 'שמירת תיקון הנסיעה נכשלה.', { error: true });
       } finally {
         saveTravelBtn.disabled = false;
       }
       return;
     }
-    const openAttachmentBtn = event.target.closest('[data-attendance-open-attachment]');
+    const openAttachmentBtn = clickEl.closest('[data-attendance-open-attachment]');
     if (openAttachmentBtn) {
       const path = txt(openAttachmentBtn.dataset.attendanceOpenAttachment);
       if (!path) return;
       try {
-        status.textContent = 'פותח אסמכתא…';
+        setStatusMessage('פותח אסמכתא…');
         const signed = await api?.attendanceControlAttachmentSignedUrl?.(path);
         const url = txt(signed?.signedUrl);
         if (!url) throw new Error('לא התקבל קישור לצפייה באסמכתא.');
         window.open(url, '_blank', 'noopener');
-        status.textContent = '';
+        setStatusMessage('');
       } catch (error) {
-        status.textContent = error?.message || 'פתיחת האסמכתא נכשלה.';
+        setStatusMessage(error?.message || 'פתיחת האסמכתא נכשלה.', { error: true });
       }
       return;
     }
-    if (event.target.closest('[data-attendance-export]') && result) {
+    if (clickEl.closest('[data-attendance-export]') && result) {
       XLSX.writeFile(buildCorrectedAttendanceWorkbook([...result.comparisons, ...(result.notCompared || [])], result.dashboardPopulation), attendanceExportFilename(result.month), { compression: true });
       return;
     }
-    const kmApproveBtn = event.target.closest('[data-km-approve-reported]');
+    const kmApproveBtn = clickEl.closest('[data-km-approve-reported]');
     if (kmApproveBtn && result) {
       const [kmEmployeeId, kmDate] = txt(kmApproveBtn.dataset.kmApproveReported).split('|');
       resolveKilometersDay(result, kmEmployeeId, kmDate, 'approved_as_reported');
       paintResults();
-      status.textContent = '';
+      setStatusMessage('');
       return;
     }
-    const viewBtn = event.target.closest('[data-payroll-view-pdf]');
+    const viewBtn = clickEl.closest('[data-payroll-view-pdf]');
     if (viewBtn) {
       const approval = approvalFromButton(viewBtn);
       if (!approval) return;
@@ -2848,31 +2886,31 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
       finishMod.openPayrollApprovalDocument(approval, signedUrl);
       return;
     }
-    const viewSharePointBtn = event.target.closest('[data-payroll-open-sharepoint]');
+    const viewSharePointBtn = clickEl.closest('[data-payroll-open-sharepoint]');
     if (viewSharePointBtn) {
       const sharePointUrl = txt(viewSharePointBtn.dataset.payrollOpenSharepoint);
       if (sharePointUrl) window.open(sharePointUrl, '_blank', 'noopener');
       return;
     }
-    const finishBtn = event.target.closest('[data-payroll-finish]');
+    const finishBtn = clickEl.closest('[data-payroll-finish]');
     if (!finishBtn || !result) return;
     const employeeId = txt(finishBtn.dataset.payrollFinish);
     const employeeName = txt(finishBtn.dataset.payrollEmployeeName);
     const workflow = resolvePayrollMonthWorkflow(workflowByEmployee[employeeId] || {});
     if (workflow.status !== 'submitted') {
-      status.textContent = 'לא ניתן לאשר מנהל לפני שהעובד השלים ואישר את החודש.';
+      setStatusMessage('לא ניתן לאשר מנהל לפני שהעובד השלים ואישר את החודש.', { error: true });
       return;
     }
     finishBtn.disabled = true;
     try {
       const finishMod = await import(finishModuleImport);
       if (finishMod.payrollEmployeeHasUnresolvedEntries(result, employeeId)) {
-        status.textContent = 'לא ניתן לאשר את החודש: יש רשומות שעדיין לא אושרו על ידי מנהל הצוות.';
+        setStatusMessage('לא ניתן לאשר את החודש: יש רשומות שעדיין לא אושרו על ידי מנהל הצוות.', { error: true });
         return;
       }
       const signed = await askForSignature(finishMod);
-      if (!signed) { status.textContent = 'האישור בוטל.'; return; }
-      status.textContent = 'שומר אישור מנהל, מפיק PDF, שומר ב-SharePoint ושולח לעובד…';
+      if (!signed) { setStatusMessage('האישור בוטל.'); return; }
+      setStatusMessage('שומר אישור מנהל, מפיק PDF, שומר ב-SharePoint ושולח לעובד…');
       const saved = await finishMod.approvePayrollControlEmployee({
         api,
         user: state?.user,
@@ -2896,9 +2934,9 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
         manager_pdf_sharepoint_url: saved?.manager_pdf_sharepoint_url || ''
       };
       paintResults();
-      status.textContent = 'אישור המנהל נשמר בהצלחה, החודש ננעל והדוח נשלח לעובד.';
+      setStatusMessage('אישור המנהל נשמר בהצלחה, החודש ננעל והדוח נשלח לעובד.');
     } catch (error) {
-      status.textContent = error?.message || 'שמירת האישור נכשלה.';
+      setStatusMessage(error?.message || 'שמירת האישור נכשלה.', { error: true });
     } finally {
       finishBtn.disabled = false;
     }
