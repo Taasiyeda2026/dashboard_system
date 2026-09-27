@@ -953,13 +953,19 @@ function hasReviewExpense(row) {
 
 export function attendanceEntryIsResolved(entry) {
   if (!entry || entry.source === 'dashboard_only') return true;
-  if (entry.managerResolved === 'approved_as_reported' || entry.managerResolved === 'corrected' || entry.managerResolved === 'auto_ok') return true;
-  if (entry.unmatched || entry.source === 'attendance_not_compared') return false;
-  if ((entry.differences || []).length > 0) return false;
-  if (hasReviewExpense(entry.attendance)) return false;
-  // No pending differences, no special requirements, and not unmatched → resolved.
-  // (unmatched entries are caught above by the entry.unmatched check.)
-  return true;
+  return entry.managerRecordApproved === true;
+}
+
+export function approveAttendanceEntryCurrent(entry) {
+  if (!entry?.attendance) return entry;
+  const base = entry.final || entry.attendance;
+  entry.final = enforceAttendanceTravelMode({
+    ...base,
+    workHours: rowWorkHours(base) ?? optionalNumber(base.workHours)
+  });
+  entry.managerRecordApproved = true;
+  if (entry.managerResolved !== 'corrected') entry.managerResolved = 'approved_as_reported';
+  return entry;
 }
 
 const MONTH_WORKFLOW_LABELS = {
@@ -1034,11 +1040,13 @@ export function approveAttendanceEntryAsReported(entry) {
     workHours: rowWorkHours(entry.attendance) ?? optionalNumber(entry.attendance.workHours)
   });
   entry.managerResolved = 'approved_as_reported';
+  entry.managerRecordApproved = true;
   return entry;
 }
 
 export function applyAttendanceManualCorrection(entry, changes = {}) {
   if (!entry?.attendance) return entry;
+  entry.managerRecordApproved = false;
   const base = entry.final || entry.attendance;
   const merged = { ...base, ...changes };
   const timesChanged = Object.hasOwn(changes, 'startTime') || Object.hasOwn(changes, 'endTime');
@@ -1088,6 +1096,7 @@ function travelFieldsEqual(left = {}, right = {}) {
 export function applyAttendanceTravelCorrection(entry, changes = {}) {
   if (!entry?.attendance) return { entry, changed: false };
   if (isAttendanceTravelTimeCancellation(entry)) return { entry, changed: false };
+  entry.managerRecordApproved = false;
 
   const base = { ...(entry.final || entry.attendance) };
   const nextTravel = enforceAttendanceTravelMode({
@@ -1440,6 +1449,7 @@ export function setDashboardOnlyChoice(entry, includeInFinal) {
 }
 
 export function applyAttendanceChoice(comparison, field, choice, custom = '') {
+  comparison.managerRecordApproved = false;
   const difference = comparison.differences.find((item) => item.key === field);
   if (!difference) return comparison;
   difference.choice = choice; difference.custom = custom; difference.decided = true;
@@ -1963,7 +1973,7 @@ export function resultsHtml(result, month = '', options = {}) {
       { key: 'meetingNo', label: 'מספר מפגש', left: displayRow.meetingNo, editValue: current.meetingNo, right: dashboard?.meetingNo },
       { key: 'startTime', label: 'שעת התחלה', left: displayRow.startTime, editValue: current.startTime, right: dashboard?.startTime, always: true },
       { key: 'endTime', label: 'שעת סיום', left: displayRow.endTime, editValue: current.endTime, right: dashboard?.endTime, always: true },
-      { key: 'workHours', label: 'סה״כ שעות', left: displayWorkHours(current), editValue: rowWorkHours(current), right: null, always: true, autoCalculated: true },
+      { key: 'workHours', label: 'סה״כ שעות', left: displayWorkHours(current), editValue: rowWorkHours(current), right: dashboard ? displayDashboardWorkHours(dashboard) : null, always: true, autoCalculated: true },
       { key: 'publicTransport', label: 'תחבורה ציבורית', left: publicTransport ? 'כן' : 'לא', editValue: publicTransport, right: null, visible: publicTransport || (publicTransportCost != null && publicTransportCost > 0) },
       { key: 'publicTransportCost', label: 'עלות תחבורה ציבורית', left: publicTransportCost, editValue: publicTransportCost, right: null, visible: publicTransport || (publicTransportCost != null && publicTransportCost > 0) },
       { key: 'kilometers', label: 'ק״מ', left: attendanceKm, editValue: attendanceKm, right: dashboardKm, visible: !publicTransport },
@@ -2009,7 +2019,7 @@ export function resultsHtml(result, month = '', options = {}) {
       }
 
       const systemValue = autoCalculated
-        ? '<span class="attendance-control__empty-source">—</span>'
+        ? (dashboard && hasSystemValue ? shown(right) : '<span class="attendance-control__empty-source">—</span>')
         : dashboard
           ? (hasSystemValue ? shown(right) : '<span class="attendance-control__empty-source">—</span>')
           : '<span class="attendance-control__empty-source">—</span>';
@@ -2018,7 +2028,7 @@ export function resultsHtml(result, month = '', options = {}) {
         ? '<span class="attendance-control__no-action">—</span>'
         : related
           ? fieldActionsHtml(entry, key, related, { hasSystemValue, dashboardLabel: actionSourceLabel })
-          : (attendanceOnly || TRAVEL_EDITABLE_FIELDS.has(key))
+          : (MANUAL_EDITABLE_FIELDS.has(key) || TRAVEL_EDITABLE_FIELDS.has(key))
             ? manualFieldActionsHtml(entry, key, label, editValue)
             : '<span class="attendance-control__no-action">—</span>';
       if ((attendanceOnly || entry?.unmatched) && key === 'date' && !attendanceEntryIsResolved(entry)) {
