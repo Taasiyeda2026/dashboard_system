@@ -257,3 +257,5 @@ config.HOTFIX_VERSION = `manager-record-persist-edit-approval-20260927-v2-${conf
 config.HOTFIX_VERSION = `training-km-field-choice-click-20260927-v1-${config.HOTFIX_VERSION}`;
 
 config.HOTFIX_VERSION = `scheduling-exception-recovery-append-substitute-20260927-v1-${config.HOTFIX_VERSION}`;
+
+config.HOTFIX_VERSION = `granular-planning-recalc-20260927-v1-${config.HOTFIX_VERSION}`;
