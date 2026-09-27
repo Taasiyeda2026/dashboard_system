@@ -6,6 +6,7 @@ import { showToast } from './shared/toast.js';
 import { formatDateDots, formatTimeRangeShort } from './shared/format-date.js';
 import { resolveInstructionLanguage } from './shared/instruction-language.js';
 import { hasPermission } from '../permission-policy.js';
+import { invalidatePlanningAfterActivitySchedulingSave } from './course-scheduling-planning-store.js';
 
 const txt = (value) => String(value ?? '').trim();
 function datesText(activity) {
@@ -150,6 +151,10 @@ export function bindInstructorScheduling(root, { ui, state, activitiesRows, onRe
 
       saveButton.disabled = true;
       if (status) status.textContent = 'שומר דרישות שיבוץ…';
+      const beforeRequirements = {
+        required_instructor_gender: genderSelectValue(activity),
+        instruction_language: languageSelectValue(activity)
+      };
       try {
         const save = await supabase.rpc('save_activity_scheduling_requirements', {
           p_activity_id: activityId,
@@ -165,6 +170,16 @@ export function bindInstructorScheduling(root, { ui, state, activitiesRows, onRe
         };
         activity = patchLocalActivity(form, activity, nextRequirements);
         patchActivityCaches(state, activitiesRows, activity, nextRequirements);
+        try {
+          await invalidatePlanningAfterActivitySchedulingSave(activityId, {
+            before: beforeRequirements,
+            afterOrChanges: nextRequirements,
+            source: 'scheduling-requirements',
+            state
+          });
+        } catch (invalidationError) {
+          console.warn('[planning-invalidate-after-requirements]', invalidationError?.message || invalidationError);
+        }
         onRequirementsSaved?.(activity, nextRequirements);
         ui.closeModal();
         showToast('דרישות השיבוץ נשמרו בהצלחה', 'success');

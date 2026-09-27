@@ -9,13 +9,15 @@ const schemaUrl = new URL('../supabase/migrations/20260924145500_shared_incremen
 const dirtyUrl = new URL('../supabase/migrations/20260924151000_shared_planning_incremental_dirty_rows.sql', import.meta.url);
 const unlockUrl = new URL('../supabase/migrations/20260924152500_shared_planning_unlock_recalc.sql', import.meta.url);
 const checkpointUrl = new URL('../supabase/migrations/20260926195500_planning_silent_checkpoints.sql', import.meta.url);
+const invalidateUrl = new URL('../supabase/migrations/20260927180000_mark_scheduling_planning_needs_recalc.sql', import.meta.url);
 
 test('shared planning persists separately from live activities with scheduling RLS', async () => {
-  const [schema, dirty, unlock, checkpoints] = await Promise.all([
+  const [schema, dirty, unlock, checkpoints, invalidate] = await Promise.all([
     readFile(schemaUrl, 'utf8'),
     readFile(dirtyUrl, 'utf8'),
     readFile(unlockUrl, 'utf8'),
-    readFile(checkpointUrl, 'utf8')
+    readFile(checkpointUrl, 'utf8'),
+    readFile(invalidateUrl, 'utf8')
   ]);
   assert.match(schema, /create table if not exists public\.scheduling_planning_workspaces/);
   assert.match(schema, /create table if not exists public\.scheduling_planning_rows/);
@@ -31,7 +33,9 @@ test('shared planning persists separately from live activities with scheduling R
   assert.match(checkpoints, /get_scheduling_planning_checkpoint/);
   assert.match(checkpoints, /save_scheduling_planning_checkpoint/);
   assert.match(checkpoints, /clear_scheduling_planning_checkpoint/);
-  assert.doesNotMatch(schema + dirty + unlock + checkpoints, /update\s+public\.activities\s+set\s+emp_id/i);
+  assert.match(invalidate, /mark_scheduling_planning_needs_recalc/);
+  assert.match(invalidate, /activities_invalidate_planning_rows/);
+  assert.doesNotMatch(schema + dirty + unlock + checkpoints + invalidate, /update\s+public\.activities\s+set\s+emp_id/i);
 });
 
 test('course planning screen loads and saves the shared workspace and only recalculates affected rows', async () => {

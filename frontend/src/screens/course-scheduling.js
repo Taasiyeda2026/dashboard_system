@@ -99,7 +99,8 @@ import {
   saveSharedPlanningSnapshot,
   upgradeSharedPlanningContextFingerprint,
   sharedPlanningAffectedCourseIds,
-  sharedPlanningLocks
+  sharedPlanningLocks,
+  applyLocalPlanningNeedsRecalc
 } from './course-scheduling-planning-store.js';
 import { exportPlanningWorkbook } from './course-scheduling-planning-export.js';
 
@@ -117,6 +118,7 @@ let schedulingScreenActive = false;
 let planningRunGeneration = 0;
 let activePlanningRun = null;
 let pendingPlanningStart = null;
+let planningNeedsRecalcListenerCleanup = null;
 
 function cancelPendingPlanningStart() {
   const pending = pendingPlanningStart;
@@ -148,6 +150,8 @@ export function cancelCourseSchedulingPlanning(state = null) {
 export function detachCourseSchedulingPlanningView(state = null) {
   schedulingScreenActive = false;
   cancelPendingPlanningStart();
+  planningNeedsRecalcListenerCleanup?.();
+  planningNeedsRecalcListenerCleanup = null;
   if (activePlanningRun && !activePlanningRun.controller?.signal?.aborted) {
     activePlanningRun.ui = null;
     return;
@@ -986,8 +990,15 @@ function schedulingPlanningStatusHtml(state = {}) {
     </div>`;
   }
   if (loading) {
-    const total = Number(progress.total) || 0;
+    const total = Number(progress.total) || pending || 0;
     const completed = Number(progress.completed) || 0;
+    const phase = text(progress.phase);
+    const incremental = phase === 'עדכון שינויים בלבד' || (pending > 0 && !/מלא/.test(phase));
+    if (incremental) {
+      const countLabel = total || pending;
+      const progressSuffix = total ? ` · ${completed} מתוך ${total}` : '';
+      return `<div class="course-scheduling-auto-plan is-working" role="status" data-planning-status aria-busy="true"><span data-planning-status-message><strong>עדכון שינויים בלבד · ${countLabel} פעילויות</strong>${escapeHtml(progressSuffix)}. אפשר לעבור למסכים אחרים בדשבורד; החישוב ימשיך.</span></div>`;
+    }
     const suffix = total ? ` · ${completed} מתוך ${total}` : '';
     return `<div class="course-scheduling-auto-plan is-working" role="status" data-planning-status aria-busy="true"><span data-planning-status-message><strong>מחשב הצעות שיבוץ</strong>${escapeHtml(suffix)}. אפשר לעבור למסכים אחרים בדשבורד; החישוב ימשיך.</span></div>`;
   }
@@ -1009,12 +1020,12 @@ function schedulingPlanningStatusHtml(state = {}) {
   }
   if (pending) {
     return `<div class="course-scheduling-auto-plan is-ready" role="status" data-planning-status aria-busy="false">
-      <span data-planning-status-message><strong>התכנון האחרון נשאר מוצג.</strong> ${pending} פעילויות השתנו מאז החישוב האחרון.</span>
+      <span data-planning-status-message><strong>נדרש עדכון תכנון · ${pending} פעילויות</strong></span>
       <button type="button" class="course-scheduling-workboard-primary" data-run-course-planning>עדכן רק את השינויים</button>
     </div>`;
   }
   return `<div class="course-scheduling-auto-plan is-ready" role="status" data-planning-status aria-busy="false">
-    <span data-planning-status-message><strong>התכנון מעודכן.</strong></span>
+    <span data-planning-status-message><strong>הכל מעודכן</strong></span>
     <button type="button" class="course-scheduling-workboard-secondary" data-run-course-planning>חשב מחדש</button>
   </div>`;
 }
@@ -2013,13 +2024,42 @@ export const courseSchedulingScreen = {
       const total = Number(progress.total) || 0;
       const completed = Number(progress.completed) || 0;
       const phase = text(progress.phase);
+      const pending = Math.max(0, Number((state.courseSchedulingPlanningAffectedIds || []).length) || 0);
       status.classList.remove('is-ready', 'is-warning', 'is-error');
       status.classList.add('is-working');
       status.setAttribute('aria-busy', 'true');
+      if (phase === 'עדכון שינויים בלבד' || (pending > 0 && !/מלא/.test(phase))) {
+        const countLabel = total || pending;
+        message.textContent = total
+          ? `עדכון שינויים בלבד · ${countLabel} פעילויות · ${completed} מתוך ${total}. אפשר לעבור למסכים אחרים בדשבורד; החישוב ימשיך.`
+          : `עדכון שינויים בלבד · ${countLabel} פעילויות… אפשר לעבור למסכים אחרים בדשבורד; החישוב ימשיך.`;
+        return;
+      }
       message.textContent = total
         ? `${phase || 'המערכת מעדכנת את סידור העבודה'} · ${completed} מתוך ${total}. אפשר לעבור למסכים אחרים בדשבורד; החישוב ימשיך.`
         : `${phase || 'המערכת מעדכנת את סידור העבודה'}… אפשר לעבור למסכים אחרים בדשבורד; החישוב ימשיך.`;
     };
+
+    const onPlanningNeedsRecalc = (event) => {
+      if (!schedulingScreenActive || state.route !== 'course-scheduling' || !root.isConnected) return;
+      const ids = [
+        text(event?.detail?.activityId),
+        ...((event?.detail?.affectedActivityIds || []).map(text))
+      ].filter(Boolean);
+      if (!ids.length) return;
+      applyLocalPlanningNeedsRecalc(state, { activityIds: ids });
+      if (state.courseSchedulingPlanningLoading) {
+        updatePlanningStatusInPlace();
+        return;
+      }
+      rerenderPreservingWorkboardScroll();
+    };
+    document.addEventListener('app:planning-needs-recalc', onPlanningNeedsRecalc);
+    planningNeedsRecalcListenerCleanup?.();
+    planningNeedsRecalcListenerCleanup = () => {
+      document.removeEventListener('app:planning-needs-recalc', onPlanningNeedsRecalc);
+    };
+    root._courseSchedulingPlanningNeedsRecalcCleanup = planningNeedsRecalcListenerCleanup;
 
     const attachActivePlanningRunUi = () => {
       if (!activePlanningRun || activePlanningRun.controller?.signal?.aborted) return;
