@@ -1,7 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { compareAttendanceRows, resultsHtml } from '../frontend/src/screens/attendance-control.js';
+import {
+  applyAttendanceManualCorrection,
+  attendanceTimeRangeIsValid,
+  compareAttendanceRows,
+  parseDurationHoursInput,
+  resultsHtml
+} from '../frontend/src/screens/attendance-control.js';
 
 const source = await readFile(new URL('../frontend/src/screens/attendance-control.js', import.meta.url), 'utf8');
 
@@ -65,7 +71,7 @@ test('differences expose attendance, dashboard and edit actions in the actions c
   assert.match(html, /סה״כ שעות/);
   assert.match(html, /מחושב אוטומטית/);
   assert.match(html, />1:30</);
-  assert.doesNotMatch(html, /data-field-key="workHours"/);
+  assert.match(html, /data-field-key="workHours"/);
   assert.match(html, /לבדיקה/);
 });
 
@@ -309,7 +315,7 @@ test('attendance-only rows expose inline correction instead of empty action cell
   assert.match(html, /data-attendance-manual-edit="attendance-only-edit" data-field-key="date"/);
   assert.match(html, /data-attendance-manual-edit="attendance-only-edit" data-field-key="startTime"/);
   assert.match(html, /data-attendance-manual-edit="attendance-only-edit" data-field-key="endTime"/);
-  assert.doesNotMatch(html, /data-attendance-manual-edit="attendance-only-edit" data-field-key="workHours"/);
+  assert.match(html, /data-attendance-manual-edit="attendance-only-edit" data-field-key="workHours"/);
   assert.match(html, /מחושב אוטומטית/);
   assert.match(html, /data-attendance-manual-edit="attendance-only-edit" data-field-key="program"/);
   assert.match(html, /data-attendance-manual-edit="attendance-only-edit" data-field-key="kilometers"/);
@@ -319,6 +325,29 @@ test('attendance-only rows expose inline correction instead of empty action cell
   assert.doesNotMatch(html, /שעות שכר מתוקנות/);
 });
 
+
+test('manager can override work hours and reversed attendance times are rejected', () => {
+  const entry = {
+    attendance: {
+      employeeId: '1507', startTime: '11:00', endTime: '11:05', workHours: 5 / 60,
+      activityType: 'תפעול'
+    },
+    final: {
+      employeeId: '1507', startTime: '11:00', endTime: '11:05', workHours: 5 / 60,
+      activityType: 'תפעול'
+    },
+    differences: []
+  };
+
+  assert.equal(parseDurationHoursInput('1:30'), 1.5);
+  assert.equal(parseDurationHoursInput('0:05'), 5 / 60);
+  assert.equal(parseDurationHoursInput('1:75'), null);
+  applyAttendanceManualCorrection(entry, { workHours: 1.5 });
+  assert.equal(entry.final.workHours, 1.5);
+  assert.equal(attendanceTimeRangeIsValid('11:00', '11:05'), true);
+  assert.equal(attendanceTimeRangeIsValid('13:16', '11:05'), false);
+  assert.equal(attendanceTimeRangeIsValid('11:05', '11:05'), false);
+});
 
 test('planned training mileage is shown as a system comparison with mileage actions', () => {
   const html = resultsHtml({

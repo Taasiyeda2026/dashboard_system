@@ -158,6 +158,21 @@ export function calculateWorkHours(start, end) {
   return Math.round(((to - from) / 60) * 100) / 100;
 }
 
+export function attendanceTimeRangeIsValid(start, end) {
+  const from = timeText(start);
+  const to = timeText(end);
+  if (!from || !to) return true;
+  return calculateWorkHours(from, to) > 0;
+}
+
+export function parseDurationHoursInput(value) {
+  const raw = txt(value);
+  const clock = raw.match(/^(\d+):([0-5]\d)$/);
+  if (clock) return Number(clock[1]) + Number(clock[2]) / 60;
+  const numeric = optionalNumber(raw);
+  return numeric != null && numeric >= 0 ? numeric : null;
+}
+
 function activityValue(row, names, fallback = '') {
   for (const name of names) if (row?.[name] !== undefined && row?.[name] !== null && txt(row[name]) !== '') return row[name];
   return fallback;
@@ -1926,13 +1941,14 @@ export function resultsHtml(result, month = '', options = {}) {
 
   const MANUAL_EDITABLE_FIELDS = new Set([
     'date', 'activityType', 'authority', 'school', 'program', 'meetingNo',
-    'startTime', 'endTime', 'expenses', 'expenseDetails', 'notes'
+    'startTime', 'endTime', 'workHours', 'expenses', 'expenseDetails', 'notes'
   ]);
   const TRAVEL_EDITABLE_FIELDS = new Set(['publicTransport', 'publicTransportCost', 'kilometers']);
 
   const manualFieldInputMeta = (key, value) => {
     if (key === 'date') return { type: 'date', value: txt(value) };
     if (key === 'startTime' || key === 'endTime') return { type: 'time', value: timeText(value) };
+    if (key === 'workHours') return { type: 'text', value: formatDurationHours(value), placeholder: 'למשל 1:30' };
     if (key === 'expenses' || key === 'publicTransportCost') return { type: 'number', value: optionalNumber(value) ?? '', step: '0.01', min: '0' };
     if (key === 'kilometers') return { type: 'number', value: optionalNumber(value) ?? '', step: '1', min: '0' };
     if (key === 'meetingNo') return { type: 'number', value: txt(value), step: '1', min: '1' };
@@ -2094,7 +2110,7 @@ export function resultsHtml(result, month = '', options = {}) {
           : '<span class="attendance-control__empty-source">—</span>';
       const actionSourceLabel = trainingPlan && key === 'kilometers' ? 'חישוב מערכת' : (trainingPlan ? 'תכנון' : dashboardLabel);
       let actions = autoCalculated
-        ? '<span class="attendance-control__no-action">—</span>'
+        ? manualFieldActionsHtml(entry, key, label, editValue)
         : related
           ? fieldActionsHtml(entry, key, related, { hasSystemValue, dashboardLabel: actionSourceLabel })
           : (MANUAL_EDITABLE_FIELDS.has(key) || TRAVEL_EDITABLE_FIELDS.has(key))
@@ -2576,6 +2592,10 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
     if (field === 'publicTransport') {
       return { valid: raw === 'true' || raw === 'false', value: raw === 'true' };
     }
+    if (field === 'workHours') {
+      const hours = parseDurationHoursInput(raw);
+      return { valid: hours != null, value: hours };
+    }
     if (field === 'publicTransportCost' || field === 'kilometers') {
       const numeric = optionalNumber(raw);
       return { valid: numeric != null && numeric >= 0, value: numeric };
@@ -2625,6 +2645,16 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
           : 'הערך שהוזן אינו תקין.';
         input.focus();
         return;
+      }
+      if (field === 'startTime' || field === 'endTime') {
+        const current = entry.final || entry.attendance || {};
+        const nextStart = field === 'startTime' ? parsed.value : current.startTime;
+        const nextEnd = field === 'endTime' ? parsed.value : current.endTime;
+        if (!attendanceTimeRangeIsValid(nextStart, nextEnd)) {
+          status.textContent = 'שעת הסיום חייבת להיות מאוחרת משעת ההתחלה.';
+          input.focus();
+          return;
+        }
       }
       if (TRAVEL_EDITABLE_FIELDS.has(field)) {
         const current = entry.final || entry.attendance || {};
