@@ -7,6 +7,8 @@ const finish = await readFile(new URL('../frontend/src/screens/payroll-control-f
 const migration = await readFile(new URL('../supabase/migrations/20260927025000_sync_manager_attendance_generated_travel_corrections.sql', import.meta.url), 'utf8');
 
 test('attendance-only review exposes inline field editing and uses manual correction state', () => {
+  assert.match(control, /data-attendance-edit-record=/);
+  assert.match(control, /data-attendance-approve-reported=/);
   assert.match(control, /data-attendance-manual-edit=/);
   assert.match(control, /data-attendance-manual-save=/);
   assert.match(control, /applyAttendanceManualCorrection\(entry, \{ \[field\]: parsed\.value \}\)/);
