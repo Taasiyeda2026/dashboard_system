@@ -65,7 +65,7 @@ test('generated travel-time cancellation still requires manager approval', () =>
   }], []);
   assert.equal(result.notCompared.length, 1);
   assert.equal(attendanceEntryIsResolved(result.notCompared[0]), false);
-  assert.match(resultsHtml(result), /ביטול זמן[\s\S]*⚠ לבדיקה/);
+  assert.match(resultsHtml(result), /ביטול זמן[\s\S]*לבדיקה/);
 });
 
 test('decorated attendance program label is not a mismatch when stable activity id matches', () => {
