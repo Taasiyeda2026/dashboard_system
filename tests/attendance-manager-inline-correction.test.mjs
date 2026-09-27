@@ -45,3 +45,37 @@ test('record approval is persisted and invalidated by later record writes', () =
   assert.match(recordReviewMigration, /attendance_manager_can_review_employee/);
   assert.match(recordReviewMigration, /payroll_attendance_permission_denied/);
 });
+
+test('manager edits persist to attendance_records and clear the prior review', () => {
+  assert.match(control, /persistEntryCorrection/);
+  assert.match(control, /attendanceControlUpdateRecord/);
+  assert.match(control, /attendanceControlApproveRecord\(update\.recordId, false\)/);
+  assert.match(control, /התיקון נשמר ברשומת הנוכחות\. הרשומה ממתינה לאישור/);
+  assert.match(finish, /buildAttendanceUpdatePayload/);
+  assert.match(finish, /\['attendanceDate', 'date', false\]/);
+  assert.match(finish, /\['startTime', 'startTime', false\]/);
+  assert.match(finish, /\['endTime', 'endTime', false\]/);
+  assert.match(finish, /\['municipality', 'authority', false\]/);
+  assert.match(finish, /\['schoolName', 'school', false\]/);
+  assert.match(finish, /\['programName', 'program', false\]/);
+  assert.match(finish, /\['sessionNumber', 'meetingNo', false\]/);
+  assert.match(finish, /\['kilometers', 'kilometers', true\]/);
+  assert.match(finish, /\['publicTransport', 'publicTransport', false\]/);
+  assert.doesNotMatch(control, /ויעודכן ברשומת הנוכחות בעת אישור המנהל/);
+});
+
+test('manager record review RPCs enforce direct-manager scope', () => {
+  assert.match(recordReviewMigration, /attendance_manager_can_review_employee\(v_row\.emp_id\)/);
+  assert.match(recordReviewMigration, /attendance_manager_can_review_employee\(ar\.emp_id\)/);
+  assert.match(recordReviewMigration, /direct_manager/);
+  assert.match(recordReviewMigration, /activities_manager/);
+  assert.match(recordReviewMigration, /'admin', 'operation_manager'/);
+  assert.match(recordReviewMigration, /raise exception 'payroll_attendance_permission_denied'/);
+});
+
+test('reload path restores only still-valid record approvals', () => {
+  assert.match(control, /loadRecordReviews/);
+  assert.match(control, /managerRecordApproved = false/);
+  assert.match(control, /approveAttendanceEntryCurrent\(entry\)/);
+  assert.match(recordReviewMigration, /review\.approved_record_updated_at = ar\.updated_at/);
+});
