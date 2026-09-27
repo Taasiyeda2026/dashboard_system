@@ -273,6 +273,7 @@ test('planning options are invalid when any meeting fails the effective instruct
   const invalid = planningOptionPassesFinalValidation(option, {
     activity: { instruction_language: 'he', calendar_sector: 'jewish' },
     instructors: [instructor(1)],
+    profiles: { 1: profile },
     rules: { 1: sundayRules },
     exceptions: { 1: [{ exception_date: '2027-01-10', available: false }] }
   });
@@ -287,6 +288,7 @@ test('planning options are invalid when any meeting fails the effective instruct
   }, {
     activity: { instruction_language: 'he', calendar_sector: 'jewish' },
     instructors: [instructor(1), instructor(2)],
+    profiles: { 1: profile, 2: profile },
     rules: {
       1: sundayRules,
       2: sundayRules

@@ -266,4 +266,6 @@ config.HOTFIX_VERSION = `manager-attendance-submitted-gate-20260927-v1-${config.
 
 config.HOTFIX_VERSION = `planning-invalidate-after-activity-save-20260927-v1-${config.HOTFIX_VERSION}`;
 
+config.HOTFIX_VERSION = `planning-self-invalidation-20260927-v1-${config.HOTFIX_VERSION}`;
+
 config.HOTFIX_VERSION = `planning-team-activity-hours-display-20260927-v1-${config.HOTFIX_VERSION}`;

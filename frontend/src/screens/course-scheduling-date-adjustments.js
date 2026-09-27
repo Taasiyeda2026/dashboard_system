@@ -500,3 +500,235 @@ export function liveAvailabilityConflicts({
     liveAvailabilityConflictDates: [...new Set(dates)].sort()
   };
 }
+
+const fullText = (value) => String(value ?? '').trim();
+
+function asEmpMap(source = {}) {
+  if (!source) return {};
+  if (Array.isArray(source)) {
+    const map = {};
+    for (const row of source) {
+      const empId = fullText(row?.emp_id);
+      if (!empId) continue;
+      const bucket = map[empId] || [];
+      bucket.push(row);
+      map[empId] = bucket;
+    }
+    return map;
+  }
+  if (typeof source === 'object') return source;
+  return {};
+}
+
+function asProfileMap(source = {}) {
+  if (!source) return {};
+  if (Array.isArray(source)) {
+    const map = {};
+    for (const row of source) {
+      const empId = fullText(row?.emp_id);
+      if (!empId) continue;
+      map[empId] = row;
+    }
+    return map;
+  }
+  if (typeof source === 'object') return source;
+  return {};
+}
+
+function officialStoredDateCount(activity = {}) {
+  let count = 0;
+  for (let index = 1; index <= 35; index += 1) {
+    if (fullText(activity?.[`date_${index}`]).slice(0, 10)) count += 1;
+  }
+  return count;
+}
+
+/** Expected meeting count from sessions and/or stored date_1..date_n. */
+export function expectedPlanningMeetingCount(activity = {}) {
+  const sessions = Number(activity?.sessions);
+  const sessionCount = Number.isFinite(sessions) && sessions > 0 ? Math.min(35, Math.floor(sessions)) : 0;
+  const dateCount = officialStoredDateCount(activity);
+  if (sessionCount > 0 && dateCount > 0 && sessionCount !== dateCount) {
+    return { expected: sessionCount, dateCount, mismatch: true, reason: 'sessions_vs_dates' };
+  }
+  if (sessionCount > 0) return { expected: sessionCount, dateCount, mismatch: false, reason: '' };
+  if (dateCount > 0) return { expected: dateCount, dateCount, mismatch: false, reason: '' };
+  return { expected: 0, dateCount: 0, mismatch: false, reason: '' };
+}
+
+function normalizeGenderGate(value) {
+  const raw = fullText(value).toLocaleLowerCase('he-IL');
+  if (['female', 'f', 'נקבה', 'מדריכה'].includes(raw)) return 'female';
+  if (['male', 'm', 'זכר', 'מדריך'].includes(raw)) return 'male';
+  return 'any';
+}
+
+function normalizeLanguageGate(value) {
+  const raw = fullText(value).toLocaleLowerCase('he-IL');
+  if (!raw) return '';
+  if (raw.includes('ערב') || raw === 'ar' || raw === 'arabic') return 'ar';
+  if (raw.includes('עבר') || raw === 'he' || raw === 'hebrew') return 'he';
+  return raw;
+}
+
+function planningRowProposalOption(entry = {}) {
+  if (entry?.lockedOption && typeof entry.lockedOption === 'object') return entry.lockedOption;
+  const row = entry?.row && typeof entry.row === 'object' ? entry.row : entry;
+  if (!row || typeof row !== 'object') return null;
+  const kind = fullText(row.kind || row.status);
+  const hasProposalShape = !!fullText(row.instructorEmpId)
+    && Array.isArray(row.meetings)
+    && row.meetings.length > 0;
+  if (!hasProposalShape) return null;
+  if (
+    row.planningLocked
+    || ['proposal', 'fixed-proposal', 'planning-locked', 'draft', 'locked', 'נקבע בתכנון'].includes(kind)
+    || /proposal|locked|draft|fixed/i.test(kind)
+  ) {
+    return {
+      instructorEmpId: row.instructorEmpId,
+      instructorName: row.instructorName,
+      meetings: row.meetings,
+      startDate: row.startDate,
+      endDate: row.endDate,
+      startTime: row.startTime,
+      endTime: row.endTime,
+      singleMeetingSubstitutions: row.singleMeetingSubstitutions
+    };
+  }
+  return null;
+}
+
+/**
+ * Lightweight hard-gate audit for one stored planning option against live data.
+ * Does not run the full planning engine.
+ */
+export function auditPlanningOptionHardGates(option = {}, {
+  activity = {},
+  instructors = [],
+  profiles = {},
+  rules = {},
+  exceptions = {},
+  schoolCalendar = [],
+  assignments = {}
+} = {}) {
+  const failures = [];
+  const mainEmpId = fullText(option?.instructorEmpId);
+  const meetings = Array.isArray(option?.meetings) ? option.meetings : [];
+  if (!mainEmpId || !meetings.length) {
+    return { valid: false, failures: [{ reason: 'missing_option' }] };
+  }
+
+  const meetingCountInfo = expectedPlanningMeetingCount(activity);
+  if (meetingCountInfo.mismatch) {
+    failures.push({ reason: 'meeting_count_mismatch', detail: meetingCountInfo });
+  } else if (meetingCountInfo.expected > 0 && meetings.length !== meetingCountInfo.expected) {
+    failures.push({
+      reason: 'meeting_count_mismatch',
+      detail: { expected: meetingCountInfo.expected, planned: meetings.length }
+    });
+  }
+
+  const instructorById = new Map((instructors || []).map((row) => [fullText(row.emp_id), row]));
+  const profileMap = asProfileMap(profiles);
+  const ruleMap = asEmpMap(rules);
+  const exceptionMap = asEmpMap(exceptions);
+  const requiredGender = normalizeGenderGate(activity?.required_instructor_gender);
+  const requiredLanguage = normalizeLanguageGate(activity?.instruction_language);
+  const profile = profileMap[mainEmpId] || {};
+  const mainInstructor = instructorById.get(mainEmpId);
+
+  if (mainInstructor && (String(mainInstructor.active ?? 'yes').toLowerCase() === 'no' || mainInstructor.active === false)) {
+    failures.push({ reason: 'inactive', empId: mainEmpId });
+  }
+  if (requiredGender !== 'any' && normalizeGenderGate(profile?.gender) !== requiredGender) {
+    failures.push({ reason: 'gender_mismatch', empId: mainEmpId });
+  }
+  if (requiredLanguage) {
+    const languages = (profile?.instruction_languages || [])
+      .map((value) => normalizeLanguageGate(value))
+      .filter(Boolean);
+    if (!languages.includes(requiredLanguage)) {
+      failures.push({ reason: 'language_mismatch', empId: mainEmpId });
+    }
+  }
+
+  const instructorContexts = {};
+  for (const meeting of meetings) {
+    const empId = meetingInstructorEmpId(meeting, mainEmpId);
+    if (!empId || instructorContexts[empId]) continue;
+    instructorContexts[empId] = {
+      instructor: instructorById.get(empId) || { emp_id: empId, active: 'yes' },
+      rules: ruleMap[empId] || [],
+      exceptions: exceptionMap[empId] || [],
+      existingActivities: Array.isArray(assignments[empId])
+        ? assignments[empId].filter((row) => row && row.date)
+        : [],
+      profile: profileMap[empId] || null
+    };
+  }
+
+  const meetingValidation = validatePlanningMeetingsForInstructors({
+    meetings,
+    mainInstructorEmpId: mainEmpId,
+    instructorContexts,
+    activity,
+    schoolCalendar,
+    allowSaturday: String(activity?.calendar_sector || '').toLowerCase() === 'arab'
+  });
+  failures.push(...(meetingValidation.failures || []));
+
+  return {
+    valid: failures.length === 0,
+    failures
+  };
+}
+
+/**
+ * Audit stored shared-planning rows. Marks conceptual invalidity only; caller
+ * decides whether to persist needs_recalc.
+ */
+export function auditStoredPlanningHardGates({
+  shared = {},
+  activities = [],
+  instructors = [],
+  profiles = {},
+  rules = {},
+  exceptions = {},
+  schoolCalendar = [],
+  assignments = {}
+} = {}) {
+  const activityById = new Map((activities || []).map((activity) => [
+    fullText(activity?.row_id || activity?.RowID || activity?.id),
+    activity
+  ]));
+  const invalidActivityIds = [];
+  const reasonsByActivityId = {};
+
+  for (const entry of shared?.rows || []) {
+    const activityId = fullText(entry?.activityId || entry?.row?.courseId);
+    if (!activityId) continue;
+    const option = planningRowProposalOption(entry);
+    if (!option) continue;
+    const activity = activityById.get(activityId) || {};
+    const result = auditPlanningOptionHardGates(option, {
+      activity,
+      instructors,
+      profiles,
+      rules,
+      exceptions,
+      schoolCalendar,
+      assignments
+    });
+    if (!result.valid) {
+      invalidActivityIds.push(activityId);
+      reasonsByActivityId[activityId] = result.failures;
+    }
+  }
+
+  return {
+    invalidActivityIds: [...new Set(invalidActivityIds)],
+    hardGateInvalidCount: [...new Set(invalidActivityIds)].length,
+    reasonsByActivityId
+  };
+}
