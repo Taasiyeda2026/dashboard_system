@@ -57,7 +57,7 @@ export const PLANNING_OPTIMIZATION_WEIGHTS = Object.freeze({
   geography: 15,
   stability: 10
 });
-export const PLANNING_ENGINE_VERSION = 'planning-v20-20260927-fast-recruitment-rescue';
+export const PLANNING_ENGINE_VERSION = 'planning-v21-20260927-short-exceptions-and-substitutes';
 export const PLANNING_ACTIVITY_NO_ALIASES = Object.freeze({
   // Legacy Gefen identifier retained on existing activities; canonical catalog program is 53828.
   '82835': '53828'
@@ -1011,7 +1011,9 @@ export function planningPairCompare(first = {}, second = {}) {
 
 function optionFromCandidate(course, candidate, { routeVerified = true, startRange = null } = {}) {
   if (!candidate) return null;
-  const meetings = activityMeetings(course);
+  const meetings = Array.isArray(candidate?.proposedMeetings) && candidate.proposedMeetings.length
+    ? candidate.proposedMeetings
+    : activityMeetings(course);
   const planningOptimization = planningOptimizationScore(candidate);
   return {
     instructorEmpId: empOf(candidate),
@@ -1025,7 +1027,10 @@ function optionFromCandidate(course, candidate, { routeVerified = true, startRan
       date: text(meeting.date).slice(0, 10),
       meeting_no: Number(meeting.meeting_no) || index + 1,
       start_time: text(meeting.start_time || course.start_time).slice(0, 5),
-      end_time: text(meeting.end_time || course.end_time).slice(0, 5)
+      end_time: text(meeting.end_time || course.end_time).slice(0, 5),
+      original_date: text(meeting.original_date || meeting.date).slice(0, 10),
+      moved: meeting.moved === true,
+      constraintKind: text(meeting.constraintKind)
     })),
     routeVerified,
     startRange,
@@ -1052,6 +1057,141 @@ function optionFromCandidate(course, candidate, { routeVerified = true, startRan
     reason: planningOperationalReason(course, candidate, planningOptimization)
       || text(candidate.recommendationReason)
       || (routeVerified ? 'האפשרות משתלבת בלוח הקיים ועומדת בתנאי הסף' : 'האפשרות מתאימה לפי זמינות; נדרש אימות מרחקים')
+  };
+}
+
+function planningOptionAvailabilityValid(option = {}, activity = {}, { rules = {}, exceptions = {} } = {}) {
+  const primaryEmpId = text(option?.instructorEmpId);
+  if (!primaryEmpId || !Array.isArray(option?.meetings) || !option.meetings.length) return false;
+  return option.meetings.every((meeting) => {
+    const empId = text(meeting?.substituteEmpId || primaryEmpId);
+    return !!empId && instructorMeetingAvailable(empId, meeting, activity, { rules, exceptions });
+  });
+}
+
+function oneOffSubstituteScenario(activity = {}, meeting = {}, index = 0) {
+  const date = text(meeting?.original_date || meeting?.date).slice(0, 10);
+  const startTime = text(meeting?.start_time || activity.start_time).slice(0, 5);
+  const endTime = text(meeting?.end_time || activity.end_time).slice(0, 5);
+  return scenarioCourse(activity, {
+    meetings: [{
+      ...meeting,
+      date,
+      meeting_no: 1,
+      start_time: startTime,
+      end_time: endTime,
+      original_date: date,
+      moved: false
+    }],
+    startDate: date,
+    endDate: date,
+    startTime,
+    endTime
+  }, 9000 + index);
+}
+
+async function resolveOneOffSubstitutions({
+  activity,
+  option,
+  candidate,
+  contextActivities = [],
+  instructors = [],
+  profiles = {},
+  rules = {},
+  exceptions = {},
+  schoolCalendar = [],
+  today = '',
+  routeClient = null,
+  checkpoint = async () => {},
+  signal = null,
+  periodKey = DEFAULT_PLANNING_PERIOD_KEY
+} = {}) {
+  const blocked = (candidate?.dateAdjustment?.blockedMeetings || [])
+    .filter((meeting) => text(meeting?.constraintKind) === 'instructor_exception')
+    .slice(0, 2);
+  if (!option || !blocked.length) return option;
+
+  const primaryEmpId = text(option.instructorEmpId);
+  const availableInstructors = (instructors || []).filter((instructor) => text(instructor?.emp_id) !== primaryEmpId);
+  if (!availableInstructors.length) return option;
+
+  const substitutions = [];
+  for (let index = 0; index < blocked.length; index += 1) {
+    await checkpoint();
+    const blockedMeeting = blocked[index];
+    const substituteCourse = oneOffSubstituteScenario(activity, blockedMeeting, index);
+    const evaluation = await evaluateFixedCourse({
+      activity: substituteCourse,
+      contextActivities: [...contextActivities, substituteCourse],
+      instructors: availableInstructors,
+      profiles,
+      rules,
+      exceptions,
+      schoolCalendar,
+      today,
+      routeClient,
+      checkpoint,
+      signal,
+      periodKey,
+      allowDateAdjustments: false,
+      resolveOneOffSubstitutes: false,
+      limits: {
+        ...FAST_PLANNING_LIMITS,
+        maxCandidatesPerScenario: Math.max(1, Math.min(6, availableInstructors.length)),
+        maxRoutedPlanningPairs: 3,
+        maxFinalOptions: 1,
+        runGlobalRepair: false
+      }
+    });
+    const substitute = evaluation.options?.[0] || null;
+    if (!substitute) continue;
+    substitutions.push({
+      meetingDate: text(blockedMeeting.original_date || blockedMeeting.date).slice(0, 10),
+      substituteEmpId: text(substitute.instructorEmpId),
+      substituteName: text(substitute.instructorName),
+      score: Number.isFinite(Number(substitute.score)) ? Number(substitute.score) : null,
+      routeVerified: substitute.routeVerified !== false
+    });
+  }
+
+  if (!substitutions.length) return option;
+
+  const substitutionByDate = new Map(substitutions.map((item) => [item.meetingDate, item]));
+  const resolvedMeetings = (option.meetings || []).filter((meeting) => {
+    const originalDate = text(meeting?.original_date || meeting?.date).slice(0, 10);
+    return !(meeting?.moved === true && substitutionByDate.has(originalDate));
+  });
+
+  for (const blockedMeeting of blocked) {
+    const meetingDate = text(blockedMeeting.original_date || blockedMeeting.date).slice(0, 10);
+    const substitution = substitutionByDate.get(meetingDate);
+    if (!substitution) continue;
+    resolvedMeetings.push({
+      ...blockedMeeting,
+      date: meetingDate,
+      original_date: meetingDate,
+      moved: false,
+      meeting_no: 0,
+      substituteEmpId: substitution.substituteEmpId,
+      substituteName: substitution.substituteName
+    });
+  }
+
+  resolvedMeetings.sort((first, second) =>
+    text(first?.date).localeCompare(text(second?.date))
+    || text(first?.start_time).localeCompare(text(second?.start_time))
+  );
+  resolvedMeetings.forEach((meeting, index) => { meeting.meeting_no = index + 1; });
+
+  return {
+    ...option,
+    meetings: resolvedMeetings,
+    startDate: text(resolvedMeetings[0]?.date || option.startDate).slice(0, 10),
+    endDate: text(resolvedMeetings.at(-1)?.date || option.endDate).slice(0, 10),
+    startTime: text(resolvedMeetings[0]?.start_time || option.startTime).slice(0, 5),
+    endTime: text(resolvedMeetings[0]?.end_time || option.endTime).slice(0, 5),
+    singleMeetingSubstitutions: substitutions,
+    reason: `${text(option.reason)} · ${substitutions.length} מפגש${substitutions.length > 1 ? 'ים' : ''} עם מדריך מחליף חד־פעמי`
   };
 }
 
@@ -1090,7 +1230,9 @@ async function evaluateScenarioOptions({
   checkpoint = async () => {},
   signal = null,
   periodKey = DEFAULT_PLANNING_PERIOD_KEY,
-  limits = DEEP_PLANNING_LIMITS
+  limits = DEEP_PLANNING_LIMITS,
+  allowDateAdjustments = true,
+  resolveOneOffSubstitutes = true
 } = {}) {
   const preliminaries = [];
   for (let index = 0; index < scenarios.length; index += 1) {
@@ -1188,11 +1330,28 @@ async function evaluateScenarioOptions({
         candidate?.eligible && empOf(candidate) === expectedEmpId
       ) || null;
       if (!finalCandidate) continue;
-      const option = optionFromCandidate(finalist.course, finalCandidate, {
+      let option = optionFromCandidate(finalist.course, finalCandidate, {
         routeVerified: !text(routed.unavailableReason),
         startRange
       });
       if (!option) continue;
+      option = await resolveOneOffSubstitutions({
+        activity,
+        option,
+        candidate: finalCandidate,
+        contextActivities,
+        instructors,
+        profiles,
+        rules,
+        exceptions,
+        schoolCalendar,
+        today,
+        routeClient,
+        checkpoint,
+        signal,
+        periodKey
+      });
+      if (!planningOptionAvailabilityValid(option, finalist.course, { rules, exceptions })) continue;
       const key = `${option.instructorEmpId}|${option.startDate}|${option.startTime}`;
       if (optionKeys.has(key)) continue;
       optionKeys.add(key);
@@ -1255,7 +1414,7 @@ async function evaluateFixedCourse({
     exceptions,
     schoolCalendar,
     referenceDate: today,
-    allowDateAdjustments: false
+    allowDateAdjustments
   }).map((item) => item.candidate).filter(Boolean)
     .map((candidate) => {
       const cachedHome = routeClient?.peek?.(candidate?.instructor?.address, activity?.school_address);
@@ -1324,7 +1483,7 @@ async function evaluateFixedCourse({
       travel: routed.travel,
       routeMatrix: routed.routeMatrix,
       travelUnavailableReason: routed.unavailableReason || '',
-      allowDateAdjustments: false
+      allowDateAdjustments
     })[0];
 
     for (const finalist of batch) {
@@ -1334,8 +1493,27 @@ async function evaluateFixedCourse({
         candidate?.eligible && empOf(candidate) === expectedEmpId
       ) || null;
       if (!finalCandidate) continue;
-      const option = optionFromCandidate(activity, finalCandidate, { routeVerified: !text(routed.unavailableReason) });
+      let option = optionFromCandidate(activity, finalCandidate, { routeVerified: !text(routed.unavailableReason) });
       if (!option) continue;
+      if (resolveOneOffSubstitutes) {
+        option = await resolveOneOffSubstitutions({
+          activity,
+          option,
+          candidate: finalCandidate,
+          contextActivities,
+          instructors,
+          profiles,
+          rules,
+          exceptions,
+          schoolCalendar,
+          today,
+          routeClient,
+          checkpoint,
+          signal,
+          periodKey
+        });
+      }
+      if (!planningOptionAvailabilityValid(option, activity, { rules, exceptions })) continue;
       const key = text(option.instructorEmpId);
       if (optionKeys.has(key)) continue;
       optionKeys.add(key);
@@ -1355,30 +1533,44 @@ async function evaluateFixedCourse({
   };
 }
 
-function blockingVirtualActivity(activity = {}, option = null) {
-  if (!option?.instructorEmpId) return null;
-  return {
-    ...activity,
-    row_id: `planning-block:${idOf(activity)}`,
-    meetings: option.meetings,
-    start_date: option.startDate,
-    end_date: option.endDate,
-    start_time: option.startTime,
-    end_time: option.endTime,
-    emp_id: null,
-    instructor_name: null,
-    emp_id_2: null,
-    instructor_name_2: null,
-    draft_emp_id: option.instructorEmpId,
-    draft_instructor_name: option.instructorName,
-    draft_proposed_meetings: option.meetings.map((meeting) => ({
-      date: meeting.date,
-      start_time: meeting.start_time,
-      end_time: meeting.end_time
-    })),
-    instructor_assignment_locked: false,
-    status: 'פתוח'
-  };
+function blockingVirtualActivities(activity = {}, option = null) {
+  if (!option?.instructorEmpId || !Array.isArray(option?.meetings) || !option.meetings.length) return [];
+  const primaryEmpId = text(option.instructorEmpId);
+  const groups = new Map();
+
+  for (const meeting of option.meetings) {
+    const empId = text(meeting?.substituteEmpId || primaryEmpId);
+    if (!empId) continue;
+    const instructorName = text(meeting?.substituteName || (empId === primaryEmpId ? option.instructorName : empId));
+    if (!groups.has(empId)) groups.set(empId, { empId, instructorName, meetings: [] });
+    groups.get(empId).meetings.push({ ...meeting });
+  }
+
+  return [...groups.values()].map((group, index) => {
+    const groupMeetings = group.meetings.sort((a, b) => text(a.date).localeCompare(text(b.date)));
+    return {
+      ...activity,
+      row_id: `planning-block:${idOf(activity)}:${group.empId}:${index + 1}`,
+      meetings: groupMeetings,
+      start_date: groupMeetings[0]?.date || option.startDate,
+      end_date: groupMeetings.at(-1)?.date || option.endDate,
+      start_time: groupMeetings[0]?.start_time || option.startTime,
+      end_time: groupMeetings[0]?.end_time || option.endTime,
+      emp_id: null,
+      instructor_name: null,
+      emp_id_2: null,
+      instructor_name_2: null,
+      draft_emp_id: group.empId,
+      draft_instructor_name: group.instructorName,
+      draft_proposed_meetings: groupMeetings.map((meeting) => ({
+        date: meeting.date,
+        start_time: meeting.start_time,
+        end_time: meeting.end_time
+      })),
+      instructor_assignment_locked: false,
+      status: 'פתוח'
+    };
+  });
 }
 
 function activityTypeLabel(activity = {}) {
@@ -1441,6 +1633,24 @@ function liveRow(activity = {}, periodKey = DEFAULT_PLANNING_PERIOD_KEY) {
                   ? `נלקח מטיוטת השיבוץ הקיימת · מחצית א׳ נמשכת עד ${formatDateHe(rawEndDate)} בפברואר`
                   : 'נלקח מטיוטת השיבוץ הקיימת'))
           : 'התאריך והשעות נלקחו מהפעילות')
+  };
+}
+
+function liveRowWithAvailabilityAudit(activity = {}, periodKey = DEFAULT_PLANNING_PERIOD_KEY, rules = {}, exceptions = {}) {
+  const row = liveRow(activity, periodKey);
+  const empId = text(activity?.emp_id);
+  if (!empId || !row.meetings.length) return row;
+  const conflicts = row.meetings.filter((meeting) =>
+    !instructorMeetingAvailable(empId, meeting, activity, { rules, exceptions })
+  );
+  if (!conflicts.length) return row;
+  const dates = conflicts.map((meeting) => text(meeting.date).slice(0, 10));
+  return {
+    ...row,
+    status: 'מעודכן בפועל — חריג זמינות',
+    liveAvailabilityConflictCount: conflicts.length,
+    liveAvailabilityConflictDates: dates,
+    reason: `השיבוץ הפעיל נשמר ואינו מוזז אוטומטית, אך ${conflicts.length} מפגשים חורגים מזמינות המדריך: ${dates.join(', ')}`
   };
 }
 
@@ -1851,6 +2061,7 @@ function planRowFromOption(activity, option, options, startRange, spec, diagnost
     instructorName: option?.instructorName || '',
     instructorEmpId: option?.instructorEmpId || '',
     meetings: option?.meetings || scheduleOnly?.meetings || [],
+    singleMeetingSubstitutions: option?.singleMeetingSubstitutions || [],
     scheduleOptions,
     options: (options || []).map(({ _candidate, ...item }) => item),
     startRange,
@@ -1879,7 +2090,12 @@ export function normalizePlanningLockedOption(option = {}, periodKey = DEFAULT_P
       date: text(meeting?.date).slice(0, 10),
       meeting_no: Number(meeting?.meeting_no) || index + 1,
       start_time: text(meeting?.start_time).slice(0, 5),
-      end_time: text(meeting?.end_time).slice(0, 5)
+      end_time: text(meeting?.end_time).slice(0, 5),
+      original_date: text(meeting?.original_date || meeting?.date).slice(0, 10),
+      moved: meeting?.moved === true,
+      constraintKind: text(meeting?.constraintKind),
+      substituteEmpId: text(meeting?.substituteEmpId),
+      substituteName: text(meeting?.substituteName)
     }))
     .filter((meeting) =>
       /^\d{4}-\d{2}-\d{2}$/.test(meeting.date)
@@ -1915,6 +2131,7 @@ export function applyPlanningLockToRow(row = {}, option = {}, periodKey = DEFAUL
     instructorName: normalized.instructorName,
     instructorEmpId: normalized.instructorEmpId,
     meetings: normalized.meetings.map((meeting) => ({ ...meeting })),
+    singleMeetingSubstitutions: normalized.singleMeetingSubstitutions || [],
     options: [
       normalized,
       ...(row?.options || []).filter((candidate) =>
@@ -2428,7 +2645,7 @@ export async function buildDynamicCoursePlan({
     const activityId = idOf(activity);
     const activityPeriodKey = planningPeriodKeyForActivity(activity, periodKey);
     if (text(activity.emp_id)) {
-      rowsById.set(activityId, liveRow(activity, activityPeriodKey));
+      rowsById.set(activityId, liveRowWithAvailabilityAudit(activity, activityPeriodKey, rules, exceptions));
       continue;
     }
 
@@ -2436,8 +2653,7 @@ export async function buildDynamicCoursePlan({
     if (locked) {
       const lockedRow = lockedPlanningRow(activity, locked, catalog, activityPeriodKey);
       if (lockedRow) rowsById.set(activityId, lockedRow);
-      const virtual = blockingVirtualActivity(activity, locked);
-      if (virtual) virtualPlans.push(virtual);
+      virtualPlans.push(...blockingVirtualActivities(activity, locked));
       continue;
     }
 
@@ -2474,16 +2690,16 @@ export async function buildDynamicCoursePlan({
         const reused = { ...existing, planningLocked: false };
         rowsById.set(activityId, reused);
         if (text(reused.instructorEmpId) && Array.isArray(reused.meetings) && reused.meetings.length) {
-          const virtual = blockingVirtualActivity(activity, {
+          virtualPlans.push(...blockingVirtualActivities(activity, {
             instructorEmpId: reused.instructorEmpId,
             instructorName: reused.instructorName,
             startDate: reused.startDate,
             endDate: reused.endDate,
             startTime: reused.startTime,
             endTime: reused.endTime,
-            meetings: reused.meetings
-          });
-          if (virtual) virtualPlans.push(virtual);
+            meetings: reused.meetings,
+            singleMeetingSubstitutions: reused.singleMeetingSubstitutions || []
+          }));
         }
         continue;
       }
@@ -2609,8 +2825,7 @@ export async function buildDynamicCoursePlan({
                 : 'נדרשת בדיקה נוספת לפני החלטה על גיוס')
       };
       rowsById.set(idOf(activity), row);
-      const virtual = blockingVirtualActivity(activity, chosen);
-      if (virtual) virtualPlans.push(virtual);
+      virtualPlans.push(...blockingVirtualActivities(activity, chosen));
     } else {
       const rescue = recruitmentRescueById.get(idOf(activity));
       if (rescue) {
@@ -2662,8 +2877,7 @@ export async function buildDynamicCoursePlan({
               scheduleOptions: rescue.schedules
             }
           ));
-          const virtual = blockingVirtualActivity(activity, rescued);
-          if (virtual) virtualPlans.push(virtual);
+          virtualPlans.push(...blockingVirtualActivities(activity, rescued));
         } else {
           const existing = existingById.get(idOf(activity));
           rowsById.set(idOf(activity), {
@@ -2775,8 +2989,7 @@ export async function buildDynamicCoursePlan({
             scheduleOptions: scheduleOnlyOptions(effectiveGenerated.scenarios)
           }
         ));
-        const virtual = blockingVirtualActivity(activity, chosen);
-        if (virtual) virtualPlans.push(virtual);
+        virtualPlans.push(...blockingVirtualActivities(activity, chosen));
       }
       }
     }
