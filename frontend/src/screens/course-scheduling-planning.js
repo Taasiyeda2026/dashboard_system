@@ -156,20 +156,93 @@ function planningWeekdayDisplay(value) {
   return day === 6 ? 'שבת' : `יום ${label}`;
 }
 
-function planningActivityScheduleFields(row = {}) {
+function planningMeetingTimeRangeKey(meeting = {}) {
+  const startTime = text(meeting?.start_time).slice(0, 5);
+  const endTime = text(meeting?.end_time).slice(0, 5);
+  if (!startTime || !endTime) return '';
+  return `${startTime}–${endTime}`;
+}
+
+function planningDominantMapKey(counts = new Map()) {
+  let bestKey = null;
+  let bestCount = -1;
+  for (const [key, count] of counts) {
+    if (count > bestCount) {
+      bestKey = key;
+      bestCount = count;
+    }
+  }
+  return bestKey;
+}
+
+/**
+ * Presentation-only schedule summary for existing-team planning details.
+ * Derives weekday/time labels from the full meeting series pattern, not meetings[0].
+ * One-off moved outliers are excluded from the pattern; substitute assignments do not
+ * change hours (hours always come from the meeting itself).
+ */
+export function planningActivityScheduleFields(row = {}) {
   const meetings = Array.isArray(row?.meetings) ? row.meetings : [];
   const meetingCount = meetings.length;
-  const first = meetings[0] || {};
-  const startTime = text(first?.start_time || row?.startTime).slice(0, 5);
-  const endTime = text(first?.end_time || row?.endTime).slice(0, 5);
-  const anchorDate = text(first?.date || row?.startDate).slice(0, 10);
-  const weekdayLabel = planningWeekdayDisplay(anchorDate);
+  if (!meetingCount) {
+    return {
+      meetingCount: 0,
+      uniqueWeekdays: [],
+      uniqueTimeRanges: [],
+      dominantWeekday: null,
+      dominantTimeRange: null,
+      weekdayLabel: '',
+      timeRangeLabel: '',
+      hasVariableWeekdays: false,
+      hasVariableTimes: false,
+      startTime: '',
+      endTime: ''
+    };
+  }
+
+  const patternMeetings = meetings.filter((meeting) => meeting?.moved !== true);
+  const series = patternMeetings.length ? patternMeetings : meetings;
+  const weekdayCounts = new Map();
+  const timeCounts = new Map();
+  for (const meeting of series) {
+    const day = weekday(meeting?.date);
+    if (day != null) weekdayCounts.set(day, (weekdayCounts.get(day) || 0) + 1);
+    const range = planningMeetingTimeRangeKey(meeting);
+    if (range) timeCounts.set(range, (timeCounts.get(range) || 0) + 1);
+  }
+
+  const uniqueWeekdays = [...weekdayCounts.keys()].sort((a, b) => a - b);
+  const uniqueTimeRanges = [...timeCounts.keys()].sort((a, b) => a.localeCompare(b));
+  const dominantWeekdayRaw = planningDominantMapKey(weekdayCounts);
+  const dominantTimeRange = planningDominantMapKey(timeCounts) || null;
+  const dominantWeekday = dominantWeekdayRaw == null ? null : Number(dominantWeekdayRaw);
+  const hasVariableWeekdays = uniqueWeekdays.length > 1;
+  const hasVariableTimes = uniqueTimeRanges.length > 1;
+
+  const weekdayLabel = hasVariableWeekdays
+    ? `ימים ${uniqueWeekdays.map((day) => PLANNING_WEEKDAY_SHORT_LABELS[day]).join(', ')}`
+    : planningWeekdayDisplay(dominantWeekday);
+
+  let timeRangeLabel = '';
+  if (hasVariableTimes) timeRangeLabel = 'שעות משתנות';
+  else if (!hasVariableWeekdays && dominantTimeRange) timeRangeLabel = dominantTimeRange;
+
+  const [startTime = '', endTime = ''] = dominantTimeRange
+    ? String(dominantTimeRange).split('–')
+    : ['', ''];
+
   return {
     meetingCount,
-    startTime,
-    endTime,
+    uniqueWeekdays,
+    uniqueTimeRanges,
+    dominantWeekday,
+    dominantTimeRange,
     weekdayLabel,
-    timeRangeLabel: startTime && endTime ? `${startTime}–${endTime}` : (startTime || endTime || '')
+    timeRangeLabel,
+    hasVariableWeekdays,
+    hasVariableTimes,
+    startTime,
+    endTime
   };
 }
 
@@ -3544,7 +3617,13 @@ export function planningInstructorCompletionOverview(rows = []) {
       startTime: schedule.startTime,
       endTime: schedule.endTime,
       timeRangeLabel: schedule.timeRangeLabel,
-      meetingCount: schedule.meetingCount
+      meetingCount: schedule.meetingCount,
+      uniqueWeekdays: schedule.uniqueWeekdays,
+      uniqueTimeRanges: schedule.uniqueTimeRanges,
+      dominantWeekday: schedule.dominantWeekday,
+      dominantTimeRange: schedule.dominantTimeRange,
+      hasVariableWeekdays: schedule.hasVariableWeekdays,
+      hasVariableTimes: schedule.hasVariableTimes
     };
     group.activities.push(activity);
 
