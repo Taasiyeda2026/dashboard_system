@@ -92,7 +92,7 @@ function canonicalIsraeliRouteAddress(value: unknown) {
     /אבו\s+(?:קרינאת|קריאנת|קורינאת)/.test(normalized)
     || /abu\s+(?:qrenat|qrinat|qurenat|qrein[a]?t|karinat|korinat)/i.test(raw)
   ) {
-    return 'אבו קרינאת, מועצה אזורית נווה מדבר, ישראל';
+    return 'אבו קרינאת, מועצה אזורית נווה מדבר';
   }
   return raw;
 }
