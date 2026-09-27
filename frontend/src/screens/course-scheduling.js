@@ -79,6 +79,7 @@ import {
   PlanningCancelledError,
   planningCompletionOverviewHtml,
   planningContextFingerprint,
+  planningLegacyEngineContextFingerprint,
   planningDataFingerprint,
   planningTabHtml,
   planningWorkspaceCourses
@@ -2076,17 +2077,24 @@ export const courseSchedulingScreen = {
         scope.periodKey
       );
       const currentCourseIds = currentCourses.map((course) => idOf(course));
-      const contextFingerprint = planningContextFingerprint(planningInputFromSnapshot(snapshot, scope.periodKey));
+      const fingerprintInput = planningInputFromSnapshot(snapshot, scope.periodKey);
+      const contextFingerprint = planningContextFingerprint(fingerprintInput);
       const workspace = shared?.workspace || null;
-      const engineChanged = !!workspace && text(workspace.engineVersion) !== PLANNING_ENGINE_VERSION;
-      const inputChanged = !!workspace && text(workspace.contextFingerprint) !== contextFingerprint;
-      const contextChanged = engineChanged || inputChanged;
+      const storedEngineVersion = text(workspace?.engineVersion);
+      const engineChanged = !!workspace && storedEngineVersion !== PLANNING_ENGINE_VERSION;
+      const storedContextFingerprint = text(workspace?.contextFingerprint);
+      const legacyContextFingerprint = engineChanged
+        ? planningLegacyEngineContextFingerprint(fingerprintInput, storedEngineVersion)
+        : '';
+      const inputChanged = !!workspace
+        && storedContextFingerprint !== contextFingerprint
+        && (!engineChanged || storedContextFingerprint !== legacyContextFingerprint);
       const affectedIds = workspace
         ? sharedPlanningAffectedCourseIds({
             shared,
             activities: snapshot?.activities || [],
             currentCourseIds,
-            contextChanged
+            contextChanged: inputChanged
           })
         : currentCourseIds;
 
@@ -2105,12 +2113,12 @@ export const courseSchedulingScreen = {
           }
           return entry.row;
         });
-      state.courseSchedulingPlanningStale = contextChanged;
-      state.courseSchedulingPlanningStaleReason = engineChanged
-        ? 'גרסת מנוע התכנון השתנתה מאז החישוב האחרון'
-        : (inputChanged ? 'נתוני הפעילויות, הזמינות או כללי התכנון השתנו מאז החישוב האחרון' : '');
-      state.courseSchedulingPlanningStoredEngineVersion = text(workspace?.engineVersion);
-      state.courseSchedulingPlanningRows = contextChanged ? [] : sharedRows;
+      state.courseSchedulingPlanningStale = inputChanged;
+      state.courseSchedulingPlanningStaleReason = inputChanged
+        ? 'נתוני הפעילויות, הזמינות או כללי התכנון השתנו מאז החישוב האחרון'
+        : '';
+      state.courseSchedulingPlanningStoredEngineVersion = storedEngineVersion;
+      state.courseSchedulingPlanningRows = inputChanged ? [] : sharedRows;
       state.courseSchedulingPlanningLocks = sharedPlanningLocks(shared);
       state.courseSchedulingPlanningAffectedIds = [...new Set(affectedIds.map(text).filter(Boolean))];
       state.courseSchedulingPlanningFingerprint = text(workspace?.dataFingerprint);
@@ -2283,10 +2291,15 @@ export const courseSchedulingScreen = {
           scope.periodKey
         ).map((course) => idOf(course));
 
-        const contextChanged = !!shared?.workspace && (
-          text(shared.workspace.engineVersion) !== PLANNING_ENGINE_VERSION
-          || text(shared.workspace.contextFingerprint) !== startContextFingerprint
-        );
+        const storedEngineVersion = text(shared?.workspace?.engineVersion);
+        const engineChanged = !!shared?.workspace && storedEngineVersion !== PLANNING_ENGINE_VERSION;
+        const storedContextFingerprint = text(shared?.workspace?.contextFingerprint);
+        const legacyStartContextFingerprint = engineChanged
+          ? planningLegacyEngineContextFingerprint(startFingerprintInput, storedEngineVersion)
+          : '';
+        const contextChanged = !!shared?.workspace
+          && storedContextFingerprint !== startContextFingerprint
+          && (!engineChanged || storedContextFingerprint !== legacyStartContextFingerprint);
         const existingRows = (shared?.rows || [])
           .filter((entry) => currentCourseIds.includes(text(entry.activityId)))
           .map((entry) => entry.lockedOption
@@ -2301,7 +2314,7 @@ export const courseSchedulingScreen = {
             })
           : currentCourseIds;
 
-        const fullRun = forceFull || !shared?.workspace || !existingRows.length || contextChanged || affectedIds.length === 0;
+        const fullRun = forceFull || !shared?.workspace || !existingRows.length || contextChanged;
 
         let silentCheckpoint = null;
         if (fullRun) {
