@@ -9,7 +9,7 @@ import {
   applyDashboardRouteKilometers, applyDashboardExpenses, compareAttendanceRows, applyAttendanceChoice,
   buildCorrectedAttendanceWorkbook, parseAttendanceWorkbook, attendanceAuditSummary, aggregateDashboardAttendanceRows,
   normalizeAttendanceApiRows, attendanceTeams, DETAIL_HEADERS, MONTHLY_HEADERS, DAILY_HEADERS, rowWorkHours,
-  parseMeetingNumberList, attendanceEntryIsResolved, approveAttendanceEntryAsReported, applyAttendanceManualCorrection,
+  parseMeetingNumberList, attendanceEntryIsResolved, approveAttendanceEntryAsReported, approveAttendanceEntryCurrent, applyAttendanceManualCorrection,
   resolvePayrollMonthWorkflow,
   kmDayNeedsDecision, resolveKilometersDay
 } from '../frontend/src/screens/attendance-control.js';
@@ -1756,3 +1756,38 @@ test('training without a back-office plan remains report-only and does not inven
   assert.equal(result.comparisons.length, 0);
   assert.equal(result.notCompared.length, 1);
 });
+
+
+test('manager must explicitly approve every attendance record, and edits revoke that approval', () => {
+  const attendance = {
+    employeeId: '1501', employeeName: 'מדריך', date: '2026-09-20',
+    startTime: '09:00', endTime: '11:00', workHours: 2,
+    activityType: 'קורס', authority: 'רשות', school: 'בית ספר', program: 'תכנית'
+  };
+  const entry = {
+    id: 'explicit-record-approval',
+    attendance,
+    final: { ...attendance },
+    dashboard: { ...attendance },
+    differences: [],
+    unmatched: false,
+    managerResolved: 'auto_ok'
+  };
+
+  assert.equal(attendanceEntryIsResolved(entry), false);
+  let html = resultsHtml({ comparisons: [entry], notCompared: [], dailyKilometers: [] }, '2026-09');
+  assert.match(html, /ממתין לאישור/);
+  assert.match(html, /data-attendance-approve-reported="explicit-record-approval"/);
+  assert.match(html, /אישור רשומה/);
+  assert.match(html, /data-attendance-edit-record="explicit-record-approval"/);
+
+  approveAttendanceEntryCurrent(entry);
+  assert.equal(attendanceEntryIsResolved(entry), true);
+  assert.equal(entry.managerRecordApproved, true);
+
+  applyAttendanceManualCorrection(entry, { endTime: '11:30' });
+  assert.equal(entry.managerRecordApproved, false);
+  assert.equal(attendanceEntryIsResolved(entry), false);
+  assert.equal(entry.final.workHours, 2.5);
+});
+
