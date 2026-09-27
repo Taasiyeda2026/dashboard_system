@@ -4,7 +4,9 @@ import { readFile } from 'node:fs/promises';
 
 const control = await readFile(new URL('../frontend/src/screens/attendance-control.js', import.meta.url), 'utf8');
 const finish = await readFile(new URL('../frontend/src/screens/payroll-control-finish.js', import.meta.url), 'utf8');
+const bridge = await readFile(new URL('../frontend/src/payroll-attendance-v2-bridge.js', import.meta.url), 'utf8');
 const migration = await readFile(new URL('../supabase/migrations/20260927025000_sync_manager_attendance_generated_travel_corrections.sql', import.meta.url), 'utf8');
+const recordReviewMigration = await readFile(new URL('../supabase/migrations/20260927053500_attendance_manager_record_reviews.sql', import.meta.url), 'utf8');
 
 test('attendance-only review exposes inline field editing and uses manual correction state', () => {
   assert.match(control, /data-attendance-edit-record=/);
@@ -27,4 +29,19 @@ test('manager write-back supports corrected date and keeps generated travel canc
   assert.match(migration, /manually_overridden = true/);
   assert.match(migration, /override_by = auth\.uid\(\)/);
   assert.match(migration, /payroll_attendance_permission_denied/);
+});
+
+
+test('record approval is persisted and invalidated by later record writes', () => {
+  assert.match(bridge, /attendanceControlRecordReviews = async function/);
+  assert.match(bridge, /get_manager_attendance_record_reviews/);
+  assert.match(bridge, /attendanceControlApproveRecord = async function/);
+  assert.match(bridge, /set_manager_attendance_record_review/);
+  assert.match(control, /loadRecordReviews/);
+  assert.match(control, /attendanceControlApproveRecord/);
+  assert.match(control, /buildAttendanceUpdatePayload\(entry\)/);
+  assert.match(recordReviewMigration, /attendance_manager_record_reviews/);
+  assert.match(recordReviewMigration, /approved_record_updated_at = ar\.updated_at/);
+  assert.match(recordReviewMigration, /attendance_manager_can_review_employee/);
+  assert.match(recordReviewMigration, /payroll_attendance_permission_denied/);
 });
