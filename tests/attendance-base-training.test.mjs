@@ -7,15 +7,19 @@ const reportsSource = await readFile(new URL('../attendance/src/screens/my-repor
 const summarySource = await readFile(new URL('../attendance/src/components/report-summary-row.js', import.meta.url), 'utf8');
 const serviceSource = await readFile(new URL('../attendance/src/services/attendance.service.js', import.meta.url), 'utf8');
 const routeFunctionSource = await readFile(new URL('../supabase/functions/attendance-base-training-routes/index.ts', import.meta.url), 'utf8');
+const guardMigrationSource = await readFile(new URL('../supabase/migrations/20260927045500_guard_base_training_attendance.sql', import.meta.url), 'utf8');
 
-test('training includes base training and fills Yakum / Greenwork automatically', () => {
+test('base training is offered only for the historical Sep 15-17 dates and fills Yakum / Greenwork automatically', () => {
+  assert.match(source, /BASE_TRAINING_ALLOWED_DATES = new Set\(\['2026-09-15', '2026-09-16', '2026-09-17'\]\)/);
   assert.match(source, /activity_name: 'הכשרת בסיס'/);
   assert.match(source, /authority_name: 'יקום'/);
   assert.match(source, /single_school_name: 'Greenwork'/);
   assert.match(source, /school_link_status: 'single_school'/);
-  assert.match(source, /if \(reportType === TRAINING_REPORT_TYPE\)/);
+  assert.match(source, /reportType === TRAINING_REPORT_TYPE && isBaseTrainingDate\(\)/);
   assert.match(source, /source\.unshift\(BASE_TRAINING_ACTIVITY\)/);
-  assert.match(source, /if \(id === BASE_TRAINING_OPTION_VALUE\) return BASE_TRAINING_ACTIVITY/);
+  assert.match(source, /id === BASE_TRAINING_OPTION_VALUE\) return isBaseTrainingDate\(\) \? BASE_TRAINING_ACTIVITY : null/);
+  assert.match(source, /isBaseTraining && !isBaseTrainingDate\(dateStr\)/);
+  assert.match(source, /הכשרת בסיס ניתנת לדיווח רק בתאריכים 15–17\.09\.2026/);
 });
 
 test('base training stores snapshots without fake canonical ids', () => {
@@ -78,4 +82,14 @@ test('base training route service derives instructor home server-side and warms 
   assert.match(routeFunctionSource, /Math\.max\(0, outbound - 45\) \+ Math\.max\(0, returning - 45\)/);
   assert.match(routeFunctionSource, /mode !== 'preview'/);
   assert.match(routeFunctionSource, /Number\(appUser\.emp_id\)/);
+});
+
+
+test('base training guard exists in both edit UI and database', () => {
+  assert.match(reportsSource, /BASE_TRAINING_ALLOWED_DATES = new Set\(\['2026-09-15', '2026-09-16', '2026-09-17'\]\)/);
+  assert.match(reportsSource, /isBaseTraining && !isBaseTrainingAllowedDate\(record\.report_date\)/);
+  assert.match(guardMigrationSource, /new\.report_date < date '2026-09-15'/);
+  assert.match(guardMigrationSource, /new\.report_date > date '2026-09-17'/);
+  assert.match(guardMigrationSource, /base_training_date_not_allowed/);
+  assert.match(guardMigrationSource, /attendance_records_base_training_emp_date_unique/);
 });
