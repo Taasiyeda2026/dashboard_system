@@ -2121,12 +2121,53 @@ export function planningDataFingerprint(input = []) {
   return (hash >>> 0).toString(36);
 }
 
-export function planningContextFingerprint(input = {}) {
+export const PLANNING_CONTEXT_SCHEMA_VERSION = 'planning-context-v1';
+
+function planningContextFingerprintWithMarker(input = {}, marker = PLANNING_CONTEXT_SCHEMA_VERSION) {
   const snapshot = input || {};
   const periodKey = text(snapshot.periodKey) || DEFAULT_PLANNING_PERIOD_KEY;
   let hash = 2166136261;
   const value = JSON.stringify({
-    engineVersion: PLANNING_ENGINE_VERSION,
+    contextVersion: text(marker) || PLANNING_CONTEXT_SCHEMA_VERSION,
+    period: planningEffectivePeriod(periodKey),
+    instructors: stableRows((snapshot.instructors || []).map((row) => ({
+      emp_id: row.emp_id,
+      active: row.active,
+      address: row.address,
+      gender: row.gender,
+      languages: row.languages
+    }))),
+    profiles: stableRows(Array.isArray(snapshot.profiles) ? snapshot.profiles : Object.values(snapshot.profiles || {})),
+    rules: stableRows(Array.isArray(snapshot.rules) ? snapshot.rules : Object.values(snapshot.rules || {}).flat()),
+    exceptions: stableRows(Array.isArray(snapshot.exceptions) ? snapshot.exceptions : Object.values(snapshot.exceptions || {}).flat()),
+    schoolCalendar: stableRows(snapshot.schoolCalendar || []),
+    catalog: stableRows((snapshot.catalog || []).map((row) => ({
+      activity_no: row.activity_no,
+      gefen_number: row.gefen_number,
+      pricing_key: row.pricing_key,
+      activity_name: row.activity_name,
+      meetings_count: row.meetings_count,
+      hours_count: row.hours_count,
+      unit_duration: row.unit_duration
+    })))
+  });
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(36);
+}
+
+export function planningContextFingerprint(input = {}) {
+  return planningContextFingerprintWithMarker(input, PLANNING_CONTEXT_SCHEMA_VERSION);
+}
+
+export function planningLegacyEngineContextFingerprint(input = {}, engineVersion = '') {
+  const snapshot = input || {};
+  const periodKey = text(snapshot.periodKey) || DEFAULT_PLANNING_PERIOD_KEY;
+  let hash = 2166136261;
+  const value = JSON.stringify({
+    engineVersion: text(engineVersion) || PLANNING_ENGINE_VERSION,
     period: planningEffectivePeriod(periodKey),
     instructors: stableRows((snapshot.instructors || []).map((row) => ({
       emp_id: row.emp_id,
