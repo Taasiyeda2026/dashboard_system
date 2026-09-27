@@ -641,6 +641,7 @@ async function bindEmbeddedAttendance(host, roster, context, snapshot = null, pr
   host.innerHTML = `<style>
     [data-manager-attendance-host][data-manager-attendance-month-mode="current"] .attendance-control__employee > .attendance-control__employee-actions,
     [data-manager-attendance-host][data-manager-attendance-month-mode="future"] .attendance-control__employee > .attendance-control__employee-actions { display:none !important; }
+    [data-manager-attendance-host] .attendance-control__uploads,
     [data-manager-attendance-host] .attendance-control__summary-bar,
     [data-manager-attendance-host] .attendance-control__metrics-details { display:none !important; }
   </style>${attendance.attendanceControlStylesHtml()}${attendance.attendanceControlHtml()}`;
