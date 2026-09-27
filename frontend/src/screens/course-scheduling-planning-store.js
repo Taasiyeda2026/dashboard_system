@@ -398,6 +398,56 @@ export async function upgradeSharedPlanningContextFingerprint({
   return data || null;
 }
 
+export function assertIncrementalPlanningPersistRows(rows = [], allowedIncrementalIds = null, {
+  replaceAll = false
+} = {}) {
+  if (replaceAll === true) return rows || [];
+  const allowed = new Set(
+    (Array.isArray(allowedIncrementalIds) ? allowedIncrementalIds : [])
+      .map(text)
+      .filter(Boolean)
+  );
+  if (!allowed.size) {
+    throw new Error('planning_incremental_persist_ids_required');
+  }
+  const payload = [];
+  for (const row of rows || []) {
+    const activityId = text(row?.courseId || row?.activityId);
+    if (!activityId) continue;
+    if (!allowed.has(activityId)) {
+      throw new Error(`planning_incremental_persist_row_outside_targets:${activityId}`);
+    }
+    payload.push(row);
+  }
+  return payload;
+}
+
+/**
+ * Incremental mid-run partial save: only successfully computed affected rows that
+ * did not change underfoot. Never includes untouched workspace rows.
+ */
+export function selectIncrementalStablePersistRows({
+  rows = [],
+  affectedIds = [],
+  endCourseIds = [],
+  changedActivityIds = [],
+  fullRun = false
+} = {}) {
+  const endIds = new Set((endCourseIds || []).map(text).filter(Boolean));
+  const changed = new Set((changedActivityIds || []).map(text).filter(Boolean));
+  if (fullRun === true) {
+    return (rows || []).filter((row) => {
+      const courseId = text(row?.courseId);
+      return endIds.has(courseId) && !changed.has(courseId);
+    });
+  }
+  const affected = new Set((affectedIds || []).map(text).filter(Boolean));
+  return (rows || []).filter((row) => {
+    const courseId = text(row?.courseId);
+    return affected.has(courseId) && endIds.has(courseId) && !changed.has(courseId);
+  });
+}
+
 export async function saveSharedPlanningSnapshot({
   periodKey = 'year',
   district = '',
@@ -407,10 +457,12 @@ export async function saveSharedPlanningSnapshot({
   rows = [],
   activities = [],
   expectedRevision = null,
-  replaceAll = false
+  replaceAll = false,
+  allowedIncrementalIds = null
 } = {}) {
   const activityById = new Map((activities || []).map((activity) => [idOf(activity), activity]));
-  const payloadRows = (rows || []).map((row) => {
+  const scopedRows = assertIncrementalPlanningPersistRows(rows, allowedIncrementalIds, { replaceAll });
+  const payloadRows = (scopedRows || []).map((row) => {
     const activityId = text(row?.courseId);
     const activity = activityById.get(activityId);
     return {

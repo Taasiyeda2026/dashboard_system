@@ -387,3 +387,69 @@ test('manager approval policy remains 60 km and is not reinvented', () => {
   assert.equal(NORTH_STAGE2_MAX_HOME_DISTANCE_KM, 60);
   assert.equal(MAX_HOME_DISTANCE_KM, 40);
 });
+
+test('253 rows + 10 affected + 1 changed mid-run persists at most 9 affected rows', async () => {
+  const {
+    selectIncrementalStablePersistRows,
+    assertIncrementalPlanningPersistRows
+  } = await import('../frontend/src/screens/course-scheduling-planning-store.js');
+
+  const allIds = Array.from({ length: 253 }, (_, index) => `a${index + 1}`);
+  const affectedIds = allIds.slice(0, 10);
+  const changedActivityIds = [affectedIds[0]];
+  const resultRows = allIds.map((courseId) => ({ courseId, kind: 'proposal' }));
+
+  const stableRows = selectIncrementalStablePersistRows({
+    rows: resultRows,
+    affectedIds,
+    endCourseIds: allIds,
+    changedActivityIds,
+    fullRun: false
+  });
+
+  assert.equal(changedActivityIds.length, 1);
+  assert.equal(stableRows.length, 9);
+  assert.ok(stableRows.every((row) => affectedIds.includes(row.courseId)));
+  assert.ok(!stableRows.some((row) => row.courseId === changedActivityIds[0]));
+  assert.ok(!stableRows.some((row) => !affectedIds.includes(row.courseId)));
+
+  const guarded = assertIncrementalPlanningPersistRows(stableRows, affectedIds, { replaceAll: false });
+  assert.equal(guarded.length, 9);
+
+  assert.throws(
+    () => assertIncrementalPlanningPersistRows(resultRows, affectedIds, { replaceAll: false }),
+    /planning_incremental_persist_row_outside_targets/
+  );
+});
+
+test('replaceAll=false persist payload is capped to the 5 target rows even if result.rows=253', async () => {
+  const {
+    assertIncrementalPlanningPersistRows
+  } = await import('../frontend/src/screens/course-scheduling-planning-store.js');
+
+  const allIds = Array.from({ length: 253 }, (_, index) => `r${index + 1}`);
+  const affectedIds = allIds.slice(0, 5);
+  const resultRows = allIds.map((courseId) => ({ courseId, kind: 'proposal' }));
+  const persistRows = resultRows.filter((row) => affectedIds.includes(row.courseId));
+
+  assert.equal(persistRows.length, 5);
+  const guarded = assertIncrementalPlanningPersistRows(persistRows, affectedIds, { replaceAll: false });
+  assert.equal(guarded.length, 5);
+  assert.deepEqual(guarded.map((row) => row.courseId), affectedIds);
+
+  assert.throws(
+    () => assertIncrementalPlanningPersistRows(resultRows, affectedIds, { replaceAll: false }),
+    /planning_incremental_persist_row_outside_targets:r6/
+  );
+});
+
+test('screen mid-run partial save uses selectIncrementalStablePersistRows + allowedIncrementalIds', async () => {
+  const source = await readFile(new URL('../frontend/src/screens/course-scheduling.js', import.meta.url), 'utf8');
+  assert.match(source, /selectIncrementalStablePersistRows/);
+  assert.match(source, /allowedIncrementalIds:\s*fullRun \? currentCourseIds : affectedIds/);
+  assert.match(source, /allowedIncrementalIds:\s*fullRun \? null : affectedIds/);
+  assert.doesNotMatch(
+    source,
+    /const stableRows = \(result\.rows \|\| \[\]\)\.filter\(\(row\) => \{\s*const courseId = text\(row\?\.courseId\);\s*return endCourseIds\.has\(courseId\) && !changedActivityIds\.has\(courseId\);/
+  );
+});

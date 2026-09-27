@@ -104,7 +104,8 @@ import {
   sharedPlanningAffectedCourseIds,
   sharedPlanningLocks,
   applyLocalPlanningNeedsRecalc,
-  applyStoredPlanningValidityAudit
+  applyStoredPlanningValidityAudit,
+  selectIncrementalStablePersistRows
 } from './course-scheduling-planning-store.js';
 import { exportPlanningWorkbook } from './course-scheduling-planning-export.js';
 
@@ -2670,9 +2671,15 @@ export const courseSchedulingScreen = {
                 .filter((activity) => startVersionById.get(idOf(activity)) !== text(activity?.updated_at))
                 .map((activity) => idOf(activity))
             );
-            const stableRows = (result.rows || []).filter((row) => {
-              const courseId = text(row?.courseId);
-              return endCourseIds.has(courseId) && !changedActivityIds.has(courseId);
+            // INCREMENTAL NEVER WRITES UNTOUCHED ROWS.
+            // Mid-run activity edits may invalidate some affected targets; only
+            // the still-valid intersection of this run's affected set is persisted.
+            const stableRows = selectIncrementalStablePersistRows({
+              rows: result.rows || [],
+              affectedIds: fullRun ? currentCourseIds : affectedIds,
+              endCourseIds: [...endCourseIds],
+              changedActivityIds: [...changedActivityIds],
+              fullRun
             });
 
             if (changedActivityIds.size && stableRows.length) {
@@ -2685,7 +2692,8 @@ export const courseSchedulingScreen = {
                 rows: stableRows,
                 activities: freshEnd.activities || [],
                 expectedRevision: Number(shared?.workspace?.revision) || 0,
-                replaceAll: false
+                replaceAll: false,
+                allowedIncrementalIds: fullRun ? currentCourseIds : affectedIds
               });
 
               assertRunOwnership();
@@ -2728,7 +2736,8 @@ export const courseSchedulingScreen = {
           rows: persistRows,
           activities: freshEnd.activities || [],
           expectedRevision: Number(shared?.workspace?.revision) || 0,
-          replaceAll: fullRun === true
+          replaceAll: fullRun === true,
+          allowedIncrementalIds: fullRun ? null : affectedIds
         });
 
         assertRunOwnership();
