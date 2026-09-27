@@ -1079,6 +1079,12 @@ export function isAttendanceTravelTimeCancellation(entryOrRow = {}) {
   return txt(source.generationKind || row?.generationKind) === 'travel_time_cancellation';
 }
 
+export function attendanceEntryRecordId(entryOrRow = {}) {
+  const row = entryOrRow?.attendance || entryOrRow?.final || entryOrRow || {};
+  const source = row?._source || {};
+  return txt(row.recordId || source.recordId || source.record_id || source.ID || source.Id || source.id);
+}
+
 function generatedTravelCancellationIsSystemResolved(entryOrRow = {}) {
   if (!isAttendanceTravelTimeCancellation(entryOrRow)) return false;
   const row = entryOrRow?.attendance || entryOrRow?.final || entryOrRow;
