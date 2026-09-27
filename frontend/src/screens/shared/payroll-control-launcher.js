@@ -27,7 +27,7 @@ export function openPayrollControlWindow(state = {}) {
 
   void Promise.all([
     import('../../api.js'),
-    import('../attendance-control.js?v=20260927-inline-correction-v1')
+    import('../attendance-control.js?v=20260927-training-plan-match-v1')
   ]).then(([apiModule, attendanceModule]) => {
     const { api } = apiModule;
     const {

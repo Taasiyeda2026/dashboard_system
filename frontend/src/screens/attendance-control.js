@@ -1189,13 +1189,10 @@ function assignDashboardBundles(attendanceEntries, dashboardRows, identityContex
 function hasTrainingScheduleCandidate(attendance, dashboardRows = []) {
   if (!isTrainingAttendanceType(attendance?.activityType)) return false;
   const employeeId = txt(attendance.employeeId);
-  const program = normalizeAttendanceName(attendance.program);
+  const date = txt(attendance.date);
   return (dashboardRows || []).some((row) => row?.__trainingSchedule
     && txt(row.employeeId) === employeeId
-    && (
-      txt(row.date) === txt(attendance.date)
-      || (program && normalizeAttendanceName(row.program) === program)
-    ));
+    && txt(row.date) === date);
 }
 
 export function compareAttendanceRows(attendanceRows, dashboardRows, options = {}) {
@@ -1219,6 +1216,32 @@ export function compareAttendanceRows(attendanceRows, dashboardRows, options = {
     buckets.get(key).push(row);
   });
   const used = new Set(); const assignments = new Map(); const attendanceBuckets = new Map();
+
+  // Planned training is identified by employee + training date before generic score matching.
+  // The planned hours may differ substantially from the instructor report; that difference is
+  // exactly what the manager must review and must not cause the plan itself to be discarded.
+  comparableAttendance.forEach((attendance, attendanceIndex) => {
+    if (!isTrainingAttendanceType(attendance.activityType)) return;
+    const candidates = dashboardPopulation.filter((row) => row?.__trainingSchedule
+      && !used.has(row)
+      && txt(row.employeeId) === txt(attendance.employeeId)
+      && txt(row.date) === txt(attendance.date));
+    if (!candidates.length) return;
+    const program = normalizeAttendanceName(attendance.program);
+    const exactProgram = program
+      ? candidates.filter((row) => normalizeAttendanceName(row.program) === program)
+      : [];
+    const pool = exactProgram.length ? exactProgram : candidates;
+    if (pool.length !== 1) return;
+    const candidate = pool[0];
+    assignments.set(attendanceIndex, {
+      bundle: candidate,
+      componentRows: [candidate],
+      score: 100,
+      identity: 'trainingPlan'
+    });
+    used.add(candidate);
+  });
 
   // Prefer the stable activity row id supplied by attendance. The dashboard date can differ
   // from the actual attendance date, so meeting number is used to disambiguate repetitions.
