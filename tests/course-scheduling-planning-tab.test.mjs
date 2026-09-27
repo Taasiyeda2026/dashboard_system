@@ -292,7 +292,7 @@ test('unresolved planning rows stay collapsed and compact with an explicit reaso
 
 test('planning draft confirmation is an atomic server-side promotion to final assignment', async () => {
   const sql = await readFile(planningDraftConfirmMigrationUrl, 'utf8');
-  assert.match(sql, /create or replace function public\.confirm_scheduling_planning_draft/);
+  assert.match(sql, /create or replace function public\.confirm_scheduling_planning_draft/i);
   assert.match(sql, /planning_revision_conflict/);
   assert.match(sql, /planning_row\.locked_option is null/);
   assert.match(sql, /target\.updated_at is distinct from planning_row\.activity_updated_at/);
@@ -302,9 +302,15 @@ test('planning draft confirmation is an atomic server-side promotion to final as
   assert.match(sql, /public\.set_scheduling_planning_lock\([\s\S]*?activity_id,[\s\S]*?null,/);
   assert.match(sql, /grant execute on function public\.confirm_scheduling_planning_draft/);
   assert.doesNotMatch(
-    sql.split(') returns public.activities')[0],
+    sql.split(/\) returns public\.activities/i)[0],
     /p_emp_id|p_meetings/
   );
+
+  const substitutionConfirm = await readFile(new URL('../supabase/migrations/20260927120000_confirm_planning_single_meeting_substitutions.sql', import.meta.url), 'utf8');
+  assert.match(substitutionConfirm, /scheduling_course_instructor_violations\(v_activity_id, v_emp_id, true, skip_dates\)/);
+  assert.match(substitutionConfirm, /scheduling_assert_assignment_calendar\(v_activity_id, v_emp_id, main_meetings\)/);
+  assert.match(substitutionConfirm, /set_course_meeting_substitute/);
+  assert.match(substitutionConfirm, /substituteEmpId/);
 });
 
 test('planning spec derives meeting count and duration from catalog without changing the activity', () => {

@@ -2,7 +2,13 @@ import { calculateCourseSchedule, preliminaryCourseCandidates } from './course-s
 import { compareCandidatesStable } from './course-scheduling-score.js';
 import { calculateCandidateTravel, createRouteClient } from './course-scheduling-travel.js';
 import { activityMeetings, schedulingCalendarMeetings } from './instructor-scheduling-load.js';
-import { blockedSchoolDates, effectiveEndTime } from './course-scheduling-date-adjustments.js';
+import {
+  blockedSchoolDates,
+  effectiveEndTime,
+  liveAvailabilityConflicts,
+  validatePlanningMeetingsForInstructors,
+  meetingInstructorEmpId
+} from './course-scheduling-date-adjustments.js';
 import { FIRST_HALF_CONTINUATION_END_DATE, planningPeriodOptions, resolveCourseSchedulingPeriod } from './course-scheduling-periods.js';
 import {
   isSchedulingActivityActive,
@@ -1011,8 +1017,16 @@ export function planningPairCompare(first = {}, second = {}) {
 
 function optionFromCandidate(course, candidate, { routeVerified = true, startRange = null } = {}) {
   if (!candidate) return null;
-  const meetings = activityMeetings(course);
+  const adjustedMeetings = Array.isArray(candidate.proposedMeetings) && candidate.proposedMeetings.length
+    ? candidate.proposedMeetings
+    : (Array.isArray(candidate.dateAdjustment?.meetings) && candidate.dateAdjustment.meetings.length
+      ? candidate.dateAdjustment.meetings
+      : activityMeetings(course));
+  const meetings = adjustedMeetings;
   const planningOptimization = planningOptimizationScore(candidate);
+  const singleMeetingSubstitutions = Array.isArray(candidate.singleMeetingSubstitutions)
+    ? candidate.singleMeetingSubstitutions
+    : (candidate.dateAdjustment?.singleMeetingSubstitutions || []);
   return {
     instructorEmpId: empOf(candidate),
     instructorName: text(candidate.instructor?.full_name) || empOf(candidate),
@@ -1025,8 +1039,14 @@ function optionFromCandidate(course, candidate, { routeVerified = true, startRan
       date: text(meeting.date).slice(0, 10),
       meeting_no: Number(meeting.meeting_no) || index + 1,
       start_time: text(meeting.start_time || course.start_time).slice(0, 5),
-      end_time: text(meeting.end_time || course.end_time).slice(0, 5)
+      end_time: text(meeting.end_time || course.end_time).slice(0, 5),
+      original_date: text(meeting.original_date || meeting.date).slice(0, 10),
+      moved: meeting.moved === true,
+      substituteEmpId: text(meeting.substituteEmpId) || undefined,
+      substituteName: text(meeting.substituteName) || undefined,
+      constraintKind: text(meeting.constraintKind) || undefined
     })),
+    singleMeetingSubstitutions,
     routeVerified,
     startRange,
     planningOptimization,
@@ -1193,6 +1213,15 @@ async function evaluateScenarioOptions({
         startRange
       });
       if (!option) continue;
+      const validation = planningOptionPassesFinalValidation(option, {
+        activity: finalist.course,
+        instructors,
+        profiles,
+        rules,
+        exceptions,
+        schoolCalendar
+      });
+      if (!validation.valid) continue;
       const key = `${option.instructorEmpId}|${option.startDate}|${option.startTime}`;
       if (optionKeys.has(key)) continue;
       optionKeys.add(key);
@@ -1254,8 +1283,7 @@ async function evaluateFixedCourse({
     rules,
     exceptions,
     schoolCalendar,
-    referenceDate: today,
-    allowDateAdjustments: false
+    referenceDate: today
   }).map((item) => item.candidate).filter(Boolean)
     .map((candidate) => {
       const cachedHome = routeClient?.peek?.(candidate?.instructor?.address, activity?.school_address);
@@ -1323,8 +1351,7 @@ async function evaluateFixedCourse({
       referenceDate: today,
       travel: routed.travel,
       routeMatrix: routed.routeMatrix,
-      travelUnavailableReason: routed.unavailableReason || '',
-      allowDateAdjustments: false
+      travelUnavailableReason: routed.unavailableReason || ''
     })[0];
 
     for (const finalist of batch) {
@@ -1336,6 +1363,15 @@ async function evaluateFixedCourse({
       if (!finalCandidate) continue;
       const option = optionFromCandidate(activity, finalCandidate, { routeVerified: !text(routed.unavailableReason) });
       if (!option) continue;
+      const validation = planningOptionPassesFinalValidation(option, {
+        activity,
+        instructors,
+        profiles,
+        rules,
+        exceptions,
+        schoolCalendar
+      });
+      if (!validation.valid) continue;
       const key = text(option.instructorEmpId);
       if (optionKeys.has(key)) continue;
       optionKeys.add(key);
@@ -1399,7 +1435,11 @@ function activityMeetingsForPlanning(activity = {}, periodKey = DEFAULT_PLANNING
   })).filter((meeting) => meeting.date >= period.start && meeting.date <= scheduleEnd);
 }
 
-function liveRow(activity = {}, periodKey = DEFAULT_PLANNING_PERIOD_KEY) {
+function liveRow(activity = {}, periodKey = DEFAULT_PLANNING_PERIOD_KEY, {
+  rules = {},
+  exceptions = {},
+  schoolCalendar = []
+} = {}) {
   const calendarMeetings = schedulingCalendarMeetings(activity);
   const meetings = activityMeetingsForPlanning(activity, periodKey);
   const first = meetings[0] || {};
@@ -1412,6 +1452,19 @@ function liveRow(activity = {}, periodKey = DEFAULT_PLANNING_PERIOD_KEY) {
   const rawEndDate = calendarMeetings.map((meeting) => text(meeting?.date).slice(0, 10)).filter(Boolean).sort().at(-1) || endDate;
   const continuesIntoFebruary = periodKey === 'first' && !!rawEndDate && rawEndDate > period.end && rawEndDate <= continuationEnd;
   const halfOverflow = !!rawEndDate && rawEndDate > continuationEnd;
+  const empId = text(activity.emp_id || activity.draft_emp_id);
+  const conflicts = assigned && empId
+    ? liveAvailabilityConflicts({
+      meetings: calendarMeetings.map((meeting) => ({
+        date: text(meeting?.date).slice(0, 10),
+        start_time: text(meeting?.start_time || activity.start_time).slice(0, 5),
+        end_time: text(meeting?.end_time || activity.end_time).slice(0, 5)
+      })),
+      rules: rules[empId] || [],
+      exceptions: exceptions[empId] || [],
+      schoolCalendar: filterSchoolCalendarRowsBySector(schoolCalendar, activity?.calendar_sector)
+    })
+    : { liveAvailabilityConflictCount: 0, liveAvailabilityConflictDates: [] };
   return {
     courseId: idOf(activity),
     authority: text(activity.authority),
@@ -1432,8 +1485,12 @@ function liveRow(activity = {}, periodKey = DEFAULT_PLANNING_PERIOD_KEY) {
     halfOverflow,
     continuesIntoFebruary,
     halfOverflowLabel: halfOverflow ? 'נמשכת מעבר לסוף פברואר' : '',
+    liveAvailabilityConflictCount: conflicts.liveAvailabilityConflictCount,
+    liveAvailabilityConflictDates: conflicts.liveAvailabilityConflictDates,
     reason: assigned
-      ? 'נלקח מהשיבוץ הפעיל'
+      ? (conflicts.liveAvailabilityConflictCount
+        ? `נלקח מהשיבוץ הפעיל · ${conflicts.liveAvailabilityConflictCount} מפגשים סותרים את זמינות המדריך`
+        : 'נלקח מהשיבוץ הפעיל')
       : (draft
           ? (halfOverflow
               ? `נלקח מטיוטת השיבוץ הקיימת · סיום ${formatDateHe(rawEndDate)} מעבר לסוף פברואר`
@@ -1879,7 +1936,12 @@ export function normalizePlanningLockedOption(option = {}, periodKey = DEFAULT_P
       date: text(meeting?.date).slice(0, 10),
       meeting_no: Number(meeting?.meeting_no) || index + 1,
       start_time: text(meeting?.start_time).slice(0, 5),
-      end_time: text(meeting?.end_time).slice(0, 5)
+      end_time: text(meeting?.end_time).slice(0, 5),
+      original_date: text(meeting?.original_date || meeting?.date).slice(0, 10) || undefined,
+      moved: meeting?.moved === true,
+      substituteEmpId: text(meeting?.substituteEmpId) || undefined,
+      substituteName: text(meeting?.substituteName) || undefined,
+      constraintKind: text(meeting?.constraintKind) || undefined
     }))
     .filter((meeting) =>
       /^\d{4}-\d{2}-\d{2}$/.test(meeting.date)
@@ -1888,6 +1950,16 @@ export function normalizePlanningLockedOption(option = {}, periodKey = DEFAULT_P
       && validTimeRange(meeting.start_time, meeting.end_time)
     );
   if (!instructorEmpId || !meetings.length) return null;
+  const singleMeetingSubstitutions = Array.isArray(option.singleMeetingSubstitutions)
+    ? option.singleMeetingSubstitutions
+    : meetings
+      .filter((meeting) => text(meeting.substituteEmpId))
+      .map((meeting) => ({
+        meetingDate: meeting.date,
+        substituteEmpId: meeting.substituteEmpId,
+        substituteName: meeting.substituteName || '',
+        constraintKind: meeting.constraintKind || 'instructor_exception'
+      }));
   return {
     ...option,
     instructorEmpId,
@@ -1896,8 +1968,44 @@ export function normalizePlanningLockedOption(option = {}, periodKey = DEFAULT_P
     endDate: meetings.at(-1).date,
     startTime: meetings[0].start_time,
     endTime: meetings[0].end_time,
-    meetings
+    meetings,
+    singleMeetingSubstitutions
   };
+}
+
+export function planningOptionPassesFinalValidation(option = {}, {
+  activity = {},
+  instructors = [],
+  profiles = {},
+  rules = {},
+  exceptions = {},
+  assignments = {},
+  schoolCalendar = []
+} = {}) {
+  const mainEmpId = text(option?.instructorEmpId);
+  const meetings = Array.isArray(option?.meetings) ? option.meetings : [];
+  if (!mainEmpId || !meetings.length) return { valid: false, failures: [{ reason: 'missing_option' }] };
+  const instructorById = new Map((instructors || []).map((row) => [text(row.emp_id), row]));
+  const instructorContexts = {};
+  for (const meeting of meetings) {
+    const empId = meetingInstructorEmpId(meeting, mainEmpId);
+    if (!empId || instructorContexts[empId]) continue;
+    instructorContexts[empId] = {
+      instructor: instructorById.get(empId) || { emp_id: empId, active: 'yes' },
+      rules: rules[empId] || [],
+      exceptions: exceptions[empId] || [],
+      existingActivities: (assignments[empId] || []).flatMap((row) => activityMeetings(row)),
+      profile: profiles[empId] || null
+    };
+  }
+  return validatePlanningMeetingsForInstructors({
+    meetings,
+    mainInstructorEmpId: mainEmpId,
+    instructorContexts,
+    activity,
+    schoolCalendar: filterSchoolCalendarRowsBySector(schoolCalendar, activity?.calendar_sector),
+    allowSaturday: normalizeCalendarSector(activity?.calendar_sector) === 'arab'
+  });
 }
 
 export function applyPlanningLockToRow(row = {}, option = {}, periodKey = DEFAULT_PLANNING_PERIOD_KEY) {
@@ -2428,7 +2536,7 @@ export async function buildDynamicCoursePlan({
     const activityId = idOf(activity);
     const activityPeriodKey = planningPeriodKeyForActivity(activity, periodKey);
     if (text(activity.emp_id)) {
-      rowsById.set(activityId, liveRow(activity, activityPeriodKey));
+      rowsById.set(activityId, liveRow(activity, activityPeriodKey, { rules, exceptions, schoolCalendar }));
       continue;
     }
 
@@ -2564,7 +2672,7 @@ export async function buildDynamicCoursePlan({
       const options = evaluation.options || [];
       const chosen = options[0] || null;
       const recruitmentNeeded = !chosen && evaluation.recruitmentNeeded === true;
-      const fixedLive = liveRow(activity, activityPeriodKey);
+      const fixedLive = liveRow(activity, activityPeriodKey, { rules, exceptions, schoolCalendar });
       const row = {
         ...fixedLive,
         kind: chosen ? 'fixed-proposal' : (recruitmentNeeded ? 'recruitment' : 'missing'),
