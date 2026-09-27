@@ -2387,7 +2387,6 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
       console.warn('[attendance-control] record reviews load failed', error);
     }
   };
-  const finishModuleImport = './payroll-control-finish.js?v=20260927-training-km-field-choice-v1';
   const syncEntryAfterPersistentWrite = (entry) => {
     const source = entry.attendance?._source;
     entry.attendance = { ...(entry.attendance || {}), ...(entry.final || {}), _source: source };
@@ -2395,7 +2394,8 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
     entry.managerRecordApproved = false;
   };
   const persistEntryCorrection = async (entry) => {
-    const finishMod = await import(finishModuleImport);
+    // Literal path required: Vite/Rollup cannot rewrite `import(variable)` into a hashed chunk.
+    const finishMod = await import('./payroll-control-finish.js?v=20260927-training-km-field-choice-v2');
     const update = finishMod.buildAttendanceUpdatePayload(entry);
     if (!update.recordId) throw new Error('חסר מזהה רשומת נוכחות לעדכון.');
     if (!update.changed) {
@@ -2757,7 +2757,7 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
       let writeSucceeded = false;
       try {
         approveAttendanceEntryCurrent(entry);
-        const finishMod = await import(finishModuleImport);
+        const finishMod = await import('./payroll-control-finish.js?v=20260927-training-km-field-choice-v2');
         const update = finishMod.buildAttendanceUpdatePayload(entry);
         if (!update.recordId) throw new Error('חסר מזהה רשומת נוכחות לאישור.');
         if (update.changed) {
@@ -2874,7 +2874,7 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
     if (viewBtn) {
       const approval = approvalFromButton(viewBtn);
       if (!approval) return;
-      const finishMod = await import(finishModuleImport);
+      const finishMod = await import('./payroll-control-finish.js?v=20260927-training-km-field-choice-v2');
       if (txt(approval.pdf_path).startsWith('http://') || txt(approval.pdf_path).startsWith('https://')) {
         window.open(approval.pdf_path, '_blank', 'noopener');
         return;
@@ -2903,7 +2903,7 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
     }
     finishBtn.disabled = true;
     try {
-      const finishMod = await import(finishModuleImport);
+      const finishMod = await import('./payroll-control-finish.js?v=20260927-training-km-field-choice-v2');
       if (finishMod.payrollEmployeeHasUnresolvedEntries(result, employeeId)) {
         setStatusMessage('לא ניתן לאשר את החודש: יש רשומות שעדיין לא אושרו על ידי מנהל הצוות.', { error: true });
         return;
