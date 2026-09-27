@@ -82,6 +82,8 @@ import {
   planningContextFingerprint,
   planningLegacyEngineContextFingerprint,
   resolvePlanningContextChange,
+  resolvePlanningFullRunDecision,
+  planningEngineChangeAffectedCourseIds,
   serializePlanningContextFingerprint,
   planningDataFingerprint,
   planningOptionPassesFinalValidation,
@@ -2149,13 +2151,26 @@ export const courseSchedulingScreen = {
         ? currentCourseIds
         : unrecoverableGlobalContextChange
           ? currentCourseIds
-          : sharedPlanningAffectedCourseIds({
-              shared,
-              activities: snapshot?.activities || [],
-              currentCourseIds,
-              contextDiff: contextResolution?.contextDiff || null,
-              unrecoverableGlobalContextChange: false
-            });
+          : (() => {
+              const mapped = sharedPlanningAffectedCourseIds({
+                shared,
+                activities: snapshot?.activities || [],
+                currentCourseIds,
+                contextDiff: contextResolution?.contextDiff || null,
+                unrecoverableGlobalContextChange: false
+              });
+              if (!engineChanged) return mapped;
+              return [...new Set([
+                ...mapped,
+                ...planningEngineChangeAffectedCourseIds({
+                  shared,
+                  activities: snapshot?.activities || [],
+                  currentCourseIds,
+                  previousEngineVersion: storedEngineVersion,
+                  nextEngineVersion: PLANNING_ENGINE_VERSION
+                })
+              ])];
+            })();
 
       const sharedRows = (shared?.rows || [])
         .filter((entry) => currentCourseIds.includes(text(entry.activityId)))
@@ -2446,18 +2461,32 @@ export const courseSchedulingScreen = {
           ? currentCourseIds
           : unrecoverableGlobalContextChange
             ? currentCourseIds
-            : sharedPlanningAffectedCourseIds({
-                shared,
-                activities: freshStart.activities || [],
-                currentCourseIds,
-                contextDiff: contextResolution?.contextDiff || null,
-                unrecoverableGlobalContextChange: false
-              });
+            : (() => {
+                const mapped = sharedPlanningAffectedCourseIds({
+                  shared,
+                  activities: freshStart.activities || [],
+                  currentCourseIds,
+                  contextDiff: contextResolution?.contextDiff || null,
+                  unrecoverableGlobalContextChange: false
+                });
+                if (!engineChanged) return mapped;
+                const engineAffected = planningEngineChangeAffectedCourseIds({
+                  shared,
+                  activities: freshStart.activities || [],
+                  currentCourseIds,
+                  previousEngineVersion: storedEngineVersion,
+                  nextEngineVersion: PLANNING_ENGINE_VERSION
+                });
+                return [...new Set([...mapped, ...engineAffected])];
+              })();
 
-        const fullRun = forceFull
-          || !shared?.workspace
-          || !existingRows.length
-          || unrecoverableGlobalContextChange;
+        const { fullRun, fullRunReason } = resolvePlanningFullRunDecision({
+          forceFull,
+          hasWorkspace: !!shared?.workspace,
+          existingRowCount: existingRows.length,
+          unrecoverableGlobalContextChange
+        });
+        state.courseSchedulingPlanningFullRunReason = fullRunReason || '';
 
         if (!fullRun && affectedIds.length === 0) {
           applySharedPlanningState(shared, freshStart);
@@ -2488,14 +2517,25 @@ export const courseSchedulingScreen = {
         }
         assertRunOwnership();
 
+        const affectedIdSet = new Set(affectedIds.map(text).filter(Boolean));
         const checkpointCompletedIds = new Set(
           (silentCheckpoint?.completedActivityIds || [])
             .map((value) => text(value))
             .filter((courseId) => currentCourseIds.includes(courseId))
+            .filter((courseId) => fullRun || affectedIdSet.has(courseId))
         );
         const resumableRows = (silentCheckpoint?.rows || [])
           .filter((row) => checkpointCompletedIds.has(text(row?.courseId)));
-        const resumeFromCheckpoint = checkpointCompletedIds.size > 0 && resumableRows.length > 0;
+        // Never let a prior full-run checkpoint expand an incremental run.
+        const checkpointCompatible = fullRun
+          || (
+            checkpointCompletedIds.size > 0
+            && [...checkpointCompletedIds].every((courseId) => affectedIdSet.has(courseId))
+            && Number(silentCheckpoint?.totalCount || 0) <= Math.max(affectedIds.length, checkpointCompletedIds.size)
+          );
+        const resumeFromCheckpoint = checkpointCompatible
+          && checkpointCompletedIds.size > 0
+          && resumableRows.length > 0;
         const targetCourseIds = fullRun
           ? (resumeFromCheckpoint
               ? currentCourseIds.filter((courseId) => !checkpointCompletedIds.has(courseId))
@@ -2503,16 +2543,29 @@ export const courseSchedulingScreen = {
           : (resumeFromCheckpoint
               ? affectedIds.filter((courseId) => !checkpointCompletedIds.has(courseId))
               : affectedIds);
-        const planningExistingRows = resumeFromCheckpoint ? resumableRows : existingRows;
+        const planningExistingRows = resumeFromCheckpoint
+          ? (
+              fullRun
+                ? resumableRows
+                : (() => {
+                    const byId = new Map(existingRows.map((row) => [text(row?.courseId), row]));
+                    for (const row of resumableRows) byId.set(text(row?.courseId), row);
+                    return [...byId.values()];
+                  })()
+            )
+          : existingRows;
         let lastSilentCheckpointCount = checkpointCompletedIds.size;
         const checkpointBatchSize = fullRun ? 50 : Math.min(20, Math.max(3, affectedIds.length));
+        const progressTotal = fullRun ? currentCourseIds.length : affectedIds.length;
 
         state.courseSchedulingPlanningProgress = {
           phase: fullRun
             ? `בניית תכנון מלא · ${currentCourseIds.length} פעילויות`
             : `עדכון שינויים בלבד · ${affectedIds.length} פעילויות`,
           completed: 0,
-          total: fullRun ? currentCourseIds.length : affectedIds.length
+          total: progressTotal,
+          fullRun: fullRun === true,
+          fullRunReason: fullRunReason || ''
         };
         if (runUiVisible()) run.ui?.update?.();
         void contextChanged;
@@ -2577,7 +2630,9 @@ export const courseSchedulingScreen = {
                 dataFingerprint: startFingerprint,
                 contextFingerprint: startContextStorage,
                 completedCount: checkpointCompletedIds.size,
-                totalCount: checkpointCompletedIds.size + Math.max(0, Number(progress.total) - Number(progress.completed)),
+                totalCount: fullRun
+                  ? currentCourseIds.length
+                  : affectedIds.length,
                 completedActivityIds: [...checkpointCompletedIds],
                 rows: checkpointRows
               });
@@ -2629,7 +2684,8 @@ export const courseSchedulingScreen = {
                 contextFingerprint: endContextStorage,
                 rows: stableRows,
                 activities: freshEnd.activities || [],
-                expectedRevision: Number(shared?.workspace?.revision) || 0
+                expectedRevision: Number(shared?.workspace?.revision) || 0,
+                replaceAll: false
               });
 
               assertRunOwnership();
@@ -2660,15 +2716,19 @@ export const courseSchedulingScreen = {
         }
 
         assertRunOwnership();
+        const persistRows = fullRun
+          ? (result.rows || [])
+          : (result.rows || []).filter((row) => affectedIdSet.has(text(row?.courseId)));
         const saved = await saveSharedPlanningSnapshot({
           periodKey: scope.periodKey,
           district: scope.district,
           engineVersion: PLANNING_ENGINE_VERSION,
           dataFingerprint: endFingerprint,
           contextFingerprint: endContextStorage,
-          rows: result.rows || [],
+          rows: persistRows,
           activities: freshEnd.activities || [],
-          expectedRevision: Number(shared?.workspace?.revision) || 0
+          expectedRevision: Number(shared?.workspace?.revision) || 0,
+          replaceAll: fullRun === true
         });
 
         assertRunOwnership();
@@ -2691,7 +2751,7 @@ export const courseSchedulingScreen = {
           // Final canonical save succeeded; stale checkpoints are harmless and hidden.
         }
 
-        const updatedCount = fullRun ? currentCourseIds.length : affectedIds.length;
+        const updatedCount = fullRun ? currentCourseIds.length : persistRows.length;
         if (runUiVisible()) {
           showToast(
             fullRun

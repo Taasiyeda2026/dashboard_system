@@ -406,7 +406,8 @@ export async function saveSharedPlanningSnapshot({
   contextFingerprint = '',
   rows = [],
   activities = [],
-  expectedRevision = null
+  expectedRevision = null,
+  replaceAll = false
 } = {}) {
   const activityById = new Map((activities || []).map((activity) => [idOf(activity), activity]));
   const payloadRows = (rows || []).map((row) => {
@@ -428,7 +429,8 @@ export async function saveSharedPlanningSnapshot({
     p_rows: payloadRows,
     p_expected_revision: expectedRevision == null
       ? null
-      : (Number.isFinite(Number(expectedRevision)) ? Number(expectedRevision) : null)
+      : (Number.isFinite(Number(expectedRevision)) ? Number(expectedRevision) : null),
+    p_replace_all: replaceAll === true
   });
   if (error) throw error;
   return data || null;
