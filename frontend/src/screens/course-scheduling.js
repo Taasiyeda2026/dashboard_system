@@ -81,6 +81,7 @@ import {
   planningContextFingerprint,
   planningLegacyEngineContextFingerprint,
   planningDataFingerprint,
+  planningOptionPassesFinalValidation,
   planningTabHtml,
   planningWorkspaceCourses
 } from './course-scheduling-planning.js';
@@ -2573,6 +2574,19 @@ export const courseSchedulingScreen = {
     });
 
     const persistPlanningLock = async (courseId, option) => {
+      const activity = (state.courseSchedulingActivities || state.activities || [])
+        .find((row) => text(row?.row_id || row?.RowID || row?.id) === text(courseId));
+      const validation = planningOptionPassesFinalValidation(option, {
+        activity: activity || {},
+        instructors: state.courseSchedulingInstructors || state.instructors || [],
+        profiles: state.courseSchedulingProfiles || state.profiles || {},
+        rules: state.courseSchedulingRules || state.rules || {},
+        exceptions: state.courseSchedulingExceptions || state.exceptions || {},
+        schoolCalendar: state.courseSchedulingSchoolCalendar || state.schoolCalendar || []
+      });
+      if (!validation.valid) {
+        throw new Error('planning_option_invalid_meetings');
+      }
       const scope = planningScope();
       const result = await saveSharedPlanningLock({
         periodKey: scope.periodKey,

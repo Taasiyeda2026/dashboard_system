@@ -15,7 +15,14 @@ function instructorIdsFromPlanningEntry(entry = {}) {
   };
   add(entry?.lockedOption?.instructorEmpId);
   add(entry?.row?.instructorEmpId);
-  for (const option of entry?.row?.options || []) add(option?.instructorEmpId);
+  for (const meeting of entry?.lockedOption?.meetings || []) add(meeting?.substituteEmpId);
+  for (const meeting of entry?.row?.meetings || []) add(meeting?.substituteEmpId);
+  for (const option of entry?.row?.options || []) {
+    add(option?.instructorEmpId);
+    for (const meeting of option?.meetings || []) add(meeting?.substituteEmpId);
+  }
+  for (const row of entry?.lockedOption?.singleMeetingSubstitutions || []) add(row?.substituteEmpId);
+  for (const row of entry?.row?.singleMeetingSubstitutions || []) add(row?.substituteEmpId);
   return ids;
 }
 
@@ -253,6 +260,7 @@ export function planningStoreErrorMessage(error, fallback = 'שמירת התכנ
   if (raw.includes('planning_draft_missing')) return 'הטיוטה כבר השתנתה או בוטלה. המערכת תרענן את ההצעות.';
   if (raw.includes('scheduling_draft_exists')) return 'כבר קיימת טיוטת שיבוץ לפעילות. יש לפתוח אותה לפני אישור תכנון אחר.';
   if (raw.includes('planning_draft_variable_hours_unsupported')) return 'בטיוטה שנבחרה יש שעות שונות בין המפגשים ולכן נדרשת בדיקה ידנית.';
+  if (raw.includes('planning_option_invalid_meetings')) return 'לא ניתן לשמור הצעה עם מפגש שאינו עומד בתנאי הסף של המדריך בפועל.';
   if (raw.includes('scheduling_permission_denied')) return 'אין הרשאה לעדכן את התכנון המשותף.';
   return raw ? `${fallback}: ${raw}` : fallback;
 }
