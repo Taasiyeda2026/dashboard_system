@@ -57,7 +57,7 @@ export const PLANNING_OPTIMIZATION_WEIGHTS = Object.freeze({
   geography: 15,
   stability: 10
 });
-export const PLANNING_ENGINE_VERSION = 'planning-v18-20260927-locality-final-selection';
+export const PLANNING_ENGINE_VERSION = 'planning-v19-20260927-exhaust-existing-staff';
 export const PLANNING_ACTIVITY_NO_ALIASES = Object.freeze({
   // Legacy Gefen identifier retained on existing activities; canonical catalog program is 53828.
   '82835': '53828'
@@ -326,7 +326,7 @@ function instructorAllowsPlanningWeekday(empId, targetWeekday, { profiles = {}, 
     Number(rule.weekday) === day && rule.available === true
   );
   if (!available) return false;
-  if (day === 5 && profiles?.[empId]?.friday_allowed !== true) return false;
+  // Explicit weekly availability is the source of truth for Friday.
   if (day === 6 && !activityAllowsSaturday(activity)) return false;
   return day >= 0 && day <= 6;
 }
@@ -2448,7 +2448,7 @@ export async function buildDynamicCoursePlan({
       if (!generated.spec.complete) {
         rowsById.set(idOf(activity), missingOverviewRow(activity, catalog));
       } else {
-        const evaluation = await evaluateScenarioOptions({
+        let evaluation = await evaluateScenarioOptions({
           activity,
           scenarios: generated.scenarios,
           startRange: generated.startRange,
@@ -2465,17 +2465,68 @@ export async function buildDynamicCoursePlan({
           periodKey: activityPeriodKey,
           limits
         });
+        let effectiveGenerated = generated;
+
+        // Recruitment is a last resort. Fast planning may intentionally inspect
+        // only a subset of scenarios/candidates, so before declaring recruitment
+        // run a deep rescue pass for this activity only.
+        if (
+          text(planningProfile).toLowerCase() === 'fast'
+          && !(evaluation.options || []).length
+          && evaluation.recruitmentNeeded === true
+        ) {
+          await report('מיצוי צוות קיים לפני גיוס', completed, queue.length, idOf(activity));
+          const deepGenerated = await generatePlanningScenariosCooperatively({
+            activity,
+            catalog,
+            instructors,
+            rules,
+            profiles,
+            activities: currentContext,
+            schoolCalendar,
+            today,
+            periodKey: activityPeriodKey,
+            maxScenarios: DEEP_PLANNING_LIMITS.maxScenarios
+          }, checkpoint);
+          if (deepGenerated.spec.complete) {
+            const deepEvaluation = await evaluateScenarioOptions({
+              activity,
+              scenarios: deepGenerated.scenarios,
+              startRange: deepGenerated.startRange,
+              contextActivities: currentContext,
+              instructors,
+              profiles,
+              rules,
+              exceptions,
+              schoolCalendar,
+              today,
+              routeClient,
+              checkpoint,
+              signal,
+              periodKey: activityPeriodKey,
+              limits: DEEP_PLANNING_LIMITS
+            });
+            evaluation = {
+              ...deepEvaluation,
+              rescuePass: true,
+              fastPreliminaryCount: Number(evaluation.preliminaryCount) || 0,
+              fastRoutedAttemptCount: Number(evaluation.routedAttemptCount) || 0
+            };
+            effectiveGenerated = deepGenerated;
+          }
+        }
+
         const options = evaluation.options || [];
         const chosen = options[0] || null;
         rowsById.set(idOf(activity), planRowFromOption(
           activity,
           chosen,
           options,
-          generated.startRange,
-          generated.spec,
+          effectiveGenerated.startRange,
+          effectiveGenerated.spec,
           {
             ...evaluation,
-            scheduleOptions: scheduleOnlyOptions(generated.scenarios)
+            scheduleOptions: scheduleOnlyOptions(effectiveGenerated.scenarios)
           }
         ));
         const virtual = blockingVirtualActivity(activity, chosen);

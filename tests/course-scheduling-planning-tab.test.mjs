@@ -1546,6 +1546,15 @@ test('legacy engine context can be recognized without forcing a full rebuild', (
   );
 });
 
+test('fast planning performs a deep rescue pass before declaring recruitment', async () => {
+  const source = await readFile(new URL('../frontend/src/screens/course-scheduling-planning.js', import.meta.url), 'utf8');
+  assert.match(source, /מיצוי צוות קיים לפני גיוס/);
+  assert.match(source, /evaluation\.recruitmentNeeded === true/);
+  assert.match(source, /maxScenarios: DEEP_PLANNING_LIMITS\.maxScenarios/);
+  assert.match(source, /limits: DEEP_PLANNING_LIMITS/);
+  assert.match(source, /rescuePass: true/);
+});
+
 test('screen does not force full planning solely because engine version changed or nothing changed', async () => {
   const source = await readFile(new URL('../frontend/src/screens/course-scheduling.js', import.meta.url), 'utf8');
   assert.match(source, /legacyStartContextFingerprint = engineChanged/);
@@ -2062,32 +2071,32 @@ test('flexible recruitment never uses Friday or Saturday as a default schedule c
   assert.equal(new Date(`${rows[0].startDate}T12:00:00Z`).getUTCDay(), 2);
 });
 
-test('planning offers Friday only for an instructor explicitly allowed and available on Friday', () => {
-  const noFriday = generatePlanningScenarios({
-    activity: { ...baseCourse, sessions: 2 },
-    catalog,
-    instructors: [instructor],
-    profiles: profileMap,
-    rules: { 1: [...ruleMap[1], { emp_id: 1, weekday: 5, available: true, start_time: '08:00', end_time: '14:00' }] },
-    activities: [],
-    schoolCalendar: [],
-    today: '2026-09-23',
-    periodKey: 'first'
-  });
-  assert.equal(noFriday.scenarios.some((scenario) => new Date(`${scenario.startDate}T12:00:00Z`).getUTCDay() === 5), false);
-
-  const yesFriday = generatePlanningScenarios({
+test('planning offers Friday when explicit Friday availability exists, regardless of legacy profile flag', () => {
+  const withoutFridayRule = generatePlanningScenarios({
     activity: { ...baseCourse, sessions: 2 },
     catalog,
     instructors: [instructor],
     profiles: { 1: { ...profileMap[1], friday_allowed: true } },
+    rules: ruleMap,
+    activities: [],
+    schoolCalendar: [],
+    today: '2026-09-23',
+    periodKey: 'first'
+  });
+  assert.equal(withoutFridayRule.scenarios.some((scenario) => new Date(`${scenario.startDate}T12:00:00Z`).getUTCDay() === 5), false);
+
+  const withFridayRule = generatePlanningScenarios({
+    activity: { ...baseCourse, sessions: 2 },
+    catalog,
+    instructors: [instructor],
+    profiles: { 1: { ...profileMap[1], friday_allowed: false } },
     rules: { 1: [...ruleMap[1], { emp_id: 1, weekday: 5, available: true, start_time: '08:00', end_time: '14:00' }] },
     activities: [],
     schoolCalendar: [],
     today: '2026-09-23',
     periodKey: 'first'
   });
-  assert.equal(yesFriday.scenarios.some((scenario) => new Date(`${scenario.startDate}T12:00:00Z`).getUTCDay() === 5), true);
+  assert.equal(withFridayRule.scenarios.some((scenario) => new Date(`${scenario.startDate}T12:00:00Z`).getUTCDay() === 5), true);
 });
 
 test('planning offers Saturday only for Arab-sector activity with explicit Saturday availability', () => {

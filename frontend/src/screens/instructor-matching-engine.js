@@ -249,10 +249,6 @@ export function evaluateInstructor({
 
   for (const meeting of meetings) {
     const weekday = new Date(`${meeting.date}T12:00:00`).getDay();
-    if (weekday === 5 && profile.friday_allowed !== true) {
-      failures.push(`המדריך אינו מסומן כזמין לשיבוץ ביום שישי (${meeting.date})`);
-      continue;
-    }
     if (weekday === 6 && !saturdayAllowed) {
       failures.push(`שבת פתוחה לשיבוץ רק בבתי ספר בחברה הערבית (${meeting.date})`);
       continue;
