@@ -555,7 +555,12 @@ function locationInstructorDistance(cache, employeeId, location, homeAddress = '
     )
     && normalizedRouteAddress(row.destination_address) === home
   ));
-  return usableDistance(hit);
+  const reverseDistance = usableDistance(hit);
+  if (reverseDistance != null) return reverseDistance;
+  // Older cache rows sometimes contain only instructor -> destination. Preserve
+  // their legacy symmetric fallback, while preferring the real reverse route
+  // whenever both directional Google routes are available.
+  return instructorLocationDistance(cache, employeeId, location, homeAddress);
 }
 
 function locationLocationDistance(cache, origin, destination) {
