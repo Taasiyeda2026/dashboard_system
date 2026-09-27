@@ -1815,6 +1815,7 @@ export function resultsHtml(result, month = '', options = {}) {
   };
   const comparisonHasIssue = (comparison) => {
     if (!comparison) return false;
+    if (attendanceEntryIsResolved(comparison)) return false;
     if (comparison.unmatched) return true;
     if ((comparison.differences || []).some((difference) => !difference.decided)) return true;
     if (hasReviewExpense(comparison.attendance)
