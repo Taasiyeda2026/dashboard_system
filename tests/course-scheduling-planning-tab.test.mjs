@@ -33,6 +33,7 @@ import {
   planningInstructorCompletionOverview,
   planningFullWorkPlanCoverage,
   assignRecruitmentProfiles,
+  recruitmentRescueProbe,
   planningCompletionOverviewHtml,
   planningOptimizationScore,
   planningPlanQuality,
@@ -849,6 +850,106 @@ test('completion rows count first half from 1 September and exclude explicit sec
   assert.match(html, /3 פעילויות · 2 לצוות הקיים · 0 לגיוס · 1 לטיפול/);
   assert.doesNotMatch(html, /course-planning-workplan-card/);
   assert.match(html, /01\/09\/2026/);
+});
+
+test('recruitment rescue probe keeps only concrete available staff and saved schedules', () => {
+  const activity = {
+    ...baseCourse,
+    row_id: 'rescue-a',
+    school_address: 'בית ספר יעד',
+    required_instructor_gender: 'any',
+    instruction_language: 'he'
+  };
+  const row = {
+    courseId: 'rescue-a',
+    kind: 'recruitment',
+    requiredLanguage: 'he',
+    requiredGender: 'any',
+    scheduleOptions: [{
+      startDate: '2026-10-12',
+      endDate: '2026-10-12',
+      startTime: '10:00',
+      endTime: '11:30',
+      meetings: [{ date: '2026-10-12', start_time: '10:00', end_time: '11:30' }]
+    }]
+  };
+  const instructors = [
+    { emp_id: '1', full_name: 'קרוב', active: 'yes', address: 'בית קרוב' },
+    { emp_id: '2', full_name: 'רחוק', active: 'yes', address: 'בית רחוק' }
+  ];
+  const profiles = {
+    1: { gender: 'male', instruction_languages: ['he'] },
+    2: { gender: 'male', instruction_languages: ['he'] }
+  };
+  const rules = {
+    1: [{ weekday: 1, available: true, start_time: '08:00', end_time: '16:00' }],
+    2: [{ weekday: 1, available: true, start_time: '08:00', end_time: '16:00' }]
+  };
+  const client = {
+    peek(origin) {
+      if (origin === 'בית קרוב') return { distance_km: 8, duration_minutes: 15 };
+      if (origin === 'בית רחוק') return { distance_km: 52, duration_minutes: 55 };
+      return null;
+    }
+  };
+  const result = recruitmentRescueProbe({
+    row,
+    activity,
+    instructors,
+    profiles,
+    rules,
+    exceptions: {},
+    routeClient: client,
+    existingRows: []
+  });
+  assert.equal(result.possible, true);
+  assert.deepEqual(result.candidateEmpIds, ['1']);
+  assert.equal(result.schedules.length, 1);
+  assert.equal(result.knownMatches, 1);
+});
+
+test('recruitment rescue probe skips heavy work when availability cannot cover the saved schedule', () => {
+  const activity = {
+    ...baseCourse,
+    row_id: 'rescue-b',
+    school_address: 'בית ספר יעד',
+    required_instructor_gender: 'any',
+    instruction_language: 'he'
+  };
+  const row = {
+    courseId: 'rescue-b',
+    kind: 'recruitment',
+    requiredLanguage: 'he',
+    requiredGender: 'any',
+    scheduleOptions: [{
+      startDate: '2026-10-12',
+      endDate: '2026-10-12',
+      startTime: '14:00',
+      endTime: '15:30',
+      meetings: [{ date: '2026-10-12', start_time: '14:00', end_time: '15:30' }]
+    }]
+  };
+  const result = recruitmentRescueProbe({
+    row,
+    activity,
+    instructors: [{ emp_id: '1', full_name: 'מדריך', active: 'yes', address: 'בית' }],
+    profiles: { 1: { gender: 'male', instruction_languages: ['he'] } },
+    rules: { 1: [{ weekday: 1, available: true, start_time: '08:00', end_time: '12:00' }] },
+    exceptions: {},
+    routeClient: { peek: () => ({ distance_km: 5, duration_minutes: 10 }) },
+    existingRows: []
+  });
+  assert.equal(result.possible, false);
+  assert.deepEqual(result.candidateEmpIds, []);
+});
+
+test('incremental recruitment rows use fast rescue instead of rebuilding deep scenarios', async () => {
+  const source = await readFile(new URL('../frontend/src/screens/course-scheduling-planning.js', import.meta.url), 'utf8');
+  assert.match(source, /fastRescueSkipped: true/);
+  assert.match(source, /בדיקת הצלה מהירה מגיוס/);
+  assert.match(source, /recruitmentRescueById/);
+  assert.match(source, /maxFinalOptions: 1/);
+  assert.match(source, /fastRecruitmentRescue: true/);
 });
 
 test('full work plan coverage accounts for team recruitment and unresolved activities', () => {
