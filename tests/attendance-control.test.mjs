@@ -1790,4 +1790,3 @@ test('manager must explicitly approve every attendance record, and edits revoke 
   assert.equal(attendanceEntryIsResolved(entry), false);
   assert.equal(entry.final.workHours, 2.5);
 });
-
