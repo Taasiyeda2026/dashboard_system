@@ -2130,12 +2130,14 @@ export function resultsHtml(result, month = '', options = {}) {
         .filter(Boolean);
       const hours = attendanceRows.reduce((sum, entry) => sum + (rowWorkHours(entry.item.final || entry.item.attendance) ?? 0), 0)
         + attachedCancellations.reduce((sum, entry) => sum + (rowWorkHours(entry.final || entry.attendance) ?? 0), 0);
-      const issue = rows.some((entry) => {
+      const needsApproval = rows.some((entry) => {
         const item = entry.item;
         const attached = generatedCancellationBySource.get(entryRecordId(item));
         return !attendanceEntryIsResolved(item) || (attached ? !attendanceEntryIsResolved(attached) : false);
       });
-      return `<details class="attendance-control__day${issue ? '' : ' attendance-control__day--ok'}" data-payroll-date="${escapeHtml(date)}"><summary><span>${shown(dateLabel(date))}</span><span>${formatDurationHours(hours)} שעות</span><span class="attendance-control__row-status ${issue ? 'attendance-control__row-status--issue' : ''}">${issue ? 'לבדיקה' : '✓ תקין'}</span></summary><div class="attendance-control__reports">${rows.map((row) => reportHtml({ ...row, employeeId: employee.id, date })).join('')}</div></details>`;
+      const dataIssue = rows.some((entry) => entry.kind === 'comparison' && comparisonHasIssue(entry.item));
+      const dayStatus = !needsApproval ? '✓ אושר' : (dataIssue ? 'לבדיקה' : 'ממתין לאישור');
+      return `<details class="attendance-control__day${needsApproval ? '' : ' attendance-control__day--ok'}" data-payroll-date="${escapeHtml(date)}"><summary><span>${shown(dateLabel(date))}</span><span>${formatDurationHours(hours)} שעות</span><span class="attendance-control__row-status ${dataIssue ? 'attendance-control__row-status--issue' : ''}">${dayStatus}</span></summary><div class="attendance-control__reports">${rows.map((row) => reportHtml({ ...row, employeeId: employee.id, date })).join('')}</div></details>`;
     }).join('');
     const approval = options.approvalsByEmployee?.[employee.id];
     const hasWorkflowRow = Object.prototype.hasOwnProperty.call(workflowByEmployee, employee.id);
@@ -2236,14 +2238,19 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
     instructorInput.value = '';
   };
   const paintResults = () => {
-    // Save open state of employees, days and metrics before replacing innerHTML
+    // Save open state of employees, days, metrics and record edit mode before replacing innerHTML.
     const openEmployees = new Set();
     const openDays = new Set();
+    const editingRecords = new Set();
     let metricsOpen = false;
     results.querySelectorAll('details[data-payroll-employee][open]').forEach((el) => openEmployees.add(el.dataset.payrollEmployee));
     results.querySelectorAll('details[data-payroll-date][open]').forEach((el) => {
       const emp = el.closest('[data-payroll-employee]');
       openDays.add((emp?.dataset?.payrollEmployee || '') + '|' + el.dataset.payrollDate);
+    });
+    results.querySelectorAll('.attendance-control__report[data-record-editing="1"]').forEach((report) => {
+      const button = report.querySelector('[data-attendance-edit-record]');
+      if (button?.dataset?.attendanceEditRecord) editingRecords.add(button.dataset.attendanceEditRecord);
     });
     if (results.querySelector('details[data-payroll-metrics][open]')) metricsOpen = true;
 
@@ -2263,6 +2270,14 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
       const key = (emp?.dataset?.payrollEmployee || '') + '|' + el.dataset.payrollDate;
       if (openDays.has(key)) el.open = true;
     });
+    for (const recordId of editingRecords) {
+      const button = results.querySelector(`[data-attendance-edit-record="${CSS.escape(recordId)}"]`);
+      const report = button?.closest('.attendance-control__report');
+      if (!report) continue;
+      report.dataset.recordEditing = '1';
+      report.querySelectorAll('[data-attendance-manual-edit-wrap], .attendance-control__row-custom').forEach((wrap) => { wrap.hidden = false; });
+      button.textContent = 'סיום עריכה';
+    }
     if (metricsOpen) {
       const m = results.querySelector('details[data-payroll-metrics]');
       if (m) m.open = true;
