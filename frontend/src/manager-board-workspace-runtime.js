@@ -536,6 +536,14 @@ function buildScopedAttendanceApi(roster, snapshot = null, preloadedRecords = nu
       if (prop === 'attendanceControlMonthWorkflowStatuses' && snapshot) {
         return async () => Array.isArray(snapshot.workflow) ? snapshot.workflow : [];
       }
+      if (prop === 'attendanceControlUpdateRecord' || prop === 'attendanceControlApproveRecord') {
+        return async (...args) => {
+          const value = await target[prop](...args);
+          attendanceReviewSnapshotCache.clear();
+          attendanceSummaryCache.clear();
+          return value;
+        };
+      }
       const value = target[prop];
       return typeof value === 'function' ? value.bind(target) : value;
     }
