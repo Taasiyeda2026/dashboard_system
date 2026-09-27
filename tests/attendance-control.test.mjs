@@ -1666,6 +1666,76 @@ test('planned training is compared against the back-office plan instead of repor
   assert.equal(result.comparisons[0].managerResolved, 'auto_ok');
 });
 
+test('planned training stays matched even when reported hours differ substantially from the plan', () => {
+  const attendance = [{
+    employeeId: '1542',
+    date: '2026-09-17',
+    activityType: 'הכשרה',
+    program: 'הכשרת בסיס',
+    school: 'Greenwork',
+    authority: 'יקום',
+    startTime: '10:00',
+    endTime: '15:30',
+    workHours: 5.5,
+    publicTransport: true,
+    publicTransportCost: 70,
+    kilometers: 0,
+    expenses: 0
+  }];
+  const schedule = [{
+    id: 'base-training-2026-09-17',
+    emp_id: null,
+    participant_scope: 'open',
+    training_date: '2026-09-17',
+    activity_type: 'הכשרה',
+    course_name: 'הכשרת בסיס',
+    start_time: '10:00',
+    end_time: '14:00',
+    is_online: false,
+    is_active: true
+  }];
+
+  const dashboard = buildTrainingScheduleDashboardRows(schedule, attendance, ['1542']);
+  const result = compareAttendanceRows(attendance, dashboard);
+
+  assert.equal(result.notCompared.length, 0);
+  assert.equal(result.comparisons.length, 1);
+  assert.equal(result.comparisons[0].unmatched, false);
+  assert.equal(result.comparisons[0].dashboard.__trainingSchedule, true);
+  assert.equal(result.comparisons[0].dashboard.endTime, '14:00');
+  assert.deepEqual(
+    result.comparisons[0].differences.map((diff) => diff.key).filter((key) => ['endTime', 'workHours'].includes(key)),
+    ['endTime', 'workHours']
+  );
+});
+
+test('training plan on another date does not turn a training report into a false comparison', () => {
+  const attendance = [{
+    employeeId: '1542',
+    date: '2026-09-18',
+    activityType: 'הכשרה',
+    program: 'הכשרת בסיס',
+    startTime: '10:00',
+    endTime: '14:00',
+    workHours: 4
+  }];
+  const dashboard = [{
+    employeeId: '1542',
+    date: '2026-09-17',
+    activityType: 'הכשרה',
+    program: 'הכשרת בסיס',
+    startTime: '10:00',
+    endTime: '14:00',
+    workHours: 4,
+    __trainingSchedule: true,
+    activityId: 'training:base'
+  }];
+
+  const result = compareAttendanceRows(attendance, dashboard);
+  assert.equal(result.comparisons.length, 0);
+  assert.equal(result.notCompared.length, 1);
+});
+
 test('training without a back-office plan remains report-only and does not invent an expected event', () => {
   const attendance = [{
     employeeId: '1535',
