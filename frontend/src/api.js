@@ -29,6 +29,10 @@ import { enforceManagedRoutes, hasPermission } from './permission-policy.js';
 import { ALL_PERMISSION_KEYS, ROLE_PERMISSION_TEMPLATES } from './capability-registry.js';
 import { endDateExceptionThresholdForPeriod } from './exception-end-date-threshold-by-period.js';
 import { activityBelongsToCourseSchedulingPeriod, resolveCourseSchedulingPeriod } from './screens/course-scheduling-periods.js';
+import {
+  activitySchedulingFieldsChanged,
+  invalidatePlanningAfterActivitySchedulingSave
+} from './screens/course-scheduling-planning-store.js';
 
 /**
  * Actions that modify server-side data.
@@ -6102,6 +6106,17 @@ async function updateActivityInSupabase(payload = {}) {
   }
   invalidateAllActivitiesRowsCache();
   logActivityMutationDebug('success', 'saveActivity', debugPayload, { table: 'activities', returned_row_id: normalized.row_id });
+  if (activitySchedulingFieldsChanged(null, changes)) {
+    try {
+      await invalidatePlanningAfterActivitySchedulingSave(rowId, {
+        afterOrChanges: changes,
+        source: 'saveActivity'
+      });
+    } catch (invalidationError) {
+      // eslint-disable-next-line no-console
+      console.warn('[planning-invalidate-after-saveActivity]', invalidationError?.message || invalidationError);
+    }
+  }
   return { ok: true, RowID: rowId, row_id: rowId, source_sheet: 'activities', row: normalized };
 }
 

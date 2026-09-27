@@ -4,6 +4,47 @@ import { normalizeCalendarSector } from './shared/school-calendar-logic.js';
 
 const text = (value) => String(value ?? '').trim();
 const idOf = (row) => text(row?.row_id || row?.RowID || row?.id);
+
+/** Activity fields that affect shared course planning / instructor matching. */
+export const PLANNING_SCHEDULING_FIELD_KEYS = Object.freeze([
+  'required_instructor_gender',
+  'instruction_language',
+  'start_date',
+  'end_date',
+  'start_time',
+  'end_time',
+  'sessions',
+  'school',
+  'school_id',
+  'authority',
+  'authority_id',
+  'activity_name',
+  'activity_no',
+  'gefen_number',
+  'status',
+  'emp_id',
+  'emp_id_2',
+  'instructor_name',
+  'instructor_name_2',
+  'draft_emp_id'
+]);
+
+export function isPlanningSchedulingFieldKey(key = '') {
+  const name = text(key);
+  return PLANNING_SCHEDULING_FIELD_KEYS.includes(name) || /^date_(?:[1-9]|[12]\d|3[0-5])$/.test(name);
+}
+
+/**
+ * Detect whether a full row or a changes-payload touches scheduling-sensitive fields.
+ * When `before` is null/undefined, any scheduling key present in `afterOrChanges` counts.
+ */
+export function activitySchedulingFieldsChanged(before = null, afterOrChanges = {}) {
+  const next = afterOrChanges && typeof afterOrChanges === 'object' ? afterOrChanges : {};
+  const keys = Object.keys(next).filter(isPlanningSchedulingFieldKey);
+  if (!keys.length) return false;
+  if (!before || typeof before !== 'object') return true;
+  return keys.some((key) => text(before[key]) !== text(next[key]));
+}
 const ACTIVITY_NO_ALIASES = Object.freeze({ '82835': '53828' });
 function canonicalPlanningActivityNo(value) {
   const raw = text(value);
@@ -447,4 +488,126 @@ export function planningStoreErrorMessage(error, fallback = 'שמירת התכנ
   if (raw.includes('planning_option_invalid_meetings')) return 'לא ניתן לשמור הצעה עם מפגש שאינו עומד בתנאי הסף של המדריך בפועל.';
   if (raw.includes('scheduling_permission_denied')) return 'אין הרשאה לעדכן את התכנון המשותף.';
   return raw ? `${fallback}: ${raw}` : fallback;
+}
+
+export function applyLocalPlanningNeedsRecalc(targetState = null, { activityIds = [] } = {}) {
+  const localState = targetState;
+  if (!localState) return [];
+  const ids = [...new Set((activityIds || []).map(text).filter(Boolean))];
+  if (!ids.length) return [...(localState.courseSchedulingPlanningAffectedIds || [])];
+
+  const pending = new Set((localState.courseSchedulingPlanningAffectedIds || []).map(text).filter(Boolean));
+  for (const activityId of ids) pending.add(activityId);
+  localState.courseSchedulingPlanningAffectedIds = [...pending];
+
+  const shared = localState.courseSchedulingPlanningShared;
+  if (shared && Array.isArray(shared.rows)) {
+    for (const entry of shared.rows) {
+      if (ids.includes(text(entry?.activityId))) entry.needsRecalc = true;
+    }
+  }
+
+  if (Array.isArray(localState.courseSchedulingPlanningRows)) {
+    for (const row of localState.courseSchedulingPlanningRows) {
+      if (!ids.includes(text(row?.courseId))) continue;
+      if (row?.planningLocked) {
+        row.planningLocked = false;
+        row.kind = row.kind || 'proposal';
+        row.status = 'ממתין לעדכון תכנון';
+        row.reason = row.reason || 'נתוני הפעילות השתנו. הפעילות תתעדכן בהרצה המצומצמת הבאה.';
+      }
+    }
+  }
+
+  return localState.courseSchedulingPlanningAffectedIds;
+}
+
+export function notifyPlanningNeedsRecalc({
+  activityId = '',
+  affectedActivityIds = [],
+  source = 'activity-save',
+  state: targetState = null
+} = {}) {
+  const ids = [...new Set([text(activityId), ...(affectedActivityIds || []).map(text)].filter(Boolean))];
+  if (targetState) applyLocalPlanningNeedsRecalc(targetState, { activityIds: ids });
+  try {
+    document.dispatchEvent(new CustomEvent('app:planning-needs-recalc', {
+      detail: {
+        activityId: text(activityId),
+        affectedActivityIds: ids,
+        source: text(source) || 'activity-save'
+      }
+    }));
+  } catch {
+    /* non-DOM environments (tests) still get optional local state updates */
+  }
+  return ids;
+}
+
+export async function markSharedPlanningNeedsRecalc(activityId = '', {
+  requirePermission = true,
+  notify = true,
+  source = 'activity-save',
+  state: targetState = null
+} = {}) {
+  const id = text(activityId);
+  if (!id) return { activityId: '', markedActivityIds: [], affectedCount: 0 };
+
+  const { data, error } = await supabase.rpc('mark_scheduling_planning_needs_recalc', {
+    p_activity_id: id,
+    p_require_permission: requirePermission !== false
+  });
+  if (error) throw error;
+
+  const markedActivityIds = Array.isArray(data?.markedActivityIds)
+    ? data.markedActivityIds.map(text).filter(Boolean)
+    : (id ? [id] : []);
+  const payload = {
+    activityId: text(data?.activityId) || id,
+    markedActivityIds: markedActivityIds.length ? markedActivityIds : (id ? [id] : []),
+    affectedCount: Math.max(0, Number(data?.affectedCount) || markedActivityIds.length || 0),
+    rowsTouched: Math.max(0, Number(data?.rowsTouched) || 0),
+    workspaceCount: Math.max(0, Number(data?.workspaceCount) || 0)
+  };
+
+  if (notify) {
+    notifyPlanningNeedsRecalc({
+      activityId: payload.activityId,
+      affectedActivityIds: payload.markedActivityIds,
+      source,
+      state: targetState
+    });
+  }
+  return payload;
+}
+
+/**
+ * After a successful activity save that touched scheduling fields, invalidate
+ * shared planning immediately (DB + local UI state). Never triggers a full recalculation.
+ */
+export async function invalidatePlanningAfterActivitySchedulingSave(activityId = '', {
+  before = null,
+  afterOrChanges = null,
+  source = 'activity-save',
+  state: targetState = null
+} = {}) {
+  const id = text(activityId);
+  if (!id) return null;
+  if (afterOrChanges != null && !activitySchedulingFieldsChanged(before, afterOrChanges)) {
+    return null;
+  }
+  try {
+    return await markSharedPlanningNeedsRecalc(id, { source, state: targetState });
+  } catch (error) {
+    // Optimistic local pending state even if the RPC is briefly unavailable;
+    // the DB trigger (when present) still marks rows server-side.
+    notifyPlanningNeedsRecalc({
+      activityId: id,
+      affectedActivityIds: [id],
+      source,
+      state: targetState
+    });
+    error.planningInvalidationFallback = true;
+    throw error;
+  }
 }
