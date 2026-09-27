@@ -2662,6 +2662,41 @@ export function serializePlanningContextFingerprint(input = {}) {
   });
 }
 
+/**
+ * Exact pre-granular (pre-PR #2010) context fingerprint.
+ * Uses raw emp_id values and the old profiles/rules/exceptions flattening so
+ * production plain hashes such as "1gl1u9a" still compare correctly.
+ */
+export function planningLegacyPlainContextFingerprint(input = {}, marker = PLANNING_CONTEXT_SCHEMA_VERSION) {
+  const snapshot = input || {};
+  const periodKey = text(snapshot.periodKey) || DEFAULT_PLANNING_PERIOD_KEY;
+  const value = JSON.stringify({
+    contextVersion: text(marker) || PLANNING_CONTEXT_SCHEMA_VERSION,
+    period: planningEffectivePeriod(periodKey),
+    instructors: stableRows((snapshot.instructors || []).map((row) => ({
+      emp_id: row.emp_id,
+      active: row.active,
+      address: row.address,
+      gender: row.gender,
+      languages: row.languages
+    }))),
+    profiles: stableRows(Array.isArray(snapshot.profiles) ? snapshot.profiles : Object.values(snapshot.profiles || {})),
+    rules: stableRows(Array.isArray(snapshot.rules) ? snapshot.rules : Object.values(snapshot.rules || {}).flat()),
+    exceptions: stableRows(Array.isArray(snapshot.exceptions) ? snapshot.exceptions : Object.values(snapshot.exceptions || {}).flat()),
+    schoolCalendar: stableRows(snapshot.schoolCalendar || []),
+    catalog: stableRows((snapshot.catalog || []).map((row) => ({
+      activity_no: row.activity_no,
+      gefen_number: row.gefen_number,
+      pricing_key: row.pricing_key,
+      activity_name: row.activity_name,
+      meetings_count: row.meetings_count,
+      hours_count: row.hours_count,
+      unit_duration: row.unit_duration
+    })))
+  });
+  return fnv1aHash(value);
+}
+
 export function resolvePlanningContextChange({
   storedFingerprint = '',
   currentInput = {},
@@ -2671,9 +2706,15 @@ export function resolvePlanningContextChange({
   const stored = parsePlanningContextFingerprint(storedFingerprint);
   const currentStorage = serializePlanningContextFingerprint(currentInput);
   const current = parsePlanningContextFingerprint(currentStorage);
+  const legacyPlainHash = planningLegacyPlainContextFingerprint(currentInput);
   const hashMatches = !!stored.hash && stored.hash === current.hash;
-  const legacyMatches = engineChanged && !!stored.hash && stored.hash === text(legacyFingerprint);
-  if (!stored.hash || hashMatches || legacyMatches) {
+  const legacyPlainMatches = !!stored.hash && !stored.parts && stored.hash === legacyPlainHash;
+  const legacyEngineMatches = engineChanged && !!stored.hash && stored.hash === text(legacyFingerprint);
+  const fingerprintUpgraded = legacyPlainMatches || (
+    !!stored.hash && !stored.parts && (hashMatches || legacyEngineMatches)
+  );
+
+  if (!stored.hash || hashMatches || legacyPlainMatches || legacyEngineMatches) {
     return {
       contextChanged: false,
       unrecoverableGlobalContextChange: false,
@@ -2681,7 +2722,9 @@ export function resolvePlanningContextChange({
       currentHash: current.hash,
       storageValue: currentStorage,
       storedParts: stored.parts,
-      currentParts: current.parts
+      currentParts: current.parts,
+      fingerprintUpgraded,
+      legacyPlainHash
     };
   }
 
@@ -2694,18 +2737,24 @@ export function resolvePlanningContextChange({
       currentHash: current.hash,
       storageValue: currentStorage,
       storedParts: stored.parts,
-      currentParts: current.parts
+      currentParts: current.parts,
+      fingerprintUpgraded: false,
+      legacyPlainHash
     };
   }
 
+  // Legacy plain hash that no longer matches: context changed, but without parts we
+  // must not force a full run — only activity/dirty-row mapping remains available.
   return {
     contextChanged: true,
-    unrecoverableGlobalContextChange: true,
+    unrecoverableGlobalContextChange: false,
     contextDiff: emptyPlanningContextDiff(),
     currentHash: current.hash,
     storageValue: currentStorage,
     storedParts: stored.parts,
-    currentParts: current.parts
+    currentParts: current.parts,
+    fingerprintUpgraded: false,
+    legacyPlainHash
   };
 }
 
