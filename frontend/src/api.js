@@ -6858,6 +6858,22 @@ export const api = {
     if (error) throw new Error(error.message || 'admin_reopen_attendance_month_for_correction_failed');
     return data || {};
   },
+  adminSubmitAttendanceMonthOnBehalf: async ({
+    employee_id,
+    month_key,
+    reason = ''
+  } = {}) => {
+    assertPermission('view_attendance_control', 'attendance_control_forbidden');
+    const normalizedReason = String(reason || '').trim();
+    if (!normalizedReason) throw new Error('יש להזין סיבה לאישור הדיווח בשם העובד.');
+    const { data, error } = await supabase.rpc('admin_submit_attendance_month_on_behalf', {
+      p_employee_id: String(employee_id || '').trim(),
+      p_month_key: String(month_key || '').trim(),
+      p_reason: normalizedReason
+    });
+    if (error) throw new Error(error.message || 'admin_submit_attendance_month_on_behalf_failed');
+    return data || {};
+  },
   savePayrollControlApproval: async ({
     employee_id,
     employee_name,

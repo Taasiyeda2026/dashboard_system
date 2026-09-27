@@ -754,6 +754,7 @@ async function renderPayrollAttendanceAdmin(boardRoot, context, roster, renderTo
   const rowsHtml = roster.map((row) => {
     const empId = text(row.emp_id);
     const workflowRow = workflowByEmployee.get(empId) || {};
+    const submittedByAdmin = text(workflowRow.submitted_by_name).includes('(אדמין בשם ');
     const workflow = {
       status: text(workflowRow.workflow_status || 'not_submitted'),
       label: text(workflowRow.workflow_status || 'not_submitted') === 'approved'
@@ -761,10 +762,13 @@ async function renderPayrollAttendanceAdmin(boardRoot, context, roster, renderTo
         : text(workflowRow.workflow_status || '') === 'manager_approved'
           ? 'אושר על ידי המנהל'
           : text(workflowRow.workflow_status || '') === 'submitted'
-            ? 'אושר על ידי העובד / בבקרת מנהל'
+            ? (submittedByAdmin ? 'אושר ע״י אדמין / בבקרת מנהל' : 'אושר על ידי העובד / בבקרת מנהל')
             : 'פתוח לדיווח'
     };
     const finalApproval = finalByEmployee.get(empId) || null;
+    const adminSubmitBtn = workflow.status === 'not_submitted'
+      ? `<button type="button" class="ds-btn ds-btn--sm ds-btn--primary" data-admin-payroll-submit-on-behalf="${escapeHtml(empId)}">אישור דיווח ע״י אדמין</button>`
+      : '';
     const finalApproveBtn = workflow.status === 'manager_approved' && !finalApproval
       ? `<button type="button" class="ds-btn ds-btn--sm ds-btn--primary" data-admin-payroll-final="${escapeHtml(empId)}">אישור סופי</button>`
       : '';
@@ -784,7 +788,7 @@ async function renderPayrollAttendanceAdmin(boardRoot, context, roster, renderTo
       <td>${approvalCell(workflowRow.manager_approved_by_name, workflowRow.manager_approved_at, 'טרם אושר מנהל')}</td>
       <td>${approvalCell(finalApproval?.approved_by_name, finalApproval?.approved_at, 'טרם אושר סופית')}</td>
       <td><span class="manager-workspace-status ${workflow.status === 'approved' ? 'is-ok' : (workflow.status === 'not_submitted' ? 'is-muted' : 'is-pending')}">${escapeHtml(workflow.label)}</span></td>
-      <td><div class="manager-workspace-actions">${finalApproveBtn}${openPdfBtn}${lockReleaseBtn}</div></td>
+      <td><div class="manager-workspace-actions">${adminSubmitBtn}${finalApproveBtn}${openPdfBtn}${lockReleaseBtn}</div></td>
     </tr>`;
   }).join('');
 
@@ -819,6 +823,35 @@ async function renderPayrollAttendanceAdmin(boardRoot, context, roster, renderTo
   view.querySelector('[data-admin-payroll-refresh]')?.addEventListener('click', () => {
     lastContextSignature = '';
     void renderWorkspace(true);
+  });
+
+  view.querySelectorAll('[data-admin-payroll-submit-on-behalf]').forEach((button) => {
+    button.addEventListener('click', async () => {
+      const empId = text(button.dataset.adminPayrollSubmitOnBehalf);
+      if (!empId) return;
+      const employeeRow = roster.find((row) => text(row.emp_id) === empId);
+      const employeeName = text(employeeRow?.full_name) || empId;
+      const reason = window.prompt(`סיבה לאישור הדיווח של ${employeeName} בשם העובד:`, '') || '';
+      if (!text(reason)) return;
+      button.disabled = true;
+      try {
+        setStatus('שומר אישור אדמין בשם העובד…');
+        await api.adminSubmitAttendanceMonthOnBehalf({
+          employee_id: empId,
+          month_key: monthKey,
+          reason
+        });
+        setStatus(`הדיווח של ${employeeName} אושר ע״י אדמין והועבר לבקרת מנהל.`);
+        attendanceReviewSnapshotCache.clear();
+        attendanceSummaryCache.clear();
+        lastContextSignature = '';
+        await renderWorkspace(true);
+      } catch (error) {
+        setStatus(error?.message || 'אישור הדיווח ע״י אדמין נכשל.', true);
+      } finally {
+        button.disabled = false;
+      }
+    });
   });
 
   view.querySelectorAll('[data-admin-payroll-open-pdf]').forEach((button) => {
