@@ -173,6 +173,15 @@ export function parseDurationHoursInput(value) {
   return numeric != null && numeric >= 0 ? numeric : null;
 }
 
+export function buildAttendanceTimeCorrection(current = {}, draftStart = '', draftEnd = '') {
+  const startTime = timeText(draftStart) || timeText(current.startTime);
+  const endTime = timeText(draftEnd) || timeText(current.endTime);
+  return {
+    valid: attendanceTimeRangeIsValid(startTime, endTime),
+    changes: { startTime, endTime }
+  };
+}
+
 function activityValue(row, names, fallback = '') {
   for (const name of names) if (row?.[name] !== undefined && row?.[name] !== null && txt(row[name]) !== '') return row[name];
   return fallback;
@@ -2646,15 +2655,21 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
         input.focus();
         return;
       }
+      let pairedTimeChanges = null;
       if (field === 'startTime' || field === 'endTime') {
         const current = entry.final || entry.attendance || {};
-        const nextStart = field === 'startTime' ? parsed.value : current.startTime;
-        const nextEnd = field === 'endTime' ? parsed.value : current.endTime;
-        if (!attendanceTimeRangeIsValid(nextStart, nextEnd)) {
-          status.textContent = 'שעת הסיום חייבת להיות מאוחרת משעת ההתחלה.';
+        const report = manualSaveBtn.closest('.attendance-control__report');
+        const startInput = report?.querySelector('[data-attendance-manual-input][data-field-key="startTime"]');
+        const endInput = report?.querySelector('[data-attendance-manual-input][data-field-key="endTime"]');
+        const draftStart = field === 'startTime' ? parsed.value : (startInput?.value || current.startTime);
+        const draftEnd = field === 'endTime' ? parsed.value : (endInput?.value || current.endTime);
+        const timeCorrection = buildAttendanceTimeCorrection(current, draftStart, draftEnd);
+        if (!timeCorrection.valid) {
+          status.textContent = 'כדי לתקן את השעות יש לעדכן את שעת ההתחלה ושעת הסיום כך ששעת הסיום תהיה מאוחרת משעת ההתחלה.';
           input.focus();
           return;
         }
+        pairedTimeChanges = timeCorrection.changes;
       }
       if (TRAVEL_EDITABLE_FIELDS.has(field)) {
         const current = entry.final || entry.attendance || {};
@@ -2686,7 +2701,7 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
         }
         return;
       }
-      applyAttendanceManualCorrection(entry, { [field]: parsed.value });
+      applyAttendanceManualCorrection(entry, pairedTimeChanges || { [field]: parsed.value });
       if (field === 'date') {
         const sourceRow = entry.attendance || {};
         const source = sourceRow._source || {};

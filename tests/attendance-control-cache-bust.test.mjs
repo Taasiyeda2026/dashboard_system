@@ -7,7 +7,7 @@ const admin = await readFile(new URL('../frontend/src/admin-attendance-standalon
 const launcher = await readFile(new URL('../frontend/src/screens/shared/payroll-control-launcher.js', import.meta.url), 'utf8');
 const index = await readFile(new URL('../index.html', import.meta.url), 'utf8');
 
-const version = '20260927-manager-hours-edit-v1';
+const version = '20260927-paired-time-edit-v1';
 
 test('manager workspace imports the attendance control with the current cache-busting version', () => {
   assert.match(workspace, new RegExp(`attendance-control\\.js\\?v=${version}`));
@@ -21,6 +21,6 @@ test('other attendance entry points use the same attendance control module versi
 });
 
 test('direct index entrypoints are also cache-busted for the release', () => {
-  assert.match(index, /manager-board-workspace-runtime\.js\?v=20260927-manager-hours-edit-v1/);
-  assert.match(index, /admin-attendance-standalone\.js\?v=20260927-manager-hours-edit-v1/);
+  assert.match(index, /manager-board-workspace-runtime\.js\?v=20260927-paired-time-edit-v1/);
+  assert.match(index, /admin-attendance-standalone\.js\?v=20260927-paired-time-edit-v1/);
 });

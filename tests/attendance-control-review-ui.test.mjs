@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 import {
   applyAttendanceManualCorrection,
   attendanceTimeRangeIsValid,
+  buildAttendanceTimeCorrection,
   compareAttendanceRows,
   parseDurationHoursInput,
   resultsHtml
@@ -347,6 +348,20 @@ test('manager can override work hours and reversed attendance times are rejected
   assert.equal(attendanceTimeRangeIsValid('11:00', '11:05'), true);
   assert.equal(attendanceTimeRangeIsValid('13:16', '11:05'), false);
   assert.equal(attendanceTimeRangeIsValid('11:05', '11:05'), false);
+
+  const moved = buildAttendanceTimeCorrection(entry.final, '13:00', '13:05');
+  assert.equal(moved.valid, true);
+  assert.deepEqual(moved.changes, { startTime: '13:00', endTime: '13:05' });
+
+  const incompleteMove = buildAttendanceTimeCorrection(entry.final, '13:00', '11:05');
+  assert.equal(incompleteMove.valid, false);
+});
+
+test('manager time save reads both visible time inputs before persisting', () => {
+  assert.match(source, /data-field-key="startTime"/);
+  assert.match(source, /data-field-key="endTime"/);
+  assert.match(source, /buildAttendanceTimeCorrection\(current, draftStart, draftEnd\)/);
+  assert.match(source, /pairedTimeChanges \|\| \{ \[field\]: parsed\.value \}/);
 });
 
 test('planned training mileage is shown as a system comparison with mileage actions', () => {
