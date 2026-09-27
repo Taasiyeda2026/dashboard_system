@@ -1055,7 +1055,7 @@ function optionFromCandidate(course, candidate, { routeVerified = true, startRan
   };
 }
 
-function optionCompare(first, second) {
+export function optionCompare(first, second) {
   const firstWeek = planningStartWeekKey(first.startDate);
   const secondWeek = planningStartWeekKey(second.startDate);
   if (firstWeek !== secondWeek) return firstWeek.localeCompare(secondWeek);
