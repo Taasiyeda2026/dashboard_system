@@ -5215,14 +5215,21 @@ async function buildActivityMutationAuthContext() {
   try {
     const { data: userRow } = await supabase
       .from('users')
-      .select('user_id,role,can_request_edit,can_request_edit_2,can_edit_direct,can_add_activity')
+      .select('user_id,role,permissions')
       .eq('auth_user_id', context.auth_uid)
       .maybeSingle();
+    const permissions = parsePermissions(userRow?.permissions);
     context.user_id = String(userRow?.user_id || '').trim();
     context.role = String(userRow?.role || context.role || '').trim();
-    context.can_request_edit = permissionFlagYes(userRow?.can_request_edit) || permissionFlagYes(userRow?.can_request_edit_2) || context.can_request_edit;
-    context.can_edit_direct = userRow?.can_edit_direct == null ? context.can_edit_direct : permissionFlagYes(userRow.can_edit_direct);
-    context.can_add_activity = userRow?.can_add_activity == null ? context.can_add_activity : permissionFlagYes(userRow.can_add_activity);
+    context.can_request_edit = permissionFlagYes(permissions.can_request_edit)
+      || permissionFlagYes(permissions.can_request_edit_2)
+      || context.can_request_edit;
+    context.can_edit_direct = permissions.can_edit_direct == null
+      ? context.can_edit_direct
+      : permissionFlagYes(permissions.can_edit_direct);
+    context.can_add_activity = permissions.can_add_activity == null
+      ? context.can_add_activity
+      : permissionFlagYes(permissions.can_add_activity);
   } catch {
     /* ignore */
   }

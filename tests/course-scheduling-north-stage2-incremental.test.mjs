@@ -375,7 +375,7 @@ test('17/18 source contract: incremental persist uses replaceAll=false and affec
   assert.match(store, /p_replace_all:\s*replaceAll === true/);
 
   const migration = await readFile(
-    new URL('../supabase/migrations/20260927200000_incremental_planning_partial_persist.sql', import.meta.url),
+    new URL('../supabase/migrations/20260927210000_incremental_planning_partial_persist.sql', import.meta.url),
     'utf8'
   );
   assert.match(migration, /p_replace_all boolean default false/);
