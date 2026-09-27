@@ -55,7 +55,7 @@ test('differences expose attendance, dashboard and edit actions in the actions c
   assert.match(html, />עריכה</);
   assert.match(html, /data-field-key="endTime"/);
   assert.match(html, /data-field-key="workHours"/);
-  assert.match(html, /⚠ לבדיקה/);
+  assert.match(html, /לבדיקה/);
 });
 
 test('planned training shows every relevant reported parameter but omits irrelevant blank rows', () => {
@@ -337,5 +337,13 @@ test('planned training mileage is shown as a system comparison with mileage acti
   assert.match(html, />285<\/td>/);
   assert.match(html, />267\.5<\/td>/);
   assert.match(html, /אישור חישוב מערכת/);
-  assert.match(html, /⚠ לבדיקה/);
+  assert.match(html, /לבדיקה/);
+});
+
+
+test('attendance review errors use red text only with no yellow or brown warning bubbles', () => {
+  assert.doesNotMatch(source, /#a85c00|#b45309|#fff1cf|#fff8e7/i);
+  assert.match(source, /attendance-control__status-pill--issue\{color:#b91c1c;background:transparent;min-width:0;padding:0;border-radius:0\}/);
+  assert.match(source, /attendance-control__comparison-row--issue th,.attendance-control__comparison-row--issue td\{background:transparent\}/);
+  assert.doesNotMatch(source, /⚠ לבדיקה|⚠ לאישור/);
 });
