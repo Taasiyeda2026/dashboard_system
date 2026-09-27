@@ -327,6 +327,37 @@ test('attendance-only rows expose inline correction instead of empty action cell
 });
 
 
+test('approved attendance record exposes correction action and explains re-approval', () => {
+  const html = resultsHtml({
+    comparisons: [],
+    notCompared: [{
+      id: 'approved-record-edit',
+      source: 'attendance_not_compared',
+      attendance: {
+        employeeId: '1507', employeeName: 'אלכס זפקה', date: '2026-09-06',
+        recordId: 'approved-record-1', activityType: 'תפעול',
+        startTime: '11:00', endTime: '11:05', workHours: 5 / 60,
+        kilometers: 80, publicTransport: false, expenses: 0,
+        _source: { ID: 'approved-record-1', recordId: 'approved-record-1' }
+      },
+      final: {
+        employeeId: '1507', employeeName: 'אלכס זפקה', date: '2026-09-06',
+        recordId: 'approved-record-1', activityType: 'תפעול',
+        startTime: '11:00', endTime: '11:05', workHours: 5 / 60,
+        kilometers: 80, publicTransport: false, expenses: 0
+      },
+      differences: [],
+      managerResolved: 'approved_as_reported',
+      managerRecordApproved: true
+    }],
+    dailyKilometers: []
+  }, '2026-09', submittedWorkflow('1507'));
+
+  assert.match(html, /data-attendance-edit-approved="1">תיקון רשומה<\/button>/);
+  assert.match(source, /שמירת שינוי תבטל את אישור הרשומה והיא תידרש לאישור מחדש/);
+  assert.match(source, /attendanceControlApproveRecord\(update\.recordId, false\)/);
+});
+
 test('manager can override work hours and reversed attendance times are rejected', () => {
   const entry = {
     attendance: {

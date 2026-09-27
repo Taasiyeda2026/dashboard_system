@@ -4,7 +4,7 @@ import { supabase, waitForSupabaseAuthSession } from './supabase-client.js';
 import { hasPermission } from './permission-policy.js';
 import { normalizeGlobalActivityPeriod } from './screens/shared/summer-activity.js';
 import { escapeHtml } from './screens/shared/html.js';
-import { attendanceMonthDateRange } from './screens/attendance-control.js?v=20260927-paired-time-edit-v1';
+import { attendanceMonthDateRange } from './screens/attendance-control.js?v=20260927-approved-record-correction-v1';
 import { tableHtml as trackingTableHtml } from './manager-board-employee-file-tracking.js';
 
 const MANAGER_WORKSPACE_TAB_KEY = 'manager_board_workspace_tab';
@@ -643,7 +643,7 @@ async function bindEmbeddedAttendance(host, roster, context, snapshot = null, pr
   embeddedAttendanceSignature = signature;
   host.dataset.managerAttendanceBound = 'true';
 
-  const attendance = await import('./screens/attendance-control.js?v=20260927-paired-time-edit-v1');
+  const attendance = await import('./screens/attendance-control.js?v=20260927-approved-record-correction-v1');
   const monthMode = attendanceMonthMode(context.ym);
   host.dataset.managerAttendanceMonthMode = monthMode.key;
   host.innerHTML = `<style>

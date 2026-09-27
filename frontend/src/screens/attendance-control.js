@@ -2210,7 +2210,7 @@ export function resultsHtml(result, month = '', options = {}) {
     const recordActions = kind === 'dashboard' || !currentEmployeeCanMutate
       ? ''
       : `<div class="attendance-control__record-actions">
-          <button type="button" class="ds-btn ds-btn--sm" data-attendance-edit-record="${escapeHtml(item.id)}">עריכת רשומה</button>
+          <button type="button" class="ds-btn ds-btn--sm" data-attendance-edit-record="${escapeHtml(item.id)}" data-attendance-edit-approved="${approved ? '1' : '0'}">${approved ? 'תיקון רשומה' : 'עריכת רשומה'}</button>
           <button type="button" class="ds-btn ds-btn--sm ds-btn--primary" data-attendance-approve-reported="${escapeHtml(item.id)}">${approved ? '✓ רשומה אושרה' : 'אישור רשומה'}</button>
         </div>`;
     return `<section class="attendance-control__report"><div class="attendance-control__report-line"><strong>${shown(`${row.startTime || '—'}–${row.endTime || '—'} | ${activityTypeDisplayLabel(row.activityType) || 'דיווח'}`)}</strong><div class="attendance-control__report-line-actions">${status}${recordActions}</div></div>${body}</section>`;
@@ -2819,14 +2819,22 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
     if (editRecordBtn && result) {
       const report = editRecordBtn.closest('.attendance-control__report');
       const editing = report?.dataset.recordEditing !== '1';
+      const correctingApprovedRecord = editRecordBtn.dataset.attendanceEditApproved === '1';
       if (report) {
         report.dataset.recordEditing = editing ? '1' : '0';
         report.querySelectorAll('[data-attendance-manual-edit-wrap], .attendance-control__row-custom').forEach((wrap) => {
           wrap.hidden = !editing;
         });
       }
-      editRecordBtn.textContent = editing ? 'סיום עריכה' : 'עריכת רשומה';
-      if (editing) report?.querySelector('input:not([type="hidden"]),select')?.focus();
+      editRecordBtn.textContent = editing
+        ? (correctingApprovedRecord ? 'סיום תיקון' : 'סיום עריכה')
+        : (correctingApprovedRecord ? 'תיקון רשומה' : 'עריכת רשומה');
+      if (editing) {
+        if (correctingApprovedRecord) {
+          setStatusMessage('ניתן לתקן את הרשומה שאושרה. שמירת שינוי תבטל את אישור הרשומה והיא תידרש לאישור מחדש.');
+        }
+        report?.querySelector('input:not([type="hidden"]),select')?.focus();
+      }
       return;
     }
 
