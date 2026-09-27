@@ -21,6 +21,9 @@ import {
   planningActivityHasStarted,
   planningContextFingerprint,
   planningDataFingerprint,
+  planningHomeDistanceKm,
+  planningLocalityTier,
+  planningPairCompare,
   planningEffectivePeriod,
   planningPeriodKeyForActivity,
   normalizePlanningLockedOption,
@@ -1341,6 +1344,23 @@ test('Planning quality audit detects conflicts, unresolved rows and inefficient 
   assert.equal(audit.singletonDays, 1);
   assert.equal(audit.averageOperationalScore, 80);
   assert.equal(audit.status, 'נדרשת בדיקה');
+});
+
+test('local instructor wins the same start week before virtual continuity score', () => {
+  const local = {
+    course: { start_date: '2026-10-15', start_time: '10:00' },
+    candidate: { travel: { home: { distance_km: 0.9 } } },
+    planningOptimization: { total: 72.5 }
+  };
+  const far = {
+    course: { start_date: '2026-10-12', start_time: '09:00' },
+    candidate: { travel: { home: { distance_km: 37.3 } } },
+    planningOptimization: { total: 93.6 }
+  };
+  assert.equal(planningHomeDistanceKm(local), 0.9);
+  assert.equal(planningLocalityTier(local), 0);
+  assert.equal(planningLocalityTier(far), 3);
+  assert.ok(planningPairCompare(local, far) < 0);
 });
 
 test('Planning quality audit shows operational readiness and instructor workload in the completed plan', () => {
