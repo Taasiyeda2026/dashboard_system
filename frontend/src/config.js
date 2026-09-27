@@ -245,3 +245,5 @@ config.HOTFIX_VERSION = `attendance-training-km-validation-20260927-v1-${config.
 config.HOTFIX_VERSION = `attendance-red-text-errors-20260927-v1-${config.HOTFIX_VERSION}`;
 
 config.HOTFIX_VERSION = `manager-attendance-hide-duplicate-controls-20260927-v1-${config.HOTFIX_VERSION}`;
+
+config.HOTFIX_VERSION = `attendance-review-inline-fields-20260927-v1-${config.HOTFIX_VERSION}`;
