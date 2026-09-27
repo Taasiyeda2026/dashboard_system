@@ -963,8 +963,21 @@ export function approveAttendanceEntryCurrent(entry) {
     ...base,
     workHours: rowWorkHours(base) ?? optionalNumber(base.workHours)
   });
+  let corrected = entry.managerResolved === 'corrected';
+  for (const difference of (entry.differences || [])) {
+    if (difference.decided) {
+      if (difference.choice && difference.choice !== 'attendance') corrected = true;
+      continue;
+    }
+    difference.choice = 'attendance';
+    difference.custom = '';
+    difference.decided = true;
+    if (difference.key === 'startTime' || difference.key === 'endTime') {
+      entry.final.workHours = calculateWorkHours(entry.final.startTime, entry.final.endTime);
+    }
+  }
   entry.managerRecordApproved = true;
-  if (entry.managerResolved !== 'corrected') entry.managerResolved = 'approved_as_reported';
+  entry.managerResolved = corrected ? 'corrected' : 'approved_as_reported';
   return entry;
 }
 
@@ -1794,7 +1807,15 @@ export function resultsHtml(result, month = '', options = {}) {
     if (day.calculated == null) return Boolean(day.hasReportedKm);
     return day.hasReportedKm !== false && !day.matches;
   };
-  const comparisonHasIssue = (comparison) => !attendanceEntryIsResolved(comparison);
+  const comparisonHasIssue = (comparison) => {
+    if (!comparison) return false;
+    if (comparison.unmatched) return true;
+    if ((comparison.differences || []).some((difference) => !difference.decided)) return true;
+    if (hasReviewExpense(comparison.attendance)
+      && comparison.managerResolved !== 'approved_as_reported'
+      && comparison.managerResolved !== 'corrected') return true;
+    return false;
+  };
   const entryResolvedLabel = (entry) => {
     if (entry.managerResolved === 'approved_as_reported') return 'אושר כפי שדווח';
     if (entry.managerResolved === 'corrected') return 'תוקן על ידי המנהל';
@@ -1925,14 +1946,20 @@ export function resultsHtml(result, month = '', options = {}) {
     const calculatedLabel = calculatedMinutes != null
       ? formatTravelMinutesClock(calculatedMinutes)
       : finalLabel;
-    const unresolved = !attendanceEntryIsResolved(entry);
+    const approved = attendanceEntryIsResolved(entry);
     const overridden = source.manuallyOverridden === true;
-    const statusClass = unresolved ? 'attendance-control__status-pill--issue' : 'attendance-control__status-pill--ok';
-    const status = unresolved ? 'לבדיקה' : (overridden ? '✓ אושר תיקון' : '✓ תקין');
-    const actions = unresolved
+    const calculationStatus = txt(source.travelCalculationStatus || source.travel_calculation_status).toLowerCase();
+    const calculationIssue = Boolean(calculationStatus && calculationStatus !== 'resolved');
+    const statusClass = approved
+      ? 'attendance-control__status-pill--ok'
+      : (calculationIssue ? 'attendance-control__status-pill--issue' : 'attendance-control__status-pill--info');
+    const status = approved
+      ? (overridden ? '✓ אושר תיקון' : '✓ אושר')
+      : (calculationIssue ? 'לבדיקה' : 'ממתין לאישור');
+    const actions = !approved
       ? `<div class="attendance-control__row-actions attendance-control__row-actions--compact">
           <div class="attendance-control__row-action-buttons">
-            <button type="button" class="ds-btn ds-btn--sm" data-attendance-approve-reported="${escapeHtml(entry.id)}">אישור נוכחות</button>
+            <button type="button" class="ds-btn ds-btn--sm" data-attendance-approve-reported="${escapeHtml(entry.id)}">אישור רשומה</button>
           </div>
           <div class="attendance-control__row-custom">
             <input class="ds-input ds-input--sm" data-attendance-correct-hours="${escapeHtml(entry.id)}" type="number" min="0" step="0.01" placeholder="שעות מתוקנות" aria-label="ביטול זמן מתוקן">
@@ -1940,7 +1967,7 @@ export function resultsHtml(result, month = '', options = {}) {
           </div>
         </div>`
       : '<span class="attendance-control__no-action">—</span>';
-    return `<tr class="${unresolved ? 'attendance-control__comparison-row--issue' : 'attendance-control__comparison-row--resolved'} attendance-control__travel-cancellation-row">
+    return `<tr class="${calculationIssue ? 'attendance-control__comparison-row--issue' : (approved ? 'attendance-control__comparison-row--resolved' : '')} attendance-control__travel-cancellation-row">
       <th>ביטול זמן נסיעה</th>
       <td>${shown(finalLabel)}</td>
       <td>${shown(calculatedLabel)}</td>
