@@ -1022,6 +1022,18 @@ export function resolvePayrollMonthWorkflow(workflow = {}) {
 }
 
 /**
+ * Team managers may edit/approve records only while the employee month is submitted.
+ * Admin / operation_manager keep their existing correction path via bypassMonthSubmissionGate.
+ */
+export function canManagerMutatePayrollEmployeeMonth(workflow = {}, { bypassMonthSubmissionGate = false } = {}) {
+  if (bypassMonthSubmissionGate) return true;
+  return resolvePayrollMonthWorkflow(workflow).status === 'submitted';
+}
+
+export const EMPLOYEE_MONTH_NOT_SUBMITTED_READONLY_MESSAGE =
+  'העובד טרם סיים ואישר את הדיווח החודשי. הנתונים מוצגים לצפייה בלבד.';
+
+/**
  * Returns true when a daily-km entry has an unresolved issue that blocks approval.
  * An issue exists when: calculated is null and attendance reported km,
  * or calculated is known but the reported total differs by more than the tolerance.
@@ -1755,6 +1767,8 @@ export function attendanceControlStylesHtml() {
 export function resultsHtml(result, month = '', options = {}) {
   const totals = attendanceAuditSummary(result);
   const workflowByEmployee = options.workflowByEmployee || {};
+  const bypassMonthSubmissionGate = Boolean(options.bypassMonthSubmissionGate);
+  let currentEmployeeCanMutate = true;
   const employees = new Map();
   const ensureEmployee = (id, name = '') => {
     const key = txt(id);
@@ -1888,6 +1902,12 @@ export function resultsHtml(result, month = '', options = {}) {
 
   const fieldActionsHtml = (entry, key, difference, { hasSystemValue = false, dashboardLabel = 'דשבורד' } = {}) => {
     if (!difference) return '<span class="attendance-control__no-action">—</span>';
+    if (!currentEmployeeCanMutate) {
+      const selected = decisionLabel(difference, dashboardLabel);
+      return selected
+        ? `<small class="attendance-control__row-decision">${escapeHtml(selected)}</small>`
+        : '<span class="attendance-control__no-action">—</span>';
+    }
     const customValue = difference.choice === 'custom' ? txt(difference.custom) : '';
     const selected = decisionLabel(difference, dashboardLabel);
     return `<div class="attendance-control__row-actions">
@@ -1921,6 +1941,9 @@ export function resultsHtml(result, month = '', options = {}) {
 
   const manualFieldActionsHtml = (entry, key, label, rawValue) => {
     if (!MANUAL_EDITABLE_FIELDS.has(key) && !TRAVEL_EDITABLE_FIELDS.has(key)) {
+      return '<span class="attendance-control__no-action">—</span>';
+    }
+    if (!currentEmployeeCanMutate) {
       return '<span class="attendance-control__no-action">—</span>';
     }
     if (key === 'publicTransport') {
@@ -1975,7 +1998,7 @@ export function resultsHtml(result, month = '', options = {}) {
     const status = approved
       ? (overridden ? '✓ אושר תיקון' : '✓ אושר')
       : (calculationIssue ? 'לבדיקה' : 'ממתין לאישור');
-    const actions = !approved
+    const actions = currentEmployeeCanMutate && !approved
       ? `<div class="attendance-control__row-actions attendance-control__row-actions--compact">
           <div class="attendance-control__row-action-buttons">
             <button type="button" class="ds-btn ds-btn--sm" data-attendance-approve-reported="${escapeHtml(entry.id)}">אישור רשומה</button>
@@ -2077,7 +2100,7 @@ export function resultsHtml(result, month = '', options = {}) {
           : (MANUAL_EDITABLE_FIELDS.has(key) || TRAVEL_EDITABLE_FIELDS.has(key))
             ? manualFieldActionsHtml(entry, key, label, editValue)
             : '<span class="attendance-control__no-action">—</span>';
-      if ((attendanceOnly || entry?.unmatched) && key === 'date' && !attendanceEntryIsResolved(entry)) {
+      if (currentEmployeeCanMutate && (attendanceOnly || entry?.unmatched) && key === 'date' && !attendanceEntryIsResolved(entry)) {
         actions = `<div class="attendance-control__row-actions">
           <div class="attendance-control__row-action-buttons">
             <button type="button" class="ds-btn ds-btn--sm" data-attendance-approve-reported="${escapeHtml(entry.id)}">אישור נוכחות</button>
@@ -2159,7 +2182,7 @@ export function resultsHtml(result, month = '', options = {}) {
       body = `${manualReportTable(row, { entry: item, attachedCancellation })}${travelSummaryHtml(row, item, { includeCancellation: !attachedCancellation })}${managerActionsHtml(item)}`;
     }
 
-    const recordActions = kind === 'dashboard'
+    const recordActions = kind === 'dashboard' || !currentEmployeeCanMutate
       ? ''
       : `<div class="attendance-control__record-actions">
           <button type="button" class="ds-btn ds-btn--sm" data-attendance-edit-record="${escapeHtml(item.id)}">עריכת רשומה</button>
@@ -2168,6 +2191,12 @@ export function resultsHtml(result, month = '', options = {}) {
     return `<section class="attendance-control__report"><div class="attendance-control__report-line"><strong>${shown(`${row.startTime || '—'}–${row.endTime || '—'} | ${activityTypeDisplayLabel(row.activityType) || 'דיווח'}`)}</strong><div class="attendance-control__report-line-actions">${status}${recordActions}</div></div>${body}</section>`;
   };
   const employeeHtml = [...employees.values()].sort((a, b) => a.name.localeCompare(b.name, 'he')).map((employee) => {
+    const hasWorkflowRow = Object.prototype.hasOwnProperty.call(workflowByEmployee, employee.id);
+    const workflow = resolvePayrollMonthWorkflow(hasWorkflowRow ? workflowByEmployee[employee.id] : { workflow_status: 'not_submitted' });
+    currentEmployeeCanMutate = canManagerMutatePayrollEmployeeMonth(
+      hasWorkflowRow ? workflowByEmployee[employee.id] : { workflow_status: 'not_submitted' },
+      { bypassMonthSubmissionGate }
+    );
     const days = [...employee.days.entries()].sort(([left], [right]) => left.localeCompare(right)).map(([date, rows]) => {
       rows.sort((left, right) => left.time.localeCompare(right.time));
       const attendanceRows = rows.filter((row) => row.kind !== 'dashboard');
@@ -2193,8 +2222,6 @@ export function resultsHtml(result, month = '', options = {}) {
       ? `<span class="attendance-control__employee-record-progress">אושרו ${approvedRecordCount} מתוך ${totalRecordCount} רשומות</span>`
       : '';
     const approval = options.approvalsByEmployee?.[employee.id];
-    const hasWorkflowRow = Object.prototype.hasOwnProperty.call(workflowByEmployee, employee.id);
-    const workflow = resolvePayrollMonthWorkflow(hasWorkflowRow ? workflowByEmployee[employee.id] : { workflow_status: 'not_submitted' });
     const workflowHtml = `<p class="attendance-control__manual-note">סטטוס חודש: <strong>${escapeHtml(workflow.label)}</strong></p>`;
     const managerApprovedAt = workflowByEmployee[employee.id]?.manager_approved_at;
     const managerApprovedBy = workflowByEmployee[employee.id]?.manager_approved_by_name;
@@ -2208,12 +2235,13 @@ export function resultsHtml(result, month = '', options = {}) {
     let finishControls = '';
     if (!approval) {
       if (workflow.status === 'not_submitted') {
-        finishControls = '<div class="attendance-control__employee-actions"><span class="attendance-control__manual-note">העובד טרם ביצע סיום דיווח ואישור לחודש זה.</span></div>';
-      } else if (workflow.status === 'submitted') {
+        finishControls = `<div class="attendance-control__employee-actions"><span class="attendance-control__manual-note" data-payroll-readonly-notice>${escapeHtml(EMPLOYEE_MONTH_NOT_SUBMITTED_READONLY_MESSAGE)}</span></div>`;
+      } else if (workflow.status === 'submitted' && currentEmployeeCanMutate) {
         finishControls = `<div class="attendance-control__employee-actions"><button type="button" class="ds-btn ds-btn--primary" data-payroll-finish="${escapeHtml(employee.id)}" data-payroll-employee-name="${shown(employee.name)}"${pendingRecordCount ? ' disabled' : ''}>אישור מנהל</button>${pendingRecordCount ? `<span class="attendance-control__manual-note">נותרו ${pendingRecordCount} רשומות לאישור.</span>` : ''}</div>`;
       }
     }
-    return `<details class="attendance-control__employee" data-payroll-employee="${escapeHtml(employee.id)}"><summary><strong>${shown(employee.name)}</strong>${recordProgressHtml}</summary>${workflowHtml}${managerApprovedHtml}${approvedHtml}${finishControls}<div class="attendance-control__employee-days">${days}</div></details>`;
+    const readonlyAttr = currentEmployeeCanMutate ? '' : ' data-payroll-employee-readonly="1"';
+    return `<details class="attendance-control__employee" data-payroll-employee="${escapeHtml(employee.id)}"${readonlyAttr}><summary><strong>${shown(employee.name)}</strong>${recordProgressHtml}</summary>${workflowHtml}${managerApprovedHtml}${approvedHtml}${finishControls}<div class="attendance-control__employee-days">${days}</div></details>`;
   }).join('');
   const reviewEmployees = [...employees.values()].filter((employee) => {
     const hasWorkflowRow = Object.prototype.hasOwnProperty.call(workflowByEmployee, employee.id);
@@ -2279,6 +2307,7 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
   const role = txt(state?.user?.role || state?.user?.display_role).toLowerCase();
   const isManager = ['manager', 'instructor_manager', 'activities_manager'].includes(role);
   const canChooseTeam = ['operations_controller', 'system_admin', 'operation_manager', 'admin'].includes(role);
+  const bypassMonthSubmissionGate = ['admin', 'operation_manager'].includes(role);
   const fillInstructorOptions = (selectedTeam) => {
     if (!instructorInput) return;
     const rows = (employees || []).filter((employee) => {
@@ -2319,7 +2348,8 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
     results.innerHTML = result
       ? resultsHtml(result, result.month, {
         approvalsByEmployee,
-        workflowByEmployee
+        workflowByEmployee,
+        bypassMonthSubmissionGate
       })
       : '';
 
@@ -2393,7 +2423,16 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
     entry.final = { ...entry.attendance };
     entry.managerRecordApproved = false;
   };
+  const assertEmployeeMonthMutableForManager = (entry) => {
+    if (bypassMonthSubmissionGate) return;
+    const employeeId = txt(entry?.attendance?.employeeId || entry?.final?.employeeId);
+    const workflowRow = workflowByEmployee[employeeId];
+    if (!canManagerMutatePayrollEmployeeMonth(workflowRow || { workflow_status: 'not_submitted' })) {
+      throw new Error(EMPLOYEE_MONTH_NOT_SUBMITTED_READONLY_MESSAGE);
+    }
+  };
   const persistEntryCorrection = async (entry) => {
+    assertEmployeeMonthMutableForManager(entry);
     // Literal path required: Vite/Rollup cannot rewrite `import(variable)` into a hashed chunk.
     const finishMod = await import('./payroll-control-finish.js?v=20260927-training-km-field-choice-v2');
     const update = finishMod.buildAttendanceUpdatePayload(entry);
@@ -2756,6 +2795,7 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
       approveBtn.disabled = true;
       let writeSucceeded = false;
       try {
+        assertEmployeeMonthMutableForManager(entry);
         approveAttendanceEntryCurrent(entry);
         const finishMod = await import('./payroll-control-finish.js?v=20260927-training-km-field-choice-v2');
         const update = finishMod.buildAttendanceUpdatePayload(entry);

@@ -433,7 +433,7 @@ async function openControlMode(root) {
   setMessage(root, '', false);
   host.innerHTML = '<div class="admin-attendance-loading">טוען את ממשק הבקרה הקיים…</div>';
   try {
-    const attendance = await import('./screens/attendance-control.js?v=20260927-training-km-field-choice-v2');
+    const attendance = await import('./screens/attendance-control.js?v=20260927-manager-submitted-gate-v1');
     host.innerHTML = `${attendance.attendanceControlStylesHtml()}${attendance.attendanceControlHtml()}`;
     const panel = host.querySelector('[data-attendance-control]');
     if (panel) panel.hidden = false;

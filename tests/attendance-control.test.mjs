@@ -472,7 +472,9 @@ test('results classify matching rows as normal and count only actual row excepti
   const dashboard = attendance.map((row) => ({ ...row }));
   dashboard[6] = { ...dashboard[6], endTime: '10:00' };
   dashboard.pop();
-  const html = resultsHtml(compareAttendanceRows(attendance, dashboard));
+  const html = resultsHtml(compareAttendanceRows(attendance, dashboard), '2026-08', {
+    workflowByEmployee: { '10': { workflow_status: 'submitted', attendance_submission_status: 'submitted' } }
+  });
 
   assert.match(html, /ממתין לאישור/);
   assert.ok((html.match(/לבדיקה/g) || []).length >= 2);
@@ -1201,8 +1203,10 @@ test('finish approval controls are hidden before month submission and have no ov
   });
   assert.match(blocked, /סטטוס חודש: <strong>פתוח לדיווח<\/strong>/);
   assert.doesNotMatch(blocked, /data-payroll-finish="10"/);
-  assert.match(blocked, /העובד טרם ביצע סיום דיווח ואישור לחודש זה/);
+  assert.match(blocked, /העובד טרם סיים ואישר את הדיווח החודשי\. הנתונים מוצגים לצפייה בלבד/);
   assert.doesNotMatch(blocked, /data-payroll-finish-override="10"/);
+  assert.doesNotMatch(blocked, /data-attendance-edit-record=/);
+  assert.doesNotMatch(blocked, /data-attendance-approve-reported=/);
 
   const withOverride = resultsHtml(payload, '2026-05', {
     workflowByEmployee: { '10': { workflow_status: 'not_submitted', attendance_submission_status: 'open' } },
@@ -1782,7 +1786,9 @@ test('manager must explicitly approve every attendance record, and edits revoke 
   };
 
   assert.equal(attendanceEntryIsResolved(entry), false);
-  let html = resultsHtml({ comparisons: [entry], notCompared: [], dailyKilometers: [] }, '2026-09');
+  let html = resultsHtml({ comparisons: [entry], notCompared: [], dailyKilometers: [] }, '2026-09', {
+    workflowByEmployee: { '1501': { workflow_status: 'submitted', attendance_submission_status: 'submitted' } }
+  });
   assert.match(html, /ממתין לאישור/);
   assert.match(html, /data-attendance-approve-reported="explicit-record-approval"/);
   assert.match(html, /אישור רשומה/);
