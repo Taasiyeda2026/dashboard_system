@@ -94,7 +94,7 @@ test('planned training shows every relevant reported parameter but omits irrelev
   }, '2026-09');
 
   assert.match(html, /בדיקת ההכשרה מול התכנון/);
-  assert.match(html, /<th>תכנון<\/th>/);
+  assert.match(html, /<th>תכנון \/ מערכת<\/th>/);
   assert.match(html, /רשות \/ יישוב/);
   assert.match(html, /בית ספר \/ מיקום/);
   assert.match(html, /Greenwork/);
@@ -297,4 +297,45 @@ test('attendance-only rows expose inline correction instead of empty action cell
   assert.match(html, /data-attendance-manual-edit="attendance-only-edit" data-field-key="program"/);
   assert.match(html, /data-attendance-focus-travel="attendance-only-edit"/);
   assert.doesNotMatch(html, /שעות שכר מתוקנות/);
+});
+
+
+test('planned training mileage is shown as a system comparison with mileage actions', () => {
+  const html = resultsHtml({
+    comparisons: [{
+      id: 'training-km',
+      managerResolved: null,
+      attendance: {
+        employeeId: '1538', employeeName: 'מוחמד סוילם', date: '2026-09-15',
+        activityType: 'הכשרה', program: 'הכשרת בסיס',
+        startTime: '10:00', endTime: '15:00', workHours: 5,
+        kilometers: 285, publicTransport: false, expenses: 0
+      },
+      dashboard: {
+        employeeId: '1538', date: '2026-09-15',
+        activityType: 'הכשרה', program: 'הכשרת בסיס',
+        startTime: '10:00', endTime: '15:00', workHours: 5,
+        kilometers: 267.5, __trainingSchedule: true
+      },
+      final: {
+        employeeId: '1538', date: '2026-09-15',
+        activityType: 'הכשרה', program: 'הכשרת בסיס',
+        startTime: '10:00', endTime: '15:00', workHours: 5,
+        kilometers: 285, publicTransport: false, expenses: 0
+      },
+      differences: [
+        { key: 'kilometers', label: 'קילומטרים', type: 'number', attendance: 285, dashboard: 267.5, choice: 'attendance', custom: '' }
+      ],
+      unmatched: false
+    }],
+    notCompared: [],
+    dailyKilometers: []
+  }, '2026-09');
+
+  assert.match(html, /<th>תכנון \/ מערכת<\/th>/);
+  assert.match(html, /<th>ק״מ<\/th>/);
+  assert.match(html, />285<\/td>/);
+  assert.match(html, />267\.5<\/td>/);
+  assert.match(html, /אישור חישוב מערכת/);
+  assert.match(html, /⚠ לבדיקה/);
 });
