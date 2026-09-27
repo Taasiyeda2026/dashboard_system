@@ -647,22 +647,10 @@ async function bindEmbeddedAttendance(host, roster, context, snapshot = null, pr
   const monthMode = attendanceMonthMode(context.ym);
   host.dataset.managerAttendanceMonthMode = monthMode.key;
   host.innerHTML = `<style>
-    [data-manager-attendance-host][data-manager-attendance-month-mode="current"] .attendance-control__employee > .attendance-control__employee-actions,
-    [data-manager-attendance-host][data-manager-attendance-month-mode="future"] .attendance-control__employee > .attendance-control__employee-actions { display:none !important; }
     [data-manager-attendance-host] .attendance-control__uploads,
     [data-manager-attendance-host] .attendance-control__summary-bar,
     [data-manager-attendance-host] .attendance-control__metrics-details { display:none !important; }
   </style>${attendance.attendanceControlStylesHtml()}${attendance.attendanceControlHtml()}`;
-  if (host.dataset.managerAttendanceApprovalGuard !== 'true') {
-    host.dataset.managerAttendanceApprovalGuard = 'true';
-    host.addEventListener('click', (event) => {
-      const target = event.target instanceof Element ? event.target : null;
-      if (!target?.closest('[data-payroll-finish]')) return;
-      if (host.dataset.managerAttendanceMonthMode === 'closed') return;
-      event.preventDefault();
-      event.stopImmediatePropagation();
-    }, true);
-  }
   const panel = host.querySelector('[data-attendance-control]');
   if (panel) panel.hidden = false;
   attendance.bindAttendanceControl(host, {

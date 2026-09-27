@@ -17,3 +17,12 @@ test('manager drilldown still preselects the board month behind the scenes', () 
   assert.match(workspace, /monthInput\.value = context\.ym/);
   assert.match(workspace, /monthInput\.dispatchEvent\(new Event\('change'/);
 });
+
+test('manager drilldown keeps monthly manager approval available after record review', () => {
+  assert.doesNotMatch(
+    workspace,
+    /manager-attendance-month-mode="current"[\s\S]*attendance-control__employee-actions[\s\S]*display:none/
+  );
+  assert.doesNotMatch(workspace, /managerAttendanceApprovalGuard/);
+  assert.doesNotMatch(workspace, /closest\('\[data-payroll-finish\]'\)/);
+});
