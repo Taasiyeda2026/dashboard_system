@@ -19,6 +19,7 @@ import {
   latestFeasiblePlanningStart,
   planningActivityDifficulty,
   planningActivityHasStarted,
+  planningActivityScheduleFields,
   planningContextFingerprint,
   planningLegacyEngineContextFingerprint,
   planningDataFingerprint,
@@ -1134,8 +1135,25 @@ test('instructor overview keeps one compact planned-work column with expandable 
   assert.doesNotMatch(html, /פעילויות ממתינות לעדכון/);
 });
 
-test('existing-team activity details expose weekday, hours and meeting count from planning meetings', () => {
-  const rows = [{
+function wednesdaySeriesMeetings({
+  count = 10,
+  startTime = '08:20',
+  endTime = '09:45',
+  mapMeeting = null
+} = {}) {
+  return Array.from({ length: count }, (_, index) => {
+    const date = new Date(Date.UTC(2027, 0, 6 + index * 7));
+    const meeting = {
+      date: date.toISOString().slice(0, 10),
+      start_time: startTime,
+      end_time: endTime
+    };
+    return typeof mapMeeting === 'function' ? mapMeeting(meeting, index) : meeting;
+  });
+}
+
+function existingTeamScheduleRow(overrides = {}) {
+  return {
     courseId: 'biomimicry',
     courseName: 'ביומימיקרי',
     activityType: 'קורס',
@@ -1149,19 +1167,13 @@ test('existing-team activity details expose weekday, hours and meeting count fro
     endDate: '2027-03-10',
     startTime: '08:20',
     endTime: '09:45',
-    meetings: Array.from({ length: 10 }, (_, index) => ({
-      date: `2027-01-${String(6 + index * 7).padStart(2, '0')}`,
-      start_time: '08:20',
-      end_time: '09:45'
-    })).map((meeting, index) => {
-      // Keep Wednesdays across month boundaries for the sample series.
-      const date = new Date(Date.UTC(2027, 0, 6 + index * 7));
-      return {
-        ...meeting,
-        date: date.toISOString().slice(0, 10)
-      };
-    })
-  }];
+    meetings: wednesdaySeriesMeetings(),
+    ...overrides
+  };
+}
+
+test('existing-team activity details expose weekday, hours and meeting count from planning meetings', () => {
+  const rows = [existingTeamScheduleRow()];
   const overview = planningInstructorCompletionOverview(rows);
   assert.equal(overview.length, 1);
   assert.equal(overview[0].activities.length, 1);
@@ -1171,6 +1183,8 @@ test('existing-team activity details expose weekday, hours and meeting count fro
   assert.equal(activity.endTime, '09:45');
   assert.equal(activity.timeRangeLabel, '08:20–09:45');
   assert.equal(activity.meetingCount, 10);
+  assert.equal(activity.hasVariableWeekdays, false);
+  assert.equal(activity.hasVariableTimes, false);
 
   const html = planningCompletionOverviewHtml(rows);
   assert.match(html, /ביומימיקרי/);
@@ -1179,6 +1193,167 @@ test('existing-team activity details expose weekday, hours and meeting count fro
   assert.match(html, /יום ד׳ · 08:20–09:45 · 10 מפגשים/);
   assert.match(html, /06\/01\/2027/);
   assert.match(html, /10\/03\/2027/);
+});
+
+test('planningActivityScheduleFields derives stable Wednesday series hours from all meetings', () => {
+  const schedule = planningActivityScheduleFields(existingTeamScheduleRow());
+  assert.equal(schedule.meetingCount, 10);
+  assert.deepEqual(schedule.uniqueWeekdays, [3]);
+  assert.deepEqual(schedule.uniqueTimeRanges, ['08:20–09:45']);
+  assert.equal(schedule.dominantWeekday, 3);
+  assert.equal(schedule.dominantTimeRange, '08:20–09:45');
+  assert.equal(schedule.weekdayLabel, 'יום ד׳');
+  assert.equal(schedule.timeRangeLabel, '08:20–09:45');
+  assert.equal(schedule.hasVariableWeekdays, false);
+  assert.equal(schedule.hasVariableTimes, false);
+
+  const html = planningCompletionOverviewHtml([existingTeamScheduleRow()]);
+  assert.match(html, /יום ד׳ · 08:20–09:45 · 10 מפגשים/);
+});
+
+test('planningActivityScheduleFields marks same weekday with two time ranges as variable hours', () => {
+  const meetings = wednesdaySeriesMeetings({
+    mapMeeting: (meeting, index) => ({
+      ...meeting,
+      start_time: index < 5 ? '08:20' : '10:00',
+      end_time: index < 5 ? '09:45' : '11:30'
+    })
+  });
+  const schedule = planningActivityScheduleFields(existingTeamScheduleRow({ meetings }));
+  assert.equal(schedule.weekdayLabel, 'יום ד׳');
+  assert.equal(schedule.hasVariableWeekdays, false);
+  assert.equal(schedule.hasVariableTimes, true);
+  assert.equal(schedule.timeRangeLabel, 'שעות משתנות');
+  assert.equal(schedule.uniqueTimeRanges.length, 2);
+
+  const html = planningCompletionOverviewHtml([existingTeamScheduleRow({ meetings })]);
+  assert.match(html, /יום ד׳ · שעות משתנות · 10 מפגשים/);
+});
+
+test('planningActivityScheduleFields lists multiple weekdays without inventing a first-meeting day', () => {
+  // Explicit Mon/Wed mix so the series itself has two weekdays (not a first-meeting artifact).
+  const monWed = [
+    ...Array.from({ length: 5 }, (_, index) => ({
+      date: new Date(Date.UTC(2027, 0, 4 + index * 14)).toISOString().slice(0, 10),
+      start_time: '08:20',
+      end_time: '09:45'
+    })),
+    ...Array.from({ length: 5 }, (_, index) => ({
+      date: new Date(Date.UTC(2027, 0, 6 + index * 14)).toISOString().slice(0, 10),
+      start_time: '08:20',
+      end_time: '09:45'
+    }))
+  ];
+  const schedule = planningActivityScheduleFields(existingTeamScheduleRow({
+    meetings: monWed,
+    startDate: monWed[0].date
+  }));
+  assert.equal(schedule.hasVariableWeekdays, true);
+  assert.equal(schedule.hasVariableTimes, false);
+  assert.equal(schedule.weekdayLabel, 'ימים ב׳, ד׳');
+  assert.equal(schedule.timeRangeLabel, '');
+  assert.deepEqual(schedule.uniqueWeekdays, [1, 3]);
+
+  const html = planningCompletionOverviewHtml([existingTeamScheduleRow({ meetings: monWed })]);
+  assert.match(html, /ימים ב׳, ד׳ · 10 מפגשים/);
+  assert.doesNotMatch(html, /ימים ב׳, ד׳ · 08:20–09:45/);
+});
+
+test('planningActivityScheduleFields shows variable hours across multiple weekdays', () => {
+  const meetings = [
+    ...Array.from({ length: 5 }, (_, index) => ({
+      date: new Date(Date.UTC(2027, 0, 4 + index * 14)).toISOString().slice(0, 10),
+      start_time: '08:20',
+      end_time: '09:45'
+    })),
+    ...Array.from({ length: 5 }, (_, index) => ({
+      date: new Date(Date.UTC(2027, 0, 6 + index * 14)).toISOString().slice(0, 10),
+      start_time: '10:00',
+      end_time: '11:30'
+    }))
+  ];
+  const schedule = planningActivityScheduleFields(existingTeamScheduleRow({ meetings }));
+  assert.equal(schedule.weekdayLabel, 'ימים ב׳, ד׳');
+  assert.equal(schedule.hasVariableWeekdays, true);
+  assert.equal(schedule.hasVariableTimes, true);
+  assert.equal(schedule.timeRangeLabel, 'שעות משתנות');
+
+  const html = planningCompletionOverviewHtml([existingTeamScheduleRow({ meetings })]);
+  assert.match(html, /ימים ב׳, ד׳ · שעות משתנות · 10 מפגשים/);
+});
+
+test('planningActivityScheduleFields ignores a single moved meeting with the same hours', () => {
+  const meetings = wednesdaySeriesMeetings({
+    mapMeeting: (meeting, index) => {
+      if (index !== 3) return meeting;
+      return {
+        ...meeting,
+        // Move one Wednesday meeting to Monday while keeping the same hours.
+        date: '2027-01-25',
+        original_date: meeting.date,
+        moved: true,
+        start_time: '08:20',
+        end_time: '09:45'
+      };
+    }
+  });
+  const schedule = planningActivityScheduleFields(existingTeamScheduleRow({ meetings }));
+  assert.equal(schedule.meetingCount, 10);
+  assert.equal(schedule.hasVariableWeekdays, false);
+  assert.equal(schedule.hasVariableTimes, false);
+  assert.equal(schedule.weekdayLabel, 'יום ד׳');
+  assert.equal(schedule.timeRangeLabel, '08:20–09:45');
+  assert.equal(schedule.dominantWeekday, 3);
+
+  const html = planningCompletionOverviewHtml([existingTeamScheduleRow({ meetings })]);
+  assert.match(html, /יום ד׳ · 08:20–09:45 · 10 מפגשים/);
+  assert.doesNotMatch(html, /שעות משתנות/);
+});
+
+test('planningActivityScheduleFields keeps meeting hours when a one-off substitute is assigned', () => {
+  const meetings = wednesdaySeriesMeetings({
+    mapMeeting: (meeting, index) => (
+      index === 2
+        ? {
+          ...meeting,
+          substituteEmpId: '77',
+          substituteName: 'מחליפה'
+        }
+        : meeting
+    )
+  });
+  const schedule = planningActivityScheduleFields(existingTeamScheduleRow({ meetings }));
+  assert.equal(schedule.weekdayLabel, 'יום ד׳');
+  assert.equal(schedule.timeRangeLabel, '08:20–09:45');
+  assert.equal(schedule.hasVariableTimes, false);
+  assert.equal(schedule.meetingCount, 10);
+
+  const html = planningCompletionOverviewHtml([existingTeamScheduleRow({ meetings })]);
+  assert.match(html, /יום ד׳ · 08:20–09:45 · 10 מפגשים/);
+});
+
+test('planningActivityScheduleFields shows unset hours when meetings are missing', () => {
+  const schedule = planningActivityScheduleFields(existingTeamScheduleRow({
+    meetings: [],
+    startTime: '08:20',
+    endTime: '09:45',
+    startDate: '2027-01-06'
+  }));
+  assert.equal(schedule.meetingCount, 0);
+  assert.equal(schedule.weekdayLabel, '');
+  assert.equal(schedule.timeRangeLabel, '');
+  assert.deepEqual(schedule.uniqueWeekdays, []);
+  assert.deepEqual(schedule.uniqueTimeRanges, []);
+
+  const html = planningCompletionOverviewHtml([existingTeamScheduleRow({
+    meetings: [],
+    startDate: '',
+    endDate: '',
+    startTime: '08:20',
+    endTime: '09:45'
+  })]);
+  assert.match(html, /שעות טרם נקבעו/);
+  assert.doesNotMatch(html, /08:20–09:45/);
 });
 
 test('Planning builds a complete meeting-level work schedule for each instructor', () => {
