@@ -541,6 +541,23 @@ function instructorLocationDistance(cache, employeeId, location, originAddress =
   return usableDistance(hit);
 }
 
+function locationInstructorDistance(cache, employeeId, location, homeAddress = '') {
+  if (!location) return null;
+  if (location.schoolId != null && !location.address) return instructorSchoolDistance(cache, employeeId, location.schoolId);
+  const address = normalizedRouteAddress(location.address);
+  const home = normalizedRouteAddress(homeAddress);
+  if (address && home && address === home) return 0;
+  if (!address || !home) return null;
+  const hit = cache.find((row) => (
+    (
+      (location.entityKey && txt(row.origin_entity_key) === location.entityKey)
+      || normalizedRouteAddress(row.origin_address) === address
+    )
+    && normalizedRouteAddress(row.destination_address) === home
+  ));
+  return usableDistance(hit);
+}
+
 function locationLocationDistance(cache, origin, destination) {
   if (!origin || !destination) return null;
   if (
@@ -620,6 +637,22 @@ function nearestAttendanceRouteDashboardRow(attendance, rows = []) {
   })[0] || null;
 }
 
+function plannedTrainingRouteRow(attendance, rows = []) {
+  if (!isTrainingAttendanceType(attendance?.activityType)) return null;
+  const employeeId = txt(attendance?.employeeId);
+  const date = txt(attendance?.date);
+  const candidates = (rows || []).filter((row) => row?.__trainingSchedule
+    && txt(row.employeeId) === employeeId
+    && txt(row.date) === date);
+  if (!candidates.length) return null;
+  const program = normalizeAttendanceName(attendance?.program);
+  const exact = program
+    ? candidates.filter((row) => normalizeAttendanceName(row.program) === program)
+    : [];
+  if (exact.length === 1) return exact[0];
+  return candidates.length === 1 ? candidates[0] : null;
+}
+
 // Attendance can be reported on a different date from the scheduled meeting.
 // Kilometer validation must therefore follow the instructor's ACTUAL workday sequence:
 // home -> first physical activity -> next physical activity -> ... -> home.
@@ -636,7 +669,8 @@ export function applyAttendanceDayRouteKilometers(rows = [], attendanceRows = []
       || /zoom|זום/u.test(normalizeAttendanceName(`${attendance?.school || ''} ${attendance?.program || ''} ${attendance?.activityType || ''}`));
     const routeOnly = rows.find((row) => row?.__routeOnly
       && txt(row.sourceRecordId) === txt(attendance.recordId));
-    const dashboard = routeOnly || nearestAttendanceRouteDashboardRow(attendance, rows);
+    const trainingPlan = plannedTrainingRouteRow(attendance, rows);
+    const dashboard = trainingPlan || routeOnly || nearestAttendanceRouteDashboardRow(attendance, rows);
     const key = `${txt(attendance.employeeId)}|${txt(attendance.date)}`;
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push({ attendance, dashboard, isZoom });
@@ -663,7 +697,7 @@ export function applyAttendanceDayRouteKilometers(rows = [], attendanceRows = []
         ? instructorLocationDistance(travelCache, employeeId, stop.location, stop.attendance.originAddress)
         : locationLocationDistance(travelCache, physicalStops[index - 1].location, stop.location);
       const returnHome = index === physicalStops.length - 1
-        ? instructorLocationDistance(travelCache, employeeId, stop.location, stop.attendance.originAddress)
+        ? locationInstructorDistance(travelCache, employeeId, stop.location, stop.attendance.originAddress)
         : 0;
       if (incoming == null || returnHome == null) {
         routeUnavailable = true;
@@ -1315,7 +1349,6 @@ export function compareAttendanceRows(attendanceRows, dashboardRows, options = {
       const attendanceValue = key === 'workHours' ? rowWorkHours(attendance) : type === 'activityType' ? activityTypeDisplayLabel(attendance[key]) : attendance[key];
       const dashboardValue = key === 'workHours' ? rowWorkHours(dashboard) : type === 'activityType' ? activityTypeDisplayLabel(dashboard[key]) : dashboard[key];
       if (dashboard?.__trainingSchedule && ['school', 'authority', 'meetingNo', 'expenses'].includes(key)) return [];
-      if (dashboard?.__trainingSchedule && key === 'kilometers' && dashboard.isOnline !== true) return [];
       if (key === 'kilometers') {
         const attendanceKm = optionalNumber(attendanceValue);
         const dashboardKm = optionalNumber(dashboardValue);
@@ -1909,7 +1942,7 @@ export function resultsHtml(result, month = '', options = {}) {
     const current = entry?.final || attendance;
     const dashboard = attendanceOnly ? null : (entry?.dashboard || null);
     const trainingPlan = dashboard?.__trainingSchedule === true;
-    const dashboardLabel = trainingPlan ? 'תכנון' : 'דשבורד';
+    const dashboardLabel = trainingPlan ? 'תכנון / מערכת' : 'דשבורד';
     const diffByKey = new Map((entry?.differences || []).map((diff) => [diff.key, diff]));
     const payrollReview = dashboard?.payrollHoursRequireReview;
     const publicTransport = asBoolean(current.publicTransport);
@@ -1975,8 +2008,9 @@ export function resultsHtml(result, month = '', options = {}) {
       const systemValue = dashboard
         ? (hasSystemValue ? shown(right) : '<span class="attendance-control__empty-source">—</span>')
         : '<span class="attendance-control__empty-source">—</span>';
+      const actionSourceLabel = trainingPlan && key === 'kilometers' ? 'חישוב מערכת' : (trainingPlan ? 'תכנון' : dashboardLabel);
       const actions = related
-        ? fieldActionsHtml(entry, key, related, { hasSystemValue, dashboardLabel })
+        ? fieldActionsHtml(entry, key, related, { hasSystemValue, dashboardLabel: actionSourceLabel })
         : attendanceOnly
           ? manualFieldActionsHtml(entry, key, label, editValue)
           : '<span class="attendance-control__no-action">—</span>';
