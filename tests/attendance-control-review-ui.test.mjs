@@ -41,8 +41,7 @@ test('differences expose attendance, dashboard and edit actions in the actions c
         kilometers: 20, publicTransport: false, expenses: 0
       },
       differences: [
-        { key: 'endTime', label: 'שעת סיום', type: 'time', attendance: '12:00', dashboard: '11:30', choice: 'attendance', custom: '' },
-        { key: 'workHours', label: 'שעות עבודה', type: 'number', attendance: 2, dashboard: 1.5, choice: 'attendance', custom: '' }
+        { key: 'endTime', label: 'שעת סיום', type: 'time', attendance: '12:00', dashboard: '11:30', choice: 'attendance', custom: '' }
       ],
       unmatched: false
     }],
@@ -54,7 +53,9 @@ test('differences expose attendance, dashboard and edit actions in the actions c
   assert.match(html, /אישור דשבורד/);
   assert.match(html, />עריכה</);
   assert.match(html, /data-field-key="endTime"/);
-  assert.match(html, /data-field-key="workHours"/);
+  assert.match(html, /סה״כ שעות/);
+  assert.match(html, /מחושב אוטומטית/);
+  assert.doesNotMatch(html, /data-field-key="workHours"/);
   assert.match(html, /לבדיקה/);
 });
 
@@ -293,9 +294,14 @@ test('attendance-only rows expose inline correction instead of empty action cell
   assert.match(html, /data-attendance-manual-edit="attendance-only-edit" data-field-key="date"/);
   assert.match(html, /data-attendance-manual-edit="attendance-only-edit" data-field-key="startTime"/);
   assert.match(html, /data-attendance-manual-edit="attendance-only-edit" data-field-key="endTime"/);
-  assert.match(html, /data-attendance-manual-edit="attendance-only-edit" data-field-key="workHours"/);
+  assert.doesNotMatch(html, /data-attendance-manual-edit="attendance-only-edit" data-field-key="workHours"/);
+  assert.match(html, /מחושב אוטומטית/);
   assert.match(html, /data-attendance-manual-edit="attendance-only-edit" data-field-key="program"/);
-  assert.match(html, /data-attendance-focus-travel="attendance-only-edit"/);
+  assert.match(html, /data-attendance-manual-edit="attendance-only-edit" data-field-key="publicTransport"/);
+  assert.match(html, /data-attendance-manual-edit="attendance-only-edit" data-field-key="kilometers"/);
+  assert.doesNotMatch(html, /data-attendance-focus-travel="attendance-only-edit"/);
+  assert.doesNotMatch(html, /אשר כפי שדווח/);
+  assert.doesNotMatch(html, /שמור תיקון נסיעה/);
   assert.doesNotMatch(html, /שעות שכר מתוקנות/);
 });
 
