@@ -2831,11 +2831,11 @@
 
 .course-planning-completion-activity-row {
   display: grid;
-  grid-template-columns: minmax(150px, 1.15fr) minmax(220px, 1.55fr) minmax(120px, .8fr) minmax(155px, .9fr);
-  gap: 10px;
-  align-items: center;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 2px;
+  align-items: start;
   min-width: 0;
-  padding: 6px 0;
+  padding: 8px 0;
   border-top: 1px solid rgba(148, 163, 184, .16);
   font-size: .75rem;
 }
@@ -2848,8 +2848,18 @@
   min-width: 0;
 }
 
+.course-planning-completion-activity-row > strong {
+  color: var(--cs-text);
+  font-size: .8rem;
+}
+
 .course-planning-completion-activity-row > span {
   color: var(--cs-text-muted);
+}
+
+.course-planning-completion-activity-schedule {
+  color: var(--cs-text) !important;
+  font-variant-numeric: tabular-nums;
 }
 
 .course-planning-completion-table th {
