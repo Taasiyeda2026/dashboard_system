@@ -237,8 +237,15 @@ export function createRouteClient({
     return sharedPromise;
   };
 
+  const peek = (origin, destination) => {
+    if (!text(origin) || !text(destination)) return null;
+    const hit = persistentCache.get(routeMatrixKey(origin, destination));
+    return hit ? { ...hit, cached: true } : null;
+  };
+
   return {
     request,
+    peek,
     get unavailableReason() { return unavailableReason; },
     get googleCalls() { return googleCalls; },
     get cacheHits() { return cacheHits; },
