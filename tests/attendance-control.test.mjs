@@ -304,7 +304,7 @@ test('manual report days and expense days remain under review without technical 
   for (const activityType of ['הכשרה', 'ביטול זמן', 'תפעול']) {
     const attendance = { employeeId: activityType, employeeName: `מדריך ${activityType}`, date: '2027-01-05', startTime: '10:00', endTime: '11:00', workHours: 1, kilometers: 0, expenses: 20, expenseDetails: 'חניה', notes: 'הערה', activityType };
     const html = resultsHtml({ comparisons: [], notCompared: [{ id: activityType, attendance, final: { ...attendance } }], dashboardOnly: [], dashboardPopulation: [], dailyKilometers: [] });
-    assert.match(html, /attendance-control__row-status attendance-control__row-status--issue">⚠ לבדיקה/, `${activityType} day must require review`);
+    assert.match(html, /attendance-control__row-status attendance-control__row-status--issue">לבדיקה/, `${activityType} day must require review`);
     assert.match(html, /תקינים <b>0<\/b>[\s\S]*לבדיקה <b>1<\/b>/);
     assert.match(html, /attendance-control__manual-table[\s\S]*<th>שעות שכר<\/th>/, 'manual reports use the compact reported-data table');
     assert.doesNotMatch(html, /דשבורד \/ בקרה|נוכחות בלבד|נדרש אישור ידני|נדרש טיפול לפני תשלום/);
@@ -400,7 +400,7 @@ test('Oshri Ram matching requires context, exposes real fields, and leaves exact
   const mismatch = compareAttendanceRows([base], [{ ...base, startTime: '10:50', endTime: '12:20', school: 'שרת' }]);
   assert.deepEqual(mismatch.comparisons[0].differences.map((item) => item.key), ['startTime', 'endTime', 'school']);
   assert.match(resultsHtml(mismatch), /בית ספר/);
-  assert.match(resultsHtml(mismatch), /⚠ לבדיקה/);
+  assert.match(resultsHtml(mismatch), /לבדיקה/);
 
   const timeOnly = compareAttendanceRows([{ employeeId: '1524', date: base.date, startTime: base.startTime, endTime: base.endTime }], [{ employeeId: '1524', date: base.date, startTime: base.startTime, endTime: base.endTime }]);
   assert.equal(timeOnly.comparisons[0].unmatched, true, 'identical hours alone are insufficient');
@@ -474,8 +474,8 @@ test('results classify matching rows as normal and count only actual row excepti
   const html = resultsHtml(compareAttendanceRows(attendance, dashboard));
 
   assert.equal((html.match(/✓ תקין/g) || []).length, 12);
-  assert.equal((html.match(/⚠ לבדיקה/g) || []).length, 4);
-  assert.equal((html.match(/⚠ לא נמצאה פעילות תואמת/g) || []).length, 1);
+  assert.equal((html.match(/לבדיקה/g) || []).length, 4);
+  assert.equal((html.match(/לא נמצאה פעילות תואמת/g) || []).length, 1);
   assert.match(html, /לבדיקה <b>1<\/b>/);
   assert.equal((html.match(/data-attendance-choice/g) || []).length, 2);
   assert.doesNotMatch(html, /אף מועמד לא עבר את סף ההתאמה/);
