@@ -25,6 +25,7 @@ import {
   planningHomeDistanceKm,
   planningLocalityTier,
   planningPairCompare,
+  optionCompare,
   planningEffectivePeriod,
   planningPeriodKeyForActivity,
   normalizePlanningLockedOption,
@@ -1345,6 +1346,22 @@ test('Planning quality audit detects conflicts, unresolved rows and inefficient 
   assert.equal(audit.singletonDays, 1);
   assert.equal(audit.averageOperationalScore, 80);
   assert.equal(audit.status, 'נדרשת בדיקה');
+});
+
+test('final option selection keeps the local instructor ahead of a higher continuity score', () => {
+  const local = {
+    startDate: '2026-10-15',
+    startTime: '10:00',
+    planningOptimization: { total: 72.5 },
+    _candidate: { travel: { home: { distance_km: 0.9 } } }
+  };
+  const farther = {
+    startDate: '2026-10-12',
+    startTime: '09:00',
+    planningOptimization: { total: 93.6 },
+    _candidate: { travel: { home: { distance_km: 18.7 } } }
+  };
+  assert.ok(optionCompare(local, farther) < 0);
 });
 
 test('local instructor wins the same start week before virtual continuity score', () => {

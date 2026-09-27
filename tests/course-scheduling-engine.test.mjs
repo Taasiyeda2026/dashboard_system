@@ -74,6 +74,30 @@ test('preloaded travel cache avoids Edge Function calls during planning', async 
   assert.equal(leg.duration_minutes, 12);
 });
 
+test('preloaded travel cache can be peeked synchronously for locality ranking', () => {
+  const client = createRouteClient({
+    preloadedRows: [{
+      origin_key: 'כסרא סמיע. רחוב 706.',
+      destination_key: 'כסרא, כסרא-סמיע, 69410',
+      origin_address: 'כסרא סמיע. רחוב 706.',
+      destination_address: 'כסרא, כסרא-סמיע, 69410',
+      distance_km: 0.9,
+      duration_minutes: 4
+    }]
+  });
+  const leg = client.peek('כסרא סמיע. רחוב 706.', 'כסרא, כסרא-סמיע, 69410');
+  assert.equal(leg.distance_km, 0.9);
+  assert.equal(leg.duration_minutes, 4);
+  assert.equal(leg.cached, true);
+});
+
+test('route function canonicalizes Abu Qrenat to Neve Midbar before Google lookup', async () => {
+  const source = await readFile(new URL('../supabase/functions/scheduling-route/index.ts', import.meta.url), 'utf8');
+  assert.match(source, /canonicalIsraeliRouteAddress/);
+  assert.match(source, /אבו קרינאת, מועצה אזורית נווה מדבר/);
+  assert.match(source, /canonicalIsraeliRouteAddress\(parts\.address\)/);
+});
+
 test('route client reuses one matrix lookup across different school contexts', async () => {
   let calls = 0;
   const client = createRouteClient({

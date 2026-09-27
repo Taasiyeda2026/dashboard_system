@@ -82,13 +82,28 @@ function text(value: unknown) {
   return String(value ?? '').trim();
 }
 
+function canonicalIsraeliRouteAddress(value: unknown) {
+  const raw = text(value);
+  const normalized = raw.toLowerCase()
+    .replace(/[\u05be\u2010-\u2015\-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (
+    /אבו\s+(?:קרינאת|קריאנת|קורינאת)/.test(normalized)
+    || /abu\s+(?:qrenat|qrinat|qurenat|qrein[a]?t|karinat|korinat)/i.test(raw)
+  ) {
+    return 'אבו קרינאת, מועצה אזורית נווה מדבר';
+  }
+  return raw;
+}
+
 function buildGoogleAddressQuery(parts: {
   schoolName?: string;
   address?: string;
   authorityName?: string;
 }) {
   // Partial addresses without a house number are still sent to Google — do not reject them.
-  const chunks = [parts.schoolName, parts.address, parts.authorityName, 'ישראל']
+  const chunks = [parts.schoolName, canonicalIsraeliRouteAddress(parts.address), parts.authorityName, 'ישראל']
     .map((part) => text(part))
     .filter(Boolean);
   const unique: string[] = [];
