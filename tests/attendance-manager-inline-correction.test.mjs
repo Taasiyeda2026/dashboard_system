@@ -7,6 +7,7 @@ const finish = await readFile(new URL('../frontend/src/screens/payroll-control-f
 const bridge = await readFile(new URL('../frontend/src/payroll-attendance-v2-bridge.js', import.meta.url), 'utf8');
 const migration = await readFile(new URL('../supabase/migrations/20260927025000_sync_manager_attendance_generated_travel_corrections.sql', import.meta.url), 'utf8');
 const recordReviewMigration = await readFile(new URL('../supabase/migrations/20260927053500_attendance_manager_record_reviews.sql', import.meta.url), 'utf8');
+const finalizeGuardMigration = await readFile(new URL('../supabase/migrations/20260927061000_guard_manager_finalize_requires_record_reviews.sql', import.meta.url), 'utf8');
 
 test('attendance-only review exposes inline field editing and uses manual correction state', () => {
   assert.match(control, /data-attendance-edit-record=/);
@@ -78,4 +79,41 @@ test('reload path restores only still-valid record approvals', () => {
   assert.match(control, /managerRecordApproved = false/);
   assert.match(control, /approveAttendanceEntryCurrent\(entry\)/);
   assert.match(recordReviewMigration, /review\.approved_record_updated_at = ar\.updated_at/);
+});
+
+test('month with an unapproved attendance record blocks manager finalize', () => {
+  assert.match(finalizeGuardMigration, /create or replace function public\.manager_finalize_attendance_month_review/);
+  assert.match(finalizeGuardMigration, /security definer/);
+  assert.match(finalizeGuardMigration, /from public\.attendance_records ar/);
+  assert.match(finalizeGuardMigration, /to_char\(ar\.report_date, 'YYYY-MM'\) = p_month_key/);
+  assert.match(finalizeGuardMigration, /not exists \(\s*select 1\s*from public\.attendance_manager_record_reviews review/s);
+  assert.match(finalizeGuardMigration, /raise exception 'attendance_records_not_fully_approved'/);
+  assert.match(
+    finalizeGuardMigration,
+    /attendance_records_not_fully_approved[\s\S]*update public\.attendance_month_approvals/
+  );
+  assert.match(finalizeGuardMigration, /payroll_attendance_permission_denied/);
+  assert.match(finalizeGuardMigration, /grant execute on function public\.manager_finalize_attendance_month_review/);
+});
+
+test('manager finalize succeeds only when every record has a current valid review', () => {
+  assert.match(finalizeGuardMigration, /review\.record_id = ar\.id/);
+  assert.match(finalizeGuardMigration, /review\.status = 'approved'/);
+  assert.match(finalizeGuardMigration, /review\.approved_record_updated_at = ar\.updated_at/);
+  assert.match(finalizeGuardMigration, /v_unapproved_count/);
+  assert.match(finalizeGuardMigration, /if coalesce\(v_unapproved_count, 0\) > 0 then/);
+  // Zero unapproved records allows the existing lock/update path to continue.
+  assert.match(
+    finalizeGuardMigration,
+    /if coalesce\(v_unapproved_count, 0\) > 0 then[\s\S]*end if;[\s\S]*update public\.attendance_month_approvals/s
+  );
+});
+
+test('stale record review after attendance edit invalidates monthly manager finalize', () => {
+  // Validity is tied to the exact attendance_records.updated_at version, so a later
+  // edit makes approved_record_updated_at stale and the month cannot be finalized.
+  assert.match(finalizeGuardMigration, /review\.record_id = ar\.id/);
+  assert.match(finalizeGuardMigration, /review\.approved_record_updated_at = ar\.updated_at/);
+  assert.match(finalizeGuardMigration, /raise exception 'attendance_records_not_fully_approved'/);
+  assert.match(recordReviewMigration, /approved_record_updated_at = ar\.updated_at/);
 });
