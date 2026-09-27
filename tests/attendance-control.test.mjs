@@ -2,14 +2,14 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as XLSX from 'xlsx';
 import {
-  attendanceControlHtml, resultsHtml, normalizeAttendanceName, calculateWorkHours,
+  attendanceControlHtml, resultsHtml, normalizeAttendanceName, calculateWorkHours, formatDurationHours,
   buildDashboardAttendanceRows, buildTrainingScheduleDashboardRows, attendanceDateScope, loadAttendanceDashboardDataset,
   attendanceMonthLabel, filterAttendanceRowsByMonth, attendanceExportFilename,
   attendanceMonthDateRange,
   applyDashboardRouteKilometers, applyDashboardExpenses, compareAttendanceRows, applyAttendanceChoice,
   buildCorrectedAttendanceWorkbook, parseAttendanceWorkbook, attendanceAuditSummary, aggregateDashboardAttendanceRows,
   normalizeAttendanceApiRows, attendanceTeams, DETAIL_HEADERS, MONTHLY_HEADERS, DAILY_HEADERS, rowWorkHours,
-  parseMeetingNumberList, attendanceEntryIsResolved, approveAttendanceEntryAsReported, applyAttendanceManualCorrection,
+  parseMeetingNumberList, attendanceEntryIsResolved, approveAttendanceEntryAsReported, approveAttendanceEntryCurrent, applyAttendanceManualCorrection,
   resolvePayrollMonthWorkflow,
   kmDayNeedsDecision, resolveKilometersDay
 } from '../frontend/src/screens/attendance-control.js';
@@ -394,7 +394,8 @@ test('Oshri Ram matching requires context, exposes real fields, and leaves exact
   const exact = compareAttendanceRows([base], [{ ...base }]);
   assert.equal(exact.comparisons[0].unmatched, false);
   assert.equal(exact.comparisons[0].differences.length, 0);
-  assert.match(resultsHtml(exact), /✓ תקין/);
+  assert.match(resultsHtml(exact), /תואם/);
+  assert.doesNotMatch(resultsHtml(exact), /✓ תקין/);
   assert.doesNotMatch(resultsHtml(exact), /data-attendance-choice/);
 
   const mismatch = compareAttendanceRows([base], [{ ...base, startTime: '10:50', endTime: '12:20', school: 'שרת' }]);
@@ -473,22 +474,25 @@ test('results classify matching rows as normal and count only actual row excepti
   dashboard.pop();
   const html = resultsHtml(compareAttendanceRows(attendance, dashboard));
 
-  assert.equal((html.match(/✓ תקין/g) || []).length, 12);
-  assert.equal((html.match(/לבדיקה/g) || []).length, 4);
+  assert.match(html, /ממתין לאישור/);
+  assert.ok((html.match(/לבדיקה/g) || []).length >= 2);
   assert.equal((html.match(/לא נמצאה פעילות תואמת/g) || []).length, 1);
   assert.match(html, /לבדיקה <b>1<\/b>/);
-  assert.equal((html.match(/data-attendance-choice/g) || []).length, 2);
+  assert.ok((html.match(/data-attendance-field-choice/g) || []).length >= 2);
   assert.doesNotMatch(html, /אף מועמד לא עבר את סף ההתאמה/);
   assert.match(html, /<summary>פרטים<\/summary>/);
 });
 
-test('a fully matching row has a normal status and no decision control', () => {
+test('a fully matching row still waits for explicit manager record approval', () => {
   const row = { employeeId: '10', employeeName: 'דנה', date: '2026-08-01', startTime: '08:00', endTime: '09:00', program: 'קורס' };
-  const html = resultsHtml(compareAttendanceRows([row], [{ ...row }]), '2026-08', {
+  const result = compareAttendanceRows([row], [{ ...row }]);
+  const html = resultsHtml(result, '2026-08', {
     workflowByEmployee: { '10': { workflow_status: 'submitted', attendance_submission_status: 'submitted' } }
   });
-  assert.match(html, /attendance-control__day--ok/);
-  assert.match(html, /✓ תקין/);
+  assert.doesNotMatch(html, /attendance-control__day--ok/);
+  assert.match(html, /ממתין לאישור/);
+  assert.match(html, /data-attendance-approve-reported/);
+  assert.match(html, /data-attendance-edit-record/);
   assert.doesNotMatch(html, /data-attendance-choice/);
   assert.match(html, /תקינים <b>1<\/b>/);
 });
@@ -858,6 +862,7 @@ test('unavailable record kilometers stay visible and are not shown as zero', () 
 });
 
 const changedComparison = {
+  managerRecordApproved: true,
   attendance: {
     employeeId: '10', employeeName: 'דנה', date: '2026-05-10', startTime: '08:00', endTime: '09:00',
     workHours: 1, activityType: 'קורס', school: 'א', program: 'א', meetingNo: '1', kilometers: 10, expenses: 0,
@@ -1490,7 +1495,7 @@ test('entry with 3 differences and only one decision remains unresolved', () => 
   assert.notEqual(entry.managerResolved, 'corrected');
 });
 
-test('entry with multiple differences resolves only when all differences are decided', () => {
+test('field decisions prepare the record, but explicit record approval is still required', () => {
   const base = { employeeId: '10', date: '2026-05-22', startTime: '08:00', endTime: '09:00', activityType: 'קורס', workHours: 1, school: 'א', program: 'ב' };
   const result = compareAttendanceRows(
     [{ ...base, startTime: '07:45', endTime: '08:55', school: 'שגוי' }],
@@ -1499,7 +1504,9 @@ test('entry with multiple differences resolves only when all differences are dec
   const entry = result.comparisons[0];
   for (const diff of entry.differences) applyAttendanceChoice(entry, diff.key, 'dashboard');
   assert.equal(entry.managerResolved, 'corrected');
-  assert.ok(attendanceEntryIsResolved(entry));
+  assert.equal(attendanceEntryIsResolved(entry), false);
+  approveAttendanceEntryCurrent(entry);
+  assert.equal(attendanceEntryIsResolved(entry), true);
 });
 
 // ── תקלה 6: ק"מ יומי — approval gate ────────────────────────────────────
@@ -1755,4 +1762,121 @@ test('training without a back-office plan remains report-only and does not inven
   const result = compareAttendanceRows(attendance, []);
   assert.equal(result.comparisons.length, 0);
   assert.equal(result.notCompared.length, 1);
+});
+
+
+test('manager must explicitly approve every attendance record, and edits revoke that approval', () => {
+  const attendance = {
+    employeeId: '1501', employeeName: 'מדריך', date: '2026-09-20',
+    startTime: '09:00', endTime: '11:00', workHours: 2,
+    activityType: 'קורס', authority: 'רשות', school: 'בית ספר', program: 'תכנית'
+  };
+  const entry = {
+    id: 'explicit-record-approval',
+    attendance,
+    final: { ...attendance },
+    dashboard: { ...attendance },
+    differences: [],
+    unmatched: false,
+    managerResolved: 'auto_ok'
+  };
+
+  assert.equal(attendanceEntryIsResolved(entry), false);
+  let html = resultsHtml({ comparisons: [entry], notCompared: [], dailyKilometers: [] }, '2026-09');
+  assert.match(html, /ממתין לאישור/);
+  assert.match(html, /data-attendance-approve-reported="explicit-record-approval"/);
+  assert.match(html, /אישור רשומה/);
+  assert.match(html, /data-attendance-edit-record="explicit-record-approval"/);
+
+  approveAttendanceEntryCurrent(entry);
+  assert.equal(attendanceEntryIsResolved(entry), true);
+  assert.equal(entry.managerRecordApproved, true);
+
+  applyAttendanceManualCorrection(entry, { endTime: '11:30' });
+  assert.equal(entry.managerRecordApproved, false);
+  assert.equal(attendanceEntryIsResolved(entry), false);
+  assert.equal(entry.final.workHours, 2.5);
+});
+
+test('monthly manager approval stays disabled until every record is approved', () => {
+  const attendance = {
+    employeeId: '10', employeeName: 'דנה', date: '2026-09-01',
+    startTime: '08:00', endTime: '09:00', workHours: 1, activityType: 'קורס',
+    _source: { id: 'rec-10', employeeId: '10', attendanceDate: '2026-09-01' }
+  };
+  const pending = {
+    id: 'pending-record',
+    attendance,
+    final: { ...attendance },
+    dashboard: { ...attendance },
+    differences: [],
+    unmatched: false,
+    managerResolved: 'auto_ok',
+    managerRecordApproved: false
+  };
+  const workflow = { '10': { workflow_status: 'submitted', attendance_submission_status: 'submitted' } };
+  const blocked = resultsHtml({ comparisons: [pending], notCompared: [], dailyKilometers: [] }, '2026-09', {
+    workflowByEmployee: workflow
+  });
+  assert.match(blocked, /אושרו 0 מתוך 1 רשומות/);
+  assert.match(blocked, /נותרו 1 רשומות לאישור/);
+  assert.match(blocked, /data-payroll-finish="10"[^>]* disabled/);
+
+  const approved = { ...pending, managerRecordApproved: true };
+  const ready = resultsHtml({ comparisons: [approved], notCompared: [], dailyKilometers: [] }, '2026-09', {
+    workflowByEmployee: workflow
+  });
+  assert.match(ready, /אושרו 1 מתוך 1 רשומות/);
+  assert.doesNotMatch(ready, /נותרו \d+ רשומות לאישור/);
+  assert.match(ready, /data-payroll-finish="10"/);
+  assert.doesNotMatch(ready, /data-payroll-finish="10"[^>]* disabled/);
+  assert.equal(payrollEmployeeHasUnresolvedEntries({ comparisons: [approved], notCompared: [] }, '10'), false);
+});
+
+test('planned training schedule hours are calculated from start and end times', () => {
+  const rows = buildTrainingScheduleDashboardRows([{
+    id: 'train-24',
+    training_date: '2026-09-24',
+    start_time: '10:00',
+    end_time: '12:30',
+    course_name: 'פורצות דרך',
+    activity_type: 'הכשרה',
+    participant_scope: 'open',
+    is_online: true,
+    is_active: true,
+    location_name: 'Zoom'
+  }], [{
+    employeeId: '1535',
+    date: '2026-09-24',
+    activityType: 'הכשרה',
+    program: 'פורצות דרך',
+    startTime: '10:00',
+    endTime: '12:30',
+    workHours: 2.5
+  }], ['1535']);
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].workHours, 2.5);
+  assert.equal(formatDurationHours(rows[0].workHours), '2:30');
+  const html = resultsHtml({
+    comparisons: [{
+      id: 'training-hours',
+      managerResolved: 'auto_ok',
+      attendance: {
+        employeeId: '1535', date: '2026-09-24', activityType: 'הכשרה', program: 'פורצות דרך',
+        startTime: '10:00', endTime: '12:30', workHours: 2.5
+      },
+      dashboard: rows[0],
+      final: {
+        employeeId: '1535', date: '2026-09-24', activityType: 'הכשרה', program: 'פורצות דרך',
+        startTime: '10:00', endTime: '12:30', workHours: 2.5
+      },
+      differences: [],
+      unmatched: false
+    }],
+    notCompared: [],
+    dailyKilometers: []
+  }, '2026-09');
+  assert.match(html, /סה״כ שעות/);
+  assert.match(html, />2:30</);
+  assert.match(html, /ממתין לאישור/);
 });

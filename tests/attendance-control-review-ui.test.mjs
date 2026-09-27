@@ -55,6 +55,7 @@ test('differences expose attendance, dashboard and edit actions in the actions c
   assert.match(html, /data-field-key="endTime"/);
   assert.match(html, /סה״כ שעות/);
   assert.match(html, /מחושב אוטומטית/);
+  assert.match(html, />1:30</);
   assert.doesNotMatch(html, /data-field-key="workHours"/);
   assert.match(html, /לבדיקה/);
 });
@@ -101,6 +102,9 @@ test('planned training shows every relevant reported parameter but omits irrelev
   assert.match(html, /Greenwork/);
   assert.match(html, /יקום/);
   assert.match(html, /130 ק״מ/);
+  assert.match(html, />5:00</);
+  assert.match(html, /data-attendance-edit-record="training-1"/);
+  assert.match(html, /אישור רשומה/);
   assert.doesNotMatch(html, /מספר מפגש/);
   assert.doesNotMatch(html, /תחבורה ציבורית<\/th>/);
   assert.doesNotMatch(html, /הוצאות<\/th>/);

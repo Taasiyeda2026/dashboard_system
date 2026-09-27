@@ -4,7 +4,7 @@ import { supabase, waitForSupabaseAuthSession } from './supabase-client.js';
 import { hasPermission } from './permission-policy.js';
 import { normalizeGlobalActivityPeriod } from './screens/shared/summer-activity.js';
 import { escapeHtml } from './screens/shared/html.js';
-import { attendanceMonthDateRange } from './screens/attendance-control.js?v=20260927-training-km-validation-v1';
+import { attendanceMonthDateRange } from './screens/attendance-control.js?v=20260927-manager-record-approval-v2';
 import { tableHtml as trackingTableHtml } from './manager-board-employee-file-tracking.js';
 
 const MANAGER_WORKSPACE_TAB_KEY = 'manager_board_workspace_tab';
@@ -536,6 +536,14 @@ function buildScopedAttendanceApi(roster, snapshot = null, preloadedRecords = nu
       if (prop === 'attendanceControlMonthWorkflowStatuses' && snapshot) {
         return async () => Array.isArray(snapshot.workflow) ? snapshot.workflow : [];
       }
+      if (prop === 'attendanceControlUpdateRecord' || prop === 'attendanceControlApproveRecord') {
+        return async (...args) => {
+          const value = await target[prop](...args);
+          attendanceReviewSnapshotCache.clear();
+          attendanceSummaryCache.clear();
+          return value;
+        };
+      }
       const value = target[prop];
       return typeof value === 'function' ? value.bind(target) : value;
     }
@@ -635,7 +643,7 @@ async function bindEmbeddedAttendance(host, roster, context, snapshot = null, pr
   embeddedAttendanceSignature = signature;
   host.dataset.managerAttendanceBound = 'true';
 
-  const attendance = await import('./screens/attendance-control.js?v=20260927-training-km-validation-v1');
+  const attendance = await import('./screens/attendance-control.js?v=20260927-manager-record-approval-v2');
   const monthMode = attendanceMonthMode(context.ym);
   host.dataset.managerAttendanceMonthMode = monthMode.key;
   host.innerHTML = `<style>

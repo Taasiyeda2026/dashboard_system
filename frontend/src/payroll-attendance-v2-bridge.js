@@ -272,6 +272,30 @@ api.attendanceControlUpdateRecord = async function (recordId, fields = {}) {
   return data || { success: true, recordId: id };
 };
 
+api.attendanceControlRecordReviews = async function ({ recordIds = [] } = {}) {
+  const ids = [...new Set((Array.isArray(recordIds) ? recordIds : []).map(text).filter(Boolean))];
+  if (!ids.length) return [];
+  await waitForSupabaseAuthSession({ timeoutMs: 7000 }).catch(() => null);
+  const { data, error } = await supabase.rpc('get_manager_attendance_record_reviews', {
+    p_record_ids: ids
+  });
+  if (error) throw new Error(error.message || 'attendance_record_reviews_load_failed');
+  return Array.isArray(data) ? data : [];
+};
+
+api.attendanceControlApproveRecord = async function (recordId, approved = true) {
+  const id = text(recordId);
+  if (!id) throw new Error('חסר מזהה רשומת נוכחות לאישור.');
+  await waitForSupabaseAuthSession({ timeoutMs: 7000 }).catch(() => null);
+  const { data, error } = await supabase.rpc('set_manager_attendance_record_review', {
+    p_record_id: id,
+    p_approved: approved !== false
+  });
+  if (error) throw new Error(error.message || 'attendance_record_review_save_failed');
+  if (data?.success === false) throw new Error(text(data.message || data.error) || 'שמירת אישור הרשומה נכשלה.');
+  return data || { success: true, recordId: id, approved: approved !== false };
+};
+
 api.attendanceControlAttachmentSignedUrl = async function (storagePath = '') {
   const path = text(storagePath);
   if (!path) throw new Error('חסר נתיב אסמכתא.');
