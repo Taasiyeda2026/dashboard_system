@@ -67,7 +67,8 @@ export const PLANNING_OPTIMIZATION_WEIGHTS = Object.freeze({
   geography: 15,
   stability: 10
 });
-export const PLANNING_ENGINE_VERSION = 'planning-v20-20260927-fast-recruitment-rescue';
+export const PLANNING_VALIDATION_VERSION = 'planning-validation-v1-20260927-self-invalidation';
+export const PLANNING_ENGINE_VERSION = 'planning-v21-20260927-self-invalidation';
 export const PLANNING_ACTIVITY_NO_ALIASES = Object.freeze({
   // Legacy Gefen identifier retained on existing activities; canonical catalog program is 53828.
   '82835': '53828'
@@ -1990,6 +1991,28 @@ export function planningOptionPassesFinalValidation(option = {}, {
   const meetings = Array.isArray(option?.meetings) ? option.meetings : [];
   if (!mainEmpId || !meetings.length) return { valid: false, failures: [{ reason: 'missing_option' }] };
   const instructorById = new Map((instructors || []).map((row) => [text(row.emp_id), row]));
+  const profileMap = profiles && typeof profiles === 'object' && !Array.isArray(profiles)
+    ? profiles
+    : Object.fromEntries((profiles || []).map((row) => [text(row?.emp_id), row]).filter(([id]) => id));
+  const failures = [];
+  const requiredGender = normalizedGenderRequirement(activity?.required_instructor_gender);
+  const requiredLanguage = normalizedLanguageRequirement(activity?.instruction_language);
+  const mainProfile = planningProfileFor(profileMap, mainEmpId);
+  const mainInstructor = instructorById.get(mainEmpId);
+  if (mainInstructor && (String(mainInstructor.active ?? 'yes').toLowerCase() === 'no' || mainInstructor.active === false)) {
+    failures.push({ reason: 'inactive', empId: mainEmpId });
+  }
+  if (requiredGender !== 'any' && text(mainProfile?.gender) !== requiredGender) {
+    failures.push({ reason: 'gender_mismatch', empId: mainEmpId });
+  }
+  if (requiredLanguage) {
+    const languages = (mainProfile?.instruction_languages || [])
+      .map((value) => normalizedLanguageRequirement(value))
+      .filter(Boolean);
+    if (!languages.includes(requiredLanguage)) {
+      failures.push({ reason: 'language_mismatch', empId: mainEmpId });
+    }
+  }
   const instructorContexts = {};
   for (const meeting of meetings) {
     const empId = meetingInstructorEmpId(meeting, mainEmpId);
@@ -1999,10 +2022,10 @@ export function planningOptionPassesFinalValidation(option = {}, {
       rules: rules[empId] || [],
       exceptions: exceptions[empId] || [],
       existingActivities: (assignments[empId] || []).flatMap((row) => activityMeetings(row)),
-      profile: profiles[empId] || null
+      profile: profileMap[empId] || null
     };
   }
-  return validatePlanningMeetingsForInstructors({
+  const meetingValidation = validatePlanningMeetingsForInstructors({
     meetings,
     mainInstructorEmpId: mainEmpId,
     instructorContexts,
@@ -2010,6 +2033,8 @@ export function planningOptionPassesFinalValidation(option = {}, {
     schoolCalendar: filterSchoolCalendarRowsBySector(schoolCalendar, activity?.calendar_sector),
     allowSaturday: normalizeCalendarSector(activity?.calendar_sector) === 'arab'
   });
+  failures.push(...(meetingValidation.failures || []));
+  return { valid: failures.length === 0, failures };
 }
 
 export function applyPlanningLockToRow(row = {}, option = {}, periodKey = DEFAULT_PLANNING_PERIOD_KEY) {
