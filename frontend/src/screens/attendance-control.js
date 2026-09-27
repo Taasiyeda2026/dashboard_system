@@ -2092,13 +2092,16 @@ export function resultsHtml(result, month = '', options = {}) {
   const reportHtml = ({ kind, item, employeeId, date }) => {
     const row = kind === 'dashboard' ? item.dashboard : (item.final || item.attendance);
     const attachedCancellation = generatedCancellationBySource.get(entryRecordId(item)) || null;
-    const issue = (kind === 'comparison' ? comparisonHasIssue(item) : !attendanceEntryIsResolved(item))
-      || (attachedCancellation ? !attendanceEntryIsResolved(attachedCancellation) : false);
+    const dataIssue = kind === 'comparison' ? comparisonHasIssue(item) : false;
+    const approved = kind === 'dashboard' ? true : attendanceEntryIsResolved(item);
+    const attachedApproved = attachedCancellation ? attendanceEntryIsResolved(attachedCancellation) : true;
     const cancellationEntry = isAttendanceTravelTimeCancellation(item)
       || normalizeAttendanceName(row.activityType).includes('ביטולזמן');
-    const status = !issue
-      ? '<span class="attendance-control__status-pill attendance-control__status-pill--ok">✓ תקין</span>'
-      : '<span class="attendance-control__status-pill attendance-control__status-pill--issue">לבדיקה</span>';
+    const status = approved && attachedApproved
+      ? '<span class="attendance-control__status-pill attendance-control__status-pill--ok">✓ אושר</span>'
+      : dataIssue
+        ? '<span class="attendance-control__status-pill attendance-control__status-pill--issue">לבדיקה</span>'
+        : '<span class="attendance-control__status-pill attendance-control__status-pill--info">ממתין לאישור</span>';
     let body = '';
 
     if (cancellationEntry && isAttendanceTravelTimeCancellation(item)) {
@@ -2110,7 +2113,13 @@ export function resultsHtml(result, month = '', options = {}) {
       body = `${manualReportTable(row, { entry: item, attachedCancellation })}${travelSummaryHtml(row, item, { includeCancellation: !attachedCancellation })}${managerActionsHtml(item)}`;
     }
 
-    return `<section class="attendance-control__report"><div class="attendance-control__report-line"><strong>${shown(`${row.startTime || '—'}–${row.endTime || '—'} | ${activityTypeDisplayLabel(row.activityType) || 'דיווח'}`)}</strong>${status}</div>${body}</section>`;
+    const recordActions = kind === 'dashboard'
+      ? ''
+      : `<div class="attendance-control__record-actions">
+          <button type="button" class="ds-btn ds-btn--sm" data-attendance-edit-record="${escapeHtml(item.id)}">עריכת רשומה</button>
+          <button type="button" class="ds-btn ds-btn--sm ds-btn--primary" data-attendance-approve-reported="${escapeHtml(item.id)}">${approved ? '✓ רשומה אושרה' : 'אישור רשומה'}</button>
+        </div>`;
+    return `<section class="attendance-control__report"><div class="attendance-control__report-line"><strong>${shown(`${row.startTime || '—'}–${row.endTime || '—'} | ${activityTypeDisplayLabel(row.activityType) || 'דיווח'}`)}</strong><div class="attendance-control__report-line-actions">${status}${recordActions}</div></div>${body}</section>`;
   };
   const employeeHtml = [...employees.values()].sort((a, b) => a.name.localeCompare(b.name, 'he')).map((employee) => {
     const days = [...employee.days.entries()].sort(([left], [right]) => left.localeCompare(right)).map(([date, rows]) => {
