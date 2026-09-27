@@ -590,7 +590,10 @@ test('nonstandard dashboard duration is not converted into invented payroll hour
   const attendance = [{ ...row, workHours: 2, activityType: 'קורס', school: 'אלונים' }];
   const result = compareAttendanceRows(attendance, [{ ...row, school: 'אלונים' }]);
   assert.equal(result.comparisons[0].differences.some((difference) => difference.key === 'workHours'), false);
-    assert.match(resultsHtml(result), /שעות שכר לבדיקה/);
+  const html = resultsHtml(result);
+  assert.match(html, /סה״כ שעות/);
+  assert.match(html, /מחושב אוטומטית/);
+  assert.doesNotMatch(html, /שעות שכר לבדיקה/);
 });
 
 test('work-hours gap is formatted as time and never labelled ק״מ', () => {
@@ -1257,6 +1260,7 @@ test('multiple manager inline corrections accumulate on the same attendance reco
   applyAttendanceManualCorrection(entry, { startTime: '08:15' });
   applyAttendanceManualCorrection(entry, { program: 'ב' });
   assert.equal(entry.final.startTime, '08:15');
+  assert.equal(entry.final.workHours, 0.75);
   assert.equal(entry.final.program, 'ב');
   assert.equal(entry.managerResolved, 'corrected');
 });
@@ -1284,7 +1288,9 @@ test('dashboard work hours column does not use review label as a value', () => {
     notCompared: [],
     dailyKilometers: []
   });
-  assert.match(html, /לא ניתן לחשב/);
+  assert.match(html, /סה״כ שעות/);
+  assert.match(html, /מחושב אוטומטית/);
+  assert.doesNotMatch(html, /לא ניתן לחשב/);
   assert.doesNotMatch(html, /<td[^>]*>לבדיקה<\/td>/);
 });
 
@@ -1705,7 +1711,7 @@ test('planned training stays matched even when reported hours differ substantial
   assert.equal(result.comparisons[0].dashboard.endTime, '14:00');
   assert.deepEqual(
     result.comparisons[0].differences.map((diff) => diff.key).filter((key) => ['endTime', 'workHours'].includes(key)),
-    ['endTime', 'workHours']
+    ['endTime']
   );
 });
 
