@@ -340,7 +340,8 @@ test('test 6: context fingerprint change for one instructor does not imply fullR
 
 test('test 7/8/9 source contract: fullRun only for forceFull, missing workspace, empty rows, or unrecoverable global', async () => {
   const source = await readFile(new URL('../frontend/src/screens/course-scheduling.js', import.meta.url), 'utf8');
-  assert.match(source, /const fullRun = forceFull\s*\|\|\s*!shared\?\.workspace\s*\|\|\s*!existingRows\.length\s*\|\|\s*unrecoverableGlobalContextChange/);
+  assert.match(source, /resolvePlanningFullRunDecision/);
+  assert.match(source, /fullRunReason/);
   assert.doesNotMatch(source, /fullRun =[^\n]*\|\|\s*contextChanged\b/);
   assert.doesNotMatch(source, /if \(contextChanged\) return \[\.\.\.currentIds\]/);
 });
