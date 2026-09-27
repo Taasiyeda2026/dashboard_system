@@ -1057,6 +1057,9 @@ test('first-half completion overview includes live, drafts and proposals per ins
   assert.equal(overview[0].averageWorkDaysPerWeek, 1);
   assert.equal(overview[0].peakWeekHours, 1.5);
   assert.deepEqual(overview[0].programs, ['ביומימיקרי', 'פורצות דרך']);
+  assert.equal(overview[0].activities[0].weekdayLabel, 'יום ד׳');
+  assert.equal(overview[0].activities[0].timeRangeLabel, '08:00–09:30');
+  assert.equal(overview[0].activities[0].meetingCount, 1);
 
   const html = planningCompletionOverviewHtml(rows);
   assert.match(html, /תוכנית עבודה מלאה — מחצית א׳/);
@@ -1129,6 +1132,53 @@ test('instructor overview keeps one compact planned-work column with expandable 
   assert.match(html, /בית ספר|א/);
   assert.doesNotMatch(html, /תוכניות ופירוט/);
   assert.doesNotMatch(html, /פעילויות ממתינות לעדכון/);
+});
+
+test('existing-team activity details expose weekday, hours and meeting count from planning meetings', () => {
+  const rows = [{
+    courseId: 'biomimicry',
+    courseName: 'ביומימיקרי',
+    activityType: 'קורס',
+    school: 'רמב״ם נהריה',
+    authority: 'נהריה',
+    kind: 'fixed-proposal',
+    status: 'מועד מומלץ לבית הספר',
+    instructorEmpId: '9',
+    instructorName: 'מדריכה',
+    startDate: '2027-01-06',
+    endDate: '2027-03-10',
+    startTime: '08:20',
+    endTime: '09:45',
+    meetings: Array.from({ length: 10 }, (_, index) => ({
+      date: `2027-01-${String(6 + index * 7).padStart(2, '0')}`,
+      start_time: '08:20',
+      end_time: '09:45'
+    })).map((meeting, index) => {
+      // Keep Wednesdays across month boundaries for the sample series.
+      const date = new Date(Date.UTC(2027, 0, 6 + index * 7));
+      return {
+        ...meeting,
+        date: date.toISOString().slice(0, 10)
+      };
+    })
+  }];
+  const overview = planningInstructorCompletionOverview(rows);
+  assert.equal(overview.length, 1);
+  assert.equal(overview[0].activities.length, 1);
+  const activity = overview[0].activities[0];
+  assert.equal(activity.weekdayLabel, 'יום ד׳');
+  assert.equal(activity.startTime, '08:20');
+  assert.equal(activity.endTime, '09:45');
+  assert.equal(activity.timeRangeLabel, '08:20–09:45');
+  assert.equal(activity.meetingCount, 10);
+
+  const html = planningCompletionOverviewHtml(rows);
+  assert.match(html, /ביומימיקרי/);
+  assert.match(html, /רמב״ם נהריה · נהריה/);
+  assert.match(html, /course-planning-completion-activity-schedule/);
+  assert.match(html, /יום ד׳ · 08:20–09:45 · 10 מפגשים/);
+  assert.match(html, /06\/01\/2027/);
+  assert.match(html, /10\/03\/2027/);
 });
 
 test('Planning builds a complete meeting-level work schedule for each instructor', () => {

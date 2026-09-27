@@ -265,3 +265,5 @@ config.HOTFIX_VERSION = `legacy-fingerprint-compat-20260927-v1-${config.HOTFIX_V
 config.HOTFIX_VERSION = `manager-attendance-submitted-gate-20260927-v1-${config.HOTFIX_VERSION}`;
 
 config.HOTFIX_VERSION = `planning-invalidate-after-activity-save-20260927-v1-${config.HOTFIX_VERSION}`;
+
+config.HOTFIX_VERSION = `planning-team-activity-hours-display-20260927-v1-${config.HOTFIX_VERSION}`;

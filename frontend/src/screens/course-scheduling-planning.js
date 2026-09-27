@@ -145,6 +145,33 @@ function weekday(value) {
   return Number.isNaN(date.getTime()) ? null : date.getUTCDay();
 }
 
+const PLANNING_WEEKDAY_SHORT_LABELS = Object.freeze(['א׳', 'ב׳', 'ג׳', 'ד׳', 'ה׳', 'ו׳', 'שבת']);
+
+function planningWeekdayDisplay(value) {
+  const day = Number.isInteger(value) ? value : weekday(value);
+  if (day == null || day < 0 || day > 6) return '';
+  const label = PLANNING_WEEKDAY_SHORT_LABELS[day];
+  if (!label) return '';
+  return day === 6 ? 'שבת' : `יום ${label}`;
+}
+
+function planningActivityScheduleFields(row = {}) {
+  const meetings = Array.isArray(row?.meetings) ? row.meetings : [];
+  const meetingCount = meetings.length;
+  const first = meetings[0] || {};
+  const startTime = text(first?.start_time || row?.startTime).slice(0, 5);
+  const endTime = text(first?.end_time || row?.endTime).slice(0, 5);
+  const anchorDate = text(first?.date || row?.startDate).slice(0, 10);
+  const weekdayLabel = planningWeekdayDisplay(anchorDate);
+  return {
+    meetingCount,
+    startTime,
+    endTime,
+    weekdayLabel,
+    timeRangeLabel: startTime && endTime ? `${startTime}–${endTime}` : (startTime || endTime || '')
+  };
+}
+
 function validTimeRange(startTime, endTime) {
   const start = timeMinutes(startTime);
   const end = timeMinutes(endTime);
@@ -3477,6 +3504,7 @@ export function planningInstructorCompletionOverview(rows = []) {
     const group = groups.get(key);
     const dates = planningCompletionDateRange(row);
     const activityType = text(row?.activityType) || 'קורס';
+    const schedule = planningActivityScheduleFields(row);
     const activity = {
       courseId: text(row?.courseId),
       courseName: text(row?.courseName) || 'פעילות',
@@ -3486,7 +3514,12 @@ export function planningInstructorCompletionOverview(rows = []) {
       status: planningCompletionStatus(row),
       kind: text(row?.kind),
       startDate: dates.startDate,
-      endDate: dates.endDate
+      endDate: dates.endDate,
+      weekdayLabel: schedule.weekdayLabel,
+      startTime: schedule.startTime,
+      endTime: schedule.endTime,
+      timeRangeLabel: schedule.timeRangeLabel,
+      meetingCount: schedule.meetingCount
     };
     group.activities.push(activity);
 
@@ -3599,7 +3632,7 @@ function planningRecruitmentGenderLabel(value) {
   return '';
 }
 
-const PLANNING_WEEKDAY_LABELS = Object.freeze(['א׳', 'ב׳', 'ג׳', 'ד׳', 'ה׳', 'ו׳', 'שבת']);
+const PLANNING_WEEKDAY_LABELS = PLANNING_WEEKDAY_SHORT_LABELS;
 
 export function planningCompletionOverviewHtml(rows = [], { pendingChanges = 0, schoolYearTotal = null } = {}) {
   const firstHalfRows = (rows || []).filter(planningRowIsFirstHalf);
@@ -3769,12 +3802,20 @@ export function planningCompletionOverviewHtml(rows = [], { pendingChanges = 0, 
             <div class="course-planning-completion-detail-panel">
               <p><strong>קורסים:</strong> ${escapeHtml(courseNames.join(' · ') || 'ללא תוכנית')}</p>
               <div class="course-planning-completion-activity-list">
-                ${item.activities.map((activity) => `<div class="course-planning-completion-activity-row">
+                ${item.activities.map((activity) => {
+                  const scheduleBits = [
+                    text(activity.weekdayLabel),
+                    text(activity.timeRangeLabel),
+                    Number(activity.meetingCount) > 0 ? `${Number(activity.meetingCount)} מפגשים` : ''
+                  ].filter(Boolean);
+                  return `<div class="course-planning-completion-activity-row">
                   <strong>${escapeHtml(activity.courseName || 'פעילות')}</strong>
                   <span>${escapeHtml(activity.school || 'ללא בית ספר')}${activity.authority ? ` · ${escapeHtml(activity.authority)}` : ''}</span>
                   <span>${escapeHtml(activity.status || '')}</span>
+                  <span class="course-planning-completion-activity-schedule">${scheduleBits.length ? escapeHtml(scheduleBits.join(' · ')) : 'שעות טרם נקבעו'}</span>
                   <span>${activity.startDate ? `<bdi dir="ltr">${escapeHtml(formatDateHe(activity.startDate))}</bdi>` : 'ללא מועד'}${activity.endDate ? `–<bdi dir="ltr">${escapeHtml(formatDateHe(activity.endDate))}</bdi>` : ''}</span>
-                </div>`).join('')}
+                </div>`;
+                }).join('')}
               </div>
             </div>
           </td>
