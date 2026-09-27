@@ -1,4 +1,8 @@
-import { evaluateInstructor, adjacentActivities } from './instructor-matching-engine.js';
+import {
+  evaluateInstructor,
+  adjacentActivities,
+  MAX_HOME_DISTANCE_KM
+} from './instructor-matching-engine.js';
 import { activityMeetings, isoWeekKey } from './instructor-scheduling-load.js';
 import { routeMatrixKey } from './course-scheduling-travel.js';
 import {
@@ -271,7 +275,10 @@ function tryFindSingleMeetingSubstitute({
       existingActivities: persistedMeetings,
       travel,
       validateTravel: !input.preliminary && (input.travel !== undefined || input.routeMatrix !== undefined),
-      includeLegacyScore: false
+      includeLegacyScore: false,
+      maxHomeDistanceKm: Number.isFinite(Number(input.maxHomeDistanceKm))
+        ? Number(input.maxHomeDistanceKm)
+        : MAX_HOME_DISTANCE_KM
     });
     if (!gate.eligible) continue;
     return {
@@ -410,7 +417,10 @@ function evaluateCandidate({
     existingActivities: plannerAllMeetings,
     travel: gateTravel,
     validateTravel: !input.preliminary && (input.travel !== undefined || input.routeMatrix !== undefined),
-    includeLegacyScore: false
+    includeLegacyScore: false,
+    maxHomeDistanceKm: Number.isFinite(Number(input.maxHomeDistanceKm))
+      ? Number(input.maxHomeDistanceKm)
+      : MAX_HOME_DISTANCE_KM
   });
   if (tooManyExceptions) {
     gate.failures = [...new Set([...(gate.failures || []), 'too_many_availability_exceptions'])];

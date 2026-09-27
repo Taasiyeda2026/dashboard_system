@@ -1,11 +1,17 @@
 import { instructionLanguageLabel, profileSpeaksLanguage, resolveInstructionLanguage } from './shared/instruction-language.js';
 import { normalizeCalendarSector } from './shared/school-calendar-logic.js';
+import { normalizeOperationalDistrict } from './shared/district-normalization.js';
 
 const LANGUAGE_LABELS = { he: 'עברית', ar: 'ערבית' };
 /** One-way driving-route home→school hard eligibility limit (km). Inclusive at exactly this value. */
 export const MAX_HOME_DISTANCE_KM = 40;
 /** A manual home-distance exception needs manager approval only from this threshold (km). */
 export const MANAGER_APPROVAL_DISTANCE_KM = 60;
+/**
+ * North-only stage-2 matching ceiling (km). Inclusive at exactly this value.
+ * Same numeric constant as manager-approval policy; stage 2 still requires all other hard gates.
+ */
+export const NORTH_STAGE2_MAX_HOME_DISTANCE_KM = MANAGER_APPROVAL_DISTANCE_KM;
 /** Nearby-school transitions receive a smaller safety buffer when the verified route is at most 10 km. */
 export const NEARBY_TRANSITION_DISTANCE_KM = 10;
 export const NEARBY_TRANSITION_BUFFER_MINUTES = 10;
@@ -28,13 +34,22 @@ export const DEFAULT_SCHEDULING_PROFILE = Object.freeze({
   matching_note: null,
 });
 
-export function homeDistanceLimitFailureMessage(distanceKm) {
-  return `מרחק הנסיעה לבית הספר הוא ${Math.round(Number(distanceKm))} ק״מ ועולה על המגבלה של ${MAX_HOME_DISTANCE_KM} ק״מ`;
+export function resolveMatchingHomeDistanceLimitKm({ district = '', stage = 1 } = {}) {
+  const normalized = normalizeOperationalDistrict(district);
+  const stageNumber = Math.max(1, Math.floor(Number(stage) || 1));
+  if (stageNumber >= 2 && normalized === 'צפון') return NORTH_STAGE2_MAX_HOME_DISTANCE_KM;
+  return MAX_HOME_DISTANCE_KM;
 }
 
-export function exceedsHomeDistanceLimit(distanceKm) {
+export function homeDistanceLimitFailureMessage(distanceKm, maxKm = MAX_HOME_DISTANCE_KM) {
+  const limit = Number.isFinite(Number(maxKm)) ? Number(maxKm) : MAX_HOME_DISTANCE_KM;
+  return `מרחק הנסיעה לבית הספר הוא ${Math.round(Number(distanceKm))} ק״מ ועולה על המגבלה של ${limit} ק״מ`;
+}
+
+export function exceedsHomeDistanceLimit(distanceKm, maxKm = MAX_HOME_DISTANCE_KM) {
   const km = Number(distanceKm);
-  return Number.isFinite(km) && km > MAX_HOME_DISTANCE_KM;
+  const limit = Number.isFinite(Number(maxKm)) ? Number(maxKm) : MAX_HOME_DISTANCE_KM;
+  return Number.isFinite(km) && km > limit;
 }
 
 export function homeDistanceRequiresManagerApproval(distanceKm) {
@@ -179,8 +194,12 @@ export function evaluateInstructor({
   fixedCourseCount = null,
   weeklyWorkDayCount = null,
   workloadPoints = null,
-  includeLegacyScore = true
+  includeLegacyScore = true,
+  maxHomeDistanceKm = MAX_HOME_DISTANCE_KM
 }) {
+  const homeDistanceLimitKm = Number.isFinite(Number(maxHomeDistanceKm))
+    ? Number(maxHomeDistanceKm)
+    : MAX_HOME_DISTANCE_KM;
   const profile = normalizeSchedulingProfile(rawProfile);
   const failures = [];
   const missingProfileData = [];
@@ -375,8 +394,8 @@ export function evaluateInstructor({
   } else if (travelIssues.length) {
     travelCheck = checkResult(false, 'מרחק', travelIssues[0].message);
   } else if (homeKm != null && Number.isFinite(Number(homeKm)) && homeMinutes != null && Number.isFinite(Number(homeMinutes))) {
-    if (exceedsHomeDistanceLimit(homeKm)) {
-      const reason = homeDistanceLimitFailureMessage(homeKm);
+    if (exceedsHomeDistanceLimit(homeKm, homeDistanceLimitKm)) {
+      const reason = homeDistanceLimitFailureMessage(homeKm, homeDistanceLimitKm);
       failures.push(reason);
       travelCheck = checkResult(false, 'מרחק', reason);
     } else {

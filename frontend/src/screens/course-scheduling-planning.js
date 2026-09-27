@@ -24,6 +24,12 @@ import {
 import { normalizeOperationalDistrict } from './shared/district-normalization.js';
 import { escapeHtml } from './shared/html.js';
 import { formatDateHe, formatTimeRangeShort } from './shared/format-date.js';
+import { missingCourseInformation } from './course-scheduling-engine-core.js';
+import {
+  MAX_HOME_DISTANCE_KM,
+  NORTH_STAGE2_MAX_HOME_DISTANCE_KM,
+  resolveMatchingHomeDistanceLimitKm
+} from './instructor-matching-engine.js';
 
 const text = (value) => String(value ?? '').trim();
 const idOf = (row) => text(row?.row_id || row?.RowID || row?.id);
@@ -67,8 +73,8 @@ export const PLANNING_OPTIMIZATION_WEIGHTS = Object.freeze({
   geography: 15,
   stability: 10
 });
-export const PLANNING_VALIDATION_VERSION = 'planning-validation-v1-20260927-self-invalidation';
-export const PLANNING_ENGINE_VERSION = 'planning-v21-20260927-self-invalidation';
+export const PLANNING_VALIDATION_VERSION = 'planning-validation-v2-20260927-north-stage2-incremental';
+export const PLANNING_ENGINE_VERSION = 'planning-v22-20260927-north-stage2-incremental-persist';
 export const PLANNING_ACTIVITY_NO_ALIASES = Object.freeze({
   // Legacy Gefen identifier retained on existing activities; canonical catalog program is 53828.
   '82835': '53828'
@@ -92,6 +98,52 @@ export class PlanningCancelledError extends Error {
 
 export function isPlanningCancellationError(error) {
   return error?.code === 'planning_cancelled' || error?.name === 'PlanningCancelledError' || error?.name === 'AbortError';
+}
+
+export function activityOperationalDistrict(activity = {}) {
+  return normalizeOperationalDistrict(
+    activity?.district || activity?.school_district || activity?.authority_district
+  );
+}
+
+export function planningActivityMissingCriticalData(activity = {}, { periodKey = DEFAULT_PLANNING_PERIOD_KEY } = {}) {
+  const missing = missingCourseInformation(activity, { periodKey });
+  const critical = missing.filter((item) =>
+    /שיוך בית ספר|בית ספר|כתובת בית הספר/.test(text(item))
+  );
+  if (!text(activity?.school) || !text(activity?.school_id)) {
+    if (!critical.includes('בית ספר')) critical.push('בית ספר');
+  }
+  if (!text(activity?.school_address) && !text(activity?.school_id)) {
+    if (!critical.includes('כתובת בית הספר')) critical.push('כתובת בית הספר');
+  }
+  return [...new Set(critical.map(text).filter(Boolean))];
+}
+
+/** Stable geographic cluster key for recruitment packing within a district. */
+export function recruitmentAuthorityRegionKey(authority = '', district = '') {
+  const value = norm(authority);
+  if (!value) return `unknown:${normalizeOperationalDistrict(district) || 'general'}`;
+  const northRegions = [
+    ['גליל-עליון', ['קריית שמונה', 'קרית שמונה', 'ק״ש', 'מטולה', 'חצור', 'ראש פינה', 'צפת', 'יסוד המעלה']],
+    ['גליל-מערבי', ['נהריה', 'נהרייה', 'עכו', 'מעלות', 'כפר יאסיף', 'תירן', 'שלומי']],
+    ['עמקים', ['עפולה', 'בית שאן', 'נצרת עילית', 'נוף הגליל', 'מגדל העמק', 'יוקנעם', 'יקנעם']],
+    ['חיפה', ['חיפה', 'טירת כרמל', 'נשר', 'קריית אתא', 'קריית ביאליק', 'קריית מוצקין', 'קריית ים']],
+    ['משולש-צפון', ['אום אל-פחם', 'אום אל פחם', 'באקה', 'ג׳סר א־זרקא', 'גסר אזרקא', 'כפר קרע']]
+  ];
+  if (normalizeOperationalDistrict(district) === 'צפון') {
+    for (const [region, tokens] of northRegions) {
+      if (tokens.some((token) => value.includes(norm(token)))) return `צפון:${region}`;
+    }
+  }
+  return `${normalizeOperationalDistrict(district) || 'general'}:authority:${value}`;
+}
+
+export function resolvePlanningHomeDistanceLimitKm(activity = {}, stage = 1) {
+  return resolveMatchingHomeDistanceLimitKm({
+    district: activityOperationalDistrict(activity),
+    stage
+  });
 }
 
 export function createPlanningCheckpoint({
@@ -1215,8 +1267,12 @@ async function evaluateScenarioOptions({
   checkpoint = async () => {},
   signal = null,
   periodKey = DEFAULT_PLANNING_PERIOD_KEY,
-  limits = DEEP_PLANNING_LIMITS
+  limits = DEEP_PLANNING_LIMITS,
+  maxHomeDistanceKm = MAX_HOME_DISTANCE_KM
 } = {}) {
+  const homeDistanceLimitKm = Number.isFinite(Number(maxHomeDistanceKm))
+    ? Number(maxHomeDistanceKm)
+    : MAX_HOME_DISTANCE_KM;
   const preliminaries = [];
   for (let index = 0; index < scenarios.length; index += 1) {
     const course = scenarioCourse(activity, scenarios[index], index);
@@ -1229,12 +1285,18 @@ async function evaluateScenarioOptions({
       rules,
       exceptions,
       schoolCalendar,
-      referenceDate: today
+      referenceDate: today,
+      maxHomeDistanceKm: homeDistanceLimitKm
     }).map((item) => item.candidate).filter(Boolean)
       .map((candidate) => {
         const cachedHome = routeClient?.peek?.(candidate?.instructor?.address, course?.school_address);
         const km = Number(cachedHome?.distance_km);
         return Number.isFinite(km) && km >= 0 ? { ...candidate, _planningHomeDistanceKm: km } : candidate;
+      })
+      .filter((candidate) => {
+        const km = Number(candidate?._planningHomeDistanceKm);
+        if (!Number.isFinite(km)) return true;
+        return km <= homeDistanceLimitKm;
       })
       .sort((first, second) => {
         const firstLocality = planningLocalityTier({ candidate: first });
@@ -1258,7 +1320,8 @@ async function evaluateScenarioOptions({
       preliminaryCount: 0,
       routedAttemptCount: 0,
       routeVerified: true,
-      recruitmentNeeded: true
+      recruitmentNeeded: true,
+      maxHomeDistanceKm: homeDistanceLimitKm
     };
   }
 
@@ -1306,7 +1369,8 @@ async function evaluateScenarioOptions({
         referenceDate: today,
         travel: routed.travel,
         routeMatrix: routed.routeMatrix,
-        travelUnavailableReason: routed.unavailableReason || ''
+        travelUnavailableReason: routed.unavailableReason || '',
+        maxHomeDistanceKm: homeDistanceLimitKm
       })[0];
       const expectedEmpId = empOf(finalist.candidate);
       const finalCandidate = (finalResult?.checked || []).find((candidate) =>
@@ -1342,7 +1406,33 @@ async function evaluateScenarioOptions({
     preliminaryCount: preliminaries.length,
     routedAttemptCount,
     routeVerified,
-    recruitmentNeeded: sortedOptions.length === 0 && !routeServiceFailed && exhaustive
+    recruitmentNeeded: sortedOptions.length === 0 && !routeServiceFailed && exhaustive,
+    maxHomeDistanceKm: homeDistanceLimitKm
+  };
+}
+
+async function evaluatePlanningWithDistanceStages(evaluateOnce, activity = {}) {
+  const stage1Limit = resolvePlanningHomeDistanceLimitKm(activity, 1);
+  const stage1 = await evaluateOnce(stage1Limit);
+  if ((stage1.options || []).length > 0) {
+    return { ...stage1, distanceStage: 1, northStage2Attempted: false };
+  }
+  if (stage1.recruitmentNeeded !== true) {
+    return { ...stage1, distanceStage: 1, northStage2Attempted: false };
+  }
+  if (activityOperationalDistrict(activity) !== 'צפון') {
+    return { ...stage1, distanceStage: 1, northStage2Attempted: false };
+  }
+  const stage2Limit = resolvePlanningHomeDistanceLimitKm(activity, 2);
+  if (stage2Limit <= stage1Limit) {
+    return { ...stage1, distanceStage: 1, northStage2Attempted: false };
+  }
+  const stage2 = await evaluateOnce(stage2Limit);
+  return {
+    ...stage2,
+    distanceStage: (stage2.options || []).length > 0 ? 2 : 2,
+    northStage2Attempted: true,
+    stage1PreliminaryCount: Number(stage1.preliminaryCount) || 0
   };
 }
 
@@ -1359,8 +1449,12 @@ async function evaluateFixedCourse({
   checkpoint = async () => {},
   signal = null,
   periodKey = DEFAULT_PLANNING_PERIOD_KEY,
-  limits = DEEP_PLANNING_LIMITS
+  limits = DEEP_PLANNING_LIMITS,
+  maxHomeDistanceKm = MAX_HOME_DISTANCE_KM
 } = {}) {
+  const homeDistanceLimitKm = Number.isFinite(Number(maxHomeDistanceKm))
+    ? Number(maxHomeDistanceKm)
+    : MAX_HOME_DISTANCE_KM;
   const calendarRows = courseCalendarRows(activity, schoolCalendar);
   const blocked = blockedSchoolDates(calendarRows);
   if (activityMeetings(activity).some((meeting) => {
@@ -1375,7 +1469,8 @@ async function evaluateFixedCourse({
       routedAttemptCount: 0,
       routeVerified: true,
       recruitmentNeeded: false,
-      fixedScheduleInvalid: true
+      fixedScheduleInvalid: true,
+      maxHomeDistanceKm: homeDistanceLimitKm
     };
   }
 
@@ -1388,12 +1483,18 @@ async function evaluateFixedCourse({
     rules,
     exceptions,
     schoolCalendar,
-    referenceDate: today
+    referenceDate: today,
+    maxHomeDistanceKm: homeDistanceLimitKm
   }).map((item) => item.candidate).filter(Boolean)
     .map((candidate) => {
       const cachedHome = routeClient?.peek?.(candidate?.instructor?.address, activity?.school_address);
       const km = Number(cachedHome?.distance_km);
       return Number.isFinite(km) && km >= 0 ? { ...candidate, _planningHomeDistanceKm: km } : candidate;
+    })
+    .filter((candidate) => {
+      const km = Number(candidate?._planningHomeDistanceKm);
+      if (!Number.isFinite(km)) return true;
+      return km <= homeDistanceLimitKm;
     })
     .sort((first, second) => {
       const firstLocality = planningLocalityTier({ candidate: first });
@@ -1408,7 +1509,8 @@ async function evaluateFixedCourse({
       preliminaryCount: 0,
       routedAttemptCount: 0,
       routeVerified: false,
-      recruitmentNeeded: true
+      recruitmentNeeded: true,
+      maxHomeDistanceKm: homeDistanceLimitKm
     };
   }
 
@@ -1456,7 +1558,8 @@ async function evaluateFixedCourse({
       referenceDate: today,
       travel: routed.travel,
       routeMatrix: routed.routeMatrix,
-      travelUnavailableReason: routed.unavailableReason || ''
+      travelUnavailableReason: routed.unavailableReason || '',
+      maxHomeDistanceKm: homeDistanceLimitKm
     })[0];
 
     for (const finalist of batch) {
@@ -1492,7 +1595,8 @@ async function evaluateFixedCourse({
     preliminaryCount: candidates.length,
     routedAttemptCount,
     routeVerified,
-    recruitmentNeeded: sortedOptions.length === 0 && !routeServiceFailed && exhaustive
+    recruitmentNeeded: sortedOptions.length === 0 && !routeServiceFailed && exhaustive,
+    maxHomeDistanceKm: homeDistanceLimitKm
   };
 }
 
@@ -1768,7 +1872,8 @@ export function recruitmentRescueProbe({
   rules = {},
   exceptions = {},
   routeClient = null,
-  existingRows = []
+  existingRows = [],
+  maxHomeDistanceKm = null
 } = {}) {
   const schedules = recruitmentRescueSchedules(row);
   if (!schedules.length) {
@@ -1779,6 +1884,9 @@ export function recruitmentRescueProbe({
   const requiredLanguage = normalizedLanguageRequirement(row.requiredLanguage || activity.instruction_language);
   const requiredGender = normalizedGenderRequirement(row.requiredGender || activity.required_instructor_gender);
   const destination = text(activity.school_address);
+  const homeDistanceLimitKm = Number.isFinite(Number(maxHomeDistanceKm))
+    ? Number(maxHomeDistanceKm)
+    : resolvePlanningHomeDistanceLimitKm(activity || row, activityOperationalDistrict(activity || row) === 'צפון' ? 2 : 1);
   const matches = [];
 
   for (const instructor of instructors || []) {
@@ -1792,7 +1900,7 @@ export function recruitmentRescueProbe({
     const cachedHome = destination ? routeClient?.peek?.(instructor?.address, destination) : null;
     const homeKm = Number(cachedHome?.distance_km);
     const homeKnown = Number.isFinite(homeKm) && homeKm >= 0;
-    if (homeKnown && homeKm > 40) continue;
+    if (homeKnown && homeKm > homeDistanceLimitKm) continue;
 
     for (const schedule of schedules) {
       const available = schedule.meetings.every((meeting) =>
@@ -1835,7 +1943,8 @@ export function recruitmentRescueProbe({
     schedules: rescueScenarios,
     candidateEmpIds,
     knownMatches: matches.filter((match) => match.routeKnown).length,
-    unknownRouteMatches: matches.filter((match) => !match.routeKnown).length
+    unknownRouteMatches: matches.filter((match) => !match.routeKnown).length,
+    maxHomeDistanceKm: homeDistanceLimitKm
   };
 }
 
@@ -1850,11 +1959,35 @@ function meetingGapMinutes(first = {}, second = {}) {
   return -1;
 }
 
+export function recruitmentRegionsCompatible(profileRegion = '', rowRegion = '', district = '') {
+  const left = text(profileRegion);
+  const right = text(rowRegion);
+  if (!left || !right) return true;
+  if (left === right) return true;
+  const leftExplicitNorth = /^צפון:(?!authority:)/.test(left);
+  const rightExplicitNorth = /^צפון:(?!authority:)/.test(right);
+  if (leftExplicitNorth || rightExplicitNorth) return left === right;
+  const dist = normalizeOperationalDistrict(district);
+  if (dist && left.startsWith(`${dist}:`) && right.startsWith(`${dist}:`)) return true;
+  return false;
+}
+
 function recruitmentProfileCanTake(profile, row, schedule) {
   const district = normalizeOperationalDistrict(row.district) || text(row.district);
   if (profile.district && district && profile.district !== district) return false;
   const gender = normalizedGenderRequirement(row.requiredGender);
   if (profile.gender !== 'any' && gender !== 'any' && profile.gender !== gender) return false;
+
+  const language = normalizedLanguageRequirement(row.requiredLanguage);
+  if (language && profile.languages.size) {
+    // A hire slot is one real person. Do not mix Hebrew-only and Arabic-only demand
+    // unless the row itself requires a bilingual instructor.
+    const bilingual = /דו.?לשונ|bilingual/i.test(text(row.requiredLanguage));
+    if (!bilingual && ![...profile.languages].every((item) => item === language)) return false;
+  }
+
+  const region = recruitmentAuthorityRegionKey(row.authority, district);
+  if (!recruitmentRegionsCompatible(profile.region, region, district)) return false;
 
   for (const existing of profile.meetings) {
     for (const incoming of schedule.meetings || []) {
@@ -1862,8 +1995,12 @@ function recruitmentProfileCanTake(profile, row, schedule) {
       if (text(existing.date) === text(incoming.date)) {
         const sameSchool = norm(existing.school) && norm(existing.school) === norm(row.school);
         const sameAuthority = norm(existing.authority) && norm(existing.authority) === norm(row.authority);
-        if (!sameAuthority) return false;
-        if (!sameSchool && meetingGapMinutes(existing, incoming) < 30) return false;
+        const gap = meetingGapMinutes(existing, incoming);
+        if (gap < 0) return false;
+        if (!sameSchool) {
+          const requiredGap = sameAuthority ? 30 : 90;
+          if (gap < requiredGap) return false;
+        }
       }
     }
   }
@@ -1934,6 +2071,7 @@ export function assignRecruitmentProfiles(rows = []) {
         id: `recruitment-${district || 'general'}-${districtIndex}`,
         label: district ? `תקן גיוס ${district} ${districtIndex}` : `תקן גיוס ${profiles.length + 1}`,
         district,
+        region: recruitmentAuthorityRegionKey(row.authority, district),
         gender: normalizedGenderRequirement(row.requiredGender),
         languages: new Set(),
         authorities: new Set(),
@@ -1951,6 +2089,7 @@ export function assignRecruitmentProfiles(rows = []) {
     if (profile.gender === 'any' && gender !== 'any') profile.gender = gender;
     const language = normalizedLanguageRequirement(row.requiredLanguage);
     if (language) profile.languages.add(language);
+    if (!profile.region) profile.region = recruitmentAuthorityRegionKey(row.authority, profile.district);
     if (norm(row.authority)) profile.authorities.add(norm(row.authority));
     if (norm(row.courseName)) profile.programs.add(norm(row.courseName));
     for (const meeting of schedule.meetings || []) {
@@ -1973,15 +2112,21 @@ export function assignRecruitmentProfiles(rows = []) {
     if (!row.recruitmentProfileId) continue;
     const profile = profileById.get(row.recruitmentProfileId);
     row.recruitmentProfileSize = profile?.activities?.length || 1;
-    row.reason = `לאחר מיצוי אפשרויות הצוות הקיים: נדרש גיוס. הפעילות משויכת ל${row.recruitmentProfileLabel}, שמרכז ${row.recruitmentProfileSize} פעילויות לאורך התקופה ללא חפיפה.`;
+    row.reason = `לאחר מיצוי אפשרויות הצוות הקיים: נדרש גיוס. הפעילות משויכת ל${row.recruitmentProfileLabel}, שמרכז ${row.recruitmentProfileSize} פעילויות בתוכנית עבודה אפשרית לאדם אחד (אותו מחוז/אזור, אותה שפה, ללא חפיפות ועם זמן מעבר).`;
   }
   return result;
 }
 
 function planRowFromOption(activity, option, options, startRange, spec, diagnostics = {}) {
-  const recruitmentNeeded = !option && diagnostics.recruitmentNeeded === true;
+  const missingCritical = planningActivityMissingCriticalData(activity);
+  const recruitmentNeeded = !option
+    && diagnostics.recruitmentNeeded === true
+    && missingCritical.length === 0;
+  const requiresDataFix = !option && missingCritical.length > 0;
   const scheduleOptions = diagnostics.scheduleOptions || [];
   const scheduleOnly = scheduleOptions[0] || null;
+  const distanceStage = Number(diagnostics.distanceStage) || 1;
+  const stage2Label = distanceStage >= 2 ? 'מרחק שלב 2 · 40–60 ק״מ' : '';
   return {
     courseId: idOf(activity),
     authority: text(activity.authority),
@@ -2005,7 +2150,9 @@ function planRowFromOption(activity, option, options, startRange, spec, diagnost
     previousDraftInstructorName: text(activity.draft_instructor_name || activity.draft_emp_id),
     sessions: spec?.sessions || meetingCount(activity),
     kind: option ? 'proposal' : (recruitmentNeeded ? 'recruitment' : 'missing'),
-    status: option ? 'מועד מומלץ לבית הספר' : (recruitmentNeeded ? 'נדרש גיוס' : 'נדרש טיפול'),
+    status: option
+      ? (distanceStage >= 2 ? `מועד מומלץ לבית הספר · ${stage2Label}` : 'מועד מומלץ לבית הספר')
+      : (recruitmentNeeded ? 'נדרש גיוס' : (requiresDataFix ? 'חסר מידע לתכנון' : 'נדרש טיפול')),
     startDate: option?.startDate || scheduleOnly?.startDate || '',
     endDate: option?.endDate || scheduleOnly?.endDate || '',
     startTime: option?.startTime || scheduleOnly?.startTime || '',
@@ -2016,17 +2163,24 @@ function planRowFromOption(activity, option, options, startRange, spec, diagnost
     scheduleOptions,
     options: (options || []).map(({ _candidate, ...item }) => item),
     startRange,
+    distanceStage,
     diagnostics: {
       preliminaryCount: Number(diagnostics.preliminaryCount) || 0,
       routedAttemptCount: Number(diagnostics.routedAttemptCount) || 0,
-      routeVerified: diagnostics.routeVerified === true
+      routeVerified: diagnostics.routeVerified === true,
+      distanceStage,
+      northStage2Attempted: diagnostics.northStage2Attempted === true,
+      maxHomeDistanceKm: Number(diagnostics.maxHomeDistanceKm) || MAX_HOME_DISTANCE_KM,
+      missingCritical
     },
     reason: option?.reason
-      || (recruitmentNeeded
-        ? 'לא נמצא אף מדריך פעיל שעומד בתנאי הסף בכל חלונות התכנון שנבדקו — רק בשלב זה נדרש גיוס'
-        : diagnostics.routeVerified === false && Number(diagnostics.preliminaryCount) > 0
-          ? 'נמצאו מדריכים אפשריים לפי הזמינות, אך לא ניתן עדיין לאמת את הנסיעות — לא מסומן לגיוס'
-          : 'לא נמצאה עדיין התאמה מאומתת; נדרשת בדיקה נוספת לפני החלטה על גיוס')
+      || (requiresDataFix
+        ? `חסר מידע קריטי לתכנון (${missingCritical.join(', ')}) — לא מסומן לגיוס`
+        : (recruitmentNeeded
+          ? 'לא נמצא אף מדריך פעיל שעומד בתנאי הסף בכל חלונות התכנון שנבדקו — רק בשלב זה נדרש גיוס'
+          : diagnostics.routeVerified === false && Number(diagnostics.preliminaryCount) > 0
+            ? 'נמצאו מדריכים אפשריים לפי הזמינות, אך לא ניתן עדיין לאמת את הנסיעות — לא מסומן לגיוס'
+            : 'לא נמצאה עדיין התאמה מאומתת; נדרשת בדיקה נוספת לפני החלטה על גיוס'))
   };
 }
 
@@ -2822,6 +2976,64 @@ export function planningLegacyPlainContextFingerprint(input = {}, marker = PLANN
   return fnv1aHash(value);
 }
 
+/**
+ * Engine/version bumps must never alone force a full rebuild.
+ * Mark only rows that the new rules can change — north distance stage-2,
+ * recruitment/missing coverage rows, and unlocked north proposals.
+ */
+export function planningEngineChangeAffectedCourseIds({
+  shared = {},
+  activities = [],
+  currentCourseIds = [],
+  previousEngineVersion = '',
+  nextEngineVersion = PLANNING_ENGINE_VERSION
+} = {}) {
+  void previousEngineVersion;
+  void nextEngineVersion;
+  const currentIds = new Set((currentCourseIds || []).map(text).filter(Boolean));
+  const activityById = new Map((activities || []).map((activity) => [idOf(activity), activity]));
+  const affected = new Set();
+  for (const entry of shared?.rows || []) {
+    const courseId = text(entry?.activityId || entry?.row?.courseId);
+    if (!courseId || !currentIds.has(courseId)) continue;
+    const row = entry?.row || {};
+    const activity = activityById.get(courseId) || {};
+    const district = normalizeOperationalDistrict(
+      row.district || activityOperationalDistrict(activity)
+    );
+    const kind = text(row.kind);
+    if (district === 'צפון') {
+      if (['recruitment', 'missing', 'proposal', 'fixed-proposal'].includes(kind)) {
+        if (!entry?.lockedOption && kind !== 'live') affected.add(courseId);
+      }
+      continue;
+    }
+    if (kind === 'recruitment' || kind === 'missing') affected.add(courseId);
+  }
+  return [...affected];
+}
+
+export function resolvePlanningFullRunDecision({
+  forceFull = false,
+  hasWorkspace = false,
+  existingRowCount = 0,
+  unrecoverableGlobalContextChange = false
+} = {}) {
+  if (forceFull === true) {
+    return { fullRun: true, fullRunReason: 'force_full' };
+  }
+  if (!hasWorkspace) {
+    return { fullRun: true, fullRunReason: 'no_workspace' };
+  }
+  if (!existingRowCount) {
+    return { fullRun: true, fullRunReason: 'no_existing_rows' };
+  }
+  if (unrecoverableGlobalContextChange === true) {
+    return { fullRun: true, fullRunReason: 'unrecoverable_global_context' };
+  }
+  return { fullRun: false, fullRunReason: '' };
+}
+
 export function resolvePlanningContextChange({
   storedFingerprint = '',
   currentInput = {},
@@ -2994,7 +3206,11 @@ export async function buildDynamicCoursePlan({
         rules,
         exceptions,
         routeClient,
-        existingRows
+        existingRows,
+        maxHomeDistanceKm: resolvePlanningHomeDistanceLimitKm(
+          activity,
+          activityOperationalDistrict(activity) === 'צפון' ? 2 : 1
+        )
       });
       if (!rescue.possible) {
         rowsById.set(activityId, {
@@ -3089,29 +3305,54 @@ export async function buildDynamicCoursePlan({
     await report('בדיקת מדריכים', completed, queue.length, idOf(activity));
     await report('בדיקת נסיעות', completed, queue.length, idOf(activity));
     if (type === 'fixed') {
-      const evaluation = await evaluateFixedCourse({
-        activity,
-        contextActivities: currentContext,
-        instructors,
-        profiles,
-        rules,
-        exceptions,
-        schoolCalendar,
-        today,
-        routeClient,
-        checkpoint,
-        signal,
-        periodKey: activityPeriodKey,
-        limits
-      });
+      const missingCritical = planningActivityMissingCriticalData(activity, { periodKey: activityPeriodKey });
+      if (missingCritical.length) {
+        const fixedLive = liveRow(activity, activityPeriodKey, { rules, exceptions, schoolCalendar });
+        rowsById.set(idOf(activity), {
+          ...fixedLive,
+          kind: 'missing',
+          status: 'חסר מידע לתכנון',
+          instructorName: '',
+          instructorEmpId: '',
+          options: [],
+          diagnostics: { missingCritical, recruitmentNeeded: false },
+          reason: `חסר מידע קריטי לתכנון (${missingCritical.join(', ')}) — לא מסומן לגיוס`
+        });
+        completed += 1;
+        const partialRows = targets.map((target) => rowsById.get(idOf(target)) || missingOverviewRow(target, catalog));
+        await report('בניית תוכנית', completed, queue.length, idOf(activity), partialRows);
+        continue;
+      }
+      const evaluation = await evaluatePlanningWithDistanceStages(
+        (limitKm) => evaluateFixedCourse({
+          activity,
+          contextActivities: currentContext,
+          instructors,
+          profiles,
+          rules,
+          exceptions,
+          schoolCalendar,
+          today,
+          routeClient,
+          checkpoint,
+          signal,
+          periodKey: activityPeriodKey,
+          limits,
+          maxHomeDistanceKm: limitKm
+        }),
+        activity
+      );
       const options = evaluation.options || [];
       const chosen = options[0] || null;
       const recruitmentNeeded = !chosen && evaluation.recruitmentNeeded === true;
       const fixedLive = liveRow(activity, activityPeriodKey, { rules, exceptions, schoolCalendar });
+      const distanceStage = Number(evaluation.distanceStage) || 1;
       const row = {
         ...fixedLive,
         kind: chosen ? 'fixed-proposal' : (recruitmentNeeded ? 'recruitment' : 'missing'),
-        status: chosen ? 'מדריך מומלץ למועד הקבוע' : (recruitmentNeeded ? 'נדרש גיוס' : 'נדרש טיפול'),
+        status: chosen
+          ? (distanceStage >= 2 ? 'מדריך מומלץ למועד הקבוע · מרחק שלב 2 · 40–60 ק״מ' : 'מדריך מומלץ למועד הקבוע')
+          : (recruitmentNeeded ? 'נדרש גיוס' : 'נדרש טיפול'),
         instructorName: chosen?.instructorName || '',
         instructorEmpId: chosen?.instructorEmpId || '',
         meetings: chosen?.meetings || fixedLive.meetings,
@@ -3136,11 +3377,15 @@ export async function buildDynamicCoursePlan({
           : [],
         previousDraftInstructorName: text(activity.draft_instructor_name || activity.draft_emp_id),
         district: text(activity.district || activity.school_district || activity.authority_district),
+        distanceStage,
         options: options.map(({ _candidate, ...option }) => option),
         diagnostics: {
           preliminaryCount: Number(evaluation.preliminaryCount) || 0,
           routedAttemptCount: Number(evaluation.routedAttemptCount) || 0,
-          routeVerified: evaluation.routeVerified === true
+          routeVerified: evaluation.routeVerified === true,
+          distanceStage,
+          northStage2Attempted: evaluation.northStage2Attempted === true,
+          maxHomeDistanceKm: Number(evaluation.maxHomeDistanceKm) || MAX_HOME_DISTANCE_KM
         },
         reason: chosen?.reason
           || (evaluation.fixedScheduleInvalid
@@ -3155,6 +3400,16 @@ export async function buildDynamicCoursePlan({
       const virtual = blockingVirtualActivity(activity, chosen);
       if (virtual) virtualPlans.push(virtual);
     } else {
+      const missingCritical = planningActivityMissingCriticalData(activity, { periodKey: activityPeriodKey });
+      if (missingCritical.length) {
+        rowsById.set(idOf(activity), {
+          ...missingOverviewRow(activity, catalog),
+          kind: 'missing',
+          status: 'חסר מידע לתכנון',
+          diagnostics: { missingCritical, recruitmentNeeded: false },
+          reason: `חסר מידע קריטי לתכנון (${missingCritical.join(', ')}) — לא מסומן לגיוס`
+        });
+      } else {
       const rescue = recruitmentRescueById.get(idOf(activity));
       if (rescue) {
         await report('בדיקת הצלה מהירה מגיוס', completed, queue.length, idOf(activity));
@@ -3164,30 +3419,34 @@ export async function buildDynamicCoursePlan({
         const rescueRange = rescueStartDates.length
           ? { min: rescueStartDates[0], max: rescueStartDates.at(-1) }
           : null;
-        const rescueEvaluation = await evaluateScenarioOptions({
-          activity,
-          scenarios: rescue.schedules,
-          startRange: rescueRange,
-          contextActivities: currentContext,
-          instructors: rescueInstructors,
-          profiles,
-          rules,
-          exceptions,
-          schoolCalendar,
-          today,
-          routeClient,
-          checkpoint,
-          signal,
-          periodKey: activityPeriodKey,
-          limits: {
-            ...FAST_PLANNING_LIMITS,
-            maxScenarios: Math.max(1, rescue.schedules.length),
-            maxCandidatesPerScenario: Math.max(1, Math.min(6, rescueInstructors.length)),
-            maxRoutedPlanningPairs: 3,
-            maxFinalOptions: 1,
-            runGlobalRepair: false
-          }
-        });
+        const rescueEvaluation = await evaluatePlanningWithDistanceStages(
+          (limitKm) => evaluateScenarioOptions({
+            activity,
+            scenarios: rescue.schedules,
+            startRange: rescueRange,
+            contextActivities: currentContext,
+            instructors: rescueInstructors,
+            profiles,
+            rules,
+            exceptions,
+            schoolCalendar,
+            today,
+            routeClient,
+            checkpoint,
+            signal,
+            periodKey: activityPeriodKey,
+            limits: {
+              ...FAST_PLANNING_LIMITS,
+              maxScenarios: Math.max(1, rescue.schedules.length),
+              maxCandidatesPerScenario: Math.max(1, Math.min(6, rescueInstructors.length)),
+              maxRoutedPlanningPairs: 3,
+              maxFinalOptions: 1,
+              runGlobalRepair: false
+            },
+            maxHomeDistanceKm: limitKm
+          }),
+          activity
+        );
         const rescueOptions = rescueEvaluation.options || [];
         const rescued = rescueOptions[0] || null;
         if (rescued) {
@@ -3217,7 +3476,8 @@ export async function buildDynamicCoursePlan({
               fastRecruitmentRescue: true,
               rescueCandidateCount: rescue.candidateEmpIds.length,
               rescueScheduleCount: rescue.schedules.length,
-              rescueRouteVerified: rescueEvaluation.routeVerified === true
+              rescueRouteVerified: rescueEvaluation.routeVerified === true,
+              northStage2Attempted: rescueEvaluation.northStage2Attempted === true
             }
           });
         }
@@ -3237,23 +3497,27 @@ export async function buildDynamicCoursePlan({
       if (!generated.spec.complete) {
         rowsById.set(idOf(activity), missingOverviewRow(activity, catalog));
       } else {
-        let evaluation = await evaluateScenarioOptions({
-          activity,
-          scenarios: generated.scenarios,
-          startRange: generated.startRange,
-          contextActivities: currentContext,
-          instructors,
-          profiles,
-          rules,
-          exceptions,
-          schoolCalendar,
-          today,
-          routeClient,
-          checkpoint,
-          signal,
-          periodKey: activityPeriodKey,
-          limits
-        });
+        let evaluation = await evaluatePlanningWithDistanceStages(
+          (limitKm) => evaluateScenarioOptions({
+            activity,
+            scenarios: generated.scenarios,
+            startRange: generated.startRange,
+            contextActivities: currentContext,
+            instructors,
+            profiles,
+            rules,
+            exceptions,
+            schoolCalendar,
+            today,
+            routeClient,
+            checkpoint,
+            signal,
+            periodKey: activityPeriodKey,
+            limits,
+            maxHomeDistanceKm: limitKm
+          }),
+          activity
+        );
         let effectiveGenerated = generated;
 
         // Recruitment is a last resort. Fast planning may intentionally inspect
@@ -3278,23 +3542,27 @@ export async function buildDynamicCoursePlan({
             maxScenarios: DEEP_PLANNING_LIMITS.maxScenarios
           }, checkpoint);
           if (deepGenerated.spec.complete) {
-            const deepEvaluation = await evaluateScenarioOptions({
-              activity,
-              scenarios: deepGenerated.scenarios,
-              startRange: deepGenerated.startRange,
-              contextActivities: currentContext,
-              instructors,
-              profiles,
-              rules,
-              exceptions,
-              schoolCalendar,
-              today,
-              routeClient,
-              checkpoint,
-              signal,
-              periodKey: activityPeriodKey,
-              limits: DEEP_PLANNING_LIMITS
-            });
+            const deepEvaluation = await evaluatePlanningWithDistanceStages(
+              (limitKm) => evaluateScenarioOptions({
+                activity,
+                scenarios: deepGenerated.scenarios,
+                startRange: deepGenerated.startRange,
+                contextActivities: currentContext,
+                instructors,
+                profiles,
+                rules,
+                exceptions,
+                schoolCalendar,
+                today,
+                routeClient,
+                checkpoint,
+                signal,
+                periodKey: activityPeriodKey,
+                limits: DEEP_PLANNING_LIMITS,
+                maxHomeDistanceKm: limitKm
+              }),
+              activity
+            );
             evaluation = {
               ...deepEvaluation,
               rescuePass: true,
@@ -3320,6 +3588,7 @@ export async function buildDynamicCoursePlan({
         ));
         const virtual = blockingVirtualActivity(activity, chosen);
         if (virtual) virtualPlans.push(virtual);
+      }
       }
       }
     }
@@ -3350,7 +3619,68 @@ export async function buildDynamicCoursePlan({
   });
 
   const initialResult = summarize(rows, { repairApplied: _repairPass });
-  if (_repairPass || (incrementalIds && !resumeFromCheckpoint)) return initialResult;
+  if (_repairPass) return initialResult;
+
+  // Incremental runs stay scoped, but North recruitment still gets a targeted
+  // regional re-optimization over unlocked proposals before accepting hires.
+  if (incrementalIds && !resumeFromCheckpoint) {
+    const northRecruitmentIds = rows
+      .filter((row) => text(row?.kind) === 'recruitment')
+      .filter((row) => normalizeOperationalDistrict(row?.district) === 'צפון')
+      .map((row) => text(row?.courseId))
+      .filter(Boolean);
+    if (!northRecruitmentIds.length) return initialResult;
+
+    const regionalTargets = new Set([
+      ...northRecruitmentIds,
+      ...rows
+        .filter((row) => ['proposal', 'fixed-proposal'].includes(text(row?.kind)))
+        .filter((row) => normalizeOperationalDistrict(row?.district) === 'צפון')
+        .filter((row) => !row?.planningLocked)
+        .map((row) => text(row?.courseId))
+        .filter(Boolean)
+    ]);
+    if (regionalTargets.size <= northRecruitmentIds.length) return initialResult;
+
+    await report('אופטימיזציה אזורית בצפון', 0, regionalTargets.size);
+    const repaired = await buildDynamicCoursePlan({
+      activities,
+      instructors,
+      profiles,
+      rules,
+      exceptions,
+      schoolCalendar,
+      catalog,
+      district,
+      periodKey,
+      today,
+      routeClient,
+      lockedOptions,
+      existingRows: rows,
+      targetCourseIds: [...regionalTargets],
+      onProgress: typeof onProgress === 'function'
+        ? (progress) => onProgress({ ...progress, phase: `צפון · ${progress.phase}` })
+        : null,
+      signal,
+      checkpoint,
+      resumeFromCheckpoint: false,
+      _repairPass: true,
+      _repairPriorityIds: northRecruitmentIds,
+      planningProfile
+    });
+    const improved = comparePlanningPlanQuality(repaired.rows, rows) < 0
+      || (Number(repaired.recruitment) || 0) < (Number(initialResult.recruitment) || 0);
+    if (!improved) return { ...initialResult, northRegionalOptimization: { applied: false } };
+    return {
+      ...repaired,
+      repairApplied: true,
+      northRegionalOptimization: {
+        applied: true,
+        beforeRecruitment: initialResult.recruitment,
+        afterRecruitment: repaired.recruitment
+      }
+    };
+  }
 
   if (!limits.runGlobalRepair) return {
     ...initialResult,
