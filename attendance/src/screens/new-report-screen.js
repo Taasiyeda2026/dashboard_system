@@ -234,9 +234,10 @@ export function renderNewReportScreen(container, {
     const id = String(rowId || '').trim();
     if (!id) return null;
     if (id === BASE_TRAINING_OPTION_VALUE) return isBaseTrainingDate() ? BASE_TRAINING_ACTIVITY : null;
-    return instructorActivities.find((item) => activityRowId(item) === id)
+    const activity = instructorActivities.find((item) => activityRowId(item) === id)
       || extendedActivityByRowId.get(id)
       || null;
+    return isBaseTrainingActivity(activity) && !isBaseTrainingDate() ? null : activity;
   }
 
   function rememberExtendedActivity(activity) {
@@ -246,7 +247,8 @@ export function renderNewReportScreen(container, {
 
   function isBaseTrainingActivity(activity) {
     return activity?.__attendanceSynthetic === 'base_training'
-      || activityRowId(activity) === BASE_TRAINING_OPTION_VALUE;
+      || activityRowId(activity) === BASE_TRAINING_OPTION_VALUE
+      || selectedActivityName(activity) === BASE_TRAINING_ACTIVITY.activity_name;
   }
 
   async function syncBaseTrainingRoutePreview(activity) {
@@ -274,11 +276,18 @@ export function renderNewReportScreen(container, {
   }
 
   function activityOptionsForReportType(activities = [], reportType = getReportType(), query = '') {
-    const source = Array.isArray(activities) ? [...activities] : [];
-    if (reportType === TRAINING_REPORT_TYPE && isBaseTrainingDate()) {
-      const q = String(query || '').trim().toLowerCase();
-      if (!q || activitySearchHaystack(BASE_TRAINING_ACTIVITY).includes(q)) {
-        source.unshift(BASE_TRAINING_ACTIVITY);
+    let source = Array.isArray(activities) ? [...activities] : [];
+    if (reportType === TRAINING_REPORT_TYPE) {
+      if (!isBaseTrainingDate()) {
+        source = source.filter((activity) => !isBaseTrainingActivity(activity));
+      } else {
+        const q = String(query || '').trim().toLowerCase();
+        if (
+          (!q || activitySearchHaystack(BASE_TRAINING_ACTIVITY).includes(q))
+          && !source.some((activity) => isBaseTrainingActivity(activity))
+        ) {
+          source.unshift(BASE_TRAINING_ACTIVITY);
+        }
       }
     }
     return instructorActivitySelectOptions(source, { reportType });
