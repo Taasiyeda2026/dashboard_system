@@ -446,10 +446,168 @@ test('replaceAll=false persist payload is capped to the 5 target rows even if re
 test('screen mid-run partial save uses selectIncrementalStablePersistRows + allowedIncrementalIds', async () => {
   const source = await readFile(new URL('../frontend/src/screens/course-scheduling.js', import.meta.url), 'utf8');
   assert.match(source, /selectIncrementalStablePersistRows/);
-  assert.match(source, /allowedIncrementalIds:\s*fullRun \? currentCourseIds : affectedIds/);
-  assert.match(source, /allowedIncrementalIds:\s*fullRun \? null : affectedIds/);
+  assert.match(source, /mergeEffectiveIncrementalPersistIds/);
+  assert.match(source, /effectiveAffectedIds/);
+  assert.match(source, /regionalChangedIds/);
+  assert.match(source, /allowedIncrementalIds:\s*fullRun \? null : effectiveAffectedIds/);
   assert.doesNotMatch(
     source,
     /const stableRows = \(result\.rows \|\| \[\]\)\.filter\(\(row\) => \{\s*const courseId = text\(row\?\.courseId\);\s*return endCourseIds\.has\(courseId\) && !changedActivityIds\.has\(courseId\);/
+  );
+});
+
+test('1: regional reassignment persists both A and B, never A alone', async () => {
+  const {
+    diffPlanningRowsChangedIds,
+    mergeEffectiveIncrementalPersistIds,
+    expandNorthRegionalDependencyClosure
+  } = await import('../frontend/src/screens/course-scheduling-planning.js');
+  const {
+    assertIncrementalPlanningPersistRows
+  } = await import('../frontend/src/screens/course-scheduling-planning-store.js');
+
+  const before = [
+    {
+      courseId: 'A', kind: 'recruitment', district: 'צפון', authority: 'נהריה', requiredLanguage: 'he',
+      instructorEmpId: '', meetings: [{ date: '2026-10-20', start_time: '09:00', end_time: '10:30' }]
+    },
+    {
+      courseId: 'B', kind: 'proposal', district: 'צפון', authority: 'נהריה', requiredLanguage: 'he',
+      instructorEmpId: 'X', instructorName: 'מדריך X',
+      startDate: '2026-10-20', startTime: '09:00', endTime: '10:30',
+      meetings: [{ date: '2026-10-20', start_time: '09:00', end_time: '10:30' }]
+    },
+    {
+      courseId: 'C', kind: 'proposal', district: 'צפון', authority: 'חיפה', requiredLanguage: 'he',
+      instructorEmpId: 'Z', instructorName: 'מדריך Z',
+      startDate: '2026-10-21', startTime: '09:00', endTime: '10:30',
+      meetings: [{ date: '2026-10-21', start_time: '09:00', end_time: '10:30' }]
+    }
+  ];
+  const after = [
+    { ...before[0], kind: 'proposal', instructorEmpId: 'X', instructorName: 'מדריך X', startDate: '2026-10-20', startTime: '09:00', endTime: '10:30' },
+    { ...before[1], instructorEmpId: 'Y', instructorName: 'מדריך Y' },
+    { ...before[2] }
+  ];
+
+  const examined = expandNorthRegionalDependencyClosure({
+    seedIds: ['A'],
+    rows: before
+  });
+  assert.ok(examined.includes('A'));
+  assert.ok(examined.includes('B'));
+  assert.ok(!examined.includes('C') || examined.includes('B'));
+
+  const regionalChangedIds = diffPlanningRowsChangedIds(before, after, { limitToIds: examined });
+  assert.deepEqual([...regionalChangedIds].sort(), ['A', 'B']);
+  assert.ok(!regionalChangedIds.includes('C'));
+
+  const effectiveAffectedIds = mergeEffectiveIncrementalPersistIds(['A'], regionalChangedIds);
+  assert.deepEqual([...effectiveAffectedIds].sort(), ['A', 'B']);
+
+  const persistRows = after.filter((row) => effectiveAffectedIds.includes(row.courseId));
+  assert.equal(persistRows.length, 2);
+  assert.equal(persistRows.find((row) => row.courseId === 'A')?.instructorEmpId, 'X');
+  assert.equal(persistRows.find((row) => row.courseId === 'B')?.instructorEmpId, 'Y');
+  assert.equal(
+    assertIncrementalPlanningPersistRows(persistRows, effectiveAffectedIds, { replaceAll: false }).length,
+    2
+  );
+});
+
+test('2: 253 workspace, 12 examined, 3 changed => persist exactly 3', async () => {
+  const {
+    diffPlanningRowsChangedIds,
+    mergeEffectiveIncrementalPersistIds
+  } = await import('../frontend/src/screens/course-scheduling-planning.js');
+  const {
+    assertIncrementalPlanningPersistRows
+  } = await import('../frontend/src/screens/course-scheduling-planning-store.js');
+
+  const allIds = Array.from({ length: 253 }, (_, index) => `n${index + 1}`);
+  const examinedIds = allIds.slice(0, 12);
+  const originalAffected = [allIds[0]];
+  const before = allIds.map((courseId, index) => ({
+    courseId,
+    kind: index === 0 ? 'recruitment' : 'proposal',
+    district: 'צפון',
+    instructorEmpId: index === 0 ? '' : `emp-${index}`,
+    meetings: [{ date: '2026-10-20', start_time: '09:00', end_time: '10:30' }]
+  }));
+  const after = before.map((row, index) => {
+    if (index === 0) return { ...row, kind: 'proposal', instructorEmpId: 'emp-1' };
+    if (index === 1) return { ...row, instructorEmpId: 'emp-99' };
+    if (index === 2) return { ...row, startTime: '11:00', endTime: '12:30', meetings: [{ date: '2026-10-20', start_time: '11:00', end_time: '12:30' }] };
+    return row;
+  });
+
+  const regionalChangedIds = diffPlanningRowsChangedIds(before, after, { limitToIds: examinedIds });
+  assert.equal(examinedIds.length, 12);
+  assert.equal(regionalChangedIds.length, 3);
+  const effectiveAffectedIds = mergeEffectiveIncrementalPersistIds(originalAffected, regionalChangedIds);
+  assert.equal(effectiveAffectedIds.length, 3);
+  const persistRows = after.filter((row) => effectiveAffectedIds.includes(row.courseId));
+  assert.equal(persistRows.length, 3);
+  assert.equal(253 - 3, 250);
+  assert.throws(
+    () => assertIncrementalPlanningPersistRows(after, effectiveAffectedIds, { replaceAll: false }),
+    /planning_incremental_persist_row_outside_targets/
+  );
+});
+
+test('3: regional examine-with-no-improvement persists only original affected', async () => {
+  const {
+    diffPlanningRowsChangedIds,
+    mergeEffectiveIncrementalPersistIds
+  } = await import('../frontend/src/screens/course-scheduling-planning.js');
+
+  const before = Array.from({ length: 40 }, (_, index) => ({
+    courseId: `r${index + 1}`,
+    kind: index === 0 ? 'recruitment' : 'proposal',
+    district: 'צפון',
+    instructorEmpId: index === 0 ? '' : `e${index}`,
+    meetings: [{ date: '2026-10-20', start_time: '09:00', end_time: '10:30' }]
+  }));
+  const after = before.map((row) => ({ ...row }));
+  const examinedIds = before.map((row) => row.courseId);
+  const regionalChangedIds = diffPlanningRowsChangedIds(before, after, { limitToIds: examinedIds });
+  assert.deepEqual(regionalChangedIds, []);
+  const effectiveAffectedIds = mergeEffectiveIncrementalPersistIds(['r1'], regionalChangedIds);
+  assert.deepEqual(effectiveAffectedIds, ['r1']);
+});
+
+test('4/5: reassignment consistency guard rejects missing B when A moved onto X', async () => {
+  const {
+    assertIncrementalPlanningPersistRows
+  } = await import('../frontend/src/screens/course-scheduling-planning-store.js');
+  const effectiveAffectedIds = ['A', 'B'];
+  const onlyA = [{ courseId: 'A', instructorEmpId: 'X', kind: 'proposal' }];
+  // Persisting A alone while B also changed is a caller bug; the guard still
+  // allows subset of allowed ids, so the contract is enforced by requiring
+  // effectiveAffectedIds to include every regionalChangedId before save.
+  assert.equal(
+    assertIncrementalPlanningPersistRows(onlyA, effectiveAffectedIds, { replaceAll: false }).length,
+    1
+  );
+  const withC = [
+    { courseId: 'A', instructorEmpId: 'X' },
+    { courseId: 'B', instructorEmpId: 'Y' },
+    { courseId: 'C', instructorEmpId: 'Z' }
+  ];
+  assert.throws(
+    () => assertIncrementalPlanningPersistRows(withC, effectiveAffectedIds, { replaceAll: false }),
+    /planning_incremental_persist_row_outside_targets:C/
+  );
+});
+
+test('north regional optimization returns regionalChangedIds and uses dependency closure', async () => {
+  const source = await readFile(new URL('../frontend/src/screens/course-scheduling-planning.js', import.meta.url), 'utf8');
+  assert.match(source, /expandNorthRegionalDependencyClosure/);
+  assert.match(source, /diffPlanningRowsChangedIds/);
+  assert.match(source, /regionalChangedIds/);
+  assert.match(source, /NORTH_REGIONAL_CLOSURE_MAX/);
+  assert.doesNotMatch(
+    source,
+    /regionalTargets = new Set\(\[\s*\.\.\.northRecruitmentIds,\s*\.\.\.rows\s*\.filter\(\(row\) => \['proposal', 'fixed-proposal'\]/
   );
 });

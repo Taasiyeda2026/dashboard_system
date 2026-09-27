@@ -146,6 +146,145 @@ export function resolvePlanningHomeDistanceLimitKm(activity = {}, stage = 1) {
   });
 }
 
+const NORTH_REGIONAL_CLOSURE_MAX = 40;
+
+export function planningRowPlanningFingerprint(row = {}) {
+  const meetings = (Array.isArray(row?.meetings) ? row.meetings : []).map((meeting) => ({
+    date: text(meeting?.date).slice(0, 10),
+    start_time: text(meeting?.start_time).slice(0, 5),
+    end_time: text(meeting?.end_time).slice(0, 5),
+    substituteEmpId: text(meeting?.substituteEmpId)
+  }));
+  const primaryOption = Array.isArray(row?.options) && row.options[0] ? row.options[0] : null;
+  return JSON.stringify({
+    kind: text(row?.kind),
+    instructorEmpId: text(row?.instructorEmpId),
+    instructorName: text(row?.instructorName),
+    startDate: text(row?.startDate),
+    endDate: text(row?.endDate),
+    startTime: text(row?.startTime),
+    endTime: text(row?.endTime),
+    planningLocked: row?.planningLocked === true,
+    recruitmentProfileId: text(row?.recruitmentProfileId),
+    meetings,
+    primaryOptionEmpId: text(primaryOption?.instructorEmpId),
+    primaryOptionStart: text(primaryOption?.startDate),
+    primaryOptionStartTime: text(primaryOption?.startTime)
+  });
+}
+
+export function diffPlanningRowsChangedIds(beforeRows = [], afterRows = [], { limitToIds = null } = {}) {
+  const beforeById = new Map(
+    (beforeRows || []).map((row) => [text(row?.courseId), row]).filter(([id]) => !!id)
+  );
+  const limit = limitToIds
+    ? new Set([...limitToIds].map(text).filter(Boolean))
+    : null;
+  const changed = [];
+  for (const row of afterRows || []) {
+    const courseId = text(row?.courseId);
+    if (!courseId) continue;
+    if (limit && !limit.has(courseId)) continue;
+    const previous = beforeById.get(courseId);
+    if (!previous || planningRowPlanningFingerprint(previous) !== planningRowPlanningFingerprint(row)) {
+      changed.push(courseId);
+    }
+  }
+  return changed;
+}
+
+export function mergeEffectiveIncrementalPersistIds(originalAffectedIds = [], regionalChangedIds = []) {
+  return [...new Set([
+    ...(originalAffectedIds || []).map(text).filter(Boolean),
+    ...(regionalChangedIds || []).map(text).filter(Boolean)
+  ])];
+}
+
+function planningRowMeetingSlots(row = {}) {
+  return (Array.isArray(row?.meetings) ? row.meetings : [])
+    .map((meeting) => ({
+      date: text(meeting?.date).slice(0, 10),
+      weekday: weekday(meeting?.date),
+      start: timeMinutes(meeting?.start_time),
+      end: timeMinutes(meeting?.end_time)
+    }))
+    .filter((slot) => slot.date && slot.start != null && slot.end != null);
+}
+
+function planningRowsShareScheduleProximity(left = {}, right = {}) {
+  const leftSlots = planningRowMeetingSlots(left);
+  const rightSlots = planningRowMeetingSlots(right);
+  for (const a of leftSlots) {
+    for (const b of rightSlots) {
+      if (a.date === b.date) return true;
+      if (a.weekday === b.weekday && Math.abs(a.start - b.start) <= 180) return true;
+    }
+  }
+  return false;
+}
+
+export function planningRowsShareNorthRegionalDependency(seedRow = {}, candidateRow = {}) {
+  if (normalizeOperationalDistrict(seedRow?.district) !== 'צפון') return false;
+  if (normalizeOperationalDistrict(candidateRow?.district) !== 'צפון') return false;
+  if (['live', 'planning-locked'].includes(text(candidateRow?.kind))) return false;
+  if (candidateRow?.planningLocked === true) return false;
+
+  const seedLanguage = normalizedLanguageRequirement(seedRow?.requiredLanguage);
+  const candidateLanguage = normalizedLanguageRequirement(candidateRow?.requiredLanguage);
+  if (seedLanguage && candidateLanguage && seedLanguage !== candidateLanguage) return false;
+
+  const seedRegion = recruitmentAuthorityRegionKey(seedRow?.authority, seedRow?.district);
+  const candidateRegion = recruitmentAuthorityRegionKey(candidateRow?.authority, candidateRow?.district);
+  const regionOk = recruitmentRegionsCompatible(seedRegion, candidateRegion, 'צפון');
+  const sharedInstructor = !!text(candidateRow?.instructorEmpId)
+    && (
+      text(candidateRow.instructorEmpId) === text(seedRow?.instructorEmpId)
+      || (Array.isArray(seedRow?.options) && seedRow.options.some((option) =>
+        text(option?.instructorEmpId) === text(candidateRow.instructorEmpId)
+      ))
+    );
+  if (!regionOk && !sharedInstructor) return false;
+  if (sharedInstructor) return true;
+  if (planningRowsShareScheduleProximity(seedRow, candidateRow)) return true;
+  // Same-region unlocked proposal can free capacity for nearby recruitment even
+  // when the seed still has no concrete meetings.
+  if (regionOk && text(seedRow?.kind) === 'recruitment' && !planningRowMeetingSlots(seedRow).length) {
+    return ['proposal', 'fixed-proposal'].includes(text(candidateRow?.kind));
+  }
+  return false;
+}
+
+export function expandNorthRegionalDependencyClosure({
+  seedIds = [],
+  rows = [],
+  maxRows = NORTH_REGIONAL_CLOSURE_MAX
+} = {}) {
+  const byId = new Map((rows || []).map((row) => [text(row?.courseId), row]).filter(([id]) => !!id));
+  const seed = [...new Set((seedIds || []).map(text).filter((id) => byId.has(id)))];
+  const closure = new Set(seed);
+  let frontier = [...seed];
+  const limit = Math.max(1, Number(maxRows) || NORTH_REGIONAL_CLOSURE_MAX);
+
+  while (frontier.length && closure.size < limit) {
+    const next = [];
+    for (const seedId of frontier) {
+      const seedRow = byId.get(seedId);
+      if (!seedRow) continue;
+      for (const [candidateId, candidateRow] of byId) {
+        if (closure.has(candidateId)) continue;
+        if (!['proposal', 'fixed-proposal', 'recruitment'].includes(text(candidateRow?.kind))) continue;
+        if (!planningRowsShareNorthRegionalDependency(seedRow, candidateRow)) continue;
+        closure.add(candidateId);
+        next.push(candidateId);
+        if (closure.size >= limit) break;
+      }
+      if (closure.size >= limit) break;
+    }
+    frontier = next;
+  }
+  return [...closure];
+}
+
 export function createPlanningCheckpoint({
   budgetMs = PLANNING_CPU_SLICE_MS,
   now = () => (typeof performance !== 'undefined' && typeof performance.now === 'function' ? performance.now() : Date.now()),
@@ -3622,27 +3761,34 @@ export async function buildDynamicCoursePlan({
   if (_repairPass) return initialResult;
 
   // Incremental runs stay scoped, but North recruitment still gets a targeted
-  // regional re-optimization over unlocked proposals before accepting hires.
+  // regional re-optimization over a dependency closure of unlocked proposals
+  // before accepting hires. CALCULATED may inspect the closure; PERSISTED is
+  // only rows that actually changed (handled by the caller via regionalChangedIds).
   if (incrementalIds && !resumeFromCheckpoint) {
     const northRecruitmentIds = rows
       .filter((row) => text(row?.kind) === 'recruitment')
       .filter((row) => normalizeOperationalDistrict(row?.district) === 'צפון')
       .map((row) => text(row?.courseId))
-      .filter(Boolean);
+      .filter((courseId) => courseId && incrementalIds.has(courseId));
     if (!northRecruitmentIds.length) return initialResult;
 
-    const regionalTargets = new Set([
-      ...northRecruitmentIds,
-      ...rows
-        .filter((row) => ['proposal', 'fixed-proposal'].includes(text(row?.kind)))
-        .filter((row) => normalizeOperationalDistrict(row?.district) === 'צפון')
-        .filter((row) => !row?.planningLocked)
-        .map((row) => text(row?.courseId))
-        .filter(Boolean)
-    ]);
-    if (regionalTargets.size <= northRecruitmentIds.length) return initialResult;
+    const regionalTargets = expandNorthRegionalDependencyClosure({
+      seedIds: northRecruitmentIds,
+      rows,
+      maxRows: NORTH_REGIONAL_CLOSURE_MAX
+    });
+    if (regionalTargets.length <= northRecruitmentIds.length) {
+      return {
+        ...initialResult,
+        northRegionalOptimization: {
+          applied: false,
+          examinedIds: regionalTargets,
+          regionalChangedIds: []
+        }
+      };
+    }
 
-    await report('אופטימיזציה אזורית בצפון', 0, regionalTargets.size);
+    await report('אופטימיזציה אזורית בצפון', 0, regionalTargets.length);
     const repaired = await buildDynamicCoursePlan({
       activities,
       instructors,
@@ -3657,7 +3803,7 @@ export async function buildDynamicCoursePlan({
       routeClient,
       lockedOptions,
       existingRows: rows,
-      targetCourseIds: [...regionalTargets],
+      targetCourseIds: regionalTargets,
       onProgress: typeof onProgress === 'function'
         ? (progress) => onProgress({ ...progress, phase: `צפון · ${progress.phase}` })
         : null,
@@ -3670,12 +3816,26 @@ export async function buildDynamicCoursePlan({
     });
     const improved = comparePlanningPlanQuality(repaired.rows, rows) < 0
       || (Number(repaired.recruitment) || 0) < (Number(initialResult.recruitment) || 0);
-    if (!improved) return { ...initialResult, northRegionalOptimization: { applied: false } };
+    if (!improved) {
+      return {
+        ...initialResult,
+        northRegionalOptimization: {
+          applied: false,
+          examinedIds: regionalTargets,
+          regionalChangedIds: []
+        }
+      };
+    }
+    const regionalChangedIds = diffPlanningRowsChangedIds(rows, repaired.rows, {
+      limitToIds: regionalTargets
+    });
     return {
       ...repaired,
       repairApplied: true,
       northRegionalOptimization: {
         applied: true,
+        examinedIds: regionalTargets,
+        regionalChangedIds,
         beforeRecruitment: initialResult.recruitment,
         afterRecruitment: repaired.recruitment
       }

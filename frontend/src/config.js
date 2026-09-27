@@ -273,3 +273,4 @@ config.HOTFIX_VERSION = `planning-team-activity-hours-display-20260927-v1-${conf
 config.HOTFIX_VERSION = `planning-team-schedule-series-pattern-20260927-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `north-stage2-incremental-persist-20260927-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `incremental-stable-rows-guard-20260927-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `north-regional-changed-ids-persist-20260927-v1-${config.HOTFIX_VERSION}`;

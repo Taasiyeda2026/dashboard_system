@@ -88,7 +88,8 @@ import {
   planningDataFingerprint,
   planningOptionPassesFinalValidation,
   planningTabHtml,
-  planningWorkspaceCourses
+  planningWorkspaceCourses,
+  mergeEffectiveIncrementalPersistIds
 } from './course-scheduling-planning.js';
 import {
   clearSharedPlanningWorkspace,
@@ -2651,6 +2652,13 @@ export const courseSchedulingScreen = {
         const endFingerprint = planningDataFingerprint(endFingerprintInput);
         const endContextFingerprint = planningContextFingerprint(endFingerprintInput);
         const endContextStorage = serializePlanningContextFingerprint(endFingerprintInput);
+        const regionalChangedIds = Array.isArray(result?.northRegionalOptimization?.regionalChangedIds)
+          ? result.northRegionalOptimization.regionalChangedIds.map(text).filter(Boolean)
+          : [];
+        const effectiveAffectedIds = fullRun
+          ? currentCourseIds
+          : mergeEffectiveIncrementalPersistIds(affectedIds, regionalChangedIds);
+        const effectiveAffectedIdSet = new Set(effectiveAffectedIds);
         if (startFingerprint !== endFingerprint) {
           Object.assign(data, freshEnd);
 
@@ -2673,10 +2681,10 @@ export const courseSchedulingScreen = {
             );
             // INCREMENTAL NEVER WRITES UNTOUCHED ROWS.
             // Mid-run activity edits may invalidate some affected targets; only
-            // the still-valid intersection of this run's affected set is persisted.
+            // the still-valid intersection of this run's effective affected set is persisted.
             const stableRows = selectIncrementalStablePersistRows({
               rows: result.rows || [],
-              affectedIds: fullRun ? currentCourseIds : affectedIds,
+              affectedIds: effectiveAffectedIds,
               endCourseIds: [...endCourseIds],
               changedActivityIds: [...changedActivityIds],
               fullRun
@@ -2693,7 +2701,7 @@ export const courseSchedulingScreen = {
                 activities: freshEnd.activities || [],
                 expectedRevision: Number(shared?.workspace?.revision) || 0,
                 replaceAll: false,
-                allowedIncrementalIds: fullRun ? currentCourseIds : affectedIds
+                allowedIncrementalIds: effectiveAffectedIds
               });
 
               assertRunOwnership();
@@ -2726,7 +2734,7 @@ export const courseSchedulingScreen = {
         assertRunOwnership();
         const persistRows = fullRun
           ? (result.rows || [])
-          : (result.rows || []).filter((row) => affectedIdSet.has(text(row?.courseId)));
+          : (result.rows || []).filter((row) => effectiveAffectedIdSet.has(text(row?.courseId)));
         const saved = await saveSharedPlanningSnapshot({
           periodKey: scope.periodKey,
           district: scope.district,
@@ -2737,7 +2745,7 @@ export const courseSchedulingScreen = {
           activities: freshEnd.activities || [],
           expectedRevision: Number(shared?.workspace?.revision) || 0,
           replaceAll: fullRun === true,
-          allowedIncrementalIds: fullRun ? null : affectedIds
+          allowedIncrementalIds: fullRun ? null : effectiveAffectedIds
         });
 
         assertRunOwnership();
