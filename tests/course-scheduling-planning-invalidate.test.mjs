@@ -102,7 +102,9 @@ test('local planning invalidation marks only the provided activity ids as pendin
 
 test('planning status UI never shows הכל מעודכן while pending, and supports incremental label', async () => {
   const screen = await readFile(screenUrl, 'utf8');
-  assert.match(screen, /נדרש עדכון תכנון · \$\{pending\} פעילויות/);
+  assert.match(screen, /נדרש עדכון תכנון · \$\{count\} פעילויות/);
+  assert.match(screen, /hardGateInvalid/);
+  assert.match(screen, /pendingRecalc > 0 \|\| hardGateInvalid > 0/);
   assert.match(screen, /עדכון שינויים בלבד · \$\{countLabel\} פעילויות/);
   assert.match(screen, /<strong>הכל מעודכן<\/strong>/);
   assert.match(screen, /app:planning-needs-recalc/);
