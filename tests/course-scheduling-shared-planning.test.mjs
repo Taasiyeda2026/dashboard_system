@@ -57,10 +57,11 @@ test('course planning screen loads and saves the shared workspace and only recal
   assert.match(travel, /persistentCache/);
 });
 
-test('full planning silently checkpoints every 50 completed activities and can resume', async () => {
+test('full and incremental planning silently checkpoint and can resume', async () => {
   const screen = await readFile(screenUrl, 'utf8');
   const planner = await readFile(new URL('../frontend/src/screens/course-scheduling-planning.js', import.meta.url), 'utf8');
-  assert.match(screen, /checkpointCompletedIds\.size - lastSilentCheckpointCount >= 50/);
+  assert.match(screen, /checkpointBatchSize/);
+  assert.match(screen, /checkpointCompletedIds\.size - lastSilentCheckpointCount >= checkpointBatchSize/);
   assert.match(screen, /progress\.phase !== 'בניית תוכנית'/);
   assert.match(screen, /resumeFromCheckpoint/);
   assert.match(screen, /currentCourseIds\.filter\(\(courseId\) => !checkpointCompletedIds\.has\(courseId\)\)/);

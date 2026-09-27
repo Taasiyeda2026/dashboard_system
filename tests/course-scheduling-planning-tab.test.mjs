@@ -1662,13 +1662,16 @@ test('fast planning performs a deep rescue pass before declaring recruitment', a
   assert.match(source, /rescuePass: true/);
 });
 
-test('screen does not force full planning solely because engine version changed or nothing changed', async () => {
+test('screen does not force full planning solely because engine version or generic contextChanged flipped', async () => {
   const source = await readFile(new URL('../frontend/src/screens/course-scheduling.js', import.meta.url), 'utf8');
   assert.match(source, /legacyStartContextFingerprint = engineChanged/);
-  assert.match(source, /storedContextFingerprint !== startContextFingerprint/);
+  assert.match(source, /resolvePlanningContextChange/);
+  assert.match(source, /unrecoverableGlobalContextChange/);
   assert.doesNotMatch(source, /text\(shared\.workspace\.engineVersion\) !== PLANNING_ENGINE_VERSION\s*\|\|\s*text\(shared\.workspace\.contextFingerprint\)/);
-  assert.match(source, /const fullRun = forceFull \|\| !shared\?\.workspace \|\| !existingRows\.length \|\| contextChanged;/);
-  assert.doesNotMatch(source, /fullRun =[^\n]*affectedIds\.length === 0/);
+  assert.match(source, /const fullRun = forceFull\s*\|\|\s*!shared\?\.workspace\s*\|\|\s*!existingRows\.length\s*\|\|\s*unrecoverableGlobalContextChange/);
+  assert.doesNotMatch(source, /fullRun =[^\n]*\|\|\s*contextChanged/);
+  assert.doesNotMatch(source, /if \(contextChanged\) return \[\.\.\.currentIds\]/);
+  assert.match(source, /התכנון כבר מעודכן/);
 });
 
 test('planning context fingerprint ignores activity-only changes but tracks shared scheduling context', () => {

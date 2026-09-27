@@ -16,7 +16,11 @@ import {
   isSchedulingDraftAssignment,
   schedulingActivityTypeCategory
 } from './shared/activity-scheduling-eligibility.js';
-import { filterSchoolCalendarRowsBySector, normalizeCalendarSector } from './shared/school-calendar-logic.js';
+import {
+  calendarPresentationTitle,
+  filterSchoolCalendarRowsBySector,
+  normalizeCalendarSector
+} from './shared/school-calendar-logic.js';
 import { normalizeOperationalDistrict } from './shared/district-normalization.js';
 import { escapeHtml } from './shared/html.js';
 import { formatDateHe, formatTimeRangeShort } from './shared/format-date.js';
@@ -2409,40 +2413,316 @@ export function planningDataFingerprint(input = []) {
 }
 
 export const PLANNING_CONTEXT_SCHEMA_VERSION = 'planning-context-v1';
+export const PLANNING_CONTEXT_PARTS_VERSION = 1;
+
+function fnv1aHash(value = '') {
+  let hash = 2166136261;
+  const raw = String(value ?? '');
+  for (let index = 0; index < raw.length; index += 1) {
+    hash ^= raw.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(36);
+}
+
+function stableEntityHash(value) {
+  return fnv1aHash(JSON.stringify(value ?? null));
+}
+
+function flattenSchedulingRows(value) {
+  if (Array.isArray(value)) return value;
+  if (value && typeof value === 'object') return Object.values(value).flat();
+  return [];
+}
+
+function instructorContextPayload(row = {}) {
+  return {
+    emp_id: text(row.emp_id),
+    active: row.active,
+    address: row.address,
+    gender: row.gender,
+    languages: row.languages
+  };
+}
+
+function catalogContextPayload(row = {}) {
+  return {
+    activity_no: row.activity_no,
+    gefen_number: row.gefen_number,
+    pricing_key: row.pricing_key,
+    activity_name: row.activity_name,
+    meetings_count: row.meetings_count,
+    hours_count: row.hours_count,
+    unit_duration: row.unit_duration
+  };
+}
+
+function catalogProgramKey(row = {}) {
+  return canonicalPlanningActivityNo(row.activity_no)
+    || text(row.pricing_key)
+    || canonicalPlanningActivityNo(row.gefen_number)
+    || text(row.activity_name);
+}
+
+function schoolCalendarEventKey(row = {}) {
+  const sector = normalizeCalendarSector(row.calendar_sector || row.sector) || 'general';
+  const start = text(row.start_date || row.iso).slice(0, 10);
+  // Keep end out of the identity key so range edits stay on one window and only
+  // change the stored hash/bounds (used for affected-date overlap).
+  const title = calendarPresentationTitle(row.title || row.name || row.event_name);
+  return [sector, start, title].join('|');
+}
+
+export function buildPlanningContextParts(input = {}) {
+  const snapshot = input || {};
+  const periodKey = text(snapshot.periodKey) || DEFAULT_PLANNING_PERIOD_KEY;
+  const instructors = {};
+  const availability = {};
+  const exceptions = {};
+  const profiles = {};
+  const schoolCalendar = {};
+  const catalog = {};
+
+  for (const row of snapshot.instructors || []) {
+    const empId = text(row?.emp_id);
+    if (!empId) continue;
+    instructors[empId] = stableEntityHash(instructorContextPayload(row));
+  }
+
+  for (const row of flattenSchedulingRows(snapshot.rules)) {
+    const empId = text(row?.emp_id);
+    if (!empId) continue;
+    const bucket = availability[empId] || [];
+    bucket.push({
+      weekday: row.weekday,
+      available: row.available,
+      start_time: row.start_time,
+      end_time: row.end_time
+    });
+    availability[empId] = bucket;
+  }
+  for (const empId of Object.keys(availability)) {
+    availability[empId] = stableEntityHash(stableRows(availability[empId]));
+  }
+
+  for (const row of flattenSchedulingRows(snapshot.exceptions)) {
+    const empId = text(row?.emp_id);
+    if (!empId) continue;
+    const bucket = exceptions[empId] || [];
+    bucket.push({
+      exception_date: text(row.exception_date || row.date).slice(0, 10),
+      available: row.available,
+      start_time: row.start_time,
+      end_time: row.end_time,
+      note: row.note
+    });
+    exceptions[empId] = bucket;
+  }
+  for (const empId of Object.keys(exceptions)) {
+    exceptions[empId] = stableEntityHash(stableRows(exceptions[empId]));
+  }
+
+  for (const row of flattenSchedulingRows(snapshot.profiles)) {
+    const empId = text(row?.emp_id);
+    if (!empId) continue;
+    profiles[empId] = stableEntityHash(row);
+  }
+
+  for (const row of snapshot.schoolCalendar || []) {
+    const key = schoolCalendarEventKey(row);
+    if (!key || key === 'general|||') continue;
+    schoolCalendar[key] = {
+      hash: stableEntityHash(row),
+      sector: normalizeCalendarSector(row.calendar_sector || row.sector) || 'general',
+      start: text(row.start_date || row.iso).slice(0, 10),
+      end: text(row.end_date || row.start_date || row.iso).slice(0, 10)
+    };
+  }
+
+  for (const row of snapshot.catalog || []) {
+    const key = catalogProgramKey(row);
+    if (!key) continue;
+    catalog[key] = stableEntityHash(catalogContextPayload(row));
+  }
+
+  return {
+    contextVersion: PLANNING_CONTEXT_SCHEMA_VERSION,
+    period: planningEffectivePeriod(periodKey),
+    instructors,
+    availability,
+    exceptions,
+    profiles,
+    schoolCalendar,
+    catalog
+  };
+}
+
+export function emptyPlanningContextDiff() {
+  return {
+    changedInstructorProfileIds: [],
+    changedAvailabilityInstructorIds: [],
+    changedExceptionInstructorIds: [],
+    changedCalendarWindows: [],
+    changedCatalogKeys: [],
+    unrecoverableGlobal: false
+  };
+}
+
+function mapKeyDiff(previous = {}, current = {}) {
+  const keys = new Set([...Object.keys(previous || {}), ...Object.keys(current || {})]);
+  const changed = [];
+  for (const key of keys) {
+    const prev = previous?.[key];
+    const next = current?.[key];
+    const prevHash = prev && typeof prev === 'object' && prev.hash != null ? prev.hash : prev;
+    const nextHash = next && typeof next === 'object' && next.hash != null ? next.hash : next;
+    if (prevHash !== nextHash) changed.push(key);
+  }
+  return changed;
+}
+
+export function diffPlanningContextParts(previousParts = null, currentParts = null) {
+  const diff = emptyPlanningContextDiff();
+  if (!previousParts || !currentParts || typeof previousParts !== 'object' || typeof currentParts !== 'object') {
+    diff.unrecoverableGlobal = true;
+    return diff;
+  }
+  const previousPeriod = previousParts.period && typeof previousParts.period === 'object'
+    ? previousParts.period
+    : { key: text(previousParts.period) };
+  const currentPeriod = currentParts.period && typeof currentParts.period === 'object'
+    ? currentParts.period
+    : { key: text(currentParts.period) };
+  const periodChanged = text(previousPeriod.key) !== text(currentPeriod.key)
+    || text(previousPeriod.start) !== text(currentPeriod.start)
+    || text(previousPeriod.end) !== text(currentPeriod.end);
+  if (
+    text(previousParts.contextVersion) !== text(currentParts.contextVersion)
+    || periodChanged
+  ) {
+    diff.unrecoverableGlobal = true;
+    return diff;
+  }
+
+  diff.changedInstructorProfileIds = mapKeyDiff(previousParts.instructors, currentParts.instructors);
+  const profileOnly = new Set(diff.changedInstructorProfileIds);
+  for (const empId of mapKeyDiff(previousParts.profiles, currentParts.profiles)) {
+    if (!profileOnly.has(empId)) {
+      diff.changedInstructorProfileIds.push(empId);
+      profileOnly.add(empId);
+    }
+  }
+  diff.changedAvailabilityInstructorIds = mapKeyDiff(previousParts.availability, currentParts.availability);
+  diff.changedExceptionInstructorIds = mapKeyDiff(previousParts.exceptions, currentParts.exceptions);
+
+  const calendarKeys = mapKeyDiff(previousParts.schoolCalendar, currentParts.schoolCalendar);
+  const windows = [];
+  for (const key of calendarKeys) {
+    const prev = previousParts.schoolCalendar?.[key];
+    const next = currentParts.schoolCalendar?.[key];
+    const source = next || prev || {};
+    windows.push({
+      key,
+      sector: text(source.sector) || 'general',
+      start: text(source.start).slice(0, 10),
+      end: text(source.end).slice(0, 10)
+    });
+  }
+  diff.changedCalendarWindows = windows;
+  diff.changedCatalogKeys = mapKeyDiff(previousParts.catalog, currentParts.catalog);
+  return diff;
+}
+
+export function parsePlanningContextFingerprint(stored = '') {
+  const raw = text(stored);
+  if (!raw) return { hash: '', parts: null, storage: '' };
+  if (raw.startsWith('{')) {
+    try {
+      const parsed = JSON.parse(raw);
+      if (parsed && Number(parsed.v) === PLANNING_CONTEXT_PARTS_VERSION && text(parsed.hash)) {
+        return {
+          hash: text(parsed.hash),
+          parts: parsed.parts && typeof parsed.parts === 'object' ? parsed.parts : null,
+          storage: raw
+        };
+      }
+    } catch {
+      // Legacy plain-hash fingerprints remain supported.
+    }
+  }
+  return { hash: raw, parts: null, storage: raw };
+}
+
+export function serializePlanningContextFingerprint(input = {}) {
+  const hash = planningContextFingerprint(input);
+  return JSON.stringify({
+    v: PLANNING_CONTEXT_PARTS_VERSION,
+    hash,
+    parts: buildPlanningContextParts(input)
+  });
+}
+
+export function resolvePlanningContextChange({
+  storedFingerprint = '',
+  currentInput = {},
+  engineChanged = false,
+  legacyFingerprint = ''
+} = {}) {
+  const stored = parsePlanningContextFingerprint(storedFingerprint);
+  const currentStorage = serializePlanningContextFingerprint(currentInput);
+  const current = parsePlanningContextFingerprint(currentStorage);
+  const hashMatches = !!stored.hash && stored.hash === current.hash;
+  const legacyMatches = engineChanged && !!stored.hash && stored.hash === text(legacyFingerprint);
+  if (!stored.hash || hashMatches || legacyMatches) {
+    return {
+      contextChanged: false,
+      unrecoverableGlobalContextChange: false,
+      contextDiff: emptyPlanningContextDiff(),
+      currentHash: current.hash,
+      storageValue: currentStorage,
+      storedParts: stored.parts,
+      currentParts: current.parts
+    };
+  }
+
+  if (stored.parts && current.parts) {
+    const contextDiff = diffPlanningContextParts(stored.parts, current.parts);
+    return {
+      contextChanged: true,
+      unrecoverableGlobalContextChange: contextDiff.unrecoverableGlobal === true,
+      contextDiff,
+      currentHash: current.hash,
+      storageValue: currentStorage,
+      storedParts: stored.parts,
+      currentParts: current.parts
+    };
+  }
+
+  return {
+    contextChanged: true,
+    unrecoverableGlobalContextChange: true,
+    contextDiff: emptyPlanningContextDiff(),
+    currentHash: current.hash,
+    storageValue: currentStorage,
+    storedParts: stored.parts,
+    currentParts: current.parts
+  };
+}
 
 function planningContextFingerprintWithMarker(input = {}, marker = PLANNING_CONTEXT_SCHEMA_VERSION) {
   const snapshot = input || {};
   const periodKey = text(snapshot.periodKey) || DEFAULT_PLANNING_PERIOD_KEY;
-  let hash = 2166136261;
   const value = JSON.stringify({
     contextVersion: text(marker) || PLANNING_CONTEXT_SCHEMA_VERSION,
     period: planningEffectivePeriod(periodKey),
-    instructors: stableRows((snapshot.instructors || []).map((row) => ({
-      emp_id: row.emp_id,
-      active: row.active,
-      address: row.address,
-      gender: row.gender,
-      languages: row.languages
-    }))),
-    profiles: stableRows(Array.isArray(snapshot.profiles) ? snapshot.profiles : Object.values(snapshot.profiles || {})),
-    rules: stableRows(Array.isArray(snapshot.rules) ? snapshot.rules : Object.values(snapshot.rules || {}).flat()),
-    exceptions: stableRows(Array.isArray(snapshot.exceptions) ? snapshot.exceptions : Object.values(snapshot.exceptions || {}).flat()),
+    instructors: stableRows((snapshot.instructors || []).map((row) => instructorContextPayload(row))),
+    profiles: stableRows(flattenSchedulingRows(snapshot.profiles)),
+    rules: stableRows(flattenSchedulingRows(snapshot.rules)),
+    exceptions: stableRows(flattenSchedulingRows(snapshot.exceptions)),
     schoolCalendar: stableRows(snapshot.schoolCalendar || []),
-    catalog: stableRows((snapshot.catalog || []).map((row) => ({
-      activity_no: row.activity_no,
-      gefen_number: row.gefen_number,
-      pricing_key: row.pricing_key,
-      activity_name: row.activity_name,
-      meetings_count: row.meetings_count,
-      hours_count: row.hours_count,
-      unit_duration: row.unit_duration
-    })))
+    catalog: stableRows((snapshot.catalog || []).map((row) => catalogContextPayload(row)))
   });
-  for (let index = 0; index < value.length; index += 1) {
-    hash ^= value.charCodeAt(index);
-    hash = Math.imul(hash, 16777619);
-  }
-  return (hash >>> 0).toString(36);
+  return fnv1aHash(value);
 }
 
 export function planningContextFingerprint(input = {}) {
@@ -2452,36 +2732,17 @@ export function planningContextFingerprint(input = {}) {
 export function planningLegacyEngineContextFingerprint(input = {}, engineVersion = '') {
   const snapshot = input || {};
   const periodKey = text(snapshot.periodKey) || DEFAULT_PLANNING_PERIOD_KEY;
-  let hash = 2166136261;
   const value = JSON.stringify({
     engineVersion: text(engineVersion) || PLANNING_ENGINE_VERSION,
     period: planningEffectivePeriod(periodKey),
-    instructors: stableRows((snapshot.instructors || []).map((row) => ({
-      emp_id: row.emp_id,
-      active: row.active,
-      address: row.address,
-      gender: row.gender,
-      languages: row.languages
-    }))),
-    profiles: stableRows(Array.isArray(snapshot.profiles) ? snapshot.profiles : Object.values(snapshot.profiles || {})),
-    rules: stableRows(Array.isArray(snapshot.rules) ? snapshot.rules : Object.values(snapshot.rules || {}).flat()),
-    exceptions: stableRows(Array.isArray(snapshot.exceptions) ? snapshot.exceptions : Object.values(snapshot.exceptions || {}).flat()),
+    instructors: stableRows((snapshot.instructors || []).map((row) => instructorContextPayload(row))),
+    profiles: stableRows(flattenSchedulingRows(snapshot.profiles)),
+    rules: stableRows(flattenSchedulingRows(snapshot.rules)),
+    exceptions: stableRows(flattenSchedulingRows(snapshot.exceptions)),
     schoolCalendar: stableRows(snapshot.schoolCalendar || []),
-    catalog: stableRows((snapshot.catalog || []).map((row) => ({
-      activity_no: row.activity_no,
-      gefen_number: row.gefen_number,
-      pricing_key: row.pricing_key,
-      activity_name: row.activity_name,
-      meetings_count: row.meetings_count,
-      hours_count: row.hours_count,
-      unit_duration: row.unit_duration
-    })))
+    catalog: stableRows((snapshot.catalog || []).map((row) => catalogContextPayload(row)))
   });
-  for (let index = 0; index < value.length; index += 1) {
-    hash ^= value.charCodeAt(index);
-    hash = Math.imul(hash, 16777619);
-  }
-  return (hash >>> 0).toString(36);
+  return fnv1aHash(value);
 }
 
 export async function buildDynamicCoursePlan({

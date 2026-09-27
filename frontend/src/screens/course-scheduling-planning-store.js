@@ -1,7 +1,14 @@
 import { supabase } from '../supabase-client.js';
+import { schedulingCalendarMeetings } from './instructor-scheduling-load.js';
+import { normalizeCalendarSector } from './shared/school-calendar-logic.js';
 
 const text = (value) => String(value ?? '').trim();
 const idOf = (row) => text(row?.row_id || row?.RowID || row?.id);
+const ACTIVITY_NO_ALIASES = Object.freeze({ '82835': '53828' });
+function canonicalPlanningActivityNo(value) {
+  const raw = text(value);
+  return ACTIVITY_NO_ALIASES[raw] || raw;
+}
 
 function activityVersion(activity = {}) {
   return text(activity?.updated_at);
@@ -32,6 +39,61 @@ function instructorIdsFromActivity(activity = {}) {
     text(activity?.emp_id_2),
     text(activity?.draft_emp_id)
   ].filter(Boolean));
+}
+
+function meetingsFromPlanningEntry(entry = {}, activity = null) {
+  const meetings = [];
+  const push = (list = []) => {
+    for (const meeting of list || []) {
+      const date = text(meeting?.date).slice(0, 10);
+      if (!date) continue;
+      meetings.push({
+        date,
+        start: text(meeting?.start_time || activity?.start_time).slice(0, 5),
+        end: text(meeting?.end_time || activity?.end_time).slice(0, 5)
+      });
+    }
+  };
+  push(entry?.lockedOption?.meetings);
+  if (!meetings.length) push(entry?.row?.meetings);
+  if (!meetings.length && activity) {
+    push(schedulingCalendarMeetings(activity).map((meeting) => ({
+      date: meeting?.date,
+      start_time: meeting?.start_time || activity.start_time,
+      end_time: meeting?.end_time || activity.end_time
+    })));
+  }
+  return meetings;
+}
+
+function slotKey(meeting = {}) {
+  return [text(meeting.date).slice(0, 10), text(meeting.start).slice(0, 5), text(meeting.end).slice(0, 5)]
+    .filter(Boolean)
+    .join('|');
+}
+
+function activityProgramKeys(activity = {}) {
+  return [
+    canonicalPlanningActivityNo(activity?.activity_no),
+    text(activity?.pricing_key),
+    canonicalPlanningActivityNo(activity?.gefen_number),
+    text(activity?.activity_name || activity?.program_name)
+  ].map(text).filter(Boolean);
+}
+
+function datesOverlapWindow(dates = [], window = {}) {
+  const start = text(window?.start).slice(0, 10);
+  const end = text(window?.end || window?.start).slice(0, 10);
+  if (!start) return false;
+  const endBound = end || start;
+  return (dates || []).some((date) => date >= start && date <= endBound);
+}
+
+function sectorMatchesActivity(window = {}, activity = {}) {
+  const windowSector = normalizeCalendarSector(window?.sector) || 'general';
+  if (!windowSector || windowSector === 'general') return true;
+  const activitySector = normalizeCalendarSector(activity?.calendar_sector);
+  return !activitySector || activitySector === windowSector;
 }
 
 export async function loadSharedPlanningWorkspace({ periodKey = 'year', district = '' } = {}) {
@@ -67,10 +129,15 @@ export function sharedPlanningAffectedCourseIds({
   shared = {},
   activities = [],
   currentCourseIds = [],
+  contextDiff = null,
+  unrecoverableGlobalContextChange = false,
   contextChanged = false
 } = {}) {
   const currentIds = new Set((currentCourseIds || []).map(text).filter(Boolean));
-  if (contextChanged) return [...currentIds];
+  // Structural fallback only when the impact scope cannot be recovered safely.
+  // A plain contextChanged flag must never expand to a full run by itself.
+  if (unrecoverableGlobalContextChange === true) return [...currentIds];
+  void contextChanged;
 
   const activityById = new Map((activities || []).map((activity) => [idOf(activity), activity]));
   const sharedById = new Map((shared?.rows || []).map((entry) => [text(entry.activityId), entry]));
@@ -80,25 +147,124 @@ export function sharedPlanningAffectedCourseIds({
       .map((entry) => text(entry.activityId))
       .filter((courseId) => currentIds.has(courseId))
   );
+
+  const directActivityIds = new Set();
   const affectedInstructorIds = new Set();
+  const affectedSlotKeys = new Set();
+  const affectedDatesByInstructor = new Map();
+
+  const rememberInstructorDates = (empIds, meetings) => {
+    for (const empId of empIds || []) {
+      if (!empId) continue;
+      affectedInstructorIds.add(empId);
+      const bucket = affectedDatesByInstructor.get(empId) || new Set();
+      for (const meeting of meetings || []) {
+        const date = text(meeting?.date).slice(0, 10);
+        if (date) bucket.add(date);
+      }
+      affectedDatesByInstructor.set(empId, bucket);
+    }
+  };
 
   for (const courseId of currentIds) {
     const activity = activityById.get(courseId);
     const entry = sharedById.get(courseId);
     if (!activity || !entry || activityVersion(activity) !== text(entry.activityUpdatedAt)) {
       changed.add(courseId);
-      for (const empId of instructorIdsFromActivity(activity)) affectedInstructorIds.add(empId);
-      for (const empId of instructorIdsFromPlanningEntry(entry)) affectedInstructorIds.add(empId);
+      directActivityIds.add(courseId);
+      const meetings = meetingsFromPlanningEntry(entry, activity);
+      for (const meeting of meetings) {
+        const key = slotKey(meeting);
+        if (key) affectedSlotKeys.add(key);
+      }
+      rememberInstructorDates(instructorIdsFromActivity(activity), meetings);
+      rememberInstructorDates(instructorIdsFromPlanningEntry(entry), meetings);
     }
   }
 
-  if (!affectedInstructorIds.size) return [...changed];
+  const diff = contextDiff && typeof contextDiff === 'object' ? contextDiff : null;
+  if (diff) {
+    for (const empId of [
+      ...(diff.changedInstructorProfileIds || []),
+      ...(diff.changedAvailabilityInstructorIds || []),
+      ...(diff.changedExceptionInstructorIds || [])
+    ].map(text).filter(Boolean)) {
+      affectedInstructorIds.add(empId);
+    }
+  }
 
-  for (const entry of shared?.rows || []) {
-    const courseId = text(entry.activityId);
-    if (!courseId || !currentIds.has(courseId) || changed.has(courseId)) continue;
-    const ids = instructorIdsFromPlanningEntry(entry);
-    if ([...ids].some((id) => affectedInstructorIds.has(id))) changed.add(courseId);
+  if (affectedInstructorIds.size) {
+    for (const entry of shared?.rows || []) {
+      const courseId = text(entry.activityId);
+      if (!courseId || !currentIds.has(courseId)) continue;
+      const activity = activityById.get(courseId);
+      const ids = new Set([
+        ...instructorIdsFromPlanningEntry(entry),
+        ...instructorIdsFromActivity(activity)
+      ]);
+      if (![...ids].some((id) => affectedInstructorIds.has(id))) continue;
+      changed.add(courseId);
+      // Instructor context changes only invalidate rows that reference that instructor.
+      // Same-slot expansion is reserved for direct activity edits below.
+      if (directActivityIds.has(courseId)) {
+        const meetings = meetingsFromPlanningEntry(entry, activity);
+        for (const meeting of meetings) {
+          const key = slotKey(meeting);
+          if (key) affectedSlotKeys.add(key);
+        }
+        rememberInstructorDates(ids, meetings);
+      }
+    }
+  }
+
+  if (diff?.changedCalendarWindows?.length) {
+    for (const entry of shared?.rows || []) {
+      const courseId = text(entry.activityId);
+      if (!courseId || !currentIds.has(courseId) || changed.has(courseId)) continue;
+      const activity = activityById.get(courseId);
+      const meetings = meetingsFromPlanningEntry(entry, activity);
+      const dates = meetings.map((meeting) => meeting.date);
+      const hit = (diff.changedCalendarWindows || []).some((window) =>
+        sectorMatchesActivity(window, activity) && datesOverlapWindow(dates, window)
+      );
+      if (hit) changed.add(courseId);
+    }
+  }
+
+  if (diff?.changedCatalogKeys?.length) {
+    const catalogKeys = new Set((diff.changedCatalogKeys || []).map(text).filter(Boolean));
+    for (const courseId of currentIds) {
+      if (changed.has(courseId)) continue;
+      const activity = activityById.get(courseId);
+      if (!activity) continue;
+      if (activityProgramKeys(activity).some((key) => catalogKeys.has(key))) changed.add(courseId);
+    }
+  }
+
+  // Same-instructor same-day / same-slot dependents of directly changed activities only.
+  if (directActivityIds.size) {
+    for (const entry of shared?.rows || []) {
+      const courseId = text(entry.activityId);
+      if (!courseId || !currentIds.has(courseId) || changed.has(courseId)) continue;
+      const activity = activityById.get(courseId);
+      const meetings = meetingsFromPlanningEntry(entry, activity);
+      if (meetings.some((meeting) => affectedSlotKeys.has(slotKey(meeting)))) {
+        changed.add(courseId);
+        continue;
+      }
+      const ids = new Set([
+        ...instructorIdsFromPlanningEntry(entry),
+        ...instructorIdsFromActivity(activity)
+      ]);
+      for (const empId of ids) {
+        const dates = affectedDatesByInstructor.get(empId);
+        if (!dates?.size) continue;
+        if (meetings.some((meeting) => dates.has(meeting.date))) {
+          changed.add(courseId);
+          break;
+        }
+      }
+    }
   }
 
   return [...changed];

@@ -80,6 +80,8 @@ import {
   planningCompletionOverviewHtml,
   planningContextFingerprint,
   planningLegacyEngineContextFingerprint,
+  resolvePlanningContextChange,
+  serializePlanningContextFingerprint,
   planningDataFingerprint,
   planningOptionPassesFinalValidation,
   planningTabHtml,
@@ -2083,21 +2085,30 @@ export const courseSchedulingScreen = {
       const workspace = shared?.workspace || null;
       const storedEngineVersion = text(workspace?.engineVersion);
       const engineChanged = !!workspace && storedEngineVersion !== PLANNING_ENGINE_VERSION;
-      const storedContextFingerprint = text(workspace?.contextFingerprint);
       const legacyContextFingerprint = engineChanged
         ? planningLegacyEngineContextFingerprint(fingerprintInput, storedEngineVersion)
         : '';
-      const inputChanged = !!workspace
-        && storedContextFingerprint !== contextFingerprint
-        && (!engineChanged || storedContextFingerprint !== legacyContextFingerprint);
-      const affectedIds = workspace
-        ? sharedPlanningAffectedCourseIds({
-            shared,
-            activities: snapshot?.activities || [],
-            currentCourseIds,
-            contextChanged: inputChanged
+      const contextResolution = workspace
+        ? resolvePlanningContextChange({
+            storedFingerprint: text(workspace?.contextFingerprint),
+            currentInput: fingerprintInput,
+            engineChanged,
+            legacyFingerprint: legacyContextFingerprint
           })
-        : currentCourseIds;
+        : null;
+      const inputChanged = contextResolution?.contextChanged === true;
+      const unrecoverableGlobalContextChange = contextResolution?.unrecoverableGlobalContextChange === true;
+      const affectedIds = !workspace
+        ? currentCourseIds
+        : unrecoverableGlobalContextChange
+          ? currentCourseIds
+          : sharedPlanningAffectedCourseIds({
+              shared,
+              activities: snapshot?.activities || [],
+              currentCourseIds,
+              contextDiff: contextResolution?.contextDiff || null,
+              unrecoverableGlobalContextChange: false
+            });
 
       const sharedRows = (shared?.rows || [])
         .filter((entry) => currentCourseIds.includes(text(entry.activityId)))
@@ -2116,14 +2127,18 @@ export const courseSchedulingScreen = {
         });
       state.courseSchedulingPlanningStale = inputChanged;
       state.courseSchedulingPlanningStaleReason = inputChanged
-        ? 'נתוני הפעילויות, הזמינות או כללי התכנון השתנו מאז החישוב האחרון'
+        ? (unrecoverableGlobalContextChange
+          ? 'נתוני ההקשר השתנו באופן רוחבי ולכן נדרש חישוב מלא'
+          : 'נתוני הפעילויות, הזמינות או כללי התכנון השתנו מאז החישוב האחרון')
         : '';
       state.courseSchedulingPlanningStoredEngineVersion = storedEngineVersion;
-      state.courseSchedulingPlanningRows = inputChanged ? [] : sharedRows;
+      state.courseSchedulingPlanningRows = sharedRows;
       state.courseSchedulingPlanningLocks = sharedPlanningLocks(shared);
       state.courseSchedulingPlanningAffectedIds = [...new Set(affectedIds.map(text).filter(Boolean))];
       state.courseSchedulingPlanningFingerprint = text(workspace?.dataFingerprint);
       state.courseSchedulingPlanningContextFingerprint = contextFingerprint;
+      state.courseSchedulingPlanningContextStorage = contextResolution?.storageValue
+        || serializePlanningContextFingerprint(fingerprintInput);
       state.courseSchedulingPlanningCalculatedAt = formatPlanningSavedAt(workspace?.calculatedAt);
       state.courseSchedulingPlanningSharedRevision = Number(workspace?.revision) || 0;
       state.courseSchedulingPlanningSharedUpdatedAt = formatPlanningSavedAt(workspace?.updatedAt);
@@ -2286,6 +2301,7 @@ export const courseSchedulingScreen = {
         const startFingerprintInput = planningInputFromSnapshot(freshStart, scope.periodKey);
         const startFingerprint = planningDataFingerprint(startFingerprintInput);
         const startContextFingerprint = planningContextFingerprint(startFingerprintInput);
+        const startContextStorage = serializePlanningContextFingerprint(startFingerprintInput);
         const currentCourseIds = planningWorkspaceCourses(
           freshStart.activities || [],
           scope.district,
@@ -2294,42 +2310,60 @@ export const courseSchedulingScreen = {
 
         const storedEngineVersion = text(shared?.workspace?.engineVersion);
         const engineChanged = !!shared?.workspace && storedEngineVersion !== PLANNING_ENGINE_VERSION;
-        const storedContextFingerprint = text(shared?.workspace?.contextFingerprint);
         const legacyStartContextFingerprint = engineChanged
           ? planningLegacyEngineContextFingerprint(startFingerprintInput, storedEngineVersion)
           : '';
-        const contextChanged = !!shared?.workspace
-          && storedContextFingerprint !== startContextFingerprint
-          && (!engineChanged || storedContextFingerprint !== legacyStartContextFingerprint);
+        const contextResolution = shared?.workspace
+          ? resolvePlanningContextChange({
+              storedFingerprint: text(shared?.workspace?.contextFingerprint),
+              currentInput: startFingerprintInput,
+              engineChanged,
+              legacyFingerprint: legacyStartContextFingerprint
+            })
+          : null;
+        const contextChanged = contextResolution?.contextChanged === true;
+        const unrecoverableGlobalContextChange = contextResolution?.unrecoverableGlobalContextChange === true;
         const existingRows = (shared?.rows || [])
           .filter((entry) => currentCourseIds.includes(text(entry.activityId)))
           .map((entry) => entry.lockedOption
             ? applyPlanningLockToRow(entry.row, entry.lockedOption, scope.periodKey)
             : entry.row);
-        const affectedIds = shared?.workspace
-          ? sharedPlanningAffectedCourseIds({
-              shared,
-              activities: freshStart.activities || [],
-              currentCourseIds,
-              contextChanged
-            })
-          : currentCourseIds;
+        const affectedIds = !shared?.workspace
+          ? currentCourseIds
+          : unrecoverableGlobalContextChange
+            ? currentCourseIds
+            : sharedPlanningAffectedCourseIds({
+                shared,
+                activities: freshStart.activities || [],
+                currentCourseIds,
+                contextDiff: contextResolution?.contextDiff || null,
+                unrecoverableGlobalContextChange: false
+              });
 
-        const fullRun = forceFull || !shared?.workspace || !existingRows.length || contextChanged;
+        const fullRun = forceFull
+          || !shared?.workspace
+          || !existingRows.length
+          || unrecoverableGlobalContextChange;
+
+        if (!fullRun && affectedIds.length === 0) {
+          applySharedPlanningState(shared, freshStart);
+          state.courseSchedulingPlanningAffectedIds = [];
+          state.courseSchedulingPlanningError = '';
+          if (runUiVisible()) showToast('התכנון כבר מעודכן', 'success');
+          return;
+        }
 
         let silentCheckpoint = null;
-        if (fullRun) {
-          try {
-            silentCheckpoint = await loadSharedPlanningCheckpoint({
-              periodKey: scope.periodKey,
-              district: scope.district,
-              engineVersion: PLANNING_ENGINE_VERSION,
-              dataFingerprint: startFingerprint,
-              contextFingerprint: startContextFingerprint
-            });
-          } catch {
-            silentCheckpoint = null;
-          }
+        try {
+          silentCheckpoint = await loadSharedPlanningCheckpoint({
+            periodKey: scope.periodKey,
+            district: scope.district,
+            engineVersion: PLANNING_ENGINE_VERSION,
+            dataFingerprint: startFingerprint,
+            contextFingerprint: startContextStorage
+          });
+        } catch {
+          silentCheckpoint = null;
         }
         assertRunOwnership();
 
@@ -2340,23 +2374,27 @@ export const courseSchedulingScreen = {
         );
         const resumableRows = (silentCheckpoint?.rows || [])
           .filter((row) => checkpointCompletedIds.has(text(row?.courseId)));
-        const resumeFromCheckpoint = fullRun
-          && checkpointCompletedIds.size > 0
-          && resumableRows.length > 0;
+        const resumeFromCheckpoint = checkpointCompletedIds.size > 0 && resumableRows.length > 0;
         const targetCourseIds = fullRun
           ? (resumeFromCheckpoint
               ? currentCourseIds.filter((courseId) => !checkpointCompletedIds.has(courseId))
               : null)
-          : affectedIds;
+          : (resumeFromCheckpoint
+              ? affectedIds.filter((courseId) => !checkpointCompletedIds.has(courseId))
+              : affectedIds);
         const planningExistingRows = resumeFromCheckpoint ? resumableRows : existingRows;
         let lastSilentCheckpointCount = checkpointCompletedIds.size;
+        const checkpointBatchSize = fullRun ? 50 : Math.min(20, Math.max(3, affectedIds.length));
 
         state.courseSchedulingPlanningProgress = {
-          phase: fullRun ? 'בניית תכנון מלא' : 'עדכון שינויים בלבד',
+          phase: fullRun
+            ? `בניית תכנון מלא · ${currentCourseIds.length} פעילויות`
+            : `עדכון שינויים בלבד · ${affectedIds.length} פעילויות`,
           completed: 0,
           total: fullRun ? currentCourseIds.length : affectedIds.length
         };
         if (runUiVisible()) run.ui?.update?.();
+        void contextChanged;
 
         const profiles = Object.fromEntries((freshStart.scheduling?.profiles || []).map((row) => [text(row.emp_id), row]));
         const routeClient = createRouteClient({
@@ -2396,15 +2434,14 @@ export const courseSchedulingScreen = {
             if (runUiVisible()) run.ui?.update?.();
 
             if (
-              !fullRun
-              || progress.phase !== 'בניית תוכנית'
+              progress.phase !== 'בניית תוכנית'
               || !text(progress.courseId)
               || !Array.isArray(progress.rows)
             ) return;
 
             checkpointCompletedIds.add(text(progress.courseId));
             const finishedThisPass = Number(progress.completed) >= Number(progress.total) && Number(progress.total) > 0;
-            const shouldSaveCheckpoint = checkpointCompletedIds.size - lastSilentCheckpointCount >= 50
+            const shouldSaveCheckpoint = checkpointCompletedIds.size - lastSilentCheckpointCount >= checkpointBatchSize
               || finishedThisPass;
             if (!shouldSaveCheckpoint) return;
 
@@ -2417,7 +2454,7 @@ export const courseSchedulingScreen = {
                 district: scope.district,
                 engineVersion: PLANNING_ENGINE_VERSION,
                 dataFingerprint: startFingerprint,
-                contextFingerprint: startContextFingerprint,
+                contextFingerprint: startContextStorage,
                 completedCount: checkpointCompletedIds.size,
                 totalCount: checkpointCompletedIds.size + Math.max(0, Number(progress.total) - Number(progress.completed)),
                 completedActivityIds: [...checkpointCompletedIds],
@@ -2436,6 +2473,7 @@ export const courseSchedulingScreen = {
         const endFingerprintInput = planningInputFromSnapshot(freshEnd, scope.periodKey);
         const endFingerprint = planningDataFingerprint(endFingerprintInput);
         const endContextFingerprint = planningContextFingerprint(endFingerprintInput);
+        const endContextStorage = serializePlanningContextFingerprint(endFingerprintInput);
         if (startFingerprint !== endFingerprint) {
           Object.assign(data, freshEnd);
 
@@ -2467,7 +2505,7 @@ export const courseSchedulingScreen = {
                 district: scope.district,
                 engineVersion: PLANNING_ENGINE_VERSION,
                 dataFingerprint: endFingerprint,
-                contextFingerprint: endContextFingerprint,
+                contextFingerprint: endContextStorage,
                 rows: stableRows,
                 activities: freshEnd.activities || [],
                 expectedRevision: Number(shared?.workspace?.revision) || 0
@@ -2506,7 +2544,7 @@ export const courseSchedulingScreen = {
           district: scope.district,
           engineVersion: PLANNING_ENGINE_VERSION,
           dataFingerprint: endFingerprint,
-          contextFingerprint: endContextFingerprint,
+          contextFingerprint: endContextStorage,
           rows: result.rows || [],
           activities: freshEnd.activities || [],
           expectedRevision: Number(shared?.workspace?.revision) || 0
@@ -2523,15 +2561,13 @@ export const courseSchedulingScreen = {
         state.courseSchedulingPlanningRouteStats = result.routeStats || null;
         state.courseSchedulingPlanningSharedRevision = Number(saved?.revision || canonical?.workspace?.revision) || 0;
         state.courseSchedulingPlanningAffectedIds = [];
-        if (fullRun) {
-          try {
-            await clearSharedPlanningCheckpoint({
-              periodKey: scope.periodKey,
-              district: scope.district
-            });
-          } catch {
-            // Final canonical save succeeded; stale checkpoints are harmless and hidden.
-          }
+        try {
+          await clearSharedPlanningCheckpoint({
+            periodKey: scope.periodKey,
+            district: scope.district
+          });
+        } catch {
+          // Final canonical save succeeded; stale checkpoints are harmless and hidden.
         }
 
         const updatedCount = fullRun ? currentCourseIds.length : affectedIds.length;
