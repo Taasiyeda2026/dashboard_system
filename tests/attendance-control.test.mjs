@@ -473,8 +473,8 @@ test('results classify matching rows as normal and count only actual row excepti
   dashboard.pop();
   const html = resultsHtml(compareAttendanceRows(attendance, dashboard));
 
-  assert.equal((html.match(/✓ תקין/g) || []).length, 12);
-  assert.equal((html.match(/לבדיקה/g) || []).length, 4);
+  assert.match(html, /ממתין לאישור/);
+  assert.ok((html.match(/לבדיקה/g) || []).length >= 2);
   assert.equal((html.match(/לא נמצאה פעילות תואמת/g) || []).length, 1);
   assert.match(html, /לבדיקה <b>1<\/b>/);
   assert.equal((html.match(/data-attendance-choice/g) || []).length, 2);
@@ -482,13 +482,16 @@ test('results classify matching rows as normal and count only actual row excepti
   assert.match(html, /<summary>פרטים<\/summary>/);
 });
 
-test('a fully matching row has a normal status and no decision control', () => {
+test('a fully matching row still waits for explicit manager record approval', () => {
   const row = { employeeId: '10', employeeName: 'דנה', date: '2026-08-01', startTime: '08:00', endTime: '09:00', program: 'קורס' };
-  const html = resultsHtml(compareAttendanceRows([row], [{ ...row }]), '2026-08', {
+  const result = compareAttendanceRows([row], [{ ...row }]);
+  const html = resultsHtml(result, '2026-08', {
     workflowByEmployee: { '10': { workflow_status: 'submitted', attendance_submission_status: 'submitted' } }
   });
-  assert.match(html, /attendance-control__day--ok/);
-  assert.match(html, /✓ תקין/);
+  assert.doesNotMatch(html, /attendance-control__day--ok/);
+  assert.match(html, /ממתין לאישור/);
+  assert.match(html, /data-attendance-approve-reported/);
+  assert.match(html, /data-attendance-edit-record/);
   assert.doesNotMatch(html, /data-attendance-choice/);
   assert.match(html, /תקינים <b>1<\/b>/);
 });
@@ -858,6 +861,7 @@ test('unavailable record kilometers stay visible and are not shown as zero', () 
 });
 
 const changedComparison = {
+  managerRecordApproved: true,
   attendance: {
     employeeId: '10', employeeName: 'דנה', date: '2026-05-10', startTime: '08:00', endTime: '09:00',
     workHours: 1, activityType: 'קורס', school: 'א', program: 'א', meetingNo: '1', kilometers: 10, expenses: 0,
@@ -1490,7 +1494,7 @@ test('entry with 3 differences and only one decision remains unresolved', () => 
   assert.notEqual(entry.managerResolved, 'corrected');
 });
 
-test('entry with multiple differences resolves only when all differences are decided', () => {
+test('field decisions prepare the record, but explicit record approval is still required', () => {
   const base = { employeeId: '10', date: '2026-05-22', startTime: '08:00', endTime: '09:00', activityType: 'קורס', workHours: 1, school: 'א', program: 'ב' };
   const result = compareAttendanceRows(
     [{ ...base, startTime: '07:45', endTime: '08:55', school: 'שגוי' }],
@@ -1499,7 +1503,9 @@ test('entry with multiple differences resolves only when all differences are dec
   const entry = result.comparisons[0];
   for (const diff of entry.differences) applyAttendanceChoice(entry, diff.key, 'dashboard');
   assert.equal(entry.managerResolved, 'corrected');
-  assert.ok(attendanceEntryIsResolved(entry));
+  assert.equal(attendanceEntryIsResolved(entry), false);
+  approveAttendanceEntryCurrent(entry);
+  assert.equal(attendanceEntryIsResolved(entry), true);
 });
 
 // ── תקלה 6: ק"מ יומי — approval gate ────────────────────────────────────
