@@ -98,7 +98,36 @@ jobs:
               tests/course-scheduling-manual-finalize-soft-warnings.test.mjs \
               tests/course-scheduling-transition-server-rules.test.mjs \
               tests/course-meeting-substitute-permissions.test.mjs \
-              tests/course-scheduling-planning-tab.test.mjs
+              tests/course-scheduling-planning-tab.test.mjs \
+              tests/course-scheduling-planning-invalidate.test.mjs \
+              tests/course-scheduling-planning-self-invalidation.test.mjs
           else
             echo "No scheduling contract files changed; focused scheduling tests skipped."
           fi
+
+  scheduling-postgres:
+    name: scheduling Postgres regression
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: dashboard_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d dashboard_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Run planning invalidation against PostgreSQL
+        env:
+          PLANNING_INVALIDATION_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/dashboard_test
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          node --test tests/course-scheduling-planning-invalidation-postgres.test.mjs

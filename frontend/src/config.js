@@ -271,3 +271,5 @@ config.HOTFIX_VERSION = `planning-self-invalidation-20260927-v1-${config.HOTFIX_
 config.HOTFIX_VERSION = `planning-team-activity-hours-display-20260927-v1-${config.HOTFIX_VERSION}`;
 
 config.HOTFIX_VERSION = `planning-team-schedule-series-pattern-20260927-v1-${config.HOTFIX_VERSION}`;
+
+config.HOTFIX_VERSION = `planning-invalidation-ambiguity-fix-20260927-v1-${config.HOTFIX_VERSION}`;
