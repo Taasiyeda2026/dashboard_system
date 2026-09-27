@@ -25,6 +25,6 @@ test('recovery email normalization removes invisible bidi and zero-width marks',
 });
 
 test('attendance cache is bumped so the recovery UI reaches existing installs', () => {
-  assert.match(index, /v=97/);
-  assert.match(sw, /const CACHE_VERSION = 97/);
+  assert.match(index, /v=98/);
+  assert.match(sw, /const CACHE_VERSION = 98/);
 });
