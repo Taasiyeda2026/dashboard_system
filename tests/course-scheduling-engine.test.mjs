@@ -425,6 +425,13 @@ test('course scheduling screen explicitly loads school_2027 and exposes reject/o
   assert.doesNotMatch(source, /CSS\.escape/);
 });
 
+test('instructor home route queries include Israel context to avoid ambiguous geocoding', async () => {
+  const source = await readFile(new URL('../supabase/functions/scheduling-route/index.ts', import.meta.url), 'utf8');
+  assert.match(source, /query_origin_address:\s*buildGoogleAddressQuery\(\{ address: originAddress \}\)/);
+  assert.match(source, /:\s*buildGoogleAddressQuery\(\{ address: origin \}\);/);
+  assert.match(source, /:\s*buildGoogleAddressQuery\(\{ address: destination \}\);/);
+});
+
 test('scheduling route reuses cached address pairs without an expiry check', async () => {
   const source = await readFile(new URL('../supabase/functions/scheduling-route/index.ts', import.meta.url), 'utf8');
   assert.match(source, /\.eq\('origin_key', originKey\)/);
