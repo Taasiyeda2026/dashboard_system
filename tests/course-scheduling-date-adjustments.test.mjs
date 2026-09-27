@@ -12,7 +12,12 @@ test('an available=false exception proposes the next weekly dates and leaves the
   const result=proposeDateAdjustments({meetings,rules,exceptions:blocked});
   assert.equal(result.valid,true); assert.equal(result.label,'מתאים בכפוף להתאמת מועדים');
   assert.deepEqual(result.meetings.map(x=>x.date),['2027-01-03','2027-01-17','2027-01-24']);
-  assert.equal(result.movedCount,2); assert.deepEqual(meetings,original);
+  assert.equal(result.movedCount,1);
+  assert.equal(result.meetings[1].moved,false);
+  assert.equal(result.meetings[1].original_date,'2027-01-17');
+  assert.equal(result.meetings[2].moved,true);
+  assert.equal(result.meetings[2].original_date,'2027-01-10');
+  assert.deepEqual(meetings,original);
 });
 
 test('an active blocking school holiday shifts the sequence without an instructor exception',()=>{
@@ -26,6 +31,8 @@ test('an active blocking school holiday shifts the sequence without an instructo
   assert.deepEqual(result.meetings.map(x=>x.date),['2026-10-20','2026-11-03','2026-11-10']);
   assert.equal(result.meetings.length,holidayMeetings.length);
   assert.equal(result.meetings.some(x=>x.date==='2026-10-27'),false);
+  assert.equal(result.meetings[1].moved,false);
+  assert.equal(result.meetings[2].original_date,'2026-10-27');
 });
 
 test('two consecutive blocking holidays skip two weeks and leave unaffected sequences unchanged',()=>{
@@ -173,4 +180,42 @@ test('Saturday date adjustments are available only when explicitly enabled',()=>
     allowSaturday:false
   });
   assert.equal(blockedResult?.valid,false);
+});
+
+test('append-to-end keeps later meetings on their original dates when one middle meeting is blocked', () => {
+  const series = ['2026-12-01','2026-12-08','2026-12-15','2026-12-22','2026-12-29','2027-01-05']
+    .map((date) => ({ date, start_time: '10:00', end_time: '11:00' }));
+  const result = proposeDateAdjustments({
+    meetings: series,
+    rules: [{ weekday: 2, available: true, start_time: '08:00', end_time: '15:00' }],
+    exceptions: [{ exception_date: '2026-12-08', available: false }]
+  });
+  assert.equal(result.valid, true);
+  assert.deepEqual(result.meetings.map((row) => row.date), [
+    '2026-12-01', '2026-12-15', '2026-12-22', '2026-12-29', '2027-01-05', '2027-01-12'
+  ]);
+  assert.equal(result.movedCount, 1);
+  assert.equal(result.meetings.at(-1).original_date, '2026-12-08');
+  assert.ok(result.meetings.filter((row) => row.date !== '2027-01-12').every((row) => row.moved === false));
+});
+
+test('two blocked meetings append both to the end without cascading the middle of the series', () => {
+  const series = ['2026-12-01','2026-12-08','2026-12-15','2026-12-22','2026-12-29','2027-01-05']
+    .map((date) => ({ date, start_time: '10:00', end_time: '11:00' }));
+  const result = proposeDateAdjustments({
+    meetings: series,
+    rules: [{ weekday: 2, available: true, start_time: '08:00', end_time: '15:00' }],
+    exceptions: [
+      { exception_date: '2026-12-08', available: false },
+      { exception_date: '2026-12-29', available: false }
+    ]
+  });
+  assert.equal(result.valid, true);
+  assert.deepEqual(result.meetings.map((row) => row.date), [
+    '2026-12-01', '2026-12-15', '2026-12-22', '2027-01-05', '2027-01-12', '2027-01-19'
+  ]);
+  assert.equal(result.movedCount, 2);
+  assert.deepEqual(result.meetings.filter((row) => row.moved).map((row) => row.original_date), [
+    '2026-12-08', '2026-12-29'
+  ]);
 });

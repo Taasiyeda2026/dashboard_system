@@ -10,7 +10,13 @@ import {
   isSchedulingDraftAssignment
 } from './shared/activity-scheduling-eligibility.js';
 import { DEFAULT_COURSE_SCHEDULING_PERIOD_KEY, FIRST_HALF_CONTINUATION_END_DATE, isDateInCourseSchedulingPeriod, resolveCourseSchedulingPeriod } from './course-scheduling-periods.js';
-import { effectiveEndTime, proposeDateAdjustments } from './course-scheduling-date-adjustments.js';
+import {
+  effectiveEndTime,
+  proposeDateAdjustments,
+  buildExceptionRecoveryPlan,
+  classifyMeetingAvailabilityBlocks,
+  MAX_RECOVERABLE_EXCEPTION_MEETINGS
+} from './course-scheduling-date-adjustments.js';
 import {
   courseUrgency,
   compareCandidatesStable
@@ -237,6 +243,46 @@ function dynamicTravel(course, instructor, existingMeetings, input = {}) {
   };
 }
 
+function tryFindSingleMeetingSubstitute({
+  meeting,
+  course,
+  mainEmpId,
+  instructors = [],
+  profiles = {},
+  rules = {},
+  exceptions = {},
+  assignedRows = {},
+  input = {}
+}) {
+  const periodKey = input.periodKey || DEFAULT_COURSE_SCHEDULING_PERIOD_KEY;
+  const meetingOptions = { periodKey, allDates: true, schoolCalendar: input.schoolCalendar || [] };
+  for (const candidate of instructors) {
+    const candidateEmpId = text(candidate?.emp_id);
+    if (!candidateEmpId || candidateEmpId === mainEmpId) continue;
+    const persistedMeetings = meetingAssignments(assignedRows[candidateEmpId] || [], meetingOptions);
+    const singleCourse = { ...course, meetings: [meeting] };
+    const travel = dynamicTravel(singleCourse, candidate, persistedMeetings, input);
+    const gate = evaluateInstructor({
+      instructor: candidate,
+      profile: profiles[candidateEmpId],
+      rules: rules[candidateEmpId] || [],
+      exceptions: exceptions[candidateEmpId] || [],
+      activity: singleCourse,
+      existingActivities: persistedMeetings,
+      travel,
+      validateTravel: !input.preliminary && (input.travel !== undefined || input.routeMatrix !== undefined),
+      includeLegacyScore: false
+    });
+    if (!gate.eligible) continue;
+    return {
+      empId: candidateEmpId,
+      name: text(candidate.full_name) || candidateEmpId,
+      constraintKind: 'instructor_exception'
+    };
+  }
+  return null;
+}
+
 function evaluateCandidate({
   course,
   instructor,
@@ -244,7 +290,8 @@ function evaluateCandidate({
   profiles,
   rules,
   exceptions,
-  input
+  input,
+  instructors = []
 }) {
   const empId = text(instructor.emp_id);
   const persistedRows = [...(assignedRows[empId] || [])];
@@ -255,6 +302,7 @@ function evaluateCandidate({
   const courseSchoolCalendar = filterSchoolCalendarRowsBySector(input.schoolCalendar || [], course?.calendar_sector);
   const meetingOptions = { periodKey, allDates: true, schoolCalendar: input.schoolCalendar || [] };
   const persistedMeetings = meetingAssignments(persistedRows, meetingOptions);
+  const allowSaturday = normalizeCalendarSector(course?.calendar_sector) === 'arab';
   const adjustmentInput = {
     meetings: allMeetings,
     rules: rules[empId] || [],
@@ -262,27 +310,95 @@ function evaluateCandidate({
     schoolCalendar: courseSchoolCalendar,
     existingActivities: persistedMeetings,
     halfEnd: periodKey === 'first' ? FIRST_HALF_CONTINUATION_END_DATE : resolveCourseSchedulingPeriod(periodKey).end,
-    allowSaturday: normalizeCalendarSector(course?.calendar_sector) === 'arab'
+    allowSaturday
   };
-  let adjustment = input.allowDateAdjustments === false ? null : proposeDateAdjustments(adjustmentInput);
-  if (adjustment?.valid) {
-    const destination = placeOf(course);
-    const transitions = Object.fromEntries(adjustment.meetings.map((meeting) => {
-      const { previous, next } = adjacentActivities(persistedMeetings, meeting);
-      return [meeting.date, {
-        previous: previous ? { ...previous, ...routeLeg(input.routeMatrix || {}, placeOf(previous), destination, sameSchool(previous, course)) } : null,
-        next: next ? { ...next, ...routeLeg(input.routeMatrix || {}, destination, placeOf(next), sameSchool(course, next)) } : null
-      }];
-    }));
-    adjustment = proposeDateAdjustments({ ...adjustmentInput, transitions });
+
+  const classification = classifyMeetingAvailabilityBlocks(adjustmentInput);
+  const tooManyExceptions = classification.instructorExceptionCount > MAX_RECOVERABLE_EXCEPTION_MEETINGS;
+  const allowAdjustments = input.allowDateAdjustments !== false;
+
+  let adjustment = null;
+  if (allowAdjustments && !tooManyExceptions) {
+    const findSubstitute = input.allowSubstitutes === false
+      ? null
+      : (meeting) => tryFindSingleMeetingSubstitute({
+        meeting,
+        course,
+        mainEmpId: empId,
+        instructors: instructors.length ? instructors : (input.instructors || []),
+        profiles,
+        rules,
+        exceptions,
+        assignedRows,
+        input
+      });
+    adjustment = buildExceptionRecoveryPlan({
+      ...adjustmentInput,
+      findSubstitute
+    });
+    if (adjustment?.valid) {
+      const destination = placeOf(course);
+      const transitions = Object.fromEntries((adjustment.meetings || []).map((meeting) => {
+        if (meeting.substituteEmpId) return [meeting.date, {}];
+        const { previous, next } = adjacentActivities(persistedMeetings, meeting);
+        return [meeting.date, {
+          previous: previous ? { ...previous, ...routeLeg(input.routeMatrix || {}, placeOf(previous), destination, sameSchool(previous, course)) } : null,
+          next: next ? { ...next, ...routeLeg(input.routeMatrix || {}, destination, placeOf(next), sameSchool(course, next)) } : null
+        }];
+      }));
+      const substitutionsByDate = Object.fromEntries(
+        (adjustment.singleMeetingSubstitutions || []).map((row) => [text(row.meetingDate), {
+          empId: row.substituteEmpId,
+          name: row.substituteName,
+          constraintKind: row.constraintKind
+        }])
+      );
+      adjustment = proposeDateAdjustments({ ...adjustmentInput, transitions, substitutionsByDate });
+      if (adjustment?.valid) {
+        adjustment = {
+          ...adjustment,
+          eligibleAsPermanent: true,
+          instructorExceptionCount: classification.instructorExceptionCount,
+          singleMeetingSubstitutions: adjustment.singleMeetingSubstitutions || []
+        };
+      }
+    }
+  } else if (allowAdjustments && tooManyExceptions) {
+    // School-calendar blocks may still move, but instructor exceptions beyond the
+    // recoverable budget cannot keep this instructor as the permanent assignee.
+    adjustment = proposeDateAdjustments({
+      ...adjustmentInput,
+      exceptions: []
+    });
+    if (adjustment?.valid) {
+      adjustment = {
+        ...adjustment,
+        valid: false,
+        reason: 'too_many_availability_exceptions',
+        eligibleAsPermanent: false,
+        instructorExceptionCount: classification.instructorExceptionCount
+      };
+    } else {
+      adjustment = {
+        valid: false,
+        reason: 'too_many_availability_exceptions',
+        eligibleAsPermanent: false,
+        instructorExceptionCount: classification.instructorExceptionCount,
+        meetings: []
+      };
+    }
   }
+
   const periodCourse = adjustment?.valid ? { ...course, meetings: adjustment.meetings } : originalPeriodCourse;
+  const mainTeachingMeetings = (adjustment?.valid ? adjustment.meetings : allMeetings)
+    .filter((meeting) => !text(meeting?.substituteEmpId));
+  const mainTeachingCourse = { ...course, meetings: mainTeachingMeetings };
 
   const persistedBaselineLoad = instructorLoad(persistedRows, profiles[empId], rules[empId] || [], { periodKey });
   const persistedProjectedLoad = instructorLoad([...persistedRows, periodCourse], profiles[empId], rules[empId] || [], { periodKey });
   const persistedPeriodMeetings = meetingAssignments(persistedRows, { periodKey, schoolCalendar: input.schoolCalendar || [] });
   const plannerAllMeetings = meetingAssignments(persistedRows, meetingOptions);
-  const allMeetingsCourse = adjustment?.valid ? periodCourse : { ...course, meetings: allMeetings };
+  const allMeetingsCourse = adjustment?.valid ? mainTeachingCourse : { ...course, meetings: allMeetings };
   const gateTravel = dynamicTravel(allMeetingsCourse, instructor, plannerAllMeetings, input);
   const travel = dynamicTravel(periodCourse, instructor, persistedPeriodMeetings, input);
   const gate = evaluateInstructor({
@@ -296,7 +412,12 @@ function evaluateCandidate({
     validateTravel: !input.preliminary && (input.travel !== undefined || input.routeMatrix !== undefined),
     includeLegacyScore: false
   });
-  if (adjustment && !adjustment.valid) {
+  if (tooManyExceptions) {
+    gate.failures = [...new Set([...(gate.failures || []), 'too_many_availability_exceptions'])];
+    gate.eligible = false;
+    gate.score = null;
+    gate.scoreBreakdown = null;
+  } else if (adjustment && !adjustment.valid) {
     gate.failures = [...new Set([...(gate.failures || []), adjustment.reason])];
     gate.eligible = false;
     gate.score = null;
@@ -327,6 +448,8 @@ function evaluateCandidate({
     persistedRows,
     dateAdjustment: adjustment?.valid ? adjustment : null,
     proposedMeetings: adjustment?.valid ? adjustment.meetings : null,
+    singleMeetingSubstitutions: adjustment?.valid ? (adjustment.singleMeetingSubstitutions || []) : [],
+    instructorExceptionCount: classification.instructorExceptionCount,
     currentHalfHours: persistedBaselineLoad.hours,
     projectedHalfHours: persistedProjectedLoad.hours,
     plannerCurrentHalfHours: persistedBaselineLoad.hours,
@@ -416,7 +539,8 @@ function evaluateCourseCandidates({
     profiles,
     rules,
     exceptions,
-    input
+    input,
+    instructors
   }));
   return rescoreEligiblePeers(raw, course);
 }
