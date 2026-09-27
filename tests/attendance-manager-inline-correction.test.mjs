@@ -10,7 +10,9 @@ test('attendance-only review exposes inline field editing and uses manual correc
   assert.match(control, /data-attendance-manual-edit=/);
   assert.match(control, /data-attendance-manual-save=/);
   assert.match(control, /applyAttendanceManualCorrection\(entry, \{ \[field\]: parsed\.value \}\)/);
-  assert.match(control, /data-attendance-focus-travel=/);
+  assert.match(control, /TRAVEL_EDITABLE_FIELDS\.has\(field\)/);
+  assert.match(control, /data-field-key="\$\{escapeHtml\(key\)\}"/);
+  assert.doesNotMatch(control, /data-attendance-focus-travel="\$\{escapeHtml\(entry\.id\)\}">עריכת נסיעה/);
 });
 
 test('manager write-back supports corrected date and keeps generated travel cancellation synchronized', () => {
