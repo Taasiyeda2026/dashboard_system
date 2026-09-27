@@ -26,4 +26,3 @@ test('manager drilldown keeps monthly manager approval available after record re
   assert.doesNotMatch(workspace, /managerAttendanceApprovalGuard/);
   assert.doesNotMatch(workspace, /closest\('\[data-payroll-finish\]'\)/);
 });
-
