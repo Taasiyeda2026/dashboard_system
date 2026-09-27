@@ -606,8 +606,177 @@ test('north regional optimization returns regionalChangedIds and uses dependency
   assert.match(source, /diffPlanningRowsChangedIds/);
   assert.match(source, /regionalChangedIds/);
   assert.match(source, /NORTH_REGIONAL_CLOSURE_MAX/);
+  assert.match(source, /reconcileRecruitmentProfiles|recruitmentProfileChangedIds/);
   assert.doesNotMatch(
     source,
     /regionalTargets = new Set\(\[\s*\.\.\.northRecruitmentIds,\s*\.\.\.rows\s*\.filter\(\(row\) => \['proposal', 'fixed-proposal'\]/
   );
+});
+
+function recruitmentFixture(id, profileId, size, {
+  kind = 'recruitment',
+  day = '20',
+  authority = 'נהריה'
+} = {}) {
+  const date = `2026-10-${day}`;
+  return {
+    courseId: id,
+    kind,
+    district: 'צפון',
+    authority,
+    requiredLanguage: 'he',
+    requiredGender: 'any',
+    recruitmentProfileId: profileId || undefined,
+    recruitmentProfileLabel: profileId ? `תקן גיוס צפון ${String(profileId).split('-').at(-1)}` : undefined,
+    recruitmentProfileSize: size || undefined,
+    startDate: date,
+    endDate: date,
+    startTime: '09:00',
+    endTime: '10:30',
+    meetings: [{ date, start_time: '09:00', end_time: '10:30' }],
+    scheduleOptions: [{
+      startDate: date,
+      endDate: date,
+      startTime: '09:00',
+      endTime: '10:30',
+      meetings: [{ date, start_time: '09:00', end_time: '10:30' }]
+    }]
+  };
+}
+
+test('A: member leaves profile size 2→1 and both rows persist', async () => {
+  const {
+    reconcileRecruitmentProfiles,
+    mergeEffectiveIncrementalPersistIds
+  } = await import('../frontend/src/screens/course-scheduling-planning.js');
+  const before = [
+    recruitmentFixture('R1', 'recruitment-צפון-1', 2, { day: '20' }),
+    recruitmentFixture('R2', 'recruitment-צפון-1', 2, { day: '21' })
+  ];
+  const planned = [
+    { ...before[0], kind: 'proposal', instructorEmpId: 'X' },
+    { ...before[1] }
+  ];
+  delete planned[0].recruitmentProfileId;
+  delete planned[0].recruitmentProfileLabel;
+  delete planned[0].recruitmentProfileSize;
+  const reconciled = reconcileRecruitmentProfiles(planned, {
+    mode: 'incremental',
+    seedCourseIds: ['R1', 'R2'],
+    previousRows: before
+  });
+  const r2 = reconciled.rows.find((row) => row.courseId === 'R2');
+  assert.equal(r2.recruitmentProfileId, 'recruitment-צפון-1');
+  assert.equal(r2.recruitmentProfileSize, 1);
+  assert.ok(reconciled.changedIds.includes('R1'));
+  assert.ok(reconciled.changedIds.includes('R2'));
+  assert.deepEqual(
+    mergeEffectiveIncrementalPersistIds(['R1'], [], reconciled.changedIds).sort(),
+    ['R1', 'R2']
+  );
+});
+
+test('B: member joins profile size 2→3 and all three rows persist', async () => {
+  const { reconcileRecruitmentProfiles } = await import('../frontend/src/screens/course-scheduling-planning.js');
+  const before = [
+    recruitmentFixture('R2', 'recruitment-צפון-2', 2, { day: '20' }),
+    recruitmentFixture('R3', 'recruitment-צפון-2', 2, { day: '21' })
+  ];
+  const planned = [
+    recruitmentFixture('R1', '', 0, { day: '22' }),
+    ...before
+  ];
+  delete planned[0].recruitmentProfileId;
+  delete planned[0].recruitmentProfileLabel;
+  delete planned[0].recruitmentProfileSize;
+  const reconciled = reconcileRecruitmentProfiles(planned, {
+    mode: 'incremental',
+    seedCourseIds: ['R1'],
+    previousRows: before
+  });
+  assert.ok(reconciled.rows.every((row) => row.recruitmentProfileId === 'recruitment-צפון-2'));
+  assert.ok(reconciled.rows.every((row) => row.recruitmentProfileSize === 3));
+  assert.deepEqual([...reconciled.changedIds].sort(), ['R1', 'R2', 'R3']);
+});
+
+test('C: unrelated profile keeps stable ID without renumbering', async () => {
+  const { reconcileRecruitmentProfiles } = await import('../frontend/src/screens/course-scheduling-planning.js');
+  const before = [
+    recruitmentFixture('R1', 'recruitment-צפון-1', 1, { day: '20' }),
+    recruitmentFixture('R2', 'recruitment-צפון-2', 1, { day: '21', authority: 'עכו' })
+  ];
+  const planned = [
+    { ...before[0], kind: 'proposal', instructorEmpId: 'X' },
+    { ...before[1] }
+  ];
+  delete planned[0].recruitmentProfileId;
+  delete planned[0].recruitmentProfileLabel;
+  delete planned[0].recruitmentProfileSize;
+  const reconciled = reconcileRecruitmentProfiles(planned, {
+    mode: 'incremental',
+    seedCourseIds: ['R1'],
+    previousRows: before
+  });
+  const r2 = reconciled.rows.find((row) => row.courseId === 'R2');
+  assert.equal(r2.recruitmentProfileId, 'recruitment-צפון-2');
+  assert.notEqual(r2.recruitmentProfileId, 'recruitment-צפון-1');
+});
+
+test('D: fingerprint treats same profileId with size 4→3 as changed', async () => {
+  const {
+    planningRowPlanningFingerprint,
+    diffPlanningRowsChangedIds
+  } = await import('../frontend/src/screens/course-scheduling-planning.js');
+  const before = [recruitmentFixture('R', 'recruitment-צפון-2', 4)];
+  const after = [recruitmentFixture('R', 'recruitment-צפון-2', 3)];
+  assert.notEqual(planningRowPlanningFingerprint(before[0]), planningRowPlanningFingerprint(after[0]));
+  assert.deepEqual(diffPlanningRowsChangedIds(before, after), ['R']);
+});
+
+test('E: 30 recruitment rows, 8 examined, 3 changed => persist only 3 profile rows', async () => {
+  const {
+    mergeEffectiveIncrementalPersistIds
+  } = await import('../frontend/src/screens/course-scheduling-planning.js');
+  const {
+    assertIncrementalPlanningPersistRows
+  } = await import('../frontend/src/screens/course-scheduling-planning-store.js');
+  const all = Array.from({ length: 253 }, (_, index) => `w${index + 1}`);
+  const recruitmentIds = all.slice(0, 30);
+  const examined = recruitmentIds.slice(0, 8);
+  const changed = examined.slice(0, 3);
+  const effective = mergeEffectiveIncrementalPersistIds(['w1'], [], changed);
+  assert.equal(effective.length, 3);
+  const payload = effective.map((courseId) => ({ courseId, kind: 'recruitment' }));
+  assert.equal(
+    assertIncrementalPlanningPersistRows(payload, effective, { replaceAll: false }).length,
+    3
+  );
+  assert.equal(recruitmentIds.length - changed.length, 27);
+  assert.throws(
+    () => assertIncrementalPlanningPersistRows(
+      examined.map((courseId) => ({ courseId })),
+      effective,
+      { replaceAll: false }
+    ),
+    /planning_incremental_persist_row_outside_targets/
+  );
+});
+
+test('F: resumeFromCheckpoint still reconciles recruitment profiles', async () => {
+  const source = await readFile(new URL('../frontend/src/screens/course-scheduling-planning.js', import.meta.url), 'utf8');
+  assert.match(source, /if \(incrementalIds\) \{/);
+  assert.match(source, /resumeFromCheckpoint/);
+  assert.match(source, /recruitmentProfileChangedIds/);
+  assert.match(source, /mode:\s*'incremental'/);
+  // Profile reconciliation is outside the `!resumeFromCheckpoint` regional gate.
+  const regionalGate = source.indexOf('if (incrementalIds && !resumeFromCheckpoint)');
+  const profileReconcile = source.indexOf('if (incrementalIds) {', regionalGate + 1);
+  assert.ok(regionalGate >= 0);
+  assert.ok(profileReconcile > regionalGate);
+});
+
+test('screen merges recruitmentProfileChangedIds into effectiveAffectedIds', async () => {
+  const source = await readFile(new URL('../frontend/src/screens/course-scheduling.js', import.meta.url), 'utf8');
+  assert.match(source, /recruitmentProfileChangedIds/);
+  assert.match(source, /mergeEffectiveIncrementalPersistIds\(\s*affectedIds,\s*regionalChangedIds,\s*recruitmentProfileChangedIds\s*\)/);
 });

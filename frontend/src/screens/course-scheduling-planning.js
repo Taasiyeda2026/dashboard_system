@@ -166,11 +166,58 @@ export function planningRowPlanningFingerprint(row = {}) {
     endTime: text(row?.endTime),
     planningLocked: row?.planningLocked === true,
     recruitmentProfileId: text(row?.recruitmentProfileId),
+    recruitmentProfileLabel: text(row?.recruitmentProfileLabel),
+    recruitmentProfileSize: Number(row?.recruitmentProfileSize) || 0,
     meetings,
     primaryOptionEmpId: text(primaryOption?.instructorEmpId),
     primaryOptionStart: text(primaryOption?.startDate),
     primaryOptionStartTime: text(primaryOption?.startTime)
   });
+}
+
+export function recruitmentProfileAssignmentFingerprint(row = {}) {
+  const meetings = (Array.isArray(row?.meetings) ? row.meetings : []).map((meeting) => ({
+    date: text(meeting?.date).slice(0, 10),
+    start_time: text(meeting?.start_time).slice(0, 5),
+    end_time: text(meeting?.end_time).slice(0, 5)
+  }));
+  return JSON.stringify({
+    kind: text(row?.kind),
+    recruitmentProfileId: text(row?.recruitmentProfileId),
+    recruitmentProfileLabel: text(row?.recruitmentProfileLabel),
+    recruitmentProfileSize: Number(row?.recruitmentProfileSize) || 0,
+    startDate: text(row?.startDate),
+    endDate: text(row?.endDate),
+    startTime: text(row?.startTime),
+    endTime: text(row?.endTime),
+    meetings
+  });
+}
+
+export function collectRecruitmentProfileChangedIds(beforeRows = [], afterRows = []) {
+  const beforeById = new Map(
+    (beforeRows || []).map((row) => [text(row?.courseId), row]).filter(([id]) => !!id)
+  );
+  const afterById = new Map(
+    (afterRows || []).map((row) => [text(row?.courseId), row]).filter(([id]) => !!id)
+  );
+  const changed = new Set();
+  for (const [courseId, after] of afterById) {
+    const previous = beforeById.get(courseId);
+    if (!previous || recruitmentProfileAssignmentFingerprint(previous) !== recruitmentProfileAssignmentFingerprint(after)) {
+      changed.add(courseId);
+    }
+  }
+  for (const [courseId, previous] of beforeById) {
+    if (!afterById.has(courseId) && text(previous?.recruitmentProfileId)) changed.add(courseId);
+  }
+  return [...changed];
+}
+
+export function mergeEffectiveIncrementalPersistIds(...groups) {
+  return [...new Set(
+    groups.flatMap((group) => (Array.isArray(group) ? group : [])).map(text).filter(Boolean)
+  )];
 }
 
 export function diffPlanningRowsChangedIds(beforeRows = [], afterRows = [], { limitToIds = null } = {}) {
@@ -191,13 +238,6 @@ export function diffPlanningRowsChangedIds(beforeRows = [], afterRows = [], { li
     }
   }
   return changed;
-}
-
-export function mergeEffectiveIncrementalPersistIds(originalAffectedIds = [], regionalChangedIds = []) {
-  return [...new Set([
-    ...(originalAffectedIds || []).map(text).filter(Boolean),
-    ...(regionalChangedIds || []).map(text).filter(Boolean)
-  ])];
 }
 
 function planningRowMeetingSlots(row = {}) {
@@ -2156,8 +2196,8 @@ function recruitmentPlacementScore(profile, row, schedule) {
   return 100 + sameAuthority + sameProgram + reusedDay + laterStart + Math.min(20, profile.activities.length);
 }
 
-export function assignRecruitmentProfiles(rows = []) {
-  const result = (rows || []).map((row) => ({
+function clonePlanningRowsForProfiles(rows = []) {
+  return (rows || []).map((row) => ({
     ...row,
     meetings: (row.meetings || []).map((meeting) => ({ ...meeting })),
     scheduleOptions: (row.scheduleOptions || []).map((option) => ({
@@ -2165,95 +2205,377 @@ export function assignRecruitmentProfiles(rows = []) {
       meetings: (option.meetings || []).map((meeting) => ({ ...meeting }))
     }))
   }));
-  const candidates = result
-    .filter((row) => row.kind === 'recruitment')
-    .sort((a, b) =>
-      (a.scheduleOptions?.length || 1) - (b.scheduleOptions?.length || 1)
-      || Number(b.sessions || 0) - Number(a.sessions || 0)
-      || text(a.courseId).localeCompare(text(b.courseId))
-    );
-  const profiles = [];
+}
 
-  for (const row of candidates) {
-    const sourceChoices = row.scheduleOptions?.length
-      ? row.scheduleOptions
-      : (row.meetings?.length ? [{
-          startDate: row.startDate,
-          endDate: row.endDate,
-          startTime: row.startTime,
-          endTime: row.endTime,
-          meetings: row.meetings
-        }] : []);
-    const choices = row.schoolDateAnchored
-      ? sourceChoices
-      : sourceChoices.filter((schedule) =>
-          (schedule.meetings || []).every((meeting) => {
-            const day = weekday(meeting.date);
-            return day >= 0 && day <= 4;
-          })
-        );
+function recruitmentScheduleChoices(row = {}) {
+  const sourceChoices = row.scheduleOptions?.length
+    ? row.scheduleOptions
+    : (row.meetings?.length ? [{
+        startDate: row.startDate,
+        endDate: row.endDate,
+        startTime: row.startTime,
+        endTime: row.endTime,
+        meetings: row.meetings
+      }] : []);
+  return row.schoolDateAnchored
+    ? sourceChoices
+    : sourceChoices.filter((schedule) =>
+        (schedule.meetings || []).every((meeting) => {
+          const day = weekday(meeting.date);
+          return day >= 0 && day <= 4;
+        })
+      );
+}
+
+function clearRecruitmentProfileFields(row = {}) {
+  delete row.recruitmentProfileId;
+  delete row.recruitmentProfileLabel;
+  delete row.recruitmentProfileSize;
+}
+
+function applyRecruitmentScheduleToRow(row, schedule = {}) {
+  row.startDate = schedule.startDate;
+  row.endDate = schedule.endDate;
+  row.startTime = schedule.startTime;
+  row.endTime = schedule.endTime;
+  row.meetings = (schedule.meetings || []).map((meeting) => ({ ...meeting }));
+}
+
+function attachRowToRecruitmentProfile(profile, row, schedule) {
+  const gender = normalizedGenderRequirement(row.requiredGender);
+  if (profile.gender === 'any' && gender !== 'any') profile.gender = gender;
+  const language = normalizedLanguageRequirement(row.requiredLanguage);
+  if (language) profile.languages.add(language);
+  if (!profile.region) profile.region = recruitmentAuthorityRegionKey(row.authority, profile.district);
+  if (norm(row.authority)) profile.authorities.add(norm(row.authority));
+  if (norm(row.courseName)) profile.programs.add(norm(row.courseName));
+  for (const meeting of schedule.meetings || []) {
+    profile.meetings.push({ ...meeting, authority: row.authority, school: row.school, courseId: row.courseId });
+    profile.weekdays.add(weekday(meeting.date));
+  }
+  profile.activities.push(row.courseId);
+  applyRecruitmentScheduleToRow(row, schedule);
+  row.recruitmentProfileId = profile.id;
+  row.recruitmentProfileLabel = profile.label;
+}
+
+function createEmptyRecruitmentProfile({ id, label, district, region, gender }) {
+  return {
+    id,
+    label,
+    district,
+    region,
+    gender: gender || 'any',
+    languages: new Set(),
+    authorities: new Set(),
+    programs: new Set(),
+    weekdays: new Set(),
+    meetings: [],
+    activities: []
+  };
+}
+
+function rebuildRecruitmentProfileFromRows(profileId, label, members = []) {
+  const first = members[0];
+  const district = normalizeOperationalDistrict(first?.district) || text(first?.district);
+  const profile = createEmptyRecruitmentProfile({
+    id: profileId,
+    label: label || (district ? `תקן גיוס ${district}` : 'תקן גיוס'),
+    district,
+    region: recruitmentAuthorityRegionKey(first?.authority, district),
+    gender: normalizedGenderRequirement(first?.requiredGender)
+  });
+  for (const row of members) {
+    const choices = recruitmentScheduleChoices(row);
+    const schedule = choices[0];
+    if (!schedule) continue;
+    attachRowToRecruitmentProfile(profile, row, schedule);
+  }
+  return profile;
+}
+
+export function allocateStableRecruitmentProfileId(district = '', usedIds = new Set()) {
+  const normalized = normalizeOperationalDistrict(district) || text(district) || 'general';
+  const prefix = `recruitment-${normalized}-`;
+  let max = 0;
+  for (const id of usedIds || []) {
+    const value = text(id);
+    if (!value.startsWith(prefix)) continue;
+    const index = Number(value.slice(prefix.length));
+    if (Number.isFinite(index)) max = Math.max(max, index);
+  }
+  let next = max + 1;
+  while (usedIds.has(`${prefix}${next}`)) next += 1;
+  return `${prefix}${next}`;
+}
+
+export function expandRecruitmentProfilePeerClosure({
+  seedIds = [],
+  previousRows = [],
+  currentRows = [],
+  maxRows = 80
+} = {}) {
+  const previousById = new Map(
+    (previousRows || []).map((row) => [text(row?.courseId), row]).filter(([id]) => !!id)
+  );
+  const currentById = new Map(
+    (currentRows || []).map((row) => [text(row?.courseId), row]).filter(([id]) => !!id)
+  );
+  const closure = new Set([...seedIds].map(text).filter(Boolean));
+  const limit = Math.max(1, Number(maxRows) || 80);
+
+  // Peers that previously shared a profile with any seed.
+  for (const seedId of [...closure]) {
+    const previous = previousById.get(seedId);
+    const profileId = text(previous?.recruitmentProfileId);
+    if (!profileId) continue;
+    for (const row of previousRows || []) {
+      if (text(row?.recruitmentProfileId) !== profileId) continue;
+      closure.add(text(row?.courseId));
+      if (closure.size >= limit) break;
+    }
+    if (closure.size >= limit) break;
+  }
+
+  // Compatible current recruitment candidates that a seed may join.
+  const seedRecruitment = [...closure]
+    .map((id) => currentById.get(id) || previousById.get(id))
+    .filter((row) => row && (text(row.kind) === 'recruitment' || text(previousById.get(text(row.courseId))?.kind) === 'recruitment'));
+  for (const row of currentRows || []) {
+    if (closure.size >= limit) break;
+    const courseId = text(row?.courseId);
+    if (!courseId || closure.has(courseId) || text(row?.kind) !== 'recruitment') continue;
+    const district = normalizeOperationalDistrict(row.district) || text(row.district);
+    const language = normalizedLanguageRequirement(row.requiredLanguage);
+    const region = recruitmentAuthorityRegionKey(row.authority, district);
+    const compatible = seedRecruitment.some((seed) => {
+      const seedDistrict = normalizeOperationalDistrict(seed?.district) || text(seed?.district);
+      if (seedDistrict && district && seedDistrict !== district) return false;
+      const seedLanguage = normalizedLanguageRequirement(seed?.requiredLanguage);
+      if (seedLanguage && language && seedLanguage !== language) return false;
+      return recruitmentRegionsCompatible(
+        recruitmentAuthorityRegionKey(seed?.authority, seedDistrict),
+        region,
+        district
+      );
+    });
+    if (compatible) closure.add(courseId);
+  }
+
+  return [...closure].filter(Boolean).slice(0, limit);
+}
+
+function finalizeRecruitmentProfileAnnotations(rows = [], profiles = []) {
+  const profileById = new Map(profiles.map((profile) => [profile.id, profile]));
+  for (const row of rows || []) {
+    if (text(row?.kind) !== 'recruitment') {
+      if (row?.recruitmentProfileId) clearRecruitmentProfileFields(row);
+      continue;
+    }
+    if (!row.recruitmentProfileId) continue;
+    const profile = profileById.get(row.recruitmentProfileId);
+    row.recruitmentProfileSize = profile?.activities?.length || 1;
+    row.recruitmentProfileLabel = profile?.label || row.recruitmentProfileLabel;
+    row.reason = `לאחר מיצוי אפשרויות הצוות הקיים: נדרש גיוס. הפעילות משויכת ל${row.recruitmentProfileLabel}, שמרכז ${row.recruitmentProfileSize} פעילויות בתוכנית עבודה אפשרית לאדם אחד (אותו מחוז/אזור, אותה שפה, ללא חפיפות ועם זמן מעבר).`;
+  }
+  return rows;
+}
+
+function packRecruitmentCandidates(candidates = [], {
+  profiles = [],
+  usedIds = new Set(),
+  preferProfileId = ''
+} = {}) {
+  const ordered = [...candidates].sort((a, b) =>
+    (a.scheduleOptions?.length || 1) - (b.scheduleOptions?.length || 1)
+    || Number(b.sessions || 0) - Number(a.sessions || 0)
+    || text(a.courseId).localeCompare(text(b.courseId))
+  );
+
+  for (const row of ordered) {
+    if (text(row.recruitmentProfileId)) continue;
+    const choices = recruitmentScheduleChoices(row);
     if (!choices.length) continue;
 
     let best = null;
     for (const profile of profiles) {
       for (const schedule of choices) {
         if (!recruitmentProfileCanTake(profile, row, schedule)) continue;
-        const score = recruitmentPlacementScore(profile, row, schedule);
+        let score = recruitmentPlacementScore(profile, row, schedule);
+        if (preferProfileId && text(profile.id) === text(preferProfileId)) score += 50;
         if (!best || score > best.score) best = { profile, schedule, score };
       }
     }
 
     if (!best) {
       const district = normalizeOperationalDistrict(row.district) || text(row.district);
-      const districtIndex = profiles.filter((item) => item.district === district).length + 1;
-      const profile = {
-        id: `recruitment-${district || 'general'}-${districtIndex}`,
-        label: district ? `תקן גיוס ${district} ${districtIndex}` : `תקן גיוס ${profiles.length + 1}`,
+      const id = allocateStableRecruitmentProfileId(district, usedIds);
+      usedIds.add(id);
+      const profile = createEmptyRecruitmentProfile({
+        id,
+        label: district ? `תקן גיוס ${district} ${id.split('-').at(-1)}` : `תקן גיוס ${profiles.length + 1}`,
         district,
         region: recruitmentAuthorityRegionKey(row.authority, district),
-        gender: normalizedGenderRequirement(row.requiredGender),
-        languages: new Set(),
-        authorities: new Set(),
-        programs: new Set(),
-        weekdays: new Set(),
-        meetings: [],
-        activities: []
-      };
+        gender: normalizedGenderRequirement(row.requiredGender)
+      });
       profiles.push(profile);
       best = { profile, schedule: choices[0], score: 0 };
     }
 
-    const { profile, schedule } = best;
-    const gender = normalizedGenderRequirement(row.requiredGender);
-    if (profile.gender === 'any' && gender !== 'any') profile.gender = gender;
-    const language = normalizedLanguageRequirement(row.requiredLanguage);
-    if (language) profile.languages.add(language);
-    if (!profile.region) profile.region = recruitmentAuthorityRegionKey(row.authority, profile.district);
-    if (norm(row.authority)) profile.authorities.add(norm(row.authority));
-    if (norm(row.courseName)) profile.programs.add(norm(row.courseName));
-    for (const meeting of schedule.meetings || []) {
-      profile.meetings.push({ ...meeting, authority: row.authority, school: row.school, courseId: row.courseId });
-      profile.weekdays.add(weekday(meeting.date));
-    }
-    profile.activities.push(row.courseId);
+    attachRowToRecruitmentProfile(best.profile, row, best.schedule);
+  }
+  return profiles;
+}
 
-    row.startDate = schedule.startDate;
-    row.endDate = schedule.endDate;
-    row.startTime = schedule.startTime;
-    row.endTime = schedule.endTime;
-    row.meetings = (schedule.meetings || []).map((meeting) => ({ ...meeting }));
-    row.recruitmentProfileId = profile.id;
-    row.recruitmentProfileLabel = profile.label;
+function assignRecruitmentProfilesFull(rows = []) {
+  const result = clonePlanningRowsForProfiles(rows);
+  for (const row of result) clearRecruitmentProfileFields(row);
+  const candidates = result.filter((row) => row.kind === 'recruitment');
+  const profiles = packRecruitmentCandidates(candidates, { profiles: [], usedIds: new Set() });
+  return finalizeRecruitmentProfileAnnotations(result, profiles);
+}
+
+/**
+ * Incremental-safe recruitment profile assignment.
+ * Outside the profile dependency closure, existing profile IDs stay stable (no renumbering).
+ * Peers whose size/label/membership changes are included in meta.changedIds.
+ */
+export function reconcileRecruitmentProfiles(rows = [], {
+  mode = 'full',
+  seedCourseIds = null,
+  previousRows = null
+} = {}) {
+  const baseline = Array.isArray(previousRows) ? previousRows : rows;
+  if (mode !== 'incremental' || !Array.isArray(seedCourseIds) || !seedCourseIds.length) {
+    const next = assignRecruitmentProfilesFull(rows);
+    return {
+      rows: next,
+      examinedIds: next.filter((row) => row.kind === 'recruitment').map((row) => text(row.courseId)).filter(Boolean),
+      changedIds: collectRecruitmentProfileChangedIds(baseline, next)
+    };
   }
 
-  const profileById = new Map(profiles.map((profile) => [profile.id, profile]));
+  const result = clonePlanningRowsForProfiles(rows);
+  const previousById = new Map(
+    (baseline || []).map((row) => [text(row?.courseId), row]).filter(([id]) => !!id)
+  );
+  const examinedIds = expandRecruitmentProfilePeerClosure({
+    seedIds: seedCourseIds,
+    previousRows: baseline,
+    currentRows: result
+  });
+  const examined = new Set(examinedIds);
+
+  // Preserve assignments outside the closure.
+  const preservedProfiles = new Map();
   for (const row of result) {
-    if (!row.recruitmentProfileId) continue;
-    const profile = profileById.get(row.recruitmentProfileId);
-    row.recruitmentProfileSize = profile?.activities?.length || 1;
-    row.reason = `לאחר מיצוי אפשרויות הצוות הקיים: נדרש גיוס. הפעילות משויכת ל${row.recruitmentProfileLabel}, שמרכז ${row.recruitmentProfileSize} פעילויות בתוכנית עבודה אפשרית לאדם אחד (אותו מחוז/אזור, אותה שפה, ללא חפיפות ועם זמן מעבר).`;
+    const courseId = text(row?.courseId);
+    if (!courseId || examined.has(courseId)) continue;
+    if (text(row?.kind) !== 'recruitment') {
+      clearRecruitmentProfileFields(row);
+      continue;
+    }
+    const profileId = text(row?.recruitmentProfileId) || text(previousById.get(courseId)?.recruitmentProfileId);
+    const label = text(row?.recruitmentProfileLabel) || text(previousById.get(courseId)?.recruitmentProfileLabel);
+    if (!profileId) continue;
+    if (!preservedProfiles.has(profileId)) preservedProfiles.set(profileId, { id: profileId, label, members: [] });
+    preservedProfiles.get(profileId).members.push(row);
   }
-  return result;
+
+  const profiles = [];
+  const usedIds = new Set();
+  for (const entry of preservedProfiles.values()) {
+    usedIds.add(entry.id);
+    profiles.push(rebuildRecruitmentProfileFromRows(entry.id, entry.label, entry.members));
+  }
+
+  // Clear examined recruitment rows, then rebuild preferring previous profile ids.
+  const mutable = [];
+  for (const row of result) {
+    const courseId = text(row?.courseId);
+    if (!examined.has(courseId)) continue;
+    if (text(row?.kind) !== 'recruitment') {
+      clearRecruitmentProfileFields(row);
+      continue;
+    }
+    clearRecruitmentProfileFields(row);
+    mutable.push(row);
+  }
+
+  const previousGroups = new Map();
+  for (const row of mutable) {
+    const previousId = text(previousById.get(text(row.courseId))?.recruitmentProfileId);
+    if (!previousId || usedIds.has(previousId)) continue;
+    if (!previousGroups.has(previousId)) previousGroups.set(previousId, []);
+    previousGroups.get(previousId).push(row);
+  }
+
+  for (const [profileId, members] of previousGroups) {
+    if (!members.length) continue;
+    usedIds.add(profileId);
+    const label = text(previousById.get(text(members[0].courseId))?.recruitmentProfileLabel)
+      || profileId;
+    const profile = createEmptyRecruitmentProfile({
+      id: profileId,
+      label,
+      district: normalizeOperationalDistrict(members[0].district) || text(members[0].district),
+      region: recruitmentAuthorityRegionKey(members[0].authority, members[0].district),
+      gender: normalizedGenderRequirement(members[0].requiredGender)
+    });
+    profiles.push(profile);
+    packRecruitmentCandidates(members, {
+      profiles,
+      usedIds,
+      preferProfileId: profileId
+    });
+  }
+
+  const remaining = mutable.filter((row) => !text(row.recruitmentProfileId));
+  packRecruitmentCandidates(remaining, { profiles, usedIds });
+  finalizeRecruitmentProfileAnnotations(result, profiles);
+
+  // Any preserved profile that gained a mutable member must refresh peer annotations.
+  const touchedProfileIds = new Set(
+    mutable.map((row) => text(row.recruitmentProfileId)).filter(Boolean)
+  );
+  for (const row of result) {
+    if (!touchedProfileIds.has(text(row.recruitmentProfileId))) continue;
+    examined.add(text(row.courseId));
+  }
+
+  const changedIds = collectRecruitmentProfileChangedIds(baseline, result)
+    .filter((courseId) => examined.has(courseId) || touchedProfileIds.has(text(
+      result.find((row) => text(row.courseId) === courseId)?.recruitmentProfileId
+    )));
+
+  // Always include every row whose profile fingerprint changed and belongs to a touched profile.
+  const changed = new Set(changedIds);
+  for (const row of result) {
+    const courseId = text(row?.courseId);
+    const profileId = text(row?.recruitmentProfileId);
+    if (!courseId) continue;
+    if (touchedProfileIds.has(profileId) || examined.has(courseId)) {
+      const previous = previousById.get(courseId);
+      if (!previous || recruitmentProfileAssignmentFingerprint(previous) !== recruitmentProfileAssignmentFingerprint(row)) {
+        changed.add(courseId);
+      }
+    }
+  }
+
+  return {
+    rows: result,
+    examinedIds: [...examined],
+    changedIds: [...changed]
+  };
+}
+
+export function assignRecruitmentProfiles(rows = [], options = {}) {
+  const reconciled = reconcileRecruitmentProfiles(rows, options);
+  if (options?.meta && typeof options.meta === 'object') {
+    options.meta.examinedIds = reconciled.examinedIds;
+    options.meta.changedIds = reconciled.changedIds;
+  }
+  return reconciled.rows;
 }
 
 function planRowFromOption(activity, option, options, startRange, spec, diagnostics = {}) {
@@ -3737,8 +4059,39 @@ export async function buildDynamicCoursePlan({
     await report('בניית תוכנית', completed, queue.length, idOf(activity), partialRows);
   }
 
-  const rows = assignRecruitmentProfiles(
-    targets.map((activity) => rowsById.get(idOf(activity)) || missingOverviewRow(activity, catalog))
+  const baselineRows = targets.map((activity) => {
+    const existing = existingById.get(idOf(activity));
+    return existing
+      ? {
+          ...existing,
+          meetings: (existing.meetings || []).map((meeting) => ({ ...meeting })),
+          scheduleOptions: (existing.scheduleOptions || []).map((option) => ({
+            ...option,
+            meetings: (option.meetings || []).map((meeting) => ({ ...meeting }))
+          }))
+        }
+      : { courseId: idOf(activity) };
+  });
+  const profileSeedIds = incrementalIds
+    ? [...new Set([
+        ...incrementalIds,
+        ...diffPlanningRowsChangedIds(
+          baselineRows,
+          targets.map((activity) => rowsById.get(idOf(activity)) || { courseId: idOf(activity) })
+        )
+      ])]
+    : null;
+  const profileMeta = {};
+  let rows = assignRecruitmentProfiles(
+    targets.map((activity) => rowsById.get(idOf(activity)) || missingOverviewRow(activity, catalog)),
+    incrementalIds
+      ? {
+          mode: 'incremental',
+          seedCourseIds: profileSeedIds,
+          previousRows: baselineRows,
+          meta: profileMeta
+        }
+      : { mode: 'full', previousRows: baselineRows, meta: profileMeta }
   );
   const summarize = (selectedRows, extra = {}) => ({
     rows: selectedRows,
@@ -3754,92 +4107,134 @@ export async function buildDynamicCoursePlan({
       googleCalls: Number(routeClient.googleCalls) || 0,
       cacheHits: Number(routeClient.cacheHits) || 0
     },
+    recruitmentProfileChangedIds: Array.isArray(extra.recruitmentProfileChangedIds)
+      ? extra.recruitmentProfileChangedIds
+      : (profileMeta.changedIds || []),
+    recruitmentProfileExaminedIds: Array.isArray(extra.recruitmentProfileExaminedIds)
+      ? extra.recruitmentProfileExaminedIds
+      : (profileMeta.examinedIds || []),
     ...extra
   });
 
-  const initialResult = summarize(rows, { repairApplied: _repairPass });
+  let initialResult = summarize(rows, {
+    repairApplied: _repairPass,
+    recruitmentProfileChangedIds: profileMeta.changedIds || [],
+    recruitmentProfileExaminedIds: profileMeta.examinedIds || []
+  });
   if (_repairPass) return initialResult;
 
   // Incremental runs stay scoped, but North recruitment still gets a targeted
   // regional re-optimization over a dependency closure of unlocked proposals
   // before accepting hires. CALCULATED may inspect the closure; PERSISTED is
   // only rows that actually changed (handled by the caller via regionalChangedIds).
+  // Profile reconciliation also runs for resumeFromCheckpoint so peers that only
+  // changed profile size/label are still persisted.
   if (incrementalIds && !resumeFromCheckpoint) {
     const northRecruitmentIds = rows
       .filter((row) => text(row?.kind) === 'recruitment')
       .filter((row) => normalizeOperationalDistrict(row?.district) === 'צפון')
       .map((row) => text(row?.courseId))
       .filter((courseId) => courseId && incrementalIds.has(courseId));
-    if (!northRecruitmentIds.length) return initialResult;
-
-    const regionalTargets = expandNorthRegionalDependencyClosure({
-      seedIds: northRecruitmentIds,
-      rows,
-      maxRows: NORTH_REGIONAL_CLOSURE_MAX
-    });
-    if (regionalTargets.length <= northRecruitmentIds.length) {
-      return {
-        ...initialResult,
-        northRegionalOptimization: {
-          applied: false,
-          examinedIds: regionalTargets,
-          regionalChangedIds: []
+    if (northRecruitmentIds.length) {
+      const regionalTargets = expandNorthRegionalDependencyClosure({
+        seedIds: northRecruitmentIds,
+        rows,
+        maxRows: NORTH_REGIONAL_CLOSURE_MAX
+      });
+      if (regionalTargets.length > northRecruitmentIds.length) {
+        await report('אופטימיזציה אזורית בצפון', 0, regionalTargets.length);
+        const repaired = await buildDynamicCoursePlan({
+          activities,
+          instructors,
+          profiles,
+          rules,
+          exceptions,
+          schoolCalendar,
+          catalog,
+          district,
+          periodKey,
+          today,
+          routeClient,
+          lockedOptions,
+          existingRows: rows,
+          targetCourseIds: regionalTargets,
+          onProgress: typeof onProgress === 'function'
+            ? (progress) => onProgress({ ...progress, phase: `צפון · ${progress.phase}` })
+            : null,
+          signal,
+          checkpoint,
+          resumeFromCheckpoint: false,
+          _repairPass: true,
+          _repairPriorityIds: northRecruitmentIds,
+          planningProfile
+        });
+        const improved = comparePlanningPlanQuality(repaired.rows, rows) < 0
+          || (Number(repaired.recruitment) || 0) < (Number(initialResult.recruitment) || 0);
+        if (improved) {
+          const regionalChangedIds = diffPlanningRowsChangedIds(rows, repaired.rows, {
+            limitToIds: regionalTargets
+          });
+          rows = repaired.rows;
+          initialResult = {
+            ...repaired,
+            repairApplied: true,
+            northRegionalOptimization: {
+              applied: true,
+              examinedIds: regionalTargets,
+              regionalChangedIds,
+              beforeRecruitment: initialResult.recruitment,
+              afterRecruitment: repaired.recruitment
+            }
+          };
+        } else {
+          initialResult = {
+            ...initialResult,
+            northRegionalOptimization: {
+              applied: false,
+              examinedIds: regionalTargets,
+              regionalChangedIds: []
+            }
+          };
         }
-      };
-    }
-
-    await report('אופטימיזציה אזורית בצפון', 0, regionalTargets.length);
-    const repaired = await buildDynamicCoursePlan({
-      activities,
-      instructors,
-      profiles,
-      rules,
-      exceptions,
-      schoolCalendar,
-      catalog,
-      district,
-      periodKey,
-      today,
-      routeClient,
-      lockedOptions,
-      existingRows: rows,
-      targetCourseIds: regionalTargets,
-      onProgress: typeof onProgress === 'function'
-        ? (progress) => onProgress({ ...progress, phase: `צפון · ${progress.phase}` })
-        : null,
-      signal,
-      checkpoint,
-      resumeFromCheckpoint: false,
-      _repairPass: true,
-      _repairPriorityIds: northRecruitmentIds,
-      planningProfile
-    });
-    const improved = comparePlanningPlanQuality(repaired.rows, rows) < 0
-      || (Number(repaired.recruitment) || 0) < (Number(initialResult.recruitment) || 0);
-    if (!improved) {
-      return {
-        ...initialResult,
-        northRegionalOptimization: {
-          applied: false,
-          examinedIds: regionalTargets,
-          regionalChangedIds: []
-        }
-      };
-    }
-    const regionalChangedIds = diffPlanningRowsChangedIds(rows, repaired.rows, {
-      limitToIds: regionalTargets
-    });
-    return {
-      ...repaired,
-      repairApplied: true,
-      northRegionalOptimization: {
-        applied: true,
-        examinedIds: regionalTargets,
-        regionalChangedIds,
-        beforeRecruitment: initialResult.recruitment,
-        afterRecruitment: repaired.recruitment
+      } else {
+        initialResult = {
+          ...initialResult,
+          northRegionalOptimization: {
+            applied: false,
+            examinedIds: regionalTargets,
+            regionalChangedIds: []
+          }
+        };
       }
-    };
+    }
+  }
+
+  if (incrementalIds) {
+    const regionalChangedIds = Array.isArray(initialResult?.northRegionalOptimization?.regionalChangedIds)
+      ? initialResult.northRegionalOptimization.regionalChangedIds
+      : [];
+    const finalProfileMeta = {};
+    const reconciledRows = assignRecruitmentProfiles(rows, {
+      mode: 'incremental',
+      seedCourseIds: [...new Set([
+        ...incrementalIds,
+        ...regionalChangedIds,
+        ...(profileSeedIds || [])
+      ])],
+      previousRows: baselineRows,
+      meta: finalProfileMeta
+    });
+    const recruitmentProfileChangedIds = collectRecruitmentProfileChangedIds(baselineRows, reconciledRows);
+    return summarize(reconciledRows, {
+      repairApplied: initialResult.repairApplied === true,
+      northRegionalOptimization: initialResult.northRegionalOptimization || {
+        applied: false,
+        examinedIds: [],
+        regionalChangedIds: []
+      },
+      recruitmentProfileChangedIds,
+      recruitmentProfileExaminedIds: finalProfileMeta.examinedIds || []
+    });
   }
 
   if (!limits.runGlobalRepair) return {

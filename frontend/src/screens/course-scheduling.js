@@ -2655,9 +2655,16 @@ export const courseSchedulingScreen = {
         const regionalChangedIds = Array.isArray(result?.northRegionalOptimization?.regionalChangedIds)
           ? result.northRegionalOptimization.regionalChangedIds.map(text).filter(Boolean)
           : [];
+        const recruitmentProfileChangedIds = Array.isArray(result?.recruitmentProfileChangedIds)
+          ? result.recruitmentProfileChangedIds.map(text).filter(Boolean)
+          : [];
         const effectiveAffectedIds = fullRun
           ? currentCourseIds
-          : mergeEffectiveIncrementalPersistIds(affectedIds, regionalChangedIds);
+          : mergeEffectiveIncrementalPersistIds(
+              affectedIds,
+              regionalChangedIds,
+              recruitmentProfileChangedIds
+            );
         const effectiveAffectedIdSet = new Set(effectiveAffectedIds);
         if (startFingerprint !== endFingerprint) {
           Object.assign(data, freshEnd);
