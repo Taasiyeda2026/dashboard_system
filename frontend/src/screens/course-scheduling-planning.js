@@ -57,7 +57,7 @@ export const PLANNING_OPTIMIZATION_WEIGHTS = Object.freeze({
   geography: 15,
   stability: 10
 });
-export const PLANNING_ENGINE_VERSION = 'planning-v19-20260927-exhaust-existing-staff';
+export const PLANNING_ENGINE_VERSION = 'planning-v20-20260927-fast-recruitment-rescue';
 export const PLANNING_ACTIVITY_NO_ALIASES = Object.freeze({
   // Legacy Gefen identifier retained on existing activities; canonical catalog program is 53828.
   '82835': '53828'
@@ -1526,6 +1526,157 @@ function normalizedLanguageRequirement(value) {
   return raw;
 }
 
+function planningProfileFor(profiles = {}, empId = '') {
+  return profiles?.[empId] || profiles?.[String(empId)] || {};
+}
+
+function planningRowsFor(map = {}, empId = '') {
+  return map?.[empId] || map?.[String(empId)] || [];
+}
+
+function recruitmentRescueSchedules(row = {}) {
+  const source = Array.isArray(row?.scheduleOptions) && row.scheduleOptions.length
+    ? row.scheduleOptions
+    : [{
+        startDate: row?.startDate,
+        endDate: row?.endDate,
+        startTime: row?.startTime,
+        endTime: row?.endTime,
+        meetings: row?.meetings
+      }];
+  const seen = new Set();
+  return source
+    .map((option) => {
+      const meetings = (option?.meetings || []).map((meeting) => ({
+        date: text(meeting?.date).slice(0, 10),
+        start_time: text(meeting?.start_time || option?.startTime).slice(0, 5),
+        end_time: text(meeting?.end_time || option?.endTime).slice(0, 5)
+      })).filter((meeting) =>
+        /^\d{4}-\d{2}-\d{2}$/.test(meeting.date)
+        && validTimeRange(meeting.start_time, meeting.end_time)
+      );
+      if (!meetings.length) return null;
+      const startDate = text(option?.startDate || meetings[0].date).slice(0, 10);
+      const endDate = text(option?.endDate || meetings.at(-1).date).slice(0, 10);
+      const startTime = text(option?.startTime || meetings[0].start_time).slice(0, 5);
+      const endTime = text(option?.endTime || meetings[0].end_time).slice(0, 5);
+      const key = `${startDate}|${startTime}|${endTime}`;
+      if (seen.has(key)) return null;
+      seen.add(key);
+      return { startDate, endDate, startTime, endTime, meetings };
+    })
+    .filter(Boolean);
+}
+
+function instructorMeetingAvailable(empId, meeting, activity, { rules = {}, exceptions = {} } = {}) {
+  const date = text(meeting?.date).slice(0, 10);
+  const day = weekday(date);
+  if (!date || !Number.isInteger(day)) return false;
+  if (day === 6 && !activityAllowsSaturday(activity)) return false;
+
+  const exception = planningRowsFor(exceptions, empId).find((row) =>
+    text(row?.exception_date || row?.date).slice(0, 10) === date
+  );
+  if (exception) return ruleCovers(exception, meeting.start_time, meeting.end_time);
+
+  return planningRowsFor(rules, empId).some((rule) =>
+    Number(rule?.weekday) === day && ruleCovers(rule, meeting.start_time, meeting.end_time)
+  );
+}
+
+function rescueScheduleConflicts(empId, schedule, row, existingRows = []) {
+  const incoming = schedule?.meetings || [];
+  for (const existing of existingRows || []) {
+    if (text(existing?.courseId) === text(row?.courseId)) continue;
+    if (text(existing?.instructorEmpId) !== text(empId)) continue;
+    for (const current of existing?.meetings || []) {
+      for (const meeting of incoming) {
+        if (timeRangesOverlap(current, meeting)) return true;
+      }
+    }
+  }
+  return false;
+}
+
+export function recruitmentRescueProbe({
+  row = {},
+  activity = {},
+  instructors = [],
+  profiles = {},
+  rules = {},
+  exceptions = {},
+  routeClient = null,
+  existingRows = []
+} = {}) {
+  const schedules = recruitmentRescueSchedules(row);
+  if (!schedules.length) {
+    return { possible: false, schedules: [], candidateEmpIds: [], knownMatches: 0, unknownRouteMatches: 0 };
+  }
+
+  const activeIds = activeInstructorIds(instructors);
+  const requiredLanguage = normalizedLanguageRequirement(row.requiredLanguage || activity.instruction_language);
+  const requiredGender = normalizedGenderRequirement(row.requiredGender || activity.required_instructor_gender);
+  const destination = text(activity.school_address);
+  const matches = [];
+
+  for (const instructor of instructors || []) {
+    const empId = text(instructor?.emp_id);
+    if (!empId || !activeIds.has(empId)) continue;
+    const profile = planningProfileFor(profiles, empId);
+    const languages = (profile?.instruction_languages || []).map((value) => normalizedLanguageRequirement(value)).filter(Boolean);
+    if (requiredLanguage && !languages.includes(requiredLanguage)) continue;
+    if (requiredGender !== 'any' && text(profile?.gender) !== requiredGender) continue;
+
+    const cachedHome = destination ? routeClient?.peek?.(instructor?.address, destination) : null;
+    const homeKm = Number(cachedHome?.distance_km);
+    const homeKnown = Number.isFinite(homeKm) && homeKm >= 0;
+    if (homeKnown && homeKm > 40) continue;
+
+    for (const schedule of schedules) {
+      const available = schedule.meetings.every((meeting) =>
+        instructorMeetingAvailable(empId, meeting, activity, { rules, exceptions })
+      );
+      if (!available) continue;
+      if (rescueScheduleConflicts(empId, schedule, row, existingRows)) continue;
+      matches.push({
+        empId,
+        homeKm: homeKnown ? homeKm : null,
+        routeKnown: homeKnown,
+        schedule
+      });
+    }
+  }
+
+  matches.sort((first, second) => {
+    if (first.routeKnown !== second.routeKnown) return first.routeKnown ? -1 : 1;
+    const firstKm = first.homeKm == null ? Number.POSITIVE_INFINITY : first.homeKm;
+    const secondKm = second.homeKm == null ? Number.POSITIVE_INFINITY : second.homeKm;
+    return firstKm - secondKm || first.empId.localeCompare(second.empId, 'en');
+  });
+
+  const candidateEmpIds = [...new Set(matches.map((match) => match.empId))];
+  const scenarioKeys = new Set();
+  const rescueScenarios = [];
+  for (const match of matches) {
+    const schedule = match.schedule;
+    const key = `${schedule.startDate}|${schedule.startTime}|${schedule.endTime}`;
+    if (scenarioKeys.has(key)) continue;
+    scenarioKeys.add(key);
+    rescueScenarios.push({
+      ...schedule,
+      heuristic: 0
+    });
+  }
+
+  return {
+    possible: matches.length > 0,
+    schedules: rescueScenarios,
+    candidateEmpIds,
+    knownMatches: matches.filter((match) => match.routeKnown).length,
+    unknownRouteMatches: matches.filter((match) => !match.routeKnown).length
+  };
+}
+
 function meetingGapMinutes(first = {}, second = {}) {
   const firstStart = timeMinutes(first.start_time);
   const firstEnd = timeMinutes(first.end_time);
@@ -2266,6 +2417,7 @@ export async function buildDynamicCoursePlan({
   const existingById = new Map((existingRows || [])
     .map((row) => [text(row?.courseId) || idOf(row), row])
     .filter(([courseId]) => !!courseId));
+  const recruitmentRescueById = new Map();
   const incrementalIds = Array.isArray(targetCourseIds)
     ? new Set(targetCourseIds.map((value) => text(value)).filter(Boolean))
     : null;
@@ -2287,6 +2439,33 @@ export async function buildDynamicCoursePlan({
       const virtual = blockingVirtualActivity(activity, locked);
       if (virtual) virtualPlans.push(virtual);
       continue;
+    }
+
+    const existing = existingById.get(activityId);
+    if (incrementalIds?.has(activityId) && text(existing?.kind) === 'recruitment') {
+      const rescue = recruitmentRescueProbe({
+        row: existing,
+        activity,
+        instructors,
+        profiles,
+        rules,
+        exceptions,
+        routeClient,
+        existingRows
+      });
+      if (!rescue.possible) {
+        rowsById.set(activityId, {
+          ...existing,
+          planningLocked: false,
+          diagnostics: {
+            ...(existing?.diagnostics || {}),
+            fastRescueSkipped: true,
+            fastRescueReason: 'no_existing_staff_candidate'
+          }
+        });
+        continue;
+      }
+      recruitmentRescueById.set(activityId, rescue);
     }
 
     if (incrementalIds && !incrementalIds.has(activityId)) {
@@ -2433,6 +2612,73 @@ export async function buildDynamicCoursePlan({
       const virtual = blockingVirtualActivity(activity, chosen);
       if (virtual) virtualPlans.push(virtual);
     } else {
+      const rescue = recruitmentRescueById.get(idOf(activity));
+      if (rescue) {
+        await report('בדיקת הצלה מהירה מגיוס', completed, queue.length, idOf(activity));
+        const rescueIds = new Set(rescue.candidateEmpIds);
+        const rescueInstructors = (instructors || []).filter((instructor) => rescueIds.has(text(instructor?.emp_id)));
+        const rescueStartDates = rescue.schedules.map((scenario) => text(scenario.startDate)).filter(Boolean).sort();
+        const rescueRange = rescueStartDates.length
+          ? { min: rescueStartDates[0], max: rescueStartDates.at(-1) }
+          : null;
+        const rescueEvaluation = await evaluateScenarioOptions({
+          activity,
+          scenarios: rescue.schedules,
+          startRange: rescueRange,
+          contextActivities: currentContext,
+          instructors: rescueInstructors,
+          profiles,
+          rules,
+          exceptions,
+          schoolCalendar,
+          today,
+          routeClient,
+          checkpoint,
+          signal,
+          periodKey: activityPeriodKey,
+          limits: {
+            ...FAST_PLANNING_LIMITS,
+            maxScenarios: Math.max(1, rescue.schedules.length),
+            maxCandidatesPerScenario: Math.max(1, Math.min(6, rescueInstructors.length)),
+            maxRoutedPlanningPairs: 3,
+            maxFinalOptions: 1,
+            runGlobalRepair: false
+          }
+        });
+        const rescueOptions = rescueEvaluation.options || [];
+        const rescued = rescueOptions[0] || null;
+        if (rescued) {
+          const spec = inferPlanningCourseSpec(activity, catalog);
+          rowsById.set(idOf(activity), planRowFromOption(
+            activity,
+            rescued,
+            rescueOptions,
+            rescueRange,
+            spec,
+            {
+              ...rescueEvaluation,
+              fastRecruitmentRescue: true,
+              rescueCandidateCount: rescue.candidateEmpIds.length,
+              scheduleOptions: rescue.schedules
+            }
+          ));
+          const virtual = blockingVirtualActivity(activity, rescued);
+          if (virtual) virtualPlans.push(virtual);
+        } else {
+          const existing = existingById.get(idOf(activity));
+          rowsById.set(idOf(activity), {
+            ...existing,
+            planningLocked: false,
+            diagnostics: {
+              ...(existing?.diagnostics || {}),
+              fastRecruitmentRescue: true,
+              rescueCandidateCount: rescue.candidateEmpIds.length,
+              rescueScheduleCount: rescue.schedules.length,
+              rescueRouteVerified: rescueEvaluation.routeVerified === true
+            }
+          });
+        }
+      } else {
       const generated = await generatePlanningScenariosCooperatively({
         activity,
         catalog,
@@ -2531,6 +2777,7 @@ export async function buildDynamicCoursePlan({
         ));
         const virtual = blockingVirtualActivity(activity, chosen);
         if (virtual) virtualPlans.push(virtual);
+      }
       }
     }
 
