@@ -32,6 +32,17 @@ test('manager write-back supports corrected date and keeps generated travel canc
   assert.match(migration, /payroll_attendance_permission_denied/);
 });
 
+test('team manager record mutations require a submitted employee month', async () => {
+  const gateMigration = await readFile(new URL('../supabase/migrations/20260927153000_guard_manager_attendance_requires_submitted_month.sql', import.meta.url), 'utf8');
+  assert.match(gateMigration, /attendance_manager_month_allows_mutation/);
+  assert.match(gateMigration, /attendance_month_not_submitted_for_manager_mutation/);
+  assert.match(gateMigration, /update_payroll_attendance_record/);
+  assert.match(gateMigration, /set_manager_attendance_record_review/);
+  assert.match(gateMigration, /'admin', 'operation_manager'/);
+  assert.match(control, /canManagerMutatePayrollEmployeeMonth/);
+  assert.match(control, /bypassMonthSubmissionGate/);
+});
+
 
 test('record approval is persisted and invalidated by later record writes', () => {
   assert.match(bridge, /attendanceControlRecordReviews = async function/);

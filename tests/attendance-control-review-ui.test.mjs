@@ -5,6 +5,15 @@ import { compareAttendanceRows, resultsHtml } from '../frontend/src/screens/atte
 
 const source = await readFile(new URL('../frontend/src/screens/attendance-control.js', import.meta.url), 'utf8');
 
+const submittedWorkflow = (employeeId) => ({
+  workflowByEmployee: {
+    [String(employeeId)]: {
+      workflow_status: 'submitted',
+      attendance_submission_status: 'submitted'
+    }
+  }
+});
+
 test('review table is parameter-driven and exposes the approved five-column structure', () => {
   assert.match(source, /<th>פרמטר<\/th><th>נוכחות<\/th>/);
   assert.match(source, /<th>סטטוס<\/th><th>פעולות<\/th>/);
@@ -47,7 +56,7 @@ test('differences expose attendance, dashboard and edit actions in the actions c
     }],
     notCompared: [],
     dailyKilometers: []
-  }, '2026-09');
+  }, '2026-09', submittedWorkflow('10'));
 
   assert.match(html, /אישור נוכחות/);
   assert.match(html, /אישור דשבורד/);
@@ -93,7 +102,7 @@ test('planned training shows every relevant reported parameter but omits irrelev
     }],
     notCompared: [],
     dailyKilometers: []
-  }, '2026-09');
+  }, '2026-09', submittedWorkflow('1533'));
 
   assert.match(html, /בדיקת ההכשרה מול התכנון/);
   assert.match(html, /<th>תכנון \/ מערכת<\/th>/);
@@ -131,7 +140,7 @@ test('public transport replaces kilometers and only shows cost when relevant', (
       differences: []
     }],
     dailyKilometers: []
-  }, '2026-09');
+  }, '2026-09', submittedWorkflow('10'));
 
   assert.match(html, /תחבורה ציבורית/);
   assert.match(html, /עלות תחבורה ציבורית/);
@@ -295,7 +304,7 @@ test('attendance-only rows expose inline correction instead of empty action cell
       managerResolved: null
     }],
     dailyKilometers: []
-  }, '2026-09');
+  }, '2026-09', submittedWorkflow('1533'));
 
   assert.match(html, /data-attendance-manual-edit="attendance-only-edit" data-field-key="date"/);
   assert.match(html, /data-attendance-manual-edit="attendance-only-edit" data-field-key="startTime"/);
@@ -341,7 +350,7 @@ test('planned training mileage is shown as a system comparison with mileage acti
     }],
     notCompared: [],
     dailyKilometers: []
-  }, '2026-09');
+  }, '2026-09', submittedWorkflow('1538'));
 
   assert.match(html, /<th>תכנון \/ מערכת<\/th>/);
   assert.match(html, /<th>ק״מ<\/th>/);

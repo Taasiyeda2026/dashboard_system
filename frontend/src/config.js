@@ -261,3 +261,5 @@ config.HOTFIX_VERSION = `scheduling-exception-recovery-append-substitute-2026092
 config.HOTFIX_VERSION = `granular-planning-recalc-20260927-v1-${config.HOTFIX_VERSION}`;
 
 config.HOTFIX_VERSION = `legacy-fingerprint-compat-20260927-v1-${config.HOTFIX_VERSION}`;
+
+config.HOTFIX_VERSION = `manager-attendance-submitted-gate-20260927-v1-${config.HOTFIX_VERSION}`;
