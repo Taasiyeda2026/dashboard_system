@@ -14,7 +14,6 @@ export const DAILY_HEADERS = ['תאריך', 'שם מדריך', 'מספר עוב�
 
 const FIELD_DEFS = [
   ['startTime', 'שעת התחלה', 'time'], ['endTime', 'שעת סיום', 'time'],
-  ['workHours', 'שעות עבודה', 'number'],
   ['school', 'בית ספר', 'text'], ['authority', 'רשות', 'text'],
   ['program', 'שם תכנית', 'text'], ['activityType', 'סוג פעילות', 'activityType'], ['meetingNo', 'מספר מפגש', 'text'],
   ['kilometers', 'קילומטרים', 'number'], ['expenses', 'הוצאות', 'money']
@@ -955,12 +954,12 @@ function hasReviewExpense(row) {
 export function attendanceEntryIsResolved(entry) {
   if (!entry || entry.source === 'dashboard_only') return true;
   if (entry.managerResolved === 'approved_as_reported' || entry.managerResolved === 'corrected' || entry.managerResolved === 'auto_ok') return true;
-  if (entry.unmatched || entry.source === 'attendance_not_compared') return false;
+  if (entry.unmatched) return false;
+  if (entry.source === 'attendance_not_compared') {
+    return !isAttendanceTravelTimeCancellation(entry) || generatedTravelCancellationIsSystemResolved(entry);
+  }
   if ((entry.differences || []).length > 0) return false;
-  if (entry.dashboard?.payrollHoursRequireReview) return false;
   if (hasReviewExpense(entry.attendance)) return false;
-  // No pending differences, no special requirements, and not unmatched → resolved.
-  // (unmatched entries are caught above by the entry.unmatched check.)
   return true;
 }
 
@@ -1042,10 +1041,16 @@ export function approveAttendanceEntryAsReported(entry) {
 export function applyAttendanceManualCorrection(entry, changes = {}) {
   if (!entry?.attendance) return entry;
   const base = entry.final || entry.attendance;
+  const merged = { ...base, ...changes };
+  const timesChanged = Object.hasOwn(changes, 'startTime') || Object.hasOwn(changes, 'endTime');
+  const workHours = Object.hasOwn(changes, 'workHours')
+    ? changes.workHours
+    : timesChanged
+      ? calculateWorkHours(merged.startTime, merged.endTime)
+      : rowWorkHours(merged) ?? optionalNumber(base.workHours);
   entry.final = enforceAttendanceTravelMode({
-    ...base,
-    ...changes,
-    workHours: changes.workHours ?? rowWorkHours({ ...base, ...changes }) ?? optionalNumber(base.workHours)
+    ...merged,
+    workHours
   });
   entry.managerResolved = 'corrected';
   return entry;
@@ -1066,8 +1071,7 @@ function generatedTravelCancellationIsSystemResolved(entryOrRow = {}) {
 
 function entryHasOpenNonTravelGaps(entry) {
   if (!entry) return false;
-  if (entry.unmatched || entry.source === 'attendance_not_compared') return true;
-  if (entry.dashboard?.payrollHoursRequireReview) return true;
+  if (entry.unmatched) return true;
   if ((entry.differences || []).some((diff) => diff.key !== 'kilometers' && !diff.decided)) return true;
   if (hasReviewExpense(entry.attendance) && entry.managerResolved !== 'approved_as_reported' && entry.managerResolved !== 'corrected') {
     return true;
@@ -1349,8 +1353,6 @@ export function compareAttendanceRows(attendanceRows, dashboardRows, options = {
     const match = assignments.get(attendanceIndex); const dashboard = match?.bundle || null;
     const final = { ...attendance, workHours: rowWorkHours(attendance) ?? optionalNumber(attendance.workHours) };
     const differences = dashboard ? FIELD_DEFS.flatMap(([key, label, type]) => {
-      // An unusual school timetable has no invented payroll conversion.
-      if (key === 'workHours' && dashboard.payrollHoursRequireReview) return [];
       const attendanceValue = key === 'workHours' ? rowWorkHours(attendance) : type === 'activityType' ? activityTypeDisplayLabel(attendance[key]) : attendance[key];
       const dashboardValue = key === 'workHours' ? rowWorkHours(dashboard) : type === 'activityType' ? activityTypeDisplayLabel(dashboard[key]) : dashboard[key];
       if (dashboard?.__trainingSchedule && ['school', 'authority', 'meetingNo', 'expenses'].includes(key)) return [];
@@ -1397,7 +1399,6 @@ export function compareAttendanceRows(attendanceRows, dashboardRows, options = {
     }) : [];
     const autoOk = dashboard
       && !differences.length
-      && !dashboard.payrollHoursRequireReview
       && !hasReviewExpense(attendance);
     return {
       id: `row-${attendanceIndex}`, attendance, dashboard, final, differences,
@@ -1448,6 +1449,9 @@ export function applyAttendanceChoice(comparison, field, choice, custom = '') {
   difference.choice = choice; difference.custom = custom; difference.decided = true;
   const value = choice === 'dashboard' ? difference.dashboard : choice === 'custom' ? custom : difference.attendance;
   comparison.final[field] = difference.type === 'number' || difference.type === 'money' ? optionalNumber(value) : value;
+  if (field === 'startTime' || field === 'endTime') {
+    comparison.final.workHours = calculateWorkHours(comparison.final.startTime, comparison.final.endTime);
+  }
   // Only mark as corrected once every difference has received an explicit manager decision.
   if (comparison.differences.every((d) => d.decided)) comparison.managerResolved = 'corrected';
   return comparison;
@@ -1791,24 +1795,7 @@ export function resultsHtml(result, month = '', options = {}) {
     return '';
   };
   const dayKmLineForReport = () => '';
-  const managerActionsHtml = (entry) => {
-    const resolvedLabel = entryResolvedLabel(entry);
-    const cancellation = isAttendanceTravelTimeCancellation(entry);
-    const needsHoursFix = !resolvedLabel && Boolean(entry.dashboard?.payrollHoursRequireReview);
-    const current = entry.final || entry.attendance || {};
-    const usesPublicTransport = asBoolean(current.publicTransport);
-    const resolveBlock = resolvedLabel
-      ? `<p class="attendance-control__resolved-note">${escapeHtml(resolvedLabel)}</p>`
-      : `<button type="button" class="ds-btn ds-btn--sm" data-attendance-approve-reported="${escapeHtml(entry.id)}">אשר כפי שדווח</button>
-      ${needsHoursFix ? `<input class="ds-input ds-input--sm" data-attendance-correct-hours="${escapeHtml(entry.id)}" placeholder="שעות שכר מתוקנות" aria-label="שעות שכר מתוקנות"><button type="button" class="ds-btn ds-btn--sm" data-attendance-save-correction="${escapeHtml(entry.id)}">שמור תיקון</button>` : ''}`;
-    const travelEditor = cancellation ? '' : `<div class="attendance-control__travel-edit" data-attendance-travel-edit="${escapeHtml(entry.id)}">
-        <label><input type="checkbox" data-attendance-correct-pt="${escapeHtml(entry.id)}"${usesPublicTransport ? ' checked' : ''}> תחבורה ציבורית</label>
-        <input class="ds-input ds-input--sm" data-attendance-correct-pt-cost="${escapeHtml(entry.id)}" type="number" min="0" step="0.01" placeholder="עלות תחבורה" aria-label="עלות תחבורה ציבורית" value="${usesPublicTransport && optionalNumber(current.publicTransportCost) != null ? escapeHtml(String(current.publicTransportCost)) : ''}"${usesPublicTransport ? '' : ' disabled'}>
-        <input class="ds-input ds-input--sm" data-attendance-correct-km="${escapeHtml(entry.id)}" type="number" min="0" step="1" placeholder="ק״מ" aria-label="קילומטרים" value="${!usesPublicTransport && optionalNumber(current.kilometers) != null ? escapeHtml(String(current.kilometers)) : ''}"${usesPublicTransport ? ' disabled' : ''}>
-        <button type="button" class="ds-btn ds-btn--sm" data-attendance-save-travel="${escapeHtml(entry.id)}">שמור תיקון נסיעה</button>
-      </div>`;
-    return `<div class="attendance-control__manager-actions">${resolveBlock}${travelEditor}</div>`;
-  };
+  const managerActionsHtml = () => '';
   const attachmentsHtml = (row) => {
     const attachments = normalizeAttendanceAttachments(row?.attachments || row?._source?.attachments, row?.attachmentsNames || row?._source?.attachmentsNames);
     if (!attachments.length) return '';
@@ -1873,24 +1860,38 @@ export function resultsHtml(result, month = '', options = {}) {
 
   const MANUAL_EDITABLE_FIELDS = new Set([
     'date', 'activityType', 'authority', 'school', 'program', 'meetingNo',
-    'startTime', 'endTime', 'workHours', 'expenses', 'expenseDetails', 'notes'
+    'startTime', 'endTime', 'expenses', 'expenseDetails', 'notes'
   ]);
   const TRAVEL_EDITABLE_FIELDS = new Set(['publicTransport', 'publicTransportCost', 'kilometers']);
 
   const manualFieldInputMeta = (key, value) => {
     if (key === 'date') return { type: 'date', value: txt(value) };
     if (key === 'startTime' || key === 'endTime') return { type: 'time', value: timeText(value) };
-    if (key === 'workHours') return { type: 'text', value: formatDurationHours(value), placeholder: 'למשל 1:30' };
-    if (key === 'expenses') return { type: 'number', value: optionalNumber(value) ?? '', step: '0.01', min: '0' };
+    if (key === 'expenses' || key === 'publicTransportCost') return { type: 'number', value: optionalNumber(value) ?? '', step: '0.01', min: '0' };
+    if (key === 'kilometers') return { type: 'number', value: optionalNumber(value) ?? '', step: '1', min: '0' };
     if (key === 'meetingNo') return { type: 'number', value: txt(value), step: '1', min: '1' };
     return { type: 'text', value: txt(value) };
   };
 
   const manualFieldActionsHtml = (entry, key, label, rawValue) => {
-    if (TRAVEL_EDITABLE_FIELDS.has(key)) {
-      return `<button type="button" class="ds-btn ds-btn--sm" data-attendance-focus-travel="${escapeHtml(entry.id)}">עריכת נסיעה</button>`;
+    if (!MANUAL_EDITABLE_FIELDS.has(key) && !TRAVEL_EDITABLE_FIELDS.has(key)) {
+      return '<span class="attendance-control__no-action">—</span>';
     }
-    if (!MANUAL_EDITABLE_FIELDS.has(key)) return '<span class="attendance-control__no-action">—</span>';
+    if (key === 'publicTransport') {
+      const selected = asBoolean(rawValue);
+      return `<div class="attendance-control__row-actions">
+        <div class="attendance-control__row-action-buttons">
+          <button type="button" class="ds-btn ds-btn--sm" data-attendance-manual-edit="${escapeHtml(entry.id)}" data-field-key="${escapeHtml(key)}">עריכה</button>
+        </div>
+        <div class="attendance-control__row-custom" data-attendance-manual-edit-wrap hidden>
+          <select class="ds-input ds-input--sm" data-attendance-manual-input="${escapeHtml(entry.id)}" data-field-key="${escapeHtml(key)}" aria-label="עריכת ${escapeHtml(label)}">
+            <option value="false"${selected ? '' : ' selected'}>לא</option>
+            <option value="true"${selected ? ' selected' : ''}>כן</option>
+          </select>
+          <button type="button" class="ds-btn ds-btn--sm" data-attendance-manual-save="${escapeHtml(entry.id)}" data-field-key="${escapeHtml(key)}">שמור</button>
+        </div>
+      </div>`;
+    }
     const meta = manualFieldInputMeta(key, rawValue);
     return `<div class="attendance-control__row-actions">
       <div class="attendance-control__row-action-buttons">
