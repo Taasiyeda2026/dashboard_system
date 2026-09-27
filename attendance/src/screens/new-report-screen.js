@@ -48,6 +48,7 @@ const COURSE_REPORT_TYPE = 'קורס';
 const WORKSHOP_REPORT_TYPE = 'סדנה';
 const AUTO_TIME_REPORT_TYPES = new Set([COURSE_REPORT_TYPE, WORKSHOP_REPORT_TYPE]);
 const BASE_TRAINING_OPTION_VALUE = '__attendance_base_training__';
+const BASE_TRAINING_ALLOWED_DATES = new Set(['2026-09-15', '2026-09-16', '2026-09-17']);
 const BASE_TRAINING_ACTIVITY = Object.freeze({
   row_id: BASE_TRAINING_OPTION_VALUE,
   activity_name: 'הכשרת בסיס',
@@ -225,10 +226,14 @@ export function renderNewReportScreen(container, {
     return reportType && !isNoActivityNameType(reportType) && !isOpenFieldType(reportType);
   }
 
+  function isBaseTrainingDate(dateStr = getReportDate()) {
+    return BASE_TRAINING_ALLOWED_DATES.has(String(dateStr || '').trim());
+  }
+
   function findActivityByRowId(rowId) {
     const id = String(rowId || '').trim();
     if (!id) return null;
-    if (id === BASE_TRAINING_OPTION_VALUE) return BASE_TRAINING_ACTIVITY;
+    if (id === BASE_TRAINING_OPTION_VALUE) return isBaseTrainingDate() ? BASE_TRAINING_ACTIVITY : null;
     return instructorActivities.find((item) => activityRowId(item) === id)
       || extendedActivityByRowId.get(id)
       || null;
@@ -270,7 +275,7 @@ export function renderNewReportScreen(container, {
 
   function activityOptionsForReportType(activities = [], reportType = getReportType(), query = '') {
     const source = Array.isArray(activities) ? [...activities] : [];
-    if (reportType === TRAINING_REPORT_TYPE) {
+    if (reportType === TRAINING_REPORT_TYPE && isBaseTrainingDate()) {
       const q = String(query || '').trim().toLowerCase();
       if (!q || activitySearchHaystack(BASE_TRAINING_ACTIVITY).includes(q)) {
         source.unshift(BASE_TRAINING_ACTIVITY);
@@ -861,6 +866,10 @@ export function renderNewReportScreen(container, {
         }
         el.disabled = false;
       });
+    if (isBaseTrainingActivity(selectedActivity) && !isBaseTrainingDate(dateStr)) {
+      clearLinkedActivity();
+    }
+    refreshActivityNameOptions({ preserveSelection: true });
     syncTravelMode();
     syncLocationDependencies();
 
@@ -1283,6 +1292,7 @@ export function renderNewReportScreen(container, {
       if (
       initialReportType === TRAINING_REPORT_TYPE
       && String(prefill.activity_name_snapshot || '').trim() === BASE_TRAINING_ACTIVITY.activity_name
+      && isBaseTrainingDate(prefill.report_date)
     ) {
       void applySelectedActivity(BASE_TRAINING_ACTIVITY, { autoFillTimes: false });
     } else if (prefill.activity_row_id) {
@@ -1389,6 +1399,12 @@ export function renderNewReportScreen(container, {
 
       if (dateStr && dateStr > localIsoDate()) {
         errorEl.textContent = 'לא ניתן לדווח נוכחות עבור תאריך עתידי.';
+        errorEl.hidden = false;
+        dateField.input.focus();
+        return;
+      }
+      if (isBaseTraining && !isBaseTrainingDate(dateStr)) {
+        errorEl.textContent = 'הכשרת בסיס ניתנת לדיווח רק בתאריכים 15–17.09.2026.';
         errorEl.hidden = false;
         dateField.input.focus();
         return;
