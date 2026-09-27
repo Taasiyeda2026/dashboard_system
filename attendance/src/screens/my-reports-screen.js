@@ -26,6 +26,11 @@ import { isBaseTrainingRecord, reportPresentation } from '../components/report-s
 import { buildMonthlySummaryItems, buildDailyTotalHoursByRecord, formatDurationHours } from '../components/monthly-report-summary.js';
 
 const COURSE_REPORT_TYPE = 'קורס';
+const BASE_TRAINING_ALLOWED_DATES = new Set(['2026-09-15', '2026-09-16', '2026-09-17']);
+
+function isBaseTrainingAllowedDate(dateStr) {
+  return BASE_TRAINING_ALLOWED_DATES.has(String(dateStr || '').trim());
+}
 
 
 export function renderMyReportsScreen(container, {
@@ -711,6 +716,12 @@ function showEditModal({ record, instructor, activityTypes, onRefresh }) {
     const isZoom = reportType === ONLINE_REPORT_TYPE;
     const isCourse = reportType === COURSE_REPORT_TYPE;
     const isBaseTraining = reportType === 'הכשרה' && actNameField.input.value.trim() === 'הכשרת בסיס';
+
+    if (isBaseTraining && !isBaseTrainingAllowedDate(record.report_date)) {
+      errorEl.textContent = 'הכשרת בסיס ניתנת לדיווח רק בתאריכים 15–17.09.2026. יש לתקן את סוג/שם הפעילות לפני השמירה.';
+      errorEl.hidden = false;
+      return;
+    }
 
     const missing = [];
     if (!startTime || !endTime) missing.push('שעות');
