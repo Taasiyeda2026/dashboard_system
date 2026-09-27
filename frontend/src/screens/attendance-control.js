@@ -1849,7 +1849,11 @@ export function resultsHtml(result, month = '', options = {}) {
   };
   const travelSummaryHtml = (row, entry, { includeCancellation = true } = {}) => {
     const current = entry?.final || row || {};
-    const source = row?._source || current?._source || {};
+    const source = row?._source
+      || current?._source
+      || entry?.attendance?._source
+      || entry?._source
+      || {};
     const parts = [];
     if (asBoolean(current.publicTransport)) {
       const cost = optionalNumber(current.publicTransportCost);
@@ -2030,8 +2034,8 @@ export function resultsHtml(result, month = '', options = {}) {
       const expenseIssue = key === 'expenses' && hasReviewExpense(attendance);
       const issue = !autoCalculated && (Boolean(related && !related.decided) || (expenseIssue && !related?.decided));
 
-      let statusClass = 'attendance-control__status-pill--ok';
-      let status = '✓ תקין';
+      let statusClass = 'attendance-control__status-pill--info';
+      let status = 'תואם';
       if (autoCalculated) {
         statusClass = 'attendance-control__status-pill--info';
         status = 'מחושב אוטומטית';
@@ -2044,12 +2048,12 @@ export function resultsHtml(result, month = '', options = {}) {
       } else if (attendanceOnly && entry.managerResolved === 'corrected') {
         statusClass = 'attendance-control__status-pill--ok';
         status = '✓ תוקן';
-      } else if (attendanceOnly && entry.managerResolved === 'approved_as_reported') {
-        statusClass = 'attendance-control__status-pill--ok';
-        status = '✓ אושר';
       } else if (attendanceOnly || systemMissing || !dashboard) {
         statusClass = 'attendance-control__status-pill--info';
         status = 'מידע מהדיווח';
+      } else {
+        statusClass = 'attendance-control__status-pill--info';
+        status = 'תואם';
       }
 
       const systemValue = autoCalculated
@@ -2113,7 +2117,7 @@ export function resultsHtml(result, month = '', options = {}) {
         ['סוג פעילות', 'ביטול זמן', 'ביטול זמן', false],
         ['מקור הפעילות', sourceLabel, sourceLabel, false],
         ['ביטול זמן', finalValue, calculated, unresolved]
-      ].map(([label, left, right, issue]) => `<tr class="${issue ? 'attendance-control__comparison-row--issue' : ''}"><th>${escapeHtml(label)}</th><td>${shown(left)}</td><td>${shown(right)}</td><td><span class="attendance-control__status-pill ${issue ? 'attendance-control__status-pill--issue' : 'attendance-control__status-pill--ok'}">${issue ? 'לאישור' : '✓ תקין'}</span></td><td><span class="attendance-control__no-action">—</span></td></tr>`).join('');
+      ].map(([label, left, right, issue]) => `<tr class="${issue ? 'attendance-control__comparison-row--issue' : ''}"><th>${escapeHtml(label)}</th><td>${shown(left)}</td><td>${shown(right)}</td><td><span class="attendance-control__status-pill ${issue ? 'attendance-control__status-pill--issue' : 'attendance-control__status-pill--info'}">${issue ? 'ממתין לאישור' : 'תואם'}</span></td><td><span class="attendance-control__no-action">—</span></td></tr>`).join('');
       const override = source.manuallyOverridden
         ? `<p class="attendance-control__manual-note"><strong>ביטול זמן: ${escapeHtml(finalValue)}</strong><br>נערך ידנית${source.overrideByName ? ` על ידי ${escapeHtml(source.overrideByName)}` : ''}</p>`
         : `<p class="attendance-control__manual-note"><strong>ביטול זמן: ${escapeHtml(finalValue)}</strong><br>מחושב אוטומטית לפי זמן הנסיעה</p>`;
@@ -2208,8 +2212,17 @@ export function resultsHtml(result, month = '', options = {}) {
     const workflow = resolvePayrollMonthWorkflow(hasWorkflowRow ? workflowByEmployee[employee.id] : { workflow_status: 'not_submitted' });
     const entries = [...(result.comparisons || []), ...(result.notCompared || [])]
       .filter((entry) => txt(entry.attendance?.employeeId) === employee.id);
-    return entries.some((entry) => !attendanceEntryIsResolved(entry))
-      || (hasWorkflowRow && workflow.status === 'not_submitted');
+    // "לבדיקה" counts real data gaps / missing submission — not pending manager approval.
+    const hasDataIssue = entries.some((entry) => {
+      if (attendanceEntryIsResolved(entry)) return false;
+      if (entry.unmatched || entry.source === 'attendance_not_compared') return Boolean(entry.unmatched);
+      if ((entry.differences || []).some((difference) => !difference.decided)) return true;
+      if (hasReviewExpense(entry.attendance)
+        && entry.managerResolved !== 'approved_as_reported'
+        && entry.managerResolved !== 'corrected') return true;
+      return false;
+    });
+    return hasDataIssue || (hasWorkflowRow && workflow.status === 'not_submitted');
   }).length;
   const metricsHtml = `<details class="attendance-control__metrics-details" data-payroll-metrics><summary>פרטים</summary><div class="attendance-control__metrics"><span>שורות נוכחות ${totals.attendanceRows}</span><span>התאמות ${totals.fullMatches}</span><span>פערים ${totals.fieldMismatches}</span><span>ללא התאמה ${totals.unmatchedAttendance}</span></div></details>`;
   const overviewRows = [...(result.comparisons || []), ...(result.notCompared || [])].map((entry) => entry.final || entry.attendance || {}).filter(Boolean);
@@ -2365,6 +2378,35 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
     } catch (error) {
       console.warn('[attendance-control] record reviews load failed', error);
     }
+  };
+  const finishModuleImport = './payroll-control-finish.js?v=20260927-manager-record-approval-v2';
+  const syncEntryAfterPersistentWrite = (entry) => {
+    const source = entry.attendance?._source;
+    entry.attendance = { ...(entry.attendance || {}), ...(entry.final || {}), _source: source };
+    entry.final = { ...entry.attendance };
+    entry.managerRecordApproved = false;
+  };
+  const persistEntryCorrection = async (entry) => {
+    const finishMod = await import(finishModuleImport);
+    const update = finishMod.buildAttendanceUpdatePayload(entry);
+    if (!update.recordId) throw new Error('חסר מזהה רשומת נוכחות לעדכון.');
+    if (!update.changed) {
+      entry.managerRecordApproved = false;
+      return { ...update, wrote: false };
+    }
+    if (!api?.attendanceControlUpdateRecord) throw new Error('עדכון רשומת הנוכחות אינו זמין.');
+    await api.attendanceControlUpdateRecord(update.recordId, update.fields);
+    syncEntryAfterPersistentWrite(entry);
+    // Writing bumps attendance_records.updated_at and invalidates any prior review;
+    // also clear the review row explicitly so reloads stay consistent.
+    if (api?.attendanceControlApproveRecord) {
+      try {
+        await api.attendanceControlApproveRecord(update.recordId, false);
+      } catch (error) {
+        console.warn('[attendance-control] clear record review after edit failed', error);
+      }
+    }
+    return { ...update, wrote: true };
   };
   const approvalFromButton = (button) => {
     const id = txt(button?.dataset?.payrollViewPdf);
@@ -2542,11 +2584,21 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
           travelChanges = { publicTransport: false, publicTransportCost: 0, kilometers: parsed.value };
         }
         const { changed } = applyAttendanceTravelCorrection(entry, travelChanges);
-        if (changed) refreshDailyKilometersAfterTravelChange(result, entry.attendance?.employeeId, entry.attendance?.date);
-        paintResults();
-        status.textContent = changed
-          ? 'תיקון הנסיעה נשמר בבקרה ויעודכן ברשומת הנוכחות בעת אישור המנהל.'
-          : 'לא בוצע שינוי בנתוני הנסיעה.';
+        if (!changed) {
+          status.textContent = 'לא בוצע שינוי בנתוני הנסיעה.';
+          return;
+        }
+        manualSaveBtn.disabled = true;
+        try {
+          await persistEntryCorrection(entry);
+          refreshDailyKilometersAfterTravelChange(result, entry.attendance?.employeeId, entry.attendance?.date);
+          paintResults();
+          status.textContent = 'תיקון הנסיעה נשמר ברשומת הנוכחות. הרשומה ממתינה לאישור.';
+        } catch (error) {
+          status.textContent = error?.message || 'שמירת תיקון הנסיעה נכשלה.';
+        } finally {
+          manualSaveBtn.disabled = false;
+        }
         return;
       }
       applyAttendanceManualCorrection(entry, { [field]: parsed.value });
@@ -2565,8 +2617,16 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
           linkedCancellation.managerRecordApproved = false;
         }
       }
-      paintResults();
-      status.textContent = 'התיקון נשמר בבקרה ויעודכן ברשומת הנוכחות בעת אישור המנהל.';
+      manualSaveBtn.disabled = true;
+      try {
+        await persistEntryCorrection(entry);
+        paintResults();
+        status.textContent = 'התיקון נשמר ברשומת הנוכחות. הרשומה ממתינה לאישור.';
+      } catch (error) {
+        status.textContent = error?.message || 'שמירת התיקון נכשלה.';
+      } finally {
+        manualSaveBtn.disabled = false;
+      }
       return;
     }
 
@@ -2594,8 +2654,18 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
         return;
       }
       applyAttendanceChoice(comparison, field, choice);
-      paintResults();
-      status.textContent = '';
+      fieldChoiceBtn.disabled = true;
+      try {
+        const persisted = await persistEntryCorrection(comparison);
+        paintResults();
+        status.textContent = persisted.wrote
+          ? 'התיקון נשמר ברשומת הנוכחות. הרשומה ממתינה לאישור.'
+          : '';
+      } catch (error) {
+        status.textContent = error?.message || 'שמירת ההחלטה נכשלה.';
+      } finally {
+        fieldChoiceBtn.disabled = false;
+      }
       return;
     }
 
@@ -2613,8 +2683,16 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
         return;
       }
       applyAttendanceChoice(comparison, field, 'custom', value);
-      paintResults();
-      status.textContent = '';
+      customSaveBtn.disabled = true;
+      try {
+        await persistEntryCorrection(comparison);
+        paintResults();
+        status.textContent = 'התיקון נשמר ברשומת הנוכחות. הרשומה ממתינה לאישור.';
+      } catch (error) {
+        status.textContent = error?.message || 'שמירת התיקון נכשלה.';
+      } finally {
+        customSaveBtn.disabled = false;
+      }
       return;
     }
 
@@ -2641,16 +2719,14 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
       let writeSucceeded = false;
       try {
         approveAttendanceEntryCurrent(entry);
-        const finishMod = await import('./payroll-control-finish.js?v=20260927-inline-correction-v1');
+        const finishMod = await import(finishModuleImport);
         const update = finishMod.buildAttendanceUpdatePayload(entry);
         if (!update.recordId) throw new Error('חסר מזהה רשומת נוכחות לאישור.');
         if (update.changed) {
           if (!api?.attendanceControlUpdateRecord) throw new Error('עדכון רשומת הנוכחות אינו זמין.');
           await api.attendanceControlUpdateRecord(update.recordId, update.fields);
           writeSucceeded = true;
-          const source = entry.attendance?._source;
-          entry.attendance = { ...(entry.attendance || {}), ...(entry.final || {}), _source: source };
-          entry.final = { ...entry.attendance };
+          syncEntryAfterPersistentWrite(entry);
         }
         if (!api?.attendanceControlApproveRecord) throw new Error('שמירת אישור הרשומה אינה זמינה.');
         await api.attendanceControlApproveRecord(update.recordId, true);
@@ -2675,8 +2751,16 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
       const hours = optionalNumber(hoursInput?.value);
       if (entry && hours != null) {
         applyAttendanceManualCorrection(entry, { workHours: hours });
-        paintResults();
-        status.textContent = '';
+        saveCorrectionBtn.disabled = true;
+        try {
+          await persistEntryCorrection(entry);
+          paintResults();
+          status.textContent = 'התיקון נשמר ברשומת הנוכחות. הרשומה ממתינה לאישור.';
+        } catch (error) {
+          status.textContent = error?.message || 'שמירת התיקון נכשלה.';
+        } finally {
+          saveCorrectionBtn.disabled = false;
+        }
       } else if (entry) {
         status.textContent = 'יש להזין שעות שכר מתוקנות.';
       }
@@ -2707,9 +2791,17 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
         status.textContent = 'לא בוצע שינוי בנתוני הנסיעה.';
         return;
       }
-      refreshDailyKilometersAfterTravelChange(result, entry.attendance?.employeeId, entry.attendance?.date);
-      paintResults();
-      status.textContent = '';
+      saveTravelBtn.disabled = true;
+      try {
+        await persistEntryCorrection(entry);
+        refreshDailyKilometersAfterTravelChange(result, entry.attendance?.employeeId, entry.attendance?.date);
+        paintResults();
+        status.textContent = 'תיקון הנסיעה נשמר ברשומת הנוכחות. הרשומה ממתינה לאישור.';
+      } catch (error) {
+        status.textContent = error?.message || 'שמירת תיקון הנסיעה נכשלה.';
+      } finally {
+        saveTravelBtn.disabled = false;
+      }
       return;
     }
     const openAttachmentBtn = event.target.closest('[data-attendance-open-attachment]');
@@ -2744,7 +2836,7 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
     if (viewBtn) {
       const approval = approvalFromButton(viewBtn);
       if (!approval) return;
-      const finishMod = await import('./payroll-control-finish.js?v=20260927-inline-correction-v1');
+      const finishMod = await import(finishModuleImport);
       if (txt(approval.pdf_path).startsWith('http://') || txt(approval.pdf_path).startsWith('https://')) {
         window.open(approval.pdf_path, '_blank', 'noopener');
         return;
@@ -2773,7 +2865,7 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
     }
     finishBtn.disabled = true;
     try {
-      const finishMod = await import('./payroll-control-finish.js?v=20260927-inline-correction-v1');
+      const finishMod = await import(finishModuleImport);
       if (finishMod.payrollEmployeeHasUnresolvedEntries(result, employeeId)) {
         status.textContent = 'לא ניתן לאשר את החודש: יש רשומות שעדיין לא אושרו על ידי מנהל הצוות.';
         return;
