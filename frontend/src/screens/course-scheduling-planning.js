@@ -1230,9 +1230,7 @@ async function evaluateScenarioOptions({
   checkpoint = async () => {},
   signal = null,
   periodKey = DEFAULT_PLANNING_PERIOD_KEY,
-  limits = DEEP_PLANNING_LIMITS,
-  allowDateAdjustments = true,
-  resolveOneOffSubstitutes = true
+  limits = DEEP_PLANNING_LIMITS
 } = {}) {
   const preliminaries = [];
   for (let index = 0; index < scenarios.length; index += 1) {
@@ -1384,7 +1382,9 @@ async function evaluateFixedCourse({
   checkpoint = async () => {},
   signal = null,
   periodKey = DEFAULT_PLANNING_PERIOD_KEY,
-  limits = DEEP_PLANNING_LIMITS
+  limits = DEEP_PLANNING_LIMITS,
+  allowDateAdjustments = true,
+  resolveOneOffSubstitutes = true
 } = {}) {
   const calendarRows = courseCalendarRows(activity, schoolCalendar);
   const blocked = blockedSchoolDates(calendarRows);
