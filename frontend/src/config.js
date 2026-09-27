@@ -277,3 +277,5 @@ config.HOTFIX_VERSION = `planning-invalidation-ambiguity-fix-20260927-v1-${confi
 config.HOTFIX_VERSION = `attendance-manager-work-hours-edit-20260927-v1-${config.HOTFIX_VERSION}`;
 
 config.HOTFIX_VERSION = `manager-attendance-monthly-approval-20260927-v1-${config.HOTFIX_VERSION}`;
+
+config.HOTFIX_VERSION = `attendance-paired-time-edit-20260927-v1-${config.HOTFIX_VERSION}`;
