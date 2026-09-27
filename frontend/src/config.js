@@ -239,3 +239,7 @@ config.HOTFIX_VERSION = `manager-attendance-fold-travel-cancellation-20260927-v1
 config.HOTFIX_VERSION = `manager-attendance-inline-correction-20260927-v1-${config.HOTFIX_VERSION}`;
 
 config.HOTFIX_VERSION = `attendance-training-plan-match-20260927-v1-${config.HOTFIX_VERSION}`;
+
+config.HOTFIX_VERSION = `attendance-training-km-validation-20260927-v1-${config.HOTFIX_VERSION}`;
+
+config.HOTFIX_VERSION = `attendance-red-text-errors-20260927-v1-${config.HOTFIX_VERSION}`;
