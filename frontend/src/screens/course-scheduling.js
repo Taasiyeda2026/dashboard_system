@@ -70,6 +70,7 @@ import {
   DEFAULT_PLANNING_PERIOD_KEY,
   FIRST_HALF_COUNT_START_DATE,
   PLANNING_ENGINE_VERSION,
+  PLANNING_VALIDATION_VERSION,
   applyPlanningLockToRow,
   buildDynamicCoursePlan,
   buildPlanningCompletionRows,
@@ -100,7 +101,8 @@ import {
   upgradeSharedPlanningContextFingerprint,
   sharedPlanningAffectedCourseIds,
   sharedPlanningLocks,
-  applyLocalPlanningNeedsRecalc
+  applyLocalPlanningNeedsRecalc,
+  applyStoredPlanningValidityAudit
 } from './course-scheduling-planning-store.js';
 import { exportPlanningWorkbook } from './course-scheduling-planning-export.js';
 
@@ -979,7 +981,9 @@ function courseListHtml(rowModels, selectedId, state = {}) {
 
 function schedulingPlanningStatusHtml(state = {}) {
   const loading = !!state.courseSchedulingPlanningLoading;
-  const pending = Math.max(0, Number((state.courseSchedulingPlanningAffectedIds || []).length) || 0);
+  const pendingRecalc = Math.max(0, Number((state.courseSchedulingPlanningAffectedIds || []).length) || 0);
+  const hardGateInvalid = Math.max(0, Number(state.courseSchedulingPlanningHardGateInvalidCount) || 0);
+  const pending = Math.max(pendingRecalc, hardGateInvalid);
   const progress = state.courseSchedulingPlanningProgress || {};
   const error = text(state.courseSchedulingPlanningError);
   const calculatedAt = text(state.courseSchedulingPlanningCalculatedAt);
@@ -1018,9 +1022,11 @@ function schedulingPlanningStatusHtml(state = {}) {
       <button type="button" class="course-scheduling-workboard-primary" data-run-course-planning>חשב תכנון מחדש</button>
     </div>`;
   }
-  if (pending) {
+  // "הכל מעודכן" only when both dirty-count and hard-gate audit are clean.
+  if (pendingRecalc > 0 || hardGateInvalid > 0) {
+    const count = Math.max(pendingRecalc, hardGateInvalid);
     return `<div class="course-scheduling-auto-plan is-ready" role="status" data-planning-status aria-busy="false">
-      <span data-planning-status-message><strong>נדרש עדכון תכנון · ${pending} פעילויות</strong></span>
+      <span data-planning-status-message><strong>נדרש עדכון תכנון · ${count} פעילויות</strong></span>
       <button type="button" class="course-scheduling-workboard-primary" data-run-course-planning>עדכן רק את השינויים</button>
     </div>`;
   }
@@ -2172,10 +2178,33 @@ export const courseSchedulingScreen = {
           ? 'נתוני ההקשר השתנו באופן רוחבי ולכן נדרש חישוב מלא'
           : 'נתוני הפעילויות, הזמינות או כללי התכנון השתנו מאז החישוב האחרון')
         : '';
+      state.courseSchedulingPlanningShared = shared || { workspace: null, rows: [] };
+      const profiles = snapshot?.scheduling?.profiles || state.courseSchedulingProfiles || state.profiles || {};
+      const rules = snapshot?.scheduling?.rules || state.courseSchedulingRules || state.rules || {};
+      const exceptions = snapshot?.scheduling?.exceptions || state.courseSchedulingExceptions || state.exceptions || {};
+      const validationChanged = !!workspace && (
+        storedEngineVersion !== PLANNING_ENGINE_VERSION
+        || !String(storedEngineVersion || '').includes(PLANNING_VALIDATION_VERSION)
+      );
+      void validationChanged;
+      const audit = applyStoredPlanningValidityAudit(state, {
+        shared,
+        activities: snapshot?.activities || [],
+        instructors: snapshot?.instructors || [],
+        profiles,
+        rules,
+        exceptions,
+        schoolCalendar: snapshot?.schoolCalendar || [],
+        persist: true
+      });
+      const mergedAffectedIds = [...new Set([
+        ...affectedIds.map(text).filter(Boolean),
+        ...(audit.invalidActivityIds || []).map(text).filter(Boolean)
+      ])];
       state.courseSchedulingPlanningStoredEngineVersion = storedEngineVersion;
       state.courseSchedulingPlanningRows = sharedRows;
       state.courseSchedulingPlanningLocks = sharedPlanningLocks(shared);
-      state.courseSchedulingPlanningAffectedIds = [...new Set(affectedIds.map(text).filter(Boolean))];
+      state.courseSchedulingPlanningAffectedIds = mergedAffectedIds;
       state.courseSchedulingPlanningFingerprint = text(workspace?.dataFingerprint);
       state.courseSchedulingPlanningContextFingerprint = contextFingerprint;
       state.courseSchedulingPlanningContextStorage = contextResolution?.storageValue
@@ -2186,7 +2215,6 @@ export const courseSchedulingScreen = {
       state.courseSchedulingPlanningSharedUpdatedAt = formatPlanningSavedAt(workspace?.updatedAt);
       state.courseSchedulingPlanningSharedUpdatedBy = text(workspace?.updatedByName);
       state.courseSchedulingPlanningSharedLoaded = true;
-      state.courseSchedulingPlanningShared = shared || { workspace: null, rows: [] };
       state.courseSchedulingPlanningDirtyLockIds = [];
       state.courseSchedulingPlanningBeforeLock = {};
       data._planningSharedLoadedKey = scope.key;

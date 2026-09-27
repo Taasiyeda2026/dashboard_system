@@ -1,5 +1,9 @@
 import { supabase } from '../supabase-client.js';
 import { schedulingCalendarMeetings } from './instructor-scheduling-load.js';
+import {
+  auditStoredPlanningHardGates,
+  expectedPlanningMeetingCount
+} from './course-scheduling-date-adjustments.js';
 import { normalizeCalendarSector } from './shared/school-calendar-logic.js';
 
 const text = (value) => String(value ?? '').trim();
@@ -483,6 +487,7 @@ export function planningStoreErrorMessage(error, fallback = 'שמירת התכנ
   if (raw.includes('planning_revision_conflict')) return 'התכנון עודכן במקביל על ידי משתמש אחר. רעננו את התכנון המשותף ונסו שוב.';
   if (raw.includes('planning_activity_changed')) return 'נתוני הפעילויות השתנו בזמן החישוב. המערכת לא דרסה את השינויים — יש לעדכן רק את הפעילויות שהשתנו.';
   if (raw.includes('planning_draft_missing')) return 'הטיוטה כבר השתנתה או בוטלה. המערכת תרענן את ההצעות.';
+  if (raw.includes('planning_draft_stale_needs_recalc')) return 'התכנון השמור אינו תקף מול הנתונים החיים. יש לעדכן את הפעילות לפני אישור.';
   if (raw.includes('scheduling_draft_exists')) return 'כבר קיימת טיוטת שיבוץ לפעילות. יש לפתוח אותה לפני אישור תכנון אחר.';
   if (raw.includes('planning_draft_variable_hours_unsupported')) return 'בטיוטה שנבחרה יש שעות שונות בין המפגשים ולכן נדרשת בדיקה ידנית.';
   if (raw.includes('planning_option_invalid_meetings')) return 'לא ניתן לשמור הצעה עם מפגש שאינו עומד בתנאי הסף של המדריך בפועל.';
@@ -542,6 +547,97 @@ export function notifyPlanningNeedsRecalc({
     /* non-DOM environments (tests) still get optional local state updates */
   }
   return ids;
+}
+
+export { auditStoredPlanningHardGates, expectedPlanningMeetingCount };
+
+export async function markSharedPlanningNeedsRecalcMany(activityIds = [], {
+  requirePermission = true,
+  notify = true,
+  source = 'validity-audit',
+  state: targetState = null
+} = {}) {
+  const ids = [...new Set((activityIds || []).map(text).filter(Boolean))];
+  if (!ids.length) {
+    return { markedActivityIds: [], affectedCount: 0, rowsTouched: 0, workspaceCount: 0 };
+  }
+
+  const { data, error } = await supabase.rpc('mark_scheduling_planning_needs_recalc_many', {
+    p_activity_ids: ids,
+    p_require_permission: requirePermission !== false
+  });
+  if (error) throw error;
+
+  const markedActivityIds = Array.isArray(data?.markedActivityIds)
+    ? data.markedActivityIds.map(text).filter(Boolean)
+    : ids;
+  const payload = {
+    markedActivityIds: markedActivityIds.length ? markedActivityIds : ids,
+    affectedCount: Math.max(0, Number(data?.affectedCount) || markedActivityIds.length || 0),
+    rowsTouched: Math.max(0, Number(data?.rowsTouched) || 0),
+    workspaceCount: Math.max(0, Number(data?.workspaceCount) || 0)
+  };
+
+  if (notify) {
+    notifyPlanningNeedsRecalc({
+      activityId: payload.markedActivityIds[0] || '',
+      affectedActivityIds: payload.markedActivityIds,
+      source,
+      state: targetState
+    });
+  }
+  return payload;
+}
+
+/**
+ * Run the lightweight hard-gate audit on stored shared rows.
+ * Marks only invalid rows dirty (local + optional DB), never the full workspace.
+ */
+export function applyStoredPlanningValidityAudit(targetState = null, {
+  shared = null,
+  activities = [],
+  instructors = [],
+  profiles = {},
+  rules = {},
+  exceptions = {},
+  schoolCalendar = [],
+  assignments = {},
+  persist = false
+} = {}) {
+  const sharedState = shared || targetState?.courseSchedulingPlanningShared || { rows: [] };
+  const audit = auditStoredPlanningHardGates({
+    shared: sharedState,
+    activities,
+    instructors,
+    profiles,
+    rules,
+    exceptions,
+    schoolCalendar,
+    assignments
+  });
+  const invalidIds = audit.invalidActivityIds || [];
+  if (invalidIds.length && Array.isArray(sharedState?.rows)) {
+    for (const entry of sharedState.rows) {
+      if (invalidIds.includes(text(entry?.activityId))) entry.needsRecalc = true;
+    }
+  }
+  if (targetState && invalidIds.length) {
+    applyLocalPlanningNeedsRecalc(targetState, { activityIds: invalidIds });
+  }
+  if (persist && invalidIds.length) {
+    void markSharedPlanningNeedsRecalcMany(invalidIds, {
+      source: 'validity-audit',
+      state: targetState,
+      notify: false
+    }).catch(() => {
+      /* local dirty state already applied */
+    });
+  }
+  if (targetState) {
+    targetState.courseSchedulingPlanningHardGateInvalidIds = invalidIds;
+    targetState.courseSchedulingPlanningHardGateInvalidCount = invalidIds.length;
+  }
+  return audit;
 }
 
 export async function markSharedPlanningNeedsRecalc(activityId = '', {
