@@ -335,6 +335,24 @@ export async function clearSharedPlanningCheckpoint({
   return data === true;
 }
 
+export async function upgradeSharedPlanningContextFingerprint({
+  periodKey = 'year',
+  district = '',
+  contextFingerprint = '',
+  expectedRevision = null
+} = {}) {
+  const { data, error } = await supabase.rpc('upgrade_scheduling_planning_context_fingerprint', {
+    p_period_key: text(periodKey) || 'year',
+    p_district: text(district),
+    p_context_fingerprint: text(contextFingerprint),
+    p_expected_revision: expectedRevision == null
+      ? null
+      : (Number.isFinite(Number(expectedRevision)) ? Number(expectedRevision) : null)
+  });
+  if (error) throw error;
+  return data || null;
+}
+
 export async function saveSharedPlanningSnapshot({
   periodKey = 'year',
   district = '',

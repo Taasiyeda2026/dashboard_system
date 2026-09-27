@@ -97,6 +97,7 @@ import {
   saveSharedPlanningCheckpoint,
   saveSharedPlanningLock,
   saveSharedPlanningSnapshot,
+  upgradeSharedPlanningContextFingerprint,
   sharedPlanningAffectedCourseIds,
   sharedPlanningLocks
 } from './course-scheduling-planning-store.js';
@@ -2139,6 +2140,7 @@ export const courseSchedulingScreen = {
       state.courseSchedulingPlanningContextFingerprint = contextFingerprint;
       state.courseSchedulingPlanningContextStorage = contextResolution?.storageValue
         || serializePlanningContextFingerprint(fingerprintInput);
+      state.courseSchedulingPlanningFingerprintUpgraded = contextResolution?.fingerprintUpgraded === true;
       state.courseSchedulingPlanningCalculatedAt = formatPlanningSavedAt(workspace?.calculatedAt);
       state.courseSchedulingPlanningSharedRevision = Number(workspace?.revision) || 0;
       state.courseSchedulingPlanningSharedUpdatedAt = formatPlanningSavedAt(workspace?.updatedAt);
@@ -2150,6 +2152,38 @@ export const courseSchedulingScreen = {
       data._planningSharedLoadedKey = scope.key;
     };
 
+    const persistUpgradedPlanningContextFingerprint = async ({
+      shared = null,
+      storageValue = '',
+      isCurrent = () => true
+    } = {}) => {
+      if (!shared?.workspace || !text(storageValue)) return shared;
+      const scope = planningScope();
+      const upgraded = await upgradeSharedPlanningContextFingerprint({
+        periodKey: scope.periodKey,
+        district: scope.district,
+        contextFingerprint: storageValue,
+        expectedRevision: Number(shared.workspace.revision) || null
+      });
+      if (!isCurrent()) throw new PlanningCancelledError();
+      if (!upgraded) return shared;
+      const nextShared = {
+        ...shared,
+        workspace: {
+          ...shared.workspace,
+          contextFingerprint: text(upgraded.contextFingerprint) || storageValue,
+          revision: Number(upgraded.revision) || Number(shared.workspace.revision) || 0,
+          updatedAt: text(upgraded.updatedAt) || shared.workspace.updatedAt
+        }
+      };
+      state.courseSchedulingPlanningFingerprintUpgraded = false;
+      state.courseSchedulingPlanningSharedRevision = Number(nextShared.workspace.revision) || 0;
+      state.courseSchedulingPlanningSharedUpdatedAt = formatPlanningSavedAt(nextShared.workspace.updatedAt);
+      state.courseSchedulingPlanningContextStorage = storageValue;
+      state.courseSchedulingPlanningShared = nextShared;
+      return nextShared;
+    };
+
     const reloadSharedPlanningState = async ({ refreshData = true, isCurrent = () => true } = {}) => {
       const scope = planningScope();
       const [fresh, shared] = await Promise.all([
@@ -2159,7 +2193,19 @@ export const courseSchedulingScreen = {
       if (!isCurrent()) throw new PlanningCancelledError();
       if (fresh && fresh !== data) Object.assign(data, fresh);
       applySharedPlanningState(shared, fresh || data);
-      return { fresh: fresh || data, shared };
+      let nextShared = shared;
+      if (
+        state.courseSchedulingPlanningFingerprintUpgraded
+        && !state.courseSchedulingPlanningStale
+        && text(state.courseSchedulingPlanningContextStorage)
+      ) {
+        nextShared = await persistUpgradedPlanningContextFingerprint({
+          shared,
+          storageValue: state.courseSchedulingPlanningContextStorage,
+          isCurrent
+        });
+      }
+      return { fresh: fresh || data, shared: nextShared };
     };
 
     const invalidatePlanningWorkboard = () => {
@@ -2347,6 +2393,13 @@ export const courseSchedulingScreen = {
 
         if (!fullRun && affectedIds.length === 0) {
           applySharedPlanningState(shared, freshStart);
+          if (contextResolution?.fingerprintUpgraded === true) {
+            await persistUpgradedPlanningContextFingerprint({
+              shared,
+              storageValue: contextResolution.storageValue || startContextStorage,
+              isCurrent: ownsRun
+            });
+          }
           state.courseSchedulingPlanningAffectedIds = [];
           state.courseSchedulingPlanningError = '';
           if (runUiVisible()) showToast('התכנון כבר מעודכן', 'success');
