@@ -276,3 +276,4 @@ config.HOTFIX_VERSION = `incremental-stable-rows-guard-20260927-v1-${config.HOTF
 config.HOTFIX_VERSION = `north-regional-changed-ids-persist-20260927-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `recruitment-profiles-incremental-safe-20260927-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `resume-north-regional-optimization-20260927-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `planning-rescue-null-distance-and-school-identity-20260927-v1-${config.HOTFIX_VERSION}`;

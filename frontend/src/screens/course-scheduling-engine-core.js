@@ -276,9 +276,11 @@ function tryFindSingleMeetingSubstitute({
       travel,
       validateTravel: !input.preliminary && (input.travel !== undefined || input.routeMatrix !== undefined),
       includeLegacyScore: false,
-      maxHomeDistanceKm: Number.isFinite(Number(input.maxHomeDistanceKm))
-        ? Number(input.maxHomeDistanceKm)
-        : MAX_HOME_DISTANCE_KM
+      maxHomeDistanceKm: input.maxHomeDistanceKm == null || input.maxHomeDistanceKm === ''
+        ? MAX_HOME_DISTANCE_KM
+        : (Number.isFinite(Number(input.maxHomeDistanceKm))
+          ? Number(input.maxHomeDistanceKm)
+          : MAX_HOME_DISTANCE_KM)
     });
     if (!gate.eligible) continue;
     return {
@@ -418,9 +420,11 @@ function evaluateCandidate({
     travel: gateTravel,
     validateTravel: !input.preliminary && (input.travel !== undefined || input.routeMatrix !== undefined),
     includeLegacyScore: false,
-    maxHomeDistanceKm: Number.isFinite(Number(input.maxHomeDistanceKm))
-      ? Number(input.maxHomeDistanceKm)
-      : MAX_HOME_DISTANCE_KM
+    maxHomeDistanceKm: input.maxHomeDistanceKm == null || input.maxHomeDistanceKm === ''
+      ? MAX_HOME_DISTANCE_KM
+      : (Number.isFinite(Number(input.maxHomeDistanceKm))
+        ? Number(input.maxHomeDistanceKm)
+        : MAX_HOME_DISTANCE_KM)
   });
   if (tooManyExceptions) {
     gate.failures = [...new Set([...(gate.failures || []), 'too_many_availability_exceptions'])];

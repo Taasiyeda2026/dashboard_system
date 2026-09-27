@@ -24,7 +24,6 @@ import {
 import { normalizeOperationalDistrict } from './shared/district-normalization.js';
 import { escapeHtml } from './shared/html.js';
 import { formatDateHe, formatTimeRangeShort } from './shared/format-date.js';
-import { missingCourseInformation } from './course-scheduling-engine-core.js';
 import {
   MAX_HOME_DISTANCE_KM,
   NORTH_STAGE2_MAX_HOME_DISTANCE_KM,
@@ -107,17 +106,15 @@ export function activityOperationalDistrict(activity = {}) {
 }
 
 export function planningActivityMissingCriticalData(activity = {}, { periodKey = DEFAULT_PLANNING_PERIOD_KEY } = {}) {
-  const missing = missingCourseInformation(activity, { periodKey });
-  const critical = missing.filter((item) =>
-    /שיוך בית ספר|בית ספר|כתובת בית הספר/.test(text(item))
-  );
-  if (!text(activity?.school) || !text(activity?.school_id)) {
-    if (!critical.includes('בית ספר')) critical.push('בית ספר');
-  }
-  if (!text(activity?.school_address) && !text(activity?.school_id)) {
-    if (!critical.includes('כתובת בית הספר')) critical.push('כתובת בית הספר');
-  }
-  return [...new Set(critical.map(text).filter(Boolean))];
+  // Soft informational gaps (שיוך בית ספר / address alone) stay in missingCourseInformation.
+  // Critical gate for "missing ≠ recruitment" is school identity: a school name or
+  // school_id is enough; only entirely absent school/location blocks recruitment.
+  void periodKey;
+  const critical = [];
+  const hasSchoolIdentity = !!text(activity?.school) || !!text(activity?.school_id);
+  if (!hasSchoolIdentity) critical.push('בית ספר');
+  if (!text(activity?.school_address) && !hasSchoolIdentity) critical.push('כתובת בית הספר');
+  return critical;
 }
 
 /** Stable geographic cluster key for recruitment packing within a district. */
@@ -2183,8 +2180,12 @@ export function recruitmentRescueProbe({
   const requiredLanguage = normalizedLanguageRequirement(row.requiredLanguage || activity.instruction_language);
   const requiredGender = normalizedGenderRequirement(row.requiredGender || activity.required_instructor_gender);
   const destination = text(activity.school_address);
-  const homeDistanceLimitKm = Number.isFinite(Number(maxHomeDistanceKm))
-    ? Number(maxHomeDistanceKm)
+  // null/undefined must not become 0 via Number(null); that rejects every real distance.
+  const parsedHomeDistanceKm = maxHomeDistanceKm == null || maxHomeDistanceKm === ''
+    ? NaN
+    : Number(maxHomeDistanceKm);
+  const homeDistanceLimitKm = Number.isFinite(parsedHomeDistanceKm)
+    ? parsedHomeDistanceKm
     : resolvePlanningHomeDistanceLimitKm(activity || row, activityOperationalDistrict(activity || row) === 'צפון' ? 2 : 1);
   const matches = [];
 
