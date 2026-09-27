@@ -273,3 +273,5 @@ config.HOTFIX_VERSION = `planning-team-activity-hours-display-20260927-v1-${conf
 config.HOTFIX_VERSION = `planning-team-schedule-series-pattern-20260927-v1-${config.HOTFIX_VERSION}`;
 
 config.HOTFIX_VERSION = `planning-invalidation-ambiguity-fix-20260927-v1-${config.HOTFIX_VERSION}`;
+
+config.HOTFIX_VERSION = `attendance-manager-work-hours-edit-20260927-v1-${config.HOTFIX_VERSION}`;
