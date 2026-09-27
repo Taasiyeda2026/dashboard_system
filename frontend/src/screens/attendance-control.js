@@ -953,13 +953,32 @@ function hasReviewExpense(row) {
 
 export function attendanceEntryIsResolved(entry) {
   if (!entry || entry.source === 'dashboard_only') return true;
-  if (entry.managerResolved === 'approved_as_reported' || entry.managerResolved === 'corrected' || entry.managerResolved === 'auto_ok') return true;
-  if (entry.unmatched || entry.source === 'attendance_not_compared') return false;
-  if ((entry.differences || []).length > 0) return false;
-  if (hasReviewExpense(entry.attendance)) return false;
-  // No pending differences, no special requirements, and not unmatched → resolved.
-  // (unmatched entries are caught above by the entry.unmatched check.)
-  return true;
+  return entry.managerRecordApproved === true;
+}
+
+export function approveAttendanceEntryCurrent(entry) {
+  if (!entry?.attendance) return entry;
+  const base = entry.final || entry.attendance;
+  entry.final = enforceAttendanceTravelMode({
+    ...base,
+    workHours: rowWorkHours(base) ?? optionalNumber(base.workHours)
+  });
+  let corrected = entry.managerResolved === 'corrected';
+  for (const difference of (entry.differences || [])) {
+    if (difference.decided) {
+      if (difference.choice && difference.choice !== 'attendance') corrected = true;
+      continue;
+    }
+    difference.choice = 'attendance';
+    difference.custom = '';
+    difference.decided = true;
+    if (difference.key === 'startTime' || difference.key === 'endTime') {
+      entry.final.workHours = calculateWorkHours(entry.final.startTime, entry.final.endTime);
+    }
+  }
+  entry.managerRecordApproved = true;
+  entry.managerResolved = corrected ? 'corrected' : 'approved_as_reported';
+  return entry;
 }
 
 const MONTH_WORKFLOW_LABELS = {
@@ -1034,11 +1053,13 @@ export function approveAttendanceEntryAsReported(entry) {
     workHours: rowWorkHours(entry.attendance) ?? optionalNumber(entry.attendance.workHours)
   });
   entry.managerResolved = 'approved_as_reported';
+  entry.managerRecordApproved = true;
   return entry;
 }
 
 export function applyAttendanceManualCorrection(entry, changes = {}) {
   if (!entry?.attendance) return entry;
+  entry.managerRecordApproved = false;
   const base = entry.final || entry.attendance;
   const merged = { ...base, ...changes };
   const timesChanged = Object.hasOwn(changes, 'startTime') || Object.hasOwn(changes, 'endTime');
@@ -1056,6 +1077,12 @@ export function isAttendanceTravelTimeCancellation(entryOrRow = {}) {
   const row = entryOrRow?.attendance || entryOrRow?.final || entryOrRow;
   const source = row?._source || entryOrRow?._source || {};
   return txt(source.generationKind || row?.generationKind) === 'travel_time_cancellation';
+}
+
+export function attendanceEntryRecordId(entryOrRow = {}) {
+  const row = entryOrRow?.attendance || entryOrRow?.final || entryOrRow || {};
+  const source = row?._source || {};
+  return txt(row.recordId || source.recordId || source.record_id || source.ID || source.Id || source.id);
 }
 
 function generatedTravelCancellationIsSystemResolved(entryOrRow = {}) {
@@ -1088,6 +1115,7 @@ function travelFieldsEqual(left = {}, right = {}) {
 export function applyAttendanceTravelCorrection(entry, changes = {}) {
   if (!entry?.attendance) return { entry, changed: false };
   if (isAttendanceTravelTimeCancellation(entry)) return { entry, changed: false };
+  entry.managerRecordApproved = false;
 
   const base = { ...(entry.final || entry.attendance) };
   const nextTravel = enforceAttendanceTravelMode({
@@ -1440,6 +1468,7 @@ export function setDashboardOnlyChoice(entry, includeInFinal) {
 }
 
 export function applyAttendanceChoice(comparison, field, choice, custom = '') {
+  comparison.managerRecordApproved = false;
   const difference = comparison.differences.find((item) => item.key === field);
   if (!difference) return comparison;
   difference.choice = choice; difference.custom = custom; difference.decided = true;
@@ -1700,8 +1729,8 @@ export function attendanceControlStylesHtml() {
 .attendance-control__uploads{margin:16px 0;padding:14px;background:#f7fafc;border:1px solid #e4ebf3;border-radius:12px}.attendance-control__uploads label{display:grid;gap:6px;min-width:210px;flex:1}.attendance-control__uploads .ds-input{min-height:40px}.attendance-control__status{color:#64748b;font-weight:700}.attendance-control__status.is-error{color:#b91c1c}
 .attendance-control__overview{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:14px 0 16px}.attendance-control__overview-card{min-height:82px;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;padding:12px;border:1px solid #dfe8f2;border-radius:14px;background:linear-gradient(180deg,#fff,#f8fbff);box-shadow:0 4px 12px rgba(15,23,42,.035)}.attendance-control__overview-card span{font-size:.82rem;color:#64748b;font-weight:700}.attendance-control__overview-card strong{margin-top:5px;font-size:1.32rem;color:#183153}
 .attendance-control__summary-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:8px 0 12px}.attendance-control__summary-bar span{padding:7px 11px;border:1px solid #dbe5ef;border-radius:999px;background:#fff;font-size:.88rem}.attendance-control__metrics-details{margin:6px 0 12px}.attendance-control__metrics-details>summary{cursor:pointer;color:#64748b;font-size:.9em;padding:4px 2px}.attendance-control__metrics{margin:6px 0;display:flex;flex-wrap:wrap;gap:8px}.attendance-control__metrics>span,.attendance-control__employee-summary>span{padding:8px 10px;border:1px solid #e2e8f0;border-radius:8px;background:#f8fafc}
-.attendance-control__employee{margin:12px 0;border:1px solid #dbe5ef;border-radius:14px;background:#fff;overflow:hidden}.attendance-control__employee>summary{padding:13px 15px;cursor:pointer;font-size:1.02em;background:#fbfdff}.attendance-control__employee-days{padding:0 14px 14px}.attendance-control__employee-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:4px 14px 10px}.attendance-control__approved{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 14px 10px;padding:8px 10px;border:1px solid #bbf7d0;background:#f0fdf4;border-radius:9px;color:#166534;font-weight:700}.attendance-control__approve-dialog{border:0;border-radius:12px;padding:20px;max-width:480px;color:#1f2a37}.attendance-control__approve-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}
-.attendance-control__day{margin-top:10px;border:1px solid #e4eaf1;border-radius:12px;overflow:hidden}.attendance-control__day>summary{display:grid;grid-template-columns:130px 130px minmax(100px,1fr);gap:12px;align-items:center;padding:11px 13px;cursor:pointer;background:#fafcff}.attendance-control__reports{padding:12px;background:#f6f9fc}.attendance-control__report{padding:0;border:1px solid #dfe7f0;border-radius:14px;background:#fff;overflow:hidden;box-shadow:0 4px 12px rgba(15,23,42,.035)}.attendance-control__report+.attendance-control__report{margin-top:12px}.attendance-control__report-line{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:12px 14px;border-bottom:1px solid #edf1f5;background:#fff}.attendance-control__report-line strong{font-size:1rem}.attendance-control__identity{display:none}
+.attendance-control__employee{margin:12px 0;border:1px solid #dbe5ef;border-radius:14px;background:#fff;overflow:hidden}.attendance-control__employee>summary{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:13px 15px;cursor:pointer;font-size:1.02em;background:#fbfdff}.attendance-control__employee-record-progress{font-size:.86rem;color:#64748b;font-weight:700}.attendance-control__employee-days{padding:0 14px 14px}.attendance-control__employee-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:4px 14px 10px}.attendance-control__approved{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 14px 10px;padding:8px 10px;border:1px solid #bbf7d0;background:#f0fdf4;border-radius:9px;color:#166534;font-weight:700}.attendance-control__approve-dialog{border:0;border-radius:12px;padding:20px;max-width:480px;color:#1f2a37}.attendance-control__approve-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}
+.attendance-control__day{margin-top:10px;border:1px solid #e4eaf1;border-radius:12px;overflow:hidden}.attendance-control__day>summary{display:grid;grid-template-columns:130px 130px minmax(100px,1fr);gap:12px;align-items:center;padding:11px 13px;cursor:pointer;background:#fafcff}.attendance-control__reports{padding:12px;background:#f6f9fc}.attendance-control__report{padding:0;border:1px solid #dfe7f0;border-radius:14px;background:#fff;overflow:hidden;box-shadow:0 4px 12px rgba(15,23,42,.035)}.attendance-control__report+.attendance-control__report{margin-top:12px}.attendance-control__report-line{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:12px 14px;border-bottom:1px solid #edf1f5;background:#fff}.attendance-control__report-line strong{font-size:1rem}.attendance-control__report-line-actions,.attendance-control__record-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.attendance-control__record-actions{justify-content:flex-end}.attendance-control__identity{display:none}
 .attendance-control__report-card{margin:12px 14px;padding:12px;border:1px solid #dce7f2;border-radius:12px;background:#f8fbff}.attendance-control__report-card-title{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px;font-weight:800}.attendance-control__report-card-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(135px,1fr));gap:8px}.attendance-control__report-card-item{min-height:62px;display:flex;flex-direction:column;justify-content:center;padding:9px 10px;border:1px solid #e1e9f1;border-radius:10px;background:#fff}.attendance-control__report-card-item span{font-size:.76rem;color:#718096;font-weight:700}.attendance-control__report-card-item strong{margin-top:4px;font-size:.95rem;color:#1f3554;overflow-wrap:anywhere}
 .attendance-control__report-meta{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-top:10px;padding-top:9px;border-top:1px solid #e3eaf2;color:#53657a;font-size:.84rem}.attendance-control__report-meta strong{color:#334155}.attendance-control__report-meta span{padding:4px 7px;border-radius:999px;background:#eef4fa}
 .attendance-control__reported-details{display:grid;gap:6px;margin-top:8px}.attendance-control__reported-details>div{display:grid;grid-template-columns:120px minmax(0,1fr);gap:10px;padding:7px 9px;border:1px solid #e7edf3;border-radius:8px;background:#fafcff}.attendance-control__reported-details span{color:#64748b;font-size:.82rem}.attendance-control__reported-details strong{color:#334155;font-size:.9rem;overflow-wrap:anywhere}.attendance-control__comparison-wrap--compact{padding:10px 12px;border:1px solid #e4eaf1;border-radius:10px;background:#fbfdff}
@@ -1784,7 +1813,16 @@ export function resultsHtml(result, month = '', options = {}) {
     if (day.calculated == null) return Boolean(day.hasReportedKm);
     return day.hasReportedKm !== false && !day.matches;
   };
-  const comparisonHasIssue = (comparison) => !attendanceEntryIsResolved(comparison);
+  const comparisonHasIssue = (comparison) => {
+    if (!comparison) return false;
+    if (attendanceEntryIsResolved(comparison)) return false;
+    if (comparison.unmatched) return true;
+    if ((comparison.differences || []).some((difference) => !difference.decided)) return true;
+    if (hasReviewExpense(comparison.attendance)
+      && comparison.managerResolved !== 'approved_as_reported'
+      && comparison.managerResolved !== 'corrected') return true;
+    return false;
+  };
   const entryResolvedLabel = (entry) => {
     if (entry.managerResolved === 'approved_as_reported') return 'אושר כפי שדווח';
     if (entry.managerResolved === 'corrected') return 'תוקן על ידי המנהל';
@@ -1811,7 +1849,11 @@ export function resultsHtml(result, month = '', options = {}) {
   };
   const travelSummaryHtml = (row, entry, { includeCancellation = true } = {}) => {
     const current = entry?.final || row || {};
-    const source = row?._source || current?._source || {};
+    const source = row?._source
+      || current?._source
+      || entry?.attendance?._source
+      || entry?._source
+      || {};
     const parts = [];
     if (asBoolean(current.publicTransport)) {
       const cost = optionalNumber(current.publicTransportCost);
@@ -1915,14 +1957,20 @@ export function resultsHtml(result, month = '', options = {}) {
     const calculatedLabel = calculatedMinutes != null
       ? formatTravelMinutesClock(calculatedMinutes)
       : finalLabel;
-    const unresolved = !attendanceEntryIsResolved(entry);
+    const approved = attendanceEntryIsResolved(entry);
     const overridden = source.manuallyOverridden === true;
-    const statusClass = unresolved ? 'attendance-control__status-pill--issue' : 'attendance-control__status-pill--ok';
-    const status = unresolved ? 'לבדיקה' : (overridden ? '✓ אושר תיקון' : '✓ תקין');
-    const actions = unresolved
+    const calculationStatus = txt(source.travelCalculationStatus || source.travel_calculation_status).toLowerCase();
+    const calculationIssue = Boolean(calculationStatus && calculationStatus !== 'resolved');
+    const statusClass = approved
+      ? 'attendance-control__status-pill--ok'
+      : (calculationIssue ? 'attendance-control__status-pill--issue' : 'attendance-control__status-pill--info');
+    const status = approved
+      ? (overridden ? '✓ אושר תיקון' : '✓ אושר')
+      : (calculationIssue ? 'לבדיקה' : 'ממתין לאישור');
+    const actions = !approved
       ? `<div class="attendance-control__row-actions attendance-control__row-actions--compact">
           <div class="attendance-control__row-action-buttons">
-            <button type="button" class="ds-btn ds-btn--sm" data-attendance-approve-reported="${escapeHtml(entry.id)}">אישור נוכחות</button>
+            <button type="button" class="ds-btn ds-btn--sm" data-attendance-approve-reported="${escapeHtml(entry.id)}">אישור רשומה</button>
           </div>
           <div class="attendance-control__row-custom">
             <input class="ds-input ds-input--sm" data-attendance-correct-hours="${escapeHtml(entry.id)}" type="number" min="0" step="0.01" placeholder="שעות מתוקנות" aria-label="ביטול זמן מתוקן">
@@ -1930,7 +1978,7 @@ export function resultsHtml(result, month = '', options = {}) {
           </div>
         </div>`
       : '<span class="attendance-control__no-action">—</span>';
-    return `<tr class="${unresolved ? 'attendance-control__comparison-row--issue' : 'attendance-control__comparison-row--resolved'} attendance-control__travel-cancellation-row">
+    return `<tr class="${calculationIssue ? 'attendance-control__comparison-row--issue' : (approved ? 'attendance-control__comparison-row--resolved' : '')} attendance-control__travel-cancellation-row">
       <th>ביטול זמן נסיעה</th>
       <td>${shown(finalLabel)}</td>
       <td>${shown(calculatedLabel)}</td>
@@ -1963,7 +2011,7 @@ export function resultsHtml(result, month = '', options = {}) {
       { key: 'meetingNo', label: 'מספר מפגש', left: displayRow.meetingNo, editValue: current.meetingNo, right: dashboard?.meetingNo },
       { key: 'startTime', label: 'שעת התחלה', left: displayRow.startTime, editValue: current.startTime, right: dashboard?.startTime, always: true },
       { key: 'endTime', label: 'שעת סיום', left: displayRow.endTime, editValue: current.endTime, right: dashboard?.endTime, always: true },
-      { key: 'workHours', label: 'סה״כ שעות', left: displayWorkHours(current), editValue: rowWorkHours(current), right: null, always: true, autoCalculated: true },
+      { key: 'workHours', label: 'סה״כ שעות', left: displayWorkHours(current), editValue: rowWorkHours(current), right: dashboard ? displayDashboardWorkHours(dashboard) : null, always: true, autoCalculated: true },
       { key: 'publicTransport', label: 'תחבורה ציבורית', left: publicTransport ? 'כן' : 'לא', editValue: publicTransport, right: null, visible: publicTransport || (publicTransportCost != null && publicTransportCost > 0) },
       { key: 'publicTransportCost', label: 'עלות תחבורה ציבורית', left: publicTransportCost, editValue: publicTransportCost, right: null, visible: publicTransport || (publicTransportCost != null && publicTransportCost > 0) },
       { key: 'kilometers', label: 'ק״מ', left: attendanceKm, editValue: attendanceKm, right: dashboardKm, visible: !publicTransport },
@@ -1986,8 +2034,8 @@ export function resultsHtml(result, month = '', options = {}) {
       const expenseIssue = key === 'expenses' && hasReviewExpense(attendance);
       const issue = !autoCalculated && (Boolean(related && !related.decided) || (expenseIssue && !related?.decided));
 
-      let statusClass = 'attendance-control__status-pill--ok';
-      let status = '✓ תקין';
+      let statusClass = 'attendance-control__status-pill--info';
+      let status = 'תואם';
       if (autoCalculated) {
         statusClass = 'attendance-control__status-pill--info';
         status = 'מחושב אוטומטית';
@@ -2000,16 +2048,16 @@ export function resultsHtml(result, month = '', options = {}) {
       } else if (attendanceOnly && entry.managerResolved === 'corrected') {
         statusClass = 'attendance-control__status-pill--ok';
         status = '✓ תוקן';
-      } else if (attendanceOnly && entry.managerResolved === 'approved_as_reported') {
-        statusClass = 'attendance-control__status-pill--ok';
-        status = '✓ אושר';
       } else if (attendanceOnly || systemMissing || !dashboard) {
         statusClass = 'attendance-control__status-pill--info';
         status = 'מידע מהדיווח';
+      } else {
+        statusClass = 'attendance-control__status-pill--info';
+        status = 'תואם';
       }
 
       const systemValue = autoCalculated
-        ? '<span class="attendance-control__empty-source">—</span>'
+        ? (dashboard && hasSystemValue ? shown(right) : '<span class="attendance-control__empty-source">—</span>')
         : dashboard
           ? (hasSystemValue ? shown(right) : '<span class="attendance-control__empty-source">—</span>')
           : '<span class="attendance-control__empty-source">—</span>';
@@ -2018,7 +2066,7 @@ export function resultsHtml(result, month = '', options = {}) {
         ? '<span class="attendance-control__no-action">—</span>'
         : related
           ? fieldActionsHtml(entry, key, related, { hasSystemValue, dashboardLabel: actionSourceLabel })
-          : (attendanceOnly || TRAVEL_EDITABLE_FIELDS.has(key))
+          : (MANUAL_EDITABLE_FIELDS.has(key) || TRAVEL_EDITABLE_FIELDS.has(key))
             ? manualFieldActionsHtml(entry, key, label, editValue)
             : '<span class="attendance-control__no-action">—</span>';
       if ((attendanceOnly || entry?.unmatched) && key === 'date' && !attendanceEntryIsResolved(entry)) {
@@ -2069,7 +2117,7 @@ export function resultsHtml(result, month = '', options = {}) {
         ['סוג פעילות', 'ביטול זמן', 'ביטול זמן', false],
         ['מקור הפעילות', sourceLabel, sourceLabel, false],
         ['ביטול זמן', finalValue, calculated, unresolved]
-      ].map(([label, left, right, issue]) => `<tr class="${issue ? 'attendance-control__comparison-row--issue' : ''}"><th>${escapeHtml(label)}</th><td>${shown(left)}</td><td>${shown(right)}</td><td><span class="attendance-control__status-pill ${issue ? 'attendance-control__status-pill--issue' : 'attendance-control__status-pill--ok'}">${issue ? 'לאישור' : '✓ תקין'}</span></td><td><span class="attendance-control__no-action">—</span></td></tr>`).join('');
+      ].map(([label, left, right, issue]) => `<tr class="${issue ? 'attendance-control__comparison-row--issue' : ''}"><th>${escapeHtml(label)}</th><td>${shown(left)}</td><td>${shown(right)}</td><td><span class="attendance-control__status-pill ${issue ? 'attendance-control__status-pill--issue' : 'attendance-control__status-pill--info'}">${issue ? 'ממתין לאישור' : 'תואם'}</span></td><td><span class="attendance-control__no-action">—</span></td></tr>`).join('');
       const override = source.manuallyOverridden
         ? `<p class="attendance-control__manual-note"><strong>ביטול זמן: ${escapeHtml(finalValue)}</strong><br>נערך ידנית${source.overrideByName ? ` על ידי ${escapeHtml(source.overrideByName)}` : ''}</p>`
         : `<p class="attendance-control__manual-note"><strong>ביטול זמן: ${escapeHtml(finalValue)}</strong><br>מחושב אוטומטית לפי זמן הנסיעה</p>`;
@@ -2082,13 +2130,16 @@ export function resultsHtml(result, month = '', options = {}) {
   const reportHtml = ({ kind, item, employeeId, date }) => {
     const row = kind === 'dashboard' ? item.dashboard : (item.final || item.attendance);
     const attachedCancellation = generatedCancellationBySource.get(entryRecordId(item)) || null;
-    const issue = (kind === 'comparison' ? comparisonHasIssue(item) : !attendanceEntryIsResolved(item))
-      || (attachedCancellation ? !attendanceEntryIsResolved(attachedCancellation) : false);
+    const dataIssue = kind === 'comparison' ? comparisonHasIssue(item) : false;
+    const approved = kind === 'dashboard' ? true : attendanceEntryIsResolved(item);
+    const attachedApproved = attachedCancellation ? attendanceEntryIsResolved(attachedCancellation) : true;
     const cancellationEntry = isAttendanceTravelTimeCancellation(item)
       || normalizeAttendanceName(row.activityType).includes('ביטולזמן');
-    const status = !issue
-      ? '<span class="attendance-control__status-pill attendance-control__status-pill--ok">✓ תקין</span>'
-      : '<span class="attendance-control__status-pill attendance-control__status-pill--issue">לבדיקה</span>';
+    const status = approved && attachedApproved
+      ? '<span class="attendance-control__status-pill attendance-control__status-pill--ok">✓ אושר</span>'
+      : dataIssue
+        ? '<span class="attendance-control__status-pill attendance-control__status-pill--issue">לבדיקה</span>'
+        : '<span class="attendance-control__status-pill attendance-control__status-pill--info">ממתין לאישור</span>';
     let body = '';
 
     if (cancellationEntry && isAttendanceTravelTimeCancellation(item)) {
@@ -2100,7 +2151,13 @@ export function resultsHtml(result, month = '', options = {}) {
       body = `${manualReportTable(row, { entry: item, attachedCancellation })}${travelSummaryHtml(row, item, { includeCancellation: !attachedCancellation })}${managerActionsHtml(item)}`;
     }
 
-    return `<section class="attendance-control__report"><div class="attendance-control__report-line"><strong>${shown(`${row.startTime || '—'}–${row.endTime || '—'} | ${activityTypeDisplayLabel(row.activityType) || 'דיווח'}`)}</strong>${status}</div>${body}</section>`;
+    const recordActions = kind === 'dashboard'
+      ? ''
+      : `<div class="attendance-control__record-actions">
+          <button type="button" class="ds-btn ds-btn--sm" data-attendance-edit-record="${escapeHtml(item.id)}">עריכת רשומה</button>
+          <button type="button" class="ds-btn ds-btn--sm ds-btn--primary" data-attendance-approve-reported="${escapeHtml(item.id)}">${approved ? '✓ רשומה אושרה' : 'אישור רשומה'}</button>
+        </div>`;
+    return `<section class="attendance-control__report"><div class="attendance-control__report-line"><strong>${shown(`${row.startTime || '—'}–${row.endTime || '—'} | ${activityTypeDisplayLabel(row.activityType) || 'דיווח'}`)}</strong><div class="attendance-control__report-line-actions">${status}${recordActions}</div></div>${body}</section>`;
   };
   const employeeHtml = [...employees.values()].sort((a, b) => a.name.localeCompare(b.name, 'he')).map((employee) => {
     const days = [...employee.days.entries()].sort(([left], [right]) => left.localeCompare(right)).map(([date, rows]) => {
@@ -2111,13 +2168,22 @@ export function resultsHtml(result, month = '', options = {}) {
         .filter(Boolean);
       const hours = attendanceRows.reduce((sum, entry) => sum + (rowWorkHours(entry.item.final || entry.item.attendance) ?? 0), 0)
         + attachedCancellations.reduce((sum, entry) => sum + (rowWorkHours(entry.final || entry.attendance) ?? 0), 0);
-      const issue = rows.some((entry) => {
+      const needsApproval = rows.some((entry) => {
         const item = entry.item;
         const attached = generatedCancellationBySource.get(entryRecordId(item));
         return !attendanceEntryIsResolved(item) || (attached ? !attendanceEntryIsResolved(attached) : false);
       });
-      return `<details class="attendance-control__day${issue ? '' : ' attendance-control__day--ok'}" data-payroll-date="${escapeHtml(date)}"><summary><span>${shown(dateLabel(date))}</span><span>${formatDurationHours(hours)} שעות</span><span class="attendance-control__row-status ${issue ? 'attendance-control__row-status--issue' : ''}">${issue ? 'לבדיקה' : '✓ תקין'}</span></summary><div class="attendance-control__reports">${rows.map((row) => reportHtml({ ...row, employeeId: employee.id, date })).join('')}</div></details>`;
+      const dataIssue = rows.some((entry) => entry.kind === 'comparison' && comparisonHasIssue(entry.item));
+      const dayStatus = !needsApproval ? '✓ אושר' : (dataIssue ? 'לבדיקה' : 'ממתין לאישור');
+      return `<details class="attendance-control__day${needsApproval ? '' : ' attendance-control__day--ok'}" data-payroll-date="${escapeHtml(date)}"><summary><span>${shown(dateLabel(date))}</span><span>${formatDurationHours(hours)} שעות</span><span class="attendance-control__row-status ${dataIssue ? 'attendance-control__row-status--issue' : ''}">${dayStatus}</span></summary><div class="attendance-control__reports">${rows.map((row) => reportHtml({ ...row, employeeId: employee.id, date })).join('')}</div></details>`;
     }).join('');
+    const employeeEntries = allAttendanceEntries.filter((entry) => txt(entry.attendance?.employeeId) === employee.id);
+    const totalRecordCount = employeeEntries.length;
+    const approvedRecordCount = employeeEntries.filter(attendanceEntryIsResolved).length;
+    const pendingRecordCount = Math.max(0, totalRecordCount - approvedRecordCount);
+    const recordProgressHtml = totalRecordCount
+      ? `<span class="attendance-control__employee-record-progress">אושרו ${approvedRecordCount} מתוך ${totalRecordCount} רשומות</span>`
+      : '';
     const approval = options.approvalsByEmployee?.[employee.id];
     const hasWorkflowRow = Object.prototype.hasOwnProperty.call(workflowByEmployee, employee.id);
     const workflow = resolvePayrollMonthWorkflow(hasWorkflowRow ? workflowByEmployee[employee.id] : { workflow_status: 'not_submitted' });
@@ -2136,18 +2202,27 @@ export function resultsHtml(result, month = '', options = {}) {
       if (workflow.status === 'not_submitted') {
         finishControls = '<div class="attendance-control__employee-actions"><span class="attendance-control__manual-note">העובד טרם ביצע סיום דיווח ואישור לחודש זה.</span></div>';
       } else if (workflow.status === 'submitted') {
-        finishControls = `<div class="attendance-control__employee-actions"><button type="button" class="ds-btn ds-btn--primary" data-payroll-finish="${escapeHtml(employee.id)}" data-payroll-employee-name="${shown(employee.name)}">אישור מנהל</button></div>`;
+        finishControls = `<div class="attendance-control__employee-actions"><button type="button" class="ds-btn ds-btn--primary" data-payroll-finish="${escapeHtml(employee.id)}" data-payroll-employee-name="${shown(employee.name)}"${pendingRecordCount ? ' disabled' : ''}>אישור מנהל</button>${pendingRecordCount ? `<span class="attendance-control__manual-note">נותרו ${pendingRecordCount} רשומות לאישור.</span>` : ''}</div>`;
       }
     }
-    return `<details class="attendance-control__employee" data-payroll-employee="${escapeHtml(employee.id)}"><summary><strong>${shown(employee.name)}</strong></summary>${workflowHtml}${managerApprovedHtml}${approvedHtml}${finishControls}<div class="attendance-control__employee-days">${days}</div></details>`;
+    return `<details class="attendance-control__employee" data-payroll-employee="${escapeHtml(employee.id)}"><summary><strong>${shown(employee.name)}</strong>${recordProgressHtml}</summary>${workflowHtml}${managerApprovedHtml}${approvedHtml}${finishControls}<div class="attendance-control__employee-days">${days}</div></details>`;
   }).join('');
   const reviewEmployees = [...employees.values()].filter((employee) => {
     const hasWorkflowRow = Object.prototype.hasOwnProperty.call(workflowByEmployee, employee.id);
     const workflow = resolvePayrollMonthWorkflow(hasWorkflowRow ? workflowByEmployee[employee.id] : { workflow_status: 'not_submitted' });
     const entries = [...(result.comparisons || []), ...(result.notCompared || [])]
       .filter((entry) => txt(entry.attendance?.employeeId) === employee.id);
-    return entries.some((entry) => !attendanceEntryIsResolved(entry))
-      || (hasWorkflowRow && workflow.status === 'not_submitted');
+    // "לבדיקה" counts real data gaps / missing submission — not pending manager approval.
+    const hasDataIssue = entries.some((entry) => {
+      if (attendanceEntryIsResolved(entry)) return false;
+      if (entry.unmatched || entry.source === 'attendance_not_compared') return Boolean(entry.unmatched);
+      if ((entry.differences || []).some((difference) => !difference.decided)) return true;
+      if (hasReviewExpense(entry.attendance)
+        && entry.managerResolved !== 'approved_as_reported'
+        && entry.managerResolved !== 'corrected') return true;
+      return false;
+    });
+    return hasDataIssue || (hasWorkflowRow && workflow.status === 'not_submitted');
   }).length;
   const metricsHtml = `<details class="attendance-control__metrics-details" data-payroll-metrics><summary>פרטים</summary><div class="attendance-control__metrics"><span>שורות נוכחות ${totals.attendanceRows}</span><span>התאמות ${totals.fullMatches}</span><span>פערים ${totals.fieldMismatches}</span><span>ללא התאמה ${totals.unmatchedAttendance}</span></div></details>`;
   const overviewRows = [...(result.comparisons || []), ...(result.notCompared || [])].map((entry) => entry.final || entry.attendance || {}).filter(Boolean);
@@ -2217,14 +2292,19 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
     instructorInput.value = '';
   };
   const paintResults = () => {
-    // Save open state of employees, days and metrics before replacing innerHTML
+    // Save open state of employees, days, metrics and record edit mode before replacing innerHTML.
     const openEmployees = new Set();
     const openDays = new Set();
+    const editingRecords = new Set();
     let metricsOpen = false;
     results.querySelectorAll('details[data-payroll-employee][open]').forEach((el) => openEmployees.add(el.dataset.payrollEmployee));
     results.querySelectorAll('details[data-payroll-date][open]').forEach((el) => {
       const emp = el.closest('[data-payroll-employee]');
       openDays.add((emp?.dataset?.payrollEmployee || '') + '|' + el.dataset.payrollDate);
+    });
+    results.querySelectorAll('.attendance-control__report[data-record-editing="1"]').forEach((report) => {
+      const button = report.querySelector('[data-attendance-edit-record]');
+      if (button?.dataset?.attendanceEditRecord) editingRecords.add(button.dataset.attendanceEditRecord);
     });
     if (results.querySelector('details[data-payroll-metrics][open]')) metricsOpen = true;
 
@@ -2244,6 +2324,14 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
       const key = (emp?.dataset?.payrollEmployee || '') + '|' + el.dataset.payrollDate;
       if (openDays.has(key)) el.open = true;
     });
+    for (const recordId of editingRecords) {
+      const button = results.querySelector(`[data-attendance-edit-record="${CSS.escape(recordId)}"]`);
+      const report = button?.closest('.attendance-control__report');
+      if (!report) continue;
+      report.dataset.recordEditing = '1';
+      report.querySelectorAll('[data-attendance-manual-edit-wrap], .attendance-control__row-custom').forEach((wrap) => { wrap.hidden = false; });
+      button.textContent = 'סיום עריכה';
+    }
     if (metricsOpen) {
       const m = results.querySelector('details[data-payroll-metrics]');
       if (m) m.open = true;
@@ -2274,6 +2362,51 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
     } catch {
       workflowByEmployee = Object.fromEntries(employeeIds.map((employeeId) => [txt(employeeId), { workflow_status: 'not_submitted' }]));
     }
+  };
+  const loadRecordReviews = async () => {
+    const entries = [...(result?.comparisons || []), ...(result?.notCompared || [])];
+    for (const entry of entries) entry.managerRecordApproved = false;
+    if (!entries.length || !api?.attendanceControlRecordReviews) return;
+    const recordIds = [...new Set(entries.map(attendanceEntryRecordId).filter(Boolean))];
+    if (!recordIds.length) return;
+    try {
+      const rows = await api.attendanceControlRecordReviews({ recordIds });
+      const approved = new Set((rows || []).map((row) => txt(row.record_id || row.recordId)).filter(Boolean));
+      for (const entry of entries) {
+        if (approved.has(attendanceEntryRecordId(entry))) approveAttendanceEntryCurrent(entry);
+      }
+    } catch (error) {
+      console.warn('[attendance-control] record reviews load failed', error);
+    }
+  };
+  const finishModuleImport = './payroll-control-finish.js?v=20260927-manager-record-approval-v2';
+  const syncEntryAfterPersistentWrite = (entry) => {
+    const source = entry.attendance?._source;
+    entry.attendance = { ...(entry.attendance || {}), ...(entry.final || {}), _source: source };
+    entry.final = { ...entry.attendance };
+    entry.managerRecordApproved = false;
+  };
+  const persistEntryCorrection = async (entry) => {
+    const finishMod = await import(finishModuleImport);
+    const update = finishMod.buildAttendanceUpdatePayload(entry);
+    if (!update.recordId) throw new Error('חסר מזהה רשומת נוכחות לעדכון.');
+    if (!update.changed) {
+      entry.managerRecordApproved = false;
+      return { ...update, wrote: false };
+    }
+    if (!api?.attendanceControlUpdateRecord) throw new Error('עדכון רשומת הנוכחות אינו זמין.');
+    await api.attendanceControlUpdateRecord(update.recordId, update.fields);
+    syncEntryAfterPersistentWrite(entry);
+    // Writing bumps attendance_records.updated_at and invalidates any prior review;
+    // also clear the review row explicitly so reloads stay consistent.
+    if (api?.attendanceControlApproveRecord) {
+      try {
+        await api.attendanceControlApproveRecord(update.recordId, false);
+      } catch (error) {
+        console.warn('[attendance-control] clear record review after edit failed', error);
+      }
+    }
+    return { ...update, wrote: true };
   };
   const approvalFromButton = (button) => {
     const id = txt(button?.dataset?.payrollViewPdf);
@@ -2351,7 +2484,7 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
       result = compareAttendanceRows(attendanceRows, dashboardRows); result.month = month;
       const employeeIds = [...new Set(attendanceRows.map((row) => txt(row.employeeId)).filter(Boolean))];
       title.textContent = `בקרת נוכחות – ${monthLabel}`; status.textContent = '';
-      await Promise.all([loadApprovals(), loadWorkflowStatuses(month, employeeIds)]);
+      await Promise.all([loadApprovals(), loadWorkflowStatuses(month, employeeIds), loadRecordReviews()]);
       paintResults();
     } catch (error) {
       workflowByEmployee = {};
@@ -2451,11 +2584,21 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
           travelChanges = { publicTransport: false, publicTransportCost: 0, kilometers: parsed.value };
         }
         const { changed } = applyAttendanceTravelCorrection(entry, travelChanges);
-        if (changed) refreshDailyKilometersAfterTravelChange(result, entry.attendance?.employeeId, entry.attendance?.date);
-        paintResults();
-        status.textContent = changed
-          ? 'תיקון הנסיעה נשמר בבקרה ויעודכן ברשומת הנוכחות בעת אישור המנהל.'
-          : 'לא בוצע שינוי בנתוני הנסיעה.';
+        if (!changed) {
+          status.textContent = 'לא בוצע שינוי בנתוני הנסיעה.';
+          return;
+        }
+        manualSaveBtn.disabled = true;
+        try {
+          await persistEntryCorrection(entry);
+          refreshDailyKilometersAfterTravelChange(result, entry.attendance?.employeeId, entry.attendance?.date);
+          paintResults();
+          status.textContent = 'תיקון הנסיעה נשמר ברשומת הנוכחות. הרשומה ממתינה לאישור.';
+        } catch (error) {
+          status.textContent = error?.message || 'שמירת תיקון הנסיעה נכשלה.';
+        } finally {
+          manualSaveBtn.disabled = false;
+        }
         return;
       }
       applyAttendanceManualCorrection(entry, { [field]: parsed.value });
@@ -2471,10 +2614,19 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
         if (linkedCancellation?.attendance) {
           linkedCancellation.attendance.date = parsed.value;
           linkedCancellation.final = { ...(linkedCancellation.final || linkedCancellation.attendance), date: parsed.value };
+          linkedCancellation.managerRecordApproved = false;
         }
       }
-      paintResults();
-      status.textContent = 'התיקון נשמר בבקרה ויעודכן ברשומת הנוכחות בעת אישור המנהל.';
+      manualSaveBtn.disabled = true;
+      try {
+        await persistEntryCorrection(entry);
+        paintResults();
+        status.textContent = 'התיקון נשמר ברשומת הנוכחות. הרשומה ממתינה לאישור.';
+      } catch (error) {
+        status.textContent = error?.message || 'שמירת התיקון נכשלה.';
+      } finally {
+        manualSaveBtn.disabled = false;
+      }
       return;
     }
 
@@ -2502,8 +2654,18 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
         return;
       }
       applyAttendanceChoice(comparison, field, choice);
-      paintResults();
-      status.textContent = '';
+      fieldChoiceBtn.disabled = true;
+      try {
+        const persisted = await persistEntryCorrection(comparison);
+        paintResults();
+        status.textContent = persisted.wrote
+          ? 'התיקון נשמר ברשומת הנוכחות. הרשומה ממתינה לאישור.'
+          : '';
+      } catch (error) {
+        status.textContent = error?.message || 'שמירת ההחלטה נכשלה.';
+      } finally {
+        fieldChoiceBtn.disabled = false;
+      }
       return;
     }
 
@@ -2521,15 +2683,65 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
         return;
       }
       applyAttendanceChoice(comparison, field, 'custom', value);
-      paintResults();
-      status.textContent = '';
+      customSaveBtn.disabled = true;
+      try {
+        await persistEntryCorrection(comparison);
+        paintResults();
+        status.textContent = 'התיקון נשמר ברשומת הנוכחות. הרשומה ממתינה לאישור.';
+      } catch (error) {
+        status.textContent = error?.message || 'שמירת התיקון נכשלה.';
+      } finally {
+        customSaveBtn.disabled = false;
+      }
+      return;
+    }
+
+    const editRecordBtn = event.target.closest('[data-attendance-edit-record]');
+    if (editRecordBtn && result) {
+      const report = editRecordBtn.closest('.attendance-control__report');
+      const editing = report?.dataset.recordEditing !== '1';
+      if (report) {
+        report.dataset.recordEditing = editing ? '1' : '0';
+        report.querySelectorAll('[data-attendance-manual-edit-wrap], .attendance-control__row-custom').forEach((wrap) => {
+          wrap.hidden = !editing;
+        });
+      }
+      editRecordBtn.textContent = editing ? 'סיום עריכה' : 'עריכת רשומה';
+      if (editing) report?.querySelector('input:not([type="hidden"]),select')?.focus();
       return;
     }
 
     const approveBtn = event.target.closest('[data-attendance-approve-reported]');
     if (approveBtn && result) {
       const entry = findEntry(approveBtn.dataset.attendanceApproveReported);
-      if (entry) { approveAttendanceEntryAsReported(entry); paintResults(); status.textContent = ''; }
+      if (!entry) return;
+      approveBtn.disabled = true;
+      let writeSucceeded = false;
+      try {
+        approveAttendanceEntryCurrent(entry);
+        const finishMod = await import(finishModuleImport);
+        const update = finishMod.buildAttendanceUpdatePayload(entry);
+        if (!update.recordId) throw new Error('חסר מזהה רשומת נוכחות לאישור.');
+        if (update.changed) {
+          if (!api?.attendanceControlUpdateRecord) throw new Error('עדכון רשומת הנוכחות אינו זמין.');
+          await api.attendanceControlUpdateRecord(update.recordId, update.fields);
+          writeSucceeded = true;
+          syncEntryAfterPersistentWrite(entry);
+        }
+        if (!api?.attendanceControlApproveRecord) throw new Error('שמירת אישור הרשומה אינה זמינה.');
+        await api.attendanceControlApproveRecord(update.recordId, true);
+        entry.managerRecordApproved = true;
+        paintResults();
+        status.textContent = 'הרשומה אושרה ונשמרה.';
+      } catch (error) {
+        entry.managerRecordApproved = false;
+        paintResults();
+        status.textContent = error?.message || (writeSucceeded
+          ? 'התיקון נשמר, אך אישור הרשומה לא נשמר. יש לנסות לאשר שוב.'
+          : 'אישור הרשומה נכשל.');
+      } finally {
+        approveBtn.disabled = false;
+      }
       return;
     }
     const saveCorrectionBtn = event.target.closest('[data-attendance-save-correction]');
@@ -2539,8 +2751,16 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
       const hours = optionalNumber(hoursInput?.value);
       if (entry && hours != null) {
         applyAttendanceManualCorrection(entry, { workHours: hours });
-        paintResults();
-        status.textContent = '';
+        saveCorrectionBtn.disabled = true;
+        try {
+          await persistEntryCorrection(entry);
+          paintResults();
+          status.textContent = 'התיקון נשמר ברשומת הנוכחות. הרשומה ממתינה לאישור.';
+        } catch (error) {
+          status.textContent = error?.message || 'שמירת התיקון נכשלה.';
+        } finally {
+          saveCorrectionBtn.disabled = false;
+        }
       } else if (entry) {
         status.textContent = 'יש להזין שעות שכר מתוקנות.';
       }
@@ -2571,9 +2791,17 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
         status.textContent = 'לא בוצע שינוי בנתוני הנסיעה.';
         return;
       }
-      refreshDailyKilometersAfterTravelChange(result, entry.attendance?.employeeId, entry.attendance?.date);
-      paintResults();
-      status.textContent = '';
+      saveTravelBtn.disabled = true;
+      try {
+        await persistEntryCorrection(entry);
+        refreshDailyKilometersAfterTravelChange(result, entry.attendance?.employeeId, entry.attendance?.date);
+        paintResults();
+        status.textContent = 'תיקון הנסיעה נשמר ברשומת הנוכחות. הרשומה ממתינה לאישור.';
+      } catch (error) {
+        status.textContent = error?.message || 'שמירת תיקון הנסיעה נכשלה.';
+      } finally {
+        saveTravelBtn.disabled = false;
+      }
       return;
     }
     const openAttachmentBtn = event.target.closest('[data-attendance-open-attachment]');
@@ -2608,7 +2836,7 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
     if (viewBtn) {
       const approval = approvalFromButton(viewBtn);
       if (!approval) return;
-      const finishMod = await import('./payroll-control-finish.js?v=20260927-inline-correction-v1');
+      const finishMod = await import(finishModuleImport);
       if (txt(approval.pdf_path).startsWith('http://') || txt(approval.pdf_path).startsWith('https://')) {
         window.open(approval.pdf_path, '_blank', 'noopener');
         return;
@@ -2637,9 +2865,9 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
     }
     finishBtn.disabled = true;
     try {
-      const finishMod = await import('./payroll-control-finish.js?v=20260927-inline-correction-v1');
+      const finishMod = await import(finishModuleImport);
       if (finishMod.payrollEmployeeHasUnresolvedEntries(result, employeeId)) {
-        status.textContent = 'לא ניתן לסיים את הבקרה: יש רשומות נוכחות שלא קיבלו החלטת מנהל.';
+        status.textContent = 'לא ניתן לאשר את החודש: יש רשומות שעדיין לא אושרו על ידי מנהל הצוות.';
         return;
       }
       const signed = await askForSignature(finishMod);
