@@ -57,7 +57,7 @@ export const PLANNING_OPTIMIZATION_WEIGHTS = Object.freeze({
   geography: 15,
   stability: 10
 });
-export const PLANNING_ENGINE_VERSION = 'planning-v17-20260927-locality-first-routing';
+export const PLANNING_ENGINE_VERSION = 'planning-v18-20260927-locality-final-selection';
 export const PLANNING_ACTIVITY_NO_ALIASES = Object.freeze({
   // Legacy Gefen identifier retained on existing activities; canonical catalog program is 53828.
   '82835': '53828'
@@ -968,8 +968,10 @@ function planningStartWeekKey(value) {
 
 export function planningHomeDistanceKm(item = {}) {
   const candidate = item.candidate || item._candidate || item;
-  const km = Number(candidate?.travel?.home?.distance_km);
-  return Number.isFinite(km) && km >= 0 ? km : null;
+  const direct = Number(candidate?.travel?.home?.distance_km);
+  if (Number.isFinite(direct) && direct >= 0) return direct;
+  const cached = Number(candidate?._planningHomeDistanceKm);
+  return Number.isFinite(cached) && cached >= 0 ? cached : null;
 }
 
 export function planningLocalityTier(item = {}) {
@@ -1058,6 +1060,10 @@ function optionCompare(first, second) {
   const secondWeek = planningStartWeekKey(second.startDate);
   if (firstWeek !== secondWeek) return firstWeek.localeCompare(secondWeek);
 
+  const firstLocality = planningLocalityTier({ candidate: first._candidate || first });
+  const secondLocality = planningLocalityTier({ candidate: second._candidate || second });
+  if (firstLocality !== secondLocality) return firstLocality - secondLocality;
+
   const firstScore = Number(first.planningOptimization?.total);
   const secondScore = Number(second.planningOptimization?.total);
   if (Number.isFinite(firstScore) && Number.isFinite(secondScore) && firstScore !== secondScore) {
@@ -1099,7 +1105,18 @@ async function evaluateScenarioOptions({
       exceptions,
       schoolCalendar,
       referenceDate: today
-    }).map((item) => item.candidate).filter(Boolean).sort(compareCandidatesStable)
+    }).map((item) => item.candidate).filter(Boolean)
+      .map((candidate) => {
+        const cachedHome = routeClient?.peek?.(candidate?.instructor?.address, course?.school_address);
+        const km = Number(cachedHome?.distance_km);
+        return Number.isFinite(km) && km >= 0 ? { ...candidate, _planningHomeDistanceKm: km } : candidate;
+      })
+      .sort((first, second) => {
+        const firstLocality = planningLocalityTier({ candidate: first });
+        const secondLocality = planningLocalityTier({ candidate: second });
+        if (firstLocality !== secondLocality) return firstLocality - secondLocality;
+        return compareCandidatesStable(first, second);
+      })
       .slice(0, limits.maxCandidatesPerScenario);
     for (const candidate of candidates) {
       preliminaries.push({
@@ -1239,7 +1256,18 @@ async function evaluateFixedCourse({
     schoolCalendar,
     referenceDate: today,
     allowDateAdjustments: false
-  }).map((item) => item.candidate).filter(Boolean).sort(compareCandidatesStable);
+  }).map((item) => item.candidate).filter(Boolean)
+    .map((candidate) => {
+      const cachedHome = routeClient?.peek?.(candidate?.instructor?.address, activity?.school_address);
+      const km = Number(cachedHome?.distance_km);
+      return Number.isFinite(km) && km >= 0 ? { ...candidate, _planningHomeDistanceKm: km } : candidate;
+    })
+    .sort((first, second) => {
+      const firstLocality = planningLocalityTier({ candidate: first });
+      const secondLocality = planningLocalityTier({ candidate: second });
+      if (firstLocality !== secondLocality) return firstLocality - secondLocality;
+      return compareCandidatesStable(first, second);
+    });
 
   if (!candidates.length) {
     return {
