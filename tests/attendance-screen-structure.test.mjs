@@ -24,6 +24,7 @@ const attendanceIndexSource = await readFile(new URL('../attendance/index.html',
 const calSource     = await readFile(new URL('../attendance/src/components/mini-calendar.js', import.meta.url), 'utf8');
 const calendarDayDrawerSource = await readFile(new URL('../attendance/src/components/calendar-day-drawer.js', import.meta.url), 'utf8');
 const excelServiceSource = await readFile(new URL('../attendance/src/services/excel.service.js', import.meta.url), 'utf8');
+const submitConfirmationSource = await readFile(new URL('../attendance/src/submit-confirmation-dialog.js', import.meta.url), 'utf8');
 
 test('Attendance Home is summary-only with instructor monthly totals and no report rows', () => {
   assert.doesNotMatch(homeSource, /createMiniCalendar|av2-home__calendar|renderCalendarSection/);
@@ -44,6 +45,14 @@ test('Attendance Home is summary-only with instructor monthly totals and no repo
   assert.match(homeSource, /av2-home__action-strip/);
   assert.doesNotMatch(homeStyles, /av2-home__calendar|av2-cal--home/);
   assert.match(homeStyles, /av2-stats-grid/);
+});
+
+test('Attendance submit confirmation uses an unobstructed RTL close action and neutral notice', () => {
+  assert.match(submitConfirmationSource, /inset-inline-end:\s*17px/);
+  assert.doesNotMatch(submitConfirmationSource, /inset-inline-start:\s*17px/);
+  assert.match(submitConfirmationSource, /לאחר ההגשה לא ניתן יהיה לערוך את הדיווחים, אלא אם יוחזרו לתיקון\./);
+  assert.match(submitConfirmationSource, /background:\s*#f7faff/);
+  assert.doesNotMatch(submitConfirmationSource, /#fffaf0|#fde3a7|#7c4a03/);
 });
 
 test('Attendance My Reports owns the calendar above the report list', () => {

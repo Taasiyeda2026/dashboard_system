@@ -84,7 +84,7 @@ function ensureStyles() {
 
     .av2-submit-dialog__close {
       position: absolute;
-      inset-inline-start: 17px;
+      inset-inline-end: 17px;
       inset-block-start: 17px;
       width: 30px;
       height: 30px;
@@ -129,10 +129,10 @@ function ensureStyles() {
       gap: 9px;
       margin: 0;
       padding: 11px 12px;
-      border: 1px solid #fde3a7;
+      border: 1px solid #dbe6f5;
       border-radius: 11px;
-      background: #fffaf0;
-      color: #7c4a03;
+      background: #f7faff;
+      color: #334155;
       font-size: .78rem;
       line-height: 1.55;
     }
@@ -277,8 +277,8 @@ export function openSubmitConfirmationDialog({ monthLabel, sourceCount, trigger,
       <div class="av2-submit-dialog__body" id="av2-submit-description">
         <p class="av2-submit-dialog__question">האם להגיש את דיווחי החודש?</p>
         <p class="av2-submit-dialog__notice">
-          <span class="av2-submit-dialog__notice-icon" aria-hidden="true">!</span>
-          <span>לאחר ההגשה לא ניתן יהיה לערוך את הדיווחים עד לאישור מנהל.</span>
+          <span class="av2-submit-dialog__notice-icon" aria-hidden="true">ℹ</span>
+          <span>לאחר ההגשה לא ניתן יהיה לערוך את הדיווחים, אלא אם יוחזרו לתיקון.</span>
         </p>
         <div class="av2-submit-dialog__summary">
           <span class="av2-submit-dialog__summary-label">דיווחים בחודש זה</span>
