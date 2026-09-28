@@ -1612,7 +1612,7 @@ test('employee month submit action stores the employee name and uses the final s
   const home = await readFile(new URL('../attendance/src/screens/home-screen.js', import.meta.url), 'utf8');
   const service = await readFile(new URL('../attendance/src/services/attendance.service.js', import.meta.url), 'utf8');
   const gate = await readFile(new URL('../attendance/src/services/month-gate.service.js', import.meta.url), 'utf8');
-  assert.match(home, /סיום דיווח ואישור/);
+  assert.match(home, /סיום ואישור/);
   assert.match(home, /submitMonth\(instructor\.empId, getMonthKey\(year, month\), instructor\?\.name \|\| ''\)/);
   assert.match(service, /submitted_by_name: String\(submittedByName \|\| ''\)\.trim\(\)/);
   assert.match(gate, /status === 'submitted'\) return false/);
