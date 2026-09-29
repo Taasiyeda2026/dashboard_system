@@ -194,4 +194,3 @@ begin
   return p_exception_date = any(meeting_dates);
 end
 $$;
-
