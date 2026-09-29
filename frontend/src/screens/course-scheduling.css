@@ -387,6 +387,11 @@
   overflow: visible;
 }
 
+.course-scheduling-screen.is-simple-workboard .course-scheduling-courses {
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
 .course-scheduling-detail {
   display: grid;
   gap: 10px;
@@ -1142,6 +1147,10 @@
 @media (max-width: 900px) {
   .course-scheduling-layout--courses { grid-template-columns: 1fr; }
   .course-scheduling-courses { max-height: none; }
+  .course-scheduling-screen.is-simple-workboard .course-scheduling-courses {
+    max-height: none;
+    overflow: visible;
+  }
   .course-scheduling-detail-facts { grid-template-columns: repeat(2, minmax(150px, 1fr)); }
   .course-scheduling-calendar-toolbar { grid-template-columns: 1fr; }
 }

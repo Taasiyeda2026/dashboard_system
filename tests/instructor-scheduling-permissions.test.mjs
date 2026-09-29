@@ -89,7 +89,8 @@ test('scheduling requirements remain ordinary edit fields without a separate dra
   assert.match(detailHtml, /name="instruction_language"/);
   assert.doesNotMatch(detailHtml, /data-find-instructor/);
   assert.match(detailHtml, /data-open-activity-scheduling/);
-  assert.match(detailHtml, /פתח בשיבוצים/);
+  assert.match(detailHtml, /פתח שיבוץ/);
+  assert.match(detailHtml, /data-activity-scheduling-status/);
   assert.doesNotMatch(detailHtml, /ניהול שיבוץ/);
   assert.doesNotMatch(workflow, /שמירה כטיוטה|data-save-assignment-draft/);
   assert.doesNotMatch(workflow, /מדריכים חסומים|מדריכים מותרים בלבד|הערת שיבוץ פנימית/);
@@ -103,6 +104,8 @@ test('activities scheduling handoff selects one activity and opens the schedulin
   assert.ok(start > 0);
   const handler = source.slice(start, start + 2200);
   assert.match(handler, /state\.courseSchedulingSelectedId = activityId/);
+  assert.match(handler, /state\.courseSchedulingFocusMode = true/);
+  assert.match(handler, /state\.courseSchedulingFocusSelectedCard = true/);
   assert.match(handler, /state\.courseSchedulingDistrict = ''/);
   assert.match(handler, /state\.courseSchedulingAuthority = ''/);
   assert.match(handler, /state\.courseSchedulingBusinessStatus = 'all'/);
