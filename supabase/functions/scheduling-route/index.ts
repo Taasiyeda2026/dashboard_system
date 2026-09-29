@@ -1,3 +1,4 @@
+import { parseGoogleRouteMetrics } from './route-metrics.js';
 import { selectPendingRouteBatch } from './pending-batch.js';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
@@ -162,7 +163,7 @@ async function computeRoute(origin: string, destination: string, key: string) {
     headers: {
       'Content-Type': 'application/json',
       'X-Goog-Api-Key': key,
-      'X-Goog-FieldMask': 'routes.distanceMeters,routes.duration'
+      'X-Goog-FieldMask': 'routes.distanceMeters,routes.duration,routes.legs.startLocation,routes.legs.endLocation'
     },
     body: JSON.stringify({
       origin: { address: origin },
@@ -172,16 +173,9 @@ async function computeRoute(origin: string, destination: string, key: string) {
   });
   if (!google.ok) return { ok: false as const, reason: 'route_service_unavailable' };
   const route = (await google.json())?.routes?.[0];
-  const distanceKm = Number(route?.distanceMeters) / 1000;
-  const durationSeconds = Number.parseFloat(String(route?.duration || '').replace(/s$/i, ''));
-  if (!Number.isFinite(distanceKm) || !Number.isFinite(durationSeconds)) {
-    return { ok: false as const, reason: 'route_not_found' };
-  }
-  return {
-    ok: true as const,
-    distance_km: distanceKm,
-    duration_minutes: Math.ceil(durationSeconds / 60)
-  };
+  const metrics = parseGoogleRouteMetrics(route);
+  if (!metrics) return { ok: false as const, reason: 'route_not_found' };
+  return { ok: true as const, ...metrics };
 }
 
 function emptyStats() {
@@ -403,7 +397,8 @@ function hasUsableMetrics(cached: Record<string, unknown> | null | undefined, pa
   const sameLocation = pair
     ? isSamePlace(pair.origin_address, pair.destination_address)
     : isSamePlace(text(cached.origin_address) || text(cached.origin_key), text(cached.destination_address) || text(cached.destination_key));
-  if ((distance === 0 || duration === 0) && !sameLocation) return false;
+  if ((distance === 0 || duration === 0) && !sameLocation
+    && !(distance === 0 && duration === 0 && cached.provider === 'google_verified_zero')) return false;
   return true;
 }
 
@@ -1282,7 +1277,7 @@ async function processPair(db: DbClient, pair: TravelPair, key: string): Promise
   const write = await replaceCacheRow(
     db,
     pair,
-    cacheRowPayload(pair, route.distance_km, route.duration_minutes, 'google')
+    cacheRowPayload(pair, route.distance_km, route.duration_minutes, route.provider)
   );
   if (write.error) return { dbError: write.error };
   // Count inserted/renewed only after a successful upsert.
@@ -1396,7 +1391,7 @@ async function runBuildCache(db: DbClient, key: string, payload: Record<string, 
   const cacheRowsResult = await loadAllRows(
     db,
     'scheduling_travel_cache',
-    'origin_key,destination_key,distance_km,duration_minutes,origin_address,destination_address,origin_entity_key,destination_entity_key,expires_at'
+    'origin_key,destination_key,distance_km,duration_minutes,origin_address,destination_address,origin_entity_key,destination_entity_key,expires_at,provider'
   );
   if (cacheRowsResult.error) return jsonResponse({ error: 'cache_read_failed' }, 500);
 
@@ -1670,7 +1665,7 @@ Deno.serve(async (req) => {
     destination_key: destinationKey,
     distance_km: route.distance_km,
     duration_minutes: route.duration_minutes,
-    provider: 'google',
+    provider: route.provider,
     calculated_at: new Date().toISOString(),
     expires_at: PERMANENT_CACHE_EXPIRES_AT,
     origin_address: origin,
