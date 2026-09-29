@@ -89,20 +89,28 @@ as $$
 declare
   scope_period text := nullif(btrim(coalesce(p_period_key, '')), '');
   scope_district text := btrim(coalesce(p_district, ''));
-  activity_id text := nullif(btrim(coalesce(p_activity_id, '')), '');
+  v_activity_id text := nullif(btrim(coalesce(p_activity_id, '')), '');
   workspace public.scheduling_planning_workspaces;
+  target_activity public.activities;
   old_option jsonb;
   affected integer := 0;
   old_emp text;
   new_emp text;
+  live_assignment boolean := false;
 begin
   if not public.app_has_permission('view_operations_scheduling') then
     raise exception 'scheduling_permission_denied' using errcode='42501';
   end if;
-  if scope_period is null or activity_id is null then raise exception 'planning_scope_invalid'; end if;
-  if not exists(select 1 from public.activities a where a.row_id = activity_id) then
-    raise exception 'activity_not_found';
-  end if;
+  if scope_period is null or v_activity_id is null then raise exception 'planning_scope_invalid'; end if;
+
+  select * into target_activity
+  from public.activities a
+  where a.row_id = v_activity_id;
+  if not found then raise exception 'activity_not_found'; end if;
+
+  live_assignment := target_activity.emp_id is not null
+    or target_activity.emp_id_2 is not null
+    or coalesce(target_activity.instructor_assignment_locked, false);
 
   insert into public.scheduling_planning_workspaces(period_key, district, updated_by)
   values (scope_period, scope_district, auth.uid())
@@ -114,12 +122,18 @@ begin
   for update;
 
   if p_expected_revision is not null and workspace.revision <> p_expected_revision then
-    raise exception 'planning_revision_conflict';
+    -- confirm_scheduling_planning_draft validates the expected revision before
+    -- its activity write. That write self-invalidates planning and increments
+    -- the same workspace in this transaction. Permit only the final live-row
+    -- cleanup path; ordinary lock/unlock calls keep strict optimistic locking.
+    if not (p_option is null and live_assignment) then
+      raise exception 'planning_revision_conflict';
+    end if;
   end if;
 
   select r.locked_option into old_option
   from public.scheduling_planning_rows r
-  where r.workspace_id = workspace.id and r.activity_id = activity_id;
+  where r.workspace_id = workspace.id and r.activity_id = v_activity_id;
 
   old_emp := nullif(btrim(coalesce(old_option->>'instructorEmpId', '')), '');
   new_emp := nullif(btrim(coalesce(p_option->>'instructorEmpId', '')), '');
@@ -128,20 +142,51 @@ begin
     workspace_id, activity_id, row_data, activity_updated_at,
     locked_option, locked_by, locked_at, needs_recalc, updated_at
   )
-  select
-    workspace.id, a.row_id, jsonb_build_object('courseId', a.row_id), a.updated_at,
+  values (
+    workspace.id,
+    v_activity_id,
+    case
+      when p_option is null and live_assignment then jsonb_build_object(
+        'courseId', v_activity_id,
+        'kind', 'live',
+        'status', 'מעודכן בפועל',
+        'instructorEmpId', coalesce(target_activity.emp_id::text, ''),
+        'instructorName', coalesce(target_activity.instructor_name, '')
+      )
+      else jsonb_build_object('courseId', v_activity_id)
+    end,
+    target_activity.updated_at,
     p_option,
     case when p_option is null then null else auth.uid() end,
     case when p_option is null then null else now() end,
-    (p_option is null),
+    case when p_option is null and not live_assignment then true else false end,
     now()
-  from public.activities a where a.row_id = activity_id
+  )
   on conflict (workspace_id, activity_id)
   do update set
+    row_data = case
+      when p_option is null and live_assignment then
+        coalesce(scheduling_planning_rows.row_data, '{}'::jsonb)
+        || jsonb_build_object(
+          'courseId', v_activity_id,
+          'kind', 'live',
+          'status', 'מעודכן בפועל',
+          'instructorEmpId', coalesce(target_activity.emp_id::text, ''),
+          'instructorName', coalesce(target_activity.instructor_name, '')
+        )
+      else scheduling_planning_rows.row_data
+    end,
+    activity_updated_at = case
+      when p_option is null and live_assignment then target_activity.updated_at
+      else scheduling_planning_rows.activity_updated_at
+    end,
     locked_option = excluded.locked_option,
     locked_by = excluded.locked_by,
     locked_at = excluded.locked_at,
-    needs_recalc = (p_option is null),
+    needs_recalc = case
+      when p_option is null and live_assignment then false
+      else (p_option is null)
+    end,
     updated_at = now();
 
   if old_emp is not null or new_emp is not null then
@@ -164,7 +209,7 @@ begin
     set needs_recalc = true,
         updated_at = now()
     where r.workspace_id = workspace.id
-      and r.activity_id <> activity_id
+      and r.activity_id <> v_activity_id
       and r.locked_option is null
       and lower(coalesce(r.row_data->>'kind', '')) <> 'live'
       and (
@@ -214,7 +259,7 @@ begin
   return jsonb_build_object(
     'revision', workspace.revision,
     'updatedAt', workspace.updated_at,
-    'affected', affected + case when p_option is null then 1 else 0 end
+    'affected', affected + case when p_option is null and not live_assignment then 1 else 0 end
   );
 end
 $$;
