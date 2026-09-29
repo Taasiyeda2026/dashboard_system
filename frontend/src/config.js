@@ -300,3 +300,5 @@ config.HOTFIX_VERSION = `scheduling-fast-reopen-route-recovery-20260929-v1-${con
 config.HOTFIX_VERSION = `verified-google-zero-route-20260929-v1-${config.HOTFIX_VERSION}`;
 
 config.HOTFIX_VERSION = `scheduling-deduplicate-candidate-checks-20260929-v1-${config.HOTFIX_VERSION}`;
+
+config.HOTFIX_VERSION = `attendance-record-atomic-edit-20260929-v1-${config.HOTFIX_VERSION}`;
