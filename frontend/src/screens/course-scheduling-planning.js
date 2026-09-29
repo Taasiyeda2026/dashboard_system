@@ -1324,10 +1324,7 @@ async function evaluateScenarioOptions({
       const scenarioId = finalist.course.row_id;
       if (!finalResultsByScenario.has(scenarioId)) {
         finalEvaluationCount += 1;
-        const candidateInstructorIds = batch
-          .filter((item) => item.course.row_id === scenarioId)
-          .map((item) => empOf(item.candidate))
-          .filter(Boolean);
+        const candidateInstructorIds = [...(preliminaryCandidateIdsByScenario.get(scenarioId) || [])];
         finalResultsByScenario.set(scenarioId, calculateCourseSchedule({
           activities: [finalist.course],
           targetCourse: finalist.course,
