@@ -1998,7 +1998,6 @@ export function resultsHtml(result, month = '', options = {}) {
       <div class="attendance-control__row-action-buttons">
         <button type="button" class="ds-btn ds-btn--sm${difference.decided && difference.choice === 'attendance' ? ' is-selected' : ''}" data-attendance-field-choice="attendance" data-comparison-id="${escapeHtml(entry.id)}" data-field-key="${escapeHtml(key)}">אישור נוכחות</button>
         ${hasSystemValue ? `<button type="button" class="ds-btn ds-btn--sm${difference.decided && difference.choice === 'dashboard' ? ' is-selected' : ''}" data-attendance-field-choice="dashboard" data-comparison-id="${escapeHtml(entry.id)}" data-field-key="${escapeHtml(key)}">אישור ${escapeHtml(dashboardLabel)}</button>` : ''}
-        <button type="button" class="ds-btn ds-btn--sm" data-attendance-edit-record="${escapeHtml(entry.id)}" data-attendance-edit-approved="${approved ? '1' : '0'}">עריכת רשומה</button>
       </div>
       ${selected ? `<small class="attendance-control__row-decision">${escapeHtml(selected)}</small>` : ''}
     </div>`;
@@ -2043,7 +2042,7 @@ export function resultsHtml(result, month = '', options = {}) {
       <div class="attendance-control__row-custom" data-attendance-manual-edit-wrap>
         <input class="ds-input ds-input--sm" data-attendance-manual-input="${escapeHtml(entry.id)}" data-field-key="${escapeHtml(key)}"
           type="${meta.type}" value="${escapeHtml(String(meta.value ?? ''))}"${meta.placeholder ? ` placeholder="${escapeHtml(meta.placeholder)}"` : ''}${meta.step ? ` step="${meta.step}"` : ''}${meta.min ? ` min="${meta.min}"` : ''}
-          aria-label="עריכת ${escapeHtml(label)}">
+          aria-label="עריכת ${escapeHtml(label)}"${key === 'workHours' ? ' readonly aria-readonly="true"' : ''}>
       </div>
     </div>`;
   };
