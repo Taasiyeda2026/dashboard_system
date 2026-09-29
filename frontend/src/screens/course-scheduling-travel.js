@@ -351,57 +351,63 @@ export async function calculateCandidateTravel(preliminary, activities, routeCli
     const destination = activityPlace(course);
     const homeOrigin = text(candidate.instructor.address);
     const courseContext = schoolRouteContext(course);
-    const result = {
-      home: homeOrigin && destination ? await route(homeOrigin, destination, {
+    const [home, homeReturn] = await Promise.all([
+      homeOrigin && destination ? route(homeOrigin, destination, {
         destinationSchoolName: courseContext.schoolName,
         destinationAuthorityName: courseContext.authorityName
-      }) : null,
-      homeReturn: destination && homeOrigin ? await route(destination, homeOrigin, {
+      }) : Promise.resolve(null),
+      destination && homeOrigin ? route(destination, homeOrigin, {
         originSchoolName: courseContext.schoolName,
         originAuthorityName: courseContext.authorityName
-      }) : null,
-      transitions: {}
-    };
-    for (const meeting of activityMeetings(course)) {
-      await checkpoint();
+      }) : Promise.resolve(null)
+    ]);
+    const result = { home, homeReturn, transitions: {} };
+    await checkpoint();
+    const meetingTransitions = await Promise.all(activityMeetings(course).map(async (meeting) => {
       const { previous, next } = adjacentActivities(assigned[empId] || [], meeting);
       const previousPlace = previous ? activityPlace(previous) : '';
       const nextPlace = next ? activityPlace(next) : '';
       const previousContext = schoolRouteContext(previous || {});
       const nextContext = schoolRouteContext(next || {});
-      result.transitions[meeting.date] = {
-        previous: previousPlace && destination ? await route(previousPlace, destination, {
+      const [previousLeg, nextLeg, baselineLeg] = await Promise.all([
+        previousPlace && destination ? route(previousPlace, destination, {
           originSchoolName: previousContext.schoolName,
           originAuthorityName: previousContext.authorityName,
           destinationSchoolName: courseContext.schoolName,
           destinationAuthorityName: courseContext.authorityName
-        }) : null,
-        next: destination && nextPlace ? await route(destination, nextPlace, {
+        }) : Promise.resolve(null),
+        destination && nextPlace ? route(destination, nextPlace, {
           originSchoolName: courseContext.schoolName,
           originAuthorityName: courseContext.authorityName,
           destinationSchoolName: nextContext.schoolName,
           destinationAuthorityName: nextContext.authorityName
-        }) : null,
-        baseline: previousPlace && nextPlace
-          ? await route(previousPlace, nextPlace, {
+        }) : Promise.resolve(null),
+        previousPlace && nextPlace
+          ? route(previousPlace, nextPlace, {
             originSchoolName: previousContext.schoolName,
             originAuthorityName: previousContext.authorityName,
             destinationSchoolName: nextContext.schoolName,
             destinationAuthorityName: nextContext.authorityName
           })
           : previousPlace && homeOrigin
-            ? await route(previousPlace, homeOrigin, {
+            ? route(previousPlace, homeOrigin, {
               originSchoolName: previousContext.schoolName,
               originAuthorityName: previousContext.authorityName
             })
             : homeOrigin && nextPlace
-              ? await route(homeOrigin, nextPlace, {
+              ? route(homeOrigin, nextPlace, {
                 destinationSchoolName: nextContext.schoolName,
                 destinationAuthorityName: nextContext.authorityName
               })
-              : null
-      };
-    }
+              : Promise.resolve(null)
+      ]);
+      return [meeting.date, {
+        previous: previousLeg,
+        next: nextLeg,
+        baseline: baselineLeg
+      }];
+    }));
+    result.transitions = Object.fromEntries(meetingTransitions);
     (travel[activityId(course)] ||= {})[empId] = result;
   }));
 
