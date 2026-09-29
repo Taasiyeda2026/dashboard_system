@@ -167,4 +167,3 @@ test('PostgreSQL: activity invalidation marks only the changed activity, not row
     { activity_id: 'activity-b', needs_recalc: false }
   ]);
 });
-
