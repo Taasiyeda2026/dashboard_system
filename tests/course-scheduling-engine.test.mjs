@@ -5,6 +5,7 @@ import { calculateCourseSchedule, instructorLoad, schedulingCourses, schedulingI
 import { evaluateInstructor, rankInstructors } from '../frontend/src/screens/instructor-matching-engine.js';
 import { createRouteClient, calculateCandidateTravel, routeMatrixKey } from '../frontend/src/screens/course-scheduling-travel.js';
 import { courseSchedulingCounts, detailsHtml } from '../frontend/src/screens/course-scheduling.js';
+import './scheduling-performance-harness.test.mjs';
 
 const course = (id, date = '2026-09-06', extra = {}) => ({
   row_id: id,
