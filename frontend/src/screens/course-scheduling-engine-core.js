@@ -23,6 +23,7 @@ import {
 } from './course-scheduling-score.js';
 import { normalizeOperationalDistrict } from './shared/district-normalization.js';
 import { filterSchoolCalendarRowsBySector, normalizeCalendarSector } from './shared/school-calendar-logic.js';
+import { planningPerfCount, planningPerfTimer } from './course-scheduling-perf.js';
 
 export { courseUrgency };
 
@@ -532,6 +533,9 @@ function evaluateCourseCandidates({
   exceptions,
   input
 }) {
+  planningPerfCount('instructorScans');
+  planningPerfCount('candidateEvals', instructors.length);
+  const stopTimer = planningPerfTimer('candidateEvaluation');
   const raw = instructors.map((instructor) => evaluateCandidate({
     course,
     instructor,
@@ -542,10 +546,15 @@ function evaluateCourseCandidates({
     input,
     instructors
   }));
-  return rescoreEligiblePeers(raw, course);
+  const result = rescoreEligiblePeers(raw, course);
+  stopTimer();
+  return result;
 }
 
 export function calculateCourseSchedule(input = {}) {
+  planningPerfCount('scheduleCalls');
+  planningPerfCount('contextRebuilds');
+  const stopScheduleTimer = planningPerfTimer('calculateCourseSchedule');
   const activities = input.activities || [];
   const periodKey = input.periodKey || DEFAULT_COURSE_SCHEDULING_PERIOD_KEY;
   const scopedCourses = schedulingCourses(activities, {
@@ -677,7 +686,9 @@ export function calculateCourseSchedule(input = {}) {
       eligibleCandidateCount: 0
     }));
 
-  return [...ordered.map((course) => resultsById.get(idOf(course))), ...incompleteResults];
+  const output = [...ordered.map((course) => resultsById.get(idOf(course))), ...incompleteResults];
+  stopScheduleTimer();
+  return output;
 }
 
 export function preliminaryCourseCandidates(input = {}) {
