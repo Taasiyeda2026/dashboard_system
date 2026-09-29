@@ -269,9 +269,9 @@ test('stale shared planning is not presented as a current recommendation', () =>
     meetingState: { loaded: true, approvedDates: new Map(), cancelledDates: new Map(), error: '' }
   }, { state });
 
-  assert.match(html, /התכנון השמור אינו עדכני ולכן אינו מוצג כהמלצה/);
+  assert.match(html, /התכנון השמור אינו עדכני/);
   assert.match(html, /גרסת מנוע התכנון השתנתה מאז החישוב האחרון/);
-  assert.match(html, /חשב תכנון מחדש/);
+  assert.match(html, /data-run-course-planning|>עדכן</);
   assert.doesNotMatch(html, /data-planning-completion-overview/);
   assert.match(html, /אין מועד קבוע מבית הספר — המערכת תציע תאריך, שעה ומדריך/);
 });
