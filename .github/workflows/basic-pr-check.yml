@@ -57,6 +57,15 @@ jobs:
           echo "Checked ${js_count} changed JavaScript files and ${json_count} changed JSON files."
 
 
+      - name: Run attendance control tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm ci --ignore-scripts --no-audit --no-fund
+          node --test \
+            tests/attendance-control.test.mjs \
+            tests/attendance-control-review-ui.test.mjs
+
       - name: Run mobile interface contract tests
         env:
           BASE_REF: ${{ github.base_ref }}
