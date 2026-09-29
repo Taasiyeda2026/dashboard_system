@@ -1266,6 +1266,7 @@ async function evaluateScenarioOptions({
   const options = [];
   const optionKeys = new Set();
   let routedAttemptCount = 0;
+  let finalEvaluationCount = 0;
   let routeVerified = false;
   let routeServiceFailed = false;
 
@@ -1296,22 +1297,30 @@ async function evaluateScenarioOptions({
     // One missing route must not discard healthy candidates in the same batch.
     routeVerified ||= !text(routed.unavailableReason);
 
+    // Each result already checks every instructor. Reuse it for the same
+    // scenario within this batch, whose route matrix and calendar are identical.
+    const finalResultsByScenario = new Map();
     for (const finalist of batch) {
       await checkpoint();
-      const finalResult = calculateCourseSchedule({
-        activities: [...contextActivities, finalist.course],
-        targetCourseId: finalist.course.row_id,
-        periodKey,
-        instructors,
-        profiles,
-        rules,
-        exceptions,
-        schoolCalendar,
-        referenceDate: today,
-        travel: routed.travel,
-        routeMatrix: routed.routeMatrix,
-        travelUnavailableReason: routed.unavailableReason || ''
-      })[0];
+      const scenarioId = finalist.course.row_id;
+      if (!finalResultsByScenario.has(scenarioId)) {
+        finalEvaluationCount += 1;
+        finalResultsByScenario.set(scenarioId, calculateCourseSchedule({
+          activities: [...contextActivities, finalist.course],
+          targetCourseId: finalist.course.row_id,
+          periodKey,
+          instructors,
+          profiles,
+          rules,
+          exceptions,
+          schoolCalendar,
+          referenceDate: today,
+          travel: routed.travel,
+          routeMatrix: routed.routeMatrix,
+          travelUnavailableReason: routed.unavailableReason || ''
+        })[0]);
+      }
+      const finalResult = finalResultsByScenario.get(scenarioId);
       const expectedEmpId = empOf(finalist.candidate);
       const finalCandidate = (finalResult?.checked || []).find((candidate) =>
         candidate?.eligible && empOf(candidate) === expectedEmpId
@@ -1345,6 +1354,7 @@ async function evaluateScenarioOptions({
     options: sortedOptions,
     preliminaryCount: preliminaries.length,
     routedAttemptCount,
+    finalEvaluationCount,
     routeVerified: sortedOptions.length > 0 || (routeVerified && !routeServiceFailed),
     recruitmentNeeded: sortedOptions.length === 0 && !routeServiceFailed && exhaustive
   };
@@ -2027,6 +2037,7 @@ function planRowFromOption(activity, option, options, startRange, spec, diagnost
     diagnostics: {
       preliminaryCount: Number(diagnostics.preliminaryCount) || 0,
       routedAttemptCount: Number(diagnostics.routedAttemptCount) || 0,
+      finalEvaluationCount: Number(diagnostics.finalEvaluationCount) || 0,
       routeVerified: diagnostics.routeVerified === true,
       routeEvaluationVersion: 2
     },
