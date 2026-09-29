@@ -288,8 +288,8 @@ test('New Report accessibility layer is scoped, color-only and loaded last', () 
   assert.match(newReportAccessibilityStyles, /#2563EB/i);
   assert.doesNotMatch(newReportAccessibilityStyles, /(?:^|[;{]\s*)(?:width|height|min-width|max-width|min-height|max-height|padding|margin|gap|border-radius|font-size|font-family|grid-template-columns|display|position)\s*:/m);
 
-  const fitIndex = attendanceIndexSource.indexOf('report-table-fit-fix.css?v=98');
-  const accessibilityIndex = attendanceIndexSource.indexOf('new-report-accessibility.css?v=98');
+  const fitIndex = attendanceIndexSource.indexOf('report-table-fit-fix.css?v=101');
+  const accessibilityIndex = attendanceIndexSource.indexOf('new-report-accessibility.css?v=101');
   assert.notEqual(fitIndex, -1);
   assert.notEqual(accessibilityIndex, -1);
   assert.ok(accessibilityIndex > fitIndex, 'New Report accessibility CSS must load last');
