@@ -34,7 +34,7 @@ test('scheduling instructor overview becomes mobile work cards with expandable a
 });
 
 test('scheduling mobile cache version points at the stale-plan clarity stylesheet', () => {
-  assert.match(indexHtml, /mobile-responsive\.css\?v=20260926-stale-plan-clarity-v1/);
+  assert.match(indexHtml, /mobile-responsive\.css\?v=20260929-global-cache-refresh-v1/);
 });
 
 test('unresolved planning details stay compact on mobile', () => {
