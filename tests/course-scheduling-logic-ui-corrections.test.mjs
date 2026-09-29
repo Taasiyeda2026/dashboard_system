@@ -351,11 +351,14 @@ test('manual picker permits only deliberate soft exceptions and blocks identity 
     'הקורס דורש מדריכה',
     'לא ניתן לאמת זמן מעבר לאחר פעילות קודמת',
     'אין זמן מעבר מספיק מהפעילות הקודמת',
-    'חסרים נתוני התאמה מלאים',
-    'הרצף היומי חורג מהמותר בתאריך 2026-10-11'
+    'חסרים נתוני התאמה מלאים'
   ]) {
     assert.equal(manualCandidateBlocked({ failures: [reason], missingProfileData: [] }), true, reason);
   }
+  assert.equal(manualCandidateBlocked({
+    failures: ['הרצף היומי חורג מהמותר בתאריך 2026-10-11'],
+    missingProfileData: []
+  }), false, 'the retired daily sequence rule must not block manual selection');
 });
 
 test('manual draft RPC audits warnings and keeps inactive instructors and overlaps blocked', () => {
