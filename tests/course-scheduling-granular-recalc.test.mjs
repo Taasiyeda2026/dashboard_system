@@ -626,3 +626,33 @@ test('editing an unassigned row does not fan out through provisional same-slot d
   assert.deepEqual(sharedPlanningAffectedCourseIds({ shared: { rows }, activities,
     currentCourseIds: rows.map(row => row.activityId) }), ['missing-0']);
 });
+
+test('legacy route diagnostics do not requeue a stable missing row without explicit invalidation', () => {
+  const row = planningEntry('legacy-route-missing', {
+    kind: 'missing',
+    meetings: [{ date: '2026-10-20' }]
+  });
+  row.row.diagnostics = {
+    preliminaryCount: 4,
+    routedAttemptCount: 4,
+    routeVerified: false,
+    routeEvaluationVersion: 1
+  };
+  const activities = [activity(row.activityId, {
+    updatedAt: row.activityUpdatedAt,
+    meetings: row.row.meetings
+  })];
+
+  assert.deepEqual(sharedPlanningAffectedCourseIds({
+    shared: { rows: [row] },
+    activities,
+    currentCourseIds: [row.activityId]
+  }), []);
+
+  row.needsRecalc = true;
+  assert.deepEqual(sharedPlanningAffectedCourseIds({
+    shared: { rows: [row] },
+    activities,
+    currentCourseIds: [row.activityId]
+  }), [row.activityId]);
+});

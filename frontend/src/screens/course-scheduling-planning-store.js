@@ -186,14 +186,12 @@ export function sharedPlanningAffectedCourseIds({
 
   const activityById = new Map((activities || []).map((activity) => [idOf(activity), activity]));
   const sharedById = new Map((shared?.rows || []).map((entry) => [text(entry.activityId), entry]));
+  // Incremental runs are driven only by explicit invalidation. Historical
+  // route diagnostics are row metadata, not a reason to requeue the same missing
+  // activities on every refresh. A deliberate full rebuild remains available.
   const changed = new Set(
     (shared?.rows || [])
-      .filter((entry) => entry?.needsRecalc === true || (
-        !entry?.lockedOption && entry?.row?.kind === 'missing'
-        && entry?.row?.diagnostics?.routeVerified === false
-        && Number(entry?.row?.diagnostics?.preliminaryCount) > 0
-        && Number(entry?.row?.diagnostics?.routeEvaluationVersion || 0) < 2
-      ))
+      .filter((entry) => entry?.needsRecalc === true)
       .map((entry) => text(entry.activityId))
       .filter((courseId) => currentIds.has(courseId))
   );
