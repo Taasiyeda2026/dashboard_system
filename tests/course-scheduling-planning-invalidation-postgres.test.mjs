@@ -59,6 +59,7 @@ before(async () => {
   const selfInvalidation = await sql('../supabase/migrations/20260927190000_planning_self_invalidation.sql');
   await client.query(selfInvalidationPrefix(selfInvalidation));
   await client.query(await sql('../supabase/migrations/20260929190000_keep_live_planning_rows_out_of_dependency_invalidation.sql'));
+  await client.query(await sql('../supabase/migrations/20260930001500_narrow_activity_planning_invalidation.sql'));
   await client.query(confirmFunction(selfInvalidation));
   await client.query("select set_config('test.uid', '11111111-1111-1111-1111-111111111111', false)");
   await client.query("select set_config('test.role', 'admin', false)");
@@ -153,3 +154,17 @@ test('PostgreSQL: instructor changes do not dirty live rows', async (t) => {
   const { rows } = await client.query("select needs_recalc from public.scheduling_planning_rows where activity_id='activity-b'");
   assert.equal(rows[0].needs_recalc, false);
 });
+
+test('PostgreSQL: activity invalidation marks only the changed activity, not rows that merely list the same instructor as an option', async (t) => {
+  if (!requirePostgres(t)) return;
+  await client.query(`update public.scheduling_planning_rows
+    set row_data='{"kind":"proposal","instructorEmpId":"100","options":[{"instructorEmpId":"100"}]}'::jsonb
+    where activity_id='activity-b'`);
+  await client.query("select public.mark_scheduling_planning_needs_recalc('activity-a', false)");
+  const { rows } = await client.query('select activity_id, needs_recalc from public.scheduling_planning_rows order by activity_id');
+  assert.deepEqual(rows, [
+    { activity_id: 'activity-a', needs_recalc: true },
+    { activity_id: 'activity-b', needs_recalc: false }
+  ]);
+});
+
