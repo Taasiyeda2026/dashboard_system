@@ -232,7 +232,11 @@ test('May non-activity reports stay in export but not in activity exceptions or 
   const workbook = buildCorrectedAttendanceWorkbook([...result.comparisons, ...result.notCompared], result.dashboardPopulation);
   const detail = XLSX.utils.sheet_to_json(workbook.Sheets['פירוט מלא'], { header: 1 });
   assert.equal(detail.length - 1, 261);
-  assert.equal(Math.round(detail.slice(1).reduce((sum, row) => sum + Number(row[5] || 0), 0) * 10) / 10, 512.9);
+  const exportedHours = detail.slice(1).reduce((sum, row) => {
+    const [hours, minutes] = String(row[5] || '0:00').split(':').map(Number);
+    return sum + (Number.isFinite(hours) ? hours : 0) + (Number.isFinite(minutes) ? minutes / 60 : 0);
+  }, 0);
+  assert.equal(Math.round(exportedHours * 10) / 10, 512.9);
   const html = resultsHtml(result);
   assert.equal((html.match(/class="attendance-control__employee"/g) || []).length, 1, 'one instructor accordion is rendered');
   assert.equal((html.match(/class="attendance-control__day"/g) || []).length, 28, 'one day row groups all reports from the same date');
@@ -451,7 +455,7 @@ test('unmatched dashboard meetings are limited to attendance employees and can b
   const workbook = buildCorrectedAttendanceWorkbook([...result.comparisons, ...result.dashboardOnly], result.dashboardPopulation);
   const detail = XLSX.utils.sheet_to_json(workbook.Sheets['פירוט מלא'], { header: 1 });
   assert.equal(detail.length, 2);
-  assert.equal(detail[1][9], 'ראשון');
+  assert.equal(detail[1][10], 'ראשון');
 });
 
 test('population, multiple same-day matching and all compared fields are preserved', () => {
@@ -682,7 +686,7 @@ test('attendance expenses=0 vs missing dashboard expenses does not create a diff
   assert.ok(r4.comparisons[0].differences.some((d) => d.key === 'expenses'), 'expenses 50 vs null must remain a diff');
 });
 
-test('special attendance rows remain and exact three-sheet export uses dashboard employment type', () => {
+test('special attendance rows remain and employee export uses human-readable hours on all sheets', () => {
   const comparisons = [
     { final: { employeeId: '10', employeeName: 'דנה', date: '2026-08-01', startTime: '08:00', endTime: '10:00', activityType: 'ביטול זמן', kilometers: 12, expenses: 5, expenseDetails: 'חניה' } },
     { final: { employeeId: '10', employeeName: 'דנה', date: '2026-08-02', startTime: '09:00', endTime: '10:00', activityType: 'הכשרה' } },
@@ -694,8 +698,63 @@ test('special attendance rows remain and exact three-sheet export uses dashboard
   assert.deepEqual(XLSX.utils.sheet_to_json(workbook.Sheets['סיכום חודשי'], { header: 1 })[0], MONTHLY_HEADERS);
   assert.deepEqual(XLSX.utils.sheet_to_json(workbook.Sheets['תצוגה יומית'], { header: 1 })[0], DAILY_HEADERS);
   const monthly = XLSX.utils.sheet_to_json(workbook.Sheets['סיכום חודשי'], { header: 1 })[1];
-  assert.equal(monthly[2], 2); assert.equal(monthly[3], 1);
-  assert.equal(XLSX.utils.sheet_to_json(workbook.Sheets['תצוגה יומית'], { header: 1 })[1][3], 'תפעול');
+  assert.equal(monthly[2], '2:00'); assert.equal(monthly[3], '1:00');
+  const daily = XLSX.utils.sheet_to_json(workbook.Sheets['תצוגה יומית'], { header: 1 });
+  assert.equal(daily.length - 1, 3);
+  assert.deepEqual(new Set(daily.slice(1).map((row) => row[3])), new Set(['ביטול זמן', 'הכשרה', 'תפעול']));
+  assert.equal(daily[1][7], '2:00');
+});
+
+
+test('generated travel cancellation is folded into its source row in employee Excel export', () => {
+  const comparisons = [
+    {
+      source: 'attendance_not_compared',
+      attendance: {
+        employeeId: '1538', employeeName: 'מוחמד סוילם', date: '2026-09-15',
+        recordId: 'source-1', activityType: 'הכשרה', program: 'הכשרת בסיס',
+        authority: 'יקום', startTime: '10:00', endTime: '15:00', workHours: 5,
+        kilometers: 267.5,
+        _source: { recordId: 'source-1', ID: 'source-1', employeeId: '1538', employeeName: 'מוחמד סוילם', attendanceDate: '2026-09-15', activityType: 'הכשרה', programName: 'הכשרת בסיס', municipality: 'יקום', startTime: '10:00', endTime: '15:00', workHours: 5, kilometers: 267.5 }
+      },
+      final: {
+        employeeId: '1538', employeeName: 'מוחמד סוילם', date: '2026-09-15',
+        recordId: 'source-1', activityType: 'הכשרה', program: 'הכשרת בסיס',
+        authority: 'יקום', startTime: '10:00', endTime: '15:00', workHours: 5,
+        kilometers: 267.5
+      }
+    },
+    {
+      source: 'attendance_not_compared',
+      attendance: {
+        employeeId: '1538', employeeName: 'מוחמד סוילם', date: '2026-09-15',
+        recordId: 'cancel-1', activityType: 'ביטול זמן', workHours: 1.3,
+        _source: {
+          recordId: 'cancel-1', ID: 'cancel-1', employeeId: '1538', employeeName: 'מוחמד סוילם',
+          attendanceDate: '2026-09-15', activityType: 'ביטול זמן', workHours: 1.3,
+          generationKind: 'travel_time_cancellation', sourceAttendanceRecordId: 'source-1',
+          finalCancellationMinutes: 78
+        }
+      },
+      final: {
+        employeeId: '1538', employeeName: 'מוחמד סוילם', date: '2026-09-15',
+        recordId: 'cancel-1', activityType: 'ביטול זמן', workHours: 1.3
+      }
+    }
+  ];
+  const workbook = buildCorrectedAttendanceWorkbook(comparisons, [{ employeeId: '1538', employmentType: 'תעשיידע' }]);
+  const detail = XLSX.utils.sheet_to_json(workbook.Sheets['פירוט מלא'], { header: 1 });
+  const daily = XLSX.utils.sheet_to_json(workbook.Sheets['תצוגה יומית'], { header: 1 });
+  const monthly = XLSX.utils.sheet_to_json(workbook.Sheets['סיכום חודשי'], { header: 1 });
+  assert.equal(detail.length, 2);
+  assert.equal(detail[1][5], '5:00');
+  assert.equal(detail[1][6], '1:18');
+  assert.equal(detail[1][7], 'הכשרה');
+  assert.equal(daily.length, 2);
+  assert.equal(daily[1][7], '5:00');
+  assert.equal(daily[1][8], '1:18');
+  assert.equal(monthly[1][2], '1:18');
+  assert.equal(monthly[1][3], '5:00');
 });
 
 
