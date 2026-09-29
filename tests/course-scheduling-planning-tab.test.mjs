@@ -9,6 +9,7 @@ import {
   buildPlanningCompletionRows,
   buildPlanningOverviewRows,
   buildDynamicCoursePlan,
+  mergePlanningResumeRows,
   buildFixedDatePlanningMeetings,
   buildWeeklyPlanningMeetings,
   canonicalPlanningActivityNo,
@@ -2484,6 +2485,57 @@ test('Planning marks recruitment only when no active instructor can satisfy the 
   assert.ok(result.rows[0].recruitmentProfileId);
   assert.match(result.rows[0].reason, /נדרש גיוס/);
   assert.equal(result.recruitment, 1);
+});
+
+test('resumed incremental recruitment does not start national repair', async () => {
+  const activity = { ...baseCourse, row_id: 'resumed-target', sessions: 2 };
+  const phases = [];
+  const result = await buildDynamicCoursePlan({
+    activities: [activity],
+    instructors: [],
+    profiles: {},
+    rules: {},
+    exceptions: {},
+    schoolCalendar: [],
+    catalog,
+    today: '2026-09-23',
+    routeClient: routeClient(null),
+    targetCourseIds: ['resumed-target'],
+    resumeFromCheckpoint: true,
+    allowGlobalRepair: false,
+    onProgress: ({ phase }) => { phases.push(phase); }
+  });
+  assert.equal(result.recruitment, 1);
+  assert.equal(result.rows.length, 1);
+  assert.equal(phases.some((phase) => phase.includes('אופטימיזציה ארצית') || phase.startsWith('שיפור ·')), false);
+});
+
+test('resumed incremental rows retain unaffected saved proposals', async () => {
+  const unchanged = { courseId: 'unchanged', kind: 'proposal', instructorEmpId: '1503', meetings: [] };
+  const outdated = { courseId: 'completed', kind: 'missing' };
+  const completed = { courseId: 'completed', kind: 'proposal', instructorEmpId: '1544' };
+  assert.deepEqual(mergePlanningResumeRows([unchanged, outdated], [completed]), [unchanged, completed]);
+
+  const result = await buildDynamicCoursePlan({
+    activities: [
+      { ...baseCourse, row_id: 'unchanged', sessions: 2 },
+      { ...baseCourse, row_id: 'resumed-target', sessions: 2 }
+    ],
+    instructors: [],
+    profiles: {},
+    rules: {},
+    exceptions: {},
+    schoolCalendar: [],
+    catalog,
+    today: '2026-09-23',
+    routeClient: routeClient(null),
+    existingRows: mergePlanningResumeRows([unchanged], []),
+    targetCourseIds: ['resumed-target'],
+    resumeFromCheckpoint: true,
+    allowGlobalRepair: false
+  });
+  assert.equal(result.rows.find((row) => row.courseId === 'unchanged')?.instructorEmpId, '1503');
+  assert.equal(result.rows.find((row) => row.courseId === 'resumed-target')?.kind, 'recruitment');
 });
 
 

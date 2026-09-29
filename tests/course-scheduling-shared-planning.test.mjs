@@ -71,7 +71,9 @@ test('full and incremental planning silently checkpoint and can resume', async (
   assert.match(screen, /currentCourseIds\.filter\(\(courseId\) => !checkpointCompletedIds\.has\(courseId\)\)/);
   assert.match(screen, /Checkpointing is resilience-only and deliberately silent/);
   assert.match(planner, /await onProgress\(/);
-  assert.match(planner, /incrementalIds && !resumeFromCheckpoint/);
+  assert.match(screen, /allowGlobalRepair: fullRun/);
+  assert.match(screen, /fullRun \? resumableRows : mergePlanningResumeRows\(existingRows, resumableRows\)/);
+  assert.match(planner, /allowGlobalRepair \?\? !incrementalIds/);
 });
 
 test('entering shared planning never recalculates automatically and keeps updates explicit', async () => {
