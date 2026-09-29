@@ -132,3 +132,11 @@ test('shared planning uses higher bounded route concurrency for faster increment
   const routeClientSetup = screen.slice(routeClientStart, routeClientEnd);
   assert.match(routeClientSetup, /concurrency:\s*16/);
 });
+
+test('fast planning parallelizes independent cached route legs and uses six routed pairs per batch', async () => {
+  const travel = await readFile(new URL('../frontend/src/screens/course-scheduling-travel.js', import.meta.url), 'utf8');
+  const planner = await readFile(new URL('../frontend/src/screens/course-scheduling-planning.js', import.meta.url), 'utf8');
+  assert.match(travel, /const \[home, homeReturn\] = await Promise\.all\(/);
+  assert.match(travel, /const \[previousLeg, nextLeg, baselineLeg\] = await Promise\.all\(/);
+  assert.match(planner, /FAST_PLANNING_LIMITS[\s\S]{0,180}maxRoutedPlanningPairs:\s*6/);
+});
