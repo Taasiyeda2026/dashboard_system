@@ -9,6 +9,7 @@ import {
   getDbTypesForReportType,
   currentAttendanceActivitySeasons,
 } from './activities-report.helpers.js';
+import { normalizeScheduledTraining } from './training-schedule.helpers.js';
 import {
   getPreviewActivities,
   getPreviewAuthorities,
@@ -144,6 +145,18 @@ export async function getInstructorActivitiesForDate(empId, dateStr) {
   });
   if (error) throw new Error(`שגיאה בטעינת פעילויות: ${error.message}`);
   return writeActivityCache(key, Array.isArray(data) ? data : []);
+}
+
+export async function getTrainingScheduleForDate(empId, dateStr) {
+  if (!empId || !dateStr || isAdminPreviewRequested()) return [];
+  const { data, error } = await supabase
+    .from('instructor_training_schedule')
+    .select('id,course_id,course_name,start_time,end_time,is_online,location_name,location_address,participant_scope')
+    .eq('training_date', dateStr)
+    .eq('is_active', true)
+    .or(`emp_id.eq.${Number(empId)},participant_scope.eq.open`);
+  if (error) throw new Error(`שגיאה בטעינת הכשרות: ${error.message}`);
+  return (data || []).map(normalizeScheduledTraining);
 }
 
 export async function getMeetingNoForActivityOnDate(empId, activityRowId, dateStr) {

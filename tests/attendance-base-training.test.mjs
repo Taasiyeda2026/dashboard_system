@@ -15,7 +15,7 @@ test('base training is offered only for the historical Sep 15-17 dates and fills
   assert.match(source, /authority_name: 'יקום'/);
   assert.match(source, /single_school_name: 'Greenwork'/);
   assert.match(source, /school_link_status: 'single_school'/);
-  assert.match(source, /reportType === TRAINING_REPORT_TYPE && isBaseTrainingDate\(\)/);
+  assert.match(source, /if \(reportType === TRAINING_REPORT_TYPE\)[\s\S]*if \(!isBaseTrainingDate\(\)\)/);
   assert.match(source, /source\.unshift\(BASE_TRAINING_ACTIVITY\)/);
   assert.match(source, /id === BASE_TRAINING_OPTION_VALUE\) return isBaseTrainingDate\(\) \? BASE_TRAINING_ACTIVITY : null/);
   assert.match(source, /isBaseTraining && !isBaseTrainingDate\(dateStr\)/);
@@ -24,8 +24,8 @@ test('base training is offered only for the historical Sep 15-17 dates and fills
 
 test('base training stores snapshots without fake canonical ids', () => {
   assert.match(source, /const isBaseTraining = isBaseTrainingActivity\(activity\)/);
-  assert.match(source, /activity_id: isOpen \|\| isBaseTraining \? null/);
-  assert.match(source, /activity_row_id: isOpen \|\| isBaseTraining \? null/);
+  assert.match(source, /activity_id: isOpen \|\| isBaseTraining \|\| activity\?\.__attendanceTrainingSchedule \? null/);
+  assert.match(source, /activity_row_id: isOpen \|\| isBaseTraining \|\| activity\?\.__attendanceTrainingSchedule \? null/);
   assert.match(source, /activity_no: isOpen \|\| isBaseTraining \? null/);
   assert.match(source, /activity_season: isOpen \|\| isBaseTraining \? null/);
   assert.match(source, /program_name: isOpen \|\| isBaseTraining \? null/);
@@ -33,16 +33,16 @@ test('base training stores snapshots without fake canonical ids', () => {
 
 test('edit and duplicate restore base training from the saved snapshot', () => {
   assert.match(source, /initialReportType === TRAINING_REPORT_TYPE[\s\S]*activity_name_snapshot[\s\S]*BASE_TRAINING_ACTIVITY\.activity_name/);
-  assert.match(source, /applySelectedActivity\(BASE_TRAINING_ACTIVITY\)/);
+  assert.match(source, /applySelectedActivity\(BASE_TRAINING_ACTIVITY, \{ autoFillTimes: false \}\)/);
 });
 
 test('base training hides fixed location fields from creation and editing UI', () => {
-  assert.match(source, /setLocationFieldsVisible\(!isBaseTrainingActivity\(activity\)\)/);
+  assert.match(source, /setLocationFieldsVisible\(!isBaseTrainingActivity\(activity\) && !isOnlineTraining\(\) && !isScheduledTraining\(activity\)\)/);
   assert.match(reportsSource, /isBaseTraining = reportType === 'הכשרה'[\s\S]*actNameField\.input\.value\.trim\(\) === 'הכשרת בסיס'/);
   assert.match(reportsSource, /authField\.wrap\.hidden = isOperations \|\| isBaseTraining/);
   assert.match(reportsSource, /schoolField\.wrap\.hidden = isOperations \|\| isBaseTraining/);
-  assert.match(reportsSource, /authority_name_snapshot: isOperations \? null : \(isBaseTraining \? 'יקום'/);
-  assert.match(reportsSource, /school_name_snapshot:\s+isOperations \? null : \(isBaseTraining \? 'Greenwork'/);
+  assert.match(reportsSource, /authority_name_snapshot: isOperations \|\| isOnlineTraining \? null : \(isBaseTraining \? 'יקום'/);
+  assert.match(reportsSource, /school_name_snapshot:\s+isOperations \|\| isOnlineTraining \? null : \(isBaseTraining \? 'Greenwork'/);
 });
 
 test('attendance summary shows only supplemental meaningful details without repeating the collapsed row', () => {
@@ -87,7 +87,7 @@ test('base training route service derives instructor home server-side and warms 
 
 test('base training guard exists in both edit UI and database', () => {
   assert.match(reportsSource, /BASE_TRAINING_ALLOWED_DATES = new Set\(\['2026-09-15', '2026-09-16', '2026-09-17'\]\)/);
-  assert.match(reportsSource, /isBaseTraining && !isBaseTrainingAllowedDate\(record\.report_date\)/);
+  assert.match(reportsSource, /isBaseTraining && !isBaseTrainingAllowedDate\(reportDateField\.input\.value\)/);
   assert.match(guardMigrationSource, /new\.report_date < date '2026-09-15'/);
   assert.match(guardMigrationSource, /new\.report_date > date '2026-09-17'/);
   assert.match(guardMigrationSource, /base_training_date_not_allowed/);
