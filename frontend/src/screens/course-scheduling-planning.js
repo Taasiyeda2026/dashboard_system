@@ -3014,10 +3014,10 @@ export async function buildDynamicCoursePlan({
   planningProfile = 'deep'
 } = {}) {
   const limits = planningLimits(planningProfile);
-  const report = async (phase, completed = 0, total = 0, courseId = '', rows = null) => {
+  const report = async (phase, completed = 0, total = 0, courseId = '', row = null) => {
     planningPerfCount('progressUiUpdates');
     if (typeof onProgress === 'function') {
-      await onProgress({ phase, completed, total, courseId, rows });
+      await onProgress({ phase, completed, total, courseId, row });
     }
     await checkpoint();
   };
@@ -3433,8 +3433,7 @@ export async function buildDynamicCoursePlan({
     }
 
     completed += 1;
-    const partialRows = targets.map((target) => rowsById.get(idOf(target)) || missingOverviewRow(target, catalog));
-    await report('בניית תוכנית', completed, queue.length, idOf(activity), partialRows);
+    await report('בניית תוכנית', completed, queue.length, idOf(activity), rowsById.get(idOf(activity)) || null);
   }
 
   const rows = assignRecruitmentProfiles(
