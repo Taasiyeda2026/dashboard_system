@@ -62,7 +62,7 @@ jobs:
         run: |
           set -euo pipefail
           npm ci --ignore-scripts --no-audit --no-fund
-          node --test --test-name-pattern='May non-activity reports stay in export|unmatched dashboard meetings are limited|special attendance rows remain|generated travel cancellation is folded|unknown payroll hours stay null|export preserves source attendance fields' tests/attendance-control.test.mjs
+          node --test tests/attendance-employee-export.test.mjs
 
       - name: Run mobile interface contract tests
         env:
