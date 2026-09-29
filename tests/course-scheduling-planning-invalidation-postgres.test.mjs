@@ -58,6 +58,7 @@ before(async () => {
   await client.query(await sql('../supabase/migrations/20260927200000_fix_planning_invalidation_activity_id_ambiguity.sql'));
   const selfInvalidation = await sql('../supabase/migrations/20260927190000_planning_self_invalidation.sql');
   await client.query(selfInvalidationPrefix(selfInvalidation));
+  await client.query(await sql('../supabase/migrations/20260929190000_keep_live_planning_rows_out_of_dependency_invalidation.sql'));
   await client.query(confirmFunction(selfInvalidation));
   await client.query("select set_config('test.uid', '11111111-1111-1111-1111-111111111111', false)");
   await client.query("select set_config('test.role', 'admin', false)");
@@ -134,4 +135,21 @@ test('PostgreSQL: a trigger exception rolls back both the activity and planning 
   await client.query('drop trigger zz_forced_failure on public.activities');
   const { rows: [row] } = await client.query("select a.activity_name, r.needs_recalc from public.activities a join public.scheduling_planning_rows r on r.activity_id=a.row_id where a.row_id='activity-a'");
   assert.deepEqual(row, { activity_name: 'Original', needs_recalc: false });
+});
+
+
+test('PostgreSQL: activity changes do not dirty unrelated live rows sharing an instructor', async (t) => {
+  if (!requirePostgres(t)) return;
+  await client.query(`update public.scheduling_planning_rows set locked_option=null, row_data='{"kind":"live","instructorEmpId":"100"}'::jsonb where activity_id='activity-b'`);
+  await client.query("update public.activities set activity_name='Changed' where row_id='activity-a'");
+  const { rows } = await client.query('select activity_id, needs_recalc from public.scheduling_planning_rows order by activity_id');
+  assert.deepEqual(rows, [{ activity_id: 'activity-a', needs_recalc: true }, { activity_id: 'activity-b', needs_recalc: false }]);
+});
+
+test('PostgreSQL: instructor changes do not dirty live rows', async (t) => {
+  if (!requirePostgres(t)) return;
+  await client.query(`update public.scheduling_planning_rows set locked_option=null, row_data='{"kind":"live","instructorEmpId":"100"}'::jsonb where activity_id='activity-b'`);
+  await client.query("insert into public.instructor_availability_exceptions values (100, '2027-01-10', false, null, null)");
+  const { rows } = await client.query("select needs_recalc from public.scheduling_planning_rows where activity_id='activity-b'");
+  assert.equal(rows[0].needs_recalc, false);
 });
