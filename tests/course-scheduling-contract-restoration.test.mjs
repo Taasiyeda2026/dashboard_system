@@ -114,7 +114,7 @@ test('transition contract uses +10 minutes up to 10 km and +15 minutes above 10 
   assert.equal(longerFail.eligible, false);
 });
 
-test('daily sequence blocks a fourth consecutive long activity', () => {
+test('fourth consecutive long activity is allowed when it fits explicit availability', () => {
   const longActivity = {
     ...activity,
     start_time: '13:30',
@@ -137,8 +137,8 @@ test('daily sequence blocks a fourth consecutive long activity', () => {
     existingActivities,
     validateTravel: false
   });
-  assert.equal(result.eligible, false);
-  assert.ok(result.failures.some((item) => /רצף היומי/.test(item)));
+  assert.equal(result.eligible, true);
+  assert.ok(!result.failures.some((item) => /רצף היומי/.test(item)));
 });
 
 test('rolling workspace shows incomplete courses instead of hiding them', () => {

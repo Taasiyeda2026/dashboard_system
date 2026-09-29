@@ -324,18 +324,6 @@ export function evaluateInstructor({
       inspect(next, transition.next, 'next');
     }
 
-    const orderedDay = [...day, meeting].sort((a, b) => minutes(a.start_time) - minutes(b.start_time));
-    let continuous = 1;
-    let maxContinuous = 1;
-    for (let index = 1; index < orderedDay.length; index += 1) {
-      continuous = minutes(orderedDay[index].start_time) - minutes(orderedDay[index - 1].end_time) <= 30 ? continuous + 1 : 1;
-      maxContinuous = Math.max(maxContinuous, continuous);
-    }
-    const duration = minutes(meeting.end_time) - minutes(meeting.start_time);
-    if ((duration >= 80 && maxContinuous > 3) || (duration < 80 && maxContinuous > 5)) {
-      failures.push(`הרצף היומי חורג מהמותר בתאריך ${meeting.date}`);
-    }
-
     schedule.push({
       date: meeting.date,
       previous,

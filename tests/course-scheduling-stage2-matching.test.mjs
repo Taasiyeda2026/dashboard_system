@@ -2,7 +2,7 @@
  * Stage 2 matching-engine regression tests.
  *
  * Covers the four confirmed bugs fixed in this stage:
- *  Bug 1 – Daily safety is sequence-based, not a raw activity-count limit.
+ *  Bug 1 – Daily capacity follows explicit instructor availability, not an activity-count limit.
  *  Bug 2 – Same-school detected by school_id, not display name.
  *  Bug 3 – Cancelled meeting dates are filtered before overlap checks.
  *  Bug 4 – District simulation uses planningDraft meetings in the hard-gate.
@@ -53,9 +53,9 @@ const existing = (date, startTime, endTime, overrides = {}) => ({
   ...overrides
 });
 
-// ─── Bug 1: Daily sequence safety ────────────────────────────────────────────
+// ─── Bug 1: Explicit availability controls daily capacity ─────────────────────
 
-test('bug1: a sixth consecutive short activity is blocked by the daily sequence safety limit', () => {
+test('bug1: consecutive short activities are allowed while they fit availability', () => {
   const target = activity({
     meetings: [{ date: '2026-09-06', start_time: '15:00', end_time: '16:00' }]
   });
@@ -74,11 +74,11 @@ test('bug1: a sixth consecutive short activity is blocked by the daily sequence 
     existingActivities: sixActivities,
     validateTravel: false
   });
-  assert.equal(result.eligible, false);
-  assert.ok(result.failures.some((f) => f.includes('רצף')));
+  assert.equal(result.eligible, true);
+  assert.ok(!result.failures.some((f) => f.includes('רצף')));
 });
 
-test('bug1: a fourth consecutive 80-minute activity is blocked by the daily sequence safety limit', () => {
+test('bug1: fourth consecutive 80-minute activity is allowed inside availability', () => {
   const target = activity({
     meetings: [{ date: '2026-09-06', start_time: '12:00', end_time: '13:20' }]
   });
@@ -94,8 +94,8 @@ test('bug1: a fourth consecutive 80-minute activity is blocked by the daily sequ
     existingActivities: threeExisting,
     validateTravel: false
   });
-  assert.equal(result.eligible, false);
-  assert.ok(result.failures.some((f) => f.includes('רצף')));
+  assert.equal(result.eligible, true);
+  assert.ok(!result.failures.some((f) => f.includes('רצף')));
 });
 
 test('bug1: exceeding availability window still blocks (existing guard untouched)', () => {
