@@ -107,6 +107,7 @@ import {
   applyStoredPlanningValidityAudit
 } from './course-scheduling-planning-store.js';
 import { exportPlanningWorkbook } from './course-scheduling-planning-export.js';
+import { planningPerfCount, planningPerfEvent, planningPerfTimer } from './course-scheduling-perf.js';
 
 export { formatWorkloadHours, MAX_HOME_DISTANCE_KM, formatAffectedMeetingsPhrase };
 
@@ -2038,6 +2039,7 @@ export const courseSchedulingScreen = {
     };
 
     const updatePlanningStatusInPlace = () => {
+      planningPerfCount('progressUiUpdates');
       const status = root.querySelector('[data-planning-status]');
       const message = status?.querySelector('[data-planning-status-message]');
       if (!status || !message) return;
@@ -2388,6 +2390,8 @@ export const courseSchedulingScreen = {
     };
 
     const runCoursePlanning = async ({ forceFull = false } = {}) => {
+      const stopRunTimer = planningPerfTimer('runCoursePlanning');
+      planningPerfEvent('run-start', { forceFull: forceFull === true });
       let rerunChangedAfterSave = false;
       cancelPendingPlanningStart();
       activePlanningRun?.controller?.abort();
@@ -2422,12 +2426,14 @@ export const courseSchedulingScreen = {
       if (runUiVisible()) run.ui?.update?.();
 
       try {
+        const stopSnapshotLoad = planningPerfTimer('snapshotLoad');
         const routeCachePromise = loadSchedulingTravelCacheRows().catch(() => []);
         const [freshStart, shared, routeCacheRows] = await Promise.all([
           data.reloadPlanningSnapshot(),
           loadSharedPlanningWorkspace({ periodKey: scope.periodKey, district: scope.district }),
           routeCachePromise
         ]);
+        stopSnapshotLoad();
         assertRunOwnership();
         Object.assign(data, freshStart);
 
@@ -2592,6 +2598,7 @@ export const courseSchedulingScreen = {
               checkpointCompletedIds.has(text(row?.courseId))
             );
             try {
+              const stopCheckpointSave = planningPerfTimer('checkpointSave');
               await saveSharedPlanningCheckpoint({
                 periodKey: scope.periodKey,
                 district: scope.district,
@@ -2603,6 +2610,8 @@ export const courseSchedulingScreen = {
                 completedActivityIds: [...checkpointCompletedIds],
                 rows: checkpointRows
               });
+              stopCheckpointSave();
+              planningPerfCount('checkpointSaves');
               lastSilentCheckpointCount = checkpointCompletedIds.size;
             } catch {
               // Checkpointing is resilience-only and deliberately silent.
@@ -2682,6 +2691,7 @@ export const courseSchedulingScreen = {
         }
 
         assertRunOwnership();
+        const stopWorkspaceSave = planningPerfTimer('workspaceSave');
         const saved = await saveSharedPlanningSnapshot({
           periodKey: scope.periodKey,
           district: scope.district,
@@ -2692,6 +2702,7 @@ export const courseSchedulingScreen = {
           activities: freshEnd.activities || [],
           expectedRevision: Number(shared?.workspace?.revision) || 0
         });
+        stopWorkspaceSave();
 
         assertRunOwnership();
         const canonical = await loadSharedPlanningWorkspace({
@@ -2731,6 +2742,8 @@ export const courseSchedulingScreen = {
           if (ownsRun()) data._planningSharedLoadedKey = '';
         }
       } finally {
+        stopRunTimer();
+        planningPerfEvent('run-end', { rerunChangedAfterSave });
         if (!ownsRun()) return;
         state.courseSchedulingPlanningLoading = false;
         state.courseSchedulingPlanningProgress = null;
