@@ -140,4 +140,3 @@ test('fast planning parallelizes independent cached route legs and uses six rout
   assert.match(travel, /const \[previousLeg, nextLeg, baselineLeg\] = await Promise\.all\(/);
   assert.match(planner, /FAST_PLANNING_LIMITS[\s\S]{0,180}maxRoutedPlanningPairs:\s*6/);
 });
-
