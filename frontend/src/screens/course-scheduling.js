@@ -227,7 +227,6 @@ const SCHEDULING_ASSIGNMENT_ERROR_HE = {
   scheduling_gender_mismatch:          'מגדר המדריך אינו עומד בדרישת הקורס',
   scheduling_language_mismatch:        'המדריך אינו מלמד בשפת הוראה הנדרשת',
   scheduling_instructor_profile_incomplete: 'פרופיל המדריך אינו מלא (מגדר/שפות)',
-  scheduling_daily_sequence_exceeded:  'המדריך עבר את מגבלת הפעילויות הרצופות ביום',
   scheduling_friday_not_allowed:       'המדריך אינו זמין בימי שישי',
   scheduling_permission_denied:        'אין הרשאה לביצוע שיבוץ. נדרשת הרשאת שיבוצים',
   scheduling_activity_not_open:        'הפעילות אינה פתוחה לשיבוץ',
