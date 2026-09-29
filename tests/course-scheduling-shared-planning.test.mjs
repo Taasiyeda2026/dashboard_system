@@ -140,3 +140,15 @@ test('fast planning parallelizes independent cached route legs and uses six rout
   assert.match(travel, /const \[previousLeg, nextLeg, baselineLeg\] = await Promise\.all\(/);
   assert.match(planner, /FAST_PLANNING_LIMITS[\s\S]{0,180}maxRoutedPlanningPairs:\s*6/);
 });
+
+test('course engine reuses the first candidate evaluation instead of evaluating every instructor twice', async () => {
+  const core = await readFile(new URL('../frontend/src/screens/course-scheduling-engine-core.js', import.meta.url), 'utf8');
+  assert.match(core, /const evaluatedByCourse = new Map\(\)/);
+  assert.match(core, /evaluatedByCourse\.set\(courseId, evaluated\)/);
+  assert.match(core, /const evaluated = evaluatedByCourse\.get\(courseId\) \|\| \[\]/);
+  const orderedLoopStart = core.indexOf('for (const course of ordered)');
+  const orderedLoopEnd = core.indexOf('const incompleteResults', orderedLoopStart);
+  const orderedLoop = core.slice(orderedLoopStart, orderedLoopEnd);
+  assert.doesNotMatch(orderedLoop, /evaluateCourseCandidates\(/);
+});
+
