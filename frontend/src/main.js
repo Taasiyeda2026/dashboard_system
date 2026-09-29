@@ -1527,7 +1527,7 @@ async function backgroundRefreshScreen(screen, cacheKey) {
   const guardedToken = activeNavigationToken;
   const guardedRoute = state.route;
   try {
-    const p = screen.load({ api, state });
+    const p = screen.load({ api, state, forceRefresh: true });
     inflightRequests.set(cacheKey, p);
     const data = await p;
     inflightRequests.delete(cacheKey);
@@ -1719,7 +1719,12 @@ function invalidateActivityDataCaches() {
     });
   } else if (!['activities', 'week', 'month'].includes(state.route)) {
     const k = screenDataCacheKey();
-    delete state.screenDataCache[k];
+    if (state.route === 'course-scheduling' && state.screenDataCache[k]?.data) {
+      state.screenDataCache[k].data._is_stale = true;
+      state.screenDataCache[k].t = 0;
+    } else {
+      delete state.screenDataCache[k];
+    }
     deletedKeys.push(k);
   }
   deletedKeys.forEach(persistCacheDelete);

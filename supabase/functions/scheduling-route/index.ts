@@ -1,3 +1,4 @@
+import { selectPendingRouteBatch } from './pending-batch.js';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const corsHeaders = {
@@ -1438,7 +1439,14 @@ async function runBuildCache(db: DbClient, key: string, payload: Record<string, 
   }
 
   const phasePairs = cursor.phase === 'instructor_school' ? instructorPairs : schoolPairs;
-  const slice = phasePairs.slice(cursor.offset, cursor.offset + limit);
+  const { pending: slice, nextOffset, skipped } = selectPendingRouteBatch(
+    phasePairs, cursor.offset, limit, (pair: TravelPair) => isUsableForPair(
+      cacheByRoute.get(`${pair.origin_key}->${pair.destination_key}`)
+        || cacheByEntityPair.get(`${pair.origin_entity_key}->${pair.destination_entity_key}`) || null,
+      pair
+    )
+  );
+  stats.already_valid_count += skipped;
   stats.phase = cursor.phase;
 
   const outcomes = await mapWithConcurrency(slice, BATCH_CONCURRENCY, (pair) => processPair(db, pair, key));
@@ -1477,7 +1485,6 @@ async function runBuildCache(db: DbClient, key: string, payload: Record<string, 
     }, 500);
   }
 
-  const nextOffset = cursor.offset + slice.length;
   const phaseDone = nextOffset >= phasePairs.length;
   let nextCursor: string | null = null;
   let done = false;

@@ -1286,11 +1286,15 @@ async function evaluateScenarioOptions({
     }
 
     routedAttemptCount += batch.length;
-    if (!routed || text(routed.unavailableReason)) {
+    if (!routed) {
       routeServiceFailed = true;
-      break;
+      continue;
     }
-    routeVerified = true;
+    if (text(routed.unavailableReason)) routeServiceFailed = true;
+    if (text(routeClient.unavailableReason) === 'google_key_not_configured') break;
+    // The final engine validates each candidate's own home/transition legs.
+    // One missing route must not discard healthy candidates in the same batch.
+    routeVerified ||= !text(routed.unavailableReason);
 
     for (const finalist of batch) {
       await checkpoint();
@@ -1314,7 +1318,7 @@ async function evaluateScenarioOptions({
       ) || null;
       if (!finalCandidate) continue;
       const option = optionFromCandidate(finalist.course, finalCandidate, {
-        routeVerified: !text(routed.unavailableReason),
+        routeVerified: true,
         startRange
       });
       if (!option) continue;
@@ -1341,7 +1345,7 @@ async function evaluateScenarioOptions({
     options: sortedOptions,
     preliminaryCount: preliminaries.length,
     routedAttemptCount,
-    routeVerified,
+    routeVerified: sortedOptions.length > 0 || (routeVerified && !routeServiceFailed),
     recruitmentNeeded: sortedOptions.length === 0 && !routeServiceFailed && exhaustive
   };
 }
@@ -1438,11 +1442,15 @@ async function evaluateFixedCourse({
       break;
     }
     routedAttemptCount += batch.length;
-    if (!routed || text(routed.unavailableReason)) {
+    if (!routed) {
       routeServiceFailed = true;
-      break;
+      continue;
     }
-    routeVerified = true;
+    if (text(routed.unavailableReason)) routeServiceFailed = true;
+    if (text(routeClient.unavailableReason) === 'google_key_not_configured') break;
+    // The final engine validates each candidate's own home/transition legs.
+    // One missing route must not discard healthy candidates in the same batch.
+    routeVerified ||= !text(routed.unavailableReason);
 
     const result = calculateCourseSchedule({
       activities: contextActivities,
@@ -1466,7 +1474,7 @@ async function evaluateFixedCourse({
         candidate?.eligible && empOf(candidate) === expectedEmpId
       ) || null;
       if (!finalCandidate) continue;
-      const option = optionFromCandidate(activity, finalCandidate, { routeVerified: !text(routed.unavailableReason) });
+      const option = optionFromCandidate(activity, finalCandidate, { routeVerified: true });
       if (!option) continue;
       const validation = planningOptionPassesFinalValidation(option, {
         activity,
@@ -1491,7 +1499,7 @@ async function evaluateFixedCourse({
     options: sortedOptions,
     preliminaryCount: candidates.length,
     routedAttemptCount,
-    routeVerified,
+    routeVerified: sortedOptions.length > 0 || (routeVerified && !routeServiceFailed),
     recruitmentNeeded: sortedOptions.length === 0 && !routeServiceFailed && exhaustive
   };
 }
@@ -2019,7 +2027,8 @@ function planRowFromOption(activity, option, options, startRange, spec, diagnost
     diagnostics: {
       preliminaryCount: Number(diagnostics.preliminaryCount) || 0,
       routedAttemptCount: Number(diagnostics.routedAttemptCount) || 0,
-      routeVerified: diagnostics.routeVerified === true
+      routeVerified: diagnostics.routeVerified === true,
+      routeEvaluationVersion: 2
     },
     reason: option?.reason
       || (recruitmentNeeded
@@ -3154,7 +3163,8 @@ export async function buildDynamicCoursePlan({
         diagnostics: {
           preliminaryCount: Number(evaluation.preliminaryCount) || 0,
           routedAttemptCount: Number(evaluation.routedAttemptCount) || 0,
-          routeVerified: evaluation.routeVerified === true
+          routeVerified: evaluation.routeVerified === true,
+          routeEvaluationVersion: 2
         },
         reason: chosen?.reason
           || (evaluation.fixedScheduleInvalid

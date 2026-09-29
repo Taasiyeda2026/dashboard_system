@@ -1,3 +1,4 @@
+import { readSchedulingSessionCache, writeSchedulingSessionCache, schedulingSessionIdentity } from './course-scheduling-session-cache.js';
 import { supabase } from '../supabase-client.js';
 import { hasPermission } from '../permission-policy.js';
 import { escapeHtml } from './shared/html.js';
@@ -1840,15 +1841,19 @@ function distanceDoneMessage(stats = {}, { done = false, stopped = false, errorM
 }
 
 export const courseSchedulingScreen = {
-  async load({ api }) {
-    const [activities, contacts, scheduling, meetingState, schoolLocations, schoolCalendar, authResult, planningCatalogResult] = await Promise.all([
+  async load({ api, forceRefresh = false }) {
+    const authResult = await supabase.auth.getSession();
+    const identity = schedulingSessionIdentity(authResult?.data?.session);
+    const reloadPlanningSnapshot = () => courseSchedulingScreen.load({ api, forceRefresh: true });
+    const cached = !forceRefresh && readSchedulingSessionCache(identity);
+    if (cached) return { ...cached, _is_stale: true, reloadPlanningSnapshot };
+    const [activities, contacts, scheduling, meetingState, schoolLocations, schoolCalendar, planningCatalogResult] = await Promise.all([
       api.activities({ activity_period: 'school_2027', activity_type: 'all', include_inactive: true, select: 'row_id,district,authority_id,authority,school,school_id,activity_name,catalog_slug,activity_no,proposal_item_id,activity_type,item_type,activity_season,grade,education_level,class_group,sessions,start_time,end_time,instruction_language,required_instructor_gender,scheduling_note,instructor_assignment_status,instructor_assignment_locked,draft_emp_id,draft_instructor_name,draft_created_at,draft_proposed_meetings,emp_id,instructor_name,emp_id_2,instructor_name_2,start_date,end_date,status,date_1,date_2,date_3,date_4,date_5,date_6,date_7,date_8,date_9,date_10,date_11,date_12,date_13,date_14,date_15,date_16,date_17,date_18,date_19,date_20,date_21,date_22,date_23,date_24,date_25,date_26,date_27,date_28,date_29,date_30,date_31,date_32,date_33,date_34,date_35,updated_at' }),
       api.instructorContacts(),
       loadInstructorSchedulingData(),
       loadCourseMeetingState(),
       supabase.rpc('scheduling_authority_school_locations'),
       loadSchoolCalendarRows(),
-      supabase.auth.getSession(),
       supabase
         .from('proposal_activity_pricing')
         .select('activity_name,activity_no,gefen_number,pricing_key,program_name,name,title,meetings_count,hours_count,unit_duration,is_active_for_proposals')
@@ -1859,6 +1864,7 @@ export const courseSchedulingScreen = {
       : '';
     const enriched = enrichActivitiesWithSchoolAddresses(activities?.rows || [], schoolRows);
     return {
+      _is_stale: false,
       activities: attachCancelledMeetingsToActivities(enriched.activities, meetingState),
       instructors: activeSchedulingInstructors(contacts?.rows || []),
       scheduling,
@@ -1882,7 +1888,7 @@ export const courseSchedulingScreen = {
         missingCount: enriched.missingCount
       },
       schoolAddressLookupError,
-      reloadPlanningSnapshot: () => courseSchedulingScreen.load({ api })
+      reloadPlanningSnapshot
     };
   },
 
@@ -1908,6 +1914,10 @@ export const courseSchedulingScreen = {
     const allInterfaceCourses = schedulingWorkspaceCourses(data.activities || []);
     const interfaceCourses = filteredInterfaceCourses(allInterfaceCourses, state);
     restoreCalculationSnapshot(state, interfaceCourses, schedulingSnapshotContext(data));
+    if (data._planningShared && !state.courseSchedulingPlanningSharedLoaded) {
+      state.courseSchedulingPlanningRows = data._planningShared.rows.map((entry) => entry.row);
+      state.courseSchedulingPlanningSharedLoaded = true;
+    }
     const results = state.courseSchedulingResults || [];
     const resultByCourseId = new Map(results.map((result) => [idOf(result.course), result]));
     const tab = activeTab(state);
@@ -1975,7 +1985,8 @@ export const courseSchedulingScreen = {
     </div>`);
   },
 
-  bind({ root, data, state, rerender, clearScreenDataCache }) {
+  bind({ root, data, state, api, rerender, clearScreenDataCache }) {
+    data.reloadPlanningSnapshot ||= () => courseSchedulingScreen.load({ api, forceRefresh: true });
     schedulingScreenActive = true;
     const canEdit = hasPermission(state?.user, activeTab(state) === 'maintenance' ? 'manage_instructor_maintenance' : 'view_operations_scheduling');
     const substituteAccess = singleMeetingSubstitutionAccess(state?.user || {});
@@ -2223,6 +2234,8 @@ export const courseSchedulingScreen = {
       state.courseSchedulingPlanningDirtyLockIds = [];
       state.courseSchedulingPlanningBeforeLock = {};
       data._planningSharedLoadedKey = scope.key;
+      data._planningShared = shared;
+      if (!data._is_stale) writeSchedulingSessionCache({ userId: data.authSession?.user?.id, sessionId: data.authSession?.sessionId }, data);
     };
 
     const persistUpgradedPlanningContextFingerprint = async ({
@@ -2293,8 +2306,10 @@ export const courseSchedulingScreen = {
       && !state.courseSchedulingPlanningLoading
     ) {
       data._planningSharedLoadedKey = currentPlanningScope.key;
-      reloadSharedPlanningState({ refreshData: false })
-        .then(() => {
+      const restore = data._is_stale && data._planningShared
+        ? Promise.resolve().then(() => applySharedPlanningState(data._planningShared, data))
+        : reloadSharedPlanningState({ refreshData: false });
+      restore.then(() => {
           if (!schedulingScreenActive || state.route !== 'course-scheduling' || !root.isConnected) return;
           // Entering the screen only restores the shared plan. Recalculation is always explicit.
           rerenderPreservingWorkboardScroll();
