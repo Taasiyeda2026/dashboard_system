@@ -659,6 +659,14 @@ function showEditModal({ record, instructor, activityTypes, onRefresh }) {
   });
   form.insertBefore(trainingModeField.wrap, authField.wrap);
 
+  const hasTrainingSchedule = Boolean(record.training_schedule_id);
+  if (hasTrainingSchedule) {
+    reportDateField.input.disabled = true;
+    typeField.input.disabled = true;
+    actNameField.input.readOnly = true;
+    trainingModeField.input.disabled = true;
+  }
+
   let kmBeforeZoom = record.activity_type === ONLINE_REPORT_TYPE ? '' : kmField.input.value;
   function syncEditTypeUi() {
     const reportType = typeField.input.value;
@@ -667,9 +675,12 @@ function showEditModal({ record, instructor, activityTypes, onRefresh }) {
     const isCourse = reportType === COURSE_REPORT_TYPE;
     const isBaseTraining = reportType === 'הכשרה' && actNameField.input.value.trim() === 'הכשרת בסיס';
     const isOnlineTraining = reportType === 'הכשרה' && trainingModeField.input.value === 'online';
+    const isScheduledTraining = reportType === 'הכשרה' && hasTrainingSchedule;
 
     const activityLabel = actNameField.wrap.querySelector('.av2-field__label');
     if (activityLabel) activityLabel.textContent = isOperations ? 'פרטי תפעול *' : 'שם פעילות';
+    const authorityLabel = authField.wrap.querySelector('.av2-field__label');
+    if (authorityLabel) authorityLabel.textContent = isScheduledTraining ? 'מיקום ההכשרה' : 'רשות';
     actNameField.input.placeholder = isOperations
       ? 'לדוגמה: פגישת צוות, הכנת ציוד או עבודה תפעולית'
       : 'שם התוכנית';
@@ -677,8 +688,10 @@ function showEditModal({ record, instructor, activityTypes, onRefresh }) {
     meetField.wrap.hidden = !isCourse;
     if (!isCourse) meetField.input.value = '';
     trainingModeField.wrap.hidden = reportType !== 'הכשרה';
+    trainingModeField.input.disabled = isScheduledTraining;
     authField.wrap.hidden = isOperations || isBaseTraining || isOnlineTraining;
-    schoolField.wrap.hidden = isOperations || isBaseTraining || isOnlineTraining;
+    authField.input.disabled = isScheduledTraining;
+    schoolField.wrap.hidden = isOperations || isBaseTraining || isOnlineTraining || isScheduledTraining;
 
     if (isZoom || isOnlineTraining) {
       if (!kmField.input.disabled) kmBeforeZoom = kmField.input.value;
@@ -730,6 +743,7 @@ function showEditModal({ record, instructor, activityTypes, onRefresh }) {
     const isCourse = reportType === COURSE_REPORT_TYPE;
     const isBaseTraining = reportType === 'הכשרה' && actNameField.input.value.trim() === 'הכשרת בסיס';
     const isOnlineTraining = reportType === 'הכשרה' && trainingModeField.input.value === 'online';
+    const isScheduledTraining = reportType === 'הכשרה' && hasTrainingSchedule;
 
     if (isBaseTraining && !isBaseTrainingAllowedDate(reportDateField.input.value)) {
       errorEl.textContent = 'הכשרת בסיס ניתנת לדיווח רק בתאריכים 15–17.09.2026. יש לתקן את סוג/שם הפעילות לפני השמירה.';
@@ -742,7 +756,7 @@ function showEditModal({ record, instructor, activityTypes, onRefresh }) {
     if (startTime && endTime && totalHours <= 0) missing.push('שעת סיום חייבת להיות מאוחרת מהתחלה');
     if (!reportType) missing.push('סוג פעילות');
     if (!actNameField.input.value.trim()) missing.push(isOperations ? 'פרטי תפעול' : 'שם פעילות');
-    if (!isOperations && !isBaseTraining && !isOnlineTraining && !authField.input.value.trim()) missing.push('רשות');
+    if (!isOperations && !isBaseTraining && !isOnlineTraining && !isScheduledTraining && !authField.input.value.trim()) missing.push('רשות');
     if (missing.length) {
       errorEl.textContent = `שדות חובה: ${missing.join(' · ')}`;
       errorEl.hidden = false;
@@ -760,16 +774,17 @@ function showEditModal({ record, instructor, activityTypes, onRefresh }) {
         total_hours:             totalHours,
         activity_type:           reportType,
         training_mode:           reportType === 'הכשרה' ? (isOnlineTraining ? 'online' : 'physical') : null,
-        activity_id:             isOperations || isBaseTraining ? null : (record.activity_id ?? null),
-        activity_row_id:         isOperations || isBaseTraining ? null : (record.activity_row_id ?? null),
+        training_schedule_id:    reportType === 'הכשרה' ? (record.training_schedule_id ?? null) : null,
+        activity_id:             isOperations || isBaseTraining || isScheduledTraining ? null : (record.activity_id ?? null),
+        activity_row_id:         isOperations || isBaseTraining || isScheduledTraining ? null : (record.activity_row_id ?? null),
         activity_no:             isOperations || isBaseTraining ? null : (record.activity_no ?? null),
         activity_season:         isOperations || isBaseTraining ? null : (record.activity_season ?? null),
         activity_name_snapshot:  actNameField.input.value.trim() || null,
-        authority_id:            isOperations || isBaseTraining || isOnlineTraining ? null : (record.authority_id ?? null),
-        authority_name_snapshot: isOperations || isOnlineTraining ? null : (isBaseTraining ? 'יקום' : (authField.input.value.trim() || null)),
-        school_id:               isOperations || isBaseTraining || isOnlineTraining ? null : (record.school_id ?? null),
-        school_name_snapshot:    isOperations || isOnlineTraining ? null : (isBaseTraining ? 'Greenwork' : (schoolField.input.value.trim() || null)),
-        semel_mosad:             isOperations || isBaseTraining || isOnlineTraining ? null : (record.semel_mosad ?? null),
+        authority_id:            isOperations || isBaseTraining || isOnlineTraining || isScheduledTraining ? null : (record.authority_id ?? null),
+        authority_name_snapshot: isOperations || isOnlineTraining ? null : (isBaseTraining ? 'יקום' : (isScheduledTraining ? (record.authority_name_snapshot || null) : (authField.input.value.trim() || null))),
+        school_id:               isOperations || isBaseTraining || isOnlineTraining || isScheduledTraining ? null : (record.school_id ?? null),
+        school_name_snapshot:    isOperations || isOnlineTraining || isScheduledTraining ? null : (isBaseTraining ? 'Greenwork' : (schoolField.input.value.trim() || null)),
+        semel_mosad:             isOperations || isBaseTraining || isOnlineTraining || isScheduledTraining ? null : (record.semel_mosad ?? null),
         meeting_no:              isCourse && meetField.input.value ? Number(meetField.input.value) : null,
         program_name:            isOperations || isBaseTraining ? null : (record.program_name ?? null),
         roundtrip_km:            isZoom || isOnlineTraining ? 0 : (kmField.input.value ? Number(kmField.input.value) : 0),
