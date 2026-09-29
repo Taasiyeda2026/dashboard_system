@@ -210,7 +210,7 @@ test('test 2: instructor availability change affects only related rows', () => {
     currentCourseIds,
     contextDiff
   });
-  assert.deepEqual(affectedIds.sort(), ['live-eldar', 'plan-eldar'].sort());
+  assert.deepEqual(affectedIds, ['plan-eldar']);
 });
 
 test('test 3: single activity change affects only that activity and dependencies', () => {
@@ -594,4 +594,35 @@ test('legacy fingerprint upgrade path does not expand affected rows or force rec
   assert.match(migration, /context_fingerprint = btrim\(p_context_fingerprint\)/);
   assert.doesNotMatch(migration, /delete from public\.scheduling_planning_rows/);
   assert.doesNotMatch(migration, /needs_recalc/);
+});
+
+
+test('activity changes keep unrelated same-slot rows and other dates out of recalculation', () => {
+  const sameDay = [{ date: '2026-10-20' }];
+  const laterDay = [{ date: '2026-11-03' }];
+  const rows = [
+    planningEntry('changed', { instructorEmpId: 'aline', meetings: sameDay }),
+    planningEntry('dependent', { optionInstructorIds: ['aline'], meetings: sameDay }),
+    planningEntry('different-instructor', { instructorEmpId: 'other', meetings: sameDay }),
+    planningEntry('no-instructor', { kind: 'missing', meetings: sameDay }),
+    planningEntry('different-date', { instructorEmpId: 'aline', meetings: laterDay }),
+    planningEntry('stable-live', { kind: 'live', instructorEmpId: 'aline', meetings: sameDay })
+  ];
+  const activities = rows.map(row => activity(row.activityId, {
+    updatedAt: row.activityId === 'changed' ? '2026-09-29T10:00:00Z' : row.activityUpdatedAt,
+    meetings: row.row.meetings
+  }));
+  assert.deepEqual(sharedPlanningAffectedCourseIds({ shared: { rows }, activities,
+    currentCourseIds: rows.map(row => row.activityId) }).sort(), ['changed', 'dependent', 'no-instructor']);
+});
+
+
+test('editing an unassigned row does not fan out through provisional same-slot dates', () => {
+  const meetings = [{ date: '2026-10-20' }];
+  const rows = Array.from({ length: 101 }, (_, i) => planningEntry(`missing-${i}`, { kind: 'missing', meetings }));
+  const activities = rows.map((row, i) => activity(row.activityId, {
+    updatedAt: i === 0 ? '2026-09-29T10:00:00Z' : row.activityUpdatedAt, meetings
+  }));
+  assert.deepEqual(sharedPlanningAffectedCourseIds({ shared: { rows }, activities,
+    currentCourseIds: rows.map(row => row.activityId) }), ['missing-0']);
 });

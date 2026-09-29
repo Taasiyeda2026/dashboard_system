@@ -194,14 +194,13 @@ export function sharedPlanningAffectedCourseIds({
   );
 
   const directActivityIds = new Set();
-  const affectedInstructorIds = new Set();
+  const contextInstructorIds = new Set();
   const affectedSlotKeys = new Set();
   const affectedDatesByInstructor = new Map();
 
   const rememberInstructorDates = (empIds, meetings) => {
     for (const empId of empIds || []) {
       if (!empId) continue;
-      affectedInstructorIds.add(empId);
       const bucket = affectedDatesByInstructor.get(empId) || new Set();
       for (const meeting of meetings || []) {
         const date = text(meeting?.date).slice(0, 10);
@@ -217,13 +216,20 @@ export function sharedPlanningAffectedCourseIds({
     if (!activity || !entry || activityVersion(activity) !== text(entry.activityUpdatedAt)) {
       changed.add(courseId);
       directActivityIds.add(courseId);
-      const meetings = meetingsFromPlanningEntry(entry, activity);
-      for (const meeting of meetings) {
-        const key = slotKey(meeting);
-        if (key) affectedSlotKeys.add(key);
+      const meetings = [
+        ...meetingsFromPlanningEntry(entry, activity),
+        ...meetingsFromPlanningEntry({}, activity)
+      ];
+      const resourceIds = new Set([
+        ...instructorIdsFromActivity(activity),
+        ...instructorIdsFromPlanningEntry(entry)
+      ]);
+      rememberInstructorDates(resourceIds, meetings);
+      // An unassigned row does not occupy a resource. Its provisional dates must
+      // not invalidate every other unassigned row with the same default dates.
+      if (resourceIds.size) {
+        for (const meeting of meetings) affectedSlotKeys.add(slotKey(meeting));
       }
-      rememberInstructorDates(instructorIdsFromActivity(activity), meetings);
-      rememberInstructorDates(instructorIdsFromPlanningEntry(entry), meetings);
     }
   }
 
@@ -234,31 +240,22 @@ export function sharedPlanningAffectedCourseIds({
       ...(diff.changedAvailabilityInstructorIds || []),
       ...(diff.changedExceptionInstructorIds || [])
     ].map(text).filter(Boolean)) {
-      affectedInstructorIds.add(empId);
+      contextInstructorIds.add(empId);
     }
   }
 
-  if (affectedInstructorIds.size) {
+  // Profile/availability edits can affect every draft for that instructor.
+  // Activity edits below only affect drafts on the instructor's old/new dates.
+  if (contextInstructorIds.size) {
     for (const entry of shared?.rows || []) {
       const courseId = text(entry.activityId);
-      if (!courseId || !currentIds.has(courseId)) continue;
+      if (!courseId || !currentIds.has(courseId) || entry?.row?.kind === 'live') continue;
       const activity = activityById.get(courseId);
       const ids = new Set([
         ...instructorIdsFromPlanningEntry(entry),
         ...instructorIdsFromActivity(activity)
       ]);
-      if (![...ids].some((id) => affectedInstructorIds.has(id))) continue;
-      changed.add(courseId);
-      // Instructor context changes only invalidate rows that reference that instructor.
-      // Same-slot expansion is reserved for direct activity edits below.
-      if (directActivityIds.has(courseId)) {
-        const meetings = meetingsFromPlanningEntry(entry, activity);
-        for (const meeting of meetings) {
-          const key = slotKey(meeting);
-          if (key) affectedSlotKeys.add(key);
-        }
-        rememberInstructorDates(ids, meetings);
-      }
+      if ([...ids].some((id) => contextInstructorIds.has(id))) changed.add(courseId);
     }
   }
 
@@ -286,21 +283,23 @@ export function sharedPlanningAffectedCourseIds({
     }
   }
 
-  // Same-instructor same-day / same-slot dependents of directly changed activities only.
+  // Shared dates alone do not create a resource dependency between unrelated instructors.
   if (directActivityIds.size) {
     for (const entry of shared?.rows || []) {
       const courseId = text(entry.activityId);
-      if (!courseId || !currentIds.has(courseId) || changed.has(courseId)) continue;
+      if (!courseId || !currentIds.has(courseId) || changed.has(courseId) || entry?.row?.kind === 'live') continue;
       const activity = activityById.get(courseId);
       const meetings = meetingsFromPlanningEntry(entry, activity);
-      if (meetings.some((meeting) => affectedSlotKeys.has(slotKey(meeting)))) {
-        changed.add(courseId);
-        continue;
-      }
       const ids = new Set([
         ...instructorIdsFromPlanningEntry(entry),
         ...instructorIdsFromActivity(activity)
       ]);
+      // No saved candidates: retain the conservative retry when an actual
+      // instructor resource changed in this slot.
+      if (!ids.size && meetings.some((meeting) => affectedSlotKeys.has(slotKey(meeting)))) {
+        changed.add(courseId);
+        continue;
+      }
       for (const empId of ids) {
         const dates = affectedDatesByInstructor.get(empId);
         if (!dates?.size) continue;

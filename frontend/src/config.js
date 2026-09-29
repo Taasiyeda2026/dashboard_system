@@ -286,3 +286,5 @@ config.HOTFIX_VERSION = `attendance-month-approval-regex-dialog-20260928-v1-${co
 config.HOTFIX_VERSION = `attendance-time-cancellation-online-training-20260929-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `attendance-time-cancellation-review-fixes-20260929-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `resumed-incremental-planning-no-national-repair-20260929-v1-${config.HOTFIX_VERSION}`;
+
+config.HOTFIX_VERSION = `planning-resource-dependency-scope-20260929-v1-${config.HOTFIX_VERSION}`;
