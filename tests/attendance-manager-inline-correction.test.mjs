@@ -9,13 +9,17 @@ const migration = await readFile(new URL('../supabase/migrations/20260927025000_
 const recordReviewMigration = await readFile(new URL('../supabase/migrations/20260927053500_attendance_manager_record_reviews.sql', import.meta.url), 'utf8');
 const finalizeGuardMigration = await readFile(new URL('../supabase/migrations/20260927061000_guard_manager_finalize_requires_record_reviews.sql', import.meta.url), 'utf8');
 
-test('attendance-only review exposes inline field editing and uses manual correction state', () => {
+test('attendance-only review uses one local record draft and one record save', () => {
   assert.match(control, /data-attendance-edit-record=/);
   assert.match(control, /data-attendance-approve-reported=/);
-  assert.match(control, /data-attendance-manual-edit=/);
-  assert.match(control, /data-attendance-manual-save=/);
-  assert.match(control, /applyAttendanceManualCorrection\(entry, \{ \[field\]: parsed\.value \}\)/);
-  assert.match(control, /TRAVEL_EDITABLE_FIELDS\.has\(field\)/);
+  assert.match(control, /data-attendance-save-record=/);
+  assert.match(control, /data-attendance-cancel-record=/);
+  assert.match(control, /data-attendance-manual-input=/);
+  assert.doesNotMatch(control, /data-attendance-manual-save=/);
+  assert.match(control, /const draftEntry =/);
+  assert.match(control, /applyAttendanceManualCorrection\(draftEntry, changes\)/);
+  assert.match(control, /await persistEntryCorrection\(draftEntry\)/);
+  assert.match(control, /TRAVEL_EDITABLE_FIELDS/);
   assert.match(control, /data-field-key="\$\{escapeHtml\(key\)\}"/);
   assert.doesNotMatch(control, /data-attendance-focus-travel="\$\{escapeHtml\(entry\.id\)\}">עריכת נסיעה/);
 });
@@ -62,7 +66,7 @@ test('manager edits persist to attendance_records and clear the prior review', (
   assert.match(control, /persistEntryCorrection/);
   assert.match(control, /attendanceControlUpdateRecord/);
   assert.match(control, /attendanceControlApproveRecord\(update\.recordId, false\)/);
-  assert.match(control, /התיקון נשמר ברשומת הנוכחות\. הרשומה ממתינה לאישור/);
+  assert.match(control, /השינויים נשמרו ברשומת הנוכחות\. הרשומה ממתינה לאישור מחדש/);
   assert.match(finish, /buildAttendanceUpdatePayload/);
   assert.match(finish, /\['attendanceDate', 'date', false\]/);
   assert.match(finish, /\['startTime', 'startTime', false\]/);
