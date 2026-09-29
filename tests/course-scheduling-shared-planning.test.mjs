@@ -124,3 +124,11 @@ test('current shared planning has no rerun button and click handler never promot
   assert.match(handler, /runCoursePlanning\(\{ forceFull: false \}\)/);
   assert.doesNotMatch(handler, /forceFull = pending === 0/);
 });
+
+test('shared planning uses higher bounded route concurrency for faster incremental runs', async () => {
+  const screen = await readFile(screenUrl, 'utf8');
+  const routeClientStart = screen.indexOf('const routeClient = createRouteClient({');
+  const routeClientEnd = screen.indexOf('const lockedOptions', routeClientStart);
+  const routeClientSetup = screen.slice(routeClientStart, routeClientEnd);
+  assert.match(routeClientSetup, /concurrency:\s*16/);
+});

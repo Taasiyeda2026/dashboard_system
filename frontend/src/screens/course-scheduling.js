@@ -2541,7 +2541,7 @@ export const courseSchedulingScreen = {
         const profiles = Object.fromEntries((freshStart.scheduling?.profiles || []).map((row) => [text(row.emp_id), row]));
         const routeClient = createRouteClient({
           preloadedRows: routeCacheRows,
-          concurrency: 10,
+          concurrency: 16,
           signal: run.controller.signal
         });
         const lockedOptions = sharedPlanningLocks(shared);
