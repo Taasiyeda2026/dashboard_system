@@ -24,6 +24,7 @@ import {
 import { normalizeOperationalDistrict } from './shared/district-normalization.js';
 import { escapeHtml } from './shared/html.js';
 import { formatDateHe, formatTimeRangeShort } from './shared/format-date.js';
+import { planningPerfCount, planningPerfTimer } from './course-scheduling-perf.js';
 
 const text = (value) => String(value ?? '').trim();
 const idOf = (row) => text(row?.row_id || row?.RowID || row?.id);
@@ -1217,6 +1218,8 @@ async function evaluateScenarioOptions({
   periodKey = DEFAULT_PLANNING_PERIOD_KEY,
   limits = DEEP_PLANNING_LIMITS
 } = {}) {
+  planningPerfCount('scenarioCount', scenarios.length);
+  const stopTimer = planningPerfTimer('evaluateScenarioOptions');
   const preliminaries = [];
   for (let index = 0; index < scenarios.length; index += 1) {
     const course = scenarioCourse(activity, scenarios[index], index);
@@ -1253,6 +1256,7 @@ async function evaluateScenarioOptions({
     await checkpoint();
   }
   if (!preliminaries.length) {
+    stopTimer();
     return {
       options: [],
       preliminaryCount: 0,
@@ -1331,6 +1335,7 @@ async function evaluateScenarioOptions({
         startRange
       });
       if (!option) continue;
+      planningPerfCount('finalValidations');
       const validation = planningOptionPassesFinalValidation(option, {
         activity: finalist.course,
         instructors,
@@ -1350,6 +1355,7 @@ async function evaluateScenarioOptions({
 
   const sortedOptions = options.sort(optionCompare).slice(0, limits.maxFinalOptions);
   const exhaustive = routedAttemptCount >= preliminaries.length;
+  stopTimer();
   return {
     options: sortedOptions,
     preliminaryCount: preliminaries.length,
@@ -1486,6 +1492,7 @@ async function evaluateFixedCourse({
       if (!finalCandidate) continue;
       const option = optionFromCandidate(activity, finalCandidate, { routeVerified: true });
       if (!option) continue;
+      planningPerfCount('finalValidations');
       const validation = planningOptionPassesFinalValidation(option, {
         activity,
         instructors,
@@ -2978,6 +2985,7 @@ export async function buildDynamicCoursePlan({
 } = {}) {
   const limits = planningLimits(planningProfile);
   const report = async (phase, completed = 0, total = 0, courseId = '', rows = null) => {
+    planningPerfCount('progressUiUpdates');
     if (typeof onProgress === 'function') {
       await onProgress({ phase, completed, total, courseId, rows });
     }
@@ -3119,6 +3127,7 @@ export async function buildDynamicCoursePlan({
   for (const item of queue) {
     await checkpoint();
     const { activity, type, activityPeriodKey } = item;
+    planningPerfCount('contextRebuilds');
     const currentContext = [...contextActivities, ...virtualPlans];
     await report('בדיקת מדריכים', completed, queue.length, idOf(activity));
     await report('בדיקת נסיעות', completed, queue.length, idOf(activity));
