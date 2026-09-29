@@ -1841,6 +1841,7 @@ export function attendanceControlStylesHtml() {
 .attendance-control__parameter-table tbody th{width:16%}.attendance-control__parameter-table td:nth-child(2),.attendance-control__parameter-table td:nth-child(3){width:18%}.attendance-control__parameter-table td:nth-child(4){width:13%}.attendance-control__actions-cell{width:35%}.attendance-control__row-actions{display:grid;gap:6px}.attendance-control__row-action-buttons{display:flex;gap:5px;flex-wrap:wrap}.attendance-control__row-action-buttons .ds-btn{min-height:30px;padding:5px 8px;font-size:.78rem}.attendance-control__row-action-buttons .ds-btn.is-selected{border-color:#2d7ea3;background:#eaf7fb;color:#0b617d;font-weight:800}.attendance-control__row-custom{display:flex;align-items:center;gap:5px;flex-wrap:wrap}.attendance-control__row-custom[hidden]{display:none}.attendance-control__row-custom:not([hidden]){margin-top:4px}.attendance-control__row-custom .ds-input{width:130px}.attendance-control__row-decision{color:#466174;font-weight:700}.attendance-control__no-action,.attendance-control__empty-source{color:#94a3b8}.attendance-control__comparison-row--resolved th,.attendance-control__comparison-row--resolved td{background:#f5fbf7}
 .attendance-control__travel-cancellation-row th,.attendance-control__travel-cancellation-row td{border-top:2px solid #dce7ef}.attendance-control__travel-cancellation-row th{color:#0f6078}.attendance-control__row-actions--compact .attendance-control__row-custom{margin-top:0}
 .attendance-control__status-pill{display:inline-flex;align-items:center;justify-content:center;min-width:72px;padding:4px 8px;border-radius:999px;font-size:.78rem;font-weight:800;white-space:nowrap}.attendance-control__status-pill--ok{color:#137a45;background:#eaf8f0}.attendance-control__status-pill--issue{color:#b91c1c;background:transparent;min-width:0;padding:0;border-radius:0}.attendance-control__status-pill--info{color:#316da8;background:#eaf4ff}.attendance-control__row-status{font-weight:800;white-space:nowrap;color:#24824d}.attendance-control__row-status--issue,.attendance-control__field-value--issue{color:#b91c1c!important}.attendance-control__field-value--issue{font-weight:800}.attendance-control__missing-match{margin:8px 14px;color:#b91c1c;font-weight:800}.attendance-control__manual-note{margin:4px 0;color:#64748b;font-size:.9em}
+.attendance-control__record-edit-footer{display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap;margin:12px 14px 14px;padding-top:12px;border-top:1px solid #edf1f5}.attendance-control__record-edit-footer .attendance-control__record-edit-pending{margin-inline-end:auto;color:#316da8;font-weight:800}.attendance-control__record-edit-footer .ds-btn{min-height:36px}
 .attendance-control__manager-actions{display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap;margin:12px 14px 14px;padding-top:12px;border-top:1px solid #edf1f5}.attendance-control__manager-actions>.ds-btn{min-height:36px}.attendance-control__manager-actions>.ds-input{width:160px;min-height:36px}.attendance-control__travel-edit{display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap;width:100%}.attendance-control__travel-edit label{min-height:36px;display:flex;align-items:center;gap:6px;padding:0 8px;border:1px solid #dbe4ee;border-radius:8px;background:#fff}.attendance-control__travel-edit .ds-input{width:150px;min-height:36px}.attendance-control__attachments{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:8px 14px 12px;color:#334155;font-size:.9em}.attendance-control__resolved-note{margin:0;color:#166534;font-weight:800}.attendance-control__report-km{margin:4px 0 8px;color:#475569;font-size:.92em}.attendance-control__day-km{padding:0 10px 6px;color:#475569;font-size:.92em}.attendance-control__export{margin-top:14px}
 @media(max-width:900px){.attendance-control{padding:12px}.attendance-control__day>summary{grid-template-columns:1fr 1fr auto}.attendance-control__reports{padding:8px}.attendance-control__comparison-wrap{overflow-x:auto;margin-inline:8px}.attendance-control__comparison-table{min-width:820px}.attendance-control__report-card{margin-inline:8px}.attendance-control__manager-actions{margin-inline:8px}.attendance-control__report-card-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:600px){.attendance-control__uploads label{min-width:100%}.attendance-control__overview{grid-template-columns:repeat(2,minmax(0,1fr))}.attendance-control__day>summary{grid-template-columns:1fr auto}.attendance-control__day>summary .attendance-control__row-status{grid-column:1/-1}.attendance-control__report-card-grid{grid-template-columns:1fr 1fr}.attendance-control__manager-actions{justify-content:stretch}.attendance-control__manager-actions>.ds-btn,.attendance-control__manager-actions>.ds-input,.attendance-control__travel-edit .ds-input,.attendance-control__travel-edit .ds-btn{flex:1 1 100%;width:100%}.attendance-control__travel-edit label{width:100%;box-sizing:border-box}}
@@ -1991,17 +1992,12 @@ export function resultsHtml(result, month = '', options = {}) {
         ? `<small class="attendance-control__row-decision">${escapeHtml(selected)}</small>`
         : '<span class="attendance-control__no-action">—</span>';
     }
-    const customValue = difference.choice === 'custom' ? txt(difference.custom) : '';
     const selected = decisionLabel(difference, dashboardLabel);
+    const approved = attendanceEntryIsResolved(entry);
     return `<div class="attendance-control__row-actions">
       <div class="attendance-control__row-action-buttons">
         <button type="button" class="ds-btn ds-btn--sm${difference.decided && difference.choice === 'attendance' ? ' is-selected' : ''}" data-attendance-field-choice="attendance" data-comparison-id="${escapeHtml(entry.id)}" data-field-key="${escapeHtml(key)}">אישור נוכחות</button>
         ${hasSystemValue ? `<button type="button" class="ds-btn ds-btn--sm${difference.decided && difference.choice === 'dashboard' ? ' is-selected' : ''}" data-attendance-field-choice="dashboard" data-comparison-id="${escapeHtml(entry.id)}" data-field-key="${escapeHtml(key)}">אישור ${escapeHtml(dashboardLabel)}</button>` : ''}
-        <button type="button" class="ds-btn ds-btn--sm${difference.decided && difference.choice === 'custom' ? ' is-selected' : ''}" data-attendance-field-choice="custom" data-comparison-id="${escapeHtml(entry.id)}" data-field-key="${escapeHtml(key)}">עריכה</button>
-      </div>
-      <div class="attendance-control__row-custom" ${difference.choice === 'custom' ? '' : 'hidden'}>
-        <input class="ds-input ds-input--sm" data-attendance-custom data-comparison-id="${escapeHtml(entry.id)}" data-field-key="${escapeHtml(key)}" value="${escapeHtml(customValue)}" aria-label="ערך מתוקן עבור ${escapeHtml(difference.label || key)}">
-        <button type="button" class="ds-btn ds-btn--sm" data-attendance-custom-save data-comparison-id="${escapeHtml(entry.id)}" data-field-key="${escapeHtml(key)}">שמור</button>
       </div>
       ${selected ? `<small class="attendance-control__row-decision">${escapeHtml(selected)}</small>` : ''}
     </div>`;
@@ -2027,34 +2023,26 @@ export function resultsHtml(result, month = '', options = {}) {
     if (!MANUAL_EDITABLE_FIELDS.has(key) && !TRAVEL_EDITABLE_FIELDS.has(key)) {
       return '<span class="attendance-control__no-action">—</span>';
     }
-    if (!currentEmployeeCanMutate) {
+    if (!currentEmployeeCanMutate || entry?.__recordEditing !== true) {
       return '<span class="attendance-control__no-action">—</span>';
     }
     if (key === 'publicTransport') {
       const selected = asBoolean(rawValue);
       return `<div class="attendance-control__row-actions">
-        <div class="attendance-control__row-action-buttons">
-          <button type="button" class="ds-btn ds-btn--sm" data-attendance-manual-edit="${escapeHtml(entry.id)}" data-field-key="${escapeHtml(key)}">עריכה</button>
-        </div>
-        <div class="attendance-control__row-custom" data-attendance-manual-edit-wrap hidden>
+        <div class="attendance-control__row-custom" data-attendance-manual-edit-wrap>
           <select class="ds-input ds-input--sm" data-attendance-manual-input="${escapeHtml(entry.id)}" data-field-key="${escapeHtml(key)}" aria-label="עריכת ${escapeHtml(label)}">
             <option value="false"${selected ? '' : ' selected'}>לא</option>
             <option value="true"${selected ? ' selected' : ''}>כן</option>
           </select>
-          <button type="button" class="ds-btn ds-btn--sm" data-attendance-manual-save="${escapeHtml(entry.id)}" data-field-key="${escapeHtml(key)}">שמור</button>
         </div>
       </div>`;
     }
     const meta = manualFieldInputMeta(key, rawValue);
     return `<div class="attendance-control__row-actions">
-      <div class="attendance-control__row-action-buttons">
-        <button type="button" class="ds-btn ds-btn--sm" data-attendance-manual-edit="${escapeHtml(entry.id)}" data-field-key="${escapeHtml(key)}">עריכה</button>
-      </div>
-      <div class="attendance-control__row-custom" data-attendance-manual-edit-wrap hidden>
+      <div class="attendance-control__row-custom" data-attendance-manual-edit-wrap>
         <input class="ds-input ds-input--sm" data-attendance-manual-input="${escapeHtml(entry.id)}" data-field-key="${escapeHtml(key)}"
           type="${meta.type}" value="${escapeHtml(String(meta.value ?? ''))}"${meta.placeholder ? ` placeholder="${escapeHtml(meta.placeholder)}"` : ''}${meta.step ? ` step="${meta.step}"` : ''}${meta.min ? ` min="${meta.min}"` : ''}
-          aria-label="עריכת ${escapeHtml(label)}">
-        <button type="button" class="ds-btn ds-btn--sm" data-attendance-manual-save="${escapeHtml(entry.id)}" data-field-key="${escapeHtml(key)}">שמור</button>
+          aria-label="עריכת ${escapeHtml(label)}"${key === 'workHours' ? ' readonly aria-readonly="true"' : ''}>
       </div>
     </div>`;
   };
@@ -2105,6 +2093,7 @@ export function resultsHtml(result, month = '', options = {}) {
   const parameterReviewTable = (entry, { attendanceOnly = false, attachedCancellation = null } = {}) => {
     const attendance = entry?.attendance || {};
     const current = entry?.final || attendance;
+    const editing = entry?.__recordEditing === true;
     const dashboard = attendanceOnly ? null : (entry?.dashboard || null);
     const trainingPlan = dashboard?.__trainingSchedule === true;
     const dashboardLabel = trainingPlan ? 'תכנון / מערכת' : 'דשבורד';
@@ -2136,6 +2125,7 @@ export function resultsHtml(result, month = '', options = {}) {
     ];
 
     const rows = definitions.filter((definition) => {
+      if (editing && (MANUAL_EDITABLE_FIELDS.has(definition.key) || TRAVEL_EDITABLE_FIELDS.has(definition.key))) return true;
       if (definition.visible === true) return true;
       if (definition.visible === false) return false;
       if (definition.always) return true;
@@ -2177,14 +2167,13 @@ export function resultsHtml(result, month = '', options = {}) {
           ? (hasSystemValue ? shown(right) : '<span class="attendance-control__empty-source">—</span>')
           : '<span class="attendance-control__empty-source">—</span>';
       const actionSourceLabel = trainingPlan && key === 'kilometers' ? 'חישוב מערכת' : (trainingPlan ? 'תכנון' : dashboardLabel);
-      let actions = autoCalculated
+      const editable = MANUAL_EDITABLE_FIELDS.has(key) || TRAVEL_EDITABLE_FIELDS.has(key);
+      let actions = editing && editable
         ? manualFieldActionsHtml(entry, key, label, editValue)
         : related
           ? fieldActionsHtml(entry, key, related, { hasSystemValue, dashboardLabel: actionSourceLabel })
-          : (MANUAL_EDITABLE_FIELDS.has(key) || TRAVEL_EDITABLE_FIELDS.has(key))
-            ? manualFieldActionsHtml(entry, key, label, editValue)
-            : '<span class="attendance-control__no-action">—</span>';
-      if (currentEmployeeCanMutate && (attendanceOnly || entry?.unmatched) && key === 'date' && !attendanceEntryIsResolved(entry)) {
+          : '<span class="attendance-control__no-action">—</span>';
+      if (!editing && currentEmployeeCanMutate && (attendanceOnly || entry?.unmatched) && key === 'date' && !attendanceEntryIsResolved(entry)) {
         actions = `<div class="attendance-control__row-actions">
           <div class="attendance-control__row-action-buttons">
             <button type="button" class="ds-btn ds-btn--sm" data-attendance-approve-reported="${escapeHtml(entry.id)}">אישור נוכחות</button>
@@ -2243,6 +2232,7 @@ export function resultsHtml(result, month = '', options = {}) {
   };
 
   const reportHtml = ({ kind, item, employeeId, date }) => {
+    const editing = kind !== 'dashboard' && item?.__recordEditing === true;
     const row = kind === 'dashboard' ? item.dashboard : (item.final || item.attendance);
     const attachedCancellation = generatedCancellationBySource.get(entryRecordId(item)) || null;
     const dataIssue = kind === 'comparison' ? comparisonHasIssue(item) : false;
@@ -2250,7 +2240,9 @@ export function resultsHtml(result, month = '', options = {}) {
     const attachedApproved = attachedCancellation ? attendanceEntryIsResolved(attachedCancellation) : true;
     const cancellationEntry = isAttendanceTravelTimeCancellation(item)
       || normalizeAttendanceName(row.activityType).includes('ביטולזמן');
-    const status = approved && attachedApproved
+    const status = editing
+      ? '<span class="attendance-control__status-pill attendance-control__status-pill--info">שינויים טרם נשמרו</span>'
+      : approved && attachedApproved
       ? '<span class="attendance-control__status-pill attendance-control__status-pill--ok">✓ אושר</span>'
       : dataIssue
         ? '<span class="attendance-control__status-pill attendance-control__status-pill--issue">לבדיקה</span>'
@@ -2266,13 +2258,20 @@ export function resultsHtml(result, month = '', options = {}) {
       body = `${manualReportTable(row, { entry: item, attachedCancellation })}${travelSummaryHtml(row, item, { includeCancellation: !attachedCancellation })}${managerActionsHtml(item)}`;
     }
 
-    const recordActions = kind === 'dashboard' || !currentEmployeeCanMutate
+    const recordActions = kind === 'dashboard' || !currentEmployeeCanMutate || editing
       ? ''
       : `<div class="attendance-control__record-actions">
           <button type="button" class="ds-btn ds-btn--sm" data-attendance-edit-record="${escapeHtml(item.id)}" data-attendance-edit-approved="${approved ? '1' : '0'}">${approved ? 'תיקון רשומה' : 'עריכת רשומה'}</button>
           <button type="button" class="ds-btn ds-btn--sm ds-btn--primary" data-attendance-approve-reported="${escapeHtml(item.id)}">${approved ? '✓ רשומה אושרה' : 'אישור רשומה'}</button>
         </div>`;
-    return `<section class="attendance-control__report"><div class="attendance-control__report-line"><strong>${shown(`${row.startTime || '—'}–${row.endTime || '—'} | ${activityTypeDisplayLabel(row.activityType) || 'דיווח'}`)}</strong><div class="attendance-control__report-line-actions">${status}${recordActions}</div></div>${body}</section>`;
+    const editFooter = editing
+      ? `<div class="attendance-control__record-edit-footer">
+          <span class="attendance-control__record-edit-pending" data-attendance-record-pending>שינויים טרם נשמרו</span>
+          <button type="button" class="ds-btn ds-btn--primary" data-attendance-save-record="${escapeHtml(item.id)}">שמור שינויים</button>
+          <button type="button" class="ds-btn" data-attendance-cancel-record="${escapeHtml(item.id)}">בטל</button>
+        </div>`
+      : '';
+    return `<section class="attendance-control__report" data-attendance-record-id="${escapeHtml(item.id)}" data-record-editing="${editing ? '1' : '0'}"><div class="attendance-control__report-line"><strong>${shown(`${row.startTime || '—'}–${row.endTime || '—'} | ${activityTypeDisplayLabel(row.activityType) || 'דיווח'}`)}</strong><div class="attendance-control__report-line-actions">${status}${recordActions}</div></div>${body}${editFooter}</section>`;
   };
   const employeeHtml = [...employees.values()].sort((a, b) => a.name.localeCompare(b.name, 'he')).map((employee) => {
     const hasWorkflowRow = Object.prototype.hasOwnProperty.call(workflowByEmployee, employee.id);
@@ -2628,9 +2627,48 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
     status.textContent = message || '';
     status.classList.toggle('is-error', Boolean(error && message));
   };
+  const syncRecordDraftUi = (target) => {
+    const input = target?.closest?.('[data-attendance-manual-input]');
+    const report = input?.closest?.('.attendance-control__report');
+    if (!input || report?.dataset.recordEditing !== '1') return false;
+    const field = txt(input.dataset.fieldKey);
+    if (field === 'startTime' || field === 'endTime') {
+      const startInput = report.querySelector('[data-attendance-manual-input][data-field-key="startTime"]');
+      const endInput = report.querySelector('[data-attendance-manual-input][data-field-key="endTime"]');
+      const workHoursInput = report.querySelector('[data-attendance-manual-input][data-field-key="workHours"]');
+      const startTime = timeText(startInput?.value);
+      const endTime = timeText(endInput?.value);
+      if (workHoursInput && startTime && endTime) {
+        workHoursInput.value = attendanceTimeRangeIsValid(startTime, endTime)
+          ? formatDurationHours(calculateWorkHours(startTime, endTime))
+          : '';
+      }
+    }
+    if (field === 'publicTransport') {
+      const usesPublicTransport = input.value === 'true';
+      const costInput = report.querySelector('[data-attendance-manual-input][data-field-key="publicTransportCost"]');
+      const kmInput = report.querySelector('[data-attendance-manual-input][data-field-key="kilometers"]');
+      if (costInput) {
+        costInput.disabled = !usesPublicTransport;
+        if (!usesPublicTransport) costInput.value = '0';
+        else if (!costInput.value) costInput.value = '0';
+      }
+      if (kmInput) {
+        kmInput.disabled = usesPublicTransport;
+        if (usesPublicTransport) kmInput.value = '0';
+      }
+    }
+    const pending = report.querySelector('[data-attendance-record-pending]');
+    if (pending) pending.textContent = 'שינויים טרם נשמרו';
+    return true;
+  };
+  results.addEventListener('input', (event) => {
+    syncRecordDraftUi(eventTargetElement(event));
+  });
   results.addEventListener('change', (event) => {
     const clickEl = eventTargetElement(event);
     if (!clickEl) return;
+    if (syncRecordDraftUi(clickEl)) return;
     const travelToggle = clickEl.closest('[data-attendance-correct-pt]');
     if (travelToggle) {
       const entryId = travelToggle.dataset.attendanceCorrectPt;
@@ -2688,106 +2726,6 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
     const findEntry = (entryId) => (
       [...(result?.comparisons || []), ...(result?.notCompared || [])].find((entry) => entry.id === entryId) || null
     );
-
-    const manualEditBtn = clickEl.closest('[data-attendance-manual-edit]');
-    if (manualEditBtn && result) {
-      const rowElement = manualEditBtn.closest('tr');
-      const wrap = rowElement?.querySelector('[data-attendance-manual-edit-wrap]');
-      const input = rowElement?.querySelector('[data-attendance-manual-input]');
-      if (wrap) wrap.hidden = !wrap.hidden;
-      if (wrap && !wrap.hidden) input?.focus();
-      return;
-    }
-
-    const manualSaveBtn = clickEl.closest('[data-attendance-manual-save]');
-    if (manualSaveBtn && result) {
-      const entry = findEntry(txt(manualSaveBtn.dataset.attendanceManualSave));
-      const field = txt(manualSaveBtn.dataset.fieldKey);
-      const rowElement = manualSaveBtn.closest('tr');
-      const input = rowElement?.querySelector('[data-attendance-manual-input]');
-      if (!entry || !field || !input) return;
-      const parsed = parseManualCorrectionValue(field, input.value);
-      if (!parsed.valid) {
-        status.textContent = field === 'workHours'
-          ? 'יש להזין שעות בפורמט שעות:דקות, למשל 1:30.'
-          : 'הערך שהוזן אינו תקין.';
-        input.focus();
-        return;
-      }
-      let pairedTimeChanges = null;
-      if (field === 'startTime' || field === 'endTime') {
-        const current = entry.final || entry.attendance || {};
-        const report = manualSaveBtn.closest('.attendance-control__report');
-        const startInput = report?.querySelector('[data-attendance-manual-input][data-field-key="startTime"]');
-        const endInput = report?.querySelector('[data-attendance-manual-input][data-field-key="endTime"]');
-        const draftStart = field === 'startTime' ? parsed.value : (startInput?.value || current.startTime);
-        const draftEnd = field === 'endTime' ? parsed.value : (endInput?.value || current.endTime);
-        const timeCorrection = buildAttendanceTimeCorrection(current, draftStart, draftEnd);
-        if (!timeCorrection.valid) {
-          status.textContent = 'כדי לתקן את השעות יש לעדכן את שעת ההתחלה ושעת הסיום כך ששעת הסיום תהיה מאוחרת משעת ההתחלה.';
-          input.focus();
-          return;
-        }
-        pairedTimeChanges = timeCorrection.changes;
-      }
-      if (TRAVEL_EDITABLE_FIELDS.has(field)) {
-        const current = entry.final || entry.attendance || {};
-        let travelChanges;
-        if (field === 'publicTransport') {
-          travelChanges = parsed.value
-            ? { publicTransport: true, publicTransportCost: optionalNumber(current.publicTransportCost) ?? 0, kilometers: 0 }
-            : { publicTransport: false, publicTransportCost: 0, kilometers: optionalNumber(current.kilometers) ?? 0 };
-        } else if (field === 'publicTransportCost') {
-          travelChanges = { publicTransport: true, publicTransportCost: parsed.value, kilometers: 0 };
-        } else {
-          travelChanges = { publicTransport: false, publicTransportCost: 0, kilometers: parsed.value };
-        }
-        const { changed } = applyAttendanceTravelCorrection(entry, travelChanges);
-        if (!changed) {
-          status.textContent = 'לא בוצע שינוי בנתוני הנסיעה.';
-          return;
-        }
-        manualSaveBtn.disabled = true;
-        try {
-          await persistEntryCorrection(entry);
-          refreshDailyKilometersAfterTravelChange(result, entry.attendance?.employeeId, entry.attendance?.date);
-          paintResults();
-          status.textContent = 'תיקון הנסיעה נשמר ברשומת הנוכחות. הרשומה ממתינה לאישור.';
-        } catch (error) {
-          status.textContent = error?.message || 'שמירת תיקון הנסיעה נכשלה.';
-        } finally {
-          manualSaveBtn.disabled = false;
-        }
-        return;
-      }
-      applyAttendanceManualCorrection(entry, pairedTimeChanges || { [field]: parsed.value });
-      if (field === 'date') {
-        const sourceRow = entry.attendance || {};
-        const source = sourceRow._source || {};
-        const sourceId = txt(sourceRow.recordId || source.recordId || source.ID || source.Id || source.id);
-        const linkedCancellation = [...(result.notCompared || [])].find((candidate) => {
-          if (!isAttendanceTravelTimeCancellation(candidate)) return false;
-          const childSource = candidate.attendance?._source || {};
-          return txt(childSource.sourceAttendanceRecordId || childSource.source_attendance_record_id) === sourceId;
-        });
-        if (linkedCancellation?.attendance) {
-          linkedCancellation.attendance.date = parsed.value;
-          linkedCancellation.final = { ...(linkedCancellation.final || linkedCancellation.attendance), date: parsed.value };
-          linkedCancellation.managerRecordApproved = false;
-        }
-      }
-      manualSaveBtn.disabled = true;
-      try {
-        await persistEntryCorrection(entry);
-        paintResults();
-        status.textContent = 'התיקון נשמר ברשומת הנוכחות. הרשומה ממתינה לאישור.';
-      } catch (error) {
-        status.textContent = error?.message || 'שמירת התיקון נכשלה.';
-      } finally {
-        manualSaveBtn.disabled = false;
-      }
-      return;
-    }
 
     const focusTravelBtn = clickEl.closest('[data-attendance-focus-travel]');
     if (focusTravelBtn && result) {
@@ -2874,26 +2812,137 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
       return;
     }
 
+    const saveRecordBtn = clickEl.closest('[data-attendance-save-record]');
+    if (saveRecordBtn && result) {
+      const entry = findEntry(txt(saveRecordBtn.dataset.attendanceSaveRecord));
+      const report = saveRecordBtn.closest('.attendance-control__report');
+      if (!entry || !report) {
+        setStatusMessage('לא נמצאה הרשומה לשמירת השינויים.', { error: true });
+        return;
+      }
+      saveRecordBtn.disabled = true;
+      try {
+        assertEmployeeMonthMutableForManager(entry);
+        const changes = {};
+        const inputs = [...report.querySelectorAll('[data-attendance-manual-input]')];
+        for (const input of inputs) {
+          const field = txt(input.dataset.fieldKey);
+          if (!field) continue;
+          const parsed = parseManualCorrectionValue(field, input.value);
+          if (!parsed.valid) {
+            const message = field === 'workHours'
+              ? 'יש להזין שעות בפורמט שעות:דקות, למשל 1:30.'
+              : `הערך בשדה "${input.getAttribute('aria-label')?.replace(/^עריכת\s+/, '') || field}" אינו תקין.`;
+            throw new Error(message);
+          }
+          changes[field] = parsed.value;
+        }
+
+        const current = entry.final || entry.attendance || {};
+        const startTime = changes.startTime ?? timeText(current.startTime);
+        const endTime = changes.endTime ?? timeText(current.endTime);
+        if (!attendanceTimeRangeIsValid(startTime, endTime)) {
+          throw new Error('כדי לשמור את הרשומה, שעת הסיום חייבת להיות מאוחרת משעת ההתחלה.');
+        }
+        if (Object.hasOwn(changes, 'startTime') || Object.hasOwn(changes, 'endTime')) {
+          changes.startTime = startTime;
+          changes.endTime = endTime;
+          changes.workHours = calculateWorkHours(startTime, endTime);
+        }
+
+        if (Object.hasOwn(changes, 'publicTransport') || Object.hasOwn(changes, 'publicTransportCost') || Object.hasOwn(changes, 'kilometers')) {
+          const usesPublicTransport = asBoolean(changes.publicTransport ?? current.publicTransport);
+          changes.publicTransport = usesPublicTransport;
+          if (usesPublicTransport) {
+            changes.kilometers = 0;
+            changes.publicTransportCost = optionalNumber(changes.publicTransportCost) ?? optionalNumber(current.publicTransportCost) ?? 0;
+          } else {
+            changes.publicTransportCost = 0;
+            changes.kilometers = optionalNumber(changes.kilometers) ?? optionalNumber(current.kilometers) ?? 0;
+          }
+        }
+
+        const draftEntry = {
+          ...entry,
+          attendance: { ...(entry.attendance || {}) },
+          final: { ...(entry.final || entry.attendance || {}) },
+          differences: (entry.differences || []).map((difference) => ({ ...difference }))
+        };
+        delete draftEntry.__recordEditing;
+        const oldDate = txt(entry.attendance?.date);
+        applyAttendanceManualCorrection(draftEntry, changes);
+        const saved = await persistEntryCorrection(draftEntry);
+
+        if (saved.wrote) {
+          entry.attendance = { ...(draftEntry.attendance || {}) };
+          entry.final = { ...(draftEntry.final || draftEntry.attendance || {}) };
+          entry.managerResolved = draftEntry.managerResolved;
+          entry.managerRecordApproved = false;
+          const newDate = txt(entry.attendance?.date);
+          if (newDate && newDate !== oldDate) {
+            const sourceRow = entry.attendance || {};
+            const source = sourceRow._source || {};
+            const sourceId = txt(sourceRow.recordId || source.recordId || source.ID || source.Id || source.id);
+            const linkedCancellation = [...(result.notCompared || [])].find((candidate) => {
+              if (!isAttendanceTravelTimeCancellation(candidate)) return false;
+              const childSource = candidate.attendance?._source || {};
+              return txt(childSource.sourceAttendanceRecordId || childSource.source_attendance_record_id) === sourceId;
+            });
+            if (linkedCancellation?.attendance) {
+              linkedCancellation.attendance.date = newDate;
+              linkedCancellation.final = { ...(linkedCancellation.final || linkedCancellation.attendance), date: newDate };
+              linkedCancellation.managerRecordApproved = false;
+            }
+          }
+          refreshDailyKilometersAfterTravelChange(result, entry.attendance?.employeeId, oldDate);
+          refreshDailyKilometersAfterTravelChange(result, entry.attendance?.employeeId, entry.attendance?.date);
+        }
+        delete entry.__recordEditing;
+        paintResults();
+        setStatusMessage(saved.wrote
+          ? 'השינויים נשמרו ברשומת הנוכחות. הרשומה ממתינה לאישור מחדש.'
+          : 'לא נמצאו שינויים לשמירה.');
+      } catch (error) {
+        setStatusMessage(error?.message || 'שמירת השינויים נכשלה.', { error: true });
+      } finally {
+        saveRecordBtn.disabled = false;
+      }
+      return;
+    }
+
+    const cancelRecordBtn = clickEl.closest('[data-attendance-cancel-record]');
+    if (cancelRecordBtn && result) {
+      const entry = findEntry(txt(cancelRecordBtn.dataset.attendanceCancelRecord));
+      if (!entry) return;
+      delete entry.__recordEditing;
+      paintResults();
+      setStatusMessage('');
+      return;
+    }
+
     const editRecordBtn = clickEl.closest('[data-attendance-edit-record]');
     if (editRecordBtn && result) {
-      const report = editRecordBtn.closest('.attendance-control__report');
-      const editing = report?.dataset.recordEditing !== '1';
+      const entry = findEntry(txt(editRecordBtn.dataset.attendanceEditRecord));
+      if (!entry) {
+        setStatusMessage('לא נמצאה רשומת הנוכחות לעריכה.', { error: true });
+        return;
+      }
+      try {
+        assertEmployeeMonthMutableForManager(entry);
+      } catch (error) {
+        setStatusMessage(error?.message || 'לא ניתן לערוך את הרשומה.', { error: true });
+        return;
+      }
       const correctingApprovedRecord = editRecordBtn.dataset.attendanceEditApproved === '1';
-      if (report) {
-        report.dataset.recordEditing = editing ? '1' : '0';
-        report.querySelectorAll('[data-attendance-manual-edit-wrap], .attendance-control__row-custom').forEach((wrap) => {
-          wrap.hidden = !editing;
-        });
-      }
-      editRecordBtn.textContent = editing
-        ? (correctingApprovedRecord ? 'סיום תיקון' : 'סיום עריכה')
-        : (correctingApprovedRecord ? 'תיקון רשומה' : 'עריכת רשומה');
-      if (editing) {
-        if (correctingApprovedRecord) {
-          setStatusMessage('ניתן לתקן את הרשומה שאושרה. שמירת שינוי תבטל את אישור הרשומה והיא תידרש לאישור מחדש.');
-        }
-        report?.querySelector('input:not([type="hidden"]),select')?.focus();
-      }
+      entry.__recordEditing = true;
+      paintResults();
+      setStatusMessage(correctingApprovedRecord
+        ? 'שינויים טרם נשמרו. האישור הקודם יבוטל רק לאחר שמירה מוצלחת.'
+        : 'שינויים טרם נשמרו.');
+      const report = results.querySelector(`[data-attendance-record-id="${CSS.escape(entry.id)}"]`);
+      const publicTransportInput = report?.querySelector('[data-attendance-manual-input][data-field-key="publicTransport"]');
+      if (publicTransportInput) syncRecordDraftUi(publicTransportInput);
+      report?.querySelector('[data-attendance-manual-input]')?.focus();
       return;
     }
 
