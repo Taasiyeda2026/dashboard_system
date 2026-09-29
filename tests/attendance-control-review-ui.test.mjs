@@ -33,7 +33,7 @@ test('review table is parameter-driven and exposes the approved five-column stru
   assert.match(source, /הערות/);
 });
 
-test('differences expose attendance, dashboard and edit actions in the actions column', () => {
+test('differences expose attendance/dashboard decisions plus one record-level edit action', () => {
   const html = resultsHtml({
     comparisons: [{
       id: 'course-diff',
@@ -67,7 +67,7 @@ test('differences expose attendance, dashboard and edit actions in the actions c
 
   assert.match(html, /אישור נוכחות/);
   assert.match(html, /אישור דשבורד/);
-  assert.match(html, />עריכה</);
+  assert.match(html, /data-attendance-edit-record="course-diff"/);
   assert.match(html, /data-field-key="endTime"/);
   assert.match(html, /סה״כ שעות/);
   assert.match(html, /מחושב אוטומטית/);
@@ -152,8 +152,8 @@ test('public transport replaces kilometers and only shows cost when relevant', (
   assert.match(html, /תחבורה ציבורית/);
   assert.match(html, /עלות תחבורה ציבורית/);
   assert.match(html, />32</);
-  assert.match(html, /data-attendance-manual-edit="pt-only" data-field-key="publicTransport"/);
-  assert.match(html, /data-attendance-manual-edit="pt-only" data-field-key="publicTransportCost"/);
+  assert.match(html, /data-attendance-edit-record="pt-only"/);
+  assert.doesNotMatch(html, /data-attendance-manual-save/);
   assert.doesNotMatch(html, /<th>ק״מ<\/th>/);
 });
 
@@ -286,7 +286,7 @@ test('system-generated travel cancellation is auto-resolved when calculation is 
 });
 
 
-test('attendance-only rows expose inline correction instead of empty action cells', () => {
+test('attendance-only rows use one record-level edit action without per-field save buttons', () => {
   const html = resultsHtml({
     comparisons: [],
     notCompared: [{
@@ -313,13 +313,10 @@ test('attendance-only rows expose inline correction instead of empty action cell
     dailyKilometers: []
   }, '2026-09', submittedWorkflow('1533'));
 
-  assert.match(html, /data-attendance-manual-edit="attendance-only-edit" data-field-key="date"/);
-  assert.match(html, /data-attendance-manual-edit="attendance-only-edit" data-field-key="startTime"/);
-  assert.match(html, /data-attendance-manual-edit="attendance-only-edit" data-field-key="endTime"/);
-  assert.match(html, /data-attendance-manual-edit="attendance-only-edit" data-field-key="workHours"/);
+  assert.match(html, /data-attendance-edit-record="attendance-only-edit"/);
   assert.match(html, /מחושב אוטומטית/);
-  assert.match(html, /data-attendance-manual-edit="attendance-only-edit" data-field-key="program"/);
-  assert.match(html, /data-attendance-manual-edit="attendance-only-edit" data-field-key="kilometers"/);
+  assert.doesNotMatch(html, /data-attendance-manual-edit=/);
+  assert.doesNotMatch(html, /data-attendance-manual-save=/);
   assert.doesNotMatch(html, /data-attendance-focus-travel="attendance-only-edit"/);
   assert.doesNotMatch(html, /אשר כפי שדווח/);
   assert.doesNotMatch(html, /שמור תיקון נסיעה/);
@@ -354,7 +351,7 @@ test('approved attendance record exposes correction action and explains re-appro
   }, '2026-09', submittedWorkflow('1507'));
 
   assert.match(html, /data-attendance-edit-approved="1">תיקון רשומה<\/button>/);
-  assert.match(source, /שמירת שינוי תבטל את אישור הרשומה והיא תידרש לאישור מחדש/);
+  assert.match(source, /האישור הקודם יבוטל רק לאחר שמירה מוצלחת/);
   assert.match(source, /attendanceControlApproveRecord\(update\.recordId, false\)/);
 });
 
@@ -388,11 +385,13 @@ test('manager can override work hours and reversed attendance times are rejected
   assert.equal(incompleteMove.valid, false);
 });
 
-test('manager time save reads both visible time inputs before persisting', () => {
+test('record save validates both times and recalculates work hours before the single persist', () => {
+  assert.match(source, /data-attendance-save-record/);
   assert.match(source, /data-field-key="startTime"/);
   assert.match(source, /data-field-key="endTime"/);
-  assert.match(source, /buildAttendanceTimeCorrection\(current, draftStart, draftEnd\)/);
-  assert.match(source, /pairedTimeChanges \|\| \{ \[field\]: parsed\.value \}/);
+  assert.match(source, /attendanceTimeRangeIsValid\(startTime, endTime\)/);
+  assert.match(source, /changes\.workHours = calculateWorkHours\(startTime, endTime\)/);
+  assert.match(source, /await persistEntryCorrection\(draftEntry\)/);
 });
 
 test('planned training mileage is shown as a system comparison with mileage actions', () => {
