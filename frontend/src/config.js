@@ -292,3 +292,5 @@ config.HOTFIX_VERSION = `planning-resource-dependency-scope-20260929-v1-${config
 config.HOTFIX_VERSION = `route-failure-details-20260929-v1-${config.HOTFIX_VERSION}`;
 
 config.HOTFIX_VERSION = `global-cache-refresh-attendance-scheduling-20260929-v1-${config.HOTFIX_VERSION}`;
+
+config.HOTFIX_VERSION = `planning-route-error-isolation-20260929-v1-${config.HOTFIX_VERSION}`;
