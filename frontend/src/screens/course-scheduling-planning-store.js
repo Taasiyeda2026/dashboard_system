@@ -188,7 +188,12 @@ export function sharedPlanningAffectedCourseIds({
   const sharedById = new Map((shared?.rows || []).map((entry) => [text(entry.activityId), entry]));
   const changed = new Set(
     (shared?.rows || [])
-      .filter((entry) => entry?.needsRecalc === true)
+      .filter((entry) => entry?.needsRecalc === true || (
+        !entry?.lockedOption && entry?.row?.kind === 'missing'
+        && entry?.row?.diagnostics?.routeVerified === false
+        && Number(entry?.row?.diagnostics?.preliminaryCount) > 0
+        && Number(entry?.row?.diagnostics?.routeEvaluationVersion || 0) < 2
+      ))
       .map((entry) => text(entry.activityId))
       .filter((courseId) => currentIds.has(courseId))
   );

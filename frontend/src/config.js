@@ -294,3 +294,5 @@ config.HOTFIX_VERSION = `route-failure-details-20260929-v1-${config.HOTFIX_VERSI
 config.HOTFIX_VERSION = `global-cache-refresh-attendance-scheduling-20260929-v1-${config.HOTFIX_VERSION}`;
 
 config.HOTFIX_VERSION = `planning-route-error-isolation-20260929-v1-${config.HOTFIX_VERSION}`;
+
+config.HOTFIX_VERSION = `scheduling-fast-reopen-route-recovery-20260929-v1-${config.HOTFIX_VERSION}`;
