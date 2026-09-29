@@ -1573,27 +1573,31 @@ function exportDuration(value) {
 }
 
 function exportRecordId(row = {}, source = {}) {
+  const raw = source || {};
   return txt(
     row.recordId || row.ID || row.Id || row.id
-    || source.recordId || source.ID || source.Id || source.id
+    || raw.recordId || raw.ID || raw.Id || raw.id
   );
 }
 
 function exportGenerationKind(row = {}, source = {}) {
-  return txt(row.generationKind || row.generation_kind || source.generationKind || source.generation_kind);
+  const raw = source || {};
+  return txt(row.generationKind || row.generation_kind || raw.generationKind || raw.generation_kind);
 }
 
 function exportSourceRecordId(row = {}, source = {}) {
+  const raw = source || {};
   return txt(
     row.sourceAttendanceRecordId || row.source_attendance_record_id
-    || source.sourceAttendanceRecordId || source.source_attendance_record_id
+    || raw.sourceAttendanceRecordId || raw.source_attendance_record_id
   );
 }
 
 function exportCancellationHours(row = {}, source = {}) {
+  const raw = source || {};
   const minutes = optionalNumber(
     row.finalCancellationMinutes ?? row.final_cancellation_minutes
-    ?? source.finalCancellationMinutes ?? source.final_cancellation_minutes
+    ?? raw.finalCancellationMinutes ?? raw.final_cancellation_minutes
   );
   if (minutes != null) return minutes / 60;
   return rowWorkHours(row) ?? optionalNumber(row.workHours ?? row.WorkHours);
