@@ -2919,6 +2919,19 @@ export function planningLegacyEngineContextFingerprint(input = {}, engineVersion
   return fnv1aHash(value);
 }
 
+export function mergePlanningResumeRows(existingRows = [], completedRows = []) {
+  const byId = new Map();
+  for (const row of existingRows || []) {
+    const id = text(row?.courseId);
+    if (id) byId.set(id, row);
+  }
+  for (const row of completedRows || []) {
+    const id = text(row?.courseId);
+    if (id) byId.set(id, row);
+  }
+  return [...byId.values()];
+}
+
 export async function buildDynamicCoursePlan({
   activities = [],
   instructors = [],
@@ -2938,6 +2951,7 @@ export async function buildDynamicCoursePlan({
   signal = null,
   checkpoint = createPlanningCheckpoint({ signal }),
   resumeFromCheckpoint = false,
+  allowGlobalRepair = null,
   _repairPass = false,
   _repairPriorityIds = [],
   planningProfile = 'deep'
@@ -3350,7 +3364,9 @@ export async function buildDynamicCoursePlan({
   });
 
   const initialResult = summarize(rows, { repairApplied: _repairPass });
-  if (_repairPass || (incrementalIds && !resumeFromCheckpoint)) return initialResult;
+  // Checkpointing changes progress, not scope. A resumed targeted run must not
+  // turn into a national pass; a resumed full run may still repair coverage.
+  if (_repairPass || !(allowGlobalRepair ?? !incrementalIds)) return initialResult;
 
   if (!limits.runGlobalRepair) return {
     ...initialResult,

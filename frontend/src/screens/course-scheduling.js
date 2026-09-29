@@ -77,6 +77,7 @@ import {
   buildPlanningOverviewRows,
   createPlanningCheckpoint,
   isPlanningCancellationError,
+  mergePlanningResumeRows,
   PlanningCancelledError,
   planningCompletionOverviewHtml,
   planningContextFingerprint,
@@ -2502,7 +2503,9 @@ export const courseSchedulingScreen = {
           : (resumeFromCheckpoint
               ? affectedIds.filter((courseId) => !checkpointCompletedIds.has(courseId))
               : affectedIds);
-        const planningExistingRows = resumeFromCheckpoint ? resumableRows : existingRows;
+        const planningExistingRows = resumeFromCheckpoint
+          ? (fullRun ? resumableRows : mergePlanningResumeRows(existingRows, resumableRows))
+          : existingRows;
         let lastSilentCheckpointCount = checkpointCompletedIds.size;
         const checkpointBatchSize = fullRun ? 50 : Math.min(20, Math.max(3, affectedIds.length));
 
@@ -2540,6 +2543,7 @@ export const courseSchedulingScreen = {
           existingRows: planningExistingRows,
           targetCourseIds,
           resumeFromCheckpoint,
+          allowGlobalRepair: fullRun,
           planningProfile: 'fast',
           signal: run.controller.signal,
           checkpoint,
