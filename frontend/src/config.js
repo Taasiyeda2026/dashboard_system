@@ -283,3 +283,4 @@ config.HOTFIX_VERSION = `attendance-paired-time-edit-20260927-v1-${config.HOTFIX
 config.HOTFIX_VERSION = `attendance-approved-record-correction-20260927-v1-${config.HOTFIX_VERSION}`;
 
 config.HOTFIX_VERSION = `attendance-month-approval-regex-dialog-20260928-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `attendance-time-cancellation-online-training-20260929-v1-${config.HOTFIX_VERSION}`;

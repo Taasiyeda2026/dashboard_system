@@ -86,8 +86,9 @@ function normalizeActivityTypeList(values) {
 
 function normalizeRecordPayload(payload = {}) {
   const activityType = normalizeAttendanceActivityTypeLabel(payload?.activity_type);
+  const onlineTraining = activityType === 'הכשרה' && payload?.training_mode === 'online';
   const hasPublicTransport = Object.prototype.hasOwnProperty.call(payload, 'public_transport');
-  const usesPublicTransport = activityType !== ZOOM_LABEL && payload?.public_transport === true;
+  const usesPublicTransport = activityType !== ZOOM_LABEL && !onlineTraining && payload?.public_transport === true;
   return {
     ...payload,
     activity_type: activityType,
@@ -96,7 +97,7 @@ function normalizeRecordPayload(payload = {}) {
       public_transport_cost: usesPublicTransport ? Number(payload?.public_transport_cost || 0) : 0,
     } : {}),
     // Zoom and public-transport reports never carry reimbursable travel kilometres.
-    ...((activityType === ZOOM_LABEL || usesPublicTransport) ? { roundtrip_km: 0 } : {}),
+    ...((activityType === ZOOM_LABEL || onlineTraining || usesPublicTransport) ? { roundtrip_km: 0 } : {}),
   };
 }
 
@@ -251,8 +252,8 @@ export async function reconcileTravelCompensation(sourceRecordId) {
   const { data, error } = await supabase.functions.invoke('attendance-travel-compensation', {
     body: { source_attendance_record_id: sourceRecordId }
   });
-  if (error) return { eligible: true, status: 'unavailable', failure_code: data?.failure_code || 'route_service_unavailable' };
-  return data;
+  if (error) return { eligible: true, status: 'unavailable', context_changed: prepared?.context_changed === true, failure_code: data?.failure_code || 'route_service_unavailable' };
+  return { ...data, context_changed: prepared?.context_changed === true };
 }
 
 export async function getBaseTrainingRoutePreview() {
@@ -278,6 +279,10 @@ export async function overrideTravelCompensation(sourceRecordId, finalMinutes) {
   if (error) throw new Error(error.message || 'עדכון ביטול הזמן נכשל');
   monthRecordsCache.clear();
   return data;
+}
+
+export async function resetTravelCompensationOverride(sourceRecordId, calculatedMinutes) {
+  return overrideTravelCompensation(sourceRecordId, calculatedMinutes);
 }
 
 export async function getOperationOptions() {
