@@ -123,9 +123,6 @@ create or replace function public.scheduling_assert_assignment_calendar(
 create or replace function public.set_course_meeting_substitute(
   p_activity_id text, p_date date, p_emp_id bigint
 ) returns void language sql as $$ select $$;
-create or replace function public.set_scheduling_planning_lock(
-  p_period text, p_district text, p_activity_id text, p_value jsonb, p_revision bigint
-) returns jsonb language sql as $ select '{}'::jsonb $;
 create or replace function public.assign_activity_instructor(
   p_activity_id text, p_emp_id bigint, p_name text, p_selected_emp_id bigint,
   p_selected_score integer, p_top_score integer, p_decision_type text, p_reason text
