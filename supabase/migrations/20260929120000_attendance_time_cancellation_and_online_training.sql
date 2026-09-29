@@ -11,6 +11,29 @@ alter table public.attendance_records
   add constraint attendance_records_training_mode_check
   check (training_mode is null or training_mode in ('physical', 'online'));
 
+drop policy if exists instructor_training_schedule_read on public.instructor_training_schedule;
+create policy instructor_training_schedule_read
+on public.instructor_training_schedule
+for select
+to authenticated
+using (
+  public.app_current_role() = any (
+    array['admin','operation_manager','activities_manager','instructor_manager','finance']::text[]
+  )
+  or (
+    public.app_current_role() = 'instructor'
+    and (
+      participant_scope = 'open'
+      or emp_id = (
+        select u.emp_id::bigint
+        from public.users u
+        where u.auth_user_id = auth.uid() and u.is_active = true
+        limit 1
+      )
+    )
+  )
+);
+
 create or replace function public.av2_sync_operation_destination_address()
 returns trigger
 language plpgsql
@@ -48,6 +71,50 @@ begin
     new.destination_address_snapshot := '6RVR+XM, יקום';
   else
     new.destination_address_snapshot := null;
+  end if;
+  return new;
+end $$;
+
+create or replace function public.av2_mark_source_travel_pending_trigger()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  actor_emp bigint;
+  route_context_changed boolean := false;
+begin
+  if new.generation_kind is not null then return new; end if;
+  select emp_id::bigint into actor_emp
+  from public.users
+  where auth_user_id = auth.uid() and is_active = true
+  limit 1;
+
+  if tg_op = 'INSERT' then
+    route_context_changed := true;
+  else
+    route_context_changed := old.activity_type is distinct from new.activity_type
+      or old.activity_name_snapshot is distinct from new.activity_name_snapshot
+      or old.activity_row_id is distinct from new.activity_row_id
+      or old.authority_id is distinct from new.authority_id
+      or old.authority_name_snapshot is distinct from new.authority_name_snapshot
+      or old.school_id is distinct from new.school_id
+      or old.school_name_snapshot is distinct from new.school_name_snapshot
+      or old.destination_address_snapshot is distinct from new.destination_address_snapshot
+      or old.training_mode is distinct from new.training_mode;
+  end if;
+
+  if actor_emp = new.emp_id and route_context_changed then
+    if tg_op = 'UPDATE' then
+      perform set_config('app.av2_compensation_write', '1', true);
+      delete from public.attendance_records child
+      where child.source_attendance_record_id = new.id
+        and child.generation_kind = 'travel_time_cancellation';
+      delete from public.attendance_travel_compensations
+      where source_attendance_record_id = new.id;
+    end if;
+    perform public.av2_prepare_attendance_travel(new.id, auth.uid());
   end if;
   return new;
 end $$;

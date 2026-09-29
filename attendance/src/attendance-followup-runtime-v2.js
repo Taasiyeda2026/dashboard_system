@@ -1,5 +1,6 @@
 import { supabase } from './api/client.js';
 import { reconcileTravelCompensation, overrideTravelCompensation, resetTravelCompensationOverride } from './services/attendance.service.js';
+import { parseAutomaticCancellationLabel, reconcileChangedTravelContext } from './services/time-cancellation.helpers.js';
 
 const ENHANCED_HEADER = 'av2TimeCancelHeader';
 const ENHANCED_ROW = 'av2TimeCancelRow';
@@ -136,8 +137,7 @@ function cancellationState(row) {
   const label = valueMatch?.[1] || '—';
   const minutes = parseClockMinutes(label);
   const audit = text(detail.querySelector('.av2-rr__travel-audit')?.textContent);
-  const originalMatch = audit.match(/מחושב במקור:\s*(\d{1,3}:[0-5]\d)/);
-  return { label, minutes, resolved: minutes != null, original: originalMatch?.[1] || null, pending: false };
+  return { label, minutes, resolved: minutes != null, original: parseAutomaticCancellationLabel(audit), pending: false };
 }
 
 function enhanceReportHeader(head) {
@@ -287,12 +287,23 @@ function waitForSavedRowAndOverride(oldRow, recordId, desiredMinutes, routeConte
     const currentRow = document.querySelector(`.av2-report-row[data-record-id="${CSS.escape(recordId)}"]`);
     if (oldRow.isConnected || !currentRow || currentRow === oldRow) return;
     window.clearInterval(timer);
-    if (routeContextChanged) {
-      showAttendanceNotice('היעד או הפעילות השתנו; התיקון הידני אופס וביטול הזמן חושב מחדש.', 'success');
-      return;
-    }
-    void applyOverride(currentRow, recordId, desiredMinutes);
+    if (routeContextChanged) void applyRouteContextReset(recordId);
+    else void applyOverride(currentRow, recordId, desiredMinutes);
   }, 180);
+}
+
+async function applyRouteContextReset(recordId) {
+  if (applyingOverrides.has(recordId)) return;
+  applyingOverrides.add(recordId);
+  try {
+    await reconcileChangedTravelContext(reconcileTravelCompensation, recordId);
+    showAttendanceNotice('היעד או הפעילות השתנו; התיקון הידני אופס וביטול הזמן חושב מחדש.', 'success');
+  } catch (error) {
+    console.warn('time cancellation recalculation failed:', error?.message || error);
+    showAttendanceNotice(`הדיווח נשמר, אך איפוס וחישוב ביטול הזמן נכשלו: ${error?.message || 'נסו שוב'}`);
+  } finally {
+    applyingOverrides.delete(recordId);
+  }
 }
 
 async function applyOverride(row, recordId, desiredMinutes) {
