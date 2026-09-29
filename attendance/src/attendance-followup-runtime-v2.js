@@ -1,5 +1,6 @@
 import { supabase } from './api/client.js';
-import { reconcileTravelCompensation, overrideTravelCompensation } from './services/attendance.service.js';
+import { reconcileTravelCompensation, overrideTravelCompensation, resetTravelCompensationOverride } from './services/attendance.service.js';
+import { parseAutomaticCancellationLabel, reconcileChangedTravelContext } from './services/time-cancellation.helpers.js';
 
 const ENHANCED_HEADER = 'av2TimeCancelHeader';
 const ENHANCED_ROW = 'av2TimeCancelRow';
@@ -20,6 +21,26 @@ function parseClockMinutes(value) {
   const match = text(value).match(/^(\d{1,3}):([0-5]\d)$/);
   if (!match) return null;
   return (Number(match[1]) * 60) + Number(match[2]);
+}
+
+function routeContextSnapshot(form) {
+  return ['#edit-type', '#edit-activity-name', '#edit-authority', '#edit-school', '#edit-training-mode']
+    .map((selector) => text(form.querySelector(selector)?.value))
+    .join('|');
+}
+
+function showAttendanceNotice(message, kind = 'error') {
+  let notice = document.querySelector('[data-av2-travel-notice]');
+  if (!notice) {
+    notice = document.createElement('div');
+    notice.dataset.av2TravelNotice = '1';
+    notice.setAttribute('role', kind === 'error' ? 'alert' : 'status');
+    notice.style.cssText = 'position:fixed;inset:auto 16px 16px;z-index:10000;padding:12px 16px;border-radius:10px;background:#fff;border:2px solid currentColor;color:#b91c1c;box-shadow:0 8px 28px #0003';
+    document.body.append(notice);
+  }
+  notice.style.color = kind === 'error' ? '#b91c1c' : '#166534';
+  notice.textContent = message;
+  window.setTimeout(() => notice.remove(), 8000);
 }
 
 async function loadOperationLocations() {
@@ -116,8 +137,7 @@ function cancellationState(row) {
   const label = valueMatch?.[1] || '—';
   const minutes = parseClockMinutes(label);
   const audit = text(detail.querySelector('.av2-rr__travel-audit')?.textContent);
-  const originalMatch = audit.match(/מחושב במקור:\s*(\d{1,3}:[0-5]\d)/);
-  return { label, minutes, resolved: minutes != null, original: originalMatch?.[1] || null, pending: false };
+  return { label, minutes, resolved: minutes != null, original: parseAutomaticCancellationLabel(audit), pending: false };
 }
 
 function enhanceReportHeader(head) {
@@ -200,19 +220,43 @@ function showTimeCancelEditField(row) {
 
     const note = document.createElement('small');
     note.className = 'av2-time-cancel-edit__note';
-    note.textContent = state.original
-      ? `נערך ידנית · מחושב במקור: ${state.original}`
-      : 'מחושב אוטומטית לפי זמן הנסיעה';
+    note.textContent = state.original ? `תוקן ידנית (אוטומטי: ${state.original})` : 'חישוב אוטומטי';
 
     const error = document.createElement('small');
     error.className = 'av2-time-cancel-edit__error';
     error.hidden = true;
 
     wrap.append(label, input, note, error);
+    if (state.original) {
+      const reset = document.createElement('button');
+      reset.type = 'button';
+      reset.className = 'av2-btn av2-btn--link';
+      reset.textContent = 'חזור לחישוב האוטומטי';
+      reset.addEventListener('click', async () => {
+        reset.disabled = true;
+        try {
+          await resetTravelCompensationOverride(text(row.dataset.recordId), parseClockMinutes(state.original));
+          form.closest('.av2-modal-overlay')?.remove();
+          const cell = row.querySelector('.av2-rr__time-cancel');
+          if (cell) {
+            cell.textContent = state.original;
+            cell.dataset.minutes = String(parseClockMinutes(state.original));
+            cell.title = 'מחושב אוטומטית';
+          }
+          showAttendanceNotice('ביטול הזמן חזר לחישוב האוטומטי.', 'success');
+        } catch (resetError) {
+          error.textContent = resetError?.message || 'החזרה לחישוב האוטומטי נכשלה.';
+          error.hidden = false;
+          reset.disabled = false;
+        }
+      });
+      wrap.append(reset);
+    }
     hoursDisplay.insertAdjacentElement('afterend', wrap);
 
     const recordId = text(row.dataset.recordId);
     const oldRow = row;
+    const initialRouteContext = routeContextSnapshot(form);
     form.addEventListener('submit', (event) => {
       const desired = parseClockMinutes(input.value);
       if (desired == null) {
@@ -224,30 +268,53 @@ function showTimeCancelEditField(row) {
         return;
       }
       error.hidden = true;
-      if (recordId && desired !== state.minutes) waitForSavedRowAndOverride(oldRow, recordId, desired);
+      const routeContextChanged = initialRouteContext !== routeContextSnapshot(form);
+      if (recordId && (desired !== state.minutes || (state.original && routeContextChanged))) {
+        waitForSavedRowAndOverride(oldRow, recordId, desired, routeContextChanged);
+      }
     }, { capture: true });
   }, 0);
 }
 
-function waitForSavedRowAndOverride(oldRow, recordId, desiredMinutes) {
+function waitForSavedRowAndOverride(oldRow, recordId, desiredMinutes, routeContextChanged = false) {
   const startedAt = Date.now();
   const timer = window.setInterval(() => {
     if (Date.now() - startedAt > 15000) {
       window.clearInterval(timer);
+      showAttendanceNotice('הדיווח נשמר, אך עדכון ביטול הזמן לא הושלם. נסו לערוך שוב.');
       return;
     }
     const currentRow = document.querySelector(`.av2-report-row[data-record-id="${CSS.escape(recordId)}"]`);
     if (oldRow.isConnected || !currentRow || currentRow === oldRow) return;
     window.clearInterval(timer);
-    void applyOverride(currentRow, recordId, desiredMinutes);
+    if (routeContextChanged) void applyRouteContextReset(recordId);
+    else void applyOverride(currentRow, recordId, desiredMinutes);
   }, 180);
+}
+
+async function applyRouteContextReset(recordId) {
+  if (applyingOverrides.has(recordId)) return;
+  applyingOverrides.add(recordId);
+  try {
+    await reconcileChangedTravelContext(reconcileTravelCompensation, recordId);
+    showAttendanceNotice('היעד או הפעילות השתנו; התיקון הידני אופס וביטול הזמן חושב מחדש.', 'success');
+  } catch (error) {
+    console.warn('time cancellation recalculation failed:', error?.message || error);
+    showAttendanceNotice(`הדיווח נשמר, אך איפוס וחישוב ביטול הזמן נכשלו: ${error?.message || 'נסו שוב'}`);
+  } finally {
+    applyingOverrides.delete(recordId);
+  }
 }
 
 async function applyOverride(row, recordId, desiredMinutes) {
   if (applyingOverrides.has(recordId)) return;
   applyingOverrides.add(recordId);
   try {
-    await reconcileTravelCompensation(recordId);
+    const reconciliation = await reconcileTravelCompensation(recordId);
+    if (reconciliation?.context_changed || reconciliation?.eligible === false) {
+      showAttendanceNotice('היעד או הפעילות השתנו; התיקון הידני אופס וביטול הזמן חושב מחדש.', 'success');
+      return;
+    }
     await overrideTravelCompensation(recordId, desiredMinutes);
     const cell = row.querySelector('.av2-rr__time-cancel') || updateTimeCancelCell(row);
     if (cell) {
@@ -258,6 +325,7 @@ async function applyOverride(row, recordId, desiredMinutes) {
     }
   } catch (error) {
     console.warn('time cancellation override failed:', error?.message || error);
+    showAttendanceNotice(`הדיווח נשמר, אך עדכון ביטול הזמן נכשל: ${error?.message || 'נסו שוב'}`);
   } finally {
     applyingOverrides.delete(recordId);
   }

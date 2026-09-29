@@ -13,6 +13,7 @@ import { createTimePicker } from '../components/time-picker.js';
 import {
   getInstructorActivities,
   getInstructorActivitiesForDate,
+  getTrainingScheduleForDate,
   getMeetingNoForActivityOnDate,
   getSchoolOptions,
   calcHours,
@@ -42,6 +43,7 @@ import { canEditMonth, editBlockReason, getMonthKey } from '../services/month-ga
 import { uploadAttachment } from '../services/storage.service.js';
 import { attendanceDateWarning } from '../services/activity-date-warning.js';
 import { formatTravelMinutes } from '../components/report-summary-row.js';
+import { scheduledTrainingReportFields } from '../services/training-schedule.helpers.js';
 
 const TIME_MINUTE_STEP = 5;
 const COURSE_REPORT_TYPE = 'קורס';
@@ -193,6 +195,8 @@ export function renderNewReportScreen(container, {
   let baseTrainingRouteRow = null;
   let baseTrainingRouteToken = 0;
   let operationChoiceField = null;
+  let trainingModeField = null;
+  let scheduledTrainingIds = new Set();
 
   function getReportDate() {
     return dateField?.input?.value || defaultDate;
@@ -212,6 +216,19 @@ export function renderNewReportScreen(container, {
 
   function isOnlineReportType(reportType = getReportType()) {
     return reportType === ONLINE_REPORT_TYPE;
+  }
+
+  function isOnlineTraining() {
+    return getReportType() === TRAINING_REPORT_TYPE
+      && (selectedActivity?.is_online === true || trainingModeField?.input?.value === 'online');
+  }
+
+  function isScheduledTraining(activity = selectedActivity) {
+    return activity?.__attendanceTrainingSchedule === true;
+  }
+
+  function isOnlineActivity() {
+    return isOnlineReportType() || isOnlineTraining();
   }
 
   function isNoActivityNameType(reportType = getReportType()) {
@@ -365,7 +382,7 @@ export function renderNewReportScreen(container, {
   }
 
   function syncActivityTimes(activity) {
-    if (!shouldAutoFillActivityTimes() || !startPicker || !endPicker) return;
+    if ((!shouldAutoFillActivityTimes() && !activity?.__attendanceTrainingSchedule) || !startPicker || !endPicker) return;
 
     const { startTime, endTime } = attendanceTimesFromActivity(activity, getReportType());
     if (!startTime || !endTime) {
@@ -407,7 +424,7 @@ export function renderNewReportScreen(container, {
 
   function syncLocationDependencies() {
   const hasType = !!getReportType();
-  const showsLocation = !isOpenFieldType();
+  const showsLocation = !isOpenFieldType() && !isOnlineTraining();
   const courseAwaitingActivity = isCourseReportType() && !selectedActivity;
   authSel?.setDisabled(!hasType || !showsLocation || courseAwaitingActivity || !!selectedActivity);
   setSchoolEnabled(hasType && showsLocation && !courseAwaitingActivity && hasSelectedAuthority());
@@ -416,7 +433,7 @@ export function renderNewReportScreen(container, {
 
   function syncTravelMode() {
     if (!kmField?.input || !publicTransportInput || !publicTransportCostWrap) return;
-    const online = isOnlineReportType();
+    const online = isOnlineActivity();
     if (online) {
       publicTransportInput.checked = false;
       publicTransportInput.disabled = true;
@@ -751,6 +768,11 @@ export function renderNewReportScreen(container, {
     rememberExtendedActivity(activity);
     selectedActivity = activity;
 
+    if (trainingModeField && getReportType() === TRAINING_REPORT_TYPE) {
+      trainingModeField.input.value = activity.is_online === true ? 'online' : 'physical';
+      trainingModeField.input.disabled = activity.__attendanceTrainingSchedule === true;
+    }
+
     const rowId = activityRowId(activity);
     const reportType = getReportType();
     const options = activityOptionsForReportType(instructorActivities, reportType);
@@ -764,10 +786,29 @@ export function renderNewReportScreen(container, {
       activityNameSel.setValue(rowId, selectedActivityName(activity, match.label));
     }
 
-    syncAuthoritySchoolFromActivity(activity);
+    if (isScheduledTraining(activity)) {
+      manualAuthId = null;
+      manualAuthName = activity.training_location_name || '';
+      authSel.setValue('', manualAuthName);
+      authSel.setDisabled(true);
+      mountManualSchoolSelect();
+    } else {
+      syncAuthoritySchoolFromActivity(activity);
+    }
     if (autoFillTimes) syncActivityTimes(activity);
-    setLocationFieldsVisible(!isBaseTrainingActivity(activity));
-    void syncBaseTrainingRoutePreview(activity);
+    setLocationFieldsVisible(!isBaseTrainingActivity(activity) && !isOnlineTraining() && !isScheduledTraining(activity));
+    if (isOnlineTraining()) {
+      baseTrainingRouteRow.hidden = true;
+      baseTrainingRouteRow.replaceChildren();
+    } else if (isScheduledTraining(activity)) {
+      const location = activity.training_location_name || 'מיקום ההכשרה';
+      const address = activity.training_location_address || '';
+      baseTrainingRouteRow.hidden = false;
+      baseTrainingRouteRow.innerHTML = `<strong>מיקום ההכשרה</strong><span>${location}</span>${address ? `<small>${address}</small>` : ''}`;
+    } else {
+      void syncBaseTrainingRoutePreview(activity);
+    }
+    syncTravelMode();
     syncLocationDependencies();
     await syncMeetingForSelectedDate();
     syncCourseDashboardLocks();
@@ -784,6 +825,8 @@ export function renderNewReportScreen(container, {
     if (newType !== prevType) clearLinkedActivity();
     syncMeetingFieldState();
     syncKmForReportType(newType, prevType);
+    trainingModeField.wrap.hidden = newType !== TRAINING_REPORT_TYPE;
+    trainingModeField.input.disabled = selectedActivity?.__attendanceTrainingSchedule === true;
 
     if (isNoActivityNameType(newType)) {
       clearLinkedActivity();
@@ -804,7 +847,7 @@ export function renderNewReportScreen(container, {
       return;
     }
 
-    setLocationFieldsVisible(true);
+    setLocationFieldsVisible(!isOnlineTraining());
     setActivityNameVisible(true);
     setTrainingDescVisible(false);
 
@@ -877,6 +920,15 @@ export function renderNewReportScreen(container, {
       });
     if (isBaseTrainingActivity(selectedActivity) && !isBaseTrainingDate(dateStr)) {
       clearLinkedActivity();
+    }
+    try {
+      const scheduled = await getTrainingScheduleForDate(instructor.empId, dateStr);
+      instructorActivities = instructorActivities.filter((item) => !scheduledTrainingIds.has(activityRowId(item)));
+      scheduledTrainingIds = new Set(scheduled.map(activityRowId));
+      instructorActivities.push(...scheduled);
+      if (getReportType() === TRAINING_REPORT_TYPE) refreshActivityNameOptions({ preserveSelection: true });
+    } catch (error) {
+      console.warn('training schedule load failed:', error?.message || error);
     }
     refreshActivityNameOptions({ preserveSelection: true });
     syncTravelMode();
@@ -998,6 +1050,22 @@ export function renderNewReportScreen(container, {
     trainingDescWrap.append(operationChoiceField.wrap, trainingDescField.wrap);
     syncOperationDetailVisibility();
 
+    trainingModeField = createSelectField({
+      id: 'av2-training-mode',
+      label: 'אופן ההכשרה *',
+      options: [
+        { value: 'physical', label: 'פרונטלי' },
+        { value: 'online', label: 'מקוון' },
+      ],
+      value: prefill?.training_mode === 'online' ? 'online' : 'physical',
+    });
+    trainingModeField.wrap.hidden = initialReportType !== TRAINING_REPORT_TYPE;
+    trainingModeField.input.addEventListener('change', () => {
+      setLocationFieldsVisible(!isOnlineTraining() && !isBaseTrainingActivity(selectedActivity));
+      syncTravelMode();
+      syncLocationDependencies();
+    });
+
     authSel = createSearchableSelect({
       id: 'av2-authority',
       label: 'רשות *',
@@ -1067,6 +1135,7 @@ export function renderNewReportScreen(container, {
         dateField.wrap,
         typeField.wrap,
         activityNameWrap,
+        trainingModeField.wrap,
         trainingDescWrap,
         authSel.wrap,
         schoolMount,
@@ -1391,7 +1460,7 @@ export function renderNewReportScreen(container, {
       const reportType = getReportType();
       const isNoActivity = isNoActivityNameType(reportType);
       const isOpen = isOpenFieldType(reportType);
-      const isOnline = isOnlineReportType(reportType);
+      const isOnline = isOnlineActivity();
       const isBaseTraining = isBaseTrainingActivity(activity);
 
       errorEl.hidden = true;
@@ -1434,7 +1503,7 @@ export function renderNewReportScreen(container, {
       if (startTime && endTime && totalHours <= 0) {
         markInvalid(endPicker.wrap, 'שעת סיום חייבת להיות מאוחרת מהתחלה');
       }
-      if (!activity && !isNoActivity && !isOpen) {
+      if (!activity && !isNoActivity && !isOpen && !isOnlineTraining()) {
         const authLabel = manualAuthName?.trim() || '';
         if (!authLabel) markInvalid(authSel.wrap, 'רשות');
       }
@@ -1446,10 +1515,11 @@ export function renderNewReportScreen(container, {
         return;
       }
 
-      const finalAuthorityId = isOpen ? null : (activity?.authority_id ?? manualAuthId ?? null);
-      const finalAuthorityName = isOpen ? null : (activity?.authority_name ?? activity?.authority ?? manualAuthName ?? null);
-      const finalSchoolId = isOpen ? null : (activity ? (schoolId || null) : (manualSchoolId || null));
-      const finalSchoolName = isOpen ? null : (activity ? (schoolName || null) : (manualSchoolName || null));
+      const hasNoLocation = isOpen || isOnlineTraining();
+      const finalAuthorityId = hasNoLocation ? null : (activity?.authority_id ?? manualAuthId ?? null);
+      const finalAuthorityName = hasNoLocation ? null : (activity?.authority_name ?? activity?.authority ?? manualAuthName ?? null);
+      const finalSchoolId = hasNoLocation ? null : (activity ? (schoolId || null) : (manualSchoolId || null));
+      const finalSchoolName = hasNoLocation ? null : (activity ? (schoolName || null) : (manualSchoolName || null));
 
       let activityNameSnapshot = null;
       if (isOpen) {
@@ -1469,6 +1539,7 @@ export function renderNewReportScreen(container, {
       const publicTransportCost = usesPublicTransport && publicTransportCostField.input.value
         ? Number(publicTransportCostField.input.value)
         : 0;
+      const scheduledTrainingFields = scheduledTrainingReportFields(activity);
 
       saveBtn.disabled = true;
       saveBtn.querySelector('span').textContent = 'שומר…';
@@ -1480,8 +1551,11 @@ export function renderNewReportScreen(container, {
           end_time: endTime,
           total_hours: totalHours,
           activity_type: reportType,
-          activity_id: isOpen || isBaseTraining ? null : (activity?.id ?? null),
-          activity_row_id: isOpen || isBaseTraining ? null : (activityRowId(activity) || null),
+          training_mode: reportType === TRAINING_REPORT_TYPE
+            ? (isOnlineTraining() ? 'online' : 'physical')
+            : null,
+          activity_id: isOpen || isBaseTraining || activity?.__attendanceTrainingSchedule ? null : (activity?.id ?? null),
+          activity_row_id: isOpen || isBaseTraining || activity?.__attendanceTrainingSchedule ? null : (activityRowId(activity) || null),
           activity_no: isOpen || isBaseTraining ? null : (activity?.activity_no ?? null),
           activity_season: isOpen || isBaseTraining ? null : (activity?.activity_season ?? null),
           activity_name_snapshot: activityNameSnapshot,
@@ -1490,7 +1564,7 @@ export function renderNewReportScreen(container, {
           authority_name_snapshot: finalAuthorityName,
           school_id: finalSchoolId,
           school_name_snapshot: finalSchoolName,
-          semel_mosad: isOpen ? null : (semelMosad || null),
+          semel_mosad: hasNoLocation ? null : (semelMosad || null),
           program_name: isOpen || isBaseTraining ? null : (activity?.program_name ?? null),
           program_name_snapshot: programName,
           roundtrip_km: kmValue,
@@ -1499,6 +1573,7 @@ export function renderNewReportScreen(container, {
           expenses: expField.input.value ? Number(expField.input.value) : 0,
           expense_details: expDetailField.input.value.trim() || null,
           notes: notesField.input.value.trim() || null,
+          ...scheduledTrainingFields,
         };
 
         const record = await createRecord(instructor.empId, payload);
