@@ -1003,7 +1003,8 @@ function schedulingPlanningStatusHtml(state = {}) {
     if (incremental) {
       const countLabel = total || pending;
       const progressSuffix = total ? ` · ${completed} מתוך ${total}` : '';
-      return `<div class="course-scheduling-auto-plan is-working" role="status" data-planning-status aria-busy="true"><span data-planning-status-message><strong>עדכון שינויים בלבד · ${countLabel} פעילויות</strong>${escapeHtml(progressSuffix)}. אפשר לעבור למסכים אחרים בדשבורד; החישוב ימשיך.</span></div>`;
+      const label = countLabel === 1 ? 'מעדכן פעילות אחת…' : `מעדכן ${countLabel} פעילויות שהושפעו…`;
+      return `<div class="course-scheduling-auto-plan is-working" role="status" data-planning-status aria-busy="true"><span data-planning-status-message><strong>${escapeHtml(label)}</strong>${escapeHtml(progressSuffix)} אפשר לעבור למסכים אחרים; העדכון ימשיך ברקע.</span></div>`;
     }
     const suffix = total ? ` · ${completed} מתוך ${total}` : '';
     return `<div class="course-scheduling-auto-plan is-working" role="status" data-planning-status aria-busy="true"><span data-planning-status-message><strong>מחשב הצעות שיבוץ</strong>${escapeHtml(suffix)}. אפשר לעבור למסכים אחרים בדשבורד; החישוב ימשיך.</span></div>`;
@@ -1027,13 +1028,13 @@ function schedulingPlanningStatusHtml(state = {}) {
   // "הכל מעודכן" only when both dirty-count and hard-gate audit are clean.
   if (pendingRecalc > 0 || hardGateInvalid > 0) {
     const count = Math.max(pendingRecalc, hardGateInvalid);
+    const label = count === 1 ? 'מכין עדכון לפעילות אחת…' : `מכין עדכון ל-${count} פעילויות שהושפעו…`;
     return `<div class="course-scheduling-auto-plan is-ready" role="status" data-planning-status aria-busy="false">
-      <span data-planning-status-message><strong>נדרש עדכון תכנון · ${count} פעילויות</strong></span>
-      <button type="button" class="course-scheduling-workboard-primary" data-run-course-planning>עדכן רק את השינויים</button>
+      <span data-planning-status-message><strong>${escapeHtml(label)}</strong></span>
     </div>`;
   }
   return `<div class="course-scheduling-auto-plan is-ready" role="status" data-planning-status aria-busy="false">
-    <span data-planning-status-message><strong>הכל מעודכן</strong></span>
+    <span data-planning-status-message><strong>הכול מעודכן</strong></span>
   </div>`;
 }
 
@@ -2053,9 +2054,10 @@ export const courseSchedulingScreen = {
       status.setAttribute('aria-busy', 'true');
       if (phase === 'עדכון שינויים בלבד' || (pending > 0 && !/מלא/.test(phase))) {
         const countLabel = total || pending;
+        const label = countLabel === 1 ? 'מעדכן פעילות אחת' : `מעדכן ${countLabel} פעילויות שהושפעו`;
         message.textContent = total
-          ? `עדכון שינויים בלבד · ${countLabel} פעילויות · ${completed} מתוך ${total}. אפשר לעבור למסכים אחרים בדשבורד; החישוב ימשיך.`
-          : `עדכון שינויים בלבד · ${countLabel} פעילויות… אפשר לעבור למסכים אחרים בדשבורד; החישוב ימשיך.`;
+          ? `${label} · ${completed} מתוך ${total}… אפשר לעבור למסכים אחרים; העדכון ימשיך ברקע.`
+          : `${label}… אפשר לעבור למסכים אחרים; העדכון ימשיך ברקע.`;
         return;
       }
       message.textContent = total
@@ -2076,6 +2078,10 @@ export const courseSchedulingScreen = {
         return;
       }
       rerenderPreservingWorkboardScroll();
+      queueMicrotask(() => {
+        if (!schedulingScreenActive || state.route !== 'course-scheduling' || !root.isConnected) return;
+        scheduleBackgroundPlanning({ forceFull: false, reuseSnapshot: true });
+      });
     };
     document.addEventListener('app:planning-needs-recalc', onPlanningNeedsRecalc);
     planningNeedsRecalcListenerCleanup?.();
@@ -2095,13 +2101,13 @@ export const courseSchedulingScreen = {
     };
     if (state.courseSchedulingPlanningLoading) attachActivePlanningRunUi();
 
-    const scheduleBackgroundPlanning = ({ forceFull = false } = {}) => {
+    const scheduleBackgroundPlanning = ({ forceFull = false, reuseSnapshot = true } = {}) => {
       if (data._planningBackgroundScheduled || state.courseSchedulingPlanningLoading) return;
       data._planningBackgroundScheduled = true;
       scheduleCoursePlanningStart({
         start: () => {
           data._planningBackgroundScheduled = false;
-          void runCoursePlanning({ forceFull });
+          void runCoursePlanning({ forceFull, reuseSnapshot });
         },
         isActive: () => schedulingScreenActive && state.route === 'course-scheduling' && root.isConnected,
         onCancel: () => { data._planningBackgroundScheduled = false; }
@@ -2389,9 +2395,9 @@ export const courseSchedulingScreen = {
       }
     };
 
-    const runCoursePlanning = async ({ forceFull = false } = {}) => {
+    const runCoursePlanning = async ({ forceFull = false, reuseSnapshot = false } = {}) => {
       const stopRunTimer = planningPerfTimer('runCoursePlanning');
-      planningPerfEvent('run-start', { forceFull: forceFull === true });
+      planningPerfEvent('run-start', { forceFull: forceFull === true, reuseSnapshot: reuseSnapshot === true });
       let rerunChangedAfterSave = false;
       cancelPendingPlanningStart();
       activePlanningRun?.controller?.abort();
@@ -2429,7 +2435,9 @@ export const courseSchedulingScreen = {
         const stopSnapshotLoad = planningPerfTimer('snapshotLoad');
         const routeCachePromise = loadSchedulingTravelCacheRows().catch(() => []);
         const [freshStart, shared, routeCacheRows] = await Promise.all([
-          data.reloadPlanningSnapshot(),
+          reuseSnapshot && Array.isArray(data.activities) && data.activities.length
+            ? Promise.resolve(data)
+            : data.reloadPlanningSnapshot(),
           loadSharedPlanningWorkspace({ periodKey: scope.periodKey, district: scope.district }),
           routeCachePromise
         ]);
@@ -2531,6 +2539,11 @@ export const courseSchedulingScreen = {
         const planningExistingRows = resumeFromCheckpoint
           ? (fullRun ? resumableRows : mergePlanningResumeRows(existingRows, resumableRows))
           : existingRows;
+        const checkpointRowsById = new Map(
+          resumableRows
+            .map((row) => [text(row?.courseId), row])
+            .filter(([courseId]) => !!courseId)
+        );
         let lastSilentCheckpointCount = checkpointCompletedIds.size;
         const checkpointBatchSize = fullRun ? 50 : Math.min(20, Math.max(3, affectedIds.length));
 
@@ -2579,24 +2592,30 @@ export const courseSchedulingScreen = {
               completed: progress.completed,
               total: progress.total
             };
-            if (Array.isArray(progress.rows)) state.courseSchedulingPlanningRows = progress.rows;
+            const progressCourseId = text(progress.courseId);
+            if (progressCourseId && progress.row) {
+              checkpointRowsById.set(progressCourseId, progress.row);
+              const currentRows = new Map(
+                (state.courseSchedulingPlanningRows || [])
+                  .map((row) => [text(row?.courseId), row])
+                  .filter(([courseId]) => !!courseId)
+              );
+              currentRows.set(progressCourseId, progress.row);
+              state.courseSchedulingPlanningRows = [...currentRows.values()];
+            }
             if (runUiVisible()) run.ui?.update?.();
 
-            if (
-              progress.phase !== 'בניית תוכנית'
-              || !text(progress.courseId)
-              || !Array.isArray(progress.rows)
-            ) return;
+            if (progress.phase !== 'בניית תוכנית' || !progressCourseId || !progress.row) return;
 
-            checkpointCompletedIds.add(text(progress.courseId));
+            checkpointCompletedIds.add(progressCourseId);
             const finishedThisPass = Number(progress.completed) >= Number(progress.total) && Number(progress.total) > 0;
             const shouldSaveCheckpoint = checkpointCompletedIds.size - lastSilentCheckpointCount >= checkpointBatchSize
               || finishedThisPass;
             if (!shouldSaveCheckpoint) return;
 
-            const checkpointRows = progress.rows.filter((row) =>
-              checkpointCompletedIds.has(text(row?.courseId))
-            );
+            const checkpointRows = [...checkpointCompletedIds]
+              .map((courseId) => checkpointRowsById.get(courseId))
+              .filter(Boolean);
             try {
               const stopCheckpointSave = planningPerfTimer('checkpointSave');
               await saveSharedPlanningCheckpoint({
@@ -2751,8 +2770,8 @@ export const courseSchedulingScreen = {
         activePlanningRun = null;
         visibleUi?.rerender?.();
         if (rerunChangedAfterSave) {
-          if (visibleUi) scheduleBackgroundPlanning({ forceFull: false });
-          else queueMicrotask(() => { void runCoursePlanning({ forceFull: false }); });
+          if (visibleUi) scheduleBackgroundPlanning({ forceFull: false, reuseSnapshot: true });
+          else queueMicrotask(() => { void runCoursePlanning({ forceFull: false, reuseSnapshot: true }); });
         }
       }
     };
@@ -2906,7 +2925,7 @@ export const courseSchedulingScreen = {
         && !state.courseSchedulingPlanningStale
         && !state.courseSchedulingPlanningError;
       if (alreadyCurrent) return;
-      void runCoursePlanning({ forceFull: false });
+      void runCoursePlanning({ forceFull: false, reuseSnapshot: false });
     });
     root.querySelector('[data-refresh-shared-planning]')?.addEventListener('click', async (event) => {
       if (state.courseSchedulingPlanningLoading) return;
