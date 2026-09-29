@@ -1,4 +1,5 @@
 import { transitionBufferMinutes } from './instructor-matching-engine.js';
+import { filterSchoolCalendarRowsBySector } from './shared/school-calendar-logic.js';
 
 /** Soft instructor exceptions at or below this count stay eligible as the permanent instructor. */
 export const MAX_RECOVERABLE_EXCEPTION_MEETINGS = 2;
@@ -668,12 +669,17 @@ export function auditPlanningOptionHardGates(option = {}, {
     };
   }
 
+  // Match the planning engine: only this activity's sector (+ general) can block dates.
+  const sectorCalendar = filterSchoolCalendarRowsBySector(
+    schoolCalendar,
+    activity?.calendar_sector
+  );
   const meetingValidation = validatePlanningMeetingsForInstructors({
     meetings,
     mainInstructorEmpId: mainEmpId,
     instructorContexts,
     activity,
-    schoolCalendar,
+    schoolCalendar: sectorCalendar,
     allowSaturday: String(activity?.calendar_sector || '').toLowerCase() === 'arab'
   });
   failures.push(...(meetingValidation.failures || []));
