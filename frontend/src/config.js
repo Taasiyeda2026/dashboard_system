@@ -312,3 +312,5 @@ config.HOTFIX_VERSION = `scheduling-route-concurrency-16-20260929-v1-${config.HO
 config.HOTFIX_VERSION = `scheduling-parallel-routes-narrow-invalidation-20260929-v1-${config.HOTFIX_VERSION}`;
 
 config.HOTFIX_VERSION = `scheduling-planning-perf-instrumentation-20260930-v1-${config.HOTFIX_VERSION}`;
+
+config.HOTFIX_VERSION = `scheduling-planning-incremental-rebuild-20260930-v1-${config.HOTFIX_VERSION}`;
