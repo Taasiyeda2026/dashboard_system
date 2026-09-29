@@ -2560,7 +2560,7 @@ export const courseSchedulingScreen = {
         const profiles = Object.fromEntries((freshStart.scheduling?.profiles || []).map((row) => [text(row.emp_id), row]));
         const routeClient = createRouteClient({
           preloadedRows: routeCacheRows,
-          concurrency: 16,
+          concurrency: 6,
           signal: run.controller.signal
         });
         const lockedOptions = sharedPlanningLocks(shared);
@@ -2839,10 +2839,11 @@ export const courseSchedulingScreen = {
         const pending = (state.courseSchedulingPlanningAffectedIds || []).length;
         showToast(
           pending
-            ? `ההצעה נבחרה. ${pending} פעילויות דורשות עדכון — לחץ "עדכן רק את השינויים".`
+            ? `ההצעה נבחרה. מעדכן ${pending === 1 ? 'פעילות אחת' : `${pending} פעילויות שהושפעו`} ברקע.`
             : 'ההצעה נבחרה.',
           'success'
         );
+        if (pending) scheduleBackgroundPlanning({ forceFull: false, reuseSnapshot: true });
       } catch (error) {
         state.courseSchedulingPlanningError = planningStoreErrorMessage(error, 'שמירת הבחירה בתכנון נכשלה');
         try { await reloadSharedPlanningState({ refreshData: false }); } catch { /* keep actionable error */ }
@@ -2864,10 +2865,11 @@ export const courseSchedulingScreen = {
         const pending = (state.courseSchedulingPlanningAffectedIds || []).length;
         showToast(
           pending
-            ? `הבחירה בוטלה. ${pending} פעילויות דורשות עדכון — לחץ "עדכן רק את השינויים".`
+            ? `הבחירה בוטלה. מעדכן ${pending === 1 ? 'פעילות אחת' : `${pending} פעילויות שהושפעו`} ברקע.`
             : 'הבחירה בוטלה.',
           'success'
         );
+        if (pending) scheduleBackgroundPlanning({ forceFull: false, reuseSnapshot: true });
       } catch (error) {
         state.courseSchedulingPlanningError = planningStoreErrorMessage(error, 'שחרור הבחירה בתכנון נכשל');
         try { await reloadSharedPlanningState({ refreshData: false }); } catch { /* keep actionable error */ }
@@ -2896,15 +2898,16 @@ export const courseSchedulingScreen = {
         state.courseSchedulingSelectedId = '';
         state.courseSchedulingAlternativesCourseId = '';
         clearScreenDataCache?.();
-        await reloadSharedPlanningState();
+        await reloadSharedPlanningState({ refreshData: false });
         const pending = (state.courseSchedulingPlanningAffectedIds || []).length;
         showToast(
           pending
-            ? `השיבוץ אושר. ${pending} פעילויות דורשות עדכון — לחץ "עדכן רק את השינויים".`
+            ? `השיבוץ אושר. מעדכן ${pending === 1 ? 'פעילות אחת' : `${pending} פעילויות שהושפעו`} ברקע.`
             : 'השיבוץ אושר.',
           'success'
         );
         rerender();
+        if (pending) scheduleBackgroundPlanning({ forceFull: false, reuseSnapshot: true });
       } catch (error) {
         state.courseSchedulingPlanningError = planningStoreErrorMessage(
           error,
