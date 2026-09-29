@@ -124,4 +124,3 @@ test('current shared planning has no rerun button and click handler never promot
   assert.match(handler, /runCoursePlanning\(\{ forceFull: false \}\)/);
   assert.doesNotMatch(handler, /forceFull = pending === 0/);
 });
-
