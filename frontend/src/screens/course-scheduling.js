@@ -1734,6 +1734,7 @@ function maintenanceTabHtml(state) {
   const count = (key) => coverageLoading && stats[key] == null ? '…' : Number(stats[key]) || 0;
   const doneMessage = text(state.courseSchedulingDistanceDoneMessage);
   const doneError = !!state.courseSchedulingDistanceError;
+  const doneDetails = text(state.courseSchedulingDistanceDetails);
   const updateDisabled = distanceBusy || coverageLoading;
   return `<section class="course-scheduling-maintenance-tab" aria-labelledby="course-scheduling-maintenance-heading">
     <h2 id="course-scheduling-maintenance-heading" class="course-scheduling-visually-hidden">פעולות תחזוקה</h2>
@@ -1749,6 +1750,7 @@ function maintenanceTabHtml(state) {
           <button type="button" class="course-scheduling-distance-refresh" data-refresh-distance-coverage aria-label="רענון נתוני מצב" title="רענון נתוני מצב" ${coverageLoading || distanceBusy ? 'disabled' : ''}>↻</button>
         </div>
         ${doneMessage ? `<p class="${doneError ? 'course-scheduling-alert' : 'course-scheduling-success'}">${escapeHtml(doneMessage)}</p>` : ''}
+        ${doneDetails ? `<p class="course-scheduling-maintenance-note">${escapeHtml(doneDetails)}</p>` : ''}
       </div>
       <button type="button" class="course-scheduling-btn course-scheduling-btn--primary" data-update-distances ${updateDisabled ? 'disabled' : ''}>${distanceBusy ? 'מעדכן מסלולי בסיס...' : 'עדכון מסלולי בסיס'}</button>
     </article>
@@ -1827,7 +1829,10 @@ function distanceDoneMessage(stats = {}, { done = false, stopped = false, errorM
   if (errorMessage) return { message: 'עדכון המרחקים נכשל', details: errorMessage, error: true };
   const remaining = (Number(stats.missing_count) || 0) + (Number(stats.refresh_required_count) || 0);
   if (stopped) return { message: 'עדכון המרחקים הופסק', details: '', error: false };
-  if (done && remaining > 0) return { message: `נותרו ${remaining} מסלולים לעדכון`, details: '', error: true };
+  if (done && remaining > 0) {
+    const reasons = [...new Set((stats.failures || []).map((failure) => translateSchedulingRouteError(failure.reason, failure.reason)).filter(Boolean))];
+    return { message: `נותרו ${remaining} מסלולים לעדכון`, details: reasons.join(' · '), error: true };
+  }
   if (done) return { message: 'כל מסלולי הבסיס מעודכנים', details: '', error: false };
   const processed = (Number(stats.inserted_count) || 0) + (Number(stats.renewed_count) || 0) + (Number(stats.failed_count) || 0);
   const total = Number(stats.action_required_count) || processed + remaining;
@@ -4086,7 +4091,7 @@ export const courseSchedulingScreen = {
         try {
           const finalCoverage = await reloadDistanceCoverage();
           if (buildResult) {
-            const finalStats = { ...buildResult.stats, ...finalCoverage };
+            const finalStats = { ...buildResult.stats, ...finalCoverage, failures: buildResult.stats.failures || [] };
             const info = distanceDoneMessage(finalStats, { done: buildResult.done, stopped: buildResult.stopped });
             state.courseSchedulingDistanceStats = finalStats;
             state.courseSchedulingDistanceDoneMessage = info.message;
