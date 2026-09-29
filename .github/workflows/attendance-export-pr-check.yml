@@ -1,0 +1,32 @@
+name: Attendance Export PR Check
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'frontend/src/screens/attendance-control.js'
+      - 'tests/attendance-control.test.mjs'
+      - 'tests/attendance-control-review-ui.test.mjs'
+      - '.github/workflows/attendance-export-pr-check.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  attendance-export:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Run attendance control tests
+        run: |
+          node --test \
+            tests/attendance-control.test.mjs \
+            tests/attendance-control-review-ui.test.mjs
