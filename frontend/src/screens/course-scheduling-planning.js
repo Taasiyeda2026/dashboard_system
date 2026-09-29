@@ -46,7 +46,7 @@ const MAX_FINAL_OPTIONS = 6;
 const FAST_PLANNING_LIMITS = Object.freeze({
   maxScenarios: 12,
   maxCandidatesPerScenario: 3,
-  maxRoutedPlanningPairs: 4,
+  maxRoutedPlanningPairs: 6,
   maxFinalOptions: 3,
   runGlobalRepair: false
 });
