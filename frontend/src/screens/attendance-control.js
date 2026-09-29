@@ -8,9 +8,9 @@ import {
   payrollEntityFieldsEquivalent
 } from './payroll-control-identity.js';
 
-export const DETAIL_HEADERS = ['מספר עובד', 'שם עובד', 'תאריך', 'שעת התחלה', 'שעת סיום', 'שעות עבודה', 'סוג פעילות', 'שם בית ספר', 'רשות', 'שם תכנית', 'מספר מפגש', 'קילומטרים', 'תחבורה ציבורית', 'עלות תחבורה ציבורית', 'הוצאות', 'פירוט הוצאות', 'הערות', 'אסמכתאות'];
+export const DETAIL_HEADERS = ['מספר עובד', 'שם עובד', 'תאריך', 'שעת התחלה', 'שעת סיום', 'שעות עבודה', 'ביטול זמן', 'סוג פעילות', 'שם בית ספר', 'רשות', 'שם תכנית', 'מספר מפגש', 'קילומטרים', 'תחבורה ציבורית', 'עלות תחבורה ציבורית', 'הוצאות', 'פירוט הוצאות', 'הערות', 'אסמכתאות'];
 export const MONTHLY_HEADERS = ['שם מדריך', 'מספר עובד', 'שעות ביטול זמן', 'שעות הכשרה', 'שעות חדר בריחה', 'שעות סדנה', 'שעות סדנאות קיץ', 'שעות סיור', 'שעות קורס', 'שעות תפעול', 'סה"כ קילומטרים', 'הוצאות', 'פירוט הוצאות'];
-export const DAILY_HEADERS = ['תאריך', 'שם מדריך', 'מספר עובד', 'סוג פעילות', 'רשות', 'שעת התחלה', 'שעת סיום', 'שעות עבודה', 'קילומטרים', 'הוצאות', 'פירוט הוצאות'];
+export const DAILY_HEADERS = ['תאריך', 'שם מדריך', 'מספר עובד', 'סוג פעילות', 'רשות', 'שעת התחלה', 'שעת סיום', 'שעות עבודה', 'ביטול זמן', 'קילומטרים', 'הוצאות', 'פירוט הוצאות'];
 
 const FIELD_DEFS = [
   ['startTime', 'שעת התחלה', 'time'], ['endTime', 'שעת סיום', 'time'],
@@ -1546,6 +1546,7 @@ function mergeFinalIntoSource(final, source) {
       if (Object.hasOwn(source, key)) { merged[key] = value; return; }
     }
   };
+  assign(['date', 'attendanceDate', 'AttendanceDate'], final.date);
   assign(['startTime', 'StartTime', 'start'], final.startTime);
   assign(['endTime', 'EndTime', 'end'], final.endTime);
   assign(['workHours', 'WorkHours', 'hours'], rowWorkHours(final) ?? optionalNumber(final.workHours));
@@ -1566,34 +1567,92 @@ function mergeFinalIntoSource(final, source) {
   return merged;
 }
 
-function isOriginalAttendanceSource(row) {
-  return Boolean(row && typeof row === 'object' && (
-    Object.hasOwn(row, 'attendanceDate') || Object.hasOwn(row, 'AttendanceDate')
-    || Object.hasOwn(row, 'attachmentsNames') || Object.hasOwn(row, 'MonthApproved')
-    || Object.hasOwn(row, 'approvedBy') || Object.hasOwn(row, 'approvedDate')
-    || Object.hasOwn(row, 'status') || Object.hasOwn(row, 'סוג פריט') || Object.hasOwn(row, 'נתיב')
-  ));
+function exportDuration(value) {
+  const hours = optionalNumber(value);
+  return hours == null ? '' : formatDurationHours(hours);
 }
 
-function sourceDetailSheet(mergedRows) {
-  const headers = [];
-  const seen = new Set();
-  for (const row of mergedRows) {
-    for (const key of Object.keys(row || {})) {
-      if (key === '_source' || seen.has(key)) continue;
-      seen.add(key);
-      headers.push(key);
+function exportRecordId(row = {}, source = {}) {
+  const raw = source || {};
+  return txt(
+    row.recordId || row.ID || row.Id || row.id
+    || raw.recordId || raw.ID || raw.Id || raw.id
+  );
+}
+
+function exportGenerationKind(row = {}, source = {}) {
+  const raw = source || {};
+  return txt(row.generationKind || row.generation_kind || raw.generationKind || raw.generation_kind);
+}
+
+function exportSourceRecordId(row = {}, source = {}) {
+  const raw = source || {};
+  return txt(
+    row.sourceAttendanceRecordId || row.source_attendance_record_id
+    || raw.sourceAttendanceRecordId || raw.source_attendance_record_id
+  );
+}
+
+function exportCancellationHours(row = {}, source = {}) {
+  const raw = source || {};
+  const minutes = optionalNumber(
+    row.finalCancellationMinutes ?? row.final_cancellation_minutes
+    ?? raw.finalCancellationMinutes ?? raw.final_cancellation_minutes
+  );
+  if (minutes != null) return minutes / 60;
+  return rowWorkHours(row) ?? optionalNumber(row.workHours ?? row.WorkHours);
+}
+
+function prepareAttendanceExportRows(entries = [], employment = new Map()) {
+  const normalized = entries.map((entry) => {
+    const final = {
+      ...(entry.final || {}),
+      employmentType: employment.get(txt(entry.final?.employeeId || entry.attendance?.employeeId))
+        || txt(entry.final?.employmentType || entry.attendance?.employmentType)
+    };
+    const source = entry.attendance?._source || entry.final?._source || null;
+    const row = mergeFinalIntoSource(final, source);
+    if (final.employmentType && !txt(row.employmentType || row.EmploymentType)) {
+      row.employmentType = final.employmentType;
     }
+    return {
+      row,
+      source: source || {},
+      recordId: exportRecordId(row, source),
+      generationKind: exportGenerationKind(row, source),
+      sourceRecordId: exportSourceRecordId(row, source),
+      cancellationHours: exportCancellationHours(row, source)
+    };
+  });
+
+  const sourceIds = new Set(
+    normalized
+      .filter((item) => item.generationKind !== 'travel_time_cancellation')
+      .map((item) => item.recordId)
+      .filter(Boolean)
+  );
+  const cancellationBySource = new Map();
+  for (const item of normalized) {
+    if (item.generationKind !== 'travel_time_cancellation' || !item.sourceRecordId || !sourceIds.has(item.sourceRecordId)) continue;
+    cancellationBySource.set(
+      item.sourceRecordId,
+      (cancellationBySource.get(item.sourceRecordId) || 0) + (item.cancellationHours || 0)
+    );
   }
-  const data = mergedRows.map((row) => headers.map((key) => {
-    let value = row?.[key];
-    if (key === 'workHours' || key === 'WorkHours' || key === 'hours') {
-      return rowWorkHours(row) ?? optionalNumber(value) ?? '';
-    }
-    if (value && typeof value === 'object' && !Array.isArray(value)) return lookupText(value);
-    return value ?? '';
-  }));
-  return styledSheet(headers, data);
+
+  const detailRows = normalized
+    .filter((item) => item.generationKind !== 'travel_time_cancellation' || !item.sourceRecordId || !sourceIds.has(item.sourceRecordId))
+    .map((item) => ({
+      ...item.row,
+      __cancellationHours: item.generationKind === 'travel_time_cancellation'
+        ? null
+        : (cancellationBySource.get(item.recordId) ?? null)
+    }));
+
+  return {
+    allRows: normalized.map((item) => item.row),
+    detailRows
+  };
 }
 
 export function detailRowValues(row) {
@@ -1612,7 +1671,8 @@ export function detailRowValues(row) {
   return [
     txt(row.employeeId || row.EmployeeId || row.empNum), txt(row.employeeName || row.EmployeeName || row.empName),
     excelDate(row.date || row.attendanceDate || row.AttendanceDate), timeText(row.startTime || row.StartTime),
-    timeText(row.endTime || row.EndTime), rowWorkHours(row) ?? optionalNumber(row.workHours ?? row.WorkHours) ?? '',
+    timeText(row.endTime || row.EndTime), exportDuration(rowWorkHours(row) ?? optionalNumber(row.workHours ?? row.WorkHours)),
+    exportDuration(row.__cancellationHours),
     lookupText(row.activityType || row.ActivityType), txt(row.school || row.schoolName || row.SchoolName),
     txt(row.authority || row.municipality || row.Municipality), txt(row.program || row.programName || row.ProgramName),
     txt(row.meetingNo || row.sessionNumber || row.SessionNumber), optionalNumber(row.kilometers ?? row.Kilometers) ?? '',
@@ -1627,14 +1687,12 @@ export function detailRowValues(row) {
 export function buildCorrectedAttendanceWorkbook(comparisons, dashboardRows = [], options = {}) {
   const employment = new Map((dashboardRows || []).map((row) => [txt(row.employeeId), txt(row.employmentType)]));
   const entries = (comparisons || []).filter((entry) => entry.source !== 'dashboard_only');
-  const mergedRows = entries.map((entry) => {
-    const final = { ...(entry.final || {}), employmentType: employment.get(txt(entry.final?.employeeId)) || txt(entry.final?.employmentType) };
-    const source = entry.attendance?._source || entry.final?._source || null;
-    return mergeFinalIntoSource(final, source);
-  });
-  const detailSheet = mergedRows.some(isOriginalAttendanceSource)
-    ? sourceDetailSheet(mergedRows)
-    : styledSheet(DETAIL_HEADERS, mergedRows.map(detailRowValues));
+  const { allRows: mergedRows, detailRows } = prepareAttendanceExportRows(entries, employment);
+  const detailSheet = styledSheet(
+    DETAIL_HEADERS,
+    detailRows.map(detailRowValues),
+    [12, 18, 12, 11, 11, 11, 11, 14, 20, 16, 22, 11, 12, 14, 18, 12, 24, 24, 22]
+  );
   const monthlyMap = new Map();
   mergedRows.filter((row) => normalizeAttendanceName(lookupText(row.employmentType || row.EmploymentType)).includes(normalizeAttendanceName('תעשיידע'))).forEach((row) => {
     const key = txt(row.employeeId || row.EmployeeId); if (!monthlyMap.has(key)) monthlyMap.set(key, { name: txt(row.employeeName || row.EmployeeName), id: key, hours: Array(8).fill(0), km: 0, expenses: 0, details: [] });
@@ -1643,19 +1701,20 @@ export function buildCorrectedAttendanceWorkbook(comparisons, dashboardRows = []
     item.km += optionalNumber(row.kilometers ?? row.Kilometers) || 0; item.expenses += optionalNumber(row.expenses ?? row.totalExpenses ?? row.TotalExpenses) || 0;
     const details = txt(row.expenseDetails || row.expensesDetails || row.ExpensesDetails); if (details) item.details.push(details);
   });
-  const monthly = [...monthlyMap.values()].map((item) => [item.name, item.id, ...item.hours.map((v) => Math.round(v * 100) / 100), item.km, item.expenses, [...new Set(item.details)].join('; ')]);
-  const daily = mergedRows.filter((row) => normalizeAttendanceName(lookupText(row.employmentType || row.EmploymentType)).includes(normalizeAttendanceName('כוח אדם'))).map((row) => [
+  const monthly = [...monthlyMap.values()].map((item) => [item.name, item.id, ...item.hours.map(exportDuration), item.km, item.expenses, [...new Set(item.details)].join('; ')]);
+  const daily = detailRows.map((row) => [
     excelDate(row.date || row.attendanceDate || row.AttendanceDate), txt(row.employeeName || row.EmployeeName), txt(row.employeeId || row.EmployeeId),
     lookupText(row.activityType || row.ActivityType), txt(row.authority || row.municipality || row.Municipality),
     timeText(row.startTime || row.StartTime), timeText(row.endTime || row.EndTime),
-    rowWorkHours(row) ?? optionalNumber(row.workHours ?? row.WorkHours) ?? '',
+    exportDuration(rowWorkHours(row) ?? optionalNumber(row.workHours ?? row.WorkHours)),
+    exportDuration(row.__cancellationHours),
     optionalNumber(row.kilometers ?? row.Kilometers) ?? '', optionalNumber(row.expenses ?? row.totalExpenses ?? row.TotalExpenses) ?? '',
     txt(row.expenseDetails || row.expensesDetails || row.ExpensesDetails)
   ]);
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, detailSheet, 'פירוט מלא');
   XLSX.utils.book_append_sheet(workbook, styledSheet(MONTHLY_HEADERS, monthly), 'סיכום חודשי');
-  XLSX.utils.book_append_sheet(workbook, styledSheet(DAILY_HEADERS, daily), 'תצוגה יומית');
+  XLSX.utils.book_append_sheet(workbook, styledSheet(DAILY_HEADERS, daily, [12, 18, 12, 14, 16, 11, 11, 11, 11, 12, 12, 24]), 'תצוגה יומית');
   return workbook;
 }
 
