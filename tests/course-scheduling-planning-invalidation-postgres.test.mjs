@@ -114,10 +114,12 @@ test('PostgreSQL: mark_scheduling_planning_needs_recalc_many handles multiple ac
   assert.deepEqual(result.payload.markedActivityIds.sort(), ['activity-a', 'activity-b']);
 });
 
-test('PostgreSQL: confirm_scheduling_planning_draft can update activities through the trigger', async (t) => {
+test('PostgreSQL: confirm_scheduling_planning_draft patches the confirmed row live without leaving it dirty', async (t) => {
   if (!requirePostgres(t)) return;
   const { rows: [result] } = await client.query("select (public.confirm_scheduling_planning_draft('2027','north','activity-a',1)).emp_id");
   assert.equal(result.emp_id, '100');
+  const { rows: [planning] } = await client.query("select needs_recalc, row_data->>'kind' as kind, locked_option from public.scheduling_planning_rows where activity_id='activity-a'");
+  assert.deepEqual(planning, { needs_recalc: false, kind: 'live', locked_option: null });
 });
 
 test('PostgreSQL: availability, profile, and instructor-contact triggers invalidate linked rows', async (t) => {
