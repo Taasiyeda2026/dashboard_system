@@ -146,6 +146,29 @@ export async function getInstructorActivitiesForDate(empId, dateStr) {
   return writeActivityCache(key, Array.isArray(data) ? data : []);
 }
 
+export async function getTrainingScheduleForDate(empId, dateStr) {
+  if (!empId || !dateStr || isAdminPreviewRequested()) return [];
+  const { data, error } = await supabase
+    .from('instructor_training_schedule')
+    .select('id,course_id,course_name,start_time,end_time,is_online,location_name,location_address,participant_scope')
+    .eq('training_date', dateStr)
+    .eq('is_active', true)
+    .or(`emp_id.eq.${Number(empId)},participant_scope.eq.open`);
+  if (error) throw new Error(`שגיאה בטעינת הכשרות: ${error.message}`);
+  return (data || []).map((row) => ({
+    row_id: `training:${row.id}`,
+    activity_name: row.course_name,
+    program_name: row.course_name,
+    activity_type: 'training',
+    start_time: row.start_time,
+    end_time: row.end_time,
+    is_online: row.is_online === true,
+    training_location_name: row.location_name || '',
+    training_location_address: row.location_address || '',
+    __attendanceTrainingSchedule: true,
+  }));
+}
+
 export async function getMeetingNoForActivityOnDate(empId, activityRowId, dateStr) {
   if (!empId || !activityRowId || !dateStr) return null;
   if (isAdminPreviewRequested()) {
