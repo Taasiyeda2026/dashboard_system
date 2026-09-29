@@ -1606,11 +1606,14 @@ function prepareAttendanceExportRows(entries = [], employment = new Map()) {
       employmentType: employment.get(txt(entry.final?.employeeId || entry.attendance?.employeeId))
         || txt(entry.final?.employmentType || entry.attendance?.employmentType)
     };
-    const source = entry.attendance?._source || entry.final?._source || {};
+    const source = entry.attendance?._source || entry.final?._source || null;
     const row = mergeFinalIntoSource(final, source);
+    if (final.employmentType && !txt(row.employmentType || row.EmploymentType)) {
+      row.employmentType = final.employmentType;
+    }
     return {
       row,
-      source,
+      source: source || {},
       recordId: exportRecordId(row, source),
       generationKind: exportGenerationKind(row, source),
       sourceRecordId: exportSourceRecordId(row, source),
