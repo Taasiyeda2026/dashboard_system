@@ -101,6 +101,9 @@ test('scheduled physical training saves and reloads without requiring a school',
   assert.equal(saved.destination_address_snapshot, 'רחוב ההדרכה 1, תל אביב');
   assert.equal(saved.authority_name_snapshot, 'מרכז ההדרכה');
   assert.equal(saved.training_schedule_id, selected.training_schedule_id);
+  assert.equal('roundtrip_km' in saved, false);
+  assert.equal('public_transport' in saved, false);
+  assert.equal('public_transport_cost' in saved, false);
   assert.match(migration, /where t\.id = new\.training_schedule_id[\s\S]*t\.training_date = new\.report_date/);
   assert.match(migration, /new\.destination_address_snapshot := case[\s\S]*scheduled_training\.location_address/);
   assert.match(migration, /s\.training_schedule_id is not null[\s\S]*destination_address := nullif\(btrim\(s\.destination_address_snapshot\)/);
@@ -129,6 +132,25 @@ test('online training has no location, kilometres, public transport, or cancella
   assert.match(newReport, /const kmValue = \(!isOnline/);
   assert.match(service, /onlineTraining.*roundtrip_km: 0/s);
   assert.match(migration, /training_mode = 'online'[\s\S]*destination_address_snapshot := null/);
+});
+
+test('scheduled training edit keeps fixed schedule identity, date, mode and location', () => {
+  assert.match(reports, /const hasTrainingSchedule = Boolean\(record\.training_schedule_id\)/);
+  assert.match(reports, /reportDateField\.input\.disabled = true/);
+  assert.match(reports, /typeField\.input\.disabled = true/);
+  assert.match(reports, /trainingModeField\.input\.disabled = isScheduledTraining/);
+  assert.match(reports, /authField\.input\.disabled = isScheduledTraining/);
+  assert.match(reports, /training_schedule_id:\s+reportType === 'הכשרה'/);
+  assert.match(reports, /isScheduledTraining \? \(record\.authority_name_snapshot \|\| null\)/);
+});
+
+test('training mode participates in route-context change detection', () => {
+  assert.match(runtime, /#edit-training-mode/);
+});
+
+test('scheduled physical database normalization preserves entered travel fields', () => {
+  assert.match(migration, /if scheduled_training\.is_online then[\s\S]*new\.roundtrip_km := 0;[\s\S]*new\.public_transport := false;/);
+  assert.match(migration, /new\.authority_name_snapshot := case[\s\S]*when scheduled_training\.is_online then null/);
 });
 
 test('physical to online transition removes an existing generated cancellation before reconciliation', async () => {
