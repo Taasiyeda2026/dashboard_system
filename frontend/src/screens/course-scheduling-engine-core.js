@@ -664,6 +664,9 @@ function preliminaryCandidateCacheKey(course = {}, instructor = {}, input = {}) 
     ].join('@'))
     .join(',');
   const hardGateFingerprint = [
+    text(course?.__planning_source_id || course?.activity_no || course?.activity_name || idOf(course)),
+    text(course?.activity_type),
+    text(course?.education_level),
     text(course?.instruction_language),
     text(course?.required_instructor_gender),
     normalizeCalendarSector(course?.calendar_sector) || 'general',
