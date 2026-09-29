@@ -1282,6 +1282,15 @@ async function evaluateScenarioOptions({
   }
 
   preliminaries.sort(planningPairCompare);
+  const preliminaryCandidateIdsByScenario = new Map();
+  for (const item of preliminaries) {
+    const scenarioId = text(item?.course?.row_id);
+    if (!scenarioId) continue;
+    const ids = preliminaryCandidateIdsByScenario.get(scenarioId) || new Set();
+    const empId = empOf(item?.candidate);
+    if (empId) ids.add(empId);
+    preliminaryCandidateIdsByScenario.set(scenarioId, ids);
+  }
   const options = [];
   const optionKeys = new Set();
   let routedAttemptCount = 0;
