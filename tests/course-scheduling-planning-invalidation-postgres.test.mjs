@@ -14,6 +14,12 @@ function selfInvalidationPrefix(source) {
   return source.slice(0, source.indexOf('-- Confirm: refuse stale dirty drafts'));
 }
 
+function planningFixtureWithoutLockStub(source) {
+  const start = source.indexOf('create or replace function public.set_scheduling_planning_lock(');
+  const end = source.indexOf('create or replace function public.assign_activity_instructor(', start);
+  return start >= 0 && end > start ? source.slice(0, start) + source.slice(end) : source;
+}
+
 function confirmFunction(source) {
   const start = source.indexOf('create or replace function public.confirm_scheduling_planning_draft(');
   const endMarker = 'grant execute on function public.confirm_scheduling_planning_draft(text, text, text, bigint) to authenticated;';
@@ -53,7 +59,8 @@ before(async () => {
   await client.query('drop schema if exists public cascade; drop schema if exists auth cascade;');
   await client.query('drop role if exists authenticated;');
   await client.query('create schema public;');
-  await client.query(await sql('./fixtures/planning-invalidation-postgres-schema.sql'));
+  const fixtureSchema = await sql('./fixtures/planning-invalidation-postgres-schema.sql');
+  await client.query(planningFixtureWithoutLockStub(fixtureSchema));
   await client.query(await sql('../supabase/migrations/20260927180000_mark_scheduling_planning_needs_recalc.sql'));
   await client.query(await sql('../supabase/migrations/20260927200000_fix_planning_invalidation_activity_id_ambiguity.sql'));
   const selfInvalidation = await sql('../supabase/migrations/20260927190000_planning_self_invalidation.sql');
