@@ -6,6 +6,10 @@ import { evaluateInstructor, rankInstructors } from '../frontend/src/screens/ins
 import { createRouteClient, calculateCandidateTravel, routeMatrixKey } from '../frontend/src/screens/course-scheduling-travel.js';
 import { courseSchedulingCounts, detailsHtml } from '../frontend/src/screens/course-scheduling.js';
 import './scheduling-performance-harness.test.mjs';
+import './scheduling-point-mutation-no-full-recompute.test.mjs';
+import './scheduling-prepared-context-reuse.test.mjs';
+import './scheduling-warm-cache-zero-google.test.mjs';
+import './scheduling-idempotent-second-run.test.mjs';
 
 const course = (id, date = '2026-09-06', extra = {}) => ({
   row_id: id,
