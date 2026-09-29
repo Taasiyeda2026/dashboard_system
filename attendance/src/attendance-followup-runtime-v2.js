@@ -24,7 +24,7 @@ function parseClockMinutes(value) {
 }
 
 function routeContextSnapshot(form) {
-  return ['#edit-type', '#edit-activity-name', '#edit-authority', '#edit-school']
+  return ['#edit-type', '#edit-activity-name', '#edit-authority', '#edit-school', '#edit-training-mode']
     .map((selector) => text(form.querySelector(selector)?.value))
     .join('|');
 }
