@@ -58,6 +58,7 @@ create table public.scheduling_planning_workspaces (
   id bigint generated always as identity primary key,
   period_key text not null default '2027',
   district text not null default 'north',
+  unique(period_key, district),
   revision bigint not null default 1,
   updated_at timestamptz not null default now(),
   updated_by uuid
@@ -68,9 +69,12 @@ create table public.scheduling_planning_rows (
   activity_id text,
   row_data jsonb not null default '{}',
   locked_option jsonb,
+  locked_by uuid,
+  locked_at timestamptz,
   needs_recalc boolean not null default false,
   activity_updated_at timestamptz,
-  updated_at timestamptz not null default now()
+  updated_at timestamptz not null default now(),
+  unique(workspace_id, activity_id)
 );
 
 create table public.contacts_instructors (
@@ -120,8 +124,8 @@ create or replace function public.set_course_meeting_substitute(
   p_activity_id text, p_date date, p_emp_id bigint
 ) returns void language sql as $$ select $$;
 create or replace function public.set_scheduling_planning_lock(
-  p_period text, p_district text, p_activity_id text, p_value text, p_revision bigint
-) returns void language sql as $$ select $$;
+  p_period text, p_district text, p_activity_id text, p_value jsonb, p_revision bigint
+) returns jsonb language sql as $ select '{}'::jsonb $;
 create or replace function public.assign_activity_instructor(
   p_activity_id text, p_emp_id bigint, p_name text, p_selected_emp_id bigint,
   p_selected_score integer, p_top_score integer, p_decision_type text, p_reason text
