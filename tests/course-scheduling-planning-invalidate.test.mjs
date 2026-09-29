@@ -100,15 +100,18 @@ test('local planning invalidation marks only the provided activity ids as pendin
   assert.notEqual(affected.length, 248);
 });
 
-test('planning status UI never shows הכל מעודכן while pending, and supports incremental label', async () => {
+test('planning status auto-refreshes affected rows and never shows הכול מעודכן while pending', async () => {
   const screen = await readFile(screenUrl, 'utf8');
-  assert.match(screen, /נדרש עדכון תכנון · \$\{count\} פעילויות/);
+  assert.match(screen, /מעדכן \$\{count\} פעילויות שהושפעו|מעדכן \$\{countLabel\} פעילויות שהושפעו/);
+  assert.match(screen, /מעדכן פעילות אחת/);
   assert.match(screen, /hardGateInvalid/);
   assert.match(screen, /pendingRecalc > 0 \|\| hardGateInvalid > 0/);
-  assert.match(screen, /עדכון שינויים בלבד · \$\{countLabel\} פעילויות/);
-  assert.match(screen, /<strong>הכל מעודכן<\/strong>/);
+  assert.match(screen, /<strong>הכול מעודכן<\/strong>/);
   assert.match(screen, /app:planning-needs-recalc/);
   assert.match(screen, /applyLocalPlanningNeedsRecalc/);
+  assert.match(screen, /autoRefresh !== true/);
+  assert.match(screen, /scheduleBackgroundPlanning\(\{ forceFull: false, reuseSnapshot: true \}\)/);
+  assert.match(screen, /data-run-full-course-planning/);
   assert.doesNotMatch(
     screen.slice(screen.indexOf('function schedulingPlanningStatusHtml'), screen.indexOf('function genderRequirementLabel')),
     /התכנון מעודכן/

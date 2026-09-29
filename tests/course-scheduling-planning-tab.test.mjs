@@ -233,7 +233,7 @@ test('main scheduling workboard exposes only open, draft and assigned business s
   assert.match(html, /בחר הצעה/);
   assert.match(html, /data-confirm-planning-draft/);
   assert.match(html, /אשר שיבוץ/);
-  assert.match(html, /הכל מעודכן/);
+  assert.match(html, /הכול מעודכן/);
   assert.match(html, /data-course-card="undated-plan"/);
   assert.doesNotMatch(html, /data-course-card="second-half-plan"/);
   assert.match(html, /data-planning-completion-overview/);
@@ -269,9 +269,9 @@ test('stale shared planning is not presented as a current recommendation', () =>
     meetingState: { loaded: true, approvedDates: new Map(), cancelledDates: new Map(), error: '' }
   }, { state });
 
-  assert.match(html, /התכנון השמור אינו עדכני ולכן אינו מוצג כהמלצה/);
+  assert.match(html, /התכנון השמור אינו עדכני/);
   assert.match(html, /גרסת מנוע התכנון השתנתה מאז החישוב האחרון/);
-  assert.match(html, /חשב תכנון מחדש/);
+  assert.match(html, /data-run-course-planning|>עדכן</);
   assert.doesNotMatch(html, /data-planning-completion-overview/);
   assert.match(html, /אין מועד קבוע מבית הספר — המערכת תציע תאריך, שעה ומדריך/);
 });
@@ -1816,7 +1816,11 @@ test('Planning Excel includes recommended dates, possible instructors and instru
 test('background planning keeps the workboard scroll stable instead of rerendering on every progress tick', async () => {
   const screen = await readFile(new URL('../frontend/src/screens/course-scheduling.js', import.meta.url), 'utf8');
   const planningRunStart = screen.indexOf('const result = await buildDynamicCoursePlan({');
-  const planningRunEnd = screen.indexOf('const freshEnd = await data.reloadPlanningSnapshot();', planningRunStart);
+  const planningRunEnd = (() => {
+    const skipIdx = screen.indexOf('const skipEndReload =', planningRunStart);
+    if (skipIdx >= 0) return skipIdx;
+    return screen.indexOf('const freshEnd = await data.reloadPlanningSnapshot();', planningRunStart);
+  })();
   const planningRun = screen.slice(planningRunStart, planningRunEnd);
 
   assert.match(screen, /const rerenderPreservingWorkboardScroll = \(\) =>/);
@@ -2648,7 +2652,7 @@ test('first-half drafts may continue through February without becoming an except
   assert.match(tooLong.reason, /מעבר לסוף פברואר/);
 });
 
-test('dynamic Planning exposes partial rows through progress while the run is still calculating', async () => {
+test('dynamic Planning emits only the completed row during progress', async () => {
   const unresolved = {
     ...baseCourse,
     row_id: 'partial-progress',
@@ -2667,12 +2671,13 @@ test('dynamic Planning exposes partial rows through progress while the run is st
     today: '2026-09-23',
     routeClient: routeClient(null),
     onProgress: (progress) => {
-      if (Array.isArray(progress.rows)) snapshots.push(progress.rows);
+      if (progress.row) snapshots.push(progress.row);
+      assert.equal(Object.prototype.hasOwnProperty.call(progress, 'rows'), false);
     }
   });
   assert.ok(snapshots.length >= 1);
-  assert.equal(snapshots.at(-1)[0].courseId, 'partial-progress');
-  assert.equal(snapshots.at(-1)[0].status, 'נדרש טיפול');
+  assert.equal(snapshots.at(-1).courseId, 'partial-progress');
+  assert.equal(snapshots.at(-1).status, 'נדרש טיפול');
 });
 
 test('Planning runs behind the single scheduling workboard instead of a separate user tab', async () => {

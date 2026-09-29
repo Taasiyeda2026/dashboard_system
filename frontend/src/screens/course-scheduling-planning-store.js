@@ -529,20 +529,98 @@ export function applyLocalPlanningNeedsRecalc(targetState = null, { activityIds 
   return localState.courseSchedulingPlanningAffectedIds;
 }
 
+/** Auto-refresh is only for small point/scoped sets — never a silent full rebuild. */
+export const AUTO_PLANNING_REFRESH_MAX_IDS = 12;
+
+export function shouldAutoRefreshPlanning(affectedIds = []) {
+  const ids = [...new Set((affectedIds || []).map(text).filter(Boolean))];
+  return ids.length > 0 && ids.length <= AUTO_PLANNING_REFRESH_MAX_IDS;
+}
+
+/**
+ * True dependents for a point mutation (assign / reassign / lock).
+ * Draft/proposal rows that share the old/new instructor on overlapping dates only.
+ */
+export function pointMutationDependentCourseIds({
+  shared = {},
+  activities = [],
+  activityId = '',
+  oldInstructorIds = [],
+  newInstructorIds = [],
+  meetingDates = null
+} = {}) {
+  const sourceId = text(activityId);
+  const resourceIds = new Set([
+    ...((oldInstructorIds || []).map(text).filter(Boolean)),
+    ...((newInstructorIds || []).map(text).filter(Boolean))
+  ]);
+  const activityById = new Map((activities || []).map((activity) => [idOf(activity), activity]));
+  const sourceActivity = activityById.get(sourceId) || null;
+  if (sourceActivity) {
+    for (const empId of instructorIdsFromActivity(sourceActivity)) resourceIds.add(empId);
+  }
+  const sourceEntry = (shared?.rows || []).find((entry) => text(entry?.activityId) === sourceId) || null;
+  if (sourceEntry) {
+    for (const empId of instructorIdsFromPlanningEntry(sourceEntry)) resourceIds.add(empId);
+  }
+
+  const dates = new Set(
+    (Array.isArray(meetingDates) ? meetingDates : [])
+      .map((value) => text(value).slice(0, 10))
+      .filter(Boolean)
+  );
+  if (!dates.size) {
+    for (const meeting of meetingsFromPlanningEntry(sourceEntry, sourceActivity)) {
+      if (meeting.date) dates.add(meeting.date);
+    }
+    if (sourceActivity) {
+      for (const meeting of schedulingCalendarMeetings(sourceActivity)) {
+        const date = text(meeting?.date).slice(0, 10);
+        if (date) dates.add(date);
+      }
+    }
+  }
+
+  const dependents = new Set();
+  if (sourceId) dependents.add(sourceId);
+  if (!resourceIds.size) return [...dependents];
+
+  for (const entry of shared?.rows || []) {
+    const courseId = text(entry?.activityId);
+    if (!courseId || courseId === sourceId) continue;
+    if (text(entry?.row?.kind) === 'live') continue;
+    if (entry?.lockedOption) continue;
+    const activity = activityById.get(courseId);
+    const ids = new Set([
+      ...instructorIdsFromPlanningEntry(entry),
+      ...instructorIdsFromActivity(activity)
+    ]);
+    if (![...ids].some((empId) => resourceIds.has(empId))) continue;
+    const meetings = meetingsFromPlanningEntry(entry, activity);
+    if (!dates.size || meetings.some((meeting) => dates.has(meeting.date))) {
+      dependents.add(courseId);
+    }
+  }
+  return [...dependents];
+}
+
 export function notifyPlanningNeedsRecalc({
   activityId = '',
   affectedActivityIds = [],
   source = 'activity-save',
+  autoRefresh = null,
   state: targetState = null
 } = {}) {
   const ids = [...new Set([text(activityId), ...(affectedActivityIds || []).map(text)].filter(Boolean))];
   if (targetState) applyLocalPlanningNeedsRecalc(targetState, { activityIds: ids });
+  const refresh = autoRefresh == null ? shouldAutoRefreshPlanning(ids) : !!autoRefresh;
   try {
     document.dispatchEvent(new CustomEvent('app:planning-needs-recalc', {
       detail: {
         activityId: text(activityId),
         affectedActivityIds: ids,
-        source: text(source) || 'activity-save'
+        source: text(source) || 'activity-save',
+        autoRefresh: refresh
       }
     }));
   } catch {
@@ -681,28 +759,63 @@ export async function markSharedPlanningNeedsRecalc(activityId = '', {
 
 /**
  * After a successful activity save that touched scheduling fields, invalidate
- * shared planning immediately (DB + local UI state). Never triggers a full recalculation.
+ * shared planning immediately (DB + local UI state). Small point mutations
+ * request auto incremental refresh via the planning screen listener.
  */
 export async function invalidatePlanningAfterActivitySchedulingSave(activityId = '', {
   before = null,
   afterOrChanges = null,
   source = 'activity-save',
-  state: targetState = null
+  state: targetState = null,
+  shared = null
 } = {}) {
   const id = text(activityId);
   if (!id) return null;
   if (afterOrChanges != null && !activitySchedulingFieldsChanged(before, afterOrChanges)) {
     return null;
   }
+  const sharedState = shared || targetState?.courseSchedulingPlanningShared || null;
+  const activities = targetState?.courseSchedulingActivities
+    || targetState?.activities
+    || [];
+  const oldInstructorIds = before ? [...instructorIdsFromActivity(before)] : [];
+  const newInstructorIds = afterOrChanges && typeof afterOrChanges === 'object'
+    ? [...instructorIdsFromActivity({ ...(before || {}), ...afterOrChanges })]
+    : [];
+  const dependents = sharedState
+    ? pointMutationDependentCourseIds({
+      shared: sharedState,
+      activities,
+      activityId: id,
+      oldInstructorIds,
+      newInstructorIds
+    })
+    : [id];
+
   try {
-    return await markSharedPlanningNeedsRecalc(id, { source, state: targetState });
-  } catch (error) {
-    // Optimistic local pending state even if the RPC is briefly unavailable;
-    // the DB trigger (when present) still marks rows server-side.
+    const payload = await markSharedPlanningNeedsRecalc(id, {
+      source,
+      state: targetState,
+      notify: false
+    });
+    const marked = [...new Set([
+      ...(payload?.markedActivityIds || []),
+      ...dependents
+    ].map(text).filter(Boolean))];
     notifyPlanningNeedsRecalc({
       activityId: id,
-      affectedActivityIds: [id],
+      affectedActivityIds: marked,
       source,
+      autoRefresh: shouldAutoRefreshPlanning(marked),
+      state: targetState
+    });
+    return { ...payload, markedActivityIds: marked, affectedCount: marked.length };
+  } catch (error) {
+    notifyPlanningNeedsRecalc({
+      activityId: id,
+      affectedActivityIds: dependents,
+      source,
+      autoRefresh: shouldAutoRefreshPlanning(dependents),
       state: targetState
     });
     error.planningInvalidationFallback = true;

@@ -1,6 +1,7 @@
 import { supabase } from '../supabase-client.js';
 import { activityMeetings } from './instructor-scheduling-load.js';
 import { adjacentActivities } from './instructor-matching-engine.js';
+import { planningPerfCount } from './course-scheduling-perf.js';
 import {
   isSchedulingBlockingAssignment,
   isSchedulingDraftAssignment
@@ -169,6 +170,7 @@ export function createRouteClient({
   };
 
   const request = (origin, destination, context = {}) => {
+    planningPerfCount('travelRequests');
     if (signal?.aborted) return Promise.reject(cancelledError());
     if (!text(origin) || !text(destination)) return Promise.resolve(null);
     const normalizedContext = normalizedRouteContext(context);
@@ -179,6 +181,7 @@ export function createRouteClient({
     const persistent = persistentCache.get(matrixKey);
     if (persistent) {
       cacheHits += 1;
+      planningPerfCount('cacheHits');
       const hit = Promise.resolve({ ...persistent, cached: true });
       cache.set(cacheKey, hit);
       return hit;
@@ -186,6 +189,7 @@ export function createRouteClient({
 
     if (matrixPromises.has(matrixKey)) {
       cacheHits += 1;
+      planningPerfCount('cacheHits');
       const shared = matrixPromises.get(matrixKey);
       cache.set(cacheKey, shared);
       return shared;
@@ -210,8 +214,13 @@ export function createRouteClient({
             unavailableReason ||= data?.reason || error?.message || 'route_service_unavailable';
             return null;
           }
-          if (data.cached) cacheHits += 1;
-          else googleCalls += 1;
+          if (data.cached) {
+            cacheHits += 1;
+            planningPerfCount('cacheHits');
+          } else {
+            googleCalls += 1;
+            planningPerfCount('googleCalls');
+          }
           const route = {
             distance_km: Number(data.distance_km),
             duration_minutes: Number(data.duration_minutes),
@@ -282,6 +291,28 @@ function assignedMeetings(activities = []) {
   return assigned;
 }
 
+
+export function createCandidateTravelContext(activities = []) {
+  return { assignedMeetingsByInstructor: assignedMeetings(activities) };
+}
+
+export function appendCandidateTravelActivity(context = null, activity = null) {
+  if (!context || !activity) return context;
+  const delta = assignedMeetings([activity]);
+  const target = context.assignedMeetingsByInstructor ||= {};
+  for (const [empId, meetings] of Object.entries(delta)) {
+    const bucket = target[empId] ||= [];
+    bucket.push(...meetings);
+    bucket.sort((first, second) => {
+      const firstDate = text(first?.date).slice(0, 10);
+      const secondDate = text(second?.date).slice(0, 10);
+      if (firstDate !== secondDate) return firstDate.localeCompare(secondDate);
+      return text(first?.start_time).localeCompare(text(second?.start_time));
+    });
+  }
+  return context;
+}
+
 function sharedMeetingTransitions(firstCourse, secondCourse) {
   const transitions = [];
   const origin = activityPlace(firstCourse);
@@ -320,8 +351,12 @@ function sharedMeetingTransitions(firstCourse, secondCourse) {
   return transitions;
 }
 
-export async function calculateCandidateTravel(preliminary, activities, routeClient = createRouteClient(), { checkpoint = async () => {}, signal = null } = {}) {
-  const assigned = assignedMeetings(activities);
+export async function calculateCandidateTravel(preliminary, activities, routeClient = createRouteClient(), {
+  checkpoint = async () => {},
+  signal = null,
+  travelContext = null
+} = {}) {
+  const assigned = travelContext?.assignedMeetingsByInstructor || assignedMeetings(activities);
   const travel = {};
   const routeMatrix = {};
   const requested = new Map();

@@ -14,6 +14,12 @@ function selfInvalidationPrefix(source) {
   return source.slice(0, source.indexOf('-- Confirm: refuse stale dirty drafts'));
 }
 
+function planningFixtureWithoutLockStub(source) {
+  const start = source.indexOf('create or replace function public.set_scheduling_planning_lock(');
+  const end = source.indexOf('create or replace function public.assign_activity_instructor(', start);
+  return start >= 0 && end > start ? source.slice(0, start) + source.slice(end) : source;
+}
+
 function confirmFunction(source) {
   const start = source.indexOf('create or replace function public.confirm_scheduling_planning_draft(');
   const endMarker = 'grant execute on function public.confirm_scheduling_planning_draft(text, text, text, bigint) to authenticated;';
@@ -53,7 +59,8 @@ before(async () => {
   await client.query('drop schema if exists public cascade; drop schema if exists auth cascade;');
   await client.query('drop role if exists authenticated;');
   await client.query('create schema public;');
-  await client.query(await sql('./fixtures/planning-invalidation-postgres-schema.sql'));
+  const fixtureSchema = await sql('./fixtures/planning-invalidation-postgres-schema.sql');
+  await client.query(planningFixtureWithoutLockStub(fixtureSchema));
   await client.query(await sql('../supabase/migrations/20260927180000_mark_scheduling_planning_needs_recalc.sql'));
   await client.query(await sql('../supabase/migrations/20260927200000_fix_planning_invalidation_activity_id_ambiguity.sql'));
   const selfInvalidation = await sql('../supabase/migrations/20260927190000_planning_self_invalidation.sql');
@@ -107,10 +114,12 @@ test('PostgreSQL: mark_scheduling_planning_needs_recalc_many handles multiple ac
   assert.deepEqual(result.payload.markedActivityIds.sort(), ['activity-a', 'activity-b']);
 });
 
-test('PostgreSQL: confirm_scheduling_planning_draft can update activities through the trigger', async (t) => {
+test('PostgreSQL: confirm_scheduling_planning_draft patches the confirmed row live without leaving it dirty', async (t) => {
   if (!requirePostgres(t)) return;
   const { rows: [result] } = await client.query("select (public.confirm_scheduling_planning_draft('2027','north','activity-a',1)).emp_id");
   assert.equal(result.emp_id, '100');
+  const { rows: [planning] } = await client.query("select needs_recalc, row_data->>'kind' as kind, locked_option from public.scheduling_planning_rows where activity_id='activity-a'");
+  assert.deepEqual(planning, { needs_recalc: false, kind: 'live', locked_option: null });
 });
 
 test('PostgreSQL: availability, profile, and instructor-contact triggers invalidate linked rows', async (t) => {
@@ -166,4 +175,50 @@ test('PostgreSQL: activity invalidation marks only the changed activity, not row
     { activity_id: 'activity-a', needs_recalc: true },
     { activity_id: 'activity-b', needs_recalc: false }
   ]);
+});
+
+
+test('PostgreSQL: planning lock invalidation touches only same-instructor rows on overlapping dates', async (t) => {
+  if (!requirePostgres(t)) return;
+  await client.query(`update public.scheduling_planning_rows
+    set row_data='{"kind":"proposal","instructorEmpId":"100","meetings":[{"date":"2027-01-03","start_time":"10:00","end_time":"11:00"}],"options":[{"instructorEmpId":"100","meetings":[{"date":"2027-01-03","start_time":"10:00","end_time":"11:00"}]}]}'::jsonb,
+        needs_recalc=false
+    where activity_id='activity-b'`);
+  await client.query(`select public.set_scheduling_planning_lock(
+    '2027','north','activity-a',
+    '{"instructorEmpId":"100","meetings":[{"date":"2027-01-03","start_time":"10:00","end_time":"11:00"}]}'::jsonb,
+    1
+  )`);
+  const { rows } = await client.query("select needs_recalc from public.scheduling_planning_rows where activity_id='activity-b'");
+  assert.equal(rows[0].needs_recalc, true);
+});
+
+test('PostgreSQL: planning lock invalidation ignores same instructor on unrelated dates', async (t) => {
+  if (!requirePostgres(t)) return;
+  await client.query(`update public.scheduling_planning_rows
+    set row_data='{"kind":"proposal","instructorEmpId":"100","meetings":[{"date":"2027-01-10","start_time":"10:00","end_time":"11:00"}],"options":[{"instructorEmpId":"100","meetings":[{"date":"2027-01-10","start_time":"10:00","end_time":"11:00"}]}]}'::jsonb,
+        needs_recalc=false
+    where activity_id='activity-b'`);
+  await client.query(`select public.set_scheduling_planning_lock(
+    '2027','north','activity-a',
+    '{"instructorEmpId":"100","meetings":[{"date":"2027-01-03","start_time":"10:00","end_time":"11:00"}]}'::jsonb,
+    1
+  )`);
+  const { rows } = await client.query("select needs_recalc from public.scheduling_planning_rows where activity_id='activity-b'");
+  assert.equal(rows[0].needs_recalc, false);
+});
+
+test('PostgreSQL: planning lock invalidation never dirties live rows', async (t) => {
+  if (!requirePostgres(t)) return;
+  await client.query(`update public.scheduling_planning_rows
+    set row_data='{"kind":"live","instructorEmpId":"100","meetings":[{"date":"2027-01-03","start_time":"10:00","end_time":"11:00"}]}'::jsonb,
+        needs_recalc=false
+    where activity_id='activity-b'`);
+  await client.query(`select public.set_scheduling_planning_lock(
+    '2027','north','activity-a',
+    '{"instructorEmpId":"100","meetings":[{"date":"2027-01-03","start_time":"10:00","end_time":"11:00"}]}'::jsonb,
+    1
+  )`);
+  const { rows } = await client.query("select needs_recalc from public.scheduling_planning_rows where activity_id='activity-b'");
+  assert.equal(rows[0].needs_recalc, false);
 });

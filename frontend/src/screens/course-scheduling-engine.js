@@ -1,6 +1,7 @@
 import { normalizeOperationalDistrict } from './shared/district-normalization.js';
 import { activityMeetings } from './instructor-scheduling-load.js';
 import { schedulingQualityBand } from './instructor-matching-engine.js';
+import { planningPerfCount } from './course-scheduling-perf.js';
 import {
   calculateCourseSchedule as calculateCourseScheduleCore
 } from './course-scheduling-engine-core.js';
@@ -529,6 +530,7 @@ function makeBatchPlanConsistent(scopedInput, initialResults) {
 }
 
 export function preliminaryCourseCandidates(input = {}) {
+  planningPerfCount('preliminaryCalls');
   const scopedInput = resolveSchedulingInputScope({
     ...input,
     preliminary: true,

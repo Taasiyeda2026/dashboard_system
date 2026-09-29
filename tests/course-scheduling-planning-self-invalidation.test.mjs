@@ -112,12 +112,12 @@ test('7) stored row with exception violation + needs_recalc=false is invalid in 
   assert.ok(audit.reasonsByActivityId['aline-row-1'].some((row) => row.reason === 'availability_exception'));
 });
 
-test('8) הכל מעודכן is blocked when audit finds invalid rows', () => {
+test('8) הכול מעודכן is blocked when audit finds invalid rows', () => {
   assert.match(screen, /hardGateInvalid/);
   assert.match(screen, /pendingRecalc > 0 \|\| hardGateInvalid > 0/);
   assert.match(screen, /applyStoredPlanningValidityAudit/);
-  assert.match(screen, /נדרש עדכון תכנון · \$\{count\} פעילויות/);
-  assert.match(screen, /הכל מעודכן/);
+  assert.match(screen, /מעדכן \$\{count\} פעילויות שהושפעו|נדרש עדכון · \$\{count\} פעילויות/);
+  assert.match(screen, /הכול מעודכן/);
 
   const state = {
     courseSchedulingPlanningAffectedIds: [],

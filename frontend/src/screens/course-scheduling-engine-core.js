@@ -23,6 +23,7 @@ import {
 } from './course-scheduling-score.js';
 import { normalizeOperationalDistrict } from './shared/district-normalization.js';
 import { filterSchoolCalendarRowsBySector, normalizeCalendarSector } from './shared/school-calendar-logic.js';
+import { planningPerfCount, planningPerfTimer } from './course-scheduling-perf.js';
 
 export { courseUrgency };
 
@@ -190,6 +191,126 @@ function assignedRowsByInstructor(rows = [], supplied = {}) {
   return assigned;
 }
 
+
+function preparedContextVersion(activities = [], instructors = [], periodKey = '') {
+  let latestActivityVersion = '';
+  for (const activity of activities || []) {
+    const version = text(activity?.updated_at || activity?.updatedAt);
+    if (version > latestActivityVersion) latestActivityVersion = version;
+  }
+  return `${text(periodKey)}|a:${activities.length}|i:${instructors.length}|u:${latestActivityVersion}`;
+}
+
+function rebuildPreparedInstructorContext(context, empId) {
+  const id = text(empId);
+  if (!id || !context) return;
+  const rows = [...(context.assignedRows?.[id] || [])];
+  const profile = context.profiles?.[id];
+  const instructorRules = context.rules?.[id] || [];
+  const periodMeetings = meetingAssignments(rows, {
+    periodKey: context.periodKey,
+    schoolCalendar: context.schoolCalendar || []
+  });
+  const allMeetings = meetingAssignments(rows, {
+    periodKey: context.periodKey,
+    allDates: true,
+    schoolCalendar: context.schoolCalendar || []
+  });
+  const baselineLoad = instructorLoad(rows, profile, instructorRules, { periodKey: context.periodKey });
+  context.instructorContext.set(id, {
+    persistedRows: rows,
+    baselineLoad,
+    periodMeetings,
+    allMeetings
+  });
+  context.assignedMeetingsByInstructor[id] = allMeetings;
+
+  const previousKeys = context.activityDateKeysByInstructor.get(id) || [];
+  for (const key of previousKeys) context.activitiesByInstructorAndDate.delete(key);
+  const nextKeys = [];
+  for (const meeting of allMeetings) {
+    const date = text(meeting?.date).slice(0, 10);
+    if (!date) continue;
+    const key = `${id}|${date}`;
+    const bucket = context.activitiesByInstructorAndDate.get(key) || [];
+    bucket.push(meeting);
+    context.activitiesByInstructorAndDate.set(key, bucket);
+    nextKeys.push(key);
+  }
+  context.activityDateKeysByInstructor.set(id, [...new Set(nextKeys)]);
+}
+
+export function prepareSchedulingRunContext(input = {}) {
+  planningPerfCount('contextRebuilds');
+  const activities = input.activities || [];
+  const periodKey = input.periodKey || DEFAULT_COURSE_SCHEDULING_PERIOD_KEY;
+  const profiles = input.profiles || {};
+  const rules = input.rules || {};
+  const exceptions = input.exceptions || {};
+  const schoolCalendar = input.schoolCalendar || [];
+  const instructors = schedulingInstructors(input.instructors || [], profiles, rules);
+  const assignedRows = assignedRowsByInstructor(activities, input.assignments || {});
+  const instructorById = new Map(instructors.map((row) => [text(row?.emp_id), row]));
+  const profileByInstructor = new Map(Object.entries(profiles || {}).map(([id, value]) => [text(id), value]));
+  const rulesByInstructor = new Map(Object.entries(rules || {}).map(([id, value]) => [text(id), value || []]));
+  const exceptionsByInstructor = new Map(Object.entries(exceptions || {}).map(([id, value]) => [text(id), value || []]));
+  const schoolCalendarBySector = new Map();
+  const sectors = new Set(['general', ...(activities || []).map((row) => normalizeCalendarSector(row?.calendar_sector) || 'general')]);
+  for (const sector of sectors) {
+    schoolCalendarBySector.set(sector, filterSchoolCalendarRowsBySector(schoolCalendar, sector));
+  }
+
+  const context = {
+    activities,
+    periodKey,
+    profiles,
+    rules,
+    exceptions,
+    schoolCalendar,
+    instructors,
+    instructorById,
+    profileByInstructor,
+    rulesByInstructor,
+    exceptionsByInstructor,
+    assignedRows,
+    instructorContext: new Map(),
+    assignedMeetingsByInstructor: {},
+    activitiesByInstructorAndDate: new Map(),
+    activityDateKeysByInstructor: new Map(),
+    schoolCalendarBySector,
+    travelCacheMap: input.travelCacheMap instanceof Map ? input.travelCacheMap : new Map(),
+    candidateEvaluationCache: new Map(),
+    contextRevision: 0,
+    contextVersion: text(input.contextVersion) || preparedContextVersion(activities, instructors, periodKey)
+  };
+  for (const instructor of instructors) rebuildPreparedInstructorContext(context, instructor?.emp_id);
+  return context;
+}
+
+export function appendSchedulingRunActivity(context, activity = {}) {
+  if (!context || !activity) return context;
+  const affected = new Set();
+  const add = (empId) => {
+    const id = text(empId);
+    if (!id) return;
+    const list = context.assignedRows[id] ||= [];
+    const rowId = idOf(activity);
+    if (!list.some((row) => idOf(row) === rowId)) list.push(activity);
+    affected.add(id);
+  };
+  if (isSchedulingBlockingAssignment(activity)) {
+    add(activity.emp_id);
+    add(activity.emp_id_2);
+  }
+  if (isSchedulingDraftAssignment(activity)) add(activity.draft_emp_id);
+  if (!affected.size) return context;
+
+  context.contextRevision = (Number(context.contextRevision) || 0) + 1;
+  context.contextVersion = `${context.contextVersion.split('|r:')[0]}|r:${context.contextRevision}`;
+  for (const empId of affected) rebuildPreparedInstructorContext(context, empId);
+  return context;
+}
+
 function sameSchool(first = {}, second = {}) {
   const firstId = text(first.school_id);
   const secondId = text(second.school_id);
@@ -294,14 +415,20 @@ function evaluateCandidate({
   instructors = []
 }) {
   const empId = text(instructor.emp_id);
-  const persistedRows = [...(assignedRows[empId] || [])];
+  const preparedInstructor = input.preparedContext?.instructorContext?.get(empId) || null;
+  const persistedRows = preparedInstructor
+    ? preparedInstructor.persistedRows
+    : [...(assignedRows[empId] || [])];
   const periodKey = input.periodKey || DEFAULT_COURSE_SCHEDULING_PERIOD_KEY;
   const allMeetings = activityMeetings(course);
   const periodMeetings = allMeetings.filter((meeting) => isDateInCourseSchedulingPeriod(meeting.date, periodKey));
   const originalPeriodCourse = { ...course, meetings: periodMeetings };
-  const courseSchoolCalendar = filterSchoolCalendarRowsBySector(input.schoolCalendar || [], course?.calendar_sector);
+  const sectorKey = normalizeCalendarSector(course?.calendar_sector) || 'general';
+  const courseSchoolCalendar = input.preparedContext?.schoolCalendarBySector?.get(sectorKey)
+    || filterSchoolCalendarRowsBySector(input.schoolCalendar || [], course?.calendar_sector);
   const meetingOptions = { periodKey, allDates: true, schoolCalendar: input.schoolCalendar || [] };
-  const persistedMeetings = meetingAssignments(persistedRows, meetingOptions);
+  const persistedMeetings = preparedInstructor?.allMeetings
+    || meetingAssignments(persistedRows, meetingOptions);
   const allowSaturday = normalizeCalendarSector(course?.calendar_sector) === 'arab';
   const adjustmentInput = {
     meetings: allMeetings,
@@ -394,10 +521,13 @@ function evaluateCandidate({
     .filter((meeting) => !text(meeting?.substituteEmpId));
   const mainTeachingCourse = { ...course, meetings: mainTeachingMeetings };
 
-  const persistedBaselineLoad = instructorLoad(persistedRows, profiles[empId], rules[empId] || [], { periodKey });
+  const persistedBaselineLoad = preparedInstructor?.baselineLoad
+    || instructorLoad(persistedRows, profiles[empId], rules[empId] || [], { periodKey });
   const persistedProjectedLoad = instructorLoad([...persistedRows, periodCourse], profiles[empId], rules[empId] || [], { periodKey });
-  const persistedPeriodMeetings = meetingAssignments(persistedRows, { periodKey, schoolCalendar: input.schoolCalendar || [] });
-  const plannerAllMeetings = meetingAssignments(persistedRows, meetingOptions);
+  const persistedPeriodMeetings = preparedInstructor?.periodMeetings
+    || meetingAssignments(persistedRows, { periodKey, schoolCalendar: input.schoolCalendar || [] });
+  const plannerAllMeetings = preparedInstructor?.allMeetings
+    || meetingAssignments(persistedRows, meetingOptions);
   const allMeetingsCourse = adjustment?.valid ? mainTeachingCourse : { ...course, meetings: allMeetings };
   const gateTravel = dynamicTravel(allMeetingsCourse, instructor, plannerAllMeetings, input);
   const travel = dynamicTravel(periodCourse, instructor, persistedPeriodMeetings, input);
@@ -523,6 +653,34 @@ function primaryRejectionReason(checked = []) {
   return reasons[0];
 }
 
+function preliminaryCandidateCacheKey(course = {}, instructor = {}, input = {}) {
+  if (!input.preliminary) return '';
+  const prepared = input.preparedContext;
+  const dateSetFingerprint = activityMeetings(course)
+    .map((meeting) => [
+      text(meeting?.date).slice(0, 10),
+      text(meeting?.start_time || course?.start_time).slice(0, 5),
+      text(meeting?.end_time || course?.end_time).slice(0, 5)
+    ].join('@'))
+    .join(',');
+  const hardGateFingerprint = [
+    text(course?.__planning_source_id || course?.activity_no || course?.activity_name || idOf(course)),
+    text(course?.activity_type),
+    text(course?.education_level),
+    text(course?.instruction_language),
+    text(course?.required_instructor_gender),
+    normalizeCalendarSector(course?.calendar_sector) || 'general',
+    text(course?.school_id),
+    text(course?.school_address)
+  ].join('|');
+  return [
+    text(instructor?.emp_id),
+    hardGateFingerprint,
+    dateSetFingerprint,
+    text(prepared?.contextVersion || input.contextVersion || '')
+  ].join('::');
+}
+
 function evaluateCourseCandidates({
   course,
   instructors,
@@ -532,55 +690,88 @@ function evaluateCourseCandidates({
   exceptions,
   input
 }) {
-  const raw = instructors.map((instructor) => evaluateCandidate({
-    course,
-    instructor,
-    assignedRows,
-    profiles,
-    rules,
-    exceptions,
-    input,
-    instructors
-  }));
-  return rescoreEligiblePeers(raw, course);
+  planningPerfCount('instructorScans');
+  const stopTimer = planningPerfTimer('candidateEvaluation');
+  const evaluationCache = input.preliminary
+    ? (input.candidateEvaluationCache instanceof Map
+      ? input.candidateEvaluationCache
+      : input.preparedContext?.candidateEvaluationCache)
+    : null;
+  const raw = instructors.map((instructor) => {
+    const cacheKey = evaluationCache ? preliminaryCandidateCacheKey(course, instructor, input) : '';
+    if (cacheKey && evaluationCache.has(cacheKey)) return evaluationCache.get(cacheKey);
+    planningPerfCount('candidateEvals');
+    const evaluated = evaluateCandidate({
+      course,
+      instructor,
+      assignedRows,
+      profiles,
+      rules,
+      exceptions,
+      input,
+      instructors
+    });
+    if (cacheKey) evaluationCache.set(cacheKey, evaluated);
+    return evaluated;
+  });
+  const result = rescoreEligiblePeers(raw, course);
+  stopTimer();
+  return result;
 }
 
 export function calculateCourseSchedule(input = {}) {
+  planningPerfCount('scheduleCalls');
+  const stopScheduleTimer = planningPerfTimer('calculateCourseSchedule');
   const activities = input.activities || [];
   const periodKey = input.periodKey || DEFAULT_COURSE_SCHEDULING_PERIOD_KEY;
-  const scopedCourses = schedulingCourses(activities, {
+  const targetCourseId = text(input.targetCourseId || input.targetActivityId);
+  const targetCourse = input.targetCourse
+    || (targetCourseId ? activities.find((course) => idOf(course) === targetCourseId) : null);
+  const scopeOptions = {
     periodKey,
     authority: input.authority,
     district: input.district,
     allDistricts: input.allDistricts === true,
     includeIncompleteWithoutPeriodMeetings: !!input.includeIncompleteWithoutPeriodMeetings
-  });
-  const targetCourseId = text(input.targetCourseId || input.targetActivityId);
+  };
+  const scopedCourses = targetCourseId && targetCourse
+    ? schedulingCourses([targetCourse], scopeOptions)
+    : schedulingCourses(activities, scopeOptions);
   const courses = targetCourseId
     ? scopedCourses.filter((course) => idOf(course) === targetCourseId)
     : scopedCourses;
-  const profiles = input.profiles || {};
-  const rules = input.rules || {};
-  const instructors = schedulingInstructors(input.instructors || [], profiles, rules);
-  const assignedRows = assignedRowsByInstructor(activities, input.assignments || {});
-  const exceptions = input.exceptions || {};
+
+  const prepared = input.preparedContext?.periodKey === periodKey
+    ? input.preparedContext
+    : prepareSchedulingRunContext({ ...input, periodKey });
+  const profiles = prepared.profiles || input.profiles || {};
+  const rules = prepared.rules || input.rules || {};
+  const shortlistIds = new Set((input.candidateInstructorIds || []).map(text).filter(Boolean));
+  const instructors = shortlistIds.size
+    ? [...shortlistIds].map((empId) => prepared.instructorById.get(empId)).filter(Boolean)
+    : prepared.instructors;
+  const assignedRows = prepared.assignedRows || {};
+  const exceptions = prepared.exceptions || input.exceptions || {};
   const incomplete = new Map(courses.map((course) => [idOf(course), missingCourseInformation(course, { periodKey })]));
   const ready = courses.filter((course) => !incomplete.get(idOf(course)).length);
   const referenceDate = input.referenceDate || input.now || null;
   const urgencyByCourse = new Map(ready.map((course) => [idOf(course), courseUrgency(course, referenceDate)]));
 
+  const evaluatedByCourse = new Map();
   const baselineEligibleCount = new Map();
   for (const course of ready) {
-    const baseline = evaluateCourseCandidates({
+    const courseId = idOf(course);
+    const evaluated = evaluateCourseCandidates({
       course,
       instructors,
       assignedRows,
       profiles,
       rules,
       exceptions,
-      input
+      input: { ...input, preparedContext: prepared }
     });
-    baselineEligibleCount.set(idOf(course), baseline.filter((candidate) => candidate.eligible).length);
+    evaluatedByCourse.set(courseId, evaluated);
+    baselineEligibleCount.set(courseId, evaluated.filter((candidate) => candidate.eligible).length);
   }
 
   const ordered = [...ready].sort((first, second) => {
@@ -601,15 +792,7 @@ export function calculateCourseSchedule(input = {}) {
   for (const course of ordered) {
     const courseId = idOf(course);
     const urgency = urgencyByCourse.get(courseId);
-    const evaluated = evaluateCourseCandidates({
-      course,
-      instructors,
-      assignedRows,
-      profiles,
-      rules,
-      exceptions,
-      input
-    });
+    const evaluated = evaluatedByCourse.get(courseId) || [];
     const eligibleSorted = evaluated
       .filter((candidate) => candidate.eligible)
       .sort((first, second) => compareCandidatesStable(first, second));
@@ -677,7 +860,9 @@ export function calculateCourseSchedule(input = {}) {
       eligibleCandidateCount: 0
     }));
 
-  return [...ordered.map((course) => resultsById.get(idOf(course))), ...incompleteResults];
+  const output = [...ordered.map((course) => resultsById.get(idOf(course))), ...incompleteResults];
+  stopScheduleTimer();
+  return output;
 }
 
 export function preliminaryCourseCandidates(input = {}) {
