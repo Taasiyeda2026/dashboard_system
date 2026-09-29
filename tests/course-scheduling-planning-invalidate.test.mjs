@@ -102,14 +102,16 @@ test('local planning invalidation marks only the provided activity ids as pendin
 
 test('planning status auto-refreshes affected rows and never shows הכול מעודכן while pending', async () => {
   const screen = await readFile(screenUrl, 'utf8');
-  assert.match(screen, /מכין עדכון ל-/);
-  assert.match(screen, /מעדכן \$\{countLabel\} פעילויות שהושפעו/);
+  assert.match(screen, /מעדכן \$\{count\} פעילויות שהושפעו|מעדכן \$\{countLabel\} פעילויות שהושפעו/);
+  assert.match(screen, /מעדכן פעילות אחת/);
   assert.match(screen, /hardGateInvalid/);
   assert.match(screen, /pendingRecalc > 0 \|\| hardGateInvalid > 0/);
   assert.match(screen, /<strong>הכול מעודכן<\/strong>/);
   assert.match(screen, /app:planning-needs-recalc/);
   assert.match(screen, /applyLocalPlanningNeedsRecalc/);
+  assert.match(screen, /autoRefresh !== true/);
   assert.match(screen, /scheduleBackgroundPlanning\(\{ forceFull: false, reuseSnapshot: true \}\)/);
+  assert.match(screen, /data-run-full-course-planning/);
   assert.doesNotMatch(
     screen.slice(screen.indexOf('function schedulingPlanningStatusHtml'), screen.indexOf('function genderRequirementLabel')),
     /התכנון מעודכן/

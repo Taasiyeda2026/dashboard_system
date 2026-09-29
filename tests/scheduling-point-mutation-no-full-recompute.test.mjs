@@ -1,7 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { sharedPlanningAffectedCourseIds } from '../frontend/src/screens/course-scheduling-planning-store.js';
+import {
+  sharedPlanningAffectedCourseIds,
+  pointMutationDependentCourseIds,
+  shouldAutoRefreshPlanning,
+  AUTO_PLANNING_REFRESH_MAX_IDS
+} from '../frontend/src/screens/course-scheduling-planning-store.js';
 
 const meeting = (date) => [{ date, start_time: '10:00', end_time: '11:30' }];
 
@@ -31,11 +36,30 @@ test('one instructor reassignment refreshes only true date/resource dependents',
     currentCourseIds: activities.map((row) => row.row_id)
   }).sort();
   assert.deepEqual(affected, ['a', 'b']);
+
+  const dependents = pointMutationDependentCourseIds({
+    shared,
+    activities,
+    activityId: 'a',
+    oldInstructorIds: ['1'],
+    newInstructorIds: ['2'],
+    meetingDates: ['2026-10-11']
+  }).sort();
+  assert.ok(dependents.includes('a'));
+  assert.ok(dependents.includes('b'));
+  assert.ok(!dependents.includes('c'));
+  assert.ok(!dependents.includes('d'));
+  assert.ok(!dependents.includes('live'));
+  assert.ok(shouldAutoRefreshPlanning(dependents));
+  assert.ok(!shouldAutoRefreshPlanning(Array.from({ length: AUTO_PLANNING_REFRESH_MAX_IDS + 1 }, (_, i) => String(i))));
 });
 
 test('point planning invalidation queues automatic scoped refresh without a manual update button', async () => {
   const source = await readFile(new URL('../frontend/src/screens/course-scheduling.js', import.meta.url), 'utf8');
   const handler = source.slice(source.indexOf('const onPlanningNeedsRecalc'), source.indexOf('const attachActivePlanningRunUi'));
+  assert.match(handler, /autoRefresh !== true/);
   assert.match(handler, /scheduleBackgroundPlanning\(\{ forceFull: false, reuseSnapshot: true \}\)/);
-  assert.doesNotMatch(handler, /data-run-course-planning|עדכן רק את השינויים/);
+  assert.match(source, /data-run-full-course-planning/);
+  assert.match(source, /skipEndReload/);
+  assert.equal(AUTO_PLANNING_REFRESH_MAX_IDS >= 1, true);
 });

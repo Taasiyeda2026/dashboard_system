@@ -104,7 +104,9 @@ import {
   sharedPlanningAffectedCourseIds,
   sharedPlanningLocks,
   applyLocalPlanningNeedsRecalc,
-  applyStoredPlanningValidityAudit
+  applyStoredPlanningValidityAudit,
+  shouldAutoRefreshPlanning,
+  AUTO_PLANNING_REFRESH_MAX_IDS
 } from './course-scheduling-planning-store.js';
 import { exportPlanningWorkbook } from './course-scheduling-planning-export.js';
 import { planningPerfCount, planningPerfEvent, planningPerfTimer } from './course-scheduling-perf.js';
@@ -1021,16 +1023,19 @@ function schedulingPlanningStatusHtml(state = {}) {
   if (state.courseSchedulingPlanningStale) {
     const reason = text(state.courseSchedulingPlanningStaleReason) || 'נתוני התכנון השתנו';
     return `<div class="course-scheduling-auto-plan is-warning" role="status" data-planning-status aria-busy="false">
-      <span data-planning-status-message><strong>התכנון השמור אינו עדכני ולכן אינו מוצג כהמלצה.</strong> ${escapeHtml(reason)}.</span>
-      <button type="button" class="course-scheduling-workboard-primary" data-run-course-planning>חשב תכנון מחדש</button>
+      <span data-planning-status-message><strong>התכנון השמור אינו עדכני.</strong> ${escapeHtml(reason)}.</span>
+      <button type="button" class="course-scheduling-workboard-primary" data-run-course-planning>עדכן</button>
     </div>`;
   }
-  // "הכל מעודכן" only when both dirty-count and hard-gate audit are clean.
   if (pendingRecalc > 0 || hardGateInvalid > 0) {
     const count = Math.max(pendingRecalc, hardGateInvalid);
-    const label = count === 1 ? 'מכין עדכון לפעילות אחת…' : `מכין עדכון ל-${count} פעילויות שהושפעו…`;
+    if (shouldAutoRefreshPlanning(state.courseSchedulingPlanningAffectedIds || []) || count <= AUTO_PLANNING_REFRESH_MAX_IDS) {
+      const label = count === 1 ? 'מעדכן פעילות אחת…' : `מעדכן ${count} פעילויות שהושפעו…`;
+      return `<div class="course-scheduling-auto-plan is-working" role="status" data-planning-status aria-busy="true"><span data-planning-status-message><strong>${escapeHtml(label)}</strong></span></div>`;
+    }
     return `<div class="course-scheduling-auto-plan is-ready" role="status" data-planning-status aria-busy="false">
-      <span data-planning-status-message><strong>${escapeHtml(label)}</strong></span>
+      <span data-planning-status-message><strong>נדרש עדכון · ${count} פעילויות</strong></span>
+      <button type="button" class="course-scheduling-workboard-primary" data-run-course-planning>עדכן</button>
     </div>`;
   }
   return `<div class="course-scheduling-auto-plan is-ready" role="status" data-planning-status aria-busy="false">
@@ -2086,7 +2091,12 @@ export const courseSchedulingScreen = {
         updatePlanningStatusInPlace();
         return;
       }
-      rerenderPreservingWorkboardScroll();
+      // Point/scoped mutations set autoRefresh=true; large dirty fan-outs stay manual.
+      if (event?.detail?.autoRefresh !== true) {
+        rerenderPreservingWorkboardScroll();
+        return;
+      }
+      updatePlanningStatusInPlace();
       queueMicrotask(() => {
         if (!schedulingScreenActive || state.route !== 'course-scheduling' || !root.isConnected) return;
         scheduleBackgroundPlanning({ forceFull: false, reuseSnapshot: true });
@@ -2648,7 +2658,8 @@ export const courseSchedulingScreen = {
         });
 
         assertRunOwnership();
-        const freshEnd = await data.reloadPlanningSnapshot();
+        const skipEndReload = !fullRun && affectedIds.length > 0 && affectedIds.length <= AUTO_PLANNING_REFRESH_MAX_IDS;
+        const freshEnd = skipEndReload ? freshStart : await data.reloadPlanningSnapshot();
         assertRunOwnership();
         const endFingerprintInput = planningInputFromSnapshot(freshEnd, scope.periodKey);
         const endFingerprint = planningDataFingerprint(endFingerprintInput);

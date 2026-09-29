@@ -1816,7 +1816,11 @@ test('Planning Excel includes recommended dates, possible instructors and instru
 test('background planning keeps the workboard scroll stable instead of rerendering on every progress tick', async () => {
   const screen = await readFile(new URL('../frontend/src/screens/course-scheduling.js', import.meta.url), 'utf8');
   const planningRunStart = screen.indexOf('const result = await buildDynamicCoursePlan({');
-  const planningRunEnd = screen.indexOf('const freshEnd = await data.reloadPlanningSnapshot();', planningRunStart);
+  const planningRunEnd = (() => {
+    const skipIdx = screen.indexOf('const skipEndReload =', planningRunStart);
+    if (skipIdx >= 0) return skipIdx;
+    return screen.indexOf('const freshEnd = await data.reloadPlanningSnapshot();', planningRunStart);
+  })();
   const planningRun = screen.slice(planningRunStart, planningRunEnd);
 
   assert.match(screen, /const rerenderPreservingWorkboardScroll = \(\) =>/);

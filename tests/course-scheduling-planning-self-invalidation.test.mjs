@@ -116,7 +116,7 @@ test('8) הכול מעודכן is blocked when audit finds invalid rows', () => 
   assert.match(screen, /hardGateInvalid/);
   assert.match(screen, /pendingRecalc > 0 \|\| hardGateInvalid > 0/);
   assert.match(screen, /applyStoredPlanningValidityAudit/);
-  assert.match(screen, /מכין עדכון ל-/);
+  assert.match(screen, /מעדכן \$\{count\} פעילויות שהושפעו|נדרש עדכון · \$\{count\} פעילויות/);
   assert.match(screen, /הכול מעודכן/);
 
   const state = {

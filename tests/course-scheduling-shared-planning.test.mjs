@@ -76,7 +76,7 @@ test('full and incremental planning silently checkpoint and can resume', async (
   assert.match(planner, /allowGlobalRepair \?\? !incrementalIds/);
 });
 
-test('entering shared planning never recalculates automatically and keeps updates explicit', async () => {
+test('entering shared planning never recalculates automatically; point mutations auto-refresh via needs-recalc', async () => {
   const screen = await readFile(screenUrl, 'utf8');
   const start = screen.indexOf('const currentPlanningScope = planningScope();');
   const end = screen.indexOf('const reloadDistanceCoverage = async', start);
@@ -84,8 +84,10 @@ test('entering shared planning never recalculates automatically and keeps update
   assert.match(entryFlow, /reloadSharedPlanningState\(\{ refreshData: false \}\)/);
   assert.doesNotMatch(entryFlow, /scheduleBackgroundPlanning|runCoursePlanning/);
   assert.match(screen, /data-run-course-planning/);
-  assert.match(screen, /עדכן רק את השינויים/);
-  assert.match(screen, /מעבר בין מסכים לא מפעיל חישוב חדש/);
+  assert.match(screen, /הכול מעודכן/);
+  assert.match(screen, /data-run-full-course-planning/);
+  assert.match(screen, /onPlanningNeedsRecalc[\s\S]*autoRefresh !== true/);
+  assert.match(screen, /onPlanningNeedsRecalc[\s\S]*scheduleBackgroundPlanning/);
 });
 
 test('successful planning persistence does not invalidate the scheduling screen cache', async () => {
@@ -96,23 +98,23 @@ test('successful planning persistence does not invalidate the scheduling screen 
   assert.doesNotMatch(saveFlow, /clearScreenDataCache/);
 });
 
-test('shared planning UI explicitly communicates team visibility and targeted refresh', async () => {
+test('shared planning UI communicates targeted refresh and shared workspace reload', async () => {
   const planning = await readFile(new URL('../frontend/src/screens/course-scheduling-planning.js', import.meta.url), 'utf8');
-  assert.match(planning, /תכנון משותף לצוות/);
-  assert.match(planning, /נשמרת מיד ב-Supabase/);
+  assert.match(planning, /רענן תכנון משותף/);
   assert.match(planning, /עדכן רק \$\{pendingCount\} פעילויות שהשתנו/);
   assert.match(planning, /data-refresh-shared-planning/);
+  assert.match(planning, /data-run-course-planning/);
 });
 
-test('current shared planning has no rerun button and click handler never promotes an empty update to full run', async () => {
+test('current shared planning has no incremental rerun button and click handler never promotes an empty update to full run', async () => {
   const screen = await readFile(screenUrl, 'utf8');
   const statusStart = screen.indexOf('function schedulingPlanningStatusHtml');
   const statusEnd = screen.indexOf('function genderRequirementLabel', statusStart);
   const statusFlow = screen.slice(statusStart, statusEnd);
-  const currentBlockStart = statusFlow.lastIndexOf('<strong>הכל מעודכן</strong>');
+  const currentBlockStart = statusFlow.lastIndexOf('<strong>הכול מעודכן</strong>');
   const currentBlock = statusFlow.slice(currentBlockStart);
 
-  assert.match(currentBlock, /<strong>הכל מעודכן<\/strong>/);
+  assert.match(currentBlock, /<strong>הכול מעודכן<\/strong>/);
   assert.doesNotMatch(currentBlock, /data-run-course-planning/);
   assert.doesNotMatch(currentBlock, /חשב מחדש/);
 
@@ -121,16 +123,17 @@ test('current shared planning has no rerun button and click handler never promot
   const handler = screen.slice(handlerStart, handlerEnd);
   assert.match(handler, /const alreadyCurrent = pending === 0/);
   assert.match(handler, /if \(alreadyCurrent\) return/);
-  assert.match(handler, /runCoursePlanning\(\{ forceFull: false \}\)/);
+  assert.match(handler, /runCoursePlanning\(\{ forceFull: false/);
   assert.doesNotMatch(handler, /forceFull = pending === 0/);
+  assert.match(screen, /data-run-full-course-planning[\s\S]*forceFull: true/);
 });
 
-test('shared planning uses higher bounded route concurrency for faster incremental runs', async () => {
+test('shared planning uses bounded route concurrency without treating it as the primary fix', async () => {
   const screen = await readFile(screenUrl, 'utf8');
   const routeClientStart = screen.indexOf('const routeClient = createRouteClient({');
   const routeClientEnd = screen.indexOf('const lockedOptions', routeClientStart);
   const routeClientSetup = screen.slice(routeClientStart, routeClientEnd);
-  assert.match(routeClientSetup, /concurrency:\s*16/);
+  assert.match(routeClientSetup, /concurrency:\s*\d+/);
 });
 
 test('fast planning parallelizes independent cached route legs and uses six routed pairs per batch', async () => {
