@@ -656,4 +656,3 @@ test('legacy route diagnostics do not requeue a stable missing row without expli
     currentCourseIds: [row.activityId]
   }), [row.activityId]);
 });
-
