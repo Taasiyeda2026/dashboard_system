@@ -1731,6 +1731,8 @@ function selectedCoursePanelHtml(row, state) {
 
 function maintenanceTabHtml(state) {
   const distanceBusy = !!state.courseSchedulingDistanceLoading;
+  const role = text(state?.user?.role || state?.user?.display_role).toLowerCase();
+  const canFullRebuild = role === 'admin' || role === 'operation_manager';
   const coverageLoading = !!state.courseSchedulingDistanceCoverageLoading;
   const stats = state.courseSchedulingDistanceStats || {};
   const count = (key) => coverageLoading && stats[key] == null ? '…' : Number(stats[key]) || 0;
@@ -1756,6 +1758,13 @@ function maintenanceTabHtml(state) {
       </div>
       <button type="button" class="course-scheduling-btn course-scheduling-btn--primary" data-update-distances ${updateDisabled ? 'disabled' : ''}>${distanceBusy ? 'מעדכן מסלולי בסיס...' : 'עדכון מסלולי בסיס'}</button>
     </article>
+    ${canFullRebuild ? `<article class="course-scheduling-maintenance-card">
+      <div>
+        <h3>בנייה מחדש מלאה של התכנון</h3>
+        <p class="course-scheduling-maintenance-note">פעולת תחזוקה חריגה בלבד. עבודה שוטפת ושינויים נקודתיים מתעדכנים אוטומטית ללא בנייה מלאה.</p>
+      </div>
+      <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary" data-run-full-course-planning>בנייה מחדש מלאה</button>
+    </article>` : ''}
   </section>`;
 }
 
@@ -2920,6 +2929,12 @@ export const courseSchedulingScreen = {
       }
     }));
 
+
+    root.querySelector('[data-run-full-course-planning]')?.addEventListener('click', () => {
+      if (state.courseSchedulingPlanningLoading) return;
+      if (!window.confirm('לבצע בנייה מחדש מלאה של כל התכנון? פעולה זו מיועדת לתחזוקה חריגה בלבד.')) return;
+      void runCoursePlanning({ forceFull: true, reuseSnapshot: false });
+    });
 
     root.querySelector('[data-run-course-planning]')?.addEventListener('click', () => {
       const pending = (state.courseSchedulingPlanningAffectedIds || []).length;
