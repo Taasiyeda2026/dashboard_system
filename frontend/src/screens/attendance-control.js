@@ -2004,7 +2004,7 @@ export function resultsHtml(result, month = '', options = {}) {
     </div>`;
   };
 
-  const MANUAL_EDITABLE_FIELDS =   const MANUAL_EDITABLE_FIELDS = new Set([
+  const MANUAL_EDITABLE_FIELDS = new Set([
     'date', 'activityType', 'authority', 'school', 'program', 'meetingNo',
     'startTime', 'endTime', 'workHours', 'expenses', 'expenseDetails', 'notes'
   ]);
@@ -2048,7 +2048,7 @@ export function resultsHtml(result, month = '', options = {}) {
     </div>`;
   };
 
-  const foldedTravelCancellationRowHtml =   const foldedTravelCancellationRowHtml = (entry) => {
+  const foldedTravelCancellationRowHtml = (entry) => {
     if (!entry) return '';
     const row = entry.final || entry.attendance || {};
     const source = row?._source || entry?.attendance?._source || {};
@@ -2947,7 +2947,7 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
       return;
     }
 
-    const approveBtn = clickEl.closest('[data-attendance-approve-reported]');    const approveBtn = clickEl.closest('[data-attendance-approve-reported]');
+    const approveBtn = clickEl.closest('[data-attendance-approve-reported]');
     if (approveBtn && result) {
       const entry = findEntry(approveBtn.dataset.attendanceApproveReported);
       if (!entry) {
