@@ -1,6 +1,16 @@
-import { calculateCourseSchedule, preliminaryCourseCandidates } from './course-scheduling-engine.js';
+import {
+  appendSchedulingRunActivity,
+  calculateCourseSchedule,
+  preliminaryCourseCandidates,
+  prepareSchedulingRunContext
+} from './course-scheduling-engine.js';
 import { compareCandidatesStable } from './course-scheduling-score.js';
-import { calculateCandidateTravel, createRouteClient } from './course-scheduling-travel.js';
+import {
+  appendCandidateTravelActivity,
+  calculateCandidateTravel,
+  createCandidateTravelContext,
+  createRouteClient
+} from './course-scheduling-travel.js';
 import { activityMeetings, schedulingCalendarMeetings } from './instructor-scheduling-load.js';
 import {
   blockedSchoolDates,
@@ -1216,6 +1226,8 @@ async function evaluateScenarioOptions({
   checkpoint = async () => {},
   signal = null,
   periodKey = DEFAULT_PLANNING_PERIOD_KEY,
+  preparedContext = null,
+  travelContext = null,
   limits = DEEP_PLANNING_LIMITS
 } = {}) {
   planningPerfCount('scenarioCount', scenarios.length);
@@ -1224,7 +1236,8 @@ async function evaluateScenarioOptions({
   for (let index = 0; index < scenarios.length; index += 1) {
     const course = scenarioCourse(activity, scenarios[index], index);
     const candidates = preliminaryCourseCandidates({
-      activities: [...contextActivities, course],
+      activities: [course],
+      targetCourse: course,
       targetCourseId: course.row_id,
       periodKey,
       instructors,
@@ -1232,7 +1245,9 @@ async function evaluateScenarioOptions({
       rules,
       exceptions,
       schoolCalendar,
-      referenceDate: today
+      referenceDate: today,
+      preparedContext,
+      candidateInstructorIds: (instructors || []).map((row) => text(row?.emp_id)).filter(Boolean)
     }).map((item) => item.candidate).filter(Boolean)
       .map((candidate) => {
         const cachedHome = routeClient?.peek?.(candidate?.instructor?.address, course?.school_address);
@@ -1282,7 +1297,7 @@ async function evaluateScenarioOptions({
         batch.map((item) => ({ course: item.course, candidate: item.candidate })),
         contextActivities,
         routeClient,
-        { checkpoint, signal }
+        { checkpoint, signal, travelContext }
       );
     } catch (error) {
       if (isPlanningCancellationError(error)) throw error;
@@ -1309,8 +1324,13 @@ async function evaluateScenarioOptions({
       const scenarioId = finalist.course.row_id;
       if (!finalResultsByScenario.has(scenarioId)) {
         finalEvaluationCount += 1;
+        const candidateInstructorIds = batch
+          .filter((item) => item.course.row_id === scenarioId)
+          .map((item) => empOf(item.candidate))
+          .filter(Boolean);
         finalResultsByScenario.set(scenarioId, calculateCourseSchedule({
-          activities: [...contextActivities, finalist.course],
+          activities: [finalist.course],
+          targetCourse: finalist.course,
           targetCourseId: finalist.course.row_id,
           periodKey,
           instructors,
@@ -1321,7 +1341,9 @@ async function evaluateScenarioOptions({
           referenceDate: today,
           travel: routed.travel,
           routeMatrix: routed.routeMatrix,
-          travelUnavailableReason: routed.unavailableReason || ''
+          travelUnavailableReason: routed.unavailableReason || '',
+          preparedContext,
+          candidateInstructorIds
         })[0]);
       }
       const finalResult = finalResultsByScenario.get(scenarioId);
@@ -1379,6 +1401,8 @@ async function evaluateFixedCourse({
   checkpoint = async () => {},
   signal = null,
   periodKey = DEFAULT_PLANNING_PERIOD_KEY,
+  preparedContext = null,
+  travelContext = null,
   limits = DEEP_PLANNING_LIMITS
 } = {}) {
   const calendarRows = courseCalendarRows(activity, schoolCalendar);
@@ -1400,7 +1424,8 @@ async function evaluateFixedCourse({
   }
 
   const candidates = preliminaryCourseCandidates({
-    activities: contextActivities,
+    activities: [activity],
+    targetCourse: activity,
     targetCourseId: idOf(activity),
     periodKey,
     instructors,
@@ -1408,7 +1433,9 @@ async function evaluateFixedCourse({
     rules,
     exceptions,
     schoolCalendar,
-    referenceDate: today
+    referenceDate: today,
+    preparedContext,
+    candidateInstructorIds: (instructors || []).map((row) => text(row?.emp_id)).filter(Boolean)
   }).map((item) => item.candidate).filter(Boolean)
     .map((candidate) => {
       const cachedHome = routeClient?.peek?.(candidate?.instructor?.address, activity?.school_address);
@@ -1450,7 +1477,7 @@ async function evaluateFixedCourse({
         batch.map((item) => ({ course: activity, candidate: item.candidate })),
         contextActivities,
         routeClient,
-        { checkpoint, signal }
+        { checkpoint, signal, travelContext }
       );
     } catch (error) {
       if (isPlanningCancellationError(error)) throw error;
@@ -1469,7 +1496,8 @@ async function evaluateFixedCourse({
     routeVerified ||= !text(routed.unavailableReason);
 
     const result = calculateCourseSchedule({
-      activities: contextActivities,
+      activities: [activity],
+      targetCourse: activity,
       targetCourseId: idOf(activity),
       periodKey,
       instructors,
@@ -1480,7 +1508,9 @@ async function evaluateFixedCourse({
       referenceDate: today,
       travel: routed.travel,
       routeMatrix: routed.routeMatrix,
-      travelUnavailableReason: routed.unavailableReason || ''
+      travelUnavailableReason: routed.unavailableReason || '',
+      preparedContext,
+      candidateInstructorIds: batch.map((item) => empOf(item.candidate)).filter(Boolean)
     })[0];
 
     for (const finalist of batch) {
@@ -2997,7 +3027,34 @@ export async function buildDynamicCoursePlan({
   // removed from the blocking calendar here: the national planner may move or
   // replace them before it concludes that new staff are needed.
   const contextActivities = planningContextActivities(activities);
-  const virtualPlans = [];
+  const currentContextActivities = [...contextActivities];
+  const virtualPlans = new Map();
+  const preparedRunContexts = new Map();
+  const travelContext = createCandidateTravelContext(currentContextActivities);
+  const preparedContextFor = (requestedPeriodKey = periodKey) => {
+    const key = text(requestedPeriodKey) || DEFAULT_PLANNING_PERIOD_KEY;
+    if (!preparedRunContexts.has(key)) {
+      preparedRunContexts.set(key, prepareSchedulingRunContext({
+        activities: currentContextActivities,
+        instructors,
+        profiles,
+        rules,
+        exceptions,
+        schoolCalendar,
+        periodKey: key
+      }));
+    }
+    return preparedRunContexts.get(key);
+  };
+  const rememberVirtualPlan = (virtual) => {
+    if (!virtual) return;
+    const virtualId = idOf(virtual);
+    if (!virtualId || virtualPlans.has(virtualId)) return;
+    virtualPlans.set(virtualId, virtual);
+    currentContextActivities.push(virtual);
+    appendCandidateTravelActivity(travelContext, virtual);
+    for (const prepared of preparedRunContexts.values()) appendSchedulingRunActivity(prepared, virtual);
+  };
   const rowsById = new Map();
   const existingById = new Map((existingRows || [])
     .map((row) => [text(row?.courseId) || idOf(row), row])
@@ -3022,7 +3079,7 @@ export async function buildDynamicCoursePlan({
       const lockedRow = lockedPlanningRow(activity, locked, catalog, activityPeriodKey);
       if (lockedRow) rowsById.set(activityId, lockedRow);
       const virtual = blockingVirtualActivity(activity, locked);
-      if (virtual) virtualPlans.push(virtual);
+      rememberVirtualPlan(virtual);
       continue;
     }
 
@@ -3068,7 +3125,7 @@ export async function buildDynamicCoursePlan({
             endTime: reused.endTime,
             meetings: reused.meetings
           });
-          if (virtual) virtualPlans.push(virtual);
+          rememberVirtualPlan(virtual);
         }
         continue;
       }
@@ -3127,8 +3184,7 @@ export async function buildDynamicCoursePlan({
   for (const item of queue) {
     await checkpoint();
     const { activity, type, activityPeriodKey } = item;
-    planningPerfCount('contextRebuilds');
-    const currentContext = [...contextActivities, ...virtualPlans];
+    const currentContext = currentContextActivities;
     await report('בדיקת מדריכים', completed, queue.length, idOf(activity));
     await report('בדיקת נסיעות', completed, queue.length, idOf(activity));
     if (type === 'fixed') {
@@ -3145,6 +3201,8 @@ export async function buildDynamicCoursePlan({
         checkpoint,
         signal,
         periodKey: activityPeriodKey,
+        preparedContext: preparedContextFor(activityPeriodKey),
+        travelContext,
         limits
       });
       const options = evaluation.options || [];
@@ -3197,7 +3255,7 @@ export async function buildDynamicCoursePlan({
       };
       rowsById.set(idOf(activity), row);
       const virtual = blockingVirtualActivity(activity, chosen);
-      if (virtual) virtualPlans.push(virtual);
+      rememberVirtualPlan(virtual);
     } else {
       const rescue = recruitmentRescueById.get(idOf(activity));
       if (rescue) {
@@ -3223,6 +3281,8 @@ export async function buildDynamicCoursePlan({
           checkpoint,
           signal,
           periodKey: activityPeriodKey,
+          preparedContext: preparedContextFor(activityPeriodKey),
+          travelContext,
           limits: {
             ...FAST_PLANNING_LIMITS,
             maxScenarios: Math.max(1, rescue.schedules.length),
@@ -3250,7 +3310,7 @@ export async function buildDynamicCoursePlan({
             }
           ));
           const virtual = blockingVirtualActivity(activity, rescued);
-          if (virtual) virtualPlans.push(virtual);
+          rememberVirtualPlan(virtual);
         } else {
           const existing = existingById.get(idOf(activity));
           rowsById.set(idOf(activity), {
@@ -3296,6 +3356,8 @@ export async function buildDynamicCoursePlan({
           checkpoint,
           signal,
           periodKey: activityPeriodKey,
+          preparedContext: preparedContextFor(activityPeriodKey),
+          travelContext,
           limits
         });
         let effectiveGenerated = generated;
@@ -3337,6 +3399,8 @@ export async function buildDynamicCoursePlan({
               checkpoint,
               signal,
               periodKey: activityPeriodKey,
+              preparedContext: preparedContextFor(activityPeriodKey),
+              travelContext,
               limits: DEEP_PLANNING_LIMITS
             });
             evaluation = {
@@ -3363,7 +3427,7 @@ export async function buildDynamicCoursePlan({
           }
         ));
         const virtual = blockingVirtualActivity(activity, chosen);
-        if (virtual) virtualPlans.push(virtual);
+        rememberVirtualPlan(virtual);
       }
       }
     }
