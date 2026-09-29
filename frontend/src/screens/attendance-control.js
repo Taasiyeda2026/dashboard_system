@@ -1546,6 +1546,7 @@ function mergeFinalIntoSource(final, source) {
       if (Object.hasOwn(source, key)) { merged[key] = value; return; }
     }
   };
+  assign(['date', 'attendanceDate', 'AttendanceDate'], final.date);
   assign(['startTime', 'StartTime', 'start'], final.startTime);
   assign(['endTime', 'EndTime', 'end'], final.endTime);
   assign(['workHours', 'WorkHours', 'hours'], rowWorkHours(final) ?? optionalNumber(final.workHours));
