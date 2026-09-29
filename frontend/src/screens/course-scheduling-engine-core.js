@@ -569,18 +569,13 @@ export function calculateCourseSchedule(input = {}) {
   const referenceDate = input.referenceDate || input.now || null;
   const urgencyByCourse = new Map(ready.map((course) => [idOf(course), courseUrgency(course, referenceDate)]));
 
+  const evaluatedByCourse = new Map();
   const baselineEligibleCount = new Map();
   for (const course of ready) {
-    const baseline = evaluateCourseCandidates({
-      course,
-      instructors,
-      assignedRows,
-      profiles,
-      rules,
-      exceptions,
-      input
-    });
-    baselineEligibleCount.set(idOf(course), baseline.filter((candidate) => candidate.eligible).length);
+    const evaluated = evaluatedByCourse.get(courseId) || [];
+    const courseId = idOf(course);
+    evaluatedByCourse.set(courseId, evaluated);
+    baselineEligibleCount.set(courseId, evaluated.filter((candidate) => candidate.eligible).length);
   }
 
   const ordered = [...ready].sort((first, second) => {
