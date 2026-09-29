@@ -167,3 +167,49 @@ test('PostgreSQL: activity invalidation marks only the changed activity, not row
     { activity_id: 'activity-b', needs_recalc: false }
   ]);
 });
+
+
+test('PostgreSQL: planning lock invalidation touches only same-instructor rows on overlapping dates', async (t) => {
+  if (!requirePostgres(t)) return;
+  await client.query(`update public.scheduling_planning_rows
+    set row_data='{"kind":"proposal","instructorEmpId":"100","meetings":[{"date":"2027-01-03","start_time":"10:00","end_time":"11:00"}],"options":[{"instructorEmpId":"100","meetings":[{"date":"2027-01-03","start_time":"10:00","end_time":"11:00"}]}]}'::jsonb,
+        needs_recalc=false
+    where activity_id='activity-b'`);
+  await client.query(`select public.set_scheduling_planning_lock(
+    '2027','north','activity-a',
+    '{"instructorEmpId":"100","meetings":[{"date":"2027-01-03","start_time":"10:00","end_time":"11:00"}]}'::jsonb,
+    1
+  )`);
+  const { rows } = await client.query("select needs_recalc from public.scheduling_planning_rows where activity_id='activity-b'");
+  assert.equal(rows[0].needs_recalc, true);
+});
+
+test('PostgreSQL: planning lock invalidation ignores same instructor on unrelated dates', async (t) => {
+  if (!requirePostgres(t)) return;
+  await client.query(`update public.scheduling_planning_rows
+    set row_data='{"kind":"proposal","instructorEmpId":"100","meetings":[{"date":"2027-01-10","start_time":"10:00","end_time":"11:00"}],"options":[{"instructorEmpId":"100","meetings":[{"date":"2027-01-10","start_time":"10:00","end_time":"11:00"}]}]}'::jsonb,
+        needs_recalc=false
+    where activity_id='activity-b'`);
+  await client.query(`select public.set_scheduling_planning_lock(
+    '2027','north','activity-a',
+    '{"instructorEmpId":"100","meetings":[{"date":"2027-01-03","start_time":"10:00","end_time":"11:00"}]}'::jsonb,
+    1
+  )`);
+  const { rows } = await client.query("select needs_recalc from public.scheduling_planning_rows where activity_id='activity-b'");
+  assert.equal(rows[0].needs_recalc, false);
+});
+
+test('PostgreSQL: planning lock invalidation never dirties live rows', async (t) => {
+  if (!requirePostgres(t)) return;
+  await client.query(`update public.scheduling_planning_rows
+    set row_data='{"kind":"live","instructorEmpId":"100","meetings":[{"date":"2027-01-03","start_time":"10:00","end_time":"11:00"}]}'::jsonb,
+        needs_recalc=false
+    where activity_id='activity-b'`);
+  await client.query(`select public.set_scheduling_planning_lock(
+    '2027','north','activity-a',
+    '{"instructorEmpId":"100","meetings":[{"date":"2027-01-03","start_time":"10:00","end_time":"11:00"}]}'::jsonb,
+    1
+  )`);
+  const { rows } = await client.query("select needs_recalc from public.scheduling_planning_rows where activity_id='activity-b'");
+  assert.equal(rows[0].needs_recalc, false);
+});
