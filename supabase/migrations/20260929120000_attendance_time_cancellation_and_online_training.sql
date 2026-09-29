@@ -64,13 +64,18 @@ begin
     end if;
     new.training_mode := case when scheduled_training.is_online then 'online' else 'physical' end;
     new.authority_id := null;
-    new.authority_name_snapshot := nullif(btrim(scheduled_training.location_name), '');
+    new.authority_name_snapshot := case
+      when scheduled_training.is_online then null
+      else nullif(btrim(scheduled_training.location_name), '')
+    end;
     new.school_id := null;
     new.school_name_snapshot := null;
     new.semel_mosad := null;
-    new.roundtrip_km := 0;
-    new.public_transport := false;
-    new.public_transport_cost := 0;
+    if scheduled_training.is_online then
+      new.roundtrip_km := 0;
+      new.public_transport := false;
+      new.public_transport_cost := 0;
+    end if;
     new.destination_address_snapshot := case
       when scheduled_training.is_online then null
       else nullif(btrim(scheduled_training.location_address), '')
