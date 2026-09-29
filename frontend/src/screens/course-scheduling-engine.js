@@ -453,7 +453,7 @@ function planBlockWithSharedInstructor({
     .sort((first, second) => compareCandidatesStable(first.representative, second.representative));
 
   // Try the strongest block candidate first. Sequential revalidation catches
-  // cumulative hard limits (overlap, daily sequence, transitions) before the
+  // cumulative hard limits (overlap, availability, transitions) before the
   // block is accepted.
   for (const item of ranked) {
     const simulation = simulateSharedInstructorBlock({
