@@ -291,6 +291,28 @@ function assignedMeetings(activities = []) {
   return assigned;
 }
 
+
+export function createCandidateTravelContext(activities = []) {
+  return { assignedMeetingsByInstructor: assignedMeetings(activities) };
+}
+
+export function appendCandidateTravelActivity(context = null, activity = null) {
+  if (!context || !activity) return context;
+  const delta = assignedMeetings([activity]);
+  const target = context.assignedMeetingsByInstructor ||= {};
+  for (const [empId, meetings] of Object.entries(delta)) {
+    const bucket = target[empId] ||= [];
+    bucket.push(...meetings);
+    bucket.sort((first, second) => {
+      const firstDate = text(first?.date).slice(0, 10);
+      const secondDate = text(second?.date).slice(0, 10);
+      if (firstDate !== secondDate) return firstDate.localeCompare(secondDate);
+      return text(first?.start_time).localeCompare(text(second?.start_time));
+    });
+  }
+  return context;
+}
+
 function sharedMeetingTransitions(firstCourse, secondCourse) {
   const transitions = [];
   const origin = activityPlace(firstCourse);
@@ -329,8 +351,12 @@ function sharedMeetingTransitions(firstCourse, secondCourse) {
   return transitions;
 }
 
-export async function calculateCandidateTravel(preliminary, activities, routeClient = createRouteClient(), { checkpoint = async () => {}, signal = null } = {}) {
-  const assigned = assignedMeetings(activities);
+export async function calculateCandidateTravel(preliminary, activities, routeClient = createRouteClient(), {
+  checkpoint = async () => {},
+  signal = null,
+  travelContext = null
+} = {}) {
+  const assigned = travelContext?.assignedMeetingsByInstructor || assignedMeetings(activities);
   const travel = {};
   const routeMatrix = {};
   const requested = new Map();
