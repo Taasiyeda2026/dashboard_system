@@ -325,6 +325,7 @@ export async function calculateCandidateTravel(preliminary, activities, routeCli
   const travel = {};
   const routeMatrix = {};
   const requested = new Map();
+  let routeFailureReason = '';
 
   const route = async (origin, destination, context = {}) => {
     if (!text(origin) || !text(destination)) return null;
@@ -337,6 +338,7 @@ export async function calculateCandidateTravel(preliminary, activities, routeCli
     const requestKey = routeRequestKey(origin, destination, context);
     if (!requested.has(requestKey)) requested.set(requestKey, routeClient.request(origin, destination, context));
     const leg = await requested.get(requestKey);
+    if (!leg) routeFailureReason ||= text(routeClient.unavailableReason) || 'route_service_unavailable';
     routeMatrix[matrixKey] = leg;
     return leg;
   };
@@ -430,7 +432,7 @@ export async function calculateCandidateTravel(preliminary, activities, routeCli
     routeMatrix,
     unavailableReason: text(routeClient.unavailableReason) === 'google_key_not_configured'
       ? 'route_service_unavailable'
-      : routeClient.unavailableReason,
+      : routeFailureReason,
     googleCalls: routeClient.googleCalls,
     cacheHits: routeClient.cacheHits,
     requests: routeClient.requests
