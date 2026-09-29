@@ -376,12 +376,19 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: 10px;
+  align-items: start;
+}
+
+.course-scheduling-screen.is-simple-workboard.has-selected-course .course-scheduling-layout--courses {
+  grid-template-columns: minmax(0, 1.25fr) minmax(300px, .95fr);
 }
 
 .course-scheduling-screen.is-simple-workboard .course-scheduling-courses {
   max-height: calc(100vh - 275px);
   min-height: 360px;
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .course-scheduling-screen.is-simple-workboard .course-scheduling-detail {
@@ -393,10 +400,89 @@
 
 .course-scheduling-screen.is-simple-workboard .course-scheduling-detail.is-open {
   display: grid;
+  position: sticky;
+  top: 12px;
+  max-height: calc(100vh - 275px);
+  overflow: auto;
   padding: 12px;
   border: 1px solid var(--cs-border);
   border-radius: 9px;
   background: var(--cs-surface);
+}
+
+.course-scheduling-list-search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.course-scheduling-list-search__label {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.course-scheduling-list-search__input {
+  width: 100%;
+}
+
+.course-scheduling-list-search__clear {
+  flex: 0 0 auto;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--cs-border-strong);
+  border-radius: 6px;
+  background: var(--cs-surface);
+  color: var(--cs-text-muted);
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.course-scheduling-focus-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+  padding: 8px 10px;
+  border: 1px solid #c7d7e4;
+  border-radius: 8px;
+  background: #f3f8fb;
+}
+
+.course-scheduling-focus-banner strong {
+  font-size: .84rem;
+}
+
+.course-scheduling-screen.is-simple-workboard .course-scheduling-course-card.is-selected,
+.course-scheduling-screen.is-simple-workboard .course-scheduling-compact-row.is-selected {
+  background: #eef6fb;
+  box-shadow: inset -3px 0 0 #2f6f93;
+  outline: 1px solid #9ec0d6;
+}
+
+@media (max-width: 900px) {
+  .course-scheduling-screen.is-simple-workboard.has-selected-course .course-scheduling-layout--courses,
+  .course-scheduling-screen.is-simple-workboard .course-scheduling-layout--courses {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .course-scheduling-screen.is-simple-workboard .course-scheduling-courses {
+    max-height: none;
+    min-height: 0;
+    overflow: visible;
+  }
+
+  .course-scheduling-screen.is-simple-workboard .course-scheduling-detail.is-open {
+    position: static;
+    max-height: none;
+    overflow: visible;
+  }
+
+  .course-scheduling-focus-banner {
+    flex-wrap: wrap;
+  }
 }
 
 .course-scheduling-screen.is-simple-workboard .course-scheduling-compact-table-head,

@@ -316,3 +316,4 @@ config.HOTFIX_VERSION = `scheduling-planning-perf-instrumentation-20260930-v1-${
 config.HOTFIX_VERSION = `scheduling-planning-incremental-rebuild-20260930-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `scheduling-point-mutation-auto-refresh-gate-20260930-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `planning-audit-sector-calendar-filter-20260930-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `scheduling-activity-focus-ux-20260930-v1-${config.HOTFIX_VERSION}`;

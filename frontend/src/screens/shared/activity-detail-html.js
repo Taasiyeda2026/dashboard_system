@@ -4,9 +4,14 @@ import { activityManagerDisplayName, activityTypeDisplayLabel, activityTypeMatch
 import { activityAllowsSecondInstructor, schoolBelongsToAuthority, schoolsForAuthority } from './activity-form-rules.js';
 import { resolveSchool2027Contact } from './school-2027-contact.js';
 import { ACTIVITY_SEASON_OPTIONS, ACTIVITY_SEASON_SCHOOL_2027, activityPeriodDisplayLabel, activitySeasonLabel, normalizeActivitySeason } from './summer-activity.js';
-import { isActivitySchedulingEligible } from './activity-scheduling-eligibility.js';
+import {
+  isActivitySchedulingEligible,
+  isSchedulableActivityType,
+  isSchedulingActivityActive
+} from './activity-scheduling-eligibility.js';
 import { applyReadOnlyActivityCapabilities, isReadOnlyActivityRow } from './activity-readonly-period.js';
 import { activityTimeOptions, normalizeActivityTime } from './activity-time-options.js';
+import { activitySchedulingStatusSummary } from './activity-instructor-filter.js';
 
 const ONCE_TYPES = ['workshop', 'tour', 'escape_room'];
 const ACTIVITY_EDIT_TYPE_ORDER = ['course', 'workshop', 'escape_room', 'tour', 'after_school'];
@@ -1280,7 +1285,34 @@ function jsonAttr(value) {
   }
 }
 
-function singleForm(row, { settings = {}, privateNote = null, canEdit = false, canDirectEdit = false, canRequestEdit = false, canDeleteActivity = false, canSchedule = false, showPrivateNote = false, idx = 0, datesLoading = false, instructorLimited = false, currentInstructorIds = [], currentInstructorName = '' } = {}) {
+function canOpenActivityScheduling(row = {}) {
+  return isSchedulingActivityActive(row)
+    && isSchedulableActivityType(row.activity_type || row.type || row.item_type);
+}
+
+function activitySchedulingStatusCardHtml(row, { canSchedule = false, planningRow = null } = {}) {
+  if (!canSchedule || !canOpenActivityScheduling(row)) return '';
+  const summary = activitySchedulingStatusSummary(row, planningRow);
+  const startDate = String(row?.start_date || row?.date_1 || '').trim();
+  const startTime = String(row?.start_time || '').trim();
+  const endTime = String(row?.end_time || '').trim();
+  const scheduleParts = [];
+  if (startDate) scheduleParts.push(formatDateHe(startDate) || startDate);
+  if (startTime && endTime) scheduleParts.push(formatTimeRangeShort(startTime, endTime));
+  else if (startTime) scheduleParts.push(startTime);
+  const scheduleLabel = scheduleParts.join(' · ');
+  return `<div class="activity-drawer__scheduling-status" data-activity-scheduling-status>
+    <div class="activity-drawer__scheduling-status-body">
+      <strong>מצב שיבוץ</strong>
+      <span data-scheduling-status-label>${escapeHtml(summary.statusLabel)}</span>
+      ${scheduleLabel ? `<small data-scheduling-status-schedule><bdi dir="ltr">${escapeHtml(scheduleLabel)}</bdi></small>` : ''}
+      ${summary.hasProposal ? `<span class="activity-drawer__scheduling-proposal" data-scheduling-status-proposal>${escapeHtml(summary.proposalLabel)}</span>` : ''}
+    </div>
+    <button type="button" class="ds-btn ds-btn--sm ds-btn--primary" data-open-activity-scheduling>פתח שיבוץ</button>
+  </div>`;
+}
+
+function singleForm(row, { settings = {}, privateNote = null, canEdit = false, canDirectEdit = false, canRequestEdit = false, canDeleteActivity = false, canSchedule = false, showPrivateNote = false, idx = 0, datesLoading = false, instructorLimited = false, currentInstructorIds = [], currentInstructorName = '', planningRow = null } = {}) {
   if (instructorLimited && currentInstructorName) {
     const ids = new Set((Array.isArray(currentInstructorIds) ? currentInstructorIds : [currentInstructorIds])
       .map((value) => String(value || '').trim()).filter(Boolean));
@@ -1344,8 +1376,8 @@ function singleForm(row, { settings = {}, privateNote = null, canEdit = false, c
         : (showDates ? blockDates(row, { canEdit, canDirectEdit, datesLoading, is2027, viewOnly: instructorLimited }) : '')}
       ${is2027 && !instructorLimited ? `<div class="activity-drawer__actions-row" data-activity-actions data-view-only>
         <button type="button" class="ds-btn ds-btn--sm" data-coordination-approval>אישור תיאום</button>
-        ${canSchedule && schedulingEligible ? '<button type="button" class="ds-btn ds-btn--sm ds-btn--primary" data-open-activity-scheduling>פתח בשיבוצים</button>' : ''}
-      </div>` : ''}
+      </div>
+      ${activitySchedulingStatusCardHtml(row, { canSchedule, planningRow })}` : ''}
       ${schedulingEligible && !instructorLimited ? `<div class="activity-scheduling-fields" data-mode="edit" hidden data-scheduling-fields>
         <div class="activity-scheduling-summary__fields"><label>מגדר<select class="ds-input" name="required_instructor_gender"><option value="any">ללא דרישה</option><option value="female"${(row.required_instructor_gender || 'any') === 'female' ? ' selected' : ''}>מדריכה</option><option value="male"${(row.required_instructor_gender || 'any') === 'male' ? ' selected' : ''}>מדריך</option></select></label><label>שפת הדרכה<select class="ds-input" name="instruction_language"><option value="he"${(row.instruction_language || 'he') === 'he' ? ' selected' : ''}>עברית</option><option value="ar"${row.instruction_language === 'ar' ? ' selected' : ''}>ערבית</option></select></label></div>
       </div>` : ''}
@@ -1414,7 +1446,8 @@ export function activityWorkDrawerHtml(row, opts = {}) {
             idx,
             instructorLimited,
             currentInstructorIds,
-            currentInstructorName
+            currentInstructorName,
+            planningRow: opts.planningRow || null
           })}
         </div>
       `)
@@ -1439,7 +1472,8 @@ export function activityWorkDrawerHtml(row, opts = {}) {
         idx: 0,
         instructorLimited,
         currentInstructorIds,
-        currentInstructorName
+        currentInstructorName,
+        planningRow: opts.planningRow || null
       })}
     </div>
   `;

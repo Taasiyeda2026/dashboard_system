@@ -1254,7 +1254,14 @@ function activitiesDiagnosticsHtml(diag) {
   </div>`;
 }
 
-function activityDrawerContent(row, canSeePrivateNotes, canEdit, canDirectEdit, canRequestEdit, canDeleteActivity, hideEmpIds, hideRowId, hideActivityNo, settings, { datesLoading = false, canSchedule = false } = {}) {
+function planningRowForActivity(state, row = {}) {
+  const activityId = String(row?.RowID || row?.row_id || row?.id || '').trim();
+  if (!activityId) return null;
+  const rows = Array.isArray(state?.courseSchedulingPlanningRows) ? state.courseSchedulingPlanningRows : [];
+  return rows.find((item) => String(item?.courseId || '').trim() === activityId) || null;
+}
+
+function activityDrawerContent(row, canSeePrivateNotes, canEdit, canDirectEdit, canRequestEdit, canDeleteActivity, hideEmpIds, hideRowId, hideActivityNo, settings, { datesLoading = false, canSchedule = false, planningRow = null, state = null } = {}) {
   const privateNote = canSeePrivateNotes ? row.private_note || '—' : null;
   return activityWorkDrawerHtml(row, {
     privateNote,
@@ -1269,7 +1276,8 @@ function activityDrawerContent(row, canSeePrivateNotes, canEdit, canDirectEdit, 
     settings,
     showFinance: false,
     showFinanceFields: false,
-    datesLoading
+    datesLoading,
+    planningRow: planningRow || planningRowForActivity(state, row)
   });
 }
 
@@ -2498,7 +2506,7 @@ export const activitiesScreen = {
                 canDeleteActivity,
                 hideEmpIds, hideRowId, hideActivityNo,
                 mergeSettingsWithFallback(state?.clientSettings || {}, buildFallbackOptionsFromRows(activitiesRows)),
-                { datesLoading: false, canSchedule: hasPermission(state?.user, 'view_operations_scheduling') }
+                { datesLoading: false, canSchedule: hasPermission(state?.user, 'view_operations_scheduling'), state }
               );
               hideShellHeader(contentRoot);
               bindActivityEditForm(contentRoot);
@@ -2722,8 +2730,7 @@ export const activitiesScreen = {
       const coordinationItem = state.activityCoordination?.byActivityId?.get?.(String(form?.dataset.rowId || ''));
       const coordinationAction = contentRoot.querySelector('[data-activity-actions]');
       if (coordinationAction && coordinationItem) {
-        const schedulingButtonHtml = coordinationAction.querySelector('[data-open-activity-scheduling]')?.outerHTML || '';
-        coordinationAction.innerHTML = `${coordinationDrawerActionHtml(coordinationItem)}${schedulingButtonHtml}`;
+        coordinationAction.innerHTML = coordinationDrawerActionHtml(coordinationItem);
       }
       contentRoot.querySelector('[data-open-activity-scheduling]')?.addEventListener('click', () => {
         const activityId = String(form?.dataset.rowId || '').trim();
@@ -2736,6 +2743,9 @@ export const activitiesScreen = {
         ].filter((value) => /^\d{4}-\d{2}-\d{2}$/.test(value)).sort();
         const firstDate = dates[0] || '';
         state.courseSchedulingSelectedId = activityId;
+        state.courseSchedulingFocusMode = true;
+        state.courseSchedulingFocusSelectedCard = true;
+        state.courseSchedulingListSearch = '';
         state.courseSchedulingTab = '';
         state.courseSchedulingDistrict = '';
         state.courseSchedulingAuthority = '';
@@ -2835,7 +2845,11 @@ export const activitiesScreen = {
       const buildDrawerContent = (row, datesLoading) => {
         const base = activityDrawerContent(
           row, canSeePrivateNotes, canEditActivity, canDirectEdit, canRequestEdit,
-          canDeleteActivity, hideEmpIds, hideRowId, hideActivityNo, settings, { datesLoading, canSchedule: hasPermission(state?.user, 'view_operations_scheduling') }
+          canDeleteActivity, hideEmpIds, hideRowId, hideActivityNo, settings, {
+            datesLoading,
+            canSchedule: hasPermission(state?.user, 'view_operations_scheduling'),
+            state
+          }
         );
         if (!canReopenActivity) return base;
         return `<div style="padding:12px 16px 0;text-align:right">

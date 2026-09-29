@@ -8806,6 +8806,52 @@ select.ds-input {
   padding-block: 2px;
 }
 
+.activity-drawer__scheduling-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 8px 0 4px;
+  padding: 10px 12px;
+  border: 1px solid var(--ds-border, #d5dee8);
+  border-radius: 10px;
+  background: #f7fafc;
+}
+
+.activity-drawer__scheduling-status-body {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.activity-drawer__scheduling-status-body strong {
+  font-size: .78rem;
+  color: var(--ds-text-secondary, #5b6b7c);
+}
+
+.activity-drawer__scheduling-status-body span[data-scheduling-status-label] {
+  font-size: .95rem;
+  font-weight: 700;
+  color: var(--ds-text, #1f2a37);
+}
+
+.activity-drawer__scheduling-status-body small {
+  color: var(--ds-text-secondary, #5b6b7c);
+  font-size: .8rem;
+}
+
+.activity-drawer__scheduling-proposal {
+  display: inline-flex;
+  width: fit-content;
+  margin-top: 2px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: #e8f2f8;
+  color: #215f82;
+  font-size: .74rem;
+  font-weight: 700;
+}
+
 .activity-scheduling-fields { padding-block: 6px; }
 
 .activity-drawer__section--course-dates .activity-drawer__progress {

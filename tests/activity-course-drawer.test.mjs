@@ -69,7 +69,10 @@ test('course drawer keeps polished dates, meeting notes, edit-only scheduling fi
   assert.equal(rendered.querySelector('[data-find-instructor]'), null);
   const schedulingHandoff = rendered.querySelector('[data-open-activity-scheduling]');
   assert.ok(schedulingHandoff);
-  assert.equal(schedulingHandoff.textContent.trim(), 'פתח בשיבוצים');
+  assert.equal(schedulingHandoff.textContent.trim(), 'פתח שיבוץ');
+  const schedulingStatus = rendered.querySelector('[data-activity-scheduling-status]');
+  assert.ok(schedulingStatus);
+  assert.match(schedulingStatus.textContent, /מצב שיבוץ/);
   const schedulingFields = rendered.querySelector('[data-scheduling-fields]');
   assert.ok(schedulingFields);
   assert.equal(schedulingFields.getAttribute('data-mode'), 'edit');
@@ -81,6 +84,7 @@ test('course drawer keeps polished dates, meeting notes, edit-only scheduling fi
   const actions = rendered.querySelector('[data-activity-actions]');
   assert.ok(actions.querySelector('[data-coordination-approval]'));
   assert.equal(actions.textContent.trim(), 'אישור תיאום');
+  assert.equal(actions.querySelector('[data-open-activity-scheduling]'), null);
 });
 
 test('course drawer shows meeting date and weekday inline and renders constrained time lists', () => {

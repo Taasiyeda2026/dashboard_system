@@ -936,6 +936,55 @@ function workboardActionsHtml(row = {}, { planningLoading = false, alternativesE
   return '<button type="button" class="course-scheduling-workboard-secondary" data-course-row-action data-open-course-detail>בדוק ושבץ</button>';
 }
 
+export function filterCourseRowModelsBySearch(rowModels = [], query = '') {
+  const needle = text(query).toLowerCase();
+  if (!needle) return rowModels;
+  return rowModels.filter((row) => {
+    const course = row?.course || {};
+    const haystack = [
+      row?.id,
+      course.row_id,
+      course.RowID,
+      course.id,
+      course.activity_name,
+      course.school,
+      course.authority,
+      course.instructor_name,
+      course.instructor_name_2,
+      course.draft_instructor_name,
+      course.emp_id,
+      course.draft_emp_id,
+      row?.instructorLabel
+    ].map((value) => text(value).toLowerCase()).join(' ');
+    return haystack.includes(needle);
+  });
+}
+
+export function isCourseSchedulingFocusMode(state = {}) {
+  return state.courseSchedulingFocusMode === true && !!text(state.courseSchedulingSelectedId);
+}
+
+function courseListSearchHtml(state = {}) {
+  const query = text(state.courseSchedulingListSearch);
+  return `<div class="course-scheduling-list-search" data-course-list-search-wrap>
+    <label class="course-scheduling-list-search__label">
+      <span class="course-scheduling-visually-hidden">חיפוש פעילות</span>
+      <input type="search" class="course-scheduling-input course-scheduling-list-search__input" data-course-list-search
+        placeholder="חיפוש פעילות, בית ספר, רשות או מדריך"
+        value="${escapeHtml(query)}" autocomplete="off">
+    </label>
+    ${query ? '<button type="button" class="course-scheduling-list-search__clear" data-clear-course-list-search aria-label="נקה חיפוש">×</button>' : ''}
+  </div>`;
+}
+
+function courseListFocusBannerHtml(state = {}, focusedCount = 0) {
+  if (!isCourseSchedulingFocusMode(state)) return '';
+  return `<div class="course-scheduling-focus-banner" data-course-focus-banner>
+    <strong>מוצגת הפעילות שנבחרה${focusedCount ? ` (${focusedCount})` : ''}</strong>
+    <button type="button" class="course-scheduling-workboard-secondary" data-show-all-courses>הצג את כל הפעילויות</button>
+  </div>`;
+}
+
 function courseListCardHtml(row, selectedId, state = {}) {
   const c = row.course;
   const selectedClass = row.id === selectedId ? ' is-selected' : '';
@@ -946,7 +995,7 @@ function courseListCardHtml(row, selectedId, state = {}) {
   const alert = row.alert
     ? `<small class="course-scheduling-workboard-alert">⚠ ${escapeHtml(row.alert)}</small>`
     : '';
-  return `<div class="course-scheduling-compact-row course-scheduling-course-card${selectedClass}" data-course-card="${escapeHtml(row.id)}" role="button" tabindex="0" aria-label="${escapeHtml(`${school}, ${authority}, ${courseName}, ${row.statusLabel}`)}">
+  return `<div class="course-scheduling-compact-row course-scheduling-course-card${selectedClass}" data-course-card="${escapeHtml(row.id)}" data-course-scroll-target="${row.id === selectedId ? 'selected' : ''}" role="button" tabindex="0" aria-label="${escapeHtml(`${school}, ${authority}, ${courseName}, ${row.statusLabel}`)}">
     <span class="course-scheduling-compact-cell course-scheduling-compact-school" title="${escapeHtml(school)}"><strong>${escapeHtml(school)}</strong><small>${escapeHtml(authority)}</small></span>
     <strong class="course-scheduling-compact-cell course-scheduling-compact-course" title="${escapeHtml(courseName)}">${escapeHtml(courseName)}</strong>
     <span class="course-scheduling-compact-cell course-scheduling-workboard-schedule"><bdi dir="ltr">${escapeHtml(row.scheduleLabel)}</bdi></span>
@@ -962,9 +1011,15 @@ function courseListCardHtml(row, selectedId, state = {}) {
 
 function courseListHtml(rowModels, selectedId, state = {}) {
   const statusFilter = text(state.courseSchedulingBusinessStatus || 'all');
+  const focusMode = isCourseSchedulingFocusMode(state);
+  const searchQuery = text(state.courseSchedulingListSearch);
+  let workingRows = focusMode
+    ? rowModels.filter((row) => row.id === selectedId)
+    : rowModels;
+  workingRows = filterCourseRowModelsBySearch(workingRows, searchQuery);
   const filteredRows = statusFilter === 'all'
-    ? rowModels
-    : rowModels.filter((row) => row.bucket === statusFilter);
+    ? workingRows
+    : workingRows.filter((row) => row.bucket === statusFilter);
   const selectedGroup = LIST_GROUPS.find((group) => group.key === statusFilter);
   const filterContext = statusFilter === 'all'
     ? ''
@@ -972,14 +1027,18 @@ function courseListHtml(rowModels, selectedId, state = {}) {
   const groups = LIST_GROUPS
     .map((group) => ({ ...group, rows: filteredRows.filter((row) => row.bucket === group.key) }))
     .filter((group) => group.rows.length);
+  const toolbar = `${courseListSearchHtml(state)}${courseListFocusBannerHtml(state, filteredRows.length)}`;
   if (!groups.length) {
-    return `<div class="course-scheduling-empty">
-      <strong>אין פעילויות במצב שנבחר</strong>
-      <p>אפשר לשנות את מסנן המצב כדי לראות את שאר הפעילויות.</p>
+    return `${toolbar}<div class="course-scheduling-empty">
+      <strong>${focusMode ? 'הפעילות שנבחרה אינה מוצגת במסננים הנוכחיים' : (searchQuery ? 'אין פעילויות התואמות לחיפוש' : 'אין פעילויות במצב שנבחר')}</strong>
+      <p>${focusMode
+        ? 'אפשר להציג את כל הפעילויות או לשנות את המסננים.'
+        : 'אפשר לשנות את מסנן המצב או את החיפוש כדי לראות את שאר הפעילויות.'}</p>
+      ${focusMode ? '<button type="button" class="course-scheduling-workboard-secondary" data-show-all-courses>הצג את כל הפעילויות</button>' : ''}
     </div>`;
   }
   const header = '<div class="course-scheduling-compact-table-head" aria-hidden="true"><span>בית ספר</span><span>פעילות</span><span>מועד</span><span>מדריך</span><span>מצב</span><span>פעולה</span></div>';
-  return filterContext + header + groups.map((group) => `<section class="course-scheduling-course-group"><h3>${escapeHtml(group.label)} <span class="course-scheduling-badge">${group.rows.length}</span></h3>${group.rows.map((row) => courseListCardHtml(row, selectedId, state)).join('')}</section>`).join('');
+  return toolbar + filterContext + header + groups.map((group) => `<section class="course-scheduling-course-group"><h3>${escapeHtml(group.label)} <span class="course-scheduling-badge">${group.rows.length}</span></h3>${group.rows.map((row) => courseListCardHtml(row, selectedId, state)).join('')}</section>`).join('');
 }
 
 
@@ -1961,8 +2020,9 @@ export const courseSchedulingScreen = {
           )
         : null);
 
+    const focusMode = isCourseSchedulingFocusMode(state);
     return dsScreenStack(`${instructorsWorkspaceNavStylesHtml()}
-    <div class="course-scheduling-screen is-compact-symmetric-layout is-simple-workboard" dir="rtl" data-cs-ui="simple-workboard-20260924-v1" data-cs-tab="${escapeHtml(tab)}">
+    <div class="course-scheduling-screen is-compact-symmetric-layout is-simple-workboard${focusMode ? ' is-activity-focus' : ''}${selectedId ? ' has-selected-course' : ''}" dir="rtl" data-cs-ui="simple-workboard-20260924-v1" data-cs-tab="${escapeHtml(tab)}">
       ${instructorsWorkspaceHeaderHtml({
         activeTab: tab === 'maintenance' ? 'maintenance' : 'scheduling',
         state
@@ -2031,6 +2091,38 @@ export const courseSchedulingScreen = {
     };
     restoreWorkboardScroll();
 
+    const scrollSelectedCourseIntoView = () => {
+      const selectedId = text(state.courseSchedulingSelectedId);
+      if (!selectedId) return;
+      const list = root.querySelector('.course-scheduling-courses');
+      const card = root.querySelector('[data-course-scroll-target="selected"]')
+        || [...root.querySelectorAll('[data-course-card]')].find((node) => text(node.dataset.courseCard) === selectedId);
+      if (!card) return;
+      const bringIntoView = () => {
+        try {
+          card.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'auto' });
+        } catch {
+          card.scrollIntoView?.(true);
+        }
+        if (list && typeof list.scrollTop === 'number') {
+          const listRect = list.getBoundingClientRect?.();
+          const cardRect = card.getBoundingClientRect?.();
+          if (listRect && cardRect) {
+            const delta = (cardRect.top + cardRect.height / 2) - (listRect.top + listRect.height / 2);
+            list.scrollTop += delta;
+          }
+        }
+        card.focus?.({ preventScroll: true });
+      };
+      if (typeof requestAnimationFrame === 'function') requestAnimationFrame(bringIntoView);
+      else setTimeout(bringIntoView, 0);
+    };
+
+    if (state.courseSchedulingFocusSelectedCard === true || isCourseSchedulingFocusMode(state)) {
+      state.courseSchedulingFocusSelectedCard = false;
+      scrollSelectedCourseIntoView();
+    }
+
     if (state.courseSchedulingScrollToFilteredList === true) {
       state.courseSchedulingScrollToFilteredList = false;
       const list = root.querySelector('[data-course-list]');
@@ -2043,6 +2135,39 @@ export const courseSchedulingScreen = {
         else setTimeout(focusList, 0);
       }
     }
+
+    const restoreListSearchCaret = () => {
+      const input = root.querySelector('[data-course-list-search]');
+      if (!input || typeof input.focus !== 'function') return;
+      const value = text(state.courseSchedulingListSearch);
+      const cursor = Number(state.courseSchedulingListSearchCaret);
+      input.focus({ preventScroll: true });
+      if (typeof input.setSelectionRange === 'function') {
+        const pos = Number.isFinite(cursor) ? Math.max(0, Math.min(cursor, value.length)) : value.length;
+        input.setSelectionRange(pos, pos);
+      }
+    };
+    if (state.courseSchedulingListSearchRestoreFocus === true) {
+      state.courseSchedulingListSearchRestoreFocus = false;
+      restoreListSearchCaret();
+    }
+    root.querySelector('[data-course-list-search]')?.addEventListener('input', (event) => {
+      state.courseSchedulingListSearch = text(event.target.value);
+      state.courseSchedulingListSearchCaret = Number(event.target.selectionStart) || text(event.target.value).length;
+      state.courseSchedulingListSearchRestoreFocus = true;
+      rerenderPreservingWorkboardScroll();
+    });
+    root.querySelector('[data-clear-course-list-search]')?.addEventListener('click', () => {
+      state.courseSchedulingListSearch = '';
+      state.courseSchedulingListSearchCaret = 0;
+      state.courseSchedulingListSearchRestoreFocus = true;
+      rerenderPreservingWorkboardScroll();
+    });
+    root.querySelectorAll('[data-show-all-courses]').forEach((button) => button.addEventListener('click', () => {
+      state.courseSchedulingFocusMode = false;
+      state.courseSchedulingFocusSelectedCard = true;
+      rerender();
+    }));
 
     const rerenderPreservingWorkboardScroll = () => {
       const list = root.querySelector('.course-scheduling-courses');
@@ -2915,7 +3040,7 @@ export const courseSchedulingScreen = {
           expectedRevision: Number(state.courseSchedulingPlanningSharedRevision) || 0
         });
         applyReturnedSchedulingActivity(data.activities, updatedActivity);
-        state.courseSchedulingSelectedId = '';
+        state.courseSchedulingSelectedId = courseId;
         state.courseSchedulingAlternativesCourseId = '';
         clearScreenDataCache?.();
         await reloadSharedPlanningState({ refreshData: false });
@@ -3577,7 +3702,7 @@ export const courseSchedulingScreen = {
 
       applyReturnedSchedulingActivity(data.activities, updatedActivity);
       state.courseSchedulingResults = (state.courseSchedulingResults || []).filter((result) => idOf(result.course) !== courseId);
-      state.courseSchedulingSelectedId = '';
+      state.courseSchedulingSelectedId = courseId;
       clearScreenDataCache?.();
       invalidatePlanningWorkboard();
       showToast('השיבוץ אושר. המערכת מעדכנת את שאר סידור העבודה.', 'success');
@@ -4048,7 +4173,7 @@ export const courseSchedulingScreen = {
       state.courseSchedulingSelectedCandidateId = '';
       clearScreenDataCache?.();
       invalidatePlanningWorkboard();
-      state.courseSchedulingSelectedId = '';
+      state.courseSchedulingSelectedId = selectedCourseId;
       showToast('השיבוץ נשמר. המערכת מעדכנת את שאר סידור העבודה.', 'success');
       rerender();
     });
@@ -4084,7 +4209,7 @@ export const courseSchedulingScreen = {
       }
       clearScreenDataCache?.();
       invalidatePlanningWorkboard();
-      state.courseSchedulingSelectedId = '';
+      state.courseSchedulingSelectedId = selectedCourseId;
       showToast('הטיוטה נשמרה. המערכת מתכננת את שאר הפעילויות סביבה.', 'success');
       rerender();
     });
@@ -4102,7 +4227,7 @@ export const courseSchedulingScreen = {
       applyReturnedSchedulingActivity(data.activities, updatedActivity);
       clearScreenDataCache?.();
       invalidatePlanningWorkboard();
-      state.courseSchedulingSelectedId = '';
+      state.courseSchedulingSelectedId = selectedCourseId;
       showToast('הטיוטה בוטלה. המערכת מעדכנת את סידור העבודה.', 'success');
       rerender();
     });
