@@ -1033,7 +1033,6 @@ function schedulingPlanningStatusHtml(state = {}) {
   }
   return `<div class="course-scheduling-auto-plan is-ready" role="status" data-planning-status aria-busy="false">
     <span data-planning-status-message><strong>הכל מעודכן</strong></span>
-    <button type="button" class="course-scheduling-workboard-secondary" data-run-course-planning>חשב מחדש</button>
   </div>`;
 }
 
@@ -2889,8 +2888,12 @@ export const courseSchedulingScreen = {
 
     root.querySelector('[data-run-course-planning]')?.addEventListener('click', () => {
       const pending = (state.courseSchedulingPlanningAffectedIds || []).length;
-      const forceFull = pending === 0 && !!state.courseSchedulingPlanningCalculatedAt;
-      void runCoursePlanning({ forceFull });
+      const alreadyCurrent = pending === 0
+        && !!state.courseSchedulingPlanningCalculatedAt
+        && !state.courseSchedulingPlanningStale
+        && !state.courseSchedulingPlanningError;
+      if (alreadyCurrent) return;
+      void runCoursePlanning({ forceFull: false });
     });
     root.querySelector('[data-refresh-shared-planning]')?.addEventListener('click', async (event) => {
       if (state.courseSchedulingPlanningLoading) return;

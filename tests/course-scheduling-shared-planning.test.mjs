@@ -103,3 +103,24 @@ test('shared planning UI explicitly communicates team visibility and targeted re
   assert.match(planning, /עדכן רק \$\{pendingCount\} פעילויות שהשתנו/);
   assert.match(planning, /data-refresh-shared-planning/);
 });
+
+test('current shared planning has no rerun button and click handler never promotes an empty update to full run', async () => {
+  const screen = await readFile(screenUrl, 'utf8');
+  const statusStart = screen.indexOf('function schedulingPlanningStatusHtml');
+  const statusEnd = screen.indexOf('function genderRequirementLabel', statusStart);
+  const statusFlow = screen.slice(statusStart, statusEnd);
+  const currentBlockStart = statusFlow.lastIndexOf('<strong>הכל מעודכן</strong>');
+  const currentBlock = statusFlow.slice(currentBlockStart);
+
+  assert.match(currentBlock, /<strong>הכל מעודכן<\/strong>/);
+  assert.doesNotMatch(currentBlock, /data-run-course-planning/);
+  assert.doesNotMatch(currentBlock, /חשב מחדש/);
+
+  const handlerStart = screen.indexOf("root.querySelector('[data-run-course-planning]')?.addEventListener");
+  const handlerEnd = screen.indexOf("root.querySelector('[data-refresh-shared-planning]')", handlerStart);
+  const handler = screen.slice(handlerStart, handlerEnd);
+  assert.match(handler, /const alreadyCurrent = pending === 0/);
+  assert.match(handler, /if \(alreadyCurrent\) return/);
+  assert.match(handler, /runCoursePlanning\(\{ forceFull: false \}\)/);
+  assert.doesNotMatch(handler, /forceFull = pending === 0/);
+});

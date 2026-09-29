@@ -304,3 +304,5 @@ config.HOTFIX_VERSION = `scheduling-deduplicate-candidate-checks-20260929-v1-${c
 config.HOTFIX_VERSION = `attendance-record-atomic-edit-20260929-v1-${config.HOTFIX_VERSION}`;
 
 config.HOTFIX_VERSION = `scheduling-stop-legacy-route-rerun-20260929-v1-${config.HOTFIX_VERSION}`;
+
+config.HOTFIX_VERSION = `scheduling-no-rerun-when-current-20260929-v1-${config.HOTFIX_VERSION}`;
