@@ -2211,7 +2211,7 @@ export const courseSchedulingScreen = {
         rules,
         exceptions,
         schoolCalendar: snapshot?.schoolCalendar || [],
-        persist: true
+        persist: !data._is_stale
       });
       const mergedAffectedIds = [...new Set([
         ...affectedIds.map(text).filter(Boolean),

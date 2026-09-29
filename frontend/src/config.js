@@ -296,3 +296,5 @@ config.HOTFIX_VERSION = `global-cache-refresh-attendance-scheduling-20260929-v1-
 config.HOTFIX_VERSION = `planning-route-error-isolation-20260929-v1-${config.HOTFIX_VERSION}`;
 
 config.HOTFIX_VERSION = `scheduling-fast-reopen-route-recovery-20260929-v1-${config.HOTFIX_VERSION}`;
+
+config.HOTFIX_VERSION = `verified-google-zero-route-20260929-v1-${config.HOTFIX_VERSION}`;
