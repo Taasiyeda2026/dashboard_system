@@ -1,0 +1,30 @@
+---
+description: Scheduling / course-planning work must follow the system map and verify against live code
+globs:
+  - frontend/src/screens/course-scheduling*.js
+  - frontend/src/screens/instructor-matching-engine.js
+  - frontend/src/screens/instructor-scheduling*.js
+  - frontend/src/screens/shared/course-scheduling*.js
+  - frontend/src/screens/shared/instructors-workspace-nav.js
+  - frontend/src/screens/shared/school-calendar-logic.js
+  - frontend/src/screens/shared/activity-scheduling-eligibility.js
+  - supabase/migrations/**/*scheduling*
+  - supabase/migrations/**/*planning*
+  - tests/**/*scheduling*
+  - tests/**/*planning*
+  - docs/SCHEDULING_SYSTEM_MAP.md
+  - docs/course-scheduling-smart-logic.md
+alwaysApply: false
+---
+
+# Scheduling system rule
+
+For any task involving שיבוצים, course scheduling, national planning, planning fingerprints, travel cache for scheduling, instructor matching for courses, or related Supabase RPCs/tables:
+
+1. **Read first:** `docs/SCHEDULING_SYSTEM_MAP.md` (and `docs/course-scheduling-smart-logic.md` when scoring/blocks/quality bands are in scope).
+2. **Verify in code** before changing behavior. Open the cited frontend modules and/or migrations; do not rely on chat memory or the map alone.
+3. **Do not change a business rule silently.** If the change alters eligibility, anchors, full-vs-incremental planning, recruitment meaning, travel buffers, distance caps, sector calendar rules, or confirm/draft semantics, say so explicitly in the PR/commit summary.
+4. **Contradiction = stop.** If the map and the current code disagree, stop implementing assumptions from the map and report the contradiction (file + symbol + what each source says).
+5. **Keep the map current.** After a material scheduling/planning change, update `docs/SCHEDULING_SYSTEM_MAP.md` in the same change set (or immediately follow-up) so future work is not dependent on chat history.
+
+Related policy from `AGENTS.md` still applies: minimal relevant tests, cache version bumps for deployable frontend, no SW precache of bulky archives.

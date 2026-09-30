@@ -17,6 +17,7 @@ Short map for keeping Codex/Cursor work scoped. Do not delete or move files base
 - `frontend/src/screens/` — active screen modules, for example dashboard, week/month, activities, operations, finance, catalog, certificates, invitations, permissions, and proposals/agreements.
 - `frontend/src/screens/shared/` — shared screen-level helpers/components.
 - `frontend/src/styles/` — frontend styling used by screens.
+- Course scheduling / national planning map: `docs/SCHEDULING_SYSTEM_MAP.md` (read before scheduling/planning tasks; Cursor rule `.cursor/rules/scheduling-system.mdc`).
 
 ## Service Worker / PWA
 
