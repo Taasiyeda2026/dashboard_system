@@ -415,8 +415,8 @@
   gap: 8px;
   position: sticky;
   top: 0;
-  max-height: calc(100vh - 250px);
-  overflow: auto;
+  max-height: none;
+  overflow: visible;
   padding: 10px 12px 12px;
   border: 0;
   border-inline-start: 1px solid var(--cs-border);
@@ -469,6 +469,49 @@
   font-weight: 650;
 }
 
+.course-scheduling-work-panel__assignment {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 7px;
+  min-width: 0;
+  margin: 0;
+  font-size: .88rem;
+  line-height: 1.3;
+}
+
+.course-scheduling-work-panel__assignment-state {
+  color: #217346;
+  font-weight: 800;
+}
+
+.course-scheduling-work-panel__assignment-separator {
+  color: var(--cs-text-muted);
+}
+
+.course-scheduling-work-panel__assignment-instructor {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--cs-text);
+  font-weight: 750;
+}
+
+.course-scheduling-assigned-detail {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  align-content: start;
+}
+
+.course-scheduling-assigned-detail > p {
+  margin: 0;
+}
+
+.course-scheduling-assigned-detail__completed {
+  font-size: .84rem;
+  line-height: 1.35;
+}
+
 .course-scheduling-work-panel__details {
   margin-top: 4px;
 }
@@ -480,9 +523,12 @@
 
 .course-scheduling-screen.is-simple-workboard .course-scheduling-detail-actions {
   display: flex;
+  align-items: center;
   flex-wrap: wrap;
   gap: 6px;
   margin-top: 2px;
+  padding-bottom: 2px;
+  overflow: visible;
 }
 
 .course-scheduling-screen.is-simple-workboard .course-scheduling-btn--primary {

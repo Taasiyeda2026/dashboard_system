@@ -1204,17 +1204,25 @@ function selectedCourseWorkPanelHeaderHtml(row, state = {}) {
   const schedule = workboardScheduleLabel(row);
   const instructor = workboardInstructorLabel(row);
   const alert = text(row?.alert);
+  const statusClass = row.bucket === 'draft' ? ' is-status-draft' : (row.bucket === 'assigned' ? ' is-status-ready' : ' is-status-warning');
+  const statusHtml = row.bucket === 'assigned'
+    ? `<div class="course-scheduling-work-panel__assignment" aria-label="${escapeHtml(`${row.statusLabel || ''} · ${instructor}`)}">
+        <span class="course-scheduling-work-panel__assignment-state">${escapeHtml(row.statusLabel || '')}</span>
+        <span class="course-scheduling-work-panel__assignment-separator" aria-hidden="true">·</span>
+        <strong class="course-scheduling-work-panel__assignment-instructor">${escapeHtml(instructor)}</strong>
+      </div>`
+    : `<div class="course-scheduling-work-panel__status">
+        <span class="course-scheduling-status-chip${statusClass}">${escapeHtml(row.statusLabel || '')}</span>
+        <p class="course-scheduling-work-panel__instructor">${escapeHtml(instructor)}</p>
+      </div>`;
   return `<header class="course-scheduling-work-panel" data-course-work-panel>
     <div class="course-scheduling-work-panel__identity">
       <h2 class="course-scheduling-work-panel__title">${escapeHtml(text(course.activity_name) || '—')}</h2>
       <p class="course-scheduling-work-panel__place"><strong>${escapeHtml(text(course.school) || '—')}</strong><span>${escapeHtml(text(course.authority) || '—')}</span></p>
       <p class="course-scheduling-work-panel__schedule"><bdi dir="ltr">${escapeHtml(schedule)}</bdi></p>
     </div>
-    <div class="course-scheduling-work-panel__status">
-      <span class="course-scheduling-status-chip${row.bucket === 'draft' ? ' is-status-draft' : (row.bucket === 'assigned' ? ' is-status-ready' : ' is-status-warning')}">${escapeHtml(row.statusLabel || '')}</span>
-      <p class="course-scheduling-work-panel__instructor">${escapeHtml(instructor)}</p>
-      ${alert ? `<p class="course-scheduling-workboard-alert" role="status">⚠ ${escapeHtml(alert)}</p>` : ''}
-    </div>
+    ${statusHtml}
+    ${alert ? `<p class="course-scheduling-workboard-alert" role="status">⚠ ${escapeHtml(alert)}</p>` : ''}
   </header>`;
 }
 
@@ -1752,16 +1760,16 @@ export function assignedDetailHtml(row, state = {}) {
   const substituteAction = substituteAccess.allowed
     ? `<button type="button" class="course-scheduling-btn course-scheduling-btn--secondary" data-open-single-substitute>${substituteAccess.canDirect ? 'החלפה חד־פעמית' : 'בקשת החלפה חד־פעמית'}</button>`
     : '';
-  return `<p class="course-scheduling-status-chip is-ready">${STATUS.assigned}</p>
-    <p>מדריך משובץ: <b>${escapeHtml(c.instructor_name || c.emp_id)}</b></p>
-    ${completed == null ? '' : `<p>מפגשים שהתקיימו: <b>${completed}</b></p>`}
+  return `<section class="course-scheduling-assigned-detail" data-assigned-course-detail>
+    ${completed == null ? '' : `<p class="course-scheduling-assigned-detail__completed">מפגשים שהתקיימו: <b>${completed}</b></p>`}
     ${meetingInstructorHistoryHtml(history, state.courseSchedulingReplacements?.[row.id] || [], state.courseSchedulingSingleSubstitutions?.[row.id] || [])}
     <div class="course-scheduling-detail-actions">
-      ${substituteAction}
       <button type="button" class="course-scheduling-btn course-scheduling-btn--primary" data-change-assignment>שינוי / החלפת מדריך</button>
+      ${substituteAction}
       <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary" data-open-cancel-assignment>ביטול שיבוץ</button>
     </div>
-    ${selectedCourseExtraDetailsHtml(c)}`;
+    ${selectedCourseExtraDetailsHtml(c)}
+  </section>`;
 }
 
 function singleMeetingSubstitutionModalHtml(data = {}, state = {}) {
