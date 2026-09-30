@@ -3,6 +3,7 @@ import { dsScreenStack, dsEmptyState } from './shared/layout.js';
 import { showToast } from './shared/toast.js';
 import { canManageInstructorOnboarding, canViewEmployeeFiles } from '../permissions.js';
 import { hasPermission } from '../permission-policy.js';
+import { ensureSchoolAuthorityCatalogInState } from '../school-catalog-bootstrap-hotfix.js';
 import { onboardingManagers, onboardingModalHtml, bindOnboardingModal } from './instructor-onboarding.js';
 import { createEmployeeFileSharePointReturnSync, loadInstructorEmployeeFile, saveInstructorEmployeeFolderUrl } from './instructor-employee-file-data.js';
 import { employeeFileModalHtml } from './instructor-employee-file-ui.js';
@@ -17,12 +18,38 @@ import {
 import { loadInstructorSeniorityData, saveInstructorContactDetails } from './instructor-contact-data.js';
 import {
   text, activeFlag, instructorCard, profileHtml, contactForm, constraintsForm, matchingForm
-} from './instructor-workspace-ui.js?v=20260930-blocked-authorities-v1';
+} from './instructor-workspace-ui.js?v=20260930-blocked-authorities-catalog-v1';
 import {
   bindInstructorsWorkspaceNav,
   instructorsWorkspaceHeaderHtml,
   instructorsWorkspaceNavStylesHtml
 } from './shared/instructors-workspace-nav.js';
+
+/** System authority catalog names from clientSettings (authorities table → dropdown_options). */
+export function systemAuthorityOptionsFromSettings(clientSettings) {
+  const dropdown = clientSettings?.dropdown_options && typeof clientSettings.dropdown_options === 'object'
+    ? clientSettings.dropdown_options
+    : {};
+  const seen = new Set();
+  const out = [];
+  const push = (raw) => {
+    const value = text(
+      raw && typeof raw === 'object'
+        ? (raw.name || raw.authority_name || raw.value || raw.label)
+        : raw
+    );
+    if (!value) return;
+    const key = value.toLocaleLowerCase('he-IL');
+    if (seen.has(key)) return;
+    seen.add(key);
+    out.push({ value, label: value });
+  };
+  for (const key of ['authority_records', 'authorities', 'authority']) {
+    const arr = Array.isArray(dropdown[key]) ? dropdown[key] : [];
+    for (const item of arr) push(item);
+  }
+  return out.sort((a, b) => a.label.localeCompare(b.label, 'he'));
+}
 
 const ACTIVE_FILTERS = [{ value: 'yes', label: 'פעילים' }, { value: '', label: 'הכול' }, { value: 'no', label: 'לא פעילים' }];
 const employeeFileSharePointReturnSync = createEmployeeFileSharePointReturnSync();
@@ -208,11 +235,22 @@ export function bindInstructorMatchingModal(modalRoot, { row, saveProfile, onSuc
     )).join('');
   };
 
+  const setMatchingStatus = (message = '') => {
+    const status = form.querySelector('[data-matching-status]');
+    if (!status) return;
+    status.textContent = message;
+    status.hidden = !message;
+  };
+
   const addBlocked = (raw) => {
     const typed = String(raw || '').trim().replace(/\s+/g, ' ');
     if (!typed) return;
     const canonical = allowedAuthorities.get(typed.toLocaleLowerCase('he-IL'));
-    if (!canonical) return;
+    if (!canonical) {
+      setMatchingStatus('הרשות לא נמצאה ברשימת הרשויות');
+      return;
+    }
+    setMatchingStatus('');
     writeBlocked([...readBlocked(), canonical]);
     if (searchInput) searchInput.value = '';
   };
@@ -485,11 +523,17 @@ export const instructorsScreen = {
       await ensureScheduling();
       if (!canEdit || !data?.scheduling?.loaded) return;
       ui.closeDrawer?.();
+      try {
+        await ensureSchoolAuthorityCatalogInState(state);
+      } catch (_) {
+        /* keep whatever is already in clientSettings.dropdown_options */
+      }
       const uniqueOptions = (items) => [...new Map(items.filter(item => item.value).map(item => [item.value, item])).values()].sort((a,b) => a.label.localeCompare(b.label, 'he'));
       const activityRows = data?.detail_rows || [];
       const options = {
         courses: uniqueOptions(activityRows.filter(item => text(item.activity_type).toLowerCase() === 'course' || text(item.activity_type) === 'קורס').map(item => ({ value: text(item.activity_no || item.course_id || item.activity_name), label: `${text(item.activity_name)}${text(item.activity_no) ? ` · ${text(item.activity_no)}` : ''}` }))),
-        authorities: uniqueOptions(activityRows.map(item => ({ value: text(item.authority), label: text(item.authority) }))),
+        // Full system catalog (authorities table → clientSettings.dropdown_options), not detail_rows.
+        authorities: systemAuthorityOptionsFromSettings(state?.clientSettings),
         schools: uniqueOptions(activityRows.map(item => ({ value: text(item.school_id || item.school), label: `${text(item.school)}${text(item.authority) ? ` · ${text(item.authority)}` : ''}` })))
       };
       ui.openModal({ title: `התאמה לשיבוץ — ${row.full_name || row.emp_id}`, modalClass: 'ds-modal--instructor-matching', content: matchingForm(row, options), actions: '<button type="button" class="ds-btn" data-ui-close-modal>ביטול</button><button type="button" class="ds-btn ds-btn--primary" data-save-instructor-matching>שמירה</button>' });
