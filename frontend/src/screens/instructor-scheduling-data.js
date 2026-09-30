@@ -68,6 +68,20 @@ export async function loadInstructorSchedulingData() {
   };
 }
 
+function normalizeBlockedAuthoritiesForSave(values) {
+  const seen = new Set();
+  const result = [];
+  for (const raw of Array.isArray(values) ? values : []) {
+    const display = String(raw ?? '').trim().replace(/\s+/g, ' ');
+    if (!display) continue;
+    const key = display.toLocaleLowerCase('he-IL');
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.push(display);
+  }
+  return result;
+}
+
 export async function saveInstructorSchedulingProfile(row) {
   requireClient();
   const empId = normalizeEmpId(row?.emp_id);
@@ -80,6 +94,7 @@ export async function saveInstructorSchedulingProfile(row) {
     gender: ['female', 'male'].includes(row?.gender) ? row.gender : null,
     instruction_languages: Array.isArray(row?.instruction_languages) ? row.instruction_languages.filter(v => ['he', 'ar'].includes(v)) : ['he'],
     matching_note: String(row?.matching_note || '').trim() || null,
+    blocked_authorities: normalizeBlockedAuthoritiesForSave(row?.blocked_authorities),
     updated_at: new Date().toISOString()
   };
   const { data, error } = await supabase

@@ -120,16 +120,16 @@ test('profile opens from every card without requiring an existing assignment', a
   }
 });
 
-test('matching modal shows only profile matching fields and saves without deleting existing profile data', async () => {
+test('matching modal shows profile matching fields including blocked authorities and saves without deleting existing profile data', async () => {
   const row = {
     emp_id: '1500',
     scheduling_profile: {
       gender: 'female', instruction_languages: ['he'], education_levels: ['elementary'],
       default_start_time: '09:00', default_end_time: '13:00', friday_allowed: true,
-      course_restriction_mode: 'allow_only', course_ids: ['c1'], blocked_authorities: ['a1'], blocked_schools: ['s1'], matching_note: 'קיים'
+      course_restriction_mode: 'allow_only', course_ids: ['c1'], blocked_authorities: ['נתניה'], blocked_schools: ['s1'], matching_note: 'קיים'
     }
   };
-  const dom = new JSDOM(`<section class="ds-modal ds-modal--instructor-matching"><div class="ds-modal__content">${matchingForm(row)}</div><footer class="ds-modal__footer"><button data-save-instructor-matching>שמירה</button></footer></section>`);
+  const dom = new JSDOM(`<section class="ds-modal ds-modal--instructor-matching"><div class="ds-modal__content">${matchingForm(row, { authorities: [{ value: 'נתניה', label: 'נתניה' }, { value: 'חדרה', label: 'חדרה' }] })}</div><footer class="ds-modal__footer"><button data-save-instructor-matching>שמירה</button></footer></section>`);
   const saved = { window: globalThis.window, document: globalThis.document, Element: globalThis.Element };
   Object.assign(globalThis, { window: dom.window, document: dom.window.document, Element: dom.window.Element });
   try {
@@ -138,7 +138,8 @@ test('matching modal shows only profile matching fields and saves without deleti
     let payload;
     bindInstructorMatchingModal(modal, { row, saveProfile: async (value) => { calls += 1; payload = value; }, onSuccess: () => {} });
     bindInstructorMatchingModal(modal, { row, saveProfile: async () => { calls += 10; } });
-    assert.doesNotMatch(modal.textContent, /הגבלת קורסים|התאמה לקורסים|רשויות חסומות|בתי ספר חסומים|קורסים מותרים/);
+    assert.match(modal.textContent, /רשויות חסומות/);
+    assert.doesNotMatch(modal.textContent, /הגבלת קורסים|התאמה לקורסים|בתי ספר חסומים|קורסים מותרים/);
     assert.equal(modal.querySelector('[name="course_restriction_mode"]'), null);
     const save = modal.querySelector('[data-save-instructor-matching]');
     save.click();
@@ -147,7 +148,7 @@ test('matching modal shows only profile matching fields and saves without deleti
     assert.equal(payload.default_start_time, '09:00');
     assert.equal(payload.friday_allowed, true);
     assert.deepEqual(payload.course_ids, ['c1']);
-    assert.deepEqual(payload.blocked_authorities, ['a1']);
+    assert.deepEqual(payload.blocked_authorities, ['נתניה']);
     assert.deepEqual(payload.blocked_schools, ['s1']);
     assert.equal(payload.matching_note, 'קיים');
   } finally {

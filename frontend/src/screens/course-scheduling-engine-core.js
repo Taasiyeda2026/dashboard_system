@@ -1,4 +1,4 @@
-import { evaluateInstructor, adjacentActivities } from './instructor-matching-engine.js';
+import { evaluateInstructor, adjacentActivities, isAuthorityBlocked, BLOCKED_AUTHORITY_MESSAGE, BLOCKED_AUTHORITY_CODE } from './instructor-matching-engine.js';
 import { activityMeetings, isoWeekKey } from './instructor-scheduling-load.js';
 import { routeMatrixKey } from './course-scheduling-travel.js';
 import {
@@ -423,6 +423,80 @@ function evaluateCandidate({
   const allMeetings = activityMeetings(course);
   const periodMeetings = allMeetings.filter((meeting) => isDateInCourseSchedulingPeriod(meeting.date, periodKey));
   const originalPeriodCourse = { ...course, meetings: periodMeetings };
+  const profile = profiles[empId];
+
+  // Skip travel/date-adjustment work when the authority is personally blocked.
+  if (isAuthorityBlocked(profile?.blocked_authorities, course?.authority)) {
+    const gate = evaluateInstructor({
+      instructor,
+      profile,
+      rules: rules[empId] || [],
+      exceptions: exceptions[empId] || [],
+      activity: course,
+      existingActivities: [],
+      travel: null,
+      validateTravel: false,
+      includeLegacyScore: false
+    });
+    const persistedBaselineLoad = preparedInstructor?.baselineLoad
+      || instructorLoad(persistedRows, profile, rules[empId] || [], { periodKey });
+    const persistedProjectedLoad = instructorLoad([...persistedRows, originalPeriodCourse], profile, rules[empId] || [], { periodKey });
+    const persistedPeriodMeetings = preparedInstructor?.periodMeetings
+      || meetingAssignments(persistedRows, { periodKey, schoolCalendar: input.schoolCalendar || [] });
+    return {
+      ...gate,
+      eligible: false,
+      failures: [...new Set([...(gate.failures || []), BLOCKED_AUTHORITY_MESSAGE])],
+      failureCodes: [...new Set([...(gate.failureCodes || []), BLOCKED_AUTHORITY_CODE])],
+      score: null,
+      totalScore: null,
+      qualityBand: null,
+      qualityLabel: null,
+      scoreBreakdown: null,
+      recommendationReason: '',
+      instructor,
+      load: persistedProjectedLoad,
+      baselineWorkDates: persistedBaselineLoad.workDates || new Set(),
+      travel: null,
+      periodCourse: originalPeriodCourse,
+      originalPeriodCourse,
+      existingMeetings: persistedPeriodMeetings,
+      plannerMeetings: persistedPeriodMeetings,
+      persistedRows,
+      dateAdjustment: null,
+      proposedMeetings: null,
+      singleMeetingSubstitutions: [],
+      instructorExceptionCount: 0,
+      currentHalfHours: persistedBaselineLoad.hours,
+      projectedHalfHours: persistedProjectedLoad.hours,
+      plannerCurrentHalfHours: persistedBaselineLoad.hours,
+      plannerProjectedHalfHours: persistedProjectedLoad.hours,
+      currentCourseCount: persistedBaselineLoad.courseCount,
+      availabilityHours: persistedProjectedLoad.availabilityHours,
+      projectedWeeklyHours: Math.max(0, ...Object.values(persistedProjectedLoad.weekHours || {})),
+      currentUtilizationRatio: persistedBaselineLoad.maxRatio,
+      projectedUtilizationRatio: persistedProjectedLoad.maxRatio,
+      utilizationRatio: persistedProjectedLoad.maxRatio,
+      activeWorkDays: persistedProjectedLoad.workDays,
+      existingWorkDays: persistedBaselineLoad.workDays,
+      projectedWorkDays: persistedProjectedLoad.workDays,
+      relevantTravelMinutes: null,
+      relevantTravelDistance: null,
+      incrementalTravelKnown: false,
+      movedMeetingsCount: 0,
+      totalShiftDays: 0,
+      halfOverflow: false,
+      sameSchoolMeetingCount: 0,
+      sameAuthorityMeetingCount: 0,
+      nearbyMeetingCount: 0,
+      existingWorkDayMeetingCount: 0,
+      newWorkDayMeetingCount: 0,
+      continuityMeetingCount: 0,
+      opensNewWorkDay: false,
+      nonTravelWaitingMinutes: 0
+    };
+  }
+
   const sectorKey = normalizeCalendarSector(course?.calendar_sector) || 'general';
   const courseSchoolCalendar = input.preparedContext?.schoolCalendarBySector?.get(sectorKey)
     || filterSchoolCalendarRowsBySector(input.schoolCalendar || [], course?.calendar_sector);

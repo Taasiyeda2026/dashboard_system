@@ -11,6 +11,7 @@ export function conciseSchedulingReason(value) {
   if (/חסרים נתוני התאמה/.test(reason)) return 'חסרים נתוני התאמה';
   if (/שפ(?:ת|ה)|עברית|ערבית/.test(reason)) return 'שפה לא מתאימה';
   if (/מגדר|דורש מדריכ|דרישת.*מדריכ/.test(reason)) return 'לא מתאים לדרישת המגדר';
+  if (/המדריך ביקש שלא לעבוד ברשות|רשות חסומה|blocked_authority/.test(reason)) return 'המדריך ביקש שלא לעבוד ברשות זו';
   if (/חפיפה/.test(reason)) return 'חפיפה עם פעילות אחרת';
   if (/אין זמן מעבר מספיק|זמן מעבר.*(?:אינו|לא).*מספיק/.test(reason)) return 'אין מספיק זמן מעבר בין הפעילויות';
 

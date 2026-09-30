@@ -320,3 +320,4 @@ config.HOTFIX_VERSION = `scheduling-activity-focus-ux-20260930-v1-${config.HOTFI
 config.HOTFIX_VERSION = `scheduling-desktop-search-day-consolidation-20260930-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `scheduling-transition-buffer-5-15-20km-20260930-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `scheduling-assigned-panel-polish-20260930-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `scheduling-blocked-authorities-hard-constraint-20260930-v1-${config.HOTFIX_VERSION}`;

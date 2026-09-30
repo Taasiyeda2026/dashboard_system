@@ -106,21 +106,55 @@ export function profileHtml(row, activities, canEdit, schedulingLoaded) {
   const profile = row.scheduling_profile || {};
   const exceptions = row.availability_exceptions || [];
   const profileMissing = schedulingProfileMissingFields(row);
+  const blockedAuthorities = Array.isArray(profile.blocked_authorities)
+    ? profile.blocked_authorities.map((name) => String(name || '').trim()).filter(Boolean)
+    : [];
+  const blockedAuthoritiesLabel = blockedAuthorities.length
+    ? blockedAuthorities.join(' · ')
+    : 'אין';
   return `<div dir="rtl" class="instructor-profile">
     ${profileMissing.length ? `<p class="scheduling-warning"><b>חסר להשלמה:</b> ${escapeHtml(profileMissing.join(', '))}.</p>` : ''}
     <section class="instructor-profile__section"><div class="instructor-profile__section-head"><h3>פרטי מדריך</h3>${canEdit ? '<button type="button" class="ds-btn ds-btn--sm instructor-profile__action" data-edit-instructor-contact>עריכת פרטים</button>' : ''}</div><div class="instructor-profile__fields">${field('נייד', row.mobile || row.phone, 'ltr')}${field('דוא״ל', row.email, 'ltr')}${field('כתובת', row.address)}${field('סוג העסקה', row.employment_type)}${field('ותק', formatInstructorSeniority(row.seniority_years))}${field('מנהל ישיר', row.direct_manager)}</div></section>
     <section class="instructor-profile__section"><div class="instructor-profile__section-head"><h3>זמינות ואילוצים</h3>${canEdit ? '<button type="button" class="ds-btn ds-btn--sm ds-btn--primary instructor-profile__action" data-edit-instructor-constraints>עדכון אילוצים</button>' : ''}</div>${schedulingLoaded ? `<div class="instructor-profile__availability">${weeklySummary(row).join('')}</div>${exceptions.length ? `<div class="ds-muted">${exceptions.length} חריגים לפי תאריך</div>` : ''}` : '<p class="ds-muted">אזור האילוצים אינו זמין לחשבון זה.</p>'}</section>
-    <section style="display:grid;gap:10px"><div style="display:flex;justify-content:space-between;align-items:center"><h3 style="margin:0">התאמה לשיבוץ</h3>${canEdit ? '<button type="button" class="ds-btn ds-btn--sm ds-btn--primary" data-edit-instructor-matching>עריכת התאמה</button>' : ''}</div><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:9px">${field('מגדר', profile.gender === 'female' ? 'מדריכה' : profile.gender === 'male' ? 'מדריך' : 'טרם הוגדר')}${field('שפות הדרכה', (profile.instruction_languages || []).map(v => v === 'he' ? 'עברית' : 'ערבית').join(', '))}</div>${profile.matching_note ? `<p class="ds-muted">הערה פנימית: ${escapeHtml(profile.matching_note)}</p>` : ''}</section>
+    <section style="display:grid;gap:10px"><div style="display:flex;justify-content:space-between;align-items:center"><h3 style="margin:0">התאמה לשיבוץ</h3>${canEdit ? '<button type="button" class="ds-btn ds-btn--sm ds-btn--primary" data-edit-instructor-matching>עריכת התאמה</button>' : ''}</div><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:9px">${field('מגדר', profile.gender === 'female' ? 'מדריכה' : profile.gender === 'male' ? 'מדריך' : 'טרם הוגדר')}${field('שפות הדרכה', (profile.instruction_languages || []).map(v => v === 'he' ? 'עברית' : 'ערבית').join(', '))}${field('רשויות חסומות', blockedAuthoritiesLabel)}</div>${profile.matching_note ? `<p class="ds-muted">הערה פנימית: ${escapeHtml(profile.matching_note)}</p>` : ''}</section>
     <section style="display:grid;gap:10px"><h3 style="margin:0">פעילויות פעילות ועתידיות <span class="ds-badge">${activities.length}</span></h3>${activitiesHtml(activities)}</section>
   </div>`;
 }
 
-export function matchingForm(row) {
+export function matchingForm(row, options = {}) {
   const p = row.scheduling_profile || {};
   const checked = (items, value) => (items || []).includes(value) ? ' checked' : '';
   const choice = (name, value, label, current) => `<label class="instructor-matching__choice"><input type="radio" name="${name}" value="${value}"${current === value ? ' checked' : ''}><span>${label}</span></label>`;
+  const selectedBlocked = Array.isArray(p.blocked_authorities)
+    ? p.blocked_authorities.map((name) => String(name || '').trim()).filter(Boolean)
+    : [];
+  const authorityOptions = (Array.isArray(options.authorities) ? options.authorities : [])
+    .map((item) => ({
+      value: String(item?.label || item?.value || '').trim(),
+      label: String(item?.label || item?.value || '').trim()
+    }))
+    .filter((item) => item.value);
+  const uniqueAuthorities = [...new Map(authorityOptions.map((item) => [item.value.toLocaleLowerCase('he-IL'), item])).values()]
+    .sort((a, b) => a.label.localeCompare(b.label, 'he'));
+  const chips = selectedBlocked.map((name) => (
+    `<span class="instructor-matching__chip" data-blocked-authority-chip="${escapeHtml(name)}">${escapeHtml(name)}<button type="button" class="instructor-matching__chip-remove" data-remove-blocked-authority="${escapeHtml(name)}" aria-label="הסרת ${escapeHtml(name)}">×</button></span>`
+  )).join('');
+  const optionHtml = uniqueAuthorities.map((item) => (
+    `<option value="${escapeHtml(item.value)}"></option>`
+  )).join('');
   return `<form class="instructor-matching" dir="rtl" data-instructor-matching-form>
     <section class="instructor-matching__card"><h3>התאמה בסיסית</h3><div class="instructor-matching__basic-grid"><fieldset><legend>מגדר</legend><div class="instructor-matching__choices">${choice('gender','','טרם הוגדר',p.gender || '')}${choice('gender','female','מדריכה',p.gender || '')}${choice('gender','male','מדריך',p.gender || '')}</div></fieldset><fieldset><legend>שפות הדרכה</legend><div class="instructor-matching__choices"><label class="instructor-matching__choice"><input type="checkbox" name="language" value="he"${checked(p.instruction_languages,'he')}><span>עברית</span></label><label class="instructor-matching__choice"><input type="checkbox" name="language" value="ar"${checked(p.instruction_languages,'ar')}><span>ערבית</span></label></div></fieldset></div></section>
+    <section class="instructor-matching__card"><h3>רשויות חסומות</h3>
+      <p class="ds-muted" style="margin:0 0 8px">המדריך לא יוצע ולא ישובץ לפעילויות ברשויות אלו.</p>
+      <div class="instructor-matching__blocked-authorities" data-blocked-authorities>
+        <div class="instructor-matching__chips" data-blocked-authority-chips>${chips || '<span class="ds-muted" data-blocked-authority-empty>לא נבחרו רשויות</span>'}</div>
+        <label class="instructor-matching__authority-search"><span>חיפוש והוספת רשות</span>
+          <input class="ds-input" type="search" list="instructor-blocked-authority-options" placeholder="הקלידו שם רשות…" data-blocked-authority-search autocomplete="off">
+        </label>
+        <datalist id="instructor-blocked-authority-options">${optionHtml}</datalist>
+        <input type="hidden" name="blocked_authorities" value="${escapeHtml(selectedBlocked.join('\u001f'))}" data-blocked-authorities-value>
+      </div>
+    </section>
     <section class="instructor-matching__card"><h3>הערה פנימית</h3><label class="instructor-matching__note"><span>הערת התאמה פנימית</span><textarea class="ds-input" name="matching_note" rows="4">${escapeHtml(p.matching_note || '')}</textarea><small>ההערה מיועדת לצוות התפעול ואינה מוצגת למדריך/ה.</small></label></section>
     <p class="instructor-matching__status" role="alert" data-matching-status hidden></p>
   </form>`;

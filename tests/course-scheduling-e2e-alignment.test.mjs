@@ -367,15 +367,14 @@ test('12: hard gates cannot be bypassed with exception approval', async () => {
   assert.match(sql, /Hard gates cannot be bypassed through exception_approved/);
 });
 
-test('13-14: obsolete restriction fields do not affect matching or revalidation', async () => {
-  const result = evaluateInstructor({
+test('13-14: obsolete restriction fields do not affect matching; blocked_authorities does', async () => {
+  const ignored = evaluateInstructor({
     instructor,
     profile: {
       ...profile,
       education_levels: [],
       course_restriction_mode: 'allow_only',
       course_ids: ['other'],
-      blocked_authorities: ['נתניה'],
       blocked_schools: ['תורני ואולפנת בר אילן']
     },
     rules: weekdayRules,
@@ -387,7 +386,22 @@ test('13-14: obsolete restriction fields do not affect matching or revalidation'
     travel: { home: { distance_km: 8, duration_minutes: 12 }, transitions: {} },
     validateTravel: true
   });
-  assert.equal(result.eligible, true);
+  assert.equal(ignored.eligible, true);
+
+  const blocked = evaluateInstructor({
+    instructor,
+    profile: {
+      ...profile,
+      blocked_authorities: ['נתניה']
+    },
+    rules: weekdayRules,
+    activity: course('c1'),
+    travel: { home: { distance_km: 8, duration_minutes: 12 }, transitions: {} },
+    validateTravel: true
+  });
+  assert.equal(blocked.eligible, false);
+  assert.match(blocked.failures.join('|'), /המדריך ביקש שלא לעבוד ברשות זו/);
+
   const sql = await readFile(new URL('../supabase/migrations/20260807203000_course_scheduling_e2e_alignment.sql', import.meta.url), 'utf8');
   const validation = sql.split('create or replace function public.scheduling_locked_course_validation_reason')[1]
     .split('create or replace function public.scheduling_revalidate_assignments_for_instructor')[0];
@@ -402,6 +416,12 @@ test('13-14: obsolete restriction fields do not affect matching or revalidation'
   ]) {
     assert.doesNotMatch(validation, new RegExp(obsolete));
   }
+
+  const restored = await readFile(
+    new URL('../supabase/migrations/20260930220000_scheduling_blocked_authorities_hard_constraint.sql', import.meta.url),
+    'utf8'
+  );
+  assert.match(restored, /scheduling_authority_blocked/);
 });
 
 test('15-16: district simulation includes courses without dates/hours as missing data', () => {

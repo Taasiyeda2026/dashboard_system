@@ -29,6 +29,7 @@ const course019 = (extra = {}) => ({
   activity_season: 'school_2027',
   status: 'פתוח',
   school: 'תורני ואולפנת בר אילן',
+  school_id: 'school-netanya-1',
   school_address: 'רחוב בר אילן 1, נתניה',
   authority: 'נתניה',
   instruction_language: 'he',
@@ -264,18 +265,26 @@ test('availability and gender checks stay independent in labels', () => {
   assert.equal(availabilityLabel(matchingUnavailable), 'לא זמין במלואו');
 });
 
-test('course and instructor allow/block lists no longer gate scheduling eligibility', () => {
-  // Stage 1 removed course/school/authority allow-block lists; stage 3 must not restore them.
+test('course/school allow-block lists no longer gate; blocked_authorities does', () => {
   for (const profileExtra of [
     { course_restriction_mode: 'allow_only', course_ids: ['other-course'] },
     { course_restriction_mode: 'block_selected', course_ids: ['school_2027_019'] },
-    { blocked_authorities: ['נתניה'] },
     { blocked_schools: ['תורני ואולפנת בר אילן'] }
   ]) {
     const result = evaluateInstructor({ instructor: femaleInstructor, profile: { ...matchingProfile, ...profileExtra }, rules: weekdayRules, activity: course019(), travel: { home: travelHome, homeReturn: travelHomeReturn, transitions: {} } });
     assert.equal(result.eligible, true);
     assert.equal(result.checks.courseEligibility, undefined);
   }
+
+  const authorityBlocked = evaluateInstructor({
+    instructor: femaleInstructor,
+    profile: { ...matchingProfile, blocked_authorities: ['נתניה'] },
+    rules: weekdayRules,
+    activity: course019(),
+    travel: { home: travelHome, homeReturn: travelHomeReturn, transitions: {} }
+  });
+  assert.equal(authorityBlocked.eligible, false);
+  assert.match(authorityBlocked.failures.join('|'), /המדריך ביקש שלא לעבוד ברשות זו/);
 
   for (const activityExtra of [
     { blocked_instructor_ids: ['f1'] },

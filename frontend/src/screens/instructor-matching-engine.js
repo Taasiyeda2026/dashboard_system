@@ -33,7 +33,40 @@ export const DEFAULT_SCHEDULING_PROFILE = Object.freeze({
   default_start_time: '08:00',
   default_end_time: '15:00',
   matching_note: null,
+  blocked_authorities: [],
 });
+
+/** Hard personal constraint reason code (client). Server uses scheduling_authority_blocked. */
+export const BLOCKED_AUTHORITY_CODE = 'blocked_authority';
+export const BLOCKED_AUTHORITY_MESSAGE = 'המדריך ביקש שלא לעבוד ברשות זו';
+
+/** Normalize authority display names for Set lookup (trim + collapse spaces + he-IL lower). */
+export function normalizeAuthorityName(value) {
+  return String(value ?? '').trim().replace(/\s+/g, ' ').toLocaleLowerCase('he-IL');
+}
+
+export function normalizeBlockedAuthorities(values) {
+  const seen = new Set();
+  const result = [];
+  for (const raw of Array.isArray(values) ? values : []) {
+    const display = String(raw ?? '').trim().replace(/\s+/g, ' ');
+    if (!display) continue;
+    const key = normalizeAuthorityName(display);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    result.push(display);
+  }
+  return result;
+}
+
+export function isAuthorityBlocked(blockedAuthorities, activityAuthority) {
+  const activityKey = normalizeAuthorityName(activityAuthority);
+  if (!activityKey) return false;
+  const blocked = Array.isArray(blockedAuthorities) ? blockedAuthorities : [];
+  if (!blocked.length) return false;
+  const blockedSet = new Set(blocked.map(normalizeAuthorityName).filter(Boolean));
+  return blockedSet.has(activityKey);
+}
 
 export function homeDistanceLimitFailureMessage(distanceKm) {
   return `מרחק הנסיעה לבית הספר הוא ${Math.round(Number(distanceKm))} ק״מ ועולה על המגבלה של ${MAX_HOME_DISTANCE_KM} ק״מ`;
@@ -72,7 +105,8 @@ export function normalizeSchedulingProfile(profile = {}) {
     ...DEFAULT_SCHEDULING_PROFILE,
     ...(profile || {}),
     gender: gender === 'any' ? null : gender,
-    instruction_languages: Array.isArray(profile?.instruction_languages) ? profile.instruction_languages : []
+    instruction_languages: Array.isArray(profile?.instruction_languages) ? profile.instruction_languages : [],
+    blocked_authorities: normalizeBlockedAuthorities(profile?.blocked_authorities)
   };
 }
 
@@ -190,6 +224,7 @@ export function evaluateInstructor({
 }) {
   const profile = normalizeSchedulingProfile(rawProfile);
   const failures = [];
+  const failureCodes = [];
   const missingProfileData = [];
   const warnings = [];
   const scoreReasons = [];
@@ -203,6 +238,41 @@ export function evaluateInstructor({
 
   if (String(instructor.active ?? 'yes').toLowerCase() === 'no' || instructor.active === false) failures.push('המדריך אינו פעיל');
   if (!String(instructor.address || '').trim()) missingProfileData.push('כתובת');
+
+  // Hard personal constraint: blocked authorities — fail before travel/scoring/meetings.
+  if (isAuthorityBlocked(profile.blocked_authorities, activity?.authority)) {
+    failures.push(BLOCKED_AUTHORITY_MESSAGE);
+    failureCodes.push(BLOCKED_AUTHORITY_CODE);
+    issues.push({
+      kind: BLOCKED_AUTHORITY_CODE,
+      key: 'authority',
+      message: BLOCKED_AUTHORITY_MESSAGE,
+      dates: [],
+      missing: false
+    });
+    return {
+      eligible: false,
+      score: null,
+      ...schedulingQualityBand(null, false),
+      failures: [...new Set(failures)],
+      failureCodes: [...new Set(failureCodes)],
+      missingProfileData: [...new Set(missingProfileData)],
+      warnings: [],
+      explanation: '',
+      scoreReasons: [],
+      scoreBreakdown: null,
+      checks: {
+        blockedAuthority: checkResult(false, 'רשות חסומה', BLOCKED_AUTHORITY_MESSAGE),
+        gender: checkResult(null, 'מגדר', 'לא נבדק'),
+        language: checkResult(null, 'שפה', 'לא נבדק'),
+        availability: checkResult(null, 'זמינות', 'לא נבדק'),
+        travel: checkResult(null, 'מרחק', 'לא נבדק'),
+        notes: checkResult(true, 'הערות', [activity?.scheduling_note, profile.matching_note].filter(Boolean).join(' · '))
+      },
+      schedule: [],
+      issues
+    };
+  }
 
   let languageCheck = checkResult(null, 'שפה', 'לא נבדק');
   if (!profile.instruction_languages.length) {
@@ -477,6 +547,7 @@ export function evaluateInstructor({
     score,
     ...schedulingQualityBand(score, eligible),
     failures: [...new Set(failures)],
+    failureCodes: [...new Set(failureCodes)],
     missingProfileData: [...new Set(missingProfileData)],
     warnings: [...new Set(warnings)],
     explanation: [...scoreReasons, ...warnings].join(', '),

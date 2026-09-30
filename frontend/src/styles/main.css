@@ -808,6 +808,12 @@ select {
 .instructor-multiselect__option{display:flex;align-items:center;gap:9px;padding:9px;border-radius:7px;cursor:pointer;font-size:.86rem}.instructor-multiselect__option:hover{background:#f1f6fa}.instructor-multiselect__option input{accent-color:#08758d}
 .instructor-multiselect__tags{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:7px}.instructor-multiselect__tag{display:inline-flex;align-items:center;gap:5px;max-width:100%;padding:5px 8px;background:#eaf7f9;border:1px solid #bfe2e8;border-radius:999px;color:#195568;font-size:.78rem;font-weight:700}.instructor-multiselect__tag button{padding:0;border:0;background:transparent;color:#52677a;cursor:pointer;font-size:.7rem}.instructor-multiselect__empty{margin:5px;padding:8px;color:#6b7788}
 .instructor-matching__note{display:grid;gap:6px}.instructor-matching__note>span{font-size:.86rem;font-weight:750}.instructor-matching__note textarea{width:100%;resize:vertical;min-height:84px}.instructor-matching__note small{color:#6b7788}
+.instructor-matching__blocked-authorities{display:grid;gap:10px}
+.instructor-matching__chips{display:flex;flex-wrap:wrap;gap:6px;min-height:28px;align-items:center}
+.instructor-matching__chip{display:inline-flex;align-items:center;gap:4px;padding:4px 8px;border:1px solid #c9d5e0;border-radius:999px;background:#f4f8fb;font-size:.82rem;font-weight:650;color:#243447}
+.instructor-matching__chip-remove{appearance:none;border:0;background:transparent;color:#5b6b7c;cursor:pointer;font-size:1rem;line-height:1;padding:0 2px}
+.instructor-matching__chip-remove:hover{color:#a11d2d}
+.instructor-matching__authority-search{display:grid;gap:6px}.instructor-matching__authority-search>span{font-size:.86rem;font-weight:750}
 .instructor-matching__status{margin:0;padding:10px 12px;border:1px solid #fecaca;border-radius:9px;background:#fff1f2;color:#a11d2d;font-weight:700}
 @media(max-width:640px){.ds-modal.ds-modal--instructor-matching{width:calc(100vw - 16px);max-height:calc(100vh - 16px)}.instructor-matching__geo-grid{grid-template-columns:1fr}.instructor-matching__choices--modes{display:grid}.ds-modal.ds-modal--instructor-matching .ds-modal__content{padding:8px}.instructor-matching__card{padding:10px}}
 

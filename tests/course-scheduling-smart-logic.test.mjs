@@ -8,13 +8,16 @@ import { detailsHtml } from '../frontend/src/screens/course-scheduling.js';
 const instructor = { emp_id: '1', full_name: 'נועה', active: 'yes', address: 'חיפה' };
 const profile = { gender: 'female', instruction_languages: ['he'], friday_allowed: false };
 const rules = [{ weekday: 0, available: true, start_time: '08:00', end_time: '16:00' }];
-const course = { row_id: 'c1', activity_season: 'school_2027', activity_type: 'course', status: 'פתוח', activity_name: 'קורס', school: 'בית ספר', school_address: 'תל אביב', authority: 'רשות', instruction_language: 'he', required_instructor_gender: 'any', start_time: '10:00', end_time: '11:00', date_1: '2026-09-06' };
+const course = { row_id: 'c1', activity_season: 'school_2027', activity_type: 'course', status: 'פתוח', activity_name: 'קורס', school: 'בית ספר', school_id: 's1', school_address: 'תל אביב', authority: 'רשות', instruction_language: 'he', required_instructor_gender: 'any', start_time: '10:00', end_time: '11:00', date_1: '2026-09-06' };
 
-test('removed fields never gate or mark an instructor profile incomplete', () => {
-  const result = evaluateInstructor({ instructor, profile: { ...profile, education_levels: [], course_restriction_mode: 'allow_only', course_ids: [], blocked_authorities: ['רשות'], blocked_schools: ['בית ספר'], weekly_target_hours: 0, weekly_max_hours: 0, preferred_work_days: 0, max_fixed_courses: 0 }, rules, activity: { ...course, education_level: 'different', allowed_instructor_ids: ['2'], blocked_instructor_ids: ['1'] } });
-  assert.equal(result.eligible, true);
-  assert.deepEqual(result.failures, []);
-  assert.deepEqual(result.missingProfileData, []);
+test('removed fields never gate or mark an instructor profile incomplete; blocked_authorities does gate', () => {
+  const ignored = evaluateInstructor({ instructor, profile: { ...profile, education_levels: [], course_restriction_mode: 'allow_only', course_ids: [], blocked_schools: ['בית ספר'], weekly_target_hours: 0, weekly_max_hours: 0, preferred_work_days: 0, max_fixed_courses: 0 }, rules, activity: { ...course, education_level: 'different', allowed_instructor_ids: ['2'], blocked_instructor_ids: ['1'] } });
+  assert.equal(ignored.eligible, true);
+  assert.deepEqual(ignored.failures, []);
+  assert.deepEqual(ignored.missingProfileData, []);
+  const blocked = evaluateInstructor({ instructor, profile: { ...profile, blocked_authorities: ['רשות'] }, rules, activity: course });
+  assert.equal(blocked.eligible, false);
+  assert.match(blocked.failures.join('|'), /המדריך ביקש שלא לעבוד ברשות זו/);
 });
 
 test('gender is mandatory even when required gender is any; mismatch remains a hard gate', () => {
@@ -62,4 +65,10 @@ test('focused SQL migration removes legacy gates and preserves operational valid
   const sql = await readFile(new URL('../supabase/migrations/20260807203000_course_scheduling_e2e_alignment.sql', import.meta.url), 'utf8');
   for (const removed of ['education_levels', 'course_restriction_mode', 'course_ids', 'allowed_instructor_ids', 'blocked_instructor_ids', 'blocked_authorities', 'blocked_schools', 'weekly_target_hours', 'weekly_max_hours', 'preferred_work_days', 'max_fixed_courses']) assert.doesNotMatch(sql, new RegExp(removed));
   for (const kept of ['instructor_inactive', 'scheduling_language_mismatch', 'scheduling_gender_mismatch', 'scheduling_availability_missing', 'scheduling_conflict_detected', 'scheduling_transition_insufficient', 'scheduling_daily_sequence_exceeded', 'scheduling_instructor_profile_incomplete', 'scheduling_home_distance_exceeded', 'scheduling_home_route_unverified']) assert.match(sql, new RegExp(kept));
+});
+
+test('later migration reactivates blocked_authorities as scheduling_authority_blocked', async () => {
+  const sql = await readFile(new URL('../supabase/migrations/20260930220000_scheduling_blocked_authorities_hard_constraint.sql', import.meta.url), 'utf8');
+  assert.match(sql, /scheduling_authority_blocked/);
+  assert.match(sql, /blocked_authorities/);
 });
