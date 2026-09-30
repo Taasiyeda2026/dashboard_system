@@ -27,6 +27,6 @@ test('scheduling card clarity change is cache-busted', async () => {
     read('frontend/sw.js')
   ]);
 
-  assert.match(indexHtml, /course-scheduling-compact-layout\.js\?v=20260930-desktop-search-day-v1/);
-  assert.match(serviceWorker, /const CACHE_VERSION = 1854;/);
+  assert.match(indexHtml, /course-scheduling-compact-layout\.js\?v=20260930-assigned-panel-polish-v1/);
+  assert.match(serviceWorker, /const CACHE_VERSION = 1855;/);
 });
