@@ -308,7 +308,8 @@ test('9: saved draft meetings participate in transition calculations', async () 
     cacheHits: 0,
     request(origin, destination) {
       this.requests.push({ origin, destination });
-      return Promise.resolve({ distance_km: 4, duration_minutes: 25 });
+      // Mid-range distance uses the +15 buffer: 25 + 15 = 40 > 30-minute gap.
+      return Promise.resolve({ distance_km: 8, duration_minutes: 25 });
     }
   };
   const preliminary = [{ course: open, candidate: { instructor, eligible: true } }];

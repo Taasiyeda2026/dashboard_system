@@ -29,7 +29,11 @@ function netanyaRouteClient() {
   };
   return {
     peek,
-    request: async ({ origin, destination } = {}) => peek(origin, destination),
+    // Real createRouteClient.request is positional: (origin, destination, context).
+    request: async (origin, destination) => {
+      if (origin && typeof origin === 'object') return peek(origin.origin, origin.destination);
+      return peek(origin, destination);
+    },
     googleCalls: 0,
     cacheHits: 0,
     unavailableReason: ''
