@@ -12,6 +12,10 @@ const migration = await readFile(
   new URL('../supabase/migrations/20260927153000_guard_manager_attendance_requires_submitted_month.sql', import.meta.url),
   'utf8'
 );
+const restoreMigration = await readFile(
+  new URL('../supabase/migrations/20260930103000_restore_manager_attendance_submitted_month_gate.sql', import.meta.url),
+  'utf8'
+);
 const control = await readFile(new URL('../frontend/src/screens/attendance-control.js', import.meta.url), 'utf8');
 
 const baseEntry = {
@@ -146,22 +150,58 @@ test('admin bypass keeps mutation controls available before employee submission'
   assert.match(html, /data-payroll-readonly-notice/);
 });
 
+test('admin bypass cannot mutate locked or final-payroll months', () => {
+  assert.equal(canManagerMutatePayrollEmployeeMonth(
+    {
+      workflow_status: 'manager_approved',
+      attendance_submission_status: 'locked',
+      manager_approved_at: '2026-09-20T10:00:00.000Z'
+    },
+    { bypassMonthSubmissionGate: true }
+  ), false);
+  assert.equal(canManagerMutatePayrollEmployeeMonth(
+    {
+      workflow_status: 'approved',
+      attendance_submission_status: 'locked',
+      payroll_approved_at: '2026-09-25T10:00:00.000Z'
+    },
+    { bypassMonthSubmissionGate: true }
+  ), false);
+
+  const html = resultsHtml(payload, '2026-09', {
+    workflowByEmployee: {
+      '1530': {
+        workflow_status: 'manager_approved',
+        attendance_submission_status: 'locked',
+        manager_approved_at: '2026-09-20T10:00:00.000Z'
+      }
+    },
+    bypassMonthSubmissionGate: true
+  });
+  assert.match(html, /data-payroll-employee-readonly="1"/);
+  assert.doesNotMatch(html, /data-attendance-edit-record=/);
+});
+
 test('server RPCs require submitted month for team managers and preserve admin bypass', () => {
-  assert.match(migration, /create or replace function public\.attendance_manager_month_allows_mutation/);
-  assert.match(migration, /if v_role in \('admin', 'operation_manager'\) then\s+return true;/);
-  assert.match(migration, /return v_status = 'submitted'/);
-  assert.match(migration, /if not found then\s+return false;/);
-  assert.match(migration, /attendance_month_not_submitted_for_manager_mutation/);
-  assert.match(migration, /update_payroll_attendance_record/);
-  assert.match(migration, /set_manager_attendance_record_review/);
-  assert.match(
-    migration,
-    /if not public\.attendance_manager_month_allows_mutation\(v_row\.emp_id, v_row\.report_date\) then[\s\S]*attendance_month_not_submitted_for_manager_mutation/
-  );
-  assert.equal(
-    (migration.match(/attendance_manager_month_allows_mutation\(v_row\.emp_id, v_row\.report_date\)/g) || []).length,
-    2
-  );
+  for (const sql of [migration, restoreMigration]) {
+    assert.match(sql, /create or replace function public\.attendance_manager_month_allows_mutation/);
+    assert.match(sql, /if v_role in \('admin', 'operation_manager'\) then\s+return true;/);
+    assert.match(sql, /return v_status = 'submitted'/);
+    assert.match(sql, /if not found then\s+return false;/);
+    assert.match(sql, /attendance_month_not_submitted_for_manager_mutation/);
+    assert.match(sql, /update_payroll_attendance_record/);
+    assert.match(sql, /set_manager_attendance_record_review/);
+    assert.match(
+      sql,
+      /if not public\.attendance_manager_month_allows_mutation\(v_row\.emp_id, v_row\.report_date\) then[\s\S]*attendance_month_not_submitted_for_manager_mutation/
+    );
+    assert.equal(
+      (sql.match(/attendance_manager_month_allows_mutation\(v_row\.emp_id, v_row\.report_date\)/g) || []).length,
+      2
+    );
+  }
+  assert.match(restoreMigration, /never recorded\/applied on the live database/);
+  assert.match(restoreMigration, /expense_details = case[\s\S]*totalExpenses[\s\S]*<= 0/);
 });
 
 test('attendance control binds admin bypass and client-side mutation gate', () => {
@@ -169,4 +209,5 @@ test('attendance control binds admin bypass and client-side mutation gate', () =
   assert.match(control, /assertEmployeeMonthMutableForManager/);
   assert.match(control, /EMPLOYEE_MONTH_NOT_SUBMITTED_READONLY_MESSAGE/);
   assert.match(control, /canManagerMutatePayrollEmployeeMonth/);
+  assert.match(control, /resolved\.status === 'manager_approved' \|\| resolved\.status === 'approved'/);
 });

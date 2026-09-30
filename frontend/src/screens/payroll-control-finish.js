@@ -163,6 +163,7 @@ export function buildAttendanceUpdatePayload(entry) {
       fields.publicTransport = false;
       fields.publicTransportCost = 0;
       fields.totalExpenses = 0;
+      fields.expensesDetails = '';
     } else {
       const usesPublicTransport = fields.publicTransport === true || fields.publicTransport === 'true' || fields.publicTransport === 1
         || (fields.publicTransport == null && (final.publicTransport === true || attendance.publicTransport === true));
@@ -179,6 +180,12 @@ export function buildAttendanceUpdatePayload(entry) {
         fields.publicTransport = false;
         fields.publicTransportCost = 0;
         if (!Object.prototype.hasOwnProperty.call(fields, 'kilometers')) fields.kilometers = kilometers;
+      }
+      // Clearing expenses must also clear the free-text detail.
+      const expensesAmount = optionalNumber(fields.totalExpenses ?? final.expenses ?? attendance.expenses) ?? 0;
+      if (Object.prototype.hasOwnProperty.call(fields, 'totalExpenses') && expensesAmount <= 0) {
+        fields.totalExpenses = 0;
+        fields.expensesDetails = '';
       }
     }
     const missingFields = LOGIC_APP_FIELDS.filter((field) => !Object.prototype.hasOwnProperty.call(fields, field));

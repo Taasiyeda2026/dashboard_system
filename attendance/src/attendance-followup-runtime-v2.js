@@ -192,14 +192,17 @@ function updateTimeCancelCell(row) {
   return cell;
 }
 
-function showTimeCancelEditField(row) {
+function showTimeCancelEditField(row, preferredForm = null) {
   const state = cancellationState(row);
   if (!state.resolved) return;
 
   window.setTimeout(() => {
-    const form = document.querySelector('.av2-modal-overlay .av2-modal--form form');
+    const form = preferredForm
+      || document.querySelector('.av2-modal-overlay .av2-modal--form form')
+      || document.querySelector('.av2-report__form[data-av2-edit-record-id]');
     if (!form || form.querySelector('[data-av2-time-cancel-edit]')) return;
-    const hoursDisplay = form.querySelector('.av2-report__hours-display');
+    const hoursDisplay = form.querySelector('.av2-report__hours-display')
+      || form.querySelector('.av2-report__time-cancellation');
     if (!hoursDisplay) return;
 
     const wrap = document.createElement('div');
@@ -254,7 +257,13 @@ function showTimeCancelEditField(row) {
     }
     hoursDisplay.insertAdjacentElement('afterend', wrap);
 
-    const recordId = text(row.dataset.recordId);
+    // Hide the read-only compensation preview once the editable field is present.
+    const readonlyPreview = form.querySelector('.av2-report__time-cancellation:not(.av2-report__base-training-route)');
+    if (readonlyPreview && readonlyPreview !== hoursDisplay) {
+      readonlyPreview.hidden = true;
+    }
+
+    const recordId = text(row.dataset.recordId) || text(form.dataset.av2EditRecordId);
     const oldRow = row;
     const initialRouteContext = routeContextSnapshot(form);
     form.addEventListener('submit', (event) => {
@@ -274,6 +283,34 @@ function showTimeCancelEditField(row) {
       }
     }, { capture: true });
   }, 0);
+}
+
+function attachEditFormTimeCancellation(form) {
+  if (!(form instanceof HTMLElement)) return;
+  const recordId = text(form.dataset.av2EditRecordId);
+  if (!recordId || form.querySelector('[data-av2-time-cancel-edit]')) return;
+
+  // Prefer the live table row when still mounted; otherwise synthesize state from the form preview.
+  const row = document.querySelector(`.av2-report-row[data-record-id="${CSS.escape(recordId)}"]`);
+  if (row) {
+    showTimeCancelEditField(row, form);
+    return;
+  }
+
+  const preview = form.querySelector('.av2-report__time-cancellation:not(.av2-report__base-training-route) span');
+  const label = text(preview?.textContent);
+  const minutes = parseClockMinutes(label);
+  if (minutes == null) return;
+  const syntheticRow = document.createElement('div');
+  syntheticRow.className = 'av2-report-row';
+  syntheticRow.dataset.recordId = recordId;
+  const detail = document.createElement('div');
+  detail.className = 'av2-rr__travel-compensation';
+  const strong = document.createElement('strong');
+  strong.textContent = label;
+  detail.append(strong);
+  syntheticRow.append(detail);
+  showTimeCancelEditField(syntheticRow, form);
 }
 
 function waitForSavedRowAndOverride(oldRow, recordId, desiredMinutes, routeContextChanged = false) {
@@ -346,16 +383,25 @@ function enhanceElement(node) {
   if (!(node instanceof Element)) return;
   if (node.matches('.av2-report-list__head')) enhanceReportHeader(node);
   if (node.matches('.av2-report-row')) enhanceReportRow(node);
-  if (node.matches('.av2-report__form')) enhanceOperationForm(node);
+  if (node.matches('.av2-report__form')) {
+    enhanceOperationForm(node);
+    attachEditFormTimeCancellation(node);
+  }
   node.querySelectorAll('.av2-report-list__head').forEach(enhanceReportHeader);
   node.querySelectorAll('.av2-report-row').forEach(enhanceReportRow);
-  node.querySelectorAll('.av2-report__form').forEach(enhanceOperationForm);
+  node.querySelectorAll('.av2-report__form').forEach((form) => {
+    enhanceOperationForm(form);
+    attachEditFormTimeCancellation(form);
+  });
 }
 
 function enhanceAll() {
   document.querySelectorAll('.av2-report-list__head').forEach(enhanceReportHeader);
   document.querySelectorAll('.av2-report-row').forEach(enhanceReportRow);
-  document.querySelectorAll('.av2-report__form').forEach(enhanceOperationForm);
+  document.querySelectorAll('.av2-report__form').forEach((form) => {
+    enhanceOperationForm(form);
+    attachEditFormTimeCancellation(form);
+  });
 }
 
 function boot() {
@@ -367,10 +413,19 @@ function boot() {
       const row = target?.closest?.('.av2-report-row');
       if (row && !target?.closest?.('.av2-rr__time-cancel')) rowsToRefresh.add(row);
       mutation.addedNodes.forEach(enhanceElement);
+      if (mutation.type === 'attributes' && target?.matches?.('.av2-report__form')) {
+        attachEditFormTimeCancellation(target);
+      }
     }
     rowsToRefresh.forEach(enhanceReportRow);
+    document.querySelectorAll('.av2-report__form[data-av2-edit-record-id]').forEach(attachEditFormTimeCancellation);
   });
-  observer.observe(document.body, { childList: true, subtree: true });
+  observer.observe(document.body, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ['data-av2-edit-record-id'],
+  });
 }
 
 if (document.readyState === 'loading') {
