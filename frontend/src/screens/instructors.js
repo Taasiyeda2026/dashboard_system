@@ -17,7 +17,7 @@ import {
 import { loadInstructorSeniorityData, saveInstructorContactDetails } from './instructor-contact-data.js';
 import {
   text, activeFlag, instructorCard, profileHtml, contactForm, constraintsForm, matchingForm
-} from './instructor-workspace-ui.js?v=20260810-employee-file-manual-v2';
+} from './instructor-workspace-ui.js?v=20260930-blocked-authorities-v1';
 import {
   bindInstructorsWorkspaceNav,
   instructorsWorkspaceHeaderHtml,
@@ -168,6 +168,69 @@ export function bindInstructorMatchingModal(modalRoot, { row, saveProfile, onSuc
   const saveButton = modalRoot?.querySelector('.ds-modal__footer [data-save-instructor-matching]');
   if (!form || !saveButton || saveButton.dataset.matchingSaveBound === '1') return;
   saveButton.dataset.matchingSaveBound = '1';
+
+  const valueInput = form.querySelector('[data-blocked-authorities-value]');
+  const chipsHost = form.querySelector('[data-blocked-authority-chips]');
+  const searchInput = form.querySelector('[data-blocked-authority-search]');
+  const allowedAuthorities = new Map(
+    [...(form.querySelectorAll('#instructor-blocked-authority-options option') || [])]
+      .map((option) => {
+        const value = String(option.value || '').trim();
+        return value ? [value.toLocaleLowerCase('he-IL'), value] : null;
+      })
+      .filter(Boolean)
+  );
+
+  const readBlocked = () => String(valueInput?.value || '')
+    .split('\u001f')
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+  const writeBlocked = (names) => {
+    const unique = [];
+    const seen = new Set();
+    for (const raw of names) {
+      const display = String(raw || '').trim().replace(/\s+/g, ' ');
+      if (!display) continue;
+      const key = display.toLocaleLowerCase('he-IL');
+      if (seen.has(key)) continue;
+      seen.add(key);
+      unique.push(display);
+    }
+    if (valueInput) valueInput.value = unique.join('\u001f');
+    if (!chipsHost) return;
+    if (!unique.length) {
+      chipsHost.innerHTML = '<span class="ds-muted" data-blocked-authority-empty>לא נבחרו רשויות</span>';
+      return;
+    }
+    chipsHost.innerHTML = unique.map((name) => (
+      `<span class="instructor-matching__chip" data-blocked-authority-chip="${escapeHtml(name)}">${escapeHtml(name)}<button type="button" class="instructor-matching__chip-remove" data-remove-blocked-authority="${escapeHtml(name)}" aria-label="הסרת ${escapeHtml(name)}">×</button></span>`
+    )).join('');
+  };
+
+  const addBlocked = (raw) => {
+    const typed = String(raw || '').trim().replace(/\s+/g, ' ');
+    if (!typed) return;
+    const canonical = allowedAuthorities.get(typed.toLocaleLowerCase('he-IL'));
+    if (!canonical) return;
+    writeBlocked([...readBlocked(), canonical]);
+    if (searchInput) searchInput.value = '';
+  };
+
+  form.addEventListener('click', (event) => {
+    const removeButton = event.target?.closest?.('[data-remove-blocked-authority]');
+    if (!removeButton || !form.contains(removeButton)) return;
+    const target = String(removeButton.getAttribute('data-remove-blocked-authority') || '').trim();
+    writeBlocked(readBlocked().filter((name) => name.toLocaleLowerCase('he-IL') !== target.toLocaleLowerCase('he-IL')));
+  });
+
+  searchInput?.addEventListener('change', () => addBlocked(searchInput.value));
+  searchInput?.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    addBlocked(searchInput.value);
+  });
+
   saveButton.addEventListener('click', async () => {
     if (saveButton.disabled) return;
     const status = form.querySelector('[data-matching-status]');
@@ -184,7 +247,8 @@ export function bindInstructorMatchingModal(modalRoot, { row, saveProfile, onSuc
         ...(row.scheduling_profile || {}), emp_id: row.emp_id,
         gender: form.querySelector('[name="gender"]:checked')?.value || '',
         instruction_languages: selected('language'),
-        matching_note: form.querySelector('[name="matching_note"]')?.value || ''
+        matching_note: form.querySelector('[name="matching_note"]')?.value || '',
+        blocked_authorities: readBlocked()
       });
       await onSuccess?.();
     } catch (error) {
@@ -425,7 +489,7 @@ export const instructorsScreen = {
       const activityRows = data?.detail_rows || [];
       const options = {
         courses: uniqueOptions(activityRows.filter(item => text(item.activity_type).toLowerCase() === 'course' || text(item.activity_type) === 'קורס').map(item => ({ value: text(item.activity_no || item.course_id || item.activity_name), label: `${text(item.activity_name)}${text(item.activity_no) ? ` · ${text(item.activity_no)}` : ''}` }))),
-        authorities: uniqueOptions(activityRows.map(item => ({ value: text(item.authority_id || item.authority), label: text(item.authority) }))),
+        authorities: uniqueOptions(activityRows.map(item => ({ value: text(item.authority), label: text(item.authority) }))),
         schools: uniqueOptions(activityRows.map(item => ({ value: text(item.school_id || item.school), label: `${text(item.school)}${text(item.authority) ? ` · ${text(item.authority)}` : ''}` })))
       };
       ui.openModal({ title: `התאמה לשיבוץ — ${row.full_name || row.emp_id}`, modalClass: 'ds-modal--instructor-matching', content: matchingForm(row, options), actions: '<button type="button" class="ds-btn" data-ui-close-modal>ביטול</button><button type="button" class="ds-btn ds-btn--primary" data-save-instructor-matching>שמירה</button>' });
