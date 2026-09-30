@@ -21,17 +21,38 @@ test('assigned course is manageable but remains excluded from the free schedulin
   assert.equal(isCourseSchedulingInterfaceEligible(assigned), false);
 });
 
-test('assignedDetailHtml shows instructor and management actions', () => {
+test('assignedDetailHtml keeps assignment identity in the work-panel header and shows only management content', () => {
   const html = assignedDetailHtml(
     { id: assigned.row_id, course: assigned, isAssigned: true },
     { user: { role: 'admin' } }
   );
-  assert.match(html, /שובץ/);
-  assert.match(html, /מדריך משובץ: <b>דנה כהן<\/b>/);
+  assert.match(html, /course-scheduling-assigned-detail/);
+  assert.doesNotMatch(html, /course-scheduling-status-chip/);
+  assert.doesNotMatch(html, /מדריך משובץ:/);
   assert.match(html, /החלפה חד־פעמית/);
   assert.match(html, /data-open-single-substitute/);
   assert.match(html, /שינוי \/ החלפת מדריך/);
   assert.match(html, /ביטול שיבוץ/);
+});
+
+test('assigned work panel has one assignment line and no nested desktop detail scrollbar', async () => {
+  const [source, css] = await Promise.all([
+    readFile(new URL('../frontend/src/screens/course-scheduling.js', import.meta.url), 'utf8'),
+    readFile(new URL('../frontend/src/screens/course-scheduling-compact-layout.css', import.meta.url), 'utf8')
+  ]);
+  const headerStart = source.indexOf('function selectedCourseWorkPanelHeaderHtml');
+  const headerEnd = source.indexOf('function selectedCourseExtraDetailsHtml', headerStart);
+  const header = source.slice(headerStart, headerEnd);
+  assert.match(header, /course-scheduling-work-panel__assignment/);
+  assert.match(header, /course-scheduling-work-panel__assignment-state/);
+  assert.match(header, /course-scheduling-work-panel__assignment-instructor/);
+
+  const detailStart = css.indexOf('.course-scheduling-screen.is-simple-workboard .course-scheduling-detail.is-open');
+  const detailEnd = css.indexOf('.course-scheduling-work-panel {', detailStart);
+  const detailCss = css.slice(detailStart, detailEnd);
+  assert.match(detailCss, /max-height:\s*none/);
+  assert.match(detailCss, /overflow:\s*visible/);
+  assert.doesNotMatch(detailCss, /overflow:\s*auto/);
 });
 
 test('single-meeting substitution UI uses the dedicated per-meeting RPCs', async () => {
