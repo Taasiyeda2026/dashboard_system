@@ -936,28 +936,55 @@ function workboardActionsHtml(row = {}, { planningLoading = false, alternativesE
   return '<button type="button" class="course-scheduling-workboard-secondary" data-course-row-action data-open-course-detail>בדוק ושבץ</button>';
 }
 
+export function courseRowSearchHaystack(row = {}) {
+  const course = row?.course || {};
+  return [
+    row?.id,
+    course.row_id,
+    course.RowID,
+    course.id,
+    course.activity_name,
+    course.school,
+    course.authority,
+    course.instructor_name,
+    course.instructor_name_2,
+    course.draft_instructor_name,
+    course.emp_id,
+    course.draft_emp_id,
+    row?.instructorLabel
+  ].map((value) => text(value).toLowerCase()).join(' ');
+}
+
 export function filterCourseRowModelsBySearch(rowModels = [], query = '') {
   const needle = text(query).toLowerCase();
   if (!needle) return rowModels;
-  return rowModels.filter((row) => {
-    const course = row?.course || {};
-    const haystack = [
-      row?.id,
-      course.row_id,
-      course.RowID,
-      course.id,
-      course.activity_name,
-      course.school,
-      course.authority,
-      course.instructor_name,
-      course.instructor_name_2,
-      course.draft_instructor_name,
-      course.emp_id,
-      course.draft_emp_id,
-      row?.instructorLabel
-    ].map((value) => text(value).toLowerCase()).join(' ');
-    return haystack.includes(needle);
-  });
+  return rowModels.filter((row) => courseRowSearchHaystack(row).includes(needle));
+}
+
+/** Local list filter only — never rebuilds the workboard / detail / planning UI. */
+export function applyCourseListSearchInPlace(root, query = '') {
+  if (!root) return { matched: 0, total: 0 };
+  const needle = text(query).toLowerCase();
+  const cards = [...root.querySelectorAll('[data-course-card]')];
+  let matched = 0;
+  for (const card of cards) {
+    const haystack = text(card.getAttribute('data-search-text') || card.textContent).toLowerCase();
+    const visible = !needle || haystack.includes(needle);
+    card.hidden = !visible;
+    card.toggleAttribute('data-search-hidden', !visible);
+    if (visible) matched += 1;
+  }
+  for (const group of root.querySelectorAll('.course-scheduling-course-group')) {
+    const visibleCards = [...group.querySelectorAll('[data-course-card]')].filter((card) => !card.hidden);
+    group.hidden = visibleCards.length === 0;
+    const badge = group.querySelector('.course-scheduling-badge');
+    if (badge) badge.textContent = String(visibleCards.length);
+  }
+  const empty = root.querySelector('[data-course-list-search-empty]');
+  if (empty) empty.hidden = matched > 0 || !needle;
+  const clearButton = root.querySelector('[data-clear-course-list-search]');
+  if (clearButton) clearButton.hidden = !needle;
+  return { matched, total: cards.length };
 }
 
 export function isCourseSchedulingFocusMode(state = {}) {
@@ -973,7 +1000,7 @@ function courseListSearchHtml(state = {}) {
         placeholder="חיפוש פעילות, בית ספר, רשות או מדריך"
         value="${escapeHtml(query)}" autocomplete="off">
     </label>
-    ${query ? '<button type="button" class="course-scheduling-list-search__clear" data-clear-course-list-search aria-label="נקה חיפוש">×</button>' : ''}
+    <button type="button" class="course-scheduling-list-search__clear" data-clear-course-list-search aria-label="נקה חיפוש"${query ? '' : ' hidden'}>×</button>
   </div>`;
 }
 
@@ -995,7 +1022,8 @@ function courseListCardHtml(row, selectedId, state = {}) {
   const alert = row.alert
     ? `<small class="course-scheduling-workboard-alert">⚠ ${escapeHtml(row.alert)}</small>`
     : '';
-  return `<div class="course-scheduling-compact-row course-scheduling-course-card${selectedClass}" data-course-card="${escapeHtml(row.id)}" data-course-scroll-target="${row.id === selectedId ? 'selected' : ''}" role="button" tabindex="0" aria-label="${escapeHtml(`${school}, ${authority}, ${courseName}, ${row.statusLabel}`)}">
+  const searchText = escapeHtml(courseRowSearchHaystack(row));
+  return `<div class="course-scheduling-compact-row course-scheduling-course-card${selectedClass}" data-course-card="${escapeHtml(row.id)}" data-search-text="${searchText}" data-course-scroll-target="${row.id === selectedId ? 'selected' : ''}" role="button" tabindex="0" aria-label="${escapeHtml(`${school}, ${authority}, ${courseName}, ${row.statusLabel}`)}">
     <span class="course-scheduling-compact-cell course-scheduling-compact-school" title="${escapeHtml(school)}"><strong>${escapeHtml(school)}</strong><small>${escapeHtml(authority)}</small></span>
     <strong class="course-scheduling-compact-cell course-scheduling-compact-course" title="${escapeHtml(courseName)}">${escapeHtml(courseName)}</strong>
     <span class="course-scheduling-compact-cell course-scheduling-workboard-schedule"><bdi dir="ltr">${escapeHtml(row.scheduleLabel)}</bdi></span>
@@ -1012,11 +1040,11 @@ function courseListCardHtml(row, selectedId, state = {}) {
 function courseListHtml(rowModels, selectedId, state = {}) {
   const statusFilter = text(state.courseSchedulingBusinessStatus || 'all');
   const focusMode = isCourseSchedulingFocusMode(state);
-  const searchQuery = text(state.courseSchedulingListSearch);
+  // Search filters locally in the DOM on input — keep the full list mounted so
+  // typing never rebuilds the workboard / detail / planning surfaces.
   let workingRows = focusMode
     ? rowModels.filter((row) => row.id === selectedId)
     : rowModels;
-  workingRows = filterCourseRowModelsBySearch(workingRows, searchQuery);
   const filteredRows = statusFilter === 'all'
     ? workingRows
     : workingRows.filter((row) => row.bucket === statusFilter);
@@ -1028,9 +1056,13 @@ function courseListHtml(rowModels, selectedId, state = {}) {
     .map((group) => ({ ...group, rows: filteredRows.filter((row) => row.bucket === group.key) }))
     .filter((group) => group.rows.length);
   const toolbar = `${courseListSearchHtml(state)}${courseListFocusBannerHtml(state, filteredRows.length)}`;
+  const searchEmpty = `<div class="course-scheduling-empty" data-course-list-search-empty hidden>
+      <strong>אין פעילויות התואמות לחיפוש</strong>
+      <p>אפשר לשנות את מסנן המצב או את החיפוש כדי לראות את שאר הפעילויות.</p>
+    </div>`;
   if (!groups.length) {
     return `${toolbar}<div class="course-scheduling-empty">
-      <strong>${focusMode ? 'הפעילות שנבחרה אינה מוצגת במסננים הנוכחיים' : (searchQuery ? 'אין פעילויות התואמות לחיפוש' : 'אין פעילויות במצב שנבחר')}</strong>
+      <strong>${focusMode ? 'הפעילות שנבחרה אינה מוצגת במסננים הנוכחיים' : 'אין פעילויות במצב שנבחר'}</strong>
       <p>${focusMode
         ? 'אפשר להציג את כל הפעילויות או לשנות את המסננים.'
         : 'אפשר לשנות את מסנן המצב או את החיפוש כדי לראות את שאר הפעילויות.'}</p>
@@ -1038,7 +1070,7 @@ function courseListHtml(rowModels, selectedId, state = {}) {
     </div>`;
   }
   const header = '<div class="course-scheduling-compact-table-head" aria-hidden="true"><span>בית ספר</span><span>פעילות</span><span>מועד</span><span>מדריך</span><span>מצב</span><span>פעולה</span></div>';
-  return toolbar + filterContext + header + groups.map((group) => `<section class="course-scheduling-course-group"><h3>${escapeHtml(group.label)} <span class="course-scheduling-badge">${group.rows.length}</span></h3>${group.rows.map((row) => courseListCardHtml(row, selectedId, state)).join('')}</section>`).join('');
+  return toolbar + filterContext + header + searchEmpty + groups.map((group) => `<section class="course-scheduling-course-group"><h3>${escapeHtml(group.label)} <span class="course-scheduling-badge">${group.rows.length}</span></h3>${group.rows.map((row) => courseListCardHtml(row, selectedId, state)).join('')}</section>`).join('');
 }
 
 
@@ -1166,10 +1198,34 @@ function courseFactRows(course) {
   ];
 }
 
-function selectedCourseMetaHtml(course) {
-  return `<header class="course-scheduling-detail-header">
-    <dl class="course-scheduling-detail-facts">${courseFactRows(course).map(([label, value]) => `<div class="course-scheduling-detail-fact"><dt>${escapeHtml(label)}</dt><dd>${value}</dd></div>`).join('')}</dl>
+function selectedCourseWorkPanelHeaderHtml(row, state = {}) {
+  const course = row?.course || {};
+  const schedule = workboardScheduleLabel(row);
+  const instructor = workboardInstructorLabel(row);
+  const alert = text(row?.alert);
+  return `<header class="course-scheduling-work-panel" data-course-work-panel>
+    <div class="course-scheduling-work-panel__identity">
+      <h2 class="course-scheduling-work-panel__title">${escapeHtml(text(course.activity_name) || '—')}</h2>
+      <p class="course-scheduling-work-panel__place"><strong>${escapeHtml(text(course.school) || '—')}</strong><span>${escapeHtml(text(course.authority) || '—')}</span></p>
+      <p class="course-scheduling-work-panel__schedule"><bdi dir="ltr">${escapeHtml(schedule)}</bdi></p>
+    </div>
+    <div class="course-scheduling-work-panel__status">
+      <span class="course-scheduling-status-chip${row.bucket === 'draft' ? ' is-status-draft' : (row.bucket === 'assigned' ? ' is-status-ready' : ' is-status-warning')}">${escapeHtml(row.statusLabel || '')}</span>
+      <p class="course-scheduling-work-panel__instructor">${escapeHtml(instructor)}</p>
+      ${alert ? `<p class="course-scheduling-workboard-alert" role="status">⚠ ${escapeHtml(alert)}</p>` : ''}
+    </div>
   </header>`;
+}
+
+function selectedCourseExtraDetailsHtml(course = {}) {
+  return `<details class="course-scheduling-details course-scheduling-work-panel__details">
+    <summary>פרטים נוספים</summary>
+    <dl class="course-scheduling-detail-facts">${courseFactRows(course).map(([label, value]) => `<div class="course-scheduling-detail-fact"><dt>${escapeHtml(label)}</dt><dd>${value}</dd></div>`).join('')}</dl>
+  </details>`;
+}
+
+function selectedCourseMetaHtml(course) {
+  return selectedCourseExtraDetailsHtml(course);
 }
 
 const DISTANCE_UNAVAILABLE_LABELS = {
@@ -1683,7 +1739,8 @@ function draftDetailHtml(course) {
     <div class="course-scheduling-detail-actions">
       <button type="button" class="course-scheduling-btn course-scheduling-btn--primary" data-confirm-draft>שבץ מדריך</button>
       <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary" data-cancel-draft>בטל בחירה</button>
-    </div>`;
+    </div>
+    ${selectedCourseExtraDetailsHtml(course)}`;
 }
 
 export function assignedDetailHtml(row, state = {}) {
@@ -1696,15 +1753,14 @@ export function assignedDetailHtml(row, state = {}) {
     : '';
   return `<p class="course-scheduling-status-chip is-ready">${STATUS.assigned}</p>
     <p>מדריך משובץ: <b>${escapeHtml(c.instructor_name || c.emp_id)}</b></p>
-    <p><b>${escapeHtml(c.activity_name || '—')}</b> · ${escapeHtml(c.school || '—')} · ${escapeHtml(c.authority || '—')}</p>
-    <p>${courseDayTimeHtml(c)} · ${compactMeetingsHtml(c)}</p>
     ${completed == null ? '' : `<p>מפגשים שהתקיימו: <b>${completed}</b></p>`}
     ${meetingInstructorHistoryHtml(history, state.courseSchedulingReplacements?.[row.id] || [], state.courseSchedulingSingleSubstitutions?.[row.id] || [])}
     <div class="course-scheduling-detail-actions">
       ${substituteAction}
       <button type="button" class="course-scheduling-btn course-scheduling-btn--primary" data-change-assignment>שינוי / החלפת מדריך</button>
       <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary" data-open-cancel-assignment>ביטול שיבוץ</button>
-    </div>`;
+    </div>
+    ${selectedCourseExtraDetailsHtml(c)}`;
 }
 
 function singleMeetingSubstitutionModalHtml(data = {}, state = {}) {
@@ -1769,8 +1825,12 @@ function selectedCoursePanelHtml(row, state) {
       <p>בחרו פעילות מהרשימה כדי לראות פרטים ולמצוא מדריכים מתאימים.</p>
     </div>`;
   }
-  if (row.isAssigned && state.courseSchedulingReplacementCourseId !== row.id) return assignedDetailHtml(row, state);
-  if (row.hasDraft) return draftDetailHtml(row.course);
+
+  const header = selectedCourseWorkPanelHeaderHtml(row, state);
+  if (row.isAssigned && state.courseSchedulingReplacementCourseId !== row.id) {
+    return `${header}${assignedDetailHtml(row, state)}`;
+  }
+  if (row.hasDraft) return `${header}${draftDetailHtml(row.course)}`;
 
   const finding = !!state.courseSchedulingLoading;
   const result = row.result;
@@ -1785,12 +1845,14 @@ function selectedCoursePanelHtml(row, state) {
       <label>סיבה${replacementMeetings ? ' *' : ''}<textarea class="course-scheduling-input" data-replacement-reason>${escapeHtml(state.courseSchedulingReplacementReason || '')}</textarea></label>
       ${replacementMeetings >= 2 ? `<label>תאריך כניסה לתוקף *<input class="course-scheduling-input" type="date" data-replacement-effective-from value="${escapeHtml(state.courseSchedulingReplacementEffectiveFrom || '')}"></label><label><input type="checkbox" data-replacement-confirm ${state.courseSchedulingReplacementConfirmed ? 'checked' : ''}> אני מאשר/ת את ההחלפה התפעולית</label>` : ''}
     </div>` : '';
-  return `${replacementControls}<div class="course-scheduling-primary-action">
+  return `${header}${replacementControls}
+    <div class="course-scheduling-primary-action">
       <button type="button" class="${findButtonClass}" data-find-instructors ${finding ? 'disabled' : ''}>
         ${finding ? 'בודק מדריכים...' : (hasSuggestion ? 'בדיקה מחדש של מדריכים' : 'מצא מדריכים מתאימים')}
       </button>
     </div>
-    ${finding ? loadingInstructorsHtml(state.courseSchedulingProgressStep || 1) : instructorsResultsHtml(result, state)}`;
+    ${finding ? loadingInstructorsHtml(state.courseSchedulingProgressStep || 1) : instructorsResultsHtml(result, state)}
+    ${selectedCourseExtraDetailsHtml(row.course)}`;
 }
 
 function maintenanceTabHtml(state) {
@@ -2147,6 +2209,8 @@ export const courseSchedulingScreen = {
         input.setSelectionRange(pos, pos);
       }
     };
+    // Apply stored search without rebuilding the screen (local DOM filter only).
+    applyCourseListSearchInPlace(root, state.courseSchedulingListSearch);
     if (state.courseSchedulingListSearchRestoreFocus === true) {
       state.courseSchedulingListSearchRestoreFocus = false;
       restoreListSearchCaret();
@@ -2154,14 +2218,16 @@ export const courseSchedulingScreen = {
     root.querySelector('[data-course-list-search]')?.addEventListener('input', (event) => {
       state.courseSchedulingListSearch = text(event.target.value);
       state.courseSchedulingListSearchCaret = Number(event.target.selectionStart) || text(event.target.value).length;
-      state.courseSchedulingListSearchRestoreFocus = true;
-      rerenderPreservingWorkboardScroll();
+      // Intentionally no full rerender: typing must not rebuild detail/planning UI.
+      applyCourseListSearchInPlace(root, state.courseSchedulingListSearch);
     });
     root.querySelector('[data-clear-course-list-search]')?.addEventListener('click', () => {
       state.courseSchedulingListSearch = '';
       state.courseSchedulingListSearchCaret = 0;
-      state.courseSchedulingListSearchRestoreFocus = true;
-      rerenderPreservingWorkboardScroll();
+      const input = root.querySelector('[data-course-list-search]');
+      if (input) input.value = '';
+      applyCourseListSearchInPlace(root, '');
+      input?.focus?.({ preventScroll: true });
     });
     root.querySelectorAll('[data-show-all-courses]').forEach((button) => button.addEventListener('click', () => {
       state.courseSchedulingFocusMode = false;

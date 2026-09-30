@@ -189,11 +189,12 @@ Distance maintenance UI lives under the **maintenance** tab (`course-scheduling-
    - If incremental and not in `targetCourseIds` → reuse existing planning row + virtualize its meetings.
    - Else split into **fixed-date unassigned** vs **flexible / missing schedule**.
 4. Sort queues (fixed by first date; flexible by `comparePlanningDifficulty`).
-5. Build scenarios (`generatePlanningScenarios` / steps): fixed dates → `buildFixedDatePlanningMeetings`; flexible → weekday × times × start dates via `buildWeeklyPlanningMeetings`, heuristically sorted (availability coverage + time-string adjacency). Limits differ for `fast` vs `deep` planning profiles.
+5. Build scenarios (`generatePlanningScenarios` / steps): fixed dates → `buildFixedDatePlanningMeetings`; flexible → weekday × times × start dates via `buildWeeklyPlanningMeetings`, heuristically sorted (availability coverage + **travel-aware** adjacency + existing-workday preference). Weekdays that already host work for the instructor/context are generated before fresh days. Limits differ for `fast` vs `deep` planning profiles.
 6. Evaluate fixed via `evaluateFixedCourse`; flexible via `evaluateScenarioOptions` → preliminary candidates → travel → engine `calculateCourseSchedule`, producing `options[]`.
 7. Accept best option → row kind `proposal` / `fixed-proposal` / `recruitment` / `missing`; push `blockingVirtualActivity` into context.
-8. Optional global repair pass (full runs only).
-9. Recruitment packing for remaining `recruitment` rows.
+8. **Day-consolidation pass** (local, not a national rebuild): for flexible proposals that opened a brand-new weekday while the same instructor already has an open day, try reseating onto an open weekday with travel+buffer. Skips fixed/locked/live/started anchors.
+9. Optional global repair pass (full runs only, coverage/recruitment only).
+10. Recruitment packing for remaining `recruitment` rows.
 
 ### Engine path — `calculateCourseSchedule` / block-first (`course-scheduling-engine.js`)
 
@@ -202,7 +203,7 @@ Distance maintenance UI lives under the **maintenance** tab (`course-scheduling-
 - Build **operational blocks** (same `school_id`, same date series, 0–30 minute gaps extend a lane).
 - Prefer one instructor for whole block; else fall back per course.
 - Accepted proposal mirrored as in-memory draft for subsequent courses.
-- Note: scenario **heuristic** adjacency is time-string abutting; verified km/transition checks happen in matching/travel validation (do not conflate the two).
+- Note: scenario **heuristic** adjacency is travel-aware: same `school_id` may abut exactly; different schools use `previousEnd + travelMinutes + transitionBuffer` (rounded to the planning slot) via cached `routeClient.peek` only — no Google calls during scenario generation. Verified km/transition checks still happen in matching/travel validation.
 
 ---
 
@@ -383,8 +384,9 @@ Exact role→permission matrix: see permissions migrations / `permission-policy.
 ## 19. Important UX rules (from code)
 
 - Recalculation is **explicit** (button); entering the screen only restores the shared plan.
-- Search uses `rerenderPreservingWorkboardScroll` — must not jump scroll / lose focus carelessly.
+- Search uses **local DOM filtering** (`applyCourseListSearchInPlace`) — typing must not full-render the workboard, rebuild the detail panel, run planning, or hit the network. Scroll/selection/focus stay put because the input node is not replaced.
 - Focus mode from Activities: auto-open detail, scroll selected card to center.
+- Desktop workboard: list scrolls independently; selected activity shows one continuous work panel (name → school → authority → schedule → status → instructor → warnings → actions → optional details disclosure).
 - Stale reasons:
   - Unrecoverable global: “נתוני ההקשר השתנו באופן רוחבי ולכן נדרש חישוב מלא”
   - Recoverable/incremental: activity/availability/rules changed → update changes only
@@ -399,10 +401,10 @@ Exact role→permission matrix: see permissions migrations / `permission-policy.
 | Pitfall | What went wrong | Direction of fix |
 |---------|-----------------|------------------|
 | Sector-specific school calendar leak | Calendar rows from other sectors affected packing/eligibility; empty sector = **no filter** | Always pass activity sector into `filterSchoolCalendarRowsBySector` / normalize (`jewish`/`arab`/`druze`/`general`) |
-| Full rerender on search | List search re-renders the workboard each keystroke | `rerenderPreservingWorkboardScroll` + caret restore; still a full list re-render by design — avoid heavier work on `input` |
+| Full rerender on search | List search re-rendered the entire workboard each keystroke | `applyCourseListSearchInPlace` filters mounted cards only; no planning/detail rebuild on `input` |
 | Focus/navigation to one activity | Handoff from Activities lost selection | Focus mode + `data-course-scroll-target` + auto detail (`course-scheduling-activity-focus-ux` tests) |
 | Day packing / continuity | Blocks/lanes wrong when gaps/schools mis-grouped | Operational blocks require verified `school_id` + same date series; 0–30 min lane extend |
-| Travel-aware adjacency | Transitions ignored or double-buffered | Single buffer via `transitionBufferMinutes`; unknown route ≠ safe |
+| Travel-aware adjacency | Scenario heuristic rewarded `end === start` across schools; real travel validation later rejected it and lost the true slot (e.g. 12:30) | `travelAwareAdjacentStartMinutes` + heuristic/workday preference + local day-consolidation pass |
 | False / overly broad `needs_recalc` | Whole workspace dirtied on point edits | Narrow `mark_scheduling_planning_needs_recalc`; lock ripple only overlapping instructor rows |
 | Granular context change → full run | Any fingerprint change forced all courses | Granular fingerprint `parts` + `sharedPlanningAffectedCourseIds`; `contextChanged` ≠ `fullRun` |
 | Legacy plain fingerprint → unrecoverable | Stored hash like `1gl1u9a` lacked `parts`; new hash used `text(emp_id)` | `planningLegacyPlainContextFingerprint` + upgrade-in-place RPC; no full run just to migrate format |
