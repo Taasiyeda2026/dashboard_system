@@ -89,9 +89,17 @@ function normalizeRecordPayload(payload = {}) {
   const onlineTraining = activityType === 'הכשרה' && payload?.training_mode === 'online';
   const hasPublicTransport = Object.prototype.hasOwnProperty.call(payload, 'public_transport');
   const usesPublicTransport = activityType !== ZOOM_LABEL && !onlineTraining && payload?.public_transport === true;
+  const expenses = Object.prototype.hasOwnProperty.call(payload, 'expenses')
+    ? Number(payload?.expenses || 0)
+    : undefined;
   return {
     ...payload,
     activity_type: activityType,
+    ...(expenses !== undefined ? {
+      expenses,
+      // Clearing expenses must also clear the free-text detail — never leave orphan notes.
+      expense_details: expenses > 0 ? (payload?.expense_details || null) : null,
+    } : {}),
     ...(hasPublicTransport || activityType === ZOOM_LABEL ? {
       public_transport: usesPublicTransport,
       public_transport_cost: usesPublicTransport ? Number(payload?.public_transport_cost || 0) : 0,
@@ -104,7 +112,11 @@ function normalizeRecordPayload(payload = {}) {
 function activeEditRecordId() {
   try {
     const form = document.querySelector('.av2-report__form[data-av2-edit-record-id]');
-    return String(form?.dataset?.av2EditRecordId || '').trim();
+    const fromDom = String(form?.dataset?.av2EditRecordId || '').trim();
+    if (fromDom) return fromDom;
+    // Fallback: edit-report-runtime stores the id before the form is decorated.
+    // Without this, a lagging MutationObserver can cause createRecord to insert a duplicate.
+    return String(sessionStorage.getItem(EDIT_RECORD_KEY) || '').trim();
   } catch {
     return '';
   }

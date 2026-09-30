@@ -1047,11 +1047,14 @@ export function resolvePayrollMonthWorkflow(workflow = {}) {
 
 /**
  * Team managers may edit/approve records only while the employee month is submitted.
- * Admin / operation_manager keep their existing correction path via bypassMonthSubmissionGate.
+ * Admin / operation_manager may mutate before submission via bypassMonthSubmissionGate,
+ * but locked / final-payroll months stay read-only for everyone (DB lifecycle matches).
  */
 export function canManagerMutatePayrollEmployeeMonth(workflow = {}, { bypassMonthSubmissionGate = false } = {}) {
+  const resolved = resolvePayrollMonthWorkflow(workflow);
+  if (resolved.status === 'manager_approved' || resolved.status === 'approved') return false;
   if (bypassMonthSubmissionGate) return true;
-  return resolvePayrollMonthWorkflow(workflow).status === 'submitted';
+  return resolved.status === 'submitted';
 }
 
 export const EMPLOYEE_MONTH_NOT_SUBMITTED_READONLY_MESSAGE =
@@ -2707,6 +2710,8 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
       return { valid: numeric != null && numeric >= 0, value: numeric };
     }
     if (field === 'expenses') {
+      // Empty input clears the expense (amount 0); detail is cleared on save.
+      if (!raw) return { valid: true, value: 0 };
       const numeric = optionalNumber(raw);
       return { valid: numeric != null && numeric >= 0, value: numeric };
     }
