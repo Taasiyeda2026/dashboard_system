@@ -29,6 +29,7 @@ const course019 = (extra = {}) => ({
   activity_season: 'school_2027',
   status: 'פתוח',
   school: 'תורני ואולפנת בר אילן',
+  school_id: 'school-netanya-1',
   school_address: 'רחוב בר אילן 1, נתניה',
   authority: 'נתניה',
   instruction_language: 'he',
