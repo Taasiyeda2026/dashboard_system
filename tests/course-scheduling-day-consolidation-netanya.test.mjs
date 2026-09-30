@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
   buildDynamicCoursePlan,
+  dayConsolidationAcceptsMove,
   generatePlanningScenarios,
   travelAwareAdjacentStartMinutes
 } from '../frontend/src/screens/course-scheduling-planning.js';
@@ -132,12 +133,12 @@ test('same school may abut; different school requires travel+buffer and rounds t
   });
   assert.equal(different.sameSchool, false);
   assert.equal(different.exactAfterOk, false);
-  // 12:00 + 19 + 10 = 12:29 → round up to 12:30
-  assert.equal(different.afterStartMinute, 12 * 60 + 30);
-  assert.equal(different.gapMinutes, 29);
+  // Approved rule: 8 km → +15. 12:00 + 19 + 15 = 12:34 → round up to 13:00
+  assert.equal(different.afterStartMinute, 13 * 60);
+  assert.equal(different.gapMinutes, 34);
 });
 
-test('scenario generation prefers travel-aware 12:30 over false 12:00 adjacency across schools', () => {
+test('scenario generation prefers travel-aware 13:00 over false 12:00 adjacency across schools', () => {
   const generated = generatePlanningScenarios({
     activity: activityB,
     catalog,
@@ -154,15 +155,24 @@ test('scenario generation prefers travel-aware 12:30 over false 12:00 adjacency 
   assert.ok(generated.scenarios.length > 0);
   const mondayScenarios = generated.scenarios.filter((scenario) => scenario.startDate === '2026-10-12'
     || new Date(`${scenario.startDate}T12:00:00Z`).getUTCDay() === 1);
-  assert.ok(mondayScenarios.some((scenario) => scenario.startTime === '12:30'), '12:30 must be among Monday candidates');
+  assert.ok(mondayScenarios.some((scenario) => scenario.startTime === '13:00'), '13:00 must be among Monday candidates');
   // False zero-minute abut must not outrank the travel-aware slot on heuristic.
   const noon = generated.scenarios.find((scenario) => scenario.startTime === '12:00' && new Date(`${scenario.startDate}T12:00:00Z`).getUTCDay() === 1);
-  const half = generated.scenarios.find((scenario) => scenario.startTime === '12:30' && new Date(`${scenario.startDate}T12:00:00Z`).getUTCDay() === 1);
-  assert.ok(half);
-  if (noon) assert.ok(half.heuristic >= noon.heuristic);
+  const one = generated.scenarios.find((scenario) => scenario.startTime === '13:00' && new Date(`${scenario.startDate}T12:00:00Z`).getUTCDay() === 1);
+  assert.ok(one);
+  if (noon) assert.ok(one.heuristic >= noon.heuristic);
 });
 
-test('Netanya flexible activity packs onto Monday 12:30 after existing Monday 10:30–12:00, not Tuesday', async () => {
+test('day consolidation rejects equal-day reseats that do not improve measured travel', () => {
+  assert.equal(dayConsolidationAcceptsMove({ beforeDays: 3, afterDays: 2, beforeTravelKm: 10, afterTravelKm: 12 }), true);
+  assert.equal(dayConsolidationAcceptsMove({ beforeDays: 2, afterDays: 3, beforeTravelKm: 12, afterTravelKm: 8 }), false);
+  assert.equal(dayConsolidationAcceptsMove({ beforeDays: 2, afterDays: 2, beforeTravelKm: 10, afterTravelKm: 9 }), true);
+  assert.equal(dayConsolidationAcceptsMove({ beforeDays: 2, afterDays: 2, beforeTravelKm: 10, afterTravelKm: 10 }), false);
+  assert.equal(dayConsolidationAcceptsMove({ beforeDays: 2, afterDays: 2, beforeTravelKm: 10, afterTravelKm: 11 }), false);
+  assert.equal(dayConsolidationAcceptsMove({ beforeDays: 2, afterDays: 2, beforeTravelKm: null, afterTravelKm: 8 }), false);
+});
+
+test('Netanya flexible activity packs onto Monday 13:00 after existing Monday 10:30–12:00, not Tuesday', async () => {
   const input = {
     activities: [activityA, activityB],
     instructors: [instructor],
@@ -184,8 +194,8 @@ test('Netanya flexible activity packs onto Monday 12:30 after existing Monday 10
   assert.ok(rowB1);
   assert.equal(rowB1.kind, 'proposal');
   assert.equal(rowB1.instructorEmpId, '1550');
-  assert.equal(rowB1.startTime, '12:30');
-  assert.equal(rowB1.endTime, '14:00');
+  assert.equal(rowB1.startTime, '13:00');
+  assert.equal(rowB1.endTime, '14:30');
   assert.equal(new Date(`${rowB1.startDate}T12:00:00Z`).getUTCDay(), 1, 'must stay on Monday');
   assert.notEqual(new Date(`${rowB1.startDate}T12:00:00Z`).getUTCDay(), 2, 'must not open Tuesday');
   assert.deepEqual(

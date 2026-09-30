@@ -22,6 +22,7 @@ import {
 import { FIRST_HALF_CONTINUATION_END_DATE, planningPeriodOptions, resolveCourseSchedulingPeriod } from './course-scheduling-periods.js';
 import {
   NEARBY_TRANSITION_BUFFER_MINUTES,
+  exceedsTransitionDistanceLimit,
   transitionBufferMinutes
 } from './instructor-matching-engine.js';
 import {
@@ -677,7 +678,9 @@ export function travelAwareAdjacentStartMinutes({
     : peekCachedTransition(routeClient, meeting.school_address, activity.school_address);
   const travelMinutes = Number(route?.duration_minutes);
   const distanceKm = Number(route?.distance_km);
-  const knownTravel = Number.isFinite(travelMinutes) && travelMinutes >= 0;
+  // Over-cap routes are not valid consecutive transitions; do not invent adjacency slots for them.
+  const knownTravel = Number.isFinite(travelMinutes) && travelMinutes >= 0
+    && Number.isFinite(distanceKm) && !exceedsTransitionDistanceLimit(distanceKm);
   const bufferMinutes = knownTravel
     ? transitionBufferMinutes(distanceKm)
     : NEARBY_TRANSITION_BUFFER_MINUTES;
@@ -3154,6 +3157,41 @@ function countInstructorWorkdays(rows = [], empId = '') {
   return instructorOpenWeekdaysFromRows(rows, empId).size;
 }
 
+function instructorPlanTravelKm(rows = [], empId = '') {
+  let total = 0;
+  let seen = false;
+  for (const row of rows || []) {
+    if (text(row?.instructorEmpId) !== text(empId)) continue;
+    const km = Number(planningRowPrimaryOption(row)?.operationalMetrics?.relevantTravelDistance);
+    if (!Number.isFinite(km)) continue;
+    total += km;
+    seen = true;
+  }
+  return seen ? Math.round(total * 10) / 10 : null;
+}
+
+/**
+ * Day consolidation may accept a reseat only when workdays drop, or when workdays
+ * stay equal and measured travel actually improves. Equal days with equal/worse
+ * travel (or unknown travel) must keep the existing plan.
+ */
+export function dayConsolidationAcceptsMove({
+  beforeDays,
+  afterDays,
+  beforeTravelKm = null,
+  afterTravelKm = null
+} = {}) {
+  const before = Number(beforeDays);
+  const after = Number(afterDays);
+  if (!Number.isFinite(before) || !Number.isFinite(after)) return false;
+  if (after > before) return false;
+  if (after < before) return true;
+  const beforeTravel = Number(beforeTravelKm);
+  const afterTravel = Number(afterTravelKm);
+  if (!Number.isFinite(beforeTravel) || !Number.isFinite(afterTravel)) return false;
+  return afterTravel < beforeTravel;
+}
+
 /**
  * Cheap local pass: try to move flexible proposals onto weekdays the instructor
  * already works, instead of leaving singleton days when travel+buffer allows.
@@ -3276,8 +3314,12 @@ async function consolidateInstructorWorkdaysPass({
     ));
     const beforeDays = countInstructorWorkdays([...rowsById.values()], empId);
     const afterDays = countInstructorWorkdays([...trialRows.values()], empId);
-    if (afterDays > beforeDays) continue;
-    if (afterDays === beforeDays && text(chosen.startTime) === text(row.startTime) && text(chosen.startDate) === text(row.startDate)) {
+    const beforeTravelKm = instructorPlanTravelKm([...rowsById.values()], empId);
+    const afterTravelKm = instructorPlanTravelKm([...trialRows.values()], empId);
+    if (!dayConsolidationAcceptsMove({ beforeDays, afterDays, beforeTravelKm, afterTravelKm })) {
+      continue;
+    }
+    if (text(chosen.startTime) === text(row.startTime) && text(chosen.startDate) === text(row.startDate)) {
       continue;
     }
 

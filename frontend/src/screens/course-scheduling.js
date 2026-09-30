@@ -225,6 +225,7 @@ const SCHEDULING_ASSIGNMENT_ERROR_HE = {
   scheduling_conflict_detected:        'קיימת חפיפה עם שיבוץ אחר של המדריך',
   scheduling_transition_insufficient:  'אין מספיק זמן מעבר בין הפעילויות',
   scheduling_transition_unverified:    'לא ניתן לאמת את זמן המעבר — ייתכן שכתובת חסרה',
+  scheduling_transition_distance_exceeded: 'המרחק בין הפעילויות גדול מ־20 ק״מ',
   scheduling_home_route_unverified:    'המרחק מבית המדריך לבית הספר לא חושב. הריצו עדכון מרחקים ונסו שנית',
   scheduling_distance_exceeded:        `המדריך גר מעל ${MAX_HOME_DISTANCE_KM} ק"מ מבית הספר`,
   scheduling_home_distance_exceeded:   `המדריך גר מעל ${MAX_HOME_DISTANCE_KM} ק"מ מבית הספר`,

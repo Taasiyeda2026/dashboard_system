@@ -1,4 +1,4 @@
-import { transitionBufferMinutes } from './instructor-matching-engine.js';
+import { exceedsTransitionDistanceLimit, transitionBufferMinutes } from './instructor-matching-engine.js';
 import { filterSchoolCalendarRowsBySector } from './shared/school-calendar-logic.js';
 
 /** Soft instructor exceptions at or below this count stay eligible as the permanent instructor. */
@@ -144,6 +144,9 @@ function validateProposedMeetings(proposed, { existingActivities = [], transitio
       if (neighbor.duration_minutes == null || neighbor.distance_km == null
         || !Number.isFinite(Number(neighbor.duration_minutes)) || !Number.isFinite(Number(neighbor.distance_km))) {
         return { valid: false, reason: 'transition_unverified', meetings: proposed };
+      }
+      if (exceedsTransitionDistanceLimit(neighbor.distance_km)) {
+        return { valid: false, reason: 'transition_distance_exceeded', meetings: proposed };
       }
       const gap = direction === 'previous'
         ? minutes(meeting.start_time) - minutes(neighbor.end_time)

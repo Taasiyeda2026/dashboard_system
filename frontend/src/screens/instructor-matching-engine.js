@@ -6,17 +6,24 @@ const LANGUAGE_LABELS = { he: 'עברית', ar: 'ערבית' };
 export const MAX_HOME_DISTANCE_KM = 40;
 /** A manual home-distance exception needs manager approval only from this threshold (km). */
 export const MANAGER_APPROVAL_DISTANCE_KM = 60;
-/** Nearby-school transitions receive a smaller safety buffer when the verified route is at most 10 km. */
-export const NEARBY_TRANSITION_DISTANCE_KM = 10;
-export const NEARBY_TRANSITION_BUFFER_MINUTES = 10;
-/** Default safety buffer for transitions above the nearby threshold. Applied once only. */
+/** Nearby-school transitions receive a smaller safety buffer when the verified route is at most 5 km. */
+export const NEARBY_TRANSITION_DISTANCE_KM = 5;
+export const NEARBY_TRANSITION_BUFFER_MINUTES = 5;
+/** Default safety buffer for transitions above the nearby threshold and up to the hard cap. Applied once only. */
 export const TRANSITION_BUFFER_MINUTES = 15;
+/** Hard cap for consecutive school-to-school transitions (km). Inclusive at exactly this value. */
+export const MAX_TRANSITION_DISTANCE_KM = 20;
 
 export function transitionBufferMinutes(distanceKm) {
   const km = Number(distanceKm);
   return Number.isFinite(km) && km <= NEARBY_TRANSITION_DISTANCE_KM
     ? NEARBY_TRANSITION_BUFFER_MINUTES
     : TRANSITION_BUFFER_MINUTES;
+}
+
+export function exceedsTransitionDistanceLimit(distanceKm) {
+  const km = Number(distanceKm);
+  return Number.isFinite(km) && km > MAX_TRANSITION_DISTANCE_KM;
 }
 
 export const DEFAULT_SCHEDULING_PROFILE = Object.freeze({
@@ -244,7 +251,7 @@ export function evaluateInstructor({
   let authorityContinuityPoints = 0;
   let availableMeetings = 0;
   const availabilityIssueKinds = new Set(['missing_availability', 'hours_unavailable', 'day_blocked', 'overlap']);
-  const travelIssueKinds = new Set(['unverified_transition', 'insufficient_transition']);
+  const travelIssueKinds = new Set(['unverified_transition', 'insufficient_transition', 'transition_distance_exceeded']);
   const saturdayAllowed = normalizeCalendarSector(activity?.calendar_sector) === 'arab';
 
   for (const meeting of meetings) {
@@ -298,6 +305,13 @@ export function evaluateInstructor({
             : `לא ניתן לאמת זמן מעבר לפני ${neighborRef}`)
           : `לא ניתן לאמת זמן מעבר ${label}`;
         addIssue('unverified_transition', direction, message, meeting.date);
+      } else if (!sameLocation && exceedsTransitionDistanceLimit(distance)) {
+        const message = neighborRef
+          ? (direction === 'previous'
+            ? `המרחק אחרי ${neighborRef} גדול מ־${MAX_TRANSITION_DISTANCE_KM} ק״מ`
+            : `המרחק לפני ${neighborRef} גדול מ־${MAX_TRANSITION_DISTANCE_KM} ק״מ`)
+          : `המרחק בין הפעילויות גדול מ־${MAX_TRANSITION_DISTANCE_KM} ק״מ`;
+        addIssue('transition_distance_exceeded', `${direction}-${distance}`, message, meeting.date);
       } else if (!sameLocation && gap < Number(required) + transitionBufferMinutes(distance)) {
         const needed = Number(required) + transitionBufferMinutes(distance);
         const message = neighborRef
