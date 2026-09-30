@@ -117,6 +117,7 @@ Workboard also overlays UI buckets (`assigned` / `draft` / warning) from live ac
 - Instructor `active`
 - Instruction language match (profile languages required)
 - Gender when activity requires `male`/`female` (`any` = no gender filter, profile gender still required)
+- **Blocked authorities** (`instructor_scheduling_profiles.blocked_authorities`): normalized authority **names**; if `activity.authority` is in the list → hard fail `blocked_authority` / DB `scheduling_authority_blocked` (non-overridable; checked before travel/scoring). Empty list = no effect. Existing approved assignments are **not** auto-cancelled when a name is added.
 - Weekly availability rules + date exceptions
 - Friday when not `friday_allowed`
 - Saturday blocked unless `calendar_sector === 'arab'`
@@ -124,7 +125,7 @@ Workboard also overlays UI buckets (`assigned` / `draft` / warning) from live ac
 - Overlap with other approved/draft meetings
 - Transition time + buffer between adjacent meetings
 - Home→school route: missing/unverified route is **not selectable**; distance > `MAX_HOME_DISTANCE_KM` (40) fails hard
-- Manual picker: many of the above are non-overridable (`MANUAL_NON_OVERRIDABLE_REASON` in manual-picker-access)
+- Manual picker: many of the above are non-overridable (`MANUAL_NON_OVERRIDABLE_REASON` in manual-picker-access), including blocked authority
 
 ### Soft (scoring after eligibility) — `course-scheduling-score.js`
 
@@ -154,6 +155,7 @@ Planning also uses `PLANNING_OPTIMIZATION_WEIGHTS` (continuity / capacity / trav
 | Saturday | Blocked by default; allowed when `normalizeCalendarSector(activity.calendar_sector) === 'arab'` |
 | Language | `instruction_languages` vs activity language |
 | Gender | `required_instructor_gender` vs profile |
+| Blocked authorities | `blocked_authorities text[]` on `instructor_scheduling_profiles` (normalized names). Hard personal constraint for **new** eligibility/assignment; not a soft score. Profile change uses existing instructor invalidation (`mark_scheduling_planning_needs_recalc_for_instructor`) — no full national rebuild. |
 | Distance | Cached home→school km; auto hard cap 40 km (`MAX_HOME_DISTANCE_KM`); see manager-approval rules below |
 | School calendar sector | `filterSchoolCalendarRowsBySector`: if sector normalizes to empty, **no filter** (all calendar rows returned) — callers must pass activity sector |
 
@@ -324,7 +326,7 @@ Key RPCs: `get_scheduling_planning_workspace`, `save_scheduling_planning_snapsho
 - Final write: `assign_activity_instructor` or `assign_activity_instructor_with_dates` (with `draft_proposed_meetings`).
 - Confirm planning choice: `confirm_scheduling_planning_draft` (may create single-meeting substitutions).
 - Manager approval panel: `course_assignment_manager_approval_state` / `submit_course_assignment_manager_approval` / `review_course_assignment_manager_approval` — gates confirm when `approval_required` (see distance rules in §7).
-- Manual picker cannot bypass hard feasibility patterns listed in `MANUAL_NON_OVERRIDABLE_REASON` (language/gender/overlap/unknown routes/impossible transitions/Fri–Sat policy, etc.). Soft quality / pure 40 km preference may be overrideable under the manual+approval policy — still subject to server hard gates.
+- Manual picker cannot bypass hard feasibility patterns listed in `MANUAL_NON_OVERRIDABLE_REASON` (language/gender/blocked authority/overlap/unknown routes/impossible transitions/Fri–Sat policy, etc.). Soft quality / pure 40 km preference may be overrideable under the manual+approval policy — still subject to server hard gates.
 - Single-meeting substitute / operational replacement flows use dedicated scheduling RPCs (`scheduling_course_meeting_substitutions`, etc.).
 - Cancel paths: `cancel_course_assignment_draft` / `cancel_confirmed_course_assignment` (and related).
 
@@ -338,7 +340,7 @@ Key RPCs: `get_scheduling_planning_workspace`, `save_scheduling_planning_snapsho
 - `scheduling_planning_rows` (+ `needs_recalc`)
 - `scheduling_planning_checkpoints`
 - `scheduling_travel_cache`
-- `instructor_scheduling_profiles` (includes `friday_allowed`)
+- `instructor_scheduling_profiles` (includes `friday_allowed`, `blocked_authorities text[]`)
 - `instructor_availability_rules`
 - `instructor_availability_exceptions`
 - `activities` (assignment + draft + `date_1`…`date_35` + scheduling fields)
@@ -348,7 +350,7 @@ Key RPCs: `get_scheduling_planning_workspace`, `save_scheduling_planning_snapsho
 
 Planning: `get_scheduling_planning_workspace`, `save_scheduling_planning_snapshot`, `set_scheduling_planning_lock`, `confirm_scheduling_planning_draft`, `clear_scheduling_planning_workspace`, checkpoint trio, `upgrade_scheduling_planning_context_fingerprint`, `mark_scheduling_planning_needs_recalc`(_many)
 
-Assignment / validation: `assign_activity_instructor`, `assign_activity_instructor_with_dates`, `scheduling_assert_*`, `scheduling_validate_*`, `scheduling_manual_assignment_hard_violations`, `scheduling_guard_manual_exception_approval`, revalidation helpers after availability/calendar/travel/instructor changes
+Assignment / validation: `assign_activity_instructor`, `assign_activity_instructor_with_dates`, `scheduling_assert_*`, `scheduling_validate_*`, `scheduling_course_instructor_violations`, `scheduling_manual_assignment_hard_violations` (includes `scheduling_authority_blocked`), `scheduling_guard_manual_exception_approval`, revalidation helpers after availability/calendar/travel/instructor changes
 
 Travel / geo: `scheduling_authority_school_locations`, `scheduling_active_instructor_locations`, cached travel helpers
 
@@ -442,6 +444,7 @@ If a pitfall is only suspected and not proven in tests/migrations, mark new find
 15. **Permission gate** — scheduling RPCs/UI require `view_operations_scheduling` (maintenance separate).
 16. **When changing a business rule**, state the rule change explicitly in the PR; update this map in the same change set.
 17. **If code and this map disagree**, stop and report the contradiction before shipping a “fix” that assumes the map.
+18. **Blocked instructor authorities are hard non-overridable constraints for new assignments; existing approved assignments are not auto-cancelled.** Stored as normalized names in `instructor_scheduling_profiles.blocked_authorities`; client reason `blocked_authority`, server code `scheduling_authority_blocked`. Empty list must not change behavior.
 
 ---
 
