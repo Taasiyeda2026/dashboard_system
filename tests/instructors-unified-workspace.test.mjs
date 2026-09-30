@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { JSDOM } from 'jsdom';
 
-import { bindInstructorConstraintsModal, bindInstructorMatchingModal, instructorsScreen } from '../frontend/src/screens/instructors.js';
+import { bindInstructorConstraintsModal, bindInstructorMatchingModal, instructorsScreen, systemAuthorityOptionsFromSettings } from '../frontend/src/screens/instructors.js';
 import { constraintsForm, matchingForm, profileHtml } from '../frontend/src/screens/instructor-workspace-ui.js';
 import { formatDateDots, formatTimeRangeShort } from '../frontend/src/screens/shared/format-date.js';
 
@@ -174,6 +174,102 @@ test('matching modal keeps entered values and re-enables save after a failure', 
     Object.assign(globalThis, saved);
     dom.window.close();
   }
+});
+
+test('systemAuthorityOptionsFromSettings uses catalog dropdown_options not activity rows', () => {
+  const options = systemAuthorityOptionsFromSettings({
+    dropdown_options: {
+      authority_records: [{ name: 'יבנה' }, { name: 'נתניה' }],
+      authorities: ['חדרה', 'יבנה'],
+      authority: ['אשדוד']
+    }
+  });
+  assert.deepEqual(options.map((item) => item.value).sort((a, b) => a.localeCompare(b, 'he')), ['אשדוד', 'חדרה', 'יבנה', 'נתניה']);
+  assert.equal(systemAuthorityOptionsFromSettings({}).length, 0);
+});
+
+test('blocked authorities picker adds catalog names including יבנה, rejects unknown, removes chips, and saves both', async () => {
+  const row = { emp_id: '1500', scheduling_profile: { blocked_authorities: [] } };
+  const catalogAuthorities = [
+    { value: 'נתניה', label: 'נתניה' },
+    { value: 'יבנה', label: 'יבנה' },
+    { value: 'חדרה', label: 'חדרה' }
+  ];
+  const dom = new JSDOM(`<section class="ds-modal ds-modal--instructor-matching"><div class="ds-modal__content">${matchingForm(row, { authorities: catalogAuthorities })}</div><footer class="ds-modal__footer"><button data-save-instructor-matching>שמירה</button></footer></section>`);
+  const saved = { window: globalThis.window, document: globalThis.document, Element: globalThis.Element };
+  Object.assign(globalThis, { window: dom.window, document: dom.window.document, Element: dom.window.Element });
+  try {
+    const modal = document.querySelector('.ds-modal');
+    let payload;
+    bindInstructorMatchingModal(modal, {
+      row,
+      saveProfile: async (value) => { payload = value; },
+      onSuccess: () => {}
+    });
+    const search = modal.querySelector('[data-blocked-authority-search]');
+    const status = modal.querySelector('[data-matching-status]');
+    const valueInput = modal.querySelector('[data-blocked-authorities-value]');
+
+    // Authority in catalog but not assumed present in detail_rows — still selectable.
+    search.value = 'יבנה';
+    search.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+    assert.match(modal.querySelector('[data-blocked-authority-chips]').textContent, /יבנה/);
+    assert.match(valueInput.value, /יבנה/);
+    assert.equal(status.hidden, true);
+
+    // Second catalog authority.
+    search.value = 'נתניה';
+    search.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    assert.match(modal.querySelector('[data-blocked-authority-chips]').textContent, /יבנה/);
+    assert.match(modal.querySelector('[data-blocked-authority-chips]').textContent, /נתניה/);
+
+    // Unknown free-text — clear message, no chip added.
+    search.value = 'רשות שלא קיימת בכלל';
+    search.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+    assert.match(status.textContent, /הרשות לא נמצאה ברשימת הרשויות/);
+    assert.equal(status.hidden, false);
+    assert.doesNotMatch(valueInput.value, /רשות שלא קיימת בכלל/);
+
+    // Remove one chip.
+    modal.querySelector('[data-remove-blocked-authority="יבנה"]').click();
+    assert.doesNotMatch(modal.querySelector('[data-blocked-authority-chips]').textContent, /יבנה/);
+    assert.match(modal.querySelector('[data-blocked-authority-chips]').textContent, /נתניה/);
+
+    // Re-add יבנה so both are saved together.
+    search.value = 'יבנה';
+    search.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+    modal.querySelector('[data-save-instructor-matching]').click();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.deepEqual(payload.blocked_authorities.sort((a, b) => a.localeCompare(b, 'he')), ['יבנה', 'נתניה']);
+  } finally {
+    Object.assign(globalThis, saved);
+    dom.window.close();
+  }
+});
+
+test('matching form datalist includes catalog authorities even when profile has none selected', () => {
+  const html = matchingForm({ scheduling_profile: {} }, {
+    authorities: [{ value: 'יבנה', label: 'יבנה' }, { value: 'ראשון לציון', label: 'ראשון לציון' }]
+  });
+  assert.match(html, /id="instructor-blocked-authority-options"/);
+  assert.match(html, /value="יבנה"/);
+  assert.match(html, /value="ראשון לציון"/);
+});
+
+test('reopened matching form renders saved blocked authority chips', () => {
+  const html = matchingForm({
+    scheduling_profile: { blocked_authorities: ['יבנה', 'נתניה'] }
+  }, { authorities: [{ value: 'יבנה' }, { value: 'נתניה' }, { value: 'חדרה' }] });
+  assert.match(html, /data-blocked-authority-chip="יבנה"/);
+  assert.match(html, /data-blocked-authority-chip="נתניה"/);
+  assert.match(html, /name="blocked_authorities"[^>]*value="יבנה\u001fנתניה"/);
+});
+
+test('openMatching builds authorities from system catalog helper not detail_rows', () => {
+  const source = readFileSync(new URL('../frontend/src/screens/instructors.js', import.meta.url), 'utf8');
+  assert.match(source, /systemAuthorityOptionsFromSettings\(state\?\.clientSettings\)/);
+  assert.match(source, /ensureSchoolAuthorityCatalogInState\(state\)/);
+  assert.doesNotMatch(source, /authorities:\s*uniqueOptions\(activityRows\.map/);
 });
 
 function constraintsModal(row) {
