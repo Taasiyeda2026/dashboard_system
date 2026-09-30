@@ -156,8 +156,10 @@ test('local course list search filters by activity, school, authority, instructo
   });
   assert.match(html, /data-course-list-search/);
   assert.match(html, /data-clear-course-list-search/);
+  // Full list stays mounted; search filters in place so typing never rebuilds the workboard.
   assert.match(html, /data-course-card="b2"/);
-  assert.doesNotMatch(html, /data-course-card="a1"/);
+  assert.match(html, /data-course-card="a1"/);
+  assert.match(html, /data-search-text=/);
 });
 
 test('desktop workboard keeps independent list scroll while mobile stays page-scroll', async () => {
@@ -165,7 +167,7 @@ test('desktop workboard keeps independent list scroll while mobile stays page-sc
   const baseCss = readFileSync(new URL('../frontend/src/screens/course-scheduling.css', import.meta.url), 'utf8');
   assert.match(compactCss, /\.course-scheduling-screen\.is-simple-workboard \.course-scheduling-courses \{[\s\S]*overflow-y:\s*auto/);
   assert.match(compactCss, /max-height:\s*calc\(100vh/);
-  assert.match(compactCss, /has-selected-course \.course-scheduling-layout--courses \{[\s\S]*grid-template-columns:\s*minmax\(0, 1\.25fr\)/);
+  assert.match(compactCss, /has-selected-course \.course-scheduling-layout--courses \{[\s\S]*grid-template-columns:\s*minmax\(0, 1\.15fr\)/);
   assert.match(compactCss, /@media \(max-width: 900px\) \{[\s\S]*\.course-scheduling-screen\.is-simple-workboard \.course-scheduling-courses \{[\s\S]*overflow:\s*visible/);
   assert.match(baseCss, /@media \(max-width: 900px\) \{[\s\S]*\.course-scheduling-screen\.is-simple-workboard \.course-scheduling-courses \{[\s\S]*overflow:\s*visible/);
 });

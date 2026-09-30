@@ -5,11 +5,13 @@ import { calculateCourseSchedule } from '../frontend/src/screens/course-scheduli
 import {
   evaluateInstructor,
   MAX_HOME_DISTANCE_KM,
+  MAX_TRANSITION_DISTANCE_KM,
   NEARBY_TRANSITION_BUFFER_MINUTES,
   NEARBY_TRANSITION_DISTANCE_KM,
   TRANSITION_BUFFER_MINUTES,
   transitionBufferMinutes,
-  exceedsHomeDistanceLimit
+  exceedsHomeDistanceLimit,
+  exceedsTransitionDistanceLimit
 } from '../frontend/src/screens/instructor-matching-engine.js';
 import { proposeDateAdjustments } from '../frontend/src/screens/course-scheduling-date-adjustments.js';
 import {
@@ -164,13 +166,16 @@ test('5-6: exactly 40 km accepted; more than 40 km rejected by client and server
   assert.equal(MAX_HOME_DISTANCE_KM, 40);
 });
 
-test('7: transitions are allowed at any verified distance when travel time plus the 10/15 minute buffer fits', () => {
-  assert.equal(NEARBY_TRANSITION_DISTANCE_KM, 10);
-  assert.equal(NEARBY_TRANSITION_BUFFER_MINUTES, 10);
+test('7: transitions use +5/+15 buffer within 20 km and hard-reject above 20 km', () => {
+  assert.equal(NEARBY_TRANSITION_DISTANCE_KM, 5);
+  assert.equal(NEARBY_TRANSITION_BUFFER_MINUTES, 5);
   assert.equal(TRANSITION_BUFFER_MINUTES, 15);
-  assert.equal(transitionBufferMinutes(10), 10);
-  assert.equal(transitionBufferMinutes(10.1), 15);
-  assert.equal(transitionBufferMinutes(80), 15);
+  assert.equal(MAX_TRANSITION_DISTANCE_KM, 20);
+  assert.equal(transitionBufferMinutes(5), 5);
+  assert.equal(transitionBufferMinutes(5.1), 15);
+  assert.equal(transitionBufferMinutes(20), 15);
+  assert.equal(exceedsTransitionDistanceLimit(20), false);
+  assert.equal(exceedsTransitionDistanceLimit(20.01), true);
 
   const previous = {
     date: '2026-09-06',
@@ -198,14 +203,44 @@ test('7: transitions are allowed at any verified distance when travel time plus 
     travel: {
       home: { distance_km: 8, duration_minutes: 12 },
       transitions: {
-        '2026-09-06': { previous: { distance_km: 10, duration_minutes: 20 } }
+        '2026-09-06': { previous: { distance_km: 5, duration_minutes: 20 } }
       }
     }
   });
-  // gap = 30, nearby required = 20 + 10 = 30
+  // gap = 30, nearby required = 20 + 5 = 25
   assert.equal(nearbyEnough.eligible, true);
 
-  const longRouteEnough = evaluateInstructor({
+  const midRangeEnough = evaluateInstructor({
+    ...base,
+    activity: course('c1', {
+      meetings: [{ date: '2026-09-06', start_time: '10:45', end_time: '11:45' }]
+    }),
+    travel: {
+      home: { distance_km: 8, duration_minutes: 12 },
+      transitions: {
+        '2026-09-06': { previous: { distance_km: 12, duration_minutes: 60 } }
+      }
+    }
+  });
+  // gap = 75, mid-range required = 60 + 15 = 75
+  assert.equal(midRangeEnough.eligible, true);
+
+  const midRangeShort = evaluateInstructor({
+    ...base,
+    activity: course('c1', {
+      meetings: [{ date: '2026-09-06', start_time: '10:44', end_time: '11:44' }]
+    }),
+    travel: {
+      home: { distance_km: 8, duration_minutes: 12 },
+      transitions: {
+        '2026-09-06': { previous: { distance_km: 12, duration_minutes: 60 } }
+      }
+    }
+  });
+  assert.equal(midRangeShort.eligible, false);
+  assert.ok(midRangeShort.failures.some((item) => /זמן מעבר/.test(item)));
+
+  const overCap = evaluateInstructor({
     ...base,
     activity: course('c1', {
       meetings: [{ date: '2026-09-06', start_time: '10:45', end_time: '11:45' }]
@@ -217,44 +252,30 @@ test('7: transitions are allowed at any verified distance when travel time plus 
       }
     }
   });
-  // gap = 75, long route required = 60 + 15 = 75 — distance alone does not block.
-  assert.equal(longRouteEnough.eligible, true);
-
-  const longRouteShort = evaluateInstructor({
-    ...base,
-    activity: course('c1', {
-      meetings: [{ date: '2026-09-06', start_time: '10:44', end_time: '11:44' }]
-    }),
-    travel: {
-      home: { distance_km: 8, duration_minutes: 12 },
-      transitions: {
-        '2026-09-06': { previous: { distance_km: 55, duration_minutes: 60 } }
-      }
-    }
-  });
-  assert.equal(longRouteShort.eligible, false);
-  assert.ok(longRouteShort.failures.some((item) => /זמן מעבר/.test(item)));
+  assert.equal(overCap.eligible, false);
+  assert.ok(overCap.failures.some((item) => /20/.test(item)));
 
   const adjustment = proposeDateAdjustments({
     meetings: [{ date: '2026-09-06', start_time: '11:00', end_time: '12:00' }],
     rules: weekdayRules,
     exceptions: [{ exception_date: '2026-09-06', available: false }],
     transitions: {
-      '2026-09-13': { previous: { distance_km: 50, duration_minutes: 60, end_time: '09:45' } }
+      '2026-09-13': { previous: { distance_km: 12, duration_minutes: 60, end_time: '09:45' } }
     }
   });
   assert.equal(adjustment?.valid, true);
 });
 
-test('7b: Supabase transition guards use travel-time feasibility without a hard school-distance ceiling', async () => {
-  const sql = await readFile(new URL('../supabase/migrations/20260923221000_remove_inter_school_distance_cap.sql', import.meta.url), 'utf8');
+test('7b: Supabase transition guards restore the 20 km cap with the 5/15 buffer helper', async () => {
+  const sql = await readFile(new URL('../supabase/migrations/20260930210000_scheduling_transition_buffer_5_15_and_20km_cap.sql', import.meta.url), 'utf8');
+  assert.match(sql, /p_distance_km <= 5 then 5/);
   assert.match(sql, /scheduling_transition_buffer_minutes\(required_km\)/);
   assert.match(sql, /scheduling_assert_assignment_calendar/);
   assert.match(sql, /scheduling_course_instructor_violations/);
   assert.match(sql, /scheduling_manual_assignment_hard_violations/);
   assert.ok((sql.match(/scheduling_transition_buffer_minutes\(required_km\)/g) || []).length >= 6);
-  assert.doesNotMatch(sql, /required_km\s*>\s*20/);
-  assert.doesNotMatch(sql, /scheduling_transition_distance_exceeded/);
+  assert.ok((sql.match(/required_km\s*>\s*20/g) || []).length >= 6);
+  assert.ok((sql.match(/scheduling_transition_distance_exceeded/g) || []).length >= 6);
   assert.match(sql, /scheduling_transition_unverified/);
   assert.match(sql, /scheduling_transition_insufficient/);
 });
@@ -287,7 +308,8 @@ test('9: saved draft meetings participate in transition calculations', async () 
     cacheHits: 0,
     request(origin, destination) {
       this.requests.push({ origin, destination });
-      return Promise.resolve({ distance_km: 4, duration_minutes: 25 });
+      // Mid-range distance uses the +15 buffer: 25 + 15 = 40 > 30-minute gap.
+      return Promise.resolve({ distance_km: 8, duration_minutes: 25 });
     }
   };
   const preliminary = [{ course: open, candidate: { instructor, eligible: true } }];

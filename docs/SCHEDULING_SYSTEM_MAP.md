@@ -167,11 +167,11 @@ Stage-2 date adjustment (`course-scheduling-date-adjustments.js`): when weekly a
 |---------|----------------|
 | Route cache | Table `scheduling_travel_cache`; client `createRouteClient` / `loadSchedulingTravelCacheRows` in `course-scheduling-travel.js` |
 | Transition minutes | Driving duration between consecutive meetings of same instructor |
-| Buffer | `transitionBufferMinutes(km)`: **10** min if ≤10 km, else **15** min (`NEARBY_*` / `TRANSITION_BUFFER_MINUTES`) |
+| Buffer | `transitionBufferMinutes(km)`: **5** min if ≤5 km, else **15** min (`NEARBY_*` / `TRANSITION_BUFFER_MINUTES`); must match DB `scheduling_transition_buffer_minutes` |
 | Consecutive / adjacency | `adjacentActivities` + gap check in `evaluateInstructor`; score placement in `analyzeDayPlacement` |
 | Unknown route | Hard: unverified home/transition → not eligible for draft/final (workboard comments + failure codes) |
 | Hard block vs approval | Auto path: home &gt; 40 km fails eligibility. Manual draft: `scheduling_manual_draft_requires_manager_approval` — pure home-distance exception under 60 km may proceed without admin; **≥60 km** or any non-distance manual exception reason requires manager approval. Missing addresses / null cached km also require approval. |
-| Inter-school km cap | Historical ~20 km inter-school cap was **removed** (`20260923221000_remove_inter_school_distance_cap.sql`); do not reintroduce casually |
+| Inter-school km cap | Consecutive school-to-school transitions hard-capped at **20 km** (`MAX_TRANSITION_DISTANCE_KM` / `scheduling_transition_distance_exceeded`). Restored in `20260930210000_scheduling_transition_buffer_5_15_and_20km_cap.sql` after a temporary removal. |
 
 Distance maintenance UI lives under the **maintenance** tab (`course-scheduling-distance-build.js`).
 
@@ -189,11 +189,12 @@ Distance maintenance UI lives under the **maintenance** tab (`course-scheduling-
    - If incremental and not in `targetCourseIds` → reuse existing planning row + virtualize its meetings.
    - Else split into **fixed-date unassigned** vs **flexible / missing schedule**.
 4. Sort queues (fixed by first date; flexible by `comparePlanningDifficulty`).
-5. Build scenarios (`generatePlanningScenarios` / steps): fixed dates → `buildFixedDatePlanningMeetings`; flexible → weekday × times × start dates via `buildWeeklyPlanningMeetings`, heuristically sorted (availability coverage + time-string adjacency). Limits differ for `fast` vs `deep` planning profiles.
+5. Build scenarios (`generatePlanningScenarios` / steps): fixed dates → `buildFixedDatePlanningMeetings`; flexible → weekday × times × start dates via `buildWeeklyPlanningMeetings`, heuristically sorted (availability coverage + **travel-aware** adjacency + existing-workday preference). Weekdays that already host work for the instructor/context are generated before fresh days. Limits differ for `fast` vs `deep` planning profiles.
 6. Evaluate fixed via `evaluateFixedCourse`; flexible via `evaluateScenarioOptions` → preliminary candidates → travel → engine `calculateCourseSchedule`, producing `options[]`.
 7. Accept best option → row kind `proposal` / `fixed-proposal` / `recruitment` / `missing`; push `blockingVirtualActivity` into context.
-8. Optional global repair pass (full runs only).
-9. Recruitment packing for remaining `recruitment` rows.
+8. **Day-consolidation pass** (local, not a national rebuild): for flexible proposals that opened a brand-new weekday while the same instructor already has an open day, try reseating onto an open weekday with travel+buffer. Accept only when workdays decrease, or workdays stay equal **and** measured travel km improves (`dayConsolidationAcceptsMove`). Skips fixed/locked/live/started anchors.
+9. Optional global repair pass (full runs only, coverage/recruitment only).
+10. Recruitment packing for remaining `recruitment` rows.
 
 ### Engine path — `calculateCourseSchedule` / block-first (`course-scheduling-engine.js`)
 
@@ -202,7 +203,7 @@ Distance maintenance UI lives under the **maintenance** tab (`course-scheduling-
 - Build **operational blocks** (same `school_id`, same date series, 0–30 minute gaps extend a lane).
 - Prefer one instructor for whole block; else fall back per course.
 - Accepted proposal mirrored as in-memory draft for subsequent courses.
-- Note: scenario **heuristic** adjacency is time-string abutting; verified km/transition checks happen in matching/travel validation (do not conflate the two).
+- Note: scenario **heuristic** adjacency is travel-aware: same `school_id` may abut exactly; different schools use `previousEnd + travelMinutes + transitionBuffer` (rounded to the planning slot) via cached `routeClient.peek` only — no Google calls during scenario generation. Verified km/transition checks still happen in matching/travel validation.
 
 ---
 
@@ -383,8 +384,9 @@ Exact role→permission matrix: see permissions migrations / `permission-policy.
 ## 19. Important UX rules (from code)
 
 - Recalculation is **explicit** (button); entering the screen only restores the shared plan.
-- Search uses `rerenderPreservingWorkboardScroll` — must not jump scroll / lose focus carelessly.
+- Search uses **local DOM filtering** (`applyCourseListSearchInPlace`) — typing must not full-render the workboard, rebuild the detail panel, run planning, or hit the network. Scroll/selection/focus stay put because the input node is not replaced.
 - Focus mode from Activities: auto-open detail, scroll selected card to center.
+- Desktop workboard: list scrolls independently; selected activity shows one continuous work panel (name → school → authority → schedule → status → instructor → warnings → actions → optional details disclosure).
 - Stale reasons:
   - Unrecoverable global: “נתוני ההקשר השתנו באופן רוחבי ולכן נדרש חישוב מלא”
   - Recoverable/incremental: activity/availability/rules changed → update changes only
@@ -399,10 +401,10 @@ Exact role→permission matrix: see permissions migrations / `permission-policy.
 | Pitfall | What went wrong | Direction of fix |
 |---------|-----------------|------------------|
 | Sector-specific school calendar leak | Calendar rows from other sectors affected packing/eligibility; empty sector = **no filter** | Always pass activity sector into `filterSchoolCalendarRowsBySector` / normalize (`jewish`/`arab`/`druze`/`general`) |
-| Full rerender on search | List search re-renders the workboard each keystroke | `rerenderPreservingWorkboardScroll` + caret restore; still a full list re-render by design — avoid heavier work on `input` |
+| Full rerender on search | List search re-rendered the entire workboard each keystroke | `applyCourseListSearchInPlace` filters mounted cards only; no planning/detail rebuild on `input` |
 | Focus/navigation to one activity | Handoff from Activities lost selection | Focus mode + `data-course-scroll-target` + auto detail (`course-scheduling-activity-focus-ux` tests) |
 | Day packing / continuity | Blocks/lanes wrong when gaps/schools mis-grouped | Operational blocks require verified `school_id` + same date series; 0–30 min lane extend |
-| Travel-aware adjacency | Transitions ignored or double-buffered | Single buffer via `transitionBufferMinutes`; unknown route ≠ safe |
+| Travel-aware adjacency | Scenario heuristic rewarded `end === start` across schools; real travel validation later rejected it and lost the true slot (e.g. Netanya 8 km / 19 min → +15 buffer → 13:00) | `travelAwareAdjacentStartMinutes` + heuristic/workday preference + local day-consolidation pass |
 | False / overly broad `needs_recalc` | Whole workspace dirtied on point edits | Narrow `mark_scheduling_planning_needs_recalc`; lock ripple only overlapping instructor rows |
 | Granular context change → full run | Any fingerprint change forced all courses | Granular fingerprint `parts` + `sharedPlanningAffectedCourseIds`; `contextChanged` ≠ `fullRun` |
 | Legacy plain fingerprint → unrecoverable | Stored hash like `1gl1u9a` lacked `parts`; new hash used `text(emp_id)` | `planningLegacyPlainContextFingerprint` + upgrade-in-place RPC; no full run just to migrate format |
@@ -433,7 +435,7 @@ If a pitfall is only suspected and not proven in tests/migrations, mark new find
 8. **Sector calendar isolation** — never apply another sector’s holidays/closures to an activity.
 9. **Virtual plans must remain in-run only** until the user saves/confirms — but they must block later courses in the same run.
 10. **Block-first continuity** — do not break an efficient same-school block solely for fairness/workload spreading.
-11. **Transition buffer applied once** — nearby 10 min / default 15 min; do not invent a second hidden buffer.
+11. **Transition buffer applied once** — nearby ≤5 km → +5 min; above 5 km (and ≤20 km) → +15 min; do not invent a second hidden buffer. >20 km consecutive is a hard reject.
 12. **Home distance:** auto eligibility hard-fails above 40 km; manual pure-distance exceptions require manager approval at **≥60 km** (other manual exception reasons still require approval) — do not silently weaken either threshold.
 13. **Saturday default blocked**; Arab sector may allow Saturday — keep sector-aware. Do not assume client `friday_allowed` matching mirrors the server without checking both.
 14. **Cache discipline** — bump `CACHE_VERSION` + `HOTFIX_VERSION` for deployable frontend scheduling UI/logic; never stash archives in SW precache.

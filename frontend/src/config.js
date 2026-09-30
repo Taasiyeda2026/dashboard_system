@@ -317,3 +317,5 @@ config.HOTFIX_VERSION = `scheduling-planning-incremental-rebuild-20260930-v1-${c
 config.HOTFIX_VERSION = `scheduling-point-mutation-auto-refresh-gate-20260930-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `planning-audit-sector-calendar-filter-20260930-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `scheduling-activity-focus-ux-20260930-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `scheduling-desktop-search-day-consolidation-20260930-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `scheduling-transition-buffer-5-15-20km-20260930-v1-${config.HOTFIX_VERSION}`;

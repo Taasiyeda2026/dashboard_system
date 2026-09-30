@@ -21,6 +21,11 @@ import {
 } from './course-scheduling-date-adjustments.js';
 import { FIRST_HALF_CONTINUATION_END_DATE, planningPeriodOptions, resolveCourseSchedulingPeriod } from './course-scheduling-periods.js';
 import {
+  NEARBY_TRANSITION_BUFFER_MINUTES,
+  exceedsTransitionDistanceLimit,
+  transitionBufferMinutes
+} from './instructor-matching-engine.js';
+import {
   isSchedulingActivityActive,
   isSchedulingBlockingAssignment,
   isSchedulingDraftAssignment,
@@ -629,11 +634,75 @@ function blockingMeetings(activities = []) {
         activity_id: idOf(activity),
         school_id: activity.school_id,
         school: activity.school,
+        school_address: activity.school_address,
         authority: activity.authority
       });
     }
   }
   return rows;
+}
+
+function roundUpToPlanningSlot(minute, step = 30) {
+  const value = Number(minute);
+  if (!Number.isFinite(value)) return null;
+  return Math.ceil(value / step) * step;
+}
+
+function roundDownToPlanningSlot(minute, step = 30) {
+  const value = Number(minute);
+  if (!Number.isFinite(value)) return null;
+  return Math.floor(value / step) * step;
+}
+
+function peekCachedTransition(routeClient, originAddress, destinationAddress) {
+  if (!routeClient?.peek || !text(originAddress) || !text(destinationAddress)) return null;
+  return routeClient.peek(originAddress, destinationAddress)
+    || routeClient.peek(destinationAddress, originAddress)
+    || null;
+}
+
+/** Travel-aware adjacent start minutes relative to an existing meeting. Same school may abut; different schools require travel+buffer. */
+export function travelAwareAdjacentStartMinutes({
+  meeting = {},
+  activity = {},
+  durationMinutes = 90,
+  routeClient = null
+} = {}) {
+  const meetingEnd = timeMinutes(meeting.end_time);
+  const meetingStart = timeMinutes(meeting.start_time);
+  const duration = Number(durationMinutes) || 0;
+  const sameSchool = !!text(meeting.school_id)
+    && text(meeting.school_id) === text(activity.school_id);
+  const route = sameSchool
+    ? null
+    : peekCachedTransition(routeClient, meeting.school_address, activity.school_address);
+  const travelMinutes = Number(route?.duration_minutes);
+  const distanceKm = Number(route?.distance_km);
+  // Over-cap routes are not valid consecutive transitions; do not invent adjacency slots for them.
+  const knownTravel = Number.isFinite(travelMinutes) && travelMinutes >= 0
+    && Number.isFinite(distanceKm) && !exceedsTransitionDistanceLimit(distanceKm);
+  const bufferMinutes = knownTravel
+    ? transitionBufferMinutes(distanceKm)
+    : NEARBY_TRANSITION_BUFFER_MINUTES;
+  const gapMinutes = sameSchool
+    ? 0
+    : (knownTravel ? travelMinutes : 0) + bufferMinutes;
+
+  return {
+    sameSchool,
+    knownTravel,
+    travelMinutes: knownTravel ? travelMinutes : null,
+    bufferMinutes: sameSchool ? 0 : bufferMinutes,
+    gapMinutes,
+    afterStartMinute: meetingEnd == null ? null : (sameSchool ? meetingEnd : roundUpToPlanningSlot(meetingEnd + gapMinutes)),
+    beforeStartMinute: meetingStart == null || duration <= 0
+      ? null
+      : (sameSchool
+        ? meetingStart - duration
+        : roundDownToPlanningSlot(meetingStart - duration - gapMinutes)),
+    exactAfterOk: sameSchool,
+    exactBeforeOk: sameSchool
+  };
 }
 
 function activeInstructorIds(instructors = []) {
@@ -652,7 +721,8 @@ function dynamicTimesForWeekday({
   rules = {},
   activities = [],
   activeIds = null,
-  blockingMeetingRows = null
+  blockingMeetingRows = null,
+  routeClient = null
 } = {}) {
   const counts = new Map(DEFAULT_TIME_SLOTS.map((slot) => [slot, 1]));
   const resolvedActiveIds = activeIds || activeInstructorIds(instructors);
@@ -678,11 +748,29 @@ function dynamicTimesForWeekday({
 
   for (const meeting of blockingMeetingRows || blockingMeetings(activities)) {
     if (weekday(meeting.date) !== Number(targetWeekday)) continue;
-    const after = text(meeting.end_time).slice(0, 5);
-    const beforeMinute = timeMinutes(meeting.start_time) - durationMinutes;
-    if (after) counts.set(after, (counts.get(after) || 0) + 6);
-    const before = formatMinutes(beforeMinute);
-    if (before) counts.set(before, (counts.get(before) || 0) + 6);
+    const adjacent = travelAwareAdjacentStartMinutes({
+      meeting,
+      activity,
+      durationMinutes,
+      routeClient
+    });
+    // Prefer travel-aware adjacency. Zero-minute abut is only kept for same-school.
+    if (adjacent.afterStartMinute != null) {
+      const after = formatMinutes(adjacent.afterStartMinute);
+      if (after) counts.set(after, (counts.get(after) || 0) + 8);
+    }
+    if (adjacent.beforeStartMinute != null) {
+      const before = formatMinutes(adjacent.beforeStartMinute);
+      if (before) counts.set(before, (counts.get(before) || 0) + 8);
+    }
+    if (adjacent.exactAfterOk) {
+      const exactAfter = text(meeting.end_time).slice(0, 5);
+      if (exactAfter) counts.set(exactAfter, (counts.get(exactAfter) || 0) + 6);
+    }
+    if (adjacent.exactBeforeOk) {
+      const exactBefore = formatMinutes(timeMinutes(meeting.start_time) - durationMinutes);
+      if (exactBefore) counts.set(exactBefore, (counts.get(exactBefore) || 0) + 6);
+    }
   }
 
   return [...counts.entries()]
@@ -751,7 +839,7 @@ function ruleCovers(rule, startTime, endTime) {
   return start != null && end != null && ruleStart != null && ruleEnd != null && start >= ruleStart && end <= ruleEnd;
 }
 
-function scenarioHeuristic({ scenario, instructors = [], profiles = {}, rules = {}, activities = [], activeIds = null, blockingMeetingRows = null } = {}) {
+function scenarioHeuristic({ scenario, instructors = [], profiles = {}, rules = {}, activities = [], activeIds = null, blockingMeetingRows = null, routeClient = null } = {}) {
   const resolvedActiveIds = activeIds || activeInstructorIds(instructors);
   const day = weekday(scenario.startDate);
   let availabilityCoverage = 0;
@@ -763,11 +851,51 @@ function scenarioHeuristic({ scenario, instructors = [], profiles = {}, rules = 
   }
 
   let adjacency = 0;
+  let existingWorkday = 0;
+  const activity = scenario.__activity || {};
+  const scenarioStart = timeMinutes(scenario.startTime);
+  const scenarioEnd = timeMinutes(scenario.endTime);
   for (const meeting of blockingMeetingRows || blockingMeetings(activities)) {
     if (weekday(meeting.date) !== day) continue;
-    if (text(meeting.end_time).slice(0, 5) === scenario.startTime || text(meeting.start_time).slice(0, 5) === scenario.endTime) adjacency += 1;
+    existingWorkday += 1;
+    if (text(meeting.school_id) && text(meeting.school_id) === text(activity.school_id)) existingWorkday += 2;
+    else if (norm(meeting.authority) && norm(meeting.authority) === norm(activity.authority)) existingWorkday += 1;
+
+    const adjacent = travelAwareAdjacentStartMinutes({
+      meeting,
+      activity,
+      durationMinutes: (scenarioEnd != null && scenarioStart != null) ? (scenarioEnd - scenarioStart) : 90,
+      routeClient
+    });
+    const meetingEnd = timeMinutes(meeting.end_time);
+    const meetingStart = timeMinutes(meeting.start_time);
+    // Same school: exact abut is a real adjacency bonus.
+    if (adjacent.sameSchool) {
+      if (text(meeting.end_time).slice(0, 5) === scenario.startTime || text(meeting.start_time).slice(0, 5) === scenario.endTime) {
+        adjacency += 1;
+      }
+      continue;
+    }
+    // Different school: never reward zero-minute abut. Reward travel+buffer candidates.
+    if (scenarioStart != null && adjacent.afterStartMinute != null && scenarioStart === adjacent.afterStartMinute) {
+      adjacency += 1;
+    } else if (
+      scenarioEnd != null
+      && meetingStart != null
+      && adjacent.beforeStartMinute != null
+      && scenarioStart === adjacent.beforeStartMinute
+    ) {
+      adjacency += 1;
+    } else if (
+      scenarioStart != null
+      && meetingEnd != null
+      && scenarioStart === meetingEnd
+    ) {
+      // Explicitly ignore false abut across schools — no bonus.
+    }
   }
-  return availabilityCoverage * 10 + adjacency * 4;
+  // Prefer packing onto an already-open instructor workday before inventing a new one.
+  return availabilityCoverage * 10 + adjacency * 4 + existingWorkday * 3;
 }
 
 function* generatePlanningScenarioSteps({
@@ -780,7 +908,8 @@ function* generatePlanningScenarioSteps({
   schoolCalendar = [],
   today = '',
   periodKey = DEFAULT_PLANNING_PERIOD_KEY,
-  maxScenarios = MAX_SCENARIOS_PER_COURSE
+  maxScenarios = MAX_SCENARIOS_PER_COURSE,
+  routeClient = null
 } = {}) {
   const spec = inferPlanningCourseSpec(activity, catalog);
   if (!spec.complete) return { spec, scenarios: [], startRange: null };
@@ -817,7 +946,8 @@ function* generatePlanningScenarioSteps({
           rules,
           activities,
           activeIds: scenarioActiveIds,
-          blockingMeetingRows: scenarioBlockingMeetings
+          blockingMeetingRows: scenarioBlockingMeetings,
+          routeClient
         });
     for (const startTime of times) {
       const built = buildFixedDatePlanningMeetings({
@@ -830,12 +960,21 @@ function* generatePlanningScenarioSteps({
       if (!built) continue;
       raw.push({
         ...built,
-        heuristic: scenarioHeuristic({ scenario: { ...built, __activity: activity }, instructors, profiles, rules, activities, activeIds: scenarioActiveIds, blockingMeetingRows: scenarioBlockingMeetings })
+        heuristic: scenarioHeuristic({ scenario: { ...built, __activity: activity }, instructors, profiles, rules, activities, activeIds: scenarioActiveIds, blockingMeetingRows: scenarioBlockingMeetings, routeClient })
       });
       yield;
     }
   } else {
-    for (const day of candidateWeekdays) {
+    // Prefer weekdays that already host work for this instructor/context before opening a fresh day.
+    const openWeekdays = new Set(
+      scenarioBlockingMeetings.map((meeting) => weekday(meeting.date)).filter((day) => Number.isInteger(day))
+    );
+    const orderedWeekdays = [...candidateWeekdays].sort((a, b) => {
+      const aOpen = openWeekdays.has(a) ? 0 : 1;
+      const bOpen = openWeekdays.has(b) ? 0 : 1;
+      return aOpen - bOpen || a - b;
+    });
+    for (const day of orderedWeekdays) {
       const times = fixedStartTime
         ? [fixedStartTime]
         : dynamicTimesForWeekday({
@@ -847,7 +986,8 @@ function* generatePlanningScenarioSteps({
             rules,
             activities,
             activeIds: scenarioActiveIds,
-            blockingMeetingRows: scenarioBlockingMeetings
+            blockingMeetingRows: scenarioBlockingMeetings,
+            routeClient
           });
       const starts = [...new Set(times.flatMap((startTime) => candidateStartDates({
         activity, targetWeekday: day, sessions: spec.sessions, startTime,
@@ -868,7 +1008,7 @@ function* generatePlanningScenarioSteps({
           if (!built) continue;
           raw.push({
             ...built,
-            heuristic: scenarioHeuristic({ scenario: { ...built, __activity: activity }, instructors, profiles, rules, activities, activeIds: scenarioActiveIds, blockingMeetingRows: scenarioBlockingMeetings })
+            heuristic: scenarioHeuristic({ scenario: { ...built, __activity: activity }, instructors, profiles, rules, activities, activeIds: scenarioActiveIds, blockingMeetingRows: scenarioBlockingMeetings, routeClient })
           });
           yield;
         }
@@ -2995,6 +3135,201 @@ export function mergePlanningResumeRows(existingRows = [], completedRows = []) {
   return [...byId.values()];
 }
 
+function rowWeekdaySet(row = {}) {
+  return new Set(
+    (Array.isArray(row?.meetings) ? row.meetings : [])
+      .map((meeting) => weekday(meeting?.date))
+      .filter((day) => Number.isInteger(day))
+  );
+}
+
+function instructorOpenWeekdaysFromRows(rows = [], empId = '', excludeCourseId = '') {
+  const days = new Set();
+  for (const row of rows || []) {
+    if (text(row?.instructorEmpId) !== text(empId)) continue;
+    if (excludeCourseId && text(row?.courseId) === text(excludeCourseId)) continue;
+    for (const day of rowWeekdaySet(row)) days.add(day);
+  }
+  return days;
+}
+
+function countInstructorWorkdays(rows = [], empId = '') {
+  return instructorOpenWeekdaysFromRows(rows, empId).size;
+}
+
+function instructorPlanTravelKm(rows = [], empId = '') {
+  let total = 0;
+  let seen = false;
+  for (const row of rows || []) {
+    if (text(row?.instructorEmpId) !== text(empId)) continue;
+    const km = Number(planningRowPrimaryOption(row)?.operationalMetrics?.relevantTravelDistance);
+    if (!Number.isFinite(km)) continue;
+    total += km;
+    seen = true;
+  }
+  return seen ? Math.round(total * 10) / 10 : null;
+}
+
+/**
+ * Day consolidation may accept a reseat only when workdays drop, or when workdays
+ * stay equal and measured travel actually improves. Equal days with equal/worse
+ * travel (or unknown travel) must keep the existing plan.
+ */
+export function dayConsolidationAcceptsMove({
+  beforeDays,
+  afterDays,
+  beforeTravelKm = null,
+  afterTravelKm = null
+} = {}) {
+  const before = Number(beforeDays);
+  const after = Number(afterDays);
+  if (!Number.isFinite(before) || !Number.isFinite(after)) return false;
+  if (after > before) return false;
+  if (after < before) return true;
+  const beforeTravel = Number(beforeTravelKm);
+  const afterTravel = Number(afterTravelKm);
+  if (!Number.isFinite(beforeTravel) || !Number.isFinite(afterTravel)) return false;
+  return afterTravel < beforeTravel;
+}
+
+/**
+ * Cheap local pass: try to move flexible proposals onto weekdays the instructor
+ * already works, instead of leaving singleton days when travel+buffer allows.
+ * Does not touch fixed/locked/live/started anchors or run a national rebuild.
+ */
+async function consolidateInstructorWorkdaysPass({
+  rowsById,
+  targets = [],
+  catalog = [],
+  instructors = [],
+  profiles = {},
+  rules = {},
+  exceptions = {},
+  schoolCalendar = [],
+  today = '',
+  routeClient = null,
+  preparedContextFor = () => null,
+  travelContext = null,
+  currentContextActivities = [],
+  checkpoint = async () => {},
+  signal = null,
+  limits = FAST_PLANNING_LIMITS,
+  report = async () => {}
+} = {}) {
+  const activityById = new Map((targets || []).map((activity) => [idOf(activity), activity]));
+  const movable = [...rowsById.values()].filter((row) =>
+    text(row?.kind) === 'proposal'
+    && row?.schoolDateAnchored !== true
+    && row?.planningLocked !== true
+    && text(row?.instructorEmpId)
+    && Array.isArray(row?.meetings)
+    && row.meetings.length
+  );
+  if (!movable.length) return { moved: 0 };
+
+  let moved = 0;
+  for (const row of movable) {
+    const empId = text(row.instructorEmpId);
+    const activity = activityById.get(text(row.courseId));
+    if (!activity || planningActivityHasStarted(activity, today)) continue;
+    if (officialPlanningDates(activity).length) continue;
+
+    const currentDays = rowWeekdaySet(row);
+    const openDays = instructorOpenWeekdaysFromRows([...rowsById.values()], empId, row.courseId);
+    if (!openDays.size) continue;
+    const opensOnlyNewDays = [...currentDays].every((day) => !openDays.has(day));
+    if (!opensOnlyNewDays) continue;
+
+    const activityPeriodKey = planningPeriodKeyForActivity(activity);
+    // Context without this activity's own virtual block so we can re-seat it.
+    const contextWithoutSelf = (currentContextActivities || []).filter((item) =>
+      text(item?.__planning_source_id || idOf(item)) !== text(row.courseId)
+      && !text(idOf(item)).startsWith(`planning-block:${text(row.courseId)}`)
+    );
+
+    await report('ריכוז ימי עבודה', moved, movable.length, row.courseId);
+    const generated = await generatePlanningScenariosCooperatively({
+      activity,
+      catalog,
+      instructors: (instructors || []).filter((item) => text(item?.emp_id) === empId),
+      rules,
+      profiles,
+      activities: contextWithoutSelf,
+      schoolCalendar,
+      today,
+      periodKey: activityPeriodKey,
+      maxScenarios: Math.min(12, Number(limits.maxScenarios) || 12),
+      routeClient
+    }, checkpoint);
+    if (!generated.spec.complete || !generated.scenarios?.length) continue;
+
+    const preferredScenarios = generated.scenarios.filter((scenario) => openDays.has(weekday(scenario.startDate)));
+    if (!preferredScenarios.length) continue;
+
+    const evaluation = await evaluateScenarioOptions({
+      activity,
+      scenarios: preferredScenarios,
+      startRange: generated.startRange,
+      contextActivities: contextWithoutSelf,
+      instructors: (instructors || []).filter((item) => text(item?.emp_id) === empId),
+      profiles,
+      rules,
+      exceptions,
+      schoolCalendar,
+      today,
+      routeClient,
+      checkpoint,
+      signal,
+      periodKey: activityPeriodKey,
+      preparedContext: preparedContextFor(activityPeriodKey),
+      travelContext,
+      limits: {
+        ...limits,
+        maxScenarios: preferredScenarios.length,
+        maxCandidatesPerScenario: 1,
+        maxFinalOptions: 2,
+        runGlobalRepair: false
+      }
+    });
+    const chosen = (evaluation.options || []).find((option) => text(option.instructorEmpId) === empId)
+      || (evaluation.options || [])[0]
+      || null;
+    if (!chosen) continue;
+    const chosenDays = new Set((chosen.meetings || []).map((meeting) => weekday(meeting.date)).filter((day) => Number.isInteger(day)));
+    const staysOnOpenDay = [...chosenDays].some((day) => openDays.has(day));
+    if (!staysOnOpenDay) continue;
+
+    const trialRows = new Map(rowsById);
+    trialRows.set(row.courseId, planRowFromOption(
+      activity,
+      chosen,
+      evaluation.options || [],
+      generated.startRange,
+      generated.spec,
+      {
+        ...evaluation,
+        dayConsolidation: true,
+        scheduleOptions: scheduleOnlyOptions(preferredScenarios)
+      }
+    ));
+    const beforeDays = countInstructorWorkdays([...rowsById.values()], empId);
+    const afterDays = countInstructorWorkdays([...trialRows.values()], empId);
+    const beforeTravelKm = instructorPlanTravelKm([...rowsById.values()], empId);
+    const afterTravelKm = instructorPlanTravelKm([...trialRows.values()], empId);
+    if (!dayConsolidationAcceptsMove({ beforeDays, afterDays, beforeTravelKm, afterTravelKm })) {
+      continue;
+    }
+    if (text(chosen.startTime) === text(row.startTime) && text(chosen.startDate) === text(row.startDate)) {
+      continue;
+    }
+
+    rowsById.set(row.courseId, trialRows.get(row.courseId));
+    moved += 1;
+    await checkpoint();
+  }
+  return { moved };
+}
+
 export async function buildDynamicCoursePlan({
   activities = [],
   instructors = [],
@@ -3342,7 +3677,8 @@ export async function buildDynamicCoursePlan({
         schoolCalendar,
         today,
         periodKey: activityPeriodKey,
-        maxScenarios: limits.maxScenarios
+        maxScenarios: limits.maxScenarios,
+        routeClient
       }, checkpoint);
       if (!generated.spec.complete) {
         rowsById.set(idOf(activity), missingOverviewRow(activity, catalog));
@@ -3387,7 +3723,8 @@ export async function buildDynamicCoursePlan({
             schoolCalendar,
             today,
             periodKey: activityPeriodKey,
-            maxScenarios: DEEP_PLANNING_LIMITS.maxScenarios
+            maxScenarios: DEEP_PLANNING_LIMITS.maxScenarios,
+            routeClient
           }, checkpoint);
           if (deepGenerated.spec.complete) {
             const deepEvaluation = await evaluateScenarioOptions({
@@ -3440,6 +3777,32 @@ export async function buildDynamicCoursePlan({
 
     completed += 1;
     await report('בניית תוכנית', completed, queue.length, idOf(activity), rowsById.get(idOf(activity)) || null);
+  }
+
+  if (!_repairPass) {
+    await consolidateInstructorWorkdaysPass({
+      rowsById,
+      targets,
+      catalog,
+      instructors,
+      profiles,
+      rules,
+      exceptions,
+      schoolCalendar,
+      today,
+      routeClient,
+      preparedContextFor,
+      travelContext,
+      currentContextActivities,
+      checkpoint,
+      signal,
+      limits: {
+        ...FAST_PLANNING_LIMITS,
+        maxFinalOptions: 2,
+        runGlobalRepair: false
+      },
+      report
+    });
   }
 
   const rows = assignRecruitmentProfiles(

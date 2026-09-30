@@ -67,14 +67,17 @@ test('proposed overlaps fail and verified travel is governed by travel time plus
   const unknown=proposeDateAdjustments({meetings,rules,exceptions:blocked,transitions:{'2027-01-17':{previous:{end_time:'09:00',duration_minutes:null,distance_km:null}}}});
   assert.equal(unknown.reason,'transition_unverified');
 
-  const nearbyExact=proposeDateAdjustments({meetings,rules,exceptions:blocked,transitions:{'2027-01-17':{previous:{end_time:'09:30',duration_minutes:20,distance_km:10}}}});
-  assert.equal(nearbyExact.valid,true,'a 30-minute gap covers 20 minutes travel plus the 10-minute nearby-school buffer');
+  const nearbyExact=proposeDateAdjustments({meetings,rules,exceptions:blocked,transitions:{'2027-01-17':{previous:{end_time:'09:30',duration_minutes:20,distance_km:5}}}});
+  assert.equal(nearbyExact.valid,true,'a 30-minute gap covers 20 minutes travel plus the 5-minute nearby-school buffer');
 
-  const longExact=proposeDateAdjustments({meetings,rules,exceptions:blocked,transitions:{'2027-01-17':{previous:{end_time:'08:45',duration_minutes:60,distance_km:55}}}});
-  assert.equal(longExact.valid,true,'a 75-minute gap covers a one-hour trip plus the 15-minute buffer even above 20 km');
+  const midExact=proposeDateAdjustments({meetings,rules,exceptions:blocked,transitions:{'2027-01-17':{previous:{end_time:'08:45',duration_minutes:60,distance_km:12}}}});
+  assert.equal(midExact.valid,true,'a 75-minute gap covers a one-hour trip plus the 15-minute mid-range buffer');
 
-  const longShort=proposeDateAdjustments({meetings,rules,exceptions:blocked,transitions:{'2027-01-17':{previous:{end_time:'08:46',duration_minutes:60,distance_km:55}}}});
-  assert.equal(longShort.reason,'transition_insufficient');
+  const midShort=proposeDateAdjustments({meetings,rules,exceptions:blocked,transitions:{'2027-01-17':{previous:{end_time:'08:46',duration_minutes:60,distance_km:12}}}});
+  assert.equal(midShort.reason,'transition_insufficient');
+
+  const overCap=proposeDateAdjustments({meetings,rules,exceptions:blocked,transitions:{'2027-01-17':{previous:{end_time:'08:45',duration_minutes:60,distance_km:55}}}});
+  assert.equal(overCap.reason,'transition_distance_exceeded');
 });
 
 test('half overflow is an explicit warning state, not a separate approval field',()=>{

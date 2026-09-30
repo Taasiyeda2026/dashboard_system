@@ -22,7 +22,10 @@ test('assigned course is manageable but remains excluded from the free schedulin
 });
 
 test('assignedDetailHtml shows instructor and management actions', () => {
-  const html = assignedDetailHtml({ id: assigned.row_id, course: assigned, isAssigned: true }, {});
+  const html = assignedDetailHtml(
+    { id: assigned.row_id, course: assigned, isAssigned: true },
+    { user: { role: 'admin' } }
+  );
   assert.match(html, /שובץ/);
   assert.match(html, /מדריך משובץ: <b>דנה כהן<\/b>/);
   assert.match(html, /החלפה חד־פעמית/);
