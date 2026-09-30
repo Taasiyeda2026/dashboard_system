@@ -7,11 +7,11 @@ const index = await readFile(new URL('../attendance/index.html', import.meta.url
 const sw = await readFile(new URL('../attendance/sw.js', import.meta.url), 'utf8');
 const mobileTheme = await readFile(new URL('../attendance/src/styles/mobile-app-theme.css', import.meta.url), 'utf8');
 
-test('Attendance final mobile contract is loaded last and uses cache version 102', () => {
-  assert.match(index, /mobile-final-contract\.css\?v=102/);
-  assert.ok(index.indexOf('mobile-final-contract.css?v=102') > index.indexOf('new-report-accessibility.css?v=102'));
+test('Attendance final mobile contract is loaded last and uses cache version 103', () => {
+  assert.match(index, /mobile-final-contract\.css\?v=103/);
+  assert.ok(index.indexOf('mobile-final-contract.css?v=103') > index.indexOf('new-report-accessibility.css?v=103'));
   assert.doesNotMatch(index, /v=92/);
-  assert.match(sw, /const CACHE_VERSION = 102/);
+  assert.match(sw, /const CACHE_VERSION = 103/);
 });
 
 test('Attendance mobile contract prevents squeezed desktop layouts', () => {
