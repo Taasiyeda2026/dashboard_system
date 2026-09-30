@@ -31,8 +31,11 @@ Inside `course-scheduling.js`:
 
 - Effective internal tabs via `activeTab(state)`: **`courses`** (default workboard) and **`maintenance`**.
 - Legacy values `planning` / `calendar` are forced back to `courses` on render.
+- `planningTabHtml` is still imported but **not rendered** on the current path; `calendarTabHtml` helpers exist for legacy calendar UI and are likewise unused by current `render`.
+- Capability registry may still list `instructors.planning` — UI remaps it to the workboard. **Needs verification** if any deep-link still expects a separate planning pane.
 - UI is a **simple compact workboard** (`data-cs-ui="simple-workboard-20260924-v1"`): list of activities + detail drawer, not a separate planning-only screen.
 - Focus mode: arriving from Activities with a selected id shows only that activity (`is-activity-focus`); “הצג את כל הפעילויות” clears focus.
+- Inner period controls (not screen tabs): `first` | `second` | `year` via `periodOptions()` / `data-period-key`.
 
 Permissions:
 
@@ -145,15 +148,16 @@ Planning also uses `PLANNING_OPTIMIZATION_WEIGHTS` (continuity / capacity / trav
 
 | Concern | Where |
 |---------|--------|
-| Weekday hours | `instructor_scheduling` rules (loaded via `instructor-scheduling-data.js`); weekday map in matching |
-| Exceptions | Per-date rows; override weekday rule for that date |
-| Friday | `friday_allowed` on profile; failure `scheduling_friday_not_allowed` |
-| Saturday | Blocked by default; allowed for Arab sector (`allowSaturday`) |
+| Weekday hours | `instructor_availability_rules` (loaded via `instructor-scheduling-data.js`); weekday map in `evaluateInstructor` |
+| Exceptions | `instructor_availability_exceptions`; override weekday rule for that date |
+| Friday | **Client matching:** weekday `5` is gated by the weekly availability rule (`available`), not by reading `profile.friday_allowed` inside `evaluateInstructor` (the field exists on `DEFAULT_SCHEDULING_PROFILE` / data load). **Server:** still enforces `friday_allowed` → `scheduling_friday_not_allowed`. Treat client/server Friday semantics as a known split — do not “fix” one side without checking the other. |
+| Saturday | Blocked by default; allowed when `normalizeCalendarSector(activity.calendar_sector) === 'arab'` |
 | Language | `instruction_languages` vs activity language |
 | Gender | `required_instructor_gender` vs profile |
-| Distance | Cached home→school km; hard cap 40 km; manager approval threshold 60 km (`MANAGER_APPROVAL_DISTANCE_KM`) |
+| Distance | Cached home→school km; auto hard cap 40 km (`MAX_HOME_DISTANCE_KM`); see manager-approval rules below |
+| School calendar sector | `filterSchoolCalendarRowsBySector`: if sector normalizes to empty, **no filter** (all calendar rows returned) — callers must pass activity sector |
 
-Stage-2 date adjustment (`course-scheduling-date-adjustments.js`): when weekly availability fits but a point exception blocks a meeting, propose shifting that meeting (and following) to the next feasible weekly slot, skipping Shabbat/holidays/exceptions. Proposal does not write official activity dates until confirm.
+Stage-2 date adjustment (`course-scheduling-date-adjustments.js`): when weekly availability fits but a point exception blocks a meeting, propose shifting that meeting (and following) to the next feasible weekly slot, skipping Shabbat/holidays/exceptions. Cap: `MAX_RECOVERABLE_EXCEPTION_MEETINGS = 2` — more instructor-exception meetings → not recoverable via stage-2. Proposal does not write official activity dates until confirm.
 
 ---
 
@@ -166,7 +170,8 @@ Stage-2 date adjustment (`course-scheduling-date-adjustments.js`): when weekly a
 | Buffer | `transitionBufferMinutes(km)`: **10** min if ≤10 km, else **15** min (`NEARBY_*` / `TRANSITION_BUFFER_MINUTES`) |
 | Consecutive / adjacency | `adjacentActivities` + gap check in `evaluateInstructor`; score placement in `analyzeDayPlacement` |
 | Unknown route | Hard: unverified home/transition → not eligible for draft/final (workboard comments + failure codes) |
-| Hard block vs approval | Distance &gt; 40 km hard-fail; ≥60 km path uses manager-approval RPCs for manual exception flow |
+| Hard block vs approval | Auto path: home &gt; 40 km fails eligibility. Manual draft: `scheduling_manual_draft_requires_manager_approval` — pure home-distance exception under 60 km may proceed without admin; **≥60 km** or any non-distance manual exception reason requires manager approval. Missing addresses / null cached km also require approval. |
+| Inter-school km cap | Historical ~20 km inter-school cap was **removed** (`20260923221000_remove_inter_school_distance_cap.sql`); do not reintroduce casually |
 
 Distance maintenance UI lives under the **maintenance** tab (`course-scheduling-distance-build.js`).
 
@@ -184,17 +189,20 @@ Distance maintenance UI lives under the **maintenance** tab (`course-scheduling-
    - If incremental and not in `targetCourseIds` → reuse existing planning row + virtualize its meetings.
    - Else split into **fixed-date unassigned** vs **flexible / missing schedule**.
 4. Sort queues (fixed by first date; flexible by `comparePlanningDifficulty`).
-5. Evaluate fixed via `evaluateFixedCourse`; flexible via schedule/instructor search producing `options[]`.
-6. Accept best option → row kind `proposal` / `fixed-proposal` / `recruitment` / `missing`; push `blockingVirtualActivity` into context.
-7. Optional global repair pass (full runs only).
-8. Recruitment packing for remaining `recruitment` rows.
+5. Build scenarios (`generatePlanningScenarios` / steps): fixed dates → `buildFixedDatePlanningMeetings`; flexible → weekday × times × start dates via `buildWeeklyPlanningMeetings`, heuristically sorted (availability coverage + time-string adjacency). Limits differ for `fast` vs `deep` planning profiles.
+6. Evaluate fixed via `evaluateFixedCourse`; flexible via `evaluateScenarioOptions` → preliminary candidates → travel → engine `calculateCourseSchedule`, producing `options[]`.
+7. Accept best option → row kind `proposal` / `fixed-proposal` / `recruitment` / `missing`; push `blockingVirtualActivity` into context.
+8. Optional global repair pass (full runs only).
+9. Recruitment packing for remaining `recruitment` rows.
 
 ### Engine path — `calculateCourseSchedule` / block-first (`course-scheduling-engine.js`)
 
+- Core (`course-scheduling-engine-core.js`) evaluates eligibility; adapter applies the 100-point score contract.
 - Evaluate candidates per course, sort by urgency / scarce candidates.
 - Build **operational blocks** (same `school_id`, same date series, 0–30 minute gaps extend a lane).
 - Prefer one instructor for whole block; else fall back per course.
 - Accepted proposal mirrored as in-memory draft for subsequent courses.
+- Note: scenario **heuristic** adjacency is time-string abutting; verified km/transition checks happen in matching/travel validation (do not conflate the two).
 
 ---
 
@@ -311,11 +319,13 @@ Key RPCs: `get_scheduling_planning_workspace`, `save_scheduling_planning_snapsho
 ## 15. Manual assignment / manager approval / exception flow
 
 - Detail drawer: auto candidates + manual search (`data-manual-candidate`).
-- Draft write: `assign_activity_instructor` or `assign_activity_instructor_with_dates` (with `draft_proposed_meetings`).
+- Recommended path often uses `save_course_assignment_draft(_with_dates)` then assign; manual path uses `save_course_assignment_manual_draft` (+ reason).
+- Final write: `assign_activity_instructor` or `assign_activity_instructor_with_dates` (with `draft_proposed_meetings`).
 - Confirm planning choice: `confirm_scheduling_planning_draft` (may create single-meeting substitutions).
-- Manager approval: `submit_course_assignment_manager_approval` / `review_course_assignment_manager_approval` / state RPCs — used when distance (and related) requires admin.
-- Manual picker cannot bypass hard feasibility patterns listed in `MANUAL_NON_OVERRIDABLE_REASON`.
+- Manager approval panel: `course_assignment_manager_approval_state` / `submit_course_assignment_manager_approval` / `review_course_assignment_manager_approval` — gates confirm when `approval_required` (see distance rules in §7).
+- Manual picker cannot bypass hard feasibility patterns listed in `MANUAL_NON_OVERRIDABLE_REASON` (language/gender/overlap/unknown routes/impossible transitions/Fri–Sat policy, etc.). Soft quality / pure 40 km preference may be overrideable under the manual+approval policy — still subject to server hard gates.
 - Single-meeting substitute / operational replacement flows use dedicated scheduling RPCs (`scheduling_course_meeting_substitutions`, etc.).
+- Cancel paths: `cancel_course_assignment_draft` / `cancel_confirmed_course_assignment` (and related).
 
 ---
 
@@ -327,9 +337,11 @@ Key RPCs: `get_scheduling_planning_workspace`, `save_scheduling_planning_snapsho
 - `scheduling_planning_rows` (+ `needs_recalc`)
 - `scheduling_planning_checkpoints`
 - `scheduling_travel_cache`
-- `instructor_scheduling_profiles` (+ related availability/exception tables from instructor operational migrations)
+- `instructor_scheduling_profiles` (includes `friday_allowed`)
+- `instructor_availability_rules`
+- `instructor_availability_exceptions`
 - `activities` (assignment + draft + `date_1`…`date_35` + scheduling fields)
-- Manager-approval request tables (via course assignment approval RPCs) — **Needs verification** of exact table names if not touched in a task
+- Related: `instructor_assignment_audit`, `edit_requests` (manager-approval request type `course_assignment_exception`) — confirm exact columns/RLS when changing approval UX
 
 ### RPCs (representative)
 
@@ -386,8 +398,8 @@ Exact role→permission matrix: see permissions migrations / `permission-policy.
 
 | Pitfall | What went wrong | Direction of fix |
 |---------|-----------------|------------------|
-| Sector-specific school calendar leak | Calendar rows from other sectors affected packing/eligibility | Always `filterSchoolCalendarRowsBySector` / normalize sector (`jewish`/`arab`/`general`) |
-| Full rerender on search | List search reset scroll/focus | `rerenderPreservingWorkboardScroll` |
+| Sector-specific school calendar leak | Calendar rows from other sectors affected packing/eligibility; empty sector = **no filter** | Always pass activity sector into `filterSchoolCalendarRowsBySector` / normalize (`jewish`/`arab`/`druze`/`general`) |
+| Full rerender on search | List search re-renders the workboard each keystroke | `rerenderPreservingWorkboardScroll` + caret restore; still a full list re-render by design — avoid heavier work on `input` |
 | Focus/navigation to one activity | Handoff from Activities lost selection | Focus mode + `data-course-scroll-target` + auto detail (`course-scheduling-activity-focus-ux` tests) |
 | Day packing / continuity | Blocks/lanes wrong when gaps/schools mis-grouped | Operational blocks require verified `school_id` + same date series; 0–30 min lane extend |
 | Travel-aware adjacency | Transitions ignored or double-buffered | Single buffer via `transitionBufferMinutes`; unknown route ≠ safe |
@@ -422,8 +434,8 @@ If a pitfall is only suspected and not proven in tests/migrations, mark new find
 9. **Virtual plans must remain in-run only** until the user saves/confirms — but they must block later courses in the same run.
 10. **Block-first continuity** — do not break an efficient same-school block solely for fairness/workload spreading.
 11. **Transition buffer applied once** — nearby 10 min / default 15 min; do not invent a second hidden buffer.
-12. **Home distance 40 km hard cap**; manager-approval path starts at 60 km for manual exceptions — do not silently weaken.
-13. **Saturday default blocked**; Arab sector may allow Saturday — keep sector-aware.
+12. **Home distance:** auto eligibility hard-fails above 40 km; manual pure-distance exceptions require manager approval at **≥60 km** (other manual exception reasons still require approval) — do not silently weaken either threshold.
+13. **Saturday default blocked**; Arab sector may allow Saturday — keep sector-aware. Do not assume client `friday_allowed` matching mirrors the server without checking both.
 14. **Cache discipline** — bump `CACHE_VERSION` + `HOTFIX_VERSION` for deployable frontend scheduling UI/logic; never stash archives in SW precache.
 15. **Permission gate** — scheduling RPCs/UI require `view_operations_scheduling` (maintenance separate).
 16. **When changing a business rule**, state the rule change explicitly in the PR; update this map in the same change set.
@@ -433,7 +445,10 @@ If a pitfall is only suspected and not proven in tests/migrations, mark new find
 
 ## Needs verification (explicit)
 
-- Full inventory of manager-approval physical tables and RLS policies (RPCs are confirmed; table names not re-listed here).
+- Full inventory of manager-approval physical tables and RLS policies (RPCs/`edit_requests` usage confirmed; column-level contracts not fully re-listed here).
 - Whether every `scheduling_revalidate_after_*` trigger is still attached after later migrations — re-check when touching invalidation.
 - Exact production district scoping conventions when `district === ''` (national workspace) vs filtered districts — confirm against current ops usage before changing scope keys.
 - Workshop / tour activity categories: eligibility helpers exist; product still treats courses as primary — confirm before enabling new types in the national planner.
+- Whether any runtime deep-link still renders `planningTabHtml` / calendar pane (current `render` remaps `planning`/`calendar` → `courses`).
+- Client Friday gate (weekly rule weekday 5) vs server `friday_allowed` — intentional split or drift; verify before changing either side.
+- Exact latest SQL body of overwritten gate functions without replaying the full migration chain on a live DB.
