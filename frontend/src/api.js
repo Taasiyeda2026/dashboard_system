@@ -5935,10 +5935,98 @@ async function activityRowSeasonSnapshot(rowId) {
   return data || null;
 }
 
+function isStatusUpdateVerificationError(error) {
+  const status = Number(error?.status || 0);
+  const text = [error?.code, error?.message, error?.details, error?.hint]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+  return status >= 500
+    || text.includes('timeout')
+    || text.includes('timed out')
+    || text.includes('server error')
+    || text.includes('warp server error');
+}
+
+export async function updateActivityStatusOnly({
+  client = supabase,
+  rowId,
+  status,
+  now = Date.now,
+  invalidateCache = invalidateAllActivitiesRowsCache,
+  invalidatePlanning = invalidatePlanningAfterActivitySchedulingSave,
+} = {}) {
+  const startedAt = now();
+  const logStage = (stage, stageStartedAt, extra = {}) => {
+    console.info('[activity-status-save]', {
+      stage,
+      row_id: rowId,
+      elapsed_ms: Math.max(0, now() - stageStartedAt),
+      total_elapsed_ms: Math.max(0, now() - startedAt),
+      ...extra,
+    });
+  };
+
+  const preflightStartedAt = now();
+  const { data: existingRow, error: preflightError } = await client
+    .from('activities')
+    .select('activity_season,start_date')
+    .eq('row_id', rowId)
+    .maybeSingle();
+  logStage('preflight', preflightStartedAt, { ok: !preflightError });
+  if (preflightError) throw buildSupabaseMutationError('saveActivity', preflightError, 'save_failed');
+  assertActivityPeriodEditable({ activity: existingRow, changes: { status } });
+
+  const updateStartedAt = now();
+  const { data, error } = await client
+    .from('activities')
+    .update({ status })
+    .eq('row_id', rowId)
+    .select('row_id,status,updated_at')
+    .maybeSingle();
+  logStage('update', updateStartedAt, { ok: !error });
+
+  let savedRow = data;
+  if (error && isStatusUpdateVerificationError(error)) {
+    const verifyStartedAt = now();
+    const { data: verifiedRow, error: verifyError } = await client
+      .from('activities')
+      .select('row_id,status,updated_at')
+      .eq('row_id', rowId)
+      .maybeSingle();
+    const verified = !verifyError && String(verifiedRow?.status || '').trim() === status;
+    logStage('verify-after-error', verifyStartedAt, { ok: !verifyError, verified });
+    if (verified) savedRow = verifiedRow;
+    else throw buildSupabaseMutationError('saveActivity', error, 'save_failed');
+  } else if (error) {
+    throw buildSupabaseMutationError('saveActivity', error, 'save_failed');
+  }
+  if (!savedRow) throw new Error('activity_not_found_or_forbidden');
+
+  invalidateCache();
+  if (activitySchedulingFieldsChanged(null, { status })) {
+    try {
+      await invalidatePlanning(rowId, {
+        afterOrChanges: { status },
+        source: 'saveActivity',
+      });
+    } catch (invalidationError) {
+      console.warn('[planning-invalidate-after-saveActivity]', invalidationError?.message || invalidationError);
+    }
+  }
+  return { ok: true, RowID: rowId, row_id: rowId, source_sheet: 'activities', row: savedRow };
+}
+
 async function updateActivityInSupabase(payload = {}) {
   const rowId = String(payload?.source_row_id || payload?.row_id || payload?.RowID || '').trim();
   const sourceSheet = String(payload?.source_sheet || 'activities').trim() || 'activities';
   if (!rowId) throw new Error('missing_row_id');
+  const submittedChanges = payload?.changes || {};
+  if (Object.keys(submittedChanges).length === 1 && Object.prototype.hasOwnProperty.call(submittedChanges, 'status')) {
+    const status = String(submittedChanges.status || '').trim();
+    if (!status) throw new Error('invalid_activity_status');
+    return updateActivityStatusOnly({ rowId, status });
+  }
   const catalogAwareChanges = { ...(payload?.changes || {}) };
   if (catalogAwareChanges.activity_name_override === false && (
     catalogText(catalogAwareChanges.activity_no) || catalogText(catalogAwareChanges.gefen_number)
