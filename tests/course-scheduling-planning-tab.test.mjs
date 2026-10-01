@@ -1681,37 +1681,37 @@ test('Planning quality audit detects conflicts, unresolved rows and inefficient 
   assert.equal(audit.status, 'נדרשת בדיקה');
 });
 
-test('final option selection keeps the local instructor ahead of a higher continuity score', () => {
+test('final option selection prefers the complete operational score before home locality in the same start week', () => {
   const local = {
     startDate: '2026-10-15',
     startTime: '10:00',
     planningOptimization: { total: 72.5 },
-    _candidate: { travel: { home: { distance_km: 0.9 } } }
+    _candidate: { travel: { home: { distance_km: 0.9 } }, newWorkDayMeetingCount: 8 }
   };
-  const farther = {
+  const packed = {
     startDate: '2026-10-12',
     startTime: '09:00',
     planningOptimization: { total: 93.6 },
-    _candidate: { travel: { home: { distance_km: 18.7 } } }
+    _candidate: { travel: { home: { distance_km: 18.7 } }, newWorkDayMeetingCount: 0 }
   };
-  assert.ok(optionCompare(local, farther) < 0);
+  assert.ok(optionCompare(packed, local) < 0);
 });
 
-test('local instructor wins the same start week before virtual continuity score', () => {
+test('complete operational score wins the same start week before home-locality tie breaking', () => {
   const local = {
     course: { start_date: '2026-10-15', start_time: '10:00' },
-    candidate: { travel: { home: { distance_km: 0.9 } } },
+    candidate: { travel: { home: { distance_km: 0.9 } }, newWorkDayMeetingCount: 8 },
     planningOptimization: { total: 72.5 }
   };
-  const far = {
+  const packed = {
     course: { start_date: '2026-10-12', start_time: '09:00' },
-    candidate: { travel: { home: { distance_km: 37.3 } } },
+    candidate: { travel: { home: { distance_km: 37.3 } }, newWorkDayMeetingCount: 0 },
     planningOptimization: { total: 93.6 }
   };
   assert.equal(planningHomeDistanceKm(local), 0.9);
   assert.equal(planningLocalityTier(local), 0);
-  assert.equal(planningLocalityTier(far), 3);
-  assert.ok(planningPairCompare(local, far) < 0);
+  assert.equal(planningLocalityTier(packed), 3);
+  assert.ok(planningPairCompare(packed, local) < 0);
 });
 
 test('Planning quality audit shows operational readiness and instructor workload in the completed plan', () => {

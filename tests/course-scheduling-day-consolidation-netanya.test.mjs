@@ -209,6 +209,103 @@ test('Netanya flexible activity packs onto Monday 13:00 after existing Monday 10
   );
 });
 
+test('tight scenario budget retains same-school adjacency before broad availability coverage', () => {
+  const sameSchoolExisting = {
+    ...activityA,
+    row_id: 'same-school-existing',
+    school: 'שי עגנון',
+    school_id: 'school-b',
+    school_address: 'כתובת שי עגנון נתניה',
+    start_time: '10:00',
+    end_time: '11:30'
+  };
+  const generated = generatePlanningScenarios({
+    activity: activityB,
+    catalog,
+    instructors: [instructor],
+    profiles,
+    rules,
+    activities: [sameSchoolExisting],
+    schoolCalendar: [],
+    today: '2026-09-23',
+    periodKey: 'year',
+    maxScenarios: 4,
+    routeClient: netanyaRouteClient()
+  });
+
+  const monday = generated.scenarios.filter((scenario) =>
+    new Date(`${scenario.startDate}T12:00:00Z`).getUTCDay() === 1
+  );
+  assert.ok(monday.length, 'Monday must survive the tight scenario budget');
+  assert.ok(
+    monday.some((scenario) => scenario.startTime === '11:30'),
+    'same-school exact-after slot must survive before generic availability coverage'
+  );
+});
+
+test('three flexible same-school activities consolidate to one weekly workday when feasible', async () => {
+  const packedProfiles = {
+    1550: {
+      ...profiles[1550],
+      preferred_work_days: 1
+    }
+  };
+  const makeFlexible = (id) => ({
+    ...activityB,
+    row_id: id,
+    school: 'שי עגנון',
+    school_id: 'school-b',
+    school_address: 'כתובת שי עגנון נתניה',
+    activity_name: 'שי עגנון נתניה',
+    emp_id: null,
+    instructor_name: null,
+    start_date: null,
+    end_date: null,
+    start_time: null,
+    end_time: null,
+    date_1: null,
+    date_2: null
+  });
+
+  const result = await buildDynamicCoursePlan({
+    activities: [
+      makeFlexible('packed-flex-a'),
+      makeFlexible('packed-flex-b'),
+      makeFlexible('packed-flex-c')
+    ],
+    instructors: [instructor],
+    profiles: packedProfiles,
+    rules,
+    exceptions: {},
+    schoolCalendar: [],
+    catalog,
+    today: '2026-09-23',
+    periodKey: 'year',
+    routeClient: netanyaRouteClient(),
+    allowGlobalRepair: false,
+    planningProfile: 'fast'
+  });
+
+  const rows = result.rows.filter((row) => row.courseId.startsWith('packed-flex-'));
+  assert.equal(rows.length, 3);
+  assert.ok(rows.every((row) => row.kind === 'proposal' && row.instructorEmpId === '1550'));
+
+  const weekdays = new Set(rows.flatMap((row) =>
+    (row.meetings || []).map((meeting) => new Date(`${meeting.date}T12:00:00Z`).getUTCDay())
+  ));
+  assert.equal(weekdays.size, 1, 'all flexible same-school courses should share one weekly workday');
+
+  const firstDate = [...new Set(rows.map((row) => row.startDate))];
+  assert.equal(firstDate.length, 1, 'all packed courses should start on the same weekday/date series');
+
+  const slots = rows
+    .map((row) => [row.startTime, row.endTime])
+    .sort((a, b) => a[0].localeCompare(b[0]));
+  for (let index = 1; index < slots.length; index += 1) {
+    assert.ok(slots[index - 1][1] <= slots[index][0], 'packed slots must remain non-overlapping');
+  }
+});
+
 test('fixed schedule and locked assignment stay put while flexible consolidates', async () => {
   const lockedFlexible = {
     ...activityB,

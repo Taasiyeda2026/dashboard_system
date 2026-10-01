@@ -25,11 +25,16 @@ const activityMigrationUrl = new URL(
   '../supabase/migrations/20260927180000_mark_scheduling_planning_needs_recalc.sql',
   import.meta.url
 );
+const preferredWorkDaysMigrationUrl = new URL(
+  '../supabase/migrations/20261001055000_planning_preferred_work_days_invalidation.sql',
+  import.meta.url
+);
 const screenUrl = new URL('../frontend/src/screens/course-scheduling.js', import.meta.url);
 const storeUrl = new URL('../frontend/src/screens/course-scheduling-planning-store.js', import.meta.url);
 
 const migration = await readFile(migrationUrl, 'utf8');
 const activityMigration = await readFile(activityMigrationUrl, 'utf8');
+const preferredWorkDaysMigration = await readFile(preferredWorkDaysMigrationUrl, 'utf8');
 const screen = await readFile(screenUrl, 'utf8');
 const store = await readFile(storeUrl, 'utf8');
 
@@ -256,5 +261,7 @@ test('validation version exists and engine bump does not imply full-workspace di
   assert.match(screen, /PLANNING_VALIDATION_VERSION/);
   assert.match(migration, /instructor_scheduling_profiles_invalidate_planning/);
   assert.match(migration, /contacts_instructors_invalidate_planning/);
+  assert.match(preferredWorkDaysMigration, /preferred_work_days/);
+  assert.match(preferredWorkDaysMigration, /mark_scheduling_planning_needs_recalc_for_instructor/);
   assert.match(store, /mark_scheduling_planning_needs_recalc_many/);
 });
