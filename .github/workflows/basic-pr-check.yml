@@ -101,6 +101,7 @@ jobs:
               tests/course-scheduling-planning-tab.test.mjs \
               tests/course-scheduling-planning-invalidate.test.mjs \
               tests/course-scheduling-planning-self-invalidation.test.mjs \
+              tests/course-scheduling-day-consolidation-netanya.test.mjs \
               tests/scheduling-planning-audit-sector-filter.test.mjs
           else
             echo "No scheduling contract files changed; focused scheduling tests skipped."
