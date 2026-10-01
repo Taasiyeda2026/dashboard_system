@@ -105,6 +105,7 @@ import {
   sharedPlanningLocks,
   applyLocalPlanningNeedsRecalc,
   applyStoredPlanningValidityAudit,
+  planningEngineUpgradeAffectedCourseIds,
   shouldAutoRefreshPlanning,
   AUTO_PLANNING_REFRESH_MAX_IDS
 } from './course-scheduling-planning-store.js';
@@ -2387,17 +2388,27 @@ export const courseSchedulingScreen = {
         : null;
       const inputChanged = contextResolution?.contextChanged === true;
       const unrecoverableGlobalContextChange = contextResolution?.unrecoverableGlobalContextChange === true;
+      const engineUpgradeAffectedIds = engineChanged
+        ? planningEngineUpgradeAffectedCourseIds({
+            shared,
+            storedEngineVersion,
+            currentEngineVersion: PLANNING_ENGINE_VERSION
+          })
+        : [];
       const affectedIds = !workspace
         ? currentCourseIds
         : unrecoverableGlobalContextChange
           ? currentCourseIds
-          : sharedPlanningAffectedCourseIds({
-              shared,
-              activities: snapshot?.activities || [],
-              currentCourseIds,
-              contextDiff: contextResolution?.contextDiff || null,
-              unrecoverableGlobalContextChange: false
-            });
+          : [...new Set([
+              ...sharedPlanningAffectedCourseIds({
+                shared,
+                activities: snapshot?.activities || [],
+                currentCourseIds,
+                contextDiff: contextResolution?.contextDiff || null,
+                unrecoverableGlobalContextChange: false
+              }),
+              ...engineUpgradeAffectedIds
+            ])];
 
       const sharedRows = (shared?.rows || [])
         .filter((entry) => currentCourseIds.includes(text(entry.activityId)))
@@ -2694,17 +2705,27 @@ export const courseSchedulingScreen = {
           .map((entry) => entry.lockedOption
             ? applyPlanningLockToRow(entry.row, entry.lockedOption, scope.periodKey)
             : entry.row);
+        const engineUpgradeAffectedIds = engineChanged
+          ? planningEngineUpgradeAffectedCourseIds({
+              shared,
+              storedEngineVersion,
+              currentEngineVersion: PLANNING_ENGINE_VERSION
+            })
+          : [];
         const affectedIds = !shared?.workspace
           ? currentCourseIds
           : unrecoverableGlobalContextChange
             ? currentCourseIds
-            : sharedPlanningAffectedCourseIds({
-                shared,
-                activities: freshStart.activities || [],
-                currentCourseIds,
-                contextDiff: contextResolution?.contextDiff || null,
-                unrecoverableGlobalContextChange: false
-              });
+            : [...new Set([
+                ...sharedPlanningAffectedCourseIds({
+                  shared,
+                  activities: freshStart.activities || [],
+                  currentCourseIds,
+                  contextDiff: contextResolution?.contextDiff || null,
+                  unrecoverableGlobalContextChange: false
+                }),
+                ...engineUpgradeAffectedIds
+              ])];
 
         const fullRun = forceFull
           || !shared?.workspace
