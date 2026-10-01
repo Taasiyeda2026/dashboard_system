@@ -1105,7 +1105,7 @@ export function bindActivityEditForm(contentRoot, {
       setActivitySchoolPickerOpen(form, false);
     }, { signal });
     form._initialLocationValues = captureActivityEditLocationValues(form);
-    syncActivityEditLocation(form);
+    activityEditLocationForSave(form);
     captureFormInitialValues(form);
     form._refreshInitialValues = () => {
       form._initialLocationValues = captureActivityEditLocationValues(form);
