@@ -687,8 +687,17 @@ export function bindActivityEditForm(contentRoot, {
 
     if (!validateActivityTypeAndName(form, statusEl)) return;
 
+    const catalogSelectionDirty = String(form.dataset.activityCatalogDirty || '') === 'yes';
+    if (!catalogSelectionDirty) {
+      // Opening/rebuilding an existing drawer may rewrite option metadata. Those
+      // internal changes are not a user catalog edit and must never leak into
+      // a status-only (or other unrelated) save.
+      ['activity_name', 'activity_no', 'gefen_number', 'activity_name_override'].forEach((key) => {
+        delete changes[key];
+      });
+    }
     const catalogSelection = selectedActivityCatalogIdentity(form);
-    const catalogSelectionChanged = catalogSelection.isCatalogSelection && (
+    const catalogSelectionChanged = catalogSelectionDirty && catalogSelection.isCatalogSelection && (
       catalogSelection.activity_name !== String(initialValues.activity_name || '').trim() ||
       catalogSelection.activity_no !== String(initialValues.activity_no || '').trim() ||
       catalogSelection.gefen_number !== String(initialValues.gefen_number || '').trim()
@@ -975,6 +984,7 @@ export function bindActivityEditForm(contentRoot, {
 
       if (ev.target.closest('[data-action="start-edit"]')) {
         if (blockReadOnlyActivityMutation(form, appState)) return;
+        form.dataset.activityCatalogDirty = 'no';
         ensureExistingActivityNameSelected(form);
         setEditMode(form, true);
         applyApprovedDrawerFixes(form);
@@ -990,6 +1000,7 @@ export function bindActivityEditForm(contentRoot, {
 
       if (ev.target.closest('[data-action="cancel-edit"]')) {
         form.reset();
+        form.dataset.activityCatalogDirty = 'no';
         setStatus(form.querySelector('.ds-activity-edit-status'), '', '');
         updateMeetingWeekdays(form);
         updateMoreDatesToggle(form);
@@ -1085,6 +1096,7 @@ export function bindActivityEditForm(contentRoot, {
     const nameSel = form.querySelector('[data-role="activity-name-select"]');
     if (nameSel) nameSel.disabled = !normalizeActivityTypeKey(typeEl?.value);
     if (typeEl) form.dataset.activityNameType = normalizeActivityTypeKey(typeEl.value);
+    form.dataset.activityCatalogDirty = 'no';
     ensureExistingActivityNameSelected(form);
     syncActivityCatalogIdentityFromName(form);
     const authorityInput = form.querySelector('[data-role="activity-authority"]');
@@ -1122,6 +1134,7 @@ export function bindActivityEditForm(contentRoot, {
         }
         const nameEl = ev.target.closest('[data-role="activity-name-select"]');
         if (nameEl) {
+          form.dataset.activityCatalogDirty = 'yes';
           const catalogIdentity = syncActivityCatalogIdentityFromName(form, { clearWhenNoSelection: true });
           if (catalogIdentity?.isCatalogSelection && Number.isFinite(Number(catalogIdentity.meetings_count))) {
             const requestKey = `${catalogIdentity.activity_no || catalogIdentity.gefen_number || catalogIdentity.activity_name}:${catalogIdentity.meetings_count}`;
@@ -1140,6 +1153,7 @@ export function bindActivityEditForm(contentRoot, {
           const newType = normalizeActivityTypeKey(typeEl.value);
           const previousType = normalizeActivityTypeKey(form.dataset.activityNameType);
           if (newType === previousType) return;
+          form.dataset.activityCatalogDirty = 'yes';
           form.dataset.activityNameType = newType;
           const nameSel = form.querySelector('[data-role="activity-name-select"]');
           if (nameSel && nameSel.dataset.allActivityNames) {
