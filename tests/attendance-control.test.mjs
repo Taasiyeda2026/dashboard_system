@@ -1116,6 +1116,52 @@ test('successful write-back saves manager approval after PDF SharePoint and emai
   assert.equal(row.mailed_at, '2026-05-20T10:00:00.000Z');
 });
 
+
+test('manager approval finalizes after SharePoint success even when email delivery fails', async () => {
+  let finalized = null;
+  const api = {
+    attendanceControlUpdateRecord: async () => ({ success: true }),
+    attendanceManagerApprovalArtifacts: async () => ({
+      sharepointWebUrl: 'https://think365orgil.sharepoint.com/file',
+      sharepointItemId: 'item-mail-warning',
+      fileName: payrollApprovalPdfFileName('דנה', '2026-05'),
+      managerPdfVersion: 1,
+      mailSent: false,
+      mailError: 'mail_send_failed:403',
+      mailedAt: ''
+    }),
+    managerFinalizeAttendanceMonthReview: async (payload) => {
+      finalized = payload;
+      return {
+        ...payload,
+        manager_approved_by_name: 'מנהל בדיקה',
+        manager_approved_at: '2026-05-20T10:00:00.000Z',
+        manager_pdf_sharepoint_url: payload.manager_pdf_sharepoint_url
+      };
+    }
+  };
+  const row = await approvePayrollControlEmployee({
+    api,
+    user: { full_name: 'מנהל בדיקה' },
+    result: { month: '2026-05', comparisons: [changedComparison] },
+    employeeId: '10',
+    employeeName: 'דנה',
+    confirmed: true,
+    monthWorkflow: {
+      workflowStatus: 'submitted',
+      attendanceSubmissionStatus: 'submitted',
+      submittedByName: 'דנה',
+      submittedAt: '2026-05-03T08:00:00.000Z'
+    }
+  });
+  assert.ok(finalized, 'SharePoint persistence must allow manager finalization');
+  assert.equal(finalized.manager_pdf_sharepoint_item_id, 'item-mail-warning');
+  assert.equal(row.status, 'manager_approved');
+  assert.equal(row.mail_sent, false);
+  assert.equal(row.mail_error, 'mail_send_failed:403');
+  assert.equal(row.mailed_at, '');
+});
+
 test('manager approval is blocked before employee month submission', async () => {
   const api = {
     attendanceControlUpdateRecord: async () => ({ success: true }),
