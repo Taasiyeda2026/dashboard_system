@@ -172,6 +172,13 @@ test('8 manager correction write-back clears prior review after successful save'
   assert.match(control, /set_manager_attendance_record_review|setManagerAttendanceRecordReview|clear.*review|record review/i);
 });
 
+test('payroll PDF dispatch treats email as best-effort after durable SharePoint persistence', () => {
+  assert.match(pdfHandler, /email delivery failed after PDF persistence/);
+  assert.match(pdfHandler, /mailSent: !mailError/);
+  assert.match(pdfHandler, /reusedExistingPdf: Boolean\(existingOrphan\)/);
+  assert.doesNotMatch(pdfHandler, /if \(!sender\) throw new Error\("mail_sender_not_configured"\)/);
+});
+
 test('9 manager approval finalize requires PDF and stores approval stamps', () => {
   assert.match(finish, /attendanceManagerApprovalArtifacts/);
   assert.match(finish, /managerFinalizeAttendanceMonthReview|manager_finalize_attendance_month_review/);
