@@ -306,6 +306,68 @@ test('three flexible same-school activities consolidate to one weekly workday wh
   }
 });
 
+test('flexible course is compacted immediately before a fixed afternoon course using travel+buffer', async () => {
+  const fixedAfternoon = {
+    ...activityB,
+    row_id: 'fixed-afternoon',
+    school: 'שי עגנון',
+    school_id: 'school-b',
+    school_address: 'כתובת שי עגנון נתניה',
+    activity_name: 'קבוע אחר הצהריים',
+    emp_id: '1550',
+    instructor_name: 'לירון נחום',
+    sessions: 2,
+    start_time: '13:30',
+    end_time: '15:00',
+    date_1: '2026-10-12',
+    date_2: '2026-10-19',
+    start_date: '2026-10-12',
+    end_date: '2026-10-19'
+  };
+  const flexibleBefore = {
+    ...activityB,
+    row_id: 'flex-before-fixed',
+    school: 'ריגלר',
+    school_id: 'school-a',
+    school_address: 'כתובת ריגלר נתניה',
+    activity_name: 'שי עגנון נתניה',
+    emp_id: null,
+    instructor_name: null,
+    sessions: 2,
+    start_time: null,
+    end_time: null,
+    date_1: null,
+    date_2: null,
+    start_date: null,
+    end_date: null
+  };
+
+  const result = await buildDynamicCoursePlan({
+    activities: [flexibleBefore, fixedAfternoon],
+    instructors: [instructor],
+    profiles,
+    rules,
+    exceptions: {},
+    schoolCalendar: [],
+    catalog,
+    today: '2026-09-23',
+    periodKey: 'year',
+    routeClient: netanyaRouteClient(),
+    allowGlobalRepair: false,
+    planningProfile: 'fast'
+  });
+
+  const row = result.rows.find((item) => item.courseId === 'flex-before-fixed');
+  assert.ok(row);
+  assert.equal(row.kind, 'proposal');
+  assert.equal(row.instructorEmpId, '1550');
+  assert.equal(row.startDate, '2026-10-12');
+  // 13:30 fixed start - 90 min course - (19 min travel + 15 min buffer)
+  // = 11:26; planner rounds down to the latest safe 30-min slot: 11:00.
+  assert.equal(row.startTime, '11:00');
+  assert.equal(row.endTime, '12:30');
+});
+
 test('fixed schedule and locked assignment stay put while flexible consolidates', async () => {
   const lockedFlexible = {
     ...activityB,
