@@ -13,10 +13,29 @@ after(async () => {
   await viteServer?.close();
 });
 
-test('manager board opens school 2027 on September by default', () => {
-  assert.match(boardRuntime, /if \(normalized === 'school_2027'\) return SCHOOL_2027_START_DATE\.slice\(0, 7\)/);
+test('manager board delegates its default month and does not restore a persisted month', () => {
+  assert.match(boardRuntime, /return defaultMonthForGlobalActivityPeriod\(period, now\)/);
+  assert.doesNotMatch(boardRuntime, /localStorage\.getItem\(`manager_board_month:/);
   assert.match(runtime, /localStorage\.removeItem\(`manager_board_month:\$\{period\}`\)/);
   assert.match(runtime, /clearPersistedManagerMonthDefaults\(\)/);
+});
+
+test('manager board starts at the current clamped month and preserves only an in-session selection', async () => {
+  const [, { resolveManagerBoardMonth }] = await loadInteractiveRuntimes();
+
+  assert.equal(resolveManagerBoardMonth('school_2027', { now: new Date(2026, 9, 1) }), '2026-10');
+  assert.equal(resolveManagerBoardMonth('school_2027', {
+    selectedMonth: '2026-09',
+    selectedPeriod: '',
+    now: new Date(2026, 9, 1)
+  }), '2026-10');
+  assert.equal(resolveManagerBoardMonth('school_2027', {
+    selectedMonth: '2026-11',
+    selectedPeriod: 'school_2027',
+    now: new Date(2026, 9, 1)
+  }), '2026-11');
+  assert.equal(resolveManagerBoardMonth('school_2027', { now: new Date(2026, 7, 1) }), '2026-09');
+  assert.equal(resolveManagerBoardMonth('school_2027', { now: new Date(2027, 9, 1) }), '2027-08');
 });
 
 test('long calendar descriptions wrap instead of ellipsizing', () => {
