@@ -19,6 +19,7 @@ test('activity catalog preserves extended activity_names fields', () => {
   assert.equal(catalog[0].label_he, 'פעילות א');
   assert.equal(catalog[0].type, 'course');
   assert.equal(catalog[0].gefen_number, '100');
+  assert.equal(catalog[1].gefen_number, '', 'non-Gefen activity_no must not be copied into gefen_number');
   assert.equal(catalog[0].meetings_count, 11);
 });
 
