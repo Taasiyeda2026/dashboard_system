@@ -84,7 +84,7 @@ export const PLANNING_OPTIMIZATION_WEIGHTS = Object.freeze({
   stability: 10
 });
 export const PLANNING_VALIDATION_VERSION = 'planning-validation-v1-20260927-self-invalidation';
-export const PLANNING_ENGINE_VERSION = 'planning-v21-20260927-self-invalidation';
+export const PLANNING_ENGINE_VERSION = 'planning-v22-20261001-workday-consolidation-self-invalidation';
 export const PLANNING_ACTIVITY_NO_ALIASES = Object.freeze({
   // Legacy Gefen identifier retained on existing activities; canonical catalog program is 53828.
   '82835': '53828'
@@ -1035,10 +1035,32 @@ function* generatePlanningScenarioSteps({
     diversified.push(scenario);
   };
 
-  // Cover the real weekly availability grid before using the remaining slots
-  // for generic high-score scenarios. A key is one instructor + one available
-  // weekday; greedy coverage prevents a common 08:00 window from hiding a
-  // narrower instructor/day window.
+  // Reserve the strongest operational scenario for every eligible weekday
+  // BEFORE broad availability coverage consumes the fast-planning budget.
+  // This is essential for packed sequences: an exact same-school adjacency
+  // must survive even when many instructors share generic morning windows.
+  for (const day of candidateWeekdays) {
+    const option = sorted.find((scenario) => weekday(scenario.startDate) === day);
+    if (option) addScenario(option);
+  }
+
+  // Same-school adjacency is the highest-value packing opportunity. Retain a
+  // second strong option on weekdays where the school already has a blocking
+  // meeting, so both "before" and "after" sequences can reach final scoring.
+  const sameSchoolWeekdays = new Set(
+    scenarioBlockingMeetings
+      .filter((meeting) => text(meeting.school_id) && text(meeting.school_id) === text(activity.school_id))
+      .map((meeting) => weekday(meeting.date))
+      .filter((day) => Number.isInteger(day))
+  );
+  for (const day of sameSchoolWeekdays) {
+    const options = sorted.filter((scenario) => weekday(scenario.startDate) === day).slice(0, 2);
+    options.forEach(addScenario);
+  }
+
+  // Cover the real weekly availability grid with the remaining slots. A key is
+  // one instructor + one available weekday; greedy coverage still protects
+  // narrow windows, but can no longer evict the operational packing candidates.
   const activeIds = scenarioActiveIds;
   const uncoveredAvailability = new Set();
   for (const empId of activeIds) {
@@ -1081,12 +1103,6 @@ function* generatePlanningScenarioSteps({
     yield;
   }
 
-  // Retain at least one option for every eligible candidate weekday, then fill
-  // the rest by the normal score. Friday/Saturday are never generic defaults.
-  for (const day of candidateWeekdays) {
-    const option = sorted.find((scenario) => weekday(scenario.startDate) === day);
-    if (option) addScenario(option);
-  }
   for (const scenario of sorted) addScenario(scenario);
 
   const startDates = unique.map((item) => item.startDate).sort();
@@ -1251,17 +1267,23 @@ export function planningPairCompare(first = {}, second = {}) {
   const secondWeek = planningStartWeekKey(second.course?.start_date || second.startDate);
   if (firstWeek !== secondWeek) return firstWeek.localeCompare(secondWeek);
 
-  // For flexible proposals in the same start week, prefer the genuinely local
-  // instructor before continuity bonuses created by earlier virtual proposals.
-  const firstLocality = planningLocalityTier(first);
-  const secondLocality = planningLocalityTier(second);
-  if (firstLocality !== secondLocality) return firstLocality - secondLocality;
-
+  // Within the same start week, compare the complete operational result before
+  // home-locality. This prevents a fresh workday from outranking a valid packed
+  // sequence merely because the instructor lives closer to the school.
   const firstScore = Number(first.planningOptimization?.total);
   const secondScore = Number(second.planningOptimization?.total);
   if (Number.isFinite(firstScore) && Number.isFinite(secondScore) && firstScore !== secondScore) {
     return secondScore - firstScore;
   }
+
+  const firstNewDays = Math.max(0, Number((first.candidate || first._candidate)?.newWorkDayMeetingCount) || 0);
+  const secondNewDays = Math.max(0, Number((second.candidate || second._candidate)?.newWorkDayMeetingCount) || 0);
+  if (firstNewDays !== secondNewDays) return firstNewDays - secondNewDays;
+
+  const firstLocality = planningLocalityTier(first);
+  const secondLocality = planningLocalityTier(second);
+  if (firstLocality !== secondLocality) return firstLocality - secondLocality;
+
   const candidateOrder = compareCandidatesStable(first.candidate || first._candidate || {}, second.candidate || second._candidate || {});
   if (candidateOrder) return candidateOrder;
   const firstDate = text(first.course?.start_date || first.startDate);
@@ -1336,16 +1358,23 @@ export function optionCompare(first, second) {
   const secondWeek = planningStartWeekKey(second.startDate);
   if (firstWeek !== secondWeek) return firstWeek.localeCompare(secondWeek);
 
-  const firstLocality = planningLocalityTier({ candidate: first._candidate || first });
-  const secondLocality = planningLocalityTier({ candidate: second._candidate || second });
-  if (firstLocality !== secondLocality) return firstLocality - secondLocality;
-
   const firstScore = Number(first.planningOptimization?.total);
   const secondScore = Number(second.planningOptimization?.total);
   if (Number.isFinite(firstScore) && Number.isFinite(secondScore) && firstScore !== secondScore) {
     return secondScore - firstScore;
   }
-  const candidateOrder = compareCandidatesStable(first._candidate || {}, second._candidate || {});
+
+  const firstCandidate = first._candidate || first;
+  const secondCandidate = second._candidate || second;
+  const firstNewDays = Math.max(0, Number(firstCandidate?.newWorkDayMeetingCount) || 0);
+  const secondNewDays = Math.max(0, Number(secondCandidate?.newWorkDayMeetingCount) || 0);
+  if (firstNewDays !== secondNewDays) return firstNewDays - secondNewDays;
+
+  const firstLocality = planningLocalityTier({ candidate: firstCandidate });
+  const secondLocality = planningLocalityTier({ candidate: secondCandidate });
+  if (firstLocality !== secondLocality) return firstLocality - secondLocality;
+
+  const candidateOrder = compareCandidatesStable(firstCandidate, secondCandidate);
   if (candidateOrder) return candidateOrder;
   if (first.startDate !== second.startDate) return first.startDate.localeCompare(second.startDate);
   return first.startTime.localeCompare(second.startTime);
@@ -3197,6 +3226,58 @@ export function dayConsolidationAcceptsMove({
  * already works, instead of leaving singleton days when travel+buffer allows.
  * Does not touch fixed/locked/live/started anchors or run a national rebuild.
  */
+function preferredWorkdayTarget(profiles = {}, empId = '') {
+  const value = Number(profiles?.[text(empId)]?.preferred_work_days);
+  return Number.isInteger(value) && value >= 1 && value <= 7 ? value : null;
+}
+
+function planningRowAsVirtualOption(row = {}) {
+  if (!text(row?.instructorEmpId) || !Array.isArray(row?.meetings) || !row.meetings.length) return null;
+  return {
+    instructorEmpId: text(row.instructorEmpId),
+    instructorName: text(row.instructorName),
+    startDate: text(row.startDate),
+    endDate: text(row.endDate),
+    startTime: text(row.startTime),
+    endTime: text(row.endTime),
+    meetings: row.meetings.map((meeting) => ({ ...meeting }))
+  };
+}
+
+function consolidationContextForCourse({
+  rowsById,
+  activityById,
+  currentContextActivities = [],
+  excludeCourseId = ''
+} = {}) {
+  // currentContextActivities contains the virtual proposals created during the
+  // initial pass. Strip them and rebuild virtual rows from rowsById so every
+  // consolidation decision sees the latest accepted moves rather than stale
+  // pre-consolidation placements.
+  const context = (currentContextActivities || []).filter((item) =>
+    !text(idOf(item)).startsWith('planning-block:')
+  );
+  for (const row of rowsById?.values?.() || []) {
+    const courseId = text(row?.courseId);
+    if (!courseId || courseId === text(excludeCourseId)) continue;
+    if (text(row?.kind) === 'live') continue; // already present in base context
+    const option = planningRowAsVirtualOption(row);
+    const activity = activityById?.get?.(courseId);
+    if (!option || !activity) continue;
+    const virtual = blockingVirtualActivity(activity, option);
+    if (virtual) context.push(virtual);
+  }
+  return context;
+}
+
+/**
+ * Global workday-consolidation pass for flexible proposals.
+ *
+ * Unlike the old one-shot local pass, this pass is iterative and rebuilds its
+ * candidate context after every accepted move. It therefore handles chains of
+ * flexible activities (including several courses at the same school) without
+ * scoring the next row against stale virtual proposals.
+ */
 async function consolidateInstructorWorkdaysPass({
   rowsById,
   targets = [],
@@ -3208,8 +3289,6 @@ async function consolidateInstructorWorkdaysPass({
   schoolCalendar = [],
   today = '',
   routeClient = null,
-  preparedContextFor = () => null,
-  travelContext = null,
   currentContextActivities = [],
   checkpoint = async () => {},
   signal = null,
@@ -3217,117 +3296,162 @@ async function consolidateInstructorWorkdaysPass({
   report = async () => {}
 } = {}) {
   const activityById = new Map((targets || []).map((activity) => [idOf(activity), activity]));
-  const movable = [...rowsById.values()].filter((row) =>
-    text(row?.kind) === 'proposal'
-    && row?.schoolDateAnchored !== true
-    && row?.planningLocked !== true
-    && text(row?.instructorEmpId)
-    && Array.isArray(row?.meetings)
-    && row.meetings.length
-  );
-  if (!movable.length) return { moved: 0 };
-
+  const maxPasses = 4;
   let moved = 0;
-  for (const row of movable) {
-    const empId = text(row.instructorEmpId);
-    const activity = activityById.get(text(row.courseId));
-    if (!activity || planningActivityHasStarted(activity, today)) continue;
-    if (officialPlanningDates(activity).length) continue;
+  let passes = 0;
 
-    const currentDays = rowWeekdaySet(row);
-    const openDays = instructorOpenWeekdaysFromRows([...rowsById.values()], empId, row.courseId);
-    if (!openDays.size) continue;
-    const opensOnlyNewDays = [...currentDays].every((day) => !openDays.has(day));
-    if (!opensOnlyNewDays) continue;
+  const movableRows = () => [...rowsById.values()]
+    .filter((row) =>
+      text(row?.kind) === 'proposal'
+      && row?.schoolDateAnchored !== true
+      && row?.planningLocked !== true
+      && text(row?.instructorEmpId)
+      && Array.isArray(row?.meetings)
+      && row.meetings.length
+    )
+    .sort((first, second) => {
+      const firstEmp = text(first.instructorEmpId);
+      const secondEmp = text(second.instructorEmpId);
+      const firstTarget = preferredWorkdayTarget(profiles, firstEmp);
+      const secondTarget = preferredWorkdayTarget(profiles, secondEmp);
+      const firstOverflow = firstTarget == null ? 0 : Math.max(0, countInstructorWorkdays([...rowsById.values()], firstEmp) - firstTarget);
+      const secondOverflow = secondTarget == null ? 0 : Math.max(0, countInstructorWorkdays([...rowsById.values()], secondEmp) - secondTarget);
+      if (firstOverflow !== secondOverflow) return secondOverflow - firstOverflow;
 
-    const activityPeriodKey = planningPeriodKeyForActivity(activity);
-    // Context without this activity's own virtual block so we can re-seat it.
-    const contextWithoutSelf = (currentContextActivities || []).filter((item) =>
-      text(item?.__planning_source_id || idOf(item)) !== text(row.courseId)
-      && !text(idOf(item)).startsWith(`planning-block:${text(row.courseId)}`)
-    );
-
-    await report('ריכוז ימי עבודה', moved, movable.length, row.courseId);
-    const generated = await generatePlanningScenariosCooperatively({
-      activity,
-      catalog,
-      instructors: (instructors || []).filter((item) => text(item?.emp_id) === empId),
-      rules,
-      profiles,
-      activities: contextWithoutSelf,
-      schoolCalendar,
-      today,
-      periodKey: activityPeriodKey,
-      maxScenarios: Math.min(12, Number(limits.maxScenarios) || 12),
-      routeClient
-    }, checkpoint);
-    if (!generated.spec.complete || !generated.scenarios?.length) continue;
-
-    const preferredScenarios = generated.scenarios.filter((scenario) => openDays.has(weekday(scenario.startDate)));
-    if (!preferredScenarios.length) continue;
-
-    const evaluation = await evaluateScenarioOptions({
-      activity,
-      scenarios: preferredScenarios,
-      startRange: generated.startRange,
-      contextActivities: contextWithoutSelf,
-      instructors: (instructors || []).filter((item) => text(item?.emp_id) === empId),
-      profiles,
-      rules,
-      exceptions,
-      schoolCalendar,
-      today,
-      routeClient,
-      checkpoint,
-      signal,
-      periodKey: activityPeriodKey,
-      preparedContext: preparedContextFor(activityPeriodKey),
-      travelContext,
-      limits: {
-        ...limits,
-        maxScenarios: preferredScenarios.length,
-        maxCandidatesPerScenario: 1,
-        maxFinalOptions: 2,
-        runGlobalRepair: false
-      }
+      const firstNew = Math.max(0, Number(planningRowPrimaryOption(first)?.operationalMetrics?.newWorkDayMeetingCount) || 0);
+      const secondNew = Math.max(0, Number(planningRowPrimaryOption(second)?.operationalMetrics?.newWorkDayMeetingCount) || 0);
+      if (firstNew !== secondNew) return secondNew - firstNew;
+      return text(first.courseId).localeCompare(text(second.courseId));
     });
-    const chosen = (evaluation.options || []).find((option) => text(option.instructorEmpId) === empId)
-      || (evaluation.options || [])[0]
-      || null;
-    if (!chosen) continue;
-    const chosenDays = new Set((chosen.meetings || []).map((meeting) => weekday(meeting.date)).filter((day) => Number.isInteger(day)));
-    const staysOnOpenDay = [...chosenDays].some((day) => openDays.has(day));
-    if (!staysOnOpenDay) continue;
 
-    const trialRows = new Map(rowsById);
-    trialRows.set(row.courseId, planRowFromOption(
-      activity,
-      chosen,
-      evaluation.options || [],
-      generated.startRange,
-      generated.spec,
-      {
-        ...evaluation,
-        dayConsolidation: true,
-        scheduleOptions: scheduleOnlyOptions(preferredScenarios)
+  for (let pass = 0; pass < maxPasses; pass += 1) {
+    const movable = movableRows();
+    if (!movable.length) break;
+    let movedThisPass = 0;
+    passes += 1;
+
+    for (const row of movable) {
+      const empId = text(row.instructorEmpId);
+      const activity = activityById.get(text(row.courseId));
+      if (!activity || planningActivityHasStarted(activity, today)) continue;
+      if (officialPlanningDates(activity).length) continue;
+
+      const currentDays = rowWeekdaySet(row);
+      const openDays = instructorOpenWeekdaysFromRows([...rowsById.values()], empId, row.courseId);
+      if (!openDays.size) continue;
+      const opensOnlyNewDays = [...currentDays].every((day) => !openDays.has(day));
+      if (!opensOnlyNewDays) continue;
+
+      const activityPeriodKey = planningPeriodKeyForActivity(activity);
+      const contextWithoutSelf = consolidationContextForCourse({
+        rowsById,
+        activityById,
+        currentContextActivities,
+        excludeCourseId: row.courseId
+      });
+      const oneInstructor = (instructors || []).filter((item) => text(item?.emp_id) === empId);
+      if (!oneInstructor.length) continue;
+
+      await report('ריכוז ימי עבודה', moved, movable.length, row.courseId);
+      const generated = await generatePlanningScenariosCooperatively({
+        activity,
+        catalog,
+        instructors: oneInstructor,
+        rules,
+        profiles,
+        activities: contextWithoutSelf,
+        schoolCalendar,
+        today,
+        periodKey: activityPeriodKey,
+        maxScenarios: Math.min(18, Math.max(12, Number(limits.maxScenarios) || 12)),
+        routeClient
+      }, checkpoint);
+      if (!generated.spec.complete || !generated.scenarios?.length) continue;
+
+      const preferredScenarios = generated.scenarios.filter((scenario) => openDays.has(weekday(scenario.startDate)));
+      if (!preferredScenarios.length) continue;
+
+      // Rebuild prepared/travel contexts from the CURRENT rows, not from the
+      // initial virtual plan. This is the critical stale-context fix.
+      const freshPreparedContext = prepareSchedulingRunContext({
+        activities: contextWithoutSelf,
+        instructors: oneInstructor,
+        profiles,
+        rules,
+        exceptions,
+        schoolCalendar,
+        periodKey: activityPeriodKey
+      });
+      const freshTravelContext = createCandidateTravelContext(contextWithoutSelf);
+
+      const evaluation = await evaluateScenarioOptions({
+        activity,
+        scenarios: preferredScenarios,
+        startRange: generated.startRange,
+        contextActivities: contextWithoutSelf,
+        instructors: oneInstructor,
+        profiles,
+        rules,
+        exceptions,
+        schoolCalendar,
+        today,
+        routeClient,
+        checkpoint,
+        signal,
+        periodKey: activityPeriodKey,
+        preparedContext: freshPreparedContext,
+        travelContext: freshTravelContext,
+        limits: {
+          ...limits,
+          maxScenarios: preferredScenarios.length,
+          maxCandidatesPerScenario: 1,
+          maxRoutedPlanningPairs: 4,
+          maxFinalOptions: 4,
+          runGlobalRepair: false
+        }
+      });
+      const chosen = (evaluation.options || []).find((option) => text(option.instructorEmpId) === empId)
+        || (evaluation.options || [])[0]
+        || null;
+      if (!chosen) continue;
+      const chosenDays = new Set((chosen.meetings || []).map((meeting) => weekday(meeting.date)).filter((day) => Number.isInteger(day)));
+      const staysOnOpenDay = [...chosenDays].some((day) => openDays.has(day));
+      if (!staysOnOpenDay) continue;
+
+      const trialRows = new Map(rowsById);
+      trialRows.set(row.courseId, planRowFromOption(
+        activity,
+        chosen,
+        evaluation.options || [],
+        generated.startRange,
+        generated.spec,
+        {
+          ...evaluation,
+          dayConsolidation: true,
+          scheduleOptions: scheduleOnlyOptions(preferredScenarios)
+        }
+      ));
+      const beforeDays = countInstructorWorkdays([...rowsById.values()], empId);
+      const afterDays = countInstructorWorkdays([...trialRows.values()], empId);
+      const beforeTravelKm = instructorPlanTravelKm([...rowsById.values()], empId);
+      const afterTravelKm = instructorPlanTravelKm([...trialRows.values()], empId);
+      if (!dayConsolidationAcceptsMove({ beforeDays, afterDays, beforeTravelKm, afterTravelKm })) {
+        continue;
       }
-    ));
-    const beforeDays = countInstructorWorkdays([...rowsById.values()], empId);
-    const afterDays = countInstructorWorkdays([...trialRows.values()], empId);
-    const beforeTravelKm = instructorPlanTravelKm([...rowsById.values()], empId);
-    const afterTravelKm = instructorPlanTravelKm([...trialRows.values()], empId);
-    if (!dayConsolidationAcceptsMove({ beforeDays, afterDays, beforeTravelKm, afterTravelKm })) {
-      continue;
-    }
-    if (text(chosen.startTime) === text(row.startTime) && text(chosen.startDate) === text(row.startDate)) {
-      continue;
+      if (text(chosen.startTime) === text(row.startTime) && text(chosen.startDate) === text(row.startDate)) {
+        continue;
+      }
+
+      rowsById.set(row.courseId, trialRows.get(row.courseId));
+      moved += 1;
+      movedThisPass += 1;
+      await checkpoint();
     }
 
-    rowsById.set(row.courseId, trialRows.get(row.courseId));
-    moved += 1;
-    await checkpoint();
+    if (!movedThisPass) break;
   }
-  return { moved };
+
+  return { moved, passes };
 }
 
 export async function buildDynamicCoursePlan({
