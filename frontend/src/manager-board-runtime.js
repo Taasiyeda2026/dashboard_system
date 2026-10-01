@@ -4,6 +4,7 @@ import {
   activitySeasonQueryValues,
   globalActivityPeriodLabel,
   normalizeGlobalActivityPeriod,
+  defaultMonthForGlobalActivityPeriod,
   SCHOOL_2026_START_DATE,
   SCHOOL_2026_END_DATE,
   SCHOOL_2027_START_DATE,
@@ -55,6 +56,7 @@ let managerBoardOpen = false;
 let autoOpenedSessionKey = '';
 let selectedManager = '';
 let selectedYm = '';
+let selectedYmPeriod = '';
 let boardRequestId = 0;
 let observer = null;
 let observerTimer = null;
@@ -150,14 +152,19 @@ function periodBounds(period) {
   return { start: SCHOOL_2026_START_DATE, end: SCHOOL_2026_END_DATE };
 }
 
-function defaultMonthForPeriod(period) {
-  const normalized = normalizeGlobalActivityPeriod(period);
-  if (normalized === 'school_2027') return SCHOOL_2027_START_DATE.slice(0, 7);
-  const today = new Date();
-  const currentYm = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
-  const { start, end } = periodBounds(normalized);
-  if (currentYm >= start.slice(0, 7) && currentYm <= end.slice(0, 7)) return currentYm;
-  return end.slice(0, 7);
+function defaultMonthForPeriod(period, now = new Date()) {
+  return defaultMonthForGlobalActivityPeriod(period, now);
+}
+
+export function resolveManagerBoardMonth(period, { selectedMonth = '', selectedPeriod = '', now = new Date() } = {}) {
+  const normalizedPeriod = normalizeGlobalActivityPeriod(period);
+  const { start, end } = periodBounds(normalizedPeriod);
+  const minYm = start.slice(0, 7);
+  const maxYm = end.slice(0, 7);
+  if (selectedPeriod === normalizedPeriod && selectedMonth >= minYm && selectedMonth <= maxYm) {
+    return selectedMonth;
+  }
+  return defaultMonthForPeriod(normalizedPeriod, now);
 }
 
 function monthBounds(ym) {
@@ -1025,21 +1032,11 @@ function restoreSelections(data) {
     }
   }
 
-  const bounds = periodBounds(period);
-  let storedYm = '';
-  try {
-    storedYm = normalizedText(localStorage.getItem(`manager_board_month:${period}`));
-  } catch {
-    storedYm = '';
-  }
-  const minYm = bounds.start.slice(0, 7);
-  const maxYm = bounds.end.slice(0, 7);
-  if (selectedYm >= minYm && selectedYm <= maxYm) return;
-  if (/^\d{4}-\d{2}$/.test(storedYm) && storedYm >= minYm && storedYm <= maxYm) {
-    selectedYm = storedYm;
-    return;
-  }
-  selectedYm = defaultMonthForPeriod(period);
+  selectedYm = resolveManagerBoardMonth(period, {
+    selectedMonth: selectedYm,
+    selectedPeriod: selectedYmPeriod
+  });
+  selectedYmPeriod = normalizeGlobalActivityPeriod(period);
 }
 
 async function renderManagerBoard(force = false) {
@@ -1107,6 +1104,8 @@ function ensureManagerBoardButtons() {
 function openManagerBoard() {
   if (!canUseManagerBoard()) return;
   managerBoardOpen = true;
+  selectedYm = '';
+  selectedYmPeriod = '';
   lastRenderedSignature = '';
 
   if (state.route !== 'dashboard') {
@@ -1189,6 +1188,7 @@ function handleDocumentClick(event) {
     autoOpenedSessionKey = '';
     selectedManager = '';
     selectedYm = '';
+    selectedYmPeriod = '';
     dataCache.clear();
     dataLoadPromises.clear();
     instructorCenterCache.clear();
