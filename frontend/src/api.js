@@ -150,7 +150,7 @@ const ACTIVITY_LIST_COLUMNS = [
 ].join(',');
 // Activities table / list: fields shown or used for month/status filters (no finance/contact blobs).
 const ACTIVITY_TABLE_COLUMNS = [
-  'id', 'row_id', 'activity_family', 'activity_manager', 'authority', 'school', 'school_id',
+  'id', 'row_id', 'activity_family', 'activity_manager', 'authority', 'authority_id', 'school', 'school_id',
   'grade', 'class_group', 'activity_type', 'item_type', 'activity_season', 'activity_domain', 'activity_no', 'activity_name',
   'sessions', 'funding', 'start_time', 'end_time', 'emp_id', 'instructor_name', 'emp_id_2', 'instructor_name_2',
   'draft_emp_id', 'draft_instructor_name',

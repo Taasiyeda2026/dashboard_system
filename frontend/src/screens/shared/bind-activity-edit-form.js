@@ -167,6 +167,26 @@ export function captureActivityEditLocationValues(form) {
   ]));
 }
 
+export function activityEditLocationForSave(form) {
+  const initialValues = form?._initialLocationValues || {};
+  const currentValues = captureActivityEditLocationValues(form);
+  const hasCanonicalInitialLocation = ['authority', 'authority_id', 'school', 'school_id']
+    .every((key) => Boolean(String(initialValues[key] || '').trim()));
+  const locationNamesChanged = ['authority', 'school'].some((key) => (
+    humanDisplayText(currentValues[key]) !== humanDisplayText(initialValues[key])
+  ));
+
+  if (hasCanonicalInitialLocation && !locationNamesChanged) {
+    Object.entries(initialValues).forEach(([name, value]) => {
+      const input = form?.querySelector?.(`[name="${name}"]`);
+      if (input) input.value = String(value || '').trim();
+    });
+    return { valid: true, values: { ...initialValues } };
+  }
+
+  return syncActivityEditLocation(form);
+}
+
 function drawerExportRow(form) {
   try {
     return JSON.parse(form?.dataset?.exportRow || '{}') || {};
@@ -614,7 +634,7 @@ export function bindActivityEditForm(contentRoot, {
     const canDirectEdit = rawCanDirectEdit && (forceDirectEdit || !sessionRequestOnly);
     const changes = {};
     const initialValues = form._initialValues || {};
-    const location = syncActivityEditLocation(form);
+    const location = activityEditLocationForSave(form);
     if (!location.valid) {
       const message = 'יש לבחור רשות ובית ספר תקינים מתוך הרשימות המסוננות';
       setStatus(statusEl, 'is-error', message);
@@ -1085,7 +1105,7 @@ export function bindActivityEditForm(contentRoot, {
       setActivitySchoolPickerOpen(form, false);
     }, { signal });
     form._initialLocationValues = captureActivityEditLocationValues(form);
-    syncActivityEditLocation(form);
+    activityEditLocationForSave(form);
     captureFormInitialValues(form);
     form._refreshInitialValues = () => {
       form._initialLocationValues = captureActivityEditLocationValues(form);
