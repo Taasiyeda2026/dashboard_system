@@ -237,12 +237,24 @@ test('travel: shorter route scores higher; no invented route; travel is not wait
     averageNonTravelWaitingMinutes: 0
   });
   assert.equal(gaps.points, 5);
+  const thirtyMinutes = scoreGapsAndNewDays({
+    newWorkDayMeetingCount: 0,
+    continuityMeetingCount: 1,
+    averageNonTravelWaitingMinutes: 30
+  });
   const withWaiting = scoreGapsAndNewDays({
     newWorkDayMeetingCount: 0,
     continuityMeetingCount: 1,
     averageNonTravelWaitingMinutes: 60
   });
-  assert.ok(withWaiting.points < gaps.points);
+  const ninetyMinutes = scoreGapsAndNewDays({
+    newWorkDayMeetingCount: 0,
+    continuityMeetingCount: 1,
+    averageNonTravelWaitingMinutes: 90
+  });
+  assert.ok(thirtyMinutes.points < gaps.points, '30 minutes of avoidable waiting must not round away');
+  assert.ok(withWaiting.points < thirtyMinutes.points);
+  assert.ok(ninetyMinutes.points < withWaiting.points);
 });
 
 test('workload uses actual hours including approved, draft, planning state and candidate course', () => {

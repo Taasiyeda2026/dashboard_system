@@ -446,7 +446,10 @@ export function scoreGapsAndNewDays({
   const max = SCORE_WEIGHTS.gapsAndNewDays;
   const meetingCount = Math.max(1, Number(continuityMeetingCount) || 0);
   const newDayRatio = (Number(newWorkDayMeetingCount) || 0) / meetingCount;
-  const waitingPenalty = Math.min(2, (Number(averageNonTravelWaitingMinutes) || 0) / 60);
+  // Idle time is an operational cost, not a cosmetic tie-break.
+  // Penalize every 30 minutes of avoidable waiting by one point so 30–90
+  // minute holes cannot disappear through integer rounding.
+  const waitingPenalty = Math.min(max, (Number(averageNonTravelWaitingMinutes) || 0) / 30);
   const points = roundPoints(max - (max * newDayRatio) - waitingPenalty, max);
   return {
     points,
