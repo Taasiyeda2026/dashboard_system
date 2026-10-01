@@ -12,6 +12,7 @@ import {
   serializePlanningContextFingerprint
 } from '../frontend/src/screens/course-scheduling-planning.js';
 import {
+  planningEngineUpgradeAffectedCourseIds,
   sharedPlanningAffectedCourseIds,
   upgradeSharedPlanningContextFingerprint
 } from '../frontend/src/screens/course-scheduling-planning-store.js';
@@ -383,6 +384,61 @@ test('test 11: engine version change with mappable affected rows is not a fullRu
   });
   assert.equal(resolved.contextChanged, true);
   assert.equal(resolved.unrecoverableGlobalContextChange, false);
+});
+
+test('v22 to v23 engine upgrade targets only flexible proposals with a real same-day neighbor gap', () => {
+  const shared = {
+    rows: [
+      planningEntry('flex-gap', {
+        instructorEmpId: 'aline',
+        kind: 'proposal',
+        meetings: [{ date: '2026-11-02', start: '10:00', end: '11:30' }]
+      }),
+      planningEntry('fixed-anchor', {
+        instructorEmpId: 'aline',
+        kind: 'fixed-proposal',
+        meetings: [{ date: '2026-11-02', start: '13:30', end: '15:00' }]
+      }),
+      planningEntry('unrelated-flex', {
+        instructorEmpId: 'eldar',
+        kind: 'proposal',
+        meetings: [{ date: '2026-11-03', start: '10:00', end: '11:30' }]
+      }),
+      planningEntry('live-neighbor', {
+        instructorEmpId: 'other',
+        kind: 'live',
+        meetings: [{ date: '2026-11-04', start: '10:00', end: '11:30' }]
+      }),
+      planningEntry('recruitment-row', {
+        kind: 'recruitment',
+        meetings: [{ date: '2026-11-05', start: '10:00', end: '11:30' }]
+      })
+    ]
+  };
+
+  const affected = planningEngineUpgradeAffectedCourseIds({
+    shared,
+    storedEngineVersion: 'planning-v22-20261001-workday-consolidation-self-invalidation',
+    currentEngineVersion: 'planning-v23-20261001-idle-gap-compaction-self-invalidation'
+  });
+  assert.deepEqual(affected, ['flex-gap']);
+});
+
+test('unknown engine upgrade does not expand planning scope by itself', () => {
+  const affected = planningEngineUpgradeAffectedCourseIds({
+    shared: {
+      rows: [
+        planningEntry('stable', {
+          instructorEmpId: 'aline',
+          kind: 'proposal',
+          meetings: [{ date: '2026-11-02', start: '10:00', end: '11:30' }]
+        })
+      ]
+    },
+    storedEngineVersion: 'planning-v20',
+    currentEngineVersion: 'planning-v99'
+  });
+  assert.deepEqual(affected, []);
 });
 
 test('test 12: true unmappable global change allows full run', () => {

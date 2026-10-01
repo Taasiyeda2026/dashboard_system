@@ -368,6 +368,93 @@ test('flexible course is compacted immediately before a fixed afternoon course u
   assert.equal(row.endTime, '12:30');
 });
 
+test('optimization-only upgrade reuses instructor assignment and only compacts the stored time', async () => {
+  const fixedAfternoon = {
+    ...activityB,
+    row_id: 'fixed-afternoon-opt',
+    school: 'שי עגנון',
+    school_id: 'school-b',
+    school_address: 'כתובת שי עגנון נתניה',
+    activity_name: 'קבוע אחר הצהריים',
+    emp_id: '1550',
+    instructor_name: 'לירון נחום',
+    sessions: 2,
+    start_time: '13:30',
+    end_time: '15:00',
+    date_1: '2026-10-12',
+    date_2: '2026-10-19',
+    start_date: '2026-10-12',
+    end_date: '2026-10-19'
+  };
+  const flexibleBefore = {
+    ...activityB,
+    row_id: 'flex-opt-only',
+    school: 'ריגלר',
+    school_id: 'school-a',
+    school_address: 'כתובת ריגלר נתניה',
+    activity_name: 'שי עגנון נתניה',
+    emp_id: null,
+    instructor_name: null,
+    sessions: 2,
+    start_time: null,
+    end_time: null,
+    date_1: null,
+    date_2: null,
+    start_date: null,
+    end_date: null
+  };
+  const storedProposal = {
+    courseId: 'flex-opt-only',
+    authority: 'נתניה',
+    school: 'ריגלר',
+    courseName: 'שי עגנון נתניה',
+    kind: 'proposal',
+    status: 'מועד מומלץ לבית הספר',
+    schoolDateAnchored: false,
+    planningLocked: false,
+    instructorEmpId: '1550',
+    instructorName: 'לירון נחום',
+    startDate: '2026-10-12',
+    endDate: '2026-10-19',
+    startTime: '10:00',
+    endTime: '11:30',
+    meetings: [
+      { date: '2026-10-12', meeting_no: 1, start_time: '10:00', end_time: '11:30' },
+      { date: '2026-10-19', meeting_no: 2, start_time: '10:00', end_time: '11:30' }
+    ],
+    options: []
+  };
+  const phases = [];
+
+  const result = await buildDynamicCoursePlan({
+    activities: [flexibleBefore, fixedAfternoon],
+    instructors: [instructor],
+    profiles,
+    rules,
+    exceptions: {},
+    schoolCalendar: [],
+    catalog,
+    today: '2026-09-23',
+    periodKey: 'year',
+    routeClient: netanyaRouteClient(),
+    existingRows: [storedProposal],
+    targetCourseIds: ['flex-opt-only'],
+    optimizationOnlyCourseIds: ['flex-opt-only'],
+    allowGlobalRepair: false,
+    planningProfile: 'fast',
+    onProgress: async (progress) => phases.push(progress.phase)
+  });
+
+  const row = result.rows.find((item) => item.courseId === 'flex-opt-only');
+  assert.ok(row);
+  assert.equal(row.instructorEmpId, '1550', 'optimization-only must preserve the stored instructor');
+  assert.equal(row.startDate, '2026-10-12', 'optimization-only must preserve the selected weekday/date series');
+  assert.equal(row.startTime, '11:00');
+  assert.equal(row.endTime, '12:30');
+  assert.ok(phases.includes('צמצום חלונות ביום'));
+  assert.ok(!phases.includes('בדיקת מדריכים'), 'optimization-only must not rerun instructor search');
+});
+
 test('fixed schedule and locked assignment stay put while flexible consolidates', async () => {
   const lockedFlexible = {
     ...activityB,

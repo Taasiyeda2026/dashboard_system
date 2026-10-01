@@ -532,6 +532,86 @@ export function applyLocalPlanningNeedsRecalc(targetState = null, { activityIds 
 /** Auto-refresh is only for small point/scoped sets — never a silent full rebuild. */
 export const AUTO_PLANNING_REFRESH_MAX_IDS = 12;
 
+
+function planningClockMinutes(value = '') {
+  const match = text(value).match(/^(\d{1,2}):(\d{2})/);
+  if (!match) return null;
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  if (!Number.isInteger(hours) || !Number.isInteger(minutes)) return null;
+  return hours * 60 + minutes;
+}
+
+/**
+ * Engine upgrades must not silently become national recalculations.
+ *
+ * Each known optimization-only upgrade declares the smallest stored-row scope
+ * that can actually benefit. v22 -> v23 only adds intra-day idle-gap
+ * compaction, so only flexible proposals that share at least one calendar day
+ * with another activity of the same instructor need re-evaluation.
+ */
+export function planningEngineUpgradeAffectedCourseIds({
+  shared = {},
+  storedEngineVersion = '',
+  currentEngineVersion = ''
+} = {}) {
+  const previous = text(storedEngineVersion);
+  const current = text(currentEngineVersion);
+  if (!previous || !current || previous === current) return [];
+
+  const idleGapUpgrade = previous.includes('planning-v22-20261001-workday-consolidation')
+    && current.includes('planning-v23-20261001-idle-gap-compaction');
+  if (!idleGapUpgrade) return [];
+
+  const meetingsByInstructorDate = new Map();
+  for (const entry of shared?.rows || []) {
+    const row = entry?.row || {};
+    const empId = text(row?.instructorEmpId);
+    const courseId = text(entry?.activityId || row?.courseId);
+    if (!empId || !courseId) continue;
+    for (const meeting of row?.meetings || []) {
+      const date = text(meeting?.date).slice(0, 10);
+      const start = planningClockMinutes(meeting?.start_time);
+      const end = planningClockMinutes(meeting?.end_time);
+      if (!date || start == null || end == null || end <= start) continue;
+      const key = `${empId}|${date}`;
+      const bucket = meetingsByInstructorDate.get(key) || [];
+      bucket.push({ courseId, start, end });
+      meetingsByInstructorDate.set(key, bucket);
+    }
+  }
+
+  const affected = new Set();
+  for (const entry of shared?.rows || []) {
+    const row = entry?.row || {};
+    const courseId = text(entry?.activityId || row?.courseId);
+    const empId = text(row?.instructorEmpId);
+    if (!courseId || !empId) continue;
+    if (text(row?.kind) !== 'proposal') continue;
+    if (entry?.lockedOption || row?.planningLocked === true || row?.schoolDateAnchored === true) continue;
+
+    for (const meeting of row?.meetings || []) {
+      const date = text(meeting?.date).slice(0, 10);
+      const start = planningClockMinutes(meeting?.start_time);
+      const end = planningClockMinutes(meeting?.end_time);
+      if (!date || start == null || end == null) continue;
+      const neighbors = meetingsByInstructorDate.get(`${empId}|${date}`) || [];
+      const hasClockGap = neighbors.some((neighbor) =>
+        neighbor.courseId !== courseId
+        && (
+          (neighbor.end <= start && start - neighbor.end > 0)
+          || (neighbor.start >= end && neighbor.start - end > 0)
+        )
+      );
+      if (hasClockGap) {
+        affected.add(courseId);
+        break;
+      }
+    }
+  }
+  return [...affected];
+}
+
 export function shouldAutoRefreshPlanning(affectedIds = []) {
   const ids = [...new Set((affectedIds || []).map(text).filter(Boolean))];
   return ids.length > 0 && ids.length <= AUTO_PLANNING_REFRESH_MAX_IDS;

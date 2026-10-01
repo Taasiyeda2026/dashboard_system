@@ -105,6 +105,7 @@ import {
   sharedPlanningLocks,
   applyLocalPlanningNeedsRecalc,
   applyStoredPlanningValidityAudit,
+  planningEngineUpgradeAffectedCourseIds,
   shouldAutoRefreshPlanning,
   AUTO_PLANNING_REFRESH_MAX_IDS
 } from './course-scheduling-planning-store.js';
@@ -2387,17 +2388,27 @@ export const courseSchedulingScreen = {
         : null;
       const inputChanged = contextResolution?.contextChanged === true;
       const unrecoverableGlobalContextChange = contextResolution?.unrecoverableGlobalContextChange === true;
+      const engineUpgradeAffectedIds = engineChanged
+        ? planningEngineUpgradeAffectedCourseIds({
+            shared,
+            storedEngineVersion,
+            currentEngineVersion: PLANNING_ENGINE_VERSION
+          })
+        : [];
       const affectedIds = !workspace
         ? currentCourseIds
         : unrecoverableGlobalContextChange
           ? currentCourseIds
-          : sharedPlanningAffectedCourseIds({
-              shared,
-              activities: snapshot?.activities || [],
-              currentCourseIds,
-              contextDiff: contextResolution?.contextDiff || null,
-              unrecoverableGlobalContextChange: false
-            });
+          : [...new Set([
+              ...sharedPlanningAffectedCourseIds({
+                shared,
+                activities: snapshot?.activities || [],
+                currentCourseIds,
+                contextDiff: contextResolution?.contextDiff || null,
+                unrecoverableGlobalContextChange: false
+              }),
+              ...engineUpgradeAffectedIds
+            ])];
 
       const sharedRows = (shared?.rows || [])
         .filter((entry) => currentCourseIds.includes(text(entry.activityId)))
@@ -2694,17 +2705,34 @@ export const courseSchedulingScreen = {
           .map((entry) => entry.lockedOption
             ? applyPlanningLockToRow(entry.row, entry.lockedOption, scope.periodKey)
             : entry.row);
+        const engineUpgradeAffectedIds = engineChanged
+          ? planningEngineUpgradeAffectedCourseIds({
+              shared,
+              storedEngineVersion,
+              currentEngineVersion: PLANNING_ENGINE_VERSION
+            })
+          : [];
+        const regularAffectedIds = !shared?.workspace || unrecoverableGlobalContextChange
+          ? []
+          : sharedPlanningAffectedCourseIds({
+              shared,
+              activities: freshStart.activities || [],
+              currentCourseIds,
+              contextDiff: contextResolution?.contextDiff || null,
+              unrecoverableGlobalContextChange: false
+            });
         const affectedIds = !shared?.workspace
           ? currentCourseIds
           : unrecoverableGlobalContextChange
             ? currentCourseIds
-            : sharedPlanningAffectedCourseIds({
-                shared,
-                activities: freshStart.activities || [],
-                currentCourseIds,
-                contextDiff: contextResolution?.contextDiff || null,
-                unrecoverableGlobalContextChange: false
-              });
+            : [...new Set([
+                ...regularAffectedIds,
+                ...engineUpgradeAffectedIds
+              ])];
+        const optimizationOnlyUpgrade = engineChanged
+          && !unrecoverableGlobalContextChange
+          && regularAffectedIds.length === 0
+          && engineUpgradeAffectedIds.length > 0;
 
         const fullRun = forceFull
           || !shared?.workspace
@@ -2727,16 +2755,18 @@ export const courseSchedulingScreen = {
         }
 
         let silentCheckpoint = null;
-        try {
-          silentCheckpoint = await loadSharedPlanningCheckpoint({
-            periodKey: scope.periodKey,
-            district: scope.district,
-            engineVersion: PLANNING_ENGINE_VERSION,
-            dataFingerprint: startFingerprint,
-            contextFingerprint: startContextStorage
-          });
-        } catch {
-          silentCheckpoint = null;
+        if (!optimizationOnlyUpgrade) {
+          try {
+            silentCheckpoint = await loadSharedPlanningCheckpoint({
+              periodKey: scope.periodKey,
+              district: scope.district,
+              engineVersion: PLANNING_ENGINE_VERSION,
+              dataFingerprint: startFingerprint,
+              contextFingerprint: startContextStorage
+            });
+          } catch {
+            silentCheckpoint = null;
+          }
         }
         assertRunOwnership();
 
@@ -2769,7 +2799,9 @@ export const courseSchedulingScreen = {
         state.courseSchedulingPlanningProgress = {
           phase: fullRun
             ? `בניית תכנון מלא · ${currentCourseIds.length} פעילויות`
-            : `עדכון שינויים בלבד · ${affectedIds.length} פעילויות`,
+            : optimizationOnlyUpgrade
+              ? `אופטימיזציית שעות בלבד · ${affectedIds.length} פעילויות`
+              : `עדכון שינויים בלבד · ${affectedIds.length} פעילויות`,
           completed: 0,
           total: fullRun ? currentCourseIds.length : affectedIds.length
         };
@@ -2799,6 +2831,7 @@ export const courseSchedulingScreen = {
           lockedOptions,
           existingRows: planningExistingRows,
           targetCourseIds,
+          optimizationOnlyCourseIds: optimizationOnlyUpgrade ? targetCourseIds : null,
           resumeFromCheckpoint,
           allowGlobalRepair: fullRun,
           planningProfile: 'fast',
