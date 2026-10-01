@@ -81,66 +81,7 @@ jobs:
         run: |
           set -euo pipefail
           BASE_SHA="$(git rev-parse "origin/${BASE_REF}")"
-          if git diff --name-only "$BASE_SHA" "$HEAD_SHA" | grep -Eq '^(frontend/src/api\.js|tests/activity-status-only-save\.test\.mjs)        env:
-          BASE_REF: ${{ github.base_ref }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          BASE_SHA="$(git rev-parse "origin/${BASE_REF}")"
-          if git diff --name-only "$BASE_SHA" "$HEAD_SHA" | grep -Eq '^(frontend/src/screens/(course-scheduling|instructor-matching-engine)|frontend/src/screens/shared/(activity-scheduling-eligibility|course-scheduling-manual-picker-access)|supabase/migrations/.*schedul|tests/course-scheduling)'; then
-            npm ci --ignore-scripts --no-audit --no-fund
-            node --test \
-              tests/course-scheduling-stage3-optimization.test.mjs \
-              tests/course-scheduling-contract-restoration.test.mjs \
-              tests/course-scheduling-date-adjustments.test.mjs \
-              tests/course-scheduling-stage2-matching.test.mjs \
-              tests/course-scheduling-engine.test.mjs \
-              tests/course-scheduling-hidden-planning-state.test.mjs \
-              tests/course-scheduling-e2e-alignment.test.mjs \
-              tests/course-scheduling-district-plan-consistency.test.mjs \
-              tests/course-scheduling-district-simulation.test.mjs \
-              tests/course-scheduling-district-simulation-save-drafts.test.mjs \
-              tests/course-scheduling-logic-ui-corrections.test.mjs \
-              tests/course-scheduling-manual-finalize-soft-warnings.test.mjs \
-              tests/course-scheduling-transition-server-rules.test.mjs \
-              tests/course-meeting-substitute-permissions.test.mjs \
-              tests/course-scheduling-planning-tab.test.mjs \
-              tests/course-scheduling-planning-invalidate.test.mjs \
-              tests/course-scheduling-planning-self-invalidation.test.mjs \
-              tests/course-scheduling-day-consolidation-netanya.test.mjs \
-              tests/scheduling-planning-audit-sector-filter.test.mjs
-          else
-            echo "No scheduling contract files changed; focused scheduling tests skipped."
-          fi
-
-  scheduling-postgres:
-    name: scheduling Postgres regression
-    runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: dashboard_test
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U postgres -d dashboard_test"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-      - name: Run planning invalidation against PostgreSQL
-        env:
-          PLANNING_INVALIDATION_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/dashboard_test
-        run: |
-          npm ci --ignore-scripts --no-audit --no-fund
-          node --test tests/course-scheduling-planning-invalidation-postgres.test.mjs
-; then
+          if git diff --name-only "$BASE_SHA" "$HEAD_SHA" | grep -Eq '^(frontend/src/api\.js|tests/activity-status-only-save\.test\.mjs)$'; then
             npm ci --ignore-scripts --no-audit --no-fund
             node --test tests/activity-status-only-save.test.mjs
           else
