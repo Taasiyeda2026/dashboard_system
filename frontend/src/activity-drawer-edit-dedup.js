@@ -167,6 +167,7 @@ export function primeLegacyActivityNameForSave(form, row = parseExportRow(form))
   // comes from program_name. Mark the real selected name as a change so the
   // save payload repairs activity_name before backend one-day validation runs.
   initialValues.activity_name = storedName;
+  form.dataset.activityCatalogDirty = 'yes';
   return true;
 }
 
