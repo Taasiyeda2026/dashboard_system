@@ -3519,6 +3519,7 @@ function rowNeighborGapMinutes(row = {}, rows = []) {
  */
 async function compactInstructorDayGapsPass({
   rowsById,
+  targetCourseIds = null,
   targets = [],
   catalog = [],
   instructors = [],
@@ -3535,6 +3536,9 @@ async function compactInstructorDayGapsPass({
   report = async () => {}
 } = {}) {
   const activityById = new Map((targets || []).map((activity) => [idOf(activity), activity]));
+  const targetIds = Array.isArray(targetCourseIds)
+    ? new Set(targetCourseIds.map((value) => text(value)).filter(Boolean))
+    : null;
   const maxPasses = 3;
   let moved = 0;
 
@@ -3543,6 +3547,7 @@ async function compactInstructorDayGapsPass({
     const movable = [...rowsById.values()]
       .filter((row) =>
         text(row?.kind) === 'proposal'
+        && (!targetIds || targetIds.has(text(row?.courseId)))
         && row?.schoolDateAnchored !== true
         && row?.planningLocked !== true
         && text(row?.instructorEmpId)
@@ -3683,6 +3688,7 @@ export async function buildDynamicCoursePlan({
   lockedOptions = {},
   existingRows = [],
   targetCourseIds = null,
+  optimizationOnlyCourseIds = null,
   onProgress = null,
   signal = null,
   checkpoint = createPlanningCheckpoint({ signal }),
@@ -3742,6 +3748,9 @@ export async function buildDynamicCoursePlan({
   const incrementalIds = Array.isArray(targetCourseIds)
     ? new Set(targetCourseIds.map((value) => text(value)).filter(Boolean))
     : null;
+  const optimizationOnlyIds = Array.isArray(optimizationOnlyCourseIds)
+    ? new Set(optimizationOnlyCourseIds.map((value) => text(value)).filter(Boolean))
+    : null;
   const fixedUnassigned = [];
   const missingSchedule = [];
 
@@ -3763,6 +3772,13 @@ export async function buildDynamicCoursePlan({
     }
 
     const existing = existingById.get(activityId);
+    if (optimizationOnlyIds?.has(activityId) && existing && text(existing?.kind) === 'proposal') {
+      const reused = { ...existing, planningLocked: false };
+      rowsById.set(activityId, reused);
+      const virtual = blockingVirtualActivity(activity, planningRowAsVirtualOption(reused));
+      rememberVirtualPlan(virtual);
+      continue;
+    }
     if (incrementalIds?.has(activityId) && text(existing?.kind) === 'recruitment') {
       const rescue = recruitmentRescueProbe({
         row: existing,
@@ -4118,7 +4134,7 @@ export async function buildDynamicCoursePlan({
   }
 
   if (!_repairPass) {
-    await consolidateInstructorWorkdaysPass({
+    if (!optimizationOnlyIds) await consolidateInstructorWorkdaysPass({
       rowsById,
       targets,
       catalog,
@@ -4143,6 +4159,7 @@ export async function buildDynamicCoursePlan({
     });
     await compactInstructorDayGapsPass({
       rowsById,
+      targetCourseIds: optimizationOnlyIds ? [...optimizationOnlyIds] : null,
       targets,
       catalog,
       instructors,
