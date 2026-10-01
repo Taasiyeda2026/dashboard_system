@@ -277,6 +277,30 @@ async function ensureChildFolder(token: string, driveId: string, parentItemId: s
   }
 }
 
+async function findExistingPdf(
+  token: string,
+  driveId: string,
+  folderItemId: string,
+  employeeName: string,
+  monthKey: string,
+  version: number,
+) {
+  const fileName = payrollApprovalPdfFileName(employeeName, monthKey, version);
+  const existing = await graphRequest(
+    token,
+    `/drives/${encodeURIComponent(driveId)}/items/${encodeURIComponent(folderItemId)}:/${encodePath(fileName)}?$select=id,name,webUrl,file`,
+    {},
+    true,
+  );
+  if (!existing?.id || !existing?.file) return null;
+  return {
+    fileName,
+    version,
+    sharepointItemId: clean(existing.id),
+    sharepointWebUrl: clean(existing.webUrl),
+  };
+}
+
 async function uploadUniquePdf(
   token: string,
   driveId: string,
@@ -686,7 +710,20 @@ Deno.serve(async (req) => {
     const monthFolder = await ensureChildFolder(graphAccessToken, employeeRoot.driveId, payrollFolder.id, monthFolderName);
     if (!monthFolder.id) throw new Error("sharepoint_month_folder_missing");
 
-    const uploaded = await uploadUniquePdf(
+    // If a previous attempt uploaded version 1 but failed later (for example,
+    // during email delivery), reuse that orphaned PDF instead of creating a
+    // duplicate "- 2" file on the next approval attempt.
+    const existingOrphan = currentVersion > 0
+      ? null
+      : await findExistingPdf(
+          graphAccessToken,
+          employeeRoot.driveId,
+          monthFolder.id,
+          employeeName,
+          monthKey,
+          nextVersion,
+        );
+    const uploaded = existingOrphan || await uploadUniquePdf(
       graphAccessToken,
       employeeRoot.driveId,
       monthFolder.id,
@@ -697,39 +734,60 @@ Deno.serve(async (req) => {
     );
     if (!uploaded.sharepointWebUrl || !uploaded.sharepointItemId) throw new Error("sharepoint_upload_missing_url");
 
+    // PDF persistence is the durable approval artifact. Email delivery is
+    // best-effort and must not invalidate an approval after the PDF already
+    // exists in SharePoint.
+    let mailedAt = "";
+    let mailError = "";
     const sender = clean(Deno.env.get("MS_MAIL_SENDER"));
-    if (!sender) throw new Error("mail_sender_not_configured");
-    const emailBody = [
-      "שלום,",
-      "",
-      "מצורף דוח הנוכחות המאושר לחודש המבוקש.",
-      `חודש: ${monthText}`,
-      `קישור SharePoint: ${uploaded.sharepointWebUrl}`,
-      "",
-      "בברכה",
-      "מערכת הנוכחות",
-    ].join("\n");
-    const mailResponse = await fetch(`https://graph.microsoft.com/v1.0/users/${encodeURIComponent(sender)}/sendMail`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${graphAccessToken}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        message: {
-          subject: `דוח נוכחות מאושר - ${employeeName} - ${monthText}`,
-          body: { contentType: "Text", content: emailBody },
-          toRecipients: [{ emailAddress: { address: employeeEmail } }],
-          attachments: [{
-            "@odata.type": "#microsoft.graph.fileAttachment",
-            name: uploaded.fileName,
-            contentType: "application/pdf",
-            contentBytes: toBase64(pdfBytes),
-          }],
-        },
-        saveToSentItems: false,
-      }),
-    });
-    if (!mailResponse.ok) {
-      const detail = await mailResponse.text();
-      throw new Error(`mail_send_failed:${mailResponse.status}:${detail.slice(0, 220)}`);
+    if (!sender) {
+      mailError = "mail_sender_not_configured";
+    } else {
+      try {
+        const emailBody = [
+          "שלום,",
+          "",
+          "מצורף דוח הנוכחות המאושר לחודש המבוקש.",
+          `חודש: ${monthText}`,
+          `קישור SharePoint: ${uploaded.sharepointWebUrl}`,
+          "",
+          "בברכה",
+          "מערכת הנוכחות",
+        ].join("\n");
+        const mailResponse = await fetch(`https://graph.microsoft.com/v1.0/users/${encodeURIComponent(sender)}/sendMail`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${graphAccessToken}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            message: {
+              subject: `דוח נוכחות מאושר - ${employeeName} - ${monthText}`,
+              body: { contentType: "Text", content: emailBody },
+              toRecipients: [{ emailAddress: { address: employeeEmail } }],
+              attachments: [{
+                "@odata.type": "#microsoft.graph.fileAttachment",
+                name: uploaded.fileName,
+                contentType: "application/pdf",
+                contentBytes: toBase64(pdfBytes),
+              }],
+            },
+            saveToSentItems: false,
+          }),
+        });
+        if (!mailResponse.ok) {
+          const detail = await mailResponse.text();
+          mailError = `mail_send_failed:${mailResponse.status}:${detail.slice(0, 220)}`;
+        } else {
+          mailedAt = new Date().toISOString();
+        }
+      } catch (error) {
+        mailError = `mail_send_failed:network:${clean((error as Error)?.message).slice(0, 220)}`;
+      }
+    }
+    if (mailError) {
+      console.error("[payroll-attendance-pdf-dispatch] email delivery failed after PDF persistence", {
+        employeeId,
+        monthKey,
+        error: mailError,
+      });
     }
 
     return json({
@@ -742,7 +800,10 @@ Deno.serve(async (req) => {
       sharepointWebUrl: uploaded.sharepointWebUrl,
       sharepointFolderWebUrl: monthFolder.webUrl,
       employeeEmail,
-      mailedAt: new Date().toISOString(),
+      reusedExistingPdf: Boolean(existingOrphan),
+      mailSent: !mailError,
+      mailError: mailError ? mailError.split(":").slice(0, 2).join(":") : "",
+      mailedAt,
     });
   } catch (error) {
     const message = clean((error as Error)?.message) || "payroll_attendance_pdf_dispatch_failed";

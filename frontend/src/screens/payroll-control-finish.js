@@ -420,6 +420,8 @@ export async function approvePayrollControlEmployee({
     manager_pdf_sharepoint_url: saved?.manager_pdf_sharepoint_url || txt(artifacts?.sharepointWebUrl),
     manager_pdf_file_name: saved?.manager_pdf_file_name || txt(artifacts?.fileName),
     manager_pdf_version: saved?.manager_pdf_version || Number(artifacts?.managerPdfVersion || 0),
+    mail_sent: artifacts?.mailSent !== false,
+    mail_error: txt(artifacts?.mailError || ''),
     mailed_at: txt(artifacts?.mailedAt || '')
   };
 }

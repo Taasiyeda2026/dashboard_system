@@ -3140,7 +3140,11 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
         manager_pdf_sharepoint_url: saved?.manager_pdf_sharepoint_url || ''
       };
       paintResults();
-      setStatusMessage('אישור המנהל נשמר בהצלחה, החודש ננעל והדוח נשלח לעובד.');
+      if (saved?.mail_sent === false) {
+        setStatusMessage('אישור המנהל נשמר והחודש ננעל. ה-PDF נשמר ב-SharePoint, אך שליחת המייל לעובד נכשלה.', { error: true });
+      } else {
+        setStatusMessage('אישור המנהל נשמר בהצלחה, החודש ננעל והדוח נשלח לעובד.');
+      }
     } catch (error) {
       setStatusMessage(error?.message || 'שמירת האישור נכשלה.', { error: true });
     } finally {

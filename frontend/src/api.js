@@ -6806,8 +6806,8 @@ export const api = {
       const detail = String(data?.error || error?.message || '').trim();
       throw new Error(
         detail
-          ? `שמירת ה-PDF ב-SharePoint או שליחת המייל נכשלה. אישור המנהל לא נשמר. ${detail}`
-          : 'שמירת ה-PDF ב-SharePoint או שליחת המייל נכשלה. אישור המנהל לא נשמר.'
+          ? `הפקת או שמירת ה-PDF ב-SharePoint נכשלה. אישור המנהל לא נשמר. ${detail}`
+          : 'הפקת או שמירת ה-PDF ב-SharePoint נכשלה. אישור המנהל לא נשמר.'
       );
     }
     return data || {};
