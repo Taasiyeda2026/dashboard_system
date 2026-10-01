@@ -273,3 +273,71 @@ test('immediate edit from summary row preserves location IDs and permits a statu
   assert.equal(Object.hasOwn(saved[0].changes, 'school_id'), false);
   assert.equal(form.querySelector('.ds-activity-edit-status').classList.contains('is-error'), false);
 });
+
+
+test('status-only close ignores catalog metadata drift until the user actually changes the activity catalog', async () => {
+  const activityName = 'תמיר - המחזור מתחיל בבית';
+  const row = {
+    RowID: 'TAMIR-60025',
+    source_sheet: 'activities',
+    activity_type: 'workshop',
+    item_type: 'workshop',
+    activity_name: activityName,
+    activity_no: '60025',
+    gefen_number: null,
+    activity_name_override: false,
+    activity_season: 'school_2027',
+    status: 'פתוח',
+    authority: 'פרדס חנה-כרכור',
+    authority_id: 439,
+    school: 'מרחבים',
+    school_id: 2364,
+  };
+  const settings = { dropdown_options: {
+    activity_names: [{
+      label: activityName,
+      activity_name: activityName,
+      activity_no: '60025',
+      gefen_number: '',
+      activity_type: 'workshop',
+      parent_value: 'workshop',
+      active: true,
+    }],
+    authority_records: [],
+    school_records: [],
+  } };
+  document.body.innerHTML = `<main id="tamir-status-drawer">${activityWorkDrawerHtml(row, {
+    settings, canEdit: true, canDirectEdit: true,
+  })}</main>`;
+  const root = document.querySelector('#tamir-status-drawer');
+  const saved = [];
+
+  bindActivityEditForm(root, {
+    api: { saveActivity: async (payload) => {
+      saved.push(payload);
+      return { row: { row_id: row.RowID, ...row, ...payload.changes } };
+    } },
+    appState: { clientSettings: settings, user: { can_edit_direct: true } },
+  });
+
+  const form = root.querySelector('[data-drawer-form]');
+  root.querySelector('[data-action="start-edit"]').click();
+  assert.equal(form.dataset.activityCatalogDirty, 'no');
+
+  // Reproduce the production failure mode: drawer/catalog rebuilding mutates
+  // option metadata without any user change to the activity name/type.
+  const selectedOption = form.querySelector('[data-role="activity-name-select"]')?.selectedOptions?.[0];
+  assert.ok(selectedOption);
+  selectedOption.dataset.activityNo = activityName;
+  selectedOption.dataset.gefenNumber = activityName;
+
+  form.querySelector('[name="status"]').value = 'סגור';
+  root.querySelector('[data-action="save-edit"]').click();
+  await new Promise((resolve) => window.setTimeout(resolve, 25));
+
+  assert.equal(saved.length, 1);
+  assert.equal(saved[0].changes.status, 'סגור');
+  for (const key of ['activity_name', 'activity_no', 'gefen_number', 'activity_name_override']) {
+    assert.equal(Object.hasOwn(saved[0].changes, key), false, `${key} must not be synthesized by a status-only save`);
+  }
+});

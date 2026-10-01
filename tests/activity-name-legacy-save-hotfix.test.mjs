@@ -53,6 +53,7 @@ test('legacy generic tour name is forced into the next save payload', () => {
 
   assert.equal(form.querySelector('[name="activity_name"]').value, 'התנסות בתעשייה');
   assert.equal(form._initialValues.activity_name, 'סיור');
+  assert.equal(form.dataset.activityCatalogDirty, 'yes');
   dom.window.close();
 });
 
