@@ -244,12 +244,15 @@ export function setSession(session) {
   sessionStorage.setItem('ds_session_alive', '1');
 }
 
-export function setGlobalActivityPeriod(value, { persist = true } = {}) {
+export function setGlobalActivityPeriod(value, { persist = true, now = new Date() } = {}) {
   const nextPeriod = normalizeGlobalActivityPeriod(value || DEFAULT_GLOBAL_ACTIVITY_PERIOD);
+  const periodChanged = state.activityPeriodTab !== nextPeriod;
   state.activityPeriodTab = nextPeriod;
   state.activitiesInnerTab = 'year_all';
-  const periodMonth = defaultMonthForGlobalActivityPeriod(nextPeriod);
-  state.dashboardMonthYm = periodMonth;
+  const periodMonth = defaultMonthForGlobalActivityPeriod(nextPeriod, now);
+  if (periodChanged || !/^\d{4}-\d{2}$/.test(String(state.dashboardMonthYm || ''))) {
+    state.dashboardMonthYm = periodMonth;
+  }
   state.activitiesMonthYm = periodMonth;
   if (state.operationsManagement) {
     state.operationsManagement.period = nextPeriod;

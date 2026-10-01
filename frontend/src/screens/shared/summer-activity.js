@@ -97,10 +97,17 @@ export function isValidGlobalActivityPeriod(value) {
   return GLOBAL_ACTIVITY_PERIODS.includes(String(value || '').trim());
 }
 
-export function defaultMonthForGlobalActivityPeriod(value) {
+export function defaultMonthForGlobalActivityPeriod(value, now = new Date()) {
   const key = normalizeGlobalActivityPeriod(value);
-  if (key === ACTIVITY_SEASON_SCHOOL_2027) return SCHOOL_2027_START_DATE.slice(0, 7);
-  return '';
+  const minYm = (key === ACTIVITY_SEASON_SCHOOL_2027 ? SCHOOL_2027_START_DATE : SCHOOL_2026_START_DATE).slice(0, 7);
+  const maxYm = (key === ACTIVITY_SEASON_SCHOOL_2027 ? SCHOOL_2027_END_DATE : SCHOOL_2026_END_DATE).slice(0, 7);
+  const date = now instanceof Date ? now : new Date(now);
+  const currentYm = Number.isNaN(date.getTime())
+    ? minYm
+    : `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+  if (currentYm < minYm) return minYm;
+  if (currentYm > maxYm) return maxYm;
+  return currentYm;
 }
 
 export function activityMatchesPeriodKey(activity = {}, periodKey = '') {

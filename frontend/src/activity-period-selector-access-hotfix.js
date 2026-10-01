@@ -1,7 +1,6 @@
 import { state, setGlobalActivityPeriod } from './state.js';
 import {
   ACTIVE_ACTIVITY_SEASON,
-  defaultMonthForGlobalActivityPeriod,
   globalActivityPeriodFullLabel,
   globalActivityPeriodLabel,
   normalizeGlobalActivityPeriod
@@ -19,20 +18,6 @@ function storedOrDefaultPeriod() {
 function clearPeriodScreenCache() {
   clearActivityPeriodScreenCache(state.screenDataCache);
   state.archiveActivityPeriod = null;
-}
-
-function syncDashboardMonthToPeriod(period) {
-  const selected = normalizeGlobalActivityPeriod(period);
-  const defaultMonth = defaultMonthForGlobalActivityPeriod(selected);
-  if (!defaultMonth) return;
-
-  const currentMonth = String(state.dashboardMonthYm || '').trim();
-  if (!/^\d{4}-\d{2}$/.test(currentMonth) || currentMonth < defaultMonth) {
-    state.dashboardMonthYm = defaultMonth;
-    try {
-      localStorage.setItem('dashboard_month_ym', defaultMonth);
-    } catch { /* ignore */ }
-  }
 }
 
 function syncSelector(period) {
@@ -60,7 +45,6 @@ const effectiveInitialPeriod = String(state?.user?.role || '').trim() === 'instr
   ? ACTIVE_ACTIVITY_SEASON
   : initialPeriod;
 setGlobalActivityPeriod(effectiveInitialPeriod, { persist: false });
-syncDashboardMonthToPeriod(effectiveInitialPeriod);
 if (didCutover) clearPeriodScreenCache();
 state.archiveActivityPeriod = null;
 
@@ -109,7 +93,6 @@ document.addEventListener('click', (event) => {
 
   const selected = normalizeGlobalActivityPeriod(option.getAttribute('data-global-period-option'));
   setGlobalActivityPeriod(selected);
-  syncDashboardMonthToPeriod(selected);
   clearPeriodScreenCache();
   syncSelector(selected);
 

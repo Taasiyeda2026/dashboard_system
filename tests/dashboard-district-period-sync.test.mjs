@@ -10,8 +10,8 @@ test('dashboard monthly activity projection includes district data', () => {
   assert.match(dashboardKpiSource, /api\.allActivities\(\{ select: DASHBOARD_MONTH_ACTIVITY_COLUMNS \}\)/);
 });
 
-test('school 2027 period syncs dashboard month to its first valid month', () => {
-  assert.match(periodSelectorSource, /defaultMonthForGlobalActivityPeriod/);
-  assert.match(periodSelectorSource, /syncDashboardMonthToPeriod\(initialPeriod\)/);
-  assert.match(periodSelectorSource, /syncDashboardMonthToPeriod\(selected\)/);
+test('activity period selector delegates dashboard month selection to global state', () => {
+  assert.match(periodSelectorSource, /setGlobalActivityPeriod\(effectiveInitialPeriod/);
+  assert.match(periodSelectorSource, /setGlobalActivityPeriod\(selected\)/);
+  assert.doesNotMatch(periodSelectorSource, /state\.dashboardMonthYm\s*=/);
 });
