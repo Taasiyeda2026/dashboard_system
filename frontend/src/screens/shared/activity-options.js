@@ -212,7 +212,7 @@ export function getActivityCatalog(settings) {
       label_he: humanDisplayText(row?.label_he || row?.label || row?.activity_name || row?.value),
       value: humanDisplayText(row?.value || row?.activity_name || row?.label),
       activity_name: humanDisplayText(row?.activity_name || row?.value || row?.label),
-      gefen_number: text(row?.gefen_number),
+      gefen_number: text(row?.gefen_number || row?.activity_no),
       activity_no: text(row?.activity_no || row?.gefen_number),
       meetings_count: normalizeActivityMeetingsCount(row?.meetings_count),
       activity_type: normalizeActivityTypeKey(row?.activity_type || row?.parent_value || row?.type),
