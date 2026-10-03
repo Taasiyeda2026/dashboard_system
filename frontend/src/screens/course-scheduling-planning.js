@@ -1796,7 +1796,12 @@ function blockingVirtualActivity(activity = {}, option = null) {
     draft_proposed_meetings: option.meetings.map((meeting) => ({
       date: meeting.date,
       start_time: meeting.start_time,
-      end_time: meeting.end_time
+      end_time: meeting.end_time,
+      substituteEmpId: text(meeting?.substituteEmpId) || undefined,
+      substituteName: text(meeting?.substituteName) || undefined,
+      constraintKind: text(meeting?.constraintKind) || undefined,
+      moved: meeting?.moved === true || undefined,
+      original_date: text(meeting?.original_date) || undefined
     })),
     instructor_assignment_locked: false,
     status: 'פתוח'
@@ -3442,9 +3447,14 @@ function schoolPackingOptions(row = {}, candidateDays = new Set()) {
 }
 
 function schoolPackingOptionsConflict(first = {}, second = {}) {
-  if (!text(first?.instructorEmpId) || text(first?.instructorEmpId) !== text(second?.instructorEmpId)) return false;
+  const firstMainEmpId = text(first?.instructorEmpId);
+  const secondMainEmpId = text(second?.instructorEmpId);
   for (const a of first?.meetings || []) {
+    const aEmpId = meetingInstructorEmpId(a, firstMainEmpId);
+    if (!aEmpId) continue;
     for (const b of second?.meetings || []) {
+      const bEmpId = meetingInstructorEmpId(b, secondMainEmpId);
+      if (!bEmpId || aEmpId !== bEmpId) continue;
       if (text(a?.date).slice(0, 10) !== text(b?.date).slice(0, 10)) continue;
       const aStart = timeMinutes(a?.start_time);
       const aEnd = timeMinutes(a?.end_time);
@@ -3477,7 +3487,6 @@ function schoolPackingChoicesOperationallyConflict(firstChoice = {}, secondChoic
   const first = firstChoice?.option || firstChoice;
   const second = secondChoice?.option || secondChoice;
   if (schoolPackingOptionsConflict(first, second)) return true;
-  if (!text(first?.instructorEmpId) || text(first?.instructorEmpId) !== text(second?.instructorEmpId)) return false;
 
   const firstRow = firstChoice?.row || {};
   const secondRow = secondChoice?.row || {};
@@ -3486,8 +3495,14 @@ function schoolPackingChoicesOperationallyConflict(firstChoice = {}, secondChoic
   const sameSchool = !!text(firstRow?.schoolId)
     && text(firstRow?.schoolId) === text(secondRow?.schoolId);
 
+  const firstMainEmpId = text(first?.instructorEmpId);
+  const secondMainEmpId = text(second?.instructorEmpId);
   for (const a of first?.meetings || []) {
+    const aEmpId = meetingInstructorEmpId(a, firstMainEmpId);
+    if (!aEmpId) continue;
     for (const b of second?.meetings || []) {
+      const bEmpId = meetingInstructorEmpId(b, secondMainEmpId);
+      if (!bEmpId || aEmpId !== bEmpId) continue;
       if (text(a?.date).slice(0, 10) !== text(b?.date).slice(0, 10)) continue;
       if (sameSchool) continue;
 
