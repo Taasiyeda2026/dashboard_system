@@ -29,6 +29,7 @@ import {
   isSchedulingActivityActive,
   isSchedulingBlockingAssignment,
   isSchedulingDraftAssignment,
+  isFullDaySchedulingActivity,
   schedulingActivityTypeCategory
 } from './shared/activity-scheduling-eligibility.js';
 import {
@@ -1824,6 +1825,7 @@ function liveRow(activity = {}, periodKey = DEFAULT_PLANNING_PERIOD_KEY, {
     school: text(activity.school),
     courseName: text(activity.activity_name),
     activityType: activityTypeLabel(activity),
+    fullDayBlocking: isFullDaySchedulingActivity(activity),
     sessions: meetings.length || meetingCount(activity),
     kind: assigned ? 'live' : (draft ? 'draft' : 'fixed'),
     status: assigned ? 'מעודכן בפועל' : (draft ? 'טיוטת שיבוץ קיימת' : 'נדרש טיפול'),
@@ -1863,6 +1865,7 @@ function missingOverviewRow(activity = {}, catalog = []) {
     school: text(activity.school),
     courseName: text(activity.activity_name),
     activityType: activityTypeLabel(activity),
+    fullDayBlocking: isFullDaySchedulingActivity(activity),
     sessions: spec.sessions || meetingCount(activity),
     kind: 'missing',
     status: 'נדרש טיפול',
@@ -2239,6 +2242,7 @@ function planRowFromOption(activity, option, options, startRange, spec, diagnost
     school: text(activity.school),
     courseName: text(activity.activity_name),
     activityType: activityTypeLabel(activity),
+    fullDayBlocking: isFullDaySchedulingActivity(activity),
     requiredLanguage: text(activity.instruction_language),
     requiredGender: text(activity.required_instructor_gender),
     sourceHadDraft: !!text(activity.draft_emp_id),
@@ -3378,7 +3382,9 @@ function weekdaySetCombinations(values = [], size = 0, start = 0, selected = [],
 }
 
 function schoolPackingOptions(row = {}, candidateDays = new Set()) {
-  const options = [planningRowAsVirtualOption(row), ...(row?.options || [])].filter(Boolean);
+  const options = [planningRowAsVirtualOption(row), ...(row?.options || [])]
+    .filter(Boolean)
+    .map((option) => ({ ...option, fullDayBlocking: row?.fullDayBlocking === true }));
   const seen = new Set();
   return options.filter((option) => {
     if (option?.routeVerified === false) return false;
@@ -3400,6 +3406,7 @@ function schoolPackingOptionsConflict(first = {}, second = {}) {
       const aEnd = timeMinutes(a?.end_time);
       const bStart = timeMinutes(b?.start_time);
       const bEnd = timeMinutes(b?.end_time);
+      if (first?.fullDayBlocking === true || second?.fullDayBlocking === true) return true;
       if ([aStart, aEnd, bStart, bEnd].some((value) => value == null)) continue;
       if (aStart < bEnd && bStart < aEnd) return true;
     }

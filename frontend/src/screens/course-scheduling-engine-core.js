@@ -4,6 +4,7 @@ import { routeMatrixKey } from './course-scheduling-travel.js';
 import {
   hasDraftInstructor,
   isActivitySchedulingEligible,
+  isFullDaySchedulingActivity,
   isSchedulingReadyActivity,
   isSchedulingReadyInstructor,
   isSchedulingBlockingAssignment,
@@ -164,7 +165,11 @@ function meetingAssignments(rows = [], options = {}) {
         school_id: activity.school_id,
         authority: activity.authority,
         school_address: activity.school_address,
-        activity_name: activity.activity_name
+        activity_name: activity.activity_name,
+        program_name: activity.program_name,
+        activity_no: activity.activity_no,
+        activity_type: activity.activity_type || activity.type,
+        full_day_blocking: isFullDaySchedulingActivity(activity)
       }));
   });
 }
@@ -511,7 +516,8 @@ function evaluateCandidate({
     schoolCalendar: courseSchoolCalendar,
     existingActivities: persistedMeetings,
     halfEnd: periodKey === 'first' ? FIRST_HALF_CONTINUATION_END_DATE : resolveCourseSchedulingPeriod(periodKey).end,
-    allowSaturday
+    allowSaturday,
+    fullDayBlocking: isFullDaySchedulingActivity(course)
   };
 
   const classification = classifyMeetingAvailabilityBlocks(adjustmentInput);

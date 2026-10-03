@@ -18,6 +18,32 @@ export function schedulingActivityTypeCategory(value) {
   return '';
 }
 
+/**
+ * Tours are operationally full-day assignments.
+ * "התנסות בתעשייה" (activity 13990) is also recognized defensively by identity,
+ * so legacy rows cannot bypass the full-day hard gate because of an old type value.
+ */
+export function isFullDaySchedulingActivity(activity = {}) {
+  const category = schedulingActivityTypeCategory(
+    activity?.activity_type ?? activity?.type ?? activity?.item_type
+  );
+  if (category === 'tour') return true;
+
+  const activityNo = String(activity?.activity_no ?? '').trim();
+  if (activityNo === '13990') return true;
+
+  const names = [
+    activity?.activity_name,
+    activity?.program_name,
+    activity?.name,
+    activity?.title
+  ]
+    .map((value) => String(value ?? '').trim().replace(/\s+/g, ' ').toLocaleLowerCase('he-IL'))
+    .filter(Boolean);
+
+  return names.some((value) => value.includes('התנסות בתעשייה'));
+}
+
 export const BLOCKED_SCHEDULING_STATUSES = new Set([
   'סגור', 'closed', 'בוטל', 'cancelled', 'canceled', 'נמחק', 'deleted', 'inactive', 'לא פעיל'
 ]);
