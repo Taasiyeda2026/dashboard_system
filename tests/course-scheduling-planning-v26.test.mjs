@@ -177,6 +177,147 @@ test('school packing discovers a shared weekday that exists only in packingOptio
   assert.equal(rowsById.get('a').schoolPlanning.packingStatus, 'packed');
 });
 
+test('school packing cannot move a school group onto another-school tour day for the same instructor', () => {
+  const activities = [
+    course('a', { school_id: 'school-a', school_address: 'A' }),
+    course('b', { school_id: 'school-a', school_address: 'A' }),
+    course('tour-blocker', {
+      school_id: 'school-tour',
+      school_address: 'TOUR',
+      activity_type: 'tour',
+      activity_no: '13990',
+      activity_name: 'התנסות בתעשייה'
+    })
+  ];
+  const rowsById = new Map([
+    ['tour-blocker', {
+      courseId: 'tour-blocker',
+      schoolId: 'school-tour',
+      school: 'סיור',
+      kind: 'proposal',
+      instructorEmpId: '1550',
+      instructorName: 'לירון',
+      fullDayBlocking: true,
+      startDate: '2026-10-13',
+      endDate: '2026-10-13',
+      startTime: '09:00',
+      endTime: '14:00',
+      meetings: [{ date: '2026-10-13', start_time: '09:00', end_time: '14:00' }]
+    }],
+    ['a', {
+      courseId: 'a',
+      schoolId: 'school-a',
+      school: 'בית ספר א',
+      kind: 'proposal',
+      instructorEmpId: '1550',
+      instructorName: 'לירון',
+      startDate: '2026-10-11',
+      endDate: '2026-10-11',
+      startTime: '09:00',
+      endTime: '10:30',
+      meetings: [{ date: '2026-10-11', start_time: '09:00', end_time: '10:30' }],
+      packingOptions: [
+        option(1550, '2026-10-11', '09:00', '10:30'),
+        option(1550, '2026-10-13', '09:00', '10:30')
+      ]
+    }],
+    ['b', {
+      courseId: 'b',
+      schoolId: 'school-a',
+      school: 'בית ספר א',
+      kind: 'proposal',
+      instructorEmpId: '1550',
+      instructorName: 'לירון',
+      startDate: '2026-10-14',
+      endDate: '2026-10-14',
+      startTime: '11:00',
+      endTime: '12:30',
+      meetings: [{ date: '2026-10-14', start_time: '11:00', end_time: '12:30' }],
+      packingOptions: [
+        option(1550, '2026-10-14', '11:00', '12:30'),
+        option(1550, '2026-10-13', '11:00', '12:30')
+      ]
+    }]
+  ]);
+
+  optimizeSchoolDayPackingPass({ rowsById, activities, routeClient: { peek: () => null } });
+
+  assert.notEqual(rowsById.get('a').startDate, '2026-10-13');
+  assert.notEqual(rowsById.get('b').startDate, '2026-10-13');
+  assert.equal(rowsById.get('a').schoolPlanning.minimumFeasibleWeekdays, 2);
+});
+
+test('school packing rejects a cross-school move when cached travel plus buffer does not fit', () => {
+  const activities = [
+    course('a', { school_id: 'school-a', school_address: 'A' }),
+    course('b', { school_id: 'school-a', school_address: 'A' }),
+    course('external', { school_id: 'school-b', school_address: 'B' })
+  ];
+  const rowsById = new Map([
+    ['external', {
+      courseId: 'external',
+      schoolId: 'school-b',
+      school: 'בית ספר ב',
+      kind: 'proposal',
+      instructorEmpId: '1550',
+      instructorName: 'לירון',
+      startDate: '2026-10-13',
+      endDate: '2026-10-13',
+      startTime: '12:00',
+      endTime: '13:30',
+      meetings: [{ date: '2026-10-13', start_time: '12:00', end_time: '13:30' }]
+    }],
+    ['a', {
+      courseId: 'a',
+      schoolId: 'school-a',
+      school: 'בית ספר א',
+      kind: 'proposal',
+      instructorEmpId: '1550',
+      instructorName: 'לירון',
+      startDate: '2026-10-11',
+      endDate: '2026-10-11',
+      startTime: '09:00',
+      endTime: '10:30',
+      meetings: [{ date: '2026-10-11', start_time: '09:00', end_time: '10:30' }],
+      packingOptions: [
+        option(1550, '2026-10-11', '09:00', '10:30'),
+        option(1550, '2026-10-13', '10:30', '12:00')
+      ]
+    }],
+    ['b', {
+      courseId: 'b',
+      schoolId: 'school-a',
+      school: 'בית ספר א',
+      kind: 'proposal',
+      instructorEmpId: '1550',
+      instructorName: 'לירון',
+      startDate: '2026-10-14',
+      endDate: '2026-10-14',
+      startTime: '09:00',
+      endTime: '10:30',
+      meetings: [{ date: '2026-10-14', start_time: '09:00', end_time: '10:30' }],
+      packingOptions: [
+        option(1550, '2026-10-14', '09:00', '10:30'),
+        option(1550, '2026-10-13', '09:00', '10:30')
+      ]
+    }]
+  ]);
+  const routeClient = {
+    peek(origin, destination) {
+      if ((origin === 'A' && destination === 'B') || (origin === 'B' && destination === 'A')) {
+        return { distance_km: 8, duration_minutes: 20 };
+      }
+      return null;
+    }
+  };
+
+  optimizeSchoolDayPackingPass({ rowsById, activities, routeClient });
+
+  assert.notEqual(rowsById.get('a').startDate, '2026-10-13');
+  assert.notEqual(rowsById.get('b').startDate, '2026-10-13');
+  assert.equal(rowsById.get('a').schoolPlanning.minimumFeasibleWeekdays, 2);
+});
+
 test('final whole-plan validator rejects a tour sharing an instructor date with another proposal', () => {
   const tourActivity = course('tour', {
     activity_type: 'tour',
