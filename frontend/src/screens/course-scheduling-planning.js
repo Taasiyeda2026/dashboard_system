@@ -3994,6 +3994,195 @@ async function compactInstructorDayGapsPass({
   return { moved };
 }
 
+
+function planningBlockingAssignmentsByInstructor(activities = []) {
+  const result = {};
+  for (const activity of blockingActivities(activities)) {
+    const empIds = [
+      text(activity?.emp_id),
+      text(activity?.emp_id_2),
+      text(activity?.draft_emp_id)
+    ].filter(Boolean);
+    for (const empId of new Set(empIds)) {
+      if (!result[empId]) result[empId] = [];
+      result[empId].push(activity);
+    }
+  }
+  return result;
+}
+
+function planningRowMeetingAssignments(row = {}, activityById = new Map()) {
+  const activity = activityById.get(text(row?.courseId)) || {};
+  const fullDayBlocking = row?.fullDayBlocking === true || isFullDaySchedulingActivity(activity);
+  const generated = ['proposal', 'fixed-proposal', 'planning-locked'].includes(text(row?.kind));
+  return (row?.meetings || []).map((meeting) => ({
+    empId: meetingInstructorEmpId(meeting, row?.instructorEmpId),
+    courseId: text(row?.courseId),
+    kind: text(row?.kind),
+    generated,
+    date: text(meeting?.date).slice(0, 10),
+    startTime: text(meeting?.start_time || row?.startTime).slice(0, 5),
+    endTime: text(meeting?.end_time || row?.endTime).slice(0, 5),
+    schoolId: text(row?.schoolId || activity?.school_id),
+    school: text(row?.school || activity?.school),
+    schoolAddress: text(activity?.school_address),
+    fullDayBlocking
+  })).filter((meeting) =>
+    meeting.empId && /^\d{4}-\d{2}-\d{2}$/.test(meeting.date)
+    && validTimeRange(meeting.startTime, meeting.endTime)
+  );
+}
+
+/**
+ * Final whole-plan guard after all packing/consolidation passes.
+ * Individual options are rechecked against live availability; then the complete
+ * planned schedule is checked for plan-to-plan overlap, tour-day exclusivity,
+ * and any known travel+buffer violation introduced by optimization.
+ */
+export function validatePlanningPlanCoherence({
+  rows = [],
+  activities = [],
+  instructors = [],
+  profiles = {},
+  rules = {},
+  exceptions = {},
+  schoolCalendar = [],
+  routeClient = null
+} = {}) {
+  const failures = [];
+  const warnings = [];
+  const activityById = new Map((activities || []).map((activity) => [idOf(activity), activity]));
+  const liveAssignments = planningBlockingAssignmentsByInstructor(activities);
+
+  for (const row of rows || []) {
+    if (!['proposal', 'fixed-proposal', 'planning-locked'].includes(text(row?.kind))) continue;
+    if (!text(row?.instructorEmpId) || !(row?.meetings || []).length) continue;
+    const activity = activityById.get(text(row?.courseId)) || {};
+    const option = {
+      instructorEmpId: row.instructorEmpId,
+      instructorName: row.instructorName,
+      meetings: row.meetings,
+      startDate: row.startDate,
+      endDate: row.endDate,
+      startTime: row.startTime,
+      endTime: row.endTime
+    };
+    const result = planningOptionPassesFinalValidation(option, {
+      activity,
+      instructors,
+      profiles,
+      rules,
+      exceptions,
+      assignments: liveAssignments,
+      schoolCalendar
+    });
+    for (const failure of result.failures || []) {
+      failures.push({
+        ...failure,
+        courseId: text(row.courseId),
+        reason: failure.reason || 'hard_gate'
+      });
+    }
+  }
+
+  const byInstructorDate = new Map();
+  for (const row of rows || []) {
+    for (const meeting of planningRowMeetingAssignments(row, activityById)) {
+      const key = `${meeting.empId}|${meeting.date}`;
+      const bucket = byInstructorDate.get(key) || [];
+      bucket.push(meeting);
+      byInstructorDate.set(key, bucket);
+    }
+  }
+
+  for (const [key, dayMeetings] of byInstructorDate.entries()) {
+    const [empId, date] = key.split('|');
+    const sorted = [...dayMeetings].sort((a, b) =>
+      (timeMinutes(a.startTime) ?? 9999) - (timeMinutes(b.startTime) ?? 9999)
+      || (timeMinutes(a.endTime) ?? 9999) - (timeMinutes(b.endTime) ?? 9999)
+    );
+    for (let index = 0; index < sorted.length; index += 1) {
+      const first = sorted[index];
+      for (let otherIndex = index + 1; otherIndex < sorted.length; otherIndex += 1) {
+        const second = sorted[otherIndex];
+        if (first.courseId === second.courseId) continue;
+        if (!first.generated && !second.generated) continue;
+
+        if (first.fullDayBlocking || second.fullDayBlocking) {
+          failures.push({
+            reason: 'full_day_tour_conflict',
+            empId,
+            date,
+            firstCourseId: first.courseId,
+            secondCourseId: second.courseId
+          });
+          continue;
+        }
+
+        const firstStart = timeMinutes(first.startTime);
+        const firstEnd = timeMinutes(first.endTime);
+        const secondStart = timeMinutes(second.startTime);
+        const secondEnd = timeMinutes(second.endTime);
+        if ([firstStart, firstEnd, secondStart, secondEnd].some((value) => value == null)) continue;
+        if (firstStart < secondEnd && secondStart < firstEnd) {
+          failures.push({
+            reason: 'overlap',
+            empId,
+            date,
+            firstCourseId: first.courseId,
+            secondCourseId: second.courseId
+          });
+        }
+      }
+    }
+
+    for (let index = 1; index < sorted.length; index += 1) {
+      const previous = sorted[index - 1];
+      const next = sorted[index];
+      if (previous.courseId === next.courseId || (!previous.generated && !next.generated)) continue;
+      if (previous.schoolId && previous.schoolId === next.schoolId) continue;
+      const previousEnd = timeMinutes(previous.endTime);
+      const nextStart = timeMinutes(next.startTime);
+      if (previousEnd == null || nextStart == null || nextStart < previousEnd) continue;
+      if (!previous.schoolAddress || !next.schoolAddress || !routeClient?.peek) {
+        warnings.push({ reason: 'travel_unverified', empId, date, firstCourseId: previous.courseId, secondCourseId: next.courseId });
+        continue;
+      }
+      const route = routeClient.peek(previous.schoolAddress, next.schoolAddress);
+      const km = Number(route?.distance_km);
+      const travelMinutes = Number(route?.duration_minutes);
+      if (!Number.isFinite(km) || !Number.isFinite(travelMinutes)) {
+        warnings.push({ reason: 'travel_unverified', empId, date, firstCourseId: previous.courseId, secondCourseId: next.courseId });
+        continue;
+      }
+      if (exceedsTransitionDistanceLimit(km)) {
+        failures.push({ reason: 'transition_distance_exceeded', empId, date, firstCourseId: previous.courseId, secondCourseId: next.courseId, distanceKm: km });
+        continue;
+      }
+      const requiredGap = travelMinutes + transitionBufferMinutes(km);
+      if (nextStart - previousEnd < requiredGap) {
+        failures.push({
+          reason: 'transition_insufficient',
+          empId,
+          date,
+          firstCourseId: previous.courseId,
+          secondCourseId: next.courseId,
+          requiredMinutes: requiredGap,
+          availableMinutes: nextStart - previousEnd
+        });
+      }
+    }
+  }
+
+  const dedupe = (items) => [...new Map(items.map((item) => [JSON.stringify(item), item])).values()];
+  const uniqueFailures = dedupe(failures);
+  return {
+    valid: uniqueFailures.length === 0,
+    failures: uniqueFailures,
+    warnings: dedupe(warnings)
+  };
+}
+
 export async function buildDynamicCoursePlan({
   activities = [],
   instructors = [],
@@ -4527,6 +4716,22 @@ export async function buildDynamicCoursePlan({
   const rows = assignRecruitmentProfiles(
     targets.map((activity) => rowsById.get(idOf(activity)) || missingOverviewRow(activity, catalog))
   );
+  const finalPlanValidation = validatePlanningPlanCoherence({
+    rows,
+    activities: targets,
+    instructors,
+    profiles,
+    rules,
+    exceptions,
+    schoolCalendar,
+    routeClient
+  });
+  if (!finalPlanValidation.valid) {
+    const error = new Error('planning_final_validation_failed');
+    error.code = 'planning_final_validation_failed';
+    error.failures = finalPlanValidation.failures;
+    throw error;
+  }
   const summarize = (selectedRows, extra = {}) => ({
     rows: selectedRows,
     total: selectedRows.length,
@@ -4544,7 +4749,10 @@ export async function buildDynamicCoursePlan({
     ...extra
   });
 
-  const initialResult = summarize(rows, { repairApplied: _repairPass });
+  const initialResult = summarize(rows, {
+    repairApplied: _repairPass,
+    finalPlanValidation
+  });
   // Checkpointing changes progress, not scope. A resumed targeted run must not
   // turn into a national pass; a resumed full run may still repair coverage.
   if (_repairPass || !(allowGlobalRepair ?? !incrementalIds)) return initialResult;
