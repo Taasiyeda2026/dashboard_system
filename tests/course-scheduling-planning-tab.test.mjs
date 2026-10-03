@@ -1496,6 +1496,20 @@ test('Planning rows expose one-click primary choice, alternatives and unlock sta
   assert.doesNotMatch(lockedHtml, /בחר חלופה/);
 });
 
+test('planning progress is a compact progress bar with phase and stable-run messaging', () => {
+  const html = planningTabHtml({
+    rows: [],
+    periodKey: 'year',
+    loading: true,
+    progress: { phase: 'בדיקת נסיעות', completed: 32, total: 164 }
+  });
+  assert.match(html, /course-planning-progress__track/);
+  assert.match(html, /role="progressbar"/);
+  assert.match(html, /aria-valuenow="20"/);
+  assert.match(html, /32\/164/);
+  assert.match(html, /החישוב נשמר בין שלבים/);
+});
+
 test('Planning UI defaults to the full school year and exposes period selection', () => {
   const html = planningTabHtml({ rows: [], periodKey: 'year' });
   assert.match(html, /data-planning-period-filter/);
