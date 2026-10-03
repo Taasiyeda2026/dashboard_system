@@ -337,3 +337,4 @@ config.HOTFIX_VERSION = `school-first-scheduling-20261003-v1-${config.HOTFIX_VER
 config.HOTFIX_VERSION = `scheduling-tour-full-day-hard-gate-20261003-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `school-packing-option-coverage-20261003-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `planning-v26-coherent-school-first-20261003-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `planning-v26-global-school-packing-constraints-20261003-v1-${config.HOTFIX_VERSION}`;
