@@ -9,7 +9,7 @@ Related docs (do not treat as overrides of this map):
 
 If this map and the code disagree, **the code wins**. Update this file after any material scheduling change.
 
-**Engine version observed while writing:** `PLANNING_ENGINE_VERSION = planning-v25-20261003-school-packing-option-coverage` in `frontend/src/screens/course-scheduling-planning.js`.
+**Engine version observed while writing:** `PLANNING_ENGINE_VERSION = planning-v25-20261003-school-packing-option-coverage-self-invalidation` in `frontend/src/screens/course-scheduling-planning.js`.
 
 ---
 
