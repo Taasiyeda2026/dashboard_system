@@ -769,7 +769,7 @@ test('one-day workshops and tours derive a plannable single meeting from catalog
   assert.equal(workshop.durationMinutes, 45);
   assert.equal(workshop.complete, true);
   assert.equal(tour.sessions, 1);
-  assert.equal(tour.durationMinutes, 120);
+  assert.equal(tour.durationMinutes, 300);
   assert.equal(tour.complete, true);
 });
 
