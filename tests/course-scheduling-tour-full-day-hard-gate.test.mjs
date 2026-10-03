@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { evaluateInstructor } from '../frontend/src/screens/instructor-matching-engine.js';
 import { calculateCourseSchedule } from '../frontend/src/screens/course-scheduling-engine.js';
 import { isFullDaySchedulingActivity } from '../frontend/src/screens/shared/activity-scheduling-eligibility.js';
+import { manualCandidateBlocked } from '../frontend/src/screens/shared/course-scheduling-manual-picker-access.js';
 
 const instructor = {
   emp_id: '9001',
@@ -174,4 +175,10 @@ test('prepared engine context carries an assigned tour as a full-day blocker', (
   const candidate = result.checked.find((row) => row.instructor?.emp_id === '9001');
   assert.equal(candidate?.eligible, false);
   assert.ok(candidate?.issues?.some((issue) => issue.kind === 'full_day_tour_conflict'));
+});
+
+test('manual picker cannot override a full-day tour conflict', () => {
+  assert.equal(manualCandidateBlocked({
+    failures: ['ביום זה כבר משובץ סיור שתופס יום עבודה מלא: התנסות בתעשייה']
+  }), true);
 });
