@@ -94,7 +94,8 @@ function activity(rowId, {
   updatedAt = '2026-09-20T10:00:00Z',
   activityNo = '53828',
   calendarSector = 'general',
-  meetings = []
+  meetings = [],
+  schoolId = rowId
 } = {}) {
   return {
     row_id: rowId,
@@ -103,7 +104,7 @@ function activity(rowId, {
     activity_no: activityNo,
     activity_name: 'ביומימיקרי',
     calendar_sector: calendarSector,
-    school_id: 1,
+    school_id: schoolId,
     authority: 'רשות',
     district: 'חיפה',
     start_time: '08:00',

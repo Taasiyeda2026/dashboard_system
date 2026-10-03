@@ -5,6 +5,7 @@ import {
   buildDynamicCoursePlan,
   dayConsolidationAcceptsMove,
   generatePlanningScenarios,
+  optimizeSchoolDayPackingPass,
   travelAwareAdjacentStartMinutes
 } from '../frontend/src/screens/course-scheduling-planning.js';
 import {
@@ -13,6 +14,12 @@ import {
 } from '../frontend/src/screens/course-scheduling.js';
 
 const text = (value) => String(value ?? '').trim();
+
+test('school-day packing pass is available before instructor-day consolidation', () => {
+  assert.equal(typeof optimizeSchoolDayPackingPass, 'function');
+  const source = readFileSync(new URL('../frontend/src/screens/course-scheduling-planning.js', import.meta.url), 'utf8');
+  assert.ok(source.indexOf('optimizeSchoolDayPackingPass({') < source.indexOf('await consolidateInstructorWorkdaysPass({'));
+});
 
 function netanyaRouteClient() {
   const schoolA = 'כתובת ריגלר נתניה';
