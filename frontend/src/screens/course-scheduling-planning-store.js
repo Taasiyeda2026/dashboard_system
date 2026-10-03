@@ -73,6 +73,10 @@ function instructorIdsFromPlanningEntry(entry = {}) {
     add(option?.instructorEmpId);
     for (const meeting of option?.meetings || []) add(meeting?.substituteEmpId);
   }
+  for (const option of entry?.row?.packingOptions || []) {
+    add(option?.instructorEmpId);
+    for (const meeting of option?.meetings || []) add(meeting?.substituteEmpId);
+  }
   for (const row of entry?.lockedOption?.singleMeetingSubstitutions || []) add(row?.substituteEmpId);
   for (const row of entry?.row?.singleMeetingSubstitutions || []) add(row?.substituteEmpId);
   return ids;
@@ -100,7 +104,9 @@ function meetingsFromPlanningEntry(entry = {}, activity = null) {
     }
   };
   push(entry?.lockedOption?.meetings);
-  if (!meetings.length) push(entry?.row?.meetings);
+  push(entry?.row?.meetings);
+  for (const option of entry?.row?.options || []) push(option?.meetings);
+  for (const option of entry?.row?.packingOptions || []) push(option?.meetings);
   if (!meetings.length && activity) {
     push(schedulingCalendarMeetings(activity).map((meeting) => ({
       date: meeting?.date,
@@ -597,6 +603,20 @@ export function planningEngineUpgradeAffectedCourseIds({
   const previous = text(storedEngineVersion);
   const current = text(currentEngineVersion);
   if (!previous || !current || previous === current) return [];
+
+  const coherentV26Upgrade = current.includes('planning-v26-20261003-coherent-school-first')
+    && !previous.includes('planning-v26-20261003-coherent-school-first');
+  if (coherentV26Upgrade) {
+    return (shared?.rows || [])
+      .filter((entry) => {
+        const row = entry?.row || {};
+        if (text(row?.kind) !== 'proposal') return false;
+        if (entry?.lockedOption || row?.planningLocked === true || row?.schoolDateAnchored === true) return false;
+        return !!text(entry?.activityId || row?.courseId);
+      })
+      .map((entry) => text(entry?.activityId || entry?.row?.courseId))
+      .filter(Boolean);
+  }
 
   const schoolPackingUpgrade = (
     previous.includes('planning-v23-20261001-idle-gap-compaction')
