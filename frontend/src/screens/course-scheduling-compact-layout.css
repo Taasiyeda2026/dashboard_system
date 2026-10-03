@@ -699,6 +699,25 @@
   white-space: nowrap;
 }
 
+.course-scheduling-screen.is-simple-workboard .course-scheduling-course-card.is-planning-stale {
+  background: #fff8e8;
+  box-shadow: inset -3px 0 0 #c17b16;
+  opacity: .88;
+}
+
+.course-scheduling-screen.is-simple-workboard .course-scheduling-course-card.is-planning-stale .course-scheduling-workboard-schedule,
+.course-scheduling-screen.is-simple-workboard .course-scheduling-course-card.is-planning-stale .course-scheduling-compact-instructor {
+  color: var(--cs-text-muted);
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}
+
+.course-scheduling-workboard-stale-action {
+  color: #8a5b12;
+  font-size: .74rem;
+  font-weight: 750;
+}
+
 .course-scheduling-workboard-actions {
   display: flex;
   align-items: center;

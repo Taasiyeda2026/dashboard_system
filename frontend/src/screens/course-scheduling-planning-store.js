@@ -517,12 +517,11 @@ export function applyLocalPlanningNeedsRecalc(targetState = null, { activityIds 
   if (Array.isArray(localState.courseSchedulingPlanningRows)) {
     for (const row of localState.courseSchedulingPlanningRows) {
       if (!ids.includes(text(row?.courseId))) continue;
-      if (row?.planningLocked) {
-        row.planningLocked = false;
-        row.kind = row.kind || 'proposal';
-        row.status = 'ממתין לעדכון תכנון';
-        row.reason = row.reason || 'נתוני הפעילות השתנו. הפעילות תתעדכן בהרצה המצומצמת הבאה.';
-      }
+      row.needsRecalc = true;
+      row.planningLocked = false;
+      row.kind = row.kind || 'proposal';
+      row.status = 'נדרש עדכון תכנון';
+      row.reason = 'ההצעה השמורה אינה עדכנית. יש לעדכן את התכנון לפני בחירה או אישור.';
     }
   }
 
