@@ -139,7 +139,7 @@ test('v25 to v26 forces a real rebuild of every flexible proposal, not only mult
     shared,
     activities: [],
     storedEngineVersion: 'planning-v25-20261003-school-packing-option-coverage-self-invalidation',
-    currentEngineVersion: 'planning-v26-20261003-coherent-school-first-substitute-ownership-self-invalidation'
+    currentEngineVersion: 'planning-v26-20261003-coherent-school-first-separate-trip-distance-self-invalidation'
   });
   assert.deepEqual(new Set(ids), new Set(['a', 'b', 'c']));
 });
