@@ -531,6 +531,32 @@ export async function clearSharedPlanningWorkspace({
 
 export function planningStoreErrorMessage(error, fallback = 'שמירת התכנון נכשלה') {
   const raw = text(error?.message || error);
+  if (raw.includes('planning_final_validation_failed')) {
+    const failure = Array.isArray(error?.failures) ? error.failures[0] : null;
+    const reasonLabels = {
+      overlap: 'חפיפה',
+      full_day_tour_conflict: 'סיור יום מלא מתנגש בפעילות אחרת',
+      availability_exception: 'חסימת תאריך של מדריך',
+      weekly_unavailable: 'המדריך אינו זמין בשעה שנבחרה',
+      transition_insufficient: 'אין מספיק זמן מעבר',
+      transition_distance_exceeded: 'המרחק בין הפעילויות גדול מהמותר',
+      school_calendar_blocked: 'תאריך חסום בלוח בית הספר',
+      saturday_blocked: 'שבת אינה מותרת לפעילות'
+    };
+    if (failure) {
+      const label = reasonLabels[text(failure.reason)] || text(failure.reason) || 'סתירה תפעולית';
+      const parts = [
+        label,
+        text(failure.date),
+        text(failure.empId) ? `מדריך ${text(failure.empId)}` : '',
+        text(failure.firstCourseId) && text(failure.secondCourseId)
+          ? `${text(failure.firstCourseId)} מול ${text(failure.secondCourseId)}`
+          : text(failure.courseId)
+      ].filter(Boolean);
+      return `התכנון לא נשמר: ${parts.join(' · ')}`;
+    }
+    return 'התכנון לא נשמר כי בדיקת התוכנית המלאה מצאה סתירה תפעולית.';
+  }
   if (raw.includes('planning_revision_conflict')) return 'התכנון עודכן במקביל על ידי משתמש אחר. רעננו את התכנון המשותף ונסו שוב.';
   if (raw.includes('planning_activity_changed')) return 'נתוני הפעילויות השתנו בזמן החישוב. המערכת לא דרסה את השינויים — יש לעדכן רק את הפעילויות שהשתנו.';
   if (raw.includes('planning_draft_missing')) return 'הטיוטה כבר השתנתה או בוטלה. המערכת תרענן את ההצעות.';
