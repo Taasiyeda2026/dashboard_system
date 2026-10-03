@@ -7,6 +7,7 @@ import {
   TOUR_OPERATIONAL_START_TIME,
   TOUR_OPERATIONAL_END_TIME,
   generatePlanningScenarios,
+  buildDynamicCoursePlan,
   inferPlanningCourseSpec,
   optimizeSchoolDayPackingPass,
   validatePlanningPlanCoherence,
@@ -523,6 +524,72 @@ test('final validator still rejects a 21km consecutive transition when the gap i
   });
   assert.equal(result.valid, false);
   assert.ok(result.failures.some((failure) => failure.reason === 'transition_distance_exceeded'));
+});
+
+test('late overlap is repaired locally from existing rows without rebuilding unrelated rows', async () => {
+  const activities = [
+    course('repair-a', { school_id: 'repair-school', school: 'בית ספר תיקון' }),
+    course('repair-b', { school_id: 'repair-school', school: 'בית ספר תיקון' }),
+    course('unrelated-course', { school_id: 'other-school', school: 'בית ספר אחר' })
+  ];
+  const catalog = activities.map((activity) => ({
+    activity_name: activity.activity_name,
+    meetings_count: 1,
+    hours_count: 1.5
+  }));
+  const existingRows = [
+    {
+      courseId: 'repair-a', kind: 'proposal', schoolId: 'repair-school', school: 'בית ספר תיקון',
+      instructorEmpId: '1550', instructorName: 'לירון',
+      startDate: '2026-10-12', endDate: '2026-10-12', startTime: '10:00', endTime: '11:30',
+      meetings: [{ date: '2026-10-12', start_time: '10:00', end_time: '11:30' }],
+      options: [option(1550, '2026-10-12', '10:00', '11:30')]
+    },
+    {
+      courseId: 'repair-b', kind: 'proposal', schoolId: 'repair-school', school: 'בית ספר תיקון',
+      instructorEmpId: '1550', instructorName: 'לירון',
+      startDate: '2026-10-12', endDate: '2026-10-12', startTime: '10:00', endTime: '11:30',
+      meetings: [{ date: '2026-10-12', start_time: '10:00', end_time: '11:30' }],
+      options: [option(1550, '2026-10-12', '10:00', '11:30')]
+    },
+    {
+      courseId: 'unrelated-course', kind: 'recruitment', schoolId: 'other-school', school: 'בית ספר אחר',
+      instructorEmpId: '', instructorName: '', startDate: '2026-10-13', startTime: '09:00', endTime: '10:30',
+      meetings: [{ date: '2026-10-13', start_time: '09:00', end_time: '10:30' }],
+      options: []
+    }
+  ];
+  const routeClient = {
+    googleCalls: 0,
+    cacheHits: 0,
+    peek: () => ({ distance_km: 0, duration_minutes: 0 }),
+    request: async () => ({ calculated: true, distance_km: 0, duration_minutes: 0 })
+  };
+
+  const result = await buildDynamicCoursePlan({
+    activities,
+    instructors: [instructor],
+    profiles,
+    rules,
+    exceptions: {},
+    schoolCalendar: [],
+    catalog,
+    existingRows,
+    targetCourseIds: [],
+    today: '2026-10-03',
+    routeClient,
+    allowGlobalRepair: false,
+    planningProfile: 'fast'
+  });
+
+  assert.equal(result.finalPlanValidation.valid, true);
+  const repaired = result.rows.filter((row) => ['repair-a', 'repair-b'].includes(row.courseId));
+  assert.equal(repaired.length, 2);
+  assert.notDeepEqual(
+    repaired.map((row) => [row.startDate, row.startTime]),
+    [['2026-10-12', '10:00'], ['2026-10-12', '10:00']]
+  );
+  assert.equal(result.rows.find((row) => row.courseId === 'unrelated-course')?.kind, 'recruitment');
 });
 
 test('final-validation repair scope expands only to direct day/school dependents', () => {
