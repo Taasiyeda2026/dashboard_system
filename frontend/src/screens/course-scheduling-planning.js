@@ -60,6 +60,8 @@ const MAX_SCENARIOS_PER_COURSE = 60;
 const MAX_CANDIDATES_PER_SCENARIO = 4;
 const MAX_ROUTED_PLANNING_PAIRS = 6;
 const MAX_FINAL_OPTIONS = 6;
+const MAX_SCHOOL_PACKING_OPTIONS = 24;
+const SCHOOL_PACKING_OPTIONS_PER_SCENARIO = 2;
 const FAST_PLANNING_LIMITS = Object.freeze({
   maxScenarios: 12,
   maxCandidatesPerScenario: 3,
@@ -85,7 +87,7 @@ export const PLANNING_OPTIMIZATION_WEIGHTS = Object.freeze({
   stability: 10
 });
 export const PLANNING_VALIDATION_VERSION = 'planning-validation-v1-20260927-self-invalidation';
-export const PLANNING_ENGINE_VERSION = 'planning-v24-20261003-school-day-packing-self-invalidation';
+export const PLANNING_ENGINE_VERSION = 'planning-v25-20261003-school-packing-option-coverage-self-invalidation';
 export const PLANNING_ACTIVITY_NO_ALIASES = Object.freeze({
   // Legacy Gefen identifier retained on existing activities; canonical catalog program is 53828.
   '82835': '53828'
@@ -1412,7 +1414,8 @@ async function evaluateScenarioOptions({
   periodKey = DEFAULT_PLANNING_PERIOD_KEY,
   preparedContext = null,
   travelContext = null,
-  limits = DEEP_PLANNING_LIMITS
+  limits = DEEP_PLANNING_LIMITS,
+  packingCoverage = false
 } = {}) {
   planningPerfCount('scenarioCount', scenarios.length);
   const stopTimer = planningPerfTimer('evaluateScenarioOptions');
@@ -1467,6 +1470,7 @@ async function evaluateScenarioOptions({
 
   preliminaries.sort(planningPairCompare);
   const preliminaryCandidateIdsByScenario = new Map();
+  const preliminaryCountByScenario = new Map();
   for (const item of preliminaries) {
     const scenarioId = text(item?.course?.row_id);
     if (!scenarioId) continue;
@@ -1474,15 +1478,18 @@ async function evaluateScenarioOptions({
     const empId = empOf(item?.candidate);
     if (empId) ids.add(empId);
     preliminaryCandidateIdsByScenario.set(scenarioId, ids);
+    preliminaryCountByScenario.set(scenarioId, (preliminaryCountByScenario.get(scenarioId) || 0) + 1);
   }
   const options = [];
   const optionKeys = new Set();
+  const processedByScenario = new Map();
+  const validByScenario = new Map();
   let routedAttemptCount = 0;
   let finalEvaluationCount = 0;
   let routeVerified = false;
   let routeServiceFailed = false;
 
-  for (let offset = 0; offset < preliminaries.length && options.length < limits.maxFinalOptions; offset += limits.maxRoutedPlanningPairs) {
+  for (let offset = 0; offset < preliminaries.length; offset += limits.maxRoutedPlanningPairs) {
     const batch = preliminaries.slice(offset, offset + limits.maxRoutedPlanningPairs);
     let routed = null;
     try {
@@ -1515,6 +1522,7 @@ async function evaluateScenarioOptions({
     for (const finalist of batch) {
       await checkpoint();
       const scenarioId = finalist.course.row_id;
+      processedByScenario.set(scenarioId, (processedByScenario.get(scenarioId) || 0) + 1);
       if (!finalResultsByScenario.has(scenarioId)) {
         finalEvaluationCount += 1;
         const candidateInstructorIds = [...(preliminaryCandidateIdsByScenario.get(scenarioId) || [])];
@@ -1560,16 +1568,32 @@ async function evaluateScenarioOptions({
       const key = `${option.instructorEmpId}|${option.startDate}|${option.startTime}`;
       if (optionKeys.has(key)) continue;
       optionKeys.add(key);
-      options.push({ ...option, _candidate: finalCandidate });
-      if (options.length >= limits.maxFinalOptions) break;
+      options.push({ ...option, _candidate: finalCandidate, _planningScenarioId: scenarioId });
+      validByScenario.set(scenarioId, (validByScenario.get(scenarioId) || 0) + 1);
+      if (!packingCoverage && options.length >= limits.maxFinalOptions) break;
+      if (packingCoverage && options.length >= MAX_SCHOOL_PACKING_OPTIONS) break;
+    }
+
+    if (!packingCoverage && options.length >= limits.maxFinalOptions) break;
+    if (packingCoverage) {
+      const resolved = [...preliminaryCountByScenario.entries()].every(([scenarioId, count]) =>
+        (validByScenario.get(scenarioId) || 0) >= SCHOOL_PACKING_OPTIONS_PER_SCENARIO
+        || (processedByScenario.get(scenarioId) || 0) >= count
+      );
+      if (resolved || options.length >= MAX_SCHOOL_PACKING_OPTIONS) break;
     }
   }
 
-  const sortedOptions = options.sort(optionCompare).slice(0, limits.maxFinalOptions);
+  const allSortedOptions = options.sort(optionCompare);
+  const sortedOptions = allSortedOptions.slice(0, limits.maxFinalOptions);
+  const packingOptions = packingCoverage
+    ? allSortedOptions.slice(0, MAX_SCHOOL_PACKING_OPTIONS)
+    : sortedOptions;
   const exhaustive = routedAttemptCount >= preliminaries.length;
   stopTimer();
   return {
     options: sortedOptions,
+    packingOptions,
     preliminaryCount: preliminaries.length,
     routedAttemptCount,
     finalEvaluationCount,
@@ -2268,7 +2292,9 @@ function planRowFromOption(activity, option, options, startRange, spec, diagnost
     instructorEmpId: option?.instructorEmpId || '',
     meetings: option?.meetings || scheduleOnly?.meetings || [],
     scheduleOptions,
-    options: (options || []).map(({ _candidate, ...item }) => item),
+    options: (options || []).map(({ _candidate, _planningScenarioId, ...item }) => item),
+    packingOptions: (diagnostics.packingOptions || options || [])
+      .map(({ _candidate, _planningScenarioId, ...item }) => item),
     startRange,
     diagnostics: {
       preliminaryCount: Number(diagnostics.preliminaryCount) || 0,
@@ -3382,7 +3408,10 @@ function weekdaySetCombinations(values = [], size = 0, start = 0, selected = [],
 }
 
 function schoolPackingOptions(row = {}, candidateDays = new Set()) {
-  const options = [planningRowAsVirtualOption(row), ...(row?.options || [])]
+  const options = [
+    planningRowAsVirtualOption(row),
+    ...((row?.packingOptions?.length ? row.packingOptions : row?.options) || [])
+  ]
     .filter(Boolean)
     .map((option) => ({ ...option, fullDayBlocking: row?.fullDayBlocking === true }));
   const seen = new Set();
@@ -3969,6 +3998,17 @@ export async function buildDynamicCoursePlan({
   };
   await report('הכנת נתונים');
   const targets = planningWorkspaceCourses(activities, district, periodKey);
+  const schoolActivityCount = new Map();
+  for (const activity of targets) {
+    const schoolId = text(activity?.school_id);
+    if (!schoolId) continue;
+    schoolActivityCount.set(schoolId, (schoolActivityCount.get(schoolId) || 0) + 1);
+  }
+  const schoolPackingCoverageCourseIds = new Set(
+    targets
+      .filter((activity) => text(activity?.school_id) && (schoolActivityCount.get(text(activity.school_id)) || 0) >= 2)
+      .map((activity) => idOf(activity))
+  );
   // Approved assignments are hard constraints. Existing drafts are deliberately
   // removed from the blocking calendar here: the national planner may move or
   // replace them before it concludes that new staff are needed.
@@ -4317,7 +4357,8 @@ export async function buildDynamicCoursePlan({
           periodKey: activityPeriodKey,
           preparedContext: preparedContextFor(activityPeriodKey),
           travelContext,
-          limits
+          limits,
+          packingCoverage: schoolPackingCoverageCourseIds.has(idOf(activity))
         });
         let effectiveGenerated = generated;
 
@@ -4361,7 +4402,8 @@ export async function buildDynamicCoursePlan({
               periodKey: activityPeriodKey,
               preparedContext: preparedContextFor(activityPeriodKey),
               travelContext,
-              limits: DEEP_PLANNING_LIMITS
+              limits: DEEP_PLANNING_LIMITS,
+              packingCoverage: schoolPackingCoverageCourseIds.has(idOf(activity))
             });
             evaluation = {
               ...deepEvaluation,

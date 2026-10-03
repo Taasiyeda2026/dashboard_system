@@ -9,7 +9,7 @@ Related docs (do not treat as overrides of this map):
 
 If this map and the code disagree, **the code wins**. Update this file after any material scheduling change.
 
-**Engine version observed while writing:** `PLANNING_ENGINE_VERSION = planning-v24-20261003-school-day-packing-self-invalidation` in `frontend/src/screens/course-scheduling-planning.js`.
+**Engine version observed while writing:** `PLANNING_ENGINE_VERSION = planning-v25-20261003-school-packing-option-coverage-self-invalidation` in `frontend/src/screens/course-scheduling-planning.js`.
 
 ---
 
@@ -204,7 +204,7 @@ Distance maintenance UI lives under the **maintenance** tab (`course-scheduling-
 
 **School-day consolidation precedes instructor-day optimization.** Before step 8, `optimizeSchoolDayPackingPass` groups rows strictly by non-empty `school_id`/`schoolId`; a school name is display metadata and is never an identity fallback. Each group separates immovable anchors (`live`, fixed/official/started, and `planning-locked`) from movable flexible proposals.
 
-The pass enumerates bounded weekday sets from the anchor weekdays outward, smallest set first, and uses a small beam to choose a compatible bundle of already hard-gate-validated options. It commits the whole bundle only at the first feasible weekday cardinality, so a multi-row move can escape the local minimum that a row-by-row pass cannot. Parallel lanes with different instructors are allowed. Instructor-day consolidation runs afterward and may not increase the school weekday count; in-day gap compaction remains last.
+The pass enumerates bounded weekday sets from the anchor weekdays outward, smallest set first, and uses a small beam to choose a compatible bundle of already hard-gate-validated options. For multi-activity schools, the planner now retains a wider hidden `packingOptions` pool (separate from the three UI alternatives) so the minimum-day search is not falsely constrained by the compact workboard shortlist. It commits the whole bundle only at the first feasible weekday cardinality, so a multi-row move can escape the local minimum that a row-by-row pass cannot. Parallel lanes with different instructors are allowed. Instructor-day consolidation runs afterward and may not increase the school weekday count; in-day gap compaction remains last.
 
 Each group writes `schoolPlanning` diagnostics (`actualWeekdays`, `minimumFeasibleWeekdays`, `avoidableSplitCount`, anchors, and `packingStatus`). `planningSchoolDayMetrics` exposes aggregate school counts and avoidable splits, and plan comparison ranks fewer avoidable school splits before weighted secondary objectives once coverage/recruitment tie.
 
