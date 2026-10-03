@@ -3834,6 +3834,7 @@ async function compactInstructorDayGapsPass({
 
   for (let pass = 0; pass < maxPasses; pass += 1) {
     let movedThisPass = 0;
+    let processedThisPass = 0;
     const movable = [...rowsById.values()]
       .filter((row) =>
         text(row?.kind) === 'proposal'
@@ -3847,6 +3848,14 @@ async function compactInstructorDayGapsPass({
       .sort((a, b) => rowNeighborGapMinutes(b, [...rowsById.values()]) - rowNeighborGapMinutes(a, [...rowsById.values()]));
 
     for (const row of movable) {
+      processedThisPass += 1;
+      await report(
+        `צמצום חלונות ביום · סבב ${pass + 1}`,
+        processedThisPass,
+        movable.length,
+        row.courseId
+      );
+
       const empId = text(row.instructorEmpId);
       const activity = activityById.get(text(row.courseId));
       if (!activity || planningActivityHasStarted(activity, today) || officialPlanningDates(activity).length) continue;
@@ -3864,7 +3873,6 @@ async function compactInstructorDayGapsPass({
       if (!oneInstructor.length) continue;
 
       const activityPeriodKey = planningPeriodKeyForActivity(activity);
-      await report('צמצום חלונות ביום', moved, movable.length, row.courseId);
       const generated = await generatePlanningScenariosCooperatively({
         activity,
         catalog,
