@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { courseSchedulingScreen, stalePlanningRowForDisplay } from '../frontend/src/screens/course-scheduling.js';
+import { optimizeSchoolDayPackingPass } from '../frontend/src/screens/course-scheduling-planning.js';
+import { expandPlanningAffectedIdsBySchool } from '../frontend/src/screens/course-scheduling-planning-store.js';
 
 if (!globalThis.sessionStorage) globalThis.sessionStorage = { getItem: () => null, setItem() {}, removeItem() {} };
 if (!globalThis.document) globalThis.document = { dispatchEvent: () => true };
@@ -67,4 +69,31 @@ test('L: stale planning never presents fragmentation as current fact', () => {
   assert.match(html, /נדרש עדכון תכנון/);
   assert.doesNotMatch(html, /⚠ מפוצל ל־2 ימים — ניתן לצמצם/);
   assert.match(html, /בתי ספר מפוצלים: 0/);
+});
+
+test('stale activity refreshes only its three school siblings and returns as a packed active proposal', () => {
+  const activities = ['a', 'b', 'c'].map(activity);
+  const rows = ['a', 'b', 'c'].map((id, index) => ({
+    ...planningRow(id, id === 'a'),
+    startDate: index === 2 ? '2027-01-05' : '2027-01-04',
+    meetings: [{ date: index === 2 ? '2027-01-05' : '2027-01-04', start_time: `${10 + index}:00`, end_time: `${11 + index}:00` }],
+    options: [{
+      instructorEmpId: '1550', instructorName: 'לירון נחום-בלילה', routeVerified: true,
+      startDate: '2027-01-04', endDate: '2027-01-04', startTime: `${10 + index}:00`, endTime: `${11 + index}:00`,
+      meetings: [{ date: '2027-01-04', start_time: `${10 + index}:00`, end_time: `${11 + index}:00` }]
+    }]
+  }));
+  const shared = { rows: rows.map((row) => ({ activityId: row.courseId, row, needsRecalc: row.needsRecalc === true })) };
+  const affected = expandPlanningAffectedIdsBySchool({ affectedIds: ['a'], shared, activities });
+  assert.deepEqual(new Set(affected), new Set(['a', 'b', 'c']));
+  assert.equal(affected.length, 3, 'targeted refresh must not become a full workspace rebuild');
+
+  const rowsById = new Map(rows.map((row) => [row.courseId, { ...row, needsRecalc: false }]));
+  optimizeSchoolDayPackingPass({ rowsById, activities, targetCourseIds: affected });
+  const refreshed = [...rowsById.values()];
+  assert.ok(refreshed.every((row) => row.schoolPlanning?.packingStatus === 'packed'));
+  assert.ok(refreshed.every((row) => row.schoolPlanning?.actualWeekdays.length === 1));
+  const html = render(refreshed);
+  assert.doesNotMatch(html, /data-planning-stale="true"/);
+  assert.match(html, /data-planning-pick-option/);
 });
