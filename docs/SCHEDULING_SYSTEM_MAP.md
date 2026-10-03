@@ -9,7 +9,7 @@ Related docs (do not treat as overrides of this map):
 
 If this map and the code disagree, **the code wins**. Update this file after any material scheduling change.
 
-**Engine version observed while writing:** `PLANNING_ENGINE_VERSION = planning-v26-20261003-coherent-school-first-self-invalidation` in `frontend/src/screens/course-scheduling-planning.js`.
+**Engine version observed while writing:** `PLANNING_ENGINE_VERSION = planning-v26-20261003-coherent-school-first-substitute-ownership-self-invalidation` in `frontend/src/screens/course-scheduling-planning.js`.
 
 ---
 
@@ -471,4 +471,5 @@ If a pitfall is only suspected and not proven in tests/migrations, mark new find
 - Exact latest SQL body of overwritten gate functions without replaying the full migration chain on a live DB.
 
 ### v26 final-plan coherence
+Substitute meetings are indexed by the instructor who actually teaches each meeting (`substituteEmpId` overrides the main instructor for that date). Virtual planning blockers preserve substitute identity, so later candidates and substitute selection cannot double-book that instructor.
 After school packing, instructor-day consolidation, and gap compaction, the complete plan is revalidated as one schedule. Availability/exception gates are rechecked and plan-to-plan full-day-tour conflicts, overlaps, and known travel+buffer violations block persistence. Instructor constraint changes invalidate referenced rows plus movable siblings in the same school group, including dependencies stored only in `packingOptions`. The v25→v26 upgrade rebuilds existing flexible proposals instead of reusing them as optimization-only rows.
