@@ -2904,6 +2904,38 @@ export const courseSchedulingScreen = {
               completed: progress.completed,
               total: progress.total
             };
+
+            const snapshotRows = Array.isArray(progress.snapshotRows)
+              ? progress.snapshotRows.filter((row) => text(row?.courseId))
+              : null;
+            if (snapshotRows?.length) {
+              const snapshotIds = snapshotRows.map((row) => text(row.courseId)).filter(Boolean);
+              for (const row of snapshotRows) checkpointRowsById.set(text(row.courseId), row);
+              for (const courseId of snapshotIds) checkpointCompletedIds.add(courseId);
+              state.courseSchedulingPlanningRows = snapshotRows;
+              if (runUiVisible()) run.ui?.update?.();
+              try {
+                const stopCheckpointSave = planningPerfTimer('checkpointSave');
+                await saveSharedPlanningCheckpoint({
+                  periodKey: scope.periodKey,
+                  district: scope.district,
+                  engineVersion: PLANNING_ENGINE_VERSION,
+                  dataFingerprint: startFingerprint,
+                  contextFingerprint: startContextStorage,
+                  completedCount: checkpointCompletedIds.size,
+                  totalCount: currentCourseIds.length,
+                  completedActivityIds: [...checkpointCompletedIds],
+                  rows: snapshotRows
+                });
+                stopCheckpointSave();
+                planningPerfCount('checkpointSaves');
+                lastSilentCheckpointCount = checkpointCompletedIds.size;
+              } catch {
+                // Stage checkpoints are resilience-only. A save failure must not abort planning.
+              }
+              return;
+            }
+
             const progressCourseId = text(progress.courseId);
             if (progressCourseId && progress.row) {
               checkpointRowsById.set(progressCourseId, progress.row);
