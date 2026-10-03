@@ -23,6 +23,7 @@ import { FIRST_HALF_CONTINUATION_END_DATE, planningPeriodOptions, resolveCourseS
 import {
   NEARBY_TRANSITION_BUFFER_MINUTES,
   exceedsTransitionDistanceLimit,
+  transitionDistanceCapApplies,
   transitionBufferMinutes
 } from './instructor-matching-engine.js';
 import {
@@ -90,7 +91,7 @@ export const PLANNING_OPTIMIZATION_WEIGHTS = Object.freeze({
   stability: 10
 });
 export const PLANNING_VALIDATION_VERSION = 'planning-validation-v1-20260927-self-invalidation';
-export const PLANNING_ENGINE_VERSION = 'planning-v26-20261003-coherent-school-first-substitute-ownership-self-invalidation';
+export const PLANNING_ENGINE_VERSION = 'planning-v26-20261003-coherent-school-first-separate-trip-distance-self-invalidation';
 export const PLANNING_ACTIVITY_NO_ALIASES = Object.freeze({
   // Legacy Gefen identifier retained on existing activities; canonical catalog program is 53828.
   '82835': '53828'
@@ -3531,8 +3532,9 @@ function schoolPackingChoicesOperationallyConflict(firstChoice = {}, secondChoic
       const km = Number(route?.distance_km);
       const travelMinutes = Number(route?.duration_minutes);
       if (!Number.isFinite(km) || !Number.isFinite(travelMinutes)) return true;
-      if (exceedsTransitionDistanceLimit(km)) return true;
-      if (next.start - previous.end < travelMinutes + transitionBufferMinutes(km)) return true;
+      const availableGap = next.start - previous.end;
+      if (transitionDistanceCapApplies(availableGap) && exceedsTransitionDistanceLimit(km)) return true;
+      if (availableGap < travelMinutes + transitionBufferMinutes(km)) return true;
     }
   }
   return false;
@@ -4252,12 +4254,13 @@ export function validatePlanningPlanCoherence({
         warnings.push({ reason: 'travel_unverified', empId, date, firstCourseId: previous.courseId, secondCourseId: next.courseId });
         continue;
       }
-      if (exceedsTransitionDistanceLimit(km)) {
-        failures.push({ reason: 'transition_distance_exceeded', empId, date, firstCourseId: previous.courseId, secondCourseId: next.courseId, distanceKm: km });
+      const availableGap = nextStart - previousEnd;
+      if (transitionDistanceCapApplies(availableGap) && exceedsTransitionDistanceLimit(km)) {
+        failures.push({ reason: 'transition_distance_exceeded', empId, date, firstCourseId: previous.courseId, secondCourseId: next.courseId, distanceKm: km, availableMinutes: availableGap });
         continue;
       }
       const requiredGap = travelMinutes + transitionBufferMinutes(km);
-      if (nextStart - previousEnd < requiredGap) {
+      if (availableGap < requiredGap) {
         failures.push({
           reason: 'transition_insufficient',
           empId,
@@ -4265,7 +4268,7 @@ export function validatePlanningPlanCoherence({
           firstCourseId: previous.courseId,
           secondCourseId: next.courseId,
           requiredMinutes: requiredGap,
-          availableMinutes: nextStart - previousEnd
+          availableMinutes: availableGap
         });
       }
     }

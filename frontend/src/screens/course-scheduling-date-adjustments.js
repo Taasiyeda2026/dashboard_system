@@ -1,4 +1,4 @@
-import { exceedsTransitionDistanceLimit, transitionBufferMinutes } from './instructor-matching-engine.js';
+import { exceedsTransitionDistanceLimit, transitionDistanceCapApplies, transitionBufferMinutes } from './instructor-matching-engine.js';
 import { filterSchoolCalendarRowsBySector } from './shared/school-calendar-logic.js';
 import { isFullDaySchedulingActivity } from './shared/activity-scheduling-eligibility.js';
 
@@ -156,12 +156,12 @@ function validateProposedMeetings(proposed, {
         || !Number.isFinite(Number(neighbor.duration_minutes)) || !Number.isFinite(Number(neighbor.distance_km))) {
         return { valid: false, reason: 'transition_unverified', meetings: proposed };
       }
-      if (exceedsTransitionDistanceLimit(neighbor.distance_km)) {
-        return { valid: false, reason: 'transition_distance_exceeded', meetings: proposed };
-      }
       const gap = direction === 'previous'
         ? minutes(meeting.start_time) - minutes(neighbor.end_time)
         : minutes(neighbor.start_time) - minutes(meeting.end_time);
+      if (transitionDistanceCapApplies(gap) && exceedsTransitionDistanceLimit(neighbor.distance_km)) {
+        return { valid: false, reason: 'transition_distance_exceeded', meetings: proposed };
+      }
       if (gap < Number(neighbor.duration_minutes) + transitionBufferMinutes(neighbor.distance_km)) {
         return { valid: false, reason: 'transition_insufficient', meetings: proposed };
       }

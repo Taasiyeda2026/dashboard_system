@@ -14,6 +14,13 @@ export const NEARBY_TRANSITION_BUFFER_MINUTES = 5;
 export const TRANSITION_BUFFER_MINUTES = 15;
 /** Hard cap for consecutive school-to-school transitions (km). Inclusive at exactly this value. */
 export const MAX_TRANSITION_DISTANCE_KM = 20;
+/** A gap above this value is treated as a separate trip, not a consecutive school-to-school transition. */
+export const MAX_CONSECUTIVE_TRANSITION_GAP_MINUTES = 120;
+
+export function transitionDistanceCapApplies(gapMinutes) {
+  const gap = Number(gapMinutes);
+  return Number.isFinite(gap) && gap <= MAX_CONSECUTIVE_TRANSITION_GAP_MINUTES;
+}
 
 export function transitionBufferMinutes(distanceKm) {
   const km = Number(distanceKm);
@@ -393,7 +400,7 @@ export function evaluateInstructor({
             : `לא ניתן לאמת זמן מעבר לפני ${neighborRef}`)
           : `לא ניתן לאמת זמן מעבר ${label}`;
         addIssue('unverified_transition', direction, message, meeting.date);
-      } else if (!sameLocation && exceedsTransitionDistanceLimit(distance)) {
+      } else if (!sameLocation && transitionDistanceCapApplies(gap) && exceedsTransitionDistanceLimit(distance)) {
         const message = neighborRef
           ? (direction === 'previous'
             ? `המרחק אחרי ${neighborRef} גדול מ־${MAX_TRANSITION_DISTANCE_KM} ק״מ`

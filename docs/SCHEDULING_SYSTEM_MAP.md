@@ -9,7 +9,7 @@ Related docs (do not treat as overrides of this map):
 
 If this map and the code disagree, **the code wins**. Update this file after any material scheduling change.
 
-**Engine version observed while writing:** `PLANNING_ENGINE_VERSION = planning-v26-20261003-coherent-school-first-substitute-ownership-self-invalidation` in `frontend/src/screens/course-scheduling-planning.js`.
+**Engine version observed while writing:** `PLANNING_ENGINE_VERSION = planning-v26-20261003-coherent-school-first-separate-trip-distance-self-invalidation` in `frontend/src/screens/course-scheduling-planning.js`.
 
 ---
 
@@ -175,7 +175,7 @@ Stage-2 date adjustment (`course-scheduling-date-adjustments.js`): when weekly a
 | Consecutive / adjacency | `adjacentActivities` + gap check in `evaluateInstructor`; score placement in `analyzeDayPlacement` |
 | Unknown route | Hard: unverified home/transition → not eligible for draft/final (workboard comments + failure codes) |
 | Hard block vs approval | Auto path: home &gt; 40 km fails eligibility. Manual draft: `scheduling_manual_draft_requires_manager_approval` — pure home-distance exception under 60 km may proceed without admin; **≥60 km** or any non-distance manual exception reason requires manager approval. Missing addresses / null cached km also require approval. |
-| Inter-school km cap | Consecutive school-to-school transitions hard-capped at **20 km** (`MAX_TRANSITION_DISTANCE_KM` / `scheduling_transition_distance_exceeded`). Restored in `20260930210000_scheduling_transition_buffer_5_15_and_20km_cap.sql` after a temporary removal. |
+| Inter-school km cap | Consecutive school-to-school transitions hard-capped at **20 km** only when the between-activity gap is **≤120 minutes** (`MAX_TRANSITION_DISTANCE_KM` / `scheduling_transition_distance_exceeded`). A gap above 120 minutes is a separate trip: route verification and travel+buffer still apply, but the 20 km consecutive-transition cap does not. Restored in `20260930210000_scheduling_transition_buffer_5_15_and_20km_cap.sql` after a temporary removal. |
 
 Distance maintenance UI lives under the **maintenance** tab (`course-scheduling-distance-build.js`).
 

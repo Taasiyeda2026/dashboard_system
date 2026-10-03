@@ -13,6 +13,7 @@ import {
 } from '../frontend/src/screens/course-scheduling-planning.js';
 import { planningEngineUpgradeAffectedCourseIds } from '../frontend/src/screens/course-scheduling-planning-store.js';
 import { appendSchedulingRunActivity, prepareSchedulingRunContext } from '../frontend/src/screens/course-scheduling-engine-core.js';
+import { transitionDistanceCapApplies } from '../frontend/src/screens/instructor-matching-engine.js';
 
 const instructor = { emp_id: 1550, full_name: 'לירון', active: 'yes', address: 'ראשון לציון' };
 const profiles = {
@@ -138,7 +139,7 @@ test('v25 to v26 forces a real rebuild of every flexible proposal, not only mult
     shared,
     activities: [],
     storedEngineVersion: 'planning-v25-20261003-school-packing-option-coverage-self-invalidation',
-    currentEngineVersion: 'planning-v26-20261003-coherent-school-first-substitute-ownership-self-invalidation'
+    currentEngineVersion: 'planning-v26-20261003-coherent-school-first-separate-trip-distance-self-invalidation'
   });
   assert.deepEqual(new Set(ids), new Set(['a', 'b', 'c']));
 });
@@ -444,6 +445,83 @@ test('school packing treats a substitute as the actual instructor for overlap ch
   assert.ok(result.failures.some((failure) =>
     failure.reason === 'overlap' && failure.empId === '1549' && failure.date === '2027-01-20'
   ));
+});
+
+test('20km cap applies only to consecutive transitions up to two hours apart', () => {
+  assert.equal(transitionDistanceCapApplies(120), true);
+  assert.equal(transitionDistanceCapApplies(121), false);
+  assert.equal(transitionDistanceCapApplies(180), false);
+});
+
+test('final validator allows a 21km separate trip when a three-hour gap easily covers travel and buffer', () => {
+  const activities = [
+    course('ashdod', { school_id: '250', school: "מקיף ה' כללי", school_address: 'הרותם 31, אשדוד' }),
+    course('shafir', { school_id: '74', school: 'ישיבת אור עציון', school_address: 'מרכז שפירא' })
+  ];
+  const rows = [
+    {
+      courseId: 'ashdod', kind: 'fixed-proposal', instructorEmpId: '1502', instructorName: 'אלדר',
+      schoolId: '250', school: "מקיף ה' כללי",
+      startDate: '2027-02-01', endDate: '2027-02-01', startTime: '08:00', endTime: '09:30',
+      meetings: [{ date: '2027-02-01', start_time: '08:00', end_time: '09:30' }]
+    },
+    {
+      courseId: 'shafir', kind: 'proposal', instructorEmpId: '1502', instructorName: 'אלדר',
+      schoolId: '74', school: 'ישיבת אור עציון',
+      startDate: '2027-02-01', endDate: '2027-02-01', startTime: '12:30', endTime: '14:00',
+      meetings: [{ date: '2027-02-01', start_time: '12:30', end_time: '14:00' }]
+    }
+  ];
+  const result = validatePlanningPlanCoherence({
+    rows,
+    activities,
+    instructors: [{ emp_id: 1502, full_name: 'אלדר', active: 'yes', address: 'אשדוד' }],
+    profiles: { 1502: { emp_id: 1502, gender: 'male', instruction_languages: ['he'] } },
+    rules: { 1502: [{ emp_id: 1502, weekday: 1, available: true, start_time: '08:00', end_time: '15:00' }] },
+    exceptions: {},
+    schoolCalendar: [],
+    routeClient: {
+      peek(origin, destination) {
+        if ((origin.includes('אשדוד') && destination.includes('שפירא')) || (origin.includes('שפירא') && destination.includes('אשדוד'))) {
+          return { distance_km: 21.1, duration_minutes: 24 };
+        }
+        return null;
+      }
+    }
+  });
+  assert.equal(result.valid, true);
+  assert.equal(result.failures.length, 0);
+});
+
+test('final validator still rejects a 21km consecutive transition when the gap is at most two hours', () => {
+  const activities = [
+    course('a', { school_id: 'a', school_address: 'A' }),
+    course('b', { school_id: 'b', school_address: 'B' })
+  ];
+  const rows = [
+    {
+      courseId: 'a', kind: 'proposal', instructorEmpId: '1502', instructorName: 'אלדר',
+      schoolId: 'a', startDate: '2027-02-01', endDate: '2027-02-01', startTime: '08:00', endTime: '09:30',
+      meetings: [{ date: '2027-02-01', start_time: '08:00', end_time: '09:30' }]
+    },
+    {
+      courseId: 'b', kind: 'proposal', instructorEmpId: '1502', instructorName: 'אלדר',
+      schoolId: 'b', startDate: '2027-02-01', endDate: '2027-02-01', startTime: '10:30', endTime: '12:00',
+      meetings: [{ date: '2027-02-01', start_time: '10:30', end_time: '12:00' }]
+    }
+  ];
+  const result = validatePlanningPlanCoherence({
+    rows,
+    activities,
+    instructors: [{ emp_id: 1502, full_name: 'אלדר', active: 'yes', address: 'אשדוד' }],
+    profiles: { 1502: { emp_id: 1502, gender: 'male', instruction_languages: ['he'] } },
+    rules: { 1502: [{ emp_id: 1502, weekday: 1, available: true, start_time: '08:00', end_time: '15:00' }] },
+    exceptions: {},
+    schoolCalendar: [],
+    routeClient: { peek: () => ({ distance_km: 21.1, duration_minutes: 24 }) }
+  });
+  assert.equal(result.valid, false);
+  assert.ok(result.failures.some((failure) => failure.reason === 'transition_distance_exceeded'));
 });
 
 test('v26 migration tracks packing options, expands school invalidation, ignores preferred_work_days, and rebuilds proposals', async () => {
