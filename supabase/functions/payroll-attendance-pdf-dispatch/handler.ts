@@ -739,9 +739,9 @@ Deno.serve(async (req) => {
     // exists in SharePoint.
     let mailedAt = "";
     let mailError = "";
-    const sender = clean(Deno.env.get("MS_MAIL_SENDER"));
+    const sender = clean(currentUser?.auth_email || currentUser?.email).toLowerCase();
     if (!sender) {
-      mailError = "mail_sender_not_configured";
+      mailError = "approver_email_missing";
     } else {
       try {
         const emailBody = [

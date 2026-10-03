@@ -21,6 +21,10 @@ const restoreMigration = await readFile(
   new URL('../supabase/migrations/20260930103000_restore_manager_attendance_submitted_month_gate.sql', import.meta.url),
   'utf8'
 );
+const retireLegacyPdfTriggerMigration = await readFile(
+  new URL('../supabase/migrations/20261003143000_retire_legacy_attendance_pdf_on_lock.sql', import.meta.url),
+  'utf8'
+);
 
 function hoursOnlyEntry(overrides = {}) {
   const attendance = {
@@ -172,11 +176,18 @@ test('8 manager correction write-back clears prior review after successful save'
   assert.match(control, /set_manager_attendance_record_review|setManagerAttendanceRecordReview|clear.*review|record review/i);
 });
 
-test('payroll PDF dispatch treats email as best-effort after durable SharePoint persistence', () => {
+test('payroll PDF dispatch sends from the authenticated approver and keeps email best-effort', () => {
   assert.match(pdfHandler, /email delivery failed after PDF persistence/);
   assert.match(pdfHandler, /mailSent: !mailError/);
   assert.match(pdfHandler, /reusedExistingPdf: Boolean\(existingOrphan\)/);
-  assert.doesNotMatch(pdfHandler, /if \(!sender\) throw new Error\("mail_sender_not_configured"\)/);
+  assert.match(pdfHandler, /currentUser\?\.auth_email \|\| currentUser\?\.email/);
+  assert.doesNotMatch(pdfHandler, /MS_MAIL_SENDER/);
+});
+
+test('legacy attendance PDF-on-lock trigger is retired without weakening the PDF guard', () => {
+  assert.match(retireLegacyPdfTriggerMigration, /drop trigger if exists av2_request_pdf_on_lock/i);
+  assert.match(retireLegacyPdfTriggerMigration, /attendance_month_approvals/i);
+  assert.doesNotMatch(retireLegacyPdfTriggerMigration, /drop\s+(function|trigger)[\s\S]*av2_guard_pdf_path/i);
 });
 
 test('9 manager approval finalize requires PDF and stores approval stamps', () => {
