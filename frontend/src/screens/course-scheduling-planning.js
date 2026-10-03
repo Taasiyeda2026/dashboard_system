@@ -62,6 +62,9 @@ const MAX_ROUTED_PLANNING_PAIRS = 6;
 const MAX_FINAL_OPTIONS = 6;
 const MAX_SCHOOL_PACKING_OPTIONS = 24;
 const SCHOOL_PACKING_OPTIONS_PER_SCENARIO = 2;
+export const TOUR_OPERATIONAL_START_TIME = '09:00';
+export const TOUR_OPERATIONAL_END_TIME = '14:00';
+export const TOUR_OPERATIONAL_DURATION_MINUTES = 300;
 const FAST_PLANNING_LIMITS = Object.freeze({
   maxScenarios: 12,
   maxCandidatesPerScenario: 3,
@@ -87,7 +90,7 @@ export const PLANNING_OPTIMIZATION_WEIGHTS = Object.freeze({
   stability: 10
 });
 export const PLANNING_VALIDATION_VERSION = 'planning-validation-v1-20260927-self-invalidation';
-export const PLANNING_ENGINE_VERSION = 'planning-v25-20261003-school-packing-option-coverage-self-invalidation';
+export const PLANNING_ENGINE_VERSION = 'planning-v26-20261003-coherent-school-first-self-invalidation';
 export const PLANNING_ACTIVITY_NO_ALIASES = Object.freeze({
   // Legacy Gefen identifier retained on existing activities; canonical catalog program is 53828.
   '82835': '53828'
@@ -377,17 +380,20 @@ export function inferPlanningCourseSpec(activity = {}, catalogRows = []) {
   const catalogIndex = catalogRows?.byActivityNo instanceof Map ? catalogRows : planningCatalogIndex(catalogRows);
   const catalog = catalogRowForActivity(activity, catalogIndex);
   const activityCategory = schedulingActivityTypeCategory(activity.activity_type || activity.type);
-  const oneDayActivity = activityCategory === 'workshop' || activityCategory === 'tour';
-  const sessions = meetingCount(activity)
-    || (Number(catalog?.meetings_count) > 0 ? Math.min(35, Math.floor(Number(catalog.meetings_count))) : 0)
-    || (oneDayActivity ? 1 : 0);
+  const fullDayTour = isFullDaySchedulingActivity(activity);
+  const oneDayActivity = activityCategory === 'workshop' || fullDayTour;
+  const sessions = fullDayTour
+    ? 1
+    : (meetingCount(activity)
+      || (Number(catalog?.meetings_count) > 0 ? Math.min(35, Math.floor(Number(catalog.meetings_count))) : 0)
+      || (oneDayActivity ? 1 : 0));
 
-  let durationMinutes = null;
-  if (validTimeRange(activity.start_time, activity.end_time)) {
+  let durationMinutes = fullDayTour ? TOUR_OPERATIONAL_DURATION_MINUTES : null;
+  if (!fullDayTour && validTimeRange(activity.start_time, activity.end_time)) {
     durationMinutes = timeMinutes(activity.end_time) - timeMinutes(activity.start_time);
-  } else if (Number(catalog?.hours_count) > 0 && Number(catalog?.meetings_count) > 0) {
+  } else if (!fullDayTour && Number(catalog?.hours_count) > 0 && Number(catalog?.meetings_count) > 0) {
     durationMinutes = (Number(catalog.hours_count) * 60) / Number(catalog.meetings_count);
-  } else {
+  } else if (!fullDayTour) {
     durationMinutes = parseUnitDurationMinutes(catalog?.unit_duration);
     if (durationMinutes == null && oneDayActivity && Number(catalog?.hours_count) > 0) {
       durationMinutes = Number(catalog.hours_count) * 60;
@@ -928,11 +934,14 @@ function* generatePlanningScenarioSteps({
     ...flexiblePlanningWeekdays({ activeIds: scenarioActiveIds, profiles, rules, activity }),
     ...fixedWeekdays
   ])].sort((a, b) => a - b);
+  const fullDayTour = isFullDaySchedulingActivity(activity);
   const fixedStartMinute = timeMinutes(activity.start_time);
   const fixedEndMinute = timeMinutes(activity.end_time);
-  const fixedStartTime = fixedStartMinute != null
-    ? formatMinutes(fixedStartMinute)
-    : (fixedEndMinute != null ? formatMinutes(fixedEndMinute - spec.durationMinutes) : '');
+  const fixedStartTime = fullDayTour
+    ? TOUR_OPERATIONAL_START_TIME
+    : (fixedStartMinute != null
+      ? formatMinutes(fixedStartMinute)
+      : (fixedEndMinute != null ? formatMinutes(fixedEndMinute - spec.durationMinutes) : ''));
   const knownMeetings = activityMeetings(activity);
   const hasCompleteFixedDates = knownMeetings.length >= spec.sessions && spec.sessions > 0;
 
@@ -2403,7 +2412,16 @@ export function planningOptionPassesFinalValidation(option = {}, {
       instructor: instructorById.get(empId) || { emp_id: empId, active: 'yes' },
       rules: rules[empId] || [],
       exceptions: exceptions[empId] || [],
-      existingActivities: (assignments[empId] || []).flatMap((row) => activityMeetings(row)),
+      existingActivities: (assignments[empId] || []).flatMap((row) =>
+        activityMeetings(row).map((meeting) => ({
+          ...meeting,
+          activity_id: idOf(row),
+          activity_name: text(row?.activity_name || row?.program_name),
+          activity_type: row?.activity_type || row?.type,
+          activity_no: row?.activity_no,
+          full_day_blocking: isFullDaySchedulingActivity(row)
+        }))
+      ),
       profile: profileMap[empId] || null
     };
   }
@@ -3285,11 +3303,6 @@ export function dayConsolidationAcceptsMove({
  * already works, instead of leaving singleton days when travel+buffer allows.
  * Does not touch fixed/locked/live/started anchors or run a national rebuild.
  */
-function preferredWorkdayTarget(profiles = {}, empId = '') {
-  const value = Number(profiles?.[text(empId)]?.preferred_work_days);
-  return Number.isInteger(value) && value >= 1 && value <= 7 ? value : null;
-}
-
 function planningRowAsVirtualOption(row = {}) {
   if (!text(row?.instructorEmpId) || !Array.isArray(row?.meetings) || !row.meetings.length) return null;
   return {
@@ -3299,6 +3312,7 @@ function planningRowAsVirtualOption(row = {}) {
     endDate: text(row.endDate),
     startTime: text(row.startTime),
     endTime: text(row.endTime),
+    fullDayBlocking: row?.fullDayBlocking === true,
     meetings: row.meetings.map((meeting) => ({ ...meeting }))
   };
 }
@@ -3384,7 +3398,8 @@ export function buildSchoolPlanningGroups({ rows = [], activities = [] } = {}) {
       for (const day of days) group.anchorWeekdays.add(day);
     } else if (text(row?.kind) === 'proposal') {
       group.movableRows.push(row);
-      for (const option of row?.options || []) {
+      const packingSource = row?.packingOptions?.length ? row.packingOptions : (row?.options || []);
+      for (const option of packingSource) {
         for (const day of planningRowWeekdays(option)) group.candidateWeekdays.add(day);
       }
       for (const day of days) group.candidateWeekdays.add(day);
@@ -3478,11 +3493,25 @@ function solveSchoolPackingGroup(group = {}, candidateDays = new Set(), beamWidt
 
 function annotateSchoolPlanningGroup(group = {}, minimumFeasibleWeekdayCount = null) {
   const actualWeekdays = [...group.currentWeekdays].sort((a, b) => a - b);
-  const minimum = Math.max(0, Number(minimumFeasibleWeekdayCount) || actualWeekdays.length);
-  const avoidableSplitCount = Math.max(0, actualWeekdays.length - minimum);
+  const solvedMinimum = Number.isInteger(Number(minimumFeasibleWeekdayCount))
+    && Number(minimumFeasibleWeekdayCount) >= 0;
+  const minimum = solvedMinimum ? Number(minimumFeasibleWeekdayCount) : null;
+  const avoidableSplitCount = minimum == null ? 0 : Math.max(0, actualWeekdays.length - minimum);
+  const hasFullDayTour = (group.rows || []).some((row) => row?.fullDayBlocking === true);
+  const splitReason = actualWeekdays.length <= 1
+    ? ''
+    : group.anchorWeekdays.size > 1
+      ? 'anchor_weekdays'
+      : hasFullDayTour
+        ? 'tour_day_exclusive'
+        : solvedMinimum && minimum > 1
+          ? 'no_single_day_complete_bundle'
+          : 'solver_no_complete_bundle';
   const packingStatus = avoidableSplitCount > 0
     ? 'avoidable_split'
-    : (actualWeekdays.length > 1 ? 'required_split' : 'packed');
+    : (actualWeekdays.length <= 1
+      ? 'packed'
+      : (solvedMinimum ? 'required_split' : 'unresolved_split'));
   const schoolPlanning = {
     schoolId: group.schoolId,
     groupActivityCount: group.allCourseIds.length,
@@ -3491,6 +3520,7 @@ function annotateSchoolPlanningGroup(group = {}, minimumFeasibleWeekdayCount = n
     actualWeekdays,
     minimumFeasibleWeekdays: minimum,
     avoidableSplitCount,
+    splitReason,
     anchorWeekdays: [...group.anchorWeekdays].sort((a, b) => a - b),
     packingStatus
   };
@@ -3567,7 +3597,10 @@ function refreshSchoolPlanningDiagnostics(rowsById, activities = []) {
   for (const group of groups) {
     const prior = [...group.anchors, ...group.movableRows]
       .find((row) => row?.schoolPlanning)?.schoolPlanning;
-    annotateSchoolPlanningGroup(group, prior?.minimumFeasibleWeekdays || group.currentWeekdays.size);
+    annotateSchoolPlanningGroup(
+      group,
+      Number.isInteger(Number(prior?.minimumFeasibleWeekdays)) ? Number(prior.minimumFeasibleWeekdays) : null
+    );
   }
 }
 
@@ -3613,12 +3646,6 @@ async function consolidateInstructorWorkdaysPass({
     .sort((first, second) => {
       const firstEmp = text(first.instructorEmpId);
       const secondEmp = text(second.instructorEmpId);
-      const firstTarget = preferredWorkdayTarget(profiles, firstEmp);
-      const secondTarget = preferredWorkdayTarget(profiles, secondEmp);
-      const firstOverflow = firstTarget == null ? 0 : Math.max(0, countInstructorWorkdays([...rowsById.values()], firstEmp) - firstTarget);
-      const secondOverflow = secondTarget == null ? 0 : Math.max(0, countInstructorWorkdays([...rowsById.values()], secondEmp) - secondTarget);
-      if (firstOverflow !== secondOverflow) return secondOverflow - firstOverflow;
-
       const firstNew = Math.max(0, Number(planningRowPrimaryOption(first)?.operationalMetrics?.newWorkDayMeetingCount) || 0);
       const secondNew = Math.max(0, Number(planningRowPrimaryOption(second)?.operationalMetrics?.newWorkDayMeetingCount) || 0);
       if (firstNew !== secondNew) return secondNew - firstNew;
@@ -3631,7 +3658,10 @@ async function consolidateInstructorWorkdaysPass({
     let movedThisPass = 0;
     passes += 1;
 
+    let processedThisPass = 0;
     for (const row of movable) {
+      processedThisPass += 1;
+      await report(`ריכוז ימי עבודה · סבב ${pass + 1}`, processedThisPass, movable.length, row.courseId);
       const empId = text(row.instructorEmpId);
       const activity = activityById.get(text(row.courseId));
       if (!activity || planningActivityHasStarted(activity, today)) continue;
@@ -3653,7 +3683,6 @@ async function consolidateInstructorWorkdaysPass({
       const oneInstructor = (instructors || []).filter((item) => text(item?.emp_id) === empId);
       if (!oneInstructor.length) continue;
 
-      await report('ריכוז ימי עבודה', moved, movable.length, row.courseId);
       const generated = await generatePlanningScenariosCooperatively({
         activity,
         catalog,
@@ -3834,6 +3863,7 @@ async function compactInstructorDayGapsPass({
 
   for (let pass = 0; pass < maxPasses; pass += 1) {
     let movedThisPass = 0;
+    let processedThisPass = 0;
     const movable = [...rowsById.values()]
       .filter((row) =>
         text(row?.kind) === 'proposal'
@@ -3847,6 +3877,8 @@ async function compactInstructorDayGapsPass({
       .sort((a, b) => rowNeighborGapMinutes(b, [...rowsById.values()]) - rowNeighborGapMinutes(a, [...rowsById.values()]));
 
     for (const row of movable) {
+      processedThisPass += 1;
+      await report(`צמצום חלונות ביום · סבב ${pass + 1}`, processedThisPass, movable.length, row.courseId);
       const empId = text(row.instructorEmpId);
       const activity = activityById.get(text(row.courseId));
       if (!activity || planningActivityHasStarted(activity, today) || officialPlanningDates(activity).length) continue;
@@ -3864,7 +3896,6 @@ async function compactInstructorDayGapsPass({
       if (!oneInstructor.length) continue;
 
       const activityPeriodKey = planningPeriodKeyForActivity(activity);
-      await report('צמצום חלונות ביום', moved, movable.length, row.courseId);
       const generated = await generatePlanningScenariosCooperatively({
         activity,
         catalog,
@@ -3961,6 +3992,195 @@ async function compactInstructorDayGapsPass({
   }
 
   return { moved };
+}
+
+
+function planningBlockingAssignmentsByInstructor(activities = []) {
+  const result = {};
+  for (const activity of blockingActivities(activities)) {
+    const empIds = [
+      text(activity?.emp_id),
+      text(activity?.emp_id_2),
+      text(activity?.draft_emp_id)
+    ].filter(Boolean);
+    for (const empId of new Set(empIds)) {
+      if (!result[empId]) result[empId] = [];
+      result[empId].push(activity);
+    }
+  }
+  return result;
+}
+
+function planningRowMeetingAssignments(row = {}, activityById = new Map()) {
+  const activity = activityById.get(text(row?.courseId)) || {};
+  const fullDayBlocking = row?.fullDayBlocking === true || isFullDaySchedulingActivity(activity);
+  const generated = ['proposal', 'fixed-proposal', 'planning-locked'].includes(text(row?.kind));
+  return (row?.meetings || []).map((meeting) => ({
+    empId: meetingInstructorEmpId(meeting, row?.instructorEmpId),
+    courseId: text(row?.courseId),
+    kind: text(row?.kind),
+    generated,
+    date: text(meeting?.date).slice(0, 10),
+    startTime: text(meeting?.start_time || row?.startTime).slice(0, 5),
+    endTime: text(meeting?.end_time || row?.endTime).slice(0, 5),
+    schoolId: text(row?.schoolId || activity?.school_id),
+    school: text(row?.school || activity?.school),
+    schoolAddress: text(activity?.school_address),
+    fullDayBlocking
+  })).filter((meeting) =>
+    meeting.empId && /^\d{4}-\d{2}-\d{2}$/.test(meeting.date)
+    && validTimeRange(meeting.startTime, meeting.endTime)
+  );
+}
+
+/**
+ * Final whole-plan guard after all packing/consolidation passes.
+ * Individual options are rechecked against live availability; then the complete
+ * planned schedule is checked for plan-to-plan overlap, tour-day exclusivity,
+ * and any known travel+buffer violation introduced by optimization.
+ */
+export function validatePlanningPlanCoherence({
+  rows = [],
+  activities = [],
+  instructors = [],
+  profiles = {},
+  rules = {},
+  exceptions = {},
+  schoolCalendar = [],
+  routeClient = null
+} = {}) {
+  const failures = [];
+  const warnings = [];
+  const activityById = new Map((activities || []).map((activity) => [idOf(activity), activity]));
+  const liveAssignments = planningBlockingAssignmentsByInstructor(activities);
+
+  for (const row of rows || []) {
+    if (!['proposal', 'fixed-proposal', 'planning-locked'].includes(text(row?.kind))) continue;
+    if (!text(row?.instructorEmpId) || !(row?.meetings || []).length) continue;
+    const activity = activityById.get(text(row?.courseId)) || {};
+    const option = {
+      instructorEmpId: row.instructorEmpId,
+      instructorName: row.instructorName,
+      meetings: row.meetings,
+      startDate: row.startDate,
+      endDate: row.endDate,
+      startTime: row.startTime,
+      endTime: row.endTime
+    };
+    const result = planningOptionPassesFinalValidation(option, {
+      activity,
+      instructors,
+      profiles,
+      rules,
+      exceptions,
+      assignments: liveAssignments,
+      schoolCalendar
+    });
+    for (const failure of result.failures || []) {
+      failures.push({
+        ...failure,
+        courseId: text(row.courseId),
+        reason: failure.reason || 'hard_gate'
+      });
+    }
+  }
+
+  const byInstructorDate = new Map();
+  for (const row of rows || []) {
+    for (const meeting of planningRowMeetingAssignments(row, activityById)) {
+      const key = `${meeting.empId}|${meeting.date}`;
+      const bucket = byInstructorDate.get(key) || [];
+      bucket.push(meeting);
+      byInstructorDate.set(key, bucket);
+    }
+  }
+
+  for (const [key, dayMeetings] of byInstructorDate.entries()) {
+    const [empId, date] = key.split('|');
+    const sorted = [...dayMeetings].sort((a, b) =>
+      (timeMinutes(a.startTime) ?? 9999) - (timeMinutes(b.startTime) ?? 9999)
+      || (timeMinutes(a.endTime) ?? 9999) - (timeMinutes(b.endTime) ?? 9999)
+    );
+    for (let index = 0; index < sorted.length; index += 1) {
+      const first = sorted[index];
+      for (let otherIndex = index + 1; otherIndex < sorted.length; otherIndex += 1) {
+        const second = sorted[otherIndex];
+        if (first.courseId === second.courseId) continue;
+        if (!first.generated && !second.generated) continue;
+
+        if (first.fullDayBlocking || second.fullDayBlocking) {
+          failures.push({
+            reason: 'full_day_tour_conflict',
+            empId,
+            date,
+            firstCourseId: first.courseId,
+            secondCourseId: second.courseId
+          });
+          continue;
+        }
+
+        const firstStart = timeMinutes(first.startTime);
+        const firstEnd = timeMinutes(first.endTime);
+        const secondStart = timeMinutes(second.startTime);
+        const secondEnd = timeMinutes(second.endTime);
+        if ([firstStart, firstEnd, secondStart, secondEnd].some((value) => value == null)) continue;
+        if (firstStart < secondEnd && secondStart < firstEnd) {
+          failures.push({
+            reason: 'overlap',
+            empId,
+            date,
+            firstCourseId: first.courseId,
+            secondCourseId: second.courseId
+          });
+        }
+      }
+    }
+
+    for (let index = 1; index < sorted.length; index += 1) {
+      const previous = sorted[index - 1];
+      const next = sorted[index];
+      if (previous.courseId === next.courseId || (!previous.generated && !next.generated)) continue;
+      if (previous.schoolId && previous.schoolId === next.schoolId) continue;
+      const previousEnd = timeMinutes(previous.endTime);
+      const nextStart = timeMinutes(next.startTime);
+      if (previousEnd == null || nextStart == null || nextStart < previousEnd) continue;
+      if (!previous.schoolAddress || !next.schoolAddress || !routeClient?.peek) {
+        warnings.push({ reason: 'travel_unverified', empId, date, firstCourseId: previous.courseId, secondCourseId: next.courseId });
+        continue;
+      }
+      const route = routeClient.peek(previous.schoolAddress, next.schoolAddress);
+      const km = Number(route?.distance_km);
+      const travelMinutes = Number(route?.duration_minutes);
+      if (!Number.isFinite(km) || !Number.isFinite(travelMinutes)) {
+        warnings.push({ reason: 'travel_unverified', empId, date, firstCourseId: previous.courseId, secondCourseId: next.courseId });
+        continue;
+      }
+      if (exceedsTransitionDistanceLimit(km)) {
+        failures.push({ reason: 'transition_distance_exceeded', empId, date, firstCourseId: previous.courseId, secondCourseId: next.courseId, distanceKm: km });
+        continue;
+      }
+      const requiredGap = travelMinutes + transitionBufferMinutes(km);
+      if (nextStart - previousEnd < requiredGap) {
+        failures.push({
+          reason: 'transition_insufficient',
+          empId,
+          date,
+          firstCourseId: previous.courseId,
+          secondCourseId: next.courseId,
+          requiredMinutes: requiredGap,
+          availableMinutes: nextStart - previousEnd
+        });
+      }
+    }
+  }
+
+  const dedupe = (items) => [...new Map(items.map((item) => [JSON.stringify(item), item])).values()];
+  const uniqueFailures = dedupe(failures);
+  return {
+    valid: uniqueFailures.length === 0,
+    failures: uniqueFailures,
+    warnings: dedupe(warnings)
+  };
 }
 
 export async function buildDynamicCoursePlan({
@@ -4496,6 +4716,22 @@ export async function buildDynamicCoursePlan({
   const rows = assignRecruitmentProfiles(
     targets.map((activity) => rowsById.get(idOf(activity)) || missingOverviewRow(activity, catalog))
   );
+  const finalPlanValidation = validatePlanningPlanCoherence({
+    rows,
+    activities: targets,
+    instructors,
+    profiles,
+    rules,
+    exceptions,
+    schoolCalendar,
+    routeClient
+  });
+  if (!finalPlanValidation.valid) {
+    const error = new Error('planning_final_validation_failed');
+    error.code = 'planning_final_validation_failed';
+    error.failures = finalPlanValidation.failures;
+    throw error;
+  }
   const summarize = (selectedRows, extra = {}) => ({
     rows: selectedRows,
     total: selectedRows.length,
@@ -4513,7 +4749,10 @@ export async function buildDynamicCoursePlan({
     ...extra
   });
 
-  const initialResult = summarize(rows, { repairApplied: _repairPass });
+  const initialResult = summarize(rows, {
+    repairApplied: _repairPass,
+    finalPlanValidation
+  });
   // Checkpointing changes progress, not scope. A resumed targeted run must not
   // turn into a national pass; a resumed full run may still repair coverage.
   if (_repairPass || !(allowGlobalRepair ?? !incrementalIds)) return initialResult;

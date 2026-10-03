@@ -226,6 +226,7 @@ const SCHEDULING_ASSIGNMENT_ERROR_HE = {
   scheduling_instructor_unavailable:   'המדריך חסום בתאריך אחד ממפגשי הקורס',
   scheduling_conflict_detected:        'קיימת חפיפה עם שיבוץ אחר של המדריך',
   scheduling_full_day_tour_conflict:  'סיור תופס למדריך יום עבודה מלא ולכן לא ניתן לשבץ באותו יום פעילות נוספת',
+  planning_final_validation_failed: 'התכנון לא נשמר כי בדיקת התוכנית המלאה מצאה סתירה תפעולית',
   scheduling_transition_insufficient:  'אין מספיק זמן מעבר בין הפעילויות',
   scheduling_transition_unverified:    'לא ניתן לאמת את זמן המעבר — ייתכן שכתובת חסרה',
   scheduling_transition_distance_exceeded: 'המרחק בין הפעילויות גדול מ־20 ק״מ',
@@ -2784,7 +2785,11 @@ export const courseSchedulingScreen = {
                 ...regularAffectedIds,
                 ...engineUpgradeAffectedIds
               ])];
+        const coherentProposalRebuildUpgrade = engineChanged
+          && PLANNING_ENGINE_VERSION.includes('planning-v26-20261003-coherent-school-first')
+          && !storedEngineVersion.includes('planning-v26-20261003-coherent-school-first');
         const optimizationOnlyUpgrade = engineChanged
+          && !coherentProposalRebuildUpgrade
           && !unrecoverableGlobalContextChange
           && regularAffectedIds.length === 0
           && engineUpgradeAffectedIds.length > 0;
