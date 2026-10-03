@@ -12,7 +12,7 @@ import {
   validatePlanningPlanCoherence
 } from '../frontend/src/screens/course-scheduling-planning.js';
 import { planningEngineUpgradeAffectedCourseIds } from '../frontend/src/screens/course-scheduling-planning-store.js';
-import { prepareSchedulingRunContext } from '../frontend/src/screens/course-scheduling-engine-core.js';
+import { appendSchedulingRunActivity, prepareSchedulingRunContext } from '../frontend/src/screens/course-scheduling-engine-core.js';
 
 const instructor = { emp_id: 1550, full_name: 'לירון', active: 'yes', address: 'ראשון לציון' };
 const profiles = {
@@ -138,7 +138,7 @@ test('v25 to v26 forces a real rebuild of every flexible proposal, not only mult
     shared,
     activities: [],
     storedEngineVersion: 'planning-v25-20261003-school-packing-option-coverage-self-invalidation',
-    currentEngineVersion: 'planning-v26-20261003-coherent-school-first-self-invalidation'
+    currentEngineVersion: 'planning-v26-20261003-coherent-school-first-substitute-ownership-self-invalidation'
   });
   assert.deepEqual(new Set(ids), new Set(['a', 'b', 'c']));
 });
@@ -357,7 +357,7 @@ test('final whole-plan validator rejects a tour sharing an instructor date with 
   assert.ok(result.failures.some((failure) => failure.reason === 'full_day_tour_conflict'));
 });
 
-test('planner context assigns substitute meetings to the actual substitute, not the main instructor', () => {
+test('planner context assigns appended substitute meetings to the actual substitute, not the main instructor', () => {
   const activity = course('with-substitute', {
     draft_emp_id: '1550',
     draft_instructor_name: 'לירון',
@@ -368,7 +368,7 @@ test('planner context assigns substitute meetings to the actual substitute, not 
     ]
   });
   const context = prepareSchedulingRunContext({
-    activities: [activity],
+    activities: [],
     instructors: [
       instructor,
       { emp_id: 1549, full_name: 'נעמה', active: 'yes', address: 'ראשון לציון' }
@@ -385,6 +385,7 @@ test('planner context assigns substitute meetings to the actual substitute, not 
     schoolCalendar: [],
     periodKey: 'year'
   });
+  appendSchedulingRunActivity(context, activity);
 
   assert.deepEqual(
     context.assignedMeetingsByInstructor['1550'].map((meeting) => meeting.date),
