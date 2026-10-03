@@ -12,6 +12,7 @@ import {
   validatePlanningPlanCoherence
 } from '../frontend/src/screens/course-scheduling-planning.js';
 import { planningEngineUpgradeAffectedCourseIds } from '../frontend/src/screens/course-scheduling-planning-store.js';
+import { prepareSchedulingRunContext } from '../frontend/src/screens/course-scheduling-engine-core.js';
 
 const instructor = { emp_id: 1550, full_name: 'לירון', active: 'yes', address: 'ראשון לציון' };
 const profiles = {
@@ -354,6 +355,94 @@ test('final whole-plan validator rejects a tour sharing an instructor date with 
   });
   assert.equal(result.valid, false);
   assert.ok(result.failures.some((failure) => failure.reason === 'full_day_tour_conflict'));
+});
+
+test('planner context assigns substitute meetings to the actual substitute, not the main instructor', () => {
+  const activity = course('with-substitute', {
+    draft_emp_id: '1550',
+    draft_instructor_name: 'לירון',
+    meetings: [],
+    draft_proposed_meetings: [
+      { date: '2027-01-13', start_time: '10:30', end_time: '12:00' },
+      { date: '2027-01-20', start_time: '10:30', end_time: '12:00', substituteEmpId: '1549', substituteName: 'נעמה' }
+    ]
+  });
+  const context = prepareSchedulingRunContext({
+    activities: [activity],
+    instructors: [
+      instructor,
+      { emp_id: 1549, full_name: 'נעמה', active: 'yes', address: 'ראשון לציון' }
+    ],
+    profiles: {
+      ...profiles,
+      1549: { emp_id: 1549, gender: 'female', instruction_languages: ['he'] }
+    },
+    rules: {
+      ...rules,
+      1549: [{ emp_id: 1549, weekday: 3, available: true, start_time: '09:00', end_time: '15:00' }]
+    },
+    exceptions: {},
+    schoolCalendar: [],
+    periodKey: 'year'
+  });
+
+  assert.deepEqual(
+    context.assignedMeetingsByInstructor['1550'].map((meeting) => meeting.date),
+    ['2027-01-13']
+  );
+  assert.deepEqual(
+    context.assignedMeetingsByInstructor['1549'].map((meeting) => meeting.date),
+    ['2027-01-20']
+  );
+});
+
+test('school packing treats a substitute as the actual instructor for overlap checks', () => {
+  const activities = [
+    course('space', { school_id: 'herzog' }),
+    course('bio', { school_id: 'herzog' })
+  ];
+  const rowsById = new Map([
+    ['space', {
+      courseId: 'space', schoolId: 'herzog', school: 'הרצוג', kind: 'proposal',
+      instructorEmpId: '1550', instructorName: 'לירון',
+      startDate: '2027-01-13', startTime: '10:30', endTime: '12:00',
+      meetings: [
+        { date: '2027-01-13', start_time: '10:30', end_time: '12:00' },
+        { date: '2027-01-20', start_time: '10:30', end_time: '12:00', substituteEmpId: '1549', substituteName: 'נעמה' }
+      ],
+      options: [option(1550, '2027-01-13', '10:30', '12:00')]
+    }],
+    ['bio', {
+      courseId: 'bio', schoolId: 'herzog', school: 'הרצוג', kind: 'proposal',
+      instructorEmpId: '1549', instructorName: 'נעמה',
+      startDate: '2027-01-20', startTime: '10:30', endTime: '12:00',
+      meetings: [{ date: '2027-01-20', start_time: '10:30', end_time: '12:00' }],
+      options: [option(1549, '2027-01-20', '10:30', '12:00')]
+    }]
+  ]);
+
+  const result = validatePlanningPlanCoherence({
+    rows: [...rowsById.values()],
+    activities,
+    instructors: [
+      instructor,
+      { emp_id: 1549, full_name: 'נעמה', active: 'yes', address: 'ראשון לציון' }
+    ],
+    profiles: {
+      ...profiles,
+      1549: { emp_id: 1549, gender: 'female', instruction_languages: ['he'] }
+    },
+    rules: {
+      ...rules,
+      1549: [{ emp_id: 1549, weekday: 3, available: true, start_time: '09:00', end_time: '15:00' }]
+    },
+    exceptions: {},
+    schoolCalendar: []
+  });
+  assert.equal(result.valid, false);
+  assert.ok(result.failures.some((failure) =>
+    failure.reason === 'overlap' && failure.empId === '1549' && failure.date === '2027-01-20'
+  ));
 });
 
 test('v26 migration tracks packing options, expands school invalidation, ignores preferred_work_days, and rebuilds proposals', async () => {
