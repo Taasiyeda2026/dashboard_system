@@ -9,7 +9,7 @@ Related docs (do not treat as overrides of this map):
 
 If this map and the code disagree, **the code wins**. Update this file after any material scheduling change.
 
-**Engine version observed while writing:** `PLANNING_ENGINE_VERSION = planning-v21-20260927-self-invalidation` in `frontend/src/screens/course-scheduling-planning.js`.
+**Engine version observed while writing:** `PLANNING_ENGINE_VERSION = planning-v24-20261003-school-day-packing-self-invalidation` in `frontend/src/screens/course-scheduling-planning.js`.
 
 ---
 
@@ -35,6 +35,7 @@ Inside `course-scheduling.js`:
 - Capability registry may still list `instructors.planning` — UI remaps it to the workboard. **Needs verification** if any deep-link still expects a separate planning pane.
 - UI is a **simple compact workboard** (`data-cs-ui="simple-workboard-20260924-v1"`): list of activities + detail drawer, not a separate planning-only screen.
 - Focus mode: arriving from Activities with a selected id shows only that activity (`is-activity-focus`); “הצג את כל הפעילויות” clears focus.
+- Stored rows with `needs_recalc=true` are restored as stale context only: the old instructor/date remain visibly marked as old, all proposal/lock/confirm actions are blocked, and the status bar offers an explicit incremental “עדכן” action. Merely entering the screen never starts that run; point-mutation events may still request the existing scoped auto-refresh.
 - Inner period controls (not screen tabs): `first` | `second` | `year` via `periodOptions()` / `data-period-key`.
 
 Permissions:
@@ -197,6 +198,16 @@ Distance maintenance UI lives under the **maintenance** tab (`course-scheduling-
 8. **Workday-consolidation pass** (iterative, not a national rebuild): flexible proposals are re-seated onto weekdays the same instructor already works whenever hard gates and travel+buffer allow. The pass rebuilds virtual/prepared/travel context after accepted moves, so later rows see the current plan rather than stale pre-consolidation placements. It repeats to convergence (bounded passes), prioritizes instructors above `preferred_work_days`, and accepts a move when weekly workdays decrease, or when workdays stay equal **and** measured travel km improves (`dayConsolidationAcceptsMove`). Fixed/locked/live/started anchors never move. Scenario generation reserves the best option for each eligible weekday and same-school adjacency before generic availability coverage, so fast-planning limits cannot evict packed-day candidates. After weekday consolidation, a **day-gap compaction pass** re-evaluates flexible proposal times on the already-selected date series and moves them closer to adjacent work whenever hard travel/availability/overlap gates still pass; fixed/locked/live anchors remain immovable. Avoidable non-travel waiting is penalized in 30-minute steps, so a 30–90 minute idle hole cannot disappear through score rounding.
 9. Optional global repair pass (full runs only, coverage/recruitment only).
 10. Recruitment packing for remaining `recruitment` rows.
+
+### School-first planning rule
+
+**School-day consolidation precedes instructor-day optimization.** Before step 8, `optimizeSchoolDayPackingPass` groups rows strictly by non-empty `school_id`/`schoolId`; a school name is display metadata and is never an identity fallback. Each group separates immovable anchors (`live`, fixed/official/started, and `planning-locked`) from movable flexible proposals.
+
+The pass enumerates bounded weekday sets from the anchor weekdays outward, smallest set first, and uses a small beam to choose a compatible bundle of already hard-gate-validated options. It commits the whole bundle only at the first feasible weekday cardinality, so a multi-row move can escape the local minimum that a row-by-row pass cannot. Parallel lanes with different instructors are allowed. Instructor-day consolidation runs afterward and may not increase the school weekday count; in-day gap compaction remains last.
+
+Each group writes `schoolPlanning` diagnostics (`actualWeekdays`, `minimumFeasibleWeekdays`, `avoidableSplitCount`, anchors, and `packingStatus`). `planningSchoolDayMetrics` exposes aggregate school counts and avoidable splits, and plan comparison ranks fewer avoidable school splits before weighted secondary objectives once coverage/recruitment tie.
+
+Incremental invalidation is school-aware: `expandPlanningAffectedIdsBySchool` adds only movable siblings with the same real `school_id`, in addition to existing instructor/date dependents. Lock/unlock marks those siblings dirty around the new anchor through the existing batched invalidation RPC; it never expands a point mutation to the national workspace. The v23→v24 upgrade likewise targets only multi-proposal school groups, deriving missing legacy `schoolId` values from current activities.
 
 ### Engine path — `calculateCourseSchedule` / block-first (`course-scheduling-engine.js`)
 

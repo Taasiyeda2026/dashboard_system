@@ -699,6 +699,55 @@
   white-space: nowrap;
 }
 
+.course-scheduling-screen.is-simple-workboard .course-scheduling-course-card.is-planning-stale {
+  background: #fff8e8;
+  box-shadow: inset -3px 0 0 #c17b16;
+  opacity: .88;
+}
+
+.course-scheduling-screen.is-simple-workboard .course-scheduling-course-card.is-planning-stale .course-scheduling-workboard-schedule,
+.course-scheduling-screen.is-simple-workboard .course-scheduling-course-card.is-planning-stale .course-scheduling-compact-instructor {
+  color: var(--cs-text-muted);
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}
+
+.course-scheduling-workboard-stale-action {
+  color: #8a5b12;
+  font-size: .74rem;
+  font-weight: 750;
+}
+
+.course-scheduling-school-context {
+  color: #356070;
+  font-size: .66rem;
+  line-height: 1.2;
+  white-space: normal;
+}
+
+.course-scheduling-school-context.is-warning,
+.course-scheduling-school-impact {
+  color: #9a5d08;
+  font-weight: 750;
+}
+
+.course-scheduling-school-context.is-stale {
+  color: var(--cs-text-muted);
+}
+
+.course-scheduling-school-detail {
+  margin: 8px 0;
+  padding: 10px;
+  border: 1px solid var(--cs-border);
+  border-radius: 8px;
+  background: #f7fafc;
+}
+
+.course-scheduling-school-detail h3,
+.course-scheduling-school-detail p {
+  margin: 0 0 5px;
+}
+
 .course-scheduling-workboard-actions {
   display: flex;
   align-items: center;

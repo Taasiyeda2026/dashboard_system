@@ -314,7 +314,46 @@ export function sharedPlanningAffectedCourseIds({
     }
   }
 
-  return [...changed];
+  return expandPlanningAffectedIdsBySchool({
+    affectedIds: [...changed],
+    shared,
+    activities,
+    currentCourseIds: [...currentIds]
+  });
+}
+
+export function expandPlanningAffectedIdsBySchool({
+  affectedIds = [],
+  shared = {},
+  activities = [],
+  currentCourseIds = null
+} = {}) {
+  const allowed = Array.isArray(currentCourseIds)
+    ? new Set(currentCourseIds.map(text).filter(Boolean))
+    : null;
+  const activityById = new Map((activities || []).map((activity) => [idOf(activity), activity]));
+  const entryById = new Map((shared?.rows || []).map((entry) => [text(entry?.activityId), entry]));
+  const result = new Set((affectedIds || []).map(text).filter((id) => id && (!allowed || allowed.has(id))));
+  const schoolIds = new Set();
+  for (const courseId of result) {
+    const activity = activityById.get(courseId);
+    const entry = entryById.get(courseId);
+    const schoolId = text(activity?.school_id || entry?.row?.schoolId);
+    if (schoolId) schoolIds.add(schoolId);
+  }
+  if (!schoolIds.size) return [...result];
+  for (const entry of shared?.rows || []) {
+    const courseId = text(entry?.activityId);
+    if (!courseId || (allowed && !allowed.has(courseId))) continue;
+    const activity = activityById.get(courseId);
+    const row = entry?.row || {};
+    const schoolId = text(activity?.school_id || row?.schoolId);
+    if (!schoolId || !schoolIds.has(schoolId)) continue;
+    if (entry?.lockedOption || row?.planningLocked === true || row?.schoolDateAnchored === true) continue;
+    if (['live', 'fixed', 'fixed-proposal'].includes(text(row?.kind))) continue;
+    result.add(courseId);
+  }
+  return [...result];
 }
 
 export async function loadSharedPlanningCheckpoint({
@@ -517,12 +556,11 @@ export function applyLocalPlanningNeedsRecalc(targetState = null, { activityIds 
   if (Array.isArray(localState.courseSchedulingPlanningRows)) {
     for (const row of localState.courseSchedulingPlanningRows) {
       if (!ids.includes(text(row?.courseId))) continue;
-      if (row?.planningLocked) {
-        row.planningLocked = false;
-        row.kind = row.kind || 'proposal';
-        row.status = 'ממתין לעדכון תכנון';
-        row.reason = row.reason || 'נתוני הפעילות השתנו. הפעילות תתעדכן בהרצה המצומצמת הבאה.';
-      }
+      row.needsRecalc = true;
+      row.planningLocked = false;
+      row.kind = row.kind || 'proposal';
+      row.status = 'נדרש עדכון תכנון';
+      row.reason = 'ההצעה השמורה אינה עדכנית. יש לעדכן את התכנון לפני בחירה או אישור.';
     }
   }
 
@@ -552,12 +590,31 @@ function planningClockMinutes(value = '') {
  */
 export function planningEngineUpgradeAffectedCourseIds({
   shared = {},
+  activities = [],
   storedEngineVersion = '',
   currentEngineVersion = ''
 } = {}) {
   const previous = text(storedEngineVersion);
   const current = text(currentEngineVersion);
   if (!previous || !current || previous === current) return [];
+
+  const schoolPackingUpgrade = previous.includes('planning-v23-20261001-idle-gap-compaction')
+    && current.includes('planning-v24-20261003-school-day-packing');
+  if (schoolPackingUpgrade) {
+    const activityById = new Map((activities || []).map((activity) => [idOf(activity), activity]));
+    const flexibleBySchool = new Map();
+    for (const entry of shared?.rows || []) {
+      const row = entry?.row || {};
+      const courseId = text(entry?.activityId || row?.courseId);
+      const schoolId = text(row?.schoolId || activityById.get(courseId)?.school_id);
+      if (!courseId || !schoolId || text(row?.kind) !== 'proposal') continue;
+      if (entry?.lockedOption || row?.planningLocked === true || row?.schoolDateAnchored === true) continue;
+      const bucket = flexibleBySchool.get(schoolId) || [];
+      bucket.push(courseId);
+      flexibleBySchool.set(schoolId, bucket);
+    }
+    return [...flexibleBySchool.values()].filter((ids) => ids.length >= 2).flat();
+  }
 
   const idleGapUpgrade = previous.includes('planning-v22-20261001-workday-consolidation')
     && current.includes('planning-v23-20261001-idle-gap-compaction');
@@ -663,7 +720,9 @@ export function pointMutationDependentCourseIds({
 
   const dependents = new Set();
   if (sourceId) dependents.add(sourceId);
-  if (!resourceIds.size) return [...dependents];
+  if (!resourceIds.size) return expandPlanningAffectedIdsBySchool({
+    affectedIds: [...dependents], shared, activities
+  });
 
   for (const entry of shared?.rows || []) {
     const courseId = text(entry?.activityId);
@@ -681,7 +740,9 @@ export function pointMutationDependentCourseIds({
       dependents.add(courseId);
     }
   }
-  return [...dependents];
+  return expandPlanningAffectedIdsBySchool({
+    affectedIds: [...dependents], shared, activities
+  });
 }
 
 export function notifyPlanningNeedsRecalc({
@@ -717,7 +778,14 @@ export async function markSharedPlanningNeedsRecalcMany(activityIds = [], {
   source = 'validity-audit',
   state: targetState = null
 } = {}) {
-  const ids = [...new Set((activityIds || []).map(text).filter(Boolean))];
+  const activities = targetState?.courseSchedulingActivities || targetState?.activities || [];
+  const ids = targetState?.courseSchedulingPlanningShared
+    ? expandPlanningAffectedIdsBySchool({
+        affectedIds: activityIds,
+        shared: targetState.courseSchedulingPlanningShared,
+        activities
+      })
+    : [...new Set((activityIds || []).map(text).filter(Boolean))];
   if (!ids.length) {
     return { markedActivityIds: [], affectedCount: 0, rowsTouched: 0, workspaceCount: 0 };
   }
@@ -882,6 +950,14 @@ export async function invalidatePlanningAfterActivitySchedulingSave(activityId =
       ...(payload?.markedActivityIds || []),
       ...dependents
     ].map(text).filter(Boolean))];
+    const additionallyDirty = marked.filter((courseId) => !(payload?.markedActivityIds || []).includes(courseId));
+    if (additionallyDirty.length) {
+      await markSharedPlanningNeedsRecalcMany(additionallyDirty, {
+        source: `${source}-school-siblings`,
+        state: targetState,
+        notify: false
+      });
+    }
     notifyPlanningNeedsRecalc({
       activityId: id,
       affectedActivityIds: marked,

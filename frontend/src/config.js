@@ -332,3 +332,5 @@ config.HOTFIX_VERSION = `activity-edit-location-preservation-20261001-v1-${confi
 config.HOTFIX_VERSION = `activity-summary-authority-id-20261001-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `manager-board-current-month-rollover-20261001-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `payroll-approval-email-nonblocking-20261001-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `scheduling-stale-planning-ui-20261003-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `school-first-scheduling-20261003-v1-${config.HOTFIX_VERSION}`;
