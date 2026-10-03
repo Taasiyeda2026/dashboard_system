@@ -61,6 +61,16 @@ test('course planning screen loads and saves the shared workspace and only recal
   assert.match(travel, /persistentCache/);
 });
 
+test('post-optimization snapshots are persisted so final validation failures do not force a full rebuild', async () => {
+  const screen = await readFile(new URL('../frontend/src/screens/course-scheduling.js', import.meta.url), 'utf8');
+  const planner = await readFile(new URL('../frontend/src/screens/course-scheduling-planning.js', import.meta.url), 'utf8');
+  assert.match(screen, /Array\.isArray\(progress\.snapshotRows\)/);
+  assert.match(screen, /rows: snapshotRows/);
+  assert.match(screen, /completedActivityIds: \[\.\.\.checkpointCompletedIds\]/);
+  assert.match(planner, /אריזת בתי ספר הושלמה/);
+  assert.match(planner, /בקרת תקינות סופית/);
+});
+
 test('full and incremental planning silently checkpoint and can resume', async () => {
   const screen = await readFile(screenUrl, 'utf8');
   const planner = await readFile(new URL('../frontend/src/screens/course-scheduling-planning.js', import.meta.url), 'utf8');
