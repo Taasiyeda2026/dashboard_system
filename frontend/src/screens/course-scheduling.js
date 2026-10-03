@@ -225,6 +225,7 @@ const SCHEDULING_ASSIGNMENT_ERROR_HE = {
   scheduling_availability_missing:     'המדריך אינו זמין בתאריך אחד ממפגשי הקורס',
   scheduling_instructor_unavailable:   'המדריך חסום בתאריך אחד ממפגשי הקורס',
   scheduling_conflict_detected:        'קיימת חפיפה עם שיבוץ אחר של המדריך',
+  scheduling_full_day_tour_conflict:  'סיור תופס למדריך יום עבודה מלא ולכן לא ניתן לשבץ באותו יום פעילות נוספת',
   scheduling_transition_insufficient:  'אין מספיק זמן מעבר בין הפעילויות',
   scheduling_transition_unverified:    'לא ניתן לאמת את זמן המעבר — ייתכן שכתובת חסרה',
   scheduling_transition_distance_exceeded: 'המרחק בין הפעילויות גדול מ־20 ק״מ',
