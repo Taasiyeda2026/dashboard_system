@@ -9,7 +9,7 @@ Related docs (do not treat as overrides of this map):
 
 If this map and the code disagree, **the code wins**. Update this file after any material scheduling change.
 
-**Engine version observed while writing:** `PLANNING_ENGINE_VERSION = planning-v25-20261003-school-packing-option-coverage-self-invalidation` in `frontend/src/screens/course-scheduling-planning.js`.
+**Engine version observed while writing:** `PLANNING_ENGINE_VERSION = planning-v26-20261003-coherent-school-first-self-invalidation` in `frontend/src/screens/course-scheduling-planning.js`.
 
 ---
 
@@ -124,7 +124,7 @@ Workboard also overlays UI buckets (`assigned` / `draft` / warning) from live ac
 - Saturday blocked unless `calendar_sector === 'arab'`
 - School-calendar blocking days (sector-filtered)
 - Overlap with other approved/draft meetings
-- **Tours / "התנסות בתעשייה": full-day instructor blocker.** A tour is a one-off activity and no other activity may be assigned to the same instructor on that date, before or after it. The rule is symmetric: a tour cannot be placed on a date that already contains another activity for the instructor, and another activity cannot be placed on a date already occupied by a tour.
+- **Tours / "התנסות בתעשייה": operational 09:00–14:00 full-day instructor blocker.** Activity 13990 is one 5-hour scheduling meeting regardless of pricing `hours_count`; pricing data is not changed. No other activity may share that instructor date.
 - Transition time + buffer between adjacent meetings
 - Home→school route: missing/unverified route is **not selectable**; distance > `MAX_HOME_DISTANCE_KM` (40) fails hard
 - Manual picker: many of the above are non-overridable (`MANUAL_NON_OVERRIDABLE_REASON` in manual-picker-access), including blocked authority
@@ -204,7 +204,7 @@ Distance maintenance UI lives under the **maintenance** tab (`course-scheduling-
 
 **School-day consolidation precedes instructor-day optimization.** Before step 8, `optimizeSchoolDayPackingPass` groups rows strictly by non-empty `school_id`/`schoolId`; a school name is display metadata and is never an identity fallback. Each group separates immovable anchors (`live`, fixed/official/started, and `planning-locked`) from movable flexible proposals.
 
-The pass enumerates bounded weekday sets from the anchor weekdays outward, smallest set first, and uses a small beam to choose a compatible bundle of already hard-gate-validated options. For multi-activity schools, the planner now retains a wider hidden `packingOptions` pool (separate from the three UI alternatives) so the minimum-day search is not falsely constrained by the compact workboard shortlist. It commits the whole bundle only at the first feasible weekday cardinality, so a multi-row move can escape the local minimum that a row-by-row pass cannot. Parallel lanes with different instructors are allowed. Instructor-day consolidation runs afterward and may not increase the school weekday count; in-day gap compaction remains last.
+The pass enumerates bounded weekday sets from the anchor weekdays outward, smallest set first, and uses a small beam to choose a compatible bundle of already hard-gate-validated options. For multi-activity schools, the planner now retains a wider hidden `packingOptions` pool (separate from the three UI alternatives) so the minimum-day search is not falsely constrained by the compact workboard shortlist. Both candidate-weekday discovery and bundle solving use that pool. `required_split` is emitted only when the solver proves a minimum greater than one; otherwise the split is marked unresolved with a reason. It commits the whole bundle only at the first feasible weekday cardinality, so a multi-row move can escape the local minimum that a row-by-row pass cannot. Parallel lanes with different instructors are allowed. Instructor-day consolidation runs afterward and may not increase the school weekday count; in-day gap compaction remains last.
 
 Each group writes `schoolPlanning` diagnostics (`actualWeekdays`, `minimumFeasibleWeekdays`, `avoidableSplitCount`, anchors, and `packingStatus`). `planningSchoolDayMetrics` exposes aggregate school counts and avoidable splits, and plan comparison ranks fewer avoidable school splits before weighted secondary objectives once coverage/recruitment tie.
 
@@ -469,3 +469,6 @@ If a pitfall is only suspected and not proven in tests/migrations, mark new find
 - Whether any runtime deep-link still renders `planningTabHtml` / calendar pane (current `render` remaps `planning`/`calendar` → `courses`).
 - Client Friday gate (weekly rule weekday 5) vs server `friday_allowed` — intentional split or drift; verify before changing either side.
 - Exact latest SQL body of overwritten gate functions without replaying the full migration chain on a live DB.
+
+### v26 final-plan coherence
+After school packing, instructor-day consolidation, and gap compaction, the complete plan is revalidated as one schedule. Availability/exception gates are rechecked and plan-to-plan full-day-tour conflicts, overlaps, and known travel+buffer violations block persistence. Instructor constraint changes invalidate referenced rows plus movable siblings in the same school group, including dependencies stored only in `packingOptions`. The v25→v26 upgrade rebuilds existing flexible proposals instead of reusing them as optimization-only rows.
