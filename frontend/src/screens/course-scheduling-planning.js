@@ -3470,7 +3470,64 @@ function schoolPackingSecondaryCost(options = []) {
   }, 0);
 }
 
-function solveSchoolPackingGroup(group = {}, candidateDays = new Set(), beamWidth = 8) {
+function schoolPackingChoicesOperationallyConflict(firstChoice = {}, secondChoice = {}, {
+  activityById = new Map(),
+  routeClient = null
+} = {}) {
+  const first = firstChoice?.option || firstChoice;
+  const second = secondChoice?.option || secondChoice;
+  if (schoolPackingOptionsConflict(first, second)) return true;
+  if (!text(first?.instructorEmpId) || text(first?.instructorEmpId) !== text(second?.instructorEmpId)) return false;
+
+  const firstRow = firstChoice?.row || {};
+  const secondRow = secondChoice?.row || {};
+  const firstActivity = activityById.get(text(firstRow?.courseId)) || {};
+  const secondActivity = activityById.get(text(secondRow?.courseId)) || {};
+  const sameSchool = !!text(firstRow?.schoolId)
+    && text(firstRow?.schoolId) === text(secondRow?.schoolId);
+
+  for (const a of first?.meetings || []) {
+    for (const b of second?.meetings || []) {
+      if (text(a?.date).slice(0, 10) !== text(b?.date).slice(0, 10)) continue;
+      if (sameSchool) continue;
+
+      const aStart = timeMinutes(a?.start_time);
+      const aEnd = timeMinutes(a?.end_time);
+      const bStart = timeMinutes(b?.start_time);
+      const bEnd = timeMinutes(b?.end_time);
+      if ([aStart, aEnd, bStart, bEnd].some((value) => value == null)) return true;
+
+      const firstBeforeSecond = aEnd <= bStart;
+      const secondBeforeFirst = bEnd <= aStart;
+      if (!firstBeforeSecond && !secondBeforeFirst) return true;
+
+      const previous = firstBeforeSecond
+        ? { end: aEnd, activity: firstActivity }
+        : { end: bEnd, activity: secondActivity };
+      const next = firstBeforeSecond
+        ? { start: bStart, activity: secondActivity }
+        : { start: aStart, activity: firstActivity };
+
+      const route = peekCachedTransition(
+        routeClient,
+        previous.activity?.school_address,
+        next.activity?.school_address
+      );
+      const km = Number(route?.distance_km);
+      const travelMinutes = Number(route?.duration_minutes);
+      if (!Number.isFinite(km) || !Number.isFinite(travelMinutes)) return true;
+      if (exceedsTransitionDistanceLimit(km)) return true;
+      if (next.start - previous.end < travelMinutes + transitionBufferMinutes(km)) return true;
+    }
+  }
+  return false;
+}
+
+function solveSchoolPackingGroup(group = {}, candidateDays = new Set(), beamWidth = 8, {
+  blockers = [],
+  activityById = new Map(),
+  routeClient = null
+} = {}) {
   const rows = [...(group.movableRows || [])]
     .map((row) => ({ row, options: schoolPackingOptions(row, candidateDays) }))
     .sort((a, b) => a.options.length - b.options.length || text(a.row.courseId).localeCompare(text(b.row.courseId)));
@@ -3480,8 +3537,14 @@ function solveSchoolPackingGroup(group = {}, candidateDays = new Set(), beamWidt
     const next = [];
     for (const state of beam) {
       for (const option of item.options) {
-        if (state.choices.some((choice) => schoolPackingOptionsConflict(choice.option, option))) continue;
-        const choices = [...state.choices, { row: item.row, option }];
+        const candidateChoice = { row: item.row, option };
+        if (blockers.some((choice) =>
+          schoolPackingChoicesOperationallyConflict(choice, candidateChoice, { activityById, routeClient })
+        )) continue;
+        if (state.choices.some((choice) =>
+          schoolPackingChoicesOperationallyConflict(choice, candidateChoice, { activityById, routeClient })
+        )) continue;
+        const choices = [...state.choices, candidateChoice];
         next.push({ choices, cost: schoolPackingSecondaryCost(choices.map((choice) => choice.option)) });
       }
     }
@@ -3528,8 +3591,15 @@ function annotateSchoolPlanningGroup(group = {}, minimumFeasibleWeekdayCount = n
   return schoolPlanning;
 }
 
-export function optimizeSchoolDayPackingPass({ rowsById, activities = [], targetCourseIds = null, beamWidth = 8 } = {}) {
+export function optimizeSchoolDayPackingPass({
+  rowsById,
+  activities = [],
+  targetCourseIds = null,
+  beamWidth = 8,
+  routeClient = null
+} = {}) {
   const targetIds = Array.isArray(targetCourseIds) ? new Set(targetCourseIds.map(text).filter(Boolean)) : null;
+  const activityById = new Map((activities || []).map((activity) => [idOf(activity), activity]));
   let moved = 0;
   const groups = buildSchoolPlanningGroups({ rows: [...(rowsById?.values?.() || [])], activities });
   for (const originalGroup of groups) {
@@ -3543,7 +3613,19 @@ export function optimizeSchoolDayPackingPass({ rowsById, activities = [], target
       const addCount = size - requiredDays.length;
       for (const extra of weekdaySetCombinations(optionalDays, addCount)) {
         const set = new Set([...requiredDays, ...extra]);
-        solution = solveSchoolPackingGroup(originalGroup, set, beamWidth);
+        const groupCourseIds = new Set(originalGroup.allCourseIds.map(text));
+        const blockers = [
+          ...(originalGroup.anchors || []).map((row) => ({ row, option: planningRowAsVirtualOption(row) })).filter((choice) => choice.option),
+          ...[...rowsById.values()]
+            .filter((row) => !groupCourseIds.has(text(row?.courseId)))
+            .map((row) => ({ row, option: planningRowAsVirtualOption(row) }))
+            .filter((choice) => choice.option)
+        ];
+        solution = solveSchoolPackingGroup(originalGroup, set, beamWidth, {
+          blockers,
+          activityById,
+          routeClient
+        });
         if (solution) {
           minimum = size;
           break;
@@ -4663,7 +4745,8 @@ export async function buildDynamicCoursePlan({
       rowsById,
       activities: targets,
       targetCourseIds: incrementalIds ? [...incrementalIds] : null,
-      beamWidth: 8
+      beamWidth: 8,
+      routeClient
     });
     if (!optimizationOnlyIds) await consolidateInstructorWorkdaysPass({
       rowsById,
