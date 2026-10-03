@@ -179,9 +179,16 @@ test('8 manager correction write-back clears prior review after successful save'
 test('payroll PDF dispatch sends from the authenticated approver and keeps email best-effort', () => {
   assert.match(pdfHandler, /email delivery failed after PDF persistence/);
   assert.match(pdfHandler, /mailSent: !mailError/);
-  assert.match(pdfHandler, /reusedExistingPdf: Boolean\(existingOrphan\)/);
+  assert.match(pdfHandler, /reusedExistingPdf: false/);
   assert.match(pdfHandler, /currentUser\?\.auth_email \|\| currentUser\?\.email/);
   assert.doesNotMatch(pdfHandler, /MS_MAIL_SENDER/);
+});
+
+test('attendance PDF embeds full Hebrew fonts and never reuses stale orphan PDFs', () => {
+  assert.match(pdfHandler, /embedFont\(regularBytes, \{ subset: false \}\)/);
+  assert.match(pdfHandler, /embedFont\(boldBytes, \{ subset: false \}\)/);
+  assert.doesNotMatch(pdfHandler, /findExistingPdf\(/);
+  assert.doesNotMatch(pdfHandler, /subset: true/);
 });
 
 test('legacy attendance PDF-on-lock trigger is retired without weakening the PDF guard', () => {

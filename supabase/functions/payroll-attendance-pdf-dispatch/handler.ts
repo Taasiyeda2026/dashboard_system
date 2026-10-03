@@ -277,30 +277,6 @@ async function ensureChildFolder(token: string, driveId: string, parentItemId: s
   }
 }
 
-async function findExistingPdf(
-  token: string,
-  driveId: string,
-  folderItemId: string,
-  employeeName: string,
-  monthKey: string,
-  version: number,
-) {
-  const fileName = payrollApprovalPdfFileName(employeeName, monthKey, version);
-  const existing = await graphRequest(
-    token,
-    `/drives/${encodeURIComponent(driveId)}/items/${encodeURIComponent(folderItemId)}:/${encodePath(fileName)}?$select=id,name,webUrl,file`,
-    {},
-    true,
-  );
-  if (!existing?.id || !existing?.file) return null;
-  return {
-    fileName,
-    version,
-    sharepointItemId: clean(existing.id),
-    sharepointWebUrl: clean(existing.webUrl),
-  };
-}
-
 async function uploadUniquePdf(
   token: string,
   driveId: string,
@@ -438,8 +414,11 @@ async function buildPdfBytes(payload: {
 
   const pdf = await PDFDocument.create();
   pdf.registerFontkit(fontkit);
-  const regular = await pdf.embedFont(regularBytes, { subset: true });
-  const bold = await pdf.embedFont(boldBytes, { subset: true });
+  // Arimo's Hebrew glyphs render unreliably when subset through
+  // @pdf-lib/fontkit. Embed the full fonts so every glyph referenced by the
+  // bidi-transformed text remains available in every PDF viewer.
+  const regular = await pdf.embedFont(regularBytes, { subset: false });
+  const bold = await pdf.embedFont(boldBytes, { subset: false });
   const PAGE_W = 595;
   const PAGE_H = 842;
   const RIGHT = 555;
@@ -710,20 +689,12 @@ Deno.serve(async (req) => {
     const monthFolder = await ensureChildFolder(graphAccessToken, employeeRoot.driveId, payrollFolder.id, monthFolderName);
     if (!monthFolder.id) throw new Error("sharepoint_month_folder_missing");
 
-    // If a previous attempt uploaded version 1 but failed later (for example,
-    // during email delivery), reuse that orphaned PDF instead of creating a
-    // duplicate "- 2" file on the next approval attempt.
-    const existingOrphan = currentVersion > 0
-      ? null
-      : await findExistingPdf(
-          graphAccessToken,
-          employeeRoot.driveId,
-          monthFolder.id,
-          employeeName,
-          monthKey,
-          nextVersion,
-        );
-    const uploaded = existingOrphan || await uploadUniquePdf(
+    // Never reuse an existing uncommitted PDF here. A previous approval
+    // attempt may have uploaded a file from an older snapshot before the DB
+    // transaction failed. Reusing that file can lock the month with stale
+    // attendance data. Always persist the PDF bytes generated from this
+    // approval attempt; uploadUniquePdf will choose the next free version.
+    const uploaded = await uploadUniquePdf(
       graphAccessToken,
       employeeRoot.driveId,
       monthFolder.id,
@@ -800,7 +771,7 @@ Deno.serve(async (req) => {
       sharepointWebUrl: uploaded.sharepointWebUrl,
       sharepointFolderWebUrl: monthFolder.webUrl,
       employeeEmail,
-      reusedExistingPdf: Boolean(existingOrphan),
+      reusedExistingPdf: false,
       mailSent: !mailError,
       mailError: mailError ? mailError.split(":").slice(0, 2).join(":") : "",
       mailedAt,
