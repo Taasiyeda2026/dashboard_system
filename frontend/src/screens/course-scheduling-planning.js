@@ -5958,9 +5958,12 @@ export function planningTabHtml({
     ['missing', 'fixed'].includes(row.kind)
     || (['proposal', 'fixed-proposal'].includes(row.kind) && !row.instructorEmpId)
   ).length;
-  const progressText = loading
-    ? `${escapeHtml(progress?.phase || 'הכנת נתונים')} · ${Number(progress?.completed) || 0} מתוך ${Number(progress?.total) || rows.length} פעילויות`
-    : '';
+  const progressCompleted = Math.max(0, Number(progress?.completed) || 0);
+  const progressTotal = Math.max(0, Number(progress?.total) || rows.length);
+  const progressPercent = loading && progressTotal > 0
+    ? Math.max(0, Math.min(100, Math.round((progressCompleted / progressTotal) * 100)))
+    : 0;
+  const progressPhase = loading ? text(progress?.phase || 'הכנת נתונים') : '';
   const pendingCount = Math.max(0, Number(pendingChanges) || 0);
   const exportReady = !!calculatedAt && rows.length > 0 && !loading && pendingCount === 0;
   const runLabel = loading
@@ -5983,7 +5986,16 @@ export function planningTabHtml({
       ${calculatedAt ? `<span class="course-planning-updated">עודכן ${escapeHtml(calculatedAt)}</span>` : ''}
     </div>
     ${error ? `<p class="course-scheduling-alert">${escapeHtml(error)}</p>` : ''}
-    ${progressText ? `<p class="course-planning-progress" role="status">${escapeHtml(progressText)}</p>` : ''}
+    ${loading ? `<div class="course-planning-progress" role="status" aria-live="polite" aria-label="${escapeHtml(progressPhase)}">
+      <div class="course-planning-progress__head">
+        <strong>${escapeHtml(progressPhase)}</strong>
+        <span><bdi dir="ltr">${progressCompleted}/${progressTotal}</bdi> · ${progressPercent}%</span>
+      </div>
+      <div class="course-planning-progress__track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${progressPercent}">
+        <span style="width:${progressPercent}%"></span>
+      </div>
+      <small>החישוב נשמר בין שלבים וממשיך מאותה ריצה במקרה של תיקון מקומי.</small>
+    </div>` : ''}
     <div class="course-planning-summary">
       <article><b>${rows.length}</b><span>כל הפעילויות</span></article>
       <article><b>${live}</b><span>מעודכן בפועל</span></article>
