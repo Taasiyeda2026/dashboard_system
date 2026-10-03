@@ -1,5 +1,6 @@
 import { instructionLanguageLabel, profileSpeaksLanguage, resolveInstructionLanguage } from './shared/instruction-language.js';
 import { normalizeCalendarSector } from './shared/school-calendar-logic.js';
+import { isFullDaySchedulingActivity } from './shared/activity-scheduling-eligibility.js';
 
 const LANGUAGE_LABELS = { he: 'עברית', ar: 'ערבית' };
 /** One-way driving-route home→school hard eligibility limit (km). Inclusive at exactly this value. */
@@ -235,6 +236,7 @@ export function evaluateInstructor({
   const requiredGender = normalizeGender(activity.required_instructor_gender) || 'any';
   const profileGender = normalizeGender(profile.gender);
   const femaleInstructor = profileGender === 'female';
+  const fullDayActivity = isFullDaySchedulingActivity(activity);
 
   if (String(instructor.active ?? 'yes').toLowerCase() === 'no' || instructor.active === false) failures.push('המדריך אינו פעיל');
   if (!String(instructor.address || '').trim()) missingProfileData.push('כתובת');
@@ -320,7 +322,7 @@ export function evaluateInstructor({
   let schoolContinuityPoints = 0;
   let authorityContinuityPoints = 0;
   let availableMeetings = 0;
-  const availabilityIssueKinds = new Set(['missing_availability', 'hours_unavailable', 'day_blocked', 'overlap']);
+  const availabilityIssueKinds = new Set(['missing_availability', 'hours_unavailable', 'day_blocked', 'overlap', 'full_day_tour_conflict']);
   const travelIssueKinds = new Set(['unverified_transition', 'insufficient_transition', 'transition_distance_exceeded']);
   const saturdayAllowed = normalizeCalendarSector(activity?.calendar_sector) === 'arab';
 
@@ -349,8 +351,24 @@ export function evaluateInstructor({
     }
 
     const { previous, next, day } = adjacentActivities(existingActivities, meeting);
-    const conflict = day.find((existing) => overlaps(meeting, existing));
-    if (conflict) {
+    const fullDayConflict = day.find((existing) =>
+      fullDayActivity
+      || existing?.full_day_blocking === true
+      || isFullDaySchedulingActivity(existing)
+    );
+    const conflict = fullDayConflict || day.find((existing) => overlaps(meeting, existing));
+    if (fullDayConflict) {
+      const conflictRef = formatPersistedActivityReference(fullDayConflict, meeting.date);
+      const conflictLabel = conflictRef || fullDayConflict.activity_name || 'פעילות אחרת';
+      addIssue(
+        'full_day_tour_conflict',
+        String(fullDayConflict.activity_id || fullDayConflict.activity_name || fullDayConflict.school || 'tour-day'),
+        fullDayActivity
+          ? `סיור תופס יום עבודה מלא ולא ניתן לשבץ אותו ביום שבו קיימת ${conflictLabel}`
+          : `ביום זה כבר משובץ סיור שתופס יום עבודה מלא: ${conflictLabel}`,
+        meeting.date
+      );
+    } else if (conflict) {
       const conflictRef = formatPersistedActivityReference(conflict, meeting.date);
       const conflictLabel = conflictRef || conflict.activity_name || 'פעילות אחרת';
       addIssue('overlap', String(conflict.activity_name || conflict.school || 'activity'), `חפיפה חוזרת עם ${conflictLabel}`, meeting.date);
