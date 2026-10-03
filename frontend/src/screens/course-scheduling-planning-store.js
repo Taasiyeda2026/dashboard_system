@@ -598,8 +598,13 @@ export function planningEngineUpgradeAffectedCourseIds({
   const current = text(currentEngineVersion);
   if (!previous || !current || previous === current) return [];
 
-  const schoolPackingUpgrade = previous.includes('planning-v23-20261001-idle-gap-compaction')
-    && current.includes('planning-v24-20261003-school-day-packing');
+  const schoolPackingUpgrade = (
+    previous.includes('planning-v23-20261001-idle-gap-compaction')
+      && current.includes('planning-v24-20261003-school-day-packing')
+  ) || (
+    previous.includes('planning-v24-20261003-school-day-packing')
+      && current.includes('planning-v25-20261003-school-packing-option-coverage')
+  );
   if (schoolPackingUpgrade) {
     const activityById = new Map((activities || []).map((activity) => [idOf(activity), activity]));
     const flexibleBySchool = new Map();
