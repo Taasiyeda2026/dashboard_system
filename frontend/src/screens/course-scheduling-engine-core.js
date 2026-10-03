@@ -16,7 +16,8 @@ import {
   proposeDateAdjustments,
   buildExceptionRecoveryPlan,
   classifyMeetingAvailabilityBlocks,
-  MAX_RECOVERABLE_EXCEPTION_MEETINGS
+  MAX_RECOVERABLE_EXCEPTION_MEETINGS,
+  meetingInstructorEmpId
 } from './course-scheduling-date-adjustments.js';
 import {
   courseUrgency,
@@ -151,12 +152,24 @@ export function instructorLoad(assignments = [], profile = {}, rules = [], optio
 function meetingAssignments(rows = [], options = {}) {
   const periodKey = options.periodKey || DEFAULT_COURSE_SCHEDULING_PERIOD_KEY;
   const schoolCalendar = options.schoolCalendar || [];
+  const ownerEmpId = text(options.empId);
   return rows.flatMap((activity) => {
     const activityCalendar = filterSchoolCalendarRowsBySector(schoolCalendar, activity?.calendar_sector);
+    const mainEmpIds = new Set([
+      text(activity?.emp_id),
+      text(activity?.emp_id_2),
+      text(activity?.draft_emp_id)
+    ].filter(Boolean));
     return activityMeetings(activity?.draft_emp_id && Array.isArray(activity.draft_proposed_meetings)
       ? { ...activity, meetings: activity.draft_proposed_meetings }
       : activity)
-      .filter((meeting) => options.allDates || isDateInCourseSchedulingPeriod(meeting.date, periodKey))
+      .filter((meeting) => {
+        if (!(options.allDates || isDateInCourseSchedulingPeriod(meeting.date, periodKey))) return false;
+        if (!ownerEmpId) return true;
+        const substituteEmpId = text(meeting?.substituteEmpId);
+        if (substituteEmpId) return substituteEmpId === ownerEmpId;
+        return mainEmpIds.has(ownerEmpId);
+      })
       .map((meeting) => ({
         ...meeting,
         end_time: effectiveEndTime(text(meeting.date).slice(0, 10), meeting.end_time || activity.end_time, activityCalendar),
@@ -193,6 +206,15 @@ function assignedRowsByInstructor(rows = [], supplied = {}) {
   for (const row of rows.filter(isSchedulingDraftAssignment)) {
     add(text(row.draft_emp_id), row);
   }
+  for (const row of rows || []) {
+    const source = row?.draft_emp_id && Array.isArray(row?.draft_proposed_meetings)
+      ? row.draft_proposed_meetings
+      : activityMeetings(row);
+    for (const meeting of source || []) {
+      const substituteEmpId = text(meeting?.substituteEmpId);
+      if (substituteEmpId) add(substituteEmpId, row);
+    }
+  }
   return assigned;
 }
 
@@ -214,12 +236,14 @@ function rebuildPreparedInstructorContext(context, empId) {
   const instructorRules = context.rules?.[id] || [];
   const periodMeetings = meetingAssignments(rows, {
     periodKey: context.periodKey,
-    schoolCalendar: context.schoolCalendar || []
+    schoolCalendar: context.schoolCalendar || [],
+    empId: id
   });
   const allMeetings = meetingAssignments(rows, {
     periodKey: context.periodKey,
     allDates: true,
-    schoolCalendar: context.schoolCalendar || []
+    schoolCalendar: context.schoolCalendar || [],
+    empId: id
   });
   const baselineLoad = instructorLoad(rows, profile, instructorRules, { periodKey: context.periodKey });
   context.instructorContext.set(id, {
@@ -308,6 +332,13 @@ export function appendSchedulingRunActivity(context, activity = {}) {
     add(activity.emp_id_2);
   }
   if (isSchedulingDraftAssignment(activity)) add(activity.draft_emp_id);
+  const activityMeetingsSource = activity?.draft_emp_id && Array.isArray(activity?.draft_proposed_meetings)
+    ? activity.draft_proposed_meetings
+    : activityMeetings(activity);
+  for (const meeting of activityMeetingsSource || []) {
+    const substituteEmpId = text(meeting?.substituteEmpId);
+    if (substituteEmpId) add(substituteEmpId);
+  }
   if (!affected.size) return context;
 
   context.contextRevision = (Number(context.contextRevision) || 0) + 1;
@@ -385,7 +416,7 @@ function tryFindSingleMeetingSubstitute({
   for (const candidate of instructors) {
     const candidateEmpId = text(candidate?.emp_id);
     if (!candidateEmpId || candidateEmpId === mainEmpId) continue;
-    const persistedMeetings = meetingAssignments(assignedRows[candidateEmpId] || [], meetingOptions);
+    const persistedMeetings = meetingAssignments(assignedRows[candidateEmpId] || [], { ...meetingOptions, empId: candidateEmpId });
     const singleCourse = { ...course, meetings: [meeting] };
     const travel = dynamicTravel(singleCourse, candidate, persistedMeetings, input);
     const gate = evaluateInstructor({
@@ -447,7 +478,7 @@ function evaluateCandidate({
       || instructorLoad(persistedRows, profile, rules[empId] || [], { periodKey });
     const persistedProjectedLoad = instructorLoad([...persistedRows, originalPeriodCourse], profile, rules[empId] || [], { periodKey });
     const persistedPeriodMeetings = preparedInstructor?.periodMeetings
-      || meetingAssignments(persistedRows, { periodKey, schoolCalendar: input.schoolCalendar || [] });
+      || meetingAssignments(persistedRows, { periodKey, schoolCalendar: input.schoolCalendar || [], empId });
     return {
       ...gate,
       eligible: false,
@@ -507,7 +538,7 @@ function evaluateCandidate({
     || filterSchoolCalendarRowsBySector(input.schoolCalendar || [], course?.calendar_sector);
   const meetingOptions = { periodKey, allDates: true, schoolCalendar: input.schoolCalendar || [] };
   const persistedMeetings = preparedInstructor?.allMeetings
-    || meetingAssignments(persistedRows, meetingOptions);
+    || meetingAssignments(persistedRows, { ...meetingOptions, empId });
   const allowSaturday = normalizeCalendarSector(course?.calendar_sector) === 'arab';
   const adjustmentInput = {
     meetings: allMeetings,
