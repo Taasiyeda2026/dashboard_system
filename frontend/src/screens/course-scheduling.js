@@ -2325,17 +2325,15 @@ export const courseSchedulingScreen = {
       status.classList.remove('is-ready', 'is-warning', 'is-error');
       status.classList.add('is-working');
       status.setAttribute('aria-busy', 'true');
-      if (phase === 'עדכון שינויים בלבד' || (pending > 0 && !/מלא/.test(phase))) {
-        const countLabel = total || pending;
-        const label = countLabel === 1 ? 'מעדכן פעילות אחת' : `מעדכן ${countLabel} פעילויות שהושפעו`;
-        message.textContent = total
-          ? `${label} · ${completed} מתוך ${total}… אפשר לעבור למסכים אחרים; העדכון ימשיך ברקע.`
-          : `${label}… אפשר לעבור למסכים אחרים; העדכון ימשיך ברקע.`;
+      if (!phase && pending > 0) {
+        const label = pending === 1 ? 'מעדכן פעילות אחת' : `מעדכן ${pending} פעילויות שהושפעו`;
+        message.textContent = `${label}… אפשר לעבור למסכים אחרים; העדכון ימשיך ברקע.`;
         return;
       }
+      const phaseLabel = phase || 'המערכת מעדכנת את סידור העבודה';
       message.textContent = total
-        ? `${phase || 'המערכת מעדכנת את סידור העבודה'} · ${completed} מתוך ${total}. אפשר לעבור למסכים אחרים בדשבורד; החישוב ימשיך.`
-        : `${phase || 'המערכת מעדכנת את סידור העבודה'}… אפשר לעבור למסכים אחרים בדשבורד; החישוב ימשיך.`;
+        ? `${phaseLabel} · ${completed} מתוך ${total}. זה שלב בתוך אותה ריצה; החישוב לא התחיל מחדש.`
+        : `${phaseLabel}… זה שלב בתוך אותה ריצה; החישוב לא התחיל מחדש.`;
     };
 
     const onPlanningNeedsRecalc = (event) => {
