@@ -1,5 +1,6 @@
 import { exceedsTransitionDistanceLimit, transitionBufferMinutes } from './instructor-matching-engine.js';
 import { filterSchoolCalendarRowsBySector } from './shared/school-calendar-logic.js';
+import { isFullDaySchedulingActivity } from './shared/activity-scheduling-eligibility.js';
 
 /** Soft instructor exceptions at or below this count stay eligible as the permanent instructor. */
 export const MAX_RECOVERABLE_EXCEPTION_MEETINGS = 2;
@@ -131,10 +132,20 @@ function findNextWeeklySlot({
   return null;
 }
 
-function validateProposedMeetings(proposed, { existingActivities = [], transitions = {} } = {}) {
+function validateProposedMeetings(proposed, {
+  existingActivities = [],
+  transitions = {},
+  fullDayBlocking = false
+} = {}) {
   for (const meeting of proposed) {
     if (meeting.substituteEmpId) continue;
     const sameDay = existingActivities.filter((row) => text(row.date) === meeting.date);
+    const fullDayConflict = sameDay.some((row) =>
+      row?.full_day_blocking === true || isFullDaySchedulingActivity(row)
+    );
+    if ((fullDayBlocking && sameDay.length) || fullDayConflict) {
+      return { valid: false, reason: 'proposed_full_day_tour_conflict', meetings: proposed };
+    }
     if (sameDay.some((row) => overlaps(meeting, row))) {
       return { valid: false, reason: 'proposed_overlap', meetings: proposed };
     }
@@ -173,7 +184,8 @@ export function proposeDateAdjustments({
   halfEnd = '',
   allowSaturday = false,
   skipDates = [],
-  substitutionsByDate = {}
+  substitutionsByDate = {},
+  fullDayBlocking = false
 } = {}) {
   const exceptionMap = new Map(exceptions.map((row) => [text(row.exception_date), row]));
   const blockedDates = blockedSchoolDates(schoolCalendar);
@@ -217,7 +229,7 @@ export function proposeDateAdjustments({
         } : {})
       };
     });
-    const err = validateProposedMeetings(proposed, { existingActivities, transitions });
+    const err = validateProposedMeetings(proposed, { existingActivities, transitions, fullDayBlocking });
     if (err) return err;
     const newEndDate = proposed.at(-1)?.date || '';
     return {
@@ -337,7 +349,8 @@ export function buildExceptionRecoveryPlan({
   transitions = {},
   halfEnd = '',
   allowSaturday = false,
-  findSubstitute = null
+  findSubstitute = null,
+  fullDayBlocking = false
 } = {}) {
   const classification = classifyMeetingAvailabilityBlocks({
     meetings,
@@ -380,7 +393,8 @@ export function buildExceptionRecoveryPlan({
     transitions,
     halfEnd,
     allowSaturday,
-    substitutionsByDate
+    substitutionsByDate,
+    fullDayBlocking
   });
 
   if (!adjustment) {
