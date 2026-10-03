@@ -35,6 +35,7 @@ Inside `course-scheduling.js`:
 - Capability registry may still list `instructors.planning` — UI remaps it to the workboard. **Needs verification** if any deep-link still expects a separate planning pane.
 - UI is a **simple compact workboard** (`data-cs-ui="simple-workboard-20260924-v1"`): list of activities + detail drawer, not a separate planning-only screen.
 - Focus mode: arriving from Activities with a selected id shows only that activity (`is-activity-focus`); “הצג את כל הפעילויות” clears focus.
+- Stored rows with `needs_recalc=true` are restored as stale context only: the old instructor/date remain visibly marked as old, all proposal/lock/confirm actions are blocked, and the status bar offers an explicit incremental “עדכן” action. Merely entering the screen never starts that run; point-mutation events may still request the existing scoped auto-refresh.
 - Inner period controls (not screen tabs): `first` | `second` | `year` via `periodOptions()` / `data-period-key`.
 
 Permissions:

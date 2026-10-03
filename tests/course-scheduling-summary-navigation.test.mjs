@@ -7,8 +7,8 @@ const baseCss = readFileSync(new URL('../frontend/src/screens/course-scheduling.
 const densityCss = readFileSync(new URL('../frontend/src/screens/course-scheduling-density-polish.css', import.meta.url), 'utf8');
 
 test('summary totals are accessible status filters for the activity table', () => {
-  assert.match(screen, /data-business-summary-filter="${key}"/);
-  assert.match(screen, /aria-pressed="${active \? 'true' : 'false'}"/);
+  assert.match(screen, /data-business-summary-filter="\$\{key\}"/);
+  assert.match(screen, /aria-pressed="\$\{active \? 'true' : 'false'\}"/);
   for (const key of ['all', 'open', 'draft', 'assigned']) {
     assert.match(screen, new RegExp("\\['" + key + "'"));
   }
@@ -20,7 +20,7 @@ test('summary totals are accessible status filters for the activity table', () =
 
 test('status-card filtering keeps the filtered table context visible', () => {
   assert.match(screen, /data-course-list-context/);
-  assert.match(screen, /פעילויות ${escapeHtml\(selectedGroup\?\.label \|\| ''\)}/);
+  assert.match(screen, /פעילויות \$\{escapeHtml\(selectedGroup\?\.label \|\| ''\)\}/);
   assert.match(screen, /state\.courseSchedulingBusinessStatus = event\.target\.value \|\| 'all'/);
 });
 
@@ -28,7 +28,7 @@ test('workboard row actions explain single-course workflows clearly', () => {
   assert.match(screen, />פתח \/ שינוי שיבוץ<\/button>/);
   assert.match(screen, />בדוק ושבץ<\/button>/);
   assert.doesNotMatch(screen, />בדיקה ידנית<\/button>/);
-  assert.match(screen, />בחר מדריך אחר<\/button>/);
+  assert.match(screen, /'בחר מדריך אחר'/);
 });
 
 test('stale planning explains where the instructor summary table went', () => {

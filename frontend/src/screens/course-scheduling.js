@@ -106,7 +106,6 @@ import {
   applyLocalPlanningNeedsRecalc,
   applyStoredPlanningValidityAudit,
   planningEngineUpgradeAffectedCourseIds,
-  shouldAutoRefreshPlanning,
   AUTO_PLANNING_REFRESH_MAX_IDS
 } from './course-scheduling-planning-store.js';
 import { exportPlanningWorkbook } from './course-scheduling-planning-export.js';
@@ -724,6 +723,7 @@ export function planningJointChoiceModel(planningRow = {}, draft = {}) {
 function workboardAlert(row = {}) {
   const planning = row.planningRow || {};
   const result = row.result || {};
+  if (planning.needsRecalc === true) return 'הצעה לא מעודכנת · נדרש עדכון תכנון';
   if (row.hasReplannedDraft) {
     if (planning.kind === 'recruitment') return 'הטיוטה הקיימת אינה מיטבית · מועד חלופי מוכן ונדרש גיוס';
     if (planning.kind === 'proposal' || planning.kind === 'fixed-proposal') return 'מומלץ לשנות את הטיוטה הקיימת לפי התכנון הארצי';
@@ -762,7 +762,8 @@ function workboardScheduleLabel(row = {}) {
   const parts = [];
   if (startDate) parts.push(formatDateHe(startDate));
   if (startTime && endTime) parts.push(formatTimeRangeShort(startTime, endTime));
-  return parts.join(' · ') || 'טרם נקבע';
+  const label = parts.join(' · ') || 'טרם נקבע';
+  return row.planningRow?.needsRecalc === true ? `${label} · מידע ישן` : label;
 }
 
 function workboardInstructorLabel(row = {}) {
@@ -813,6 +814,16 @@ function courseRowModel(course, resultByCourseId, planningByCourseId = new Map()
   return row;
 }
 
+export function stalePlanningRowForDisplay(row = {}) {
+  return {
+    ...row,
+    needsRecalc: true,
+    planningLocked: false,
+    status: 'נדרש עדכון תכנון',
+    reason: 'ההצעה השמורה אינה עדכנית. יש לעדכן את התכנון לפני בחירה או אישור.'
+  };
+}
+
 const LIST_GROUPS = [
   { key: 'open', label: 'פתוח' },
   { key: 'draft', label: 'ממתין לאישור' },
@@ -847,7 +858,7 @@ function planningAlternativeButtonsHtml(row = {}, expanded = false, state = {}) 
         || text(option.startTime) !== text(planning.startTime)
       ).slice(0, 4)
     : [];
-  if (!expanded || row.isAssigned) return '';
+  if (!expanded || row.isAssigned || planning.needsRecalc === true) return '';
 
   const draft = state?.courseSchedulingChoiceDrafts?.[row.id] || {};
   const choice = planningJointChoiceModel(planning, draft);
@@ -908,6 +919,9 @@ function planningAlternativeButtonsHtml(row = {}, expanded = false, state = {}) 
 function workboardActionsHtml(row = {}, { planningLoading = false, alternativesExpanded = false } = {}) {
   if (row.isAssigned) {
     return '<button type="button" class="course-scheduling-workboard-secondary" data-course-row-action data-open-course-detail>פתח / שינוי שיבוץ</button>';
+  }
+  if (row.planningRow?.needsRecalc === true) {
+    return '<span class="course-scheduling-workboard-stale-action" aria-disabled="true">נדרש עדכון תכנון</span>';
   }
   if (row.hasActualDraft) {
     if (row.hasReplannedDraft) {
@@ -1025,7 +1039,8 @@ function courseListCardHtml(row, selectedId, state = {}) {
     ? `<small class="course-scheduling-workboard-alert">⚠ ${escapeHtml(row.alert)}</small>`
     : '';
   const searchText = escapeHtml(courseRowSearchHaystack(row));
-  return `<div class="course-scheduling-compact-row course-scheduling-course-card${selectedClass}" data-course-card="${escapeHtml(row.id)}" data-search-text="${searchText}" data-course-scroll-target="${row.id === selectedId ? 'selected' : ''}" role="button" tabindex="0" aria-label="${escapeHtml(`${school}, ${authority}, ${courseName}, ${row.statusLabel}`)}">
+  const staleClass = row.planningRow?.needsRecalc === true ? ' is-planning-stale' : '';
+  return `<div class="course-scheduling-compact-row course-scheduling-course-card${selectedClass}${staleClass}" data-course-card="${escapeHtml(row.id)}" data-search-text="${searchText}" data-course-scroll-target="${row.id === selectedId ? 'selected' : ''}" data-planning-stale="${row.planningRow?.needsRecalc === true ? 'true' : 'false'}" role="button" tabindex="0" aria-label="${escapeHtml(`${school}, ${authority}, ${courseName}, ${row.statusLabel}`)}">
     <span class="course-scheduling-compact-cell course-scheduling-compact-school" title="${escapeHtml(school)}"><strong>${escapeHtml(school)}</strong><small>${escapeHtml(authority)}</small></span>
     <strong class="course-scheduling-compact-cell course-scheduling-compact-course" title="${escapeHtml(courseName)}">${escapeHtml(courseName)}</strong>
     <span class="course-scheduling-compact-cell course-scheduling-workboard-schedule"><bdi dir="ltr">${escapeHtml(row.scheduleLabel)}</bdi></span>
@@ -1076,7 +1091,7 @@ function courseListHtml(rowModels, selectedId, state = {}) {
 }
 
 
-function schedulingPlanningStatusHtml(state = {}) {
+export function schedulingPlanningStatusHtml(state = {}) {
   const loading = !!state.courseSchedulingPlanningLoading;
   const pendingRecalc = Math.max(0, Number((state.courseSchedulingPlanningAffectedIds || []).length) || 0);
   const hardGateInvalid = Math.max(0, Number(state.courseSchedulingPlanningHardGateInvalidCount) || 0);
@@ -1122,10 +1137,6 @@ function schedulingPlanningStatusHtml(state = {}) {
   }
   if (pendingRecalc > 0 || hardGateInvalid > 0) {
     const count = Math.max(pendingRecalc, hardGateInvalid);
-    if (shouldAutoRefreshPlanning(state.courseSchedulingPlanningAffectedIds || []) || count <= AUTO_PLANNING_REFRESH_MAX_IDS) {
-      const label = count === 1 ? 'מעדכן פעילות אחת…' : `מעדכן ${count} פעילויות שהושפעו…`;
-      return `<div class="course-scheduling-auto-plan is-working" role="status" data-planning-status aria-busy="true"><span data-planning-status-message><strong>${escapeHtml(label)}</strong></span></div>`;
-    }
     return `<div class="course-scheduling-auto-plan is-ready" role="status" data-planning-status aria-busy="false">
       <span data-planning-status-message><strong>נדרש עדכון · ${count} פעילויות</strong></span>
       <button type="button" class="course-scheduling-workboard-primary" data-run-course-planning>עדכן</button>
@@ -2413,16 +2424,8 @@ export const courseSchedulingScreen = {
       const sharedRows = (shared?.rows || [])
         .filter((entry) => currentCourseIds.includes(text(entry.activityId)))
         .map((entry) => {
+          if (entry.needsRecalc === true) return stalePlanningRowForDisplay(entry.row);
           if (entry.lockedOption) return applyPlanningLockToRow(entry.row, entry.lockedOption, scope.periodKey);
-          if (entry.needsRecalc === true && entry.row?.planningLocked) {
-            return {
-              ...entry.row,
-              planningLocked: false,
-              kind: 'proposal',
-              status: 'ממתין לעדכון תכנון',
-              reason: 'הבחירה שוחררה ונשמרה במערכת המשותפת. הפעילות תתעדכן בהרצה המצומצמת הבאה.'
-            };
-          }
           return entry.row;
         });
       state.courseSchedulingPlanningStale = inputChanged;
@@ -3037,7 +3040,11 @@ export const courseSchedulingScreen = {
       startRange: option.startRange ? { ...option.startRange } : option.startRange
     });
 
+    const planningNeedsRecalc = (courseId) => (state.courseSchedulingPlanningShared?.rows || [])
+      .some((entry) => text(entry?.activityId) === text(courseId) && entry?.needsRecalc === true);
+
     const persistPlanningLock = async (courseId, option) => {
+      if (planningNeedsRecalc(courseId)) throw new Error('planning_draft_stale_needs_recalc');
       const activity = (state.courseSchedulingActivities || state.activities || [])
         .find((row) => text(row?.row_id || row?.RowID || row?.id) === text(courseId));
       const validation = planningOptionPassesFinalValidation(option, {
@@ -3081,7 +3088,7 @@ export const courseSchedulingScreen = {
       const optionIndex = Number(button.dataset.planningOptionIndex);
       const row = (state.courseSchedulingPlanningRows || []).find((item) => text(item.courseId) === courseId);
       const option = Number.isInteger(optionIndex) ? row?.options?.[optionIndex] : null;
-      if (!courseId || !option?.instructorEmpId || !(option.meetings || []).length) return;
+      if (!courseId || planningNeedsRecalc(courseId) || row?.needsRecalc === true || !option?.instructorEmpId || !(option.meetings || []).length) return;
 
       button.disabled = true;
       state.courseSchedulingPlanningError = '';
@@ -3108,7 +3115,7 @@ export const courseSchedulingScreen = {
     root.querySelectorAll('[data-planning-unlock]').forEach((button) => button.addEventListener('click', async () => {
       if (state.courseSchedulingPlanningLoading || button.disabled) return;
       const courseId = text(button.dataset.planningCourseId);
-      if (!courseId) return;
+      if (!courseId || planningNeedsRecalc(courseId)) return;
       button.disabled = true;
       state.courseSchedulingPlanningError = '';
       try {
@@ -3134,7 +3141,7 @@ export const courseSchedulingScreen = {
       if (!canEdit || state.courseSchedulingPlanningLoading || button.disabled) return;
       const courseId = text(button.dataset.courseId);
       const row = (state.courseSchedulingPlanningRows || []).find((item) => text(item.courseId) === courseId);
-      if (!courseId || !row?.planningLocked || !row?.instructorEmpId) return;
+      if (!courseId || planningNeedsRecalc(courseId) || row?.needsRecalc === true || !row?.planningLocked || !row?.instructorEmpId) return;
       if (!window.confirm(`לאשר את הטיוטה ולשבץ את ${row.instructorName || row.instructorEmpId} לפעילות?`)) return;
 
       button.disabled = true;

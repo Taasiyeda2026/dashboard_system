@@ -76,7 +76,8 @@ test('local planning invalidation marks only the provided activity ids as pendin
   assert.equal(state.courseSchedulingPlanningShared.rows[0].needsRecalc, true);
   assert.equal(state.courseSchedulingPlanningShared.rows[1].needsRecalc, false);
   assert.equal(state.courseSchedulingPlanningShared.rows[2].needsRecalc, false);
-  assert.equal(state.courseSchedulingPlanningRows[0].status, 'ממתין לעדכון תכנון');
+  assert.equal(state.courseSchedulingPlanningRows[0].status, 'נדרש עדכון תכנון');
+  assert.equal(state.courseSchedulingPlanningRows[0].needsRecalc, true);
   assert.equal(state.courseSchedulingPlanningRows[0].planningLocked, false);
 
   const needsRecalcOnly = (state.courseSchedulingPlanningShared.rows || [])
@@ -100,12 +101,13 @@ test('local planning invalidation marks only the provided activity ids as pendin
   assert.notEqual(affected.length, 248);
 });
 
-test('planning status auto-refreshes affected rows and never shows הכול מעודכן while pending', async () => {
+test('planning status distinguishes pending work from an active auto-refresh run', async () => {
   const screen = await readFile(screenUrl, 'utf8');
   assert.match(screen, /מעדכן \$\{count\} פעילויות שהושפעו|מעדכן \$\{countLabel\} פעילויות שהושפעו/);
   assert.match(screen, /מעדכן פעילות אחת/);
   assert.match(screen, /hardGateInvalid/);
   assert.match(screen, /pendingRecalc > 0 \|\| hardGateInvalid > 0/);
+  assert.match(screen, /נדרש עדכון · \$\{count\} פעילויות/);
   assert.match(screen, /<strong>הכול מעודכן<\/strong>/);
   assert.match(screen, /app:planning-needs-recalc/);
   assert.match(screen, /applyLocalPlanningNeedsRecalc/);
