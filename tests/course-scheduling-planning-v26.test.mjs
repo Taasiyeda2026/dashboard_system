@@ -7,9 +7,11 @@ import {
   TOUR_OPERATIONAL_START_TIME,
   TOUR_OPERATIONAL_END_TIME,
   generatePlanningScenarios,
+  buildDynamicCoursePlan,
   inferPlanningCourseSpec,
   optimizeSchoolDayPackingPass,
-  validatePlanningPlanCoherence
+  validatePlanningPlanCoherence,
+  finalValidationRepairCourseIds
 } from '../frontend/src/screens/course-scheduling-planning.js';
 import { planningEngineUpgradeAffectedCourseIds } from '../frontend/src/screens/course-scheduling-planning-store.js';
 import { appendSchedulingRunActivity, prepareSchedulingRunContext } from '../frontend/src/screens/course-scheduling-engine-core.js';
@@ -522,6 +524,109 @@ test('final validator still rejects a 21km consecutive transition when the gap i
   });
   assert.equal(result.valid, false);
   assert.ok(result.failures.some((failure) => failure.reason === 'transition_distance_exceeded'));
+});
+
+test('late overlap is repaired locally from existing rows without rebuilding unrelated rows', async () => {
+  const activities = [
+    course('repair-a', { school_id: 'repair-school', school: 'בית ספר תיקון' }),
+    course('repair-b', { school_id: 'repair-school', school: 'בית ספר תיקון' }),
+    course('unrelated-course', { school_id: 'other-school', school: 'בית ספר אחר' })
+  ];
+  const catalog = activities.map((activity) => ({
+    activity_name: activity.activity_name,
+    meetings_count: 1,
+    hours_count: 1.5
+  }));
+  const existingRows = [
+    {
+      courseId: 'repair-a', kind: 'proposal', schoolId: 'repair-school', school: 'בית ספר תיקון',
+      instructorEmpId: '1550', instructorName: 'לירון',
+      startDate: '2026-10-12', endDate: '2026-10-12', startTime: '10:00', endTime: '11:30',
+      meetings: [{ date: '2026-10-12', start_time: '10:00', end_time: '11:30' }],
+      options: [option(1550, '2026-10-12', '10:00', '11:30')]
+    },
+    {
+      courseId: 'repair-b', kind: 'proposal', schoolId: 'repair-school', school: 'בית ספר תיקון',
+      instructorEmpId: '1550', instructorName: 'לירון',
+      startDate: '2026-10-12', endDate: '2026-10-12', startTime: '10:00', endTime: '11:30',
+      meetings: [{ date: '2026-10-12', start_time: '10:00', end_time: '11:30' }],
+      options: [option(1550, '2026-10-12', '10:00', '11:30')]
+    },
+    {
+      courseId: 'unrelated-course', kind: 'recruitment', schoolId: 'other-school', school: 'בית ספר אחר',
+      instructorEmpId: '', instructorName: '', startDate: '2026-10-13', startTime: '09:00', endTime: '10:30',
+      meetings: [{ date: '2026-10-13', start_time: '09:00', end_time: '10:30' }],
+      options: []
+    }
+  ];
+  const routeClient = {
+    googleCalls: 0,
+    cacheHits: 0,
+    peek: () => ({ distance_km: 0, duration_minutes: 0 }),
+    request: async () => ({ calculated: true, distance_km: 0, duration_minutes: 0 })
+  };
+
+  const result = await buildDynamicCoursePlan({
+    activities,
+    instructors: [instructor],
+    profiles,
+    rules,
+    exceptions: {},
+    schoolCalendar: [],
+    catalog,
+    existingRows,
+    targetCourseIds: [],
+    today: '2026-10-03',
+    routeClient,
+    allowGlobalRepair: false,
+    planningProfile: 'fast'
+  });
+
+  assert.equal(result.finalPlanValidation.valid, true);
+  const repaired = result.rows.filter((row) => ['repair-a', 'repair-b'].includes(row.courseId));
+  assert.equal(repaired.length, 2);
+  assert.notDeepEqual(
+    repaired.map((row) => [row.startDate, row.startTime]),
+    [['2026-10-12', '10:00'], ['2026-10-12', '10:00']]
+  );
+  assert.equal(result.rows.find((row) => row.courseId === 'unrelated-course')?.kind, 'recruitment');
+});
+
+test('final-validation repair scope expands only to direct day/school dependents', () => {
+  const rows = [
+    {
+      courseId: 'a', kind: 'proposal', schoolId: 's1', instructorEmpId: '1',
+      meetings: [{ date: '2027-01-10', start_time: '10:00', end_time: '11:30' }]
+    },
+    {
+      courseId: 'b', kind: 'proposal', schoolId: 's2', instructorEmpId: '1',
+      meetings: [{ date: '2027-01-10', start_time: '11:00', end_time: '12:30' }]
+    },
+    {
+      courseId: 'school-sibling', kind: 'proposal', schoolId: 's1', instructorEmpId: '2',
+      meetings: [{ date: '2027-01-12', start_time: '09:00', end_time: '10:30' }]
+    },
+    {
+      courseId: 'unrelated', kind: 'proposal', schoolId: 's9', instructorEmpId: '9',
+      meetings: [{ date: '2027-01-13', start_time: '09:00', end_time: '10:30' }]
+    }
+  ];
+  const ids = finalValidationRepairCourseIds([
+    { reason: 'overlap', empId: '1', date: '2027-01-10', firstCourseId: 'a', secondCourseId: 'b' }
+  ], rows);
+  assert.deepEqual(new Set(ids), new Set(['a', 'b', 'school-sibling']));
+  assert.equal(ids.includes('unrelated'), false);
+});
+
+test('planner source checkpoints global stages and attempts bounded local final repair before throwing', async () => {
+  const source = await readFile(new URL('../frontend/src/screens/course-scheduling-planning.js', import.meta.url), 'utf8');
+  assert.match(source, /אריזת בתי ספר הושלמה[\s\S]*snapshotRows/);
+  assert.match(source, /ריכוז ימי עבודה הושלם/);
+  assert.match(source, /צמצום חלונות הושלם/);
+  assert.match(source, /בקרת תקינות סופית/);
+  assert.match(source, /_finalValidationRepairPass < 2/);
+  assert.match(source, /targetCourseIds: repairIds/);
+  assert.match(source, /allowGlobalRepair: false/);
 });
 
 test('v26 migration tracks packing options, expands school invalidation, ignores preferred_work_days, and rebuilds proposals', async () => {

@@ -3713,6 +3713,7 @@ function refreshSchoolPlanningDiagnostics(rowsById, activities = []) {
  */
 async function consolidateInstructorWorkdaysPass({
   rowsById,
+  targetCourseIds = null,
   targets = [],
   catalog = [],
   instructors = [],
@@ -3729,6 +3730,9 @@ async function consolidateInstructorWorkdaysPass({
   report = async () => {}
 } = {}) {
   const activityById = new Map((targets || []).map((activity) => [idOf(activity), activity]));
+  const targetIds = Array.isArray(targetCourseIds)
+    ? new Set(targetCourseIds.map((value) => text(value)).filter(Boolean))
+    : null;
   const maxPasses = 4;
   let moved = 0;
   let passes = 0;
@@ -3736,6 +3740,7 @@ async function consolidateInstructorWorkdaysPass({
   const movableRows = () => [...rowsById.values()]
     .filter((row) =>
       text(row?.kind) === 'proposal'
+      && (!targetIds || targetIds.has(text(row?.courseId)))
       && row?.schoolDateAnchored !== true
       && row?.planningLocked !== true
       && text(row?.instructorEmpId)
@@ -4283,6 +4288,48 @@ export function validatePlanningPlanCoherence({
   };
 }
 
+
+export function finalValidationRepairCourseIds(failures = [], rows = [], maxIds = 24) {
+  const direct = new Set();
+  const instructorDates = new Set();
+  for (const failure of failures || []) {
+    for (const value of [failure?.courseId, failure?.firstCourseId, failure?.secondCourseId]) {
+      const id = text(value);
+      if (id) direct.add(id);
+    }
+    const empId = text(failure?.empId);
+    const date = text(failure?.date).slice(0, 10);
+    if (empId && /^\d{4}-\d{2}-\d{2}$/.test(date)) instructorDates.add(`${empId}|${date}`);
+  }
+  if (!direct.size) return [];
+
+  const rowById = new Map((rows || []).map((row) => [text(row?.courseId), row]));
+  const schoolIds = new Set(
+    [...direct]
+      .map((id) => text(rowById.get(id)?.schoolId))
+      .filter(Boolean)
+  );
+  const expanded = new Set(direct);
+
+  for (const row of rows || []) {
+    const courseId = text(row?.courseId);
+    if (!courseId) continue;
+    if (schoolIds.has(text(row?.schoolId)) && ['proposal', 'fixed-proposal', 'planning-locked', 'recruitment', 'missing'].includes(text(row?.kind))) {
+      expanded.add(courseId);
+    }
+    for (const meeting of row?.meetings || []) {
+      const empId = meetingInstructorEmpId(meeting, row?.instructorEmpId);
+      const date = text(meeting?.date).slice(0, 10);
+      if (empId && instructorDates.has(`${empId}|${date}`)) {
+        expanded.add(courseId);
+        break;
+      }
+    }
+  }
+
+  return [...expanded].slice(0, Math.max(1, Number(maxIds) || 24));
+}
+
 export async function buildDynamicCoursePlan({
   activities = [],
   instructors = [],
@@ -4306,13 +4353,14 @@ export async function buildDynamicCoursePlan({
   allowGlobalRepair = null,
   _repairPass = false,
   _repairPriorityIds = [],
+  _finalValidationRepairPass = 0,
   planningProfile = 'deep'
 } = {}) {
   const limits = planningLimits(planningProfile);
-  const report = async (phase, completed = 0, total = 0, courseId = '', row = null) => {
+  const report = async (phase, completed = 0, total = 0, courseId = '', row = null, snapshotRows = null) => {
     planningPerfCount('progressUiUpdates');
     if (typeof onProgress === 'function') {
-      await onProgress({ phase, completed, total, courseId, row });
+      await onProgress({ phase, completed, total, courseId, row, snapshotRows });
     }
     await checkpoint();
   };
@@ -4759,15 +4807,19 @@ export async function buildDynamicCoursePlan({
   }
 
   if (!_repairPass) {
-    if (!optimizationOnlyIds) optimizeSchoolDayPackingPass({
-      rowsById,
-      activities: targets,
-      targetCourseIds: incrementalIds ? [...incrementalIds] : null,
-      beamWidth: 8,
-      routeClient
-    });
+    if (!optimizationOnlyIds) {
+      optimizeSchoolDayPackingPass({
+        rowsById,
+        activities: targets,
+        targetCourseIds: incrementalIds ? [...incrementalIds] : null,
+        beamWidth: 8,
+        routeClient
+      });
+      await report('אריזת בתי ספר הושלמה', rowsById.size, rowsById.size, '', null, [...rowsById.values()]);
+    }
     if (!optimizationOnlyIds) await consolidateInstructorWorkdaysPass({
       rowsById,
+      targetCourseIds: incrementalIds ? [...incrementalIds] : null,
       targets,
       catalog,
       instructors,
@@ -4789,6 +4841,9 @@ export async function buildDynamicCoursePlan({
       },
       report
     });
+    if (!optimizationOnlyIds) {
+      await report('ריכוז ימי עבודה הושלם', rowsById.size, rowsById.size, '', null, [...rowsById.values()]);
+    }
     await compactInstructorDayGapsPass({
       rowsById,
       targetCourseIds: optimizationOnlyIds ? [...optimizationOnlyIds] : null,
@@ -4811,7 +4866,9 @@ export async function buildDynamicCoursePlan({
       },
       report
     });
+    await report('צמצום חלונות הושלם', rowsById.size, rowsById.size, '', null, [...rowsById.values()]);
     refreshSchoolPlanningDiagnostics(rowsById, targets);
+    await report('בקרת תקינות סופית', rowsById.size, rowsById.size, '', null, [...rowsById.values()]);
   }
 
   const rows = assignRecruitmentProfiles(
@@ -4828,9 +4885,43 @@ export async function buildDynamicCoursePlan({
     routeClient
   });
   if (!finalPlanValidation.valid) {
+    const repairIds = finalValidationRepairCourseIds(finalPlanValidation.failures, rows);
+    if (_finalValidationRepairPass < 2 && repairIds.length) {
+      await report('תיקון מקומי לאחר בקרת תקינות', 0, repairIds.length);
+      return buildDynamicCoursePlan({
+        activities,
+        instructors,
+        profiles,
+        rules,
+        exceptions,
+        schoolCalendar,
+        catalog,
+        district,
+        periodKey,
+        today,
+        routeClient,
+        lockedOptions,
+        existingRows: rows,
+        targetCourseIds: repairIds,
+        optimizationOnlyCourseIds: null,
+        onProgress: typeof onProgress === 'function'
+          ? (progress) => onProgress({ ...progress, phase: `תיקון מקומי · ${progress.phase}` })
+          : null,
+        signal,
+        checkpoint,
+        resumeFromCheckpoint: false,
+        allowGlobalRepair: false,
+        _repairPass: false,
+        _repairPriorityIds: repairIds,
+        _finalValidationRepairPass: _finalValidationRepairPass + 1,
+        planningProfile: 'fast'
+      });
+    }
     const error = new Error('planning_final_validation_failed');
     error.code = 'planning_final_validation_failed';
     error.failures = finalPlanValidation.failures;
+    error.rows = rows;
+    error.repairCourseIds = repairIds;
     throw error;
   }
   const summarize = (selectedRows, extra = {}) => ({
@@ -5867,9 +5958,12 @@ export function planningTabHtml({
     ['missing', 'fixed'].includes(row.kind)
     || (['proposal', 'fixed-proposal'].includes(row.kind) && !row.instructorEmpId)
   ).length;
-  const progressText = loading
-    ? `${escapeHtml(progress?.phase || 'הכנת נתונים')} · ${Number(progress?.completed) || 0} מתוך ${Number(progress?.total) || rows.length} פעילויות`
-    : '';
+  const progressCompleted = Math.max(0, Number(progress?.completed) || 0);
+  const progressTotal = Math.max(0, Number(progress?.total) || rows.length);
+  const progressPercent = loading && progressTotal > 0
+    ? Math.max(0, Math.min(100, Math.round((progressCompleted / progressTotal) * 100)))
+    : 0;
+  const progressPhase = loading ? text(progress?.phase || 'הכנת נתונים') : '';
   const pendingCount = Math.max(0, Number(pendingChanges) || 0);
   const exportReady = !!calculatedAt && rows.length > 0 && !loading && pendingCount === 0;
   const runLabel = loading
@@ -5892,7 +5986,16 @@ export function planningTabHtml({
       ${calculatedAt ? `<span class="course-planning-updated">עודכן ${escapeHtml(calculatedAt)}</span>` : ''}
     </div>
     ${error ? `<p class="course-scheduling-alert">${escapeHtml(error)}</p>` : ''}
-    ${progressText ? `<p class="course-planning-progress" role="status">${escapeHtml(progressText)}</p>` : ''}
+    ${loading ? `<div class="course-planning-progress" role="status" aria-live="polite" aria-label="${escapeHtml(progressPhase)}">
+      <div class="course-planning-progress__head">
+        <strong>${escapeHtml(progressPhase)}</strong>
+        <span><bdi dir="ltr">${progressCompleted}/${progressTotal}</bdi> · ${progressPercent}%</span>
+      </div>
+      <div class="course-planning-progress__track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${progressPercent}">
+        <span style="width:${progressPercent}%"></span>
+      </div>
+      <small>החישוב נשמר בין שלבים וממשיך מאותה ריצה במקרה של תיקון מקומי.</small>
+    </div>` : ''}
     <div class="course-planning-summary">
       <article><b>${rows.length}</b><span>כל הפעילויות</span></article>
       <article><b>${live}</b><span>מעודכן בפועל</span></article>

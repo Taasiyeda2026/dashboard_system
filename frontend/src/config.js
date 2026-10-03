@@ -340,3 +340,4 @@ config.HOTFIX_VERSION = `planning-v26-coherent-school-first-20261003-v1-${config
 config.HOTFIX_VERSION = `planning-v26-global-school-packing-constraints-20261003-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `planning-substitute-meeting-ownership-20261003-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `planning-separate-trip-distance-20261003-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `planning-resume-local-repair-ui-20261003-v1-${config.HOTFIX_VERSION}`;
