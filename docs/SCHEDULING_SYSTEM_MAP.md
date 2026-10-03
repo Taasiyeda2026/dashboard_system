@@ -124,6 +124,7 @@ Workboard also overlays UI buckets (`assigned` / `draft` / warning) from live ac
 - Saturday blocked unless `calendar_sector === 'arab'`
 - School-calendar blocking days (sector-filtered)
 - Overlap with other approved/draft meetings
+- **Tours / "התנסות בתעשייה": full-day instructor blocker.** A tour is a one-off activity and no other activity may be assigned to the same instructor on that date, before or after it. The rule is symmetric: a tour cannot be placed on a date that already contains another activity for the instructor, and another activity cannot be placed on a date already occupied by a tour.
 - Transition time + buffer between adjacent meetings
 - Home→school route: missing/unverified route is **not selectable**; distance > `MAX_HOME_DISTANCE_KM` (40) fails hard
 - Manual picker: many of the above are non-overridable (`MANUAL_NON_OVERRIDABLE_REASON` in manual-picker-access), including blocked authority
@@ -160,7 +161,7 @@ Planning also uses `PLANNING_OPTIMIZATION_WEIGHTS` (continuity / capacity / trav
 | Distance | Cached home→school km; auto hard cap 40 km (`MAX_HOME_DISTANCE_KM`); see manager-approval rules below |
 | School calendar sector | `filterSchoolCalendarRowsBySector`: if sector normalizes to empty, **no filter** (all calendar rows returned) — callers must pass activity sector |
 
-Stage-2 date adjustment (`course-scheduling-date-adjustments.js`): when weekly availability fits but a point exception blocks a meeting, propose shifting that meeting (and following) to the next feasible weekly slot, skipping Shabbat/holidays/exceptions. Cap: `MAX_RECOVERABLE_EXCEPTION_MEETINGS = 2` — more instructor-exception meetings → not recoverable via stage-2. Proposal does not write official activity dates until confirm.
+Stage-2 date adjustment (`course-scheduling-date-adjustments.js`): when weekly availability fits but a point exception blocks a meeting, propose shifting that meeting (and following) to the next feasible weekly slot, skipping Shabbat/holidays/exceptions. Cap: `MAX_RECOVERABLE_EXCEPTION_MEETINGS = 2` — **3 or more instructor-exception meetings hard-reject that instructor as the permanent instructor for the course**. One or two may be recovered through a one-off substitute or a legal appended meeting. Proposal does not write official activity dates until confirm.
 
 ---
 
