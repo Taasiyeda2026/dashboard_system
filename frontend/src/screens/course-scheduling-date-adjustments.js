@@ -479,7 +479,18 @@ export function validatePlanningMeetingsForInstructors({
       continue;
     }
     const existing = context.existingActivities || [];
-    if (existing.some((other) => text(other.date) === date && overlaps(row, other))) {
+    const sameDate = existing.filter((other) => text(other.date) === date);
+    const targetFullDay = isFullDaySchedulingActivity(activity);
+    const fullDayConflict = sameDate.find((other) =>
+      targetFullDay
+      || other?.full_day_blocking === true
+      || isFullDaySchedulingActivity(other)
+    );
+    if (fullDayConflict) {
+      failures.push({ date, empId, reason: 'full_day_tour_conflict' });
+      continue;
+    }
+    if (sameDate.some((other) => overlaps(row, other))) {
       failures.push({ date, empId, reason: 'overlap' });
     }
   }
