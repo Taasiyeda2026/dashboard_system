@@ -310,7 +310,7 @@ export function proposeDateAdjustments({
   }
 
   const proposed = [...kept, ...appended];
-  const err = validateProposedMeetings(proposed, { existingActivities, transitions });
+  const err = validateProposedMeetings(proposed, { existingActivities, transitions, fullDayBlocking });
   if (err) return err;
   const newEndDate = proposed.at(-1)?.date || '';
   const substitutions = Object.entries(substitutionsByDate).map(([date, sub]) => ({
