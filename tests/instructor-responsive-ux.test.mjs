@@ -16,20 +16,23 @@ test('instructor responsive layer is scoped and loaded after shared dashboard st
   assert.match(css, /\.instructor-area/);
   assert.doesNotMatch(css, /^\s*\.ds-table\s*\{/m);
   const sharedIndex = index.indexOf('manager-board-team-strip-inline-fix.css');
-  const instructorIndex = index.indexOf('instructor-portal-responsive.css?v=20260922-mobile-contract-v1');
+  const instructorIndex = index.indexOf('instructor-portal-responsive.css?v=20261004-activity-date-range-v1');
   assert.notEqual(instructorIndex, -1);
   assert.ok(instructorIndex > sharedIndex);
   assert.match(index, /instructor-portal-ux-runtime\.js\?v=20260913-instructor-responsive-v1/);
 });
 
 test('instructor activities are a compact summary and keep full details in the shared drawer', () => {
-  const headings = ['תאריך', 'שעות', 'בית ספר', 'רשות', 'פעילות'];
+  const headings = ['תאריך התחלה', 'תאריך סיום', 'שעות', 'בית ספר', 'רשות', 'פעילות'];
   headings.forEach((heading) => assert.match(activities, new RegExp(`<th>${heading}<\\/th>`)));
   assert.doesNotMatch(activities, /<th>שכבה<\/th>|<th>סטטוס<\/th>|<th>איש קשר<\/th>|<th>פעולה<\/th>|data-portal-open|portal-activity-open/);
   assert.doesNotMatch(activities, /פתיחת פרטים/);
   assert.match(activities, /portal-activity-card__summary/);
   assert.match(activities, /openInstructorActivityDrawer/);
-  assert.match(css, /portal-activities-desktop th:nth-child\(5\)[\s\S]*width:\s*26%/);
+  assert.match(css, /portal-activities-desktop th:nth-child\(6\)[\s\S]*width:\s*24%/);
+  assert.match(activities, /isPastActivityDate/);
+  assert.match(activities, /portal-activity-date--past/);
+  assert.match(css, /portal-activity-date--past/);
 });
 
 test('instructor calendar remains seven columns and reuses the shared instructor activity drawer', () => {
