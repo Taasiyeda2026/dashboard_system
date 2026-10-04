@@ -5,11 +5,11 @@
  * The grace period rule lives ONLY here — never scattered across screens.
  *
  * Month statuses (from attendance_month_approvals.status):
- *   null / missing row → 'open'   (editable)
- *   'open'             → editable
+ *   null / missing row → 'open'   (editable only in the normal reporting window)
+ *   'open'             → editable only in the normal reporting window
  *   'submitted'        → read-only (instructor submitted, awaiting manager)
  *   'locked'           → read-only (manager locked)
- *   'reopened'         → editable through day 7 of the following month
+ *   'reopened'         → explicitly reopened by admin; editable until employee submits again
  *   'approved_for_payroll' → read-only (final payroll approval completed)
  */
 
@@ -32,27 +32,27 @@ export function formatMonthLabel(year, month) {
 export function canEditMonth(year, month, approval, now = new Date()) {
   const status = approval?.status ?? 'open';
 
-  // Permanently locked by manager
+  // Permanently locked by manager / payroll.
   if (status === 'locked') return false;
   if (status === 'approved_for_payroll') return false;
 
-  // Submitted by instructor — awaiting manager action
+  // Submitted by instructor — awaiting manager action.
   if (status === 'submitted') return false;
 
-  // 'open' and 'reopened' are both editable, subject to time rules
+  // An explicit admin reopen is a deliberate per-employee exception to the
+  // calendar cutoff. It remains editable until the employee submits the month.
+  if (status === 'reopened') return true;
+
   const cy = now.getFullYear();
   const cm = now.getMonth() + 1; // 1-based
   const cd = now.getDate();
 
-  // Current month is always editable
+  // Current month is always editable.
   if (year === cy && month === cm) return true;
 
-  // Previous month: normal grace through day 2; reopened correction through day 7.
+  // Previous month: normal grace through day 2 only.
   const [prevY, prevM] = cm === 1 ? [cy - 1, 12] : [cy, cm - 1];
-  if (year === prevY && month === prevM) {
-    if (cd <= 2) return true;
-    return status === 'reopened' && cd <= 7;
-  }
+  if (year === prevY && month === prevM && cd <= 2) return true;
 
   return false;
 }
@@ -62,17 +62,15 @@ export function editBlockReason(year, month, approval, now = new Date()) {
   const status = approval?.status ?? 'open';
   if (status === 'locked') return 'החודש אושר על ידי המנהל ונעול לעריכה';
   if (status === 'approved_for_payroll') return 'החודש אושר סופית לשכר';
-  // Submitted means העובד אישר את החודש; the direct manager can reopen it for corrections.
-  if (status === 'submitted') return 'החודש אושר וננעל לעריכה. ניתן לפנות אל המנהל הישיר לצורך פתיחתו מחדש.';
-  if (status === 'reopened') return 'חלון התיקונים לחודש זה הסתיים (עד ה-7 בחודש העוקב)';
+  if (status === 'submitted') return 'החודש אושר על ידך ונמצא בבקרת מנהל. ניתן לפנות למנהל במקרה שנדרש תיקון.';
   const key = getMonthKey(year, month);
   const currentKey = getMonthKey(now.getFullYear(), now.getMonth() + 1);
   if (key > currentKey) return 'לא ניתן לדווח עבור תאריך עתידי.';
   const previous = new Date(now.getFullYear(), now.getMonth() - 1, 1);
   if (key === getMonthKey(previous.getFullYear(), previous.getMonth() + 1)) {
-    return 'חלון ההארכה של החודש הקודם הסתיים (עד ה-2 בחודש העוקב).';
+    return 'חלון העריכה של החודש הקודם הסתיים (עד ה-2 בחודש העוקב). במקרה הצורך אדמין יכול לפתוח את החודש עבורך להשלמה ואישור.';
   }
-  return `חודש ${formatMonthLabel(year, month)} סגור לדיווח.`;
+  return `חודש ${formatMonthLabel(year, month)} סגור לדיווח. במקרה הצורך אדמין יכול לפתוח אותו עבורך להשלמה ואישור.`;
 }
 
 /**
@@ -96,7 +94,7 @@ export function shouldShowSubmitReminder(year, month, approval) {
   const cm = now.getMonth() + 1; // 1-based
   const cd = now.getDate();
 
-  // Only remind for the current calendar month, and only from the 25th onward
+  // Only remind for the current calendar month, and only from the 25th onward.
   return year === cy && month === cm && cd >= 25;
 }
 
