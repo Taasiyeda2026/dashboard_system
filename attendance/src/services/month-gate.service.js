@@ -57,6 +57,14 @@ export function canEditMonth(year, month, approval, now = new Date()) {
   return false;
 }
 
+/** Status key shown to an instructor, derived from the effective edit permission. */
+export function resolveMonthDisplayStatus(approval, editable) {
+  const status = approval?.status ?? 'open';
+  if (status === 'submitted' || status === 'locked' || status === 'approved_for_payroll') return status;
+  if (status === 'reopened') return status;
+  return editable ? 'open' : 'closed';
+}
+
 /** Short human-readable reason why a month is locked (for UI messages). */
 export function editBlockReason(year, month, approval, now = new Date()) {
   const status = approval?.status ?? 'open';
@@ -66,11 +74,7 @@ export function editBlockReason(year, month, approval, now = new Date()) {
   const key = getMonthKey(year, month);
   const currentKey = getMonthKey(now.getFullYear(), now.getMonth() + 1);
   if (key > currentKey) return 'לא ניתן לדווח עבור תאריך עתידי.';
-  const previous = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  if (key === getMonthKey(previous.getFullYear(), previous.getMonth() + 1)) {
-    return 'חלון העריכה של החודש הקודם הסתיים (עד ה-2 בחודש העוקב). במקרה הצורך אדמין יכול לפתוח את החודש עבורך להשלמה ואישור.';
-  }
-  return `חודש ${formatMonthLabel(year, month)} סגור לדיווח. במקרה הצורך אדמין יכול לפתוח אותו עבורך להשלמה ואישור.`;
+  return 'תקופת הדיווח לחודש זה הסתיימה. לא ניתן להוסיף או לערוך דיווחים.';
 }
 
 /**

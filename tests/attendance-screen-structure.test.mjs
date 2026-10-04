@@ -247,13 +247,15 @@ test('Attendance Home desktop summary cards are exactly half width and centered'
 
 
 test('Attendance My Reports monthly summary cards are compact and centered', () => {
-  assert.match(reportsStyles, /\.av2-reports__summary-grid\s*\{[\s\S]*max-width:\s*620px/);
+  assert.match(reportsStyles, /\.av2-reports__summary-grid\s*\{[\s\S]*max-width:\s*572px/);
   assert.match(reportsStyles, /justify-content:\s*center/);
-  assert.match(reportsStyles, /gap:\s*16px/);
-  assert.match(reportsStyles, /\.av2-reports__summary-card\s*\{[\s\S]*flex:\s*0 0 300px/);
-  assert.match(reportsStyles, /width:\s*300px/);
-  assert.match(reportsStyles, /min-width:\s*300px/);
-  assert.match(reportsStyles, /max-width:\s*300px/);
+  assert.match(reportsStyles, /gap:\s*12px/);
+  assert.match(reportsStyles, /\.av2-reports__summary-card\s*\{[\s\S]*flex:\s*0 0 180px/);
+  assert.match(reportsStyles, /width:\s*180px/);
+  assert.match(reportsStyles, /min-width:\s*180px/);
+  assert.match(reportsStyles, /max-width:\s*180px/);
+  assert.match(reportsStyles, /min-height:\s*64px/);
+  assert.match(reportsStyles, /@media \(max-width: 767px\)[\s\S]*flex:\s*1 1 calc\(50% - 4px\)[\s\S]*max-width:\s*180px/);
 });
 
 

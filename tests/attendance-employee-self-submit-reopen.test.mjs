@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { canEditMonth } from '../attendance/src/services/month-gate.service.js';
+import { canEditMonth, editBlockReason, resolveMonthDisplayStatus } from '../attendance/src/services/month-gate.service.js';
 
 const migration = await readFile(
   new URL('../supabase/migrations/20261004180500_employee_self_submit_after_admin_reopen.sql', import.meta.url),
@@ -25,6 +25,20 @@ test('normal month cutoff remains day 2 while explicit admin reopen stays editab
   assert.equal(canEditMonth(2026, 8, { status: 'reopened' }, oct4), true);
   assert.equal(canEditMonth(2026, 9, { status: 'submitted' }, oct4), false);
   assert.equal(canEditMonth(2026, 9, { status: 'locked' }, oct4), false);
+});
+
+test('October 4 month gate and Home status use the effective edit permission', () => {
+  const oct4 = new Date(2026, 9, 4, 12, 0, 0);
+  const closedMessage = 'תקופת הדיווח לחודש זה הסתיימה. לא ניתן להוסיף או לערוך דיווחים.';
+
+  assert.equal(editBlockReason(2026, 9, null, oct4), closedMessage);
+  assert.equal(editBlockReason(2026, 8, null, oct4), closedMessage);
+  assert.equal(resolveMonthDisplayStatus(null, canEditMonth(2026, 9, null, oct4)), 'closed');
+  assert.equal(resolveMonthDisplayStatus({ status: 'reopened' }, canEditMonth(2026, 9, { status: 'reopened' }, oct4)), 'reopened');
+  assert.equal(resolveMonthDisplayStatus(null, canEditMonth(2026, 10, null, oct4)), 'open');
+  assert.equal(resolveMonthDisplayStatus({ status: 'submitted' }, false), 'submitted');
+  assert.equal(resolveMonthDisplayStatus({ status: 'locked' }, false), 'locked');
+  assert.equal(resolveMonthDisplayStatus({ status: 'approved_for_payroll' }, false), 'approved_for_payroll');
 });
 
 test('database reopen creates missing approval row and preserves target employee identity', () => {
@@ -71,10 +85,10 @@ test('dashboard runtime exposes one-click reopen without a reason prompt', () =>
   assert.doesNotMatch(runtime, /יש להזין סיבה/);
   assert.match(marker, /attendance-self-submit-reopen-runtime\.js\?v=20261004-employee-self-submit-v2/);
   assert.match(marker, /attendance-employee-self-submit-20261004-v2/);
-  assert.match(dashboardSw, /const CACHE_VERSION = 1882;/);
+  assert.match(dashboardSw, /const CACHE_VERSION = 1883;/);
 });
 
 test('attendance app cache version still carries the reopened-month gate to instructors', () => {
-  assert.match(attendanceSw, /const CACHE_VERSION = 104;/);
-  assert.match(attendanceIndex, /src\/main\.js\?v=104/);
+  assert.match(attendanceSw, /const CACHE_VERSION = 105;/);
+  assert.match(attendanceIndex, /src\/main\.js\?v=105/);
 });
