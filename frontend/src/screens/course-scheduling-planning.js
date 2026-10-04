@@ -4775,6 +4775,9 @@ export async function buildDynamicCoursePlan({
     const candidateTravelContext = useIndependentSchoolCandidatePool
       ? createCandidateTravelContext(candidateContext)
       : travelContext;
+    const schoolFirstScenarioLimit = useIndependentSchoolCandidatePool
+      ? Math.max(Number(limits.maxScenarios) || 0, 24)
+      : limits.maxScenarios;
     await report('בדיקת מדריכים', completed, queue.length, idOf(activity));
     await report('בדיקת נסיעות', completed, queue.length, idOf(activity));
     if (type === 'fixed') {
@@ -4927,7 +4930,7 @@ export async function buildDynamicCoursePlan({
         schoolCalendar,
         today,
         periodKey: activityPeriodKey,
-        maxScenarios: limits.maxScenarios,
+        maxScenarios: schoolFirstScenarioLimit,
         routeClient
       }, checkpoint);
       if (!generated.spec.complete) {
