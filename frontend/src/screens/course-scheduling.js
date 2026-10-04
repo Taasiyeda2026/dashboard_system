@@ -1935,7 +1935,10 @@ function maintenanceTabHtml(state) {
   const doneMessage = text(state.courseSchedulingDistanceDoneMessage);
   const doneError = !!state.courseSchedulingDistanceError;
   const doneDetails = text(state.courseSchedulingDistanceDetails);
-  const updateDisabled = distanceBusy || coverageLoading;
+  const actionRequiredCount = (Number(stats.missing_count) || 0) + (Number(stats.refresh_required_count) || 0);
+  const coverageKnown = state.courseSchedulingDistanceCoverageLoaded === true && !coverageLoading;
+  const noDistanceWork = coverageKnown && !doneError && actionRequiredCount === 0;
+  const updateDisabled = distanceBusy || coverageLoading || noDistanceWork;
   return `<section class="course-scheduling-maintenance-tab" aria-labelledby="course-scheduling-maintenance-heading">
     <h2 id="course-scheduling-maintenance-heading" class="course-scheduling-visually-hidden">פעולות תחזוקה</h2>
     <article class="course-scheduling-maintenance-card">
@@ -1952,7 +1955,7 @@ function maintenanceTabHtml(state) {
         ${doneMessage ? `<p class="${doneError ? 'course-scheduling-alert' : 'course-scheduling-success'}">${escapeHtml(doneMessage)}</p>` : ''}
         ${doneDetails ? `<p class="course-scheduling-maintenance-note">${escapeHtml(doneDetails)}</p>` : ''}
       </div>
-      <button type="button" class="course-scheduling-btn course-scheduling-btn--primary" data-update-distances ${updateDisabled ? 'disabled' : ''}>${distanceBusy ? 'מעדכן מסלולי בסיס...' : 'עדכון מסלולי בסיס'}</button>
+      <button type="button" class="course-scheduling-btn course-scheduling-btn--primary" data-update-distances ${updateDisabled ? 'disabled' : ''}>${distanceBusy ? 'מעדכן מסלולי בסיס...' : (noDistanceWork ? 'כל המסלולים מעודכנים' : 'עדכון מסלולי בסיס')}</button>
     </article>
     ${canFullRebuild ? `<article class="course-scheduling-maintenance-card">
       <div>
@@ -4563,6 +4566,7 @@ export const courseSchedulingScreen = {
           invoke: invokeDistanceRoute,
           scope: 'all',
           limit: 50,
+          initialCoverage,
           shouldStop: () => !!state.courseSchedulingDistanceStopRequested,
           onProgress: async ({ stats, done, stopped }) => {
             const info = distanceDoneMessage(stats, { done, stopped });

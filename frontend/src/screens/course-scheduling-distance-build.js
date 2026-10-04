@@ -720,13 +720,29 @@ export async function runDistanceBuildLoop({
   scope = 'all',
   month,
   limit = 50,
+  initialCoverage = null,
   shouldStop = () => false,
   onProgress = async () => {}
 } = {}) {
   let cursor = null;
   let done = false;
-  let stats = emptyDistanceBuildStats();
+  let stats = initialCoverage
+    ? mergeDistanceBuildStats(emptyDistanceBuildStats(), initialCoverage)
+    : emptyDistanceBuildStats();
   let stopped = false;
+
+  // Maintenance is a delta operation. The screen already loaded authoritative
+  // coverage immediately before starting the build, so when nothing is missing
+  // there is no reason to enter build_cache and rescan the complete route
+  // universe from cursor 0. Valid cached routes remain completely untouched.
+  if (initialCoverage) {
+    const pending = (Number(initialCoverage.missing_count) || 0)
+      + (Number(initialCoverage.refresh_required_count) || 0);
+    if (pending === 0) {
+      stats.remaining_count = 0;
+      return { stats, done: true, stopped: false };
+    }
+  }
 
   while (!done) {
     if (shouldStop()) {

@@ -38,6 +38,8 @@ test('maintenance card exposes scheduling coverage, refresh, and one build actio
   assert.match(maintenanceCard, /דורשים רענון:.*refresh_required_count/s);
   assert.equal((maintenanceCard.match(/data-update-distances/g) || []).length, 1);
   assert.match(maintenanceCard, /data-refresh-distance-coverage[^>]*aria-label="רענון נתוני מצב"/);
+  assert.match(maintenanceCard, /noDistanceWork[\s\S]*כל המסלולים מעודכנים/);
+  assert.match(maintenanceCard, /coverageKnown && !doneError && actionRequiredCount === 0/);
   assert.doesNotMatch(maintenanceCard, /data-distance-target|data-distance-month|payroll_month|עדכון מרחקים עבור|בקרת שכר לפי חודש/);
   assert.doesNotMatch(maintenanceCard, /cache|TTL|batch|expiration|מטמון|מנות/i);
 
@@ -48,6 +50,7 @@ test('maintenance card exposes scheduling coverage, refresh, and one build actio
   assert.doesNotMatch(refreshHandler, /runDistanceBuildLoop|build_cache/);
   const updateHandler = source.split("root.querySelector('[data-update-distances]')")[1].split('\n  }\n};')[0];
   assert.match(updateHandler, /runDistanceBuildLoop[\s\S]*scope: 'all'/);
+  assert.match(updateHandler, /runDistanceBuildLoop[\s\S]*initialCoverage/);
   assert.match(updateHandler, /finally[\s\S]*reloadDistanceCoverage/);
   assert.doesNotMatch(source, /distanceMaintenanceDialogHtml/);
 });
@@ -436,6 +439,31 @@ test('distance build loop continues with next_cursor until done and can stop saf
   assert.equal(result.stats.processed_count, 50);
   assert.equal(result.stats.inserted_count, 30);
   assert.equal(result.stats.failed_count, 1);
+});
+
+test('maintenance delta exits without build_cache when coverage is already complete', async () => {
+  const calls = [];
+  const initialCoverage = {
+    required_count: 2575,
+    existing_count: 2575,
+    missing_count: 0,
+    refresh_required_count: 0
+  };
+  const result = await runDistanceBuildLoop({
+    invoke: async (body) => {
+      calls.push(body);
+      throw new Error('build_cache must not run for complete coverage');
+    },
+    scope: 'all',
+    limit: 50,
+    initialCoverage
+  });
+  assert.equal(calls.length, 0);
+  assert.equal(result.done, true);
+  assert.equal(result.stopped, false);
+  assert.equal(result.stats.required_count, 2575);
+  assert.equal(result.stats.existing_count, 2575);
+  assert.equal(result.stats.processed_count, 0);
 });
 
 test('upsert-style merge never counts a failed batch body as inserted success', () => {
