@@ -2586,7 +2586,7 @@ function planningMeetingsSignature(meetings = []) {
       text(meeting?.start_time).slice(0, 5),
       text(meeting?.end_time).slice(0, 5)
     ])
-    .filter(([date]) => /^\\d{4}-\\d{2}-\\d{2}$/.test(date))
+    .filter(([date]) => /^\d{4}-\d{2}-\d{2}$/.test(date))
     .map((parts) => parts.join('|'))
     .sort()
     .join(';');
