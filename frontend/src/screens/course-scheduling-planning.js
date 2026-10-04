@@ -4739,6 +4739,32 @@ export async function buildDynamicCoursePlan({
     await checkpoint();
     const { activity, type, activityPeriodKey } = item;
     const currentContext = currentContextActivities;
+    const activitySchoolId = text(activity?.school_id);
+    const useIndependentSchoolCandidatePool = type !== 'fixed'
+      && !!activitySchoolId
+      && (schoolActivityCount.get(activitySchoolId) || 0) >= 2;
+    const candidateContext = useIndependentSchoolCandidatePool
+      ? currentContext.filter((contextActivity) =>
+          !(
+            text(idOf(contextActivity)).startsWith('planning-block:')
+            && text(contextActivity?.school_id) === activitySchoolId
+          )
+        )
+      : currentContext;
+    const candidatePreparedContext = useIndependentSchoolCandidatePool
+      ? prepareSchedulingRunContext({
+          activities: candidateContext,
+          instructors,
+          profiles,
+          rules,
+          exceptions,
+          schoolCalendar,
+          periodKey: activityPeriodKey
+        })
+      : preparedContextFor(activityPeriodKey);
+    const candidateTravelContext = useIndependentSchoolCandidatePool
+      ? createCandidateTravelContext(candidateContext)
+      : travelContext;
     await report('בדיקת מדריכים', completed, queue.length, idOf(activity));
     await report('בדיקת נסיעות', completed, queue.length, idOf(activity));
     if (type === 'fixed') {
@@ -4824,7 +4850,7 @@ export async function buildDynamicCoursePlan({
           activity,
           scenarios: rescue.schedules,
           startRange: rescueRange,
-          contextActivities: currentContext,
+          contextActivities: candidateContext,
           instructors: rescueInstructors,
           profiles,
           rules,
@@ -4835,8 +4861,8 @@ export async function buildDynamicCoursePlan({
           checkpoint,
           signal,
           periodKey: activityPeriodKey,
-          preparedContext: preparedContextFor(activityPeriodKey),
-          travelContext,
+          preparedContext: candidatePreparedContext,
+          travelContext: candidateTravelContext,
           limits: {
             ...FAST_PLANNING_LIMITS,
             maxScenarios: Math.max(1, rescue.schedules.length),
@@ -4887,7 +4913,7 @@ export async function buildDynamicCoursePlan({
         instructors,
         rules,
         profiles,
-        activities: currentContext,
+        activities: candidateContext,
         schoolCalendar,
         today,
         periodKey: activityPeriodKey,
@@ -4901,7 +4927,7 @@ export async function buildDynamicCoursePlan({
           activity,
           scenarios: generated.scenarios,
           startRange: generated.startRange,
-          contextActivities: currentContext,
+          contextActivities: candidateContext,
           instructors,
           profiles,
           rules,
@@ -4912,8 +4938,8 @@ export async function buildDynamicCoursePlan({
           checkpoint,
           signal,
           periodKey: activityPeriodKey,
-          preparedContext: preparedContextFor(activityPeriodKey),
-          travelContext,
+          preparedContext: candidatePreparedContext,
+          travelContext: candidateTravelContext,
           limits,
           packingCoverage: schoolPackingCoverageCourseIds.has(idOf(activity))
         });
@@ -4934,7 +4960,7 @@ export async function buildDynamicCoursePlan({
             instructors,
             rules,
             profiles,
-            activities: currentContext,
+            activities: candidateContext,
             schoolCalendar,
             today,
             periodKey: activityPeriodKey,
@@ -4946,7 +4972,7 @@ export async function buildDynamicCoursePlan({
               activity,
               scenarios: deepGenerated.scenarios,
               startRange: deepGenerated.startRange,
-              contextActivities: currentContext,
+              contextActivities: candidateContext,
               instructors,
               profiles,
               rules,
@@ -4957,8 +4983,8 @@ export async function buildDynamicCoursePlan({
               checkpoint,
               signal,
               periodKey: activityPeriodKey,
-              preparedContext: preparedContextFor(activityPeriodKey),
-              travelContext,
+              preparedContext: candidatePreparedContext,
+              travelContext: candidateTravelContext,
               limits: DEEP_PLANNING_LIMITS,
               packingCoverage: schoolPackingCoverageCourseIds.has(idOf(activity))
             });
