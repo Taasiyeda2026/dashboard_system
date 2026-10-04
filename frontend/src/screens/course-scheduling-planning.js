@@ -3811,7 +3811,12 @@ export function optimizeSchoolDayPackingPass({
     const currentChoices = originalGroup.movableRows
       .map((row) => ({ row, option: schoolPackingCurrentOption(row) }))
       .filter((choice) => choice.option);
-    const currentCost = currentChoices.length === originalGroup.movableRows.length
+    const currentHasConflict = currentChoices.some((choice, index) =>
+      currentChoices.slice(index + 1).some((other) =>
+        schoolPackingChoicesOperationallyConflict(choice, other, { activityById, routeClient })
+      )
+    );
+    const currentCost = currentChoices.length === originalGroup.movableRows.length && !currentHasConflict
       ? schoolPackingBundleCost(currentChoices, originalGroup)
       : Number.POSITIVE_INFINITY;
     const shouldApply = !!solution
