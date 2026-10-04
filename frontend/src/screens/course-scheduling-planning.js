@@ -3853,10 +3853,10 @@ export function optimizeSchoolDayPackingPass({
         const currentOption = schoolPackingCurrentOption(row);
         const changed = text(currentOption?.instructorEmpId) !== text(replacement.instructorEmpId)
           || planningMeetingsSignature(currentOption?.meetings) !== planningMeetingsSignature(replacement.meetings);
-        if (changed) {
+        if (changed || isRecruitment) {
           rowsById.set(text(row.courseId), replacement);
-          moved += 1;
         }
+        if (changed) moved += 1;
       }
     }
 
