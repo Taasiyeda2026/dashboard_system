@@ -247,6 +247,15 @@ test('fast UI alternatives no longer cap school-packing coverage at three option
   assert.match(source, /row\?\.packingOptions\?\.length\s*\?\s*row\.packingOptions\s*:\s*row\?\.options/);
 });
 
+test('multi-activity school candidate pools ignore provisional same-school plans before bundling', async () => {
+  const source = await readFile(new URL('../frontend/src/screens/course-scheduling-planning.js', import.meta.url), 'utf8');
+  assert.match(source, /useIndependentSchoolCandidatePool/);
+  assert.match(source, /startsWith\('planning-block:'\)/);
+  assert.match(source, /text\(contextActivity\?\.school_id\) === activitySchoolId/);
+  assert.match(source, /contextActivities: candidateContext/);
+  assert.match(source, /preparedContext: candidatePreparedContext/);
+});
+
 test('planning progress names the current phase instead of presenting phase resets as a new run', async () => {
   const source = await readFile(new URL('../frontend/src/screens/course-scheduling.js', import.meta.url), 'utf8');
   const start = source.indexOf('const updatePlanningStatusInPlace');
