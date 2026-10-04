@@ -5,7 +5,7 @@ import { hasPermission } from './permission-policy.js';
 import { normalizeGlobalActivityPeriod } from './screens/shared/summer-activity.js';
 import { escapeHtml } from './screens/shared/html.js';
 import { attendanceMonthDateRange } from './screens/attendance-control.js?v=20261004-manager-add-missing-attendance-v1';
-import { tableHtml as trackingTableHtml } from './manager-board-employee-file-tracking.js';
+import { tableHtml as trackingTableHtml } from './manager-board-employee-file-tracking.js?v=20261004-overdue-date-red-v1';
 
 const MANAGER_WORKSPACE_TAB_KEY = 'manager_board_workspace_tab';
 const TEAM_ROSTER_TTL_MS = 90 * 1000;

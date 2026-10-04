@@ -381,9 +381,12 @@ function deadlineDisplayHtml(row, column, options = {}) {
     if (hasSeniorityYearsField(row) && normalizeSeniorityYears(row.seniority_years) == null) {
       return `<span class="manager-workspace-deadline-review" aria-label="אין נתון ותק">${escapeHtml(MISSING_SENIORITY_LABEL)}</span>`;
     }
-    const due = formatDate(introDueDateForDisplay(row));
+    const dueIso = introDueDateForDisplay(row);
+    const due = formatDate(dueIso);
+    const todayIso = dateOnly(options.todayIso) || israelTodayIso(options.now || new Date());
+    const overdueClass = dueIso && todayIso > dueIso ? ' manager-workspace-deadline-date--late' : '';
     return due
-      ? `<span class="manager-workspace-deadline-date">עד ${escapeHtml(due)}</span>`
+      ? `<span class="manager-workspace-deadline-date${overdueClass}">עד ${escapeHtml(due)}</span>`
       : '<span class="manager-workspace-deadline-empty" aria-label="אין תאריך יעד">—</span>';
   }
 
@@ -402,9 +405,12 @@ function deadlineDisplayHtml(row, column, options = {}) {
       : '<span class="manager-workspace-deadline-empty" aria-label="אין תאריך יעד">—</span>';
   }
 
-  const due = formatDate(row?.[deadline.due]);
+  const dueIso = dateOnly(row?.[deadline.due]);
+  const due = formatDate(dueIso);
+  const todayIso = dateOnly(options.todayIso) || israelTodayIso(options.now || new Date());
+  const overdueClass = dueIso && todayIso > dueIso ? ' manager-workspace-deadline-date--late' : '';
   return due
-    ? `<span class="manager-workspace-deadline-date">עד ${escapeHtml(due)}</span>`
+    ? `<span class="manager-workspace-deadline-date${overdueClass}">עד ${escapeHtml(due)}</span>`
     : '<span class="manager-workspace-deadline-empty" aria-label="אין תאריך יעד">—</span>';
 }
 
