@@ -218,16 +218,11 @@ async function handleAdminOpenForEmployee(button) {
 
   const row = button.closest('[data-admin-attendance-row]');
   const employeeName = text(row?.querySelector('.admin-attendance-person strong')?.textContent) || empId;
-  const reason = window.prompt(`סיבה לפתיחת ${monthKey} עבור ${employeeName}:`, '') || '';
-  if (!text(reason)) {
-    setAdminMessage(root, 'כדי לפתוח חודש לעובד יש להזין סיבה.', true);
-    return;
-  }
 
   button.disabled = true;
   try {
     setAdminMessage(root, `פותח את ${monthKey} עבור ${employeeName} להשלמה ואישור…`);
-    await api.adminReopenAttendanceMonthForCorrection({ employee_id: empId, month_key: monthKey, reason });
+    await api.adminReopenAttendanceMonthForCorrection({ employee_id: empId, month_key: monthKey, reason: null });
     statusCache.clear();
     delete root.dataset[PATCH_MARK];
     setAdminMessage(root, `החודש נפתח עבור ${employeeName}. העובד צריך להיכנס, להשלים במידת הצורך ולבצע "סיום ואישור חודש" בעצמו.`);
