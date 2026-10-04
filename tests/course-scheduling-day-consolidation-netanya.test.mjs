@@ -7,6 +7,8 @@ import {
   dayConsolidationAcceptsMove,
   generatePlanningScenarios,
   optimizeSchoolDayPackingPass,
+  schoolPackingOptions,
+  schoolPackingOptionsConflict,
   solveSchoolPackingGroup,
   travelAwareAdjacentStartMinutes
 } from '../frontend/src/screens/course-scheduling-planning.js';
@@ -333,6 +335,20 @@ test('three flexible same-school activities consolidate to one weekly workday wh
         choices: directSolved.choices.map(({ row, option }) => [row.courseId, option.startDate, option.startTime, option.endTime])
       } : null
     }));
+    if (group) {
+      const mondayOptions = group.movableRows.map((row) => schoolPackingOptions(row, new Set([1])));
+      const pick = (options, time) => options.find((option) => option.startDate === '2026-10-12' && option.startTime === time);
+      const a = pick(mondayOptions[0] || [], '09:30');
+      const b = pick(mondayOptions[1] || [], '11:00');
+      const cc = pick(mondayOptions[2] || [], '12:30');
+      console.error('SCHOOL_FIRST_CONFLICTS', JSON.stringify({
+        optionCounts: mondayOptions.map((items) => items.length),
+        found: [!!a, !!b, !!cc],
+        ab: a && b ? schoolPackingOptionsConflict(a, b) : null,
+        ac: a && cc ? schoolPackingOptionsConflict(a, cc) : null,
+        bc: b && cc ? schoolPackingOptionsConflict(b, cc) : null
+      }));
+    }
     console.error('SCHOOL_FIRST_ROWS', JSON.stringify((error?.rows || []).filter((row) => row.courseId?.startsWith('packed-flex-')).map((row) => ({
       courseId: row.courseId,
       startDate: row.startDate,
