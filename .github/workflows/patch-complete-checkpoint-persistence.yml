@@ -1,0 +1,40 @@
+name: Patch completed checkpoint persistence guard
+
+on:
+  push:
+    branches:
+      - fix/planning-incremental-persistence-timeout
+    paths:
+      - '.github/workflows/patch-complete-checkpoint-persistence.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/planning-incremental-persistence-timeout
+      - name: Patch guard
+        shell: python
+        run: |
+          from pathlib import Path
+          path = Path('frontend/src/screens/course-scheduling.js')
+          source = path.read_text()
+          old = '''        const persistServerCheckpoints = fullRun\n          || structuralPlanningUpgrade\n          || affectedIds.length > AUTO_PLANNING_REFRESH_MAX_IDS;'''
+          new = '''        const checkpointAlreadyComplete = currentCourseIds.length > 0\n          && checkpointCompletedIds.size >= currentCourseIds.length;\n        const persistServerCheckpoints = fullRun\n          || (!checkpointAlreadyComplete && (\n            structuralPlanningUpgrade\n            || affectedIds.length > AUTO_PLANNING_REFRESH_MAX_IDS\n          ));'''
+          assert old in source, 'persistence guard anchor missing'
+          path.write_text(source.replace(old, new, 1))
+      - name: Validate
+        run: |
+          node --check frontend/src/screens/course-scheduling.js
+          node --test tests/course-scheduling-persistence-performance.test.mjs
+      - name: Commit
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add frontend/src/screens/course-scheduling.js
+          git commit -m 'Planning: reuse complete checkpoint without repeated uploads'
+          git push origin HEAD:fix/planning-incremental-persistence-timeout
