@@ -8,7 +8,8 @@ const migrationUrl = new URL('../supabase/migrations/20261004193000_optimize_pla
 
 test('local planning repairs do not upload whole-workspace checkpoints at every stage', async () => {
   const source = await readFile(screenUrl, 'utf8');
-  assert.match(source, /const persistServerCheckpoints = fullRun[\s\S]*?structuralPlanningUpgrade[\s\S]*?AUTO_PLANNING_REFRESH_MAX_IDS/);
+  assert.match(source, /const checkpointAlreadyComplete = currentCourseIds\.length > 0[\s\S]*?checkpointCompletedIds\.size >= currentCourseIds\.length/);
+  assert.match(source, /const persistServerCheckpoints = fullRun[\s\S]*?checkpointAlreadyComplete[\s\S]*?structuralPlanningUpgrade[\s\S]*?AUTO_PLANNING_REFRESH_MAX_IDS/);
   assert.match(source, /if \(!persistServerCheckpoints\) return;[\s\S]*?saveSharedPlanningCheckpoint/);
 });
 
