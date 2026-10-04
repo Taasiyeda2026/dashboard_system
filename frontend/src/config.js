@@ -347,3 +347,4 @@ config.HOTFIX_VERSION = `manager-add-missing-attendance-20261004-v1-${config.HOT
 
 config.HOTFIX_VERSION = `manager-tracking-overdue-date-red-20261004-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `planning-incremental-persistence-timeout-20261004-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `planning-anchor-safe-global-reassignment-20261004-v1-${config.HOTFIX_VERSION}`;

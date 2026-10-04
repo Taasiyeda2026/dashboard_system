@@ -91,7 +91,7 @@ export const PLANNING_OPTIMIZATION_WEIGHTS = Object.freeze({
   stability: 10
 });
 export const PLANNING_VALIDATION_VERSION = 'planning-validation-v1-20260927-self-invalidation';
-export const PLANNING_ENGINE_VERSION = 'planning-v27-20261004-school-first-economic-alternatives-self-invalidation';
+export const PLANNING_ENGINE_VERSION = 'planning-v28-20261004-anchor-safe-global-reassignment-self-invalidation';
 export const PLANNING_ACTIVITY_NO_ALIASES = Object.freeze({
   // Legacy Gefen identifier retained on existing activities; canonical catalog program is 53828.
   '82835': '53828'
@@ -2751,7 +2751,12 @@ export function planningGlobalRepairPriorityIds(rows = [], limit = GLOBAL_OPTIMI
   // When coverage is incomplete, move only the uncovered activities to the
   // front. Marking already-covered rows as "priority" as well would preserve
   // the original order and defeat the repair swap that frees scarce staff.
-  if (critical.length) return critical.slice(0, maxRows).map((item) => item.id);
+  // Coverage repair is different from pure quality tuning: every uncovered row
+  // must get the first-choice opportunity in the repair ordering. Capping this
+  // list meant large plans could leave later recruitment rows behind resources
+  // already consumed by the first N rows, without ever testing the inverse
+  // ordering. The cap remains useful only for non-critical efficiency tuning.
+  if (critical.length) return critical.map((item) => item.id);
 
   return source
     .map((row) => {
@@ -3315,9 +3320,10 @@ export function dayConsolidationAcceptsMove({
 }
 
 /**
- * Cheap local pass: try to move flexible proposals onto weekdays the instructor
- * already works, instead of leaving singleton days when travel+buffer allows.
- * Does not touch fixed/locked/live/started anchors or run a national rebuild.
+ * Bounded local pass: try to move flexible proposals onto weekdays already open
+ * for an eligible existing instructor, including reassignment when that removes
+ * a workday. Does not touch fixed/locked/live/started/source-dated anchors or run
+ * a national rebuild.
  */
 function planningRowAsVirtualOption(row = {}) {
   if (!text(row?.instructorEmpId) || !Array.isArray(row?.meetings) || !row.meetings.length) return null;
@@ -3415,11 +3421,17 @@ export function buildSchoolPlanningGroups({ rows = [], activities = [] } = {}) {
       for (const day of days) group.anchorWeekdays.add(day);
     } else if (['proposal', 'recruitment'].includes(text(row?.kind))) {
       // School-first owns the calendar shape before instructor-day optimization.
-      // Recruitment rows participate too: their scheduleOptions are legitimate
-      // school timetable alternatives even though no current instructor fits.
+      // Recruitment rows participate too. Preserve any staff alternatives that
+      // existed before a school-conflict fallback, so a later packing/recovery
+      // pass can bring the activity back to existing staff instead of trapping
+      // it permanently in recruitment.
       group.movableRows.push(row);
       const source = text(row?.kind) === 'recruitment'
-        ? (row?.scheduleOptions || [])
+        ? [
+            ...(row?.packingOptions || []),
+            ...(row?.options || []),
+            ...(row?.scheduleOptions || [])
+          ]
         : (row?.packingOptions?.length ? row.packingOptions : (row?.options || []));
       for (const option of source) {
         for (const day of planningRowWeekdays(option)) group.candidateWeekdays.add(day);
@@ -3477,7 +3489,11 @@ function schoolPackingCurrentOption(row = {}) {
 function schoolPackingOptions(row = {}, candidateDays = new Set()) {
   const current = schoolPackingCurrentOption(row);
   const source = text(row?.kind) === 'recruitment'
-    ? (row?.scheduleOptions || [])
+    ? [
+        ...(row?.packingOptions || []),
+        ...(row?.options || []),
+        ...(row?.scheduleOptions || [])
+      ]
     : ((row?.packingOptions?.length ? row.packingOptions : row?.options) || []);
   const options = [
     current,
@@ -3551,13 +3567,14 @@ function schoolPackingBundleCost(choices = [], group = {}) {
 
   // Lexicographic business objective encoded as large, separated weights:
   // 1) as few school weekdays as possible,
-  // 2) reuse instructors already serving the school / use fewer instructors,
-  // 3) only then optimize workdays, travel, waiting and model score.
+  // 2) cover the timetable with existing staff before declaring recruitment,
+  // 3) reuse instructors already serving the school / use fewer instructors,
+  // 4) only then optimize workdays, travel, waiting and model score.
   return weekdays.size * 1_000_000_000
+    + recruitmentCount * 100_000_000
     + newInstructorCount * 10_000_000
     + realInstructorIds.length * 1_000_000
     + singletonInstructorCount * 100_000
-    + recruitmentCount * 10_000
     - repeatedAssignments * 50_000
     + schoolPackingSecondaryCost((choices || []).map((choice) => choice.option));
 }
@@ -3919,7 +3936,8 @@ export function optimizeSchoolDayPackingPass({
   activities = [],
   targetCourseIds = null,
   beamWidth = 24,
-  routeClient = null
+  routeClient = null,
+  _recoveryPass = false
 } = {}) {
   const targetIds = Array.isArray(targetCourseIds) ? new Set(targetCourseIds.map(text).filter(Boolean)) : null;
   const activityById = new Map((activities || []).map((activity) => [idOf(activity), activity]));
@@ -4017,7 +4035,7 @@ export function optimizeSchoolDayPackingPass({
 
     if (shouldApply) {
       for (const { row, option } of solution.choices) {
-        const isRecruitment = text(row?.kind) === 'recruitment' || !text(option?.instructorEmpId);
+        const isRecruitment = !text(option?.instructorEmpId);
         const selectedSchedule = {
           startDate: text(option.startDate || option.meetings?.[0]?.date),
           endDate: text(option.endDate || option.meetings?.at?.(-1)?.date),
@@ -4027,6 +4045,8 @@ export function optimizeSchoolDayPackingPass({
         };
         const replacement = {
           ...row,
+          kind: isRecruitment ? 'recruitment' : 'proposal',
+          status: isRecruitment ? 'נדרש גיוס' : 'מועד מומלץ לבית הספר',
           instructorEmpId: isRecruitment ? '' : text(option.instructorEmpId),
           instructorName: isRecruitment ? '' : text(option.instructorName),
           ...selectedSchedule,
@@ -4064,6 +4084,25 @@ export function optimizeSchoolDayPackingPass({
         staffBundleComplete,
         staffConflictFallbackCount
       };
+    }
+  }
+  if (!_recoveryPass) {
+    const needsRecruitmentRecovery = [...rowsById.values()].some((row) =>
+      text(row?.kind) === 'recruitment'
+      && row?.diagnostics?.schoolConflictFallback === true
+      && [...(row?.packingOptions || []), ...(row?.options || [])]
+        .some((option) => text(option?.instructorEmpId))
+    );
+    if (needsRecruitmentRecovery) {
+      const recovery = optimizeSchoolDayPackingPass({
+        rowsById,
+        activities,
+        targetCourseIds,
+        beamWidth,
+        routeClient,
+        _recoveryPass: true
+      });
+      moved += recovery.moved;
     }
   }
   return { moved, groups: groups.length };
@@ -4111,7 +4150,7 @@ function refreshSchoolPlanningDiagnostics(rowsById, activities = []) {
  * flexible activities (including several courses at the same school) without
  * scoring the next row against stale virtual proposals.
  */
-async function consolidateInstructorWorkdaysPass({
+export async function consolidateInstructorWorkdaysPass({
   rowsById,
   targetCourseIds = null,
   targets = [],
@@ -4172,10 +4211,25 @@ async function consolidateInstructorWorkdaysPass({
       if (officialPlanningDates(activity).length) continue;
 
       const currentDays = rowWeekdaySet(row);
-      const openDays = instructorOpenWeekdaysFromRows([...rowsById.values()], empId, row.courseId);
-      if (!openDays.size) continue;
-      const opensOnlyNewDays = [...currentDays].every((day) => !openDays.has(day));
+      const currentRows = [...rowsById.values()];
+      const currentOpenDays = instructorOpenWeekdaysFromRows(currentRows, empId, row.courseId);
+      const opensOnlyNewDays = [...currentDays].every((day) => !currentOpenDays.has(day));
       if (!opensOnlyNewDays) continue;
+
+      // Consolidation is an assignment problem, not only a date problem. A
+      // flexible course may move to another eligible existing instructor when
+      // that removes a workday. Fixed/source-dated activities were excluded
+      // above and therefore remain immutable anchors.
+      const openDaysByEmp = new Map();
+      const consolidationInstructors = (instructors || []).filter((item) => {
+        const candidateEmpId = text(item?.emp_id);
+        if (!candidateEmpId) return false;
+        const days = instructorOpenWeekdaysFromRows(currentRows, candidateEmpId, row.courseId);
+        if (!days.size) return false;
+        openDaysByEmp.set(candidateEmpId, days);
+        return true;
+      });
+      if (!consolidationInstructors.length) continue;
 
       const activityPeriodKey = planningPeriodKeyForActivity(activity);
       const contextWithoutSelf = consolidationContextForCourse({
@@ -4184,13 +4238,10 @@ async function consolidateInstructorWorkdaysPass({
         currentContextActivities,
         excludeCourseId: row.courseId
       });
-      const oneInstructor = (instructors || []).filter((item) => text(item?.emp_id) === empId);
-      if (!oneInstructor.length) continue;
-
       const generated = await generatePlanningScenariosCooperatively({
         activity,
         catalog,
-        instructors: oneInstructor,
+        instructors: consolidationInstructors,
         rules,
         profiles,
         activities: contextWithoutSelf,
@@ -4202,14 +4253,15 @@ async function consolidateInstructorWorkdaysPass({
       }, checkpoint);
       if (!generated.spec.complete || !generated.scenarios?.length) continue;
 
-      const preferredScenarios = generated.scenarios.filter((scenario) => openDays.has(weekday(scenario.startDate)));
+      const openWeekdays = new Set([...openDaysByEmp.values()].flatMap((days) => [...days]));
+      const preferredScenarios = generated.scenarios.filter((scenario) => openWeekdays.has(weekday(scenario.startDate)));
       if (!preferredScenarios.length) continue;
 
       // Rebuild prepared/travel contexts from the CURRENT rows, not from the
       // initial virtual plan. This is the critical stale-context fix.
       const freshPreparedContext = prepareSchedulingRunContext({
         activities: contextWithoutSelf,
-        instructors: oneInstructor,
+        instructors: consolidationInstructors,
         profiles,
         rules,
         exceptions,
@@ -4223,7 +4275,7 @@ async function consolidateInstructorWorkdaysPass({
         scenarios: preferredScenarios,
         startRange: generated.startRange,
         contextActivities: contextWithoutSelf,
-        instructors: oneInstructor,
+        instructors: consolidationInstructors,
         profiles,
         rules,
         exceptions,
@@ -4238,48 +4290,78 @@ async function consolidateInstructorWorkdaysPass({
         limits: {
           ...limits,
           maxScenarios: preferredScenarios.length,
-          maxCandidatesPerScenario: 1,
-          maxRoutedPlanningPairs: 4,
-          maxFinalOptions: 4,
+          maxCandidatesPerScenario: Math.max(3, Number(limits.maxCandidatesPerScenario) || 0),
+          maxRoutedPlanningPairs: Math.max(8, Number(limits.maxRoutedPlanningPairs) || 0),
+          maxFinalOptions: Math.max(8, Number(limits.maxFinalOptions) || 0),
           runGlobalRepair: false
         }
       });
-      const chosen = (evaluation.options || []).find((option) => text(option.instructorEmpId) === empId)
-        || (evaluation.options || [])[0]
-        || null;
-      if (!chosen) continue;
-      const chosenDays = new Set((chosen.meetings || []).map((meeting) => weekday(meeting.date)).filter((day) => Number.isInteger(day)));
-      const staysOnOpenDay = [...chosenDays].some((day) => openDays.has(day));
-      if (!staysOnOpenDay) continue;
+      let best = null;
+      for (const option of evaluation.options || []) {
+        const optionEmpId = text(option?.instructorEmpId);
+        const candidateOpenDays = openDaysByEmp.get(optionEmpId);
+        if (!candidateOpenDays?.size) continue;
+        const optionDays = new Set((option.meetings || [])
+          .map((meeting) => weekday(meeting.date))
+          .filter((day) => Number.isInteger(day)));
+        if (![...optionDays].some((day) => candidateOpenDays.has(day))) continue;
 
-      const trialRows = new Map(rowsById);
-      trialRows.set(row.courseId, planRowFromOption(
-        activity,
-        chosen,
-        evaluation.options || [],
-        generated.startRange,
-        generated.spec,
-        {
-          ...evaluation,
-          dayConsolidation: true,
-          scheduleOptions: scheduleOnlyOptions(preferredScenarios)
+        const trialRows = new Map(rowsById);
+        const trialRow = planRowFromOption(
+          activity,
+          option,
+          evaluation.options || [],
+          generated.startRange,
+          generated.spec,
+          {
+            ...evaluation,
+            dayConsolidation: true,
+            scheduleOptions: scheduleOnlyOptions(preferredScenarios)
+          }
+        );
+        trialRows.set(row.courseId, trialRow);
+
+        const affectedEmpIds = new Set([empId, optionEmpId]);
+        const beforeDays = [...affectedEmpIds]
+          .reduce((sum, affectedEmpId) => sum + countInstructorWorkdays(currentRows, affectedEmpId), 0);
+        const afterRows = [...trialRows.values()];
+        const afterDays = [...affectedEmpIds]
+          .reduce((sum, affectedEmpId) => sum + countInstructorWorkdays(afterRows, affectedEmpId), 0);
+        const beforeTravelParts = [...affectedEmpIds].map((affectedEmpId) => instructorPlanTravelKm(currentRows, affectedEmpId));
+        const afterTravelParts = [...affectedEmpIds].map((affectedEmpId) => instructorPlanTravelKm(afterRows, affectedEmpId));
+        const beforeTravelKm = beforeTravelParts.every((value) => Number.isFinite(Number(value)))
+          ? beforeTravelParts.reduce((sum, value) => sum + Number(value), 0)
+          : null;
+        const afterTravelKm = afterTravelParts.every((value) => Number.isFinite(Number(value)))
+          ? afterTravelParts.reduce((sum, value) => sum + Number(value), 0)
+          : null;
+        const beforeSchoolDays = schoolWeekdayCount(currentRows, row.schoolId);
+        const afterSchoolDays = schoolWeekdayCount(afterRows, row.schoolId);
+        if (afterSchoolDays > beforeSchoolDays) continue;
+        if (!dayConsolidationAcceptsMove({ beforeDays, afterDays, beforeTravelKm, afterTravelKm })) continue;
+        if (
+          optionEmpId === empId
+          && text(option.startTime) === text(row.startTime)
+          && text(option.startDate) === text(row.startDate)
+        ) continue;
+
+        const dayGain = beforeDays - afterDays;
+        const travelGain = Number.isFinite(Number(beforeTravelKm)) && Number.isFinite(Number(afterTravelKm))
+          ? Number(beforeTravelKm) - Number(afterTravelKm)
+          : 0;
+        const score = Number(option?.planningOptimization?.total) || 0;
+        if (
+          !best
+          || dayGain > best.dayGain
+          || (dayGain === best.dayGain && travelGain > best.travelGain)
+          || (dayGain === best.dayGain && travelGain === best.travelGain && score > best.score)
+        ) {
+          best = { trialRow, dayGain, travelGain, score };
         }
-      ));
-      const beforeDays = countInstructorWorkdays([...rowsById.values()], empId);
-      const afterDays = countInstructorWorkdays([...trialRows.values()], empId);
-      const beforeTravelKm = instructorPlanTravelKm([...rowsById.values()], empId);
-      const afterTravelKm = instructorPlanTravelKm([...trialRows.values()], empId);
-      const beforeSchoolDays = schoolWeekdayCount([...rowsById.values()], row.schoolId);
-      const afterSchoolDays = schoolWeekdayCount([...trialRows.values()], row.schoolId);
-      if (afterSchoolDays > beforeSchoolDays) continue;
-      if (!dayConsolidationAcceptsMove({ beforeDays, afterDays, beforeTravelKm, afterTravelKm })) {
-        continue;
       }
-      if (text(chosen.startTime) === text(row.startTime) && text(chosen.startDate) === text(row.startDate)) {
-        continue;
-      }
+      if (!best) continue;
 
-      rowsById.set(row.courseId, trialRows.get(row.courseId));
+      rowsById.set(row.courseId, best.trialRow);
       moved += 1;
       movedThisPass += 1;
       await checkpoint();

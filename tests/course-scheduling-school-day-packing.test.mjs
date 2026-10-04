@@ -75,15 +75,52 @@ test('D: parallel lanes with different instructors may pack into one day', () =>
   assert.equal(rows.get('p1').schoolPlanning.actualWeekdays.length, 1);
 });
 
-test('E/G: fixed and locked weekdays remain anchors and flexible siblings converge around them', () => {
-  for (const kind of ['fixed', 'planning-locked']) {
-    const anchor = { courseId: `${kind}-anchor`, schoolId: kind, kind, planningLocked: kind === 'planning-locked', meetings: [meeting('2027-01-05')] };
+test('E/G: fixed, locked and source-dated weekdays remain anchors and flexible siblings converge around them', () => {
+  for (const kind of ['fixed', 'planning-locked', 'source-dated']) {
+    const anchor = {
+      courseId: `${kind}-anchor`,
+      schoolId: kind,
+      kind: kind === 'source-dated' ? 'proposal' : kind,
+      planningLocked: kind === 'planning-locked',
+      schoolDateAnchored: kind === 'source-dated',
+      meetings: [meeting('2027-01-05')]
+    };
     const flexible = proposal(`${kind}-flex`, kind, option('2', '2027-01-04'), [option('2', '2027-01-05')]);
     const rows = new Map([[anchor.courseId, anchor], [flexible.courseId, flexible]]);
     optimizeSchoolDayPackingPass({ rowsById: rows, activities: [activity(anchor.courseId, kind), activity(flexible.courseId, kind)] });
     assert.equal(rows.get(anchor.courseId).meetings[0].date, '2027-01-05');
     assert.equal(rows.get(flexible.courseId).meetings[0].date, '2027-01-05');
   }
+});
+
+test('school-conflict recruitment can return to an existing instructor when a stored staff option is feasible', () => {
+  const staffed = option('7', '2027-01-04', '10:00', '11:00');
+  const scheduleOnly = {
+    instructorEmpId: '', instructorName: '',
+    startDate: '2027-01-04', endDate: '2027-01-04', startTime: '10:00', endTime: '11:00',
+    meetings: [meeting('2027-01-04', '10:00', '11:00')], routeVerified: true
+  };
+  const first = proposal('existing', 'recover', option('7', '2027-01-04', '09:00', '10:00'), [option('7', '2027-01-04', '09:00', '10:00')]);
+  const fallback = {
+    ...proposal('fallback', 'recover', staffed, [staffed]),
+    kind: 'recruitment',
+    instructorEmpId: '',
+    instructorName: '',
+    meetings: scheduleOnly.meetings,
+    startDate: scheduleOnly.startDate,
+    startTime: scheduleOnly.startTime,
+    endTime: scheduleOnly.endTime,
+    packingOptions: [staffed],
+    scheduleOptions: [scheduleOnly],
+    diagnostics: { schoolConflictFallback: true }
+  };
+  const rows = new Map([['existing', first], ['fallback', fallback]]);
+  optimizeSchoolDayPackingPass({
+    rowsById: rows,
+    activities: [activity('existing', 'recover'), activity('fallback', 'recover')]
+  });
+  assert.equal(rows.get('fallback').kind, 'proposal');
+  assert.equal(rows.get('fallback').instructorEmpId, '7');
 });
 
 test('F: a proven two-day requirement is required_split with no avoidable split', () => {

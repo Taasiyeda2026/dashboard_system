@@ -270,6 +270,26 @@ test('v27 upgrade rebuilds both flexible proposals and recruitment rows for scho
   assert.deepEqual(new Set(ids), new Set(['a', 'b']));
 });
 
+test('v28 upgrade re-evaluates flexible proposals and recruitment without touching planning anchors', () => {
+  const shared = {
+    rows: [
+      { activityId: 'proposal', row: { courseId: 'proposal', schoolId: 's1', kind: 'proposal' } },
+      { activityId: 'recruitment', row: { courseId: 'recruitment', schoolId: 's1', kind: 'recruitment' } },
+      { activityId: 'dated', row: { courseId: 'dated', schoolId: 's1', kind: 'proposal', schoolDateAnchored: true } },
+      { activityId: 'locked', lockedOption: { instructorEmpId: '1' }, row: { courseId: 'locked', schoolId: 's1', kind: 'proposal' } },
+      { activityId: 'planning-locked', row: { courseId: 'planning-locked', schoolId: 's1', kind: 'proposal', planningLocked: true } },
+      { activityId: 'live', row: { courseId: 'live', schoolId: 's1', kind: 'live' } }
+    ]
+  };
+  const ids = planningEngineUpgradeAffectedCourseIds({
+    shared,
+    activities: [],
+    storedEngineVersion: 'planning-v27-20261004-school-first-economic-alternatives-self-invalidation',
+    currentEngineVersion: 'planning-v28-20261004-anchor-safe-global-reassignment-self-invalidation'
+  });
+  assert.deepEqual(new Set(ids), new Set(['proposal', 'recruitment']));
+});
+
 test('v24 to v25 upgrade targets only multi-proposal schools', () => {
   const activities = [
     { row_id: 'a', school_id: 'school-1' },
