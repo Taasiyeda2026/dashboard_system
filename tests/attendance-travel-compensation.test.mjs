@@ -18,7 +18,7 @@ const myReports = await readFile(new URL('../attendance/src/screens/my-reports-s
 const nonblockingMigration = await readFile(new URL('../supabase/migrations/20260923161300_attendance_instructor_nonblocking_travel.sql', import.meta.url), 'utf8');
 
 test('activity order and canonical operations value remain exact', () => {
-  assert.deepEqual(HEBREW_ACTIVITY_TYPES, ['קורס','סדנה','סיור','זום','חדר בריחה','הכשרה','ביטול זמן','תפעול']);
+  assert.deepEqual(HEBREW_ACTIVITY_TYPES, ['קורס','סדנה','סיור','חדר בריחה','הכשרה','ביטול זמן','תפעול']);
   assert.equal(OPERATIONS_REPORT_TYPE, 'תפעול');
 });
 
