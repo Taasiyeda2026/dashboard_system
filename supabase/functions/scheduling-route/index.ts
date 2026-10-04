@@ -887,6 +887,156 @@ async function loadAllRows(db: DbClient, table: string, columns: string) {
   }
 }
 
+const SCHEDULING_CACHE_BUILD_COLUMNS = [
+  'origin_key',
+  'destination_key',
+  'distance_km',
+  'duration_minutes',
+  'origin_address',
+  'destination_address',
+  'origin_entity_key',
+  'destination_entity_key',
+  'origin_type',
+  'destination_type',
+  'origin_instructor_emp_id',
+  'origin_school_id',
+  'destination_school_id',
+  'expires_at',
+  'provider'
+].join(',');
+
+async function loadPagedCacheRows(
+  query: (from: number, to: number) => PromiseLike<{ data: unknown[] | null; error: unknown }>
+) {
+  const rows: Record<string, unknown>[] = [];
+  const pageSize = 1000;
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await query(from, from + pageSize - 1);
+    if (error) return { error, rows };
+    const batch = (data || []) as Record<string, unknown>[];
+    rows.push(...batch);
+    if (batch.length < pageSize) return { error: null, rows };
+  }
+}
+
+function addCacheRows(
+  target: Map<string, Record<string, unknown>>,
+  rows: Record<string, unknown>[]
+) {
+  for (const row of rows) {
+    const originKey = text(row.origin_key);
+    const destinationKey = text(row.destination_key);
+    if (!originKey || !destinationKey) continue;
+    target.set(`${originKey}->${destinationKey}`, row);
+  }
+}
+
+function cacheLookupMaps(rows: Record<string, unknown>[]) {
+  const byRoute = new Map<string, Record<string, unknown>>();
+  const byEntityPair = new Map<string, Record<string, unknown>>();
+  for (const row of rows) {
+    const originKey = text(row.origin_key);
+    const destinationKey = text(row.destination_key);
+    if (originKey && destinationKey) byRoute.set(`${originKey}->${destinationKey}`, row);
+    const originEntity = text(row.origin_entity_key);
+    const destinationEntity = text(row.destination_entity_key);
+    if (originEntity && destinationEntity) byEntityPair.set(`${originEntity}->${destinationEntity}`, row);
+  }
+  return { byRoute, byEntityPair };
+}
+
+function cacheRowForPair(
+  pair: TravelPair,
+  byRoute: Map<string, Record<string, unknown>>,
+  byEntityPair: Map<string, Record<string, unknown>>
+) {
+  return byRoute.get(`${pair.origin_key}->${pair.destination_key}`)
+    || byEntityPair.get(`${pair.origin_entity_key}->${pair.destination_entity_key}`)
+    || null;
+}
+
+async function loadRelevantSchedulingCacheRows(
+  db: DbClient,
+  instructorPairs: TravelPair[],
+  schoolPairs: TravelPair[]
+) {
+  // Maintenance used to page through the entire durable cache (including thousands
+  // of historical/dynamic planning routes) on every coverage/build request. Start
+  // with the indexed typed rows for the current maintenance universe instead.
+  const byRoute = new Map<string, Record<string, unknown>>();
+  const instructorIds = [...new Set(instructorPairs
+    .map((pair) => pair.origin_instructor_emp_id)
+    .filter((id): id is number => id != null))];
+  const instructorSchoolIds = [...new Set(instructorPairs
+    .map((pair) => pair.destination_school_id)
+    .filter((id): id is number => id != null))];
+  const schoolIds = [...new Set(schoolPairs.flatMap((pair) => [pair.origin_school_id, pair.destination_school_id])
+    .filter((id): id is number => id != null))];
+
+  const typedLoads: Array<Promise<{ error: unknown; rows: Record<string, unknown>[] }>> = [];
+  if (instructorIds.length && instructorSchoolIds.length) {
+    typedLoads.push(loadPagedCacheRows((from, to) => db
+      .from('scheduling_travel_cache')
+      .select(SCHEDULING_CACHE_BUILD_COLUMNS)
+      .eq('origin_type', 'instructor')
+      .eq('destination_type', 'school')
+      .in('origin_instructor_emp_id', instructorIds)
+      .in('destination_school_id', instructorSchoolIds)
+      .range(from, to)));
+  }
+  if (schoolIds.length) {
+    typedLoads.push(loadPagedCacheRows((from, to) => db
+      .from('scheduling_travel_cache')
+      .select(SCHEDULING_CACHE_BUILD_COLUMNS)
+      .eq('origin_type', 'school')
+      .eq('destination_type', 'school')
+      .in('origin_school_id', schoolIds)
+      .in('destination_school_id', schoolIds)
+      .range(from, to)));
+  }
+
+  const typedResults = await Promise.all(typedLoads);
+  const typedError = typedResults.find((result) => result.error)?.error || null;
+  if (typedError) return { error: typedError, rows: [] as Record<string, unknown>[] };
+  for (const result of typedResults) addCacheRows(byRoute, result.rows);
+
+  const typedMaps = cacheLookupMaps([...byRoute.values()]);
+  const unresolved = [...instructorPairs, ...schoolPairs].filter((pair) => !isUsableForPair(
+    cacheRowForPair(pair, typedMaps.byRoute, typedMaps.byEntityPair),
+    pair
+  ));
+  if (!unresolved.length) return { error: null, rows: [...byRoute.values()] };
+
+  // Older cache rows predate provenance/entity columns. Do not rescan all legacy
+  // rows: query only the exact route keys still unresolved after the indexed read.
+  const destinationsByOrigin = new Map<string, Set<string>>();
+  for (const pair of unresolved) {
+    const destinations = destinationsByOrigin.get(pair.origin_key) || new Set<string>();
+    destinations.add(pair.destination_key);
+    destinationsByOrigin.set(pair.origin_key, destinations);
+  }
+  const exactLookups: Array<{ originKey: string; destinationKeys: string[] }> = [];
+  for (const [originKey, destinations] of destinationsByOrigin) {
+    const destinationKeys = [...destinations];
+    for (let index = 0; index < destinationKeys.length; index += 20) {
+      exactLookups.push({ originKey, destinationKeys: destinationKeys.slice(index, index + 20) });
+    }
+  }
+
+  const legacyResults = await mapWithConcurrency(exactLookups, BATCH_CONCURRENCY, async (lookup) => {
+    const { data, error } = await db
+      .from('scheduling_travel_cache')
+      .select(SCHEDULING_CACHE_BUILD_COLUMNS)
+      .eq('origin_key', lookup.originKey)
+      .in('destination_key', lookup.destinationKeys);
+    return { data: (data || []) as Record<string, unknown>[], error };
+  });
+  const legacyError = legacyResults.find((result) => result.error)?.error || null;
+  if (legacyError) return { error: legacyError, rows: [...byRoute.values()] };
+  for (const result of legacyResults) addCacheRows(byRoute, result.data);
+  return { error: null, rows: [...byRoute.values()] };
+}
+
 async function loadPayrollMonthPairs(db: DbClient, month: string, employeeIds: number[] = []) {
   const range = payrollMonthRange(month);
   if (!range) return { error: 'invalid_payroll_month' as const };
@@ -1384,15 +1534,13 @@ async function runBuildCache(db: DbClient, key: string, payload: Record<string, 
     stats.exceptions = payrollExtras.exceptions;
   }
 
-  // Coverage used to issue one or more PostgREST queries per route pair on every batch.
-  // With ~1,700 pairs this repeated the same work thousands of times and could exhaust
-  // the Edge Function worker. Read the durable cache in pages once, then inspect it in memory.
+  // Scheduling maintenance reads only the current typed route universe plus exact
+  // legacy fallbacks. Payroll keeps its separate whole-cache path because its route
+  // universe includes generic attendance locations that do not share this schema.
   const allPairs = [...instructorPairs, ...schoolPairs];
-  const cacheRowsResult = await loadAllRows(
-    db,
-    'scheduling_travel_cache',
-    'origin_key,destination_key,distance_km,duration_minutes,origin_address,destination_address,origin_entity_key,destination_entity_key,expires_at,provider'
-  );
+  const cacheRowsResult = scope === 'payroll_month'
+    ? await loadAllRows(db, 'scheduling_travel_cache', SCHEDULING_CACHE_BUILD_COLUMNS)
+    : await loadRelevantSchedulingCacheRows(db, instructorPairs, schoolPairs);
   if (cacheRowsResult.error) return jsonResponse({ error: 'cache_read_failed' }, 500);
 
   const cacheByRoute = new Map<string, Record<string, unknown>>();
@@ -1408,9 +1556,7 @@ async function runBuildCache(db: DbClient, key: string, payload: Record<string, 
 
   let existingCount = 0;
   for (const pair of allPairs) {
-    const cached = cacheByRoute.get(`${pair.origin_key}->${pair.destination_key}`)
-      || cacheByEntityPair.get(`${pair.origin_entity_key}->${pair.destination_entity_key}`)
-      || null;
+    const cached = cacheRowForPair(pair, cacheByRoute, cacheByEntityPair);
     if (isUsableForPair(cached, pair)) existingCount += 1;
   }
   stats.existing_count = existingCount;
@@ -1436,8 +1582,7 @@ async function runBuildCache(db: DbClient, key: string, payload: Record<string, 
   const phasePairs = cursor.phase === 'instructor_school' ? instructorPairs : schoolPairs;
   const { pending: slice, nextOffset, skipped } = selectPendingRouteBatch(
     phasePairs, cursor.offset, limit, (pair: TravelPair) => isUsableForPair(
-      cacheByRoute.get(`${pair.origin_key}->${pair.destination_key}`)
-        || cacheByEntityPair.get(`${pair.origin_entity_key}->${pair.destination_entity_key}`) || null,
+      cacheRowForPair(pair, cacheByRoute, cacheByEntityPair),
       pair
     )
   );
