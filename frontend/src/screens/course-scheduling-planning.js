@@ -91,7 +91,7 @@ export const PLANNING_OPTIMIZATION_WEIGHTS = Object.freeze({
   stability: 10
 });
 export const PLANNING_VALIDATION_VERSION = 'planning-validation-v1-20260927-self-invalidation';
-export const PLANNING_ENGINE_VERSION = 'planning-v26-20261003-coherent-school-first-separate-trip-distance-self-invalidation';
+export const PLANNING_ENGINE_VERSION = 'planning-v27-20261004-school-first-economic-alternatives-self-invalidation';
 export const PLANNING_ACTIVITY_NO_ALIASES = Object.freeze({
   // Legacy Gefen identifier retained on existing activities; canonical catalog program is 53828.
   '82835': '53828'
@@ -1930,7 +1930,7 @@ export function buildPlanningOverviewRows({ activities = [], catalog = [], distr
   );
 }
 
-function scheduleOnlyOptions(scenarios = [], limit = 8) {
+function scheduleOnlyOptions(scenarios = [], limit = 12) {
   const seen = new Set();
   return [...(scenarios || [])]
     .filter((scenario) => Array.isArray(scenario?.meetings) && scenario.meetings.length)
@@ -2190,15 +2190,25 @@ export function assignRecruitmentProfiles(rows = []) {
   const profiles = [];
 
   for (const row of candidates) {
-    const sourceChoices = row.scheduleOptions?.length
-      ? row.scheduleOptions
-      : (row.meetings?.length ? [{
+    const selectedSchoolSchedule = row?.diagnostics?.schoolFirstOptimized === true && row.meetings?.length
+      ? [{
           startDate: row.startDate,
           endDate: row.endDate,
           startTime: row.startTime,
           endTime: row.endTime,
           meetings: row.meetings
-        }] : []);
+        }]
+      : null;
+    const sourceChoices = selectedSchoolSchedule
+      || (row.scheduleOptions?.length
+        ? row.scheduleOptions
+        : (row.meetings?.length ? [{
+            startDate: row.startDate,
+            endDate: row.endDate,
+            startTime: row.startTime,
+            endTime: row.endTime,
+            meetings: row.meetings
+          }] : []));
     const choices = row.schoolDateAnchored
       ? sourceChoices
       : sourceChoices.filter((schedule) =>
@@ -3876,7 +3886,8 @@ function refreshSchoolPlanningDiagnostics(rowsById, activities = []) {
       .find((row) => row?.schoolPlanning)?.schoolPlanning;
     annotateSchoolPlanningGroup(
       group,
-      Number.isInteger(Number(prior?.minimumFeasibleWeekdays)) ? Number(prior.minimumFeasibleWeekdays) : null
+      Number.isInteger(Number(prior?.minimumFeasibleWeekdays)) ? Number(prior.minimumFeasibleWeekdays) : null,
+      Array.isArray(prior?.alternatives) ? prior.alternatives : []
     );
   }
 }
@@ -4990,7 +5001,7 @@ export async function buildDynamicCoursePlan({
         rowsById,
         activities: targets,
         targetCourseIds: incrementalIds ? [...incrementalIds] : null,
-        beamWidth: 8,
+        beamWidth: 24,
         routeClient
       });
       await report('אריזת בתי ספר הושלמה', rowsById.size, rowsById.size, '', null, [...rowsById.values()]);
