@@ -4591,20 +4591,29 @@ export const courseSchedulingScreen = {
         state.courseSchedulingDistanceDoneMessage = info.message;
         state.courseSchedulingDistanceDetails = info.details;
       } finally {
-        try {
-          const finalCoverage = await reloadDistanceCoverage();
-          if (buildResult) {
-            const finalStats = { ...buildResult.stats, ...finalCoverage, failures: buildResult.stats.failures || [] };
-            const info = distanceDoneMessage(finalStats, { done: buildResult.done, stopped: buildResult.stopped });
-            state.courseSchedulingDistanceStats = finalStats;
-            state.courseSchedulingDistanceDoneMessage = info.message;
-            state.courseSchedulingDistanceDetails = info.details;
-            state.courseSchedulingDistanceError = info.error;
-          }
-        } catch (coverageError) {
-          if (!state.courseSchedulingDistanceError) {
-            state.courseSchedulingDistanceError = true;
-            state.courseSchedulingDistanceDoneMessage = translateSchedulingRouteError(coverageError.code || coverageError.message, coverageError.message);
+        const remaining = buildResult
+          ? (Number(buildResult.stats?.missing_count) || 0) + (Number(buildResult.stats?.refresh_required_count) || 0)
+          : null;
+        if (buildResult?.done && remaining === 0) {
+          // The final successful build response is authoritative. Re-running coverage
+          // here used to repeat the same maintenance-cache read for no benefit.
+          state.courseSchedulingDistanceCoverageLoaded = true;
+        } else {
+          try {
+            const finalCoverage = await reloadDistanceCoverage();
+            if (buildResult) {
+              const finalStats = { ...buildResult.stats, ...finalCoverage, failures: buildResult.stats.failures || [] };
+              const info = distanceDoneMessage(finalStats, { done: buildResult.done, stopped: buildResult.stopped });
+              state.courseSchedulingDistanceStats = finalStats;
+              state.courseSchedulingDistanceDoneMessage = info.message;
+              state.courseSchedulingDistanceDetails = info.details;
+              state.courseSchedulingDistanceError = info.error;
+            }
+          } catch (coverageError) {
+            if (!state.courseSchedulingDistanceError) {
+              state.courseSchedulingDistanceError = true;
+              state.courseSchedulingDistanceDoneMessage = translateSchedulingRouteError(coverageError.code || coverageError.message, coverageError.message);
+            }
           }
         }
         state.courseSchedulingDistanceLoading = false;
