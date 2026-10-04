@@ -56,7 +56,6 @@ jobs:
 
           echo "Checked ${js_count} changed JavaScript files and ${json_count} changed JSON files."
 
-
       - name: Run mobile interface contract tests
         env:
           BASE_REF: ${{ github.base_ref }}
@@ -71,6 +70,20 @@ jobs:
               tests/attendance-mobile-contract.test.mjs
           else
             echo "No instructor/attendance mobile contract files changed; mobile tests skipped."
+          fi
+
+      - name: Run work schedule manager-instructor parity contract
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE_SHA="$(git rev-parse "origin/${BASE_REF}")"
+          if git diff --name-only "$BASE_SHA" "$HEAD_SHA" | grep -Eq '^(frontend/src/activity-2027-contact-list-runtime\.js|frontend/src/screens/operations-management\.js|frontend/src/screens/instructor-portal/(work-schedule|portal-data)\.js|frontend/src/screens/shared/instructor-course-schedule-(2027|print|view)\.js|tests/work-schedule-manager-instructor-parity\.test\.mjs)$'; then
+            node --test tests/work-schedule-manager-instructor-parity.test.mjs
+          else
+            echo "No work-schedule parity files changed; parity test skipped."
           fi
 
       - name: Run activity status save regression tests
