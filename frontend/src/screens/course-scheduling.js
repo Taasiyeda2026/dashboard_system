@@ -2871,9 +2871,13 @@ export const courseSchedulingScreen = {
         const checkpointBatchSize = fullRun ? 50 : Math.min(20, Math.max(3, affectedIds.length));
         // Local repairs stay in-memory. Persisting a 5-6MB whole-workspace checkpoint
         // at every optimization stage made small updates slower than the calculation itself.
+        const checkpointAlreadyComplete = currentCourseIds.length > 0
+          && checkpointCompletedIds.size >= currentCourseIds.length;
         const persistServerCheckpoints = fullRun
-          || structuralPlanningUpgrade
-          || affectedIds.length > AUTO_PLANNING_REFRESH_MAX_IDS;
+          || (!checkpointAlreadyComplete && (
+            structuralPlanningUpgrade
+            || affectedIds.length > AUTO_PLANNING_REFRESH_MAX_IDS
+          ));
 
         state.courseSchedulingPlanningProgress = {
           phase: fullRun
