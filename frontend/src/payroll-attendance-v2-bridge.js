@@ -272,6 +272,21 @@ api.attendanceControlUpdateRecord = async function (recordId, fields = {}) {
   return data || { success: true, recordId: id };
 };
 
+api.attendanceControlCreateRecord = async function (employeeId, fields = {}) {
+  const numericEmployeeId = Number(text(employeeId));
+  if (!Number.isSafeInteger(numericEmployeeId) || numericEmployeeId <= 0) {
+    throw new Error('חסר מספר עובד תקין להוספת דיווח נוכחות.');
+  }
+  await waitForSupabaseAuthSession({ timeoutMs: 7000 }).catch(() => null);
+  const { data, error } = await supabase.rpc('create_manager_attendance_record', {
+    p_employee_id: numericEmployeeId,
+    p_fields: fields && typeof fields === 'object' ? fields : {}
+  });
+  if (error) throw new Error(error.message || 'attendance_record_supabase_create_failed');
+  if (data?.success === false) throw new Error(text(data.message || data.error) || 'הוספת דיווח הנוכחות נכשלה.');
+  return data || { success: true, employeeId: String(numericEmployeeId) };
+};
+
 api.attendanceControlRecordReviews = async function ({ recordIds = [] } = {}) {
   const ids = [...new Set((Array.isArray(recordIds) ? recordIds : []).map(text).filter(Boolean))];
   if (!ids.length) return [];
