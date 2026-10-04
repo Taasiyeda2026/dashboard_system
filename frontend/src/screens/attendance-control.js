@@ -1057,6 +1057,10 @@ export function canManagerMutatePayrollEmployeeMonth(workflow = {}, { bypassMont
   return resolved.status === 'submitted';
 }
 
+export function canManagerAddMissingAttendanceRecord(workflow = {}) {
+  return resolvePayrollMonthWorkflow(workflow).status === 'submitted';
+}
+
 export const EMPLOYEE_MONTH_NOT_SUBMITTED_READONLY_MESSAGE =
   'העובד טרם סיים ואישר את הדיווח החודשי. הנתונים מוצגים לצפייה בלבד.';
 
@@ -1836,6 +1840,7 @@ export function attendanceControlStylesHtml() {
 .attendance-control__overview{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:14px 0 16px}.attendance-control__overview-card{min-height:82px;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;padding:12px;border:1px solid #dfe8f2;border-radius:14px;background:linear-gradient(180deg,#fff,#f8fbff);box-shadow:0 4px 12px rgba(15,23,42,.035)}.attendance-control__overview-card span{font-size:.82rem;color:#64748b;font-weight:700}.attendance-control__overview-card strong{margin-top:5px;font-size:1.32rem;color:#183153}
 .attendance-control__summary-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:8px 0 12px}.attendance-control__summary-bar span{padding:7px 11px;border:1px solid #dbe5ef;border-radius:999px;background:#fff;font-size:.88rem}.attendance-control__metrics-details{margin:6px 0 12px}.attendance-control__metrics-details>summary{cursor:pointer;color:#64748b;font-size:.9em;padding:4px 2px}.attendance-control__metrics{margin:6px 0;display:flex;flex-wrap:wrap;gap:8px}.attendance-control__metrics>span,.attendance-control__employee-summary>span{padding:8px 10px;border:1px solid #e2e8f0;border-radius:8px;background:#f8fafc}
 .attendance-control__employee{margin:12px 0;border:1px solid #dbe5ef;border-radius:14px;background:#fff;overflow:hidden}.attendance-control__employee>summary{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:13px 15px;cursor:pointer;font-size:1.02em;background:#fbfdff}.attendance-control__employee-record-progress{font-size:.86rem;color:#64748b;font-weight:700}.attendance-control__employee-days{padding:0 14px 14px}.attendance-control__employee-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:4px 14px 10px}.attendance-control__approved{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 14px 10px;padding:8px 10px;border:1px solid #bbf7d0;background:#f0fdf4;border-radius:9px;color:#166534;font-weight:700}.attendance-control__approve-dialog{border:0;border-radius:12px;padding:20px;max-width:480px;color:#1f2a37}.attendance-control__approve-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}
+.attendance-control__add-dialog{width:min(760px,calc(100vw - 32px));max-width:760px}.attendance-control__add-dialog h3{margin:0 0 6px}.attendance-control__add-dialog>p{margin:0 0 14px;color:#64748b}.attendance-control__add-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 12px}.attendance-control__add-grid label{display:grid;gap:5px;font-weight:700;color:#475569}.attendance-control__add-grid label>span{font-size:.82rem}.attendance-control__add-grid .ds-input{width:100%;min-height:40px}.attendance-control__add-grid .attendance-control__add-wide{grid-column:1/-1}.attendance-control__add-error{margin:10px 0 0;color:#b91c1c;font-weight:700}.attendance-control__add-hint{margin:10px 0 0;color:#64748b;font-size:.84rem}@media(max-width:640px){.attendance-control__add-grid{grid-template-columns:1fr}.attendance-control__add-grid .attendance-control__add-wide{grid-column:auto}}
 .attendance-control__day{margin-top:10px;border:1px solid #e4eaf1;border-radius:12px;overflow:hidden}.attendance-control__day>summary{display:grid;grid-template-columns:130px 130px minmax(100px,1fr);gap:12px;align-items:center;padding:11px 13px;cursor:pointer;background:#fafcff}.attendance-control__reports{padding:12px;background:#f6f9fc}.attendance-control__report{padding:0;border:1px solid #dfe7f0;border-radius:14px;background:#fff;overflow:hidden;box-shadow:0 4px 12px rgba(15,23,42,.035)}.attendance-control__report+.attendance-control__report{margin-top:12px}.attendance-control__report-line{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:12px 14px;border-bottom:1px solid #edf1f5;background:#fff}.attendance-control__report-line strong{font-size:1rem}.attendance-control__report-line-actions,.attendance-control__record-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.attendance-control__record-actions{justify-content:flex-end}.attendance-control__identity{display:none}
 .attendance-control__report-card{margin:12px 14px;padding:12px;border:1px solid #dce7f2;border-radius:12px;background:#f8fbff}.attendance-control__report-card-title{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px;font-weight:800}.attendance-control__report-card-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(135px,1fr));gap:8px}.attendance-control__report-card-item{min-height:62px;display:flex;flex-direction:column;justify-content:center;padding:9px 10px;border:1px solid #e1e9f1;border-radius:10px;background:#fff}.attendance-control__report-card-item span{font-size:.76rem;color:#718096;font-weight:700}.attendance-control__report-card-item strong{margin-top:4px;font-size:.95rem;color:#1f3554;overflow-wrap:anywhere}
 .attendance-control__report-meta{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-top:10px;padding-top:9px;border-top:1px solid #e3eaf2;color:#53657a;font-size:.84rem}.attendance-control__report-meta strong{color:#334155}.attendance-control__report-meta span{padding:4px 7px;border-radius:999px;background:#eef4fa}
@@ -2323,7 +2328,7 @@ export function resultsHtml(result, month = '', options = {}) {
       if (workflow.status === 'not_submitted') {
         finishControls = `<div class="attendance-control__employee-actions"><span class="attendance-control__manual-note" data-payroll-readonly-notice>${escapeHtml(EMPLOYEE_MONTH_NOT_SUBMITTED_READONLY_MESSAGE)}</span></div>`;
       } else if (workflow.status === 'submitted' && currentEmployeeCanMutate) {
-        finishControls = `<div class="attendance-control__employee-actions"><button type="button" class="ds-btn ds-btn--primary" data-payroll-finish="${escapeHtml(employee.id)}" data-payroll-employee-name="${shown(employee.name)}"${pendingRecordCount ? ' disabled' : ''}>אישור מנהל</button>${pendingRecordCount ? `<span class="attendance-control__manual-note">נותרו ${pendingRecordCount} רשומות לאישור.</span>` : ''}</div>`;
+        finishControls = `<div class="attendance-control__employee-actions"><button type="button" class="ds-btn" data-attendance-add-record="${escapeHtml(employee.id)}" data-attendance-add-employee-name="${escapeHtml(employee.name)}">+ הוספת דיווח שנשכח</button><button type="button" class="ds-btn ds-btn--primary" data-payroll-finish="${escapeHtml(employee.id)}" data-payroll-employee-name="${shown(employee.name)}"${pendingRecordCount ? ' disabled' : ''}>אישור מנהל</button>${pendingRecordCount ? `<span class="attendance-control__manual-note">נותרו ${pendingRecordCount} רשומות לאישור.</span>` : ''}</div>`;
       }
     }
     const readonlyAttr = currentEmployeeCanMutate ? '' : ' data-payroll-employee-readonly="1"';
@@ -2557,6 +2562,87 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
     if (typeof dialog.showModal === 'function') dialog.showModal();
     else done(window.confirm(`${finishMod.PAYROLL_APPROVAL_TEXT}\n\nמאשר/ת וחותם/ת?`));
   });
+  const askForMissingAttendanceRecord = async ({ employeeId, employeeName, monthKey }) => new Promise((resolve) => {
+    const { fromDate, toDate } = attendanceMonthDateRange(monthKey);
+    const dialog = panel.ownerDocument.createElement('dialog');
+    dialog.className = 'attendance-control__approve-dialog attendance-control__add-dialog';
+    const activityTypes = ['קורס', 'סדנה', 'סיור', 'זום', 'חדר בריחה', 'הכשרה', 'ביטול זמן', 'תפעול'];
+    dialog.innerHTML = `<form method="dialog" data-attendance-add-form>
+      <h3>הוספת דיווח שנשכח</h3>
+      <p>${escapeHtml(employeeName || employeeId)} · ${escapeHtml(attendanceMonthLabel(monthKey))}</p>
+      <div class="attendance-control__add-grid">
+        <label><span>תאריך *</span><input class="ds-input" type="date" name="attendanceDate" min="${escapeHtml(fromDate)}" max="${escapeHtml(toDate)}" required></label>
+        <label><span>סוג פעילות *</span><select class="ds-input" name="activityType" required><option value="">בחירה</option>${activityTypes.map((type) => `<option value="${escapeHtml(type)}">${escapeHtml(type)}</option>`).join('')}</select></label>
+        <label><span>שעת התחלה *</span><input class="ds-input" type="time" name="startTime" required></label>
+        <label><span>שעת סיום *</span><input class="ds-input" type="time" name="endTime" required></label>
+        <label><span>רשות / יישוב</span><input class="ds-input" type="text" name="municipality"></label>
+        <label><span>בית ספר / מיקום</span><input class="ds-input" type="text" name="schoolName"></label>
+        <label><span>תוכנית / קורס</span><input class="ds-input" type="text" name="programName"></label>
+        <label><span>מספר מפגש</span><input class="ds-input" type="number" name="sessionNumber" min="1" step="1"></label>
+        <label><span>ק״מ</span><input class="ds-input" type="number" name="kilometers" min="0" step="0.01" value="0"></label>
+        <label><span>תחבורה ציבורית</span><select class="ds-input" name="publicTransport"><option value="false">לא</option><option value="true">כן</option></select></label>
+        <label><span>עלות תחבורה ציבורית</span><input class="ds-input" type="number" name="publicTransportCost" min="0" step="0.01" value="0"></label>
+        <label><span>הוצאות</span><input class="ds-input" type="number" name="totalExpenses" min="0" step="0.01" value="0"></label>
+        <label class="attendance-control__add-wide"><span>פירוט הוצאות</span><input class="ds-input" type="text" name="expensesDetails"></label>
+        <label class="attendance-control__add-wide"><span>הערות</span><input class="ds-input" type="text" name="notes"></label>
+      </div>
+      <p class="attendance-control__add-hint">הרשומה תתווסף כחלק מבקרת המנהל ותמתין לאישור רשומה רגיל לפני אישור החודש.</p>
+      <p class="attendance-control__add-error" data-attendance-add-error hidden></p>
+      <div class="attendance-control__approve-actions"><button type="submit" class="ds-btn ds-btn--primary">הוסף דיווח</button><button type="button" class="ds-btn" data-attendance-add-cancel>ביטול</button></div>
+    </form>`;
+    panel.appendChild(dialog);
+    const form = dialog.querySelector('[data-attendance-add-form]');
+    const errorEl = dialog.querySelector('[data-attendance-add-error]');
+    const done = (value) => { try { dialog.close(); } catch {} dialog.remove(); resolve(value); };
+    dialog.querySelector('[data-attendance-add-cancel]')?.addEventListener('click', () => done(null));
+    dialog.addEventListener('cancel', (event) => { event.preventDefault(); done(null); });
+    form?.addEventListener('submit', (event) => {
+      event.preventDefault();
+      const FormDataCtor = panel.ownerDocument.defaultView?.FormData || FormData;
+      const values = Object.fromEntries(new FormDataCtor(form).entries());
+      const reportDate = txt(values.attendanceDate);
+      const startTime = timeText(values.startTime);
+      const endTime = timeText(values.endTime);
+      const expenses = optionalNumber(values.totalExpenses) ?? 0;
+      const kilometers = optionalNumber(values.kilometers) ?? 0;
+      const publicTransport = txt(values.publicTransport) === 'true';
+      const publicTransportCost = optionalNumber(values.publicTransportCost) ?? 0;
+      const meetingNo = txt(values.sessionNumber);
+      let message = '';
+      if (!reportDate || !reportDate.startsWith(`${monthKey}-`)) message = 'יש לבחור תאריך מתוך חודש הבקרה.';
+      else if (!txt(values.activityType)) message = 'יש לבחור סוג פעילות.';
+      else if (!startTime || !endTime || !attendanceTimeRangeIsValid(startTime, endTime)) message = 'שעת הסיום חייבת להיות מאוחרת משעת ההתחלה.';
+      else if (meetingNo && !/^[1-9]\d*$/.test(meetingNo)) message = 'מספר המפגש אינו תקין.';
+      else if (expenses < 0 || kilometers < 0 || publicTransportCost < 0) message = 'סכומי הוצאות ונסיעות אינם יכולים להיות שליליים.';
+      if (message) {
+        if (errorEl) { errorEl.textContent = message; errorEl.hidden = false; }
+        return;
+      }
+      done({
+        attendanceDate: reportDate,
+        activityType: txt(values.activityType),
+        startTime,
+        endTime,
+        municipality: txt(values.municipality),
+        schoolName: txt(values.schoolName),
+        programName: txt(values.programName),
+        sessionNumber: meetingNo,
+        kilometers: publicTransport ? 0 : kilometers,
+        publicTransport,
+        publicTransportCost: publicTransport ? publicTransportCost : 0,
+        totalExpenses: expenses,
+        expensesDetails: expenses > 0 ? txt(values.expensesDetails) : '',
+        notes: txt(values.notes)
+      });
+    });
+    if (typeof dialog.showModal === 'function') {
+      dialog.showModal();
+      dialog.querySelector('[name="attendanceDate"]')?.focus();
+    } else {
+      dialog.remove();
+      resolve(null);
+    }
+  });
   const update = () => { run.disabled = !employees || !attendanceMonthLabel(monthInput.value) || !teamInput.value; };
   monthInput.addEventListener('change', update);
   teamInput.addEventListener('change', () => {
@@ -2599,7 +2685,7 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
       update();
     }).catch(() => { status.textContent = 'טעינת נתוני מערכת הנוכחות נכשלה.'; });
   }
-  run.addEventListener('click', async () => {
+  const loadAttendanceReview = async ({ successMessage = '' } = {}) => {
     run.disabled = true; status.textContent = 'טוען את נתוני הנוכחות והדשבורד ומבצע בקרת נוכחות…';
     try {
       const month = monthInput.value; const monthLabel = attendanceMonthLabel(month);
@@ -2616,16 +2702,18 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
       const dashboardRows = await loadAttendanceDashboardDataset(attendanceRows, api, month);
       result = compareAttendanceRows(attendanceRows, dashboardRows); result.month = month;
       const employeeIds = [...new Set(attendanceRows.map((row) => txt(row.employeeId)).filter(Boolean))];
-      title.textContent = `בקרת נוכחות – ${monthLabel}`; status.textContent = '';
+      title.textContent = `בקרת נוכחות – ${monthLabel}`;
       await Promise.all([loadApprovals(), loadWorkflowStatuses(month, employeeIds), loadRecordReviews()]);
       paintResults();
+      status.textContent = successMessage;
     } catch (error) {
       workflowByEmployee = {};
       status.textContent = error?.message || 'טעינת נתוני בקרת הנוכחות נכשלה.';
       results.innerHTML = '';
     }
     finally { update(); }
-  });
+  };
+  run.addEventListener('click', () => { loadAttendanceReview(); });
   const setStatusMessage = (message, { error = false } = {}) => {
     status.textContent = message || '';
     status.classList.toggle('is-error', Boolean(error && message));
@@ -2731,6 +2819,36 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
     const findEntry = (entryId) => (
       [...(result?.comparisons || []), ...(result?.notCompared || [])].find((entry) => entry.id === entryId) || null
     );
+
+    const addRecordBtn = clickEl.closest('[data-attendance-add-record]');
+    if (addRecordBtn && result) {
+      const employeeId = txt(addRecordBtn.dataset.attendanceAddRecord);
+      const workflowRow = workflowByEmployee[employeeId] || {};
+      if (!canManagerAddMissingAttendanceRecord(workflowRow)) {
+        setStatusMessage('ניתן להוסיף דיווח שנשכח רק בזמן שהחודש נמצא בבקרת מנהל ולפני אישור המנהל.', { error: true });
+        return;
+      }
+      if (!api?.attendanceControlCreateRecord) {
+        setStatusMessage('הוספת דיווח נוכחות אינה זמינה כרגע.', { error: true });
+        return;
+      }
+      const fields = await askForMissingAttendanceRecord({
+        employeeId,
+        employeeName: txt(addRecordBtn.dataset.attendanceAddEmployeeName),
+        monthKey: result.month
+      });
+      if (!fields) return;
+      addRecordBtn.disabled = true;
+      try {
+        await api.attendanceControlCreateRecord(employeeId, fields);
+        await loadAttendanceReview({ successMessage: 'הדיווח שנשכח נוסף. יש לבדוק ולאשר את הרשומה החדשה לפני אישור החודש.' });
+      } catch (error) {
+        setStatusMessage(error?.message || 'הוספת דיווח הנוכחות נכשלה.', { error: true });
+      } finally {
+        addRecordBtn.disabled = false;
+      }
+      return;
+    }
 
     const focusTravelBtn = clickEl.closest('[data-attendance-focus-travel]');
     if (focusTravelBtn && result) {
