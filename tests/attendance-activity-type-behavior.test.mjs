@@ -16,6 +16,9 @@ const reportsSource = await readFile(new URL('../attendance/src/screens/my-repor
 const activitiesServiceSource = await readFile(new URL('../attendance/src/services/activities.service.js', import.meta.url), 'utf8');
 const attendanceServiceSource = await readFile(new URL('../attendance/src/services/attendance.service.js', import.meta.url), 'utf8');
 const trainingRuntimeSource = await readFile(new URL('../attendance/src/training-report-ui-runtime.js', import.meta.url), 'utf8');
+const courseDashboardRuntimeSource = await readFile(new URL('../attendance/src/course-dashboard-choice-runtime.js', import.meta.url), 'utf8');
+const searchableSelectSource = await readFile(new URL('../attendance/src/components/searchable-select.js', import.meta.url), 'utf8');
+const courseChoiceMigration = await readFile(new URL('../supabase/migrations/20261005000500_attendance_dashboard_course_choice.sql', import.meta.url), 'utf8');
 const swSource = await readFile(new URL('../attendance/sw.js', import.meta.url), 'utf8');
 const indexSource = await readFile(new URL('../attendance/index.html', import.meta.url), 'utf8');
 
@@ -71,6 +74,21 @@ test('Training uses the global course/tour catalog and strips assignment locatio
   assert.match(trainingRuntimeSource, /schoolMount\.hidden = true/);
 });
 
+test('Course reporting uses the selected date dashboard row and does not add a class field', () => {
+  assert.match(courseChoiceMigration, /av2_get_current_instructor_activity_choices_for_date/);
+  assert.match(courseChoiceMigration, /av2_get_instructor_activities_for_date\(v_emp_id, p_date\)/);
+  assert.match(courseChoiceMigration, /'grade', a\.grade/);
+  assert.match(courseChoiceMigration, /'class_group', a\.class_group/);
+  assert.match(courseDashboardRuntimeSource, /av2_get_current_instructor_activity_choices_for_date/);
+  assert.match(courseDashboardRuntimeSource, /ambiguousAtSchool && cls/);
+  assert.match(courseDashboardRuntimeSource, /`כיתה \$\{cls\}`/);
+  assert.match(courseDashboardRuntimeSource, /ambiguousAtSchool && time/);
+  assert.match(courseDashboardRuntimeSource, /av2:set-options/);
+  assert.match(searchableSelectSource, /wrap\.addEventListener\('av2:set-options'/);
+  assert.doesNotMatch(courseDashboardRuntimeSource, /createSelectField|createInputField/);
+  assert.match(indexSource, /course-dashboard-choice-runtime\.js\?v=107/);
+});
+
 test('Legacy Zoom data remains normalized while the current UI removes Zoom from activity-type choices', () => {
   assert.match(attendanceServiceSource, /LEGACY_ONLINE_LABEL = 'מקוון'/);
   assert.match(attendanceServiceSource, /ZOOM_LABEL = 'זום'/);
@@ -84,11 +102,11 @@ test('Legacy Zoom data remains normalized while the current UI removes Zoom from
   assert.match(trainingRuntimeSource, /const ZOOM_LABEL = 'זום'/);
   assert.match(trainingRuntimeSource, /option\.value === 'online'/);
   assert.match(trainingRuntimeSource, /removeZoomAsActivityType/);
-  assert.match(indexSource, /training-report-ui-runtime\.js\?v=106/);
+  assert.match(indexSource, /training-report-ui-runtime\.js\?v=107/);
 });
 
-test('Attendance cache is synchronized for the training activity release', () => {
-  assert.match(swSource, /const CACHE_VERSION = 106;/);
-  assert.match(indexSource, /\?v=106/);
-  assert.doesNotMatch(indexSource, /\?v=105/);
+test('Attendance cache is synchronized for the training and dashboard-choice release', () => {
+  assert.match(swSource, /const CACHE_VERSION = 107;/);
+  assert.match(indexSource, /\?v=107/);
+  assert.doesNotMatch(indexSource, /\?v=106/);
 });
