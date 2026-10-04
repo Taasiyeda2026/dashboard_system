@@ -1,0 +1,40 @@
+name: Debug Attendance Activity Behavior
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  report-types:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: node --test --test-name-pattern="Attendance report type list" tests/attendance-activity-type-behavior.test.mjs
+  hours:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: node --test --test-name-pattern="Workshop uses dashboard hours" tests/attendance-activity-type-behavior.test.mjs
+  training-catalog:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: node --test --test-name-pattern="Training uses the global" tests/attendance-activity-type-behavior.test.mjs
+  course-dashboard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: node --test --test-name-pattern="Course reporting uses" tests/attendance-activity-type-behavior.test.mjs
+  legacy-zoom:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: node --test --test-name-pattern="Legacy Zoom data" tests/attendance-activity-type-behavior.test.mjs
+  cache:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: node --test --test-name-pattern="Attendance cache is synchronized" tests/attendance-activity-type-behavior.test.mjs
