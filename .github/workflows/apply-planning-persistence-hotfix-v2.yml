@@ -1,0 +1,59 @@
+name: Apply planning persistence hotfix v2
+
+on:
+  push:
+    branches:
+      - fix/planning-incremental-persistence-timeout
+    paths:
+      - '.github/workflows/apply-planning-persistence-hotfix-v2.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/planning-incremental-persistence-timeout
+          fetch-depth: 0
+
+      - name: Apply source patch from reviewed v1 workflow
+        shell: python
+        run: |
+          from pathlib import Path
+
+          path = Path('.github/workflows/apply-planning-persistence-hotfix.yml')
+          lines = path.read_text().splitlines()
+          marker = '      - name: Patch frontend persistence flow'
+          marker_index = lines.index(marker)
+          run_index = next(i for i in range(marker_index + 1, len(lines)) if lines[i] == '        run: |')
+          code = []
+          for line in lines[run_index + 1:]:
+              if line.startswith('      - name:'):
+                  break
+              if line.startswith('          '):
+                  code.append(line[10:])
+              elif not line.strip():
+                  code.append('')
+              else:
+                  raise RuntimeError(f'unexpected workflow indentation: {line!r}')
+          source = '\n'.join(code)
+          if not source.strip():
+              raise RuntimeError('source patch block not found')
+          exec(compile(source, str(path), 'exec'), {})
+
+      - name: Validate generated source and persistence contract
+        run: |
+          node --check frontend/src/screens/course-scheduling.js
+          node --check frontend/src/screens/course-scheduling-planning-store.js
+          node --test tests/course-scheduling-persistence-performance.test.mjs
+
+      - name: Commit generated hotfix
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add frontend/src/screens/course-scheduling.js frontend/src/screens/course-scheduling-planning-store.js frontend/sw.js index.html
+          git commit -m 'Planning: make local persistence incremental and lightweight'
+          git push origin HEAD:fix/planning-incremental-persistence-timeout
