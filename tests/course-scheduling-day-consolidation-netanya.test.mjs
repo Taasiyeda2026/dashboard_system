@@ -274,24 +274,30 @@ test('three flexible same-school activities consolidate to one weekly workday wh
     date_2: null
   });
 
-  const result = await buildDynamicCoursePlan({
-    activities: [
-      makeFlexible('packed-flex-a'),
-      makeFlexible('packed-flex-b'),
-      makeFlexible('packed-flex-c')
-    ],
-    instructors: [instructor],
-    profiles: packedProfiles,
-    rules,
-    exceptions: {},
-    schoolCalendar: [],
-    catalog,
-    today: '2026-09-23',
-    periodKey: 'year',
-    routeClient: netanyaRouteClient(),
-    allowGlobalRepair: false,
-    planningProfile: 'fast'
-  });
+  let result;
+  try {
+    result = await buildDynamicCoursePlan({
+      activities: [
+        makeFlexible('packed-flex-a'),
+        makeFlexible('packed-flex-b'),
+        makeFlexible('packed-flex-c')
+      ],
+      instructors: [instructor],
+      profiles: packedProfiles,
+      rules,
+      exceptions: {},
+      schoolCalendar: [],
+      catalog,
+      today: '2026-09-23',
+      periodKey: 'year',
+      routeClient: netanyaRouteClient(),
+      allowGlobalRepair: false,
+      planningProfile: 'fast'
+    });
+  } catch (error) {
+    console.error('SCHOOL_FIRST_DEBUG', JSON.stringify(error?.failures || []));
+    throw error;
+  }
 
   const rows = result.rows.filter((row) => row.courseId.startsWith('packed-flex-'));
   assert.equal(rows.length, 3);
