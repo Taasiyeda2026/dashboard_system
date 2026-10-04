@@ -304,26 +304,26 @@
 /* Monthly summary cards: only rendered for metrics that actually exist. */
 .av2-reports__summary-grid {
   width: 100%;
-  max-width: 620px;
+  max-width: 572px;
   margin: 14px auto 18px;
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
   align-items: stretch;
-  gap: 16px;
+  gap: 12px;
 }
 .av2-reports__summary-card {
-  flex: 0 0 300px;
-  width: 300px;
-  min-width: 300px;
-  max-width: 300px;
-  min-height: 86px;
+  flex: 0 0 180px;
+  width: 180px;
+  min-width: 180px;
+  max-width: 180px;
+  min-height: 64px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  padding: 12px 16px;
+  gap: 4px;
+  padding: 8px 12px;
   border: 1px solid #dce6ef;
   border-radius: 14px;
   background: #fff;
@@ -357,9 +357,9 @@
     flex: 1 1 calc(50% - 4px);
     width: auto;
     min-width: 0;
-    max-width: none;
-    min-height: 70px;
-    padding: 9px 10px;
+    max-width: 180px;
+    min-height: 64px;
+    padding: 8px 10px;
   }
 }
 

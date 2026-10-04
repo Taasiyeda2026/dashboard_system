@@ -5,7 +5,7 @@
 
 import { createIcon } from '../components/icon.js';
 import { getMonthRecords, getMonthApproval, submitMonth, sourceAttendanceRecords } from '../services/attendance.service.js';
-import { canEditMonth, getMonthKey, formatMonthLabel } from '../services/month-gate.service.js';
+import { canEditMonth, resolveMonthDisplayStatus, getMonthKey, formatMonthLabel } from '../services/month-gate.service.js';
 import { exportMonthToExcel } from '../services/excel.service.js';
 import { distinctAttendanceWorkDays } from '../components/report-summary-row.js';
 import { formatDurationHours, isCancellationRecord } from '../components/monthly-report-summary.js';
@@ -13,9 +13,10 @@ import { openSubmitConfirmationDialog } from '../submit-confirmation-dialog.js';
 
 const STATUS_MAP = {
   open:                { label: 'פתוח לדיווח',                         tone: 'neutral'  },
+  closed:              { label: 'סגור לדיווח',                         tone: 'neutral'  },
   submitted:           { label: 'אושר על ידי העובד / בבקרת מנהל',     tone: 'warning'  },
   locked:              { label: 'אושר על ידי המנהל',                   tone: 'success'  },
-  reopened:            { label: 'הוחזר לתיקון — פתוח לדיווח',          tone: 'neutral'  },
+  reopened:            { label: 'פתוח לדיווח',                         tone: 'neutral'  },
   approved_for_payroll:{ label: 'אושר סופית',                          tone: 'success'  }
 };
 
@@ -138,7 +139,8 @@ function buildActionStrip({ approval, year, month, instructor, records, sourceRe
   strip.className = 'av2-home__action-strip';
 
   const status = approval?.status ?? 'open';
-  const { label: statusLabel, tone } = STATUS_MAP[status] || STATUS_MAP.open;
+  const displayedStatus = resolveMonthDisplayStatus(approval, editable);
+  const { label: statusLabel, tone } = STATUS_MAP[displayedStatus] || STATUS_MAP.open;
 
   const heading = document.createElement('strong');
   heading.className = 'av2-home__reports-heading';
