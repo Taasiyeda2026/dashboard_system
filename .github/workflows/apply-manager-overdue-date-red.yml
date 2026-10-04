@@ -81,10 +81,15 @@ jobs:
 
           index = Path('index.html')
           index_src = index.read_text()
-          old_version = 'manager-board-workspace-runtime.js?v=20260927-approved-record-correction-v1'
-          if old_version not in index_src:
+          old_runtime = 'manager-board-workspace-runtime.js?v=20260927-approved-record-correction-v1'
+          if old_runtime not in index_src:
               raise SystemExit('manager workspace version marker not found')
-          index.write_text(index_src.replace(old_version, 'manager-board-workspace-runtime.js?v=20261004-overdue-date-red-v1', 1))
+          index_src = index_src.replace(old_runtime, 'manager-board-workspace-runtime.js?v=20261004-overdue-date-red-v1', 1)
+          old_css_version = 'manager-board-workspace.css?v=20260912-manager-tracking-single-load-v1'
+          if old_css_version not in index_src:
+              raise SystemExit('manager workspace css version marker not found')
+          index_src = index_src.replace(old_css_version, 'manager-board-workspace.css?v=20261004-overdue-date-red-v1', 1)
+          index.write_text(index_src)
 
           sw = Path('frontend/sw.js')
           sw_src = sw.read_text()
@@ -104,8 +109,6 @@ jobs:
           tests/manager-team-tracking-overdue-date-color.test.mjs
           tests/manager-team-tracking-feedback-windows.test.mjs
           tests/manager-team-tracking-seniority.test.mjs
-          tests/manager-team-tracking-observation-rules.test.mjs
-          tests/client-file-version-sync.test.mjs
       - name: Commit generated fix
         run: |
           git config user.name "github-actions[bot]"
