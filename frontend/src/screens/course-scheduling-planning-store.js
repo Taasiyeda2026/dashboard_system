@@ -630,6 +630,20 @@ export function planningEngineUpgradeAffectedCourseIds({
   const current = text(currentEngineVersion);
   if (!previous || !current || previous === current) return [];
 
+  const schoolFirstEconomicV27Upgrade = current.includes('planning-v27-20261004-school-first-economic-alternatives')
+    && !previous.includes('planning-v27-20261004-school-first-economic-alternatives');
+  if (schoolFirstEconomicV27Upgrade) {
+    return (shared?.rows || [])
+      .filter((entry) => {
+        const row = entry?.row || {};
+        if (!['proposal', 'recruitment'].includes(text(row?.kind))) return false;
+        if (entry?.lockedOption || row?.planningLocked === true || row?.schoolDateAnchored === true) return false;
+        return !!text(entry?.activityId || row?.courseId);
+      })
+      .map((entry) => text(entry?.activityId || entry?.row?.courseId))
+      .filter(Boolean);
+  }
+
   const coherentV26Upgrade = current.includes('planning-v26-20261003-coherent-school-first')
     && !previous.includes('planning-v26-20261003-coherent-school-first');
   if (coherentV26Upgrade) {
