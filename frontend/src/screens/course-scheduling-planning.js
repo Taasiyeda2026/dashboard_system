@@ -3621,7 +3621,7 @@ function schoolPackingChoicesOperationallyConflict(firstChoice = {}, secondChoic
   return false;
 }
 
-function solveSchoolPackingGroup(group = {}, candidateDays = new Set(), beamWidth = 96, {
+export function solveSchoolPackingGroup(group = {}, candidateDays = new Set(), beamWidth = 96, {
   blockers = [],
   activityById = new Map(),
   routeClient = null
