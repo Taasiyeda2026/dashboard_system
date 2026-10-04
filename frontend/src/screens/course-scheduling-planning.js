@@ -3474,7 +3474,7 @@ function schoolPackingCurrentOption(row = {}) {
   });
 }
 
-function schoolPackingOptions(row = {}, candidateDays = new Set()) {
+export function schoolPackingOptions(row = {}, candidateDays = new Set()) {
   const current = schoolPackingCurrentOption(row);
   const source = text(row?.kind) === 'recruitment'
     ? (row?.scheduleOptions || [])
@@ -3496,7 +3496,7 @@ function schoolPackingOptions(row = {}, candidateDays = new Set()) {
   });
 }
 
-function schoolPackingOptionsConflict(first = {}, second = {}) {
+export function schoolPackingOptionsConflict(first = {}, second = {}) {
   const firstMainEmpId = text(first?.instructorEmpId);
   const secondMainEmpId = text(second?.instructorEmpId);
   for (const a of first?.meetings || []) {
