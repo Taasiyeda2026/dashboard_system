@@ -3621,35 +3621,97 @@ function schoolPackingChoicesOperationallyConflict(firstChoice = {}, secondChoic
   return false;
 }
 
-function solveSchoolPackingGroup(group = {}, candidateDays = new Set(), beamWidth = 24, {
+function solveSchoolPackingGroup(group = {}, candidateDays = new Set(), beamWidth = 96, {
   blockers = [],
   activityById = new Map(),
   routeClient = null
 } = {}) {
   const rows = [...(group.movableRows || [])]
-    .map((row) => ({ row, options: schoolPackingOptions(row, candidateDays) }))
+    .map((row) => ({
+      row,
+      options: schoolPackingOptions(row, candidateDays)
+        .sort((first, second) =>
+          schoolPackingBundleCost([{ row, option: first }], group)
+          - schoolPackingBundleCost([{ row, option: second }], group)
+        )
+    }))
     .sort((a, b) => a.options.length - b.options.length || text(a.row.courseId).localeCompare(text(b.row.courseId)));
   if (rows.some((item) => !item.options.length)) return null;
 
+  const candidateFits = (choices, candidateChoice) => {
+    if (blockers.some((choice) =>
+      schoolPackingChoicesOperationallyConflict(choice, candidateChoice, { activityById, routeClient })
+    )) return false;
+    return !choices.some((choice) =>
+      schoolPackingChoicesOperationallyConflict(choice, candidateChoice, { activityById, routeClient })
+    );
+  };
+
+  // Small school groups are cheap enough to search exactly. This prevents a
+  // beam from discarding a slightly more expensive partial state that is the
+  // only route to a complete non-overlapping school timetable.
+  if (rows.length <= 4) {
+    const complete = [];
+    const maxNodes = 100000;
+    let visited = 0;
+    let exhausted = true;
+
+    const search = (index, choices) => {
+      if (visited >= maxNodes) {
+        exhausted = false;
+        return;
+      }
+      visited += 1;
+      if (index >= rows.length) {
+        complete.push({
+          choices: [...choices],
+          cost: schoolPackingBundleCost(choices, group)
+        });
+        complete.sort((a, b) => a.cost - b.cost);
+        if (complete.length > 12) complete.length = 12;
+        return;
+      }
+
+      const item = rows[index];
+      for (const option of item.options) {
+        if (visited >= maxNodes) {
+          exhausted = false;
+          break;
+        }
+        const candidateChoice = { row: item.row, option };
+        if (!candidateFits(choices, candidateChoice)) continue;
+        search(index + 1, [...choices, candidateChoice]);
+      }
+    };
+
+    search(0, []);
+    if (complete.length) {
+      const alternatives = complete.slice(0, 3);
+      return {
+        ...alternatives[0],
+        alternatives,
+        searchMode: exhausted ? 'exact' : 'bounded-exact',
+        visitedNodes: visited
+      };
+    }
+  }
+
+  // Larger school groups use a wider bounded beam. This is still local and
+  // route-cache-only, so it is cheap compared with candidate routing while
+  // preserving substantially more timetable diversity than the old beam=24.
+  const width = Math.max(24, Number(beamWidth) || 96);
   let beam = [{ choices: [], cost: 0 }];
   for (const item of rows) {
     const next = [];
     for (const state of beam) {
       for (const option of item.options) {
         const candidateChoice = { row: item.row, option };
-        if (blockers.some((choice) =>
-          schoolPackingChoicesOperationallyConflict(choice, candidateChoice, { activityById, routeClient })
-        )) continue;
-        if (state.choices.some((choice) =>
-          schoolPackingChoicesOperationallyConflict(choice, candidateChoice, { activityById, routeClient })
-        )) continue;
+        if (!candidateFits(state.choices, candidateChoice)) continue;
         const choices = [...state.choices, candidateChoice];
         next.push({ choices, cost: schoolPackingBundleCost(choices, group) });
       }
     }
-    beam = next
-      .sort((a, b) => a.cost - b.cost)
-      .slice(0, Math.max(3, Number(beamWidth) || 24));
+    beam = next.sort((a, b) => a.cost - b.cost).slice(0, width);
     if (!beam.length) return null;
   }
 
@@ -3666,7 +3728,7 @@ function solveSchoolPackingGroup(group = {}, candidateDays = new Set(), beamWidt
     if (alternatives.length >= 3) break;
   }
   const best = alternatives[0] || null;
-  return best ? { ...best, alternatives } : null;
+  return best ? { ...best, alternatives, searchMode: 'beam' } : null;
 }
 
 function schoolPackingAlternativeSummary(state = {}, rank = 1) {
@@ -3701,7 +3763,9 @@ function schoolPackingAlternativeSummary(state = {}, rank = 1) {
 
 function annotateSchoolPlanningGroup(group = {}, minimumFeasibleWeekdayCount = null, alternatives = []) {
   const actualWeekdays = [...group.currentWeekdays].sort((a, b) => a - b);
-  const solvedMinimum = Number.isInteger(Number(minimumFeasibleWeekdayCount))
+  const solvedMinimum = minimumFeasibleWeekdayCount != null
+    && minimumFeasibleWeekdayCount !== ''
+    && Number.isInteger(Number(minimumFeasibleWeekdayCount))
     && Number(minimumFeasibleWeekdayCount) >= 0;
   const minimum = solvedMinimum ? Number(minimumFeasibleWeekdayCount) : null;
   const avoidableSplitCount = minimum == null ? 0 : Math.max(0, actualWeekdays.length - minimum);
@@ -3896,7 +3960,11 @@ function refreshSchoolPlanningDiagnostics(rowsById, activities = []) {
       .find((row) => row?.schoolPlanning)?.schoolPlanning;
     annotateSchoolPlanningGroup(
       group,
-      Number.isInteger(Number(prior?.minimumFeasibleWeekdays)) ? Number(prior.minimumFeasibleWeekdays) : null,
+      prior?.minimumFeasibleWeekdays != null
+        && prior.minimumFeasibleWeekdays !== ''
+        && Number.isInteger(Number(prior.minimumFeasibleWeekdays))
+        ? Number(prior.minimumFeasibleWeekdays)
+        : null,
       Array.isArray(prior?.alternatives) ? prior.alternatives : []
     );
   }
@@ -5040,7 +5108,7 @@ export async function buildDynamicCoursePlan({
         rowsById,
         activities: targets,
         targetCourseIds: incrementalIds ? [...incrementalIds] : null,
-        beamWidth: 24,
+        beamWidth: 96,
         routeClient
       });
       await report('אריזת בתי ספר הושלמה', rowsById.size, rowsById.size, '', null, [...rowsById.values()]);
