@@ -5,15 +5,16 @@ export const LEGACY_ONLINE_REPORT_TYPE = 'מקוון';
 export const TRAINING_REPORT_TYPE = 'הכשרה';
 export const OPERATIONS_REPORT_TYPE = 'תפעול';
 export const CANCELLATION_REPORT_TYPE = 'ביטול זמן';
+export const TRAINING_DB_ACTIVITY_TYPES = Object.freeze(['course', 'tour']);
 
 // Operational work is not linked to an activity and is described with free text.
 export const NO_ACTIVITY_NAME_REPORT_TYPES = [];
 export const OPEN_FIELD_REPORT_TYPES = [OPERATIONS_REPORT_TYPE];
 
 // These report types may refer to any canonical activity type rather than one DB type.
+// Training is intentionally excluded: its catalog is limited to course/tour names.
 export const UNFILTERED_ACTIVITY_REPORT_TYPES = [
   CANCELLATION_REPORT_TYPE,
-  TRAINING_REPORT_TYPE,
   ONLINE_REPORT_TYPE,
 ];
 
@@ -51,11 +52,11 @@ const DB_TYPE_ALIASES = {
   'צהרון': 'after_school',
 };
 
+// זום הוא אופן ביצוע של הכשרה, לא סוג פעילות לבחירה בדיווח חדש.
 export const HEBREW_ACTIVITY_TYPES = [
   'קורס',
   'סדנה',
   'סיור',
-  ONLINE_REPORT_TYPE,
   'חדר בריחה',
   TRAINING_REPORT_TYPE,
   CANCELLATION_REPORT_TYPE,
@@ -86,6 +87,7 @@ export function normalizeDbActivityType(value) {
 
 export function getDbTypesForReportType(reportType) {
   const normalizedReportType = normalizeAttendanceReportType(reportType);
+  if (normalizedReportType === TRAINING_REPORT_TYPE) return [...TRAINING_DB_ACTIVITY_TYPES];
   if (!normalizedReportType || UNFILTERED_ACTIVITY_REPORT_TYPES.includes(normalizedReportType)) return null;
   if (NO_ACTIVITY_NAME_REPORT_TYPES.includes(normalizedReportType)) return [];
   if (OPEN_FIELD_REPORT_TYPES.includes(normalizedReportType)) return [];
@@ -93,15 +95,31 @@ export function getDbTypesForReportType(reportType) {
   return db ? [db] : [];
 }
 
+function isTrainingSpecialActivity(activity) {
+  return activity?.__attendanceTrainingSchedule === true
+    || activity?.__attendanceSynthetic === 'base_training'
+    || activity?.__attendanceTrainingCatalog === true;
+}
+
 export function activityMatchesReportType(activity, reportType) {
-  const dbTypes = getDbTypesForReportType(reportType);
+  const normalizedReportType = normalizeAttendanceReportType(reportType);
+  if (normalizedReportType === TRAINING_REPORT_TYPE && isTrainingSpecialActivity(activity)) return true;
+  const dbTypes = getDbTypesForReportType(normalizedReportType);
   if (dbTypes === null) return true;
   if (!dbTypes.length) return false;
   return dbTypes.includes(normalizeDbActivityType(activity?.activity_type));
 }
 
 export function filterActivitiesForReportType(activities = [], reportType = '') {
-  const dbTypes = getDbTypesForReportType(reportType);
+  const normalizedReportType = normalizeAttendanceReportType(reportType);
+  if (normalizedReportType === TRAINING_REPORT_TYPE) {
+    // The instructor-facing training picker must not expose assigned activity instances
+    // with school/authority metadata. It receives only the global training catalog plus
+    // explicit scheduled/base-training rows.
+    return (Array.isArray(activities) ? activities : []).filter(isTrainingSpecialActivity);
+  }
+
+  const dbTypes = getDbTypesForReportType(normalizedReportType);
   if (dbTypes === null) return Array.isArray(activities) ? activities : [];
   if (!dbTypes.length) return [];
   return (Array.isArray(activities) ? activities : []).filter((row) =>
@@ -148,9 +166,22 @@ export function activitySearchHaystack(activity) {
     .toLowerCase();
 }
 
+function trainingActivitySearchText(activity) {
+  return [
+    instructorActivityOptionLabel(activity),
+    activity?.program_name,
+    toHebrewType(activity?.activity_type),
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+}
+
 export function instructorActivitySelectOptions(activities = [], { reportType = '' } = {}) {
   const seen = new Set();
-  const list = filterActivitiesForReportType(activities, reportType);
+  const normalizedReportType = normalizeAttendanceReportType(reportType);
+  const trainingPicker = normalizedReportType === TRAINING_REPORT_TYPE;
+  const list = filterActivitiesForReportType(activities, normalizedReportType);
   return list
     .map((activity) => {
       const value = String(activity?.row_id || activity?.id || '').trim();
@@ -158,14 +189,19 @@ export function instructorActivitySelectOptions(activities = [], { reportType = 
       return {
         value,
         label: instructorActivityOptionLabel(activity),
-        meta: instructorActivityOptionMeta(activity),
+        // Training is a content choice only. Never show school/authority beside the name.
+        meta: trainingPicker ? '' : instructorActivityOptionMeta(activity),
         activity,
-        searchText: activitySearchHaystack(activity),
+        searchText: trainingPicker ? trainingActivitySearchText(activity) : activitySearchHaystack(activity),
       };
     })
     .filter((option) => {
-      if (!option || seen.has(option.value)) return false;
-      seen.add(option.value);
+      if (!option) return false;
+      const key = trainingPicker
+        ? String(option.label || '').trim().toLocaleLowerCase('he-IL')
+        : option.value;
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
       return true;
     });
 }
