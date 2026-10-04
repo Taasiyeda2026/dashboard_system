@@ -2785,11 +2785,15 @@ export const courseSchedulingScreen = {
                 ...regularAffectedIds,
                 ...engineUpgradeAffectedIds
               ])];
-        const coherentProposalRebuildUpgrade = engineChanged
-          && PLANNING_ENGINE_VERSION.includes('planning-v26-20261003-coherent-school-first')
-          && !storedEngineVersion.includes('planning-v26-20261003-coherent-school-first');
+        const structuralPlanningUpgrade = engineChanged
+          && (
+            (PLANNING_ENGINE_VERSION.includes('planning-v26-20261003-coherent-school-first')
+              && !storedEngineVersion.includes('planning-v26-20261003-coherent-school-first'))
+            || (PLANNING_ENGINE_VERSION.includes('planning-v27-20261004-school-first-economic-alternatives')
+              && !storedEngineVersion.includes('planning-v27-20261004-school-first-economic-alternatives'))
+          );
         const optimizationOnlyUpgrade = engineChanged
-          && !coherentProposalRebuildUpgrade
+          && !structuralPlanningUpgrade
           && !unrecoverableGlobalContextChange
           && regularAffectedIds.length === 0
           && engineUpgradeAffectedIds.length > 0;

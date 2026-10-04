@@ -68,6 +68,153 @@ test('school packing uses hidden coverage options, not only the three UI alterna
   assert.equal(rowsById.get('a').schoolPlanning.packingStatus, 'packed');
 });
 
+test('school-first packs recruitment timetable with existing-staff activity before recruitment profiling', () => {
+  const activities = [
+    { row_id: 'staff', school_id: 'school-1', school: 'School', activity_type: 'course' },
+    { row_id: 'hire', school_id: 'school-1', school: 'School', activity_type: 'course' }
+  ];
+  const rowsById = new Map([
+    ['staff', {
+      courseId: 'staff',
+      schoolId: 'school-1',
+      school: 'School',
+      courseName: 'Existing staff',
+      kind: 'proposal',
+      instructorEmpId: '1',
+      instructorName: 'One',
+      startDate: '2026-10-11',
+      endDate: '2026-12-20',
+      startTime: '10:00',
+      endTime: '11:30',
+      meetings: [{ date: '2026-10-11', start_time: '10:00', end_time: '11:30' }],
+      packingOptions: [option('1', '2026-10-11', '10:00', '11:30')]
+    }],
+    ['hire', {
+      courseId: 'hire',
+      schoolId: 'school-1',
+      school: 'School',
+      courseName: 'Needs hire',
+      kind: 'recruitment',
+      instructorEmpId: '',
+      instructorName: '',
+      startDate: '2026-10-12',
+      endDate: '2026-12-21',
+      startTime: '08:00',
+      endTime: '09:30',
+      meetings: [{ date: '2026-10-12', start_time: '08:00', end_time: '09:30' }],
+      scheduleOptions: [
+        {
+          startDate: '2026-10-12', endDate: '2026-12-21', startTime: '08:00', endTime: '09:30',
+          meetings: [{ date: '2026-10-12', start_time: '08:00', end_time: '09:30' }]
+        },
+        {
+          startDate: '2026-10-11', endDate: '2026-12-20', startTime: '08:00', endTime: '09:30',
+          meetings: [{ date: '2026-10-11', start_time: '08:00', end_time: '09:30' }]
+        }
+      ]
+    }]
+  ]);
+
+  const result = optimizeSchoolDayPackingPass({ rowsById, activities });
+  assert.ok(result.moved >= 1);
+  assert.equal(rowsById.get('hire').kind, 'recruitment');
+  assert.equal(rowsById.get('hire').instructorEmpId, '');
+  assert.equal(rowsById.get('hire').startDate, '2026-10-11');
+  assert.equal(rowsById.get('staff').schoolPlanning.packingStatus, 'packed');
+  assert.equal(rowsById.get('staff').schoolPlanning.minimumFeasibleWeekdays, 1);
+  assert.ok(rowsById.get('staff').schoolPlanning.alternativeCount >= 1);
+});
+
+test('school-first prefers fewer instructors at the same school even when day count is already minimal', () => {
+  const activities = ['a', 'b', 'c'].map((row_id) => ({
+    row_id, school_id: 'school-1', school: 'School', activity_type: 'course'
+  }));
+  const rowsById = new Map([
+    ['a', {
+      courseId: 'a', schoolId: 'school-1', school: 'School', courseName: 'A', kind: 'proposal',
+      instructorEmpId: '1', instructorName: 'One', startDate: '2026-10-12', startTime: '08:00', endTime: '09:30',
+      meetings: [{ date: '2026-10-12', start_time: '08:00', end_time: '09:30' }],
+      packingOptions: [option('1', '2026-10-12', '08:00', '09:30')]
+    }],
+    ['b', {
+      courseId: 'b', schoolId: 'school-1', school: 'School', courseName: 'B', kind: 'proposal',
+      instructorEmpId: '2', instructorName: 'Two', startDate: '2026-10-12', startTime: '10:00', endTime: '11:30',
+      meetings: [{ date: '2026-10-12', start_time: '10:00', end_time: '11:30' }],
+      packingOptions: [
+        option('2', '2026-10-12', '10:00', '11:30'),
+        option('1', '2026-10-12', '10:00', '11:30')
+      ]
+    }],
+    ['c', {
+      courseId: 'c', schoolId: 'school-1', school: 'School', courseName: 'C', kind: 'proposal',
+      instructorEmpId: '3', instructorName: 'Three', startDate: '2026-10-12', startTime: '12:00', endTime: '13:30',
+      meetings: [{ date: '2026-10-12', start_time: '12:00', end_time: '13:30' }],
+      packingOptions: [
+        option('3', '2026-10-12', '12:00', '13:30'),
+        option('1', '2026-10-12', '12:00', '13:30')
+      ]
+    }]
+  ]);
+
+  optimizeSchoolDayPackingPass({ rowsById, activities });
+  assert.deepEqual(
+    new Set([...rowsById.values()].map((row) => row.instructorEmpId)),
+    new Set(['1'])
+  );
+  assert.equal(rowsById.get('a').schoolPlanning.actualWeekdays.length, 1);
+});
+
+test('school-first stores several feasible school timetable alternatives instead of taking the first weekday set', () => {
+  const activities = [
+    { row_id: 'a', school_id: 'school-1', school: 'School', activity_type: 'course' },
+    { row_id: 'b', school_id: 'school-1', school: 'School', activity_type: 'course' }
+  ];
+  const rowsById = new Map([
+    ['a', {
+      courseId: 'a', schoolId: 'school-1', school: 'School', courseName: 'A', kind: 'proposal',
+      instructorEmpId: '1', instructorName: 'One', startDate: '2026-10-11', startTime: '08:00', endTime: '09:30',
+      meetings: [{ date: '2026-10-11', start_time: '08:00', end_time: '09:30' }],
+      packingOptions: [
+        option('1', '2026-10-11', '08:00', '09:30'),
+        option('1', '2026-10-12', '08:00', '09:30')
+      ]
+    }],
+    ['b', {
+      courseId: 'b', schoolId: 'school-1', school: 'School', courseName: 'B', kind: 'proposal',
+      instructorEmpId: '1', instructorName: 'One', startDate: '2026-10-11', startTime: '10:00', endTime: '11:30',
+      meetings: [{ date: '2026-10-11', start_time: '10:00', end_time: '11:30' }],
+      packingOptions: [
+        option('1', '2026-10-11', '10:00', '11:30'),
+        option('1', '2026-10-12', '10:00', '11:30')
+      ]
+    }]
+  ]);
+
+  optimizeSchoolDayPackingPass({ rowsById, activities });
+  const planning = rowsById.get('a').schoolPlanning;
+  assert.equal(planning.minimumFeasibleWeekdays, 1);
+  assert.ok(planning.alternativeCount >= 2);
+  assert.deepEqual(new Set(planning.alternatives.map((alt) => alt.weekdays[0])), new Set([0, 1]));
+});
+
+test('v27 upgrade rebuilds both flexible proposals and recruitment rows for school-first optimization', () => {
+  const shared = {
+    rows: [
+      { activityId: 'a', row: { courseId: 'a', schoolId: 's1', kind: 'proposal' } },
+      { activityId: 'b', row: { courseId: 'b', schoolId: 's1', kind: 'recruitment' } },
+      { activityId: 'locked', lockedOption: { instructorEmpId: '1' }, row: { courseId: 'locked', schoolId: 's1', kind: 'proposal' } },
+      { activityId: 'live', row: { courseId: 'live', schoolId: 's1', kind: 'live' } }
+    ]
+  };
+  const ids = planningEngineUpgradeAffectedCourseIds({
+    shared,
+    activities: [],
+    storedEngineVersion: 'planning-v26-20261003-coherent-school-first-separate-trip-distance-self-invalidation',
+    currentEngineVersion: 'planning-v27-20261004-school-first-economic-alternatives-self-invalidation'
+  });
+  assert.deepEqual(new Set(ids), new Set(['a', 'b']));
+});
+
 test('v24 to v25 upgrade targets only multi-proposal schools', () => {
   const activities = [
     { row_id: 'a', school_id: 'school-1' },
@@ -98,6 +245,15 @@ test('fast UI alternatives no longer cap school-packing coverage at three option
   assert.match(source, /packingCoverage/);
   assert.match(source, /packingOptions/);
   assert.match(source, /row\?\.packingOptions\?\.length\s*\?\s*row\.packingOptions\s*:\s*row\?\.options/);
+});
+
+test('multi-activity school candidate pools ignore provisional same-school plans before bundling', async () => {
+  const source = await readFile(new URL('../frontend/src/screens/course-scheduling-planning.js', import.meta.url), 'utf8');
+  assert.match(source, /useIndependentSchoolCandidatePool/);
+  assert.match(source, /startsWith\('planning-block:'\)/);
+  assert.match(source, /text\(contextActivity\?\.school_id\) === activitySchoolId/);
+  assert.match(source, /contextActivities: candidateContext/);
+  assert.match(source, /preparedContext: candidatePreparedContext/);
 });
 
 test('planning progress names the current phase instead of presenting phase resets as a new run', async () => {
