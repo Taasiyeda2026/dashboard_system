@@ -3474,7 +3474,7 @@ function schoolPackingCurrentOption(row = {}) {
   });
 }
 
-export function schoolPackingOptions(row = {}, candidateDays = new Set()) {
+function schoolPackingOptions(row = {}, candidateDays = new Set()) {
   const current = schoolPackingCurrentOption(row);
   const source = text(row?.kind) === 'recruitment'
     ? (row?.scheduleOptions || [])
@@ -3496,7 +3496,7 @@ export function schoolPackingOptions(row = {}, candidateDays = new Set()) {
   });
 }
 
-export function schoolPackingOptionsConflict(first = {}, second = {}) {
+function schoolPackingOptionsConflict(first = {}, second = {}) {
   const firstMainEmpId = text(first?.instructorEmpId);
   const secondMainEmpId = text(second?.instructorEmpId);
   for (const a of first?.meetings || []) {
@@ -3621,7 +3621,7 @@ function schoolPackingChoicesOperationallyConflict(firstChoice = {}, secondChoic
   return false;
 }
 
-export function solveSchoolPackingGroup(group = {}, candidateDays = new Set(), beamWidth = 96, {
+function solveSchoolPackingGroup(group = {}, candidateDays = new Set(), beamWidth = 96, {
   blockers = [],
   activityById = new Map(),
   routeClient = null
