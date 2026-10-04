@@ -37,9 +37,9 @@ test('the confusing payroll/attendance UI phrase is gone from this system', () =
 });
 
 test('both בקרת נוכחות entry points bind the same central attendance-control module', () => {
-  assert.match(launcherSource, /import\('\.\.\/attendance-control\.js'\)/);
+  assert.match(launcherSource, /import\('\.\.\/attendance-control\.js\?v=20261004-manager-add-missing-attendance-v1'\)/);
   assert.match(launcherSource, /bindAttendanceControl/);
-  assert.match(workspaceSource, /import\('\.\/screens\/attendance-control\.js'\)/);
+  assert.match(workspaceSource, /import\('\.\/screens\/attendance-control\.js\?v=20261004-manager-add-missing-attendance-v1'\)/);
   assert.match(workspaceSource, /attendance\.bindAttendanceControl/);
   assert.match(workspaceSource, /buildScopedAttendanceApi\(roster, snapshot, preloadedRecords\)/);
 });
@@ -78,7 +78,7 @@ test('deploy cache markers were bumped for the unified attendance-control labels
   assert.match(configSource, /attendance-control-manager-admin-parity-sw-cache-1720-20260916-v1/);
   assert.match(configSource, /attendance-control-manager-launcher-team-scope-sw-cache-1721-20260916-v1/);
   assert.match(configSource, /attendance-control-travel-admin-pdf-sw-cache-1722-20260916-v1/);
-  assert.match(indexSource, /manager-board-workspace-runtime\.js\?v=20260926-manager-attendance-single-snapshot-v1/);
+  assert.match(indexSource, /manager-board-workspace-runtime\.js\?v=20261004-overdue-date-red-v1/);
 });
 
 test('instructors payroll-control launcher keeps unscoped bindAttendanceControl path', () => {
