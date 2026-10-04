@@ -1,0 +1,132 @@
+name: Apply planning persistence hotfix
+
+on:
+  push:
+    branches:
+      - fix/planning-incremental-persistence-timeout
+    paths:
+      - '.github/workflows/apply-planning-persistence-hotfix.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/planning-incremental-persistence-timeout
+          fetch-depth: 0
+      - name: Patch frontend persistence flow
+        shell: python
+        run: |
+          from pathlib import Path
+
+          screen_path = Path('frontend/src/screens/course-scheduling.js')
+          screen = screen_path.read_text()
+
+          old_import = '''  saveSharedPlanningLock,\n  saveSharedPlanningSnapshot,\n  upgradeSharedPlanningContextFingerprint,'''
+          new_import = '''  saveSharedPlanningLock,\n  saveSharedPlanningIncrementalSnapshot,\n  saveSharedPlanningSnapshot,\n  upgradeSharedPlanningContextFingerprint,'''
+          assert old_import in screen, 'planning store import anchor missing'
+          screen = screen.replace(old_import, new_import, 1)
+
+          run_anchor = '''    const runCoursePlanning = async ({ forceFull = false, reuseSnapshot = false } = {}) => {'''
+          helper = '''    const canonicalPlanningJson = (value) => {\n      if (Array.isArray(value)) return `[${value.map((item) => canonicalPlanningJson(item)).join(',')}]`;\n      if (value && typeof value === 'object') {\n        return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${canonicalPlanningJson(value[key])}`).join(',')}}`;\n      }\n      const encoded = JSON.stringify(value);\n      return encoded === undefined ? 'null' : encoded;\n    };\n\n'''
+          assert run_anchor in screen, 'runCoursePlanning anchor missing'
+          screen = screen.replace(run_anchor, helper + run_anchor, 1)
+
+          batch_anchor = '''        let lastSilentCheckpointCount = checkpointCompletedIds.size;\n        const checkpointBatchSize = fullRun ? 50 : Math.min(20, Math.max(3, affectedIds.length));'''
+          batch_new = '''        let lastSilentCheckpointCount = checkpointCompletedIds.size;\n        const checkpointBatchSize = fullRun ? 50 : Math.min(20, Math.max(3, affectedIds.length));\n        // Local repairs stay in-memory. Persisting a 5-6MB whole-workspace checkpoint\n        // at every optimization stage made small updates slower than the calculation itself.\n        const persistServerCheckpoints = fullRun\n          || structuralPlanningUpgrade\n          || affectedIds.length > AUTO_PLANNING_REFRESH_MAX_IDS;'''
+          assert batch_anchor in screen, 'checkpoint batch anchor missing'
+          screen = screen.replace(batch_anchor, batch_new, 1)
+
+          stage_anchor = '''              state.courseSchedulingPlanningRows = snapshotRows;\n              if (runUiVisible()) run.ui?.update?.();\n              try {\n                const stopCheckpointSave = planningPerfTimer('checkpointSave');'''
+          stage_new = '''              state.courseSchedulingPlanningRows = snapshotRows;\n              if (runUiVisible()) run.ui?.update?.();\n              if (!persistServerCheckpoints) return;\n              try {\n                const stopCheckpointSave = planningPerfTimer('checkpointSave');'''
+          assert stage_anchor in screen, 'stage checkpoint anchor missing'
+          screen = screen.replace(stage_anchor, stage_new, 1)
+
+          build_anchor = '''            if (progress.phase !== 'בניית תוכנית' || !progressCourseId || !progress.row) return;\n\n            checkpointCompletedIds.add(progressCourseId);'''
+          build_new = '''            if (progress.phase !== 'בניית תוכנית' || !progressCourseId || !progress.row) return;\n            if (!persistServerCheckpoints) return;\n\n            checkpointCompletedIds.add(progressCourseId);'''
+          assert build_anchor in screen, 'build checkpoint anchor missing'
+          screen = screen.replace(build_anchor, build_new, 1)
+
+          final_anchor = '''        assertRunOwnership();\n        const stopWorkspaceSave = planningPerfTimer('workspaceSave');\n        const saved = await saveSharedPlanningSnapshot({\n          periodKey: scope.periodKey,\n          district: scope.district,\n          engineVersion: PLANNING_ENGINE_VERSION,\n          dataFingerprint: endFingerprint,\n          contextFingerprint: endContextStorage,\n          rows: result.rows || [],\n          activities: freshEnd.activities || [],\n          expectedRevision: Number(shared?.workspace?.revision) || 0\n        });\n        stopWorkspaceSave();'''
+          final_new = '''        assertRunOwnership();\n        const stopWorkspaceSave = planningPerfTimer('workspaceSave');\n        const finalRows = result.rows || [];\n        const saved = fullRun\n          ? await saveSharedPlanningSnapshot({\n              periodKey: scope.periodKey,\n              district: scope.district,\n              engineVersion: PLANNING_ENGINE_VERSION,\n              dataFingerprint: endFingerprint,\n              contextFingerprint: endContextStorage,\n              rows: finalRows,\n              activities: freshEnd.activities || [],\n              expectedRevision: Number(shared?.workspace?.revision) || 0\n            })\n          : await (() => {\n              const existingById = new Map(existingRows\n                .map((row) => [text(row?.courseId), row])\n                .filter(([courseId]) => !!courseId));\n              const mandatoryIds = new Set(affectedIds.map(text).filter(Boolean));\n              const finalIds = new Set(finalRows.map((row) => text(row?.courseId)).filter(Boolean));\n              const incrementalRows = finalRows.filter((row) => {\n                const courseId = text(row?.courseId);\n                if (!courseId) return false;\n                if (mandatoryIds.has(courseId)) return true;\n                const previous = existingById.get(courseId);\n                return !previous || canonicalPlanningJson(previous) !== canonicalPlanningJson(row);\n              });\n              const removedActivityIds = (shared?.rows || [])\n                .map((entry) => text(entry?.activityId))\n                .filter((courseId) => courseId && !finalIds.has(courseId));\n              planningPerfEvent('incremental-save-scope', {\n                rows: incrementalRows.length,\n                removed: removedActivityIds.length,\n                total: finalRows.length\n              });\n              return saveSharedPlanningIncrementalSnapshot({\n                periodKey: scope.periodKey,\n                district: scope.district,\n                engineVersion: PLANNING_ENGINE_VERSION,\n                dataFingerprint: endFingerprint,\n                contextFingerprint: endContextStorage,\n                rows: incrementalRows,\n                removedActivityIds,\n                activities: freshEnd.activities || [],\n                expectedRevision: Number(shared?.workspace?.revision) || 0\n              });\n            })();\n        stopWorkspaceSave();'''
+          assert final_anchor in screen, 'final snapshot save anchor missing'
+          screen = screen.replace(final_anchor, final_new, 1)
+          screen_path.write_text(screen)
+
+          store_path = Path('frontend/src/screens/course-scheduling-planning-store.js')
+          store = store_path.read_text()
+          snapshot_anchor = '''export async function saveSharedPlanningSnapshot({'''
+          incremental_fn = '''export async function saveSharedPlanningIncrementalSnapshot({\n  periodKey = 'year',\n  district = '',\n  engineVersion = '',\n  dataFingerprint = '',\n  contextFingerprint = '',\n  rows = [],\n  removedActivityIds = [],\n  activities = [],\n  expectedRevision = null\n} = {}) {\n  const activityById = new Map((activities || []).map((activity) => [idOf(activity), activity]));\n  const payloadRows = (rows || []).map((row) => {\n    const activityId = text(row?.courseId);\n    const activity = activityById.get(activityId);\n    return {\n      activityId,\n      row,\n      activityUpdatedAt: activityVersion(activity) || null\n    };\n  }).filter((item) => item.activityId);\n\n  const { data, error } = await supabase.rpc('save_scheduling_planning_incremental_snapshot', {\n    p_period_key: text(periodKey) || 'year',\n    p_district: text(district),\n    p_engine_version: text(engineVersion),\n    p_data_fingerprint: text(dataFingerprint),\n    p_context_fingerprint: text(contextFingerprint),\n    p_rows: payloadRows,\n    p_removed_activity_ids: [...new Set((removedActivityIds || []).map(text).filter(Boolean))],\n    p_expected_revision: expectedRevision == null\n      ? null\n      : (Number.isFinite(Number(expectedRevision)) ? Number(expectedRevision) : null)\n  });\n  if (error) throw error;\n  return data || null;\n}\n\n'''
+          assert snapshot_anchor in store, 'snapshot function anchor missing'
+          assert 'saveSharedPlanningIncrementalSnapshot' not in store, 'incremental function already exists'
+          store = store.replace(snapshot_anchor, incremental_fn + snapshot_anchor, 1)
+          store_path.write_text(store)
+
+          sw_path = Path('frontend/sw.js')
+          sw = sw_path.read_text()
+          assert 'const CACHE_VERSION = 1878;' in sw, 'unexpected cache version'
+          sw_path.write_text(sw.replace('const CACHE_VERSION = 1878;', 'const CACHE_VERSION = 1879;', 1))
+
+          index_path = Path('index.html')
+          index = index_path.read_text()
+          old_v = './frontend/src/screens/course-scheduling-compact-layout.js?v=20261004-v27-incremental-conflict-repair'
+          assert old_v in index, 'scheduling cache-bust anchor missing'
+          index_path.write_text(index.replace(old_v, './frontend/src/screens/course-scheduling-compact-layout.js?v=20261004-planning-persistence-fast-local', 1))
+
+      - name: Add persistence regression tests
+        shell: bash
+        run: |
+          cat > tests/course-scheduling-persistence-performance.test.mjs <<'EOF'
+          import test from 'node:test';
+          import assert from 'node:assert/strict';
+          import { readFile } from 'node:fs/promises';
+
+          const screenUrl = new URL('../frontend/src/screens/course-scheduling.js', import.meta.url);
+          const storeUrl = new URL('../frontend/src/screens/course-scheduling-planning-store.js', import.meta.url);
+          const migrationUrl = new URL('../supabase/migrations/20261004193000_optimize_planning_persistence.sql', import.meta.url);
+
+          test('local planning repairs do not upload whole-workspace checkpoints at every stage', async () => {
+            const source = await readFile(screenUrl, 'utf8');
+            assert.match(source, /const persistServerCheckpoints = fullRun[\s\S]*?structuralPlanningUpgrade[\s\S]*?AUTO_PLANNING_REFRESH_MAX_IDS/);
+            assert.match(source, /if \(!persistServerCheckpoints\) return;[\s\S]*?saveSharedPlanningCheckpoint/);
+          });
+
+          test('ordinary incremental completion persists only affected or actually changed rows', async () => {
+            const source = await readFile(screenUrl, 'utf8');
+            assert.match(source, /saveSharedPlanningIncrementalSnapshot/);
+            assert.match(source, /const mandatoryIds = new Set\(affectedIds/);
+            assert.match(source, /canonicalPlanningJson\(previous\) !== canonicalPlanningJson\(row\)/);
+            assert.match(source, /removedActivityIds/);
+          });
+
+          test('planning store exposes incremental snapshot RPC', async () => {
+            const source = await readFile(storeUrl, 'utf8');
+            assert.match(source, /export async function saveSharedPlanningIncrementalSnapshot/);
+            assert.match(source, /save_scheduling_planning_incremental_snapshot/);
+            assert.match(source, /p_removed_activity_ids/);
+          });
+
+          test('planning persistence SQL is set-based rather than row-loop based', async () => {
+            const sql = await readFile(migrationUrl, 'utf8');
+            assert.match(sql, /save_scheduling_planning_incremental_snapshot/);
+            assert.match(sql, /insert into public\.scheduling_planning_rows[\s\S]*?select[\s\S]*?jsonb_array_elements/);
+            assert.doesNotMatch(sql, /for item in select value/);
+          });
+          EOF
+
+      - name: Validate focused behavior
+        run: |
+          node --check frontend/src/screens/course-scheduling.js
+          node --check frontend/src/screens/course-scheduling-planning-store.js
+          node --test tests/course-scheduling-persistence-performance.test.mjs tests/course-scheduling-cooperative-cancellation.test.mjs tests/course-scheduling-shared-planning.test.mjs tests/course-scheduling-school-packing-option-coverage.test.mjs
+      - name: Commit generated hotfix
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add frontend/src/screens/course-scheduling.js frontend/src/screens/course-scheduling-planning-store.js frontend/sw.js index.html tests/course-scheduling-persistence-performance.test.mjs
+          git commit -m 'Planning: make local persistence incremental and lightweight'
+          git push origin HEAD:fix/planning-incremental-persistence-timeout
