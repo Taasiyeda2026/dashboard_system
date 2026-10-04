@@ -3850,8 +3850,13 @@ export function optimizeSchoolDayPackingPass({
             schoolFirstOptimized: true
           }
         };
-        rowsById.set(text(row.courseId), replacement);
-        moved += 1;
+        const currentOption = schoolPackingCurrentOption(row);
+        const changed = text(currentOption?.instructorEmpId) !== text(replacement.instructorEmpId)
+          || planningMeetingsSignature(currentOption?.meetings) !== planningMeetingsSignature(replacement.meetings);
+        if (changed) {
+          rowsById.set(text(row.courseId), replacement);
+          moved += 1;
+        }
       }
     }
 
