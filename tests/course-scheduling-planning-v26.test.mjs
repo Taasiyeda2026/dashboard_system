@@ -8,8 +8,10 @@ import {
   TOUR_OPERATIONAL_END_TIME,
   generatePlanningScenarios,
   buildDynamicCoursePlan,
+  consolidateInstructorWorkdaysPass,
   inferPlanningCourseSpec,
   optimizeSchoolDayPackingPass,
+  planningGlobalRepairPriorityIds,
   validatePlanningPlanCoherence,
   finalValidationRepairCourseIds
 } from '../frontend/src/screens/course-scheduling-planning.js';
@@ -125,6 +127,100 @@ test('preferred_work_days is not a planning constraint; weekly availability rema
   assert.ok(weekdays.has(1));
   assert.ok(weekdays.has(2));
   assert.ok(weekdays.has(3));
+});
+
+test('source start_date is an immutable planning date anchor even when the time still needs matching', () => {
+  const generated = generatePlanningScenarios({
+    activity: course('source-date-anchor', { start_date: '2026-10-20' }),
+    catalog: [{ activity_name: 'source-date-anchor', meetings_count: 1, hours_count: 1.5 }],
+    instructors: [instructor],
+    profiles,
+    rules,
+    activities: [],
+    schoolCalendar: [],
+    today: '2026-10-01',
+    periodKey: 'year',
+    maxScenarios: 20
+  });
+  assert.ok(generated.scenarios.length > 0);
+  assert.ok(generated.scenarios.every((scenario) => scenario.startDate === '2026-10-20'));
+});
+
+test('global repair prioritizes every recruitment row instead of truncating coverage repair at 30', () => {
+  const rows = Array.from({ length: 45 }, (_, index) => ({
+    courseId: `recruitment-${String(index).padStart(2, '0')}`,
+    kind: 'recruitment'
+  }));
+  assert.equal(planningGlobalRepairPriorityIds(rows).length, 45);
+});
+
+test('workday consolidation may reassign a flexible course to another existing instructor but keeps anchors fixed', async () => {
+  const flexible = course('flexible-reseat', {
+    school_id: 'shared-school',
+    school: 'בית ספר משותף',
+    school_address: 'כתובת בית הספר'
+  });
+  const anchor = course('fixed-anchor', {
+    school_id: 'shared-school',
+    school: 'בית ספר משותף',
+    school_address: 'כתובת בית הספר',
+    emp_id: 2,
+    instructor_name: 'מדריכה 2',
+    start_date: '2026-10-12',
+    start_time: '09:00',
+    end_time: '10:30',
+    meetings: [{ date: '2026-10-12', start_time: '09:00', end_time: '10:30' }]
+  });
+  const rowsById = new Map([
+    ['fixed-anchor', {
+      courseId: 'fixed-anchor', kind: 'live', schoolId: 'shared-school', schoolDateAnchored: true,
+      instructorEmpId: '2', instructorName: 'מדריכה 2', startDate: '2026-10-12', startTime: '09:00', endTime: '10:30',
+      meetings: [{ date: '2026-10-12', start_time: '09:00', end_time: '10:30' }]
+    }],
+    ['flexible-reseat', {
+      courseId: 'flexible-reseat', kind: 'proposal', schoolId: 'shared-school', schoolDateAnchored: false,
+      instructorEmpId: '1', instructorName: 'מדריכה 1', startDate: '2026-10-13', startTime: '09:00', endTime: '10:30',
+      meetings: [{ date: '2026-10-13', start_time: '09:00', end_time: '10:30' }],
+      options: []
+    }]
+  ]);
+  const instructors = [
+    { emp_id: 1, full_name: 'מדריכה 1', active: 'yes', address: 'כתובת 1' },
+    { emp_id: 2, full_name: 'מדריכה 2', active: 'yes', address: 'כתובת 2' }
+  ];
+  const localProfiles = {
+    1: { emp_id: 1, gender: 'female', instruction_languages: ['he'] },
+    2: { emp_id: 2, gender: 'female', instruction_languages: ['he'] }
+  };
+  const localRules = {
+    1: [1, 2].map((weekday) => ({ emp_id: 1, weekday, available: true, start_time: '08:00', end_time: '15:00' })),
+    2: [1, 2].map((weekday) => ({ emp_id: 2, weekday, available: true, start_time: '08:00', end_time: '15:00' }))
+  };
+  const routeClient = {
+    unavailableReason: '',
+    peek: () => ({ distance_km: 1, duration_minutes: 2 }),
+    request: async () => ({ calculated: true, distance_km: 1, duration_minutes: 2 })
+  };
+
+  const result = await consolidateInstructorWorkdaysPass({
+    rowsById,
+    targets: [flexible, anchor],
+    catalog: [{ activity_name: 'flexible-reseat', meetings_count: 1, hours_count: 1.5 }],
+    instructors,
+    profiles: localProfiles,
+    rules: localRules,
+    exceptions: {},
+    schoolCalendar: [],
+    today: '2026-10-01',
+    routeClient,
+    currentContextActivities: [anchor]
+  });
+
+  assert.ok(result.moved >= 1);
+  assert.equal(rowsById.get('fixed-anchor').startDate, '2026-10-12');
+  assert.equal(rowsById.get('fixed-anchor').instructorEmpId, '2');
+  assert.equal(rowsById.get('flexible-reseat').instructorEmpId, '2');
+  assert.equal(rowsById.get('flexible-reseat').startDate, '2026-10-12');
 });
 
 test('v25 to v26 forces a real rebuild of every flexible proposal, not only multi-school groups', () => {
