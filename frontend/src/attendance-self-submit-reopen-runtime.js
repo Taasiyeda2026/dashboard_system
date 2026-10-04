@@ -39,13 +39,6 @@ function setAdminMessage(root, message = '', isError = false) {
   target.classList.toggle('is-error', Boolean(isError));
 }
 
-function setStatusPill(pill, label, cls = '') {
-  if (!pill) return;
-  if (text(pill.textContent) !== label) pill.textContent = label;
-  pill.classList.remove('is-ok', 'is-pending');
-  if (cls) pill.classList.add(cls);
-}
-
 function adminDomSignature(root, monthKey, rows) {
   return `${monthKey}|${rows.map((row) => {
     const id = text(row.dataset.adminAttendanceRow);
@@ -80,16 +73,13 @@ async function patchAdminStandalone(root) {
     const workflow = statuses.get(empId) || {};
     const workflowStatus = text(workflow.workflow_status || 'not_submitted');
     const submissionStatus = text(workflow.attendance_submission_status || 'open');
-    const statusPill = row.querySelector('td:nth-child(7) .admin-attendance-status');
     const actions = row.querySelector('.admin-attendance-actions');
     const existingOpen = actions?.querySelector('[data-admin-attendance-open-for-employee]');
 
     if (workflowStatus === 'not_submitted') {
       if (submissionStatus === 'reopened') {
-        setStatusPill(statusPill, 'פתוח לעובד להשלמה ואישור', 'is-pending');
         existingOpen?.remove();
       } else if (monthKey < currentMonthKey()) {
-        setStatusPill(statusPill, 'טרם אושר על ידי העובד');
         if (actions && !existingOpen) {
           actions.insertAdjacentHTML(
             'afterbegin',
@@ -97,7 +87,6 @@ async function patchAdminStandalone(root) {
           );
         }
       } else {
-        setStatusPill(statusPill, 'פתוח לדיווח');
         existingOpen?.remove();
       }
     } else {
