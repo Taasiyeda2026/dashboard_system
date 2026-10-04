@@ -3,9 +3,11 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
   buildDynamicCoursePlan,
+  buildSchoolPlanningGroups,
   dayConsolidationAcceptsMove,
   generatePlanningScenarios,
   optimizeSchoolDayPackingPass,
+  solveSchoolPackingGroup,
   travelAwareAdjacentStartMinutes
 } from '../frontend/src/screens/course-scheduling-planning.js';
 import {
@@ -296,6 +298,41 @@ test('three flexible same-school activities consolidate to one weekly workday wh
     });
   } catch (error) {
     console.error('SCHOOL_FIRST_DEBUG', JSON.stringify(error?.failures || []));
+    const failedRows = (error?.rows || []).filter((row) => row.courseId?.startsWith('packed-flex-'));
+    const groups = buildSchoolPlanningGroups({
+      rows: failedRows,
+      activities: [
+        makeFlexible('packed-flex-a'),
+        makeFlexible('packed-flex-b'),
+        makeFlexible('packed-flex-c')
+      ]
+    });
+    const group = groups[0];
+    const directSolved = group
+      ? solveSchoolPackingGroup(
+          group,
+          new Set([1]),
+          96,
+          {
+            blockers: [],
+            activityById: new Map([
+              ['packed-flex-a', makeFlexible('packed-flex-a')],
+              ['packed-flex-b', makeFlexible('packed-flex-b')],
+              ['packed-flex-c', makeFlexible('packed-flex-c')]
+            ]),
+            routeClient: netanyaRouteClient()
+          }
+        )
+      : null;
+    console.error('SCHOOL_FIRST_SOLVER', JSON.stringify({
+      rows: group?.movableRows?.length || 0,
+      candidateDays: [...(group?.candidateWeekdays || [])],
+      solved: directSolved ? {
+        cost: directSolved.cost,
+        mode: directSolved.searchMode,
+        choices: directSolved.choices.map(({ row, option }) => [row.courseId, option.startDate, option.startTime, option.endTime])
+      } : null
+    }));
     console.error('SCHOOL_FIRST_ROWS', JSON.stringify((error?.rows || []).filter((row) => row.courseId?.startsWith('packed-flex-')).map((row) => ({
       courseId: row.courseId,
       startDate: row.startDate,
