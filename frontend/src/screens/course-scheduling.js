@@ -99,6 +99,7 @@ import {
   planningStoreErrorMessage,
   saveSharedPlanningCheckpoint,
   saveSharedPlanningLock,
+  saveSharedPlanningIncrementalSnapshot,
   saveSharedPlanningSnapshot,
   upgradeSharedPlanningContextFingerprint,
   sharedPlanningAffectedCourseIds,
@@ -2680,6 +2681,15 @@ export const courseSchedulingScreen = {
       }
     };
 
+    const canonicalPlanningJson = (value) => {
+      if (Array.isArray(value)) return `[${value.map((item) => canonicalPlanningJson(item)).join(',')}]`;
+      if (value && typeof value === 'object') {
+        return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${canonicalPlanningJson(value[key])}`).join(',')}}`;
+      }
+      const encoded = JSON.stringify(value);
+      return encoded === undefined ? 'null' : encoded;
+    };
+
     const runCoursePlanning = async ({ forceFull = false, reuseSnapshot = false } = {}) => {
       const stopRunTimer = planningPerfTimer('runCoursePlanning');
       planningPerfEvent('run-start', { forceFull: forceFull === true, reuseSnapshot: reuseSnapshot === true });
@@ -2859,6 +2869,11 @@ export const courseSchedulingScreen = {
         );
         let lastSilentCheckpointCount = checkpointCompletedIds.size;
         const checkpointBatchSize = fullRun ? 50 : Math.min(20, Math.max(3, affectedIds.length));
+        // Local repairs stay in-memory. Persisting a 5-6MB whole-workspace checkpoint
+        // at every optimization stage made small updates slower than the calculation itself.
+        const persistServerCheckpoints = fullRun
+          || structuralPlanningUpgrade
+          || affectedIds.length > AUTO_PLANNING_REFRESH_MAX_IDS;
 
         state.courseSchedulingPlanningProgress = {
           phase: fullRun
@@ -2918,6 +2933,7 @@ export const courseSchedulingScreen = {
               for (const courseId of snapshotIds) checkpointCompletedIds.add(courseId);
               state.courseSchedulingPlanningRows = snapshotRows;
               if (runUiVisible()) run.ui?.update?.();
+              if (!persistServerCheckpoints) return;
               try {
                 const stopCheckpointSave = planningPerfTimer('checkpointSave');
                 await saveSharedPlanningCheckpoint({
@@ -2954,6 +2970,7 @@ export const courseSchedulingScreen = {
             if (runUiVisible()) run.ui?.update?.();
 
             if (progress.phase !== 'בניית תוכנית' || !progressCourseId || !progress.row) return;
+            if (!persistServerCheckpoints) return;
 
             checkpointCompletedIds.add(progressCourseId);
             const finishedThisPass = Number(progress.completed) >= Number(progress.total) && Number(progress.total) > 0;
@@ -3060,16 +3077,51 @@ export const courseSchedulingScreen = {
 
         assertRunOwnership();
         const stopWorkspaceSave = planningPerfTimer('workspaceSave');
-        const saved = await saveSharedPlanningSnapshot({
-          periodKey: scope.periodKey,
-          district: scope.district,
-          engineVersion: PLANNING_ENGINE_VERSION,
-          dataFingerprint: endFingerprint,
-          contextFingerprint: endContextStorage,
-          rows: result.rows || [],
-          activities: freshEnd.activities || [],
-          expectedRevision: Number(shared?.workspace?.revision) || 0
-        });
+        const finalRows = result.rows || [];
+        const saved = fullRun
+          ? await saveSharedPlanningSnapshot({
+              periodKey: scope.periodKey,
+              district: scope.district,
+              engineVersion: PLANNING_ENGINE_VERSION,
+              dataFingerprint: endFingerprint,
+              contextFingerprint: endContextStorage,
+              rows: finalRows,
+              activities: freshEnd.activities || [],
+              expectedRevision: Number(shared?.workspace?.revision) || 0
+            })
+          : await (() => {
+              const existingById = new Map(existingRows
+                .map((row) => [text(row?.courseId), row])
+                .filter(([courseId]) => !!courseId));
+              const mandatoryIds = new Set(affectedIds.map(text).filter(Boolean));
+              const finalIds = new Set(finalRows.map((row) => text(row?.courseId)).filter(Boolean));
+              const incrementalRows = finalRows.filter((row) => {
+                const courseId = text(row?.courseId);
+                if (!courseId) return false;
+                if (mandatoryIds.has(courseId)) return true;
+                const previous = existingById.get(courseId);
+                return !previous || canonicalPlanningJson(previous) !== canonicalPlanningJson(row);
+              });
+              const removedActivityIds = (shared?.rows || [])
+                .map((entry) => text(entry?.activityId))
+                .filter((courseId) => courseId && !finalIds.has(courseId));
+              planningPerfEvent('incremental-save-scope', {
+                rows: incrementalRows.length,
+                removed: removedActivityIds.length,
+                total: finalRows.length
+              });
+              return saveSharedPlanningIncrementalSnapshot({
+                periodKey: scope.periodKey,
+                district: scope.district,
+                engineVersion: PLANNING_ENGINE_VERSION,
+                dataFingerprint: endFingerprint,
+                contextFingerprint: endContextStorage,
+                rows: incrementalRows,
+                removedActivityIds,
+                activities: freshEnd.activities || [],
+                expectedRevision: Number(shared?.workspace?.revision) || 0
+              });
+            })();
         stopWorkspaceSave();
 
         assertRunOwnership();
