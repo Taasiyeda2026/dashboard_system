@@ -977,8 +977,53 @@ export function calculateCourseSchedule(input = {}) {
 }
 
 export function preliminaryCourseCandidates(input = {}) {
-  const results = calculateCourseSchedule({ ...input, travel: {}, routeMatrix: {}, preliminary: true });
-  return results.flatMap((result) => result.checked
-    .filter((candidate) => candidate.eligible)
-    .map((candidate) => ({ course: result.course, candidate })));
+  const activities = input.activities || [];
+  const periodKey = input.periodKey || DEFAULT_COURSE_SCHEDULING_PERIOD_KEY;
+  const targetCourseId = text(input.targetCourseId || input.targetActivityId);
+  const targetCourse = input.targetCourse
+    || (targetCourseId ? activities.find((course) => idOf(course) === targetCourseId) : null);
+  const scopeOptions = {
+    periodKey,
+    authority: input.authority,
+    district: input.district,
+    allDistricts: input.allDistricts === true,
+    includeIncompleteWithoutPeriodMeetings: !!input.includeIncompleteWithoutPeriodMeetings
+  };
+  const scopedCourses = targetCourseId && targetCourse
+    ? schedulingCourses([targetCourse], scopeOptions)
+    : schedulingCourses(activities, scopeOptions);
+  const courses = targetCourseId
+    ? scopedCourses.filter((course) => idOf(course) === targetCourseId)
+    : scopedCourses;
+  const prepared = input.preparedContext?.periodKey === periodKey
+    ? input.preparedContext
+    : prepareSchedulingRunContext({ ...input, periodKey });
+  const shortlistIds = new Set((input.candidateInstructorIds || []).map(text).filter(Boolean));
+  const instructors = shortlistIds.size
+    ? [...shortlistIds].map((empId) => prepared.instructorById.get(empId)).filter(Boolean)
+    : prepared.instructors;
+  const preliminaryInput = {
+    ...input,
+    periodKey,
+    preliminary: true,
+    travel: {},
+    routeMatrix: {},
+    preparedContext: prepared
+  };
+
+  return courses.flatMap((course) => {
+    if (missingCourseInformation(course, { periodKey }).length) return [];
+    const evaluated = evaluateCourseCandidates({
+      course,
+      instructors,
+      assignedRows: prepared.assignedRows || {},
+      profiles: prepared.profiles || input.profiles || {},
+      rules: prepared.rules || input.rules || {},
+      exceptions: prepared.exceptions || input.exceptions || {},
+      input: preliminaryInput
+    });
+    return evaluated
+      .filter((candidate) => candidate.eligible)
+      .map((candidate) => ({ course, candidate }));
+  });
 }

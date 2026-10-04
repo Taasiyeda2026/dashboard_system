@@ -2731,13 +2731,11 @@ export const courseSchedulingScreen = {
 
       try {
         const stopSnapshotLoad = planningPerfTimer('snapshotLoad');
-        const routeCachePromise = loadSchedulingTravelCacheRows().catch(() => []);
-        const [freshStart, shared, routeCacheRows] = await Promise.all([
+        const [freshStart, shared] = await Promise.all([
           reuseSnapshot && Array.isArray(data.activities) && data.activities.length
             ? Promise.resolve(data)
             : data.reloadPlanningSnapshot(),
-          loadSharedPlanningWorkspace({ periodKey: scope.periodKey, district: scope.district }),
-          routeCachePromise
+          loadSharedPlanningWorkspace({ periodKey: scope.periodKey, district: scope.district })
         ]);
         stopSnapshotLoad();
         assertRunOwnership();
@@ -2830,6 +2828,20 @@ export const courseSchedulingScreen = {
           if (runUiVisible()) showToast('התכנון כבר מעודכן', 'success');
           return;
         }
+
+        // The durable route cache is large and is not part of the decision whether
+        // planning needs to run. Small incremental runs can query exact routes on
+        // demand through scheduling-route, which itself reads the durable cache
+        // before calling Google. Preload the bulk cache only for genuinely broad runs.
+        const shouldPreloadRouteCache = fullRun || affectedIds.length > AUTO_PLANNING_REFRESH_MAX_IDS;
+        if (shouldPreloadRouteCache) {
+          state.courseSchedulingPlanningProgress = { phase: 'טוען נתוני נסיעה', completed: 0, total: 0 };
+          if (runUiVisible()) run.ui?.update?.();
+        }
+        const routeCacheRows = shouldPreloadRouteCache
+          ? await loadSchedulingTravelCacheRows().catch(() => [])
+          : [];
+        assertRunOwnership();
 
         let silentCheckpoint = null;
         if (!optimizationOnlyUpgrade) {
