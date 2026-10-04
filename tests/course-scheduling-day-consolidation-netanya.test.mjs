@@ -296,6 +296,16 @@ test('three flexible same-school activities consolidate to one weekly workday wh
     });
   } catch (error) {
     console.error('SCHOOL_FIRST_DEBUG', JSON.stringify(error?.failures || []));
+    console.error('SCHOOL_FIRST_ROWS', JSON.stringify((error?.rows || []).filter((row) => row.courseId?.startsWith('packed-flex-')).map((row) => ({
+      courseId: row.courseId,
+      startDate: row.startDate,
+      startTime: row.startTime,
+      endTime: row.endTime,
+      instructorEmpId: row.instructorEmpId,
+      packingStatus: row.schoolPlanning?.packingStatus,
+      minimumFeasibleWeekdays: row.schoolPlanning?.minimumFeasibleWeekdays,
+      packingOptions: (row.packingOptions || []).map((option) => [option.startDate, option.startTime, option.endTime, option.instructorEmpId])
+    }))));
     throw error;
   }
 
