@@ -170,6 +170,11 @@ begin
     raise exception 'attendance_employee_login_required' using errcode = '22023';
   end if;
 
+  -- The approval insert trigger normally rewrites emp_id to the caller. Reuse
+  -- its existing audited admin override so a newly-created reopened row belongs
+  -- to the employee being opened, never to the admin performing the action.
+  perform set_config('app.av2_submission_override_emp_id', v_emp_id::text, true);
+
   insert into public.attendance_month_approvals (
     emp_id,
     month_key,
@@ -252,6 +257,8 @@ begin
         reopen_reason = v_reason,
         updated_at = now()
   returning * into v_row;
+
+  perform set_config('app.av2_submission_override_emp_id', '', true);
 
   delete from public.payroll_control_approvals
   where employee_id = trim(p_employee_id)
