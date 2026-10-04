@@ -6939,6 +6939,49 @@ export const api = {
     if (error) throw new Error(error.message || 'admin_finalize_attendance_month_payroll_failed');
     return data || {};
   },
+  adminSendAttendanceMonthToPayroll: async ({
+    employee_id,
+    month_key,
+    sent_by_name = ''
+  } = {}) => {
+    assertPermission('view_attendance_control', 'attendance_control_forbidden');
+    const { data, error } = await supabase.rpc('admin_send_attendance_month_to_payroll', {
+      p_employee_id: String(employee_id || '').trim(),
+      p_month_key: String(month_key || '').trim(),
+      p_sent_by_name: String(sent_by_name || '').trim() || null
+    });
+    if (error) throw new Error(error.message || 'admin_send_attendance_month_to_payroll_failed');
+    return data || {};
+  },
+  adminSendAttendanceMonthToPayrollBatch: async ({
+    month_key,
+    employee_ids = [],
+    sent_by_name = ''
+  } = {}) => {
+    assertPermission('view_attendance_control', 'attendance_control_forbidden');
+    const ids = Array.isArray(employee_ids)
+      ? employee_ids.map((value) => String(value || '').trim()).filter(Boolean)
+      : [];
+    const { data, error } = await supabase.rpc('admin_send_attendance_month_to_payroll_batch', {
+      p_month_key: String(month_key || '').trim(),
+      p_employee_ids: ids.length ? ids : null,
+      p_sent_by_name: String(sent_by_name || '').trim() || null
+    });
+    if (error) throw new Error(error.message || 'admin_send_attendance_month_to_payroll_batch_failed');
+    return data || {};
+  },
+  listAttendancePayrollDispatches: async ({ monthKey = '', employeeIds = [] } = {}) => {
+    assertAnyPermission(['view_attendance_control', 'view_finance_payroll'], 'payroll_dispatches_forbidden');
+    let query = supabase
+      .from('payroll_attendance_dispatches')
+      .select('approval_id,employee_id,month_key,dispatched_at,dispatched_by_name')
+      .order('dispatched_at', { ascending: false });
+    if (monthKey) query = query.eq('month_key', String(monthKey).trim());
+    if (employeeIds.length) query = query.in('employee_id', employeeIds.map((value) => String(value)));
+    const { data, error } = await query;
+    if (error) throw new Error(error.message || 'payroll_dispatches_read_failed');
+    return Array.isArray(data) ? data : [];
+  },
   adminReopenAttendanceMonthForCorrection: async ({
     employee_id,
     month_key,
