@@ -3,13 +3,9 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
   buildDynamicCoursePlan,
-  buildSchoolPlanningGroups,
   dayConsolidationAcceptsMove,
   generatePlanningScenarios,
   optimizeSchoolDayPackingPass,
-  schoolPackingOptions,
-  schoolPackingOptionsConflict,
-  solveSchoolPackingGroup,
   travelAwareAdjacentStartMinutes
 } from '../frontend/src/screens/course-scheduling-planning.js';
 import {
@@ -278,104 +274,24 @@ test('three flexible same-school activities consolidate to one weekly workday wh
     date_2: null
   });
 
-  let result;
-  try {
-    result = await buildDynamicCoursePlan({
-      activities: [
-        makeFlexible('packed-flex-a'),
-        makeFlexible('packed-flex-b'),
-        makeFlexible('packed-flex-c')
-      ],
-      instructors: [instructor],
-      profiles: packedProfiles,
-      rules,
-      exceptions: {},
-      schoolCalendar: [],
-      catalog,
-      today: '2026-09-23',
-      periodKey: 'year',
-      routeClient: netanyaRouteClient(),
-      allowGlobalRepair: false,
-      planningProfile: 'fast'
-    });
-  } catch (error) {
-    console.error('SCHOOL_FIRST_DEBUG', JSON.stringify(error?.failures || []));
-    const failedRows = (error?.rows || []).filter((row) => row.courseId?.startsWith('packed-flex-'));
-    const groups = buildSchoolPlanningGroups({
-      rows: failedRows,
-      activities: [
-        makeFlexible('packed-flex-a'),
-        makeFlexible('packed-flex-b'),
-        makeFlexible('packed-flex-c')
-      ]
-    });
-    const group = groups[0];
-    const directSolved = group
-      ? solveSchoolPackingGroup(
-          group,
-          new Set([1]),
-          96,
-          {
-            blockers: [],
-            activityById: new Map([
-              ['packed-flex-a', makeFlexible('packed-flex-a')],
-              ['packed-flex-b', makeFlexible('packed-flex-b')],
-              ['packed-flex-c', makeFlexible('packed-flex-c')]
-            ]),
-            routeClient: netanyaRouteClient()
-          }
-        )
-      : null;
-    console.error('SCHOOL_FIRST_SOLVER', JSON.stringify({
-      rows: group?.movableRows?.length || 0,
-      candidateDays: [...(group?.candidateWeekdays || [])],
-      solved: directSolved ? {
-        cost: directSolved.cost,
-        mode: directSolved.searchMode,
-        choices: directSolved.choices.map(({ row, option }) => [row.courseId, option.startDate, option.startTime, option.endTime])
-      } : null
-    }));
-    if (group) {
-      const mondayOptions = group.movableRows.map((row) => schoolPackingOptions(row, new Set([1])));
-      const pick = (options, time) => options.find((option) => option.startDate === '2026-10-12' && option.startTime === time);
-      const a = pick(mondayOptions[0] || [], '09:30');
-      const b = pick(mondayOptions[1] || [], '11:00');
-      const cc = pick(mondayOptions[2] || [], '12:30');
-      console.error('SCHOOL_FIRST_CONFLICTS', JSON.stringify({
-        optionCounts: mondayOptions.map((items) => items.length),
-        found: [!!a, !!b, !!cc],
-        ab: a && b ? schoolPackingOptionsConflict(a, b) : null,
-        ac: a && cc ? schoolPackingOptionsConflict(a, cc) : null,
-        bc: b && cc ? schoolPackingOptionsConflict(b, cc) : null
-      }));
-      console.error('SCHOOL_FIRST_FILTER', JSON.stringify(
-        group.movableRows.map((row) => (row.packingOptions || []).slice(0, 12).map((option) => ({
-          startDate: option.startDate,
-          startTime: option.startTime,
-          routeVerified: option.routeVerified,
-          days: [...new Set((option.meetings || []).map((meeting) => new Date(`${meeting.date}T12:00:00Z`).getUTCDay()))],
-          signature: (option.meetings || []).map((meeting) => `${meeting.date}|${meeting.start_time}|${meeting.end_time}`).join(';')
-        })))
-      ));
-    }
-    console.error('SCHOOL_FIRST_ROWS', JSON.stringify((error?.rows || []).filter((row) => row.courseId?.startsWith('packed-flex-')).map((row) => ({
-      courseId: row.courseId,
-      startDate: row.startDate,
-      startTime: row.startTime,
-      endTime: row.endTime,
-      instructorEmpId: row.instructorEmpId,
-      packingStatus: row.schoolPlanning?.packingStatus,
-      minimumFeasibleWeekdays: row.schoolPlanning?.minimumFeasibleWeekdays,
-      packingOptions: (row.packingOptions || []).map((option) => [
-        option.startDate,
-        option.startTime,
-        option.endTime,
-        option.instructorEmpId,
-        (option.meetings || []).map((meeting) => [meeting.date, meeting.start_time, meeting.end_time, meeting.substituteEmpId || ''])
-      ])
-    }))));
-    throw error;
-  }
+  const result = await buildDynamicCoursePlan({
+    activities: [
+      makeFlexible('packed-flex-a'),
+      makeFlexible('packed-flex-b'),
+      makeFlexible('packed-flex-c')
+    ],
+    instructors: [instructor],
+    profiles: packedProfiles,
+    rules,
+    exceptions: {},
+    schoolCalendar: [],
+    catalog,
+    today: '2026-09-23',
+    periodKey: 'year',
+    routeClient: netanyaRouteClient(),
+    allowGlobalRepair: false,
+    planningProfile: 'fast'
+  });
 
   const rows = result.rows.filter((row) => row.courseId.startsWith('packed-flex-'));
   assert.equal(rows.length, 3);
