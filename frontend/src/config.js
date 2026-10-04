@@ -351,3 +351,4 @@ config.HOTFIX_VERSION = `planning-anchor-safe-global-reassignment-20261004-v1-${
 config.HOTFIX_VERSION = `scheduling-maintenance-delta-only-20261004-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `scheduling-maintenance-targeted-cache-read-20261004-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `scheduling-planning-preflight-fast-path-20261005-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `scheduling-planning-manual-update-reuse-snapshot-20261005-v1-${config.HOTFIX_VERSION}`;
