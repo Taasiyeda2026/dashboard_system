@@ -263,6 +263,27 @@ export function createSearchableSelect({
     if (!wrap.contains(e.target)) closePanel();
   }, true);
 
+  // Runtime integrations can replace the visible option set without reaching into
+  // component internals. This is used by attendance to scope course choices to the
+  // exact dashboard rows for the selected date. If the previous row is no longer
+  // valid, notify the owning form so its linked activity state is cleared as well.
+  wrap.addEventListener('av2:set-options', (event) => {
+    const detail = event.detail || {};
+    const opts = Array.isArray(detail.options) ? detail.options : [];
+    const previousValue = selectedValue;
+    defaultOptions = [...opts];
+    currentOptions = [...opts];
+    const stillValid = !previousValue || defaultOptions.some((option) => option.value === previousValue);
+    if (!stillValid) {
+      selectedValue = '';
+      selectedLabel = '';
+      triggerText.textContent = placeholder;
+      triggerText.dataset.empty = 'true';
+      if (detail.notifyOnReset) onChange?.('', '', null);
+    }
+    if (isOpen) renderOptions(searchInput.value);
+  });
+
   return {
     wrap,
     getValue: () => selectedValue,

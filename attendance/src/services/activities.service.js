@@ -8,6 +8,8 @@ import {
   HEBREW_TO_DB_TYPE,
   getDbTypesForReportType,
   currentAttendanceActivitySeasons,
+  normalizeDbActivityType,
+  TRAINING_REPORT_TYPE,
 } from './activities-report.helpers.js';
 import { normalizeScheduledTraining } from './training-schedule.helpers.js';
 import {
@@ -45,6 +47,7 @@ export {
   OPEN_FIELD_REPORT_TYPES,
   HEBREW_TO_DB_TYPE,
   HEBREW_ACTIVITY_TYPES,
+  TRAINING_DB_ACTIVITY_TYPES,
   toHebrewType,
   normalizeDbActivityType,
   getDbTypesForReportType,
@@ -59,6 +62,56 @@ export {
   calcHours,
   attendanceTimesFromActivity,
 } from './activities-report.helpers.js';
+
+function isTrainingSearch(reportType) {
+  return String(reportType || '').trim() === TRAINING_REPORT_TYPE;
+}
+
+function canonicalRowMatchesReportType(activity, reportType) {
+  const dbTypes = getDbTypesForReportType(reportType);
+  if (dbTypes === null) return true;
+  if (!dbTypes.length) return false;
+  return dbTypes.includes(normalizeDbActivityType(activity?.activity_type));
+}
+
+function toTrainingCatalogRows(rows = [], reportType = '') {
+  if (!isTrainingSearch(reportType)) return Array.isArray(rows) ? rows : [];
+
+  const seenNames = new Set();
+  const result = [];
+  for (const row of Array.isArray(rows) ? rows : []) {
+    const name = String(row?.activity_name || row?.program_name || '').trim();
+    if (!name) continue;
+    const key = name.toLocaleLowerCase('he-IL');
+    if (seenNames.has(key)) continue;
+    seenNames.add(key);
+
+    // Training is selected by course/tour content name, not by a specific school assignment.
+    // Use a synthetic row identity so the new-report screen never resolves the instructor's
+    // assigned activity instance and therefore never imports that instance's location metadata.
+    result.push({
+      ...row,
+      id: null,
+      row_id: `training-catalog:${key}`,
+      activity_name: name,
+      program_name: String(row?.program_name || name).trim() || name,
+      activity_no: null,
+      authority_id: null,
+      authority_name: '',
+      authority: '',
+      single_school_id: null,
+      single_school_name: '',
+      single_semel_mosad: null,
+      school: '',
+      school_link_status: 'authority_or_place_only',
+      linked_schools_json: [],
+      start_time: '',
+      end_time: '',
+      __attendanceTrainingCatalog: true,
+    });
+  }
+  return result;
+}
 
 async function aggregateActivitiesFromDateRpc(empId, seasons) {
   const seen = new Map();
@@ -108,12 +161,15 @@ export async function searchCanonicalActivities({
   referenceDateStr,
   limit = 50,
 } = {}) {
+  const trainingSearch = isTrainingSearch(reportType);
+  const effectiveLimit = trainingSearch ? Math.max(Number(limit) || 0, 1000) : limit;
+
   if (isAdminPreviewRequested()) {
     const q = String(query || '').trim().toLowerCase();
-    return getPreviewActivities()
-      .filter((activity) => activityMatchesReportType(activity, reportType))
-      .filter((activity) => !q || activitySearchHaystack(activity).includes(q))
-      .slice(0, limit);
+    const rows = getPreviewActivities()
+      .filter((activity) => canonicalRowMatchesReportType(activity, reportType))
+      .filter((activity) => !q || activitySearchHaystack(activity).includes(q));
+    return toTrainingCatalogRows(rows, reportType).slice(0, effectiveLimit);
   }
 
   const dbTypes = getDbTypesForReportType(reportType);
@@ -123,9 +179,11 @@ export async function searchCanonicalActivities({
       p_query: query,
       p_activity_types: dbTypes,
       p_activity_seasons: seasons,
-      p_limit: limit,
+      p_limit: effectiveLimit,
     });
-    if (!error && Array.isArray(data)) return data;
+    if (!error && Array.isArray(data)) {
+      return toTrainingCatalogRows(data, reportType).slice(0, effectiveLimit);
+    }
   } catch {
     // RPC not deployed yet
   }

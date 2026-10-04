@@ -13,6 +13,7 @@ import {
 const runtime = await readFile(new URL('../attendance/src/attendance-followup-runtime-v2.js', import.meta.url), 'utf8');
 const reports = await readFile(new URL('../attendance/src/screens/my-reports-screen.js', import.meta.url), 'utf8');
 const newReport = await readFile(new URL('../attendance/src/screens/new-report-screen.js', import.meta.url), 'utf8');
+const trainingUi = await readFile(new URL('../attendance/src/training-report-ui-runtime.js', import.meta.url), 'utf8');
 const activities = await readFile(new URL('../attendance/src/services/activities.service.js', import.meta.url), 'utf8');
 const service = await readFile(new URL('../attendance/src/services/attendance.service.js', import.meta.url), 'utf8');
 const migration = await readFile(new URL('../supabase/migrations/20260929120000_attendance_time_cancellation_and_online_training.sql', import.meta.url), 'utf8');
@@ -70,10 +71,13 @@ test('source report date changes synchronize the generated cancellation row', ()
   assert.match(migration, /generation_kind = 'travel_time_cancellation'/);
 });
 
-test('training stays training while distinguishing online and physical delivery', () => {
+test('training stays training while distinguishing Zoom and physical delivery', () => {
   assert.match(newReport, /label: 'אופן ההכשרה \*'/);
   assert.match(newReport, /value: 'physical', label: 'פרונטלי'/);
-  assert.match(newReport, /value: 'online', label: 'מקוון'/);
+  assert.match(newReport, /value: 'online'/);
+  assert.match(trainingUi, /const ZOOM_LABEL = 'זום'/);
+  assert.match(trainingUi, /option\.value === 'online'/);
+  assert.match(trainingUi, /online\.textContent = ZOOM_LABEL/);
   assert.match(newReport, /activity_type: reportType/);
   assert.match(newReport, /training_mode: reportType === TRAINING_REPORT_TYPE/);
   assert.match(activities, /instructor_training_schedule/);

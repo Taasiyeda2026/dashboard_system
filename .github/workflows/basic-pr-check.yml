@@ -72,6 +72,25 @@ jobs:
             echo "No instructor/attendance mobile contract files changed; mobile tests skipped."
           fi
 
+      - name: Run attendance training picker contract
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE_SHA="$(git rev-parse "origin/${BASE_REF}")"
+          if git diff --name-only "$BASE_SHA" "$HEAD_SHA" | grep -Eq '^(attendance/(index\.html|sw\.js|src/(training-report-ui-runtime|course-dashboard-choice-runtime)\.js|src/components/searchable-select\.js|src/services/(activities|activities-report\.helpers)\.service\.js|src/services/activities-report\.helpers\.js)|supabase/migrations/.*attendance_dashboard_course_choice|tests/attendance-(new-report-activities|activity-type-behavior|time-cancellation-online-training|travel-compensation)\.test\.mjs)$'; then
+            npm ci --ignore-scripts --no-audit --no-fund
+            node --test \
+              tests/attendance-new-report-activities.test.mjs \
+              tests/attendance-activity-type-behavior.test.mjs \
+              tests/attendance-time-cancellation-online-training.test.mjs \
+              tests/attendance-travel-compensation.test.mjs
+          else
+            echo "No attendance training-picker contract files changed; focused tests skipped."
+          fi
+
       - name: Run work schedule manager-instructor parity contract
         env:
           BASE_REF: ${{ github.base_ref }}

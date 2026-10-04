@@ -29,8 +29,9 @@ const sampleActivities = [
   { row_id: 'e1', activity_name: 'בריחה', activity_type: 'escape_room', authority_id: 5, authority_name: 'עיר', single_school_id: 501, single_school_name: 'טכנולוגי' },
 ];
 
-test('HEBREW_ACTIVITY_TYPES uses the approved display order', () => {
-  assert.deepEqual(HEBREW_ACTIVITY_TYPES, ['קורס','סדנה','סיור','זום','חדר בריחה','הכשרה','ביטול זמן','תפעול']);
+test('HEBREW_ACTIVITY_TYPES uses the approved display order without Zoom as an activity type', () => {
+  assert.deepEqual(HEBREW_ACTIVITY_TYPES, ['קורס','סדנה','סיור','חדר בריחה','הכשרה','ביטול זמן','תפעול']);
+  assert.ok(!HEBREW_ACTIVITY_TYPES.includes('זום'));
 });
 
 test('report type filters use canonical DB activity_type values', () => {
@@ -39,7 +40,7 @@ test('report type filters use canonical DB activity_type values', () => {
   assert.deepEqual(getDbTypesForReportType('סדנאות קיץ'), ['workshop']);
   assert.equal(getDbTypesForReportType(ONLINE_REPORT_TYPE), null);
   assert.deepEqual(getDbTypesForReportType(OPERATIONS_REPORT_TYPE), []);
-  assert.equal(getDbTypesForReportType(TRAINING_REPORT_TYPE), null);
+  assert.deepEqual(getDbTypesForReportType(TRAINING_REPORT_TYPE), ['course', 'tour']);
 });
 
 test('instructor with 3 courses and 4 workshops gets exact counts per type', () => {
@@ -48,7 +49,7 @@ test('instructor with 3 courses and 4 workshops gets exact counts per type', () 
   assert.equal(filterActivitiesForReportType(sampleActivities, ONLINE_REPORT_TYPE).length, 9);
 });
 
-test('online report type does not filter by activity family', () => {
+test('online legacy report type does not filter by activity family', () => {
   const onlineOptions = instructorActivitySelectOptions(sampleActivities, { reportType: ONLINE_REPORT_TYPE });
   assert.equal(onlineOptions.length, 9);
   assert.ok(onlineOptions.some((o) => o.activity.activity_type === 'course'));
@@ -72,11 +73,52 @@ test('activity option shows only the course name while keeping location as metad
   assert.match(option.searchText, /אשכול/);
 });
 
-test('activityMatchesReportType respects type transitions for online and course', () => {
+test('training picker accepts only catalog/scheduled rows and shows names without locations', () => {
+  const trainingCatalog = [
+    {
+      row_id: 'training-catalog:ai',
+      activity_name: 'AI',
+      program_name: 'AI',
+      activity_type: 'course',
+      authority_name: 'אשכול',
+      single_school_name: 'הרצל',
+      __attendanceTrainingCatalog: true,
+    },
+    {
+      row_id: 'training-catalog:ai-duplicate',
+      activity_name: 'AI',
+      program_name: 'AI',
+      activity_type: 'course',
+      authority_name: 'דרום',
+      single_school_name: 'נגב',
+      __attendanceTrainingCatalog: true,
+    },
+    {
+      row_id: 'training-catalog:tour',
+      activity_name: 'סיור מדע',
+      program_name: 'סיור מדע',
+      activity_type: 'tour',
+      authority_name: 'עיר',
+      single_school_name: 'טכנולוגי',
+      __attendanceTrainingCatalog: true,
+    },
+  ];
+
+  assert.equal(filterActivitiesForReportType(sampleActivities, TRAINING_REPORT_TYPE).length, 0);
+  const options = instructorActivitySelectOptions(trainingCatalog, { reportType: TRAINING_REPORT_TYPE });
+  assert.deepEqual(options.map((option) => option.label), ['AI', 'סיור מדע']);
+  assert.ok(options.every((option) => option.meta === ''));
+  assert.ok(options.every((option) => !/אשכול|דרום|הרצל|נגב|טכנולוגי/.test(option.searchText)));
+});
+
+test('activityMatchesReportType respects type transitions for online, training and course', () => {
   const course = sampleActivities[0];
+  const workshop = sampleActivities[3];
   assert.equal(activityMatchesReportType(course, 'קורס'), true);
   assert.equal(activityMatchesReportType(course, 'סדנה'), false);
   assert.equal(activityMatchesReportType(course, ONLINE_REPORT_TYPE), true);
+  assert.equal(activityMatchesReportType(course, TRAINING_REPORT_TYPE), true);
+  assert.equal(activityMatchesReportType(workshop, TRAINING_REPORT_TYPE), false);
 });
 
 test('deriveAuthoritySchoolListFromActivities deduplicates authorities and schools', () => {
