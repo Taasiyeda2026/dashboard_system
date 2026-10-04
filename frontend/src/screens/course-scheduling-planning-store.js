@@ -650,6 +650,31 @@ function planningClockMinutes(value = '') {
   return hours * 60 + minutes;
 }
 
+function planningMeetingWeekdays(row = {}) {
+  const days = new Set();
+  for (const meeting of row?.meetings || []) {
+    const date = text(meeting?.date).slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) continue;
+    const day = new Date(`${date}T12:00:00Z`).getUTCDay();
+    if (Number.isInteger(day)) days.add(day);
+  }
+  return days;
+}
+
+function planningRecruitmentHasRescueSchedule(row = {}) {
+  const sources = Array.isArray(row?.scheduleOptions) && row.scheduleOptions.length
+    ? row.scheduleOptions
+    : [row];
+  return sources.some((option) => (option?.meetings || []).some((meeting) => {
+    const start = planningClockMinutes(meeting?.start_time || option?.startTime);
+    const end = planningClockMinutes(meeting?.end_time || option?.endTime);
+    return /^\d{4}-\d{2}-\d{2}$/.test(text(meeting?.date).slice(0, 10))
+      && start != null
+      && end != null
+      && end > start;
+  }));
+}
+
 /**
  * Engine upgrades must not silently become national recalculations.
  *
@@ -671,15 +696,60 @@ export function planningEngineUpgradeAffectedCourseIds({
   const anchorSafeGlobalReassignmentV28Upgrade = current.includes('planning-v28-20261004-anchor-safe-global-reassignment')
     && !previous.includes('planning-v28-20261004-anchor-safe-global-reassignment');
   if (anchorSafeGlobalReassignmentV28Upgrade) {
-    return (shared?.rows || [])
-      .filter((entry) => {
-        const row = entry?.row || {};
-        if (!['proposal', 'recruitment'].includes(text(row?.kind))) return false;
-        if (entry?.lockedOption || row?.planningLocked === true || row?.schoolDateAnchored === true) return false;
-        return !!text(entry?.activityId || row?.courseId);
-      })
-      .map((entry) => text(entry?.activityId || entry?.row?.courseId))
-      .filter(Boolean);
+    const activityById = new Map((activities || []).map((activity) => [idOf(activity), activity]));
+    const storedRows = (shared?.rows || []).map((entry) => ({ entry, row: entry?.row || {} }));
+    const openDaysByInstructor = new Map();
+    for (const { row } of storedRows) {
+      const empId = text(row?.instructorEmpId);
+      if (!empId) continue;
+      const days = openDaysByInstructor.get(empId) || new Set();
+      for (const day of planningMeetingWeekdays(row)) days.add(day);
+      openDaysByInstructor.set(empId, days);
+    }
+    const movableBySchool = new Map();
+    const affected = new Set();
+    for (const { entry, row } of storedRows) {
+      const courseId = text(entry?.activityId || row?.courseId);
+      const schoolId = text(row?.schoolId || activityById.get(courseId)?.school_id);
+      if (!courseId || !['proposal', 'recruitment'].includes(text(row?.kind))) continue;
+      if (entry?.lockedOption || row?.planningLocked === true || row?.schoolDateAnchored === true) continue;
+      if (schoolId) {
+        const bucket = movableBySchool.get(schoolId) || [];
+        bucket.push(courseId);
+        movableBySchool.set(schoolId, bucket);
+      }
+
+      // Recruitment recovery in v28 starts with the saved schedules. Rows with
+      // no usable schedule cannot enter that cheap probe and are unaffected.
+      if (text(row?.kind) === 'recruitment') {
+        if (planningRecruitmentHasRescueSchedule(row)) affected.add(courseId);
+        continue;
+      }
+
+      // The v28 workday pass can reassign a singleton course across schools.
+      // It only inspects proposals that open a new weekday for their current
+      // instructor, and only when some existing instructor already has an open
+      // workday onto which the course could be consolidated. Hard eligibility
+      // is deliberately left to the engine probe.
+      const empId = text(row?.instructorEmpId);
+      const courseDays = planningMeetingWeekdays(row);
+      if (!empId || !courseDays.size) continue;
+      const sameInstructorDaysElsewhere = new Set();
+      for (const { row: other } of storedRows) {
+        if (text(other?.courseId) === courseId || text(other?.instructorEmpId) !== empId) continue;
+        for (const day of planningMeetingWeekdays(other)) sameInstructorDaysElsewhere.add(day);
+      }
+      const opensOnlyNewDays = [...courseDays].every((day) => !sameInstructorDaysElsewhere.has(day));
+      const hasExistingOpenDay = [...openDaysByInstructor.entries()].some(([candidateEmpId, days]) =>
+        (candidateEmpId !== empId || days.size > courseDays.size)
+        && days.size > 0
+      );
+      if (opensOnlyNewDays && hasExistingOpenDay) affected.add(courseId);
+    }
+    for (const ids of movableBySchool.values()) {
+      if (ids.length >= 2) ids.forEach((courseId) => affected.add(courseId));
+    }
+    return [...affected];
   }
 
   const schoolFirstEconomicV27Upgrade = current.includes('planning-v27-20261004-school-first-economic-alternatives')

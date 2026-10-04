@@ -1,16 +1,21 @@
 const COUNTER_KEYS = [
   'preliminaryCalls',
   'scheduleCalls',
+  'activitiesComputed',
   'candidateEvals',
+  'candidateEvaluations',
   'instructorScans',
   'scenarioCount',
+  'scenarioEvaluations',
   'travelRequests',
+  'routeCacheRequests',
   'cacheHits',
   'googleCalls',
   'finalValidations',
   'contextRebuilds',
   'progressUiUpdates',
-  'checkpointSaves'
+  'checkpointSaves',
+  'checkpointPayloadBytes'
 ];
 
 let explicitEnabled = null;

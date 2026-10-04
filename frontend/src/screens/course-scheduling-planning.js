@@ -1428,6 +1428,7 @@ async function evaluateScenarioOptions({
   packingCoverage = false
 } = {}) {
   planningPerfCount('scenarioCount', scenarios.length);
+  planningPerfCount('scenarioEvaluations', scenarios.length);
   const stopTimer = planningPerfTimer('evaluateScenarioOptions');
   const preliminaries = [];
   for (let index = 0; index < scenarios.length; index += 1) {
@@ -5030,6 +5031,7 @@ export async function buildDynamicCoursePlan({
 
   for (const item of queue) {
     await checkpoint();
+    planningPerfCount('activitiesComputed');
     const { activity, type, activityPeriodKey } = item;
     const currentContext = currentContextActivities;
     const activitySchoolId = text(activity?.school_id);

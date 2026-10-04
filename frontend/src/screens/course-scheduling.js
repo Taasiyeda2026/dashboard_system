@@ -2833,7 +2833,7 @@ export const courseSchedulingScreen = {
         // planning needs to run. Small incremental runs can query exact routes on
         // demand through scheduling-route, which itself reads the durable cache
         // before calling Google. Preload the bulk cache only for genuinely broad runs.
-        const shouldPreloadRouteCache = fullRun || affectedIds.length > AUTO_PLANNING_REFRESH_MAX_IDS;
+        const shouldPreloadRouteCache = forceFull === true;
         if (shouldPreloadRouteCache) {
           state.courseSchedulingPlanningProgress = { phase: 'טוען נתוני נסיעה', completed: 0, total: 0 };
           if (runUiVisible()) run.ui?.update?.();
@@ -2844,7 +2844,7 @@ export const courseSchedulingScreen = {
         assertRunOwnership();
 
         let silentCheckpoint = null;
-        if (!optimizationOnlyUpgrade) {
+        if (forceFull === true) {
           try {
             silentCheckpoint = await loadSharedPlanningCheckpoint({
               periodKey: scope.periodKey,
@@ -2886,13 +2886,7 @@ export const courseSchedulingScreen = {
         const checkpointBatchSize = fullRun ? 50 : Math.min(20, Math.max(3, affectedIds.length));
         // Local repairs stay in-memory. Persisting a 5-6MB whole-workspace checkpoint
         // at every optimization stage made small updates slower than the calculation itself.
-        const checkpointAlreadyComplete = currentCourseIds.length > 0
-          && checkpointCompletedIds.size >= currentCourseIds.length;
-        const persistServerCheckpoints = fullRun
-          || (!checkpointAlreadyComplete && (
-            structuralPlanningUpgrade
-            || affectedIds.length > AUTO_PLANNING_REFRESH_MAX_IDS
-          ));
+        const persistServerCheckpoints = forceFull === true;
 
         state.courseSchedulingPlanningProgress = {
           phase: fullRun
@@ -2968,6 +2962,7 @@ export const courseSchedulingScreen = {
                 });
                 stopCheckpointSave();
                 planningPerfCount('checkpointSaves');
+                planningPerfCount('checkpointPayloadBytes', new TextEncoder().encode(JSON.stringify(snapshotRows)).length);
                 lastSilentCheckpointCount = checkpointCompletedIds.size;
               } catch {
                 // Stage checkpoints are resilience-only. A save failure must not abort planning.
@@ -3015,6 +3010,7 @@ export const courseSchedulingScreen = {
               });
               stopCheckpointSave();
               planningPerfCount('checkpointSaves');
+              planningPerfCount('checkpointPayloadBytes', new TextEncoder().encode(JSON.stringify(checkpointRows)).length);
               lastSilentCheckpointCount = checkpointCompletedIds.size;
             } catch {
               // Checkpointing is resilience-only and deliberately silent.

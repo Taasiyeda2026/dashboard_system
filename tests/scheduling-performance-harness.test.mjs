@@ -105,8 +105,12 @@ test('planning perf harness: no-op reopen does zero engine work', async () => {
   }));
   assert.deepEqual(measuredResult.value, []);
   assert.equal(measuredResult.report.counters.scheduleCalls, 0);
+  assert.equal(measuredResult.report.counters.activitiesComputed, 0);
   assert.equal(measuredResult.report.counters.candidateEvals, 0);
+  assert.equal(measuredResult.report.counters.routeCacheRequests, 0);
   assert.equal(measuredResult.report.counters.googleCalls, 0);
+  assert.equal(measuredResult.report.counters.checkpointSaves, 0);
+  assert.equal(measuredResult.report.counters.checkpointPayloadBytes, 0);
 });
 
 test('planning perf harness: one dirty activity with warm routes', async () => {
@@ -134,8 +138,10 @@ test('planning perf harness: one dirty activity with warm routes', async () => {
     planningProfile: 'fast'
   }));
   assert.equal(measuredResult.value.rows.length, 1);
+  assert.equal(measuredResult.report.counters.activitiesComputed, 1);
   assert.equal(routeClient.googleCalls, 0);
   assert.equal(measuredResult.report.counters.googleCalls, 0);
+  assert.equal(measuredResult.report.counters.checkpointSaves, 0);
   assert.ok(measuredResult.report.counters.scheduleCalls > 0);
   assert.ok(measuredResult.report.counters.candidateEvals > 0);
 });
@@ -168,6 +174,7 @@ test('planning perf harness: five dirty activities with warm routes', async () =
     planningProfile: 'fast'
   }));
   assert.equal(measuredResult.value.rows.length, 5);
+  assert.equal(measuredResult.report.counters.activitiesComputed, 5);
   assert.equal(routeClient.googleCalls, 0);
   assert.equal(measuredResult.report.counters.googleCalls, 0);
   assert.ok(measuredResult.report.counters.scheduleCalls >= 5);

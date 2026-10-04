@@ -270,11 +270,14 @@ test('v27 upgrade rebuilds both flexible proposals and recruitment rows for scho
   assert.deepEqual(new Set(ids), new Set(['a', 'b']));
 });
 
-test('v28 upgrade re-evaluates flexible proposals and recruitment without touching planning anchors', () => {
+test('v27 to v28 scopes school bundles, singleton reassignment and recruitment recovery without touching anchors', () => {
   const shared = {
     rows: [
-      { activityId: 'proposal', row: { courseId: 'proposal', schoolId: 's1', kind: 'proposal' } },
-      { activityId: 'recruitment', row: { courseId: 'recruitment', schoolId: 's1', kind: 'recruitment' } },
+      { activityId: 'proposal', row: { courseId: 'proposal', schoolId: 's1', kind: 'proposal', instructorEmpId: 'a', meetings: [{ date: '2026-11-02' }] } },
+      { activityId: 'recruitment', row: { courseId: 'recruitment', schoolId: 's1', kind: 'recruitment', scheduleOptions: [{ meetings: [{ date: '2026-11-03', start_time: '10:00', end_time: '11:00' }] }] } },
+      { activityId: 'single', row: { courseId: 'single', schoolId: 's2', kind: 'proposal', instructorEmpId: 'a', meetings: [{ date: '2026-11-04' }] } },
+      { activityId: 'candidate-day', row: { courseId: 'candidate-day', schoolId: 's3', kind: 'live', instructorEmpId: 'b', meetings: [{ date: '2026-11-05' }] } },
+      { activityId: 'unaffected', row: { courseId: 'unaffected', schoolId: 's4', kind: 'proposal', instructorEmpId: 'b', meetings: [{ date: '2026-11-12' }] } },
       { activityId: 'dated', row: { courseId: 'dated', schoolId: 's1', kind: 'proposal', schoolDateAnchored: true } },
       { activityId: 'locked', lockedOption: { instructorEmpId: '1' }, row: { courseId: 'locked', schoolId: 's1', kind: 'proposal' } },
       { activityId: 'planning-locked', row: { courseId: 'planning-locked', schoolId: 's1', kind: 'proposal', planningLocked: true } },
@@ -287,7 +290,48 @@ test('v28 upgrade re-evaluates flexible proposals and recruitment without touchi
     storedEngineVersion: 'planning-v27-20261004-school-first-economic-alternatives-self-invalidation',
     currentEngineVersion: 'planning-v28-20261004-anchor-safe-global-reassignment-self-invalidation'
   });
-  assert.deepEqual(new Set(ids), new Set(['proposal', 'recruitment']));
+  assert.deepEqual(new Set(ids), new Set(['proposal', 'recruitment', 'single']));
+});
+
+test('v28 upgrade includes a single-school-row proposal with a cross-instructor workday dependency', () => {
+  const ids = planningEngineUpgradeAffectedCourseIds({
+    shared: { rows: [
+      { activityId: 'singleton', row: { courseId: 'singleton', schoolId: 'only-here', kind: 'proposal', instructorEmpId: 'a', meetings: [{ date: '2026-11-02' }] } },
+      { activityId: 'existing-day', row: { courseId: 'existing-day', schoolId: 'elsewhere', kind: 'live', instructorEmpId: 'b', meetings: [{ date: '2026-11-03' }] } }
+    ] },
+    storedEngineVersion: 'planning-v27-20261004-school-first-economic-alternatives-self-invalidation',
+    currentEngineVersion: 'planning-v28-20261004-anchor-safe-global-reassignment-self-invalidation'
+  });
+  assert.deepEqual(ids, ['singleton']);
+});
+
+test('v28 upgrade includes singleton recruitment with a saved recovery schedule', () => {
+  const ids = planningEngineUpgradeAffectedCourseIds({
+    shared: { rows: [{
+      activityId: 'recruitment-singleton',
+      row: {
+        courseId: 'recruitment-singleton',
+        schoolId: 'only-here',
+        kind: 'recruitment',
+        scheduleOptions: [{ meetings: [{ date: '2026-11-03', start_time: '09:00', end_time: '10:30' }] }]
+      }
+    }] },
+    storedEngineVersion: 'planning-v27-20261004-school-first-economic-alternatives-self-invalidation',
+    currentEngineVersion: 'planning-v28-20261004-anchor-safe-global-reassignment-self-invalidation'
+  });
+  assert.deepEqual(ids, ['recruitment-singleton']);
+});
+
+test('v28 upgrade keeps an unaffected singleton proposal on its saved snapshot', () => {
+  const ids = planningEngineUpgradeAffectedCourseIds({
+    shared: { rows: [{
+      activityId: 'stable-singleton',
+      row: { courseId: 'stable-singleton', schoolId: 'only-here', kind: 'proposal', instructorEmpId: 'a', meetings: [{ date: '2026-11-02' }] }
+    }] },
+    storedEngineVersion: 'planning-v27-20261004-school-first-economic-alternatives-self-invalidation',
+    currentEngineVersion: 'planning-v28-20261004-anchor-safe-global-reassignment-self-invalidation'
+  });
+  assert.deepEqual(ids, []);
 });
 
 test('v24 to v25 upgrade targets only multi-proposal schools', () => {

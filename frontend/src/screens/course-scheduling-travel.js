@@ -171,6 +171,7 @@ export function createRouteClient({
 
   const request = (origin, destination, context = {}) => {
     planningPerfCount('travelRequests');
+    planningPerfCount('routeCacheRequests');
     if (signal?.aborted) return Promise.reject(cancelledError());
     if (!text(origin) || !text(destination)) return Promise.resolve(null);
     const normalizedContext = normalizedRouteContext(context);
