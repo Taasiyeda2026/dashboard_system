@@ -348,6 +348,15 @@ test('three flexible same-school activities consolidate to one weekly workday wh
         ac: a && cc ? schoolPackingOptionsConflict(a, cc) : null,
         bc: b && cc ? schoolPackingOptionsConflict(b, cc) : null
       }));
+      console.error('SCHOOL_FIRST_FILTER', JSON.stringify(
+        group.movableRows.map((row) => (row.packingOptions || []).slice(0, 12).map((option) => ({
+          startDate: option.startDate,
+          startTime: option.startTime,
+          routeVerified: option.routeVerified,
+          days: [...new Set((option.meetings || []).map((meeting) => new Date(`${meeting.date}T12:00:00Z`).getUTCDay()))],
+          signature: (option.meetings || []).map((meeting) => `${meeting.date}|${meeting.start_time}|${meeting.end_time}`).join(';')
+        })))
+      ));
     }
     console.error('SCHOOL_FIRST_ROWS', JSON.stringify((error?.rows || []).filter((row) => row.courseId?.startsWith('packed-flex-')).map((row) => ({
       courseId: row.courseId,
