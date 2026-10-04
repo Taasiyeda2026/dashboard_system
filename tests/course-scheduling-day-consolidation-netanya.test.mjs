@@ -304,7 +304,13 @@ test('three flexible same-school activities consolidate to one weekly workday wh
       instructorEmpId: row.instructorEmpId,
       packingStatus: row.schoolPlanning?.packingStatus,
       minimumFeasibleWeekdays: row.schoolPlanning?.minimumFeasibleWeekdays,
-      packingOptions: (row.packingOptions || []).map((option) => [option.startDate, option.startTime, option.endTime, option.instructorEmpId])
+      packingOptions: (row.packingOptions || []).map((option) => [
+        option.startDate,
+        option.startTime,
+        option.endTime,
+        option.instructorEmpId,
+        (option.meetings || []).map((meeting) => [meeting.date, meeting.start_time, meeting.end_time, meeting.substituteEmpId || ''])
+      ])
     }))));
     throw error;
   }
