@@ -445,6 +445,44 @@ export async function upgradeSharedPlanningContextFingerprint({
   return data || null;
 }
 
+export async function saveSharedPlanningIncrementalSnapshot({
+  periodKey = 'year',
+  district = '',
+  engineVersion = '',
+  dataFingerprint = '',
+  contextFingerprint = '',
+  rows = [],
+  removedActivityIds = [],
+  activities = [],
+  expectedRevision = null
+} = {}) {
+  const activityById = new Map((activities || []).map((activity) => [idOf(activity), activity]));
+  const payloadRows = (rows || []).map((row) => {
+    const activityId = text(row?.courseId);
+    const activity = activityById.get(activityId);
+    return {
+      activityId,
+      row,
+      activityUpdatedAt: activityVersion(activity) || null
+    };
+  }).filter((item) => item.activityId);
+
+  const { data, error } = await supabase.rpc('save_scheduling_planning_incremental_snapshot', {
+    p_period_key: text(periodKey) || 'year',
+    p_district: text(district),
+    p_engine_version: text(engineVersion),
+    p_data_fingerprint: text(dataFingerprint),
+    p_context_fingerprint: text(contextFingerprint),
+    p_rows: payloadRows,
+    p_removed_activity_ids: [...new Set((removedActivityIds || []).map(text).filter(Boolean))],
+    p_expected_revision: expectedRevision == null
+      ? null
+      : (Number.isFinite(Number(expectedRevision)) ? Number(expectedRevision) : null)
+  });
+  if (error) throw error;
+  return data || null;
+}
+
 export async function saveSharedPlanningSnapshot({
   periodKey = 'year',
   district = '',
