@@ -97,7 +97,7 @@ test('Legacy Zoom data remains normalized while the current UI removes Zoom from
   assert.match(reportsSource, /ONLINE_REPORT_TYPE, OPERATIONS_REPORT_TYPE/);
   assert.match(reportsSource, /isOperations \? 'פרטי תפעול \*' : 'שם פעילות'/);
   assert.match(reportsSource, /kmField\.input\.disabled = true/);
-  assert.match(reportsSource, /roundtrip_km:\s*isZoom \? 0/);
+  assert.match(reportsSource, /roundtrip_km:\s*isZoom \|\| isOnlineTraining \? 0/);
 
   assert.match(trainingRuntimeSource, /const ZOOM_LABEL = 'זום'/);
   assert.match(trainingRuntimeSource, /option\.value === 'online'/);
