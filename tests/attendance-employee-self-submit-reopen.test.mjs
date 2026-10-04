@@ -75,8 +75,8 @@ test('admin submit-on-behalf is disabled for signed-in application users', () =>
 
 test('dashboard runtime exposes one-click reopen without a reason prompt', () => {
   assert.match(runtime, /פתח לעובד להשלמה ואישור/);
-  assert.match(runtime, /טרם אושר על ידי העובד/);
-  assert.match(runtime, /פתוח לעובד להשלמה ואישור/);
+  const adminPatch = runtime.split('async function patchAdminStandalone')[1].split('function managerMonthKey')[0];
+  assert.doesNotMatch(adminPatch, /טרם אושר על ידי העובד|פתוח לעובד להשלמה ואישור|setStatusPill/);
   assert.match(runtime, /✓ המדריך אישר · ממתין לבקרת מנהל/);
   assert.match(runtime, /טרם אושר על ידי המדריך/);
   assert.match(runtime, /adminReopenAttendanceMonthForCorrection/);
@@ -85,7 +85,8 @@ test('dashboard runtime exposes one-click reopen without a reason prompt', () =>
   assert.doesNotMatch(runtime, /יש להזין סיבה/);
   assert.match(marker, /attendance-self-submit-reopen-runtime\.js\?v=20261004-employee-self-submit-v2/);
   assert.match(marker, /attendance-employee-self-submit-20261004-v2/);
-  assert.match(dashboardSw, /const CACHE_VERSION = 1883;/);
+  const dashboardCacheVersion = Number(dashboardSw.match(/const CACHE_VERSION = (\d+);/)?.[1]);
+  assert.ok(dashboardCacheVersion >= 1887);
 });
 
 test('attendance app cache version still carries the reopened-month gate to instructors', () => {

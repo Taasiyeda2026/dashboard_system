@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 
 const admin = await readFile(new URL('../frontend/src/admin-attendance-standalone.js', import.meta.url), 'utf8');
 const api = await readFile(new URL('../frontend/src/api.js', import.meta.url), 'utf8');
+const reopenRuntime = await readFile(new URL('../frontend/src/attendance-self-submit-reopen-runtime.js', import.meta.url), 'utf8');
 const migration = await readFile(
   new URL('../supabase/migrations/20261004205500_admin_attendance_payroll_dispatch.sql', import.meta.url),
   'utf8'
@@ -20,6 +21,9 @@ test('admin attendance overview keeps missing approvals visually empty and hides
   assert.doesNotMatch(admin, /קיים · \$\{reportCount\} דיווחים/);
   assert.match(admin, /monthMode\(monthKey\)\.key === 'closed' && !reportCount/);
   assert.match(admin, /<th>אישור אדמין<\/th>/);
+  const adminPatch = reopenRuntime.split('async function patchAdminStandalone')[1].split('function managerMonthKey')[0];
+  assert.doesNotMatch(adminPatch, /setStatusPill/);
+  assert.match(adminPatch, /data-admin-attendance-open-for-employee/);
 });
 
 test('admin attendance uses short operational statuses and exposes approval timestamps as details', () => {
