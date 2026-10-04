@@ -27,6 +27,7 @@ function mergeActivityContactMeta(row = {}, metaByRowId = new Map()) {
     contact_name: text(meta.contact_name) || text(row.contact_name),
     contact_phone: text(meta.contact_phone) || text(row.contact_phone),
     contact_email: text(meta.contact_email) || text(row.contact_email),
+    activity_manager: text(meta.activity_manager) || text(row.activity_manager),
     activity_domain: text(meta.activity_domain) || text(row.activity_domain),
     israa_shared: meta.israa_shared ?? row.israa_shared ?? true
   };
@@ -37,7 +38,7 @@ async function readActivityContactMetadata(rows = []) {
   if (!rowIds.length) return new Map();
   const { data, error } = await supabase
     .from('activities')
-    .select('row_id,school_contact_id,contact_name,contact_phone,contact_email,activity_domain,israa_shared')
+    .select('row_id,school_contact_id,contact_name,contact_phone,contact_email,activity_manager,activity_domain,israa_shared')
     .in('row_id', rowIds);
   if (error) throw error;
   return new Map((Array.isArray(data) ? data : []).map((row) => [text(row.row_id), row]));
