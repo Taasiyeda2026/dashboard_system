@@ -4829,6 +4829,7 @@ export async function buildDynamicCoursePlan({
   existingRows = [],
   targetCourseIds = null,
   optimizationOnlyCourseIds = null,
+  upgradeOptimizationScopes = null,
   onProgress = null,
   signal = null,
   checkpoint = createPlanningCheckpoint({ signal }),
@@ -4903,6 +4904,27 @@ export async function buildDynamicCoursePlan({
   const optimizationOnlyIds = Array.isArray(optimizationOnlyCourseIds)
     ? new Set(optimizationOnlyCourseIds.map((value) => text(value)).filter(Boolean))
     : null;
+  const upgradeSchoolPackingIds = upgradeOptimizationScopes
+    ? new Set((upgradeOptimizationScopes.schoolPackingCourseIds || []).map(text).filter(Boolean))
+    : null;
+  const upgradeRecruitmentRecoveryIds = upgradeOptimizationScopes
+    ? new Set((upgradeOptimizationScopes.recruitmentRecoveryCourseIds || []).map(text).filter(Boolean))
+    : null;
+  const upgradeWorkdayConsolidationIds = upgradeOptimizationScopes
+    ? new Set((upgradeOptimizationScopes.workdayConsolidationCourseIds || []).map(text).filter(Boolean))
+    : null;
+  const withIncrementalIds = (upgradeIds) => incrementalIds === null
+    ? null
+    : new Set([...incrementalIds, ...(upgradeIds || [])]);
+  const schoolPackingTargetIds = withIncrementalIds(upgradeSchoolPackingIds);
+  const workdayConsolidationTargetIds = withIncrementalIds(upgradeWorkdayConsolidationIds);
+  const gapCompactionTargetIds = incrementalIds === null
+    ? null
+    : new Set([
+        ...incrementalIds,
+        ...(upgradeSchoolPackingIds || []),
+        ...(upgradeWorkdayConsolidationIds || [])
+      ]);
   const fixedUnassigned = [];
   const missingSchedule = [];
 
@@ -4931,7 +4953,8 @@ export async function buildDynamicCoursePlan({
       rememberVirtualPlan(virtual);
       continue;
     }
-    if (incrementalIds?.has(activityId) && text(existing?.kind) === 'recruitment') {
+    const upgradeRecruitmentTarget = upgradeRecruitmentRecoveryIds?.has(activityId) === true;
+    if ((incrementalIds?.has(activityId) || upgradeRecruitmentTarget) && text(existing?.kind) === 'recruitment') {
       const rescue = recruitmentRescueProbe({
         row: existing,
         activity,
@@ -4958,7 +4981,8 @@ export async function buildDynamicCoursePlan({
       recruitmentRescueById.set(activityId, rescue);
     }
 
-    if (incrementalIds && !incrementalIds.has(activityId)) {
+    const upgradeRecruitmentRescue = upgradeRecruitmentTarget && recruitmentRescueById.has(activityId);
+    if (incrementalIds && !incrementalIds.has(activityId) && !upgradeRecruitmentRescue) {
       const existing = existingById.get(activityId);
       if (existing) {
         const reused = { ...existing, schoolId: text(existing.schoolId || activity.school_id), planningLocked: false };
@@ -5031,8 +5055,9 @@ export async function buildDynamicCoursePlan({
 
   for (const item of queue) {
     await checkpoint();
-    planningPerfCount('activitiesComputed');
     const { activity, type, activityPeriodKey } = item;
+    if (!incrementalIds || incrementalIds.has(idOf(activity))) planningPerfCount('activitiesComputed');
+    else planningPerfCount('upgradeActivitiesComputed');
     const currentContext = currentContextActivities;
     const activitySchoolId = text(activity?.school_id);
     const useIndependentSchoolCandidatePool = type !== 'fixed'
@@ -5320,19 +5345,19 @@ export async function buildDynamicCoursePlan({
   }
 
   if (!_repairPass) {
-    if (!optimizationOnlyIds) {
+    if (!optimizationOnlyIds || upgradeOptimizationScopes) {
       optimizeSchoolDayPackingPass({
         rowsById,
         activities: targets,
-        targetCourseIds: incrementalIds ? [...incrementalIds] : null,
+        targetCourseIds: schoolPackingTargetIds ? [...schoolPackingTargetIds] : null,
         beamWidth: 96,
         routeClient
       });
       await report('אריזת בתי ספר הושלמה', rowsById.size, rowsById.size, '', null, [...rowsById.values()]);
     }
-    if (!optimizationOnlyIds) await consolidateInstructorWorkdaysPass({
+    if (!optimizationOnlyIds || upgradeOptimizationScopes) await consolidateInstructorWorkdaysPass({
       rowsById,
-      targetCourseIds: incrementalIds ? [...incrementalIds] : null,
+      targetCourseIds: workdayConsolidationTargetIds ? [...workdayConsolidationTargetIds] : null,
       targets,
       catalog,
       instructors,
@@ -5354,14 +5379,14 @@ export async function buildDynamicCoursePlan({
       },
       report
     });
-    if (!optimizationOnlyIds) {
+    if (!optimizationOnlyIds || upgradeOptimizationScopes) {
       await report('ריכוז ימי עבודה הושלם', rowsById.size, rowsById.size, '', null, [...rowsById.values()]);
     }
     await compactInstructorDayGapsPass({
       rowsById,
       targetCourseIds: optimizationOnlyIds
         ? [...optimizationOnlyIds]
-        : (incrementalIds ? [...incrementalIds] : null),
+        : (gapCompactionTargetIds ? [...gapCompactionTargetIds] : null),
       targets,
       catalog,
       instructors,
@@ -5419,6 +5444,7 @@ export async function buildDynamicCoursePlan({
         existingRows: rows,
         targetCourseIds: repairIds,
         optimizationOnlyCourseIds: null,
+        upgradeOptimizationScopes: null,
         onProgress: typeof onProgress === 'function'
           ? (progress) => onProgress({ ...progress, phase: `תיקון מקומי · ${progress.phase}` })
           : null,

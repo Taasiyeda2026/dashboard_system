@@ -960,6 +960,67 @@ test('incremental recruitment rows use fast rescue instead of rebuilding deep sc
   assert.match(source, /fastRecruitmentRescue: true/);
 });
 
+test('v28 upgrade rescues saved recruitment with existing staff without a general base rebuild', async () => {
+  const activity = {
+    ...baseCourse,
+    row_id: 'rescue-upgrade',
+    school_id: 'rescue-school',
+    school_address: 'בית ספר יעד',
+    sessions: 1
+  };
+  const existingRecruitment = {
+    courseId: 'rescue-upgrade',
+    schoolId: 'rescue-school',
+    kind: 'recruitment',
+    requiredLanguage: 'he',
+    requiredGender: 'any',
+    scheduleOptions: [{
+      startDate: '2026-10-12',
+      endDate: '2026-10-12',
+      startTime: '10:00',
+      endTime: '11:30',
+      meetings: [{ date: '2026-10-12', start_time: '10:00', end_time: '11:30' }]
+    }]
+  };
+  const rescueRouteClient = {
+    googleCalls: 0,
+    cacheHits: 0,
+    unavailableReason: '',
+    peek: () => ({ distance_km: 5, duration_minutes: 10 }),
+    request: async () => ({ calculated: true, distance_km: 5, duration_minutes: 10 })
+  };
+  const phases = [];
+  const result = await buildDynamicCoursePlan({
+    activities: [activity],
+    instructors: [{ emp_id: '1', full_name: 'מדריך קיים', active: 'yes', address: 'בית' }],
+    profiles: { 1: { emp_id: '1', gender: 'male', instruction_languages: ['he'] } },
+    rules: { 1: [{ emp_id: '1', weekday: 1, available: true, start_time: '08:00', end_time: '16:00' }] },
+    exceptions: {},
+    schoolCalendar: [],
+    catalog: [{ activity_name: activity.activity_name, meetings_count: 1, hours_count: 1.5 }],
+    today: '2026-10-01',
+    periodKey: 'year',
+    routeClient: rescueRouteClient,
+    existingRows: [existingRecruitment],
+    targetCourseIds: [],
+    upgradeOptimizationScopes: {
+      schoolPackingCourseIds: [],
+      recruitmentRecoveryCourseIds: ['rescue-upgrade'],
+      workdayConsolidationCourseIds: []
+    },
+    allowGlobalRepair: false,
+    planningProfile: 'fast',
+    onProgress: async ({ phase }) => phases.push(phase)
+  });
+
+  const row = result.rows.find((item) => item.courseId === 'rescue-upgrade');
+  assert.equal(row.kind, 'proposal');
+  assert.equal(row.instructorEmpId, '1');
+  assert.equal(row.startDate, '2026-10-12');
+  assert.ok(phases.includes('בדיקת הצלה מהירה מגיוס'));
+  assert.ok(!phases.includes('מיצוי צוות קיים לפני גיוס'), 'upgrade rescue must not fall into the deep base-planning path');
+});
+
 test('full work plan coverage accounts for team recruitment and unresolved activities', () => {
   const rows = [
     { courseId: 'team', kind: 'proposal', instructorEmpId: '1', instructorName: 'א', startDate: '2026-10-01' },

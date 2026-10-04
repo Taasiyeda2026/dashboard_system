@@ -3,7 +3,11 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
 import { optimizeSchoolDayPackingPass } from '../frontend/src/screens/course-scheduling-planning.js';
-import { planningEngineUpgradeAffectedCourseIds } from '../frontend/src/screens/course-scheduling-planning-store.js';
+import {
+  planningEngineUpgradeAffectedCourseIds,
+  planningEngineUpgradeOptimizationScopes,
+  planningEngineUpgradeExecutionScopes
+} from '../frontend/src/screens/course-scheduling-planning-store.js';
 
 function option(emp, date, start, end) {
   return {
@@ -279,6 +283,7 @@ test('v27 to v28 scopes school bundles, singleton reassignment and recruitment r
       { activityId: 'candidate-day', row: { courseId: 'candidate-day', schoolId: 's3', kind: 'live', instructorEmpId: 'b', meetings: [{ date: '2026-11-05' }] } },
       { activityId: 'unaffected', row: { courseId: 'unaffected', schoolId: 's4', kind: 'proposal', instructorEmpId: 'b', meetings: [{ date: '2026-11-12' }] } },
       { activityId: 'dated', row: { courseId: 'dated', schoolId: 's1', kind: 'proposal', schoolDateAnchored: true } },
+      { activityId: 'source-date', row: { courseId: 'source-date', schoolId: 's1', kind: 'proposal', instructorEmpId: 'a', meetings: [{ date: '2026-11-20' }] } },
       { activityId: 'locked', lockedOption: { instructorEmpId: '1' }, row: { courseId: 'locked', schoolId: 's1', kind: 'proposal' } },
       { activityId: 'planning-locked', row: { courseId: 'planning-locked', schoolId: 's1', kind: 'proposal', planningLocked: true } },
       { activityId: 'live', row: { courseId: 'live', schoolId: 's1', kind: 'live' } }
@@ -286,7 +291,7 @@ test('v27 to v28 scopes school bundles, singleton reassignment and recruitment r
   };
   const ids = planningEngineUpgradeAffectedCourseIds({
     shared,
-    activities: [],
+    activities: [{ row_id: 'source-date', school_id: 's1', start_date: '2026-11-20' }],
     storedEngineVersion: 'planning-v27-20261004-school-first-economic-alternatives-self-invalidation',
     currentEngineVersion: 'planning-v28-20261004-anchor-safe-global-reassignment-self-invalidation'
   });
@@ -332,6 +337,61 @@ test('v28 upgrade keeps an unaffected singleton proposal on its saved snapshot',
     currentEngineVersion: 'planning-v28-20261004-anchor-safe-global-reassignment-self-invalidation'
   });
   assert.deepEqual(ids, []);
+});
+
+test('v28 execution keeps ordinary dirty rows out of the engine-upgrade base queue', () => {
+  const engineUpgradeAffectedIds = Array.from({ length: 136 }, (_, index) => `upgrade-${index}`);
+  const scopes = planningEngineUpgradeExecutionScopes({
+    regularAffectedIds: ['actually-dirty'],
+    engineUpgradeAffectedIds,
+    storedEngineVersion: 'planning-v27-20261004-school-first-economic-alternatives-self-invalidation',
+    currentEngineVersion: 'planning-v28-20261004-anchor-safe-global-reassignment-self-invalidation'
+  });
+  assert.deepEqual(scopes.baseRecalculationIds, ['actually-dirty']);
+  assert.equal(scopes.upgradeOptimizationIds.length, 136);
+  assert.equal(scopes.affectedIds.length, 137);
+  assert.equal(scopes.v28OptimizationUpgrade, true);
+});
+
+test('v28 optimization keeps school packing, recruitment rescue and workday reassignment in separate scopes', () => {
+  const shared = { rows: [
+    { activityId: 'pack-a', row: { courseId: 'pack-a', schoolId: 'pack', kind: 'proposal', instructorEmpId: 'a', meetings: [{ date: '2026-11-02' }] } },
+    { activityId: 'pack-b', row: { courseId: 'pack-b', schoolId: 'pack', kind: 'proposal', instructorEmpId: 'a', meetings: [{ date: '2026-11-02' }] } },
+    { activityId: 'rescue', row: { courseId: 'rescue', schoolId: 'rescue-school', kind: 'recruitment', scheduleOptions: [{ meetings: [{ date: '2026-11-03', start_time: '10:00', end_time: '11:00' }] }] } },
+    { activityId: 'reassign', row: { courseId: 'reassign', schoolId: 'single', kind: 'proposal', instructorEmpId: 'a', meetings: [{ date: '2026-11-04' }] } },
+    { activityId: 'open-day', row: { courseId: 'open-day', schoolId: 'live', kind: 'live', instructorEmpId: 'b', meetings: [{ date: '2026-11-05' }] } }
+  ] };
+  const scopes = planningEngineUpgradeOptimizationScopes({
+    shared,
+    storedEngineVersion: 'planning-v27-20261004-school-first-economic-alternatives-self-invalidation',
+    currentEngineVersion: 'planning-v28-20261004-anchor-safe-global-reassignment-self-invalidation'
+  });
+  assert.deepEqual(new Set(scopes.schoolPackingCourseIds), new Set(['pack-a', 'pack-b']));
+  assert.deepEqual(scopes.recruitmentRecoveryCourseIds, ['rescue']);
+  assert.ok(scopes.workdayConsolidationCourseIds.includes('reassign'));
+  assert.ok(!scopes.workdayConsolidationCourseIds.includes('rescue'));
+});
+
+test('a workspace that skipped v27 uses base recalculation instead of v28 optimization-only migration', () => {
+  const shared = { rows: [
+    { activityId: 'proposal', row: { courseId: 'proposal', schoolId: 's1', kind: 'proposal' } },
+    { activityId: 'recruitment', row: { courseId: 'recruitment', schoolId: 's2', kind: 'recruitment' } },
+    { activityId: 'anchored', row: { courseId: 'anchored', schoolId: 's3', kind: 'proposal', schoolDateAnchored: true } }
+  ] };
+  const ids = planningEngineUpgradeAffectedCourseIds({
+    shared,
+    storedEngineVersion: 'planning-v26-20261003-coherent-school-first-self-invalidation',
+    currentEngineVersion: 'planning-v28-20261004-anchor-safe-global-reassignment-self-invalidation'
+  });
+  const scopes = planningEngineUpgradeExecutionScopes({
+    engineUpgradeAffectedIds: ids,
+    storedEngineVersion: 'planning-v26-20261003-coherent-school-first-self-invalidation',
+    currentEngineVersion: 'planning-v28-20261004-anchor-safe-global-reassignment-self-invalidation'
+  });
+  assert.deepEqual(new Set(ids), new Set(['proposal', 'recruitment']));
+  assert.deepEqual(new Set(scopes.baseRecalculationIds), new Set(['proposal', 'recruitment']));
+  assert.deepEqual(scopes.upgradeOptimizationIds, []);
+  assert.equal(scopes.v28OptimizationUpgrade, false);
 });
 
 test('v24 to v25 upgrade targets only multi-proposal schools', () => {

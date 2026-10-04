@@ -675,6 +675,97 @@ function planningRecruitmentHasRescueSchedule(row = {}) {
   }));
 }
 
+function planningActivityHasSourceDate(activity = {}) {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(text(activity?.start_date).slice(0, 10))) return true;
+  if ((activity?.meetings || []).some((meeting) => /^\d{4}-\d{2}-\d{2}$/.test(text(meeting?.date).slice(0, 10)))) return true;
+  return Object.entries(activity || {}).some(([key, value]) =>
+    /^date_\d+$/.test(key)
+    && /^\d{4}-\d{2}-\d{2}$/.test(text(value).slice(0, 10))
+  );
+}
+
+export function planningEngineUpgradeOptimizationScopes({
+  shared = {},
+  activities = [],
+  storedEngineVersion = '',
+  currentEngineVersion = ''
+} = {}) {
+  const previous = text(storedEngineVersion);
+  const current = text(currentEngineVersion);
+  const v28FromV27 = current.includes('planning-v28-20261004-anchor-safe-global-reassignment')
+    && previous.includes('planning-v27-20261004-school-first-economic-alternatives');
+  if (!v28FromV27) return null;
+
+  const activityById = new Map((activities || []).map((activity) => [idOf(activity), activity]));
+  const storedRows = (shared?.rows || []).map((entry) => ({ entry, row: entry?.row || {} }));
+  const openDaysByInstructor = new Map();
+  for (const { row } of storedRows) {
+    const empId = text(row?.instructorEmpId);
+    if (!empId) continue;
+    const days = openDaysByInstructor.get(empId) || new Set();
+    for (const day of planningMeetingWeekdays(row)) days.add(day);
+    openDaysByInstructor.set(empId, days);
+  }
+
+  const movableBySchool = new Map();
+  const recruitmentRecoveryIds = new Set();
+  const workdayConsolidationIds = new Set();
+  for (const { entry, row } of storedRows) {
+    const courseId = text(entry?.activityId || row?.courseId);
+    const activity = activityById.get(courseId) || {};
+    const schoolId = text(row?.schoolId || activity?.school_id);
+    if (!courseId || !['proposal', 'recruitment'].includes(text(row?.kind))) continue;
+    if (
+      entry?.lockedOption
+      || row?.planningLocked === true
+      || row?.schoolDateAnchored === true
+      || planningActivityHasSourceDate(activity)
+    ) continue;
+    if (schoolId) {
+      const bucket = movableBySchool.get(schoolId) || [];
+      bucket.push(courseId);
+      movableBySchool.set(schoolId, bucket);
+    }
+
+    if (text(row?.kind) === 'recruitment') {
+      if (planningRecruitmentHasRescueSchedule(row)) recruitmentRecoveryIds.add(courseId);
+      continue;
+    }
+
+    const empId = text(row?.instructorEmpId);
+    const courseDays = planningMeetingWeekdays(row);
+    if (!empId || !courseDays.size) continue;
+    const sameInstructorDaysElsewhere = new Set();
+    for (const { entry: otherEntry, row: other } of storedRows) {
+      const otherCourseId = text(otherEntry?.activityId || other?.courseId);
+      if (otherCourseId === courseId || text(other?.instructorEmpId) !== empId) continue;
+      for (const day of planningMeetingWeekdays(other)) sameInstructorDaysElsewhere.add(day);
+    }
+    const opensOnlyNewDays = [...courseDays].every((day) => !sameInstructorDaysElsewhere.has(day));
+    const hasExistingOpenDay = [...openDaysByInstructor.entries()].some(([candidateEmpId, days]) =>
+      (candidateEmpId !== empId || days.size > courseDays.size)
+      && days.size > 0
+    );
+    if (opensOnlyNewDays && hasExistingOpenDay) workdayConsolidationIds.add(courseId);
+  }
+
+  const schoolPackingIds = new Set();
+  for (const ids of movableBySchool.values()) {
+    if (ids.length >= 2) ids.forEach((courseId) => schoolPackingIds.add(courseId));
+  }
+  const affectedIds = new Set([
+    ...schoolPackingIds,
+    ...recruitmentRecoveryIds,
+    ...workdayConsolidationIds
+  ]);
+  return {
+    affectedIds: [...affectedIds],
+    schoolPackingCourseIds: [...schoolPackingIds],
+    recruitmentRecoveryCourseIds: [...recruitmentRecoveryIds],
+    workdayConsolidationCourseIds: [...workdayConsolidationIds]
+  };
+}
+
 /**
  * Engine upgrades must not silently become national recalculations.
  *
@@ -693,64 +784,28 @@ export function planningEngineUpgradeAffectedCourseIds({
   const current = text(currentEngineVersion);
   if (!previous || !current || previous === current) return [];
 
-  const anchorSafeGlobalReassignmentV28Upgrade = current.includes('planning-v28-20261004-anchor-safe-global-reassignment')
-    && !previous.includes('planning-v28-20261004-anchor-safe-global-reassignment');
-  if (anchorSafeGlobalReassignmentV28Upgrade) {
-    const activityById = new Map((activities || []).map((activity) => [idOf(activity), activity]));
-    const storedRows = (shared?.rows || []).map((entry) => ({ entry, row: entry?.row || {} }));
-    const openDaysByInstructor = new Map();
-    for (const { row } of storedRows) {
-      const empId = text(row?.instructorEmpId);
-      if (!empId) continue;
-      const days = openDaysByInstructor.get(empId) || new Set();
-      for (const day of planningMeetingWeekdays(row)) days.add(day);
-      openDaysByInstructor.set(empId, days);
-    }
-    const movableBySchool = new Map();
-    const affected = new Set();
-    for (const { entry, row } of storedRows) {
-      const courseId = text(entry?.activityId || row?.courseId);
-      const schoolId = text(row?.schoolId || activityById.get(courseId)?.school_id);
-      if (!courseId || !['proposal', 'recruitment'].includes(text(row?.kind))) continue;
-      if (entry?.lockedOption || row?.planningLocked === true || row?.schoolDateAnchored === true) continue;
-      if (schoolId) {
-        const bucket = movableBySchool.get(schoolId) || [];
-        bucket.push(courseId);
-        movableBySchool.set(schoolId, bucket);
-      }
-
-      // Recruitment recovery in v28 starts with the saved schedules. Rows with
-      // no usable schedule cannot enter that cheap probe and are unaffected.
-      if (text(row?.kind) === 'recruitment') {
-        if (planningRecruitmentHasRescueSchedule(row)) affected.add(courseId);
-        continue;
-      }
-
-      // The v28 workday pass can reassign a singleton course across schools.
-      // It only inspects proposals that open a new weekday for their current
-      // instructor, and only when some existing instructor already has an open
-      // workday onto which the course could be consolidated. Hard eligibility
-      // is deliberately left to the engine probe.
-      const empId = text(row?.instructorEmpId);
-      const courseDays = planningMeetingWeekdays(row);
-      if (!empId || !courseDays.size) continue;
-      const sameInstructorDaysElsewhere = new Set();
-      for (const { row: other } of storedRows) {
-        if (text(other?.courseId) === courseId || text(other?.instructorEmpId) !== empId) continue;
-        for (const day of planningMeetingWeekdays(other)) sameInstructorDaysElsewhere.add(day);
-      }
-      const opensOnlyNewDays = [...courseDays].every((day) => !sameInstructorDaysElsewhere.has(day));
-      const hasExistingOpenDay = [...openDaysByInstructor.entries()].some(([candidateEmpId, days]) =>
-        (candidateEmpId !== empId || days.size > courseDays.size)
-        && days.size > 0
-      );
-      if (opensOnlyNewDays && hasExistingOpenDay) affected.add(courseId);
-    }
-    for (const ids of movableBySchool.values()) {
-      if (ids.length >= 2) ids.forEach((courseId) => affected.add(courseId));
-    }
-    return [...affected];
+  const previousMajor = Number(previous.match(/planning-v(\d+)/)?.[1]) || 0;
+  const currentMajor = Number(current.match(/planning-v(\d+)/)?.[1]) || 0;
+  const skippedStructuralUpgrade = currentMajor >= 27 && previousMajor > 0 && previousMajor < 27;
+  if (skippedStructuralUpgrade) {
+    return (shared?.rows || [])
+      .filter((entry) => {
+        const row = entry?.row || {};
+        if (!['proposal', 'recruitment'].includes(text(row?.kind))) return false;
+        if (entry?.lockedOption || row?.planningLocked === true || row?.schoolDateAnchored === true) return false;
+        return !!text(entry?.activityId || row?.courseId);
+      })
+      .map((entry) => text(entry?.activityId || entry?.row?.courseId))
+      .filter(Boolean);
   }
+
+  const v28Scopes = planningEngineUpgradeOptimizationScopes({
+    shared,
+    activities,
+    storedEngineVersion,
+    currentEngineVersion
+  });
+  if (v28Scopes) return v28Scopes.affectedIds;
 
   const schoolFirstEconomicV27Upgrade = current.includes('planning-v27-20261004-school-first-economic-alternatives')
     && !previous.includes('planning-v27-20261004-school-first-economic-alternatives');
@@ -854,6 +909,32 @@ export function planningEngineUpgradeAffectedCourseIds({
     }
   }
   return [...affected];
+}
+
+export function planningEngineUpgradeExecutionScopes({
+  regularAffectedIds = [],
+  engineUpgradeAffectedIds = [],
+  storedEngineVersion = '',
+  currentEngineVersion = ''
+} = {}) {
+  const regular = [...new Set((regularAffectedIds || []).map(text).filter(Boolean))];
+  const upgrade = [...new Set((engineUpgradeAffectedIds || []).map(text).filter(Boolean))];
+  const affectedIds = [...new Set([...regular, ...upgrade])];
+  const previous = text(storedEngineVersion);
+  const current = text(currentEngineVersion);
+  const v28OptimizationUpgrade = current.includes('planning-v28-20261004-anchor-safe-global-reassignment')
+    && previous.includes('planning-v27-20261004-school-first-economic-alternatives');
+
+  // v28 changed optimization passes over an already valid snapshot. Treating
+  // those rows as ordinary dirty activities would regenerate every proposal
+  // before the optimizer even runs. Keep true source/context changes in the
+  // base queue and let the v28 passes operate directly on the saved rows.
+  return {
+    affectedIds,
+    baseRecalculationIds: v28OptimizationUpgrade ? regular : affectedIds,
+    upgradeOptimizationIds: v28OptimizationUpgrade ? upgrade : [],
+    v28OptimizationUpgrade
+  };
 }
 
 export function shouldAutoRefreshPlanning(affectedIds = []) {

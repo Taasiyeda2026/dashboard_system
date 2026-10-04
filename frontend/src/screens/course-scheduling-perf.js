@@ -2,6 +2,7 @@ const COUNTER_KEYS = [
   'preliminaryCalls',
   'scheduleCalls',
   'activitiesComputed',
+  'upgradeActivitiesComputed',
   'candidateEvals',
   'candidateEvaluations',
   'instructorScans',
