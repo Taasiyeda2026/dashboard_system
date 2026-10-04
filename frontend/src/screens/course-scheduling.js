@@ -3382,7 +3382,14 @@ export const courseSchedulingScreen = {
         && !state.courseSchedulingPlanningStale
         && !state.courseSchedulingPlanningError;
       if (alreadyCurrent) return;
-      void runCoursePlanning({ forceFull: false, reuseSnapshot: false });
+      // A normal incremental update already has the authoritative activity row
+      // patched into the live screen data. Reuse it instead of reloading every
+      // scheduling dataset before affectedIds are even evaluated. Session-restored
+      // data is explicitly stale, so that one path still performs a fresh load.
+      const reuseSnapshot = data._is_stale !== true
+        && Array.isArray(data.activities)
+        && data.activities.length > 0;
+      void runCoursePlanning({ forceFull: false, reuseSnapshot });
     });
     root.querySelector('[data-refresh-shared-planning]')?.addEventListener('click', async (event) => {
       if (state.courseSchedulingPlanningLoading) return;
