@@ -92,7 +92,7 @@ test('Course reporting uses the selected date dashboard row and does not add a c
 test('Legacy Zoom data remains normalized while the current UI removes Zoom from activity-type choices', () => {
   assert.match(attendanceServiceSource, /LEGACY_ONLINE_LABEL = 'מקוון'/);
   assert.match(attendanceServiceSource, /ZOOM_LABEL = 'זום'/);
-  assert.match(attendanceServiceSource, /activityType === ZOOM_LABEL \|\| usesPublicTransport/);
+  assert.match(attendanceServiceSource, /activityType === ZOOM_LABEL \|\| onlineTraining \|\| usesPublicTransport/);
 
   assert.match(reportsSource, /ONLINE_REPORT_TYPE, OPERATIONS_REPORT_TYPE/);
   assert.match(reportsSource, /isOperations \? 'פרטי תפעול \*' : 'שם פעילות'/);
