@@ -144,15 +144,22 @@
 }
 
 .app-shell--instructor .portal-activities-desktop th:nth-child(1),
-.app-shell--instructor .portal-activities-desktop td:nth-child(1) { width: 14%; }
+.app-shell--instructor .portal-activities-desktop td:nth-child(1) { width: 12%; }
 .app-shell--instructor .portal-activities-desktop th:nth-child(2),
-.app-shell--instructor .portal-activities-desktop td:nth-child(2) { width: 14%; }
+.app-shell--instructor .portal-activities-desktop td:nth-child(2) { width: 12%; }
 .app-shell--instructor .portal-activities-desktop th:nth-child(3),
-.app-shell--instructor .portal-activities-desktop td:nth-child(3) { width: 24%; }
+.app-shell--instructor .portal-activities-desktop td:nth-child(3) { width: 12%; }
 .app-shell--instructor .portal-activities-desktop th:nth-child(4),
 .app-shell--instructor .portal-activities-desktop td:nth-child(4) { width: 22%; }
 .app-shell--instructor .portal-activities-desktop th:nth-child(5),
-.app-shell--instructor .portal-activities-desktop td:nth-child(5) { width: 26%; }
+.app-shell--instructor .portal-activities-desktop td:nth-child(5) { width: 18%; }
+.app-shell--instructor .portal-activities-desktop th:nth-child(6),
+.app-shell--instructor .portal-activities-desktop td:nth-child(6) { width: 24%; }
+
+.app-shell--instructor .portal-activity-date--past {
+  color: #8a96a3 !important;
+  background: rgba(100, 116, 139, .08);
+}
 
 .app-shell--instructor .portal-activities-mobile {
   display: none;
@@ -552,6 +559,11 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  .app-shell--instructor .portal-activity-card__summary .portal-activity-date--past {
+    border-radius: 5px;
+    padding-inline: 4px;
   }
 
   .app-shell--instructor .route-instructor-calendar .ds-cal-nav {
