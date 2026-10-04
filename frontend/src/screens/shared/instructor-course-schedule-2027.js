@@ -13,7 +13,7 @@ import {
 } from './operations-activity-helpers.js';
 import { getActivityPeriodKey, ACTIVITY_SEASON_SCHOOL_2027 } from './summer-activity.js';
 import { formatDateHeWithWeekday } from './format-date.js';
-import { activityTypeDisplayLabel } from './activity-options.js';
+import { activityManagerDisplayName, activityTypeDisplayLabel } from './activity-options.js';
 
 const PLACEHOLDER_INSTRUCTOR_NAMES = new Set(['ללא מדריך', 'טרם שובץ']);
 
@@ -87,6 +87,7 @@ export function buildWorkScheduleRow(activity) {
     key: buildActivityRowKey(activity),
     name: activityName === 'ללא שם' ? '' : activityName,
     activityType: activityTypeDisplayLabel(rawActivityType) || rawActivityType,
+    manager: activityManagerDisplayName(activity?.activity_manager),
     authority,
     school: schoolName === 'לא משויך' ? '' : cleanActivitySchoolName(schoolName, authority),
     instructorNames: getWorkScheduleInstructorNames(activity),

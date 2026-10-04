@@ -29,24 +29,25 @@ function activityCardHtml(row) {
     <div class="cs-card__details">
       <section class="cs-card__section">
         <h2 class="cs-card__section-title">פרטי הפעילות</h2>
+        ${fieldRowHtml('סוג הפעילות', row.activityType)}
         ${fieldRowHtml('שם הפעילות', row.name)}
-        ${fieldRowHtml('סוג פעילות', row.activityType)}
+        ${fieldRowHtml('מספר מפגשים', String(row.sessionsCount ?? dates.length))}
+        ${fieldRowHtml('מנהל הפעילות', row.manager)}
+      </section>
+      <section class="cs-card__section">
+        <h2 class="cs-card__section-title">בית הספר ופרטי איש קשר</h2>
         ${fieldRowHtml('רשות', row.authority)}
         ${fieldRowHtml('בית ספר', row.school)}
         ${fieldRowHtml('כיתה', row.grade)}
-      </section>
-      <section class="cs-card__section">
-        <h2 class="cs-card__section-title">פרטי איש קשר</h2>
         ${fieldRowHtml('שם איש הקשר', row.contactName)}
         ${fieldRowHtml('טלפון איש הקשר', row.contactPhone)}
       </section>
       <section class="cs-card__section">
-        <h2 class="cs-card__section-title">מועדי הפעילות</h2>
+        <h2 class="cs-card__section-title">פרטים תפעוליים</h2>
         ${fieldRowHtml('יום קבוע', row.weekday)}
         ${fieldRowHtml('שעות', row.timeRange)}
         ${fieldRowHtml('תאריך התחלה', formatDateHe(row.startDate))}
         ${fieldRowHtml('תאריך סיום', formatDateHe(row.endDate))}
-        ${fieldRowHtml('מספר מפגשים', String(row.sessionsCount ?? dates.length))}
       </section>
     </div>
     <section class="cs-card__dates">
