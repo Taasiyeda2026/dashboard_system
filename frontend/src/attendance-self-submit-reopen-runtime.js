@@ -41,9 +41,18 @@ function setAdminMessage(root, message = '', isError = false) {
 
 function setStatusPill(pill, label, cls = '') {
   if (!pill) return;
-  pill.textContent = label;
+  if (text(pill.textContent) !== label) pill.textContent = label;
   pill.classList.remove('is-ok', 'is-pending');
   if (cls) pill.classList.add(cls);
+}
+
+function adminDomSignature(root, monthKey, rows) {
+  return `${monthKey}|${rows.map((row) => {
+    const id = text(row.dataset.adminAttendanceRow);
+    const status = text(row.querySelector('td:nth-child(7) .admin-attendance-status')?.textContent);
+    const hasOpen = Boolean(row.querySelector('[data-admin-attendance-open-for-employee]'));
+    return `${id}:${status}:${hasOpen ? 1 : 0}`;
+  }).join('|')}`;
 }
 
 async function patchAdminStandalone(root) {
@@ -54,8 +63,8 @@ async function patchAdminStandalone(root) {
   const ids = rows.map((row) => text(row.dataset.adminAttendanceRow)).filter(Boolean);
   if (!ids.length) return;
 
-  const signature = `${monthKey}|${ids.join(',')}`;
-  if (root.dataset[PATCH_MARK] === signature) return;
+  const beforeSignature = adminDomSignature(root, monthKey, rows);
+  if (root.dataset[PATCH_MARK] === beforeSignature) return;
 
   let statuses;
   try {
@@ -73,14 +82,15 @@ async function patchAdminStandalone(root) {
     const submissionStatus = text(workflow.attendance_submission_status || 'open');
     const statusPill = row.querySelector('td:nth-child(7) .admin-attendance-status');
     const actions = row.querySelector('.admin-attendance-actions');
-    actions?.querySelector('[data-admin-attendance-open-for-employee]')?.remove();
+    const existingOpen = actions?.querySelector('[data-admin-attendance-open-for-employee]');
 
     if (workflowStatus === 'not_submitted') {
       if (submissionStatus === 'reopened') {
         setStatusPill(statusPill, 'פתוח לעובד להשלמה ואישור', 'is-pending');
+        existingOpen?.remove();
       } else if (monthKey < currentMonthKey()) {
         setStatusPill(statusPill, 'טרם אושר על ידי העובד');
-        if (actions) {
+        if (actions && !existingOpen) {
           actions.insertAdjacentHTML(
             'afterbegin',
             `<button type="button" class="is-primary" data-admin-attendance-open-for-employee="${empId}">פתח לעובד להשלמה ואישור</button>`
@@ -88,10 +98,13 @@ async function patchAdminStandalone(root) {
         }
       } else {
         setStatusPill(statusPill, 'פתוח לדיווח');
+        existingOpen?.remove();
       }
+    } else {
+      existingOpen?.remove();
     }
   }
-  root.dataset[PATCH_MARK] = signature;
+  root.dataset[PATCH_MARK] = adminDomSignature(root, monthKey, rows);
 }
 
 function managerMonthKey(table) {
@@ -108,6 +121,14 @@ function managerStatusHtml(label, cls = 'is-pending') {
   return `<span class="manager-workspace-status ${cls}">${label}</span>`;
 }
 
+function managerDomSignature(table, monthKey, rows) {
+  return `${monthKey}|${rows.map((row) => {
+    const id = text(row.querySelector('[data-manager-attendance-open-employee]')?.dataset.managerAttendanceOpenEmployee);
+    const status = text(row.querySelector('td[data-label="סטטוס אישור"]')?.textContent);
+    return `${id}:${status}`;
+  }).join('|')}`;
+}
+
 async function patchManagerAttendanceTable(table) {
   if (!table || !table.isConnected) return;
   const monthKey = managerMonthKey(table);
@@ -115,8 +136,8 @@ async function patchManagerAttendanceTable(table) {
   const rows = [...table.querySelectorAll('tbody tr')];
   const ids = rows.map((row) => text(row.querySelector('[data-manager-attendance-open-employee]')?.dataset.managerAttendanceOpenEmployee)).filter(Boolean);
   if (!ids.length) return;
-  const signature = `${monthKey}|${ids.join(',')}`;
-  if (table.dataset[PATCH_MARK] === signature) return;
+  const beforeSignature = managerDomSignature(table, monthKey, rows);
+  if (table.dataset[PATCH_MARK] === beforeSignature) return;
 
   let statuses;
   try {
@@ -138,25 +159,27 @@ async function patchManagerAttendanceTable(table) {
     if (!statusCell) continue;
 
     const hasReport = managerRowHasReport(row);
+    let nextHtml = '';
     if (workflowStatus === 'approved') {
-      statusCell.innerHTML = managerStatusHtml('✓ אושר סופית', 'is-ok');
+      nextHtml = managerStatusHtml('✓ אושר סופית', 'is-ok');
       employeeApproved += 1;
     } else if (workflowStatus === 'manager_approved') {
-      statusCell.innerHTML = managerStatusHtml('✓ אושר על ידי המנהל', 'is-ok');
+      nextHtml = managerStatusHtml('✓ אושר על ידי המנהל', 'is-ok');
       employeeApproved += 1;
     } else if (workflowStatus === 'submitted') {
       const approvedAt = workflow.submitted_at ? new Date(workflow.submitted_at).toLocaleDateString('he-IL') : '';
-      statusCell.innerHTML = `${managerStatusHtml('✓ המדריך אישר · ממתין לבקרת מנהל', 'is-ok')}${approvedAt ? `<small>${approvedAt}</small>` : ''}`;
+      nextHtml = `${managerStatusHtml('✓ המדריך אישר · ממתין לבקרת מנהל', 'is-ok')}${approvedAt ? `<small>${approvedAt}</small>` : ''}`;
       employeeApproved += 1;
     } else if (submissionStatus === 'reopened') {
-      statusCell.innerHTML = managerStatusHtml('פתוח למדריך להשלמה ואישור');
+      nextHtml = managerStatusHtml('פתוח למדריך להשלמה ואישור');
       if (hasReport) awaitingEmployee += 1;
     } else if (hasReport) {
-      statusCell.innerHTML = managerStatusHtml('טרם אושר על ידי המדריך');
+      nextHtml = managerStatusHtml('טרם אושר על ידי המדריך');
       awaitingEmployee += 1;
     } else {
-      statusCell.innerHTML = '<span class="manager-workspace-status is-muted">אין דיווח</span>';
+      nextHtml = '<span class="manager-workspace-status is-muted">אין דיווח</span>';
     }
+    if (statusCell.innerHTML !== nextHtml) statusCell.innerHTML = nextHtml;
   }
 
   const strip = table.closest('[data-manager-workspace-view]')?.querySelector('.manager-workspace-alert-strip');
@@ -164,11 +187,11 @@ async function patchManagerAttendanceTable(table) {
     const label = text(article.querySelector('span')?.textContent);
     const value = article.querySelector('strong');
     if (!value) return;
-    if (label === 'טרם אושר ע״י העובד') value.textContent = String(awaitingEmployee);
-    if (label === 'אושר ע״י העובד') value.textContent = String(employeeApproved);
+    if (label === 'טרם אושר ע״י העובד' && value.textContent !== String(awaitingEmployee)) value.textContent = String(awaitingEmployee);
+    if (label === 'אושר ע״י העובד' && value.textContent !== String(employeeApproved)) value.textContent = String(employeeApproved);
   });
 
-  table.dataset[PATCH_MARK] = signature;
+  table.dataset[PATCH_MARK] = managerDomSignature(table, monthKey, rows);
 }
 
 async function patchVisibleAttendance() {
