@@ -9,7 +9,7 @@ Related docs (do not treat as overrides of this map):
 
 If this map and the code disagree, **the code wins**. Update this file after any material scheduling change.
 
-**Engine version observed while writing:** `PLANNING_ENGINE_VERSION = planning-v27-20261004-school-first-economic-alternatives-self-invalidation` in `frontend/src/screens/course-scheduling-planning.js`.
+**Engine version observed while writing:** `PLANNING_ENGINE_VERSION = planning-v28-20261004-anchor-safe-global-reassignment-self-invalidation` in `frontend/src/screens/course-scheduling-planning.js`.
 
 ---
 
@@ -213,6 +213,8 @@ The solver enumerates weekday sets from the anchor weekdays outward, smallest se
 Each group writes `schoolPlanning` diagnostics (`actualWeekdays`, `minimumFeasibleWeekdays`, `avoidableSplitCount`, anchors, `packingStatus`, and up to three `alternatives` with school-day/instructor/recruitment summaries). `planningSchoolDayMetrics` exposes aggregate school counts and avoidable splits, and plan comparison ranks fewer avoidable school splits before weighted secondary objectives once coverage/recruitment tie.
 
 Incremental invalidation is school-aware: `expandPlanningAffectedIdsBySchool` adds only movable siblings with the same real `school_id`, in addition to existing instructor/date dependents. Lock/unlock marks those siblings dirty around the new anchor through the existing batched invalidation RPC; it never expands a point mutation to the national workspace. The v23→v24 upgrade likewise targets only multi-proposal school groups, deriving missing legacy `schoolId` values from current activities.
+
+Engine-version invalidation is capability-specific rather than national. In particular, the v27→v28 global-reassignment change targets only schools with at least two movable proposal/recruitment rows; single rows and live/fixed/locked/date-anchored rows keep their valid snapshot. Incremental runs never bulk-preload `scheduling_travel_cache` and never persist server checkpoints; exact route requests use `scheduling-route`, whose durable cache is checked server-side. Bulk route preload and resumable cumulative checkpoints are reserved for the explicit full maintenance action.
 
 ### Engine path — `calculateCourseSchedule` / block-first (`course-scheduling-engine.js`)
 

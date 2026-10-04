@@ -812,6 +812,7 @@ function evaluateCourseCandidates({
     const cacheKey = evaluationCache ? preliminaryCandidateCacheKey(course, instructor, input) : '';
     if (cacheKey && evaluationCache.has(cacheKey)) return evaluationCache.get(cacheKey);
     planningPerfCount('candidateEvals');
+    planningPerfCount('candidateEvaluations');
     const evaluated = evaluateCandidate({
       course,
       instructor,

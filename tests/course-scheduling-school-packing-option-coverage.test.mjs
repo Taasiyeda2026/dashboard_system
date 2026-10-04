@@ -270,11 +270,12 @@ test('v27 upgrade rebuilds both flexible proposals and recruitment rows for scho
   assert.deepEqual(new Set(ids), new Set(['a', 'b']));
 });
 
-test('v28 upgrade re-evaluates flexible proposals and recruitment without touching planning anchors', () => {
+test('v27 to v28 re-evaluates only multi-row school bundles without touching anchors', () => {
   const shared = {
     rows: [
       { activityId: 'proposal', row: { courseId: 'proposal', schoolId: 's1', kind: 'proposal' } },
       { activityId: 'recruitment', row: { courseId: 'recruitment', schoolId: 's1', kind: 'recruitment' } },
+      { activityId: 'single', row: { courseId: 'single', schoolId: 's2', kind: 'proposal' } },
       { activityId: 'dated', row: { courseId: 'dated', schoolId: 's1', kind: 'proposal', schoolDateAnchored: true } },
       { activityId: 'locked', lockedOption: { instructorEmpId: '1' }, row: { courseId: 'locked', schoolId: 's1', kind: 'proposal' } },
       { activityId: 'planning-locked', row: { courseId: 'planning-locked', schoolId: 's1', kind: 'proposal', planningLocked: true } },

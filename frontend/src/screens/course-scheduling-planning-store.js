@@ -671,15 +671,22 @@ export function planningEngineUpgradeAffectedCourseIds({
   const anchorSafeGlobalReassignmentV28Upgrade = current.includes('planning-v28-20261004-anchor-safe-global-reassignment')
     && !previous.includes('planning-v28-20261004-anchor-safe-global-reassignment');
   if (anchorSafeGlobalReassignmentV28Upgrade) {
-    return (shared?.rows || [])
-      .filter((entry) => {
-        const row = entry?.row || {};
-        if (!['proposal', 'recruitment'].includes(text(row?.kind))) return false;
-        if (entry?.lockedOption || row?.planningLocked === true || row?.schoolDateAnchored === true) return false;
-        return !!text(entry?.activityId || row?.courseId);
-      })
-      .map((entry) => text(entry?.activityId || entry?.row?.courseId))
-      .filter(Boolean);
+    const activityById = new Map((activities || []).map((activity) => [idOf(activity), activity]));
+    const movableBySchool = new Map();
+    for (const entry of shared?.rows || []) {
+      const row = entry?.row || {};
+      const courseId = text(entry?.activityId || row?.courseId);
+      const schoolId = text(row?.schoolId || activityById.get(courseId)?.school_id);
+      if (!courseId || !schoolId || !['proposal', 'recruitment'].includes(text(row?.kind))) continue;
+      if (entry?.lockedOption || row?.planningLocked === true || row?.schoolDateAnchored === true) continue;
+      const bucket = movableBySchool.get(schoolId) || [];
+      bucket.push(courseId);
+      movableBySchool.set(schoolId, bucket);
+    }
+    // v28 changed only the school bundle's global instructor reassignment. A
+    // single movable row has no bundle assignment to improve, so rebuilding it
+    // (and every other national proposal) cannot change the v27 result.
+    return [...movableBySchool.values()].filter((ids) => ids.length >= 2).flat();
   }
 
   const schoolFirstEconomicV27Upgrade = current.includes('planning-v27-20261004-school-first-economic-alternatives')
