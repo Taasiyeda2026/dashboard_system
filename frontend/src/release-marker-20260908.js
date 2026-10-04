@@ -1,11 +1,11 @@
 import { config } from './config.js';
-import './attendance-self-submit-reopen-runtime.js?v=20261004-employee-self-submit-v1';
+import './attendance-self-submit-reopen-runtime.js?v=20261004-employee-self-submit-v2';
 
 const MARKERS = [
   'attendance-manager-ux-system-dialog-20260908-v4-manager-team-strip-stable',
   'instructor-presentations-link-20260915-v1',
   'ui-drawer-close-20260915-v1',
-  'attendance-employee-self-submit-20261004-v1'
+  'attendance-employee-self-submit-20261004-v2'
 ];
 
 for (const marker of MARKERS) {
