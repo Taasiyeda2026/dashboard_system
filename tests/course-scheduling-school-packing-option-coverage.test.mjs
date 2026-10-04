@@ -197,6 +197,61 @@ test('school-first stores several feasible school timetable alternatives instead
   assert.deepEqual(new Set(planning.alternatives.map((alt) => alt.weekdays[0])), new Set([0, 1]));
 });
 
+test('five-row school conflict never leaves overlapping proposals when existing staff cannot cover the full bundle', () => {
+  const ids = ['a', 'b', 'c', 'd', 'e'];
+  const activities = ids.map((row_id) => ({
+    row_id, school_id: 'school-379', school: 'מקיף ערבי', activity_type: 'course'
+  }));
+  const rowsById = new Map(ids.map((courseId) => [courseId, {
+    courseId,
+    schoolId: 'school-379',
+    school: 'מקיף ערבי',
+    courseName: 'בינה מלאכותית',
+    kind: 'proposal',
+    instructorEmpId: '1537',
+    instructorName: 'יארא',
+    startDate: '2026-10-13',
+    endDate: '2026-12-08',
+    startTime: '12:00',
+    endTime: '13:30',
+    meetings: [{ date: '2026-10-13', start_time: '12:00', end_time: '13:30' }],
+    packingOptions: [
+      option('1537', '2026-10-13', '12:00', '13:30'),
+      option('1529', '2026-10-17', '08:00', '09:30'),
+      option('1529', '2026-10-17', '08:30', '10:00')
+    ],
+    scheduleOptions: [
+      { startDate: '2026-10-12', endDate: '2026-12-07', startTime: '10:00', endTime: '11:30', meetings: [{ date: '2026-10-12', start_time: '10:00', end_time: '11:30' }] },
+      { startDate: '2026-10-13', endDate: '2026-12-08', startTime: '12:00', endTime: '13:30', meetings: [{ date: '2026-10-13', start_time: '12:00', end_time: '13:30' }] }
+    ]
+  }]));
+
+  optimizeSchoolDayPackingPass({ rowsById, activities });
+  const proposals = [...rowsById.values()].filter((row) => row.kind === 'proposal');
+  const recruitments = [...rowsById.values()].filter((row) => row.kind === 'recruitment');
+  assert.ok(recruitments.length >= 1);
+  assert.equal(rowsById.get('a').schoolPlanning.staffBundleComplete, false);
+  assert.equal(rowsById.get('a').schoolPlanning.staffConflictFallbackCount, recruitments.length);
+
+  for (let i = 0; i < proposals.length; i += 1) {
+    for (let j = i + 1; j < proposals.length; j += 1) {
+      const first = proposals[i];
+      const second = proposals[j];
+      if (first.instructorEmpId !== second.instructorEmpId) continue;
+      const a = first.meetings[0];
+      const b = second.meetings[0];
+      if (a.date !== b.date) continue;
+      const overlap = a.start_time < b.end_time && b.start_time < a.end_time;
+      assert.equal(overlap, false, `${first.courseId} overlaps ${second.courseId}`);
+    }
+  }
+});
+
+test('incremental updates scope gap compaction to incremental ids instead of scanning all proposals', async () => {
+  const source = await readFile(new URL('../frontend/src/screens/course-scheduling-planning.js', import.meta.url), 'utf8');
+  assert.match(source, /targetCourseIds:\s*optimizationOnlyIds[\s\S]*?incrementalIds \? \[\.\.\.incrementalIds\] : null/);
+});
+
 test('v27 upgrade rebuilds both flexible proposals and recruitment rows for school-first optimization', () => {
   const shared = {
     rows: [
