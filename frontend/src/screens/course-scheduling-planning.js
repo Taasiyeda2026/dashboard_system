@@ -3399,13 +3399,19 @@ export function buildSchoolPlanningGroups({ rows = [], activities = [] } = {}) {
     group.rows.push(row);
     group.allCourseIds.push(courseId);
     for (const day of days) group.currentWeekdays.add(day);
+
     if (isSchoolPlanningAnchor(row, activity)) {
       group.anchors.push(row);
       for (const day of days) group.anchorWeekdays.add(day);
-    } else if (text(row?.kind) === 'proposal') {
+    } else if (['proposal', 'recruitment'].includes(text(row?.kind))) {
+      // School-first owns the calendar shape before instructor-day optimization.
+      // Recruitment rows participate too: their scheduleOptions are legitimate
+      // school timetable alternatives even though no current instructor fits.
       group.movableRows.push(row);
-      const packingSource = row?.packingOptions?.length ? row.packingOptions : (row?.options || []);
-      for (const option of packingSource) {
+      const source = text(row?.kind) === 'recruitment'
+        ? (row?.scheduleOptions || [])
+        : (row?.packingOptions?.length ? row.packingOptions : (row?.options || []));
+      for (const option of source) {
         for (const day of planningRowWeekdays(option)) group.candidateWeekdays.add(day);
       }
       for (const day of days) group.candidateWeekdays.add(day);
@@ -3428,19 +3434,52 @@ function weekdaySetCombinations(values = [], size = 0, start = 0, selected = [],
   return result;
 }
 
+function schoolPackingScheduleOption(row = {}, option = {}) {
+  const meetings = (option?.meetings || []).map((meeting) => ({ ...meeting }));
+  if (!meetings.length) return null;
+  return {
+    ...option,
+    instructorEmpId: text(option?.instructorEmpId),
+    instructorName: text(option?.instructorName),
+    startDate: text(option?.startDate || meetings[0]?.date),
+    endDate: text(option?.endDate || meetings.at?.(-1)?.date),
+    startTime: text(option?.startTime || meetings[0]?.start_time),
+    endTime: text(option?.endTime || meetings[0]?.end_time),
+    meetings,
+    fullDayBlocking: row?.fullDayBlocking === true,
+    schoolScheduleOnly: !text(option?.instructorEmpId)
+  };
+}
+
+function schoolPackingCurrentOption(row = {}) {
+  const withInstructor = planningRowAsVirtualOption(row);
+  if (withInstructor) return { ...withInstructor, schoolScheduleOnly: false };
+  if (!Array.isArray(row?.meetings) || !row.meetings.length) return null;
+  return schoolPackingScheduleOption(row, {
+    startDate: row.startDate,
+    endDate: row.endDate,
+    startTime: row.startTime,
+    endTime: row.endTime,
+    meetings: row.meetings
+  });
+}
+
 function schoolPackingOptions(row = {}, candidateDays = new Set()) {
+  const current = schoolPackingCurrentOption(row);
+  const source = text(row?.kind) === 'recruitment'
+    ? (row?.scheduleOptions || [])
+    : ((row?.packingOptions?.length ? row.packingOptions : row?.options) || []);
   const options = [
-    planningRowAsVirtualOption(row),
-    ...((row?.packingOptions?.length ? row.packingOptions : row?.options) || [])
-  ]
-    .filter(Boolean)
-    .map((option) => ({ ...option, fullDayBlocking: row?.fullDayBlocking === true }));
+    current,
+    ...source.map((option) => schoolPackingScheduleOption(row, option))
+  ].filter(Boolean);
+
   const seen = new Set();
   return options.filter((option) => {
     if (option?.routeVerified === false) return false;
     const days = planningRowWeekdays(option);
     if (!days.size || [...days].some((day) => !candidateDays.has(day))) return false;
-    const key = `${text(option.instructorEmpId)}|${planningMeetingsSignature(option.meetings)}`;
+    const key = `${text(option.instructorEmpId) || 'schedule-only'}|${planningMeetingsSignature(option.meetings)}`;
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
@@ -3479,6 +3518,38 @@ function schoolPackingSecondaryCost(options = []) {
       - Math.max(0, Number(metrics.sameSchoolMeetingCount) || 0) * 25
       - Math.max(0, Number(option?.planningOptimization?.total) || 0);
   }, 0);
+}
+
+function schoolPackingBundleCost(choices = [], group = {}) {
+  const weekdays = new Set();
+  const instructorCounts = new Map();
+  const anchorInstructorIds = new Set((group?.anchors || []).map((row) => text(row?.instructorEmpId)).filter(Boolean));
+  let recruitmentCount = 0;
+
+  for (const choice of choices || []) {
+    const option = choice?.option || {};
+    for (const day of planningRowWeekdays(option)) weekdays.add(day);
+    const empId = text(option?.instructorEmpId);
+    if (empId) instructorCounts.set(empId, (instructorCounts.get(empId) || 0) + 1);
+    else recruitmentCount += 1;
+  }
+
+  const realInstructorIds = [...instructorCounts.keys()];
+  const newInstructorCount = realInstructorIds.filter((empId) => !anchorInstructorIds.has(empId)).length;
+  const singletonInstructorCount = [...instructorCounts.values()].filter((count) => count === 1).length;
+  const repeatedAssignments = [...instructorCounts.values()].reduce((sum, count) => sum + Math.max(0, count - 1), 0);
+
+  // Lexicographic business objective encoded as large, separated weights:
+  // 1) as few school weekdays as possible,
+  // 2) reuse instructors already serving the school / use fewer instructors,
+  // 3) only then optimize workdays, travel, waiting and model score.
+  return weekdays.size * 1_000_000_000
+    + newInstructorCount * 10_000_000
+    + realInstructorIds.length * 1_000_000
+    + singletonInstructorCount * 100_000
+    + recruitmentCount * 10_000
+    - repeatedAssignments * 50_000
+    + schoolPackingSecondaryCost((choices || []).map((choice) => choice.option));
 }
 
 function schoolPackingChoicesOperationallyConflict(firstChoice = {}, secondChoice = {}, {
@@ -3540,7 +3611,7 @@ function schoolPackingChoicesOperationallyConflict(firstChoice = {}, secondChoic
   return false;
 }
 
-function solveSchoolPackingGroup(group = {}, candidateDays = new Set(), beamWidth = 8, {
+function solveSchoolPackingGroup(group = {}, candidateDays = new Set(), beamWidth = 24, {
   blockers = [],
   activityById = new Map(),
   routeClient = null
@@ -3549,6 +3620,7 @@ function solveSchoolPackingGroup(group = {}, candidateDays = new Set(), beamWidt
     .map((row) => ({ row, options: schoolPackingOptions(row, candidateDays) }))
     .sort((a, b) => a.options.length - b.options.length || text(a.row.courseId).localeCompare(text(b.row.courseId)));
   if (rows.some((item) => !item.options.length)) return null;
+
   let beam = [{ choices: [], cost: 0 }];
   for (const item of rows) {
     const next = [];
@@ -3562,16 +3634,62 @@ function solveSchoolPackingGroup(group = {}, candidateDays = new Set(), beamWidt
           schoolPackingChoicesOperationallyConflict(choice, candidateChoice, { activityById, routeClient })
         )) continue;
         const choices = [...state.choices, candidateChoice];
-        next.push({ choices, cost: schoolPackingSecondaryCost(choices.map((choice) => choice.option)) });
+        next.push({ choices, cost: schoolPackingBundleCost(choices, group) });
       }
     }
-    beam = next.sort((a, b) => a.cost - b.cost).slice(0, Math.max(1, beamWidth));
+    beam = next
+      .sort((a, b) => a.cost - b.cost)
+      .slice(0, Math.max(3, Number(beamWidth) || 24));
     if (!beam.length) return null;
   }
-  return beam[0] || null;
+
+  const alternatives = [];
+  const seen = new Set();
+  for (const state of beam.sort((a, b) => a.cost - b.cost)) {
+    const signature = state.choices
+      .map(({ row, option }) => `${text(row?.courseId)}:${text(option?.instructorEmpId)}:${planningMeetingsSignature(option?.meetings)}`)
+      .sort()
+      .join('|');
+    if (seen.has(signature)) continue;
+    seen.add(signature);
+    alternatives.push(state);
+    if (alternatives.length >= 3) break;
+  }
+  const best = alternatives[0] || null;
+  return best ? { ...best, alternatives } : null;
 }
 
-function annotateSchoolPlanningGroup(group = {}, minimumFeasibleWeekdayCount = null) {
+function schoolPackingAlternativeSummary(state = {}, rank = 1) {
+  const weekdays = new Set();
+  const instructorIds = new Set();
+  let recruitmentCount = 0;
+  const assignments = (state?.choices || []).map(({ row, option }) => {
+    for (const day of planningRowWeekdays(option)) weekdays.add(day);
+    const empId = text(option?.instructorEmpId);
+    if (empId) instructorIds.add(empId);
+    else recruitmentCount += 1;
+    return {
+      courseId: text(row?.courseId),
+      courseName: text(row?.courseName),
+      kind: text(row?.kind),
+      startDate: text(option?.startDate || option?.meetings?.[0]?.date),
+      startTime: text(option?.startTime || option?.meetings?.[0]?.start_time),
+      endTime: text(option?.endTime || option?.meetings?.[0]?.end_time),
+      instructorEmpId: empId,
+      instructorName: text(option?.instructorName)
+    };
+  });
+  return {
+    rank,
+    schoolDayCount: weekdays.size,
+    weekdays: [...weekdays].sort((a, b) => a - b),
+    instructorCount: instructorIds.size,
+    recruitmentCount,
+    assignments
+  };
+}
+
+function annotateSchoolPlanningGroup(group = {}, minimumFeasibleWeekdayCount = null, alternatives = []) {
   const actualWeekdays = [...group.currentWeekdays].sort((a, b) => a - b);
   const solvedMinimum = Number.isInteger(Number(minimumFeasibleWeekdayCount))
     && Number(minimumFeasibleWeekdayCount) >= 0;
@@ -3592,6 +3710,7 @@ function annotateSchoolPlanningGroup(group = {}, minimumFeasibleWeekdayCount = n
     : (actualWeekdays.length <= 1
       ? 'packed'
       : (solvedMinimum ? 'required_split' : 'unresolved_split'));
+  const normalizedAlternatives = (alternatives || []).slice(0, 3);
   const schoolPlanning = {
     schoolId: group.schoolId,
     groupActivityCount: group.allCourseIds.length,
@@ -3602,7 +3721,9 @@ function annotateSchoolPlanningGroup(group = {}, minimumFeasibleWeekdayCount = n
     avoidableSplitCount,
     splitReason,
     anchorWeekdays: [...group.anchorWeekdays].sort((a, b) => a - b),
-    packingStatus
+    packingStatus,
+    alternativeCount: normalizedAlternatives.length,
+    alternatives: normalizedAlternatives
   };
   for (const row of group.rows || [...group.anchors, ...group.movableRows]) row.schoolPlanning = { ...schoolPlanning };
   return schoolPlanning;
@@ -3612,64 +3733,121 @@ export function optimizeSchoolDayPackingPass({
   rowsById,
   activities = [],
   targetCourseIds = null,
-  beamWidth = 8,
+  beamWidth = 24,
   routeClient = null
 } = {}) {
   const targetIds = Array.isArray(targetCourseIds) ? new Set(targetCourseIds.map(text).filter(Boolean)) : null;
   const activityById = new Map((activities || []).map((activity) => [idOf(activity), activity]));
   let moved = 0;
   const groups = buildSchoolPlanningGroups({ rows: [...(rowsById?.values?.() || [])], activities });
+
   for (const originalGroup of groups) {
     if (targetIds && !originalGroup.allCourseIds.some((courseId) => targetIds.has(courseId))) continue;
     const candidateDays = [...new Set([...originalGroup.anchorWeekdays, ...originalGroup.candidateWeekdays])].sort((a, b) => a - b);
     const requiredDays = [...originalGroup.anchorWeekdays];
     const optionalDays = candidateDays.filter((day) => !originalGroup.anchorWeekdays.has(day));
+    const groupCourseIds = new Set(originalGroup.allCourseIds.map(text));
+    const blockers = [
+      ...(originalGroup.anchors || []).map((row) => ({ row, option: schoolPackingCurrentOption(row) })).filter((choice) => choice.option),
+      ...[...rowsById.values()]
+        .filter((row) => !groupCourseIds.has(text(row?.courseId)))
+        .map((row) => ({ row, option: schoolPackingCurrentOption(row) }))
+        .filter((choice) => choice.option && text(choice.option?.instructorEmpId))
+    ];
+
     let solution = null;
     let minimum = null;
+    let sameSizeSolutions = [];
+
+    // First choose the smallest legal school-day footprint. For that footprint,
+    // evaluate ALL weekday-set alternatives and only then choose the instructor
+    // assignment. This prevents "first feasible weekday set wins".
     for (let size = requiredDays.length; size <= candidateDays.length; size += 1) {
       const addCount = size - requiredDays.length;
+      const candidates = [];
       for (const extra of weekdaySetCombinations(optionalDays, addCount)) {
         const set = new Set([...requiredDays, ...extra]);
-        const groupCourseIds = new Set(originalGroup.allCourseIds.map(text));
-        const blockers = [
-          ...(originalGroup.anchors || []).map((row) => ({ row, option: planningRowAsVirtualOption(row) })).filter((choice) => choice.option),
-          ...[...rowsById.values()]
-            .filter((row) => !groupCourseIds.has(text(row?.courseId)))
-            .map((row) => ({ row, option: planningRowAsVirtualOption(row) }))
-            .filter((choice) => choice.option)
-        ];
-        solution = solveSchoolPackingGroup(originalGroup, set, beamWidth, {
+        const solved = solveSchoolPackingGroup(originalGroup, set, beamWidth, {
           blockers,
           activityById,
           routeClient
         });
-        if (solution) {
-          minimum = size;
-          break;
-        }
+        if (!solved) continue;
+        for (const state of solved.alternatives || [solved]) candidates.push(state);
       }
-      if (solution) break;
+      if (candidates.length) {
+        candidates.sort((a, b) => a.cost - b.cost);
+        sameSizeSolutions = candidates;
+        solution = candidates[0];
+        minimum = size;
+        break;
+      }
     }
-    if (solution && minimum != null && originalGroup.currentWeekdays.size > minimum) {
+
+    const alternatives = [];
+    const altSeen = new Set();
+    for (const state of sameSizeSolutions) {
+      const summary = schoolPackingAlternativeSummary(state, alternatives.length + 1);
+      const signature = summary.assignments
+        .map((item) => `${item.courseId}:${item.startDate}:${item.startTime}:${item.instructorEmpId}`)
+        .sort()
+        .join('|');
+      if (altSeen.has(signature)) continue;
+      altSeen.add(signature);
+      alternatives.push(summary);
+      if (alternatives.length >= 3) break;
+    }
+
+    const currentChoices = originalGroup.movableRows
+      .map((row) => ({ row, option: schoolPackingCurrentOption(row) }))
+      .filter((choice) => choice.option);
+    const currentCost = currentChoices.length === originalGroup.movableRows.length
+      ? schoolPackingBundleCost(currentChoices, originalGroup)
+      : Number.POSITIVE_INFINITY;
+    const shouldApply = !!solution
+      && minimum != null
+      && (
+        originalGroup.currentWeekdays.size > minimum
+        || solution.cost + 0.1 < currentCost
+      );
+
+    if (shouldApply) {
       for (const { row, option } of solution.choices) {
-        const replacement = {
-          ...row,
-          instructorEmpId: text(option.instructorEmpId),
-          instructorName: text(option.instructorName),
+        const isRecruitment = text(row?.kind) === 'recruitment' || !text(option?.instructorEmpId);
+        const selectedSchedule = {
           startDate: text(option.startDate || option.meetings?.[0]?.date),
           endDate: text(option.endDate || option.meetings?.at?.(-1)?.date),
           startTime: text(option.startTime || option.meetings?.[0]?.start_time),
           endTime: text(option.endTime || option.meetings?.[0]?.end_time),
-          meetings: (option.meetings || []).map((meeting) => ({ ...meeting })),
-          diagnostics: { ...(row.diagnostics || {}), schoolDayPacking: true }
+          meetings: (option.meetings || []).map((meeting) => ({ ...meeting }))
+        };
+        const replacement = {
+          ...row,
+          instructorEmpId: isRecruitment ? '' : text(option.instructorEmpId),
+          instructorName: isRecruitment ? '' : text(option.instructorName),
+          ...selectedSchedule,
+          scheduleOptions: isRecruitment
+            ? [
+                selectedSchedule,
+                ...(row.scheduleOptions || []).filter((candidate) =>
+                  planningMeetingsSignature(candidate?.meetings) !== planningMeetingsSignature(selectedSchedule.meetings)
+                )
+              ]
+            : row.scheduleOptions,
+          diagnostics: {
+            ...(row.diagnostics || {}),
+            schoolDayPacking: true,
+            schoolFirstOptimized: true
+          }
         };
         rowsById.set(text(row.courseId), replacement);
         moved += 1;
       }
     }
+
     const refreshed = buildSchoolPlanningGroups({ rows: [...rowsById.values()], activities })
       .find((group) => group.schoolId === originalGroup.schoolId) || originalGroup;
-    annotateSchoolPlanningGroup(refreshed, minimum);
+    annotateSchoolPlanningGroup(refreshed, minimum, alternatives);
   }
   return { moved, groups: groups.length };
 }
