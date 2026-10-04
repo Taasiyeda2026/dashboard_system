@@ -51,8 +51,24 @@ test('maintenance card exposes scheduling coverage, refresh, and one build actio
   const updateHandler = source.split("root.querySelector('[data-update-distances]')")[1].split('\n  }\n};')[0];
   assert.match(updateHandler, /runDistanceBuildLoop[\s\S]*scope: 'all'/);
   assert.match(updateHandler, /runDistanceBuildLoop[\s\S]*initialCoverage/);
-  assert.match(updateHandler, /finally[\s\S]*reloadDistanceCoverage/);
+  assert.match(updateHandler, /buildResult\?\.done && remaining === 0[\s\S]*courseSchedulingDistanceCoverageLoaded = true/);
+  assert.match(updateHandler, /else \{[\s\S]*reloadDistanceCoverage/);
   assert.doesNotMatch(source, /distanceMaintenanceDialogHtml/);
+});
+
+test('maintenance cache reads target the current route universe instead of scanning the full cache', async () => {
+  const ts = await readFile(edgeFunctionUrl, 'utf8');
+  const relevantLoader = ts.split('async function loadRelevantSchedulingCacheRows')[1].split('async function loadPayrollMonthPairs')[0];
+  assert.match(relevantLoader, /origin_instructor_emp_id/);
+  assert.match(relevantLoader, /destination_school_id/);
+  assert.match(relevantLoader, /origin_school_id/);
+  assert.match(relevantLoader, /exact route keys still unresolved/);
+  assert.match(relevantLoader, /\.eq\('origin_key', lookup\.originKey\)[\s\S]*\.in\('destination_key', lookup\.destinationKeys\)/);
+
+  const build = ts.split('async function runBuildCache')[1].split('Deno.serve')[0];
+  assert.match(build, /scope === 'payroll_month'[\s\S]*loadAllRows\(db, 'scheduling_travel_cache'/);
+  assert.match(build, /loadRelevantSchedulingCacheRows\(db, instructorPairs, schoolPairs\)/);
+  assert.equal((build.match(/loadAllRows\(db, 'scheduling_travel_cache'/g) || []).length, 1, 'whole-cache read is payroll-only');
 });
 
 test('the travel cache gains authority/school/address columns instead of a duplicate table', async () => {
