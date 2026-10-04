@@ -3,7 +3,8 @@ import { activityMeetings } from './instructor-scheduling-load.js';
 import { schedulingQualityBand } from './instructor-matching-engine.js';
 import { planningPerfCount } from './course-scheduling-perf.js';
 import {
-  calculateCourseSchedule as calculateCourseScheduleCore
+  calculateCourseSchedule as calculateCourseScheduleCore,
+  preliminaryCourseCandidates as preliminaryCourseCandidatesCore
 } from './course-scheduling-engine-core.js';
 import {
   compareCandidatesStable,
@@ -537,10 +538,39 @@ export function preliminaryCourseCandidates(input = {}) {
     travel: {},
     routeMatrix: {}
   });
-  const results = applySchedulingScoreContractToResults(calculateCourseScheduleCore(scopedInput));
-  return results.flatMap((result) => (result.checked || [])
-    .filter((candidate) => candidate.eligible)
-    .map((candidate) => ({ course: result.course, candidate })));
+  const preliminary = preliminaryCourseCandidatesCore(scopedInput);
+  const byCourse = new Map();
+  for (const item of preliminary) {
+    const courseId = idOf(item?.course);
+    if (!courseId || !item?.candidate) continue;
+    const bucket = byCourse.get(courseId) || [];
+    bucket.push(item);
+    byCourse.set(courseId, bucket);
+  }
+  return [...byCourse.values()].flatMap((items) => {
+    const peerProjectedHours = items
+      .map((item) => Number(item.candidate?.projectedHalfHours))
+      .filter(Number.isFinite);
+    const peerProjectedUtilizationRatios = items
+      .map((item) => Number(item.candidate?.projectedUtilizationRatio ?? item.candidate?.utilizationRatio))
+      .filter((value) => Number.isFinite(value) && value >= 0);
+    const scored = items.map((item) => ({
+      course: item.course,
+      candidate: scoreCandidate(item.candidate, peerProjectedHours, peerProjectedUtilizationRatios)
+    }));
+    const ranked = [...scored]
+      .sort((first, second) => compareCandidatesStable(first.candidate, second.candidate));
+    const rankByEmpId = new Map(ranked.map((item, index) => [text(item.candidate?.instructor?.emp_id), index + 1]));
+    return scored.map((item) => ({
+      course: item.course,
+      candidate: {
+        ...item.candidate,
+        rank: rankByEmpId.get(text(item.candidate?.instructor?.emp_id)) || null,
+        recommended: false,
+        bestAvailable: false
+      }
+    }));
+  });
 }
 
 export function calculateCourseSchedule(input = {}) {

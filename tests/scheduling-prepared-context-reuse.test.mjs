@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   calculateCourseSchedule,
+  preliminaryCourseCandidates,
   prepareSchedulingRunContext
 } from '../frontend/src/screens/course-scheduling-engine.js';
 import {
@@ -64,6 +65,37 @@ test('prepared scheduling context is built once and reused across targeted evalu
     assert.equal(report.counters.contextRebuilds, 1);
     assert.equal(report.counters.scheduleCalls, 3);
     assert.ok(report.counters.candidateEvals <= instructors.length);
+  } finally {
+    setPlanningPerfEnabled(false);
+  }
+});
+
+test('preliminary shortlist reuses prepared context without running the full schedule pipeline', () => {
+  setPlanningPerfEnabled(true);
+  resetPlanningPerfReport('preliminary-shortlist-only');
+  try {
+    const preparedContext = prepareSchedulingRunContext({
+      activities: [course], instructors, profiles, rules, exceptions: {}, schoolCalendar: [], periodKey: 'year'
+    });
+    const candidates = preliminaryCourseCandidates({
+      activities: [course],
+      targetCourse: course,
+      targetCourseId: course.row_id,
+      instructors,
+      profiles,
+      rules,
+      exceptions: {},
+      schoolCalendar: [],
+      periodKey: 'year',
+      preparedContext
+    });
+    const report = flushPlanningPerfReport({ log: false });
+    assert.equal(candidates.length, instructors.length);
+    assert.deepEqual(candidates.map((item) => item.candidate.rank).sort((a, b) => a - b), [1, 2, 3, 4]);
+    assert.ok(candidates.every((item) => item.candidate.recommended === false && item.candidate.bestAvailable === false));
+    assert.equal(report.counters.contextRebuilds, 1);
+    assert.equal(report.counters.scheduleCalls, 0);
+    assert.equal(report.counters.candidateEvals, instructors.length);
   } finally {
     setPlanningPerfEnabled(false);
   }
