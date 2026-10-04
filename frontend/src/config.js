@@ -342,3 +342,4 @@ config.HOTFIX_VERSION = `planning-substitute-meeting-ownership-20261003-v1-${con
 config.HOTFIX_VERSION = `planning-separate-trip-distance-20261003-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `planning-resume-local-repair-ui-20261003-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `planning-v27-school-first-economic-20261004-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `instructor-activity-date-range-20261004-v1-${config.HOTFIX_VERSION}`;
