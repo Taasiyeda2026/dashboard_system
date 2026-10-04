@@ -223,6 +223,84 @@ test('workday consolidation may reassign a flexible course to another existing i
   assert.equal(rowsById.get('flexible-reseat').startDate, '2026-10-12');
 });
 
+test('v28 upgrade runs workday reassignment on the saved snapshot without base-regenerating the proposal', async () => {
+  const flexible = course('flexible-reseat-upgrade', {
+    school_id: 'shared-school-upgrade',
+    school: 'בית ספר משותף',
+    school_address: 'כתובת בית הספר'
+  });
+  const anchor = course('fixed-anchor-upgrade', {
+    school_id: 'shared-school-upgrade',
+    school: 'בית ספר משותף',
+    school_address: 'כתובת בית הספר',
+    emp_id: 2,
+    instructor_name: 'מדריכה 2',
+    start_date: '2026-10-12',
+    start_time: '09:00',
+    end_time: '10:30',
+    meetings: [{ date: '2026-10-12', start_time: '09:00', end_time: '10:30' }]
+  });
+  const storedProposal = {
+    courseId: 'flexible-reseat-upgrade', kind: 'proposal', schoolId: 'shared-school-upgrade', schoolDateAnchored: false,
+    instructorEmpId: '1', instructorName: 'מדריכה 1', startDate: '2026-10-13', startTime: '09:00', endTime: '10:30',
+    meetings: [{ date: '2026-10-13', start_time: '09:00', end_time: '10:30' }],
+    options: []
+  };
+  const instructors = [
+    { emp_id: 1, full_name: 'מדריכה 1', active: 'yes', address: 'כתובת 1' },
+    { emp_id: 2, full_name: 'מדריכה 2', active: 'yes', address: 'כתובת 2' }
+  ];
+  const localProfiles = {
+    1: { emp_id: 1, gender: 'female', instruction_languages: ['he'] },
+    2: { emp_id: 2, gender: 'female', instruction_languages: ['he'] }
+  };
+  const localRules = {
+    1: [1, 2].map((weekday) => ({ emp_id: 1, weekday, available: true, start_time: '08:00', end_time: '15:00' })),
+    2: [1, 2].map((weekday) => ({ emp_id: 2, weekday, available: true, start_time: '08:00', end_time: '15:00' }))
+  };
+  const routeClient = {
+    unavailableReason: '',
+    googleCalls: 0,
+    cacheHits: 0,
+    peek: () => ({ distance_km: 1, duration_minutes: 2 }),
+    request: async () => ({ calculated: true, distance_km: 1, duration_minutes: 2 })
+  };
+  const phases = [];
+
+  const result = await buildDynamicCoursePlan({
+    activities: [flexible, anchor],
+    instructors,
+    profiles: localProfiles,
+    rules: localRules,
+    exceptions: {},
+    schoolCalendar: [],
+    catalog: [{ activity_name: 'flexible-reseat-upgrade', meetings_count: 1, hours_count: 1.5 }],
+    today: '2026-10-01',
+    periodKey: 'year',
+    routeClient,
+    existingRows: [storedProposal],
+    targetCourseIds: [],
+    upgradeOptimizationScopes: {
+      schoolPackingCourseIds: [],
+      recruitmentRecoveryCourseIds: [],
+      workdayConsolidationCourseIds: ['flexible-reseat-upgrade']
+    },
+    allowGlobalRepair: false,
+    planningProfile: 'fast',
+    onProgress: async ({ phase }) => phases.push(phase)
+  });
+
+  const fixed = result.rows.find((row) => row.courseId === 'fixed-anchor-upgrade');
+  const moved = result.rows.find((row) => row.courseId === 'flexible-reseat-upgrade');
+  assert.equal(fixed.startDate, '2026-10-12');
+  assert.equal(fixed.instructorEmpId, '2');
+  assert.equal(moved.instructorEmpId, '2');
+  assert.equal(moved.startDate, '2026-10-12');
+  assert.ok(phases.includes('אריזת בתי ספר הושלמה'));
+  assert.ok(phases.includes('ריכוז ימי עבודה הושלם'));
+  assert.ok(!phases.includes('בדיקת מדריכים'), 'saved proposal must not enter the base planning queue');
+});
+
 test('v25 to v26 forces a real rebuild of every flexible proposal, not only multi-school groups', () => {
   const shared = {
     rows: [

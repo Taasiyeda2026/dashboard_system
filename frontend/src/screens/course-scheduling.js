@@ -109,6 +109,8 @@ import {
   expandPlanningAffectedIdsBySchool,
   markSharedPlanningNeedsRecalcMany,
   planningEngineUpgradeAffectedCourseIds,
+  planningEngineUpgradeOptimizationScopes,
+  planningEngineUpgradeExecutionScopes,
   AUTO_PLANNING_REFRESH_MAX_IDS
 } from './course-scheduling-planning-store.js';
 import { exportPlanningWorkbook } from './course-scheduling-planning-export.js';
@@ -2771,13 +2773,21 @@ export const courseSchedulingScreen = {
           .map((entry) => entry.lockedOption
             ? applyPlanningLockToRow(entry.row, entry.lockedOption, scope.periodKey)
             : entry.row);
-        const engineUpgradeAffectedIds = engineChanged
-          ? planningEngineUpgradeAffectedCourseIds({
+        const engineUpgradeOptimizationScopes = engineChanged
+          ? planningEngineUpgradeOptimizationScopes({
               shared,
               activities: freshStart.activities || [],
               storedEngineVersion,
               currentEngineVersion: PLANNING_ENGINE_VERSION
             })
+          : null;
+        const engineUpgradeAffectedIds = engineChanged
+          ? (engineUpgradeOptimizationScopes?.affectedIds || planningEngineUpgradeAffectedCourseIds({
+              shared,
+              activities: freshStart.activities || [],
+              storedEngineVersion,
+              currentEngineVersion: PLANNING_ENGINE_VERSION
+            }))
           : [];
         const regularAffectedIds = !shared?.workspace || unrecoverableGlobalContextChange
           ? []
@@ -2788,16 +2798,21 @@ export const courseSchedulingScreen = {
               contextDiff: contextResolution?.contextDiff || null,
               unrecoverableGlobalContextChange: false
             });
-        const affectedIds = !shared?.workspace
+        const upgradeExecution = planningEngineUpgradeExecutionScopes({
+          regularAffectedIds,
+          engineUpgradeAffectedIds,
+          storedEngineVersion,
+          currentEngineVersion: PLANNING_ENGINE_VERSION
+        });
+        const affectedIds = !shared?.workspace || unrecoverableGlobalContextChange
           ? currentCourseIds
-          : unrecoverableGlobalContextChange
-            ? currentCourseIds
-            : [...new Set([
-                ...regularAffectedIds,
-                ...engineUpgradeAffectedIds
-              ])];
+          : upgradeExecution.affectedIds;
         const structuralPlanningUpgrade = engineChanged
           && (
+            (PLANNING_ENGINE_VERSION.includes('planning-v28-20261004-anchor-safe-global-reassignment')
+              && !upgradeExecution.v28OptimizationUpgrade
+              && engineUpgradeAffectedIds.length > 0)
+            ||
             (PLANNING_ENGINE_VERSION.includes('planning-v26-20261003-coherent-school-first')
               && !storedEngineVersion.includes('planning-v26-20261003-coherent-school-first'))
             || (PLANNING_ENGINE_VERSION.includes('planning-v27-20261004-school-first-economic-alternatives')
@@ -2805,6 +2820,7 @@ export const courseSchedulingScreen = {
           );
         const optimizationOnlyUpgrade = engineChanged
           && !structuralPlanningUpgrade
+          && !upgradeExecution.v28OptimizationUpgrade
           && !unrecoverableGlobalContextChange
           && regularAffectedIds.length === 0
           && engineUpgradeAffectedIds.length > 0;
@@ -2830,10 +2846,10 @@ export const courseSchedulingScreen = {
         }
 
         // The durable route cache is large and is not part of the decision whether
-        // planning needs to run. Small incremental runs can query exact routes on
+        // planning needs to run. Incremental runs can query exact routes on
         // demand through scheduling-route, which itself reads the durable cache
         // before calling Google. Preload the bulk cache only for genuinely broad runs.
-        const shouldPreloadRouteCache = fullRun || affectedIds.length > AUTO_PLANNING_REFRESH_MAX_IDS;
+        const shouldPreloadRouteCache = forceFull === true;
         if (shouldPreloadRouteCache) {
           state.courseSchedulingPlanningProgress = { phase: 'טוען נתוני נסיעה', completed: 0, total: 0 };
           if (runUiVisible()) run.ui?.update?.();
@@ -2844,7 +2860,7 @@ export const courseSchedulingScreen = {
         assertRunOwnership();
 
         let silentCheckpoint = null;
-        if (!optimizationOnlyUpgrade) {
+        if (forceFull === true) {
           try {
             silentCheckpoint = await loadSharedPlanningCheckpoint({
               periodKey: scope.periodKey,
@@ -2867,13 +2883,16 @@ export const courseSchedulingScreen = {
         const resumableRows = (silentCheckpoint?.rows || [])
           .filter((row) => checkpointCompletedIds.has(text(row?.courseId)));
         const resumeFromCheckpoint = checkpointCompletedIds.size > 0 && resumableRows.length > 0;
+        const incrementalBaseIds = upgradeExecution.v28OptimizationUpgrade
+          ? upgradeExecution.baseRecalculationIds
+          : affectedIds;
         const targetCourseIds = fullRun
           ? (resumeFromCheckpoint
               ? currentCourseIds.filter((courseId) => !checkpointCompletedIds.has(courseId))
               : null)
           : (resumeFromCheckpoint
-              ? affectedIds.filter((courseId) => !checkpointCompletedIds.has(courseId))
-              : affectedIds);
+              ? incrementalBaseIds.filter((courseId) => !checkpointCompletedIds.has(courseId))
+              : incrementalBaseIds);
         const planningExistingRows = resumeFromCheckpoint
           ? (fullRun ? resumableRows : mergePlanningResumeRows(existingRows, resumableRows))
           : existingRows;
@@ -2886,17 +2905,13 @@ export const courseSchedulingScreen = {
         const checkpointBatchSize = fullRun ? 50 : Math.min(20, Math.max(3, affectedIds.length));
         // Local repairs stay in-memory. Persisting a 5-6MB whole-workspace checkpoint
         // at every optimization stage made small updates slower than the calculation itself.
-        const checkpointAlreadyComplete = currentCourseIds.length > 0
-          && checkpointCompletedIds.size >= currentCourseIds.length;
-        const persistServerCheckpoints = fullRun
-          || (!checkpointAlreadyComplete && (
-            structuralPlanningUpgrade
-            || affectedIds.length > AUTO_PLANNING_REFRESH_MAX_IDS
-          ));
+        const persistServerCheckpoints = forceFull === true;
 
         state.courseSchedulingPlanningProgress = {
           phase: fullRun
             ? `בניית תכנון מלא · ${currentCourseIds.length} פעילויות`
+            : upgradeExecution.v28OptimizationUpgrade
+              ? 'התאמת התכנון הקיים למנוע השיבוץ החדש'
             : optimizationOnlyUpgrade
               ? `אופטימיזציית שעות בלבד · ${affectedIds.length} פעילויות`
               : `עדכון שינויים בלבד · ${affectedIds.length} פעילויות`,
@@ -2930,6 +2945,9 @@ export const courseSchedulingScreen = {
           existingRows: planningExistingRows,
           targetCourseIds,
           optimizationOnlyCourseIds: optimizationOnlyUpgrade ? targetCourseIds : null,
+          upgradeOptimizationScopes: !fullRun && upgradeExecution.v28OptimizationUpgrade
+            ? engineUpgradeOptimizationScopes
+            : null,
           resumeFromCheckpoint,
           allowGlobalRepair: fullRun,
           planningProfile: 'fast',
@@ -2968,6 +2986,7 @@ export const courseSchedulingScreen = {
                 });
                 stopCheckpointSave();
                 planningPerfCount('checkpointSaves');
+                planningPerfCount('checkpointPayloadBytes', new TextEncoder().encode(JSON.stringify(snapshotRows)).length);
                 lastSilentCheckpointCount = checkpointCompletedIds.size;
               } catch {
                 // Stage checkpoints are resilience-only. A save failure must not abort planning.
@@ -3015,6 +3034,7 @@ export const courseSchedulingScreen = {
               });
               stopCheckpointSave();
               planningPerfCount('checkpointSaves');
+              planningPerfCount('checkpointPayloadBytes', new TextEncoder().encode(JSON.stringify(checkpointRows)).length);
               lastSilentCheckpointCount = checkpointCompletedIds.size;
             } catch {
               // Checkpointing is resilience-only and deliberately silent.
@@ -3112,7 +3132,10 @@ export const courseSchedulingScreen = {
               const existingById = new Map(existingRows
                 .map((row) => [text(row?.courseId), row])
                 .filter(([courseId]) => !!courseId));
-              const mandatoryIds = new Set(affectedIds.map(text).filter(Boolean));
+              // Only genuinely dirty activities are mandatory writes. Engine-upgrade
+              // optimization rows are saved when an optimization actually changed
+              // them, which keeps a v28 migration from rewriting a national snapshot.
+              const mandatoryIds = new Set(incrementalBaseIds.map(text).filter(Boolean));
               const finalIds = new Set(finalRows.map((row) => text(row?.courseId)).filter(Boolean));
               const incrementalRows = finalRows.filter((row) => {
                 const courseId = text(row?.courseId);
@@ -3168,6 +3191,8 @@ export const courseSchedulingScreen = {
           showToast(
             fullRun
               ? `התכנון המשותף נשמר: ${currentCourseIds.length} פעילויות נבדקו.`
+              : upgradeExecution.v28OptimizationUpgrade
+                ? 'התכנון הקיים הותאם למנוע השיבוץ החדש ללא בנייה מחדש.'
               : `התכנון המשותף עודכן: חושבו מחדש רק ${updatedCount} פעילויות שהושפעו.`,
             'success'
           );
