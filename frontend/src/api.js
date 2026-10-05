@@ -6879,6 +6879,12 @@ export const api = {
     if (error) throw new Error(error.message || 'attendance_month_workflow_status_read_failed');
     return Array.isArray(data) ? data : [];
   },
+  adminPendingAttendanceByMonth: async () => {
+    assertPermission('view_attendance_control', 'attendance_control_forbidden');
+    const { data, error } = await supabase.rpc('get_admin_pending_attendance_by_month');
+    if (error) throw new Error(error.message || 'admin_pending_attendance_summary_failed');
+    return Array.isArray(data) ? data : [];
+  },
   attendanceManagerApprovalArtifacts: async ({
     employee_id,
     employee_name,

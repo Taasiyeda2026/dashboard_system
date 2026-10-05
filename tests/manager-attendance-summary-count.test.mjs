@@ -15,13 +15,13 @@ test('manager summary still counts ordinary attendance rows', () => {
   assert.match(source, /recordCounts\.set\(empId, \(recordCounts\.get\(empId\) \|\| 0\) \+ 1\);/);
 });
 
-test('manager summary shows total monthly hours instead of cancellation-only hours', () => {
-  assert.match(source, /const totalHours = new Map/);
-  assert.match(source, /totalHours\.set\(empId, \(totalHours\.get\(empId\) \|\| 0\) \+ attendanceHoursValue\(row\)\)/);
-  assert.match(source, /const value = \{ recordCounts, totalHours, approvals, recordsError, approvalsError \}/);
-  assert.match(source, /<th>סה״כ שעות<\/th>/);
-  assert.match(source, /data-label="סה״כ שעות"/);
-  assert.match(source, /formatAttendanceHours\(hours\)/);
+test('manager summary uses workflow status without a total-hours overview column', () => {
+  assert.match(source, /workflowByEmployee/);
+  assert.match(source, /resolveManagerAttendanceOverviewState/);
+  assert.doesNotMatch(source, /const totalHours = new Map/);
+  assert.doesNotMatch(source, /<th>סה״כ שעות<\/th>/);
+  assert.doesNotMatch(source, /data-label="סה״כ שעות"/);
+  assert.doesNotMatch(source, /formatAttendanceHours\(hours\)/);
   assert.doesNotMatch(source, /<th>ביטול זמן<\/th>/);
 });
 
@@ -41,10 +41,10 @@ test('mobile global header keeps its quick navigation tabs', () => {
   assert.doesNotMatch(mobileCss, /\.shell-top \.shell-header-nav,\s*\.shell-top__end:empty\s*\{\s*display:\s*none/);
 });
 
-test('cache markers are bumped for the manager attendance mobile fix', async () => {
+test('cache markers are bumped for the manager attendance workflow unify', async () => {
   const index = await readFile(new URL('../index.html', import.meta.url), 'utf8');
   const sw = await readFile(new URL('../frontend/sw.js', import.meta.url), 'utf8');
-  assert.match(index, /manager-board-workspace-runtime\.js\?v=20260926-manager-attendance-total-hours-v1/);
+  assert.match(index, /manager-board-workspace-runtime\.js\?v=20261005-attendance-control-workflow-unify-v1/);
   assert.match(index, /mobile-responsive\.css\?v=20260926-manager-attendance-mobile-v3/);
-  assert.match(sw, /const CACHE_VERSION = 1771;/);
+  assert.match(sw, /const CACHE_VERSION = 1902;/);
 });

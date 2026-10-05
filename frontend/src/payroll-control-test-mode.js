@@ -345,7 +345,7 @@ async function activateTestMode(doc) {
   button.disabled = true;
   status.textContent = 'טוען נתוני בדיקה של תשפ״ז…';
   try {
-    const moduleApi = await import('./screens/attendance-control.js?v=20261005-manager-attendance-reopened-write-gate-v1');
+    const moduleApi = await import('./screens/attendance-control.js?v=20261005-attendance-control-workflow-unify-v1');
     const { attendanceRows, dashboardRows, sourceData } = buildPayrollControlTestDataset(moduleApi);
     const result = moduleApi.compareAttendanceRows(attendanceRows, dashboardRows);
     result.month = PAYROLL_TEST_MONTH;
