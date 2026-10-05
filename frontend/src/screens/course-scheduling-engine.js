@@ -1,9 +1,11 @@
 import { normalizeOperationalDistrict } from './shared/district-normalization.js';
 import { activityMeetings } from './instructor-scheduling-load.js';
 import { schedulingQualityBand } from './instructor-matching-engine.js';
-import { planningPerfCount } from './course-scheduling-perf.js';
+import { planningPerfCount, planningPerfStep } from './course-scheduling-perf.js';
 import {
   calculateCourseSchedule as calculateCourseScheduleCore,
+  calculateCourseScheduleCooperatively as calculateCourseScheduleCooperativeCore,
+  preliminaryCourseCandidatesCooperatively as preliminaryCourseCandidatesCooperativeCore,
   preliminaryCourseCandidates as preliminaryCourseCandidatesCore
 } from './course-scheduling-engine-core.js';
 import {
@@ -539,6 +541,10 @@ export function preliminaryCourseCandidates(input = {}) {
     routeMatrix: {}
   });
   const preliminary = preliminaryCourseCandidatesCore(scopedInput);
+  return scorePreliminaryCandidates(preliminary);
+}
+
+function* scorePreliminaryCandidateSteps(preliminary) {
   const byCourse = new Map();
   for (const item of preliminary) {
     const courseId = idOf(item?.course);
@@ -547,21 +553,24 @@ export function preliminaryCourseCandidates(input = {}) {
     bucket.push(item);
     byCourse.set(courseId, bucket);
   }
-  return [...byCourse.values()].flatMap((items) => {
+  const result = [];
+  for (const items of byCourse.values()) {
+    yield;
     const peerProjectedHours = items
       .map((item) => Number(item.candidate?.projectedHalfHours))
       .filter(Number.isFinite);
     const peerProjectedUtilizationRatios = items
       .map((item) => Number(item.candidate?.projectedUtilizationRatio ?? item.candidate?.utilizationRatio))
       .filter((value) => Number.isFinite(value) && value >= 0);
-    const scored = items.map((item) => ({
-      course: item.course,
-      candidate: scoreCandidate(item.candidate, peerProjectedHours, peerProjectedUtilizationRatios)
-    }));
+    const scored = [];
+    for (const item of items) {
+      scored.push({ course: item.course, candidate: scoreCandidate(item.candidate, peerProjectedHours, peerProjectedUtilizationRatios) });
+      yield;
+    }
     const ranked = [...scored]
       .sort((first, second) => compareCandidatesStable(first.candidate, second.candidate));
     const rankByEmpId = new Map(ranked.map((item, index) => [text(item.candidate?.instructor?.emp_id), index + 1]));
-    return scored.map((item) => ({
+    result.push(...scored.map((item) => ({
       course: item.course,
       candidate: {
         ...item.candidate,
@@ -569,12 +578,39 @@ export function preliminaryCourseCandidates(input = {}) {
         recommended: false,
         bestAvailable: false
       }
-    }));
-  });
+    })));
+  }
+  return result;
+}
+
+function scorePreliminaryCandidates(preliminary) {
+  const steps = scorePreliminaryCandidateSteps(preliminary);
+  let next = steps.next();
+  while (!next.done) next = steps.next();
+  return next.value;
 }
 
 export function calculateCourseSchedule(input = {}) {
   const scopedInput = resolveSchedulingInputScope(input);
   const initialResults = applySchedulingScoreContractToResults(calculateCourseScheduleCore(scopedInput));
   return makeBatchPlanConsistent(scopedInput, initialResults);
+}
+
+
+export async function preliminaryCourseCandidatesCooperatively(input = {}, checkpoint = async () => {}) {
+  planningPerfCount('preliminaryCalls');
+  const scoped = resolveSchedulingInputScope({ ...input, preliminary: true, travel: {}, routeMatrix: {} });
+  const candidates = await preliminaryCourseCandidatesCooperativeCore(scoped, checkpoint);
+  await checkpoint();
+  const steps = scorePreliminaryCandidateSteps(candidates);
+  let next = planningPerfStep(steps);
+  while (!next.done) { await checkpoint(); next = planningPerfStep(steps); }
+  return next.value;
+}
+
+export async function calculateCourseScheduleCooperatively(input = {}, checkpoint = async () => {}) {
+  const scoped = resolveSchedulingInputScope(input);
+  const results = await calculateCourseScheduleCooperativeCore(scoped, checkpoint);
+  await checkpoint();
+  return makeBatchPlanConsistent(scoped, applySchedulingScoreContractToResults(results));
 }

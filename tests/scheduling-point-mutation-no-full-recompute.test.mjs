@@ -60,6 +60,6 @@ test('point planning invalidation queues automatic scoped refresh without a manu
   assert.match(handler, /autoRefresh !== true/);
   assert.match(handler, /scheduleBackgroundPlanning\(\{ forceFull: false, reuseSnapshot: true \}\)/);
   assert.match(source, /data-run-full-course-planning/);
-  assert.match(source, /skipEndReload/);
+  assert.match(source, /const endFacts = await loadSchedulingPlanningPreflight\(scope\)/);
   assert.equal(AUTO_PLANNING_REFRESH_MAX_IDS >= 1, true);
 });

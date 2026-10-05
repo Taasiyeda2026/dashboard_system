@@ -68,10 +68,12 @@ export function isCheckpointResumable({
   engineVersion = '',
   dataFingerprint = '',
   contextFingerprint = '',
+  sourceRevision = null,
   runType = ''
 } = {}) {
   if (!checkpoint) return false;
   const meta = checkpoint.meta || null;
+  if (sourceRevision != null && (!meta || String(meta.sourceRevision) !== String(sourceRevision))) return false;
   // Legacy checkpoints (no meta envelope) may resume full-maintenance course
   // progress only. The RPC already matched engine+fingerprints to return them.
   if (!meta) {
@@ -103,6 +105,7 @@ export function canCommitValidatedCheckpoint({
   engineVersion = '',
   dataFingerprint = '',
   contextFingerprint = '',
+  sourceRevision = null,
   runType = '',
   requiredCourseIds = null,
   expectedScope = null
@@ -113,6 +116,7 @@ export function canCommitValidatedCheckpoint({
     engineVersion,
     dataFingerprint,
     contextFingerprint,
+    sourceRevision,
     runType
   })) return false;
   const meta = checkpoint?.meta || null;
@@ -151,6 +155,7 @@ function resumeFromCheckpoint({
   engineVersion,
   dataFingerprint,
   contextFingerprint,
+  sourceRevision,
   runType
 }) {
   return isCheckpointResumable({
@@ -159,6 +164,7 @@ function resumeFromCheckpoint({
     engineVersion,
     dataFingerprint,
     contextFingerprint,
+    sourceRevision,
     runType
   }) ? resumableCheckpoint : null;
 }
@@ -172,10 +178,12 @@ export function resolvePlanningRunPlan({
   upgradeOptimizationScopes = null,
   upgradeExecution = null,
   unrecoverableGlobalContextChange = false,
+  sourceValidationRequired = false,
   storedEngineVersion = '',
   currentEngineVersion = '',
   currentDataFingerprint = '',
   currentContextFingerprint = '',
+  sourceRevision = null,
   resumableCheckpoint = null
 } = {}) {
   const reasons = [];
@@ -193,6 +201,7 @@ export function resolvePlanningRunPlan({
   const dataFingerprint = text(currentDataFingerprint);
   const contextFingerprint = text(currentContextFingerprint);
 
+  if (sourceValidationRequired) reasons.push({ code: 'source_validation_bootstrap', detail: 'source journal has no validated cursor for this workspace' });
   if (forceFull) {
     reasons.push({ code: 'force_full', detail: 'explicit maintenance rebuild' });
   }
@@ -203,6 +212,7 @@ export function resolvePlanningRunPlan({
   }
 
   const fullMaintenance = forceFull === true
+    || sourceValidationRequired === true
     || !workspace
     || !existingRows.length
     || unrecoverableGlobalContextChange === true;
@@ -228,6 +238,7 @@ export function resolvePlanningRunPlan({
         engineVersion: currentEngineVersion,
         dataFingerprint,
         contextFingerprint,
+        sourceRevision,
         runType: PLANNING_RUN_TYPES.FULL_MAINTENANCE
       })
     };
@@ -292,6 +303,7 @@ export function resolvePlanningRunPlan({
         engineVersion: currentEngineVersion,
         dataFingerprint,
         contextFingerprint,
+        sourceRevision,
         runType: PLANNING_RUN_TYPES.ENGINE_UPGRADE
       })
     };
@@ -333,4 +345,27 @@ export function resolvePlanningRunPlan({
     advanceEngineMarker: false,
     resume: null
   };
+}
+
+/** Bound checkpoint requests by both activity count and encoded request bytes.
+ * A single large activity may use up to 1 MiB; larger payloads fail explicitly.
+ * Only the last chunk can expose the requested final phase. */
+export function* planningCheckpointChunks({rows = [], meta = null, rpcArgs = {}, maxRows = 10, maxBytes = 256 * 1024} = {}) {
+  const list = Array.isArray(rows) ? rows : [];
+  const encoder = new TextEncoder();
+  let offset = 0;
+  while (offset < Math.max(1, list.length)) {
+    const chunk = [];
+    const runningMeta = meta ? {...meta, phase:'running'} : null;
+    while (offset + chunk.length < list.length && chunk.length < maxRows) {
+      chunk.push(list[offset + chunk.length]);
+      const bytes = encoder.encode(JSON.stringify({...rpcArgs,p_rows:encodeCheckpointRows(chunk,runningMeta)})).length;
+      if (bytes > maxBytes && chunk.length > 1) { chunk.pop(); break; }
+    }
+    const last = offset + chunk.length >= list.length;
+    const args = {...rpcArgs,p_rows:encodeCheckpointRows(chunk,last ? meta : runningMeta)};
+    if (encoder.encode(JSON.stringify(args)).length > 1024 * 1024) throw new Error('planning_checkpoint_payload_too_large');
+    yield args;
+    offset += Math.max(1,chunk.length);
+  }
 }

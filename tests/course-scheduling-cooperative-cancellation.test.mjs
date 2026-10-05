@@ -248,7 +248,7 @@ test('run ownership guards stale snapshot save, state application, toast and fin
   const saveIndex = run.indexOf('await saveSharedPlanningSnapshot');
   assert.ok(saveIndex > 0);
   assert.ok(run.lastIndexOf('assertRunOwnership()', saveIndex) > 0, 'ownership must be asserted immediately before save');
-  assert.match(run, /if \(isPlanningCancellationError\(error\) \|\| !ownsRun\(\)\) \{\s*planningPerfEvent\('run-cancelled'/);
-  assert.match(run, /if \(!ownsRun\(\)\) return;[\s\S]*?visibleUi\?\.rerender\?\.\(\)/);
+  assert.match(run, /if \(!run\.leaseError && \(isPlanningCancellationError\(error\) \|\| !ownsRun\(\)\)\) \{\s*planningPerfEvent\('run-cancelled'/);
+  assert.match(run, /if \(activePlanningRun !== run \|\| run\.generation !== planningRunGeneration\) return;[\s\S]*?visibleUi\?\.rerender\?\.\(\)/);
   assert.ok(run.indexOf('assertRunOwnership()', saveIndex + 1) > saveIndex, 'save result must not apply after ownership is lost');
 });

@@ -100,3 +100,17 @@ export async function loadSchoolCalendarRows() {
 
   return inflightRequest;
 }
+
+/** Planning must read fresh calendar rows and must not certify an empty fallback
+ * as an authoritative snapshot after a failed read. */
+export async function loadPlanningSchoolCalendarRows() {
+  if (!supabase) throw new Error('school_calendar_unavailable');
+  const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+  if (sessionError) throw sessionError;
+  if (!sessionData?.session?.user) throw new Error('school_calendar_session_missing');
+  const { data, error } = await supabase.from('school_calendar')
+    .select(SCHOOL_CALENDAR_COLUMNS).eq('is_active', true).eq('show_on_main_calendar', true)
+    .order('start_date', { ascending: true });
+  if (error) throw error;
+  return Array.isArray(data) ? data : [];
+}

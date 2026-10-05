@@ -41,7 +41,9 @@ test('school calendar changes revalidate locked courses', async () => {
 
 test('service worker cache is advanced', async () => {
   const sw = await readFile(new URL('../frontend/sw.js', import.meta.url), 'utf8');
-  assert.match(sw, /const CACHE_VERSION = 1425;/);
+  assert.ok(Number(sw.match(/const CACHE_VERSION = (\d+);/)?.[1]) >= 1905);
+  const config = await readFile(new URL('../frontend/src/config.js', import.meta.url), 'utf8');
+  assert.ok(config.includes('scheduling-preflight-fenced-cooperative-runtime-20261006-v1'));
 });
 
 

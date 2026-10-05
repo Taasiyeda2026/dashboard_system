@@ -32,15 +32,15 @@ test('planning store exposes incremental snapshot RPC', async () => {
   assert.match(source, /p_removed_activity_ids/);
 });
 
-test('planning preflight does not load the bulk travel cache before deciding work is required', async () => {
+test('planning preflight precedes snapshots and bulk travel cache is never preloaded', async () => {
   const source = await readFile(screenUrl, 'utf8');
-  const noOpBranch = source.indexOf("runPlan.runType === PLANNING_RUN_TYPES.NO_OP");
-  const routeCacheLoad = source.indexOf('await loadSchedulingTravelCacheRows()', noOpBranch);
-  assert.ok(noOpBranch >= 0);
-  assert.ok(routeCacheLoad > noOpBranch);
-  assert.doesNotMatch(source.slice(0, noOpBranch), /await loadSchedulingTravelCacheRows\(\)/);
-  assert.match(source, /const shouldPreloadRouteCache = runPlan\.preloadRouteCache === true/);
-  assert.match(source, /const routeCacheRows = shouldPreloadRouteCache[\s\S]*?\? await loadSchedulingTravelCacheRows\(\)[\s\S]*?: \[\]/);
+  const run = source.slice(source.indexOf('const runCoursePlanning = async'), source.indexOf('const clonePlanningOption'));
+  const preflight = run.indexOf('await runPlanningPreflight');
+  const noOp = run.indexOf("preflight.decision === 'no-op'");
+  const snapshot = run.indexOf('await loadSharedPlanningWorkspace');
+  assert.ok(preflight >= 0 && noOp > preflight && snapshot > noOp);
+  assert.doesNotMatch(run, /loadSchedulingTravelCacheRows\(/);
+  assert.match(run, /const routeCacheRows = \[\]/);
 });
 
 test('planning persistence SQL is set-based rather than row-loop based', async () => {

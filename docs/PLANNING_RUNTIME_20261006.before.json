@@ -1,0 +1,224 @@
+{
+  "fixture": {
+    "activities": 175,
+    "instructors": 24,
+    "schools": 35,
+    "sessions": 8,
+    "warmRoutePairs": 3422
+  },
+  "scope": "engine-only; warm synthetic routes; no DB or network",
+  "reports": [
+    {
+      "label": "full-175",
+      "wallMs": 269840.095521,
+      "rows": 175,
+      "kinds": {
+        "proposal": 161,
+        "recruitment": 14
+      },
+      "planSignature": "cf49d3e77d282c9d846c2f87fc3f812b83fa5d2138f074e3ff58c58a7acfb843",
+      "maxTimerDelayMs": 42.74312800000189,
+      "timerTicks": 2555,
+      "serviceCalls": 0,
+      "phasesMs": {
+        "start": 1.1617519999999928,
+        "הכנת נתונים": 59.19538100000001,
+        "יצירת אפשרויות": 6.736995000000007,
+        "בדיקת מדריכים": 181.49374099989654,
+        "בדיקת נסיעות": 98309.80270300012,
+        "בניית תוכנית": 58677.70869100002,
+        "אריזת בתי ספר הושלמה": 1.6329019999830052,
+        "ריכוז ימי עבודה · סבב 1": 15560.323570000008,
+        "ריכוז ימי עבודה · סבב 2": 9.078608000010718,
+        "ריכוז ימי עבודה הושלם": 63.23842300000251,
+        "צמצום חלונות ביום · סבב 1": 48368.659791000304,
+        "צמצום חלונות ביום · סבב 2": 48492.87893100025,
+        "צמצום חלונות הושלם": 15.128274000016972,
+        "בקרת תקינות סופית": 93.04194299998926
+      },
+      "perf": {
+        "label": "full-175",
+        "startedAt": 1791239249650,
+        "finishedAt": 1791239519492,
+        "counters": {
+          "preliminaryCalls": 4751,
+          "scheduleCalls": 4452,
+          "activitiesComputed": 175,
+          "upgradeActivitiesComputed": 0,
+          "candidateEvals": 117829,
+          "candidateEvaluations": 117829,
+          "instructorScans": 9203,
+          "scenarioCount": 4751,
+          "scenarioEvaluations": 4751,
+          "travelRequests": 4046,
+          "routeCacheRequests": 4046,
+          "cacheHits": 820,
+          "googleCalls": 0,
+          "finalValidations": 4458,
+          "contextRebuilds": 318,
+          "progressUiUpdates": 1175,
+          "checkpointSaves": 0,
+          "checkpointPayloadBytes": 0
+        },
+        "timers": {
+          "candidateEvaluation": {
+            "calls": 9203,
+            "totalMs": 30013.2419259997,
+            "maxMs": 41.906675000005635
+          },
+          "calculateCourseSchedule": {
+            "calls": 4452,
+            "totalMs": 3413.1219200003375,
+            "maxMs": 5.4070169999977225
+          },
+          "evaluateScenarioOptions": {
+            "calls": 318,
+            "totalMs": 36815.11192699995,
+            "maxMs": 304.5318649999972
+          }
+        },
+        "events": []
+      }
+    },
+    {
+      "label": "one-dirty",
+      "wallMs": 2066.7704410000006,
+      "rows": 175,
+      "kinds": {
+        "proposal": 161,
+        "recruitment": 14
+      },
+      "planSignature": "de54cdf070c730d469e73d69e22382f66b5b4325e3e3ca15af96087760a64c31",
+      "maxTimerDelayMs": 21.442090999975335,
+      "timerTicks": 19,
+      "serviceCalls": 0,
+      "phasesMs": {
+        "start": 0.25389500003075227,
+        "הכנת נתונים": 10.329525999957696,
+        "יצירת אפשרויות": 23.294136000040453,
+        "בדיקת מדריכים": 2.4342889999970794,
+        "בדיקת נסיעות": 1083.3222480000113,
+        "בניית תוכנית": 131.88381699996535,
+        "אריזת בתי ספר הושלמה": 0.2619399999966845,
+        "ריכוז ימי עבודה · סבב 1": 0.15224399999715388,
+        "ריכוז ימי עבודה הושלם": 0.10111899999901652,
+        "צמצום חלונות ביום · סבב 1": 764.122743999993,
+        "צמצום חלונות הושלם": 14.517111000022851,
+        "בקרת תקינות סופית": 36.086842000018805
+      },
+      "perf": {
+        "label": "one-dirty",
+        "startedAt": 1791239519494,
+        "finishedAt": 1791239521562,
+        "counters": {
+          "preliminaryCalls": 26,
+          "scheduleCalls": 32,
+          "activitiesComputed": 1,
+          "upgradeActivitiesComputed": 0,
+          "candidateEvals": 672,
+          "candidateEvaluations": 672,
+          "instructorScans": 58,
+          "scenarioCount": 26,
+          "scenarioEvaluations": 26,
+          "travelRequests": 102,
+          "routeCacheRequests": 102,
+          "cacheHits": 25,
+          "googleCalls": 0,
+          "finalValidations": 24,
+          "contextRebuilds": 2,
+          "progressUiUpdates": 11,
+          "checkpointSaves": 0,
+          "checkpointPayloadBytes": 0
+        },
+        "timers": {
+          "candidateEvaluation": {
+            "calls": 58,
+            "totalMs": 254.50952299981145,
+            "maxMs": 13.474815000023227
+          },
+          "calculateCourseSchedule": {
+            "calls": 32,
+            "totalMs": 52.980051999969874,
+            "maxMs": 2.1504689999856055
+          },
+          "evaluateScenarioOptions": {
+            "calls": 2,
+            "totalMs": 316.10128300002543,
+            "maxMs": 312.919326000032
+          }
+        },
+        "events": []
+      }
+    },
+    {
+      "label": "three-dirty",
+      "wallMs": 7602.054550000001,
+      "rows": 175,
+      "kinds": {
+        "proposal": 161,
+        "recruitment": 14
+      },
+      "planSignature": "6edf6a394dbf76cff9fb4951be7cc4952447670867f9f9797750db459d253525",
+      "maxTimerDelayMs": 29.40737899998203,
+      "timerTicks": 72,
+      "serviceCalls": 0,
+      "phasesMs": {
+        "start": 0.019426000013481826,
+        "הכנת נתונים": 10.180585999973118,
+        "יצירת אפשרויות": 22.48179600003641,
+        "בדיקת מדריכים": 3.3415549999917857,
+        "בדיקת נסיעות": 3156.4014219999663,
+        "בניית תוכנית": 2081.9889270000276,
+        "אריזת בתי ספר הושלמה": 0.1296720000100322,
+        "ריכוז ימי עבודה · סבב 1": 0.27459299995098263,
+        "ריכוז ימי עבודה הושלם": 0.338132000004407,
+        "צמצום חלונות ביום · סבב 1": 2274.0506809999933,
+        "צמצום חלונות הושלם": 16.278142000024673,
+        "בקרת תקינות סופית": 36.56237499997951
+      },
+      "perf": {
+        "label": "three-dirty",
+        "startedAt": 1791239521562,
+        "finishedAt": 1791239529165,
+        "counters": {
+          "preliminaryCalls": 78,
+          "scheduleCalls": 88,
+          "activitiesComputed": 3,
+          "upgradeActivitiesComputed": 0,
+          "candidateEvals": 1988,
+          "candidateEvaluations": 1988,
+          "instructorScans": 166,
+          "scenarioCount": 78,
+          "scenarioEvaluations": 78,
+          "travelRequests": 331,
+          "routeCacheRequests": 331,
+          "cacheHits": 53,
+          "googleCalls": 0,
+          "finalValidations": 75,
+          "contextRebuilds": 6,
+          "progressUiUpdates": 21,
+          "checkpointSaves": 0,
+          "checkpointPayloadBytes": 0
+        },
+        "timers": {
+          "candidateEvaluation": {
+            "calls": 166,
+            "totalMs": 748.3916360005969,
+            "maxMs": 13.963145000045188
+          },
+          "calculateCourseSchedule": {
+            "calls": 88,
+            "totalMs": 142.346418999834,
+            "maxMs": 2.966705000028014
+          },
+          "evaluateScenarioOptions": {
+            "calls": 6,
+            "totalMs": 933.6399639999727,
+            "maxMs": 312.32005099998787
+          }
+        },
+        "events": []
+      }
+    }
+  ]
+}

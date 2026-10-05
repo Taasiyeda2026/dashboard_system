@@ -1,3 +1,4 @@
+import { planningPerfCount, planningPerfTimer } from './course-scheduling-perf.js';
 import { supabase } from '../supabase-client.js';
 import { schedulingCalendarMeetings } from './instructor-scheduling-load.js';
 import {
@@ -7,11 +8,17 @@ import {
 import { normalizeCalendarSector } from './shared/school-calendar-logic.js';
 import {
   decodeCheckpointPayload,
-  encodeCheckpointRows
+  planningCheckpointChunks
 } from './course-scheduling-run-plan.js';
 
 const text = (value) => String(value ?? '').trim();
 const idOf = (row) => text(row?.row_id || row?.RowID || row?.id);
+async function planningRpc(name, args) {
+  planningPerfCount('dbRpcCalls');
+  const stop = planningPerfTimer(`rpc:${name}`);
+  try { return await supabase.rpc(name, args); } finally { stop(); }
+}
+
 
 /** Activity fields that affect shared course planning / instructor matching. */
 export const PLANNING_SCHEDULING_FIELD_KEYS = Object.freeze([
@@ -151,19 +158,27 @@ function sectorMatchesActivity(window = {}, activity = {}) {
   return !activitySector || activitySector === windowSector;
 }
 
+export async function loadSchedulingPlanningPreflight({ periodKey = 'year', district = '' } = {}) {
+  const { data, error } = await planningRpc('get_scheduling_planning_preflight', {
+    p_period_key: text(periodKey) || 'year', p_district: text(district)
+  });
+  if (error) throw error;
+  return data;
+}
+
 export async function acquireSchedulingPlanningRunLease({
   periodKey = 'year',
   district = '',
   runId = '',
-  ttlSeconds = 900
+  ttlSeconds = 120
 } = {}) {
   const run_id = text(runId);
   if (!run_id) throw new Error('planning_run_id_required');
-  const { data, error } = await supabase.rpc('acquire_scheduling_planning_run_lease', {
+  const { data, error } = await planningRpc('acquire_scheduling_planning_run_lease', {
     p_period_key: text(periodKey) || 'year',
     p_district: text(district),
     p_run_id: run_id,
-    p_ttl_seconds: Number.isFinite(Number(ttlSeconds)) ? Number(ttlSeconds) : 900
+    p_ttl_seconds: Number.isFinite(Number(ttlSeconds)) ? Number(ttlSeconds) : 120
   });
   if (error) throw error;
   return data && typeof data === 'object' ? data : { acquired: false };
@@ -173,15 +188,15 @@ export async function heartbeatSchedulingPlanningRunLease({
   periodKey = 'year',
   district = '',
   runId = '',
-  ttlSeconds = 900
+  ttlSeconds = 120
 } = {}) {
   const run_id = text(runId);
   if (!run_id) return { ok: false, reason: 'planning_run_id_required' };
-  const { data, error } = await supabase.rpc('heartbeat_scheduling_planning_run_lease', {
+  const { data, error } = await planningRpc('heartbeat_scheduling_planning_run_lease', {
     p_period_key: text(periodKey) || 'year',
     p_district: text(district),
     p_run_id: run_id,
-    p_ttl_seconds: Number.isFinite(Number(ttlSeconds)) ? Number(ttlSeconds) : 900
+    p_ttl_seconds: Number.isFinite(Number(ttlSeconds)) ? Number(ttlSeconds) : 120
   });
   if (error) throw error;
   return data && typeof data === 'object' ? data : { ok: false };
@@ -194,7 +209,7 @@ export async function releaseSchedulingPlanningRunLease({
 } = {}) {
   const run_id = text(runId);
   if (!run_id) return { released: false, reason: 'planning_run_id_required' };
-  const { data, error } = await supabase.rpc('release_scheduling_planning_run_lease', {
+  const { data, error } = await planningRpc('release_scheduling_planning_run_lease', {
     p_period_key: text(periodKey) || 'year',
     p_district: text(district),
     p_run_id: run_id
@@ -204,7 +219,7 @@ export async function releaseSchedulingPlanningRunLease({
 }
 
 export async function loadSharedPlanningWorkspace({ periodKey = 'year', district = '' } = {}) {
-  const { data, error } = await supabase.rpc('get_scheduling_planning_workspace', {
+  const { data, error } = await planningRpc('get_scheduling_planning_workspace', {
     p_period_key: text(periodKey) || 'year',
     p_district: text(district)
   });
@@ -425,7 +440,7 @@ export async function loadSharedPlanningCheckpoint({
   dataFingerprint = '',
   contextFingerprint = ''
 } = {}) {
-  const { data, error } = await supabase.rpc('get_scheduling_planning_checkpoint', {
+  const { data, error } = await planningRpc('get_scheduling_planning_checkpoint', {
     p_period_key: text(periodKey) || 'year',
     p_district: text(district),
     p_engine_version: text(engineVersion),
@@ -455,31 +470,42 @@ export async function saveSharedPlanningCheckpoint({
   totalCount = 0,
   completedActivityIds = [],
   rows = [],
-  meta = null
+  meta = null,
+  assertActive = null,
+  runId = null, sourceRevision = null
 } = {}) {
-  const payloadRows = encodeCheckpointRows(rows, meta);
-  const { data, error } = await supabase.rpc('save_scheduling_planning_checkpoint', {
-    p_period_key: text(periodKey) || 'year',
-    p_district: text(district),
-    p_engine_version: text(engineVersion),
-    p_data_fingerprint: text(dataFingerprint),
+  const rpcArgs = {
+    p_run_id: runId || null,
+    p_source_revision: sourceRevision == null ? null : String(sourceRevision),
+    p_period_key: text(periodKey) || 'year', p_district: text(district),
+    p_engine_version: text(engineVersion), p_data_fingerprint: text(dataFingerprint),
     p_context_fingerprint: text(contextFingerprint),
     p_completed_count: Math.max(0, Number(completedCount) || 0),
     p_total_count: Math.max(0, Number(totalCount) || 0),
-    p_completed_activity_ids: (completedActivityIds || []).map(text).filter(Boolean),
-    p_rows: payloadRows
-  });
-  if (error) throw error;
-  return data || null;
+    p_completed_activity_ids: (completedActivityIds || []).map(text).filter(Boolean)
+  };
+  let saved = null;
+  for (const args of planningCheckpointChunks({rows,meta,rpcArgs})) {
+    assertActive?.();
+    const { data, error } = await planningRpc('save_scheduling_planning_checkpoint', args);
+    if (error) throw error;
+    assertActive?.();
+    planningPerfCount('checkpointChunks');
+    planningPerfCount('checkpointWireBytes', new TextEncoder().encode(JSON.stringify(args)).length);
+    saved = data || null;
+  }
+  return saved;
 }
 
 export async function clearSharedPlanningCheckpoint({
   periodKey = 'year',
-  district = ''
+  district = '',
+  runId = null, sourceRevision = null
 } = {}) {
-  const { data, error } = await supabase.rpc('clear_scheduling_planning_checkpoint', {
+  const { data, error } = await planningRpc('clear_scheduling_planning_checkpoint', {
     p_period_key: text(periodKey) || 'year',
-    p_district: text(district)
+    p_district: text(district),
+    p_run_id: runId || null, p_source_revision: sourceRevision == null ? null : String(sourceRevision)
   });
   if (error) throw error;
   return data === true;
@@ -491,7 +517,7 @@ export async function upgradeSharedPlanningContextFingerprint({
   contextFingerprint = '',
   expectedRevision = null
 } = {}) {
-  const { data, error } = await supabase.rpc('upgrade_scheduling_planning_context_fingerprint', {
+  const { data, error } = await planningRpc('upgrade_scheduling_planning_context_fingerprint', {
     p_period_key: text(periodKey) || 'year',
     p_district: text(district),
     p_context_fingerprint: text(contextFingerprint),
@@ -512,7 +538,8 @@ export async function saveSharedPlanningIncrementalSnapshot({
   rows = [],
   removedActivityIds = [],
   activities = [],
-  expectedRevision = null
+  expectedRevision = null,
+  runId = null, sourceRevision = null
 } = {}) {
   const activityById = new Map((activities || []).map((activity) => [idOf(activity), activity]));
   const payloadRows = (rows || []).map((row) => {
@@ -525,7 +552,9 @@ export async function saveSharedPlanningIncrementalSnapshot({
     };
   }).filter((item) => item.activityId);
 
-  const { data, error } = await supabase.rpc('save_scheduling_planning_incremental_snapshot', {
+  const { data, error } = await planningRpc('save_scheduling_planning_incremental_snapshot', {
+    p_run_id: runId || null,
+    p_source_revision: sourceRevision == null ? null : String(sourceRevision),
     p_period_key: text(periodKey) || 'year',
     p_district: text(district),
     p_engine_version: text(engineVersion),
@@ -549,7 +578,8 @@ export async function saveSharedPlanningSnapshot({
   contextFingerprint = '',
   rows = [],
   activities = [],
-  expectedRevision = null
+  expectedRevision = null,
+  runId = null, sourceRevision = null
 } = {}) {
   const activityById = new Map((activities || []).map((activity) => [idOf(activity), activity]));
   const payloadRows = (rows || []).map((row) => {
@@ -562,7 +592,9 @@ export async function saveSharedPlanningSnapshot({
     };
   }).filter((item) => item.activityId);
 
-  const { data, error } = await supabase.rpc('save_scheduling_planning_snapshot', {
+  const { data, error } = await planningRpc('save_scheduling_planning_snapshot', {
+    p_run_id: runId || null,
+    p_source_revision: sourceRevision == null ? null : String(sourceRevision),
     p_period_key: text(periodKey) || 'year',
     p_district: text(district),
     p_engine_version: text(engineVersion),
@@ -584,7 +616,7 @@ export async function saveSharedPlanningLock({
   option = null,
   expectedRevision = null
 } = {}) {
-  const { data, error } = await supabase.rpc('set_scheduling_planning_lock', {
+  const { data, error } = await planningRpc('set_scheduling_planning_lock', {
     p_period_key: text(periodKey) || 'year',
     p_district: text(district),
     p_activity_id: text(activityId),
@@ -601,7 +633,7 @@ export async function confirmSharedPlanningDraft({
   activityId = '',
   expectedRevision = null
 } = {}) {
-  const { data, error } = await supabase.rpc('confirm_scheduling_planning_draft', {
+  const { data, error } = await planningRpc('confirm_scheduling_planning_draft', {
     p_period_key: text(periodKey) || 'year',
     p_district: text(district),
     p_activity_id: text(activityId),
@@ -616,7 +648,7 @@ export async function clearSharedPlanningWorkspace({
   district = '',
   expectedRevision = null
 } = {}) {
-  const { data, error } = await supabase.rpc('clear_scheduling_planning_workspace', {
+  const { data, error } = await planningRpc('clear_scheduling_planning_workspace', {
     p_period_key: text(periodKey) || 'year',
     p_district: text(district),
     p_expected_revision: Number.isFinite(Number(expectedRevision)) ? Number(expectedRevision) : null
@@ -653,6 +685,10 @@ export function planningStoreErrorMessage(error, fallback = 'שמירת התכנ
     }
     return 'התכנון לא נשמר כי בדיקת התוכנית המלאה מצאה סתירה תפעולית.';
   }
+  if (raw.includes('planning_snapshot_incomplete') || raw.includes('school_calendar_unavailable') || raw.includes('school_calendar_session_missing')) return 'לא ניתן היה לקרוא את כל נתוני השיבוץ. יש לרענן את הנתונים ולנסות שוב.';
+  if (raw.includes('planning_preflight_migration_required') || raw.includes('get_scheduling_planning_preflight')) return 'נדרשת התקנת עדכון מסד הנתונים של מנוע התכנון לפני הריצה.';
+  if (raw.includes('planning_run_ownership_lost')) return 'הריצה איבדה בעלות על התכנון. התוצאה לא נשמרה; ניתן לבדוק שוב את מצב התכנון.';
+  if (raw.includes('planning_source_revision_conflict')) return 'נתוני השיבוץ השתנו בזמן החישוב. התוצאה לא נשמרה; יש לעדכן את השינויים.';
   if (raw.includes('planning_revision_conflict')) return 'התכנון עודכן במקביל על ידי משתמש אחר. רעננו את התכנון המשותף ונסו שוב.';
   if (raw.includes('planning_activity_changed')) return 'נתוני הפעילויות השתנו בזמן החישוב. המערכת לא דרסה את השינויים — יש לעדכן רק את הפעילויות שהשתנו.';
   if (raw.includes('planning_draft_missing')) return 'הטיוטה כבר השתנתה או בוטלה. המערכת תרענן את ההצעות.';
@@ -1116,7 +1152,7 @@ export async function markSharedPlanningNeedsRecalcMany(activityIds = [], {
     return { markedActivityIds: [], affectedCount: 0, rowsTouched: 0, workspaceCount: 0 };
   }
 
-  const { data, error } = await supabase.rpc('mark_scheduling_planning_needs_recalc_many', {
+  const { data, error } = await planningRpc('mark_scheduling_planning_needs_recalc_many', {
     p_activity_ids: ids,
     p_require_permission: requirePermission !== false
   });
@@ -1203,7 +1239,7 @@ export async function markSharedPlanningNeedsRecalc(activityId = '', {
   const id = text(activityId);
   if (!id) return { activityId: '', markedActivityIds: [], affectedCount: 0 };
 
-  const { data, error } = await supabase.rpc('mark_scheduling_planning_needs_recalc', {
+  const { data, error } = await planningRpc('mark_scheduling_planning_needs_recalc', {
     p_activity_id: id,
     p_require_permission: requirePermission !== false
   });
