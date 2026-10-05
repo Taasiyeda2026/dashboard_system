@@ -83,7 +83,7 @@ test('dashboard runtime exposes one-click reopen without a reason prompt', () =>
   assert.match(runtime, /reason: null/);
   assert.doesNotMatch(runtime, /window\.prompt/);
   assert.doesNotMatch(runtime, /יש להזין סיבה/);
-  assert.match(marker, /attendance-self-submit-reopen-runtime\.js\?v=20261004-employee-self-submit-v2/);
+  assert.match(marker, /attendance-self-submit-reopen-runtime\\.js\\?v=20261005-manager-reopen-hierarchy-v1/);
   assert.match(marker, /attendance-employee-self-submit-20261004-v2/);
   const dashboardCacheVersion = Number(dashboardSw.match(/const CACHE_VERSION = (\d+);/)?.[1]);
   assert.ok(dashboardCacheVersion >= 1887);
