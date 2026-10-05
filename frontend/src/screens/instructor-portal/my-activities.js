@@ -1,7 +1,7 @@
 import { escapeHtml } from '../shared/html.js';
 import { formatDateHe, formatTimeRangeShort } from '../shared/format-date.js';
 import { dsPageHeader, dsScreenStack, dsCard, dsTableWrap, dsEmptyState } from '../shared/layout.js';
-import { instructorActivities, loadInstructorActivities } from './portal-data.js';
+import { loadInstructorPortalSchedule, portalActivityForDrawer, portalResolvedActivities } from './portal-data.js';
 import { instructorActivityId, instructorActivityName, openInstructorActivityDrawer } from './activity-drawer.js';
 
 export function instructorActivityContact(row) {
@@ -26,12 +26,27 @@ function activityDateMeta(value, today) {
   return { text, past, className: `portal-activity-date${past ? ' portal-activity-date--past' : ''}` };
 }
 
+function substitutionBadge(row) {
+  if (!row?.substitution_only && !row?.has_single_meeting_substitution) return '';
+  const dates = (Array.isArray(row?.resolved_meetings) ? row.resolved_meetings : [])
+    .filter((meeting) => meeting?.is_single_meeting_substitution)
+    .map((meeting) => formatDateHe(meeting.meeting_date || meeting.date))
+    .filter(Boolean);
+  const label = dates.length === 1
+    ? `החלפה חד־פעמית · ${dates[0]}`
+    : dates.length
+      ? `החלפה חד־פעמית · ${dates.join(', ')}`
+      : 'החלפה חד־פעמית';
+  return `<span class="portal-activity-substitution-badge">${escapeHtml(label)}</span>`;
+}
+
 function mobileActivityCard(row, today) {
   const id = escapeHtml(instructorActivityId(row));
   const startDate = activityDateMeta(row.start_date || row.activity_date, today);
   const endDate = activityDateMeta(row.end_date, today);
   return `<article class="instr-activity-list-card portal-activity-card" role="button" tabindex="0" data-portal-activity="${id}">
     <h3>${escapeHtml(instructorActivityName(row))}</h3>
+    ${substitutionBadge(row)}
     <div class="portal-activity-card__summary">
       <span>תאריך התחלה<strong class="${startDate.className}" aria-label="${escapeHtml(`תאריך התחלה ${startDate.text}${startDate.past ? ', תאריך שחלף' : ''}`)}">${escapeHtml(startDate.text)}</strong></span>
       <span>תאריך סיום<strong class="${endDate.className}" aria-label="${escapeHtml(`תאריך סיום ${endDate.text}${endDate.past ? ', תאריך שחלף' : ''}`)}">${escapeHtml(endDate.text)}</strong></span>
@@ -43,9 +58,10 @@ function mobileActivityCard(row, today) {
 }
 
 export const instructorMyActivitiesScreen = {
-  load: ({ api }) => loadInstructorActivities(api),
+  load: ({ api }) => loadInstructorPortalSchedule(api),
   render(data, { state } = {}) {
-    const rows = chronological(instructorActivities(data?.rows, state));
+    const scheduleState = { ...state, resolvedMeetings: data?.resolvedMeetings, resolvedActivities: data?.resolvedActivities };
+    const rows = chronological(portalResolvedActivities(data, scheduleState));
     const today = localTodayIso();
     const body = rows.map((row) => {
       const id = escapeHtml(instructorActivityId(row));
@@ -57,7 +73,7 @@ export const instructorMyActivitiesScreen = {
         <td>${escapeHtml(formatTimeRangeShort(row.start_time, row.end_time) || '—')}</td>
         <td>${escapeHtml(row.school || '—')}</td>
         <td>${escapeHtml(row.authority || '—')}</td>
-        <td>${escapeHtml(instructorActivityName(row))}</td>
+        <td>${escapeHtml(instructorActivityName(row))}${substitutionBadge(row)}</td>
       </tr>`;
     }).join('');
     const desktop = `<div class="portal-activities-desktop">${dsTableWrap(`<table class="ds-table ds-table--interactive"><thead><tr><th>תאריך התחלה</th><th>תאריך סיום</th><th>שעות</th><th>בית ספר</th><th>רשות</th><th>פעילות</th></tr></thead><tbody>${body}</tbody></table>`)}</div>`;
@@ -69,16 +85,20 @@ export const instructorMyActivitiesScreen = {
     root.querySelector('[data-open-work-schedule]')?.addEventListener('click', () => {
       document.dispatchEvent(new CustomEvent('app:navigate', { detail: { route: 'instructor-work-schedule' } }));
     });
-    const rows = instructorActivities(data?.rows, state);
-    const byId = new Map(rows.map((row) => [instructorActivityId(row), row]));
+    const scheduleState = { ...state, resolvedMeetings: data?.resolvedMeetings, resolvedActivities: data?.resolvedActivities };
     const openById = (id) => {
-      const row = byId.get(String(id || ''));
+      const row = portalActivityForDrawer(id, data, scheduleState);
       if (!row) return;
       openInstructorActivityDrawer({ row, state, ui });
     };
     root.querySelectorAll('[data-portal-activity]').forEach((node) => {
       node.addEventListener('click', () => openById(node.dataset.portalActivity));
-      node.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openById(node.dataset.portalActivity); } });
+      node.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          openById(node.dataset.portalActivity);
+        }
+      });
     });
   }
 };

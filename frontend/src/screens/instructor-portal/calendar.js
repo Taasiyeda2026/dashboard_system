@@ -2,7 +2,7 @@ import { loadActiveBirthdays } from '../../birthday-calendar.js';
 import { dsScreenStack, dsCard, dsInteractiveCard, dsEmptyState } from '../shared/layout.js';
 import { loadSchoolCalendarRows } from '../shared/school-calendar-data.js';
 import { clampInstructorCalendarMonth, instructorActivityEventsForDate, instructorAttendanceDateSet, instructorCalendarDayClasses, INSTRUCTOR_CALENDAR_END_DATE, INSTRUCTOR_CALENDAR_START_DATE, moveInstructorCalendarMonth, organizationalCalendarDayLabel, organizationalEventsForDate } from './calendar-events.js';
-import { instructorActivities, loadInstructorActivities, loadInstructorAttendanceDates } from './portal-data.js';
+import { loadInstructorAttendanceDates, loadInstructorPortalSchedule, portalActivityForDrawer } from './portal-data.js';
 import { instructorActivityId, openInstructorActivityDrawer } from './activity-drawer.js';
 import { instructorCalendarDayDrawerHtml } from './calendar-day-drawer.js';
 
@@ -11,6 +11,10 @@ const WEEKDAYS = ['א׳','ב׳','ג׳','ד׳','ה׳','ו׳','ש׳'];
 const localMonthKey = (date = new Date()) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
 let selectedMonth = clampInstructorCalendarMonth(localMonthKey());
 const isoDay = (year, month, day) => `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+
+function dayActivityEvents(data, date) {
+  return instructorActivityEventsForDate(data?.activities || [], date, data?.resolvedMeetings || null);
+}
 
 export function organizationalCalendarGridHtml(data, month = selectedMonth) {
   const [year, monthNumber] = month.split('-').map(Number);
@@ -21,7 +25,7 @@ export function organizationalCalendarGridHtml(data, month = selectedMonth) {
     const day = index - firstWeekday + 1;
     if (day < 1 || day > days) return '<div class="ds-cal-slot-hit is-other-month" aria-hidden="true"><article class="ds-interactive-card ds-interactive-card--day-cell is-other-month"></article></div>';
     const date = isoDay(year, monthNumber, day);
-    const events = [...instructorActivityEventsForDate(data?.activities, date), ...organizationalEventsForDate(data?.calendarRows, data?.birthdays, date)];
+    const events = [...dayActivityEvents(data, date), ...organizationalEventsForDate(data?.calendarRows, data?.birthdays, date)];
     const eventClasses = instructorCalendarDayClasses(events, attendanceDates, date);
     return `<div class="ds-cal-slot-hit" data-calendar-date="${date}">${dsInteractiveCard({ action: `organization-day|${date}`, title: String(day), subtitle: organizationalCalendarDayLabel(events), variant: 'day-cell', extraClass: eventClasses })}</div>`;
   }).join('');
@@ -47,16 +51,23 @@ function instructorDetailRow(detail, summary) {
 export const instructorPortalCalendarScreen = {
   async load({ api, state }) {
     const empId = String(state?.user?.emp_id || '').trim();
-    const [calendarRows, birthdays, activityData, attendanceRows] = await Promise.all([
+    const [calendarRows, birthdays, scheduleData, attendanceRows] = await Promise.all([
       loadSchoolCalendarRows(),
       loadActiveBirthdays(),
-      loadInstructorActivities(api),
+      loadInstructorPortalSchedule(api, { fromDate: INSTRUCTOR_CALENDAR_START_DATE, toDate: INSTRUCTOR_CALENDAR_END_DATE }),
       loadInstructorAttendanceDates(api, { empId, fromDate: INSTRUCTOR_CALENDAR_START_DATE, toDate: INSTRUCTOR_CALENDAR_END_DATE })
     ]);
-    return { calendarRows, birthdays, rows: activityData.rows, attendanceRows };
+    return {
+      calendarRows,
+      birthdays,
+      rows: scheduleData.rows,
+      resolvedMeetings: scheduleData.resolvedMeetings,
+      resolvedActivities: scheduleData.resolvedActivities,
+      attendanceRows
+    };
   },
-  render(data, { state } = {}) {
-    data.activities = instructorActivities(data?.rows, state);
+  render(data) {
+    data.activities = data?.resolvedActivities || [];
     const [year, month] = selectedMonth.split('-').map(Number);
     return dsScreenStack(`<section class="instructor-area route-instructor-calendar"><nav class="ds-cal-nav instr-calendar-toolbar" role="navigation" aria-label="ניווט לוח שנה" dir="rtl"><span class="instr-calendar-toolbar__title">לוח שנה</span><div class="instr-calendar-toolbar__controls"><button type="button" class="ds-btn ds-btn--sm ds-btn--nav-arrow" data-calendar-prev aria-label="חודש קודם">▶</button><span class="ds-cal-nav__label">${MONTHS[month - 1]} ${year}</span><button type="button" class="ds-btn ds-btn--sm ds-btn--today" data-calendar-today>היום</button><button type="button" class="ds-btn ds-btn--sm ds-btn--nav-arrow" data-calendar-next aria-label="חודש הבא">◀</button></div></nav>${dsCard({ body: organizationalCalendarGridHtml(data), padded: false })}</section>`);
   },
@@ -67,7 +78,7 @@ export const instructorPortalCalendarScreen = {
     root.querySelector('[data-calendar-today]')?.addEventListener('click', () => { selectedMonth = clampInstructorCalendarMonth(localMonthKey()); rerender?.(); });
     root.querySelectorAll('[data-calendar-date]').forEach((node) => node.addEventListener('click', () => {
       const date = node.dataset.calendarDate;
-      const events = [...instructorActivityEventsForDate(data?.activities, date), ...organizationalEventsForDate(data?.calendarRows, data?.birthdays, date)];
+      const events = [...dayActivityEvents(data, date), ...organizationalEventsForDate(data?.calendarRows, data?.birthdays, date)];
       ui?.openDrawer({
         title: 'אירועים בלוח השנה',
         content: instructorCalendarDayDrawerHtml(events, data?.attendanceRows, date),
@@ -81,6 +92,11 @@ export const instructorPortalCalendarScreen = {
               return;
             }
             try {
+              const scoped = portalActivityForDrawer(instructorActivityId(row), data, state);
+              if (scoped) {
+                openInstructorActivityDrawer({ row: scoped, state, ui });
+                return;
+              }
               const response = await api.activityDetail(row.RowID || row.row_id || row.id, row.source_sheet || 'activities');
               const fullRow = instructorDetailRow(response?.row || row, row);
               openInstructorActivityDrawer({ row: fullRow, state, ui });
