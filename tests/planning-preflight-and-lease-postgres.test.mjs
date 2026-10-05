@@ -57,7 +57,7 @@ before(async () => {
   const v26=await sqlFile('../supabase/migrations/20261003170000_planning_v26_coherent_school_first.sql');
   const instructorHelperStart=v26.indexOf('create or replace function public.scheduling_planning_row_instructor_ids(');
   await client.query(v26.slice(instructorHelperStart,v26.indexOf('$$;',instructorHelperStart)+3));
-  for (const file of ['20260924145500_shared_incremental_course_planning.sql','20260926195500_planning_silent_checkpoints.sql','20261004193000_optimize_planning_persistence.sql','20261005193000_scheduling_planning_run_leases.sql','20261006100000_planning_preflight_and_fenced_runs.sql']) {
+  for (const file of ['20260924145500_shared_incremental_course_planning.sql','20260926195500_planning_silent_checkpoints.sql','20261004193000_optimize_planning_persistence.sql','20261005193000_scheduling_planning_run_leases.sql','20261005234644_planning_preflight_and_fenced_runs.sql']) {
     await client.query(await sqlFile('../supabase/migrations/'+file));
   }
   // Exercise the new epoch/commit fence with the deployed granular triggers.
