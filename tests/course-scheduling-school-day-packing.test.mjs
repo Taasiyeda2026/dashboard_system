@@ -4,6 +4,7 @@ import {
   buildSchoolPlanningGroups,
   comparePlanningPlanQuality,
   optimizeSchoolDayPackingPass,
+  optimizeSchoolDayPackingPassCooperatively,
   planningSchoolDayMetrics
 } from '../frontend/src/screens/course-scheduling-planning.js';
 
@@ -32,6 +33,36 @@ test('A/M: same-school proposals, including Liron, use one legal weekday', () =>
   assert.ok(result.moved >= 1);
   assert.deepEqual([...new Set([...rows.values()].flatMap((row) => row.schoolPlanning.actualWeekdays))], [1]);
   assert.equal(planningSchoolDayMetrics([...rows.values()]).avoidableSchoolDaySplits, 0);
+});
+
+test('browser packing yields between school groups while preserving packing results', async () => {
+  const rows = new Map();
+  const activities = [];
+  for (const schoolId of ['yield-a', 'yield-b']) {
+    const mondayMorning = option(`${schoolId}-guide`, '2027-01-04', '09:00', '10:00');
+    const mondayNoon = option(`${schoolId}-guide`, '2027-01-04', '10:00', '11:00');
+    const tuesdayNoon = option(`${schoolId}-guide`, '2027-01-05', '10:00', '11:00');
+    for (const [suffix, current, packed] of [['1', mondayMorning, mondayMorning], ['2', tuesdayNoon, mondayNoon]]) {
+      const id = `${schoolId}-${suffix}`;
+      rows.set(id, proposal(id, schoolId, current, [packed]));
+      activities.push(activity(id, schoolId));
+    }
+  }
+  let yields = 0;
+  const result = await optimizeSchoolDayPackingPassCooperatively({
+    rowsById: rows,
+    activities,
+    maxExactNodes: 500,
+    checkpoint: async ({ force } = {}) => {
+      assert.equal(force, true);
+      yields += 1;
+    }
+  });
+
+  assert.equal(result.groups, 2);
+  assert.ok(yields >= 4);
+  assert.equal(rows.get('yield-a-2').startDate, '2027-01-04');
+  assert.equal(rows.get('yield-b-2').startDate, '2027-01-04');
 });
 
 test('B: packing commits a two-row bundle instead of stopping at a local minimum', () => {

@@ -3642,7 +3642,8 @@ function schoolPackingChoicesOperationallyConflict(firstChoice = {}, secondChoic
 function solveSchoolPackingGroup(group = {}, candidateDays = new Set(), beamWidth = 96, {
   blockers = [],
   activityById = new Map(),
-  routeClient = null
+  routeClient = null,
+  maxExactNodes = 500000
 } = {}) {
   const rows = [...(group.movableRows || [])]
     .map((row) => ({
@@ -3670,7 +3671,7 @@ function solveSchoolPackingGroup(group = {}, candidateDays = new Set(), beamWidt
   // only route to a complete non-overlapping school timetable.
   if (rows.length <= 6) {
     const complete = [];
-    const maxNodes = 500000;
+    const maxNodes = Math.max(500, Number(maxExactNodes) || 500000);
     let visited = 0;
     let exhausted = true;
 
@@ -3938,6 +3939,7 @@ export function optimizeSchoolDayPackingPass({
   targetCourseIds = null,
   beamWidth = 24,
   routeClient = null,
+  maxExactNodes = 500000,
   _recoveryPass = false
 } = {}) {
   const targetIds = Array.isArray(targetCourseIds) ? new Set(targetCourseIds.map(text).filter(Boolean)) : null;
@@ -3974,7 +3976,8 @@ export function optimizeSchoolDayPackingPass({
         const solved = solveSchoolPackingGroup(originalGroup, set, beamWidth, {
           blockers,
           activityById,
-          routeClient
+          routeClient,
+          maxExactNodes
         });
         if (!solved) continue;
         for (const state of solved.alternatives || [solved]) candidates.push(state);
@@ -4101,11 +4104,51 @@ export function optimizeSchoolDayPackingPass({
         targetCourseIds,
         beamWidth,
         routeClient,
+        maxExactNodes,
         _recoveryPass: true
       });
       moved += recovery.moved;
     }
   }
+  return { moved, groups: groups.length };
+}
+
+// The exact school-bundle solver is intentionally synchronous because it is
+// also used by deterministic unit-level planning checks. In the browser, run
+// one school at a time with a bounded exact search and yield between schools.
+// When the bound is reached, only constraint-valid complete states are kept;
+// if none was found, solveSchoolPackingGroup uses its constraint-preserving
+// beam fallback. Hard dates, locks and conflicts are never relaxed for speed.
+export async function optimizeSchoolDayPackingPassCooperatively({
+  rowsById,
+  activities = [],
+  targetCourseIds = null,
+  beamWidth = 96,
+  routeClient = null,
+  maxExactNodes = 1000,
+  checkpoint = async () => {}
+} = {}) {
+  const targetIds = Array.isArray(targetCourseIds)
+    ? new Set(targetCourseIds.map(text).filter(Boolean))
+    : null;
+  const groups = buildSchoolPlanningGroups({ rows: [...(rowsById?.values?.() || [])], activities })
+    .filter((group) => !targetIds || group.allCourseIds.some((courseId) => targetIds.has(text(courseId))));
+  let moved = 0;
+
+  for (const group of groups) {
+    await checkpoint({ force: true });
+    const result = optimizeSchoolDayPackingPass({
+      rowsById,
+      activities,
+      targetCourseIds: group.allCourseIds,
+      beamWidth,
+      routeClient,
+      maxExactNodes
+    });
+    moved += Number(result?.moved) || 0;
+    await checkpoint({ force: true });
+  }
+
   return { moved, groups: groups.length };
 }
 
@@ -5346,12 +5389,13 @@ export async function buildDynamicCoursePlan({
 
   if (!_repairPass) {
     if (!optimizationOnlyIds || upgradeOptimizationScopes) {
-      optimizeSchoolDayPackingPass({
+      await optimizeSchoolDayPackingPassCooperatively({
         rowsById,
         activities: targets,
         targetCourseIds: schoolPackingTargetIds ? [...schoolPackingTargetIds] : null,
         beamWidth: 96,
-        routeClient
+        routeClient,
+        checkpoint
       });
       await report('אריזת בתי ספר הושלמה', rowsById.size, rowsById.size, '', null, [...rowsById.values()]);
     }
