@@ -154,6 +154,7 @@ declare
   v_record_id uuid;
   v_month_key text;
   v_manager_name text;
+  v_status text;
 begin
   if p_employee_id is null or p_employee_id <= 0 then
     raise exception 'invalid_employee_id' using errcode = '22023';
@@ -172,6 +173,25 @@ begin
   end if;
   v_report_date := trim(p_fields->>'attendanceDate')::date;
   v_month_key := to_char(v_report_date, 'YYYY-MM');
+
+  -- Record creation remains a manager-review action for every role. Admin /
+  -- operation_manager keep their historical edit bypass, but may not create
+  -- new rows in open, locked, or payroll-approved months through this RPC.
+  select coalesce(nullif(trim(ama.status), ''), 'open')
+    into v_status
+  from public.attendance_month_approvals ama
+  where ama.emp_id = p_employee_id
+    and ama.month_key = v_month_key
+  limit 1
+  for update;
+
+  if not found or v_status not in ('submitted', 'reopened') then
+    raise exception 'attendance_month_not_in_manager_review' using errcode = '55000';
+  end if;
+
+  if public.av2_attendance_month_is_closed(p_employee_id, v_report_date) then
+    raise exception 'attendance_month_locked' using errcode = '55000';
+  end if;
 
   if not public.attendance_manager_month_allows_mutation(p_employee_id, v_report_date) then
     raise exception 'attendance_month_not_in_manager_review' using errcode = '55000';
