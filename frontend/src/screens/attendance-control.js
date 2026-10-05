@@ -1046,7 +1046,24 @@ export function resolvePayrollMonthWorkflow(workflow = {}) {
 }
 
 /**
- * Team managers may edit/approve records only while the employee month is submitted.
+ * Central team-manager month write gate for edit + add-record flows.
+ * Requires an explicit employee month state of submitted or admin-reopened.
+ * Open months stay read-only; locked / final payroll stay blocked.
+ */
+export function teamManagerEmployeeMonthWriteAllowed(workflow = {}) {
+  const resolved = resolvePayrollMonthWorkflow(workflow);
+  if (resolved.status === 'manager_approved' || resolved.status === 'approved') return false;
+  const submissionStatus = normalizeAttendanceSubmissionStatus(
+    workflow.attendance_submission_status || workflow.attendanceSubmissionStatus
+  );
+  if (submissionStatus === 'locked') return false;
+  if (submissionStatus === 'submitted' || submissionStatus === 'reopened') return true;
+  return txt(workflow.workflow_status || workflow.workflowStatus).toLowerCase() === 'submitted';
+}
+
+/**
+ * Team managers may edit/approve records only while the employee month is submitted
+ * or explicitly reopened for correction.
  * Admin / operation_manager may mutate before submission via bypassMonthSubmissionGate,
  * but locked / final-payroll months stay read-only for everyone (DB lifecycle matches).
  */
@@ -1054,11 +1071,23 @@ export function canManagerMutatePayrollEmployeeMonth(workflow = {}, { bypassMont
   const resolved = resolvePayrollMonthWorkflow(workflow);
   if (resolved.status === 'manager_approved' || resolved.status === 'approved') return false;
   if (bypassMonthSubmissionGate) return true;
-  return resolved.status === 'submitted';
+  return teamManagerEmployeeMonthWriteAllowed(workflow);
 }
 
 export function canManagerAddMissingAttendanceRecord(workflow = {}) {
-  return resolvePayrollMonthWorkflow(workflow).status === 'submitted';
+  return teamManagerEmployeeMonthWriteAllowed(workflow);
+}
+
+/** Monthly manager finalize requires employee re-submission after admin reopen. */
+export function canManagerFinalizeEmployeeMonth(workflow = {}, { bypassMonthSubmissionGate = false } = {}) {
+  if (bypassMonthSubmissionGate) {
+    return resolvePayrollMonthWorkflow(workflow).status === 'submitted';
+  }
+  const submissionStatus = normalizeAttendanceSubmissionStatus(
+    workflow.attendance_submission_status || workflow.attendanceSubmissionStatus
+  );
+  return submissionStatus === 'submitted'
+    && resolvePayrollMonthWorkflow(workflow).status === 'submitted';
 }
 
 export const EMPLOYEE_MONTH_NOT_SUBMITTED_READONLY_MESSAGE =
@@ -2325,10 +2354,28 @@ export function resultsHtml(result, month = '', options = {}) {
       : '';
     let finishControls = '';
     if (!approval) {
-      if (workflow.status === 'not_submitted') {
+      const workflowRow = hasWorkflowRow ? workflowByEmployee[employee.id] : { workflow_status: 'not_submitted' };
+      const writeAllowed = canManagerMutatePayrollEmployeeMonth(workflowRow, { bypassMonthSubmissionGate });
+      const submissionStatus = normalizeAttendanceSubmissionStatus(
+        workflowRow.attendance_submission_status || workflowRow.attendanceSubmissionStatus
+      );
+      const finalizeAllowed = canManagerFinalizeEmployeeMonth(workflowRow, { bypassMonthSubmissionGate });
+      if (!writeAllowed && workflow.status === 'not_submitted') {
         finishControls = `<div class="attendance-control__employee-actions"><span class="attendance-control__manual-note" data-payroll-readonly-notice>${escapeHtml(EMPLOYEE_MONTH_NOT_SUBMITTED_READONLY_MESSAGE)}</span></div>`;
-      } else if (workflow.status === 'submitted' && currentEmployeeCanMutate) {
-        finishControls = `<div class="attendance-control__employee-actions"><button type="button" class="ds-btn" data-attendance-add-record="${escapeHtml(employee.id)}" data-attendance-add-employee-name="${escapeHtml(employee.name)}">+ הוספת דיווח שנשכח</button><button type="button" class="ds-btn ds-btn--primary" data-payroll-finish="${escapeHtml(employee.id)}" data-payroll-employee-name="${shown(employee.name)}"${pendingRecordCount ? ' disabled' : ''}>אישור מנהל</button>${pendingRecordCount ? `<span class="attendance-control__manual-note">נותרו ${pendingRecordCount} רשומות לאישור.</span>` : ''}</div>`;
+      } else if (writeAllowed) {
+        const addRecordBtn = canManagerAddMissingAttendanceRecord(workflowRow)
+          ? `<button type="button" class="ds-btn" data-attendance-add-record="${escapeHtml(employee.id)}" data-attendance-add-employee-name="${escapeHtml(employee.name)}" title="הוספת רשומה" aria-label="הוספת רשומה">+</button>`
+          : '';
+        const finalizeBtn = finalizeAllowed
+          ? `<button type="button" class="ds-btn ds-btn--primary" data-payroll-finish="${escapeHtml(employee.id)}" data-payroll-employee-name="${shown(employee.name)}"${pendingRecordCount ? ' disabled' : ''}>אישור מנהל</button>`
+          : '';
+        const reopenNotice = submissionStatus === 'reopened' && !bypassMonthSubmissionGate
+          ? '<span class="attendance-control__manual-note">המדריך חייב לסיים ולאשר מחדש את החודש לפני אישור מנהל.</span>'
+          : '';
+        const pendingNotice = finalizeAllowed && pendingRecordCount
+          ? `<span class="attendance-control__manual-note">נותרו ${pendingRecordCount} רשומות לאישור.</span>`
+          : '';
+        finishControls = `<div class="attendance-control__employee-actions">${addRecordBtn}${finalizeBtn}${reopenNotice}${pendingNotice}</div>`;
       }
     }
     const readonlyAttr = currentEmployeeCanMutate ? '' : ' data-payroll-employee-readonly="1"';
@@ -2825,7 +2872,7 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
       const employeeId = txt(addRecordBtn.dataset.attendanceAddRecord);
       const workflowRow = workflowByEmployee[employeeId] || {};
       if (!canManagerAddMissingAttendanceRecord(workflowRow)) {
-        setStatusMessage('ניתן להוסיף דיווח שנשכח רק בזמן שהחודש נמצא בבקרת מנהל ולפני אישור המנהל.', { error: true });
+        setStatusMessage('ניתן להוסיף דיווח שנשכח רק כשהחודש הוגש לבקרה או נפתח מחדש לתיקון, ולפני אישור מנהל/שכר.', { error: true });
         return;
       }
       if (!api?.attendanceControlCreateRecord) {
