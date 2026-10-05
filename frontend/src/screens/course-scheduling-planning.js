@@ -1,8 +1,13 @@
 import {
-  appendSchedulingRunActivity,
+  appendSchedulingRunActivityCooperatively,
   calculateCourseSchedule,
+  calculateCourseScheduleCooperatively,
   preliminaryCourseCandidates,
-  prepareSchedulingRunContext
+  preliminaryCourseCandidatesCooperatively,
+  prepareSchedulingRunContext,
+  prepareSchedulingRunContextCooperatively,
+  forkSchedulingRunContextCooperatively,
+  updateSchedulingRunContextCooperatively
 } from './course-scheduling-engine.js';
 import { compareCandidatesStable } from './course-scheduling-score.js';
 import {
@@ -46,7 +51,15 @@ import { planningPerfCount, planningPerfTimer } from './course-scheduling-perf.j
 const text = (value) => String(value ?? '').trim();
 const idOf = (row) => text(row?.row_id || row?.RowID || row?.id);
 const empOf = (candidate) => text(candidate?.instructor?.emp_id);
-const norm = (value) => text(value).replace(/\s+/g, ' ').toLocaleLowerCase('he-IL');
+const normalizationCache = new Map();
+const norm = (value) => {
+  const raw = text(value);
+  if (normalizationCache.has(raw)) return normalizationCache.get(raw);
+  const normalized = raw.replace(/\s+/g, ' ').toLocaleLowerCase('he-IL');
+  if (normalizationCache.size >= 4096) normalizationCache.clear();
+  normalizationCache.set(raw, normalized);
+  return normalized;
+};
 const formatPlanningShortDate = (value) => {
   const raw = text(value).slice(0, 10);
   const match = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
@@ -133,7 +146,8 @@ export function createPlanningCheckpoint({
   budgetMs = PLANNING_CPU_SLICE_MS,
   now = () => (typeof performance !== 'undefined' && typeof performance.now === 'function' ? performance.now() : Date.now()),
   yieldControl = () => {
-    if (typeof globalThis.scheduler?.yield === 'function') return globalThis.scheduler.yield();
+    // scheduler.yield continuations can outrank timer tasks in Chromium. A
+    // timer-queue boundary lets lease renewals and cancellation actually run.
     return new Promise((resolve) => setTimeout(resolve, 0));
   },
   signal = null,
@@ -147,6 +161,7 @@ export function createPlanningCheckpoint({
   return async function checkpoint({ force = false } = {}) {
     assertActive();
     if (!force && now() < deadline) return false;
+    planningPerfCount('cooperativeYields');
     await yieldControl();
     assertActive();
     deadline = now() + budget;
@@ -861,11 +876,12 @@ function ruleCovers(rule, startTime, endTime) {
   return start != null && end != null && ruleStart != null && ruleEnd != null && start >= ruleStart && end <= ruleEnd;
 }
 
-function scenarioHeuristic({ scenario, instructors = [], profiles = {}, rules = {}, activities = [], activeIds = null, blockingMeetingRows = null, routeClient = null } = {}) {
+function* scenarioHeuristicSteps({ scenario, instructors = [], profiles = {}, rules = {}, activities = [], activeIds = null, blockingMeetingRows = null, routeClient = null } = {}) {
   const resolvedActiveIds = activeIds || activeInstructorIds(instructors);
   const day = weekday(scenario.startDate);
   let availabilityCoverage = 0;
   for (const empId of resolvedActiveIds) {
+    yield;
     if (!instructorAllowsPlanningWeekday(empId, day, { profiles, rules, activity: scenario.__activity || {} })) continue;
     if ((rules[empId] || []).some((rule) => Number(rule.weekday) === day && ruleCovers(rule, scenario.startTime, scenario.endTime))) {
       availabilityCoverage += 1;
@@ -878,6 +894,7 @@ function scenarioHeuristic({ scenario, instructors = [], profiles = {}, rules = 
   const scenarioStart = timeMinutes(scenario.startTime);
   const scenarioEnd = timeMinutes(scenario.endTime);
   for (const meeting of blockingMeetingRows || blockingMeetings(activities)) {
+    yield;
     if (weekday(meeting.date) !== day) continue;
     existingWorkday += 1;
     if (text(meeting.school_id) && text(meeting.school_id) === text(activity.school_id)) existingWorkday += 2;
@@ -940,6 +957,16 @@ function* generatePlanningScenarioSteps({
   const scenarioActiveIds = activeInstructorIds(instructors);
   const scenarioBlockingActivities = blockingActivities(activities);
   const scenarioBlockingMeetings = blockingMeetings(scenarioBlockingActivities);
+  // Heuristic uses weekday and times, never the absolute start date. Different
+  // weekly start series with those same values reuse an identical score.
+  const heuristicScores = new Map();
+  function* heuristicFor(built) {
+    const key = `${weekday(built.startDate)}|${built.startTime}|${built.endTime}`;
+    if (!heuristicScores.has(key)) {
+      heuristicScores.set(key, yield* scenarioHeuristicSteps({ scenario: { ...built, __activity: activity }, instructors, profiles, rules, activities, activeIds: scenarioActiveIds, blockingMeetingRows: scenarioBlockingMeetings, routeClient }));
+    }
+    return heuristicScores.get(key);
+  }
   const fixedWeekdays = officialPlanningDates(activity)
     .map((date) => weekday(date))
     .filter((day) => Number.isInteger(day));
@@ -985,7 +1012,7 @@ function* generatePlanningScenarioSteps({
       if (!built) continue;
       raw.push({
         ...built,
-        heuristic: scenarioHeuristic({ scenario: { ...built, __activity: activity }, instructors, profiles, rules, activities, activeIds: scenarioActiveIds, blockingMeetingRows: scenarioBlockingMeetings, routeClient })
+        heuristic: yield* heuristicFor(built)
       });
       yield;
     }
@@ -1033,7 +1060,7 @@ function* generatePlanningScenarioSteps({
           if (!built) continue;
           raw.push({
             ...built,
-            heuristic: scenarioHeuristic({ scenario: { ...built, __activity: activity }, instructors, profiles, rules, activities, activeIds: scenarioActiveIds, blockingMeetingRows: scenarioBlockingMeetings, routeClient })
+            heuristic: yield* heuristicFor(built)
           });
           yield;
         }
@@ -1098,17 +1125,26 @@ function* generatePlanningScenarioSteps({
       }
     }
   }
-  const coverageByScenario = new Map(sorted.map((scenario) => {
+  const coverageByScenario = new Map();
+  const coverageByTimes = new Map();
+  for (const scenario of sorted) {
+    yield;
     const day = weekday(scenario.startDate);
-    const covered = [];
-    for (const empId of activeIds) {
-      if (instructorAllowsPlanningWeekday(empId, day, { profiles, rules, activity })
-        && (rules[empId] || []).some((rule) =>
-          Number(rule.weekday) === day && ruleCovers(rule, scenario.startTime, scenario.endTime)
-        )) covered.push(`${empId}|${day}`);
+    const timesKey = `${day}|${scenario.startTime}|${scenario.endTime}`;
+    let covered = coverageByTimes.get(timesKey);
+    if (!covered) {
+      covered = [];
+      for (const empId of activeIds) {
+        yield;
+        if (instructorAllowsPlanningWeekday(empId, day, { profiles, rules, activity })
+          && (rules[empId] || []).some(rule => Number(rule.weekday) === day && ruleCovers(rule, scenario.startTime, scenario.endTime))) {
+          covered.push(`${empId}|${day}`);
+        }
+      }
+      coverageByTimes.set(timesKey, covered);
     }
-    return [scenarioKey(scenario), covered];
-  }));
+    coverageByScenario.set(scenarioKey(scenario), covered);
+  }
 
   while (uncoveredAvailability.size && diversified.length < limit) {
     let best = null;
@@ -1445,7 +1481,7 @@ async function evaluateScenarioOptions({
   const preliminaries = [];
   for (let index = 0; index < scenarios.length; index += 1) {
     const course = scenarioCourse(activity, scenarios[index], index);
-    const candidates = preliminaryCourseCandidates({
+    const candidates = (await preliminaryCourseCandidatesCooperatively({
       activities: [course],
       targetCourse: course,
       targetCourseId: course.row_id,
@@ -1458,7 +1494,7 @@ async function evaluateScenarioOptions({
       referenceDate: today,
       preparedContext,
       candidateInstructorIds: (instructors || []).map((row) => text(row?.emp_id)).filter(Boolean)
-    }).map((item) => item.candidate).filter(Boolean)
+    }, checkpoint)).map((item) => item.candidate).filter(Boolean)
       .map((candidate) => {
         const cachedHome = routeClient?.peek?.(candidate?.instructor?.address, course?.school_address);
         const km = Number(cachedHome?.distance_km);
@@ -1549,7 +1585,7 @@ async function evaluateScenarioOptions({
       if (!finalResultsByScenario.has(scenarioId)) {
         finalEvaluationCount += 1;
         const candidateInstructorIds = [...(preliminaryCandidateIdsByScenario.get(scenarioId) || [])];
-        finalResultsByScenario.set(scenarioId, calculateCourseSchedule({
+        finalResultsByScenario.set(scenarioId, (await calculateCourseScheduleCooperatively({
           activities: [finalist.course],
           targetCourse: finalist.course,
           targetCourseId: finalist.course.row_id,
@@ -1565,7 +1601,7 @@ async function evaluateScenarioOptions({
           travelUnavailableReason: routed.unavailableReason || '',
           preparedContext,
           candidateInstructorIds
-        })[0]);
+        }, checkpoint))[0]);
       }
       const finalResult = finalResultsByScenario.get(scenarioId);
       const expectedEmpId = empOf(finalist.candidate);
@@ -1660,7 +1696,7 @@ async function evaluateFixedCourse({
     };
   }
 
-  const candidates = preliminaryCourseCandidates({
+  const candidates = (await preliminaryCourseCandidatesCooperatively({
     activities: [activity],
     targetCourse: activity,
     targetCourseId: idOf(activity),
@@ -1673,7 +1709,7 @@ async function evaluateFixedCourse({
     referenceDate: today,
     preparedContext,
     candidateInstructorIds: (instructors || []).map((row) => text(row?.emp_id)).filter(Boolean)
-  }).map((item) => item.candidate).filter(Boolean)
+  }, checkpoint)).map((item) => item.candidate).filter(Boolean)
     .map((candidate) => {
       const cachedHome = routeClient?.peek?.(candidate?.instructor?.address, activity?.school_address);
       const km = Number(cachedHome?.distance_km);
@@ -1732,7 +1768,7 @@ async function evaluateFixedCourse({
     // One missing route must not discard healthy candidates in the same batch.
     routeVerified ||= !text(routed.unavailableReason);
 
-    const result = calculateCourseSchedule({
+    const result = (await calculateCourseScheduleCooperatively({
       activities: [activity],
       targetCourse: activity,
       targetCourseId: idOf(activity),
@@ -1748,7 +1784,7 @@ async function evaluateFixedCourse({
       travelUnavailableReason: routed.unavailableReason || '',
       preparedContext,
       candidateInstructorIds: batch.map((item) => empOf(item.candidate)).filter(Boolean)
-    })[0];
+    }, checkpoint))[0];
 
     for (const finalist of batch) {
       await checkpoint();
@@ -2050,13 +2086,15 @@ function instructorMeetingAvailable(empId, meeting, activity, { rules = {}, exce
   );
 }
 
-function rescueScheduleConflicts(empId, schedule, row, existingRows = []) {
+function* rescueScheduleConflictSteps(empId, schedule, row, existingRows = []) {
   const incoming = schedule?.meetings || [];
   for (const existing of existingRows || []) {
+    yield;
     if (text(existing?.courseId) === text(row?.courseId)) continue;
     if (text(existing?.instructorEmpId) !== text(empId)) continue;
     for (const current of existing?.meetings || []) {
       for (const meeting of incoming) {
+        yield;
         if (timeRangesOverlap(current, meeting)) return true;
       }
     }
@@ -2064,7 +2102,7 @@ function rescueScheduleConflicts(empId, schedule, row, existingRows = []) {
   return false;
 }
 
-export function recruitmentRescueProbe({
+function* recruitmentRescueProbeSteps({
   row = {},
   activity = {},
   instructors = [],
@@ -2086,6 +2124,7 @@ export function recruitmentRescueProbe({
   const matches = [];
 
   for (const instructor of instructors || []) {
+    yield;
     const empId = text(instructor?.emp_id);
     if (!empId || !activeIds.has(empId)) continue;
     const profile = planningProfileFor(profiles, empId);
@@ -2099,11 +2138,12 @@ export function recruitmentRescueProbe({
     if (homeKnown && homeKm > 40) continue;
 
     for (const schedule of schedules) {
+      yield;
       const available = schedule.meetings.every((meeting) =>
         instructorMeetingAvailable(empId, meeting, activity, { rules, exceptions })
       );
       if (!available) continue;
-      if (rescueScheduleConflicts(empId, schedule, row, existingRows)) continue;
+      if (yield* rescueScheduleConflictSteps(empId, schedule, row, existingRows)) continue;
       matches.push({
         empId,
         homeKm: homeKnown ? homeKm : null,
@@ -2143,6 +2183,21 @@ export function recruitmentRescueProbe({
   };
 }
 
+function drainPlanningSteps(steps) {
+  let next = steps.next();
+  while (!next.done) next = steps.next();
+  return next.value;
+}
+async function drainPlanningStepsCooperatively(steps, checkpoint) {
+  let next = steps.next();
+  while (!next.done) { await checkpoint(); next = steps.next(); }
+  return next.value;
+}
+export function recruitmentRescueProbe(input = {}) { return drainPlanningSteps(recruitmentRescueProbeSteps(input)); }
+export function recruitmentRescueProbeCooperatively(input = {}, checkpoint = async () => {}) {
+  return drainPlanningStepsCooperatively(recruitmentRescueProbeSteps(input), checkpoint);
+}
+
 function meetingGapMinutes(first = {}, second = {}) {
   const firstStart = timeMinutes(first.start_time);
   const firstEnd = timeMinutes(first.end_time);
@@ -2154,7 +2209,7 @@ function meetingGapMinutes(first = {}, second = {}) {
   return -1;
 }
 
-function recruitmentProfileCanTake(profile, row, schedule) {
+function* recruitmentProfileCanTakeSteps(profile, row, schedule) {
   const district = normalizeOperationalDistrict(row.district) || text(row.district);
   if (profile.district && district && profile.district !== district) return false;
   const gender = normalizedGenderRequirement(row.requiredGender);
@@ -2162,6 +2217,7 @@ function recruitmentProfileCanTake(profile, row, schedule) {
 
   for (const existing of profile.meetings) {
     for (const incoming of schedule.meetings || []) {
+      yield;
       if (timeRangesOverlap(existing, incoming)) return false;
       if (text(existing.date) === text(incoming.date)) {
         const sameSchool = norm(existing.school) && norm(existing.school) === norm(row.school);
@@ -2184,7 +2240,7 @@ function recruitmentPlacementScore(profile, row, schedule) {
   return 100 + sameAuthority + sameProgram + reusedDay + laterStart + Math.min(20, profile.activities.length);
 }
 
-export function assignRecruitmentProfiles(rows = []) {
+function* assignRecruitmentProfileSteps(rows = []) {
   const result = (rows || []).map((row) => ({
     ...row,
     meetings: (row.meetings || []).map((meeting) => ({ ...meeting })),
@@ -2203,6 +2259,7 @@ export function assignRecruitmentProfiles(rows = []) {
   const profiles = [];
 
   for (const row of candidates) {
+    yield;
     const selectedSchoolSchedule = row?.diagnostics?.schoolFirstOptimized === true && row.meetings?.length
       ? [{
           startDate: row.startDate,
@@ -2235,7 +2292,8 @@ export function assignRecruitmentProfiles(rows = []) {
     let best = null;
     for (const profile of profiles) {
       for (const schedule of choices) {
-        if (!recruitmentProfileCanTake(profile, row, schedule)) continue;
+        yield;
+        if (!(yield* recruitmentProfileCanTakeSteps(profile, row, schedule))) continue;
         const score = recruitmentPlacementScore(profile, row, schedule);
         if (!best || score > best.score) best = { profile, schedule, score };
       }
@@ -2290,6 +2348,11 @@ export function assignRecruitmentProfiles(rows = []) {
     row.reason = `לאחר מיצוי אפשרויות הצוות הקיים: נדרש גיוס. הפעילות משויכת ל${row.recruitmentProfileLabel}, שמרכז ${row.recruitmentProfileSize} פעילויות לאורך התקופה ללא חפיפה.`;
   }
   return result;
+}
+
+export function assignRecruitmentProfiles(rows = []) { return drainPlanningSteps(assignRecruitmentProfileSteps(rows)); }
+export function assignRecruitmentProfilesCooperatively(rows = [], checkpoint = async () => {}) {
+  return drainPlanningStepsCooperatively(assignRecruitmentProfileSteps(rows), checkpoint);
 }
 
 function planRowFromOption(activity, option, options, startRange, spec, diagnostics = {}) {
@@ -2580,8 +2643,8 @@ export function planningActivityDifficulty({
 }
 
 function comparePlanningDifficulty(first = {}, second = {}, context = {}) {
-  const a = planningActivityDifficulty({ activity: first, ...context });
-  const b = planningActivityDifficulty({ activity: second, ...context });
+  const a = context.difficultyById?.get(idOf(first)) || planningActivityDifficulty({ activity: first, ...context });
+  const b = context.difficultyById?.get(idOf(second)) || planningActivityDifficulty({ activity: second, ...context });
   if (a.estimatedInstructorCount !== b.estimatedInstructorCount) {
     return a.estimatedInstructorCount - b.estimatedInstructorCount;
   }
@@ -4578,6 +4641,22 @@ function refreshSchoolPlanningDiagnostics(rowsById, activities = []) {
  * flexible activities (including several courses at the same school) without
  * scoring the next row against stale virtual proposals.
  */
+
+function optimizationContextFactory({ instructors, profiles, rules, exceptions, schoolCalendar, checkpoint }) {
+  const contexts = new Map();
+  return async (activities, periodKey, candidateInstructors) => {
+    let context = contexts.get(periodKey);
+    if (!context) {
+      context = await prepareSchedulingRunContextCooperatively({ activities, instructors, profiles, rules, exceptions, schoolCalendar, periodKey }, checkpoint);
+      contexts.set(periodKey, context);
+    } else {
+      await updateSchedulingRunContextCooperatively(context, activities, checkpoint);
+    }
+    return { ...context, instructors: candidateInstructors,
+      instructorById: new Map(candidateInstructors.map(row => [text(row.emp_id), row])) };
+  };
+}
+
 export async function consolidateInstructorWorkdaysPass({
   rowsById,
   targetCourseIds = null,
@@ -4597,6 +4676,7 @@ export async function consolidateInstructorWorkdaysPass({
   report = async () => {}
 } = {}) {
   const activityById = new Map((targets || []).map((activity) => [idOf(activity), activity]));
+  const preparedForOptimization = optimizationContextFactory({ instructors, profiles, rules, exceptions, schoolCalendar, checkpoint });
   const targetIds = Array.isArray(targetCourseIds)
     ? new Set(targetCourseIds.map((value) => text(value)).filter(Boolean))
     : null;
@@ -4687,15 +4767,7 @@ export async function consolidateInstructorWorkdaysPass({
 
       // Rebuild prepared/travel contexts from the CURRENT rows, not from the
       // initial virtual plan. This is the critical stale-context fix.
-      const freshPreparedContext = prepareSchedulingRunContext({
-        activities: contextWithoutSelf,
-        instructors: consolidationInstructors,
-        profiles,
-        rules,
-        exceptions,
-        schoolCalendar,
-        periodKey: activityPeriodKey
-      });
+      const freshPreparedContext = await preparedForOptimization(contextWithoutSelf, activityPeriodKey, consolidationInstructors);
       const freshTravelContext = createCandidateTravelContext(contextWithoutSelf);
 
       const evaluation = await evaluateScenarioOptions({
@@ -4869,6 +4941,7 @@ async function compactInstructorDayGapsPass({
   report = async () => {}
 } = {}) {
   const activityById = new Map((targets || []).map((activity) => [idOf(activity), activity]));
+  const preparedForOptimization = optimizationContextFactory({ instructors, profiles, rules, exceptions, schoolCalendar, checkpoint });
   const targetIds = Array.isArray(targetCourseIds)
     ? new Set(targetCourseIds.map((value) => text(value)).filter(Boolean))
     : null;
@@ -4878,7 +4951,13 @@ async function compactInstructorDayGapsPass({
   for (let pass = 0; pass < maxPasses; pass += 1) {
     let movedThisPass = 0;
     let processedThisPass = 0;
-    const movable = [...rowsById.values()]
+    const gapRows = [...rowsById.values()];
+    const gapById = new Map();
+    for (const candidate of gapRows) {
+      gapById.set(text(candidate.courseId), rowNeighborGapMinutes(candidate, gapRows));
+      await checkpoint();
+    }
+    const movable = gapRows
       .filter((row) =>
         text(row?.kind) === 'proposal'
         && (!targetIds || targetIds.has(text(row?.courseId)))
@@ -4888,7 +4967,7 @@ async function compactInstructorDayGapsPass({
         && Array.isArray(row?.meetings)
         && row.meetings.length
       )
-      .sort((a, b) => rowNeighborGapMinutes(b, [...rowsById.values()]) - rowNeighborGapMinutes(a, [...rowsById.values()]));
+      .sort((a, b) => gapById.get(text(b.courseId)) - gapById.get(text(a.courseId)));
 
     for (const row of movable) {
       processedThisPass += 1;
@@ -4931,15 +5010,7 @@ async function compactInstructorDayGapsPass({
       );
       if (!sameSeries.length) continue;
 
-      const freshPreparedContext = prepareSchedulingRunContext({
-        activities: contextWithoutSelf,
-        instructors: oneInstructor,
-        profiles,
-        rules,
-        exceptions,
-        schoolCalendar,
-        periodKey: activityPeriodKey
-      });
+      const freshPreparedContext = await preparedForOptimization(contextWithoutSelf, activityPeriodKey, oneInstructor);
       const freshTravelContext = createCandidateTravelContext(contextWithoutSelf);
       const evaluation = await evaluateScenarioOptions({
         activity,
@@ -5053,7 +5124,7 @@ function planningRowMeetingAssignments(row = {}, activityById = new Map()) {
  * planned schedule is checked for plan-to-plan overlap, tour-day exclusivity,
  * and any known travel+buffer violation introduced by optimization.
  */
-export function validatePlanningPlanCoherence({
+function* validatePlanningPlanCoherenceSteps({
   rows = [],
   activities = [],
   instructors = [],
@@ -5069,6 +5140,7 @@ export function validatePlanningPlanCoherence({
   const liveAssignments = planningBlockingAssignmentsByInstructor(activities);
 
   for (const row of rows || []) {
+    yield;
     if (!['proposal', 'fixed-proposal', 'planning-locked'].includes(text(row?.kind))) continue;
     if (!text(row?.instructorEmpId) || !(row?.meetings || []).length) continue;
     const activity = activityById.get(text(row?.courseId)) || {};
@@ -5101,6 +5173,7 @@ export function validatePlanningPlanCoherence({
 
   const byInstructorDate = new Map();
   for (const row of rows || []) {
+    yield;
     for (const meeting of planningRowMeetingAssignments(row, activityById)) {
       const key = `${meeting.empId}|${meeting.date}`;
       const bucket = byInstructorDate.get(key) || [];
@@ -5110,6 +5183,7 @@ export function validatePlanningPlanCoherence({
   }
 
   for (const [key, dayMeetings] of byInstructorDate.entries()) {
+    yield;
     const [empId, date] = key.split('|');
     const sorted = [...dayMeetings].sort((a, b) =>
       (timeMinutes(a.startTime) ?? 9999) - (timeMinutes(b.startTime) ?? 9999)
@@ -5118,6 +5192,7 @@ export function validatePlanningPlanCoherence({
     for (let index = 0; index < sorted.length; index += 1) {
       const first = sorted[index];
       for (let otherIndex = index + 1; otherIndex < sorted.length; otherIndex += 1) {
+        yield;
         const second = sorted[otherIndex];
         if (first.courseId === second.courseId) continue;
         if (!first.generated && !second.generated) continue;
@@ -5199,6 +5274,20 @@ export function validatePlanningPlanCoherence({
 }
 
 
+export function validatePlanningPlanCoherence(input = {}) {
+  const steps = validatePlanningPlanCoherenceSteps(input);
+  let next = steps.next();
+  while (!next.done) next = steps.next();
+  return next.value;
+}
+
+export async function validatePlanningPlanCoherenceCooperatively(input = {}, checkpoint = async () => {}) {
+  const steps = validatePlanningPlanCoherenceSteps(input);
+  let next = steps.next();
+  while (!next.done) { await checkpoint(); next = steps.next(); }
+  return next.value;
+}
+
 export function finalValidationRepairCourseIds(failures = [], rows = [], maxIds = 24) {
   const direct = new Set();
   const instructorDates = new Set();
@@ -5279,6 +5368,7 @@ export async function buildDynamicCoursePlan({
   const targets = planningWorkspaceCourses(activities, district, periodKey);
   const schoolActivityCount = new Map();
   for (const activity of targets) {
+    await checkpoint();
     const schoolId = text(activity?.school_id);
     if (!schoolId) continue;
     schoolActivityCount.set(schoolId, (schoolActivityCount.get(schoolId) || 0) + 1);
@@ -5295,11 +5385,12 @@ export async function buildDynamicCoursePlan({
   const currentContextActivities = [...contextActivities];
   const virtualPlans = new Map();
   const preparedRunContexts = new Map();
+  const independentSchoolContexts = new Map();
   const travelContext = createCandidateTravelContext(currentContextActivities);
-  const preparedContextFor = (requestedPeriodKey = periodKey) => {
+  const preparedContextFor = async (requestedPeriodKey = periodKey) => {
     const key = text(requestedPeriodKey) || DEFAULT_PLANNING_PERIOD_KEY;
     if (!preparedRunContexts.has(key)) {
-      preparedRunContexts.set(key, prepareSchedulingRunContext({
+      preparedRunContexts.set(key, await prepareSchedulingRunContextCooperatively({
         activities: currentContextActivities,
         instructors,
         profiles,
@@ -5307,18 +5398,24 @@ export async function buildDynamicCoursePlan({
         exceptions,
         schoolCalendar,
         periodKey: key
-      }));
+      }, checkpoint));
     }
     return preparedRunContexts.get(key);
   };
-  const rememberVirtualPlan = (virtual) => {
+  const rememberVirtualPlan = async (virtual) => {
     if (!virtual) return;
     const virtualId = idOf(virtual);
     if (!virtualId || virtualPlans.has(virtualId)) return;
     virtualPlans.set(virtualId, virtual);
     currentContextActivities.push(virtual);
     appendCandidateTravelActivity(travelContext, virtual);
-    for (const prepared of preparedRunContexts.values()) appendSchedulingRunActivity(prepared, virtual);
+    for (const prepared of preparedRunContexts.values()) await appendSchedulingRunActivityCooperatively(prepared, virtual, checkpoint);
+    for (const schoolContext of independentSchoolContexts.values()) {
+      if (schoolContext.schoolId === text(virtual.school_id)) continue;
+      schoolContext.activities.push(virtual);
+      await appendSchedulingRunActivityCooperatively(schoolContext.prepared, virtual, checkpoint);
+      appendCandidateTravelActivity(schoolContext.travel, virtual);
+    }
   };
   const rowsById = new Map();
   const existingById = new Map((existingRows || [])
@@ -5357,6 +5454,7 @@ export async function buildDynamicCoursePlan({
   const missingSchedule = [];
 
   for (const activity of targets) {
+    await checkpoint();
     const activityId = idOf(activity);
     const activityPeriodKey = planningPeriodKeyForActivity(activity, periodKey);
     if (text(activity.emp_id)) {
@@ -5369,7 +5467,7 @@ export async function buildDynamicCoursePlan({
       const lockedRow = lockedPlanningRow(activity, locked, catalog, activityPeriodKey);
       if (lockedRow) rowsById.set(activityId, lockedRow);
       const virtual = blockingVirtualActivity(activity, locked);
-      rememberVirtualPlan(virtual);
+      await rememberVirtualPlan(virtual);
       continue;
     }
 
@@ -5378,12 +5476,12 @@ export async function buildDynamicCoursePlan({
       const reused = { ...existing, schoolId: text(existing.schoolId || activity.school_id), planningLocked: false };
       rowsById.set(activityId, reused);
       const virtual = blockingVirtualActivity(activity, planningRowAsVirtualOption(reused));
-      rememberVirtualPlan(virtual);
+      await rememberVirtualPlan(virtual);
       continue;
     }
     const upgradeRecruitmentTarget = upgradeRecruitmentRecoveryIds?.has(activityId) === true;
     if ((incrementalIds?.has(activityId) || upgradeRecruitmentTarget) && text(existing?.kind) === 'recruitment') {
-      const rescue = recruitmentRescueProbe({
+      const rescue = await recruitmentRescueProbeCooperatively({
         row: existing,
         activity,
         instructors,
@@ -5392,7 +5490,7 @@ export async function buildDynamicCoursePlan({
         exceptions,
         routeClient,
         existingRows
-      });
+      }, checkpoint);
       if (!rescue.possible) {
         rowsById.set(activityId, {
           ...existing,
@@ -5425,7 +5523,7 @@ export async function buildDynamicCoursePlan({
             endTime: reused.endTime,
             meetings: reused.meetings
           });
-          rememberVirtualPlan(virtual);
+          await rememberVirtualPlan(virtual);
         }
         continue;
       }
@@ -5456,7 +5554,11 @@ export async function buildDynamicCoursePlan({
     return ad.localeCompare(bd) || idOf(a).localeCompare(idOf(b));
   });
 
-  const difficultyContext = { catalog, instructors, profiles, rules };
+  const difficultyContext = { catalog, instructors, profiles, rules, difficultyById: new Map() };
+  for (const activity of missingSchedule) {
+    difficultyContext.difficultyById.set(idOf(activity), planningActivityDifficulty({ activity, catalog, instructors, profiles, rules }));
+    await checkpoint();
+  }
   missingSchedule.sort((a, b) => comparePlanningDifficulty(a, b, difficultyContext));
 
   let queue = [
@@ -5491,28 +5593,24 @@ export async function buildDynamicCoursePlan({
     const useIndependentSchoolCandidatePool = type !== 'fixed'
       && !!activitySchoolId
       && (schoolActivityCount.get(activitySchoolId) || 0) >= 2;
-    const candidateContext = useIndependentSchoolCandidatePool
-      ? currentContext.filter((contextActivity) =>
-          !(
-            text(idOf(contextActivity)).startsWith('planning-block:')
-            && text(contextActivity?.school_id) === activitySchoolId
-          )
-        )
-      : currentContext;
-    const candidatePreparedContext = useIndependentSchoolCandidatePool
-      ? prepareSchedulingRunContext({
-          activities: candidateContext,
-          instructors,
-          profiles,
-          rules,
-          exceptions,
-          schoolCalendar,
-          periodKey: activityPeriodKey
-        })
-      : preparedContextFor(activityPeriodKey);
-    const candidateTravelContext = useIndependentSchoolCandidatePool
-      ? createCandidateTravelContext(candidateContext)
-      : travelContext;
+    const basePreparedContext = await preparedContextFor(activityPeriodKey);
+    const schoolContextKey = `${activityPeriodKey}|${activitySchoolId}`;
+    if (useIndependentSchoolCandidatePool && !independentSchoolContexts.has(schoolContextKey)) {
+      const exclude = contextActivity => text(idOf(contextActivity)).startsWith('planning-block:')
+        && text(contextActivity?.school_id) === activitySchoolId;
+      const prepared = await forkSchedulingRunContextCooperatively(basePreparedContext, exclude, schoolContextKey, checkpoint);
+      independentSchoolContexts.set(schoolContextKey, {
+        schoolId: activitySchoolId,
+        activities: prepared.activities,
+        prepared,
+        travel: createCandidateTravelContext(prepared.activities)
+      });
+      await checkpoint();
+    }
+    const schoolContext = useIndependentSchoolCandidatePool ? independentSchoolContexts.get(schoolContextKey) : null;
+    const candidateContext = schoolContext?.activities || currentContext;
+    const candidatePreparedContext = schoolContext?.prepared || basePreparedContext;
+    const candidateTravelContext = schoolContext?.travel || travelContext;
     const schoolFirstScenarioLimit = useIndependentSchoolCandidatePool
       ? Math.max(Number(limits.maxScenarios) || 0, 24)
       : limits.maxScenarios;
@@ -5532,7 +5630,7 @@ export async function buildDynamicCoursePlan({
         checkpoint,
         signal,
         periodKey: activityPeriodKey,
-        preparedContext: preparedContextFor(activityPeriodKey),
+        preparedContext: await preparedContextFor(activityPeriodKey),
         travelContext,
         limits
       });
@@ -5586,7 +5684,7 @@ export async function buildDynamicCoursePlan({
       };
       rowsById.set(idOf(activity), row);
       const virtual = blockingVirtualActivity(activity, chosen);
-      rememberVirtualPlan(virtual);
+      await rememberVirtualPlan(virtual);
     } else {
       const rescue = recruitmentRescueById.get(idOf(activity));
       if (rescue) {
@@ -5641,7 +5739,7 @@ export async function buildDynamicCoursePlan({
             }
           ));
           const virtual = blockingVirtualActivity(activity, rescued);
-          rememberVirtualPlan(virtual);
+          await rememberVirtualPlan(virtual);
         } else {
           const existing = existingById.get(idOf(activity));
           rowsById.set(idOf(activity), {
@@ -5763,7 +5861,7 @@ export async function buildDynamicCoursePlan({
           }
         ));
         const virtual = blockingVirtualActivity(activity, chosen);
-        rememberVirtualPlan(virtual);
+        await rememberVirtualPlan(virtual);
       }
       }
     }
@@ -5840,10 +5938,10 @@ export async function buildDynamicCoursePlan({
     await report('בקרת תקינות סופית', rowsById.size, rowsById.size, '', null, [...rowsById.values()]);
   }
 
-  const rows = assignRecruitmentProfiles(
-    targets.map((activity) => rowsById.get(idOf(activity)) || missingOverviewRow(activity, catalog))
+  const rows = await assignRecruitmentProfilesCooperatively(
+    targets.map((activity) => rowsById.get(idOf(activity)) || missingOverviewRow(activity, catalog)), checkpoint
   );
-  const finalPlanValidation = validatePlanningPlanCoherence({
+  const finalPlanValidation = await validatePlanningPlanCoherenceCooperatively({
     rows,
     activities: targets,
     instructors,
@@ -5852,7 +5950,7 @@ export async function buildDynamicCoursePlan({
     exceptions,
     schoolCalendar,
     routeClient
-  });
+  }, checkpoint);
   if (!finalPlanValidation.valid) {
     const repairIds = finalValidationRepairCourseIds(finalPlanValidation.failures, rows);
     if (_finalValidationRepairPass < 2 && repairIds.length) {

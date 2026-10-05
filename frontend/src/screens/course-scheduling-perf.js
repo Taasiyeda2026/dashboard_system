@@ -104,3 +104,14 @@ export function flushPlanningPerfReport({ log = true } = {}) {
   }
   return snapshot;
 }
+
+/** Measure a synchronous generator step separately from network and yield waits. */
+export function planningPerfStep(iterator) {
+  if (!enabled()) return iterator.next();
+  const start = performance.now();
+  try { return iterator.next(); } finally {
+    const elapsed = performance.now() - start;
+    const timer = ensureReport().timers.cooperativeCpuStep ||= { calls: 0, totalMs: 0, maxMs: 0 };
+    timer.calls += 1; timer.totalMs += elapsed; timer.maxMs = Math.max(timer.maxMs, elapsed);
+  }
+}

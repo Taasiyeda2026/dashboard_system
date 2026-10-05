@@ -52,7 +52,8 @@ test('course planning screen loads and saves the shared workspace and only recal
   assert.match(screen, /saveSharedPlanningLock/);
   assert.match(screen, /sharedPlanningAffectedCourseIds/);
   assert.match(screen, /targetCourseIds/);
-  assert.match(screen, /loadSchedulingTravelCacheRows/);
+  assert.match(screen, /runPlanningPreflight/);
+  assert.doesNotMatch(screen, /loadSchedulingTravelCacheRows/);
   assert.match(screen, /expectedRevision/);
   assert.match(store, /planning_revision_conflict/);
   assert.match(store, /activityUpdatedAt/);

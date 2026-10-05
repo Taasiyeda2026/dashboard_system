@@ -640,12 +640,13 @@ test('matching PLANNING_ENGINE_VERSION is validation-current (no bogus includes 
   assert.equal(isPlanningValidationCurrent(''), false);
 });
 
-test('engine-upgrade refuses reused UI/session snapshot and always reloads end source', async () => {
+test('engine-upgrade refuses reused UI/session snapshot and validates the end source token', async () => {
   const source = await readFile(new URL('../frontend/src/screens/course-scheduling.js', import.meta.url), 'utf8');
-  assert.match(source, /allowReuseSnapshot = reuseSnapshot === true/);
+  assert.match(source, /allowReuseSnapshot = String\(data\._planningSourceRevision\)/);
+  assert.match(source, /&& reuseSnapshot === true/);
   assert.match(source, /!engineMismatchForSnapshot/);
   assert.match(source, /snapshot-source/);
-  assert.match(source, /runPlan\.runType !== PLANNING_RUN_TYPES\.ENGINE_UPGRADE/);
+  assert.match(source, /const endFacts = await loadSchedulingPlanningPreflight\(scope\)/);
   const updateHandlerStart = source.indexOf("root.querySelector('[data-run-course-planning]')?.addEventListener");
   const updateHandlerEnd = source.indexOf("root.querySelector('[data-refresh-shared-planning]')", updateHandlerStart);
   const updateHandler = source.slice(updateHandlerStart, updateHandlerEnd);
@@ -654,7 +655,7 @@ test('engine-upgrade refuses reused UI/session snapshot and always reloads end s
 
 test('VALIDATED checkpoint is written only after authoritative end fingerprint validation', async () => {
   const source = await readFile(new URL('../frontend/src/screens/course-scheduling.js', import.meta.url), 'utf8');
-  const endCheck = source.indexOf('if (startFingerprint !== endFingerprint)');
+  const endCheck = source.indexOf('if (String(endFacts.sourceRevision)');
   const validatedWrite = source.indexOf('phase: PLANNING_RUN_PHASES.VALIDATED', endCheck);
   assert.ok(endCheck >= 0, 'expected end fingerprint gate');
   assert.ok(validatedWrite > endCheck, 'VALIDATED must come after end fingerprint check');
@@ -662,7 +663,7 @@ test('VALIDATED checkpoint is written only after authoritative end fingerprint v
   const runStart = source.indexOf('const runCoursePlanning = async');
   const prematureValidated = source.slice(runStart, endCheck).includes('phase: PLANNING_RUN_PHASES.VALIDATED');
   assert.equal(prematureValidated, false, 'must not stamp VALIDATED before end validation');
-  assert.match(source, /source-changed-before-validate/);
+  assert.match(source, /planning_source_revision_conflict/);
 });
 
 test('production recovery from v27/rev11741/dirty113 rejects stale checkpoint and stays engine-upgrade', () => {
@@ -856,12 +857,12 @@ test('acceptance: recovery to dirty=0 + matching engine stays audit-clean and tr
   assert.equal(plan.preloadRouteCache, false);
 });
 
-test('real source change rejects full validated commit while scoped partial commit remains available', async () => {
+test('real source change fences every canonical commit before a validated checkpoint', async () => {
   const source = await readFile(new URL('../frontend/src/screens/course-scheduling.js', import.meta.url), 'utf8');
-  assert.match(source, /changedActivityIds\.size && stableRows\.length/);
-  assert.match(source, /partial-commit-source-changed|source-changed-before-validate/);
+  assert.match(source, /throw new Error\('planning_source_revision_conflict'\)/);
+  assert.match(source, /throw new Error\('planning_revision_conflict'\)/);
   // Full VALIDATED+commit path is gated by matching fingerprints.
-  const endGate = source.indexOf('if (startFingerprint !== endFingerprint)');
+  const endGate = source.indexOf('if (String(endFacts.sourceRevision)');
   const validated = source.indexOf('phase: PLANNING_RUN_PHASES.VALIDATED', endGate);
   const commit = source.indexOf('const commitExpectedRevision', validated);
   assert.ok(validated > endGate);
