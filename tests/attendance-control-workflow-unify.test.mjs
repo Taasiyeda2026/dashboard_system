@@ -221,9 +221,17 @@ test('admin attendance opens the latest pending manager_approved month', () => {
 test('admin final approval refreshes pending badge and keeps payroll transfer separate', () => {
   assert.match(adminStandalone, /refreshPendingBadge\(true\)/);
   assert.match(adminStandalone, /adminFinalizeAttendanceMonthPayroll/);
-  assert.match(adminStandalone, /אושר על ידי המנהל/);
+  assert.match(adminStandalone, /manager_approved[^\n]+ממתין לאדמין/);
   assert.match(adminStandalone, /אישור סופי/);
   assert.match(adminStandalone, /העבר לשכר/);
+  assert.match(adminStandalone, /<th>עובד<\/th><th>אישור עובד<\/th><th>אישור מנהל<\/th><th>אישור אדמין<\/th><th>סטטוס<\/th><th>פעולות<\/th>/);
+  assert.doesNotMatch(adminStandalone, /<th>דיווח<\/th>/);
+  assert.doesNotMatch(adminStandalone, /<th>ביטול זמן<\/th>/);
+  assert.match(adminStandalone, /data-admin-attendance-approval-check/);
+  assert.match(adminStandalone, /data-admin-attendance-approval-popover/);
+  assert.match(adminStandalone, /table-layout:fixed/);
+  assert.match(adminStandalone, /<col style="width:25%">/);
+  assert.match(adminStandalone, /background:transparent; color:#166534/);
   assert.doesNotMatch(adminStandalone, /await api\.adminSendAttendanceMonthToPayroll\(\{[\s\S]*adminFinalize/);
 });
 

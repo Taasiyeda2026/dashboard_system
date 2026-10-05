@@ -46,18 +46,6 @@ function monthMode(monthKey) {
   return { key: 'future', label: 'חודש עתידי' };
 }
 
-function recordMonthKey(row = {}) {
-  const raw = row.attendanceDate || row.AttendanceDate || row.report_date || row.date;
-  if (raw instanceof Date && !Number.isNaN(raw.getTime())) {
-    return `${raw.getFullYear()}-${String(raw.getMonth() + 1).padStart(2, '0')}`;
-  }
-  const value = text(raw);
-  let match = value.match(/^(20\d{2})-(\d{2})/);
-  if (match) return `${match[1]}-${match[2]}`;
-  match = value.match(/^(\d{1,2})[/.\-](\d{1,2})[/.\-](20\d{2})$/);
-  return match ? `${match[3]}-${String(match[2]).padStart(2, '0')}` : '';
-}
-
 function isActiveEmployee(row = {}) {
   if (row.active === false || row.is_active === false) return false;
   const value = text(row.active ?? row.is_active).toLowerCase();
@@ -66,22 +54,6 @@ function isActiveEmployee(row = {}) {
 
 function employeeId(row = {}) {
   return text(row.emp_id || row.employee_id || row.employeeId || row.EmployeeId || row.empNum || row.ID || row.id);
-}
-
-function attendanceHoursValue(row = {}) {
-  const value = Number(row.workHours ?? row.WorkHours ?? row.total_hours ?? row.totalHours ?? 0);
-  return Number.isFinite(value) ? Math.max(0, value) : 0;
-}
-
-function isCancellationAttendanceRow(row = {}) {
-  const generationKind = text(row.generationKind || row.generation_kind);
-  const activityType = text(row.activityType || row.ActivityType || row.activity_type).replace(/\s+/g, '');
-  return generationKind === 'travel_time_cancellation' || activityType === 'ביטולזמן';
-}
-
-function formatAttendanceHours(value) {
-  const totalMinutes = Math.max(0, Math.round((Number(value) || 0) * 60));
-  return Math.floor(totalMinutes / 60) + ':' + String(totalMinutes % 60).padStart(2, '0');
 }
 
 function ensureStyles() {
@@ -107,27 +79,33 @@ function ensureStyles() {
     .admin-attendance-standalone.is-control-mode [data-admin-attendance-body] { display:none; }
     .admin-attendance-standalone__control-host { margin-top:8px; }
     .admin-attendance-standalone:not(.is-control-mode) .admin-attendance-standalone__control-host { display:none; }
-    .admin-attendance-standalone__summary-row { display:flex; align-items:stretch; gap:12px; margin-bottom:18px; }
-    .admin-attendance-standalone__summary { display:grid; grid-template-columns:repeat(auto-fit,minmax(135px,1fr)); gap:12px; flex:1; margin:0; }
-    .admin-attendance-standalone__summary article { border:1px solid var(--color-border,#dbe3ec); border-radius:14px; padding:14px 16px; background:var(--color-surface,#fff); }
-    .admin-attendance-standalone__summary span { display:block; color:var(--color-text-secondary,#64748b); font-size:12px; margin-bottom:5px; }
-    .admin-attendance-standalone__summary strong { font-size:22px; }
-    .admin-attendance-standalone__batch { min-width:180px; border:1px solid var(--color-primary,#2563eb); border-radius:14px; padding:12px 16px; background:var(--color-primary,#2563eb); color:#fff; cursor:pointer; font:inherit; font-weight:700; }
+    .admin-attendance-standalone__summary-row { display:flex; align-items:stretch; gap:8px; margin-bottom:12px; }
+    .admin-attendance-standalone__summary { display:grid; grid-template-columns:repeat(auto-fit,minmax(125px,1fr)); gap:8px; flex:1; margin:0; }
+    .admin-attendance-standalone__summary article { border:1px solid var(--color-border,#dbe3ec); border-radius:10px; padding:8px 12px; background:var(--color-surface,#fff); }
+    .admin-attendance-standalone__summary span { display:block; color:var(--color-text-secondary,#64748b); font-size:11px; margin-bottom:2px; }
+    .admin-attendance-standalone__summary strong { font-size:18px; line-height:1.1; }
+    .admin-attendance-standalone__batch { min-width:180px; border:1px solid var(--color-primary,#2563eb); border-radius:10px; padding:8px 14px; background:var(--color-primary,#2563eb); color:#fff; cursor:pointer; font:inherit; font-weight:700; }
     .admin-attendance-standalone__batch:disabled { opacity:.45; cursor:not-allowed; }
     .admin-attendance-team { border:1px solid var(--color-border,#dbe3ec); border-radius:16px; background:var(--color-surface,#fff); margin-bottom:14px; overflow:hidden; }
     .admin-attendance-team__head { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:14px 16px; border-bottom:1px solid var(--color-border,#e5e7eb); background:var(--color-surface-muted,#f8fafc); }
     .admin-attendance-team__head h2 { margin:0; font-size:16px; }
     .admin-attendance-team__head span { color:var(--color-text-secondary,#64748b); font-size:12px; }
     .admin-attendance-table-wrap { overflow:auto; }
-    .admin-attendance-table { width:100%; border-collapse:collapse; min-width:980px; }
-    .admin-attendance-table th,.admin-attendance-table td { text-align:right; padding:11px 13px; border-bottom:1px solid var(--color-border,#edf1f5); vertical-align:middle; font-size:13px; }
+    .admin-attendance-table { width:100%; border-collapse:collapse; table-layout:fixed; min-width:780px; }
+    .admin-attendance-table th,.admin-attendance-table td { text-align:right; padding:8px 10px; border-bottom:1px solid var(--color-border,#edf1f5); vertical-align:middle; font-size:13px; }
     .admin-attendance-table th { color:var(--color-text-secondary,#64748b); font-size:12px; font-weight:700; background:rgba(248,250,252,.65); }
     .admin-attendance-table tr:last-child td { border-bottom:0; }
-    .admin-attendance-person strong,.admin-attendance-approval strong { display:block; font-size:13px; }
-    .admin-attendance-person small,.admin-attendance-approval small { display:block; margin-top:2px; color:var(--color-text-secondary,#64748b); font-size:11px; }
-    .admin-attendance-status { display:inline-flex; align-items:center; border-radius:999px; padding:5px 8px; font-size:11px; font-weight:700; background:#f1f5f9; color:#475569; white-space:nowrap; }
-    .admin-attendance-status.is-ok { background:#ecfdf3; color:#166534; }
-    .admin-attendance-status.is-pending { background:#fff7ed; color:#9a3412; }
+    .admin-attendance-person strong { display:block; font-size:13px; }
+    .admin-attendance-person small { display:block; margin-top:2px; color:var(--color-text-secondary,#64748b); font-size:11px; }
+    .admin-attendance-status { display:inline; padding:0; border-radius:0; background:transparent; color:#475569; font-size:11px; font-weight:700; white-space:nowrap; }
+    .admin-attendance-status.is-ok { background:transparent; color:#166534; }
+    .admin-attendance-status.is-pending { background:transparent; color:#9a3412; }
+    .admin-attendance-approval-check { appearance:none; border:0; padding:2px 5px; background:transparent; color:#166534; cursor:pointer; font:inherit; font-size:17px; font-weight:800; line-height:1; }
+    .admin-attendance-approval-popover { position:fixed; z-index:10020; width:min(260px,calc(100vw - 16px)); padding:10px 12px; border:1px solid var(--color-border,#dbe3ec); border-radius:10px; background:var(--color-surface,#fff); box-shadow:0 8px 24px rgba(15,23,42,.14); color:var(--color-text,#172033); direction:rtl; }
+    .admin-attendance-approval-popover strong { display:block; margin-bottom:6px; font-size:13px; }
+    .admin-attendance-approval-popover dl { display:grid; grid-template-columns:auto 1fr; gap:4px 8px; margin:0; font-size:12px; }
+    .admin-attendance-approval-popover dt { color:var(--color-text-secondary,#64748b); }
+    .admin-attendance-approval-popover dd { margin:0; }
     .admin-attendance-actions { display:flex; gap:6px; flex-wrap:wrap; }
     .admin-attendance-actions button { border:1px solid var(--color-border,#dbe3ec); border-radius:8px; padding:6px 9px; background:var(--color-surface,#fff); color:var(--color-text,#172033); cursor:pointer; font:inherit; font-size:11px; white-space:nowrap; }
     .admin-attendance-actions button.is-primary { background:var(--color-primary,#2563eb); border-color:var(--color-primary,#2563eb); color:#fff; }
@@ -136,7 +114,7 @@ function ensureStyles() {
     .admin-attendance-message.is-error { background:#fef2f2; color:#b91c1c; }
     .admin-attendance-loading,.admin-attendance-empty { border:1px solid var(--color-border,#dbe3ec); border-radius:14px; background:var(--color-surface,#fff); padding:28px; text-align:center; color:var(--color-text-secondary,#64748b); }
     .admin-management-tile[${PENDING_BADGE_ATTR}] .admin-management-tile__content small[data-admin-attendance-pending-label] { display:inline-flex; align-items:center; gap:6px; margin-top:2px; color:#9a3412; font-weight:700; }
-    .admin-management-tile[${PENDING_BADGE_ATTR}] .admin-management-tile__pending-count { display:inline-flex; align-items:center; justify-content:center; min-width:22px; height:22px; padding:0 7px; border-radius:999px; background:#fff7ed; color:#9a3412; font-size:12px; font-weight:800; }
+    .admin-management-tile[${PENDING_BADGE_ATTR}] .admin-management-tile__pending-count { display:inline; min-width:0; height:auto; padding:0; border-radius:0; background:transparent; color:#9a3412; font-size:12px; font-weight:800; }
     @media (max-width:900px) { .admin-attendance-standalone__summary-row { flex-direction:column; } .admin-attendance-standalone__summary { grid-template-columns:repeat(2,minmax(0,1fr)); } .admin-attendance-standalone__top { flex-direction:column; } }
     @media (max-width:620px) { .admin-attendance-standalone__summary { grid-template-columns:1fr 1fr; gap:8px; } .admin-attendance-standalone__top h1 { font-size:22px; } }
   `;
@@ -301,18 +279,18 @@ function workflowStatus(row = {}, finalApproval = null, monthKey = '', priorDisp
       ? { raw: 'correction_required', label: 'דורש תיקון', cls: 'is-pending' }
       : { raw: 'reopened', label: 'נפתח לעדכון', cls: 'is-pending' };
   }
-  if (raw === 'manager_approved') return { raw, label: '✓ אושר על ידי המנהל', cls: 'is-ok' };
+  if (raw === 'manager_approved') return { raw, label: 'ממתין לאדמין', cls: 'is-pending' };
   if (raw === 'submitted') return { raw, label: 'ממתין למנהל', cls: 'is-pending' };
   if (monthMode(monthKey).key === 'closed') return { raw: 'not_submitted', label: 'ממתין לעובד', cls: 'is-pending' };
   return { raw: 'not_submitted', label: 'פתוח', cls: '' };
 }
 
-function approvalCell(name, at) {
+export function approvalCell(kind, name, at) {
   const who = text(name);
   const when = at ? new Date(at).toLocaleString('he-IL', { dateStyle: 'short', timeStyle: 'short' }) : '';
   if (!who && !when) return '';
-  const details = [who ? `אושר על ידי ${who}` : 'אושר', when].filter(Boolean).join(' · ');
-  return `<div class="admin-attendance-approval"><strong>${escapeHtml(who || '✓ אושר')}</strong>${when ? `<small>${escapeHtml(when)}</small>` : ''}<span class="sr-only">${escapeHtml(details)}</span></div>`;
+  const label = kind === 'employee' ? 'אישור עובד' : kind === 'manager' ? 'אישור מנהל' : 'אישור אדמין';
+  return `<button type="button" class="admin-attendance-approval-check" data-admin-attendance-approval-check data-approval-kind="${escapeHtml(label)}" data-approval-name="${escapeHtml(who)}" data-approval-at="${escapeHtml(at || '')}" aria-label="${escapeHtml(`${label}: ${who || 'אושר'}${when ? `, ${when}` : ''}`)}">✓</button>`;
 }
 
 function groupEmployees(employees) {
@@ -376,7 +354,7 @@ function summaryHtml(employees, workflowByEmployee, finalByEmployee, dispatchByE
   </div><button type="button" class="admin-attendance-standalone__batch" data-admin-attendance-send-all${counts.admin_approved ? '' : ' disabled'}>העבר את כלל המוכנים לשכר</button></div>`;
 }
 
-function groupsHtml(employees, workflowByEmployee, finalByEmployee, dispatchByEmployee, recordCounts, cancellationHours, monthKey) {
+function groupsHtml(employees, workflowByEmployee, finalByEmployee, dispatchByEmployee, monthKey) {
   return groupEmployees(employees).map(([manager, rows]) => {
     const body = rows.map((employee) => {
       const id = employeeId(employee);
@@ -384,16 +362,11 @@ function groupsHtml(employees, workflowByEmployee, finalByEmployee, dispatchByEm
       const finalApproval = finalByEmployee.get(id) || null;
       const priorDispatch = dispatchByEmployee.get(id) || null;
       const status = workflowStatus(workflow, finalApproval, monthKey, priorDispatch);
-      const reportCount = recordCounts.get(id) || 0;
-      const cancellation = cancellationHours.get(id) || 0;
-      const reportException = monthMode(monthKey).key === 'closed' && !reportCount ? '<span class="admin-attendance-status is-pending">אין דיווח</span>' : '';
       return `<tr data-admin-attendance-row="${escapeHtml(id)}">
         <td class="admin-attendance-person"><strong>${escapeHtml(text(employee.full_name) || id)}</strong><small>${escapeHtml(id)}${text(employee.employment_type) ? ` · ${escapeHtml(text(employee.employment_type))}` : ''}</small></td>
-        <td>${reportException}</td>
-        <td>${cancellation > 0 ? `<strong>${escapeHtml(formatAttendanceHours(cancellation))}</strong>` : ''}</td>
-        <td>${approvalCell(workflow.submitted_by_name, workflow.submitted_at)}</td>
-        <td>${approvalCell(workflow.manager_approved_by_name, workflow.manager_approved_at)}</td>
-        <td>${approvalCell(finalApproval?.approved_by_name, finalApproval?.approved_at)}</td>
+        <td>${approvalCell('employee', workflow.submitted_by_name, workflow.submitted_at)}</td>
+        <td>${approvalCell('manager', workflow.manager_approved_by_name, workflow.manager_approved_at)}</td>
+        <td>${approvalCell('admin', finalApproval?.approved_by_name, finalApproval?.approved_at)}</td>
         <td><span class="admin-attendance-status ${status.cls}">${escapeHtml(status.label)}</span></td>
         <td>${actionButtons(id, workflow, finalApproval, monthKey, priorDispatch)}</td>
       </tr>`;
@@ -401,7 +374,8 @@ function groupsHtml(employees, workflowByEmployee, finalByEmployee, dispatchByEm
     return `<section class="admin-attendance-team">
       <header class="admin-attendance-team__head"><h2>${escapeHtml(manager)}</h2><span>${rows.length} עובדים · ${escapeHtml(monthKey)}</span></header>
       <div class="admin-attendance-table-wrap"><table class="admin-attendance-table">
-        <thead><tr><th>עובד</th><th>דיווח</th><th>ביטול זמן</th><th>אישור עובד</th><th>אישור מנהל</th><th>אישור אדמין</th><th>סטטוס</th><th>פעולות</th></tr></thead>
+        <colgroup><col style="width:25%"><col style="width:15%"><col style="width:15%"><col style="width:15%"><col style="width:15%"><col style="width:15%"></colgroup>
+        <thead><tr><th>עובד</th><th>אישור עובד</th><th>אישור מנהל</th><th>אישור אדמין</th><th>סטטוס</th><th>פעולות</th></tr></thead>
         <tbody>${body}</tbody>
       </table></div>
     </section>`;
@@ -425,13 +399,12 @@ async function renderData(root, monthKey, message = '') {
   try {
     const employees = await loadEmployees();
     const ids = employees.map(employeeId).filter(Boolean);
-    const [workflowRows, finalRows, dispatchRows, attendanceRows] = await Promise.all([
+    const [workflowRows, finalRows, dispatchRows] = await Promise.all([
       api.attendanceControlMonthWorkflowStatuses({ monthKey, employeeIds: ids }),
       api.listPayrollControlApprovals({ monthKey, employeeIds: ids, statuses: ['admin_approved', 'approved_for_payroll'] }),
       typeof api.listAttendancePayrollDispatches === 'function'
         ? api.listAttendancePayrollDispatches({ monthKey, employeeIds: ids })
-        : Promise.resolve([]),
-      typeof api.attendanceControlRecords === 'function' ? api.attendanceControlRecords({ employeeIds: ids }) : Promise.resolve([])
+        : Promise.resolve([])
     ]);
     if (token !== renderToken || !root.isConnected) return;
     const workflowByEmployee = new Map((workflowRows || []).map((row) => [text(row.employee_id || row.employeeId), row]));
@@ -441,23 +414,11 @@ async function renderData(root, monthKey, message = '') {
       const id = text(row.employee_id || row.employeeId);
       if (id && !dispatchByEmployee.has(id)) dispatchByEmployee.set(id, row);
     }
-    const recordCounts = new Map(ids.map((id) => [id, 0]));
-    const cancellationHours = new Map(ids.map((id) => [id, 0]));
-    for (const row of Array.isArray(attendanceRows) ? attendanceRows : []) {
-      const id = employeeId(row);
-      if (!recordCounts.has(id) || recordMonthKey(row) !== monthKey) continue;
-      const generationKind = text(row?.generationKind || row?.generation_kind);
-      if (isCancellationAttendanceRow(row)) {
-        cancellationHours.set(id, (cancellationHours.get(id) || 0) + attendanceHoursValue(row));
-      }
-      if (generationKind === 'travel_time_cancellation') continue;
-      recordCounts.set(id, (recordCounts.get(id) || 0) + 1);
-    }
-    root.__adminAttendanceContext = { employees, workflowByEmployee, finalByEmployee, dispatchByEmployee, recordCounts, cancellationHours, monthKey };
+    root.__adminAttendanceContext = { employees, workflowByEmployee, finalByEmployee, dispatchByEmployee, monthKey };
     const modeEl = root.querySelector('[data-admin-attendance-mode]');
     if (modeEl) modeEl.textContent = monthMode(monthKey).label;
     if (body) body.innerHTML = employees.length
-      ? `${summaryHtml(employees, workflowByEmployee, finalByEmployee, dispatchByEmployee, monthKey)}${groupsHtml(employees, workflowByEmployee, finalByEmployee, dispatchByEmployee, recordCounts, cancellationHours, monthKey)}`
+      ? `${summaryHtml(employees, workflowByEmployee, finalByEmployee, dispatchByEmployee, monthKey)}${groupsHtml(employees, workflowByEmployee, finalByEmployee, dispatchByEmployee, monthKey)}`
       : '<div class="admin-attendance-empty">לא נמצאו עובדים פעילים להצגה.</div>';
   } catch (error) {
     if (token !== renderToken || !root.isConnected) return;
@@ -685,9 +646,52 @@ function scheduleSync() {
   requestAnimationFrame(sync);
 }
 
+function closeApprovalPopover() {
+  document.querySelector('[data-admin-attendance-approval-popover]')?.remove();
+}
+
+function openApprovalPopover(button) {
+  closeApprovalPopover();
+  const kind = text(button.dataset.approvalKind) || 'פרטי אישור';
+  const name = text(button.dataset.approvalName) || 'לא צוין';
+  const rawAt = text(button.dataset.approvalAt);
+  const approvalDate = rawAt ? new Date(rawAt) : null;
+  const date = approvalDate && !Number.isNaN(approvalDate.getTime())
+    ? approvalDate.toLocaleDateString('he-IL')
+    : (rawAt || 'לא צוין');
+  const time = approvalDate && !Number.isNaN(approvalDate.getTime())
+    ? approvalDate.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })
+    : '';
+  const popover = document.createElement('div');
+  popover.className = 'admin-attendance-approval-popover';
+  popover.setAttribute('data-admin-attendance-approval-popover', 'true');
+  popover.setAttribute('role', 'dialog');
+  popover.setAttribute('aria-label', kind);
+  popover.innerHTML = `<strong>${escapeHtml(kind)}</strong><dl>
+    <dt>${kind === 'אישור עובד' ? 'חתם/ה' : 'אושר על ידי'}</dt><dd>${escapeHtml(name)}</dd>
+    <dt>תאריך</dt><dd>${escapeHtml(date)}</dd>
+    ${time ? `<dt>שעה</dt><dd>${escapeHtml(time)}</dd>` : ''}
+  </dl>`;
+  document.body.append(popover);
+  const rect = button.getBoundingClientRect();
+  const width = popover.offsetWidth || 260;
+  const left = Math.min(window.innerWidth - width - 8, Math.max(8, rect.right - width));
+  const top = Math.min(window.innerHeight - (popover.offsetHeight || 120) - 8, rect.bottom + 6);
+  popover.style.left = `${Math.max(8, left)}px`;
+  popover.style.top = `${Math.max(8, top)}px`;
+}
+
 function handleClick(event) {
   const target = event.target instanceof Element ? event.target : null;
   if (!target) return;
+  const approvalCheck = target.closest('[data-admin-attendance-approval-check]');
+  if (approvalCheck) {
+    event.preventDefault();
+    event.stopPropagation();
+    openApprovalPopover(approvalCheck);
+    return;
+  }
+  if (!target.closest('[data-admin-attendance-approval-popover]')) closeApprovalPopover();
   const openButton = target.closest('[data-admin-attendance-open]');
   if (openButton) {
     event.preventDefault();
@@ -729,6 +733,10 @@ function handleClick(event) {
   if (action) void handleAction(action, root);
 }
 
+function handleKeydown(event) {
+  if (event.key === 'Escape') closeApprovalPopover();
+}
+
 function handleChange(event) {
   const input = event.target instanceof HTMLInputElement ? event.target : null;
   if (!input?.matches('[data-admin-attendance-month]')) return;
@@ -747,6 +755,7 @@ function start() {
   ensureStyles();
   document.addEventListener('click', handleClick, true);
   document.addEventListener('change', handleChange);
+  document.addEventListener('keydown', handleKeydown);
   const observer = new MutationObserver(scheduleSync);
   observer.observe(document.getElementById('app') || document.documentElement, { childList: true, subtree: true });
   scheduleSync();
