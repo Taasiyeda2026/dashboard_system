@@ -91,8 +91,12 @@ test('Attendance report actions and expenses use distinct accessible indicators'
   assert.match(reportsSource, /createIcon\('copy'/);
   assert.match(reportsSource, /createIcon\('duplicate'/);
   assert.match(reportsSource, /createIcon\('receipt'/);
-  assert.match(reportsSource, /if \(expenseAmount > 0\)/);
-  assert.match(reportsSource, /classList\.toggle\('is-revealed'\)/);
+  assert.match(reportsSource, /פירוט: \$\{expenseDetails\}/);
+  assert.match(reportsSource, /void viewExpense\(record\)/);
+  assert.match(reportsSource, /mt\.textContent = 'הוצאות'/);
+  assert.doesNotMatch(reportsSource, /const attachBtn = document\.createElement\('button'\)/);
+  assert.match(reportsStyles, /\.av2-rr__expense-indicator:hover::after/);
+  assert.match(reportsStyles, /content:\s*attr\(data-tooltip\)/);
 });
 
 test('shared Attendance time picker uses compact numeric placeholders and supports automatic values', () => {

@@ -213,7 +213,8 @@
 .av2-rr__expense-indicator { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: #9a6700; cursor: pointer; }
 .av2-rr__expense-indicator:hover,
 .av2-rr__expense-indicator:focus-visible { background: #fff7d6; outline: none; }
-.av2-rr__expense-indicator.is-revealed::after { content: attr(data-tooltip); position: absolute; z-index: 30; inset-block-end: calc(100% + 5px); inset-inline-start: 50%; transform: translateX(-50%); width: max-content; max-width: 180px; padding: 4px 7px; border-radius: 5px; background: #172033; color: #fff; font-size: 0.6875rem; white-space: nowrap; box-shadow: 0 3px 10px rgba(15, 23, 42, .2); }
+.av2-rr__expense-indicator:hover::after,
+.av2-rr__expense-indicator:focus-visible::after { content: attr(data-tooltip); position: absolute; z-index: 30; inset-block-end: calc(100% + 5px); inset-inline-start: 50%; transform: translateX(-50%); width: max-content; max-width: 220px; padding: 4px 7px; border-radius: 5px; background: #172033; color: #fff; font-size: 0.6875rem; line-height: 1.35; white-space: normal; text-align: right; box-shadow: 0 3px 10px rgba(15, 23, 42, .2); }
 .av2-rr__type { font-size: 0.6875rem; color: var(--av2-color-text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .av2-rr__name { font-size: 0.75rem; font-weight: 600; color: var(--av2-color-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .av2-rr__school,

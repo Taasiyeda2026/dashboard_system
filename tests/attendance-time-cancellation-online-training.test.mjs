@@ -113,6 +113,25 @@ test('scheduled physical training saves and reloads without requiring a school',
   assert.match(migration, /s\.training_schedule_id is not null[\s\S]*destination_address := nullif\(btrim\(s\.destination_address_snapshot\)/);
 });
 
+test('historical base training restores the Greenwork location when legacy schedule rows omitted it', () => {
+  const selected = normalizeScheduledTraining({
+    id: '33333333-3333-3333-3333-333333333333',
+    training_date: '2026-09-17',
+    course_name: 'הכשרת בסיס',
+    start_time: '10:00',
+    end_time: '14:00',
+    is_online: false,
+    location_name: null,
+    location_address: null,
+  });
+  assert.equal(selected.training_location_name, 'Greenwork, יקום');
+  assert.equal(selected.training_location_address, '6RVR+XM, יקום');
+  const saved = scheduledTrainingReportFields(selected);
+  assert.equal(saved.authority_name_snapshot, 'Greenwork, יקום');
+  assert.equal(saved.destination_address_snapshot, '6RVR+XM, יקום');
+  assert.match(activities, /select\('id,training_date,course_id,course_name,start_time,end_time,is_online,location_name,location_address,participant_scope'\)/);
+});
+
 test('scheduled online training reloads without location or travel data', () => {
   const selected = normalizeScheduledTraining({
     id: '22222222-2222-2222-2222-222222222222',
