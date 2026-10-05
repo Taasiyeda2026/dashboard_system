@@ -6942,6 +6942,18 @@ export const api = {
     if (error) throw new Error(error.message || 'manager_finalize_attendance_month_review_failed');
     return data || {};
   },
+  managerReopenAttendanceMonthForEmployee: async ({
+    employee_id,
+    month_key
+  } = {}) => {
+    assertPermission('view_attendance_control', 'attendance_control_forbidden');
+    const { data, error } = await supabase.rpc('manager_reopen_attendance_month_for_employee', {
+      p_employee_id: String(employee_id || '').trim(),
+      p_month_key: String(month_key || '').trim()
+    });
+    if (error) throw new Error(error.message || 'manager_reopen_attendance_month_for_employee_failed');
+    return data || {};
+  },
   adminFinalizeAttendanceMonthPayroll: async ({
     employee_id,
     month_key,
