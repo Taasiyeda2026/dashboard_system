@@ -4,7 +4,7 @@ import { supabase, waitForSupabaseAuthSession } from './supabase-client.js';
 import { hasPermission } from './permission-policy.js';
 import { normalizeGlobalActivityPeriod } from './screens/shared/summer-activity.js';
 import { escapeHtml } from './screens/shared/html.js';
-import { attendanceMonthDateRange } from './screens/attendance-control.js?v=20261005-manager-attendance-reopened-write-gate-v1';
+import { attendanceMonthDateRange, resolveManagerAttendanceOverviewState } from './screens/attendance-control.js?v=20261005-attendance-control-workflow-unify-v1';
 import { tableHtml as trackingTableHtml } from './manager-board-employee-file-tracking.js?v=20261004-overdue-date-red-v1';
 
 const MANAGER_WORKSPACE_TAB_KEY = 'manager_board_workspace_tab';
@@ -263,16 +263,6 @@ function rawRecordMonth(row) {
   return '';
 }
 
-function attendanceHoursValue(row = {}) {
-  const value = Number(row.workHours ?? row.WorkHours ?? row.total_hours ?? row.totalHours ?? 0);
-  return Number.isFinite(value) ? Math.max(0, value) : 0;
-}
-
-function formatAttendanceHours(value) {
-  const totalMinutes = Math.max(0, Math.round((Number(value) || 0) * 60));
-  return Math.floor(totalMinutes / 60) + ':' + String(totalMinutes % 60).padStart(2, '0');
-}
-
 async function loadAttendanceSummary(roster, ym, force = false) {
   const ids = roster.map((row) => text(row.emp_id)).filter(Boolean).sort();
   const key = `${ym}|${ids.join(',')}`;
@@ -280,9 +270,10 @@ async function loadAttendanceSummary(roster, ym, force = false) {
   if (!force && cached && Date.now() - cached.loadedAt < ATTENDANCE_SUMMARY_TTL_MS) return cached.value;
 
   const recordCounts = new Map(ids.map((id) => [id, 0]));
-  const totalHours = new Map(ids.map((id) => [id, 0]));
+  const workflowByEmployee = new Map();
   let records = [];
   let recordsError = '';
+  let workflowError = '';
   const { fromDate, toDate } = attendanceMonthDateRange(ym);
   try {
     records = ids.length
@@ -292,12 +283,23 @@ async function loadAttendanceSummary(roster, ym, force = false) {
       const empId = rawEmployeeId(row);
       if (!recordCounts.has(empId) || rawRecordMonth(row) !== ym) continue;
       const generationKind = text(row?.generationKind || row?.generation_kind);
-      totalHours.set(empId, (totalHours.get(empId) || 0) + attendanceHoursValue(row));
       if (generationKind === 'travel_time_cancellation') continue;
       recordCounts.set(empId, (recordCounts.get(empId) || 0) + 1);
     }
   } catch (error) {
     recordsError = error?.message || 'טעינת דיווחי הנוכחות נכשלה.';
+  }
+
+  try {
+    if (ids.length && typeof api.attendanceControlMonthWorkflowStatuses === 'function') {
+      const workflowRows = await api.attendanceControlMonthWorkflowStatuses({ monthKey: ym, employeeIds: ids });
+      for (const row of Array.isArray(workflowRows) ? workflowRows : []) {
+        const empId = text(row?.employee_id || row?.employeeId);
+        if (empId) workflowByEmployee.set(empId, row);
+      }
+    }
+  } catch (error) {
+    workflowError = error?.message || 'טעינת סטטוסי החודש נכשלה.';
   }
 
   const approvals = new Map();
@@ -314,7 +316,7 @@ async function loadAttendanceSummary(roster, ym, force = false) {
     approvalsError = error?.message || 'טעינת אישורי הבקרה נכשלה.';
   }
 
-  const value = { recordCounts, totalHours, approvals, records, recordsError, approvalsError };
+  const value = { recordCounts, workflowByEmployee, approvals, records, recordsError, approvalsError, workflowError };
   attendanceSummaryCache.set(key, { value, loadedAt: Date.now() });
   return value;
 }
@@ -421,28 +423,37 @@ function handleWorkspaceClick(event) {
 }
 
 function managementAlertsHtml(roster, summary) {
-  const reportMissing = roster.filter((row) => (summary.recordCounts.get(text(row.emp_id)) || 0) === 0).length;
-  const awaitingApproval = roster.filter((row) => {
+  let reportMissing = 0;
+  let awaitingApproval = 0;
+  let employeeApproved = 0;
+  for (const row of roster) {
     const empId = text(row.emp_id);
-    return (summary.recordCounts.get(empId) || 0) > 0 && !summary.approvals.has(empId);
-  }).length;
-  const approved = roster.filter((row) => summary.approvals.has(text(row.emp_id))).length;
-  const error = summary.recordsError || summary.approvalsError;
+    const count = summary.recordCounts.get(empId) || 0;
+    const overview = resolveManagerAttendanceOverviewState({
+      workflow: summary.workflowByEmployee?.get(empId) || {},
+      recordCount: count
+    });
+    if (overview.status === 'no_report') reportMissing += 1;
+    else if (overview.status === 'awaiting_employee') awaitingApproval += 1;
+    if (['submitted', 'manager_approved', 'approved'].includes(overview.status)) employeeApproved += 1;
+  }
+  const error = summary.recordsError || summary.approvalsError || summary.workflowError;
   return `<div class="manager-workspace-alert-strip" dir="rtl">
     <div class="manager-workspace-alert-strip__title"><strong>דיווחים חשובים</strong><span>לפי צוות המנהל והחודש הנבחר</span></div>
     <article><span>צוות פעיל</span><strong>${roster.length}</strong></article>
     <article class="${reportMissing ? 'is-warning' : ''}"><span>ללא דיווח נוכחות</span><strong>${reportMissing}</strong></article>
     <article class="${awaitingApproval ? 'is-warning' : ''}"><span>טרם אושר ע״י העובד</span><strong>${awaitingApproval}</strong></article>
-    <article class="is-ok"><span>אושר ע״י העובד</span><strong>${approved}</strong></article>
+    <article class="is-ok"><span>אושר ע״י העובד</span><strong>${employeeApproved}</strong></article>
     ${error ? `<p class="manager-workspace-inline-error">${escapeHtml(error)}</p>` : ''}
   </div>`;
 }
 
-function attendanceStatusBadge(count, approval, ym) {
-  if (!count) return '<span class="manager-workspace-status is-muted">אין דיווח</span>';
-  if (approval) return '<span class="manager-workspace-status is-ok">✓ אושר</span>';
-  if (attendanceMonthMode(ym).key === 'current') return '<span class="manager-workspace-status is-pending">בקרה שוטפת</span>';
-  return '<span class="manager-workspace-status is-pending">בתהליך</span>';
+function attendanceOverviewActionHtml(empId, overview) {
+  if (overview.actionKind === 'none' || !overview.actionLabel) return '';
+  if (overview.actionKind === 'pdf') {
+    return `<button type="button" class="manager-workspace-link-button" data-manager-attendance-open-pdf="${escapeHtml(empId)}" data-manager-attendance-pdf-url="${escapeHtml(overview.pdfUrl || '')}">${escapeHtml(overview.actionLabel)}</button>`;
+  }
+  return `<button type="button" class="manager-workspace-link-button" data-manager-attendance-open-employee="${escapeHtml(empId)}" data-manager-attendance-action-kind="${escapeHtml(overview.actionKind)}">${escapeHtml(overview.actionLabel)}</button>`;
 }
 
 function attendanceSummaryTableHtml(roster, summary, ym) {
@@ -450,19 +461,22 @@ function attendanceSummaryTableHtml(roster, summary, ym) {
   const rows = roster.map((row) => {
     const empId = text(row.emp_id);
     const count = summary.recordCounts.get(empId) || 0;
-    const hours = summary.totalHours?.get(empId) || 0;
-    const approval = summary.approvals.get(empId);
-    const approvedAt = approval?.approved_at ? new Date(approval.approved_at).toLocaleDateString('he-IL') : '';
-    return `<tr>
+    const overview = resolveManagerAttendanceOverviewState({
+      workflow: summary.workflowByEmployee?.get(empId) || {},
+      recordCount: count
+    });
+    const reportCell = overview.status === 'no_report'
+      ? '<span class="manager-workspace-report-count is-missing">לא נמצא דיווח</span>'
+      : `<span class="manager-workspace-report-count">קיים · ${count} דיווחים</span>`;
+    return `<tr data-manager-attendance-status="${escapeHtml(overview.status)}">
       <td class="manager-workspace-attendance-person" data-label="מדריך"><strong>${escapeHtml(text(row.full_name) || empId)}</strong><small>${escapeHtml(empId)}</small></td>
-      <td data-label="דיווח">${count ? `<span class="manager-workspace-report-count">קיים · ${count} דיווחים</span>` : '<span class="manager-workspace-report-count is-missing">לא נמצא דיווח</span>'}</td>
-      <td data-label="סה״כ שעות"><strong>${escapeHtml(formatAttendanceHours(hours))}</strong></td>
-      <td data-label="סטטוס אישור">${attendanceStatusBadge(count, approval, ym)}${approvedAt ? `<small>${escapeHtml(approvedAt)}</small>` : ''}</td>
-      <td class="manager-workspace-attendance-action" data-label="פעולה"><button type="button" class="manager-workspace-link-button" data-manager-attendance-open-employee="${escapeHtml(empId)}"${count ? '' : ' disabled'}>פתח דוח לבדיקה</button></td>
+      <td data-label="דיווח">${reportCell}</td>
+      <td data-label="סטטוס אישור"><span class="manager-workspace-status ${escapeHtml(overview.statusClass)}">${escapeHtml(overview.statusLabel)}</span></td>
+      <td class="manager-workspace-attendance-action" data-label="פעולה">${attendanceOverviewActionHtml(empId, overview)}</td>
     </tr>`;
   }).join('');
   return `<div class="manager-workspace-table-wrap"><table class="manager-workspace-table manager-workspace-attendance-table">
-    <thead><tr><th>מדריך</th><th>דיווח ${escapeHtml(ym)}</th><th>סה״כ שעות</th><th>סטטוס אישור</th><th></th></tr></thead>
+    <thead><tr><th>מדריך</th><th>דיווח ${escapeHtml(ym)}</th><th>סטטוס אישור</th><th></th></tr></thead>
     <tbody>${rows}</tbody>
   </table></div>`;
 }
@@ -643,7 +657,7 @@ async function bindEmbeddedAttendance(host, roster, context, snapshot = null, pr
   embeddedAttendanceSignature = signature;
   host.dataset.managerAttendanceBound = 'true';
 
-  const attendance = await import('./screens/attendance-control.js?v=20261005-manager-attendance-reopened-write-gate-v1');
+  const attendance = await import('./screens/attendance-control.js?v=20261005-attendance-control-workflow-unify-v1');
   const monthMode = attendanceMonthMode(context.ym);
   host.dataset.managerAttendanceMonthMode = monthMode.key;
   host.innerHTML = `<style>
@@ -703,6 +717,12 @@ async function renderAttendance(boardRoot, context, roster, renderToken) {
         button.disabled = false;
         button.textContent = previousText;
       }
+    });
+  });
+  view.querySelectorAll('[data-manager-attendance-open-pdf]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const pdfUrl = text(button.dataset.managerAttendancePdfUrl);
+      if (pdfUrl) window.open(pdfUrl, '_blank', 'noopener');
     });
   });
 }

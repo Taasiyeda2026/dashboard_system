@@ -1090,6 +1090,121 @@ export function canManagerFinalizeEmployeeMonth(workflow = {}, { bypassMonthSubm
     && resolvePayrollMonthWorkflow(workflow).status === 'submitted';
 }
 
+/**
+ * Single source of truth for manager-overview status + action.
+ * Status badge and action button must always derive from this helper together.
+ */
+export function resolveManagerAttendanceOverviewState({ workflow = {}, recordCount = 0 } = {}) {
+  const resolved = resolvePayrollMonthWorkflow(workflow);
+  const submissionStatus = normalizeAttendanceSubmissionStatus(
+    workflow.attendance_submission_status || workflow.attendanceSubmissionStatus || resolved.submissionStatus
+  );
+  const pdfUrl = txt(
+    workflow.manager_pdf_sharepoint_url
+    || workflow.managerPdfSharepointUrl
+    || workflow.manager_pdf_url
+  );
+  const count = Math.max(0, Number(recordCount) || 0);
+
+  if (resolved.status === 'approved') {
+    return {
+      status: 'approved',
+      statusLabel: '✓ אושר סופית',
+      statusClass: 'is-ok',
+      actionKind: pdfUrl ? 'pdf' : 'none',
+      actionLabel: 'צפייה בדוח',
+      pdfUrl,
+      opensManagerReview: false
+    };
+  }
+  if (resolved.status === 'manager_approved') {
+    return {
+      status: 'manager_approved',
+      statusLabel: '✓ אושר על ידי המנהל',
+      statusClass: 'is-ok',
+      actionKind: pdfUrl ? 'pdf' : 'none',
+      actionLabel: 'צפייה בדוח',
+      pdfUrl,
+      opensManagerReview: false
+    };
+  }
+  if (submissionStatus === 'reopened') {
+    return {
+      status: 'reopened',
+      statusLabel: 'פתוח לתיקון',
+      statusClass: 'is-pending',
+      actionKind: 'review',
+      actionLabel: 'פתח לבדיקה',
+      pdfUrl: '',
+      opensManagerReview: true
+    };
+  }
+  if (resolved.status === 'submitted') {
+    return {
+      status: 'submitted',
+      statusLabel: '✓ אושר על ידי העובד · ממתין לבקרת מנהל',
+      statusClass: 'is-pending',
+      actionKind: 'review',
+      actionLabel: 'פתח לבדיקה',
+      pdfUrl: '',
+      opensManagerReview: true
+    };
+  }
+  if (!count) {
+    return {
+      status: 'no_report',
+      statusLabel: 'לא נמצא דיווח',
+      statusClass: 'is-muted',
+      actionKind: 'none',
+      actionLabel: '',
+      pdfUrl: '',
+      opensManagerReview: false
+    };
+  }
+  return {
+    status: 'awaiting_employee',
+    statusLabel: 'טרם אושר ע״י העובד',
+    statusClass: 'is-pending',
+    actionKind: 'view',
+    actionLabel: 'צפייה',
+    pdfUrl: '',
+    opensManagerReview: true
+  };
+}
+
+/** Count of admin-pending months: manager_approved without final admin/payroll approval. */
+export function countAdminPendingManagerApproved(rows = []) {
+  let count = 0;
+  for (const row of Array.isArray(rows) ? rows : []) {
+    const status = txt(row?.workflow_status || row?.workflowStatus || row?.status).toLowerCase();
+    const submission = normalizeAttendanceSubmissionStatus(
+      row?.attendance_submission_status || row?.attendanceSubmissionStatus
+    );
+    if (submission === 'reopened') continue;
+    if (status === 'manager_approved') count += 1;
+  }
+  return count;
+}
+
+/**
+ * Prefer the latest closed month that still has manager_approved pending admin.
+ * Falls back to the current month when nothing is waiting.
+ */
+export function resolveAdminAttendanceDefaultMonth({
+  pendingByMonth = [],
+  currentMonth = ''
+} = {}) {
+  const current = txt(currentMonth);
+  const ranked = (Array.isArray(pendingByMonth) ? pendingByMonth : [])
+    .map((row) => ({
+      monthKey: txt(row?.month_key || row?.monthKey),
+      pendingCount: Math.max(0, Number(row?.pending_count ?? row?.pendingCount) || 0)
+    }))
+    .filter((row) => row.monthKey && row.pendingCount > 0)
+    .sort((left, right) => right.monthKey.localeCompare(left.monthKey));
+  return ranked[0]?.monthKey || current;
+}
+
 export const EMPLOYEE_MONTH_NOT_SUBMITTED_READONLY_MESSAGE =
   'העובד טרם סיים ואישר את הדיווח החודשי. הנתונים מוצגים לצפייה בלבד.';
 
@@ -1870,7 +1985,7 @@ export function attendanceControlStylesHtml() {
 .attendance-control__summary-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:8px 0 12px}.attendance-control__summary-bar span{padding:7px 11px;border:1px solid #dbe5ef;border-radius:999px;background:#fff;font-size:.88rem}.attendance-control__metrics-details{margin:6px 0 12px}.attendance-control__metrics-details>summary{cursor:pointer;color:#64748b;font-size:.9em;padding:4px 2px}.attendance-control__metrics{margin:6px 0;display:flex;flex-wrap:wrap;gap:8px}.attendance-control__metrics>span,.attendance-control__employee-summary>span{padding:8px 10px;border:1px solid #e2e8f0;border-radius:8px;background:#f8fafc}
 .attendance-control__employee{margin:12px 0;border:1px solid #dbe5ef;border-radius:14px;background:#fff;overflow:hidden}.attendance-control__employee>summary{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:13px 15px;cursor:pointer;font-size:1.02em;background:#fbfdff}.attendance-control__employee-record-progress{font-size:.86rem;color:#64748b;font-weight:700}.attendance-control__employee-days{padding:0 14px 14px}.attendance-control__employee-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:4px 14px 10px}.attendance-control__approved{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 14px 10px;padding:8px 10px;border:1px solid #bbf7d0;background:#f0fdf4;border-radius:9px;color:#166534;font-weight:700}.attendance-control__approve-dialog{border:0;border-radius:12px;padding:20px;max-width:480px;color:#1f2a37}.attendance-control__approve-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}
 .attendance-control__add-dialog{width:min(760px,calc(100vw - 32px));max-width:760px}.attendance-control__add-dialog h3{margin:0 0 6px}.attendance-control__add-dialog>p{margin:0 0 14px;color:#64748b}.attendance-control__add-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 12px}.attendance-control__add-grid label{display:grid;gap:5px;font-weight:700;color:#475569}.attendance-control__add-grid label>span{font-size:.82rem}.attendance-control__add-grid .ds-input{width:100%;min-height:40px}.attendance-control__add-grid .attendance-control__add-wide{grid-column:1/-1}.attendance-control__add-error{margin:10px 0 0;color:#b91c1c;font-weight:700}.attendance-control__add-hint{margin:10px 0 0;color:#64748b;font-size:.84rem}@media(max-width:640px){.attendance-control__add-grid{grid-template-columns:1fr}.attendance-control__add-grid .attendance-control__add-wide{grid-column:auto}}
-.attendance-control__day{margin-top:10px;border:1px solid #e4eaf1;border-radius:12px;overflow:hidden}.attendance-control__day>summary{display:grid;grid-template-columns:130px 130px minmax(100px,1fr);gap:12px;align-items:center;padding:11px 13px;cursor:pointer;background:#fafcff}.attendance-control__reports{padding:12px;background:#f6f9fc}.attendance-control__report{padding:0;border:1px solid #dfe7f0;border-radius:14px;background:#fff;overflow:hidden;box-shadow:0 4px 12px rgba(15,23,42,.035)}.attendance-control__report+.attendance-control__report{margin-top:12px}.attendance-control__report-line{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:12px 14px;border-bottom:1px solid #edf1f5;background:#fff}.attendance-control__report-line strong{font-size:1rem}.attendance-control__report-line-actions,.attendance-control__record-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.attendance-control__record-actions{justify-content:flex-end}.attendance-control__identity{display:none}
+.attendance-control__day{margin-top:10px;border:1px solid #e4eaf1;border-radius:12px;overflow:hidden}.attendance-control__day>summary{display:grid;grid-template-columns:130px 130px minmax(100px,1fr);gap:12px;align-items:center;padding:11px 13px;cursor:pointer;background:#fafcff}.attendance-control__reports{padding:12px;background:#f6f9fc}.attendance-control__report{padding:0;border:1px solid #dfe7f0;border-radius:14px;background:#fff;overflow:hidden;box-shadow:0 4px 12px rgba(15,23,42,.035)}.attendance-control__report+.attendance-control__report{margin-top:12px}.attendance-control__report-line{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:12px 14px;border-bottom:1px solid #edf1f5;background:#fff}.attendance-control__report-line strong{font-size:1rem}.attendance-control__report-line-actions,.attendance-control__record-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.attendance-control__record-actions{justify-content:flex-end}.attendance-control__record-approved-indicator{display:inline-flex;align-items:center;min-height:32px;padding:0 10px;border-radius:8px;background:#ecfdf3;color:#166534;font-size:.86rem;font-weight:800}.attendance-control__identity{display:none}
 .attendance-control__report-card{margin:12px 14px;padding:12px;border:1px solid #dce7f2;border-radius:12px;background:#f8fbff}.attendance-control__report-card-title{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px;font-weight:800}.attendance-control__report-card-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(135px,1fr));gap:8px}.attendance-control__report-card-item{min-height:62px;display:flex;flex-direction:column;justify-content:center;padding:9px 10px;border:1px solid #e1e9f1;border-radius:10px;background:#fff}.attendance-control__report-card-item span{font-size:.76rem;color:#718096;font-weight:700}.attendance-control__report-card-item strong{margin-top:4px;font-size:.95rem;color:#1f3554;overflow-wrap:anywhere}
 .attendance-control__report-meta{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-top:10px;padding-top:9px;border-top:1px solid #e3eaf2;color:#53657a;font-size:.84rem}.attendance-control__report-meta strong{color:#334155}.attendance-control__report-meta span{padding:4px 7px;border-radius:999px;background:#eef4fa}
 .attendance-control__reported-details{display:grid;gap:6px;margin-top:8px}.attendance-control__reported-details>div{display:grid;grid-template-columns:120px minmax(0,1fr);gap:10px;padding:7px 9px;border:1px solid #e7edf3;border-radius:8px;background:#fafcff}.attendance-control__reported-details span{color:#64748b;font-size:.82rem}.attendance-control__reported-details strong{color:#334155;font-size:.9rem;overflow-wrap:anywhere}.attendance-control__comparison-wrap--compact{padding:10px 12px;border:1px solid #e4eaf1;border-radius:10px;background:#fbfdff}
@@ -2299,7 +2414,9 @@ export function resultsHtml(result, month = '', options = {}) {
       ? ''
       : `<div class="attendance-control__record-actions">
           <button type="button" class="ds-btn ds-btn--sm" data-attendance-edit-record="${escapeHtml(item.id)}" data-attendance-edit-approved="${approved ? '1' : '0'}">${approved ? 'תיקון רשומה' : 'עריכת רשומה'}</button>
-          <button type="button" class="ds-btn ds-btn--sm ds-btn--primary" data-attendance-approve-reported="${escapeHtml(item.id)}">${approved ? '✓ רשומה אושרה' : 'אישור רשומה'}</button>
+          ${approved
+            ? '<span class="attendance-control__record-approved-indicator" aria-label="רשומה אושרה">✓ רשומה אושרה</span>'
+            : `<button type="button" class="ds-btn ds-btn--sm ds-btn--primary" data-attendance-approve-reported="${escapeHtml(item.id)}">אישור רשומה</button>`}
         </div>`;
     const editFooter = editing
       ? `<div class="attendance-control__record-edit-footer">
@@ -2615,7 +2732,7 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
     dialog.className = 'attendance-control__approve-dialog attendance-control__add-dialog';
     const activityTypes = ['קורס', 'סדנה', 'סיור', 'זום', 'חדר בריחה', 'הכשרה', 'ביטול זמן', 'תפעול'];
     dialog.innerHTML = `<form method="dialog" data-attendance-add-form>
-      <h3>הוספת דיווח שנשכח</h3>
+      <h3>הוספת רשומה</h3>
       <p>${escapeHtml(employeeName || employeeId)} · ${escapeHtml(attendanceMonthLabel(monthKey))}</p>
       <div class="attendance-control__add-grid">
         <label><span>תאריך *</span><input class="ds-input" type="date" name="attendanceDate" min="${escapeHtml(fromDate)}" max="${escapeHtml(toDate)}" required></label>

@@ -2,6 +2,9 @@ import { state } from './state.js';
 import { api } from './api.js';
 import { supabase, waitForSupabaseAuthSession } from './supabase-client.js';
 import { escapeHtml } from './screens/shared/html.js';
+import {
+  resolveAdminAttendanceDefaultMonth
+} from './screens/attendance-control.js?v=20261005-attendance-control-workflow-unify-v1';
 
 const ADMIN_ROLE = 'admin';
 const LEGACY_MANAGER_TAB = 'payroll-attendance';
@@ -10,8 +13,11 @@ const PENDING_MANAGER_TAB_KEY = 'admin_management_pending_manager_tab';
 const STANDALONE_ATTRIBUTE = 'data-admin-attendance-standalone';
 const STYLE_ID = 'admin-attendance-standalone-style';
 const HIDDEN_CLASS = 'is-admin-attendance-hidden';
+const PENDING_BADGE_ATTR = 'data-admin-attendance-pending-badge';
 
 let renderToken = 0;
+let pendingSummaryCache = { rows: null, loadedAt: 0, total: 0 };
+const PENDING_SUMMARY_TTL_MS = 60 * 1000;
 
 function text(value) {
   return String(value ?? '').trim().replace(/\s+/g, ' ');
@@ -122,10 +128,53 @@ function ensureStyles() {
     .admin-attendance-message { margin:0 0 12px; padding:10px 12px; border-radius:10px; background:#ecfdf3; color:#166534; font-size:12px; }
     .admin-attendance-message.is-error { background:#fef2f2; color:#b91c1c; }
     .admin-attendance-loading,.admin-attendance-empty { border:1px solid var(--color-border,#dbe3ec); border-radius:14px; background:var(--color-surface,#fff); padding:28px; text-align:center; color:var(--color-text-secondary,#64748b); }
+    .admin-management-tile[${PENDING_BADGE_ATTR}] .admin-management-tile__content small[data-admin-attendance-pending-label] { display:inline-flex; align-items:center; gap:6px; margin-top:2px; color:#9a3412; font-weight:700; }
+    .admin-management-tile[${PENDING_BADGE_ATTR}] .admin-management-tile__pending-count { display:inline-flex; align-items:center; justify-content:center; min-width:22px; height:22px; padding:0 7px; border-radius:999px; background:#fff7ed; color:#9a3412; font-size:12px; font-weight:800; }
     @media (max-width:900px) { .admin-attendance-standalone__summary-row { flex-direction:column; } .admin-attendance-standalone__summary { grid-template-columns:repeat(2,minmax(0,1fr)); } .admin-attendance-standalone__top { flex-direction:column; } }
     @media (max-width:620px) { .admin-attendance-standalone__summary { grid-template-columns:1fr 1fr; gap:8px; } .admin-attendance-standalone__top h1 { font-size:22px; } }
   `;
   document.head.append(style);
+}
+
+async function loadAdminPendingSummary(force = false) {
+  if (!isAdmin()) return { rows: [], total: 0 };
+  if (!force && pendingSummaryCache.rows && Date.now() - pendingSummaryCache.loadedAt < PENDING_SUMMARY_TTL_MS) {
+    return pendingSummaryCache;
+  }
+  try {
+    const rows = typeof api.adminPendingAttendanceByMonth === 'function'
+      ? await api.adminPendingAttendanceByMonth()
+      : [];
+    const normalized = (Array.isArray(rows) ? rows : []).map((row) => ({
+      month_key: text(row.month_key || row.monthKey),
+      pending_count: Math.max(0, Number(row.pending_count ?? row.pendingCount) || 0)
+    })).filter((row) => row.month_key && row.pending_count > 0);
+    const total = normalized.reduce((sum, row) => sum + row.pending_count, 0);
+    pendingSummaryCache = { rows: normalized, total, loadedAt: Date.now() };
+    return pendingSummaryCache;
+  } catch {
+    return pendingSummaryCache.rows ? pendingSummaryCache : { rows: [], total: 0, loadedAt: Date.now() };
+  }
+}
+
+function applyAdminHubPendingBadge(total = 0) {
+  document.querySelectorAll('[data-admin-attendance-open]').forEach((button) => {
+    const content = button.querySelector('.admin-management-tile__content');
+    if (!content) return;
+    let label = content.querySelector('[data-admin-attendance-pending-label]');
+    if (total > 0) {
+      button.setAttribute(PENDING_BADGE_ATTR, String(total));
+      if (!label) {
+        label = document.createElement('small');
+        label.setAttribute('data-admin-attendance-pending-label', 'true');
+        content.append(label);
+      }
+      label.innerHTML = `<span class="admin-management-tile__pending-count">${total}</span> ממתינים לאישור`;
+    } else {
+      button.removeAttribute(PENDING_BADGE_ATTR);
+      label?.remove();
+    }
+  });
 }
 
 function patchAdminHubTile() {
@@ -136,6 +185,7 @@ function patchAdminHubTile() {
     button.setAttribute('data-admin-attendance-open', 'true');
   });
   try { sessionStorage.removeItem(PENDING_MANAGER_TAB_KEY); } catch { /* ignore */ }
+  void loadAdminPendingSummary().then((summary) => applyAdminHubPendingBadge(summary.total || 0));
 }
 
 function separateFromManagerBoard() {
@@ -182,7 +232,7 @@ function workflowStatus(row = {}, finalApproval = null, monthKey = '', priorDisp
       ? { raw: 'correction_required', label: 'דורש תיקון', cls: 'is-pending' }
       : { raw: 'reopened', label: 'נפתח לעדכון', cls: 'is-pending' };
   }
-  if (raw === 'manager_approved') return { raw, label: 'ממתין לאדמין', cls: 'is-pending' };
+  if (raw === 'manager_approved') return { raw, label: '✓ אושר על ידי המנהל', cls: 'is-ok' };
   if (raw === 'submitted') return { raw, label: 'ממתין למנהל', cls: 'is-pending' };
   if (monthMode(monthKey).key === 'closed') return { raw: 'not_submitted', label: 'ממתין לעובד', cls: 'is-pending' };
   return { raw: 'not_submitted', label: 'פתוח', cls: '' };
@@ -193,7 +243,7 @@ function approvalCell(name, at) {
   const when = at ? new Date(at).toLocaleString('he-IL', { dateStyle: 'short', timeStyle: 'short' }) : '';
   if (!who && !when) return '';
   const details = [who ? `אושר על ידי ${who}` : 'אושר', when].filter(Boolean).join(' · ');
-  return `<span class="admin-attendance-status is-ok" title="${escapeHtml(details)}">✓ אושר</span>`;
+  return `<div class="admin-attendance-approval"><strong>${escapeHtml(who || '✓ אושר')}</strong>${when ? `<small>${escapeHtml(when)}</small>` : ''}<span class="sr-only">${escapeHtml(details)}</span></div>`;
 }
 
 function groupEmployees(employees) {
@@ -366,6 +416,12 @@ async function openPdf(root, empId) {
   if (signed?.signedUrl) window.open(signed.signedUrl, '_blank', 'noopener');
 }
 
+async function refreshPendingBadge(force = false) {
+  const summary = await loadAdminPendingSummary(force);
+  applyAdminHubPendingBadge(summary.total || 0);
+  return summary;
+}
+
 async function handleAction(button, root) {
   const monthKey = text(root.querySelector('[data-admin-attendance-month]')?.value) || currentMonthKey();
   const finalEmpId = text(button.dataset.adminAttendanceFinal);
@@ -391,6 +447,7 @@ async function handleAction(button, root) {
         final_approved_by_name: text(state?.user?.full_name || state?.user?.name || state?.user?.username)
       });
       await renderData(root, monthKey, 'האישור הסופי נשמר. החודש מוכן לשכר.');
+      await refreshPendingBadge(true);
       return;
     }
     if (sendPayrollEmpId) {
@@ -401,6 +458,7 @@ async function handleAction(button, root) {
         sent_by_name: text(state?.user?.full_name || state?.user?.name || state?.user?.username)
       });
       await renderData(root, monthKey, 'העובד הועבר לשכר.');
+      await refreshPendingBadge(true);
       return;
     }
     const currentFinal = root.__adminAttendanceContext?.finalByEmployee?.get(releaseEmpId) || null;
@@ -411,6 +469,7 @@ async function handleAction(button, root) {
     setMessage(root, 'משחרר נעילה…');
     await api.adminReopenAttendanceMonthForCorrection({ employee_id: releaseEmpId, month_key: monthKey });
     await renderData(root, monthKey, 'החודש שוחרר ונפתח לתיקון.');
+    await refreshPendingBadge(true);
   } catch (error) {
     setMessage(root, error?.message || 'הפעולה נכשלה.', true);
   } finally {
@@ -448,8 +507,8 @@ async function handleBatchPayroll(root) {
   }
 }
 
-function standaloneHtml() {
-  const monthKey = currentMonthKey();
+function standaloneHtml(monthKey = currentMonthKey()) {
+  const selectedMonth = text(monthKey) || currentMonthKey();
   return `<section class="admin-attendance-standalone" ${STANDALONE_ATTRIBUTE} dir="rtl">
     <div class="admin-attendance-standalone__top">
       <div class="admin-attendance-standalone__title-wrap">
@@ -458,7 +517,7 @@ function standaloneHtml() {
       </div>
       <div class="admin-attendance-standalone__tools">
         <span class="admin-attendance-standalone__overview-tools">
-          <label class="admin-attendance-standalone__month"><span>חודש</span><input type="month" value="${monthKey}" max="${monthKey}" data-admin-attendance-month></label>
+          <label class="admin-attendance-standalone__month"><span>חודש</span><input type="month" value="${selectedMonth}" max="${currentMonthKey()}" data-admin-attendance-month></label>
           <button type="button" class="admin-attendance-standalone__refresh" data-admin-attendance-refresh>רענון</button>
           <button type="button" class="admin-attendance-standalone__control" data-admin-attendance-control-open>בקרה ועריכה</button>
         </span>
@@ -471,7 +530,7 @@ function standaloneHtml() {
   </section>`;
 }
 
-function openStandalone(button) {
+async function openStandalone(button) {
   if (!isAdmin()) return;
   ensureStyles();
   const screenRoot = button.closest('#screenRoot') || document.getElementById('screenRoot') || document.getElementById('app');
@@ -481,9 +540,15 @@ function openStandalone(button) {
   const hub = screenRoot.querySelector('.admin-management-home');
   if (!hub) return;
   hub.classList.add(HIDDEN_CLASS);
-  hub.insertAdjacentHTML('afterend', standaloneHtml());
+  const pending = await loadAdminPendingSummary();
+  const monthKey = resolveAdminAttendanceDefaultMonth({
+    pendingByMonth: pending.rows || [],
+    currentMonth: currentMonthKey()
+  });
+  applyAdminHubPendingBadge(pending.total || 0);
+  hub.insertAdjacentHTML('afterend', standaloneHtml(monthKey));
   const root = screenRoot.querySelector(`[${STANDALONE_ATTRIBUTE}]`);
-  void renderData(root, currentMonthKey());
+  void renderData(root, monthKey);
 }
 
 function closeStandalone(root) {
@@ -506,7 +571,7 @@ async function openControlMode(root) {
   setMessage(root, '', false);
   host.innerHTML = '<div class="admin-attendance-loading">טוען את ממשק הבקרה הקיים…</div>';
   try {
-    const attendance = await import('./screens/attendance-control.js?v=20261005-manager-attendance-reopened-write-gate-v1');
+    const attendance = await import('./screens/attendance-control.js?v=20261005-attendance-control-workflow-unify-v1');
     host.innerHTML = `${attendance.attendanceControlStylesHtml()}${attendance.attendanceControlHtml()}`;
     const panel = host.querySelector('[data-attendance-control]');
     if (panel) panel.hidden = false;

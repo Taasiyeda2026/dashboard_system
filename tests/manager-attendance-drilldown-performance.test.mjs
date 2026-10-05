@@ -15,7 +15,8 @@ test('manager attendance drilldown loads only the clicked instructor on demand',
   assert.match(workspace, /await bindEmbeddedAttendance\(host, selectedRoster, context, snapshot, summary\?\.records \|\| \[\]\)/);
   assert.doesNotMatch(workspace, /await bindEmbeddedAttendance\(host, roster, context\);/);
   assert.match(workspace, /button\.textContent = 'טוען דוח…'/);
-  assert.match(workspace, />פתח דוח לבדיקה<\/button>/);
+  assert.match(workspace, /overview\.actionLabel/);
+  assert.doesNotMatch(workspace, /פתח דוח לבדיקה/);
 });
 
 test('manager drilldown scopes dashboard sources and does not block on route generation', () => {
@@ -25,17 +26,18 @@ test('manager drilldown scopes dashboard sources and does not block on route gen
   assert.match(api, /if \(!skipRouteBuild && routeMonth && routeEmployeeIds\.length && supabase\?\.functions\?\.invoke\)/);
 });
 
-test('manager attendance workflow badge targets the status column', () => {
-  assert.match(finalFixes, /td\[data-label="סטטוס אישור"\]/);
-  assert.match(finalFixes, /אושר על ידי העובד · ממתין לבקרת מנהל/);
+test('manager attendance overview derives status and action from workflow in the renderer', () => {
+  assert.match(workspace, /resolveManagerAttendanceOverviewState/);
   assert.match(workspace, /טרם אושר ע״י העובד/);
   assert.match(workspace, /אושר ע״י העובד/);
+  assert.doesNotMatch(finalFixes, /setAttendanceWorkflowBadge/);
+  assert.doesNotMatch(finalFixes, /attendanceControlMonthWorkflowStatuses/);
 });
 
 
 test('manager detail uses a single snapshot and keeps loaded attendance as fallback', () => {
   assert.match(workspace, /let records = \[\];/);
-  assert.match(workspace, /const value = \{ recordCounts, totalHours, approvals, records, recordsError, approvalsError \}/);
+  assert.match(workspace, /const value = \{ recordCounts, workflowByEmployee, approvals, records, recordsError, approvalsError, workflowError \}/);
   assert.match(workspace, /function buildScopedAttendanceApi\(roster, snapshot = null, preloadedRecords = null\)/);
   assert.match(workspace, /snapshotRecords = Array\.isArray\(snapshot\?\.records\)/);
   assert.match(workspace, /if \(snapshot\?\.sources\) return snapshot\.sources/);
