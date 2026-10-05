@@ -66,16 +66,24 @@ begin
 
   if found then
     if existing.owner_id = v_owner then
+      if existing.run_id <> v_run_id then
+        return jsonb_build_object(
+          'acquired', false,
+          'reason', 'planning_run_locked',
+          'run_id', existing.run_id,
+          'owner_id', existing.owner_id,
+          'expires_at', existing.expires_at
+        );
+      end if;
       update public.scheduling_planning_run_leases
-      set run_id = v_run_id,
-          heartbeat_at = v_now,
+      set heartbeat_at = v_now,
           expires_at = v_expires,
-          acquired_at = case when existing.run_id = v_run_id then existing.acquired_at else v_now end
+          acquired_at = existing.acquired_at
       where period_key = scope_period and district = scope_district;
       return jsonb_build_object(
         'acquired', true,
-        'renewed', existing.run_id = v_run_id,
-        'replaced', existing.run_id <> v_run_id,
+        'renewed', true,
+        'replaced', false,
         'run_id', v_run_id,
         'expires_at', v_expires
       );
