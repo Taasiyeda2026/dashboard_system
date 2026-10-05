@@ -159,6 +159,14 @@ test('manager approval PDF artifact migration decouples finalize from PDF and re
   );
   assert.match(migration, /create or replace function public\.attach_manager_attendance_month_pdf/);
   assert.match(migration, /already_attached/);
+  assert.match(
+    migration,
+    /grant execute on function public\.attach_manager_attendance_month_pdf\(text, text, text, text, text, integer\)\s+to service_role;/,
+  );
+  assert.doesNotMatch(
+    migration,
+    /grant execute on function public\.attach_manager_attendance_month_pdf\([\s\S]*?to authenticated/,
+  );
   assert.match(migration, /create or replace function public\.av2_request_manager_pdf/);
   assert.match(migration, /payroll-attendance-pdf-dispatch/);
   assert.match(migration, /create or replace function public\.av2_retry_missing_pdfs/);
