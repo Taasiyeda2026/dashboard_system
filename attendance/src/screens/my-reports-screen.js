@@ -215,7 +215,7 @@ async function loadAndRender({ instructor, year, month, contentArea, toolbar, on
     // Table header
     const listHead = document.createElement('div');
     listHead.className = 'av2-report-list__head';
-    const colLabels = ['תאריך', 'התחלה', 'סיום', 'שעות', 'סה״כ יומי', 'סוג', 'שם פעילות', 'בית ספר', 'רשות', 'ק״מ', 'הוצאות', 'פעולות'];
+    const colLabels = ['תאריך', 'התחלה', 'סיום', 'שעות', 'סה״כ יומי', 'סוג', 'שם פעילות', 'מיקום / בית ספר', 'רשות', 'ק״מ', 'הוצאות', 'פעולות'];
     for (const label of colLabels) {
       const cell = document.createElement('span');
       cell.textContent = label;
@@ -301,6 +301,22 @@ function buildMonthlySummaryGrid(records) {
   return grid;
 }
 
+function locationOrSchoolForRecord(record, baseTraining) {
+  const school = String(record.school_name_snapshot || '').trim();
+  const authority = String(record.authority_name_snapshot || '').trim();
+
+  if (baseTraining) {
+    if (school && authority) {
+      if (authority.includes(school)) return authority;
+      return `${school}, ${authority}`;
+    }
+    return authority || school || 'Greenwork, יקום';
+  }
+
+  if (record.training_schedule_id) return authority || school || '—';
+  return school || '—';
+}
+
 function buildRecordRow({ record, generated, editable, instructor, activityTypes, onDuplicate, onRefresh, dayTotalHours = null, dashboardValidation = null }) {
   const row = document.createElement('div');
   row.className = 'av2-report-row';
@@ -346,10 +362,10 @@ function buildRecordRow({ record, generated, editable, instructor, activityTypes
   nameCell.textContent = presentation.activity || '—';
   nameCell.title = presentation.activity || '';
 
-  // ── 7. School ────────────────────────────────────────────────────────────
+  // ── 7. Location / school ─────────────────────────────────────────────────
   const schoolCell = document.createElement('div');
   schoolCell.className = 'av2-rr__school';
-  schoolCell.textContent = baseTraining ? '—' : (record.school_name_snapshot || '—');
+  schoolCell.textContent = locationOrSchoolForRecord(record, baseTraining);
 
   // ── 8. Authority ─────────────────────────────────────────────────────────
   const authCell = document.createElement('div');
@@ -813,7 +829,9 @@ async function viewExpense(record) {
   overlay.className = 'av2-modal-overlay';
   overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
   const modal = document.createElement('div');
-  modal.className = 'av2-modal';
+  modal.className = 'av2-modal av2-modal--expense';
+  modal.setAttribute('role', 'dialog');
+  modal.setAttribute('aria-modal', 'true');
   const mh = document.createElement('div');
   mh.className = 'av2-modal__header';
   const mt = document.createElement('h2');
@@ -822,44 +840,57 @@ async function viewExpense(record) {
   const cb = document.createElement('button');
   cb.type = 'button';
   cb.className = 'av2-btn av2-btn--icon';
+  cb.setAttribute('aria-label', 'סגירת חלון הוצאות');
   cb.append(createIcon('x'));
   cb.addEventListener('click', () => overlay.remove());
   mh.append(mt, cb);
   const list = document.createElement('div');
-  list.className = 'av2-attach-list';
+  list.className = 'av2-expense-modal__body';
+  const summary = document.createElement('div');
+  summary.className = 'av2-expense-modal__summary';
   const amountRow = document.createElement('div');
-  amountRow.className = 'av2-attach-item';
+  amountRow.className = 'av2-expense-modal__field';
   const amountLabel = document.createElement('span');
+  amountLabel.className = 'av2-expense-modal__label';
   amountLabel.textContent = 'סכום';
   const amountValue = document.createElement('strong');
+  amountValue.className = 'av2-expense-modal__amount';
   amountValue.textContent = `${amount.toLocaleString('he-IL', { maximumFractionDigits: 2 })} ₪`;
   amountRow.append(amountLabel, amountValue);
-  list.append(amountRow);
+  summary.append(amountRow);
   if (detail) {
     const detailRow = document.createElement('div');
-    detailRow.className = 'av2-attach-item';
+    detailRow.className = 'av2-expense-modal__field';
     const detailLabel = document.createElement('span');
+    detailLabel.className = 'av2-expense-modal__label';
     detailLabel.textContent = 'פירוט';
     const detailValue = document.createElement('span');
+    detailValue.className = 'av2-expense-modal__value';
     detailValue.textContent = detail;
     detailRow.append(detailLabel, detailValue);
-    list.append(detailRow);
+    summary.append(detailRow);
   }
+  list.append(summary);
+  const attachmentSection = document.createElement('section');
+  attachmentSection.className = 'av2-expense-modal__attachments';
   const attachmentHeading = document.createElement('strong');
+  attachmentHeading.className = 'av2-expense-modal__attachments-title';
   attachmentHeading.textContent = 'מסמכים מצורפים';
-  list.append(attachmentHeading);
+  attachmentSection.append(attachmentHeading);
+  list.append(attachmentSection);
   modal.append(mh, list);
   overlay.append(modal);
   document.body.append(overlay);
   if (!attachments.length) {
     const empty = document.createElement('p');
+    empty.className = 'av2-expense-modal__empty';
     empty.textContent = 'אין מסמכים מצורפים.';
-    list.append(empty);
+    attachmentSection.append(empty);
     return;
   }
   for (const att of attachments) {
     const row = document.createElement('div');
-    row.className = 'av2-attach-item';
+    row.className = 'av2-expense-modal__document';
     try {
       const url = await getSignedUrl(att.storage_path);
       const link = document.createElement('a');
@@ -869,7 +900,7 @@ async function viewExpense(record) {
     } catch {
       row.textContent = att.file_name + ' (שגיאה)';
     }
-    list.append(row);
+    attachmentSection.append(row);
   }
 }
 

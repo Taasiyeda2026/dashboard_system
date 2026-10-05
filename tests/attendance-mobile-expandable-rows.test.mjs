@@ -23,7 +23,7 @@ test('mobile reports use a compact expandable summary instead of horizontal tabl
 });
 
 test('expanded mobile row exposes the secondary details and actions', () => {
-  for (const label of ['שעת התחלה', 'שעת סיום', 'שם הפעילות', 'בית ספר', 'רשות', 'ק״מ', 'הוצאות', 'פעולות', 'הערות']) {
+  for (const label of ['שעת התחלה', 'שעת סיום', 'שם הפעילות', 'מיקום / בית ספר', 'רשות', 'ק״מ', 'הוצאות', 'פעולות', 'הערות']) {
     assert.match(enhancer, new RegExp(label));
   }
   assert.match(styles, /is-mobile-expanded > \.av2-rr__actions/);

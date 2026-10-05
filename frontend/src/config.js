@@ -356,3 +356,4 @@ config.HOTFIX_VERSION = `scheduling-planning-true-incremental-scope-20261005-v2-
 config.HOTFIX_VERSION = `scheduling-school-packing-cooperative-yield-20261005-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `attendance-training-location-expense-ui-20261005-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `scheduling-v28-fast-upgrade-no-gap-rescan-20261005-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `attendance-expense-modal-proportions-20261005-v1-${config.HOTFIX_VERSION}`;
