@@ -698,9 +698,13 @@ export function auditPlanningOptionHardGates(option = {}, {
   }
 
   // Match the planning engine: only this activity's sector (+ general) can block dates.
+  // Empty/missing sector must NOT mean "all sectors" — filterSchoolCalendarRowsBySector
+  // returns the unfiltered list when sector is blank, which false-flags cross-sector
+  // holidays and mass-dirties valid plans after reload (prod 2026-10-05: 68→112 dirty).
+  const sectorForAudit = fullText(activity?.calendar_sector) || 'general';
   const sectorCalendar = filterSchoolCalendarRowsBySector(
     schoolCalendar,
-    activity?.calendar_sector
+    sectorForAudit
   );
   const meetingValidation = validatePlanningMeetingsForInstructors({
     meetings,
@@ -708,7 +712,7 @@ export function auditPlanningOptionHardGates(option = {}, {
     instructorContexts,
     activity,
     schoolCalendar: sectorCalendar,
-    allowSaturday: String(activity?.calendar_sector || '').toLowerCase() === 'arab'
+    allowSaturday: sectorForAudit.toLowerCase() === 'arab'
   });
   failures.push(...(meetingValidation.failures || []));
 

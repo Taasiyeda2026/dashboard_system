@@ -97,6 +97,18 @@ export const PLANNING_ACTIVITY_NO_ALIASES = Object.freeze({
   '82835': '53828'
 });
 
+/**
+ * Validation-currency SoT for stored shared planning.
+ *
+ * Workspaces only persist `engine_version`. `PLANNING_VALIDATION_VERSION` documents
+ * validation-logic eras, but it is not embedded in the engine token and must not be
+ * substring-matched against it. Currency is therefore engine equality: when validation
+ * hard-gates change, bump `PLANNING_ENGINE_VERSION` (and this constant together).
+ */
+export function isPlanningValidationCurrent(storedEngineVersion = '') {
+  return text(storedEngineVersion) === PLANNING_ENGINE_VERSION;
+}
+
 export function canonicalPlanningActivityNo(value) {
   const raw = text(value);
   return PLANNING_ACTIVITY_NO_ALIASES[raw] || raw;

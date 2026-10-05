@@ -620,8 +620,24 @@ test('legacy validity audit never persists while engine/validation version is be
   const source = await readFile(new URL('../frontend/src/screens/course-scheduling.js', import.meta.url), 'utf8');
   assert.match(source, /persist:\s*!data\._is_stale\s*&&\s*!validationChanged/);
   assert.doesNotMatch(source, /void validationChanged/);
-  assert.match(source, /storedEngineVersion !== PLANNING_ENGINE_VERSION/);
-  assert.match(source, /PLANNING_VALIDATION_VERSION/);
+  assert.match(source, /!isPlanningValidationCurrent\(storedEngineVersion\)/);
+  assert.doesNotMatch(source, /\.includes\(PLANNING_VALIDATION_VERSION\)/);
+});
+
+test('matching PLANNING_ENGINE_VERSION is validation-current (no bogus includes SoT)', async () => {
+  const {
+    PLANNING_ENGINE_VERSION,
+    PLANNING_VALIDATION_VERSION,
+    isPlanningValidationCurrent
+  } = await import('../frontend/src/screens/course-scheduling-planning.js');
+  assert.equal(isPlanningValidationCurrent(PLANNING_ENGINE_VERSION), true);
+  assert.equal(
+    String(PLANNING_ENGINE_VERSION || '').includes(PLANNING_VALIDATION_VERSION),
+    false,
+    'engine token must not be assumed to contain the validation token'
+  );
+  assert.equal(isPlanningValidationCurrent('planning-v27-anything'), false);
+  assert.equal(isPlanningValidationCurrent(''), false);
 });
 
 test('engine-upgrade refuses reused UI/session snapshot and always reloads end source', async () => {
@@ -737,6 +753,107 @@ test('production recovery from v27/rev11741/dirty113 rejects stale checkpoint an
   assert.deepEqual(afterSuccess.workdayConsolidationCourseIds, []);
   assert.equal(afterSuccess.persistServerCheckpoints, false);
   assert.equal(afterSuccess.preloadRouteCache, false);
+});
+
+test('acceptance: recovery to dirty=0 + matching engine stays audit-clean and true no-op', async () => {
+  const {
+    PLANNING_ENGINE_VERSION,
+    isPlanningValidationCurrent
+  } = await import('../frontend/src/screens/course-scheduling-planning.js');
+  const {
+    auditStoredPlanningHardGates
+  } = await import('../frontend/src/screens/course-scheduling-date-adjustments.js');
+
+  assert.equal(isPlanningValidationCurrent(PLANNING_ENGINE_VERSION), true);
+
+  // Simulate post-incremental workspace: engine current, dirty cleared.
+  const date = '2027-01-04'; // Monday UTC
+  const activityId = 'act-clean';
+  const shared = {
+    workspace: { engineVersion: PLANNING_ENGINE_VERSION, revision: 11748 },
+    rows: [
+      {
+        activityId,
+        needsRecalc: false,
+        row: {
+          kind: 'proposal',
+          courseId: activityId,
+          schoolId: '2215',
+          instructorEmpId: '100',
+          meetings: [{ date, start_time: '09:00', end_time: '10:00' }]
+        }
+      }
+    ]
+  };
+  const activities = [{
+    row_id: activityId,
+    sessions: 1,
+    school_id: 2215,
+    calendar_sector: 'druze',
+    instruction_language: 'he',
+    required_instructor_gender: 'any'
+  }];
+  const schoolCalendar = [
+    {
+      calendar_sector: 'arab',
+      blocks_scheduling: true,
+      is_active: true,
+      start_date: date,
+      end_date: date,
+      title: 'חופשה ערבית שאינה חלה על דרוזי'
+    },
+    {
+      calendar_sector: 'jewish',
+      blocks_scheduling: true,
+      is_active: true,
+      start_date: date,
+      end_date: date,
+      title: 'חופשה יהודית שאינה חלה על דרוזי'
+    }
+  ];
+  const rules = {
+    100: [0, 1, 2, 3, 4, 5].map((weekday) => ({
+      weekday,
+      available: true,
+      start_time: '08:00',
+      end_time: '16:00'
+    }))
+  };
+
+  // Reload validity audit must not invent dirty rows when the plan is sector-correct.
+  const audit = auditStoredPlanningHardGates({
+    shared,
+    activities,
+    instructors: [{ emp_id: '100', active: 'yes' }],
+    profiles: { 100: { gender: 'female', instruction_languages: ['he'] } },
+    rules,
+    exceptions: {},
+    schoolCalendar
+  });
+  assert.deepEqual(audit.invalidActivityIds, []);
+  assert.equal(audit.hardGateInvalidCount, 0);
+  assert.equal(shared.rows.filter((row) => row.needsRecalc).length, 0);
+
+  // Second run with matching engine + dirty=0 is a true no-op: no recalc/packing/routes/checkpoint.
+  const plan = resolvePlanningRunPlan({
+    shared,
+    currentCourseIds: [activityId],
+    regularAffectedIds: [],
+    engineUpgradeAffectedIds: [],
+    storedEngineVersion: PLANNING_ENGINE_VERSION,
+    currentEngineVersion: PLANNING_ENGINE_VERSION,
+    currentDataFingerprint: 'fp',
+    currentContextFingerprint: 'ctx'
+  });
+  assert.equal(plan.runType, PLANNING_RUN_TYPES.NO_OP);
+  assert.equal(plan.advanceEngineMarker, false);
+  assert.deepEqual(plan.baseRecalculationIds, []);
+  assert.deepEqual(plan.schoolPackingCourseIds, []);
+  assert.deepEqual(plan.recruitmentRecoveryCourseIds, []);
+  assert.deepEqual(plan.workdayConsolidationCourseIds, []);
+  assert.deepEqual(plan.affectedIds, []);
+  assert.equal(plan.persistServerCheckpoints, false);
+  assert.equal(plan.preloadRouteCache, false);
 });
 
 test('real source change rejects full validated commit while scoped partial commit remains available', async () => {

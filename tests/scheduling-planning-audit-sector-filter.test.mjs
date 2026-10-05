@@ -132,3 +132,51 @@ test('stored audit of a just-built sector-correct plan does not mark needs_recal
   assert.deepEqual(audit.invalidActivityIds, []);
   assert.equal(audit.hardGateInvalidCount, 0);
 });
+
+test('missing calendar_sector does not treat all-sector holidays as blocks', () => {
+  const shared = {
+    rows: [
+      {
+        activityId: 'act-missing-sector',
+        needsRecalc: false,
+        row: { kind: 'proposal', ...option('100', DATE) }
+      }
+    ]
+  };
+  const schoolCalendar = [
+    {
+      calendar_sector: 'arab',
+      blocks_scheduling: true,
+      is_active: true,
+      start_date: DATE,
+      end_date: DATE,
+      title: 'חופשה ערבית'
+    },
+    {
+      calendar_sector: 'druze',
+      blocks_scheduling: true,
+      is_active: true,
+      start_date: DATE,
+      end_date: DATE,
+      title: 'חופשה דרוזית'
+    }
+  ];
+  const activityMissingSector = {
+    row_id: 'act-missing-sector',
+    sessions: 1,
+    // calendar_sector intentionally absent — enrichment miss must not all-sector-block
+    instruction_language: 'he',
+    required_instructor_gender: 'any'
+  };
+  const audit = auditStoredPlanningHardGates({
+    shared,
+    activities: [activityMissingSector],
+    instructors: [{ emp_id: '100', active: 'yes' }],
+    profiles: { 100: { gender: 'female', instruction_languages: ['he'] } },
+    rules: weeklyRules('100'),
+    exceptions: {},
+    schoolCalendar
+  });
+  assert.deepEqual(audit.invalidActivityIds, []);
+  assert.equal(audit.hardGateInvalidCount, 0);
+});

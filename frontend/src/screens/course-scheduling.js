@@ -71,7 +71,7 @@ import {
   DEFAULT_PLANNING_PERIOD_KEY,
   FIRST_HALF_COUNT_START_DATE,
   PLANNING_ENGINE_VERSION,
-  PLANNING_VALIDATION_VERSION,
+  isPlanningValidationCurrent,
   applyPlanningLockToRow,
   buildDynamicCoursePlan,
   buildPlanningCompletionRows,
@@ -2502,13 +2502,10 @@ export const courseSchedulingScreen = {
       const profiles = snapshot?.scheduling?.profiles || state.courseSchedulingProfiles || state.profiles || {};
       const rules = snapshot?.scheduling?.rules || state.courseSchedulingRules || state.rules || {};
       const exceptions = snapshot?.scheduling?.exceptions || state.courseSchedulingExceptions || state.exceptions || {};
-      // Legacy hard-gate audit may flag many v27 rows against newer validation.
-      // Persisting that mid engine-upgrade bumps revision and invents dirty rows
-      // without any real source mutation — which then aborts the upgrade commit.
-      const validationChanged = !!workspace && (
-        storedEngineVersion !== PLANNING_ENGINE_VERSION
-        || !String(storedEngineVersion || '').includes(PLANNING_VALIDATION_VERSION)
-      );
+      // Mid engine-upgrade: do not persist validity-audit dirty flags — that bumps
+      // revision and invents dirty rows without a real source mutation, aborting commit.
+      // Currency SoT is engine equality only (see isPlanningValidationCurrent).
+      const validationChanged = !!workspace && !isPlanningValidationCurrent(storedEngineVersion);
       const audit = applyStoredPlanningValidityAudit(state, {
         shared,
         activities: snapshot?.activities || [],
