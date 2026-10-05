@@ -4,7 +4,7 @@ import { supabase, waitForSupabaseAuthSession } from './supabase-client.js';
 import { escapeHtml } from './screens/shared/html.js';
 import {
   resolveAdminAttendanceDefaultMonth
-} from './screens/attendance-control.js?v=20261005-attendance-control-workflow-unify-v1';
+} from './screens/attendance-control.js?v=20261005-manager-reopen-hierarchy-v1';
 
 const ADMIN_ROLE = 'admin';
 const LEGACY_MANAGER_TAB = 'payroll-attendance';
@@ -601,7 +601,7 @@ async function openControlMode(root) {
   setMessage(root, '', false);
   host.innerHTML = '<div class="admin-attendance-loading">טוען את ממשק הבקרה הקיים…</div>';
   try {
-    const attendance = await import('./screens/attendance-control.js?v=20261005-attendance-control-workflow-unify-v1');
+    const attendance = await import('./screens/attendance-control.js?v=20261005-manager-reopen-hierarchy-v1');
     host.innerHTML = `${attendance.attendanceControlStylesHtml()}${attendance.attendanceControlHtml()}`;
     const panel = host.querySelector('[data-attendance-control]');
     if (panel) panel.hidden = false;

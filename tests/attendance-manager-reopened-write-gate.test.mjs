@@ -51,7 +51,7 @@ const payload = {
   dailyKilometers: []
 };
 
-test('central team-manager write gate allows submitted and reopened only', () => {
+test('central team-manager write gate allows submitted only after hierarchy change', () => {
   assert.equal(teamManagerEmployeeMonthWriteAllowed({
     attendance_submission_status: 'submitted',
     workflow_status: 'submitted'
@@ -59,7 +59,7 @@ test('central team-manager write gate allows submitted and reopened only', () =>
   assert.equal(teamManagerEmployeeMonthWriteAllowed({
     attendance_submission_status: 'reopened',
     workflow_status: 'not_submitted'
-  }), true);
+  }), false);
   assert.equal(teamManagerEmployeeMonthWriteAllowed({
     attendance_submission_status: 'open',
     workflow_status: 'not_submitted'
@@ -78,36 +78,27 @@ test('central team-manager write gate allows submitted and reopened only', () =>
 
 test('edit and add flows share the same team-manager gate', () => {
   const reopened = { attendance_submission_status: 'reopened', workflow_status: 'not_submitted' };
-  assert.equal(canManagerMutatePayrollEmployeeMonth(reopened), true);
-  assert.equal(canManagerAddMissingAttendanceRecord(reopened), true);
+  assert.equal(canManagerMutatePayrollEmployeeMonth(reopened), false);
+  assert.equal(canManagerAddMissingAttendanceRecord(reopened), false);
   const open = { attendance_submission_status: 'open', workflow_status: 'not_submitted' };
   assert.equal(canManagerMutatePayrollEmployeeMonth(open), false);
   assert.equal(canManagerAddMissingAttendanceRecord(open), false);
 });
 
-test('reopened month shows add-record control but blocks manager finalize until employee resubmits', () => {
+test('reopened month blocks manager add, edit, and finalize until employee resubmits', () => {
   assert.equal(canManagerFinalizeEmployeeMonth({
     attendance_submission_status: 'reopened',
     workflow_status: 'not_submitted'
   }), false);
-  assert.equal(canManagerFinalizeEmployeeMonth({
-    attendance_submission_status: 'submitted',
-    workflow_status: 'submitted'
-  }), true);
 
   const html = resultsHtml(payload, '2026-09', {
     workflowByEmployee: {
       '1530': { attendance_submission_status: 'reopened', workflow_status: 'not_submitted' }
     }
   });
-  assert.match(html, /data-attendance-add-record="1530"/);
-  assert.match(html, /title="הוספת רשומה"/);
-  assert.match(html, /aria-label="הוספת רשומה"/);
-  assert.match(html, />\+<\/button>/);
-  assert.doesNotMatch(html, /הוספת דיווח שנשכח/);
+  assert.doesNotMatch(html, /data-attendance-add-record="1530"/);
   assert.doesNotMatch(html, /data-payroll-finish="1530"/);
-  assert.match(html, /לסיים ולאשר מחדש את החודש/);
-  assert.match(html, /data-attendance-edit-record="row-1"/);
+  assert.doesNotMatch(html, /data-attendance-edit-record=/);
 });
 
 test('submitted month keeps add-record and finalize controls', () => {
@@ -154,7 +145,7 @@ test('admin bypass behavior is unchanged for open months but finalize still need
   ), false);
 });
 
-test('migration extends manager month mutation to reopened and adds create audit', () => {
+test('historical PR 2115 migration remains immutable in migration history', () => {
   assert.match(migration, /attendance_manager_record_creates/);
   assert.match(migration, /manager_review_add/);
   assert.match(migration, /v_status not in \('submitted', 'reopened'\)/);

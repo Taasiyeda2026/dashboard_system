@@ -131,21 +131,20 @@ test('approved month is read-only for managers', () => {
   }), false);
 });
 
-test('reopened keeps PR 2115 write gate and add-record plus button', () => {
+test('reopened belongs to the employee and is read-only for the manager until resubmission', () => {
   const workflow = { attendance_submission_status: 'reopened', workflow_status: 'not_submitted' };
   const overview = resolveManagerAttendanceOverviewState({ workflow, recordCount: 2 });
   assert.equal(overview.status, 'reopened');
-  assert.equal(overview.actionKind, 'review');
-  assert.equal(overview.actionLabel, 'פתח לבדיקה');
-  assert.equal(teamManagerEmployeeMonthWriteAllowed(workflow), true);
-  assert.equal(canManagerMutatePayrollEmployeeMonth(workflow), true);
+  assert.equal(overview.actionKind, 'view');
+  assert.equal(overview.actionLabel, 'צפייה');
+  assert.equal(overview.opensManagerReview, false);
+  assert.match(overview.statusLabel, /פתוח לעובד/);
+  assert.equal(teamManagerEmployeeMonthWriteAllowed(workflow), false);
+  assert.equal(canManagerMutatePayrollEmployeeMonth(workflow), false);
 
   const html = resultsHtml(payload, '2026-09', { workflowByEmployee: { '1530': workflow } });
-  assert.match(html, /data-attendance-add-record="1530"/);
-  assert.match(html, /title="הוספת רשומה"/);
-  assert.match(html, /aria-label="הוספת רשומה"/);
-  assert.match(html, />\+<\/button>/);
-  assert.doesNotMatch(html, /הוספת דיווח שנשכח/);
+  assert.doesNotMatch(html, /data-attendance-add-record="1530"/);
+  assert.doesNotMatch(html, /data-attendance-edit-record=/);
   assert.doesNotMatch(html, /data-payroll-finish="1530"/);
 });
 
@@ -168,6 +167,10 @@ test('manager overview table no longer includes total-hours column', () => {
   assert.doesNotMatch(workspace, /formatAttendanceHours/);
   assert.match(workspace, /resolveManagerAttendanceOverviewState/);
   assert.match(workspace, /overview\.actionLabel/);
+  assert.match(workspace, /<th>מדריך<\/th><th>מס׳ עובד<\/th><th>דיווח \$\{escapeHtml\(ym\)\}<\/th><th>סטטוס אישור<\/th><th>פעולות<\/th>/);
+  assert.match(workspace, /data-manager-attendance-reopen-employee/);
+  assert.match(workspace, /פתח חודש לעובד/);
+  assert.match(apiSource, /managerReopenAttendanceMonthForEmployee/);
   assert.doesNotMatch(workspace, /פתח דוח לבדיקה/);
 });
 

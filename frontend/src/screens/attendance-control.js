@@ -1057,13 +1057,13 @@ export function teamManagerEmployeeMonthWriteAllowed(workflow = {}) {
     workflow.attendance_submission_status || workflow.attendanceSubmissionStatus
   );
   if (submissionStatus === 'locked') return false;
-  if (submissionStatus === 'submitted' || submissionStatus === 'reopened') return true;
+  if (submissionStatus === 'submitted') return true;
   return txt(workflow.workflow_status || workflow.workflowStatus).toLowerCase() === 'submitted';
 }
 
 /**
- * Team managers may edit/approve records only while the employee month is submitted
- * or explicitly reopened for correction.
+ * Team managers may edit/approve records only while the employee month is submitted.
+ * A reopened month belongs to the employee until they submit it again.
  * Admin / operation_manager may mutate before submission via bypassMonthSubmissionGate,
  * but locked / final-payroll months stay read-only for everyone (DB lifecycle matches).
  */
@@ -1131,12 +1131,12 @@ export function resolveManagerAttendanceOverviewState({ workflow = {}, recordCou
   if (submissionStatus === 'reopened') {
     return {
       status: 'reopened',
-      statusLabel: 'פתוח לתיקון',
+      statusLabel: 'פתוח לעובד לתיקון ואישור',
       statusClass: 'is-pending',
-      actionKind: 'review',
-      actionLabel: 'פתח לבדיקה',
+      actionKind: 'view',
+      actionLabel: 'צפייה',
       pdfUrl: '',
-      opensManagerReview: true
+      opensManagerReview: false
     };
   }
   if (resolved.status === 'submitted') {

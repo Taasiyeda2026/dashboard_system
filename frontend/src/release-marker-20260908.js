@@ -1,5 +1,5 @@
 import { config } from './config.js';
-import './attendance-self-submit-reopen-runtime.js?v=20261004-employee-self-submit-v2';
+import './attendance-self-submit-reopen-runtime.js?v=20261005-manager-reopen-hierarchy-v1';
 
 const MARKERS = [
   'attendance-manager-ux-system-dialog-20260908-v4-manager-team-strip-stable',
