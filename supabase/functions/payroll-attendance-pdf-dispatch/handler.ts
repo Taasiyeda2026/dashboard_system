@@ -691,7 +691,7 @@ Deno.serve(async (req) => {
     const monthApprovalRows = await restReadService(
       supabaseUrl,
       supabaseServiceRole,
-      `attendance_month_approvals?select=status,submitted_at,submitted_by_name,manager_approved_at,manager_approved_by_name,manager_approved_snapshot,manager_pdf_sharepoint_url,manager_pdf_sharepoint_item_id,manager_pdf_file_name,manager_pdf_version&emp_id=eq.${encodeURIComponent(employeeId)}&month_key=eq.${encodeURIComponent(monthKey)}&limit=1`,
+      `attendance_month_approvals?select=status,submitted_at,submitted_by_name,manager_approved_at,manager_approved_by_user_id,manager_approved_by_name,manager_approved_snapshot,manager_pdf_sharepoint_url,manager_pdf_sharepoint_item_id,manager_pdf_file_name,manager_pdf_version&emp_id=eq.${encodeURIComponent(employeeId)}&month_key=eq.${encodeURIComponent(monthKey)}&limit=1`,
     );
     const approvalRow = Array.isArray(monthApprovalRows) ? monthApprovalRows[0] : null;
     if (!approvalRow) throw new Error("attendance_month_not_found");
@@ -718,6 +718,17 @@ Deno.serve(async (req) => {
       managerApprovalAt = managerApprovalAt || clean(approvalRow.manager_approved_at);
       employeeApprovalName = employeeApprovalName || clean(approvalRow.submitted_by_name);
       employeeApprovalAt = employeeApprovalAt || clean(approvalRow.submitted_at);
+      if (isRetryCaller) {
+        const approverUserId = clean(approvalRow.manager_approved_by_user_id);
+        if (approverUserId) {
+          const approverRows = await restReadService(
+            supabaseUrl,
+            supabaseServiceRole,
+            `users?select=auth_user_id,full_name,name,email,auth_email,is_active&auth_user_id=eq.${encodeURIComponent(approverUserId)}&is_active=eq.true&limit=1`,
+          );
+          currentUser = (Array.isArray(approverRows) ? approverRows[0] : null) as Record<string, unknown> | null;
+        }
+      }
     } else if (!isRetryCaller) {
       const monthRows = await restRpcAuth(supabaseUrl, supabaseAnonKey, authorization, "get_payroll_attendance_month_statuses", {
         p_month_key: monthKey,
