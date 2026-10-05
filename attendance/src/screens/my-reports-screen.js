@@ -5,7 +5,9 @@
  * Table:    11 columns — date, start, end, hours, activity type, activity name,
  *           school, authority, km, expenses, actions.
  * Sort:     date DESC, then start_time ASC within the same date.
- * Actions:  copy (blue), duplicate (purple), delete (red).
+ * Actions:  copy (blue), duplicate (purple), edit, delete (red).
+ * Expenses: one receipt indicator in the expenses column; hover exposes the
+ * amount/detail and click opens the expense details and supporting documents.
  */
 
 import { createIcon } from '../components/icon.js';
@@ -363,20 +365,22 @@ function buildRecordRow({ record, generated, editable, instructor, activityTypes
   const expCell = document.createElement('div');
   expCell.className = 'av2-rr__expenses';
   const expenseAmount = Number(record.expenses || 0);
-  if (expenseAmount > 0) {
-    const expenseLabel = `הוצאות: ${expenseAmount.toLocaleString('he-IL', { maximumFractionDigits: 2 })} ₪`;
+  const expenseDetails = String(record.expense_details || '').trim();
+  const expenseAttachments = record.attendance_record_attachments || [];
+  if (expenseAmount > 0 || expenseAttachments.length) {
+    const expenseParts = [`הוצאות: ${expenseAmount.toLocaleString('he-IL', { maximumFractionDigits: 2 })} ₪`];
+    if (expenseDetails) expenseParts.push(`פירוט: ${expenseDetails}`);
+    const expenseLabel = expenseParts.join(' · ');
     const expenseBtn = document.createElement('button');
     expenseBtn.type = 'button';
     expenseBtn.className = 'av2-rr__expense-indicator';
-    expenseBtn.title = expenseLabel;
     expenseBtn.setAttribute('aria-label', expenseLabel);
     expenseBtn.dataset.tooltip = expenseLabel;
     expenseBtn.append(createIcon('receipt', { size: 15 }));
     expenseBtn.addEventListener('click', (event) => {
       event.stopPropagation();
-      expenseBtn.classList.toggle('is-revealed');
+      void viewExpense(record);
     });
-    expenseBtn.addEventListener('blur', () => expenseBtn.classList.remove('is-revealed'));
     expCell.append(expenseBtn);
   }
 
@@ -425,18 +429,6 @@ function buildRecordRow({ record, generated, editable, instructor, activityTypes
     deleteBtn.addEventListener('click', (e) => { e.stopPropagation(); handleDelete({ record, instructor, row, onRefresh }); });
 
     actionsCell.append(editBtn, deleteBtn);
-  }
-
-  // Attachment indicator
-  if (record.attendance_record_attachments?.length) {
-    const attachBtn = document.createElement('button');
-    attachBtn.type = 'button';
-    attachBtn.className = 'av2-btn av2-btn--icon';
-    attachBtn.setAttribute('aria-label', `${record.attendance_record_attachments.length} קבצים`);
-    attachBtn.title = 'קבצים מצורפים';
-    attachBtn.append(createIcon('paperclip', { size: 13 }));
-    attachBtn.addEventListener('click', (e) => { e.stopPropagation(); viewAttachments(record.attendance_record_attachments); });
-    actionsCell.append(attachBtn);
   }
 
   row.append(dateCell, startCell, endCell, hoursCell, dayTotalCell, typeCell, nameCell, schoolCell, authCell, kmCell, expCell, actionsCell);
@@ -812,8 +804,11 @@ function showEditModal({ record, instructor, activityTypes, onRefresh }) {
 
 // ── Attachments viewer ──────────────────────────────────────────────────────────
 
-async function viewAttachments(attachments) {
+async function viewExpense(record) {
   document.querySelector('.av2-modal-overlay')?.remove();
+  const attachments = record.attendance_record_attachments || [];
+  const amount = Number(record.expenses || 0);
+  const detail = String(record.expense_details || '').trim();
   const overlay = document.createElement('div');
   overlay.className = 'av2-modal-overlay';
   overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
@@ -823,7 +818,7 @@ async function viewAttachments(attachments) {
   mh.className = 'av2-modal__header';
   const mt = document.createElement('h2');
   mt.className = 'av2-modal__title';
-  mt.textContent = 'קבצים מצורפים';
+  mt.textContent = 'הוצאות';
   const cb = document.createElement('button');
   cb.type = 'button';
   cb.className = 'av2-btn av2-btn--icon';
@@ -832,11 +827,36 @@ async function viewAttachments(attachments) {
   mh.append(mt, cb);
   const list = document.createElement('div');
   list.className = 'av2-attach-list';
-  list.innerHTML = '<p>טוען קישורים…</p>';
+  const amountRow = document.createElement('div');
+  amountRow.className = 'av2-attach-item';
+  const amountLabel = document.createElement('span');
+  amountLabel.textContent = 'סכום';
+  const amountValue = document.createElement('strong');
+  amountValue.textContent = `${amount.toLocaleString('he-IL', { maximumFractionDigits: 2 })} ₪`;
+  amountRow.append(amountLabel, amountValue);
+  list.append(amountRow);
+  if (detail) {
+    const detailRow = document.createElement('div');
+    detailRow.className = 'av2-attach-item';
+    const detailLabel = document.createElement('span');
+    detailLabel.textContent = 'פירוט';
+    const detailValue = document.createElement('span');
+    detailValue.textContent = detail;
+    detailRow.append(detailLabel, detailValue);
+    list.append(detailRow);
+  }
+  const attachmentHeading = document.createElement('strong');
+  attachmentHeading.textContent = 'מסמכים מצורפים';
+  list.append(attachmentHeading);
   modal.append(mh, list);
   overlay.append(modal);
   document.body.append(overlay);
-  list.innerHTML = '';
+  if (!attachments.length) {
+    const empty = document.createElement('p');
+    empty.textContent = 'אין מסמכים מצורפים.';
+    list.append(empty);
+    return;
+  }
   for (const att of attachments) {
     const row = document.createElement('div');
     row.className = 'av2-attach-item';

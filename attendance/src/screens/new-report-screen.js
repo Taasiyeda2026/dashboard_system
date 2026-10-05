@@ -801,7 +801,7 @@ export function renderNewReportScreen(container, {
       baseTrainingRouteRow.hidden = true;
       baseTrainingRouteRow.replaceChildren();
     } else if (isScheduledTraining(activity)) {
-      const location = activity.training_location_name || 'מיקום ההכשרה';
+      const location = activity.training_location_name || 'לא הוגדר מיקום להכשרה';
       const address = activity.training_location_address || '';
       baseTrainingRouteRow.hidden = false;
       baseTrainingRouteRow.innerHTML = `<strong>מיקום ההכשרה</strong><span>${location}</span>${address ? `<small>${address}</small>` : ''}`;

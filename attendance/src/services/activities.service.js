@@ -209,7 +209,7 @@ export async function getTrainingScheduleForDate(empId, dateStr) {
   if (!empId || !dateStr || isAdminPreviewRequested()) return [];
   const { data, error } = await supabase
     .from('instructor_training_schedule')
-    .select('id,course_id,course_name,start_time,end_time,is_online,location_name,location_address,participant_scope')
+    .select('id,training_date,course_id,course_name,start_time,end_time,is_online,location_name,location_address,participant_scope')
     .eq('training_date', dateStr)
     .eq('is_active', true)
     .or(`emp_id.eq.${Number(empId)},participant_scope.eq.open`);

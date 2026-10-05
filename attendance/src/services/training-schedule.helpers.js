@@ -1,4 +1,11 @@
+const HISTORICAL_BASE_TRAINING_DATES = new Set(['2026-09-15', '2026-09-16', '2026-09-17']);
+const HISTORICAL_BASE_TRAINING_NAME = 'הכשרת בסיס';
+const HISTORICAL_BASE_TRAINING_LOCATION = 'Greenwork, יקום';
+const HISTORICAL_BASE_TRAINING_ADDRESS = '6RVR+XM, יקום';
+
 export function normalizeScheduledTraining(row = {}) {
+  const historicalBaseTraining = String(row.course_name || '').trim() === HISTORICAL_BASE_TRAINING_NAME
+    && HISTORICAL_BASE_TRAINING_DATES.has(String(row.training_date || '').slice(0, 10));
   return {
     row_id: `training:${row.id}`,
     training_schedule_id: row.id,
@@ -8,8 +15,8 @@ export function normalizeScheduledTraining(row = {}) {
     start_time: row.start_time,
     end_time: row.end_time,
     is_online: row.is_online === true,
-    training_location_name: row.location_name || '',
-    training_location_address: row.location_address || '',
+    training_location_name: row.location_name || (historicalBaseTraining ? HISTORICAL_BASE_TRAINING_LOCATION : ''),
+    training_location_address: row.location_address || (historicalBaseTraining ? HISTORICAL_BASE_TRAINING_ADDRESS : ''),
     __attendanceTrainingSchedule: true,
   };
 }
