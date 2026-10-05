@@ -34,7 +34,9 @@ test('attendance review UI offers missing-record creation only in submitted revi
   assert.match(control, /teamManagerEmployeeMonthWriteAllowed/);
   assert.match(control, /canManagerAddMissingAttendanceRecord\(workflowRow\)/);
   assert.match(control, /data-attendance-add-record=/);
-  assert.match(control, /הוספת דיווח שנשכח/);
+  assert.match(control, /title="הוספת רשומה"/);
+  assert.match(control, /aria-label="הוספת רשומה"/);
+  assert.doesNotMatch(control, /הוספת דיווח שנשכח/);
   assert.match(control, /attendanceControlCreateRecord\(employeeId, fields\)/);
   assert.match(control, /await loadAttendanceReview\(\{ successMessage:/);
   assert.match(control, /תמתין לאישור רשומה רגיל לפני אישור החודש/);
