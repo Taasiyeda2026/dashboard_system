@@ -387,29 +387,36 @@ export async function approvePayrollControlEmployee({
     managerApprovalName,
     managerApprovalAt
   });
-  const artifacts = await api.attendanceManagerApprovalArtifacts({
-    employee_id: txt(employeeId),
-    employee_name: snapshot.employeeName,
-    month_key: monthKey,
-    manager_approval_name: managerApprovalName,
-    manager_approval_at: managerApprovalAt,
-    employee_approval_name: txt(monthWorkflow?.submittedByName),
-    employee_approval_at: txt(monthWorkflow?.submittedAt),
-    approved_snapshot: snapshot
-  });
-  if (!txt(artifacts?.sharepointWebUrl) || !txt(artifacts?.fileName)) {
-    throw new Error('שמירת ה-PDF ב-SharePoint נכשלה. אישור המנהל לא נשמר.');
-  }
+  // Persist manager approval first. PDF/SharePoint/email are artifacts and must
+  // never roll back a completed manager approval.
   const saved = await api.managerFinalizeAttendanceMonthReview({
     employee_id: txt(employeeId),
     month_key: monthKey,
     manager_name: managerApprovalName,
-    manager_pdf_sharepoint_url: txt(artifacts?.sharepointWebUrl),
-    manager_pdf_sharepoint_item_id: txt(artifacts?.sharepointItemId) || null,
-    manager_pdf_file_name: txt(artifacts?.fileName),
-    manager_pdf_version: Number(artifacts?.managerPdfVersion || 0),
+    manager_pdf_sharepoint_url: null,
+    manager_pdf_sharepoint_item_id: null,
+    manager_pdf_file_name: null,
+    manager_pdf_version: 0,
     manager_approved_snapshot: snapshot
   });
+
+  let artifacts = null;
+  let artifactError = '';
+  try {
+    artifacts = await api.attendanceManagerApprovalArtifacts({
+      employee_id: txt(employeeId),
+      employee_name: snapshot.employeeName,
+      month_key: monthKey,
+      manager_approval_name: managerApprovalName,
+      manager_approval_at: saved?.manager_approved_at || managerApprovalAt,
+      employee_approval_name: txt(monthWorkflow?.submittedByName),
+      employee_approval_at: txt(monthWorkflow?.submittedAt),
+      approved_snapshot: snapshot
+    });
+  } catch (error) {
+    artifactError = txt(error?.message) || 'pdf_artifact_failed';
+  }
+
   return {
     ...saved,
     employee_id: txt(employeeId),
@@ -420,9 +427,11 @@ export async function approvePayrollControlEmployee({
     manager_pdf_sharepoint_url: saved?.manager_pdf_sharepoint_url || txt(artifacts?.sharepointWebUrl),
     manager_pdf_file_name: saved?.manager_pdf_file_name || txt(artifacts?.fileName),
     manager_pdf_version: saved?.manager_pdf_version || Number(artifacts?.managerPdfVersion || 0),
-    mail_sent: artifacts?.mailSent !== false,
+    mail_sent: artifacts ? artifacts?.mailSent !== false : false,
     mail_error: txt(artifacts?.mailError || ''),
-    mailed_at: txt(artifacts?.mailedAt || '')
+    mailed_at: txt(artifacts?.mailedAt || ''),
+    pdf_pending: !txt(artifacts?.sharepointWebUrl),
+    pdf_error: artifactError
   };
 }
 

@@ -6894,8 +6894,8 @@ export const api = {
       const detail = String(data?.error || error?.message || '').trim();
       throw new Error(
         detail
-          ? `הפקת או שמירת ה-PDF ב-SharePoint נכשלה. אישור המנהל לא נשמר. ${detail}`
-          : 'הפקת או שמירת ה-PDF ב-SharePoint נכשלה. אישור המנהל לא נשמר.'
+          ? `הפקת או שמירת ה-PDF ב-SharePoint נכשלה. ${detail}`
+          : 'הפקת או שמירת ה-PDF ב-SharePoint נכשלה.'
       );
     }
     return data || {};
@@ -6904,10 +6904,10 @@ export const api = {
     employee_id,
     month_key,
     manager_name,
-    manager_pdf_sharepoint_url,
+    manager_pdf_sharepoint_url = null,
     manager_pdf_sharepoint_item_id = null,
-    manager_pdf_file_name,
-    manager_pdf_version,
+    manager_pdf_file_name = null,
+    manager_pdf_version = 0,
     manager_approved_snapshot = {}
   } = {}) => {
     assertPermission('view_attendance_control', 'attendance_control_forbidden');
@@ -6915,9 +6915,9 @@ export const api = {
       p_employee_id: String(employee_id || '').trim(),
       p_month_key: String(month_key || '').trim(),
       p_manager_name: String(manager_name || '').trim(),
-      p_manager_pdf_sharepoint_url: String(manager_pdf_sharepoint_url || '').trim(),
+      p_manager_pdf_sharepoint_url: manager_pdf_sharepoint_url ? String(manager_pdf_sharepoint_url).trim() : null,
       p_manager_pdf_sharepoint_item_id: manager_pdf_sharepoint_item_id ? String(manager_pdf_sharepoint_item_id).trim() : null,
-      p_manager_pdf_file_name: String(manager_pdf_file_name || '').trim(),
+      p_manager_pdf_file_name: manager_pdf_file_name ? String(manager_pdf_file_name).trim() : null,
       p_manager_pdf_version: Number(manager_pdf_version || 0),
       p_manager_approved_snapshot: manager_approved_snapshot || {}
     };

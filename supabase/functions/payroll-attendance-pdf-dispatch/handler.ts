@@ -183,6 +183,30 @@ function normalizeDecodedPath(path: string) {
   }
 }
 
+/** Convert SharePoint Forms/view.aspx?id=... links into canonical folder URLs. */
+function normalizeFolderWebUrl(folderWebUrl: string) {
+  const raw = clean(folderWebUrl);
+  if (!raw) return raw;
+  try {
+    const url = new URL(raw);
+    const path = url.pathname.toLowerCase();
+    const isFormsView = path.includes("/forms/view.aspx") || path.includes("/forms/allitems.aspx");
+    if (!isFormsView) return raw;
+    const folderId = url.searchParams.get("id") || url.searchParams.get("RootFolder") || "";
+    if (!folderId) return raw;
+    let decoded = folderId;
+    try {
+      decoded = decodeURIComponent(folderId);
+    } catch {
+      decoded = folderId;
+    }
+    if (!decoded.startsWith("/")) return raw;
+    return `${url.origin}${decoded}`;
+  } catch {
+    return raw;
+  }
+}
+
 async function resolveSharedFolderRoot(token: string, folderWebUrl: string) {
   if (!looksLikeSharingLink(folderWebUrl)) return null;
   const payload = await graphRequest(
@@ -201,7 +225,7 @@ async function resolveSharedFolderRoot(token: string, folderWebUrl: string) {
 }
 
 async function resolveCanonicalFolderRoot(token: string, folderWebUrl: string, fallbackDriveId: string) {
-  const folderUrl = new URL(folderWebUrl);
+  const folderUrl = new URL(normalizeFolderWebUrl(folderWebUrl));
   const targetPath = normalizeDecodedPath(folderUrl.pathname);
   const site = await graphRequest(token, `/sites/${SHAREPOINT_HOST}:${SHAREPOINT_SITE_PATH}?$select=id,webUrl`);
   const siteId = clean(site?.id);
@@ -238,9 +262,40 @@ async function resolveCanonicalFolderRoot(token: string, folderWebUrl: string, f
 }
 
 async function resolveEmployeeFolderRoot(token: string, folderWebUrl: string, fallbackDriveId: string) {
-  const shared = await resolveSharedFolderRoot(token, folderWebUrl).catch(() => null);
+  const normalized = normalizeFolderWebUrl(folderWebUrl);
+  const shared = await resolveSharedFolderRoot(token, normalized).catch(() => null);
   if (shared) return shared;
-  return await resolveCanonicalFolderRoot(token, folderWebUrl, fallbackDriveId);
+  return await resolveCanonicalFolderRoot(token, normalized, fallbackDriveId);
+}
+
+async function restRpcService(url: string, serviceKey: string, rpc: string, payload: Record<string, unknown>) {
+  const response = await fetch(`${url}/rest/v1/rpc/${rpc}`, {
+    method: "POST",
+    headers: {
+      apikey: serviceKey,
+      Authorization: `Bearer ${serviceKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) {
+    const detail = await response.text();
+    throw new Error(`${rpc}_failed:${response.status}:${detail.slice(0, 180)}`);
+  }
+  return await response.json();
+}
+
+async function verifyTriggerSecret(req: Request, url: string, serviceKey: string) {
+  const provided = clean(req.headers.get("x-av2-trigger-secret"));
+  if (!provided) return false;
+  const expectedEnv = clean(Deno.env.get("AV2_TRIGGER_SECRET"));
+  if (expectedEnv && provided === expectedEnv) return true;
+  try {
+    const verified = await restRpcService(url, serviceKey, "av2_verify_trigger_secret", { p_secret: provided });
+    return verified === true;
+  } catch {
+    return false;
+  }
 }
 
 async function ensureChildFolder(token: string, driveId: string, parentItemId: string, name: string) {
@@ -414,11 +469,11 @@ async function buildPdfBytes(payload: {
 
   const pdf = await PDFDocument.create();
   pdf.registerFontkit(fontkit);
-  // Arimo's Hebrew glyphs render unreliably when subset through
-  // @pdf-lib/fontkit. Embed the full fonts so every glyph referenced by the
-  // bidi-transformed text remains available in every PDF viewer.
-  const regular = await pdf.embedFont(regularBytes, { subset: false });
-  const bold = await pdf.embedFont(boldBytes, { subset: false });
+  // subset:false crashes @pdf-lib/fontkit on Arimo TTFs with
+  // "Trying to access beyond buffer length". Subsetting is required and still
+  // embeds every Hebrew glyph that drawText actually references.
+  const regular = await pdf.embedFont(regularBytes, { subset: true });
+  const bold = await pdf.embedFont(boldBytes, { subset: true });
   const PAGE_W = 595;
   const PAGE_H = 842;
   const RIGHT = 555;
@@ -576,7 +631,8 @@ async function buildPdfBytes(payload: {
   const approvalBox = (title: string, name: string, at: string) => {
     page.drawRectangle({ x: LEFT, y: y - 49, width: CONTENT_W, height: 49, borderColor: rgb(0.86, 0.9, 0.88), borderWidth: 0.7, color: rgb(0.96, 0.99, 0.97) });
     drawRtl(`${title}: ${name || "—"}`, RIGHT - 12, y - 17, 9.3, bold, rgb(0.05, 0.38, 0.25));
-    drawRtl(`✓ אושר במערכת  |  ${formatApprovalTime(at)}`, RIGHT - 12, y - 35, 8.4, regular, rgb(0.24, 0.43, 0.35));
+    // Use √ (U+221A) instead of ✓ — Arimo maps ✓ to .notdef (glyph 0).
+    drawRtl(`√ אושר במערכת  |  ${formatApprovalTime(at)}`, RIGHT - 12, y - 35, 8.4, regular, rgb(0.24, 0.43, 0.35));
     y -= 58;
   };
 
@@ -606,41 +662,95 @@ Deno.serve(async (req) => {
     const employeeId = clean(body?.employeeId || body?.employee_id);
     const employeeNameInput = clean(body?.employeeName || body?.employee_name);
     const monthKey = clean(body?.monthKey || body?.month_key);
-    const managerApprovalName = clean(body?.managerApprovalName || body?.manager_approval_name);
-    const managerApprovalAt = clean(body?.managerApprovalAt || body?.manager_approval_at) || new Date().toISOString();
-    const employeeApprovalName = clean(body?.employeeApprovalName || body?.employee_approval_name);
-    const employeeApprovalAt = clean(body?.employeeApprovalAt || body?.employee_approval_at);
-    const approvedSnapshot = (body?.approvedSnapshot && typeof body.approvedSnapshot === "object")
+    let managerApprovalName = clean(body?.managerApprovalName || body?.manager_approval_name);
+    let managerApprovalAt = clean(body?.managerApprovalAt || body?.manager_approval_at);
+    let employeeApprovalName = clean(body?.employeeApprovalName || body?.employee_approval_name);
+    let employeeApprovalAt = clean(body?.employeeApprovalAt || body?.employee_approval_at);
+    let approvedSnapshot = (body?.approvedSnapshot && typeof body.approvedSnapshot === "object")
       ? body.approvedSnapshot as Record<string, unknown>
       : {};
+    const wantsRetry = body?.retry === true || body?.retry === "true" || body?.mode === "retry";
+    const bearerToken = authorization.replace(/^Bearer\s+/i, "").trim();
+    const isServiceCaller = bearerToken === supabaseServiceRole;
+    const isSecretRetry = wantsRetry && await verifyTriggerSecret(req, supabaseUrl, supabaseServiceRole);
+    const isRetryCaller = wantsRetry && (isSecretRetry || isServiceCaller);
+    if (wantsRetry && !isRetryCaller) throw new Error("not_authorized");
 
     if (!employeeId || !monthKey) throw new Error("employee_id_and_month_required");
-    if (!managerApprovalName) throw new Error("manager_name_required");
 
-    const currentUserRows = await restRpcAuth(supabaseUrl, supabaseAnonKey, authorization, "get_current_app_user", {});
-    const currentUser = Array.isArray(currentUserRows) ? currentUserRows[0] : currentUserRows;
-    const role = clean(currentUser?.role).toLowerCase();
-    if (!currentUser?.is_active || !["admin", "operation_manager", "activities_manager", "manager", "instructor_manager"].includes(role)) {
-      throw new Error("not_authorized");
-    }
-
-    const monthRows = await restRpcAuth(supabaseUrl, supabaseAnonKey, authorization, "get_payroll_attendance_month_statuses", {
-      p_month_key: monthKey,
-      p_employee_ids: [employeeId],
-    });
-    const monthRow = Array.isArray(monthRows) ? monthRows[0] : null;
-    if (!monthRow) throw new Error("employee_month_not_visible_to_user");
-    if (clean(monthRow.attendance_submission_status) !== "submitted") {
-      throw new Error("employee_month_not_submitted");
+    let currentUser: Record<string, unknown> | null = null;
+    if (!isRetryCaller) {
+      const currentUserRows = await restRpcAuth(supabaseUrl, supabaseAnonKey, authorization, "get_current_app_user", {});
+      currentUser = (Array.isArray(currentUserRows) ? currentUserRows[0] : currentUserRows) as Record<string, unknown>;
+      const role = clean(currentUser?.role).toLowerCase();
+      if (!currentUser?.is_active || !["admin", "operation_manager", "activities_manager", "manager", "instructor_manager"].includes(role)) {
+        throw new Error("not_authorized");
+      }
     }
 
     const monthApprovalRows = await restReadService(
       supabaseUrl,
       supabaseServiceRole,
-      `attendance_month_approvals?select=manager_pdf_version&emp_id=eq.${encodeURIComponent(employeeId)}&month_key=eq.${encodeURIComponent(monthKey)}&limit=1`,
+      `attendance_month_approvals?select=status,submitted_at,submitted_by_name,manager_approved_at,manager_approved_by_name,manager_approved_snapshot,manager_pdf_sharepoint_url,manager_pdf_sharepoint_item_id,manager_pdf_file_name,manager_pdf_version&emp_id=eq.${encodeURIComponent(employeeId)}&month_key=eq.${encodeURIComponent(monthKey)}&limit=1`,
     );
-    const currentVersion = Number(Array.isArray(monthApprovalRows) ? monthApprovalRows[0]?.manager_pdf_version : 0);
-    const nextVersion = Number.isFinite(currentVersion) && currentVersion > 0 ? currentVersion + 1 : 1;
+    const approvalRow = Array.isArray(monthApprovalRows) ? monthApprovalRows[0] : null;
+    if (!approvalRow) throw new Error("attendance_month_not_found");
+
+    const approvalStatus = clean(approvalRow.status).toLowerCase();
+    const existingPdfUrl = clean(approvalRow.manager_pdf_sharepoint_url);
+    const existingPdfItemId = clean(approvalRow.manager_pdf_sharepoint_item_id);
+    const existingPdfFileName = clean(approvalRow.manager_pdf_file_name);
+    const existingPdfVersion = Number(approvalRow.manager_pdf_version || 0);
+    const isLockedApproval = approvalStatus === "locked" && Boolean(clean(approvalRow.manager_approved_at));
+    const isSubmittedApproval = approvalStatus === "submitted";
+
+    if (!isSubmittedApproval && !isLockedApproval) {
+      throw new Error("employee_month_not_submitted");
+    }
+
+    // After manager approval the month is locked. PDF generation/retry must use
+    // the locked approved snapshot so artifacts cannot drift from the approval.
+    if (isLockedApproval) {
+      if (approvalRow.manager_approved_snapshot && typeof approvalRow.manager_approved_snapshot === "object") {
+        approvedSnapshot = approvalRow.manager_approved_snapshot as Record<string, unknown>;
+      }
+      managerApprovalName = managerApprovalName || clean(approvalRow.manager_approved_by_name);
+      managerApprovalAt = managerApprovalAt || clean(approvalRow.manager_approved_at);
+      employeeApprovalName = employeeApprovalName || clean(approvalRow.submitted_by_name);
+      employeeApprovalAt = employeeApprovalAt || clean(approvalRow.submitted_at);
+    } else if (!isRetryCaller) {
+      const monthRows = await restRpcAuth(supabaseUrl, supabaseAnonKey, authorization, "get_payroll_attendance_month_statuses", {
+        p_month_key: monthKey,
+        p_employee_ids: [employeeId],
+      });
+      const monthRow = Array.isArray(monthRows) ? monthRows[0] : null;
+      if (!monthRow) throw new Error("employee_month_not_visible_to_user");
+      employeeApprovalName = employeeApprovalName || clean(monthRow.submitted_by_name);
+      employeeApprovalAt = employeeApprovalAt || clean(monthRow.submitted_at);
+    }
+
+    if (!managerApprovalName) throw new Error("manager_name_required");
+    managerApprovalAt = managerApprovalAt || new Date().toISOString();
+
+    // Idempotent retry: never upload a second PDF once metadata is attached.
+    if (isLockedApproval && existingPdfUrl && existingPdfFileName) {
+      return json({
+        employeeId,
+        employeeName: safeFileNamePart(employeeNameInput || clean((approvedSnapshot as { employeeName?: string })?.employeeName) || `עובד ${employeeId}`, `עובד ${employeeId}`),
+        monthKey,
+        fileName: existingPdfFileName,
+        managerPdfVersion: Number.isFinite(existingPdfVersion) ? existingPdfVersion : 1,
+        sharepointItemId: existingPdfItemId,
+        sharepointWebUrl: existingPdfUrl,
+        sharepointFolderWebUrl: "",
+        employeeEmail: "",
+        reusedExistingPdf: true,
+        mailSent: false,
+        mailError: "",
+        mailedAt: "",
+        attachedToApproval: true,
+      });
+    }
 
     const contactRows = await restReadService(
       supabaseUrl,
@@ -656,6 +766,7 @@ Deno.serve(async (req) => {
     const user = Array.isArray(userRows) ? userRows[0] : null;
     const employeeName = safeFileNamePart(
       employeeNameInput
+      || clean((approvedSnapshot as { employeeName?: string })?.employeeName)
       || clean(contact?.full_name)
       || clean(user?.full_name)
       || clean(user?.name)
@@ -667,12 +778,13 @@ Deno.serve(async (req) => {
 
     const monthText = hebrewMonthYearLabel(monthKey);
     const monthFolderName = hebrewMonthName(monthKey);
+    const nextVersion = Number.isFinite(existingPdfVersion) && existingPdfVersion > 0 ? existingPdfVersion + 1 : 1;
     const pdfBytes = await buildPdfBytes({
       employeeName,
       employeeId,
       monthKey,
-      employeeApprovalName: employeeApprovalName || clean(monthRow.submitted_by_name) || employeeName,
-      employeeApprovalAt: employeeApprovalAt || clean(monthRow.submitted_at),
+      employeeApprovalName: employeeApprovalName || employeeName,
+      employeeApprovalAt,
       managerApprovalName,
       managerApprovalAt,
       approvedSnapshot,
@@ -689,11 +801,9 @@ Deno.serve(async (req) => {
     const monthFolder = await ensureChildFolder(graphAccessToken, employeeRoot.driveId, payrollFolder.id, monthFolderName);
     if (!monthFolder.id) throw new Error("sharepoint_month_folder_missing");
 
-    // Never reuse an existing uncommitted PDF here. A previous approval
-    // attempt may have uploaded a file from an older snapshot before the DB
-    // transaction failed. Reusing that file can lock the month with stale
-    // attendance data. Always persist the PDF bytes generated from this
-    // approval attempt; uploadUniquePdf will choose the next free version.
+    // Upload a new unique PDF for this approval snapshot. Duplicate prevention for
+    // retries is enforced by returning existing manager_pdf_* metadata above and
+    // by attach_manager_attendance_month_pdf idempotency in the database.
     const uploaded = await uploadUniquePdf(
       graphAccessToken,
       employeeRoot.driveId,
@@ -705,9 +815,38 @@ Deno.serve(async (req) => {
     );
     if (!uploaded.sharepointWebUrl || !uploaded.sharepointItemId) throw new Error("sharepoint_upload_missing_url");
 
-    // PDF persistence is the durable approval artifact. Email delivery is
-    // best-effort and must not invalidate an approval after the PDF already
-    // exists in SharePoint.
+    let attachedToApproval = false;
+    if (isLockedApproval) {
+      const attached = await restRpcService(supabaseUrl, supabaseServiceRole, "attach_manager_attendance_month_pdf", {
+        p_employee_id: employeeId,
+        p_month_key: monthKey,
+        p_manager_pdf_sharepoint_url: uploaded.sharepointWebUrl,
+        p_manager_pdf_sharepoint_item_id: uploaded.sharepointItemId,
+        p_manager_pdf_file_name: uploaded.fileName,
+        p_manager_pdf_version: uploaded.version,
+      });
+      attachedToApproval = attached?.attached === true || attached?.already_attached === true;
+      if (attached?.already_attached === true && clean(attached?.manager_pdf_sharepoint_url)) {
+        return json({
+          employeeId,
+          employeeName,
+          monthKey,
+          fileName: clean(attached.manager_pdf_file_name) || uploaded.fileName,
+          managerPdfVersion: Number(attached.manager_pdf_version || uploaded.version),
+          sharepointItemId: clean(attached.manager_pdf_sharepoint_item_id) || uploaded.sharepointItemId,
+          sharepointWebUrl: clean(attached.manager_pdf_sharepoint_url),
+          sharepointFolderWebUrl: monthFolder.webUrl,
+          employeeEmail,
+          reusedExistingPdf: true,
+          mailSent: false,
+          mailError: "",
+          mailedAt: "",
+          attachedToApproval: true,
+        });
+      }
+    }
+
+    // Email delivery is best-effort and must not invalidate approval or PDF.
     let mailedAt = "";
     let mailError = "";
     const sender = clean(currentUser?.auth_email || currentUser?.email).toLowerCase();
@@ -775,6 +914,7 @@ Deno.serve(async (req) => {
       mailSent: !mailError,
       mailError: mailError ? mailError.split(":").slice(0, 2).join(":") : "",
       mailedAt,
+      attachedToApproval,
     });
   } catch (error) {
     const message = clean((error as Error)?.message) || "payroll_attendance_pdf_dispatch_failed";
