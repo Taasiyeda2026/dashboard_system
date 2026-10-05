@@ -1898,11 +1898,7 @@ test('background planning keeps the workboard scroll stable instead of rerenderi
     return screen.indexOf('result = await buildDynamicCoursePlan({');
   })();
   assert.ok(planningRunStart >= 0, 'expected buildDynamicCoursePlan call inside the planning run');
-  const planningRunEnd = (() => {
-    const skipIdx = screen.indexOf('const skipEndReload =', planningRunStart);
-    if (skipIdx >= 0) return skipIdx;
-    return screen.indexOf('const freshEnd = await data.reloadPlanningSnapshot();', planningRunStart);
-  })();
+  const planningRunEnd = screen.indexOf('const endFacts = await loadSchedulingPlanningPreflight(scope);', planningRunStart);
   assert.ok(planningRunEnd > planningRunStart, 'expected planning-run end marker after buildDynamicCoursePlan');
   const planningRun = screen.slice(planningRunStart, planningRunEnd);
 
