@@ -1,9 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import { performance } from 'node:perf_hooks';
 import {
   PLANNING_RUN_PHASES,
   PLANNING_RUN_TYPES,
+  canCommitValidatedCheckpoint,
   decodeCheckpointPayload,
   encodeCheckpointRows,
   isCheckpointResumable,
@@ -275,6 +277,254 @@ test('checkpoint envelope resume requires matching revision/engine/phase', () =>
     contextFingerprint: 'ctx',
     runType: PLANNING_RUN_TYPES.ENGINE_UPGRADE
   }), false);
+});
+
+test('resolvePlanningRunPlan rejects resume when current fingerprints differ from checkpoint', () => {
+  const checkpointRows = encodeCheckpointRows(
+    [{ courseId: 'a', kind: 'proposal' }, { courseId: 'b', kind: 'proposal' }],
+    {
+      runType: PLANNING_RUN_TYPES.ENGINE_UPGRADE,
+      phase: PLANNING_RUN_PHASES.VALIDATED,
+      workspaceRevision: 10,
+      engineTo: 'planning-v29-x',
+      dataFingerprint: 'old-data',
+      contextFingerprint: 'old-ctx',
+      baseRecalculationIds: [],
+      schoolPackingCourseIds: ['a'],
+      recruitmentRecoveryCourseIds: [],
+      workdayConsolidationCourseIds: []
+    }
+  );
+  const checkpoint = decodeCheckpointPayload({
+    rows: checkpointRows,
+    completedActivityIds: ['a', 'b']
+  });
+  const shared = {
+    workspace: { engineVersion: 'planning-v28-x', revision: 10 },
+    rows: [{ activityId: 'a', row: { courseId: 'a', kind: 'proposal' } }, { activityId: 'b', row: { courseId: 'b', kind: 'proposal' } }]
+  };
+  const staleData = resolvePlanningRunPlan({
+    shared,
+    currentCourseIds: ['a', 'b'],
+    regularAffectedIds: [],
+    engineUpgradeAffectedIds: ['a'],
+    upgradeOptimizationScopes: { schoolPackingCourseIds: ['a'], affectedIds: ['a'] },
+    upgradeExecution: {
+      affectedIds: ['a'],
+      baseRecalculationIds: [],
+      upgradeOptimizationIds: ['a'],
+      v28OptimizationUpgrade: true
+    },
+    storedEngineVersion: 'planning-v28-x',
+    currentEngineVersion: 'planning-v29-x',
+    currentDataFingerprint: 'live-data',
+    currentContextFingerprint: 'old-ctx',
+    resumableCheckpoint: checkpoint
+  });
+  assert.equal(staleData.runType, PLANNING_RUN_TYPES.ENGINE_UPGRADE);
+  assert.equal(staleData.resume, null);
+
+  const staleContext = resolvePlanningRunPlan({
+    shared,
+    currentCourseIds: ['a', 'b'],
+    regularAffectedIds: [],
+    engineUpgradeAffectedIds: ['a'],
+    upgradeOptimizationScopes: { schoolPackingCourseIds: ['a'], affectedIds: ['a'] },
+    upgradeExecution: {
+      affectedIds: ['a'],
+      baseRecalculationIds: [],
+      upgradeOptimizationIds: ['a'],
+      v28OptimizationUpgrade: true
+    },
+    storedEngineVersion: 'planning-v28-x',
+    currentEngineVersion: 'planning-v29-x',
+    currentDataFingerprint: 'old-data',
+    currentContextFingerprint: 'live-ctx',
+    resumableCheckpoint: checkpoint
+  });
+  assert.equal(staleContext.resume, null);
+
+  const matching = resolvePlanningRunPlan({
+    shared,
+    currentCourseIds: ['a', 'b'],
+    regularAffectedIds: [],
+    engineUpgradeAffectedIds: ['a'],
+    upgradeOptimizationScopes: { schoolPackingCourseIds: ['a'], affectedIds: ['a'] },
+    upgradeExecution: {
+      affectedIds: ['a'],
+      baseRecalculationIds: [],
+      upgradeOptimizationIds: ['a'],
+      v28OptimizationUpgrade: true
+    },
+    storedEngineVersion: 'planning-v28-x',
+    currentEngineVersion: 'planning-v29-x',
+    currentDataFingerprint: 'old-data',
+    currentContextFingerprint: 'old-ctx',
+    resumableCheckpoint: checkpoint
+  });
+  assert.equal(matching.resume, checkpoint);
+});
+
+test('engine_marker_only advances once then becomes a true matching no-op', () => {
+  const shared = {
+    workspace: { engineVersion: 'planning-v28-x', revision: 5 },
+    rows: [
+      { activityId: 'live-1', row: { courseId: 'live-1', kind: 'live' } },
+      { activityId: 'fixed-1', row: { courseId: 'fixed-1', kind: 'fixed' } }
+    ]
+  };
+  const first = resolvePlanningRunPlan({
+    shared,
+    currentCourseIds: ['live-1', 'fixed-1'],
+    regularAffectedIds: [],
+    engineUpgradeAffectedIds: [],
+    upgradeExecution: {
+      affectedIds: [],
+      baseRecalculationIds: [],
+      upgradeOptimizationIds: [],
+      v28OptimizationUpgrade: false
+    },
+    storedEngineVersion: 'planning-v28-x',
+    currentEngineVersion: 'planning-v29-x',
+    currentDataFingerprint: 'fp',
+    currentContextFingerprint: 'ctx'
+  });
+  assert.equal(first.runType, PLANNING_RUN_TYPES.NO_OP);
+  assert.equal(first.engineChanged, true);
+  assert.equal(first.advanceEngineMarker, true);
+  assert.deepEqual(first.affectedIds, []);
+  assert.deepEqual(first.schoolPackingCourseIds, []);
+  assert.equal(first.preloadRouteCache, false);
+  assert.equal(first.reasons[0]?.code, 'engine_marker_only');
+
+  const second = resolvePlanningRunPlan({
+    shared: {
+      ...shared,
+      workspace: { ...shared.workspace, engineVersion: 'planning-v29-x', revision: 6 }
+    },
+    currentCourseIds: ['live-1', 'fixed-1'],
+    regularAffectedIds: [],
+    engineUpgradeAffectedIds: [],
+    storedEngineVersion: 'planning-v29-x',
+    currentEngineVersion: 'planning-v29-x',
+    currentDataFingerprint: 'fp',
+    currentContextFingerprint: 'ctx'
+  });
+  assert.equal(second.runType, PLANNING_RUN_TYPES.NO_OP);
+  assert.equal(second.engineChanged, false);
+  assert.equal(second.advanceEngineMarker, false);
+  assert.equal(second.reasons[0]?.code, 'already_current');
+});
+
+test('screen commits engine_marker_only through empty incremental snapshot without planning work', async () => {
+  const source = await readFile(new URL('../frontend/src/screens/course-scheduling.js', import.meta.url), 'utf8');
+  assert.match(source, /advanceEngineMarker === true/);
+  assert.match(source, /engine-marker-only/);
+  assert.match(source, /saveSharedPlanningIncrementalSnapshot\(\{[\s\S]*?rows:\s*\[\]/);
+  assert.match(source, /currentDataFingerprint:\s*startFingerprint/);
+  assert.match(source, /currentContextFingerprint:\s*startContextStorage/);
+  assert.doesNotMatch(source, /runPlan\.resume = null/);
+  assert.match(source, /canCommitValidatedCheckpoint\(/);
+});
+
+test('validated checkpoint cannot commit when rows/meta/fingerprints diverge', () => {
+  const baseMeta = {
+    runType: PLANNING_RUN_TYPES.ENGINE_UPGRADE,
+    phase: PLANNING_RUN_PHASES.VALIDATED,
+    workspaceRevision: 20,
+    engineTo: 'planning-v29-x',
+    dataFingerprint: 'data-v1',
+    contextFingerprint: 'ctx-v1',
+    baseRecalculationIds: [],
+    schoolPackingCourseIds: ['a', 'b'],
+    recruitmentRecoveryCourseIds: ['c'],
+    workdayConsolidationCourseIds: ['d']
+  };
+  const checkpoint = decodeCheckpointPayload({
+    rows: encodeCheckpointRows(
+      [
+        { courseId: 'a', kind: 'proposal' },
+        { courseId: 'b', kind: 'proposal' },
+        { courseId: 'c', kind: 'recruitment' },
+        { courseId: 'd', kind: 'proposal' }
+      ],
+      baseMeta
+    ),
+    completedActivityIds: ['a', 'b', 'c', 'd']
+  });
+  const okArgs = {
+    checkpoint,
+    workspaceRevision: 20,
+    engineVersion: 'planning-v29-x',
+    dataFingerprint: 'data-v1',
+    contextFingerprint: 'ctx-v1',
+    runType: PLANNING_RUN_TYPES.ENGINE_UPGRADE,
+    requiredCourseIds: ['a', 'b', 'c', 'd'],
+    expectedScope: {
+      baseRecalculationIds: [],
+      schoolPackingCourseIds: ['a', 'b'],
+      recruitmentRecoveryCourseIds: ['c'],
+      workdayConsolidationCourseIds: ['d']
+    }
+  };
+  assert.equal(canCommitValidatedCheckpoint(okArgs), true);
+
+  assert.equal(canCommitValidatedCheckpoint({
+    ...okArgs,
+    requiredCourseIds: ['a', 'b', 'c', 'd', 'missing']
+  }), false, 'missing required rows must block commit');
+
+  assert.equal(canCommitValidatedCheckpoint({
+    ...okArgs,
+    workspaceRevision: 21
+  }), false, 'revision change must block commit');
+
+  assert.equal(canCommitValidatedCheckpoint({
+    ...okArgs,
+    dataFingerprint: 'data-stale'
+  }), false, 'data fingerprint change must block commit');
+
+  assert.equal(canCommitValidatedCheckpoint({
+    ...okArgs,
+    contextFingerprint: 'ctx-stale'
+  }), false, 'context fingerprint change must block commit');
+
+  assert.equal(canCommitValidatedCheckpoint({
+    ...okArgs,
+    engineVersion: 'planning-v30-x'
+  }), false, 'engine target change must block commit');
+
+  assert.equal(canCommitValidatedCheckpoint({
+    ...okArgs,
+    runType: PLANNING_RUN_TYPES.FULL_MAINTENANCE
+  }), false, 'run type mismatch must block commit');
+
+  assert.equal(canCommitValidatedCheckpoint({
+    ...okArgs,
+    expectedScope: {
+      ...okArgs.expectedScope,
+      schoolPackingCourseIds: ['a', 'b', 'zzz']
+    }
+  }), false, 'scope/meta mismatch must block commit');
+
+  const runningOnly = decodeCheckpointPayload({
+    rows: encodeCheckpointRows(
+      [{ courseId: 'a', kind: 'proposal' }],
+      { ...baseMeta, phase: PLANNING_RUN_PHASES.RUNNING, schoolPackingCourseIds: ['a'], recruitmentRecoveryCourseIds: [], workdayConsolidationCourseIds: [] }
+    ),
+    completedActivityIds: ['a']
+  });
+  assert.equal(canCommitValidatedCheckpoint({
+    ...okArgs,
+    checkpoint: runningOnly,
+    requiredCourseIds: ['a'],
+    expectedScope: {
+      baseRecalculationIds: [],
+      schoolPackingCourseIds: ['a'],
+      recruitmentRecoveryCourseIds: [],
+      workdayConsolidationCourseIds: []
+    }
+  }), false, 'non-validated phase must not commit');
 });
 
 test('cooperative packing yields inside a heavy school group and stays under long-task budget', async () => {

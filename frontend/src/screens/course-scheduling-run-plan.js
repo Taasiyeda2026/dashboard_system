@@ -44,10 +44,23 @@ export function decodeCheckpointPayload(payload = null) {
   };
 }
 
+function sameIdList(left = [], right = []) {
+  const a = [...new Set((left || []).map(text).filter(Boolean))].sort();
+  const b = [...new Set((right || []).map(text).filter(Boolean))].sort();
+  if (a.length !== b.length) return false;
+  return a.every((value, index) => value === b[index]);
+}
+
+function checkpointRowIds(checkpoint = null) {
+  return [...new Set((checkpoint?.rows || []).map((row) => text(row?.courseId)).filter(Boolean))];
+}
+
 /**
  * A checkpoint is resumable only when it belongs to the same workspace revision,
- * fingerprints, and target engine, and has reached a safe phase.
+ * current fingerprints, and target engine, and has reached a safe phase.
  * Engine version on the workspace is NOT advanced by the mere existence of a checkpoint.
+ *
+ * Fingerprints MUST be the live run fingerprints — never the checkpoint's own copies.
  */
 export function isCheckpointResumable({
   checkpoint = null,
@@ -68,16 +81,86 @@ export function isCheckpointResumable({
       && Array.isArray(checkpoint.completedActivityIds)
       && checkpoint.completedActivityIds.length > 0;
   }
-  if (text(meta.engineTo) && text(meta.engineTo) !== text(engineVersion)) return false;
-  if (meta.workspaceRevision != null && Number(meta.workspaceRevision) !== Number(workspaceRevision)) return false;
-  if (text(meta.dataFingerprint) && text(meta.dataFingerprint) !== text(dataFingerprint)) return false;
-  if (text(meta.contextFingerprint) && text(meta.contextFingerprint) !== text(contextFingerprint)) return false;
+  if (!text(meta.engineTo) || text(meta.engineTo) !== text(engineVersion)) return false;
+  if (meta.workspaceRevision == null || Number(meta.workspaceRevision) !== Number(workspaceRevision)) return false;
+  if (!text(meta.dataFingerprint) || text(meta.dataFingerprint) !== text(dataFingerprint)) return false;
+  if (!text(meta.contextFingerprint) || text(meta.contextFingerprint) !== text(contextFingerprint)) return false;
   if (runType && text(meta.runType) && text(meta.runType) !== text(runType)) return false;
   const phase = text(meta.phase);
   return phase === PLANNING_RUN_PHASES.CALCULATED
     || phase === PLANNING_RUN_PHASES.VALIDATED
     || phase === PLANNING_RUN_PHASES.FAILED_RESUMABLE
     || phase === PLANNING_RUN_PHASES.RUNNING;
+}
+
+/**
+ * Validated checkpoints may skip recalculation and go straight to canonical commit
+ * only when they still match the live run and contain every required row.
+ */
+export function canCommitValidatedCheckpoint({
+  checkpoint = null,
+  workspaceRevision = 0,
+  engineVersion = '',
+  dataFingerprint = '',
+  contextFingerprint = '',
+  runType = '',
+  requiredCourseIds = null,
+  expectedScope = null
+} = {}) {
+  if (!isCheckpointResumable({
+    checkpoint,
+    workspaceRevision,
+    engineVersion,
+    dataFingerprint,
+    contextFingerprint,
+    runType
+  })) return false;
+  const meta = checkpoint?.meta || null;
+  if (!meta || text(meta.phase) !== PLANNING_RUN_PHASES.VALIDATED) return false;
+  if (runType && text(meta.runType) !== text(runType)) return false;
+
+  const haveIds = new Set(checkpointRowIds(checkpoint));
+  if (!haveIds.size) return false;
+  const required = [...new Set((requiredCourseIds || []).map(text).filter(Boolean))];
+  if (required.length && required.some((courseId) => !haveIds.has(courseId))) return false;
+
+  if (expectedScope && typeof expectedScope === 'object') {
+    if (expectedScope.baseRecalculationIds
+      && !sameIdList(meta.baseRecalculationIds, expectedScope.baseRecalculationIds)) {
+      return false;
+    }
+    if (expectedScope.schoolPackingCourseIds
+      && !sameIdList(meta.schoolPackingCourseIds, expectedScope.schoolPackingCourseIds)) {
+      return false;
+    }
+    if (expectedScope.recruitmentRecoveryCourseIds
+      && !sameIdList(meta.recruitmentRecoveryCourseIds, expectedScope.recruitmentRecoveryCourseIds)) {
+      return false;
+    }
+    if (expectedScope.workdayConsolidationCourseIds
+      && !sameIdList(meta.workdayConsolidationCourseIds, expectedScope.workdayConsolidationCourseIds)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function resumeFromCheckpoint({
+  resumableCheckpoint,
+  workspaceRevision,
+  engineVersion,
+  dataFingerprint,
+  contextFingerprint,
+  runType
+}) {
+  return isCheckpointResumable({
+    checkpoint: resumableCheckpoint,
+    workspaceRevision,
+    engineVersion,
+    dataFingerprint,
+    contextFingerprint,
+    runType
+  }) ? resumableCheckpoint : null;
 }
 
 export function resolvePlanningRunPlan({
@@ -91,6 +174,8 @@ export function resolvePlanningRunPlan({
   unrecoverableGlobalContextChange = false,
   storedEngineVersion = '',
   currentEngineVersion = '',
+  currentDataFingerprint = '',
+  currentContextFingerprint = '',
   resumableCheckpoint = null
 } = {}) {
   const reasons = [];
@@ -104,6 +189,9 @@ export function resolvePlanningRunPlan({
     upgradeOptimizationIds: upgradeIds,
     v28OptimizationUpgrade: false
   };
+  const workspaceRevision = Number(workspace?.revision) || 0;
+  const dataFingerprint = text(currentDataFingerprint);
+  const contextFingerprint = text(currentContextFingerprint);
 
   if (forceFull) {
     reasons.push({ code: 'force_full', detail: 'explicit maintenance rebuild' });
@@ -133,14 +221,15 @@ export function resolvePlanningRunPlan({
       persistServerCheckpoints: true,
       preloadRouteCache: true,
       engineChanged: text(storedEngineVersion) !== text(currentEngineVersion),
-      resume: isCheckpointResumable({
-        checkpoint: resumableCheckpoint,
-        workspaceRevision: Number(workspace?.revision) || 0,
+      advanceEngineMarker: false,
+      resume: resumeFromCheckpoint({
+        resumableCheckpoint,
+        workspaceRevision,
         engineVersion: currentEngineVersion,
-        dataFingerprint: text(resumableCheckpoint?.meta?.dataFingerprint || ''),
-        contextFingerprint: text(resumableCheckpoint?.meta?.contextFingerprint || ''),
+        dataFingerprint,
+        contextFingerprint,
         runType: PLANNING_RUN_TYPES.FULL_MAINTENANCE
-      }) ? resumableCheckpoint : null
+      })
     };
   }
 
@@ -171,6 +260,9 @@ export function resolvePlanningRunPlan({
         persistServerCheckpoints: false,
         preloadRouteCache: false,
         engineChanged: true,
+        // Marker-only: no planning work, but the canonical workspace must advance
+        // the engine string once so the next entry is a true matching no-op.
+        advanceEngineMarker: true,
         resume: null
       };
     }
@@ -193,14 +285,15 @@ export function resolvePlanningRunPlan({
       persistServerCheckpoints: true,
       preloadRouteCache: false,
       engineChanged: true,
-      resume: isCheckpointResumable({
-        checkpoint: resumableCheckpoint,
-        workspaceRevision: Number(workspace?.revision) || 0,
+      advanceEngineMarker: false,
+      resume: resumeFromCheckpoint({
+        resumableCheckpoint,
+        workspaceRevision,
         engineVersion: currentEngineVersion,
-        dataFingerprint: text(resumableCheckpoint?.meta?.dataFingerprint || ''),
-        contextFingerprint: text(resumableCheckpoint?.meta?.contextFingerprint || ''),
+        dataFingerprint,
+        contextFingerprint,
         runType: PLANNING_RUN_TYPES.ENGINE_UPGRADE
-      }) ? resumableCheckpoint : null
+      })
     };
   }
 
@@ -218,6 +311,7 @@ export function resolvePlanningRunPlan({
       persistServerCheckpoints: false,
       preloadRouteCache: false,
       engineChanged: false,
+      advanceEngineMarker: false,
       resume: null
     };
   }
@@ -236,6 +330,7 @@ export function resolvePlanningRunPlan({
     persistServerCheckpoints: false,
     preloadRouteCache: false,
     engineChanged: false,
+    advanceEngineMarker: false,
     resume: null
   };
 }

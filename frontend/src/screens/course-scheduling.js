@@ -118,7 +118,7 @@ import { planningPerfCount, planningPerfEvent, planningPerfTimer } from './cours
 import {
   PLANNING_RUN_PHASES,
   PLANNING_RUN_TYPES,
-  isCheckpointResumable,
+  canCommitValidatedCheckpoint,
   resolvePlanningRunPlan
 } from './course-scheduling-run-plan.js';
 
@@ -2824,10 +2824,6 @@ export const courseSchedulingScreen = {
           loadedCheckpoint = null;
         }
         assertRunOwnership();
-        if (loadedCheckpoint?.meta) {
-          loadedCheckpoint.meta.dataFingerprint ||= startFingerprint;
-          loadedCheckpoint.meta.contextFingerprint ||= startContextStorage;
-        }
 
         const runPlan = resolvePlanningRunPlan({
           forceFull,
@@ -2840,19 +2836,10 @@ export const courseSchedulingScreen = {
           unrecoverableGlobalContextChange,
           storedEngineVersion,
           currentEngineVersion: PLANNING_ENGINE_VERSION,
+          currentDataFingerprint: startFingerprint,
+          currentContextFingerprint: startContextStorage,
           resumableCheckpoint: loadedCheckpoint
         });
-        // Keep resume only when fingerprints/revision/engine match the live workspace.
-        if (runPlan.resume && !isCheckpointResumable({
-          checkpoint: runPlan.resume,
-          workspaceRevision: Number(shared?.workspace?.revision) || 0,
-          engineVersion: PLANNING_ENGINE_VERSION,
-          dataFingerprint: startFingerprint,
-          contextFingerprint: startContextStorage,
-          runType: runPlan.runType
-        })) {
-          runPlan.resume = null;
-        }
 
         const affectedIds = runPlan.affectedIds;
         const fullRun = runPlan.runType === PLANNING_RUN_TYPES.FULL_MAINTENANCE;
@@ -2898,16 +2885,57 @@ export const courseSchedulingScreen = {
 
         if (runPlan.runType === PLANNING_RUN_TYPES.NO_OP) {
           applySharedPlanningState(shared, freshStart);
-          if (contextResolution?.fingerprintUpgraded === true) {
+          if (runPlan.advanceEngineMarker === true) {
+            // Marker-only path: no packing/recalc/routes. Advance the canonical
+            // engine string once so the next entry is a true matching no-op.
+            planningPerfEvent('engine-marker-only', {
+              engineFrom: storedEngineVersion,
+              engineTo: PLANNING_ENGINE_VERSION,
+              workspaceRevision: Number(shared?.workspace?.revision) || 0
+            });
+            const markerSaved = await saveSharedPlanningIncrementalSnapshot({
+              periodKey: scope.periodKey,
+              district: scope.district,
+              engineVersion: PLANNING_ENGINE_VERSION,
+              dataFingerprint: startFingerprint,
+              contextFingerprint: startContextStorage,
+              rows: [],
+              removedActivityIds: [],
+              activities: freshStart.activities || [],
+              expectedRevision: Number(shared?.workspace?.revision) || 0
+            });
+            assertRunOwnership();
+            const canonical = await loadSharedPlanningWorkspace({
+              periodKey: scope.periodKey,
+              district: scope.district
+            });
+            assertRunOwnership();
+            applySharedPlanningState(canonical, freshStart);
+            state.courseSchedulingPlanningSharedRevision = Number(
+              markerSaved?.revision || canonical?.workspace?.revision
+            ) || 0;
+            state.courseSchedulingPlanningRunDiagnostics = {
+              ...state.courseSchedulingPlanningRunDiagnostics,
+              phase: PLANNING_RUN_PHASES.COMMITTED,
+              advanceEngineMarker: true
+            };
+            planningPerfEvent('run-noop', {
+              runType: runPlan.runType,
+              advanceEngineMarker: true,
+              committed: true
+            });
+          } else if (contextResolution?.fingerprintUpgraded === true) {
             await persistUpgradedPlanningContextFingerprint({
               shared,
               storageValue: contextResolution.storageValue || startContextStorage,
               isCurrent: ownsRun
             });
+            planningPerfEvent('run-noop', { runType: runPlan.runType });
+          } else {
+            planningPerfEvent('run-noop', { runType: runPlan.runType });
           }
           state.courseSchedulingPlanningAffectedIds = [];
           state.courseSchedulingPlanningError = '';
-          planningPerfEvent('run-noop', { runType: runPlan.runType });
           if (runUiVisible()) showToast('התכנון כבר מעודכן', 'success');
           return;
         }
@@ -2934,9 +2962,21 @@ export const courseSchedulingScreen = {
         );
         const resumableRows = (silentCheckpoint?.rows || [])
           .filter((row) => currentCourseIds.includes(text(row?.courseId)));
-        const resumePhase = text(silentCheckpoint?.meta?.phase);
-        const resumeValidatedCommit = resumePhase === PLANNING_RUN_PHASES.VALIDATED
-          && resumableRows.length > 0;
+        const resumeValidatedCommit = canCommitValidatedCheckpoint({
+          checkpoint: silentCheckpoint,
+          workspaceRevision: Number(shared?.workspace?.revision) || 0,
+          engineVersion: PLANNING_ENGINE_VERSION,
+          dataFingerprint: startFingerprint,
+          contextFingerprint: startContextStorage,
+          runType: runPlan.runType,
+          requiredCourseIds: fullRun ? currentCourseIds : affectedIds,
+          expectedScope: {
+            baseRecalculationIds: runPlan.baseRecalculationIds,
+            schoolPackingCourseIds: runPlan.schoolPackingCourseIds,
+            recruitmentRecoveryCourseIds: runPlan.recruitmentRecoveryCourseIds,
+            workdayConsolidationCourseIds: runPlan.workdayConsolidationCourseIds
+          }
+        }) && resumableRows.length > 0;
         const resumeFromCheckpoint = !resumeValidatedCommit
           && checkpointCompletedIds.size > 0
           && resumableRows.length > 0;
