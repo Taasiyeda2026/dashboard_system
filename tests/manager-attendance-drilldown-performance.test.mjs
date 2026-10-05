@@ -15,8 +15,8 @@ test('manager attendance drilldown loads only the clicked instructor on demand',
   assert.match(workspace, /await bindEmbeddedAttendance\(host, selectedRoster, context, snapshot, summary\?\.records \|\| \[\]\)/);
   assert.doesNotMatch(workspace, /await bindEmbeddedAttendance\(host, roster, context\);/);
   assert.match(workspace, /button\.textContent = 'טוען דוח…'/);
-  assert.match(workspace, /פתח לבדיקה/);
-  assert.doesNotMatch(workspace, />פתח דוח לבדיקה</);
+  assert.match(workspace, /overview\.actionLabel/);
+  assert.doesNotMatch(workspace, /פתח דוח לבדיקה/);
 });
 
 test('manager drilldown scopes dashboard sources and does not block on route generation', () => {
@@ -28,7 +28,6 @@ test('manager drilldown scopes dashboard sources and does not block on route gen
 
 test('manager attendance overview derives status and action from workflow in the renderer', () => {
   assert.match(workspace, /resolveManagerAttendanceOverviewState/);
-  assert.match(workspace, /אושר על ידי העובד · ממתין לבקרת מנהל/);
   assert.match(workspace, /טרם אושר ע״י העובד/);
   assert.match(workspace, /אושר ע״י העובד/);
   assert.doesNotMatch(finalFixes, /setAttendanceWorkflowBadge/);

@@ -45,6 +45,6 @@ test('cache markers are bumped for the manager attendance workflow unify', async
   const index = await readFile(new URL('../index.html', import.meta.url), 'utf8');
   const sw = await readFile(new URL('../frontend/sw.js', import.meta.url), 'utf8');
   assert.match(index, /manager-board-workspace-runtime\.js\?v=20261005-attendance-control-workflow-unify-v1/);
-  assert.match(index, /mobile-responsive\.css\?v=20260926-manager-attendance-mobile-v3/);
+  assert.match(index, /admin-attendance-standalone\.js\?v=20261005-attendance-control-workflow-unify-v1/);
   assert.match(sw, /const CACHE_VERSION = 1902;/);
 });

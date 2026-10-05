@@ -167,8 +167,8 @@ test('manager overview table no longer includes total-hours column', () => {
   assert.doesNotMatch(workspace, /totalHours/);
   assert.doesNotMatch(workspace, /formatAttendanceHours/);
   assert.match(workspace, /resolveManagerAttendanceOverviewState/);
-  assert.match(workspace, /פתח לבדיקה/);
-  assert.doesNotMatch(workspace, />פתח דוח לבדיקה</);
+  assert.match(workspace, /overview\.actionLabel/);
+  assert.doesNotMatch(workspace, /פתח דוח לבדיקה/);
 });
 
 test('manager overview action and status come from one workflow helper in the renderer', () => {
@@ -176,6 +176,8 @@ test('manager overview action and status come from one workflow helper in the re
   assert.match(workspace, /workflowByEmployee/);
   assert.match(workspace, /data-manager-attendance-open-pdf/);
   assert.match(workspace, /data-manager-attendance-status=/);
+  assert.match(control, /פתח לבדיקה/);
+  assert.match(control, /אושר על ידי העובד · ממתין לבקרת מנהל/);
   assert.doesNotMatch(finalFixes, /setAttendanceWorkflowBadge/);
   assert.doesNotMatch(finalFixes, /attendanceControlMonthWorkflowStatuses/);
 });

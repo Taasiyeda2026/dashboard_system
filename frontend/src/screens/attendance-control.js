@@ -2732,7 +2732,7 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
     dialog.className = 'attendance-control__approve-dialog attendance-control__add-dialog';
     const activityTypes = ['קורס', 'סדנה', 'סיור', 'זום', 'חדר בריחה', 'הכשרה', 'ביטול זמן', 'תפעול'];
     dialog.innerHTML = `<form method="dialog" data-attendance-add-form>
-      <h3>הוספת דיווח שנשכח</h3>
+      <h3>הוספת רשומה</h3>
       <p>${escapeHtml(employeeName || employeeId)} · ${escapeHtml(attendanceMonthLabel(monthKey))}</p>
       <div class="attendance-control__add-grid">
         <label><span>תאריך *</span><input class="ds-input" type="date" name="attendanceDate" min="${escapeHtml(fromDate)}" max="${escapeHtml(toDate)}" required></label>

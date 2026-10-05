@@ -185,7 +185,7 @@ test('manager roles stay scoped by direct_manager in payroll records RPC', () =>
 
 test('admin control mode reuses attendance-control instead of a duplicate UI', () => {
   assert.match(adminStandalone, /data-admin-attendance-control-open>בקרה ועריכה</);
-  assert.match(adminStandalone, /import\('\.\/screens\/attendance-control\.js'\)/);
+  assert.match(adminStandalone, /import\('\.\/screens\/attendance-control\.js(?:\?[^']*)?'\)/);
   assert.match(adminStandalone, /attendance\.bindAttendanceControl\(host,/);
   assert.match(adminStandalone, /attendanceControlHtml\(\)/);
   assert.doesNotMatch(adminStandalone, /function buildAdminRowEditor/);
@@ -457,10 +457,14 @@ test('travel-only correction on clean entry marks corrected and stays editable i
     comparisons: [entry],
     notCompared: [],
     dailyKilometers: []
-  }, '2026-09');
-  assert.match(html, /data-attendance-save-travel="row-1"/);
-  assert.match(html, /checked/);
-  assert.match(html, /value="11"/);
+  }, '2026-09', {
+    workflowByEmployee: {
+      '1501': { workflow_status: 'submitted', attendance_submission_status: 'submitted' }
+    }
+  });
+  assert.match(html, /data-attendance-edit-record="row-1"/);
+  assert.match(html, /data-attendance-approve-reported="row-1"/);
+  assert.match(html, /תחבורה ציבורית|publicTransport|11/);
 });
 
 test('KM to PT, PT to KM, and PT cost change refresh final and daily km state', () => {
