@@ -101,7 +101,10 @@ test('reopened month shows add-record control but blocks manager finalize until 
     }
   });
   assert.match(html, /data-attendance-add-record="1530"/);
-  assert.match(html, /\+ הוספת דיווח שנשכח/);
+  assert.match(html, /title="הוספת רשומה"/);
+  assert.match(html, /aria-label="הוספת רשומה"/);
+  assert.match(html, />\+<\/button>/);
+  assert.doesNotMatch(html, /הוספת דיווח שנשכח/);
   assert.doesNotMatch(html, /data-payroll-finish="1530"/);
   assert.match(html, /לסיים ולאשר מחדש את החודש/);
   assert.match(html, /data-attendance-edit-record="row-1"/);
