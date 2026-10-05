@@ -151,7 +151,7 @@ test('Arimo subset:false crashes and subset:true renders Hebrew attendance PDF',
 });
 
 test('manager approval PDF artifact migration decouples finalize from PDF and reuses av2 retry', async () => {
-  const migration = await readFile(new URL('../supabase/migrations/20261005090000_manager_approval_pdf_artifact_decouple.sql', import.meta.url), 'utf8');
+  const migration = await readFile(new URL('../supabase/migrations/20261005095629_manager_approval_pdf_artifact_decouple.sql', import.meta.url), 'utf8');
   assert.match(migration, /manager_pdf_fields_incomplete/);
   assert.doesNotMatch(
     migration.slice(0, migration.indexOf('attach_manager_attendance_month_pdf')),
