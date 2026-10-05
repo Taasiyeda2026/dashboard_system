@@ -54,10 +54,31 @@ export function organizationalEventsForDate(calendarRows, birthdays, isoDate) {
   return [...schoolEvents, ...birthdayEvents];
 }
 
-export function instructorActivityEventsForDate(activities = [], isoDate) {
+export function instructorActivityEventsForDate(activities = [], isoDate, resolvedMeetings = null) {
   const target = String(isoDate || '').slice(0, 10);
   const seen = new Set();
   const events = [];
+
+  if (Array.isArray(resolvedMeetings)) {
+    for (const meeting of resolvedMeetings) {
+      const date = String(meeting?.meeting_date || meeting?.date || '').slice(0, 10);
+      if (date !== target) continue;
+      const activityId = String(meeting?.row_id || meeting?.RowID || meeting?.id || meeting?.activity_name || '');
+      const meetingNo = Number(meeting?.meeting_no) || 0;
+      const key = `${activityId}|${target}|${meetingNo || meeting?.start_time || ''}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      events.push({
+        ...meeting,
+        kind: 'instructor-activity',
+        meetingNo: meetingNo || undefined,
+        displayTitle: String(meeting?.activity_name || meeting?.program_name || 'פעילות'),
+        is_single_meeting_substitution: meeting?.is_single_meeting_substitution === true
+      });
+    }
+    return events;
+  }
+
   for (const activity of Array.isArray(activities) ? activities : []) {
     for (let index = 1; index <= 35; index += 1) {
       const date = String(activity?.[`date_${index}`] || (index === 1 ? activity?.start_date || activity?.activity_date : '') || '').slice(0, 10);

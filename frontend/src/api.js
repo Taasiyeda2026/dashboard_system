@@ -6800,6 +6800,17 @@ export const api = {
     if (error) throw new Error(error.message || 'instructor_attendance_dates_read_failed');
     return Array.isArray(data) ? data : [];
   },
+  instructorResolvedMeetings: async ({ fromDate = '', toDate = '' } = {}) => {
+    const from = String(fromDate || '').slice(0, 10);
+    const to = String(toDate || '').slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to)) return [];
+    const { data, error } = await supabase.rpc('av2_get_current_instructor_resolved_meetings', {
+      p_from: from,
+      p_to: to
+    });
+    if (error) throw new Error(error.message || 'instructor_resolved_meetings_read_failed');
+    return Array.isArray(data) ? data : [];
+  },
   attendanceControlRequest: async (action, payload = {}) => {
     assertPermission('view_attendance_control', 'attendance_control_forbidden');
     const response = await fetch(config.attendanceApiUrl, {

@@ -1,7 +1,12 @@
 import { config } from '../../config.js';
 import { escapeHtml } from '../shared/html.js';
 import { dsPageHeader, dsScreenStack, dsInteractiveCard } from '../shared/layout.js';
-import { instructorUpcomingMeetings, loadInstructorActivities, monthlyInstructorSummary, nextInstructorMeeting } from './portal-data.js';
+import {
+  instructorUpcomingFromResolvedMeetings,
+  loadInstructorPortalSchedule,
+  monthlyInstructorSummary,
+  nextMeetingFromResolvedMeetings
+} from './portal-data.js';
 import { formatDateHe } from '../shared/format-date.js';
 
 const localMonthKey = (date = new Date()) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
@@ -34,7 +39,8 @@ function meetingMetaHtml(meeting) {
   const locations = [meeting?.school, meeting?.authority]
     .map((value) => String(value || '').trim())
     .filter((value, index, values) => value && values.indexOf(value) === index);
-  return [time, ...locations].filter(Boolean).map(escapeHtml).join(' · ');
+  const substitution = meeting?.is_single_meeting_substitution ? 'החלפה חד־פעמית' : '';
+  return [time, ...locations, substitution].filter(Boolean).map(escapeHtml).join(' · ');
 }
 
 function upcomingMeetingCardHtml(meeting, label = '') {
@@ -49,11 +55,16 @@ function upcomingMeetingCardHtml(meeting, label = '') {
 }
 
 export const instructorDashboardScreen = {
-  load: ({ api }) => loadInstructorActivities(api),
+  load: ({ api }) => loadInstructorPortalSchedule(api),
   render(data, { state } = {}) {
-    const summary = monthlyInstructorSummary(data?.rows, state, selectedMonth);
-    const upcoming = instructorUpcomingMeetings(data?.rows, state, { days: 7 });
-    const nextBeyondWeek = upcoming.length ? null : nextInstructorMeeting(data?.rows, state);
+    const scheduleState = {
+      ...state,
+      resolvedMeetings: data?.resolvedMeetings || [],
+      resolvedActivities: data?.resolvedActivities || []
+    };
+    const summary = monthlyInstructorSummary(data?.rows, scheduleState, selectedMonth);
+    const upcoming = instructorUpcomingFromResolvedMeetings(data?.resolvedMeetings || [], { days: 7 });
+    const nextBeyondWeek = upcoming.length ? null : nextMeetingFromResolvedMeetings(data?.resolvedMeetings || []);
     const upcomingSection = upcoming.length
       ? `<p class="instructor-portal-monthly-summary"><strong>הפעילויות הקרובות · 7 ימים</strong></p>${upcoming.map((meeting) => upcomingMeetingCardHtml(meeting)).join('')}`
       : nextBeyondWeek

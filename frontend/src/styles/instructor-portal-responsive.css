@@ -482,6 +482,17 @@
   grid-column: 1 / -1;
 }
 
+.app-shell--instructor .portal-activity-substitution-badge {
+  display: inline-block;
+  margin: 0.25rem 0 0.5rem;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #7a4a12;
+  background: #fff4e5;
+}
+
 .app-shell--instructor .instructor-portal-monthly-summary {
   margin: 0;
   color: var(--ds-text);
