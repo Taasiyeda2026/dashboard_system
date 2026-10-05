@@ -364,3 +364,4 @@ config.HOTFIX_VERSION = `scheduling-upgrade-lifecycle-validate-before-commit-202
 config.HOTFIX_VERSION = `scheduling-validation-sot-sector-audit-20261005-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `instructor-resolved-meetings-sot-20261005-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `scheduling-route-batch-lookup-planning-lease-20261005-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `manager-attendance-reopened-write-gate-20261005-v1-${config.HOTFIX_VERSION}`;
