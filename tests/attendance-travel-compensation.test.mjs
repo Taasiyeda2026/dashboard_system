@@ -73,7 +73,7 @@ test('route context changes reset overrides while unchanged context is preserved
 test('source-only instructor counts exclude generated payable rows', () => {
   const rows = sourceAttendanceRecords([{ id: 'source' }, { id: 'child', generation_kind: 'travel_time_cancellation', source_attendance_record_id: 'source' }, { id: 'manual', activity_type: 'ביטול זמן' }]);
   assert.deepEqual(rows.map((row) => row.id), ['source','manual']);
-  assert.match(home, /buildStat\(sourceRecords\.length/);
+  assert.match(home, /const sourceRows = sourceAttendanceRecords\(rows\);[\s\S]*hoursForType\(sourceRows/);
   assert.match(home, /sourceCount: sourceRecords\.length/);
 });
 
@@ -85,7 +85,7 @@ test('generated cancellation is the only finance contribution and manager receiv
   const result = summarizeFinanceAttendance([approval]);
   assert.equal(result.rows[0].hours.time_cancel, 1.25);
   assert.match(bridge, /calculatedCancellationMinutes/);
-  assert.match(manager, /נערך ידנית[\s\S]*מחושב במקור/);
+  assert.match(manager, /source\.manuallyOverridden[\s\S]*ביטול זמן מחושב במקור/);
   assert.match(migration, /attendance_generated_record_protected/);
 });
 
