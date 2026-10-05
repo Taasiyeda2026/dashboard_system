@@ -173,7 +173,6 @@ set search_path = public
 as $$
 declare
   v_emp_id bigint;
-  v_role text;
   v_row public.attendance_month_approvals%rowtype;
   v_pdf_url text := nullif(trim(coalesce(p_manager_pdf_sharepoint_url, '')), '');
   v_pdf_item_id text := nullif(trim(coalesce(p_manager_pdf_sharepoint_item_id, '')), '');
@@ -192,22 +191,11 @@ begin
   end if;
   v_emp_id := trim(p_employee_id)::bigint;
 
-  if v_jwt_role = 'service_role' then
-    v_role := 'service_role';
-  else
-    select lower(trim(coalesce(u.role, '')))
-    into v_role
-    from public.users u
-    where u.auth_user_id = auth.uid()
-      and u.is_active = true
-    limit 1;
-
-    if v_role is null then
-      raise exception 'payroll_attendance_auth_required' using errcode = '42501';
-    end if;
-    if v_role not in ('admin', 'operation_manager', 'activities_manager', 'manager', 'instructor_manager') then
-      raise exception 'payroll_attendance_permission_denied' using errcode = '42501';
-    end if;
+  -- PDF metadata is attached by the server-side Edge Function only. Keeping
+  -- this RPC service-role-only prevents an authenticated client from attaching
+  -- an arbitrary SharePoint URL to another employee's locked approval.
+  if v_jwt_role <> 'service_role' then
+    raise exception 'payroll_attendance_permission_denied' using errcode = '42501';
   end if;
 
   select *
@@ -268,9 +256,9 @@ end
 $$;
 
 revoke all on function public.attach_manager_attendance_month_pdf(text, text, text, text, text, integer)
-  from public, anon;
+  from public, anon, authenticated;
 grant execute on function public.attach_manager_attendance_month_pdf(text, text, text, text, text, integer)
-  to authenticated, service_role;
+  to service_role;
 
 comment on function public.attach_manager_attendance_month_pdf(text, text, text, text, text, integer) is
   'Attaches SharePoint manager-approval PDF metadata to an already-locked attendance month. Idempotent when a PDF URL already exists.';
