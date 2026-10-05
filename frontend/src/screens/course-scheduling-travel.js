@@ -114,9 +114,29 @@ export async function loadSchedulingTravelCacheRows({
   }
 }
 
+const DEFAULT_ROUTE_BATCH_SIZE = 64;
+const MAX_ROUTE_BATCH_SIZE = 80;
+
+/** Wrap a legacy single-pair invoke mock for batch_lookup route clients in tests. */
+export function adaptSinglePairRouteInvoke(handler) {
+  return async (body) => {
+    if (text(body?.mode).toLowerCase() === 'batch_lookup') {
+      const results = {};
+      for (const pair of body.pairs || []) {
+        const outcome = await handler(pair);
+        const data = outcome?.data;
+        if (data && pair?.route_key) results[pair.route_key] = data;
+      }
+      return { data: { batch_lookup: true, results }, error: null };
+    }
+    return handler(body);
+  };
+}
+
 export function createRouteClient({
   invoke = (body) => supabase.functions.invoke('scheduling-route', { body }),
   concurrency = 4,
+  batchSize = DEFAULT_ROUTE_BATCH_SIZE,
   preloadedRows = [],
   signal = null
 } = {}) {
@@ -135,38 +155,111 @@ export function createRouteClient({
       cached: true
     });
   }
-  let active = 0;
-  const queue = [];
+  const boundedBatchSize = Math.max(1, Math.min(MAX_ROUTE_BATCH_SIZE, Number(batchSize) || DEFAULT_ROUTE_BATCH_SIZE));
+  const maxConcurrentBatches = Math.max(1, Number(concurrency) || 4);
+  let activeBatches = 0;
+  let flushScheduled = false;
+  /** @type {Map<string, { matrixKey: string, payload: Record<string, string>, waiters: Array<{ resolve: Function, reject: Function }> }>} */
+  const pendingByMatrixKey = new Map();
   let unavailableReason = '';
   let googleCalls = 0;
   let cacheHits = 0;
+  let batchInvokes = 0;
   const requests = [];
   const cancelledError = () => Object.assign(new Error('planning_cancelled'), {
     name: 'AbortError',
     code: 'planning_cancelled',
     silent: true
   });
-  const rejectQueued = () => {
-    while (queue.length) queue.shift().reject(cancelledError());
+  const rejectPending = () => {
+    for (const entry of pendingByMatrixKey.values()) {
+      for (const waiter of entry.waiters) waiter.reject(cancelledError());
+    }
+    pendingByMatrixKey.clear();
   };
-  signal?.addEventListener?.('abort', rejectQueued, { once: true });
+  signal?.addEventListener?.('abort', rejectPending, { once: true });
 
-  const pump = () => {
+  const applyRouteResult = (matrixKey, data) => {
+    if (!data?.calculated) {
+      unavailableReason ||= data?.reason || data?.error || 'route_service_unavailable';
+      return null;
+    }
+    if (data.cached) {
+      cacheHits += 1;
+      planningPerfCount('cacheHits');
+    } else {
+      googleCalls += 1;
+      planningPerfCount('googleCalls');
+    }
+    const route = {
+      distance_km: Number(data.distance_km),
+      duration_minutes: Number(data.duration_minutes),
+      cached: !!data.cached
+    };
+    if (Number.isFinite(route.distance_km) && Number.isFinite(route.duration_minutes)) {
+      persistentCache.set(matrixKey, route);
+    }
+    return route;
+  };
+
+  const takePendingBatch = () => {
+    const batch = [];
+    for (const [matrixKey, entry] of pendingByMatrixKey) {
+      batch.push(entry);
+      pendingByMatrixKey.delete(matrixKey);
+      if (batch.length >= boundedBatchSize) break;
+    }
+    return batch;
+  };
+
+  const pumpBatches = () => {
     if (signal?.aborted) {
-      rejectQueued();
+      rejectPending();
       return;
     }
-    while (active < concurrency && queue.length) {
-      const job = queue.shift();
-      active += 1;
-      Promise.resolve()
-        .then(job.run)
-        .then(job.resolve, job.reject)
-        .finally(() => {
-          active -= 1;
-          pump();
-        });
+    while (activeBatches < maxConcurrentBatches && pendingByMatrixKey.size > 0) {
+      const batch = takePendingBatch();
+      if (!batch.length) break;
+      activeBatches += 1;
+      void (async () => {
+        try {
+          const pairs = batch.map((entry) => ({
+            route_key: entry.matrixKey,
+            ...entry.payload
+          }));
+          for (const entry of batch) requests.push({ ...entry.payload });
+          batchInvokes += 1;
+          planningPerfCount('routeBatchInvokes');
+          const { data, error } = await invoke({ mode: 'batch_lookup', pairs });
+          const results = data?.results && typeof data.results === 'object' ? data.results : {};
+          for (const entry of batch) {
+            const item = results[entry.matrixKey];
+            let route = null;
+            if (!error && item) route = applyRouteResult(entry.matrixKey, item);
+            else if (error || !data?.batch_lookup) {
+              unavailableReason ||= error?.message || data?.reason || 'route_service_unavailable';
+            }
+            for (const waiter of entry.waiters) waiter.resolve(route);
+          }
+        } catch (error) {
+          for (const entry of batch) {
+            for (const waiter of entry.waiters) waiter.reject(error);
+          }
+        } finally {
+          activeBatches -= 1;
+          pumpBatches();
+        }
+      })();
     }
+  };
+
+  const scheduleBatchFlush = () => {
+    if (flushScheduled) return;
+    flushScheduled = true;
+    queueMicrotask(() => {
+      flushScheduled = false;
+      pumpBatches();
+    });
   };
 
   const request = (origin, destination, context = {}) => {
@@ -205,35 +298,17 @@ export function createRouteClient({
       destination_authority_name: normalizedContext.destinationAuthorityName
     };
     const promise = new Promise((resolve, reject) => {
-      queue.push({
-        resolve,
-        reject,
-        run: async () => {
-          requests.push({ ...payload });
-          const { data, error } = await invoke(payload);
-          if (error || !data?.calculated) {
-            unavailableReason ||= data?.reason || error?.message || 'route_service_unavailable';
-            return null;
-          }
-          if (data.cached) {
-            cacheHits += 1;
-            planningPerfCount('cacheHits');
-          } else {
-            googleCalls += 1;
-            planningPerfCount('googleCalls');
-          }
-          const route = {
-            distance_km: Number(data.distance_km),
-            duration_minutes: Number(data.duration_minutes),
-            cached: !!data.cached
-          };
-          if (Number.isFinite(route.distance_km) && Number.isFinite(route.duration_minutes)) {
-            persistentCache.set(matrixKey, route);
-          }
-          return route;
-        }
+      const existing = pendingByMatrixKey.get(matrixKey);
+      if (existing) {
+        existing.waiters.push({ resolve, reject });
+        return;
+      }
+      pendingByMatrixKey.set(matrixKey, {
+        matrixKey,
+        payload,
+        waiters: [{ resolve, reject }]
       });
-      pump();
+      scheduleBatchFlush();
     });
     const sharedPromise = promise.then((result) => {
       if (!result) matrixPromises.delete(matrixKey);
@@ -253,12 +328,26 @@ export function createRouteClient({
     return hit ? { ...hit, cached: true } : null;
   };
 
+  const flush = () => new Promise((resolve) => {
+    const wait = () => {
+      if (pendingByMatrixKey.size === 0 && activeBatches === 0) {
+        resolve(undefined);
+        return;
+      }
+      queueMicrotask(wait);
+    };
+    pumpBatches();
+    wait();
+  });
+
   return {
     request,
     peek,
+    flush,
     get unavailableReason() { return unavailableReason; },
     get googleCalls() { return googleCalls; },
     get cacheHits() { return cacheHits; },
+    get batchInvokes() { return batchInvokes; },
     get requests() { return requests.slice(); }
   };
 }

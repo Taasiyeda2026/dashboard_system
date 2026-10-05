@@ -151,6 +151,58 @@ function sectorMatchesActivity(window = {}, activity = {}) {
   return !activitySector || activitySector === windowSector;
 }
 
+export async function acquireSchedulingPlanningRunLease({
+  periodKey = 'year',
+  district = '',
+  runId = '',
+  ttlSeconds = 900
+} = {}) {
+  const run_id = text(runId);
+  if (!run_id) throw new Error('planning_run_id_required');
+  const { data, error } = await supabase.rpc('acquire_scheduling_planning_run_lease', {
+    p_period_key: text(periodKey) || 'year',
+    p_district: text(district),
+    p_run_id: run_id,
+    p_ttl_seconds: Number.isFinite(Number(ttlSeconds)) ? Number(ttlSeconds) : 900
+  });
+  if (error) throw error;
+  return data && typeof data === 'object' ? data : { acquired: false };
+}
+
+export async function heartbeatSchedulingPlanningRunLease({
+  periodKey = 'year',
+  district = '',
+  runId = '',
+  ttlSeconds = 900
+} = {}) {
+  const run_id = text(runId);
+  if (!run_id) return { ok: false, reason: 'planning_run_id_required' };
+  const { data, error } = await supabase.rpc('heartbeat_scheduling_planning_run_lease', {
+    p_period_key: text(periodKey) || 'year',
+    p_district: text(district),
+    p_run_id: run_id,
+    p_ttl_seconds: Number.isFinite(Number(ttlSeconds)) ? Number(ttlSeconds) : 900
+  });
+  if (error) throw error;
+  return data && typeof data === 'object' ? data : { ok: false };
+}
+
+export async function releaseSchedulingPlanningRunLease({
+  periodKey = 'year',
+  district = '',
+  runId = ''
+} = {}) {
+  const run_id = text(runId);
+  if (!run_id) return { released: false, reason: 'planning_run_id_required' };
+  const { data, error } = await supabase.rpc('release_scheduling_planning_run_lease', {
+    p_period_key: text(periodKey) || 'year',
+    p_district: text(district),
+    p_run_id: run_id
+  });
+  if (error) throw error;
+  return data && typeof data === 'object' ? data : { released: false };
+}
+
 export async function loadSharedPlanningWorkspace({ periodKey = 'year', district = '' } = {}) {
   const { data, error } = await supabase.rpc('get_scheduling_planning_workspace', {
     p_period_key: text(periodKey) || 'year',

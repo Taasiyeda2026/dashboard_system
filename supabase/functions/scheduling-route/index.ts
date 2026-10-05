@@ -1656,6 +1656,233 @@ async function runBuildCache(db: DbClient, key: string, payload: Record<string, 
   });
 }
 
+type DynamicRouteRequest = {
+  route_key?: string;
+  origin: string;
+  destination: string;
+  origin_school_name?: string;
+  origin_authority_name?: string;
+  destination_school_name?: string;
+  destination_authority_name?: string;
+};
+
+type RouteLookupPayload = {
+  routeKey: string;
+  origin: string;
+  destination: string;
+  originKey: string;
+  destinationKey: string;
+  queryOrigin: string;
+  queryDestination: string;
+};
+
+const MAX_BATCH_LOOKUP_PAIRS = 80;
+const BATCH_LOOKUP_DEST_CHUNK = 20;
+const BATCH_LOOKUP_GOOGLE_CONCURRENCY = 6;
+
+function buildDynamicRoutePayload(raw: DynamicRouteRequest): RouteLookupPayload | null {
+  const origin = text(raw.origin);
+  const destination = text(raw.destination);
+  if (!origin || !destination || origin.length > 500 || destination.length > 500) return null;
+  const originSchoolName = text(raw.origin_school_name).slice(0, 200);
+  const originAuthorityName = text(raw.origin_authority_name).slice(0, 200);
+  const destinationSchoolName = text(raw.destination_school_name).slice(0, 200);
+  const destinationAuthorityName = text(raw.destination_authority_name).slice(0, 200);
+  const queryOrigin = originSchoolName || originAuthorityName
+    ? buildGoogleAddressQuery({ schoolName: originSchoolName, address: origin, authorityName: originAuthorityName })
+    : buildGoogleAddressQuery({ address: origin });
+  const queryDestination = destinationSchoolName || destinationAuthorityName
+    ? buildGoogleAddressQuery({
+      schoolName: destinationSchoolName,
+      address: destination,
+      authorityName: destinationAuthorityName
+    })
+    : buildGoogleAddressQuery({ address: destination });
+  const originKey = cacheKey(origin);
+  const destinationKey = cacheKey(destination);
+  const routeKey = text(raw.route_key) || `${originKey}→${destinationKey}`;
+  return {
+    routeKey,
+    origin,
+    destination,
+    originKey,
+    destinationKey,
+    queryOrigin,
+    queryDestination
+  };
+}
+
+async function loadDynamicRouteCacheRows(db: DbClient, pairs: RouteLookupPayload[]) {
+  const cacheByRoute = new Map<string, Record<string, unknown>>();
+  const destinationsByOrigin = new Map<string, Set<string>>();
+  for (const pair of pairs) {
+    const destinations = destinationsByOrigin.get(pair.originKey) || new Set<string>();
+    destinations.add(pair.destinationKey);
+    destinationsByOrigin.set(pair.originKey, destinations);
+  }
+  const exactLookups: Array<{ originKey: string; destinationKeys: string[] }> = [];
+  for (const [originKey, destinations] of destinationsByOrigin) {
+    const destinationKeys = [...destinations];
+    for (let index = 0; index < destinationKeys.length; index += BATCH_LOOKUP_DEST_CHUNK) {
+      exactLookups.push({ originKey, destinationKeys: destinationKeys.slice(index, index + BATCH_LOOKUP_DEST_CHUNK) });
+    }
+  }
+  const legacyResults = await mapWithConcurrency(exactLookups, BATCH_CONCURRENCY, async (lookup) => {
+    const { data, error } = await db
+      .from('scheduling_travel_cache')
+      .select('*')
+      .eq('origin_key', lookup.originKey)
+      .in('destination_key', lookup.destinationKeys);
+    return { data: (data || []) as Record<string, unknown>[], error };
+  });
+  const legacyError = legacyResults.find((result) => result.error)?.error || null;
+  if (legacyError) return { error: legacyError, cacheByRoute };
+  for (const result of legacyResults) {
+    for (const row of result.data) {
+      const originKey = text(row.origin_key);
+      const destinationKey = text(row.destination_key);
+      if (originKey && destinationKey) cacheByRoute.set(`${originKey}->${destinationKey}`, row);
+    }
+  }
+  return { error: null, cacheByRoute };
+}
+
+async function persistDynamicRoute(
+  db: DbClient,
+  pair: RouteLookupPayload,
+  route: { distance_km: number; duration_minutes: number; provider?: string },
+  hadPrevious: boolean
+) {
+  const { error: cacheWriteError } = await db.from('scheduling_travel_cache').upsert({
+    origin_key: pair.originKey,
+    destination_key: pair.destinationKey,
+    distance_km: route.distance_km,
+    duration_minutes: route.duration_minutes,
+    provider: route.provider || 'google',
+    calculated_at: new Date().toISOString(),
+    expires_at: PERMANENT_CACHE_EXPIRES_AT,
+    origin_address: pair.origin,
+    destination_address: pair.destination,
+    query_origin_address: pair.queryOrigin,
+    query_destination_address: pair.queryDestination
+  });
+  if (cacheWriteError) {
+    return { calculated: false as const, reason: 'cache_write_failed', error: 'cache_write_failed' };
+  }
+  return {
+    calculated: true as const,
+    cached: false as const,
+    renewed: hadPrevious,
+    distance_km: route.distance_km,
+    duration_minutes: route.duration_minutes
+  };
+}
+
+async function resolveDynamicRoutePair(
+  db: DbClient,
+  googleKey: string,
+  pair: RouteLookupPayload,
+  cached: Record<string, unknown> | null | undefined
+) {
+  const hadPrevious = !!cached;
+  if (cached && isLookupCacheValid(cached, pair.origin, pair.destination)) {
+    return {
+      calculated: true as const,
+      cached: true as const,
+      renewed: false as const,
+      needs_refresh: needsRefresh(cached),
+      distance_km: Number(cached.distance_km),
+      duration_minutes: Number(cached.duration_minutes)
+    };
+  }
+
+  if (isSamePlace(pair.origin, pair.destination)) {
+    const zero = await persistDynamicRoute(db, pair, { distance_km: 0, duration_minutes: 0, provider: 'same_school' }, hadPrevious);
+    return zero;
+  }
+
+  const route = await computeRoute(pair.queryOrigin, pair.queryDestination, googleKey);
+  if (!route.ok) {
+    return {
+      calculated: false as const,
+      reason: route.reason,
+      error: route.reason
+    };
+  }
+  return persistDynamicRoute(db, pair, route, hadPrevious);
+}
+
+async function runBatchDynamicRouteLookup(db: DbClient, googleKey: string, payload: Record<string, unknown>) {
+  const rawPairs = Array.isArray(payload.pairs) ? payload.pairs as DynamicRouteRequest[] : [];
+  if (!rawPairs.length) return jsonResponse({ error: 'missing_pairs' }, 400);
+  if (rawPairs.length > MAX_BATCH_LOOKUP_PAIRS) {
+    return jsonResponse({ error: 'batch_too_large', max: MAX_BATCH_LOOKUP_PAIRS }, 400);
+  }
+
+  const byRouteKey = new Map<string, RouteLookupPayload>();
+  for (const raw of rawPairs) {
+    const built = buildDynamicRoutePayload(raw);
+    if (!built) continue;
+    if (!byRouteKey.has(built.routeKey)) byRouteKey.set(built.routeKey, built);
+  }
+  const pairs = [...byRouteKey.values()];
+  if (!pairs.length) return jsonResponse({ error: 'missing_or_invalid_locations' }, 400);
+
+  const { error: cacheReadError, cacheByRoute } = await loadDynamicRouteCacheRows(db, pairs);
+  if (cacheReadError) {
+    return jsonResponse({ calculated: false, reason: 'cache_read_failed', error: 'cache_read_failed' }, 500);
+  }
+
+  const results: Record<string, Record<string, unknown>> = {};
+  const unresolved: RouteLookupPayload[] = [];
+  let cacheHits = 0;
+
+  for (const pair of pairs) {
+    const cached = cacheByRoute.get(`${pair.originKey}->${pair.destinationKey}`) || null;
+    if (cached && isLookupCacheValid(cached, pair.origin, pair.destination)) {
+      cacheHits += 1;
+      results[pair.routeKey] = {
+        calculated: true,
+        cached: true,
+        renewed: false,
+        needs_refresh: needsRefresh(cached),
+        distance_km: Number(cached.distance_km),
+        duration_minutes: Number(cached.duration_minutes)
+      };
+      continue;
+    }
+    unresolved.push(pair);
+  }
+
+  const googleOutcomes = await mapWithConcurrency(unresolved, BATCH_LOOKUP_GOOGLE_CONCURRENCY, async (pair) => {
+    const cached = cacheByRoute.get(`${pair.originKey}->${pair.destinationKey}`) || null;
+    const outcome = await resolveDynamicRoutePair(db, googleKey, pair, cached);
+    return { pair, outcome };
+  });
+
+  let googleCalls = 0;
+  for (const item of googleOutcomes) {
+    if (item instanceof Error) continue;
+    const { pair, outcome } = item;
+    results[pair.routeKey] = outcome as Record<string, unknown>;
+    if (outcome.calculated && outcome.cached === false && outcome.reason !== 'cache_write_failed') {
+      googleCalls += 1;
+    }
+  }
+
+  return jsonResponse({
+    batch_lookup: true,
+    calculated: true,
+    results,
+    stats: {
+      requested: pairs.length,
+      cache_hits: cacheHits,
+      google_calls: googleCalls,
+      unresolved: unresolved.length
+    }
+  });
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   if (req.method !== 'POST') return jsonResponse({ error: 'method_not_allowed' }, 405);
@@ -1712,6 +1939,10 @@ Deno.serve(async (req) => {
   if (mode === 'coverage') {
     payload.coverage_only = true;
     return runBuildCache(db, key, payload);
+  }
+  if (mode === 'batch_lookup') {
+    if (!key) return jsonResponse({ error: 'google_key_not_configured', reason: 'google_key_not_configured' }, 503);
+    return runBatchDynamicRouteLookup(db, key, payload);
   }
   if (!key) return jsonResponse({ error: 'google_key_not_configured', reason: 'google_key_not_configured' }, 503);
   if (wantsBuild) {
