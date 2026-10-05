@@ -2364,7 +2364,7 @@ export function resultsHtml(result, month = '', options = {}) {
         finishControls = `<div class="attendance-control__employee-actions"><span class="attendance-control__manual-note" data-payroll-readonly-notice>${escapeHtml(EMPLOYEE_MONTH_NOT_SUBMITTED_READONLY_MESSAGE)}</span></div>`;
       } else if (writeAllowed) {
         const addRecordBtn = canManagerAddMissingAttendanceRecord(workflowRow)
-          ? `<button type="button" class="ds-btn" data-attendance-add-record="${escapeHtml(employee.id)}" data-attendance-add-employee-name="${escapeHtml(employee.name)}">+ הוספת דיווח שנשכח</button>`
+          ? `<button type="button" class="ds-btn" data-attendance-add-record="${escapeHtml(employee.id)}" data-attendance-add-employee-name="${escapeHtml(employee.name)}" title="הוספת רשומה" aria-label="הוספת רשומה">+</button>`
           : '';
         const finalizeBtn = finalizeAllowed
           ? `<button type="button" class="ds-btn ds-btn--primary" data-payroll-finish="${escapeHtml(employee.id)}" data-payroll-employee-name="${shown(employee.name)}"${pendingRecordCount ? ' disabled' : ''}>אישור מנהל</button>`
