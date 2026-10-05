@@ -71,7 +71,7 @@ import {
   DEFAULT_PLANNING_PERIOD_KEY,
   FIRST_HALF_COUNT_START_DATE,
   PLANNING_ENGINE_VERSION,
-  PLANNING_VALIDATION_VERSION,
+  isPlanningValidationCurrent,
   applyPlanningLockToRow,
   buildDynamicCoursePlan,
   buildPlanningCompletionRows,
@@ -2502,11 +2502,10 @@ export const courseSchedulingScreen = {
       const profiles = snapshot?.scheduling?.profiles || state.courseSchedulingProfiles || state.profiles || {};
       const rules = snapshot?.scheduling?.rules || state.courseSchedulingRules || state.rules || {};
       const exceptions = snapshot?.scheduling?.exceptions || state.courseSchedulingExceptions || state.exceptions || {};
-      const validationChanged = !!workspace && (
-        storedEngineVersion !== PLANNING_ENGINE_VERSION
-        || !String(storedEngineVersion || '').includes(PLANNING_VALIDATION_VERSION)
-      );
-      void validationChanged;
+      // Mid engine-upgrade: do not persist validity-audit dirty flags — that bumps
+      // revision and invents dirty rows without a real source mutation, aborting commit.
+      // Currency SoT is engine equality only (see isPlanningValidationCurrent).
+      const validationChanged = !!workspace && !isPlanningValidationCurrent(storedEngineVersion);
       const audit = applyStoredPlanningValidityAudit(state, {
         shared,
         activities: snapshot?.activities || [],
@@ -2515,7 +2514,7 @@ export const courseSchedulingScreen = {
         rules,
         exceptions,
         schoolCalendar: snapshot?.schoolCalendar || [],
-        persist: !data._is_stale
+        persist: !data._is_stale && !validationChanged
       });
       const mergedAffectedIds = [...new Set([
         ...affectedIds.map(text).filter(Boolean),
@@ -2739,15 +2738,33 @@ export const courseSchedulingScreen = {
 
       try {
         const stopSnapshotLoad = planningPerfTimer('snapshotLoad');
-        const [freshStart, shared] = await Promise.all([
-          reuseSnapshot && Array.isArray(data.activities) && data.activities.length
-            ? Promise.resolve(data)
-            : data.reloadPlanningSnapshot(),
-          loadSharedPlanningWorkspace({ periodKey: scope.periodKey, district: scope.district })
-        ]);
+        // Load the workspace first so engine-upgrade / force-full can refuse a
+        // reused UI/session snapshot and start from an authoritative source.
+        const shared = await loadSharedPlanningWorkspace({
+          periodKey: scope.periodKey,
+          district: scope.district
+        });
+        assertRunOwnership();
+        const storedEngineForSnapshot = text(shared?.workspace?.engineVersion);
+        const engineMismatchForSnapshot = !!shared?.workspace
+          && !!storedEngineForSnapshot
+          && storedEngineForSnapshot !== PLANNING_ENGINE_VERSION;
+        const allowReuseSnapshot = reuseSnapshot === true
+          && forceFull !== true
+          && !engineMismatchForSnapshot
+          && Array.isArray(data.activities)
+          && data.activities.length > 0;
+        const freshStart = allowReuseSnapshot
+          ? data
+          : await data.reloadPlanningSnapshot();
         stopSnapshotLoad();
         assertRunOwnership();
         Object.assign(data, freshStart);
+        planningPerfEvent('snapshot-source', {
+          reused: allowReuseSnapshot === true,
+          engineMismatch: engineMismatchForSnapshot === true,
+          forceFull: forceFull === true
+        });
 
         const startFingerprintInput = planningInputFromSnapshot(freshStart, scope.periodKey);
         const startFingerprint = planningDataFingerprint(startFingerprintInput);
@@ -3182,35 +3199,12 @@ export const courseSchedulingScreen = {
         }
 
         assertRunOwnership();
-        // Persist a validated checkpoint before the canonical workspace commit so an
-        // interruption after calculation does not force a full expensive recompute.
-        if (persistServerCheckpoints && Array.isArray(result?.rows) && result.rows.length) {
-          try {
-            await saveSharedPlanningCheckpoint({
-              periodKey: scope.periodKey,
-              district: scope.district,
-              engineVersion: PLANNING_ENGINE_VERSION,
-              dataFingerprint: startFingerprint,
-              contextFingerprint: startContextStorage,
-              completedCount: result.rows.length,
-              totalCount: result.rows.length,
-              completedActivityIds: result.rows.map((row) => text(row?.courseId)).filter(Boolean),
-              rows: result.rows,
-              meta: {
-                ...checkpointMetaBase,
-                phase: PLANNING_RUN_PHASES.VALIDATED,
-                validatedAt: new Date().toISOString()
-              }
-            });
-            state.courseSchedulingPlanningRunDiagnostics = {
-              ...state.courseSchedulingPlanningRunDiagnostics,
-              phase: PLANNING_RUN_PHASES.VALIDATED
-            };
-          } catch {
-            // Validation checkpoint is best-effort; commit may still succeed.
-          }
-        }
-        const skipEndReload = !fullRun && affectedIds.length > 0 && affectedIds.length <= AUTO_PLANNING_REFRESH_MAX_IDS;
+        // Authoritative end validation MUST happen before VALIDATED. Engine-upgrade
+        // always reloads so a reused UI snapshot cannot silently diverge.
+        const skipEndReload = !fullRun
+          && runPlan.runType !== PLANNING_RUN_TYPES.ENGINE_UPGRADE
+          && affectedIds.length > 0
+          && affectedIds.length <= AUTO_PLANNING_REFRESH_MAX_IDS;
         const freshEnd = skipEndReload ? freshStart : await data.reloadPlanningSnapshot();
         assertRunOwnership();
         const endFingerprintInput = planningInputFromSnapshot(freshEnd, scope.periodKey);
@@ -3243,6 +3237,8 @@ export const courseSchedulingScreen = {
             });
 
             if (changedActivityIds.size && stableRows.length) {
+              // Real source change: commit only the unaffected calculated scope.
+              // Never stamp VALIDATED for a run whose source already drifted.
               const savedPartial = await saveSharedPlanningSnapshot({
                 periodKey: scope.periodKey,
                 district: scope.district,
@@ -3266,6 +3262,12 @@ export const courseSchedulingScreen = {
               const pendingCount = (state.courseSchedulingPlanningAffectedIds || []).length;
               rerunChangedAfterSave = pendingCount > 0;
               state.courseSchedulingPlanningError = '';
+              state.courseSchedulingPlanningRunDiagnostics = {
+                ...state.courseSchedulingPlanningRunDiagnostics,
+                phase: PLANNING_RUN_PHASES.COMMITTED,
+                status: 'partial-commit-source-changed',
+                changedActivityIds: [...changedActivityIds].slice(0, 50)
+              };
               if (runUiVisible()) {
                 showToast(
                   `התכנון נשמר: ${stableRows.length} פעילויות נשמרו, ו-${pendingCount} פעילויות שהשתנו יעודכנו כעת.`,
@@ -3278,12 +3280,49 @@ export const courseSchedulingScreen = {
 
           applySharedPlanningState(shared, freshEnd);
           state.courseSchedulingPlanningError = 'נתוני השיבוץ השתנו בזמן החישוב. התוצאה לא נשמרה; יש לעדכן רק את השינויים.';
+          state.courseSchedulingPlanningRunDiagnostics = {
+            ...state.courseSchedulingPlanningRunDiagnostics,
+            phase: PLANNING_RUN_PHASES.FAILED_RESUMABLE,
+            status: 'source-changed-before-validate'
+          };
           return;
+        }
+
+        assertRunOwnership();
+        // Source is still valid → mark VALIDATED, then commit atomically.
+        if (persistServerCheckpoints && Array.isArray(result?.rows) && result.rows.length) {
+          try {
+            await saveSharedPlanningCheckpoint({
+              periodKey: scope.periodKey,
+              district: scope.district,
+              engineVersion: PLANNING_ENGINE_VERSION,
+              dataFingerprint: endFingerprint,
+              contextFingerprint: endContextStorage,
+              completedCount: result.rows.length,
+              totalCount: result.rows.length,
+              completedActivityIds: result.rows.map((row) => text(row?.courseId)).filter(Boolean),
+              rows: result.rows,
+              meta: {
+                ...checkpointMetaBase,
+                dataFingerprint: endFingerprint,
+                contextFingerprint: endContextStorage,
+                phase: PLANNING_RUN_PHASES.VALIDATED,
+                validatedAt: new Date().toISOString()
+              }
+            });
+            state.courseSchedulingPlanningRunDiagnostics = {
+              ...state.courseSchedulingPlanningRunDiagnostics,
+              phase: PLANNING_RUN_PHASES.VALIDATED
+            };
+          } catch {
+            // Validation checkpoint is best-effort; commit may still succeed.
+          }
         }
 
         assertRunOwnership();
         const stopWorkspaceSave = planningPerfTimer('workspaceSave');
         const finalRows = result.rows || [];
+        const commitExpectedRevision = Number(shared?.workspace?.revision) || 0;
         const saved = fullRun
           ? await saveSharedPlanningSnapshot({
               periodKey: scope.periodKey,
@@ -3293,7 +3332,7 @@ export const courseSchedulingScreen = {
               contextFingerprint: endContextStorage,
               rows: finalRows,
               activities: freshEnd.activities || [],
-              expectedRevision: Number(shared?.workspace?.revision) || 0
+              expectedRevision: commitExpectedRevision
             })
           : await (() => {
               const existingById = new Map(existingRows
@@ -3328,7 +3367,7 @@ export const courseSchedulingScreen = {
                 rows: incrementalRows,
                 removedActivityIds,
                 activities: freshEnd.activities || [],
-                expectedRevision: Number(shared?.workspace?.revision) || 0
+                expectedRevision: commitExpectedRevision
               });
             })();
         stopWorkspaceSave();
@@ -3601,7 +3640,14 @@ export const courseSchedulingScreen = {
       // patched into the live screen data. Reuse it instead of reloading every
       // scheduling dataset before affectedIds are even evaluated. Session-restored
       // data is explicitly stale, so that one path still performs a fresh load.
-      const reuseSnapshot = data._is_stale !== true
+      // Engine-upgrade must never reuse a UI/session snapshot — force a reload.
+      const storedEngine = text(
+        state.courseSchedulingPlanningStoredEngineVersion
+        || state.courseSchedulingPlanningShared?.workspace?.engineVersion
+      );
+      const engineMismatch = !!storedEngine && storedEngine !== PLANNING_ENGINE_VERSION;
+      const reuseSnapshot = !engineMismatch
+        && data._is_stale !== true
         && Array.isArray(data.activities)
         && data.activities.length > 0;
       void runCoursePlanning({ forceFull: false, reuseSnapshot });

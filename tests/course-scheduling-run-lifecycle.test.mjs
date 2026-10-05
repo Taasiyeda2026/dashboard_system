@@ -615,3 +615,255 @@ test('createPlanningCheckpoint still cancels through cooperative packing', async
     (error) => error?.code === 'planning_cancelled'
   );
 });
+
+test('legacy validity audit never persists while engine/validation version is behind', async () => {
+  const source = await readFile(new URL('../frontend/src/screens/course-scheduling.js', import.meta.url), 'utf8');
+  assert.match(source, /persist:\s*!data\._is_stale\s*&&\s*!validationChanged/);
+  assert.doesNotMatch(source, /void validationChanged/);
+  assert.match(source, /!isPlanningValidationCurrent\(storedEngineVersion\)/);
+  assert.doesNotMatch(source, /\.includes\(PLANNING_VALIDATION_VERSION\)/);
+});
+
+test('matching PLANNING_ENGINE_VERSION is validation-current (no bogus includes SoT)', async () => {
+  const {
+    PLANNING_ENGINE_VERSION,
+    PLANNING_VALIDATION_VERSION,
+    isPlanningValidationCurrent
+  } = await import('../frontend/src/screens/course-scheduling-planning.js');
+  assert.equal(isPlanningValidationCurrent(PLANNING_ENGINE_VERSION), true);
+  assert.equal(
+    String(PLANNING_ENGINE_VERSION || '').includes(PLANNING_VALIDATION_VERSION),
+    false,
+    'engine token must not be assumed to contain the validation token'
+  );
+  assert.equal(isPlanningValidationCurrent('planning-v27-anything'), false);
+  assert.equal(isPlanningValidationCurrent(''), false);
+});
+
+test('engine-upgrade refuses reused UI/session snapshot and always reloads end source', async () => {
+  const source = await readFile(new URL('../frontend/src/screens/course-scheduling.js', import.meta.url), 'utf8');
+  assert.match(source, /allowReuseSnapshot = reuseSnapshot === true/);
+  assert.match(source, /!engineMismatchForSnapshot/);
+  assert.match(source, /snapshot-source/);
+  assert.match(source, /runPlan\.runType !== PLANNING_RUN_TYPES\.ENGINE_UPGRADE/);
+  const updateHandlerStart = source.indexOf("root.querySelector('[data-run-course-planning]')?.addEventListener");
+  const updateHandlerEnd = source.indexOf("root.querySelector('[data-refresh-shared-planning]')", updateHandlerStart);
+  const updateHandler = source.slice(updateHandlerStart, updateHandlerEnd);
+  assert.match(updateHandler, /const reuseSnapshot = !engineMismatch/);
+});
+
+test('VALIDATED checkpoint is written only after authoritative end fingerprint validation', async () => {
+  const source = await readFile(new URL('../frontend/src/screens/course-scheduling.js', import.meta.url), 'utf8');
+  const endCheck = source.indexOf('if (startFingerprint !== endFingerprint)');
+  const validatedWrite = source.indexOf('phase: PLANNING_RUN_PHASES.VALIDATED', endCheck);
+  assert.ok(endCheck >= 0, 'expected end fingerprint gate');
+  assert.ok(validatedWrite > endCheck, 'VALIDATED must come after end fingerprint check');
+  // No VALIDATED write may appear before the end fingerprint gate inside the run.
+  const runStart = source.indexOf('const runCoursePlanning = async');
+  const prematureValidated = source.slice(runStart, endCheck).includes('phase: PLANNING_RUN_PHASES.VALIDATED');
+  assert.equal(prematureValidated, false, 'must not stamp VALIDATED before end validation');
+  assert.match(source, /source-changed-before-validate/);
+});
+
+test('production recovery from v27/rev11741/dirty113 rejects stale checkpoint and stays engine-upgrade', () => {
+  const fixture = workspaceScaleFixture();
+  // Mirror the live failed-upgrade workspace: revision already bumped, dirty rows present.
+  const dirtyIds = fixture.activities.slice(0, 113).map((row) => row.row_id);
+  const shared = {
+    workspace: {
+      engineVersion: fixture.shared.workspace.engineVersion,
+      revision: 11741
+    },
+    rows: fixture.shared.rows.map((entry) => ({
+      ...entry,
+      needsRecalc: dirtyIds.includes(entry.activityId)
+    }))
+  };
+  const scopes = planningEngineUpgradeOptimizationScopes({
+    shared,
+    activities: fixture.activities,
+    storedEngineVersion: shared.workspace.engineVersion,
+    currentEngineVersion: fixture.currentEngine
+  });
+  const execution = planningEngineUpgradeExecutionScopes({
+    regularAffectedIds: dirtyIds,
+    engineUpgradeAffectedIds: scopes.affectedIds,
+    storedEngineVersion: shared.workspace.engineVersion,
+    currentEngineVersion: fixture.currentEngine
+  });
+  const staleCheckpoint = decodeCheckpointPayload({
+    rows: encodeCheckpointRows(
+      dirtyIds.slice(0, 5).map((courseId) => ({ courseId, kind: 'proposal' })),
+      {
+        runType: PLANNING_RUN_TYPES.ENGINE_UPGRADE,
+        phase: PLANNING_RUN_PHASES.VALIDATED,
+        workspaceRevision: 11740,
+        engineTo: fixture.currentEngine,
+        dataFingerprint: 'old',
+        contextFingerprint: 'old',
+        baseRecalculationIds: [],
+        schoolPackingCourseIds: scopes.schoolPackingCourseIds.slice(0, 3),
+        recruitmentRecoveryCourseIds: [],
+        workdayConsolidationCourseIds: []
+      }
+    ),
+    completedActivityIds: dirtyIds.slice(0, 5)
+  });
+
+  const plan = resolvePlanningRunPlan({
+    shared,
+    currentCourseIds: fixture.activities.map((row) => row.row_id),
+    regularAffectedIds: dirtyIds,
+    engineUpgradeAffectedIds: scopes.affectedIds,
+    upgradeOptimizationScopes: scopes,
+    upgradeExecution: execution,
+    storedEngineVersion: shared.workspace.engineVersion,
+    currentEngineVersion: fixture.currentEngine,
+    currentDataFingerprint: 'live-data',
+    currentContextFingerprint: 'live-ctx',
+    resumableCheckpoint: staleCheckpoint
+  });
+
+  assert.equal(plan.runType, PLANNING_RUN_TYPES.ENGINE_UPGRADE);
+  assert.notEqual(plan.runType, PLANNING_RUN_TYPES.FULL_MAINTENANCE);
+  assert.equal(plan.resume, null, 'checkpoint for rev 11740 must be rejected against workspace 11741');
+  assert.ok(plan.baseRecalculationIds.length >= 1, 'dirty rows must drive incremental base work');
+  assert.ok(plan.baseRecalculationIds.length <= dirtyIds.length);
+  assert.ok(plan.affectedIds.length < fixture.activities.length, 'recovery must not become national rebuild');
+  assert.equal(plan.preloadRouteCache, false);
+
+  const afterSuccess = resolvePlanningRunPlan({
+    shared: {
+      workspace: { engineVersion: fixture.currentEngine, revision: 11742 },
+      rows: shared.rows.map((entry) => ({ ...entry, needsRecalc: false }))
+    },
+    currentCourseIds: fixture.activities.map((row) => row.row_id),
+    regularAffectedIds: [],
+    engineUpgradeAffectedIds: [],
+    storedEngineVersion: fixture.currentEngine,
+    currentEngineVersion: fixture.currentEngine,
+    currentDataFingerprint: 'live-data',
+    currentContextFingerprint: 'live-ctx'
+  });
+  assert.equal(afterSuccess.runType, PLANNING_RUN_TYPES.NO_OP);
+  assert.equal(afterSuccess.advanceEngineMarker, false);
+  assert.deepEqual(afterSuccess.baseRecalculationIds, []);
+  assert.deepEqual(afterSuccess.schoolPackingCourseIds, []);
+  assert.deepEqual(afterSuccess.recruitmentRecoveryCourseIds, []);
+  assert.deepEqual(afterSuccess.workdayConsolidationCourseIds, []);
+  assert.equal(afterSuccess.persistServerCheckpoints, false);
+  assert.equal(afterSuccess.preloadRouteCache, false);
+});
+
+test('acceptance: recovery to dirty=0 + matching engine stays audit-clean and true no-op', async () => {
+  const {
+    PLANNING_ENGINE_VERSION,
+    isPlanningValidationCurrent
+  } = await import('../frontend/src/screens/course-scheduling-planning.js');
+  const {
+    auditStoredPlanningHardGates
+  } = await import('../frontend/src/screens/course-scheduling-date-adjustments.js');
+
+  assert.equal(isPlanningValidationCurrent(PLANNING_ENGINE_VERSION), true);
+
+  // Simulate post-incremental workspace: engine current, dirty cleared.
+  const date = '2027-01-04'; // Monday UTC
+  const activityId = 'act-clean';
+  const shared = {
+    workspace: { engineVersion: PLANNING_ENGINE_VERSION, revision: 11748 },
+    rows: [
+      {
+        activityId,
+        needsRecalc: false,
+        row: {
+          kind: 'proposal',
+          courseId: activityId,
+          schoolId: '2215',
+          instructorEmpId: '100',
+          meetings: [{ date, start_time: '09:00', end_time: '10:00' }]
+        }
+      }
+    ]
+  };
+  const activities = [{
+    row_id: activityId,
+    sessions: 1,
+    school_id: 2215,
+    calendar_sector: 'druze',
+    instruction_language: 'he',
+    required_instructor_gender: 'any'
+  }];
+  const schoolCalendar = [
+    {
+      calendar_sector: 'arab',
+      blocks_scheduling: true,
+      is_active: true,
+      start_date: date,
+      end_date: date,
+      title: 'חופשה ערבית שאינה חלה על דרוזי'
+    },
+    {
+      calendar_sector: 'jewish',
+      blocks_scheduling: true,
+      is_active: true,
+      start_date: date,
+      end_date: date,
+      title: 'חופשה יהודית שאינה חלה על דרוזי'
+    }
+  ];
+  const rules = {
+    100: [0, 1, 2, 3, 4, 5].map((weekday) => ({
+      weekday,
+      available: true,
+      start_time: '08:00',
+      end_time: '16:00'
+    }))
+  };
+
+  // Reload validity audit must not invent dirty rows when the plan is sector-correct.
+  const audit = auditStoredPlanningHardGates({
+    shared,
+    activities,
+    instructors: [{ emp_id: '100', active: 'yes' }],
+    profiles: { 100: { gender: 'female', instruction_languages: ['he'] } },
+    rules,
+    exceptions: {},
+    schoolCalendar
+  });
+  assert.deepEqual(audit.invalidActivityIds, []);
+  assert.equal(audit.hardGateInvalidCount, 0);
+  assert.equal(shared.rows.filter((row) => row.needsRecalc).length, 0);
+
+  // Second run with matching engine + dirty=0 is a true no-op: no recalc/packing/routes/checkpoint.
+  const plan = resolvePlanningRunPlan({
+    shared,
+    currentCourseIds: [activityId],
+    regularAffectedIds: [],
+    engineUpgradeAffectedIds: [],
+    storedEngineVersion: PLANNING_ENGINE_VERSION,
+    currentEngineVersion: PLANNING_ENGINE_VERSION,
+    currentDataFingerprint: 'fp',
+    currentContextFingerprint: 'ctx'
+  });
+  assert.equal(plan.runType, PLANNING_RUN_TYPES.NO_OP);
+  assert.equal(plan.advanceEngineMarker, false);
+  assert.deepEqual(plan.baseRecalculationIds, []);
+  assert.deepEqual(plan.schoolPackingCourseIds, []);
+  assert.deepEqual(plan.recruitmentRecoveryCourseIds, []);
+  assert.deepEqual(plan.workdayConsolidationCourseIds, []);
+  assert.deepEqual(plan.affectedIds, []);
+  assert.equal(plan.persistServerCheckpoints, false);
+  assert.equal(plan.preloadRouteCache, false);
+});
+
+test('real source change rejects full validated commit while scoped partial commit remains available', async () => {
+  const source = await readFile(new URL('../frontend/src/screens/course-scheduling.js', import.meta.url), 'utf8');
+  assert.match(source, /changedActivityIds\.size && stableRows\.length/);
+  assert.match(source, /partial-commit-source-changed|source-changed-before-validate/);
+  // Full VALIDATED+commit path is gated by matching fingerprints.
+  const endGate = source.indexOf('if (startFingerprint !== endFingerprint)');
+  const validated = source.indexOf('phase: PLANNING_RUN_PHASES.VALIDATED', endGate);
+  const commit = source.indexOf('const commitExpectedRevision', validated);
+  assert.ok(validated > endGate);
+  assert.ok(commit > validated);
+});

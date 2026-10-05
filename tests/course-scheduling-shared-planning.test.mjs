@@ -133,10 +133,11 @@ test('current shared planning has no incremental rerun button and click handler 
   const handler = screen.slice(handlerStart, handlerEnd);
   assert.match(handler, /const alreadyCurrent = pending === 0/);
   assert.match(handler, /if \(alreadyCurrent\) return/);
-  assert.match(handler, /const reuseSnapshot = data\._is_stale !== true/);
+  assert.match(handler, /const reuseSnapshot = !engineMismatch/);
+  assert.match(handler, /data\._is_stale !== true/);
   assert.match(handler, /Array\.isArray\(data\.activities\)/);
   assert.match(handler, /runCoursePlanning\(\{ forceFull: false, reuseSnapshot \}\)/);
-  assert.doesNotMatch(handler, /runCoursePlanning\(\{ forceFull: false, reuseSnapshot: false \}\)/);
+  assert.match(handler, /engineMismatch/);
   assert.doesNotMatch(handler, /forceFull = pending === 0/);
   assert.match(screen, /data-run-full-course-planning[\s\S]*forceFull: true/);
 });

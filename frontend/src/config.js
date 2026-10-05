@@ -360,3 +360,5 @@ config.HOTFIX_VERSION = `attendance-expense-modal-proportions-20261005-v1-${conf
 config.HOTFIX_VERSION = `scheduling-run-lifecycle-cooperative-packing-20261005-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `scheduling-run-plan-checkpoint-sot-marker-20261005-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `manager-attendance-pdf-approval-decouple-20261005-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `scheduling-upgrade-lifecycle-validate-before-commit-20261005-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `scheduling-validation-sot-sector-audit-20261005-v1-${config.HOTFIX_VERSION}`;
