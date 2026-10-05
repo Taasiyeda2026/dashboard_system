@@ -165,6 +165,16 @@ test('migration extends manager month mutation to reopened and adds create audit
   assert.doesNotMatch(migration, /v_status <> 'submitted'/);
 });
 
+test('create RPC blocks open and closed months even for admin bypass roles', () => {
+  const createStart = migration.indexOf('create or replace function public.create_manager_attendance_record');
+  assert.notEqual(createStart, -1);
+  const createRpc = migration.slice(createStart);
+  assert.match(createRpc, /from public\.attendance_month_approvals ama[\s\S]*for update/);
+  assert.match(createRpc, /v_status not in \('submitted', 'reopened'\)/);
+  assert.match(createRpc, /av2_attendance_month_is_closed\(p_employee_id, v_report_date\)/);
+  assert.match(createRpc, /attendance_month_locked/);
+});
+
 test('create RPC keeps direct-manager scope and instructor emp_id ownership', () => {
   assert.match(migration, /attendance_manager_can_review_employee\(p_employee_id\)/);
   assert.match(migration, /insert into public\.attendance_records[\s\S]*p_employee_id/);
