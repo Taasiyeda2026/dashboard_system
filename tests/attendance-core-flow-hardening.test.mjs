@@ -184,6 +184,12 @@ test('payroll PDF dispatch sends from the authenticated approver and keeps email
   assert.doesNotMatch(pdfHandler, /MS_MAIL_SENDER/);
 });
 
+test('manager PDF retry restores the original approver identity before sending email', () => {
+  assert.match(pdfHandler, /manager_approved_by_user_id/);
+  assert.match(pdfHandler, /auth_user_id=eq\.\$\{encodeURIComponent\(approverUserId\)\}/);
+  assert.match(pdfHandler, /currentUser = \(Array\.isArray\(approverRows\)/);
+});
+
 test('attendance PDF subsets Hebrew fonts safely and normalizes SharePoint Forms URLs', () => {
   assert.match(pdfHandler, /embedFont\(regularBytes, \{ subset: true \}\)/);
   assert.match(pdfHandler, /embedFont\(boldBytes, \{ subset: true \}\)/);
