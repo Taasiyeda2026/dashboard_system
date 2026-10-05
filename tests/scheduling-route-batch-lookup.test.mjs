@@ -68,4 +68,7 @@ test('planning run lease migration defines acquire and release RPCs', async () =
   assert.match(source, /acquire_scheduling_planning_run_lease/);
   assert.match(source, /release_scheduling_planning_run_lease/);
   assert.match(source, /period_key, district/);
+  assert.match(source, /existing\.run_id <> v_run_id/);
+  assert.match(source, /'reason', 'planning_run_locked'/);
+  assert.doesNotMatch(source, /set run_id = v_run_id/);
 });
