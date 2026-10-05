@@ -253,7 +253,9 @@ test('five-row school conflict never leaves overlapping proposals when existing 
 
 test('incremental updates scope gap compaction to incremental ids instead of scanning all proposals', async () => {
   const source = await readFile(new URL('../frontend/src/screens/course-scheduling-planning.js', import.meta.url), 'utf8');
-  assert.match(source, /targetCourseIds:\s*optimizationOnlyIds[\s\S]*?incrementalIds \? \[\.\.\.incrementalIds\] : null/);
+  assert.match(source, /const gapCompactionTargetIds = incrementalIds === null[\s\S]*?new Set\(incrementalIds\)/);
+  assert.match(source, /targetCourseIds:\s*gapCompactionTargetIds \? \[\.\.\.gapCompactionTargetIds\] : null/);
+  assert.doesNotMatch(source, /\.\.\.\(upgradeSchoolPackingIds \|\| \[\]\)[\s\S]*?\.\.\.\(upgradeWorkdayConsolidationIds \|\| \[\]\)/);
 });
 
 test('v27 upgrade rebuilds both flexible proposals and recruitment rows for school-first optimization', () => {
