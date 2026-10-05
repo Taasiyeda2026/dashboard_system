@@ -2318,7 +2318,7 @@ export function resultsHtml(result, month = '', options = {}) {
     const managerApprovedBy = workflowByEmployee[employee.id]?.manager_approved_by_name;
     const managerPdfUrl = workflowByEmployee[employee.id]?.manager_pdf_sharepoint_url;
     const managerApprovedHtml = workflow.status === 'manager_approved'
-      ? `<div class="attendance-control__approved"><span>אושר על ידי המנהל</span><span>${shown(managerApprovedBy)}</span><span>${shown(managerApprovedAt ? new Date(managerApprovedAt).toLocaleString('he-IL', { dateStyle: 'short', timeStyle: 'short' }) : '')}</span>${managerPdfUrl ? `<button type="button" class="ds-btn ds-btn--sm" data-payroll-open-sharepoint="${escapeHtml(String(managerPdfUrl))}">צפייה בדוח</button>` : ''}</div>`
+      ? `<div class="attendance-control__approved"><span>אושר על ידי המנהל</span><span>${shown(managerApprovedBy)}</span><span>${shown(managerApprovedAt ? new Date(managerApprovedAt).toLocaleString('he-IL', { dateStyle: 'short', timeStyle: 'short' }) : '')}</span>${managerPdfUrl ? `<button type="button" class="ds-btn ds-btn--sm" data-payroll-open-sharepoint="${escapeHtml(String(managerPdfUrl))}">צפייה בדוח</button>` : '<span class="attendance-control__manual-note">PDF בהפקה / ממתין ל־retry</span>'}</div>`
       : '';
     const approvedHtml = approval
       ? `<div class="attendance-control__approved"><span>אושר סופית</span><span>${shown(approval.approved_by_name)}</span><span>${shown(approval.approved_at ? new Date(approval.approved_at).toLocaleString('he-IL', { dateStyle: 'short', timeStyle: 'short' }) : '')}</span><button type="button" class="ds-btn ds-btn--sm" data-payroll-view-pdf="${escapeHtml(String(approval.id || ''))}">צפייה בדוח</button></div>`
@@ -2525,7 +2525,7 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
   const persistEntryCorrection = async (entry) => {
     assertEmployeeMonthMutableForManager(entry);
     // Literal path required: Vite/Rollup cannot rewrite `import(variable)` into a hashed chunk.
-    const finishMod = await import('./payroll-control-finish.js?v=20260927-training-km-field-choice-v2');
+    const finishMod = await import('./payroll-control-finish.js?v=20261005-manager-pdf-decouple-v1');
     const update = finishMod.buildAttendanceUpdatePayload(entry);
     if (!update.recordId) throw new Error('חסר מזהה רשומת נוכחות לעדכון.');
     if (!update.changed) {
@@ -3081,7 +3081,7 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
       try {
         assertEmployeeMonthMutableForManager(entry);
         approveAttendanceEntryCurrent(entry);
-        const finishMod = await import('./payroll-control-finish.js?v=20260927-training-km-field-choice-v2');
+        const finishMod = await import('./payroll-control-finish.js?v=20261005-manager-pdf-decouple-v1');
         const update = finishMod.buildAttendanceUpdatePayload(entry);
         if (!update.recordId) throw new Error('חסר מזהה רשומת נוכחות לאישור.');
         if (update.changed) {
@@ -3198,7 +3198,7 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
     if (viewBtn) {
       const approval = approvalFromButton(viewBtn);
       if (!approval) return;
-      const finishMod = await import('./payroll-control-finish.js?v=20260927-training-km-field-choice-v2');
+      const finishMod = await import('./payroll-control-finish.js?v=20261005-manager-pdf-decouple-v1');
       if (txt(approval.pdf_path).startsWith('http://') || txt(approval.pdf_path).startsWith('https://')) {
         window.open(approval.pdf_path, '_blank', 'noopener');
         return;
@@ -3227,14 +3227,14 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
     }
     finishBtn.disabled = true;
     try {
-      const finishMod = await import('./payroll-control-finish.js?v=20260927-training-km-field-choice-v2');
+      const finishMod = await import('./payroll-control-finish.js?v=20261005-manager-pdf-decouple-v1');
       if (finishMod.payrollEmployeeHasUnresolvedEntries(result, employeeId)) {
         setStatusMessage('לא ניתן לאשר את החודש: יש רשומות שעדיין לא אושרו על ידי מנהל הצוות.', { error: true });
         return;
       }
       const signed = await askForSignature(finishMod);
       if (!signed) { setStatusMessage('האישור בוטל.'); return; }
-      setStatusMessage('שומר אישור מנהל, מפיק PDF, שומר ב-SharePoint ושולח לעובד…');
+      setStatusMessage('שומר אישור מנהל…');
       const saved = await finishMod.approvePayrollControlEmployee({
         api,
         user: state?.user,
@@ -3258,7 +3258,9 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
         manager_pdf_sharepoint_url: saved?.manager_pdf_sharepoint_url || ''
       };
       paintResults();
-      if (saved?.mail_sent === false) {
+      if (saved?.pdf_pending) {
+        setStatusMessage('אישור המנהל נשמר והחודש ננעל. הפקת/שמירת ה-PDF נכשלה ותושלם אוטומטית ב־retry.', { error: true });
+      } else if (saved?.mail_sent === false) {
         setStatusMessage('אישור המנהל נשמר והחודש ננעל. ה-PDF נשמר ב-SharePoint, אך שליחת המייל לעובד נכשלה.', { error: true });
       } else {
         setStatusMessage('אישור המנהל נשמר בהצלחה, החודש ננעל והדוח נשלח לעובד.');

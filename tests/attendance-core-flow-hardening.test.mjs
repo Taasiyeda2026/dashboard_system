@@ -179,16 +179,25 @@ test('8 manager correction write-back clears prior review after successful save'
 test('payroll PDF dispatch sends from the authenticated approver and keeps email best-effort', () => {
   assert.match(pdfHandler, /email delivery failed after PDF persistence/);
   assert.match(pdfHandler, /mailSent: !mailError/);
-  assert.match(pdfHandler, /reusedExistingPdf: false/);
+  assert.match(pdfHandler, /reusedExistingPdf/);
   assert.match(pdfHandler, /currentUser\?\.auth_email \|\| currentUser\?\.email/);
   assert.doesNotMatch(pdfHandler, /MS_MAIL_SENDER/);
 });
 
-test('attendance PDF embeds full Hebrew fonts and never reuses stale orphan PDFs', () => {
-  assert.match(pdfHandler, /embedFont\(regularBytes, \{ subset: false \}\)/);
-  assert.match(pdfHandler, /embedFont\(boldBytes, \{ subset: false \}\)/);
-  assert.doesNotMatch(pdfHandler, /findExistingPdf\(/);
-  assert.doesNotMatch(pdfHandler, /subset: true/);
+test('manager PDF retry restores the original approver identity before sending email', () => {
+  assert.match(pdfHandler, /manager_approved_by_user_id/);
+  assert.match(pdfHandler, /auth_user_id=eq\.\$\{encodeURIComponent\(approverUserId\)\}/);
+  assert.match(pdfHandler, /currentUser = \(Array\.isArray\(approverRows\)/);
+});
+
+test('attendance PDF subsets Hebrew fonts safely and normalizes SharePoint Forms URLs', () => {
+  assert.match(pdfHandler, /embedFont\(regularBytes, \{ subset: true \}\)/);
+  assert.match(pdfHandler, /embedFont\(boldBytes, \{ subset: true \}\)/);
+  assert.match(pdfHandler, /normalizeFolderWebUrl/);
+  assert.match(pdfHandler, /forms\/view\.aspx/i);
+  assert.match(pdfHandler, /attach_manager_attendance_month_pdf/);
+  assert.match(pdfHandler, /reusedExistingPdf: true/);
+  assert.doesNotMatch(pdfHandler, /subset: false/);
 });
 
 test('legacy attendance PDF-on-lock trigger is retired without weakening the PDF guard', () => {
@@ -197,11 +206,14 @@ test('legacy attendance PDF-on-lock trigger is retired without weakening the PDF
   assert.doesNotMatch(retireLegacyPdfTriggerMigration, /drop\s+(function|trigger)[\s\S]*av2_guard_pdf_path/i);
 });
 
-test('9 manager approval finalize requires PDF and stores approval stamps', () => {
-  assert.match(finish, /attendanceManagerApprovalArtifacts/);
+test('9 manager approval finalizes before PDF and stores approval stamps', () => {
   assert.match(finish, /managerFinalizeAttendanceMonthReview|manager_finalize_attendance_month_review/);
-  assert.match(finish, /manager_pdf_sharepoint_url/);
+  assert.match(finish, /attendanceManagerApprovalArtifacts/);
+  assert.match(finish, /pdf_pending/);
   assert.match(finish, /manager_approved_snapshot|approved_snapshot/);
+  const finalizeIndex = finish.indexOf('managerFinalizeAttendanceMonthReview');
+  const artifactsIndex = finish.indexOf('attendanceManagerApprovalArtifacts');
+  assert.ok(finalizeIndex > -1 && artifactsIndex > finalizeIndex, 'finalize must happen before PDF artifacts');
 });
 
 test('10 locked months stay blocked for team managers and admin UI bypass', () => {

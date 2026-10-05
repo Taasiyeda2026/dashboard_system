@@ -1064,14 +1064,16 @@ test('failed updaterecord stops payroll approval save', async () => {
   assert.equal(saved.length, 0);
 });
 
-test('successful write-back saves manager approval after PDF SharePoint and email artifacts', async () => {
+test('successful write-back saves manager approval before optional PDF artifacts', async () => {
   const sent = [];
   let artifactsPayload = null;
   let saved = null;
+  let finalizeBeforeArtifacts = false;
   const api = {
     attendanceControlUpdateRecord: async (recordId, fields) => { sent.push({ recordId, fields }); return { success: true }; },
     attendanceManagerApprovalArtifacts: async (payload) => {
       artifactsPayload = payload;
+      assert.ok(saved, 'manager finalize must run before PDF artifacts');
       return {
         sharepointWebUrl: 'https://think365orgil.sharepoint.com/file',
         sharepointItemId: 'item-1',
@@ -1082,6 +1084,7 @@ test('successful write-back saves manager approval after PDF SharePoint and emai
     },
     managerFinalizeAttendanceMonthReview: async (payload) => {
       saved = payload;
+      finalizeBeforeArtifacts = !artifactsPayload;
       return {
         ...payload,
         manager_approved_by_name: 'מנהל בדיקה',
@@ -1107,13 +1110,15 @@ test('successful write-back saves manager approval after PDF SharePoint and emai
   assert.equal(sent[0].fields.attachmentsNames, 'scan.pdf');
   assert.equal(sent[0].fields.notes, 'הערה קיימת');
   assert.equal(sent[0].fields.totalExpenses, 0);
+  assert.equal(finalizeBeforeArtifacts, true);
   assert.equal(artifactsPayload.month_key, '2026-05');
   assert.equal(artifactsPayload.approved_snapshot.rows[0].startTime, '08:15');
   assert.equal(artifactsPayload.approved_snapshot.rows[0].recordId, '77');
-  assert.equal(saved.manager_pdf_sharepoint_url, 'https://think365orgil.sharepoint.com/file');
-  assert.equal(saved.manager_pdf_file_name, 'דוח נוכחות - דנה - מאי 2026 - מאושר.pdf');
+  assert.equal(saved.manager_pdf_sharepoint_url, null);
   assert.equal(row.status, 'manager_approved');
+  assert.equal(row.manager_pdf_sharepoint_url, 'https://think365orgil.sharepoint.com/file');
   assert.equal(row.mailed_at, '2026-05-20T10:00:00.000Z');
+  assert.equal(row.pdf_pending, false);
 });
 
 
@@ -1154,12 +1159,13 @@ test('manager approval finalizes after SharePoint success even when email delive
       submittedAt: '2026-05-03T08:00:00.000Z'
     }
   });
-  assert.ok(finalized, 'SharePoint persistence must allow manager finalization');
-  assert.equal(finalized.manager_pdf_sharepoint_item_id, 'item-mail-warning');
+  assert.ok(finalized, 'manager finalization must succeed independently of email');
+  assert.equal(finalized.manager_pdf_sharepoint_url, null);
   assert.equal(row.status, 'manager_approved');
   assert.equal(row.mail_sent, false);
   assert.equal(row.mail_error, 'mail_send_failed:403');
   assert.equal(row.mailed_at, '');
+  assert.equal(row.pdf_pending, false);
 });
 
 test('manager approval is blocked before employee month submission', async () => {
@@ -1204,28 +1210,36 @@ test('manager approval without a submitted workflow is blocked even for admin', 
   assert.equal(saved, null);
 });
 
-test('SharePoint or email artifact failure blocks manager approval save', async () => {
+test('SharePoint PDF artifact failure keeps manager approval saved', async () => {
   let finalized = null;
   const api = {
     attendanceControlUpdateRecord: async () => ({ success: true }),
     attendanceManagerApprovalArtifacts: async () => {
-      throw new Error('שמירת ה-PDF ב-SharePoint או שליחת המייל נכשלה. אישור המנהל לא נשמר.');
+      throw new Error('הפקת או שמירת ה-PDF ב-SharePoint נכשלה. Trying to access beyond buffer length');
     },
-    managerFinalizeAttendanceMonthReview: async (payload) => { finalized = payload; return payload; }
+    managerFinalizeAttendanceMonthReview: async (payload) => {
+      finalized = payload;
+      return {
+        ...payload,
+        manager_approved_by_name: 'מנהל בדיקה',
+        manager_approved_at: '2026-05-20T10:00:00.000Z',
+        status: 'locked'
+      };
+    }
   };
-  await assert.rejects(
-    () => approvePayrollControlEmployee({
-      api,
-      user: { full_name: 'מנהל בדיקה' },
-      result: { month: '2026-05', comparisons: [changedComparison] },
-      employeeId: '10',
-      employeeName: 'דנה',
-      confirmed: true,
-      monthWorkflow: { workflowStatus: 'submitted', attendanceSubmissionStatus: 'submitted' }
-    }),
-    /אישור המנהל לא נשמר/
-  );
-  assert.equal(finalized, null);
+  const row = await approvePayrollControlEmployee({
+    api,
+    user: { full_name: 'מנהל בדיקה' },
+    result: { month: '2026-05', comparisons: [changedComparison] },
+    employeeId: '10',
+    employeeName: 'דנה',
+    confirmed: true,
+    monthWorkflow: { workflowStatus: 'submitted', attendanceSubmissionStatus: 'submitted' }
+  });
+  assert.ok(finalized, 'manager approval must persist even when PDF fails');
+  assert.equal(row.status, 'manager_approved');
+  assert.equal(row.pdf_pending, true);
+  assert.match(row.pdf_error, /PDF/);
 });
 
 test('admin and explicitly permitted finance users can read payroll approvals', () => {
@@ -1687,7 +1701,7 @@ test('buildAttendanceUpdatePayload throws when Logic App field is absent from bo
 });
 
 test('SharePoint payroll PDF uses the mapped personal folder, payroll subfolder, and reporting month', async () => {
-  const source = await readFile(new URL('../supabase/functions/payroll-attendance-pdf-dispatch/index.ts', import.meta.url), 'utf8');
+  const source = await readFile(new URL('../supabase/functions/payroll-attendance-pdf-dispatch/handler.ts', import.meta.url), 'utf8');
   assert.match(source, /instructor_employee_folders/);
   assert.match(source, /PAYROLL_SUBFOLDER = "04 דוחות שכר"/);
   assert.match(source, /hebrewMonthName\(monthKey\)/);

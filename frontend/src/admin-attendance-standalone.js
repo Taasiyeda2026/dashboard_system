@@ -219,7 +219,7 @@ function actionButtons(empId, workflowRow, finalApproval, monthKey, priorDispatc
   const finalPdfPath = text(finalApproval?.pdf_path);
   const pdfButton = managerPdfUrl || finalPdfPath
     ? `<button type="button" data-admin-attendance-pdf="${escapeHtml(empId)}">צפייה ב-PDF</button>`
-    : '';
+    : (status.raw === 'manager_approved' ? '<span class="admin-attendance-status is-pending">PDF ממתין</span>' : '');
   const releaseButton = canApprove && ['submitted', 'manager_approved', 'admin_approved', 'sent_to_payroll'].includes(status.raw)
     ? `<button type="button" data-admin-attendance-release="${escapeHtml(empId)}">${status.raw === 'sent_to_payroll' ? 'פתח לעדכון' : 'שחרור נעילה'}</button>`
     : '';
