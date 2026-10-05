@@ -44,7 +44,7 @@ test('mobile global header keeps its quick navigation tabs', () => {
 test('cache markers are bumped for the manager attendance workflow unify', async () => {
   const index = await readFile(new URL('../index.html', import.meta.url), 'utf8');
   const sw = await readFile(new URL('../frontend/sw.js', import.meta.url), 'utf8');
-  assert.match(index, /manager-board-workspace-runtime\.js\?v=20261005-attendance-control-workflow-unify-v1/);
-  assert.match(index, /admin-attendance-standalone\.js\?v=20261005-admin-attendance-compact-hebrew-pdf-v1/);
-  assert.match(sw, /const CACHE_VERSION = 1904;/);
+  assert.match(index, /manager-board-workspace-runtime\.js\?v=20261005-manager-reopen-hierarchy-v1/);
+  assert.match(index, /admin-attendance-standalone\.js\?v=20261005-manager-reopen-hierarchy-v1/);
+  assert.match(sw, /const CACHE_VERSION = 1905;/);
 });
