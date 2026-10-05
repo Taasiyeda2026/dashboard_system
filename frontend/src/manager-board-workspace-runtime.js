@@ -4,7 +4,7 @@ import { supabase, waitForSupabaseAuthSession } from './supabase-client.js';
 import { hasPermission } from './permission-policy.js';
 import { normalizeGlobalActivityPeriod } from './screens/shared/summer-activity.js';
 import { escapeHtml } from './screens/shared/html.js';
-import { attendanceMonthDateRange, resolveManagerAttendanceOverviewState } from './screens/attendance-control.js?v=20261005-attendance-control-workflow-unify-v1';
+import { attendanceMonthDateRange, resolveManagerAttendanceOverviewState } from './screens/attendance-control.js?v=20261005-manager-reopen-hierarchy-v1';
 import { tableHtml as trackingTableHtml } from './manager-board-employee-file-tracking.js?v=20261004-overdue-date-red-v1';
 
 const MANAGER_WORKSPACE_TAB_KEY = 'manager_board_workspace_tab';
@@ -456,6 +456,11 @@ function attendanceOverviewActionHtml(empId, overview) {
   return `<button type="button" class="manager-workspace-link-button" data-manager-attendance-open-employee="${escapeHtml(empId)}" data-manager-attendance-action-kind="${escapeHtml(overview.actionKind)}">${escapeHtml(overview.actionLabel)}</button>`;
 }
 
+function attendanceReopenActionHtml(empId, overview) {
+  if (overview.status !== 'submitted') return '';
+  return `<button type="button" class="manager-workspace-link-button is-reopen" data-manager-attendance-reopen-employee="${escapeHtml(empId)}">פתח חודש לעובד</button>`;
+}
+
 function attendanceSummaryTableHtml(roster, summary, ym) {
   if (!roster.length) return '<div class="manager-workspace-empty">אין מדריכים פעילים המשויכים למנהל.</div>';
   const rows = roster.map((row) => {
@@ -469,14 +474,15 @@ function attendanceSummaryTableHtml(roster, summary, ym) {
       ? '<span class="manager-workspace-report-count is-missing">לא נמצא דיווח</span>'
       : `<span class="manager-workspace-report-count">קיים · ${count} דיווחים</span>`;
     return `<tr data-manager-attendance-status="${escapeHtml(overview.status)}">
-      <td class="manager-workspace-attendance-person" data-label="מדריך"><strong>${escapeHtml(text(row.full_name) || empId)}</strong><small>${escapeHtml(empId)}</small></td>
+      <td class="manager-workspace-attendance-person" data-label="מדריך"><strong>${escapeHtml(text(row.full_name) || empId)}</strong></td>
+      <td class="manager-workspace-attendance-employee-id" data-label="מס׳ עובד">${escapeHtml(empId)}</td>
       <td data-label="דיווח">${reportCell}</td>
       <td data-label="סטטוס אישור"><span class="manager-workspace-status ${escapeHtml(overview.statusClass)}">${escapeHtml(overview.statusLabel)}</span></td>
-      <td class="manager-workspace-attendance-action" data-label="פעולה">${attendanceOverviewActionHtml(empId, overview)}</td>
+      <td class="manager-workspace-attendance-action" data-label="פעולות"><div class="manager-workspace-attendance-actions">${attendanceOverviewActionHtml(empId, overview)}${attendanceReopenActionHtml(empId, overview)}</div></td>
     </tr>`;
   }).join('');
   return `<div class="manager-workspace-table-wrap"><table class="manager-workspace-table manager-workspace-attendance-table">
-    <thead><tr><th>מדריך</th><th>דיווח ${escapeHtml(ym)}</th><th>סטטוס אישור</th><th></th></tr></thead>
+    <thead><tr><th>מדריך</th><th>מס׳ עובד</th><th>דיווח ${escapeHtml(ym)}</th><th>סטטוס אישור</th><th>פעולות</th></tr></thead>
     <tbody>${rows}</tbody>
   </table></div>`;
 }
@@ -657,7 +663,7 @@ async function bindEmbeddedAttendance(host, roster, context, snapshot = null, pr
   embeddedAttendanceSignature = signature;
   host.dataset.managerAttendanceBound = 'true';
 
-  const attendance = await import('./screens/attendance-control.js?v=20261005-attendance-control-workflow-unify-v1');
+  const attendance = await import('./screens/attendance-control.js?v=20261005-manager-reopen-hierarchy-v1');
   const monthMode = attendanceMonthMode(context.ym);
   host.dataset.managerAttendanceMonthMode = monthMode.key;
   host.innerHTML = `<style>
@@ -714,6 +720,43 @@ async function renderAttendance(boardRoot, context, roster, renderToken) {
       try {
         await openEmployeeAttendance(button.dataset.managerAttendanceOpenEmployee, roster, context, summary);
       } finally {
+        button.disabled = false;
+        button.textContent = previousText;
+      }
+    });
+  });
+  view.querySelectorAll('[data-manager-attendance-reopen-employee]').forEach((button) => {
+    button.addEventListener('click', async () => {
+      const empId = text(button.dataset.managerAttendanceReopenEmployee);
+      const employeeName = text(roster.find((row) => text(row.emp_id) === empId)?.full_name) || empId;
+      const confirmed = window.confirm(
+        `פתיחת ${context.ym} עבור ${employeeName} תחזיר את החודש לעובד לעריכה. העובד יצטרך לבצע שוב "סיום ואישור חודש". להמשיך?`
+      );
+      if (!confirmed) return;
+
+      const previousText = button.textContent;
+      button.disabled = true;
+      button.textContent = 'פותח חודש…';
+      try {
+        if (role() === 'admin') {
+          await api.adminReopenAttendanceMonthForCorrection({
+            employee_id: empId,
+            month_key: context.ym,
+            reason: ''
+          });
+        } else {
+          await api.managerReopenAttendanceMonthForEmployee({
+            employee_id: empId,
+            month_key: context.ym
+          });
+        }
+        attendanceSummaryCache.clear();
+        attendanceReviewSnapshotCache.clear();
+        embeddedAttendanceSignature = '';
+        lastContextSignature = '';
+        await renderWorkspace(true);
+      } catch (error) {
+        window.alert(error?.message || 'פתיחת החודש לעובד נכשלה.');
         button.disabled = false;
         button.textContent = previousText;
       }
