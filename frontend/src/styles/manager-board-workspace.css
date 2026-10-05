@@ -138,7 +138,17 @@
   color:#334155;
 }
 .manager-workspace-link-button:hover:not(:disabled){border-color:#94a3b8;background:#f8fafc}
+.manager-workspace-link-button.is-reopen{border-color:#93c5fd;background:#eff6ff;color:#1d4ed8}
+.manager-workspace-link-button.is-reopen:hover:not(:disabled){border-color:#60a5fa;background:#dbeafe}
 .manager-workspace-link-button:disabled{opacity:.45;cursor:not-allowed}
+.manager-workspace-attendance-table{table-layout:auto;min-width:880px}
+.manager-workspace-attendance-table th:nth-child(1){width:22%}
+.manager-workspace-attendance-table th:nth-child(2){width:12%}
+.manager-workspace-attendance-table th:nth-child(3){width:20%}
+.manager-workspace-attendance-table th:nth-child(4){width:28%}
+.manager-workspace-attendance-table th:nth-child(5){width:18%}
+.manager-workspace-attendance-employee-id{white-space:nowrap;font-variant-numeric:tabular-nums}
+.manager-workspace-attendance-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .manager-workspace-run-team{
   padding:8px 13px;
   border:1px solid var(--ds-accent,#1a3358);
