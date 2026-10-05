@@ -97,8 +97,15 @@ async function patchAdminStandalone(root) {
 }
 
 function managerMonthKey(table) {
-  const header = text(table?.querySelector('thead th:nth-child(2)')?.textContent);
+  const headers = [...(table?.querySelectorAll('thead th') || [])].map((cell) => text(cell.textContent));
+  const header = headers.find((value) => /20\d{2}-(0[1-9]|1[0-2])/.test(value)) || '';
   return header.match(/20\d{2}-(0[1-9]|1[0-2])/)?.[0] || '';
+}
+
+function managerRowEmployeeId(row) {
+  return text(row?.querySelector('td[data-label="מס׳ עובד"]')?.textContent)
+    || text(row?.querySelector('[data-manager-attendance-reopen-employee]')?.dataset.managerAttendanceReopenEmployee)
+    || text(row?.querySelector('[data-manager-attendance-open-employee]')?.dataset.managerAttendanceOpenEmployee);
 }
 
 function managerRowHasReport(row) {
@@ -112,7 +119,7 @@ function managerStatusHtml(label, cls = 'is-pending') {
 
 function managerDomSignature(table, monthKey, rows) {
   return `${monthKey}|${rows.map((row) => {
-    const id = text(row.querySelector('[data-manager-attendance-open-employee]')?.dataset.managerAttendanceOpenEmployee);
+    const id = managerRowEmployeeId(row);
     const status = text(row.querySelector('td[data-label="סטטוס אישור"]')?.textContent);
     return `${id}:${status}`;
   }).join('|')}`;
@@ -123,7 +130,7 @@ async function patchManagerAttendanceTable(table) {
   const monthKey = managerMonthKey(table);
   if (!monthKey) return;
   const rows = [...table.querySelectorAll('tbody tr')];
-  const ids = rows.map((row) => text(row.querySelector('[data-manager-attendance-open-employee]')?.dataset.managerAttendanceOpenEmployee)).filter(Boolean);
+  const ids = rows.map((row) => managerRowEmployeeId(row)).filter(Boolean);
   if (!ids.length) return;
   const beforeSignature = managerDomSignature(table, monthKey, rows);
   if (table.dataset[PATCH_MARK] === beforeSignature) return;
@@ -140,7 +147,7 @@ async function patchManagerAttendanceTable(table) {
   let employeeApproved = 0;
   let awaitingEmployee = 0;
   for (const row of rows) {
-    const empId = text(row.querySelector('[data-manager-attendance-open-employee]')?.dataset.managerAttendanceOpenEmployee);
+    const empId = managerRowEmployeeId(row);
     const workflow = statuses.get(empId) || {};
     const workflowStatus = text(workflow.workflow_status || 'not_submitted');
     const submissionStatus = text(workflow.attendance_submission_status || 'open');
@@ -160,7 +167,7 @@ async function patchManagerAttendanceTable(table) {
       nextHtml = `${managerStatusHtml('✓ המדריך אישר · ממתין לבקרת מנהל', 'is-ok')}${approvedAt ? `<small>${approvedAt}</small>` : ''}`;
       employeeApproved += 1;
     } else if (submissionStatus === 'reopened') {
-      nextHtml = managerStatusHtml('פתוח למדריך להשלמה ואישור');
+      nextHtml = managerStatusHtml('פתוח לעובד לתיקון ואישור');
       if (hasReport) awaitingEmployee += 1;
     } else if (hasReport) {
       nextHtml = managerStatusHtml('טרם אושר על ידי המדריך');
