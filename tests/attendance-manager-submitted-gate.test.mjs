@@ -147,7 +147,8 @@ test('admin bypass keeps mutation controls available before employee submission'
   assert.match(html, /data-attendance-edit-record="gate-1"/);
   assert.match(html, /data-attendance-approve-reported="gate-1"/);
   assert.match(html, /data-attendance-field-choice=/);
-  assert.match(html, /data-payroll-readonly-notice/);
+  assert.doesNotMatch(html, /data-payroll-readonly-notice/);
+  assert.doesNotMatch(html, /data-attendance-add-record=/);
 });
 
 test('admin bypass cannot mutate locked or final-payroll months', () => {
@@ -209,5 +210,7 @@ test('attendance control binds admin bypass and client-side mutation gate', () =
   assert.match(control, /assertEmployeeMonthMutableForManager/);
   assert.match(control, /EMPLOYEE_MONTH_NOT_SUBMITTED_READONLY_MESSAGE/);
   assert.match(control, /canManagerMutatePayrollEmployeeMonth/);
+  assert.match(control, /teamManagerEmployeeMonthWriteAllowed/);
+  assert.match(control, /canManagerFinalizeEmployeeMonth/);
   assert.match(control, /resolved\.status === 'manager_approved' \|\| resolved\.status === 'approved'/);
 });
