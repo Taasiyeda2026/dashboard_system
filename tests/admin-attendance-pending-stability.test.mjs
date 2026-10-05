@@ -205,6 +205,31 @@ test('no tile means no RPC and failure backoff prevents observer retry storms wh
   dom.window.close();
 });
 
+test('approval checks keep the admin overview compact and expose approval details only in a small popover', async () => {
+  const dom = installDom('<main id="app"><button id="outside" type="button">outside</button></main>');
+  const runtime = await importRuntime();
+  document.dispatchEvent(new Event('DOMContentLoaded'));
+  await settle();
+  assert.equal(runtime.approvalCell('admin', '', ''), '', 'missing approval remains an empty cell');
+  const host = document.createElement('div');
+  host.innerHTML = runtime.approvalCell('manager', 'גיל נאמן', '2026-10-05T10:49:00Z');
+  document.getElementById('app').append(host);
+  const check = host.querySelector('[data-admin-attendance-approval-check]');
+  assert.equal(check.textContent.trim(), '✓');
+  assert.doesNotMatch(check.textContent, /גיל|2026|אושר/);
+  check.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+  let popover = document.querySelector('[data-admin-attendance-approval-popover]');
+  assert.ok(popover);
+  assert.match(popover.textContent, /אישור מנהל/);
+  assert.match(popover.textContent, /גיל נאמן/);
+  document.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+  assert.equal(document.querySelector('[data-admin-attendance-approval-popover]'), null);
+  check.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+  document.getElementById('outside').dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+  assert.equal(document.querySelector('[data-admin-attendance-approval-popover]'), null);
+  dom.window.close();
+});
+
 test('management click is not intercepted, attendance tile stays standalone, and remount does not duplicate listeners', async () => {
   const dom = installDom(`<main id="app"><nav><button data-route="admin-home">ניהול</button></nav><div id="screenRoot"><section class="admin-management-home">${tileMarkup()}</section></div></main>`);
   api.adminPendingAttendanceByMonth = async () => [];

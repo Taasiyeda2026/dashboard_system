@@ -367,3 +367,4 @@ config.HOTFIX_VERSION = `scheduling-route-batch-lookup-planning-lease-20261005-v
 config.HOTFIX_VERSION = `manager-attendance-reopened-write-gate-20261005-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `attendance-control-workflow-unify-20261005-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `admin-attendance-badge-stability-20261005-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `admin-attendance-compact-hebrew-pdf-20261005-v1-${config.HOTFIX_VERSION}`;

@@ -8,7 +8,7 @@ const launcher = await readFile(new URL('../frontend/src/screens/shared/payroll-
 const index = await readFile(new URL('../index.html', import.meta.url), 'utf8');
 
 const version = '20261004-manager-add-missing-attendance-v1';
-const adminVersion = '20261004-admin-attendance-payroll-dispatch-v1';
+const adminVersion = '20261005-admin-attendance-compact-hebrew-pdf-v1';
 
 test('manager workspace imports the attendance control with the current cache-busting version', () => {
   assert.match(workspace, new RegExp(`attendance-control\\.js\\?v=${version}`));
@@ -22,6 +22,6 @@ test('other attendance entry points use the same attendance control module versi
 });
 
 test('direct index entrypoints are also cache-busted for the release', () => {
-  assert.match(index, /manager-board-workspace-runtime\.js\?v=20261004-overdue-date-red-v1/);
+  assert.match(index, /manager-board-workspace-runtime\.js\?v=20261005-attendance-control-workflow-unify-v1/);
   assert.match(index, new RegExp(`admin-attendance-standalone\\.js\\?v=${adminVersion}`));
 });

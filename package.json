@@ -32,8 +32,13 @@
   "author": "",
   "license": "ISC",
   "devDependencies": {
+    "@napi-rs/canvas": "^1.0.10",
+    "@pdf-lib/fontkit": "^1.1.1",
     "@playwright/test": "^1.62.1",
+    "bidi-js": "^1.0.3",
     "jsdom": "^29.1.1",
+    "pdf-lib": "^1.17.1",
+    "pdfjs-dist": "^6.4.299",
     "pg": "^8.22.0",
     "vite": "^6.0.3",
     "xlsx": "^0.18.5"

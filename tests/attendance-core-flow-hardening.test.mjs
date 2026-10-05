@@ -193,6 +193,9 @@ test('manager PDF retry restores the original approver identity before sending e
 test('attendance PDF subsets Hebrew fonts safely and normalizes SharePoint Forms URLs', () => {
   assert.match(pdfHandler, /embedFont\(regularBytes, \{ subset: true \}\)/);
   assert.match(pdfHandler, /embedFont\(boldBytes, \{ subset: true \}\)/);
+  assert.match(pdfHandler, /Alef-Regular\.ttf/);
+  assert.match(pdfHandler, /Alef-Bold\.ttf/);
+  assert.doesNotMatch(pdfHandler, /ARIMO_(?:REGULAR|BOLD)_URL/);
   assert.match(pdfHandler, /normalizeFolderWebUrl/);
   assert.match(pdfHandler, /forms\/view\.aspx/i);
   assert.match(pdfHandler, /attach_manager_attendance_month_pdf/);

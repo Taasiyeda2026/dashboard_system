@@ -13,15 +13,15 @@ const DEFAULT_DRIVE_ID = "b!7yHSW8aMokunngKw03vHhB5QSRQPWQ1JhXcgoDOvU2BFY5HnYLNM
 const SHAREPOINT_HOST = "think365orgil.sharepoint.com";
 const SHAREPOINT_SITE_PATH = "/sites/taasiyeda2027";
 const PAYROLL_SUBFOLDER = "04 דוחות שכר";
-const ARIMO_REGULAR_URL = "https://raw.githubusercontent.com/Taasiyeda2026/dashboard_system/main/frontend/assets/fonts/Arimo-Regular.ttf";
-const ARIMO_BOLD_URL = "https://raw.githubusercontent.com/Taasiyeda2026/dashboard_system/main/frontend/assets/fonts/Arimo-Bold.ttf";
+const ALEF_REGULAR_URL = "https://raw.githubusercontent.com/Taasiyeda2026/dashboard_system/main/frontend/assets/fonts/Alef-Regular.ttf";
+const ALEF_BOLD_URL = "https://raw.githubusercontent.com/Taasiyeda2026/dashboard_system/main/frontend/assets/fonts/Alef-Bold.ttf";
 const HEBREW_MONTH_NAMES = [
   "ינואר", "פברואר", "מרץ", "אפריל", "מאי", "יוני",
   "יולי", "אוגוסט", "ספטמבר", "אוקטובר", "נובמבר", "דצמבר",
 ];
 const bidi = bidiFactory();
-let arimoRegularPromise: Promise<Uint8Array> | null = null;
-let arimoBoldPromise: Promise<Uint8Array> | null = null;
+let alefRegularPromise: Promise<Uint8Array> | null = null;
+let alefBoldPromise: Promise<Uint8Array> | null = null;
 
 function clean(value: unknown) {
   return String(value ?? "").trim();
@@ -395,14 +395,14 @@ async function loadEmployeeFolderMapping(url: string, serviceKey: string, employ
 }
 
 async function loadFontBytes(url: string, cache: "regular" | "bold") {
-  const existing = cache === "regular" ? arimoRegularPromise : arimoBoldPromise;
+  const existing = cache === "regular" ? alefRegularPromise : alefBoldPromise;
   if (existing) return existing;
   const promise = fetch(url).then(async (response) => {
     if (!response.ok) throw new Error(`pdf_font_load_failed:${response.status}`);
     return new Uint8Array(await response.arrayBuffer());
   });
-  if (cache === "regular") arimoRegularPromise = promise;
-  else arimoBoldPromise = promise;
+  if (cache === "regular") alefRegularPromise = promise;
+  else alefBoldPromise = promise;
   return promise;
 }
 
@@ -463,15 +463,14 @@ async function buildPdfBytes(payload: {
   approvedSnapshot: Record<string, unknown>;
 }) {
   const [regularBytes, boldBytes] = await Promise.all([
-    loadFontBytes(ARIMO_REGULAR_URL, "regular"),
-    loadFontBytes(ARIMO_BOLD_URL, "bold"),
+    loadFontBytes(ALEF_REGULAR_URL, "regular"),
+    loadFontBytes(ALEF_BOLD_URL, "bold"),
   ]);
 
   const pdf = await PDFDocument.create();
   pdf.registerFontkit(fontkit);
-  // subset:false crashes @pdf-lib/fontkit on Arimo TTFs with
-  // "Trying to access beyond buffer length". Subsetting is required and still
-  // embeds every Hebrew glyph that drawText actually references.
+  // Alef subsets cleanly with pdf-lib/fontkit. Arimo subset:true produced a
+  // corrupt Hebrew glyph map while subset:false crashed fontkit during save.
   const regular = await pdf.embedFont(regularBytes, { subset: true });
   const bold = await pdf.embedFont(boldBytes, { subset: true });
   const PAGE_W = 595;
@@ -631,8 +630,7 @@ async function buildPdfBytes(payload: {
   const approvalBox = (title: string, name: string, at: string) => {
     page.drawRectangle({ x: LEFT, y: y - 49, width: CONTENT_W, height: 49, borderColor: rgb(0.86, 0.9, 0.88), borderWidth: 0.7, color: rgb(0.96, 0.99, 0.97) });
     drawRtl(`${title}: ${name || "—"}`, RIGHT - 12, y - 17, 9.3, bold, rgb(0.05, 0.38, 0.25));
-    // Use √ (U+221A) instead of ✓ — Arimo maps ✓ to .notdef (glyph 0).
-    drawRtl(`√ אושר במערכת  |  ${formatApprovalTime(at)}`, RIGHT - 12, y - 35, 8.4, regular, rgb(0.24, 0.43, 0.35));
+    drawRtl(`אושר במערכת  |  ${formatApprovalTime(at)}`, RIGHT - 12, y - 35, 8.4, regular, rgb(0.24, 0.43, 0.35));
     y -= 58;
   };
 
