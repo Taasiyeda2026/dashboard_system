@@ -5,6 +5,7 @@ const HUB_ROUTE = 'admin-home';
 const STYLE_ID = 'admin-management-hub-sidebar-style';
 const HUB_NAV_ATTRIBUTE = 'data-admin-management-hub-nav';
 const PENDING_MANAGER_TAB_KEY = 'admin_management_pending_manager_tab';
+let syncScheduled = false;
 
 const ADMIN_HUB_ROUTES = new Set([
   HUB_ROUTE,
@@ -116,11 +117,14 @@ function openPendingManagerTabIfReady() {
 }
 
 function syncAdminManagementHub() {
+  syncScheduled = false;
   ensureHubNavigation();
   openPendingManagerTabIfReady();
 }
 
 function scheduleSync() {
+  if (syncScheduled) return;
+  syncScheduled = true;
   window.setTimeout(syncAdminManagementHub, 0);
 }
 

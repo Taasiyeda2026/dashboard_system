@@ -14,10 +14,17 @@ const STANDALONE_ATTRIBUTE = 'data-admin-attendance-standalone';
 const STYLE_ID = 'admin-attendance-standalone-style';
 const HIDDEN_CLASS = 'is-admin-attendance-hidden';
 const PENDING_BADGE_ATTR = 'data-admin-attendance-pending-badge';
+const PENDING_BADGE_COUNT_ATTR = 'data-admin-attendance-pending-count';
 
 let renderToken = 0;
 let pendingSummaryCache = { rows: null, loadedAt: 0, total: 0 };
+let pendingSummaryInFlight = null;
+let pendingSummaryInvalidated = false;
+let pendingSummaryTrailingRefresh = false;
+let pendingSummaryRetryAfter = 0;
+let syncScheduled = false;
 const PENDING_SUMMARY_TTL_MS = 60 * 1000;
+const PENDING_SUMMARY_RETRY_BACKOFF_MS = 5 * 1000;
 
 function text(value) {
   return String(value ?? '').trim().replace(/\s+/g, ' ');
@@ -136,11 +143,8 @@ function ensureStyles() {
   document.head.append(style);
 }
 
-async function loadAdminPendingSummary(force = false) {
-  if (!isAdmin()) return { rows: [], total: 0 };
-  if (!force && pendingSummaryCache.rows && Date.now() - pendingSummaryCache.loadedAt < PENDING_SUMMARY_TTL_MS) {
-    return pendingSummaryCache;
-  }
+async function requestAdminPendingSummary() {
+  const previousCache = pendingSummaryCache.rows ? pendingSummaryCache : null;
   try {
     const rows = typeof api.adminPendingAttendanceByMonth === 'function'
       ? await api.adminPendingAttendanceByMonth()
@@ -151,40 +155,105 @@ async function loadAdminPendingSummary(force = false) {
     })).filter((row) => row.month_key && row.pending_count > 0);
     const total = normalized.reduce((sum, row) => sum + row.pending_count, 0);
     pendingSummaryCache = { rows: normalized, total, loadedAt: Date.now() };
+    pendingSummaryRetryAfter = 0;
     return pendingSummaryCache;
   } catch {
-    return pendingSummaryCache.rows ? pendingSummaryCache : { rows: [], total: 0, loadedAt: Date.now() };
+    pendingSummaryRetryAfter = Date.now() + PENDING_SUMMARY_RETRY_BACKOFF_MS;
+    return previousCache || { rows: [], total: 0, loadedAt: 0 };
   }
 }
 
-function applyAdminHubPendingBadge(total = 0) {
+export async function loadAdminPendingSummary(force = false) {
+  if (!isAdmin()) return { rows: [], total: 0 };
+  if (!force && pendingSummaryCache.rows && Date.now() - pendingSummaryCache.loadedAt < PENDING_SUMMARY_TTL_MS) {
+    return pendingSummaryCache;
+  }
+  if (pendingSummaryInFlight) {
+    if (force && !pendingSummaryTrailingRefresh) pendingSummaryInvalidated = true;
+    return pendingSummaryInFlight;
+  }
+  if (!force && !pendingSummaryCache.rows && Date.now() < pendingSummaryRetryAfter) {
+    return { rows: [], total: 0, loadedAt: 0 };
+  }
+
+  pendingSummaryInvalidated = false;
+  pendingSummaryTrailingRefresh = false;
+  pendingSummaryInFlight = (async () => {
+    let summary = await requestAdminPendingSummary();
+    if (pendingSummaryInvalidated) {
+      pendingSummaryInvalidated = false;
+      pendingSummaryTrailingRefresh = true;
+      summary = await requestAdminPendingSummary();
+    }
+    return summary;
+  })().finally(() => {
+    pendingSummaryInFlight = null;
+    pendingSummaryInvalidated = false;
+    pendingSummaryTrailingRefresh = false;
+  });
+  return pendingSummaryInFlight;
+}
+
+export function applyAdminHubPendingBadge(total = 0) {
+  const normalizedTotal = Math.max(0, Number(total) || 0);
   document.querySelectorAll('[data-admin-attendance-open]').forEach((button) => {
     const content = button.querySelector('.admin-management-tile__content');
     if (!content) return;
     let label = content.querySelector('[data-admin-attendance-pending-label]');
-    if (total > 0) {
-      button.setAttribute(PENDING_BADGE_ATTR, String(total));
+    if (normalizedTotal > 0) {
+      const totalText = String(normalizedTotal);
+      if (button.getAttribute(PENDING_BADGE_ATTR) !== 'true') {
+        button.setAttribute(PENDING_BADGE_ATTR, 'true');
+      }
       if (!label) {
         label = document.createElement('small');
         label.setAttribute('data-admin-attendance-pending-label', 'true');
+        const count = document.createElement('span');
+        count.className = 'admin-management-tile__pending-count';
+        count.setAttribute(PENDING_BADGE_COUNT_ATTR, 'true');
+        count.textContent = totalText;
+        label.append(count, document.createTextNode(' ממתינים לאישור'));
         content.append(label);
+        return;
       }
-      label.innerHTML = `<span class="admin-management-tile__pending-count">${total}</span> ממתינים לאישור`;
+      let count = label.querySelector(`[${PENDING_BADGE_COUNT_ATTR}]`);
+      if (!count) {
+        count = label.querySelector('.admin-management-tile__pending-count');
+        if (count) count.setAttribute(PENDING_BADGE_COUNT_ATTR, 'true');
+      }
+      const suffix = count?.nextSibling;
+      const hasExpectedStructure = count
+        && label.childNodes.length === 2
+        && suffix?.nodeType === Node.TEXT_NODE
+        && suffix.textContent === ' ממתינים לאישור';
+      if (!hasExpectedStructure) {
+        const replacementCount = document.createElement('span');
+        replacementCount.className = 'admin-management-tile__pending-count';
+        replacementCount.setAttribute(PENDING_BADGE_COUNT_ATTR, 'true');
+        replacementCount.textContent = totalText;
+        label.replaceChildren(replacementCount, document.createTextNode(' ממתינים לאישור'));
+      } else if (count.textContent !== totalText) {
+        count.textContent = totalText;
+      }
     } else {
-      button.removeAttribute(PENDING_BADGE_ATTR);
-      label?.remove();
+      if (button.hasAttribute(PENDING_BADGE_ATTR)) button.removeAttribute(PENDING_BADGE_ATTR);
+      if (label) label.remove();
     }
   });
 }
 
 function patchAdminHubTile() {
   if (!isAdmin()) return;
-  document.querySelectorAll(`[data-admin-hub-manager-tab="${LEGACY_MANAGER_TAB}"]`).forEach((button) => {
+  const legacyTiles = document.querySelectorAll(`[data-admin-hub-manager-tab="${LEGACY_MANAGER_TAB}"]`);
+  const existingTiles = document.querySelectorAll('[data-admin-attendance-open]');
+  if (!legacyTiles.length && !existingTiles.length) return;
+  legacyTiles.forEach((button) => {
     button.removeAttribute('data-admin-hub-manager-tab');
     button.removeAttribute('data-manager-board-open');
     button.setAttribute('data-admin-attendance-open', 'true');
   });
   try { sessionStorage.removeItem(PENDING_MANAGER_TAB_KEY); } catch { /* ignore */ }
+  if (!document.querySelector('[data-admin-attendance-open]')) return;
   void loadAdminPendingSummary().then((summary) => applyAdminHubPendingBadge(summary.total || 0));
 }
 
@@ -604,9 +673,16 @@ function closeControlMode(root) {
 }
 
 function sync() {
+  syncScheduled = false;
   ensureStyles();
   patchAdminHubTile();
   separateFromManagerBoard();
+}
+
+function scheduleSync() {
+  if (syncScheduled) return;
+  syncScheduled = true;
+  requestAnimationFrame(sync);
 }
 
 function handleClick(event) {
@@ -671,9 +747,9 @@ function start() {
   ensureStyles();
   document.addEventListener('click', handleClick, true);
   document.addEventListener('change', handleChange);
-  const observer = new MutationObserver(sync);
+  const observer = new MutationObserver(scheduleSync);
   observer.observe(document.getElementById('app') || document.documentElement, { childList: true, subtree: true });
-  sync();
+  scheduleSync();
 }
 
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true });
