@@ -299,6 +299,10 @@ test('v28 upgrade runs workday reassignment on the saved snapshot without base-r
   assert.ok(phases.includes('אריזת בתי ספר הושלמה'));
   assert.ok(phases.includes('ריכוז ימי עבודה הושלם'));
   assert.ok(!phases.includes('בדיקת מדריכים'), 'saved proposal must not enter the base planning queue');
+  assert.ok(
+    !phases.some((phase) => phase.startsWith('צמצום חלונות ביום')),
+    'a pure v28 snapshot upgrade must not rerun the pre-v28 gap-compaction pass'
+  );
 });
 
 test('v25 to v26 forces a real rebuild of every flexible proposal, not only multi-school groups', () => {

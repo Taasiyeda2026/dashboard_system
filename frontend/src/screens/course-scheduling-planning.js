@@ -3639,6 +3639,17 @@ function schoolPackingChoicesOperationallyConflict(firstChoice = {}, secondChoic
   return false;
 }
 
+function schoolPackingChoiceInstructorIds(choice = {}) {
+  const option = choice?.option || choice || {};
+  const mainEmpId = text(option?.instructorEmpId);
+  const ids = new Set(mainEmpId ? [mainEmpId] : []);
+  for (const meeting of option?.meetings || []) {
+    const empId = meetingInstructorEmpId(meeting, mainEmpId);
+    if (empId) ids.add(empId);
+  }
+  return ids;
+}
+
 function solveSchoolPackingGroup(group = {}, candidateDays = new Set(), beamWidth = 96, {
   blockers = [],
   activityById = new Map(),
@@ -3657,8 +3668,21 @@ function solveSchoolPackingGroup(group = {}, candidateDays = new Set(), beamWidt
     .sort((a, b) => a.options.length - b.options.length || text(a.row.courseId).localeCompare(text(b.row.courseId)));
   if (rows.some((item) => !item.options.length)) return null;
 
+  const blockersByInstructor = new Map();
+  for (const blocker of blockers) {
+    for (const empId of schoolPackingChoiceInstructorIds(blocker)) {
+      const bucket = blockersByInstructor.get(empId) || [];
+      bucket.push(blocker);
+      blockersByInstructor.set(empId, bucket);
+    }
+  }
+
   const candidateFits = (choices, candidateChoice) => {
-    if (blockers.some((choice) =>
+    const relevantBlockers = new Set();
+    for (const empId of schoolPackingChoiceInstructorIds(candidateChoice)) {
+      for (const blocker of blockersByInstructor.get(empId) || []) relevantBlockers.add(blocker);
+    }
+    if ([...relevantBlockers].some((choice) =>
       schoolPackingChoicesOperationallyConflict(choice, candidateChoice, { activityById, routeClient })
     )) return false;
     return !choices.some((choice) =>
@@ -4961,13 +4985,14 @@ export async function buildDynamicCoursePlan({
     : new Set([...incrementalIds, ...(upgradeIds || [])]);
   const schoolPackingTargetIds = withIncrementalIds(upgradeSchoolPackingIds);
   const workdayConsolidationTargetIds = withIncrementalIds(upgradeWorkdayConsolidationIds);
+  // Gap compaction predates v28 and is already reflected in a valid v27
+  // snapshot. Re-running it for every row touched only by the v28 migration
+  // turns a snapshot upgrade into another multi-pass planning run. Keep this
+  // pass strictly scoped to genuine source/context dirty rows; v28's own
+  // school packing and workday passes already validate the options they move.
   const gapCompactionTargetIds = incrementalIds === null
     ? null
-    : new Set([
-        ...incrementalIds,
-        ...(upgradeSchoolPackingIds || []),
-        ...(upgradeWorkdayConsolidationIds || [])
-      ]);
+    : new Set(incrementalIds);
   const fixedUnassigned = [];
   const missingSchedule = [];
 
@@ -5426,31 +5451,31 @@ export async function buildDynamicCoursePlan({
     if (!optimizationOnlyIds || upgradeOptimizationScopes) {
       await report('ריכוז ימי עבודה הושלם', rowsById.size, rowsById.size, '', null, [...rowsById.values()]);
     }
-    await compactInstructorDayGapsPass({
-      rowsById,
-      targetCourseIds: optimizationOnlyIds
-        ? [...optimizationOnlyIds]
-        : (gapCompactionTargetIds ? [...gapCompactionTargetIds] : null),
-      targets,
-      catalog,
-      instructors,
-      profiles,
-      rules,
-      exceptions,
-      schoolCalendar,
-      today,
-      routeClient,
-      currentContextActivities,
-      checkpoint,
-      signal,
-      limits: {
-        ...FAST_PLANNING_LIMITS,
-        maxFinalOptions: 8,
-        runGlobalRepair: false
-      },
-      report
-    });
-    await report('צמצום חלונות הושלם', rowsById.size, rowsById.size, '', null, [...rowsById.values()]);
+    if (gapCompactionTargetIds === null || gapCompactionTargetIds.size > 0) {
+      await compactInstructorDayGapsPass({
+        rowsById,
+        targetCourseIds: gapCompactionTargetIds ? [...gapCompactionTargetIds] : null,
+        targets,
+        catalog,
+        instructors,
+        profiles,
+        rules,
+        exceptions,
+        schoolCalendar,
+        today,
+        routeClient,
+        currentContextActivities,
+        checkpoint,
+        signal,
+        limits: {
+          ...FAST_PLANNING_LIMITS,
+          maxFinalOptions: 8,
+          runGlobalRepair: false
+        },
+        report
+      });
+      await report('צמצום חלונות הושלם', rowsById.size, rowsById.size, '', null, [...rowsById.values()]);
+    }
     refreshSchoolPlanningDiagnostics(rowsById, targets);
     await report('בקרת תקינות סופית', rowsById.size, rowsById.size, '', null, [...rowsById.values()]);
   }
