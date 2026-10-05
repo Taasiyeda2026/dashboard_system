@@ -160,17 +160,19 @@ test('leaving scheduling cancels a pending automatic planning startup', async ()
   assert.equal(state.courseSchedulingPlanningProgress, null);
 });
 
-test('travel queue stops dequeuing after cancellation while its in-flight request may finish', async () => {
+test('travel batch queue rejects pending lookups after cancellation', async () => {
   const controller = new AbortController();
-  let resolveFirst;
-  const firstResponse = new Promise((resolve) => { resolveFirst = resolve; });
   const invoked = [];
   const client = createRouteClient({
     concurrency: 1,
     signal: controller.signal,
     invoke: async (payload) => {
       invoked.push(payload);
-      return invoked.length === 1 ? firstResponse : { data: { calculated: true, distance_km: 2, duration_minutes: 3 }, error: null };
+      const results = Object.fromEntries((payload.pairs || []).map((pair) => [
+        pair.route_key,
+        { calculated: true, distance_km: 2, duration_minutes: 3 }
+      ]));
+      return { data: { batch_lookup: true, results }, error: null };
     }
   });
 
@@ -180,13 +182,10 @@ test('travel queue stops dequeuing after cancellation while its in-flight reques
     client.request('ה', 'ו')
   ];
   controller.abort();
-  resolveFirst({ data: { calculated: true, distance_km: 1, duration_minutes: 2 }, error: null });
   const results = await Promise.allSettled(requests);
 
-  assert.equal(invoked.length, 1);
-  assert.equal(results[0].status, 'fulfilled');
-  assert.equal(results[1].status, 'rejected');
-  assert.equal(results[2].status, 'rejected');
+  assert.equal(invoked.length, 0);
+  assert.ok(results.every((result) => result.status === 'rejected'));
 });
 
 test('incremental cooperative planning evaluates only the affected activity', async () => {

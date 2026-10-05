@@ -96,6 +96,9 @@ import {
   confirmSharedPlanningDraft,
   loadSharedPlanningCheckpoint,
   loadSharedPlanningWorkspace,
+  acquireSchedulingPlanningRunLease,
+  heartbeatSchedulingPlanningRunLease,
+  releaseSchedulingPlanningRunLease,
   planningStoreErrorMessage,
   saveSharedPlanningCheckpoint,
   saveSharedPlanningLock,
@@ -2708,6 +2711,9 @@ export const courseSchedulingScreen = {
       activePlanningRun?.controller?.abort();
       const run = {
         generation: ++planningRunGeneration,
+        runId: globalThis.crypto?.randomUUID?.() || `planning-run-${Date.now()}`,
+        leaseHeld: false,
+        leaseHeartbeatTimer: null,
         controller: new AbortController(),
         root,
         ui: {
@@ -2957,6 +2963,34 @@ export const courseSchedulingScreen = {
           return;
         }
 
+        const lease = await acquireSchedulingPlanningRunLease({
+          periodKey: scope.periodKey,
+          district: scope.district,
+          runId: run.runId
+        });
+        assertRunOwnership();
+        if (lease?.acquired !== true) {
+          planningPerfEvent('run-blocked-lease', { reason: text(lease?.reason) });
+          state.courseSchedulingPlanningError = 'תכנון זה כבר רץ במקביל עבור אותו מחוז/תקופה. המתינו לסיום או נסו שוב בעוד דקה.';
+          state.courseSchedulingPlanningRunDiagnostics = {
+            ...state.courseSchedulingPlanningRunDiagnostics,
+            phase: PLANNING_RUN_PHASES.FAILED_RESUMABLE,
+            status: 'blocked',
+            leaseReason: text(lease?.reason)
+          };
+          if (runUiVisible()) showToast(state.courseSchedulingPlanningError, 'warning');
+          return;
+        }
+        run.leaseHeld = true;
+        run.leaseHeartbeatTimer = setInterval(() => {
+          if (!ownsRun()) return;
+          void heartbeatSchedulingPlanningRunLease({
+            periodKey: scope.periodKey,
+            district: scope.district,
+            runId: run.runId
+          });
+        }, 120_000);
+
         // The durable route cache is large and is not part of the decision whether
         // planning needs to run. Incremental runs can query exact routes on
         // demand through scheduling-route, which itself reads the durable cache
@@ -3051,9 +3085,19 @@ export const courseSchedulingScreen = {
         };
 
         const profiles = Object.fromEntries((freshStart.scheduling?.profiles || []).map((row) => [text(row.emp_id), row]));
+        const scopedRoutePairs = Math.max(
+          runPlan.affectedIds?.length || 0,
+          runPlan.baseRecalculationIds?.length || 0,
+          runPlan.upgradeOptimizationIds?.length || 0
+        );
         const routeClient = createRouteClient({
           preloadedRows: routeCacheRows,
-          concurrency: 6,
+          concurrency: runPlan.runType === PLANNING_RUN_TYPES.ENGINE_UPGRADE && scopedRoutePairs > 40 ? 8 : 6,
+          batchSize: runPlan.runType === PLANNING_RUN_TYPES.INCREMENTAL
+            ? 48
+            : scopedRoutePairs > 120
+              ? 80
+              : 64,
           signal: run.controller.signal
         });
         const lockedOptions = sharedPlanningLocks(shared);
@@ -3437,6 +3481,19 @@ export const courseSchedulingScreen = {
       } finally {
         stopRunTimer();
         planningPerfEvent('run-end', { rerunChangedAfterSave });
+        if (run.leaseHeld) {
+          if (run.leaseHeartbeatTimer) clearInterval(run.leaseHeartbeatTimer);
+          run.leaseHeld = false;
+          try {
+            await releaseSchedulingPlanningRunLease({
+              periodKey: scope.periodKey,
+              district: scope.district,
+              runId: run.runId
+            });
+          } catch {
+            // Best-effort; expired leases are reclaimed automatically.
+          }
+        }
         if (!ownsRun()) return;
         state.courseSchedulingPlanningLoading = false;
         state.courseSchedulingPlanningProgress = null;

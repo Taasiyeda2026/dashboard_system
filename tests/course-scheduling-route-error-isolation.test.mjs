@@ -1,16 +1,18 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createRouteClient, calculateCandidateTravel } from '../frontend/src/screens/course-scheduling-travel.js';
+import { adaptSinglePairRouteInvoke, createRouteClient, calculateCandidateTravel } from '../frontend/src/screens/course-scheduling-travel.js';
 import { buildDynamicCoursePlan } from '../frontend/src/screens/course-scheduling-planning.js';
 
 const pair = (id, destination) => [{ course: { row_id: id, school_address: destination },
   candidate: { instructor: { emp_id: '1', address: 'home' } } }];
 
 test('a failed route does not poison later courses using the same route client', async () => {
-  const client = createRouteClient({ invoke: async ({ origin, destination }) =>
-    origin === 'bad-school' || destination === 'bad-school'
-      ? { data: { calculated: false, reason: 'route_not_found' }, error: null }
-      : { data: { calculated: true, distance_km: 5, duration_minutes: 10 }, error: null }
+  const client = createRouteClient({
+    invoke: adaptSinglePairRouteInvoke(async ({ origin, destination }) => (
+      origin === 'bad-school' || destination === 'bad-school'
+        ? { data: { calculated: false, reason: 'route_not_found' }, error: null }
+        : { data: { calculated: true, distance_km: 5, duration_minutes: 10 }, error: null }
+    ))
   });
   const failed = await calculateCandidateTravel(pair('bad', 'bad-school'), [], client);
   assert.equal(failed.unavailableReason, 'route_not_found');
@@ -29,9 +31,14 @@ test('a missing route for one instructor retains a verified instructor in the sa
   const instructors = [1, 2].map(emp_id => ({ emp_id, full_name: `Instructor ${emp_id}`, active: 'yes', address: `home${emp_id}` }));
   const profiles = Object.fromEntries(instructors.map(i => [i.emp_id, { emp_id: i.emp_id, instruction_languages: ['he'], gender: 'male' }]));
   const rules = Object.fromEntries(instructors.map(i => [i.emp_id, [{ emp_id: i.emp_id, weekday: 0, available: true, start_time: '07:00', end_time: '18:00' }]]));
-  const client = createRouteClient({ invoke: async ({ origin, destination }) => ({ data:
-    [origin, destination].includes('home1') ? { calculated: false, reason: 'route_not_found' }
-      : { calculated: true, distance_km: 5, duration_minutes: 10 }, error: null }) });
+  const client = createRouteClient({
+    invoke: adaptSinglePairRouteInvoke(async ({ origin, destination }) => ({
+      data: [origin, destination].includes('home1')
+        ? { calculated: false, reason: 'route_not_found' }
+        : { calculated: true, distance_km: 5, duration_minutes: 10 },
+      error: null
+    }))
+  });
   const result = await buildDynamicCoursePlan({ activities: [activity], instructors, profiles, rules,
     exceptions: {}, schoolCalendar: [], today: '2026-09-29', routeClient: client, allowGlobalRepair: false });
   assert.equal(result.rows[0].instructorEmpId, '2', JSON.stringify(result.rows[0]));

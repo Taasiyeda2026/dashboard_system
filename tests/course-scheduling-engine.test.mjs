@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { calculateCourseSchedule, instructorLoad, schedulingCourses, schedulingInstructors } from '../frontend/src/screens/course-scheduling-engine.js';
 import { evaluateInstructor, rankInstructors } from '../frontend/src/screens/instructor-matching-engine.js';
-import { createRouteClient, calculateCandidateTravel, routeMatrixKey } from '../frontend/src/screens/course-scheduling-travel.js';
+import { adaptSinglePairRouteInvoke, createRouteClient, calculateCandidateTravel, routeMatrixKey } from '../frontend/src/screens/course-scheduling-travel.js';
 import { courseSchedulingCounts, detailsHtml } from '../frontend/src/screens/course-scheduling.js';
 import './scheduling-performance-harness.test.mjs';
 import './scheduling-point-mutation-no-full-recompute.test.mjs';
@@ -106,10 +106,20 @@ test('route function canonicalizes Abu Qrenat to Neve Midbar before Google looku
 test('route client reuses one matrix lookup across different school contexts', async () => {
   let calls = 0;
   const client = createRouteClient({
-    invoke: async () => {
+    invoke: async (body) => {
       calls += 1;
+      assert.equal(body.mode, 'batch_lookup');
+      assert.equal(body.pairs.length, 1);
       await new Promise((resolve) => setTimeout(resolve, 2));
-      return { data: { calculated: true, cached: true, distance_km: 7, duration_minutes: 14 } };
+      const route_key = body.pairs[0].route_key;
+      return {
+        data: {
+          batch_lookup: true,
+          results: {
+            [route_key]: { calculated: true, cached: true, distance_km: 7, duration_minutes: 14 }
+          }
+        }
+      };
     }
   });
 
@@ -374,17 +384,23 @@ test('route requests are deduplicated, capped at four, and only threshold candid
   let active = 0;
   let max = 0;
   let calls = 0;
-  const client = createRouteClient({ concurrency: 4, invoke: async () => {
+  const client = createRouteClient({ concurrency: 4, invoke: async (body) => {
     calls += 1;
     active += 1;
     max = Math.max(max, active);
     await new Promise((resolve) => setTimeout(resolve, 2));
     active -= 1;
-    return { data: { calculated: true, distance_km: 2, duration_minutes: 5 } };
+    const results = Object.fromEntries((body.pairs || []).map((pair) => [
+      pair.route_key,
+      { calculated: true, distance_km: 2, duration_minutes: 5 }
+    ]));
+    return { data: { batch_lookup: true, results } };
   } });
   await Promise.all(Array.from({ length: 10 }, (_, index) => client.request(index < 2 ? 'same' : `o${index}`, 'dest')));
+  await client.flush?.();
   assert.ok(max <= 4);
-  assert.equal(calls, 9);
+  assert.equal(calls, 1);
+  assert.equal(client.batchInvokes, 1);
   const preliminary = [{ course: course('route'), candidate: { instructor: instructors[0] } }];
   const routed = await calculateCandidateTravel(preliminary, [], client);
   assert.ok(routed.travel.route['1'].home);
@@ -396,10 +412,12 @@ test('travel is precomputed between two draft courses proposed for the same inst
   const first = course('a', '2026-09-06', { school: 'א', school_address: 'כתובת א', start_time: '08:00', end_time: '09:00', meetings: [{ date: '2026-09-06', start_time: '08:00', end_time: '09:00' }] });
   const second = course('b', '2026-09-06', { school: 'ב', school_address: 'כתובת ב', start_time: '10:00', end_time: '11:00', meetings: [{ date: '2026-09-06', start_time: '10:00', end_time: '11:00' }] });
   const requested = [];
-  const client = createRouteClient({ invoke: async ({ origin, destination }) => {
-    requested.push(`${origin}→${destination}`);
-    return { data: { calculated: true, distance_km: 4, duration_minutes: 12 } };
-  } });
+  const client = createRouteClient({
+    invoke: adaptSinglePairRouteInvoke(async ({ origin, destination }) => {
+      requested.push(`${origin}→${destination}`);
+      return { data: { calculated: true, distance_km: 4, duration_minutes: 12 } };
+    })
+  });
   const preliminary = [first, second].map((draftCourse) => ({ course: draftCourse, candidate: { instructor: instructors[0] } }));
   const routed = await calculateCandidateTravel(preliminary, [], client);
   assert.ok(requested.includes('כתובת א→כתובת ב'));

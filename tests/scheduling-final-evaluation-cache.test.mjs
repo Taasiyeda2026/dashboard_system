@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { buildDynamicCoursePlan } from '../frontend/src/screens/course-scheduling-planning.js';
-import { createRouteClient } from '../frontend/src/screens/course-scheduling-travel.js';
+import { adaptSinglePairRouteInvoke, createRouteClient } from '../frontend/src/screens/course-scheduling-travel.js';
 
 test('flexible planning checks a scenario once and retains independently verified candidates', async () => {
   const activity = { row_id: 'flexible', activity_season: 'school_2027', activity_type: 'course', status: 'פתוח',
@@ -10,9 +10,14 @@ test('flexible planning checks a scenario once and retains independently verifie
   const instructors = [1, 2, 3].map(emp_id => ({ emp_id, full_name: `Instructor ${emp_id}`, active: 'yes', address: `home${emp_id}` }));
   const profiles = Object.fromEntries(instructors.map(i => [i.emp_id, { emp_id: i.emp_id, instruction_languages: ['he'], gender: 'male' }]));
   const rules = Object.fromEntries(instructors.map(i => [i.emp_id, [{ emp_id: i.emp_id, weekday: 0, available: true, start_time: '08:00', end_time: '09:30' }]]));
-  const routeClient = createRouteClient({ invoke: async ({ origin, destination }) => ({ data:
-    [origin, destination].includes('home3') ? { calculated: false, reason: 'route_not_found' }
-      : { calculated: true, distance_km: 5, duration_minutes: 10 }, error: null }) });
+  const routeClient = createRouteClient({
+    invoke: adaptSinglePairRouteInvoke(async ({ origin, destination }) => ({
+      data: [origin, destination].includes('home3')
+        ? { calculated: false, reason: 'route_not_found' }
+        : { calculated: true, distance_km: 5, duration_minutes: 10 },
+      error: null
+    }))
+  });
   const result = await buildDynamicCoursePlan({ activities: [activity], instructors, profiles, rules,
     catalog: [{ activity_name: 'ביומימיקרי', meetings_count: 1, hours_count: 1.5 }],
     exceptions: {}, schoolCalendar: [], today: '2026-09-29', routeClient, allowGlobalRepair: false, planningProfile: 'fast' });
