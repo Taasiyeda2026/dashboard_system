@@ -288,19 +288,20 @@ Plan-level weights (`PLANNING_OPTIMIZATION_WEIGHTS`): continuity 30, capacity 25
 
 ## 13. Incremental planning vs full rebuild
 
-Orchestration in `course-scheduling.js` when running planning:
+Orchestration in `course-scheduling.js` uses a single run plan
+(`resolvePlanningRunPlan` in `course-scheduling-run-plan.js`):
 
-```js
-fullRun = forceFull
-  || !shared?.workspace
-  || !existingRows.length
-  || unrecoverableGlobalContextChange
-```
+| `runType` | When | Base recalc | Durable checkpoints | Travel preload |
+|-----------|------|-------------|---------------------|----------------|
+| `no-op` | engine matches, no dirty/scoped work | none | no | no |
+| `incremental` | dirty/context-affected ids only | those ids | no | no |
+| `engine-upgrade` | stored engine ≠ current, scoped capabilities | dirty only (not upgrade opts) | yes | no |
+| `full-maintenance` | `forceFull` / missing workspace / unrecoverable context | all course ids | yes | yes |
 
-- **Full run:** all workspace course ids (or resume remainder from checkpoint).
-- **Incremental:** `sharedPlanningAffectedCourseIds` from activity dirtiness + granular `contextDiff` (instructors/profiles/availability/exceptions/calendar/catalog parts).
 - `contextChanged` alone must **not** force full run (post granular-recalc fix).
 - Legacy plain fingerprint match upgrades storage without recalc (see pitfalls).
+- Checkpoints carry a meta envelope (`__planningRunMeta`) with revision, engine from/to, fingerprints, and phase (`running` → `validated` → cleared after commit). A checkpoint never advances the canonical workspace engine version by itself; only a successful validated snapshot save does. A `validated` checkpoint may resume commit without recomputing.
+- School packing cooperative path yields **inside** a school group (exact/beam/weekday loops), not only between schools.
 
 ### `needs_recalc`
 

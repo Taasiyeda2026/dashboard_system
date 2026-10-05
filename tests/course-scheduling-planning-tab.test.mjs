@@ -1890,18 +1890,29 @@ test('Planning Excel includes recommended dates, possible instructors and instru
 
 test('background planning keeps the workboard scroll stable instead of rerendering on every progress tick', async () => {
   const screen = await readFile(new URL('../frontend/src/screens/course-scheduling.js', import.meta.url), 'utf8');
-  const planningRunStart = screen.indexOf('const result = await buildDynamicCoursePlan({');
+  const planningSrc = await readFile(new URL('../frontend/src/screens/course-scheduling-planning.js', import.meta.url), 'utf8');
+  // Resume-validated commits skip rebuild; the live planning call may assign without `const`.
+  const planningRunStart = (() => {
+    const withConst = screen.indexOf('const result = await buildDynamicCoursePlan({');
+    if (withConst >= 0) return withConst;
+    return screen.indexOf('result = await buildDynamicCoursePlan({');
+  })();
+  assert.ok(planningRunStart >= 0, 'expected buildDynamicCoursePlan call inside the planning run');
   const planningRunEnd = (() => {
     const skipIdx = screen.indexOf('const skipEndReload =', planningRunStart);
     if (skipIdx >= 0) return skipIdx;
     return screen.indexOf('const freshEnd = await data.reloadPlanningSnapshot();', planningRunStart);
   })();
+  assert.ok(planningRunEnd > planningRunStart, 'expected planning-run end marker after buildDynamicCoursePlan');
   const planningRun = screen.slice(planningRunStart, planningRunEnd);
 
   assert.match(screen, /const rerenderPreservingWorkboardScroll = \(\) =>/);
   assert.match(screen, /listTop: Number\(list\?\.scrollTop\)/);
   assert.match(screen, /window\.scrollTo\(\{ top: Number\(saved\.windowY\), behavior: 'auto' \}\)/);
   assert.match(screen, /const updatePlanningStatusInPlace = \(\) =>/);
+  // Progress ticks patch the status strip in place; they must not rebuild the workboard.
+  assert.match(screen, /update: updatePlanningStatusInPlace/);
+  assert.match(screen, /rerender: rerenderPreservingWorkboardScroll/);
   assert.match(screen, /scheduleCoursePlanningStart\(\{/);
   assert.match(screen, /pending\.idleId = requestIdle\(run, \{ timeout: 600 \}\)/);
   const ownsRunStart = screen.indexOf('const ownsRun = () => (');
@@ -1912,9 +1923,21 @@ test('background planning keeps the workboard scroll stable instead of rerenderi
   assert.doesNotMatch(ownsRun, /state\.route === 'course-scheduling'/);
   assert.doesNotMatch(ownsRun, /schedulingScreenActive/);
   assert.doesNotMatch(ownsRun, /root\.isConnected/);
-  assert.match(planningRun, /onProgress: (?:async )?\(progress\) =>/);
+  assert.match(planningRun, /onProgress:\s*async\s*\(progress\)\s*=>/);
   assert.match(planningRun, /if \(runUiVisible\(\)\) run\.ui\?\.update\?\.\(\)/);
-  assert.doesNotMatch(planningRun, /rerender\(\)/);
+  assert.doesNotMatch(planningRun, /\brerender\(\)/);
+  assert.doesNotMatch(planningRun, /run\.ui\?\.rerender\?\.\(\)/);
+  // Cooperative packing yields through checkpoint/yieldControl, not onProgress,
+  // so inner search nodes cannot flood the status strip or force workboard rerenders.
+  assert.match(planningSrc, /optimizeSchoolDayPackingPassCooperatively/);
+  assert.match(planningSrc, /yieldEveryNodes/);
+  assert.match(planningSrc, /instrumentedCheckpoint|await checkpoint\(/);
+  const packingFnStart = planningSrc.indexOf('export async function optimizeSchoolDayPackingPassCooperatively');
+  const packingFnEnd = planningSrc.indexOf('\nexport ', packingFnStart + 1);
+  const packingFn = packingFnEnd > packingFnStart
+    ? planningSrc.slice(packingFnStart, packingFnEnd)
+    : planningSrc.slice(packingFnStart, packingFnStart + 8000);
+  assert.doesNotMatch(packingFn, /\bonProgress\b/);
 });
 
 test('travel-cache preload is memoized so repeated planning updates do not refetch thousands of rows', async () => {
@@ -1973,7 +1996,8 @@ test('screen does not force full planning solely because engine version or gener
   assert.match(source, /resolvePlanningContextChange/);
   assert.match(source, /unrecoverableGlobalContextChange/);
   assert.doesNotMatch(source, /text\(shared\.workspace\.engineVersion\) !== PLANNING_ENGINE_VERSION\s*\|\|\s*text\(shared\.workspace\.contextFingerprint\)/);
-  assert.match(source, /const fullRun = forceFull\s*\|\|\s*!shared\?\.workspace\s*\|\|\s*!existingRows\.length\s*\|\|\s*unrecoverableGlobalContextChange/);
+  assert.match(source, /resolvePlanningRunPlan\(/);
+  assert.match(source, /const fullRun = runPlan\.runType === PLANNING_RUN_TYPES\.FULL_MAINTENANCE/);
   assert.doesNotMatch(source, /fullRun =[^\n]*\|\|\s*contextChanged/);
   assert.doesNotMatch(source, /if \(contextChanged\) return \[\.\.\.currentIds\]/);
   assert.match(source, /התכנון כבר מעודכן/);

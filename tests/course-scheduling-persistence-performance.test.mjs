@@ -8,15 +8,19 @@ const migrationUrl = new URL('../supabase/migrations/20261004193000_optimize_pla
 
 test('local planning repairs do not upload whole-workspace checkpoints at every stage', async () => {
   const source = await readFile(screenUrl, 'utf8');
-  assert.match(source, /const persistServerCheckpoints = forceFull === true/);
+  assert.match(source, /const persistServerCheckpoints = runPlan\.persistServerCheckpoints === true/);
   assert.match(source, /if \(!persistServerCheckpoints\) return;[\s\S]*?saveSharedPlanningCheckpoint/);
   assert.match(source, /checkpointPayloadBytes/);
+  assert.match(source, /PLANNING_RUN_TYPES\.ENGINE_UPGRADE/);
+  assert.match(source, /PLANNING_RUN_TYPES\.NO_OP/);
 });
 
 test('ordinary incremental completion persists only affected or actually changed rows', async () => {
   const source = await readFile(screenUrl, 'utf8');
   assert.match(source, /saveSharedPlanningIncrementalSnapshot/);
-  assert.match(source, /const mandatoryIds = new Set\(affectedIds/);
+  // Engine-upgrade keeps mandatory writes on base/dirty ids only; upgrade
+  // optimization rows are persisted when they actually changed.
+  assert.match(source, /const mandatoryIds = new Set\(incrementalBaseIds\.map\(text\)\.filter\(Boolean\)\)/);
   assert.match(source, /canonicalPlanningJson\(previous\) !== canonicalPlanningJson\(row\)/);
   assert.match(source, /removedActivityIds/);
 });
@@ -30,12 +34,12 @@ test('planning store exposes incremental snapshot RPC', async () => {
 
 test('planning preflight does not load the bulk travel cache before deciding work is required', async () => {
   const source = await readFile(screenUrl, 'utf8');
-  const noOpBranch = source.indexOf('if (!fullRun && affectedIds.length === 0)');
+  const noOpBranch = source.indexOf("runPlan.runType === PLANNING_RUN_TYPES.NO_OP");
   const routeCacheLoad = source.indexOf('await loadSchedulingTravelCacheRows()', noOpBranch);
   assert.ok(noOpBranch >= 0);
   assert.ok(routeCacheLoad > noOpBranch);
   assert.doesNotMatch(source.slice(0, noOpBranch), /await loadSchedulingTravelCacheRows\(\)/);
-  assert.match(source, /const shouldPreloadRouteCache = forceFull === true/);
+  assert.match(source, /const shouldPreloadRouteCache = runPlan\.preloadRouteCache === true/);
   assert.match(source, /const routeCacheRows = shouldPreloadRouteCache[\s\S]*?\? await loadSchedulingTravelCacheRows\(\)[\s\S]*?: \[\]/);
 });
 

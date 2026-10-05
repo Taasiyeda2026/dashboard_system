@@ -4047,7 +4047,6 @@ export function optimizeSchoolDayPackingPass({
         || solution.cost + 0.1 < currentCost
       );
 
-    let staffConflictFallbackCount = 0;
     if (!solution && currentHasConflict) {
       const fallback = schoolPackingConflictFallback({
         group: originalGroup,
@@ -4058,7 +4057,6 @@ export function optimizeSchoolDayPackingPass({
         routeClient
       });
       moved += fallback.moved;
-      staffConflictFallbackCount = fallback.recruitmentCount;
     }
 
     if (shouldApply) {
@@ -4089,7 +4087,8 @@ export function optimizeSchoolDayPackingPass({
           diagnostics: {
             ...(row.diagnostics || {}),
             schoolDayPacking: true,
-            schoolFirstOptimized: true
+            schoolFirstOptimized: true,
+            ...(isRecruitment ? { schoolConflictFallback: true, staffBundleComplete: false } : {})
           }
         };
         const currentOption = schoolPackingCurrentOption(row);
@@ -4105,7 +4104,26 @@ export function optimizeSchoolDayPackingPass({
     const refreshed = buildSchoolPlanningGroups({ rows: [...rowsById.values()], activities })
       .find((group) => group.schoolId === originalGroup.schoolId) || originalGroup;
     const schoolPlanning = annotateSchoolPlanningGroup(refreshed, minimum, alternatives);
-    const staffBundleComplete = !(currentHasConflict && !solution) && staffConflictFallbackCount === 0;
+    // Outcome-based: a staff bundle is complete only when every school row kept an
+    // existing instructor. Path-based flags were overwritten by the recovery pass
+    // and incorrectly reported complete bundles that still required recruitment.
+    const schoolRowsAfter = [...rowsById.values()]
+      .filter((row) => text(row?.schoolId) === text(originalGroup.schoolId));
+    const staffConflictFallbackCount = schoolRowsAfter
+      .filter((row) => text(row?.kind) === 'recruitment')
+      .length;
+    const proposalRowsAfter = schoolRowsAfter.filter((row) => text(row?.kind) === 'proposal');
+    const hasOverlappingProposals = proposalRowsAfter.some((first, index) =>
+      proposalRowsAfter.slice(index + 1).some((second) => {
+        if (text(first?.instructorEmpId) !== text(second?.instructorEmpId) || !text(first?.instructorEmpId)) return false;
+        return schoolPackingChoicesOperationallyConflict(
+          { row: first, option: schoolPackingCurrentOption(first) },
+          { row: second, option: schoolPackingCurrentOption(second) },
+          { activityById, routeClient }
+        );
+      })
+    );
+    const staffBundleComplete = staffConflictFallbackCount === 0 && !hasOverlappingProposals;
     for (const row of refreshed.rows || []) {
       row.schoolPlanning = {
         ...(row.schoolPlanning || schoolPlanning),
@@ -4137,12 +4155,152 @@ export function optimizeSchoolDayPackingPass({
   return { moved, groups: groups.length };
 }
 
-// The exact school-bundle solver is intentionally synchronous because it is
-// also used by deterministic unit-level planning checks. In the browser, run
-// one school at a time with a bounded exact search and yield between schools.
-// When the bound is reached, only constraint-valid complete states are kept;
-// if none was found, solveSchoolPackingGroup uses its constraint-preserving
-// beam fallback. Hard dates, locks and conflicts are never relaxed for speed.
+// Sync solver remains available for deterministic unit checks. The browser path
+// uses the cooperative solver below so exact/beam/weekday loops can yield and
+// honour cancellation inside a single school group — not only between schools.
+async function solveSchoolPackingGroupCooperatively(group = {}, candidateDays = new Set(), beamWidth = 96, {
+  blockers = [],
+  activityById = new Map(),
+  routeClient = null,
+  maxExactNodes = 1000,
+  checkpoint = async () => {},
+  yieldEveryNodes = 32
+} = {}) {
+  const rows = [...(group.movableRows || [])]
+    .map((row) => ({
+      row,
+      options: schoolPackingOptions(row, candidateDays)
+        .sort((first, second) =>
+          schoolPackingBundleCost([{ row, option: first }], group)
+          - schoolPackingBundleCost([{ row, option: second }], group)
+        )
+    }))
+    .sort((a, b) => a.options.length - b.options.length || text(a.row.courseId).localeCompare(text(b.row.courseId)));
+  if (rows.some((item) => !item.options.length)) return null;
+
+  const blockersByInstructor = new Map();
+  for (const blocker of blockers) {
+    for (const empId of schoolPackingChoiceInstructorIds(blocker)) {
+      const bucket = blockersByInstructor.get(empId) || [];
+      bucket.push(blocker);
+      blockersByInstructor.set(empId, bucket);
+    }
+  }
+
+  const candidateFits = (choices, candidateChoice) => {
+    const relevantBlockers = new Set();
+    for (const empId of schoolPackingChoiceInstructorIds(candidateChoice)) {
+      for (const blocker of blockersByInstructor.get(empId) || []) relevantBlockers.add(blocker);
+    }
+    if ([...relevantBlockers].some((choice) =>
+      schoolPackingChoicesOperationallyConflict(choice, candidateChoice, { activityById, routeClient })
+    )) return false;
+    return !choices.some((choice) =>
+      schoolPackingChoicesOperationallyConflict(choice, candidateChoice, { activityById, routeClient })
+    );
+  };
+
+  const nodeBudget = Math.max(1, Number(yieldEveryNodes) || 32);
+  let nodesSinceYield = 0;
+  const maybeYield = async () => {
+    nodesSinceYield += 1;
+    if (nodesSinceYield >= nodeBudget) {
+      nodesSinceYield = 0;
+      await checkpoint();
+    }
+  };
+
+  if (rows.length <= 6) {
+    const complete = [];
+    const maxNodes = Math.max(500, Number(maxExactNodes) || 500000);
+    let visited = 0;
+    let exhausted = true;
+
+    const search = async (index, choices) => {
+      await maybeYield();
+      if (visited >= maxNodes) {
+        exhausted = false;
+        return;
+      }
+      visited += 1;
+      if (index >= rows.length) {
+        complete.push({
+          choices: [...choices],
+          cost: schoolPackingBundleCost(choices, group)
+        });
+        complete.sort((a, b) => a.cost - b.cost);
+        if (complete.length > 12) complete.length = 12;
+        return;
+      }
+
+      const item = rows[index];
+      for (const option of item.options) {
+        if (visited >= maxNodes) {
+          exhausted = false;
+          break;
+        }
+        const candidateChoice = { row: item.row, option };
+        if (!candidateFits(choices, candidateChoice)) continue;
+        await search(index + 1, [...choices, candidateChoice]);
+      }
+    };
+
+    await search(0, []);
+    if (complete.length) {
+      const alternatives = complete.slice(0, 3);
+      return {
+        ...alternatives[0],
+        alternatives,
+        searchMode: exhausted ? 'exact' : 'bounded-exact',
+        visitedNodes: visited
+      };
+    }
+  }
+
+  const width = Math.max(24, Number(beamWidth) || 96);
+  let beam = [{ choices: [], cost: 0 }];
+  for (const item of rows) {
+    await checkpoint();
+    const next = [];
+    for (const state of beam) {
+      for (const option of item.options) {
+        await maybeYield();
+        const candidateChoice = { row: item.row, option };
+        if (!candidateFits(state.choices, candidateChoice)) continue;
+        const choices = [...state.choices, candidateChoice];
+        next.push({ choices, cost: schoolPackingBundleCost(choices, group) });
+      }
+    }
+    beam = next.sort((a, b) => a.cost - b.cost).slice(0, width);
+    if (!beam.length) return null;
+  }
+
+  const alternatives = [];
+  const seen = new Set();
+  for (const state of beam.sort((a, b) => a.cost - b.cost)) {
+    const signature = state.choices
+      .map(({ row, option }) => `${text(row?.courseId)}:${text(option?.instructorEmpId)}:${planningMeetingsSignature(option?.meetings)}`)
+      .sort()
+      .join('|');
+    if (seen.has(signature)) continue;
+    seen.add(signature);
+    alternatives.push(state);
+    if (alternatives.length >= 3) break;
+  }
+  if (!alternatives.length) return null;
+  return {
+    ...alternatives[0],
+    alternatives,
+    searchMode: 'beam',
+    visitedNodes: 0
+  };
+}
+
+/**
+ * Browser school-packing entry point. Yields between weekday-set attempts and
+ * inside exact/beam search so a single dense school cannot monopolize the main
+ * thread. Deterministic search order matches the sync solver.
+ */
 export async function optimizeSchoolDayPackingPassCooperatively({
   rowsById,
   activities = [],
@@ -4150,30 +4308,220 @@ export async function optimizeSchoolDayPackingPassCooperatively({
   beamWidth = 96,
   routeClient = null,
   maxExactNodes = 1000,
-  checkpoint = async () => {}
+  checkpoint = async () => {},
+  yieldEveryNodes = 32,
+  _recoveryPass = false
 } = {}) {
   const targetIds = Array.isArray(targetCourseIds)
     ? new Set(targetCourseIds.map(text).filter(Boolean))
     : null;
+  const activityById = new Map((activities || []).map((activity) => [idOf(activity), activity]));
   const groups = buildSchoolPlanningGroups({ rows: [...(rowsById?.values?.() || [])], activities })
     .filter((group) => !targetIds || group.allCourseIds.some((courseId) => targetIds.has(text(courseId))));
   let moved = 0;
+  let longestSliceMs = 0;
+  let yieldCount = 0;
+  const nowMs = () => (typeof performance !== 'undefined' && typeof performance.now === 'function'
+    ? performance.now()
+    : Date.now());
+  let sliceStartedAt = nowMs();
+  const instrumentedCheckpoint = async (options = {}) => {
+    longestSliceMs = Math.max(longestSliceMs, Math.max(0, nowMs() - sliceStartedAt));
+    yieldCount += 1;
+    const result = await checkpoint(options);
+    sliceStartedAt = nowMs();
+    return result;
+  };
 
-  for (const group of groups) {
-    await checkpoint({ force: true });
-    const result = optimizeSchoolDayPackingPass({
-      rowsById,
-      activities,
-      targetCourseIds: group.allCourseIds,
-      beamWidth,
-      routeClient,
-      maxExactNodes
-    });
-    moved += Number(result?.moved) || 0;
-    await checkpoint({ force: true });
+  for (const originalGroup of groups) {
+    await instrumentedCheckpoint({ force: true });
+    const candidateDays = [...new Set([...originalGroup.anchorWeekdays, ...originalGroup.candidateWeekdays])].sort((a, b) => a - b);
+    const requiredDays = [...originalGroup.anchorWeekdays];
+    const optionalDays = candidateDays.filter((day) => !originalGroup.anchorWeekdays.has(day));
+    const groupCourseIds = new Set(originalGroup.allCourseIds.map(text));
+    const blockers = [
+      ...(originalGroup.anchors || []).map((row) => ({ row, option: schoolPackingCurrentOption(row) })).filter((choice) => choice.option),
+      ...[...rowsById.values()]
+        .filter((row) => !groupCourseIds.has(text(row?.courseId)))
+        .map((row) => ({ row, option: schoolPackingCurrentOption(row) }))
+        .filter((choice) => choice.option && text(choice.option?.instructorEmpId))
+    ];
+
+    let solution = null;
+    let minimum = null;
+    let sameSizeSolutions = [];
+
+    for (let size = requiredDays.length; size <= candidateDays.length; size += 1) {
+      await instrumentedCheckpoint();
+      const addCount = size - requiredDays.length;
+      const candidates = [];
+      for (const extra of weekdaySetCombinations(optionalDays, addCount)) {
+        await instrumentedCheckpoint();
+        const set = new Set([...requiredDays, ...extra]);
+        const solved = await solveSchoolPackingGroupCooperatively(originalGroup, set, beamWidth, {
+          blockers,
+          activityById,
+          routeClient,
+          maxExactNodes,
+          checkpoint: instrumentedCheckpoint,
+          yieldEveryNodes
+        });
+        if (!solved) continue;
+        for (const state of solved.alternatives || [solved]) candidates.push(state);
+      }
+      if (candidates.length) {
+        candidates.sort((a, b) => a.cost - b.cost);
+        sameSizeSolutions = candidates;
+        solution = candidates[0];
+        minimum = size;
+        break;
+      }
+    }
+
+    const alternatives = [];
+    const altSeen = new Set();
+    for (const state of sameSizeSolutions) {
+      const summary = schoolPackingAlternativeSummary(state, alternatives.length + 1);
+      const signature = summary.assignments
+        .map((item) => `${item.courseId}:${item.startDate}:${item.startTime}:${item.instructorEmpId}`)
+        .sort()
+        .join('|');
+      if (altSeen.has(signature)) continue;
+      altSeen.add(signature);
+      alternatives.push(summary);
+      if (alternatives.length >= 3) break;
+    }
+
+    const currentChoices = originalGroup.movableRows
+      .map((row) => ({ row, option: schoolPackingCurrentOption(row) }))
+      .filter((choice) => choice.option);
+    const currentHasConflict = currentChoices.some((choice, index) =>
+      currentChoices.slice(index + 1).some((other) =>
+        schoolPackingChoicesOperationallyConflict(choice, other, { activityById, routeClient })
+      )
+    );
+    const currentCost = currentChoices.length === originalGroup.movableRows.length && !currentHasConflict
+      ? schoolPackingBundleCost(currentChoices, originalGroup)
+      : Number.POSITIVE_INFINITY;
+    const shouldApply = !!solution
+      && minimum != null
+      && (
+        originalGroup.currentWeekdays.size > minimum
+        || solution.cost + 0.1 < currentCost
+      );
+
+    if (!solution && currentHasConflict) {
+      const fallback = schoolPackingConflictFallback({
+        group: originalGroup,
+        rowsById,
+        candidateDays,
+        blockers,
+        activityById,
+        routeClient
+      });
+      moved += fallback.moved;
+    }
+
+    if (shouldApply) {
+      for (const { row, option } of solution.choices) {
+        const isRecruitment = !text(option?.instructorEmpId);
+        const selectedSchedule = {
+          startDate: text(option.startDate || option.meetings?.[0]?.date),
+          endDate: text(option.endDate || option.meetings?.at?.(-1)?.date),
+          startTime: text(option.startTime || option.meetings?.[0]?.start_time),
+          endTime: text(option.endTime || option.meetings?.[0]?.end_time),
+          meetings: (option.meetings || []).map((meeting) => ({ ...meeting }))
+        };
+        const replacement = {
+          ...row,
+          kind: isRecruitment ? 'recruitment' : 'proposal',
+          status: isRecruitment ? 'נדרש גיוס' : 'מועד מומלץ לבית הספר',
+          instructorEmpId: isRecruitment ? '' : text(option.instructorEmpId),
+          instructorName: isRecruitment ? '' : text(option.instructorName),
+          ...selectedSchedule,
+          scheduleOptions: isRecruitment
+            ? [
+                selectedSchedule,
+                ...(row.scheduleOptions || []).filter((candidate) =>
+                  planningMeetingsSignature(candidate?.meetings) !== planningMeetingsSignature(selectedSchedule.meetings)
+                )
+              ]
+            : row.scheduleOptions,
+          diagnostics: {
+            ...(row.diagnostics || {}),
+            schoolDayPacking: true,
+            schoolFirstOptimized: true,
+            ...(isRecruitment ? { schoolConflictFallback: true, staffBundleComplete: false } : {})
+          }
+        };
+        const currentOption = schoolPackingCurrentOption(row);
+        const changed = text(currentOption?.instructorEmpId) !== text(replacement.instructorEmpId)
+          || planningMeetingsSignature(currentOption?.meetings) !== planningMeetingsSignature(replacement.meetings);
+        if (changed || isRecruitment) {
+          rowsById.set(text(row.courseId), replacement);
+        }
+        if (changed) moved += 1;
+      }
+    }
+
+    const refreshed = buildSchoolPlanningGroups({ rows: [...rowsById.values()], activities })
+      .find((group) => group.schoolId === originalGroup.schoolId) || originalGroup;
+    const schoolPlanning = annotateSchoolPlanningGroup(refreshed, minimum, alternatives);
+    const schoolRowsAfter = [...rowsById.values()]
+      .filter((row) => text(row?.schoolId) === text(originalGroup.schoolId));
+    const staffConflictFallbackCount = schoolRowsAfter
+      .filter((row) => text(row?.kind) === 'recruitment')
+      .length;
+    const proposalRowsAfter = schoolRowsAfter.filter((row) => text(row?.kind) === 'proposal');
+    const hasOverlappingProposals = proposalRowsAfter.some((first, index) =>
+      proposalRowsAfter.slice(index + 1).some((second) => {
+        if (text(first?.instructorEmpId) !== text(second?.instructorEmpId) || !text(first?.instructorEmpId)) return false;
+        return schoolPackingChoicesOperationallyConflict(
+          { row: first, option: schoolPackingCurrentOption(first) },
+          { row: second, option: schoolPackingCurrentOption(second) },
+          { activityById, routeClient }
+        );
+      })
+    );
+    const staffBundleComplete = staffConflictFallbackCount === 0 && !hasOverlappingProposals;
+    for (const row of refreshed.rows || []) {
+      row.schoolPlanning = {
+        ...(row.schoolPlanning || schoolPlanning),
+        staffBundleComplete,
+        staffConflictFallbackCount
+      };
+    }
+
+    await instrumentedCheckpoint({ force: true });
+  }
+  longestSliceMs = Math.max(longestSliceMs, Math.max(0, nowMs() - sliceStartedAt));
+
+  if (!_recoveryPass) {
+    const needsRecruitmentRecovery = [...rowsById.values()].some((row) =>
+      text(row?.kind) === 'recruitment'
+      && row?.diagnostics?.schoolConflictFallback === true
+      && [...(row?.packingOptions || []), ...(row?.options || [])]
+        .some((option) => text(option?.instructorEmpId))
+    );
+    if (needsRecruitmentRecovery) {
+      const recovery = await optimizeSchoolDayPackingPassCooperatively({
+        rowsById,
+        activities,
+        targetCourseIds,
+        beamWidth,
+        routeClient,
+        maxExactNodes,
+        checkpoint: instrumentedCheckpoint,
+        yieldEveryNodes,
+        _recoveryPass: true
+      });
+      moved += Number(recovery?.moved) || 0;
+      longestSliceMs = Math.max(longestSliceMs, Number(recovery?.longestSliceMs) || 0);
+      yieldCount += Number(recovery?.yieldCount) || 0;
+    }
   }
 
-  return { moved, groups: groups.length };
+  return { moved, groups: groups.length, longestSliceMs, yieldCount };
 }
 
 export function planningSchoolDayMetrics(rows = [], activities = []) {
