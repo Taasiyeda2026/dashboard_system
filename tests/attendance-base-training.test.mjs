@@ -58,7 +58,8 @@ test('attendance summary shows only supplemental meaningful details without repe
   assert.match(summarySource, /if \(km > 0\) addDetail\(details, 'ק״מ'/);
   assert.match(summarySource, /if \(usesPublicTransport\) addDetail\(details, 'תחבורה ציבורית', 'כן'\)/);
   assert.match(summarySource, /if \(expenses > 0\) addDetail\(details, 'הוצאות'/);
-  assert.match(reportsSource, /schoolCell\.textContent = baseTraining \? '—'/);
+  assert.match(reportsSource, /schoolCell\.textContent = locationOrSchoolForRecord\(record, baseTraining\)/);
+  assert.match(reportsSource, /return authority \|\| school \|\| 'Greenwork, יקום'/);
   assert.match(reportsSource, /authCell\.textContent = baseTraining \? '—'/);
 });
 

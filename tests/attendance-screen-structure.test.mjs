@@ -76,6 +76,9 @@ test('Attendance My Reports table has all required columns', () => {
   assert.match(reportsSource, /av2-rr__action-copy/);
   assert.match(reportsSource, /av2-rr__action-dup/);
   assert.match(reportsSource, /av2-rr__action-delete/);
+  assert.match(reportsSource, /'מיקום \/ בית ספר'/);
+  assert.match(reportsSource, /schoolCell\.textContent = locationOrSchoolForRecord\(record, baseTraining\)/);
+  assert.match(reportsSource, /return authority \|\| school \|\| 'Greenwork, יקום'/);
 });
 
 test('Attendance calendar day click opens the unified day drawer instead of filtering report rows', () => {
@@ -94,9 +97,14 @@ test('Attendance report actions and expenses use distinct accessible indicators'
   assert.match(reportsSource, /פירוט: \$\{expenseDetails\}/);
   assert.match(reportsSource, /void viewExpense\(record\)/);
   assert.match(reportsSource, /mt\.textContent = 'הוצאות'/);
+  assert.match(reportsSource, /av2-modal av2-modal--expense/);
+  assert.match(reportsSource, /av2-expense-modal__summary/);
+  assert.match(reportsSource, /av2-expense-modal__document/);
   assert.doesNotMatch(reportsSource, /const attachBtn = document\.createElement\('button'\)/);
   assert.match(reportsStyles, /\.av2-rr__expense-indicator:hover::after/);
   assert.match(reportsStyles, /content:\s*attr\(data-tooltip\)/);
+  assert.match(reportsStyles, /\.av2-modal--expense\s*\{[^}]*max-width:\s*420px/);
+  assert.match(reportsStyles, /\.av2-expense-modal__field\s*\{[^}]*grid-template-columns:\s*58px\s+minmax\(0,\s*1fr\)/);
 });
 
 test('shared Attendance time picker uses compact numeric placeholders and supports automatic values', () => {

@@ -96,7 +96,7 @@ function enhanceRow(row) {
   setMobileLabel(dayTotalCell, 'סה״כ יומי');
   setMobileLabel(typeCell, 'סוג פעילות');
   setMobileLabel(nameCell, 'שם הפעילות');
-  setMobileLabel(schoolCell, 'בית ספר');
+  setMobileLabel(schoolCell, 'מיקום / בית ספר');
   setMobileLabel(authorityCell, 'רשות');
   setMobileLabel(kmCell, 'ק״מ');
   setMobileLabel(expensesCell, 'הוצאות');
