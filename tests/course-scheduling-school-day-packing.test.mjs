@@ -49,18 +49,20 @@ test('browser packing yields between school groups while preserving packing resu
     }
   }
   let yields = 0;
+  let forcedYields = 0;
   const result = await optimizeSchoolDayPackingPassCooperatively({
     rowsById: rows,
     activities,
     maxExactNodes: 500,
     checkpoint: async ({ force } = {}) => {
-      assert.equal(force, true);
       yields += 1;
+      if (force === true) forcedYields += 1;
     }
   });
 
   assert.equal(result.groups, 2);
-  assert.ok(yields >= 4);
+  assert.ok(forcedYields >= 4, 'forced yields still bound school groups');
+  assert.ok(yields >= forcedYields, 'cooperative packing may also yield inside a school group');
   assert.equal(rows.get('yield-a-2').startDate, '2027-01-04');
   assert.equal(rows.get('yield-b-2').startDate, '2027-01-04');
 });

@@ -5,6 +5,10 @@ import {
   expectedPlanningMeetingCount
 } from './course-scheduling-date-adjustments.js';
 import { normalizeCalendarSector } from './shared/school-calendar-logic.js';
+import {
+  decodeCheckpointPayload,
+  encodeCheckpointRows
+} from './course-scheduling-run-plan.js';
 
 const text = (value) => String(value ?? '').trim();
 const idOf = (row) => text(row?.row_id || row?.RowID || row?.id);
@@ -378,7 +382,7 @@ export async function loadSharedPlanningCheckpoint({
   });
   if (error) throw error;
   if (!data) return null;
-  return {
+  return decodeCheckpointPayload({
     completedCount: Math.max(0, Number(data.completedCount) || 0),
     totalCount: Math.max(0, Number(data.totalCount) || 0),
     completedActivityIds: Array.isArray(data.completedActivityIds)
@@ -386,7 +390,7 @@ export async function loadSharedPlanningCheckpoint({
       : [],
     rows: Array.isArray(data.rows) ? data.rows : [],
     updatedAt: text(data.updatedAt)
-  };
+  });
 }
 
 export async function saveSharedPlanningCheckpoint({
@@ -398,8 +402,10 @@ export async function saveSharedPlanningCheckpoint({
   completedCount = 0,
   totalCount = 0,
   completedActivityIds = [],
-  rows = []
+  rows = [],
+  meta = null
 } = {}) {
+  const payloadRows = encodeCheckpointRows(rows, meta);
   const { data, error } = await supabase.rpc('save_scheduling_planning_checkpoint', {
     p_period_key: text(periodKey) || 'year',
     p_district: text(district),
@@ -409,7 +415,7 @@ export async function saveSharedPlanningCheckpoint({
     p_completed_count: Math.max(0, Number(completedCount) || 0),
     p_total_count: Math.max(0, Number(totalCount) || 0),
     p_completed_activity_ids: (completedActivityIds || []).map(text).filter(Boolean),
-    p_rows: Array.isArray(rows) ? rows : []
+    p_rows: payloadRows
   });
   if (error) throw error;
   return data || null;

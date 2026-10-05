@@ -342,14 +342,15 @@ test('test 6: context fingerprint change for one instructor does not imply fullR
 
 test('test 7/8/9 source contract: fullRun only for forceFull, missing workspace, empty rows, or unrecoverable global', async () => {
   const source = await readFile(new URL('../frontend/src/screens/course-scheduling.js', import.meta.url), 'utf8');
-  assert.match(source, /const fullRun = forceFull\s*\|\|\s*!shared\?\.workspace\s*\|\|\s*!existingRows\.length\s*\|\|\s*unrecoverableGlobalContextChange/);
+  assert.match(source, /resolvePlanningRunPlan\(/);
+  assert.match(source, /const fullRun = runPlan\.runType === PLANNING_RUN_TYPES\.FULL_MAINTENANCE/);
   assert.doesNotMatch(source, /fullRun =[^\n]*\|\|\s*contextChanged\b/);
   assert.doesNotMatch(source, /if \(contextChanged\) return \[\.\.\.currentIds\]/);
 });
 
 test('test 10: no affectedIds means no recalculation', async () => {
   const source = await readFile(new URL('../frontend/src/screens/course-scheduling.js', import.meta.url), 'utf8');
-  assert.match(source, /if \(!fullRun && affectedIds\.length === 0\)/);
+  assert.match(source, /runPlan\.runType === PLANNING_RUN_TYPES\.NO_OP/);
   assert.match(source, /התכנון כבר מעודכן/);
 
   const affectedIds = sharedPlanningAffectedCourseIds({
@@ -426,7 +427,25 @@ test('v22 to v23 engine upgrade targets only flexible proposals with a real same
 });
 
 test('unknown engine upgrade does not expand planning scope by itself', () => {
-  const affected = planningEngineUpgradeAffectedCourseIds({
+  // A same-major unknown patch string must not invent work.
+  const patchOnly = planningEngineUpgradeAffectedCourseIds({
+    shared: {
+      rows: [
+        planningEntry('stable', {
+          instructorEmpId: 'aline',
+          kind: 'proposal',
+          meetings: [{ date: '2026-11-02', start: '10:00', end: '11:30' }]
+        })
+      ]
+    },
+    storedEngineVersion: 'planning-v28-alpha',
+    currentEngineVersion: 'planning-v28-beta'
+  });
+  assert.deepEqual(patchOnly, []);
+
+  // Skipping many majors is a structural upgrade: unlocked proposal/recruitment
+  // rows are in scope so capabilities are not silently skipped.
+  const skippedMajors = planningEngineUpgradeAffectedCourseIds({
     shared: {
       rows: [
         planningEntry('stable', {
@@ -439,7 +458,7 @@ test('unknown engine upgrade does not expand planning scope by itself', () => {
     storedEngineVersion: 'planning-v20',
     currentEngineVersion: 'planning-v99'
   });
-  assert.deepEqual(affected, []);
+  assert.deepEqual(skippedMajors, ['stable']);
 });
 
 test('test 12: true unmappable global change allows full run', () => {

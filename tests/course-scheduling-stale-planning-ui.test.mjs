@@ -146,7 +146,8 @@ test('successful replacement row becomes actionable again without the stale snap
 test('explicit update remains incremental, screen entry stays passive, and point mutation auto-refresh remains enabled', () => {
   const source = readFileSync(new URL('../frontend/src/screens/course-scheduling.js', import.meta.url), 'utf8');
   assert.match(source, /targetCourseIds,[\s\S]*allowGlobalRepair: fullRun/);
-  assert.match(source, /const fullRun = forceFull[\s\S]*unrecoverableGlobalContextChange/);
+  assert.match(source, /resolvePlanningRunPlan\(/);
+  assert.match(source, /const fullRun = runPlan\.runType === PLANNING_RUN_TYPES\.FULL_MAINTENANCE/);
   assert.match(source, /Entering the screen only restores the shared plan\. Recalculation is always explicit\./);
   assert.match(source, /event\?\.detail\?\.autoRefresh !== true[\s\S]*scheduleBackgroundPlanning\(\{ forceFull: false, reuseSnapshot: true \}\)/);
 });
