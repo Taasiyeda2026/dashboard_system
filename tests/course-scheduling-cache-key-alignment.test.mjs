@@ -13,7 +13,7 @@ import {
   schoolEntityKey,
   translateSchedulingRouteError
 } from '../frontend/src/screens/course-scheduling-distance-build.js';
-import { calculateCandidateTravel, createRouteClient, activityPlace } from '../frontend/src/screens/course-scheduling-travel.js';
+import { adaptSinglePairRouteInvoke, calculateCandidateTravel, createRouteClient, activityPlace } from '../frontend/src/screens/course-scheduling-travel.js';
 import { preliminaryCourseCandidates } from '../frontend/src/screens/course-scheduling-engine.js';
 
 const edgeFunctionUrl = new URL('../supabase/functions/scheduling-route/index.ts', import.meta.url);
@@ -104,26 +104,33 @@ test('instructor→school cache hit uses canonical address and avoids a Google c
   const { activities } = enrichActivitiesWithSchoolAddresses([activity], schoolRows);
   assert.equal(activities[0].school_address, schoolAddress);
 
-  let googleCalls = 0;
-  const invoke = async ({ origin, destination }) => {
-    const resolved = resolveSinglePairFromTravelCache(cacheRows, origin, destination);
-    if (resolved.mapsCall) googleCalls += 1;
-    return { data: resolved, error: null };
-  };
-  const client = createRouteClient({ invoke });
+  const client = createRouteClient({
+    preloadedRows: [
+      ...cacheRows,
+      {
+        origin_key: schoolAddress.toLowerCase(),
+        destination_key: instructorAddress.toLowerCase(),
+        origin_address: schoolAddress,
+        destination_address: instructorAddress,
+        distance_km: 4.2,
+        duration_minutes: 11
+      }
+    ],
+    invoke: async () => {
+      throw new Error('cache hit should not invoke scheduling-route');
+    }
+  });
   const preliminary = [{
     course: activities[0],
     candidate: { instructor: { emp_id: '100', address: instructorAddress, active: 'yes', full_name: 'נועה' }, eligible: true, score: 80, missingProfileData: [], failures: [] }
   }];
   const routed = await calculateCandidateTravel(preliminary, activities, client);
 
-  assert.equal(client.requests.length, 1);
-  assert.equal(client.requests[0].destination, schoolAddress);
-  assert.notEqual(client.requests[0].destination, 'בית ספר א');
-  assert.equal(client.requests[0].origin, instructorAddress);
-  assert.equal(routed.cacheHits, 1);
+  assert.equal(client.batchInvokes, 0);
+  assert.equal(client.requests.length, 0);
+  assert.equal(routed.cacheHits, 2);
   assert.equal(routed.googleCalls, 0);
-  assert.equal(googleCalls, 0);
+  assert.equal(client.googleCalls, 0);
   assert.equal(routed.travel['course-1']['100'].home.distance_km, 4.2);
 });
 
@@ -149,23 +156,22 @@ test('dynamic route requests keep raw cache addresses but include school and aut
     failures: [],
     missingProfileData: []
   };
-  const payloads = [];
   const client = createRouteClient({
-    invoke: async (payload) => {
-      payloads.push(payload);
-      return { data: { calculated: true, cached: false, distance_km: 20, duration_minutes: 25 }, error: null };
-    }
+    invoke: adaptSinglePairRouteInvoke(async () => ({
+      data: { calculated: true, cached: false, distance_km: 20, duration_minutes: 25 },
+      error: null
+    }))
   });
 
   await calculateCandidateTravel([{ course: target, candidate }], [target], client);
 
-  const outbound = payloads.find((row) => row.origin === 'זית 6, מיתר' && row.destination === 'הרצל');
+  const outbound = client.requests.find((row) => row.origin === 'זית 6, מיתר' && row.destination === 'הרצל');
   assert.ok(outbound);
   assert.equal(outbound.destination_school_name, 'אחווה');
   assert.equal(outbound.destination_authority_name, 'דימונה');
   assert.equal(outbound.origin_school_name, '');
 
-  const returnLeg = payloads.find((row) => row.origin === 'הרצל' && row.destination === 'זית 6, מיתר');
+  const returnLeg = client.requests.find((row) => row.origin === 'הרצל' && row.destination === 'זית 6, מיתר');
   assert.ok(returnLeg);
   assert.equal(returnLeg.origin_school_name, 'אחווה');
   assert.equal(returnLeg.origin_authority_name, 'דימונה');
@@ -209,17 +215,16 @@ test('dynamic transition requests include context for both schools', async () =>
     failures: [],
     missingProfileData: []
   };
-  const payloads = [];
   const client = createRouteClient({
-    invoke: async (payload) => {
-      payloads.push(payload);
-      return { data: { calculated: true, cached: false, distance_km: 8, duration_minutes: 12 }, error: null };
-    }
+    invoke: adaptSinglePairRouteInvoke(async () => ({
+      data: { calculated: true, cached: false, distance_km: 8, duration_minutes: 12 },
+      error: null
+    }))
   });
 
   await calculateCandidateTravel([{ course: target, candidate }], [target, previous], client);
 
-  const transition = payloads.find((row) =>
+  const transition = client.requests.find((row) =>
     row.origin === 'דרך שמשון 1, באר שבע, 84100' && row.destination === 'הרצל'
   );
   assert.ok(transition);
@@ -278,7 +283,7 @@ test('school→school cache hit uses canonical addresses after enrichment', asyn
   ];
 
   let schoolSchoolGoogleCalls = 0;
-  const invoke = async ({ origin, destination }) => {
+  const invoke = adaptSinglePairRouteInvoke(async ({ origin, destination }) => {
     const resolved = resolveSinglePairFromTravelCache(cacheRows, origin, destination);
     const isSchoolSchoolPair = (
       (origin === pair.origin_address && destination === pair.destination_address)
@@ -291,7 +296,7 @@ test('school→school cache hit uses canonical addresses after enrichment', asyn
       data: { calculated: true, cached: true, distance_km: 9, duration_minutes: 20 },
       error: null
     };
-  };
+  });
   const client = createRouteClient({ invoke });
   const routed = await calculateCandidateTravel(preliminary, activities, client);
   const schoolSchoolRequest = client.requests.find((row) => (
