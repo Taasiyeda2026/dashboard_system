@@ -917,7 +917,7 @@ Deno.serve(async (req) => {
     let mailedAt = "";
     let mailError = "";
     const mailSuppressed = suppressEmail;
-    const sender = clean(currentUser?.auth_email || currentUser?.email).toLowerCase();
+    const sender = clean(Deno.env.get("MS_MAIL_SENDER")).toLowerCase();
     if (mailSuppressed) {
       console.info("[payroll-attendance-pdf-dispatch] email suppressed for PDF regeneration", {
         employeeId,
@@ -925,7 +925,7 @@ Deno.serve(async (req) => {
         managerPdfVersion: uploaded.version,
       });
     } else if (!sender) {
-      mailError = "approver_email_missing";
+      mailError = "mail_sender_not_configured";
     } else {
       try {
         const emailBody = [
