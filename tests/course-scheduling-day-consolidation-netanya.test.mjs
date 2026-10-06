@@ -18,7 +18,10 @@ const text = (value) => String(value ?? '').trim();
 test('school-day packing pass is available before instructor-day consolidation', () => {
   assert.equal(typeof optimizeSchoolDayPackingPass, 'function');
   const source = readFileSync(new URL('../frontend/src/screens/course-scheduling-planning.js', import.meta.url), 'utf8');
-  assert.ok(source.indexOf('optimizeSchoolDayPackingPass({') < source.indexOf('await consolidateInstructorWorkdaysPass({'));
+  const boundedOptimization = source.indexOf('const optimizationCheckpoint');
+  const schoolPacking = source.indexOf('optimizeSchoolDayPackingPassCooperatively({', boundedOptimization);
+  const workdayConsolidation = source.indexOf('consolidateInstructorWorkdaysPass({', schoolPacking);
+  assert.ok(boundedOptimization >= 0 && schoolPacking > boundedOptimization && workdayConsolidation > schoolPacking);
 });
 
 function netanyaRouteClient() {
