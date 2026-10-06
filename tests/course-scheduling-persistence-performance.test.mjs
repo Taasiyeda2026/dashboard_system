@@ -5,6 +5,7 @@ import { readFile } from 'node:fs/promises';
 const screenUrl = new URL('../frontend/src/screens/course-scheduling.js', import.meta.url);
 const storeUrl = new URL('../frontend/src/screens/course-scheduling-planning-store.js', import.meta.url);
 const migrationUrl = new URL('../supabase/migrations/20261004193000_optimize_planning_persistence.sql', import.meta.url);
+const checkpointCommitMigrationUrl = new URL('../supabase/migrations/20261006132323_commit_validated_planning_checkpoint.sql', import.meta.url);
 
 test('local planning repairs do not upload whole-workspace checkpoints at every stage', async () => {
   const source = await readFile(screenUrl, 'utf8');
@@ -30,6 +31,20 @@ test('planning store exposes incremental snapshot RPC', async () => {
   assert.match(source, /export async function saveSharedPlanningIncrementalSnapshot/);
   assert.match(source, /save_scheduling_planning_incremental_snapshot/);
   assert.match(source, /p_removed_activity_ids/);
+});
+
+test('validated full checkpoints commit in-database without re-uploading snapshot JSON', async () => {
+  const [screen, store, sql] = await Promise.all([
+    readFile(screenUrl, 'utf8'),
+    readFile(storeUrl, 'utf8'),
+    readFile(checkpointCommitMigrationUrl, 'utf8')
+  ]);
+  assert.match(store, /export async function commitSharedPlanningCheckpoint/);
+  assert.match(store, /commit_scheduling_planning_checkpoint/);
+  assert.match(screen, /let validatedCheckpointReady = resumeValidatedCommit === true/);
+  assert.match(screen, /fullRun && validatedCheckpointReady[\s\S]*?commitSharedPlanningCheckpoint/);
+  assert.match(sql, /from public\.scheduling_planning_checkpoint_rows r/);
+  assert.doesNotMatch(sql, /jsonb_array_elements/);
 });
 
 test('planning preflight precedes snapshots and bulk travel cache is preloaded only for full runs', async () => {

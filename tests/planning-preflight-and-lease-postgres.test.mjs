@@ -57,7 +57,7 @@ before(async () => {
   const v26=await sqlFile('../supabase/migrations/20261003170000_planning_v26_coherent_school_first.sql');
   const instructorHelperStart=v26.indexOf('create or replace function public.scheduling_planning_row_instructor_ids(');
   await client.query(v26.slice(instructorHelperStart,v26.indexOf('$$;',instructorHelperStart)+3));
-  for (const file of ['20260924145500_shared_incremental_course_planning.sql','20260926195500_planning_silent_checkpoints.sql','20261004193000_optimize_planning_persistence.sql','20261005193000_scheduling_planning_run_leases.sql','20261005234644_planning_preflight_and_fenced_runs.sql','20261006030853_prevent_planning_route_cache_self_invalidation.sql','20261006035447_tolerate_background_planning_heartbeats.sql']) {
+  for (const file of ['20260924145500_shared_incremental_course_planning.sql','20260926195500_planning_silent_checkpoints.sql','20261004193000_optimize_planning_persistence.sql','20261005193000_scheduling_planning_run_leases.sql','20261005234644_planning_preflight_and_fenced_runs.sql','20261006030853_prevent_planning_route_cache_self_invalidation.sql','20261006035447_tolerate_background_planning_heartbeats.sql','20261006132323_commit_validated_planning_checkpoint.sql']) {
     await client.query(await sqlFile('../supabase/migrations/'+file));
   }
   // Exercise the new epoch/commit fence with the deployed granular triggers.
@@ -189,6 +189,22 @@ test('PostgreSQL checkpoint chunks accumulate distinct rows, update deltas and r
   await assert.rejects(chunk([{courseId:'oversized',detail:'x'.repeat(1024*1024)}]),/chunk_too_large/);
   await client.query("select public.clear_scheduling_planning_checkpoint('year','center',$1,$2)",[runA,f.sourceRevision]);
   assert.equal(Number((await client.query('select count(*) n from public.scheduling_planning_checkpoint_rows')).rows[0].n),0);
+});
+
+test('PostgreSQL validated checkpoint commits directly and remains fenced by source/workspace revisions',async t=>{
+  if(!required(t))return;
+  await acquire();const f=await facts();
+  const meta={__planningRunMeta:true,sourceRevision:f.sourceRevision,workspaceRevision:f.workspace.revision,phase:'validated'};
+  const rows=[
+    {courseId:'one',kind:'proposal',schoolId:1,meetings:[{date:'2027-01-03'}]},
+    {courseId:'two',kind:'proposal',schoolId:2,meetings:[{date:'2027-01-10'}]}
+  ];
+  await client.query(`select public.save_scheduling_planning_checkpoint('year','center','future','data','context',2,2,'["one","two"]',$1,$2,$3)`,[JSON.stringify([meta,...rows]),runA,f.sourceRevision]);
+  const saved=(await client.query(`select public.commit_scheduling_planning_checkpoint('year','center','future','data','context',$1,$2,$3) value`,[f.workspace.revision,runA,f.sourceRevision])).rows[0].value;
+  assert.equal(saved.revision,f.workspace.revision+1);
+  const after=await facts();assert.equal(after.workspace.engineVersion,'future');assert.equal(after.workspace.validatedSourceRevision,f.sourceRevision);
+  assert.equal((await client.query("select row_data->>'kind' kind from public.scheduling_planning_rows where activity_id='one'")).rows[0].kind,'proposal');
+  await assert.rejects(client.query(`select public.commit_scheduling_planning_checkpoint('year','center','future','data','context',$1,$2,$3)`,[f.workspace.revision,runA,f.sourceRevision]),/revision_conflict/);
 });
 
 test('PostgreSQL permissions and missing fencing metadata fail closed',async t=>{

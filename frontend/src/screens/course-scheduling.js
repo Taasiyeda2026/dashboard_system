@@ -94,6 +94,7 @@ import {
 import {
   clearSharedPlanningWorkspace,
   clearSharedPlanningCheckpoint,
+  commitSharedPlanningCheckpoint,
   confirmSharedPlanningDraft,
   loadSharedPlanningCheckpoint,
   loadSharedPlanningWorkspace,
@@ -3286,8 +3287,10 @@ export const courseSchedulingScreen = {
         const endFingerprint = startFingerprint;
         const endContextStorage = startContextStorage;
         assertRunOwnership();
-        // Source is still valid → mark VALIDATED, then commit atomically.
-        if (persistServerCheckpoints && Array.isArray(result?.rows) && result.rows.length) {
+        // Source is still valid → mark VALIDATED, then commit atomically. A resumed
+        // VALIDATED checkpoint is already durable, so do not upload its ~1MB rows again.
+        let validatedCheckpointReady = resumeValidatedCommit === true;
+        if (!resumeValidatedCommit && persistServerCheckpoints && Array.isArray(result?.rows) && result.rows.length) {
           try {
             await saveSharedPlanningCheckpoint({
                     assertActive: assertRunOwnership,
@@ -3309,6 +3312,7 @@ export const courseSchedulingScreen = {
                 validatedAt: new Date().toISOString()
               }
             });
+            validatedCheckpointReady = true;
             state.courseSchedulingPlanningRunDiagnostics = {
               ...state.courseSchedulingPlanningRunDiagnostics,
               phase: PLANNING_RUN_PHASES.VALIDATED
@@ -3323,8 +3327,18 @@ export const courseSchedulingScreen = {
         const stopWorkspaceSave = planningPerfTimer('workspaceSave');
         const finalRows = result.rows || [];
         const commitExpectedRevision = Number(shared?.workspace?.revision) || 0;
-        const saved = fullRun
-          ? await saveSharedPlanningSnapshot({
+        const saved = fullRun && validatedCheckpointReady
+          ? await commitSharedPlanningCheckpoint({
+              runId: run.runId, sourceRevision: run.sourceRevision,
+              periodKey: scope.periodKey,
+              district: scope.district,
+              engineVersion: PLANNING_ENGINE_VERSION,
+              dataFingerprint: endFingerprint,
+              contextFingerprint: endContextStorage,
+              expectedRevision: commitExpectedRevision
+            })
+          : fullRun
+            ? await saveSharedPlanningSnapshot({
                   runId: run.runId, sourceRevision: run.sourceRevision,
               periodKey: scope.periodKey,
               district: scope.district,
@@ -3334,7 +3348,7 @@ export const courseSchedulingScreen = {
               rows: finalRows,
               activities: freshEnd.activities || [],
               expectedRevision: commitExpectedRevision
-            })
+              })
           : await (() => {
               const existingById = new Map(existingRows
                 .map((row) => [text(row?.courseId), row])
