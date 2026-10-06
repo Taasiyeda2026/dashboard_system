@@ -176,12 +176,13 @@ test('8 manager correction write-back clears prior review after successful save'
   assert.match(control, /set_manager_attendance_record_review|setManagerAttendanceRecordReview|clear.*review|record review/i);
 });
 
-test('payroll PDF dispatch sends from the authenticated approver and keeps email best-effort', () => {
+test('payroll PDF dispatch uses the centralized mail sender and keeps email best-effort', () => {
   assert.match(pdfHandler, /email delivery failed after PDF persistence/);
-  assert.match(pdfHandler, /mailSent: !mailError/);
+  assert.match(pdfHandler, /mailSent: !mailSuppressed && !mailError/);
   assert.match(pdfHandler, /reusedExistingPdf/);
-  assert.match(pdfHandler, /currentUser\?\.auth_email \|\| currentUser\?\.email/);
-  assert.doesNotMatch(pdfHandler, /MS_MAIL_SENDER/);
+  assert.match(pdfHandler, /Deno\.env\.get\("MS_MAIL_SENDER"\)/);
+  assert.match(pdfHandler, /const sender = clean\(Deno\.env\.get\("MS_MAIL_SENDER"\)\)\.toLowerCase\(\)/);
+  assert.doesNotMatch(pdfHandler, /const sender = clean\(currentUser\?\.auth_email \|\| currentUser\?\.email\)/);
 });
 
 test('manager PDF retry restores the original approver identity before sending email', () => {

@@ -6879,6 +6879,18 @@ export const api = {
     if (error) throw new Error(error.message || 'attendance_month_workflow_status_read_failed');
     return Array.isArray(data) ? data : [];
   },
+  adminAttendanceApprovedSnapshot: async ({ employee_id = '', month_key = '' } = {}) => {
+    assertPermission('view_attendance_control', 'attendance_control_forbidden');
+    const employeeId = String(employee_id || '').trim();
+    const monthKey = String(month_key || '').trim();
+    if (!employeeId || !monthKey) throw new Error('חסרים עובד או חודש להצגת הרשומות המאושרות.');
+    const { data, error } = await supabase.rpc('admin_get_attendance_approved_snapshot', {
+      p_employee_id: employeeId,
+      p_month_key: monthKey
+    });
+    if (error) throw new Error(error.message || 'admin_attendance_approved_snapshot_read_failed');
+    return Array.isArray(data) ? (data[0] || null) : (data || null);
+  },
   adminPendingAttendanceByMonth: async () => {
     assertPermission('view_attendance_control', 'attendance_control_forbidden');
     const { data, error } = await supabase.rpc('get_admin_pending_attendance_by_month');

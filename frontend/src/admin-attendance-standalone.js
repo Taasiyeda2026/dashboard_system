@@ -110,12 +110,28 @@ function ensureStyles() {
     .admin-attendance-actions button { border:1px solid var(--color-border,#dbe3ec); border-radius:8px; padding:6px 9px; background:var(--color-surface,#fff); color:var(--color-text,#172033); cursor:pointer; font:inherit; font-size:11px; white-space:nowrap; }
     .admin-attendance-actions button.is-primary { background:var(--color-primary,#2563eb); border-color:var(--color-primary,#2563eb); color:#fff; }
     .admin-attendance-actions button:disabled { opacity:.55; cursor:wait; }
+    .admin-attendance-preview-row > td { padding:0 10px 12px; background:#f8fafc; }
+    .admin-attendance-preview { border:1px solid #cbd5e1; border-radius:12px; padding:12px; background:#fff; }
+    .admin-attendance-preview__head { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:10px; }
+    .admin-attendance-preview__head strong { display:block; font-size:14px; }
+    .admin-attendance-preview__head small { display:block; margin-top:3px; color:var(--color-text-secondary,#64748b); font-size:11px; }
+    .admin-attendance-preview__summary { display:grid; grid-template-columns:repeat(6,minmax(105px,1fr)); gap:6px; margin-bottom:10px; }
+    .admin-attendance-preview__summary article { padding:7px 9px; border:1px solid #e2e8f0; border-radius:9px; background:#f8fafc; }
+    .admin-attendance-preview__summary span { display:block; color:#64748b; font-size:10px; }
+    .admin-attendance-preview__summary strong { display:block; margin-top:2px; font-size:13px; }
+    .admin-attendance-preview__table-wrap { overflow:auto; border:1px solid #e2e8f0; border-radius:9px; }
+    .admin-attendance-preview__table { width:100%; min-width:1180px; border-collapse:collapse; table-layout:auto; }
+    .admin-attendance-preview__table th,.admin-attendance-preview__table td { padding:6px 7px; border-bottom:1px solid #edf1f5; text-align:right; vertical-align:top; font-size:11px; line-height:1.35; }
+    .admin-attendance-preview__table th { position:sticky; top:0; background:#f8fafc; color:#475569; white-space:nowrap; }
+    .admin-attendance-preview__table tr:last-child td { border-bottom:0; }
+    .admin-attendance-preview__muted { color:#64748b; }
+    .admin-attendance-preview__empty { padding:14px; color:#64748b; text-align:center; font-size:12px; }
     .admin-attendance-message { margin:0 0 12px; padding:10px 12px; border-radius:10px; background:#ecfdf3; color:#166534; font-size:12px; }
     .admin-attendance-message.is-error { background:#fef2f2; color:#b91c1c; }
     .admin-attendance-loading,.admin-attendance-empty { border:1px solid var(--color-border,#dbe3ec); border-radius:14px; background:var(--color-surface,#fff); padding:28px; text-align:center; color:var(--color-text-secondary,#64748b); }
     .admin-management-tile[${PENDING_BADGE_ATTR}] .admin-management-tile__content small[data-admin-attendance-pending-label] { display:inline-flex; align-items:center; gap:6px; margin-top:2px; color:#9a3412; font-weight:700; }
     .admin-management-tile[${PENDING_BADGE_ATTR}] .admin-management-tile__pending-count { display:inline; min-width:0; height:auto; padding:0; border-radius:0; background:transparent; color:#9a3412; font-size:12px; font-weight:800; }
-    @media (max-width:900px) { .admin-attendance-standalone__summary-row { flex-direction:column; } .admin-attendance-standalone__summary { grid-template-columns:repeat(2,minmax(0,1fr)); } .admin-attendance-standalone__top { flex-direction:column; } }
+    @media (max-width:900px) { .admin-attendance-standalone__summary-row { flex-direction:column; } .admin-attendance-standalone__summary { grid-template-columns:repeat(2,minmax(0,1fr)); } .admin-attendance-standalone__top { flex-direction:column; } .admin-attendance-preview__summary { grid-template-columns:repeat(3,minmax(0,1fr)); } }
     @media (max-width:620px) { .admin-attendance-standalone__summary { grid-template-columns:1fr 1fr; gap:8px; } .admin-attendance-standalone__top h1 { font-size:22px; } }
   `;
   document.head.append(style);
@@ -314,13 +330,111 @@ function actionButtons(empId, workflowRow, finalApproval, monthKey, priorDispatc
     : '';
   const managerPdfUrl = text(workflowRow.manager_pdf_sharepoint_url);
   const finalPdfPath = text(finalApproval?.pdf_path);
+  const recordsButton = ['manager_approved', 'admin_approved', 'sent_to_payroll'].includes(status.raw)
+    ? `<button type="button" data-admin-attendance-records="${escapeHtml(empId)}" aria-expanded="false">צפייה ברשומות שאושרו</button>`
+    : '';
   const pdfButton = managerPdfUrl || finalPdfPath
-    ? `<button type="button" data-admin-attendance-pdf="${escapeHtml(empId)}">צפייה ב-PDF</button>`
+    ? `<button type="button" data-admin-attendance-pdf="${escapeHtml(empId)}">פתיחת PDF</button>`
     : (status.raw === 'manager_approved' ? '<span class="admin-attendance-status is-pending">PDF ממתין</span>' : '');
   const releaseButton = canApprove && ['submitted', 'manager_approved', 'admin_approved', 'sent_to_payroll'].includes(status.raw)
     ? `<button type="button" data-admin-attendance-release="${escapeHtml(empId)}">${status.raw === 'sent_to_payroll' ? 'פתח לעדכון' : 'שחרור נעילה'}</button>`
     : '';
-  return `<div class="admin-attendance-actions">${finalButton}${sendButton}${pdfButton}${releaseButton}</div>`;
+  return `<div class="admin-attendance-actions">${finalButton}${sendButton}${recordsButton}${pdfButton}${releaseButton}</div>`;
+}
+
+function approvedNumber(value) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function approvedUsesPublicTransport(row = {}) {
+  return row.publicTransport === true || row.publicTransport === 'true' || row.publicTransport === 1;
+}
+
+function approvedRowsChronological(rows = []) {
+  return (Array.isArray(rows) ? rows : [])
+    .map((row, index) => ({ row: row || {}, index }))
+    .sort((left, right) => {
+      const dateCompare = text(left.row.date).localeCompare(text(right.row.date));
+      if (dateCompare) return dateCompare;
+      const leftTime = text(left.row.startTime) || '99:99';
+      const rightTime = text(right.row.startTime) || '99:99';
+      return leftTime.localeCompare(rightTime) || left.index - right.index;
+    })
+    .map(({ row }) => row);
+}
+
+function approvedDate(value) {
+  const raw = text(value);
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(raw);
+  return match ? `${match[3]}/${match[2]}/${match[1]}` : (raw || '—');
+}
+
+function approvedMoney(value) {
+  return `₪${approvedNumber(value).toFixed(2)}`;
+}
+
+export function approvedSnapshotPreviewHtml(result = {}, employee = {}, monthKey = '') {
+  const snapshot = result?.approved_snapshot && typeof result.approved_snapshot === 'object'
+    ? result.approved_snapshot
+    : {};
+  const rows = approvedRowsChronological(snapshot.rows);
+  const totalHours = rows.reduce((sum, row) => sum + approvedNumber(row.workHours), 0);
+  const totalKm = rows.reduce((sum, row) => approvedUsesPublicTransport(row) ? sum : sum + approvedNumber(row.kilometers), 0);
+  const totalExpenses = rows.reduce((sum, row) => sum + approvedNumber(row.expenses), 0);
+  const publicTransportCost = rows.reduce((sum, row) => approvedUsesPublicTransport(row) ? sum + approvedNumber(row.publicTransportCost) : sum, 0);
+  const totalReimbursements = totalExpenses + publicTransportCost;
+  const employeeName = text(snapshot.employeeName || employee.full_name) || text(result.employee_id || employeeId(employee));
+  const managerName = text(snapshot.managerApprovalName || result.manager_approved_by_name) || 'לא צוין';
+  const approvedAtRaw = text(snapshot.managerApprovalAt || result.manager_approved_at);
+  const approvedAt = approvedAtRaw ? new Date(approvedAtRaw) : null;
+  const approvedAtText = approvedAt && !Number.isNaN(approvedAt.getTime())
+    ? approvedAt.toLocaleString('he-IL', { dateStyle: 'short', timeStyle: 'short' })
+    : approvedAtRaw;
+  const detailRows = rows.map((row, index) => {
+    const publicTransport = approvedUsesPublicTransport(row);
+    const travel = publicTransport
+      ? `תחבורה ציבורית · ${approvedMoney(row.publicTransportCost)}`
+      : (approvedNumber(row.kilometers) ? `${approvedNumber(row.kilometers).toFixed(1)} ק״מ` : '—');
+    const frame = [
+      text(row.program),
+      text(row.school),
+      text(row.authority),
+      text(row.meetingNo) ? `מפגש ${text(row.meetingNo)}` : ''
+    ].filter(Boolean).join(' · ') || '—';
+    const timeRange = text(row.startTime) || text(row.endTime)
+      ? `${text(row.startTime) || '—'}–${text(row.endTime) || '—'}`
+      : '—';
+    const expenseText = approvedNumber(row.expenses)
+      ? `${approvedMoney(row.expenses)}${text(row.expenseDetails) ? `<br><span class="admin-attendance-preview__muted">${escapeHtml(text(row.expenseDetails))}</span>` : ''}`
+      : (text(row.expenseDetails) ? escapeHtml(text(row.expenseDetails)) : '—');
+    return `<tr>
+      <td>${index + 1}</td>
+      <td>${escapeHtml(approvedDate(row.date))}</td>
+      <td>${escapeHtml(text(row.activityType) || '—')}</td>
+      <td>${escapeHtml(timeRange)}<br><span class="admin-attendance-preview__muted">${approvedNumber(row.workHours).toFixed(2)} שעות</span></td>
+      <td>${escapeHtml(frame)}</td>
+      <td>${escapeHtml(travel)}</td>
+      <td>${expenseText}</td>
+      <td>${escapeHtml(text(row.notes) || '—')}</td>
+      <td>${escapeHtml(text(row.attachmentsNames) || '—')}</td>
+    </tr>`;
+  }).join('');
+  return `<div class="admin-attendance-preview" data-admin-attendance-approved-preview>
+    <div class="admin-attendance-preview__head"><div><strong>הרשומות שאושרו למנהל — ${escapeHtml(employeeName)}</strong><small>חודש ${escapeHtml(text(snapshot.monthKey || monthKey))} · אושר על ידי ${escapeHtml(managerName)}${approvedAtText ? ` · ${escapeHtml(approvedAtText)}` : ''}</small></div><span class="admin-attendance-status is-ok">Snapshot מאושר</span></div>
+    <div class="admin-attendance-preview__summary">
+      <article><span>רשומות</span><strong>${rows.length}</strong></article>
+      <article><span>שעות מאושרות</span><strong>${totalHours.toFixed(2)}</strong></article>
+      <article><span>קילומטרים</span><strong>${totalKm.toFixed(1)}</strong></article>
+      <article><span>תחבורה ציבורית</span><strong>${approvedMoney(publicTransportCost)}</strong></article>
+      <article><span>הוצאות אחרות</span><strong>${approvedMoney(totalExpenses)}</strong></article>
+      <article><span>סה״כ החזרים</span><strong>${approvedMoney(totalReimbursements)}</strong></article>
+    </div>
+    <div class="admin-attendance-preview__table-wrap"><table class="admin-attendance-preview__table">
+      <thead><tr><th>#</th><th>תאריך</th><th>פעילות</th><th>שעות</th><th>תוכנית / מוסד / רשות</th><th>נסיעה</th><th>הוצאות ופירוט</th><th>הערות</th><th>אסמכתאות</th></tr></thead>
+      <tbody>${detailRows || '<tr><td colspan="9" class="admin-attendance-preview__empty">לא נמצאו רשומות בתוך ה-snapshot שאושר.</td></tr>'}</tbody>
+    </table></div>
+  </div>`;
 }
 
 function summaryHtml(employees, workflowByEmployee, finalByEmployee, dispatchByEmployee, monthKey) {
@@ -362,7 +476,7 @@ function groupsHtml(employees, workflowByEmployee, finalByEmployee, dispatchByEm
       const finalApproval = finalByEmployee.get(id) || null;
       const priorDispatch = dispatchByEmployee.get(id) || null;
       const status = workflowStatus(workflow, finalApproval, monthKey, priorDispatch);
-      return `<tr data-admin-attendance-row="${escapeHtml(id)}">
+      const mainRow = `<tr data-admin-attendance-row="${escapeHtml(id)}">
         <td class="admin-attendance-person"><strong>${escapeHtml(text(employee.full_name) || id)}</strong><small>${escapeHtml(id)}${text(employee.employment_type) ? ` · ${escapeHtml(text(employee.employment_type))}` : ''}</small></td>
         <td>${approvalCell('employee', workflow.submitted_by_name, workflow.submitted_at)}</td>
         <td>${approvalCell('manager', workflow.manager_approved_by_name, workflow.manager_approved_at)}</td>
@@ -370,6 +484,10 @@ function groupsHtml(employees, workflowByEmployee, finalByEmployee, dispatchByEm
         <td><span class="admin-attendance-status ${status.cls}">${escapeHtml(status.label)}</span></td>
         <td>${actionButtons(id, workflow, finalApproval, monthKey, priorDispatch)}</td>
       </tr>`;
+      const previewRow = ['manager_approved', 'admin_approved', 'sent_to_payroll'].includes(status.raw)
+        ? `<tr class="admin-attendance-preview-row" data-admin-attendance-preview-row="${escapeHtml(id)}" hidden><td colspan="6"><div class="admin-attendance-preview__empty">טוען את הרשומות שאושרו…</div></td></tr>`
+        : '';
+      return `${mainRow}${previewRow}`;
     }).join('');
     return `<section class="admin-attendance-team">
       <header class="admin-attendance-team__head"><h2>${escapeHtml(manager)}</h2><span>${rows.length} עובדים · ${escapeHtml(monthKey)}</span></header>
@@ -397,6 +515,7 @@ async function renderData(root, monthKey, message = '') {
   if (body) body.innerHTML = '<div class="admin-attendance-loading">טוען את כלל הצוותים וסטטוסי הנוכחות…</div>';
   setMessage(root, message, false);
   try {
+    const previousContext = root.__adminAttendanceContext || {};
     const employees = await loadEmployees();
     const ids = employees.map(employeeId).filter(Boolean);
     const [workflowRows, finalRows, dispatchRows] = await Promise.all([
@@ -414,7 +533,10 @@ async function renderData(root, monthKey, message = '') {
       const id = text(row.employee_id || row.employeeId);
       if (id && !dispatchByEmployee.has(id)) dispatchByEmployee.set(id, row);
     }
-    root.__adminAttendanceContext = { employees, workflowByEmployee, finalByEmployee, dispatchByEmployee, monthKey };
+    const approvedSnapshots = previousContext.monthKey === monthKey && previousContext.approvedSnapshots instanceof Map
+      ? previousContext.approvedSnapshots
+      : new Map();
+    root.__adminAttendanceContext = { employees, workflowByEmployee, finalByEmployee, dispatchByEmployee, approvedSnapshots, monthKey };
     const modeEl = root.querySelector('[data-admin-attendance-mode]');
     if (modeEl) modeEl.textContent = monthMode(monthKey).label;
     if (body) body.innerHTML = employees.length
@@ -425,6 +547,44 @@ async function renderData(root, monthKey, message = '') {
     if (body) body.innerHTML = '<div class="admin-attendance-empty">לא ניתן לטעון את בקרת הנוכחות כרגע.</div>';
     setMessage(root, error?.message || 'טעינת בקרת הנוכחות נכשלה.', true);
   }
+}
+
+async function toggleApprovedSnapshot(root, button, empId) {
+  const context = root.__adminAttendanceContext || {};
+  const row = root.querySelector(`[data-admin-attendance-preview-row="${CSS.escape(empId)}"]`);
+  if (!row) return;
+  if (!row.hidden) {
+    row.hidden = true;
+    button.setAttribute('aria-expanded', 'false');
+    return;
+  }
+  root.querySelectorAll('[data-admin-attendance-preview-row]').forEach((candidate) => { candidate.hidden = true; });
+  root.querySelectorAll('[data-admin-attendance-records]').forEach((candidate) => candidate.setAttribute('aria-expanded', 'false'));
+  row.hidden = false;
+  button.setAttribute('aria-expanded', 'true');
+  const cell = row.querySelector('td');
+  const cache = context.approvedSnapshots instanceof Map ? context.approvedSnapshots : new Map();
+  context.approvedSnapshots = cache;
+  let result = cache.get(empId);
+  if (!result) {
+    if (cell) cell.innerHTML = '<div class="admin-attendance-preview__empty">טוען את ה-snapshot שאושר על ידי המנהל…</div>';
+    button.disabled = true;
+    const originalLabel = button.textContent;
+    button.textContent = 'טוען…';
+    try {
+      result = await api.adminAttendanceApprovedSnapshot({ employee_id: empId, month_key: context.monthKey });
+      if (!result) throw new Error('לא נמצא snapshot מאושר לעובד ולחודש שנבחרו.');
+      cache.set(empId, result);
+    } catch (error) {
+      if (cell) cell.innerHTML = `<div class="admin-attendance-preview__empty">${escapeHtml(error?.message || 'טעינת הרשומות המאושרות נכשלה.')}</div>`;
+      return;
+    } finally {
+      button.disabled = false;
+      button.textContent = originalLabel;
+    }
+  }
+  const employee = (context.employees || []).find((item) => employeeId(item) === empId) || {};
+  if (cell) cell.innerHTML = approvedSnapshotPreviewHtml(result, employee, context.monthKey);
 }
 
 async function openPdf(root, empId) {
@@ -458,6 +618,11 @@ async function handleAction(button, root) {
   const sendPayrollEmpId = text(button.dataset.adminAttendanceSendPayroll);
   const releaseEmpId = text(button.dataset.adminAttendanceRelease);
   const pdfEmpId = text(button.dataset.adminAttendancePdf);
+  const recordsEmpId = text(button.dataset.adminAttendanceRecords);
+  if (recordsEmpId) {
+    try { await toggleApprovedSnapshot(root, button, recordsEmpId); } catch (error) { setMessage(root, error?.message || 'טעינת הרשומות המאושרות נכשלה.', true); }
+    return;
+  }
   if (pdfEmpId) {
     try { await openPdf(root, pdfEmpId); } catch (error) { setMessage(root, error?.message || 'פתיחת ה-PDF נכשלה.', true); }
     return;
@@ -729,7 +894,7 @@ function handleClick(event) {
     void handleBatchPayroll(root);
     return;
   }
-  const action = target.closest('[data-admin-attendance-final], [data-admin-attendance-send-payroll], [data-admin-attendance-release], [data-admin-attendance-pdf]');
+  const action = target.closest('[data-admin-attendance-final], [data-admin-attendance-send-payroll], [data-admin-attendance-release], [data-admin-attendance-records], [data-admin-attendance-pdf]');
   if (action) void handleAction(action, root);
 }
 
