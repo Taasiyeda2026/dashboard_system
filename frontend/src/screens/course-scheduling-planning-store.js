@@ -658,7 +658,9 @@ export async function clearSharedPlanningWorkspace({
 }
 
 export function planningStoreErrorMessage(error, fallback = 'שמירת התכנון נכשלה') {
-  const raw = text(error?.message || error);
+  const code = text(error?.code);
+  const message = text(error?.message || error);
+  const raw = code ? `${code}|${message}` : message;
   if (raw.includes('planning_final_validation_failed')) {
     const failure = Array.isArray(error?.failures) ? error.failures[0] : null;
     const reasonLabels = {
