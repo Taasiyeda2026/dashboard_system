@@ -36,10 +36,11 @@ export function planningLeaseWaitMessage(lease = {}, now = Date.now()) {
   return `תכנון זה כבר רץ במקביל עבור אותו מחוז/תקופה. ניתן לבדוק שוב ${wait}.`;
 }
 
-// Serialize heartbeats and treat a failed renewal as loss of ownership. The DB
-// additionally fences every write, so a suspended tab cannot commit on waking.
+// Serialize heartbeats and treat an authoritative rejected renewal as loss of
+// ownership. Transport timeouts are retryable because the DB fences every
+// checkpoint/commit by run_id + expires_at, including after a suspended tab wakes.
 export function startPlanningLeaseHeartbeat({ renew, onLost, intervalMs = PLANNING_LEASE_HEARTBEAT_MS,
-  setTimer = setInterval, clearTimer = clearInterval, timeoutMs = 10_000 }) {
+  setTimer = setInterval, clearTimer = clearInterval, timeoutMs = 10_000, onTransient = () => {} }) {
   let stopped = false;
   let inFlight = null;
   let timeout = null;
@@ -54,7 +55,18 @@ export function startPlanningLeaseHeartbeat({ renew, onLost, intervalMs = PLANNI
       planningPerfEvent('lease-heartbeat', { expiresAt: result.expires_at });
       return result;
     }).catch(error => {
-      if (!stopped) onLost(error instanceof PlanningLeaseLostError ? error : new PlanningLeaseLostError());
+      if (stopped) return null;
+      if (error instanceof PlanningLeaseLostError && error.message !== 'heartbeat_timeout') {
+        onLost(error);
+        return null;
+      }
+      // A background Chromium tab can defer promise/timer continuations well
+      // beyond the nominal timeout even when PostgREST already returned 200.
+      // Treat transport/time-budget failures as transient: the DB remains the
+      // authority and fences every checkpoint/commit by run_id + expires_at.
+      // A later authoritative {ok:false} renewal, or a fenced write, ends the run.
+      planningPerfEvent('lease-heartbeat-transient', { reason: String(error?.message || error || 'transport') });
+      onTransient(error);
       return null;
     }).finally(() => { clearTimeout(timeout); inFlight = null; });
     return inFlight;

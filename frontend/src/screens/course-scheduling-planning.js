@@ -86,6 +86,25 @@ const FAST_PLANNING_LIMITS = Object.freeze({
   maxFinalOptions: 3,
   runGlobalRepair: false
 });
+export const FAST_RESCUE_BUDGET_MS = 12_000;
+class PlanningRescueBudgetExceededError extends Error {
+  constructor() {
+    super('planning_rescue_budget_exceeded');
+    this.code = 'planning_rescue_budget_exceeded';
+  }
+}
+
+export function createPlanningDeadlineCheckpoint({
+  checkpoint = async () => {},
+  budgetMs = FAST_RESCUE_BUDGET_MS,
+  now = () => (typeof performance !== 'undefined' && typeof performance.now === 'function' ? performance.now() : Date.now())
+} = {}) {
+  const deadline = now() + Math.max(0, Number(budgetMs) || 0);
+  return async (...args) => {
+    await checkpoint(...args);
+    if (now() >= deadline) throw new PlanningRescueBudgetExceededError();
+  };
+}
 const DEEP_PLANNING_LIMITS = Object.freeze({
   maxScenarios: MAX_SCENARIOS_PER_COURSE,
   maxCandidatesPerScenario: MAX_CANDIDATES_PER_SCENARIO,
@@ -5803,47 +5822,64 @@ export async function buildDynamicCoursePlan({
           && evaluation.recruitmentNeeded === true
         ) {
           await report('מיצוי צוות קיים לפני גיוס', completed, queue.length, idOf(activity));
-          const deepGenerated = await generatePlanningScenariosCooperatively({
-            activity,
-            catalog,
-            instructors,
-            rules,
-            profiles,
-            activities: candidateContext,
-            schoolCalendar,
-            today,
-            periodKey: activityPeriodKey,
-            maxScenarios: DEEP_PLANNING_LIMITS.maxScenarios,
-            routeClient
-          }, checkpoint);
-          if (deepGenerated.spec.complete) {
-            const deepEvaluation = await evaluateScenarioOptions({
+          const rescueCheckpoint = createPlanningDeadlineCheckpoint({ checkpoint });
+          let rescueBudgetExceeded = false;
+          try {
+            const deepGenerated = await generatePlanningScenariosCooperatively({
               activity,
-              scenarios: deepGenerated.scenarios,
-              startRange: deepGenerated.startRange,
-              contextActivities: candidateContext,
+              catalog,
               instructors,
-              profiles,
               rules,
-              exceptions,
+              profiles,
+              activities: candidateContext,
               schoolCalendar,
               today,
-              routeClient,
-              checkpoint,
-              signal,
               periodKey: activityPeriodKey,
-              preparedContext: candidatePreparedContext,
-              travelContext: candidateTravelContext,
-              limits: DEEP_PLANNING_LIMITS,
-              packingCoverage: schoolPackingCoverageCourseIds.has(idOf(activity))
-            });
+              maxScenarios: DEEP_PLANNING_LIMITS.maxScenarios,
+              routeClient
+            }, rescueCheckpoint);
+            if (deepGenerated.spec.complete) {
+              const deepEvaluation = await evaluateScenarioOptions({
+                activity,
+                scenarios: deepGenerated.scenarios,
+                startRange: deepGenerated.startRange,
+                contextActivities: candidateContext,
+                instructors,
+                profiles,
+                rules,
+                exceptions,
+                schoolCalendar,
+                today,
+                routeClient,
+                checkpoint: rescueCheckpoint,
+                signal,
+                periodKey: activityPeriodKey,
+                preparedContext: candidatePreparedContext,
+                travelContext: candidateTravelContext,
+                limits: DEEP_PLANNING_LIMITS,
+                packingCoverage: schoolPackingCoverageCourseIds.has(idOf(activity))
+              });
+              evaluation = {
+                ...deepEvaluation,
+                rescuePass: true,
+                fastPreliminaryCount: Number(evaluation.preliminaryCount) || 0,
+                fastRoutedAttemptCount: Number(evaluation.routedAttemptCount) || 0
+              };
+              effectiveGenerated = deepGenerated;
+            }
+          } catch (error) {
+            if (error?.code !== 'planning_rescue_budget_exceeded') throw error;
+            rescueBudgetExceeded = true;
+            planningPerfCount('rescueBudgetExceeded');
+          }
+          if (rescueBudgetExceeded) {
             evaluation = {
-              ...deepEvaluation,
+              ...evaluation,
               rescuePass: true,
+              rescueBudgetExceeded: true,
               fastPreliminaryCount: Number(evaluation.preliminaryCount) || 0,
               fastRoutedAttemptCount: Number(evaluation.routedAttemptCount) || 0
             };
-            effectiveGenerated = deepGenerated;
           }
         }
 

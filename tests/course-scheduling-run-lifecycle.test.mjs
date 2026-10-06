@@ -18,8 +18,15 @@ import {
 } from '../frontend/src/screens/course-scheduling-planning.js';
 import {
   planningEngineUpgradeExecutionScopes,
-  planningEngineUpgradeOptimizationScopes
+  planningEngineUpgradeOptimizationScopes,
+  planningStoreErrorMessage
 } from '../frontend/src/screens/course-scheduling-planning-store.js';
+
+test('lease-loss errors never leak the internal planning_cancelled message', () => {
+  const leaseLost = Object.assign(new Error('lease_missing'), { code: 'planning_run_ownership_lost' });
+  assert.match(planningStoreErrorMessage(leaseLost, 'חישוב התכנון נכשל'), /איבדה בעלות/);
+  assert.equal(planningStoreErrorMessage(new Error('other_failure'), 'חישוב התכנון נכשל'), 'חישוב התכנון נכשל: other_failure');
+});
 
 const option = (emp, date, start, end) => ({
   instructorEmpId: emp,
